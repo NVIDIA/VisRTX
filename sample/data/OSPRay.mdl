@@ -1,0 +1,621 @@
+/*
+ * Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *  * Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *  * Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *  * Neither the name of NVIDIA CORPORATION nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+ // MDL materials offering similar functionality and interface as the OSPRay materials
+
+mdl 1.4;
+
+import df::*;
+import tex::*;
+import math::*;
+import state::*;
+import anno::*;
+
+// example for simple texturing functions
+export float texlookup_float(uniform texture_2d tex)
+{
+    return tex::lookup_float(tex, float2(state::texture_coordinate(0).x, state::texture_coordinate(0).y));
+}
+export color texlookup_color(uniform texture_2d tex)
+{
+    return tex::lookup_color(tex, float2(state::texture_coordinate(0).x, state::texture_coordinate(0).y));
+}
+export float4 texlookup_float4(uniform texture_2d tex)
+{
+    return tex::lookup_float4(tex, float2(state::texture_coordinate(0).x, state::texture_coordinate(0).y));
+}
+export float3 texlookup_normal(uniform texture_2d tex)
+{
+    float3 val = tex::lookup_float3(tex, float2(state::texture_coordinate(0).x, state::texture_coordinate(0).y)) * 2.0f - 1.0f;
+
+    float3 tu = state::texture_tangent_u(0);
+    float3 tv = state::texture_tangent_v(0);
+    //!! TODO: should transform tangents here, too...
+
+    return math::normalize(tu * val.x + tv * val.y + state::normal() * val.z);
+}
+
+export float4 make_float4(uniform color v)
+{
+    float3 tmp(v);
+    return float4(tmp.x, tmp.y, tmp.z, 1.0f);
+}
+
+
+// materials
+export material OBJMaterial(
+    uniform color Kd = color(0.8f),
+    uniform texture_2d map_Kd = texture_2d(),
+    uniform color Ks = color(0.0f),
+    uniform texture_2d map_Ks = texture_2d(),
+    uniform float Ns = 10.0f,
+    uniform texture_2d map_Ns = texture_2d(),
+    uniform float d = 1.0f,
+    uniform texture_2d map_d = texture_2d(),
+    uniform color Tf = color(0.0f),
+    uniform texture_2d map_Bump = texture_2d())
+    = let{
+        float4 diff_alpha = tex::texture_isvalid(map_Kd) ? texlookup_float4(map_Kd) : make_float4(Kd);
+        color diff = color(diff_alpha.x, diff_alpha.y, diff_alpha.z);
+        float alpha = diff_alpha.w;
+        color spec = tex::texture_isvalid(map_Ks) ? texlookup_color(map_Ks) : Ks;
+        float specExp = tex::texture_isvalid(map_Ns) ? texlookup_float(map_Ns) : Ns;
+        float max_sum = math::max_value(diff + spec + Tf);
+        float w = max_sum > 1.0f ? 1.0f / max_sum : 1.0f;
+} in material(
+    surface: material_surface(
+        scattering : df::color_normalized_mix(
+            df::color_bsdf_component[](
+                df::color_bsdf_component(weight: w * diff, component : df::diffuse_reflection_bsdf()),
+                df::color_bsdf_component(weight: w * spec, component : df::simple_glossy_bsdf(mode : df::scatter_reflect, roughness_u : math::sqrt(2.0 / specExp))),
+                df::color_bsdf_component(weight: w * Tf, component : df::specular_bsdf(mode : df::scatter_reflect_transmit))
+                )
+        )
+    ),
+    thin_walled: true,
+    ior : color(1.0f),
+    geometry : material_geometry(
+        normal : tex::texture_isvalid(map_Bump) ? texlookup_normal(map_Bump) : state::normal(),
+        cutout_opacity : alpha * (tex::texture_isvalid(map_d) ? texlookup_float(map_d) : d)
+    )
+);
+
+
+//
+// flake noise utilities
+//
+int hash(int seed, int i)
+{
+    return (i ^ seed) * 1075385539;
+}
+int rnd_init(int3 pos)
+{
+    return hash(hash(hash(0, pos.x), pos.y), pos.z);
+}
+
+int rnd_next(int seed) {
+    // xorshift32 using signed int
+    seed ^= seed << 13;
+    seed ^= seed >>> 17;
+    seed ^= seed << 5;
+    return seed;
+}
+
+float rnd_value(int seed)
+{
+    return math::abs(float(seed) * 4.6566e-10f);
+}
+
+// apply random rotation (using "Fast Random Rotation Matrices" by James Arvo)
+float3 rotate_pos(float3 pos, float3 xi)
+{
+    float theta = math::PI * 2.0f * xi.x;
+    float phi = math::PI * 2.0f * xi.y;
+    float z = xi.z * 2.0f;
+
+    float r = math::sqrt(z);
+    float[2] sp_cp = math::sincos(phi);
+    float Vx = sp_cp[0] * r;
+    float Vy = sp_cp[1] * r;
+    float Vz = math::sqrt(2.0f - z);
+
+    float[2] st_ct = math::sincos(theta);
+    float Sx = Vx * st_ct[1] - Vy * st_ct[0];
+    float Sy = Vx * st_ct[0] + Vy * st_ct[1];
+
+    float3x3 M(
+        Vx * Sx - st_ct[1], Vx * Sy - st_ct[0], Vx * Vz,
+        Vy * Sx + st_ct[0], Vy * Sy - st_ct[1], Vy * Vz,
+        Vz * Sx, Vz * Sy, 1.0f - z);
+
+    return M * pos;
+}
+
+struct flake_noise_value {
+    // flake priority (in [0..1], 0: no flake, flakes with higher priority shadow flakes "below" them)
+    float priority;
+
+    // current pseudo random number generator seed
+    int   rnd_seed;
+};
+
+// flake noise function with controllable regularity, flake size, and probability
+flake_noise_value flake_noise(
+    float3 pos,
+    float jitter_scale = 1.0f,
+    float flake_diameter = 0.75f,
+    float flake_probability = 1.0f)
+{
+    float3 base_pos = math::floor(pos);
+    int3 base_pos_i = int3(base_pos);
+
+    // limit the flake size to the allowed maximum (such that looking at all neighbors is sufficient)
+    flake_diameter = math::min(flake_diameter, (1.5f - 0.5f * jitter_scale) / math::sqrt(3.0f));
+
+    flake_noise_value val(0.0f, 0);
+
+    for (int i = -1; i < 2; ++i) {
+        for (int j = -1; j < 2; ++j) {
+            for (int k = -1; k < 2; ++k) {
+
+                int seed = rnd_init(base_pos_i + int3(i, j, k));
+
+                seed = rnd_next(seed);
+                if (rnd_value(seed) > flake_probability)
+                    continue;
+
+                seed = rnd_next(seed);
+                float priority = rnd_value(seed);
+                if (priority < val.priority)
+                    continue;
+
+                float3 flake_pos = base_pos + float3(i, j, k) + float3(0.5f);
+
+                if (jitter_scale > 0.0f) {
+                    seed = rnd_next(seed);
+                    flake_pos.x += (rnd_value(seed) - 0.5f) * jitter_scale;
+                    seed = rnd_next(seed);
+                    flake_pos.y += (rnd_value(seed) - 0.5f) * jitter_scale;
+                    seed = rnd_next(seed);
+                    flake_pos.z += (rnd_value(seed) - 0.5f) * jitter_scale;
+                }
+
+                float3 p = pos - flake_pos;
+                if (math::dot(p, p) >= flake_diameter * flake_diameter * 4.0f)
+                    continue;
+
+                float3 xi_rot;
+                seed = rnd_next(seed);
+                xi_rot.x = rnd_value(seed);
+                seed = rnd_next(seed);
+                xi_rot.y = rnd_value(seed);
+                seed = rnd_next(seed);
+                xi_rot.z = rnd_value(seed);
+                p = rotate_pos(p, xi_rot);
+
+                if (math::abs(p.x) <= flake_diameter &&
+                    math::abs(p.y) <= flake_diameter &&
+                    math::abs(p.z) <= flake_diameter)
+                {
+                    val.priority = priority;
+                    val.rnd_seed = seed;
+                }
+            }
+        }
+    }
+
+    return val;
+}
+
+
+// constants for numerical fitted curve to observed flake noise density behavior
+// 1. no jitter, maximum flake diameter
+const float4 ABCD = float4(-26.19771808f, 26.39663835f, 85.53857017f, -102.35069432f);
+const float2 EF = float2(-101.42634862f, 118.45082288f);
+// 2. jitter scale of 0.5f, maximum flake diameter
+const float4 ABCD_J = float4(-0.87962159f, 0.91006603f, 0.76088203f, -0.24953308f);
+const float2 EF_J = float2(-3.11456809f, 2.63430594f);
+// compute a flake probability for a given flake coverage density x
+float density_to_probability(
+    float4 abcd,
+    float2 ef,
+    float x)
+{
+    float xx = x * x;
+    return (abcd.x * xx + abcd.y * x) / (abcd.z * xx * x + abcd.w * xx + ef.x * x + ef.y);
+}
+
+// statistically controlled (area/volume coverage density) flake noise 
+flake_noise_value flake_noise(
+    float3 position,
+    float density = 0.5f,
+    bool jittered = false) // jittered: slightly slower and slightly less uniform
+{
+    float probability = density_to_probability(jittered ? ABCD_J : ABCD, jittered ? EF_J : EF, math::saturate(density));
+
+    return flake_noise(pos: position, jitter_scale : jittered ? 0.5f : 0.0f, flake_diameter : (jittered ? 1.25f : 1.5f) / math::sqrt(3.0f), flake_probability : probability);
+}
+
+// create a flake normal by importance sampling the Beckmann distribution with given roughness
+float3 flake_normal(
+    flake_noise_value val,
+    float spread)
+{
+    if (val.priority <= 0.0f)
+        return state::normal();
+
+    int seed0 = rnd_next(val.rnd_seed);
+    float xi0 = rnd_value(seed0);
+    float xi1 = rnd_value(rnd_next(seed0));
+
+    float phi = math::PI * 2.0f * xi0;
+
+    float roughness = spread * spread;
+
+    float tantheta = math::sqrt(-roughness * roughness * math::log(1.0f - xi1));
+    float sintheta = tantheta / math::sqrt(1.0f + tantheta * tantheta);
+    float costheta = math::sqrt(1.0f - sintheta * sintheta);
+
+    float[2] scphi = math::sincos(phi);
+    return
+        state::texture_tangent_u(0) * scphi[1] * sintheta +
+        state::texture_tangent_v(0) * scphi[0] * sintheta +
+        state::normal() * costheta;
+}
+
+float3 scale_normal(float3 normal, float scale)
+{
+    return math::normalize(normal * scale + state::normal() * (1.0f - scale));
+}
+
+export material CarPaint(
+    uniform color baseColor = color(0.8f),
+    uniform texture_2d map_baseColor = texture_2d(),
+    uniform float roughness = 0.0f,
+    uniform texture_2d map_roughness = texture_2d(),
+    uniform float flakeDensity = 0.0f,
+    uniform texture_2d map_flakeDensity = texture_2d(),
+    uniform float flakeScale = 100.0f,
+    uniform texture_2d map_flakeScale = texture_2d(),
+    uniform float flakeSpread = 0.3f,
+    uniform texture_2d map_flakeSpread = texture_2d(),
+    // note: jitter is ignored, flakes are always somewhat jittered in our procedural
+    uniform float flakeJitter = 0.75f[[anno::unused()]],
+    uniform texture_2d map_flakeJitter = texture_2d()[[anno::unused()]],
+    uniform float flakeRoughness = 0.3f,
+    uniform texture_2d map_flakeRoughness = texture_2d(),
+    uniform float coat = 1.0f,
+    uniform texture_2d map_coat = texture_2d(),
+    uniform float coatIor = 1.5f,
+    uniform texture_2d map_coatIor = texture_2d(),
+    uniform color coatColor = color(1.0f),
+    uniform texture_2d map_coatColor = texture_2d(),
+    // note: thickness is only supported approximately
+    uniform float coatThickness = 1.0f,
+    uniform texture_2d map_coatThickness = texture_2d(),
+    uniform float coatRoughness = 0.0f,
+    uniform texture_2d map_coatRoughness = texture_2d(),
+    uniform float coatNormal = 1.0f,
+    uniform texture_2d map_coatNormal = texture_2d(),
+    uniform color flipflopColor = color(1.0f),
+    uniform texture_2d map_flipflopColor = texture_2d(),
+    uniform float flipflopFalloff = 1.0f,
+    uniform texture_2d map_flipflopFalloff = texture_2d())
+    = let{
+
+        float density = tex::texture_isvalid(map_flakeDensity) ? texlookup_float(map_flakeDensity) : flakeDensity;
+        flake_noise_value val = flake_noise(state::position() * (tex::texture_isvalid(map_flakeScale) ? texlookup_float(map_flakeScale) : flakeScale), density, true);
+
+        float fr = tex::texture_isvalid(map_flakeRoughness) ? texlookup_float(map_flakeRoughness) : flakeRoughness;
+
+        bsdf flake_bsdf = df::fresnel_factor(
+            ior: color(1.69700277f, 0.879832864f, 0.5301736f),
+            extinction_coefficient : color(9.30200672f, 6.27604008f, 4.89433956f),
+            base : df::microfacet_ggx_smith_bsdf(mode : df::scatter_reflect, roughness_u : fr * fr));
+
+        bool is_flake = density >= 1.0f || val.priority > 0.0f;
+        bsdf base = df::weighted_layer(
+            weight: is_flake ? 1.0f : 0.0f,
+            normal : flake_normal(val, tex::texture_isvalid(map_flakeSpread) ? texlookup_float(map_flakeSpread) : flakeSpread),
+            layer : flake_bsdf,
+            base : df::diffuse_reflection_bsdf(tint : tex::texture_isvalid(map_baseColor) ? texlookup_color(map_baseColor) : baseColor, roughness : tex::texture_isvalid(map_roughness) ? texlookup_float(map_roughness) : roughness));
+
+        float falloff = tex::texture_isvalid(map_flipflopFalloff) ? texlookup_float(map_flipflopFalloff) : flipflopFalloff;
+        float thickness = tex::texture_isvalid(map_coatThickness) ? texlookup_float(map_coatThickness) : coatThickness;
+        color normal_tint = math::pow(tex::texture_isvalid(map_coatColor) ? texlookup_color(map_coatColor) : coatColor, thickness);
+        bsdf flipflop_base = df::directional_factor(
+            normal_tint: normal_tint,
+            grazing_tint : falloff < 1.0f ? math::pow(tex::texture_isvalid(map_flipflopColor) ? texlookup_color(map_flipflopColor) : flipflopColor, thickness) : normal_tint,
+            exponent : falloff < 1.0f ? 1.0f / (1.0f - falloff) : 1.0f,
+            base : base);
+
+        float r = tex::texture_isvalid(map_coatRoughness) ? texlookup_float(map_coatRoughness) : coatRoughness;
+        bsdf coated = df::fresnel_layer(
+            weight: tex::texture_isvalid(map_coat) ? texlookup_float(map_coat) : coat,
+            ior : tex::texture_isvalid(map_coatIor) ? texlookup_float(map_coatIor) : coatIor,
+            normal : scale_normal(tex::texture_isvalid(map_coatNormal) ? texlookup_normal(map_coatNormal) : state::normal(), coatNormal),
+            layer : df::microfacet_ggx_smith_bsdf(roughness_u : r * r),
+            base : flipflop_base);
+
+
+} in material(
+    surface: material_surface(
+        scattering : coated)
+);
+
+float2 roughnessToAlpha(float roughness, float anisotropy)
+{
+    float aspect = math::sqrt(1.f - 0.9f * math::saturate(anisotropy));
+    float r2 = roughness * roughness;
+    return float2(r2 / aspect, r2 * aspect);
+}
+
+export material Principled(
+    uniform color baseColor = color(0.9f),
+    uniform texture_2d map_baseColor = texture_2d(),
+    uniform color edgeColor = color(1.0f),
+    uniform texture_2d map_edgeColor = texture_2d(),
+    uniform float metallic = 0.0f,
+    uniform texture_2d map_metallic = texture_2d(),
+    uniform float diffuse = 1.0f,
+    uniform texture_2d map_diffuse = texture_2d(),
+    uniform float specular = 1.0f,
+    uniform texture_2d map_specular = texture_2d(),
+    uniform float ior = 1.0f,
+    uniform texture_2d map_ior = texture_2d(),
+    uniform float transmission = 0.0f,
+    uniform texture_2d map_transmission = texture_2d(),
+    uniform color transmissionColor = color(1.0f),
+    uniform texture_2d map_transmissionColor = texture_2d(),
+    uniform float transmissionDepth = 1.0f,
+    uniform texture_2d map_transmissionDepth = texture_2d(),
+    uniform float roughness = 0.0f,
+    uniform texture_2d map_roughness = texture_2d(),
+    uniform float anisotropy = 0.0f,
+    uniform texture_2d map_anisotropy = texture_2d(),
+    uniform float rotation = 0.0f,
+    uniform texture_2d map_rotation = texture_2d(),
+    uniform float normal = 1.0f,
+    uniform texture_2d map_normal = texture_2d(),
+    uniform float baseNormal = 1.0f,
+    uniform texture_2d map_baseNormal = texture_2d(),
+    uniform bool thin = false,
+    uniform float thickness = 1.0f,
+    uniform texture_2d map_thickness = texture_2d(),
+    uniform float backlight = 0.0f,
+    uniform texture_2d map_backlight = texture_2d(),
+    uniform float coat = 0.0f,
+    uniform texture_2d map_coat = texture_2d(),
+    uniform float coatIor = 1.5f,
+    uniform texture_2d map_coatIor = texture_2d(),
+    uniform color coatColor = color(1.0f),
+    uniform texture_2d map_coatColor = texture_2d(),
+    uniform float coatThickness = 1.0f,
+    uniform texture_2d map_coatThickness = texture_2d(),
+    uniform float coatRoughness = 0.0f,
+    uniform texture_2d map_coatRoughness = texture_2d(),
+    uniform float coatNormal = 1.0f,
+    uniform texture_2d map_coatNormal = texture_2d(),
+    // note: sheen unsupported and ingored
+    uniform float sheen = 0.0f[[anno::unused()]],
+    uniform texture_2d map_sheen = texture_2d()[[anno::unused()]],
+    uniform color sheenColor = color(1.0f)[[anno::unused()]],
+    uniform texture_2d map_sheenColor = texture_2d()[[anno::unused()]],
+    uniform float sheenTint = 0.0f[[anno::unused()]],
+    uniform texture_2d map_sheenTint = texture_2d()[[anno::unused()]],
+    uniform float sheenRoughness = 0.2f[[anno::unused()]],
+    uniform texture_2d map_sheenRoughness = texture_2d()[[anno::unused()]],
+
+    uniform float opacity = 1.0f,
+    uniform texture_2d map_opacity = texture_2d())
+    = let{
+
+        float specular_w = tex::texture_isvalid(map_specular) ? texlookup_float(map_specular) : specular;
+
+        float metallic_w = tex::texture_isvalid(map_metallic) ? texlookup_float(map_metallic) : metallic;
+
+        float transmission_w = tex::texture_isvalid(map_transmission) ? texlookup_float(map_transmission) : transmission;
+
+        color base_color = tex::texture_isvalid(map_baseColor) ? texlookup_color(map_baseColor) : baseColor;
+        color diffuse_color = base_color * (tex::texture_isvalid(map_diffuse) ? texlookup_float(map_diffuse) : diffuse);
+        float rough = tex::texture_isvalid(map_roughness) ? texlookup_float(map_roughness) : roughness;
+
+        float diffuse_transmission = thin ? (tex::texture_isvalid(map_backlight) ? texlookup_float(map_backlight) : backlight) * 0.5f : 0.0f;
+        bsdf diffuse_bsdf = df::weighted_layer(
+            weight: diffuse_transmission,
+            layer : df::diffuse_transmission_bsdf(
+                tint : diffuse_color),
+            base : df::diffuse_reflection_bsdf(
+                tint : diffuse_color,
+                roughness : rough));
+
+        float2 alpha = roughnessToAlpha(roughness, tex::texture_isvalid(map_anisotropy) ? texlookup_float(map_anisotropy) : anisotropy);
+
+        float aniso_rot_angle = math::PI * 2.0f * (tex::texture_isvalid(map_rotation) ? texlookup_float(map_rotation) : rotation);
+        float[2] sc_rot_angle = math::sincos(aniso_rot_angle);
+        float3 aniso_tangent = state::texture_tangent_u(0) * sc_rot_angle[1] + state::texture_tangent_v(0) * sc_rot_angle[0];
+
+        bsdf plastic_bsdf = df::fresnel_layer(
+            ior: tex::texture_isvalid(map_ior) ? texlookup_float(map_ior) : ior,
+            weight : specular_w,
+            layer : df::microfacet_ggx_smith_bsdf(
+                roughness_u : alpha.x,
+                roughness_v : alpha.y,
+                tangent_u : aniso_tangent),
+            base : diffuse_bsdf);
+
+        color attenuation = thin ? math::exp(math::log(tex::texture_isvalid(map_transmissionColor) ? texlookup_color(map_transmissionColor) : transmissionColor) * (tex::texture_isvalid(map_thickness) ? texlookup_float(map_thickness) : thickness) / (tex::texture_isvalid(map_transmissionDepth) ? texlookup_float(map_transmissionDepth) : transmissionDepth)) : color(1.0f);
+        bsdf glass_bsdf = df::simple_glossy_bsdf(
+            roughness_u: alpha.x,
+            roughness_v : alpha.y,
+            mode : df::scatter_reflect_transmit,
+            tint : attenuation);
+
+        bsdf dielectric_bsdf = df::weighted_layer(
+            weight: transmission_w,
+            layer : glass_bsdf,
+            base : plastic_bsdf);
+
+        bsdf conductor_bsdf = df::directional_factor(
+            normal_tint: base_color,
+            grazing_tint : tex::texture_isvalid(map_edgeColor) ? texlookup_color(map_edgeColor) : edgeColor,
+            base : df::microfacet_ggx_smith_bsdf(
+                roughness_u : alpha.x,
+                roughness_v : alpha.y,
+                tangent_u : aniso_tangent));
+
+        float3 base_normal = scale_normal(tex::texture_isvalid(map_baseNormal) ? texlookup_normal(map_baseNormal) : state::normal(), baseNormal);
+        bsdf combined_bsdf = df::weighted_layer(
+            normal: base_normal,
+            weight : metallic_w,
+            layer : conductor_bsdf,
+            base : df::weighted_layer(weight : 1.0f, normal : base_normal, layer : dielectric_bsdf));
+
+        float coat_roughness = tex::texture_isvalid(map_coatRoughness) ? texlookup_float(map_coatRoughness) : coatRoughness;
+        bsdf coated_bsdf = df::fresnel_layer(
+            ior: tex::texture_isvalid(map_coatIor) ? texlookup_float(map_coatIor) : coatIor,
+            weight : tex::texture_isvalid(map_coat) ? texlookup_float(map_coat) : coat,
+            normal : scale_normal(tex::texture_isvalid(map_coatNormal) ? texlookup_normal(map_coatNormal) : state::normal(), coatNormal),
+            layer : df::microfacet_ggx_smith_bsdf(
+                roughness_u : coat_roughness * coat_roughness, tint : math::pow(tex::texture_isvalid(map_coatColor) ? texlookup_color(map_coatColor) : coatColor, tex::texture_isvalid(map_coatThickness) ? texlookup_float(map_coatThickness) : coatThickness)),
+            base : combined_bsdf);
+
+} in material(
+    surface: material_surface(
+        scattering : coated_bsdf
+    ),
+    thin_walled : thin,
+    geometry : material_geometry(
+        normal : scale_normal(tex::texture_isvalid(map_normal) ? texlookup_normal(map_normal) : state::normal(), normal),
+        cutout_opacity : tex::texture_isvalid(map_opacity) ? texlookup_float(map_opacity) : opacity
+    ),
+    ior : color(ior), // note: ignoring varying map_ior here
+    volume : material_volume(
+        absorption_coefficient : -math::log(tex::texture_isvalid(map_transmissionColor) ? texlookup_color(map_transmissionColor) : transmissionColor) / (tex::texture_isvalid(map_transmissionDepth) ? texlookup_float(map_transmissionDepth) : transmissionDepth)
+    )
+);
+
+
+export material Metal(
+    // note: not offering the spectral IOR version
+    uniform color eta = color(1.5f, 0.98f, 0.6f),
+    uniform color k = color(7.6f, 6.6f, 5.4f),
+    uniform float roughness = 0.1f,
+    uniform texture_2d map_roughness = texture_2d())
+    = let{
+           float r = tex::texture_isvalid(map_roughness) ? texlookup_float(map_roughness) : roughness;
+} in material(
+    surface: material_surface(
+        scattering : df::fresnel_factor(
+            ior : eta,
+            extinction_coefficient : k,
+            base : df::microfacet_ggx_smith_bsdf(mode : df::scatter_reflect, roughness_u : r * r)
+        )
+    )
+);
+
+
+export material Alloy(
+    uniform color Color = color(0.9f),  //note: name changed from "color" (keyword in MDL)
+    uniform texture_2d map_color = texture_2d(),
+    uniform color edgeColor = color(1.0f),
+    uniform texture_2d map_edgeColor = texture_2d(),
+    uniform float roughness = 0.1f,
+    uniform texture_2d map_roughness = texture_2d())
+    = let{
+           float r = tex::texture_isvalid(map_roughness) ? texlookup_float(map_roughness) : roughness;
+} in material(
+    surface: material_surface(
+        scattering : df::directional_factor(
+            normal_tint : tex::texture_isvalid(map_color) ? texlookup_color(map_color) : Color,
+            grazing_tint : tex::texture_isvalid(map_edgeColor) ? texlookup_color(map_edgeColor) : edgeColor,
+            base : df::microfacet_ggx_smith_bsdf(mode : df::scatter_reflect, roughness_u : r * r)
+        )
+    )
+);
+
+ export material Glass(
+     uniform float eta = 1.5f,
+     uniform color attenuationColor = color(1.0f),
+     uniform float attenuationDistance = 1.0f)
+ = material(
+     surface: material_surface(
+         scattering: df::specular_bsdf(mode: df::scatter_reflect_transmit)
+         ),
+     thin_walled: false,
+     ior: color(eta),
+     volume: material_volume(
+         absorption_coefficient: -math::log(attenuationColor) / attenuationDistance
+         )
+     );
+
+
+ // note: reflection color incorrectly tinted
+ export material ThinGlass(
+     uniform float eta = 1.5f,
+     uniform color attenuationColor = color(1.0f),
+     uniform texture_2d map_attenuationColor = texture_2d(),
+     uniform float attenuationDistance = 1.0f,
+     uniform float thickness = 1.0f)
+ = material(
+     surface: material_surface(
+         scattering: df::specular_bsdf(
+             tint: math::exp(math::log(tex::texture_isvalid(map_attenuationColor) ? texlookup_color(map_attenuationColor) : attenuationColor) / attenuationDistance * thickness),
+             mode: df::scatter_reflect_transmit)
+         ),
+     thin_walled: true,
+     ior: color(eta)
+     );
+
+
+ export material MetallicPaint(
+     uniform color baseColor = color(0.8f),
+     uniform texture_2d map_baseColor = texture_2d(),
+     uniform float flakeAmount = 0.3f,    
+     uniform color flakeColor = color(0.9f, 0.7f, 0.6f),
+     uniform float flakeSpread = 0.5f,
+     uniform float eta = 1.5f)
+ = let {
+     bsdf diffuse_bsdf = df::diffuse_reflection_bsdf(tint: tex::texture_isvalid(map_baseColor) ? texlookup_color(map_baseColor) : baseColor);
+
+     bsdf diffuse_with_flakes = flakeAmount > 0.0f ? df::color_custom_curve_layer(
+         normal_reflectivity: flakeColor,
+         grazing_reflectivity: color(flakeAmount),
+         layer: df::microfacet_ggx_smith_bsdf(mode: df::scatter_reflect, roughness_u: flakeSpread * flakeSpread),
+         base: diffuse_bsdf) : diffuse_bsdf;
+
+     bsdf coated_bsdf = df::fresnel_layer(
+         ior: eta,
+         weight: 1.0f,
+         layer: df::specular_bsdf(mode: df::scatter_reflect),
+         base: diffuse_with_flakes);
+ } in material(
+     surface: material_surface(
+         scattering: coated_bsdf)
+     );
+
