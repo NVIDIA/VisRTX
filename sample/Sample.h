@@ -30,8 +30,9 @@
  * Shared base class for all example applications.
  */
 
+#ifndef NOMINMAX
 #define NOMINMAX
-#include <GL/glew.h>
+#endif
 
 #include "Timer.h"
 
@@ -51,6 +52,7 @@
 #include <string>
 #include <set>
 
+#include <glad/glad.h>
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -386,10 +388,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             glfwMakeContextCurrent(window);
             glfwSwapInterval(0); // no vsync
 
-            glewExperimental = GL_TRUE;
-            GLenum err = glewInit();
-            if (GLEW_OK != err)
-                std::cerr << "Error: GLEW status: " << glewGetErrorString(err) << std::endl;
+            gladLoadGLLoader((GLADloadproc) glfwGetProcAddress);
 
             glfwSetKeyCallback(window, keyCallback);
             glfwSetMouseButtonCallback(window, mouseButtonCallback);

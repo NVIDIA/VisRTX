@@ -209,26 +209,11 @@ namespace VisRTX
 
         void FrameBuffer::UpdateTexture(uint32_t& texture, cudaGraphicsResource_t& resource, Vec2ui& size, GLint internalFormat, GLenum format, GLenum type, optix::Buffer src, uint32_t bytesPerComponent)
         {
-            // Initialize GLEW
-            static bool glewInitialized = false;
-            static bool glewError = false;
-            if (!glewInitialized)
-            {
-                GLenum err = glewInit();
-
-                if (GLEW_OK != err)
-                {
-                    glewError = true;
-                    //throw Exception(Error::UNKNOWN_ERROR, (const char*)glewGetErrorString(err));
-                }
-
-                glewInitialized = true;
-            }
-
-            if (glewError)
+            // Make sure OpenGL is initialized
+            if (!OpenGL::Init())
             {
                 texture = 0;
-                return;
+                return;    
             }
 
             // Init
@@ -256,13 +241,16 @@ namespace VisRTX
                 size = Vec2ui(width, height);
             }
 
+            const std::vector<int> enabledDevices = OptiXContext::Get()->getEnabledDevices();
+            const int interopDevice = enabledDevices.size() > 0 ? enabledDevices[0] : 0; // TODO actually determine the device which drives the OpenGL context
+
             // Update
             CUDA_THROW(cudaGraphicsMapResources(1, &resource),
                 "Failed to map graphics resource.");
             cudaArray_t array;
             CUDA_THROW(cudaGraphicsSubResourceGetMappedArray(&array, resource, 0, 0),
                 "Failed to get mapped array of graphics resource.");
-            CUDA_THROW(cudaMemcpy2DToArray(array, 0, 0, src->getDevicePointer(0), this->width * bytesPerComponent, this->width * bytesPerComponent, this->height, cudaMemcpyDeviceToDevice),
+            CUDA_THROW(cudaMemcpy2DToArray(array, 0, 0, src->getDevicePointer(interopDevice), this->width * bytesPerComponent, this->width * bytesPerComponent, this->height, cudaMemcpyDeviceToDevice),
                 "Failed to copy to graphics resource array.");
             CUDA_THROW(cudaGraphicsUnmapResources(1, &resource),
                 "Failed to unmap graphics resource.");

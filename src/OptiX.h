@@ -37,8 +37,7 @@
 
 
 #include "Config.h"
-
-#include <GL/glew.h>
+#include "OpenGL.h"
 
 #include <cuda_gl_interop.h>
 

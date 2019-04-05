@@ -9,7 +9,7 @@ VisRTX is a C++ rendering framework developed by the HPC Visualization Developer
 
 #### Key features ####
 * Progressive forward pathtracing with next-event estimation and multiple importance sampling
-* Hardware acceleration through NVIDIA OptiX
+* Hardware acceleration through NVIDIA OptiX (Multi GPU)
 * Full MDL material support for physically-based BSDFs
 * AI denoiser
 * Triangle/sphere/cylinder/disk geometries
@@ -36,7 +36,6 @@ VisRTX is supported on both Linux and Windows.
 * [CUDA 10](https://developer.nvidia.com/cuda-toolkit) (Minimum: CUDA 8)
 * [OptiX 6](https://developer.nvidia.com/optix) (Minimum: OptiX 5.1)
 * [MDL SDK 2019](https://developer.nvidia.com/mdl-sdk)
-* [GLEW](http://glew.sourceforge.net/)
 
 
 ##### Compile / Install #####
@@ -83,8 +82,6 @@ Just place a `CMakeSettings.json` file with the following contents (adjust paths
       "variables": [
         { "name": "OptiX_INSTALL_DIR", "value": "C:\\PATH\\TO\\OptiX-SDK-6.0.0" },
         { "name": "MDL_INSTALL_DIR", "value": "C:\\PATH\\TO\\mdl-sdk-314800.830" },
-        { "name": "GLEW_INCLUDE_DIR", "value": "C:\\PATH\\TO\\glew-2.1.0\\include" },
-        { "name": "GLEW_LIBRARY_RELEASE", "value": "C:\\PATH\\TO\\glew-2.1.0\\lib\\Release\\x64\\glew32.lib" },
         { "name": "VISRTX_BUILD_SAMPLE", "value": "ON" },
         { "name": "VISRTX_SAMPLE_USE_DYNAMIC_LOADING", "value": "ON" },
         { "name": "VISRTX_USAGE_REPORT_VERBOSITY", "value": "0" },
@@ -136,6 +133,7 @@ Some performance-relevant properties of the renderer can be overridden using the
 
 | Environment Variable  | Values |
 | ------------- | ------------- |
+| `VISRTX_DEVICES`  | list of int, e.g., `0`, `1`, `0,1`  |
 | `VISRTX_MIN_BOUNCES`  | int > 0  |
 | `VISRTX_MAX_BOUNCES`  | int > 0  |
 | `VISRTX_EPSILON`  | float >= 0  |

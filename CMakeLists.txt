@@ -2,12 +2,12 @@ cmake_minimum_required(VERSION 3.10)
 
 set(VISRTX_VERSION_MAJOR 0)
 set(VISRTX_VERSION_MINOR 1)
-set(VISRTX_VERSION_PATCH 0)
+set(VISRTX_VERSION_PATCH 1)
 
 set(VISRTX_VERSION ${VISRTX_VERSION_MAJOR}.${VISRTX_VERSION_MINOR}.${VISRTX_VERSION_PATCH})
 
 
-project(VisRTX VERSION ${VISRTX_VERSION} LANGUAGES CXX CUDA)
+project(VisRTX VERSION ${VISRTX_VERSION} LANGUAGES C CXX CUDA)
 
 # Set a default build type if none was specified
 set(default_build_type "Release")
@@ -38,7 +38,6 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 find_package(CUDA 8.0 REQUIRED) # Still required even with CUDA language support so we can link against CUDA from a cpp-only target
 find_package(OptiX REQUIRED)
 find_package(MDL REQUIRED)
-find_package(GLEW REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(OpenMP)
 
@@ -105,6 +104,12 @@ configure_file(${PROJECT_SOURCE_DIR}/src/VisRTX.h.in ${CMAKE_CURRENT_BINARY_DIR}
 configure_file(${PROJECT_SOURCE_DIR}/src/Config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/Config.h)
 
 
+# glad OpenGL loader
+add_library(Glad STATIC libs/glad/src/glad.c)
+target_include_directories(Glad PUBLIC libs/glad/include)
+set_property(TARGET Glad PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+
 # VisRTX shared library
  add_library(VisRTX SHARED 
     src/VisRTX.cpp
@@ -138,7 +143,12 @@ target_include_directories(VisRTX PRIVATE
     ${MDL_INCLUDE_DIR}
 )
 
-target_link_libraries(VisRTX PRIVATE ${CUDA_LIBRARIES} ${optix_LIBRARY} GLEW::GLEW OpenGL::GL)
+target_link_libraries(VisRTX PRIVATE ${CUDA_LIBRARIES} ${optix_LIBRARY} Glad)
+if(WIN32)
+    target_link_libraries(VisRTX PRIVATE OpenGL::GL)
+else()
+    target_link_libraries(VisRTX PRIVATE OpenGL::OpenGL OpenGL::EGL OpenGL::GLX)
+endif()
 if(OPENMP_FOUND)
     target_link_libraries(VisRTX PRIVATE OpenMP::OpenMP_CXX)
 endif()
@@ -183,9 +193,6 @@ if(VISRTX_BUILD_SAMPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-    find_package(GLEW 2.0 REQUIRED)
-    find_package(OpenGL REQUIRED)
-
     # GLFW
     set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -193,7 +200,7 @@ if(VISRTX_BUILD_SAMPLE)
     add_subdirectory(sample/libs/glfw-3.2.1 EXCLUDE_FROM_ALL)
 
     # ImGUI
-    add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLEW)
+    add_definitions(-DIMGUI_IMPL_OPENGL_LOADER_GLAD)
 
     include_directories(sample/libs/ImGui-1.67-WIP)
     include_directories(sample/libs/ImGui-1.67-WIP/examples)
@@ -205,7 +212,12 @@ if(VISRTX_BUILD_SAMPLE)
         sample/libs/ImGui-1.67-WIP/examples/imgui_impl_glfw.cpp 
         sample/libs/ImGui-1.67-WIP/examples/imgui_impl_opengl3.cpp
     )
-    target_link_libraries(ImGui glfw GLEW::GLEW OpenGL::GL)    
+    target_link_libraries(ImGui glfw Glad)
+    if(WIN32)
+        target_link_libraries(ImGui OpenGL::GL)
+    else()
+        target_link_libraries(ImGui OpenGL::OpenGL)
+    endif()
 
     # Tinyobjloader
     include_directories(sample/libs/tinyobjloader)

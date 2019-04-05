@@ -1065,7 +1065,7 @@ std::string MDL::PreprocessSource(const std::string& source) const
      * (1) Replace material signature
      */
      // Find all texture material parameters with invalid texture as default, i.e., no image path specified
-    std::regex textureDeclareRegex("uniform.*?texture_2d.*?((?:[a-z][a-z0-9_]*)).*?=.*?texture_2d.*?\\(\\).*?(\\[\\[anno::unused\\(\\)\\]\\])?", std::regex::icase);
+    std::regex textureDeclareRegex("uniform.*?texture_2d.*?((?:[a-zA-Z][a-zA-Z0-9_]*)).*?=.*?texture_2d.*?\\(\\).*?(\\[\\[anno::unused\\(\\)\\]\\])?", std::regex::icase);
 
     std::string phase1 = std::regex_replace(source, textureDeclareRegex, [&](const std::smatch& match)
     {
@@ -1102,7 +1102,7 @@ std::string MDL::PreprocessSource(const std::string& source) const
      * (2) Replace tex::isvalid calls
      */
      // Find all texture_isvalid calls
-    std::regex textureIsValidRegex("tex::texture_isvalid.*?\\(.*?((?:[a-z][a-z0-9_]*)).*?\\)", std::regex::icase);
+    std::regex textureIsValidRegex("tex::texture_isvalid.*?\\(.*?((?:[a-zA-Z][a-zA-Z0-9_]*)).*?\\)", std::regex::icase);
 
     std::string phase2 = std::regex_replace(phase1, textureIsValidRegex, [&](const std::smatch& match)
     {
