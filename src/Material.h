@@ -236,8 +236,8 @@ namespace VisRTX
             virtual Vec3f GetParameterColor(const char* name) override;
             virtual bool SetParameterColor(const char* name, const Vec3f &value) override;
 
-            virtual void GetParameterValueOther(const char* name, void *data, size_t size) override;
-            virtual bool SetParameterValueOther(const char* name, const void *data, size_t size) override;
+            virtual void GetParameterValueOther(const char* name, void *data, size_t size);
+            virtual bool SetParameterValueOther(const char* name, const void *data, size_t size);
 
             virtual bool SetParameterTexture(const char* name, VisRTX::Texture* texture) override;
 
