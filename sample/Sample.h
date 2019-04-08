@@ -130,6 +130,15 @@ public:
     float fps = 0.0f;
     const float fpsUpdateInterval = 1.0f; // sec
 
+    Timer renderTimer;
+    Timer displayTimer;
+    double renderTime = 0.0;
+    double displayTime = 0.0;
+    uint32_t renderTimeCounter = 0;
+    uint32_t displayTimeCounter = 0;
+    double renderTimeAverage = 0.0;
+    double displayTimeAverage = 0.0;
+
     // Renderer
     Renderer* renderer;
     Model* model;
@@ -336,8 +345,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
         renderer = context->CreateRenderer();
         renderer->SetModel(model);
-
-        FrameBuffer* frameBuffer = context->CreateFrameBuffer(VisRTX::FrameBufferFormat::RGBA32F);
+        
 
         // Pick geometry
         std::vector<Vec3f> pickSpheres;
@@ -355,7 +363,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
         // Ambient light
         ambientLight = context->CreateAmbientLight();
-        renderer->AddLight(ambientLight);
+        renderer->AddLight(ambientLight);        
 
 
         /*
@@ -405,8 +413,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             ImGui_ImplGlfw_InitForOpenGL(window, true);
             ImGui_ImplOpenGL3_Init(glsl_version);
 
-            ImGui::StyleColorsDark();
-
+            ImGui::StyleColorsDark();            
 
 
             /*
@@ -464,6 +471,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             glGenVertexArrays(1, &fullscreenVAO);
         }
 
+        FrameBuffer* frameBuffer = context->CreateFrameBuffer(VisRTX::FrameBufferFormat::RGBA32F);
 
         // Init sample
         if (!this->Init(argc, argv))
@@ -693,12 +701,16 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             if (frameNumber == 0)
                 frameBuffer->Clear();
 
+            this->renderTimer.Reset();
             renderer->Render(frameBuffer);
+            this->renderTime += this->renderTimer.GetElapsedMilliseconds();
+            ++this->renderTimeCounter;
 
 
             // Display image
             if (!offscreen)
             {
+                this->displayTimer.Reset();
                 glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
                 glUseProgram(fullscreenQuadProgram);
                 glActiveTexture(GL_TEXTURE0);
@@ -706,6 +718,8 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                 glUniform1i(fullscreenTextureLocation, 0);
                 glBindVertexArray(fullscreenVAO);
                 glDrawArrays(GL_POINTS, 0, 1);
+                this->displayTime += this->displayTimer.GetElapsedMilliseconds();
+                ++this->displayTimeCounter;
             }
 
             // GUI
@@ -719,6 +733,15 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                     fps = (float)fpsCounter / elapsed;
                     fpsCounter = 0;
                     fpsTimer.Reset();
+
+                    this->renderTimeAverage = this->renderTimeCounter > 0 ? (this->renderTime / this->renderTimeCounter) : 0.0;
+                    this->displayTimeAverage = this->displayTimeCounter > 0 ? (this->displayTime / this->displayTimeCounter) : 0.0;
+
+                    this->renderTime = 0.0;
+                    this->displayTime = 0.0;
+
+                    this->renderTimeCounter = 0;
+                    this->displayTimeCounter = 0;
                 }
 
                 if (!offscreen)
@@ -731,6 +754,8 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                         ImGui::Value("Frame Number", (int)frameNumber);
                         ImGui::Text("Resolution  : %u x %u", width, height);
                         ImGui::Text("Frame Rate  : %.1f Hz (%.1f ms)", fps, fps > 0.0f ? 1000.0f / fps : 0.0f);
+                        ImGui::Text(" - Render   : %.1f ms", this->renderTimeAverage);
+                        ImGui::Text(" - Display  : %.1f ms", this->displayTimeAverage);
                         ImGui::Separator();
 
                         ImGui::Checkbox("Progressive Rendering", &progressiveRendering);

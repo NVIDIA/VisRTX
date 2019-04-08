@@ -28,6 +28,11 @@
 
 #pragma once
 
+ // Note: Always order struct fields by CUDA alignment restrictions (https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#vector-types)
+ // float4, float2, float3/float/int, short, byte   (buffer/program/sampler ids are integers)
+ // Note: Pad struct to 16 bytes if used in array
+
+
 // Tests for pathtracer correctness (enabling any of these limits the number of bounces!)
 //#define TEST_DIRECT_ONLY  // Brute force pathtracing, illumination only from rays hitting light geometry (light evaluation only)
 //#define TEST_NEE_ONLY     // Next event estimation only (light sampling only)
@@ -135,8 +140,7 @@ struct MDLMaterialParameters
 };
 
 
-
-
+#ifdef __CUDACC__
 typedef rtBufferId<float> BufferFloat;
 typedef rtBufferId<optix::float2> BufferFloat2;
 typedef rtBufferId<optix::float4> BufferFloat4;
@@ -145,12 +149,72 @@ typedef rtBufferId<uint> BufferUint;
 typedef rtBufferId<uint4> BufferUint4;
 typedef rtBufferId<optix::uchar4> BufferUchar4;
 typedef rtBufferId<MaterialId> BufferMaterialId;
+#else
+typedef int BufferFloat;
+typedef int BufferFloat2;
+typedef int BufferFloat4;
+typedef int BufferInt2;
+typedef int BufferUint;
+typedef int BufferUint4;
+typedef int BufferUchar4;
+typedef int BufferMaterialId;
+
+typedef int rtObject;
+#endif
 
 
+#pragma pack(push, 1)
+struct LaunchParameters 
+{
+    int width;
+    int height;
 
-// Note: Always order struct fields by CUDA alignment restrictions (https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#vector-types)
-// float4, float2, float3/float/int, short, byte   (buffer/program/sampler ids are integers)
-// Note: Pad struct to 16 bytes if used in array
+    BufferFloat4 accumulationBuffer;
+    BufferFloat4 frameBuffer;
+    BufferUchar4 ucharFrameBuffer;
+    BufferFloat depthBuffer;
+
+    int cameraType;
+    float3 pos;
+    float3 U;
+    float3 V;
+    float3 W;
+    float focalDistance;
+    float apertureRadius;
+    float orthoWidth;
+    float orthoHeight;
+
+    int frameNumber;
+    int useAIDenoiser;
+
+    int writeFrameBuffer;
+    int writeUcharFrameBuffer;
+    float clipMin;
+    float clipMax;
+    float clipDiv;
+
+    float occlusionEpsilon;
+    float alphaCutoff;
+    int numBouncesMin;
+    int numBouncesMax;
+    int writeBackground;
+    float fireflyClampingDirect;
+    float fireflyClampingIndirect;    
+    int sampleAllLights;
+    int numLightsDirect;
+    int numLightsMiss;
+
+    int toneMapping;
+    float3 colorBalance;
+    float invGamma;
+    float invWhitePoint;
+    float burnHighlights;
+    float crushBlacks;
+    float saturation;
+};
+#pragma pack(pop)
+
+
 
 struct PathtracePRD
 {
@@ -296,3 +360,9 @@ RT_FUNCTION optix::float3 max(const optix::float3& a, const optix::float3& b)
     return optix::make_float3(::fmaxf(a.x, b.x), ::fmaxf(a.y, b.y), ::fmaxf(a.z, b.z));
 }
 #endif
+
+
+RT_FUNCTION bool operator!=(const optix::float3& a, const optix::float3& b)
+{
+    return (a.x != b.x) || (a.y != b.y) || (a.z != b.z);
+}

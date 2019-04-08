@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 set(VISRTX_VERSION_MAJOR 0)
 set(VISRTX_VERSION_MINOR 1)
-set(VISRTX_VERSION_PATCH 1)
+set(VISRTX_VERSION_PATCH 2)
 
 set(VISRTX_VERSION ${VISRTX_VERSION_MAJOR}.${VISRTX_VERSION_MINOR}.${VISRTX_VERSION_PATCH})
 
@@ -176,12 +176,12 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(EXPORT VisRTXConfig DESTINATION share/VisRTX/cmake)
+install(EXPORT VisRTXConfig DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VisRTX-${VISRTX_VERSION})
 export(TARGETS VisRTX VisRTX_DynLoad FILE VisRTXConfig.cmake)
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(VisRTXConfigVersion.cmake VERSION ${VISRTX_VERSION} COMPATIBILITY AnyNewerVersion)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/VisRTXConfigVersion.cmake" DESTINATION share/VisRTX/cmake)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/VisRTXConfigVersion.cmake" DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/VisRTX-${VISRTX_VERSION})
 
 
 # Sample app

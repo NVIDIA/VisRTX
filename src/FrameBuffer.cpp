@@ -44,6 +44,12 @@ namespace VisRTX
 
         FrameBuffer::FrameBuffer(FrameBufferFormat format, const Vec2ui& size)
         {
+            // Env var overrides
+            if (const char* str = std::getenv("VISRTX_GL_FORCE_MAP"))
+            {
+                this->forceMapGL = atoi(str) > 0;
+            }
+
             this->format = format;
 
             optix::Context context = OptiXContext::Get();
@@ -53,7 +59,6 @@ namespace VisRTX
             this->frameBuffer = context->createBuffer(RT_BUFFER_INPUT_OUTPUT, RT_FORMAT_FLOAT4);
             this->ucharFrameBuffer = context->createBuffer(RT_BUFFER_OUTPUT, RT_FORMAT_UNSIGNED_BYTE4);
             this->depthBuffer = context->createBuffer(RT_BUFFER_OUTPUT, RT_FORMAT_FLOAT);
-            //this->albedoBuffer = context->createBuffer(RT_BUFFER_INPUT_OUTPUT, RT_FORMAT_FLOAT4);
 
             // AI denoiser postprocessing
             try
@@ -61,7 +66,6 @@ namespace VisRTX
                 this->denoiserStage = context->createBuiltinPostProcessingStage("DLDenoiser");
                 this->denoiserStage->declareVariable("input_buffer")->set(this->frameBuffer);
                 this->denoiserStage->declareVariable("output_buffer")->set(this->frameBuffer);
-                //this->denoiserStage->declareVariable("input_albedo_buffer")->set(this->albedoBuffer);
                 this->denoiserBlend = this->denoiserStage->declareVariable("blend");
                 this->denoiserBlend->setFloat(0.0f);
             }
@@ -94,7 +98,6 @@ namespace VisRTX
             Destroy(this->frameBuffer.get());
             Destroy(this->ucharFrameBuffer.get());
             Destroy(this->depthBuffer.get());
-            //Destroy(this->albedoBuffer.get());
             Destroy(this->denoiserStage.get());
             Destroy(this->denoiserCommandList.get());
         }
@@ -115,7 +118,6 @@ namespace VisRTX
             this->frameBuffer->setSize(width, height);
             this->ucharFrameBuffer->setSize(width, height);
             this->depthBuffer->setSize(width, height);
-            //this->albedoBuffer->setSize(width, height);
 
             // Recreate AI denoiser command list
             if (this->denoiserStage)
@@ -141,8 +143,6 @@ namespace VisRTX
         {
             // We don't actually clear the contents, just reset the accumulation counter for now.
             this->frameNumber = 0;
-
-            //this->albedoWritten = false;
         }
 
         FrameBufferFormat FrameBuffer::GetFormat()
@@ -220,40 +220,56 @@ namespace VisRTX
             if (!texture)
                 glGenTextures(1, &texture);
 
-            // Resize
-            if (size.width != this->width || size.height != this->height)
+            if (this->forceMapGL)
             {
-                if (resource)
-                {
-                    CUDA_THROW(cudaGraphicsUnregisterResource(resource),
-                        "Failed to unregister graphics resource.");
-                    resource = nullptr;
-                }
+                const void* pixels = src->map(0, RT_BUFFER_MAP_READ);
 
                 glBindTexture(GL_TEXTURE_2D, texture);
-                glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, this->width, this->height, 0, format, type, 0);
+                glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, this->width, this->height, 0, format, type, pixels);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-                CUDA_THROW(cudaGraphicsGLRegisterImage(&resource, texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsWriteDiscard),
-                    "Failed to register image as graphics resource.");
+                src->unmap();
 
                 size = Vec2ui(width, height);
             }
+            else
+            {
+                // Resize
+                if (size.width != this->width || size.height != this->height)
+                {
+                    if (resource)
+                    {
+                        CUDA_THROW(cudaGraphicsUnregisterResource(resource),
+                            "Failed to unregister graphics resource.");
+                        resource = nullptr;
+                    }
 
-            const std::vector<int> enabledDevices = OptiXContext::Get()->getEnabledDevices();
-            const int interopDevice = enabledDevices.size() > 0 ? enabledDevices[0] : 0; // TODO actually determine the device which drives the OpenGL context
+                    glBindTexture(GL_TEXTURE_2D, texture);
+                    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, this->width, this->height, 0, format, type, 0);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-            // Update
-            CUDA_THROW(cudaGraphicsMapResources(1, &resource),
-                "Failed to map graphics resource.");
-            cudaArray_t array;
-            CUDA_THROW(cudaGraphicsSubResourceGetMappedArray(&array, resource, 0, 0),
-                "Failed to get mapped array of graphics resource.");
-            CUDA_THROW(cudaMemcpy2DToArray(array, 0, 0, src->getDevicePointer(interopDevice), this->width * bytesPerComponent, this->width * bytesPerComponent, this->height, cudaMemcpyDeviceToDevice),
-                "Failed to copy to graphics resource array.");
-            CUDA_THROW(cudaGraphicsUnmapResources(1, &resource),
-                "Failed to unmap graphics resource.");
+                    CUDA_THROW(cudaGraphicsGLRegisterImage(&resource, texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsWriteDiscard),
+                        "Failed to register image as graphics resource.");
+
+                    size = Vec2ui(width, height);
+                }
+
+                const std::vector<int> enabledDevices = OptiXContext::Get()->getEnabledDevices();
+                const int interopDevice = enabledDevices.size() > 0 ? enabledDevices[0] : 0; // TODO actually determine the device which drives the OpenGL context
+
+                // Update
+                CUDA_THROW(cudaGraphicsMapResources(1, &resource),
+                    "Failed to map graphics resource.");
+                cudaArray_t array;
+                CUDA_THROW(cudaGraphicsSubResourceGetMappedArray(&array, resource, 0, 0),
+                    "Failed to get mapped array of graphics resource.");
+                CUDA_THROW(cudaMemcpy2DToArray(array, 0, 0, src->getDevicePointer(interopDevice), this->width * bytesPerComponent, this->width * bytesPerComponent, this->height, cudaMemcpyDeviceToDevice),
+                    "Failed to copy to graphics resource array.");
+                CUDA_THROW(cudaGraphicsUnmapResources(1, &resource),
+                    "Failed to unmap graphics resource.");
+            }
         }
     }
 }

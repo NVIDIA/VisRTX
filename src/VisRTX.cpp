@@ -329,7 +329,12 @@ VisRTX::Context* VisRTX_GetContext()
         }
 
         if (devices.empty())
-            devices.push_back(0);
+        {
+            // Use all available devices by default
+            uint32_t n = context.GetDeviceCount();
+            for (uint32_t i = 0; i < n; ++i)
+                devices.push_back(i);
+        }
 
         context.SetDevices((uint32_t)devices.size(), devices.data());
 

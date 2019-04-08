@@ -35,11 +35,20 @@ namespace VisRTX
 #ifdef VISRTX_USE_DEBUG_EXCEPTIONS
         context->setPrintEnabled(true);
         context->setExceptionEnabled(RT_EXCEPTION_ALL, true);
-        //context->setPrintLaunchIndex(256, 256); // Launch index (0,0) at lower left.                
+        //context->setPrintLaunchIndex(256, 256); // Launch index (0,0) at lower left.
 #endif
 
         context->setUsageReportCallback(usageReportCallback, VISRTX_USAGE_REPORT_VERBOSITY, nullptr);
         context->setAttribute(RT_CONTEXT_ATTRIBUTE_PREFER_FAST_RECOMPILES, 1);
+
+        context->setStackSize(1440); // Important for OptiX 5.1
+
+#if OPTIX_VERSION_MAJOR >= 6
+        // It's an iterative path tracer, no recursion
+        context->setMaxTraceDepth(1);
+        context->setMaxCallableProgramDepth(1);
+#endif
+
         context->setRayTypeCount(3); // Radiance, occlusion, pick
         context->setEntryPointCount(3); // Render, buffer cast, pick
     }

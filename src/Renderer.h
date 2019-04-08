@@ -36,6 +36,8 @@
 #include "Geometry.h"
 #include "Object.h"
 
+#include "Pathtracer/Common.h"
+
 #include <set>
 #include <map>
 
@@ -74,8 +76,7 @@ namespace VisRTX
             void SetSampleAllLights(bool sampleAllLights) override;
 
         private:
-            bool Init();
-            void LaunchAndDenoise(VisRTX::Impl::FrameBuffer* frameBuffer, int samplesPerPixel, bool useAIDenoiser, bool depthOfFieldEnabled, float focalDistance, float apertureRadius);
+            bool Init();            
 
         private:
             bool initialized = false;
@@ -90,28 +91,11 @@ namespace VisRTX
             VisRTX::Camera* camera = nullptr;
             VisRTX::Model* model = nullptr;
 
-            bool toneMapping;
-            float gamma;
-            Vec3f colorBalance;
-            float whitePoint;
-            float burnHighlights;
-            float crushBlacks;
-            float saturation;
-            float brightness;
-
             DenoiserType denoiser;
             uint32_t blendDelay;
             uint32_t blendDuration;
 
             uint32_t samplesPerPixel;
-            float epsilon;
-            float alphaCutoff;
-            uint32_t minBounces;
-            uint32_t maxBounces;
-            bool writeBackground;
-            float fireflyClampingDirect;
-            float fireflyClampingIndirect;
-            bool sampleAllLights;
 
             optix::Buffer basicMaterialParametersBuffer;
             optix::Buffer mdlMaterialParametersBuffer;
@@ -134,6 +118,10 @@ namespace VisRTX
             bool clampDirectFixed = false;
             bool clampIndirectFixed = false;
             bool sampleAllLightsFixed = false;
+            
+            LaunchParameters launchParameters;
+            bool launchParametersDirty = true;
+            optix::Buffer launchParametersBuffer;
         };
     }
 }

@@ -1,6 +1,16 @@
 # Changelog
 
 
+## 0.1.2
+##### 2019-04-09
+
+- Automatically enable all available GPUs (see note about `CUDA_VISIBLE_DEVICES` order in README)
+- Faster BVH refit for dynamic geometry
+- Batch upload launch parameters
+- Fixed minimum stack size for OptiX 5.1
+- CMake configuration install fix
+
+
 ## 0.1.1
 ##### 2019-04-05
 
@@ -12,4 +22,4 @@
 ## 0.1.0
 ##### 2019-03-15
 
-Initial release.
+- Initial release

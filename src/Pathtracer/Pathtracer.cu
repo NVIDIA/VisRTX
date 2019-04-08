@@ -42,47 +42,19 @@
 rtDeclareVariable(optix::uint2, launchIndex, rtLaunchIndex, );
 rtDeclareVariable(optix::uint2, launchDim, rtLaunchDim, );
 
-rtBuffer<optix::float4, 2> accumulationBuffer;
-rtBuffer<optix::float4, 2> frameBuffer;
-rtBuffer<optix::uchar4, 2> ucharFrameBuffer;
-rtBuffer<float, 2> depthBuffer;
-rtBuffer<optix::float4, 2> albedoBuffer;
-
-rtDeclareVariable(rtObject, topObject, , );
-rtDeclareVariable(float, occlusionEpsilon, , );
-
-rtDeclareVariable(int, frameNumber, , );
-
+rtBuffer<LaunchParameters> launchParameters;
 
 rtBuffer<BasicMaterialParameters> basicMaterialParameters;
 rtBuffer<MDLMaterialParameters> mdlMaterialParameters;
 
 rtBuffer<Light> lights;
-rtDeclareVariable(int, numLights, , );
+
+rtDeclareVariable(rtObject, topObject, , );
 
 rtDeclareVariable(PathtracePRD, prd, rtPayload, );
 rtDeclareVariable(OcclusionPRD, shadowPrd, rtPayload, );
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float, tHit, rtIntersectionDistance, );
-
-rtDeclareVariable(float, clipMin, , );
-rtDeclareVariable(float, clipMax, , );
-rtDeclareVariable(float, clipDiv, , );
-
-rtDeclareVariable(float, alphaCutoff, , );
-rtDeclareVariable(int, numBouncesMin, , );
-rtDeclareVariable(int, numBouncesMax, , );
-rtDeclareVariable(int, writeBackground, , );
-rtDeclareVariable(float, fireflyClampingDirect, , );
-rtDeclareVariable(float, fireflyClampingIndirect, , );
-rtDeclareVariable(int, sampleAllLights, , );
-
-rtDeclareVariable(int, useAIDenoiser, , );
-
-rtDeclareVariable(int, writeFrameBuffer, , );
-rtDeclareVariable(int, writeUcharFrameBuffer, , );
-//rtDeclareVariable(int, writeAlbedo, , );
-
 
 
 RT_FUNCTION bool SampleLight(const Light& light, PathtracePRD& prd, optix::Ray& ray, optix::float3& L, optix::float3& edf_over_pdf, float& pdf)
@@ -270,8 +242,8 @@ RT_FUNCTION bool SampleLight(const Light& light, PathtracePRD& prd, optix::Ray& 
     shadowPrd.occlusion = optix::make_float3(1.0f);
     shadowPrd.randState = prd.randState;
 
-    optix::Ray shadow_ray = optix::make_Ray(ray.origin, L, OCCLUSION_RAY_TYPE, occlusionEpsilon, Ldist);
-    rtTrace(topObject, shadow_ray, shadowPrd);
+    optix::Ray shadow_ray = optix::make_Ray(ray.origin, L, OCCLUSION_RAY_TYPE, launchParameters[0].occlusionEpsilon, Ldist);
+    rtTrace(/*launchParameters[0].*/topObject, shadow_ray, shadowPrd);
 
     if (fmaxf(shadowPrd.occlusion) <= 0.0f)
         return false;
@@ -433,6 +405,7 @@ __device__ const mi::neuraylib::Resource_data res_data = {
 RT_FUNCTION bool SampleMaterial(PathtracePRD& prd, optix::Ray& ray)
 {
     const uint32_t materialIndex = prd.material & MATERIAL_INDEX_MASK;
+    const int numLights = launchParameters[0].numLightsDirect;
 
     /*
      * Basic material
@@ -467,9 +440,6 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD& prd, optix::Ray& ray)
             const optix::float3 emissive = state.emissive * parameters.luminosity * prd.animationFactor; // *(1.e-4f + (1.f - 1.e-4f) * optix::dot(normal, -ray.direction)); // Disabled: visual hack to make streamlines look better
             prd.radiance += prd.alpha * emissive;
 
-            // Write albedo
-            //prd.color = optix::make_float4(state.diffuse + emissive, 1.0f);
-
             // Next event estimation
 #ifndef TEST_DIRECT_ONLY
             optix::float3 L;
@@ -479,7 +449,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD& prd, optix::Ray& ray)
             float lightFactor = 1.0f;
             int lightStart = 0;
             int lightEnd = numLights - 1;
-            if (sampleAllLights <= 0)
+            if (launchParameters[0].sampleAllLights <= 0)
             {
                 lightFactor = numLights;
                 prd.lastLightPdfFactor = numLights > 0 ? 1.0f / lightFactor : 1.0f;
@@ -506,7 +476,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD& prd, optix::Ray& ray)
 #endif
 
                         const optix::float3 radiance = prd.alpha * state.bsdf * lightEdf_over_pdf * lightFactor * misWeight; // state.bsdf contains: bsdf * dot(normal, L)
-                        prd.radiance += clampRadiance(prd.depth, fireflyClampingIndirect, radiance);
+                        prd.radiance += clampRadiance(prd.depth, launchParameters[0].fireflyClampingIndirect, radiance);
                     }
                 }
             }
@@ -536,8 +506,6 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD& prd, optix::Ray& ray)
      */
     else if (prd.material & MDL_MATERIAL_BIT)
     {
-        //prd.color = optix::make_float4(1.0f); // TODO albedo
-
         MDLMaterialParameters& parameters = mdlMaterialParameters[materialIndex];
 
         optix::Onb onb(prd.normal);
@@ -598,7 +566,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD& prd, optix::Ray& ray)
             float lightFactor = 1.0f;
             int lightStart = 0;
             int lightEnd = numLights - 1;
-            if (sampleAllLights <= 0)
+            if (launchParameters[0].sampleAllLights <= 0)
             {
                 lightFactor = numLights;
                 prd.lastLightPdfFactor = numLights > 0 ? 1.0f / lightFactor : 1.0f;
@@ -625,7 +593,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD& prd, optix::Ray& ray)
 #endif
 
                         const optix::float3 radiance = prd.alpha * data.evaluate.bsdf * lightEdf_over_pdf * lightFactor * misWeight; //  data.evaluate.bsdf contains: bsdf * dot(normal, k2)
-                        prd.radiance += clampRadiance(prd.depth, fireflyClampingIndirect, radiance);
+                        prd.radiance += clampRadiance(prd.depth, launchParameters[0].fireflyClampingIndirect, radiance);
                     }
                 }
             }
@@ -667,7 +635,7 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
         rayOrigin,
         rayDirection,
         RADIANCE_RAY_TYPE,
-        occlusionEpsilon,
+        launchParameters[0].occlusionEpsilon,
         RT_DEFAULT_MAX
     );
 
@@ -680,13 +648,12 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
     prd.lastLightPdfFactor = 1.0f;
     prd.numCutoutOpacityHits = 0;
 
-    //optix::float3 primaryAlbedo;
     float primaryDepth;
 
     /*
      * Pathtracing loop
      */
-    while (prd.depth < numBouncesMax)
+    while (prd.depth < launchParameters[0].numBouncesMax)
     {
 #ifdef TEST_NEE_ONLY
         if (prd.depth >= 1)
@@ -697,7 +664,7 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
         prd.lightEdf = optix::make_float3(0.0f, 0.0f, 0.0f);
         prd.lightPdf = PDF_DIRAC;
         prd.light = false;
-        rtTrace(topObject, ray, prd);
+        rtTrace(/*launchParameters[0].*/topObject, ray, prd);
 
         // Store primary hit depth (can't store albedo here because it's set/modified by the material)
         if (prd.depth == 0)
@@ -716,13 +683,9 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
 
 #if !defined(TEST_DIRECT_ONLY) && !defined(TEST_NEE_ONLY)
                 const float misWeight = (prd.lastPdf <= 0.0f) ? 1.0f : powerHeuristic(prd.lastPdf, prd.lightPdf * prd.lastLightPdfFactor);
-                prd.radiance += clampRadiance(prd.depth, fireflyClampingIndirect, prd.alpha * prd.lightEdf * misWeight);
+                prd.radiance += clampRadiance(prd.depth, launchParameters[0].fireflyClampingIndirect, prd.alpha * prd.lightEdf * misWeight);
 #endif
     }
-
-            // Set primary hit albedo for environment
-            //if (prd.depth == 0)
-            //    primaryAlbedo = prd.lightEdf;
 
             break;
 }
@@ -739,16 +702,12 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
         // Sample material
         bool kill = !SampleMaterial(prd, ray);
 
-        // Store primary hit albedo
-        //if (prd.depth == 0)
-        //    primaryAlbedo = optix::make_float3(prd.color);
-
         // Absorption / fixed cut off
-        if (kill || fmaxf(prd.alpha) < alphaCutoff)
+        if (kill || fmaxf(prd.alpha) < launchParameters[0].alphaCutoff)
             break;
 
         // Unbiased Russian Roulette path termination
-        if ((numBouncesMin + prd.numCutoutOpacityHits) <= prd.depth) // Start termination after a minimum number of bounces.
+        if ((launchParameters[0].numBouncesMin + prd.numCutoutOpacityHits) <= prd.depth) // Start termination after a minimum number of bounces.
         {
             const float probability = fmaxf(prd.alpha);
 
@@ -767,32 +726,34 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
     /*
      * Output / denoising
      */
+    const int pixel = launchIndex.y * launchParameters[0].width + launchIndex.x;
+
      // Primary misses need to be transparent so ParaView remote rendering correctly blends with environment color at client-side
     float alpha = 1.0;
-    if (!writeBackground && primaryDepth >= RT_DEFAULT_MAX)
+    if (!launchParameters[0].writeBackground && primaryDepth >= RT_DEFAULT_MAX)
         alpha = 0.0f;
 
     // Clamp radiance to prevent fireflies (note: can break direct light evaluation for small lights)
-    optix::float4 color = make_float4(clampRadiance(1, fireflyClampingDirect, prd.radiance), alpha);
+    optix::float4 color = make_float4(clampRadiance(1, launchParameters[0].fireflyClampingDirect, prd.radiance), alpha);
 
     // Accumulate
-    if (frameNumber == 0)
+    if (launchParameters[0].frameNumber == 0)
     {
-        accumulationBuffer[launchIndex] = color;
+        //launchParameters[0].accumulationBuffer[pixel] = color;
 
-        if (clipMin >= 0.0f)
-            depthBuffer[launchIndex] = (primaryDepth < clipMin ? 1.0 : (primaryDepth - clipMin) * clipDiv);
+        if (launchParameters[0].clipMin >= 0.0f)
+            launchParameters[0].depthBuffer[pixel] = (primaryDepth < launchParameters[0].clipMin ? 1.0 : (primaryDepth - launchParameters[0].clipMin) * launchParameters[0].clipDiv);
         else
-            depthBuffer[launchIndex] = primaryDepth;
+            launchParameters[0].depthBuffer[pixel] = primaryDepth;
     }
     else
     {
-        const float a = 1.0f / (float)(frameNumber + 1);
-        optix::float4 old_color = accumulationBuffer[launchIndex];
+        const float a = 1.0f / (float)(launchParameters[0].frameNumber + 1);
+        optix::float4 old_color = launchParameters[0].accumulationBuffer[pixel];
         color = optix::lerp(old_color, color, a);
     }
 
-    accumulationBuffer[launchIndex] = color;
+    launchParameters[0].accumulationBuffer[pixel] = color;
 
     // Tone mapping
     optix::float3 ldrColor = optix::make_float3(color);
@@ -834,42 +795,26 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
     // Clamp
     ldrColor = fminf(ldrColor, make_float3(1.0f));
 
-    if (writeFrameBuffer)
-        frameBuffer[launchIndex] = optix::make_float4(ldrColor, color.w);
+    if (launchParameters[0].writeFrameBuffer)
+        launchParameters[0].frameBuffer[pixel] = optix::make_float4(ldrColor, color.w);
 
-    if (writeUcharFrameBuffer)
-        ucharFrameBuffer[launchIndex] = optix::make_uchar4(ldrColor.x * 255.0f, ldrColor.y * 255.0f, ldrColor.z * 255.0f, color.w * 255.0f);
-
-    //if (writeAlbedo)
-    //    albedoBuffer[launchIndex] = optix::make_float4(fminf(primaryAlbedo, make_float3(1.0f)), 1.0f);
-        }
+    if (launchParameters[0].writeUcharFrameBuffer)
+        launchParameters[0].ucharFrameBuffer[pixel] = optix::make_uchar4(ldrColor.x * 255.0f, ldrColor.y * 255.0f, ldrColor.z * 255.0f, color.w * 255.0f);
+}
 
 
 RT_PROGRAM void BufferCast()
 {
-    optix::float4 c = fminf(frameBuffer[launchIndex], optix::make_float4(1.0f)); // Make sure denoiser output is in [0,1] range
-    ucharFrameBuffer[launchIndex] = optix::make_uchar4(c.x * 255.0f, c.y * 255.0f, c.z * 255.0f, c.w * 255.0f);
+    const int pixel = launchIndex.y * launchParameters[0].width + launchIndex.x;
+
+    optix::float4 c = fminf(launchParameters[0].frameBuffer[pixel], optix::make_float4(1.0f)); // Make sure denoiser output is in [0,1] range
+    launchParameters[0].ucharFrameBuffer[pixel] = optix::make_uchar4(c.x * 255.0f, c.y * 255.0f, c.z * 255.0f, c.w * 255.0f);
 }
-
-
-rtDeclareVariable(int, cameraType, , );
-
-rtDeclareVariable(float3, pos, , );
-rtDeclareVariable(float3, U, , );
-rtDeclareVariable(float3, V, , );
-rtDeclareVariable(float3, W, , );
-
-rtDeclareVariable(float, focalDistance, , );
-rtDeclareVariable(float, apertureRadius, , );
-
-rtDeclareVariable(float, orthoWidth, , );
-rtDeclareVariable(float, orthoHeight, , );
 
 
 RT_PROGRAM void RayGen()
 {
-    optix::size_t2 screen = frameBuffer.size();
-    optix::float2 invScreen = 1.0f / make_float2(screen);
+    optix::float2 invScreen = 1.0f / make_float2(launchParameters[0].width, launchParameters[0].height);
     optix::float2 p = (make_float2(launchIndex)) * invScreen * 2.0f - 1.0f;
 
     // Sampling
@@ -878,7 +823,7 @@ RT_PROGRAM void RayGen()
     // Per bounce: 3D BSDF, 1D light selection, 2D area light, 1D cutout, 1D Russian roulette = 8D
     // (512 - 2) / 8 = 63 bounces
     RandState randState;
-    InitSampler(&randState, launchIndex.y * screen.x + launchIndex.x, frameNumber);
+    InitSampler(&randState, launchIndex.y * launchParameters[0].width + launchIndex.x, launchParameters[0].frameNumber);
 
     const optix::float2 sampleScreen = Sample2D(&randState);
     const optix::float2 pixel = p + sampleScreen * invScreen * 2.0f;
@@ -886,15 +831,15 @@ RT_PROGRAM void RayGen()
     optix::float3 rayOrigin;
     optix::float3 rayDirection;
 
-    if (cameraType == PERSPECTIVE_CAMERA)
+    if (launchParameters[0].cameraType == PERSPECTIVE_CAMERA)
     {
-        rayOrigin = pos;
-        rayDirection = optix::normalize(pixel.x*U + pixel.y*V + W);
+        rayOrigin = launchParameters[0].pos;
+        rayDirection = optix::normalize(pixel.x * launchParameters[0].U + pixel.y * launchParameters[0].V + launchParameters[0].W);
 
         // Depth of field
-        if (focalDistance > 0.0f && apertureRadius > 0.0f)
+        if (launchParameters[0].focalDistance > 0.0f && launchParameters[0].apertureRadius > 0.0f)
         {
-            const optix::float3 focalPoint = pos + focalDistance * rayDirection;
+            const optix::float3 focalPoint = launchParameters[0].pos + launchParameters[0].focalDistance * rayDirection;
 
             // Uniform sampling in aperture
             const optix::float2 sampleDOF = Sample2D(&randState);
@@ -903,17 +848,17 @@ RT_PROGRAM void RayGen()
             float sinPhi, cosPhi;
             sincos(phi, &sinPhi, &cosPhi);
 
-            const float dx = apertureRadius * rho * cosPhi;
-            const float dy = apertureRadius * rho * sinPhi;
+            const float dx = launchParameters[0].apertureRadius * rho * cosPhi;
+            const float dy = launchParameters[0].apertureRadius * rho * sinPhi;
 
-            rayOrigin = pos + (dx * U + dy * V);
+            rayOrigin = launchParameters[0].pos + (dx * launchParameters[0].U + dy * launchParameters[0].V);
             rayDirection = optix::normalize(focalPoint - rayOrigin);
         }
     }
-    else if (cameraType == ORTHOGRAPHIC_CAMERA)
+    else if (launchParameters[0].cameraType == ORTHOGRAPHIC_CAMERA)
     {
-        rayOrigin = pos + 0.5f * (pixel.x * orthoWidth * U + pixel.y * orthoHeight * V);
-        rayDirection = W;
+        rayOrigin = launchParameters[0].pos + 0.5f * (pixel.x * launchParameters[0].orthoWidth * launchParameters[0].U + pixel.y * launchParameters[0].orthoHeight * launchParameters[0].V);
+        rayDirection = launchParameters[0].W;
     }
 
     // Run pathtracer
@@ -1155,7 +1100,7 @@ RT_PROGRAM void Miss()
     prd.tHit = RT_DEFAULT_MAX;
 
     // Miss lights
-    for (int i = 0; i < numLights; ++i)
+    for (int i = 0; i < launchParameters[0].numLightsMiss; ++i)
     {
         const Light& l = lights[i];
 
@@ -1197,7 +1142,7 @@ RT_PROGRAM void RayGenPick()
     pick.primIndex = 0;
     pick.t = 0.0f;
 
-    rtTrace(topObject, ray, pick);
+    rtTrace(/*launchParameters[0].*/topObject, ray, pick);
 
     pickResult[0] = pick;
 }
@@ -1218,7 +1163,7 @@ RT_PROGRAM void LightClosestHitPick()
 RT_PROGRAM void MissPick()
 {
     // Visible directional lights
-    for (int i = 0; i < numLights; ++i)
+    for (int i = 0; i < launchParameters[0].numLightsMiss; ++i)
     {
         const Light light = lights[i];
 

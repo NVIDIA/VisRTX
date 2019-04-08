@@ -161,6 +161,15 @@ The [MDL wrapper](https://github.com/NVIDIA/VisRTX/tree/master/src/MDL) provided
 
 
 
+Multi-GPU
+============
+VisRTX automatically makes use multiple GPUs if available. 
+
+For best OpenGL interop performance, make sure to enable *Maximize 3D performance* in the SLI configuration.
+It is also worthwhile to experiment with the CUDA device order, which can have a noticeable impact on the interop performance. For instance, in a dual GPU setup make sure to give `CUDA_VISIBLE_DEVICES='1,0'` a try!
+
+
+
 
 Feedback
 ===================

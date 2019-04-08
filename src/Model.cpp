@@ -42,10 +42,12 @@ namespace VisRTX
 
             // Create geometry groups and accelerations
             this->geometryGroupAcceleration = context->createAcceleration("Trbvh", "Bvh");
+            this->geometryGroupAcceleration->setProperty("refit", "1");
             this->geometryGroup = context->createGeometryGroup();
             this->geometryGroup->setAcceleration(this->geometryGroupAcceleration);
 
             this->geometryTrianglesGroupAcceleration = context->createAcceleration("Trbvh", "Bvh");
+            this->geometryTrianglesGroupAcceleration->setProperty("refit", "1");
             this->geometryTrianglesGroup = context->createGeometryGroup();
             this->geometryTrianglesGroup->setAcceleration(this->geometryTrianglesGroupAcceleration);
 

@@ -84,14 +84,10 @@ namespace VisRTX
             optix::Buffer frameBuffer;
             optix::Buffer ucharFrameBuffer;
             optix::Buffer depthBuffer;
-            //optix::Buffer albedoBuffer;
            
             optix::PostprocessingStage denoiserStage;
             optix::Variable denoiserBlend;
-            optix::CommandList denoiserCommandList;            
-            
-
-            //bool albedoWritten = false;
+            optix::CommandList denoiserCommandList;                        
 
             std::map<const void*, optix::Buffer> mappedBuffers;
             
@@ -102,6 +98,8 @@ namespace VisRTX
             uint32_t depthTexture = 0;
             cudaGraphicsResource_t depthTextureGraphicsResource = nullptr;
             Vec2ui depthTextureSize;
+
+            bool forceMapGL = false;
         };
     }
 }

@@ -38,12 +38,14 @@
 #include "Config.h"
 
 #include "Pathtracer/Light.h"
-#include "Pathtracer/Common.h"
 #include "Pathtracer/Pick.h"
 
 #include <fstream>
 #include <algorithm>
 #include <cstring>
+
+
+#define UPDATE_LAUNCH_PARAMETER(src, dst) if (src != dst) { dst = src; this->launchParametersDirty = true; }
 
 
 namespace VisRTX
@@ -168,6 +170,7 @@ namespace VisRTX
             Destroy(directLightsBuffer.get());
             Destroy(missLightsBuffer.get());
             Destroy(pickBuffer.get());
+            Destroy(launchParametersBuffer.get());
         }
 
         void Renderer::Render(VisRTX::FrameBuffer* frameBuffer)
@@ -181,23 +184,36 @@ namespace VisRTX
 
             optix::Context context = OptiXContext::Get();
 
-            /*
-             * Framebuffer
-             */
+
+            // Framebuffer
             VisRTX::Impl::FrameBuffer* fb = dynamic_cast<VisRTX::Impl::FrameBuffer*>(frameBuffer);
-            this->rayGenProgram["accumulationBuffer"]->setBuffer(fb->accumulationBuffer);
-            this->rayGenProgram["frameBuffer"]->setBuffer(fb->frameBuffer);
-            this->rayGenProgram["ucharFrameBuffer"]->setBuffer(fb->ucharFrameBuffer);
-            this->rayGenProgram["depthBuffer"]->setBuffer(fb->depthBuffer);
-            //this->rayGenProgram["albedoBuffer"]->setBuffer(fb->albedoBuffer);
+            const int accumulationBufferId = fb->accumulationBuffer->getId();
+            const int frameBufferId = fb->frameBuffer->getId();
+            const int ucharFrameBufferId = fb->ucharFrameBuffer->getId();
+            const int depthBufferId = fb->depthBuffer->getId();
 
-            this->bufferCastProgram["frameBuffer"]->setBuffer(fb->frameBuffer);
-            this->bufferCastProgram["ucharFrameBuffer"]->setBuffer(fb->ucharFrameBuffer);
+            const int useAIDenoiser = ((this->denoiser == DenoiserType::AI) && fb->denoiserStage) ? 1 : 0;
+            const int writeFrameBuffer = (fb->format == FrameBufferFormat::RGBA32F || useAIDenoiser) ? 1 : 0;
+            const int writeUcharFrameBuffer = (fb->format == FrameBufferFormat::RGBA8 && !useAIDenoiser) ? 1 : 0;
+
+            UPDATE_LAUNCH_PARAMETER(fb->width, this->launchParameters.width);
+            UPDATE_LAUNCH_PARAMETER(fb->height, this->launchParameters.height);
+
+            UPDATE_LAUNCH_PARAMETER(accumulationBufferId, this->launchParameters.accumulationBuffer);
+            UPDATE_LAUNCH_PARAMETER(frameBufferId, this->launchParameters.frameBuffer);
+            UPDATE_LAUNCH_PARAMETER(ucharFrameBufferId, this->launchParameters.ucharFrameBuffer);
+            UPDATE_LAUNCH_PARAMETER(depthBufferId, this->launchParameters.depthBuffer);
+
+            UPDATE_LAUNCH_PARAMETER(fb->depthClipMin, this->launchParameters.clipMin);
+            UPDATE_LAUNCH_PARAMETER(fb->depthClipMax, this->launchParameters.clipMax);
+            UPDATE_LAUNCH_PARAMETER(fb->depthClipDiv, this->launchParameters.clipDiv);            
+
+            UPDATE_LAUNCH_PARAMETER(useAIDenoiser, this->launchParameters.useAIDenoiser);
+            UPDATE_LAUNCH_PARAMETER(writeFrameBuffer, this->launchParameters.writeFrameBuffer);
+            UPDATE_LAUNCH_PARAMETER(writeUcharFrameBuffer, this->launchParameters.writeUcharFrameBuffer);
 
 
-            /*
-             * Material buffers
-             */
+            // Material buffers
             if (BasicMaterial::parametersDirty)
             {
                 this->basicMaterialParametersBuffer->setSize(BasicMaterial::parameters.GetNumElements());
@@ -223,17 +239,7 @@ namespace VisRTX
             }
 
 
-            /*
-             * Depth clipping/normalization
-             */
-            this->rayGenProgram["clipMin"]->setFloat(fb->depthClipMin);
-            this->rayGenProgram["clipMax"]->setFloat(fb->depthClipMax);
-            this->rayGenProgram["clipDiv"]->setFloat(fb->depthClipDiv);
-
-
-            /*
-             * Camera
-             */
+            // Camera
             VisRTX::Impl::Camera* camera = dynamic_cast<VisRTX::Impl::Camera*>(this->camera);
             if (camera->dirty)
             {
@@ -248,86 +254,91 @@ namespace VisRTX
                     const float vlen = tanf(0.5f * perspectiveCam->fovy * M_PIf / 180.0f);
                     const float ulen = vlen * perspectiveCam->aspect;
 
-                    this->rayGenProgram["cameraType"]->setInt(PERSPECTIVE_CAMERA);
-                    this->rayGenProgram["pos"]->setFloat(perspectiveCam->position);
-                    this->rayGenProgram["U"]->setFloat(cam_U * ulen);
-                    this->rayGenProgram["V"]->setFloat(cam_V * vlen);
-                    this->rayGenProgram["W"]->setFloat(cam_W);
+                    this->launchParameters.cameraType = PERSPECTIVE_CAMERA;
+                    this->launchParameters.pos = perspectiveCam->position;
+                    this->launchParameters.U = cam_U * ulen;
+                    this->launchParameters.V = cam_V * vlen;
+                    this->launchParameters.W = cam_W;
+                    this->launchParameters.focalDistance = perspectiveCam->focalDistance;
+                    this->launchParameters.apertureRadius = perspectiveCam->apertureRadius;
                 }
                 else if (this->camera->GetType() == CameraType::ORTHOGRAPHIC)
                 {
                     VisRTX::Impl::OrthographicCamera* orthoCam = dynamic_cast<VisRTX::Impl::OrthographicCamera*>(this->camera);
 
-                    this->rayGenProgram["cameraType"]->setInt(ORTHOGRAPHIC_CAMERA);
-                    this->rayGenProgram["pos"]->setFloat(orthoCam->position);
-                    this->rayGenProgram["U"]->setFloat(cam_U);
-                    this->rayGenProgram["V"]->setFloat(cam_V);
-                    this->rayGenProgram["W"]->setFloat(cam_W);
-                    this->rayGenProgram["orthoWidth"]->setFloat(orthoCam->height * orthoCam->aspect);
-                    this->rayGenProgram["orthoHeight"]->setFloat(orthoCam->height);
+                    this->launchParameters.cameraType = ORTHOGRAPHIC_CAMERA;
+                    this->launchParameters.pos = orthoCam->position;
+                    this->launchParameters.U = cam_U;
+                    this->launchParameters.V = cam_V;
+                    this->launchParameters.W = cam_W;
+                    this->launchParameters.orthoWidth = orthoCam->height * orthoCam->aspect;
+                    this->launchParameters.orthoHeight = orthoCam->height;
                 }
 
                 camera->dirty = false;
+                this->launchParametersDirty = true;
             }
 
 
-            /*
-             * Denoiser
-             */
-            bool useAIDenoiser = (this->denoiser == DenoiserType::AI) && fb->denoiserStage;
-            this->rayGenProgram["useAIDenoiser"]->setInt(useAIDenoiser);
-
-
-            /*
-             * Misc variables
-             */
-            this->rayGenProgram["writeFrameBuffer"]->setInt((fb->format == FrameBufferFormat::RGBA32F || useAIDenoiser) ? 1 : 0);
-            this->rayGenProgram["writeUcharFrameBuffer"]->setInt((fb->format == FrameBufferFormat::RGBA8 && !useAIDenoiser) ? 1 : 0);
-
-            this->rayGenProgram["occlusionEpsilon"]->setFloat(this->epsilon);
-            this->rayGenProgram["alphaCutoff"]->setFloat(this->alphaCutoff);
-            this->rayGenProgram["numBouncesMin"]->setInt(this->minBounces);
-            this->rayGenProgram["numBouncesMax"]->setInt(this->maxBounces);
-            this->rayGenProgram["writeBackground"]->setInt(this->writeBackground);
-            this->rayGenProgram["fireflyClampingDirect"]->setFloat(this->fireflyClampingDirect);
-            this->rayGenProgram["fireflyClampingIndirect"]->setFloat(this->fireflyClampingIndirect);
-            this->rayGenProgram["sampleAllLights"]->setInt(this->sampleAllLights ? 1 : 0);
-
-            if (this->toneMapping)
+            // Launch context
+            for (uint32_t i = 0; i < this->samplesPerPixel; ++i)
             {
-                this->rayGenProgram["toneMapping"]->setInt(1);
-                this->rayGenProgram["colorBalance"]->setFloat(this->colorBalance.r, this->colorBalance.g, this->colorBalance.b);
-                this->rayGenProgram["invGamma"]->setFloat(1.0f / this->gamma);
-                this->rayGenProgram["invWhitePoint"]->setFloat(this->brightness / this->whitePoint);
-                this->rayGenProgram["burnHighlights"]->setFloat(this->burnHighlights);
-                this->rayGenProgram["crushBlacks"]->setFloat(this->crushBlacks + this->crushBlacks + 1.0f);
-                this->rayGenProgram["saturation"]->setFloat(this->saturation);
+                UPDATE_LAUNCH_PARAMETER(fb->frameNumber, this->launchParameters.frameNumber);
+
+                if (this->launchParametersDirty)
+                {
+                    memcpy(this->launchParametersBuffer->map(0, RT_BUFFER_MAP_WRITE_DISCARD), &this->launchParameters, sizeof(LaunchParameters));
+                    this->launchParametersBuffer->unmap();
+
+                    this->launchParametersDirty = false;
+                }
+
+                // Validate only after all nodes have completed the prepass so all context subcomponents have been initialized
+                if (!this->contextValidated)
+                {
+                    try
+                    {
+                        context->validate();
+                    }
+                    catch (optix::Exception& e)
+                    {
+                        throw VisRTX::Exception(Error::UNKNOWN_ERROR, e.getErrorString().c_str());
+                    }
+
+                    this->contextValidated = true;
+                }
+
+                // Render frame
+#ifdef VISRTX_USE_DEBUG_EXCEPTIONS
+                try
+                {
+#endif
+                    const bool lastSample = (i == samplesPerPixel - 1);
+
+                    if (lastSample && useAIDenoiser && fb->frameNumber < this->blendDelay + this->blendDuration)
+                    {
+                        float blend = 0.0f;
+                        if (fb->frameNumber >= this->blendDelay)
+                            blend = (float)(fb->frameNumber - this->blendDelay) / (float)this->blendDuration;
+
+                        fb->denoiserBlend->setFloat(blend);
+                        fb->denoiserCommandList->execute();
+                    }
+                    else
+                    {
+                        context->launch(RENDER_ENTRY_POINT, fb->width, fb->height);
+                    }
+#ifdef VISRTX_USE_DEBUG_EXCEPTIONS
+                }
+                catch (optix::Exception& e)
+                {
+                    throw VisRTX::Exception(Error::UNKNOWN_ERROR, e.getErrorString().c_str());
+                }
+#endif
+
+                // Increase frame number
+                fb->frameNumber++;
             }
-            else
-            {
-                this->rayGenProgram["toneMapping"]->setInt(0);
-            }
-
-
-            /*
-             * Depth of Field
-             */
-            float focalDistance = 0.0f;
-            float apertureRadius = 0.0f;
-
-            if (this->camera->GetType() == CameraType::PERSPECTIVE)
-            {
-                VisRTX::Impl::PerspectiveCamera* perspectiveCam = dynamic_cast<VisRTX::Impl::PerspectiveCamera*>(this->camera);
-                focalDistance = perspectiveCam->focalDistance;
-                apertureRadius = perspectiveCam->apertureRadius;
-            }
-
-
-            /*
-             * Launch context
-             */
-            const bool dofEnabled = focalDistance > 0.0f && apertureRadius > 0.0f;
-            this->LaunchAndDenoise(fb, this->samplesPerPixel, useAIDenoiser, dofEnabled, focalDistance, apertureRadius);
         }
 
 
@@ -353,6 +364,17 @@ namespace VisRTX
                 context->setExceptionProgram(RENDER_ENTRY_POINT, ProgramLoader::Get().exceptionProgram);
 #endif
 
+                // Launch parameters
+                this->launchParametersBuffer = context->createBuffer(RT_BUFFER_INPUT, RT_FORMAT_USER);
+                this->launchParametersBuffer->setElementSize(sizeof(LaunchParameters));
+                this->launchParametersBuffer->setSize(1);
+                this->rayGenProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                this->rayGenPickProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                this->bufferCastProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                this->missProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                this->missPickProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+
+
                 // Material buffers (global buffers shared across renderers/materials)
                 this->basicMaterialParametersBuffer = context->createBuffer(RT_BUFFER_INPUT, RT_FORMAT_USER);
                 this->basicMaterialParametersBuffer->setElementSize(sizeof(BasicMaterialParameters));
@@ -377,10 +399,6 @@ namespace VisRTX
                 this->rayGenProgram["lights"]->setBuffer(this->directLightsBuffer);
                 this->missProgram["lights"]->setBuffer(this->missLightsBuffer);
                 this->missPickProgram["lights"]->setBuffer(this->missLightsBuffer);
-
-                this->rayGenProgram["numLights"]->setInt(0);
-                this->missProgram["numLights"]->setInt(0);
-                this->missPickProgram["numLights"]->setInt(0);
 
 
                 // Pick buffer
@@ -470,89 +488,11 @@ namespace VisRTX
                     this->missLightsBuffer->unmap();
                 }
 
-                this->rayGenProgram["numLights"]->setInt((int)activeDirectLights.size());
-                this->missProgram["numLights"]->setInt((int)activeMissLights.size());
-                this->missPickProgram["numLights"]->setInt((int)activeMissLights.size());
+                UPDATE_LAUNCH_PARAMETER((int)activeDirectLights.size(), this->launchParameters.numLightsDirect);
+                UPDATE_LAUNCH_PARAMETER((int)activeMissLights.size(), this->launchParameters.numLightsMiss);
             }
 
             return true;
-        }
-
-        void Renderer::LaunchAndDenoise(VisRTX::Impl::FrameBuffer* frameBuffer, int samplesPerPixel, bool useAIDenoiser, bool depthOfFieldEnabled, float focalDistance, float apertureRadius)
-        {
-            optix::Context context = OptiXContext::Get();
-
-            for (int i = 0; i < samplesPerPixel; ++i)
-            {
-                const bool lastSample = (i == samplesPerPixel - 1);
-
-                this->rayGenProgram["frameNumber"]->setInt(frameBuffer->frameNumber);
-
-                // Depth of field
-                if (depthOfFieldEnabled)
-                {
-                    this->rayGenProgram["focalDistance"]->setFloat(focalDistance);
-                    this->rayGenProgram["apertureRadius"]->setFloat(apertureRadius);
-                }
-                else
-                {
-                    this->rayGenProgram["focalDistance"]->setFloat(-1.0f);
-                    this->rayGenProgram["apertureRadius"]->setFloat(-1.0f);
-                }
-
-                // Write albedo
-                //int writeAlbedo = 0;
-                //if (useAIDenoiser && !frameBuffer->albedoWritten)
-                //{
-                //    writeAlbedo = 1;
-                //    frameBuffer->albedoWritten = true;
-                //}
-                //this->rayGenProgram["writeAlbedo"]->setInt(writeAlbedo);
-
-                // Validate only after all nodes have completed the prepass so all context subcomponents have been initialized
-                if (!this->contextValidated)
-                {
-                    try
-                    {
-                        context->validate();
-                    }
-                    catch (optix::Exception& e)
-                    {
-                        throw VisRTX::Exception(Error::UNKNOWN_ERROR, e.getErrorString().c_str());
-                    }
-
-                    this->contextValidated = true;
-                }
-
-                // Render frame
-#ifdef VISRTX_USE_DEBUG_EXCEPTIONS
-                try
-                {
-#endif
-                    if (lastSample && useAIDenoiser && frameBuffer->frameNumber < this->blendDelay + this->blendDuration)
-                    {
-                        float blend = 0.0f;
-                        if (frameBuffer->frameNumber >= this->blendDelay)
-                            blend = (float)(frameBuffer->frameNumber - this->blendDelay) / (float)this->blendDuration;
-
-                        frameBuffer->denoiserBlend->setFloat(blend);
-                        frameBuffer->denoiserCommandList->execute();
-                    }
-                    else
-                    {
-                        context->launch(RENDER_ENTRY_POINT, frameBuffer->width, frameBuffer->height);
-                    }
-#ifdef VISRTX_USE_DEBUG_EXCEPTIONS
-                    }
-                catch (optix::Exception& e)
-                {
-                    throw VisRTX::Exception(Error::UNKNOWN_ERROR, e.getErrorString().c_str());
-                }
-#endif
-
-                // Increase frame number
-                frameBuffer->frameNumber++;
-            }
         }
 
         bool Renderer::Pick(const Vec2f& screenPos, PickResult& result)
@@ -634,7 +574,7 @@ namespace VisRTX
             this->pickBuffer->unmap();
 
             return hit;
-                }
+        }
 
         void Renderer::SetCamera(VisRTX::Camera* camera)
         {
@@ -674,6 +614,7 @@ namespace VisRTX
 
                     optix::Context context = OptiXContext::Get();
                     VisRTX::Impl::Model* m = dynamic_cast<VisRTX::Impl::Model*>(this->model);
+
                     this->rayGenProgram["topObject"]->set(m->superGroup);
                     this->rayGenPickProgram["topObject"]->set(m->superGroup);
                 }
@@ -711,14 +652,24 @@ namespace VisRTX
             if (this->toneMappingFixed && !this->ignoreOverrides)
                 return;
 
-            this->toneMapping = enabled;
-            this->gamma = gamma;
-            this->colorBalance = colorBalance;
-            this->whitePoint = whitePoint;
-            this->burnHighlights = burnHighlights;
-            this->crushBlacks = crushBlacks;
-            this->saturation = saturation;
-            this->brightness = brightness;
+            const int toneMapping = enabled ? 1 : 0;
+
+            UPDATE_LAUNCH_PARAMETER(toneMapping, this->launchParameters.toneMapping);
+
+            if (toneMapping)
+            {
+                const optix::float3 colorBalance2 = optix::make_float3(colorBalance.x, colorBalance.y, colorBalance.z);
+                const float invGamma = 1.0f / gamma;
+                const float invWhitePoint = brightness / whitePoint;
+                const float crushBlacks2 = crushBlacks + crushBlacks + 1.0f;
+
+                UPDATE_LAUNCH_PARAMETER(colorBalance2, this->launchParameters.colorBalance);
+                UPDATE_LAUNCH_PARAMETER(invGamma, this->launchParameters.invGamma);
+                UPDATE_LAUNCH_PARAMETER(invWhitePoint, this->launchParameters.invWhitePoint);
+                UPDATE_LAUNCH_PARAMETER(burnHighlights, this->launchParameters.burnHighlights);
+                UPDATE_LAUNCH_PARAMETER(crushBlacks2, this->launchParameters.crushBlacks);
+                UPDATE_LAUNCH_PARAMETER(saturation, this->launchParameters.saturation);
+            }
         }
 
         void Renderer::SetDenoiser(DenoiserType denoiser)
@@ -744,41 +695,46 @@ namespace VisRTX
                 return;
 
             // Conservative epsilon...
-            this->epsilon = std::max(1e-3f, epsilon);
+            const float eps = std::max(1e-3f, epsilon);            
+            UPDATE_LAUNCH_PARAMETER(eps, this->launchParameters.occlusionEpsilon);
         }
 
         void Renderer::SetAlphaCutoff(float alphaCutoff)
         {
-            this->alphaCutoff = alphaCutoff;
+            UPDATE_LAUNCH_PARAMETER(alphaCutoff, this->launchParameters.alphaCutoff);
         }
 
         void Renderer::SetNumBounces(uint32_t minBounces, uint32_t maxBounces)
         {
             if (!this->minBouncesFixed || this->ignoreOverrides)
-                this->minBounces = minBounces;
+                UPDATE_LAUNCH_PARAMETER(minBounces, this->launchParameters.numBouncesMin);
 
             if (!this->maxBouncesFixed || this->ignoreOverrides)
-                this->maxBounces = maxBounces;
+                UPDATE_LAUNCH_PARAMETER(maxBounces, this->launchParameters.numBouncesMax);
         }
 
         void Renderer::SetWriteBackground(bool writeBackground)
         {
-            this->writeBackground = writeBackground;
+            const int wb = writeBackground ? 1 : 0;
+            UPDATE_LAUNCH_PARAMETER(wb, this->launchParameters.writeBackground);
         }
 
         void Renderer::SetFireflyClamping(float direct, float indirect)
         {
             if (!this->clampDirectFixed || this->ignoreOverrides)
-                this->fireflyClampingDirect = direct;
+                UPDATE_LAUNCH_PARAMETER(direct, this->launchParameters.fireflyClampingDirect);
 
             if (!this->clampIndirectFixed || this->ignoreOverrides)
-                this->fireflyClampingIndirect = indirect;
+                UPDATE_LAUNCH_PARAMETER(indirect, this->launchParameters.fireflyClampingIndirect);
         }
 
         void Renderer::SetSampleAllLights(bool sampleAllLights)
         {
             if (!this->sampleAllLightsFixed || this->ignoreOverrides)
-                this->sampleAllLights = sampleAllLights;
-        }
+            {
+                const int all = sampleAllLights ? 1 : 0;
+                UPDATE_LAUNCH_PARAMETER(all, this->launchParameters.sampleAllLights);
             }
         }
+    }
+}
