@@ -196,8 +196,8 @@ namespace VisRTX
             const int writeFrameBuffer = (fb->format == FrameBufferFormat::RGBA32F || useAIDenoiser) ? 1 : 0;
             const int writeUcharFrameBuffer = (fb->format == FrameBufferFormat::RGBA8 && !useAIDenoiser) ? 1 : 0;
 
-            UPDATE_LAUNCH_PARAMETER(fb->width, this->launchParameters.width);
-            UPDATE_LAUNCH_PARAMETER(fb->height, this->launchParameters.height);
+            UPDATE_LAUNCH_PARAMETER((int) fb->width, this->launchParameters.width);
+            UPDATE_LAUNCH_PARAMETER((int) fb->height, this->launchParameters.height);
 
             UPDATE_LAUNCH_PARAMETER(accumulationBufferId, this->launchParameters.accumulationBuffer);
             UPDATE_LAUNCH_PARAMETER(frameBufferId, this->launchParameters.frameBuffer);
@@ -283,7 +283,7 @@ namespace VisRTX
             // Launch context
             for (uint32_t i = 0; i < this->samplesPerPixel; ++i)
             {
-                UPDATE_LAUNCH_PARAMETER(fb->frameNumber, this->launchParameters.frameNumber);
+                UPDATE_LAUNCH_PARAMETER((int) fb->frameNumber, this->launchParameters.frameNumber);
 
                 if (this->launchParametersDirty)
                 {
@@ -707,10 +707,10 @@ namespace VisRTX
         void Renderer::SetNumBounces(uint32_t minBounces, uint32_t maxBounces)
         {
             if (!this->minBouncesFixed || this->ignoreOverrides)
-                UPDATE_LAUNCH_PARAMETER(minBounces, this->launchParameters.numBouncesMin);
+                UPDATE_LAUNCH_PARAMETER((int) minBounces, this->launchParameters.numBouncesMin);
 
             if (!this->maxBouncesFixed || this->ignoreOverrides)
-                UPDATE_LAUNCH_PARAMETER(maxBounces, this->launchParameters.numBouncesMax);
+                UPDATE_LAUNCH_PARAMETER((int) maxBounces, this->launchParameters.numBouncesMax);
         }
 
         void Renderer::SetWriteBackground(bool writeBackground)

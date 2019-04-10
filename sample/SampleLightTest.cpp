@@ -277,6 +277,7 @@ public:
     */
     void UpdateGUI(bool& reset) override
     {
+#ifdef VISRTX_SAMPLE_WITH_GLFW
         if (ImGui::CollapsingHeader("Directional Light"))
         {
             reset |= ImGui::Checkbox("Enabled##Directional", &directionalLightEnabled);
@@ -343,6 +344,7 @@ public:
                 reset |= ImGui::SliderFloat3("Up##HDRI", &hdriLightUp.x, -1.0f, 1.0f, "%.2f");
             }
         }
+#endif
     }
 
 public:

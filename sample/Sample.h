@@ -51,13 +51,20 @@
 #include <cstdlib>
 #include <string>
 #include <set>
+#include <fstream>
 
 #include <glad/glad.h>
+
+#ifdef VISRTX_SAMPLE_WITH_GLFW
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <GLFW/glfw3.h>
+#endif
 
+#ifdef VISRTX_SAMPLE_WITH_EGL
+#include <EGL/egl.h>
+#endif
 
 using namespace VisRTX;
 
@@ -108,12 +115,22 @@ protected:
 
     VisRTX::MDLMaterial* LoadMDL(const std::string& material, const std::string& source, const std::vector<std::string>& modulePaths, VisRTX::CompilationType compilationType, const std::string& objectName);
 
+    void DumpFrame(bool useOpenGL);
+
 public:
-    GLFWwindow* window = nullptr;
     int width = 1920;
     int height = 1080;
     bool escapePressed = false;
     bool showGUI = true;
+
+#ifdef VISRTX_SAMPLE_WITH_GLFW
+    GLFWwindow* window = nullptr;        
+#endif
+
+#ifdef VISRTX_SAMPLE_WITH_EGL
+    EGLDisplay display = nullptr;
+    EGLSurface surface = nullptr;
+#endif
 
     GLuint fullscreenQuadProgram;
     GLuint fullscreenTextureLocation;
@@ -126,6 +143,7 @@ public:
     bool progressiveRendering = true;
 
     Timer fpsTimer;
+    Timer fpsPrintTimer;
     uint32_t fpsCounter = 0;
     float fps = 0.0f;
     const float fpsUpdateInterval = 1.0f; // sec
@@ -159,6 +177,9 @@ public:
     float saturation = 1.2f;
     float brightness = 0.8f;
 
+    // Framebuffer
+    FrameBuffer* frameBuffer;
+
     // Ambient light
     AmbientLight* ambientLight;
     Vec3f ambientColor = Vec3f(0.0f, 0.0f, 0.0f);
@@ -190,7 +211,7 @@ public:
 
 
 
-
+#ifdef VISRTX_SAMPLE_WITH_GLFW
 void glfwErrorCallback(int error, const char* description)
 {
     std::cerr << "Error: " << std::string(description) << std::endl;
@@ -266,6 +287,7 @@ void cursorCallback(GLFWwindow* window, double xpos, double ypos)
         sample->frameNumber = 0;
     }
 }
+#endif
 
 
 
@@ -281,6 +303,36 @@ static inline float randomValue()
     return static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 }
 
+
+
+void savePPM(const uint8_t* rgba, uint32_t width, uint32_t height, const std::string& path)
+{
+    // Convert to RGB
+    std::vector<uint8_t> rgb(width * height * 3);
+    for (uint32_t y = 0; y < height; ++y)
+    {
+        for (uint32_t x = 0; x < width; ++x)
+        {
+            uint32_t i1 = y * width + x;
+            uint32_t i2 = (height - 1 - y) * width + x;
+
+            for (uint32_t j = 0; j < 3; ++j)
+            {
+                rgb[3 * i1 + j] = rgba[4 * i2 + j];
+            }
+        }
+    }
+
+    // Write PPM
+    std::ofstream outFile;
+    outFile.open(path.c_str(), std::ios::binary);
+
+    outFile << "P6" << "\n"
+            << width << " " << height << "\n"
+            << "255\n";
+
+    outFile.write((char*) rgb.data(), rgb.size());
+}
 
 
 
@@ -300,33 +352,35 @@ void Sample::Run(const std::string& title, int argc, char **argv)
         // Device query and selection
         VisRTX::Context* context = VisRTX_GetContext();
 
-        //uint32_t n = context->GetDeviceCount();
-
-        //for (uint32_t i = 0; i < n; ++i)
-        //{
-        //    std::string name = context->GetDeviceName(i);
-        //    uint64_t totalMem = context->GetDeviceMemoryTotal(i);
-        //    uint64_t availMem = context->GetDeviceMemoryAvailable(i);
-
-        //    float totalGB = totalMem * 1e-9f;
-        //    float availGB = availMem * 1e-9f;
-
-        //    std::cout << std::fixed << std::setprecision(1) << "Device " << i << ": " << name << " (Total: " << totalGB << " GB, Available: " << availGB << " GB)" << std::endl;
-        //}
-
-        // Let VisRTX pick the devices
-        //context->SetDevices({ 0 });
-
-
         // Command line args
         bool benchmark = false;
         bool offscreen = false;
+        bool egl = false;
+        bool useOpenGL = false;
+        bool dump = false;
         for (int i = 0; i < argc; ++i)
         {
             if (std::string(argv[i]) == "benchmark")
+            {
                 benchmark = true;
+            }
             else if (std::string(argv[i]) == "offscreen")
+            {
                 offscreen = true;
+            }
+            else if (std::string(argv[i]) == "egl")
+            {
+#ifdef VISRTX_SAMPLE_WITH_EGL
+                egl = true;
+                offscreen = true;
+#else
+                std::cout << "Error: EGL not enabled. Build VisRTX with VISRTX_SAMPLE_WITH_EGL=ON." << std::endl;
+#endif
+            }
+            else if (std::string(argv[i]) == "dump")
+            {
+                dump = true;
+            }
         }
 
         if (benchmark)
@@ -363,12 +417,11 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
         // Ambient light
         ambientLight = context->CreateAmbientLight();
-        renderer->AddLight(ambientLight);        
+        renderer->AddLight(ambientLight);
 
 
-        /*
-         * Create window
-         */
+#ifdef VISRTX_SAMPLE_WITH_GLFW
+        // Create window
         if (!offscreen)
         {
             glfwSetErrorCallback(glfwErrorCallback);
@@ -413,40 +466,88 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             ImGui_ImplGlfw_InitForOpenGL(window, true);
             ImGui_ImplOpenGL3_Init(glsl_version);
 
-            ImGui::StyleColorsDark();            
+            ImGui::StyleColorsDark();
+
+            useOpenGL = true;
+        }
+#endif
 
 
-            /*
-             * Init OpenGL
-             */
+#ifdef VISRTX_SAMPLE_WITH_EGL
+        if (offscreen && egl)
+        {
+            display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+
+            EGLint major, minor;
+            if (eglInitialize(display, &major, &minor))
+                std::cout << "EGL: YES" << std::endl;
+            else
+                std::cerr << "Error: Failed to initialize EGL" << std::endl;
+
+            const EGLint configAttribs[] = {
+                EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+                EGL_BLUE_SIZE, 8,
+                EGL_GREEN_SIZE, 8,
+                EGL_RED_SIZE, 8,
+                EGL_DEPTH_SIZE, 8,
+                EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+                EGL_NONE
+            };
+
+            EGLint numConfigs;
+            EGLConfig config;
+            eglChooseConfig(display, configAttribs, &config, 1, &numConfigs);
+
+            const EGLint pbufferAttribs[] = {
+                EGL_WIDTH, width,
+                EGL_HEIGHT, height,
+                EGL_NONE,
+            };
+
+            surface = eglCreatePbufferSurface(display, config, pbufferAttribs);
+
+            eglBindAPI(EGL_OPENGL_API);
+            EGLContext context = eglCreateContext(display, config, EGL_NO_CONTEXT, NULL);
+            eglMakeCurrent(display, surface, surface, context);
+
+            gladLoadGLLoader((GLADloadproc) eglGetProcAddress);
+
+            useOpenGL = true;
+        }
+#endif
+
+        // Init OpenGL
+        if (useOpenGL)
+        {
+
             glClearColor(0.0f, 1.0f, 0.0f, 0.0f);
 
             // Create shader and texture for fullscreen display of decompressed frame
             const GLchar* clientVertexShader =
-                "#version 330\n"
-                "void main() {}";
+                    "#version 330\n"
+                    "void main() {}";
 
             const GLchar* clientGeometryShader =
-                "#version 330 core\n"
-                "layout(points) in;"
-                "layout(triangle_strip, max_vertices = 4) out;"
-                "out vec2 texcoord;"
-                "void main() {"
-                "gl_Position = vec4( 1.0, 1.0, 0.0, 1.0 ); texcoord = vec2( 1.0, 1.0 ); EmitVertex();"
-                "gl_Position = vec4(-1.0, 1.0, 0.0, 1.0 ); texcoord = vec2( 0.0, 1.0 ); EmitVertex();"
-                "gl_Position = vec4( 1.0,-1.0, 0.0, 1.0 ); texcoord = vec2( 1.0, 0.0 ); EmitVertex();"
-                "gl_Position = vec4(-1.0,-1.0, 0.0, 1.0 ); texcoord = vec2( 0.0, 0.0 ); EmitVertex();"
-                "EndPrimitive();"
-                "}";
+                    "#version 330 core\n"
+                    "layout(points) in;"
+                    "layout(triangle_strip, max_vertices = 4) out;"
+                    "out vec2 texcoord;"
+                    "void main() {"
+                    "gl_Position = vec4( 1.0, 1.0, 0.0, 1.0 ); texcoord = vec2( 1.0, 1.0 ); EmitVertex();"
+                    "gl_Position = vec4(-1.0, 1.0, 0.0, 1.0 ); texcoord = vec2( 0.0, 1.0 ); EmitVertex();"
+                    "gl_Position = vec4( 1.0,-1.0, 0.0, 1.0 ); texcoord = vec2( 1.0, 0.0 ); EmitVertex();"
+                    "gl_Position = vec4(-1.0,-1.0, 0.0, 1.0 ); texcoord = vec2( 0.0, 0.0 ); EmitVertex();"
+                    "EndPrimitive();"
+                    "}";
 
             const GLchar* clientFragmentShader =
-                "#version 330\n"
-                "uniform sampler2D tex;"
-                "in vec2 texcoord;"
-                "out vec4 color;"
-                "void main() {"
-                "	color = texture(tex, texcoord);"
-                "}";
+                    "#version 330\n"
+                    "uniform sampler2D tex;"
+                    "in vec2 texcoord;"
+                    "out vec4 color;"
+                    "void main() {"
+                    "	color = texture(tex, texcoord);"
+                    "}";
 
             GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
             glShaderSource(vertexShader, 1, &clientVertexShader, 0);
@@ -471,7 +572,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             glGenVertexArrays(1, &fullscreenVAO);
         }
 
-        FrameBuffer* frameBuffer = context->CreateFrameBuffer(VisRTX::FrameBufferFormat::RGBA32F);
+        frameBuffer = context->CreateFrameBuffer(VisRTX::FrameBufferFormat::RGBA8);
 
         // Init sample
         if (!this->Init(argc, argv))
@@ -497,8 +598,13 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
         BenchmarkPhase benchmarkPhase = INIT;
 
-        while (!escapePressed && (offscreen || !glfwWindowShouldClose(window)))
+        while (!escapePressed)
         {
+#ifdef VISRTX_SAMPLE_WITH_GLFW
+            if (!offscreen && glfwWindowShouldClose(window))
+                break;
+#endif
+
             // Benchmark update
             if (benchmark)
             {
@@ -548,6 +654,11 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
                     printPerf("Dynamic", benchmarkDynamicFrames, dynamicTime);
                     printPerf("Static", benchmarkStaticFrames, staticTime);
+
+                    // Dump final frame onyl
+                    if (dump)
+                        this->DumpFrame(useOpenGL);
+
                     break;
                 }
 
@@ -557,8 +668,10 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
 
             // Begin frame
+#ifdef VISRTX_SAMPLE_WITH_GLFW
             if (!offscreen)
             {
+
                 glfwMakeContextCurrent(window);
 
                 if (!benchmark)
@@ -576,7 +689,18 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                     width = w;
                     height = h;
                 }
+            }
+#endif
 
+#ifdef VISRTX_SAMPLE_WITH_EGL
+            if (offscreen && egl)
+            {
+                //eglMakeCurrent(display, surface, surface, context);
+            }
+#endif
+
+            if (useOpenGL)
+            {
                 glViewport(0, 0, width, height);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             }
@@ -708,7 +832,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
 
             // Display image
-            if (!offscreen)
+            if (useOpenGL)
             {
                 this->displayTimer.Reset();
                 glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -744,7 +868,14 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                     this->displayTimeCounter = 0;
                 }
 
-                if (!offscreen)
+                if (fpsPrintTimer.GetElapsedSeconds() > 3.0f)
+                {
+                    std::cout << std::fixed << std::setprecision(1) << fps << " Hz (" << (fps > 0.0f ? 1000.0f / fps : 0.0f) << " ms)" << std::endl;
+                    fpsPrintTimer.Reset();
+                }
+
+#ifdef VISRTX_SAMPLE_WITH_GLFW
+                if (useOpenGL && !offscreen)
                 {
                     if (showGUI)
                     {
@@ -928,6 +1059,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                     ImGui::Render();
                     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
                 }
+#endif
             }
 
             // End frame
@@ -936,11 +1068,25 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             else
                 ++frameNumber;
 
+            // Dump frame
+            if (dump && !benchmark)
+                this->DumpFrame(useOpenGL);
+
+#ifdef VISRTX_SAMPLE_WITH_GLFW
             if (!offscreen)
             {
                 glfwSwapBuffers(window);
                 glfwPollEvents();
             }
+
+#endif
+
+#ifdef VISRTX_SAMPLE_WITH_EGL
+            if (offscreen && egl)
+            {
+                eglSwapBuffers(display, surface);
+            }
+#endif
         }
 
         // Clean up
@@ -957,6 +1103,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
         model->Release();
         frameBuffer->Release();
 
+#ifdef VISRTX_SAMPLE_WITH_GLFW
         if (!offscreen)
         {
             ImGui_ImplOpenGL3_Shutdown();
@@ -966,6 +1113,16 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             glfwDestroyWindow(window);
             glfwTerminate();
         }
+#endif
+
+#ifdef VISRTX_SAMPLE_WITH_EGL
+        if (offscreen && egl)
+        {
+            eglTerminate(display);
+        }
+#endif
+
+
     }
     catch (VisRTX::Exception& e)
     {
@@ -1058,4 +1215,28 @@ VisRTX::MDLMaterial* Sample::LoadMDL(const std::string& material, const std::str
     std::cout << "Load MDL: " << mdl->GetName() << ": " << timer.GetElapsedMilliseconds() << " ms" << std::endl;
 
     return mdl;
+}
+
+
+void Sample::DumpFrame(bool useOpenGL)
+{
+    static int counter = 0;
+
+    std::string path = std::to_string(counter++) + ".ppm";
+
+    if (useOpenGL)
+    {
+        std::vector<uint8_t> rgba(this->width * this->height * 4);
+        glReadPixels(0, 0, this->width, this->height, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+        savePPM(rgba.data(), this->width, this->height, path);
+        std::cout << "Frame dumped from OpenGL: " << path << std::endl;
+    }
+    else
+    {
+        const uint8_t* rgba = (const uint8_t*) this->frameBuffer->MapColorBuffer();
+        savePPM(rgba, this->width, this->height, path);
+        this->frameBuffer->Unmap(rgba);
+
+        std::cout << "Frame dumped from VisRTX framebuffer map: " << path << std::endl;
+    }
 }

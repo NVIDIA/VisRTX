@@ -348,11 +348,13 @@ public:
 
     void UpdateGUI(bool& reset) override
     {
+#ifdef VISRTX_SAMPLE_WITH_GLFW
         if (ImGui::CollapsingHeader("Directional Lights"))
         {
             reset |= ImGui::SliderFloat("Intensity##Directional", &lightsIntensity, 0.0f, 10.0f, "%.1f");
             reset |= ImGui::SliderFloat("Angular Diameter##Directional", &lightsDiameter, 0.0f, 50.0f, "%.1f");
         }
+#endif
     }
 
     VisRTX::DirectionalLight* dirLight1;

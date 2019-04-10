@@ -620,14 +620,6 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD& prd, optix::Ray& ray)
 }
 
 
-rtDeclareVariable(int, toneMapping, , );
-rtDeclareVariable(optix::float3, colorBalance, , );
-rtDeclareVariable(float, invGamma, , );
-rtDeclareVariable(float, invWhitePoint, , );
-rtDeclareVariable(float, burnHighlights, , );
-rtDeclareVariable(float, crushBlacks, , );
-rtDeclareVariable(float, saturation, , );
-
 
 RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, RandState* randState)
 {
@@ -757,23 +749,23 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
 
     // Tone mapping
     optix::float3 ldrColor = optix::make_float3(color);
-    if (toneMapping > 0)
+    if (launchParameters[0].toneMapping > 0)
     {
-        ldrColor = invWhitePoint * colorBalance * ldrColor;
-        ldrColor *= (ldrColor * optix::make_float3(burnHighlights) + optix::make_float3(1.0f)) / (ldrColor + optix::make_float3(1.0f));
+        ldrColor = launchParameters[0].invWhitePoint * launchParameters[0].colorBalance * ldrColor;
+        ldrColor *= (ldrColor * optix::make_float3(launchParameters[0].burnHighlights) + optix::make_float3(1.0f)) / (ldrColor + optix::make_float3(1.0f));
 
         float luminance = optix::dot(ldrColor, optix::make_float3(0.3f, 0.59f, 0.11f));
-        ldrColor = optix::lerp(optix::make_float3(luminance), ldrColor, saturation); // This can generate negative values for saturation > 1.0f!
+        ldrColor = optix::lerp(optix::make_float3(luminance), ldrColor, launchParameters[0].saturation); // This can generate negative values for saturation > 1.0f!
         ldrColor = optix::fmaxf(optix::make_float3(0.0f), ldrColor); // Prevent negative values.
 
         luminance = optix::dot(ldrColor, make_float3(0.3f, 0.59f, 0.11f));
         if (luminance < 1.0f)
         {
-            const float3 crushed = optix::make_float3(powf(ldrColor.x, crushBlacks), powf(ldrColor.y, crushBlacks), powf(ldrColor.z, crushBlacks));
+            const float3 crushed = optix::make_float3(powf(ldrColor.x, launchParameters[0].crushBlacks), powf(ldrColor.y, launchParameters[0].crushBlacks), powf(ldrColor.z, launchParameters[0].crushBlacks));
             ldrColor = optix::lerp(crushed, ldrColor, sqrtf(luminance));
             ldrColor = optix::fmaxf(optix::make_float3(0.0f), ldrColor); // Prevent negative values.
         }
-        ldrColor = optix::make_float3(powf(ldrColor.x, invGamma), powf(ldrColor.y, invGamma), powf(ldrColor.z, invGamma));
+        ldrColor = optix::make_float3(powf(ldrColor.x, launchParameters[0].invGamma), powf(ldrColor.y, launchParameters[0].invGamma), powf(ldrColor.z, launchParameters[0].invGamma));
     }
 
 #ifdef VISRTX_USE_DEBUG_EXCEPTIONS

@@ -56,6 +56,8 @@ make install
 | `VISRTX_USE_DEBUG_EXCEPTIONS`| Compiles VisRTX and the underlying OptiX kernels with debug exception handling enabled. |
 | `VISRTX_BUILD_SAMPLE`| Enables building of the sample applications. |
 | `VISRTX_SAMPLE_USE_DYNAMIC_LOADING`| Use dynamic loading rather than dynamic linking in the samples to load VisRTX. |
+| `VISRTX_SAMPLE_WITH_GLFW`| Enables GLFW-based OpenGL windows with GUI in the samples. |
+| `VISRTX_SAMPLE_WITH_EGL`| Enables EGL-based OpenGL offscreen interop in the samples (Linux only). |
 
 
 ##### Compiling on Windows using Visual Studio 2017 #####
@@ -99,7 +101,7 @@ Examples
 
 Several example applications are included showcasing and verifying the features of VisRTX.
 
-The `visRtxSampleBasic` application combines most features of VisRTX in a single test bed using the general-purpose basic material. 
+The `visRtxSampleBasic` application combines most features of VisRTX in a single test bed using the general-purpose basic material, and has the optional parameters: `benchmark`, `offscreen`, `egl`, `dump`.
 
 The `visRtxSampleMeshViewer` can be used to load a set of arbitrary OBJ meshes and apply MDL materials to them. 
 `visRtxSampleMDL` loads a single mesh and renders multiple instances with various MDL materials.
@@ -110,7 +112,6 @@ These include `::OBJMaterial`, `::CarPaint`, `::Principled`, `::Metal`, `::Alloy
 Example command line: ` ./visRtxSampleMeshViewer ::OBJMaterial cow.obj ::CarPaint car.obj ::MetallicPaint --plane`
 
 The samples can be easily changed to load MDL files and resources from disk, or switch from instance to class compilation.
-
 
 
 

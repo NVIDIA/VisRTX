@@ -482,6 +482,7 @@ public:
     */
     void UpdateGUI(bool& reset) override
     {
+#ifdef VISRTX_SAMPLE_WITH_GLFW
         if (ImGui::CollapsingHeader("Sphere"))
         {
             reset |= ImGui::SliderFloat("Diffuse##Sphere", &sphereDiffuse, 0.0f, 1.0f, "%.1f");
@@ -589,6 +590,7 @@ public:
                 reset |= ImGui::SliderFloat3("Up##HDRI", &hdriLightUp.x, -1.0f, 1.0f, "%.2f");
             }
         }
+#endif
     }
 
 public:
