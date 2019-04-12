@@ -496,6 +496,9 @@ void MDL::CompiledMaterial::Copy(MDL::CompiledMaterial& dst, MDL::CompiledMateri
     dst.pdfProg = src.pdfProg;
 
     dst.opacityProg = src.opacityProg;
+	dst.thinwalledProg = src.thinwalledProg;
+	dst.iorProg = src.iorProg;
+	dst.absorbProg = src.absorbProg;
 
     dst.layout = src.layout;
     memcpy(dst.argumentBlock, src.argumentBlock, MDL_ARGUMENT_BLOCK_SIZE);
@@ -848,7 +851,10 @@ MDL::CompiledMaterial MDL::Compile(const MDL::Material& material, bool classComp
             std::vector<mi::neuraylib::Target_function_description> functionDescriptions =
             {
                 mi::neuraylib::Target_function_description("surface.scattering", "surface_scattering"),
-                mi::neuraylib::Target_function_description("geometry.cutout_opacity", "geometry_cutout_opacity")
+                mi::neuraylib::Target_function_description("geometry.cutout_opacity", "geometry_cutout_opacity"),
+				mi::neuraylib::Target_function_description("thin_walled", "thin_walled"),
+				mi::neuraylib::Target_function_description("ior", "ior"),
+				mi::neuraylib::Target_function_description("volume.absorption_coefficient", "volume_absorption_coefficient"),
             };
 
             linkUnit->add_material(compiledMaterial.get(), functionDescriptions.data(), functionDescriptions.size(), this->executionContext.get());
@@ -871,7 +877,10 @@ MDL::CompiledMaterial MDL::Compile(const MDL::Material& material, bool classComp
                 &result.sampleProg,
                 &result.evaluateProg,
                 &result.pdfProg,
-                &result.opacityProg
+                &result.opacityProg,
+				&result.thinwalledProg,
+				&result.iorProg,				
+				&result.absorbProg
             };
 
             std::vector<std::string> functionNames(programs.size());
@@ -1009,7 +1018,10 @@ MDL::CompiledMaterial MDL::Compile(const MDL::Material& material, bool classComp
                 &result.sampleProg,
                 &result.evaluateProg,
                 &result.pdfProg,
-                &result.opacityProg
+                &result.opacityProg,
+				&result.thinwalledProg,
+				&result.iorProg,				
+				&result.absorbProg
             };
 
             for (size_t i = 0; i < sizeof(tex_prog_names) / sizeof(*tex_prog_names); ++i)

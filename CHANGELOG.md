@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4
+##### 2019-04-12
+- Volumetric absorption (e.g. Glass material)
+- Added volume sample
+- Buffer access fix
+
 ## 0.1.3
 ##### 2019-04-10
 - Tone mapping bug fix

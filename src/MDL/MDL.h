@@ -112,6 +112,15 @@ public:
         // Cut-out opacity
         optix::Program opacityProg;
 
+		// Refraction index
+		optix::Program iorProg;
+
+		// Thin-walled
+		optix::Program thinwalledProg;
+
+		// Volume absorption coefficient
+		optix::Program absorbProg;
+
         // Argument block
         char argumentBlock[MDL_ARGUMENT_BLOCK_SIZE];
         std::map<std::string, Layout> layout;

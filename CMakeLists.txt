@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 set(VISRTX_VERSION_MAJOR 0)
 set(VISRTX_VERSION_MINOR 1)
-set(VISRTX_VERSION_PATCH 3)
+set(VISRTX_VERSION_PATCH 4)
 
 set(VISRTX_VERSION ${VISRTX_VERSION_MAJOR}.${VISRTX_VERSION_MINOR}.${VISRTX_VERSION_PATCH})
 
@@ -259,8 +259,9 @@ if(VISRTX_BUILD_SAMPLE)
       COMMENT "Converting OSPRay MDL materials to a C header"
     )
 
-    # Copy cow.obj to build folder
+    # Copy sample data to build folder
     file(COPY ${PROJECT_SOURCE_DIR}/sample/data/cow.obj DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+	file(COPY ${PROJECT_SOURCE_DIR}/sample/data/NVIDIA_Logo.jpg DESTINATION ${CMAKE_CURRENT_BINARY_DIR})	
 
     # Samples        
     if (VISRTX_SAMPLE_USE_DYNAMIC_LOADING)
@@ -276,19 +277,23 @@ if(VISRTX_BUILD_SAMPLE)
     add_executable(visRtxSampleMDL sample/SampleMDL.cpp ${headerPathOSPRayMDL})
     add_executable(visRtxSampleLightTest sample/SampleLightTest.cpp ${headerPathOSPRayMDL})
     add_executable(visRtxSampleMeshViewer sample/SampleMeshViewer.cpp ${headerPathOSPRayMDL})
+	add_executable(visRtxSampleVolume sample/SampleVolume.cpp ${headerPathOSPRayMDL})
 
     target_compile_definitions(visRtxSampleBasic PRIVATE ${VISRTX_SAMPLE_DEFINES})
     target_compile_definitions(visRtxSampleMDL PRIVATE ${VISRTX_SAMPLE_DEFINES})
     target_compile_definitions(visRtxSampleLightTest PRIVATE ${VISRTX_SAMPLE_DEFINES})
     target_compile_definitions(visRtxSampleMeshViewer PRIVATE ${VISRTX_SAMPLE_DEFINES})
+	target_compile_definitions(visRtxSampleVolume PRIVATE ${VISRTX_SAMPLE_DEFINES})
 
     target_include_directories(visRtxSampleBasic PRIVATE ${VISRTX_SAMPLE_INCLUDES})
     target_include_directories(visRtxSampleMDL PRIVATE ${VISRTX_SAMPLE_INCLUDES})
     target_include_directories(visRtxSampleLightTest PRIVATE ${VISRTX_SAMPLE_INCLUDES})
     target_include_directories(visRtxSampleMeshViewer PRIVATE ${VISRTX_SAMPLE_INCLUDES})
+	target_include_directories(visRtxSampleVolume PRIVATE ${VISRTX_SAMPLE_INCLUDES})
 
     target_link_libraries(visRtxSampleBasic ${VISRTX_SAMPLE_LIBS})        
     target_link_libraries(visRtxSampleMDL ${VISRTX_SAMPLE_LIBS})        
     target_link_libraries(visRtxSampleLightTest ${VISRTX_SAMPLE_LIBS})        
     target_link_libraries(visRtxSampleMeshViewer ${VISRTX_SAMPLE_LIBS})
+	target_link_libraries(visRtxSampleVolume ${VISRTX_SAMPLE_LIBS})
 endif()

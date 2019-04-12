@@ -38,6 +38,9 @@
 //#define TEST_NEE_ONLY     // Next event estimation only (light sampling only)
 //#define TEST_MIS          // Weighted combination of direct + NEE using multiple importance sampling
 
+//#define PRINT_PIXEL_X 700
+//#define PRINT_PIXEL_Y 540
+
 
 // Convenience 
 #ifdef TEST_NEE_ONLY
@@ -84,7 +87,8 @@ const MaterialId MATERIAL_NULL = 0;
 
 const uint32_t BASIC_MATERIAL_BIT = (1u << 31);
 const uint32_t MDL_MATERIAL_BIT = (1u << 30);
-const uint32_t MATERIAL_INDEX_MASK = ~(BASIC_MATERIAL_BIT | MDL_MATERIAL_BIT);
+const uint32_t MATERIAL_PRIORITY_MASK = (255u << 22);
+const uint32_t MATERIAL_INDEX_MASK = ~(BASIC_MATERIAL_BIT | MDL_MATERIAL_BIT | MATERIAL_PRIORITY_MASK);
 
 
 struct BasicMaterialParameters
@@ -132,11 +136,14 @@ struct MDLMaterialParameters
     MDL_BSDF_Evaluate_Func evaluate;
     // MDL_BSDF_PDF_Func pdf; // currently not used    
     MDL_Expression_Func opacity;
+	MDL_Expression_Func thinwalled;
+	MDL_Expression_Func ior;
+	MDL_Expression_Func absorption;
 
     int hasArgBlock;
     char argBlock[MDL_ARGUMENT_BLOCK_SIZE];
 
-    // = 5 * 4 + 364 = 384 bytes 
+    // = 7 * 4 + 372 = 400 bytes 
 };
 
 
@@ -149,6 +156,11 @@ typedef rtBufferId<uint> BufferUint;
 typedef rtBufferId<uint4> BufferUint4;
 typedef rtBufferId<optix::uchar4> BufferUchar4;
 typedef rtBufferId<MaterialId> BufferMaterialId;
+
+typedef rtBufferId<optix::float4, 2> Buffer2DFloat4;
+typedef rtBufferId<optix::uchar4, 2> Buffer2DUchar4;
+typedef rtBufferId<float, 2> Buffer2DFloat;
+
 #else
 typedef int BufferFloat;
 typedef int BufferFloat2;
@@ -158,6 +170,10 @@ typedef int BufferUint;
 typedef int BufferUint4;
 typedef int BufferUchar4;
 typedef int BufferMaterialId;
+
+typedef int Buffer2DFloat4;
+typedef int Buffer2DUchar4;
+typedef int Buffer2DFloat;
 
 typedef int rtObject;
 #endif
@@ -169,10 +185,10 @@ struct LaunchParameters
     int width;
     int height;
 
-    BufferFloat4 accumulationBuffer;
-    BufferFloat4 frameBuffer;
-    BufferUchar4 ucharFrameBuffer;
-    BufferFloat depthBuffer;
+    Buffer2DFloat4 accumulationBuffer;
+    Buffer2DFloat4 frameBuffer;
+    Buffer2DUchar4 ucharFrameBuffer;
+    Buffer2DFloat depthBuffer;
 
     int cameraType;
     float3 pos;
@@ -240,6 +256,7 @@ struct PathtracePRD
     RandState* randState;
 
     bool light;
+	bool frontFacing;
 };
 
 struct OcclusionPRD
@@ -247,6 +264,27 @@ struct OcclusionPRD
     optix::float3 occlusion;
     RandState* randState;
 };
+
+//struct MaterialStackElement
+//{
+//	MaterialId material; // default: MATERIAL_NULL (air)
+//	optix::float3 ior; // default: 1
+//
+//	bool topmost; // default: true
+//	bool oddParity; // default: true
+//};
+//
+//const uint32_t MATERIAL_STACK_SIZE = 8;
+
+struct VolumeStackElement
+{
+	MaterialId material;
+	optix::float3 ior;
+	optix::float3 absorptionCoefficient;
+};
+
+const uint32_t VOLUME_MAX_STACK_SIZE = 4;
+
 
 
 

@@ -27,6 +27,7 @@
 */
 
 #include "OptiX.h"
+#include "Pathtracer/Common.h"
 
 namespace VisRTX
 {
@@ -35,7 +36,10 @@ namespace VisRTX
 #ifdef VISRTX_USE_DEBUG_EXCEPTIONS
         context->setPrintEnabled(true);
         context->setExceptionEnabled(RT_EXCEPTION_ALL, true);
-        //context->setPrintLaunchIndex(256, 256); // Launch index (0,0) at lower left.
+
+#ifdef PRINT_PIXEL_X
+        context->setPrintLaunchIndex(PRINT_PIXEL_X, PRINT_PIXEL_Y); // Launch index (0,0) at lower left.
+#endif
 #endif
 
         context->setUsageReportCallback(usageReportCallback, VISRTX_USAGE_REPORT_VERBOSITY, nullptr);

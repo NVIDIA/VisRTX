@@ -111,9 +111,26 @@ protected:
         std::vector<ParameterGUI> parameters;
         int id;
         bool dirty = false;
+
+		void LoadCurrentValues()
+		{
+			for (ParameterGUI& p : this->parameters)
+			{
+				if (p.type == VisRTX::ParameterType::FLOAT)
+					p.valueFloat = mdl->GetParameterFloat(p.name.c_str());
+				else if (p.type == VisRTX::ParameterType::DOUBLE)
+					p.valueFloat = (float)mdl->GetParameterDouble(p.name.c_str());
+				else if (p.type == VisRTX::ParameterType::INT)
+					p.valueInt = mdl->GetParameterInt(p.name.c_str());
+				else if (p.type == VisRTX::ParameterType::BOOL)
+					p.valueBool = mdl->GetParameterBool(p.name.c_str());
+				else if (p.type == VisRTX::ParameterType::COLOR)
+					p.valueColor = mdl->GetParameterColor(p.name.c_str());
+			}
+		}
     };
 
-    VisRTX::MDLMaterial* LoadMDL(const std::string& material, const std::string& source, const std::vector<std::string>& modulePaths, VisRTX::CompilationType compilationType, const std::string& objectName);
+    VisRTX::MDLMaterial* LoadMDL(const std::string& material, const std::string& source, const std::vector<std::string>& modulePaths, VisRTX::CompilationType compilationType, uint8_t priority, const std::string& objectName);
 
     void DumpFrame(bool useOpenGL);
 
@@ -156,6 +173,10 @@ public:
     uint32_t displayTimeCounter = 0;
     double renderTimeAverage = 0.0;
     double displayTimeAverage = 0.0;
+
+	GLuint colorTex = 0;
+	Timer updateGLTimer;
+	float updateGLInterval = 200.0f;
 
     // Renderer
     Renderer* renderer;
@@ -702,7 +723,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             if (useOpenGL)
             {
                 glViewport(0, 0, width, height);
-                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             }
 
 
@@ -835,13 +856,21 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             if (useOpenGL)
             {
                 this->displayTimer.Reset();
-                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-                glUseProgram(fullscreenQuadProgram);
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_2D, frameBuffer->GetColorTextureGL());
-                glUniform1i(fullscreenTextureLocation, 0);
-                glBindVertexArray(fullscreenVAO);
-                glDrawArrays(GL_POINTS, 0, 1);
+
+				if (frameNumber == 0 || this->updateGLTimer.GetElapsedMilliseconds() >= this->updateGLInterval)
+				{
+					this->updateGLTimer.Reset();				
+					this->colorTex = frameBuffer->GetColorTextureGL();
+				}
+
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+				glUseProgram(fullscreenQuadProgram);
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, this->colorTex);
+				glUniform1i(fullscreenTextureLocation, 0);
+				glBindVertexArray(fullscreenVAO);
+				glDrawArrays(GL_POINTS, 0, 1);
+
                 this->displayTime += this->displayTimer.GetElapsedMilliseconds();
                 ++this->displayTimeCounter;
             }
@@ -891,7 +920,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
                         ImGui::Checkbox("Progressive Rendering", &progressiveRendering);
                         ImGui::Checkbox("Pause All Animations", &pauseAllAnimations);
-
+						ImGui::SliderFloat("##Update GL Interval", &this->updateGLInterval, 0.0f, 1000.0f, "Display every %.0f ms");
                         ImGui::Spacing();
 
                         if (ImGui::CollapsingHeader("Renderer"))
@@ -1132,7 +1161,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 }
 
 
-VisRTX::MDLMaterial* Sample::LoadMDL(const std::string& material, const std::string& source, const std::vector<std::string>& modulePaths, VisRTX::CompilationType compilationType, const std::string& objectName)
+VisRTX::MDLMaterial* Sample::LoadMDL(const std::string& material, const std::string& source, const std::vector<std::string>& modulePaths, VisRTX::CompilationType compilationType, uint8_t priority, const std::string& objectName)
 {
     Timer timer;
 
@@ -1141,7 +1170,7 @@ VisRTX::MDLMaterial* Sample::LoadMDL(const std::string& material, const std::str
         modules.push_back(p.c_str());
 
     VisRTX::Context* context = VisRTX_GetContext();
-    VisRTX::MDLMaterial* mdl = context->CreateMDLMaterial(material.c_str(), source.c_str(), (uint32_t)source.size(), (uint32_t)modules.size(), modules.data(), compilationType);
+    VisRTX::MDLMaterial* mdl = context->CreateMDLMaterial(material.c_str(), source.c_str(), (uint32_t)source.size(), (uint32_t)modules.size(), modules.data(), compilationType, priority);
     mdl->Compile();
 
 
@@ -1170,47 +1199,50 @@ VisRTX::MDLMaterial* Sample::LoadMDL(const std::string& material, const std::str
 
 
     // Register for GUI editing
-    MaterialGUI mat;
-    mat.mdl = mdl;
-    mat.objectName = objectName;
+	uint32_t numParameters = mdl->GetParameterCount();
+	if (numParameters > 0)
+	{
+		MaterialGUI mat;
+		mat.mdl = mdl;
+		mat.objectName = objectName;
 
-    static int matCounter = 0;
-    mat.id = matCounter++;
+		static int matCounter = 0;
+		mat.id = matCounter++;
 
-    uint32_t numParameters = mdl->GetParameterCount();
-    for (uint32_t i = 0; i < numParameters; ++i)
-    {
-        const char* name = mdl->GetParameterName(i);
-        if (mdl->GetParameterType(name) == VisRTX::ParameterType::TEXTURE)
-        {
-            // Skip texture maps
-            continue;
-        }
+		for (uint32_t i = 0; i < numParameters; ++i)
+		{
+			const char* name = mdl->GetParameterName(i);
+			if (mdl->GetParameterType(name) == VisRTX::ParameterType::TEXTURE)
+			{
+				// Skip texture maps
+				continue;
+			}
 
-        ParameterGUI p;
-        p.name = std::string(name);
-        p.type = mdl->GetParameterType(name);
+			ParameterGUI p;
+			p.name = std::string(name);
+			p.type = mdl->GetParameterType(name);
 
-        if (p.type == VisRTX::ParameterType::FLOAT)
-            p.valueFloat = mdl->GetParameterFloat(name);
-        else if (p.type == VisRTX::ParameterType::DOUBLE)
-            p.valueFloat = (float)mdl->GetParameterDouble(name);
-        else if (p.type == VisRTX::ParameterType::INT)
-            p.valueInt = mdl->GetParameterInt(name);
-        else if (p.type == VisRTX::ParameterType::BOOL)
-            p.valueBool = mdl->GetParameterBool(name);
-        else if (p.type == VisRTX::ParameterType::COLOR)
-            p.valueColor = mdl->GetParameterColor(name);
-        else if (p.type == VisRTX::ParameterType::TEXTURE)
-        {
-            p.valueInt = mdl->GetParameterInt(name);
-            p.type = VisRTX::ParameterType::INT;
-        }
+			if (p.type == VisRTX::ParameterType::FLOAT)
+				p.valueFloat = mdl->GetParameterFloat(name);
+			else if (p.type == VisRTX::ParameterType::DOUBLE)
+				p.valueFloat = (float)mdl->GetParameterDouble(name);
+			else if (p.type == VisRTX::ParameterType::INT)
+				p.valueInt = mdl->GetParameterInt(name);
+			else if (p.type == VisRTX::ParameterType::BOOL)
+				p.valueBool = mdl->GetParameterBool(name);
+			else if (p.type == VisRTX::ParameterType::COLOR)
+				p.valueColor = mdl->GetParameterColor(name);
+			else if (p.type == VisRTX::ParameterType::TEXTURE)
+			{
+				p.valueInt = mdl->GetParameterInt(name);
+				p.type = VisRTX::ParameterType::INT;
+			}
 
-        mat.parameters.push_back(p);
-    }
+			mat.parameters.push_back(p);
+		}
 
-    this->materials.push_back(mat);
+		this->materials.push_back(mat);
+	}
 
     std::cout << "Load MDL: " << mdl->GetName() << ": " << timer.GetElapsedMilliseconds() << " ms" << std::endl;
 

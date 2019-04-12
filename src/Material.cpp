@@ -239,14 +239,14 @@ namespace VisRTX
             return material_name.substr(p + 2, material_name.size() - p);
         }
 
-        MDLMaterial::MDLMaterial(CompilationType compilationType) : compilationType(compilationType)
+        MDLMaterial::MDLMaterial(CompilationType compilationType, uint8_t priority) : compilationType(compilationType), priority(priority)
         {
             // Initial state: Not ready to use
             this->material = 0;
 
             // Acquire element in parameters buffer
             this->index = MDLMaterial::parameters.Allocate();
-            this->materialCandidate = (MDL_MATERIAL_BIT | this->index);
+            this->materialCandidate = (MDL_MATERIAL_BIT | (static_cast<uint32_t>(priority) << 22) | this->index);
             MDLMaterial::parametersDirty = true;
 
             static MDL* instance = nullptr;
@@ -265,7 +265,7 @@ namespace VisRTX
             this->mdl = instance;
     }
 
-        MDLMaterial::MDLMaterial(const char* material, const char* source, uint32_t sourceBytes, uint32_t numModulePaths, const char** modulePaths, CompilationType compilationType) : MDLMaterial(compilationType)
+        MDLMaterial::MDLMaterial(const char* material, const char* source, uint32_t sourceBytes, uint32_t numModulePaths, const char** modulePaths, CompilationType compilationType, uint8_t priority) : MDLMaterial(compilationType, priority)
         {
             this->Load(material, source, sourceBytes, numModulePaths, modulePaths);
         }
@@ -368,6 +368,11 @@ namespace VisRTX
                 params.sample = this->compiledMaterial.sampleProg->getId();
                 params.evaluate = this->compiledMaterial.evaluateProg->getId();
                 params.opacity = this->compiledMaterial.opacityProg->getId();
+				params.thinwalled = this->compiledMaterial.thinwalledProg->getId();
+				params.ior = this->compiledMaterial.iorProg->getId();
+				params.absorption = this->compiledMaterial.absorbProg->getId();
+				
+				this->compiledMaterial.pdfProg->getId(); // currently not used
 
                 params.hasArgBlock = this->compilationType == CompilationType::CLASS;
                 if (this->compilationType == CompilationType::INSTANCE)
@@ -386,8 +391,7 @@ namespace VisRTX
                         params.hasArgBlock = 0;
                     }
 
-                }
-                this->compiledMaterial.pdfProg->getId(); // currently not used
+                }                
 
                 // Initialize set of free texture slots
                 for (uint32_t i = this->compiledMaterial.numTextures; i < MDL_MAX_TEXTURES; ++i)
@@ -784,6 +788,5 @@ namespace VisRTX
         {
             return ""; // TODO
         }
-
 }
 }

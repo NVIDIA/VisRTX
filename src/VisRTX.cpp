@@ -288,9 +288,9 @@ namespace VisRTX
                 return new VisRTX::Impl::MDLMaterial();
             }
 
-            VisRTX::MDLMaterial* CreateMDLMaterial(const char* material, const char* source, uint32_t sourceBytes, uint32_t numModulePaths, const char** modulePaths, CompilationType compilationType)
+            VisRTX::MDLMaterial* CreateMDLMaterial(const char* material, const char* source, uint32_t sourceBytes, uint32_t numModulePaths, const char** modulePaths, CompilationType compilationType, uint8_t priority)
             {
-                return new VisRTX::Impl::MDLMaterial(material, source, sourceBytes, numModulePaths, modulePaths, compilationType);
+                return new VisRTX::Impl::MDLMaterial(material, source, sourceBytes, numModulePaths, modulePaths, compilationType, priority);
             }
 
             VisRTX::Model* CreateModel()

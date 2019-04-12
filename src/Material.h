@@ -201,8 +201,8 @@ namespace VisRTX
         {
             friend class Renderer;
         public:
-            MDLMaterial(CompilationType compilationType = CompilationType::CLASS);
-            MDLMaterial(const char* material, const char* source, uint32_t sourceBytes, uint32_t numModulePaths, const char** modulePaths, CompilationType compilationType);
+            MDLMaterial(CompilationType compilationType = CompilationType::CLASS, uint8_t priority = 0);
+            MDLMaterial(const char* material, const char* source, uint32_t sourceBytes, uint32_t numModulePaths, const char** modulePaths, CompilationType compilationType, uint8_t priority);
             virtual ~MDLMaterial();
 
         public:
@@ -263,6 +263,8 @@ namespace VisRTX
             std::map<std::string, uint32_t> usedTextureSlots;
 
             std::map<std::string, VisRTX::Texture*> textureHandles;
+
+			uint8_t priority;
         };
     }
 }

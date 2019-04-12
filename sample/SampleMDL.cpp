@@ -107,7 +107,7 @@ public:
         this->apertureRadius = 0.05f;
 
         this->numBouncesMin = 1;
-        this->numBouncesMax = 8;
+        this->numBouncesMax = 15;
 
 
         VisRTX::Context* context = VisRTX_GetContext();
@@ -249,7 +249,7 @@ public:
             VisRTX::TriangleGeometry* mesh = context->CreateTriangleGeometry((uint32_t)triangles.size(), triangles.data(), (uint32_t)vertTrans.size(), vertTrans.data(), normals.empty() ? nullptr : normals.data());
             mesh->SetTexCoords(texcoords.data());
 
-            VisRTX::MDLMaterial* meshMaterial = this->LoadMDL(meshMaterials[i], osprayMDLSource, mdlModulePaths, compilationType, "");
+            VisRTX::MDLMaterial* meshMaterial = this->LoadMDL(meshMaterials[i], osprayMDLSource, mdlModulePaths, compilationType, 0, "");
             mesh->SetMaterial(meshMaterial);
             meshMaterial->Release();
 
@@ -285,7 +285,7 @@ public:
         plane->SetTriangles(2, planeTriangles, 4, planeVertices);
         plane->SetTexCoords(planeTexCoords);
 
-        MDLMaterial* planeMat = this->LoadMDL(planeMaterial, osprayMDLSource, mdlModulePaths, compilationType, "Plane");
+        MDLMaterial* planeMat = this->LoadMDL(planeMaterial, osprayMDLSource, mdlModulePaths, compilationType, 0, "Plane");
         plane->SetMaterial(planeMat);
         planeMat->Release();
 

@@ -897,7 +897,7 @@ namespace VisRTX
         virtual VisRTX::BasicMaterial* CreateBasicMaterial() = 0;
 
         virtual VisRTX::MDLMaterial* CreateMDLMaterial() = 0;
-        virtual VisRTX::MDLMaterial* CreateMDLMaterial(const char* material, const char* source = nullptr, uint32_t sourceBytes = 0, uint32_t numModulePaths = 0, const char** modulePaths = nullptr, CompilationType compilationType = CompilationType::CLASS) = 0;
+        virtual VisRTX::MDLMaterial* CreateMDLMaterial(const char* material, const char* source = nullptr, uint32_t sourceBytes = 0, uint32_t numModulePaths = 0, const char** modulePaths = nullptr, CompilationType compilationType = CompilationType::CLASS, uint8_t priority = 0) = 0;
 
         virtual VisRTX::Model* CreateModel() = 0;
 
