@@ -363,16 +363,14 @@ RT_FUNCTION bool EvaluateLight(const Light & light, PathtracePRD & prd, optix::R
 	// HDRI light
 	else if (light.type == Light::HDRI && light.texture != RT_TEXTURE_ID_NULL)
 	{
-		const optix::float3 Z = light.dir;
-		const optix::float3 X = optix::cross(light.up, Z);
-		const optix::float3 Y = optix::cross(Z, X);
+		const optix::float3 X = -light.dir;
+		const optix::float3 Y = optix::cross(X, light.up);
+		const optix::float3 Z = optix::cross(X, Y);
 
-		const optix::float3 transformedRayDir = ray.direction.x * X + ray.direction.y * Y + ray.direction.z * Z;
+		const optix::float3 transformedRayDir = optix::make_float3(optix::dot(ray.direction, X), optix::dot(ray.direction, Y), optix::dot(ray.direction, Z));
 
-		float theta = atan2f(transformedRayDir.x, transformedRayDir.z);
-		float phi = M_PIf * 0.5f - acosf(transformedRayDir.y);
-		float u = (theta + M_PIf) * (0.5f * M_1_PIf);
-		float v = 0.5f * (1.0f + sinf(phi));
+		const float u = atan2f(transformedRayDir.y, transformedRayDir.x) * (0.5f * M_1_PIf);
+		const float v = acosf(transformedRayDir.z) * M_1_PIf;
 
 		edf = light.color * make_float3(optix::rtTex2D<float4>(light.texture, u, v));
 		pdf = 0.0f; // never sampled
@@ -384,7 +382,7 @@ RT_FUNCTION bool EvaluateLight(const Light & light, PathtracePRD & prd, optix::R
 }
 
 
-RT_FUNCTION void Swap(VolumeStackElement& a, VolumeStackElement& b)
+RT_FUNCTION void Swap(VolumeStackElement & a, VolumeStackElement & b)
 {
 	const MaterialId material = a.material;
 	const optix::float3 ior = a.ior;
@@ -399,7 +397,7 @@ RT_FUNCTION void Swap(VolumeStackElement& a, VolumeStackElement& b)
 	b.absorptionCoefficient = abs;
 }
 
-RT_FUNCTION void PushVolume(const MaterialId material, const optix::float3& ior, const optix::float3& absorptionCoefficient, VolumeStackElement stack[VOLUME_MAX_STACK_SIZE], int& stackSize)
+RT_FUNCTION void PushVolume(const MaterialId material, const optix::float3 & ior, const optix::float3 & absorptionCoefficient, VolumeStackElement stack[VOLUME_MAX_STACK_SIZE], int& stackSize)
 {
 	// Don't crash when stack is full
 	if (stackSize >= VOLUME_MAX_STACK_SIZE)
@@ -482,7 +480,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 			opacitySample = Sample1D(prd.randState);
 
 		if (opacitySample < opacity)
-		{			
+		{
 			// Init
 			optix::Onb onb(prd.normal);
 
@@ -590,146 +588,167 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 		if (parameters.hasArgBlock)
 			argBlock = parameters.argBlock;
 
-		// Cut-out opacity
-		float opacity;
-		parameters.opacity(&opacity, &state, &res_data, NULL, argBlock);
-		opacity *= prd.color.w;
+		// Check if hit should be ignored
+		bool thinwalled = false;
+		parameters.thinwalled(&thinwalled, &state, &res_data, NULL, argBlock);
 
-		float opacitySample = 0.0f;
-		if (opacity < 1.0f)
-			opacitySample = Sample1D(prd.randState);
+		optix::float3 ior;
+		parameters.ior(&ior, &state, &res_data, NULL, argBlock);
 
-		if (opacitySample < opacity)
+		optix::float3 absorptionCoefficient;
+		parameters.absorption(&absorptionCoefficient, &state, &res_data, NULL, argBlock);
+
+		uint32_t surroundingVolumePriority = 0;
+		if (stackSize >= 1)
 		{
-			// IOR
-			optix::float3 ior;
-			parameters.ior(&ior, &state, &res_data, NULL, argBlock);
+			surroundingVolumePriority = MATERIAL_PRIORITY_MASK & stack[stackSize - 1].material; // highest priority element at the end
+		}
 
-			// BSDF
-			parameters.init(&state, &res_data, NULL, argBlock);
+		bool skipBSDF = false;
+		bool updateVolumeStack = false;
+		if (!thinwalled && (surroundingVolumePriority > (MATERIAL_PRIORITY_MASK & prd.material)))
+		{
+			skipBSDF = true;
+			updateVolumeStack = true;
+		}
 
-			union // Put the BSDF data structs into a union to reduce number of memory writes
+		if (!skipBSDF)
+		{
+			// Cut-out opacity
+			float opacity;
+			parameters.opacity(&opacity, &state, &res_data, NULL, argBlock);
+			opacity *= prd.color.w;
+
+			float opacitySample = 0.0f;
+			if (opacity < 1.0f)
+				opacitySample = Sample1D(prd.randState);
+
+			if (opacitySample < opacity)
 			{
-				mi::neuraylib::Bsdf_sample_data sample;
-				mi::neuraylib::Bsdf_evaluate_data evaluate;
-				mi::neuraylib::Bsdf_pdf_data pdf;
-			} data;
-
-			// Shared data
-			data.sample.k1 = optix::normalize(-ray.direction);
-
-			// Select incident ior based on current volume stack
-			data.sample.ior1 = optix::make_float3(1.0f);			
-			if (stackSize >= 1)
-			{
-				data.sample.ior1 = stack[stackSize - 1].ior; // highest priority element at the end
-			}
-			
-			// Select outgoing ior
-			// Entry: Outgoing IOR is from hit material
-			if (prd.frontFacing)
-			{
-				data.sample.ior2 = ior; // .x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
-			}
-			// Exit: Outgoing IOR is from surrounding volume
-			else
-			{
-				if (stackSize >= 2)
-					data.sample.ior2 = stack[stackSize - 2].ior;
-				else
-					data.sample.ior2 = optix::make_float3(1.0f);
-			}			
-
-			//rtPrintf("IOR: %f -> %f\n", data.sample.ior1.x, data.sample.ior2.x);
-
-			
-			// Next event estimation
-#ifndef TEST_DIRECT_ONLY
-			optix::float3 L;
-			optix::float3 lightEdf_over_pdf;
-			float lightPdf;
-
-			float lightFactor = 1.0f;
-			int lightStart = 0;
-			int lightEnd = numLights - 1;
-			if (launchParameters[0].sampleAllLights <= 0)
-			{
-				lightFactor = numLights;
-				prd.lastLightPdfFactor = numLights > 0 ? 1.0f / lightFactor : 1.0f;
-				const float lightSample = Sample1D(prd.randState);
-				const int i = optix::clamp(static_cast<int>(floorf(lightSample * numLights)), 0, numLights - 1);
-				lightStart = i;
-				lightEnd = i;
-			}
-
-			for (int i = lightStart; i <= lightEnd; ++i)
-			{
-				if (SampleLight(lights[i], prd, ray, L, lightEdf_over_pdf, lightPdf))
+				// IOR
+				union // Put the BSDF data structs into a union to reduce number of memory writes
 				{
-					data.evaluate.k2 = L;
-					parameters.evaluate(&data.evaluate, &state, &res_data, NULL, argBlock);
+					mi::neuraylib::Bsdf_sample_data sample;
+					mi::neuraylib::Bsdf_evaluate_data evaluate;
+					mi::neuraylib::Bsdf_pdf_data pdf;
+				} data;
 
-					if (0.0f < data.evaluate.pdf && isNotNull(data.evaluate.bsdf))
-					{
-#ifdef TEST_NEE_ONLY
-						const float misWeight = 1.0f;
-#endif
-#if !defined(TEST_DIRECT_ONLY) && !defined(TEST_NEE_ONLY)
-						const float misWeight = (lightPdf <= 0.0f) ? 1.0f : powerHeuristic(lightPdf * prd.lastLightPdfFactor, data.evaluate.pdf);
-#endif
-
-						const optix::float3 radiance = prd.alpha * data.evaluate.bsdf * lightEdf_over_pdf * lightFactor * misWeight; //  data.evaluate.bsdf contains: bsdf * dot(normal, k2)
-						prd.radiance += clampRadiance(prd.depth, launchParameters[0].fireflyClampingIndirect, radiance);
-					}
+				// Select incident ior based on current volume stack
+				data.sample.ior1 = optix::make_float3(1.0f);
+				if (stackSize >= 1)
+				{
+					data.sample.ior1 = stack[stackSize - 1].ior; // highest priority element at the end
 				}
-			}
-#endif
 
-			// Sample BSDF
-			data.sample.xi = Sample3D(prd.randState);
-			parameters.sample(&data.sample, &state, &res_data, NULL, argBlock);
-
-			prd.lastPdf = data.sample.pdf;
-
-			if (data.sample.event_type == mi::neuraylib::BSDF_EVENT_ABSORB)
-				return false;
-
-			ray.direction = optix::normalize(data.sample.k2);
-			prd.alpha *= data.sample.bsdf_over_pdf;	
-
-
-			// Update volume stack
-			bool thinwalled = false;
-			parameters.thinwalled(&thinwalled, &state, &res_data, NULL, argBlock);
-
-			if (!thinwalled && (data.sample.event_type & mi::neuraylib::BSDF_EVENT_TRANSMISSION))
-			{
-				// Entry event
+				// Select outgoing ior
+				// Entry: Outgoing IOR is from hit material
 				if (prd.frontFacing)
 				{
-					//rtPrintf("Entry: %d\n", prd.material);
-
-					optix::float3 absorptionCoefficient;
-					parameters.absorption(&absorptionCoefficient, &state, &res_data, NULL, argBlock);
-
-					PushVolume(prd.material, ior, absorptionCoefficient, stack, stackSize);
+					data.sample.ior2 = ior;
 				}
-				// Exit event
+				// Exit: Outgoing IOR is from surrounding volume
 				else
 				{
-					//rtPrintf("Exit: %d\n", prd.material);
+					if (stackSize >= 2)
+						data.sample.ior2 = stack[stackSize - 2].ior;
+					else
+						data.sample.ior2 = optix::make_float3(1.0f);
+				}
 
-					if (!PopVolume(prd.material, stack, stackSize))
+				//rtPrintf("IOR: %f -> %f\n", data.sample.ior1.x, data.sample.ior2.x);
+
+
+				// Init BSDF
+				data.sample.k1 = optix::normalize(-ray.direction);
+
+				parameters.init(&state, &res_data, NULL, argBlock);
+
+				// Next event estimation
+#ifndef TEST_DIRECT_ONLY
+				optix::float3 L;
+				optix::float3 lightEdf_over_pdf;
+				float lightPdf;
+
+				float lightFactor = 1.0f;
+				int lightStart = 0;
+				int lightEnd = numLights - 1;
+				if (launchParameters[0].sampleAllLights <= 0)
+				{
+					lightFactor = numLights;
+					prd.lastLightPdfFactor = numLights > 0 ? 1.0f / lightFactor : 1.0f;
+					const float lightSample = Sample1D(prd.randState);
+					const int i = optix::clamp(static_cast<int>(floorf(lightSample * numLights)), 0, numLights - 1);
+					lightStart = i;
+					lightEnd = i;
+				}
+
+				for (int i = lightStart; i <= lightEnd; ++i)
+				{
+					if (SampleLight(lights[i], prd, ray, L, lightEdf_over_pdf, lightPdf))
 					{
-						// Special case: Material was not on stack (e.g., when camera is IN the volume)
-						// TODO
+						data.evaluate.k2 = L;
+						parameters.evaluate(&data.evaluate, &state, &res_data, NULL, argBlock);
+
+						if (0.0f < data.evaluate.pdf && isNotNull(data.evaluate.bsdf))
+						{
+#ifdef TEST_NEE_ONLY
+							const float misWeight = 1.0f;
+#endif
+#if !defined(TEST_DIRECT_ONLY) && !defined(TEST_NEE_ONLY)
+							const float misWeight = (lightPdf <= 0.0f) ? 1.0f : powerHeuristic(lightPdf * prd.lastLightPdfFactor, data.evaluate.pdf);
+#endif
+
+							const optix::float3 radiance = prd.alpha * data.evaluate.bsdf * lightEdf_over_pdf * lightFactor * misWeight; //  data.evaluate.bsdf contains: bsdf * dot(normal, k2)
+							prd.radiance += clampRadiance(prd.depth, launchParameters[0].fireflyClampingIndirect, radiance);
+						}
 					}
+				}
+#endif
+
+				// Sample BSDF
+				data.sample.xi = Sample3D(prd.randState);
+				parameters.sample(&data.sample, &state, &res_data, NULL, argBlock);
+
+				prd.lastPdf = data.sample.pdf;
+
+				if (data.sample.event_type == mi::neuraylib::BSDF_EVENT_ABSORB)
+					return false;
+
+				ray.direction = optix::normalize(data.sample.k2);
+				prd.alpha *= data.sample.bsdf_over_pdf;
+
+				if (!thinwalled && (data.sample.event_type & mi::neuraylib::BSDF_EVENT_TRANSMISSION))
+					updateVolumeStack = true;
+			}
+
+			if (opacity < 1e-3f)
+				prd.numCutoutOpacityHits = prd.numCutoutOpacityHits + 1;
+		}
+
+		// Update volume stack
+		if (updateVolumeStack)
+		{
+
+
+			// Entry event
+			if (prd.frontFacing)
+			{
+				//rtPrintf("Entry: %d\n", prd.material);
+				PushVolume(prd.material, ior, absorptionCoefficient, stack, stackSize);
+			}
+			// Exit event
+			else
+			{
+				//rtPrintf("Exit: %d\n", prd.material);
+
+				if (!PopVolume(prd.material, stack, stackSize))
+				{
+					// Special case: Material was not on stack (e.g., when camera is IN the volume)
+					// Handle absorption
+					prd.alpha *= expf(-prd.tHit * absorptionCoefficient);
 				}
 			}
 		}
-
-		if (opacity < 1e-3f)
-			prd.numCutoutOpacityHits = prd.numCutoutOpacityHits + 1;
 	}
 
 	return true;
@@ -754,7 +773,7 @@ RT_FUNCTION void Pathtrace(const float3 & rayOrigin, const float3 & rayDirection
 		return;
 #endif
 #endif
-	
+
 	optix::Ray ray = optix::make_Ray(
 		rayOrigin,
 		rayDirection,
@@ -861,7 +880,7 @@ RT_FUNCTION void Pathtrace(const float3 & rayOrigin, const float3 & rayDirection
 	/*
 	 * Output / denoising
 	 */
-	// Primary misses need to be transparent so ParaView remote rendering correctly blends with environment color at client-side
+	 // Primary misses need to be transparent so ParaView remote rendering correctly blends with environment color at client-side
 	float alpha = 1.0;
 	if (!launchParameters[0].writeBackground && primaryDepth >= RT_DEFAULT_MAX)
 		alpha = 0.0f;
@@ -946,7 +965,7 @@ RT_PROGRAM void BufferCast()
 RT_PROGRAM void RayGen()
 {
 	optix::float2 invScreen = 1.0f / make_float2(launchParameters[0].width, launchParameters[0].height);
-	optix::float2 p = (make_float2(launchIndex)) * invScreen * 2.0f - 1.0f;
+	optix::float2 p = (launchParameters[0].imageBegin + launchParameters[0].imageSize * optix::make_float2(launchIndex) * invScreen) * 2.0f - 1.0f;
 
 	// Sampling
 	// 2D pixel
@@ -1030,7 +1049,7 @@ RT_PROGRAM void ClosestHit()
 		prd.geometricNormal = -geometricNormal;
 		prd.normal = -normal;
 	}
-	
+
 	// Make sure shading normal does not flip
 	if (optix::dot(prd.normal, ray.direction) > 0.0f)
 		prd.normal = prd.geometricNormal;

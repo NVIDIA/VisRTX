@@ -182,6 +182,9 @@ typedef int rtObject;
 #pragma pack(push, 1)
 struct LaunchParameters 
 {
+	float2 imageBegin;
+	float2 imageSize; // imageEnd - imageBegin
+
     int width;
     int height;
 
@@ -194,7 +197,7 @@ struct LaunchParameters
     float3 pos;
     float3 U;
     float3 V;
-    float3 W;
+    float3 W;	
     float focalDistance;
     float apertureRadius;
     float orthoWidth;

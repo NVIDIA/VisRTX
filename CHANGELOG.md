@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+##### 2019-04-15
+- Added Camera::SetImageRegion
+- Priorities fix for nested volumetric materials
+
 ## 0.1.4
 ##### 2019-04-12
 - Volumetric absorption (e.g. Glass material)

@@ -106,6 +106,8 @@ The `visRtxSampleBasic` application combines most features of VisRTX in a single
 The `visRtxSampleMeshViewer` can be used to load a set of arbitrary OBJ meshes and apply MDL materials to them. 
 `visRtxSampleMDL` loads a single mesh and renders multiple instances with various MDL materials.
 
+Nested volumetric materials are demonstrated in `visRtxSampleVolume`.
+
 The samples include a set of MDL material definitions based on the most common OSPRay materials with a similar parameter interface.
 These include `::OBJMaterial`, `::CarPaint`, `::Principled`, `::Metal`, `::Alloy`, `::Glass`, `::ThinGlass`, `::MetallicPaint`, and can be found in `sample/data/ospray.mdl`.
 

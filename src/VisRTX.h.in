@@ -376,6 +376,8 @@ namespace VisRTX
         virtual void SetDirection(const Vec3f& direction) = 0;
         virtual void SetUp(const Vec3f& up) = 0;
 
+		virtual void SetImageRegion(const Vec2f& begin, const Vec2f& end) = 0;
+
         virtual CameraType GetType() const = 0;
 
     protected:

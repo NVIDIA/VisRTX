@@ -41,6 +41,7 @@ namespace VisRTX
             this->SetPosition(Vec3f(0.0f, 0.0f, 0.0f));
             this->SetDirection(Vec3f(0.0f, 0.0f, -1.0f));
             this->SetUp(Vec3f(0.0f, 1.0f, 0.0f));
+			this->SetImageRegion(Vec2f(0.0f, 0.0f), Vec2f(1.0f, 1.0f));
         }
 
         void Camera::SetPosition(const Vec3f& position)
@@ -71,6 +72,16 @@ namespace VisRTX
                 this->dirty = true;
             }
         }
+
+		void Camera::SetImageRegion(const Vec2f& begin, const Vec2f& end)
+		{
+			if (begin.x != this->imageBegin.x || begin.y != this->imageBegin.y || end.x != this->imageEnd.x || end.y != this->imageEnd.y)
+			{
+				this->imageBegin = optix::make_float2(begin.x, begin.y);
+				this->imageEnd = optix::make_float2(end.x, end.y);
+				this->dirty = true;
+			}
+		}
 
 
         // ------------------------------------------------------------------------------------

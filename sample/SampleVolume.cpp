@@ -41,8 +41,8 @@
  * Example volumes. This sample supports both instance and class compilation for MDL materials.
  */
 
-const VisRTX::CompilationType compilationType = CompilationType::INSTANCE;
-//const VisRTX::CompilationType compilationType = CompilationType::CLASS;
+//const VisRTX::CompilationType compilationType = CompilationType::INSTANCE;
+const VisRTX::CompilationType compilationType = CompilationType::CLASS;
 
 
 class SampleVolume : public Sample
@@ -54,12 +54,16 @@ public:
 		this->ambientColor.g = 1.0f;
 		this->ambientColor.b = 1.0f;
 
-		this->rotationHorizontal = 0.0f;
+		this->rotationHorizontal = -25.0f;
 		this->rotationVertical = 20.0f;
 		this->distance = 2.9f;
 
 		this->numBouncesMin = 2;
 		this->numBouncesMax = 50;
+
+		this->depthOfField = true;
+		this->focalDistance = 2.9f;
+		this->apertureRadius = 0.04f;
 
 
 		VisRTX::Context* context = VisRTX_GetContext();
@@ -73,13 +77,15 @@ public:
 		VisRTX::Vec3f centers[] =
 		{
 			Vec3f(-0.5f, -0.3f, 0.0f),
+			Vec3f(-0.15f, 0.25f, 0.1f),
 			Vec3f(0.5f, 0.0f, 0.0f),			
 			Vec3f(1.3f, -0.1f, 0.0f)
 		};
 		float radii[] =
 		{
 			0.4f,
-			0.375f,			
+			0.15f,
+			0.375f,						
 			0.3f
 		};
 		SphereGeometry* sphere = context->CreateSphereGeometry();
@@ -89,26 +95,33 @@ public:
 		MDLMaterial* mat1 = this->LoadMDL("::ospray::Glass", osprayMDLSource, {}, compilationType, 2, "Sphere 1"); // <-- higher priority than box
 		mat1->SetParameterColor("attenuationColor", Vec3f(0.15f, 1.0f, 0.0f));
 		mat1->SetParameterFloat("attenuationDistance", 0.5f);
-		mat1->SetParameterFloat("eta", 3.0f);
+		mat1->SetParameterFloat("eta", 2.0f);
 		mat1->Compile();
 
-		MDLMaterial* mat2 = this->LoadMDL("::ospray::Glass", osprayMDLSource, {}, compilationType, 2, "Sphere 2"); // <-- lower priority than box
-		mat2->SetParameterColor("attenuationColor", Vec3f(0.15f, 1.0f, 0.0f));
-		mat2->SetParameterFloat("attenuationDistance", 0.5f);
-		mat2->SetParameterFloat("eta", 1.5f);
+		MDLMaterial* mat2 = this->LoadMDL("::ospray::Glass", osprayMDLSource, {}, compilationType, 1, "Sphere 2"); // <-- same priority as box (ok since completely nested)
+		mat2->SetParameterColor("attenuationColor", Vec3f(1.0f, 1.0f, 1.0f));
+		mat2->SetParameterFloat("attenuationDistance", 1.0f);
+		mat2->SetParameterFloat("eta", 1.0f);
 		mat2->Compile();
 
-		MDLMaterial* mat3 = this->LoadMDL("::ospray::Glass", osprayMDLSource, {}, compilationType, 0, "Sphere 3");
+		MDLMaterial* mat3 = this->LoadMDL("::ospray::Glass", osprayMDLSource, {}, compilationType, 0, "Sphere 3"); // <-- lower priority than box
 		mat3->SetParameterColor("attenuationColor", Vec3f(0.15f, 1.0f, 0.0f));
 		mat3->SetParameterFloat("attenuationDistance", 0.5f);
-		mat3->SetParameterFloat("eta", 1.5f);
+		mat3->SetParameterFloat("eta", 1.33f);
 		mat3->Compile();
+
+		MDLMaterial* mat4 = this->LoadMDL("::ospray::Glass", osprayMDLSource, {}, compilationType, 0, "Sphere 4");
+		mat4->SetParameterColor("attenuationColor", Vec3f(0.15f, 1.0f, 0.0f));
+		mat4->SetParameterFloat("attenuationDistance", 0.5f);
+		mat4->SetParameterFloat("eta", 1.5f);
+		mat4->Compile();
 
 		VisRTX::Material* sphereMaterials[] =
 		{
 			mat1,
 			mat2,
-			mat3
+			mat3,
+			mat4
 		};
 		
 		sphere->SetMaterials(sphereMaterials);
@@ -248,7 +261,7 @@ public:
 #ifdef VISRTX_SAMPLE_WITH_GLFW
 		if (ImGui::CollapsingHeader("Directional Lights"))
 		{
-			reset |= ImGui::SliderFloat("Intensity##Directional", &lightsIntensity, 0.0f, 10.0f, "%.1f");
+			reset |= ImGui::SliderFloat("Intensity##Directional", &lightsIntensity, 0.0f, 5.0f, "%.1f");
 			reset |= ImGui::SliderFloat("Angular Diameter##Directional", &lightsDiameter, 0.0f, 50.0f, "%.1f");
 		}
 #endif

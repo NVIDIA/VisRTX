@@ -52,10 +52,15 @@ namespace VisRTX
             void SetDirection(const Vec3f& direction) override;
             void SetUp(const Vec3f& up) override;
 
+			void SetImageRegion(const Vec2f& begin, const Vec2f& end) override;
+
         protected:
             optix::float3 position;
             optix::float3 direction;
             optix::float3 up;
+
+			optix::float2 imageBegin;
+			optix::float2 imageEnd;
 
             bool dirty;
         };

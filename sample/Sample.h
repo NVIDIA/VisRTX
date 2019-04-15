@@ -188,6 +188,7 @@ public:
     float fireflyClampingDirect = 0.0f;
     float fireflyClampingIndirect = 0.0f;
     bool sampleAllLights = false;
+	float epsilon = 1e-5f;
 
     bool toneMapping = true;
     float gamma = 2.2f;
@@ -211,6 +212,8 @@ public:
     bool depthOfField = false;
     float focalDistance = 0.0f;
     float apertureRadius = 0.0f;
+	Vec2f imageBegin = Vec2f(0.0f, 0.0f);
+	Vec2f imageEnd = Vec2f(1.0f, 1.0f);
 
     float rotationHorizontal = 20.0f;
     float rotationVertical = 6.0f;
@@ -744,15 +747,16 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
             perspectiveCamera->SetPosition(Vec3f(camx, camy, camz));
             perspectiveCamera->SetDirection(Vec3f(-camx, -camy, -camz));
-
             perspectiveCamera->SetFocalDistance(depthOfField ? focalDistance : -1.0f);
             perspectiveCamera->SetApertureRadius(depthOfField ? apertureRadius : -1.0f);
             perspectiveCamera->SetAspect((float)width / (float)height);
+			perspectiveCamera->SetImageRegion(this->imageBegin, this->imageEnd);
 
             orthographicCamera->SetPosition(Vec3f(camx, camy, camz));
             orthographicCamera->SetDirection(Vec3f(-camx, -camy, -camz));
             orthographicCamera->SetHeight(distance);
             orthographicCamera->SetAspect((float)width / (float)height);
+			orthographicCamera->SetImageRegion(this->imageBegin, this->imageEnd);
 
             if (camera != lastCamera)
             {
@@ -827,6 +831,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             renderer->SetNumBounces(numBouncesMin, numBouncesMax);
             renderer->SetFireflyClamping(fireflyClampingDirect, fireflyClampingIndirect);
             renderer->SetSampleAllLights(sampleAllLights);
+			renderer->SetEpsilon(epsilon);
 
             // Update light
             ambientLight->SetColor(ambientColor);
@@ -930,6 +935,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                             reset |= ImGui::SliderInt("Max Bounces", &numBouncesMax, 0, 50);
                             reset |= ImGui::SliderFloat("Clamping Direct", &fireflyClampingDirect, 0.0f, 1000.0f);
                             reset |= ImGui::SliderFloat("Clamping Indirect", &fireflyClampingIndirect, 0.0f, 1000.0f);
+							reset |= ImGui::SliderFloat("Epsilon", &epsilon, 0.0f, 0.01f, "%.5f", 2.0f);
                             reset |= ImGui::Checkbox("Sample All Lights", &sampleAllLights);
                             ImGui::Separator();
                             reset |= ImGui::Checkbox("AI Denoiser", &aiDenoiser);
@@ -971,6 +977,11 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                                     reset |= ImGui::SliderFloat("Aperture", &apertureRadius, 0.0f, 1.0f, "%.2f");
                                 }
                             }
+
+							ImGui::Separator();
+
+							reset |= ImGui::SliderFloat2("Begin", &this->imageBegin.x, 0.0f, 1.0f, "%.2f");
+							reset |= ImGui::SliderFloat2("End", &this->imageEnd.x, 0.0f, 1.0f, "%.2f");
                         }
 
                         ImGui::Spacing();

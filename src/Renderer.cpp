@@ -245,7 +245,7 @@ namespace VisRTX
             {
                 const optix::float3 cam_W = optix::normalize(camera->direction);
                 const optix::float3 cam_U = optix::normalize(optix::cross(camera->direction, camera->up));
-                const optix::float3 cam_V = optix::normalize(optix::cross(cam_U, cam_W));
+                const optix::float3 cam_V = optix::normalize(optix::cross(cam_U, cam_W));				
 
                 if (this->camera->GetType() == CameraType::PERSPECTIVE)
                 {
@@ -274,6 +274,9 @@ namespace VisRTX
                     this->launchParameters.orthoWidth = orthoCam->height * orthoCam->aspect;
                     this->launchParameters.orthoHeight = orthoCam->height;
                 }
+
+				this->launchParameters.imageBegin = camera->imageBegin;
+				this->launchParameters.imageSize = camera->imageEnd - camera->imageBegin;
 
                 camera->dirty = false;
                 this->launchParametersDirty = true;
