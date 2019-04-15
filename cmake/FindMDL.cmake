@@ -46,22 +46,16 @@ macro(MDL_find_library name)
 
         find_file(${name}_LIBRARY
             NAMES ${name}.dll
-            PATHS ${MDL_LIB_DIR}
-            NO_DEFAULT_PATH
-        )
-        find_file(${name}_LIBRARY
-            NAMES ${name}.dll
+            HINTS ${MDL_LIB_DIR}
+            PATHS ${MDL_INSTALL_DIR}/lib
         )
     else()
         set(MDL_LIB_DIR ${MDL_INSTALL_DIR}/linux-x86-64/lib)
 
         find_library(${name}_LIBRARY
             NAMES ${name}.so
-            PATHS ${MDL_LIB_DIR}
-            NO_DEFAULT_PATH
-        )
-        find_library(${name}_LIBRARY
-            NAMES ${name}
+            HINTS ${MDL_LIB_DIR}
+            PATHS ${MDL_INSTALL_DIR}/lib
         )
     endif()
 endmacro()
