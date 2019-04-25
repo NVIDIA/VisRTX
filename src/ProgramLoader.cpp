@@ -70,7 +70,7 @@ namespace VisRTX
         this->diskBoundsProgram = LoadProgram(ctx, Disk_ptx, sizeof(Disk_ptx), "DiskBounds");
 
         this->closestHitProgram = this->LoadPathtracerProgram("ClosestHit");
-        //this->anyHitProgram = this->LoadPathtracerProgram("AnyHit");
+        this->anyHitProgram = this->LoadPathtracerProgram("AnyHit");
         this->anyHitOcclusionProgram = this->LoadPathtracerProgram("AnyHitOcclusion");
         this->lightClosestHitProgram = this->LoadPathtracerProgram("LightClosestHit");
         this->lightAnyHitProgram = this->LoadPathtracerProgram("LightAnyHit");

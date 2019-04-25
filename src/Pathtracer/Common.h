@@ -147,6 +147,18 @@ struct MDLMaterialParameters
 };
 
 
+#pragma pack(push, 1)
+struct ClippingPlane
+{
+    optix::float4 coefficients;
+    int primaryRaysOnly;
+
+    optix::int3 padding;
+};
+#pragma pack(pop)
+
+
+
 #ifdef __CUDACC__
 typedef rtBufferId<float> BufferFloat;
 typedef rtBufferId<optix::float2> BufferFloat2;
@@ -156,6 +168,7 @@ typedef rtBufferId<uint> BufferUint;
 typedef rtBufferId<uint4> BufferUint4;
 typedef rtBufferId<optix::uchar4> BufferUchar4;
 typedef rtBufferId<MaterialId> BufferMaterialId;
+typedef rtBufferId<ClippingPlane> BufferClippingPlane;
 
 typedef rtBufferId<optix::float4, 2> Buffer2DFloat4;
 typedef rtBufferId<optix::uchar4, 2> Buffer2DUchar4;
@@ -170,6 +183,7 @@ typedef int BufferUint;
 typedef int BufferUint4;
 typedef int BufferUchar4;
 typedef int BufferMaterialId;
+typedef int BufferClippingPlane;
 
 typedef int Buffer2DFloat4;
 typedef int Buffer2DUchar4;
@@ -222,6 +236,9 @@ struct LaunchParameters
     int sampleAllLights;
     int numLightsDirect;
     int numLightsMiss;
+
+    int numClippingPlanes;
+    BufferClippingPlane clippingPlanesBuffer;
 
     int toneMapping;
     float3 colorBalance;

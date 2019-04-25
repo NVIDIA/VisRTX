@@ -66,6 +66,7 @@ namespace VisRTX
             this->SetSamplesPerPixel(1);
             this->SetAlphaCutoff(1e-3f);
             this->SetWriteBackground(true);
+            this->SetClippingPlanes(0, nullptr);
 
             uint32_t minBounces = 4;
             uint32_t maxBounces = 8;
@@ -169,6 +170,7 @@ namespace VisRTX
             Destroy(mdlMaterialParametersBuffer.get());
             Destroy(directLightsBuffer.get());
             Destroy(missLightsBuffer.get());
+            Destroy(clippingPlanesBuffer.get());
             Destroy(pickBuffer.get());
             Destroy(launchParametersBuffer.get());
         }
@@ -371,11 +373,12 @@ namespace VisRTX
                 this->launchParametersBuffer = context->createBuffer(RT_BUFFER_INPUT, RT_FORMAT_USER);
                 this->launchParametersBuffer->setElementSize(sizeof(LaunchParameters));
                 this->launchParametersBuffer->setSize(1);
-                this->rayGenProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
-                this->rayGenPickProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
-                this->bufferCastProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
-                this->missProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
-                this->missPickProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                context["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                //this->rayGenProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                //this->rayGenPickProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                //this->bufferCastProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                //this->missProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
+                //this->missPickProgram["launchParameters"]->setBuffer(this->launchParametersBuffer);
 
 
                 // Material buffers (global buffers shared across renderers/materials)
@@ -402,6 +405,14 @@ namespace VisRTX
                 this->rayGenProgram["lights"]->setBuffer(this->directLightsBuffer);
                 this->missProgram["lights"]->setBuffer(this->missLightsBuffer);
                 this->missPickProgram["lights"]->setBuffer(this->missLightsBuffer);
+
+
+                // Clipping planes buffer
+                this->clippingPlanesBuffer = context->createBuffer(RT_BUFFER_INPUT, RT_FORMAT_USER);
+                this->clippingPlanesBuffer->setElementSize(sizeof(::ClippingPlane));
+                this->clippingPlanesBuffer->setSize(0); // TODO bigger?
+
+                this->launchParameters.clippingPlanesBuffer = this->clippingPlanesBuffer->getId();
 
 
                 // Pick buffer
@@ -438,7 +449,8 @@ namespace VisRTX
             }
 
             // Keep list of light geometries up to date
-            dynamic_cast<VisRTX::Impl::Model*>(this->model)->UpdateLightGeometries(&this->lights);
+            VisRTX::Impl::Model* modelImpl = dynamic_cast<VisRTX::Impl::Model*>(this->model);
+            modelImpl->UpdateLightGeometries(&this->lights);
 
             // Update light buffers
             if (this->lightsNeedUpdate)
@@ -648,6 +660,30 @@ namespace VisRTX
                 this->lights.erase(it);
                 light->Release();
             }
+        }
+
+        void Renderer::SetClippingPlanes(uint32_t numPlanes, ClippingPlane* planes)
+        {
+            UPDATE_LAUNCH_PARAMETER(numPlanes, this->launchParameters.numClippingPlanes);
+
+            if (numPlanes > 0)
+            {
+                this->clippingPlanesBuffer->setSize(numPlanes);
+
+                ::ClippingPlane* dst = static_cast<::ClippingPlane*>(this->clippingPlanesBuffer->map(0, RT_BUFFER_MAP_WRITE_DISCARD));
+
+                for (uint32_t i = 0; i < numPlanes; ++i)
+                {
+                    dst[i].coefficients.x = planes[i].normal.x; // a
+                    dst[i].coefficients.y = planes[i].normal.y; // b
+                    dst[i].coefficients.z = planes[i].normal.z; // c                    
+                    dst[i].coefficients.w = -optix::dot(make_float3(planes[i].position), make_float3(planes[i].normal)); // d
+                    
+                    dst[i].primaryRaysOnly = planes[i].primaryRaysOnly ? 1 : 0;
+                }
+
+                this->clippingPlanesBuffer->unmap();
+            }          
         }
 
         void Renderer::SetToneMapping(bool enabled, float gamma, const Vec3f& colorBalance, float whitePoint, float burnHighlights, float crushBlacks, float saturation, float brightness)

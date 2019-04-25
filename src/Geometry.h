@@ -59,14 +59,14 @@ namespace VisRTX
             void AddAcceleration(optix::Acceleration acceleration);                        
             void RemoveAcceleration(optix::Acceleration acceleration);
             void MarkDirty();
-            void SetMaterial(optix::Material material);
+            void SetMaterial(optix::Material material, bool isLight);
 
         protected:
             void UpdatePrimitiveMaterialHandles(uint32_t numMaterials, VisRTX::Material** const materials);
 
         protected:
             optix::GeometryInstance instance;
-            optix::Material material;
+            optix::Material defaultMaterial;
         
             VisRTX::Material* materialHandle = nullptr;
             std::vector<VisRTX::Material*> primitiveMaterialHandles;

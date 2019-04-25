@@ -198,7 +198,7 @@ namespace VisRTX
             if (!this->geometry)
             {
                 sphere = new VisRTX::Impl::SphereGeometry();
-                sphere->SetMaterial(this->GetLightMaterial());
+                sphere->SetMaterial(this->GetLightMaterial(), true);
                 this->geometry = sphere;
             }
             else
@@ -341,7 +341,7 @@ namespace VisRTX
             if (!this->geometry)
             {
                 triangles = new VisRTX::Impl::TriangleGeometry();
-                triangles->SetMaterial(this->GetLightMaterial());
+                triangles->SetMaterial(this->GetLightMaterial(), true);
                 this->geometry = triangles;
             }
             else
@@ -473,7 +473,7 @@ namespace VisRTX
             if (!this->geometry)
             {
                 disks = new VisRTX::Impl::DiskGeometry();
-                disks->SetMaterial(this->GetLightMaterial());
+                disks->SetMaterial(this->GetLightMaterial(), true);
                 this->geometry = disks;
             }
             else

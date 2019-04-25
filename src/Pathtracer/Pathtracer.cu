@@ -48,6 +48,7 @@ rtBuffer<BasicMaterialParameters> basicMaterialParameters;
 rtBuffer<MDLMaterialParameters> mdlMaterialParameters;
 
 rtBuffer<Light> lights;
+rtBuffer<ClippingPlane> clippingPlanes;
 
 rtDeclareVariable(rtObject, topObject, , );
 
@@ -810,7 +811,9 @@ RT_FUNCTION void Pathtrace(const float3 & rayOrigin, const float3 & rayDirection
 		prd.lightEdf = optix::make_float3(0.0f, 0.0f, 0.0f);
 		prd.lightPdf = PDF_DIRAC;
 		prd.light = false;
-		rtTrace(/*launchParameters[0].*/topObject, ray, prd);
+
+        const RTrayflags rayFlags = launchParameters[0].numClippingPlanes > 0 ? RT_RAY_FLAG_NONE : RT_RAY_FLAG_DISABLE_ANYHIT;
+		rtTrace(/*launchParameters[0].*/topObject, ray, prd, RT_VISIBILITY_ALL, rayFlags);
 
 		// Store primary hit depth (can't store albedo here because it's set/modified by the material)
 		if (prd.depth == 0)
@@ -1073,62 +1076,43 @@ RT_PROGRAM void ClosestHit()
 }
 
 
-//RT_PROGRAM void AnyHit()
-//{
-//    prd.geometricNormal = optix::faceforward(geometricNormal, -ray.direction, geometricNormal);
-//    prd.normal = optix::faceforward(normal, -ray.direction, geometricNormal);
-//    if (optix::dot(prd.normal, ray.direction) > 0.0f)
-//        prd.normal = prd.geometricNormal;
-//
-//    prd.material = (material != MATERIAL_NULL) ? material : geometryMaterial;
-//
-//    const uint32_t materialIndex = prd.material & MATERIAL_INDEX_MASK;
-//
-//    // Evaluate MDL material
-//    if (prd.material & BASIC_MATERIAL_BIT)
-//    {
-//        const BasicMaterialParameters& parameters = basicMaterialParameters[materialIndex];
-//        prd.opacity = parameters.opacity;
-//    }
-//    else if (prd.material & MDL_MATERIAL_BIT)
-//    {
-//        MDLMaterialParameters& parameters = mdlMaterialParameters[materialIndex];
-//
-//        optix::Onb onb(normal);
-//        optix::float3 texCoords = optix::make_float3(texCoord, 0.0f);
-//
-//        optix::float4 texture_results[MDL_MAX_TEXTURES];
-//
-//        mi::neuraylib::Shading_state_material state;
-//        state.normal = normal;
-//        state.geom_normal = normal;
-//        state.position = ray.origin;
-//        state.animation_time = 0.0f;
-//        state.text_coords = &texCoords;
-//        state.tangent_u = &onb.m_tangent;
-//        state.tangent_v = &onb.m_binormal;
-//        state.text_results = texture_results;
-//        state.ro_data_segment = NULL;
-//        state.world_to_object = (float4*)&identity;
-//        state.object_to_world = (float4*)&identity;
-//        state.object_id = 0;
-//
-//        char *argBlock = NULL;
-//        if (parameters.hasArgBlock)
-//            argBlock = parameters.argBlock;
-//
-//        // Cut-out opacity
-//        parameters.opacity(&prd.opacity, &state, &res_data, NULL, argBlock);
-//    }
-//
-//    // Ignore intersection if completely transparent
-//    if (prd.opacity <= 0.0f)
-//        rtIgnoreIntersection();
-//}
+RT_PROGRAM void AnyHit()
+{
+    // Clipping
+    for (int i = 0; i < launchParameters[0].numClippingPlanes; ++i)
+    {
+        ClippingPlane& plane = launchParameters[0].clippingPlanesBuffer[i];
+
+        if (prd.depth == 0 || plane.primaryRaysOnly == 0)
+        {
+            if (optix::dot(plane.coefficients, optix::make_float4(ray.origin + tHit * ray.direction, 1.0f)) < 0.0f)
+            {
+                rtIgnoreIntersection();
+                return;
+            }
+        }
+    }
+}
 
 
 RT_PROGRAM void AnyHitOcclusion()
 {
+    // Clipping
+    for (int i = 0; i < launchParameters[0].numClippingPlanes; ++i)
+    {
+        ClippingPlane& plane = launchParameters[0].clippingPlanesBuffer[i];
+
+        if (plane.primaryRaysOnly == 0)
+        {
+            if (optix::dot(plane.coefficients, optix::make_float4(ray.origin + tHit * ray.direction, 1.0f)) < 0.0f)
+            {
+                rtIgnoreIntersection();
+                return;
+            }
+        }
+    }
+
+
 	const float EPSILON = 1e-3f;
 
 	// Flip geometric and shadowing normal towards viewer
@@ -1304,7 +1288,8 @@ RT_PROGRAM void RayGenPick()
 	pick.primIndex = 0;
 	pick.t = 0.0f;
 
-	rtTrace(/*launchParameters[0].*/topObject, ray, pick);
+    const RTrayflags rayFlags = launchParameters[0].numClippingPlanes > 0 ? RT_RAY_FLAG_NONE : RT_RAY_FLAG_DISABLE_ANYHIT;
+	rtTrace(/*launchParameters[0].*/topObject, ray, pick, RT_VISIBILITY_ALL, rayFlags);
 
 	pickResult[0] = pick;
 }

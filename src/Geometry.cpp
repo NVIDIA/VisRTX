@@ -49,14 +49,15 @@ namespace VisRTX
 
             optix::Context context = OptiXContext::Get();
             ProgramLoader& loader = ProgramLoader::Get();
-            this->material = context->createMaterial();
-            this->material->setClosestHitProgram(RADIANCE_RAY_TYPE, loader.closestHitProgram);
-            //this->material->setAnyHitProgram(RADIANCE_RAY_TYPE, loader.anyHitProgram);
-            this->material->setAnyHitProgram(OCCLUSION_RAY_TYPE, loader.anyHitOcclusionProgram);
-            this->material->setClosestHitProgram(PICK_RAY_TYPE, loader.closestHitPickProgram);
+            this->defaultMaterial = context->createMaterial();
+            this->defaultMaterial->setClosestHitProgram(RADIANCE_RAY_TYPE, loader.closestHitProgram);
+            this->defaultMaterial->setAnyHitProgram(RADIANCE_RAY_TYPE, loader.anyHitProgram);
+            this->defaultMaterial->setAnyHitProgram(OCCLUSION_RAY_TYPE, loader.anyHitOcclusionProgram);
+            this->defaultMaterial->setClosestHitProgram(PICK_RAY_TYPE, loader.closestHitPickProgram);
+            this->defaultMaterial->setAnyHitProgram(PICK_RAY_TYPE, loader.anyHitProgram);
 
             this->instance = context->createGeometryInstance();
-            this->SetMaterial(this->material);
+            this->SetMaterial(this->defaultMaterial, false);
 
             // Assign next free id
             static int geometryId = 0;
@@ -75,7 +76,7 @@ namespace VisRTX
 
             // Destroy OptiX objects
             Destroy(this->instance.get());
-            Destroy(this->material.get());
+            Destroy(this->defaultMaterial.get());
         }
 
         void Geometry::SetMaterial(VisRTX::Material* material)
@@ -128,7 +129,7 @@ namespace VisRTX
                 acc->markDirty();
         }
 
-        void Geometry::SetMaterial(optix::Material material)
+        void Geometry::SetMaterial(optix::Material material, bool isLight)
         {
             this->instance->setMaterialCount(1);
             this->instance->setMaterial(0, material);

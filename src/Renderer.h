@@ -63,6 +63,8 @@ namespace VisRTX
             void AddLight(VisRTX::Light* light) override;
             void RemoveLight(VisRTX::Light* light) override;
 
+            void SetClippingPlanes(uint32_t numPlanes, ClippingPlane* planes) override;
+
             void SetToneMapping(bool enabled, float gamma, const Vec3f& colorBalance, float whitePoint, float burnHighlights, float crushBlacks, float saturation, float brightness) override;
 
             void SetDenoiser(DenoiserType denoiser) override;
@@ -104,6 +106,8 @@ namespace VisRTX
             std::set<VisRTX::Light*> lights;
             optix::Buffer directLightsBuffer; // lights used for next event estimation
             optix::Buffer missLightsBuffer; // lights used in miss program           
+
+            optix::Buffer clippingPlanesBuffer;
 
             optix::Buffer pickBuffer;
             std::map<int, VisRTX::Light*> pickLights;

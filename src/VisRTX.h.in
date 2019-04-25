@@ -287,6 +287,18 @@ namespace VisRTX
         Vec3f position;
     };
 
+    
+    /*
+     * Clipping 
+     */
+    struct ClippingPlane
+    {
+        Vec3f position;
+        Vec3f normal;
+        bool primaryRaysOnly;
+    };
+
+
 
     /**
      * Reference-counted base class.
@@ -314,6 +326,8 @@ namespace VisRTX
 
         virtual void AddLight(VisRTX::Light* light) = 0;
         virtual void RemoveLight(VisRTX::Light* light) = 0;
+
+        virtual void SetClippingPlanes(uint32_t numPlanes, ClippingPlane* planes) = 0;
 
         virtual void SetToneMapping(bool enabled, float gamma = 2.2f, const Vec3f& colorBalance = Vec3f(1.0f, 1.0f, 1.0f), float whitePoint = 1.0f, float burnHighlights = 0.8f, float crushBlacks = 0.2f, float saturation = 1.2f, float brightness = 0.8f) = 0;
 

@@ -231,6 +231,11 @@ public:
     int pickMode = 0; // 0: no picking, 1: set focal distance, 2: add marker, 3: randomize light, 4: remove geometry
     VisRTX::PickResult pickResult;
     std::set<VisRTX::Object*> releaseLater; // Stuff we want to keep until the very end (and not immediately delete when picked)
+
+    // Clipping
+    int numClippingPlanes = 0;
+    std::vector<VisRTX::ClippingPlane> clippingPlanes;
+    bool clippingPlanesDirty = true;
 };
 
 
@@ -833,6 +838,12 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             renderer->SetSampleAllLights(sampleAllLights);
 			renderer->SetEpsilon(epsilon);
 
+            if (this->clippingPlanesDirty)
+            {
+                renderer->SetClippingPlanes(this->numClippingPlanes, this->clippingPlanes.data());
+                this->clippingPlanesDirty = false;
+            }
+
             // Update light
             ambientLight->SetColor(ambientColor);
 
@@ -940,7 +951,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                             ImGui::Separator();
                             reset |= ImGui::Checkbox("AI Denoiser", &aiDenoiser);
                         }
-
+                        
                         ImGui::Spacing();
 
                         if (ImGui::CollapsingHeader("Tone Mapping"))
@@ -982,6 +993,40 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
 							reset |= ImGui::SliderFloat2("Begin", &this->imageBegin.x, 0.0f, 1.0f, "%.2f");
 							reset |= ImGui::SliderFloat2("End", &this->imageEnd.x, 0.0f, 1.0f, "%.2f");
+                        }
+
+                        ImGui::Spacing();
+
+                        if (ImGui::CollapsingHeader("Clipping"))
+                        {
+                            this->clippingPlanesDirty |= ImGui::SliderInt("Planes", &this->numClippingPlanes, 0, 5);
+                            if (this->clippingPlanesDirty)
+                                this->clippingPlanes.resize(this->numClippingPlanes);
+
+                            if (this->numClippingPlanes > 0)
+                            {
+                                ImGui::Separator();
+
+                                for (int i = 0; i < this->numClippingPlanes; ++i)
+                                {
+                                    ClippingPlane* p = &this->clippingPlanes[i];
+
+                                    std::string header = "Clipping Plane " + std::to_string(i + 1);
+                                    if (ImGui::CollapsingHeader(header.c_str()))
+                                    {
+                                        std::string posName = "Position##plane" + std::to_string(i);
+                                        this->clippingPlanesDirty |= ImGui::DragFloat3(posName.c_str(), &p->position.x, 0.1f, -std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), "%.2f");
+
+                                        std::string normalName = "Normal##plane" + std::to_string(i);
+                                        this->clippingPlanesDirty |= ImGui::SliderFloat3(normalName.c_str(), &p->normal.x, -1.0f, 1.0f, "%.2f");
+
+                                        std::string primaryOnlyName = "Primary Rays Only##plane" + std::to_string(i);
+                                        this->clippingPlanesDirty |= ImGui::Checkbox(primaryOnlyName.c_str(), &p->primaryRaysOnly);
+                                    }
+                                }
+                            }
+
+                            reset |= this->clippingPlanesDirty;
                         }
 
                         ImGui::Spacing();

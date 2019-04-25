@@ -78,7 +78,7 @@ namespace VisRTX
         optix::Program exceptionProgram;
 
         optix::Program closestHitProgram;
-        //optix::Program anyHitProgram;
+        optix::Program anyHitProgram;
         optix::Program anyHitOcclusionProgram;
         optix::Program lightClosestHitProgram;
         optix::Program lightAnyHitProgram;
