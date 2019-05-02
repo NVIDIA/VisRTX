@@ -812,8 +812,12 @@ RT_FUNCTION void Pathtrace(const float3 & rayOrigin, const float3 & rayDirection
 		prd.lightPdf = PDF_DIRAC;
 		prd.light = false;
 
-        const RTrayflags rayFlags = launchParameters[0].numClippingPlanes > 0 ? RT_RAY_FLAG_NONE : RT_RAY_FLAG_DISABLE_ANYHIT;
+#if OPTIX_VERSION_MAJOR >= 6
+        const RTrayflags rayFlags = (launchParameters[0].numClippingPlanes > 0) ? RT_RAY_FLAG_NONE : RT_RAY_FLAG_DISABLE_ANYHIT;
 		rtTrace(/*launchParameters[0].*/topObject, ray, prd, RT_VISIBILITY_ALL, rayFlags);
+#else
+        rtTrace(/*launchParameters[0].*/topObject, ray, prd);
+#endif
 
 		// Store primary hit depth (can't store albedo here because it's set/modified by the material)
 		if (prd.depth == 0)
@@ -1288,8 +1292,12 @@ RT_PROGRAM void RayGenPick()
 	pick.primIndex = 0;
 	pick.t = 0.0f;
 
-    const RTrayflags rayFlags = launchParameters[0].numClippingPlanes > 0 ? RT_RAY_FLAG_NONE : RT_RAY_FLAG_DISABLE_ANYHIT;
+#if OPTIX_VERSION_MAJOR >= 6
+    const RTrayflags rayFlags = (launchParameters[0].numClippingPlanes > 0) ? RT_RAY_FLAG_NONE : RT_RAY_FLAG_DISABLE_ANYHIT;
 	rtTrace(/*launchParameters[0].*/topObject, ray, pick, RT_VISIBILITY_ALL, rayFlags);
+#else
+    rtTrace(/*launchParameters[0].*/topObject, ray, pick);
+#endif
 
 	pickResult[0] = pick;
 }

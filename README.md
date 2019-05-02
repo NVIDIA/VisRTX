@@ -17,6 +17,7 @@ VisRTX is a C++ rendering framework developed by the HPC Visualization Developer
 * Perspective/orthographic cameras
 * Depth of field
 * Picking
+* Clipping planes
 * Tone mapping
 * OpenGL interop
 * Dynamic loading of VisRTX library

@@ -89,7 +89,7 @@ namespace VisRTX
                         rtDeviceGetAttribute(i, RT_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY, sizeof(computeCapability), &computeCapability);
                         
                         if (computeCapability[0] < 5)
-                          deviceValid = false;
+                            deviceValid = false;
 #endif
 
                         if (deviceValid)
