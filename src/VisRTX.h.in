@@ -928,6 +928,9 @@ namespace VisRTX
 
 /*
  * Core interface supporting both dynamic loading and dynamic linking
+ *
+ * VisRTX_LoadLibrary returns false if the library could not be loaded.
+ * VisRTX_GetContext returns nullptr if no capable devices are detected.
  */
 #ifdef VISRTX_DYNLOAD
 

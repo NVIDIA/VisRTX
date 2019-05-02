@@ -380,6 +380,11 @@ void Sample::Run(const std::string& title, int argc, char **argv)
 
         // Device query and selection
         VisRTX::Context* context = VisRTX_GetContext();
+        if (!context)
+        {
+            std::cerr << "Error: No capable device found (OptiX 6 requires SM 5.0 / Maxwell and up)" << std::endl;
+            return;
+        }
 
         // Command line args
         bool benchmark = false;

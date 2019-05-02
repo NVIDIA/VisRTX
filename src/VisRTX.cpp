@@ -55,8 +55,9 @@ namespace VisRTX
         private:
             struct Device
             {
+                int id;
                 std::string name;
-                uint64_t memoryTotal;
+                uint64_t memoryTotal;                
             };
 
             std::vector<Device> devices;
@@ -75,15 +76,31 @@ namespace VisRTX
                         memset(name, 0, maxName);
 
                         rtDeviceGetAttribute(i, RT_DEVICE_ATTRIBUTE_NAME, maxName, name);
+                        name[maxName - 1] = 0;
 
                         RTsize size = 0;
                         rtDeviceGetAttribute(i, RT_DEVICE_ATTRIBUTE_TOTAL_MEMORY, sizeof(RTsize), &size);
+                        
+                        bool deviceValid = true;
 
-                        Device device;
-                        device.name = std::string(name);
-                        device.memoryTotal = size;
+                        // OptiX 6 only supports SM 5.0 and up (starting Maxwell, i.e., not Kepler)
+#if OPTIX_VERSION_MAJOR >= 6
+                        int computeCapability[2] = { 0, 0 };
+                        rtDeviceGetAttribute(i, RT_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY, sizeof(computeCapability), &computeCapability);
+                        
+                        if (computeCapability[0] < 5)
+                          deviceValid = false;
+#endif
 
-                        this->devices.push_back(device);
+                        if (deviceValid)
+                        {
+                            Device device;
+                            device.id = (int)i;
+                            device.name = std::string(name);
+                            device.memoryTotal = size;
+
+                            this->devices.push_back(device);
+                        }
                     }
                 }
             }
@@ -107,7 +124,7 @@ namespace VisRTX
             {
                 try
                 {
-                    return OptiXContext::Get()->getAvailableDeviceMemory(device);
+                    return OptiXContext::Get()->getAvailableDeviceMemory(this->devices[device].id);
                 }
                 catch (optix::Exception e)
                 {
@@ -121,7 +138,7 @@ namespace VisRTX
                 {
                     std::vector<int> devicesInt;
                     for (uint32_t i = 0; i < numDevices; ++i)
-                        devicesInt.push_back(static_cast<int>(devices[i]));
+                        devicesInt.push_back(this->devices[devices[i]].id);
 
                     OptiXContext::Get()->setDevices(std::begin(devicesInt), std::end(devicesInt));
                     return true;
@@ -306,6 +323,9 @@ namespace VisRTX
 VisRTX::Context* VisRTX_GetContext()
 {
     static VisRTX::Impl::Context context;
+
+    if (context.GetDeviceCount() == 0)
+        return nullptr;
 
     static bool devicesSelected = false;
     if (!devicesSelected && context.GetDeviceCount() > 0)
