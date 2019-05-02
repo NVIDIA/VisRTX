@@ -43,7 +43,8 @@
 #include <set>
 #include <algorithm>
 #include <cassert>
-
+#include <stdint.h>
+#include <functional>
 
 namespace VisRTX
 {

@@ -36,6 +36,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <stdint.h>
 
 
 const std::string MDL_USE_TEXTURE_PREFIX = "VisRTX_use_";
