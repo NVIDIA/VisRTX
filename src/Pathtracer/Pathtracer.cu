@@ -813,7 +813,7 @@ RT_FUNCTION void Pathtrace(const float3 & rayOrigin, const float3 & rayDirection
 		prd.light = false;
 
 #if OPTIX_VERSION_MAJOR >= 6
-        const RTrayflags rayFlags = (launchParameters[0].numClippingPlanes > 0) ? RT_RAY_FLAG_NONE : RT_RAY_FLAG_DISABLE_ANYHIT;
+        const RTrayflags rayFlags = (launchParameters[0].disableAnyHit > 0) ? RT_RAY_FLAG_DISABLE_ANYHIT : RT_RAY_FLAG_NONE;
 		rtTrace(/*launchParameters[0].*/topObject, ray, prd, RT_VISIBILITY_ALL, rayFlags);
 #else
         rtTrace(/*launchParameters[0].*/topObject, ray, prd);
@@ -1284,29 +1284,29 @@ rtDeclareVariable(int, id, , );
 
 RT_PROGRAM void RayGenPick()
 {
-	optix::Ray ray = optix::make_Ray(rayOrigin, rayDirection, PICK_RAY_TYPE, 0.0f, RT_DEFAULT_MAX);
+    optix::Ray ray = optix::make_Ray(rayOrigin, rayDirection, PICK_RAY_TYPE, 0.0f, RT_DEFAULT_MAX);
 
-	PickStruct pick;
-	pick.geometryId = 0;
-	pick.lightId = 0;
-	pick.primIndex = 0;
-	pick.t = 0.0f;
+    PickStruct pick;
+    pick.geometryId = 0;
+    pick.lightId = 0;
+    pick.primIndex = 0;
+    pick.t = 0.0f;
 
 #if OPTIX_VERSION_MAJOR >= 6
-    const RTrayflags rayFlags = (launchParameters[0].numClippingPlanes > 0) ? RT_RAY_FLAG_NONE : RT_RAY_FLAG_DISABLE_ANYHIT;
-	rtTrace(/*launchParameters[0].*/topObject, ray, pick, RT_VISIBILITY_ALL, rayFlags);
+    const RTrayflags rayFlags = (launchParameters[0].disableAnyHit > 0) ? RT_RAY_FLAG_DISABLE_ANYHIT : RT_RAY_FLAG_NONE;
+    rtTrace(/*launchParameters[0].*/topObject, ray, pick, RT_VISIBILITY_ALL, rayFlags);
 #else
     rtTrace(/*launchParameters[0].*/topObject, ray, pick);
 #endif
 
-	pickResult[0] = pick;
+    pickResult[0] = pick;
 }
 
 RT_PROGRAM void ClosestHitPick()
 {
-	pick.geometryId = id;
-	pick.primIndex = primIndex;
-	pick.t = tHit;
+    pick.geometryId = id;
+    pick.primIndex = primIndex;
+    pick.t = tHit;
 }
 
 RT_PROGRAM void LightClosestHitPick()

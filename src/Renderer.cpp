@@ -504,8 +504,35 @@ namespace VisRTX
                 }
 
                 UPDATE_LAUNCH_PARAMETER((int)activeDirectLights.size(), this->launchParameters.numLightsDirect);
-                UPDATE_LAUNCH_PARAMETER((int)activeMissLights.size(), this->launchParameters.numLightsMiss);
+                UPDATE_LAUNCH_PARAMETER((int)activeMissLights.size(), this->launchParameters.numLightsMiss);                
             }
+
+            // Check if any hit is required
+            int disableAnyHit = (this->launchParameters.numClippingPlanes <= 0) ? 1 : 0;
+            if (disableAnyHit)
+            {
+                for (VisRTX::Light* light : this->lights)
+                {
+                    VisRTX::Impl::Light* l = dynamic_cast<VisRTX::Impl::Light*>(light);
+                    if (!l->visible)
+                    {
+                        disableAnyHit = 0;
+                        break;
+                    }
+
+                    if (l->GetType() == VisRTX::LightType::QUAD)
+                    {
+                        VisRTX::Impl::QuadLight* q = dynamic_cast<VisRTX::Impl::QuadLight*>(light);
+                        if (!q->twoSided)
+                        {
+                            disableAnyHit = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            UPDATE_LAUNCH_PARAMETER(disableAnyHit, this->launchParameters.disableAnyHit);
 
             return true;
         }

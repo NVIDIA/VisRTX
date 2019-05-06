@@ -240,6 +240,8 @@ struct LaunchParameters
     int numClippingPlanes;
     BufferClippingPlane clippingPlanesBuffer;
 
+    int disableAnyHit;
+
     int toneMapping;
     float3 colorBalance;
     float invGamma;
