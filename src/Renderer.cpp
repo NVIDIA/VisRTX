@@ -74,7 +74,7 @@ namespace VisRTX
             bool toneMapping = true;
             DenoiserType denoiser = DenoiserType::NONE;
             float clampDirect = 0.0f;
-            float clampIndirect = 0.0f;
+            float clampIndirect = 1e20f;
             bool sampleAllLights = true;
 
             // Env var overrides
