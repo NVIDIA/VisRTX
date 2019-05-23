@@ -983,7 +983,7 @@ RT_PROGRAM void RayGen()
 	InitSampler(&randState, launchIndex.y * launchParameters[0].width + launchIndex.x, launchParameters[0].frameNumber);
 
 	const optix::float2 sampleScreen = Sample2D(&randState);
-	const optix::float2 pixel = p + sampleScreen * invScreen * 2.0f;
+	const optix::float2 pixel = p + sampleScreen * launchParameters[0].imageSize * invScreen * 2.0f;
 
 	optix::float3 rayOrigin;
 	optix::float3 rayDirection;
