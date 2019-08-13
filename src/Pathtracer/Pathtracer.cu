@@ -353,17 +353,20 @@ RT_FUNCTION bool EvaluateLight(const Light & light, PathtracePRD & prd, optix::R
 			const float cosAngle = cos(angle);
 
 			float weight = 1.0f;
-			if (angle > light.outerAngle)
-			{
-				weight = 0.0f;
-			}
-			else
-			{
-				if (angle >= light.innerAngle)
-				{
-					weight = 1.0f - (angle - light.innerAngle) / (light.outerAngle - light.innerAngle);
-				}
-			}
+            if (prd.depth > 0)
+            {
+                if (angle > light.outerAngle)
+                {
+                    weight = 0.0f;
+                }
+                else
+                {
+                    if (angle >= light.innerAngle)
+                    {
+                        weight = 1.0f - (angle - light.innerAngle) / (light.outerAngle - light.innerAngle);
+                    }
+                }
+            }
 
 			float p = light.pdf * fabs(cosAngle); // Precomputed light.pdf = area > 0.0f ? (1.0f / area) : PDF_DIRAC;
 			edf = light.color * weight * p;
@@ -1256,8 +1259,20 @@ RT_PROGRAM void LightAnyHit()
 	if (l.twoSided <= 0)
 	{
 		const bool frontFacing = optix::dot(normal, ray.direction) < 0.0f;
-		if (!frontFacing)
-			rtIgnoreIntersection();
+        if (!frontFacing)
+        {
+            rtIgnoreIntersection();
+        }
+
+        // Ignore front-facing hits outside of spot light opening angle
+        //else if (l.type == Light::SPOT && prd.depth <= 0)
+        //{
+        //    const float angle = acosf(optix::dot(-ray.direction, l.dir));
+        //    if (angle > l.outerAngle)
+        //    {
+        //        rtIgnoreIntersection();
+        //    }
+        //}
 	}
 }
 

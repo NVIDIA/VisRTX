@@ -506,7 +506,7 @@ namespace VisRTX
                 for (VisRTX::Light* light : this->lights)
                 {
                     VisRTX::Impl::Light* l = dynamic_cast<VisRTX::Impl::Light*>(light);
-                    if (!l->visible)
+                    if (!l->visible || l->GetType() == VisRTX::LightType::SPOT)
                     {
                         disableAnyHit = 0;
                         break;
@@ -514,6 +514,7 @@ namespace VisRTX
 
                     if (l->GetType() == VisRTX::LightType::QUAD)
                     {
+                        // Only need anyhit for one-sided quad lights (spot lights are always one-sided)
                         VisRTX::Impl::QuadLight* q = dynamic_cast<VisRTX::Impl::QuadLight*>(light);
                         if (!q->twoSided)
                         {

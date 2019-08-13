@@ -84,7 +84,7 @@ Just place a `CMakeSettings.json` file with the following contents (adjust paths
       "ctestCommandArgs": "",
       "variables": [
         { "name": "OptiX_INSTALL_DIR", "value": "C:\\PATH\\TO\\OptiX-SDK-6.0.0" },
-        { "name": "MDL_INSTALL_DIR", "value": "C:\\PATH\\TO\\mdl-sdk-314800.830" },
+        { "name": "MDL_INSTALL_DIR", "value": "C:\\PATH\\TO\\mdl-sdk-317500.2554" },
         { "name": "VISRTX_BUILD_SAMPLE", "value": "ON" },
         { "name": "VISRTX_SAMPLE_USE_DYNAMIC_LOADING", "value": "ON" },
         { "name": "VISRTX_USAGE_REPORT_VERBOSITY", "value": "0" },
