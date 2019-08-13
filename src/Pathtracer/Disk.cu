@@ -40,6 +40,7 @@ rtDeclareVariable(float, diskRadius, , );
 
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 
+rtDeclareVariable(optix::float3, hitPoint, attribute hitPoint, );
 rtDeclareVariable(optix::float4, color, attribute color, );
 rtDeclareVariable(optix::float3, normal, attribute normal, );
 rtDeclareVariable(optix::float3, geometricNormal, attribute geometricNormal, );
@@ -50,9 +51,10 @@ rtDeclareVariable(MaterialId, material, attribute material, );
 
 
 
-RT_FUNCTION void setAttributes(int primitiveIndex, const float3& N)
+RT_FUNCTION void setAttributes(int primitiveIndex, const float3& hit, const float3& N)
 {
     primIndex = primitiveIndex;
+    hitPoint = hit;
     normal = geometricNormal = N;
 
     color = optix::make_float4(1.0f);
@@ -108,7 +110,7 @@ RT_PROGRAM void DiskIntersect(int prim_idx)
         {
             if (rtPotentialIntersection(t))
             {
-                setAttributes(prim_idx, normal);
+                setAttributes(prim_idx, hit, normal);
                 rtReportIntersection(0);
             }
         }

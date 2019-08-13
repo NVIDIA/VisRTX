@@ -40,6 +40,7 @@ rtDeclareVariable(float, sphereRadius, , );
 
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 
+rtDeclareVariable(optix::float3, hitPoint, attribute hitPoint, );
 rtDeclareVariable(optix::float4, color, attribute color, );
 rtDeclareVariable(optix::float3, normal, attribute normal, );
 rtDeclareVariable(optix::float3, geometricNormal, attribute geometricNormal, );
@@ -49,9 +50,10 @@ rtDeclareVariable(float, animationValue, attribute animationValue, );
 rtDeclareVariable(MaterialId, material, attribute material, );
 
 
-RT_FUNCTION void setAttributes(int primitiveIndex, const optix::float3& N)
+RT_FUNCTION void setAttributes(int primitiveIndex, const optix::float3& hit, const optix::float3& N)
 {
     primIndex = primitiveIndex;
+    hitPoint = hit;
     normal = geometricNormal = N;
 
     color = optix::make_float4(1.0f);
@@ -100,8 +102,9 @@ RT_PROGRAM void SphereIntersect(int prim_idx)
         // First hit        
         if (rtPotentialIntersection(t0))
         {
-            const optix::float3 n0 = ((ray.origin + t0 * ray.direction) - center) / radius;
-            setAttributes(prim_idx, n0);
+            const optix::float3 hit0 = ray.origin + t0 * ray.direction;
+            const optix::float3 n0 = (hit0 - center) / radius;
+            setAttributes(prim_idx, hit0, n0);
 
             if (rtReportIntersection(0))
                 return;
@@ -110,8 +113,9 @@ RT_PROGRAM void SphereIntersect(int prim_idx)
         // Second hit        
         if (rtPotentialIntersection(t1))
         {
-            const optix::float3 n1 = ((ray.origin + t1 * ray.direction) - center) / radius;
-            setAttributes(prim_idx, n1);
+            const optix::float3 hit1 = ray.origin + t1 * ray.direction;
+            const optix::float3 n1 = (hit1 - center) / radius;
+            setAttributes(prim_idx, hit1, n1);
 
             rtReportIntersection(0);
         }

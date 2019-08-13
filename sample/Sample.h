@@ -188,7 +188,6 @@ public:
     float fireflyClampingDirect = 0.0f;
     float fireflyClampingIndirect = 0.0f;
     bool sampleAllLights = false;
-	float epsilon = 1e-5f;
 
     bool toneMapping = true;
     float gamma = 2.2f;
@@ -840,8 +839,7 @@ void Sample::Run(const std::string& title, int argc, char **argv)
             renderer->SetSamplesPerPixel(samplesPerPixel);
             renderer->SetNumBounces(numBouncesMin, numBouncesMax);
             renderer->SetFireflyClamping(fireflyClampingDirect, fireflyClampingIndirect);
-            renderer->SetSampleAllLights(sampleAllLights);
-			renderer->SetEpsilon(epsilon);
+            renderer->SetSampleAllLights(sampleAllLights);			
 
             if (this->clippingPlanesDirty)
             {
@@ -951,7 +949,6 @@ void Sample::Run(const std::string& title, int argc, char **argv)
                             reset |= ImGui::SliderInt("Max Bounces", &numBouncesMax, 0, 50);
                             reset |= ImGui::SliderFloat("Clamping Direct", &fireflyClampingDirect, 0.0f, 1000.0f);
                             reset |= ImGui::SliderFloat("Clamping Indirect", &fireflyClampingIndirect, 0.0f, 1000.0f);
-							reset |= ImGui::SliderFloat("Epsilon", &epsilon, 0.0f, 0.01f, "%.5f", 2.0f);
                             reset |= ImGui::Checkbox("Sample All Lights", &sampleAllLights);
                             ImGui::Separator();
                             reset |= ImGui::Checkbox("AI Denoiser", &aiDenoiser);

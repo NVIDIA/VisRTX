@@ -140,7 +140,6 @@ Some performance-relevant properties of the renderer can be overridden using the
 | `VISRTX_DEVICES`  | list of int, e.g., `0`, `1`, `0,1`  |
 | `VISRTX_MIN_BOUNCES`  | int > 0  |
 | `VISRTX_MAX_BOUNCES`  | int > 0  |
-| `VISRTX_EPSILON`  | float >= 0  |
 | `VISRTX_CLAMP_DIRECT`  | float >= 0  |
 | `VISRTX_CLAMP_INDIRECT`  | float >= 0  |
 | `VISRTX_TONE_MAPPING`  | 0/1  |

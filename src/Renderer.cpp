@@ -70,7 +70,6 @@ namespace VisRTX
 
             uint32_t minBounces = 4;
             uint32_t maxBounces = 8;
-            float epsilon = 1e-3f;
             bool toneMapping = true;
             DenoiserType denoiser = DenoiserType::NONE;
             float clampDirect = 0.0f;
@@ -88,12 +87,6 @@ namespace VisRTX
             {
                 maxBounces = (uint32_t)atoi(str);
                 this->maxBouncesFixed = true;
-            }
-
-            if (const char* str = std::getenv("VISRTX_EPSILON"))
-            {
-                epsilon = (float)atof(str);
-                this->epsilonFixed = true;
             }
 
             if (const char* str = std::getenv("VISRTX_TONE_MAPPING"))
@@ -128,7 +121,6 @@ namespace VisRTX
 
             this->ignoreOverrides = true;
             this->SetNumBounces(minBounces, maxBounces);
-            this->SetEpsilon(epsilon);
             this->SetToneMapping(toneMapping, 2.2f, Vec3f(1.0f, 1.0f, 1.0f), 1.0f, 0.8f, 0.2f, 1.2f, 0.8f);
             this->SetDenoiser(denoiser);
             this->SetFireflyClamping(clampDirect, clampIndirect);
@@ -753,16 +745,6 @@ namespace VisRTX
         void Renderer::SetSamplesPerPixel(uint32_t spp)
         {
             this->samplesPerPixel = spp;
-        }
-
-        void Renderer::SetEpsilon(float epsilon)
-        {
-            if (this->epsilonFixed && !this->ignoreOverrides)
-                return;
-
-            // Conservative epsilon...
-            const float eps = std::max(1e-3f, epsilon);            
-            UPDATE_LAUNCH_PARAMETER(eps, this->launchParameters.occlusionEpsilon);
         }
 
         void Renderer::SetAlphaCutoff(float alphaCutoff)

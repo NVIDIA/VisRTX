@@ -226,7 +226,6 @@ struct LaunchParameters
     float clipMax;
     float clipDiv;
 
-    float occlusionEpsilon;
     float alphaCutoff;
     int numBouncesMin;
     int numBouncesMax;
@@ -263,6 +262,7 @@ struct PathtracePRD
     optix::float3 normal;
     optix::float3 geometricNormal;
     MaterialId material;
+    float3 hitPoint;
     float tHit;
     float animationFactor;
 

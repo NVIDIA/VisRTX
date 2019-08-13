@@ -39,6 +39,7 @@ rtDeclareVariable(float, cylinderRadius, , );
 
 rtDeclareVariable( optix::Ray, ray, rtCurrentRay, );
 
+rtDeclareVariable(optix::float3, hitPoint, attribute hitPoint, );
 rtDeclareVariable(optix::float4, color, attribute color, );
 rtDeclareVariable(optix::float3, normal, attribute normal, );
 rtDeclareVariable(optix::float3, geometricNormal, attribute geometricNormal, );
@@ -166,12 +167,13 @@ RT_FUNCTION int intersect_cylinder(const float3& p0, const float3& p1, const flo
 }
 
 
-RT_FUNCTION void setAttributes(int primitiveIndex, const float3& N, float ratio)
+RT_FUNCTION void setAttributes(int primitiveIndex, const float t, const float3& N, float ratio)
 {
     const BufferInt2 lineBuffer(lines);
     const optix::int2 vertexIdxs = lineBuffer[primitiveIndex];
 
     primIndex = primitiveIndex;
+    hitPoint = ray.origin + t * ray.direction;
     normal = geometricNormal = N;
 
     color = optix::make_float4(1.0f);
@@ -229,7 +231,7 @@ RT_PROGRAM void CylinderIntersect(int prim_idx)
     {
         if (rtPotentialIntersection(t[0]))
         {
-            setAttributes(prim_idx, n[0], ratio[0]);
+            setAttributes(prim_idx, t[0], n[0], ratio[0]);
             rtReportIntersection(0);
         }
 
@@ -237,7 +239,7 @@ RT_PROGRAM void CylinderIntersect(int prim_idx)
         {
             if (rtPotentialIntersection(t[1]))
             {
-                setAttributes(prim_idx, n[1], ratio[1]);
+                setAttributes(prim_idx, t[1], n[1], ratio[1]);
                 rtReportIntersection(0);
             }
         }

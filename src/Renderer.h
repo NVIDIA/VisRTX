@@ -70,7 +70,6 @@ namespace VisRTX
             void SetDenoiser(DenoiserType denoiser) override;
 
             void SetSamplesPerPixel(uint32_t spp) override;
-            void SetEpsilon(float epsilon) override;
             void SetAlphaCutoff(float alphaCutoff) override;
             void SetNumBounces(uint32_t minBounces, uint32_t maxBounces) override;
             void SetWriteBackground(bool writeBackground) override;
@@ -116,7 +115,6 @@ namespace VisRTX
             bool ignoreOverrides = false;
             bool minBouncesFixed = false;
             bool maxBouncesFixed = false;
-            bool epsilonFixed = false;
             bool toneMappingFixed = false;
             bool denoiserFixed = false;
             bool clampDirectFixed = false;

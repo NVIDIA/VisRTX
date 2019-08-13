@@ -58,6 +58,26 @@ rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 rtDeclareVariable(float, tHit, rtIntersectionDistance, );
 
 
+RT_FUNCTION constexpr float origin() { return 1.0f / 32.0f; }
+RT_FUNCTION constexpr float float_scale() { return 1.0f / 65536.0f; }
+RT_FUNCTION constexpr float int_scale() { return 256.0f; }
+
+// Normal points outward for rays exiting the surface, else is flipped.
+RT_FUNCTION optix::float3 offsetRay(const optix::float3& p, const optix::float3& n)
+{
+    optix::int3 of_i = optix::make_int3(int_scale() * n.x, int_scale() * n.y, int_scale() * n.z);
+
+    optix::float3 p_i = optix::make_float3(
+        int_as_float(float_as_int(p.x) + ((p.x < 0) ? -of_i.x : of_i.x)),
+        int_as_float(float_as_int(p.y) + ((p.y < 0) ? -of_i.y : of_i.y)),
+        int_as_float(float_as_int(p.z) + ((p.z < 0) ? -of_i.z : of_i.z)));
+
+    return optix::make_float3(fabsf(p.x) < origin() ? p.x + float_scale() * n.x : p_i.x,
+        fabsf(p.y) < origin() ? p.y + float_scale() * n.y : p_i.y,
+        fabsf(p.z) < origin() ? p.z + float_scale() * n.z : p_i.z);
+}
+
+
 RT_FUNCTION bool SampleLight(const Light& light, PathtracePRD& prd, optix::Ray& ray, optix::float3& L, optix::float3& edf_over_pdf, float& pdf)
 {
 	const optix::float3 normal = prd.normal;
@@ -243,7 +263,8 @@ RT_FUNCTION bool SampleLight(const Light& light, PathtracePRD& prd, optix::Ray& 
 	shadowPrd.occlusion = optix::make_float3(1.0f);
 	shadowPrd.randState = prd.randState;
 
-	optix::Ray shadow_ray = optix::make_Ray(ray.origin, L, OCCLUSION_RAY_TYPE, launchParameters[0].occlusionEpsilon, Ldist);
+    // Calculate shadow ray origin with offset to avoid self intersection
+	optix::Ray shadow_ray = optix::make_Ray(offsetRay(prd.hitPoint, prd.geometricNormal), L, OCCLUSION_RAY_TYPE, 0.0f, Ldist);
 	rtTrace(/*launchParameters[0].*/topObject, shadow_ray, shadowPrd);
 
 	if (fmaxf(shadowPrd.occlusion) <= 0.0f)
@@ -729,8 +750,6 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 		// Update volume stack
 		if (updateVolumeStack)
 		{
-
-
 			// Entry event
 			if (prd.frontFacing)
 			{
@@ -752,12 +771,14 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 		}
 	}
 
+    // Offset new ray origin based on ray direction
+    ray.origin = offsetRay(prd.hitPoint, (optix::dot(ray.direction, prd.geometricNormal) >= 0.0f) ? prd.geometricNormal : -prd.geometricNormal);
+
 	return true;
 }
 
 
-
-RT_FUNCTION void Pathtrace(const float3 & rayOrigin, const float3 & rayDirection, RandState * randState)
+RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, RandState* randState)
 {
 #ifdef VISRTX_USE_DEBUG_EXCEPTIONS
 #ifdef PRINT_PIXEL_X	
@@ -779,7 +800,7 @@ RT_FUNCTION void Pathtrace(const float3 & rayOrigin, const float3 & rayDirection
 		rayOrigin,
 		rayDirection,
 		RADIANCE_RAY_TYPE,
-		launchParameters[0].occlusionEpsilon,
+		0.0f,
 		RT_DEFAULT_MAX
 	);
 
@@ -841,11 +862,11 @@ RT_FUNCTION void Pathtrace(const float3 & rayOrigin, const float3 & rayDirection
 			}
 
 			break;
-		}
-		else
-		{
-			ray.origin += ray.direction * prd.tHit;
-		}
+		}		
+        else
+        {
+            ray.origin = prd.hitPoint;
+        }
 
 #if defined(TEST_DIRECT_ONLY) || defined(TEST_MIS)
 		if (prd.depth >= 1)
@@ -1023,7 +1044,7 @@ RT_PROGRAM void RayGen()
 }
 
 
-
+rtDeclareVariable(optix::float3, hitPoint, attribute hitPoint, );
 rtDeclareVariable(optix::float4, color, attribute color, );
 rtDeclareVariable(optix::float3, normal, attribute normal, );
 rtDeclareVariable(optix::float3, geometricNormal, attribute geometricNormal, );
@@ -1063,6 +1084,7 @@ RT_PROGRAM void ClosestHit()
 
 	prd.material = (material != MATERIAL_NULL) ? material : geometryMaterial;
 
+    prd.hitPoint = hitPoint;
 	prd.tHit = tHit;
 	prd.color = color;
 	prd.texCoord = texCoord;

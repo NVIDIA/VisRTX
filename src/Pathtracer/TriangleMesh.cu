@@ -31,6 +31,7 @@
 
 rtDeclareVariable(optix::Ray, ray, rtCurrentRay, );
 
+rtDeclareVariable(optix::float3, hitPoint, attribute hitPoint, );
 rtDeclareVariable(optix::float4, color, attribute color, );
 rtDeclareVariable(optix::float3, normal, attribute normal, );
 rtDeclareVariable(optix::float3, geometricNormal, attribute geometricNormal, );
@@ -64,6 +65,8 @@ RT_FUNCTION void setIntersectionAttributes(const int primitiveIndex, const optix
     const float4& v2 = vertexBuffer[tri.z];
 
     primIndex = primitiveIndex;
+
+    hitPoint = optix::make_float3(v0) * alpha + optix::make_float3(v1) * beta + optix::make_float3(v2) * gamma;
 
     geometricNormal = unpackNormal(tri.w);
     if (perVertexNormals)

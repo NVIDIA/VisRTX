@@ -334,7 +334,6 @@ namespace VisRTX
         virtual void SetDenoiser(DenoiserType denoiser) = 0;
 
         virtual void SetSamplesPerPixel(uint32_t spp) = 0;
-        virtual void SetEpsilon(float epsilon) = 0;
         virtual void SetAlphaCutoff(float alphaCutoff) = 0;
         virtual void SetNumBounces(uint32_t minBounces, uint32_t maxBounces) = 0;
         virtual void SetWriteBackground(bool writeBackground) = 0;
