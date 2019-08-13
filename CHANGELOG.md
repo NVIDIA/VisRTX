@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+##### 2019-08-13
+- Automatic ray epsilon handling
+- Clipping planes
+- Bug fixes (sampling, light visibility, device enumeration, VS 2013 support)
+
 ## 0.1.5
 ##### 2019-04-15
 - Added Camera::SetImageRegion
