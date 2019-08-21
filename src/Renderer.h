@@ -75,6 +75,7 @@ namespace VisRTX
             void SetWriteBackground(bool writeBackground) override;
             void SetFireflyClamping(float direct, float indirect) override;
             void SetSampleAllLights(bool sampleAllLights) override;
+            void SetEpsilon(float epsilon) override;
 
         private:
             bool Init();            

@@ -748,6 +748,11 @@ namespace VisRTX
             this->samplesPerPixel = spp;
         }
 
+        void Renderer::SetEpsilon(float /*epsilon*/)
+        {
+            // not needed anymore
+        }
+
         void Renderer::SetAlphaCutoff(float alphaCutoff)
         {
             UPDATE_LAUNCH_PARAMETER(alphaCutoff, this->launchParameters.alphaCutoff);

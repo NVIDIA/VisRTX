@@ -339,7 +339,8 @@ namespace VisRTX
         virtual void SetWriteBackground(bool writeBackground) = 0;
         virtual void SetFireflyClamping(float direct, float indirect) = 0;
         virtual void SetSampleAllLights(bool sampleAllLights) = 0;
-
+        virtual void SetEpsilon(float epsilon) = 0;
+        
     protected:
         Renderer() = default;
         Renderer(const Renderer&) = delete;
