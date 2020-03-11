@@ -55,10 +55,14 @@ RT_FUNCTION optix::float3 Sample3D(RandState* state)
     return optix::make_float3(curand_uniform(state), curand_uniform(state), curand_uniform(state));
 }
 
+RT_FUNCTION optix::float4 Sample4D(RandState* state)
+{
+    return optix::make_float4(curand_uniform(state), curand_uniform(state), curand_uniform(state),
+                              curand_uniform(state));
+}
+
 #else
 
 typedef int RandState;
 
 #endif
-
-

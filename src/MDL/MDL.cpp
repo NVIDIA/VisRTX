@@ -481,6 +481,13 @@ public:
             this->logFile << "[" << module_category << "] " << message_severity_to_string(level) << ": " << message << std::endl;
     }
 
+    virtual void message( mi::base::Message_severity  	level,
+                          const char *  	module_category,
+                          const mi::base::Message_details &  	,
+                          const char *  	message)
+        {
+        }
+
 private:
     std::ofstream logFile;
 };
@@ -879,7 +886,7 @@ MDL::CompiledMaterial MDL::Compile(const MDL::Material& material, bool classComp
                 &result.pdfProg,
                 &result.opacityProg,
 				&result.thinwalledProg,
-				&result.iorProg,				
+				&result.iorProg,
 				&result.absorbProg
             };
 
@@ -1020,7 +1027,7 @@ MDL::CompiledMaterial MDL::Compile(const MDL::Material& material, bool classComp
                 &result.pdfProg,
                 &result.opacityProg,
 				&result.thinwalledProg,
-				&result.iorProg,				
+				&result.iorProg,
 				&result.absorbProg
             };
 
