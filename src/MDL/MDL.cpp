@@ -464,7 +464,7 @@ public:
             this->logFile.open("mdl.log");
     }
 
-    virtual void message(mi::base::Message_severity level, const char* module_category, const char* message)
+    virtual void message(mi::base::Message_severity level, const char* module_category, const mi::base::Message_details& details, const char* message)
     {
 #ifdef MDL_VERBOSE_LOGGING
         const mi::base::Message_severity minLevel = mi::base::Message_severity::MESSAGE_SEVERITY_DEBUG;

@@ -654,7 +654,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 				union // Put the BSDF data structs into a union to reduce number of memory writes
 				{
 					mi::neuraylib::Bsdf_sample_data sample;
-					mi::neuraylib::Bsdf_evaluate_data evaluate;
+					mi::neuraylib::Bsdf_evaluate_data<mi::neuraylib::DF_HSM_NONE> evaluate;
 					mi::neuraylib::Bsdf_pdf_data pdf;
 				} data;
 
@@ -714,7 +714,9 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 						data.evaluate.k2 = L;
 						parameters.evaluate(&data.evaluate, &state, &res_data, NULL, argBlock);
 
-						if (0.0f < data.evaluate.pdf && isNotNull(data.evaluate.bsdf))
+						const optix::float3 bsdf = data.evaluate.bsdf_diffuse + data.evaluate.bsdf_glossy;
+
+						if (0.0f < data.evaluate.pdf && isNotNull(bsdf))
 						{
 #ifdef TEST_NEE_ONLY
 							const float misWeight = 1.0f;
@@ -723,7 +725,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 							const float misWeight = (lightPdf <= 0.0f) ? 1.0f : powerHeuristic(lightPdf * prd.lastLightPdfFactor, data.evaluate.pdf);
 #endif
 
-							const optix::float3 radiance = prd.alpha * data.evaluate.bsdf * lightEdf_over_pdf * lightFactor * misWeight; //  data.evaluate.bsdf contains: bsdf * dot(normal, k2)
+							const optix::float3 radiance = prd.alpha * bsdf * lightEdf_over_pdf * lightFactor * misWeight; //  data.evaluate.bsdf contains: bsdf * dot(normal, k2)
 							prd.radiance += clampRadiance(prd.depth, launchParameters[0].fireflyClampingIndirect, radiance);
 						}
 					}
@@ -731,7 +733,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 #endif
 
 				// Sample BSDF
-				data.sample.xi = Sample3D(prd.randState);
+				data.sample.xi = Sample4D(prd.randState);
 				parameters.sample(&data.sample, &state, &res_data, NULL, argBlock);
 
 				prd.lastPdf = data.sample.pdf;
@@ -1218,7 +1220,7 @@ RT_PROGRAM void AnyHitOcclusion()
 		//data.ior2 = make_float3(1.f);
 		data.k1 = optix::normalize(-ray.direction);
 
-		data.xi = Sample3D(shadowPrd.randState);
+		data.xi = Sample4D(shadowPrd.randState);
 		parameters.sample(&data, &state, &res_data, NULL, argBlock);
 
 		if (data.event_type & mi::neuraylib::BSDF_EVENT_TRANSMISSION)
