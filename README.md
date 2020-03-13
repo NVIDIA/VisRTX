@@ -180,5 +180,3 @@ Feedback
 Feedback, issues and pull requests welcome! 
 
 We would love to hear more about your use cases of VisRTX!
-
-If you have any questions, feature requests, issues, or ideas for improvement, please feel free to reach out at [tbiedert@nvidia.com](mailto:tbiedert@nvidia.com).
