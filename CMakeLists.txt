@@ -14,7 +14,7 @@ set(default_build_type "Release")
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
     set(default_build_type "Debug")
 endif()
- 
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
     set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
@@ -50,15 +50,19 @@ set_property(CACHE VISRTX_USAGE_REPORT_VERBOSITY PROPERTY STRINGS 0 1 2 3)
 
 option(VISRTX_USE_DEBUG_EXCEPTIONS "Enables advanced exception handling and error checking for debugging purposes." OFF)
 
+if (CUDA_VERSION_MAJOR LESS 11)
+    set(CMAKE_CUDA_FLAGS "-arch=sm_30")
+endif()
 
 # Compile pathtracer kernels to PTX
 if (VISRTX_USE_DEBUG_EXCEPTIONS)
-    set(CMAKE_CUDA_FLAGS "-arch sm_30 --use_fast_math --keep-device-functions -lineinfo")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use_fast_math --keep-device-functions -lineinfo")
 else()
-    set(CMAKE_CUDA_FLAGS "-arch sm_30 --use_fast_math --keep-device-functions")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use_fast_math --keep-device-functions")
 endif()
 
-add_library(PathtracerPTX OBJECT 
+
+add_library(PathtracerPTX OBJECT
     src/Pathtracer/TriangleMesh.cu
     src/Pathtracer/Sphere.cu
     src/Pathtracer/Cylinder.cu
@@ -114,7 +118,7 @@ set_property(TARGET Glad PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 
 # VisRTX shared library
- add_library(VisRTX SHARED 
+ add_library(VisRTX SHARED
     src/VisRTX.cpp
     src/OptiX.cpp
 	src/ProgramLoader.cpp
@@ -138,16 +142,16 @@ target_compile_definitions(VisRTX PRIVATE "_CRT_SECURE_NO_WARNINGS")
 target_include_directories(VisRTX PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
-)    
-target_include_directories(VisRTX PRIVATE 
-    ${CMAKE_CURRENT_BINARY_DIR}/include 
-    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} 
+)
+target_include_directories(VisRTX PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
     ${OptiX_INCLUDE}
     ${MDL_INCLUDE_DIR}
 )
 
 target_link_libraries(VisRTX PRIVATE ${CUDA_LIBRARIES} ${optix_LIBRARY} Glad)
-if(WIN32)    
+if(WIN32)
     target_include_directories(VisRTX PRIVATE ${OPENGL_INCLUDE_DIR})
     target_link_libraries(VisRTX PRIVATE ${OPENGL_gl_LIBRARY})
 else()
@@ -163,7 +167,7 @@ add_library(VisRTX_DynLoad INTERFACE)
 target_include_directories(VisRTX_DynLoad INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
     $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>
-)   
+)
 target_link_libraries(VisRTX_DynLoad INTERFACE ${CMAKE_DL_LIBS})
 
 
@@ -176,8 +180,8 @@ install(TARGETS VisRTX VisRTX_DynLoad EXPORT VisRTXConfig
     LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-install(FILES 
-    ${CMAKE_CURRENT_BINARY_DIR}/include/VisRTX.h 
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/include/VisRTX.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
@@ -192,9 +196,9 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/VisRTXConfigVersion.cmake" DESTINATIO
 # Sample app
 option(VISRTX_BUILD_SAMPLE "Builds the sample applications." ON)
 if(VISRTX_BUILD_SAMPLE)
-    
+
     option(VISRTX_SAMPLE_USE_DYNAMIC_LOADING "Uses dynamic loading instead of dynamic linking to access VisRTX in the samples." OFF)
-    option(VISRTX_SAMPLE_WITH_GLFW "Enables GLFW-based OpenGL windows in the samples." ON)    
+    option(VISRTX_SAMPLE_WITH_GLFW "Enables GLFW-based OpenGL windows in the samples." ON)
     option(VISRTX_SAMPLE_WITH_EGL "Enables EGL-based OpenGL offscreen interop in the samples (Linux only)." ON)
 
     if(WIN32)
@@ -216,17 +220,17 @@ if(VISRTX_BUILD_SAMPLE)
 
         include_directories(sample/libs/ImGui-1.67-WIP)
         include_directories(sample/libs/ImGui-1.67-WIP/examples)
-        add_library(ImGui STATIC 
-            sample/libs/ImGui-1.67-WIP/imgui_demo.cpp 
-            sample/libs/ImGui-1.67-WIP/imgui_draw.cpp 
-            sample/libs/ImGui-1.67-WIP/imgui_widgets.cpp 
+        add_library(ImGui STATIC
+            sample/libs/ImGui-1.67-WIP/imgui_demo.cpp
+            sample/libs/ImGui-1.67-WIP/imgui_draw.cpp
+            sample/libs/ImGui-1.67-WIP/imgui_widgets.cpp
             sample/libs/ImGui-1.67-WIP/imgui.cpp
-            sample/libs/ImGui-1.67-WIP/examples/imgui_impl_glfw.cpp 
+            sample/libs/ImGui-1.67-WIP/examples/imgui_impl_glfw.cpp
             sample/libs/ImGui-1.67-WIP/examples/imgui_impl_opengl3.cpp
         )
         target_link_libraries(ImGui glfw Glad)
         target_include_directories(ImGui PRIVATE ${OPENGL_INCLUDE_DIR})
-        if(WIN32)            
+        if(WIN32)
             target_link_libraries(ImGui ${OPENGL_gl_LIBRARY})
         else()
             target_link_libraries(ImGui ${OPENGL_opengl_LIBRARY})
@@ -261,13 +265,13 @@ if(VISRTX_BUILD_SAMPLE)
 
     # Copy sample data to build folder
     file(COPY ${PROJECT_SOURCE_DIR}/sample/data/cow.obj DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-	file(COPY ${PROJECT_SOURCE_DIR}/sample/data/NVIDIA_Logo.jpg DESTINATION ${CMAKE_CURRENT_BINARY_DIR})	
+	file(COPY ${PROJECT_SOURCE_DIR}/sample/data/NVIDIA_Logo.jpg DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-    # Samples        
+    # Samples
     if (VISRTX_SAMPLE_USE_DYNAMIC_LOADING)
         # Dynamic loading
         list(APPEND VISRTX_SAMPLE_LIBS VisRTX_DynLoad)
-        list(APPEND VISRTX_SAMPLE_DEFINES "VISRTX_DYNLOAD=1")    
+        list(APPEND VISRTX_SAMPLE_DEFINES "VISRTX_DYNLOAD=1")
     else()
         # Dynamic linking
         list(APPEND VISRTX_SAMPLE_LIBS VisRTX)
@@ -291,9 +295,9 @@ if(VISRTX_BUILD_SAMPLE)
     target_include_directories(visRtxSampleMeshViewer PRIVATE ${VISRTX_SAMPLE_INCLUDES})
 	target_include_directories(visRtxSampleVolume PRIVATE ${VISRTX_SAMPLE_INCLUDES})
 
-    target_link_libraries(visRtxSampleBasic ${VISRTX_SAMPLE_LIBS})        
-    target_link_libraries(visRtxSampleMDL ${VISRTX_SAMPLE_LIBS})        
-    target_link_libraries(visRtxSampleLightTest ${VISRTX_SAMPLE_LIBS})        
+    target_link_libraries(visRtxSampleBasic ${VISRTX_SAMPLE_LIBS})
+    target_link_libraries(visRtxSampleMDL ${VISRTX_SAMPLE_LIBS})
+    target_link_libraries(visRtxSampleLightTest ${VISRTX_SAMPLE_LIBS})
     target_link_libraries(visRtxSampleMeshViewer ${VISRTX_SAMPLE_LIBS})
 	target_link_libraries(visRtxSampleVolume ${VISRTX_SAMPLE_LIBS})
 endif()
