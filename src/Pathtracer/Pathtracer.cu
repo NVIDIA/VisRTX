@@ -786,7 +786,7 @@ RT_FUNCTION bool SampleMaterial(PathtracePRD & prd, optix::Ray & ray, VolumeStac
 RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, RandState* randState)
 {
 #ifdef VISRTX_USE_DEBUG_EXCEPTIONS
-#ifdef PRINT_PIXEL_X	
+#ifdef PRINT_PIXEL_X
 
 	rtPrintf("\n\n--- New frame ---\n");
 
@@ -867,7 +867,7 @@ RT_FUNCTION void Pathtrace(const float3& rayOrigin, const float3& rayDirection, 
 			}
 
 			break;
-		}		
+		}
         else
         {
             ray.origin = prd.hitPoint;
@@ -1082,10 +1082,6 @@ RT_PROGRAM void ClosestHit()
 		prd.geometricNormal = -geometricNormal;
 		prd.normal = -normal;
 	}
-
-	// Make sure shading normal does not flip
-	if (optix::dot(prd.normal, ray.direction) > 0.0f)
-		prd.normal = prd.geometricNormal;
 
 	prd.material = (material != MATERIAL_NULL) ? material : geometryMaterial;
 
