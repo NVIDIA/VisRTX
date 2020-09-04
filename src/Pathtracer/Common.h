@@ -42,7 +42,7 @@
 //#define PRINT_PIXEL_Y 540
 
 
-// Convenience 
+// Convenience
 #ifdef TEST_NEE_ONLY
 #undef TEST_DIRECT_ONLY
 #endif
@@ -98,13 +98,13 @@ struct BasicMaterialParameters
 
     optix::float3 specularColor;
     int specularTexture;
-    
+
     float specularExponent;
     int specularExponentTexture;
 
     float opacity;
     int opacityTexture;
-    
+
     optix::float3 transparencyFilterColor;
 
     int bumpMapTexture;
@@ -134,7 +134,7 @@ struct MDLMaterialParameters
     MDL_BSDF_Init_Func init;
     MDL_BSDF_Sample_Func sample;
     MDL_BSDF_Evaluate_Func evaluate;
-    // MDL_BSDF_PDF_Func pdf; // currently not used    
+    // MDL_BSDF_PDF_Func pdf; // currently not used
     MDL_Expression_Func opacity;
 	MDL_Expression_Func thinwalled;
 	MDL_Expression_Func ior;
@@ -143,7 +143,7 @@ struct MDLMaterialParameters
     int hasArgBlock;
     char argBlock[MDL_ARGUMENT_BLOCK_SIZE];
 
-    // = 7 * 4 + 372 = 400 bytes 
+    // = 8 * 4 + 368 = 400 bytes
 };
 
 
@@ -194,7 +194,7 @@ typedef int rtObject;
 
 
 #pragma pack(push, 1)
-struct LaunchParameters 
+struct LaunchParameters
 {
 	float2 imageBegin;
 	float2 imageSize; // imageEnd - imageBegin
@@ -211,7 +211,7 @@ struct LaunchParameters
     float3 pos;
     float3 U;
     float3 V;
-    float3 W;	
+    float3 W;
     float focalDistance;
     float apertureRadius;
     float orthoWidth;
@@ -231,7 +231,7 @@ struct LaunchParameters
     int numBouncesMax;
     int writeBackground;
     float fireflyClampingDirect;
-    float fireflyClampingIndirect;    
+    float fireflyClampingIndirect;
     int sampleAllLights;
     int numLightsDirect;
     int numLightsMiss;
@@ -257,7 +257,7 @@ struct PathtracePRD
 {
     optix::float4 color;
 
-    optix::float2 texCoord;    
+    optix::float2 texCoord;
 
     optix::float3 normal;
     optix::float3 geometricNormal;
@@ -269,10 +269,10 @@ struct PathtracePRD
     optix::float3 lightEdf;
     float lightPdf;
     float lastLightPdfFactor; // = 1 / numLightsActiveForNEE
-    float lastPdf; // last material BSDF sample pdf    
+    float lastPdf; // last material BSDF sample pdf
 
     optix::float3 radiance;
-    optix::float3 alpha;    
+    optix::float3 alpha;
     int depth;
     int numCutoutOpacityHits;
     RandState* randState;

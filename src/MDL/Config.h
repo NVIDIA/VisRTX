@@ -28,7 +28,7 @@
 
 #pragma once
 
-#define MDL_ARGUMENT_BLOCK_SIZE     372
+#define MDL_ARGUMENT_BLOCK_SIZE     368
 #define MDL_MAX_TEXTURES            32
 
 // For debugging...
