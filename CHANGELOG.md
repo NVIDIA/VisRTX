@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+##### 2022-03-01
+- Completely new ANARI-based implementation (see README for details)
+
 ## 0.1.6
 ##### 2019-08-13
 - Automatic ray epsilon handling
