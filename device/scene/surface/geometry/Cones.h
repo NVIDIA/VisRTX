@@ -29,12 +29,46 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Scene.h"
+#pragma once
 
-bool ui_scenes(SpheresConfig &spheresConfig,
-    CylindersConfig &cylindersConfig,
-    ConesConfig &conesConfig,
-    NoiseVolumeConfig &noiseVolumeConfig,
-    GravityVolumeConfig &gravityVolumeConfig,
-    ObjFileConfig &objFileConfig,
-    int &whichScene);
+#include "Geometry.h"
+#include "array/Array.h"
+
+namespace visrtx {
+
+struct Cones : public Geometry
+{
+  Cones() = default;
+  ~Cones() override;
+
+  void commit() override;
+
+  void populateBuildInput(OptixBuildInput &) const override;
+
+  int optixGeometryType() const override;
+
+ private:
+  GeometryGPUData gpuData() const override;
+  void generateCones();
+  void cleanup();
+
+  struct GeneratedCones
+  {
+    std::vector<vec3> vertices;
+    std::vector<uvec3> indices;
+
+    DeviceBuffer vertexBuffer;
+    DeviceBuffer indexBuffer;
+
+    CUdeviceptr vertexBufferPtr{};
+  } m_cones;
+
+  anari::IntrusivePtr<Array1D> m_index;
+  anari::IntrusivePtr<Array1D> m_radius;
+
+  anari::IntrusivePtr<Array1D> m_vertex;
+
+  bool m_caps{false};
+};
+
+} // namespace visrtx

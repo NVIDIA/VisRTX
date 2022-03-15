@@ -62,6 +62,15 @@ static void ui_cylindersConfig(CylindersConfig &config)
   ImGui::DragFloat("opacity", &config.opacity, 0.001f, 0.f, 1.f);
 }
 
+static void ui_conesConfig(ConesConfig &config)
+{
+  ui_config(config);
+  ImGui::DragInt("numCones", &config.numCones, 1.f, 1, 100);
+  ImGui::Checkbox("caps", &config.caps);
+  ImGui::Checkbox("randomize seed", &config.useRandomSeed);
+  ImGui::DragFloat("opacity", &config.opacity, 0.001f, 0.f, 1.f);
+}
+
 static void ui_volumeConfig(VolumeConfig &config)
 {
   ui_config(config);
@@ -85,6 +94,7 @@ static void ui_gravityVolumeConfig(GravityVolumeConfig &config)
 
 bool ui_scenes(SpheresConfig &spheresConfig,
     CylindersConfig &cylindersConfig,
+    ConesConfig &conesConfig,
     NoiseVolumeConfig &noiseVolumeConfig,
     GravityVolumeConfig &gravityVolumeConfig,
     ObjFileConfig &objFileConfig,
@@ -98,11 +108,11 @@ bool ui_scenes(SpheresConfig &spheresConfig,
   if (!objFileConfig.filename.empty()) {
     ImGui::Combo("##whichScene",
         &whichScene,
-        "random spheres\0random cylinders\0noise volume\0gravity volume\0obj file\0\0");
+        "random spheres\0random cylinders\0random cones\0noise volume\0gravity volume\0obj file\0\0");
   } else {
     ImGui::Combo("##whichScene",
         &whichScene,
-        "random spheres\0random cylinders\0noise volume\0gravity volume\0\0");
+        "random spheres\0random cylinders\0random cones\0noise volume\0gravity volume\0\0");
   }
 
   switch (whichScene) {
@@ -114,6 +124,9 @@ bool ui_scenes(SpheresConfig &spheresConfig,
     break;
   case SceneTypes::RANDOM_CYLINDERS:
     ui_cylindersConfig(cylindersConfig);
+    break;
+  case SceneTypes::RANDOM_CONES:
+    ui_conesConfig(conesConfig);
     break;
   case SceneTypes::NOISE_VOLUME:
     ui_noiseVolumeConfig(noiseVolumeConfig);

@@ -31,6 +31,7 @@
 
 #include "Geometry.h"
 // specific types
+#include "Cones.h"
 #include "Cylinders.h"
 #include "Quads.h"
 #include "Spheres.h"
@@ -55,6 +56,8 @@ Geometry *Geometry::createInstance(
     retval = new Spheres;
   else if (subtype == "cylinder")
     retval = new Cylinders;
+  else if (subtype == "cone")
+    retval = new Cones;
 
   if (!retval)
     throw std::runtime_error("could not create geometry");

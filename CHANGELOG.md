@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+##### TBD
+- Added support for `cone` geometry
+
 ## 0.2.0
 ##### 2022-03-01
 - Completely new ANARI-based implementation (see README for details)

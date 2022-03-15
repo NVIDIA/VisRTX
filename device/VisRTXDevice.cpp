@@ -911,7 +911,7 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_SUBTYPES(
     return renderers;
   } else if (objectType == ANARI_GEOMETRY) {
     static const char *geometries[] = {
-        "triangle", "quad", "cylinders", "sphere", nullptr};
+        "triangle", "quad", "cylinders", "cone", "sphere", nullptr};
     return geometries;
   } else if (objectType == ANARI_SPATIAL_FIELD) {
     static const char *spatialFields[] = {"structuredRegular", nullptr};

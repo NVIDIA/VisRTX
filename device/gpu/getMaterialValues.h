@@ -148,6 +148,8 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
   const auto &ap = ggd.attr[attributeID];
   if (ggd.type == GeometryType::QUAD)
     return getAttributeValue(ap, hit.primID / 2);
+  else if (ggd.type == GeometryType::CONE)
+    return getAttributeValue(ap, hit.primID / ggd.cone.trianglesPerCone);
   else
     return getAttributeValue(ap, hit.primID);
 }

@@ -209,6 +209,19 @@ RT_FUNCTION vec3 computeNormal(const GeometryGPUData &ggd, uint32_t primID)
         bit_cast<float>(optixGetAttribute_3()));
     break;
   }
+  case GeometryType::CONE: {
+    const auto *indices = ggd.cone.indices;
+    const uvec3 idx = indices ? ggd.cone.indices[primID]
+                              : uvec3(0, 1, 2) + primID * 3;
+    const vec3 v0 = ggd.cone.vertices[idx.x];
+    const vec3 v1 = ggd.cone.vertices[idx.y];
+    const vec3 v2 = ggd.cone.vertices[idx.z];
+    normal = cross(v1 - v0, v2 - v0);
+
+    if (!optixIsFrontFaceHit())
+      normal = -normal;
+    break;
+  }
   default:
     break;
   }

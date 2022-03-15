@@ -91,6 +91,7 @@ enum GeometryType
   TRIANGLE,
   QUAD,
   CYLINDER,
+  CONE,
   SPHERE,
   UNKNOWN
 };
@@ -135,6 +136,14 @@ struct CylinderGeometryData
   bool caps;
 };
 
+struct ConeGeometryData
+{
+  const uvec3 *indices; // actually triangles
+  const vec3 *vertices;
+  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  uint8_t trianglesPerCone;
+};
+
 struct SphereGeometryData
 {
   vec3 *centers;
@@ -153,6 +162,7 @@ struct GeometryGPUData
     TriangleGeometryData tri{};
     QuadGeometryData quad;
     CylinderGeometryData cylinder;
+    ConeGeometryData cone;
     SphereGeometryData sphere;
   };
 };
