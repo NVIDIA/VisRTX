@@ -145,19 +145,16 @@ inline OBJECT_T &referenceFromHandle(HANDLE_T handle)
 
 #define declare_param_setter_string(TYPE)                                      \
   {                                                                            \
-    anari::ANARITypeFor<TYPE>::value,                                          \
-        [](Object &o, const char *p, const void *v) {                          \
-          const char *str = (const char *)v;                                   \
-          o.setParam(p, std::string(str));                                     \
-        }                                                                      \
+    ANARI_STRING, [](Object &o, const char *p, const void *v) {                \
+      o.setParam(p, std::string((const char *)v));                             \
+    }                                                                          \
   }
 
 #define declare_param_setter_void_ptr(TYPE)                                    \
   {                                                                            \
-    anari::ANARITypeFor<TYPE>::value,                                          \
-        [](Object &o, const char *p, const void *v) {                          \
-          o.setParam(p, const_cast<void *>(v));                                \
-        }                                                                      \
+    ANARI_VOID_POINTER, [](Object &o, const char *p, const void *v) {          \
+      o.setParam(p, const_cast<void *>(v));                                    \
+    }                                                                          \
   }
 
 using SetParamFcn = void(Object &, const char *, const void *);
@@ -186,7 +183,6 @@ static std::map<ANARIDataType, SetParamFcn *> setParamFcns = {
     declare_param_setter_object(Volume *),
     declare_param_setter_object(World *),
     declare_param_setter_string(const char *),
-    declare_param_setter_string(char *),
     declare_param_setter(int),
     declare_param_setter(unsigned int),
     declare_param_setter(float),
