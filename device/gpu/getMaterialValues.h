@@ -204,13 +204,13 @@ RT_FUNCTION T getMaterialParameter(const FrameGPUData &fd,
   case MaterialParameterType::WORLD_POSITION:
     return bit_cast<T>(vec4(hit.hitpoint, 1.f));
   case MaterialParameterType::WORLD_NORMAL:
-    return bit_cast<T>(vec4(hit.normal, 1.f));
+    return bit_cast<T>(vec4(hit.Ng, 1.f));
   /////////////////////////////////////////////////////////////////////////////
   // NOTE: these are in world space - need to quantify best performing option
   case MaterialParameterType::OBJECT_POSITION:
     return bit_cast<T>(vec4(hit.hitpoint, 1.f));
   case MaterialParameterType::OBJECT_NORMAL:
-    return bit_cast<T>(vec4(hit.normal, 1.f));
+    return bit_cast<T>(vec4(hit.Ng, 1.f));
   /////////////////////////////////////////////////////////////////////////////
   default:
     break;

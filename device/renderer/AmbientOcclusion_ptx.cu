@@ -58,8 +58,8 @@ RT_FUNCTION float computeAO(
   const int numSamples = frameData.renderer.params.ao.aoSamples;
   for (int i = 0; i < numSamples; i++) {
     Ray aoRay;
-    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.normal);
-    aoRay.dir = randomDir(ss.rs, currentHit.normal);
+    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ng);
+    aoRay.dir = randomDir(ss.rs, currentHit.Ns);
     if (isOccluded(ss, aoRay))
       hits++;
   }
@@ -136,7 +136,7 @@ RT_PROGRAM void __raygen__()
               ss, ray, RayType::PRIMARY, surfaceHit.t, color, opacity));
 
       if (firstHit) {
-        outputNormal = surfaceHit.normal;
+        outputNormal = surfaceHit.Ng;
         depth = min(depth, surfaceHit.t);
         firstHit = false;
       }

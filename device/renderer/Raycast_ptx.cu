@@ -83,7 +83,7 @@ RT_PROGRAM void __raygen__()
               ss, ray, RayType::PRIMARY, surfaceHit.t, color, opacity));
 
       if (firstHit) {
-        outputNormal = surfaceHit.normal;
+        outputNormal = surfaceHit.Ng;
         depth = min(depth, surfaceHit.t);
         firstHit = false;
       }
@@ -95,7 +95,7 @@ RT_PROGRAM void __raygen__()
           getMaterialParameter(frameData, material.opacity, surfaceHit);
 
       const auto falloff =
-          mat_baseColor * glm::abs(glm::dot(ray.dir, surfaceHit.normal));
+          mat_baseColor * glm::abs(glm::dot(ray.dir, surfaceHit.Ns));
 
       accumulateValue(color, glm::mix(mat_baseColor, falloff, 0.5f), opacity);
       accumulateValue(opacity, mat_opacity, opacity);

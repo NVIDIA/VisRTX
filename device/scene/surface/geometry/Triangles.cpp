@@ -73,6 +73,14 @@ void Triangles::commit()
         " without 'primitive.index' present");
   }
 
+  if (m_vertexNormal && m_vertex->size() != m_vertexNormal->size()) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'vertex.normal' on triangle geometry not the same size as "
+        "'vertex.position' (%zu) vs. (%zu)",
+        m_vertexNormal->size(),
+        m_vertex->size());
+  }
+
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->deviceDataAs<vec3>();
 }
 

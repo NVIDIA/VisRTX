@@ -107,8 +107,8 @@ RT_PROGRAM void __raygen__()
       break;
     }
 
-    ray.dir = randomDir(ss.rs, hit.normal);
-    ray.org = hit.hitpoint + (hit.epsilon * hit.normal);
+    ray.org = hit.hitpoint + (hit.epsilon * hit.Ng);
+    ray.dir = randomDir(ss.rs, hit.Ns);
     ray.t.lower = hit.epsilon;
     ray.t.upper = tmax;
 
@@ -120,7 +120,7 @@ RT_PROGRAM void __raygen__()
       accumulateValue(outColor, mat_baseColor, volumeOpacity);
       outOpacity = 1.f;
       outDepth = min(hit.t, volumeDepth);
-      outNormal = hit.normal;
+      outNormal = hit.Ng;
     }
 
     if (pathData.depth != 0)

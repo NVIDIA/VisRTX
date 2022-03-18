@@ -63,7 +63,7 @@ RT_PROGRAM void __closesthit__surface()
   auto method =
       static_cast<Debug::Method>(frameData.renderer.params.debug.method);
 
-  const vec3 normal = ray::computeNormal(*rd.hit.geometry, ray::primID());
+  ray::computeNormal(*rd.hit.geometry, ray::primID(), rd.hit);
 
   switch (method) {
   case Debug::Method::PRIM_ID:
@@ -85,7 +85,16 @@ RT_PROGRAM void __closesthit__surface()
     rd.outColor = boolColor(optixIsFrontFaceHit());
     break;
   case Debug::Method::NG:
-    rd.outColor = abs(normal);
+    rd.outColor = rd.hit.Ng;
+    break;
+  case Debug::Method::NG_ABS:
+    rd.outColor = abs(rd.hit.Ng);
+    break;
+  case Debug::Method::NS:
+    rd.outColor = rd.hit.Ns;
+    break;
+  case Debug::Method::NS_ABS:
+    rd.outColor = abs(rd.hit.Ns);
     break;
   default: {
     rd.outColor = vec3(1.f);
@@ -138,7 +147,7 @@ RT_PROGRAM void __raygen__()
           vec4(rd.outColor, 1.f),
           rd.hit.t,
           vec3(rd.outColor),
-          rd.hit.normal);
+          rd.hit.Ng);
       return;
     }
   }

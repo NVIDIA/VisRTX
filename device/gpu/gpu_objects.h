@@ -510,7 +510,8 @@ struct SurfaceHit
   bool foundHit;
   float t;
   vec3 hitpoint;
-  vec3 normal;
+  vec3 Ng;
+  vec3 Ns;
   vec3 uvw;
   uint32_t primID;
   float epsilon;
