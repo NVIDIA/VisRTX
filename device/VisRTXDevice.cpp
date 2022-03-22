@@ -237,6 +237,8 @@ void VisRTXDevice::deviceSetParameter(
     setParam(id, mem);
   else if (id == "cudaDevice" && type == ANARI_INT32)
     setParam(id, *(int *)mem);
+  else if (id == "forceInit" && type == ANARI_BOOL)
+    setParam(id, *(bool *)mem);
 }
 
 void VisRTXDevice::deviceUnsetParameter(const char *id)
@@ -246,6 +248,7 @@ void VisRTXDevice::deviceUnsetParameter(const char *id)
 
 void VisRTXDevice::deviceCommit()
 {
+  m_eagerInit = getParam<bool>("forceInit", false);
   m_statusCB =
       getParam<ANARIStatusCallback>("statusCallback", defaultStatusCallback());
   m_statusCBUserPtr = getParam<void *>(
@@ -258,6 +261,9 @@ void VisRTXDevice::deviceCommit()
         m_gpuID,
         m_desiredGpuID);
   }
+
+  if (m_eagerInit)
+    initDevice();
 }
 
 void VisRTXDevice::deviceRetain()
@@ -702,13 +708,14 @@ VisRTXDevice::~VisRTXDevice()
 
 void VisRTXDevice::initDevice()
 {
-  if (m_state.get() != nullptr)
+  if (m_state)
     return;
-
-  deviceCommit();
 
   m_state = std::make_unique<DeviceGlobalState>();
   auto &state = *m_state;
+
+  if (!m_eagerInit)
+    deviceCommit();
 
   state.messageFunction = [&](ANARIStatusSeverity severity,
                               const std::string &msg,
@@ -961,4 +968,9 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(
         objectSubtype, parameterName, parameterType, infoName, infoType);
   }
   return nullptr;
+}
+
+extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice()
+{
+  return (ANARIDevice) new visrtx::VisRTXDevice();
 }
