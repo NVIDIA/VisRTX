@@ -202,7 +202,8 @@ void Array::freeAppMemory()
   if (ownership() == ArrayDataOwnership::CAPTURED) {
     auto &captured = m_hostData.captured;
     reportMessage(ANARI_SEVERITY_DEBUG, "invoking array deleter");
-    captured.deleter(captured.mem, captured.deleterPtr);
+    if (captured.deleter)
+      captured.deleter(captured.deleterPtr, captured.mem);
     zeroOutStruct(captured);
   } else if (ownership() == ArrayDataOwnership::MANAGED) {
     reportMessage(ANARI_SEVERITY_DEBUG, "freeing managed array");

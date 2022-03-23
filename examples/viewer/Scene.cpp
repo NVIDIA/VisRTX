@@ -51,7 +51,7 @@
 
 // Helper functions  //////////////////////////////////////////////////////////
 
-static void anari_free(void *ptr, void *)
+static void anari_free(void * /*user_data*/, void *ptr)
 {
   std::free(ptr);
 }
