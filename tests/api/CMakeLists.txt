@@ -27,6 +27,10 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+if (WIN32)
+  return()
+endif()
+
 project(api_tests LANGUAGES CXX)
 add_executable(${PROJECT_NAME} api_tests.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE anari_library_visrtx)
