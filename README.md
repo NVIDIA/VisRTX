@@ -2,7 +2,7 @@
 
 ![VisRTX Teaser](teaser.png)
 
-VisRTX is an exeperimental, scientific visualization-focused implementation of
+VisRTX is an experimental, scientific visualization-focused implementation of
 the [Khronos ANARI standard](https://www.khronos.org/anari), and is developed by
 the HPC Visualization Developer Technology team at NVIDIA.
 
