@@ -33,6 +33,7 @@
 
 #include "anari/detail/Helpers.h"
 #include "anari/detail/Library.h"
+#include "anari/type_utility.h"
 
 #include "array/Array1D.h"
 #include "array/Array2D.h"
@@ -509,8 +510,8 @@ void VisRTXDevice::setParameter(
     o.markUpdated();
   } else {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "setting parameter type (%i) not yet implemented",
-        type);
+        "setting parameter type %s not yet implemented and will be unused",
+        anari::anari_enum_to_string(type));
   }
 }
 

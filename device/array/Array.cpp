@@ -32,6 +32,7 @@
 #include "array/Array.h"
 // anari
 #include "anari/detail/Helpers.h"
+#include "anari/type_utility.h"
 
 namespace visrtx {
 
@@ -187,7 +188,8 @@ void Array::makePrivatizedCopy(size_t numElements)
     return;
 
   reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
-      "making private copy of shared array data");
+      "making private copy of shared array data (type '%s')",
+      anari::anari_enum_to_string(elementType()));
 
   size_t numBytes = numElements * anari::sizeOfDataType(elementType());
   m_hostData.privatized.mem = malloc(numBytes);
