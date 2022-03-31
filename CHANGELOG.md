@@ -1,8 +1,12 @@
 # Changelog
 
 ## 0.3.0
-##### TBD
+##### 2022-03-30
+- Update to latest ANARI SDK v0.1.0 (please note new versioning scheme)
 - Added support for `cone` geometry
+- Improved warning messages in various places
+- Fix incorrect handling of array deleters for captured arrays
+- Fix bug in instancing code causing UB in some cases
 
 ## 0.2.0
 ##### 2022-03-01
