@@ -50,7 +50,7 @@ RT_FUNCTION LightSample sampleAmbient(
     ScreenSample &ss, const Hit &hit, const LightGPUData &ld)
 {
   LightSample ls;
-  ls.dir = randomDir(ss.rs, hit.normal);
+  ls.dir = randomDir(ss.rs, hit.Ng);
   ls.dist = ld.ambient.distance;
   ls.pdf = 1.f;
   ls.radiance = ld.color * ld.ambient.intensity;

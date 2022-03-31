@@ -350,6 +350,9 @@ void Viewer::updateWorld()
   case SceneTypes::RANDOM_CYLINDERS:
     m_currentScene = generateScene(m_device, m_cylindersConfig);
     break;
+  case SceneTypes::RANDOM_CONES:
+    m_currentScene = generateScene(m_device, m_conesConfig);
+    break;
   case SceneTypes::NOISE_VOLUME:
     m_currentScene = generateScene(m_device, m_noiseVolumeConfig);
     break;
@@ -563,6 +566,7 @@ void Viewer::ui_makeWindow()
         ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Scene Generation Parameters:");
     if (ui_scenes(m_spheresConfig,
             m_cylindersConfig,
+            m_conesConfig,
             m_noiseVolumeConfig,
             m_gravityVolumeConfig,
             m_objFileConfig,

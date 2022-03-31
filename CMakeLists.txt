@@ -48,13 +48,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-project(visrtx VERSION 0.2.0 LANGUAGES C CXX CUDA)
+project(visrtx VERSION 0.3.0 LANGUAGES C CXX CUDA)
 
 include(GNUInstallDirs)
 
 ## Dependencies ##
 
-find_package(anari REQUIRED)
+find_package(anari 0.1.0 REQUIRED)
 set(glm_DIR ${CMAKE_CURRENT_LIST_DIR}/external/glm/lib/cmake/glm)
 find_package(glm REQUIRED)
 mark_as_advanced(glm_DIR)

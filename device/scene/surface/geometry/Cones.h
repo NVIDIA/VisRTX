@@ -31,38 +31,44 @@
 
 #pragma once
 
-#include "Renderer.h"
+#include "Geometry.h"
+#include "array/Array.h"
 
 namespace visrtx {
 
-struct Debug : public Renderer
+struct Cones : public Geometry
 {
-  enum class Method
-  {
-    PRIM_ID,
-    GEOM_ID,
-    INST_ID,
-    NG,
-    NG_ABS,
-    NS,
-    NS_ABS,
-    RAY_UVW,
-    IS_TRIANGLE,
-    IS_VOLUME,
-    BACKFACE
-  };
+  Cones() = default;
+  ~Cones() override;
 
-  Debug() = default;
   void commit() override;
-  void populateFrameData(FrameGPUData &fd) const override;
-  OptixModule optixModule() const override;
-  anari::Span<const HitgroupFunctionNames> hitgroupSbtNames() const override;
-  anari::Span<const std::string> missSbtNames() const override;
 
-  static ptx_ptr ptx();
+  void populateBuildInput(OptixBuildInput &) const override;
+
+  int optixGeometryType() const override;
 
  private:
-  Method m_method{Method::PRIM_ID};
+  GeometryGPUData gpuData() const override;
+  void generateCones();
+  void cleanup();
+
+  struct GeneratedCones
+  {
+    std::vector<vec3> vertices;
+    std::vector<uvec3> indices;
+
+    DeviceBuffer vertexBuffer;
+    DeviceBuffer indexBuffer;
+
+    CUdeviceptr vertexBufferPtr{};
+  } m_cones;
+
+  anari::IntrusivePtr<Array1D> m_index;
+  anari::IntrusivePtr<Array1D> m_radius;
+
+  anari::IntrusivePtr<Array1D> m_vertex;
+
+  bool m_caps{false};
 };
 
 } // namespace visrtx

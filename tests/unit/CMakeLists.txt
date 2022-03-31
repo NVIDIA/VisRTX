@@ -27,11 +27,14 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-option(VISRTX_BUILD_TESTS "Build tests" OFF)
-mark_as_advanced(VISRTX_BUILD_TESTS)
-if (NOT VISRTX_BUILD_TESTS)
-  return()
-endif()
+project(unit_tests LANGUAGES CXX)
 
-add_subdirectory(api)
-add_subdirectory(unit)
+add_executable(${PROJECT_NAME}
+  catch_main.cpp
+  test_AnariAny.cpp
+  test_ParameterInfo.cpp
+)
+target_link_libraries(${PROJECT_NAME} PRIVATE anari_library_visrtx catch)
+
+add_test(NAME visrtx::anari::AnariAny      COMMAND ${PROJECT_NAME} "[AnariAny]")
+add_test(NAME visrtx::anari::ParameterInfo COMMAND ${PROJECT_NAME} "[ParameterInfo]")

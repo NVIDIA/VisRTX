@@ -29,40 +29,16 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+// anari_cpp
+#include <anari/anari_cpp.hpp>
 
-#include "Renderer.h"
+extern "C" ANARIDevice makeVisRTXDevice();
 
-namespace visrtx {
-
-struct Debug : public Renderer
+int main()
 {
-  enum class Method
-  {
-    PRIM_ID,
-    GEOM_ID,
-    INST_ID,
-    NG,
-    NG_ABS,
-    NS,
-    NS_ABS,
-    RAY_UVW,
-    IS_TRIANGLE,
-    IS_VOLUME,
-    BACKFACE
-  };
-
-  Debug() = default;
-  void commit() override;
-  void populateFrameData(FrameGPUData &fd) const override;
-  OptixModule optixModule() const override;
-  anari::Span<const HitgroupFunctionNames> hitgroupSbtNames() const override;
-  anari::Span<const std::string> missSbtNames() const override;
-
-  static ptx_ptr ptx();
-
- private:
-  Method m_method{Method::PRIM_ID};
-};
-
-} // namespace visrtx
+  auto device = makeVisRTXDevice();
+  anari::setParameter(device, device, "forceInit", true);
+  anari::commit(device, device);
+  anari::release(device, device);
+  return 0;
+}

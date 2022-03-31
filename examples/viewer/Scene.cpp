@@ -51,7 +51,7 @@
 
 // Helper functions  //////////////////////////////////////////////////////////
 
-static void anari_free(void *ptr, void *)
+static void anari_free(void * /*user_data*/, void *ptr)
 {
   std::free(ptr);
 }
@@ -238,6 +238,82 @@ static ScenePtr generateCylinders(anari::Device d, CylindersConfig config)
   anari::setAndReleaseParameter(d,
       geom,
       "vertex.color",
+      anari::newArray1D(d, colors.data(), colors.size()));
+
+  anari::commit(d, geom);
+
+  auto surface = anari::newObject<anari::Surface>(d);
+  anari::setAndReleaseParameter(d, surface, "geometry", geom);
+
+  auto mat = anari::newObject<anari::Material>(d, "transparentMatte");
+  anari::setParameter(d, mat, "color", "color");
+  anari::setParameter(d, mat, "opacity", config.opacity);
+  anari::commit(d, mat);
+  anari::setAndReleaseParameter(d, surface, "material", mat);
+
+  anari::commit(d, surface);
+
+  anari::setAndReleaseParameter(
+      d, world, "surface", anari::newArray1D(d, &surface));
+
+  anari::release(d, surface);
+
+  return std::make_unique<Scene>(d, world);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Cones scene ////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+static ScenePtr generateCones(anari::Device d, ConesConfig config)
+{
+  auto world = anari::newObject<anari::World>(d);
+
+  std::mt19937 rng;
+  if (config.useRandomSeed)
+    rng.seed(std::random_device()());
+  else
+    rng.seed(0);
+  std::uniform_real_distribution<float> dist(0.f, 1.f);
+
+  std::vector<glm::vec3> positions(2 * config.numCones);
+  std::vector<glm::uvec2> indices(config.numCones);
+
+  for (auto &s : positions) {
+    s.x = dist(rng);
+    s.y = dist(rng);
+    s.z = dist(rng);
+  }
+
+  for (int i = 0; i < config.numCones; i++)
+    indices[i] = glm::uvec2(2 * i) + glm::uvec2(0, 1);
+
+  std::vector<glm::vec2> radii(config.numCones);
+  std::fill(radii.begin(), radii.end(), glm::vec2(0.125f, 0.f));
+
+  auto geom = anari::newObject<anari::Geometry>(d, "cone");
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.position",
+      anari::newArray1D(d, positions.data(), positions.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.radius",
+      anari::newArray1D(d, (float *)radii.data(), radii.size() * 2));
+  anari::setParameter(d, geom, "caps", config.caps ? "caps" : "none");
+
+  std::vector<glm::vec4> colors(2 * config.numCones);
+
+  for (auto &s : colors) {
+    s.x = dist(rng);
+    s.y = dist(rng);
+    s.z = dist(rng);
+    s.w = 1.f;
+  }
+
+  anari::setAndReleaseParameter(d,
+      geom,
+      "primitive.color",
       anari::newArray1D(d, colors.data(), colors.size()));
 
   anari::commit(d, geom);
@@ -983,6 +1059,8 @@ ScenePtr generateScene(anari::Device d, SceneConfig config)
           retval = generateSpheres(d, arg);
         else if constexpr (std::is_same_v<T, CylindersConfig>)
           retval = generateCylinders(d, arg);
+        else if constexpr (std::is_same_v<T, ConesConfig>)
+          retval = generateCones(d, arg);
         else if constexpr (std::is_same_v<T, NoiseVolumeConfig>) {
           retval = generateNoiseVolume(d, arg);
           if (arg.instanceVolume && arg.addPlane)

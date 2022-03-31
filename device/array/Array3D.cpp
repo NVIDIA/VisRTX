@@ -31,7 +31,7 @@
 
 #include "array/Array3D.h"
 // anari
-#include "anari/detail/Helpers.h"
+#include "anari/type_utility.h"
 
 namespace visrtx {
 

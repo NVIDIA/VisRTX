@@ -255,7 +255,7 @@ void World::populateOptixInstances()
   m_optixSurfaceInstances.resize(m_numTriangleInstances + m_numUserInstances);
   m_optixVolumeInstances.resize(m_numVolumeInstances);
 
-  auto prepInstance = [](auto &i, int &instID, auto handle) -> OptixInstance {
+  auto prepInstance = [](auto &i, int instID, auto handle) -> OptixInstance {
     OptixInstance inst{};
 
     mat3x4 xfm = glm::transpose(i->xfm());
@@ -264,7 +264,7 @@ void World::populateOptixInstances()
     auto *group = i->group();
     inst.traversableHandle = handle;
     inst.flags = OPTIX_INSTANCE_FLAG_NONE;
-    inst.instanceId = instID++;
+    inst.instanceId = instID;
     inst.sbtOffset = 0;
     inst.visibilityMask = 1;
 
@@ -280,13 +280,16 @@ void World::populateOptixInstances()
     if (group->containsTriangleGeometry()) {
       osi[instID] =
           prepInstance(inst, instID, group->optixTraversableTriangle());
+      instID++;
     }
     if (group->containsUserGeometry()) {
       osi[instID] = prepInstance(inst, instID, group->optixTraversableUser());
+      instID++;
     }
     if (group->containsVolumes()) {
       ovi[instVolID] =
           prepInstance(inst, instVolID, group->optixTraversableVolume());
+      instVolID++;
     }
   });
 

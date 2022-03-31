@@ -31,7 +31,8 @@
 
 #include "array/Array.h"
 // anari
-#include "anari/detail/Helpers.h"
+#include "anari/type_utility.h"
+#include "anari/type_utility.h"
 
 namespace visrtx {
 
@@ -164,7 +165,7 @@ void Array::uploadArrayData() const
   if (!m_usedOnDevice || (m_deviceData.buffer && !dataModified()))
     return;
   m_deviceData.buffer.upload((uint8_t *)hostData(),
-      anari::sizeOfDataType(elementType()) * totalSize());
+      anari::sizeOf(elementType()) * totalSize());
   m_lastUploaded = newTimeStamp();
 }
 
@@ -187,9 +188,12 @@ void Array::makePrivatizedCopy(size_t numElements)
     return;
 
   reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
-      "making private copy of shared array data");
+      "making private copy of shared array (type '%s') | ownership: (%i:%i)",
+      anari::toString(elementType()),
+      this->useCount(anari::RefType::PUBLIC),
+      this->useCount(anari::RefType::INTERNAL));
 
-  size_t numBytes = numElements * anari::sizeOfDataType(elementType());
+  size_t numBytes = numElements * anari::sizeOf(elementType());
   m_hostData.privatized.mem = malloc(numBytes);
   std::memcpy(m_hostData.privatized.mem, m_hostData.shared.mem, numBytes);
 
@@ -202,7 +206,8 @@ void Array::freeAppMemory()
   if (ownership() == ArrayDataOwnership::CAPTURED) {
     auto &captured = m_hostData.captured;
     reportMessage(ANARI_SEVERITY_DEBUG, "invoking array deleter");
-    captured.deleter(captured.mem, captured.deleterPtr);
+    if (captured.deleter)
+      captured.deleter(captured.deleterPtr, captured.mem);
     zeroOutStruct(captured);
   } else if (ownership() == ArrayDataOwnership::MANAGED) {
     reportMessage(ANARI_SEVERITY_DEBUG, "freeing managed array");
@@ -219,7 +224,7 @@ void Array::initManagedMemory()
     return;
 
   if (ownership() == ArrayDataOwnership::MANAGED) {
-    auto totalBytes = totalSize() * anari::sizeOfDataType(elementType());
+    auto totalBytes = totalSize() * anari::sizeOf(elementType());
     m_hostData.managed.mem = malloc(totalBytes);
     std::memset(hostData(), 0, totalBytes);
   }

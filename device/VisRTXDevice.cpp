@@ -31,8 +31,8 @@
 
 #include "VisRTXDevice.h"
 
-#include "anari/detail/Helpers.h"
 #include "anari/detail/Library.h"
+#include "anari/type_utility.h"
 
 #include "array/Array1D.h"
 #include "array/Array2D.h"
@@ -145,19 +145,16 @@ inline OBJECT_T &referenceFromHandle(HANDLE_T handle)
 
 #define declare_param_setter_string(TYPE)                                      \
   {                                                                            \
-    anari::ANARITypeFor<TYPE>::value,                                          \
-        [](Object &o, const char *p, const void *v) {                          \
-          const char *str = (const char *)v;                                   \
-          o.setParam(p, std::string(str));                                     \
-        }                                                                      \
+    ANARI_STRING, [](Object &o, const char *p, const void *v) {                \
+      o.setParam(p, std::string((const char *)v));                             \
+    }                                                                          \
   }
 
 #define declare_param_setter_void_ptr(TYPE)                                    \
   {                                                                            \
-    anari::ANARITypeFor<TYPE>::value,                                          \
-        [](Object &o, const char *p, const void *v) {                          \
-          o.setParam(p, const_cast<void *>(v));                                \
-        }                                                                      \
+    ANARI_VOID_POINTER, [](Object &o, const char *p, const void *v) {          \
+      o.setParam(p, const_cast<void *>(v));                                    \
+    }                                                                          \
   }
 
 using SetParamFcn = void(Object &, const char *, const void *);
@@ -186,7 +183,6 @@ static std::map<ANARIDataType, SetParamFcn *> setParamFcns = {
     declare_param_setter_object(Volume *),
     declare_param_setter_object(World *),
     declare_param_setter_string(const char *),
-    declare_param_setter_string(char *),
     declare_param_setter(int),
     declare_param_setter(unsigned int),
     declare_param_setter(float),
@@ -241,6 +237,8 @@ void VisRTXDevice::deviceSetParameter(
     setParam(id, mem);
   else if (id == "cudaDevice" && type == ANARI_INT32)
     setParam(id, *(int *)mem);
+  else if (id == "forceInit" && type == ANARI_BOOL)
+    setParam(id, *(bool *)mem);
 }
 
 void VisRTXDevice::deviceUnsetParameter(const char *id)
@@ -250,6 +248,7 @@ void VisRTXDevice::deviceUnsetParameter(const char *id)
 
 void VisRTXDevice::deviceCommit()
 {
+  m_eagerInit = getParam<bool>("forceInit", false);
   m_statusCB =
       getParam<ANARIStatusCallback>("statusCallback", defaultStatusCallback());
   m_statusCBUserPtr = getParam<void *>(
@@ -262,6 +261,9 @@ void VisRTXDevice::deviceCommit()
         m_gpuID,
         m_desiredGpuID);
   }
+
+  if (m_eagerInit)
+    initDevice();
 }
 
 void VisRTXDevice::deviceRetain()
@@ -507,8 +509,8 @@ void VisRTXDevice::setParameter(
     o.markUpdated();
   } else {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "setting parameter type (%i) not yet implemented",
-        type);
+        "setting parameter type %s not yet implemented and will be unused",
+        anari::toString(type));
   }
 }
 
@@ -706,13 +708,14 @@ VisRTXDevice::~VisRTXDevice()
 
 void VisRTXDevice::initDevice()
 {
-  if (m_state.get() != nullptr)
+  if (m_state)
     return;
-
-  deviceCommit();
 
   m_state = std::make_unique<DeviceGlobalState>();
   auto &state = *m_state;
+
+  if (!m_eagerInit)
+    deviceCommit();
 
   state.messageFunction = [&](ANARIStatusSeverity severity,
                               const std::string &msg,
@@ -903,6 +906,9 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_SUBTYPES(
         "debug_geomID",
         "debug_instID",
         "debug_Ng",
+        "debug_Ng.abs",
+        "debug_Ns",
+        "debug_Ns.abs",
         "debug_uvw",
         "debug_istri",
         "debug_isvol",
@@ -911,7 +917,7 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_SUBTYPES(
     return renderers;
   } else if (objectType == ANARI_GEOMETRY) {
     static const char *geometries[] = {
-        "triangle", "quad", "cylinders", "sphere", nullptr};
+        "triangle", "quad", "cylinder", "cone", "sphere", nullptr};
     return geometries;
   } else if (objectType == ANARI_SPATIAL_FIELD) {
     static const char *spatialFields[] = {"structuredRegular", nullptr};
@@ -962,4 +968,9 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(
         objectSubtype, parameterName, parameterType, infoName, infoType);
   }
   return nullptr;
+}
+
+extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice()
+{
+  return (ANARIDevice) new visrtx::VisRTXDevice();
 }

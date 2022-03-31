@@ -31,7 +31,7 @@
 
 #include "array/ObjectArray.h"
 // anari
-#include "anari/detail/Helpers.h"
+#include "anari/type_utility.h"
 
 namespace visrtx {
 
@@ -46,7 +46,7 @@ ObjectArray::ObjectArray(void *appMemory,
   if (byteStride != 0)
     throw std::runtime_error("strided arrays not yet supported!");
 
-  m_deviceData.buffer.reserve(anari::sizeOfDataType(type) * size());
+  m_deviceData.buffer.reserve(anari::sizeOf(type) * size());
 
   m_handleArray.resize(numItems, nullptr);
 

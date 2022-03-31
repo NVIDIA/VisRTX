@@ -190,6 +190,7 @@ struct VisRTXDevice : public anari::Device,
   int m_gpuID{-1};
   int m_desiredGpuID{0};
   int m_appGpuID{-1};
+  bool m_eagerInit{false};
 
   ANARIStatusCallback m_statusCB{nullptr};
   void *m_statusCBUserPtr{nullptr};

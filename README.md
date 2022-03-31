@@ -241,7 +241,7 @@ change parameters.
 
 The following features are not yet implemented by VisRTX:
 
-- Geometry: `cone`, `curve`
+- Geometry: `curve`
 - Light: `spot`, instancing
 - Camera: `omnidirectional`, stereo rendering, direct transform parameter
 - Sampler: `image1D`, `image3D`, in/out transforms on `image2D`

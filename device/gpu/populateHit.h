@@ -168,55 +168,82 @@ RT_FUNCTION const VolumeGPUData &volumeData(const FrameGPUData &frameData)
   return frameData.registry.volumes[idx];
 }
 
-RT_FUNCTION vec3 computeNormal(const GeometryGPUData &ggd, uint32_t primID)
+RT_FUNCTION void computeNormal(
+    const GeometryGPUData &ggd, uint32_t primID, SurfaceHit &hit)
 {
-  vec3 normal;
+  const vec3 b = ray::uvw();
 
   switch (ggd.type) {
   case GeometryType::TRIANGLE: {
     const auto *indices = ggd.tri.indices;
-    const uvec3 idx = indices ? ggd.tri.indices[primID]
-                              : uvec3(0, 1, 2) + primID * 3;
+    const uvec3 idx =
+        indices ? ggd.tri.indices[primID] : uvec3(0, 1, 2) + primID * 3;
+
     const vec3 v0 = ggd.tri.vertices[idx.x];
     const vec3 v1 = ggd.tri.vertices[idx.y];
     const vec3 v2 = ggd.tri.vertices[idx.z];
-    normal = cross(v1 - v0, v2 - v0);
-
+    hit.Ng = cross(v1 - v0, v2 - v0);
     if (!optixIsFrontFaceHit())
-      normal = -normal;
+      hit.Ng = -hit.Ng;
+
+    if (ggd.tri.vertexNormals != nullptr) {
+      const vec3 n0 = ggd.tri.vertexNormals[idx.x];
+      const vec3 n1 = ggd.tri.vertexNormals[idx.y];
+      const vec3 n2 = ggd.tri.vertexNormals[idx.z];
+      hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
+      if (dot(hit.Ng, hit.Ns) < 0.f)
+        hit.Ns = -hit.Ns;
+    } else
+      hit.Ns = hit.Ng;
+
     break;
   }
   case GeometryType::QUAD: {
     const auto *indices = ggd.quad.indices;
-    const uvec3 idx = indices ? ggd.quad.indices[primID]
-                              : uvec3(0, 1, 2) + primID * 3;
+    const uvec3 idx =
+        indices ? ggd.quad.indices[primID] : uvec3(0, 1, 2) + primID * 3;
     const vec3 v0 = ggd.quad.vertices[idx.x];
     const vec3 v1 = ggd.quad.vertices[idx.y];
     const vec3 v2 = ggd.quad.vertices[idx.z];
-    normal = cross(v1 - v0, v2 - v0);
+    hit.Ng = cross(v1 - v0, v2 - v0);
 
     if (!optixIsFrontFaceHit())
-      normal = -normal;
+      hit.Ng = -hit.Ng;
+    hit.Ns = hit.Ng;
     break;
   }
   case GeometryType::SPHERE: {
-    normal = hitpoint() - ggd.sphere.centers[primID];
+    hit.Ng = hit.Ns = hitpoint() - ggd.sphere.centers[primID];
     break;
   }
   case GeometryType::CYLINDER: {
-    normal = vec3(bit_cast<float>(optixGetAttribute_1()),
+    hit.Ng = hit.Ns = vec3(bit_cast<float>(optixGetAttribute_1()),
         bit_cast<float>(optixGetAttribute_2()),
         bit_cast<float>(optixGetAttribute_3()));
+    break;
+  }
+  case GeometryType::CONE: {
+    const auto *indices = ggd.cone.indices;
+    const uvec3 idx =
+        indices ? ggd.cone.indices[primID] : uvec3(0, 1, 2) + primID * 3;
+    const vec3 v0 = ggd.cone.vertices[idx.x];
+    const vec3 v1 = ggd.cone.vertices[idx.y];
+    const vec3 v2 = ggd.cone.vertices[idx.z];
+    hit.Ng = cross(v1 - v0, v2 - v0);
+
+    if (!optixIsFrontFaceHit())
+      hit.Ng = -hit.Ng;
+    hit.Ns = hit.Ng;
     break;
   }
   default:
     break;
   }
 
-  normal = normalize(make_vec3(
-      optixTransformNormalFromObjectToWorldSpace((::float3 &)normal)));
-
-  return normal;
+  hit.Ng = normalize(make_vec3(
+      optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ng)));
+  hit.Ns = normalize(make_vec3(
+      optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ns)));
 }
 
 RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
@@ -233,10 +260,10 @@ RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
   hit.material = &md;
   hit.t = ray::t();
   hit.hitpoint = ray::hitpoint();
-  hit.normal = ray::computeNormal(gd, ray::primID());
   hit.uvw = ray::uvw();
   hit.primID = ray::primID();
   hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
+  ray::computeNormal(gd, ray::primID(), hit);
 }
 
 RT_FUNCTION void populateVolumeHit(VolumeHit &hit)

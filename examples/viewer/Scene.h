@@ -55,6 +55,7 @@ enum SceneTypes
 {
   RANDOM_SPHERES,
   RANDOM_CYLINDERS,
+  RANDOM_CONES,
   NOISE_VOLUME,
   GRAVITY_VOLUME,
   OBJ_FILE
@@ -76,6 +77,14 @@ struct CylindersConfig : public Config
 {
   int numCylinders{10};
   float radius{0.025f};
+  float opacity{1.f};
+  bool useRandomSeed{false};
+  bool caps{true};
+};
+
+struct ConesConfig : public Config
+{
+  int numCones{10};
   float opacity{1.f};
   bool useRandomSeed{false};
   bool caps{true};
@@ -107,6 +116,7 @@ struct ObjFileConfig : public Config
 
 using SceneConfig = std::variant<SpheresConfig,
     CylindersConfig,
+    ConesConfig,
     NoiseVolumeConfig,
     GravityVolumeConfig,
     ObjFileConfig>;

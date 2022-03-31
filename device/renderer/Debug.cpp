@@ -51,6 +51,12 @@ static Debug::Method methodFromString(const std::string &name)
     return Debug::Method::INST_ID;
   else if (name == "Ng")
     return Debug::Method::NG;
+  else if (name == "Ng.abs")
+    return Debug::Method::NG_ABS;
+  else if (name == "Ns")
+    return Debug::Method::NS;
+  else if (name == "Ns.abs")
+    return Debug::Method::NS_ABS;
   else if (name == "uvw")
     return Debug::Method::RAY_UVW;
   else if (name == "istri")
