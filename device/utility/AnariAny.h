@@ -32,7 +32,7 @@
 #pragma once
 
 #include "anari/anari_cpp.hpp"
-#include "anari/detail/Helpers.h"
+#include "anari/type_utility.h"
 // std
 #include <algorithm>
 #include <array>
@@ -125,7 +125,7 @@ inline bool AnariAny::operator==(const AnariAny &rhs) const
   if (type() != rhs.type())
     return false;
   return std::equal(m_storage.data(),
-      m_storage.data() + ::anari::sizeOfDataType(type()),
+      m_storage.data() + ::anari::sizeOf(type()),
       rhs.m_storage.data());
 }
 

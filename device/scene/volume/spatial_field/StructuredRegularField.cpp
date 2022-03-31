@@ -31,7 +31,7 @@
 
 #include "StructuredRegularField.h"
 // anari
-#include "anari/detail/Helpers.h"
+#include "anari/type_utility.h"
 
 namespace visrtx {
 
@@ -97,7 +97,7 @@ void StructuredRegularField::commit()
 
   m_params.data->addCommitObserver(this);
 
-  const auto formatSize = anari::sizeOfDataType(format);
+  const auto formatSize = anari::sizeOf(format);
 
   auto desc = cudaCreateChannelDesc(
       formatSize * 8, 0, 0, 0, cudaChannelFormatFromANARI(format));

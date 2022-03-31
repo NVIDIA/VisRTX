@@ -31,7 +31,6 @@
 
 #include "VisRTXDevice.h"
 
-#include "anari/detail/Helpers.h"
 #include "anari/detail/Library.h"
 #include "anari/type_utility.h"
 
@@ -511,7 +510,7 @@ void VisRTXDevice::setParameter(
   } else {
     reportMessage(ANARI_SEVERITY_WARNING,
         "setting parameter type %s not yet implemented and will be unused",
-        anari::anari_enum_to_string(type));
+        anari::toString(type));
   }
 }
 
