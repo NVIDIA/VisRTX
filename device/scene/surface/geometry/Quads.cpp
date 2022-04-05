@@ -71,7 +71,12 @@ void Quads::commit()
     reportMessage(ANARI_SEVERITY_ERROR,
         "'vertex.position' on quad geometry is a non-multiple of 4"
         " without 'primitive.index' present");
+    return;
   }
+
+  if (m_index)
+    m_index->addCommitObserver(this);
+  m_vertex->addCommitObserver(this);
 
   generateIndices();
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->deviceDataAs<vec3>();

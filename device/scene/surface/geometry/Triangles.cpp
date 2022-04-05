@@ -71,6 +71,7 @@ void Triangles::commit()
     reportMessage(ANARI_SEVERITY_ERROR,
         "'vertex.position' on triangle geometry is a non-multiple of 3"
         " without 'primitive.index' present");
+    return;
   }
 
   if (m_vertexNormal && m_vertex->size() != m_vertexNormal->size()) {
@@ -79,7 +80,12 @@ void Triangles::commit()
         "'vertex.position' (%zu) vs. (%zu)",
         m_vertexNormal->size(),
         m_vertex->size());
+    return;
   }
+
+  if (m_index)
+    m_index->addCommitObserver(this);
+  m_vertex->addCommitObserver(this);
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->deviceDataAs<vec3>();
 }

@@ -50,8 +50,6 @@ void Surface::commit()
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'geometry' on ANARISurface");
     return;
   }
-
-  m_geometry->populateBuildInput(m_buildInput);
 }
 
 const Geometry *Surface::geometry() const
@@ -66,7 +64,11 @@ const Material *Surface::material() const
 
 OptixBuildInput Surface::buildInput() const
 {
-  return m_buildInput;
+  if (!m_geometry)
+    return {};
+  OptixBuildInput obi = {};
+  m_geometry->populateBuildInput(obi);
+  return obi;
 }
 
 void Surface::markCommitted()
