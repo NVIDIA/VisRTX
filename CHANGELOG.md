@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+##### 2022-04-05
+- Fix incorrect update of BVH when modifying some geometries
+
 ## 0.3.0
 ##### 2022-03-30
 - Update to latest ANARI SDK v0.1.0 (please note new versioning scheme)

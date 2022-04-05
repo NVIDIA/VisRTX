@@ -68,7 +68,7 @@ void Spheres::commit()
 
   float globalRadius = m_globalRadius.value_or(0.01f);
 
-  // Create icospheres + calculate bounds //
+  // Calculate bounds //
 
   m_aabbs.resize(m_vertex->size());
 
