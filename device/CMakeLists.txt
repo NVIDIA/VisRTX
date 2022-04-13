@@ -33,14 +33,13 @@ project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 
 ## Find dependencies ##
 
+find_package(CUDAToolkit 11.3.1 REQUIRED)
 find_package(OptiX7 REQUIRED)
 
 include(EmbedPTX)
 
 option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
-
-find_package(CUDAToolkit 11.3.1 REQUIRED)
 
 ## Build library target ##
 
@@ -131,6 +130,7 @@ PUBLIC
   glm::glm
   OptiX7::OptiX7
   CUDA::cuda_driver
+  CUDA::curand
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
 )
 
@@ -158,6 +158,7 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     anari::anari_utilities
     glm::glm
     OptiX7::OptiX7
+    CUDA::curand
   )
   target_include_directories(${INPUT_TARGET} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
   set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_PTX_COMPILATION ON)

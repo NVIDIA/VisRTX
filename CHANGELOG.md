@@ -3,6 +3,12 @@
 ## 0.4.0
 ##### TBD
 
+## 0.3.2
+##### 2022-04-13
+- Fix build issues found on certain platforms
+- Fix crash when querying device properties in certain cases
+- Fix occasional instability of PTX generation + embedding process
+
 ## 0.3.1
 ##### 2022-04-05
 - Fix incorrect update of BVH when modifying some geometries
