@@ -467,9 +467,6 @@ int VisRTXDevice::getProperty(ANARIObject object,
 {
   CUDADeviceScope ds(this);
 
-  if (mask == ANARI_WAIT)
-    m_state->flushCommitBuffer();
-
   if ((void *)object == (void *)this) {
     std::string_view prop = name;
     if (prop == "version" && type == ANARI_INT32) {
@@ -487,8 +484,11 @@ int VisRTXDevice::getProperty(ANARIObject object,
       writeToVoidP(mem, VISRTX_VERSION_PATCH);
       return 1;
     }
-  } else
+  } else {
+    if (mask == ANARI_WAIT)
+      m_state->flushCommitBuffer();
     return referenceFromHandle(object).getProperty(name, type, mem, mask);
+  }
 
   return 0;
 }
