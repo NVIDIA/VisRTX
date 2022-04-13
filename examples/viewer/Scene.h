@@ -36,6 +36,7 @@
 #include <anari/anari_cpp.hpp>
 // std
 #include <array>
+#include <functional>
 #include <memory>
 #include <variant>
 
