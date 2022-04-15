@@ -73,12 +73,12 @@ void Spheres::commit()
   m_aabbs.resize(m_vertex->size());
 
   {
-    auto *begin = m_vertex->hostDataAs<vec3>();
+    auto *begin = m_vertex->dataAs<vec3>();
     auto *end = begin + m_vertex->size();
 
     float *radius = nullptr;
     if (m_radius)
-      radius = m_radius->hostDataAs<float>();
+      radius = m_radius->dataAs<float>();
 
     size_t sphereID = 0;
     std::transform(begin, end, m_aabbs.begin(), [&](const vec3 &v) {
@@ -111,10 +111,10 @@ GeometryGPUData Spheres::gpuData() const
 
   auto &sphere = retval.sphere;
 
-  sphere.centers = m_vertex->deviceDataAs<vec3>();
+  sphere.centers = m_vertex->dataAs<vec3>(AddressSpace::GPU);
   sphere.radii = nullptr;
   if (m_radius)
-    sphere.radii = m_radius->deviceDataAs<float>();
+    sphere.radii = m_radius->dataAs<float>(AddressSpace::GPU);
   sphere.radius = m_globalRadius.value_or(0.01f);
 
   populateAttributePtr(m_vertexAttribute0, sphere.vertexAttr[0]);

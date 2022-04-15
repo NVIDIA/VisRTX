@@ -175,25 +175,25 @@ void Image2D::commit()
     stagingBuffer.resize(m_params.image->totalSize() * 4);
 
     if (nc == 4) {
-      auto *begin = m_params.image->hostDataAs<vec4>();
+      auto *begin = m_params.image->dataAs<vec4>();
       auto *end = begin + m_params.image->totalSize();
       std::transform(begin, end, (texel4 *)stagingBuffer.data(), [](vec4 &v) {
         return makeTexel<4>(v);
       });
     } else if (nc == 3) {
-      auto *begin = m_params.image->hostDataAs<vec3>();
+      auto *begin = m_params.image->dataAs<vec3>();
       auto *end = begin + m_params.image->totalSize();
       std::transform(begin, end, (texel4 *)stagingBuffer.data(), [](vec3 &v) {
         return makeTexel<4>(vec4(v, 1.f));
       });
     } else if (nc == 2) {
-      auto *begin = m_params.image->hostDataAs<vec2>();
+      auto *begin = m_params.image->dataAs<vec2>();
       auto *end = begin + m_params.image->totalSize();
       std::transform(begin, end, (texel2 *)stagingBuffer.data(), [](vec2 &v) {
         return makeTexel<2>(v);
       });
     } else if (nc == 1) {
-      auto *begin = m_params.image->hostDataAs<float>();
+      auto *begin = m_params.image->dataAs<float>();
       auto *end = begin + m_params.image->totalSize();
       std::transform(begin, end, (texel1 *)stagingBuffer.data(), [](float &v) {
         return makeTexel<1>(v);

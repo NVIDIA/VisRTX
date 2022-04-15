@@ -40,7 +40,7 @@ void Orthographic::commit()
 
   vec2 imgPlaneSize(height * aspect, height);
 
-  auto &hd = hostData();
+  auto &hd = data();
   readBaseParameters(hd);
   hd.type = CameraType::ORTHOGRAPHIC;
   hd.pos_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;

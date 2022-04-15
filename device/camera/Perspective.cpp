@@ -42,7 +42,7 @@ void Perspective::commit()
   imgPlaneSize.y = 2.f * tanf(0.5f * fovy);
   imgPlaneSize.x = imgPlaneSize.y * aspect;
 
-  auto &hd = hostData();
+  auto &hd = data();
   readBaseParameters(hd);
   hd.type = CameraType::PERSPECTIVE;
   hd.dir_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;

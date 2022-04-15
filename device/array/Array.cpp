@@ -98,8 +98,11 @@ ArrayDataOwnership Array::ownership() const
   return m_ownership;
 }
 
-void *Array::hostData() const
+void *Array::data(AddressSpace as) const
 {
+  if (as == AddressSpace::GPU)
+    return deviceData();
+
   switch (ownership()) {
   case ArrayDataOwnership::SHARED:
     return wasPrivatized() ? m_hostData.privatized.mem : m_hostData.shared.mem;
@@ -136,7 +139,7 @@ void *Array::map()
         "array mapped again without being previously unmapped");
   }
   m_mapped = true;
-  return hostData();
+  return data();
 }
 
 void Array::unmap()
@@ -164,7 +167,7 @@ void Array::uploadArrayData() const
 {
   if (!m_usedOnDevice || (m_deviceData.buffer && !dataModified()))
     return;
-  m_deviceData.buffer.upload((uint8_t *)hostData(),
+  m_deviceData.buffer.upload((uint8_t *)data(),
       anari::sizeOf(elementType()) * totalSize());
   m_lastUploaded = newTimeStamp();
 }
@@ -226,7 +229,7 @@ void Array::initManagedMemory()
   if (ownership() == ArrayDataOwnership::MANAGED) {
     auto totalBytes = totalSize() * anari::sizeOf(elementType());
     m_hostData.managed.mem = malloc(totalBytes);
-    std::memset(hostData(), 0, totalBytes);
+    std::memset(data(), 0, totalBytes);
   }
 }
 

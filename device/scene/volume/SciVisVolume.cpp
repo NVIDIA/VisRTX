@@ -152,7 +152,7 @@ void SciVisVolume::discritizeTFData()
   std::vector<float> linearOpacityPositions;
 
   if (m_params.colorPosition) {
-    cPositions = anari::make_Span(m_params.colorPosition->hostDataAs<float>(),
+    cPositions = anari::make_Span(m_params.colorPosition->dataAs<float>(),
         m_params.colorPosition->size());
   } else {
     linearColorPositions = generateLinearPositions(
@@ -162,7 +162,7 @@ void SciVisVolume::discritizeTFData()
   }
 
   if (m_params.colorPosition) {
-    oPositions = anari::make_Span(m_params.opacityPosition->hostDataAs<float>(),
+    oPositions = anari::make_Span(m_params.opacityPosition->dataAs<float>(),
         m_params.opacityPosition->size());
   } else {
     linearOpacityPositions = generateLinearPositions(
@@ -174,8 +174,8 @@ void SciVisVolume::discritizeTFData()
   for (size_t i = 0; i < m_tf.size(); i++) {
     const float p = float(i) / (m_tf.size() - 1);
     const auto c = getInterpolatedValue(
-        m_params.color->hostDataAs<vec3>(), cPositions, m_params.valueRange, p);
-    const auto o = getInterpolatedValue(m_params.opacity->hostDataAs<float>(),
+        m_params.color->dataAs<vec3>(), cPositions, m_params.valueRange, p);
+    const auto o = getInterpolatedValue(m_params.opacity->dataAs<float>(),
         oPositions,
         m_params.valueRange,
         p);

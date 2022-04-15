@@ -87,7 +87,7 @@ void Triangles::commit()
     m_index->addCommitObserver(this);
   m_vertex->addCommitObserver(this);
 
-  m_vertexBufferPtr = (CUdeviceptr)m_vertex->deviceDataAs<vec3>();
+  m_vertexBufferPtr = (CUdeviceptr)m_vertex->dataAs<vec3>(AddressSpace::GPU);
 }
 
 void Triangles::populateBuildInput(OptixBuildInput &buildInput) const
@@ -104,7 +104,7 @@ void Triangles::populateBuildInput(OptixBuildInput &buildInput) const
     buildInput.triangleArray.indexStrideInBytes = sizeof(uvec3);
     buildInput.triangleArray.numIndexTriplets = m_index->size();
     buildInput.triangleArray.indexBuffer =
-        (CUdeviceptr)m_index->deviceDataAs<uvec3>();
+        (CUdeviceptr)m_index->dataAs<uvec3>(AddressSpace::GPU);
   } else {
     buildInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_NONE;
     buildInput.triangleArray.indexStrideInBytes = 0;
@@ -130,11 +130,12 @@ GeometryGPUData Triangles::gpuData() const
 
   auto &tri = retval.tri;
 
-  tri.vertices = m_vertex->deviceDataAs<vec3>();
-  tri.indices = m_index ? m_index->deviceDataAs<uvec3>() : nullptr;
+  tri.vertices = m_vertex->dataAs<vec3>(AddressSpace::GPU);
+  tri.indices = m_index ? m_index->dataAs<uvec3>(AddressSpace::GPU) : nullptr;
 
-  tri.vertexNormals =
-      m_vertexNormal ? m_vertexNormal->deviceDataAs<vec3>() : nullptr;
+  tri.vertexNormals = m_vertexNormal
+      ? m_vertexNormal->dataAs<vec3>(AddressSpace::GPU)
+      : nullptr;
 
   populateAttributePtr(m_vertexAttribute0, tri.vertexAttr[0]);
   populateAttributePtr(m_vertexAttribute1, tri.vertexAttr[1]);
@@ -144,24 +145,25 @@ GeometryGPUData Triangles::gpuData() const
   populateAttributePtr(m_vertexColor, tri.vertexAttr[4]);
 
   tri.vertexNormalIndices = m_vertexNormalIndex
-      ? m_vertexNormalIndex->deviceDataAs<uvec3>()
+      ? m_vertexNormalIndex->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
 
   tri.vertexAttrIndices[0] = m_vertexAttribute0Index
-      ? m_vertexAttribute0Index->deviceDataAs<uvec3>()
+      ? m_vertexAttribute0Index->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
   tri.vertexAttrIndices[1] = m_vertexAttribute1Index
-      ? m_vertexAttribute1Index->deviceDataAs<uvec3>()
+      ? m_vertexAttribute1Index->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
   tri.vertexAttrIndices[2] = m_vertexAttribute2Index
-      ? m_vertexAttribute2Index->deviceDataAs<uvec3>()
+      ? m_vertexAttribute2Index->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
   tri.vertexAttrIndices[3] = m_vertexAttribute3Index
-      ? m_vertexAttribute3Index->deviceDataAs<uvec3>()
+      ? m_vertexAttribute3Index->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
 
-  tri.vertexAttrIndices[4] =
-      m_vertexColorIndex ? m_vertexColorIndex->deviceDataAs<uvec3>() : nullptr;
+  tri.vertexAttrIndices[4] = m_vertexColorIndex
+      ? m_vertexColorIndex->dataAs<uvec3>(AddressSpace::GPU)
+      : nullptr;
 
   return retval;
 }

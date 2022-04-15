@@ -79,7 +79,7 @@ void Quads::commit()
   m_vertex->addCommitObserver(this);
 
   generateIndices();
-  m_vertexBufferPtr = (CUdeviceptr)m_vertex->deviceDataAs<vec3>();
+  m_vertexBufferPtr = (CUdeviceptr)m_vertex->dataAs<vec3>(AddressSpace::GPU);
 }
 
 void Quads::populateBuildInput(OptixBuildInput &buildInput) const
@@ -114,11 +114,12 @@ GeometryGPUData Quads::gpuData() const
 
   auto &quad = retval.quad;
 
-  quad.vertices = m_vertex->deviceDataAs<vec3>();
+  quad.vertices = m_vertex->dataAs<vec3>(AddressSpace::GPU);
   quad.indices = m_indices.dataDevice();
 
-  quad.vertexNormals =
-      m_vertexNormal ? m_vertexNormal->deviceDataAs<vec3>() : nullptr;
+  quad.vertexNormals = m_vertexNormal
+      ? m_vertexNormal->dataAs<vec3>(AddressSpace::GPU)
+      : nullptr;
 
   populateAttributePtr(m_vertexAttribute0, quad.vertexAttr[0]);
   populateAttributePtr(m_vertexAttribute1, quad.vertexAttr[1]);
@@ -128,24 +129,25 @@ GeometryGPUData Quads::gpuData() const
   populateAttributePtr(m_vertexColor, quad.vertexAttr[4]);
 
   quad.vertexNormalIndices = m_vertexNormalIndex
-      ? m_vertexNormalIndex->deviceDataAs<uvec3>()
+      ? m_vertexNormalIndex->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
 
   quad.vertexAttrIndices[0] = m_vertexAttribute0Index
-      ? m_vertexAttribute0Index->deviceDataAs<uvec3>()
+      ? m_vertexAttribute0Index->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
   quad.vertexAttrIndices[1] = m_vertexAttribute1Index
-      ? m_vertexAttribute1Index->deviceDataAs<uvec3>()
+      ? m_vertexAttribute1Index->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
   quad.vertexAttrIndices[2] = m_vertexAttribute2Index
-      ? m_vertexAttribute2Index->deviceDataAs<uvec3>()
+      ? m_vertexAttribute2Index->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
   quad.vertexAttrIndices[3] = m_vertexAttribute3Index
-      ? m_vertexAttribute3Index->deviceDataAs<uvec3>()
+      ? m_vertexAttribute3Index->dataAs<uvec3>(AddressSpace::GPU)
       : nullptr;
 
-  quad.vertexAttrIndices[4] =
-      m_vertexColorIndex ? m_vertexColorIndex->deviceDataAs<uvec3>() : nullptr;
+  quad.vertexAttrIndices[4] = m_vertexColorIndex
+      ? m_vertexColorIndex->dataAs<uvec3>(AddressSpace::GPU)
+      : nullptr;
 
   return retval;
 }
@@ -155,7 +157,7 @@ void Quads::generateIndices()
   if (m_index) {
     size_t numIndices = 2 * m_index->size();
     m_indices.resize(numIndices);
-    auto *indicesIn = (const uvec4 *)m_index->hostData();
+    auto *indicesIn = (const uvec4 *)m_index->data();
     auto *indicesOut = m_indices.dataHost();
     for (size_t i = 0; i < m_index->size(); i++) {
       auto idx = indicesIn[i];

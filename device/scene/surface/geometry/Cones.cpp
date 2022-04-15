@@ -187,7 +187,7 @@ void Cones::generateCones()
         });
     indices = anari::make_Span(implicitIndices.data(), implicitIndices.size());
   } else {
-    indices = anari::make_Span(m_index->hostDataAs<uvec2>(), m_index->size());
+    indices = anari::make_Span(m_index->dataAs<uvec2>(), m_index->size());
   }
 
   m_cones.vertices.clear();
@@ -197,8 +197,8 @@ void Cones::generateCones()
     auto *begin = indices.begin();
     auto *end = indices.end();
 
-    auto *radius = m_radius->hostDataAs<float>();
-    auto *vertex = m_vertex->hostDataAs<vec3>();
+    auto *radius = m_radius->dataAs<float>();
+    auto *vertex = m_vertex->dataAs<vec3>();
 
     size_t coneID = 0;
     std::for_each(begin, end, [&](const uvec2 &i) {

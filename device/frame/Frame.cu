@@ -67,7 +67,7 @@ Frame::~Frame()
 
 void Frame::commit()
 {
-  auto &hd = hostData();
+  auto &hd = data();
 
   if (!m_denoiser.deviceState())
     m_denoiser.setDeviceState(deviceState());
@@ -168,7 +168,7 @@ bool Frame::getProperty(
   } else if (type == ANARI_INT32 && name == "numSamples") {
     if (flags & ANARI_WAIT)
       wait();
-    auto &hd = hostData();
+    auto &hd = data();
     std::memcpy(ptr, &hd.fb.frameID, sizeof(hd.fb.frameID));
     return true;
   } else if (type == ANARI_BOOL && name == "nextFrameReset") {
@@ -220,7 +220,7 @@ void Frame::renderFrame()
 
   checkAccumulationReset();
 
-  auto &hd = hostData();
+  auto &hd = data();
 
   m_renderer->populateFrameData(hd);
 
@@ -393,7 +393,7 @@ void *Frame::mapNormalBuffer()
 
 bool Frame::checkerboarding() const
 {
-  return hostData().fb.checkerboardID >= 0;
+  return data().fb.checkerboardID >= 0;
 }
 
 void Frame::checkAccumulationReset()
@@ -414,7 +414,7 @@ void Frame::checkAccumulationReset()
 
 void Frame::newFrame()
 {
-  auto &hd = hostData();
+  auto &hd = data();
   if (m_nextFrameReset) {
     hd.fb.frameID = 0;
     hd.fb.checkerboardID = checkerboarding() ? 0 : -1;

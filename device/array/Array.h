@@ -58,6 +58,12 @@ enum class ArrayDataOwnership
   INVALID
 };
 
+enum class AddressSpace
+{
+  HOST,
+  GPU
+};
+
 struct Array : public Object
 {
   static size_t objectCount();
@@ -71,14 +77,11 @@ struct Array : public Object
   ANARIDataType elementType() const;
   ArrayDataOwnership ownership() const;
 
-  void *hostData() const;
+  void *data(AddressSpace as = AddressSpace::HOST) const;
   void *deviceData() const override;
 
   template <typename T>
-  T *hostDataAs() const;
-
-  template <typename T>
-  T *deviceDataAs() const;
+  T *dataAs(AddressSpace as = AddressSpace::HOST) const;
 
   virtual ArrayShape shape() const = 0;
 
@@ -149,21 +152,12 @@ struct Array : public Object
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>
-inline T *Array::hostDataAs() const
+inline T *Array::dataAs(AddressSpace as) const
 {
   if (anari::ANARITypeFor<T>::value != m_elementType)
     throw std::runtime_error("incorrect element type queried for array");
 
-  return (T *)hostData();
-}
-
-template <typename T>
-inline T *Array::deviceDataAs() const
-{
-  if (anari::ANARITypeFor<T>::value != m_elementType)
-    throw std::runtime_error("incorrect element type queried for array");
-
-  return (T *)deviceData();
+  return (T *)data(as);
 }
 
 } // namespace visrtx

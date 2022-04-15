@@ -144,7 +144,7 @@ void ObjectArray::updateInternalHandleArray()
       obj->refDec(anari::RefType::INTERNAL);
   }
 
-  auto **srcBegin = (Object **)hostData();
+  auto **srcBegin = (Object **)data();
   auto **srcEnd = srcBegin + size();
 
   std::transform(srcBegin, srcEnd, m_handleArray.begin(), [](Object *obj) {
