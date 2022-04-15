@@ -55,8 +55,10 @@ bool DeferredUploadBuffer::flush()
   if (m_arraysToUpload.empty())
     return false;
 
-  for (auto arr : m_arraysToUpload)
-    arr->uploadArrayData();
+  for (auto arr : m_arraysToUpload) {
+    if (arr->useCount() > 1)
+      arr->uploadArrayData();
+  }
 
   clear();
   return true;
