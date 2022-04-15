@@ -32,7 +32,6 @@
 #include "array/Array.h"
 // anari
 #include "anari/type_utility.h"
-#include "anari/type_utility.h"
 
 namespace visrtx {
 
@@ -125,6 +124,11 @@ void *Array::deviceData() const
   m_usedOnDevice = true;
   uploadArrayData();
   return m_deviceData.buffer.ptr();
+}
+
+size_t Array::totalCapacity() const
+{
+  return totalSize();
 }
 
 bool Array::wasPrivatized() const

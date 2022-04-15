@@ -185,6 +185,7 @@ static std::map<ANARIDataType, SetParamFcn *> setParamFcns = {
     declare_param_setter_string(const char *),
     declare_param_setter(int),
     declare_param_setter(unsigned int),
+    declare_param_setter(size_t),
     declare_param_setter(float),
     declare_param_setter(ivec2),
     declare_param_setter(ivec3),

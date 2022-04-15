@@ -44,17 +44,50 @@ struct Array1D : public Array
       uint64_t numItems,
       uint64_t byteStride);
 
+  void commit() override;
+
   ArrayShape shape() const override;
 
   size_t totalSize() const override;
+  size_t totalCapacity() const override;
+
+  void *begin(AddressSpace as = AddressSpace::HOST) const;
+  void *end(AddressSpace as = AddressSpace::HOST) const;
+
+  template <typename T>
+  T *beginAs(AddressSpace as = AddressSpace::HOST) const;
+  template <typename T>
+  T *endAs(AddressSpace as = AddressSpace::HOST) const;
 
   size_t size() const;
 
   void privatize() override;
 
  private:
-  size_t m_size{0};
+  size_t m_capacity{0};
+  size_t m_begin{0};
+  size_t m_end{0};
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+template <typename T>
+inline T *Array1D::beginAs(AddressSpace as) const
+{
+  if (anari::ANARITypeFor<T>::value != elementType())
+    throw std::runtime_error("incorrect element type queried for array");
+
+  return (T *)data(as) + m_begin;
+}
+
+template <typename T>
+inline T *Array1D::endAs(AddressSpace as) const
+{
+  if (anari::ANARITypeFor<T>::value != elementType())
+    throw std::runtime_error("incorrect element type queried for array");
+
+  return (T *)data(as) + m_end;
+}
 
 } // namespace visrtx
 

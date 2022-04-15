@@ -86,6 +86,7 @@ struct Array : public Object
   virtual ArrayShape shape() const = 0;
 
   virtual size_t totalSize() const = 0;
+  virtual size_t totalCapacity() const;
 
   virtual void privatize() = 0;
   bool wasPrivatized() const;
@@ -137,9 +138,9 @@ struct Array : public Object
   TimeStamp m_lastModified{0};
   mutable TimeStamp m_lastUploaded{0};
 
- private:
   void notifyCommitObservers() const;
 
+ private:
   std::vector<Object *> m_observers;
 
   ArrayDataOwnership m_ownership{ArrayDataOwnership::INVALID};

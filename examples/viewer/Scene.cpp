@@ -387,7 +387,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
       anari::deviceImplements(d, "VISRTX_SAMPLER_COLOR_MAP");
 
   auto geom = anari::newObject<anari::Geometry>(d, "sphere");
-  anari::setAndReleaseParameter(d, geom, "vertex.position", positionArray);
+  anari::setParameter(d, geom, "vertex.position", positionArray);
   anari::setParameter(d, geom, "primitive.color", colorArray);
   anari::setParameter(d, geom, "primitive.attribute0", distArray);
   anari::setParameter(d, geom, "radius", config.radius);
@@ -430,6 +430,8 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
   anari::release(d, surface);
 
   float radius = config.radius;
+  int capacity = config.numSpheres;
+  int count = config.numSpheres;
   bool useColorMap = true;
 
   auto retval = std::make_unique<Scene>(
@@ -439,6 +441,15 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
         if (ImGui::DragFloat("radius##spheres", &radius, 0.001f, 0.001f, 1.f)) {
           anari::setParameter(d, geom, "radius", radius);
           anari::commit(d, geom);
+        }
+
+        if (ImGui::SliderInt("count##spheres", &count, 1, capacity)) {
+          anari::setParameter(d, positionArray, "end", size_t(count));
+          anari::setParameter(d, colorArray, "end", size_t(count));
+          anari::setParameter(d, distArray, "end", size_t(count));
+          anari::commit(d, positionArray);
+          anari::commit(d, colorArray);
+          anari::commit(d, distArray);
         }
 
         if (haveColorMapSampler) {
@@ -487,6 +498,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
         anari::release(d, geom);
         anari::release(d, mat);
         anari::release(d, sampler);
+        anari::release(d, positionArray);
         anari::release(d, colorArray);
         anari::release(d, distArray);
       });
