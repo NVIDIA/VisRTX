@@ -224,6 +224,8 @@ int VisRTXDevice::deviceImplements(const char *_extension)
     return 1;
   else if (extension == "VISRTX_CUDA_OUTPUT_BUFFERS")
     return 1;
+  else if (extension == "VISRTX_ARRAY1D_DYNAMIC_REGION")
+    return 1;
 
   return 0;
 }

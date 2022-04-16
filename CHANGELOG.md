@@ -2,6 +2,7 @@
 
 ## 0.4.0
 ##### TBD
+- Implement VISRTX_ARRAY1D_DYNAMIC_REGION extension for 1D arrays
 
 ## 0.3.2
 ##### 2022-04-13
