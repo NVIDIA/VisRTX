@@ -117,16 +117,6 @@ Viewer::Viewer(const char *libName, const char *objFileName)
   m_objFileConfig.filename = objFileName;
   if (!m_objFileConfig.filename.empty())
     m_selectedScene = SceneTypes::OBJ_FILE;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// match3D overrides //////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-void Viewer::setup()
-{
-  ImGuiIO &io = ImGui::GetIO();
-  io.FontGlobalScale = 1.25f;
 
   m_library = anari::loadLibrary(m_libraryName.c_str(), statusFunc, nullptr);
   m_device = anari::newDevice(m_library, "default");
@@ -136,31 +126,6 @@ void Viewer::setup()
 
   m_haveCUDAInterop = g_glInterop
       && anari::deviceImplements(m_device, "VISRTX_CUDA_OUTPUT_BUFFERS");
-
-  // GL //
-
-  glGenTextures(1, &m_framebufferTexture);
-  glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexImage2D(GL_TEXTURE_2D,
-      0,
-      GL_RGBA8,
-      m_windowSize.x,
-      m_windowSize.y,
-      0,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      0);
-
-  glGenFramebuffers(1, &m_framebufferObject);
-  glBindFramebuffer(GL_FRAMEBUFFER, m_framebufferObject);
-  glFramebufferTexture2D(GL_FRAMEBUFFER,
-      GL_COLOR_ATTACHMENT0,
-      GL_TEXTURE_2D,
-      m_framebufferTexture,
-      0);
-  glReadBuffer(GL_COLOR_ATTACHMENT0);
 
   // ANARI //
 
@@ -200,6 +165,41 @@ void Viewer::setup()
 
   resetCameraAZEL();
   resetView();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// match3D overrides //////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+void Viewer::setup()
+{
+  ImGuiIO &io = ImGui::GetIO();
+  io.FontGlobalScale = 1.25f;
+
+  // GL //
+
+  glGenTextures(1, &m_framebufferTexture);
+  glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexImage2D(GL_TEXTURE_2D,
+      0,
+      GL_RGBA8,
+      m_windowSize.x,
+      m_windowSize.y,
+      0,
+      GL_RGBA,
+      GL_UNSIGNED_BYTE,
+      0);
+
+  glGenFramebuffers(1, &m_framebufferObject);
+  glBindFramebuffer(GL_FRAMEBUFFER, m_framebufferObject);
+  glFramebufferTexture2D(GL_FRAMEBUFFER,
+      GL_COLOR_ATTACHMENT0,
+      GL_TEXTURE_2D,
+      m_framebufferTexture,
+      0);
+  glReadBuffer(GL_COLOR_ATTACHMENT0);
 
   anari::render(m_device, m_frame);
 }
