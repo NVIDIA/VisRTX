@@ -68,6 +68,7 @@ Group::Group()
 
 Group::~Group()
 {
+  cleanup();
   s_numGroups--;
 }
 
@@ -92,26 +93,35 @@ bool Group::getProperty(
 
 void Group::commit()
 {
+  cleanup();
+
   m_surfaceData = getParamObject<ObjectArray>("surface");
   m_volumeData = getParamObject<ObjectArray>("volume");
   m_lightData = getParamObject<ObjectArray>("light");
 
   m_surfaces.reset();
   if (m_surfaceData) {
-    m_surfaces =
-        make_Span((Surface **)m_surfaceData->handles(), m_surfaceData->size());
+    m_surfaces = make_Span(
+        (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
     partitionGeometriesByType();
   }
 
   m_volumes.reset();
   if (m_volumeData) {
-    m_volumes =
-        make_Span((Volume **)m_volumeData->handles(), m_volumeData->size());
+    m_volumes = make_Span(
+        (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
   }
 
   m_objectUpdates.lastSurfaceBVHBuilt = 0;
   m_objectUpdates.lastVolumeBVHBuilt = 0;
   m_objectUpdates.lastLightRebuild = 0;
+
+  if (m_surfaceData)
+    m_surfaceData->addCommitObserver(this);
+  if (m_volumeData)
+    m_volumeData->addCommitObserver(this);
+  if (m_lightData)
+    m_lightData->addCommitObserver(this);
 }
 
 OptixTraversableHandle Group::optixTraversableTriangle() const
@@ -232,7 +242,8 @@ void Group::rebuildLights()
 {
   m_lights.reset();
   if (m_lightData) {
-    m_lights = make_Span((Light **)m_lightData->handles(), m_lightData->size());
+    m_lights = make_Span(
+        (Light **)m_lightData->handlesBegin(), m_lightData->totalSize());
     buildLightGPUData();
   }
   m_objectUpdates.lastLightRebuild = newTimeStamp();
@@ -292,6 +303,16 @@ void Group::buildLightGPUData()
     return l->index();
   });
   m_lightObjectIndices.upload(tmp);
+}
+
+void Group::cleanup()
+{
+  if (m_surfaceData)
+    m_surfaceData->removeCommitObserver(this);
+  if (m_volumeData)
+    m_volumeData->removeCommitObserver(this);
+  if (m_lightData)
+    m_lightData->removeCommitObserver(this);
 }
 
 } // namespace visrtx

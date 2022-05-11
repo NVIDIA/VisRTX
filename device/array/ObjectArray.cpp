@@ -35,34 +35,71 @@
 
 namespace visrtx {
 
+// Helper functions ///////////////////////////////////////////////////////////
+
+static void refIncObject(Object *obj)
+{
+  if (obj)
+    obj->refInc(anari::RefType::INTERNAL);
+}
+
+static void refDecObject(Object *obj)
+{
+  if (obj)
+    obj->refDec(anari::RefType::INTERNAL);
+}
+
+// ObjectArray definitions ////////////////////////////////////////////////////
+
 ObjectArray::ObjectArray(void *appMemory,
     ANARIMemoryDeleter deleter,
     void *deleterPtr,
     ANARIDataType type,
     uint64_t numItems,
     uint64_t byteStride)
-    : Array(appMemory, deleter, deleterPtr, type)
+    : Array(appMemory, deleter, deleterPtr, type),
+      m_capacity(numItems),
+      m_end(numItems)
 {
   if (byteStride != 0)
     throw std::runtime_error("strided arrays not yet supported!");
-
-  m_deviceData.buffer.reserve(anari::sizeOf(type) * size());
-
-  m_handleArray.resize(numItems, nullptr);
-
+  m_appHandles.resize(numItems, nullptr);
   initManagedMemory();
-
-  updateInternalHandleArray();
-
-  m_lastModified = newTimeStamp();
+  updateInternalHandleArrays();
+  markDataModified();
 }
 
 ObjectArray::~ObjectArray()
 {
-  removeAppendedHandles();
-  for (auto *obj : m_handleArray) {
-    if (obj)
-      obj->refDec(anari::RefType::INTERNAL);
+  std::for_each(m_appHandles.begin(), m_appHandles.end(), refDecObject);
+  std::for_each(
+      m_appendedHandles.begin(), m_appendedHandles.end(), refDecObject);
+}
+
+void ObjectArray::commit()
+{
+  auto oldBegin = m_begin;
+  auto oldEnd = m_end;
+
+  m_begin = getParam<size_t>("begin", 0);
+  m_begin = std::clamp(m_begin, size_t(0), m_capacity - 1);
+  m_end = getParam<size_t>("end", m_capacity);
+  m_end = std::clamp(m_end, size_t(1), m_capacity);
+
+  if (size() == 0) {
+    reportMessage(ANARI_SEVERITY_ERROR, "array size must be greater than zero");
+    return;
+  }
+
+  if (m_begin > m_end) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "array 'begin' is not less than 'end', swapping values");
+    std::swap(m_begin, m_end);
+  }
+
+  if (m_begin != oldBegin || m_end != oldEnd) {
+    markDataModified();
+    notifyCommitObservers();
   }
 }
 
@@ -73,23 +110,39 @@ ArrayShape ObjectArray::shape() const
 
 size_t ObjectArray::totalSize() const
 {
-  return size();
+  return size() + m_appendedHandles.size();
+}
+
+size_t ObjectArray::totalCapacity() const
+{
+  return m_capacity;
 }
 
 size_t ObjectArray::size() const
 {
-  return m_handleArray.size();
+  return m_end - m_begin;
 }
 
 void ObjectArray::privatize()
 {
+  makePrivatizedCopy(size());
   freeAppMemory();
+  if (data()) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "ObjectArray privatized but host array still present");
+  }
 }
 
-Object **ObjectArray::handles()
+Object **ObjectArray::handlesBegin(bool uploadData) const
 {
-  uploadArrayData();
-  return m_handleArray.data();
+  if (uploadData)
+    uploadArrayData();
+  return m_liveHandles.data() + m_begin;
+}
+
+Object **ObjectArray::handlesEnd(bool uploadData) const
+{
+  return handlesBegin(uploadData) + totalSize();
 }
 
 void *ObjectArray::deviceData() const
@@ -99,21 +152,26 @@ void *ObjectArray::deviceData() const
 
 void ObjectArray::appendHandle(Object *o)
 {
-  m_handleArray.push_back(o);
-  m_numAppended++;
+  o->refInc(anari::RefType::INTERNAL);
+  m_appendedHandles.push_back(o);
+  markDataModified();
 }
 
 void ObjectArray::removeAppendedHandles()
 {
-  auto originalSize = m_handleArray.size() - m_numAppended;
-  m_handleArray.resize(originalSize);
-  m_numAppended = 0;
+  m_liveHandles.resize(size());
+  for (auto o : m_appendedHandles)
+    o->refDec(anari::RefType::INTERNAL);
+  m_appendedHandles.clear();
+  markDataModified();
 }
 
 void ObjectArray::uploadArrayData() const
 {
-  if (!dataModified())
+  if (!needToUploadData())
     return;
+
+  updateInternalHandleArrays();
 
   auto &state = *deviceState();
 
@@ -123,34 +181,36 @@ void ObjectArray::uploadArrayData() const
   else if (type == ANARI_SURFACE || type == ANARI_VOLUME)
     state.objectUpdates.lastBLASChange = newTimeStamp();
 
-  auto begin = m_handleArray.begin();
-  auto end = m_handleArray.end();
+  m_GPUDataHost.resize(totalSize());
 
-  m_GPUDataHost.resize(m_handleArray.size());
-
-  std::transform(begin, end, m_GPUDataHost.begin(), [](Object *obj) {
-    return obj->deviceData();
-  });
+  std::transform(handlesBegin(false),
+      handlesEnd(false),
+      m_GPUDataHost.begin(),
+      [](Object *obj) { return obj ? obj->deviceData() : nullptr; });
 
   m_GPUDataDevice = m_GPUDataHost;
-
-  m_lastUploaded = newTimeStamp();
+  markDataUploaded();
 }
 
-void ObjectArray::updateInternalHandleArray()
+void ObjectArray::updateInternalHandleArrays() const
 {
-  for (auto *obj : m_handleArray) {
-    if (obj)
-      obj->refDec(anari::RefType::INTERNAL);
+  m_liveHandles.resize(totalSize());
+
+  if (data()) {
+    auto **srcAllBegin = (Object **)data();
+    auto **srcAllEnd = srcAllBegin + totalCapacity();
+    std::for_each(srcAllBegin, srcAllEnd, refIncObject);
+    std::for_each(m_appHandles.begin(), m_appHandles.end(), refDecObject);
+    std::copy(srcAllBegin, srcAllEnd, m_appHandles.data());
+
+    auto **srcRegionBegin = srcAllBegin + m_begin;
+    auto **srcRegionEnd = srcRegionBegin + size();
+    std::copy(srcRegionBegin, srcRegionEnd, m_liveHandles.data());
   }
 
-  auto **srcBegin = (Object **)data();
-  auto **srcEnd = srcBegin + size();
-
-  std::transform(srcBegin, srcEnd, m_handleArray.begin(), [](Object *obj) {
-    obj->refInc(anari::RefType::INTERNAL);
-    return obj;
-  });
+  std::copy(m_appendedHandles.begin(),
+      m_appendedHandles.end(),
+      m_liveHandles.begin() + size());
 }
 
 } // namespace visrtx

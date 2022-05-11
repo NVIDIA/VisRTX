@@ -45,15 +45,19 @@ struct ObjectArray : public Array
       uint64_t byteStride);
   ~ObjectArray();
 
+  void commit() override;
+
   ArrayShape shape() const override;
 
   size_t totalSize() const override;
+  size_t totalCapacity() const override;
 
   size_t size() const;
 
   void privatize() override;
 
-  Object **handles();
+  Object **handlesBegin(bool uploadData = true) const;
+  Object **handlesEnd(bool uploadData = true) const;
 
   void *deviceData() const override;
 
@@ -63,12 +67,16 @@ struct ObjectArray : public Array
   void uploadArrayData() const override;
 
  private:
-  void updateInternalHandleArray();
+  void updateInternalHandleArrays() const;
 
-  std::vector<Object *> m_handleArray;
+  mutable std::vector<Object *> m_appendedHandles;
+  mutable std::vector<Object *> m_appHandles;
+  mutable std::vector<Object *> m_liveHandles;
   mutable thrust::host_vector<void *> m_GPUDataHost;
   mutable thrust::device_vector<void *> m_GPUDataDevice;
-  size_t m_numAppended{0};
+  size_t m_capacity{0};
+  size_t m_begin{0};
+  size_t m_end{0};
 };
 
 // Object specializations /////////////////////////////////////////////////////

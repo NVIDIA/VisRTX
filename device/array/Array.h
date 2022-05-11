@@ -94,8 +94,10 @@ struct Array : public Object
   void *map();
   void unmap();
 
-  bool dataModified() const;
+  void markDataModified();
   virtual void uploadArrayData() const;
+  void markDataUploaded() const;
+  bool needToUploadData() const;
 
   void addCommitObserver(Object *obj);
   void removeCommitObserver(Object *obj);
@@ -135,8 +137,8 @@ struct Array : public Object
     mutable DeviceBuffer buffer;
   } m_deviceData;
 
-  TimeStamp m_lastModified{0};
-  mutable TimeStamp m_lastUploaded{0};
+  TimeStamp m_lastDataModified{0};
+  mutable TimeStamp m_lastDataUploaded{0};
 
   void notifyCommitObservers() const;
 

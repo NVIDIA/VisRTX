@@ -140,8 +140,6 @@ subset of the array, which is interpreted as the elements to be used by parent
 objects referencing the array. Note that mapping the array will always return
 the first element of the array (element `0`), which may be below `begin`.
 
-This extension is not yet implemented for arrays of object handles.
-
 #### "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING" (experimental)
 
 This vendor extension indicates that additional attribute indexing is

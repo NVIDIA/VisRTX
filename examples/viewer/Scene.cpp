@@ -563,13 +563,18 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
 
   anari::commit(d, volume);
 
+  anari::Array1D instanceArray{nullptr};
+  int count = 1;
+
   if (config.instanceVolume) {
     auto instances = makeGridOfInstances(d, nullptr, volume);
-
-    anari::setAndReleaseParameter(d,
-        world,
-        "instance",
-        anari::newArray1D(d, instances.data(), instances.size()));
+    instanceArray = anari::newArray1D(d, ANARI_INSTANCE, instances.size());
+    auto *insts = anari::map(d, instanceArray);
+    std::memcpy(
+        insts, instances.data(), sizeof(ANARIInstance) * instances.size());
+    anari::unmap(d, instanceArray);
+    count = int(instances.size());
+    anari::setParameter(d, world, "instance", instanceArray);
 
     for (auto i : instances)
       anari::release(d, i);
@@ -590,10 +595,11 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
     anari::release(d, planeSurface);
   }
 
+  int capacity = count;
   auto retval = std::make_unique<Scene>(
       d,
       world,
-      [&, d, voxelArray, volumeDims]() {
+      [&, d, voxelArray, count, capacity, instanceArray, volumeDims]() mutable {
         if (ImGui::Button("regen data")) {
           rng.seed(std::random_device{}());
           auto *b = (float *)anari::map(d, voxelArray);
@@ -601,8 +607,17 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
           std::for_each(b, e, [&](auto &v) { v = dist(rng); });
           anari::unmap(d, voxelArray);
         }
+
+        if (instanceArray
+            && ImGui::SliderInt("count##instances", &count, 1, capacity)) {
+          anari::setParameter(d, instanceArray, "end", size_t(count));
+          anari::commit(d, instanceArray);
+        }
       },
-      [=]() { anari::release(d, voxelArray); });
+      [=]() {
+        anari::release(d, voxelArray);
+        anari::release(d, instanceArray);
+      });
 
   return retval;
 }

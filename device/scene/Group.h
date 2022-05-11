@@ -76,6 +76,7 @@ struct Group : public Object
   void buildSurfaceGPUData();
   void buildVolumeGPUData();
   void buildLightGPUData();
+  void cleanup();
 
   // Geometry //
 

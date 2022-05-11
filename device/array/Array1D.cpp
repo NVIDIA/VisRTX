@@ -72,7 +72,7 @@ void Array1D::commit()
   }
 
   if (m_begin != oldBegin || m_end != oldEnd) {
-    m_lastModified = newTimeStamp();
+    markDataModified();
     notifyCommitObservers();
   }
 }
