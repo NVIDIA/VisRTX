@@ -33,7 +33,7 @@
 
 #include "utility/DeviceBuffer.h"
 // anari
-#include "anari/detail/Span.h"
+#include "anari/backend/utilities/Span.h"
 // std
 #include <vector>
 

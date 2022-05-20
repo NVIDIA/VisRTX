@@ -31,7 +31,7 @@
 
 #include "VisRTXDevice.h"
 
-#include "anari/detail/Library.h"
+#include "anari/backend/Library.h"
 #include "anari/type_utility.h"
 
 #include "array/Array1D.h"
@@ -161,7 +161,6 @@ using SetParamFcn = void(Object &, const char *, const void *);
 
 static std::map<ANARIDataType, SetParamFcn *> setParamFcns = {
     declare_param_setter(ANARIDataType),
-    declare_param_setter(anari::Device *),
     declare_param_setter_void_ptr(void *),
     declare_param_setter(bool),
     declare_param_setter_object(Object *),
@@ -228,55 +227,6 @@ int VisRTXDevice::deviceImplements(const char *_extension)
     return 1;
 
   return 0;
-}
-
-void VisRTXDevice::deviceSetParameter(
-    const char *_id, ANARIDataType type, const void *mem)
-{
-  std::string id = _id;
-  if (id == "statusCallback" && type == ANARI_STATUS_CALLBACK)
-    setParam(id, (ANARIStatusCallback)mem);
-  else if (id == "statusCallbackUserData" && type == ANARI_VOID_POINTER)
-    setParam(id, mem);
-  else if (id == "cudaDevice" && type == ANARI_INT32)
-    setParam(id, *(int *)mem);
-  else if (id == "forceInit" && type == ANARI_BOOL)
-    setParam(id, *(bool *)mem);
-}
-
-void VisRTXDevice::deviceUnsetParameter(const char *id)
-{
-  removeParam(id);
-}
-
-void VisRTXDevice::deviceCommit()
-{
-  m_eagerInit = getParam<bool>("forceInit", false);
-  m_statusCB =
-      getParam<ANARIStatusCallback>("statusCallback", defaultStatusCallback());
-  m_statusCBUserPtr = getParam<void *>(
-      "statusCallbackUserData", defaultStatusCallbackUserPtr());
-  m_desiredGpuID = getParam<int>("cudaDevice", 0);
-  if (m_gpuID >= 0 && m_desiredGpuID != m_gpuID) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "visrtx was already initialized to use GPU %i"
-        ": new device number %i is ignored.",
-        m_gpuID,
-        m_desiredGpuID);
-  }
-
-  if (m_eagerInit)
-    initDevice();
-}
-
-void VisRTXDevice::deviceRetain()
-{
-  this->refInc();
-}
-
-void VisRTXDevice::deviceRelease()
-{
-  this->refDec();
 }
 
 // Data Arrays ////////////////////////////////////////////////////////////////
@@ -501,8 +451,10 @@ int VisRTXDevice::getProperty(ANARIObject object,
 void VisRTXDevice::setParameter(
     ANARIObject object, const char *name, ANARIDataType type, const void *mem)
 {
-  if (type == ANARI_UNKNOWN)
-    throw std::runtime_error("cannot set ANARI_UNKNOWN parameter type");
+  if (handleIsDevice(object)) {
+    deviceSetParameter(name, type, mem);
+    return;
+  }
 
   auto *fcn = setParamFcns[type];
   auto &o = referenceFromHandle(object);
@@ -519,20 +471,31 @@ void VisRTXDevice::setParameter(
 
 void VisRTXDevice::unsetParameter(ANARIObject o, const char *name)
 {
-  auto &obj = referenceFromHandle(o);
-  obj.removeParam(name);
-  obj.markUpdated();
+  if (handleIsDevice(o))
+    deviceUnsetParameter(name);
+  else {
+    auto &obj = referenceFromHandle(o);
+    obj.removeParam(name);
+    obj.markUpdated();
+  }
 }
 
 void VisRTXDevice::commit(ANARIObject o)
 {
-  m_state->commitBuffer.addObject((Object *)o);
+  if (handleIsDevice(o))
+    deviceCommit();
+  else
+    m_state->commitBuffer.addObject((Object *)o);
 }
 
 void VisRTXDevice::release(ANARIObject o)
 {
   if (o == nullptr)
     return;
+  else if (handleIsDevice(o)) {
+    this->refDec();
+    return;
+  }
 
   CUDADeviceScope ds(this);
 
@@ -557,7 +520,10 @@ void VisRTXDevice::release(ANARIObject o)
 
 void VisRTXDevice::retain(ANARIObject o)
 {
-  referenceFromHandle(o).refInc(anari::RefType::PUBLIC);
+  if (handleIsDevice(o))
+    this->refInc();
+  else
+    referenceFromHandle(o).refInc(anari::RefType::PUBLIC);
 }
 
 // Frame Manipulation /////////////////////////////////////////////////////////
@@ -842,6 +808,45 @@ void VisRTXDevice::initDevice()
 
   reportMessage(ANARI_SEVERITY_DEBUG, "Compiling custom intersectors");
   init_module(state.intersectionModules.customIntersectors, intersection_ptx());
+}
+
+void VisRTXDevice::deviceSetParameter(
+    const char *_id, ANARIDataType type, const void *mem)
+{
+  std::string id = _id;
+  if (id == "statusCallback" && type == ANARI_STATUS_CALLBACK)
+    setParam(id, (ANARIStatusCallback)mem);
+  else if (id == "statusCallbackUserData" && type == ANARI_VOID_POINTER)
+    setParam(id, mem);
+  else if (id == "cudaDevice" && type == ANARI_INT32)
+    setParam(id, *(int *)mem);
+  else if (id == "forceInit" && type == ANARI_BOOL)
+    setParam(id, *(bool *)mem);
+}
+
+void VisRTXDevice::deviceUnsetParameter(const char *id)
+{
+  removeParam(id);
+}
+
+void VisRTXDevice::deviceCommit()
+{
+  m_eagerInit = getParam<bool>("forceInit", false);
+  m_statusCB =
+      getParam<ANARIStatusCallback>("statusCallback", defaultStatusCallback());
+  m_statusCBUserPtr = getParam<void *>(
+      "statusCallbackUserData", defaultStatusCallbackUserPtr());
+  m_desiredGpuID = getParam<int>("cudaDevice", 0);
+  if (m_gpuID >= 0 && m_desiredGpuID != m_gpuID) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "visrtx was already initialized to use GPU %i"
+        ": new device number %i is ignored.",
+        m_gpuID,
+        m_desiredGpuID);
+  }
+
+  if (m_eagerInit)
+    initDevice();
 }
 
 void VisRTXDevice::setCUDADevice()

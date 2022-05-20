@@ -32,9 +32,9 @@
 #pragma once
 
 // anari
-#include "anari/detail/Device.h"
-#include "anari/detail/IntrusivePtr.h"
-#include "anari/detail/ParameterizedObject.h"
+#include "anari/backend/DeviceImpl.h"
+#include "anari/backend/utilities/IntrusivePtr.h"
+#include "anari/backend/utilities/ParameterizedObject.h"
 // optix
 #include "optix_visrtx.h"
 
@@ -42,7 +42,7 @@
 
 namespace visrtx {
 
-struct VisRTXDevice : public anari::Device,
+struct VisRTXDevice : public anari::DeviceImpl,
                       public anari::RefCounted,
                       public anari::ParameterizedObject
 {
@@ -53,17 +53,6 @@ struct VisRTXDevice : public anari::Device,
   // Device API ///////////////////////////////////////////////////////////////
 
   int deviceImplements(const char *extension) override;
-
-  void deviceSetParameter(
-      const char *id, ANARIDataType type, const void *mem) override;
-
-  void deviceUnsetParameter(const char *id) override;
-
-  void deviceCommit() override;
-
-  void deviceRetain() override;
-
-  void deviceRelease() override;
 
   // Data Arrays //////////////////////////////////////////////////////////////
 
@@ -182,6 +171,10 @@ struct VisRTXDevice : public anari::Device,
   private:
     VisRTXDevice *m_device{nullptr};
   };
+
+  void deviceSetParameter(const char *id, ANARIDataType type, const void *mem);
+  void deviceUnsetParameter(const char *id);
+  void deviceCommit();
 
   void setCUDADevice();
   void revertCUDADevice();
