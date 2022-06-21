@@ -249,6 +249,12 @@ void Group::rebuildLights()
   m_objectUpdates.lastLightRebuild = newTimeStamp();
 }
 
+void Group::markCommitted()
+{
+  Object::markCommitted();
+  deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
+}
+
 void Group::partitionGeometriesByType()
 {
   m_surfacesTriangle.clear();
