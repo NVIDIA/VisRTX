@@ -51,9 +51,9 @@
 
 // Helper functions  //////////////////////////////////////////////////////////
 
-static void anari_free(void * /*user_data*/, void *ptr)
+static void anari_free(const void * /*user_data*/, const void *ptr)
 {
-  std::free(ptr);
+  std::free(const_cast<void *>(ptr));
 }
 
 static anari::Array2D makeTextureData(anari::Device d, int dim)

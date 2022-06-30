@@ -52,9 +52,9 @@ size_t Array::objectCount()
   return s_numArrays;
 }
 
-Array::Array(void *appMem,
+Array::Array(const void *appMem,
     ANARIMemoryDeleter deleter,
-    void *deleterPtr,
+    const void *deleterPtr,
     ANARIDataType elementType)
     : m_elementType(elementType)
 {
@@ -104,13 +104,14 @@ void *Array::data(AddressSpace as) const
 
   switch (ownership()) {
   case ArrayDataOwnership::SHARED:
-    return wasPrivatized() ? m_hostData.privatized.mem : m_hostData.shared.mem;
+    return const_cast<void *>(
+        wasPrivatized() ? m_hostData.privatized.mem : m_hostData.shared.mem);
     break;
   case ArrayDataOwnership::CAPTURED:
-    return m_hostData.captured.mem;
+    return const_cast<void *>(m_hostData.captured.mem);
     break;
   case ArrayDataOwnership::MANAGED:
-    return m_hostData.managed.mem;
+    return const_cast<void *>(m_hostData.managed.mem);
     break;
   default:
     break;

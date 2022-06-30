@@ -37,9 +37,9 @@ namespace visrtx {
 
 struct Array3D : public Array
 {
-  Array3D(void *appMemory,
+  Array3D(const void *appMemory,
       ANARIMemoryDeleter deleter,
-      void *deleterPtr,
+      const void *deleterPtr,
       ANARIDataType type,
       uint64_t numItems1,
       uint64_t numItems2,

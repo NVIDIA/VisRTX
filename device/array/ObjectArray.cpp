@@ -51,9 +51,9 @@ static void refDecObject(Object *obj)
 
 // ObjectArray definitions ////////////////////////////////////////////////////
 
-ObjectArray::ObjectArray(void *appMemory,
+ObjectArray::ObjectArray(const void *appMemory,
     ANARIMemoryDeleter deleter,
-    void *deleterPtr,
+    const void *deleterPtr,
     ANARIDataType type,
     uint64_t numItems,
     uint64_t byteStride)

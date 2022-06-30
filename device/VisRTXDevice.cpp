@@ -231,9 +231,9 @@ int VisRTXDevice::deviceImplements(const char *_extension)
 
 // Data Arrays ////////////////////////////////////////////////////////////////
 
-ANARIArray1D VisRTXDevice::newArray1D(void *appMemory,
+ANARIArray1D VisRTXDevice::newArray1D(const void *appMemory,
     ANARIMemoryDeleter deleter,
-    void *userData,
+    const void *userData,
     ANARIDataType type,
     uint64_t numItems,
     uint64_t byteStride)
@@ -259,9 +259,9 @@ ANARIArray1D VisRTXDevice::newArray1D(void *appMemory,
   }
 }
 
-ANARIArray2D VisRTXDevice::newArray2D(void *appMemory,
+ANARIArray2D VisRTXDevice::newArray2D(const void *appMemory,
     ANARIMemoryDeleter deleter,
-    void *userData,
+    const void *userData,
     ANARIDataType type,
     uint64_t numItems1,
     uint64_t numItems2,
@@ -281,9 +281,9 @@ ANARIArray2D VisRTXDevice::newArray2D(void *appMemory,
       byteStride2);
 }
 
-ANARIArray3D VisRTXDevice::newArray3D(void *appMemory,
+ANARIArray3D VisRTXDevice::newArray3D(const void *appMemory,
     ANARIMemoryDeleter deleter,
-    void *userData,
+    const void *userData,
     ANARIDataType type,
     uint64_t numItems1,
     uint64_t numItems2,

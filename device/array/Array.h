@@ -68,9 +68,9 @@ struct Array : public Object
 {
   static size_t objectCount();
 
-  Array(void *appMemory,
+  Array(const void *appMemory,
       ANARIMemoryDeleter deleter,
-      void *deleterPtr,
+      const void *deleterPtr,
       ANARIDataType elementType);
   virtual ~Array();
 
@@ -111,14 +111,14 @@ struct Array : public Object
   {
     struct SharedData
     {
-      void *mem{nullptr};
+      const void *mem{nullptr};
     } shared;
 
     struct CapturedData
     {
-      void *mem{nullptr};
+      const void *mem{nullptr};
       ANARIMemoryDeleter deleter{nullptr};
-      void *deleterPtr{nullptr};
+      const void *deleterPtr{nullptr};
     } captured;
 
     struct ManagedData
