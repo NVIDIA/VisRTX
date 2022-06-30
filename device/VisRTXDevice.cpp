@@ -834,7 +834,7 @@ void VisRTXDevice::deviceCommit()
   m_eagerInit = getParam<bool>("forceInit", false);
   m_statusCB =
       getParam<ANARIStatusCallback>("statusCallback", defaultStatusCallback());
-  m_statusCBUserPtr = getParam<void *>(
+  m_statusCBUserPtr = getParam<const void *>(
       "statusCallbackUserData", defaultStatusCallbackUserPtr());
   m_desiredGpuID = getParam<int>("cudaDevice", 0);
   if (m_gpuID >= 0 && m_desiredGpuID != m_gpuID) {

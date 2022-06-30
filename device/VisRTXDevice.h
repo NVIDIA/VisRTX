@@ -186,7 +186,7 @@ struct VisRTXDevice : public anari::DeviceImpl,
   bool m_eagerInit{false};
 
   ANARIStatusCallback m_statusCB{nullptr};
-  void *m_statusCBUserPtr{nullptr};
+  const void *m_statusCBUserPtr{nullptr};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////

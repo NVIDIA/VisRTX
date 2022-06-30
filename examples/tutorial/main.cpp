@@ -116,7 +116,7 @@ anari::World generateScene(anari::Device device)
   return world;
 }
 
-static void statusFunc(void * /*userData*/,
+static void statusFunc(const void * /*userData*/,
     ANARIDevice /*device*/,
     ANARIObject source,
     ANARIDataType /*sourceType*/,

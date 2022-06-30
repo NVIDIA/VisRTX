@@ -84,15 +84,14 @@ static bool rendererUI_callback(void *, int index, const char **out_text)
   return true;
 }
 
-static void statusFunc(void *userData,
-    ANARIDevice device,
+static void statusFunc(const void * /*userData*/,
+    ANARIDevice /*device*/,
     ANARIObject source,
-    ANARIDataType sourceType,
+    ANARIDataType /*sourceType*/,
     ANARIStatusSeverity severity,
-    ANARIStatusCode code,
+    ANARIStatusCode /*code*/,
     const char *message)
 {
-  (void)userData;
   if (severity == ANARI_SEVERITY_FATAL_ERROR) {
     fprintf(stderr, "[FATAL][%p] %s\n", source, message);
     std::exit(1);
