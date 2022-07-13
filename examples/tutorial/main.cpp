@@ -61,7 +61,7 @@ anari::World generateScene(anari::Device device)
   auto positionsArray =
       anari::newArray1D(device, ANARI_FLOAT32_VEC3, numSpheres);
   {
-    auto *positions = (vec3 *)anari::map(device, positionsArray);
+    auto *positions = anari::map<vec3>(device, positionsArray);
     for (int i = 0; i < numSpheres; i++) {
       positions[i][0] = vert_dist(rng);
       positions[i][1] = vert_dist(rng);
@@ -72,7 +72,7 @@ anari::World generateScene(anari::Device device)
 
   auto colorArray = anari::newArray1D(device, ANARI_FLOAT32_VEC4, numSpheres);
   {
-    auto *colors = (vec4 *)anari::map(device, colorArray);
+    auto *colors = anari::map<vec4>(device, colorArray);
     for (int i = 0; i < numSpheres; i++) {
       colors[i][0] = vert_dist(rng);
       colors[i][1] = vert_dist(rng);
@@ -197,7 +197,7 @@ int main()
   printf("rendered frame in %fms\n", duration * 1000);
 
   stbi_flip_vertically_on_write(1);
-  auto *fb = (uint32_t *)anari::map(device, frame, "color");
+  auto *fb = anari::map<uint32_t>(device, frame, "color");
   stbi_write_png(
       "tutorial.png", imageSize[0], imageSize[1], 4, fb, 4 * imageSize[0]);
   anari::unmap(device, frame, "color");

@@ -356,7 +356,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
 
   float maxDistance = 0.f;
   {
-    auto *bp = (glm::vec3 *)anari::map(d, positionArray);
+    auto *bp = anari::map<glm::vec3>(d, positionArray);
     auto *ep = bp + config.numSpheres;
     std::for_each(bp, ep, [&](glm::vec3 &p) {
       p.x = vert_dist(rng);
@@ -364,7 +364,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
       p.z = vert_dist(rng);
       maxDistance = std::max(maxDistance, glm::length(p));
     });
-    auto *bd = (float *)anari::map(d, distArray);
+    auto *bd = anari::map<float>(d, distArray);
     std::transform(bp, ep, bd, [](glm::vec3 &p) { return glm::length(p); });
     anari::unmap(d, positionArray);
     anari::unmap(d, distArray);
@@ -372,7 +372,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
 
   auto colorArray = anari::newArray1D(d, ANARI_FLOAT32_VEC4, config.numSpheres);
   {
-    auto *b = (glm::vec4 *)anari::map(d, colorArray);
+    auto *b = anari::map<glm::vec4>(d, colorArray);
     auto *e = b + config.numSpheres;
     std::for_each(b, e, [&](glm::vec4 &c) {
       c.x = color_dist(rng);
@@ -467,7 +467,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
 
         if (ImGui::Button("randomize positions")) {
           rng.seed(std::random_device{}());
-          auto *b = (glm::vec3 *)anari::map(d, positionArray);
+          auto *b = anari::map<glm::vec3>(d, positionArray);
           auto *e = b + config.numSpheres;
           std::for_each(b, e, [&](glm::vec3 &p) {
             p.x = vert_dist(rng);
@@ -481,7 +481,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
 
         if (ImGui::Button("randomize colors")) {
           rng.seed(std::random_device{}());
-          auto *b = (glm::vec4 *)anari::map(d, colorArray);
+          auto *b = anari::map<glm::vec4>(d, colorArray);
           auto *e = b + config.numSpheres;
           std::for_each(b, e, [&](glm::vec4 &c) {
             c.x = color_dist(rng);
@@ -524,7 +524,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
   auto voxelArray =
       anari::newArray3D(d, ANARI_FLOAT32, volumeDims, volumeDims, volumeDims);
 
-  auto *voxelsBegin = (float *)anari::map(d, voxelArray);
+  auto *voxelsBegin = anari::map<float>(d, voxelArray);
   auto *voxelsEnd = voxelsBegin + (volumeDims * volumeDims * volumeDims);
 
   std::for_each(voxelsBegin, voxelsEnd, [&](auto &v) { v = dist(rng); });
@@ -569,7 +569,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
   if (config.instanceVolume) {
     auto instances = makeGridOfInstances(d, nullptr, volume);
     instanceArray = anari::newArray1D(d, ANARI_INSTANCE, instances.size());
-    auto *insts = anari::map(d, instanceArray);
+    auto *insts = anari::map<void>(d, instanceArray);
     std::memcpy(
         insts, instances.data(), sizeof(ANARIInstance) * instances.size());
     anari::unmap(d, instanceArray);
@@ -602,7 +602,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
       [&, d, voxelArray, count, capacity, instanceArray, volumeDims]() mutable {
         if (ImGui::Button("regen data")) {
           rng.seed(std::random_device{}());
-          auto *b = (float *)anari::map(d, voxelArray);
+          auto *b = anari::map<float>(d, voxelArray);
           auto *e = b + (volumeDims * volumeDims * volumeDims);
           std::for_each(b, e, [&](auto &v) { v = dist(rng); });
           anari::unmap(d, voxelArray);
@@ -848,8 +848,8 @@ static void loadTexture(anari::Device d,
       auto colorArray = anari::newArray2D(d, ANARI_FLOAT32_VEC3, width, height);
       auto opacityArray = anari::newArray2D(d, ANARI_FLOAT32, width, height);
 
-      auto *colors = (glm::vec3 *)anari::map(d, colorArray);
-      auto *opacities = (float *)anari::map(d, opacityArray);
+      auto *colors = anari::map<glm::vec3>(d, colorArray);
+      auto *opacities = anari::map<float>(d, opacityArray);
 
       for (size_t i = 0; i < size_t(width) * size_t(height); i++) {
         auto *texel = data + (i * 4);

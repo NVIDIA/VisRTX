@@ -496,7 +496,7 @@ void Viewer::ui_updateImage()
     m_maxFL = std::max(m_maxFL, m_latestFL);
 
     if (m_haveCUDAInterop && !m_saveNextFrame && !m_showDepth) {
-      const void *fb = anari::map(m_device, m_frame, "colorGPU");
+      const void *fb = anari::map<void>(m_device, m_frame, "colorGPU");
       cudaGraphicsMapResources(1, &m_graphicsResource);
       cudaArray_t array;
       cudaGraphicsSubResourceGetMappedArray(&array, m_graphicsResource, 0, 0);
@@ -512,7 +512,7 @@ void Viewer::ui_updateImage()
       anari::unmap(m_device, m_frame, "colorGPU");
     } else {
       const void *fb =
-          anari::map(m_device, m_frame, m_showDepth ? "depth" : "color");
+          anari::map<void>(m_device, m_frame, m_showDepth ? "depth" : "color");
 
       glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
       glTexSubImage2D(GL_TEXTURE_2D,
