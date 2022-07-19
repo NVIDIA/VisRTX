@@ -874,6 +874,20 @@ VisRTXDevice::CUDADeviceScope::~CUDADeviceScope()
   m_device->revertCUDADevice();
 }
 
+// Generated function declarations //
+
+const char **query_object_types(ANARIDataType type);
+const void *query_object_info(ANARIDataType type,
+    const char *subtype,
+    const char *infoName,
+    ANARIDataType infoType);
+const void *query_param_info(ANARIDataType type,
+    const char *subtype,
+    const char *paramName,
+    ANARIDataType paramType,
+    const char *infoName,
+    ANARIDataType infoType);
+
 } // namespace visrtx
 
 #ifdef _WIN32
@@ -907,71 +921,41 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_DEVICE_SUBTYPES(
 }
 
 extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_SUBTYPES(
-    visrtx, libdata, deviceSubtype, objectType)
+    visrtx, library, deviceSubtype, objectType)
 {
-  if (objectType == ANARI_RENDERER) {
-    static const char *renderers[] = {"scivis",
-        "raycast",
-        "ao",
-        "diffuse_pathtracer",
-        "debug_primID",
-        "debug_geomID",
-        "debug_instID",
-        "debug_Ng",
-        "debug_Ng.abs",
-        "debug_Ns",
-        "debug_Ns.abs",
-        "debug_uvw",
-        "debug_istri",
-        "debug_isvol",
-        "debug_backface",
-        nullptr};
-    return renderers;
-  } else if (objectType == ANARI_GEOMETRY) {
-    static const char *geometries[] = {
-        "triangle", "quad", "cylinder", "cone", "sphere", nullptr};
-    return geometries;
-  } else if (objectType == ANARI_SPATIAL_FIELD) {
-    static const char *spatialFields[] = {"structuredRegular", nullptr};
-    return spatialFields;
-  } else if (objectType == ANARI_VOLUME) {
-    static const char *volumes[] = {"scivis", nullptr};
-    return volumes;
-  } else if (objectType == ANARI_MATERIAL) {
-    static const char *materials[] = {
-        "matte", "transparentMatte", "pbr", nullptr};
-    return materials;
-  } else if (objectType == ANARI_SAMPLER) {
-    static const char *samplers[] = {
-        "image2D", "primitive", "colorMap", nullptr};
-    return samplers;
-  } else if (objectType == ANARI_LIGHT) {
-    static const char *lights[] = {"ambient", "directional", "point", nullptr};
-    return lights;
-  } else if (objectType == ANARI_CAMERA) {
-    static const char *cameras[] = {"perspective", "orthographic", nullptr};
-    return cameras;
-  }
+  return visrtx::query_object_types(objectType);
+}
 
-  return nullptr;
+extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_PROPERTY(
+    visrtx,
+    library,
+    deviceSubtype,
+    objectSubtype,
+    objectType,
+    propertyName,
+    propertyType)
+{
+  return visrtx::query_object_info(
+      objectType, objectSubtype, propertyName, propertyType);
 }
 
 extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(
     visrtx,
-    libdata,
+    library,
     deviceSubtype,
     objectSubtype,
     objectType,
     parameterName,
     parameterType,
-    infoName,
-    infoType)
+    propertyName,
+    propertyType)
 {
-  if (objectType == ANARI_RENDERER) {
-    return visrtx::Renderer::getParameterInfo(
-        objectSubtype, parameterName, parameterType, infoName, infoType);
-  }
-  return nullptr;
+  return visrtx::query_param_info(objectType,
+      objectSubtype,
+      parameterName,
+      parameterType,
+      propertyName,
+      propertyType);
 }
 
 extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice()

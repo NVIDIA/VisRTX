@@ -1,0 +1,324 @@
+{
+  "info": {
+    "name": "visrtx",
+    "type": "device",
+    "dependencies": [
+      "anari_core_1_0",
+      "anari_core_objects_base_1_0",
+      "khr_auxiliary_buffers",
+      "khr_camera_orthographic",
+      "khr_camera_perspective",
+      "khr_geometry_cone",
+      "khr_geometry_cylinder",
+      "khr_geometry_quad",
+      "khr_geometry_sphere",
+      "khr_geometry_triangle",
+      "khr_light_directional",
+      "khr_light_point",
+      "khr_material_matte",
+      "khr_material_transparent_matte",
+      "khr_sampler_image2d",
+      "khr_spatial_field_structured_regular",
+      "khr_volume_scivis"
+    ]
+  },
+  "objects": [
+    {
+      "type": "ANARI_RENDERER",
+      "name": "default",
+      "parameters": [
+        {
+          "name": "name",
+          "types": [
+            "ANARI_STRING"
+          ],
+          "tags": [],
+          "description": "optional object name"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "scivis",
+      "parameters": [
+        {
+          "name": "name",
+          "types": [
+            "ANARI_STRING"
+          ],
+          "tags": [],
+          "description": "optional object name"
+        },
+        {
+          "name": "backgroundColor",
+          "types": [
+            "ANARI_FLOAT32_VEC4"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "pixelSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "samples per-pixel"
+        },
+        {
+          "name": "ambientSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "AO samples per-pixel, per-frame"
+        },
+        {
+          "name": "ambientColor",
+          "types": [
+            "ANARI_FLOAT32_VEC3"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "ambient light color (RGB)"
+        },
+        {
+          "name": "ambientIntensity",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": [
+            1.0
+          ],
+          "description": "ambient light intensity"
+        },
+        {
+          "name": "lightFalloff",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": [
+            0.25
+          ],
+          "description": "light falloff"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "ao",
+      "parameters": [
+        {
+          "name": "name",
+          "types": [
+            "ANARI_STRING"
+          ],
+          "tags": [],
+          "description": "optional object name"
+        },
+        {
+          "name": "backgroundColor",
+          "types": [
+            "ANARI_FLOAT32_VEC4"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "pixelSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "samples per-pixel"
+        },
+        {
+          "name": "ambientSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "AO samples per-pixel, per-frame"
+        },
+        {
+          "name": "ambientColor",
+          "types": [
+            "ANARI_FLOAT32_VEC3"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "ambient light color (RGB)"
+        },
+        {
+          "name": "ambientIntensity",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": [
+            1.0
+          ],
+          "description": "ambient light intensity"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "pathtracer",
+      "parameters": [
+        {
+          "name": "name",
+          "types": [
+            "ANARI_STRING"
+          ],
+          "tags": [],
+          "description": "optional object name"
+        },
+        {
+          "name": "backgroundColor",
+          "types": [
+            "ANARI_FLOAT32_VEC4"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "pixelSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "samples per-pixel"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "debug",
+      "parameters": [
+        {
+          "name": "name",
+          "types": [
+            "ANARI_STRING"
+          ],
+          "tags": [],
+          "description": "optional object name"
+        },
+        {
+          "name": "backgroundColor",
+          "types": [
+            "ANARI_FLOAT32_VEC4"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "pixelSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "samples per-pixel"
+        },
+        {
+          "name": "method",
+          "types": [
+            "ANARI_STRING"
+          ],
+          "tags": [],
+          "default": "primID",
+          "values": [
+            "primID",
+            "geomID",
+            "instID",
+            "Ng",
+            "Ng.abs",
+            "Ns",
+            "Ns.abs",
+            "uvw",
+            "istri",
+            "isvol"
+          ],
+          "description": "debug visualization mode"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "raycast",
+      "parameters": [
+        {
+          "name": "name",
+          "types": [
+            "ANARI_STRING"
+          ],
+          "tags": [],
+          "description": "optional object name"
+        },
+        {
+          "name": "backgroundColor",
+          "types": [
+            "ANARI_FLOAT32_VEC4"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "pixelSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "samples per-pixel"
+        }
+      ]
+    }
+  ]
+}

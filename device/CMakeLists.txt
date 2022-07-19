@@ -41,12 +41,46 @@ include(EmbedPTX)
 option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
 
+## Code generation
+
+option(VISRTX_ENABLE_CODE_GEN "Enable Python code generation for query updates" OFF)
+mark_as_advanced(VISRTX_ENABLE_CODE_GEN)
+if (VISRTX_ENABLE_CODE_GEN)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+  add_custom_target(generate_visrtx_device
+    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_queries.py
+      --json ${ANARI_CODE_GEN_ROOT}
+      --prefix VisRTXDevice
+      --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
+      --namespace visrtx
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    DEPENDS visrtx_device.json
+  )
+
+  add_custom_target(generate_visrtx_debug_objects
+    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_debug_objects.py
+      --json ${ANARI_CODE_GEN_ROOT}
+      --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
+      --prefix VisRTXDevice
+      --namespace visrtx
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    DEPENDS visrtx_device.json
+  )
+
+  add_custom_target(generate_all)
+  add_dependencies(generate_all generate_visrtx_device)
+  add_dependencies(generate_all generate_visrtx_debug_objects)
+endif()
+
 ## Build library target ##
 
 add_library(${PROJECT_NAME} SHARED
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
+  VisRTXDeviceDebugFactory.cpp
+  VisRTXDeviceQueries.cpp
 
   array/Array.cpp
   array/Array1D.cpp
@@ -127,6 +161,7 @@ target_link_libraries(${PROJECT_NAME}
 PUBLIC
   anari::anari
   anari::anari_utilities
+  anari::anari_library_debug
   glm::glm
   OptiX7::OptiX7
   CUDA::cuda_driver
