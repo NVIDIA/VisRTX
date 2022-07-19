@@ -383,8 +383,12 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
     anari::unmap(d, colorArray);
   }
 
+#if 0
   bool haveColorMapSampler =
       anari::deviceImplements(d, "VISRTX_SAMPLER_COLOR_MAP");
+#else
+  bool haveColorMapSampler = false;
+#endif
 
   auto geom = anari::newObject<anari::Geometry>(d, "sphere");
   anari::setParameter(d, geom, "vertex.position", positionArray);
@@ -899,8 +903,12 @@ struct OBJData
 static anari::World loadObj(
     anari::Device d, const OBJData &objdata, const std::string &basePath)
 {
+#if 0
   const bool attributeIndexing =
       anari::deviceImplements(d, "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING");
+#else
+  const bool attributeIndexing = false;
+#endif
 
   auto world = anari::newObject<anari::World>(d);
 

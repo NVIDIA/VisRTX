@@ -36,6 +36,9 @@
 #include "stb_image_write.h"
 // CUDA
 #include <cuda_gl_interop.h>
+// anari
+#define ANARI_FEATURE_UTILITY_IMPL
+#include "anari/anari_feature_utility.h"
 
 #include "ui_scenes.h"
 
@@ -62,6 +65,7 @@ static RendererState makeRendererState(
   RendererState retval;
   retval.name = name;
 
+#if 0
   const auto *params =
       anariGetObjectParameters(library, deviceName, name, ANARI_RENDERER);
 
@@ -74,6 +78,7 @@ static RendererState makeRendererState(
       retval.parameters.push_back(p);
     }
   }
+#endif
 
   return retval;
 }
@@ -123,11 +128,14 @@ Viewer::Viewer(const char *libName, const char *objFileName)
   if (!m_device)
     std::exit(1);
 
+#if 0
   m_haveCUDAInterop = g_glInterop
       && anari::deviceImplements(m_device, "VISRTX_CUDA_OUTPUT_BUFFERS");
+#endif
 
-  // ANARI //
+    // ANARI //
 
+#if 0
   const char **r_subtypes =
       anariGetObjectSubtypes(m_library, "default", ANARI_RENDERER);
 
@@ -137,7 +145,8 @@ Viewer::Viewer(const char *libName, const char *objFileName)
           makeRendererState(m_library, "default", r_subtypes[i]));
     }
   } else
-    g_renderers.emplace_back(); // adds 'default' renderer with no parameters
+#endif
+  g_renderers.emplace_back(); // adds 'default' renderer with no parameters
 
   anari::commit(m_device, m_device);
 

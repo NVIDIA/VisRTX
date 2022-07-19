@@ -209,6 +209,7 @@ static std::map<ANARIDataType, SetParamFcn *> setParamFcns = {
 // VisRTXDevice definitions ///////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+#if 0
 int VisRTXDevice::deviceImplements(const char *_extension)
 {
   std::string_view extension = _extension;
@@ -228,6 +229,7 @@ int VisRTXDevice::deviceImplements(const char *_extension)
 
   return 0;
 }
+#endif
 
 // Data Arrays ////////////////////////////////////////////////////////////////
 
@@ -581,6 +583,8 @@ void VisRTXDevice::discardFrame(ANARIFrame)
 
 // Other VisRTXDevice definitions /////////////////////////////////////////////
 
+VisRTXDevice::VisRTXDevice(ANARILibrary l) : DeviceImpl(l) {}
+
 VisRTXDevice::~VisRTXDevice()
 {
   if (m_state.get() == nullptr)
@@ -887,11 +891,11 @@ VisRTXDevice::CUDADeviceScope::~CUDADeviceScope()
 #endif
 
 extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_NEW_DEVICE(
-    visrtx, _subtype)
+    visrtx, library, _subtype)
 {
   auto subtype = std::string_view(_subtype);
   if (subtype == "default" || subtype == "visrtx")
-    return (ANARIDevice) new visrtx::VisRTXDevice();
+    return (ANARIDevice) new visrtx::VisRTXDevice(library);
   return nullptr;
 }
 
@@ -949,14 +953,6 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_SUBTYPES(
     return cameras;
   }
 
-  return nullptr;
-}
-
-extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_PARAMETERS(
-    visrtx, libdata, deviceSubtype, objectSubtype, objectType)
-{
-  if (objectType == ANARI_RENDERER)
-    return visrtx::Renderer::getParameters(objectSubtype);
   return nullptr;
 }
 

@@ -50,9 +50,11 @@ struct VisRTXDevice : public anari::DeviceImpl,
   // Main interface to accepting API calls
   /////////////////////////////////////////////////////////////////////////////
 
+#if 0
   // Device API ///////////////////////////////////////////////////////////////
 
   int deviceImplements(const char *extension) override;
+#endif
 
   // Data Arrays //////////////////////////////////////////////////////////////
 
@@ -156,6 +158,7 @@ struct VisRTXDevice : public anari::DeviceImpl,
   /////////////////////////////////////////////////////////////////////////////
 
   VisRTXDevice() = default;
+  VisRTXDevice(ANARILibrary);
   ~VisRTXDevice() override;
 
   template <typename... Args>
