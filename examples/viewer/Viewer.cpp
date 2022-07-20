@@ -39,6 +39,8 @@
 // anari
 #define ANARI_FEATURE_UTILITY_IMPL
 #include "anari/anari_feature_utility.h"
+// VisRTX
+#include "anari/backend/visrtx/visrtx.h"
 
 #include "ui_scenes.h"
 
@@ -128,12 +130,10 @@ Viewer::Viewer(const char *libName, const char *objFileName)
   if (!m_device)
     std::exit(1);
 
-#if 0
-  m_haveCUDAInterop = g_glInterop
-      && anari::deviceImplements(m_device, "VISRTX_CUDA_OUTPUT_BUFFERS");
-#endif
+  visrtx::Features features = visrtx::getInstanceFeatures(m_device, m_device);
+  m_haveCUDAInterop = g_glInterop && features.VISRTX_CUDA_OUTPUT_BUFFERS;
 
-    // ANARI //
+  // ANARI //
 
 #if 0
   const char **r_subtypes =

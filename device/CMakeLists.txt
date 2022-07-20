@@ -88,6 +88,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   VisRTXDevice.cpp
   VisRTXDeviceDebugFactory.cpp
   VisRTXDeviceQueries.cpp
+  VisRTXFeatureUtility.cpp
 
   array/Array.cpp
   array/Array1D.cpp

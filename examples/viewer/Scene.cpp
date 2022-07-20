@@ -35,6 +35,8 @@
 #include "glm/ext/matrix_transform.hpp"
 // anari
 #include <anari/anari_cpp/ext/glm.h>
+// VisRTX
+#include "anari/backend/visrtx/visrtx.h"
 // tiny_obj_loader
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -383,12 +385,8 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
     anari::unmap(d, colorArray);
   }
 
-#if 0
-  bool haveColorMapSampler =
-      anari::deviceImplements(d, "VISRTX_SAMPLER_COLOR_MAP");
-#else
-  bool haveColorMapSampler = false;
-#endif
+  visrtx::Features features = visrtx::getInstanceFeatures(d, d);
+  const bool haveColorMapSampler = features.VISRTX_SAMPLER_COLOR_MAP;
 
   auto geom = anari::newObject<anari::Geometry>(d, "sphere");
   anari::setParameter(d, geom, "vertex.position", positionArray);
@@ -903,12 +901,8 @@ struct OBJData
 static anari::World loadObj(
     anari::Device d, const OBJData &objdata, const std::string &basePath)
 {
-#if 0
-  const bool attributeIndexing =
-      anari::deviceImplements(d, "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING");
-#else
-  const bool attributeIndexing = false;
-#endif
+  visrtx::Features features = visrtx::getInstanceFeatures(d, d);
+  const bool attributeIndexing = features.VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
 
   auto world = anari::newObject<anari::World>(d);
 

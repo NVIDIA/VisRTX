@@ -31,14 +31,57 @@
 
 #pragma once
 
+// ANARI-SDK
+#ifdef __cplusplus
+#include <anari/anari_cpp.hpp>
+#else
+#include <anari/anari.h>
+#endif
+// VisRTX
 #include "anari_library_visrtx_export.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// Direct VisRTX device construction //////////////////////////////////////////
+
 VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice();
+
+// VisRTX extension feature testing ///////////////////////////////////////////
+
+typedef struct
+{
+  int VISRTX_ARRAY1D_DYNAMIC_REGION;
+  int VISRTX_CUDA_OUTPUT_BUFFERS;
+  int VISRTX_SAMPLER_COLOR_MAP;
+  int VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
+} VisRTXFeatures;
+
+VISRTX_DEVICE_INTERFACE int visrtxGetObjectFeatures(VisRTXFeatures *features,
+    ANARILibrary,
+    const char *deviceName,
+    const char *objectName,
+    ANARIDataType objectType);
+
+VISRTX_DEVICE_INTERFACE int visrtxGetInstanceFeatures(
+    VisRTXFeatures *features, ANARIDevice device, ANARIObject object);
 
 #ifdef __cplusplus
 } // extern "C"
+
+namespace visrtx {
+
+using Features = VisRTXFeatures;
+
+VISRTX_DEVICE_INTERFACE
+Features getObjectFeatures(anari::Library library,
+    const char *device,
+    const char *objectSubtype,
+    anari::DataType objectType);
+
+VISRTX_DEVICE_INTERFACE
+Features getInstanceFeatures(anari::Device, anari::Object);
+
+} // namespace visrtx
 #endif

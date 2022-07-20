@@ -34,6 +34,7 @@
 #include "VisRTXDevice.h"
 
 #include "anari/backend/Library.h"
+#include "anari/ext/debug/DebugObject.h"
 #include "anari/type_utility.h"
 
 #include "array/Array1D.h"
@@ -66,6 +67,28 @@
 #include "scene/surface/geometry/Spheres.h"
 
 namespace visrtx {
+
+///////////////////////////////////////////////////////////////////////////////
+// Generated function declarations ////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+const char **query_object_types(ANARIDataType type);
+
+const void *query_object_info(ANARIDataType type,
+    const char *subtype,
+    const char *infoName,
+    ANARIDataType infoType);
+
+const void *query_param_info(ANARIDataType type,
+    const char *subtype,
+    const char *paramName,
+    ANARIDataType paramType,
+    const char *infoName,
+    ANARIDataType infoType);
+
+anari::debug_device::ObjectFactory *getDebugFactory();
+
+const char **query_extensions();
 
 ///////////////////////////////////////////////////////////////////////////////
 // Helper functions ///////////////////////////////////////////////////////////
@@ -210,28 +233,6 @@ static std::map<ANARIDataType, SetParamFcn *> setParamFcns = {
 ///////////////////////////////////////////////////////////////////////////////
 // VisRTXDevice definitions ///////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
-#if 0
-int VisRTXDevice::deviceImplements(const char *_extension)
-{
-  std::string_view extension = _extension;
-
-  if (extension == "ANARI_KHR_STOCHASTIC_RENDERING")
-    return 1;
-  else if (extension == "ANARI_KHR_AUXILIARY_BUFFERS")
-    return 1;
-  else if (extension == "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING")
-    return 1;
-  else if (extension == "VISRTX_SAMPLER_COLOR_MAP")
-    return 1;
-  else if (extension == "VISRTX_CUDA_OUTPUT_BUFFERS")
-    return 1;
-  else if (extension == "VISRTX_ARRAY1D_DYNAMIC_REGION")
-    return 1;
-
-  return 0;
-}
-#endif
 
 // Data Arrays ////////////////////////////////////////////////////////////////
 
@@ -422,9 +423,7 @@ int VisRTXDevice::getProperty(ANARIObject object,
     uint64_t size,
     uint32_t mask)
 {
-  CUDADeviceScope ds(this);
-
-  if ((void *)object == (void *)this) {
+  if (handleIsDevice(object)) {
     std::string_view prop = name;
     if (prop == "version" && type == ANARI_INT32) {
       int version = VISRTX_VERSION_MAJOR * 10000 + VISRTX_VERSION_MINOR * 100
@@ -440,8 +439,15 @@ int VisRTXDevice::getProperty(ANARIObject object,
     } else if (prop == "version.patch" && type == ANARI_INT32) {
       writeToVoidP(mem, VISRTX_VERSION_PATCH);
       return 1;
+    } else if (prop == "debugObjects" && type == ANARI_FUNCTION_POINTER) {
+      writeToVoidP(mem, getDebugFactory);
+      return 1;
+    } else if (prop == "feature" && type == ANARI_STRING_LIST) {
+      writeToVoidP(mem, query_extensions());
+      return 1;
     }
   } else {
+    CUDADeviceScope ds(this);
     if (mask == ANARI_WAIT)
       m_state->flushCommitBuffer();
     return referenceFromHandle(object).getProperty(name, type, mem, mask);
@@ -875,20 +881,6 @@ VisRTXDevice::CUDADeviceScope::~CUDADeviceScope()
 {
   m_device->revertCUDADevice();
 }
-
-// Generated function declarations //
-
-const char **query_object_types(ANARIDataType type);
-const void *query_object_info(ANARIDataType type,
-    const char *subtype,
-    const char *infoName,
-    ANARIDataType infoType);
-const void *query_param_info(ANARIDataType type,
-    const char *subtype,
-    const char *paramName,
-    ANARIDataType paramType,
-    const char *infoName,
-    ANARIDataType infoType);
 
 } // namespace visrtx
 
