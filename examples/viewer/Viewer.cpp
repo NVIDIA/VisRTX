@@ -135,7 +135,6 @@ Viewer::Viewer(const char *libName, const char *objFileName)
 
   // ANARI //
 
-#if 0
   const char **r_subtypes =
       anariGetObjectSubtypes(m_library, "default", ANARI_RENDERER);
 
@@ -145,7 +144,6 @@ Viewer::Viewer(const char *libName, const char *objFileName)
           makeRendererState(m_library, "default", r_subtypes[i]));
     }
   } else
-#endif
   g_renderers.emplace_back(); // adds 'default' renderer with no parameters
 
   anari::commit(m_device, m_device);
