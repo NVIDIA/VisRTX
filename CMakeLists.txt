@@ -53,25 +53,34 @@ project(VisRTX VERSION 0.4.0 LANGUAGES C CXX CUDA)
 
 include(GNUInstallDirs)
 
-## Dependencies ##
+## Dependencies ###############################################################
 
+# ANARI-SDK
 set(ANARI_REQUIRED_VERSION 0.2.0)
-
 find_package(anari ${ANARI_REQUIRED_VERSION} EXACT REQUIRED)
+
+# glm (locally included)
 set(glm_DIR ${CMAKE_CURRENT_LIST_DIR}/external/glm/lib/cmake/glm)
 find_package(glm REQUIRED)
 mark_as_advanced(glm_DIR)
+add_library(glm_visrtx INTERFACE IMPORTED)
+target_link_libraries(glm_visrtx INTERFACE glm::glm)
+if(WIN32)
+  target_compile_definitions(glm_visrtx INTERFACE _USE_MATH_DEFINES NOMINMAX)
+endif()
 
-## Build targets ##
+# Other included dependencies
+add_subdirectory(external)
+
+## Build targets ##############################################################
 
 enable_testing()
 
 add_subdirectory(device)
-add_subdirectory(external)
 add_subdirectory(examples)
 add_subdirectory(tests)
 
-## Configure CMake find_package() config files ##
+## Configure CMake find_package() config files ################################
 
 set(VISRTX_CMAKE_INSTALL_DESTINATION
   ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}

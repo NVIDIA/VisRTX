@@ -80,7 +80,9 @@ endif()
 
 ## Build library target ##
 
-add_library(${PROJECT_NAME} SHARED
+add_library(${PROJECT_NAME} SHARED)
+
+target_sources(${PROJECT_NAME} PRIVATE
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
@@ -174,7 +176,7 @@ PUBLIC
 PRIVATE
   anari::anari_utilities
   anari::anari_library_debug
-  glm::glm
+  glm_visrtx
   OptiX7::OptiX7
   CUDA::cuda_driver
   CUDA::curand
@@ -203,7 +205,7 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   PRIVATE
     anari::anari
     anari::anari_utilities
-    glm::glm
+    glm_visrtx
     OptiX7::OptiX7
     CUDA::curand
   )

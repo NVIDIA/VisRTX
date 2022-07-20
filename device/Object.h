@@ -40,6 +40,7 @@
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 // std
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <string_view>
