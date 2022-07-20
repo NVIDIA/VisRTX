@@ -41,13 +41,13 @@ static void fillFeatureStruct(VisRTXFeatures *features, const char *const *list)
   std::memset(features, 0, sizeof(VisRTXFeatures));
   for (const auto *i = list; *i != NULL; ++i) {
     std::string_view feature = *i;
-    if (feature == "VISRTX_ARRAY1D_DYNAMIC_REGION")
+    if (feature == "ANARI_VISRTX_ARRAY1D_DYNAMIC_REGION")
       features->VISRTX_ARRAY1D_DYNAMIC_REGION = 1;
-    else if (feature == "VISRTX_CUDA_OUTPUT_BUFFERS")
+    else if (feature == "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS")
       features->VISRTX_CUDA_OUTPUT_BUFFERS = 1;
-    else if (feature == "VISRTX_SAMPLER_COLOR_MAP")
+    else if (feature == "ANARI_VISRTX_SAMPLER_COLOR_MAP")
       features->VISRTX_SAMPLER_COLOR_MAP = 1;
-    else if (feature == "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING")
+    else if (feature == "ANARI_VISRTX_TRIANGLE_ATTRIBUTE_INDEXING")
       features->VISRTX_TRIANGLE_ATTRIBUTE_INDEXING = 1;
   }
 }
