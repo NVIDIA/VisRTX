@@ -33,6 +33,8 @@
 #include <anari/anari_cpp.hpp>
 // C++ std anari_cpp type inference (VEC types from std::array<>)
 #include <anari/anari_cpp/ext/std.h>
+// VisRTX
+#include <anari/backend/visrtx/visrtx.h>
 // std
 #include <array>
 #include <cstdio>
@@ -141,8 +143,7 @@ int main()
 {
   // Setup ANARI device //
 
-  auto library = anari::loadLibrary("visrtx", statusFunc, nullptr);
-  auto device = anari::newDevice(library, "default");
+  auto device = makeVisRTXDevice();
 
   // Create world from a helper function //
 
@@ -209,7 +210,6 @@ int main()
   anari::release(device, world);
   anari::release(device, frame);
   anari::release(device, device);
-  anari::unloadLibrary(library);
 
   return 0;
 }

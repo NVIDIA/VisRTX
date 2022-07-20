@@ -54,8 +54,8 @@ if (VISRTX_ENABLE_CODE_GEN)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
   add_custom_target(generate_visrtx_device
-    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_queries.py
-      --json ${ANARI_CODE_GEN_ROOT}
+    COMMAND ${Python3_EXECUTABLE} ${VISRTX_CODE_GEN_ROOT}/generate_queries.py
+      --json ${VISRTX_CODE_GEN_ROOT}
       --prefix VisRTXDevice
       --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
       --namespace visrtx
@@ -64,8 +64,8 @@ if (VISRTX_ENABLE_CODE_GEN)
   )
 
   add_custom_target(generate_visrtx_debug_objects
-    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_debug_objects.py
-      --json ${ANARI_CODE_GEN_ROOT}
+    COMMAND ${Python3_EXECUTABLE} ${VISRTX_CODE_GEN_ROOT}/generate_debug_objects.py
+      --json ${VISRTX_CODE_GEN_ROOT}
       --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
       --prefix VisRTXDevice
       --namespace visrtx
@@ -165,11 +165,13 @@ target_include_directories(${PROJECT_NAME}
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>
 )
 
 target_link_libraries(${PROJECT_NAME}
 PUBLIC
   anari::anari
+PRIVATE
   anari::anari_utilities
   anari::anari_library_debug
   glm::glm
@@ -224,10 +226,31 @@ GenerateEmbeddedPTX(renderer SciVis)
 
 GenerateEmbeddedPTX(scene Intersectors)
 
-## Install library ##
+## Install library + headers ##
 
 install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+set_target_properties(${PROJECT_NAME}
+    PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
+
+install(TARGETS ${PROJECT_NAME}
+  EXPORT VisRTX_Exports
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    NAMELINK_SKIP
+  # on Windows put the dlls into bin
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  # ... and the import lib into the devel package
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(
+FILES
+  ${PROJECT_BINARY_DIR}/${PROJECT_NAME}_export.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/anari/backend/visrtx/visrtx.h
+DESTINATION
+  ${CMAKE_INSTALL_INCLUDEDIR}/anari/backend/visrtx
 )

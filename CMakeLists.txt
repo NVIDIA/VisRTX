@@ -41,6 +41,7 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE_INIT "Release")
 
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
+set(CMAKE_INSTALL_MESSAGE LAZY)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
@@ -48,13 +49,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-project(visrtx VERSION 0.4.0 LANGUAGES C CXX CUDA)
+project(VisRTX VERSION 0.4.0 LANGUAGES C CXX CUDA)
 
 include(GNUInstallDirs)
 
 ## Dependencies ##
 
-find_package(anari 0.2.0 EXACT REQUIRED)
+set(ANARI_REQUIRED_VERSION 0.2.0)
+
+find_package(anari ${ANARI_REQUIRED_VERSION} EXACT REQUIRED)
 set(glm_DIR ${CMAKE_CURRENT_LIST_DIR}/external/glm/lib/cmake/glm)
 find_package(glm REQUIRED)
 mark_as_advanced(glm_DIR)
@@ -67,3 +70,43 @@ add_subdirectory(device)
 add_subdirectory(external)
 add_subdirectory(examples)
 add_subdirectory(tests)
+
+## Configure CMake find_package() config files ##
+
+set(VISRTX_CMAKE_INSTALL_DESTINATION
+  ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
+)
+
+install(EXPORT VisRTX_Exports
+  DESTINATION ${VISRTX_CMAKE_INSTALL_DESTINATION}
+  NAMESPACE VisRTX::
+)
+
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+  "${PROJECT_SOURCE_DIR}/cmake/${PROJECT_NAME}Config.cmake.in"
+  "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+INSTALL_DESTINATION
+  ${VISRTX_CMAKE_INSTALL_DESTINATION}
+)
+
+write_basic_package_version_file(
+    "${PROJECT_NAME}ConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+DESTINATION
+  ${VISRTX_CMAKE_INSTALL_DESTINATION}
+)
+
+install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/cmake
+  DESTINATION
+    ${VISRTX_CMAKE_INSTALL_DESTINATION}
+  FILES_MATCHING
+    PATTERN *.cmake
+)
