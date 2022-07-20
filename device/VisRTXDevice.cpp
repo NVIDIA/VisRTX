@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "anari_library_visrtx_export.h"
+
 #include "VisRTXDevice.h"
 
 #include "anari/backend/Library.h"
@@ -889,20 +891,6 @@ const void *query_param_info(ANARIDataType type,
     ANARIDataType infoType);
 
 } // namespace visrtx
-
-#ifdef _WIN32
-#ifdef VISRTX_DEVICE_STATIC_DEFINE
-#define VISRTX_DEVICE_INTERFACE
-#else
-#ifdef anari_library_visrtx_EXPORTS
-#define VISRTX_DEVICE_INTERFACE __declspec(dllexport)
-#else
-#define VISRTX_DEVICE_INTERFACE __declspec(dllimport)
-#endif
-#endif
-#else
-#define VISRTX_DEVICE_INTERFACE
-#endif
 
 extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_NEW_DEVICE(
     visrtx, library, _subtype)

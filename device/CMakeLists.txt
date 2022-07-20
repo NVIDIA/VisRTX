@@ -27,9 +27,14 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+include(GenerateExportHeader)
+
 ## Establish project ##
 
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
+
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
 ## Find dependencies ##
 
@@ -142,6 +147,10 @@ add_library(${PROJECT_NAME} SHARED
   utility/TimeStamp.cpp
 )
 
+generate_export_header(${PROJECT_NAME}
+  EXPORT_MACRO_NAME "VISRTX_DEVICE_INTERFACE"
+)
+
 set_property(TARGET ${PROJECT_NAME} PROPERTY CUDA_ARCHITECTURES OFF)
 
 set_source_files_properties(frame/Frame.cu frame/Denoiser.cu
@@ -155,6 +164,7 @@ set_source_files_properties(scene/Intersectors_ptx.cu
 target_include_directories(${PROJECT_NAME}
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 )
 
 target_link_libraries(${PROJECT_NAME}
