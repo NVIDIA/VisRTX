@@ -75,7 +75,7 @@ static int info_hash(const char *str) {
 }
 static const int32_t anari_true = 1;static const int32_t anari_false = 0;const char ** query_extensions() {
    static const char *features[] = {
-      "ANARI_visrtx",
+      "ANARI_VISRTX_DEVICE",
       "ANARI_CORE_API",
       "ANARI_CORE_OBJECTS",
       "ANARI_KHR_AUXILIARY_BUFFERS",
@@ -162,7 +162,7 @@ static const void * ANARI_RENDERER_default_name_info(ANARIDataType paramType, in
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -195,7 +195,7 @@ static const void * ANARI_RENDERER_scivis_name_info(ANARIDataType paramType, int
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -227,7 +227,7 @@ static const void * ANARI_RENDERER_scivis_backgroundColor_info(ANARIDataType par
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -259,7 +259,7 @@ static const void * ANARI_RENDERER_scivis_pixelSamples_info(ANARIDataType paramT
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -291,7 +291,7 @@ static const void * ANARI_RENDERER_scivis_ambientSamples_info(ANARIDataType para
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -323,7 +323,7 @@ static const void * ANARI_RENDERER_scivis_ambientColor_info(ANARIDataType paramT
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -355,7 +355,7 @@ static const void * ANARI_RENDERER_scivis_ambientIntensity_info(ANARIDataType pa
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -387,7 +387,7 @@ static const void * ANARI_RENDERER_scivis_lightFalloff_info(ANARIDataType paramT
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -432,7 +432,7 @@ static const void * ANARI_RENDERER_ao_name_info(ANARIDataType paramType, int inf
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -464,7 +464,7 @@ static const void * ANARI_RENDERER_ao_backgroundColor_info(ANARIDataType paramTy
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -496,7 +496,7 @@ static const void * ANARI_RENDERER_ao_pixelSamples_info(ANARIDataType paramType,
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -528,7 +528,7 @@ static const void * ANARI_RENDERER_ao_ambientSamples_info(ANARIDataType paramTyp
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -560,7 +560,7 @@ static const void * ANARI_RENDERER_ao_ambientColor_info(ANARIDataType paramType,
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -592,7 +592,7 @@ static const void * ANARI_RENDERER_ao_ambientIntensity_info(ANARIDataType paramT
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -635,7 +635,7 @@ static const void * ANARI_RENDERER_pathtracer_name_info(ANARIDataType paramType,
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -667,7 +667,7 @@ static const void * ANARI_RENDERER_pathtracer_backgroundColor_info(ANARIDataType
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -699,7 +699,7 @@ static const void * ANARI_RENDERER_pathtracer_pixelSamples_info(ANARIDataType pa
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -736,7 +736,7 @@ static const void * ANARI_RENDERER_debug_name_info(ANARIDataType paramType, int 
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -768,7 +768,7 @@ static const void * ANARI_RENDERER_debug_backgroundColor_info(ANARIDataType para
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -800,7 +800,7 @@ static const void * ANARI_RENDERER_debug_pixelSamples_info(ANARIDataType paramTy
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -839,7 +839,7 @@ static const void * ANARI_RENDERER_debug_method_info(ANARIDataType paramType, in
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -878,7 +878,7 @@ static const void * ANARI_RENDERER_raycast_name_info(ANARIDataType paramType, in
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -910,7 +910,7 @@ static const void * ANARI_RENDERER_raycast_backgroundColor_info(ANARIDataType pa
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -942,7 +942,7 @@ static const void * ANARI_RENDERER_raycast_pixelSamples_info(ANARIDataType param
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int32_t value = 0;
@@ -6858,7 +6858,7 @@ const void * query_param_info(ANARIDataType type, const char *subtype, const cha
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int value = 0;
@@ -6869,7 +6869,7 @@ const void * query_param_info(ANARIDataType type, const char *subtype, const cha
       case 8: // feature
          if(infoType == ANARI_STRING_LIST) {
             static const char *features[] = {
-               "ANARI_visrtx",
+               "ANARI_VISRTX_DEVICE",
                "ANARI_CORE_API",
                "ANARI_CORE_OBJECTS",
                "ANARI_KHR_AUXILIARY_BUFFERS",
@@ -6916,7 +6916,7 @@ static const void * ANARI_RENDERER_scivis_info(int infoName, ANARIDataType infoT
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int value = 0;
@@ -6927,7 +6927,7 @@ static const void * ANARI_RENDERER_scivis_info(int infoName, ANARIDataType infoT
       case 8: // feature
          if(infoType == ANARI_STRING_LIST) {
             static const char *features[] = {
-               "ANARI_visrtx",
+               "ANARI_VISRTX_DEVICE",
                "ANARI_CORE_API",
                "ANARI_CORE_OBJECTS",
                "ANARI_KHR_AUXILIARY_BUFFERS",
@@ -6973,7 +6973,7 @@ static const void * ANARI_RENDERER_ao_info(int infoName, ANARIDataType infoType)
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int value = 0;
@@ -6984,7 +6984,7 @@ static const void * ANARI_RENDERER_ao_info(int infoName, ANARIDataType infoType)
       case 8: // feature
          if(infoType == ANARI_STRING_LIST) {
             static const char *features[] = {
-               "ANARI_visrtx",
+               "ANARI_VISRTX_DEVICE",
                "ANARI_CORE_API",
                "ANARI_CORE_OBJECTS",
                "ANARI_KHR_AUXILIARY_BUFFERS",
@@ -7027,7 +7027,7 @@ static const void * ANARI_RENDERER_pathtracer_info(int infoName, ANARIDataType i
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int value = 0;
@@ -7038,7 +7038,7 @@ static const void * ANARI_RENDERER_pathtracer_info(int infoName, ANARIDataType i
       case 8: // feature
          if(infoType == ANARI_STRING_LIST) {
             static const char *features[] = {
-               "ANARI_visrtx",
+               "ANARI_VISRTX_DEVICE",
                "ANARI_CORE_API",
                "ANARI_CORE_OBJECTS",
                "ANARI_KHR_AUXILIARY_BUFFERS",
@@ -7082,7 +7082,7 @@ static const void * ANARI_RENDERER_debug_info(int infoName, ANARIDataType infoTy
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int value = 0;
@@ -7093,7 +7093,7 @@ static const void * ANARI_RENDERER_debug_info(int infoName, ANARIDataType infoTy
       case 8: // feature
          if(infoType == ANARI_STRING_LIST) {
             static const char *features[] = {
-               "ANARI_visrtx",
+               "ANARI_VISRTX_DEVICE",
                "ANARI_CORE_API",
                "ANARI_CORE_OBJECTS",
                "ANARI_KHR_AUXILIARY_BUFFERS",
@@ -7136,7 +7136,7 @@ static const void * ANARI_RENDERER_raycast_info(int infoName, ANARIDataType info
          }
       case 7: // sourceFeature
          if(infoType == ANARI_STRING) {
-            static const char *feature = "visrtx";
+            static const char *feature = "VISRTX_DEVICE";
             return feature;
          } else if(infoType == ANARI_INT32) {
             static const int value = 0;
@@ -7147,7 +7147,7 @@ static const void * ANARI_RENDERER_raycast_info(int infoName, ANARIDataType info
       case 8: // feature
          if(infoType == ANARI_STRING_LIST) {
             static const char *features[] = {
-               "ANARI_visrtx",
+               "ANARI_VISRTX_DEVICE",
                "ANARI_CORE_API",
                "ANARI_CORE_OBJECTS",
                "ANARI_KHR_AUXILIARY_BUFFERS",
@@ -7206,7 +7206,7 @@ static const void * ANARI_DEVICE_info(int infoName, ANARIDataType infoType) {
       case 8: // feature
          if(infoType == ANARI_STRING_LIST) {
             static const char *features[] = {
-               "ANARI_visrtx",
+               "ANARI_VISRTX_DEVICE",
                "ANARI_CORE_API",
                "ANARI_CORE_OBJECTS",
                "ANARI_KHR_AUXILIARY_BUFFERS",

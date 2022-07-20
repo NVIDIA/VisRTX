@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "visrtx",
+    "name": "VISRTX_DEVICE",
     "type": "device",
     "dependencies": [
       "anari_core_1_0",

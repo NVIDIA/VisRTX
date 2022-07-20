@@ -54,8 +54,8 @@ if (VISRTX_ENABLE_CODE_GEN)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
   add_custom_target(generate_visrtx_device
-    COMMAND ${Python3_EXECUTABLE} ${VISRTX_CODE_GEN_ROOT}/generate_queries.py
-      --json ${VISRTX_CODE_GEN_ROOT}
+    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_queries.py
+      --json ${ANARI_CODE_GEN_ROOT}
       --prefix VisRTXDevice
       --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
       --namespace visrtx
@@ -64,8 +64,8 @@ if (VISRTX_ENABLE_CODE_GEN)
   )
 
   add_custom_target(generate_visrtx_debug_objects
-    COMMAND ${Python3_EXECUTABLE} ${VISRTX_CODE_GEN_ROOT}/generate_debug_objects.py
-      --json ${VISRTX_CODE_GEN_ROOT}
+    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_debug_objects.py
+      --json ${ANARI_CODE_GEN_ROOT}
       --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
       --prefix VisRTXDevice
       --namespace visrtx
