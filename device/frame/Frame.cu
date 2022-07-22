@@ -104,6 +104,8 @@ void Frame::commit()
   else
     hd.fb.format = FrameFormat::UINT;
 
+  m_colorType = format;
+
   hd.fb.size = getParam<uvec2>("size", uvec2(10));
   hd.fb.invSize = 1.f / vec2(hd.fb.size);
 
@@ -290,25 +292,42 @@ void Frame::wait() const
   cudaEventSynchronize(m_eventEnd);
 }
 
-void *Frame::map(const char *_channel)
+void *Frame::map(const char *_channel,
+    uint32_t *width,
+    uint32_t *height,
+    ANARIDataType *pixelType)
 {
   wait();
 
+  const auto &hd = data();
+  *width = hd.fb.size.x;
+  *height = hd.fb.size.y;
+
   std::string_view channel = _channel;
-  if (channel == "color")
+  if (channel == "color") {
+    *pixelType = m_colorType;
     return mapColorBuffer();
-  else if (channel == "depth")
+  } else if (channel == "depth") {
+    *pixelType = ANARI_FLOAT32_VEC3;
     return mapDepthBuffer();
-  else if (channel == "colorGPU")
+  } else if (channel == "colorGPU") {
+    *pixelType = m_colorType;
     return mapGPUColorBuffer();
-  else if (channel == "depthGPU")
+  } else if (channel == "depthGPU") {
+    *pixelType = ANARI_FLOAT32_VEC3;
     return mapGPUDepthBuffer();
-  else if (channel == "normal")
+  } else if (channel == "normal") {
+    *pixelType = ANARI_FLOAT32_VEC3;
     return mapNormalBuffer();
-  else if (channel == "albedo")
+  } else if (channel == "albedo") {
+    *pixelType = ANARI_FLOAT32_VEC3;
     return mapAlbedoBuffer();
-  else
+  } else {
+    *width = 0;
+    *height = 0;
+    *pixelType = ANARI_UNKNOWN;
     return nullptr;
+  }
 }
 
 void *Frame::mapColorBuffer()

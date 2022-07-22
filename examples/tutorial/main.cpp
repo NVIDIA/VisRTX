@@ -92,21 +92,21 @@ anari::World generateScene(anari::Device device)
       device, geom, "vertex.position", positionsArray);
   anari::setAndReleaseParameter(device, geom, "vertex.color", colorArray);
   anari::setParameter(device, geom, "radius", radius);
-  anari::commit(device, geom);
+  anari::commitParameters(device, geom);
 
   // Create and parameterize material //
 
   auto mat = anari::newObject<anari::Material>(device, "matte");
   anari::setParameter(
       device, mat, "color", "color"); // draw values from "vertex.color"
-  anari::commit(device, mat);
+  anari::commitParameters(device, mat);
 
   // Create and parameterize surface //
 
   auto surface = anari::newObject<anari::Surface>(device);
   anari::setAndReleaseParameter(device, surface, "geometry", geom);
   anari::setAndReleaseParameter(device, surface, "material", mat);
-  anari::commit(device, surface);
+  anari::commitParameters(device, surface);
 
   // Create and parameterize world //
 
@@ -114,7 +114,7 @@ anari::World generateScene(anari::Device device)
   anari::setAndReleaseParameter(
       device, world, "surface", anari::newArray1D(device, &surface));
   anari::release(device, surface);
-  anari::commit(device, world);
+  anari::commitParameters(device, world);
 
   return world;
 }
@@ -178,14 +178,14 @@ int main()
   anari::setParameter(
       device, camera, "aspect", imageSize[0] / float(imageSize[1]));
 
-  anari::commit(device, camera);
+  anari::commitParameters(device, camera);
 
   // Create renderer //
 
   auto renderer = anari::newObject<anari::Renderer>(device, "raycast");
   const vec4 backgroundColor = {0.1f, 0.1f, 0.1f, 1.f};
   anari::setParameter(device, renderer, "backgroundColor", backgroundColor);
-  anari::commit(device, renderer);
+  anari::commitParameters(device, renderer);
 
   // Create frame (top-level object) //
 
@@ -198,7 +198,7 @@ int main()
   anari::setParameter(device, frame, "camera", camera);
   anari::setParameter(device, frame, "renderer", renderer);
 
-  anari::commit(device, frame);
+  anari::commitParameters(device, frame);
 
   // Render frame and print out duration property //
 
@@ -211,9 +211,8 @@ int main()
   printf("rendered frame in %fms\n", duration * 1000);
 
   stbi_flip_vertically_on_write(1);
-  auto *fb = anari::map<uint32_t>(device, frame, "color");
-  stbi_write_png(
-      "tutorial.png", imageSize[0], imageSize[1], 4, fb, 4 * imageSize[0]);
+  auto fb = anari::map<uint32_t>(device, frame, "color");
+  stbi_write_png("tutorial.png", fb.width, fb.height, 4, fb.data, 4 * fb.width);
   anari::unmap(device, frame, "color");
 
   // Cleanup remaining ANARI objets //

@@ -64,7 +64,10 @@ struct Frame : public DeviceObject<FrameGPUData>
   bool ready() const;
   void wait() const;
 
-  void *map(const char *channel);
+  void *map(const char *channel,
+      uint32_t *width,
+      uint32_t *height,
+      ANARIDataType *pixelType);
 
   void *mapColorBuffer();
   void *mapGPUColorBuffer();
@@ -80,6 +83,7 @@ struct Frame : public DeviceObject<FrameGPUData>
 
   //// Data ////
 
+  anari::DataType m_colorType{ANARI_UNKNOWN};
   float m_invFrameID{1.f};
   int m_perPixelBytes{1};
   bool m_denoise{false};

@@ -126,7 +126,7 @@ struct VisRTXDevice : public anari::DeviceImpl,
 
   void unsetParameter(ANARIObject object, const char *name) override;
 
-  void commit(ANARIObject object) override;
+  void commitParameters(ANARIObject object) override;
 
   void release(ANARIObject _obj) override;
   void retain(ANARIObject _obj) override;
@@ -135,7 +135,11 @@ struct VisRTXDevice : public anari::DeviceImpl,
 
   ANARIFrame newFrame() override;
 
-  const void *frameBufferMap(ANARIFrame fb, const char *channel) override;
+  const void *frameBufferMap(ANARIFrame fb,
+      const char *channel,
+      uint32_t *width,
+      uint32_t *height,
+      ANARIDataType *pixelType) override;
 
   void frameBufferUnmap(ANARIFrame fb, const char *channel) override;
 
@@ -165,13 +169,14 @@ struct VisRTXDevice : public anari::DeviceImpl,
   {
     CUDADeviceScope(VisRTXDevice *d);
     ~CUDADeviceScope();
-  private:
+
+   private:
     VisRTXDevice *m_device{nullptr};
   };
 
   void deviceSetParameter(const char *id, ANARIDataType type, const void *mem);
   void deviceUnsetParameter(const char *id);
-  void deviceCommit();
+  void deviceCommitParameters();
 
   void setCUDADevice();
   void revertCUDADevice();

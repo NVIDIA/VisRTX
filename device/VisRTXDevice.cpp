@@ -33,7 +33,7 @@
 
 #include "VisRTXDevice.h"
 
-#include "anari/backend/Library.h"
+#include "anari/backend/LibraryImpl.h"
 #include "anari/ext/debug/DebugObject.h"
 #include "anari/type_utility.h"
 
@@ -490,10 +490,10 @@ void VisRTXDevice::unsetParameter(ANARIObject o, const char *name)
   }
 }
 
-void VisRTXDevice::commit(ANARIObject o)
+void VisRTXDevice::commitParameters(ANARIObject o)
 {
   if (handleIsDevice(o))
-    deviceCommit();
+    deviceCommitParameters();
   else
     m_state->commitBuffer.addObject((Object *)o);
 }
@@ -545,10 +545,14 @@ ANARIFrame VisRTXDevice::newFrame()
   return createObjectForAPI<Frame, ANARIFrame>(m_state.get());
 }
 
-const void *VisRTXDevice::frameBufferMap(ANARIFrame fb, const char *channel)
+const void *VisRTXDevice::frameBufferMap(ANARIFrame fb,
+    const char *channel,
+    uint32_t *width,
+    uint32_t *height,
+    ANARIDataType *pixelType)
 {
   CUDADeviceScope ds(this);
-  return referenceFromHandle<Frame>(fb).map(channel);
+  return referenceFromHandle<Frame>(fb).map(channel, width, height, pixelType);
 }
 
 void VisRTXDevice::frameBufferUnmap(ANARIFrame, const char *)
@@ -696,7 +700,7 @@ void VisRTXDevice::initDevice()
   auto &state = *m_state;
 
   if (!m_eagerInit)
-    deviceCommit();
+    deviceCommitParameters();
 
   state.messageFunction = [&](ANARIStatusSeverity severity,
                               const std::string &msg,
@@ -841,7 +845,7 @@ void VisRTXDevice::deviceUnsetParameter(const char *id)
   removeParam(id);
 }
 
-void VisRTXDevice::deviceCommit()
+void VisRTXDevice::deviceCommitParameters()
 {
   m_eagerInit = getParam<bool>("forceInit", false);
   m_statusCB =

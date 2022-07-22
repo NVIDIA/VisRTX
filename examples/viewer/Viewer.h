@@ -158,5 +158,4 @@ class Viewer : public match3D::Application
   GLuint m_framebufferObject{0};
   glm::ivec2 m_windowSize{1920, 1080};
   glm::ivec2 m_windowSizeScaled{1920, 1080};
-  glm::ivec2 m_renderSize{1920, 1080};
 };
