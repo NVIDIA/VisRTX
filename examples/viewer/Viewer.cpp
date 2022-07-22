@@ -296,10 +296,8 @@ void Viewer::updateFrame()
   anari::setParameter(
       m_device, m_frame, "size", glm::uvec2(m_windowSizeScaled));
   anari::setParameter(m_device, m_frame, "color", m_format);
-
-  anari::setParameter(m_device, m_frame, "channelColor", true);
-  anari::setParameter(m_device, m_frame, "channelAccum", true);
-  anari::setParameter(m_device, m_frame, "channelDepth", true);
+  anari::setParameter(m_device, m_frame, "depth", ANARI_FLOAT32);
+  anari::setParameter(m_device, m_frame, "accumulation", true);
 
   anari::setParameter(m_device, m_frame, "world", m_currentScene->world());
   if (m_useOrthoCamera)

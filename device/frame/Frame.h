@@ -83,12 +83,16 @@ struct Frame : public DeviceObject<FrameGPUData>
 
   //// Data ////
 
-  anari::DataType m_colorType{ANARI_UNKNOWN};
   float m_invFrameID{1.f};
   int m_perPixelBytes{1};
   bool m_denoise{false};
   bool m_nextFrameReset{true};
   bool m_frameMappedOnce{false}; // NOTE(jda) - for instrumented events
+
+  anari::DataType m_colorType{ANARI_UNKNOWN};
+  anari::DataType m_depthType{ANARI_UNKNOWN};
+  anari::DataType m_albedoType{ANARI_UNKNOWN};
+  anari::DataType m_normalType{ANARI_UNKNOWN};
 
   thrust::device_vector<vec4> m_accumColor;
   HostDeviceArray<uint8_t> m_pixelBuffer;
