@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.4.0
-##### TBD
+##### 2022-07-22
 - Update to latest ANARI SDK v0.2.0
 - All object info queries are now implemented
 - Implement `VISRTX_ARRAY1D_DYNAMIC_REGION` extension for 1D arrays
