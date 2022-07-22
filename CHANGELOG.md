@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+##### 2022-07-22
+- Update to latest ANARI SDK v0.2.0
+- All object info queries are now implemented
+- Implement `VISRTX_ARRAY1D_DYNAMIC_REGION` extension for 1D arrays
+- VisRTX now provides an installed header for custom VisRTX functionality
+    - See [tutorial app](examples/tutorial) as an example
+- Fix incorrect warning about different sized arrays for indexed triangles
+- Fix missing BLAS updates occuring in certain cases
+- Memory offload optimizations for arrays that are about to go out of scope
+- Improved texture loading for OBJ scenes in sample `viewer` app
+
 ## 0.3.2
 ##### 2022-04-13
 - Fix build issues found on certain platforms

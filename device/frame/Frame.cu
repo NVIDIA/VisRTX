@@ -67,7 +67,7 @@ Frame::~Frame()
 
 void Frame::commit()
 {
-  auto &hd = hostData();
+  auto &hd = data();
 
   if (!m_denoiser.deviceState())
     m_denoiser.setDeviceState(deviceState());
@@ -104,15 +104,22 @@ void Frame::commit()
   else
     hd.fb.format = FrameFormat::UINT;
 
+  m_colorType = format;
+
   hd.fb.size = getParam<uvec2>("size", uvec2(10));
   hd.fb.invSize = 1.f / vec2(hd.fb.size);
 
   const bool checkboard = getParam<bool>("checkerboard", false);
   hd.fb.checkerboardID = checkboard ? 0 : -1;
 
-  const bool channelDepth = getParam<bool>("channelDepth", false);
-  const bool channelAlbedo = getParam<bool>("channelAlbedo", false);
-  const bool channelNormal = getParam<bool>("channelNormal", false);
+  m_colorType = getParam<ANARIDataType>("color", ANARI_UNKNOWN);
+  m_depthType = getParam<ANARIDataType>("depth", ANARI_UNKNOWN);
+  m_albedoType = getParam<ANARIDataType>("albedo", ANARI_UNKNOWN);
+  m_normalType = getParam<ANARIDataType>("normal", ANARI_UNKNOWN);
+
+  const bool channelDepth = m_depthType == ANARI_FLOAT32;
+  const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
+  const bool channelNormal = m_normalType == ANARI_FLOAT32;
 
   const auto numPixels = hd.fb.size.x * hd.fb.size.y;
 
@@ -168,7 +175,7 @@ bool Frame::getProperty(
   } else if (type == ANARI_INT32 && name == "numSamples") {
     if (flags & ANARI_WAIT)
       wait();
-    auto &hd = hostData();
+    auto &hd = data();
     std::memcpy(ptr, &hd.fb.frameID, sizeof(hd.fb.frameID));
     return true;
   } else if (type == ANARI_BOOL && name == "nextFrameReset") {
@@ -220,7 +227,7 @@ void Frame::renderFrame()
 
   checkAccumulationReset();
 
-  auto &hd = hostData();
+  auto &hd = data();
 
   m_renderer->populateFrameData(hd);
 
@@ -290,25 +297,42 @@ void Frame::wait() const
   cudaEventSynchronize(m_eventEnd);
 }
 
-void *Frame::map(const char *_channel)
+void *Frame::map(const char *_channel,
+    uint32_t *width,
+    uint32_t *height,
+    ANARIDataType *pixelType)
 {
   wait();
 
+  const auto &hd = data();
+  *width = hd.fb.size.x;
+  *height = hd.fb.size.y;
+
   std::string_view channel = _channel;
-  if (channel == "color")
+  if (channel == "color") {
+    *pixelType = m_colorType;
     return mapColorBuffer();
-  else if (channel == "depth")
+  } else if (channel == "depth") {
+    *pixelType = ANARI_FLOAT32;
     return mapDepthBuffer();
-  else if (channel == "colorGPU")
+  } else if (channel == "colorGPU") {
+    *pixelType = m_colorType;
     return mapGPUColorBuffer();
-  else if (channel == "depthGPU")
+  } else if (channel == "depthGPU") {
+    *pixelType = ANARI_FLOAT32;
     return mapGPUDepthBuffer();
-  else if (channel == "normal")
+  } else if (channel == "normal") {
+    *pixelType = ANARI_FLOAT32_VEC3;
     return mapNormalBuffer();
-  else if (channel == "albedo")
+  } else if (channel == "albedo") {
+    *pixelType = ANARI_FLOAT32_VEC3;
     return mapAlbedoBuffer();
-  else
+  } else {
+    *width = 0;
+    *height = 0;
+    *pixelType = ANARI_UNKNOWN;
     return nullptr;
+  }
 }
 
 void *Frame::mapColorBuffer()
@@ -393,7 +417,7 @@ void *Frame::mapNormalBuffer()
 
 bool Frame::checkerboarding() const
 {
-  return hostData().fb.checkerboardID >= 0;
+  return data().fb.checkerboardID >= 0;
 }
 
 void Frame::checkAccumulationReset()
@@ -414,7 +438,7 @@ void Frame::checkAccumulationReset()
 
 void Frame::newFrame()
 {
-  auto &hd = hostData();
+  auto &hd = data();
   if (m_nextFrameReset) {
     hd.fb.frameID = 0;
     hd.fb.checkerboardID = checkerboarding() ? 0 : -1;

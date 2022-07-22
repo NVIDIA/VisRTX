@@ -1,0 +1,81 @@
+{
+  "info": {
+    "name": "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING",
+    "type": "feature",
+    "dependencies": []
+  },
+  "objects": [
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "triangle",
+      "parameters": [
+        {
+          "name": "vertex.normal.index",
+          "types": [
+            "ANARI_ARRAY1D"
+          ],
+          "elementType": [
+            "ANARI_UINT32_VEC3"
+          ],
+          "tags": [],
+          "description": "indexed vertex normal"
+        },
+        {
+          "name": "vertex.color.index",
+          "types": [
+            "ANARI_ARRAY1D"
+          ],
+          "elementType": [
+            "ANARI_UINT32_VEC3"
+          ],
+          "tags": [],
+          "description": "vertex color"
+        },
+        {
+          "name": "vertex.attribute0.index",
+          "types": [
+            "ANARI_ARRAY1D"
+          ],
+          "elementType": [
+            "ANARI_UINT32_VEC3"
+          ],
+          "tags": [],
+          "description": "vertex attribute0"
+        },
+        {
+          "name": "vertex.attribute1.index",
+          "types": [
+            "ANARI_ARRAY1D"
+          ],
+          "elementType": [
+            "ANARI_UINT32_VEC3"
+          ],
+          "tags": [],
+          "description": "vertex attribute1"
+        },
+        {
+          "name": "vertex.attribute2.index",
+          "types": [
+            "ANARI_ARRAY1D"
+          ],
+          "elementType": [
+            "ANARI_UINT32_VEC3"
+          ],
+          "tags": [],
+          "description": "vertex attribute2"
+        },
+        {
+          "name": "vertex.attribute3.index",
+          "types": [
+            "ANARI_ARRAY1D"
+          ],
+          "elementType": [
+            "ANARI_UINT32_VEC3"
+          ],
+          "tags": [],
+          "description": "vertex attribute3"
+        }
+      ]
+    }
+  ]
+}

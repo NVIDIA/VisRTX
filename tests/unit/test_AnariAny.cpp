@@ -72,6 +72,7 @@ inline void test_interface(T testValue, T testValue2)
   {
     v = testValue;
     AnariAny v2 = testValue;
+    REQUIRE(v.type() == v2.type());
     REQUIRE(v == v2);
   }
 

@@ -58,31 +58,35 @@ enum class ArrayDataOwnership
   INVALID
 };
 
+enum class AddressSpace
+{
+  HOST,
+  GPU
+};
+
 struct Array : public Object
 {
   static size_t objectCount();
 
-  Array(void *appMemory,
+  Array(const void *appMemory,
       ANARIMemoryDeleter deleter,
-      void *deleterPtr,
+      const void *deleterPtr,
       ANARIDataType elementType);
   virtual ~Array();
 
   ANARIDataType elementType() const;
   ArrayDataOwnership ownership() const;
 
-  void *hostData() const;
+  void *data(AddressSpace as = AddressSpace::HOST) const;
   void *deviceData() const override;
 
   template <typename T>
-  T *hostDataAs() const;
-
-  template <typename T>
-  T *deviceDataAs() const;
+  T *dataAs(AddressSpace as = AddressSpace::HOST) const;
 
   virtual ArrayShape shape() const = 0;
 
   virtual size_t totalSize() const = 0;
+  virtual size_t totalCapacity() const;
 
   virtual void privatize() = 0;
   bool wasPrivatized() const;
@@ -90,8 +94,10 @@ struct Array : public Object
   void *map();
   void unmap();
 
-  bool dataModified() const;
+  void markDataModified();
   virtual void uploadArrayData() const;
+  void markDataUploaded() const;
+  bool needToUploadData() const;
 
   void addCommitObserver(Object *obj);
   void removeCommitObserver(Object *obj);
@@ -105,14 +111,14 @@ struct Array : public Object
   {
     struct SharedData
     {
-      void *mem{nullptr};
+      const void *mem{nullptr};
     } shared;
 
     struct CapturedData
     {
-      void *mem{nullptr};
+      const void *mem{nullptr};
       ANARIMemoryDeleter deleter{nullptr};
-      void *deleterPtr{nullptr};
+      const void *deleterPtr{nullptr};
     } captured;
 
     struct ManagedData
@@ -131,12 +137,12 @@ struct Array : public Object
     mutable DeviceBuffer buffer;
   } m_deviceData;
 
-  TimeStamp m_lastModified{0};
-  mutable TimeStamp m_lastUploaded{0};
+  TimeStamp m_lastDataModified{0};
+  mutable TimeStamp m_lastDataUploaded{0};
 
- private:
   void notifyCommitObservers() const;
 
+ private:
   std::vector<Object *> m_observers;
 
   ArrayDataOwnership m_ownership{ArrayDataOwnership::INVALID};
@@ -149,21 +155,12 @@ struct Array : public Object
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>
-inline T *Array::hostDataAs() const
+inline T *Array::dataAs(AddressSpace as) const
 {
   if (anari::ANARITypeFor<T>::value != m_elementType)
     throw std::runtime_error("incorrect element type queried for array");
 
-  return (T *)hostData();
-}
-
-template <typename T>
-inline T *Array::deviceDataAs() const
-{
-  if (anari::ANARITypeFor<T>::value != m_elementType)
-    throw std::runtime_error("incorrect element type queried for array");
-
-  return (T *)deviceData();
+  return (T *)data(as);
 }
 
 } // namespace visrtx

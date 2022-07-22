@@ -35,7 +35,7 @@
 #include "Geometry.h"
 #include "utility/HostDeviceArray.h"
 // anari
-#include "anari/detail/Optional.h"
+#include "anari/backend/utilities/Optional.h"
 
 namespace visrtx {
 

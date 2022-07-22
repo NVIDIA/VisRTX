@@ -27,9 +27,14 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+include(GenerateExportHeader)
+
 ## Establish project ##
 
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
+
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
 ## Find dependencies ##
 
@@ -41,12 +46,53 @@ include(EmbedPTX)
 option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
 
+## Code generation
+
+option(VISRTX_ENABLE_CODE_GEN "Enable Python code generation for query updates" OFF)
+mark_as_advanced(VISRTX_ENABLE_CODE_GEN)
+if (VISRTX_ENABLE_CODE_GEN)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+  add_custom_target(generate_visrtx_device
+    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_queries.py
+      --json ${ANARI_CODE_GEN_ROOT}
+      --json ${CMAKE_CURRENT_LIST_DIR}
+      --prefix VisRTXDevice
+      --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
+      --namespace visrtx
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    DEPENDS visrtx_device.json
+  )
+
+  add_custom_target(generate_visrtx_debug_objects
+    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_debug_objects.py
+      --json ${ANARI_CODE_GEN_ROOT}
+      --json ${CMAKE_CURRENT_LIST_DIR}
+      --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
+      --prefix VisRTXDevice
+      --namespace visrtx
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    DEPENDS visrtx_device.json
+  )
+
+  add_custom_target(generate_all)
+  add_dependencies(generate_all
+    generate_visrtx_device
+    generate_visrtx_debug_objects
+  )
+endif()
+
 ## Build library target ##
 
-add_library(${PROJECT_NAME} SHARED
+add_library(${PROJECT_NAME} SHARED)
+
+target_sources(${PROJECT_NAME} PRIVATE
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
+  VisRTXDeviceDebugFactory.cpp
+  VisRTXDeviceQueries.cpp
+  VisRTXFeatureUtility.cpp
 
   array/Array.cpp
   array/Array1D.cpp
@@ -108,6 +154,10 @@ add_library(${PROJECT_NAME} SHARED
   utility/TimeStamp.cpp
 )
 
+generate_export_header(${PROJECT_NAME}
+  EXPORT_MACRO_NAME "VISRTX_DEVICE_INTERFACE"
+)
+
 set_property(TARGET ${PROJECT_NAME} PROPERTY CUDA_ARCHITECTURES OFF)
 
 set_source_files_properties(frame/Frame.cu frame/Denoiser.cu
@@ -121,13 +171,17 @@ set_source_files_properties(scene/Intersectors_ptx.cu
 target_include_directories(${PROJECT_NAME}
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>
 )
 
 target_link_libraries(${PROJECT_NAME}
 PUBLIC
   anari::anari
+PRIVATE
   anari::anari_utilities
-  glm::glm
+  anari::anari_library_debug
+  glm_visrtx
   OptiX7::OptiX7
   CUDA::cuda_driver
   CUDA::curand
@@ -156,7 +210,7 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   PRIVATE
     anari::anari
     anari::anari_utilities
-    glm::glm
+    glm_visrtx
     OptiX7::OptiX7
     CUDA::curand
   )
@@ -179,10 +233,31 @@ GenerateEmbeddedPTX(renderer SciVis)
 
 GenerateEmbeddedPTX(scene Intersectors)
 
-## Install library ##
+## Install library + headers ##
 
 install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+set_target_properties(${PROJECT_NAME}
+    PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
+
+install(TARGETS ${PROJECT_NAME}
+  EXPORT VisRTX_Exports
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    NAMELINK_SKIP
+  # on Windows put the dlls into bin
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  # ... and the import lib into the devel package
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(
+FILES
+  ${PROJECT_BINARY_DIR}/${PROJECT_NAME}_export.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/anari/backend/visrtx/visrtx.h
+DESTINATION
+  ${CMAKE_INSTALL_INCLUDEDIR}/anari/backend/visrtx
 )

@@ -38,7 +38,7 @@ int main()
 {
   auto device = makeVisRTXDevice();
   anari::setParameter(device, device, "forceInit", true);
-  anari::commit(device, device);
+  anari::commitParameters(device, device);
   anari::release(device, device);
   return 0;
 }

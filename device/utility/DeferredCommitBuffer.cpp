@@ -69,12 +69,18 @@ bool DeferredCommitBuffer::flush()
 
   m_needToSortCommits = false;
 
-  for (auto obj : m_commitBuffer) {
-    if (obj->lastUpdated() > obj->lastCommitted()) {
-      obj->commit();
-      obj->upload();
-      obj->markCommitted();
+  size_t i = 0;
+  size_t end = m_commitBuffer.size();
+  while (i != end) {
+    for (;i < end; i++) {
+      auto obj = m_commitBuffer[i];
+      if (obj->lastUpdated() > obj->lastCommitted()) {
+        obj->commit();
+        obj->upload();
+        obj->markCommitted();
+      }
     }
+    end = m_commitBuffer.size();
   }
 
   clear();

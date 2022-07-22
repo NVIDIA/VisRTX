@@ -30,9 +30,12 @@
  */
 
 // anari_cpp
+#define ANARI_FEATURE_UTILITY_IMPL
 #include <anari/anari_cpp.hpp>
 // C++ std anari_cpp type inference (VEC types from std::array<>)
 #include <anari/anari_cpp/ext/std.h>
+// VisRTX
+#include <anari/backend/visrtx/visrtx.h>
 // std
 #include <array>
 #include <cstdio>
@@ -61,7 +64,7 @@ anari::World generateScene(anari::Device device)
   auto positionsArray =
       anari::newArray1D(device, ANARI_FLOAT32_VEC3, numSpheres);
   {
-    auto *positions = (vec3 *)anari::map(device, positionsArray);
+    auto *positions = anari::map<vec3>(device, positionsArray);
     for (int i = 0; i < numSpheres; i++) {
       positions[i][0] = vert_dist(rng);
       positions[i][1] = vert_dist(rng);
@@ -72,7 +75,7 @@ anari::World generateScene(anari::Device device)
 
   auto colorArray = anari::newArray1D(device, ANARI_FLOAT32_VEC4, numSpheres);
   {
-    auto *colors = (vec4 *)anari::map(device, colorArray);
+    auto *colors = anari::map<vec4>(device, colorArray);
     for (int i = 0; i < numSpheres; i++) {
       colors[i][0] = vert_dist(rng);
       colors[i][1] = vert_dist(rng);
@@ -89,21 +92,21 @@ anari::World generateScene(anari::Device device)
       device, geom, "vertex.position", positionsArray);
   anari::setAndReleaseParameter(device, geom, "vertex.color", colorArray);
   anari::setParameter(device, geom, "radius", radius);
-  anari::commit(device, geom);
+  anari::commitParameters(device, geom);
 
   // Create and parameterize material //
 
   auto mat = anari::newObject<anari::Material>(device, "matte");
   anari::setParameter(
       device, mat, "color", "color"); // draw values from "vertex.color"
-  anari::commit(device, mat);
+  anari::commitParameters(device, mat);
 
   // Create and parameterize surface //
 
   auto surface = anari::newObject<anari::Surface>(device);
   anari::setAndReleaseParameter(device, surface, "geometry", geom);
   anari::setAndReleaseParameter(device, surface, "material", mat);
-  anari::commit(device, surface);
+  anari::commitParameters(device, surface);
 
   // Create and parameterize world //
 
@@ -111,12 +114,12 @@ anari::World generateScene(anari::Device device)
   anari::setAndReleaseParameter(
       device, world, "surface", anari::newArray1D(device, &surface));
   anari::release(device, surface);
-  anari::commit(device, world);
+  anari::commitParameters(device, world);
 
   return world;
 }
 
-static void statusFunc(void * /*userData*/,
+static void statusFunc(const void * /*userData*/,
     ANARIDevice /*device*/,
     ANARIObject source,
     ANARIDataType /*sourceType*/,
@@ -141,8 +144,19 @@ int main()
 {
   // Setup ANARI device //
 
-  auto library = anari::loadLibrary("visrtx", statusFunc, nullptr);
-  auto device = anari::newDevice(library, "default");
+  auto device = makeVisRTXDevice();
+
+  anari::Features features =
+      anari::feature::getInstanceFeatures(device, device);
+
+  if (!features.ANARI_KHR_GEOMETRY_SPHERE)
+    printf("WARNING: device doesn't support ANARI_KHR_GEOMETRY_SPHERE\n");
+  if (!features.ANARI_KHR_CAMERA_PERSPECTIVE)
+    printf("WARNING: device doesn't support ANARI_KHR_CAMERA_PERSPECTIVE\n");
+  if (!features.ANARI_KHR_LIGHT_DIRECTIONAL)
+    printf("WARNING: device doesn't support ANARI_KHR_LIGHT_DIRECTIONAL\n");
+  if (!features.ANARI_KHR_MATERIAL_MATTE)
+    printf("WARNING: device doesn't support ANARI_KHR_MATERIAL_MATTE\n");
 
   // Create world from a helper function //
 
@@ -164,14 +178,14 @@ int main()
   anari::setParameter(
       device, camera, "aspect", imageSize[0] / float(imageSize[1]));
 
-  anari::commit(device, camera);
+  anari::commitParameters(device, camera);
 
   // Create renderer //
 
   auto renderer = anari::newObject<anari::Renderer>(device, "raycast");
   const vec4 backgroundColor = {0.1f, 0.1f, 0.1f, 1.f};
   anari::setParameter(device, renderer, "backgroundColor", backgroundColor);
-  anari::commit(device, renderer);
+  anari::commitParameters(device, renderer);
 
   // Create frame (top-level object) //
 
@@ -184,7 +198,7 @@ int main()
   anari::setParameter(device, frame, "camera", camera);
   anari::setParameter(device, frame, "renderer", renderer);
 
-  anari::commit(device, frame);
+  anari::commitParameters(device, frame);
 
   // Render frame and print out duration property //
 
@@ -197,9 +211,8 @@ int main()
   printf("rendered frame in %fms\n", duration * 1000);
 
   stbi_flip_vertically_on_write(1);
-  auto *fb = (uint32_t *)anari::map(device, frame, "color");
-  stbi_write_png(
-      "tutorial.png", imageSize[0], imageSize[1], 4, fb, 4 * imageSize[0]);
+  auto fb = anari::map<uint32_t>(device, frame, "color");
+  stbi_write_png("tutorial.png", fb.width, fb.height, 4, fb.data, 4 * fb.width);
   anari::unmap(device, frame, "color");
 
   // Cleanup remaining ANARI objets //
@@ -209,7 +222,6 @@ int main()
   anari::release(device, world);
   anari::release(device, frame);
   anari::release(device, device);
-  anari::unloadLibrary(library);
 
   return 0;
 }

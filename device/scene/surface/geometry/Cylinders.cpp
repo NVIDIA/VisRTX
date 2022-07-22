@@ -85,16 +85,16 @@ void Cylinders::commit()
         });
     indices = anari::make_Span(implicitIndices.data(), implicitIndices.size());
   } else {
-    indices = anari::make_Span(m_index->hostDataAs<uvec2>(), m_index->size());
+    indices = anari::make_Span(m_index->beginAs<uvec2>(), m_index->size());
   }
 
   float *radius = nullptr;
   if (m_radius)
-    radius = m_radius->hostDataAs<float>();
+    radius = m_radius->beginAs<float>();
 
   m_aabbs.resize(indices.size());
 
-  const auto *posBegin = m_vertex->hostDataAs<vec3>();
+  const auto *posBegin = m_vertex->beginAs<vec3>();
   size_t cylinderID = 0;
   std::transform(
       indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &v) {
@@ -130,9 +130,11 @@ GeometryGPUData Cylinders::gpuData() const
 
   auto &cylinder = retval.cylinder;
 
-  cylinder.vertices = m_vertex->deviceDataAs<vec3>();
-  cylinder.indices = m_index ? m_index->deviceDataAs<uvec2>() : nullptr;
-  cylinder.radii = m_radius ? m_radius->deviceDataAs<float>() : nullptr;
+  cylinder.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  cylinder.indices =
+      m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
+  cylinder.radii =
+      m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
   cylinder.radius = m_globalRadius.value_or(1.f);
   cylinder.caps = m_caps;
 

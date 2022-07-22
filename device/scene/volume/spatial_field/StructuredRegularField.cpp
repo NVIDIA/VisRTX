@@ -108,7 +108,7 @@ void StructuredRegularField::commit()
   cudaMemcpy3DParms copyParams;
   std::memset(&copyParams, 0, sizeof(copyParams));
   copyParams.srcPtr = make_cudaPitchedPtr(
-      m_params.data->hostData(), dims.x * formatSize, dims.x, dims.y);
+      m_params.data->data(), dims.x * formatSize, dims.x, dims.y);
   copyParams.dstArray = m_cudaArray;
   copyParams.extent = make_cudaExtent(dims.x, dims.y, dims.z);
   copyParams.kind = cudaMemcpyHostToDevice;

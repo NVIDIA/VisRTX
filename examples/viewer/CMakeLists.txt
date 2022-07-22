@@ -57,6 +57,10 @@ mark_as_advanced(
 
 find_package(CUDAToolkit REQUIRED)
 
+## Find VisRTX to use extension feature testing utility ##
+
+find_package(VisRTX REQUIRED)
+
 ## viewer app ##
 
 project(viewer)
@@ -69,8 +73,8 @@ add_executable(${PROJECT_NAME}
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE
   match3D::match3D
-  anari::anari
-  glm::glm
+  VisRTX::anari_library_visrtx
+  glm_visrtx
   CUDA::cudart
   tiny_obj_loader
 )

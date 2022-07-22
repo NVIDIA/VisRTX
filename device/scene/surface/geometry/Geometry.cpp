@@ -95,7 +95,8 @@ GeometryGPUData Geometry::gpuData() const
   populateAttributePtr(m_attribute3, retval.attr[3]);
   populateAttributePtr(m_colors, retval.attr[4]);
 
-  retval.primID = m_primID ? m_primID->deviceDataAs<uint32_t>() : nullptr;
+  retval.primID =
+      m_primID ? m_primID->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
 
   return retval;
 }

@@ -71,11 +71,14 @@ struct Group : public Object
   void rebuildVolumeBVH();
   void rebuildLights();
 
+  void markCommitted() override;
+
  private:
   void partitionGeometriesByType();
   void buildSurfaceGPUData();
   void buildVolumeGPUData();
   void buildLightGPUData();
+  void cleanup();
 
   // Geometry //
 

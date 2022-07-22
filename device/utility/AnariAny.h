@@ -124,9 +124,12 @@ inline bool AnariAny::operator==(const AnariAny &rhs) const
     return false;
   if (type() != rhs.type())
     return false;
-  return std::equal(m_storage.data(),
-      m_storage.data() + ::anari::sizeOf(type()),
-      rhs.m_storage.data());
+  if (type() == ANARI_BOOL)
+    return get<bool>() == rhs.get<bool>();
+  else
+    return std::equal(m_storage.data(),
+        m_storage.data() + ::anari::sizeOf(type()),
+        rhs.m_storage.data());
 }
 
 inline bool AnariAny::operator!=(const AnariAny &rhs) const

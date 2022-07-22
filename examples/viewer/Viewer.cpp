@@ -36,6 +36,11 @@
 #include "stb_image_write.h"
 // CUDA
 #include <cuda_gl_interop.h>
+// anari
+#define ANARI_FEATURE_UTILITY_IMPL
+#include "anari/anari_feature_utility.h"
+// VisRTX
+#include "anari/backend/visrtx/visrtx.h"
 
 #include "ui_scenes.h"
 
@@ -62,6 +67,7 @@ static RendererState makeRendererState(
   RendererState retval;
   retval.name = name;
 
+#if 0
   const auto *params =
       anariGetObjectParameters(library, deviceName, name, ANARI_RENDERER);
 
@@ -74,6 +80,7 @@ static RendererState makeRendererState(
       retval.parameters.push_back(p);
     }
   }
+#endif
 
   return retval;
 }
@@ -84,15 +91,14 @@ static bool rendererUI_callback(void *, int index, const char **out_text)
   return true;
 }
 
-static void statusFunc(void *userData,
-    ANARIDevice device,
+static void statusFunc(const void * /*userData*/,
+    ANARIDevice /*device*/,
     ANARIObject source,
-    ANARIDataType sourceType,
+    ANARIDataType /*sourceType*/,
     ANARIStatusSeverity severity,
-    ANARIStatusCode code,
+    ANARIStatusCode /*code*/,
     const char *message)
 {
-  (void)userData;
   if (severity == ANARI_SEVERITY_FATAL_ERROR) {
     fprintf(stderr, "[FATAL][%p] %s\n", source, message);
     std::exit(1);
@@ -117,6 +123,54 @@ Viewer::Viewer(const char *libName, const char *objFileName)
   m_objFileConfig.filename = objFileName;
   if (!m_objFileConfig.filename.empty())
     m_selectedScene = SceneTypes::OBJ_FILE;
+
+  m_library = anari::loadLibrary(m_libraryName.c_str(), statusFunc, nullptr);
+  m_device = anari::newDevice(m_library, "default");
+
+  if (!m_device)
+    std::exit(1);
+
+  visrtx::Features features = visrtx::getInstanceFeatures(m_device, m_device);
+  m_haveCUDAInterop = g_glInterop && features.VISRTX_CUDA_OUTPUT_BUFFERS;
+
+  // ANARI //
+
+  const char **r_subtypes =
+      anariGetObjectSubtypes(m_library, "default", ANARI_RENDERER);
+
+  if (r_subtypes != nullptr) {
+    for (int i = 0; r_subtypes[i] != nullptr; i++) {
+      g_renderers.push_back(
+          makeRendererState(m_library, "default", r_subtypes[i]));
+    }
+  } else
+    g_renderers.emplace_back(); // adds 'default' renderer with no parameters
+
+  anari::commitParameters(m_device, m_device);
+
+  m_frame = anari::newObject<anari::Frame>(m_device);
+  m_perspCamera = anari::newObject<anari::Camera>(m_device, "perspective");
+  m_orthoCamera = anari::newObject<anari::Camera>(m_device, "orthographic");
+
+  for (auto &rstate : g_renderers) {
+    m_renderers.push_back(
+        anari::newObject<anari::Renderer>(m_device, rstate.name.c_str()));
+  }
+
+  m_currentRenderer = m_renderers[0];
+
+  m_lights[0] = anari::newObject<anari::Light>(m_device, "ambient");
+  m_lights[1] = anari::newObject<anari::Light>(m_device, "directional");
+
+  updateLights();
+
+  m_lightsArray = anari::newArray1D(m_device, m_lights.data(), m_lights.size());
+
+  updateWorld();
+  updateFrame();
+
+  resetCameraAZEL();
+  resetView();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -127,15 +181,6 @@ void Viewer::setup()
 {
   ImGuiIO &io = ImGui::GetIO();
   io.FontGlobalScale = 1.25f;
-
-  m_library = anari::loadLibrary(m_libraryName.c_str(), statusFunc, nullptr);
-  m_device = anari::newDevice(m_library, "default");
-
-  if (!m_device)
-    std::exit(1);
-
-  m_haveCUDAInterop = g_glInterop
-      && anari::deviceImplements(m_device, "VISRTX_CUDA_OUTPUT_BUFFERS");
 
   // GL //
 
@@ -161,45 +206,6 @@ void Viewer::setup()
       m_framebufferTexture,
       0);
   glReadBuffer(GL_COLOR_ATTACHMENT0);
-
-  // ANARI //
-
-  const char **r_subtypes =
-      anariGetObjectSubtypes(m_library, "default", ANARI_RENDERER);
-
-  if (r_subtypes != nullptr) {
-    for (int i = 0; r_subtypes[i] != nullptr; i++) {
-      g_renderers.push_back(
-          makeRendererState(m_library, "default", r_subtypes[i]));
-    }
-  } else
-    g_renderers.emplace_back(); // adds 'default' renderer with no parameters
-
-  anari::commit(m_device, m_device);
-
-  m_frame = anari::newObject<anari::Frame>(m_device);
-  m_perspCamera = anari::newObject<anari::Camera>(m_device, "perspective");
-  m_orthoCamera = anari::newObject<anari::Camera>(m_device, "orthographic");
-
-  for (auto &rstate : g_renderers) {
-    m_renderers.push_back(
-        anari::newObject<anari::Renderer>(m_device, rstate.name.c_str()));
-  }
-
-  m_currentRenderer = m_renderers[0];
-
-  m_lights[0] = anari::newObject<anari::Light>(m_device, "ambient");
-  m_lights[1] = anari::newObject<anari::Light>(m_device, "directional");
-
-  updateLights();
-
-  m_lightsArray = anari::newArray1D(m_device, m_lights.data(), m_lights.size());
-
-  updateWorld();
-  updateFrame();
-
-  resetCameraAZEL();
-  resetView();
 
   anari::render(m_device, m_frame);
 }
@@ -290,10 +296,8 @@ void Viewer::updateFrame()
   anari::setParameter(
       m_device, m_frame, "size", glm::uvec2(m_windowSizeScaled));
   anari::setParameter(m_device, m_frame, "color", m_format);
-
-  anari::setParameter(m_device, m_frame, "channelColor", true);
-  anari::setParameter(m_device, m_frame, "channelAccum", true);
-  anari::setParameter(m_device, m_frame, "channelDepth", true);
+  anari::setParameter(m_device, m_frame, "depth", ANARI_FLOAT32);
+  anari::setParameter(m_device, m_frame, "accumulation", true);
 
   anari::setParameter(m_device, m_frame, "world", m_currentScene->world());
   if (m_useOrthoCamera)
@@ -309,8 +313,8 @@ void Viewer::updateFrame()
   anari::setParameter(
       m_device, m_currentRenderer, "ambientLight", m_ambientIntensity);
 
-  anari::commit(m_device, m_currentRenderer);
-  anari::commit(m_device, m_frame);
+  anari::commitParameters(m_device, m_currentRenderer);
+  anari::commitParameters(m_device, m_frame);
 }
 
 void Viewer::updateCamera()
@@ -334,8 +338,8 @@ void Viewer::updateCamera()
       "aspect",
       m_windowSize.x / float(m_windowSize.y));
 
-  anari::commit(m_device, m_perspCamera);
-  anari::commit(m_device, m_orthoCamera);
+  anari::commitParameters(m_device, m_perspCamera);
+  anari::commitParameters(m_device, m_orthoCamera);
 }
 
 void Viewer::updateWorld()
@@ -365,10 +369,10 @@ void Viewer::updateWorld()
   auto world = m_currentScene->world();
 
   anari::setParameter(m_device, world, "light", m_lightsArray);
-  anari::commit(m_device, world);
+  anari::commitParameters(m_device, world);
 
   anari::setParameter(m_device, m_frame, "world", world);
-  anari::commit(m_device, m_frame);
+  anari::commitParameters(m_device, m_frame);
 
   if (m_selectedScene != m_lastSceneType)
     resetView();
@@ -413,7 +417,7 @@ void Viewer::updateLights()
       l,
       "occlusionDistance",
       m_lightConfigs.ambientOcclusionDistance);
-  anari::commit(m_device, l);
+  anari::commitParameters(m_device, l);
 
   l = m_lights[1];
 
@@ -428,7 +432,7 @@ void Viewer::updateLights()
   anari::setParameter(
       m_device, l, "irradiance", m_lightConfigs.directionalIrradiance);
   anari::setParameter(m_device, l, "color", m_lightConfigs.directionalColor);
-  anari::commit(m_device, l);
+  anari::commitParameters(m_device, l);
 }
 
 void Viewer::ui_handleInput()
@@ -497,43 +501,39 @@ void Viewer::ui_updateImage()
     m_maxFL = std::max(m_maxFL, m_latestFL);
 
     if (m_haveCUDAInterop && !m_saveNextFrame && !m_showDepth) {
-      const void *fb = anari::map(m_device, m_frame, "colorGPU");
+      auto fb = anari::map<void>(m_device, m_frame, "colorGPU");
       cudaGraphicsMapResources(1, &m_graphicsResource);
       cudaArray_t array;
       cudaGraphicsSubResourceGetMappedArray(&array, m_graphicsResource, 0, 0);
       cudaMemcpy2DToArray(array,
           0,
           0,
-          fb,
-          m_renderSize.x * 4,
-          m_renderSize.x * 4,
-          m_renderSize.y,
+          fb.data,
+          fb.width * 4,
+          fb.width * 4,
+          fb.height,
           cudaMemcpyDeviceToDevice);
       cudaGraphicsUnmapResources(1, &m_graphicsResource);
       anari::unmap(m_device, m_frame, "colorGPU");
     } else {
-      const void *fb =
-          anari::map(m_device, m_frame, m_showDepth ? "depth" : "color");
+      auto fb =
+          anari::map<void>(m_device, m_frame, m_showDepth ? "depth" : "color");
 
       glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
       glTexSubImage2D(GL_TEXTURE_2D,
           0,
           0,
           0,
-          m_renderSize.x,
-          m_renderSize.y,
-          m_showDepth ? GL_RED : GL_RGBA,
-          m_showDepth ? GL_FLOAT : GL_UNSIGNED_BYTE,
-          fb);
+          fb.width,
+          fb.height,
+          fb.pixelType == ANARI_FLOAT32 ? GL_RED : GL_RGBA,
+          fb.pixelType == ANARI_FLOAT32 ? GL_FLOAT : GL_UNSIGNED_BYTE,
+          fb.data);
 
-      if (m_saveNextFrame) {
+      if (!m_showDepth && m_saveNextFrame) {
         stbi_flip_vertically_on_write(1);
-        stbi_write_png("screenshot.png",
-            m_renderSize.x,
-            m_renderSize.y,
-            4,
-            fb,
-            4 * m_renderSize.x);
+        stbi_write_png(
+            "screenshot.png", fb.width, fb.height, 4, fb.data, 4 * fb.width);
         printf("frame saved to 'screenshot.png'\n");
         m_saveNextFrame = false;
       }
@@ -541,7 +541,6 @@ void Viewer::ui_updateImage()
       anari::unmap(m_device, m_frame, "color");
     }
 
-    m_renderSize = m_windowSizeScaled;
     anari::render(m_device, m_frame);
   }
 }
@@ -628,13 +627,13 @@ void Viewer::ui_makeWindow_frame()
 
   if (ImGui::Checkbox("denoise", &m_denoise)) {
     anari::setParameter(m_device, m_frame, "denoise", m_denoise);
-    anari::commit(m_device, m_frame);
+    anari::commitParameters(m_device, m_frame);
   }
 
   static bool checkerboard = false;
   if (ImGui::Checkbox("checkerboard", &checkerboard)) {
     anari::setParameter(m_device, m_frame, "checkerboard", checkerboard);
-    anari::commit(m_device, m_frame);
+    anari::commitParameters(m_device, m_frame);
   }
 
   ImGui::Checkbox("show depth", &m_showDepth);
@@ -670,8 +669,8 @@ void Viewer::ui_makeWindow_camera()
         "imageRegion",
         ANARI_FLOAT32_BOX2,
         &m_imageRegion);
-    anari::commit(m_device, m_perspCamera);
-    anari::commit(m_device, m_orthoCamera);
+    anari::commitParameters(m_device, m_perspCamera);
+    anari::commitParameters(m_device, m_orthoCamera);
   }
 
   ImGui::Separator();
@@ -696,13 +695,13 @@ void Viewer::ui_makeWindow_renderer()
   if (ImGui::ColorEdit3("background", &m_background.x)) {
     anari::setParameter(
         m_device, m_currentRenderer, "backgroundColor", m_background);
-    anari::commit(m_device, m_currentRenderer);
+    anari::commitParameters(m_device, m_currentRenderer);
   }
 
   if (ImGui::SliderInt("pixelSamples", &m_pixelSamples, 1, 256)) {
     anari::setParameter(
         m_device, m_currentRenderer, "pixelSamples", m_pixelSamples);
-    anari::commit(m_device, m_currentRenderer);
+    anari::commitParameters(m_device, m_currentRenderer);
   }
 
   ImGui::Text("  parameters:");

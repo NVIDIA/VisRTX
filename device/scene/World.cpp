@@ -86,6 +86,7 @@ World::World()
 
 World::~World()
 {
+  cleanup();
   s_numWorlds--;
 }
 
@@ -108,33 +109,36 @@ bool World::getProperty(
 
 void World::commit()
 {
-  m_addZeroInstance =
-      hasParam("surface") || hasParam("volume") || hasParam("light");
+  cleanup();
 
+  m_zeroSurfaceData = getParamObject<ObjectArray>("surface");
+  m_zeroVolumeData = getParamObject<ObjectArray>("volume");
+  m_zeroLightData = getParamObject<ObjectArray>("light");
+
+  m_addZeroInstance = m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData;
   if (m_addZeroInstance)
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World will add zero instance");
 
-  m_zeroGroup->removeParam("surface");
-  m_zeroGroup->removeParam("volume");
-  m_zeroGroup->removeParam("light");
-
-  if (hasParam("surface")) {
+  if (m_zeroSurfaceData) {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::World found surfaces in zero instance");
     m_zeroGroup->setParamDirect("surface", getParamDirect("surface"));
-  }
+  } else
+    m_zeroGroup->removeParam("surface");
 
-  if (hasParam("volume")) {
+  if (m_zeroVolumeData) {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::World found volumes in zero instance");
     m_zeroGroup->setParamDirect("volume", getParamDirect("volume"));
-  }
+  } else
+    m_zeroGroup->removeParam("volume");
 
-  if (hasParam("light")) {
+  if (m_zeroLightData) {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::World found lights in zero instance");
     m_zeroGroup->setParamDirect("light", getParamDirect("light"));
-  }
+  } else
+    m_zeroGroup->removeParam("light");
 
   if (!m_zeroGroup->deviceState())
     m_zeroGroup->setDeviceState(deviceState());
@@ -153,13 +157,22 @@ void World::commit()
     m_instanceData->removeAppendedHandles();
     if (m_addZeroInstance)
       m_instanceData->appendHandle(m_zeroInstance.ptr);
-    m_instances = make_Span(
-        (Instance **)m_instanceData->handles(), m_instanceData->size());
+    m_instances = make_Span((Instance **)m_instanceData->handlesBegin(),
+        m_instanceData->totalSize());
   } else if (m_addZeroInstance)
     m_instances = make_Span(&m_zeroInstance.ptr, 1);
 
   m_objectUpdates.lastTLASBuild = 0;
   m_objectUpdates.lastBLASCheck = 0;
+
+  if (m_instanceData)
+    m_instanceData->addCommitObserver(this);
+  if (m_zeroSurfaceData)
+    m_zeroSurfaceData->addCommitObserver(this);
+  if (m_zeroVolumeData)
+    m_zeroVolumeData->addCommitObserver(this);
+  if (m_zeroLightData)
+    m_zeroLightData->addCommitObserver(this);
 }
 
 OptixTraversableHandle World::optixTraversableHandleSurfaces() const
@@ -363,6 +376,18 @@ void World::buildInstanceLightGPUData()
   });
 
   m_instanceLightGPUData.upload();
+}
+
+void World::cleanup()
+{
+  if (m_instanceData)
+    m_instanceData->removeCommitObserver(this);
+  if (m_zeroSurfaceData)
+    m_zeroSurfaceData->removeCommitObserver(this);
+  if (m_zeroVolumeData)
+    m_zeroVolumeData->removeCommitObserver(this);
+  if (m_zeroLightData)
+    m_zeroLightData->removeCommitObserver(this);
 }
 
 } // namespace visrtx

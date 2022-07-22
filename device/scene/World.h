@@ -67,6 +67,11 @@ struct World : public Object
   void buildInstanceSurfaceGPUData();
   void buildInstanceVolumeGPUData();
   void buildInstanceLightGPUData();
+  void cleanup();
+
+  anari::IntrusivePtr<ObjectArray> m_zeroSurfaceData;
+  anari::IntrusivePtr<ObjectArray> m_zeroVolumeData;
+  anari::IntrusivePtr<ObjectArray> m_zeroLightData;
 
   anari::IntrusivePtr<ObjectArray> m_instanceData;
   anari::Span<Instance *> m_instances;

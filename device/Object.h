@@ -32,14 +32,16 @@
 #pragma once
 
 // anari
-#include "anari/detail/IntrusivePtr.h"
-#include "anari/detail/ParameterizedObject.h"
+#include "anari/backend/utilities/IntrusivePtr.h"
+#include "anari/backend/utilities/ParameterizedObject.h"
 // anari_cpp
+#include "anari/anari_cpp.hpp"
 #include "anari/anari_cpp/ext/glm.h"
 // glm
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 // std
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <string_view>

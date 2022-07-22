@@ -27,34 +27,18 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.17)
+## NOTE: DO NOT USE THIS MODULE FILE!!! This CMake module sets up fake imported
+##       targets so the examples can be written the same when built in either
+##       the VisRTX source tree or externally using a VisRTX install. The
+##       VisRTX installs CMake target exports (VisRTXConfig.cmake) that should
+##       be used directly.
 
-message(STATUS "CMake version: ${CMAKE_VERSION}")
+if (TARGET VisRTX::anari_library_visrtx)
+  return()
+endif()
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-set(CMAKE_BUILD_TYPE_INIT "Release")
-
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-
-project(tutorial LANGUAGES CXX)
-
-find_package(VisRTX REQUIRED)
-
-add_subdirectory(
-  ${CMAKE_CURRENT_LIST_DIR}/../../external/stb_image
-  ${CMAKE_CURRENT_BINARY_DIR}/stb_image
-)
-
-add_executable(${PROJECT_NAME} main.cpp)
-target_link_libraries(${PROJECT_NAME}
-PRIVATE
-  VisRTX::anari_library_visrtx
-  stb_image
+add_library(VisRTX::anari_library_visrtx INTERFACE IMPORTED)
+set_target_properties(VisRTX::anari_library_visrtx PROPERTIES
+  INTERFACE_LINK_LIBRARIES
+    "anari_library_visrtx"
 )

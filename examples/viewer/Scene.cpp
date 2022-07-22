@@ -35,6 +35,8 @@
 #include "glm/ext/matrix_transform.hpp"
 // anari
 #include <anari/anari_cpp/ext/glm.h>
+// VisRTX
+#include "anari/backend/visrtx/visrtx.h"
 // tiny_obj_loader
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -51,9 +53,9 @@
 
 // Helper functions  //////////////////////////////////////////////////////////
 
-static void anari_free(void * /*user_data*/, void *ptr)
+static void anari_free(const void * /*user_data*/, const void *ptr)
 {
-  std::free(ptr);
+  std::free(const_cast<void *>(ptr));
 }
 
 static anari::Array2D makeTextureData(anari::Device d, int dim)
@@ -105,7 +107,7 @@ static anari::Surface makePlane(anari::Device d, const box3 &bounds)
       geom,
       "vertex.attribute0",
       anari::newArray1D(d, texcoords.data(), texcoords.size()));
-  anari::commit(d, geom);
+  anari::commitParameters(d, geom);
 
   auto surface = anari::newObject<anari::Surface>(d);
   anari::setAndReleaseParameter(d, surface, "geometry", geom);
@@ -116,14 +118,14 @@ static anari::Surface makePlane(anari::Device d, const box3 &bounds)
   anari::setParameter(d, tex, "wrapMode1", "clampToEdge");
   anari::setParameter(d, tex, "wrapMode2", "clampToEdge");
   anari::setParameter(d, tex, "filter", "nearest");
-  anari::commit(d, tex);
+  anari::commitParameters(d, tex);
 
   auto mat = anari::newObject<anari::Material>(d, "matte");
   anari::setAndReleaseParameter(d, mat, "color", tex);
-  anari::commit(d, mat);
+  anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
-  anari::commit(d, surface);
+  anari::commitParameters(d, surface);
 
   return surface;
 }
@@ -135,13 +137,13 @@ static anari::Instance makePlaneInstance(anari::Device d, const box3 &bounds)
   auto group = anari::newObject<anari::Group>(d);
   anari::setAndReleaseParameter(
       d, group, "surface", anari::newArray1D(d, &surface));
-  anari::commit(d, group);
+  anari::commitParameters(d, group);
 
   anari::release(d, surface);
 
   auto inst = anari::newObject<anari::Instance>(d);
   anari::setAndReleaseParameter(d, inst, "group", group);
-  anari::commit(d, inst);
+  anari::commitParameters(d, inst);
 
   return inst;
 }
@@ -159,7 +161,7 @@ static std::vector<anari::Instance> makeGridOfInstances(
         d, group, "volume", anari::newArray1D(d, &volume));
   }
 
-  anari::commit(d, group);
+  anari::commitParameters(d, group);
 
   std::vector<anari::Instance> instances;
 
@@ -180,7 +182,7 @@ static std::vector<anari::Instance> makeGridOfInstances(
         }
 
         anari::setParameter(d, inst, "group", group);
-        anari::commit(d, inst);
+        anari::commitParameters(d, inst);
         instances.push_back(inst);
       }
     }
@@ -240,7 +242,7 @@ static ScenePtr generateCylinders(anari::Device d, CylindersConfig config)
       "vertex.color",
       anari::newArray1D(d, colors.data(), colors.size()));
 
-  anari::commit(d, geom);
+  anari::commitParameters(d, geom);
 
   auto surface = anari::newObject<anari::Surface>(d);
   anari::setAndReleaseParameter(d, surface, "geometry", geom);
@@ -248,10 +250,10 @@ static ScenePtr generateCylinders(anari::Device d, CylindersConfig config)
   auto mat = anari::newObject<anari::Material>(d, "transparentMatte");
   anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
-  anari::commit(d, mat);
+  anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
-  anari::commit(d, surface);
+  anari::commitParameters(d, surface);
 
   anari::setAndReleaseParameter(
       d, world, "surface", anari::newArray1D(d, &surface));
@@ -316,7 +318,7 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
       "primitive.color",
       anari::newArray1D(d, colors.data(), colors.size()));
 
-  anari::commit(d, geom);
+  anari::commitParameters(d, geom);
 
   auto surface = anari::newObject<anari::Surface>(d);
   anari::setAndReleaseParameter(d, surface, "geometry", geom);
@@ -324,10 +326,10 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
   auto mat = anari::newObject<anari::Material>(d, "transparentMatte");
   anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
-  anari::commit(d, mat);
+  anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
-  anari::commit(d, surface);
+  anari::commitParameters(d, surface);
 
   anari::setAndReleaseParameter(
       d, world, "surface", anari::newArray1D(d, &surface));
@@ -356,7 +358,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
 
   float maxDistance = 0.f;
   {
-    auto *bp = (glm::vec3 *)anari::map(d, positionArray);
+    auto *bp = anari::map<glm::vec3>(d, positionArray);
     auto *ep = bp + config.numSpheres;
     std::for_each(bp, ep, [&](glm::vec3 &p) {
       p.x = vert_dist(rng);
@@ -364,7 +366,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
       p.z = vert_dist(rng);
       maxDistance = std::max(maxDistance, glm::length(p));
     });
-    auto *bd = (float *)anari::map(d, distArray);
+    auto *bd = anari::map<float>(d, distArray);
     std::transform(bp, ep, bd, [](glm::vec3 &p) { return glm::length(p); });
     anari::unmap(d, positionArray);
     anari::unmap(d, distArray);
@@ -372,7 +374,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
 
   auto colorArray = anari::newArray1D(d, ANARI_FLOAT32_VEC4, config.numSpheres);
   {
-    auto *b = (glm::vec4 *)anari::map(d, colorArray);
+    auto *b = anari::map<glm::vec4>(d, colorArray);
     auto *e = b + config.numSpheres;
     std::for_each(b, e, [&](glm::vec4 &c) {
       c.x = color_dist(rng);
@@ -383,15 +385,15 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
     anari::unmap(d, colorArray);
   }
 
-  bool haveColorMapSampler =
-      anari::deviceImplements(d, "VISRTX_SAMPLER_COLOR_MAP");
+  visrtx::Features features = visrtx::getInstanceFeatures(d, d);
+  const bool haveColorMapSampler = features.VISRTX_SAMPLER_COLOR_MAP;
 
   auto geom = anari::newObject<anari::Geometry>(d, "sphere");
-  anari::setAndReleaseParameter(d, geom, "vertex.position", positionArray);
+  anari::setParameter(d, geom, "vertex.position", positionArray);
   anari::setParameter(d, geom, "primitive.color", colorArray);
   anari::setParameter(d, geom, "primitive.attribute0", distArray);
   anari::setParameter(d, geom, "radius", config.radius);
-  anari::commit(d, geom);
+  anari::commitParameters(d, geom);
 
   auto surface = anari::newObject<anari::Surface>(d);
   anari::setParameter(d, surface, "geometry", geom);
@@ -413,16 +415,16 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
         sampler,
         "color.position",
         anari::newArray1D(d, tfPos.data(), tfPos.size()));
-    anari::commit(d, sampler);
+    anari::commitParameters(d, sampler);
     anari::setParameter(d, mat, "color", sampler);
   } else {
     anari::setParameter(d, mat, "color", "color");
   }
   anari::setParameter(d, mat, "opacity", config.opacity);
-  anari::commit(d, mat);
+  anari::commitParameters(d, mat);
   anari::setParameter(d, surface, "material", mat);
 
-  anari::commit(d, surface);
+  anari::commitParameters(d, surface);
 
   anari::setAndReleaseParameter(
       d, world, "surface", anari::newArray1D(d, &surface));
@@ -430,6 +432,8 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
   anari::release(d, surface);
 
   float radius = config.radius;
+  int capacity = config.numSpheres;
+  int count = config.numSpheres;
   bool useColorMap = true;
 
   auto retval = std::make_unique<Scene>(
@@ -438,25 +442,34 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
       [=]() mutable {
         if (ImGui::DragFloat("radius##spheres", &radius, 0.001f, 0.001f, 1.f)) {
           anari::setParameter(d, geom, "radius", radius);
-          anari::commit(d, geom);
+          anari::commitParameters(d, geom);
+        }
+
+        if (ImGui::SliderInt("count##spheres", &count, 1, capacity)) {
+          anari::setParameter(d, positionArray, "end", size_t(count));
+          anari::setParameter(d, colorArray, "end", size_t(count));
+          anari::setParameter(d, distArray, "end", size_t(count));
+          anari::commitParameters(d, positionArray);
+          anari::commitParameters(d, colorArray);
+          anari::commitParameters(d, distArray);
         }
 
         if (haveColorMapSampler) {
           if (ImGui::RadioButton("gradient colors", useColorMap)) {
             anari::setParameter(d, mat, "color", sampler);
-            anari::commit(d, mat);
+            anari::commitParameters(d, mat);
             useColorMap = true;
           }
           if (ImGui::RadioButton("random colors", !useColorMap)) {
             anari::setParameter(d, mat, "color", "color");
-            anari::commit(d, mat);
+            anari::commitParameters(d, mat);
             useColorMap = false;
           }
         }
 
         if (ImGui::Button("randomize positions")) {
           rng.seed(std::random_device{}());
-          auto *b = (glm::vec3 *)anari::map(d, positionArray);
+          auto *b = anari::map<glm::vec3>(d, positionArray);
           auto *e = b + config.numSpheres;
           std::for_each(b, e, [&](glm::vec3 &p) {
             p.x = vert_dist(rng);
@@ -470,7 +483,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
 
         if (ImGui::Button("randomize colors")) {
           rng.seed(std::random_device{}());
-          auto *b = (glm::vec4 *)anari::map(d, colorArray);
+          auto *b = anari::map<glm::vec4>(d, colorArray);
           auto *e = b + config.numSpheres;
           std::for_each(b, e, [&](glm::vec4 &c) {
             c.x = color_dist(rng);
@@ -487,6 +500,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
         anari::release(d, geom);
         anari::release(d, mat);
         anari::release(d, sampler);
+        anari::release(d, positionArray);
         anari::release(d, colorArray);
         anari::release(d, distArray);
       });
@@ -512,7 +526,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
   auto voxelArray =
       anari::newArray3D(d, ANARI_FLOAT32, volumeDims, volumeDims, volumeDims);
 
-  auto *voxelsBegin = (float *)anari::map(d, voxelArray);
+  auto *voxelsBegin = anari::map<float>(d, voxelArray);
   auto *voxelsEnd = voxelsBegin + (volumeDims * volumeDims * volumeDims);
 
   std::for_each(voxelsBegin, voxelsEnd, [&](auto &v) { v = dist(rng); });
@@ -523,7 +537,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
   anari::setParameter(d, field, "origin", glm::vec3(-1.f));
   anari::setParameter(d, field, "spacing", glm::vec3(2.f / volumeDims));
   anari::setParameter(d, field, "data", voxelArray);
-  anari::commit(d, field);
+  anari::commitParameters(d, field);
 
   auto volume = anari::newObject<anari::Volume>(d, "scivis");
   anari::setAndReleaseParameter(d, volume, "field", field);
@@ -549,15 +563,20 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
     anari::setParameter(d, volume, "valueRange", glm::vec2(0.f, 10.f));
   }
 
-  anari::commit(d, volume);
+  anari::commitParameters(d, volume);
+
+  anari::Array1D instanceArray{nullptr};
+  int count = 1;
 
   if (config.instanceVolume) {
     auto instances = makeGridOfInstances(d, nullptr, volume);
-
-    anari::setAndReleaseParameter(d,
-        world,
-        "instance",
-        anari::newArray1D(d, instances.data(), instances.size()));
+    instanceArray = anari::newArray1D(d, ANARI_INSTANCE, instances.size());
+    auto *insts = anari::map<void>(d, instanceArray);
+    std::memcpy(
+        insts, instances.data(), sizeof(ANARIInstance) * instances.size());
+    anari::unmap(d, instanceArray);
+    count = int(instances.size());
+    anari::setParameter(d, world, "instance", instanceArray);
 
     for (auto i : instances)
       anari::release(d, i);
@@ -569,7 +588,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
   anari::release(d, volume);
 
   if (config.addPlane && config.instanceVolume) {
-    anari::commit(d, world);
+    anari::commitParameters(d, world);
     box3 bounds;
     anari::getProperty(d, world, "bounds", bounds, ANARI_WAIT);
     auto planeSurface = makePlane(d, bounds);
@@ -578,19 +597,29 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
     anari::release(d, planeSurface);
   }
 
+  int capacity = count;
   auto retval = std::make_unique<Scene>(
       d,
       world,
-      [&, d, voxelArray, volumeDims]() {
+      [&, d, voxelArray, count, capacity, instanceArray, volumeDims]() mutable {
         if (ImGui::Button("regen data")) {
           rng.seed(std::random_device{}());
-          auto *b = (float *)anari::map(d, voxelArray);
+          auto *b = anari::map<float>(d, voxelArray);
           auto *e = b + (volumeDims * volumeDims * volumeDims);
           std::for_each(b, e, [&](auto &v) { v = dist(rng); });
           anari::unmap(d, voxelArray);
         }
+
+        if (instanceArray
+            && ImGui::SliderInt("count##instances", &count, 1, capacity)) {
+          anari::setParameter(d, instanceArray, "end", size_t(count));
+          anari::commitParameters(d, instanceArray);
+        }
       },
-      [=]() { anari::release(d, voxelArray); });
+      [=]() {
+        anari::release(d, voxelArray);
+        anari::release(d, instanceArray);
+      });
 
   return retval;
 }
@@ -692,7 +721,7 @@ static ScenePtr generateGravityVolume(
         "data",
         anari::newArray3D(
             d, voxels.data(), volumeDims, volumeDims, volumeDims));
-    anariCommit(d, field);
+    anari::commitParameters(d, field);
 
     auto volume = anariNewVolume(d, "scivis");
     anari::setAndReleaseParameter(d, volume, "field", field);
@@ -720,7 +749,7 @@ static ScenePtr generateGravityVolume(
       anari::setParameter(d, volume, "valueRange", voxelRange);
     }
 
-    anari::commit(d, volume);
+    anari::commitParameters(d, volume);
 
     anari::setAndReleaseParameter(
         d, world, "volume", anari::newArray1D(d, &volume));
@@ -740,15 +769,15 @@ static ScenePtr generateGravityVolume(
         "vertex.position",
         anari::newArray1D(d, positions.data(), positions.size()));
     anari::setParameter(d, geom, "radius", 0.05f);
-    anari::commit(d, geom);
+    anari::commitParameters(d, geom);
 
     auto mat = anari::newObject<anari::Material>(d, "matte");
-    anari::commit(d, mat);
+    anari::commitParameters(d, mat);
 
     auto surface = anari::newObject<anari::Surface>(d);
     anari::setAndReleaseParameter(d, surface, "geometry", geom);
     anari::setAndReleaseParameter(d, surface, "material", mat);
-    anari::commit(d, surface);
+    anari::commitParameters(d, surface);
 
     anari::setAndReleaseParameter(
         d, world, "surface", anari::newArray1D(d, &surface));
@@ -778,24 +807,35 @@ static std::string pathOf(const std::string &filename)
 
 using TextureCache = std::unordered_map<std::string, anari::Sampler>;
 
-static anari::Sampler loadTexture(
-    anari::Device d, std::string filename, TextureCache &cache)
+static void loadTexture(anari::Device d,
+    anari::Material m,
+    std::string filename,
+    TextureCache &cache)
 {
   std::transform(
       filename.begin(), filename.end(), filename.begin(), [](char c) {
         return c == '\\' ? '/' : c;
       });
 
-  anari::Sampler tex = cache[filename];
+  anari::Sampler colorTex = cache[filename];
+  anari::Sampler opacityTex = cache[filename + "_opacity"];
 
-  if (tex)
-    return tex;
+  if (!colorTex) {
+    int width, height, n;
+    stbi_set_flip_vertically_on_load(1);
+    float *data = stbi_loadf(filename.c_str(), &width, &height, &n, 0);
 
-  int width, height, n;
-  stbi_set_flip_vertically_on_load(1);
-  float *data = stbi_loadf(filename.c_str(), &width, &height, &n, 0);
+    if (!data || n < 1) {
+      if (!data)
+        printf("failed to load texture '%s'\n", filename.c_str());
+      else
+        printf(
+            "texture '%s' with %i channels not loaded\n", filename.c_str(), n);
+      return;
+    }
 
-  if (data && n >= 1) {
+    colorTex = anari::newObject<anari::Sampler>(d, "image2D");
+
     int texelType = ANARI_FLOAT32_VEC4;
     if (n == 3)
       texelType = ANARI_FLOAT32_VEC3;
@@ -804,25 +844,51 @@ static anari::Sampler loadTexture(
     else if (n == 1)
       texelType = ANARI_FLOAT32;
 
-    auto array = anariNewArray2D(
-        d, data, &anari_free, nullptr, texelType, width, height);
+    if (texelType == ANARI_FLOAT32_VEC4) {
+      opacityTex = anari::newObject<anari::Sampler>(d, "image2D");
 
-    tex = anari::newObject<anari::Sampler>(d, "image2D");
-    anari::setAndReleaseParameter(d, tex, "image", array);
-    anari::setParameter(d, tex, "inAttribute", "attribute0");
-    anari::setParameter(d, tex, "wrapMode1", "repeat");
-    anari::setParameter(d, tex, "wrapMode2", "repeat");
-    anari::setParameter(d, tex, "filter", "bilinear");
-    anari::commit(d, tex);
-  } else {
-    if (!data)
-      printf("failed to load texture '%s'\n", filename.c_str());
-    else
-      printf("texture '%s' with %i channels not loaded\n", filename.c_str(), n);
+      auto colorArray = anari::newArray2D(d, ANARI_FLOAT32_VEC3, width, height);
+      auto opacityArray = anari::newArray2D(d, ANARI_FLOAT32, width, height);
+
+      auto *colors = anari::map<glm::vec3>(d, colorArray);
+      auto *opacities = anari::map<float>(d, opacityArray);
+
+      for (size_t i = 0; i < size_t(width) * size_t(height); i++) {
+        auto *texel = data + (i * 4);
+        colors[i] = glm::vec3(texel[0], texel[1], texel[2]);
+        opacities[i] = texel[3];
+      }
+
+      anari::unmap(d, colorArray);
+      anari::unmap(d, opacityArray);
+
+      anari::setAndReleaseParameter(d, colorTex, "image", colorArray);
+
+      anari::setAndReleaseParameter(d, opacityTex, "image", opacityArray);
+      anari::setParameter(d, opacityTex, "inAttribute", "attribute0");
+      anari::setParameter(d, opacityTex, "wrapMode1", "repeat");
+      anari::setParameter(d, opacityTex, "wrapMode2", "repeat");
+      anari::setParameter(d, opacityTex, "filter", "bilinear");
+      anari::commitParameters(d, opacityTex);
+    } else {
+      auto array = anariNewArray2D(
+          d, data, &anari_free, nullptr, texelType, width, height);
+      anari::setAndReleaseParameter(d, colorTex, "image", array);
+    }
+
+    anari::setParameter(d, colorTex, "inAttribute", "attribute0");
+    anari::setParameter(d, colorTex, "wrapMode1", "repeat");
+    anari::setParameter(d, colorTex, "wrapMode2", "repeat");
+    anari::setParameter(d, colorTex, "filter", "bilinear");
+    anari::commitParameters(d, colorTex);
   }
 
-  cache[filename] = tex;
-  return tex;
+  cache[filename] = colorTex;
+  anari::setAndReleaseParameter(d, m, "color", colorTex);
+  if (opacityTex) {
+    cache[filename + "_opacity"] = opacityTex;
+    anari::setAndReleaseParameter(d, m, "opacity", opacityTex);
+  }
 }
 
 struct OBJData
@@ -835,8 +901,8 @@ struct OBJData
 static anari::World loadObj(
     anari::Device d, const OBJData &objdata, const std::string &basePath)
 {
-  const bool attributeIndexing =
-      anari::deviceImplements(d, "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING");
+  visrtx::Features features = visrtx::getInstanceFeatures(d, d);
+  const bool attributeIndexing = features.VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
 
   auto world = anari::newObject<anari::World>(d);
 
@@ -846,34 +912,28 @@ static anari::World loadObj(
 
   auto defaultMaterial = anari::newObject<anari::Material>(d, "matte");
   anari::setParameter(d, defaultMaterial, "color", glm::vec3(0.f, 1.f, 0.f));
-  anari::commit(d, defaultMaterial);
+  anari::commitParameters(d, defaultMaterial);
 
   TextureCache cache;
 
   for (auto &mat : objdata.materials) {
     auto m = anari::newObject<anari::Material>(d, "transparentMatte");
 
-    if (!mat.diffuse_texname.empty()) {
-      auto baseColorTexture =
-          loadTexture(d, basePath + mat.diffuse_texname, cache);
-      if (baseColorTexture)
-        anari::setParameter(d, m, "color", baseColorTexture);
-      else
-        anari::setParameter(d, m, "color", ANARI_FLOAT32_VEC3, &mat.diffuse[0]);
-    } else
-      anari::setParameter(d, m, "color", ANARI_FLOAT32_VEC3, &mat.diffuse[0]);
+    anari::setParameter(d, m, "color", ANARI_FLOAT32_VEC3, &mat.diffuse[0]);
+    anari::setParameter(d, m, "opacity", ANARI_FLOAT32, &mat.dissolve);
 
+    if (!mat.diffuse_texname.empty())
+      loadTexture(d, m, basePath + mat.diffuse_texname, cache);
+
+#if 0
     if (!mat.alpha_texname.empty()) {
       auto opacityTexture = loadTexture(d, basePath + mat.alpha_texname, cache);
       if (opacityTexture)
         anari::setParameter(d, m, "opacity", opacityTexture);
-      else
-        anari::setParameter(d, m, "opacity", ANARI_FLOAT32_VEC3, &mat.dissolve);
-    } else
-      anari::setParameter(d, m, "opacity", ANARI_FLOAT32_VEC3, &mat.dissolve);
+    }
+#endif
 
-    anari::commit(d, m);
-
+    anari::commitParameters(d, m);
     materials.push_back(m);
   }
 
@@ -943,7 +1003,7 @@ static anari::World loadObj(
       anari::setParameter(d, geom, "vertex.normal", normalsArray);
     }
 
-    anari::commit(d, geom);
+    anari::commitParameters(d, geom);
 
     auto surface = anari::newObject<anari::Surface>(d);
 
@@ -953,7 +1013,7 @@ static anari::World loadObj(
     anari::setParameter(d, surface, "material", mat);
     anari::setParameter(d, surface, "geometry", geom);
 
-    anari::commit(d, surface);
+    anari::commitParameters(d, surface);
     anari::release(d, geom);
 
     meshes.push_back(surface);
@@ -1077,7 +1137,7 @@ ScenePtr generateScene(anari::Device d, SceneConfig config)
   auto world = retval->world();
 
   if (addPlane) {
-    anari::commit(d, world);
+    anari::commitParameters(d, world);
     box3 bounds;
     anari::getProperty(d, world, "bounds", bounds, ANARI_WAIT);
     auto planeInst = makePlaneInstance(d, bounds);

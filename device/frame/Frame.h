@@ -64,7 +64,10 @@ struct Frame : public DeviceObject<FrameGPUData>
   bool ready() const;
   void wait() const;
 
-  void *map(const char *channel);
+  void *map(const char *channel,
+      uint32_t *width,
+      uint32_t *height,
+      ANARIDataType *pixelType);
 
   void *mapColorBuffer();
   void *mapGPUColorBuffer();
@@ -85,6 +88,11 @@ struct Frame : public DeviceObject<FrameGPUData>
   bool m_denoise{false};
   bool m_nextFrameReset{true};
   bool m_frameMappedOnce{false}; // NOTE(jda) - for instrumented events
+
+  anari::DataType m_colorType{ANARI_UNKNOWN};
+  anari::DataType m_depthType{ANARI_UNKNOWN};
+  anari::DataType m_albedoType{ANARI_UNKNOWN};
+  anari::DataType m_normalType{ANARI_UNKNOWN};
 
   thrust::device_vector<vec4> m_accumColor;
   HostDeviceArray<uint8_t> m_pixelBuffer;

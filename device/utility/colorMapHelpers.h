@@ -36,7 +36,7 @@
 #include <algorithm>
 #include <vector>
 // anari
-#include "anari/detail/Span.h"
+#include "anari/backend/utilities/Span.h"
 
 namespace visrtx {
 

@@ -32,9 +32,9 @@
 #pragma once
 
 // anari
-#include "anari/detail/Device.h"
-#include "anari/detail/IntrusivePtr.h"
-#include "anari/detail/ParameterizedObject.h"
+#include "anari/backend/DeviceImpl.h"
+#include "anari/backend/utilities/IntrusivePtr.h"
+#include "anari/backend/utilities/ParameterizedObject.h"
 // optix
 #include "optix_visrtx.h"
 
@@ -42,7 +42,7 @@
 
 namespace visrtx {
 
-struct VisRTXDevice : public anari::Device,
+struct VisRTXDevice : public anari::DeviceImpl,
                       public anari::RefCounted,
                       public anari::ParameterizedObject
 {
@@ -50,42 +50,27 @@ struct VisRTXDevice : public anari::Device,
   // Main interface to accepting API calls
   /////////////////////////////////////////////////////////////////////////////
 
-  // Device API ///////////////////////////////////////////////////////////////
-
-  int deviceImplements(const char *extension) override;
-
-  void deviceSetParameter(
-      const char *id, ANARIDataType type, const void *mem) override;
-
-  void deviceUnsetParameter(const char *id) override;
-
-  void deviceCommit() override;
-
-  void deviceRetain() override;
-
-  void deviceRelease() override;
-
   // Data Arrays //////////////////////////////////////////////////////////////
 
-  ANARIArray1D newArray1D(void *appMemory,
+  ANARIArray1D newArray1D(const void *appMemory,
       ANARIMemoryDeleter deleter,
-      void *userdata,
+      const void *userdata,
       ANARIDataType,
       uint64_t numItems1,
       uint64_t byteStride1) override;
 
-  ANARIArray2D newArray2D(void *appMemory,
+  ANARIArray2D newArray2D(const void *appMemory,
       ANARIMemoryDeleter deleter,
-      void *userdata,
+      const void *userdata,
       ANARIDataType,
       uint64_t numItems1,
       uint64_t numItems2,
       uint64_t byteStride1,
       uint64_t byteStride2) override;
 
-  ANARIArray3D newArray3D(void *appMemory,
+  ANARIArray3D newArray3D(const void *appMemory,
       ANARIMemoryDeleter deleter,
-      void *userdata,
+      const void *userdata,
       ANARIDataType,
       uint64_t numItems1,
       uint64_t numItems2,
@@ -141,7 +126,7 @@ struct VisRTXDevice : public anari::Device,
 
   void unsetParameter(ANARIObject object, const char *name) override;
 
-  void commit(ANARIObject object) override;
+  void commitParameters(ANARIObject object) override;
 
   void release(ANARIObject _obj) override;
   void retain(ANARIObject _obj) override;
@@ -150,7 +135,11 @@ struct VisRTXDevice : public anari::Device,
 
   ANARIFrame newFrame() override;
 
-  const void *frameBufferMap(ANARIFrame fb, const char *channel) override;
+  const void *frameBufferMap(ANARIFrame fb,
+      const char *channel,
+      uint32_t *width,
+      uint32_t *height,
+      ANARIDataType *pixelType) override;
 
   void frameBufferUnmap(ANARIFrame fb, const char *channel) override;
 
@@ -167,6 +156,7 @@ struct VisRTXDevice : public anari::Device,
   /////////////////////////////////////////////////////////////////////////////
 
   VisRTXDevice() = default;
+  VisRTXDevice(ANARILibrary);
   ~VisRTXDevice() override;
 
   template <typename... Args>
@@ -179,9 +169,14 @@ struct VisRTXDevice : public anari::Device,
   {
     CUDADeviceScope(VisRTXDevice *d);
     ~CUDADeviceScope();
-  private:
+
+   private:
     VisRTXDevice *m_device{nullptr};
   };
+
+  void deviceSetParameter(const char *id, ANARIDataType type, const void *mem);
+  void deviceUnsetParameter(const char *id);
+  void deviceCommitParameters();
 
   void setCUDADevice();
   void revertCUDADevice();
@@ -193,7 +188,7 @@ struct VisRTXDevice : public anari::Device,
   bool m_eagerInit{false};
 
   ANARIStatusCallback m_statusCB{nullptr};
-  void *m_statusCBUserPtr{nullptr};
+  const void *m_statusCBUserPtr{nullptr};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////

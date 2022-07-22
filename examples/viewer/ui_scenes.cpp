@@ -82,6 +82,8 @@ static void ui_noiseVolumeConfig(NoiseVolumeConfig &config)
 {
   ui_volumeConfig(config);
   ImGui::Checkbox("instance volume", &config.instanceVolume);
+  if (config.instanceVolume)
+    config.addPlane = false;
 }
 
 static void ui_gravityVolumeConfig(GravityVolumeConfig &config)

@@ -31,7 +31,7 @@ Building VisRTX requires the following:
 - NVIDIA Driver 470+
 - CUDA 11.3.1+
 - [OptiX 7.3+](https://developer.nvidia.com/rtx/ray-tracing/optix)
-- [ANARI-SDK](https://github.com/KhronosGroup/ANARI-SDK)
+- [ANARI-SDK 0.2.0](https://github.com/KhronosGroup/ANARI-SDK)
 
 Building VisRTX is done through invoking CMake on the source directory from a
 stand alone build directory. This might look like
@@ -121,6 +121,24 @@ additional channels can be mapped:
 GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary `color` and `depth` channels.
+
+#### "VISRTX_ARRAY1D_DYNAMIC_REGION"
+
+This vendor extension permits applications to use a subset of `ANARIArray1D`
+elements via parameters. This is helpful for applications to more quickly resize
+an array without needing to reallocate the array by making a new array object.
+The following parameters are consumed by 1D arrays:
+
+| Name  | Type     |    Default | Description                                         |
+|:------|:---------|-----------:|:----------------------------------------------------|
+| begin | UINT64   |          0 | first index (inclusive) to be used by parent objects |
+| end   | UINT64   |  *capacity | last index (exclusive) to be used by parent objects  |
+
+When an array is constructed, it's initial size is the maximum capacity allowed
+by that array object. The `begin` and `end` parameters establish a contiguous
+subset of the array, which is interpreted as the elements to be used by parent
+objects referencing the array. Note that mapping the array will always return
+the first element of the array (element `0`), which may be below `begin`.
 
 #### "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING" (experimental)
 

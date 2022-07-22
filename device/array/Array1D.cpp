@@ -30,20 +30,51 @@
  */
 
 #include "array/Array1D.h"
+// anari
+#include "anari/type_utility.h"
 
 namespace visrtx {
 
-Array1D::Array1D(void *appMemory,
+Array1D::Array1D(const void *appMemory,
     ANARIMemoryDeleter deleter,
-    void *deleterPtr,
+    const void *deleterPtr,
     ANARIDataType type,
     uint64_t numItems,
     uint64_t byteStride)
-    : Array(appMemory, deleter, deleterPtr, type), m_size(numItems)
+    : Array(appMemory, deleter, deleterPtr, type),
+      m_capacity(numItems),
+      m_end(numItems)
 {
   if (byteStride != 0)
     throw std::runtime_error("strided arrays not yet supported!");
   initManagedMemory();
+}
+
+void Array1D::commit()
+{
+  auto oldBegin = m_begin;
+  auto oldEnd = m_end;
+
+  m_begin = getParam<size_t>("begin", 0);
+  m_begin = std::clamp(m_begin, size_t(0), m_capacity - 1);
+  m_end = getParam<size_t>("end", m_capacity);
+  m_end = std::clamp(m_end, size_t(1), m_capacity);
+
+  if (size() == 0) {
+    reportMessage(ANARI_SEVERITY_ERROR, "array size must be greater than zero");
+    return;
+  }
+
+  if (m_begin > m_end) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "array 'begin' is not less than 'end', swapping values");
+    std::swap(m_begin, m_end);
+  }
+
+  if (m_begin != oldBegin || m_end != oldEnd) {
+    markDataModified();
+    notifyCommitObservers();
+  }
 }
 
 ArrayShape Array1D::shape() const
@@ -56,9 +87,28 @@ size_t Array1D::totalSize() const
   return size();
 }
 
+size_t Array1D::totalCapacity() const
+{
+  return m_capacity;
+}
+
+void *Array1D::begin(AddressSpace as) const
+{
+  auto *p = (unsigned char *)data(as);
+  auto s = anari::sizeOf(elementType());
+  return p + (s * m_begin);
+}
+
+void *Array1D::end(AddressSpace as) const
+{
+  auto *p = (unsigned char *)data(as);
+  auto s = anari::sizeOf(elementType());
+  return p + (s * m_end);
+}
+
 size_t Array1D::size() const
 {
-  return m_size;
+  return m_end - m_begin;
 }
 
 void Array1D::privatize()

@@ -46,8 +46,8 @@ struct DeviceObject : public BASE_T
 
   void upload();
 
-  payload_t &hostData();
-  const payload_t &hostData() const;
+  payload_t &data();
+  const payload_t &data() const;
 
   void *deviceData() const override;
 
@@ -73,13 +73,13 @@ inline void DeviceObject<GPU_DATA_T, BASE_T>::upload()
 }
 
 template <typename GPU_DATA_T, typename BASE_T>
-inline GPU_DATA_T &DeviceObject<GPU_DATA_T, BASE_T>::hostData()
+inline GPU_DATA_T &DeviceObject<GPU_DATA_T, BASE_T>::data()
 {
   return m_hostData;
 }
 
 template <typename GPU_DATA_T, typename BASE_T>
-inline const GPU_DATA_T &DeviceObject<GPU_DATA_T, BASE_T>::hostData() const
+inline const GPU_DATA_T &DeviceObject<GPU_DATA_T, BASE_T>::data() const
 {
   return m_hostData;
 }

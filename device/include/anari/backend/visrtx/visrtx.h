@@ -31,36 +31,57 @@
 
 #pragma once
 
-#include "array/Array.h"
+// ANARI-SDK
+#ifdef __cplusplus
+#include <anari/anari_cpp.hpp>
+#else
+#include <anari/anari.h>
+#endif
+// VisRTX
+#include "anari_library_visrtx_export.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Direct VisRTX device construction //////////////////////////////////////////
+
+VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice();
+
+// VisRTX extension feature testing ///////////////////////////////////////////
+
+typedef struct
+{
+  int VISRTX_ARRAY1D_DYNAMIC_REGION;
+  int VISRTX_CUDA_OUTPUT_BUFFERS;
+  int VISRTX_SAMPLER_COLOR_MAP;
+  int VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
+} VisRTXFeatures;
+
+VISRTX_DEVICE_INTERFACE int visrtxGetObjectFeatures(VisRTXFeatures *features,
+    ANARILibrary,
+    const char *deviceName,
+    const char *objectName,
+    ANARIDataType objectType);
+
+VISRTX_DEVICE_INTERFACE int visrtxGetInstanceFeatures(
+    VisRTXFeatures *features, ANARIDevice device, ANARIObject object);
+
+#ifdef __cplusplus
+} // extern "C"
 
 namespace visrtx {
 
-struct Array3D : public Array
-{
-  Array3D(const void *appMemory,
-      ANARIMemoryDeleter deleter,
-      const void *deleterPtr,
-      ANARIDataType type,
-      uint64_t numItems1,
-      uint64_t numItems2,
-      uint64_t numItems3,
-      uint64_t byteStride1,
-      uint64_t byteStride2,
-      uint64_t byteStride3);
+using Features = VisRTXFeatures;
 
-  ArrayShape shape() const override;
+VISRTX_DEVICE_INTERFACE
+Features getObjectFeatures(anari::Library library,
+    const char *device,
+    const char *objectSubtype,
+    anari::DataType objectType);
 
-  size_t totalSize() const override;
-
-  size_t size(int dim) const;
-  uvec3 size() const;
-
-  void privatize() override;
-
- private:
-  size_t m_size[3] = {0, 0, 0};
-};
+VISRTX_DEVICE_INTERFACE
+Features getInstanceFeatures(anari::Device, anari::Object);
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Array3D *, ANARI_ARRAY3D);
+#endif

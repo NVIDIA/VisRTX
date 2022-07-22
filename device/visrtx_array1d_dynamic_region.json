@@ -1,0 +1,30 @@
+{
+  "info": {
+    "name": "VISRTX_ARRAY1D_DYNAMIC_REGION",
+    "type": "feature",
+    "dependencies": []
+  },
+  "objects": [
+    {
+      "type": "ANARI_ARRAY1D",
+      "parameters": [
+        {
+          "name": "begin",
+          "types": [
+            "ANARI_UINT64"
+          ],
+          "tags": [],
+          "description": "start active region of the array"
+        },
+        {
+          "name": "end",
+          "types": [
+            "ANARI_UINT64"
+          ],
+          "tags": [],
+          "description": "end active region of the array"
+        }
+      ]
+    }
+  ]
+}
