@@ -2,6 +2,7 @@
 
 ## 0.5.0
 ##### TBD
+- Improved object leak warnings on device release
 
 ## 0.4.0
 ##### 2022-07-22

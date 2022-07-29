@@ -86,7 +86,7 @@ inline void RegisteredObject<GPU_DATA_T>::setRegistry(array_t &a)
 {
   m_registryArray = &a;
   if (m_index < 0)
-    m_index = a.alloc();
+    m_index = a.alloc(this);
 }
 
 } // namespace visrtx

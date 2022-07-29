@@ -649,41 +649,39 @@ VisRTXDevice::~VisRTXDevice()
         "detected %zu leaked groups",
         Group::objectCount());
   }
-  if (!state.registry.lights.empty()) {
+
+  auto reportLeakedRegistryValues = [&](const char *type, auto &r) {
+    if (r.empty())
+      return;
+
     reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked lights",
-        state.registry.lights.size());
-  }
-  if (!state.registry.surfaces.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked surfaces",
-        state.registry.surfaces.size());
-  }
-  if (!state.registry.volumes.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked volumes",
-        state.registry.volumes.size());
-  }
-  if (!state.registry.geometries.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked geometries",
-        state.registry.geometries.size());
-  }
-  if (!state.registry.materials.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked materials",
-        state.registry.materials.size());
-  }
-  if (!state.registry.fields.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked spatial fields",
-        state.registry.fields.size());
-  }
-  if (!state.registry.samplers.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked samplers",
-        state.registry.samplers.size());
-  }
+        "detected %zu leaked %s objects",
+        r.size(),
+        type);
+
+    for (int i = 0; i < r.capacity(); i++) {
+      auto *obj = (Object *)r.hostObject(i);
+      if (!obj)
+        continue;
+      auto name = obj->getParam<std::string>("name", "<no name>");
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "    leaked %s (%p) | ref counts [%zu, %zu] | name '%s'",
+          type,
+          obj,
+          obj->useCount(anari::RefType::PUBLIC),
+          obj->useCount(anari::RefType::INTERNAL),
+          name.c_str());
+    }
+  };
+
+  reportLeakedRegistryValues("light", state.registry.lights);
+  reportLeakedRegistryValues("surface", state.registry.surfaces);
+  reportLeakedRegistryValues("volume", state.registry.volumes);
+  reportLeakedRegistryValues("geometry", state.registry.geometries);
+  reportLeakedRegistryValues("material", state.registry.materials);
+  reportLeakedRegistryValues("spatial field", state.registry.fields);
+  reportLeakedRegistryValues("sampler", state.registry.samplers);
+
   if (Array::objectCount() != 0) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "detected %zu leaked arrays",
