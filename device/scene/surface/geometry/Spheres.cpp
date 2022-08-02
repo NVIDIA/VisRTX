@@ -44,13 +44,15 @@ void Spheres::commit()
 
   cleanup();
 
-  m_radius = getParamObject<Array1D>("vertex.radius");
+  m_index = getParamObject<Array1D>("primitive.index");
+
   m_vertex = getParamObject<Array1D>("vertex.position");
   m_vertexColor = getParamObject<Array1D>("vertex.color");
   m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
   m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
   m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
   m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
+  m_vertexRadius = getParamObject<Array1D>("vertex.radius");
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -59,8 +61,10 @@ void Spheres::commit()
   }
 
   m_vertex->addCommitObserver(this);
-  if (m_radius)
-    m_radius->addCommitObserver(this);
+  if (m_vertexRadius)
+    m_vertexRadius->addCommitObserver(this);
+  if (m_index)
+    m_index->addCommitObserver(this);
 
   if (hasParam("radius"))
     m_globalRadius = getParam<float>("radius", 0.01f);
@@ -71,15 +75,26 @@ void Spheres::commit()
 
   // Calculate bounds //
 
-  m_aabbs.resize(m_vertex->size());
+  m_aabbs.resize(m_index ? m_index->size() : m_vertex->size());
 
-  {
+  float *radius = nullptr;
+  if (m_vertexRadius)
+    radius = m_vertexRadius->beginAs<float>();
+
+  if (m_index) {
+    auto *begin = m_index->beginAs<uint32_t>();
+    auto *end = m_index->endAs<uint32_t>();
+    auto *vertices = m_index->beginAs<vec3>();
+
+    size_t sphereID = 0;
+    std::transform(begin, end, m_aabbs.begin(), [&](uint32_t i) {
+      const auto &v = vertices[i];
+      const float r = radius ? radius[i] : globalRadius;
+      return box3(v - r, v + r);
+    });
+  } else {
     auto *begin = m_vertex->beginAs<vec3>();
     auto *end = m_vertex->endAs<vec3>();
-
-    float *radius = nullptr;
-    if (m_radius)
-      radius = m_radius->beginAs<float>();
 
     size_t sphereID = 0;
     std::transform(begin, end, m_aabbs.begin(), [&](const vec3 &v) {
@@ -113,9 +128,12 @@ GeometryGPUData Spheres::gpuData() const
   auto &sphere = retval.sphere;
 
   sphere.centers = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  sphere.indices = nullptr;
+  if (m_index)
+    sphere.indices = m_index->beginAs<uint32_t>(AddressSpace::GPU);
   sphere.radii = nullptr;
-  if (m_radius)
-    sphere.radii = m_radius->beginAs<float>(AddressSpace::GPU);
+  if (m_vertexRadius)
+    sphere.radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
   sphere.radius = m_globalRadius.value_or(0.01f);
 
   populateAttributePtr(m_vertexAttribute0, sphere.vertexAttr[0]);
@@ -134,10 +152,12 @@ int Spheres::optixGeometryType() const
 
 void Spheres::cleanup()
 {
+  if (m_index)
+    m_index->removeCommitObserver(this);
   if (m_vertex)
     m_vertex->removeCommitObserver(this);
-  if (m_radius)
-    m_radius->removeCommitObserver(this);
+  if (m_vertexRadius)
+    m_vertexRadius->removeCommitObserver(this);
 }
 
 } // namespace visrtx

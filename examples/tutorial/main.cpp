@@ -39,6 +39,7 @@
 // std
 #include <array>
 #include <cstdio>
+#include <numeric>
 #include <random>
 // stb_image
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -52,7 +53,7 @@ using vec4 = std::array<float, 4>;
 
 anari::World generateScene(anari::Device device)
 {
-  const int numSpheres = 10000;
+  const uint32_t numSpheres = 10000;
   const float radius = .025f;
 
   std::mt19937 rng;
@@ -61,16 +62,23 @@ anari::World generateScene(anari::Device device)
 
   // Create + fill position and color arrays with randomized values //
 
+  auto indicesArray = anari::newArray1D(device, ANARI_UINT32, numSpheres);
   auto positionsArray =
       anari::newArray1D(device, ANARI_FLOAT32_VEC3, numSpheres);
   {
     auto *positions = anari::map<vec3>(device, positionsArray);
-    for (int i = 0; i < numSpheres; i++) {
+    for (uint32_t i = 0; i < numSpheres; i++) {
       positions[i][0] = vert_dist(rng);
       positions[i][1] = vert_dist(rng);
       positions[i][2] = vert_dist(rng);
     }
     anari::unmap(device, positionsArray);
+
+    auto *indicesBegin = anari::map<uint32_t>(device, indicesArray);
+    auto *indicesEnd = indicesBegin + numSpheres;
+    std::iota(indicesBegin, indicesEnd, 0);
+    std::shuffle(indicesBegin, indicesEnd, rng);
+    anari::unmap(device, indicesArray);
   }
 
   auto colorArray = anari::newArray1D(device, ANARI_FLOAT32_VEC4, numSpheres);
@@ -88,6 +96,7 @@ anari::World generateScene(anari::Device device)
   // Create and parameterize geometry //
 
   auto geom = anari::newObject<anari::Geometry>(device, "sphere");
+  anari::setAndReleaseParameter(device, geom, "primitive.index", indicesArray);
   anari::setAndReleaseParameter(
       device, geom, "vertex.position", positionsArray);
   anari::setAndReleaseParameter(device, geom, "vertex.color", colorArray);

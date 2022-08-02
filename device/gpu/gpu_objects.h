@@ -146,6 +146,7 @@ struct ConeGeometryData
 
 struct SphereGeometryData
 {
+  const uint32_t *indices;
   vec3 *centers;
   AttributePtr vertexAttr[5]; // attribute0-3 + color
   float *radii;

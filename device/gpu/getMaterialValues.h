@@ -73,6 +73,15 @@ RT_FUNCTION vec4 getAttributeValue(const AttributePtr &ap, uint32_t offset)
   return vec4(0.f, 0.f, 0.f, 1.f);
 }
 
+RT_FUNCTION uint32_t decodeSphereAttributeIndices(
+    const GeometryGPUData &ggd, const SurfaceHit &hit)
+{
+  if (ggd.sphere.indices != nullptr)
+    return ggd.sphere.indices[hit.primID];
+  else
+    return hit.primID;
+}
+
 RT_FUNCTION uvec3 decodeTriangleAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
 {
@@ -140,8 +149,9 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
     }
   } else if (ggd.type == GeometryType::SPHERE) {
     const auto &ap = ggd.sphere.vertexAttr[attributeID];
+    const uint32_t idx = decodeSphereAttributeIndices(ggd, hit);
     if (isPopulated(ap))
-      return getAttributeValue(ap, hit.primID);
+      return getAttributeValue(ap, idx);
   }
 
   // Else fall through to per-primitive attributes

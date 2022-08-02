@@ -213,7 +213,11 @@ RT_FUNCTION void computeNormal(
     break;
   }
   case GeometryType::SPHERE: {
-    hit.Ng = hit.Ns = hitpoint() - ggd.sphere.centers[primID];
+    if (ggd.sphere.indices) {
+      hit.Ng = hit.Ns =
+          hitpoint() - ggd.sphere.centers[ggd.sphere.indices[primID]];
+    } else
+      hit.Ng = hit.Ns = hitpoint() - ggd.sphere.centers[primID];
     break;
   }
   case GeometryType::CYLINDER: {

@@ -54,7 +54,7 @@ struct Spheres : public Geometry
   GeometryGPUData gpuData() const override;
   void cleanup();
 
-  anari::IntrusivePtr<Array1D> m_radius;
+  anari::IntrusivePtr<Array1D> m_index;
 
   anari::IntrusivePtr<Array1D> m_vertex;
   anari::IntrusivePtr<Array1D> m_vertexColor;
@@ -62,6 +62,7 @@ struct Spheres : public Geometry
   anari::IntrusivePtr<Array1D> m_vertexAttribute1;
   anari::IntrusivePtr<Array1D> m_vertexAttribute2;
   anari::IntrusivePtr<Array1D> m_vertexAttribute3;
+  anari::IntrusivePtr<Array1D> m_vertexRadius;
 
   HostDeviceArray<box3> m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};

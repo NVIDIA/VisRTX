@@ -2,6 +2,7 @@
 
 ## 0.5.0
 ##### TBD
+- Support `primitive.index` for `sphere` geometry
 - Improved object leak warnings on device release
 
 ## 0.4.0
