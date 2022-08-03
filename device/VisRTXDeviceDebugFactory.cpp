@@ -223,62 +223,6 @@ class renderer_ao : public DebugObject<ANARI_RENDERER> {
       return "ao";
    }
 };
-class renderer_pathtracer : public DebugObject<ANARI_RENDERER> {
-   static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6261000fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261001eu,0x0u,0x6a690022u,0x64630010u,0x6c6b0011u,0x68670012u,0x73720013u,0x706f0014u,0x76750015u,0x6f6e0016u,0x65640017u,0x44430018u,0x706f0019u,0x6d6c001au,0x706f001bu,0x7372001cu,0x100001du,0x80000001u,0x6e6d001fu,0x66650020u,0x1000021u,0x80000000u,0x79780023u,0x66650024u,0x6d6c0025u,0x54530026u,0x62610027u,0x6e6d0028u,0x71700029u,0x6d6c002au,0x6665002bu,0x7473002cu,0x100002du,0x80000002u};
-      uint32_t cur = 0x71620000u;
-      for(int i = 0;cur!=0;++i) {
-         uint32_t idx = cur&0xFFFFu;
-         uint32_t low = (cur>>16u)&0xFFu;
-         uint32_t high = (cur>>24u)&0xFFu;
-         uint32_t c = (uint32_t)str[i];
-         if(c>=low && c<high) {
-            cur = table[idx+c-low];
-         } else {
-            break;
-         }
-         if(cur&0x80000000u) {
-            return cur&0xFFFFu;
-         }
-         if(str[i]==0) {
-            break;
-         }
-      }
-      return -1;
-   }
-   public:
-   renderer_pathtracer(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
-   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
-      DebugObject::setParameter(paramname, paramtype, mem);
-      int idx = param_hash(paramname);
-      switch(idx) {
-         case 0: { //name
-            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "pathtracer", paramname, paramtype, name_types);
-            return;
-         }
-         case 1: { //backgroundColor
-            ANARIDataType backgroundColor_types[] = {ANARI_FLOAT32_VEC4, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "pathtracer", paramname, paramtype, backgroundColor_types);
-            return;
-         }
-         case 2: { //pixelSamples
-            ANARIDataType pixelSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "pathtracer", paramname, paramtype, pixelSamples_types);
-            return;
-         }
-         default: // unknown param
-            unknown_parameter(ANARI_RENDERER, "pathtracer", paramname, paramtype);
-            return;
-      }
-   }
-   void commit() {
-      DebugObject::commit();
-   }
-   const char* getSubtype() {
-      return "pathtracer";
-   }
-};
 class renderer_debug : public DebugObject<ANARI_RENDERER> {
    static int param_hash(const char *str) {
       static const uint32_t table[] = {0x6261000fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6665001eu,0x62610024u,0x0u,0x6a690028u,0x64630010u,0x6c6b0011u,0x68670012u,0x73720013u,0x706f0014u,0x76750015u,0x6f6e0016u,0x65640017u,0x44430018u,0x706f0019u,0x6d6c001au,0x706f001bu,0x7372001cu,0x100001du,0x80000001u,0x7574001fu,0x69680020u,0x706f0021u,0x65640022u,0x1000023u,0x80000003u,0x6e6d0025u,0x66650026u,0x1000027u,0x80000000u,0x79780029u,0x6665002au,0x6d6c002bu,0x5453002cu,0x6261002du,0x6e6d002eu,0x7170002fu,0x6d6c0030u,0x66650031u,0x74730032u,0x1000033u,0x80000002u};
@@ -2449,7 +2393,7 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_material(const char *name, DebugD
    }
 }
 static int renderer_object_hash(const char *str) {
-   static const uint32_t table[] = {0x706f0013u,0x0u,0x0u,0x66650015u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610023u,0x0u,0x6261002du,0x64630034u,0x1000014u,0x80000000u,0x67620016u,0x7675001bu,0x0u,0x0u,0x0u,0x6261001eu,0x6867001cu,0x100001du,0x80000001u,0x7675001fu,0x6d6c0020u,0x75740021u,0x1000022u,0x80000002u,0x75740024u,0x69680025u,0x75740026u,0x73720027u,0x62610028u,0x64630029u,0x6665002au,0x7372002bu,0x100002cu,0x80000003u,0x7a79002eu,0x6463002fu,0x62610030u,0x74730031u,0x75740032u,0x1000033u,0x80000004u,0x6a690035u,0x77760036u,0x6a690037u,0x74730038u,0x1000039u,0x80000005u};
+   static const uint32_t table[] = {0x706f0013u,0x0u,0x0u,0x66650015u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610023u,0x6463002au,0x1000014u,0x80000000u,0x67620016u,0x7675001bu,0x0u,0x0u,0x0u,0x6261001eu,0x6867001cu,0x100001du,0x80000001u,0x7675001fu,0x6d6c0020u,0x75740021u,0x1000022u,0x80000002u,0x7a790024u,0x64630025u,0x62610026u,0x74730027u,0x75740028u,0x1000029u,0x80000003u,0x6a69002bu,0x7776002cu,0x6a69002du,0x7473002eu,0x100002fu,0x80000004u};
    uint32_t cur = 0x74610000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
@@ -2480,10 +2424,8 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_renderer(const char *name, DebugD
       case 2:
          return new renderer_default(td, this, wh, h);
       case 3:
-         return new renderer_pathtracer(td, this, wh, h);
-      case 4:
          return new renderer_raycast(td, this, wh, h);
-      case 5:
+      case 4:
          return new renderer_scivis(td, this, wh, h);
       default:
          unknown_subtype(td, ANARI_RENDERER, name);
