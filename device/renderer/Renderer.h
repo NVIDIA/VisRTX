@@ -73,14 +73,6 @@ struct Renderer : public Object
   static Renderer *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
 
-  static const ANARIParameter *getParameters(std::string_view subtype);
-
-  static const void *getParameterInfo(std::string_view subtype,
-      std::string_view parameterName,
-      ANARIDataType parameterType,
-      std::string_view infoName,
-      ANARIDataType infoType);
-
  protected:
   vec4 m_bgColor{1.f};
   int m_spp{1};
