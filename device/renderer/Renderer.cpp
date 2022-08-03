@@ -83,12 +83,15 @@ static Renderer *make_renderer(std::string_view subtype)
     retval = new DiffusePathTracer();
   else if (subtype == "scivis" || subtype == "sv" || subtype == "default")
     retval = new SciVis();
-  else {
+  else if (subtype == "debug") {
     retval = new Debug();
     auto names = splitString(std::string(subtype), "_");
     if (names.size() > 1)
       retval->setParam("method", names[1]);
   }
+
+  if (!retval)
+    throw std::runtime_error("could not create renderer");
 
   return retval;
 }
