@@ -30,102 +30,11 @@
  */
 
 #include "Image2D.h"
+#include "ImageSamplerHelpers.h"
 // std
 #include <array>
 
 namespace visrtx {
-
-template <int SIZE>
-using texel_t = std::array<uint8_t, SIZE>;
-using texel1 = texel_t<1>;
-using texel2 = texel_t<2>;
-using texel3 = texel_t<3>;
-using texel4 = texel_t<4>;
-
-// Helper functions ///////////////////////////////////////////////////////////
-
-static bool isFloat(ANARIDataType format)
-{
-  switch (format) {
-  case ANARI_FLOAT32_VEC4:
-  case ANARI_FLOAT32_VEC3:
-  case ANARI_FLOAT32_VEC2:
-  case ANARI_FLOAT32:
-    return true;
-  default:
-    break;
-  }
-  return false;
-}
-
-static int numANARIChannels(ANARIDataType format)
-{
-  switch (format) {
-  case ANARI_UFIXED8_RGBA_SRGB:
-  case ANARI_UFIXED8_VEC4:
-  case ANARI_FLOAT32_VEC4:
-    return 4;
-  case ANARI_UFIXED8_RGB_SRGB:
-  case ANARI_UFIXED8_VEC3:
-  case ANARI_FLOAT16_VEC3:
-  case ANARI_FLOAT32_VEC3:
-    return 3;
-  case ANARI_UFIXED8_VEC2:
-  case ANARI_FLOAT16_VEC2:
-  case ANARI_FLOAT32_VEC2:
-    return 2;
-  case ANARI_FLOAT32:
-    return 1;
-  default:
-    break;
-  }
-  return 0;
-}
-
-static int bytesPerChannel(ANARIDataType format)
-{
-  if (isFloat(format))
-    return 4;
-  else
-    return 1;
-}
-
-static int countCudaChannels(const cudaChannelFormatDesc &desc)
-{
-  int channels = 0;
-  if (desc.x != 0)
-    channels++;
-  if (desc.y != 0)
-    channels++;
-  if (desc.z != 0)
-    channels++;
-  if (desc.w != 0)
-    channels++;
-  return channels;
-}
-
-template <int SIZE, typename IN_VEC_T>
-static texel_t<SIZE> makeTexel(IN_VEC_T v)
-{
-  v *= 255;
-  texel_t<SIZE> retval;
-  auto *in = (float *)&v;
-  for (int i = 0; i < SIZE; i++)
-    retval[i] = uint8_t(in[i]);
-  return retval;
-}
-
-static cudaTextureAddressMode stringToAddressMode(const std::string &str)
-{
-  if (str == "repeat")
-    return cudaAddressModeWrap;
-  else if (str == "mirrorRepeat")
-    return cudaAddressModeMirror;
-  else
-    return cudaAddressModeClamp;
-}
-
-// Image2D definitions //////////////////////////////////////////////////////
 
 Image2D::~Image2D()
 {
