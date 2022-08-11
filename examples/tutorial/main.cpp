@@ -165,14 +165,7 @@ int main()
 {
   // Setup ANARI device //
 
-  auto device = makeVisRTXDevice();
-
-  anariSetParameter(device,
-      device,
-      "statusCallback",
-      ANARI_STATUS_CALLBACK,
-      (const void *)statusFunc);
-  anari::commitParameters(device, device);
+  auto device = makeVisRTXDevice(statusFunc);
 
   anari::Features features =
       anari::feature::getInstanceFeatures(device, device);

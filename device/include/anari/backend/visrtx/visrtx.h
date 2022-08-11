@@ -46,7 +46,9 @@ extern "C" {
 
 // Direct VisRTX device construction //////////////////////////////////////////
 
-VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice();
+VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice(
+    ANARIStatusCallback defaultCallback ANARI_DEFAULT_VAL(0),
+    const void *userPtr ANARI_DEFAULT_VAL(0));
 
 // VisRTX extension feature testing ///////////////////////////////////////////
 

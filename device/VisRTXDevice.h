@@ -155,7 +155,7 @@ struct VisRTXDevice : public anari::DeviceImpl,
   // Helper/other functions and data members
   /////////////////////////////////////////////////////////////////////////////
 
-  VisRTXDevice() = default;
+  VisRTXDevice(ANARIStatusCallback defaultCallback, const void *userPtr);
   VisRTXDevice(ANARILibrary);
   ~VisRTXDevice() override;
 

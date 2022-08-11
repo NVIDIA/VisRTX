@@ -595,6 +595,13 @@ void VisRTXDevice::discardFrame(ANARIFrame)
 
 // Other VisRTXDevice definitions /////////////////////////////////////////////
 
+VisRTXDevice::VisRTXDevice(
+    ANARIStatusCallback defaultCallback, const void *userPtr)
+{
+  m_defaultStatusCB = defaultCallback;
+  m_defaultStatusCBUserPtr = userPtr;
+}
+
 VisRTXDevice::VisRTXDevice(ANARILibrary l) : DeviceImpl(l) {}
 
 VisRTXDevice::~VisRTXDevice()
@@ -940,7 +947,8 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(
       propertyType);
 }
 
-extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice()
+extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice(
+    ANARIStatusCallback defaultCallback, const void *userPtr)
 {
-  return (ANARIDevice) new visrtx::VisRTXDevice();
+  return (ANARIDevice) new visrtx::VisRTXDevice(defaultCallback, userPtr);
 }
