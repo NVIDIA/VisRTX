@@ -138,6 +138,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/surface/material/TransparentMatte.cpp
 
   scene/surface/material/sampler/ColorMap.cpp
+  scene/surface/material/sampler/Image1D.cpp
   scene/surface/material/sampler/Image2D.cpp
   scene/surface/material/sampler/PrimitiveSampler.cpp
   scene/surface/material/sampler/Sampler.cpp

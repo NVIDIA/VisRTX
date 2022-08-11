@@ -262,7 +262,7 @@ The following features are not yet implemented by VisRTX:
 - Geometry: `curve`
 - Light: `spot`, instancing
 - Camera: `omnidirectional`, stereo rendering, direct transform parameter
-- Sampler: `image1D`, `image3D`, in/out transforms on `image2D`
+- Sampler: `image3D`, in/out transforms on `image2D`
 - Frame: variance property
 - Sparse shared arrays (non-zero stride)
 - Core extensions:
@@ -270,7 +270,6 @@ The following features are not yet implemented by VisRTX:
     - `ANARI_KHR_FRAME_COMPLETION_CALLBACK`
     - `ANARI_KHR_DEVICE_SYNCHRONIZATION`
     - `ANARI_KHR_TRANSFORMATION_MOTION_BLUR`
-- Introspection for individual parameters of objects other than renderers
 
 The following features have known to be incomplete:
 

@@ -39,7 +39,7 @@
 // std
 #include <array>
 #include <cstdio>
-#include <numeric>
+#include <iostream>
 #include <random>
 // stb_image
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -54,25 +54,29 @@ using vec4 = std::array<float, 4>;
 anari::World generateScene(anari::Device device)
 {
   const uint32_t numSpheres = 10000;
-  const float radius = .025f;
+  const float radius = .015f;
 
   std::mt19937 rng;
   rng.seed(0);
-  std::normal_distribution<float> vert_dist(0.5f, 0.5f);
+  std::normal_distribution<float> vert_dist(0.f, 0.25f);
 
   // Create + fill position and color arrays with randomized values //
 
   auto indicesArray = anari::newArray1D(device, ANARI_UINT32, numSpheres);
   auto positionsArray =
       anari::newArray1D(device, ANARI_FLOAT32_VEC3, numSpheres);
+  auto distanceArray = anari::newArray1D(device, ANARI_FLOAT32, numSpheres);
   {
     auto *positions = anari::map<vec3>(device, positionsArray);
+    auto *distances = anari::map<float>(device, distanceArray);
     for (uint32_t i = 0; i < numSpheres; i++) {
-      positions[i][0] = vert_dist(rng);
-      positions[i][1] = vert_dist(rng);
-      positions[i][2] = vert_dist(rng);
+      const auto a = positions[i][0] = vert_dist(rng);
+      const auto b = positions[i][1] = vert_dist(rng);
+      const auto c = positions[i][2] = vert_dist(rng);
+      distances[i] = std::sqrt(a * a + b * b + c * c); // will be roughly 0-1
     }
     anari::unmap(device, positionsArray);
+    anari::unmap(device, distanceArray);
 
     auto *indicesBegin = anari::map<uint32_t>(device, indicesArray);
     auto *indicesEnd = indicesBegin + numSpheres;
@@ -81,40 +85,48 @@ anari::World generateScene(anari::Device device)
     anari::unmap(device, indicesArray);
   }
 
-  auto colorArray = anari::newArray1D(device, ANARI_FLOAT32_VEC4, numSpheres);
-  {
-    auto *colors = anari::map<vec4>(device, colorArray);
-    for (int i = 0; i < numSpheres; i++) {
-      colors[i][0] = vert_dist(rng);
-      colors[i][1] = vert_dist(rng);
-      colors[i][2] = vert_dist(rng);
-      colors[i][3] = 1.f;
-    }
-    anari::unmap(device, colorArray);
-  }
-
   // Create and parameterize geometry //
 
-  auto geom = anari::newObject<anari::Geometry>(device, "sphere");
-  anari::setAndReleaseParameter(device, geom, "primitive.index", indicesArray);
+  auto geometry = anari::newObject<anari::Geometry>(device, "sphere");
   anari::setAndReleaseParameter(
-      device, geom, "vertex.position", positionsArray);
-  anari::setAndReleaseParameter(device, geom, "vertex.color", colorArray);
-  anari::setParameter(device, geom, "radius", radius);
-  anari::commitParameters(device, geom);
+      device, geometry, "primitive.index", indicesArray);
+  anari::setAndReleaseParameter(
+      device, geometry, "vertex.position", positionsArray);
+  anari::setAndReleaseParameter(
+      device, geometry, "vertex.attribute0", distanceArray);
+  anari::setParameter(device, geometry, "radius", radius);
+  anari::commitParameters(device, geometry);
+
+  // Create color map texture //
+
+  auto texelArray = anari::newArray1D(device, ANARI_FLOAT32_VEC3, 2);
+  {
+    auto *texels = anari::map<vec3>(device, texelArray);
+    texels[0][0] = 1.f;
+    texels[0][1] = 0.f;
+    texels[0][2] = 0.f;
+    texels[1][0] = 0.f;
+    texels[1][1] = 1.f;
+    texels[1][2] = 0.f;
+    anari::unmap(device, texelArray);
+  }
+
+  auto texture = anari::newObject<anari::Sampler>(device, "image1D");
+  anari::setAndReleaseParameter(device, texture, "image", texelArray);
+  anari::setParameter(device, texture, "filter", "linear");
+  anari::commitParameters(device, texture);
 
   // Create and parameterize material //
 
-  auto mat = anari::newObject<anari::Material>(device, "matte");
-  anari::setParameter(
-      device, mat, "color", "color"); // draw values from "vertex.color"
-  anari::commitParameters(device, mat);
+  auto material = anari::newObject<anari::Material>(device, "matte");
+  anari::setAndReleaseParameter(device, material, "color", texture);
+  anari::commitParameters(device, material);
 
   // Create and parameterize surface //
 
   auto surface = anari::newObject<anari::Surface>(device);
-  anari::setAndReleaseParameter(device, surface, "geometry", geom);
-  anari::setAndReleaseParameter(device, surface, "material", mat);
+  anari::setAndReleaseParameter(device, surface, "geometry", geometry);
+  anari::setAndReleaseParameter(device, surface, "material", material);
   anari::commitParameters(device, surface);
 
   // Create and parameterize world //
@@ -155,6 +167,13 @@ int main()
 
   auto device = makeVisRTXDevice();
 
+  anariSetParameter(device,
+      device,
+      "statusCallback",
+      ANARI_STATUS_CALLBACK,
+      (const void *)statusFunc);
+  anari::commitParameters(device, device);
+
   anari::Features features =
       anari::feature::getInstanceFeatures(device, device);
 
@@ -175,7 +194,7 @@ int main()
 
   auto camera = anari::newObject<anari::Camera>(device, "perspective");
 
-  const vec3 eye = {0.399189f, 0.398530f, -3.703001f};
+  const vec3 eye = {0.f, 0.f, -2.f};
   const vec3 dir = {0.f, 0.f, 1.f};
   const vec3 up = {0.f, 1.f, 0.f};
 

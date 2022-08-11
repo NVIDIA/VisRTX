@@ -29,57 +29,36 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#pragma once
+
 #include "Sampler.h"
-// specific types
-#include "ColorMap.h"
-#include "Image1D.h"
-#include "Image2D.h"
-#include "PrimitiveSampler.h"
+#include "array/Array1D.h"
 
 namespace visrtx {
 
-Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
+struct Image1D : public Sampler
 {
-  Sampler *retval = nullptr;
+  Image1D() = default;
+  ~Image1D();
 
-  if (subtype == "image1D")
-    retval = new Image1D();
-  else if (subtype == "image2D")
-    retval = new Image2D();
-  else if (subtype == "primitive")
-    retval = new PrimitiveSampler();
-  else if (subtype == "colorMap")
-    retval = new ColorMap();
+  void commit() override;
 
-  if (!retval)
-    throw std::runtime_error("could not create sampler");
+  int numChannels() const override;
 
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.samplers);
-  return retval;
-}
+ private:
+  SamplerGPUData gpuData() const override;
 
-void Sampler::commit()
-{
-  m_inAttribute = getParam<std::string>("inAttribute", "attribute0");
-}
+  void cleanup();
 
-SamplerGPUData Sampler::gpuData() const
-{
-  SamplerGPUData retval;
-  if (m_inAttribute == "attribute0")
-    retval.attribute = 0;
-  else if (m_inAttribute == "attribute1")
-    retval.attribute = 1;
-  else if (m_inAttribute == "attribute2")
-    retval.attribute = 2;
-  else if (m_inAttribute == "attribute3")
-    retval.attribute = 3;
-  else if (m_inAttribute == "color")
-    retval.attribute = 4;
-  return retval;
-}
+  struct
+  {
+    std::string filter;
+    std::string wrap1;
+    anari::IntrusivePtr<Array1D> image;
+  } m_params;
+
+  cudaTextureObject_t m_textureObject{};
+  cudaArray_t m_cudaArray{};
+};
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Sampler *);

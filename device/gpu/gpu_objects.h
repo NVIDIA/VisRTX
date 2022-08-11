@@ -172,10 +172,16 @@ struct GeometryGPUData
 
 enum class SamplerType
 {
+  TEXTURE1D,
   TEXTURE2D,
   PRIMITIVE,
   COLOR_MAP,
   UNKNOWN
+};
+
+struct Image1DData
+{
+  cudaTextureObject_t texobj;
 };
 
 struct Image2DData
@@ -201,6 +207,7 @@ struct SamplerGPUData
   union
   {
     ColorMapGPUData colormap{};
+    Image1DData image1D;
     Image2DData image2D;
     PrimIDSamplerData primitive;
   };

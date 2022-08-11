@@ -172,6 +172,10 @@ RT_FUNCTION T evaluateSampler(
   const auto &sampler = getSamplerData(fd, _s);
   const vec4 tc = readAttributeValue(sampler.attribute, hit);
   switch (sampler.type) {
+  case SamplerType::TEXTURE1D: {
+    retval = make_vec4(tex1D<::float4>(sampler.image1D.texobj, tc.x));
+    break;
+  }
   case SamplerType::TEXTURE2D: {
     retval = make_vec4(tex2D<::float4>(sampler.image2D.texobj, tc.x, tc.y));
     break;

@@ -17,6 +17,7 @@
       "khr_light_point",
       "khr_material_matte",
       "khr_material_transparent_matte",
+      "khr_sampler_image1d",
       "khr_sampler_image2d",
       "khr_spatial_field_structured_regular",
       "khr_volume_scivis",

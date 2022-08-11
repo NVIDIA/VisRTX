@@ -84,7 +84,7 @@ void Spheres::commit()
   if (m_index) {
     auto *begin = m_index->beginAs<uint32_t>();
     auto *end = m_index->endAs<uint32_t>();
-    auto *vertices = m_index->beginAs<vec3>();
+    auto *vertices = m_vertex->beginAs<vec3>();
 
     size_t sphereID = 0;
     std::transform(begin, end, m_aabbs.begin(), [&](uint32_t i) {
