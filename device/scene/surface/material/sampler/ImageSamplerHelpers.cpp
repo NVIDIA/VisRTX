@@ -29,53 +29,87 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include "array/Array.h"
-// std
-#include <array>
-#include <type_traits>
+#include "ImageSamplerHelpers.h"
 
 namespace visrtx {
 
-template <int SIZE>
-using texel_t = std::array<uint8_t, SIZE>;
-using texel1 = texel_t<1>;
-using texel2 = texel_t<2>;
-using texel3 = texel_t<3>;
-using texel4 = texel_t<4>;
-
-bool isFloat(ANARIDataType format);
-int numANARIChannels(ANARIDataType format);
-int bytesPerChannel(ANARIDataType format);
-int countCudaChannels(const cudaChannelFormatDesc &desc);
-cudaTextureAddressMode stringToAddressMode(const std::string &str);
-
-template <int SIZE, typename IN_VEC_T>
-inline texel_t<SIZE> makeTexelFromFloat(IN_VEC_T v)
+bool isFloat(ANARIDataType format)
 {
-  v *= 255;
-  texel_t<SIZE> retval;
-  auto *in = (float *)&v;
-  for (int i = 0; i < SIZE; i++)
-    retval[i] = uint8_t(in[i]);
-  return retval;
+  switch (format) {
+  case ANARI_FLOAT32_VEC4:
+  case ANARI_FLOAT32_VEC3:
+  case ANARI_FLOAT32_VEC2:
+  case ANARI_FLOAT32:
+    return true;
+  default:
+    break;
+  }
+  return false;
 }
 
-template <int IN_NC, typename IN_VEC_T>
-inline void transformToStagingBuffer(Array &image, uint8_t *stagingBuffer)
+int numANARIChannels(ANARIDataType format)
 {
-  constexpr int NC = IN_NC == 3 ? 4 : IN_NC;
-  using texel = texel_t<NC>;
+  switch (format) {
+  case ANARI_UFIXED8_RGBA_SRGB:
+  case ANARI_UFIXED8_VEC4:
+  case ANARI_UFIXED16_VEC4:
+  case ANARI_FLOAT16_VEC4:
+  case ANARI_FLOAT32_VEC4:
+    return 4;
+  case ANARI_UFIXED8_RGB_SRGB:
+  case ANARI_UFIXED8_VEC3:
+  case ANARI_UFIXED16_VEC3:
+  case ANARI_FLOAT16_VEC3:
+  case ANARI_FLOAT32_VEC3:
+    return 3;
+  case ANARI_UFIXED8_RA_SRGB:
+  case ANARI_UFIXED8_VEC2:
+  case ANARI_UFIXED16_VEC2:
+  case ANARI_FLOAT16_VEC2:
+  case ANARI_FLOAT32_VEC2:
+    return 2;
+  case ANARI_UFIXED8_R_SRGB:
+  case ANARI_UFIXED8:
+  case ANARI_UFIXED16:
+  case ANARI_FLOAT16:
+  case ANARI_FLOAT32:
+    return 1;
+  default:
+    break;
+  }
+  return 0;
+}
 
-  auto *begin = image.dataAs<IN_VEC_T>();
-  auto *end = begin + image.totalSize();
-  std::transform(begin, end, (texel *)stagingBuffer, [](IN_VEC_T &v) {
-    if constexpr (std::is_same_v<IN_VEC_T, vec3>)
-      return makeTexelFromFloat<4>(vec4(v, 1.f));
-    else
-      return makeTexelFromFloat<NC>(v);
-  });
+int bytesPerChannel(ANARIDataType format)
+{
+  if (isFloat(format))
+    return 4;
+  else
+    return 1;
+}
+
+int countCudaChannels(const cudaChannelFormatDesc &desc)
+{
+  int channels = 0;
+  if (desc.x != 0)
+    channels++;
+  if (desc.y != 0)
+    channels++;
+  if (desc.z != 0)
+    channels++;
+  if (desc.w != 0)
+    channels++;
+  return channels;
+}
+
+cudaTextureAddressMode stringToAddressMode(const std::string &str)
+{
+  if (str == "repeat")
+    return cudaAddressModeWrap;
+  else if (str == "mirrorRepeat")
+    return cudaAddressModeMirror;
+  else
+    return cudaAddressModeClamp;
 }
 
 } // namespace visrtx

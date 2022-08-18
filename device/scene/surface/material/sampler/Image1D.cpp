@@ -31,8 +31,6 @@
 
 #include "Image1D.h"
 #include "ImageSamplerHelpers.h"
-// std
-#include <array>
 
 namespace visrtx {
 
@@ -77,37 +75,16 @@ void Image1D::commit()
 
   const auto size = m_params.image->size();
 
-  std::vector<uint8_t> stagingBuffer;
+  std::vector<uint8_t> stagingBuffer(m_params.image->totalSize() * 4);
 
-  {
-    stagingBuffer.resize(m_params.image->totalSize() * 4);
-
-    if (nc == 4) {
-      auto *begin = m_params.image->dataAs<vec4>();
-      auto *end = begin + m_params.image->totalSize();
-      std::transform(begin, end, (texel4 *)stagingBuffer.data(), [](vec4 &v) {
-        return makeTexel<4>(v);
-      });
-    } else if (nc == 3) {
-      auto *begin = m_params.image->dataAs<vec3>();
-      auto *end = begin + m_params.image->totalSize();
-      std::transform(begin, end, (texel4 *)stagingBuffer.data(), [](vec3 &v) {
-        return makeTexel<4>(vec4(v, 1.f));
-      });
-    } else if (nc == 2) {
-      auto *begin = m_params.image->dataAs<vec2>();
-      auto *end = begin + m_params.image->totalSize();
-      std::transform(begin, end, (texel2 *)stagingBuffer.data(), [](vec2 &v) {
-        return makeTexel<2>(v);
-      });
-    } else if (nc == 1) {
-      auto *begin = m_params.image->dataAs<float>();
-      auto *end = begin + m_params.image->totalSize();
-      std::transform(begin, end, (texel1 *)stagingBuffer.data(), [](float &v) {
-        return makeTexel<1>(v);
-      });
-    }
-  }
+  if (nc == 4)
+    transformToStagingBuffer<4, vec4>(*m_params.image, stagingBuffer.data());
+  else if (nc == 3)
+    transformToStagingBuffer<3, vec3>(*m_params.image, stagingBuffer.data());
+  else if (nc == 2)
+    transformToStagingBuffer<2, vec2>(*m_params.image, stagingBuffer.data());
+  else if (nc == 1)
+    transformToStagingBuffer<1, float>(*m_params.image, stagingBuffer.data());
 
   if (nc == 3)
     nc = 4;
