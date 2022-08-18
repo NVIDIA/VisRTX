@@ -56,13 +56,7 @@ void Image2D::commit()
     return;
   }
 
-  ANARIDataType format = m_params.image->elementType();
-  if (!isFloat(format)) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "only 32-bit float data is supported for image2D samplers");
-    return;
-  }
-
+  const ANARIDataType format = m_params.image->elementType();
   auto nc = numANARIChannels(format);
   if (nc == 0) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -70,22 +64,50 @@ void Image2D::commit()
     return;
   }
 
-  m_params.image->addCommitObserver(this);
+  auto &image = *m_params.image;
+  image.addCommitObserver(this);
 
   // Create CUDA texture //
 
-  const auto size = m_params.image->size();
+  std::vector<uint8_t> stagingBuffer(image.totalSize() * 4);
 
-  std::vector<uint8_t> stagingBuffer(m_params.image->totalSize() * 4);
-
-  if (nc == 4)
-    transformToStagingBuffer<4, vec4>(*m_params.image, stagingBuffer.data());
-  else if (nc == 3)
-    transformToStagingBuffer<3, vec3>(*m_params.image, stagingBuffer.data());
-  else if (nc == 2)
-    transformToStagingBuffer<2, vec2>(*m_params.image, stagingBuffer.data());
-  else if (nc == 1)
-    transformToStagingBuffer<1, float>(*m_params.image, stagingBuffer.data());
+  if (nc == 4) {
+    if (isFloat(format))
+      transformToStagingBuffer<4, float>(image, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBuffer<4, uint16_t>(image, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBuffer<4, uint8_t>(image, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBuffer<4, uint8_t, true>(image, stagingBuffer.data());
+  } else if (nc == 3) {
+    if (isFloat(format))
+      transformToStagingBuffer<3, float>(image, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBuffer<3, uint16_t>(image, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBuffer<3, uint8_t>(image, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBuffer<3, uint8_t, true>(image, stagingBuffer.data());
+  } else if (nc == 2) {
+    if (isFloat(format))
+      transformToStagingBuffer<2, float>(image, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBuffer<2, uint16_t>(image, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBuffer<2, uint8_t>(image, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBuffer<2, uint8_t, true>(image, stagingBuffer.data());
+  } else if (nc == 1) {
+    if (isFloat(format))
+      transformToStagingBuffer<1, float>(image, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBuffer<1, uint16_t>(image, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBuffer<1, uint8_t>(image, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBuffer<1, uint8_t, true>(image, stagingBuffer.data());
+  }
 
   if (nc == 3)
     nc = 4;
@@ -96,6 +118,7 @@ void Image2D::commit()
       nc >= 3 ? 8 : 0,
       cudaChannelFormatKindUnsigned);
 
+  const auto size = image.size();
   cudaMallocArray(&m_cudaArray, &desc, size.x, size.y);
   cudaMemcpy2DToArray(m_cudaArray,
       0,

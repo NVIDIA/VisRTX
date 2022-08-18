@@ -60,6 +60,7 @@ static void anari_free(const void * /*user_data*/, const void *ptr)
 
 static anari::Array2D makeTextureData(anari::Device d, int dim)
 {
+#if 0
   auto *data = new glm::vec3[dim * dim];
 
   for (int h = 0; h < dim; h++) {
@@ -74,6 +75,25 @@ static anari::Array2D makeTextureData(anari::Device d, int dim)
 
   return anariNewArray2D(
       d, data, &anari_free, nullptr, ANARI_FLOAT32_VEC3, dim, dim);
+#else
+  using texel = std::array<uint8_t, 3>;
+  auto *data = new texel[dim * dim];
+
+  auto makeTexel = [](uint8_t v) -> texel { return {v, v, v}; };
+
+  for (int h = 0; h < dim; h++) {
+    for (int w = 0; w < dim; w++) {
+      bool even = h & 1;
+      if (even)
+        data[h * dim + w] = w & 1 ? makeTexel(200) : makeTexel(50);
+      else
+        data[h * dim + w] = w & 1 ? makeTexel(50) : makeTexel(200);
+    }
+  }
+
+  return anariNewArray2D(
+      d, data, &anari_free, nullptr, ANARI_UFIXED8_VEC3, dim, dim);
+#endif
 }
 
 static anari::Surface makePlane(anari::Device d, const box3 &bounds)

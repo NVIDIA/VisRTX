@@ -271,9 +271,5 @@ The following features are not yet implemented by VisRTX:
     - `ANARI_KHR_DEVICE_SYNCHRONIZATION`
     - `ANARI_KHR_TRANSFORMATION_MOTION_BLUR`
 
-The following features have known to be incomplete:
-
-- Arrays for image samplers only suport FLOAT32 type elements
-
 For any found bugs in features that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!

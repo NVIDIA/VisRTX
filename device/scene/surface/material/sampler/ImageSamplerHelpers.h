@@ -34,7 +34,10 @@
 #include "array/Array.h"
 // std
 #include <array>
+#include <limits>
 #include <type_traits>
+// glm
+#include <glm/gtc/color_space.hpp>
 
 namespace visrtx {
 
@@ -45,36 +48,46 @@ using texel2 = texel_t<2>;
 using texel3 = texel_t<3>;
 using texel4 = texel_t<4>;
 
+template <int SIZE>
+using byte_chunk_t = std::array<uint8_t, SIZE>;
+
 bool isFloat(ANARIDataType format);
+bool isFixed16(ANARIDataType format);
+bool isFixed8(ANARIDataType format);
+bool isSrgb8(ANARIDataType format);
 int numANARIChannels(ANARIDataType format);
 int bytesPerChannel(ANARIDataType format);
 int countCudaChannels(const cudaChannelFormatDesc &desc);
 cudaTextureAddressMode stringToAddressMode(const std::string &str);
 
-template <int SIZE, typename IN_VEC_T>
-inline texel_t<SIZE> makeTexelFromFloat(IN_VEC_T v)
+template <bool SRGB, typename T>
+inline uint8_t convertComponent(T c)
 {
-  v *= 255;
-  texel_t<SIZE> retval;
-  auto *in = (float *)&v;
-  for (int i = 0; i < SIZE; i++)
-    retval[i] = uint8_t(in[i]);
-  return retval;
+  if constexpr (std::is_same_v<T, float>)
+    return uint8_t(c * 255);
+  else if constexpr (std::is_same_v<T, uint16_t>) {
+    constexpr auto maxVal = float(std::numeric_limits<uint16_t>::max());
+    return uint8_t((c / maxVal) * 255);
+  } else if constexpr (SRGB) // uint8_t
+    return uint8_t(glm::convertSRGBToLinear(vec1(c / 255.f)).x * 255);
+  else // uint8_t, linear
+    return c;
 }
 
-template <int IN_NC, typename IN_VEC_T>
+template <int IN_NC /*num components*/,
+    typename IN_COMP_T /*component type*/,
+    bool SRGB = false>
 inline void transformToStagingBuffer(Array &image, uint8_t *stagingBuffer)
 {
-  constexpr int NC = IN_NC == 3 ? 4 : IN_NC;
-  using texel = texel_t<NC>;
-
-  auto *begin = image.dataAs<IN_VEC_T>();
-  auto *end = begin + image.totalSize();
-  std::transform(begin, end, (texel *)stagingBuffer, [](IN_VEC_T &v) {
-    if constexpr (std::is_same_v<IN_VEC_T, vec3>)
-      return makeTexelFromFloat<4>(vec4(v, 1.f));
-    else
-      return makeTexelFromFloat<NC>(v);
+  auto *begin = (IN_COMP_T *)image.data();
+  auto *end = begin + (image.totalSize() * IN_NC);
+  size_t out = 0;
+  std::for_each(begin, end, [&](const IN_COMP_T &c) {
+    stagingBuffer[out++] = convertComponent<SRGB>(c);
+    if constexpr (IN_NC == 3) {
+      if (out % 4 == 3)
+        stagingBuffer[out++] = 255;
+    }
   });
 }
 
