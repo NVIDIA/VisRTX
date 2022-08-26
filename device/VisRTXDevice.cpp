@@ -445,6 +445,9 @@ int VisRTXDevice::getProperty(ANARIObject object,
     } else if (prop == "feature" && type == ANARI_STRING_LIST) {
       writeToVoidP(mem, query_extensions());
       return 1;
+    } else if (prop == "visrtx" && type == ANARI_BOOL) {
+      writeToVoidP(mem, true);
+      return 1;
     }
   } else {
     CUDADeviceScope ds(this);
