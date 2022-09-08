@@ -56,7 +56,7 @@ include(GNUInstallDirs)
 ## Dependencies ###############################################################
 
 # ANARI-SDK
-set(ANARI_REQUIRED_VERSION 0.2.0)
+set(ANARI_REQUIRED_VERSION 0.3.0)
 find_package(anari ${ANARI_REQUIRED_VERSION} EXACT REQUIRED)
 
 # glm (locally included)
