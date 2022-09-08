@@ -46,10 +46,8 @@ void Surface::commit()
   if (!m_material)
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'material' on ANARISurface");
 
-  if (!m_geometry) {
+  if (!m_geometry)
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'geometry' on ANARISurface");
-    return;
-  }
 }
 
 const Geometry *Surface::geometry() const
@@ -86,8 +84,8 @@ bool Surface::isValid() const
 SurfaceGPUData Surface::gpuData() const
 {
   SurfaceGPUData retval;
-  retval.geometry = geometry()->index();
-  retval.material = material()->index();
+  retval.geometry = geometry() ? geometry()->index() : -1;
+  retval.material = material() ? material()->index() : -1;
   return retval;
 }
 

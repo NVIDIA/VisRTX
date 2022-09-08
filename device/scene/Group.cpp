@@ -100,17 +100,12 @@ void Group::commit()
   m_lightData = getParamObject<ObjectArray>("light");
 
   m_surfaces.reset();
-  if (m_surfaceData) {
-    m_surfaces = make_Span(
-        (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
-    partitionGeometriesByType();
-  }
+  if (m_surfaceData)
+    partitionValidGeometriesByType();
 
-  m_volumes.reset();
-  if (m_volumeData) {
-    m_volumes = make_Span(
-        (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
-  }
+  m_volumes.clear();
+  if (m_volumeData)
+    partitionValidVolumes();
 
   m_objectUpdates.lastSurfaceBVHBuilt = 0;
   m_objectUpdates.lastVolumeBVHBuilt = 0;
@@ -218,7 +213,7 @@ void Group::rebuildSurfaceBVHs()
 
 void Group::rebuildVolumeBVH()
 {
-  if (!m_volumes) {
+  if (m_volumes.empty()) {
     m_volumeBounds = box3();
     m_traversableVolume = {};
     reportMessage(
@@ -255,16 +250,31 @@ void Group::markCommitted()
   deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
 }
 
-void Group::partitionGeometriesByType()
+void Group::partitionValidGeometriesByType()
 {
+  m_surfaces = make_Span(
+      (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
   m_surfacesTriangle.clear();
   m_surfacesUser.clear();
   for (auto s : m_surfaces) {
+    if (!s->isValid())
+      continue;
     auto g = s->geometry();
     if (g->optixGeometryType() == OPTIX_BUILD_INPUT_TYPE_TRIANGLES)
       m_surfacesTriangle.push_back(s);
     else
       m_surfacesUser.push_back(s);
+  }
+}
+
+void Group::partitionValidVolumes()
+{
+  auto volumes = make_Span(
+      (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
+  for (auto v : volumes) {
+    if (!v->isValid())
+      continue;
+    m_volumes.push_back(v);
   }
 }
 

@@ -74,7 +74,8 @@ struct Group : public Object
   void markCommitted() override;
 
  private:
-  void partitionGeometriesByType();
+  void partitionValidGeometriesByType();
+  void partitionValidVolumes();
   void buildSurfaceGPUData();
   void buildVolumeGPUData();
   void buildLightGPUData();
@@ -94,7 +95,7 @@ struct Group : public Object
   // Volume //
 
   anari::IntrusivePtr<ObjectArray> m_volumeData;
-  anari::Span<Volume *> m_volumes;
+  std::vector<Volume *> m_volumes;
 
   DeviceBuffer m_volumeObjectIndices;
 
