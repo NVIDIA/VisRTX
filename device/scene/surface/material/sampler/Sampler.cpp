@@ -35,6 +35,7 @@
 #include "Image1D.h"
 #include "Image2D.h"
 #include "PrimitiveSampler.h"
+#include "UnknownSampler.h"
 
 namespace visrtx {
 
@@ -50,9 +51,8 @@ Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
     retval = new PrimitiveSampler();
   else if (subtype == "colorMap")
     retval = new ColorMap();
-
-  if (!retval)
-    throw std::runtime_error("could not create sampler");
+  else
+    retval = new UnknownSampler;
 
   retval->setDeviceState(d);
   retval->setRegistry(d->registry.samplers);

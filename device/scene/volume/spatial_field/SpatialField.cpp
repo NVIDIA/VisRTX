@@ -31,7 +31,8 @@
 
 #include "SpatialField.h"
 // specific types
-#include "scene/volume/spatial_field/StructuredRegularField.h"
+#include "StructuredRegularField.h"
+#include "UnknownSpatialField.h"
 
 namespace visrtx {
 
@@ -48,9 +49,8 @@ SpatialField *SpatialField::createInstance(
 
   if (subtype == "structuredRegular")
     retval = new StructuredRegularField;
-
-  if (!retval)
-    throw std::runtime_error("could not create spatial field");
+  else
+    retval = new UnknownSpatialField;
 
   retval->setDeviceState(d);
   retval->setRegistry(d->registry.fields);

@@ -76,6 +76,7 @@ struct Group : public Object
  private:
   void partitionValidGeometriesByType();
   void partitionValidVolumes();
+  void partitionValidLights();
   void buildSurfaceGPUData();
   void buildVolumeGPUData();
   void buildLightGPUData();
@@ -102,7 +103,7 @@ struct Group : public Object
   // Light //
 
   anari::IntrusivePtr<ObjectArray> m_lightData;
-  anari::Span<Light *> m_lights;
+  std::vector<Light *> m_lights;
 
   DeviceBuffer m_lightObjectIndices;
 

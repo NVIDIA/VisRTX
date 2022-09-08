@@ -34,6 +34,7 @@
 #include "Matte.h"
 #include "PBR.h"
 #include "TransparentMatte.h"
+#include "UnknownMaterial.h"
 
 namespace visrtx {
 
@@ -53,9 +54,8 @@ Material *Material::createInstance(
     retval = new TransparentMatte;
   else if (subtype == "pbr")
     retval = new PBR;
-
-  if (!retval)
-    throw std::runtime_error("could not create material");
+  else
+    retval = new UnknownMaterial;
 
   retval->setDeviceState(d);
   retval->setRegistry(d->registry.materials);

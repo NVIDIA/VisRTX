@@ -34,6 +34,7 @@
 #include "Ambient.h"
 #include "Directional.h"
 #include "Point.h"
+#include "UnknownLight.h"
 
 namespace visrtx {
 
@@ -59,9 +60,8 @@ Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
     retval = new Directional;
   else if (subtype == "point")
     retval = new Point;
-
-  if (!retval)
-    throw std::runtime_error("could not create light");
+  else
+    retval = new UnknownLight;
 
   retval->setDeviceState(d);
   retval->setRegistry(d->registry.lights);

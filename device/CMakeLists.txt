@@ -103,6 +103,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   camera/Camera.cpp
   camera/Orthographic.cpp
   camera/Perspective.cpp
+  camera/UnknownCamera.cpp
 
   frame/Denoiser.cu
   frame/Frame.cu
@@ -122,6 +123,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/light/Directional.cpp
   scene/light/Light.cpp
   scene/light/Point.cpp
+  scene/light/UnknownLight.cpp
 
   scene/surface/Surface.cpp
 
@@ -131,11 +133,13 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/surface/geometry/Quads.cpp
   scene/surface/geometry/Spheres.cpp
   scene/surface/geometry/Triangles.cpp
+  scene/surface/geometry/UnknownGeometry.cpp
 
   scene/surface/material/Material.cpp
   scene/surface/material/Matte.cpp
   scene/surface/material/PBR.cpp
   scene/surface/material/TransparentMatte.cpp
+  scene/surface/material/UnknownMaterial.cpp
 
   scene/surface/material/sampler/ColorMap.cpp
   scene/surface/material/sampler/Image1D.cpp
@@ -143,12 +147,15 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/surface/material/sampler/ImageSamplerHelpers.cpp
   scene/surface/material/sampler/PrimitiveSampler.cpp
   scene/surface/material/sampler/Sampler.cpp
+  scene/surface/material/sampler/UnknownSampler.cpp
 
   scene/volume/Volume.cpp
   scene/volume/SciVisVolume.cpp
+  scene/volume/UnknownVolume.cpp
 
   scene/volume/spatial_field/SpatialField.cpp
   scene/volume/spatial_field/StructuredRegularField.cpp
+  scene/volume/spatial_field/UnknownSpatialField.cpp
 
   utility/DeferredCommitBuffer.cpp
   utility/DeferredUploadBuffer.cpp

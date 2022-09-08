@@ -65,6 +65,11 @@ Frame::~Frame()
   s_numFrames--;
 }
 
+bool Frame::isValid() const
+{
+  return m_valid;
+}
+
 void Frame::commit()
 {
   auto &hd = data();
@@ -76,22 +81,25 @@ void Frame::commit()
   if (!m_renderer) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'renderer' on frame");
-    return;
   }
 
   m_camera = getParamObject<Camera>("camera");
   if (!m_camera) {
     reportMessage(
         ANARI_SEVERITY_WARNING, "missing required parameter 'camera' on frame");
-    return;
   }
 
   m_world = getParamObject<World>("world");
   if (!m_world) {
     reportMessage(
         ANARI_SEVERITY_WARNING, "missing required parameter 'world' on frame");
-    return;
   }
+
+  m_valid = m_renderer && m_renderer->isValid() && m_camera
+      && m_camera->isValid() && m_world && m_world->isValid();
+
+  if (!m_valid)
+    return;
 
   m_denoise = getParam<bool>("denoise", false);
 
@@ -194,6 +202,9 @@ bool Frame::getProperty(
 void Frame::renderFrame()
 {
   wait();
+
+  if (!m_valid)
+    return;
 
   auto &state = *deviceState();
 

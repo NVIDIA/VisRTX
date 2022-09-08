@@ -88,10 +88,8 @@ static Renderer *make_renderer(std::string_view subtype)
     auto names = splitString(std::string(subtype), "_");
     if (names.size() > 1)
       retval->setParam("method", names[1]);
-  }
-
-  if (!retval)
-    throw std::runtime_error("could not create renderer");
+  } else
+    retval = new Raycast();
 
   return retval;
 }

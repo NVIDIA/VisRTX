@@ -52,6 +52,8 @@ struct Frame : public DeviceObject<FrameGPUData>
   Frame();
   ~Frame();
 
+  bool isValid() const override;
+
   bool getProperty(const std::string_view &name,
       ANARIDataType type,
       void *ptr,
@@ -83,6 +85,7 @@ struct Frame : public DeviceObject<FrameGPUData>
 
   //// Data ////
 
+  bool m_valid{false};
   float m_invFrameID{1.f};
   int m_perPixelBytes{1};
   bool m_denoise{false};

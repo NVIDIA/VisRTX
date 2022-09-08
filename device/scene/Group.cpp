@@ -99,13 +99,9 @@ void Group::commit()
   m_volumeData = getParamObject<ObjectArray>("volume");
   m_lightData = getParamObject<ObjectArray>("light");
 
-  m_surfaces.reset();
-  if (m_surfaceData)
-    partitionValidGeometriesByType();
-
-  m_volumes.clear();
-  if (m_volumeData)
-    partitionValidVolumes();
+  partitionValidGeometriesByType();
+  partitionValidVolumes();
+  partitionValidLights();
 
   m_objectUpdates.lastSurfaceBVHBuilt = 0;
   m_objectUpdates.lastVolumeBVHBuilt = 0;
@@ -235,12 +231,8 @@ void Group::rebuildVolumeBVH()
 
 void Group::rebuildLights()
 {
-  m_lights.reset();
-  if (m_lightData) {
-    m_lights = make_Span(
-        (Light **)m_lightData->handlesBegin(), m_lightData->totalSize());
-    buildLightGPUData();
-  }
+  partitionValidLights();
+  buildLightGPUData();
   m_objectUpdates.lastLightRebuild = newTimeStamp();
 }
 
@@ -252,6 +244,10 @@ void Group::markCommitted()
 
 void Group::partitionValidGeometriesByType()
 {
+  m_surfaces.reset();
+  if (!m_surfaceData)
+    return;
+
   m_surfaces = make_Span(
       (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
   m_surfacesTriangle.clear();
@@ -269,12 +265,31 @@ void Group::partitionValidGeometriesByType()
 
 void Group::partitionValidVolumes()
 {
+  m_volumes.clear();
+  if (!m_volumeData)
+    return;
+
   auto volumes = make_Span(
       (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
   for (auto v : volumes) {
     if (!v->isValid())
       continue;
     m_volumes.push_back(v);
+  }
+}
+
+void Group::partitionValidLights()
+{
+  m_lights.clear();
+  if (!m_lightData)
+    return;
+
+  auto lights = make_Span(
+      (Light **)m_lightData->handlesBegin(), m_lightData->totalSize());
+  for (auto l : lights) {
+    if (!l->isValid())
+      continue;
+    m_lights.push_back(l);
   }
 }
 
@@ -314,6 +329,8 @@ void Group::buildVolumeGPUData()
 
 void Group::buildLightGPUData()
 {
+  if (m_lights.empty())
+    return;
   std::vector<DeviceObjectIndex> tmp(m_lights.size());
   std::transform(m_lights.begin(), m_lights.end(), tmp.begin(), [](auto l) {
     return l->index();

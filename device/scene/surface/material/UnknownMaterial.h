@@ -29,54 +29,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Camera.h"
-// specific types
-#include "Orthographic.h"
-#include "Perspective.h"
-#include "UnknownCamera.h"
+#pragma once
+
+#include "Material.h"
 
 namespace visrtx {
 
-static size_t s_numCameras = 0;
-
-size_t Camera::objectCount()
+struct UnknownMaterial : public Material
 {
-  return s_numCameras;
-}
+  UnknownMaterial() = default;
+  ~UnknownMaterial() = default;
+  bool isValid() const override;
 
-Camera::Camera()
-{
-  s_numCameras++;
-}
-
-Camera::~Camera()
-{
-  s_numCameras--;
-}
-
-Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
-{
-  Camera *retval = nullptr;
-
-  if (subtype == "perspective")
-    retval = new Perspective();
-  else if (subtype == "orthographic")
-    retval = new Orthographic();
-  else
-    retval = new UnknownCamera();
-
-  retval->setDeviceState(d);
-  return retval;
-}
-
-void Camera::readBaseParameters(CameraGPUData &hd)
-{
-  hd.region = getParam<vec4>("imageRegion", vec4(0.f, 0.f, 1.f, 1.f));
-  hd.pos = getParam<vec3>("position", vec3(0.f));
-  hd.dir = normalize(getParam<vec3>("direction", vec3(0.f, 0.f, 1.f)));
-  hd.up = normalize(getParam<vec3>("up", vec3(0.f, 1.f, 0.f)));
-}
+ private:
+  MaterialGPUData gpuData() const override;
+};
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Camera *);

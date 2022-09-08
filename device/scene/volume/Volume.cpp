@@ -32,6 +32,7 @@
 #include "Volume.h"
 // specific types
 #include "SciVisVolume.h"
+#include "UnknownVolume.h"
 
 namespace visrtx {
 
@@ -73,9 +74,8 @@ Volume *Volume::createInstance(std::string_view subtype, DeviceGlobalState *d)
 
   if (subtype == "scivis")
     retval = new SciVisVolume;
-
-  if (!retval)
-    throw std::runtime_error("could not create volume");
+  else
+    retval = new UnknownVolume;
 
   retval->setDeviceState(d);
   retval->setRegistry(d->registry.volumes);

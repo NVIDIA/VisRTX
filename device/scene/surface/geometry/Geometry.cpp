@@ -36,6 +36,7 @@
 #include "Quads.h"
 #include "Spheres.h"
 #include "Triangles.h"
+#include "UnknownGeometry.h"
 // std
 #include <string_view>
 
@@ -50,7 +51,7 @@ Geometry *Geometry::createInstance(
 
   if (subtype == "triangle")
     retval = new Triangles;
-  if (subtype == "quad")
+  else if (subtype == "quad")
     retval = new Quads;
   else if (subtype == "sphere")
     retval = new Spheres;
@@ -58,9 +59,8 @@ Geometry *Geometry::createInstance(
     retval = new Cylinders;
   else if (subtype == "cone")
     retval = new Cones;
-
-  if (!retval)
-    throw std::runtime_error("could not create geometry");
+  else
+    retval = new UnknownGeometry;
 
   retval->setDeviceState(d);
   retval->setRegistry(d->registry.geometries);

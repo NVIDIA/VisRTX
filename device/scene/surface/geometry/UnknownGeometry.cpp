@@ -29,54 +29,28 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Camera.h"
-// specific types
-#include "Orthographic.h"
-#include "Perspective.h"
-#include "UnknownCamera.h"
+#include "UnknownGeometry.h"
 
 namespace visrtx {
 
-static size_t s_numCameras = 0;
-
-size_t Camera::objectCount()
+void UnknownGeometry::populateBuildInput(OptixBuildInput &) const
 {
-  return s_numCameras;
+  // no-op
 }
 
-Camera::Camera()
+GeometryGPUData UnknownGeometry::gpuData() const
 {
-  s_numCameras++;
+  return {};
 }
 
-Camera::~Camera()
+int UnknownGeometry::optixGeometryType() const
 {
-  s_numCameras--;
+  return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 }
 
-Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
+bool UnknownGeometry::isValid() const
 {
-  Camera *retval = nullptr;
-
-  if (subtype == "perspective")
-    retval = new Perspective();
-  else if (subtype == "orthographic")
-    retval = new Orthographic();
-  else
-    retval = new UnknownCamera();
-
-  retval->setDeviceState(d);
-  return retval;
-}
-
-void Camera::readBaseParameters(CameraGPUData &hd)
-{
-  hd.region = getParam<vec4>("imageRegion", vec4(0.f, 0.f, 1.f, 1.f));
-  hd.pos = getParam<vec3>("position", vec3(0.f));
-  hd.dir = normalize(getParam<vec3>("direction", vec3(0.f, 0.f, 1.f)));
-  hd.up = normalize(getParam<vec3>("up", vec3(0.f, 1.f, 0.f)));
+  return false;
 }
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Camera *);
