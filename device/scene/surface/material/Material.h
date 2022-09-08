@@ -53,7 +53,7 @@ inline void populateMaterialParameter(MaterialParameter<T> &mp,
     anari::IntrusivePtr<Sampler> sampler,
     const std::string &attrib)
 {
-  if (sampler) {
+  if (sampler && sampler->isValid()) {
     mp.type = MaterialParameterType::SAMPLER;
     mp.sampler = sampler->index();
   } else if (!attrib.empty()) {
