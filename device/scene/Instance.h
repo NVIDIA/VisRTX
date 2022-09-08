@@ -52,6 +52,8 @@ struct Instance : public Object
 
   void markCommitted() override;
 
+  bool isValid() const override;
+
  private:
   mat4x3 m_xfm;
   anari::IntrusivePtr<Group> m_group;

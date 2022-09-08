@@ -84,6 +84,11 @@ void Instance::markCommitted()
   deviceState()->objectUpdates.lastTLASChange = newTimeStamp();
 }
 
+bool Instance::isValid() const
+{
+  return m_group;
+}
+
 } // namespace visrtx
 
 VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Instance *);

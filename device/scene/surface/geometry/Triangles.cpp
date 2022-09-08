@@ -123,6 +123,11 @@ int Triangles::optixGeometryType() const
   return OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 }
 
+bool Triangles::isValid() const
+{
+  return m_vertex;
+}
+
 GeometryGPUData Triangles::gpuData() const
 {
   auto retval = Geometry::gpuData();

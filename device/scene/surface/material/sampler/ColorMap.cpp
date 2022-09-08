@@ -120,6 +120,11 @@ int ColorMap::numChannels() const
   return 3;
 }
 
+bool ColorMap::isValid() const
+{
+  return m_params.color;
+}
+
 void ColorMap::discritizeTFData()
 {
   m_tf.resize(m_tfDim);

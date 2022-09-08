@@ -107,6 +107,11 @@ int Quads::optixGeometryType() const
   return OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 }
 
+bool Quads::isValid() const
+{
+  return m_vertex;
+}
+
 GeometryGPUData Quads::gpuData() const
 {
   auto retval = Geometry::gpuData();

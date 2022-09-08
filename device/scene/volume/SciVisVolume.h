@@ -44,6 +44,8 @@ struct SciVisVolume : public Volume
 
   void commit() override;
 
+  bool isValid() const override;
+
  private:
   VolumeGPUData gpuData() const override;
   void discritizeTFData();

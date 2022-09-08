@@ -128,6 +128,11 @@ void SciVisVolume::commit()
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
 }
 
+bool SciVisVolume::isValid() const
+{
+  return m_params.color && m_params.opacity && m_params.field;
+}
+
 VolumeGPUData SciVisVolume::gpuData() const
 {
   VolumeGPUData retval{};
@@ -175,10 +180,8 @@ void SciVisVolume::discritizeTFData()
     const float p = float(i) / (m_tf.size() - 1);
     const auto c = getInterpolatedValue(
         m_params.color->beginAs<vec3>(), cPositions, m_params.valueRange, p);
-    const auto o = getInterpolatedValue(m_params.opacity->beginAs<float>(),
-        oPositions,
-        m_params.valueRange,
-        p);
+    const auto o = getInterpolatedValue(
+        m_params.opacity->beginAs<float>(), oPositions, m_params.valueRange, p);
     m_tf[i] = vec4(c, o);
   }
 }

@@ -158,6 +158,11 @@ int Image1D::numChannels() const
   return numANARIChannels(format);
 }
 
+bool Image1D::isValid() const
+{
+  return m_params.image;
+}
+
 void Image1D::cleanup()
 {
   if (m_textureObject)

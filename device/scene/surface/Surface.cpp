@@ -77,6 +77,12 @@ void Surface::markCommitted()
   deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
 }
 
+bool Surface::isValid() const
+{
+  return m_geometry && m_material && m_geometry->isValid()
+      && m_material->isValid();
+}
+
 SurfaceGPUData Surface::gpuData() const
 {
   SurfaceGPUData retval;

@@ -150,6 +150,11 @@ int Spheres::optixGeometryType() const
   return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 }
 
+bool Spheres::isValid() const
+{
+  return m_vertex;
+}
+
 void Spheres::cleanup()
 {
   if (m_index)

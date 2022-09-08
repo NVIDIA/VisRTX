@@ -49,6 +49,8 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
 
   void markCommitted() override;
 
+  bool isValid() const override;
+
  private:
   SurfaceGPUData gpuData() const override;
 

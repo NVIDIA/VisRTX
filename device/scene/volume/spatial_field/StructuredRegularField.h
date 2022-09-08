@@ -46,6 +46,8 @@ struct StructuredRegularField : public SpatialField
   box3 bounds() const override;
   float stepSize() const override;
 
+  bool isValid() const override;
+
  private:
   SpatialFieldGPUData gpuData() const override;
   void cleanup();

@@ -78,6 +78,8 @@ struct Object : public anari::RefCounted, public anari::ParameterizedObject
 
   virtual void *deviceData() const;
 
+  virtual bool isValid() const;
+
   void setObjectType(ANARIDataType type);
   ANARIDataType type() const;
 
@@ -139,6 +141,15 @@ inline void Object::reportMessage(
 
   auto msg = string_printf(fmt, std::forward<Args>(args)...);
   state->messageFunction(severity, msg, this);
+}
+
+// Helper functions ///////////////////////////////////////////////////////////
+
+template <typename T>
+inline void writeToVoidP(void *_p, T v)
+{
+  T *p = (T *)_p;
+  *p = v;
 }
 
 } // namespace visrtx

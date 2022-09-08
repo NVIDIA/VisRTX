@@ -152,6 +152,11 @@ int Cylinders::optixGeometryType() const
   return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 }
 
+bool Cylinders::isValid() const
+{
+  return m_vertex;
+}
+
 void Cylinders::cleanup()
 {
   if (m_index)

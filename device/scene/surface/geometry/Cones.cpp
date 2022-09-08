@@ -158,6 +158,11 @@ int Cones::optixGeometryType() const
   return OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 }
 
+bool Cones::isValid() const
+{
+  return m_vertex && m_radius;
+}
+
 GeometryGPUData Cones::gpuData() const
 {
   auto retval = Geometry::gpuData();

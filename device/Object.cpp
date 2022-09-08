@@ -68,12 +68,22 @@ void Object::upload()
 bool Object::getProperty(
     const std::string_view &name, ANARIDataType type, void *ptr, uint32_t flags)
 {
+  if (name == "valid" && type == ANARI_BOOL) {
+    writeToVoidP(ptr, isValid());
+    return true;
+  }
+
   return false;
 }
 
 void *Object::deviceData() const
 {
   return nullptr;
+}
+
+bool Object::isValid() const
+{
+  return true;
 }
 
 void Object::setObjectType(ANARIDataType type)

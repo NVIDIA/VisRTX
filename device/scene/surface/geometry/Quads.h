@@ -47,6 +47,8 @@ struct Quads : public Geometry
 
   int optixGeometryType() const override;
 
+  bool isValid() const override;
+
  private:
   GeometryGPUData gpuData() const override;
   void generateIndices();

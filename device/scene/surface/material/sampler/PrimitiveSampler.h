@@ -45,6 +45,8 @@ struct PrimitiveSampler : public Sampler
 
   int numChannels() const override;
 
+  bool isValid() const override;
+
  private:
   SamplerGPUData gpuData() const override;
 

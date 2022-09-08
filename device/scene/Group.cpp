@@ -88,7 +88,7 @@ bool Group::getProperty(
     return true;
   }
 
-  return false;
+  return Object::getProperty(name, type, ptr, flags);
 }
 
 void Group::commit()

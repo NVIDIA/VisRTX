@@ -94,13 +94,6 @@ const char **query_extensions();
 // Helper functions ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-inline void writeToVoidP(void *_p, T v)
-{
-  T *p = (T *)_p;
-  *p = v;
-}
-
 template <typename T, typename... Args>
 inline T *createRegisteredObject(Args &&...args)
 {

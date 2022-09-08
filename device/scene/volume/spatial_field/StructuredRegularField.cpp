@@ -145,6 +145,11 @@ float StructuredRegularField::stepSize() const
   return glm::compMin(m_params.spacing / 2.f);
 }
 
+bool StructuredRegularField::isValid() const
+{
+  return m_params.data && validDataType(m_params.data->elementType());
+}
+
 SpatialFieldGPUData StructuredRegularField::gpuData() const
 {
   SpatialFieldGPUData sf;

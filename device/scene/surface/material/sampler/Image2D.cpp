@@ -160,6 +160,11 @@ int Image2D::numChannels() const
   return numANARIChannels(format);
 }
 
+bool Image2D::isValid() const
+{
+  return m_params.image;
+}
+
 void Image2D::cleanup()
 {
   if (m_textureObject)

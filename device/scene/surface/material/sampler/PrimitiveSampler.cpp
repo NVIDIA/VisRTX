@@ -65,4 +65,9 @@ int PrimitiveSampler::numChannels() const
   return m_ap.numChannels;
 }
 
+bool PrimitiveSampler::isValid() const
+{
+  return m_data;
+}
+
 } // namespace visrtx
