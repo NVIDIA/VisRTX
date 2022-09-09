@@ -203,9 +203,6 @@ void Frame::renderFrame()
 {
   wait();
 
-  if (!m_valid)
-    return;
-
   auto &state = *deviceState();
 
   instrument::rangePush("update scene");
@@ -222,7 +219,7 @@ void Frame::renderFrame()
   instrument::rangePop(); // rebuild BVHs
   instrument::rangePop(); // update scene
 
-  if (!m_renderer || !m_camera || !m_world) {
+  if (!m_valid) {
     reportMessage(
         ANARI_SEVERITY_ERROR, "skipping render of incomplete frame object");
     return;
