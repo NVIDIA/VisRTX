@@ -8,6 +8,7 @@
 - Added support for missing array types for image samplers
 - Improved robustness around object subtypes unknown to VisRTX
 - Improved object leak warnings on device release
+- Fix incorrect handling of managed arrays of objects
 
 ## 0.4.0
 ##### 2022-07-22
