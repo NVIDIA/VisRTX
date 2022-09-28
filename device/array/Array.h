@@ -92,7 +92,7 @@ struct Array : public Object
   bool wasPrivatized() const;
 
   void *map();
-  void unmap();
+  virtual void unmap();
 
   void markDataModified();
   virtual void uploadArrayData() const;
@@ -106,6 +106,7 @@ struct Array : public Object
   void makePrivatizedCopy(size_t numElements);
   void freeAppMemory();
   void initManagedMemory();
+  void notifyCommitObservers() const;
 
   struct ArrayDescriptor
   {
@@ -139,8 +140,7 @@ struct Array : public Object
 
   TimeStamp m_lastDataModified{0};
   mutable TimeStamp m_lastDataUploaded{0};
-
-  void notifyCommitObservers() const;
+  bool m_mapped{false};
 
  private:
   std::vector<Object *> m_observers;
@@ -148,7 +148,6 @@ struct Array : public Object
   ArrayDataOwnership m_ownership{ArrayDataOwnership::INVALID};
   ANARIDataType m_elementType{ANARI_UNKNOWN};
   bool m_privatized{false};
-  bool m_mapped{false};
   mutable bool m_usedOnDevice{false};
 };
 

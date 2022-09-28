@@ -55,6 +55,7 @@ struct ObjectArray : public Array
   size_t size() const;
 
   void privatize() override;
+  void unmap() override;
 
   Object **handlesBegin(bool uploadData = true) const;
   Object **handlesEnd(bool uploadData = true) const;

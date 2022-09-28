@@ -133,6 +133,19 @@ void ObjectArray::privatize()
   }
 }
 
+void ObjectArray::unmap()
+{
+  if (!m_mapped) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "array unmapped again without being previously mapped");
+    return;
+  }
+  m_mapped = false;
+  updateInternalHandleArrays();
+  markDataModified();
+  notifyCommitObservers();
+}
+
 Object **ObjectArray::handlesBegin(bool uploadData) const
 {
   if (uploadData)

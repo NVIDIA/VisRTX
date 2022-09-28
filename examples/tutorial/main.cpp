@@ -132,8 +132,18 @@ anari::World generateScene(anari::Device device)
   // Create and parameterize world //
 
   auto world = anari::newObject<anari::World>(device);
+#if 1
+  {
+    auto surfaceArray = anari::newArray1D(device, ANARI_SURFACE, 1);
+    auto *s = anari::map<anari::Surface>(device, surfaceArray);
+    s[0] = surface;
+    anari::unmap(device, surfaceArray);
+    anari::setAndReleaseParameter(device, world, "surface", surfaceArray);
+  }
+#else
   anari::setAndReleaseParameter(
       device, world, "surface", anari::newArray1D(device, &surface));
+#endif
   anari::release(device, surface);
   anari::commitParameters(device, world);
 
