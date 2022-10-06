@@ -66,8 +66,6 @@ struct Cylinders : public Geometry
   anari::IntrusivePtr<Array1D> m_vertexAttribute2;
   anari::IntrusivePtr<Array1D> m_vertexAttribute3;
 
-  HostDeviceArray<uint32_t> m_generatedIndices;
-
   HostDeviceArray<box3> m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};
 

@@ -128,6 +128,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/surface/Surface.cpp
 
   scene/surface/geometry/Cones.cpp
+  scene/surface/geometry/Curves.cpp
   scene/surface/geometry/Cylinders.cpp
   scene/surface/geometry/Geometry.cpp
   scene/surface/geometry/Quads.cpp

@@ -357,6 +357,9 @@ void Viewer::updateWorld()
   case SceneTypes::RANDOM_CONES:
     m_currentScene = generateScene(m_device, m_conesConfig);
     break;
+  case SceneTypes::STREAMLINES:
+    m_currentScene = generateScene(m_device, m_curvesConfig);
+    break;
   case SceneTypes::NOISE_VOLUME:
     m_currentScene = generateScene(m_device, m_noiseVolumeConfig);
     break;
@@ -566,6 +569,7 @@ void Viewer::ui_makeWindow()
     if (ui_scenes(m_spheresConfig,
             m_cylindersConfig,
             m_conesConfig,
+            m_curvesConfig,
             m_noiseVolumeConfig,
             m_gravityVolumeConfig,
             m_objFileConfig,

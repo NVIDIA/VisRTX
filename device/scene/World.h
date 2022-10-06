@@ -81,6 +81,7 @@ struct World : public Object
   anari::IntrusivePtr<Instance> m_zeroInstance;
 
   size_t m_numTriangleInstances{0};
+  size_t m_numCurveInstances{0};
   size_t m_numUserInstances{0};
   size_t m_numVolumeInstances{0};
   size_t m_numLightInstances{0};

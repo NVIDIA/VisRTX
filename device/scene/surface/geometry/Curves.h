@@ -31,73 +31,48 @@
 
 #pragma once
 
-#include "Object.h"
-#include "gpu/gpu_objects.h"
-// optix
-#include <optix.h>
-// std
-#include <vector>
-// anari
-#include "anari/backend/utilities/Span.h"
+#include "array/Array.h"
+#include "Geometry.h"
+#include "utility/HostDeviceArray.h"
 
 namespace visrtx {
 
-struct HitgroupFunctionNames
+struct Curves : public Geometry
 {
-  std::string closestHit{"__closesthit__"};
-  std::string anyHit;
-};
+  Curves() = default;
+  ~Curves() override;
 
-struct Renderer : public Object
-{
-  static size_t objectCount();
+  void commit() override;
 
-  Renderer();
-  ~Renderer() override;
+  void populateBuildInput(OptixBuildInput &) const override;
 
-  virtual void commit() override;
+  int optixGeometryType() const override;
 
-  virtual OptixModule optixModule() const = 0;
-
-  virtual anari::Span<const HitgroupFunctionNames> hitgroupSbtNames() const;
-  virtual anari::Span<const std::string> missSbtNames() const;
-
-  virtual void populateFrameData(FrameGPUData &fd) const;
-
-  OptixPipeline pipeline() const;
-  const OptixShaderBindingTable *sbt();
-
-  vec4 bgColor() const;
-  int spp() const;
-
-  static Renderer *createInstance(
-      std::string_view subtype, DeviceGlobalState *d);
-
- protected:
-  vec4 m_bgColor{1.f};
-  int m_spp{1};
-
-  // OptiX //
-
-  OptixPipeline m_pipeline{nullptr};
-
-  std::vector<OptixProgramGroup> m_raygenPGs;
-  std::vector<OptixProgramGroup> m_missPGs;
-  std::vector<OptixProgramGroup> m_hitgroupPGs;
-  DeviceBuffer m_raygenRecordsBuffer;
-  DeviceBuffer m_missRecordsBuffer;
-  DeviceBuffer m_hitgroupRecordsBuffer;
-  OptixShaderBindingTable m_sbt{};
+  bool isValid() const override;
 
  private:
-  void initOptixPipeline();
+  void computeIndices();
+  void computeRadii();
+  GeometryGPUData gpuData() const override;
+  void cleanup();
 
-  HitgroupFunctionNames m_defaultHitgroupNames;
-  std::string m_defaultMissName{"__miss__"};
+  anari::IntrusivePtr<Array1D> m_index;
+
+  anari::IntrusivePtr<Array1D> m_vertexPosition;
+  anari::IntrusivePtr<Array1D> m_vertexRadius;
+  anari::IntrusivePtr<Array1D> m_vertexAttribute0;
+  anari::IntrusivePtr<Array1D> m_vertexAttribute1;
+  anari::IntrusivePtr<Array1D> m_vertexAttribute2;
+  anari::IntrusivePtr<Array1D> m_vertexAttribute3;
+  anari::IntrusivePtr<Array1D> m_vertexColor;
+
+  float m_globalRadius;
+
+  HostDeviceArray<uint32_t> m_generatedIndices;
+  HostDeviceArray<float> m_generatedRadii;
+
+  CUdeviceptr m_vertexBufferPtr{};
+  CUdeviceptr m_radiusBufferPtr{};
 };
 
-OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions();
-
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Renderer *, ANARI_RENDERER);

@@ -122,6 +122,7 @@ struct DeviceGlobalState
 
   struct IntersectionModules
   {
+    OptixModule curveIntersector{nullptr};
     OptixModule customIntersectors{nullptr};
   } intersectionModules;
 

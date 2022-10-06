@@ -28,9 +28,9 @@ Building VisRTX requires the following:
 
 - CMake 3.17+
 - C++17 compiler
-- NVIDIA Driver 470+
+- NVIDIA Driver 495+
 - CUDA 11.3.1+
-- [OptiX 7.3+](https://developer.nvidia.com/rtx/ray-tracing/optix)
+- [OptiX 7.4+](https://developer.nvidia.com/rtx/ray-tracing/optix)
 - [ANARI-SDK 0.2.0](https://github.com/KhronosGroup/ANARI-SDK)
 
 Building VisRTX is done through invoking CMake on the source directory from a
@@ -259,7 +259,6 @@ change parameters.
 
 The following features are not yet implemented by VisRTX:
 
-- Geometry: `curve`
 - Light: `spot`, instancing
 - Camera: `omnidirectional`, stereo rendering, direct transform parameter
 - Sampler: `image3D`, in/out transforms on `image2D`

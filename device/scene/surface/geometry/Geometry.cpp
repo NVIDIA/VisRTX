@@ -32,6 +32,7 @@
 #include "Geometry.h"
 // specific types
 #include "Cones.h"
+#include "Curves.h"
 #include "Cylinders.h"
 #include "Quads.h"
 #include "Spheres.h"
@@ -59,6 +60,8 @@ Geometry *Geometry::createInstance(
     retval = new Cylinders;
   else if (subtype == "cone")
     retval = new Cones;
+  else if (subtype == "curve")
+    retval = new Curves;
   else
     retval = new UnknownGeometry;
 

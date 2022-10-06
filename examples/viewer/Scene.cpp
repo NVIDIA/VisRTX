@@ -359,6 +359,160 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
   return std::make_unique<Scene>(d, world);
 }
 
+static ScenePtr generateCurves(anari::Device d, CurvesConfig config)
+{
+  auto world = anari::newObject<anari::World>(d);
+
+  // This code is adapted from the OSPRay 'streamlines' example:
+  //   https://github.com/ospray/ospray/blob/fdda0889f9143a8b20f26389c22d1691f1a6a527/apps/common/ospray_testing/builders/Streamlines.cpp
+
+  std::vector<glm::vec3> positions;
+  std::vector<float> radii;
+  std::vector<unsigned int> indices;
+  std::vector<glm::vec4> colors;
+
+  auto addPoint = [&](const glm::vec4 &p) {
+    positions.emplace_back(p.x, p.y, p.z);
+    radii.push_back(p.w);
+  };
+
+#if 1
+  addPoint({-0.25f, -0.25f, 0.0f, 0.3f});
+  addPoint({0.25f, 0.25f, 0.0f, 0.4f});
+#elif 0
+  std::vector<glm::vec4> points = {{-1.0f, 0.0f, -2.f, 0.2f},
+      {0.0f, -1.0f, 0.0f, 0.2f},
+      {1.0f, 0.0f, 2.f, 0.2f},
+      {-1.0f, 0.0f, 2.f, 0.2f},
+      {0.0f, 1.0f, 0.0f, 0.6f},
+      {1.0f, 0.0f, -2.f, 0.2f},
+      {-1.0f, 0.0f, -2.f, 0.2f},
+      {0.0f, -1.0f, 0.0f, 0.2f},
+      {1.0f, 0.0f, 2.f, 0.2f}};
+  for (const auto &v : points)
+    addPoint(v);
+
+  indices = {0, 1, 2, 3, 4, 5};
+  std::mt19937 gen(0);
+  std::uniform_real_distribution<float> colorDistribution(0.1f, 1.0f);
+  std::vector<glm::vec4> s_colors(positions.size());
+  for (auto &c : s_colors) {
+    c.x = colorDistribution(gen);
+    c.y = colorDistribution(gen);
+    c.z = colorDistribution(gen);
+    c.w = colorDistribution(gen);
+  }
+#else
+  std::mt19937 rng(0);
+  std::uniform_real_distribution<float> radDist(0.5f, 1.5f);
+  std::uniform_real_distribution<float> stepDist(0.001f, 0.1f);
+  std::uniform_real_distribution<float> sDist(0, 360);
+  std::uniform_real_distribution<float> dDist(360, 720);
+  std::uniform_real_distribution<float> freqDist(0.5f, 1.5f);
+
+  // create multiple lines
+  int numLines = 100;
+  for (int l = 0; l < numLines; l++) {
+    int dStart = sDist(rng);
+    int dEnd = dDist(rng);
+    float radius = radDist(rng);
+    float h = 0;
+    float hStep = stepDist(rng);
+    float f = freqDist(rng);
+
+    float r = (720 - dEnd) / 360.f;
+    glm::vec4 c(r, 1 - r, 1 - r / 2, 1.f);
+
+    // spiral up with changing radius of curvature
+    for (int d = dStart; d < dStart + dEnd; d += 10, h += hStep) {
+      glm::vec3 p, q;
+      float startRadius, endRadius;
+
+      p.x = radius * std::sin(d * M_PI / 180.f);
+      p.y = h - 2;
+      p.z = radius * std::cos(d * M_PI / 180.f);
+      startRadius = 0.015f * std::sin(f * d * M_PI / 180) + 0.02f;
+
+      q.x = (radius - 0.05f) * std::sin((d + 10) * M_PI / 180.f);
+      q.y = h + hStep - 2;
+      q.z = (radius - 0.05f) * std::cos((d + 10) * M_PI / 180.f);
+      endRadius = 0.015f * std::sin(f * (d + 10) * M_PI / 180) + 0.02f;
+      if (d == dStart) {
+        const auto rim = glm::mix(q, p, 1.f + endRadius / length(q - p));
+        const auto cap = glm::mix(p, rim, 1.f + startRadius / length(rim - p));
+        addPoint(glm::vec4(cap, 0.f));
+        addPoint(glm::vec4(rim, 0.f));
+        addPoint(glm::vec4(p, startRadius));
+        addPoint(glm::vec4(q, endRadius));
+        indices.push_back(positions.size() - 4);
+        colors.push_back(c);
+        colors.push_back(c);
+      } else if (d + 10 < dStart + dEnd && d + 20 > dStart + dEnd) {
+        const auto rim = glm::mix(p, q, 1.f + startRadius / length(p - q));
+        const auto cap = glm::mix(q, rim, 1.f + endRadius / length(rim - q));
+        addPoint(glm::vec4(p, startRadius));
+        addPoint(glm::vec4(q, endRadius));
+        addPoint(glm::vec4(rim, 0.f));
+        addPoint(glm::vec4(cap, 0.f));
+        indices.push_back(positions.size() - 7);
+        indices.push_back(positions.size() - 6);
+        indices.push_back(positions.size() - 5);
+        indices.push_back(positions.size() - 4);
+        colors.push_back(c);
+        colors.push_back(c);
+      } else if ((d != dStart && d != dStart + 10) && d + 20 < dStart + dEnd) {
+        addPoint(glm::vec4(p, startRadius));
+        indices.push_back(positions.size() - 4);
+      }
+      colors.push_back(c);
+      radius -= 0.05f;
+    }
+  }
+#endif
+
+  auto geom = anari::newObject<anari::Geometry>(d, "curve");
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.position",
+      anari::newArray1D(d, positions.data(), positions.size()));
+#if 1
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.radius",
+      anari::newArray1D(d, radii.data(), radii.size()));
+#else
+  anari::setParameter(d, geom, "radius", 0.01f);
+#endif
+#if 0
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.color",
+      anari::newArray1D(d, colors.data(), colors.size()));
+#endif
+#if 0
+  anari::setAndReleaseParameter(d,
+      geom,
+      "primitive.index",
+      anari::newArray1D(d, indices.data(), indices.size()));
+#endif
+  anari::commitParameters(d, geom);
+
+  auto surface = anari::newObject<anari::Surface>(d);
+  anari::setAndReleaseParameter(d, surface, "geometry", geom);
+
+  auto mat = anari::newObject<anari::Material>(d, "matte");
+  anari::setAndReleaseParameter(d, surface, "material", mat);
+
+  anari::commitParameters(d, surface);
+
+  anari::setAndReleaseParameter(
+      d, world, "surface", anari::newArray1D(d, &surface));
+
+  anari::release(d, surface);
+
+  return std::make_unique<Scene>(d, world);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Spheres scene //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -1141,6 +1295,8 @@ ScenePtr generateScene(anari::Device d, SceneConfig config)
           retval = generateCylinders(d, arg);
         else if constexpr (std::is_same_v<T, ConesConfig>)
           retval = generateCones(d, arg);
+        else if constexpr (std::is_same_v<T, CurvesConfig>)
+          retval = generateCurves(d, arg);
         else if constexpr (std::is_same_v<T, NoiseVolumeConfig>) {
           retval = generateNoiseVolume(d, arg);
           if (arg.instanceVolume && arg.addPlane)

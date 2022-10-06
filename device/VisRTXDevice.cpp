@@ -777,26 +777,19 @@ void VisRTXDevice::initDevice()
 
   // Create OptiX modules //
 
+  OptixModuleCompileOptions moduleCompileOptions = {};
+  moduleCompileOptions.maxRegisterCount =
+      OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+  moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+  moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+
+  auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
+
   auto init_module = [&](OptixModule &module, unsigned char *ptx) {
     const std::string ptxCode = (const char *)ptx;
 
     std::string log(2048, '\n');
     size_t sizeof_log = log.size();
-
-    OptixModuleCompileOptions moduleCompileOptions = {};
-    moduleCompileOptions.maxRegisterCount =
-        OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
-    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
-
-    OptixPipelineCompileOptions pipelineCompileOptions = {};
-    pipelineCompileOptions.traversableGraphFlags =
-        OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-    pipelineCompileOptions.usesMotionBlur = false;
-    pipelineCompileOptions.numPayloadValues = PAYLOAD_VALUES;
-    pipelineCompileOptions.numAttributeValues = ATTRIBUTE_VALUES;
-    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
-    pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
 
     OPTIX_CHECK(optixModuleCreateFromPTX(state.optixContext,
         &moduleCompileOptions,
@@ -825,6 +818,15 @@ void VisRTXDevice::initDevice()
 
   reportMessage(ANARI_SEVERITY_DEBUG, "Compiling custom intersectors");
   init_module(state.intersectionModules.customIntersectors, intersection_ptx());
+
+  OptixBuiltinISOptions builtinISOptions = {};
+  builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;
+  builtinISOptions.usesMotionBlur = 0;
+  OPTIX_CHECK(optixBuiltinISModuleGet(state.optixContext,
+      &moduleCompileOptions,
+      &pipelineCompileOptions,
+      &builtinISOptions,
+      &state.intersectionModules.curveIntersector));
 }
 
 void VisRTXDevice::deviceSetParameter(

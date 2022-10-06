@@ -90,6 +90,7 @@ class Viewer : public match3D::Application
   SpheresConfig m_spheresConfig;
   CylindersConfig m_cylindersConfig;
   ConesConfig m_conesConfig;
+  CurvesConfig m_curvesConfig;
   NoiseVolumeConfig m_noiseVolumeConfig;
   GravityVolumeConfig m_gravityVolumeConfig;
   ObjFileConfig m_objFileConfig;

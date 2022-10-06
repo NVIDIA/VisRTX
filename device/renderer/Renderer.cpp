@@ -196,7 +196,7 @@ void Renderer::initOptixPipeline()
 {
   auto &state = *deviceState();
 
-  auto om = optixModule();
+  auto shadingModule = optixModule();
 
   char log[2048];
   size_t sizeof_log = sizeof(log);
@@ -209,7 +209,7 @@ void Renderer::initOptixPipeline()
     OptixProgramGroupOptions pgOptions = {};
     OptixProgramGroupDesc pgDesc = {};
     pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
-    pgDesc.raygen.module = om;
+    pgDesc.raygen.module = shadingModule;
     pgDesc.raygen.entryFunctionName = "__raygen__";
 
     sizeof_log = sizeof(log);
@@ -228,31 +228,24 @@ void Renderer::initOptixPipeline()
   // Miss program //
 
   {
-    auto missNames = missSbtNames();
+    m_missPGs.resize(1);
+    OptixProgramGroupOptions pgOptions = {};
+    OptixProgramGroupDesc pgDesc = {};
+    pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+    pgDesc.miss.module = shadingModule;
+    pgDesc.miss.entryFunctionName = "__miss__";
 
-    m_missPGs.resize(missNames.size());
+    sizeof_log = sizeof(log);
+    OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+        &pgDesc,
+        1,
+        &pgOptions,
+        log,
+        &sizeof_log,
+        &m_missPGs[0]));
 
-    for (int i = 0; i < m_missPGs.size(); i++) {
-      auto &mn = missNames[i];
-
-      OptixProgramGroupOptions pgOptions = {};
-      OptixProgramGroupDesc pgDesc = {};
-      pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-      pgDesc.miss.module = om;
-      pgDesc.miss.entryFunctionName = mn.c_str();
-
-      sizeof_log = sizeof(log);
-      OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
-          &pgDesc,
-          1,
-          &pgOptions,
-          log,
-          &sizeof_log,
-          &m_missPGs[i]));
-
-      if (sizeof_log > 1)
-        reportMessage(ANARI_SEVERITY_DEBUG, "PG Miss Log:\n%s", log);
-    }
+    if (sizeof_log > 1)
+      reportMessage(ANARI_SEVERITY_DEBUG, "PG Miss Log:\n%s", log);
   }
 
   // Hit program //
@@ -260,51 +253,108 @@ void Renderer::initOptixPipeline()
   {
     auto hitgroupNames = hitgroupSbtNames();
 
-    m_hitgroupPGs.resize(hitgroupNames.size());
+    m_hitgroupPGs.resize(
+        hitgroupNames.size() * NUM_SBT_PRIMITIVE_INTERSECTOR_ENTRIES);
 
-    for (int i = 0; i < m_hitgroupPGs.size(); i++) {
-      auto &hgn = hitgroupNames[i];
+    int i = 0;
+    for (auto &hgn : hitgroupNames) {
+      // Triangles
+      {
+        OptixProgramGroupOptions pgOptions = {};
+        OptixProgramGroupDesc pgDesc = {};
+        pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
-      OptixProgramGroupOptions pgOptions = {};
-      OptixProgramGroupDesc pgDesc = {};
-      pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        pgDesc.hitgroup.moduleCH = shadingModule;
+        pgDesc.hitgroup.entryFunctionNameCH = hgn.closestHit.c_str();
 
-      pgDesc.hitgroup.moduleCH = om;
-      pgDesc.hitgroup.entryFunctionNameCH = hgn.closestHit.c_str();
+        if (!hgn.anyHit.empty()) {
+          pgDesc.hitgroup.moduleAH = shadingModule;
+          pgDesc.hitgroup.entryFunctionNameAH = hgn.anyHit.c_str();
+        }
 
-      if (!hgn.anyHit.empty()) {
-        pgDesc.hitgroup.moduleAH = om;
-        pgDesc.hitgroup.entryFunctionNameAH = hgn.anyHit.c_str();
+        sizeof_log = sizeof(log);
+        OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+            &pgDesc,
+            1,
+            &pgOptions,
+            log,
+            &sizeof_log,
+            &m_hitgroupPGs[i++]));
+        if (sizeof_log > 1) {
+          reportMessage(
+              ANARI_SEVERITY_DEBUG, "PG Hitgroup Log (Triangles):\n%s", log);
+        }
       }
 
-      pgDesc.hitgroup.moduleIS = state.intersectionModules.customIntersectors;
-      pgDesc.hitgroup.entryFunctionNameIS = "__intersection__";
+      // Curves
+      {
+        OptixProgramGroupOptions pgOptions = {};
+        OptixProgramGroupDesc pgDesc = {};
+        pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
-      sizeof_log = sizeof(log);
-      OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
-          &pgDesc,
-          1,
-          &pgOptions,
-          log,
-          &sizeof_log,
-          &m_hitgroupPGs[i]));
+        pgDesc.hitgroup.moduleCH = shadingModule;
+        pgDesc.hitgroup.entryFunctionNameCH = hgn.closestHit.c_str();
 
-      if (sizeof_log > 1)
-        reportMessage(ANARI_SEVERITY_DEBUG, "PG Hitgroup Log:\n%s", log);
+        if (!hgn.anyHit.empty()) {
+          pgDesc.hitgroup.moduleAH = shadingModule;
+          pgDesc.hitgroup.entryFunctionNameAH = hgn.anyHit.c_str();
+        }
+
+        pgDesc.hitgroup.moduleIS = state.intersectionModules.curveIntersector;
+        pgDesc.hitgroup.entryFunctionNameIS = nullptr;
+
+        sizeof_log = sizeof(log);
+        OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+            &pgDesc,
+            1,
+            &pgOptions,
+            log,
+            &sizeof_log,
+            &m_hitgroupPGs[i++]));
+        if (sizeof_log > 1) {
+          reportMessage(
+              ANARI_SEVERITY_DEBUG, "PG Hitgroup Log (Curve):\n%s", log);
+        }
+      }
+
+      // Custom
+
+      {
+        OptixProgramGroupOptions pgOptions = {};
+        OptixProgramGroupDesc pgDesc = {};
+        pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        pgDesc.hitgroup.moduleCH = shadingModule;
+        pgDesc.hitgroup.entryFunctionNameCH = hgn.closestHit.c_str();
+
+        if (!hgn.anyHit.empty()) {
+          pgDesc.hitgroup.moduleAH = shadingModule;
+          pgDesc.hitgroup.entryFunctionNameAH = hgn.anyHit.c_str();
+        }
+
+        pgDesc.hitgroup.moduleIS = state.intersectionModules.customIntersectors;
+        pgDesc.hitgroup.entryFunctionNameIS = "__intersection__";
+
+        sizeof_log = sizeof(log);
+        OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+            &pgDesc,
+            1,
+            &pgOptions,
+            log,
+            &sizeof_log,
+            &m_hitgroupPGs[i++]));
+
+        if (sizeof_log > 1) {
+          reportMessage(
+              ANARI_SEVERITY_DEBUG, "PG Hitgroup Log (Custom):\n%s", log);
+        }
+      }
     }
   }
 
   // Pipeline //
 
   {
-    OptixPipelineCompileOptions pipelineCompileOptions = {};
-    pipelineCompileOptions.traversableGraphFlags =
-        OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-    pipelineCompileOptions.usesMotionBlur = false;
-    pipelineCompileOptions.numPayloadValues = PAYLOAD_VALUES;
-    pipelineCompileOptions.numAttributeValues = ATTRIBUTE_VALUES;
-    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
-    pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
+    auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
     OptixPipelineLinkOptions pipelineLinkOptions = {};
     pipelineLinkOptions.maxTraceDepth = 2;
@@ -365,6 +415,22 @@ void Renderer::initOptixPipeline()
     m_sbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
     m_sbt.hitgroupRecordCount = hitgroupRecords.size();
   }
+}
+
+OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions()
+{
+  OptixPipelineCompileOptions pipelineCompileOptions = {};
+  pipelineCompileOptions.usesPrimitiveTypeFlags =
+      OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE | OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM
+      | OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR;
+  pipelineCompileOptions.traversableGraphFlags =
+      OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
+  pipelineCompileOptions.usesMotionBlur = false;
+  pipelineCompileOptions.numPayloadValues = PAYLOAD_VALUES;
+  pipelineCompileOptions.numAttributeValues = ATTRIBUTE_VALUES;
+  pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+  pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
+  return pipelineCompileOptions;
 }
 
 } // namespace visrtx

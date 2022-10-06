@@ -249,6 +249,7 @@ void World::rebuildBVHs()
 void World::populateOptixInstances()
 {
   m_numTriangleInstances = 0;
+  m_numCurveInstances = 0;
   m_numUserInstances = 0;
   m_numVolumeInstances = 0;
   m_numLightInstances = 0;
@@ -257,6 +258,8 @@ void World::populateOptixInstances()
     auto *group = inst->group();
     if (group->containsTriangleGeometry())
       m_numTriangleInstances++;
+    if (group->containsCurveGeometry())
+      m_numCurveInstances++;
     if (group->containsUserGeometry())
       m_numUserInstances++;
     if (group->containsVolumes())
@@ -265,10 +268,12 @@ void World::populateOptixInstances()
       m_numLightInstances++;
   });
 
-  m_optixSurfaceInstances.resize(m_numTriangleInstances + m_numUserInstances);
+  m_optixSurfaceInstances.resize(
+      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
   m_optixVolumeInstances.resize(m_numVolumeInstances);
 
-  auto prepInstance = [](auto &i, int instID, auto handle) -> OptixInstance {
+  auto prepInstance =
+      [](auto &i, int instID, auto handle, int sbtOffset) -> OptixInstance {
     OptixInstance inst{};
 
     mat3x4 xfm = glm::transpose(i->xfm());
@@ -278,7 +283,7 @@ void World::populateOptixInstances()
     inst.traversableHandle = handle;
     inst.flags = OPTIX_INSTANCE_FLAG_NONE;
     inst.instanceId = instID;
-    inst.sbtOffset = 0;
+    inst.sbtOffset = sbtOffset;
     inst.visibilityMask = 1;
 
     return inst;
@@ -291,17 +296,23 @@ void World::populateOptixInstances()
     auto *osi = m_optixSurfaceInstances.dataHost();
     auto *ovi = m_optixVolumeInstances.dataHost();
     if (group->containsTriangleGeometry()) {
-      osi[instID] =
-          prepInstance(inst, instID, group->optixTraversableTriangle());
+      osi[instID] = prepInstance(
+          inst, instID, group->optixTraversableTriangle(), SBT_TRIANGLE_OFFSET);
+      instID++;
+    }
+    if (group->containsCurveGeometry()) {
+      osi[instID] = prepInstance(
+          inst, instID, group->optixTraversableCurve(), SBT_CURVE_OFFSET);
       instID++;
     }
     if (group->containsUserGeometry()) {
-      osi[instID] = prepInstance(inst, instID, group->optixTraversableUser());
+      osi[instID] = prepInstance(
+          inst, instID, group->optixTraversableUser(), SBT_CUSTOM_OFFSET);
       instID++;
     }
     if (group->containsVolumes()) {
-      ovi[instVolID] =
-          prepInstance(inst, instVolID, group->optixTraversableVolume());
+      ovi[instVolID] = prepInstance(
+          inst, instVolID, group->optixTraversableVolume(), SBT_CUSTOM_OFFSET);
       instVolID++;
     }
   });
@@ -326,7 +337,8 @@ void World::rebuildBLASs()
 
 void World::buildInstanceSurfaceGPUData()
 {
-  m_instanceSurfaceGPUData.resize(m_numTriangleInstances + m_numUserInstances);
+  m_instanceSurfaceGPUData.resize(
+      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
 
   int instID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
@@ -334,6 +346,8 @@ void World::buildInstanceSurfaceGPUData()
     auto *sd = m_instanceSurfaceGPUData.dataHost();
     if (group->containsTriangleGeometry())
       sd[instID++] = {group->surfaceTriangleGPUIndices().data()};
+    if (group->containsCurveGeometry())
+      sd[instID++] = {group->surfaceCurveGPUIndices().data()};
     if (group->containsUserGeometry())
       sd[instID++] = {group->surfaceUserGPUIndices().data()};
   });
