@@ -376,33 +376,6 @@ static ScenePtr generateCurves(anari::Device d, CurvesConfig config)
     radii.push_back(p.w);
   };
 
-#if 1
-  addPoint({-0.25f, -0.25f, 0.0f, 0.3f});
-  addPoint({0.25f, 0.25f, 0.0f, 0.4f});
-#elif 0
-  std::vector<glm::vec4> points = {{-1.0f, 0.0f, -2.f, 0.2f},
-      {0.0f, -1.0f, 0.0f, 0.2f},
-      {1.0f, 0.0f, 2.f, 0.2f},
-      {-1.0f, 0.0f, 2.f, 0.2f},
-      {0.0f, 1.0f, 0.0f, 0.6f},
-      {1.0f, 0.0f, -2.f, 0.2f},
-      {-1.0f, 0.0f, -2.f, 0.2f},
-      {0.0f, -1.0f, 0.0f, 0.2f},
-      {1.0f, 0.0f, 2.f, 0.2f}};
-  for (const auto &v : points)
-    addPoint(v);
-
-  indices = {0, 1, 2, 3, 4, 5};
-  std::mt19937 gen(0);
-  std::uniform_real_distribution<float> colorDistribution(0.1f, 1.0f);
-  std::vector<glm::vec4> s_colors(positions.size());
-  for (auto &c : s_colors) {
-    c.x = colorDistribution(gen);
-    c.y = colorDistribution(gen);
-    c.z = colorDistribution(gen);
-    c.w = colorDistribution(gen);
-  }
-#else
   std::mt19937 rng(0);
   std::uniform_real_distribution<float> radDist(0.5f, 1.5f);
   std::uniform_real_distribution<float> stepDist(0.001f, 0.1f);
@@ -468,33 +441,24 @@ static ScenePtr generateCurves(anari::Device d, CurvesConfig config)
       radius -= 0.05f;
     }
   }
-#endif
 
   auto geom = anari::newObject<anari::Geometry>(d, "curve");
   anari::setAndReleaseParameter(d,
       geom,
       "vertex.position",
       anari::newArray1D(d, positions.data(), positions.size()));
-#if 1
   anari::setAndReleaseParameter(d,
       geom,
       "vertex.radius",
       anari::newArray1D(d, radii.data(), radii.size()));
-#else
-  anari::setParameter(d, geom, "radius", 0.01f);
-#endif
-#if 0
   anari::setAndReleaseParameter(d,
       geom,
       "vertex.color",
       anari::newArray1D(d, colors.data(), colors.size()));
-#endif
-#if 0
   anari::setAndReleaseParameter(d,
       geom,
       "primitive.index",
       anari::newArray1D(d, indices.data(), indices.size()));
-#endif
   anari::commitParameters(d, geom);
 
   auto surface = anari::newObject<anari::Surface>(d);
