@@ -76,7 +76,7 @@ RT_PROGRAM void __closesthit__surface()
     rd.outColor = makeRandomColor(ray::instID());
     break;
   case Debug::Method::RAY_UVW:
-    rd.outColor = ray::uvw();
+    rd.outColor = ray::uvw(rd.hit.geometry->type);
     break;
   case Debug::Method::IS_TRIANGLE:
     rd.outColor = boolColor(rd.hit.geometry->type == GeometryType::TRIANGLE);

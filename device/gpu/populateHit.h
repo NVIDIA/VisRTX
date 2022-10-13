@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "gpu/curveHelpers.h"
 #include "gpu/gpu_util.h"
 
 namespace visrtx {
@@ -101,20 +102,31 @@ RT_FUNCTION vec3 hitpoint()
   return origin() + (t() * direction());
 }
 
-RT_FUNCTION vec2 uv()
+RT_FUNCTION vec2 uv(GeometryType type)
 {
-  if (optixIsTriangleHit()) {
+  switch (type) {
+  case GeometryType::TRIANGLE:
+  case GeometryType::QUAD:
+  case GeometryType::CONE: {
     const ::float2 values = optixGetTriangleBarycentrics();
     return vec2(values.x, values.y);
-  } else {
+  }
+  case GeometryType::CURVE: {
+    const float u = optixGetCurveParameter();
+    return vec2(u, 1.f - u);
+  }
+  case GeometryType::SPHERE:
+  case GeometryType::CYLINDER:
+  default: {
     const float u = bit_cast<float>(optixGetAttribute_0());
     return vec2(u, 1.f - u);
   }
+  }
 }
 
-RT_FUNCTION vec3 uvw()
+RT_FUNCTION vec3 uvw(GeometryType type)
 {
-  const auto values = uv();
+  const auto values = uv(type);
   return vec3(1.f - values.x - values.y, values.x, values.y);
 }
 
@@ -171,7 +183,7 @@ RT_FUNCTION const VolumeGPUData &volumeData(const FrameGPUData &frameData)
 RT_FUNCTION void computeNormal(
     const GeometryGPUData &ggd, uint32_t primID, SurfaceHit &hit)
 {
-  const vec3 b = ray::uvw();
+  const vec3 b = ray::uvw(ggd.type);
 
   switch (ggd.type) {
   case GeometryType::TRIANGLE: {
@@ -240,6 +252,22 @@ RT_FUNCTION void computeNormal(
     hit.Ns = hit.Ng;
     break;
   }
+  case GeometryType::CURVE: {
+    const uint32_t idx = ggd.curve.indices[primID];
+    const vec3 v0 = ggd.curve.vertices[idx + 0];
+    const vec3 v1 = ggd.curve.vertices[idx + 1];
+    const float r0 = ggd.curve.radii[idx + 0];
+    const float r1 = ggd.curve.radii[idx + 1];
+    vec4 controlPoints[2] = {{v0.x, v0.y, v0.z, r0}, {v1.x, v1.y, v1.z, r1}};
+
+    LinearBSplineSegment interpolator(controlPoints);
+    auto hp =
+        optixTransformPointFromWorldToObjectSpace((::float3 &)hit.hitpoint);
+    auto u = optixGetCurveParameter();
+    hit.Ng = hit.Ns =
+        curveSurfaceNormal(interpolator, u, vec3(hp.x, hp.y, hp.z));
+    break;
+  }
   default:
     break;
   }
@@ -264,7 +292,7 @@ RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
   hit.material = &md;
   hit.t = ray::t();
   hit.hitpoint = ray::hitpoint();
-  hit.uvw = ray::uvw();
+  hit.uvw = ray::uvw(gd.type);
   hit.primID = ray::primID();
   hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
   ray::computeNormal(gd, ray::primID(), hit);

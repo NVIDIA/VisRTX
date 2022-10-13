@@ -105,10 +105,16 @@ RT_FUNCTION uvec4 decodeQuadAttributeIndices(
 RT_FUNCTION uvec2 decodeCylinderAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
 {
-  if (ggd.tri.indices != nullptr)
-    return ggd.tri.indices[hit.primID];
+  if (ggd.cylinder.indices != nullptr)
+    return ggd.cylinder.indices[hit.primID];
   else
     return 2 * hit.primID + uvec2(0, 1);
+}
+
+RT_FUNCTION uint32_t decodeCurveAttributeIndices(
+    const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
+{
+  return ggd.curve.indices[hit.primID];
 }
 
 RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
@@ -146,6 +152,14 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
       const vec3 b = hit.uvw;
       return b.y * getAttributeValue(ap, idx.x)
           + b.z * getAttributeValue(ap, idx.y);
+    }
+  } else if (ggd.type == GeometryType::CURVE) {
+    const auto &ap = ggd.curve.vertexAttr[attributeID];
+    if (isPopulated(ap)) {
+      const uint32_t idx = decodeCurveAttributeIndices(ggd, attributeID, hit);
+      const vec3 b = hit.uvw;
+      return b.y * getAttributeValue(ap, idx)
+          + b.z * getAttributeValue(ap, idx + 1);
     }
   } else if (ggd.type == GeometryType::SPHERE) {
     const auto &ap = ggd.sphere.vertexAttr[attributeID];

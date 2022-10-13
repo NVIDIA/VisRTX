@@ -31,17 +31,76 @@
 
 #pragma once
 
-#ifdef __CUDACC__
-#define VISRTX_HOST_DEVICE __forceinline__ __host__ __device__
-#define RT_PROGRAM extern "C" __global__
-#define RT_FUNCTION __forceinline__ __device__
-#else
-#define VISRTX_HOST_DEVICE inline
-#define RT_PROGRAM extern "C"
-#define RT_FUNCTION inline
-#endif
+#include "gpu/gpu_util.h"
 
-#define NUM_SBT_PRIMITIVE_INTERSECTOR_ENTRIES 3
-#define SBT_TRIANGLE_OFFSET 0
-#define SBT_CURVE_OFFSET 1
-#define SBT_CUSTOM_OFFSET 2
+namespace visrtx {
+
+struct LinearBSplineSegment
+{
+  RT_FUNCTION LinearBSplineSegment(const vec4 *q)
+  {
+    p[0] = q[0];
+    p[1] = q[1] - q[0];
+  }
+
+  RT_FUNCTION float radius(const float &u) const
+  {
+    return p[0].w + p[1].w * u;
+  }
+
+  RT_FUNCTION vec3 position3(float u) const
+  {
+    return (vec3 &)p[0] + u * (vec3 &)p[1];
+  }
+  RT_FUNCTION vec4 position4(float u) const
+  {
+    return p[0] + u * p[1];
+  }
+
+  RT_FUNCTION float min_radius(float u1, float u2) const
+  {
+    return fminf(radius(u1), radius(u2));
+  }
+
+  RT_FUNCTION float max_radius(float u1, float u2) const
+  {
+    if (!p[1].w)
+      return p[0].w;
+    return fmaxf(radius(u1), radius(u2));
+  }
+
+  RT_FUNCTION vec3 velocity3(float u) const
+  {
+    return (vec3 &)p[1];
+  }
+  RT_FUNCTION vec4 velocity4(float u) const
+  {
+    return p[1];
+  }
+
+  RT_FUNCTION vec3 acceleration3(float u) const
+  {
+    return vec3(0.f);
+  }
+
+  vec4 p[2];
+};
+
+RT_FUNCTION vec3 curveSurfaceNormal(
+    const LinearBSplineSegment &bc, float u, const vec3 &ps)
+{
+  const vec4 p4 = bc.position4(u);
+  const vec3 p(p4);
+  const float r = p4.w;
+  const vec4 d4 = bc.velocity4(u);
+  const vec3 d = make_vec3(d4);
+
+  float dd = dot(d, d);
+
+  vec3 o1 = ps - p;
+  o1 -= (dot(o1, d) / dd) * d;
+  o1 *= r / length(o1);
+  return normalize(o1);
+}
+
+} // namespace visrtx

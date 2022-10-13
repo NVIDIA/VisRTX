@@ -465,6 +465,8 @@ static ScenePtr generateCurves(anari::Device d, CurvesConfig config)
   anari::setAndReleaseParameter(d, surface, "geometry", geom);
 
   auto mat = anari::newObject<anari::Material>(d, "matte");
+  anari::setParameter(d, mat, "color", "color");
+  anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
   anari::commitParameters(d, surface);
