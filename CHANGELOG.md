@@ -3,6 +3,7 @@
 ## 0.5.0
 ##### TBD
 - Update to latest ANARI SDK v0.3.0
+- Added support for `curve` geometry subtype
 - Added support `image1D` sampler subtype
 - Added support for `primitive.index` on `sphere` geometry
 - Added support for missing array types for image samplers
