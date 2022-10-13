@@ -9,6 +9,7 @@
       "khr_camera_orthographic",
       "khr_camera_perspective",
       "khr_geometry_cone",
+      "khr_geometry_curve",
       "khr_geometry_cylinder",
       "khr_geometry_quad",
       "khr_geometry_sphere",

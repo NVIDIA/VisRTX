@@ -1192,6 +1192,127 @@ class geometry_cone : public DebugObject<ANARI_GEOMETRY> {
       return "cone";
    }
 };
+class geometry_curve : public DebugObject<ANARI_GEOMETRY> {
+   static int param_hash(const char *str) {
+      static const uint32_t table[] = {0x62610009u,0x0u,0x7372000du,0x0u,0x62610044u,0x0u,0x0u,0x0u,0x6665004au,0x6e6d000au,0x6665000bu,0x100000cu,0x80000000u,0x6a69000eu,0x6e6d000fu,0x6a690010u,0x75740011u,0x6a690012u,0x77760013u,0x66650014u,0x2f2e0015u,0x6a610016u,0x7574001fu,0x0u,0x706f002fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f640034u,0x75740020u,0x73720021u,0x6a690022u,0x63620023u,0x76750024u,0x75740025u,0x66650026u,0x34300027u,0x100002bu,0x100002cu,0x100002du,0x100002eu,0x80000002u,0x80000003u,0x80000004u,0x80000005u,0x6d6c0030u,0x706f0031u,0x73720032u,0x1000033u,0x80000001u,0x100003fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x65640040u,0x80000006u,0x66650041u,0x79780042u,0x1000043u,0x8000000eu,0x65640045u,0x6a690046u,0x76750047u,0x74730048u,0x1000049u,0x8000000fu,0x7372004bu,0x7574004cu,0x6665004du,0x7978004eu,0x2f2e004fu,0x73610050u,0x75740062u,0x0u,0x706f0072u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f0077u,0x0u,0x6261007fu,0x75740063u,0x73720064u,0x6a690065u,0x63620066u,0x76750067u,0x75740068u,0x66650069u,0x3430006au,0x100006eu,0x100006fu,0x1000070u,0x1000071u,0x8000000au,0x8000000bu,0x8000000cu,0x8000000du,0x6d6c0073u,0x706f0074u,0x73720075u,0x1000076u,0x80000009u,0x74730078u,0x6a690079u,0x7574007au,0x6a69007bu,0x706f007cu,0x6f6e007du,0x100007eu,0x80000007u,0x65640080u,0x6a690081u,0x76750082u,0x74730083u,0x1000084u,0x80000008u};
+      uint32_t cur = 0x776e0000u;
+      for(int i = 0;cur!=0;++i) {
+         uint32_t idx = cur&0xFFFFu;
+         uint32_t low = (cur>>16u)&0xFFu;
+         uint32_t high = (cur>>24u)&0xFFu;
+         uint32_t c = (uint32_t)str[i];
+         if(c>=low && c<high) {
+            cur = table[idx+c-low];
+         } else {
+            break;
+         }
+         if(cur&0x80000000u) {
+            return cur&0xFFFFu;
+         }
+         if(str[i]==0) {
+            break;
+         }
+      }
+      return -1;
+   }
+   public:
+   geometry_curve(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
+   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
+      DebugObject::setParameter(paramname, paramtype, mem);
+      int idx = param_hash(paramname);
+      switch(idx) {
+         case 0: { //name
+            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, name_types);
+            return;
+         }
+         case 1: { //primitive.color
+            ANARIDataType primitive_color_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_color_types);
+            return;
+         }
+         case 2: { //primitive.attribute0
+            ANARIDataType primitive_attribute0_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_attribute0_types);
+            return;
+         }
+         case 3: { //primitive.attribute1
+            ANARIDataType primitive_attribute1_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_attribute1_types);
+            return;
+         }
+         case 4: { //primitive.attribute2
+            ANARIDataType primitive_attribute2_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_attribute2_types);
+            return;
+         }
+         case 5: { //primitive.attribute3
+            ANARIDataType primitive_attribute3_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_attribute3_types);
+            return;
+         }
+         case 6: { //primitive.id
+            ANARIDataType primitive_id_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_id_types);
+            return;
+         }
+         case 7: { //vertex.position
+            ANARIDataType vertex_position_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_position_types);
+            return;
+         }
+         case 8: { //vertex.radius
+            ANARIDataType vertex_radius_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_radius_types);
+            return;
+         }
+         case 9: { //vertex.color
+            ANARIDataType vertex_color_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_color_types);
+            return;
+         }
+         case 10: { //vertex.attribute0
+            ANARIDataType vertex_attribute0_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_attribute0_types);
+            return;
+         }
+         case 11: { //vertex.attribute1
+            ANARIDataType vertex_attribute1_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_attribute1_types);
+            return;
+         }
+         case 12: { //vertex.attribute2
+            ANARIDataType vertex_attribute2_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_attribute2_types);
+            return;
+         }
+         case 13: { //vertex.attribute3
+            ANARIDataType vertex_attribute3_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_attribute3_types);
+            return;
+         }
+         case 14: { //primitive.index
+            ANARIDataType primitive_index_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_index_types);
+            return;
+         }
+         case 15: { //radius
+            ANARIDataType radius_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, radius_types);
+            return;
+         }
+         default: // unknown param
+            unknown_parameter(ANARI_GEOMETRY, "curve", paramname, paramtype);
+            return;
+      }
+   }
+   void commit() {
+      DebugObject::commit();
+   }
+   const char* getSubtype() {
+      return "curve";
+   }
+};
 class geometry_cylinder : public DebugObject<ANARI_GEOMETRY> {
    static int param_hash(const char *str) {
       static const uint32_t table[] = {0x62610014u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610018u,0x0u,0x7372001cu,0x0u,0x62610062u,0x0u,0x0u,0x0u,0x66650068u,0x71700015u,0x74730016u,0x1000017u,0x80000011u,0x6e6d0019u,0x6665001au,0x100001bu,0x80000000u,0x6a69001du,0x6e6d001eu,0x6a69001fu,0x75740020u,0x6a690021u,0x77760022u,0x66650023u,0x2f2e0024u,0x73610025u,0x75740037u,0x0u,0x706f0047u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f64004cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261005cu,0x75740038u,0x73720039u,0x6a69003au,0x6362003bu,0x7675003cu,0x7574003du,0x6665003eu,0x3430003fu,0x1000043u,0x1000044u,0x1000045u,0x1000046u,0x80000002u,0x80000003u,0x80000004u,0x80000005u,0x6d6c0048u,0x706f0049u,0x7372004au,0x100004bu,0x80000001u,0x1000057u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x65640058u,0x80000006u,0x66650059u,0x7978005au,0x100005bu,0x8000000eu,0x6564005du,0x6a69005eu,0x7675005fu,0x74730060u,0x1000061u,0x8000000fu,0x65640063u,0x6a690064u,0x76750065u,0x74730066u,0x1000067u,0x80000010u,0x73720069u,0x7574006au,0x6665006bu,0x7978006cu,0x2f2e006du,0x7161006eu,0x7574007eu,0x0u,0x7061008eu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f00a3u,0x7574007fu,0x73720080u,0x6a690081u,0x63620082u,0x76750083u,0x75740084u,0x66650085u,0x34300086u,0x100008au,0x100008bu,0x100008cu,0x100008du,0x8000000au,0x8000000bu,0x8000000cu,0x8000000du,0x7170009du,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6d6c009fu,0x100009eu,0x80000008u,0x706f00a0u,0x737200a1u,0x10000a2u,0x80000009u,0x747300a4u,0x6a6900a5u,0x757400a6u,0x6a6900a7u,0x706f00a8u,0x6f6e00a9u,0x10000aau,0x80000007u};
@@ -2361,7 +2482,7 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_camera(const char *name, DebugDev
    }
 }
 static int geometry_object_hash(const char *str) {
-   static const uint32_t table[] = {0x7a6f0012u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x76750027u,0x0u,0x7170002bu,0x73720031u,0x6f6e001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6d6c0020u,0x6665001eu,0x100001fu,0x80000000u,0x6a690021u,0x6f6e0022u,0x65640023u,0x66650024u,0x73720025u,0x1000026u,0x80000001u,0x62610028u,0x65640029u,0x100002au,0x80000002u,0x6968002cu,0x6665002du,0x7372002eu,0x6665002fu,0x1000030u,0x80000003u,0x6a690032u,0x62610033u,0x6f6e0034u,0x68670035u,0x6d6c0036u,0x66650037u,0x1000038u,0x80000004u};
+   static const uint32_t table[] = {0x7a6f0012u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7675002bu,0x0u,0x7170002fu,0x73720035u,0x6f6e001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720020u,0x0u,0x0u,0x0u,0x6d6c0024u,0x6665001eu,0x100001fu,0x80000000u,0x77760021u,0x66650022u,0x1000023u,0x80000001u,0x6a690025u,0x6f6e0026u,0x65640027u,0x66650028u,0x73720029u,0x100002au,0x80000002u,0x6261002cu,0x6564002du,0x100002eu,0x80000003u,0x69680030u,0x66650031u,0x73720032u,0x66650033u,0x1000034u,0x80000004u,0x6a690036u,0x62610037u,0x6f6e0038u,0x68670039u,0x6d6c003au,0x6665003bu,0x100003cu,0x80000005u};
    uint32_t cur = 0x75630000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
@@ -2388,12 +2509,14 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_geometry(const char *name, DebugD
       case 0:
          return new geometry_cone(td, this, wh, h);
       case 1:
-         return new geometry_cylinder(td, this, wh, h);
+         return new geometry_curve(td, this, wh, h);
       case 2:
-         return new geometry_quad(td, this, wh, h);
+         return new geometry_cylinder(td, this, wh, h);
       case 3:
-         return new geometry_sphere(td, this, wh, h);
+         return new geometry_quad(td, this, wh, h);
       case 4:
+         return new geometry_sphere(td, this, wh, h);
+      case 5:
          return new geometry_triangle(td, this, wh, h);
       default:
          unknown_subtype(td, ANARI_GEOMETRY, name);
