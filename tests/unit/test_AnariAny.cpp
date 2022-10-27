@@ -49,9 +49,15 @@ inline void test_interface(T testValue, T testValue2)
   AnariAny v;
   REQUIRE(!v.valid());
 
-  SECTION("Can make valid by construction")
+  SECTION("Can make valid by C++ construction")
   {
     AnariAny v2(testValue);
+    verify_value<T>(v2, testValue);
+  }
+
+  SECTION("Can make valid by C construction")
+  {
+    AnariAny v2(anari::ANARITypeFor<T>::value, &testValue);
     verify_value<T>(v2, testValue);
   }
 

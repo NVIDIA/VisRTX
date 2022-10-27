@@ -161,6 +161,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   utility/DeferredCommitBuffer.cpp
   utility/DeferredUploadBuffer.cpp
   utility/instrument.cpp
+  utility/ParameterizedObject.cpp
   utility/TimeStamp.cpp
 )
 
@@ -224,7 +225,11 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     OptiX7::OptiX7
     CUDA::curand
   )
-  target_include_directories(${INPUT_TARGET} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+  target_include_directories(${INPUT_TARGET}
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}
+  )
   set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_PTX_COMPILATION ON)
   set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_ARCHITECTURES OFF)
 
