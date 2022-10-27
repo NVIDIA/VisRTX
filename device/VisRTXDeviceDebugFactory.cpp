@@ -546,8 +546,8 @@ class array3d : public DebugObject<ANARI_ARRAY3D> {
 };
 class frame : public DebugObject<ANARI_FRAME> {
    static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6d6c0017u,0x0u,0x7061001du,0x66650035u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7061003au,0x0u,0x0u,0x0u,0x66650051u,0x6a690059u,0x0u,0x0u,0x0u,0x706f005du,0x63620018u,0x66650019u,0x6564001au,0x706f001bu,0x100001cu,0x80000008u,0x6e6d002cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6d6c0031u,0x6665002du,0x7372002eu,0x6261002fu,0x1000030u,0x80000003u,0x706f0032u,0x73720033u,0x1000034u,0x80000005u,0x71700036u,0x75740037u,0x69680038u,0x1000039u,0x80000006u,0x6e6d0049u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7372004cu,0x6665004au,0x100004bu,0x80000000u,0x6e6d004du,0x6261004eu,0x6d6c004fu,0x1000050u,0x80000007u,0x6f6e0052u,0x65640053u,0x66650054u,0x73720055u,0x66650056u,0x73720057u,0x1000058u,0x80000002u,0x7b7a005au,0x6665005bu,0x100005cu,0x80000004u,0x7372005eu,0x6d6c005fu,0x65640060u,0x1000061u,0x80000001u};
-      uint32_t cur = 0x78610000u;
+      static const uint32_t table[] = {0x69610015u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261004cu,0x0u,0x0u,0x0u,0x66650050u,0x6a690058u,0x0u,0x0u,0x0u,0x706f005cu,0x6e6d001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610022u,0x6665001eu,0x7372001fu,0x62610020u,0x1000021u,0x80000003u,0x6f6e0023u,0x6f6e0024u,0x66650025u,0x6d6c0026u,0x2f2e0027u,0x6f610028u,0x6d6c0036u,0x0u,0x706f003cu,0x66650041u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f0046u,0x63620037u,0x66650038u,0x65640039u,0x706f003au,0x100003bu,0x80000008u,0x6d6c003du,0x706f003eu,0x7372003fu,0x1000040u,0x80000005u,0x71700042u,0x75740043u,0x69680044u,0x1000045u,0x80000006u,0x73720047u,0x6e6d0048u,0x62610049u,0x6d6c004au,0x100004bu,0x80000007u,0x6e6d004du,0x6665004eu,0x100004fu,0x80000000u,0x6f6e0051u,0x65640052u,0x66650053u,0x73720054u,0x66650055u,0x73720056u,0x1000057u,0x80000002u,0x7b7a0059u,0x6665005au,0x100005bu,0x80000004u,0x7372005du,0x6d6c005eu,0x6564005fu,0x1000060u,0x80000001u};
+      uint32_t cur = 0x78630000u;
       for(int i = 0;cur!=0;++i) {
          uint32_t idx = cur&0xFFFFu;
          uint32_t low = (cur>>16u)&0xFFu;
@@ -598,24 +598,24 @@ class frame : public DebugObject<ANARI_FRAME> {
             check_type(ANARI_FRAME, "", paramname, paramtype, size_types);
             return;
          }
-         case 5: { //color
-            ANARIDataType color_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
-            check_type(ANARI_FRAME, "", paramname, paramtype, color_types);
+         case 5: { //channel.color
+            ANARIDataType channel_color_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
+            check_type(ANARI_FRAME, "", paramname, paramtype, channel_color_types);
             return;
          }
-         case 6: { //depth
-            ANARIDataType depth_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
-            check_type(ANARI_FRAME, "", paramname, paramtype, depth_types);
+         case 6: { //channel.depth
+            ANARIDataType channel_depth_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
+            check_type(ANARI_FRAME, "", paramname, paramtype, channel_depth_types);
             return;
          }
-         case 7: { //normal
-            ANARIDataType normal_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
-            check_type(ANARI_FRAME, "", paramname, paramtype, normal_types);
+         case 7: { //channel.normal
+            ANARIDataType channel_normal_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
+            check_type(ANARI_FRAME, "", paramname, paramtype, channel_normal_types);
             return;
          }
-         case 8: { //albedo
-            ANARIDataType albedo_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
-            check_type(ANARI_FRAME, "", paramname, paramtype, albedo_types);
+         case 8: { //channel.albedo
+            ANARIDataType channel_albedo_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
+            check_type(ANARI_FRAME, "", paramname, paramtype, channel_albedo_types);
             return;
          }
          default: // unknown param
