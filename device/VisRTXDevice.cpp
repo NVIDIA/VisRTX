@@ -594,8 +594,8 @@ void VisRTXDevice::discardFrame(ANARIFrame)
 VisRTXDevice::VisRTXDevice(
     ANARIStatusCallback defaultCallback, const void *userPtr)
 {
-  m_defaultStatusCB = defaultCallback;
-  m_defaultStatusCBUserPtr = userPtr;
+  anari::DeviceImpl::m_defaultStatusCB = defaultCallback;
+  anari::DeviceImpl::m_defaultStatusCBUserPtr = userPtr;
 }
 
 VisRTXDevice::VisRTXDevice(ANARILibrary l) : DeviceImpl(l) {}
@@ -725,6 +725,7 @@ void VisRTXDevice::initDevice()
   cudaGetDeviceCount(&numDevices);
   if (numDevices == 0) {
     reportMessage(ANARI_SEVERITY_FATAL_ERROR, "no CUDA capable devices found!");
+    m_state.reset();
     return;
   }
 

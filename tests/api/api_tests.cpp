@@ -31,8 +31,8 @@
 
 // anari_cpp
 #include <anari/anari_cpp.hpp>
-
-extern "C" ANARIDevice makeVisRTXDevice();
+// visrtx
+#include <anari/backend/visrtx/visrtx.h>
 
 int main()
 {
