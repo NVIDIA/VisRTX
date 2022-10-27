@@ -46,11 +46,6 @@ struct SciVis : public Renderer
 
   static ptx_ptr ptx();
 
-  static const void *getParameterInfo(std::string_view parameterName,
-      ANARIDataType parameterType,
-      std::string_view infoName,
-      ANARIDataType infoType);
-
  private:
   float m_lightFalloff{0.25f};
   int m_aoSamples{1};

@@ -44,11 +44,6 @@ struct DiffusePathTracer : public Renderer
 
   static ptx_ptr ptx();
 
-  static const void *getParameterInfo(std::string_view parameterName,
-      ANARIDataType parameterType,
-      std::string_view infoName,
-      ANARIDataType infoType);
-
  private:
   int m_maxDepth{0};
   float m_R{0.5f};

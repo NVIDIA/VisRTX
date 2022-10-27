@@ -30,7 +30,6 @@
  */
 
 #include "DiffusePathTracer.h"
-#include "ParameterInfo.h"
 // ptx
 #include "DiffusePathTracer_ptx.h"
 
@@ -58,24 +57,6 @@ OptixModule DiffusePathTracer::optixModule() const
 ptx_ptr DiffusePathTracer::ptx()
 {
   return DiffusePathTracer_ptx;
-}
-
-const void *DiffusePathTracer::getParameterInfo(std::string_view paramName,
-    ANARIDataType paramType,
-    std::string_view infoName,
-    ANARIDataType infoType)
-{
-  if (paramName == "maxDepth" && paramType == ANARI_INT32) {
-    static const ParameterInfo param(
-        false, "maximum per-pixel path depth", 5, 1, 256);
-    return param.fromString(infoName, infoType);
-  } else if (paramName == "R" && paramType == ANARI_FLOAT32) {
-    static const ParameterInfo param(
-        false, "per-bounce energy falloff factor", 0.5f, 0.f, 1.f);
-    return param.fromString(infoName, infoType);
-  }
-
-  return nullptr;
 }
 
 } // namespace visrtx

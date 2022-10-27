@@ -30,7 +30,6 @@
  */
 
 #include "Renderer.h"
-#include "ParameterInfo.h"
 // specific renderers
 #include "AmbientOcclusion.h"
 #include "Debug.h"

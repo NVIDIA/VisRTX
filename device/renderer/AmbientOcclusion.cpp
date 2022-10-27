@@ -30,7 +30,6 @@
  */
 
 #include "AmbientOcclusion.h"
-#include "ParameterInfo.h"
 // ptx
 #include "AmbientOcclusion_ptx.h"
 
@@ -72,20 +71,6 @@ anari::Span<const std::string> AmbientOcclusion::missSbtNames() const
 ptx_ptr AmbientOcclusion::ptx()
 {
   return AmbientOcclusion_ptx;
-}
-
-const void *AmbientOcclusion::getParameterInfo(std::string_view paramName,
-    ANARIDataType paramType,
-    std::string_view infoName,
-    ANARIDataType infoType)
-{
-  if (paramName == "aoSamples" && paramType == ANARI_INT32) {
-    static const ParameterInfo param(
-        false, "number of ambient occlusion samples each frame", 1, 0, 256);
-    return param.fromString(infoName, infoType);
-  }
-
-  return nullptr;
 }
 
 } // namespace visrtx

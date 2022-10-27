@@ -32,9 +32,7 @@ project(unit_tests LANGUAGES CXX)
 add_executable(${PROJECT_NAME}
   catch_main.cpp
   test_AnariAny.cpp
-  test_ParameterInfo.cpp
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE anari_library_visrtx catch)
 
-add_test(NAME visrtx::anari::AnariAny      COMMAND ${PROJECT_NAME} "[AnariAny]")
-add_test(NAME visrtx::anari::ParameterInfo COMMAND ${PROJECT_NAME} "[ParameterInfo]")
+add_test(NAME visrtx::anari::AnariAny COMMAND ${PROJECT_NAME} "[AnariAny]")

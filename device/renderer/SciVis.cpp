@@ -30,7 +30,6 @@
  */
 
 #include "SciVis.h"
-#include "ParameterInfo.h"
 // ptx
 #include "SciVis_ptx.h"
 
@@ -81,31 +80,6 @@ anari::Span<const std::string> SciVis::missSbtNames() const
 ptx_ptr SciVis::ptx()
 {
   return SciVis_ptx;
-}
-
-const void *SciVis::getParameterInfo(std::string_view paramName,
-    ANARIDataType paramType,
-    std::string_view infoName,
-    ANARIDataType infoType)
-{
-  if (paramName == "lightFalloff" && paramType == ANARI_FLOAT32) {
-    static const ParameterInfo param(
-        false, "energy falloff when evaluating lights", 0.25f, 0.f, 1.f);
-    return param.fromString(infoName, infoType);
-  } else if (paramName == "ambientSamples" && paramType == ANARI_INT32) {
-    static const ParameterInfo param(
-        false, "number of ambient occlusion samples each frame", 0, 0, 256);
-    return param.fromString(infoName, infoType);
-  } else if (paramName == "ambientIntensity" && paramType == ANARI_FLOAT32) {
-    static const ParameterInfo param(false, "ambient lighting intensity", 1.f);
-    return param.fromString(infoName, infoType);
-  } else if (paramName == "ambientColor" && paramType == ANARI_FLOAT32_VEC3) {
-    static const ParameterInfo param(
-        false, "ambient lighting color", vec3(1.f), vec3(0.f), vec3(1.f));
-    return param.fromString(infoName, infoType);
-  }
-
-  return nullptr;
 }
 
 } // namespace visrtx
