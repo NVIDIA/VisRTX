@@ -61,7 +61,7 @@ Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
 
 void Sampler::commit()
 {
-  m_inAttribute = getParam<std::string>("inAttribute", "attribute0");
+  m_inAttribute = getParamString("inAttribute", "attribute0");
 }
 
 SamplerGPUData Sampler::gpuData() const

@@ -98,7 +98,7 @@ inline void test_interface(T testValue, T testValue2)
   }
 }
 
-// Tests //////////////////////////////////////////////////////////////////////
+// Value Tests ////////////////////////////////////////////////////////////////
 
 TEST_CASE("AnariAny 'int' type behavior", "[AnariAny]")
 {
@@ -113,4 +113,31 @@ TEST_CASE("AnariAny 'float' type behavior", "[AnariAny]")
 TEST_CASE("AnariAny 'bool' type behavior", "[AnariAny]")
 {
   test_interface<bool>(true, false);
+}
+
+// Object Tests ///////////////////////////////////////////////////////////////
+
+namespace anari {
+ANARI_TYPEFOR_SPECIALIZATION(anari::RefCounted *, ANARI_OBJECT);
+ANARI_TYPEFOR_DEFINITION(anari::RefCounted *);
+} // namespace anari
+
+TEST_CASE("AnariAny object behavior", "[AnariAny]")
+{
+  auto *obj = new anari::RefCounted();
+
+  SECTION("Object use count starts at 1")
+  {
+    REQUIRE(obj->useCount() == 1);
+  }
+
+  SECTION("Placing the object in AnariAny increments the ref count")
+  {
+    AnariAny v = obj;
+    REQUIRE(obj->useCount() == 2);
+  }
+
+  REQUIRE(obj->useCount() == 1);
+
+  obj->refDec();
 }

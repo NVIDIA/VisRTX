@@ -78,7 +78,7 @@ void StructuredRegularField::commit()
 
   m_params.origin = getParam<vec3>("origin", vec3(0.f));
   m_params.spacing = getParam<vec3>("spacing", vec3(1.f));
-  m_params.filter = getParam<std::string>("filter", "linear");
+  m_params.filter = getParamString("filter", "linear");
   m_params.data = getParamObject<Array3D>("data");
 
   if (!m_params.data) {

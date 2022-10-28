@@ -70,7 +70,7 @@ static Debug::Method methodFromString(const std::string &name)
 void Debug::commit()
 {
   Renderer::commit();
-  m_method = methodFromString(getParam<std::string>("method", "primID"));
+  m_method = methodFromString(getParamString("method", "primID"));
 }
 
 void Debug::populateFrameData(FrameGPUData &fd) const

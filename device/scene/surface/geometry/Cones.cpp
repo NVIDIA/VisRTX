@@ -109,7 +109,7 @@ void Cones::commit()
 
   m_index = getParamObject<Array1D>("primitive.index");
   m_radius = getParamObject<Array1D>("vertex.radius");
-  m_caps = getParam<std::string>("caps", "none") != "none";
+  m_caps = getParamString("caps", "none") != "none";
 
   m_vertex = getParamObject<Array1D>("vertex.position");
 

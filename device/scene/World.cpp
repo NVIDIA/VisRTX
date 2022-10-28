@@ -77,7 +77,7 @@ World::World()
   setCommitPriority(VISRTX_COMMIT_PRIORITY_WORLD);
   m_zeroGroup = new Group;
   m_zeroInstance = new Instance;
-  m_zeroInstance->setParamDirect("group", m_zeroGroup);
+  m_zeroInstance->setParamDirect("group", m_zeroGroup.ptr);
 
   // never any public ref to these objects
   m_zeroGroup->refDec(anari::RefType::PUBLIC);

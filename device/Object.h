@@ -31,9 +31,6 @@
 
 #pragma once
 
-// anari
-#include "anari/backend/utilities/IntrusivePtr.h"
-#include "anari/backend/utilities/ParameterizedObject.h"
 // anari_cpp
 #include "anari/anari_cpp.hpp"
 #include "anari/anari_cpp/ext/glm.h"
@@ -45,9 +42,10 @@
 #include <map>
 #include <memory>
 #include <string_view>
-#include <utility>
 // cuda/optix
 #include "optix_visrtx.h"
+
+#include "utility/ParameterizedObject.h"
 
 // clang-format off
 #define VISRTX_COMMIT_PRIORITY_DEFAULT  0
@@ -60,13 +58,10 @@
 
 namespace visrtx {
 
-struct Object : public anari::RefCounted, public anari::ParameterizedObject
+struct Object : public anari::RefCounted, ParameterizedObject
 {
   Object() = default;
   virtual ~Object() = default;
-
-  template <typename T>
-  T *getParamObject(const std::string &name, T *valIfNotFound = nullptr);
 
   virtual bool getProperty(const std::string_view &name,
       ANARIDataType type,
@@ -113,23 +108,6 @@ std::string string_printf(const char *fmt, ...);
 
 // Inlined defintions /////////////////////////////////////////////////////////
 
-template <typename T>
-inline T *Object::getParamObject(const std::string &name, T *valIfNotFound)
-{
-  if (!hasParam(name))
-    return valIfNotFound;
-
-  try {
-    using OBJECT_T = typename std::remove_pointer<T>::type;
-    using PTR_T = anari::IntrusivePtr<OBJECT_T>;
-
-    PTR_T val = getParam<PTR_T>(name, PTR_T());
-    return val.ptr;
-  } catch (...) {
-    return valIfNotFound;
-  }
-}
-
 template <typename... Args>
 inline void Object::reportMessage(
     ANARIStatusSeverity severity, const char *fmt, Args &&...args) const
@@ -153,20 +131,6 @@ inline void writeToVoidP(void *_p, T v)
 }
 
 } // namespace visrtx
-
-// anari::ParameterizedObject specializations /////////////////////////////////
-
-namespace anari {
-
-template <>
-inline visrtx::box1 ParameterizedObject::getParam<visrtx::box1>(
-    const std::string &name, visrtx::box1 nfv)
-{
-  auto tmp = getParam<visrtx::vec2>(name, {nfv.lower, nfv.upper});
-  return visrtx::make_box1(tmp);
-}
-
-} // namespace anari
 
 #define VISRTX_ANARI_TYPEFOR_SPECIALIZATION(type, anari_type)                  \
   namespace anari {                                                            \

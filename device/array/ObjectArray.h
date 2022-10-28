@@ -80,20 +80,6 @@ struct ObjectArray : public Array
   size_t m_end{0};
 };
 
-// Object specializations /////////////////////////////////////////////////////
-
-template <>
-inline ObjectArray *Object::getParamObject<ObjectArray>(
-    const std::string &name, ObjectArray *valIfNotFound)
-{
-  if (!hasParam(name))
-    return valIfNotFound;
-
-  using PTR_T = anari::IntrusivePtr<Array1D>;
-  PTR_T val = getParam<PTR_T>(name, PTR_T());
-  return (ObjectArray *)val.ptr;
-}
-
 } // namespace visrtx
 
 VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::ObjectArray *, ANARI_ARRAY1D);

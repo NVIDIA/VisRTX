@@ -86,7 +86,7 @@ inline T ParameterizedObject::getParam(const std::string &name, T valIfNotFound)
   constexpr ANARIDataType type = anari::ANARITypeFor<T>::value;
   static_assert(!anari::isObject(type),
       "use ParameterizedObect::getParamObject() for getting objects");
-  static_assert(type != ANARI_STRING,
+  static_assert(type != ANARI_STRING && !std::is_same_v<T, std::string>,
       "use ParameterizedObject::getParamString() for getting strings");
   auto *p = findParam(name);
   return p && p->second.type() == type? p->second.get<T>() : valIfNotFound;

@@ -66,7 +66,7 @@ struct AnariAny
   T get() const;
 
   template <typename T>
-  anari::IntrusivePtr<T> getObject() const;
+  T *getObject() const;
 
   std::string getString() const;
 
@@ -199,12 +199,12 @@ inline T AnariAny::get() const
 }
 
 template <typename T>
-inline anari::IntrusivePtr<T> AnariAny::getObject() const
+inline T *AnariAny::getObject() const
 {
   constexpr ANARIDataType type = anari::ANARITypeFor<T>::value;
   static_assert(
-      anari::isObject(type), "use AnariAny::get() for getting non-objects");
-  return anari::IntrusivePtr<T>(storageAs<T *>());
+      !anari::isObject(type), "use AnariAny::get() for getting non-objects");
+  return anari::isObject(this->type()) ? storageAs<T *>() : nullptr;
 }
 
 template <typename T>

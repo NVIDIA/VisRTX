@@ -37,11 +37,11 @@ void TransparentMatte::commit()
 {
   m_color = getParam<vec3>("color", vec3(1.f));
   m_colorSampler = getParamObject<Sampler>("color");
-  m_colorAttribute = getParam<std::string>("color", "");
+  m_colorAttribute = getParamString("color", "");
 
   m_opacity = getParam<float>("opacity", 1.f);
   m_opacitySampler = getParamObject<Sampler>("opacity");
-  m_opacityAttribute = getParam<std::string>("opacity", "");
+  m_opacityAttribute = getParamString("opacity", "");
 }
 
 MaterialGPUData TransparentMatte::gpuData() const

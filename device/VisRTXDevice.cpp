@@ -131,98 +131,6 @@ inline OBJECT_T &referenceFromHandle(HANDLE_T handle)
   return *((OBJECT_T *)handle);
 }
 
-#define declare_param_setter(TYPE)                                             \
-  {                                                                            \
-    anari::ANARITypeFor<TYPE>::value,                                          \
-        [](Object &o, const char *p, const void *v) {                          \
-          o.setParam(p, *(TYPE *)v);                                           \
-        }                                                                      \
-  }
-
-#define declare_param_setter_conversion(ENUM_TYPE_IN, CPP_TYPE_STORED)         \
-  {                                                                            \
-    ENUM_TYPE_IN, [](Object &o, const char *p, const void *v) {                \
-      CPP_TYPE_STORED value;                                                   \
-      std::memcpy(&value, v, sizeof(value));                                   \
-      o.setParam(p, value);                                                    \
-    }                                                                          \
-  }
-
-#define declare_param_setter_object(TYPE)                                      \
-  {                                                                            \
-    anari::ANARITypeFor<TYPE>::value,                                          \
-        [](Object &o, const char *p, const void *v) {                          \
-          using OBJECT_T = typename std::remove_pointer<TYPE>::type;           \
-          auto ptr = *((TYPE *)v);                                             \
-          if (ptr)                                                             \
-            o.setParam(p, anari::IntrusivePtr<OBJECT_T>(ptr));                 \
-          else                                                                 \
-            o.removeParam(p);                                                  \
-        }                                                                      \
-  }
-
-#define declare_param_setter_string(TYPE)                                      \
-  {                                                                            \
-    ANARI_STRING, [](Object &o, const char *p, const void *v) {                \
-      o.setParam(p, std::string((const char *)v));                             \
-    }                                                                          \
-  }
-
-#define declare_param_setter_void_ptr(TYPE)                                    \
-  {                                                                            \
-    ANARI_VOID_POINTER, [](Object &o, const char *p, const void *v) {          \
-      o.setParam(p, const_cast<void *>(v));                                    \
-    }                                                                          \
-  }
-
-using SetParamFcn = void(Object &, const char *, const void *);
-
-static std::map<ANARIDataType, SetParamFcn *> setParamFcns = {
-    declare_param_setter(ANARIDataType),
-    declare_param_setter_void_ptr(void *),
-    declare_param_setter(bool),
-    declare_param_setter_object(Object *),
-    declare_param_setter_object(Camera *),
-    declare_param_setter_object(Array *),
-    declare_param_setter_object(Array1D *),
-    declare_param_setter_object(Array2D *),
-    declare_param_setter_object(Array3D *),
-    declare_param_setter_object(Frame *),
-    declare_param_setter_object(Geometry *),
-    declare_param_setter_object(Group *),
-    declare_param_setter_object(Instance *),
-    declare_param_setter_object(Light *),
-    declare_param_setter_object(Material *),
-    declare_param_setter_object(Renderer *),
-    declare_param_setter_object(Sampler *),
-    declare_param_setter_object(Surface *),
-    declare_param_setter_object(SpatialField *),
-    declare_param_setter_object(Volume *),
-    declare_param_setter_object(World *),
-    declare_param_setter_string(const char *),
-    declare_param_setter(int),
-    declare_param_setter(unsigned int),
-    declare_param_setter(size_t),
-    declare_param_setter(float),
-    declare_param_setter(ivec2),
-    declare_param_setter(ivec3),
-    declare_param_setter(ivec4),
-    declare_param_setter(uvec2),
-    declare_param_setter(uvec3),
-    declare_param_setter(uvec4),
-    declare_param_setter(vec2),
-    declare_param_setter(vec3),
-    declare_param_setter(vec4),
-    declare_param_setter(mat4x3),
-    declare_param_setter(mat4),
-    declare_param_setter_conversion(ANARI_FLOAT32_BOX1, vec2),
-    declare_param_setter_conversion(ANARI_FLOAT32_BOX2, vec4)};
-
-#undef declare_param_setter
-#undef declare_param_setter_object
-#undef declare_param_setter_string
-#undef declare_param_setter_void_ptr
-
 ///////////////////////////////////////////////////////////////////////////////
 // VisRTXDevice definitions ///////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -461,18 +369,12 @@ void VisRTXDevice::setParameter(
     deviceSetParameter(name, type, mem);
     return;
   }
-
-  auto *fcn = setParamFcns[type];
   auto &o = referenceFromHandle(object);
-
-  if (fcn) {
-    fcn(o, name, mem);
-    o.markUpdated();
-  } else {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "setting parameter type %s not yet implemented and will be unused",
-        anari::toString(type));
-  }
+  if (anari::isObject(type) && mem == nullptr)
+    o.removeParam(name);
+  else
+    o.setParam(name, type, mem);
+  o.markUpdated();
 }
 
 void VisRTXDevice::unsetParameter(ANARIObject o, const char *name)
@@ -666,7 +568,7 @@ VisRTXDevice::~VisRTXDevice()
       auto *obj = (Object *)r.hostObject(i);
       if (!obj)
         continue;
-      auto name = obj->getParam<std::string>("name", "<no name>");
+      auto name = obj->getParamString("name", "<no name>");
       reportMessage(ANARI_SEVERITY_WARNING,
           "    leaked %s (%p) | ref counts [%zu, %zu] | name '%s'",
           type,

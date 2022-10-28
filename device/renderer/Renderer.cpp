@@ -86,7 +86,7 @@ static Renderer *make_renderer(std::string_view subtype)
     retval = new Debug();
     auto names = splitString(std::string(subtype), "_");
     if (names.size() > 1)
-      retval->setParam("method", names[1]);
+      retval->setParam("method", ANARI_STRING, names[1].c_str());
   } else
     retval = new Raycast();
 
