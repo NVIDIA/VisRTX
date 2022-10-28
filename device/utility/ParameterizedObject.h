@@ -31,8 +31,6 @@
 
 #pragma once
 
-#include "anari_library_visrtx_export.h"
-
 #include "AnariAny.h"
 #include "anari/anari_cpp/Traits.h"
 // anari
@@ -45,7 +43,7 @@
 
 namespace visrtx {
 
-struct VISRTX_DEVICE_INTERFACE ParameterizedObject
+struct ParameterizedObject
 {
   ParameterizedObject() = default;
   virtual ~ParameterizedObject() = default;

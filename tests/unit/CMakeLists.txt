@@ -33,6 +33,8 @@ add_executable(${PROJECT_NAME}
   catch_main.cpp
   test_AnariAny.cpp
   test_ParameterizedObject.cpp
+  # CPP files with definitions for code under test (device lib symbols hidden)
+  ${CMAKE_SOURCE_DIR}/device/utility/ParameterizedObject.cpp
 )
 target_link_libraries(${PROJECT_NAME} PRIVATE anari_library_visrtx catch)
 
