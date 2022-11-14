@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownGeometry : public Geometry
 {
-  UnknownGeometry() = default;
+  UnknownGeometry(DeviceGlobalState *d);
   ~UnknownGeometry() = default;
 
   void populateBuildInput(OptixBuildInput &) const override;

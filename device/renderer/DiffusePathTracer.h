@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct DiffusePathTracer : public Renderer
 {
-  DiffusePathTracer() = default;
+  DiffusePathTracer(DeviceGlobalState *s);
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;

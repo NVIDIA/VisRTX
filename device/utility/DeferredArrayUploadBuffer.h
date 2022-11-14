@@ -29,74 +29,32 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "DeferredCommitBuffer.h"
-#include "Object.h"
+#pragma once
+
+#include "helium/utility/TimeStamp.h"
 // std
-#include <algorithm>
+#include <vector>
 
 namespace visrtx {
 
-DeferredCommitBuffer::DeferredCommitBuffer()
+struct Array;
+
+struct DeferredArrayUploadBuffer
 {
-  m_commitBuffer.reserve(100);
-}
+  DeferredArrayUploadBuffer();
+  ~DeferredArrayUploadBuffer();
 
-DeferredCommitBuffer::~DeferredCommitBuffer()
-{
-  clear();
-}
+  void addArray(Array *arr);
 
-void DeferredCommitBuffer::addObject(Object *obj)
-{
-  obj->refInc(anari::RefType::INTERNAL);
-  if (obj->commitPriority() != VISRTX_COMMIT_PRIORITY_DEFAULT)
-    m_needToSortCommits = true;
-  m_commitBuffer.push_back(obj);
-}
+  bool flush();
+  helium::TimeStamp lastFlush() const;
 
-bool DeferredCommitBuffer::flush()
-{
-  if (m_commitBuffer.empty())
-    return false;
+  void clear();
+  bool empty() const;
 
-  if (m_needToSortCommits) {
-    std::sort(m_commitBuffer.begin(),
-        m_commitBuffer.end(),
-        [](Object *o1, Object *o2) {
-          return o1->commitPriority() < o2->commitPriority();
-        });
-  }
-
-  m_needToSortCommits = false;
-
-  size_t i = 0;
-  size_t end = m_commitBuffer.size();
-  while (i != end) {
-    for (;i < end; i++) {
-      auto obj = m_commitBuffer[i];
-      if (obj->lastUpdated() > obj->lastCommitted()) {
-        obj->commit();
-        obj->upload();
-        obj->markCommitted();
-      }
-    }
-    end = m_commitBuffer.size();
-  }
-
-  clear();
-  return true;
-}
-
-void DeferredCommitBuffer::clear()
-{
-  for (auto &obj : m_commitBuffer)
-    obj->refDec(anari::RefType::INTERNAL);
-  m_commitBuffer.clear();
-}
-
-bool DeferredCommitBuffer::empty() const
-{
-  return m_commitBuffer.empty();
-}
+ private:
+  std::vector<Array *> m_arraysToUpload;
+  helium::TimeStamp m_lastFlush{0};
+};
 
 } // namespace visrtx

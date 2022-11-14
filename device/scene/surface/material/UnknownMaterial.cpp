@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+UnknownMaterial::UnknownMaterial(DeviceGlobalState *d) : Material(d) {}
+
 bool UnknownMaterial::isValid() const
 {
   return false;

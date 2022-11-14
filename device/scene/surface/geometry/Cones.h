@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct Cones : public Geometry
 {
-  Cones() = default;
+  Cones(DeviceGlobalState *d);
   ~Cones() override;
 
   void commit() override;
@@ -65,10 +65,10 @@ struct Cones : public Geometry
     CUdeviceptr vertexBufferPtr{};
   } m_cones;
 
-  anari::IntrusivePtr<Array1D> m_index;
-  anari::IntrusivePtr<Array1D> m_radius;
+  helium::IntrusivePtr<Array1D> m_index;
+  helium::IntrusivePtr<Array1D> m_radius;
 
-  anari::IntrusivePtr<Array1D> m_vertex;
+  helium::IntrusivePtr<Array1D> m_vertex;
 
   bool m_caps{false};
 };

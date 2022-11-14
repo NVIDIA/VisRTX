@@ -33,6 +33,10 @@
 
 namespace visrtx {
 
+UnknownSpatialField::UnknownSpatialField(DeviceGlobalState *d)
+    : SpatialField(d)
+{}
+
 bool UnknownSpatialField::isValid() const
 {
   return false;

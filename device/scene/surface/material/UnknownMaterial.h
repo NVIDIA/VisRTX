@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownMaterial : public Material
 {
-  UnknownMaterial() = default;
+  UnknownMaterial(DeviceGlobalState *d);
   ~UnknownMaterial() = default;
   bool isValid() const override;
 

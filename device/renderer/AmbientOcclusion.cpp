@@ -40,6 +40,8 @@ static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
 
 static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
 
+AmbientOcclusion::AmbientOcclusion(DeviceGlobalState *s) : Renderer(s) {}
+
 void AmbientOcclusion::commit()
 {
   Renderer::commit();

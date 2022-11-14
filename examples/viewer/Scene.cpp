@@ -36,7 +36,7 @@
 // anari
 #include <anari/anari_cpp/ext/glm.h>
 // VisRTX
-#include "anari/backend/visrtx/visrtx.h"
+#include "anari/ext/visrtx/visrtx.h"
 // tiny_obj_loader
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"

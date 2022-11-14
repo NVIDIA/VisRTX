@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct Geometry : public RegisteredObject<GeometryGPUData>
 {
-  Geometry() = default;
+  Geometry(DeviceGlobalState *d);
 
   static Geometry *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
@@ -54,12 +54,12 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
  protected:
   virtual GeometryGPUData gpuData() const = 0;
 
-  anari::IntrusivePtr<Array1D> m_colors;
-  anari::IntrusivePtr<Array1D> m_attribute0;
-  anari::IntrusivePtr<Array1D> m_attribute1;
-  anari::IntrusivePtr<Array1D> m_attribute2;
-  anari::IntrusivePtr<Array1D> m_attribute3;
-  anari::IntrusivePtr<Array1D> m_primID;
+  helium::IntrusivePtr<Array1D> m_colors;
+  helium::IntrusivePtr<Array1D> m_attribute0;
+  helium::IntrusivePtr<Array1D> m_attribute1;
+  helium::IntrusivePtr<Array1D> m_attribute2;
+  helium::IntrusivePtr<Array1D> m_attribute3;
+  helium::IntrusivePtr<Array1D> m_primID;
 };
 
 } // namespace visrtx

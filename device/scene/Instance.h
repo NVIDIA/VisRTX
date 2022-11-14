@@ -39,7 +39,7 @@ struct Instance : public Object
 {
   static size_t objectCount();
 
-  Instance();
+  Instance(DeviceGlobalState *d);
   ~Instance() override;
 
   void commit() override;
@@ -56,7 +56,7 @@ struct Instance : public Object
 
  private:
   mat4x3 m_xfm;
-  anari::IntrusivePtr<Group> m_group;
+  helium::IntrusivePtr<Group> m_group;
 };
 
 } // namespace visrtx

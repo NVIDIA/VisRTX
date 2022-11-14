@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct Image1D : public Sampler
 {
-  Image1D() = default;
+  Image1D(DeviceGlobalState *d);
   ~Image1D();
 
   void commit() override;
@@ -56,7 +56,7 @@ struct Image1D : public Sampler
   {
     std::string filter;
     std::string wrap1;
-    anari::IntrusivePtr<Array1D> image;
+    helium::IntrusivePtr<Array1D> image;
   } m_params;
 
   cudaTextureObject_t m_textureObject{};

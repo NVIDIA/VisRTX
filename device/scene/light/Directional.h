@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct Directional : public Light
 {
-  Directional() = default;
+  Directional(DeviceGlobalState *d);
 
   void commit() override;
 

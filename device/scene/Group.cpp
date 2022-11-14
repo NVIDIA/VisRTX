@@ -60,10 +60,9 @@ size_t Group::objectCount()
   return s_numGroups;
 }
 
-Group::Group()
+Group::Group(DeviceGlobalState *d) : Object(ANARI_GROUP, d)
 {
   s_numGroups++;
-  setCommitPriority(VISRTX_COMMIT_PRIORITY_GROUP);
 }
 
 Group::~Group()
@@ -77,7 +76,7 @@ bool Group::getProperty(
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
-      deviceState()->flushCommitBuffer();
+      deviceState()->commitBuffer.flush();
       rebuildSurfaceBVHs();
       rebuildVolumeBVH();
     }
@@ -231,7 +230,7 @@ void Group::rebuildSurfaceBVHs()
 
   buildSurfaceGPUData();
 
-  m_objectUpdates.lastSurfaceBVHBuilt = newTimeStamp();
+  m_objectUpdates.lastSurfaceBVHBuilt = helium::newTimeStamp();
 }
 
 void Group::rebuildVolumeBVH()
@@ -253,20 +252,20 @@ void Group::rebuildVolumeBVH()
 
   buildVolumeGPUData();
 
-  m_objectUpdates.lastVolumeBVHBuilt = newTimeStamp();
+  m_objectUpdates.lastVolumeBVHBuilt = helium::newTimeStamp();
 }
 
 void Group::rebuildLights()
 {
   partitionValidLights();
   buildLightGPUData();
-  m_objectUpdates.lastLightRebuild = newTimeStamp();
+  m_objectUpdates.lastLightRebuild = helium::newTimeStamp();
 }
 
 void Group::markCommitted()
 {
   Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 void Group::partitionValidGeometriesByType()
@@ -275,7 +274,7 @@ void Group::partitionValidGeometriesByType()
   if (!m_surfaceData)
     return;
 
-  m_surfaces = make_Span(
+  m_surfaces = anari::make_Span(
       (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
   m_surfacesTriangle.clear();
   m_surfacesUser.clear();
@@ -298,7 +297,7 @@ void Group::partitionValidVolumes()
   if (!m_volumeData)
     return;
 
-  auto volumes = make_Span(
+  auto volumes = anari::make_Span(
       (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
   for (auto v : volumes) {
     if (!v->isValid())
@@ -313,7 +312,7 @@ void Group::partitionValidLights()
   if (!m_lightData)
     return;
 
-  auto lights = make_Span(
+  auto lights = anari::make_Span(
       (Light **)m_lightData->handlesBegin(), m_lightData->totalSize());
   for (auto l : lights) {
     if (!l->isValid())

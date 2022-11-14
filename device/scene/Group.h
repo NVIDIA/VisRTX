@@ -43,7 +43,7 @@ struct Group : public Object
 {
   static size_t objectCount();
 
-  Group();
+  Group(DeviceGlobalState *d);
   ~Group() override;
 
   bool getProperty(const std::string_view &name,
@@ -87,7 +87,7 @@ struct Group : public Object
 
   // Geometry //
 
-  anari::IntrusivePtr<ObjectArray> m_surfaceData;
+  helium::IntrusivePtr<ObjectArray> m_surfaceData;
   anari::Span<Surface *> m_surfaces;
 
   std::vector<Surface *> m_surfacesTriangle;
@@ -100,14 +100,14 @@ struct Group : public Object
 
   // Volume //
 
-  anari::IntrusivePtr<ObjectArray> m_volumeData;
+  helium::IntrusivePtr<ObjectArray> m_volumeData;
   std::vector<Volume *> m_volumes;
 
   DeviceBuffer m_volumeObjectIndices;
 
   // Light //
 
-  anari::IntrusivePtr<ObjectArray> m_lightData;
+  helium::IntrusivePtr<ObjectArray> m_lightData;
   std::vector<Light *> m_lights;
 
   DeviceBuffer m_lightObjectIndices;
@@ -116,9 +116,9 @@ struct Group : public Object
 
   struct ObjectUpdates
   {
-    TimeStamp lastSurfaceBVHBuilt{0};
-    TimeStamp lastVolumeBVHBuilt{0};
-    TimeStamp lastLightRebuild{0};
+    helium::TimeStamp lastSurfaceBVHBuilt{0};
+    helium::TimeStamp lastVolumeBVHBuilt{0};
+    helium::TimeStamp lastLightRebuild{0};
   } m_objectUpdates;
 
   box3 m_triangleBounds;

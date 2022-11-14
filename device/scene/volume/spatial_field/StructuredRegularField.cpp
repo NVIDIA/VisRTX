@@ -67,6 +67,12 @@ static cudaChannelFormatKind cudaChannelFormatFromANARI(ANARIDataType format)
   }
 }
 
+// StructuredRegularField definitions /////////////////////////////////////////
+
+StructuredRegularField::StructuredRegularField(DeviceGlobalState *d)
+    : SpatialField(d)
+{}
+
 StructuredRegularField::~StructuredRegularField()
 {
   cleanup();
@@ -131,6 +137,8 @@ void StructuredRegularField::commit()
   texDesc.normalizedCoords = 1;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
+
+  upload();
 }
 
 box3 StructuredRegularField::bounds() const

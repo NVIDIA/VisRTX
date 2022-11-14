@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+Cylinders::Cylinders(DeviceGlobalState *d) : Geometry(d) {}
+
 Cylinders::~Cylinders()
 {
   cleanup();
@@ -108,6 +110,8 @@ void Cylinders::commit()
 
   m_aabbs.upload();
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.dataDevice();
+
+  upload();
 }
 
 void Cylinders::populateBuildInput(OptixBuildInput &buildInput) const

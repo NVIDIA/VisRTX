@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+UnknownSampler::UnknownSampler(DeviceGlobalState *d) : Sampler(d) {}
+
 bool UnknownSampler::isValid() const
 {
   return false;

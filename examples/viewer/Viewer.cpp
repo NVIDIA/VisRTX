@@ -40,7 +40,7 @@
 #define ANARI_FEATURE_UTILITY_IMPL
 #include "anari/anari_feature_utility.h"
 // VisRTX
-#include "anari/backend/visrtx/visrtx.h"
+#include "anari/ext/visrtx/visrtx.h"
 
 #include "ui_scenes.h"
 

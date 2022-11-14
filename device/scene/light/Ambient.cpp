@@ -33,11 +33,14 @@
 
 namespace visrtx {
 
+Ambient::Ambient(DeviceGlobalState *d) : Light(d) {}
+
 void Ambient::commit()
 {
   Light::commit();
   m_intensity = getParam<float>("intensity", 1.f);
   m_distance = getParam<float>("occlusionDistance", 1e20f);
+  upload();
 }
 
 LightGPUData Ambient::gpuData() const

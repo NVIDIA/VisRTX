@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct SciVis : public Renderer
 {
-  SciVis() = default;
+  SciVis(DeviceGlobalState *s);
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;

@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownCamera : public Camera
 {
-  UnknownCamera() = default;
+  UnknownCamera(DeviceGlobalState *d);
   ~UnknownCamera() = default;
   bool isValid() const override;
 };

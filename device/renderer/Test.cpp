@@ -29,31 +29,22 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include "TimeStamp.h"
-// std
-#include <vector>
+#include "Test.h"
+// ptx
+#include "Test_ptx.h"
 
 namespace visrtx {
 
-struct Object;
+Test::Test(DeviceGlobalState *s) : Renderer(s) {}
 
-struct DeferredCommitBuffer
+OptixModule Test::optixModule() const
 {
-  DeferredCommitBuffer();
-  ~DeferredCommitBuffer();
+  return deviceState()->rendererModules.test;
+}
 
-  void addObject(Object *obj);
-  bool flush();
-
-  void clear();
-
-  bool empty() const;
-
- private:
-  std::vector<Object *> m_commitBuffer;
-  bool m_needToSortCommits{false};
-};
+ptx_ptr Test::ptx()
+{
+  return Test_ptx;
+}
 
 } // namespace visrtx

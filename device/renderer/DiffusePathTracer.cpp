@@ -35,6 +35,8 @@
 
 namespace visrtx {
 
+DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s) {}
+
 void DiffusePathTracer::commit()
 {
   Renderer::commit();

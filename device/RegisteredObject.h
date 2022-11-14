@@ -42,7 +42,7 @@ struct RegisteredObject : public Object
   using payload_t = GPU_DATA_T;
   using array_t = DeviceObjectArray<payload_t>;
 
-  RegisteredObject() = default;
+  RegisteredObject(ANARIDataType type, DeviceGlobalState *d);
   virtual ~RegisteredObject();
 
   void upload();
@@ -60,6 +60,12 @@ struct RegisteredObject : public Object
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
+
+template <typename GPU_DATA_T>
+inline RegisteredObject<GPU_DATA_T>::RegisteredObject(
+    ANARIDataType type, DeviceGlobalState *d)
+    : Object(type, d)
+{}
 
 template <typename GPU_DATA_T>
 inline RegisteredObject<GPU_DATA_T>::~RegisteredObject()

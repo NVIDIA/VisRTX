@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct SpatialField : public RegisteredObject<SpatialFieldGPUData>
 {
-  SpatialField() = default;
+  SpatialField(DeviceGlobalState *d);
   ~SpatialField() = default;
 
   virtual box3 bounds() const = 0;

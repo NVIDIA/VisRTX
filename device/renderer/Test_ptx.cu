@@ -29,13 +29,39 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include <cstdint>
+#include "gpu/shading_api.h"
 
 namespace visrtx {
 
-using TimeStamp = uint64_t;
-TimeStamp newTimeStamp();
+enum class RayType
+{
+  PRIMARY
+};
+
+DECLARE_FRAME_DATA(frameData)
+
+RT_PROGRAM void __closesthit__()
+{
+  // no-op
+}
+
+RT_PROGRAM void __miss__()
+{
+  // no-op
+}
+
+RT_PROGRAM void __raygen__()
+{
+  /////////////////////////////////////////////////////////////////////////////
+  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
+  auto ss = createScreenSample(frameData);
+  if (pixelOutOfFrame(ss.pixel, frameData.fb))
+    return;
+  auto ray = makePrimaryRay(ss);
+  /////////////////////////////////////////////////////////////////////////////
+
+  accumResults(
+      frameData.fb, ss.pixel, vec4(ray.dir, 1.f), 1.f, ray.dir, -ray.dir);
+}
 
 } // namespace visrtx

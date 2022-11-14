@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+Triangles::Triangles(DeviceGlobalState *d) : Geometry(d) {}
+
 Triangles::~Triangles()
 {
   cleanup();
@@ -88,6 +90,8 @@ void Triangles::commit()
   m_vertex->addCommitObserver(this);
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
+
+  upload();
 }
 
 void Triangles::populateBuildInput(OptixBuildInput &buildInput) const

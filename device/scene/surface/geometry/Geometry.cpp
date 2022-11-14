@@ -43,31 +43,29 @@
 
 namespace visrtx {
 
-// Geometry definitions ///////////////////////////////////////////////////////
+Geometry::Geometry(DeviceGlobalState *s)
+    : RegisteredObject<GeometryGPUData>(ANARI_GEOMETRY, s)
+{
+  setRegistry(s->registry.geometries);
+}
 
 Geometry *Geometry::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
-  Geometry *retval = nullptr;
-
   if (subtype == "triangle")
-    retval = new Triangles;
+    return new Triangles(d);
   else if (subtype == "quad")
-    retval = new Quads;
+    return new Quads(d);
   else if (subtype == "sphere")
-    retval = new Spheres;
+    return new Spheres(d);
   else if (subtype == "cylinder")
-    retval = new Cylinders;
+    return new Cylinders(d);
   else if (subtype == "cone")
-    retval = new Cones;
+    return new Cones(d);
   else if (subtype == "curve")
-    retval = new Curves;
+    return new Curves(d);
   else
-    retval = new UnknownGeometry;
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.geometries);
-  return retval;
+    return new UnknownGeometry(d);
 }
 
 void Geometry::commit()
@@ -85,7 +83,7 @@ void Geometry::commit()
 void Geometry::markCommitted()
 {
   Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 GeometryGPUData Geometry::gpuData() const

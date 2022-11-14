@@ -42,7 +42,7 @@ struct World : public Object
 {
   static size_t objectCount();
 
-  World();
+  World(DeviceGlobalState *d);
   ~World() override;
 
   bool getProperty(const std::string_view &name,
@@ -69,16 +69,16 @@ struct World : public Object
   void buildInstanceLightGPUData();
   void cleanup();
 
-  anari::IntrusivePtr<ObjectArray> m_zeroSurfaceData;
-  anari::IntrusivePtr<ObjectArray> m_zeroVolumeData;
-  anari::IntrusivePtr<ObjectArray> m_zeroLightData;
+  helium::IntrusivePtr<ObjectArray> m_zeroSurfaceData;
+  helium::IntrusivePtr<ObjectArray> m_zeroVolumeData;
+  helium::IntrusivePtr<ObjectArray> m_zeroLightData;
 
-  anari::IntrusivePtr<ObjectArray> m_instanceData;
+  helium::IntrusivePtr<ObjectArray> m_instanceData;
   anari::Span<Instance *> m_instances;
 
   bool m_addZeroInstance{false};
-  anari::IntrusivePtr<Group> m_zeroGroup;
-  anari::IntrusivePtr<Instance> m_zeroInstance;
+  helium::IntrusivePtr<Group> m_zeroGroup;
+  helium::IntrusivePtr<Instance> m_zeroInstance;
 
   size_t m_numTriangleInstances{0};
   size_t m_numCurveInstances{0};
@@ -91,8 +91,8 @@ struct World : public Object
 
   struct ObjectUpdates
   {
-    TimeStamp lastTLASBuild{0};
-    TimeStamp lastBLASCheck{0};
+    helium::TimeStamp lastTLASBuild{0};
+    helium::TimeStamp lastBLASCheck{0};
   } m_objectUpdates;
 
   // Surfaces //

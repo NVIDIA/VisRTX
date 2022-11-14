@@ -35,6 +35,8 @@
 
 namespace visrtx {
 
+Curves::Curves(DeviceGlobalState *d) : Geometry(d) {}
+
 Curves::~Curves()
 {
   cleanup();
@@ -73,6 +75,8 @@ void Curves::commit()
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertexPosition->begin(AddressSpace::GPU);
   m_radiusBufferPtr = (CUdeviceptr)m_generatedRadii.dataDevice();
+
+  upload();
 }
 
 void Curves::populateBuildInput(OptixBuildInput &buildInput) const

@@ -42,6 +42,8 @@ static const std::vector<HitgroupFunctionNames> g_scivisHitNames = {
 static const std::vector<std::string> g_scivisMissNames = {
     "__miss__", "__miss__"};
 
+SciVis::SciVis(DeviceGlobalState *s) : Renderer(s) {}
+
 void SciVis::commit()
 {
   Renderer::commit();

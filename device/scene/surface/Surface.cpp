@@ -33,9 +33,10 @@
 
 namespace visrtx {
 
-Surface::Surface()
+Surface::Surface(DeviceGlobalState *d)
+    : RegisteredObject<SurfaceGPUData>(ANARI_SURFACE, d)
 {
-  setCommitPriority(VISRTX_COMMIT_PRIORITY_SURFACE);
+  setRegistry(d->registry.surfaces);
 }
 
 void Surface::commit()
@@ -43,11 +44,17 @@ void Surface::commit()
   m_geometry = getParamObject<Geometry>("geometry");
   m_material = getParamObject<Material>("material");
 
-  if (!m_material)
+  if (!m_material) {
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'material' on ANARISurface");
+    return;
+  }
 
-  if (!m_geometry)
+  if (!m_geometry) {
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'geometry' on ANARISurface");
+    return;
+  }
+
+  upload();
 }
 
 const Geometry *Surface::geometry() const
@@ -72,7 +79,7 @@ OptixBuildInput Surface::buildInput() const
 void Surface::markCommitted()
 {
   Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 bool Surface::isValid() const

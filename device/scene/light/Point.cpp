@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+Point::Point(DeviceGlobalState *d) : Light(d) {}
+
 void Point::commit()
 {
   Light::commit();
@@ -40,6 +42,7 @@ void Point::commit()
   m_intensity = std::clamp(getParam<float>("intensity", 1.f),
       0.f,
       std::numeric_limits<float>::max());
+  upload();
 }
 
 LightGPUData Point::gpuData() const

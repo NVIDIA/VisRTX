@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+Spheres::Spheres(DeviceGlobalState *d) : Geometry(d) {}
+
 Spheres::~Spheres()
 {
   cleanup();
@@ -105,6 +107,8 @@ void Spheres::commit()
 
   m_aabbs.upload();
   m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.dataDevice();
+
+  upload();
 }
 
 void Spheres::populateBuildInput(OptixBuildInput &buildInput) const

@@ -159,6 +159,16 @@ RT_FUNCTION bool pixelOutOfFrame(
   return pixel.x >= fb.size.x || pixel.y >= fb.size.y;
 }
 
+RT_FUNCTION bool isFirstPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+{
+  return pixel.x == 0 && pixel.y == 0;
+}
+
+RT_FUNCTION bool isMiddelPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+{
+  return pixel.x == (fb.size.x / 2) && pixel.y == (fb.size.y / 2);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Outputs ////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////

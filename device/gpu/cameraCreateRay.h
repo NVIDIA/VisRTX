@@ -35,25 +35,24 @@
 
 namespace visrtx {
 
-RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *_c, vec2 screen)
+RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *c, vec2 screen)
 {
   Ray ray;
 
-  screen.x = glm::mix(_c->region[0], _c->region[2], screen.x);
-  screen.y = glm::mix(_c->region[1], _c->region[3], screen.y);
+  screen.x = glm::mix(c->region[0], c->region[2], screen.x);
+  screen.y = glm::mix(c->region[1], c->region[3], screen.y);
 
-  switch (_c->type) {
+  switch (c->type) {
   case CameraType::PERSPECTIVE: {
-    auto *c = (const PerspectiveCameraGPUData *)_c;
+    const auto &p = c->perspective;
     ray.org = c->pos;
-    ray.dir =
-        normalize(c->dir_00 + screen.x * c->dir_du + screen.y * c->dir_dv);
+    ray.dir = normalize(p.dir_00 + screen.x * p.dir_du + screen.y * p.dir_dv);
     break;
   }
   case CameraType::ORTHOGRAPHIC: {
-    auto *c = (const OrthographicCameraGPUData *)_c;
+    const auto &o = c->orthographic;
     ray.dir = c->dir;
-    ray.org = c->pos_00 + screen.x * c->pos_du + screen.y * c->pos_dv;
+    ray.org = o.pos_00 + screen.x * o.pos_du + screen.y * o.pos_dv;
     break;
   }
   default:

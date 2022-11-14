@@ -96,6 +96,10 @@ static void appendCone(const vec3 &vtx0,
   }
 }
 
+// Cones definitions //////////////////////////////////////////////////////////
+
+Cones::Cones(DeviceGlobalState *d) : Geometry(d) {}
+
 Cones::~Cones()
 {
   cleanup();
@@ -131,6 +135,8 @@ void Cones::commit()
   m_radius->addCommitObserver(this);
 
   generateCones();
+
+  upload();
 }
 
 void Cones::populateBuildInput(OptixBuildInput &buildInput) const

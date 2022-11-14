@@ -39,24 +39,24 @@
 
 namespace visrtx {
 
+Sampler::Sampler(DeviceGlobalState *s)
+    : RegisteredObject<SamplerGPUData>(ANARI_SAMPLER, s)
+{
+  setRegistry(s->registry.samplers);
+}
+
 Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  Sampler *retval = nullptr;
-
   if (subtype == "image1D")
-    retval = new Image1D();
+    return new Image1D(d);
   else if (subtype == "image2D")
-    retval = new Image2D();
+    return new Image2D(d);
   else if (subtype == "primitive")
-    retval = new PrimitiveSampler();
+    return new PrimitiveSampler(d);
   else if (subtype == "colorMap")
-    retval = new ColorMap();
+    return new ColorMap(d);
   else
-    retval = new UnknownSampler;
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.samplers);
-  return retval;
+    return new UnknownSampler(d);
 }
 
 void Sampler::commit()

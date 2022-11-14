@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct Surface : public RegisteredObject<SurfaceGPUData>
 {
-  Surface();
+  Surface(DeviceGlobalState *d);
 
   void commit() override;
 
@@ -54,8 +54,8 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
  private:
   SurfaceGPUData gpuData() const override;
 
-  anari::IntrusivePtr<Geometry> m_geometry;
-  anari::IntrusivePtr<Material> m_material;
+  helium::IntrusivePtr<Geometry> m_geometry;
+  helium::IntrusivePtr<Material> m_material;
 
   OptixBuildInput m_buildInput{};
 };

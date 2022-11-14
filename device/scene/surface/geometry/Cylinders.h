@@ -41,7 +41,7 @@ namespace visrtx {
 
 struct Cylinders : public Geometry
 {
-  Cylinders() = default;
+  Cylinders(DeviceGlobalState *d);
   ~Cylinders() override;
 
   void commit() override;
@@ -56,15 +56,15 @@ struct Cylinders : public Geometry
   GeometryGPUData gpuData() const override;
   void cleanup();
 
-  anari::IntrusivePtr<Array1D> m_index;
-  anari::IntrusivePtr<Array1D> m_radius;
+  helium::IntrusivePtr<Array1D> m_index;
+  helium::IntrusivePtr<Array1D> m_radius;
 
-  anari::IntrusivePtr<Array1D> m_vertex;
-  anari::IntrusivePtr<Array1D> m_vertexColor;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute0;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute1;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute2;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute3;
+  helium::IntrusivePtr<Array1D> m_vertex;
+  helium::IntrusivePtr<Array1D> m_vertexColor;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
 
   HostDeviceArray<box3> m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};

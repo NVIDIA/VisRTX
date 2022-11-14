@@ -49,11 +49,14 @@ size_t Frame::objectCount()
   return s_numFrames;
 }
 
-Frame::Frame()
+Frame::Frame(DeviceGlobalState *d) : helium::BaseFrame(d), m_denoiser(d)
 {
   s_numFrames++;
   cudaEventCreate(&m_eventStart);
   cudaEventCreate(&m_eventEnd);
+
+  cudaEventRecord(m_eventStart, d->stream);
+  cudaEventRecord(m_eventEnd, d->stream);
 }
 
 Frame::~Frame()
@@ -70,12 +73,14 @@ bool Frame::isValid() const
   return m_valid;
 }
 
+DeviceGlobalState *Frame::deviceState() const
+{
+  return (DeviceGlobalState *)helium::BaseObject::m_state;
+}
+
 void Frame::commit()
 {
   auto &hd = data();
-
-  if (!m_denoiser.deviceState())
-    m_denoiser.setDeviceState(deviceState());
 
   m_renderer = getParamObject<Renderer>("renderer");
   if (!m_renderer) {
@@ -178,25 +183,25 @@ bool Frame::getProperty(
       wait();
     cudaEventElapsedTime(&m_duration, m_eventStart, m_eventEnd);
     m_duration /= 1000;
-    std::memcpy(ptr, &m_duration, sizeof(m_duration));
+    helium::writeToVoidP(ptr, m_duration);
     return true;
   } else if (type == ANARI_INT32 && name == "numSamples") {
     if (flags & ANARI_WAIT)
       wait();
     auto &hd = data();
-    std::memcpy(ptr, &hd.fb.frameID, sizeof(hd.fb.frameID));
+    helium::writeToVoidP(ptr, hd.fb.frameID);
     return true;
   } else if (type == ANARI_BOOL && name == "nextFrameReset") {
     if (flags & ANARI_WAIT)
       wait();
     if (ready())
-      deviceState()->flushCommitBuffer();
+      deviceState()->commitBuffer.flush();
     checkAccumulationReset();
-    std::memcpy(ptr, &m_nextFrameReset, sizeof(m_nextFrameReset));
+    helium::writeToVoidP(ptr, m_nextFrameReset);
     return true;
   }
 
-  return Object::getProperty(name, type, ptr, flags);
+  return 0;
 }
 
 void Frame::renderFrame()
@@ -207,11 +212,11 @@ void Frame::renderFrame()
 
   instrument::rangePush("update scene");
   instrument::rangePush("flush commits");
-  state.flushCommitBuffer();
+  state.commitBuffer.flush();
   instrument::rangePop(); // flush commits
 
   instrument::rangePush("flush array uploads");
-  state.flushUploadBuffer();
+  state.uploadBuffer.flush();
   instrument::rangePop(); // flush array uploads
 
   instrument::rangePush("rebuild BVHs");
@@ -219,7 +224,7 @@ void Frame::renderFrame()
   instrument::rangePop(); // rebuild BVHs
   instrument::rangePop(); // update scene
 
-  if (!m_valid) {
+  if (!isValid()) {
     reportMessage(
         ANARI_SEVERITY_ERROR, "skipping render of incomplete frame object");
     return;
@@ -295,17 +300,7 @@ void Frame::renderFrame()
   instrument::rangePush("time until FB map");
 }
 
-bool Frame::ready() const
-{
-  return cudaEventQuery(m_eventEnd) == cudaSuccess;
-}
-
-void Frame::wait() const
-{
-  cudaEventSynchronize(m_eventEnd);
-}
-
-void *Frame::map(const char *_channel,
+void *Frame::map(std::string_view channel,
     uint32_t *width,
     uint32_t *height,
     ANARIDataType *pixelType)
@@ -316,7 +311,6 @@ void *Frame::map(const char *_channel,
   *width = hd.fb.size.x;
   *height = hd.fb.size.y;
 
-  std::string_view channel = _channel;
   if (channel == "channel.color") {
     *pixelType = m_colorType;
     return mapColorBuffer();
@@ -341,6 +335,26 @@ void *Frame::map(const char *_channel,
     *pixelType = ANARI_UNKNOWN;
     return nullptr;
   }
+}
+
+void Frame::unmap(std::string_view channel)
+{
+  // no-op
+}
+
+int Frame::frameReady(ANARIWaitMask m)
+{
+  if (m == ANARI_NO_WAIT)
+    return ready();
+  else {
+    wait();
+    return 1;
+  }
+}
+
+void Frame::discard()
+{
+  // no-op
 }
 
 void *Frame::mapColorBuffer()
@@ -423,6 +437,16 @@ void *Frame::mapNormalBuffer()
   return m_mappedNormalBuffer.data();
 }
 
+bool Frame::ready() const
+{
+  return cudaEventQuery(m_eventEnd) == cudaSuccess;
+}
+
+void Frame::wait() const
+{
+  cudaEventSynchronize(m_eventEnd);
+}
+
 bool Frame::checkerboarding() const
 {
   return data().fb.checkerboardID >= 0;
@@ -434,12 +458,12 @@ void Frame::checkAccumulationReset()
     return;
 
   auto &state = *deviceState();
-  if (m_lastCommitOccured < state.objectUpdates.lastCommitFlush) {
-    m_lastCommitOccured = state.objectUpdates.lastCommitFlush;
+  if (m_lastCommitOccured < state.commitBuffer.lastFlush()) {
+    m_lastCommitOccured = state.commitBuffer.lastFlush();
     m_nextFrameReset = true;
   }
-  if (m_lastUploadOccured < state.objectUpdates.lastUploadFlush) {
-    m_lastUploadOccured = state.objectUpdates.lastUploadFlush;
+  if (m_lastUploadOccured < state.uploadBuffer.lastFlush()) {
+    m_lastUploadOccured = state.uploadBuffer.lastFlush();
     m_nextFrameReset = true;
   }
 }

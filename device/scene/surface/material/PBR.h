@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct PBR : public Material
 {
-  PBR() = default;
+  PBR(DeviceGlobalState *d);
 
   void commit() override;
 
@@ -48,27 +48,27 @@ struct PBR : public Material
   bool m_separateOpacity{false};
 
   vec3 m_color{1.f};
-  anari::IntrusivePtr<Sampler> m_colorSampler;
+  helium::IntrusivePtr<Sampler> m_colorSampler;
   std::string m_colorAttribute;
 
   float m_opacity{1.f};
-  anari::IntrusivePtr<Sampler> m_opacitySampler;
+  helium::IntrusivePtr<Sampler> m_opacitySampler;
   std::string m_opacityAttribute;
 
   float m_metalness{0.f};
-  anari::IntrusivePtr<Sampler> m_metalnessSampler;
+  helium::IntrusivePtr<Sampler> m_metalnessSampler;
   std::string m_metalnessAttribute;
 
   vec3 m_emissive{0.f};
-  anari::IntrusivePtr<Sampler> m_emissiveSampler;
+  helium::IntrusivePtr<Sampler> m_emissiveSampler;
   std::string m_emissiveAttribute;
 
   float m_transmissiveness{0.f};
-  anari::IntrusivePtr<Sampler> m_transmissivenessSampler;
+  helium::IntrusivePtr<Sampler> m_transmissivenessSampler;
   std::string m_transmissivenessAttribute;
 
   float m_roughness{1.f};
-  anari::IntrusivePtr<Sampler> m_roughnessSampler;
+  helium::IntrusivePtr<Sampler> m_roughnessSampler;
   std::string m_roughnessAttribute;
 };
 

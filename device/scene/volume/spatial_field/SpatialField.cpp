@@ -36,25 +36,25 @@
 
 namespace visrtx {
 
+SpatialField::SpatialField(DeviceGlobalState *s)
+    : RegisteredObject<SpatialFieldGPUData>(ANARI_SPATIAL_FIELD, s)
+{
+  setRegistry(s->registry.fields);
+}
+
 void SpatialField::markCommitted()
 {
   Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 SpatialField *SpatialField::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
-  SpatialField *retval = nullptr;
-
   if (subtype == "structuredRegular")
-    retval = new StructuredRegularField;
+    return new StructuredRegularField(d);
   else
-    retval = new UnknownSpatialField;
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.fields);
-  return retval;
+    return new UnknownSpatialField(d);
 }
 
 } // namespace visrtx

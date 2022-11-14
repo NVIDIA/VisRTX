@@ -29,17 +29,58 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Object.h"
-// std
-#include <atomic>
+#include "DeferredArrayUploadBuffer.h"
+#include "array/Array.h"
 
 namespace visrtx {
 
-static std::atomic<TimeStamp> g_timeStamp = []() { return 0; }();
-
-TimeStamp newTimeStamp()
+DeferredArrayUploadBuffer::DeferredArrayUploadBuffer()
 {
-  return ++g_timeStamp;
+  m_arraysToUpload.reserve(100);
+}
+
+DeferredArrayUploadBuffer::~DeferredArrayUploadBuffer()
+{
+  clear();
+}
+
+void DeferredArrayUploadBuffer::addArray(Array *arr)
+{
+  arr->refInc(helium::RefType::INTERNAL);
+  m_arraysToUpload.push_back(arr);
+}
+
+bool DeferredArrayUploadBuffer::flush()
+{
+  if (m_arraysToUpload.empty())
+    return false;
+
+  for (auto arr : m_arraysToUpload) {
+    if (arr->useCount() > 1)
+      arr->uploadArrayData();
+  }
+
+  clear();
+  m_lastFlush = helium::newTimeStamp();
+  return true;
+}
+
+helium::TimeStamp DeferredArrayUploadBuffer::lastFlush() const
+{
+  return m_lastFlush;
+}
+
+void DeferredArrayUploadBuffer::clear()
+{
+  for (auto &arr : m_arraysToUpload)
+    arr->refDec(helium::RefType::INTERNAL);
+  m_arraysToUpload.clear();
+  m_lastFlush = 0;
+}
+
+bool DeferredArrayUploadBuffer::empty() const
+{
+  return m_arraysToUpload.empty();
 }
 
 } // namespace visrtx

@@ -38,6 +38,12 @@
 
 namespace visrtx {
 
+Light::Light(DeviceGlobalState *s)
+    : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
+{
+  setRegistry(s->registry.lights);
+}
+
 void Light::commit()
 {
   m_color = getParam<vec3>("color", vec3(1.f));
@@ -52,20 +58,14 @@ LightGPUData Light::gpuData() const
 
 Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  Light *retval = nullptr;
-
   if (subtype == "ambient")
-    retval = new Ambient;
+    return new Ambient(d);
   else if (subtype == "directional")
-    retval = new Directional;
+    return new Directional(d);
   else if (subtype == "point")
-    retval = new Point;
+    return new Point(d);
   else
-    retval = new UnknownLight;
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.lights);
-  return retval;
+    return new UnknownLight(d);
 }
 
 } // namespace visrtx

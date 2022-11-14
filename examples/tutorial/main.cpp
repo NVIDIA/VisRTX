@@ -35,7 +35,7 @@
 // C++ std anari_cpp type inference (VEC types from std::array<>)
 #include <anari/anari_cpp/ext/std.h>
 // VisRTX
-#include <anari/backend/visrtx/visrtx.h>
+#include <anari/ext/visrtx/visrtx.h>
 // std
 #include <array>
 #include <cstdio>

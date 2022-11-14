@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct Quads : public Geometry
 {
-  Quads() = default;
+  Quads(DeviceGlobalState *d);
   ~Quads() override;
 
   void commit() override;
@@ -54,24 +54,24 @@ struct Quads : public Geometry
   void generateIndices();
   void cleanup();
 
-  anari::IntrusivePtr<Array1D> m_index;
+  helium::IntrusivePtr<Array1D> m_index;
 
   HostDeviceArray<uvec3> m_indices;
 
-  anari::IntrusivePtr<Array1D> m_vertex;
-  anari::IntrusivePtr<Array1D> m_vertexColor;
-  anari::IntrusivePtr<Array1D> m_vertexNormal;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute0;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute1;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute2;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute3;
+  helium::IntrusivePtr<Array1D> m_vertex;
+  helium::IntrusivePtr<Array1D> m_vertexColor;
+  helium::IntrusivePtr<Array1D> m_vertexNormal;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
 
-  anari::IntrusivePtr<Array1D> m_vertexColorIndex;
-  anari::IntrusivePtr<Array1D> m_vertexNormalIndex;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute0Index;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute1Index;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute2Index;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute3Index;
+  helium::IntrusivePtr<Array1D> m_vertexColorIndex;
+  helium::IntrusivePtr<Array1D> m_vertexNormalIndex;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute0Index;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute1Index;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute2Index;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute3Index;
 
   CUdeviceptr m_vertexBufferPtr{};
 };

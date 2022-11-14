@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+UnknownLight::UnknownLight(DeviceGlobalState *d) : Light(d) {}
+
 bool UnknownLight::isValid() const
 {
   return false;

@@ -40,7 +40,7 @@ size_t Instance::objectCount()
   return s_numInstances;
 }
 
-Instance::Instance()
+Instance::Instance(DeviceGlobalState *d) : Object(ANARI_INSTANCE, d)
 {
   s_numInstances++;
 }
@@ -81,7 +81,7 @@ Group *Instance::group()
 void Instance::markCommitted()
 {
   Object::markCommitted();
-  deviceState()->objectUpdates.lastTLASChange = newTimeStamp();
+  deviceState()->objectUpdates.lastTLASChange = helium::newTimeStamp();
 }
 
 bool Instance::isValid() const

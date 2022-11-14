@@ -38,28 +38,23 @@
 
 namespace visrtx {
 
-Material::Material()
+Material::Material(DeviceGlobalState *s)
+    : RegisteredObject<MaterialGPUData>(ANARI_MATERIAL, s)
 {
-  setCommitPriority(VISRTX_COMMIT_PRIORITY_MATERIAL);
+  setRegistry(s->registry.materials);
 }
 
 Material *Material::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
-  Material *retval = nullptr;
-
   if (subtype == "matte")
-    retval = new Matte;
+    return new Matte(d);
   else if (subtype == "transparentMatte")
-    retval = new TransparentMatte;
+    return new TransparentMatte(d);
   else if (subtype == "pbr")
-    retval = new PBR;
+    return new PBR(d);
   else
-    retval = new UnknownMaterial;
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.materials);
-  return retval;
+    return new UnknownMaterial(d);
 }
 
 } // namespace visrtx

@@ -35,17 +35,10 @@
 
 namespace visrtx {
 
-Array1D::Array1D(const void *appMemory,
-    ANARIMemoryDeleter deleter,
-    const void *deleterPtr,
-    ANARIDataType type,
-    uint64_t numItems,
-    uint64_t byteStride)
-    : Array(appMemory, deleter, deleterPtr, type),
-      m_capacity(numItems),
-      m_end(numItems)
+Array1D::Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d)
+    : Array(ANARI_ARRAY1D, state, d), m_capacity(d.numItems), m_end(d.numItems)
 {
-  if (byteStride != 0)
+  if (d.byteStride != 0)
     throw std::runtime_error("strided arrays not yet supported!");
   initManagedMemory();
 }
@@ -75,11 +68,6 @@ void Array1D::commit()
     markDataModified();
     notifyCommitObservers();
   }
-}
-
-ArrayShape Array1D::shape() const
-{
-  return ArrayShape::ARRAY1D;
 }
 
 size_t Array1D::totalSize() const

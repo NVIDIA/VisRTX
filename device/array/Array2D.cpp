@@ -33,28 +33,16 @@
 
 namespace visrtx {
 
-Array2D::Array2D(const void *appMemory,
-    ANARIMemoryDeleter deleter,
-    const void *deleterPtr,
-    ANARIDataType type,
-    uint64_t numItems1,
-    uint64_t numItems2,
-    uint64_t byteStride1,
-    uint64_t byteStride2)
-    : Array(appMemory, deleter, deleterPtr, type)
+Array2D::Array2D(DeviceGlobalState *state, const Array2DMemoryDescriptor &d)
+    : Array(ANARI_ARRAY2D, state, d)
 {
-  if (byteStride1 != 0 || byteStride2 != 0)
+  if (d.byteStride1 != 0 || d.byteStride2 != 0)
     throw std::runtime_error("strided arrays not yet supported!");
 
-  m_size[0] = numItems1;
-  m_size[1] = numItems2;
+  m_size[0] = d.numItems1;
+  m_size[1] = d.numItems2;
 
   initManagedMemory();
-}
-
-ArrayShape Array2D::shape() const
-{
-  return ArrayShape::ARRAY2D;
 }
 
 size_t Array2D::totalSize() const

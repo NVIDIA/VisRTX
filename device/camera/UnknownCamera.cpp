@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+UnknownCamera::UnknownCamera(DeviceGlobalState *s) : Camera(s) {}
+
 bool UnknownCamera::isValid() const
 {
   return false;

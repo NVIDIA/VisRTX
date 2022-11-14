@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct Volume : public RegisteredObject<VolumeGPUData>
 {
-  Volume();
+  Volume(DeviceGlobalState *d);
   ~Volume() = default;
 
   OptixBuildInput buildInput() const;

@@ -34,6 +34,8 @@
 
 namespace visrtx {
 
+Image1D::Image1D(DeviceGlobalState *d) : Sampler(d) {}
+
 Image1D::~Image1D()
 {
   cleanup();
@@ -142,6 +144,8 @@ void Image1D::commit()
   texDesc.normalizedCoords = 1;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
+
+  upload();
 }
 
 SamplerGPUData Image1D::gpuData() const

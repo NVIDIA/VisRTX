@@ -52,29 +52,28 @@ size_t Array::objectCount()
   return s_numArrays;
 }
 
-Array::Array(const void *appMem,
-    ANARIMemoryDeleter deleter,
-    const void *deleterPtr,
-    ANARIDataType elementType)
-    : m_elementType(elementType)
+Array::Array(ANARIDataType type,
+    DeviceGlobalState *state,
+    const ArrayMemoryDescriptor &d)
+    : helium::BaseArray(type, state), m_elementType(d.elementType)
 {
   s_numArrays++;
 
-  if (appMem) {
+  if (d.appMemory) {
     m_ownership =
-        deleter ? ArrayDataOwnership::CAPTURED : ArrayDataOwnership::SHARED;
-    m_lastDataModified = newTimeStamp();
+        d.deleter ? ArrayDataOwnership::CAPTURED : ArrayDataOwnership::SHARED;
+    m_lastDataModified = helium::newTimeStamp();
   } else
     m_ownership = ArrayDataOwnership::MANAGED;
 
   switch (ownership()) {
   case ArrayDataOwnership::SHARED:
-    m_hostData.shared.mem = appMem;
+    m_hostData.shared.mem = d.appMemory;
     break;
   case ArrayDataOwnership::CAPTURED:
-    m_hostData.captured.mem = appMem;
-    m_hostData.captured.deleter = deleter;
-    m_hostData.captured.deleterPtr = deleterPtr;
+    m_hostData.captured.mem = d.appMemory;
+    m_hostData.captured.deleter = d.deleter;
+    m_hostData.captured.deleterPtr = d.deleterPtr;
     break;
   default:
     break;
@@ -132,9 +131,15 @@ size_t Array::totalCapacity() const
   return totalSize();
 }
 
-bool Array::wasPrivatized() const
+bool Array::getProperty(
+    const std::string_view &name, ANARIDataType type, void *ptr, uint32_t flags)
 {
-  return m_privatized;
+  return 0;
+}
+
+void Array::commit()
+{
+  // no-op
 }
 
 void *Array::map()
@@ -163,9 +168,14 @@ void Array::unmap()
   notifyCommitObservers();
 }
 
+bool Array::wasPrivatized() const
+{
+  return m_privatized;
+}
+
 void Array::markDataModified()
 {
-  m_lastDataModified = newTimeStamp();
+  m_lastDataModified = helium::newTimeStamp();
 }
 
 void Array::uploadArrayData() const
@@ -179,7 +189,7 @@ void Array::uploadArrayData() const
 
 void Array::markDataUploaded() const
 {
-  m_lastDataUploaded = newTimeStamp();
+  m_lastDataUploaded = helium::newTimeStamp();
 }
 
 bool Array::needToUploadData() const
@@ -187,17 +197,9 @@ bool Array::needToUploadData() const
   return m_lastDataModified > m_lastDataUploaded;
 }
 
-void Array::addCommitObserver(Object *obj)
+DeviceGlobalState *Array::deviceState() const
 {
-  m_observers.push_back(obj);
-}
-
-void Array::removeCommitObserver(Object *obj)
-{
-  m_observers.erase(std::remove_if(m_observers.begin(),
-                        m_observers.end(),
-                        [&](Object *o) -> bool { return o == obj; }),
-      m_observers.end());
+  return (DeviceGlobalState *)helium::BaseObject::m_state;
 }
 
 void Array::makePrivatizedCopy(size_t numElements)
@@ -209,8 +211,8 @@ void Array::makePrivatizedCopy(size_t numElements)
     reportMessage(ANARI_SEVERITY_PERFORMANCE_WARNING,
         "making private copy of shared array (type '%s') | ownership: (%i:%i)",
         anari::toString(elementType()),
-        this->useCount(anari::RefType::PUBLIC),
-        this->useCount(anari::RefType::INTERNAL));
+        this->useCount(helium::RefType::PUBLIC),
+        this->useCount(helium::RefType::INTERNAL));
 
     size_t numBytes = numElements * anari::sizeOf(elementType());
     m_hostData.privatized.mem = malloc(numBytes);
@@ -251,13 +253,10 @@ void Array::initManagedMemory()
   }
 }
 
-void Array::notifyCommitObservers() const
+void Array::notifyObserver(BaseObject *o) const
 {
-  auto &state = *deviceState();
-  for (auto &o : m_observers) {
-    o->markUpdated();
-    state.commitBuffer.addObject(o);
-  }
+  o->markUpdated();
+  deviceState()->commitBuffer.addObject(o);
 }
 
 } // namespace visrtx

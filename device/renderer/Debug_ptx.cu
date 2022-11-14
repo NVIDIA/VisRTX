@@ -29,7 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Debug.h"
+#include "DebugMethod.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -61,39 +61,39 @@ RT_PROGRAM void __closesthit__surface()
   ray::populateSurfaceHit(rd.hit);
 
   auto method =
-      static_cast<Debug::Method>(frameData.renderer.params.debug.method);
+      static_cast<DebugMethod>(frameData.renderer.params.debug.method);
 
   ray::computeNormal(*rd.hit.geometry, ray::primID(), rd.hit);
 
   switch (method) {
-  case Debug::Method::PRIM_ID:
+  case DebugMethod::PRIM_ID:
     rd.outColor = makeRandomColor(ray::primID());
     break;
-  case Debug::Method::GEOM_ID:
+  case DebugMethod::GEOM_ID:
     rd.outColor = makeRandomColor(ray::objID());
     break;
-  case Debug::Method::INST_ID:
+  case DebugMethod::INST_ID:
     rd.outColor = makeRandomColor(ray::instID());
     break;
-  case Debug::Method::RAY_UVW:
+  case DebugMethod::RAY_UVW:
     rd.outColor = ray::uvw(rd.hit.geometry->type);
     break;
-  case Debug::Method::IS_TRIANGLE:
+  case DebugMethod::IS_TRIANGLE:
     rd.outColor = boolColor(rd.hit.geometry->type == GeometryType::TRIANGLE);
     break;
-  case Debug::Method::BACKFACE:
+  case DebugMethod::BACKFACE:
     rd.outColor = boolColor(optixIsFrontFaceHit());
     break;
-  case Debug::Method::NG:
+  case DebugMethod::NG:
     rd.outColor = rd.hit.Ng;
     break;
-  case Debug::Method::NG_ABS:
+  case DebugMethod::NG_ABS:
     rd.outColor = abs(rd.hit.Ng);
     break;
-  case Debug::Method::NS:
+  case DebugMethod::NS:
     rd.outColor = rd.hit.Ns;
     break;
-  case Debug::Method::NS_ABS:
+  case DebugMethod::NS_ABS:
     rd.outColor = abs(rd.hit.Ns);
     break;
   default: {
@@ -125,8 +125,8 @@ RT_PROGRAM void __raygen__()
   /////////////////////////////////////////////////////////////////////////////
 
   auto method =
-      static_cast<Debug::Method>(frameData.renderer.params.debug.method);
-  if (method == Debug::Method::IS_VOLUME) {
+      static_cast<DebugMethod>(frameData.renderer.params.debug.method);
+  if (method == DebugMethod::IS_VOLUME) {
     VolumeRayData vrd{};
     intersectVolume(ss, ray, RayType::VOLUME, &vrd);
     if (vrd.hit.foundHit) {

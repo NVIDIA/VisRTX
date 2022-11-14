@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+UnknownGeometry::UnknownGeometry(DeviceGlobalState *d) : Geometry(d) {}
+
 void UnknownGeometry::populateBuildInput(OptixBuildInput &) const
 {
   // no-op

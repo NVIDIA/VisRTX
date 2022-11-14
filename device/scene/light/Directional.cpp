@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+Directional::Directional(DeviceGlobalState *d) : Light(d) {}
+
 void Directional::commit()
 {
   Light::commit();
@@ -41,6 +43,7 @@ void Directional::commit()
   m_irradiance = std::clamp(getParam<float>("irradiance", 1.f),
       0.f,
       std::numeric_limits<float>::max());
+  upload();
 }
 
 LightGPUData Directional::gpuData() const

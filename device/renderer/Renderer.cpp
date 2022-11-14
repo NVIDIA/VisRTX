@@ -36,6 +36,7 @@
 #include "DiffusePathTracer.h"
 #include "Raycast.h"
 #include "SciVis.h"
+#include "Test.h"
 // std
 #include <stdlib.h>
 #include <string_view>
@@ -55,7 +56,7 @@ using HitgroupRecord = SBTRecord;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static Renderer *make_renderer(std::string_view subtype)
+static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 {
   auto splitString = [](const std::string &input,
                          const std::string &delim) -> std::vector<std::string> {
@@ -72,25 +73,22 @@ static Renderer *make_renderer(std::string_view subtype)
     }
   };
 
-  Renderer *retval = nullptr;
-
   if (subtype == "raycast")
-    retval = new Raycast();
+    return new Raycast(d);
   else if (subtype == "ao")
-    retval = new AmbientOcclusion();
+    return new AmbientOcclusion(d);
   else if (subtype == "diffuse_pathtracer" || subtype == "dpt")
-    retval = new DiffusePathTracer();
+    return new DiffusePathTracer(d);
   else if (subtype == "scivis" || subtype == "sv" || subtype == "default")
-    retval = new SciVis();
+    return new SciVis(d);
   else if (subtype == "debug") {
-    retval = new Debug();
+    auto *retval = new Debug(d);
     auto names = splitString(std::string(subtype), "_");
     if (names.size() > 1)
       retval->setParam("method", ANARI_STRING, names[1].c_str());
+    return retval;
   } else
-    retval = new Raycast();
-
-  return retval;
+    return new Test(d);
 }
 
 static std::string longestBeginningMatch(
@@ -120,7 +118,7 @@ size_t Renderer::objectCount()
   return s_numRenderers;
 }
 
-Renderer::Renderer()
+Renderer::Renderer(DeviceGlobalState *s) : Object(ANARI_RENDERER, s)
 {
   s_numRenderers++;
 }
@@ -185,9 +183,8 @@ Renderer *Renderer::createInstance(
   if (overrideType != nullptr)
     subtype = overrideType;
 
-  retval = make_renderer(subtype);
+  retval = make_renderer(subtype, d);
 
-  retval->setDeviceState(d);
   return retval;
 }
 

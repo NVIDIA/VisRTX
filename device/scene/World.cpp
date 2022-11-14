@@ -70,18 +70,17 @@ size_t World::objectCount()
   return s_numWorlds;
 }
 
-World::World()
+World::World(DeviceGlobalState *d) : Object(ANARI_WORLD, d)
 {
   s_numWorlds++;
 
-  setCommitPriority(VISRTX_COMMIT_PRIORITY_WORLD);
-  m_zeroGroup = new Group;
-  m_zeroInstance = new Instance;
+  m_zeroGroup = new Group(d);
+  m_zeroInstance = new Instance(d);
   m_zeroInstance->setParamDirect("group", m_zeroGroup.ptr);
 
   // never any public ref to these objects
-  m_zeroGroup->refDec(anari::RefType::PUBLIC);
-  m_zeroInstance->refDec(anari::RefType::PUBLIC);
+  m_zeroGroup->refDec(helium::RefType::PUBLIC);
+  m_zeroInstance->refDec(helium::RefType::PUBLIC);
 }
 
 World::~World()
@@ -95,7 +94,7 @@ bool World::getProperty(
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
-      deviceState()->flushCommitBuffer();
+      deviceState()->commitBuffer.flush();
       rebuildBVHs();
     }
     auto bounds = m_surfaceBounds;
@@ -140,12 +139,6 @@ void World::commit()
   } else
     m_zeroGroup->removeParam("light");
 
-  if (!m_zeroGroup->deviceState())
-    m_zeroGroup->setDeviceState(deviceState());
-
-  if (!m_zeroInstance->deviceState())
-    m_zeroInstance->setDeviceState(deviceState());
-
   m_zeroGroup->commit();
   m_zeroInstance->commit();
 
@@ -157,10 +150,10 @@ void World::commit()
     m_instanceData->removeAppendedHandles();
     if (m_addZeroInstance)
       m_instanceData->appendHandle(m_zeroInstance.ptr);
-    m_instances = make_Span((Instance **)m_instanceData->handlesBegin(),
+    m_instances = anari::make_Span((Instance **)m_instanceData->handlesBegin(),
         m_instanceData->totalSize());
   } else if (m_addZeroInstance)
-    m_instances = make_Span(&m_zeroInstance.ptr, 1);
+    m_instances = anari::make_Span(&m_zeroInstance.ptr, 1);
 
   m_objectUpdates.lastTLASBuild = 0;
   m_objectUpdates.lastBLASCheck = 0;
@@ -243,7 +236,7 @@ void World::rebuildBVHs()
 
   buildInstanceLightGPUData();
 
-  m_objectUpdates.lastTLASBuild = newTimeStamp();
+  m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
 }
 
 void World::populateOptixInstances()
@@ -332,7 +325,7 @@ void World::rebuildBLASs()
     group->rebuildLights();
   });
 
-  m_objectUpdates.lastBLASCheck = newTimeStamp();
+  m_objectUpdates.lastBLASCheck = helium::newTimeStamp();
 }
 
 void World::buildInstanceSurfaceGPUData()

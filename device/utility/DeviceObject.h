@@ -31,13 +31,13 @@
 
 #pragma once
 
-#include "utility/DeviceBuffer.h"
 #include "Object.h"
+#include "utility/DeviceBuffer.h"
 
 namespace visrtx {
 
-template <typename GPU_DATA_T, typename BASE_T = Object>
-struct DeviceObject : public BASE_T
+template <typename GPU_DATA_T>
+struct DeviceObject
 {
   using payload_t = GPU_DATA_T;
 
@@ -49,7 +49,7 @@ struct DeviceObject : public BASE_T
   payload_t &data();
   const payload_t &data() const;
 
-  void *deviceData() const override;
+  void *deviceData() const;
 
   size_t payloadBytes() const;
 
@@ -60,38 +60,38 @@ struct DeviceObject : public BASE_T
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-template <typename GPU_DATA_T, typename BASE_T>
-inline DeviceObject<GPU_DATA_T, BASE_T>::DeviceObject()
+template <typename GPU_DATA_T>
+inline DeviceObject<GPU_DATA_T>::DeviceObject()
 {
   m_deviceData.reserve(sizeof(GPU_DATA_T));
 }
 
-template <typename GPU_DATA_T, typename BASE_T>
-inline void DeviceObject<GPU_DATA_T, BASE_T>::upload()
+template <typename GPU_DATA_T>
+inline void DeviceObject<GPU_DATA_T>::upload()
 {
   m_deviceData.upload(&m_hostData);
 }
 
-template <typename GPU_DATA_T, typename BASE_T>
-inline GPU_DATA_T &DeviceObject<GPU_DATA_T, BASE_T>::data()
+template <typename GPU_DATA_T>
+inline GPU_DATA_T &DeviceObject<GPU_DATA_T>::data()
 {
   return m_hostData;
 }
 
-template <typename GPU_DATA_T, typename BASE_T>
-inline const GPU_DATA_T &DeviceObject<GPU_DATA_T, BASE_T>::data() const
+template <typename GPU_DATA_T>
+inline const GPU_DATA_T &DeviceObject<GPU_DATA_T>::data() const
 {
   return m_hostData;
 }
 
-template <typename GPU_DATA_T, typename BASE_T>
-inline void *DeviceObject<GPU_DATA_T, BASE_T>::deviceData() const
+template <typename GPU_DATA_T>
+inline void *DeviceObject<GPU_DATA_T>::deviceData() const
 {
   return m_deviceData.ptr();
 }
 
-template <typename GPU_DATA_T, typename BASE_T>
-inline size_t DeviceObject<GPU_DATA_T, BASE_T>::payloadBytes() const
+template <typename GPU_DATA_T>
+inline size_t DeviceObject<GPU_DATA_T>::payloadBytes() const
 {
   return m_deviceData.bytes();
 }

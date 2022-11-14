@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct AmbientOcclusion : public Renderer
 {
-  AmbientOcclusion() = default;
+  AmbientOcclusion(DeviceGlobalState *s);
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;

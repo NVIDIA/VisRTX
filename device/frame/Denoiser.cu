@@ -38,6 +38,8 @@
 
 namespace visrtx {
 
+Denoiser::Denoiser(DeviceGlobalState *s) : Object(ANARI_OBJECT, s) {}
+
 Denoiser::~Denoiser()
 {
   cleanup();

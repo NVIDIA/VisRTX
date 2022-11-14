@@ -55,38 +55,44 @@ using DeviceObjectIndex = int32_t;
 
 // Cameras //
 
-enum CameraType
+enum class CameraType
 {
   PERSPECTIVE,
-  ORTHOGRAPHIC
+  ORTHOGRAPHIC,
+  UNKNOWN
 };
 
-struct CameraGPUData
-{
-  CameraType type;
-  vec4 region;
-  vec3 pos;
-  vec3 dir;
-  vec3 up;
-};
-
-struct PerspectiveCameraGPUData : public CameraGPUData
+struct PerspectiveCameraGPUData
 {
   vec3 dir_du;
   vec3 dir_dv;
   vec3 dir_00;
 };
 
-struct OrthographicCameraGPUData : public CameraGPUData
+struct OrthographicCameraGPUData
 {
   vec3 pos_du;
   vec3 pos_dv;
   vec3 pos_00;
 };
 
+struct CameraGPUData
+{
+  CameraType type{CameraType::UNKNOWN};
+  vec4 region;
+  vec3 pos;
+  vec3 dir;
+  vec3 up;
+  union
+  {
+    PerspectiveCameraGPUData perspective;
+    OrthographicCameraGPUData orthographic;
+  };
+};
+
 // Geometry //
 
-enum GeometryType
+enum class GeometryType
 {
   TRIANGLE,
   QUAD,

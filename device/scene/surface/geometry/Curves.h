@@ -39,7 +39,7 @@ namespace visrtx {
 
 struct Curves : public Geometry
 {
-  Curves() = default;
+  Curves(DeviceGlobalState *d);
   ~Curves() override;
 
   void commit() override;
@@ -56,15 +56,15 @@ struct Curves : public Geometry
   GeometryGPUData gpuData() const override;
   void cleanup();
 
-  anari::IntrusivePtr<Array1D> m_index;
+  helium::IntrusivePtr<Array1D> m_index;
 
-  anari::IntrusivePtr<Array1D> m_vertexPosition;
-  anari::IntrusivePtr<Array1D> m_vertexRadius;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute0;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute1;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute2;
-  anari::IntrusivePtr<Array1D> m_vertexAttribute3;
-  anari::IntrusivePtr<Array1D> m_vertexColor;
+  helium::IntrusivePtr<Array1D> m_vertexPosition;
+  helium::IntrusivePtr<Array1D> m_vertexRadius;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
+  helium::IntrusivePtr<Array1D> m_vertexColor;
 
   float m_globalRadius;
 

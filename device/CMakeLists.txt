@@ -114,6 +114,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   renderer/Raycast.cpp
   renderer/Renderer.cpp
   renderer/SciVis.cpp
+  renderer/Test.cpp
 
   scene/Group.cpp
   scene/Instance.cpp
@@ -158,11 +159,8 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/volume/spatial_field/StructuredRegularField.cpp
   scene/volume/spatial_field/UnknownSpatialField.cpp
 
-  utility/DeferredCommitBuffer.cpp
-  utility/DeferredUploadBuffer.cpp
+  utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
-  utility/ParameterizedObject.cpp
-  utility/TimeStamp.cpp
 )
 
 generate_export_header(${PROJECT_NAME}
@@ -190,7 +188,7 @@ target_link_libraries(${PROJECT_NAME}
 PUBLIC
   anari::anari
 PRIVATE
-  anari::anari_utilities
+  anari::helium
   anari::anari_library_debug
   glm_visrtx
   OptiX7::OptiX7
@@ -213,12 +211,13 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE visrtx_EXPORTS)
 
 function(GenerateEmbeddedPTX DIR BASE_NAME)
   set(INPUT_CU_FILE ${DIR}/${BASE_NAME}_ptx.cu)
-  set(INPUT_TARGET ${BASE_NAME}_ptx_gen)
+  set(INPUT_TARGET ${BASE_NAME}_ptx)
   set(OUTPUT_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${BASE_NAME}_ptx.h)
 
   add_library(${INPUT_TARGET} OBJECT ${INPUT_CU_FILE})
   target_link_libraries(${INPUT_TARGET}
   PRIVATE
+    helium
     anari::anari
     anari::anari_utilities
     glm_visrtx
@@ -245,6 +244,7 @@ GenerateEmbeddedPTX(renderer Debug)
 GenerateEmbeddedPTX(renderer DiffusePathTracer)
 GenerateEmbeddedPTX(renderer Raycast)
 GenerateEmbeddedPTX(renderer SciVis)
+GenerateEmbeddedPTX(renderer Test)
 
 GenerateEmbeddedPTX(scene Intersectors)
 
@@ -272,7 +272,7 @@ install(TARGETS ${PROJECT_NAME}
 install(
 FILES
   ${PROJECT_BINARY_DIR}/${PROJECT_NAME}_export.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/anari/backend/visrtx/visrtx.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/anari/ext/visrtx/visrtx.h
 DESTINATION
-  ${CMAKE_INSTALL_INCLUDEDIR}/anari/backend/visrtx
+  ${CMAKE_INSTALL_INCLUDEDIR}/anari/ext/visrtx
 )

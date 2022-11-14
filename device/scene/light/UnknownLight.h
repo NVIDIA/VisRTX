@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownLight : public Light
 {
-  UnknownLight() = default;
+  UnknownLight(DeviceGlobalState *d);
   ~UnknownLight() = default;
   bool isValid() const override;
 

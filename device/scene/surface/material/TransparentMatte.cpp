@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+TransparentMatte::TransparentMatte(DeviceGlobalState *d) : Material(d) {}
+
 void TransparentMatte::commit()
 {
   m_color = getParam<vec3>("color", vec3(1.f));
@@ -42,6 +44,8 @@ void TransparentMatte::commit()
   m_opacity = getParam<float>("opacity", 1.f);
   m_opacitySampler = getParamObject<Sampler>("opacity");
   m_opacityAttribute = getParamString("opacity", "");
+
+  upload();
 }
 
 MaterialGPUData TransparentMatte::gpuData() const

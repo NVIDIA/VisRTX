@@ -37,17 +37,10 @@ namespace visrtx {
 
 struct ObjectArray : public Array
 {
-  ObjectArray(const void *appMemory,
-      ANARIMemoryDeleter deleter,
-      const void *deleterPtr,
-      ANARIDataType type,
-      uint64_t numItems,
-      uint64_t byteStride);
+  ObjectArray(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
   ~ObjectArray();
 
   void commit() override;
-
-  ArrayShape shape() const override;
 
   size_t totalSize() const override;
   size_t totalCapacity() const override;

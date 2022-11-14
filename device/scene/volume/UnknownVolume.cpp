@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+UnknownVolume::UnknownVolume(DeviceGlobalState *d) : Volume(d) {}
+
 bool UnknownVolume::isValid() const
 {
   return false;

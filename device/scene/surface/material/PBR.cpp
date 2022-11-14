@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+PBR::PBR(DeviceGlobalState *d) : Material(d) {}
+
 void PBR::commit()
 {
   m_color = getParam<vec3>("color", vec3(1.f));
@@ -58,6 +60,8 @@ void PBR::commit()
   m_roughness = getParam<float>("roughness", 0.f);
   m_roughnessSampler = getParamObject<Sampler>("roughness");
   m_roughnessAttribute = getParamString("roughness", "");
+
+  upload();
 }
 
 MaterialGPUData PBR::gpuData() const

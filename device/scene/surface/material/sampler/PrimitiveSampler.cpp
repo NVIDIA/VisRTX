@@ -34,6 +34,8 @@
 
 namespace visrtx {
 
+PrimitiveSampler::PrimitiveSampler(DeviceGlobalState *d) : Sampler(d) {}
+
 void PrimitiveSampler::commit()
 {
   Sampler::commit();
@@ -50,6 +52,8 @@ void PrimitiveSampler::commit()
   }
 
   populateAttributePtr(m_data, m_ap);
+
+  upload();
 }
 
 SamplerGPUData PrimitiveSampler::gpuData() const

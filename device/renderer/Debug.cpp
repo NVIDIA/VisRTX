@@ -41,31 +41,33 @@ static const std::vector<HitgroupFunctionNames> g_debugHitNames = {
 static const std::vector<std::string> g_debugMissNames = {
     "__miss__", "__miss__"};
 
-static Debug::Method methodFromString(const std::string &name)
+static DebugMethod methodFromString(const std::string &name)
 {
   if (name == "primID")
-    return Debug::Method::PRIM_ID;
+    return DebugMethod::PRIM_ID;
   else if (name == "geomID")
-    return Debug::Method::GEOM_ID;
+    return DebugMethod::GEOM_ID;
   else if (name == "instID")
-    return Debug::Method::INST_ID;
+    return DebugMethod::INST_ID;
   else if (name == "Ng")
-    return Debug::Method::NG;
+    return DebugMethod::NG;
   else if (name == "Ng.abs")
-    return Debug::Method::NG_ABS;
+    return DebugMethod::NG_ABS;
   else if (name == "Ns")
-    return Debug::Method::NS;
+    return DebugMethod::NS;
   else if (name == "Ns.abs")
-    return Debug::Method::NS_ABS;
+    return DebugMethod::NS_ABS;
   else if (name == "uvw")
-    return Debug::Method::RAY_UVW;
+    return DebugMethod::RAY_UVW;
   else if (name == "istri")
-    return Debug::Method::IS_TRIANGLE;
+    return DebugMethod::IS_TRIANGLE;
   else if (name == "isvol")
-    return Debug::Method::IS_VOLUME;
+    return DebugMethod::IS_VOLUME;
   else
-    return Debug::Method::BACKFACE;
+    return DebugMethod::BACKFACE;
 }
+
+Debug::Debug(DeviceGlobalState *s) : Renderer(s) {}
 
 void Debug::commit()
 {

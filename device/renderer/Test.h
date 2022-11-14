@@ -29,51 +29,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "DeferredUploadBuffer.h"
-#include "array/Array.h"
+#pragma once
+
+#include "Renderer.h"
 
 namespace visrtx {
 
-DeferredUploadBuffer::DeferredUploadBuffer()
+struct Test : public Renderer
 {
-  m_arraysToUpload.reserve(100);
-}
-
-DeferredUploadBuffer::~DeferredUploadBuffer()
-{
-  clear();
-}
-
-void DeferredUploadBuffer::addArray(Array *arr)
-{
-  arr->refInc(anari::RefType::INTERNAL);
-  m_arraysToUpload.push_back(arr);
-}
-
-bool DeferredUploadBuffer::flush()
-{
-  if (m_arraysToUpload.empty())
-    return false;
-
-  for (auto arr : m_arraysToUpload) {
-    if (arr->useCount() > 1)
-      arr->uploadArrayData();
-  }
-
-  clear();
-  return true;
-}
-
-void DeferredUploadBuffer::clear()
-{
-  for (auto &arr : m_arraysToUpload)
-    arr->refDec(anari::RefType::INTERNAL);
-  m_arraysToUpload.clear();
-}
-
-bool DeferredUploadBuffer::empty() const
-{
-  return m_arraysToUpload.empty();
-}
+  Test(DeviceGlobalState *s);
+  OptixModule optixModule() const override;
+  static ptx_ptr ptx();
+};
 
 } // namespace visrtx

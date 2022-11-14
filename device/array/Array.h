@@ -31,10 +31,10 @@
 
 #pragma once
 
+#include "Object.h"
 #include "utility/DeviceBuffer.h"
-#include "utility/DeviceObject.h"
-// std
-#include <vector>
+// helium
+#include "helium/BaseArray.h"
 // thrust
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
@@ -42,13 +42,6 @@
 #include "anari/anari_cpp/Traits.h"
 
 namespace visrtx {
-
-enum class ArrayShape
-{
-  ARRAY1D,
-  ARRAY2D,
-  ARRAY3D
-};
 
 enum class ArrayDataOwnership
 {
@@ -64,49 +57,61 @@ enum class AddressSpace
   GPU
 };
 
-struct Array : public Object
+struct ArrayMemoryDescriptor
+{
+  const void *appMemory{nullptr};
+  ANARIMemoryDeleter deleter{};
+  const void *deleterPtr{nullptr};
+  ANARIDataType elementType{ANARI_UNKNOWN};
+};
+
+struct Array : public helium::BaseArray
 {
   static size_t objectCount();
 
-  Array(const void *appMemory,
-      ANARIMemoryDeleter deleter,
-      const void *deleterPtr,
-      ANARIDataType elementType);
+  Array(ANARIDataType type,
+      DeviceGlobalState *state,
+      const ArrayMemoryDescriptor &d);
   virtual ~Array();
 
   ANARIDataType elementType() const;
   ArrayDataOwnership ownership() const;
 
   void *data(AddressSpace as = AddressSpace::HOST) const;
-  void *deviceData() const override;
+  virtual void *deviceData() const;
 
   template <typename T>
   T *dataAs(AddressSpace as = AddressSpace::HOST) const;
 
-  virtual ArrayShape shape() const = 0;
-
   virtual size_t totalSize() const = 0;
   virtual size_t totalCapacity() const;
 
+  bool getProperty(const std::string_view &name,
+      ANARIDataType type,
+      void *ptr,
+      uint32_t flags) override;
+  void commit() override;
+  void *map() override;
+  virtual void unmap() override;
   virtual void privatize() = 0;
-  bool wasPrivatized() const;
 
-  void *map();
-  virtual void unmap();
+  bool wasPrivatized() const;
 
   void markDataModified();
   virtual void uploadArrayData() const;
   void markDataUploaded() const;
   bool needToUploadData() const;
 
-  void addCommitObserver(Object *obj);
-  void removeCommitObserver(Object *obj);
+  // CONSOLIDATE INTO visrtx::Object //////////////////////////////////////////
+  DeviceGlobalState *deviceState() const;
+  /////////////////////////////////////////////////////////////////////////////
 
  protected:
   void makePrivatizedCopy(size_t numElements);
   void freeAppMemory();
   void initManagedMemory();
-  void notifyCommitObservers() const;
+
+  void notifyObserver(BaseObject *) const override;
 
   struct ArrayDescriptor
   {
@@ -138,13 +143,11 @@ struct Array : public Object
     mutable DeviceBuffer buffer;
   } m_deviceData;
 
-  TimeStamp m_lastDataModified{0};
-  mutable TimeStamp m_lastDataUploaded{0};
+  helium::TimeStamp m_lastDataModified{0};
+  mutable helium::TimeStamp m_lastDataUploaded{0};
   bool m_mapped{false};
 
  private:
-  std::vector<Object *> m_observers;
-
   ArrayDataOwnership m_ownership{ArrayDataOwnership::INVALID};
   ANARIDataType m_elementType{ANARI_UNKNOWN};
   bool m_privatized{false};

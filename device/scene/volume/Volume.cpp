@@ -36,9 +36,10 @@
 
 namespace visrtx {
 
-Volume::Volume()
+Volume::Volume(DeviceGlobalState *d)
+    : RegisteredObject<VolumeGPUData>(ANARI_VOLUME, d)
 {
-  setCommitPriority(VISRTX_COMMIT_PRIORITY_VOLUME);
+  setRegistry(d->registry.volumes);
 }
 
 OptixBuildInput Volume::buildInput() const
@@ -65,21 +66,15 @@ OptixBuildInput Volume::buildInput() const
 void Volume::markCommitted()
 {
   Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 Volume *Volume::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  Volume *retval = nullptr;
-
   if (subtype == "scivis")
-    retval = new SciVisVolume;
+    return new SciVisVolume(d);
   else
-    retval = new UnknownVolume;
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.volumes);
-  return retval;
+    return new UnknownVolume(d);
 }
 
 } // namespace visrtx

@@ -35,18 +35,17 @@
 
 namespace visrtx {
 
+struct Array1DMemoryDescriptor : public ArrayMemoryDescriptor
+{
+  uint64_t numItems{0};
+  uint64_t byteStride{0};
+};
+
 struct Array1D : public Array
 {
-  Array1D(const void *appMemory,
-      ANARIMemoryDeleter deleter,
-      const void *deleterPtr,
-      ANARIDataType type,
-      uint64_t numItems,
-      uint64_t byteStride);
+  Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
 
   void commit() override;
-
-  ArrayShape shape() const override;
 
   size_t totalSize() const override;
   size_t totalCapacity() const override;

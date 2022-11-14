@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+Quads::Quads(DeviceGlobalState *d) : Geometry(d) {}
+
 Quads::~Quads()
 {
   cleanup();
@@ -80,6 +82,8 @@ void Quads::commit()
 
   generateIndices();
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
+
+  upload();
 }
 
 void Quads::populateBuildInput(OptixBuildInput &buildInput) const

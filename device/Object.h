@@ -31,8 +31,9 @@
 
 #pragma once
 
+// helium
+#include "helium/BaseObject.h"
 // anari_cpp
-#include "anari/anari_cpp.hpp"
 #include "anari/anari_cpp/ext/glm.h"
 // glm
 #include "gpu/gpu_math.h"
@@ -45,22 +46,11 @@
 // cuda/optix
 #include "optix_visrtx.h"
 
-#include "utility/ParameterizedObject.h"
-
-// clang-format off
-#define VISRTX_COMMIT_PRIORITY_DEFAULT  0
-#define VISRTX_COMMIT_PRIORITY_MATERIAL 1
-#define VISRTX_COMMIT_PRIORITY_SURFACE  2
-#define VISRTX_COMMIT_PRIORITY_VOLUME   2
-#define VISRTX_COMMIT_PRIORITY_GROUP    3
-#define VISRTX_COMMIT_PRIORITY_WORLD    4
-// clang-format on
-
 namespace visrtx {
 
-struct Object : public anari::RefCounted, ParameterizedObject
+struct Object : public helium::BaseObject
 {
-  Object() = default;
+  Object(ANARIDataType type, DeviceGlobalState *s);
   virtual ~Object() = default;
 
   virtual bool getProperty(const std::string_view &name,
@@ -69,66 +59,13 @@ struct Object : public anari::RefCounted, ParameterizedObject
       uint32_t flags);
 
   virtual void commit();
-  virtual void upload();
 
   virtual void *deviceData() const;
 
   virtual bool isValid() const;
 
-  void setObjectType(ANARIDataType type);
-  ANARIDataType type() const;
-
   DeviceGlobalState *deviceState() const;
-  void setDeviceState(DeviceGlobalState *d);
-
-  TimeStamp lastUpdated() const;
-  void markUpdated();
-
-  TimeStamp lastCommitted() const;
-  virtual void markCommitted();
-
-  int commitPriority() const;
-
-  template <typename... Args>
-  void reportMessage(
-      ANARIStatusSeverity, const char *fmt, Args &&...args) const;
-
- protected:
-  void setCommitPriority(int priority);
-
- private:
-  int m_commitPriority{VISRTX_COMMIT_PRIORITY_DEFAULT};
-  DeviceGlobalState *m_deviceState{nullptr};
-  TimeStamp m_lastUpdated{0};
-  TimeStamp m_lastCommitted{0};
-  ANARIDataType m_type{ANARI_OBJECT};
 };
-
-std::string string_printf(const char *fmt, ...);
-
-// Inlined defintions /////////////////////////////////////////////////////////
-
-template <typename... Args>
-inline void Object::reportMessage(
-    ANARIStatusSeverity severity, const char *fmt, Args &&...args) const
-{
-  auto *state = deviceState();
-
-  if (!state)
-    throw std::runtime_error("malformed object created without globals ptr");
-
-  auto msg = string_printf(fmt, std::forward<Args>(args)...);
-  state->messageFunction(severity, msg, this);
-}
-
-// Helper functions ///////////////////////////////////////////////////////////
-
-template <typename T>
-inline void writeToVoidP(void *_p, T v)
-{
-  T *p = (T *)_p;
-  *p = v;
-}
 
 } // namespace visrtx
 

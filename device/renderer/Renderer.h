@@ -52,7 +52,7 @@ struct Renderer : public Object
 {
   static size_t objectCount();
 
-  Renderer();
+  Renderer(DeviceGlobalState *s);
   ~Renderer() override;
 
   virtual void commit() override;

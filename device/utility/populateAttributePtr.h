@@ -37,7 +37,7 @@
 namespace visrtx {
 
 inline void populateAttributePtr(
-    anari::IntrusivePtr<Array1D> array, AttributePtr &aptr)
+    helium::IntrusivePtr<Array1D> array, AttributePtr &aptr)
 {
   aptr.numChannels = 0;
   aptr.data = nullptr;

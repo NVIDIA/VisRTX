@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct Ambient : public Light
 {
-  Ambient() = default;
+  Ambient(DeviceGlobalState *d);
 
   void commit() override;
 

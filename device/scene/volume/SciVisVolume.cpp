@@ -34,6 +34,8 @@
 
 namespace visrtx {
 
+SciVisVolume::SciVisVolume(DeviceGlobalState *d) : Volume(d) {}
+
 SciVisVolume::~SciVisVolume()
 {
   cleanup();
@@ -126,6 +128,8 @@ void SciVisVolume::commit()
   texDesc.normalizedCoords = 1;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
+
+  upload();
 }
 
 bool SciVisVolume::isValid() const

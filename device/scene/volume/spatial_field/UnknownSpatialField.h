@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownSpatialField : public SpatialField
 {
-  UnknownSpatialField() = default;
+  UnknownSpatialField(DeviceGlobalState *d);
   ~UnknownSpatialField() = default;
   bool isValid() const override;
 

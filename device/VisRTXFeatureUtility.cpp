@@ -29,7 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "anari/backend/visrtx/visrtx.h"
+#include "anari/ext/visrtx/visrtx.h"
 // std
 #include <cstring>
 #include <string_view>
