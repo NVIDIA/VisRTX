@@ -170,7 +170,7 @@ void Quads::generateIndices()
       indicesOut[2 * i + 1] = uvec3(idx.z, idx.w, idx.x);
     }
   } else {
-    size_t numQuads = 2 * (m_vertex->size() / 4);
+    size_t numQuads = m_vertex->size() / 4;
     m_indices.resize(2 * numQuads);
     auto *indicesOut = m_indices.dataHost();
     for (size_t i = 0; i < numQuads; i++) {
