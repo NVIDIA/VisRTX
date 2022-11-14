@@ -120,10 +120,10 @@ void Frame::commit()
   const bool checkboard = getParam<bool>("checkerboard", false);
   hd.fb.checkerboardID = checkboard ? 0 : -1;
 
-  m_colorType = getParam<ANARIDataType>("color", ANARI_UNKNOWN);
-  m_depthType = getParam<ANARIDataType>("depth", ANARI_UNKNOWN);
-  m_albedoType = getParam<ANARIDataType>("albedo", ANARI_UNKNOWN);
-  m_normalType = getParam<ANARIDataType>("normal", ANARI_UNKNOWN);
+  m_colorType = getParam<ANARIDataType>("channel.color", ANARI_UNKNOWN);
+  m_depthType = getParam<ANARIDataType>("channel.depth", ANARI_UNKNOWN);
+  m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
+  m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
 
   const bool channelDepth = m_depthType == ANARI_FLOAT32;
   const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
@@ -317,22 +317,22 @@ void *Frame::map(const char *_channel,
   *height = hd.fb.size.y;
 
   std::string_view channel = _channel;
-  if (channel == "color") {
+  if (channel == "channel.color") {
     *pixelType = m_colorType;
     return mapColorBuffer();
-  } else if (channel == "depth") {
+  } else if (channel == "channel.depth") {
     *pixelType = ANARI_FLOAT32;
     return mapDepthBuffer();
-  } else if (channel == "colorGPU") {
+  } else if (channel == "channel.colorGPU") {
     *pixelType = m_colorType;
     return mapGPUColorBuffer();
-  } else if (channel == "depthGPU") {
+  } else if (channel == "channel.depthGPU") {
     *pixelType = ANARI_FLOAT32;
     return mapGPUDepthBuffer();
-  } else if (channel == "normal") {
+  } else if (channel == "channel.normal") {
     *pixelType = ANARI_FLOAT32_VEC3;
     return mapNormalBuffer();
-  } else if (channel == "albedo") {
+  } else if (channel == "channel.albedo") {
     *pixelType = ANARI_FLOAT32_VEC3;
     return mapAlbedoBuffer();
   } else {

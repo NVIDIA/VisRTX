@@ -223,7 +223,7 @@ int main()
   auto frame = anari::newObject<anari::Frame>(device);
 
   anari::setParameter(device, frame, "size", imageSize);
-  anari::setParameter(device, frame, "color", ANARI_UFIXED8_RGBA_SRGB);
+  anari::setParameter(device, frame, "channel.color", ANARI_UFIXED8_RGBA_SRGB);
 
   anari::setParameter(device, frame, "world", world);
   anari::setParameter(device, frame, "camera", camera);
@@ -242,9 +242,9 @@ int main()
   printf("rendered frame in %fms\n", duration * 1000);
 
   stbi_flip_vertically_on_write(1);
-  auto fb = anari::map<uint32_t>(device, frame, "color");
+  auto fb = anari::map<uint32_t>(device, frame, "channel.color");
   stbi_write_png("tutorial.png", fb.width, fb.height, 4, fb.data, 4 * fb.width);
-  anari::unmap(device, frame, "color");
+  anari::unmap(device, frame, "channel.color");
 
   // Cleanup remaining ANARI objets //
 

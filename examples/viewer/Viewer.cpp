@@ -295,8 +295,8 @@ void Viewer::updateFrame()
   m_windowSizeScaled = glm::vec2(m_windowSize) * m_resolutionScale;
   anari::setParameter(
       m_device, m_frame, "size", glm::uvec2(m_windowSizeScaled));
-  anari::setParameter(m_device, m_frame, "color", m_format);
-  anari::setParameter(m_device, m_frame, "depth", ANARI_FLOAT32);
+  anari::setParameter(m_device, m_frame, "channel.color", m_format);
+  anari::setParameter(m_device, m_frame, "channel.depth", ANARI_FLOAT32);
   anari::setParameter(m_device, m_frame, "accumulation", true);
 
   anari::setParameter(m_device, m_frame, "world", m_currentScene->world());
@@ -504,7 +504,7 @@ void Viewer::ui_updateImage()
     m_maxFL = std::max(m_maxFL, m_latestFL);
 
     if (m_haveCUDAInterop && !m_saveNextFrame && !m_showDepth) {
-      auto fb = anari::map<void>(m_device, m_frame, "colorGPU");
+      auto fb = anari::map<void>(m_device, m_frame, "channel.colorGPU");
       cudaGraphicsMapResources(1, &m_graphicsResource);
       cudaArray_t array;
       cudaGraphicsSubResourceGetMappedArray(&array, m_graphicsResource, 0, 0);
@@ -517,10 +517,10 @@ void Viewer::ui_updateImage()
           fb.height,
           cudaMemcpyDeviceToDevice);
       cudaGraphicsUnmapResources(1, &m_graphicsResource);
-      anari::unmap(m_device, m_frame, "colorGPU");
+      anari::unmap(m_device, m_frame, "channel.colorGPU");
     } else {
-      auto fb =
-          anari::map<void>(m_device, m_frame, m_showDepth ? "depth" : "color");
+      auto fb = anari::map<void>(
+          m_device, m_frame, m_showDepth ? "channel.depth" : "channel.color");
 
       glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
       glTexSubImage2D(GL_TEXTURE_2D,
@@ -541,7 +541,8 @@ void Viewer::ui_updateImage()
         m_saveNextFrame = false;
       }
 
-      anari::unmap(m_device, m_frame, "color");
+      anari::unmap(
+          m_device, m_frame, m_showDepth ? "channel.depth" : "channel.color");
     }
 
     anari::render(m_device, m_frame);
