@@ -162,8 +162,8 @@ void ObjectArray::appendHandle(Object *o)
 void ObjectArray::removeAppendedHandles()
 {
   m_liveHandles.resize(size());
-  for (auto o : m_appendedHandles)
-    o->refDec(helium::RefType::INTERNAL);
+  std::for_each(
+      m_appendedHandles.begin(), m_appendedHandles.end(), refDecObject);
   m_appendedHandles.clear();
   markDataModified();
 }
