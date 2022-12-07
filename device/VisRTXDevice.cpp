@@ -393,17 +393,21 @@ VisRTXDevice::VisRTXDevice(ANARIStatusCallback cb, const void *ptr)
     : helium::BaseDevice(cb, ptr)
 {
   m_state = std::make_unique<DeviceGlobalState>(this_device());
+  helium::BaseDevice::deviceCommitParameters();
 }
 
 VisRTXDevice::VisRTXDevice(ANARILibrary l) : helium::BaseDevice(l)
 {
   m_state = std::make_unique<DeviceGlobalState>(this_device());
+  helium::BaseDevice::deviceCommitParameters();
 }
 
 VisRTXDevice::~VisRTXDevice()
 {
   if (m_state.get() == nullptr)
     return;
+
+  reportMessage(ANARI_SEVERITY_DEBUG, "destroying VisRTX device", this);
 
   auto &state = *deviceState();
 
@@ -503,7 +507,7 @@ void VisRTXDevice::initDevice()
   if (!m_eagerInit)
     deviceCommitParameters();
 
-  reportMessage(ANARI_SEVERITY_DEBUG, "initializing VisRTX");
+  reportMessage(ANARI_SEVERITY_DEBUG, "initializing VisRTX device", this);
 
   cudaFree(nullptr);
   int numDevices;
