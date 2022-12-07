@@ -69,10 +69,9 @@ const Material *Surface::material() const
 
 OptixBuildInput Surface::buildInput() const
 {
-  if (!m_geometry)
-    return {};
   OptixBuildInput obi = {};
-  m_geometry->populateBuildInput(obi);
+  if (geometryIsValid())
+    m_geometry->populateBuildInput(obi);
   return obi;
 }
 
@@ -84,8 +83,17 @@ void Surface::markCommitted()
 
 bool Surface::isValid() const
 {
-  return m_geometry && m_material && m_geometry->isValid()
-      && m_material->isValid();
+  return geometryIsValid() && materialIsValid();
+}
+
+bool Surface::geometryIsValid() const
+{
+  return m_geometry && m_geometry->isValid();
+}
+
+bool Surface::materialIsValid() const
+{
+  return m_material && m_material->isValid();
 }
 
 SurfaceGPUData Surface::gpuData() const

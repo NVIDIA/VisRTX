@@ -52,6 +52,8 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
   bool isValid() const override;
 
  private:
+  bool geometryIsValid() const;
+  bool materialIsValid() const;
   SurfaceGPUData gpuData() const override;
 
   helium::IntrusivePtr<Geometry> m_geometry;
