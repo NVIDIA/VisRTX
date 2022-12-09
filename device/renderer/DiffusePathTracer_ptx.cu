@@ -41,7 +41,7 @@ enum class RayType
 struct PathData
 {
   int depth{0};
-  float Lw{1.f};
+  vec3 Lw{1.f};
   Hit currentHit{};
 };
 
@@ -76,61 +76,87 @@ RT_PROGRAM void __raygen__()
   auto tmax = ray.t.upper;
   /////////////////////////////////////////////////////////////////////////////
 
-  vec3 outColor(0.f);
+  vec3 outColor(frameData.renderer.bgColor);
   vec3 outNormal = ray.dir;
   float outDepth = tmax;
 
-  float outOpacity(0.f);
-
-  do {
+  for (;;) {
     hit.foundHit = false;
     intersectSurface(ss, ray, RayType::DIFFUSE_RADIANCE, &hit);
 
     float volumeOpacity = 0.f;
     vec3 volumeColor(0.f);
-    const float volumeDepth = rayMarchAllVolumes(ss,
+    float Tr = 0.f;
+    const float volumeDepth = sampleDistanceAllVolumes(ss,
         ray,
         RayType::DIFFUSE_RADIANCE,
         hit.foundHit ? hit.t : ray.t.upper,
         volumeColor,
-        volumeOpacity);
+        volumeOpacity,
+        Tr);
 
-    if (!hit.foundHit) {
-      if (pathData.depth == 0) {
-        outColor = volumeColor;
-        outDepth = volumeDepth;
-        outNormal = -ray.dir;
-        outOpacity = volumeOpacity;
-        accumulateValue(outColor, vec3(frameData.renderer.bgColor), outOpacity);
-        accumulateValue(outOpacity, frameData.renderer.bgColor.w, outOpacity);
-      }
+    const bool volumeHit = Tr < 1.f && (!hit.foundHit || volumeDepth < hit.t);
+
+    if (!hit.foundHit && !volumeHit)
+      break;
+
+    if (pathData.depth++ >= rendererParams.maxDepth) {
+      pathData.Lw = vec3(0.f);
       break;
     }
 
-    ray.org = hit.hitpoint + (hit.epsilon * hit.Ng);
-    ray.dir = randomDir(ss.rs, hit.Ns);
-    ray.t.lower = hit.epsilon;
+    vec3 albedo(1.f);
+    vec3 pos(0.f);
+
+    if (!volumeHit) {
+      pos = hit.hitpoint + (hit.epsilon * hit.Ng);
+      const auto &material = *hit.material;
+      albedo = getMaterialParameter(frameData, material.baseColor, hit);
+    } else {
+      pos = ray.org+volumeDepth*ray.dir;
+      albedo = volumeColor;
+    }
+    pathData.Lw *= albedo;
+
+    // RR absorption
+    float P = glm::compMax(pathData.Lw);
+    if (P < .2f/*lp.rouletteProb*/) {
+      if (curand_uniform(&ss.rs) > P) {
+        pathData.Lw = vec3(0.f);
+        break;
+      }
+      pathData.Lw /= P;
+    }
+
+    // pathData.Lw += Le; // TODO: emission
+
+    vec3 scatterDir(0.f);
+    if (!volumeHit) {
+      scatterDir = randomDir(ss.rs, hit.Ns);
+      pathData.Lw *= fmaxf(0.f,dot(scatterDir,hit.Ng));
+    } else {
+      scatterDir = randomDir(ss.rs);
+    }
+    ray.org = pos;
+    ray.dir = scatterDir;
+    ray.t.lower = 0.f;
     ray.t.upper = tmax;
 
     if (pathData.depth == 0) {
-      const auto &material = *hit.material;
-      const auto mat_baseColor =
-          getMaterialParameter(frameData, material.baseColor, hit);
-      outColor = volumeColor;
-      accumulateValue(outColor, mat_baseColor, volumeOpacity);
-      outOpacity = 1.f;
       outDepth = min(hit.t, volumeDepth);
-      outNormal = hit.Ng;
+      outNormal = hit.Ng; // TODO: for volume (gradient?)
     }
+  }
 
-    if (pathData.depth != 0)
-      pathData.Lw *= rendererParams.R * (1.f - volumeOpacity);
-    pathData.depth++;
-  } while (pathData.depth < rendererParams.maxDepth);
+  vec3 Ld(1.f); // ambient light!
+  // if (numLights > 0) {
+  //   Ld = ...;
+  // }
 
+  vec3 color = pathData.depth ? pathData.Lw * Ld : vec3(frameData.renderer.bgColor);
   accumResults(frameData.fb,
       ss.pixel,
-      vec4(pathData.Lw * outColor, 1.f),
+      vec4(color, 1.f),
       outDepth,
       outColor,
       outNormal);
