@@ -135,7 +135,16 @@ RT_PROGRAM void __raygen__()
       scatterDir = randomDir(ss.rs, hit.Ns);
       pathData.Lw *= fmaxf(0.f,dot(scatterDir,hit.Ng));
     } else {
-      scatterDir = randomDir(ss.rs);
+      // sample unit sphere
+      const float cost = 1.f - 2.f*curand_uniform(&ss.rs);
+      const float sint = sqrtf(fmaxf(0.f, 1.f-cost*cost));
+      const float phi  = 2.f*M_PI*curand_uniform(&ss.rs);
+      // make ortho basis and transform to ray-centric coordinates:
+      vec3 u, v, w=-ray.dir;
+      v = fabsf(w.x) > fabsf(w.y) ? normalize(vec3(-w.z,0.f,w.x))
+                                  : normalize(vec3(0.f,w.z,-w.y));
+      u = cross(v, w);
+      scatterDir = sint * cosf(phi) * u + sint * sinf(phi) * v + cost * -w;
     }
     ray.org = pos;
     ray.dir = scatterDir;
