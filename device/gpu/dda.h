@@ -84,7 +84,7 @@ namespace visrtx {
     };
 
 
-    float t0 = max(ray.t.lower,0.f); int cnt=0;
+    float t0 = max(ray.t.lower,0.f);
 
     while (1) { // loop over grid cells
       const float t1 = min(compMax(tnext),ray.t.upper);

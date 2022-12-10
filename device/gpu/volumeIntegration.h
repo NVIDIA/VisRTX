@@ -100,18 +100,20 @@ RT_FUNCTION float sampleDistance(
 
   const float stepSize = volume.stepSize;
   box1 interval = hit.localRay.t;
-  float t = interval.lower;
+  float t_out = interval.lower;
   tr = 1.f;
 
   auto woodcockFunc = [&](const int leafID, float t0, float t1) {
     const float majorant = field.grid.maxOpacities[leafID];
+    float t = t0;
+
     while (1) {
       if (majorant <= 0.f)
         break;
 
       t -= logf(1.f-curand_uniform(&ss.rs))/majorant*stepSize;
 
-      if (t >= interval.upper)
+      if (t >= t1)
         break;
 
       const vec3 p = hit.localRay.org + hit.localRay.dir * t;
@@ -124,6 +126,7 @@ RT_FUNCTION float sampleDistance(
         float u = curand_uniform(&ss.rs);
         if (extinction >= u*majorant) {
           tr = 0.f;
+          t_out = t;
           return false; // stop traversal
         }
       }
@@ -134,7 +137,7 @@ RT_FUNCTION float sampleDistance(
 
   dda3(hit.localRay,field.grid.dims,field.grid.worldBounds,woodcockFunc);
 
-  return t;
+  return t_out;
 }
 
 } // namespace detail
