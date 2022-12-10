@@ -159,6 +159,11 @@ VISRTX_HOST_DEVICE bool empty(const box3 &r)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
+VISRTX_HOST_DEVICE int64_t iDivUp(int64_t a, int64_t b)
+{
+  return (a + b - 1) / b;
+}
+
 VISRTX_HOST_DEVICE uint32_t cvt_uint32(const float &f)
 {
   return (uint32_t)(255.f * glm::clamp(f, 0.f, 1.f));

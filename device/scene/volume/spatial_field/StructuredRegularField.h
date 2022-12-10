@@ -52,6 +52,8 @@ struct StructuredRegularField : public SpatialField
   SpatialFieldGPUData gpuData() const override;
   void cleanup();
 
+  void buildGrid();
+
   struct Parameters
   {
     vec3 origin;

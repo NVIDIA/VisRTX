@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "gpu/dda.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 #include "gpu/sampleSpatialField.h"
@@ -100,35 +101,40 @@ RT_FUNCTION float sampleDistance(
   const float stepSize = volume.stepSize;
   box1 interval = hit.localRay.t;
   float t = interval.lower;
+  tr = 1.f;
 
-  const float majorant = 1.f; // TODO: spatially varying
-  while (1) {
-    if (majorant <= 0.f) {
-      tr = 1.f;
-      return interval.upper;
-    }
+  auto woodcockFunc = [&](const int leafID, float t0, float t1) {
+    const float majorant = field.grid.maxOpacities[leafID];
+    while (1) {
+      if (majorant <= 0.f)
+        break;
 
-    t -= logf(1.f-curand_uniform(&ss.rs))/majorant*stepSize;
+      t -= logf(1.f-curand_uniform(&ss.rs))/majorant*stepSize;
 
-    if (t >= interval.upper) {
-      tr = 1.f;
-      return interval.upper;
-    }
+      if (t >= interval.upper)
+        break;
 
-    const vec3 p = hit.localRay.org + hit.localRay.dir * t;
-    const float s = sampleSpatialField(field, p);
-    if (!glm::isnan(s)) {
-      const vec4 co = detail::classifySample(volume, s);
-      *albedo = vec3(co);
-      extinction = co.w;
+      const vec3 p = hit.localRay.org + hit.localRay.dir * t;
+      const float s = sampleSpatialField(field, p);
+      if (!glm::isnan(s)) {
+        const vec4 co = detail::classifySample(volume, s);
+        *albedo = vec3(co);
+        extinction = co.w;
 
-      float u = curand_uniform(&ss.rs);
-      if (extinction >= u*majorant) {
-        tr = 0.f;
-        return t;
+        float u = curand_uniform(&ss.rs);
+        if (extinction >= u*majorant) {
+          tr = 0.f;
+          return false; // stop traversal
+        }
       }
     }
-  }
+
+    return true; // cont. traversal to the next spat. partition
+  };
+
+  dda3(hit.localRay,field.grid.dims,field.grid.worldBounds,woodcockFunc);
+
+  return t;
 }
 
 } // namespace detail

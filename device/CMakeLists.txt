@@ -155,8 +155,11 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/volume/SciVisVolume.cpp
   scene/volume/UnknownVolume.cpp
 
+  scene/volume/space_skipping/UniformGrid.cu
+
   scene/volume/spatial_field/SpatialField.cpp
   scene/volume/spatial_field/StructuredRegularField.cpp
+  scene/volume/spatial_field/StructuredRegularField.cu
   scene/volume/spatial_field/UnknownSpatialField.cpp
 
   utility/DeferredArrayUploadBuffer.cpp
