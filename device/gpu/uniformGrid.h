@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2019-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
@@ -31,29 +32,23 @@
 
 #pragma once
 
-#include "../space_skipping/UniformGrid.h"
-#include "RegisteredObject.h"
+#include "gpu/gpu_math.h"
 
 namespace visrtx {
 
-struct SpatialField : public RegisteredObject<SpatialFieldGPUData>
+RT_FUNCTION // could move this somewhere else, it's not super specific to grids..
+size_t linearIndex(const ivec3 index, const ivec3 dims)
 {
-  SpatialField(DeviceGlobalState *d);
-  ~SpatialField() = default;
+  return index.z * size_t(dims.x) * dims.y
+       + index.y * dims.x
+       + index.x;
+}
 
-  virtual box3 bounds() const = 0;
-
-  virtual float stepSize() const = 0;
-
-  void markCommitted() override;
-
-  static SpatialField *createInstance(
-      std::string_view subtype, DeviceGlobalState *d);
-
-  UniformGrid m_uniformGrid;
-};
+RT_FUNCTION
+ivec3 projectOnGrid(const vec3 V, const ivec3 dims, const box3 worldBounds)
+{
+  const vec3 V01 = (V-worldBounds.lower)/(worldBounds.upper-worldBounds.lower);
+  return glm::clamp(ivec3(V01*vec3(dims)),ivec3(0),dims-ivec3(1));
+}
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(
-    visrtx::SpatialField *, ANARI_SPATIAL_FIELD);

@@ -308,6 +308,14 @@ struct StructuredRegularData
   vec3 invSpacing;
 };
 
+struct UniformGridData
+{
+  ivec3  dims;
+  box3   worldBounds;
+  box1  *valueRanges; // min/max ranges
+  float *maxOpacities; // used for adaptive sampling/space skipping
+};
+
 struct SpatialFieldGPUData
 {
   SpatialFieldType type{SpatialFieldType::UNKNOWN};
@@ -315,6 +323,7 @@ struct SpatialFieldGPUData
   {
     StructuredRegularData structuredRegular{};
   } data;
+  UniformGridData grid;
 };
 
 // Volume //

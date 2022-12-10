@@ -31,29 +31,30 @@
 
 #pragma once
 
-#include "../space_skipping/UniformGrid.h"
-#include "RegisteredObject.h"
+// glm
+#include "gpu/gpu_math.h"
+#include "gpu/gpu_objects.h"
 
 namespace visrtx {
 
-struct SpatialField : public RegisteredObject<SpatialFieldGPUData>
+struct UniformGrid
 {
-  SpatialField(DeviceGlobalState *d);
-  ~SpatialField() = default;
+  void init(ivec3 dims, box3 worldBounds);
+  void cleanup();
+  UniformGridData gpuData() const;
+  void computeMaxOpacities(cudaTextureObject_t cm, size_t cmSize, box1 cmRange={0.f,1.f});
 
-  virtual box3 bounds() const = 0;
+  // min/max value ranges
+  box1 *m_valueRanges = nullptr;
 
-  virtual float stepSize() const = 0;
+  // Majorants/max opacities
+  float *m_maxOpacities = nullptr;
 
-  void markCommitted() override;
+  // Number of MCs
+  ivec3 m_dims;
 
-  static SpatialField *createInstance(
-      std::string_view subtype, DeviceGlobalState *d);
-
-  UniformGrid m_uniformGrid;
+  // World bounds the grid spans
+  box3 m_worldBounds;
 };
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(
-    visrtx::SpatialField *, ANARI_SPATIAL_FIELD);

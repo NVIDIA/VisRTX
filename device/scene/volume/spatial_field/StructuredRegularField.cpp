@@ -138,6 +138,8 @@ void StructuredRegularField::commit()
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
 
+  buildGrid();
+
   upload();
 }
 
@@ -167,6 +169,7 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.data.structuredRegular.origin = m_params.origin;
   sf.data.structuredRegular.invSpacing =
       vec3(1.f) / (m_params.spacing * vec3(dims));
+  sf.grid = m_uniformGrid.gpuData();
   return sf;
 }
 
@@ -180,6 +183,7 @@ void StructuredRegularField::cleanup()
   m_cudaArray = {};
   if (m_params.data)
     m_params.data->removeCommitObserver(this);
+  m_uniformGrid.cleanup();
 }
 
 } // namespace visrtx

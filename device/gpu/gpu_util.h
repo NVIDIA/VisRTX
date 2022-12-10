@@ -48,6 +48,29 @@ namespace visrtx {
 // Utility functions //////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+
+RT_FUNCTION float atomicMinf(float *address, float val)
+{
+  int ret = __float_as_int(*address);
+  while(val < __int_as_float(ret)) {
+    int old = ret;
+    if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+      break;
+  }
+  return __int_as_float(ret);
+}
+
+RT_FUNCTION float atomicMaxf(float *address, float val)
+{
+  int ret = __float_as_int(*address);
+  while(val > __int_as_float(ret)) {
+    int old = ret;
+    if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+      break;
+  }
+  return __int_as_float(ret);
+}
+
 template <typename T_OUT, typename T_IN>
 RT_FUNCTION T_OUT bit_cast(T_IN v)
 {

@@ -130,6 +130,8 @@ void SciVisVolume::commit()
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
 
   upload();
+
+  m_params.field->m_uniformGrid.computeMaxOpacities(m_textureObject, m_tfDim);
 }
 
 bool SciVisVolume::isValid() const
