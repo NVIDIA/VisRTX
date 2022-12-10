@@ -99,9 +99,13 @@ RT_FUNCTION float sampleDistance(
   /////////////////////////////////////////////////////////////////////////////
 
   const float stepSize = volume.stepSize;
-  box1 interval = hit.localRay.t;
-  float t_out = interval.lower;
+  float t_out = hit.localRay.t.upper;
   tr = 1.f;
+
+  Ray objRay = hit.localRay;
+  objRay.org += hit.localRay.dir * hit.localRay.t.lower;
+  objRay.t.lower -= hit.localRay.t.lower;
+  objRay.t.upper -= hit.localRay.t.lower;
 
   auto woodcockFunc = [&](const int leafID, float t0, float t1) {
     const float majorant = field.grid.maxOpacities[leafID];
@@ -116,7 +120,7 @@ RT_FUNCTION float sampleDistance(
       if (t >= t1)
         break;
 
-      const vec3 p = hit.localRay.org + hit.localRay.dir * t;
+      const vec3 p = hit.localRay.org + hit.localRay.dir * (t+hit.localRay.t.lower);
       const float s = sampleSpatialField(field, p);
       if (!glm::isnan(s)) {
         const vec4 co = detail::classifySample(volume, s);
@@ -135,9 +139,9 @@ RT_FUNCTION float sampleDistance(
     return true; // cont. traversal to the next spat. partition
   };
 
-  dda3(hit.localRay,field.grid.dims,field.grid.worldBounds,woodcockFunc);
+  dda3(objRay,field.grid.dims,field.grid.worldBounds,woodcockFunc);
 
-  return t_out;
+  return t_out+hit.localRay.t.lower;
 }
 
 } // namespace detail
