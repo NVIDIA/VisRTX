@@ -556,6 +556,8 @@ struct VolumeHit
 {
   bool foundHit;
   Ray localRay;
+  uint32_t volID{~0u};
+  uint32_t instID{~0u};
   const VolumeGPUData *volumeData{nullptr};
 };
 

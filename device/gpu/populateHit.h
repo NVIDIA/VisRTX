@@ -306,6 +306,9 @@ RT_FUNCTION void populateVolumeHit(VolumeHit &hit)
   hit.foundHit = true;
   hit.volumeData = &ray::volumeData(fd);
 
+  hit.volID = ray::primID();
+  hit.instID = ray::instID();
+
   const auto ro = optixGetWorldRayOrigin();
   hit.localRay.org = make_vec3(optixTransformPointFromWorldToObjectSpace(ro));
   hit.localRay.dir = ray::volume_local_direction();

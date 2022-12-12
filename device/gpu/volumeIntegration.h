@@ -208,7 +208,7 @@ RT_FUNCTION float sampleDistanceAllVolumes(ScreenSample &ss,
   for (;;) {
     hit.foundHit = false;
     intersectVolume(ss, ray, type, &hit);
-    if (!hit.foundHit || hit.localRay.t.lower==hit.localRay.t.upper)
+    if (!hit.foundHit)
       break;
     hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
     vec3 alb(0.f);

@@ -157,6 +157,10 @@ RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
 
 RT_FUNCTION void intersectVolume()
 {
+  auto &hit = ray::rayData<VolumeHit>();
+  if (hit.volID == ray::primID() && hit.instID == ray::instID())
+    return;
+
   const auto &ss = ray::screenSample();
   const auto &frameData = *ss.frameData;
   const auto &volumeData = ray::volumeData(frameData);
