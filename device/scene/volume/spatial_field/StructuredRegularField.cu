@@ -67,14 +67,14 @@ __global__ void buildGridGPU(cudaTextureObject_t data, ivec3 dims, UniformGridDa
   // overlap this voxel; splat out the _max_ over the
   // overlapping MCs. (that's essentially a box filter)
   vec3 tcs[8] = {
-      (vec3(voxelID)+vec3(-.5f,-.5f,-.5f))/worldExtend,
-      (vec3(voxelID)+vec3(+.5f,-.5f,-.5f))/worldExtend,
-      (vec3(voxelID)+vec3(+.5f,+.5f,-.5f))/worldExtend,
-      (vec3(voxelID)+vec3(-.5f,+.5f,-.5f))/worldExtend,
-      (vec3(voxelID)+vec3(-.5f,-.5f,+.5f))/worldExtend,
-      (vec3(voxelID)+vec3(+.5f,-.5f,+.5f))/worldExtend,
-      (vec3(voxelID)+vec3(+.5f,+.5f,+.5f))/worldExtend,
-      (vec3(voxelID)+vec3(-.5f,+.5f,+.5f))/worldExtend
+      (vec3(voxelID)+vec3(-.5f,-.5f,-.5f))/vec3(dims),
+      (vec3(voxelID)+vec3(+.5f,-.5f,-.5f))/vec3(dims),
+      (vec3(voxelID)+vec3(+.5f,+.5f,-.5f))/vec3(dims),
+      (vec3(voxelID)+vec3(-.5f,+.5f,-.5f))/vec3(dims),
+      (vec3(voxelID)+vec3(-.5f,-.5f,+.5f))/vec3(dims),
+      (vec3(voxelID)+vec3(+.5f,-.5f,+.5f))/vec3(dims),
+      (vec3(voxelID)+vec3(+.5f,+.5f,+.5f))/vec3(dims),
+      (vec3(voxelID)+vec3(-.5f,+.5f,+.5f))/vec3(dims)
   };
 
   float voxelValue = -1e30f;
