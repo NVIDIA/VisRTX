@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "gpu_debug.h"
 #include "gpu_math.h"
 #include "gpu_objects.h"
 #include "uniformGrid.h"
@@ -88,6 +89,8 @@ namespace visrtx {
 
     while (1) { // loop over grid cells
       const float t1 = min(compMin(tnext),ray.t.upper);
+      // if (debug()) printf("DDA cell: (%i,%i,%i), ival: [%f,%f]\n",
+      //                     cellID.x,cellID.y,cellID.z,t0,t1);
       if (!func(linearIndex(cellID,gridDims),t0,t1))
         return;
 
