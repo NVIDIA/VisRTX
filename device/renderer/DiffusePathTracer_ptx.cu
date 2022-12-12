@@ -29,6 +29,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define VISRTX_DEBUGGING 0
+
+#include "gpu/gpu_debug.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -76,11 +79,14 @@ RT_PROGRAM void __raygen__()
   auto tmax = ray.t.upper;
   /////////////////////////////////////////////////////////////////////////////
 
+  if (debug()) printf("========== BEGIN: FrameID %i ==========\n",frameData.fb.frameID);
+
   vec3 outColor(frameData.renderer.bgColor);
   vec3 outNormal = ray.dir;
   float outDepth = tmax;
 
   for (;;) {
+    if (debug()) printf("-------- BOUNCE: %i --------\n",pathData.depth);
     hit.foundHit = false;
     intersectSurface(ss, ray, RayType::DIFFUSE_RADIANCE, &hit);
 
@@ -163,6 +169,8 @@ RT_PROGRAM void __raygen__()
   // }
 
   vec3 color = pathData.depth ? pathData.Lw * Ld : vec3(frameData.renderer.bgColor);
+  if (crosshair()) color = vec3(1)-color;
+  if (debug()) printf("========== END: FrameID %i ==========\n",frameData.fb.frameID);
   accumResults(frameData.fb,
       ss.pixel,
       vec4(color, 1.f),

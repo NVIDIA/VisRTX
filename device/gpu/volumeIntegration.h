@@ -32,6 +32,7 @@
 #pragma once
 
 #include "gpu/dda.h"
+#include "gpu/gpu_debug.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 #include "gpu/sampleSpatialField.h"
@@ -115,7 +116,9 @@ RT_FUNCTION float sampleDistance(
       if (majorant <= 0.f)
         break;
 
+      // if (debug()) printf("Majorant %f, stepSize: %f\n",majorant,stepSize);
       t -= logf(1.f-curand_uniform(&ss.rs))/majorant*stepSize;
+      // if (debug()) printf("t's: %f,%f\n",t,t1);
 
       if (t >= t1)
         break;
@@ -126,6 +129,7 @@ RT_FUNCTION float sampleDistance(
         const vec4 co = detail::classifySample(volume, s);
         *albedo = vec3(co);
         extinction = co.w;
+        // if (debug()) printf("Ext: %f\n",co.w);
 
         float u = curand_uniform(&ss.rs);
         if (extinction >= u*majorant) {
@@ -139,6 +143,10 @@ RT_FUNCTION float sampleDistance(
     return true; // cont. traversal to the next spat. partition
   };
 
+  if (debug()) printf("DDA with ray org: (%f,%f,%f), dir: (%f,%f,%f), [t0,t1]: %f,%f\n",
+                      objRay.org.x,objRay.org.y,objRay.org.z,
+                      objRay.dir.x,objRay.dir.y,objRay.dir.z,
+                      hit.localRay.t.lower,hit.localRay.t.upper);
   dda3(objRay,field.grid.dims,field.grid.worldBounds,woodcockFunc);
 
   return t_out+hit.localRay.t.lower;
@@ -200,7 +208,7 @@ RT_FUNCTION float sampleDistanceAllVolumes(ScreenSample &ss,
   for (;;) {
     hit.foundHit = false;
     intersectVolume(ss, ray, type, &hit);
-    if (!hit.foundHit)
+    if (!hit.foundHit || hit.localRay.t.lower==hit.localRay.t.upper)
       break;
     hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
     vec3 alb(0.f);
