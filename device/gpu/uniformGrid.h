@@ -36,19 +36,17 @@
 
 namespace visrtx {
 
-RT_FUNCTION // could move this somewhere else, it's not super specific to grids..
-size_t linearIndex(const ivec3 index, const ivec3 dims)
+RT_FUNCTION size_t linearIndex(const ivec3 index, const ivec3 dims)
 {
-  return index.z * size_t(dims.x) * dims.y
-       + index.y * dims.x
-       + index.x;
+  return index.z * size_t(dims.x) * dims.y + index.y * dims.x + index.x;
 }
 
-RT_FUNCTION
-ivec3 projectOnGrid(const vec3 V, const ivec3 dims, const box3 worldBounds)
+RT_FUNCTION ivec3 projectOnGrid(
+    const vec3 V, const ivec3 dims, const box3 worldBounds)
 {
-  const vec3 V01 = (V-worldBounds.lower)/(worldBounds.upper-worldBounds.lower);
-  return glm::clamp(ivec3(V01*vec3(dims)),ivec3(0),dims-ivec3(1));
+  const vec3 V01 =
+      (V - worldBounds.lower) / (worldBounds.upper - worldBounds.lower);
+  return glm::clamp(ivec3(V01 * vec3(dims)), ivec3(0), dims - ivec3(1));
 }
 
 } // namespace visrtx

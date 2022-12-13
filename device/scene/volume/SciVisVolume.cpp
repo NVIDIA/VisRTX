@@ -131,7 +131,8 @@ void SciVisVolume::commit()
 
   upload();
 
-  m_params.field->m_uniformGrid.computeMaxOpacities(m_textureObject, m_tfDim);
+  m_params.field->m_uniformGrid.computeMaxOpacities(
+      deviceState()->stream, m_textureObject, m_tfDim);
 }
 
 bool SciVisVolume::isValid() const

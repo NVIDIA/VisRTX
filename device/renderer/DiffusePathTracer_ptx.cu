@@ -79,14 +79,16 @@ RT_PROGRAM void __raygen__()
   auto tmax = ray.t.upper;
   /////////////////////////////////////////////////////////////////////////////
 
-  if (debug()) printf("========== BEGIN: FrameID %i ==========\n",frameData.fb.frameID);
+  if (debug())
+    printf("========== BEGIN: FrameID %i ==========\n", frameData.fb.frameID);
 
   vec3 outColor(frameData.renderer.bgColor);
   vec3 outNormal = ray.dir;
   float outDepth = tmax;
 
-  for (;;) {
-    if (debug()) printf("-------- BOUNCE: %i --------\n",pathData.depth);
+  while (true) {
+    if (debug())
+      printf("-------- BOUNCE: %i --------\n", pathData.depth);
     hit.foundHit = false;
     intersectSurface(ss, ray, RayType::DIFFUSE_RADIANCE, &hit);
 
@@ -119,14 +121,14 @@ RT_PROGRAM void __raygen__()
       const auto &material = *hit.material;
       albedo = getMaterialParameter(frameData, material.baseColor, hit);
     } else {
-      pos = ray.org+volumeDepth*ray.dir;
+      pos = ray.org + volumeDepth * ray.dir;
       albedo = volumeColor;
     }
     pathData.Lw *= albedo;
 
     // RR absorption
     float P = glm::compMax(pathData.Lw);
-    if (P < .2f/*lp.rouletteProb*/) {
+    if (P < .2f /*lp.rouletteProb*/) {
       if (curand_uniform(&ss.rs) > P) {
         pathData.Lw = vec3(0.f);
         break;
@@ -139,19 +141,10 @@ RT_PROGRAM void __raygen__()
     vec3 scatterDir(0.f);
     if (!volumeHit) {
       scatterDir = randomDir(ss.rs, hit.Ns);
-      pathData.Lw *= fmaxf(0.f,dot(scatterDir,hit.Ng));
-    } else {
-      // sample unit sphere
-      const float cost = 1.f - 2.f*curand_uniform(&ss.rs);
-      const float sint = sqrtf(fmaxf(0.f, 1.f-cost*cost));
-      const float phi  = 2.f*M_PI*curand_uniform(&ss.rs);
-      // make ortho basis and transform to ray-centric coordinates:
-      vec3 u, v, w=-ray.dir;
-      v = fabsf(w.x) > fabsf(w.y) ? normalize(vec3(-w.z,0.f,w.x))
-                                  : normalize(vec3(0.f,w.z,-w.y));
-      u = cross(v, w);
-      scatterDir = sint * cosf(phi) * u + sint * sinf(phi) * v + cost * -w;
-    }
+      pathData.Lw *= fmaxf(0.f, dot(scatterDir, hit.Ng));
+    } else
+      scatterDir = sampleUnitSphere(ss.rs, -ray.dir);
+
     ray.org = pos;
     ray.dir = scatterDir;
     ray.t.lower = 0.f;
@@ -168,15 +161,14 @@ RT_PROGRAM void __raygen__()
   //   Ld = ...;
   // }
 
-  vec3 color = pathData.depth ? pathData.Lw * Ld : vec3(frameData.renderer.bgColor);
-  if (crosshair()) color = vec3(1)-color;
-  if (debug()) printf("========== END: FrameID %i ==========\n",frameData.fb.frameID);
-  accumResults(frameData.fb,
-      ss.pixel,
-      vec4(color, 1.f),
-      outDepth,
-      outColor,
-      outNormal);
+  vec3 color =
+      pathData.depth ? pathData.Lw * Ld : vec3(frameData.renderer.bgColor);
+  if (crosshair())
+    color = vec3(1) - color;
+  if (debug())
+    printf("========== END: FrameID %i ==========\n", frameData.fb.frameID);
+  accumResults(
+      frameData.fb, ss.pixel, vec4(color, 1.f), outDepth, outColor, outNormal);
 }
 
 } // namespace visrtx

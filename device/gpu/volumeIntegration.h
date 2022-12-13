@@ -89,8 +89,11 @@ RT_FUNCTION float rayMarchVolume(
   return depth;
 }
 
-RT_FUNCTION float sampleDistance(
-    ScreenSample &ss, const VolumeHit &hit, vec3 *albedo, float &extinction, float &tr)
+RT_FUNCTION float sampleDistance(ScreenSample &ss,
+    const VolumeHit &hit,
+    vec3 *albedo,
+    float &extinction,
+    float &tr)
 {
   const auto &volume = *hit.volumeData;
   /////////////////////////////////////////////////////////////////////////////
@@ -116,23 +119,20 @@ RT_FUNCTION float sampleDistance(
       if (majorant <= 0.f)
         break;
 
-      // if (debug()) printf("Majorant %f, stepSize: %f\n",majorant,stepSize);
-      t -= logf(1.f-curand_uniform(&ss.rs))/majorant*stepSize;
-      // if (debug()) printf("t's: %f,%f\n",t,t1);
+      t -= logf(1.f - curand_uniform(&ss.rs)) / majorant * stepSize;
 
       if (t >= t1)
         break;
 
-      const vec3 p = hit.localRay.org + hit.localRay.dir * (t+hit.localRay.t.lower);
+      const vec3 p =
+          hit.localRay.org + hit.localRay.dir * (t + hit.localRay.t.lower);
       const float s = sampleSpatialField(field, p);
       if (!glm::isnan(s)) {
         const vec4 co = detail::classifySample(volume, s);
         *albedo = vec3(co);
         extinction = co.w;
-        // if (debug()) printf("Ext: %f\n",co.w);
-
         float u = curand_uniform(&ss.rs);
-        if (extinction >= u*majorant) {
+        if (extinction >= u * majorant) {
           tr = 0.f;
           t_out = t;
           return false; // stop traversal
@@ -143,16 +143,24 @@ RT_FUNCTION float sampleDistance(
     return true; // cont. traversal to the next spat. partition
   };
 
-  if (debug()) printf("DDA with ray org: (%f,%f,%f), dir: (%f,%f,%f), [t0,t1]: %f,%f\n",
-                      objRay.org.x,objRay.org.y,objRay.org.z,
-                      objRay.dir.x,objRay.dir.y,objRay.dir.z,
-                      hit.localRay.t.lower,hit.localRay.t.upper);
-  dda3(objRay,field.grid.dims,field.grid.worldBounds,woodcockFunc);
+  if (debug()) {
+    printf("DDA with ray org: (%f,%f,%f), dir: (%f,%f,%f), [t0,t1]: %f,%f\n",
+        objRay.org.x,
+        objRay.org.y,
+        objRay.org.z,
+        objRay.dir.x,
+        objRay.dir.y,
+        objRay.dir.z,
+        hit.localRay.t.lower,
+        hit.localRay.t.upper);
+  }
 
-  return t_out+hit.localRay.t.lower;
+  dda3(objRay, field.grid.dims, field.grid.worldBounds, woodcockFunc);
+  return t_out + hit.localRay.t.lower;
 }
 
 } // namespace detail
+
 RT_FUNCTION float rayMarchVolume(
     ScreenSample &ss, const VolumeHit &hit, float &opacity)
 {
@@ -205,7 +213,7 @@ RT_FUNCTION float sampleDistanceAllVolumes(ScreenSample &ss,
   float depth = tfar;
   transmittance = 1.f;
 
-  for (;;) {
+  while (true) {
     hit.foundHit = false;
     intersectVolume(ss, ray, type, &hit);
     if (!hit.foundHit)

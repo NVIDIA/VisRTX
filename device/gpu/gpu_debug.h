@@ -35,10 +35,9 @@
 #define VISRTX_DEBUGGING 0
 #endif
 
-#ifndef VISRTX_DEBUG_PIXEL
-#define VISRTX_DEBUG_PIXEL (glm::uvec2(optixGetLaunchDimensions().x/2,  \
-                                       optixGetLaunchDimensions().y/2))
-#endif
+#define VISRTX_DEBUG_PIXEL                                                     \
+  (glm::uvec2(                                                                 \
+      optixGetLaunchDimensions().x / 2, optixGetLaunchDimensions().y / 2))
 
 #include "gpu/gpu_objects.h"
 
@@ -57,9 +56,8 @@ RT_FUNCTION bool debug()
 RT_FUNCTION bool crosshair()
 {
   glm::uvec2 pixel(optixGetLaunchIndex().x, optixGetLaunchIndex().y);
-  return VISRTX_DEBUGGING &&
-        (VISRTX_DEBUG_PIXEL.x == pixel.x ||
-         VISRTX_DEBUG_PIXEL.y == pixel.y);
+  return VISRTX_DEBUGGING
+      && (VISRTX_DEBUG_PIXEL.x == pixel.x || VISRTX_DEBUG_PIXEL.y == pixel.y);
 }
 
 } // namespace visrtx

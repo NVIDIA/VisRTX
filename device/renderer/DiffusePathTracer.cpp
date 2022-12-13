@@ -41,14 +41,12 @@ void DiffusePathTracer::commit()
 {
   Renderer::commit();
   m_maxDepth = std::clamp(getParam<int>("maxDepth", 5), 1, 256);
-  m_R = getParam<float>("R", 0.5f);
 }
 
 void DiffusePathTracer::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
   fd.renderer.params.dpt.maxDepth = m_maxDepth;
-  fd.renderer.params.dpt.R = m_R;
 }
 
 OptixModule DiffusePathTracer::optixModule() const

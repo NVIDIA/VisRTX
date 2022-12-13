@@ -29,97 +29,104 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "gpu/gpu_math.h"
 #include "UniformGrid.h"
+#include "gpu/gpu_math.h"
 
 namespace visrtx {
 
-  __global__ void invalidateRangesGPU(box1 *valueRanges, const ivec3 dims)
-  {
-    size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
+__global__ void invalidateRangesGPU(box1 *valueRanges, const ivec3 dims)
+{
+  size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
 
-    if (threadID >= dims.x*size_t(dims.y)*dims.z)
-      return;
+  if (threadID >= dims.x * size_t(dims.y) * dims.z)
+    return;
 
-    valueRanges[threadID].lower = +1e30f;
-    valueRanges[threadID].upper = -1e30f;
+  valueRanges[threadID].lower = +1e30f;
+  valueRanges[threadID].upper = -1e30f;
+}
+
+__global__ void computeMaxOpacitiesGPU(float *maxOpacities,
+    const box1 *valueRanges,
+    cudaTextureObject_t colorMap,
+    size_t numMCs,
+    size_t numColors,
+    box1 xfRange)
+{
+  size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
+
+  if (threadID >= numMCs)
+    return;
+
+  box1 valueRange = valueRanges[threadID];
+
+  if (valueRange.upper < valueRange.lower) {
+    maxOpacities[threadID] = 0.f;
+    return;
   }
 
-  __global__ void computeMaxOpacitiesGPU(
-      float *maxOpacities, const box1 *valueRanges, cudaTextureObject_t colorMap,
-      size_t numMCs, size_t numColors, box1 xfRange)
-  {
-    size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
+  valueRange.lower -= xfRange.lower;
+  valueRange.lower /= xfRange.upper - xfRange.lower;
+  valueRange.upper -= xfRange.lower;
+  valueRange.upper /= xfRange.upper - xfRange.lower;
 
-    if (threadID >= numMCs)
-      return;
+  int lo = glm::clamp(
+      int(valueRange.lower * (numColors - 1)), 0, int(numColors - 1));
+  int hi = glm::clamp(
+      int(valueRange.upper * (numColors - 1)) + 1, 0, int(numColors - 1));
 
-    box1 valueRange = valueRanges[threadID];
-
-    if (valueRange.upper < valueRange.lower) {
-      maxOpacities[threadID] = 0.f;
-      return;
-    }
-
-    valueRange.lower -= xfRange.lower;
-    valueRange.lower /= xfRange.upper-xfRange.lower;
-    valueRange.upper -= xfRange.lower;
-    valueRange.upper /= xfRange.upper-xfRange.lower;
-
-    int lo = glm::clamp(int(valueRange.lower*(numColors-1)),0,(int)numColors-1);
-    int hi = glm::clamp(int(valueRange.upper*(numColors-1))+1,0,(int)numColors-1);
-
-    float maxOpacity = 0.f;
-    for (int i=lo; i<=hi; ++i) {
-      float tc = (i+.5f)/numColors;
-      maxOpacity = fmaxf(maxOpacity,tex1D<float4>(colorMap,tc).w);
-    }
-    maxOpacities[threadID] = maxOpacity;
+  float maxOpacity = 0.f;
+  for (int i = lo; i <= hi; ++i) {
+    float tc = (i + .5f) / numColors;
+    maxOpacity = fmaxf(maxOpacity, tex1D<float4>(colorMap, tc).w);
   }
+  maxOpacities[threadID] = maxOpacity;
+}
 
-  void UniformGrid::init(ivec3 dims, box3 worldBounds)
-  {
-    m_dims = dims;
-    m_worldBounds = worldBounds;
+void UniformGrid::init(ivec3 dims, box3 worldBounds)
+{
+  m_dims = dims;
+  m_worldBounds = worldBounds;
 
-    size_t numMCs = m_dims.x*size_t(m_dims.y)*m_dims.z;
+  size_t numMCs = m_dims.x * size_t(m_dims.y) * m_dims.z;
 
-    cudaFree(m_valueRanges);
-    cudaFree(m_maxOpacities);
+  cudaFree(m_valueRanges);
+  cudaFree(m_maxOpacities);
 
-    cudaMalloc(&m_valueRanges, numMCs*sizeof(box1));
-    cudaMalloc(&m_maxOpacities, numMCs*sizeof(float));
+  cudaMalloc(&m_valueRanges, numMCs * sizeof(box1));
+  cudaMalloc(&m_maxOpacities, numMCs * sizeof(float));
 
-    size_t numThreads = 1024;
-    invalidateRangesGPU<<<(uint32_t)iDivUp(numMCs, numThreads), (uint32_t)numThreads>>>(
-      m_valueRanges, m_dims);
-  }
+  size_t numThreads = 1024;
+  invalidateRangesGPU<<<(uint32_t)iDivUp(numMCs, numThreads),
+      (uint32_t)numThreads>>>(m_valueRanges, m_dims);
+}
 
-  void UniformGrid::cleanup()
-  {
-    cudaFree(m_valueRanges);
-    cudaFree(m_maxOpacities);
+void UniformGrid::cleanup()
+{
+  cudaFree(m_valueRanges);
+  cudaFree(m_maxOpacities);
 
-    m_valueRanges = nullptr;
-    m_maxOpacities = nullptr;
-  }
+  m_valueRanges = nullptr;
+  m_maxOpacities = nullptr;
+}
 
-  UniformGridData UniformGrid::gpuData() const
-  {
-    UniformGridData grid;
-    grid.dims = m_dims;
-    grid.worldBounds = m_worldBounds;
-    grid.valueRanges = m_valueRanges;
-    grid.maxOpacities = m_maxOpacities;
-    return grid;
-  }
+UniformGridData UniformGrid::gpuData() const
+{
+  UniformGridData grid;
+  grid.dims = m_dims;
+  grid.worldBounds = m_worldBounds;
+  grid.valueRanges = m_valueRanges;
+  grid.maxOpacities = m_maxOpacities;
+  return grid;
+}
 
-  void UniformGrid::computeMaxOpacities(cudaTextureObject_t cm, size_t cmSize, box1 cmRange)
-  {
-    size_t numMCs = m_dims.x*size_t(m_dims.y)*m_dims.z;
+void UniformGrid::computeMaxOpacities(
+    CUstream stream, cudaTextureObject_t cm, size_t cmSize, box1 cmRange)
+{
+  size_t numMCs = m_dims.x * size_t(m_dims.y) * m_dims.z;
 
-    size_t numThreads = 1024;
-    computeMaxOpacitiesGPU<<<(uint32_t)iDivUp(numMCs, numThreads), (uint32_t)numThreads>>>(
-      m_maxOpacities,m_valueRanges,cm,numMCs,cmSize,cmRange);
-  }
+  size_t numThreads = 1024;
+  computeMaxOpacitiesGPU<<<iDivUp(numMCs, numThreads), numThreads, 0, stream>>>(
+      m_maxOpacities, m_valueRanges, cm, numMCs, cmSize, cmRange);
+}
+
 } // namespace visrtx

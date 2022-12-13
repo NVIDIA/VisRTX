@@ -48,13 +48,12 @@ namespace visrtx {
 // Utility functions //////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-
 RT_FUNCTION float atomicMinf(float *address, float val)
 {
   int ret = __float_as_int(*address);
-  while(val < __int_as_float(ret)) {
+  while (val < __int_as_float(ret)) {
     int old = ret;
-    if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+    if ((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
       break;
   }
   return __int_as_float(ret);
@@ -63,9 +62,9 @@ RT_FUNCTION float atomicMinf(float *address, float val)
 RT_FUNCTION float atomicMaxf(float *address, float val)
 {
   int ret = __float_as_int(*address);
-  while(val > __int_as_float(ret)) {
+  while (val > __int_as_float(ret)) {
     int old = ret;
-    if((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+    if ((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
       break;
   }
   return __int_as_float(ret);
@@ -167,6 +166,20 @@ RT_FUNCTION vec3 randomDir(RandState &rs, const vec3 &normal)
 {
   const auto dir = randomDir(rs);
   return dot(dir, normal) > 0.f ? dir : -dir;
+}
+
+RT_FUNCTION vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
+{
+  // sample unit sphere
+  const float cost = 1.f - 2.f * curand_uniform(&rs);
+  const float sint = sqrtf(fmaxf(0.f, 1.f - cost * cost));
+  const float phi = 2.f * M_PI * curand_uniform(&rs);
+  // make ortho basis and transform to ray-centric coordinates:
+  const vec3 w = normal;
+  const vec3 v = fabsf(w.x) > fabsf(w.y) ? normalize(vec3(-w.z, 0.f, w.x))
+                                         : normalize(vec3(0.f, w.z, -w.y));
+  const vec3 u = cross(v, w);
+  return normalize(sint * cosf(phi) * u + sint * sinf(phi) * v + cost * -w);
 }
 
 #define ulpEpsilon 0x1.fp-21

@@ -31,7 +31,6 @@
 
 #pragma once
 
-// glm
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 
@@ -42,7 +41,10 @@ struct UniformGrid
   void init(ivec3 dims, box3 worldBounds);
   void cleanup();
   UniformGridData gpuData() const;
-  void computeMaxOpacities(cudaTextureObject_t cm, size_t cmSize, box1 cmRange={0.f,1.f});
+  void computeMaxOpacities(CUstream stream,
+      cudaTextureObject_t cm,
+      size_t cmSize,
+      box1 cmRange = {0.f, 1.f});
 
   // min/max value ranges
   box1 *m_valueRanges = nullptr;

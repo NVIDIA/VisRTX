@@ -37,70 +37,59 @@
 
 namespace visrtx {
 
-__global__ void buildGridGPU(cudaTextureObject_t data, ivec3 dims, UniformGridData grid)
+__global__ void buildGridGPU(
+    cudaTextureObject_t data, ivec3 dims, UniformGridData grid)
 {
   size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
 
-  size_t numVoxels = (dims.x-1)*size_t(dims.y-1)*(dims.z-1);
+  size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
 
   if (threadID >= numVoxels)
     return;
 
-  ivec3 voxelID(threadID%(dims.x-1),
-                threadID/(dims.x-1)%(dims.y-1),
-                threadID/((dims.x-1)*(dims.y-1)));
- 
-  vec3 worldExtend = size(grid.worldBounds);
-  vec3 voxelExtend = worldExtend / vec3(dims-1);
-  box3 voxelBounds(grid.worldBounds.lower+vec3(voxelID)*voxelExtend,
-                   grid.worldBounds.lower+vec3(voxelID)*voxelExtend+voxelExtend);
+  ivec3 voxelID(threadID % (dims.x - 1),
+      threadID / (dims.x - 1) % (dims.y - 1),
+      threadID / ((dims.x - 1) * (dims.y - 1)));
 
-  // printf("%f,%f,%f %f,%f,%f\n",
-  //        voxelBounds.lower.x,
-  //        voxelBounds.lower.y,
-  //        voxelBounds.lower.z,
-  //        voxelBounds.upper.x,
-  //        voxelBounds.upper.y,
-  //        voxelBounds.upper.z);
- 
+  vec3 worldExtend = size(grid.worldBounds);
+  vec3 voxelExtend = worldExtend / vec3(dims - 1);
+  box3 voxelBounds(grid.worldBounds.lower + vec3(voxelID) * voxelExtend,
+      grid.worldBounds.lower + vec3(voxelID) * voxelExtend + voxelExtend);
+
   // compute the max value of all the cells that can
   // overlap this voxel; splat out the _max_ over the
   // overlapping MCs. (that's essentially a box filter)
-  vec3 tcs[8] = {
-      (vec3(voxelID)+vec3(-.5f,-.5f,-.5f))/vec3(dims),
-      (vec3(voxelID)+vec3(+.5f,-.5f,-.5f))/vec3(dims),
-      (vec3(voxelID)+vec3(+.5f,+.5f,-.5f))/vec3(dims),
-      (vec3(voxelID)+vec3(-.5f,+.5f,-.5f))/vec3(dims),
-      (vec3(voxelID)+vec3(-.5f,-.5f,+.5f))/vec3(dims),
-      (vec3(voxelID)+vec3(+.5f,-.5f,+.5f))/vec3(dims),
-      (vec3(voxelID)+vec3(+.5f,+.5f,+.5f))/vec3(dims),
-      (vec3(voxelID)+vec3(-.5f,+.5f,+.5f))/vec3(dims)
-  };
+  vec3 tcs[8] = {(vec3(voxelID) + vec3(-.5f, -.5f, -.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(+.5f, -.5f, -.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(+.5f, +.5f, -.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(-.5f, +.5f, -.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(-.5f, -.5f, +.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(+.5f, -.5f, +.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(+.5f, +.5f, +.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(-.5f, +.5f, +.5f)) / vec3(dims)};
 
   float voxelValue = -1e30f;
-  for (int i=0; i<8; ++i) {
+  for (int i = 0; i < 8; ++i) {
     float retval = tex3D<float>(data, tcs[i].x, tcs[i].y, tcs[i].z);
     voxelValue = fmaxf(voxelValue, retval);
   }
 
-  // printf("%f\n",voxelValue);
-
   // find out which MCs we overlap and splat the value out
   // on the respective ranges
-  const ivec3 loMC = projectOnGrid(voxelBounds.lower,grid.dims,grid.worldBounds);
-  const ivec3 upMC = projectOnGrid(voxelBounds.upper,grid.dims,grid.worldBounds);
+  const ivec3 loMC =
+      projectOnGrid(voxelBounds.lower, grid.dims, grid.worldBounds);
+  const ivec3 upMC =
+      projectOnGrid(voxelBounds.upper, grid.dims, grid.worldBounds);
 
-  // printf("%i,%i,%i %i,%i,%i\n",
-  //        loMC.x,loMC.y,loMC.z,
-  //        upMC.x,upMC.y,upMC.z);
-
-  for (int mcz=loMC.z; mcz<=upMC.z; ++mcz) {
-    for (int mcy=loMC.y; mcy<=upMC.y; ++mcy) {
-      for (int mcx=loMC.x; mcx<=upMC.x; ++mcx) {
-        const ivec3 mcID(mcx,mcy,mcz);
+  for (int mcz = loMC.z; mcz <= upMC.z; ++mcz) {
+    for (int mcy = loMC.y; mcy <= upMC.y; ++mcy) {
+      for (int mcx = loMC.x; mcx <= upMC.x; ++mcx) {
+        const ivec3 mcID(mcx, mcy, mcz);
 #ifdef __CUDA_ARCH__
-        atomicMinf(&grid.valueRanges[linearIndex(mcID,grid.dims)].lower,voxelValue);
-        atomicMaxf(&grid.valueRanges[linearIndex(mcID,grid.dims)].upper,voxelValue);
+        atomicMinf(
+            &grid.valueRanges[linearIndex(mcID, grid.dims)].lower, voxelValue);
+        atomicMaxf(
+            &grid.valueRanges[linearIndex(mcID, grid.dims)].upper, voxelValue);
 #endif
       }
     }
@@ -110,16 +99,16 @@ __global__ void buildGridGPU(cudaTextureObject_t data, ivec3 dims, UniformGridDa
 void StructuredRegularField::buildGrid()
 {
   auto dims = m_params.data->size();
-  ivec3 gridDims(iDivUp(dims.x,16),
-                 iDivUp(dims.y,16),
-                 iDivUp(dims.z,16));
+  ivec3 gridDims(iDivUp(dims.x, 16), iDivUp(dims.y, 16), iDivUp(dims.z, 16));
   m_uniformGrid.init(gridDims, bounds());
 
-  size_t numVoxels = (dims.x-1)*size_t(dims.y-1)*(dims.z-1);
+  size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
 
   size_t numThreads = 1024;
-  buildGridGPU<<<(uint32_t)iDivUp(numVoxels, numThreads), (uint32_t)numThreads>>>(
-    m_textureObject,dims,m_uniformGrid.gpuData());
+  buildGridGPU<<<iDivUp(numVoxels, numThreads),
+      numThreads,
+      0,
+      deviceState()->stream>>>(m_textureObject, dims, m_uniformGrid.gpuData());
 }
 
 } // namespace visrtx

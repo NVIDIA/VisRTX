@@ -310,9 +310,9 @@ struct StructuredRegularData
 
 struct UniformGridData
 {
-  ivec3  dims;
-  box3   worldBounds;
-  box1  *valueRanges; // min/max ranges
+  ivec3 dims;
+  box3 worldBounds;
+  box1 *valueRanges; // min/max ranges
   float *maxOpacities; // used for adaptive sampling/space skipping
 };
 
@@ -442,7 +442,6 @@ struct AORendererGPUData
 struct DPTRendererGPUData
 {
   int maxDepth;
-  float R;
 };
 
 struct SciVisRendererGPUData

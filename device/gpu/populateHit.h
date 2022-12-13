@@ -306,7 +306,7 @@ RT_FUNCTION void populateVolumeHit(VolumeHit &hit)
   hit.foundHit = true;
   hit.volumeData = &ray::volumeData(fd);
 
-  hit.volID = ray::primID();
+  hit.volID = ray::objID();
   hit.instID = ray::instID();
 
   const auto ro = optixGetWorldRayOrigin();
