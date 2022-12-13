@@ -42,11 +42,7 @@ struct Debug : public Renderer
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
-  anari::Span<const HitgroupFunctionNames> hitgroupSbtNames() const override;
-  anari::Span<const std::string> missSbtNames() const override;
-
   static ptx_ptr ptx();
-
  private:
   DebugMethod m_method{DebugMethod::PRIM_ID};
 };

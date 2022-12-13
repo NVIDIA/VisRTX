@@ -56,6 +56,24 @@ using HitgroupRecord = SBTRecord;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
+static std::string longestBeginningMatch(
+    const std::string_view &first, const std::string_view &second)
+{
+  auto maxMatchLength = std::min(first.size(), second.size());
+  auto start1 = first.begin();
+  auto start2 = second.begin();
+  auto end = first.begin() + maxMatchLength;
+
+  return std::string(start1, std::mismatch(start1, end, start2).first);
+}
+
+static bool beginsWith(const std::string_view &inputString,
+    const std::string_view &startsWithString)
+{
+  auto startingMatch = longestBeginningMatch(inputString, startsWithString);
+  return startingMatch.size() == startsWithString.size();
+}
+
 static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 {
   auto splitString = [](const std::string &input,
@@ -81,7 +99,7 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     return new DiffusePathTracer(d);
   else if (subtype == "scivis" || subtype == "sv" || subtype == "default")
     return new SciVis(d);
-  else if (subtype == "debug") {
+  else if (beginsWith(subtype, "debug")) {
     auto *retval = new Debug(d);
     auto names = splitString(std::string(subtype), "_");
     if (names.size() > 1)
@@ -89,24 +107,6 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     return retval;
   } else
     return new Test(d);
-}
-
-static std::string longestBeginningMatch(
-    const std::string_view &first, const std::string_view &second)
-{
-  auto maxMatchLength = std::min(first.size(), second.size());
-  auto start1 = first.begin();
-  auto start2 = second.begin();
-  auto end = first.begin() + maxMatchLength;
-
-  return std::string(start1, std::mismatch(start1, end, start2).first);
-}
-
-static bool beginsWith(const std::string_view &inputString,
-    const std::string_view &startsWithString)
-{
-  auto startingMatch = longestBeginningMatch(inputString, startsWithString);
-  return startingMatch.size() == startsWithString.size();
 }
 
 // Renderer definitions ///////////////////////////////////////////////////////

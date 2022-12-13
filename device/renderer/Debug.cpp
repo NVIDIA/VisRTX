@@ -35,12 +35,6 @@
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_debugHitNames = {
-    {"__closesthit__surface", ""}, {"__closesthit__volume", ""}};
-
-static const std::vector<std::string> g_debugMissNames = {
-    "__miss__", "__miss__"};
-
 static DebugMethod methodFromString(const std::string &name)
 {
   if (name == "primID")
@@ -84,16 +78,6 @@ void Debug::populateFrameData(FrameGPUData &fd) const
 OptixModule Debug::optixModule() const
 {
   return deviceState()->rendererModules.debug;
-}
-
-anari::Span<const HitgroupFunctionNames> Debug::hitgroupSbtNames() const
-{
-  return anari::make_Span(g_debugHitNames.data(), g_debugHitNames.size());
-}
-
-anari::Span<const std::string> Debug::missSbtNames() const
-{
-  return anari::make_Span(g_debugMissNames.data(), g_debugMissNames.size());
 }
 
 ptx_ptr Debug::ptx()
