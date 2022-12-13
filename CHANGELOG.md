@@ -7,9 +7,11 @@
 - Added support `image1D` sampler subtype
 - Added support for `primitive.index` on `sphere` geometry
 - Added support for missing array types for image samplers
+- Added volume scattering in `dpt` renderer
 - Improved robustness around object subtypes unknown to VisRTX
 - Improved object leak warnings on device release
 - Fix incorrect handling of managed arrays of objects
+- Fix performance bug with rays repeatedly not exiting volumes
 
 ## 0.4.0
 ##### 2022-07-22
