@@ -62,7 +62,8 @@ void Image2D::commit()
   auto nc = numANARIChannels(format);
   if (nc == 0) {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "invalid texture type encountered in image2D sampler");
+        "invalid texture type encountered in image2D sampler (%s)",
+        anari::toString(format));
     return;
   }
 
