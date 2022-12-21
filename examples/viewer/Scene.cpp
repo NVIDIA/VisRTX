@@ -1010,6 +1010,8 @@ static void loadTexture(anari::Device d,
       anari::setParameter(d, opacityTex, "wrapMode2", "repeat");
       anari::setParameter(d, opacityTex, "filter", "bilinear");
       anari::commitParameters(d, opacityTex);
+
+      free(data);
     } else {
       auto array = anariNewArray2D(
           d, data, &anari_free, nullptr, texelType, width, height);
