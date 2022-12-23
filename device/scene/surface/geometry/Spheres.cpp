@@ -62,6 +62,10 @@ void Spheres::commit()
     return;
   }
 
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "committing %s sphere geometry",
+      m_index ? "indexed" : "soup");
+
   m_vertex->addCommitObserver(this);
   if (m_vertexRadius)
     m_vertexRadius->addCommitObserver(this);

@@ -64,6 +64,10 @@ void Curves::commit()
     return;
   }
 
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "committing %s curve geometry",
+      m_index ? "indexed" : "soup");
+
   if (m_index)
     m_index->addCommitObserver(this);
   m_vertexPosition->addCommitObserver(this);

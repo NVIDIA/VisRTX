@@ -76,6 +76,10 @@ void Quads::commit()
     return;
   }
 
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "committing %s quad geometry",
+      m_index ? "indexed" : "soup");
+
   if (m_index)
     m_index->addCommitObserver(this);
   m_vertex->addCommitObserver(this);
