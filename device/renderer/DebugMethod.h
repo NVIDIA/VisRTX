@@ -45,7 +45,9 @@ enum class DebugMethod
   RAY_UVW,
   IS_TRIANGLE,
   IS_VOLUME,
-  BACKFACE
+  BACKFACE,
+  HAS_MATERIAL,
+  SURFACE_COLOR
 };
 
 } // namespace visrtx

@@ -57,6 +57,10 @@ static DebugMethod methodFromString(const std::string &name)
     return DebugMethod::IS_TRIANGLE;
   else if (name == "isvol")
     return DebugMethod::IS_VOLUME;
+  else if (name == "hasMaterial")
+    return DebugMethod::HAS_MATERIAL;
+  else if (name == "surfaceColor")
+    return DebugMethod::SURFACE_COLOR;
   else
     return DebugMethod::BACKFACE;
 }

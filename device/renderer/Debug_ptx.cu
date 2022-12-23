@@ -93,6 +93,12 @@ RT_FUNCTION void handleSurfaceHit()
   case DebugMethod::NS_ABS:
     rd.outColor = abs(rd.Ns);
     break;
+  case DebugMethod::HAS_MATERIAL:
+    rd.outColor = boolColor(rd.material);
+    break;
+  case DebugMethod::SURFACE_COLOR:
+    rd.outColor = getMaterialParameter(frameData, rd.material->baseColor, rd);
+    break;
   default:
     rd.outColor = vec3(1.f);
     break;
