@@ -93,16 +93,18 @@ inline T *createRegisteredObject(Args &&...args)
 }
 
 template <typename HANDLE_T, typename OBJECT_T>
-inline HANDLE_T getHandleForAPI(OBJECT_T *object)
+inline HANDLE_T finalizeHandleForAPI(OBJECT_T *o)
 {
-  return (HANDLE_T)object;
+  auto *s = o->deviceState();
+  s->commitBuffer.addObject(o);
+  return (HANDLE_T)o;
 }
 
 template <typename OBJECT_T, typename HANDLE_T, typename... Args>
 inline HANDLE_T createObjectForAPI(DeviceGlobalState *s, Args &&...args)
 {
   auto o = createRegisteredObject<OBJECT_T>(s, std::forward<Args>(args)...);
-  return getHandleForAPI<HANDLE_T>(o);
+  return finalizeHandleForAPI<HANDLE_T>(o);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -207,7 +209,7 @@ ANARILight VisRTXDevice::newLight(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return getHandleForAPI<ANARILight>(
+  return finalizeHandleForAPI<ANARILight>(
       Light::createInstance(subtype, deviceState()));
 }
 
@@ -215,7 +217,7 @@ ANARICamera VisRTXDevice::newCamera(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return getHandleForAPI<ANARICamera>(
+  return finalizeHandleForAPI<ANARICamera>(
       Camera::createInstance(subtype, deviceState()));
 }
 
@@ -223,7 +225,7 @@ ANARIGeometry VisRTXDevice::newGeometry(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return getHandleForAPI<ANARIGeometry>(
+  return finalizeHandleForAPI<ANARIGeometry>(
       Geometry::createInstance(subtype, deviceState()));
 }
 
@@ -231,7 +233,7 @@ ANARISpatialField VisRTXDevice::newSpatialField(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return getHandleForAPI<ANARISpatialField>(
+  return finalizeHandleForAPI<ANARISpatialField>(
       SpatialField::createInstance(subtype, deviceState()));
 }
 
@@ -246,7 +248,7 @@ ANARIVolume VisRTXDevice::newVolume(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return getHandleForAPI<ANARIVolume>(
+  return finalizeHandleForAPI<ANARIVolume>(
       Volume::createInstance(subtype, deviceState()));
 }
 
@@ -256,7 +258,7 @@ ANARIMaterial VisRTXDevice::newMaterial(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return getHandleForAPI<ANARIMaterial>(
+  return finalizeHandleForAPI<ANARIMaterial>(
       Material::createInstance(subtype, deviceState()));
 }
 
@@ -264,7 +266,7 @@ ANARISampler VisRTXDevice::newSampler(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return getHandleForAPI<ANARISampler>(
+  return finalizeHandleForAPI<ANARISampler>(
       Sampler::createInstance(subtype, deviceState()));
 }
 
@@ -365,7 +367,7 @@ ANARIRenderer VisRTXDevice::newRenderer(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return getHandleForAPI<ANARIRenderer>(
+  return finalizeHandleForAPI<ANARIRenderer>(
       Renderer::createInstance(subtype, deviceState()));
 }
 
