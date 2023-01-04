@@ -232,10 +232,11 @@ void Array::freeAppMemory()
       captured.deleter(captured.deleterPtr, captured.mem);
     zeroOutStruct(captured);
   } else if (ownership() == ArrayDataOwnership::MANAGED) {
-    reportMessage(ANARI_SEVERITY_DEBUG, "freeing managed array");
+    reportMessage(ANARI_SEVERITY_DEBUG, "freeing managed array data");
     free(m_hostData.managed.mem);
     zeroOutStruct(m_hostData.managed);
   } else if (wasPrivatized()) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "freeing privatized shared array data");
     free(m_hostData.privatized.mem);
     zeroOutStruct(m_hostData.privatized);
   }

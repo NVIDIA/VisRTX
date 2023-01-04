@@ -126,9 +126,6 @@ void Curves::computeIndices()
   } else {
     m_generatedIndices.resize(m_vertexPosition->size() / 2);
     std::iota(m_generatedIndices.begin(), m_generatedIndices.end(), 0);
-    std::for_each(m_generatedIndices.begin(),
-        m_generatedIndices.end(),
-        [](auto &i) { i *= 2; });
   }
   m_generatedIndices.upload();
 }
