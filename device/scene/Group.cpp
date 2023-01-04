@@ -277,6 +277,7 @@ void Group::partitionValidGeometriesByType()
   m_surfaces = anari::make_Span(
       (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
   m_surfacesTriangle.clear();
+  m_surfacesCurve.clear();
   m_surfacesUser.clear();
   for (auto s : m_surfaces) {
     if (!s->isValid())
