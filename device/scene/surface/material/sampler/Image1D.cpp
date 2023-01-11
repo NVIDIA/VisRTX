@@ -76,6 +76,8 @@ void Image1D::commit()
   if (nc == 4) {
     if (isFloat(format))
       transformToStagingBuffer<4, float>(image, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBuffer<4, uint32_t>(image, stagingBuffer.data());
     else if (isFixed16(format))
       transformToStagingBuffer<4, uint16_t>(image, stagingBuffer.data());
     else if (isFixed8(format))
@@ -85,6 +87,8 @@ void Image1D::commit()
   } else if (nc == 3) {
     if (isFloat(format))
       transformToStagingBuffer<3, float>(image, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBuffer<3, uint32_t>(image, stagingBuffer.data());
     else if (isFixed16(format))
       transformToStagingBuffer<3, uint16_t>(image, stagingBuffer.data());
     else if (isFixed8(format))
@@ -94,6 +98,8 @@ void Image1D::commit()
   } else if (nc == 2) {
     if (isFloat(format))
       transformToStagingBuffer<2, float>(image, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBuffer<2, uint32_t>(image, stagingBuffer.data());
     else if (isFixed16(format))
       transformToStagingBuffer<2, uint16_t>(image, stagingBuffer.data());
     else if (isFixed8(format))
@@ -103,6 +109,8 @@ void Image1D::commit()
   } else if (nc == 1) {
     if (isFloat(format))
       transformToStagingBuffer<1, float>(image, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBuffer<1, uint32_t>(image, stagingBuffer.data());
     else if (isFixed16(format))
       transformToStagingBuffer<1, uint16_t>(image, stagingBuffer.data());
     else if (isFixed8(format))

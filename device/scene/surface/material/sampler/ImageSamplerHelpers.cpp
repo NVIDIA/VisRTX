@@ -47,6 +47,20 @@ bool isFloat(ANARIDataType format)
   return false;
 }
 
+bool isFixed32(ANARIDataType format)
+{
+  switch (format) {
+  case ANARI_UFIXED32_VEC4:
+  case ANARI_UFIXED32_VEC3:
+  case ANARI_UFIXED32_VEC2:
+  case ANARI_UFIXED32:
+    return true;
+  default:
+    break;
+  }
+  return false;
+}
+
 bool isFixed16(ANARIDataType format)
 {
   switch (format) {
@@ -95,24 +109,28 @@ int numANARIChannels(ANARIDataType format)
   case ANARI_UFIXED8_RGBA_SRGB:
   case ANARI_UFIXED8_VEC4:
   case ANARI_UFIXED16_VEC4:
+  case ANARI_UFIXED32_VEC4:
   case ANARI_FLOAT16_VEC4:
   case ANARI_FLOAT32_VEC4:
     return 4;
   case ANARI_UFIXED8_RGB_SRGB:
   case ANARI_UFIXED8_VEC3:
   case ANARI_UFIXED16_VEC3:
+  case ANARI_UFIXED32_VEC3:
   case ANARI_FLOAT16_VEC3:
   case ANARI_FLOAT32_VEC3:
     return 3;
   case ANARI_UFIXED8_RA_SRGB:
   case ANARI_UFIXED8_VEC2:
   case ANARI_UFIXED16_VEC2:
+  case ANARI_UFIXED32_VEC2:
   case ANARI_FLOAT16_VEC2:
   case ANARI_FLOAT32_VEC2:
     return 2;
   case ANARI_UFIXED8_R_SRGB:
   case ANARI_UFIXED8:
   case ANARI_UFIXED16:
+  case ANARI_UFIXED32:
   case ANARI_FLOAT16:
   case ANARI_FLOAT32:
     return 1;

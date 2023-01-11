@@ -52,6 +52,7 @@ template <int SIZE>
 using byte_chunk_t = std::array<uint8_t, SIZE>;
 
 bool isFloat(ANARIDataType format);
+bool isFixed32(ANARIDataType format);
 bool isFixed16(ANARIDataType format);
 bool isFixed8(ANARIDataType format);
 bool isSrgb8(ANARIDataType format);
@@ -67,6 +68,9 @@ inline uint8_t convertComponent(T c)
     return uint8_t(c * 255);
   else if constexpr (std::is_same_v<T, uint16_t>) {
     constexpr auto maxVal = float(std::numeric_limits<uint16_t>::max());
+    return uint8_t((c / maxVal) * 255);
+  } else if constexpr (std::is_same_v<T, uint32_t>) {
+    constexpr auto maxVal = float(std::numeric_limits<uint32_t>::max());
     return uint8_t((c / maxVal) * 255);
   } else if constexpr (SRGB) // uint8_t
     return uint8_t(glm::convertSRGBToLinear(vec1(c / 255.f)).x * 255);
