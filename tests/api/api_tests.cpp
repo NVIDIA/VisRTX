@@ -32,7 +32,7 @@
 // anari_cpp
 #include <anari/anari_cpp.hpp>
 // visrtx
-#include <anari/backend/visrtx/visrtx.h>
+#include <anari/ext/visrtx/visrtx.h>
 
 int main()
 {
