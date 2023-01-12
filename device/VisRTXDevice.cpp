@@ -326,6 +326,9 @@ int VisRTXDevice::getProperty(ANARIObject object,
     } else if (prop == "feature" && type == ANARI_STRING_LIST) {
       helium::writeToVoidP(mem, query_extensions());
       return 1;
+    } else if (prop == "subtypes.renderer" && type == ANARI_STRING_LIST) {
+      helium::writeToVoidP(mem, query_object_types(ANARI_RENDERER));
+      return 1;
     } else if (prop == "visrtx" && type == ANARI_BOOL) {
       helium::writeToVoidP(mem, true);
       return 1;

@@ -8,6 +8,7 @@
 - Added support for `primitive.index` on `sphere` geometry
 - Added support for missing array types for image samplers
 - Added volume scattering in `dpt` renderer
+- Added tool (`visrtxCompileShaders`) for precompiling OptiX shaders offline
 - Improved robustness around object subtypes unknown to VisRTX
 - Improved object leak warnings on device release
 - Fix incorrect handling of managed arrays of objects

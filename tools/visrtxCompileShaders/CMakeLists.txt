@@ -34,25 +34,12 @@ message(STATUS "CMake version: ${CMAKE_VERSION}")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 set(CMAKE_BUILD_TYPE_INIT "Release")
-
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-project(tutorial LANGUAGES CXX)
+project(visrtxCompileShaders LANGUAGES CXX)
 
 find_package(VisRTX REQUIRED)
 
-add_subdirectory(
-  ${CMAKE_CURRENT_LIST_DIR}/../../external/stb_image
-  ${CMAKE_CURRENT_BINARY_DIR}/stb_image
-)
-
 add_executable(${PROJECT_NAME} main.cpp)
-target_link_libraries(${PROJECT_NAME}
-PRIVATE
-  VisRTX::anari_library_visrtx
-  stb_image
-)
+target_link_libraries(${PROJECT_NAME} PRIVATE VisRTX::anari_library_visrtx)
