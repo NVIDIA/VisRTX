@@ -32,6 +32,7 @@
 #pragma once
 
 #include "gpu/gpu_util.h"
+#include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
 
@@ -52,11 +53,34 @@ RT_FUNCTION const T *typedOffset(const void *mem, uint32_t offset)
   return ((const T *)mem) + offset;
 }
 
-RT_FUNCTION vec4 getAttributeValue(const AttributePtr &ap, uint32_t offset)
+template <typename ELEMENT_T>
+RT_FUNCTION vec4 getAttributeValue_ufixed(
+    const AttributePtr &ap, uint32_t offset)
 {
-  if (offset == 0xFFFFFFFF)
-    return vec4(0.f, 0.f, 0.f, 1.f);
+  constexpr float m = float(static_cast<ELEMENT_T>(0xFFFFFFFF));
+  vec4 retval(0.f, 0.f, 0.f, 1.f);
+  switch (ap.numChannels) {
+  case 4:
+    retval.w =
+        *typedOffset<ELEMENT_T>(ap.data, ap.numChannels * offset + 3) / m;
+  case 3:
+    retval.z =
+        *typedOffset<ELEMENT_T>(ap.data, ap.numChannels * offset + 2) / m;
+  case 2:
+    retval.y =
+        *typedOffset<ELEMENT_T>(ap.data, ap.numChannels * offset + 1) / m;
+  case 1:
+    retval.x =
+        *typedOffset<ELEMENT_T>(ap.data, ap.numChannels * offset + 0) / m;
+  default:
+    break;
+  }
 
+  return retval;
+}
+
+RT_FUNCTION vec4 getAttributeValue_f32(const AttributePtr &ap, uint32_t offset)
+{
   switch (ap.numChannels) {
   case 1:
     return vec4(*typedOffset<float>(ap.data, offset), 0.f, 0.f, 1.f);
@@ -69,6 +93,25 @@ RT_FUNCTION vec4 getAttributeValue(const AttributePtr &ap, uint32_t offset)
   default:
     break;
   }
+
+  return vec4(0.f, 0.f, 0.f, 1.f);
+}
+
+RT_FUNCTION vec4 getAttributeValue(const AttributePtr &ap, uint32_t offset)
+{
+  if (offset == 0xFFFFFFFF)
+    return vec4(0.f, 0.f, 0.f, 1.f);
+
+  if (isFloat(ap.type))
+    return getAttributeValue_f32(ap, offset);
+  else if (isFixed8(ap.type))
+    return getAttributeValue_ufixed<uint8_t>(ap, offset);
+  else if (isSrgb8(ap.type))
+    return convertLinearToSRGB(getAttributeValue_ufixed<uint8_t>(ap, offset));
+  else if (isFixed16(ap.type))
+    return getAttributeValue_ufixed<uint16_t>(ap, offset);
+  else if (isFixed32(ap.type))
+    return getAttributeValue_ufixed<uint32_t>(ap, offset);
 
   return vec4(0.f, 0.f, 0.f, 1.f);
 }

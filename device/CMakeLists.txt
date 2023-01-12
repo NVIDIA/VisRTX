@@ -217,6 +217,10 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   set(INPUT_TARGET ${BASE_NAME}_ptx)
   set(OUTPUT_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${BASE_NAME}_ptx.h)
 
+  set_source_files_properties(${INPUT_CU_FILE}
+    PROPERTIES COMPILE_FLAGS "--expt-relaxed-constexpr"
+  )
+
   add_library(${INPUT_TARGET} OBJECT ${INPUT_CU_FILE})
   target_link_libraries(${INPUT_TARGET}
   PRIVATE

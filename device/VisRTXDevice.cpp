@@ -409,7 +409,7 @@ VisRTXDevice::~VisRTXDevice()
   if (m_state.get() == nullptr)
     return;
 
-  reportMessage(ANARI_SEVERITY_DEBUG, "destroying VisRTX device", this);
+  reportMessage(ANARI_SEVERITY_DEBUG, "destroying VisRTX device");
 
   auto &state = *deviceState();
 

@@ -105,6 +105,7 @@ enum class GeometryType
 
 struct AttributePtr
 {
+  ANARIDataType type;
   int numChannels;
   void *data;
 };

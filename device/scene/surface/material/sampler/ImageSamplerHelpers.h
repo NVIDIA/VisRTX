@@ -32,6 +32,7 @@
 #pragma once
 
 #include "array/Array.h"
+#include "utility/AnariTypeHelpers.h"
 // std
 #include <array>
 #include <limits>
@@ -51,13 +52,6 @@ using texel4 = texel_t<4>;
 template <int SIZE>
 using byte_chunk_t = std::array<uint8_t, SIZE>;
 
-bool isFloat(ANARIDataType format);
-bool isFixed32(ANARIDataType format);
-bool isFixed16(ANARIDataType format);
-bool isFixed8(ANARIDataType format);
-bool isSrgb8(ANARIDataType format);
-int numANARIChannels(ANARIDataType format);
-int bytesPerChannel(ANARIDataType format);
 int countCudaChannels(const cudaChannelFormatDesc &desc);
 cudaTextureAddressMode stringToAddressMode(const std::string &str);
 
