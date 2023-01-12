@@ -131,14 +131,14 @@ void Denoiser::launch()
           end,
           m_uintDevicePixels.begin(),
           [] __device__(const vec4 &in) {
-            return cvt_uint32(glm::convertLinearToSRGB(in));
+            return glm::packUnorm4x8(glm::convertLinearToSRGB(in));
           });
     } else {
       thrust::transform(thrust::cuda::par.on(state.stream),
           begin,
           end,
           m_uintDevicePixels.begin(),
-          [] __device__(const vec4 &in) { return cvt_uint32(in); });
+          [] __device__(const vec4 &in) { return glm::packUnorm4x8(in); });
     }
     instrument::rangePop(); // denoiser transform pixels
   }

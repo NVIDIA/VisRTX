@@ -238,10 +238,11 @@ RT_FUNCTION void writeOutputColor(
     const FramebufferGPUData &fb, const vec4 &color, uint32_t idx)
 {
   const auto c = color * fb.invFrameID;
-  if (fb.format == FrameFormat::SRGB)
-    fb.buffers.outColorUint[idx] = cvt_uint32(glm::convertLinearToSRGB(c));
-  else if (fb.format == FrameFormat::UINT)
-    fb.buffers.outColorUint[idx] = cvt_uint32(c);
+  if (fb.format == FrameFormat::SRGB) {
+    fb.buffers.outColorUint[idx] =
+        glm::packUnorm4x8(glm::convertLinearToSRGB(c));
+  } else if (fb.format == FrameFormat::UINT)
+    fb.buffers.outColorUint[idx] = glm::packUnorm4x8(c);
   else
     fb.buffers.outColorVec4[idx] = c;
 }
