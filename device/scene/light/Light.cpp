@@ -31,7 +31,6 @@
 
 #include "Light.h"
 // specific types
-#include "Ambient.h"
 #include "Directional.h"
 #include "Point.h"
 #include "UnknownLight.h"
@@ -58,9 +57,7 @@ LightGPUData Light::gpuData() const
 
 Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  if (subtype == "ambient")
-    return new Ambient(d);
-  else if (subtype == "directional")
+  if (subtype == "directional")
     return new Directional(d);
   else if (subtype == "point")
     return new Point(d);

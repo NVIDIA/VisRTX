@@ -58,7 +58,7 @@ RT_FUNCTION bool isOccluded(ScreenSample &ss, Ray r)
 }
 
 RT_FUNCTION float computeAO(
-    ScreenSample &ss, const Ray &primaryRay, const Hit &currentHit)
+    ScreenSample &ss, const Ray &primaryRay, const Hit &currentHit, float dist)
 {
   int hits = 0;
 
@@ -67,6 +67,7 @@ RT_FUNCTION float computeAO(
     Ray aoRay;
     aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ng);
     aoRay.dir = randomDir(ss.rs, currentHit.Ns);
+    aoRay.t.upper = dist;
     if (isOccluded(ss, aoRay))
       hits++;
   }
@@ -85,7 +86,7 @@ RT_FUNCTION float attenuation(ScreenSample &ss, Ray r)
 
 RT_FUNCTION vec3 computeLightConrib(ScreenSample &ss, const SurfaceHit &hit)
 {
-  const auto &rendererParams = frameData.renderer.params.scivis;
+  const auto &scivisParams = frameData.renderer.params.scivis;
 
   auto &world = frameData.world;
 
@@ -104,8 +105,8 @@ RT_FUNCTION vec3 computeLightConrib(ScreenSample &ss, const SurfaceHit &hit)
       r.dir = ls.dir;
       r.t.upper = ls.dist;
       if (!isOccluded(ss, r)) {
-        contrib += ls.radiance * dot(ls.dir, hit.Ns)
-            * rendererParams.lightFalloff * (1.f - attenuation(ss, r));
+        contrib += ls.radiance * dot(ls.dir, hit.Ns) * scivisParams.lightFalloff
+            * (1.f - attenuation(ss, r));
       }
     }
   }
@@ -157,7 +158,8 @@ RT_PROGRAM void __miss__()
 
 RT_PROGRAM void __raygen__()
 {
-  const auto &rendererParams = frameData.renderer.params.scivis;
+  const auto &rendererParams = frameData.renderer;
+  const auto &scivisParams = rendererParams.params.scivis;
 
   /////////////////////////////////////////////////////////////////////////////
   // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
@@ -201,14 +203,17 @@ RT_PROGRAM void __raygen__()
       const auto mat_opacity =
           getMaterialParameter(frameData, material.opacity, surfaceHit);
 
-      const float aoFactor = rendererParams.aoSamples > 0
-          ? computeAO(ss, ray, surfaceHit) * rendererParams.aoIntensity
-          : 0.f;
+      const float aoFactor =
+          (scivisParams.aoSamples > 0 ? computeAO(
+               ss, ray, surfaceHit, rendererParams.occlusionDistance)
+                                      : 1.f)
+          * rendererParams.ambientIntensity;
 
       accumulateValue(color,
-          (mat_baseColor * computeLightConrib(ss, surfaceHit))
-              + (rendererParams.aoColor * aoFactor
-                  * rendererParams.lightFalloff),
+          (mat_baseColor
+              * (computeLightConrib(ss, surfaceHit)
+                  + (rendererParams.ambientColor * aoFactor
+                      * scivisParams.lightFalloff))),
           opacity);
       accumulateValue(opacity, mat_opacity, opacity);
 

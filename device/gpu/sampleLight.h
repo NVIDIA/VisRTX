@@ -46,17 +46,6 @@ struct LightSample
 
 namespace detail {
 
-RT_FUNCTION LightSample sampleAmbient(
-    ScreenSample &ss, const Hit &hit, const LightGPUData &ld)
-{
-  LightSample ls;
-  ls.dir = randomDir(ss.rs, hit.Ng);
-  ls.dist = ld.ambient.distance;
-  ls.pdf = 1.f;
-  ls.radiance = ld.color * ld.ambient.intensity;
-  return ls;
-}
-
 RT_FUNCTION LightSample sampleDirectional(const LightGPUData &ld)
 {
   LightSample ls;
@@ -85,8 +74,6 @@ RT_FUNCTION LightSample sampleLight(
   auto &ld = ss.frameData->registry.lights[idx];
 
   switch (ld.type) {
-  case LightType::AMBIENT:
-    return detail::sampleAmbient(ss, hit, ld);
   case LightType::DIRECTIONAL:
     return detail::sampleDirectional(ld);
   case LightType::POINT:

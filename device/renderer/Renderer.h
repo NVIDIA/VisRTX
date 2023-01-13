@@ -69,6 +69,9 @@ struct Renderer : public Object
 
   vec4 bgColor() const;
   int spp() const;
+  vec3 ambientColor() const;
+  float ambientIntensity() const;
+  float ambientOcclusionDistance() const;
 
   static Renderer *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
@@ -76,6 +79,9 @@ struct Renderer : public Object
  protected:
   vec4 m_bgColor{1.f};
   int m_spp{1};
+  vec3 m_ambientColor{1.f};
+  float m_ambientIntensity{1.f};
+  float m_occlusionDistance{1e20f};
 
   // OptiX //
 

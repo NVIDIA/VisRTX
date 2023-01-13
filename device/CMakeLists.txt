@@ -120,7 +120,6 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/Instance.cpp
   scene/World.cpp
 
-  scene/light/Ambient.cpp
   scene/light/Directional.cpp
   scene/light/Light.cpp
   scene/light/Point.cpp

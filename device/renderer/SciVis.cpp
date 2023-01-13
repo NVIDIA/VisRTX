@@ -48,10 +48,7 @@ void SciVis::commit()
 {
   Renderer::commit();
   m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
-  m_aoSamples = std::clamp(getParam<int>("ambientSamples", 0), 0, 256);
-  m_aoColor = glm::clamp(
-      getParam<vec3>("ambientColor", vec3(1.f)), vec3(0.f), vec3(1.f));
-  m_aoIntensity = getParam<float>("ambientIntensity", 1.f);
+  m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
 }
 
 void SciVis::populateFrameData(FrameGPUData &fd) const

@@ -133,6 +133,9 @@ void Renderer::commit()
 {
   m_bgColor = getParam<vec4>("backgroundColor", vec4(1.f));
   m_spp = getParam<int>("pixelSamples", 1);
+  m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
+  m_ambientIntensity = getParam<float>("ambientIntensity", 1.f);
+  m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
 }
 
 anari::Span<const HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -147,7 +150,10 @@ anari::Span<const std::string> Renderer::missSbtNames() const
 
 void Renderer::populateFrameData(FrameGPUData &fd) const
 {
-  fd.renderer.bgColor = m_bgColor;
+  fd.renderer.bgColor = bgColor();
+  fd.renderer.ambientColor = ambientColor();
+  fd.renderer.ambientIntensity = ambientIntensity();
+  fd.renderer.occlusionDistance = ambientOcclusionDistance();
 }
 
 OptixPipeline Renderer::pipeline() const
@@ -171,6 +177,21 @@ vec4 Renderer::bgColor() const
 int Renderer::spp() const
 {
   return m_spp;
+}
+
+vec3 Renderer::ambientColor() const
+{
+  return m_ambientColor;
+}
+
+float Renderer::ambientIntensity() const
+{
+  return m_ambientIntensity;
+}
+
+float Renderer::ambientOcclusionDistance() const
+{
+  return m_occlusionDistance;
 }
 
 Renderer *Renderer::createInstance(

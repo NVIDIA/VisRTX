@@ -364,12 +364,6 @@ enum class LightType
   UNKNOWN
 };
 
-struct AmbientLightGPUData
-{
-  float intensity;
-  float distance;
-};
-
 struct DirectionalLightGPUData
 {
   vec3 direction;
@@ -388,7 +382,6 @@ struct LightGPUData
   vec3 color;
   union
   {
-    AmbientLightGPUData ambient;
     DirectionalLightGPUData distant;
     PointLightGPUData point;
   };
@@ -465,6 +458,9 @@ struct RendererGPUData
 {
   RendererParametersGPUData params;
   glm::vec4 bgColor;
+  glm::vec3 ambientColor;
+  float ambientIntensity;
+  float occlusionDistance;
 };
 
 // Frame //
