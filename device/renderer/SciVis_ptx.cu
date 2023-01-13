@@ -104,8 +104,8 @@ RT_FUNCTION vec3 computeLightConrib(ScreenSample &ss, const SurfaceHit &hit)
       r.dir = ls.dir;
       r.t.upper = ls.dist;
       if (!isOccluded(ss, r)) {
-        contrib += ls.radiance * rendererParams.lightFalloff
-            * (1.f - attenuation(ss, r));
+        contrib += ls.radiance * dot(ls.dir, hit.Ns)
+            * rendererParams.lightFalloff * (1.f - attenuation(ss, r));
       }
     }
   }

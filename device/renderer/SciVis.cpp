@@ -47,7 +47,7 @@ SciVis::SciVis(DeviceGlobalState *s) : Renderer(s) {}
 void SciVis::commit()
 {
   Renderer::commit();
-  m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 0.25f), 0.f, 1.f);
+  m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
   m_aoSamples = std::clamp(getParam<int>("ambientSamples", 0), 0, 256);
   m_aoColor = glm::clamp(
       getParam<vec3>("ambientColor", vec3(1.f)), vec3(0.f), vec3(1.f));
