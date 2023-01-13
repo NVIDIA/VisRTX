@@ -11,6 +11,7 @@
 - Added tool (`visrtxCompileShaders`) for precompiling OptiX shaders offline
 - Improved robustness around object subtypes unknown to VisRTX
 - Improved object leak warnings on device release
+- Moved ambient lighting from being a light subtype into renderer parameters
 - Fix incorrect handling of managed arrays of objects
 - Fix performance bug with rays repeatedly not exiting volumes
 
