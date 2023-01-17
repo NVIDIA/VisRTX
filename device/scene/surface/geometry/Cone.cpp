@@ -29,7 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Cones.h"
+#include "Cone.h"
 // glm
 #include <glm/gtx/rotate_vector.hpp>
 
@@ -96,16 +96,16 @@ static void appendCone(const vec3 &vtx0,
   }
 }
 
-// Cones definitions //////////////////////////////////////////////////////////
+// Cone definitions ///////////////////////////////////////////////////////////
 
-Cones::Cones(DeviceGlobalState *d) : Geometry(d) {}
+Cone::Cone(DeviceGlobalState *d) : Geometry(d) {}
 
-Cones::~Cones()
+Cone::~Cone()
 {
   cleanup();
 }
 
-void Cones::commit()
+void Cone::commit()
 {
   Geometry::commit();
 
@@ -138,12 +138,12 @@ void Cones::commit()
   m_vertex->addCommitObserver(this);
   m_radius->addCommitObserver(this);
 
-  generateCones();
+  generateCone();
 
   upload();
 }
 
-void Cones::populateBuildInput(OptixBuildInput &buildInput) const
+void Cone::populateBuildInput(OptixBuildInput &buildInput) const
 {
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 
@@ -163,17 +163,17 @@ void Cones::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.triangleArray.numSbtRecords = 1;
 }
 
-int Cones::optixGeometryType() const
+int Cone::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 }
 
-bool Cones::isValid() const
+bool Cone::isValid() const
 {
   return m_vertex && m_radius;
 }
 
-GeometryGPUData Cones::gpuData() const
+GeometryGPUData Cone::gpuData() const
 {
   auto retval = Geometry::gpuData();
   retval.type = GeometryType::CONE;
@@ -187,7 +187,7 @@ GeometryGPUData Cones::gpuData() const
   return retval;
 }
 
-void Cones::generateCones()
+void Cone::generateCone()
 {
   std::vector<uvec2> implicitIndices;
   anari::Span<uvec2> indices;
@@ -230,7 +230,7 @@ void Cones::generateCones()
   m_cones.vertexBufferPtr = (CUdeviceptr)m_cones.vertexBuffer.ptr();
 }
 
-void Cones::cleanup()
+void Cone::cleanup()
 {
   if (m_index)
     m_index->removeCommitObserver(this);

@@ -29,18 +29,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Spheres.h"
+#include "Sphere.h"
 
 namespace visrtx {
 
-Spheres::Spheres(DeviceGlobalState *d) : Geometry(d) {}
+Sphere::Sphere(DeviceGlobalState *d) : Geometry(d) {}
 
-Spheres::~Spheres()
+Sphere::~Sphere()
 {
   cleanup();
 }
 
-void Spheres::commit()
+void Sphere::commit()
 {
   Geometry::commit();
 
@@ -115,7 +115,7 @@ void Spheres::commit()
   upload();
 }
 
-void Spheres::populateBuildInput(OptixBuildInput &buildInput) const
+void Sphere::populateBuildInput(OptixBuildInput &buildInput) const
 {
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
@@ -128,7 +128,7 @@ void Spheres::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.customPrimitiveArray.numSbtRecords = 1;
 }
 
-GeometryGPUData Spheres::gpuData() const
+GeometryGPUData Sphere::gpuData() const
 {
   auto retval = Geometry::gpuData();
   retval.type = GeometryType::SPHERE;
@@ -153,17 +153,17 @@ GeometryGPUData Spheres::gpuData() const
   return retval;
 }
 
-int Spheres::optixGeometryType() const
+int Sphere::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 }
 
-bool Spheres::isValid() const
+bool Sphere::isValid() const
 {
   return m_vertex;
 }
 
-void Spheres::cleanup()
+void Sphere::cleanup()
 {
   if (m_index)
     m_index->removeCommitObserver(this);

@@ -39,10 +39,10 @@
 
 namespace visrtx {
 
-struct Spheres : public Geometry
+struct Sphere : public Geometry
 {
-  Spheres(DeviceGlobalState *d);
-  ~Spheres() override;
+  Sphere(DeviceGlobalState *d);
+  ~Sphere() override;
 
   void commit() override;
 

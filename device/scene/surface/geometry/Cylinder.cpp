@@ -29,18 +29,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Cylinders.h"
+#include "Cylinder.h"
 
 namespace visrtx {
 
-Cylinders::Cylinders(DeviceGlobalState *d) : Geometry(d) {}
+Cylinder::Cylinder(DeviceGlobalState *d) : Geometry(d) {}
 
-Cylinders::~Cylinders()
+Cylinder::~Cylinder()
 {
   cleanup();
 }
 
-void Cylinders::commit()
+void Cylinder::commit()
 {
   Geometry::commit();
 
@@ -118,7 +118,7 @@ void Cylinders::commit()
   upload();
 }
 
-void Cylinders::populateBuildInput(OptixBuildInput &buildInput) const
+void Cylinder::populateBuildInput(OptixBuildInput &buildInput) const
 {
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
@@ -131,7 +131,7 @@ void Cylinders::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.customPrimitiveArray.numSbtRecords = 1;
 }
 
-GeometryGPUData Cylinders::gpuData() const
+GeometryGPUData Cylinder::gpuData() const
 {
   auto retval = Geometry::gpuData();
   retval.type = GeometryType::CYLINDER;
@@ -155,17 +155,17 @@ GeometryGPUData Cylinders::gpuData() const
   return retval;
 }
 
-int Cylinders::optixGeometryType() const
+int Cylinder::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 }
 
-bool Cylinders::isValid() const
+bool Cylinder::isValid() const
 {
   return m_vertex;
 }
 
-void Cylinders::cleanup()
+void Cylinder::cleanup()
 {
   if (m_index)
     m_index->removeCommitObserver(this);

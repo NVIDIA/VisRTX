@@ -36,10 +36,10 @@
 
 namespace visrtx {
 
-struct Cones : public Geometry
+struct Cone : public Geometry
 {
-  Cones(DeviceGlobalState *d);
-  ~Cones() override;
+  Cone(DeviceGlobalState *d);
+  ~Cone() override;
 
   void commit() override;
 
@@ -51,10 +51,10 @@ struct Cones : public Geometry
 
  private:
   GeometryGPUData gpuData() const override;
-  void generateCones();
+  void generateCone();
   void cleanup();
 
-  struct GeneratedCones
+  struct GeneratedCone
   {
     std::vector<vec3> vertices;
     std::vector<uvec3> indices;

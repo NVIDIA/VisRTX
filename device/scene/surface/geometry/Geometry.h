@@ -46,7 +46,6 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void commit() override;
 
   virtual void populateBuildInput(OptixBuildInput &) const = 0;
-
   virtual int optixGeometryType() const = 0;
 
   void markCommitted() override;
@@ -54,12 +53,11 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
  protected:
   virtual GeometryGPUData gpuData() const = 0;
 
-  helium::IntrusivePtr<Array1D> m_colors;
   helium::IntrusivePtr<Array1D> m_attribute0;
   helium::IntrusivePtr<Array1D> m_attribute1;
   helium::IntrusivePtr<Array1D> m_attribute2;
   helium::IntrusivePtr<Array1D> m_attribute3;
-  helium::IntrusivePtr<Array1D> m_primID;
+  helium::IntrusivePtr<Array1D> m_color;
 };
 
 } // namespace visrtx

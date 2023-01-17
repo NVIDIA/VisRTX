@@ -33,16 +33,13 @@
 
 #include "array/Array.h"
 #include "Geometry.h"
-#include "utility/HostDeviceArray.h"
-// anari
-#include "anari/backend/utilities/Optional.h"
 
 namespace visrtx {
 
-struct Cylinders : public Geometry
+struct Quad : public Geometry
 {
-  Cylinders(DeviceGlobalState *d);
-  ~Cylinders() override;
+  Quad(DeviceGlobalState *d);
+  ~Quad() override;
 
   void commit() override;
 
@@ -54,24 +51,29 @@ struct Cylinders : public Geometry
 
  private:
   GeometryGPUData gpuData() const override;
+  void generateIndices();
   void cleanup();
 
   helium::IntrusivePtr<Array1D> m_index;
-  helium::IntrusivePtr<Array1D> m_radius;
+
+  HostDeviceArray<uvec3> m_indices;
 
   helium::IntrusivePtr<Array1D> m_vertex;
   helium::IntrusivePtr<Array1D> m_vertexColor;
+  helium::IntrusivePtr<Array1D> m_vertexNormal;
   helium::IntrusivePtr<Array1D> m_vertexAttribute0;
   helium::IntrusivePtr<Array1D> m_vertexAttribute1;
   helium::IntrusivePtr<Array1D> m_vertexAttribute2;
   helium::IntrusivePtr<Array1D> m_vertexAttribute3;
 
-  HostDeviceArray<box3> m_aabbs;
-  CUdeviceptr m_aabbsBufferPtr{};
+  helium::IntrusivePtr<Array1D> m_vertexColorIndex;
+  helium::IntrusivePtr<Array1D> m_vertexNormalIndex;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute0Index;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute1Index;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute2Index;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute3Index;
 
-  anari::Optional<float> m_globalRadius;
-
-  bool m_caps{false};
+  CUdeviceptr m_vertexBufferPtr{};
 };
 
 } // namespace visrtx

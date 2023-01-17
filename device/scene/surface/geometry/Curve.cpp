@@ -29,20 +29,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Curves.h"
+#include "Curve.h"
 // std
 #include <numeric>
 
 namespace visrtx {
 
-Curves::Curves(DeviceGlobalState *d) : Geometry(d) {}
+Curve::Curve(DeviceGlobalState *d) : Geometry(d) {}
 
-Curves::~Curves()
+Curve::~Curve()
 {
   cleanup();
 }
 
-void Curves::commit()
+void Curve::commit()
 {
   Geometry::commit();
 
@@ -83,7 +83,7 @@ void Curves::commit()
   upload();
 }
 
-void Curves::populateBuildInput(OptixBuildInput &buildInput) const
+void Curve::populateBuildInput(OptixBuildInput &buildInput) const
 {
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CURVES;
 
@@ -106,17 +106,17 @@ void Curves::populateBuildInput(OptixBuildInput &buildInput) const
   curveArray.normalStrideInBytes = 0;
 }
 
-int Curves::optixGeometryType() const
+int Curve::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_CURVES;
 }
 
-bool Curves::isValid() const
+bool Curve::isValid() const
 {
   return m_vertexPosition;
 }
 
-void Curves::computeIndices()
+void Curve::computeIndices()
 {
   if (m_index) {
     m_generatedIndices.resize(m_index->size());
@@ -130,7 +130,7 @@ void Curves::computeIndices()
   m_generatedIndices.upload();
 }
 
-void Curves::computeRadii()
+void Curve::computeRadii()
 {
   if (m_vertexRadius) {
     m_generatedRadii.resize(m_vertexRadius->totalCapacity());
@@ -144,7 +144,7 @@ void Curves::computeRadii()
   m_generatedRadii.upload();
 }
 
-GeometryGPUData Curves::gpuData() const
+GeometryGPUData Curve::gpuData() const
 {
   auto retval = Geometry::gpuData();
   retval.type = GeometryType::CURVE;
@@ -164,7 +164,7 @@ GeometryGPUData Curves::gpuData() const
   return retval;
 }
 
-void Curves::cleanup()
+void Curve::cleanup()
 {
   if (m_index)
     m_index->removeCommitObserver(this);

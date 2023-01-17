@@ -31,12 +31,12 @@
 
 #include "Geometry.h"
 // specific types
-#include "Cones.h"
-#include "Curves.h"
-#include "Cylinders.h"
-#include "Quads.h"
-#include "Spheres.h"
-#include "Triangles.h"
+#include "Cone.h"
+#include "Curve.h"
+#include "Cylinder.h"
+#include "Quad.h"
+#include "Sphere.h"
+#include "Triangle.h"
 #include "UnknownGeometry.h"
 // std
 #include <string_view>
@@ -53,31 +53,28 @@ Geometry *Geometry::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
   if (subtype == "triangle")
-    return new Triangles(d);
+    return new Triangle(d);
   else if (subtype == "quad")
-    return new Quads(d);
+    return new Quad(d);
   else if (subtype == "sphere")
-    return new Spheres(d);
+    return new Sphere(d);
   else if (subtype == "cylinder")
-    return new Cylinders(d);
+    return new Cylinder(d);
   else if (subtype == "cone")
-    return new Cones(d);
+    return new Cone(d);
   else if (subtype == "curve")
-    return new Curves(d);
+    return new Curve(d);
   else
     return new UnknownGeometry(d);
 }
 
 void Geometry::commit()
 {
-  m_colors = getParamObject<Array1D>("primitive.color");
-
   m_attribute0 = getParamObject<Array1D>("primitive.attribute0");
   m_attribute1 = getParamObject<Array1D>("primitive.attribute1");
   m_attribute2 = getParamObject<Array1D>("primitive.attribute2");
   m_attribute3 = getParamObject<Array1D>("primitive.attribute3");
-
-  m_primID = getParamObject<Array1D>("primitive.primID");
+  m_color = getParamObject<Array1D>("primitive.color");
 }
 
 void Geometry::markCommitted()
@@ -89,16 +86,11 @@ void Geometry::markCommitted()
 GeometryGPUData Geometry::gpuData() const
 {
   GeometryGPUData retval{};
-
   populateAttributePtr(m_attribute0, retval.attr[0]);
   populateAttributePtr(m_attribute1, retval.attr[1]);
   populateAttributePtr(m_attribute2, retval.attr[2]);
   populateAttributePtr(m_attribute3, retval.attr[3]);
-  populateAttributePtr(m_colors, retval.attr[4]);
-
-  retval.primID =
-      m_primID ? m_primID->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
-
+  populateAttributePtr(m_color, retval.attr[4]);
   return retval;
 }
 

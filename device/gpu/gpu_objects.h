@@ -173,7 +173,6 @@ struct GeometryGPUData
 {
   GeometryType type{GeometryType::UNKNOWN};
   AttributePtr attr[5]; // attribute0-3 + color
-  const uint32 *primID{nullptr};
   union
   {
     TriangleGeometryData tri{};

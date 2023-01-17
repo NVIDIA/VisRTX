@@ -36,10 +36,10 @@
 
 namespace visrtx {
 
-struct Quads : public Geometry
+struct Triangle : public Geometry
 {
-  Quads(DeviceGlobalState *d);
-  ~Quads() override;
+  Triangle(DeviceGlobalState *d);
+  ~Triangle() override;
 
   void commit() override;
 
@@ -51,12 +51,9 @@ struct Quads : public Geometry
 
  private:
   GeometryGPUData gpuData() const override;
-  void generateIndices();
   void cleanup();
 
   helium::IntrusivePtr<Array1D> m_index;
-
-  HostDeviceArray<uvec3> m_indices;
 
   helium::IntrusivePtr<Array1D> m_vertex;
   helium::IntrusivePtr<Array1D> m_vertexColor;

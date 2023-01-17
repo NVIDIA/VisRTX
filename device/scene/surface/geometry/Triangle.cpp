@@ -29,18 +29,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Quads.h"
+#include "Triangle.h"
 
 namespace visrtx {
 
-Quads::Quads(DeviceGlobalState *d) : Geometry(d) {}
+Triangle::Triangle(DeviceGlobalState *d) : Geometry(d) {}
 
-Quads::~Quads()
+Triangle::~Triangle()
 {
   cleanup();
 }
 
-void Quads::commit()
+void Triangle::commit()
 {
   Geometry::commit();
 
@@ -65,32 +65,40 @@ void Quads::commit()
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'vertex.position' on quad geometry");
+        "missing required parameter 'vertex.position' on triangle geometry");
     return;
   }
 
-  if (!m_index && m_vertex->size() % 4 != 0) {
+  if (!m_index && m_vertex->size() % 3 != 0) {
     reportMessage(ANARI_SEVERITY_ERROR,
-        "'vertex.position' on quad geometry is a non-multiple of 4"
+        "'vertex.position' on triangle geometry is a non-multiple of 3"
         " without 'primitive.index' present");
     return;
   }
 
+  if (m_vertexNormal && !m_vertexNormalIndex
+      && m_vertex->size() != m_vertexNormal->size()) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'vertex.normal' on triangle geometry not the same size as "
+        "'vertex.position' (%zu) vs. (%zu)",
+        m_vertexNormal->size(),
+        m_vertex->size());
+  }
+
   reportMessage(ANARI_SEVERITY_DEBUG,
-      "committing %s quad geometry",
+      "committing %s triangle geometry",
       m_index ? "indexed" : "soup");
 
   if (m_index)
     m_index->addCommitObserver(this);
   m_vertex->addCommitObserver(this);
 
-  generateIndices();
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
   upload();
 }
 
-void Quads::populateBuildInput(OptixBuildInput &buildInput) const
+void Triangle::populateBuildInput(OptixBuildInput &buildInput) const
 {
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 
@@ -99,10 +107,18 @@ void Quads::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.triangleArray.numVertices = m_vertex->size();
   buildInput.triangleArray.vertexBuffers = &m_vertexBufferPtr;
 
-  buildInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-  buildInput.triangleArray.indexStrideInBytes = sizeof(uvec3);
-  buildInput.triangleArray.numIndexTriplets = m_indices.size();
-  buildInput.triangleArray.indexBuffer = (CUdeviceptr)m_indices.dataDevice();
+  if (m_index) {
+    buildInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+    buildInput.triangleArray.indexStrideInBytes = sizeof(uvec3);
+    buildInput.triangleArray.numIndexTriplets = m_index->size();
+    buildInput.triangleArray.indexBuffer =
+        (CUdeviceptr)m_index->beginAs<uvec3>(AddressSpace::GPU);
+  } else {
+    buildInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_NONE;
+    buildInput.triangleArray.indexStrideInBytes = 0;
+    buildInput.triangleArray.numIndexTriplets = 0;
+    buildInput.triangleArray.indexBuffer = 0;
+  }
 
   static uint32_t buildInputFlags[1] = {0};
 
@@ -110,87 +126,62 @@ void Quads::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.triangleArray.numSbtRecords = 1;
 }
 
-int Quads::optixGeometryType() const
+int Triangle::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
 }
 
-bool Quads::isValid() const
+bool Triangle::isValid() const
 {
   return m_vertex;
 }
 
-GeometryGPUData Quads::gpuData() const
+GeometryGPUData Triangle::gpuData() const
 {
   auto retval = Geometry::gpuData();
-  retval.type = GeometryType::QUAD;
+  retval.type = GeometryType::TRIANGLE;
 
-  auto &quad = retval.quad;
+  auto &tri = retval.tri;
 
-  quad.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
-  quad.indices = m_indices.dataDevice();
+  tri.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  tri.indices = m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
 
-  quad.vertexNormals = m_vertexNormal
+  tri.vertexNormals = m_vertexNormal
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
 
-  populateAttributePtr(m_vertexAttribute0, quad.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, quad.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, quad.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, quad.vertexAttr[3]);
+  populateAttributePtr(m_vertexAttribute0, tri.vertexAttr[0]);
+  populateAttributePtr(m_vertexAttribute1, tri.vertexAttr[1]);
+  populateAttributePtr(m_vertexAttribute2, tri.vertexAttr[2]);
+  populateAttributePtr(m_vertexAttribute3, tri.vertexAttr[3]);
 
-  populateAttributePtr(m_vertexColor, quad.vertexAttr[4]);
+  populateAttributePtr(m_vertexColor, tri.vertexAttr[4]);
 
-  quad.vertexNormalIndices = m_vertexNormalIndex
+  tri.vertexNormalIndices = m_vertexNormalIndex
       ? m_vertexNormalIndex->beginAs<uvec3>(AddressSpace::GPU)
       : nullptr;
 
-  quad.vertexAttrIndices[0] = m_vertexAttribute0Index
+  tri.vertexAttrIndices[0] = m_vertexAttribute0Index
       ? m_vertexAttribute0Index->beginAs<uvec3>(AddressSpace::GPU)
       : nullptr;
-  quad.vertexAttrIndices[1] = m_vertexAttribute1Index
+  tri.vertexAttrIndices[1] = m_vertexAttribute1Index
       ? m_vertexAttribute1Index->beginAs<uvec3>(AddressSpace::GPU)
       : nullptr;
-  quad.vertexAttrIndices[2] = m_vertexAttribute2Index
+  tri.vertexAttrIndices[2] = m_vertexAttribute2Index
       ? m_vertexAttribute2Index->beginAs<uvec3>(AddressSpace::GPU)
       : nullptr;
-  quad.vertexAttrIndices[3] = m_vertexAttribute3Index
+  tri.vertexAttrIndices[3] = m_vertexAttribute3Index
       ? m_vertexAttribute3Index->beginAs<uvec3>(AddressSpace::GPU)
       : nullptr;
 
-  quad.vertexAttrIndices[4] = m_vertexColorIndex
+  tri.vertexAttrIndices[4] = m_vertexColorIndex
       ? m_vertexColorIndex->beginAs<uvec3>(AddressSpace::GPU)
       : nullptr;
 
   return retval;
 }
 
-void Quads::generateIndices()
-{
-  if (m_index) {
-    size_t numIndices = 2 * m_index->size();
-    m_indices.resize(numIndices);
-    auto *indicesIn = (const uvec4 *)m_index->data();
-    auto *indicesOut = m_indices.dataHost();
-    for (size_t i = 0; i < m_index->size(); i++) {
-      auto idx = indicesIn[i];
-      indicesOut[2 * i + 0] = uvec3(idx.x, idx.y, idx.z);
-      indicesOut[2 * i + 1] = uvec3(idx.z, idx.w, idx.x);
-    }
-  } else {
-    size_t numQuads = m_vertex->size() / 4;
-    m_indices.resize(2 * numQuads);
-    auto *indicesOut = m_indices.dataHost();
-    for (size_t i = 0; i < numQuads; i++) {
-      indicesOut[2 * i + 0] = uvec3(4 * i) + uvec3(0, 1, 2);
-      indicesOut[2 * i + 1] = uvec3(4 * i) + uvec3(2, 3, 0);
-    }
-  }
-
-  m_indices.upload();
-}
-
-void Quads::cleanup()
+void Triangle::cleanup()
 {
   if (m_index)
     m_index->removeCommitObserver(this);

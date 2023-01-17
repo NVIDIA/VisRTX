@@ -127,13 +127,13 @@ target_sources(${PROJECT_NAME} PRIVATE
 
   scene/surface/Surface.cpp
 
-  scene/surface/geometry/Cones.cpp
-  scene/surface/geometry/Curves.cpp
-  scene/surface/geometry/Cylinders.cpp
+  scene/surface/geometry/Cone.cpp
+  scene/surface/geometry/Curve.cpp
+  scene/surface/geometry/Cylinder.cpp
   scene/surface/geometry/Geometry.cpp
-  scene/surface/geometry/Quads.cpp
-  scene/surface/geometry/Spheres.cpp
-  scene/surface/geometry/Triangles.cpp
+  scene/surface/geometry/Quad.cpp
+  scene/surface/geometry/Sphere.cpp
+  scene/surface/geometry/Triangle.cpp
   scene/surface/geometry/UnknownGeometry.cpp
 
   scene/surface/material/Material.cpp

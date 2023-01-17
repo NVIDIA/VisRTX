@@ -37,10 +37,10 @@
 
 namespace visrtx {
 
-struct Curves : public Geometry
+struct Curve : public Geometry
 {
-  Curves(DeviceGlobalState *d);
-  ~Curves() override;
+  Curve(DeviceGlobalState *d);
+  ~Curve() override;
 
   void commit() override;
 
