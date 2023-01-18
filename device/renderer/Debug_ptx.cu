@@ -96,8 +96,20 @@ RT_FUNCTION void handleSurfaceHit()
   case DebugMethod::HAS_MATERIAL:
     rd.outColor = boolColor(rd.material);
     break;
-  case DebugMethod::SURFACE_COLOR:
-    rd.outColor = getMaterialParameter(frameData, rd.material->baseColor, rd);
+  case DebugMethod::GEOMETRY_ATTRIBUTE_0:
+    rd.outColor = readAttributeValue(0, rd);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_1:
+    rd.outColor = readAttributeValue(1, rd);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_2:
+    rd.outColor = readAttributeValue(2, rd);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_3:
+    rd.outColor = readAttributeValue(3, rd);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_COLOR:
+    rd.outColor = readAttributeValue(4, rd);
     break;
   default:
     rd.outColor = vec3(1.f);

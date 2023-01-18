@@ -59,8 +59,16 @@ static DebugMethod methodFromString(const std::string &name)
     return DebugMethod::IS_VOLUME;
   else if (name == "hasMaterial")
     return DebugMethod::HAS_MATERIAL;
-  else if (name == "surfaceColor")
-    return DebugMethod::SURFACE_COLOR;
+  else if (name == "geometry.attribute0")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_0;
+  else if (name == "geometry.attribute1")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_1;
+  else if (name == "geometry.attribute2")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_2;
+  else if (name == "geometry.attribute3")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_3;
+  else if (name == "geometry.color")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_COLOR;
   else
     return DebugMethod::BACKFACE;
 }
