@@ -67,9 +67,9 @@ extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetObjectFeatures(
       ANARI_STRING_LIST);
   if (list) {
     fillFeatureStruct(features, list);
-    return 0;
-  } else {
     return 1;
+  } else {
+    return 0;
   }
 }
 
@@ -86,9 +86,9 @@ extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetInstanceFeatures(
       ANARI_WAIT);
   if (list) {
     fillFeatureStruct(features, list);
-    return 0;
-  } else {
     return 1;
+  } else {
+    return 0;
   }
 }
 
