@@ -174,16 +174,16 @@ void Quad::generateIndices()
     auto *indicesOut = m_indices.dataHost();
     for (size_t i = 0; i < m_index->size(); i++) {
       auto idx = indicesIn[i];
-      indicesOut[2 * i + 0] = uvec3(idx.x, idx.y, idx.z);
-      indicesOut[2 * i + 1] = uvec3(idx.z, idx.w, idx.x);
+      indicesOut[2 * i + 0] = uvec3(idx.x, idx.y, idx.w);
+      indicesOut[2 * i + 1] = uvec3(idx.z, idx.w, idx.y);
     }
   } else {
     size_t numQuad = m_vertex->size() / 4;
     m_indices.resize(2 * numQuad);
     auto *indicesOut = m_indices.dataHost();
     for (size_t i = 0; i < numQuad; i++) {
-      indicesOut[2 * i + 0] = uvec3(4 * i) + uvec3(0, 1, 2);
-      indicesOut[2 * i + 1] = uvec3(4 * i) + uvec3(2, 3, 0);
+      indicesOut[2 * i + 0] = uvec3(4 * i) + uvec3(0, 1, 3);
+      indicesOut[2 * i + 1] = uvec3(4 * i) + uvec3(2, 3, 1);
     }
   }
 

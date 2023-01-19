@@ -139,10 +139,10 @@ RT_FUNCTION uvec3 decodeTriangleAttributeIndices(
 RT_FUNCTION uvec4 decodeQuadAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, uint32_t _primID)
 {
-  auto primID = (_primID / 2) * 2;
+  auto primID = _primID & ~0x1;
   auto i0 = ggd.quad.indices[primID + 0];
   auto i1 = ggd.quad.indices[primID + 1];
-  return uvec4(i0.x, i0.y, i0.z, i1.y);
+  return uvec4(i0.x, i0.y, i0.z, i1.x); // 0, 1, 3, 2
 }
 
 RT_FUNCTION uvec2 decodeCylinderAttributeIndices(
@@ -180,13 +180,15 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
       const uvec4 idx =
           decodeQuadAttributeIndices(ggd, attributeID, hit.primID);
       const vec3 b = hit.uvw;
-      auto v0 = getAttributeValue(ap, idx.x);
-      auto v1 = getAttributeValue(ap, idx.y);
-      auto v2 = getAttributeValue(ap, idx.z);
-      auto v3 = getAttributeValue(ap, idx.w);
-      auto l0 = mix(v3, v0, b.z);
-      auto l1 = mix(v2, v1, b.z);
-      return mix(l0, l1, b.x);
+      const auto v0 = getAttributeValue(ap, idx.x);
+      const auto v1 = getAttributeValue(ap, idx.y);
+      const auto v2 = getAttributeValue(ap, idx.w);
+      const auto v3 = getAttributeValue(ap, idx.z);
+      const float u = hit.primID & 0x1 ? b.y : 1.f - b.y;
+      const float v = hit.primID & 0x1 ? b.z : 1.f - b.z;
+      const auto l0 = v1 + (v0 - v1) * u;
+      const auto l1 = v2 + (v3 - v2) * u;
+      return l1 + (l0 - l1) * v;
     }
   } else if (ggd.type == GeometryType::CYLINDER) {
     const auto &ap = ggd.cylinder.vertexAttr[attributeID];
