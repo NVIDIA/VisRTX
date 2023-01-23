@@ -53,6 +53,13 @@ project(VisRTX VERSION 0.5.0 LANGUAGES C CXX CUDA)
 
 include(GNUInstallDirs)
 
+option(
+  VISRTX_SET_SOVERSION
+  "(Unix) Set the library SOVERSION propert and create namelinks?"
+  OFF
+)
+mark_as_advanced(VISRTX_SET_SOVERSION)
+
 ## Dependencies ###############################################################
 
 # ANARI-SDK
@@ -83,9 +90,15 @@ add_subdirectory(tools)
 
 ## Configure CMake find_package() config files ################################
 
-set(VISRTX_CMAKE_INSTALL_DESTINATION
-  ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
-)
+if (VISRTX_SET_SOVERSION)
+  set(VISRTX_CMAKE_INSTALL_DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
+  )
+else()
+  set(VISRTX_CMAKE_INSTALL_DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  )
+endif()
 
 install(EXPORT VisRTX_Exports
   DESTINATION ${VISRTX_CMAKE_INSTALL_DESTINATION}
