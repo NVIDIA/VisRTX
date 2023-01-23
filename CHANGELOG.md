@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.0
+##### TBD
+
 ## 0.5.0
 ##### 2023-01-23
 - Update to latest ANARI SDK v0.3.0
