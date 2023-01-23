@@ -31,13 +31,14 @@
 
 #pragma once
 
+#include "../space_skipping/UniformGrid.h"
 #include "RegisteredObject.h"
 
 namespace visrtx {
 
 struct SpatialField : public RegisteredObject<SpatialFieldGPUData>
 {
-  SpatialField() = default;
+  SpatialField(DeviceGlobalState *d);
   ~SpatialField() = default;
 
   virtual box3 bounds() const = 0;
@@ -48,6 +49,8 @@ struct SpatialField : public RegisteredObject<SpatialFieldGPUData>
 
   static SpatialField *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
+
+  UniformGrid m_uniformGrid;
 };
 
 } // namespace visrtx

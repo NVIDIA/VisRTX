@@ -49,14 +49,21 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-project(VisRTX VERSION 0.4.0 LANGUAGES C CXX CUDA)
+project(VisRTX VERSION 0.5.0 LANGUAGES C CXX CUDA)
 
 include(GNUInstallDirs)
+
+option(
+  VISRTX_SET_SOVERSION
+  "(Unix) Set the library SOVERSION propert and create namelinks?"
+  OFF
+)
+mark_as_advanced(VISRTX_SET_SOVERSION)
 
 ## Dependencies ###############################################################
 
 # ANARI-SDK
-set(ANARI_REQUIRED_VERSION 0.2.0)
+set(ANARI_REQUIRED_VERSION 0.3.0)
 find_package(anari ${ANARI_REQUIRED_VERSION} EXACT REQUIRED)
 
 # glm (locally included)
@@ -79,12 +86,19 @@ enable_testing()
 add_subdirectory(device)
 add_subdirectory(examples)
 add_subdirectory(tests)
+add_subdirectory(tools)
 
 ## Configure CMake find_package() config files ################################
 
-set(VISRTX_CMAKE_INSTALL_DESTINATION
-  ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
-)
+if (VISRTX_SET_SOVERSION)
+  set(VISRTX_CMAKE_INSTALL_DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
+  )
+else()
+  set(VISRTX_CMAKE_INSTALL_DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  )
+endif()
 
 install(EXPORT VisRTX_Exports
   DESTINATION ${VISRTX_CMAKE_INSTALL_DESTINATION}

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0
+##### 2023-01-23
+- Update to latest ANARI SDK v0.3.0
+- Added support for `curve` geometry subtype
+- Added support `image1D` sampler subtype
+- Added support for `primitive.index` on `sphere` geometry
+- Added support for missing array types for image samplers
+- Added volume scattering in `dpt` renderer
+- Added tool (`visrtxCompileShaders`) for precompiling OptiX shaders offline
+- Improved robustness around object subtypes unknown to VisRTX
+- Improved object leak warnings on device release
+- Moved ambient lighting from being a light subtype into renderer parameters
+- Fix incorrect handling of managed arrays of objects
+- Fix performance bug with rays repeatedly not exiting volumes
+
 ## 0.4.0
 ##### 2022-07-22
 - Update to latest ANARI SDK v0.2.0

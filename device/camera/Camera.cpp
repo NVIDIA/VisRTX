@@ -33,6 +33,7 @@
 // specific types
 #include "Orthographic.h"
 #include "Perspective.h"
+#include "UnknownCamera.h"
 
 namespace visrtx {
 
@@ -43,7 +44,7 @@ size_t Camera::objectCount()
   return s_numCameras;
 }
 
-Camera::Camera()
+Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s)
 {
   s_numCameras++;
 }
@@ -55,18 +56,17 @@ Camera::~Camera()
 
 Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  Camera *retval = nullptr;
-
   if (subtype == "perspective")
-    retval = new Perspective();
+    return new Perspective(d);
   else if (subtype == "orthographic")
-    retval = new Orthographic();
+    return new Orthographic(d);
+  else
+    return new UnknownCamera(d);
+}
 
-  if (!retval)
-    throw std::runtime_error("could not create camera");
-
-  retval->setDeviceState(d);
-  return retval;
+void *Camera::deviceData() const
+{
+  return DeviceObject<CameraGPUData>::deviceData();
 }
 
 void Camera::readBaseParameters(CameraGPUData &hd)

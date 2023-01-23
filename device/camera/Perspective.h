@@ -32,14 +32,12 @@
 #pragma once
 
 #include "camera/Camera.h"
-#include "utility/DeviceObject.h"
 
 namespace visrtx {
 
-struct Perspective : public DeviceObject<PerspectiveCameraGPUData, Camera>
+struct Perspective : public Camera
 {
-  Perspective() = default;
-
+  Perspective(DeviceGlobalState *d);
   void commit() override;
 };
 

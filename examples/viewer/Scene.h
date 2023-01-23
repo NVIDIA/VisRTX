@@ -57,6 +57,7 @@ enum SceneTypes
   RANDOM_SPHERES,
   RANDOM_CYLINDERS,
   RANDOM_CONES,
+  STREAMLINES,
   NOISE_VOLUME,
   GRAVITY_VOLUME,
   OBJ_FILE
@@ -91,6 +92,11 @@ struct ConesConfig : public Config
   bool caps{true};
 };
 
+struct CurvesConfig : public Config
+{
+  // Nothing
+};
+
 struct VolumeConfig : public Config
 {
   int size{64};
@@ -118,6 +124,7 @@ struct ObjFileConfig : public Config
 using SceneConfig = std::variant<SpheresConfig,
     CylindersConfig,
     ConesConfig,
+    CurvesConfig,
     NoiseVolumeConfig,
     GravityVolumeConfig,
     ObjFileConfig>;

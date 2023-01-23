@@ -37,17 +37,12 @@ namespace visrtx {
 
 struct DiffusePathTracer : public Renderer
 {
-  DiffusePathTracer() = default;
+  DiffusePathTracer(DeviceGlobalState *s);
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
 
   static ptx_ptr ptx();
-
-  static const void *getParameterInfo(std::string_view parameterName,
-      ANARIDataType parameterType,
-      std::string_view infoName,
-      ANARIDataType infoType);
 
  private:
   int m_maxDepth{0};

@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct Matte : public Material
 {
-  Matte() = default;
+  Matte(DeviceGlobalState *d);
 
   void commit() override;
 
@@ -45,7 +45,7 @@ struct Matte : public Material
   MaterialGPUData gpuData() const override;
 
   vec3 m_color{1.f};
-  anari::IntrusivePtr<Sampler> m_colorSampler;
+  helium::IntrusivePtr<Sampler> m_colorSampler;
   std::string m_colorAttribute;
 };
 

@@ -43,7 +43,7 @@ struct Group : public Object
 {
   static size_t objectCount();
 
-  Group();
+  Group(DeviceGlobalState *d);
   ~Group() override;
 
   bool getProperty(const std::string_view &name,
@@ -54,15 +54,18 @@ struct Group : public Object
   void commit() override;
 
   OptixTraversableHandle optixTraversableTriangle() const;
+  OptixTraversableHandle optixTraversableCurve() const;
   OptixTraversableHandle optixTraversableUser() const;
   OptixTraversableHandle optixTraversableVolume() const;
 
   bool containsTriangleGeometry() const;
+  bool containsCurveGeometry() const;
   bool containsUserGeometry() const;
   bool containsVolumes() const;
   bool containsLights() const;
 
   anari::Span<const DeviceObjectIndex> surfaceTriangleGPUIndices() const;
+  anari::Span<const DeviceObjectIndex> surfaceCurveGPUIndices() const;
   anari::Span<const DeviceObjectIndex> surfaceUserGPUIndices() const;
   anari::Span<const DeviceObjectIndex> volumeGPUIndices() const;
   anari::Span<const DeviceObjectIndex> lightGPUIndices() const;
@@ -74,7 +77,9 @@ struct Group : public Object
   void markCommitted() override;
 
  private:
-  void partitionGeometriesByType();
+  void partitionValidGeometriesByType();
+  void partitionValidVolumes();
+  void partitionValidLights();
   void buildSurfaceGPUData();
   void buildVolumeGPUData();
   void buildLightGPUData();
@@ -82,26 +87,28 @@ struct Group : public Object
 
   // Geometry //
 
-  anari::IntrusivePtr<ObjectArray> m_surfaceData;
+  helium::IntrusivePtr<ObjectArray> m_surfaceData;
   anari::Span<Surface *> m_surfaces;
 
   std::vector<Surface *> m_surfacesTriangle;
+  std::vector<Surface *> m_surfacesCurve;
   std::vector<Surface *> m_surfacesUser;
 
   DeviceBuffer m_surfaceTriangleObjectIndices;
+  DeviceBuffer m_surfaceCurveObjectIndices;
   DeviceBuffer m_surfaceUserObjectIndices;
 
   // Volume //
 
-  anari::IntrusivePtr<ObjectArray> m_volumeData;
-  anari::Span<Volume *> m_volumes;
+  helium::IntrusivePtr<ObjectArray> m_volumeData;
+  std::vector<Volume *> m_volumes;
 
   DeviceBuffer m_volumeObjectIndices;
 
   // Light //
 
-  anari::IntrusivePtr<ObjectArray> m_lightData;
-  anari::Span<Light *> m_lights;
+  helium::IntrusivePtr<ObjectArray> m_lightData;
+  std::vector<Light *> m_lights;
 
   DeviceBuffer m_lightObjectIndices;
 
@@ -109,17 +116,21 @@ struct Group : public Object
 
   struct ObjectUpdates
   {
-    TimeStamp lastSurfaceBVHBuilt{0};
-    TimeStamp lastVolumeBVHBuilt{0};
-    TimeStamp lastLightRebuild{0};
+    helium::TimeStamp lastSurfaceBVHBuilt{0};
+    helium::TimeStamp lastVolumeBVHBuilt{0};
+    helium::TimeStamp lastLightRebuild{0};
   } m_objectUpdates;
 
   box3 m_triangleBounds;
+  box3 m_curveBounds;
   box3 m_userBounds;
   box3 m_volumeBounds;
 
   OptixTraversableHandle m_traversableTriangle{};
   DeviceBuffer m_bvhTriangle;
+
+  OptixTraversableHandle m_traversableCurve{};
+  DeviceBuffer m_bvhCurve;
 
   OptixTraversableHandle m_traversableUser{};
   DeviceBuffer m_bvhUser;

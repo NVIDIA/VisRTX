@@ -40,30 +40,24 @@ namespace visrtx {
 static void refIncObject(Object *obj)
 {
   if (obj)
-    obj->refInc(anari::RefType::INTERNAL);
+    obj->refInc(helium::RefType::INTERNAL);
 }
 
 static void refDecObject(Object *obj)
 {
   if (obj)
-    obj->refDec(anari::RefType::INTERNAL);
+    obj->refDec(helium::RefType::INTERNAL);
 }
 
 // ObjectArray definitions ////////////////////////////////////////////////////
 
-ObjectArray::ObjectArray(const void *appMemory,
-    ANARIMemoryDeleter deleter,
-    const void *deleterPtr,
-    ANARIDataType type,
-    uint64_t numItems,
-    uint64_t byteStride)
-    : Array(appMemory, deleter, deleterPtr, type),
-      m_capacity(numItems),
-      m_end(numItems)
+ObjectArray::ObjectArray(
+    DeviceGlobalState *state, const Array1DMemoryDescriptor &d)
+    : Array(ANARI_ARRAY1D, state, d), m_capacity(d.numItems), m_end(d.numItems)
 {
-  if (byteStride != 0)
+  if (d.byteStride != 0)
     throw std::runtime_error("strided arrays not yet supported!");
-  m_appHandles.resize(numItems, nullptr);
+  m_appHandles.resize(d.numItems, nullptr);
   initManagedMemory();
   updateInternalHandleArrays();
   markDataModified();
@@ -103,11 +97,6 @@ void ObjectArray::commit()
   }
 }
 
-ArrayShape ObjectArray::shape() const
-{
-  return ArrayShape::ARRAY1D;
-}
-
 size_t ObjectArray::totalSize() const
 {
   return size() + m_appendedHandles.size();
@@ -133,6 +122,19 @@ void ObjectArray::privatize()
   }
 }
 
+void ObjectArray::unmap()
+{
+  if (!m_mapped) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "array unmapped again without being previously mapped");
+    return;
+  }
+  m_mapped = false;
+  updateInternalHandleArrays();
+  markDataModified();
+  notifyCommitObservers();
+}
+
 Object **ObjectArray::handlesBegin(bool uploadData) const
 {
   if (uploadData)
@@ -152,7 +154,7 @@ void *ObjectArray::deviceData() const
 
 void ObjectArray::appendHandle(Object *o)
 {
-  o->refInc(anari::RefType::INTERNAL);
+  o->refInc(helium::RefType::INTERNAL);
   m_appendedHandles.push_back(o);
   markDataModified();
 }
@@ -160,8 +162,8 @@ void ObjectArray::appendHandle(Object *o)
 void ObjectArray::removeAppendedHandles()
 {
   m_liveHandles.resize(size());
-  for (auto o : m_appendedHandles)
-    o->refDec(anari::RefType::INTERNAL);
+  std::for_each(
+      m_appendedHandles.begin(), m_appendedHandles.end(), refDecObject);
   m_appendedHandles.clear();
   markDataModified();
 }
@@ -177,9 +179,9 @@ void ObjectArray::uploadArrayData() const
 
   const auto type = elementType();
   if (type == ANARI_INSTANCE)
-    state.objectUpdates.lastTLASChange = newTimeStamp();
+    state.objectUpdates.lastTLASChange = helium::newTimeStamp();
   else if (type == ANARI_SURFACE || type == ANARI_VOLUME)
-    state.objectUpdates.lastBLASChange = newTimeStamp();
+    state.objectUpdates.lastBLASChange = helium::newTimeStamp();
 
   m_GPUDataHost.resize(totalSize());
 

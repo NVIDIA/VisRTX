@@ -31,10 +31,8 @@
 
 #pragma once
 
-// anari
-#include "anari/backend/DeviceImpl.h"
-#include "anari/backend/utilities/IntrusivePtr.h"
-#include "anari/backend/utilities/ParameterizedObject.h"
+// helium
+#include "helium/BaseDevice.h"
 // optix
 #include "optix_visrtx.h"
 
@@ -42,9 +40,7 @@
 
 namespace visrtx {
 
-struct VisRTXDevice : public anari::DeviceImpl,
-                      public anari::RefCounted,
-                      public anari::ParameterizedObject
+struct VisRTXDevice : public helium::BaseDevice
 {
   /////////////////////////////////////////////////////////////////////////////
   // Main interface to accepting API calls
@@ -119,18 +115,6 @@ struct VisRTXDevice : public anari::DeviceImpl,
       uint64_t size,
       uint32_t mask) override;
 
-  void setParameter(ANARIObject object,
-      const char *name,
-      ANARIDataType type,
-      const void *mem) override;
-
-  void unsetParameter(ANARIObject object, const char *name) override;
-
-  void commitParameters(ANARIObject object) override;
-
-  void release(ANARIObject _obj) override;
-  void retain(ANARIObject _obj) override;
-
   // FrameBuffer Manipulation /////////////////////////////////////////////////
 
   ANARIFrame newFrame() override;
@@ -140,8 +124,6 @@ struct VisRTXDevice : public anari::DeviceImpl,
       uint32_t *width,
       uint32_t *height,
       ANARIDataType *pixelType) override;
-
-  void frameBufferUnmap(ANARIFrame fb, const char *channel) override;
 
   // Frame Rendering //////////////////////////////////////////////////////////
 
@@ -155,12 +137,9 @@ struct VisRTXDevice : public anari::DeviceImpl,
   // Helper/other functions and data members
   /////////////////////////////////////////////////////////////////////////////
 
-  VisRTXDevice() = default;
+  VisRTXDevice(ANARIStatusCallback defaultCallback, const void *userPtr);
   VisRTXDevice(ANARILibrary);
   ~VisRTXDevice() override;
-
-  template <typename... Args>
-  void reportMessage(ANARIStatusSeverity, const char *fmt, Args &&...args);
 
   void initDevice();
 
@@ -174,31 +153,18 @@ struct VisRTXDevice : public anari::DeviceImpl,
     VisRTXDevice *m_device{nullptr};
   };
 
-  void deviceSetParameter(const char *id, ANARIDataType type, const void *mem);
-  void deviceUnsetParameter(const char *id);
-  void deviceCommitParameters();
+  void deviceCommitParameters() override;
 
   void setCUDADevice();
   void revertCUDADevice();
 
-  std::unique_ptr<DeviceGlobalState> m_state;
+  DeviceGlobalState *deviceState() const;
+
   int m_gpuID{-1};
   int m_desiredGpuID{0};
   int m_appGpuID{-1};
   bool m_eagerInit{false};
-
-  ANARIStatusCallback m_statusCB{nullptr};
-  const void *m_statusCBUserPtr{nullptr};
+  bool m_initialized{false};
 };
-
-// Inlined definitions ////////////////////////////////////////////////////////
-
-template <typename... Args>
-inline void VisRTXDevice::reportMessage(
-    ANARIStatusSeverity severity, const char *fmt, Args &&...args)
-{
-  auto msg = string_printf(fmt, std::forward<Args>(args)...);
-  m_state->messageFunction(severity, msg, this);
-}
 
 } // namespace visrtx

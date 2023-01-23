@@ -35,6 +35,8 @@
 
 namespace visrtx {
 
+Raycast::Raycast(DeviceGlobalState *s) : Renderer(s) {}
+
 OptixModule Raycast::optixModule() const
 {
   return deviceState()->rendererModules.raycast;

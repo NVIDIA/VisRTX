@@ -48,6 +48,28 @@ namespace visrtx {
 // Utility functions //////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+RT_FUNCTION float atomicMinf(float *address, float val)
+{
+  int ret = __float_as_int(*address);
+  while (val < __int_as_float(ret)) {
+    int old = ret;
+    if ((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+      break;
+  }
+  return __int_as_float(ret);
+}
+
+RT_FUNCTION float atomicMaxf(float *address, float val)
+{
+  int ret = __float_as_int(*address);
+  while (val > __int_as_float(ret)) {
+    int old = ret;
+    if ((ret = atomicCAS((int *)address, old, __float_as_int(val))) == old)
+      break;
+  }
+  return __int_as_float(ret);
+}
+
 template <typename T_OUT, typename T_IN>
 RT_FUNCTION T_OUT bit_cast(T_IN v)
 {
@@ -146,6 +168,20 @@ RT_FUNCTION vec3 randomDir(RandState &rs, const vec3 &normal)
   return dot(dir, normal) > 0.f ? dir : -dir;
 }
 
+RT_FUNCTION vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
+{
+  // sample unit sphere
+  const float cost = 1.f - 2.f * curand_uniform(&rs);
+  const float sint = sqrtf(fmaxf(0.f, 1.f - cost * cost));
+  const float phi = 2.f * M_PI * curand_uniform(&rs);
+  // make ortho basis and transform to ray-centric coordinates:
+  const vec3 w = normal;
+  const vec3 v = fabsf(w.x) > fabsf(w.y) ? normalize(vec3(-w.z, 0.f, w.x))
+                                         : normalize(vec3(0.f, w.z, -w.y));
+  const vec3 u = cross(v, w);
+  return normalize(sint * cosf(phi) * u + sint * sinf(phi) * v + cost * -w);
+}
+
 #define ulpEpsilon 0x1.fp-21
 
 RT_FUNCTION float epsilonFrom(const vec3 &P, const vec3 &dir, float t)
@@ -157,6 +193,16 @@ RT_FUNCTION bool pixelOutOfFrame(
     const uvec2 &pixel, const FramebufferGPUData &fb)
 {
   return pixel.x >= fb.size.x || pixel.y >= fb.size.y;
+}
+
+RT_FUNCTION bool isFirstPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+{
+  return pixel.x == 0 && pixel.y == 0;
+}
+
+RT_FUNCTION bool isMiddelPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+{
+  return pixel.x == (fb.size.x / 2) && pixel.y == (fb.size.y / 2);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -192,10 +238,11 @@ RT_FUNCTION void writeOutputColor(
     const FramebufferGPUData &fb, const vec4 &color, uint32_t idx)
 {
   const auto c = color * fb.invFrameID;
-  if (fb.format == FrameFormat::SRGB)
-    fb.buffers.outColorUint[idx] = cvt_uint32(glm::convertLinearToSRGB(c));
-  else if (fb.format == FrameFormat::UINT)
-    fb.buffers.outColorUint[idx] = cvt_uint32(c);
+  if (fb.format == FrameFormat::SRGB) {
+    fb.buffers.outColorUint[idx] =
+        glm::packUnorm4x8(glm::convertLinearToSRGB(c));
+  } else if (fb.format == FrameFormat::UINT)
+    fb.buffers.outColorUint[idx] = glm::packUnorm4x8(c);
   else
     fb.buffers.outColorVec4[idx] = c;
 }

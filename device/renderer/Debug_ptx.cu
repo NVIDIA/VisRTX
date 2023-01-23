@@ -29,84 +29,136 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Debug.h"
+#include "DebugMethod.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
 
 enum class RayType
 {
-  SURFACE,
-  VOLUME
+  DEBUG
 };
 
-struct RayData
+struct SurfaceRayData : public SurfaceHit
 {
   vec3 outColor{0.f};
-  Hit hit{};
 };
 
-struct VolumeRayData
+struct VolumeRayData : public VolumeHit
 {
   vec3 outColor{0.f};
-  VolumeHit hit{};
 };
 
 DECLARE_FRAME_DATA(frameData)
 
-RT_PROGRAM void __closesthit__surface()
+RT_FUNCTION void handleSurfaceHit()
 {
-  auto &rd = ray::rayData<RayData>();
+  auto &rd = ray::rayData<SurfaceRayData>();
+  ray::populateSurfaceHit(rd);
 
-  ray::populateSurfaceHit(rd.hit);
-
-  auto method =
-      static_cast<Debug::Method>(frameData.renderer.params.debug.method);
-
-  ray::computeNormal(*rd.hit.geometry, ray::primID(), rd.hit);
+  const auto method =
+      static_cast<DebugMethod>(frameData.renderer.params.debug.method);
 
   switch (method) {
-  case Debug::Method::PRIM_ID:
+  case DebugMethod::PRIM_ID:
     rd.outColor = makeRandomColor(ray::primID());
     break;
-  case Debug::Method::GEOM_ID:
+  case DebugMethod::GEOM_ID:
     rd.outColor = makeRandomColor(ray::objID());
     break;
-  case Debug::Method::INST_ID:
+  case DebugMethod::INST_ID:
     rd.outColor = makeRandomColor(ray::instID());
     break;
-  case Debug::Method::RAY_UVW:
-    rd.outColor = ray::uvw();
+  case DebugMethod::RAY_UVW:
+    rd.outColor = ray::uvw(rd.geometry->type);
     break;
-  case Debug::Method::IS_TRIANGLE:
-    rd.outColor = boolColor(rd.hit.geometry->type == GeometryType::TRIANGLE);
+  case DebugMethod::IS_TRIANGLE:
+    rd.outColor = boolColor(rd.geometry->type == GeometryType::TRIANGLE);
     break;
-  case Debug::Method::BACKFACE:
+  case DebugMethod::IS_VOLUME:
+    rd.outColor = boolColor(false);
+    break;
+  case DebugMethod::BACKFACE:
     rd.outColor = boolColor(optixIsFrontFaceHit());
     break;
-  case Debug::Method::NG:
-    rd.outColor = rd.hit.Ng;
+  case DebugMethod::NG:
+    rd.outColor = rd.Ng;
     break;
-  case Debug::Method::NG_ABS:
-    rd.outColor = abs(rd.hit.Ng);
+  case DebugMethod::NG_ABS:
+    rd.outColor = abs(rd.Ng);
     break;
-  case Debug::Method::NS:
-    rd.outColor = rd.hit.Ns;
+  case DebugMethod::NS:
+    rd.outColor = rd.Ns;
     break;
-  case Debug::Method::NS_ABS:
-    rd.outColor = abs(rd.hit.Ns);
+  case DebugMethod::NS_ABS:
+    rd.outColor = abs(rd.Ns);
     break;
-  default: {
+  case DebugMethod::HAS_MATERIAL:
+    rd.outColor = boolColor(rd.material);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_0:
+    rd.outColor = readAttributeValue(0, rd);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_1:
+    rd.outColor = readAttributeValue(1, rd);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_2:
+    rd.outColor = readAttributeValue(2, rd);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_3:
+    rd.outColor = readAttributeValue(3, rd);
+    break;
+  case DebugMethod::GEOMETRY_ATTRIBUTE_COLOR:
+    rd.outColor = readAttributeValue(4, rd);
+    break;
+  default:
     rd.outColor = vec3(1.f);
     break;
   }
+
+  const auto c = rd.outColor * glm::abs(glm::dot(ray::direction(), rd.Ns));
+  rd.outColor = glm::mix(rd.outColor, c, 0.5f);
+}
+
+RT_FUNCTION void handleVolumeHit()
+{
+  auto &rd = ray::rayData<VolumeRayData>();
+  ray::populateVolumeHit(rd);
+
+  const auto method =
+      static_cast<DebugMethod>(frameData.renderer.params.debug.method);
+
+  switch (method) {
+  case DebugMethod::PRIM_ID:
+    rd.outColor = makeRandomColor(ray::primID());
+    break;
+  case DebugMethod::GEOM_ID:
+    rd.outColor = makeRandomColor(ray::objID());
+    break;
+  case DebugMethod::INST_ID:
+    rd.outColor = makeRandomColor(ray::instID());
+    break;
+  case DebugMethod::IS_TRIANGLE:
+    rd.outColor = boolColor(false);
+    break;
+  case DebugMethod::IS_VOLUME:
+    rd.outColor = boolColor(true);
+    break;
+  case DebugMethod::BACKFACE:
+    rd.outColor = boolColor(optixIsFrontFaceHit());
+    break;
+  default:
+    rd.outColor = vec3(1.f);
+    break;
   }
 }
 
-RT_PROGRAM void __closesthit__volume()
+RT_PROGRAM void __closesthit__()
 {
-  auto &vrd = ray::rayData<VolumeRayData>();
-  ray::populateVolumeHit(vrd.hit);
+  if (ray::isIntersectingSurfaces())
+    handleSurfaceHit();
+  else
+    handleVolumeHit();
 }
 
 RT_PROGRAM void __miss__()
@@ -124,37 +176,31 @@ RT_PROGRAM void __raygen__()
   auto ray = makePrimaryRay(ss);
   /////////////////////////////////////////////////////////////////////////////
 
-  auto method =
-      static_cast<Debug::Method>(frameData.renderer.params.debug.method);
-  if (method == Debug::Method::IS_VOLUME) {
-    VolumeRayData vrd{};
-    intersectVolume(ss, ray, RayType::VOLUME, &vrd);
-    if (vrd.hit.foundHit) {
-      accumResults(frameData.fb,
-          ss.pixel,
-          vec4(boolColor(true), 1.f),
-          vrd.hit.localRay.t.lower,
-          vec3(boolColor(true)),
-          -ray.dir);
-      return;
-    }
-  } else {
-    RayData rd{};
-    intersectSurface(ss, ray, RayType::SURFACE, &rd);
-    if (rd.hit.foundHit) {
-      accumResults(frameData.fb,
-          ss.pixel,
-          vec4(rd.outColor, 1.f),
-          rd.hit.t,
-          vec3(rd.outColor),
-          rd.hit.Ng);
-      return;
-    }
+  auto color = vec3(frameData.renderer.bgColor);
+  auto depth = ray.t.upper;
+  auto normal = ray.dir;
+
+  SurfaceRayData srd{};
+  intersectSurface(ss, ray, RayType::DEBUG, &srd);
+
+  VolumeRayData vrd{};
+  intersectVolume(ss, ray, RayType::DEBUG, &vrd);
+
+  if (srd.foundHit && vrd.foundHit) {
+    color = srd.t < vrd.localRay.t.lower ? srd.outColor : vrd.outColor;
+    depth = min(srd.t, vrd.localRay.t.lower);
+    normal = srd.t < vrd.localRay.t.lower ? srd.Ng : -ray.dir;
+  } else if (srd.foundHit) {
+    color = srd.outColor;
+    depth = srd.t;
+    normal = srd.Ng;
+  } else if (vrd.foundHit) {
+    color = vrd.outColor;
+    depth = vrd.localRay.t.lower;
+    normal = -ray.dir;
   }
 
-  auto color = frameData.renderer.bgColor;
-  accumResults(
-      frameData.fb, ss.pixel, color, ray.t.upper, vec3(color), ray.dir);
+  accumResults(frameData.fb, ss.pixel, vec4(color, 1.f), depth, color, normal);
 }
 
 } // namespace visrtx

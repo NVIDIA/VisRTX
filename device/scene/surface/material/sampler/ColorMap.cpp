@@ -36,6 +36,8 @@
 
 namespace visrtx {
 
+ColorMap::ColorMap(DeviceGlobalState *d) : Sampler(d) {}
+
 ColorMap::~ColorMap()
 {
   cleanup();
@@ -104,6 +106,8 @@ void ColorMap::commit()
   texDesc.normalizedCoords = 1;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
+
+  upload();
 }
 
 SamplerGPUData ColorMap::gpuData() const
@@ -118,6 +122,11 @@ SamplerGPUData ColorMap::gpuData() const
 int ColorMap::numChannels() const
 {
   return 3;
+}
+
+bool ColorMap::isValid() const
+{
+  return m_params.color;
 }
 
 void ColorMap::discritizeTFData()

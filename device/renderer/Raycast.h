@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct Raycast : public Renderer
 {
-  Raycast() = default;
+  Raycast(DeviceGlobalState *s);
   OptixModule optixModule() const override;
 
   static ptx_ptr ptx();

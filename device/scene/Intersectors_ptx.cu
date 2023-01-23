@@ -67,9 +67,12 @@ RT_FUNCTION void intersectSphere(const GeometryGPUData &geometryData)
 {
   const auto &sphereData = geometryData.sphere;
 
-  auto center = sphereData.centers[ray::primID()];
-  auto radius =
-      sphereData.radii ? sphereData.radii[ray::primID()] : sphereData.radius;
+  const auto primID =
+      sphereData.indices ? sphereData.indices[ray::primID()] : ray::primID();
+
+  const auto center = sphereData.centers[primID];
+  const auto radius =
+      sphereData.radii ? sphereData.radii[primID] : sphereData.radius;
 
   const vec3 d = ray::localDirection();
   const float rd2 = 1.f / dot(d, d);
@@ -80,7 +83,7 @@ RT_FUNCTION void intersectSphere(const GeometryGPUData &geometryData)
   const float r2 = radius * radius;
   if (l2 > r2)
     return;
-  float td = glm::sqrt((r2 - l2) * rd2);
+  const float td = glm::sqrt((r2 - l2) * rd2);
   reportIntersection(projCO - td);
 }
 
@@ -154,6 +157,10 @@ RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
 
 RT_FUNCTION void intersectVolume()
 {
+  auto &hit = ray::rayData<VolumeHit>();
+  if (hit.volID == ray::primID() && hit.instID == ray::instID())
+    return;
+
   const auto &ss = ray::screenSample();
   const auto &frameData = *ss.frameData;
   const auto &volumeData = ray::volumeData(frameData);

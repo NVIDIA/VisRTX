@@ -67,6 +67,12 @@ static cudaChannelFormatKind cudaChannelFormatFromANARI(ANARIDataType format)
   }
 }
 
+// StructuredRegularField definitions /////////////////////////////////////////
+
+StructuredRegularField::StructuredRegularField(DeviceGlobalState *d)
+    : SpatialField(d)
+{}
+
 StructuredRegularField::~StructuredRegularField()
 {
   cleanup();
@@ -78,7 +84,7 @@ void StructuredRegularField::commit()
 
   m_params.origin = getParam<vec3>("origin", vec3(0.f));
   m_params.spacing = getParam<vec3>("spacing", vec3(1.f));
-  m_params.filter = getParam<std::string>("filter", "linear");
+  m_params.filter = getParamString("filter", "linear");
   m_params.data = getParamObject<Array3D>("data");
 
   if (!m_params.data) {
@@ -131,6 +137,10 @@ void StructuredRegularField::commit()
   texDesc.normalizedCoords = 1;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
+
+  buildGrid();
+
+  upload();
 }
 
 box3 StructuredRegularField::bounds() const
@@ -145,6 +155,11 @@ float StructuredRegularField::stepSize() const
   return glm::compMin(m_params.spacing / 2.f);
 }
 
+bool StructuredRegularField::isValid() const
+{
+  return m_params.data && validDataType(m_params.data->elementType());
+}
+
 SpatialFieldGPUData StructuredRegularField::gpuData() const
 {
   SpatialFieldGPUData sf;
@@ -154,6 +169,7 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.data.structuredRegular.origin = m_params.origin;
   sf.data.structuredRegular.invSpacing =
       vec3(1.f) / (m_params.spacing * vec3(dims));
+  sf.grid = m_uniformGrid.gpuData();
   return sf;
 }
 
@@ -167,6 +183,7 @@ void StructuredRegularField::cleanup()
   m_cudaArray = {};
   if (m_params.data)
     m_params.data->removeCommitObserver(this);
+  m_uniformGrid.cleanup();
 }
 
 } // namespace visrtx

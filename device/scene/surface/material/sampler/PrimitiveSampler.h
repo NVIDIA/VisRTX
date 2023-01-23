@@ -38,17 +38,19 @@ namespace visrtx {
 
 struct PrimitiveSampler : public Sampler
 {
-  PrimitiveSampler() = default;
+  PrimitiveSampler(DeviceGlobalState *d);
   ~PrimitiveSampler() = default;
 
   void commit() override;
 
   int numChannels() const override;
 
+  bool isValid() const override;
+
  private:
   SamplerGPUData gpuData() const override;
 
-  anari::IntrusivePtr<Array1D> m_data;
+  helium::IntrusivePtr<Array1D> m_data;
   AttributePtr m_ap;
 };
 

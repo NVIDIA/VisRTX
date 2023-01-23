@@ -34,32 +34,27 @@
 #include "Matte.h"
 #include "PBR.h"
 #include "TransparentMatte.h"
+#include "UnknownMaterial.h"
 
 namespace visrtx {
 
-Material::Material()
+Material::Material(DeviceGlobalState *s)
+    : RegisteredObject<MaterialGPUData>(ANARI_MATERIAL, s)
 {
-  setCommitPriority(VISRTX_COMMIT_PRIORITY_MATERIAL);
+  setRegistry(s->registry.materials);
 }
 
 Material *Material::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
-  Material *retval = nullptr;
-
   if (subtype == "matte")
-    retval = new Matte;
+    return new Matte(d);
   else if (subtype == "transparentMatte")
-    retval = new TransparentMatte;
+    return new TransparentMatte(d);
   else if (subtype == "pbr")
-    retval = new PBR;
-
-  if (!retval)
-    throw std::runtime_error("could not create material");
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.materials);
-  return retval;
+    return new PBR(d);
+  else
+    return new UnknownMaterial(d);
 }
 
 } // namespace visrtx

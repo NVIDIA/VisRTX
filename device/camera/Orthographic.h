@@ -32,14 +32,12 @@
 #pragma once
 
 #include "camera/Camera.h"
-#include "utility/DeviceObject.h"
 
 namespace visrtx {
 
-struct Orthographic : public DeviceObject<OrthographicCameraGPUData, Camera>
+struct Orthographic : public Camera
 {
-  Orthographic() = default;
-
+  Orthographic(DeviceGlobalState *d);
   void commit() override;
 };
 

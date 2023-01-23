@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct Point : public Light
 {
-  Point() = default;
+  Point(DeviceGlobalState *d);
 
   void commit() override;
 

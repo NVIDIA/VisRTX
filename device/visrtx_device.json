@@ -9,6 +9,7 @@
       "khr_camera_orthographic",
       "khr_camera_perspective",
       "khr_geometry_cone",
+      "khr_geometry_curve",
       "khr_geometry_cylinder",
       "khr_geometry_quad",
       "khr_geometry_sphere",
@@ -17,6 +18,7 @@
       "khr_light_point",
       "khr_material_matte",
       "khr_material_transparent_matte",
+      "khr_sampler_image1d",
       "khr_sampler_image2d",
       "khr_spatial_field_structured_regular",
       "khr_volume_scivis",
@@ -194,7 +196,21 @@
     },
     {
       "type": "ANARI_RENDERER",
-      "name": "pathtracer",
+      "name": "dpt",
+      "parameters": [
+        {
+          "name": "name",
+          "types": [
+            "ANARI_STRING"
+          ],
+          "tags": [],
+          "description": "optional object name"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_RENDERER",
+      "name": "raycast",
       "parameters": [
         {
           "name": "name",
@@ -284,43 +300,6 @@
             "isvol"
           ],
           "description": "debug visualization mode"
-        }
-      ]
-    },
-    {
-      "type": "ANARI_RENDERER",
-      "name": "raycast",
-      "parameters": [
-        {
-          "name": "name",
-          "types": [
-            "ANARI_STRING"
-          ],
-          "tags": [],
-          "description": "optional object name"
-        },
-        {
-          "name": "backgroundColor",
-          "types": [
-            "ANARI_FLOAT32_VEC4"
-          ],
-          "tags": [],
-          "default": [
-            1.0,
-            1.0,
-            1.0,
-            1.0
-          ],
-          "description": "background color and alpha (RGBA)"
-        },
-        {
-          "name": "pixelSamples",
-          "types": [
-            "ANARI_INT32"
-          ],
-          "tags": [],
-          "default": 1,
-          "description": "samples per-pixel"
         }
       ]
     }

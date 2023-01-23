@@ -9,14 +9,14 @@ using namespace anari::debug_device;
 namespace visrtx {
 class VisRTXDeviceDebugFactory : public anari::debug_device::ObjectFactory {
 public:
-   anari::debug_device::DebugObjectBase* new_volume(const char *name, anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
-   anari::debug_device::DebugObjectBase* new_geometry(const char *name, anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
-   anari::debug_device::DebugObjectBase* new_spatial_field(const char *name, anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
-   anari::debug_device::DebugObjectBase* new_light(const char *name, anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
-   anari::debug_device::DebugObjectBase* new_camera(const char *name, anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
-   anari::debug_device::DebugObjectBase* new_material(const char *name, anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
-   anari::debug_device::DebugObjectBase* new_sampler(const char *name, anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
-   anari::debug_device::DebugObjectBase* new_renderer(const char *name, anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
+anari::debug_device::DebugObjectBase* new_camera(const char *name, DebugDevice *td, ANARIObject wh, ANARIObject h) override;
+anari::debug_device::DebugObjectBase* new_geometry(const char *name, DebugDevice *td, ANARIObject wh, ANARIObject h) override;
+anari::debug_device::DebugObjectBase* new_light(const char *name, DebugDevice *td, ANARIObject wh, ANARIObject h) override;
+anari::debug_device::DebugObjectBase* new_material(const char *name, DebugDevice *td, ANARIObject wh, ANARIObject h) override;
+anari::debug_device::DebugObjectBase* new_renderer(const char *name, DebugDevice *td, ANARIObject wh, ANARIObject h) override;
+anari::debug_device::DebugObjectBase* new_sampler(const char *name, DebugDevice *td, ANARIObject wh, ANARIObject h) override;
+anari::debug_device::DebugObjectBase* new_spatial_field(const char *name, DebugDevice *td, ANARIObject wh, ANARIObject h) override;
+anari::debug_device::DebugObjectBase* new_volume(const char *name, DebugDevice *td, ANARIObject wh, ANARIObject h) override;
    anari::debug_device::DebugObjectBase* new_device(anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
    anari::debug_device::DebugObjectBase* new_array1d(anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
    anari::debug_device::DebugObjectBase* new_array2d(anari::debug_device::DebugDevice *td, ANARIObject wh, ANARIObject h) override;
@@ -223,7 +223,53 @@ class renderer_ao : public DebugObject<ANARI_RENDERER> {
       return "ao";
    }
 };
-class renderer_pathtracer : public DebugObject<ANARI_RENDERER> {
+class renderer_dpt : public DebugObject<ANARI_RENDERER> {
+   static int param_hash(const char *str) {
+      static const uint32_t table[] = {0x62610001u,0x6e6d0002u,0x66650003u,0x1000004u,0x80000000u};
+      uint32_t cur = 0x6f6e0000u;
+      for(int i = 0;cur!=0;++i) {
+         uint32_t idx = cur&0xFFFFu;
+         uint32_t low = (cur>>16u)&0xFFu;
+         uint32_t high = (cur>>24u)&0xFFu;
+         uint32_t c = (uint32_t)str[i];
+         if(c>=low && c<high) {
+            cur = table[idx+c-low];
+         } else {
+            break;
+         }
+         if(cur&0x80000000u) {
+            return cur&0xFFFFu;
+         }
+         if(str[i]==0) {
+            break;
+         }
+      }
+      return -1;
+   }
+   public:
+   renderer_dpt(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
+   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
+      DebugObject::setParameter(paramname, paramtype, mem);
+      int idx = param_hash(paramname);
+      switch(idx) {
+         case 0: { //name
+            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_RENDERER, "dpt", paramname, paramtype, name_types);
+            return;
+         }
+         default: // unknown param
+            unknown_parameter(ANARI_RENDERER, "dpt", paramname, paramtype);
+            return;
+      }
+   }
+   void commit() {
+      DebugObject::commit();
+   }
+   const char* getSubtype() {
+      return "dpt";
+   }
+};
+class renderer_raycast : public DebugObject<ANARI_RENDERER> {
    static int param_hash(const char *str) {
       static const uint32_t table[] = {0x6261000fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261001eu,0x0u,0x6a690022u,0x64630010u,0x6c6b0011u,0x68670012u,0x73720013u,0x706f0014u,0x76750015u,0x6f6e0016u,0x65640017u,0x44430018u,0x706f0019u,0x6d6c001au,0x706f001bu,0x7372001cu,0x100001du,0x80000001u,0x6e6d001fu,0x66650020u,0x1000021u,0x80000000u,0x79780023u,0x66650024u,0x6d6c0025u,0x54530026u,0x62610027u,0x6e6d0028u,0x71700029u,0x6d6c002au,0x6665002bu,0x7473002cu,0x100002du,0x80000002u};
       uint32_t cur = 0x71620000u;
@@ -247,28 +293,28 @@ class renderer_pathtracer : public DebugObject<ANARI_RENDERER> {
       return -1;
    }
    public:
-   renderer_pathtracer(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
+   renderer_raycast(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
    void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
       DebugObject::setParameter(paramname, paramtype, mem);
       int idx = param_hash(paramname);
       switch(idx) {
          case 0: { //name
             ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "pathtracer", paramname, paramtype, name_types);
+            check_type(ANARI_RENDERER, "raycast", paramname, paramtype, name_types);
             return;
          }
          case 1: { //backgroundColor
             ANARIDataType backgroundColor_types[] = {ANARI_FLOAT32_VEC4, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "pathtracer", paramname, paramtype, backgroundColor_types);
+            check_type(ANARI_RENDERER, "raycast", paramname, paramtype, backgroundColor_types);
             return;
          }
          case 2: { //pixelSamples
             ANARIDataType pixelSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "pathtracer", paramname, paramtype, pixelSamples_types);
+            check_type(ANARI_RENDERER, "raycast", paramname, paramtype, pixelSamples_types);
             return;
          }
          default: // unknown param
-            unknown_parameter(ANARI_RENDERER, "pathtracer", paramname, paramtype);
+            unknown_parameter(ANARI_RENDERER, "raycast", paramname, paramtype);
             return;
       }
    }
@@ -276,7 +322,7 @@ class renderer_pathtracer : public DebugObject<ANARI_RENDERER> {
       DebugObject::commit();
    }
    const char* getSubtype() {
-      return "pathtracer";
+      return "raycast";
    }
 };
 class renderer_debug : public DebugObject<ANARI_RENDERER> {
@@ -338,62 +384,6 @@ class renderer_debug : public DebugObject<ANARI_RENDERER> {
    }
    const char* getSubtype() {
       return "debug";
-   }
-};
-class renderer_raycast : public DebugObject<ANARI_RENDERER> {
-   static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6261000fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261001eu,0x0u,0x6a690022u,0x64630010u,0x6c6b0011u,0x68670012u,0x73720013u,0x706f0014u,0x76750015u,0x6f6e0016u,0x65640017u,0x44430018u,0x706f0019u,0x6d6c001au,0x706f001bu,0x7372001cu,0x100001du,0x80000001u,0x6e6d001fu,0x66650020u,0x1000021u,0x80000000u,0x79780023u,0x66650024u,0x6d6c0025u,0x54530026u,0x62610027u,0x6e6d0028u,0x71700029u,0x6d6c002au,0x6665002bu,0x7473002cu,0x100002du,0x80000002u};
-      uint32_t cur = 0x71620000u;
-      for(int i = 0;cur!=0;++i) {
-         uint32_t idx = cur&0xFFFFu;
-         uint32_t low = (cur>>16u)&0xFFu;
-         uint32_t high = (cur>>24u)&0xFFu;
-         uint32_t c = (uint32_t)str[i];
-         if(c>=low && c<high) {
-            cur = table[idx+c-low];
-         } else {
-            break;
-         }
-         if(cur&0x80000000u) {
-            return cur&0xFFFFu;
-         }
-         if(str[i]==0) {
-            break;
-         }
-      }
-      return -1;
-   }
-   public:
-   renderer_raycast(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
-   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
-      DebugObject::setParameter(paramname, paramtype, mem);
-      int idx = param_hash(paramname);
-      switch(idx) {
-         case 0: { //name
-            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "raycast", paramname, paramtype, name_types);
-            return;
-         }
-         case 1: { //backgroundColor
-            ANARIDataType backgroundColor_types[] = {ANARI_FLOAT32_VEC4, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "raycast", paramname, paramtype, backgroundColor_types);
-            return;
-         }
-         case 2: { //pixelSamples
-            ANARIDataType pixelSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
-            check_type(ANARI_RENDERER, "raycast", paramname, paramtype, pixelSamples_types);
-            return;
-         }
-         default: // unknown param
-            unknown_parameter(ANARI_RENDERER, "raycast", paramname, paramtype);
-            return;
-      }
-   }
-   void commit() {
-      DebugObject::commit();
-   }
-   const char* getSubtype() {
-      return "raycast";
    }
 };
 class device : public DebugObject<ANARI_DEVICE> {
@@ -602,8 +592,8 @@ class array3d : public DebugObject<ANARI_ARRAY3D> {
 };
 class frame : public DebugObject<ANARI_FRAME> {
    static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6d6c0017u,0x0u,0x7061001du,0x66650035u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7061003au,0x0u,0x0u,0x0u,0x66650051u,0x6a690059u,0x0u,0x0u,0x0u,0x706f005du,0x63620018u,0x66650019u,0x6564001au,0x706f001bu,0x100001cu,0x80000008u,0x6e6d002cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6d6c0031u,0x6665002du,0x7372002eu,0x6261002fu,0x1000030u,0x80000003u,0x706f0032u,0x73720033u,0x1000034u,0x80000005u,0x71700036u,0x75740037u,0x69680038u,0x1000039u,0x80000006u,0x6e6d0049u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7372004cu,0x6665004au,0x100004bu,0x80000000u,0x6e6d004du,0x6261004eu,0x6d6c004fu,0x1000050u,0x80000007u,0x6f6e0052u,0x65640053u,0x66650054u,0x73720055u,0x66650056u,0x73720057u,0x1000058u,0x80000002u,0x7b7a005au,0x6665005bu,0x100005cu,0x80000004u,0x7372005eu,0x6d6c005fu,0x65640060u,0x1000061u,0x80000001u};
-      uint32_t cur = 0x78610000u;
+      static const uint32_t table[] = {0x69610015u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261004cu,0x0u,0x0u,0x0u,0x66650050u,0x6a690058u,0x0u,0x0u,0x0u,0x706f005cu,0x6e6d001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610022u,0x6665001eu,0x7372001fu,0x62610020u,0x1000021u,0x80000003u,0x6f6e0023u,0x6f6e0024u,0x66650025u,0x6d6c0026u,0x2f2e0027u,0x6f610028u,0x6d6c0036u,0x0u,0x706f003cu,0x66650041u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f0046u,0x63620037u,0x66650038u,0x65640039u,0x706f003au,0x100003bu,0x80000008u,0x6d6c003du,0x706f003eu,0x7372003fu,0x1000040u,0x80000005u,0x71700042u,0x75740043u,0x69680044u,0x1000045u,0x80000006u,0x73720047u,0x6e6d0048u,0x62610049u,0x6d6c004au,0x100004bu,0x80000007u,0x6e6d004du,0x6665004eu,0x100004fu,0x80000000u,0x6f6e0051u,0x65640052u,0x66650053u,0x73720054u,0x66650055u,0x73720056u,0x1000057u,0x80000002u,0x7b7a0059u,0x6665005au,0x100005bu,0x80000004u,0x7372005du,0x6d6c005eu,0x6564005fu,0x1000060u,0x80000001u};
+      uint32_t cur = 0x78630000u;
       for(int i = 0;cur!=0;++i) {
          uint32_t idx = cur&0xFFFFu;
          uint32_t low = (cur>>16u)&0xFFu;
@@ -654,24 +644,24 @@ class frame : public DebugObject<ANARI_FRAME> {
             check_type(ANARI_FRAME, "", paramname, paramtype, size_types);
             return;
          }
-         case 5: { //color
-            ANARIDataType color_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
-            check_type(ANARI_FRAME, "", paramname, paramtype, color_types);
+         case 5: { //channel.color
+            ANARIDataType channel_color_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
+            check_type(ANARI_FRAME, "", paramname, paramtype, channel_color_types);
             return;
          }
-         case 6: { //depth
-            ANARIDataType depth_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
-            check_type(ANARI_FRAME, "", paramname, paramtype, depth_types);
+         case 6: { //channel.depth
+            ANARIDataType channel_depth_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
+            check_type(ANARI_FRAME, "", paramname, paramtype, channel_depth_types);
             return;
          }
-         case 7: { //normal
-            ANARIDataType normal_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
-            check_type(ANARI_FRAME, "", paramname, paramtype, normal_types);
+         case 7: { //channel.normal
+            ANARIDataType channel_normal_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
+            check_type(ANARI_FRAME, "", paramname, paramtype, channel_normal_types);
             return;
          }
-         case 8: { //albedo
-            ANARIDataType albedo_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
-            check_type(ANARI_FRAME, "", paramname, paramtype, albedo_types);
+         case 8: { //channel.albedo
+            ANARIDataType channel_albedo_types[] = {ANARI_DATA_TYPE, ANARI_UNKNOWN};
+            check_type(ANARI_FRAME, "", paramname, paramtype, channel_albedo_types);
             return;
          }
          default: // unknown param
@@ -975,7 +965,7 @@ class camera_orthographic : public DebugObject<ANARI_CAMERA> {
             return;
          }
          case 4: { //transform
-            ANARIDataType transform_types[] = {ANARI_FLOAT32_MAT3x4, ANARI_UNKNOWN};
+            ANARIDataType transform_types[] = {ANARI_FLOAT32_MAT4, ANARI_UNKNOWN};
             check_type(ANARI_CAMERA, "orthographic", paramname, paramtype, transform_types);
             return;
          }
@@ -1071,7 +1061,7 @@ class camera_perspective : public DebugObject<ANARI_CAMERA> {
             return;
          }
          case 4: { //transform
-            ANARIDataType transform_types[] = {ANARI_FLOAT32_MAT3x4, ANARI_UNKNOWN};
+            ANARIDataType transform_types[] = {ANARI_FLOAT32_MAT4, ANARI_UNKNOWN};
             check_type(ANARI_CAMERA, "perspective", paramname, paramtype, transform_types);
             return;
          }
@@ -1246,6 +1236,127 @@ class geometry_cone : public DebugObject<ANARI_GEOMETRY> {
    }
    const char* getSubtype() {
       return "cone";
+   }
+};
+class geometry_curve : public DebugObject<ANARI_GEOMETRY> {
+   static int param_hash(const char *str) {
+      static const uint32_t table[] = {0x62610009u,0x0u,0x7372000du,0x0u,0x62610044u,0x0u,0x0u,0x0u,0x6665004au,0x6e6d000au,0x6665000bu,0x100000cu,0x80000000u,0x6a69000eu,0x6e6d000fu,0x6a690010u,0x75740011u,0x6a690012u,0x77760013u,0x66650014u,0x2f2e0015u,0x6a610016u,0x7574001fu,0x0u,0x706f002fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f640034u,0x75740020u,0x73720021u,0x6a690022u,0x63620023u,0x76750024u,0x75740025u,0x66650026u,0x34300027u,0x100002bu,0x100002cu,0x100002du,0x100002eu,0x80000002u,0x80000003u,0x80000004u,0x80000005u,0x6d6c0030u,0x706f0031u,0x73720032u,0x1000033u,0x80000001u,0x100003fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x65640040u,0x80000006u,0x66650041u,0x79780042u,0x1000043u,0x8000000eu,0x65640045u,0x6a690046u,0x76750047u,0x74730048u,0x1000049u,0x8000000fu,0x7372004bu,0x7574004cu,0x6665004du,0x7978004eu,0x2f2e004fu,0x73610050u,0x75740062u,0x0u,0x706f0072u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f0077u,0x0u,0x6261007fu,0x75740063u,0x73720064u,0x6a690065u,0x63620066u,0x76750067u,0x75740068u,0x66650069u,0x3430006au,0x100006eu,0x100006fu,0x1000070u,0x1000071u,0x8000000au,0x8000000bu,0x8000000cu,0x8000000du,0x6d6c0073u,0x706f0074u,0x73720075u,0x1000076u,0x80000009u,0x74730078u,0x6a690079u,0x7574007au,0x6a69007bu,0x706f007cu,0x6f6e007du,0x100007eu,0x80000007u,0x65640080u,0x6a690081u,0x76750082u,0x74730083u,0x1000084u,0x80000008u};
+      uint32_t cur = 0x776e0000u;
+      for(int i = 0;cur!=0;++i) {
+         uint32_t idx = cur&0xFFFFu;
+         uint32_t low = (cur>>16u)&0xFFu;
+         uint32_t high = (cur>>24u)&0xFFu;
+         uint32_t c = (uint32_t)str[i];
+         if(c>=low && c<high) {
+            cur = table[idx+c-low];
+         } else {
+            break;
+         }
+         if(cur&0x80000000u) {
+            return cur&0xFFFFu;
+         }
+         if(str[i]==0) {
+            break;
+         }
+      }
+      return -1;
+   }
+   public:
+   geometry_curve(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
+   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
+      DebugObject::setParameter(paramname, paramtype, mem);
+      int idx = param_hash(paramname);
+      switch(idx) {
+         case 0: { //name
+            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, name_types);
+            return;
+         }
+         case 1: { //primitive.color
+            ANARIDataType primitive_color_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_color_types);
+            return;
+         }
+         case 2: { //primitive.attribute0
+            ANARIDataType primitive_attribute0_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_attribute0_types);
+            return;
+         }
+         case 3: { //primitive.attribute1
+            ANARIDataType primitive_attribute1_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_attribute1_types);
+            return;
+         }
+         case 4: { //primitive.attribute2
+            ANARIDataType primitive_attribute2_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_attribute2_types);
+            return;
+         }
+         case 5: { //primitive.attribute3
+            ANARIDataType primitive_attribute3_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_attribute3_types);
+            return;
+         }
+         case 6: { //primitive.id
+            ANARIDataType primitive_id_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_id_types);
+            return;
+         }
+         case 7: { //vertex.position
+            ANARIDataType vertex_position_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_position_types);
+            return;
+         }
+         case 8: { //vertex.radius
+            ANARIDataType vertex_radius_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_radius_types);
+            return;
+         }
+         case 9: { //vertex.color
+            ANARIDataType vertex_color_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_color_types);
+            return;
+         }
+         case 10: { //vertex.attribute0
+            ANARIDataType vertex_attribute0_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_attribute0_types);
+            return;
+         }
+         case 11: { //vertex.attribute1
+            ANARIDataType vertex_attribute1_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_attribute1_types);
+            return;
+         }
+         case 12: { //vertex.attribute2
+            ANARIDataType vertex_attribute2_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_attribute2_types);
+            return;
+         }
+         case 13: { //vertex.attribute3
+            ANARIDataType vertex_attribute3_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, vertex_attribute3_types);
+            return;
+         }
+         case 14: { //primitive.index
+            ANARIDataType primitive_index_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, primitive_index_types);
+            return;
+         }
+         case 15: { //radius
+            ANARIDataType radius_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
+            check_type(ANARI_GEOMETRY, "curve", paramname, paramtype, radius_types);
+            return;
+         }
+         default: // unknown param
+            unknown_parameter(ANARI_GEOMETRY, "curve", paramname, paramtype);
+            return;
+      }
+   }
+   void commit() {
+      DebugObject::commit();
+   }
+   const char* getSubtype() {
+      return "curve";
    }
 };
 class geometry_cylinder : public DebugObject<ANARI_GEOMETRY> {
@@ -1996,6 +2107,82 @@ class material_transparentMatte : public DebugObject<ANARI_MATERIAL> {
       return "transparentMatte";
    }
 };
+class sampler_image1D : public DebugObject<ANARI_SAMPLER> {
+   static int param_hash(const char *str) {
+      static const uint32_t table[] = {0x6a690012u,0x0u,0x0u,0x6f6d0018u,0x0u,0x0u,0x0u,0x0u,0x62610044u,0x76750048u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720054u,0x6d6c0013u,0x75740014u,0x66650015u,0x73720016u,0x1000017u,0x80000003u,0x6261001au,0x5541001eu,0x6867001bu,0x6665001cu,0x100001du,0x80000001u,0x75740032u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7372003bu,0x75740033u,0x73720034u,0x6a690035u,0x63620036u,0x76750037u,0x75740038u,0x66650039u,0x100003au,0x80000002u,0x6261003cu,0x6f6e003du,0x7473003eu,0x6766003fu,0x706f0040u,0x73720041u,0x6e6d0042u,0x1000043u,0x80000005u,0x6e6d0045u,0x66650046u,0x1000047u,0x80000000u,0x75740049u,0x5554004au,0x7372004bu,0x6261004cu,0x6f6e004du,0x7473004eu,0x6766004fu,0x706f0050u,0x73720051u,0x6e6d0052u,0x1000053u,0x80000006u,0x62610055u,0x71700056u,0x4e4d0057u,0x706f0058u,0x65640059u,0x6665005au,0x3231005bu,0x100005cu,0x80000004u};
+      uint32_t cur = 0x78660000u;
+      for(int i = 0;cur!=0;++i) {
+         uint32_t idx = cur&0xFFFFu;
+         uint32_t low = (cur>>16u)&0xFFu;
+         uint32_t high = (cur>>24u)&0xFFu;
+         uint32_t c = (uint32_t)str[i];
+         if(c>=low && c<high) {
+            cur = table[idx+c-low];
+         } else {
+            break;
+         }
+         if(cur&0x80000000u) {
+            return cur&0xFFFFu;
+         }
+         if(str[i]==0) {
+            break;
+         }
+      }
+      return -1;
+   }
+   public:
+   sampler_image1D(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
+   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
+      DebugObject::setParameter(paramname, paramtype, mem);
+      int idx = param_hash(paramname);
+      switch(idx) {
+         case 0: { //name
+            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "image1D", paramname, paramtype, name_types);
+            return;
+         }
+         case 1: { //image
+            ANARIDataType image_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "image1D", paramname, paramtype, image_types);
+            return;
+         }
+         case 2: { //inAttribute
+            ANARIDataType inAttribute_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "image1D", paramname, paramtype, inAttribute_types);
+            return;
+         }
+         case 3: { //filter
+            ANARIDataType filter_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "image1D", paramname, paramtype, filter_types);
+            return;
+         }
+         case 4: { //wrapMode1
+            ANARIDataType wrapMode1_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "image1D", paramname, paramtype, wrapMode1_types);
+            return;
+         }
+         case 5: { //inTransform
+            ANARIDataType inTransform_types[] = {ANARI_FLOAT32_MAT4, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "image1D", paramname, paramtype, inTransform_types);
+            return;
+         }
+         case 6: { //outTransform
+            ANARIDataType outTransform_types[] = {ANARI_FLOAT32_MAT4, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "image1D", paramname, paramtype, outTransform_types);
+            return;
+         }
+         default: // unknown param
+            unknown_parameter(ANARI_SAMPLER, "image1D", paramname, paramtype);
+            return;
+      }
+   }
+   void commit() {
+      DebugObject::commit();
+   }
+   const char* getSubtype() {
+      return "image1D";
+   }
+};
 class sampler_image2D : public DebugObject<ANARI_SAMPLER> {
    static int param_hash(const char *str) {
       static const uint32_t table[] = {0x6a690012u,0x0u,0x0u,0x6f6d0018u,0x0u,0x0u,0x0u,0x0u,0x62610044u,0x76750048u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720054u,0x6d6c0013u,0x75740014u,0x66650015u,0x73720016u,0x1000017u,0x80000003u,0x6261001au,0x5541001eu,0x6867001bu,0x6665001cu,0x100001du,0x80000001u,0x75740032u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7372003bu,0x75740033u,0x73720034u,0x6a690035u,0x63620036u,0x76750037u,0x75740038u,0x66650039u,0x100003au,0x80000002u,0x6261003cu,0x6f6e003du,0x7473003eu,0x6766003fu,0x706f0040u,0x73720041u,0x6e6d0042u,0x1000043u,0x80000006u,0x6e6d0045u,0x66650046u,0x1000047u,0x80000000u,0x75740049u,0x5554004au,0x7372004bu,0x6261004cu,0x6f6e004du,0x7473004eu,0x6766004fu,0x706f0050u,0x73720051u,0x6e6d0052u,0x1000053u,0x80000007u,0x62610055u,0x71700056u,0x4e4d0057u,0x706f0058u,0x65640059u,0x6665005au,0x3331005bu,0x100005du,0x100005eu,0x80000004u,0x80000005u};
@@ -2341,7 +2528,7 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_camera(const char *name, DebugDev
    }
 }
 static int geometry_object_hash(const char *str) {
-   static const uint32_t table[] = {0x7a6f0012u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x76750027u,0x0u,0x7170002bu,0x73720031u,0x6f6e001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6d6c0020u,0x6665001eu,0x100001fu,0x80000000u,0x6a690021u,0x6f6e0022u,0x65640023u,0x66650024u,0x73720025u,0x1000026u,0x80000001u,0x62610028u,0x65640029u,0x100002au,0x80000002u,0x6968002cu,0x6665002du,0x7372002eu,0x6665002fu,0x1000030u,0x80000003u,0x6a690032u,0x62610033u,0x6f6e0034u,0x68670035u,0x6d6c0036u,0x66650037u,0x1000038u,0x80000004u};
+   static const uint32_t table[] = {0x7a6f0012u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7675002bu,0x0u,0x7170002fu,0x73720035u,0x6f6e001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720020u,0x0u,0x0u,0x0u,0x6d6c0024u,0x6665001eu,0x100001fu,0x80000000u,0x77760021u,0x66650022u,0x1000023u,0x80000001u,0x6a690025u,0x6f6e0026u,0x65640027u,0x66650028u,0x73720029u,0x100002au,0x80000002u,0x6261002cu,0x6564002du,0x100002eu,0x80000003u,0x69680030u,0x66650031u,0x73720032u,0x66650033u,0x1000034u,0x80000004u,0x6a690036u,0x62610037u,0x6f6e0038u,0x68670039u,0x6d6c003au,0x6665003bu,0x100003cu,0x80000005u};
    uint32_t cur = 0x75630000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
@@ -2368,12 +2555,14 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_geometry(const char *name, DebugD
       case 0:
          return new geometry_cone(td, this, wh, h);
       case 1:
-         return new geometry_cylinder(td, this, wh, h);
+         return new geometry_curve(td, this, wh, h);
       case 2:
-         return new geometry_quad(td, this, wh, h);
+         return new geometry_cylinder(td, this, wh, h);
       case 3:
-         return new geometry_sphere(td, this, wh, h);
+         return new geometry_quad(td, this, wh, h);
       case 4:
+         return new geometry_sphere(td, this, wh, h);
+      case 5:
          return new geometry_triangle(td, this, wh, h);
       default:
          unknown_subtype(td, ANARI_GEOMETRY, name);
@@ -2449,7 +2638,7 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_material(const char *name, DebugD
    }
 }
 static int renderer_object_hash(const char *str) {
-   static const uint32_t table[] = {0x706f0013u,0x0u,0x0u,0x66650015u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610023u,0x0u,0x6261002du,0x64630034u,0x1000014u,0x80000000u,0x67620016u,0x7675001bu,0x0u,0x0u,0x0u,0x6261001eu,0x6867001cu,0x100001du,0x80000001u,0x7675001fu,0x6d6c0020u,0x75740021u,0x1000022u,0x80000002u,0x75740024u,0x69680025u,0x75740026u,0x73720027u,0x62610028u,0x64630029u,0x6665002au,0x7372002bu,0x100002cu,0x80000003u,0x7a79002eu,0x6463002fu,0x62610030u,0x74730031u,0x75740032u,0x1000033u,0x80000004u,0x6a690035u,0x77760036u,0x6a690037u,0x74730038u,0x1000039u,0x80000005u};
+   static const uint32_t table[] = {0x706f0013u,0x0u,0x0u,0x71650015u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610030u,0x64630037u,0x1000014u,0x80000000u,0x67620021u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7574002eu,0x76750026u,0x0u,0x0u,0x0u,0x62610029u,0x68670027u,0x1000028u,0x80000001u,0x7675002au,0x6d6c002bu,0x7574002cu,0x100002du,0x80000002u,0x100002fu,0x80000003u,0x7a790031u,0x64630032u,0x62610033u,0x74730034u,0x75740035u,0x1000036u,0x80000004u,0x6a690038u,0x77760039u,0x6a69003au,0x7473003bu,0x100003cu,0x80000005u};
    uint32_t cur = 0x74610000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
@@ -2480,7 +2669,7 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_renderer(const char *name, DebugD
       case 2:
          return new renderer_default(td, this, wh, h);
       case 3:
-         return new renderer_pathtracer(td, this, wh, h);
+         return new renderer_dpt(td, this, wh, h);
       case 4:
          return new renderer_raycast(td, this, wh, h);
       case 5:
@@ -2491,7 +2680,7 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_renderer(const char *name, DebugD
    }
 }
 static int sampler_object_hash(const char *str) {
-   static const uint32_t table[] = {0x706f0007u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6e6d000fu,0x6d6c0008u,0x706f0009u,0x7372000au,0x4e4d000bu,0x6261000cu,0x7170000du,0x100000eu,0x80000000u,0x62610010u,0x68670011u,0x66650012u,0x33320013u,0x45440014u,0x1000015u,0x80000001u};
+   static const uint32_t table[] = {0x706f0007u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6e6d000fu,0x6d6c0008u,0x706f0009u,0x7372000au,0x4e4d000bu,0x6261000cu,0x7170000du,0x100000eu,0x80000000u,0x62610010u,0x68670011u,0x66650012u,0x33310013u,0x45440015u,0x45440017u,0x1000016u,0x80000001u,0x1000018u,0x80000002u};
    uint32_t cur = 0x6a630000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
@@ -2518,6 +2707,8 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_sampler(const char *name, DebugDe
       case 0:
          return new sampler_colorMap(td, this, wh, h);
       case 1:
+         return new sampler_image1D(td, this, wh, h);
+      case 2:
          return new sampler_image2D(td, this, wh, h);
       default:
          unknown_subtype(td, ANARI_SAMPLER, name);

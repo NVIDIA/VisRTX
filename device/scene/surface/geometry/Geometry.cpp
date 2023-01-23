@@ -31,73 +31,66 @@
 
 #include "Geometry.h"
 // specific types
-#include "Cones.h"
-#include "Cylinders.h"
-#include "Quads.h"
-#include "Spheres.h"
-#include "Triangles.h"
+#include "Cone.h"
+#include "Curve.h"
+#include "Cylinder.h"
+#include "Quad.h"
+#include "Sphere.h"
+#include "Triangle.h"
+#include "UnknownGeometry.h"
 // std
 #include <string_view>
 
 namespace visrtx {
 
-// Geometry definitions ///////////////////////////////////////////////////////
+Geometry::Geometry(DeviceGlobalState *s)
+    : RegisteredObject<GeometryGPUData>(ANARI_GEOMETRY, s)
+{
+  setRegistry(s->registry.geometries);
+}
 
 Geometry *Geometry::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
-  Geometry *retval = nullptr;
-
   if (subtype == "triangle")
-    retval = new Triangles;
-  if (subtype == "quad")
-    retval = new Quads;
+    return new Triangle(d);
+  else if (subtype == "quad")
+    return new Quad(d);
   else if (subtype == "sphere")
-    retval = new Spheres;
+    return new Sphere(d);
   else if (subtype == "cylinder")
-    retval = new Cylinders;
+    return new Cylinder(d);
   else if (subtype == "cone")
-    retval = new Cones;
-
-  if (!retval)
-    throw std::runtime_error("could not create geometry");
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.geometries);
-  return retval;
+    return new Cone(d);
+  else if (subtype == "curve")
+    return new Curve(d);
+  else
+    return new UnknownGeometry(d);
 }
 
 void Geometry::commit()
 {
-  m_colors = getParamObject<Array1D>("primitive.color");
-
   m_attribute0 = getParamObject<Array1D>("primitive.attribute0");
   m_attribute1 = getParamObject<Array1D>("primitive.attribute1");
   m_attribute2 = getParamObject<Array1D>("primitive.attribute2");
   m_attribute3 = getParamObject<Array1D>("primitive.attribute3");
-
-  m_primID = getParamObject<Array1D>("primitive.primID");
+  m_color = getParamObject<Array1D>("primitive.color");
 }
 
 void Geometry::markCommitted()
 {
   Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 GeometryGPUData Geometry::gpuData() const
 {
   GeometryGPUData retval{};
-
   populateAttributePtr(m_attribute0, retval.attr[0]);
   populateAttributePtr(m_attribute1, retval.attr[1]);
   populateAttributePtr(m_attribute2, retval.attr[2]);
   populateAttributePtr(m_attribute3, retval.attr[3]);
-  populateAttributePtr(m_colors, retval.attr[4]);
-
-  retval.primID =
-      m_primID ? m_primID->beginAs<uint32_t>(AddressSpace::GPU) : nullptr;
-
+  populateAttributePtr(m_color, retval.attr[4]);
   return retval;
 }
 

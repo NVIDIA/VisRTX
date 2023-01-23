@@ -30,7 +30,6 @@
  */
 
 #include "AmbientOcclusion.h"
-#include "ParameterInfo.h"
 // ptx
 #include "AmbientOcclusion_ptx.h"
 
@@ -40,6 +39,8 @@ static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
     {"__closesthit__primary", ""}, {"__closesthit__ao", "__anyhit__ao"}};
 
 static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
+
+AmbientOcclusion::AmbientOcclusion(DeviceGlobalState *s) : Renderer(s) {}
 
 void AmbientOcclusion::commit()
 {
@@ -72,20 +73,6 @@ anari::Span<const std::string> AmbientOcclusion::missSbtNames() const
 ptx_ptr AmbientOcclusion::ptx()
 {
   return AmbientOcclusion_ptx;
-}
-
-const void *AmbientOcclusion::getParameterInfo(std::string_view paramName,
-    ANARIDataType paramType,
-    std::string_view infoName,
-    ANARIDataType infoType)
-{
-  if (paramName == "aoSamples" && paramType == ANARI_INT32) {
-    static const ParameterInfo param(
-        false, "number of ambient occlusion samples each frame", 1, 0, 256);
-    return param.fromString(infoName, infoType);
-  }
-
-  return nullptr;
 }
 
 } // namespace visrtx

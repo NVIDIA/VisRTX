@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+Perspective::Perspective(DeviceGlobalState *s) : Camera(s) {}
+
 void Perspective::commit()
 {
   float fovy = getParam<float>("fovy", glm::radians(60.f));
@@ -45,9 +47,10 @@ void Perspective::commit()
   auto &hd = data();
   readBaseParameters(hd);
   hd.type = CameraType::PERSPECTIVE;
-  hd.dir_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;
-  hd.dir_dv = normalize(cross(hd.dir_du, hd.dir)) * imgPlaneSize.y;
-  hd.dir_00 = hd.dir - .5f * hd.dir_du - .5f * hd.dir_dv;
+  auto &p = hd.perspective;
+  p.dir_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;
+  p.dir_dv = normalize(cross(p.dir_du, hd.dir)) * imgPlaneSize.y;
+  p.dir_00 = hd.dir - .5f * p.dir_du - .5f * p.dir_dv;
   upload();
 }
 

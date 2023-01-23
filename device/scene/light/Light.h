@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct Light : public RegisteredObject<LightGPUData>
 {
-  Light() = default;
+  Light(DeviceGlobalState *d);
   ~Light() = default;
 
   void commit() override;

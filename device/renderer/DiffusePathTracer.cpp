@@ -30,24 +30,23 @@
  */
 
 #include "DiffusePathTracer.h"
-#include "ParameterInfo.h"
 // ptx
 #include "DiffusePathTracer_ptx.h"
 
 namespace visrtx {
 
+DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s) {}
+
 void DiffusePathTracer::commit()
 {
   Renderer::commit();
   m_maxDepth = std::clamp(getParam<int>("maxDepth", 5), 1, 256);
-  m_R = getParam<float>("R", 0.5f);
 }
 
 void DiffusePathTracer::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
   fd.renderer.params.dpt.maxDepth = m_maxDepth;
-  fd.renderer.params.dpt.R = m_R;
 }
 
 OptixModule DiffusePathTracer::optixModule() const
@@ -58,24 +57,6 @@ OptixModule DiffusePathTracer::optixModule() const
 ptx_ptr DiffusePathTracer::ptx()
 {
   return DiffusePathTracer_ptx;
-}
-
-const void *DiffusePathTracer::getParameterInfo(std::string_view paramName,
-    ANARIDataType paramType,
-    std::string_view infoName,
-    ANARIDataType infoType)
-{
-  if (paramName == "maxDepth" && paramType == ANARI_INT32) {
-    static const ParameterInfo param(
-        false, "maximum per-pixel path depth", 5, 1, 256);
-    return param.fromString(infoName, infoType);
-  } else if (paramName == "R" && paramType == ANARI_FLOAT32) {
-    static const ParameterInfo param(
-        false, "per-bounce energy falloff factor", 0.5f, 0.f, 1.f);
-    return param.fromString(infoName, infoType);
-  }
-
-  return nullptr;
 }
 
 } // namespace visrtx

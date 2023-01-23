@@ -103,6 +103,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   camera/Camera.cpp
   camera/Orthographic.cpp
   camera/Perspective.cpp
+  camera/UnknownCamera.cpp
 
   frame/Denoiser.cu
   frame/Frame.cu
@@ -113,45 +114,55 @@ target_sources(${PROJECT_NAME} PRIVATE
   renderer/Raycast.cpp
   renderer/Renderer.cpp
   renderer/SciVis.cpp
+  renderer/Test.cpp
 
   scene/Group.cpp
   scene/Instance.cpp
   scene/World.cpp
 
-  scene/light/Ambient.cpp
   scene/light/Directional.cpp
   scene/light/Light.cpp
   scene/light/Point.cpp
+  scene/light/UnknownLight.cpp
 
   scene/surface/Surface.cpp
 
-  scene/surface/geometry/Cones.cpp
-  scene/surface/geometry/Cylinders.cpp
+  scene/surface/geometry/Cone.cpp
+  scene/surface/geometry/Curve.cpp
+  scene/surface/geometry/Cylinder.cpp
   scene/surface/geometry/Geometry.cpp
-  scene/surface/geometry/Quads.cpp
-  scene/surface/geometry/Spheres.cpp
-  scene/surface/geometry/Triangles.cpp
+  scene/surface/geometry/Quad.cpp
+  scene/surface/geometry/Sphere.cpp
+  scene/surface/geometry/Triangle.cpp
+  scene/surface/geometry/UnknownGeometry.cpp
 
   scene/surface/material/Material.cpp
   scene/surface/material/Matte.cpp
   scene/surface/material/PBR.cpp
   scene/surface/material/TransparentMatte.cpp
+  scene/surface/material/UnknownMaterial.cpp
 
   scene/surface/material/sampler/ColorMap.cpp
+  scene/surface/material/sampler/Image1D.cpp
   scene/surface/material/sampler/Image2D.cpp
+  scene/surface/material/sampler/ImageSamplerHelpers.cpp
   scene/surface/material/sampler/PrimitiveSampler.cpp
   scene/surface/material/sampler/Sampler.cpp
+  scene/surface/material/sampler/UnknownSampler.cpp
 
   scene/volume/Volume.cpp
   scene/volume/SciVisVolume.cpp
+  scene/volume/UnknownVolume.cpp
+
+  scene/volume/space_skipping/UniformGrid.cu
 
   scene/volume/spatial_field/SpatialField.cpp
   scene/volume/spatial_field/StructuredRegularField.cpp
+  scene/volume/spatial_field/StructuredRegularField.cu
+  scene/volume/spatial_field/UnknownSpatialField.cpp
 
-  utility/DeferredCommitBuffer.cpp
-  utility/DeferredUploadBuffer.cpp
+  utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
-  utility/TimeStamp.cpp
 )
 
 generate_export_header(${PROJECT_NAME}
@@ -179,7 +190,7 @@ target_link_libraries(${PROJECT_NAME}
 PUBLIC
   anari::anari
 PRIVATE
-  anari::anari_utilities
+  anari::helium
   anari::anari_library_debug
   glm_visrtx
   OptiX7::OptiX7
@@ -202,19 +213,28 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE visrtx_EXPORTS)
 
 function(GenerateEmbeddedPTX DIR BASE_NAME)
   set(INPUT_CU_FILE ${DIR}/${BASE_NAME}_ptx.cu)
-  set(INPUT_TARGET ${BASE_NAME}_ptx_gen)
+  set(INPUT_TARGET ${BASE_NAME}_ptx)
   set(OUTPUT_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${BASE_NAME}_ptx.h)
+
+  set_source_files_properties(${INPUT_CU_FILE}
+    PROPERTIES COMPILE_FLAGS "--expt-relaxed-constexpr"
+  )
 
   add_library(${INPUT_TARGET} OBJECT ${INPUT_CU_FILE})
   target_link_libraries(${INPUT_TARGET}
   PRIVATE
+    helium
     anari::anari
     anari::anari_utilities
     glm_visrtx
     OptiX7::OptiX7
     CUDA::curand
   )
-  target_include_directories(${INPUT_TARGET} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+  target_include_directories(${INPUT_TARGET}
+  PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}
+  )
   set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_PTX_COMPILATION ON)
   set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_ARCHITECTURES OFF)
 
@@ -230,34 +250,38 @@ GenerateEmbeddedPTX(renderer Debug)
 GenerateEmbeddedPTX(renderer DiffusePathTracer)
 GenerateEmbeddedPTX(renderer Raycast)
 GenerateEmbeddedPTX(renderer SciVis)
+GenerateEmbeddedPTX(renderer Test)
 
 GenerateEmbeddedPTX(scene Intersectors)
 
 ## Install library + headers ##
 
 install(TARGETS ${PROJECT_NAME}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
-set_target_properties(${PROJECT_NAME}
-    PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
-
-install(TARGETS ${PROJECT_NAME}
   EXPORT VisRTX_Exports
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    NAMELINK_SKIP
-  # on Windows put the dlls into bin
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  # ... and the import lib into the devel package
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
+
+if (VISRTX_USE_SOVERSION)
+  set_target_properties(${PROJECT_NAME}
+      PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
+
+  install(TARGETS ${PROJECT_NAME}
+    EXPORT VisRTX_Exports
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      NAMELINK_SKIP
+    # on Windows put the dlls into bin
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    # ... and the import lib into the devel package
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+endif()
 
 install(
 FILES
   ${PROJECT_BINARY_DIR}/${PROJECT_NAME}_export.h
-  ${CMAKE_CURRENT_LIST_DIR}/include/anari/backend/visrtx/visrtx.h
+  ${CMAKE_CURRENT_LIST_DIR}/include/anari/ext/visrtx/visrtx.h
 DESTINATION
-  ${CMAKE_INSTALL_INCLUDEDIR}/anari/backend/visrtx
+  ${CMAKE_INSTALL_INCLUDEDIR}/anari/ext/visrtx
 )

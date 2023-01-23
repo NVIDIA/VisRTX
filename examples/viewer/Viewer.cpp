@@ -40,7 +40,7 @@
 #define ANARI_FEATURE_UTILITY_IMPL
 #include "anari/anari_feature_utility.h"
 // VisRTX
-#include "anari/backend/visrtx/visrtx.h"
+#include "anari/ext/visrtx/visrtx.h"
 
 #include "ui_scenes.h"
 
@@ -159,8 +159,7 @@ Viewer::Viewer(const char *libName, const char *objFileName)
 
   m_currentRenderer = m_renderers[0];
 
-  m_lights[0] = anari::newObject<anari::Light>(m_device, "ambient");
-  m_lights[1] = anari::newObject<anari::Light>(m_device, "directional");
+  m_lights[0] = anari::newObject<anari::Light>(m_device, "directional");
 
   updateLights();
 
@@ -295,8 +294,8 @@ void Viewer::updateFrame()
   m_windowSizeScaled = glm::vec2(m_windowSize) * m_resolutionScale;
   anari::setParameter(
       m_device, m_frame, "size", glm::uvec2(m_windowSizeScaled));
-  anari::setParameter(m_device, m_frame, "color", m_format);
-  anari::setParameter(m_device, m_frame, "depth", ANARI_FLOAT32);
+  anari::setParameter(m_device, m_frame, "channel.color", m_format);
+  anari::setParameter(m_device, m_frame, "channel.depth", ANARI_FLOAT32);
   anari::setParameter(m_device, m_frame, "accumulation", true);
 
   anari::setParameter(m_device, m_frame, "world", m_currentScene->world());
@@ -311,7 +310,13 @@ void Viewer::updateFrame()
   anari::setParameter(
       m_device, m_currentRenderer, "pixelSamples", m_pixelSamples);
   anari::setParameter(
-      m_device, m_currentRenderer, "ambientLight", m_ambientIntensity);
+      m_device, m_currentRenderer, "ambientColor", m_ambientColor);
+  anari::setParameter(
+      m_device, m_currentRenderer, "ambientIntensity", m_ambientIntensity);
+  anari::setParameter(m_device,
+      m_currentRenderer,
+      "ambientOcclusionDistance",
+      m_ambientOcclusionDistance);
 
   anari::commitParameters(m_device, m_currentRenderer);
   anari::commitParameters(m_device, m_frame);
@@ -356,6 +361,9 @@ void Viewer::updateWorld()
     break;
   case SceneTypes::RANDOM_CONES:
     m_currentScene = generateScene(m_device, m_conesConfig);
+    break;
+  case SceneTypes::STREAMLINES:
+    m_currentScene = generateScene(m_device, m_curvesConfig);
     break;
   case SceneTypes::NOISE_VOLUME:
     m_currentScene = generateScene(m_device, m_noiseVolumeConfig);
@@ -410,17 +418,6 @@ void Viewer::updateLights()
 {
   auto l = m_lights[0];
 
-  anari::setParameter(
-      m_device, l, "intensity", m_lightConfigs.ambientIntensity);
-  anari::setParameter(m_device, l, "color", m_lightConfigs.ambientColor);
-  anari::setParameter(m_device,
-      l,
-      "occlusionDistance",
-      m_lightConfigs.ambientOcclusionDistance);
-  anari::commitParameters(m_device, l);
-
-  l = m_lights[1];
-
   const float az = glm::radians(m_lightConfigs.directionalAzimuth);
   const float el = glm::radians(m_lightConfigs.directionalElevation);
   glm::vec3 dir;
@@ -432,6 +429,7 @@ void Viewer::updateLights()
   anari::setParameter(
       m_device, l, "irradiance", m_lightConfigs.directionalIrradiance);
   anari::setParameter(m_device, l, "color", m_lightConfigs.directionalColor);
+
   anari::commitParameters(m_device, l);
 }
 
@@ -501,7 +499,7 @@ void Viewer::ui_updateImage()
     m_maxFL = std::max(m_maxFL, m_latestFL);
 
     if (m_haveCUDAInterop && !m_saveNextFrame && !m_showDepth) {
-      auto fb = anari::map<void>(m_device, m_frame, "colorGPU");
+      auto fb = anari::map<void>(m_device, m_frame, "channel.colorGPU");
       cudaGraphicsMapResources(1, &m_graphicsResource);
       cudaArray_t array;
       cudaGraphicsSubResourceGetMappedArray(&array, m_graphicsResource, 0, 0);
@@ -514,10 +512,10 @@ void Viewer::ui_updateImage()
           fb.height,
           cudaMemcpyDeviceToDevice);
       cudaGraphicsUnmapResources(1, &m_graphicsResource);
-      anari::unmap(m_device, m_frame, "colorGPU");
+      anari::unmap(m_device, m_frame, "channel.colorGPU");
     } else {
-      auto fb =
-          anari::map<void>(m_device, m_frame, m_showDepth ? "depth" : "color");
+      auto fb = anari::map<void>(
+          m_device, m_frame, m_showDepth ? "channel.depth" : "channel.color");
 
       glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
       glTexSubImage2D(GL_TEXTURE_2D,
@@ -538,7 +536,8 @@ void Viewer::ui_updateImage()
         m_saveNextFrame = false;
       }
 
-      anari::unmap(m_device, m_frame, "color");
+      anari::unmap(
+          m_device, m_frame, m_showDepth ? "channel.depth" : "channel.color");
     }
 
     anari::render(m_device, m_frame);
@@ -566,6 +565,7 @@ void Viewer::ui_makeWindow()
     if (ui_scenes(m_spheresConfig,
             m_cylindersConfig,
             m_conesConfig,
+            m_curvesConfig,
             m_noiseVolumeConfig,
             m_gravityVolumeConfig,
             m_objFileConfig,
@@ -683,25 +683,27 @@ void Viewer::ui_makeWindow_camera()
 
 void Viewer::ui_makeWindow_renderer()
 {
-  if (ImGui::Combo("renderer##whichRenderer",
-          &g_whichRenderer,
-          rendererUI_callback,
-          nullptr,
-          g_renderers.size())) {
+  bool update = ImGui::Combo("renderer##whichRenderer",
+      &g_whichRenderer,
+      rendererUI_callback,
+      nullptr,
+      g_renderers.size());
+
+  update |= ImGui::ColorEdit3("background", &m_background.x);
+
+  update |= ImGui::SliderInt("pixelSamples", &m_pixelSamples, 1, 256);
+
+  update |= ImGui::DragFloat(
+      "ambientIntensity", &m_ambientIntensity, 0.001f, 0.f, 1000.f);
+
+  update |= ImGui::ColorEdit3("ambientColor", &m_ambientColor.x);
+
+  update |= ImGui::DragFloat(
+      "occlusion distance", &m_ambientOcclusionDistance, 0.001f, 0.f, 100000.f);
+
+  if (update) {
     m_currentRenderer = m_renderers[g_whichRenderer];
     updateFrame();
-  }
-
-  if (ImGui::ColorEdit3("background", &m_background.x)) {
-    anari::setParameter(
-        m_device, m_currentRenderer, "backgroundColor", m_background);
-    anari::commitParameters(m_device, m_currentRenderer);
-  }
-
-  if (ImGui::SliderInt("pixelSamples", &m_pixelSamples, 1, 256)) {
-    anari::setParameter(
-        m_device, m_currentRenderer, "pixelSamples", m_pixelSamples);
-    anari::commitParameters(m_device, m_currentRenderer);
   }
 
   ImGui::Text("  parameters:");
@@ -715,20 +717,6 @@ void Viewer::ui_makeWindow_lights()
   bool update = false;
 
   ImGui::Text("ambient:");
-
-  update |= ImGui::DragFloat("intensity##ambient",
-      &m_lightConfigs.ambientIntensity,
-      0.001f,
-      0.f,
-      1000.f);
-
-  update |= ImGui::ColorEdit3("color##ambient", &m_lightConfigs.ambientColor.x);
-
-  update |= ImGui::DragFloat("occlusion distance##ambient",
-      &m_lightConfigs.ambientOcclusionDistance,
-      0.001f,
-      0.f,
-      100000.f);
 
   ImGui::Text("directional:");
 

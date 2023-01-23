@@ -52,7 +52,7 @@ struct Renderer : public Object
 {
   static size_t objectCount();
 
-  Renderer();
+  Renderer(DeviceGlobalState *s);
   ~Renderer() override;
 
   virtual void commit() override;
@@ -69,21 +69,19 @@ struct Renderer : public Object
 
   vec4 bgColor() const;
   int spp() const;
+  vec3 ambientColor() const;
+  float ambientIntensity() const;
+  float ambientOcclusionDistance() const;
 
   static Renderer *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
 
-  static const ANARIParameter *getParameters(std::string_view subtype);
-
-  static const void *getParameterInfo(std::string_view subtype,
-      std::string_view parameterName,
-      ANARIDataType parameterType,
-      std::string_view infoName,
-      ANARIDataType infoType);
-
  protected:
   vec4 m_bgColor{1.f};
   int m_spp{1};
+  vec3 m_ambientColor{1.f};
+  float m_ambientIntensity{1.f};
+  float m_occlusionDistance{1e20f};
 
   // OptiX //
 
@@ -103,6 +101,8 @@ struct Renderer : public Object
   HitgroupFunctionNames m_defaultHitgroupNames;
   std::string m_defaultMissName{"__miss__"};
 };
+
+OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions();
 
 } // namespace visrtx
 

@@ -30,102 +30,11 @@
  */
 
 #include "Image2D.h"
-// std
-#include <array>
+#include "ImageSamplerHelpers.h"
 
 namespace visrtx {
 
-template <int SIZE>
-using texel_t = std::array<uint8_t, SIZE>;
-using texel1 = texel_t<1>;
-using texel2 = texel_t<2>;
-using texel3 = texel_t<3>;
-using texel4 = texel_t<4>;
-
-// Helper functions ///////////////////////////////////////////////////////////
-
-static bool isFloat(ANARIDataType format)
-{
-  switch (format) {
-  case ANARI_FLOAT32_VEC4:
-  case ANARI_FLOAT32_VEC3:
-  case ANARI_FLOAT32_VEC2:
-  case ANARI_FLOAT32:
-    return true;
-  default:
-    break;
-  }
-  return false;
-}
-
-static int numANARIChannels(ANARIDataType format)
-{
-  switch (format) {
-  case ANARI_UFIXED8_RGBA_SRGB:
-  case ANARI_UFIXED8_VEC4:
-  case ANARI_FLOAT32_VEC4:
-    return 4;
-  case ANARI_UFIXED8_RGB_SRGB:
-  case ANARI_UFIXED8_VEC3:
-  case ANARI_FLOAT16_VEC3:
-  case ANARI_FLOAT32_VEC3:
-    return 3;
-  case ANARI_UFIXED8_VEC2:
-  case ANARI_FLOAT16_VEC2:
-  case ANARI_FLOAT32_VEC2:
-    return 2;
-  case ANARI_FLOAT32:
-    return 1;
-  default:
-    break;
-  }
-  return 0;
-}
-
-static int bytesPerChannel(ANARIDataType format)
-{
-  if (isFloat(format))
-    return 4;
-  else
-    return 1;
-}
-
-static int countCudaChannels(const cudaChannelFormatDesc &desc)
-{
-  int channels = 0;
-  if (desc.x != 0)
-    channels++;
-  if (desc.y != 0)
-    channels++;
-  if (desc.z != 0)
-    channels++;
-  if (desc.w != 0)
-    channels++;
-  return channels;
-}
-
-template <int SIZE, typename IN_VEC_T>
-static texel_t<SIZE> makeTexel(IN_VEC_T v)
-{
-  v *= 255;
-  texel_t<SIZE> retval;
-  auto *in = (float *)&v;
-  for (int i = 0; i < SIZE; i++)
-    retval[i] = uint8_t(in[i]);
-  return retval;
-}
-
-static cudaTextureAddressMode stringToAddressMode(const std::string &str)
-{
-  if (str == "repeat")
-    return cudaAddressModeWrap;
-  else if (str == "mirrorRepeat")
-    return cudaAddressModeMirror;
-  else
-    return cudaAddressModeClamp;
-}
-
-// Image2D definitions //////////////////////////////////////////////////////
+Image2D::Image2D(DeviceGlobalState *d) : Sampler(d) {}
 
 Image2D::~Image2D()
 {
@@ -138,9 +47,9 @@ void Image2D::commit()
 
   cleanup();
 
-  m_params.filter = getParam<std::string>("filter", "nearest");
-  m_params.wrap1 = getParam<std::string>("wrapMode1", "clampToEdge");
-  m_params.wrap2 = getParam<std::string>("wrapMode2", "clampToEdge");
+  m_params.filter = getParamString("filter", "nearest");
+  m_params.wrap1 = getParamString("wrapMode1", "clampToEdge");
+  m_params.wrap2 = getParamString("wrapMode2", "clampToEdge");
   m_params.image = getParamObject<Array2D>("image");
 
   if (!m_params.image) {
@@ -149,56 +58,66 @@ void Image2D::commit()
     return;
   }
 
-  ANARIDataType format = m_params.image->elementType();
-  if (!isFloat(format)) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "only 32-bit float data is supported for image2D samplers");
-    return;
-  }
-
+  const ANARIDataType format = m_params.image->elementType();
   auto nc = numANARIChannels(format);
   if (nc == 0) {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "invalid texture type encountered in image2D sampler");
+        "invalid texture type encountered in image2D sampler (%s)",
+        anari::toString(format));
     return;
   }
 
-  m_params.image->addCommitObserver(this);
+  auto &image = *m_params.image;
+  image.addCommitObserver(this);
 
   // Create CUDA texture //
 
-  const auto size = m_params.image->size();
+  std::vector<uint8_t> stagingBuffer(image.totalSize() * 4);
 
-  std::vector<uint8_t> stagingBuffer;
-
-  {
-    stagingBuffer.resize(m_params.image->totalSize() * 4);
-
-    if (nc == 4) {
-      auto *begin = m_params.image->dataAs<vec4>();
-      auto *end = begin + m_params.image->totalSize();
-      std::transform(begin, end, (texel4 *)stagingBuffer.data(), [](vec4 &v) {
-        return makeTexel<4>(v);
-      });
-    } else if (nc == 3) {
-      auto *begin = m_params.image->dataAs<vec3>();
-      auto *end = begin + m_params.image->totalSize();
-      std::transform(begin, end, (texel4 *)stagingBuffer.data(), [](vec3 &v) {
-        return makeTexel<4>(vec4(v, 1.f));
-      });
-    } else if (nc == 2) {
-      auto *begin = m_params.image->dataAs<vec2>();
-      auto *end = begin + m_params.image->totalSize();
-      std::transform(begin, end, (texel2 *)stagingBuffer.data(), [](vec2 &v) {
-        return makeTexel<2>(v);
-      });
-    } else if (nc == 1) {
-      auto *begin = m_params.image->dataAs<float>();
-      auto *end = begin + m_params.image->totalSize();
-      std::transform(begin, end, (texel1 *)stagingBuffer.data(), [](float &v) {
-        return makeTexel<1>(v);
-      });
-    }
+  if (nc == 4) {
+    if (isFloat(format))
+      transformToStagingBuffer<4, float>(image, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBuffer<4, uint32_t>(image, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBuffer<4, uint16_t>(image, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBuffer<4, uint8_t>(image, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBuffer<4, uint8_t, true>(image, stagingBuffer.data());
+  } else if (nc == 3) {
+    if (isFloat(format))
+      transformToStagingBuffer<3, float>(image, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBuffer<3, uint32_t>(image, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBuffer<3, uint16_t>(image, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBuffer<3, uint8_t>(image, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBuffer<3, uint8_t, true>(image, stagingBuffer.data());
+  } else if (nc == 2) {
+    if (isFloat(format))
+      transformToStagingBuffer<2, float>(image, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBuffer<2, uint32_t>(image, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBuffer<2, uint16_t>(image, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBuffer<2, uint8_t>(image, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBuffer<2, uint8_t, true>(image, stagingBuffer.data());
+  } else if (nc == 1) {
+    if (isFloat(format))
+      transformToStagingBuffer<1, float>(image, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBuffer<1, uint32_t>(image, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBuffer<1, uint16_t>(image, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBuffer<1, uint8_t>(image, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBuffer<1, uint8_t, true>(image, stagingBuffer.data());
   }
 
   if (nc == 3)
@@ -210,6 +129,7 @@ void Image2D::commit()
       nc >= 3 ? 8 : 0,
       cudaChannelFormatKindUnsigned);
 
+  const auto size = image.size();
   cudaMallocArray(&m_cudaArray, &desc, size.x, size.y);
   cudaMemcpy2DToArray(m_cudaArray,
       0,
@@ -235,6 +155,8 @@ void Image2D::commit()
   texDesc.normalizedCoords = 1;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
+
+  upload();
 }
 
 SamplerGPUData Image2D::gpuData() const
@@ -249,6 +171,11 @@ int Image2D::numChannels() const
 {
   ANARIDataType format = m_params.image->elementType();
   return numANARIChannels(format);
+}
+
+bool Image2D::isValid() const
+{
+  return m_params.image;
 }
 
 void Image2D::cleanup()

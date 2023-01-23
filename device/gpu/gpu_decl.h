@@ -34,9 +34,14 @@
 #ifdef __CUDACC__
 #define VISRTX_HOST_DEVICE __forceinline__ __host__ __device__
 #define RT_PROGRAM extern "C" __global__
-#define RT_FUNCTION static __forceinline__ __device__
+#define RT_FUNCTION __forceinline__ __device__
 #else
 #define VISRTX_HOST_DEVICE inline
 #define RT_PROGRAM extern "C"
 #define RT_FUNCTION inline
 #endif
+
+#define NUM_SBT_PRIMITIVE_INTERSECTOR_ENTRIES 3
+#define SBT_TRIANGLE_OFFSET 0
+#define SBT_CURVE_OFFSET 1
+#define SBT_CUSTOM_OFFSET 2

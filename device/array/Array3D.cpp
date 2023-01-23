@@ -35,31 +35,17 @@
 
 namespace visrtx {
 
-Array3D::Array3D(const void *appMemory,
-    ANARIMemoryDeleter deleter,
-    const void *deleterPtr,
-    ANARIDataType type,
-    uint64_t numItems1,
-    uint64_t numItems2,
-    uint64_t numItems3,
-    uint64_t byteStride1,
-    uint64_t byteStride2,
-    uint64_t byteStride3)
-    : Array(appMemory, deleter, deleterPtr, type)
+Array3D::Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d)
+    : Array(ANARI_ARRAY3D, state, d)
 {
-  if (byteStride1 != 0 || byteStride2 != 0 || byteStride3 != 0)
+  if (d.byteStride1 != 0 || d.byteStride2 != 0 || d.byteStride3 != 0)
     throw std::runtime_error("strided arrays not yet supported!");
 
-  m_size[0] = numItems1;
-  m_size[1] = numItems2;
-  m_size[2] = numItems3;
+  m_size[0] = d.numItems1;
+  m_size[1] = d.numItems2;
+  m_size[2] = d.numItems3;
 
   initManagedMemory();
-}
-
-ArrayShape Array3D::shape() const
-{
-  return ArrayShape::ARRAY3D;
 }
 
 size_t Array3D::totalSize() const

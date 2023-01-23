@@ -44,7 +44,7 @@ struct DeviceObjectArray
   DeviceObjectArray() = default;
   ~DeviceObjectArray() = default;
 
-  DeviceObjectIndex alloc();
+  DeviceObjectIndex alloc(void *hostObj);
   void free(DeviceObjectIndex idx);
 
   size_t capacity() const;
@@ -54,6 +54,8 @@ struct DeviceObjectArray
   T &map(DeviceObjectIndex idx);
   void unmap(DeviceObjectIndex idx);
 
+  void *hostObject(DeviceObjectIndex idx) const;
+
   void upload();
 
   const T *devicePtr();
@@ -61,6 +63,7 @@ struct DeviceObjectArray
  private:
   bool m_fullReupload{true};
   HostDeviceArray<T> m_objects;
+  std::vector<void *> m_hostObjects;
 
   using DOI = DeviceObjectIndex;
   std::stack<DOI, std::vector<DOI>> m_freeIndices;
@@ -71,16 +74,21 @@ struct DeviceObjectArray
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>
-inline DeviceObjectIndex DeviceObjectArray<T>::alloc()
+inline DeviceObjectIndex DeviceObjectArray<T>::alloc(void *hostObj)
 {
   DeviceObjectIndex i = -1;
 
+  if (!hostObj)
+    throw std::runtime_error("invalid DeviceObjectArray<> allocation");
+
   if (!m_freeIndices.empty()) {
     i = m_freeIndices.top();
+    m_hostObjects[i] = hostObj;
     m_freeIndices.pop();
   } else {
     i = static_cast<DeviceObjectIndex>(m_objects.size());
     m_objects.resize(m_objects.size() + 1, false);
+    m_hostObjects.push_back(hostObj);
     m_fullReupload = true;
   }
 
@@ -91,6 +99,7 @@ template <typename T>
 inline void DeviceObjectArray<T>::free(DeviceObjectIndex idx)
 {
   m_freeIndices.push(idx);
+  m_hostObjects[idx] = nullptr;
 }
 
 template <typename T>
@@ -121,6 +130,12 @@ template <typename T>
 inline void DeviceObjectArray<T>::unmap(DeviceObjectIndex idx)
 {
   m_objectsToUpload.push_back(idx);
+}
+
+template <typename T>
+inline void *DeviceObjectArray<T>::hostObject(DeviceObjectIndex idx) const
+{
+  return m_hostObjects[idx];
 }
 
 template <typename T>

@@ -37,6 +37,8 @@
 #include "renderer/Renderer.h"
 #include "scene/World.h"
 #include "utility/DeviceObject.h"
+// helium
+#include "helium/BaseFrame.h"
 // std
 #include <memory>
 // thrust
@@ -45,12 +47,16 @@
 
 namespace visrtx {
 
-struct Frame : public DeviceObject<FrameGPUData>
+struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
 {
   static size_t objectCount();
 
-  Frame();
+  Frame(DeviceGlobalState *d);
   ~Frame();
+
+  bool isValid() const override;
+
+  DeviceGlobalState *deviceState() const;
 
   bool getProperty(const std::string_view &name,
       ANARIDataType type,
@@ -59,15 +65,15 @@ struct Frame : public DeviceObject<FrameGPUData>
 
   void commit();
 
-  void renderFrame();
+  void renderFrame() override;
 
-  bool ready() const;
-  void wait() const;
-
-  void *map(const char *channel,
+  void *map(std::string_view channel,
       uint32_t *width,
       uint32_t *height,
-      ANARIDataType *pixelType);
+      ANARIDataType *pixelType) override;
+  void unmap(std::string_view channel) override;
+  int frameReady(ANARIWaitMask m) override;
+  void discard() override;
 
   void *mapColorBuffer();
   void *mapGPUColorBuffer();
@@ -77,12 +83,15 @@ struct Frame : public DeviceObject<FrameGPUData>
   void *mapNormalBuffer();
 
  private:
+  bool ready() const;
+  void wait() const;
   bool checkerboarding() const;
   void checkAccumulationReset();
   void newFrame();
 
   //// Data ////
 
+  bool m_valid{false};
   float m_invFrameID{1.f};
   int m_perPixelBytes{1};
   bool m_denoise{false};
@@ -107,9 +116,9 @@ struct Frame : public DeviceObject<FrameGPUData>
   thrust::device_vector<vec3> m_deviceNormalBuffer;
   thrust::host_vector<vec3> m_mappedNormalBuffer;
 
-  anari::IntrusivePtr<Renderer> m_renderer;
-  anari::IntrusivePtr<Camera> m_camera;
-  anari::IntrusivePtr<World> m_world;
+  helium::IntrusivePtr<Renderer> m_renderer;
+  helium::IntrusivePtr<Camera> m_camera;
+  helium::IntrusivePtr<World> m_world;
 
   cudaEvent_t m_eventStart;
   cudaEvent_t m_eventEnd;
@@ -117,11 +126,11 @@ struct Frame : public DeviceObject<FrameGPUData>
   float m_duration{0.f};
 
   bool m_frameChanged{false};
-  TimeStamp m_cameraLastChanged{0};
-  TimeStamp m_rendererLastChanged{0};
-  TimeStamp m_worldLastChanged{0};
-  TimeStamp m_lastCommitOccured{0};
-  TimeStamp m_lastUploadOccured{0};
+  helium::TimeStamp m_cameraLastChanged{0};
+  helium::TimeStamp m_rendererLastChanged{0};
+  helium::TimeStamp m_worldLastChanged{0};
+  helium::TimeStamp m_lastCommitOccured{0};
+  helium::TimeStamp m_lastUploadOccured{0};
 
   Denoiser m_denoiser;
 };

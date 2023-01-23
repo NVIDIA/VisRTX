@@ -70,18 +70,17 @@ size_t World::objectCount()
   return s_numWorlds;
 }
 
-World::World()
+World::World(DeviceGlobalState *d) : Object(ANARI_WORLD, d)
 {
   s_numWorlds++;
 
-  setCommitPriority(VISRTX_COMMIT_PRIORITY_WORLD);
-  m_zeroGroup = new Group;
-  m_zeroInstance = new Instance;
-  m_zeroInstance->setParamDirect("group", m_zeroGroup);
+  m_zeroGroup = new Group(d);
+  m_zeroInstance = new Instance(d);
+  m_zeroInstance->setParamDirect("group", m_zeroGroup.ptr);
 
   // never any public ref to these objects
-  m_zeroGroup->refDec(anari::RefType::PUBLIC);
-  m_zeroInstance->refDec(anari::RefType::PUBLIC);
+  m_zeroGroup->refDec(helium::RefType::PUBLIC);
+  m_zeroInstance->refDec(helium::RefType::PUBLIC);
 }
 
 World::~World()
@@ -95,7 +94,7 @@ bool World::getProperty(
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
-      deviceState()->flushCommitBuffer();
+      deviceState()->commitBuffer.flush();
       rebuildBVHs();
     }
     auto bounds = m_surfaceBounds;
@@ -104,7 +103,7 @@ bool World::getProperty(
     return true;
   }
 
-  return false;
+  return Object::getProperty(name, type, ptr, flags);
 }
 
 void World::commit()
@@ -140,12 +139,6 @@ void World::commit()
   } else
     m_zeroGroup->removeParam("light");
 
-  if (!m_zeroGroup->deviceState())
-    m_zeroGroup->setDeviceState(deviceState());
-
-  if (!m_zeroInstance->deviceState())
-    m_zeroInstance->setDeviceState(deviceState());
-
   m_zeroGroup->commit();
   m_zeroInstance->commit();
 
@@ -157,10 +150,10 @@ void World::commit()
     m_instanceData->removeAppendedHandles();
     if (m_addZeroInstance)
       m_instanceData->appendHandle(m_zeroInstance.ptr);
-    m_instances = make_Span((Instance **)m_instanceData->handlesBegin(),
+    m_instances = anari::make_Span((Instance **)m_instanceData->handlesBegin(),
         m_instanceData->totalSize());
   } else if (m_addZeroInstance)
-    m_instances = make_Span(&m_zeroInstance.ptr, 1);
+    m_instances = anari::make_Span(&m_zeroInstance.ptr, 1);
 
   m_objectUpdates.lastTLASBuild = 0;
   m_objectUpdates.lastBLASCheck = 0;
@@ -243,12 +236,13 @@ void World::rebuildBVHs()
 
   buildInstanceLightGPUData();
 
-  m_objectUpdates.lastTLASBuild = newTimeStamp();
+  m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
 }
 
 void World::populateOptixInstances()
 {
   m_numTriangleInstances = 0;
+  m_numCurveInstances = 0;
   m_numUserInstances = 0;
   m_numVolumeInstances = 0;
   m_numLightInstances = 0;
@@ -257,6 +251,8 @@ void World::populateOptixInstances()
     auto *group = inst->group();
     if (group->containsTriangleGeometry())
       m_numTriangleInstances++;
+    if (group->containsCurveGeometry())
+      m_numCurveInstances++;
     if (group->containsUserGeometry())
       m_numUserInstances++;
     if (group->containsVolumes())
@@ -265,10 +261,12 @@ void World::populateOptixInstances()
       m_numLightInstances++;
   });
 
-  m_optixSurfaceInstances.resize(m_numTriangleInstances + m_numUserInstances);
+  m_optixSurfaceInstances.resize(
+      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
   m_optixVolumeInstances.resize(m_numVolumeInstances);
 
-  auto prepInstance = [](auto &i, int instID, auto handle) -> OptixInstance {
+  auto prepInstance =
+      [](auto &i, int instID, auto handle, int sbtOffset) -> OptixInstance {
     OptixInstance inst{};
 
     mat3x4 xfm = glm::transpose(i->xfm());
@@ -278,7 +276,7 @@ void World::populateOptixInstances()
     inst.traversableHandle = handle;
     inst.flags = OPTIX_INSTANCE_FLAG_NONE;
     inst.instanceId = instID;
-    inst.sbtOffset = 0;
+    inst.sbtOffset = sbtOffset;
     inst.visibilityMask = 1;
 
     return inst;
@@ -291,17 +289,23 @@ void World::populateOptixInstances()
     auto *osi = m_optixSurfaceInstances.dataHost();
     auto *ovi = m_optixVolumeInstances.dataHost();
     if (group->containsTriangleGeometry()) {
-      osi[instID] =
-          prepInstance(inst, instID, group->optixTraversableTriangle());
+      osi[instID] = prepInstance(
+          inst, instID, group->optixTraversableTriangle(), SBT_TRIANGLE_OFFSET);
+      instID++;
+    }
+    if (group->containsCurveGeometry()) {
+      osi[instID] = prepInstance(
+          inst, instID, group->optixTraversableCurve(), SBT_CURVE_OFFSET);
       instID++;
     }
     if (group->containsUserGeometry()) {
-      osi[instID] = prepInstance(inst, instID, group->optixTraversableUser());
+      osi[instID] = prepInstance(
+          inst, instID, group->optixTraversableUser(), SBT_CUSTOM_OFFSET);
       instID++;
     }
     if (group->containsVolumes()) {
-      ovi[instVolID] =
-          prepInstance(inst, instVolID, group->optixTraversableVolume());
+      ovi[instVolID] = prepInstance(
+          inst, instVolID, group->optixTraversableVolume(), SBT_CUSTOM_OFFSET);
       instVolID++;
     }
   });
@@ -321,12 +325,13 @@ void World::rebuildBLASs()
     group->rebuildLights();
   });
 
-  m_objectUpdates.lastBLASCheck = newTimeStamp();
+  m_objectUpdates.lastBLASCheck = helium::newTimeStamp();
 }
 
 void World::buildInstanceSurfaceGPUData()
 {
-  m_instanceSurfaceGPUData.resize(m_numTriangleInstances + m_numUserInstances);
+  m_instanceSurfaceGPUData.resize(
+      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
 
   int instID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
@@ -334,6 +339,8 @@ void World::buildInstanceSurfaceGPUData()
     auto *sd = m_instanceSurfaceGPUData.dataHost();
     if (group->containsTriangleGeometry())
       sd[instID++] = {group->surfaceTriangleGPUIndices().data()};
+    if (group->containsCurveGeometry())
+      sd[instID++] = {group->surfaceCurveGPUIndices().data()};
     if (group->containsUserGeometry())
       sd[instID++] = {group->surfaceUserGPUIndices().data()};
   });

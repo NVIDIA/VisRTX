@@ -47,13 +47,6 @@
 #include "scene/World.h"
 #include "scene/surface/material/sampler/Sampler.h"
 #include "scene/volume/spatial_field/SpatialField.h"
-// std
-#include <chrono>
-#include <cstdarg>
-#include <exception>
-#include <functional>
-#include <limits>
-#include <thread>
 
 // PTX //
 
@@ -63,8 +56,7 @@
 #include "renderer/DiffusePathTracer.h"
 #include "renderer/Raycast.h"
 #include "renderer/SciVis.h"
-// geometry
-#include "scene/surface/geometry/Spheres.h"
+#include "renderer/Test.h"
 
 namespace visrtx {
 
@@ -94,13 +86,6 @@ const char **query_extensions();
 // Helper functions ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-inline void writeToVoidP(void *_p, T v)
-{
-  T *p = (T *)_p;
-  *p = v;
-}
-
 template <typename T, typename... Args>
 inline T *createRegisteredObject(Args &&...args)
 {
@@ -108,127 +93,19 @@ inline T *createRegisteredObject(Args &&...args)
 }
 
 template <typename HANDLE_T, typename OBJECT_T>
-inline HANDLE_T getHandleForAPI(OBJECT_T *object)
+inline HANDLE_T finalizeHandleForAPI(OBJECT_T *o)
 {
-  return (HANDLE_T)object;
-}
-
-template <typename HANDLE_T, typename OBJECT_T>
-inline HANDLE_T completeHandle(OBJECT_T *o)
-{
-  o->setObjectType(anari::ANARITypeFor<HANDLE_T>::value);
-  o->markUpdated();
-  o->deviceState()->commitBuffer.addObject(o);
-  return getHandleForAPI<HANDLE_T>(o);
+  auto *s = o->deviceState();
+  s->commitBuffer.addObject(o);
+  return (HANDLE_T)o;
 }
 
 template <typename OBJECT_T, typename HANDLE_T, typename... Args>
 inline HANDLE_T createObjectForAPI(DeviceGlobalState *s, Args &&...args)
 {
-  auto o = createRegisteredObject<OBJECT_T>(std::forward<Args>(args)...);
-  o->setDeviceState(s);
-  if constexpr (std::is_same_v<OBJECT_T, Surface>)
-    o->setRegistry(s->registry.surfaces);
-  return completeHandle<HANDLE_T>(o);
+  auto o = createRegisteredObject<OBJECT_T>(s, std::forward<Args>(args)...);
+  return finalizeHandleForAPI<HANDLE_T>(o);
 }
-
-template <typename OBJECT_T = Object, typename HANDLE_T = ANARIObject>
-inline OBJECT_T &referenceFromHandle(HANDLE_T handle)
-{
-  return *((OBJECT_T *)handle);
-}
-
-#define declare_param_setter(TYPE)                                             \
-  {                                                                            \
-    anari::ANARITypeFor<TYPE>::value,                                          \
-        [](Object &o, const char *p, const void *v) {                          \
-          o.setParam(p, *(TYPE *)v);                                           \
-        }                                                                      \
-  }
-
-#define declare_param_setter_conversion(ENUM_TYPE_IN, CPP_TYPE_STORED)         \
-  {                                                                            \
-    ENUM_TYPE_IN, [](Object &o, const char *p, const void *v) {                \
-      CPP_TYPE_STORED value;                                                   \
-      std::memcpy(&value, v, sizeof(value));                                   \
-      o.setParam(p, value);                                                    \
-    }                                                                          \
-  }
-
-#define declare_param_setter_object(TYPE)                                      \
-  {                                                                            \
-    anari::ANARITypeFor<TYPE>::value,                                          \
-        [](Object &o, const char *p, const void *v) {                          \
-          using OBJECT_T = typename std::remove_pointer<TYPE>::type;           \
-          auto ptr = *((TYPE *)v);                                             \
-          if (ptr)                                                             \
-            o.setParam(p, anari::IntrusivePtr<OBJECT_T>(ptr));                 \
-          else                                                                 \
-            o.removeParam(p);                                                  \
-        }                                                                      \
-  }
-
-#define declare_param_setter_string(TYPE)                                      \
-  {                                                                            \
-    ANARI_STRING, [](Object &o, const char *p, const void *v) {                \
-      o.setParam(p, std::string((const char *)v));                             \
-    }                                                                          \
-  }
-
-#define declare_param_setter_void_ptr(TYPE)                                    \
-  {                                                                            \
-    ANARI_VOID_POINTER, [](Object &o, const char *p, const void *v) {          \
-      o.setParam(p, const_cast<void *>(v));                                    \
-    }                                                                          \
-  }
-
-using SetParamFcn = void(Object &, const char *, const void *);
-
-static std::map<ANARIDataType, SetParamFcn *> setParamFcns = {
-    declare_param_setter(ANARIDataType),
-    declare_param_setter_void_ptr(void *),
-    declare_param_setter(bool),
-    declare_param_setter_object(Object *),
-    declare_param_setter_object(Camera *),
-    declare_param_setter_object(Array *),
-    declare_param_setter_object(Array1D *),
-    declare_param_setter_object(Array2D *),
-    declare_param_setter_object(Array3D *),
-    declare_param_setter_object(Frame *),
-    declare_param_setter_object(Geometry *),
-    declare_param_setter_object(Group *),
-    declare_param_setter_object(Instance *),
-    declare_param_setter_object(Light *),
-    declare_param_setter_object(Material *),
-    declare_param_setter_object(Renderer *),
-    declare_param_setter_object(Sampler *),
-    declare_param_setter_object(Surface *),
-    declare_param_setter_object(SpatialField *),
-    declare_param_setter_object(Volume *),
-    declare_param_setter_object(World *),
-    declare_param_setter_string(const char *),
-    declare_param_setter(int),
-    declare_param_setter(unsigned int),
-    declare_param_setter(size_t),
-    declare_param_setter(float),
-    declare_param_setter(ivec2),
-    declare_param_setter(ivec3),
-    declare_param_setter(ivec4),
-    declare_param_setter(uvec2),
-    declare_param_setter(uvec3),
-    declare_param_setter(uvec4),
-    declare_param_setter(vec2),
-    declare_param_setter(vec3),
-    declare_param_setter(vec4),
-    declare_param_setter(mat4x3),
-    declare_param_setter(mat4),
-    declare_param_setter_conversion(ANARI_FLOAT32_BOX1, vec2),
-    declare_param_setter_conversion(ANARI_FLOAT32_BOX2, vec4)};
-
-#undef declare_param_setter
-#undef declare_param_setter_object
-#undef declare_param_setter_string
-#undef declare_param_setter_void_ptr
 
 ///////////////////////////////////////////////////////////////////////////////
 // VisRTXDevice definitions ///////////////////////////////////////////////////
@@ -245,23 +122,19 @@ ANARIArray1D VisRTXDevice::newArray1D(const void *appMemory,
 {
   initDevice();
   CUDADeviceScope ds(this);
-  if (anari::isObject(type)) {
-    return createObjectForAPI<ObjectArray, ANARIArray1D>(m_state.get(),
-        appMemory,
-        deleter,
-        userData,
-        type,
-        numItems,
-        byteStride);
-  } else {
-    return createObjectForAPI<Array1D, ANARIArray1D>(m_state.get(),
-        appMemory,
-        deleter,
-        userData,
-        type,
-        numItems,
-        byteStride);
-  }
+
+  Array1DMemoryDescriptor md;
+  md.appMemory = appMemory;
+  md.deleter = deleter;
+  md.deleterPtr = userData;
+  md.elementType = type;
+  md.numItems = numItems;
+  md.byteStride = byteStride;
+
+  if (anari::isObject(type))
+    return createObjectForAPI<ObjectArray, ANARIArray1D>(deviceState(), md);
+  else
+    return createObjectForAPI<Array1D, ANARIArray1D>(deviceState(), md);
 }
 
 ANARIArray2D VisRTXDevice::newArray2D(const void *appMemory,
@@ -275,15 +148,18 @@ ANARIArray2D VisRTXDevice::newArray2D(const void *appMemory,
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return createObjectForAPI<Array2D, ANARIArray2D>(m_state.get(),
-      appMemory,
-      deleter,
-      userData,
-      type,
-      numItems1,
-      numItems2,
-      byteStride1,
-      byteStride2);
+
+  Array2DMemoryDescriptor md;
+  md.appMemory = appMemory;
+  md.deleter = deleter;
+  md.deleterPtr = userData;
+  md.elementType = type;
+  md.numItems1 = numItems1;
+  md.numItems2 = numItems2;
+  md.byteStride1 = byteStride1;
+  md.byteStride2 = byteStride2;
+
+  return createObjectForAPI<Array2D, ANARIArray2D>(deviceState(), md);
 }
 
 ANARIArray3D VisRTXDevice::newArray3D(const void *appMemory,
@@ -299,29 +175,32 @@ ANARIArray3D VisRTXDevice::newArray3D(const void *appMemory,
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return createObjectForAPI<Array3D, ANARIArray3D>(m_state.get(),
-      appMemory,
-      deleter,
-      userData,
-      type,
-      numItems1,
-      numItems2,
-      numItems3,
-      byteStride1,
-      byteStride2,
-      byteStride3);
+
+  Array3DMemoryDescriptor md;
+  md.appMemory = appMemory;
+  md.deleter = deleter;
+  md.deleterPtr = userData;
+  md.elementType = type;
+  md.numItems1 = numItems1;
+  md.numItems2 = numItems2;
+  md.numItems3 = numItems3;
+  md.byteStride1 = byteStride1;
+  md.byteStride2 = byteStride2;
+  md.byteStride3 = byteStride3;
+
+  return createObjectForAPI<Array3D, ANARIArray3D>(deviceState(), md);
 }
 
 void *VisRTXDevice::mapArray(ANARIArray a)
 {
   CUDADeviceScope ds(this);
-  return referenceFromHandle<Array>(a).map();
+  return helium::BaseDevice::mapArray(a);
 }
 
 void VisRTXDevice::unmapArray(ANARIArray a)
 {
   CUDADeviceScope ds(this);
-  referenceFromHandle<Array>(a).unmap();
+  helium::BaseDevice::unmapArray(a);
 }
 
 // Renderable Objects /////////////////////////////////////////////////////////
@@ -330,47 +209,47 @@ ANARILight VisRTXDevice::newLight(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return completeHandle<ANARILight>(
-      Light::createInstance(subtype, m_state.get()));
+  return finalizeHandleForAPI<ANARILight>(
+      Light::createInstance(subtype, deviceState()));
 }
 
 ANARICamera VisRTXDevice::newCamera(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return completeHandle<ANARICamera>(
-      Camera::createInstance(subtype, m_state.get()));
+  return finalizeHandleForAPI<ANARICamera>(
+      Camera::createInstance(subtype, deviceState()));
 }
 
 ANARIGeometry VisRTXDevice::newGeometry(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return completeHandle<ANARIGeometry>(
-      Geometry::createInstance(subtype, m_state.get()));
+  return finalizeHandleForAPI<ANARIGeometry>(
+      Geometry::createInstance(subtype, deviceState()));
 }
 
 ANARISpatialField VisRTXDevice::newSpatialField(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return completeHandle<ANARISpatialField>(
-      SpatialField::createInstance(subtype, m_state.get()));
+  return finalizeHandleForAPI<ANARISpatialField>(
+      SpatialField::createInstance(subtype, deviceState()));
 }
 
 ANARISurface VisRTXDevice::newSurface()
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return createObjectForAPI<Surface, ANARISurface>(m_state.get());
+  return createObjectForAPI<Surface, ANARISurface>(deviceState());
 }
 
 ANARIVolume VisRTXDevice::newVolume(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return completeHandle<ANARIVolume>(
-      Volume::createInstance(subtype, m_state.get()));
+  return finalizeHandleForAPI<ANARIVolume>(
+      Volume::createInstance(subtype, deviceState()));
 }
 
 // Surface Meta-Data //////////////////////////////////////////////////////////
@@ -379,16 +258,16 @@ ANARIMaterial VisRTXDevice::newMaterial(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return completeHandle<ANARIMaterial>(
-      Material::createInstance(subtype, m_state.get()));
+  return finalizeHandleForAPI<ANARIMaterial>(
+      Material::createInstance(subtype, deviceState()));
 }
 
 ANARISampler VisRTXDevice::newSampler(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return completeHandle<ANARISampler>(
-      Sampler::createInstance(subtype, m_state.get()));
+  return finalizeHandleForAPI<ANARISampler>(
+      Sampler::createInstance(subtype, deviceState()));
 }
 
 // Instancing /////////////////////////////////////////////////////////////////
@@ -397,14 +276,14 @@ ANARIGroup VisRTXDevice::newGroup()
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return createObjectForAPI<Group, ANARIGroup>(m_state.get());
+  return createObjectForAPI<Group, ANARIGroup>(deviceState());
 }
 
 ANARIInstance VisRTXDevice::newInstance()
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return createObjectForAPI<Instance, ANARIInstance>(m_state.get());
+  return createObjectForAPI<Instance, ANARIInstance>(deviceState());
 }
 
 // Top-level Worlds ///////////////////////////////////////////////////////////
@@ -413,8 +292,10 @@ ANARIWorld VisRTXDevice::newWorld()
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return createObjectForAPI<World, ANARIWorld>(m_state.get());
+  return createObjectForAPI<World, ANARIWorld>(deviceState());
 }
+
+// Object + Parameter Lifetime Management /////////////////////////////////////
 
 int VisRTXDevice::getProperty(ANARIObject object,
     const char *name,
@@ -428,112 +309,39 @@ int VisRTXDevice::getProperty(ANARIObject object,
     if (prop == "version" && type == ANARI_INT32) {
       int version = VISRTX_VERSION_MAJOR * 10000 + VISRTX_VERSION_MINOR * 100
           + VISRTX_VERSION_PATCH;
-      writeToVoidP(mem, version);
+      helium::writeToVoidP(mem, version);
       return 1;
     } else if (prop == "version.major" && type == ANARI_INT32) {
-      writeToVoidP(mem, VISRTX_VERSION_MAJOR);
+      helium::writeToVoidP(mem, VISRTX_VERSION_MAJOR);
       return 1;
     } else if (prop == "version.minor" && type == ANARI_INT32) {
-      writeToVoidP(mem, VISRTX_VERSION_MINOR);
+      helium::writeToVoidP(mem, VISRTX_VERSION_MINOR);
       return 1;
     } else if (prop == "version.patch" && type == ANARI_INT32) {
-      writeToVoidP(mem, VISRTX_VERSION_PATCH);
+      helium::writeToVoidP(mem, VISRTX_VERSION_PATCH);
       return 1;
     } else if (prop == "debugObjects" && type == ANARI_FUNCTION_POINTER) {
-      writeToVoidP(mem, getDebugFactory);
+      helium::writeToVoidP(mem, getDebugFactory);
       return 1;
     } else if (prop == "feature" && type == ANARI_STRING_LIST) {
-      writeToVoidP(mem, query_extensions());
+      helium::writeToVoidP(mem, query_extensions());
+      return 1;
+    } else if (prop == "subtypes.renderer" && type == ANARI_STRING_LIST) {
+      helium::writeToVoidP(mem, query_object_types(ANARI_RENDERER));
+      return 1;
+    } else if (prop == "visrtx" && type == ANARI_BOOL) {
+      helium::writeToVoidP(mem, true);
       return 1;
     }
   } else {
     CUDADeviceScope ds(this);
     if (mask == ANARI_WAIT)
-      m_state->flushCommitBuffer();
-    return referenceFromHandle(object).getProperty(name, type, mem, mask);
+      flushCommitBuffer();
+    return helium::referenceFromHandle(object).getProperty(
+        name, type, mem, mask);
   }
 
   return 0;
-}
-
-// Object + Parameter Lifetime Management /////////////////////////////////////
-
-void VisRTXDevice::setParameter(
-    ANARIObject object, const char *name, ANARIDataType type, const void *mem)
-{
-  if (handleIsDevice(object)) {
-    deviceSetParameter(name, type, mem);
-    return;
-  }
-
-  auto *fcn = setParamFcns[type];
-  auto &o = referenceFromHandle(object);
-
-  if (fcn) {
-    fcn(o, name, mem);
-    o.markUpdated();
-  } else {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "setting parameter type %s not yet implemented and will be unused",
-        anari::toString(type));
-  }
-}
-
-void VisRTXDevice::unsetParameter(ANARIObject o, const char *name)
-{
-  if (handleIsDevice(o))
-    deviceUnsetParameter(name);
-  else {
-    auto &obj = referenceFromHandle(o);
-    obj.removeParam(name);
-    obj.markUpdated();
-  }
-}
-
-void VisRTXDevice::commitParameters(ANARIObject o)
-{
-  if (handleIsDevice(o))
-    deviceCommitParameters();
-  else
-    m_state->commitBuffer.addObject((Object *)o);
-}
-
-void VisRTXDevice::release(ANARIObject o)
-{
-  if (o == nullptr)
-    return;
-  else if (handleIsDevice(o)) {
-    this->refDec();
-    return;
-  }
-
-  CUDADeviceScope ds(this);
-
-  auto &obj = referenceFromHandle(o);
-
-  if (obj.useCount(anari::RefType::PUBLIC) == 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected too many releases of object (type %i)",
-        obj.type());
-    return;
-  }
-
-  bool privatizeArray = anari::isArray(obj.type())
-      && obj.useCount(anari::RefType::INTERNAL) > 0
-      && obj.useCount(anari::RefType::PUBLIC) == 1;
-
-  obj.refDec(anari::RefType::PUBLIC);
-
-  if (privatizeArray)
-    ((Array *)o)->privatize();
-}
-
-void VisRTXDevice::retain(ANARIObject o)
-{
-  if (handleIsDevice(o))
-    this->refInc();
-  else
-    referenceFromHandle(o).refInc(anari::RefType::PUBLIC);
 }
 
 // Frame Manipulation /////////////////////////////////////////////////////////
@@ -542,22 +350,18 @@ ANARIFrame VisRTXDevice::newFrame()
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return createObjectForAPI<Frame, ANARIFrame>(m_state.get());
+  return createObjectForAPI<Frame, ANARIFrame>(deviceState());
 }
 
-const void *VisRTXDevice::frameBufferMap(ANARIFrame fb,
+const void *VisRTXDevice::frameBufferMap(ANARIFrame f,
     const char *channel,
     uint32_t *width,
     uint32_t *height,
     ANARIDataType *pixelType)
 {
   CUDADeviceScope ds(this);
-  return referenceFromHandle<Frame>(fb).map(channel, width, height, pixelType);
-}
-
-void VisRTXDevice::frameBufferUnmap(ANARIFrame, const char *)
-{
-  // no-op
+  return helium::BaseDevice::frameBufferMap(
+      f, channel, width, height, pixelType);
 }
 
 // Frame Rendering ////////////////////////////////////////////////////////////
@@ -566,45 +370,53 @@ ANARIRenderer VisRTXDevice::newRenderer(const char *subtype)
 {
   initDevice();
   CUDADeviceScope ds(this);
-  return completeHandle<ANARIRenderer>(
-      Renderer::createInstance(subtype, m_state.get()));
+  return finalizeHandleForAPI<ANARIRenderer>(
+      Renderer::createInstance(subtype, deviceState()));
 }
 
-void VisRTXDevice::renderFrame(ANARIFrame frame)
+void VisRTXDevice::renderFrame(ANARIFrame f)
 {
   CUDADeviceScope ds(this);
-  referenceFromHandle<Frame>(frame).renderFrame();
+  helium::BaseDevice::renderFrame(f);
 }
 
-int VisRTXDevice::frameReady(ANARIFrame _f, ANARIWaitMask m)
+int VisRTXDevice::frameReady(ANARIFrame f, ANARIWaitMask m)
 {
   CUDADeviceScope ds(this);
-  auto &f = referenceFromHandle<Frame>(_f);
-  if (m == ANARI_NO_WAIT)
-    return f.ready();
-  else {
-    f.wait();
-    return 1;
-  }
+  return helium::BaseDevice::frameReady(f, m);
 }
 
-void VisRTXDevice::discardFrame(ANARIFrame)
+void VisRTXDevice::discardFrame(ANARIFrame f)
 {
-  // no-op
+  CUDADeviceScope ds(this);
+  return helium::BaseDevice::discardFrame(f);
 }
 
 // Other VisRTXDevice definitions /////////////////////////////////////////////
 
-VisRTXDevice::VisRTXDevice(ANARILibrary l) : DeviceImpl(l) {}
+VisRTXDevice::VisRTXDevice(ANARIStatusCallback cb, const void *ptr)
+    : helium::BaseDevice(cb, ptr)
+{
+  m_state = std::make_unique<DeviceGlobalState>(this_device());
+  helium::BaseDevice::deviceCommitParameters();
+}
+
+VisRTXDevice::VisRTXDevice(ANARILibrary l) : helium::BaseDevice(l)
+{
+  m_state = std::make_unique<DeviceGlobalState>(this_device());
+  helium::BaseDevice::deviceCommitParameters();
+}
 
 VisRTXDevice::~VisRTXDevice()
 {
   if (m_state.get() == nullptr)
     return;
 
-  auto &state = *m_state;
+  reportMessage(ANARI_SEVERITY_DEBUG, "destroying VisRTX device");
 
-  state.commitBuffer.clear();
+  auto &state = *deviceState();
+
+  clearCommitBuffer();
   state.uploadBuffer.clear();
 
   CUDA_SYNC_CHECK();
@@ -614,6 +426,7 @@ VisRTXDevice::~VisRTXDevice()
   optixModuleDestroy(state.rendererModules.ambientOcclusion);
   optixModuleDestroy(state.rendererModules.diffusePathTracer);
   optixModuleDestroy(state.rendererModules.scivis);
+  optixModuleDestroy(state.rendererModules.test);
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
 
@@ -649,41 +462,39 @@ VisRTXDevice::~VisRTXDevice()
         "detected %zu leaked groups",
         Group::objectCount());
   }
-  if (!state.registry.lights.empty()) {
+
+  auto reportLeakedRegistryValues = [&](const char *type, auto &r) {
+    if (r.empty())
+      return;
+
     reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked lights",
-        state.registry.lights.size());
-  }
-  if (!state.registry.surfaces.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked surfaces",
-        state.registry.surfaces.size());
-  }
-  if (!state.registry.volumes.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked volumes",
-        state.registry.volumes.size());
-  }
-  if (!state.registry.geometries.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked geometries",
-        state.registry.geometries.size());
-  }
-  if (!state.registry.materials.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked materials",
-        state.registry.materials.size());
-  }
-  if (!state.registry.fields.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked spatial fields",
-        state.registry.fields.size());
-  }
-  if (!state.registry.samplers.empty()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked samplers",
-        state.registry.samplers.size());
-  }
+        "detected %zu leaked %s objects",
+        r.size(),
+        type);
+
+    for (int i = 0; i < r.capacity(); i++) {
+      auto *obj = (Object *)r.hostObject(i);
+      if (!obj)
+        continue;
+      auto name = obj->getParamString("name", "<no name>");
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "    leaked %s (%p) | ref counts [%zu, %zu] | name '%s'",
+          type,
+          obj,
+          obj->useCount(helium::RefType::PUBLIC),
+          obj->useCount(helium::RefType::INTERNAL),
+          name.c_str());
+    }
+  };
+
+  reportLeakedRegistryValues("light", state.registry.lights);
+  reportLeakedRegistryValues("surface", state.registry.surfaces);
+  reportLeakedRegistryValues("volume", state.registry.volumes);
+  reportLeakedRegistryValues("geometry", state.registry.geometries);
+  reportLeakedRegistryValues("material", state.registry.materials);
+  reportLeakedRegistryValues("spatial field", state.registry.fields);
+  reportLeakedRegistryValues("sampler", state.registry.samplers);
+
   if (Array::objectCount() != 0) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "detected %zu leaked arrays",
@@ -693,37 +504,22 @@ VisRTXDevice::~VisRTXDevice()
 
 void VisRTXDevice::initDevice()
 {
-  if (m_state)
+  if (m_initialized)
     return;
 
-  m_state = std::make_unique<DeviceGlobalState>();
-  auto &state = *m_state;
+  auto &state = *deviceState();
 
   if (!m_eagerInit)
     deviceCommitParameters();
 
-  state.messageFunction = [&](ANARIStatusSeverity severity,
-                              const std::string &msg,
-                              const void *obj) {
-    if (!m_statusCB)
-      return;
-    m_statusCB(m_statusCBUserPtr,
-        this_device(),
-        (ANARIObject)obj,
-        ANARI_OBJECT,
-        severity,
-        severity >= ANARI_SEVERITY_WARNING ? ANARI_STATUS_NO_ERROR
-                                           : ANARI_STATUS_UNKNOWN_ERROR,
-        msg.c_str());
-  };
-
-  reportMessage(ANARI_SEVERITY_DEBUG, "initializing VisRTX");
+  reportMessage(ANARI_SEVERITY_DEBUG, "initializing VisRTX device", this);
 
   cudaFree(nullptr);
   int numDevices;
   cudaGetDeviceCount(&numDevices);
   if (numDevices == 0) {
     reportMessage(ANARI_SEVERITY_FATAL_ERROR, "no CUDA capable devices found!");
+    m_state.reset();
     return;
   }
 
@@ -776,26 +572,19 @@ void VisRTXDevice::initDevice()
 
   // Create OptiX modules //
 
+  OptixModuleCompileOptions moduleCompileOptions = {};
+  moduleCompileOptions.maxRegisterCount =
+      OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+  moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+  moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+
+  auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
+
   auto init_module = [&](OptixModule &module, unsigned char *ptx) {
     const std::string ptxCode = (const char *)ptx;
 
     std::string log(2048, '\n');
     size_t sizeof_log = log.size();
-
-    OptixModuleCompileOptions moduleCompileOptions = {};
-    moduleCompileOptions.maxRegisterCount =
-        OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
-    moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-    moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
-
-    OptixPipelineCompileOptions pipelineCompileOptions = {};
-    pipelineCompileOptions.traversableGraphFlags =
-        OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-    pipelineCompileOptions.usesMotionBlur = false;
-    pipelineCompileOptions.numPayloadValues = PAYLOAD_VALUES;
-    pipelineCompileOptions.numAttributeValues = ATTRIBUTE_VALUES;
-    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
-    pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
 
     OPTIX_CHECK(optixModuleCreateFromPTX(state.optixContext,
         &moduleCompileOptions,
@@ -821,37 +610,28 @@ void VisRTXDevice::initDevice()
       state.rendererModules.diffusePathTracer, DiffusePathTracer::ptx());
   reportMessage(ANARI_SEVERITY_DEBUG, "Compiling 'scivis' renderer");
   init_module(state.rendererModules.scivis, SciVis::ptx());
+  reportMessage(ANARI_SEVERITY_DEBUG, "Compiling 'test' renderer");
+  init_module(state.rendererModules.test, Test::ptx());
 
   reportMessage(ANARI_SEVERITY_DEBUG, "Compiling custom intersectors");
   init_module(state.intersectionModules.customIntersectors, intersection_ptx());
-}
 
-void VisRTXDevice::deviceSetParameter(
-    const char *_id, ANARIDataType type, const void *mem)
-{
-  std::string id = _id;
-  if (id == "statusCallback" && type == ANARI_STATUS_CALLBACK)
-    setParam(id, (ANARIStatusCallback)mem);
-  else if (id == "statusCallbackUserData" && type == ANARI_VOID_POINTER)
-    setParam(id, mem);
-  else if (id == "cudaDevice" && type == ANARI_INT32)
-    setParam(id, *(int *)mem);
-  else if (id == "forceInit" && type == ANARI_BOOL)
-    setParam(id, *(bool *)mem);
-}
+  OptixBuiltinISOptions builtinISOptions = {};
+  builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;
+  builtinISOptions.usesMotionBlur = 0;
+  OPTIX_CHECK(optixBuiltinISModuleGet(state.optixContext,
+      &moduleCompileOptions,
+      &pipelineCompileOptions,
+      &builtinISOptions,
+      &state.intersectionModules.curveIntersector));
 
-void VisRTXDevice::deviceUnsetParameter(const char *id)
-{
-  removeParam(id);
+  m_initialized = true;
 }
 
 void VisRTXDevice::deviceCommitParameters()
 {
+  helium::BaseDevice::deviceCommitParameters();
   m_eagerInit = getParam<bool>("forceInit", false);
-  m_statusCB =
-      getParam<ANARIStatusCallback>("statusCallback", defaultStatusCallback());
-  m_statusCBUserPtr = getParam<const void *>(
-      "statusCallbackUserData", defaultStatusCallbackUserPtr());
   m_desiredGpuID = getParam<int>("cudaDevice", 0);
   if (m_gpuID >= 0 && m_desiredGpuID != m_gpuID) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -874,6 +654,11 @@ void VisRTXDevice::setCUDADevice()
 void VisRTXDevice::revertCUDADevice()
 {
   cudaSetDevice(m_appGpuID);
+}
+
+DeviceGlobalState *VisRTXDevice::deviceState() const
+{
+  return (DeviceGlobalState *)helium::BaseDevice::m_state.get();
 }
 
 VisRTXDevice::CUDADeviceScope::CUDADeviceScope(VisRTXDevice *d) : m_device(d)
@@ -942,7 +727,8 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(
       propertyType);
 }
 
-extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice()
+extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice(
+    ANARIStatusCallback defaultCallback, const void *userPtr)
 {
-  return (ANARIDevice) new visrtx::VisRTXDevice();
+  return (ANARIDevice) new visrtx::VisRTXDevice(defaultCallback, userPtr);
 }

@@ -33,12 +33,14 @@
 
 #include "array/Array1D.h"
 #include "gpu/gpu_objects.h"
+#include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
 
 inline void populateAttributePtr(
-    anari::IntrusivePtr<Array1D> array, AttributePtr &aptr)
+    helium::IntrusivePtr<Array1D> array, AttributePtr &aptr)
 {
+  aptr.type = ANARI_UNKNOWN;
   aptr.numChannels = 0;
   aptr.data = nullptr;
 
@@ -47,23 +49,11 @@ inline void populateAttributePtr(
 
   auto type = array->elementType();
 
-  switch (type) {
-  case ANARI_FLOAT32:
-    aptr.numChannels = 1;
-    break;
-  case ANARI_FLOAT32_VEC2:
-    aptr.numChannels = 2;
-    break;
-  case ANARI_FLOAT32_VEC3:
-    aptr.numChannels = 3;
-    break;
-  case ANARI_FLOAT32_VEC4:
-    aptr.numChannels = 4;
-    break;
-  default:
+  if (!isColor(type))
     return;
-  }
 
+  aptr.type = type;
+  aptr.numChannels = numANARIChannels(type);
   aptr.data = array->deviceData();
 }
 

@@ -55,42 +55,49 @@ using DeviceObjectIndex = int32_t;
 
 // Cameras //
 
-enum CameraType
+enum class CameraType
 {
   PERSPECTIVE,
-  ORTHOGRAPHIC
+  ORTHOGRAPHIC,
+  UNKNOWN
 };
 
-struct CameraGPUData
-{
-  CameraType type;
-  vec4 region;
-  vec3 pos;
-  vec3 dir;
-  vec3 up;
-};
-
-struct PerspectiveCameraGPUData : public CameraGPUData
+struct PerspectiveCameraGPUData
 {
   vec3 dir_du;
   vec3 dir_dv;
   vec3 dir_00;
 };
 
-struct OrthographicCameraGPUData : public CameraGPUData
+struct OrthographicCameraGPUData
 {
   vec3 pos_du;
   vec3 pos_dv;
   vec3 pos_00;
 };
 
+struct CameraGPUData
+{
+  CameraType type{CameraType::UNKNOWN};
+  vec4 region;
+  vec3 pos;
+  vec3 dir;
+  vec3 up;
+  union
+  {
+    PerspectiveCameraGPUData perspective;
+    OrthographicCameraGPUData orthographic;
+  };
+};
+
 // Geometry //
 
-enum GeometryType
+enum class GeometryType
 {
   TRIANGLE,
   QUAD,
   CYLINDER,
+  CURVE,
   CONE,
   SPHERE,
   UNKNOWN
@@ -98,6 +105,7 @@ enum GeometryType
 
 struct AttributePtr
 {
+  ANARIDataType type;
   int numChannels;
   void *data;
 };
@@ -131,9 +139,17 @@ struct CylinderGeometryData
   const uvec2 *indices;
   const vec3 *vertices;
   AttributePtr vertexAttr[5]; // attribute0-3 + color
-  float *radii;
+  const float *radii;
   float radius;
   bool caps;
+};
+
+struct CurveGeometryData
+{
+  const uint32_t *indices;
+  const vec3 *vertices;
+  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  const float *radii;
 };
 
 struct ConeGeometryData
@@ -146,9 +162,10 @@ struct ConeGeometryData
 
 struct SphereGeometryData
 {
+  const uint32_t *indices;
   vec3 *centers;
   AttributePtr vertexAttr[5]; // attribute0-3 + color
-  float *radii;
+  const float *radii;
   float radius;
 };
 
@@ -156,12 +173,12 @@ struct GeometryGPUData
 {
   GeometryType type{GeometryType::UNKNOWN};
   AttributePtr attr[5]; // attribute0-3 + color
-  const uint32 *primID{nullptr};
   union
   {
     TriangleGeometryData tri{};
     QuadGeometryData quad;
     CylinderGeometryData cylinder;
+    CurveGeometryData curve;
     ConeGeometryData cone;
     SphereGeometryData sphere;
   };
@@ -171,10 +188,16 @@ struct GeometryGPUData
 
 enum class SamplerType
 {
+  TEXTURE1D,
   TEXTURE2D,
   PRIMITIVE,
   COLOR_MAP,
   UNKNOWN
+};
+
+struct Image1DData
+{
+  cudaTextureObject_t texobj;
 };
 
 struct Image2DData
@@ -200,6 +223,7 @@ struct SamplerGPUData
   union
   {
     ColorMapGPUData colormap{};
+    Image1DData image1D;
     Image2DData image2D;
     PrimIDSamplerData primitive;
   };
@@ -284,6 +308,14 @@ struct StructuredRegularData
   vec3 invSpacing;
 };
 
+struct UniformGridData
+{
+  ivec3 dims;
+  box3 worldBounds;
+  box1 *valueRanges; // min/max ranges
+  float *maxOpacities; // used for adaptive sampling/space skipping
+};
+
 struct SpatialFieldGPUData
 {
   SpatialFieldType type{SpatialFieldType::UNKNOWN};
@@ -291,6 +323,7 @@ struct SpatialFieldGPUData
   {
     StructuredRegularData structuredRegular{};
   } data;
+  UniformGridData grid;
 };
 
 // Volume //
@@ -330,12 +363,6 @@ enum class LightType
   UNKNOWN
 };
 
-struct AmbientLightGPUData
-{
-  float intensity;
-  float distance;
-};
-
 struct DirectionalLightGPUData
 {
   vec3 direction;
@@ -354,7 +381,6 @@ struct LightGPUData
   vec3 color;
   union
   {
-    AmbientLightGPUData ambient;
     DirectionalLightGPUData distant;
     PointLightGPUData point;
   };
@@ -409,7 +435,6 @@ struct AORendererGPUData
 struct DPTRendererGPUData
 {
   int maxDepth;
-  float R;
 };
 
 struct SciVisRendererGPUData
@@ -432,6 +457,9 @@ struct RendererGPUData
 {
   RendererParametersGPUData params;
   glm::vec4 bgColor;
+  glm::vec3 ambientColor;
+  float ambientIntensity;
+  float occlusionDistance;
 };
 
 // Frame //
@@ -523,6 +551,8 @@ struct VolumeHit
 {
   bool foundHit;
   Ray localRay;
+  uint32_t volID{~0u};
+  uint32_t instID{~0u};
   const VolumeGPUData *volumeData{nullptr};
 };
 

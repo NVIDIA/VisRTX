@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct Sampler : public RegisteredObject<SamplerGPUData>
 {
-  Sampler() = default;
+  Sampler(DeviceGlobalState *d);
 
   virtual void commit() override;
 

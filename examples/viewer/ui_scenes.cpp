@@ -71,6 +71,11 @@ static void ui_conesConfig(ConesConfig &config)
   ImGui::DragFloat("opacity", &config.opacity, 0.001f, 0.f, 1.f);
 }
 
+static void ui_curvesConfig(CurvesConfig &config)
+{
+  ui_config(config);
+}
+
 static void ui_volumeConfig(VolumeConfig &config)
 {
   ui_config(config);
@@ -97,6 +102,7 @@ static void ui_gravityVolumeConfig(GravityVolumeConfig &config)
 bool ui_scenes(SpheresConfig &spheresConfig,
     CylindersConfig &cylindersConfig,
     ConesConfig &conesConfig,
+    CurvesConfig &curvesConfig,
     NoiseVolumeConfig &noiseVolumeConfig,
     GravityVolumeConfig &gravityVolumeConfig,
     ObjFileConfig &objFileConfig,
@@ -110,11 +116,11 @@ bool ui_scenes(SpheresConfig &spheresConfig,
   if (!objFileConfig.filename.empty()) {
     ImGui::Combo("##whichScene",
         &whichScene,
-        "random spheres\0random cylinders\0random cones\0noise volume\0gravity volume\0obj file\0\0");
+        "random spheres\0random cylinders\0random cones\0streamlines\0noise volume\0gravity volume\0obj file\0\0");
   } else {
     ImGui::Combo("##whichScene",
         &whichScene,
-        "random spheres\0random cylinders\0random cones\0noise volume\0gravity volume\0\0");
+        "random spheres\0random cylinders\0random cones\0streamlines\0noise volume\0gravity volume\0\0");
   }
 
   switch (whichScene) {
@@ -130,12 +136,16 @@ bool ui_scenes(SpheresConfig &spheresConfig,
   case SceneTypes::RANDOM_CONES:
     ui_conesConfig(conesConfig);
     break;
+  case SceneTypes::STREAMLINES:
+    ui_curvesConfig(curvesConfig);
+    break;
   case SceneTypes::NOISE_VOLUME:
     ui_noiseVolumeConfig(noiseVolumeConfig);
     break;
   case SceneTypes::GRAVITY_VOLUME:
-  default:
     ui_gravityVolumeConfig(gravityVolumeConfig);
+    break;
+  default:
     break;
   }
 

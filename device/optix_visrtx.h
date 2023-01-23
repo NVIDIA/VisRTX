@@ -32,9 +32,10 @@
 #pragma once
 
 #include "gpu/gpu_objects.h"
-#include "utility/DeferredCommitBuffer.h"
-#include "utility/DeferredUploadBuffer.h"
+#include "utility/DeferredArrayUploadBuffer.h"
 #include "utility/DeviceObjectArray.h"
+// helium
+#include "helium/BaseGlobalDeviceState.h"
 // optix
 #include <optix.h>
 #include <optix_stubs.h>
@@ -101,15 +102,13 @@ namespace visrtx {
 
 using ptx_ptr = unsigned char *;
 
-struct DeviceGlobalState
+struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
   CUcontext cudaContext;
   CUstream stream;
   cudaDeviceProp deviceProps;
 
   OptixDeviceContext optixContext;
-
-  std::function<void(int, const std::string &, const void *)> messageFunction;
 
   struct RendererModules
   {
@@ -118,23 +117,22 @@ struct DeviceGlobalState
     OptixModule ambientOcclusion{nullptr};
     OptixModule diffusePathTracer{nullptr};
     OptixModule scivis{nullptr};
+    OptixModule test{nullptr};
   } rendererModules;
 
   struct IntersectionModules
   {
+    OptixModule curveIntersector{nullptr};
     OptixModule customIntersectors{nullptr};
   } intersectionModules;
 
   struct ObjectUpdates
   {
-    TimeStamp lastCommitFlush{0};
-    TimeStamp lastUploadFlush{0};
-    TimeStamp lastBLASChange{0};
-    TimeStamp lastTLASChange{0};
+    helium::TimeStamp lastBLASChange{0};
+    helium::TimeStamp lastTLASChange{0};
   } objectUpdates;
 
-  DeferredCommitBuffer commitBuffer;
-  DeferredUploadBuffer uploadBuffer;
+  DeferredArrayUploadBuffer uploadBuffer;
 
   struct DeviceObjectRegistry
   {
@@ -149,8 +147,7 @@ struct DeviceGlobalState
 
   // Helper methods //
 
-  void flushCommitBuffer();
-  void flushUploadBuffer();
+  DeviceGlobalState(ANARIDevice d);
 };
 
 struct Object;

@@ -30,13 +30,13 @@
  */
 
 #include "Renderer.h"
-#include "ParameterInfo.h"
 // specific renderers
 #include "AmbientOcclusion.h"
 #include "Debug.h"
 #include "DiffusePathTracer.h"
 #include "Raycast.h"
 #include "SciVis.h"
+#include "Test.h"
 // std
 #include <stdlib.h>
 #include <string_view>
@@ -56,43 +56,6 @@ using HitgroupRecord = SBTRecord;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static Renderer *make_renderer(std::string_view subtype)
-{
-  auto splitString = [](const std::string &input,
-                         const std::string &delim) -> std::vector<std::string> {
-    std::vector<std::string> tokens;
-    size_t pos = 0;
-    while (true) {
-      size_t begin = input.find_first_not_of(delim, pos);
-      if (begin == input.npos)
-        return tokens;
-      size_t end = input.find_first_of(delim, begin);
-      tokens.push_back(input.substr(
-          begin, (end == input.npos) ? input.npos : (end - begin)));
-      pos = end;
-    }
-  };
-
-  Renderer *retval = nullptr;
-
-  if (subtype == "raycast")
-    retval = new Raycast();
-  else if (subtype == "ao")
-    retval = new AmbientOcclusion();
-  else if (subtype == "diffuse_pathtracer" || subtype == "dpt")
-    retval = new DiffusePathTracer();
-  else if (subtype == "scivis" || subtype == "sv" || subtype == "default")
-    retval = new SciVis();
-  else {
-    retval = new Debug();
-    auto names = splitString(std::string(subtype), "_");
-    if (names.size() > 1)
-      retval->setParam("method", names[1]);
-  }
-
-  return retval;
-}
-
 static std::string longestBeginningMatch(
     const std::string_view &first, const std::string_view &second)
 {
@@ -111,6 +74,41 @@ static bool beginsWith(const std::string_view &inputString,
   return startingMatch.size() == startsWithString.size();
 }
 
+static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
+{
+  auto splitString = [](const std::string &input,
+                         const std::string &delim) -> std::vector<std::string> {
+    std::vector<std::string> tokens;
+    size_t pos = 0;
+    while (true) {
+      size_t begin = input.find_first_not_of(delim, pos);
+      if (begin == input.npos)
+        return tokens;
+      size_t end = input.find_first_of(delim, begin);
+      tokens.push_back(input.substr(
+          begin, (end == input.npos) ? input.npos : (end - begin)));
+      pos = end;
+    }
+  };
+
+  if (subtype == "raycast")
+    return new Raycast(d);
+  else if (subtype == "ao")
+    return new AmbientOcclusion(d);
+  else if (subtype == "diffuse_pathtracer" || subtype == "dpt")
+    return new DiffusePathTracer(d);
+  else if (subtype == "scivis" || subtype == "sv" || subtype == "default")
+    return new SciVis(d);
+  else if (beginsWith(subtype, "debug")) {
+    auto *retval = new Debug(d);
+    auto names = splitString(std::string(subtype), "_");
+    if (names.size() > 1)
+      retval->setParam("method", ANARI_STRING, names[1].c_str());
+    return retval;
+  } else
+    return new Test(d);
+}
+
 // Renderer definitions ///////////////////////////////////////////////////////
 
 static size_t s_numRenderers = 0;
@@ -120,7 +118,7 @@ size_t Renderer::objectCount()
   return s_numRenderers;
 }
 
-Renderer::Renderer()
+Renderer::Renderer(DeviceGlobalState *s) : Object(ANARI_RENDERER, s)
 {
   s_numRenderers++;
 }
@@ -135,6 +133,9 @@ void Renderer::commit()
 {
   m_bgColor = getParam<vec4>("backgroundColor", vec4(1.f));
   m_spp = getParam<int>("pixelSamples", 1);
+  m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
+  m_ambientIntensity = getParam<float>("ambientIntensity", 1.f);
+  m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
 }
 
 anari::Span<const HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -149,7 +150,10 @@ anari::Span<const std::string> Renderer::missSbtNames() const
 
 void Renderer::populateFrameData(FrameGPUData &fd) const
 {
-  fd.renderer.bgColor = m_bgColor;
+  fd.renderer.bgColor = bgColor();
+  fd.renderer.ambientColor = ambientColor();
+  fd.renderer.ambientIntensity = ambientIntensity();
+  fd.renderer.occlusionDistance = ambientOcclusionDistance();
 }
 
 OptixPipeline Renderer::pipeline() const
@@ -175,6 +179,21 @@ int Renderer::spp() const
   return m_spp;
 }
 
+vec3 Renderer::ambientColor() const
+{
+  return m_ambientColor;
+}
+
+float Renderer::ambientIntensity() const
+{
+  return m_ambientIntensity;
+}
+
+float Renderer::ambientOcclusionDistance() const
+{
+  return m_occlusionDistance;
+}
+
 Renderer *Renderer::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
@@ -185,92 +204,16 @@ Renderer *Renderer::createInstance(
   if (overrideType != nullptr)
     subtype = overrideType;
 
-  retval = make_renderer(subtype);
+  retval = make_renderer(subtype, d);
 
-  retval->setDeviceState(d);
   return retval;
-}
-
-const ANARIParameter *Renderer::getParameters(std::string_view subtype)
-{
-  ANARIParameter emptyParam = {nullptr, ANARI_UNKNOWN};
-
-  if (subtype == "raycast") {
-    static const ANARIParameter raycast[] = {
-        {"backgroundColor", ANARI_FLOAT32_VEC4},
-        {"pixelSamples", ANARI_INT32},
-        emptyParam};
-    return raycast;
-  } else if (subtype == "ao") {
-    static const ANARIParameter ao[] = {{"backgroundColor", ANARI_FLOAT32_VEC4},
-        {"pixelSamples", ANARI_INT32},
-        {"aoSamples", ANARI_INT32},
-        emptyParam};
-    return ao;
-  } else if (subtype == "diffuse_pathtracer" || subtype == "dpt") {
-    static const ANARIParameter dpt[] = {
-        {"backgroundColor", ANARI_FLOAT32_VEC4},
-        {"pixelSamples", ANARI_INT32},
-        {"maxDepth", ANARI_INT32},
-        {"R", ANARI_FLOAT32},
-        emptyParam};
-    return dpt;
-  } else if (subtype == "scivis" || subtype == "sv" || subtype == "default") {
-    static const ANARIParameter scivis[] = {
-        {"backgroundColor", ANARI_FLOAT32_VEC4},
-        {"pixelSamples", ANARI_INT32},
-        {"lightFalloff", ANARI_FLOAT32},
-        {"ambientSamples", ANARI_INT32},
-        {"ambientIntensity", ANARI_FLOAT32},
-        {"ambientColor", ANARI_FLOAT32_VEC3},
-        emptyParam};
-    return scivis;
-  } else if (beginsWith(subtype, "debug")) {
-    static const ANARIParameter method[] = {
-        {"backgroundColor", ANARI_FLOAT32_VEC4},
-        {"pixelSamples", ANARI_INT32},
-        {"method", ANARI_STRING},
-        emptyParam};
-    return method;
-  }
-
-  return nullptr;
-}
-
-const void *Renderer::getParameterInfo(std::string_view subtype,
-    std::string_view paramName,
-    ANARIDataType paramType,
-    std::string_view infoName,
-    ANARIDataType infoType)
-{
-  if (paramName == "backgroundColor" && paramType == ANARI_FLOAT32) {
-    static const ParameterInfo param(false, "background color", vec4(1.f));
-    return param.fromString(infoName, infoType);
-  } else if (paramName == "pixelSamples" && paramType == ANARI_INT32) {
-    static const ParameterInfo param(false, "samples per-pixel each frame", 1);
-    return param.fromString(infoName, infoType);
-  } else {
-    if (subtype == "ao") {
-      AmbientOcclusion::getParameterInfo(
-          paramName, paramType, infoName, infoType);
-    } else if (subtype == "diffuse_pathtracer" || subtype == "dpt") {
-      DiffusePathTracer::getParameterInfo(
-          paramName, paramType, infoName, infoType);
-    } else if (subtype == "scivis" || subtype == "sv" || subtype == "default") {
-      SciVis::getParameterInfo(paramName, paramType, infoName, infoType);
-    } else if (beginsWith(subtype, "debug")) {
-      // Nothing to report
-    }
-  }
-
-  return nullptr;
 }
 
 void Renderer::initOptixPipeline()
 {
   auto &state = *deviceState();
 
-  auto om = optixModule();
+  auto shadingModule = optixModule();
 
   char log[2048];
   size_t sizeof_log = sizeof(log);
@@ -283,7 +226,7 @@ void Renderer::initOptixPipeline()
     OptixProgramGroupOptions pgOptions = {};
     OptixProgramGroupDesc pgDesc = {};
     pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
-    pgDesc.raygen.module = om;
+    pgDesc.raygen.module = shadingModule;
     pgDesc.raygen.entryFunctionName = "__raygen__";
 
     sizeof_log = sizeof(log);
@@ -302,31 +245,24 @@ void Renderer::initOptixPipeline()
   // Miss program //
 
   {
-    auto missNames = missSbtNames();
+    m_missPGs.resize(1);
+    OptixProgramGroupOptions pgOptions = {};
+    OptixProgramGroupDesc pgDesc = {};
+    pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+    pgDesc.miss.module = shadingModule;
+    pgDesc.miss.entryFunctionName = "__miss__";
 
-    m_missPGs.resize(missNames.size());
+    sizeof_log = sizeof(log);
+    OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+        &pgDesc,
+        1,
+        &pgOptions,
+        log,
+        &sizeof_log,
+        &m_missPGs[0]));
 
-    for (int i = 0; i < m_missPGs.size(); i++) {
-      auto &mn = missNames[i];
-
-      OptixProgramGroupOptions pgOptions = {};
-      OptixProgramGroupDesc pgDesc = {};
-      pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-      pgDesc.miss.module = om;
-      pgDesc.miss.entryFunctionName = mn.c_str();
-
-      sizeof_log = sizeof(log);
-      OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
-          &pgDesc,
-          1,
-          &pgOptions,
-          log,
-          &sizeof_log,
-          &m_missPGs[i]));
-
-      if (sizeof_log > 1)
-        reportMessage(ANARI_SEVERITY_DEBUG, "PG Miss Log:\n%s", log);
-    }
+    if (sizeof_log > 1)
+      reportMessage(ANARI_SEVERITY_DEBUG, "PG Miss Log:\n%s", log);
   }
 
   // Hit program //
@@ -334,51 +270,108 @@ void Renderer::initOptixPipeline()
   {
     auto hitgroupNames = hitgroupSbtNames();
 
-    m_hitgroupPGs.resize(hitgroupNames.size());
+    m_hitgroupPGs.resize(
+        hitgroupNames.size() * NUM_SBT_PRIMITIVE_INTERSECTOR_ENTRIES);
 
-    for (int i = 0; i < m_hitgroupPGs.size(); i++) {
-      auto &hgn = hitgroupNames[i];
+    int i = 0;
+    for (auto &hgn : hitgroupNames) {
+      // Triangles
+      {
+        OptixProgramGroupOptions pgOptions = {};
+        OptixProgramGroupDesc pgDesc = {};
+        pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
-      OptixProgramGroupOptions pgOptions = {};
-      OptixProgramGroupDesc pgDesc = {};
-      pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        pgDesc.hitgroup.moduleCH = shadingModule;
+        pgDesc.hitgroup.entryFunctionNameCH = hgn.closestHit.c_str();
 
-      pgDesc.hitgroup.moduleCH = om;
-      pgDesc.hitgroup.entryFunctionNameCH = hgn.closestHit.c_str();
+        if (!hgn.anyHit.empty()) {
+          pgDesc.hitgroup.moduleAH = shadingModule;
+          pgDesc.hitgroup.entryFunctionNameAH = hgn.anyHit.c_str();
+        }
 
-      if (!hgn.anyHit.empty()) {
-        pgDesc.hitgroup.moduleAH = om;
-        pgDesc.hitgroup.entryFunctionNameAH = hgn.anyHit.c_str();
+        sizeof_log = sizeof(log);
+        OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+            &pgDesc,
+            1,
+            &pgOptions,
+            log,
+            &sizeof_log,
+            &m_hitgroupPGs[i++]));
+        if (sizeof_log > 1) {
+          reportMessage(
+              ANARI_SEVERITY_DEBUG, "PG Hitgroup Log (Triangles):\n%s", log);
+        }
       }
 
-      pgDesc.hitgroup.moduleIS = state.intersectionModules.customIntersectors;
-      pgDesc.hitgroup.entryFunctionNameIS = "__intersection__";
+      // Curves
+      {
+        OptixProgramGroupOptions pgOptions = {};
+        OptixProgramGroupDesc pgDesc = {};
+        pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
-      sizeof_log = sizeof(log);
-      OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
-          &pgDesc,
-          1,
-          &pgOptions,
-          log,
-          &sizeof_log,
-          &m_hitgroupPGs[i]));
+        pgDesc.hitgroup.moduleCH = shadingModule;
+        pgDesc.hitgroup.entryFunctionNameCH = hgn.closestHit.c_str();
 
-      if (sizeof_log > 1)
-        reportMessage(ANARI_SEVERITY_DEBUG, "PG Hitgroup Log:\n%s", log);
+        if (!hgn.anyHit.empty()) {
+          pgDesc.hitgroup.moduleAH = shadingModule;
+          pgDesc.hitgroup.entryFunctionNameAH = hgn.anyHit.c_str();
+        }
+
+        pgDesc.hitgroup.moduleIS = state.intersectionModules.curveIntersector;
+        pgDesc.hitgroup.entryFunctionNameIS = nullptr;
+
+        sizeof_log = sizeof(log);
+        OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+            &pgDesc,
+            1,
+            &pgOptions,
+            log,
+            &sizeof_log,
+            &m_hitgroupPGs[i++]));
+        if (sizeof_log > 1) {
+          reportMessage(
+              ANARI_SEVERITY_DEBUG, "PG Hitgroup Log (Curve):\n%s", log);
+        }
+      }
+
+      // Custom
+
+      {
+        OptixProgramGroupOptions pgOptions = {};
+        OptixProgramGroupDesc pgDesc = {};
+        pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        pgDesc.hitgroup.moduleCH = shadingModule;
+        pgDesc.hitgroup.entryFunctionNameCH = hgn.closestHit.c_str();
+
+        if (!hgn.anyHit.empty()) {
+          pgDesc.hitgroup.moduleAH = shadingModule;
+          pgDesc.hitgroup.entryFunctionNameAH = hgn.anyHit.c_str();
+        }
+
+        pgDesc.hitgroup.moduleIS = state.intersectionModules.customIntersectors;
+        pgDesc.hitgroup.entryFunctionNameIS = "__intersection__";
+
+        sizeof_log = sizeof(log);
+        OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+            &pgDesc,
+            1,
+            &pgOptions,
+            log,
+            &sizeof_log,
+            &m_hitgroupPGs[i++]));
+
+        if (sizeof_log > 1) {
+          reportMessage(
+              ANARI_SEVERITY_DEBUG, "PG Hitgroup Log (Custom):\n%s", log);
+        }
+      }
     }
   }
 
   // Pipeline //
 
   {
-    OptixPipelineCompileOptions pipelineCompileOptions = {};
-    pipelineCompileOptions.traversableGraphFlags =
-        OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
-    pipelineCompileOptions.usesMotionBlur = false;
-    pipelineCompileOptions.numPayloadValues = PAYLOAD_VALUES;
-    pipelineCompileOptions.numAttributeValues = ATTRIBUTE_VALUES;
-    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
-    pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
+    auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
     OptixPipelineLinkOptions pipelineLinkOptions = {};
     pipelineLinkOptions.maxTraceDepth = 2;
@@ -439,6 +432,22 @@ void Renderer::initOptixPipeline()
     m_sbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
     m_sbt.hitgroupRecordCount = hitgroupRecords.size();
   }
+}
+
+OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions()
+{
+  OptixPipelineCompileOptions pipelineCompileOptions = {};
+  pipelineCompileOptions.usesPrimitiveTypeFlags =
+      OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE | OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM
+      | OPTIX_PRIMITIVE_TYPE_FLAGS_ROUND_LINEAR;
+  pipelineCompileOptions.traversableGraphFlags =
+      OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
+  pipelineCompileOptions.usesMotionBlur = false;
+  pipelineCompileOptions.numPayloadValues = PAYLOAD_VALUES;
+  pipelineCompileOptions.numAttributeValues = ATTRIBUTE_VALUES;
+  pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+  pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
+  return pipelineCompileOptions;
 }
 
 } // namespace visrtx

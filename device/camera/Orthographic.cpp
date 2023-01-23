@@ -33,6 +33,8 @@
 
 namespace visrtx {
 
+Orthographic::Orthographic(DeviceGlobalState *s) : Camera(s) {}
+
 void Orthographic::commit()
 {
   const float aspect = getParam<float>("aspect", 1.f);
@@ -43,9 +45,10 @@ void Orthographic::commit()
   auto &hd = data();
   readBaseParameters(hd);
   hd.type = CameraType::ORTHOGRAPHIC;
-  hd.pos_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;
-  hd.pos_dv = normalize(cross(hd.pos_du, hd.dir)) * imgPlaneSize.y;
-  hd.pos_00 = hd.pos - 0.5f * hd.pos_du - 0.5f * hd.pos_dv;
+  auto &o = hd.orthographic;
+  o.pos_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;
+  o.pos_dv = normalize(cross(o.pos_du, hd.dir)) * imgPlaneSize.y;
+  o.pos_00 = hd.pos - 0.5f * o.pos_du - 0.5f * o.pos_dv;
   upload();
 }
 

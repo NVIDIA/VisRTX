@@ -28,10 +28,10 @@ Building VisRTX requires the following:
 
 - CMake 3.17+
 - C++17 compiler
-- NVIDIA Driver 470+
+- NVIDIA Driver 495+
 - CUDA 11.3.1+
-- [OptiX 7.3+](https://developer.nvidia.com/rtx/ray-tracing/optix)
-- [ANARI-SDK 0.2.0](https://github.com/KhronosGroup/ANARI-SDK)
+- [OptiX 7.4+](https://developer.nvidia.com/rtx/ray-tracing/optix)
+- [ANARI-SDK 0.3.0](https://github.com/KhronosGroup/ANARI-SDK)
 
 Building VisRTX is done through invoking CMake on the source directory from a
 stand alone build directory. This might look like
@@ -259,10 +259,9 @@ change parameters.
 
 The following features are not yet implemented by VisRTX:
 
-- Geometry: `curve`
 - Light: `spot`, instancing
 - Camera: `omnidirectional`, stereo rendering, direct transform parameter
-- Sampler: `image1D`, `image3D`, in/out transforms on `image2D`
+- Sampler: `image3D`, in/out transforms on `image2D`
 - Frame: variance property
 - Sparse shared arrays (non-zero stride)
 - Core extensions:
@@ -270,11 +269,6 @@ The following features are not yet implemented by VisRTX:
     - `ANARI_KHR_FRAME_COMPLETION_CALLBACK`
     - `ANARI_KHR_DEVICE_SYNCHRONIZATION`
     - `ANARI_KHR_TRANSFORMATION_MOTION_BLUR`
-- Introspection for individual parameters of objects other than renderers
-
-The following features have known to be incomplete:
-
-- Arrays for image samplers only suport FLOAT32 type elements
 
 For any found bugs in features that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!

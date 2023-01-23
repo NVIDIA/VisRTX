@@ -90,6 +90,7 @@ class Viewer : public match3D::Application
   SpheresConfig m_spheresConfig;
   CylindersConfig m_cylindersConfig;
   ConesConfig m_conesConfig;
+  CurvesConfig m_curvesConfig;
   NoiseVolumeConfig m_noiseVolumeConfig;
   GravityVolumeConfig m_gravityVolumeConfig;
   ObjFileConfig m_objFileConfig;
@@ -118,18 +119,16 @@ class Viewer : public match3D::Application
 
   std::vector<anari::Renderer> m_renderers;
   float m_ambientIntensity{1.f};
-  std::array<anari::Light, 2> m_lights;
+  glm::vec3 m_ambientColor{1.f};
+  float m_ambientOcclusionDistance{100.f};
+  std::array<anari::Light, 1> m_lights;
   anari::Array1D m_lightsArray{nullptr};
 
   bool m_useOrthoCamera{false};
 
   struct
   {
-    float ambientIntensity{1.f};
-    glm::vec3 ambientColor{1.f};
-    float ambientOcclusionDistance{100.f};
-
-    float directionalIrradiance{4.f};
+    float directionalIrradiance{1.f};
     float directionalAzimuth{320.f};
     float directionalElevation{320.f};
     glm::vec3 directionalColor{1.f};

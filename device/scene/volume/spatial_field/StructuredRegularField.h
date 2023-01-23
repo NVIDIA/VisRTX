@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct StructuredRegularField : public SpatialField
 {
-  StructuredRegularField() = default;
+  StructuredRegularField(DeviceGlobalState *d);
   ~StructuredRegularField();
 
   void commit() override;
@@ -46,16 +46,20 @@ struct StructuredRegularField : public SpatialField
   box3 bounds() const override;
   float stepSize() const override;
 
+  bool isValid() const override;
+
  private:
   SpatialFieldGPUData gpuData() const override;
   void cleanup();
+
+  void buildGrid();
 
   struct Parameters
   {
     vec3 origin;
     vec3 spacing;
     std::string filter;
-    anari::IntrusivePtr<Array3D> data;
+    helium::IntrusivePtr<Array3D> data;
   } m_params;
 
   cudaArray_t m_cudaArray{};

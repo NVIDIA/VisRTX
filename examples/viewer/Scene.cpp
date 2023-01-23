@@ -36,7 +36,7 @@
 // anari
 #include <anari/anari_cpp/ext/glm.h>
 // VisRTX
-#include "anari/backend/visrtx/visrtx.h"
+#include "anari/ext/visrtx/visrtx.h"
 // tiny_obj_loader
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -60,6 +60,7 @@ static void anari_free(const void * /*user_data*/, const void *ptr)
 
 static anari::Array2D makeTextureData(anari::Device d, int dim)
 {
+#if 0
   auto *data = new glm::vec3[dim * dim];
 
   for (int h = 0; h < dim; h++) {
@@ -74,6 +75,25 @@ static anari::Array2D makeTextureData(anari::Device d, int dim)
 
   return anariNewArray2D(
       d, data, &anari_free, nullptr, ANARI_FLOAT32_VEC3, dim, dim);
+#else
+  using texel = std::array<uint8_t, 3>;
+  auto *data = new texel[dim * dim];
+
+  auto makeTexel = [](uint8_t v) -> texel { return {v, v, v}; };
+
+  for (int h = 0; h < dim; h++) {
+    for (int w = 0; w < dim; w++) {
+      bool even = h & 1;
+      if (even)
+        data[h * dim + w] = w & 1 ? makeTexel(200) : makeTexel(50);
+      else
+        data[h * dim + w] = w & 1 ? makeTexel(50) : makeTexel(200);
+    }
+  }
+
+  return anariNewArray2D(
+      d, data, &anari_free, nullptr, ANARI_UFIXED8_VEC3, dim, dim);
+#endif
 }
 
 static anari::Surface makePlane(anari::Device d, const box3 &bounds)
@@ -326,6 +346,126 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
   auto mat = anari::newObject<anari::Material>(d, "transparentMatte");
   anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
+  anari::commitParameters(d, mat);
+  anari::setAndReleaseParameter(d, surface, "material", mat);
+
+  anari::commitParameters(d, surface);
+
+  anari::setAndReleaseParameter(
+      d, world, "surface", anari::newArray1D(d, &surface));
+
+  anari::release(d, surface);
+
+  return std::make_unique<Scene>(d, world);
+}
+
+static ScenePtr generateCurves(anari::Device d, CurvesConfig config)
+{
+  auto world = anari::newObject<anari::World>(d);
+
+  // This code is adapted from the OSPRay 'streamlines' example:
+  //   https://github.com/ospray/ospray/blob/fdda0889f9143a8b20f26389c22d1691f1a6a527/apps/common/ospray_testing/builders/Streamlines.cpp
+
+  std::vector<glm::vec3> positions;
+  std::vector<float> radii;
+  std::vector<unsigned int> indices;
+  std::vector<glm::vec4> colors;
+
+  auto addPoint = [&](const glm::vec4 &p) {
+    positions.emplace_back(p.x, p.y, p.z);
+    radii.push_back(p.w);
+  };
+
+  std::mt19937 rng(0);
+  std::uniform_real_distribution<float> radDist(0.5f, 1.5f);
+  std::uniform_real_distribution<float> stepDist(0.001f, 0.1f);
+  std::uniform_real_distribution<float> sDist(0, 360);
+  std::uniform_real_distribution<float> dDist(360, 720);
+  std::uniform_real_distribution<float> freqDist(0.5f, 1.5f);
+
+  // create multiple lines
+  int numLines = 100;
+  for (int l = 0; l < numLines; l++) {
+    int dStart = sDist(rng);
+    int dEnd = dDist(rng);
+    float radius = radDist(rng);
+    float h = 0;
+    float hStep = stepDist(rng);
+    float f = freqDist(rng);
+
+    float r = (720 - dEnd) / 360.f;
+    glm::vec4 c(r, 1 - r, 1 - r / 2, 1.f);
+
+    // spiral up with changing radius of curvature
+    for (int d = dStart; d < dStart + dEnd; d += 10, h += hStep) {
+      glm::vec3 p, q;
+      float startRadius, endRadius;
+
+      p.x = radius * std::sin(d * M_PI / 180.f);
+      p.y = h - 2;
+      p.z = radius * std::cos(d * M_PI / 180.f);
+      startRadius = 0.015f * std::sin(f * d * M_PI / 180) + 0.02f;
+
+      q.x = (radius - 0.05f) * std::sin((d + 10) * M_PI / 180.f);
+      q.y = h + hStep - 2;
+      q.z = (radius - 0.05f) * std::cos((d + 10) * M_PI / 180.f);
+      endRadius = 0.015f * std::sin(f * (d + 10) * M_PI / 180) + 0.02f;
+      if (d == dStart) {
+        const auto rim = glm::mix(q, p, 1.f + endRadius / length(q - p));
+        const auto cap = glm::mix(p, rim, 1.f + startRadius / length(rim - p));
+        addPoint(glm::vec4(cap, 0.f));
+        addPoint(glm::vec4(rim, 0.f));
+        addPoint(glm::vec4(p, startRadius));
+        addPoint(glm::vec4(q, endRadius));
+        indices.push_back(positions.size() - 4);
+        colors.push_back(c);
+        colors.push_back(c);
+      } else if (d + 10 < dStart + dEnd && d + 20 > dStart + dEnd) {
+        const auto rim = glm::mix(p, q, 1.f + startRadius / length(p - q));
+        const auto cap = glm::mix(q, rim, 1.f + endRadius / length(rim - q));
+        addPoint(glm::vec4(p, startRadius));
+        addPoint(glm::vec4(q, endRadius));
+        addPoint(glm::vec4(rim, 0.f));
+        addPoint(glm::vec4(cap, 0.f));
+        indices.push_back(positions.size() - 7);
+        indices.push_back(positions.size() - 6);
+        indices.push_back(positions.size() - 5);
+        indices.push_back(positions.size() - 4);
+        colors.push_back(c);
+        colors.push_back(c);
+      } else if ((d != dStart && d != dStart + 10) && d + 20 < dStart + dEnd) {
+        addPoint(glm::vec4(p, startRadius));
+        indices.push_back(positions.size() - 4);
+      }
+      colors.push_back(c);
+      radius -= 0.05f;
+    }
+  }
+
+  auto geom = anari::newObject<anari::Geometry>(d, "curve");
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.position",
+      anari::newArray1D(d, positions.data(), positions.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.radius",
+      anari::newArray1D(d, radii.data(), radii.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.color",
+      anari::newArray1D(d, colors.data(), colors.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "primitive.index",
+      anari::newArray1D(d, indices.data(), indices.size()));
+  anari::commitParameters(d, geom);
+
+  auto surface = anari::newObject<anari::Surface>(d);
+  anari::setAndReleaseParameter(d, surface, "geometry", geom);
+
+  auto mat = anari::newObject<anari::Material>(d, "matte");
+  anari::setParameter(d, mat, "color", "color");
   anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
@@ -870,6 +1010,8 @@ static void loadTexture(anari::Device d,
       anari::setParameter(d, opacityTex, "wrapMode2", "repeat");
       anari::setParameter(d, opacityTex, "filter", "bilinear");
       anari::commitParameters(d, opacityTex);
+
+      free(data);
     } else {
       auto array = anariNewArray2D(
           d, data, &anari_free, nullptr, texelType, width, height);
@@ -1121,6 +1263,8 @@ ScenePtr generateScene(anari::Device d, SceneConfig config)
           retval = generateCylinders(d, arg);
         else if constexpr (std::is_same_v<T, ConesConfig>)
           retval = generateCones(d, arg);
+        else if constexpr (std::is_same_v<T, CurvesConfig>)
+          retval = generateCurves(d, arg);
         else if constexpr (std::is_same_v<T, NoiseVolumeConfig>) {
           retval = generateNoiseVolume(d, arg);
           if (arg.instanceVolume && arg.addPlane)

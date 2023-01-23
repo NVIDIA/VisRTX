@@ -36,31 +36,13 @@
 
 namespace visrtx {
 
-// Helper functions ///////////////////////////////////////////////////////////
-
-std::string string_printf(const char *fmt, ...)
+Object::Object(ANARIDataType type, DeviceGlobalState *s)
+    : helium::BaseObject(type, s)
 {
-  std::string s;
-  va_list args, args2;
-  va_start(args, fmt);
-  va_copy(args2, args);
-
-  s.resize(vsnprintf(nullptr, 0, fmt, args2) + 1);
-  va_end(args2);
-  vsprintf(s.data(), fmt, args);
-  va_end(args);
-  s.pop_back();
-  return s;
+  helium::BaseObject::markUpdated();
 }
-
-// Object definitions /////////////////////////////////////////////////////////
 
 void Object::commit()
-{
-  // no-op
-}
-
-void Object::upload()
 {
   // no-op
 }
@@ -68,6 +50,11 @@ void Object::upload()
 bool Object::getProperty(
     const std::string_view &name, ANARIDataType type, void *ptr, uint32_t flags)
 {
+  if (name == "valid" && type == ANARI_BOOL) {
+    helium::writeToVoidP(ptr, isValid());
+    return true;
+  }
+
   return false;
 }
 
@@ -76,57 +63,14 @@ void *Object::deviceData() const
   return nullptr;
 }
 
-void Object::setObjectType(ANARIDataType type)
+bool Object::isValid() const
 {
-  m_type = type;
-}
-
-ANARIDataType Object::type() const
-{
-  return m_type;
+  return true;
 }
 
 DeviceGlobalState *Object::deviceState() const
 {
-  return m_deviceState;
-}
-
-void Object::setDeviceState(DeviceGlobalState *d)
-{
-  if (m_deviceState)
-    throw std::runtime_error("cannot re-target the device ptr in an object");
-
-  m_deviceState = d;
-}
-
-TimeStamp Object::lastUpdated() const
-{
-  return m_lastUpdated;
-}
-
-void Object::markUpdated()
-{
-  m_lastUpdated = newTimeStamp();
-}
-
-TimeStamp Object::lastCommitted() const
-{
-  return m_lastCommitted;
-}
-
-void Object::markCommitted()
-{
-  m_lastCommitted = newTimeStamp();
-}
-
-int Object::commitPriority() const
-{
-  return m_commitPriority;
-}
-
-void Object::setCommitPriority(int priority)
-{
-  m_commitPriority = priority;
+  return (DeviceGlobalState *)helium::BaseObject::m_state;
 }
 
 } // namespace visrtx

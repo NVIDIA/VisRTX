@@ -41,7 +41,7 @@ namespace visrtx {
 
 struct Denoiser : public Object
 {
-  Denoiser() = default;
+  Denoiser(DeviceGlobalState *s);
   ~Denoiser() override;
 
   void setup(

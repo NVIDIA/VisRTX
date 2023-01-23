@@ -37,17 +37,10 @@ namespace visrtx {
 
 struct ObjectArray : public Array
 {
-  ObjectArray(const void *appMemory,
-      ANARIMemoryDeleter deleter,
-      const void *deleterPtr,
-      ANARIDataType type,
-      uint64_t numItems,
-      uint64_t byteStride);
+  ObjectArray(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
   ~ObjectArray();
 
   void commit() override;
-
-  ArrayShape shape() const override;
 
   size_t totalSize() const override;
   size_t totalCapacity() const override;
@@ -55,6 +48,7 @@ struct ObjectArray : public Array
   size_t size() const;
 
   void privatize() override;
+  void unmap() override;
 
   Object **handlesBegin(bool uploadData = true) const;
   Object **handlesEnd(bool uploadData = true) const;
@@ -78,20 +72,6 @@ struct ObjectArray : public Array
   size_t m_begin{0};
   size_t m_end{0};
 };
-
-// Object specializations /////////////////////////////////////////////////////
-
-template <>
-inline ObjectArray *Object::getParamObject<ObjectArray>(
-    const std::string &name, ObjectArray *valIfNotFound)
-{
-  if (!hasParam(name))
-    return valIfNotFound;
-
-  using PTR_T = anari::IntrusivePtr<Array1D>;
-  PTR_T val = getParam<PTR_T>(name, PTR_T());
-  return (ObjectArray *)val.ptr;
-}
 
 } // namespace visrtx
 

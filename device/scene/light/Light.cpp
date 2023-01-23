@@ -31,11 +31,17 @@
 
 #include "Light.h"
 // specific types
-#include "Ambient.h"
 #include "Directional.h"
 #include "Point.h"
+#include "UnknownLight.h"
 
 namespace visrtx {
+
+Light::Light(DeviceGlobalState *s)
+    : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
+{
+  setRegistry(s->registry.lights);
+}
 
 void Light::commit()
 {
@@ -51,21 +57,12 @@ LightGPUData Light::gpuData() const
 
 Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  Light *retval = nullptr;
-
-  if (subtype == "ambient")
-    retval = new Ambient;
-  else if (subtype == "directional")
-    retval = new Directional;
+  if (subtype == "directional")
+    return new Directional(d);
   else if (subtype == "point")
-    retval = new Point;
-
-  if (!retval)
-    throw std::runtime_error("could not create light");
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.lights);
-  return retval;
+    return new Point(d);
+  else
+    return new UnknownLight(d);
 }
 
 } // namespace visrtx

@@ -39,10 +39,12 @@ namespace visrtx {
 
 struct SciVisVolume : public Volume
 {
-  SciVisVolume() = default;
+  SciVisVolume(DeviceGlobalState *d);
   ~SciVisVolume();
 
   void commit() override;
+
+  bool isValid() const override;
 
  private:
   VolumeGPUData gpuData() const override;
@@ -51,15 +53,15 @@ struct SciVisVolume : public Volume
 
   struct
   {
-    anari::IntrusivePtr<Array1D> color;
-    anari::IntrusivePtr<Array1D> colorPosition;
-    anari::IntrusivePtr<Array1D> opacity;
-    anari::IntrusivePtr<Array1D> opacityPosition;
+    helium::IntrusivePtr<Array1D> color;
+    helium::IntrusivePtr<Array1D> colorPosition;
+    helium::IntrusivePtr<Array1D> opacity;
+    helium::IntrusivePtr<Array1D> opacityPosition;
 
     box1 valueRange{0.f, 1.f};
     float densityScale{1.f};
 
-    anari::IntrusivePtr<SpatialField> field;
+    helium::IntrusivePtr<SpatialField> field;
   } m_params;
 
   std::vector<vec4> m_tf;

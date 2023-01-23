@@ -38,12 +38,14 @@ namespace visrtx {
 
 struct ColorMap : public Sampler
 {
-  ColorMap() = default;
+  ColorMap(DeviceGlobalState *d);
   ~ColorMap();
 
   void commit() override;
 
   int numChannels() const override;
+
+  bool isValid() const override;
 
  private:
   SamplerGPUData gpuData() const override;
@@ -52,8 +54,8 @@ struct ColorMap : public Sampler
 
   struct
   {
-    anari::IntrusivePtr<Array1D> color;
-    anari::IntrusivePtr<Array1D> colorPosition;
+    helium::IntrusivePtr<Array1D> color;
+    helium::IntrusivePtr<Array1D> colorPosition;
     box1 valueRange{0.f, 1.f};
   } m_params;
 

@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct Material : public RegisteredObject<MaterialGPUData>
 {
-  Material();
+  Material(DeviceGlobalState *d);
   ~Material() = default;
 
   static Material *createInstance(
@@ -50,10 +50,10 @@ struct Material : public RegisteredObject<MaterialGPUData>
 template <typename T>
 inline void populateMaterialParameter(MaterialParameter<T> &mp,
     T value,
-    anari::IntrusivePtr<Sampler> sampler,
+    helium::IntrusivePtr<Sampler> sampler,
     const std::string &attrib)
 {
-  if (sampler) {
+  if (sampler && sampler->isValid()) {
     mp.type = MaterialParameterType::SAMPLER;
     mp.sampler = sampler->index();
   } else if (!attrib.empty()) {

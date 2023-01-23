@@ -124,16 +124,8 @@ void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
 // DeviceGlobalState definitions //////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-void DeviceGlobalState::flushCommitBuffer()
-{
-  if (commitBuffer.flush())
-    objectUpdates.lastCommitFlush = newTimeStamp();
-}
-
-void DeviceGlobalState::flushUploadBuffer()
-{
-  if (uploadBuffer.flush())
-    objectUpdates.lastUploadFlush = newTimeStamp();
-}
+DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
+    : helium::BaseGlobalDeviceState(d)
+{}
 
 } // namespace visrtx

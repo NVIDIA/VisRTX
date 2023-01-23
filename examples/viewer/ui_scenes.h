@@ -34,6 +34,7 @@
 bool ui_scenes(SpheresConfig &spheresConfig,
     CylindersConfig &cylindersConfig,
     ConesConfig &conesConfig,
+    CurvesConfig &curvesConfig,
     NoiseVolumeConfig &noiseVolumeConfig,
     GravityVolumeConfig &gravityVolumeConfig,
     ObjFileConfig &objFileConfig,

@@ -32,12 +32,14 @@
 #include "Volume.h"
 // specific types
 #include "SciVisVolume.h"
+#include "UnknownVolume.h"
 
 namespace visrtx {
 
-Volume::Volume()
+Volume::Volume(DeviceGlobalState *d)
+    : RegisteredObject<VolumeGPUData>(ANARI_VOLUME, d)
 {
-  setCommitPriority(VISRTX_COMMIT_PRIORITY_VOLUME);
+  setRegistry(d->registry.volumes);
 }
 
 OptixBuildInput Volume::buildInput() const
@@ -64,22 +66,15 @@ OptixBuildInput Volume::buildInput() const
 void Volume::markCommitted()
 {
   Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = newTimeStamp();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 Volume *Volume::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  Volume *retval = nullptr;
-
   if (subtype == "scivis")
-    retval = new SciVisVolume;
-
-  if (!retval)
-    throw std::runtime_error("could not create volume");
-
-  retval->setDeviceState(d);
-  retval->setRegistry(d->registry.volumes);
-  return retval;
+    return new SciVisVolume(d);
+  else
+    return new UnknownVolume(d);
 }
 
 } // namespace visrtx

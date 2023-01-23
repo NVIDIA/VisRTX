@@ -35,42 +35,50 @@
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_debugHitNames = {
-    {"__closesthit__surface", ""}, {"__closesthit__volume", ""}};
-
-static const std::vector<std::string> g_debugMissNames = {
-    "__miss__", "__miss__"};
-
-static Debug::Method methodFromString(const std::string &name)
+static DebugMethod methodFromString(const std::string &name)
 {
   if (name == "primID")
-    return Debug::Method::PRIM_ID;
+    return DebugMethod::PRIM_ID;
   else if (name == "geomID")
-    return Debug::Method::GEOM_ID;
+    return DebugMethod::GEOM_ID;
   else if (name == "instID")
-    return Debug::Method::INST_ID;
+    return DebugMethod::INST_ID;
   else if (name == "Ng")
-    return Debug::Method::NG;
+    return DebugMethod::NG;
   else if (name == "Ng.abs")
-    return Debug::Method::NG_ABS;
+    return DebugMethod::NG_ABS;
   else if (name == "Ns")
-    return Debug::Method::NS;
+    return DebugMethod::NS;
   else if (name == "Ns.abs")
-    return Debug::Method::NS_ABS;
+    return DebugMethod::NS_ABS;
   else if (name == "uvw")
-    return Debug::Method::RAY_UVW;
+    return DebugMethod::RAY_UVW;
   else if (name == "istri")
-    return Debug::Method::IS_TRIANGLE;
+    return DebugMethod::IS_TRIANGLE;
   else if (name == "isvol")
-    return Debug::Method::IS_VOLUME;
+    return DebugMethod::IS_VOLUME;
+  else if (name == "hasMaterial")
+    return DebugMethod::HAS_MATERIAL;
+  else if (name == "geometry.attribute0")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_0;
+  else if (name == "geometry.attribute1")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_1;
+  else if (name == "geometry.attribute2")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_2;
+  else if (name == "geometry.attribute3")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_3;
+  else if (name == "geometry.color")
+    return DebugMethod::GEOMETRY_ATTRIBUTE_COLOR;
   else
-    return Debug::Method::BACKFACE;
+    return DebugMethod::BACKFACE;
 }
+
+Debug::Debug(DeviceGlobalState *s) : Renderer(s) {}
 
 void Debug::commit()
 {
   Renderer::commit();
-  m_method = methodFromString(getParam<std::string>("method", "primID"));
+  m_method = methodFromString(getParamString("method", "primID"));
 }
 
 void Debug::populateFrameData(FrameGPUData &fd) const
@@ -82,16 +90,6 @@ void Debug::populateFrameData(FrameGPUData &fd) const
 OptixModule Debug::optixModule() const
 {
   return deviceState()->rendererModules.debug;
-}
-
-anari::Span<const HitgroupFunctionNames> Debug::hitgroupSbtNames() const
-{
-  return anari::make_Span(g_debugHitNames.data(), g_debugHitNames.size());
-}
-
-anari::Span<const std::string> Debug::missSbtNames() const
-{
-  return anari::make_Span(g_debugMissNames.data(), g_debugMissNames.size());
 }
 
 ptx_ptr Debug::ptx()

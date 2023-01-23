@@ -38,7 +38,7 @@ namespace visrtx {
 
 struct TransparentMatte : public Material
 {
-  TransparentMatte() = default;
+  TransparentMatte(DeviceGlobalState *d);
 
   void commit() override;
 
@@ -48,11 +48,11 @@ struct TransparentMatte : public Material
   bool m_separateOpacity{false};
 
   vec3 m_color{1.f};
-  anari::IntrusivePtr<Sampler> m_colorSampler;
+  helium::IntrusivePtr<Sampler> m_colorSampler;
   std::string m_colorAttribute;
 
   float m_opacity{1.f};
-  anari::IntrusivePtr<Sampler> m_opacitySampler;
+  helium::IntrusivePtr<Sampler> m_opacitySampler;
   std::string m_opacityAttribute;
 };
 

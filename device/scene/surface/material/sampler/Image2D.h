@@ -38,12 +38,14 @@ namespace visrtx {
 
 struct Image2D : public Sampler
 {
-  Image2D() = default;
+  Image2D(DeviceGlobalState *d);
   ~Image2D();
 
   void commit() override;
 
   int numChannels() const override;
+
+  bool isValid() const override;
 
  private:
   SamplerGPUData gpuData() const override;
@@ -55,7 +57,7 @@ struct Image2D : public Sampler
     std::string filter;
     std::string wrap1;
     std::string wrap2;
-    anari::IntrusivePtr<Array2D> image;
+    helium::IntrusivePtr<Array2D> image;
   } m_params;
 
   cudaArray_t m_cudaArray{};

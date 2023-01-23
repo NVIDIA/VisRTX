@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct AmbientOcclusion : public Renderer
 {
-  AmbientOcclusion() = default;
+  AmbientOcclusion(DeviceGlobalState *s);
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
@@ -45,11 +45,6 @@ struct AmbientOcclusion : public Renderer
   anari::Span<const std::string> missSbtNames() const override;
 
   static ptx_ptr ptx();
-
-  static const void *getParameterInfo(std::string_view parameterName,
-      ANARIDataType parameterType,
-      std::string_view infoName,
-      ANARIDataType infoType);
 
  private:
   int m_aoSamples{1};

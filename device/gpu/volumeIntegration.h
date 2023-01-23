@@ -31,6 +31,8 @@
 
 #pragma once
 
+#include "gpu/dda.h"
+#include "gpu/gpu_debug.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 #include "gpu/sampleSpatialField.h"
@@ -87,6 +89,76 @@ RT_FUNCTION float rayMarchVolume(
   return depth;
 }
 
+RT_FUNCTION float sampleDistance(ScreenSample &ss,
+    const VolumeHit &hit,
+    vec3 *albedo,
+    float &extinction,
+    float &tr)
+{
+  const auto &volume = *hit.volumeData;
+  /////////////////////////////////////////////////////////////////////////////
+  // TODO: need to generalize
+  auto &svv = volume.data.scivis;
+  auto &field = getSpatialFieldData(*ss.frameData, svv.field);
+  /////////////////////////////////////////////////////////////////////////////
+
+  const float stepSize = volume.stepSize;
+  float t_out = hit.localRay.t.upper;
+  tr = 1.f;
+
+  Ray objRay = hit.localRay;
+  objRay.org += hit.localRay.dir * hit.localRay.t.lower;
+  objRay.t.lower -= hit.localRay.t.lower;
+  objRay.t.upper -= hit.localRay.t.lower;
+
+  auto woodcockFunc = [&](const int leafID, float t0, float t1) {
+    const float majorant = field.grid.maxOpacities[leafID];
+    float t = t0;
+
+    while (1) {
+      if (majorant <= 0.f)
+        break;
+
+      t -= logf(1.f - curand_uniform(&ss.rs)) / majorant * stepSize;
+
+      if (t >= t1)
+        break;
+
+      const vec3 p =
+          hit.localRay.org + hit.localRay.dir * (t + hit.localRay.t.lower);
+      const float s = sampleSpatialField(field, p);
+      if (!glm::isnan(s)) {
+        const vec4 co = detail::classifySample(volume, s);
+        *albedo = vec3(co);
+        extinction = co.w;
+        float u = curand_uniform(&ss.rs);
+        if (extinction >= u * majorant) {
+          tr = 0.f;
+          t_out = t;
+          return false; // stop traversal
+        }
+      }
+    }
+
+    return true; // cont. traversal to the next spat. partition
+  };
+
+  if (debug()) {
+    printf("DDA with ray org: (%f,%f,%f), dir: (%f,%f,%f), [t0,t1]: %f,%f\n",
+        objRay.org.x,
+        objRay.org.y,
+        objRay.org.z,
+        objRay.dir.x,
+        objRay.dir.y,
+        objRay.dir.z,
+        hit.localRay.t.lower,
+        hit.localRay.t.upper);
+  }
+
+  dda3(objRay, field.grid.dims, field.grid.worldBounds, woodcockFunc);
+  return t_out + hit.localRay.t.lower;
+}
+
 } // namespace detail
 
 RT_FUNCTION float rayMarchVolume(
@@ -123,6 +195,41 @@ RT_FUNCTION float rayMarchAllVolumes(ScreenSample &ss,
     detail::rayMarchVolume(ss, hit, &color, opacity);
     ray.t.lower = hit.localRay.t.upper + 1e-3f;
   } while (opacity < 0.99f);
+
+  return depth;
+}
+
+template <typename RAY_TYPE>
+RT_FUNCTION float sampleDistanceAllVolumes(ScreenSample &ss,
+    Ray ray,
+    RAY_TYPE type,
+    float tfar,
+    vec3 &albedo,
+    float &extinction,
+    float &transmittance)
+{
+  VolumeHit hit;
+  ray.t.upper = tfar;
+  float depth = tfar;
+  transmittance = 1.f;
+
+  while (true) {
+    hit.foundHit = false;
+    intersectVolume(ss, ray, type, &hit);
+    if (!hit.foundHit)
+      break;
+    hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
+    vec3 alb(0.f);
+    float ext = 0.f, tr = 0.f;
+    float d = detail::sampleDistance(ss, hit, &alb, ext, tr);
+    if (d < depth) {
+      depth = d;
+      albedo = alb;
+      extinction = ext;
+      transmittance = tr;
+    }
+    ray.t.lower = hit.localRay.t.upper + 1e-3f;
+  }
 
   return depth;
 }

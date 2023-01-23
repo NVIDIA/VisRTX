@@ -159,28 +159,9 @@ VISRTX_HOST_DEVICE bool empty(const box3 &r)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-VISRTX_HOST_DEVICE uint32_t cvt_uint32(const float &f)
+VISRTX_HOST_DEVICE int64_t iDivUp(int64_t a, int64_t b)
 {
-  return (uint32_t)(255.f * glm::clamp(f, 0.f, 1.f));
-}
-
-VISRTX_HOST_DEVICE uint32_t cvt_uint32(const vec4 &v)
-{
-  return (cvt_uint32(v.x) << 0) | (cvt_uint32(v.y) << 8)
-      | (cvt_uint32(v.z) << 16) | (cvt_uint32(v.w) << 24);
-}
-
-VISRTX_HOST_DEVICE float cvt_float(const uint8_t &i)
-{
-  return i / 255.f;
-}
-
-VISRTX_HOST_DEVICE vec4 cvt_float4(const uint32_t &i)
-{
-  return vec4(cvt_float(static_cast<uint8_t>(i >> 0)),
-      cvt_float(static_cast<uint8_t>(i >> 8)),
-      cvt_float(static_cast<uint8_t>(i >> 16)),
-      cvt_float(static_cast<uint8_t>(i >> 24)));
+  return (a + b - 1) / b;
 }
 
 } // namespace visrtx
