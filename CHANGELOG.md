@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.5.0
-##### TBD
+##### 2023-01-23
 - Update to latest ANARI SDK v0.3.0
 - Added support for `curve` geometry subtype
 - Added support `image1D` sampler subtype

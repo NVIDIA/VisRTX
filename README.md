@@ -31,7 +31,7 @@ Building VisRTX requires the following:
 - NVIDIA Driver 495+
 - CUDA 11.3.1+
 - [OptiX 7.4+](https://developer.nvidia.com/rtx/ray-tracing/optix)
-- [ANARI-SDK 0.2.0](https://github.com/KhronosGroup/ANARI-SDK)
+- [ANARI-SDK 0.3.0](https://github.com/KhronosGroup/ANARI-SDK)
 
 Building VisRTX is done through invoking CMake on the source directory from a
 stand alone build directory. This might look like
