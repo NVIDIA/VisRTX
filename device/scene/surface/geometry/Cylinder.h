@@ -34,8 +34,6 @@
 #include "array/Array.h"
 #include "Geometry.h"
 #include "utility/HostDeviceArray.h"
-// anari
-#include "anari/backend/utilities/Optional.h"
 
 namespace visrtx {
 
@@ -69,7 +67,7 @@ struct Cylinder : public Geometry
   HostDeviceArray<box3> m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};
 
-  anari::Optional<float> m_globalRadius;
+  float m_globalRadius{1.f};
 
   bool m_caps{false};
 };

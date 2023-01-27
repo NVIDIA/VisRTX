@@ -71,12 +71,7 @@ void Cylinder::commit()
     m_index->addCommitObserver(this);
   m_vertex->addCommitObserver(this);
 
-  if (hasParam("radius"))
-    m_globalRadius = getParam<float>("radius", 1.f);
-  else
-    m_globalRadius.reset();
-
-  float globalRadius = m_globalRadius.value_or(1.f);
+  m_globalRadius = getParam<float>("radius", 1.f);
 
   std::vector<uvec2> implicitIndices;
   anari::Span<uvec2> indices;
@@ -104,7 +99,7 @@ void Cylinder::commit()
   size_t cylinderID = 0;
   std::transform(
       indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &v) {
-        const float r = radius ? radius[cylinderID++] : globalRadius;
+        const float r = radius ? radius[cylinderID++] : m_globalRadius;
         const vec3 &v1 = *(posBegin + v.x);
         const vec3 &v2 = *(posBegin + v.y);
         box3 bounds = box3(v1 - r, v1 + r);
@@ -143,7 +138,7 @@ GeometryGPUData Cylinder::gpuData() const
       m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
   cylinder.radii =
       m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
-  cylinder.radius = m_globalRadius.value_or(1.f);
+  cylinder.radius = m_globalRadius;
   cylinder.caps = m_caps;
 
   populateAttributePtr(m_vertexAttribute0, cylinder.vertexAttr[0]);
