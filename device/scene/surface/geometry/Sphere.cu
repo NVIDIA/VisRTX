@@ -30,6 +30,9 @@
  */
 
 #include "Sphere.h"
+// thrust
+#include <thrust/sequence.h>
+#include <thrust/transform.h>
 
 namespace visrtx {
 
@@ -72,45 +75,50 @@ void Sphere::commit()
   if (m_index)
     m_index->addCommitObserver(this);
 
-  if (hasParam("radius"))
-    m_globalRadius = getParam<float>("radius", 0.01f);
-  else
-    m_globalRadius.reset();
-
-  float globalRadius = m_globalRadius.value_or(0.01f);
+  m_globalRadius = getParam<float>("radius", 0.01f);
 
   // Calculate bounds //
 
   m_aabbs.resize(m_index ? m_index->size() : m_vertex->size());
 
-  float *radius = nullptr;
+  const float globalRadius = m_globalRadius;
+  float *radii = nullptr;
   if (m_vertexRadius)
-    radius = m_vertexRadius->beginAs<float>();
+    radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
+
+  auto *vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+
+  auto &state = *deviceState();
 
   if (m_index) {
-    auto *begin = m_index->beginAs<uint32_t>();
-    auto *end = m_index->endAs<uint32_t>();
-    auto *vertices = m_vertex->beginAs<vec3>();
+    auto *begin = m_index->beginAs<uint32_t>(AddressSpace::GPU);
+    auto *end = m_index->endAs<uint32_t>(AddressSpace::GPU);
 
-    size_t sphereID = 0;
-    std::transform(begin, end, m_aabbs.begin(), [&](uint32_t i) {
-      const auto &v = vertices[i];
-      const float r = radius ? radius[i] : globalRadius;
-      return box3(v - r, v + r);
-    });
+    thrust::transform(thrust::cuda::par.on(state.stream),
+        begin,
+        end,
+        m_aabbs.begin(),
+        [=] __device__(uint32_t i) {
+          const auto &v = vertices[i];
+          const float r = radii ? radii[i] : globalRadius;
+          return box3(v - r, v + r);
+        });
   } else {
-    auto *begin = m_vertex->beginAs<vec3>();
-    auto *end = m_vertex->endAs<vec3>();
-
-    size_t sphereID = 0;
-    std::transform(begin, end, m_aabbs.begin(), [&](const vec3 &v) {
-      const float r = radius ? radius[sphereID++] : globalRadius;
-      return box3(v - r, v + r);
-    });
+    thrust::device_vector<uint32_t> index(m_aabbs.size());
+    thrust::sequence(
+        thrust::cuda::par.on(state.stream), index.begin(), index.end());
+    thrust::transform(thrust::cuda::par.on(state.stream),
+        index.begin(),
+        index.end(),
+        m_aabbs.begin(),
+        [=] __device__(uint32_t i) {
+          const auto &v = vertices[i];
+          const float r = radii ? radii[i] : globalRadius;
+          return box3(v - r, v + r);
+        });
   }
 
-  m_aabbs.upload();
-  m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.dataDevice();
+  m_aabbsBufferPtr = (CUdeviceptr)thrust::raw_pointer_cast(m_aabbs.data());
 
   upload();
 }
@@ -142,7 +150,7 @@ GeometryGPUData Sphere::gpuData() const
   sphere.radii = nullptr;
   if (m_vertexRadius)
     sphere.radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
-  sphere.radius = m_globalRadius.value_or(0.01f);
+  sphere.radius = m_globalRadius;
 
   populateAttributePtr(m_vertexAttribute0, sphere.vertexAttr[0]);
   populateAttributePtr(m_vertexAttribute1, sphere.vertexAttr[1]);

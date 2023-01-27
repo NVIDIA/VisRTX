@@ -132,7 +132,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/surface/geometry/Cylinder.cpp
   scene/surface/geometry/Geometry.cpp
   scene/surface/geometry/Quad.cpp
-  scene/surface/geometry/Sphere.cpp
+  scene/surface/geometry/Sphere.cu
   scene/surface/geometry/Triangle.cpp
   scene/surface/geometry/UnknownGeometry.cpp
 
@@ -171,7 +171,10 @@ generate_export_header(${PROJECT_NAME}
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY CUDA_ARCHITECTURES OFF)
 
-set_source_files_properties(frame/Frame.cu frame/Denoiser.cu
+set_source_files_properties(
+  frame/Frame.cu
+  frame/Denoiser.cu
+  scene/surface/geometry/Sphere.cu
   PROPERTIES COMPILE_FLAGS "--extended-lambda"
 )
 

@@ -34,8 +34,8 @@
 #include "array/Array.h"
 #include "Geometry.h"
 #include "utility/HostDeviceArray.h"
-
-#include "anari/backend/utilities/Optional.h"
+// thrust
+#include <thrust/device_vector.h>
 
 namespace visrtx {
 
@@ -66,10 +66,10 @@ struct Sphere : public Geometry
   helium::IntrusivePtr<Array1D> m_vertexAttribute3;
   helium::IntrusivePtr<Array1D> m_vertexRadius;
 
-  HostDeviceArray<box3> m_aabbs;
+  thrust::device_vector<box3> m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};
 
-  anari::Optional<float> m_globalRadius;
+  float m_globalRadius{1.f};
 };
 
 } // namespace visrtx
