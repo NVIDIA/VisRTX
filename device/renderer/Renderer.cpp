@@ -37,6 +37,7 @@
 #include "Raycast.h"
 #include "SciVis.h"
 #include "Test.h"
+#include "UnknownRenderer.h"
 // std
 #include <stdlib.h>
 #include <string_view>
@@ -99,6 +100,8 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     return new DiffusePathTracer(d);
   else if (subtype == "scivis" || subtype == "sv" || subtype == "default")
     return new SciVis(d);
+  else if (subtype == "test")
+    return new Test(d);
   else if (beginsWith(subtype, "debug")) {
     auto *retval = new Debug(d);
     auto names = splitString(std::string(subtype), "_");
@@ -106,7 +109,7 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
       retval->setParam("method", ANARI_STRING, names[1].c_str());
     return retval;
   } else
-    return new Test(d);
+    return new UnknownRenderer(d, subtype);
 }
 
 // Renderer definitions ///////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 ## 0.6.0
 ##### TBD
 - Improved `sphere` geometry update speed for large numbers of primitives
+- Improved handling of renderers of an unknown subtype
 
 ## 0.5.0
 ##### 2023-01-23

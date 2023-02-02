@@ -115,6 +115,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   renderer/Renderer.cpp
   renderer/SciVis.cpp
   renderer/Test.cpp
+  renderer/UnknownRenderer.cpp
 
   scene/Group.cpp
   scene/Instance.cpp

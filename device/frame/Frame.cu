@@ -225,8 +225,8 @@ void Frame::renderFrame()
   instrument::rangePop(); // update scene
 
   if (!isValid()) {
-    reportMessage(
-        ANARI_SEVERITY_ERROR, "skipping render of incomplete frame object");
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "skipping render of incomplete or invalid frame object");
     return;
   }
 
