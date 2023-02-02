@@ -40,6 +40,73 @@
           ],
           "tags": [],
           "description": "optional object name"
+        },
+        {
+          "name": "backgroundColor",
+          "types": [
+            "ANARI_FLOAT32_VEC4"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "pixelSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "samples per-pixel"
+        },
+        {
+          "name": "ambientSamples",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 1,
+          "description": "AO samples per-pixel, per-frame"
+        },
+        {
+          "name": "ambientColor",
+          "types": [
+            "ANARI_FLOAT32_VEC3"
+          ],
+          "tags": [],
+          "default": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "description": "ambient light color (RGB)"
+        },
+        {
+          "name": "ambientIntensity",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": [
+            1.0
+          ],
+          "description": "ambient light intensity"
+        },
+        {
+          "name": "lightFalloff",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": [
+            0.25
+          ],
+          "description": "light falloff"
         }
       ]
     },
