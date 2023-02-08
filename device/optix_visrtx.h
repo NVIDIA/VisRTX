@@ -36,6 +36,8 @@
 #include "utility/DeviceObjectArray.h"
 // helium
 #include "helium/BaseGlobalDeviceState.h"
+// anari
+#include <anari/anari_cpp.hpp>
 // optix
 #include <optix.h>
 #include <optix_stubs.h>
@@ -97,6 +99,18 @@ constexpr int ATTRIBUTE_VALUES = 4;
           cudaGetErrorString(error));                                          \
     }                                                                          \
   }
+
+#define VISRTX_ANARI_TYPEFOR_SPECIALIZATION(type, anari_type)                  \
+  namespace anari {                                                            \
+  ANARI_TYPEFOR_SPECIALIZATION(type, anari_type);                              \
+  }
+
+#define VISRTX_ANARI_TYPEFOR_DEFINITION(type)                                  \
+  namespace anari {                                                            \
+  ANARI_TYPEFOR_DEFINITION(type);                                              \
+  }
+
+VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box1, ANARI_FLOAT32_BOX1);
 
 namespace visrtx {
 

@@ -69,14 +69,4 @@ struct Object : public helium::BaseObject
 
 } // namespace visrtx
 
-#define VISRTX_ANARI_TYPEFOR_SPECIALIZATION(type, anari_type)                  \
-  namespace anari {                                                            \
-  ANARI_TYPEFOR_SPECIALIZATION(type, anari_type);                              \
-  }
-
-#define VISRTX_ANARI_TYPEFOR_DEFINITION(type)                                  \
-  namespace anari {                                                            \
-  ANARI_TYPEFOR_DEFINITION(type);                                              \
-  }
-
 VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Object *, ANARI_OBJECT);

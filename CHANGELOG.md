@@ -4,6 +4,7 @@
 ##### TBD
 - Improved `sphere` geometry update speed for large numbers of primitives
 - Improved handling of renderers of an unknown subtype
+- Fix incorrect type for `scivis` volume `"valueRange"` parameter
 
 ## 0.5.0
 ##### 2023-01-23

@@ -129,3 +129,5 @@ DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
 {}
 
 } // namespace visrtx
+
+VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::box1);
