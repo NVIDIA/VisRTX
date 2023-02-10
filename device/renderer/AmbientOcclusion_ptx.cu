@@ -152,8 +152,8 @@ RT_PROGRAM void __raygen__()
       const float aoFactor = aoParams.aoSamples > 0
           ? computeAO(ss, ray, surfaceHit, rendererParams.occlusionDistance)
           : 1.f;
-      const auto lighting = aoFactor * frameData.renderer.ambientColor
-          * frameData.renderer.ambientIntensity;
+      const auto lighting = aoFactor * rendererParams.ambientColor
+          * rendererParams.ambientIntensity;
 
       accumulateValue(color, mat_baseColor * lighting, opacity);
       accumulateValue(opacity, mat_opacity, opacity);

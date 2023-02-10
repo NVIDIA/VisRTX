@@ -64,7 +64,8 @@ RT_PROGRAM void __miss__()
 
 RT_PROGRAM void __raygen__()
 {
-  const auto &rendererParams = frameData.renderer.params.dpt;
+  auto &rendererParams = frameData.renderer;
+  auto &dptParams = rendererParams.params.dpt;
 
   PathData pathData;
 
@@ -108,7 +109,7 @@ RT_PROGRAM void __raygen__()
     if (!hit.foundHit && !volumeHit)
       break;
 
-    if (pathData.depth++ >= rendererParams.maxDepth) {
+    if (pathData.depth++ >= dptParams.maxDepth) {
       pathData.Lw = vec3(0.f);
       break;
     }
@@ -148,7 +149,7 @@ RT_PROGRAM void __raygen__()
     ray.org = pos;
     ray.dir = scatterDir;
     ray.t.lower = 0.f;
-    ray.t.upper = tmax;
+    ray.t.upper = rendererParams.occlusionDistance;
 
     if (pathData.depth == 0) {
       outDepth = min(hit.t, volumeDepth);
@@ -156,7 +157,7 @@ RT_PROGRAM void __raygen__()
     }
   }
 
-  vec3 Ld(1.f); // ambient light!
+  vec3 Ld(rendererParams.ambientIntensity); // ambient light!
   // if (numLights > 0) {
   //   Ld = ...;
   // }
