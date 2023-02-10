@@ -35,6 +35,9 @@
 
 namespace visrtx {
 
+static const std::vector<HitgroupFunctionNames> g_dptHitNames = {
+    {"__closesthit__", "__anyhit__"}};
+
 DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s) {}
 
 void DiffusePathTracer::commit()
@@ -52,6 +55,12 @@ void DiffusePathTracer::populateFrameData(FrameGPUData &fd) const
 OptixModule DiffusePathTracer::optixModule() const
 {
   return deviceState()->rendererModules.diffusePathTracer;
+}
+
+anari::Span<const HitgroupFunctionNames> DiffusePathTracer::hitgroupSbtNames()
+    const
+{
+  return anari::make_Span(g_dptHitNames.data(), g_dptHitNames.size());
 }
 
 ptx_ptr DiffusePathTracer::ptx()

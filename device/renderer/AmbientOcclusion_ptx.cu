@@ -80,8 +80,6 @@ RT_PROGRAM void __anyhit__ao()
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
   const auto &material = *hit.material;
-  const auto mat_baseColor =
-      getMaterialParameter(frameData, material.baseColor, hit);
   const auto mat_opacity =
       getMaterialParameter(frameData, material.opacity, hit);
   if (mat_opacity >= 0.99f) {

@@ -41,6 +41,7 @@ struct DiffusePathTracer : public Renderer
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
+  anari::Span<const HitgroupFunctionNames> hitgroupSbtNames() const override;
 
   static ptx_ptr ptx();
 
