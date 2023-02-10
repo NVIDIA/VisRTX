@@ -38,6 +38,8 @@ namespace visrtx {
 static mat4 orientConeMatrix(vec3 dir)
 {
   const vec3 v = glm::vec3(0, -dir.z, dir.y);
+  if (glm::length(v) == 0.f)
+    return mat4(1);
   const float angle = acos(dir.x / glm::length(dir));
   return glm::rotate(angle, v);
 }
@@ -52,7 +54,7 @@ static void appendCone(const vec3 &vtx0,
 {
   unsigned int baseOffset = vertices.size();
 
-  auto dir = vtx1 - vtx0;
+  auto dir = glm::normalize(vtx1 - vtx0);
   auto m = orientConeMatrix(dir);
 
   auto v00 = vec4(0.f, r0, 0.f, 1.f);
