@@ -65,7 +65,7 @@ RT_FUNCTION float computeAO(
   const int numSamples = frameData.renderer.params.scivis.aoSamples;
   for (int i = 0; i < numSamples; i++) {
     Ray aoRay;
-    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ng);
+    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ns);
     aoRay.dir = randomDir(ss.rs, currentHit.Ns);
     aoRay.t.upper = dist;
     if (isOccluded(ss, aoRay))
@@ -90,7 +90,7 @@ RT_FUNCTION vec3 computeLightConrib(ScreenSample &ss, const SurfaceHit &hit)
 
   auto &world = frameData.world;
 
-  const vec3 shadePoint = hit.hitpoint + (hit.epsilon * hit.Ng);
+  const vec3 shadePoint = hit.hitpoint + (hit.epsilon * hit.Ns);
 
   vec3 contrib(0.f);
   for (size_t i = 0; i < world.numLightInstances; i++) {

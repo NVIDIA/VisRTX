@@ -58,7 +58,7 @@ RT_FUNCTION float computeAO(
   const int numSamples = frameData.renderer.params.ao.aoSamples;
   for (int i = 0; i < numSamples; i++) {
     Ray aoRay;
-    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ng);
+    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ns);
     aoRay.dir = randomDir(ss.rs, currentHit.Ns);
     aoRay.t.upper = dist;
     if (isOccluded(ss, aoRay))
