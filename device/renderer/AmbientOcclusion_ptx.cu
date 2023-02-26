@@ -41,33 +41,6 @@ enum class RayType
 
 DECLARE_FRAME_DATA(frameData)
 
-// Helper functions ///////////////////////////////////////////////////////////
-
-RT_FUNCTION bool isOccluded(ScreenSample &ss, Ray r)
-{
-  uint32_t o = 0;
-  intersectSurface(ss, r, RayType::AO, &o, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
-  return static_cast<bool>(o);
-}
-
-RT_FUNCTION float computeAO(
-    ScreenSample &ss, const Ray &primaryRay, const Hit &currentHit, float dist)
-{
-  int hits = 0;
-
-  const int numSamples = frameData.renderer.params.ao.aoSamples;
-  for (int i = 0; i < numSamples; i++) {
-    Ray aoRay;
-    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ns);
-    aoRay.dir = randomDir(ss.rs, currentHit.Ns);
-    aoRay.t.upper = dist;
-    if (isOccluded(ss, aoRay))
-      hits++;
-  }
-
-  return 1.f - hits / float(numSamples);
-}
-
 // OptiX programs /////////////////////////////////////////////////////////////
 
 RT_PROGRAM void __closesthit__ao()
@@ -147,9 +120,13 @@ RT_PROGRAM void __raygen__()
       const auto mat_opacity =
           getMaterialParameter(frameData, material.opacity, surfaceHit);
 
-      const float aoFactor = aoParams.aoSamples > 0
-          ? computeAO(ss, ray, surfaceHit, rendererParams.occlusionDistance)
-          : 1.f;
+      const float aoFactor = aoParams.aoSamples > 0 ? computeAO(ss,
+                                 ray,
+                                 RayType::AO,
+                                 surfaceHit,
+                                 rendererParams.occlusionDistance,
+                                 aoParams.aoSamples)
+                                                    : 1.f;
       const auto lighting = aoFactor * rendererParams.ambientColor
           * rendererParams.ambientIntensity;
 

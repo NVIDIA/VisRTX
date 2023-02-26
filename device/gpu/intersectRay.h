@@ -96,4 +96,12 @@ RT_FUNCTION void intersectVolume(ScreenSample &ss,
   detail::launchRay(ss, r, rayType, false, dataPtr, optixFlags);
 }
 
+template <typename T>
+RT_FUNCTION bool isOccluded(ScreenSample &ss, Ray r, T rayType)
+{
+  uint32_t o = 0;
+  intersectSurface(ss, r, rayType, &o, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
+  return static_cast<bool>(o);
+}
+
 } // namespace visrtx

@@ -31,12 +31,32 @@
 
 #pragma once
 
-#include "gpu/cameraCreateRay.h"
-#include "gpu/computeAO.h"
-#include "gpu/createScreenSample.h"
-#include "gpu/getMaterialValues.h"
 #include "gpu/intersectRay.h"
-#include "gpu/populateHit.h"
-#include "gpu/sampleLight.h"
-#include "gpu/sampleSpatialField.h"
-#include "gpu/volumeIntegration.h"
+
+namespace visrtx {
+
+template <typename T>
+RT_FUNCTION float computeAO(ScreenSample &ss,
+    const Ray &primaryRay,
+    T rayType,
+    const Hit &currentHit,
+    float dist,
+    int numSamples)
+{
+  float weights = 0.0f;
+  float hits = 0.0f;
+  for (int i = 0; i < numSamples; i++) {
+    Ray aoRay;
+    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ns);
+    aoRay.dir = randomDir(ss.rs, currentHit.Ns);
+    aoRay.t.upper = dist;
+    float weight = dot(aoRay.dir, currentHit.Ns);
+    weights += weight;
+    if (isOccluded(ss, aoRay, rayType))
+      hits += weight;
+  }
+
+  return 1.f - hits / weights;
+}
+
+} // namespace visrtx

@@ -49,32 +49,6 @@ DECLARE_FRAME_DATA(frameData)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-RT_FUNCTION bool isOccluded(ScreenSample &ss, Ray r)
-{
-  uint32_t o = 0;
-  intersectSurface(
-      ss, r, RayType::SHADOW, &o, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
-  return static_cast<bool>(o);
-}
-
-RT_FUNCTION float computeAO(
-    ScreenSample &ss, const Ray &primaryRay, const Hit &currentHit, float dist)
-{
-  int hits = 0;
-
-  const int numSamples = frameData.renderer.params.scivis.aoSamples;
-  for (int i = 0; i < numSamples; i++) {
-    Ray aoRay;
-    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ns);
-    aoRay.dir = randomDir(ss.rs, currentHit.Ns);
-    aoRay.t.upper = dist;
-    if (isOccluded(ss, aoRay))
-      hits++;
-  }
-
-  return 1.f - hits / float(numSamples);
-}
-
 RT_FUNCTION float attenuation(ScreenSample &ss, Ray r)
 {
   RayAttenuation ra;
@@ -104,7 +78,7 @@ RT_FUNCTION vec3 computeLightConrib(ScreenSample &ss, const SurfaceHit &hit)
       r.org = shadePoint;
       r.dir = ls.dir;
       r.t.upper = ls.dist;
-      if (!isOccluded(ss, r)) {
+      if (!isOccluded(ss, r, RayType::SHADOW)) {
         contrib += ls.radiance * dot(ls.dir, hit.Ns) * scivisParams.lightFalloff
             * (1.f - attenuation(ss, r));
       }
@@ -201,10 +175,13 @@ RT_PROGRAM void __raygen__()
       const auto mat_opacity =
           getMaterialParameter(frameData, material.opacity, surfaceHit);
 
-      const float aoFactor =
-          (scivisParams.aoSamples > 0 ? computeAO(
-               ss, ray, surfaceHit, rendererParams.occlusionDistance)
-                                      : 1.f)
+      const float aoFactor = (scivisParams.aoSamples > 0 ? computeAO(ss,
+                                  ray,
+                                  RayType::SHADOW,
+                                  surfaceHit,
+                                  rendererParams.occlusionDistance,
+                                  scivisParams.aoSamples)
+                                                         : 1.f)
           * rendererParams.ambientIntensity;
 
       accumulateValue(color,
