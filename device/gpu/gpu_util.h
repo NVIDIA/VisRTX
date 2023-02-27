@@ -151,11 +151,12 @@ RT_FUNCTION vec3 boolColor(bool pred)
 
 RT_FUNCTION vec3 randomDir(RandState &rs)
 {
-#if 1
-  const auto r = vec2(curand_uniform(&rs), curand_uniform(&rs));
-  return normalize(vec3(cos(2 * M_PI * r.x) * sqrt(1 - (r.y * r.y)),
-      sin(2 * M_PI * r.x) * sqrt(1 - (r.y * r.y)),
-      r.y * r.y));
+#if 0
+  const float r1 = curand_uniform(&rs);
+  const float r2 = curand_uniform(&rs);
+  return normalize(vec3(cos(2 * M_PI * r1) * sqrt(1 - (r2 * r2)),
+      sin(2 * M_PI * r1) * sqrt(1 - (r2 * r2)),
+      r2 * r2));
 #else
   const auto r = curand_uniform4(&rs);
   return normalize((2.f * vec3(r.x, r.y, r.z)) - vec3(1.f));

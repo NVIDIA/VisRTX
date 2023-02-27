@@ -47,12 +47,12 @@ RT_FUNCTION float computeAO(ScreenSample &ss,
   float hits = 0.0f;
   for (int i = 0; i < numSamples; i++) {
     Ray aoRay;
-    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ns);
+    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ng);
     aoRay.dir = randomDir(ss.rs, currentHit.Ns);
     aoRay.t.upper = dist;
-    float weight = dot(aoRay.dir, currentHit.Ns);
+    const float weight = max(0.f, dot(aoRay.dir, currentHit.Ns));
     weights += weight;
-    if (isOccluded(ss, aoRay, rayType))
+    if (weight != 0.f && isOccluded(ss, aoRay, rayType))
       hits += weight;
   }
 
