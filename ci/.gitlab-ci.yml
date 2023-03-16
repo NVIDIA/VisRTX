@@ -11,3 +11,10 @@ build-ubuntu-22_04:
   tags:
     - linux
     - ubuntu
+
+build-windows:
+  stage: build
+  script:
+    - ci/build_win.ps1
+  tags:
+    - windows

@@ -37,9 +37,11 @@
 // VisRTX
 #include <anari/ext/visrtx/visrtx.h>
 // std
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <iostream>
+#include <numeric>
 #include <random>
 // stb_image
 #define STB_IMAGE_WRITE_IMPLEMENTATION
