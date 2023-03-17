@@ -280,8 +280,12 @@ void Group::partitionValidGeometriesByType()
   m_surfacesCurve.clear();
   m_surfacesUser.clear();
   for (auto s : m_surfaces) {
-    if (!s->isValid())
+    if (!s->isValid()) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "visrtx::Group encountered invalid surface %p",
+          s);
       continue;
+    }
     auto g = s->geometry();
     if (g->optixGeometryType() == OPTIX_BUILD_INPUT_TYPE_TRIANGLES)
       m_surfacesTriangle.push_back(s);
@@ -301,8 +305,12 @@ void Group::partitionValidVolumes()
   auto volumes = anari::make_Span(
       (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
   for (auto v : volumes) {
-    if (!v->isValid())
+    if (!v->isValid()) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "visrtx::Group encountered invalid volume %p",
+          v);
       continue;
+    }
     m_volumes.push_back(v);
   }
 }
@@ -316,8 +324,12 @@ void Group::partitionValidLights()
   auto lights = anari::make_Span(
       (Light **)m_lightData->handlesBegin(), m_lightData->totalSize());
   for (auto l : lights) {
-    if (!l->isValid())
+    if (!l->isValid()) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "visrtx::Group encountered invalid light %p",
+          l);
       continue;
+    }
     m_lights.push_back(l);
   }
 }
