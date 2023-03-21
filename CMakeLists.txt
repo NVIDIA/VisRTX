@@ -83,7 +83,7 @@ add_subdirectory(external)
 
 enable_testing()
 
-add_subdirectory(device)
+add_subdirectory(devices)
 add_subdirectory(examples)
 add_subdirectory(tests)
 add_subdirectory(tools)
