@@ -661,15 +661,15 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
 
   static std::mt19937 rng;
   rng.seed(0);
-  static std::normal_distribution<float> dist(0.f, 10.0f);
+  static std::normal_distribution<float> dist(0.f, 1.0f);
 
   auto voxelArray =
-      anari::newArray3D(d, ANARI_FLOAT32, volumeDims, volumeDims, volumeDims);
+      anari::newArray3D(d, ANARI_UINT8, volumeDims, volumeDims, volumeDims);
 
-  auto *voxelsBegin = anari::map<float>(d, voxelArray);
+  auto *voxelsBegin = anari::map<uint8_t>(d, voxelArray);
   auto *voxelsEnd = voxelsBegin + (volumeDims * volumeDims * volumeDims);
 
-  std::for_each(voxelsBegin, voxelsEnd, [&](auto &v) { v = dist(rng); });
+  std::for_each(voxelsBegin, voxelsEnd, [&](auto &v) { v = dist(rng) * 255; });
 
   anari::unmap(d, voxelArray);
 
@@ -700,7 +700,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
         volume,
         "opacity",
         anari::newArray1D(d, opacities.data(), opacities.size()));
-    anari::setParameter(d, volume, "valueRange", glm::vec2(0.f, 10.f));
+    anari::setParameter(d, volume, "valueRange", glm::vec2(0.f, 255.f));
   }
 
   anari::commitParameters(d, volume);

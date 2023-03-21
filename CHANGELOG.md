@@ -6,6 +6,7 @@
 - Improved handling of renderers of an unknown subtype
 - Fix incorrect type for `scivis` volume `"valueRange"` parameter
 - Fix numeric issue in edge case when generating cone geometry
+- Fix support for non-float element types in `structuredRegular` spatial fields
 
 ## 0.5.0
 ##### 2023-01-23

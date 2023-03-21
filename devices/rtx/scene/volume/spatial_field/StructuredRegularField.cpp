@@ -32,12 +32,56 @@
 #include "StructuredRegularField.h"
 // anari
 #include "anari/type_utility.h"
+// std
+#include <algorithm>
+#include <vector>
 
 namespace visrtx {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static bool validDataType(ANARIDataType format)
+template <typename T>
+static void convertElements(const void *_begin, size_t size, float *output)
+{
+  auto toFloat = [](auto c) { return float(c); };
+  auto *begin = (const T *)_begin;
+  auto *end = begin + size;
+  std::transform(begin, end, output, toFloat);
+}
+
+static std::vector<float> makeFloatStagingBuffer(Array &array)
+{
+  const void *input = array.data();
+  size_t size = array.totalSize();
+
+  std::vector<float> stagingBuffer(size);
+
+  ANARIDataType format = array.elementType();
+
+  switch (format) {
+  case ANARI_UINT8:
+    convertElements<uint8_t>(input, size, stagingBuffer.data());
+    break;
+  case ANARI_INT16:
+    convertElements<int16_t>(input, size, stagingBuffer.data());
+    break;
+  case ANARI_UINT16:
+    convertElements<uint16_t>(input, size, stagingBuffer.data());
+    break;
+  case ANARI_FLOAT32:
+    convertElements<float>(input, size, stagingBuffer.data());
+    break;
+  case ANARI_FLOAT64:
+    convertElements<double>(input, size, stagingBuffer.data());
+    break;
+  default:
+    break;
+  }
+
+  return stagingBuffer;
+}
+
+static bool validFieldDataType(ANARIDataType format)
 {
   switch (format) {
   case ANARI_UINT8:
@@ -50,21 +94,6 @@ static bool validDataType(ANARIDataType format)
     break;
   }
   return false;
-}
-
-static cudaChannelFormatKind cudaChannelFormatFromANARI(ANARIDataType format)
-{
-  switch (format) {
-  case ANARI_UINT8:
-  case ANARI_UINT16:
-    return cudaChannelFormatKindUnsigned;
-  case ANARI_INT16:
-    return cudaChannelFormatKindSigned;
-  case ANARI_FLOAT32:
-  case ANARI_FLOAT64:
-  default:
-    return cudaChannelFormatKindFloat;
-  }
 }
 
 // StructuredRegularField definitions /////////////////////////////////////////
@@ -95,26 +124,33 @@ void StructuredRegularField::commit()
 
   ANARIDataType format = m_params.data->elementType();
 
-  if (!validDataType(format))
-    throw std::runtime_error("invalid structured regular field data type");
-
-  if (format == ANARI_FLOAT64)
-    throw std::runtime_error("float64 volumes not yet supported");
+  if (!validFieldDataType(format)) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "invalid data array type encountered "
+        "in structuredRegular spatial field(%s)",
+        anari::toString(format));
+    return;
+  }
 
   m_params.data->addCommitObserver(this);
+  const auto dims = m_params.data->size();
 
-  const auto formatSize = anari::sizeOf(format);
+  std::vector<float> stagingBuffer;
+  if (format != ANARI_FLOAT32)
+    stagingBuffer = makeFloatStagingBuffer(*m_params.data);
 
   auto desc = cudaCreateChannelDesc(
-      formatSize * 8, 0, 0, 0, cudaChannelFormatFromANARI(format));
-  auto dims = m_params.data->size();
+      sizeof(float) * 8, 0, 0, 0, cudaChannelFormatKindFloat);
   cudaMalloc3DArray(
       &m_cudaArray, &desc, make_cudaExtent(dims.x, dims.y, dims.z));
 
   cudaMemcpy3DParms copyParams;
   std::memset(&copyParams, 0, sizeof(copyParams));
   copyParams.srcPtr = make_cudaPitchedPtr(
-      m_params.data->data(), dims.x * formatSize, dims.x, dims.y);
+      stagingBuffer.empty() ? m_params.data->data() : stagingBuffer.data(),
+      dims.x * sizeof(float),
+      dims.x,
+      dims.y);
   copyParams.dstArray = m_cudaArray;
   copyParams.extent = make_cudaExtent(dims.x, dims.y, dims.z);
   copyParams.kind = cudaMemcpyHostToDevice;
@@ -157,7 +193,7 @@ float StructuredRegularField::stepSize() const
 
 bool StructuredRegularField::isValid() const
 {
-  return m_params.data && validDataType(m_params.data->elementType());
+  return m_params.data && validFieldDataType(m_params.data->elementType());
 }
 
 SpatialFieldGPUData StructuredRegularField::gpuData() const
