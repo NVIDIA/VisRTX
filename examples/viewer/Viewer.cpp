@@ -306,7 +306,7 @@ void Viewer::updateFrame()
   anari::setParameter(m_device, m_frame, "renderer", m_currentRenderer);
 
   anari::setParameter(
-      m_device, m_currentRenderer, "backgroundColor", m_background);
+      m_device, m_currentRenderer, "background", m_background);
   anari::setParameter(
       m_device, m_currentRenderer, "pixelSamples", m_pixelSamples);
   anari::setParameter(

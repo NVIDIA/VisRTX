@@ -134,7 +134,7 @@ Renderer::~Renderer()
 
 void Renderer::commit()
 {
-  m_bgColor = getParam<vec4>("backgroundColor", vec4(1.f));
+  m_bgColor = getParam<vec4>("background", vec4(1.f));
   m_spp = getParam<int>("pixelSamples", 1);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
   m_ambientIntensity = getParam<float>("ambientIntensity", 1.f);

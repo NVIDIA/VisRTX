@@ -886,7 +886,8 @@ static ScenePtr generateGravityVolume(
           volume,
           "opacity",
           anari::newArray1D(d, opacities.data(), opacities.size()));
-      anari::setParameter(d, volume, "valueRange", voxelRange);
+      anariSetParameter(
+          d, volume, "valueRange", ANARI_FLOAT32_BOX1, &voxelRange);
     }
 
     anari::commitParameters(d, volume);
