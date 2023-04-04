@@ -108,7 +108,8 @@ void Frame::commit()
 
   m_denoise = getParam<bool>("denoise", false);
 
-  auto format = getParam<ANARIDataType>("color", ANARI_UFIXED8_RGBA_SRGB);
+  auto format =
+      getParam<ANARIDataType>("channel.color", ANARI_UFIXED8_RGBA_SRGB);
   const bool useFloatFB = m_denoise || format == ANARI_FLOAT32_VEC4;
   if (useFloatFB)
     hd.fb.format = FrameFormat::FLOAT;
@@ -125,7 +126,6 @@ void Frame::commit()
   const bool checkboard = getParam<bool>("checkerboard", false);
   hd.fb.checkerboardID = checkboard ? 0 : -1;
 
-  m_colorType = getParam<ANARIDataType>("channel.color", ANARI_UNKNOWN);
   m_depthType = getParam<ANARIDataType>("channel.depth", ANARI_UNKNOWN);
   m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
   m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
