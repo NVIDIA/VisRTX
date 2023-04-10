@@ -34,19 +34,30 @@
 #include "anari/type_utility.h"
 // std
 #include <algorithm>
+#include <limits>
 #include <vector>
 
 namespace visrtx {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-template <typename T>
-static void convertElements(const void *_begin, size_t size, float *output)
+template <typename FROM_T, typename TO_T = float>
+static void convertElementsNormalized(
+    const void *_begin, size_t size, TO_T *output)
 {
-  auto toFloat = [](auto c) { return float(c); };
-  auto *begin = (const T *)_begin;
-  auto *end = begin + size;
-  std::transform(begin, end, output, toFloat);
+  auto toFloatNormalized = [](auto c) {
+    return TO_T(c / float(std::numeric_limits<FROM_T>::max()));
+  };
+  auto *begin = (const FROM_T *)_begin;
+  std::transform(begin, begin + size, output, toFloatNormalized);
+}
+
+template <typename FROM_T, typename TO_T = float>
+static void convertElements(const void *_begin, size_t size, TO_T *output)
+{
+  auto toFloat = [](auto c) { return TO_T(c); };
+  auto *begin = (const FROM_T *)_begin;
+  std::transform(begin, begin + size, output, toFloat);
 }
 
 static std::vector<float> makeFloatStagingBuffer(Array &array)
@@ -68,6 +79,15 @@ static std::vector<float> makeFloatStagingBuffer(Array &array)
   case ANARI_UINT16:
     convertElements<uint16_t>(input, size, stagingBuffer.data());
     break;
+  case ANARI_UFIXED8:
+    convertElementsNormalized<uint8_t>(input, size, stagingBuffer.data());
+    break;
+  case ANARI_FIXED16:
+    convertElementsNormalized<int16_t>(input, size, stagingBuffer.data());
+    break;
+  case ANARI_UFIXED16:
+    convertElementsNormalized<uint16_t>(input, size, stagingBuffer.data());
+    break;
   case ANARI_FLOAT32:
     convertElements<float>(input, size, stagingBuffer.data());
     break;
@@ -87,6 +107,9 @@ static bool validFieldDataType(ANARIDataType format)
   case ANARI_UINT8:
   case ANARI_INT16:
   case ANARI_UINT16:
+  case ANARI_UFIXED8:
+  case ANARI_FIXED16:
+  case ANARI_UFIXED16:
   case ANARI_FLOAT32:
   case ANARI_FLOAT64:
     return true;
