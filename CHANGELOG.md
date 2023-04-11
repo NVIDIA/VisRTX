@@ -2,6 +2,7 @@
 
 ## 0.6.0
 ##### TBD
+- Added support for image backgrounds via the `background` renderer parameter
 - Improved `sphere` geometry update speed for large numbers of primitives
 - Improved handling of renderers of an unknown subtype
 - Fix incorrect type for `scivis` volume `"valueRange"` parameter
