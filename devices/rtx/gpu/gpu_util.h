@@ -206,6 +206,13 @@ RT_FUNCTION bool isMiddelPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
   return pixel.x == (fb.size.x / 2) && pixel.y == (fb.size.y / 2);
 }
 
+RT_FUNCTION vec4 getBackground(const RendererGPUData &rd, const vec2 &loc)
+{
+  return rd.backgroundMode == BackgroundMode::COLOR
+      ? rd.background.color
+      : make_vec4(tex2D<::float4>(rd.background.texobj, loc.x, loc.y));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Outputs ////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////

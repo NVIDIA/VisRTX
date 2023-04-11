@@ -65,9 +65,9 @@ RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *c, vec2 screen)
 RT_FUNCTION Ray makePrimaryRay(ScreenSample &ss)
 {
   const vec2 r(curand_uniform(&ss.rs) - 0.5f, curand_uniform(&ss.rs) - 0.5f);
-  const auto screen =
+  ss.screen =
       vec2(ss.pixel.x + r.x, ss.pixel.y + r.y) * ss.frameData->fb.invSize;
-  return cameraCreateRay(ss.frameData->camera, screen);
+  return cameraCreateRay(ss.frameData->camera, ss.screen);
 }
 
 } // namespace visrtx

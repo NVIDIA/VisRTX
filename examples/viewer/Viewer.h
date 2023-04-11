@@ -96,7 +96,9 @@ class Viewer : public match3D::Application
   ObjFileConfig m_objFileConfig;
   int m_selectedScene{0};
   int m_lastSceneType{0};
-  glm::vec4 m_background{0.1f, 0.1f, 0.1f, 1.f};
+  glm::vec4 m_backgroundTop{0.8f, 0.8f, 0.8f, 1.f};
+  glm::vec4 m_backgroundBottom{0.1f, 0.1f, 0.1f, 1.f};
+  bool m_backgroundGradient{false};
   int m_pixelSamples{1};
 
   std::unique_ptr<Scene> m_currentScene;

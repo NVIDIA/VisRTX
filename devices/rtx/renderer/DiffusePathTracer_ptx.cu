@@ -94,7 +94,8 @@ RT_PROGRAM void __raygen__()
   if (debug())
     printf("========== BEGIN: FrameID %i ==========\n", frameData.fb.frameID);
 
-  vec3 outColor(frameData.renderer.bgColor);
+  const auto bg = getBackground(frameData.renderer, ss.screen);
+  vec3 outColor(bg);
   vec3 outNormal = ray.dir;
   float outDepth = tmax;
 
@@ -174,7 +175,7 @@ RT_PROGRAM void __raygen__()
   // }
 
   vec3 color =
-      pathData.depth ? pathData.Lw * Ld : vec3(frameData.renderer.bgColor);
+      pathData.depth ? pathData.Lw * Ld : vec3(bg);
   if (crosshair())
     color = vec3(1) - color;
   if (debug())

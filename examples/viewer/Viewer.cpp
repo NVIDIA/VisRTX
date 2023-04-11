@@ -41,6 +41,8 @@
 #include "anari/anari_feature_utility.h"
 // VisRTX
 #include "anari/ext/visrtx/visrtx.h"
+// glm
+#include <glm/ext.hpp>
 
 #include "ui_scenes.h"
 
@@ -305,8 +307,22 @@ void Viewer::updateFrame()
     anari::setParameter(m_device, m_frame, "camera", m_perspCamera);
   anari::setParameter(m_device, m_frame, "renderer", m_currentRenderer);
 
-  anari::setParameter(
-      m_device, m_currentRenderer, "background", m_background);
+  if (m_backgroundGradient) {
+    constexpr int IMAGE_SIZE = 128;
+    auto gradientArray =
+        anari::newArray2D(m_device, ANARI_FLOAT32_VEC4, 1, IMAGE_SIZE + 1);
+    auto *gradientColors = anari::map<glm::vec4>(m_device, gradientArray);
+    for (int i = 0; i <= IMAGE_SIZE; i++) {
+      gradientColors[i] =
+          glm::mix(m_backgroundBottom, m_backgroundTop, i / float(IMAGE_SIZE));
+    }
+    anari::unmap(m_device, gradientArray);
+    anari::setAndReleaseParameter(
+        m_device, m_currentRenderer, "background", gradientArray);
+  } else {
+    anari::setParameter(
+        m_device, m_currentRenderer, "background", m_backgroundTop);
+  }
   anari::setParameter(
       m_device, m_currentRenderer, "pixelSamples", m_pixelSamples);
   anari::setParameter(
@@ -689,7 +705,14 @@ void Viewer::ui_makeWindow_renderer()
       nullptr,
       g_renderers.size());
 
-  update |= ImGui::ColorEdit3("background", &m_background.x);
+  update |= ImGui::Checkbox("gradient background", &m_backgroundGradient);
+
+  if (m_backgroundGradient) {
+    update |= ImGui::ColorEdit3("backgroundTop", &m_backgroundTop.x);
+    update |= ImGui::ColorEdit3("backgroundBottom", &m_backgroundBottom.x);
+  } else {
+    update |= ImGui::ColorEdit3("background", &m_backgroundTop.x);
+  }
 
   update |= ImGui::SliderInt("pixelSamples", &m_pixelSamples, 1, 256);
 

@@ -198,9 +198,6 @@ RT_PROGRAM void __raygen__()
 
       ray.t.lower = surfaceHit.t + surfaceHit.epsilon;
     } else {
-      const auto bgColor = vec3(frameData.renderer.bgColor);
-      const auto bgOpacity = frameData.renderer.bgColor.w;
-
       const float volumeDepth = rayMarchAllVolumes(
           ss, ray, RayType::PRIMARY, ray.t.upper, color, opacity);
 
@@ -208,8 +205,10 @@ RT_PROGRAM void __raygen__()
         depth = min(depth, volumeDepth);
 
       color *= opacity;
-      accumulateValue(color, bgColor, opacity);
-      accumulateValue(opacity, bgOpacity, opacity);
+
+      const auto bg = getBackground(frameData.renderer, ss.screen);
+      accumulateValue(color, vec3(bg), opacity);
+      accumulateValue(opacity, bg.w, opacity);
       accumulateValue(outputColor, color, outputOpacity);
       accumulateValue(outputOpacity, opacity, outputOpacity);
       break;

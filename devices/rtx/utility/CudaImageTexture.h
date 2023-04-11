@@ -55,38 +55,33 @@ using byte_chunk_t = std::array<uint8_t, SIZE>;
 int countCudaChannels(const cudaChannelFormatDesc &desc);
 cudaTextureAddressMode stringToAddressMode(const std::string &str);
 
-template <bool SRGB, typename T>
-inline uint8_t convertComponent(T c)
+struct CudaImageTexture
 {
-  if constexpr (std::is_same_v<T, float>)
-    return uint8_t(c * 255);
-  else if constexpr (std::is_same_v<T, uint16_t>) {
-    constexpr auto maxVal = float(std::numeric_limits<uint16_t>::max());
-    return uint8_t((c / maxVal) * 255);
-  } else if constexpr (std::is_same_v<T, uint32_t>) {
-    constexpr auto maxVal = float(std::numeric_limits<uint32_t>::max());
-    return uint8_t((c / maxVal) * 255);
-  } else if constexpr (SRGB) // uint8_t
-    return uint8_t(glm::convertSRGBToLinear(vec1(c / 255.f)).x * 255);
-  else // uint8_t, linear
-    return c;
-}
+  cudaArray_t cuArray{};
+  cudaTextureObject_t cuObject{};
 
-template <int IN_NC /*num components*/,
-    typename IN_COMP_T /*component type*/,
-    bool SRGB = false>
-inline void transformToStagingBuffer(Array &image, uint8_t *stagingBuffer)
-{
-  auto *begin = (IN_COMP_T *)image.data();
-  auto *end = begin + (image.totalSize() * IN_NC);
-  size_t out = 0;
-  std::for_each(begin, end, [&](const IN_COMP_T &c) {
-    stagingBuffer[out++] = convertComponent<SRGB>(c);
-    if constexpr (IN_NC == 3) {
-      if (out % 4 == 3)
-        stagingBuffer[out++] = 255;
-    }
-  });
-}
+  void cleanup()
+  {
+    if (cuObject)
+      cudaDestroyTextureObject(cuObject);
+    if (cuArray)
+      cudaFreeArray(cuArray);
+
+    cuArray = {};
+    cuObject = {};
+  }
+};
+
+CudaImageTexture makeCudaTextureUint8(const Array &array,
+    uvec2 size,
+    const std::string &filter,
+    const std::string &wrap1 = "clampToEdge",
+    const std::string &wrap2 = "clampToEdge");
+
+CudaImageTexture makeCudaTextureFloat(const Array &array,
+    uvec2 size,
+    const std::string &filter,
+    const std::string &wrap1 = "clampToEdge",
+    const std::string &wrap2 = "clampToEdge");
 
 } // namespace visrtx

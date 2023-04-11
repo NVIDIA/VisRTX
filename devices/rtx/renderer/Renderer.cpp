@@ -128,12 +128,20 @@ Renderer::Renderer(DeviceGlobalState *s) : Object(ANARI_RENDERER, s)
 
 Renderer::~Renderer()
 {
+  m_backgroundTexture.cleanup();
   optixPipelineDestroy(m_pipeline);
   s_numRenderers--;
 }
 
 void Renderer::commit()
 {
+  m_backgroundTexture.cleanup();
+  m_backgroundImage = getParamObject<Array2D>("background");
+  if (m_backgroundImage) {
+    m_backgroundTexture = makeCudaTextureFloat(
+        *m_backgroundImage, m_backgroundImage->size(), "linear");
+  }
+
   m_bgColor = getParam<vec4>("background", vec4(1.f));
   m_spp = getParam<int>("pixelSamples", 1);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
@@ -153,7 +161,13 @@ anari::Span<const std::string> Renderer::missSbtNames() const
 
 void Renderer::populateFrameData(FrameGPUData &fd) const
 {
-  fd.renderer.bgColor = bgColor();
+  if (m_backgroundImage) {
+    fd.renderer.backgroundMode = BackgroundMode::IMAGE;
+    fd.renderer.background.texobj = m_backgroundTexture.cuObject;
+  } else {
+    fd.renderer.backgroundMode = BackgroundMode::COLOR;
+    fd.renderer.background.color = bgColor();
+  }
   fd.renderer.ambientColor = ambientColor();
   fd.renderer.ambientIntensity = ambientIntensity();
   fd.renderer.occlusionDistance = ambientOcclusionDistance();

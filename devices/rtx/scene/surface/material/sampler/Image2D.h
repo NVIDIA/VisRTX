@@ -33,6 +33,7 @@
 
 #include "Sampler.h"
 #include "array/Array2D.h"
+#include "utility/CudaImageTexture.h"
 
 namespace visrtx {
 
@@ -60,8 +61,7 @@ struct Image2D : public Sampler
     helium::IntrusivePtr<Array2D> image;
   } m_params;
 
-  cudaArray_t m_cudaArray{};
-  cudaTextureObject_t m_textureObject{};
+  CudaImageTexture m_texture;
 };
 
 } // namespace visrtx

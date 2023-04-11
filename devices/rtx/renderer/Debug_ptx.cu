@@ -176,7 +176,7 @@ RT_PROGRAM void __raygen__()
   auto ray = makePrimaryRay(ss);
   /////////////////////////////////////////////////////////////////////////////
 
-  auto color = vec3(frameData.renderer.bgColor);
+  auto color = vec3(getBackground(frameData.renderer, ss.screen));
   auto depth = ray.t.upper;
   auto normal = ray.dir;
 

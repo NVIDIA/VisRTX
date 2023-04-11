@@ -146,7 +146,6 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/surface/material/sampler/ColorMap.cpp
   scene/surface/material/sampler/Image1D.cpp
   scene/surface/material/sampler/Image2D.cpp
-  scene/surface/material/sampler/ImageSamplerHelpers.cpp
   scene/surface/material/sampler/PrimitiveSampler.cpp
   scene/surface/material/sampler/Sampler.cpp
   scene/surface/material/sampler/UnknownSampler.cpp
@@ -162,6 +161,7 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/volume/spatial_field/StructuredRegularField.cu
   scene/volume/spatial_field/UnknownSpatialField.cpp
 
+  utility/CudaImageTexture.cpp
   utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
 )

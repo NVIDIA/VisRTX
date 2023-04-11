@@ -30,7 +30,6 @@
  */
 
 #include "Image1D.h"
-#include "ImageSamplerHelpers.h"
 
 namespace visrtx {
 
@@ -69,90 +68,8 @@ void Image1D::commit()
   auto &image = *m_params.image;
   image.addCommitObserver(this);
 
-  // Create CUDA texture //
-
-  std::vector<uint8_t> stagingBuffer(image.totalSize() * 4);
-
-  if (nc == 4) {
-    if (isFloat(format))
-      transformToStagingBuffer<4, float>(image, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBuffer<4, uint32_t>(image, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBuffer<4, uint16_t>(image, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBuffer<4, uint8_t>(image, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBuffer<4, uint8_t, true>(image, stagingBuffer.data());
-  } else if (nc == 3) {
-    if (isFloat(format))
-      transformToStagingBuffer<3, float>(image, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBuffer<3, uint32_t>(image, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBuffer<3, uint16_t>(image, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBuffer<3, uint8_t>(image, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBuffer<3, uint8_t, true>(image, stagingBuffer.data());
-  } else if (nc == 2) {
-    if (isFloat(format))
-      transformToStagingBuffer<2, float>(image, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBuffer<2, uint32_t>(image, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBuffer<2, uint16_t>(image, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBuffer<2, uint8_t>(image, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBuffer<2, uint8_t, true>(image, stagingBuffer.data());
-  } else if (nc == 1) {
-    if (isFloat(format))
-      transformToStagingBuffer<1, float>(image, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBuffer<1, uint32_t>(image, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBuffer<1, uint16_t>(image, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBuffer<1, uint8_t>(image, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBuffer<1, uint8_t, true>(image, stagingBuffer.data());
-  }
-
-  if (nc == 3)
-    nc = 4;
-
-  auto desc = cudaCreateChannelDesc(nc >= 1 ? 8 : 0,
-      nc >= 2 ? 8 : 0,
-      nc >= 3 ? 8 : 0,
-      nc >= 3 ? 8 : 0,
-      cudaChannelFormatKindUnsigned);
-
-  const auto size = image.size();
-  cudaMallocArray(&m_cudaArray, &desc, size, 1);
-  cudaMemcpy2DToArray(m_cudaArray,
-      0,
-      0,
-      stagingBuffer.data(),
-      size * nc,
-      size * nc,
-      1,
-      cudaMemcpyHostToDevice);
-
-  cudaResourceDesc resDesc;
-  memset(&resDesc, 0, sizeof(resDesc));
-  resDesc.resType = cudaResourceTypeArray;
-  resDesc.res.array.array = m_cudaArray;
-
-  cudaTextureDesc texDesc;
-  memset(&texDesc, 0, sizeof(texDesc));
-  texDesc.addressMode[0] = stringToAddressMode(m_params.wrap1);
-  texDesc.filterMode =
-      m_params.filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
-  texDesc.readMode = cudaReadModeNormalizedFloat;
-  texDesc.normalizedCoords = 1;
-
-  cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
+  m_texture = makeCudaTextureUint8(
+      image, uvec2(m_params.image->size(), 1), m_params.filter, m_params.wrap1);
 
   upload();
 }
@@ -161,7 +78,7 @@ SamplerGPUData Image1D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE1D;
-  retval.image1D.texobj = m_textureObject;
+  retval.image1D.texobj = m_texture.cuObject;
   return retval;
 }
 
@@ -178,12 +95,7 @@ bool Image1D::isValid() const
 
 void Image1D::cleanup()
 {
-  if (m_textureObject)
-    cudaDestroyTextureObject(m_textureObject);
-  if (m_cudaArray)
-    cudaFreeArray(m_cudaArray);
-  m_textureObject = {};
-  m_cudaArray = {};
+  m_texture.cleanup();
   if (m_params.image)
     m_params.image->removeCommitObserver(this);
 }

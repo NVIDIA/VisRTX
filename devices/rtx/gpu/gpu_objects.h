@@ -453,10 +453,23 @@ union RendererParametersGPUData
   SciVisRendererGPUData scivis;
 };
 
+enum class BackgroundMode
+{
+  COLOR,
+  IMAGE
+};
+
+union RendererBackgroundGPUData
+{
+  glm::vec4 color;
+  cudaTextureObject_t texobj;
+};
+
 struct RendererGPUData
 {
   RendererParametersGPUData params;
-  glm::vec4 bgColor;
+  BackgroundMode backgroundMode;
+  RendererBackgroundGPUData background;
   glm::vec3 ambientColor;
   float ambientIntensity;
   float occlusionDistance;
@@ -522,6 +535,7 @@ struct ScreenSample
 {
   uint3 launchIdx;
   glm::uvec2 pixel;
+  glm::vec2 screen;
   RandState rs;
   const FrameGPUData *frameData;
 };

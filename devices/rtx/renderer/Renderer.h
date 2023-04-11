@@ -32,7 +32,9 @@
 #pragma once
 
 #include "Object.h"
+#include "array/Array2D.h"
 #include "gpu/gpu_objects.h"
+#include "utility/CudaImageTexture.h"
 // optix
 #include <optix.h>
 // std
@@ -82,6 +84,9 @@ struct Renderer : public Object
   vec3 m_ambientColor{1.f};
   float m_ambientIntensity{1.f};
   float m_occlusionDistance{1e20f};
+
+  helium::IntrusivePtr<Array2D> m_backgroundImage;
+  CudaImageTexture m_backgroundTexture;
 
   // OptiX //
 
