@@ -297,10 +297,6 @@ RT_FUNCTION MaterialValues getMaterialValues(
 {
   MaterialValues retval;
   retval.baseColor = getMaterialParameter(fd, md.baseColor, hit);
-  retval.metalness = getMaterialParameter(fd, md.metalness, hit);
-  retval.emissive = getMaterialParameter(fd, md.emissive, hit);
-  retval.roughness = getMaterialParameter(fd, md.roughness, hit);
-  retval.transmissiveness = getMaterialParameter(fd, md.transmissiveness, hit);
   retval.opacity = getMaterialParameter(fd, md.opacity, hit);
   return retval;
 }

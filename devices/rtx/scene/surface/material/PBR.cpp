@@ -37,29 +37,13 @@ PBR::PBR(DeviceGlobalState *d) : Material(d) {}
 
 void PBR::commit()
 {
-  m_color = getParam<vec3>("color", vec3(1.f));
-  m_colorSampler = getParamObject<Sampler>("color");
-  m_colorAttribute = getParamString("color", "");
+  m_color = getParam<vec3>("baseColor", vec3(1.f));
+  m_colorSampler = getParamObject<Sampler>("baseColor");
+  m_colorAttribute = getParamString("baseColor", "");
 
   m_opacity = getParam<float>("opacity", 1.f);
   m_opacitySampler = getParamObject<Sampler>("opacity");
   m_opacityAttribute = getParamString("opacity", "");
-
-  m_metalness = getParam<float>("metalness", 0.f);
-  m_metalnessSampler = getParamObject<Sampler>("metalness");
-  m_metalnessAttribute = getParamString("metalness", "");
-
-  m_emissive = getParam<vec3>("emissive", vec3(0.f));
-  m_emissiveSampler = getParamObject<Sampler>("emissive");
-  m_emissiveAttribute = getParamString("emissive", "");
-
-  m_transmissiveness = getParam<float>("transmissiveness", 0.f);
-  m_transmissivenessSampler = getParamObject<Sampler>("transmissiveness");
-  m_transmissivenessAttribute = getParamString("transmissiveness", "");
-
-  m_roughness = getParam<float>("roughness", 0.f);
-  m_roughnessSampler = getParamObject<Sampler>("roughness");
-  m_roughnessAttribute = getParamString("roughness", "");
 
   upload();
 }
@@ -77,17 +61,6 @@ MaterialGPUData PBR::gpuData() const
     populateMaterialParameter(
         retval.opacity, m_opacity, m_opacitySampler, m_opacityAttribute);
   }
-
-  populateMaterialParameter(
-      retval.metalness, m_metalness, m_metalnessSampler, m_metalnessAttribute);
-  populateMaterialParameter(
-      retval.emissive, m_emissive, m_emissiveSampler, m_emissiveAttribute);
-  populateMaterialParameter(retval.transmissiveness,
-      m_transmissiveness,
-      m_transmissivenessSampler,
-      m_transmissivenessAttribute);
-  populateMaterialParameter(
-      retval.roughness, m_roughness, m_roughnessSampler, m_roughnessAttribute);
 
   return retval;
 }

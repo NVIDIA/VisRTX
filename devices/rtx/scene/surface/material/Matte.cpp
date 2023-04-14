@@ -41,6 +41,10 @@ void Matte::commit()
   m_colorSampler = getParamObject<Sampler>("color");
   m_colorAttribute = getParamString("color", "");
 
+  m_opacity = getParam<float>("opacity", 1.f);
+  m_opacitySampler = getParamObject<Sampler>("opacity");
+  m_opacityAttribute = getParamString("opacity", "");
+
   upload();
 }
 
@@ -51,9 +55,12 @@ MaterialGPUData Matte::gpuData() const
   populateMaterialParameter(
       retval.baseColor, m_color, m_colorSampler, m_colorAttribute);
 
-  retval.metalness = 0.f;
-  retval.transmissiveness = 0.f;
-  retval.opacity = 1.f;
+  if (m_colorSampler && m_colorSampler->numChannels() > 3)
+    retval.opacity = 1.f;
+  else {
+    populateMaterialParameter(
+        retval.opacity, m_opacity, m_opacitySampler, m_opacityAttribute);
+  }
 
   return retval;
 }

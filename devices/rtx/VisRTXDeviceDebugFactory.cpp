@@ -2131,10 +2131,10 @@ class material_matte : public DebugObject<ANARI_MATERIAL> {
       return "matte";
    }
 };
-class material_transparentMatte : public DebugObject<ANARI_MATERIAL> {
+class material_physicallyBased : public DebugObject<ANARI_MATERIAL> {
    static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6d6c000fu,0x0u,0x706f0028u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261002du,0x71700031u,0x71700010u,0x69680011u,0x62610012u,0x4e430013u,0x7675001eu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f0024u,0x7574001fu,0x706f0020u,0x67660021u,0x67660022u,0x1000023u,0x80000004u,0x65640025u,0x66650026u,0x1000027u,0x80000003u,0x6d6c0029u,0x706f002au,0x7372002bu,0x100002cu,0x80000001u,0x6e6d002eu,0x6665002fu,0x1000030u,0x80000000u,0x62610032u,0x64630033u,0x6a690034u,0x75740035u,0x7a790036u,0x1000037u,0x80000002u};
-      uint32_t cur = 0x70610000u;
+      static const uint32_t table[] = {0x756c0014u,0x6261004du,0x6d6c0056u,0x0u,0x6e6d00c0u,0x0u,0x0u,0x0u,0x736f00c8u,0x0u,0x0u,0x0u,0x66650138u,0x70610140u,0x71630157u,0x0u,0x0u,0x706f0173u,0x7168017cu,0x736801f5u,0x7170001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x75740035u,0x6968001eu,0x6261001fu,0x4e430020u,0x7675002bu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f0031u,0x7574002cu,0x706f002du,0x6766002eu,0x6766002fu,0x1000030u,0x80000009u,0x65640032u,0x66650033u,0x1000034u,0x80000008u,0x66650036u,0x6f6e0037u,0x76750038u,0x62610039u,0x7574003au,0x6a69003bu,0x706f003cu,0x6f6e003du,0x4543003eu,0x706f0040u,0x6a690045u,0x6d6c0041u,0x706f0042u,0x73720043u,0x1000044u,0x80000013u,0x74730046u,0x75740047u,0x62610048u,0x6f6e0049u,0x6463004au,0x6665004bu,0x100004cu,0x80000012u,0x7473004eu,0x6665004fu,0x44430050u,0x706f0051u,0x6d6c0052u,0x706f0053u,0x73720054u,0x1000055u,0x80000001u,0x66650057u,0x62610058u,0x73720059u,0x6463005au,0x706f005bu,0x6261005cu,0x7574005du,0x5300005eu,0x8000000cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f00b1u,0x0u,0x0u,0x0u,0x706f00b7u,0x737200b2u,0x6e6d00b3u,0x626100b4u,0x6d6c00b5u,0x10000b6u,0x8000000eu,0x767500b8u,0x686700b9u,0x696800bau,0x6f6e00bbu,0x666500bcu,0x747300bdu,0x747300beu,0x10000bfu,0x8000000du,0x6a6900c1u,0x747300c2u,0x747300c3u,0x6a6900c4u,0x777600c5u,0x666500c6u,0x10000c7u,0x80000006u,0x737200ccu,0x0u,0x0u,0x6a6900ceu,0x10000cdu,0x80000010u,0x656400cfu,0x666500d0u,0x747300d1u,0x646300d2u,0x666500d3u,0x6f6e00d4u,0x646300d5u,0x666500d6u,0x550000d7u,0x80000016u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f012cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6968012fu,0x7372012du,0x100012eu,0x80000017u,0x6a690130u,0x64630131u,0x6c6b0132u,0x6f6e0133u,0x66650134u,0x74730135u,0x74730136u,0x1000137u,0x80000018u,0x75740139u,0x6261013au,0x6d6c013bu,0x6d6c013cu,0x6a69013du,0x6463013eu,0x100013fu,0x80000003u,0x6e6d014fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720152u,0x66650150u,0x1000151u,0x80000000u,0x6e6d0153u,0x62610154u,0x6d6c0155u,0x1000156u,0x80000005u,0x64630165u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261016du,0x6d6c0166u,0x76750167u,0x74730168u,0x6a690169u,0x706f016au,0x6f6e016bu,0x100016cu,0x80000007u,0x6463016eu,0x6a69016fu,0x75740170u,0x7a790171u,0x1000172u,0x80000002u,0x76750174u,0x68670175u,0x69680176u,0x6f6e0177u,0x66650178u,0x74730179u,0x7473017au,0x100017bu,0x80000004u,0x66650185u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x666501a6u,0x66650186u,0x6f6e0187u,0x53430188u,0x706f0198u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f019du,0x6d6c0199u,0x706f019au,0x7372019bu,0x100019cu,0x80000014u,0x7675019eu,0x6867019fu,0x696801a0u,0x6f6e01a1u,0x666501a2u,0x747301a3u,0x747301a4u,0x10001a5u,0x80000015u,0x646301a7u,0x767501a8u,0x6d6c01a9u,0x626101aau,0x737201abu,0x440001acu,0x8000000au,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x706f01f0u,0x6d6c01f1u,0x706f01f2u,0x737201f3u,0x10001f4u,0x8000000bu,0x6a690200u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610208u,0x64630201u,0x6c6b0202u,0x6f6e0203u,0x66650204u,0x74730205u,0x74730206u,0x1000207u,0x80000011u,0x6f6e0209u,0x7473020au,0x6e6d020bu,0x6a69020cu,0x7473020du,0x7473020eu,0x6a69020fu,0x706f0210u,0x6f6e0211u,0x1000212u,0x8000000fu};
+      uint32_t cur = 0x75610000u;
       for(int i = 0;cur!=0;++i) {
          uint32_t idx = cur&0xFFFFu;
          uint32_t low = (cur>>16u)&0xFFu;
@@ -2155,38 +2155,138 @@ class material_transparentMatte : public DebugObject<ANARI_MATERIAL> {
       return -1;
    }
    public:
-   material_transparentMatte(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
+   material_physicallyBased(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
    void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
       DebugObject::setParameter(paramname, paramtype, mem);
       int idx = param_hash(paramname);
       switch(idx) {
          case 0: { //name
             ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_MATERIAL, "transparentMatte", paramname, paramtype, name_types);
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, name_types);
             return;
          }
-         case 1: { //color
-            ANARIDataType color_types[] = {ANARI_FLOAT32_VEC3,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_MATERIAL, "transparentMatte", paramname, paramtype, color_types);
+         case 1: { //baseColor
+            ANARIDataType baseColor_types[] = {ANARI_FLOAT32_VEC3,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, baseColor_types);
             return;
          }
          case 2: { //opacity
             ANARIDataType opacity_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_MATERIAL, "transparentMatte", paramname, paramtype, opacity_types);
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, opacity_types);
             return;
          }
-         case 3: { //alphaMode
+         case 3: { //metallic
+            ANARIDataType metallic_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, metallic_types);
+            return;
+         }
+         case 4: { //roughness
+            ANARIDataType roughness_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, roughness_types);
+            return;
+         }
+         case 5: { //normal
+            ANARIDataType normal_types[] = {ANARI_SAMPLER, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, normal_types);
+            return;
+         }
+         case 6: { //emissive
+            ANARIDataType emissive_types[] = {ANARI_FLOAT32_VEC3,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, emissive_types);
+            return;
+         }
+         case 7: { //occlusion
+            ANARIDataType occlusion_types[] = {ANARI_SAMPLER, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, occlusion_types);
+            return;
+         }
+         case 8: { //alphaMode
             ANARIDataType alphaMode_types[] = {ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_MATERIAL, "transparentMatte", paramname, paramtype, alphaMode_types);
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, alphaMode_types);
             return;
          }
-         case 4: { //alphaCutoff
+         case 9: { //alphaCutoff
             ANARIDataType alphaCutoff_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
-            check_type(ANARI_MATERIAL, "transparentMatte", paramname, paramtype, alphaCutoff_types);
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, alphaCutoff_types);
+            return;
+         }
+         case 10: { //specular
+            ANARIDataType specular_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, specular_types);
+            return;
+         }
+         case 11: { //specularColor
+            ANARIDataType specularColor_types[] = {ANARI_FLOAT32_VEC3,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, specularColor_types);
+            return;
+         }
+         case 12: { //clearcoat
+            ANARIDataType clearcoat_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, clearcoat_types);
+            return;
+         }
+         case 13: { //clearcoatRoughness
+            ANARIDataType clearcoatRoughness_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, clearcoatRoughness_types);
+            return;
+         }
+         case 14: { //clearcoatNormal
+            ANARIDataType clearcoatNormal_types[] = {ANARI_SAMPLER, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, clearcoatNormal_types);
+            return;
+         }
+         case 15: { //transmission
+            ANARIDataType transmission_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, transmission_types);
+            return;
+         }
+         case 16: { //ior
+            ANARIDataType ior_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, ior_types);
+            return;
+         }
+         case 17: { //thickness
+            ANARIDataType thickness_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, thickness_types);
+            return;
+         }
+         case 18: { //attenuationDistance
+            ANARIDataType attenuationDistance_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, attenuationDistance_types);
+            return;
+         }
+         case 19: { //attenuationColor
+            ANARIDataType attenuationColor_types[] = {ANARI_FLOAT32_VEC3, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, attenuationColor_types);
+            return;
+         }
+         case 20: { //sheenColor
+            ANARIDataType sheenColor_types[] = {ANARI_FLOAT32_VEC3,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, sheenColor_types);
+            return;
+         }
+         case 21: { //sheenRoughness
+            ANARIDataType sheenRoughness_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, sheenRoughness_types);
+            return;
+         }
+         case 22: { //iridescence
+            ANARIDataType iridescence_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, iridescence_types);
+            return;
+         }
+         case 23: { //iridescenceIor
+            ANARIDataType iridescenceIor_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, iridescenceIor_types);
+            return;
+         }
+         case 24: { //iridescenceThickness
+            ANARIDataType iridescenceThickness_types[] = {ANARI_FLOAT32,ANARI_SAMPLER,ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_MATERIAL, "physicallyBased", paramname, paramtype, iridescenceThickness_types);
             return;
          }
          default: // unknown param
-            unknown_parameter(ANARI_MATERIAL, "transparentMatte", paramname, paramtype);
+            unknown_parameter(ANARI_MATERIAL, "physicallyBased", paramname, paramtype);
             return;
       }
    }
@@ -2194,7 +2294,7 @@ class material_transparentMatte : public DebugObject<ANARI_MATERIAL> {
       DebugObject::commit();
    }
    const char* getSubtype() {
-      return "transparentMatte";
+      return "physicallyBased";
    }
 };
 class sampler_image1D : public DebugObject<ANARI_SAMPLER> {
@@ -2694,8 +2794,8 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_light(const char *name, DebugDevi
    }
 }
 static int material_object_hash(const char *str) {
-   static const uint32_t table[] = {0x62610008u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7372000du,0x75740009u,0x7574000au,0x6665000bu,0x100000cu,0x80000000u,0x6261000eu,0x6f6e000fu,0x74730010u,0x71700011u,0x62610012u,0x73720013u,0x66650014u,0x6f6e0015u,0x75740016u,0x4e4d0017u,0x62610018u,0x75740019u,0x7574001au,0x6665001bu,0x100001cu,0x80000001u};
-   uint32_t cur = 0x756d0000u;
+   static const uint32_t table[] = {0x62610004u,0x0u,0x0u,0x69680009u,0x75740005u,0x75740006u,0x66650007u,0x1000008u,0x80000000u,0x7a79000au,0x7473000bu,0x6a69000cu,0x6463000du,0x6261000eu,0x6d6c000fu,0x6d6c0010u,0x7a790011u,0x43420012u,0x62610013u,0x74730014u,0x66650015u,0x65640016u,0x1000017u,0x80000001u};
+   uint32_t cur = 0x716d0000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
       uint32_t low = (cur>>16u)&0xFFu;
@@ -2721,7 +2821,7 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_material(const char *name, DebugD
       case 0:
          return new material_matte(td, this, wh, h);
       case 1:
-         return new material_transparentMatte(td, this, wh, h);
+         return new material_physicallyBased(td, this, wh, h);
       default:
          unknown_subtype(td, ANARI_MATERIAL, name);
          return new SubtypedDebugObject<ANARI_MATERIAL>(td, wh, h, name);

@@ -32,6 +32,7 @@
 #pragma once
 
 #include "Material.h"
+#include "sampler/Sampler.h"
 
 namespace visrtx {
 
@@ -44,9 +45,15 @@ struct Matte : public Material
  private:
   MaterialGPUData gpuData() const override;
 
+  bool m_separateOpacity{false};
+
   vec3 m_color{1.f};
   helium::IntrusivePtr<Sampler> m_colorSampler;
   std::string m_colorAttribute;
+
+  float m_opacity{1.f};
+  helium::IntrusivePtr<Sampler> m_opacitySampler;
+  std::string m_opacityAttribute;
 };
 
 } // namespace visrtx

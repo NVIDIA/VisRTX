@@ -33,7 +33,6 @@
 // specific types
 #include "Matte.h"
 #include "PBR.h"
-#include "TransparentMatte.h"
 #include "UnknownMaterial.h"
 
 namespace visrtx {
@@ -47,11 +46,9 @@ Material::Material(DeviceGlobalState *s)
 Material *Material::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
-  if (subtype == "matte")
+  if (subtype == "matte" || subtype == "transparentMatte")
     return new Matte(d);
-  else if (subtype == "transparentMatte")
-    return new TransparentMatte(d);
-  else if (subtype == "pbr")
+  else if (subtype == "pbr" || subtype == "physicallyBased")
     return new PBR(d);
   else
     return new UnknownMaterial(d);

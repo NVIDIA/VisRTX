@@ -268,20 +268,12 @@ struct MaterialParameter
 struct MaterialGPUData
 {
   MaterialParameter<vec3> baseColor{vec3(1.f)};
-  MaterialParameter<float> metalness{1.f};
-  MaterialParameter<vec3> emissive{vec3(0.f)};
-  MaterialParameter<float> roughness{1.f};
-  MaterialParameter<float> transmissiveness{0.f};
   MaterialParameter<float> opacity{1.f};
 };
 
 struct MaterialValues
 {
   vec3 baseColor;
-  float metalness;
-  vec3 emissive;
-  float roughness;
-  float transmissiveness;
   float opacity;
 };
 
