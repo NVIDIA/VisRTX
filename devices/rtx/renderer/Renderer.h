@@ -74,6 +74,7 @@ struct Renderer : public Object
   vec3 ambientColor() const;
   float ambientIntensity() const;
   float ambientOcclusionDistance() const;
+  bool checkerboarding() const;
 
   static Renderer *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
@@ -84,6 +85,7 @@ struct Renderer : public Object
   vec3 m_ambientColor{1.f};
   float m_ambientIntensity{1.f};
   float m_occlusionDistance{1e20f};
+  bool m_checkerboard{false};
 
   helium::IntrusivePtr<Array2D> m_backgroundImage;
   CudaImageTexture m_backgroundTexture;

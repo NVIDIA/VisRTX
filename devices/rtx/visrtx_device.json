@@ -55,6 +55,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "checkerboarding",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "use checkerboarding to lower frame latency"
+        },
+        {
           "name": "pixelSamples",
           "types": [
             "ANARI_INT32"
@@ -143,6 +152,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "checkerboarding",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "use checkerboarding to lower frame latency"
+        },
+        {
           "name": "pixelSamples",
           "types": [
             "ANARI_INT32"
@@ -229,6 +247,15 @@
             1.0
           ],
           "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "checkerboarding",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "use checkerboarding to lower frame latency"
         },
         {
           "name": "pixelSamples",
@@ -322,6 +349,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "checkerboarding",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "use checkerboarding to lower frame latency"
+        },
+        {
           "name": "pixelSamples",
           "types": [
             "ANARI_INT32"
@@ -364,6 +400,15 @@
             1.0
           ],
           "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "checkerboarding",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "use checkerboarding to lower frame latency"
         },
         {
           "name": "pixelSamples",

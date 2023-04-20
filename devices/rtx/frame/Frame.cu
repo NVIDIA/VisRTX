@@ -123,9 +123,6 @@ void Frame::commit()
   hd.fb.size = getParam<uvec2>("size", uvec2(10));
   hd.fb.invSize = 1.f / vec2(hd.fb.size);
 
-  const bool checkboard = getParam<bool>("checkerboard", false);
-  hd.fb.checkerboardID = checkboard ? 0 : -1;
-
   m_depthType = getParam<ANARIDataType>("channel.depth", ANARI_UNKNOWN);
   m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
   m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
@@ -449,7 +446,7 @@ void Frame::wait() const
 
 bool Frame::checkerboarding() const
 {
-  return data().fb.checkerboardID >= 0;
+  return m_renderer ? m_renderer->checkerboarding() : false;
 }
 
 void Frame::checkAccumulationReset()

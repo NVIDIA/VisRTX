@@ -147,6 +147,7 @@ void Renderer::commit()
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
   m_ambientIntensity = getParam<float>("ambientIntensity", 1.f);
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
+  m_checkerboard = getParam<bool>("checkerboarding", false);
 }
 
 anari::Span<const HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -209,6 +210,11 @@ float Renderer::ambientIntensity() const
 float Renderer::ambientOcclusionDistance() const
 {
   return m_occlusionDistance;
+}
+
+bool Renderer::checkerboarding() const
+{
+  return m_checkerboard;
 }
 
 Renderer *Renderer::createInstance(

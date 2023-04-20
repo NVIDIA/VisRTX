@@ -323,6 +323,8 @@ void Viewer::updateFrame()
     anari::setParameter(
         m_device, m_currentRenderer, "background", m_backgroundTop);
   }
+    anari::setParameter(
+        m_device, m_currentRenderer, "checkerboard", m_checkerboard);
   anari::setParameter(
       m_device, m_currentRenderer, "pixelSamples", m_pixelSamples);
   anari::setParameter(
@@ -646,12 +648,6 @@ void Viewer::ui_makeWindow_frame()
     anari::commitParameters(m_device, m_frame);
   }
 
-  static bool checkerboard = false;
-  if (ImGui::Checkbox("checkerboard", &checkerboard)) {
-    anari::setParameter(m_device, m_frame, "checkerboard", checkerboard);
-    anari::commitParameters(m_device, m_frame);
-  }
-
   ImGui::Checkbox("show depth", &m_showDepth);
 
   if (ImGui::Button("take screenshot"))
@@ -704,6 +700,12 @@ void Viewer::ui_makeWindow_renderer()
       rendererUI_callback,
       nullptr,
       g_renderers.size());
+
+  if (ImGui::Checkbox("checkerboard", &m_checkerboard)) {
+    anari::setParameter(
+        m_device, m_currentRenderer, "checkerboarding", m_checkerboard);
+    anari::commitParameters(m_device, m_currentRenderer);
+  }
 
   update |= ImGui::Checkbox("gradient background", &m_backgroundGradient);
 

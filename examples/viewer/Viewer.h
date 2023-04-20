@@ -100,6 +100,7 @@ class Viewer : public match3D::Application
   glm::vec4 m_backgroundBottom{0.1f, 0.1f, 0.1f, 1.f};
   bool m_backgroundGradient{false};
   int m_pixelSamples{1};
+  bool m_checkerboard{false};
 
   std::unique_ptr<Scene> m_currentScene;
 
