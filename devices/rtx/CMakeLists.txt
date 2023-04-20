@@ -51,34 +51,20 @@ mark_as_advanced(VISRTX_ENABLE_NVTX)
 option(VISRTX_ENABLE_CODE_GEN "Enable Python code generation for query updates" OFF)
 mark_as_advanced(VISRTX_ENABLE_CODE_GEN)
 if (VISRTX_ENABLE_CODE_GEN)
-  find_package(Python3 REQUIRED COMPONENTS Interpreter)
-
-  add_custom_target(generate_visrtx_device
-    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_queries.py
-      --json ${ANARI_CODE_GEN_ROOT}
-      --json ${CMAKE_CURRENT_LIST_DIR}
-      --prefix VisRTXDevice
-      --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
-      --namespace visrtx
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS visrtx_device.json
+  anari_generate_queries(
+    NAME visrtx
+    PREFIX VisRTXDevice
+    CPP_NAMESPACE visrtx
+    JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
+    JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
   )
 
-  add_custom_target(generate_visrtx_debug_objects
-    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_debug_objects.py
-      --json ${ANARI_CODE_GEN_ROOT}
-      --json ${CMAKE_CURRENT_LIST_DIR}
-      --device ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
-      --prefix VisRTXDevice
-      --namespace visrtx
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS visrtx_device.json
-  )
-
-  add_custom_target(generate_all)
-  add_dependencies(generate_all
-    generate_visrtx_device
-    generate_visrtx_debug_objects
+  anari_generate_debug_objects(
+    NAME visrtx
+    PREFIX VisRTXDevice
+    CPP_NAMESPACE visrtx
+    JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
+    JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
   )
 endif()
 
