@@ -157,30 +157,30 @@ void SciVisVolume::discritizeTFData()
 {
   m_tf.resize(m_tfDim);
 
-  anari::Span<float> cPositions;
-  anari::Span<float> oPositions;
+  Span<float> cPositions;
+  Span<float> oPositions;
 
   std::vector<float> linearColorPositions;
   std::vector<float> linearOpacityPositions;
 
   if (m_params.colorPosition) {
-    cPositions = anari::make_Span(m_params.colorPosition->beginAs<float>(),
+    cPositions = make_Span(m_params.colorPosition->beginAs<float>(),
         m_params.colorPosition->size());
   } else {
     linearColorPositions = generateLinearPositions(
         m_params.color->totalSize(), m_params.valueRange);
-    cPositions = anari::make_Span(
-        linearColorPositions.data(), linearColorPositions.size());
+    cPositions =
+        make_Span(linearColorPositions.data(), linearColorPositions.size());
   }
 
   if (m_params.colorPosition) {
-    oPositions = anari::make_Span(m_params.opacityPosition->beginAs<float>(),
+    oPositions = make_Span(m_params.opacityPosition->beginAs<float>(),
         m_params.opacityPosition->size());
   } else {
     linearOpacityPositions = generateLinearPositions(
         m_params.opacity->totalSize(), m_params.valueRange);
-    oPositions = anari::make_Span(
-        linearOpacityPositions.data(), linearOpacityPositions.size());
+    oPositions =
+        make_Span(linearOpacityPositions.data(), linearOpacityPositions.size());
   }
 
   for (size_t i = 0; i < m_tf.size(); i++) {

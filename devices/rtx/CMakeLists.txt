@@ -212,9 +212,8 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   add_library(${INPUT_TARGET} OBJECT ${INPUT_CU_FILE})
   target_link_libraries(${INPUT_TARGET}
   PRIVATE
-    helium
     anari::anari
-    anari::anari_utilities
+    anari::helium
     glm_visrtx
     OptiX7::OptiX7
     CUDA::curand

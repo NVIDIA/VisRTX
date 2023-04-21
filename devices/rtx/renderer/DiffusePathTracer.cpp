@@ -57,10 +57,10 @@ OptixModule DiffusePathTracer::optixModule() const
   return deviceState()->rendererModules.diffusePathTracer;
 }
 
-anari::Span<const HitgroupFunctionNames> DiffusePathTracer::hitgroupSbtNames()
+Span<const HitgroupFunctionNames> DiffusePathTracer::hitgroupSbtNames()
     const
 {
-  return anari::make_Span(g_dptHitNames.data(), g_dptHitNames.size());
+  return make_Span(g_dptHitNames.data(), g_dptHitNames.size());
 }
 
 ptx_ptr DiffusePathTracer::ptx()

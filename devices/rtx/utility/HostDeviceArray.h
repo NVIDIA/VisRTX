@@ -32,8 +32,7 @@
 #pragma once
 
 #include "utility/DeviceBuffer.h"
-// anari
-#include "anari/backend/utilities/Span.h"
+#include "utility/Span.h"
 // std
 #include <vector>
 
@@ -57,8 +56,8 @@ struct HostDeviceArray
   void upload();
   void download();
 
-  anari::Span<const T> hostSpan() const;
-  anari::Span<const T> deviceSpan() const;
+  Span<const T> hostSpan() const;
+  Span<const T> deviceSpan() const;
 
   T *dataHost();
   T *dataDevice();
@@ -145,15 +144,15 @@ inline void HostDeviceArray<T>::download()
 }
 
 template <typename T>
-inline anari::Span<const T> HostDeviceArray<T>::hostSpan() const
+inline Span<const T> HostDeviceArray<T>::hostSpan() const
 {
-  return anari::make_Span(dataHost(), size());
+  return make_Span(dataHost(), size());
 }
 
 template <typename T>
-inline anari::Span<const T> HostDeviceArray<T>::deviceSpan() const
+inline Span<const T> HostDeviceArray<T>::deviceSpan() const
 {
-  return anari::make_Span(dataDevice(), size());
+  return make_Span(dataDevice(), size());
 }
 
 template <typename T>

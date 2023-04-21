@@ -192,7 +192,7 @@ GeometryGPUData Cone::gpuData() const
 void Cone::generateCone()
 {
   std::vector<uvec2> implicitIndices;
-  anari::Span<uvec2> indices;
+  Span<uvec2> indices;
 
   if (!m_index) {
     implicitIndices.resize(m_vertex->size() / 2);
@@ -202,9 +202,9 @@ void Cone::generateCone()
           i = idx;
           idx += 2;
         });
-    indices = anari::make_Span(implicitIndices.data(), implicitIndices.size());
+    indices = make_Span(implicitIndices.data(), implicitIndices.size());
   } else {
-    indices = anari::make_Span(m_index->beginAs<uvec2>(), m_index->size());
+    indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
   }
 
   m_cones.vertices.clear();

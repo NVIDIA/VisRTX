@@ -64,11 +64,11 @@ struct Group : public Object
   bool containsVolumes() const;
   bool containsLights() const;
 
-  anari::Span<const DeviceObjectIndex> surfaceTriangleGPUIndices() const;
-  anari::Span<const DeviceObjectIndex> surfaceCurveGPUIndices() const;
-  anari::Span<const DeviceObjectIndex> surfaceUserGPUIndices() const;
-  anari::Span<const DeviceObjectIndex> volumeGPUIndices() const;
-  anari::Span<const DeviceObjectIndex> lightGPUIndices() const;
+  Span<const DeviceObjectIndex> surfaceTriangleGPUIndices() const;
+  Span<const DeviceObjectIndex> surfaceCurveGPUIndices() const;
+  Span<const DeviceObjectIndex> surfaceUserGPUIndices() const;
+  Span<const DeviceObjectIndex> volumeGPUIndices() const;
+  Span<const DeviceObjectIndex> lightGPUIndices() const;
 
   void rebuildSurfaceBVHs();
   void rebuildVolumeBVH();
@@ -88,7 +88,7 @@ struct Group : public Object
   // Geometry //
 
   helium::IntrusivePtr<ObjectArray> m_surfaceData;
-  anari::Span<Surface *> m_surfaces;
+  Span<Surface *> m_surfaces;
 
   std::vector<Surface *> m_surfacesTriangle;
   std::vector<Surface *> m_surfacesCurve;

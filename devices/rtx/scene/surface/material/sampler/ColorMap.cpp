@@ -133,18 +133,18 @@ void ColorMap::discritizeTFData()
 {
   m_tf.resize(m_tfDim);
 
-  anari::Span<float> cPositions;
+  Span<float> cPositions;
 
   std::vector<float> linearColorPositions;
 
   if (m_params.colorPosition) {
-    cPositions = anari::make_Span(m_params.colorPosition->beginAs<float>(),
+    cPositions = make_Span(m_params.colorPosition->beginAs<float>(),
         m_params.colorPosition->size());
   } else {
     linearColorPositions = generateLinearPositions(
         m_params.color->totalSize(), m_params.valueRange);
-    cPositions = anari::make_Span(
-        linearColorPositions.data(), linearColorPositions.size());
+    cPositions =
+        make_Span(linearColorPositions.data(), linearColorPositions.size());
   }
 
   for (size_t i = 0; i < m_tf.size(); i++) {

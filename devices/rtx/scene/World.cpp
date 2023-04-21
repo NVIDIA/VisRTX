@@ -150,10 +150,10 @@ void World::commit()
     m_instanceData->removeAppendedHandles();
     if (m_addZeroInstance)
       m_instanceData->appendHandle(m_zeroInstance.ptr);
-    m_instances = anari::make_Span((Instance **)m_instanceData->handlesBegin(),
+    m_instances = make_Span((Instance **)m_instanceData->handlesBegin(),
         m_instanceData->totalSize());
   } else if (m_addZeroInstance)
-    m_instances = anari::make_Span(&m_zeroInstance.ptr, 1);
+    m_instances = make_Span(&m_zeroInstance.ptr, 1);
 
   m_objectUpdates.lastTLASBuild = 0;
   m_objectUpdates.lastBLASCheck = 0;
@@ -178,17 +178,17 @@ OptixTraversableHandle World::optixTraversableHandleVolumes() const
   return m_traversableVolumes;
 }
 
-anari::Span<const InstanceSurfaceGPUData> World::instanceSurfaceGPUData() const
+Span<const InstanceSurfaceGPUData> World::instanceSurfaceGPUData() const
 {
   return m_instanceSurfaceGPUData.deviceSpan();
 }
 
-anari::Span<const InstanceVolumeGPUData> World::instanceVolumeGPUData() const
+Span<const InstanceVolumeGPUData> World::instanceVolumeGPUData() const
 {
   return m_instanceVolumeGPUData.deviceSpan();
 }
 
-anari::Span<const InstanceLightGPUData> World::instanceLightGPUData() const
+Span<const InstanceLightGPUData> World::instanceLightGPUData() const
 {
   return m_instanceLightGPUData.deviceSpan();
 }

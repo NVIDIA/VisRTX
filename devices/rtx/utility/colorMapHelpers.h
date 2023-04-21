@@ -36,7 +36,7 @@
 #include <algorithm>
 #include <vector>
 // anari
-#include "anari/backend/utilities/Span.h"
+#include "utility/Span.h"
 
 namespace visrtx {
 
@@ -60,7 +60,7 @@ inline std::vector<float> generateLinearPositions(size_t n, box1 range)
 
 template <typename T>
 inline T getInterpolatedValue(
-    const T *values, const anari::Span<float> &positions, box1 range, float pos)
+    const T *values, const Span<float> &positions, box1 range, float pos)
 {
   for (size_t i = 0; i < positions.size() - 1; i++) {
     box1 r(position(positions[i], range), position(positions[i + 1], range));

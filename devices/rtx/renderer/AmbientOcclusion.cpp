@@ -59,15 +59,15 @@ OptixModule AmbientOcclusion::optixModule() const
   return deviceState()->rendererModules.ambientOcclusion;
 }
 
-anari::Span<const HitgroupFunctionNames> AmbientOcclusion::hitgroupSbtNames()
+Span<const HitgroupFunctionNames> AmbientOcclusion::hitgroupSbtNames()
     const
 {
-  return anari::make_Span(g_aoHitNames.data(), g_aoHitNames.size());
+  return make_Span(g_aoHitNames.data(), g_aoHitNames.size());
 }
 
-anari::Span<const std::string> AmbientOcclusion::missSbtNames() const
+Span<const std::string> AmbientOcclusion::missSbtNames() const
 {
-  return anari::make_Span(g_aoMissNames.data(), g_aoMissNames.size());
+  return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
 }
 
 ptx_ptr AmbientOcclusion::ptx()

@@ -150,14 +150,14 @@ void Renderer::commit()
   m_checkerboard = getParam<bool>("checkerboarding", false);
 }
 
-anari::Span<const HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
+Span<const HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
 {
-  return anari::make_Span(&m_defaultHitgroupNames, 1);
+  return make_Span(&m_defaultHitgroupNames, 1);
 }
 
-anari::Span<const std::string> Renderer::missSbtNames() const
+Span<const std::string> Renderer::missSbtNames() const
 {
-  return anari::make_Span(&m_defaultMissName, 1);
+  return make_Span(&m_defaultMissName, 1);
 }
 
 void Renderer::populateFrameData(FrameGPUData &fd) const

@@ -36,7 +36,7 @@ namespace visrtx {
 // Helper functions ///////////////////////////////////////////////////////////
 
 template <typename T>
-static std::vector<OptixBuildInput> createOBI(anari::Span<T> objs)
+static std::vector<OptixBuildInput> createOBI(Span<T> objs)
 {
   std::vector<OptixBuildInput> buildInput(objs.size());
   std::transform(objs.begin(), objs.end(), buildInput.begin(), [](auto o) {
@@ -48,7 +48,7 @@ static std::vector<OptixBuildInput> createOBI(anari::Span<T> objs)
 template <typename T>
 static std::vector<OptixBuildInput> createOBI(const std::vector<T *> &objs)
 {
-  return createOBI(anari::make_Span(objs.data(), objs.size()));
+  return createOBI(make_Span(objs.data(), objs.size()));
 }
 
 // Group definitions //////////////////////////////////////////////////////////
@@ -135,30 +135,28 @@ OptixTraversableHandle Group::optixTraversableVolume() const
   return m_traversableVolume;
 }
 
-anari::Span<const DeviceObjectIndex> Group::surfaceTriangleGPUIndices() const
+Span<const DeviceObjectIndex> Group::surfaceTriangleGPUIndices() const
 {
-  return anari::make_Span(
+  return make_Span(
       (const DeviceObjectIndex *)m_surfaceTriangleObjectIndices.ptr(),
       m_surfacesTriangle.size());
 }
 
-anari::Span<const DeviceObjectIndex> Group::surfaceCurveGPUIndices() const
+Span<const DeviceObjectIndex> Group::surfaceCurveGPUIndices() const
 {
-  return anari::make_Span(
-      (const DeviceObjectIndex *)m_surfaceCurveObjectIndices.ptr(),
+  return make_Span((const DeviceObjectIndex *)m_surfaceCurveObjectIndices.ptr(),
       m_surfacesCurve.size());
 }
 
-anari::Span<const DeviceObjectIndex> Group::surfaceUserGPUIndices() const
+Span<const DeviceObjectIndex> Group::surfaceUserGPUIndices() const
 {
-  return anari::make_Span(
-      (const DeviceObjectIndex *)m_surfaceUserObjectIndices.ptr(),
+  return make_Span((const DeviceObjectIndex *)m_surfaceUserObjectIndices.ptr(),
       m_surfacesUser.size());
 }
 
-anari::Span<const DeviceObjectIndex> Group::volumeGPUIndices() const
+Span<const DeviceObjectIndex> Group::volumeGPUIndices() const
 {
-  return anari::make_Span(
+  return make_Span(
       (const DeviceObjectIndex *)m_volumeObjectIndices.ptr(), m_volumes.size());
 }
 
@@ -187,9 +185,9 @@ bool Group::containsLights() const
   return m_lights.size() > 0;
 }
 
-anari::Span<const DeviceObjectIndex> Group::lightGPUIndices() const
+Span<const DeviceObjectIndex> Group::lightGPUIndices() const
 {
-  return anari::make_Span(
+  return make_Span(
       (const DeviceObjectIndex *)m_lightObjectIndices.ptr(), m_lights.size());
 }
 
@@ -274,7 +272,7 @@ void Group::partitionValidGeometriesByType()
   if (!m_surfaceData)
     return;
 
-  m_surfaces = anari::make_Span(
+  m_surfaces = make_Span(
       (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
   m_surfacesTriangle.clear();
   m_surfacesCurve.clear();
@@ -302,7 +300,7 @@ void Group::partitionValidVolumes()
   if (!m_volumeData)
     return;
 
-  auto volumes = anari::make_Span(
+  auto volumes = make_Span(
       (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
   for (auto v : volumes) {
     if (!v->isValid()) {
@@ -321,7 +319,7 @@ void Group::partitionValidLights()
   if (!m_lightData)
     return;
 
-  auto lights = anari::make_Span(
+  auto lights = make_Span(
       (Light **)m_lightData->handlesBegin(), m_lightData->totalSize());
   for (auto l : lights) {
     if (!l->isValid()) {

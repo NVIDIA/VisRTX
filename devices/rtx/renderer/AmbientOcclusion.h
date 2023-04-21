@@ -41,8 +41,8 @@ struct AmbientOcclusion : public Renderer
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
-  anari::Span<const HitgroupFunctionNames> hitgroupSbtNames() const override;
-  anari::Span<const std::string> missSbtNames() const override;
+  Span<const HitgroupFunctionNames> hitgroupSbtNames() const override;
+  Span<const std::string> missSbtNames() const override;
 
   static ptx_ptr ptx();
 

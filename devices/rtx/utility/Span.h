@@ -29,56 +29,110 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "SciVis.h"
-// ptx
-#include "SciVis_ptx.h"
+#pragma once
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_scivisHitNames = {
-    {"__closesthit__primary", ""},
-    {"__closesthit__shadow", "__anyhit__shadow"}};
-
-static const std::vector<std::string> g_scivisMissNames = {
-    "__miss__", "__miss__"};
-
-SciVis::SciVis(DeviceGlobalState *s) : Renderer(s) {}
-
-void SciVis::commit()
+template <typename T>
+struct Span
 {
-  Renderer::commit();
-  m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
-  m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
+  Span() = default;
+  Span(T *, size_t size);
+
+  size_t size() const;
+  size_t size_bytes() const;
+
+  T *data();
+  T &operator[](size_t i);
+
+  const T *data() const;
+  const T &operator[](size_t i) const;
+
+  operator bool() const;
+
+  T *begin() const;
+  T *end() const;
+
+  void reset();
+
+ private:
+  T *m_data{nullptr};
+  size_t m_size{0};
+};
+
+template <typename T>
+Span<T> make_Span(T *ptr, size_t size);
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+template <typename T>
+inline Span<T>::Span(T *d, size_t s) : m_data(d), m_size(s)
+{}
+
+template <typename T>
+inline size_t Span<T>::size() const
+{
+  return m_size;
 }
 
-void SciVis::populateFrameData(FrameGPUData &fd) const
+template <typename T>
+inline size_t Span<T>::size_bytes() const
 {
-  Renderer::populateFrameData(fd);
-  auto &scivis = fd.renderer.params.scivis;
-  scivis.lightFalloff = m_lightFalloff;
-  scivis.aoSamples = m_aoSamples;
-  scivis.aoColor = m_aoColor;
-  scivis.aoIntensity = m_aoIntensity;
+  return m_size * sizeof(T);
 }
 
-OptixModule SciVis::optixModule() const
+template <typename T>
+inline T *Span<T>::data()
 {
-  return deviceState()->rendererModules.scivis;
+  return m_data;
 }
 
-Span<const HitgroupFunctionNames> SciVis::hitgroupSbtNames() const
+template <typename T>
+inline T &Span<T>::operator[](size_t i)
 {
-  return make_Span(g_scivisHitNames.data(), g_scivisHitNames.size());
+  return m_data[i];
 }
 
-Span<const std::string> SciVis::missSbtNames() const
+template <typename T>
+inline const T *Span<T>::data() const
 {
-  return make_Span(g_scivisMissNames.data(), g_scivisMissNames.size());
+  return m_data;
 }
 
-ptx_ptr SciVis::ptx()
+template <typename T>
+inline const T &Span<T>::operator[](size_t i) const
 {
-  return SciVis_ptx;
+  return m_data[i];
+}
+
+template <typename T>
+inline Span<T>::operator bool() const
+{
+  return m_data != nullptr;
+}
+
+template <typename T>
+inline T *Span<T>::begin() const
+{
+  return m_data;
+}
+
+template <typename T>
+inline T *Span<T>::end() const
+{
+  return begin() + size();
+}
+
+template <typename T>
+inline void Span<T>::reset()
+{
+  *this = Span<T>();
+}
+
+template <typename T>
+inline Span<T> make_Span(T *ptr, size_t size)
+{
+  return Span<T>(ptr, size);
 }
 
 } // namespace visrtx

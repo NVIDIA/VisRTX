@@ -55,9 +55,9 @@ struct World : public Object
   OptixTraversableHandle optixTraversableHandleSurfaces() const;
   OptixTraversableHandle optixTraversableHandleVolumes() const;
 
-  anari::Span<const InstanceSurfaceGPUData> instanceSurfaceGPUData() const;
-  anari::Span<const InstanceVolumeGPUData> instanceVolumeGPUData() const;
-  anari::Span<const InstanceLightGPUData> instanceLightGPUData() const;
+  Span<const InstanceSurfaceGPUData> instanceSurfaceGPUData() const;
+  Span<const InstanceVolumeGPUData> instanceVolumeGPUData() const;
+  Span<const InstanceLightGPUData> instanceLightGPUData() const;
 
   void rebuildBVHs();
 
@@ -74,7 +74,7 @@ struct World : public Object
   helium::IntrusivePtr<ObjectArray> m_zeroLightData;
 
   helium::IntrusivePtr<ObjectArray> m_instanceData;
-  anari::Span<Instance *> m_instances;
+  Span<Instance *> m_instances;
 
   bool m_addZeroInstance{false};
   helium::IntrusivePtr<Group> m_zeroGroup;

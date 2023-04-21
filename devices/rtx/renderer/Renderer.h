@@ -40,7 +40,7 @@
 // std
 #include <vector>
 // anari
-#include "anari/backend/utilities/Span.h"
+#include "utility/Span.h"
 
 namespace visrtx {
 
@@ -61,8 +61,8 @@ struct Renderer : public Object
 
   virtual OptixModule optixModule() const = 0;
 
-  virtual anari::Span<const HitgroupFunctionNames> hitgroupSbtNames() const;
-  virtual anari::Span<const std::string> missSbtNames() const;
+  virtual Span<const HitgroupFunctionNames> hitgroupSbtNames() const;
+  virtual Span<const std::string> missSbtNames() const;
 
   virtual void populateFrameData(FrameGPUData &fd) const;
 
