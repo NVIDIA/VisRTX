@@ -149,6 +149,7 @@ void Renderer::commit()
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
   m_checkerboard = getParam<bool>("checkerboarding", false);
   m_denoise = getParam<bool>("denoise", false);
+  m_sampleLimit = getParam<int>("sampleLimit", 0);
 }
 
 Span<const HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -221,6 +222,11 @@ bool Renderer::checkerboarding() const
 bool Renderer::denoise() const
 {
   return m_denoise;
+}
+
+int Renderer::sampleLimit() const
+{
+  return m_sampleLimit;
 }
 
 Renderer *Renderer::createInstance(

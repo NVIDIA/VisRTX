@@ -236,11 +236,15 @@ void Frame::renderFrame()
   instrument::rangePush("Frame::renderFrame()");
   instrument::rangePush("frame setup");
 
-  cudaEventRecord(m_eventStart, state.stream);
-
   checkAccumulationReset();
 
   auto &hd = data();
+
+  const int sampleLimit = m_renderer->sampleLimit();
+  if (!m_nextFrameReset && sampleLimit > 0 && hd.fb.frameID >= sampleLimit)
+    return;
+
+  cudaEventRecord(m_eventStart, state.stream);
 
   m_renderer->populateFrameData(hd);
 

@@ -32,8 +32,8 @@ anari::debug_device::DebugObjectBase* new_volume(const char *name, DebugDevice *
 namespace {
 class renderer_default : public DebugObject<ANARI_RENDERER> {
    static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6e6d0010u,0x6261003cu,0x69680046u,0x66650055u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6a69005cu,0x0u,0x62610068u,0x0u,0x6a69006cu,0x63620011u,0x6a690012u,0x66650013u,0x6f6e0014u,0x75740015u,0x54430016u,0x706f0027u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f6e002cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610035u,0x6d6c0028u,0x706f0029u,0x7372002au,0x100002bu,0x80000005u,0x7574002du,0x6665002eu,0x6f6e002fu,0x74730030u,0x6a690031u,0x75740032u,0x7a790033u,0x1000034u,0x80000006u,0x6e6d0036u,0x71700037u,0x6d6c0038u,0x66650039u,0x7473003au,0x100003bu,0x80000004u,0x6463003du,0x6c6b003eu,0x6867003fu,0x73720040u,0x706f0041u,0x76750042u,0x6f6e0043u,0x65640044u,0x1000045u,0x80000000u,0x66650047u,0x64630048u,0x6c6b0049u,0x6665004au,0x7372004bu,0x6362004cu,0x706f004du,0x6261004eu,0x7372004fu,0x65640050u,0x6a690051u,0x6f6e0052u,0x68670053u,0x1000054u,0x80000002u,0x6f6e0056u,0x706f0057u,0x6a690058u,0x74730059u,0x6665005au,0x100005bu,0x80000001u,0x6867005du,0x6968005eu,0x7574005fu,0x47460060u,0x62610061u,0x6d6c0062u,0x6d6c0063u,0x706f0064u,0x67660065u,0x67660066u,0x1000067u,0x80000007u,0x6e6d0069u,0x6665006au,0x100006bu,0x80000008u,0x7978006du,0x6665006eu,0x6d6c006fu,0x54530070u,0x62610071u,0x6e6d0072u,0x71700073u,0x6d6c0074u,0x66650075u,0x74730076u,0x1000077u,0x80000003u};
-      uint32_t cur = 0x71610000u;
+      static const uint32_t table[] = {0x6e6d0013u,0x6261003fu,0x69680049u,0x66650058u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6a69005fu,0x0u,0x6261006bu,0x0u,0x6a69006fu,0x0u,0x0u,0x6261007bu,0x63620014u,0x6a690015u,0x66650016u,0x6f6e0017u,0x75740018u,0x54430019u,0x706f002au,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f6e002fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610038u,0x6d6c002bu,0x706f002cu,0x7372002du,0x100002eu,0x80000006u,0x75740030u,0x66650031u,0x6f6e0032u,0x74730033u,0x6a690034u,0x75740035u,0x7a790036u,0x1000037u,0x80000007u,0x6e6d0039u,0x7170003au,0x6d6c003bu,0x6665003cu,0x7473003du,0x100003eu,0x80000005u,0x64630040u,0x6c6b0041u,0x68670042u,0x73720043u,0x706f0044u,0x76750045u,0x6f6e0046u,0x65640047u,0x1000048u,0x80000000u,0x6665004au,0x6463004bu,0x6c6b004cu,0x6665004du,0x7372004eu,0x6362004fu,0x706f0050u,0x62610051u,0x73720052u,0x65640053u,0x6a690054u,0x6f6e0055u,0x68670056u,0x1000057u,0x80000003u,0x6f6e0059u,0x706f005au,0x6a69005bu,0x7473005cu,0x6665005du,0x100005eu,0x80000002u,0x68670060u,0x69680061u,0x75740062u,0x47460063u,0x62610064u,0x6d6c0065u,0x6d6c0066u,0x706f0067u,0x67660068u,0x67660069u,0x100006au,0x80000008u,0x6e6d006cu,0x6665006du,0x100006eu,0x80000009u,0x79780070u,0x66650071u,0x6d6c0072u,0x54530073u,0x62610074u,0x6e6d0075u,0x71700076u,0x6d6c0077u,0x66650078u,0x74730079u,0x100007au,0x80000004u,0x6e6d007cu,0x7170007du,0x6d6c007eu,0x6665007fu,0x4d4c0080u,0x6a690081u,0x6e6d0082u,0x6a690083u,0x75740084u,0x1000085u,0x80000001u};
+      uint32_t cur = 0x74610000u;
       for(int i = 0;cur!=0;++i) {
          uint32_t idx = cur&0xFFFFu;
          uint32_t low = (cur>>16u)&0xFFu;
@@ -64,42 +64,47 @@ class renderer_default : public DebugObject<ANARI_RENDERER> {
             check_type(ANARI_RENDERER, "default", paramname, paramtype, background_types);
             return;
          }
-         case 1: { //denoise
+         case 1: { //sampleLimit
+            ANARIDataType sampleLimit_types[] = {ANARI_INT32, ANARI_UNKNOWN};
+            check_type(ANARI_RENDERER, "default", paramname, paramtype, sampleLimit_types);
+            return;
+         }
+         case 2: { //denoise
             ANARIDataType denoise_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, denoise_types);
             return;
          }
-         case 2: { //checkerboarding
+         case 3: { //checkerboarding
             ANARIDataType checkerboarding_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, checkerboarding_types);
             return;
          }
-         case 3: { //pixelSamples
+         case 4: { //pixelSamples
             ANARIDataType pixelSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, pixelSamples_types);
             return;
          }
-         case 4: { //ambientSamples
+         case 5: { //ambientSamples
             ANARIDataType ambientSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, ambientSamples_types);
             return;
          }
-         case 5: { //ambientColor
+         case 6: { //ambientColor
             ANARIDataType ambientColor_types[] = {ANARI_FLOAT32_VEC3, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, ambientColor_types);
             return;
          }
-         case 6: { //ambientIntensity
+         case 7: { //ambientIntensity
             ANARIDataType ambientIntensity_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, ambientIntensity_types);
             return;
          }
-         case 7: { //lightFalloff
+         case 8: { //lightFalloff
             ANARIDataType lightFalloff_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, lightFalloff_types);
             return;
          }
-         case 8: { //name
+         case 9: { //name
             ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, name_types);
             return;
@@ -118,8 +123,8 @@ class renderer_default : public DebugObject<ANARI_RENDERER> {
 };
 class renderer_scivis : public DebugObject<ANARI_RENDERER> {
    static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6e6d0010u,0x6261003cu,0x69680046u,0x66650055u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6a69005cu,0x0u,0x62610068u,0x0u,0x6a69006cu,0x63620011u,0x6a690012u,0x66650013u,0x6f6e0014u,0x75740015u,0x54430016u,0x706f0027u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f6e002cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610035u,0x6d6c0028u,0x706f0029u,0x7372002au,0x100002bu,0x80000006u,0x7574002du,0x6665002eu,0x6f6e002fu,0x74730030u,0x6a690031u,0x75740032u,0x7a790033u,0x1000034u,0x80000007u,0x6e6d0036u,0x71700037u,0x6d6c0038u,0x66650039u,0x7473003au,0x100003bu,0x80000005u,0x6463003du,0x6c6b003eu,0x6867003fu,0x73720040u,0x706f0041u,0x76750042u,0x6f6e0043u,0x65640044u,0x1000045u,0x80000001u,0x66650047u,0x64630048u,0x6c6b0049u,0x6665004au,0x7372004bu,0x6362004cu,0x706f004du,0x6261004eu,0x7372004fu,0x65640050u,0x6a690051u,0x6f6e0052u,0x68670053u,0x1000054u,0x80000003u,0x6f6e0056u,0x706f0057u,0x6a690058u,0x74730059u,0x6665005au,0x100005bu,0x80000002u,0x6867005du,0x6968005eu,0x7574005fu,0x47460060u,0x62610061u,0x6d6c0062u,0x6d6c0063u,0x706f0064u,0x67660065u,0x67660066u,0x1000067u,0x80000008u,0x6e6d0069u,0x6665006au,0x100006bu,0x80000000u,0x7978006du,0x6665006eu,0x6d6c006fu,0x54530070u,0x62610071u,0x6e6d0072u,0x71700073u,0x6d6c0074u,0x66650075u,0x74730076u,0x1000077u,0x80000004u};
-      uint32_t cur = 0x71610000u;
+      static const uint32_t table[] = {0x6e6d0013u,0x6261003fu,0x69680049u,0x66650058u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6a69005fu,0x0u,0x6261006bu,0x0u,0x6a69006fu,0x0u,0x0u,0x6261007bu,0x63620014u,0x6a690015u,0x66650016u,0x6f6e0017u,0x75740018u,0x54430019u,0x706f002au,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f6e002fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610038u,0x6d6c002bu,0x706f002cu,0x7372002du,0x100002eu,0x80000007u,0x75740030u,0x66650031u,0x6f6e0032u,0x74730033u,0x6a690034u,0x75740035u,0x7a790036u,0x1000037u,0x80000008u,0x6e6d0039u,0x7170003au,0x6d6c003bu,0x6665003cu,0x7473003du,0x100003eu,0x80000006u,0x64630040u,0x6c6b0041u,0x68670042u,0x73720043u,0x706f0044u,0x76750045u,0x6f6e0046u,0x65640047u,0x1000048u,0x80000001u,0x6665004au,0x6463004bu,0x6c6b004cu,0x6665004du,0x7372004eu,0x6362004fu,0x706f0050u,0x62610051u,0x73720052u,0x65640053u,0x6a690054u,0x6f6e0055u,0x68670056u,0x1000057u,0x80000004u,0x6f6e0059u,0x706f005au,0x6a69005bu,0x7473005cu,0x6665005du,0x100005eu,0x80000003u,0x68670060u,0x69680061u,0x75740062u,0x47460063u,0x62610064u,0x6d6c0065u,0x6d6c0066u,0x706f0067u,0x67660068u,0x67660069u,0x100006au,0x80000009u,0x6e6d006cu,0x6665006du,0x100006eu,0x80000000u,0x79780070u,0x66650071u,0x6d6c0072u,0x54530073u,0x62610074u,0x6e6d0075u,0x71700076u,0x6d6c0077u,0x66650078u,0x74730079u,0x100007au,0x80000005u,0x6e6d007cu,0x7170007du,0x6d6c007eu,0x6665007fu,0x4d4c0080u,0x6a690081u,0x6e6d0082u,0x6a690083u,0x75740084u,0x1000085u,0x80000002u};
+      uint32_t cur = 0x74610000u;
       for(int i = 0;cur!=0;++i) {
          uint32_t idx = cur&0xFFFFu;
          uint32_t low = (cur>>16u)&0xFFu;
@@ -155,37 +160,42 @@ class renderer_scivis : public DebugObject<ANARI_RENDERER> {
             check_type(ANARI_RENDERER, "scivis", paramname, paramtype, background_types);
             return;
          }
-         case 2: { //denoise
+         case 2: { //sampleLimit
+            ANARIDataType sampleLimit_types[] = {ANARI_INT32, ANARI_UNKNOWN};
+            check_type(ANARI_RENDERER, "scivis", paramname, paramtype, sampleLimit_types);
+            return;
+         }
+         case 3: { //denoise
             ANARIDataType denoise_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "scivis", paramname, paramtype, denoise_types);
             return;
          }
-         case 3: { //checkerboarding
+         case 4: { //checkerboarding
             ANARIDataType checkerboarding_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "scivis", paramname, paramtype, checkerboarding_types);
             return;
          }
-         case 4: { //pixelSamples
+         case 5: { //pixelSamples
             ANARIDataType pixelSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "scivis", paramname, paramtype, pixelSamples_types);
             return;
          }
-         case 5: { //ambientSamples
+         case 6: { //ambientSamples
             ANARIDataType ambientSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "scivis", paramname, paramtype, ambientSamples_types);
             return;
          }
-         case 6: { //ambientColor
+         case 7: { //ambientColor
             ANARIDataType ambientColor_types[] = {ANARI_FLOAT32_VEC3, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "scivis", paramname, paramtype, ambientColor_types);
             return;
          }
-         case 7: { //ambientIntensity
+         case 8: { //ambientIntensity
             ANARIDataType ambientIntensity_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "scivis", paramname, paramtype, ambientIntensity_types);
             return;
          }
-         case 8: { //lightFalloff
+         case 9: { //lightFalloff
             ANARIDataType lightFalloff_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "scivis", paramname, paramtype, lightFalloff_types);
             return;
@@ -204,8 +214,8 @@ class renderer_scivis : public DebugObject<ANARI_RENDERER> {
 };
 class renderer_ao : public DebugObject<ANARI_RENDERER> {
    static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6e6d0010u,0x6261003cu,0x69680046u,0x66650055u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261005cu,0x0u,0x6a690060u,0x63620011u,0x6a690012u,0x66650013u,0x6f6e0014u,0x75740015u,0x54430016u,0x706f0027u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f6e002cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610035u,0x6d6c0028u,0x706f0029u,0x7372002au,0x100002bu,0x80000006u,0x7574002du,0x6665002eu,0x6f6e002fu,0x74730030u,0x6a690031u,0x75740032u,0x7a790033u,0x1000034u,0x80000007u,0x6e6d0036u,0x71700037u,0x6d6c0038u,0x66650039u,0x7473003au,0x100003bu,0x80000005u,0x6463003du,0x6c6b003eu,0x6867003fu,0x73720040u,0x706f0041u,0x76750042u,0x6f6e0043u,0x65640044u,0x1000045u,0x80000001u,0x66650047u,0x64630048u,0x6c6b0049u,0x6665004au,0x7372004bu,0x6362004cu,0x706f004du,0x6261004eu,0x7372004fu,0x65640050u,0x6a690051u,0x6f6e0052u,0x68670053u,0x1000054u,0x80000003u,0x6f6e0056u,0x706f0057u,0x6a690058u,0x74730059u,0x6665005au,0x100005bu,0x80000002u,0x6e6d005du,0x6665005eu,0x100005fu,0x80000000u,0x79780061u,0x66650062u,0x6d6c0063u,0x54530064u,0x62610065u,0x6e6d0066u,0x71700067u,0x6d6c0068u,0x66650069u,0x7473006au,0x100006bu,0x80000004u};
-      uint32_t cur = 0x71610000u;
+      static const uint32_t table[] = {0x6e6d0013u,0x6261003fu,0x69680049u,0x66650058u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261005fu,0x0u,0x6a690063u,0x0u,0x0u,0x6261006fu,0x63620014u,0x6a690015u,0x66650016u,0x6f6e0017u,0x75740018u,0x54430019u,0x706f002au,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f6e002fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610038u,0x6d6c002bu,0x706f002cu,0x7372002du,0x100002eu,0x80000007u,0x75740030u,0x66650031u,0x6f6e0032u,0x74730033u,0x6a690034u,0x75740035u,0x7a790036u,0x1000037u,0x80000008u,0x6e6d0039u,0x7170003au,0x6d6c003bu,0x6665003cu,0x7473003du,0x100003eu,0x80000006u,0x64630040u,0x6c6b0041u,0x68670042u,0x73720043u,0x706f0044u,0x76750045u,0x6f6e0046u,0x65640047u,0x1000048u,0x80000001u,0x6665004au,0x6463004bu,0x6c6b004cu,0x6665004du,0x7372004eu,0x6362004fu,0x706f0050u,0x62610051u,0x73720052u,0x65640053u,0x6a690054u,0x6f6e0055u,0x68670056u,0x1000057u,0x80000004u,0x6f6e0059u,0x706f005au,0x6a69005bu,0x7473005cu,0x6665005du,0x100005eu,0x80000003u,0x6e6d0060u,0x66650061u,0x1000062u,0x80000000u,0x79780064u,0x66650065u,0x6d6c0066u,0x54530067u,0x62610068u,0x6e6d0069u,0x7170006au,0x6d6c006bu,0x6665006cu,0x7473006du,0x100006eu,0x80000005u,0x6e6d0070u,0x71700071u,0x6d6c0072u,0x66650073u,0x4d4c0074u,0x6a690075u,0x6e6d0076u,0x6a690077u,0x75740078u,0x1000079u,0x80000002u};
+      uint32_t cur = 0x74610000u;
       for(int i = 0;cur!=0;++i) {
          uint32_t idx = cur&0xFFFFu;
          uint32_t low = (cur>>16u)&0xFFu;
@@ -241,32 +251,37 @@ class renderer_ao : public DebugObject<ANARI_RENDERER> {
             check_type(ANARI_RENDERER, "ao", paramname, paramtype, background_types);
             return;
          }
-         case 2: { //denoise
+         case 2: { //sampleLimit
+            ANARIDataType sampleLimit_types[] = {ANARI_INT32, ANARI_UNKNOWN};
+            check_type(ANARI_RENDERER, "ao", paramname, paramtype, sampleLimit_types);
+            return;
+         }
+         case 3: { //denoise
             ANARIDataType denoise_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "ao", paramname, paramtype, denoise_types);
             return;
          }
-         case 3: { //checkerboarding
+         case 4: { //checkerboarding
             ANARIDataType checkerboarding_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "ao", paramname, paramtype, checkerboarding_types);
             return;
          }
-         case 4: { //pixelSamples
+         case 5: { //pixelSamples
             ANARIDataType pixelSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "ao", paramname, paramtype, pixelSamples_types);
             return;
          }
-         case 5: { //ambientSamples
+         case 6: { //ambientSamples
             ANARIDataType ambientSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "ao", paramname, paramtype, ambientSamples_types);
             return;
          }
-         case 6: { //ambientColor
+         case 7: { //ambientColor
             ANARIDataType ambientColor_types[] = {ANARI_FLOAT32_VEC3, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "ao", paramname, paramtype, ambientColor_types);
             return;
          }
-         case 7: { //ambientIntensity
+         case 8: { //ambientIntensity
             ANARIDataType ambientIntensity_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "ao", paramname, paramtype, ambientIntensity_types);
             return;
@@ -331,8 +346,8 @@ class renderer_dpt : public DebugObject<ANARI_RENDERER> {
 };
 class renderer_raycast : public DebugObject<ANARI_RENDERER> {
    static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6261000fu,0x69680019u,0x66650028u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261002fu,0x0u,0x6a690033u,0x64630010u,0x6c6b0011u,0x68670012u,0x73720013u,0x706f0014u,0x76750015u,0x6f6e0016u,0x65640017u,0x1000018u,0x80000001u,0x6665001au,0x6463001bu,0x6c6b001cu,0x6665001du,0x7372001eu,0x6362001fu,0x706f0020u,0x62610021u,0x73720022u,0x65640023u,0x6a690024u,0x6f6e0025u,0x68670026u,0x1000027u,0x80000003u,0x6f6e0029u,0x706f002au,0x6a69002bu,0x7473002cu,0x6665002du,0x100002eu,0x80000002u,0x6e6d0030u,0x66650031u,0x1000032u,0x80000000u,0x79780034u,0x66650035u,0x6d6c0036u,0x54530037u,0x62610038u,0x6e6d0039u,0x7170003au,0x6d6c003bu,0x6665003cu,0x7473003du,0x100003eu,0x80000004u};
-      uint32_t cur = 0x71620000u;
+      static const uint32_t table[] = {0x62610012u,0x6968001cu,0x6665002bu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610032u,0x0u,0x6a690036u,0x0u,0x0u,0x62610042u,0x64630013u,0x6c6b0014u,0x68670015u,0x73720016u,0x706f0017u,0x76750018u,0x6f6e0019u,0x6564001au,0x100001bu,0x80000001u,0x6665001du,0x6463001eu,0x6c6b001fu,0x66650020u,0x73720021u,0x63620022u,0x706f0023u,0x62610024u,0x73720025u,0x65640026u,0x6a690027u,0x6f6e0028u,0x68670029u,0x100002au,0x80000004u,0x6f6e002cu,0x706f002du,0x6a69002eu,0x7473002fu,0x66650030u,0x1000031u,0x80000003u,0x6e6d0033u,0x66650034u,0x1000035u,0x80000000u,0x79780037u,0x66650038u,0x6d6c0039u,0x5453003au,0x6261003bu,0x6e6d003cu,0x7170003du,0x6d6c003eu,0x6665003fu,0x74730040u,0x1000041u,0x80000005u,0x6e6d0043u,0x71700044u,0x6d6c0045u,0x66650046u,0x4d4c0047u,0x6a690048u,0x6e6d0049u,0x6a69004au,0x7574004bu,0x100004cu,0x80000002u};
+      uint32_t cur = 0x74620000u;
       for(int i = 0;cur!=0;++i) {
          uint32_t idx = cur&0xFFFFu;
          uint32_t low = (cur>>16u)&0xFFu;
@@ -368,17 +383,22 @@ class renderer_raycast : public DebugObject<ANARI_RENDERER> {
             check_type(ANARI_RENDERER, "raycast", paramname, paramtype, background_types);
             return;
          }
-         case 2: { //denoise
+         case 2: { //sampleLimit
+            ANARIDataType sampleLimit_types[] = {ANARI_INT32, ANARI_UNKNOWN};
+            check_type(ANARI_RENDERER, "raycast", paramname, paramtype, sampleLimit_types);
+            return;
+         }
+         case 3: { //denoise
             ANARIDataType denoise_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "raycast", paramname, paramtype, denoise_types);
             return;
          }
-         case 3: { //checkerboarding
+         case 4: { //checkerboarding
             ANARIDataType checkerboarding_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "raycast", paramname, paramtype, checkerboarding_types);
             return;
          }
-         case 4: { //pixelSamples
+         case 5: { //pixelSamples
             ANARIDataType pixelSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "raycast", paramname, paramtype, pixelSamples_types);
             return;
@@ -397,8 +417,8 @@ class renderer_raycast : public DebugObject<ANARI_RENDERER> {
 };
 class renderer_debug : public DebugObject<ANARI_RENDERER> {
    static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x6261000fu,0x69680019u,0x66650028u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6665002fu,0x62610035u,0x0u,0x6a690039u,0x64630010u,0x6c6b0011u,0x68670012u,0x73720013u,0x706f0014u,0x76750015u,0x6f6e0016u,0x65640017u,0x1000018u,0x80000001u,0x6665001au,0x6463001bu,0x6c6b001cu,0x6665001du,0x7372001eu,0x6362001fu,0x706f0020u,0x62610021u,0x73720022u,0x65640023u,0x6a690024u,0x6f6e0025u,0x68670026u,0x1000027u,0x80000003u,0x6f6e0029u,0x706f002au,0x6a69002bu,0x7473002cu,0x6665002du,0x100002eu,0x80000002u,0x75740030u,0x69680031u,0x706f0032u,0x65640033u,0x1000034u,0x80000005u,0x6e6d0036u,0x66650037u,0x1000038u,0x80000000u,0x7978003au,0x6665003bu,0x6d6c003cu,0x5453003du,0x6261003eu,0x6e6d003fu,0x71700040u,0x6d6c0041u,0x66650042u,0x74730043u,0x1000044u,0x80000004u};
-      uint32_t cur = 0x71620000u;
+      static const uint32_t table[] = {0x62610012u,0x6968001cu,0x6665002bu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x66650032u,0x62610038u,0x0u,0x6a69003cu,0x0u,0x0u,0x62610048u,0x64630013u,0x6c6b0014u,0x68670015u,0x73720016u,0x706f0017u,0x76750018u,0x6f6e0019u,0x6564001au,0x100001bu,0x80000001u,0x6665001du,0x6463001eu,0x6c6b001fu,0x66650020u,0x73720021u,0x63620022u,0x706f0023u,0x62610024u,0x73720025u,0x65640026u,0x6a690027u,0x6f6e0028u,0x68670029u,0x100002au,0x80000004u,0x6f6e002cu,0x706f002du,0x6a69002eu,0x7473002fu,0x66650030u,0x1000031u,0x80000003u,0x75740033u,0x69680034u,0x706f0035u,0x65640036u,0x1000037u,0x80000006u,0x6e6d0039u,0x6665003au,0x100003bu,0x80000000u,0x7978003du,0x6665003eu,0x6d6c003fu,0x54530040u,0x62610041u,0x6e6d0042u,0x71700043u,0x6d6c0044u,0x66650045u,0x74730046u,0x1000047u,0x80000005u,0x6e6d0049u,0x7170004au,0x6d6c004bu,0x6665004cu,0x4d4c004du,0x6a69004eu,0x6e6d004fu,0x6a690050u,0x75740051u,0x1000052u,0x80000002u};
+      uint32_t cur = 0x74620000u;
       for(int i = 0;cur!=0;++i) {
          uint32_t idx = cur&0xFFFFu;
          uint32_t low = (cur>>16u)&0xFFu;
@@ -434,22 +454,27 @@ class renderer_debug : public DebugObject<ANARI_RENDERER> {
             check_type(ANARI_RENDERER, "debug", paramname, paramtype, background_types);
             return;
          }
-         case 2: { //denoise
+         case 2: { //sampleLimit
+            ANARIDataType sampleLimit_types[] = {ANARI_INT32, ANARI_UNKNOWN};
+            check_type(ANARI_RENDERER, "debug", paramname, paramtype, sampleLimit_types);
+            return;
+         }
+         case 3: { //denoise
             ANARIDataType denoise_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "debug", paramname, paramtype, denoise_types);
             return;
          }
-         case 3: { //checkerboarding
+         case 4: { //checkerboarding
             ANARIDataType checkerboarding_types[] = {ANARI_BOOL, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "debug", paramname, paramtype, checkerboarding_types);
             return;
          }
-         case 4: { //pixelSamples
+         case 5: { //pixelSamples
             ANARIDataType pixelSamples_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "debug", paramname, paramtype, pixelSamples_types);
             return;
          }
-         case 5: { //method
+         case 6: { //method
             ANARIDataType method_types[] = {ANARI_STRING, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "debug", paramname, paramtype, method_types);
             return;

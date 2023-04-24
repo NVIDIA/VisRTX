@@ -55,6 +55,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "sampleLimit",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 0,
+          "description": "stop refining the frame after this number of samples"
+        },
+        {
           "name": "denoise",
           "types": [
             "ANARI_BOOL"
@@ -161,6 +170,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "sampleLimit",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 0,
+          "description": "stop refining the frame after this number of samples"
+        },
+        {
           "name": "denoise",
           "types": [
             "ANARI_BOOL"
@@ -265,6 +283,15 @@
             1.0
           ],
           "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "sampleLimit",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 0,
+          "description": "stop refining the frame after this number of samples"
         },
         {
           "name": "denoise",
@@ -376,6 +403,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "sampleLimit",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 0,
+          "description": "stop refining the frame after this number of samples"
+        },
+        {
           "name": "denoise",
           "types": [
             "ANARI_BOOL"
@@ -436,6 +472,15 @@
             1.0
           ],
           "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "sampleLimit",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 0,
+          "description": "stop refining the frame after this number of samples"
         },
         {
           "name": "denoise",
