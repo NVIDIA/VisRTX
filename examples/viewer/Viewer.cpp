@@ -335,6 +335,7 @@ void Viewer::updateFrame()
       m_currentRenderer,
       "ambientOcclusionDistance",
       m_ambientOcclusionDistance);
+  anari::setParameter(m_device, m_currentRenderer, "denoise", m_denoise);
 
   anari::commitParameters(m_device, m_currentRenderer);
   anari::commitParameters(m_device, m_frame);
@@ -643,11 +644,6 @@ void Viewer::ui_makeWindow_frame()
   if (scale != m_resolutionScale)
     updateFrame();
 
-  if (ImGui::Checkbox("denoise", &m_denoise)) {
-    anari::setParameter(m_device, m_frame, "denoise", m_denoise);
-    anari::commitParameters(m_device, m_frame);
-  }
-
   ImGui::Checkbox("show depth", &m_showDepth);
 
   if (ImGui::Button("take screenshot"))
@@ -700,6 +696,11 @@ void Viewer::ui_makeWindow_renderer()
       rendererUI_callback,
       nullptr,
       g_renderers.size());
+
+  if (ImGui::Checkbox("denoise", &m_denoise)) {
+    anari::setParameter(m_device, m_currentRenderer, "denoise", m_denoise);
+    anari::commitParameters(m_device, m_currentRenderer);
+  }
 
   if (ImGui::Checkbox("checkerboard", &m_checkerboard)) {
     anari::setParameter(

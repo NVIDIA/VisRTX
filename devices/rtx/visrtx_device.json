@@ -55,6 +55,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "denoise",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable the OptiX denoiser"
+        },
+        {
           "name": "checkerboarding",
           "types": [
             "ANARI_BOOL"
@@ -152,6 +161,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "denoise",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable the OptiX denoiser"
+        },
+        {
           "name": "checkerboarding",
           "types": [
             "ANARI_BOOL"
@@ -247,6 +265,15 @@
             1.0
           ],
           "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "denoise",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable the OptiX denoiser"
         },
         {
           "name": "checkerboarding",
@@ -349,6 +376,15 @@
           "description": "background color and alpha (RGBA)"
         },
         {
+          "name": "denoise",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable the OptiX denoiser"
+        },
+        {
           "name": "checkerboarding",
           "types": [
             "ANARI_BOOL"
@@ -400,6 +436,15 @@
             1.0
           ],
           "description": "background color and alpha (RGBA)"
+        },
+        {
+          "name": "denoise",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable the OptiX denoiser"
         },
         {
           "name": "checkerboarding",

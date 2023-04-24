@@ -106,8 +106,6 @@ void Frame::commit()
   if (!m_valid)
     return;
 
-  m_denoise = getParam<bool>("denoise", false);
-
   auto format =
       getParam<ANARIDataType>("channel.color", ANARI_UFIXED8_RGBA_SRGB);
   const bool useFloatFB = m_denoise || format == ANARI_FLOAT32_VEC4;
@@ -226,6 +224,11 @@ void Frame::renderFrame()
         "skipping render of incomplete or invalid frame object");
     return;
   }
+
+  bool wasDenoising = m_denoise;
+  m_denoise = m_renderer->denoise();
+  if (m_denoise != wasDenoising)
+    this->commit();
 
   m_frameMappedOnce = false;
 

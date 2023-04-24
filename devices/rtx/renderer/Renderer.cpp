@@ -148,6 +148,7 @@ void Renderer::commit()
   m_ambientIntensity = getParam<float>("ambientIntensity", 1.f);
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
   m_checkerboard = getParam<bool>("checkerboarding", false);
+  m_denoise = getParam<bool>("denoise", false);
 }
 
 Span<const HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -215,6 +216,11 @@ float Renderer::ambientOcclusionDistance() const
 bool Renderer::checkerboarding() const
 {
   return m_checkerboard;
+}
+
+bool Renderer::denoise() const
+{
+  return m_denoise;
 }
 
 Renderer *Renderer::createInstance(
