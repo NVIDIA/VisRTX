@@ -176,19 +176,6 @@ device.
 
 #### Frame
 
-The following optional parameters are available to set on `ANARIFrame`:
-
-| Name         | Type | Default | Description                                      |
-|:-------------|:-----|--------:|:-------------------------------------------------|
-| denoise      | BOOL |   false | enable the OptiX denoiser on the `color` channel |
-| checkerboard | BOOL |   false | trade fewer samples per-frame for interactivity  |
-
-The `checkerboard` parameter will sample subsets of the image at a faster rate,
-while still converging to the same image, as the final set of samples taken for
-each pixel ends up being the same. The pattern and method of which this feature
-is implementented is subject to change, so applications which desire exact
-sample counts should use the `numSamples` property described below.
-
 The following properties are available to query on `ANARIFrame`:
 
 | Name           | Type  | Description                                           |
@@ -197,8 +184,8 @@ The following properties are available to query on `ANARIFrame`:
 | nextFrameReset | BOOL  | query whether the next frame will reset accumulation  |
 
 The `numSamples` property is the lower bound of pixel samples taken when the
-`checkerboard` parameter is enabled because not every pixel will have the same
-number of samples accumulated.
+`checkerboard` renderer parameter (see below) is enabled because not every pixel
+will have the same number of samples accumulated.
 
 The `nextFrameReset` property can give the application feedback for when
 accumulation is about to reset in the next frame. When the property is queried
@@ -218,29 +205,42 @@ the following subtypes:
 
 All renderers share the following parameters:
 
-| Name            | Type         | Default   | Description                                               |
-|:----------------|:-------------|----------:|:----------------------------------------------------------|
-| backgroundColor | FLOAT32_VEC4 | {1,1,1,1} | color of the background                                   |
-| pixelSamples    | INT32        |         1 | number of samples taken per call to `anariRenderFrame()`  |
+| Name            | Type         | Default   | Description                                                    |
+|:----------------|:-------------|----------:|:---------------------------------------------------------------|
+| pixelSamples    | INT32        |         1 | number of samples taken per call to `anariRenderFrame()`       |
+| sampleLimit     | INT32        |         0 | stop refining after this number of samples (`0` for unlimited) |
+| checkerboarding | BOOL         |     false | trade fewer samples per-frame for increased interactivity      |
 
 The `pixelSamples` parameter is equivalent to calling `anariRenderFrame()` N
 times to reduce noise in the image.
+
+The `checkerboard` parameter will sample subsets of the image at a faster rate,
+while still converging to the same image, as the final set of samples taken for
+each pixel ends up being the same. The pattern and method of which this feature
+is implementented is subject to change, so applications which desire exact
+sample counts should use the `numSamples` property on the frame described above.
 
 The `debug` renderer is designed to help developers understand how VisRTX is
 interpreting the scene it is rendering. This renderer uses a `STRING` parameter
 named `"method"` to control which debugging views of the scene is used. The
 following values are valid values:
 
-| Method   | Description                                                |
-|:---------|:-----------------------------------------------------------|
-| primID   | visualize geometry primitive index                         |
-| geomID   | visualize geometry index within a group                    |
-| instID   | visualize instance index within the world                  |
-| Ng       | visualize geometric normal                                 |
-| uvw      | visualize geometry barycentric coordinates                 |
-| istri    | show objects as green if they are HW accelerated triangles |
-| isvol    | show objects as green if they are a volume                 |
-| backface | show front facing primitives as green, red if back facing  |
+| Method              | Description                                                |
+|:--------------------|:-----------------------------------------------------------|
+| primID              | visualize geometry primitive index                         |
+| geomID              | visualize geometry index within a group                    |
+| instID              | visualize instance index within the world                  |
+| Ng                  | visualize geometric normal                                 |
+| uvw                 | visualize geometry barycentric coordinates                 |
+| istri               | show objects as green if they are HW accelerated triangles |
+| isvol               | show objects as green if they are a volume                 |
+| backface            | show front facing primitives as green, red if back facing  |
+| hasMaterial         | show objects as green if they have a valid material        |
+| geometry.attribute0 | display `attribute0` as a raw color (useful to debug UVs)  |
+| geometry.attribute1 | display `attribute1` as a raw color (useful to debug UVs)  |
+| geometry.attribute2 | display `attribute2` as a raw color (useful to debug UVs)  |
+| geometry.attribute3 | display `attribute3` as a raw color (useful to debug UVs)  |
+| geometry.color      | display `color`  as a raw color                            |
 
 The `debug` renderer can use a `_[method]` suffix on the subtype string to set
 the default method. This can be a convenient alternative for applications to

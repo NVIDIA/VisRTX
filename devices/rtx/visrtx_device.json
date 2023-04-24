@@ -526,7 +526,13 @@
             "Ns.abs",
             "uvw",
             "istri",
-            "isvol"
+            "isvol",
+            "hasMaterial",
+            "geometry.attribute0",
+            "geometry.attribute1",
+            "geometry.attribute2",
+            "geometry.attribute3",
+            "geometry.color"
           ],
           "description": "debug visualization mode"
         }
