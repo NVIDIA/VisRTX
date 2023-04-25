@@ -163,7 +163,7 @@ static const void * ANARI_RENDERER_default_background_info(ANARIDataType paramTy
          }
       case 1: // default
          if(paramType == ANARI_FLOAT32_VEC4 && infoType == ANARI_FLOAT32_VEC4) {
-            static const float default_value[4] = {1.000000f, 1.000000f, 1.000000f, 1.000000f};
+            static const float default_value[4] = {0.000000f, 0.000000f, 0.000000f, 1.000000f};
             return default_value;
          } else {
             return nullptr;
@@ -446,7 +446,7 @@ static const void * ANARI_RENDERER_scivis_background_info(ANARIDataType paramTyp
          }
       case 1: // default
          if(paramType == ANARI_FLOAT32_VEC4 && infoType == ANARI_FLOAT32_VEC4) {
-            static const float default_value[4] = {1.000000f, 1.000000f, 1.000000f, 1.000000f};
+            static const float default_value[4] = {0.000000f, 0.000000f, 0.000000f, 1.000000f};
             return default_value;
          } else {
             return nullptr;
@@ -712,7 +712,7 @@ static const void * ANARI_RENDERER_ao_background_info(ANARIDataType paramType, i
          }
       case 1: // default
          if(paramType == ANARI_FLOAT32_VEC4 && infoType == ANARI_FLOAT32_VEC4) {
-            static const float default_value[4] = {1.000000f, 1.000000f, 1.000000f, 1.000000f};
+            static const float default_value[4] = {0.000000f, 0.000000f, 0.000000f, 1.000000f};
             return default_value;
          } else {
             return nullptr;
@@ -977,7 +977,7 @@ static const void * ANARI_RENDERER_raycast_background_info(ANARIDataType paramTy
          }
       case 1: // default
          if(paramType == ANARI_FLOAT32_VEC4 && infoType == ANARI_FLOAT32_VEC4) {
-            static const float default_value[4] = {1.000000f, 1.000000f, 1.000000f, 1.000000f};
+            static const float default_value[4] = {0.000000f, 0.000000f, 0.000000f, 1.000000f};
             return default_value;
          } else {
             return nullptr;
@@ -1139,7 +1139,7 @@ static const void * ANARI_RENDERER_debug_background_info(ANARIDataType paramType
          }
       case 1: // default
          if(paramType == ANARI_FLOAT32_VEC4 && infoType == ANARI_FLOAT32_VEC4) {
-            static const float default_value[4] = {1.000000f, 1.000000f, 1.000000f, 1.000000f};
+            static const float default_value[4] = {0.000000f, 0.000000f, 0.000000f, 1.000000f};
             return default_value;
          } else {
             return nullptr;

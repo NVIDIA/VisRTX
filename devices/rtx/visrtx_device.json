@@ -47,9 +47,9 @@
               "ANARI_FLOAT32", "ANARI_FLOAT32_VEC2", "ANARI_FLOAT32_VEC3", "ANARI_FLOAT32_VEC4"],
           "tags": [],
           "default": [
-            1.0,
-            1.0,
-            1.0,
+            0.0,
+            0.0,
+            0.0,
             1.0
           ],
           "description": "background color and alpha (RGBA)"
@@ -162,9 +162,9 @@
               "ANARI_FLOAT32", "ANARI_FLOAT32_VEC2", "ANARI_FLOAT32_VEC3", "ANARI_FLOAT32_VEC4"],
           "tags": [],
           "default": [
-            1.0,
-            1.0,
-            1.0,
+            0.0,
+            0.0,
+            0.0,
             1.0
           ],
           "description": "background color and alpha (RGBA)"
@@ -277,9 +277,9 @@
               "ANARI_FLOAT32", "ANARI_FLOAT32_VEC2", "ANARI_FLOAT32_VEC3", "ANARI_FLOAT32_VEC4"],
           "tags": [],
           "default": [
-            1.0,
-            1.0,
-            1.0,
+            0.0,
+            0.0,
+            0.0,
             1.0
           ],
           "description": "background color and alpha (RGBA)"
@@ -395,9 +395,9 @@
               "ANARI_FLOAT32", "ANARI_FLOAT32_VEC2", "ANARI_FLOAT32_VEC3", "ANARI_FLOAT32_VEC4"],
           "tags": [],
           "default": [
-            1.0,
-            1.0,
-            1.0,
+            0.0,
+            0.0,
+            0.0,
             1.0
           ],
           "description": "background color and alpha (RGBA)"
@@ -466,9 +466,9 @@
               "ANARI_FLOAT32", "ANARI_FLOAT32_VEC2", "ANARI_FLOAT32_VEC3", "ANARI_FLOAT32_VEC4"],
           "tags": [],
           "default": [
-            1.0,
-            1.0,
-            1.0,
+            0.0,
+            0.0,
+            0.0,
             1.0
           ],
           "description": "background color and alpha (RGBA)"

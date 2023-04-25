@@ -142,7 +142,7 @@ void Renderer::commit()
         *m_backgroundImage, m_backgroundImage->size(), "linear");
   }
 
-  m_bgColor = getParam<vec4>("background", vec4(1.f));
+  m_bgColor = getParam<vec4>("background", vec4(vec3(0.f), 1.f));
   m_spp = getParam<int>("pixelSamples", 1);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
   m_ambientIntensity = getParam<float>("ambientIntensity", 1.f);
