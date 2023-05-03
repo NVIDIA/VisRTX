@@ -31,3 +31,8 @@ option(VISRTX_BUILD_RTX_DEVICE "Build CUDA/OptiX device" ON)
 if (VISRTX_BUILD_RTX_DEVICE)
   add_subdirectory(rtx)
 endif()
+
+option(VISRTX_BUILD_GL_DEVICE "Build OpenGL device" ON)
+if (VISRTX_BUILD_GL_DEVICE)
+  add_subdirectory(gl)
+endif()

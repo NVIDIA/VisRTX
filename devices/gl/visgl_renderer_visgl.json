@@ -1,0 +1,28 @@
+{
+    "info" : {
+        "name" : "VISGL_RENDERER_VISGL",
+        "type" : "feature",
+        "dependencies" : ["anari_core_1_0"],
+        "implements" : [
+            "khr_renderer_background_color",
+            "khr_renderer_ambient_light",
+            "visgl_shadow_map_params",
+            "visgl_occlusion_params"
+        ]
+    },
+
+    "objects" : [
+        {
+            "type" : "ANARI_RENDERER",
+            "name" : "visgl",
+            "parameters" : [
+                {
+                    "name" : "name",
+                    "types" : ["ANARI_STRING"],
+                    "tags" : [],
+                    "description" : "optional object name"
+                }
+            ]
+        }
+    ]
+}

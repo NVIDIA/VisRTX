@@ -1,0 +1,24 @@
+{
+    "info" : {
+        "name" : "VISGL_SHADOW_MAP_PARAMS",
+        "type" : "feature",
+        "dependencies" : []
+    },
+
+    "objects" : [
+        {
+            "type" : "ANARI_RENDERER",
+            "name" : "default",
+            "parameters" : [
+                {
+                    "name" : "occlusionMode",
+                    "types" : ["ANARI_STRING"],
+                    "tags" : [],
+                    "values" : ["none", "incremental", "firstFrame"],
+                    "default" : "none",
+                    "description" : "occlusion baking mode"
+                }
+            ]
+        }
+    ]
+}

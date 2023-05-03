@@ -1,0 +1,22 @@
+{
+    "info" : {
+        "name" : "VISGL_SHADOW_MAP_PARAMS",
+        "type" : "feature",
+        "dependencies" : []
+    },
+
+    "objects" : [
+        {
+            "type" : "ANARI_RENDERER",
+            "name" : "default",
+            "parameters" : [
+                {
+                    "name" : "shadowMapSize",
+                    "types" : ["ANARI_UINT32"],
+                    "tags" : [],
+                    "description" : "shadow map dimension"
+                }
+            ]
+        }
+    ]
+}
