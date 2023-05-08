@@ -33,6 +33,8 @@ void Object<CameraPerspective>::commit()
   current.imageRegion.get(ANARI_FLOAT32_BOX2, region);
   current.fovy.get(ANARI_FLOAT32, &fovy);
   current.aspect.get(ANARI_FLOAT32, &aspect);
+
+  normalize3(direction);
 }
 
 void Object<CameraPerspective>::updateAt(size_t index, float *bounds) const
@@ -61,7 +63,6 @@ void Object<CameraPerspective>::updateAt(size_t index, float *bounds) const
     near, far);
   setLookDirection(view.data(), position, direction, up);
   mul3(projection_view.data(), projection.data(), view.data());
-
 
   setInverseFrustum(inverse_projection.data(),
     width*(2.0f*region[0]-1.0f),

@@ -605,9 +605,9 @@ void frame_render(ObjectRef<Frame> frameObj, uint32_t width, uint32_t height, ui
     worldObj->shadow_map_size = frameObj->shadow_map_size;
     frameObj->shadow_dirty = true;
 
-    if(worldObj->shadowtex == 0) {
-      gl.GenTextures(1, &worldObj->shadowtex);
-    }
+    gl.DeleteTextures(1, &worldObj->shadowtex);
+    gl.GenTextures(1, &worldObj->shadowtex);
+
     gl.BindTexture(GL_TEXTURE_2D_ARRAY, worldObj->shadowtex);
     gl.TexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     gl.TexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -626,9 +626,9 @@ void frame_render(ObjectRef<Frame> frameObj, uint32_t width, uint32_t height, ui
 
     if(worldObj->shadowfbo == 0) {
       gl.GenFramebuffers(1, &worldObj->shadowfbo);
-      gl.BindFramebuffer(GL_FRAMEBUFFER, worldObj->shadowfbo);
-      gl.FramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, worldObj->shadowtex, 0);
-    }  
+    }
+    gl.BindFramebuffer(GL_FRAMEBUFFER, worldObj->shadowfbo);
+    gl.FramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, worldObj->shadowtex, 0);
   }
   //shadowmaps
 
@@ -641,7 +641,6 @@ void frame_render(ObjectRef<Frame> frameObj, uint32_t width, uint32_t height, ui
   }
   oc.samples = 0;
   oc.count = collector.shadow_caster_count;
-
 
   gl.BindBuffer(GL_UNIFORM_BUFFER, frameObj->shadowubo);
   gl.BufferData(GL_UNIFORM_BUFFER, sizeof(oc), &oc, GL_STREAM_DRAW);
@@ -676,6 +675,7 @@ void frame_render(ObjectRef<Frame> frameObj, uint32_t width, uint32_t height, ui
   gl.Enable(GL_DEPTH_TEST);
   
   gl.Enable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+  gl.Enable(GL_SAMPLE_ALPHA_TO_ONE);
 
   for(auto &command : collector.draws) {
     command(gl, 0);
@@ -706,9 +706,6 @@ void Object<Frame>::renderFrame() {
   uint32_t width = size[0];
   uint32_t height = size[1];
 
-  std::array<float, 4> clearColor = {0, 0, 0, 1};
-  renderer->current.background.get(ANARI_FLOAT32_VEC4, clearColor.data());
-  uint32_t ambient_index = renderer->index();
 
 
   if(collector) {
@@ -719,8 +716,16 @@ void Object<Frame>::renderFrame() {
 
   world->accept(collector.get());
 
-  renderer->current.shadowMapSize.get(ANARI_UINT32, &shadow_map_size);
-  occlusionMode = renderer->current.occlusionMode.getStringEnum();
+  std::array<float, 4> clearColor = {0, 0, 0, 1};
+  uint32_t ambient_index = 0;
+
+  if(renderer) {
+    renderer->current.background.get(ANARI_FLOAT32_VEC4, clearColor.data());
+    ambient_index = renderer->index();
+
+    renderer->current.shadowMapSize.get(ANARI_UINT32, &shadow_map_size);
+    occlusionMode = renderer->current.occlusionMode.getStringEnum();
+  }
 
   if(world->geometryEpoch < collector->geometry_epoch) {
     shadow_dirty = true;

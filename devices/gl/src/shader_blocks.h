@@ -137,10 +137,12 @@ float sampleShadow(vec4 worldPosition, vec3 geometryNormal, uint i) {
   }
   mat4 projection = shadowProjection[i].matrix;
 
+  mat4 tprojection = transpose(projection);
+
   vec2 texsize = vec2(textureSize(shadowSampler, 0));
   float texelsize = 1.0/sqrt(
-      dot(projection[0].xyz, projection[0].xyz)*sqr(texsize.x)
-    + dot(projection[1].xyz, projection[1].xyz)*sqr(texsize.y)
+      dot(tprojection[0].xyz, tprojection[0].xyz)*sqr(texsize.x)
+    + dot(tprojection[1].xyz, tprojection[1].xyz)*sqr(texsize.y)
   );
 
   vec4 shadow = projection*(worldPosition + vec4(4.0*texelsize*geometryNormal, 0.0));

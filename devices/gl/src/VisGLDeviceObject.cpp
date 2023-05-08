@@ -106,6 +106,11 @@ static void device_context_init(Object<Device> *deviceObj, int clientapi, int32_
   deviceObj->transforms.set(1, identity_matrix);
   deviceObj->transforms.set(2, identity_matrix);
 
+
+  deviceObj->lights.allocate(1);
+  std::array<float, 4> zero = {0.0f, 0.0f, 0.0f, 0.0f};
+  deviceObj->lights.set(0, zero);
+
 #define REPORT_GL_INT(X) {\
     GLint value;\
     gl.GetIntegerv(X, &value);\

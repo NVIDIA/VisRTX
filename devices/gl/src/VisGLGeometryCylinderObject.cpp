@@ -815,7 +815,11 @@ void Object<GeometryCylinder>::drawCommand(SurfaceObjectBase *surf, DrawCommand 
   command.vao = vao;
   command.prim = GL_TRIANGLES;
   command.count = index_count;//caps == STRING_ENUM_none ? body_index_count : index_count;
-  command.instanceCount = position_array->size()/2;
+  if(index_array) {
+    command.instanceCount = index_array->size();
+  } else {
+    command.instanceCount = position_array->size()/2;
+  }
   command.indexType = GL_UNSIGNED_INT;  
   command.cullMode = GL_BACK;
 

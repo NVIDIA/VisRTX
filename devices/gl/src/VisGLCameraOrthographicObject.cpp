@@ -33,6 +33,8 @@ void Object<CameraOrthographic>::commit()
   current.imageRegion.get(ANARI_FLOAT32_BOX2, region);
   current.aspect.get(ANARI_FLOAT32, &aspect);
   current.height.get(ANARI_FLOAT32, &height);
+
+  normalize3(direction);
 }
 
 void Object<CameraOrthographic>::updateAt(size_t index, float *bounds) const
