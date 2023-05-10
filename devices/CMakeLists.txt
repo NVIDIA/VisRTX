@@ -28,11 +28,11 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 option(VISRTX_BUILD_RTX_DEVICE "Build CUDA/OptiX device" ON)
-if (VISRTX_BUILD_RTX_DEVICE)
+if (VISRTX_BUILD_RTX_DEVICE AND CUDAToolkit_FOUND AND OptiX7_FOUND)
   add_subdirectory(rtx)
 endif()
 
 option(VISRTX_BUILD_GL_DEVICE "Build OpenGL device" ON)
-if (VISRTX_BUILD_GL_DEVICE)
+if (VISRTX_BUILD_GL_DEVICE AND OpenGL_FOUND)
   add_subdirectory(gl)
 endif()
