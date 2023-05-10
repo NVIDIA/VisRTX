@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 #include "VisGLDevice.h"
 

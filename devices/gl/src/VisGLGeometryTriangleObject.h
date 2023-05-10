@@ -29,18 +29,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
 
 #include <vector>
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
-class Object<GeometryTriangle> : public DefaultObject<GeometryTriangle, GeometryObjectBase>
+class Object<GeometryTriangle>
+    : public DefaultObject<GeometryTriangle, GeometryObjectBase>
 {
   ObjectRef<DataArray1D> position_array;
   ObjectRef<DataArray1D> color_array;
@@ -62,8 +61,9 @@ class Object<GeometryTriangle> : public DefaultObject<GeometryTriangle, Geometry
   bool dirty = true;
 
   friend void triangles_init_objects(ObjectRef<GeometryTriangle> triangleObj);
- 
+
   void interfaceBlock(SurfaceObjectBase *, AppendableShader &);
+
  public:
   GLuint vao = 0;
 
@@ -72,20 +72,20 @@ class Object<GeometryTriangle> : public DefaultObject<GeometryTriangle, Geometry
 
   void commit() override;
   void update() override;
-  void allocateResources(SurfaceObjectBase*) override;
-  void drawCommand(SurfaceObjectBase*, DrawCommand&) override;
-  void vertexShader(SurfaceObjectBase*, AppendableShader&) override;
-  void fragmentShaderMain(SurfaceObjectBase*, AppendableShader&) override;
+  void allocateResources(SurfaceObjectBase *) override;
+  void drawCommand(SurfaceObjectBase *, DrawCommand &) override;
+  void vertexShader(SurfaceObjectBase *, AppendableShader &) override;
+  void fragmentShaderMain(SurfaceObjectBase *, AppendableShader &) override;
 
-  void vertexShaderShadow(SurfaceObjectBase*, AppendableShader&) override;
-  void geometryShaderShadow(SurfaceObjectBase*, AppendableShader&) override;
-  void fragmentShaderShadowMain(SurfaceObjectBase*, AppendableShader&) override;
+  void vertexShaderShadow(SurfaceObjectBase *, AppendableShader &) override;
+  void geometryShaderShadow(SurfaceObjectBase *, AppendableShader &) override;
+  void fragmentShaderShadowMain(
+      SurfaceObjectBase *, AppendableShader &) override;
 
-  void vertexShaderOcclusion(SurfaceObjectBase*, AppendableShader&) override;
+  void vertexShaderOcclusion(SurfaceObjectBase *, AppendableShader &) override;
 
   std::array<float, 6> bounds() override;
   uint32_t index() override;
 };
 
-} //namespace visgl
-
+} // namespace visgl

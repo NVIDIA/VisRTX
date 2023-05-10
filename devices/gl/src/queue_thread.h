@@ -42,7 +42,8 @@
 
 #include <iostream>
 
-class queue_thread {
+class queue_thread
+{
   std::vector<std::packaged_task<void()>> tasks;
   bool stop;
   int next;
@@ -52,13 +53,15 @@ class queue_thread {
   std::condition_variable condition;
   std::thread thread;
 
-  static void thread_fun(queue_thread *ct) {
-    for(;;) {
+  static void thread_fun(queue_thread *ct)
+  {
+    for (;;) {
       std::packaged_task<void()> task;
       {
         std::unique_lock<std::mutex> lock(ct->mutex);
-        ct->condition.wait(lock, [ct]{ return ct->stop || ct->next != ct->last; });
-        if(ct->stop && ct->next == ct->last) {
+        ct->condition.wait(
+            lock, [ct] { return ct->stop || ct->next != ct->last; });
+        if (ct->stop && ct->next == ct->last) {
           break;
         }
         task = std::move(ct->tasks[ct->next]);
@@ -69,19 +72,21 @@ class queue_thread {
     }
   }
 
-public:
-  queue_thread(size_t n) : tasks(n), stop(false), next(0), last(0), thread(thread_fun, this) {
+ public:
+  queue_thread(size_t n)
+      : tasks(n), stop(false), next(0), last(0), thread(thread_fun, this)
+  {}
 
-  }
-
-  template<class F, class... Args>
-  std::future<void> enqueue(F&& f, Args&&... args) {
-    std::packaged_task<void()> task(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+  template <class F, class... Args>
+  std::future<void> enqueue(F &&f, Args &&...args)
+  {
+    std::packaged_task<void()> task(
+        std::bind(std::forward<F>(f), std::forward<Args>(args)...));
     std::future<void> future = task.get_future();
 
-    if(std::this_thread::get_id() != thread.get_id()) {
+    if (std::this_thread::get_id() != thread.get_id()) {
       std::unique_lock<std::mutex> lock(mutex);
-      condition.wait(lock, [&]{ return (last + 1) % tasks.size() != next; });
+      condition.wait(lock, [&] { return (last + 1) % tasks.size() != next; });
       tasks[last] = std::move(task);
       last = (last + 1) % tasks.size();
       condition.notify_one();
@@ -92,7 +97,8 @@ public:
     return future;
   }
 
-  ~queue_thread() {
+  ~queue_thread()
+  {
     {
       std::unique_lock<std::mutex> lock(mutex);
       stop = true;

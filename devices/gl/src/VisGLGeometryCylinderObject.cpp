@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "anari/type_utility.h"
 
@@ -41,88 +40,94 @@
 #include <cstring>
 #include <cmath>
 
-namespace visgl{
+namespace visgl {
 
-static void generate_cylinder(float *vertices, uint32_t *indices, uint32_t sides, uint32_t *vertex_count_out, uint32_t *index_count_out, uint32_t *body_index_count_out) {
+static void generate_cylinder(float *vertices,
+    uint32_t *indices,
+    uint32_t sides,
+    uint32_t *vertex_count_out,
+    uint32_t *index_count_out,
+    uint32_t *body_index_count_out)
+{
   uint32_t vertex_count = 0;
-  for(uint32_t i = 0;i<sides;++i) {
-    float a = 6.28318530718f*(float)i/(float)sides;
-    if(vertices) {
-      vertices[3*vertex_count + 0] = std::cos(a);
-      vertices[3*vertex_count + 1] = std::sin(a);
-      vertices[3*vertex_count + 2] = 0.0f;
+  for (uint32_t i = 0; i < sides; ++i) {
+    float a = 6.28318530718f * (float)i / (float)sides;
+    if (vertices) {
+      vertices[3 * vertex_count + 0] = std::cos(a);
+      vertices[3 * vertex_count + 1] = std::sin(a);
+      vertices[3 * vertex_count + 2] = 0.0f;
     }
     vertex_count += 1;
 
-    if(vertices) {
-      vertices[3*vertex_count + 0] = std::cos(a);
-      vertices[3*vertex_count + 1] = std::sin(a);
-      vertices[3*vertex_count + 2] = 1.0f;
+    if (vertices) {
+      vertices[3 * vertex_count + 0] = std::cos(a);
+      vertices[3 * vertex_count + 1] = std::sin(a);
+      vertices[3 * vertex_count + 2] = 1.0f;
     }
     vertex_count += 1;
   }
 
-  if(vertices) {
-    vertices[3*vertex_count + 0] = 0.0f;
-    vertices[3*vertex_count + 1] = 0.0f;
-    vertices[3*vertex_count + 2] = 0.0f;
+  if (vertices) {
+    vertices[3 * vertex_count + 0] = 0.0f;
+    vertices[3 * vertex_count + 1] = 0.0f;
+    vertices[3 * vertex_count + 2] = 0.0f;
   }
   vertex_count += 1;
 
-  if(vertices) {
-    vertices[3*vertex_count + 0] = 0.0f;
-    vertices[3*vertex_count + 1] = 0.0f;
-    vertices[3*vertex_count + 2] = 1.0f;
+  if (vertices) {
+    vertices[3 * vertex_count + 0] = 0.0f;
+    vertices[3 * vertex_count + 1] = 0.0f;
+    vertices[3 * vertex_count + 2] = 1.0f;
   }
   vertex_count += 1;
 
   uint32_t index_count = 0;
 
   // body
-  for(uint32_t i = 0;i<sides;++i) {
-    if(indices) {
-      indices[index_count + 0] = 2*i + 1;
-      indices[index_count + 1] = 2*i + 0;
-      indices[index_count + 2] = 2*((i+1)%sides) + 0;
+  for (uint32_t i = 0; i < sides; ++i) {
+    if (indices) {
+      indices[index_count + 0] = 2 * i + 1;
+      indices[index_count + 1] = 2 * i + 0;
+      indices[index_count + 2] = 2 * ((i + 1) % sides) + 0;
     }
     index_count += 3;
 
-    if(indices) {
-      indices[index_count + 0] = 2*i + 1;
-      indices[index_count + 1] = 2*((i+1)%sides) + 0;
-      indices[index_count + 2] = 2*((i+1)%sides) + 1;
+    if (indices) {
+      indices[index_count + 0] = 2 * i + 1;
+      indices[index_count + 1] = 2 * ((i + 1) % sides) + 0;
+      indices[index_count + 2] = 2 * ((i + 1) % sides) + 1;
     }
     index_count += 3;
   }
   uint32_t body_index_count = index_count;
 
-  //cap 
-  for(uint32_t i = 0;i<sides;++i) {
-    if(indices) {
-      indices[index_count + 0] = 2*sides + 0;
-      indices[index_count + 1] = 2*((i+1)%sides) + 0;
-      indices[index_count + 2] = 2*i + 0;
+  // cap
+  for (uint32_t i = 0; i < sides; ++i) {
+    if (indices) {
+      indices[index_count + 0] = 2 * sides + 0;
+      indices[index_count + 1] = 2 * ((i + 1) % sides) + 0;
+      indices[index_count + 2] = 2 * i + 0;
     }
     index_count += 3;
   }
 
   // cap
-  for(uint32_t i = 0;i<sides;++i) {
-    if(indices) {
-      indices[index_count + 0] = 2*sides + 1;
-      indices[index_count + 1] = 2*i + 1;
-      indices[index_count + 2] = 2*((i+1)%sides) + 1;
+  for (uint32_t i = 0; i < sides; ++i) {
+    if (indices) {
+      indices[index_count + 0] = 2 * sides + 1;
+      indices[index_count + 1] = 2 * i + 1;
+      indices[index_count + 2] = 2 * ((i + 1) % sides) + 1;
     }
     index_count += 3;
   }
 
-  if(vertex_count_out) {
+  if (vertex_count_out) {
     *vertex_count_out = vertex_count;
   }
-  if(index_count_out) {
+  if (index_count_out) {
     *index_count_out = index_count;
   }
-  if(body_index_count_out) {
+  if (body_index_count_out) {
     *body_index_count_out = body_index_count;
   }
 }
@@ -376,7 +381,6 @@ void main() {
 }
 )GLSL";
 
-
 const char *cyl_geom_shadow = R"GLSL(
 layout(triangles) in;
 layout(triangle_strip, max_vertices=36) out;
@@ -431,7 +435,6 @@ void main() {
   }
 }
 )GLSL";
-
 
 const char *cyl_frag_shadow = R"GLSL(
 in Data {
@@ -598,13 +601,15 @@ Object<GeometryCylinder>::Object(ANARIDevice d, ANARIObject handle)
   geometry_index = thisDevice->materials.allocate(1);
 }
 
-uint32_t Object<GeometryCylinder>::index() {
+uint32_t Object<GeometryCylinder>::index()
+{
   return geometry_index;
 }
 
-template<typename A, typename B>
-static bool compare_and_assign(A &a, const B &b) {
-  bool cmp = (a==b);
+template <typename A, typename B>
+static bool compare_and_assign(A &a, const B &b)
+{
+  bool cmp = (a == b);
   a = b;
   return cmp;
 }
@@ -613,47 +618,63 @@ void Object<GeometryCylinder>::commit()
 {
   DefaultObject::commit();
 
-  dirty |= compare_and_assign(position_array, acquire<DataArray1D*>(current.vertex_position));
-  dirty |= compare_and_assign(cap_array, acquire<DataArray1D*>(current.vertex_cap));
-  dirty |= compare_and_assign(color_array, acquire<DataArray1D*>(current.vertex_color));
-  dirty |= compare_and_assign(attribute0_array, acquire<DataArray1D*>(current.vertex_attribute0));
-  dirty |= compare_and_assign(attribute1_array, acquire<DataArray1D*>(current.vertex_attribute1));
-  dirty |= compare_and_assign(attribute2_array, acquire<DataArray1D*>(current.vertex_attribute2));
-  dirty |= compare_and_assign(attribute3_array, acquire<DataArray1D*>(current.vertex_attribute3));
+  dirty |= compare_and_assign(
+      position_array, acquire<DataArray1D *>(current.vertex_position));
+  dirty |=
+      compare_and_assign(cap_array, acquire<DataArray1D *>(current.vertex_cap));
+  dirty |= compare_and_assign(
+      color_array, acquire<DataArray1D *>(current.vertex_color));
+  dirty |= compare_and_assign(
+      attribute0_array, acquire<DataArray1D *>(current.vertex_attribute0));
+  dirty |= compare_and_assign(
+      attribute1_array, acquire<DataArray1D *>(current.vertex_attribute1));
+  dirty |= compare_and_assign(
+      attribute2_array, acquire<DataArray1D *>(current.vertex_attribute2));
+  dirty |= compare_and_assign(
+      attribute3_array, acquire<DataArray1D *>(current.vertex_attribute3));
 
-  dirty |= compare_and_assign(primitive_color_array, acquire<DataArray1D*>(current.primitive_color));
-  dirty |= compare_and_assign(primitive_radius_array, acquire<DataArray1D*>(current.primitive_radius));
-  dirty |= compare_and_assign(primitive_attribute0_array, acquire<DataArray1D*>(current.primitive_attribute0));
-  dirty |= compare_and_assign(primitive_attribute1_array, acquire<DataArray1D*>(current.primitive_attribute1));
-  dirty |= compare_and_assign(primitive_attribute2_array, acquire<DataArray1D*>(current.primitive_attribute2));
-  dirty |= compare_and_assign(primitive_attribute3_array, acquire<DataArray1D*>(current.primitive_attribute3));
+  dirty |= compare_and_assign(
+      primitive_color_array, acquire<DataArray1D *>(current.primitive_color));
+  dirty |= compare_and_assign(
+      primitive_radius_array, acquire<DataArray1D *>(current.primitive_radius));
+  dirty |= compare_and_assign(primitive_attribute0_array,
+      acquire<DataArray1D *>(current.primitive_attribute0));
+  dirty |= compare_and_assign(primitive_attribute1_array,
+      acquire<DataArray1D *>(current.primitive_attribute1));
+  dirty |= compare_and_assign(primitive_attribute2_array,
+      acquire<DataArray1D *>(current.primitive_attribute2));
+  dirty |= compare_and_assign(primitive_attribute3_array,
+      acquire<DataArray1D *>(current.primitive_attribute3));
 
-  dirty |= compare_and_assign(primitive_id_array, acquire<DataArray1D*>(current.primitive_id));
+  dirty |= compare_and_assign(
+      primitive_id_array, acquire<DataArray1D *>(current.primitive_id));
 
-  dirty |= compare_and_assign(index_array, acquire<DataArray1D*>(current.primitive_index));
+  dirty |= compare_and_assign(
+      index_array, acquire<DataArray1D *>(current.primitive_index));
 
   float new_radius = 0;
-  if(current.radius.get(ANARI_FLOAT32, &new_radius)) {
+  if (current.radius.get(ANARI_FLOAT32, &new_radius)) {
     dirty |= compare_and_assign(radius, new_radius);
   }
 
   caps = current.caps.getStringEnum();
-
 }
 
-
-template<typename G>
-void configure_vertex_array(G &gl, ObjectRef<DataArray1D> &array, int index, int divisor) {
-  if(array) {
+template <typename G>
+void configure_vertex_array(
+    G &gl, ObjectRef<DataArray1D> &array, int index, int divisor)
+{
+  if (array) {
     ANARIDataType bufferType = array->getBufferType();
     gl.BindBuffer(GL_ARRAY_BUFFER, array->getBuffer());
     gl.EnableVertexAttribArray(index);
     gl.VertexAttribPointer(index,
-      anari::componentsOf(bufferType),
-      gl_type(bufferType),
-      gl_normalized(bufferType),
-      0, 0);
-    if(divisor) {
+        anari::componentsOf(bufferType),
+        gl_type(bufferType),
+        gl_normalized(bufferType),
+        0,
+        0);
+    if (divisor) {
       gl.VertexAttribDivisor(index, divisor);
     }
   }
@@ -689,16 +710,17 @@ uvec2 get_vertices(uint i) {
 }
 )GLSL";
 
-#define DECLARE_IF(ARRAY, SLOT, SHADER)\
-if(ARRAY) {\
-  int index = surf->resourceIndex(SLOT);\
-  ARRAY->declare(index, SHADER);\
-}
+#define DECLARE_IF(ARRAY, SLOT, SHADER)                                        \
+  if (ARRAY) {                                                                 \
+    int index = surf->resourceIndex(SLOT);                                     \
+    ARRAY->declare(index, SHADER);                                             \
+  }
 
-void Object<GeometryCylinder>::declarations(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryCylinder>::declarations(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   DECLARE_IF(position_array, POSITION_ARRAY, shader)
-  if(position_array) {
+  if (position_array) {
     int index = surf->resourceIndex(POSITION_ARRAY);
     shader.append("vec4 get_position(uint i) {\n  return ");
     position_array->sample(index, shader);
@@ -708,7 +730,7 @@ void Object<GeometryCylinder>::declarations(SurfaceObjectBase *surf, AppendableS
   }
 
   DECLARE_IF(primitive_radius_array, RADIUS_ARRAY, shader)
-  if(primitive_radius_array) {
+  if (primitive_radius_array) {
     int index = surf->resourceIndex(RADIUS_ARRAY);
     shader.append("float get_radius(uint i) {\n  return ");
     shader.append(ssboArrayName[index]);
@@ -718,7 +740,7 @@ void Object<GeometryCylinder>::declarations(SurfaceObjectBase *surf, AppendableS
   }
 
   DECLARE_IF(index_array, INDEX_ARRAY, shader)
-  if(index_array) {
+  if (index_array) {
     int index = surf->resourceIndex(INDEX_ARRAY);
     shader.append("uvec2 get_vertices(uint i) {\n  return ");
     shader.append(ssboArrayName[index]);
@@ -728,11 +750,10 @@ void Object<GeometryCylinder>::declarations(SurfaceObjectBase *surf, AppendableS
   }
 }
 
-
-
-void cylinder_init_objects(ObjectRef<GeometryCylinder> cylinderObj) {
+void cylinder_init_objects(ObjectRef<GeometryCylinder> cylinderObj)
+{
   auto &gl = cylinderObj->thisDevice->gl;
-  if(cylinderObj->vao == 0) {
+  if (cylinderObj->vao == 0) {
     gl.GenVertexArrays(1, &cylinderObj->vao);
     gl.GenVertexArrays(1, &cylinderObj->occlusion_resolve_vao);
 
@@ -743,20 +764,36 @@ void cylinder_init_objects(ObjectRef<GeometryCylinder> cylinderObj) {
     uint32_t vertex_count = 0;
     uint32_t index_count = 0;
     uint32_t body_index_count = 0;
-    generate_cylinder(nullptr, nullptr, sides, &vertex_count, &index_count, &body_index_count);  
-    std::vector<float> vertices(3*vertex_count);
+    generate_cylinder(nullptr,
+        nullptr,
+        sides,
+        &vertex_count,
+        &index_count,
+        &body_index_count);
+    std::vector<float> vertices(3 * vertex_count);
     std::vector<uint32_t> indices(index_count);
-    generate_cylinder(vertices.data(), indices.data(), sides, &vertex_count, &index_count, &body_index_count);
+    generate_cylinder(vertices.data(),
+        indices.data(),
+        sides,
+        &vertex_count,
+        &index_count,
+        &body_index_count);
 
     gl.GenBuffers(1, &cylinderObj->cyl_position);
     gl.BindBuffer(GL_ARRAY_BUFFER, cylinderObj->cyl_position);
-    gl.BufferData(GL_ARRAY_BUFFER, sizeof(float)*vertices.size(), vertices.data(), GL_STATIC_DRAW);
+    gl.BufferData(GL_ARRAY_BUFFER,
+        sizeof(float) * vertices.size(),
+        vertices.data(),
+        GL_STATIC_DRAW);
     gl.EnableVertexAttribArray(0);
     gl.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
     gl.GenBuffers(1, &cylinderObj->cyl_index);
     gl.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, cylinderObj->cyl_index);
-    gl.BufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t)*indices.size(), indices.data(), GL_STATIC_DRAW);
+    gl.BufferData(GL_ELEMENT_ARRAY_BUFFER,
+        sizeof(uint32_t) * indices.size(),
+        indices.data(),
+        GL_STATIC_DRAW);
 
     cylinderObj->index_count = index_count;
     cylinderObj->body_index_count = body_index_count;
@@ -767,7 +804,7 @@ void Object<GeometryCylinder>::update()
 {
   DefaultObject::update();
 
-  if(dirty) {
+  if (dirty) {
     thisDevice->queue.enqueue(cylinder_init_objects, this);
     std::array<float, 4> data{radius, float(caps != STRING_ENUM_none), 0, 0};
     thisDevice->materials.set(geometry_index, data);
@@ -775,11 +812,12 @@ void Object<GeometryCylinder>::update()
   }
 }
 
-std::array<float, 6> Object<GeometryCylinder>::bounds() {
-  std::array<float, 6> b{0,0,0,0,0,0};
-  if(position_array) {
+std::array<float, 6> Object<GeometryCylinder>::bounds()
+{
+  std::array<float, 6> b{0, 0, 0, 0, 0, 0};
+  if (position_array) {
     b = position_array->getBounds();
-    if(primitive_radius_array) {
+    if (primitive_radius_array) {
       std::array<float, 6> a = primitive_radius_array->getBounds();
 
       b[0] += a[0];
@@ -800,11 +838,10 @@ std::array<float, 6> Object<GeometryCylinder>::bounds() {
   return b;
 }
 
-#define ALLOCATE_IF(ARRAY, SLOT)\
-if(ARRAY) {\
-  surf->allocateStorageBuffer(SLOT, ARRAY->getBuffer());\
-}
-
+#define ALLOCATE_IF(ARRAY, SLOT)                                               \
+  if (ARRAY) {                                                                 \
+    surf->allocateStorageBuffer(SLOT, ARRAY->getBuffer());                     \
+  }
 
 void Object<GeometryCylinder>::allocateResources(SurfaceObjectBase *surf)
 {
@@ -830,31 +867,30 @@ void Object<GeometryCylinder>::allocateResources(SurfaceObjectBase *surf)
   ALLOCATE_IF(primitive_attribute3_array, ATTRIBUTE3_ARRAY)
 }
 
+#define DRAW_COMMAND_IF(ARRAY, SLOT)                                           \
+  if (ARRAY) {                                                                 \
+    int index = surf->resourceIndex(SLOT);                                     \
+    ARRAY->drawCommand(index, command);                                        \
+  }
 
-#define DRAW_COMMAND_IF(ARRAY, SLOT)\
-if(ARRAY) {\
-  int index = surf->resourceIndex(SLOT);\
-  ARRAY->drawCommand(index, command);\
-}
-
-
-void Object<GeometryCylinder>::drawCommand(SurfaceObjectBase *surf, DrawCommand &command)
+void Object<GeometryCylinder>::drawCommand(
+    SurfaceObjectBase *surf, DrawCommand &command)
 {
-  //command.shadow_shader = shadow_shader;
+  // command.shadow_shader = shadow_shader;
   command.vao = vao;
   command.prim = GL_TRIANGLES;
-  command.count = index_count;//caps == STRING_ENUM_none ? body_index_count : index_count;
-  if(index_array) {
+  command.count =
+      index_count; // caps == STRING_ENUM_none ? body_index_count : index_count;
+  if (index_array) {
     command.instanceCount = index_array->size();
   } else {
-    command.instanceCount = position_array->size()/2;
+    command.instanceCount = position_array->size() / 2;
   }
-  command.indexType = GL_UNSIGNED_INT;  
+  command.indexType = GL_UNSIGNED_INT;
   command.cullMode = GL_BACK;
 
   command.occlusion_resolve_vao = occlusion_resolve_vao;
-  command.vertex_count = 8*command.instanceCount;
-
+  command.vertex_count = 8 * command.instanceCount;
 
   DRAW_COMMAND_IF(position_array, POSITION_ARRAY)
 
@@ -863,105 +899,119 @@ void Object<GeometryCylinder>::drawCommand(SurfaceObjectBase *surf, DrawCommand 
   DRAW_COMMAND_IF(index_array, INDEX_ARRAY)
 
   DRAW_COMMAND_IF(color_array, COLOR_ARRAY)
-  else
-  DRAW_COMMAND_IF(primitive_color_array, COLOR_ARRAY)
+  else DRAW_COMMAND_IF(primitive_color_array, COLOR_ARRAY)
 
-  DRAW_COMMAND_IF(attribute0_array, ATTRIBUTE0_ARRAY)
-  else
-  DRAW_COMMAND_IF(primitive_attribute0_array, ATTRIBUTE0_ARRAY)
+      DRAW_COMMAND_IF(attribute0_array, ATTRIBUTE0_ARRAY) else DRAW_COMMAND_IF(
+          primitive_attribute0_array, ATTRIBUTE0_ARRAY)
 
-  DRAW_COMMAND_IF(attribute1_array, ATTRIBUTE1_ARRAY)
-  else
-  DRAW_COMMAND_IF(primitive_attribute1_array, ATTRIBUTE1_ARRAY)
+          DRAW_COMMAND_IF(attribute1_array,
+              ATTRIBUTE1_ARRAY) else DRAW_COMMAND_IF(primitive_attribute1_array,
+              ATTRIBUTE1_ARRAY)
 
-  DRAW_COMMAND_IF(attribute3_array, ATTRIBUTE3_ARRAY)
-  else
-  DRAW_COMMAND_IF(primitive_attribute3_array, ATTRIBUTE3_ARRAY)
+              DRAW_COMMAND_IF(attribute3_array,
+                  ATTRIBUTE3_ARRAY) else DRAW_COMMAND_IF(primitive_attribute3_array,
+                  ATTRIBUTE3_ARRAY)
 
-  DRAW_COMMAND_IF(attribute3_array, ATTRIBUTE3_ARRAY)
-  else
-  DRAW_COMMAND_IF(primitive_attribute3_array, ATTRIBUTE3_ARRAY)
-
+                  DRAW_COMMAND_IF(attribute3_array,
+                      ATTRIBUTE3_ARRAY) else DRAW_COMMAND_IF(primitive_attribute3_array,
+                      ATTRIBUTE3_ARRAY)
 }
 
-
-
-void Object<GeometryCylinder>::vertexShader(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryCylinder>::vertexShader(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   declarations(surf, shader);
   shader.append(cyl_vert);
 }
 
+#define SAMPLE_IF(ARRAY, PRIMITIVE_ARRAY, SLOT, VARIABLE)                      \
+  if (ARRAY) {                                                                 \
+    int index = surf->resourceIndex(SLOT);                                     \
+    shader.append("  " VARIABLE " = mix(");                                    \
+    ARRAY->sample(index, shader);                                              \
+    shader.append("vertexId.x), ");                                            \
+    ARRAY->sample(index, shader);                                              \
+    shader.append("vertexId.y), u);\n");                                       \
+  } else if (PRIMITIVE_ARRAY) {                                                \
+    int index = surf->resourceIndex(SLOT);                                     \
+    shader.append("  " VARIABLE " = ");                                        \
+    PRIMITIVE_ARRAY->sample(index, shader);                                    \
+    shader.append("primitiveId);\n");                                          \
+  }
 
-
-#define SAMPLE_IF(ARRAY, PRIMITIVE_ARRAY, SLOT, VARIABLE)\
-if(ARRAY) {\
-  int index = surf->resourceIndex(SLOT);\
-  shader.append("  " VARIABLE " = mix(");\
-  ARRAY->sample(index, shader);\
-  shader.append("vertexId.x), ");\
-  ARRAY->sample(index, shader);\
-  shader.append("vertexId.y), u);\n");\
-} else if(PRIMITIVE_ARRAY) {\
-  int index = surf->resourceIndex(SLOT);\
-  shader.append("  " VARIABLE " = ");\
-  PRIMITIVE_ARRAY->sample(index, shader);\
-  shader.append("primitiveId);\n");\
-}
-
-
-void Object<GeometryCylinder>::fragmentShaderMain(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryCylinder>::fragmentShaderMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   DECLARE_IF(color_array, COLOR_ARRAY, shader)
-  else
-  DECLARE_IF(primitive_color_array, COLOR_ARRAY, shader)
+  else DECLARE_IF(primitive_color_array, COLOR_ARRAY, shader)
 
-  DECLARE_IF(attribute0_array, ATTRIBUTE0_ARRAY, shader)
-  else
-  DECLARE_IF(primitive_attribute0_array, ATTRIBUTE0_ARRAY, shader)
+      DECLARE_IF(attribute0_array, ATTRIBUTE0_ARRAY, shader) else DECLARE_IF(
+          primitive_attribute0_array, ATTRIBUTE0_ARRAY, shader)
 
-  DECLARE_IF(attribute1_array, ATTRIBUTE1_ARRAY, shader)
-  else
-  DECLARE_IF(primitive_attribute1_array, ATTRIBUTE1_ARRAY, shader)
+          DECLARE_IF(attribute1_array,
+              ATTRIBUTE1_ARRAY,
+              shader) else DECLARE_IF(primitive_attribute1_array,
+              ATTRIBUTE1_ARRAY,
+              shader)
 
-  DECLARE_IF(attribute3_array, ATTRIBUTE3_ARRAY, shader)
-  else
-  DECLARE_IF(primitive_attribute3_array, ATTRIBUTE3_ARRAY, shader)
+              DECLARE_IF(attribute3_array,
+                  ATTRIBUTE3_ARRAY,
+                  shader) else DECLARE_IF(primitive_attribute3_array,
+                  ATTRIBUTE3_ARRAY,
+                  shader)
 
-  DECLARE_IF(attribute3_array, ATTRIBUTE3_ARRAY, shader)
-  else
-  DECLARE_IF(primitive_attribute3_array, ATTRIBUTE3_ARRAY, shader)
+                  DECLARE_IF(attribute3_array,
+                      ATTRIBUTE3_ARRAY,
+                      shader) else DECLARE_IF(primitive_attribute3_array,
+                      ATTRIBUTE3_ARRAY,
+                      shader)
 
-  shader.append(occlusion_declaration);
+                      shader.append(occlusion_declaration);
 
   shader.append(cyl_frag);
 
   SAMPLE_IF(color_array, primitive_color_array, COLOR_ARRAY, "color")
-  SAMPLE_IF(attribute0_array, primitive_attribute0_array, ATTRIBUTE0_ARRAY, "attribute0")
-  SAMPLE_IF(attribute1_array, primitive_attribute1_array, ATTRIBUTE1_ARRAY, "attribute1")
-  SAMPLE_IF(attribute2_array, primitive_attribute2_array, ATTRIBUTE2_ARRAY, "attribute2")
-  SAMPLE_IF(attribute3_array, primitive_attribute3_array, ATTRIBUTE3_ARRAY, "attribute3")
+  SAMPLE_IF(attribute0_array,
+      primitive_attribute0_array,
+      ATTRIBUTE0_ARRAY,
+      "attribute0")
+  SAMPLE_IF(attribute1_array,
+      primitive_attribute1_array,
+      ATTRIBUTE1_ARRAY,
+      "attribute1")
+  SAMPLE_IF(attribute2_array,
+      primitive_attribute2_array,
+      ATTRIBUTE2_ARRAY,
+      "attribute2")
+  SAMPLE_IF(attribute3_array,
+      primitive_attribute3_array,
+      ATTRIBUTE3_ARRAY,
+      "attribute3")
 }
 
-void Object<GeometryCylinder>::vertexShaderShadow(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryCylinder>::vertexShaderShadow(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   declarations(surf, shader);
   shader.append(cyl_vert_shadow);
 }
 
-void Object<GeometryCylinder>::geometryShaderShadow(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryCylinder>::geometryShaderShadow(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(shadow_block_declaration);
   shader.append(cyl_geom_shadow);
 }
 
-void Object<GeometryCylinder>::fragmentShaderShadowMain(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryCylinder>::fragmentShaderShadowMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(shadow_block_declaration);
   shader.append(cyl_frag_shadow);
 }
 
-void Object<GeometryCylinder>::vertexShaderOcclusion(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryCylinder>::vertexShaderOcclusion(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(shader_conversions);
   shader.append(occlusion_declaration);
@@ -970,7 +1020,11 @@ void Object<GeometryCylinder>::vertexShaderOcclusion(SurfaceObjectBase *surf, Ap
   shader.append(cyl_vert_occlusion_resolve);
 }
 
-static void sphere_delete_objects(Object<Device> *deviceObj, GLuint vao, GLuint cyl_position, GLuint cyl_index) {
+static void sphere_delete_objects(Object<Device> *deviceObj,
+    GLuint vao,
+    GLuint cyl_position,
+    GLuint cyl_index)
+{
   auto &gl = deviceObj->gl;
   gl.DeleteVertexArrays(1, &vao);
   gl.DeleteBuffers(1, &cyl_position);
@@ -979,10 +1033,10 @@ static void sphere_delete_objects(Object<Device> *deviceObj, GLuint vao, GLuint 
 
 Object<GeometryCylinder>::~Object()
 {
-  if(vao) {
-    thisDevice->queue.enqueue(sphere_delete_objects, thisDevice, vao, cyl_position, cyl_index);
+  if (vao) {
+    thisDevice->queue.enqueue(
+        sphere_delete_objects, thisDevice, vao, cyl_position, cyl_index);
   }
 }
 
-} //namespace visgl
-
+} // namespace visgl

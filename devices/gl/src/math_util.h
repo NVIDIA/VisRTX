@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+// clang-format off
+
 #ifndef MATH_UTIL_H
 #define MATH_UTIL_H
 

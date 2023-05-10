@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+// clang-format off
 namespace visgl {
   extern const float sphere_sample_directions[1800] = {
     0, 0.525731, 0.850651,

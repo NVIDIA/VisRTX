@@ -29,12 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "shader_blocks.h"
 #include "MaterialMacros.h"
 
-namespace visgl{
+namespace visgl {
 
 Object<MaterialTransparentMatte>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
@@ -50,7 +49,8 @@ const char *transparent_matte_uniformColor = "materials[instanceIndices.y]\n";
 
 const char *transparent_matte_opacity = "  vec4 opacity = ";
 
-const char *transparent_matte_uniformOpacity = "materials[instanceIndices.y+1u]\n";
+const char *transparent_matte_uniformOpacity =
+    "materials[instanceIndices.y+1u]\n";
 
 const char *transparent_matte_material_eval_block = R"GLSL(
   vec4 lighting = vec4(0.0, 0.0, 0.0, 1.0);
@@ -84,7 +84,6 @@ const char *transparent_matte_material_eval_block = R"GLSL(
 #define COLOR_SAMPLER MATERIAL_RESOURCE(0)
 #define OPACITY_SAMPLER MATERIAL_RESOURCE(1)
 
-
 void Object<MaterialTransparentMatte>::commit()
 {
   DefaultObject::commit();
@@ -93,30 +92,35 @@ void Object<MaterialTransparentMatte>::commit()
   MATERIAL_COMMIT_ATTRIBUTE(opacity, ANARI_FLOAT32, 1)
 }
 
-uint32_t Object<MaterialTransparentMatte>::index() {
+uint32_t Object<MaterialTransparentMatte>::index()
+{
   return material_index;
 }
 
-void Object<MaterialTransparentMatte>::allocateResources(SurfaceObjectBase *surf)
+void Object<MaterialTransparentMatte>::allocateResources(
+    SurfaceObjectBase *surf)
 {
   ALLOCATE_SAMPLERS(color, COLOR_SAMPLER)
   ALLOCATE_SAMPLERS(opacity, OPACITY_SAMPLER)
 }
 
-void Object<MaterialTransparentMatte>::drawCommand(SurfaceObjectBase *surf, DrawCommand &command)
+void Object<MaterialTransparentMatte>::drawCommand(
+    SurfaceObjectBase *surf, DrawCommand &command)
 {
   MATERIAL_DRAW_COMMAND(color, COLOR_SAMPLER)
   MATERIAL_DRAW_COMMAND(opacity, OPACITY_SAMPLER)
 }
 
-void Object<MaterialTransparentMatte>::fragmentShaderDeclarations(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<MaterialTransparentMatte>::fragmentShaderDeclarations(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   MATERIAL_FRAG_DECL(color, COLOR_SAMPLER)
   MATERIAL_FRAG_DECL(opacity, OPACITY_SAMPLER)
 
   shader.append(shadow_map_declaration);
 }
-void Object<MaterialTransparentMatte>::fragmentShaderMain(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<MaterialTransparentMatte>::fragmentShaderMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   MATERIAL_FRAG_SAMPLE("baseColor", color, ANARI_FLOAT32_VEC3, 0, COLOR_SAMPLER)
   MATERIAL_FRAG_SAMPLE("opacity", opacity, ANARI_FLOAT32, 1, OPACITY_SAMPLER)
@@ -124,13 +128,12 @@ void Object<MaterialTransparentMatte>::fragmentShaderMain(SurfaceObjectBase *sur
   shader.append(transparent_matte_material_eval_block);
 }
 
-void Object<MaterialTransparentMatte>::fragmentShaderShadowDeclarations(SurfaceObjectBase *surf, AppendableShader &shader)
-{
-}
+void Object<MaterialTransparentMatte>::fragmentShaderShadowDeclarations(
+    SurfaceObjectBase *surf, AppendableShader &shader)
+{}
 
-void Object<MaterialTransparentMatte>::fragmentShaderShadowMain(SurfaceObjectBase *surf, AppendableShader &shader)
-{
-}
+void Object<MaterialTransparentMatte>::fragmentShaderShadowMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
+{}
 
-} //namespace visgl
-
+} // namespace visgl

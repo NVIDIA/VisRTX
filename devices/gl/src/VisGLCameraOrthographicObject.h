@@ -35,11 +35,11 @@
 
 #include <array>
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
-class Object<CameraOrthographic> : public DefaultObject<CameraOrthographic, CameraObjectBase>
+class Object<CameraOrthographic>
+    : public DefaultObject<CameraOrthographic, CameraObjectBase>
 {
   float position[3];
   float direction[3];
@@ -48,10 +48,10 @@ class Object<CameraOrthographic> : public DefaultObject<CameraOrthographic, Came
   float region[4];
   float aspect;
   float height;
-  
-  void calculateMatrices(float near, float far);
-public:
 
+  void calculateMatrices(float near, float far);
+
+ public:
   Object(ANARIDevice d, ANARIObject handle);
 
   void updateAt(size_t index, float *bounds) const override;
@@ -59,5 +59,4 @@ public:
   void commit() override;
 };
 
-} //namespace visgl
-
+} // namespace visgl

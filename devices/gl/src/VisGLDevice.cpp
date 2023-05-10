@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include <cstdarg>
 #include <cstdint>
 #include "VisGLDevice.h"
@@ -38,8 +37,7 @@
 // debug interface
 #include "anari/ext/debug/DebugObject.h"
 
-namespace visgl{
-
+namespace visgl {
 
 template <typename T>
 void writeToVoidP(void *_p, T v)
@@ -72,7 +70,8 @@ int VisGLDevice::getProperty(ANARIObject handle,
     uint64_t size,
     ANARIWaitMask mask)
 {
-  if (handle == this_device() && type == ANARI_FUNCTION_POINTER && std::strncmp(name, "debugObjects", 12) == 0) {
+  if (handle == this_device() && type == ANARI_FUNCTION_POINTER
+      && std::strncmp(name, "debugObjects", 12) == 0) {
     writeToVoidP(mem, getDebugFactory);
     return 1;
   } else if (auto obj = handle_cast<ObjectBase *>(handle)) {
@@ -195,19 +194,16 @@ void VisGLDevice::discardFrame(ANARIFrame handle)
 /////////////////////////////////////////////////////////////////////////////
 
 VisGLDevice::VisGLDevice(ANARILibrary library)
-    : DeviceImpl(library),
-      refcount(1),
-      deviceObject(this_device())
+    : DeviceImpl(library), refcount(1), deviceObject(this_device())
 {
   objects.add(); // reserve the null index for the null handle
   statusCallback = defaultStatusCallback();
   statusCallbackUserData = defaultStatusCallbackUserPtr();
 }
 
-
 VisGLDevice::~VisGLDevice()
 {
-  for(uint64_t i = 0;i<objects.size();++i) {
+  for (uint64_t i = 0; i < objects.size(); ++i) {
     objects[i].reset(nullptr);
   }
 }
@@ -286,16 +282,14 @@ void anariReportStatus(ANARIDevice handle,
   }
 }
 
-} //namespace visgl
-
+} // namespace visgl
 
 static char deviceName[] = "visgl";
 
 extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_NEW_DEVICE(
     visgl, library, subtype)
 {
-  if (subtype == std::string("default")
-      || subtype == std::string("visgl"))
+  if (subtype == std::string("default") || subtype == std::string("visgl"))
     return (ANARIDevice) new visgl::VisGLDevice(library);
   return nullptr;
 }
@@ -318,8 +312,7 @@ extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_SUBTYPES(
   return visgl::query_object_types(objectType);
 }
 
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_PROPERTY(
-    visgl,
+extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_PROPERTY(visgl,
     library,
     deviceSubtype,
     objectSubtype,
@@ -333,8 +326,7 @@ extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_PROPERTY(
       objectType, objectSubtype, propertyName, propertyType);
 }
 
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(
-    visgl,
+extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(visgl,
     library,
     deviceSubtype,
     objectSubtype,

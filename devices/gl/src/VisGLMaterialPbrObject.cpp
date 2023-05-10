@@ -29,12 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "shader_blocks.h"
 #include "MaterialMacros.h"
 
-namespace visgl{
+namespace visgl {
 
 Object<MaterialPhysicallyBased>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
@@ -118,7 +117,7 @@ const char *pbr_material_eval_block = R"GLSL(
 void Object<MaterialPhysicallyBased>::commit()
 {
   DefaultObject::commit();
-  
+
   std::array<float, 4> scalars{1.5f, 0.0f, 0.0f, 0.0f};
   current.ior.get(ANARI_FLOAT32, scalars.data());
   thisDevice->materials.set(material_index, scalars);
@@ -135,7 +134,8 @@ void Object<MaterialPhysicallyBased>::commit()
   MATERIAL_COMMIT_ATTRIBUTE(clearcoatRoughness, ANARI_FLOAT32, 10)
 }
 
-uint32_t Object<MaterialPhysicallyBased>::index() {
+uint32_t Object<MaterialPhysicallyBased>::index()
+{
   return material_index;
 }
 
@@ -153,7 +153,8 @@ void Object<MaterialPhysicallyBased>::allocateResources(SurfaceObjectBase *surf)
   ALLOCATE_SAMPLERS(clearcoatRoughness, CLOEARCOAT_ROUGHNESS_SAMPLER)
 }
 
-void Object<MaterialPhysicallyBased>::drawCommand(SurfaceObjectBase *surf, DrawCommand &command)
+void Object<MaterialPhysicallyBased>::drawCommand(
+    SurfaceObjectBase *surf, DrawCommand &command)
 {
   MATERIAL_DRAW_COMMAND(baseColor, BASE_COLOR_SAMPLER)
   MATERIAL_DRAW_COMMAND(opacity, OPACITY_SAMPLER)
@@ -167,7 +168,8 @@ void Object<MaterialPhysicallyBased>::drawCommand(SurfaceObjectBase *surf, DrawC
   MATERIAL_DRAW_COMMAND(clearcoatRoughness, CLOEARCOAT_ROUGHNESS_SAMPLER)
 }
 
-void Object<MaterialPhysicallyBased>::fragmentShaderDeclarations(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<MaterialPhysicallyBased>::fragmentShaderDeclarations(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   MATERIAL_FRAG_DECL(baseColor, BASE_COLOR_SAMPLER)
   MATERIAL_FRAG_DECL(opacity, OPACITY_SAMPLER)
@@ -183,30 +185,42 @@ void Object<MaterialPhysicallyBased>::fragmentShaderDeclarations(SurfaceObjectBa
   shader.append(shadow_map_declaration);
 }
 
-void Object<MaterialPhysicallyBased>::fragmentShaderMain(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<MaterialPhysicallyBased>::fragmentShaderMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
-  MATERIAL_FRAG_SAMPLE("baseColor",baseColor, ANARI_FLOAT32_VEC3, 1, BASE_COLOR_SAMPLER)
-  MATERIAL_FRAG_SAMPLE("opacity",opacity, ANARI_FLOAT32, 2, OPACITY_SAMPLER)
+  MATERIAL_FRAG_SAMPLE(
+      "baseColor", baseColor, ANARI_FLOAT32_VEC3, 1, BASE_COLOR_SAMPLER)
+  MATERIAL_FRAG_SAMPLE("opacity", opacity, ANARI_FLOAT32, 2, OPACITY_SAMPLER)
   MATERIAL_FRAG_SAMPLE("metallic", metallic, ANARI_FLOAT32, 3, METALLIC_SAMPLER)
-  MATERIAL_FRAG_SAMPLE("roughness", roughness, ANARI_FLOAT32, 4, ROUGHNESS_SAMPLER)
-  MATERIAL_FRAG_SAMPLE("emissive", emissive, ANARI_FLOAT32_VEC3, 5, EMISSIVE_SAMPLER)
-  MATERIAL_FRAG_SAMPLE("occlusion", occlusion, ANARI_FLOAT32, 6, OCCLUSION_SAMPLER)
+  MATERIAL_FRAG_SAMPLE(
+      "roughness", roughness, ANARI_FLOAT32, 4, ROUGHNESS_SAMPLER)
+  MATERIAL_FRAG_SAMPLE(
+      "emissive", emissive, ANARI_FLOAT32_VEC3, 5, EMISSIVE_SAMPLER)
+  MATERIAL_FRAG_SAMPLE(
+      "occlusion", occlusion, ANARI_FLOAT32, 6, OCCLUSION_SAMPLER)
   MATERIAL_FRAG_SAMPLE("specular", specular, ANARI_FLOAT32, 7, SPECULAR_SAMPLER)
-  MATERIAL_FRAG_SAMPLE("specularColor", specularColor, ANARI_FLOAT32_VEC3, 8, SPECULAR_COLOR_SAMPLER)
-  MATERIAL_FRAG_SAMPLE("clearcoat", clearcoat, ANARI_FLOAT32, 9, CLEARCOAT_SAMPLER)
-  MATERIAL_FRAG_SAMPLE("clearcoatRoughness", clearcoatRoughness, ANARI_FLOAT32, 10, CLOEARCOAT_ROUGHNESS_SAMPLER)
+  MATERIAL_FRAG_SAMPLE("specularColor",
+      specularColor,
+      ANARI_FLOAT32_VEC3,
+      8,
+      SPECULAR_COLOR_SAMPLER)
+  MATERIAL_FRAG_SAMPLE(
+      "clearcoat", clearcoat, ANARI_FLOAT32, 9, CLEARCOAT_SAMPLER)
+  MATERIAL_FRAG_SAMPLE("clearcoatRoughness",
+      clearcoatRoughness,
+      ANARI_FLOAT32,
+      10,
+      CLOEARCOAT_ROUGHNESS_SAMPLER)
 
   shader.append(pbr_material_eval_block);
 }
 
-void Object<MaterialPhysicallyBased>::fragmentShaderShadowDeclarations(SurfaceObjectBase *surf, AppendableShader &shader)
-{
-}
+void Object<MaterialPhysicallyBased>::fragmentShaderShadowDeclarations(
+    SurfaceObjectBase *surf, AppendableShader &shader)
+{}
 
-void Object<MaterialPhysicallyBased>::fragmentShaderShadowMain(SurfaceObjectBase *surf, AppendableShader &shader)
-{
-}
+void Object<MaterialPhysicallyBased>::fragmentShaderShadowMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
+{}
 
-
-} //namespace visgl
-
+} // namespace visgl

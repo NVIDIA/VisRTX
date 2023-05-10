@@ -29,26 +29,24 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
 
 #include <array>
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
-class Object<LightDirectional> : public DefaultObject<LightDirectional, LightObjectBase>
+class Object<LightDirectional>
+    : public DefaultObject<LightDirectional, LightObjectBase>
 {
-
   std::array<float, 4> color;
   std::array<float, 4> direction;
   size_t light_index;
   bool dirty = true;
- public:
 
+ public:
   Object(ANARIDevice d, ANARIObject handle);
 
   void commit() override;
@@ -56,5 +54,4 @@ class Object<LightDirectional> : public DefaultObject<LightDirectional, LightObj
   uint32_t index() override;
 };
 
-} //namespace visgl
-
+} // namespace visgl

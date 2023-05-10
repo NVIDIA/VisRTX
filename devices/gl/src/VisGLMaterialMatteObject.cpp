@@ -29,12 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "shader_blocks.h"
 #include "MaterialMacros.h"
 
-namespace visgl{
+namespace visgl {
 
 Object<MaterialMatte>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
@@ -84,7 +83,6 @@ const char *matte_material_eval_block = R"GLSL(
 #define COLOR_SAMPLER MATERIAL_RESOURCE(0)
 #define OPACITY_SAMPLER MATERIAL_RESOURCE(1)
 
-
 void Object<MaterialMatte>::commit()
 {
   DefaultObject::commit();
@@ -93,7 +91,8 @@ void Object<MaterialMatte>::commit()
   MATERIAL_COMMIT_ATTRIBUTE(opacity, ANARI_FLOAT32, 1)
 }
 
-uint32_t Object<MaterialMatte>::index() {
+uint32_t Object<MaterialMatte>::index()
+{
   return material_index;
 }
 
@@ -103,20 +102,23 @@ void Object<MaterialMatte>::allocateResources(SurfaceObjectBase *surf)
   ALLOCATE_SAMPLERS(opacity, OPACITY_SAMPLER)
 }
 
-void Object<MaterialMatte>::drawCommand(SurfaceObjectBase *surf, DrawCommand &command)
+void Object<MaterialMatte>::drawCommand(
+    SurfaceObjectBase *surf, DrawCommand &command)
 {
   MATERIAL_DRAW_COMMAND(color, COLOR_SAMPLER)
   MATERIAL_DRAW_COMMAND(opacity, OPACITY_SAMPLER)
 }
 
-void Object<MaterialMatte>::fragmentShaderDeclarations(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<MaterialMatte>::fragmentShaderDeclarations(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   MATERIAL_FRAG_DECL(color, COLOR_SAMPLER)
   MATERIAL_FRAG_DECL(opacity, OPACITY_SAMPLER)
 
   shader.append(shadow_map_declaration);
 }
-void Object<MaterialMatte>::fragmentShaderMain(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<MaterialMatte>::fragmentShaderMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   MATERIAL_FRAG_SAMPLE("baseColor", color, ANARI_FLOAT32_VEC3, 0, COLOR_SAMPLER)
   MATERIAL_FRAG_SAMPLE("opacity", opacity, ANARI_FLOAT32, 1, OPACITY_SAMPLER)
@@ -124,13 +126,12 @@ void Object<MaterialMatte>::fragmentShaderMain(SurfaceObjectBase *surf, Appendab
   shader.append(matte_material_eval_block);
 }
 
-void Object<MaterialMatte>::fragmentShaderShadowDeclarations(SurfaceObjectBase *surf, AppendableShader &shader)
-{
-}
+void Object<MaterialMatte>::fragmentShaderShadowDeclarations(
+    SurfaceObjectBase *surf, AppendableShader &shader)
+{}
 
-void Object<MaterialMatte>::fragmentShaderShadowMain(SurfaceObjectBase *surf, AppendableShader &shader)
-{
-}
+void Object<MaterialMatte>::fragmentShaderShadowMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
+{}
 
-} //namespace visgl
-
+} // namespace visgl

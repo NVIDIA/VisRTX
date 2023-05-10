@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "anari/type_utility.h"
 #include "math_util.h"
@@ -38,8 +37,7 @@
 #include <cstdlib>
 #include <cstring>
 
-namespace visgl{
-
+namespace visgl {
 
 Object<LightPoint>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
@@ -54,7 +52,7 @@ void Object<LightPoint>::commit()
   DefaultObject::commit();
 
   current.color.get(ANARI_FLOAT32_VEC3, color.data());
-  current.intensity.get(ANARI_FLOAT32, color.data()+3);
+  current.intensity.get(ANARI_FLOAT32, color.data() + 3);
   current.position.get(ANARI_FLOAT32_VEC3, position.data());
   position[3] = 1;
   dirty = true;
@@ -63,16 +61,16 @@ void Object<LightPoint>::commit()
 void Object<LightPoint>::update()
 {
   DefaultObject::update();
-  if(dirty) {
-    thisDevice->lights.set(light_index+0, color);
-    thisDevice->lights.set(light_index+1, position);
+  if (dirty) {
+    thisDevice->lights.set(light_index + 0, color);
+    thisDevice->lights.set(light_index + 1, position);
     dirty = false;
   }
 }
 
-uint32_t Object<LightPoint>::index() {
+uint32_t Object<LightPoint>::index()
+{
   return light_index;
 }
 
-} //namespace visgl
-
+} // namespace visgl

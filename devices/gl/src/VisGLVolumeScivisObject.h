@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
@@ -37,11 +36,11 @@
 #include <array>
 #include <vector>
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
-class Object<VolumeScivis> : public DefaultObject<VolumeScivis, VolumeObjectBase>
+class Object<VolumeScivis>
+    : public DefaultObject<VolumeScivis, VolumeObjectBase>
 {
   bool dirty = true;
 
@@ -59,6 +58,7 @@ class Object<VolumeScivis> : public DefaultObject<VolumeScivis, VolumeObjectBase
 
   GLuint lut = 0;
   std::vector<std::array<float, 4>> lutData;
+
  public:
   GLuint shader = 0;
 
@@ -67,9 +67,8 @@ class Object<VolumeScivis> : public DefaultObject<VolumeScivis, VolumeObjectBase
 
   void commit() override;
   void update() override;
-  void drawCommand(DrawCommand&) override;
+  void drawCommand(DrawCommand &) override;
   uint32_t index() override;
 };
 
-} //namespace visgl
-
+} // namespace visgl

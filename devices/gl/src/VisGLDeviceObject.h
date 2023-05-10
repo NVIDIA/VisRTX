@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLObject.h"
@@ -48,61 +47,72 @@
 #include <unordered_map>
 #include <atomic>
 
-namespace visgl{
+namespace visgl {
 
-template<typename T, typename G>
-class StorageBuffer {
+template <typename T, typename G>
+class StorageBuffer
+{
   static const int N = 1;
   G *gl;
   std::vector<T> data;
-  GLuint ssbo[N] = { };
+  GLuint ssbo[N] = {};
   size_t ssbo_capacity = 0;
   bool dirty = false;
   std::mutex mutex;
   std::condition_variable condition;
   bool busy = false;
 
-public:
-  void init(G *gl) {
+ public:
+  void init(G *gl)
+  {
     this->gl = gl;
     gl->GenBuffers(N, ssbo);
   }
-  size_t allocate(size_t n) {
+  size_t allocate(size_t n)
+  {
     std::unique_lock<std::mutex> guard(mutex);
-    condition.wait(guard, [&]{ return !busy; });
+    condition.wait(guard, [&] { return !busy; });
 
     size_t index = data.size();
     data.resize(index + n);
     dirty = true;
     return index;
   }
-  void set(size_t index, const T &value) {
+  void set(size_t index, const T &value)
+  {
     std::unique_lock<std::mutex> guard(mutex);
-    condition.wait(guard, [&]{ return !busy; });
+    condition.wait(guard, [&] { return !busy; });
 
     data[index] = value;
     dirty = true;
   }
-  template<typename U>
-  void setMem(size_t index, const U *mem) {
+  template <typename U>
+  void setMem(size_t index, const U *mem)
+  {
     static_assert(sizeof(T) == sizeof(U), "setMem size mismatch");
     std::unique_lock<std::mutex> guard(mutex);
-    condition.wait(guard, [&]{ return !busy; });
+    condition.wait(guard, [&] { return !busy; });
 
     std::memcpy(&data[index], mem, sizeof(T));
     dirty = true;
   }
-  void lock() {
+  void lock()
+  {
     std::unique_lock<std::mutex> lock(mutex);
     busy = true;
   }
-  GLuint consume() {
+  GLuint consume()
+  {
     std::unique_lock<std::mutex> lock(mutex);
-    if(dirty) {
+    if (dirty) {
       gl->BindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo[0]);
       // this will either resize or orphan the buffer
-      gl->BufferData(GL_SHADER_STORAGE_BUFFER, data.capacity()*sizeof(T), 0, GL_DYNAMIC_DRAW);
-      gl->BufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data.size()*sizeof(T), data.data());
+      gl->BufferData(GL_SHADER_STORAGE_BUFFER,
+          data.capacity() * sizeof(T),
+          0,
+          GL_DYNAMIC_DRAW);
+      gl->BufferSubData(
+          GL_SHADER_STORAGE_BUFFER, 0, data.size() * sizeof(T), data.data());
 
       dirty = false;
     }
@@ -110,13 +120,14 @@ public:
     condition.notify_all();
     return ssbo[0];
   }
-  void release() {
-    gl->DeleteBuffers(N, ssbo); 
+  void release()
+  {
+    gl->DeleteBuffers(N, ssbo);
   }
 };
 
-
-struct OcclusionResources {
+struct OcclusionResources
+{
   GLuint fbo = 0;
   GLuint tex = 0;
   int size = 1024;
@@ -126,11 +137,11 @@ template <>
 class Object<Device> : public DefaultObject<Device>
 {
   std::atomic<uint64_t> epochCounter{0u};
-  friend uint64_t anariIncrementEpoch(Object<Device>*, ObjectBase*);
+  friend uint64_t anariIncrementEpoch(Object<Device> *, ObjectBase *);
 
   OcclusionResources occlusion;
 
-public:
+ public:
   std::unique_ptr<glContextInterface> context;
   int clientapi;
   GladGLContext gl{};
@@ -141,15 +152,15 @@ public:
   StorageBuffer<std::array<float, 4>, GladGLContext> lights;
   ShaderCache<SHADER_SEGMENTS, GladGLContext> shaders;
 
-  OcclusionResources* getOcclusionResources();
+  OcclusionResources *getOcclusionResources();
 
   Object(ANARIDevice d);
   int getProperty(const char *propname,
-    ANARIDataType type,
-    void *mem,
-    uint64_t size,
-    ANARIWaitMask mask) override;
-  
+      ANARIDataType type,
+      void *mem,
+      uint64_t size,
+      ANARIWaitMask mask) override;
+
   void commit() override;
   void update() override;
 
@@ -158,5 +169,4 @@ public:
   ~Object();
 };
 
-} //namespace visgl
-
+} // namespace visgl

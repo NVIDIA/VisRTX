@@ -29,11 +29,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "math_util.h"
 
-namespace visgl{
+namespace visgl {
 
 Object<Instance>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
@@ -58,21 +57,22 @@ void Object<Instance>::commit()
 void Object<Instance>::update()
 {
   DefaultObject::update();
-  if(dirty) {
+  if (dirty) {
     thisDevice->transforms.set(transform_index, instanceTransform);
-    thisDevice->transforms.set(transform_index+1, inverseTransform);
-    thisDevice->transforms.set(transform_index+2, normalTransform);
+    thisDevice->transforms.set(transform_index + 1, inverseTransform);
+    thisDevice->transforms.set(transform_index + 2, normalTransform);
     dirty = false;
   }
 }
 
-const std::array<float, 16>& Object<Instance>::transform() {
+const std::array<float, 16> &Object<Instance>::transform()
+{
   return instanceTransform;
 }
 
-uint32_t Object<Instance>::index() {
+uint32_t Object<Instance>::index()
+{
   return transform_index;
 }
 
-} //namespace visgl
-
+} // namespace visgl

@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "anari/type_utility.h"
 
@@ -40,10 +39,9 @@
 #include <cstdlib>
 #include <cstring>
 
-namespace visgl{
+namespace visgl {
 
 #include "icosphere.h"
-
 
 const char *ico_vert_shadow = R"GLSL(
 layout(location = 0) in vec3 in_position;
@@ -328,13 +326,15 @@ Object<GeometrySphere>::Object(ANARIDevice d, ANARIObject handle)
   geometry_index = thisDevice->materials.allocate(1);
 }
 
-uint32_t Object<GeometrySphere>::index() {
+uint32_t Object<GeometrySphere>::index()
+{
   return geometry_index;
 }
 
-template<typename A, typename B>
-static bool compare_and_assign(A &a, const B &b) {
-  bool cmp = (a==b);
+template <typename A, typename B>
+static bool compare_and_assign(A &a, const B &b)
+{
+  bool cmp = (a == b);
   a = b;
   return cmp;
 }
@@ -343,60 +343,77 @@ void Object<GeometrySphere>::commit()
 {
   DefaultObject::commit();
 
-  dirty |= compare_and_assign(position_array, acquire<DataArray1D*>(current.vertex_position));
-  dirty |= compare_and_assign(color_array, acquire<DataArray1D*>(current.vertex_color));
-  dirty |= compare_and_assign(radius_array, acquire<DataArray1D*>(current.vertex_radius));
-  dirty |= compare_and_assign(attribute0_array, acquire<DataArray1D*>(current.vertex_attribute0));
-  dirty |= compare_and_assign(attribute1_array, acquire<DataArray1D*>(current.vertex_attribute1));
-  dirty |= compare_and_assign(attribute2_array, acquire<DataArray1D*>(current.vertex_attribute2));
-  dirty |= compare_and_assign(attribute3_array, acquire<DataArray1D*>(current.vertex_attribute3));
+  dirty |= compare_and_assign(
+      position_array, acquire<DataArray1D *>(current.vertex_position));
+  dirty |= compare_and_assign(
+      color_array, acquire<DataArray1D *>(current.vertex_color));
+  dirty |= compare_and_assign(
+      radius_array, acquire<DataArray1D *>(current.vertex_radius));
+  dirty |= compare_and_assign(
+      attribute0_array, acquire<DataArray1D *>(current.vertex_attribute0));
+  dirty |= compare_and_assign(
+      attribute1_array, acquire<DataArray1D *>(current.vertex_attribute1));
+  dirty |= compare_and_assign(
+      attribute2_array, acquire<DataArray1D *>(current.vertex_attribute2));
+  dirty |= compare_and_assign(
+      attribute3_array, acquire<DataArray1D *>(current.vertex_attribute3));
 
   // for spheres the notion of primitive is the same as vertex
-  if(!color_array) {
-    dirty |= compare_and_assign(color_array, acquire<DataArray1D*>(current.primitive_color));
+  if (!color_array) {
+    dirty |= compare_and_assign(
+        color_array, acquire<DataArray1D *>(current.primitive_color));
   }
-  if(!attribute0_array) {
-    dirty |= compare_and_assign(attribute0_array, acquire<DataArray1D*>(current.primitive_attribute0));
+  if (!attribute0_array) {
+    dirty |= compare_and_assign(
+        attribute0_array, acquire<DataArray1D *>(current.primitive_attribute0));
   }
-  if(!attribute1_array) {
-    dirty |= compare_and_assign(attribute1_array, acquire<DataArray1D*>(current.primitive_attribute1));
+  if (!attribute1_array) {
+    dirty |= compare_and_assign(
+        attribute1_array, acquire<DataArray1D *>(current.primitive_attribute1));
   }
-  if(!attribute2_array) {
-    dirty |= compare_and_assign(attribute2_array, acquire<DataArray1D*>(current.primitive_attribute2));
+  if (!attribute2_array) {
+    dirty |= compare_and_assign(
+        attribute2_array, acquire<DataArray1D *>(current.primitive_attribute2));
   }
-  if(!attribute3_array) {
-    dirty |= compare_and_assign(attribute3_array, acquire<DataArray1D*>(current.primitive_attribute3));
+  if (!attribute3_array) {
+    dirty |= compare_and_assign(
+        attribute3_array, acquire<DataArray1D *>(current.primitive_attribute3));
   }
-  
-  dirty |= compare_and_assign(primitive_id_array, acquire<DataArray1D*>(current.primitive_id));
 
-  dirty |= compare_and_assign(index_array, acquire<DataArray1D*>(current.primitive_index));
+  dirty |= compare_and_assign(
+      primitive_id_array, acquire<DataArray1D *>(current.primitive_id));
+
+  dirty |= compare_and_assign(
+      index_array, acquire<DataArray1D *>(current.primitive_index));
 
   radius = -1.0f;
   current.radius.get(ANARI_FLOAT32, &radius);
 }
 
-
-template<typename G>
-void configure_vertex_array(G &gl, ObjectRef<DataArray1D> &array, int index, int divisor) {
-  if(array) {
+template <typename G>
+void configure_vertex_array(
+    G &gl, ObjectRef<DataArray1D> &array, int index, int divisor)
+{
+  if (array) {
     ANARIDataType bufferType = array->getBufferType();
     gl.BindBuffer(GL_ARRAY_BUFFER, array->getBuffer());
     gl.EnableVertexAttribArray(index);
     gl.VertexAttribPointer(index,
-      anari::componentsOf(bufferType),
-      gl_type(bufferType),
-      gl_normalized(bufferType),
-      0, 0);
-    if(divisor) {
+        anari::componentsOf(bufferType),
+        gl_type(bufferType),
+        gl_normalized(bufferType),
+        0,
+        0);
+    if (divisor) {
       gl.VertexAttribDivisor(index, divisor);
     }
   }
 }
 
-void sphere_init_objects(ObjectRef<GeometrySphere> sphereObj) {
+void sphere_init_objects(ObjectRef<GeometrySphere> sphereObj)
+{
   auto &gl = sphereObj->thisDevice->gl;
-  if(sphereObj->vao == 0) {
+  if (sphereObj->vao == 0) {
     gl.GenVertexArrays(1, &sphereObj->vao);
     gl.GenVertexArrays(1, &sphereObj->occlusion_resolve_vao);
 
@@ -410,7 +427,8 @@ void sphere_init_objects(ObjectRef<GeometrySphere> sphereObj) {
 
     gl.GenBuffers(1, &sphereObj->ico_index);
     gl.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphereObj->ico_index);
-    gl.BufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices0), indices0, GL_STATIC_DRAW);
+    gl.BufferData(
+        GL_ELEMENT_ARRAY_BUFFER, sizeof(indices0), indices0, GL_STATIC_DRAW);
   }
   gl.BindVertexArray(sphereObj->vao);
   configure_vertex_array(gl, sphereObj->position_array, 0, 1);
@@ -430,7 +448,7 @@ void Object<GeometrySphere>::update()
 {
   DefaultObject::update();
 
-  if(dirty) {
+  if (dirty) {
     thisDevice->queue.enqueue(sphere_init_objects, this);
     std::array<float, 4> data{radius, 0.0f, 0.0f, 0.0f};
     thisDevice->materials.set(geometry_index, data);
@@ -438,36 +456,36 @@ void Object<GeometrySphere>::update()
   }
 }
 
-std::array<float, 6> Object<GeometrySphere>::bounds() {
-  std::array<float, 6> b{0,0,0,0,0,0};
-  if(position_array) {
+std::array<float, 6> Object<GeometrySphere>::bounds()
+{
+  std::array<float, 6> b{0, 0, 0, 0, 0, 0};
+  if (position_array) {
     b = position_array->getBounds();
-    if(radius_array) {
+    if (radius_array) {
       std::array<float, 6> a = radius_array->getBounds();
 
-      b[0] += 1.26f*a[0];
-      b[1] += 1.26f*a[1];
-      b[2] += 1.26f*a[2];
-      b[3] += 1.26f*a[3];
-      b[4] += 1.26f*a[4];
-      b[5] += 1.26f*a[5];
+      b[0] += 1.26f * a[0];
+      b[1] += 1.26f * a[1];
+      b[2] += 1.26f * a[2];
+      b[3] += 1.26f * a[3];
+      b[4] += 1.26f * a[4];
+      b[5] += 1.26f * a[5];
     } else {
-      b[0] -= 1.26f*radius;
-      b[1] -= 1.26f*radius;
-      b[2] -= 1.26f*radius;
-      b[3] += 1.26f*radius;
-      b[4] += 1.26f*radius;
-      b[5] += 1.26f*radius;
+      b[0] -= 1.26f * radius;
+      b[1] -= 1.26f * radius;
+      b[2] -= 1.26f * radius;
+      b[3] += 1.26f * radius;
+      b[4] += 1.26f * radius;
+      b[5] += 1.26f * radius;
     }
   }
   return b;
 }
 
-void Object<GeometrySphere>::allocateResources(SurfaceObjectBase*)
-{
-}
+void Object<GeometrySphere>::allocateResources(SurfaceObjectBase *) {}
 
-void Object<GeometrySphere>::drawCommand(SurfaceObjectBase*, DrawCommand &command)
+void Object<GeometrySphere>::drawCommand(
+    SurfaceObjectBase *, DrawCommand &command)
 {
   command.vao = vao;
   command.prim = GL_TRIANGLES;
@@ -478,46 +496,56 @@ void Object<GeometrySphere>::drawCommand(SurfaceObjectBase*, DrawCommand &comman
 
   command.occlusion_resolve_vao = occlusion_resolve_vao;
 
-  command.vertex_count = 4*position_array->size();
+  command.vertex_count = 4 * position_array->size();
 }
 
-void Object<GeometrySphere>::vertexShader(SurfaceObjectBase*, AppendableShader &shader)
+void Object<GeometrySphere>::vertexShader(
+    SurfaceObjectBase *, AppendableShader &shader)
 {
   shader.append(ico_vert);
 }
 
-void Object<GeometrySphere>::fragmentShaderMain(SurfaceObjectBase*, AppendableShader &shader)
+void Object<GeometrySphere>::fragmentShaderMain(
+    SurfaceObjectBase *, AppendableShader &shader)
 {
   shader.append(occlusion_declaration);
   shader.append(ico_frag);
 }
 
-void Object<GeometrySphere>::vertexShaderShadow(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometrySphere>::vertexShaderShadow(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(ico_vert_shadow);
 }
 
-void Object<GeometrySphere>::geometryShaderShadow(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometrySphere>::geometryShaderShadow(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(shadow_block_declaration);
   shader.append(ico_geom_shadow);
 }
 
-void Object<GeometrySphere>::fragmentShaderShadowMain(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometrySphere>::fragmentShaderShadowMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(shadow_block_declaration);
   shader.append(ico_frag_shadow);
 }
 
-void Object<GeometrySphere>::vertexShaderOcclusion(SurfaceObjectBase *surf, AppendableShader &shader) {
+void Object<GeometrySphere>::vertexShaderOcclusion(
+    SurfaceObjectBase *surf, AppendableShader &shader)
+{
   shader.append(shader_conversions);
   shader.append(occlusion_declaration);
   shader.append(shadow_map_declaration);
   shader.append(ico_vert_occlusion_resolve);
 }
 
-
-static void sphere_delete_objects(Object<Device> *deviceObj, GLuint vao, GLuint ico_position, GLuint ico_index) {
+static void sphere_delete_objects(Object<Device> *deviceObj,
+    GLuint vao,
+    GLuint ico_position,
+    GLuint ico_index)
+{
   auto &gl = deviceObj->gl;
   gl.DeleteVertexArrays(1, &vao);
   gl.DeleteBuffers(1, &ico_position);
@@ -526,10 +554,10 @@ static void sphere_delete_objects(Object<Device> *deviceObj, GLuint vao, GLuint 
 
 Object<GeometrySphere>::~Object()
 {
-  if(vao) {
-    thisDevice->queue.enqueue(sphere_delete_objects, thisDevice, vao, ico_position, ico_index);
+  if (vao) {
+    thisDevice->queue.enqueue(
+        sphere_delete_objects, thisDevice, vao, ico_position, ico_index);
   }
 }
 
-} //namespace visgl
-
+} // namespace visgl

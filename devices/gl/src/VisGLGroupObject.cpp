@@ -29,21 +29,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 
-namespace visgl{
+namespace visgl {
 
 Object<Group>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
-{
-
-}
+{}
 
 void Object<Group>::commit()
 {
   DefaultObject::commit();
 }
 
-} //namespace visgl
-
+} // namespace visgl

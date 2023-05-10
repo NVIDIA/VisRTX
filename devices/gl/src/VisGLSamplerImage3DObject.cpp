@@ -29,12 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "shader_blocks.h"
 #include "anari2gl_types.h"
 
-namespace visgl{
+namespace visgl {
 
 Object<SamplerImage3D>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
@@ -42,13 +41,20 @@ Object<SamplerImage3D>::Object(ANARIDevice d, ANARIObject handle)
   transform_index = thisDevice->transforms.allocate(2);
 }
 
-void image3d_init_objects(ObjectRef<SamplerImage3D> samplerObj, int filter, GLenum wrapS, GLenum wrapT, GLenum wrapR) {
+void image3d_init_objects(ObjectRef<SamplerImage3D> samplerObj,
+    int filter,
+    GLenum wrapS,
+    GLenum wrapT,
+    GLenum wrapR)
+{
   auto &gl = samplerObj->thisDevice->gl;
-  if(samplerObj->sampler == 0) {
+  if (samplerObj->sampler == 0) {
     gl.GenSamplers(1, &samplerObj->sampler);
   }
-  gl.SamplerParameteri(samplerObj->sampler, GL_TEXTURE_MAG_FILTER, gl_mag_filter(filter));
-  gl.SamplerParameteri(samplerObj->sampler, GL_TEXTURE_MIN_FILTER, gl_min_filter(filter));
+  gl.SamplerParameteri(
+      samplerObj->sampler, GL_TEXTURE_MAG_FILTER, gl_mag_filter(filter));
+  gl.SamplerParameteri(
+      samplerObj->sampler, GL_TEXTURE_MIN_FILTER, gl_min_filter(filter));
   gl.SamplerParameteri(samplerObj->sampler, GL_TEXTURE_WRAP_S, wrapS);
   gl.SamplerParameteri(samplerObj->sampler, GL_TEXTURE_WRAP_T, wrapT);
   gl.SamplerParameteri(samplerObj->sampler, GL_TEXTURE_WRAP_R, wrapR);
@@ -57,7 +63,7 @@ void image3d_init_objects(ObjectRef<SamplerImage3D> samplerObj, int filter, GLen
 void Object<SamplerImage3D>::commit()
 {
   DefaultObject::commit();
-  image = acquire<Object<Array3D>*>(current.image);
+  image = acquire<Object<Array3D> *>(current.image);
 }
 
 void Object<SamplerImage3D>::update()
@@ -65,13 +71,13 @@ void Object<SamplerImage3D>::update()
   DefaultObject::update();
   std::array<float, 16> inTransform;
   std::array<float, 16> outTransform;
-  
-  if(current.inTransform.get(ANARI_FLOAT32_MAT4, inTransform.data())) {
+
+  if (current.inTransform.get(ANARI_FLOAT32_MAT4, inTransform.data())) {
     thisDevice->transforms.set(transform_index, inTransform);
   }
 
-  if(current.outTransform.get(ANARI_FLOAT32_MAT4, outTransform.data())) {
-    thisDevice->transforms.set(transform_index+1, outTransform);
+  if (current.outTransform.get(ANARI_FLOAT32_MAT4, outTransform.data())) {
+    thisDevice->transforms.set(transform_index + 1, outTransform);
   }
 
   int filter = current.filter.getStringEnum();
@@ -79,29 +85,33 @@ void Object<SamplerImage3D>::update()
   GLenum wrapT = gl_wrap(current.wrapMode2.getStringEnum());
   GLenum wrapR = gl_wrap(current.wrapMode3.getStringEnum());
 
-  thisDevice->queue.enqueue(image3d_init_objects, this, filter, wrapS, wrapT, wrapR);
+  thisDevice->queue.enqueue(
+      image3d_init_objects, this, filter, wrapS, wrapT, wrapR);
 }
 
-void Object<SamplerImage3D>::allocateResources(SurfaceObjectBase *surf, int slot)
+void Object<SamplerImage3D>::allocateResources(
+    SurfaceObjectBase *surf, int slot)
 {
-  if(image) {
+  if (image) {
     surf->allocateTexture(slot, GL_TEXTURE_3D, image->getTexture3D(), sampler);
   }
-  surf->addAttributeFlags(attribIndex(current.inAttribute.getStringEnum()), ATTRIBUTE_FLAG_USED | ATTRIBUTE_FLAG_SAMPLED);
+  surf->addAttributeFlags(attribIndex(current.inAttribute.getStringEnum()),
+      ATTRIBUTE_FLAG_USED | ATTRIBUTE_FLAG_SAMPLED);
 }
 
 void Object<SamplerImage3D>::drawCommand(int index, DrawCommand &command)
 {
-  if(image) {
+  if (image) {
     auto &tex = command.textures[command.texcount];
     tex.index = index;
     tex.target = GL_TEXTURE_3D;
     tex.texture = image->getTexture3D();
-    tex.sampler = sampler;     
+    tex.sampler = sampler;
     command.texcount += 1;
   }
 }
 
+// clang-format off
 #define DECLARE_SAMPLER(I)\
   "layout(binding = " #I ") uniform highp sampler3D sampler" #I ";\n"\
   "vec4 sampleImage3D" #I "(vec4 attrib, vec4 meta) {\n"\
@@ -129,6 +139,7 @@ static const char *declareSampler3D[] = {
   DECLARE_SAMPLER(14),
   DECLARE_SAMPLER(15),
 };
+// clang-format on
 
 void Object<SamplerImage3D>::declare(int index, AppendableShader &shader)
 {
@@ -136,25 +147,26 @@ void Object<SamplerImage3D>::declare(int index, AppendableShader &shader)
 }
 
 static const char *textureSample[] = {
-  "sampleImage3D0(",
-  "sampleImage3D1(",
-  "sampleImage3D2(",
-  "sampleImage3D3(",
-  "sampleImage3D4(",
-  "sampleImage3D5(",
-  "sampleImage3D6(",
-  "sampleImage3D7(",
-  "sampleImage3D8(",
-  "sampleImage3D9(",
-  "sampleImage3D10(",
-  "sampleImage3D11(",
-  "sampleImage3D12(",
-  "sampleImage3D13(",
-  "sampleImage3D14(",
-  "sampleImage3D15(",
+    "sampleImage3D0(",
+    "sampleImage3D1(",
+    "sampleImage3D2(",
+    "sampleImage3D3(",
+    "sampleImage3D4(",
+    "sampleImage3D5(",
+    "sampleImage3D6(",
+    "sampleImage3D7(",
+    "sampleImage3D8(",
+    "sampleImage3D9(",
+    "sampleImage3D10(",
+    "sampleImage3D11(",
+    "sampleImage3D12(",
+    "sampleImage3D13(",
+    "sampleImage3D14(",
+    "sampleImage3D15(",
 };
 
-void Object<SamplerImage3D>::sample(int index, AppendableShader &shader, const char *meta)
+void Object<SamplerImage3D>::sample(
+    int index, AppendableShader &shader, const char *meta)
 {
   shader.append(textureSample[index]);
   shader.append(current.inAttribute.getString());
@@ -163,12 +175,14 @@ void Object<SamplerImage3D>::sample(int index, AppendableShader &shader, const c
   shader.append(");\n");
 }
 
-std::array<uint32_t, 4> Object<SamplerImage3D>::metadata() {
+std::array<uint32_t, 4> Object<SamplerImage3D>::metadata()
+{
   return std::array<uint32_t, 4>{uint32_t(transform_index), 0, 0, 0};
 }
 
-static void image3d_delete_objects(Object<Device> *deviceObj, GLuint sampler) {
-   deviceObj->gl.DeleteSamplers(1, &sampler);
+static void image3d_delete_objects(Object<Device> *deviceObj, GLuint sampler)
+{
+  deviceObj->gl.DeleteSamplers(1, &sampler);
 }
 
 Object<SamplerImage3D>::~Object()
@@ -176,5 +190,4 @@ Object<SamplerImage3D>::~Object()
   thisDevice->queue.enqueue(image3d_delete_objects, thisDevice, sampler);
 }
 
-} //namespace visgl
-
+} // namespace visgl

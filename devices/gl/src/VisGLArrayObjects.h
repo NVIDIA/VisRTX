@@ -38,86 +38,113 @@
 
 #include <vector>
 
-namespace visgl{
+namespace visgl {
 
-template<>
-struct ObjectAllocator<Array1D> {
-  static ArrayObjectBase* allocate(ANARIDevice d, ANARIObject handle, const void* appMemory,
-      ANARIMemoryDeleter deleter, const void* userdata, ANARIDataType type,
-      uint64_t numItems1, uint64_t byteStride1);
+template <>
+struct ObjectAllocator<Array1D>
+{
+  static ArrayObjectBase *allocate(ANARIDevice d,
+      ANARIObject handle,
+      const void *appMemory,
+      ANARIMemoryDeleter deleter,
+      const void *userdata,
+      ANARIDataType type,
+      uint64_t numItems1,
+      uint64_t byteStride1);
 };
 
-template<>
-class Object<Array2D> : public DefaultObject<Array2D, ArrayObjectBase> {
-   const void* appMemory;
-   ANARIMemoryDeleter deleter;
-   const void* userdata;
-   ANARIDataType elementType;
-   uint64_t numItems1;
-   uint64_t numItems2;
-   uint64_t byteStride1;
-   uint64_t byteStride2;
+template <>
+class Object<Array2D> : public DefaultObject<Array2D, ArrayObjectBase>
+{
+  const void *appMemory;
+  ANARIMemoryDeleter deleter;
+  const void *userdata;
+  ANARIDataType elementType;
+  uint64_t numItems1;
+  uint64_t numItems2;
+  uint64_t byteStride1;
+  uint64_t byteStride2;
 
-   GLuint texture = 0;
-   std::future<void> future;
+  GLuint texture = 0;
+  std::future<void> future;
 
-   friend void array2d_allocate_objects(ObjectRef<Array2D> arrayObj);
-   friend void array2d_unmap_to_buffer(ObjectRef<Array2D> arrayObj);
-public:
+  friend void array2d_allocate_objects(ObjectRef<Array2D> arrayObj);
+  friend void array2d_unmap_to_buffer(ObjectRef<Array2D> arrayObj);
 
-   Object(ANARIDevice d, ANARIObject handle, const void* appMemory,
-      ANARIMemoryDeleter deleter, const void* userdata, ANARIDataType type,
-      uint64_t numItems1, uint64_t numItems2,
-      uint64_t byteStride1, uint64_t byteStride2);
+ public:
+  Object(ANARIDevice d,
+      ANARIObject handle,
+      const void *appMemory,
+      ANARIMemoryDeleter deleter,
+      const void *userdata,
+      ANARIDataType type,
+      uint64_t numItems1,
+      uint64_t numItems2,
+      uint64_t byteStride1,
+      uint64_t byteStride2);
 
-   void init() override;
-   void* map() override;
-   void unmap() override;
-   void releasePublic() override;
-   ANARIDataType getElementType() const override;
-   uint64_t size() const override { return numItems1*numItems2; }
-   int dims(uint64_t *d) const override;
-   GLuint getTexture2D();
+  void init() override;
+  void *map() override;
+  void unmap() override;
+  void releasePublic() override;
+  ANARIDataType getElementType() const override;
+  uint64_t size() const override
+  {
+    return numItems1 * numItems2;
+  }
+  int dims(uint64_t *d) const override;
+  GLuint getTexture2D();
 
-   ~Object();
+  ~Object();
 };
 
-template<>
-class Object<Array3D> : public DefaultObject<Array3D, ArrayObjectBase> {
-   const void* appMemory;
-   ANARIMemoryDeleter deleter;
-   const void* userdata;
-   ANARIDataType elementType;
-   uint64_t numItems1;
-   uint64_t numItems2;
-   uint64_t numItems3;
-   uint64_t byteStride1;
-   uint64_t byteStride2;
-   uint64_t byteStride3;
+template <>
+class Object<Array3D> : public DefaultObject<Array3D, ArrayObjectBase>
+{
+  const void *appMemory;
+  ANARIMemoryDeleter deleter;
+  const void *userdata;
+  ANARIDataType elementType;
+  uint64_t numItems1;
+  uint64_t numItems2;
+  uint64_t numItems3;
+  uint64_t byteStride1;
+  uint64_t byteStride2;
+  uint64_t byteStride3;
 
-   GLuint texture = 0;
-   std::future<void> future;
+  GLuint texture = 0;
+  std::future<void> future;
 
-   friend void array3d_allocate_objects(ObjectRef<Array3D> arrayObj);
-   friend void array3d_unmap_to_buffer(ObjectRef<Array3D> arrayObj);
-public:
+  friend void array3d_allocate_objects(ObjectRef<Array3D> arrayObj);
+  friend void array3d_unmap_to_buffer(ObjectRef<Array3D> arrayObj);
 
-   Object(ANARIDevice d, ANARIObject handle, const void* appMemory,
-      ANARIMemoryDeleter deleter, const void* userdata, ANARIDataType type,
-      uint64_t numItems1, uint64_t numItems2, uint64_t numItems3,
-      uint64_t byteStride1, uint64_t byteStride2, uint64_t byteStride3);
+ public:
+  Object(ANARIDevice d,
+      ANARIObject handle,
+      const void *appMemory,
+      ANARIMemoryDeleter deleter,
+      const void *userdata,
+      ANARIDataType type,
+      uint64_t numItems1,
+      uint64_t numItems2,
+      uint64_t numItems3,
+      uint64_t byteStride1,
+      uint64_t byteStride2,
+      uint64_t byteStride3);
 
-   void init() override;
-   void* map() override;
-   void unmap() override;
-   void releasePublic() override;
-   ANARIDataType getElementType() const override;
-   uint64_t size() const override { return numItems1*numItems2*numItems3; }
-   int dims(uint64_t *d) const override;
-   GLuint getTexture3D();
+  void init() override;
+  void *map() override;
+  void unmap() override;
+  void releasePublic() override;
+  ANARIDataType getElementType() const override;
+  uint64_t size() const override
+  {
+    return numItems1 * numItems2 * numItems3;
+  }
+  int dims(uint64_t *d) const override;
+  GLuint getTexture3D();
 
-   ~Object();
+  ~Object();
 };
 
-} //namespace visgl
-
+} // namespace visgl

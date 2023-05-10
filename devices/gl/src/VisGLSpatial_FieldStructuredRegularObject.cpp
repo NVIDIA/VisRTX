@@ -29,13 +29,12 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "shader_blocks.h"
 #include "anari2gl_types.h"
 
-namespace visgl{
-
+namespace visgl {
+// clang-format off
 const float box_vertices[] = {
   0.0f, 0.0f, 0.0f,
   0.0f, 0.0f, 1.0f,
@@ -55,6 +54,7 @@ const uint32_t box_indices[] {
   2, 3, 6, 7, 6, 3,
   1, 5, 3, 7, 3, 5,
 };
+// clang-format on
 
 const char *box_vert = R"GLSL(
 layout(location = 0) in vec4 in_position;
@@ -132,44 +132,52 @@ void main() {
 }
 )GLSL";
 
-
-Object<Spatial_FieldStructuredRegular>::Object(ANARIDevice d, ANARIObject handle)
+Object<Spatial_FieldStructuredRegular>::Object(
+    ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
 {
   transform_index = thisDevice->materials.allocate(3);
 }
 
-void field_init_objects(ObjectRef<Spatial_FieldStructuredRegular> fieldObj, int filter) {
+void field_init_objects(
+    ObjectRef<Spatial_FieldStructuredRegular> fieldObj, int filter)
+{
   auto &gl = fieldObj->thisDevice->gl;
-  if(fieldObj->sampler == 0) {
+  if (fieldObj->sampler == 0) {
     gl.GenSamplers(1, &fieldObj->sampler);
   }
-  gl.SamplerParameteri(fieldObj->sampler, GL_TEXTURE_MAG_FILTER, gl_mag_filter(filter));
-  gl.SamplerParameteri(fieldObj->sampler, GL_TEXTURE_MIN_FILTER, gl_min_filter(filter));
+  gl.SamplerParameteri(
+      fieldObj->sampler, GL_TEXTURE_MAG_FILTER, gl_mag_filter(filter));
+  gl.SamplerParameteri(
+      fieldObj->sampler, GL_TEXTURE_MIN_FILTER, gl_min_filter(filter));
   gl.SamplerParameteri(fieldObj->sampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   gl.SamplerParameteri(fieldObj->sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   gl.SamplerParameteri(fieldObj->sampler, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-  if(fieldObj->vao == 0) {
+  if (fieldObj->vao == 0) {
     gl.GenVertexArrays(1, &fieldObj->vao);
     gl.BindVertexArray(fieldObj->vao);
 
     gl.GenBuffers(1, &fieldObj->box_position);
     gl.BindBuffer(GL_ARRAY_BUFFER, fieldObj->box_position);
-    gl.BufferData(GL_ARRAY_BUFFER, sizeof(box_vertices), box_vertices, GL_STATIC_DRAW);
+    gl.BufferData(
+        GL_ARRAY_BUFFER, sizeof(box_vertices), box_vertices, GL_STATIC_DRAW);
     gl.EnableVertexAttribArray(0);
     gl.VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
     gl.GenBuffers(1, &fieldObj->box_index);
     gl.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, fieldObj->box_index);
-    gl.BufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(box_indices), box_indices, GL_STATIC_DRAW);
+    gl.BufferData(GL_ELEMENT_ARRAY_BUFFER,
+        sizeof(box_indices),
+        box_indices,
+        GL_STATIC_DRAW);
   }
 }
 
 void Object<Spatial_FieldStructuredRegular>::commit()
 {
   DefaultObject::commit();
-  data = acquire<Object<Array3D>*>(current.data);
+  data = acquire<Object<Array3D> *>(current.data);
 }
 
 void Object<Spatial_FieldStructuredRegular>::update()
@@ -181,18 +189,20 @@ void Object<Spatial_FieldStructuredRegular>::update()
 
   uint64_t dims[3] = {0u, 0u, 0u};
   data->dims(dims);
-  std::array<uint32_t, 4> udims{(uint32_t)dims[0], (uint32_t)dims[1], (uint32_t)dims[2], 0u};
+  std::array<uint32_t, 4> udims{
+      (uint32_t)dims[0], (uint32_t)dims[1], (uint32_t)dims[2], 0u};
 
   thisDevice->materials.set(transform_index, origin);
-  thisDevice->materials.set(transform_index+1, spacing);
-  thisDevice->materials.setMem(transform_index+2, &udims);
+  thisDevice->materials.set(transform_index + 1, spacing);
+  thisDevice->materials.setMem(transform_index + 2, &udims);
 
   int filter = current.filter.getStringEnum();
 
   thisDevice->queue.enqueue(field_init_objects, this, filter);
 }
 
-void Object<Spatial_FieldStructuredRegular>::drawCommand(VolumeObjectBase*, DrawCommand &command)
+void Object<Spatial_FieldStructuredRegular>::drawCommand(
+    VolumeObjectBase *, DrawCommand &command)
 {
   command.vao = vao;
   command.prim = GL_TRIANGLES;
@@ -201,21 +211,25 @@ void Object<Spatial_FieldStructuredRegular>::drawCommand(VolumeObjectBase*, Draw
   command.instanceCount = 1;
   command.cullMode = 0;
 
-  if(data) {
+  if (data) {
     auto &tex = command.textures[command.texcount];
     tex.index = 0;
     tex.target = GL_TEXTURE_3D;
     tex.texture = data->getTexture3D();
-    tex.sampler = sampler;     
+    tex.sampler = sampler;
     command.texcount += 1;
   }
 }
 
-void Object<Spatial_FieldStructuredRegular>::vertexShaderMain(VolumeObjectBase*, AppendableShader &shader) {
+void Object<Spatial_FieldStructuredRegular>::vertexShaderMain(
+    VolumeObjectBase *, AppendableShader &shader)
+{
   shader.append(box_vert);
 }
 
-void Object<Spatial_FieldStructuredRegular>::fragmentShaderMain(VolumeObjectBase*, AppendableShader &shader) {
+void Object<Spatial_FieldStructuredRegular>::fragmentShaderMain(
+    VolumeObjectBase *, AppendableShader &shader)
+{
   shader.append(box_frag);
 }
 
@@ -224,18 +238,21 @@ uint32_t Object<Spatial_FieldStructuredRegular>::index()
   return transform_index;
 }
 
-std::array<float, 6> Object<Spatial_FieldStructuredRegular>::bounds() {
+std::array<float, 6> Object<Spatial_FieldStructuredRegular>::bounds()
+{
   uint64_t dims[3] = {0u, 0u, 0u};
   data->dims(dims);
-  return std::array<float, 6>{
-    origin[0], origin[1], origin[2],
-    origin[0] + spacing[0]*dims[0],
-    origin[1] + spacing[1]*dims[1],
-    origin[2] + spacing[2]*dims[2]};
+  return std::array<float, 6>{origin[0],
+      origin[1],
+      origin[2],
+      origin[0] + spacing[0] * dims[0],
+      origin[1] + spacing[1] * dims[1],
+      origin[2] + spacing[2] * dims[2]};
 }
 
-static void field_delete_objects(Object<Device> *deviceObj, GLuint sampler) {
-   deviceObj->gl.DeleteSamplers(1, &sampler);
+static void field_delete_objects(Object<Device> *deviceObj, GLuint sampler)
+{
+  deviceObj->gl.DeleteSamplers(1, &sampler);
 }
 
 Object<Spatial_FieldStructuredRegular>::~Object()
@@ -243,5 +260,4 @@ Object<Spatial_FieldStructuredRegular>::~Object()
   thisDevice->queue.enqueue(field_delete_objects, thisDevice, sampler);
 }
 
-} //namespace visgl
-
+} // namespace visgl

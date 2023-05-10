@@ -33,7 +33,7 @@
 
 #include "VisGLString.h"
 
-namespace visgl{
+namespace visgl {
 
 #define GLOBAL_SSBO_OFFSET 4
 #define GLOBAL_TEX_OFFSET 1
@@ -43,7 +43,7 @@ namespace visgl{
 #define MATERIAL_MAX_RESOURCES 16
 #define SURFACE_MAX_RESOURCES (GEOMETRY_MAX_RESOURCES + MATERIAL_MAX_RESOURCES)
 #define GEOMETRY_RESOURCE(X) X
-#define MATERIAL_RESOURCE(X) (X+GEOMETRY_MAX_RESOURCES)
+#define MATERIAL_RESOURCE(X) (X + GEOMETRY_MAX_RESOURCES)
 
 #define ATTRIBUTE_COLOR 0
 #define ATTRIBUTE_ATTRIBUTE0 1
@@ -61,20 +61,20 @@ namespace visgl{
 #define ATTRIBUTE_FLAG_SAMPLED 2u
 #define ATTRIBUTE_FLAG_TRANSPARENT 4u
 
-
-static int attribIndex(int value) {
-  switch(value) {
-    case STRING_ENUM_attribute0: return ATTRIBUTE_ATTRIBUTE0;
-    case STRING_ENUM_attribute1: return ATTRIBUTE_ATTRIBUTE1;
-    case STRING_ENUM_attribute2: return ATTRIBUTE_ATTRIBUTE2;
-    case STRING_ENUM_attribute3: return ATTRIBUTE_ATTRIBUTE3;
-    case STRING_ENUM_color: return ATTRIBUTE_COLOR;
-    case STRING_ENUM_objectNormal: return ATTRIBUTE_OBJECT_NORMAL;
-    case STRING_ENUM_objectPosition: return ATTRIBUTE_OBJECT_POSITION;
-    case STRING_ENUM_primitiveId: return ATTRIBUTE_PRIMITIVE_ID;
-    case STRING_ENUM_worldNormal: return ATTRIBUTE_WORLD_NORMAL;
-    case STRING_ENUM_worldPosition: return ATTRIBUTE_WORLD_POSITION;
-    default: return ATTRIBUTE_COUNT;
+static int attribIndex(int value)
+{
+  switch (value) {
+  case STRING_ENUM_attribute0: return ATTRIBUTE_ATTRIBUTE0;
+  case STRING_ENUM_attribute1: return ATTRIBUTE_ATTRIBUTE1;
+  case STRING_ENUM_attribute2: return ATTRIBUTE_ATTRIBUTE2;
+  case STRING_ENUM_attribute3: return ATTRIBUTE_ATTRIBUTE3;
+  case STRING_ENUM_color: return ATTRIBUTE_COLOR;
+  case STRING_ENUM_objectNormal: return ATTRIBUTE_OBJECT_NORMAL;
+  case STRING_ENUM_objectPosition: return ATTRIBUTE_OBJECT_POSITION;
+  case STRING_ENUM_primitiveId: return ATTRIBUTE_PRIMITIVE_ID;
+  case STRING_ENUM_worldNormal: return ATTRIBUTE_WORLD_NORMAL;
+  case STRING_ENUM_worldPosition: return ATTRIBUTE_WORLD_POSITION;
+  default: return ATTRIBUTE_COUNT;
   }
 }
 
@@ -119,20 +119,20 @@ layout(std430, binding = 3) coherent restrict buffer OcclusionBlock {
 };
 )GLSL";
 
-
-struct ShadowProjection {
+struct ShadowProjection
+{
   std::array<float, 16> matrix;
   std::array<float, 4> meta;
 };
 
-struct ShadowData {
+struct ShadowData
+{
   float samples;
   float count;
   float pad2;
   float pad3;
   ShadowProjection projections[12];
 };
-
 
 static const char *shadow_block_declaration = R"GLSL(
 struct ShadowProjection {
@@ -242,90 +242,87 @@ vec3 linear(vec3 x) {
 // generic snippets
 static const char *semicolon = ";\n";
 
-
-
 static const char *ssboArraySamplePrimitiveID[] = {
-  "sampleArray0(primitiveId);\n",
-  "sampleArray1(primitiveId);\n",
-  "sampleArray2(primitiveId);\n",
-  "sampleArray3(primitiveId);\n",
-  "sampleArray4(primitiveId);\n",
-  "sampleArray5(primitiveId);\n",
-  "sampleArray6(primitiveId);\n",
-  "sampleArray7(primitiveId);\n",
-  "sampleArray8(primitiveId);\n",
-  "sampleArray9(primitiveId);\n",
-  "sampleArray10(primitiveId);\n",
-  "sampleArray11(primitiveId);\n",
-  "sampleArray12(primitiveId);\n",
-  "sampleArray13(primitiveId);\n",
-  "sampleArray14(primitiveId);\n",
-  "sampleArray15(primitiveId);\n",
+    "sampleArray0(primitiveId);\n",
+    "sampleArray1(primitiveId);\n",
+    "sampleArray2(primitiveId);\n",
+    "sampleArray3(primitiveId);\n",
+    "sampleArray4(primitiveId);\n",
+    "sampleArray5(primitiveId);\n",
+    "sampleArray6(primitiveId);\n",
+    "sampleArray7(primitiveId);\n",
+    "sampleArray8(primitiveId);\n",
+    "sampleArray9(primitiveId);\n",
+    "sampleArray10(primitiveId);\n",
+    "sampleArray11(primitiveId);\n",
+    "sampleArray12(primitiveId);\n",
+    "sampleArray13(primitiveId);\n",
+    "sampleArray14(primitiveId);\n",
+    "sampleArray15(primitiveId);\n",
 };
 
 static const char *ssboArraySampleFun[] = {
-  "sampleArray0(",
-  "sampleArray1(",
-  "sampleArray2(",
-  "sampleArray3(",
-  "sampleArray4(",
-  "sampleArray5(",
-  "sampleArray6(",
-  "sampleArray7(",
-  "sampleArray8(",
-  "sampleArray9(",
-  "sampleArray10(",
-  "sampleArray11(",
-  "sampleArray12(",
-  "sampleArray13(",
-  "sampleArray14(",
-  "sampleArray15(",
+    "sampleArray0(",
+    "sampleArray1(",
+    "sampleArray2(",
+    "sampleArray3(",
+    "sampleArray4(",
+    "sampleArray5(",
+    "sampleArray6(",
+    "sampleArray7(",
+    "sampleArray8(",
+    "sampleArray9(",
+    "sampleArray10(",
+    "sampleArray11(",
+    "sampleArray12(",
+    "sampleArray13(",
+    "sampleArray14(",
+    "sampleArray15(",
 };
-
 
 static const char *ssboArrayName[] = {
-  "ssboArray0",
-  "ssboArray1",
-  "ssboArray2",
-  "ssboArray3",
-  "ssboArray4",
-  "ssboArray5",
-  "ssboArray6",
-  "ssboArray7",
-  "ssboArray8",
-  "ssboArray9",
-  "ssboArray10",
-  "ssboArray11",
-  "ssboArray12",
-  "ssboArray13",
-  "ssboArray14",
-  "ssboArray15",
+    "ssboArray0",
+    "ssboArray1",
+    "ssboArray2",
+    "ssboArray3",
+    "ssboArray4",
+    "ssboArray5",
+    "ssboArray6",
+    "ssboArray7",
+    "ssboArray8",
+    "ssboArray9",
+    "ssboArray10",
+    "ssboArray11",
+    "ssboArray12",
+    "ssboArray13",
+    "ssboArray14",
+    "ssboArray15",
 };
-
 
 #define ARRAY_SAMPLE_STRING2(I) ARRAY_SAMPLE_STRING(I)
 
-#define ARRAY_SAMPLE_SWITCH \
-switch(i) {\
-  case 0: return ARRAY_SAMPLE_STRING2(0);\
-  case 1: return ARRAY_SAMPLE_STRING2(1);\
-  case 2: return ARRAY_SAMPLE_STRING2(2);\
-  case 3: return ARRAY_SAMPLE_STRING2(3);\
-  case 4: return ARRAY_SAMPLE_STRING2(4);\
-  case 5: return ARRAY_SAMPLE_STRING2(5);\
-  case 6: return ARRAY_SAMPLE_STRING2(6);\
-  case 7: return ARRAY_SAMPLE_STRING2(7);\
-  case 8: return ARRAY_SAMPLE_STRING2(8);\
-  case 9: return ARRAY_SAMPLE_STRING2(9);\
-  case 10: return ARRAY_SAMPLE_STRING2(10);\
-  case 11: return ARRAY_SAMPLE_STRING2(11);\
-  case 12: return ARRAY_SAMPLE_STRING2(12);\
-  case 13: return ARRAY_SAMPLE_STRING2(13);\
-  case 14: return ARRAY_SAMPLE_STRING2(14);\
-  case 15: return ARRAY_SAMPLE_STRING2(15);\
-  default: return "";\
-}
+#define ARRAY_SAMPLE_SWITCH                                                    \
+  switch (i) {                                                                 \
+  case 0: return ARRAY_SAMPLE_STRING2(0);                                      \
+  case 1: return ARRAY_SAMPLE_STRING2(1);                                      \
+  case 2: return ARRAY_SAMPLE_STRING2(2);                                      \
+  case 3: return ARRAY_SAMPLE_STRING2(3);                                      \
+  case 4: return ARRAY_SAMPLE_STRING2(4);                                      \
+  case 5: return ARRAY_SAMPLE_STRING2(5);                                      \
+  case 6: return ARRAY_SAMPLE_STRING2(6);                                      \
+  case 7: return ARRAY_SAMPLE_STRING2(7);                                      \
+  case 8: return ARRAY_SAMPLE_STRING2(8);                                      \
+  case 9: return ARRAY_SAMPLE_STRING2(9);                                      \
+  case 10: return ARRAY_SAMPLE_STRING2(10);                                    \
+  case 11: return ARRAY_SAMPLE_STRING2(11);                                    \
+  case 12: return ARRAY_SAMPLE_STRING2(12);                                    \
+  case 13: return ARRAY_SAMPLE_STRING2(13);                                    \
+  case 14: return ARRAY_SAMPLE_STRING2(14);                                    \
+  case 15: return ARRAY_SAMPLE_STRING2(15);                                    \
+  default: return "";                                                          \
+  }
 
+// clang-format off
 static inline const char* glsl_sample_array(ANARIDataType t, int i) {
   switch(t) {
     case ANARI_UFIXED8_R_SRGB:
@@ -534,5 +531,6 @@ ARRAY_SAMPLE_SWITCH
     default: return "";
   }
 }
+//clang-format on
 
 }

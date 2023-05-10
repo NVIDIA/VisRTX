@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include <atomic>
@@ -43,8 +42,7 @@
 #include "DrawCommand.h"
 #include "AppendableShader.h"
 
-namespace visgl{
-
+namespace visgl {
 
 class ParameterPack;
 class ParameterBase;
@@ -74,9 +72,7 @@ class ObjectBase
   {}
   // init is called after the object has been constructed
   // and inserted into the handle storage
-  virtual void init()
-  {
-  }
+  virtual void init() {}
   virtual void retain()
   {
     refcount += 1;
@@ -126,8 +122,8 @@ class ObjectBase
   template <class T>
   T acquire(ParameterBase &h);
 
-  virtual void accept(ObjectVisitorBase*) = 0;
-  virtual void traverse(ObjectVisitorBase*) = 0;
+  virtual void accept(ObjectVisitorBase *) = 0;
+  virtual void traverse(ObjectVisitorBase *) = 0;
   virtual uint64_t objectEpoch() const = 0;
 
   virtual void update() = 0;
@@ -147,7 +143,7 @@ class ArrayObjectBase : public ObjectBase
   virtual void unmap() = 0;
   virtual ANARIDataType getElementType() const = 0;
   virtual uint64_t size() const = 0;
-  virtual int dims(uint64_t*) const = 0;
+  virtual int dims(uint64_t *) const = 0;
 };
 
 template <>
@@ -156,37 +152,41 @@ struct base_flags<ArrayObjectBase>
   static const uint32_t value = 0x10000000u;
 };
 
-class ObjectArray1D : public ArrayObjectBase {
-protected:
-   ObjectArray1D(ANARIDevice d, ANARIObject handle) : ArrayObjectBase(d, handle) {}
-
+class ObjectArray1D : public ArrayObjectBase
+{
+ protected:
+  ObjectArray1D(ANARIDevice d, ANARIObject handle) : ArrayObjectBase(d, handle)
+  {}
 };
 
 template <>
 struct base_flags<ObjectArray1D>
 {
-  static const uint32_t value = 0x00200000u | base_flags<ArrayObjectBase>::value;
+  static const uint32_t value =
+      0x00200000u | base_flags<ArrayObjectBase>::value;
 };
 
-class DataArray1D : public ArrayObjectBase {
-protected:
-   DataArray1D(ANARIDevice d, ANARIObject handle) : ArrayObjectBase(d, handle) {}
+class DataArray1D : public ArrayObjectBase
+{
+ protected:
+  DataArray1D(ANARIDevice d, ANARIObject handle) : ArrayObjectBase(d, handle) {}
 
-public:
-   virtual void declare(int index, AppendableShader &shader) = 0;
-   virtual void sample(int index, AppendableShader &shader) = 0;
-   virtual void drawCommand(int index, DrawCommand &command) = 0;
-   virtual GLuint getTexture1D() = 0;
-   virtual GLuint getBuffer() = 0;
-   virtual ANARIDataType getBufferType() const = 0;
-   virtual std::array<float, 6> getBounds() = 0;
-   virtual std::array<float, 4> at(uint64_t) const = 0;
+ public:
+  virtual void declare(int index, AppendableShader &shader) = 0;
+  virtual void sample(int index, AppendableShader &shader) = 0;
+  virtual void drawCommand(int index, DrawCommand &command) = 0;
+  virtual GLuint getTexture1D() = 0;
+  virtual GLuint getBuffer() = 0;
+  virtual ANARIDataType getBufferType() const = 0;
+  virtual std::array<float, 6> getBounds() = 0;
+  virtual std::array<float, 4> at(uint64_t) const = 0;
 };
 
 template <>
 struct base_flags<DataArray1D>
 {
-  static const uint32_t value = 0x00400000u | base_flags<ArrayObjectBase>::value;
+  static const uint32_t value =
+      0x00400000u | base_flags<ArrayObjectBase>::value;
 };
 
 class FrameObjectBase : public ObjectBase
@@ -210,9 +210,11 @@ struct base_flags<FrameObjectBase>
 class SurfaceObjectBase : public ObjectBase
 {
  public:
-  SurfaceObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
-  virtual void drawCommand(DrawCommand&) = 0;
-  virtual void allocateTexture(int slot, GLenum target, GLuint texture, GLuint sampler) = 0;
+  SurfaceObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle)
+  {}
+  virtual void drawCommand(DrawCommand &) = 0;
+  virtual void allocateTexture(
+      int slot, GLenum target, GLuint texture, GLuint sampler) = 0;
   virtual void allocateStorageBuffer(int slot, GLuint buffer) = 0;
   virtual void allocateTransform(int slot) = 0;
   virtual int resourceIndex(int slot) = 0;
@@ -229,17 +231,21 @@ struct base_flags<SurfaceObjectBase>
 class GeometryObjectBase : public ObjectBase
 {
  public:
-  GeometryObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
-  virtual void allocateResources(SurfaceObjectBase*) = 0;
-  virtual void drawCommand(SurfaceObjectBase*, DrawCommand&) = 0;
-  virtual void vertexShader(SurfaceObjectBase*, AppendableShader&) = 0;
-  virtual void fragmentShaderMain(SurfaceObjectBase*, AppendableShader&) = 0;
+  GeometryObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle)
+  {}
+  virtual void allocateResources(SurfaceObjectBase *) = 0;
+  virtual void drawCommand(SurfaceObjectBase *, DrawCommand &) = 0;
+  virtual void vertexShader(SurfaceObjectBase *, AppendableShader &) = 0;
+  virtual void fragmentShaderMain(SurfaceObjectBase *, AppendableShader &) = 0;
 
-  virtual void vertexShaderShadow(SurfaceObjectBase*, AppendableShader&) = 0;
-  virtual void geometryShaderShadow(SurfaceObjectBase*, AppendableShader&) = 0;
-  virtual void fragmentShaderShadowMain(SurfaceObjectBase*, AppendableShader&) = 0;
+  virtual void vertexShaderShadow(SurfaceObjectBase *, AppendableShader &) = 0;
+  virtual void geometryShaderShadow(
+      SurfaceObjectBase *, AppendableShader &) = 0;
+  virtual void fragmentShaderShadowMain(
+      SurfaceObjectBase *, AppendableShader &) = 0;
 
-  virtual void vertexShaderOcclusion(SurfaceObjectBase*, AppendableShader&) = 0;
+  virtual void vertexShaderOcclusion(
+      SurfaceObjectBase *, AppendableShader &) = 0;
   virtual std::array<float, 6> bounds() = 0;
   virtual uint32_t index() = 0;
 };
@@ -253,14 +259,18 @@ struct base_flags<GeometryObjectBase>
 class MaterialObjectBase : public ObjectBase
 {
  public:
-  MaterialObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
-  virtual void allocateResources(SurfaceObjectBase*) = 0;
-  virtual void drawCommand(SurfaceObjectBase*, DrawCommand&) = 0;
-  virtual void fragmentShaderDeclarations(SurfaceObjectBase*, AppendableShader&) = 0;
-  virtual void fragmentShaderMain(SurfaceObjectBase*, AppendableShader&) = 0;
+  MaterialObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle)
+  {}
+  virtual void allocateResources(SurfaceObjectBase *) = 0;
+  virtual void drawCommand(SurfaceObjectBase *, DrawCommand &) = 0;
+  virtual void fragmentShaderDeclarations(
+      SurfaceObjectBase *, AppendableShader &) = 0;
+  virtual void fragmentShaderMain(SurfaceObjectBase *, AppendableShader &) = 0;
 
-  virtual void fragmentShaderShadowDeclarations(SurfaceObjectBase*, AppendableShader&) = 0;
-  virtual void fragmentShaderShadowMain(SurfaceObjectBase*, AppendableShader&) = 0;
+  virtual void fragmentShaderShadowDeclarations(
+      SurfaceObjectBase *, AppendableShader &) = 0;
+  virtual void fragmentShaderShadowMain(
+      SurfaceObjectBase *, AppendableShader &) = 0;
   virtual uint32_t index() = 0;
 };
 
@@ -274,7 +284,7 @@ class CameraObjectBase : public ObjectBase
 {
  public:
   CameraObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
-  virtual void updateAt(size_t, float*) const = 0;
+  virtual void updateAt(size_t, float *) const = 0;
 };
 
 template <>
@@ -299,8 +309,9 @@ struct base_flags<LightObjectBase>
 class InstanceObjectBase : public ObjectBase
 {
  public:
-  InstanceObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
-  virtual const std::array<float, 16>& transform() = 0;
+  InstanceObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle)
+  {}
+  virtual const std::array<float, 16> &transform() = 0;
   virtual uint32_t index() = 0;
 };
 
@@ -313,11 +324,12 @@ struct base_flags<InstanceObjectBase>
 class SamplerObjectBase : public ObjectBase
 {
  public:
-  SamplerObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
-  virtual void allocateResources(SurfaceObjectBase*, int) = 0;
-  virtual void drawCommand(int, DrawCommand&) = 0;
-  virtual void declare(int, AppendableShader&) = 0;
-  virtual void sample(int, AppendableShader&, const char*) = 0;
+  SamplerObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle)
+  {}
+  virtual void allocateResources(SurfaceObjectBase *, int) = 0;
+  virtual void drawCommand(int, DrawCommand &) = 0;
+  virtual void declare(int, AppendableShader &) = 0;
+  virtual void sample(int, AppendableShader &, const char *) = 0;
   virtual std::array<uint32_t, 4> metadata() = 0;
 };
 
@@ -331,7 +343,7 @@ class VolumeObjectBase : public ObjectBase
 {
  public:
   VolumeObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
-  virtual void drawCommand(DrawCommand&) = 0;
+  virtual void drawCommand(DrawCommand &) = 0;
   virtual uint32_t index() = 0;
 };
 
@@ -344,10 +356,12 @@ struct base_flags<VolumeObjectBase>
 class SpatialFieldObjectBase : public ObjectBase
 {
  public:
-  SpatialFieldObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
-  virtual void drawCommand(VolumeObjectBase*, DrawCommand&) = 0;
-  virtual void fragmentShaderMain(VolumeObjectBase*, AppendableShader&) = 0;
-  virtual void vertexShaderMain(VolumeObjectBase*, AppendableShader&) = 0;
+  SpatialFieldObjectBase(ANARIDevice d, ANARIObject handle)
+      : ObjectBase(d, handle)
+  {}
+  virtual void drawCommand(VolumeObjectBase *, DrawCommand &) = 0;
+  virtual void fragmentShaderMain(VolumeObjectBase *, AppendableShader &) = 0;
+  virtual void vertexShaderMain(VolumeObjectBase *, AppendableShader &) = 0;
   virtual uint32_t index() = 0;
   virtual std::array<float, 6> bounds() = 0;
 };
@@ -358,28 +372,66 @@ struct base_flags<SpatialFieldObjectBase>
   static const uint32_t value = 0x00010000u;
 };
 
-class ObjectVisitorBase {
-public:
-  virtual void visit(ObjectBase *o) { o->traverse(this); }
-  // forward to the base version to act as a catchall in case these are not overriden
-  virtual void visit(ArrayObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(FrameObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(GeometryObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(MaterialObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(CameraObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(LightObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(InstanceObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(SurfaceObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(SamplerObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(SpatialFieldObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
-  virtual void visit(VolumeObjectBase *o) { visit(static_cast<ObjectBase*>(o)); }
+class ObjectVisitorBase
+{
+ public:
+  virtual void visit(ObjectBase *o)
+  {
+    o->traverse(this);
+  }
+  // forward to the base version to act as a catchall in case these are not
+  // overriden
+  virtual void visit(ArrayObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(FrameObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(GeometryObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(MaterialObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(CameraObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(LightObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(InstanceObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(SurfaceObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(SamplerObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(SpatialFieldObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
+  virtual void visit(VolumeObjectBase *o)
+  {
+    visit(static_cast<ObjectBase *>(o));
+  }
 };
 
 class Device;
 template <class T>
 class Object;
 
-uint64_t anariIncrementEpoch(Object<Device>*, ObjectBase*);
+uint64_t anariIncrementEpoch(Object<Device> *, ObjectBase *);
 
 template <class T, class B = ObjectBase>
 class DefaultObject : public B
@@ -388,7 +440,10 @@ class DefaultObject : public B
   T staging;
   uint64_t lastEpoch;
   DefaultObject(ANARIDevice d, ANARIObject handle)
-      : B(d, handle), staging(d, handle), current(d, handle), thisDevice(B::template acquire<Object<Device>*>(d))
+      : B(d, handle),
+        staging(d, handle),
+        current(d, handle),
+        thisDevice(B::template acquire<Object<Device> *>(d))
   {
     lastEpoch = anariIncrementEpoch(thisDevice, this);
   }
@@ -446,33 +501,34 @@ class DefaultObject : public B
   {
     return current;
   }
-  void update() override
+  void update() override {}
+  void accept(ObjectVisitorBase *visitor) override
   {
-
-  }
-  void accept(ObjectVisitorBase *visitor) override {
     visitor->visit(this);
   }
-  void traverse(ObjectVisitorBase *visitor) override {
+  void traverse(ObjectVisitorBase *visitor) override
+  {
     size_t count = current.paramCount();
-    for(size_t i = 0;i<count;++i) {
-      if(auto child = B::template handle_cast<ObjectBase*>(current[i])) {
+    for (size_t i = 0; i < count; ++i) {
+      if (auto child = B::template handle_cast<ObjectBase *>(current[i])) {
         child->accept(visitor);
-      }    
+      }
     }
   }
-  uint64_t objectEpoch() const override {
+  uint64_t objectEpoch() const override
+  {
     return lastEpoch;
   }
-
 };
 
 // this can be specialized in case we want to further subdivide
 // object creation based on arguments
-template<typename T>
-struct ObjectAllocator {
+template <typename T>
+struct ObjectAllocator
+{
   template <typename... ARGS>
-  static Object<T>* allocate(ARGS... args) {
+  static Object<T> *allocate(ARGS... args)
+  {
     return new Object<T>(args...);
   }
 };
@@ -509,28 +565,28 @@ void anariReleaseInternal(ANARIDevice, ANARIObject, ANARIObject);
 template <class T>
 class ObjectRef
 {
-  using P = typename std::conditional<
-    std::is_base_of<ParameterPack, T>::value,
-    Object<T>,
-    T
-  >::type;
+  using P = typename std::
+      conditional<std::is_base_of<ParameterPack, T>::value, Object<T>, T>::type;
 
   P *ptr = nullptr;
   ANARIDevice device = nullptr;
   ANARIObject handle = nullptr;
-  void acquire(P *p) {
-    if(p) {
+  void acquire(P *p)
+  {
+    if (p) {
       device = p->device;
       handle = p->handle;
       p->retainInternal(device);
     }
   }
-  void release() {
-    if(ptr) {
+  void release()
+  {
+    if (ptr) {
       anariReleaseInternal(device, handle, device);
     }
   }
-public:
+
+ public:
   ObjectRef() = default;
 
   ObjectRef(P *obj) : ptr(obj)
@@ -547,33 +603,33 @@ public:
     std::swap(device, that.device);
     std::swap(handle, that.handle);
   }
-  ObjectRef& operator=(const ObjectRef<T> &that)
+  ObjectRef &operator=(const ObjectRef<T> &that)
   {
     acquire(that.ptr);
     release();
     ptr = that.ptr;
     return *this;
   }
-  ObjectRef& operator=(ObjectRef<T> &&that)
+  ObjectRef &operator=(ObjectRef<T> &&that)
   {
     std::swap(ptr, that.ptr);
     std::swap(device, that.device);
     std::swap(handle, that.handle);
     return *this;
   }
-  P* operator->()
+  P *operator->()
   {
     return ptr;
   }
-  P& operator*()
+  P &operator*()
   {
     return *ptr;
   }
-  const P* operator->() const
+  const P *operator->() const
   {
     return ptr;
   }
-  const P& operator*() const
+  const P &operator*() const
   {
     return *ptr;
   }
@@ -581,11 +637,11 @@ public:
   {
     return ptr;
   }
-  P* get()
+  P *get()
   {
     return ptr;
   }
-  const P* get() const
+  const P *get() const
   {
     return ptr;
   }
@@ -595,21 +651,20 @@ public:
   }
 };
 
-template<typename T, typename T2>
-bool operator==(const ObjectRef<T>& a, const T2 *b)
+template <typename T, typename T2>
+bool operator==(const ObjectRef<T> &a, const T2 *b)
 {
   return a.get() == b;
 }
-template<typename T, typename T2>
-bool operator==(const T2 *a, const ObjectRef<T>& b)
+template <typename T, typename T2>
+bool operator==(const T2 *a, const ObjectRef<T> &b)
 {
   return a == b.get();
 }
-template<typename T>
-bool operator==(const ObjectRef<T>& a, const ObjectRef<T>& b)
+template <typename T>
+bool operator==(const ObjectRef<T> &a, const ObjectRef<T> &b)
 {
   return a.get() == b.get();
 }
 
-} //namespace visgl
-
+} // namespace visgl

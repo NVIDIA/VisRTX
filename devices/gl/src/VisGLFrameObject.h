@@ -29,14 +29,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
 
 #include <vector>
 
-namespace visgl{
+namespace visgl {
 
 class CollectScene;
 
@@ -57,7 +56,7 @@ class Object<Frame> : public DefaultObject<Frame, FrameObjectBase>
   GLuint multidepthtarget = 0;
   GLuint multifbo = 0;
 
-  GLuint shadowubo= 0;
+  GLuint shadowubo = 0;
   bool shadow_dirty = true;
   uint32_t shadow_map_size = 4096;
 
@@ -73,14 +72,22 @@ class Object<Frame> : public DefaultObject<Frame, FrameObjectBase>
   size_t camera_index = 0;
 
   std::unique_ptr<CollectScene> collector;
-  
+
   friend void frame_allocate_objects(ObjectRef<Frame> frameObj);
-  friend void frame_map_color(ObjectRef<Frame> frameObj, uint64_t size, void **ptr);
-  friend void frame_map_depth(ObjectRef<Frame> frameObj, uint64_t size, void **ptr);
+  friend void frame_map_color(
+      ObjectRef<Frame> frameObj, uint64_t size, void **ptr);
+  friend void frame_map_depth(
+      ObjectRef<Frame> frameObj, uint64_t size, void **ptr);
   friend void frame_unmap_color(ObjectRef<Frame> frameObj);
   friend void frame_unmap_depth(ObjectRef<Frame> frameObj);
-  friend void frame_render(ObjectRef<Frame> frameObj, uint32_t width, uint32_t height, uint32_t camera_index, uint32_t ambient_index, std::array<float, 4> clearColor);
-public:
+  friend void frame_render(ObjectRef<Frame> frameObj,
+      uint32_t width,
+      uint32_t height,
+      uint32_t camera_index,
+      uint32_t ambient_index,
+      std::array<float, 4> clearColor);
+
+ public:
   Object(ANARIDevice d, ANARIObject handle);
   ~Object();
 
@@ -88,10 +95,10 @@ public:
   void update() override;
 
   int getProperty(const char *propname,
-    ANARIDataType type,
-    void *mem,
-    uint64_t size,
-    ANARIWaitMask mask) override;
+      ANARIDataType type,
+      void *mem,
+      uint64_t size,
+      ANARIWaitMask mask) override;
 
   void *mapFrame(
       const char *, uint32_t *, uint32_t *, ANARIDataType *) override;
@@ -101,5 +108,4 @@ public:
   int frameReady(ANARIWaitMask mask) override;
 };
 
-} //namespace visgl
-
+} // namespace visgl

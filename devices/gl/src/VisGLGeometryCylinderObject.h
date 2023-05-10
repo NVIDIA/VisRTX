@@ -29,18 +29,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
 
 #include <vector>
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
-class Object<GeometryCylinder> : public DefaultObject<GeometryCylinder, GeometryObjectBase>
+class Object<GeometryCylinder>
+    : public DefaultObject<GeometryCylinder, GeometryObjectBase>
 {
   ObjectRef<DataArray1D> position_array;
   ObjectRef<DataArray1D> cap_array;
@@ -68,6 +67,7 @@ class Object<GeometryCylinder> : public DefaultObject<GeometryCylinder, Geometry
   bool dirty = true;
 
   friend void cylinder_init_objects(ObjectRef<GeometryCylinder> cylinderObj);
+
  public:
   GLuint vao = 0;
   GLuint occlusion_resolve_vao = 0;
@@ -82,21 +82,21 @@ class Object<GeometryCylinder> : public DefaultObject<GeometryCylinder, Geometry
 
   void commit() override;
   void update() override;
-  void allocateResources(SurfaceObjectBase*) override;
-  void declarations(SurfaceObjectBase*, AppendableShader&);
-  void drawCommand(SurfaceObjectBase*, DrawCommand&) override;
-  void vertexShader(SurfaceObjectBase*, AppendableShader&) override;
-  void fragmentShaderMain(SurfaceObjectBase*, AppendableShader&) override;
+  void allocateResources(SurfaceObjectBase *) override;
+  void declarations(SurfaceObjectBase *, AppendableShader &);
+  void drawCommand(SurfaceObjectBase *, DrawCommand &) override;
+  void vertexShader(SurfaceObjectBase *, AppendableShader &) override;
+  void fragmentShaderMain(SurfaceObjectBase *, AppendableShader &) override;
 
-  void vertexShaderShadow(SurfaceObjectBase*, AppendableShader&) override;
-  void geometryShaderShadow(SurfaceObjectBase*, AppendableShader&) override;
-  void fragmentShaderShadowMain(SurfaceObjectBase*, AppendableShader&) override;
+  void vertexShaderShadow(SurfaceObjectBase *, AppendableShader &) override;
+  void geometryShaderShadow(SurfaceObjectBase *, AppendableShader &) override;
+  void fragmentShaderShadowMain(
+      SurfaceObjectBase *, AppendableShader &) override;
 
-  void vertexShaderOcclusion(SurfaceObjectBase*, AppendableShader&) override;
+  void vertexShaderOcclusion(SurfaceObjectBase *, AppendableShader &) override;
 
   std::array<float, 6> bounds() override;
   uint32_t index() override;
 };
 
-} //namespace visgl
-
+} // namespace visgl

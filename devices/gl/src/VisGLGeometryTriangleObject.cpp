@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "anari/type_utility.h"
 
@@ -40,9 +39,7 @@
 #include <cstdlib>
 #include <cstring>
 
-
-namespace visgl{
-
+namespace visgl {
 
 const char *triangle_vert_shadow = R"GLSL(
 layout(location = 0) in vec3 in_position;
@@ -100,7 +97,6 @@ void main() {
   occlusion[vertexId] = (prev*meta.x + sum)/(meta.x + 12.0);
 }
 )GLSL";
-
 
 const char *triangle_vert = R"GLSL(
 layout(location = 0) in vec3 in_position;
@@ -174,17 +170,17 @@ const char *gl_primitive_id = "uint(gl_PrimitiveID));\n";
 
 Object<GeometryTriangle>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
+{}
+
+uint32_t Object<GeometryTriangle>::index()
 {
-
-}
-
-uint32_t Object<GeometryTriangle>::index() {
   return 0;
 }
 
-template<typename A, typename B>
-static bool compare_and_assign(A &a, const B &b) {
-  bool cmp = (a==b);
+template <typename A, typename B>
+static bool compare_and_assign(A &a, const B &b)
+{
+  bool cmp = (a == b);
   a = b;
   return cmp;
 }
@@ -193,60 +189,80 @@ void Object<GeometryTriangle>::commit()
 {
   DefaultObject::commit();
 
-
-  dirty |= compare_and_assign(position_array, acquire<DataArray1D*>(current.vertex_position));
-  dirty |= compare_and_assign(color_array, acquire<DataArray1D*>(current.vertex_color));
-  dirty |= compare_and_assign(normal_array, acquire<DataArray1D*>(current.vertex_normal));
-  dirty |= compare_and_assign(attribute0_array, acquire<DataArray1D*>(current.vertex_attribute0));
-  dirty |= compare_and_assign(attribute1_array, acquire<DataArray1D*>(current.vertex_attribute1));
-  dirty |= compare_and_assign(attribute2_array, acquire<DataArray1D*>(current.vertex_attribute2));
-  dirty |= compare_and_assign(attribute3_array, acquire<DataArray1D*>(current.vertex_attribute3));
+  dirty |= compare_and_assign(
+      position_array, acquire<DataArray1D *>(current.vertex_position));
+  dirty |= compare_and_assign(
+      color_array, acquire<DataArray1D *>(current.vertex_color));
+  dirty |= compare_and_assign(
+      normal_array, acquire<DataArray1D *>(current.vertex_normal));
+  dirty |= compare_and_assign(
+      attribute0_array, acquire<DataArray1D *>(current.vertex_attribute0));
+  dirty |= compare_and_assign(
+      attribute1_array, acquire<DataArray1D *>(current.vertex_attribute1));
+  dirty |= compare_and_assign(
+      attribute2_array, acquire<DataArray1D *>(current.vertex_attribute2));
+  dirty |= compare_and_assign(
+      attribute3_array, acquire<DataArray1D *>(current.vertex_attribute3));
 
   // vertex arrays take precedence according to spec
-  if(!color_array) {
-    dirty |= compare_and_assign(primitive_color_array, acquire<DataArray1D*>(current.primitive_color));
+  if (!color_array) {
+    dirty |= compare_and_assign(
+        primitive_color_array, acquire<DataArray1D *>(current.primitive_color));
   }
-  if(!attribute0_array) {
-    dirty |= compare_and_assign(primitive_attribute0_array, acquire<DataArray1D*>(current.primitive_attribute0));
+  if (!attribute0_array) {
+    dirty |= compare_and_assign(primitive_attribute0_array,
+        acquire<DataArray1D *>(current.primitive_attribute0));
   }
-  if(!attribute1_array) {
-    dirty |= compare_and_assign(primitive_attribute1_array, acquire<DataArray1D*>(current.primitive_attribute1));
+  if (!attribute1_array) {
+    dirty |= compare_and_assign(primitive_attribute1_array,
+        acquire<DataArray1D *>(current.primitive_attribute1));
   }
-  if(!attribute2_array){
-    dirty |= compare_and_assign(primitive_attribute2_array, acquire<DataArray1D*>(current.primitive_attribute2));
+  if (!attribute2_array) {
+    dirty |= compare_and_assign(primitive_attribute2_array,
+        acquire<DataArray1D *>(current.primitive_attribute2));
   }
-  if(!attribute3_array){
-    dirty |= compare_and_assign(primitive_attribute3_array, acquire<DataArray1D*>(current.primitive_attribute3));
+  if (!attribute3_array) {
+    dirty |= compare_and_assign(primitive_attribute3_array,
+        acquire<DataArray1D *>(current.primitive_attribute3));
   }
 
-  dirty |= compare_and_assign(primitive_id_array, acquire<DataArray1D*>(current.primitive_id));
+  dirty |= compare_and_assign(
+      primitive_id_array, acquire<DataArray1D *>(current.primitive_id));
 
-  dirty |= compare_and_assign(index_array, acquire<DataArray1D*>(current.primitive_index));
+  dirty |= compare_and_assign(
+      index_array, acquire<DataArray1D *>(current.primitive_index));
 
-  if(!position_array) {
-    anariReportStatus(device, handle, ANARI_GEOMETRY,
-          ANARI_SEVERITY_ERROR, ANARI_STATUS_UNKNOWN_ERROR,
-          "Triangle Geometry lacks position array %llu", current.vertex_position.getHandle());
+  if (!position_array) {
+    anariReportStatus(device,
+        handle,
+        ANARI_GEOMETRY,
+        ANARI_SEVERITY_ERROR,
+        ANARI_STATUS_UNKNOWN_ERROR,
+        "Triangle Geometry lacks position array %llu",
+        current.vertex_position.getHandle());
   }
 }
 
-template<typename G>
-void configure_vertex_array(G &gl, ObjectRef<DataArray1D> &array, int index) {
-  if(array) {
+template <typename G>
+void configure_vertex_array(G &gl, ObjectRef<DataArray1D> &array, int index)
+{
+  if (array) {
     ANARIDataType bufferType = array->getBufferType();
     gl.BindBuffer(GL_ARRAY_BUFFER, array->getBuffer());
     gl.EnableVertexAttribArray(index);
     gl.VertexAttribPointer(index,
-      anari::componentsOf(bufferType),
-      gl_type(bufferType),
-      gl_normalized(bufferType),
-      0, 0);
+        anari::componentsOf(bufferType),
+        gl_type(bufferType),
+        gl_normalized(bufferType),
+        0,
+        0);
   }
 }
 
-void triangles_init_objects(ObjectRef<GeometryTriangle> triangleObj) {
+void triangles_init_objects(ObjectRef<GeometryTriangle> triangleObj)
+{
   auto &gl = triangleObj->thisDevice->gl;
-  if(triangleObj->vao == 0) {
+  if (triangleObj->vao == 0) {
     gl.GenVertexArrays(1, &triangleObj->vao);
   }
   gl.BindVertexArray(triangleObj->vao);
@@ -258,29 +274,31 @@ void triangles_init_objects(ObjectRef<GeometryTriangle> triangleObj) {
   configure_vertex_array(gl, triangleObj->attribute2_array, 5);
   configure_vertex_array(gl, triangleObj->attribute3_array, 6);
 
-  if(triangleObj->index_array) {
+  if (triangleObj->index_array) {
     ANARIDataType elementType = triangleObj->index_array->getElementType();
-    gl.BindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangleObj->index_array->getBuffer());
+    gl.BindBuffer(
+        GL_ELEMENT_ARRAY_BUFFER, triangleObj->index_array->getBuffer());
   }
 }
 
 void Object<GeometryTriangle>::update()
 {
   DefaultObject::update();
-  if(!position_array) {
+  if (!position_array) {
     return;
   }
-  if(dirty) {
+  if (dirty) {
     thisDevice->queue.enqueue(triangles_init_objects, this);
     dirty = false;
   }
 }
 
-std::array<float, 6> Object<GeometryTriangle>::bounds() {
-  if(position_array) {
-    return position_array->getBounds();    
+std::array<float, 6> Object<GeometryTriangle>::bounds()
+{
+  if (position_array) {
+    return position_array->getBounds();
   } else {
-    return std::array<float, 6>{0,0,0,0,0,0};
+    return std::array<float, 6>{0, 0, 0, 0, 0, 0};
   }
 }
 
@@ -292,27 +310,33 @@ std::array<float, 6> Object<GeometryTriangle>::bounds() {
 
 void Object<GeometryTriangle>::allocateResources(SurfaceObjectBase *surf)
 {
-  if(primitive_color_array) {
-    surf->allocateStorageBuffer(PRIMITIVE_COLOR_ARRAY, primitive_color_array->getBuffer());
+  if (primitive_color_array) {
+    surf->allocateStorageBuffer(
+        PRIMITIVE_COLOR_ARRAY, primitive_color_array->getBuffer());
   }
-  if(primitive_attribute0_array) {
-    surf->allocateStorageBuffer(PRIMITIVE_ATTRIBUTE0_ARRAY, primitive_attribute0_array->getBuffer());
+  if (primitive_attribute0_array) {
+    surf->allocateStorageBuffer(
+        PRIMITIVE_ATTRIBUTE0_ARRAY, primitive_attribute0_array->getBuffer());
   }
-  if(primitive_attribute1_array) {
-    surf->allocateStorageBuffer(PRIMITIVE_ATTRIBUTE1_ARRAY, primitive_attribute1_array->getBuffer());
+  if (primitive_attribute1_array) {
+    surf->allocateStorageBuffer(
+        PRIMITIVE_ATTRIBUTE1_ARRAY, primitive_attribute1_array->getBuffer());
   }
-  if(primitive_attribute2_array) {
-    surf->allocateStorageBuffer(PRIMITIVE_ATTRIBUTE2_ARRAY, primitive_attribute2_array->getBuffer());
+  if (primitive_attribute2_array) {
+    surf->allocateStorageBuffer(
+        PRIMITIVE_ATTRIBUTE2_ARRAY, primitive_attribute2_array->getBuffer());
   }
-  if(primitive_attribute3_array) {
-    surf->allocateStorageBuffer(PRIMITIVE_ATTRIBUTE3_ARRAY, primitive_attribute3_array->getBuffer());
+  if (primitive_attribute3_array) {
+    surf->allocateStorageBuffer(
+        PRIMITIVE_ATTRIBUTE3_ARRAY, primitive_attribute3_array->getBuffer());
   }
 }
 
-void Object<GeometryTriangle>::drawCommand(SurfaceObjectBase *surf, DrawCommand &command)
+void Object<GeometryTriangle>::drawCommand(
+    SurfaceObjectBase *surf, DrawCommand &command)
 {
   update();
-  if(!position_array) {
+  if (!position_array) {
     return;
   }
   command.vao = vao;
@@ -321,82 +345,81 @@ void Object<GeometryTriangle>::drawCommand(SurfaceObjectBase *surf, DrawCommand 
 
   command.vertex_count = position_array->size();
 
-  if(index_array) {
-    command.count = 3*index_array->size();
+  if (index_array) {
+    command.count = 3 * index_array->size();
     command.indexType = GL_UNSIGNED_INT;
   } else {
-    command.count = 3*position_array->size();
+    command.count = 3 * position_array->size();
   }
 
   command.instanceCount = 1;
-  
-  if(primitive_color_array) {
+
+  if (primitive_color_array) {
     int index = surf->resourceIndex(PRIMITIVE_COLOR_ARRAY);
     primitive_color_array->drawCommand(index, command);
   }
-  if(primitive_attribute0_array) {
+  if (primitive_attribute0_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE0_ARRAY);
     primitive_attribute0_array->drawCommand(index, command);
   }
-  if(primitive_attribute1_array) {
+  if (primitive_attribute1_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE1_ARRAY);
     primitive_attribute1_array->drawCommand(index, command);
   }
-  if(primitive_attribute2_array) {
+  if (primitive_attribute2_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE2_ARRAY);
     primitive_attribute2_array->drawCommand(index, command);
   }
-  if(primitive_attribute3_array) {
+  if (primitive_attribute3_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE3_ARRAY);
     primitive_attribute3_array->drawCommand(index, command);
   }
 }
 
-void Object<GeometryTriangle>::interfaceBlock(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryTriangle>::interfaceBlock(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append("Data {\n");
-  if(
-    (surf->getAttributeFlags(ATTRIBUTE_WORLD_POSITION) & ATTRIBUTE_FLAG_SAMPLED) ||
-    (surf->getAttributeFlags(ATTRIBUTE_OBJECT_POSITION) & ATTRIBUTE_FLAG_SAMPLED)
-  ) {
+  if ((surf->getAttributeFlags(ATTRIBUTE_WORLD_POSITION)
+          & ATTRIBUTE_FLAG_SAMPLED)
+      || (surf->getAttributeFlags(ATTRIBUTE_OBJECT_POSITION)
+          & ATTRIBUTE_FLAG_SAMPLED)) {
     shader.append("  centroid vec4 vertexPosition;\n");
   } else {
     shader.append("  vec4 vertexPosition;\n");
   }
 
-  if(surf->getAttributeFlags(ATTRIBUTE_COLOR) & ATTRIBUTE_FLAG_SAMPLED) {
+  if (surf->getAttributeFlags(ATTRIBUTE_COLOR) & ATTRIBUTE_FLAG_SAMPLED) {
     shader.append("  centroid vec4 vertexColor;\n");
   } else {
     shader.append("  vec4 vertexColor;\n");
   }
 
-
-  if(
-    (surf->getAttributeFlags(ATTRIBUTE_WORLD_NORMAL) & ATTRIBUTE_FLAG_SAMPLED) ||
-    (surf->getAttributeFlags(ATTRIBUTE_OBJECT_NORMAL) & ATTRIBUTE_FLAG_SAMPLED)
-  ) {
+  if ((surf->getAttributeFlags(ATTRIBUTE_WORLD_NORMAL) & ATTRIBUTE_FLAG_SAMPLED)
+      || (surf->getAttributeFlags(ATTRIBUTE_OBJECT_NORMAL)
+          & ATTRIBUTE_FLAG_SAMPLED)) {
     shader.append("  centroid vec3 vertexNormal;\n");
   } else {
     shader.append("  vec3 vertexNormal;\n");
   }
 
   shader.append("  float vertexOcclusion;\n");
-  if(surf->getAttributeFlags(ATTRIBUTE_ATTRIBUTE0) & ATTRIBUTE_FLAG_SAMPLED) {
+  if (surf->getAttributeFlags(ATTRIBUTE_ATTRIBUTE0) & ATTRIBUTE_FLAG_SAMPLED) {
     shader.append("  centroid vec4 vertexAttribute0;\n");
   } else {
     shader.append("  vec4 vertexAttribute0;\n");
   }
-  if(surf->getAttributeFlags(ATTRIBUTE_ATTRIBUTE1) & ATTRIBUTE_FLAG_SAMPLED) {
+  if (surf->getAttributeFlags(ATTRIBUTE_ATTRIBUTE1) & ATTRIBUTE_FLAG_SAMPLED) {
     shader.append("  centroid vec4 vertexAttribute1;\n");
   } else {
     shader.append("  vec4 vertexAttribute1;\n");
   }
-  if(surf->getAttributeFlags(ATTRIBUTE_ATTRIBUTE2) & ATTRIBUTE_FLAG_SAMPLED) {
+  if (surf->getAttributeFlags(ATTRIBUTE_ATTRIBUTE2) & ATTRIBUTE_FLAG_SAMPLED) {
     shader.append("  centroid vec4 vertexAttribute2;\n");
   } else {
     shader.append("  vec4 vertexAttribute2;\n");
   }
-  if(surf->getAttributeFlags(ATTRIBUTE_ATTRIBUTE3) & ATTRIBUTE_FLAG_SAMPLED) {
+  if (surf->getAttributeFlags(ATTRIBUTE_ATTRIBUTE3) & ATTRIBUTE_FLAG_SAMPLED) {
     shader.append("  centroid vec4 vertexAttribute3;\n");
   } else {
     shader.append("  vec4 vertexAttribute3;\n");
@@ -404,8 +427,8 @@ void Object<GeometryTriangle>::interfaceBlock(SurfaceObjectBase *surf, Appendabl
   shader.append("};\n");
 }
 
-
-void Object<GeometryTriangle>::vertexShader(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryTriangle>::vertexShader(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(occlusion_declaration);
 
@@ -415,25 +438,26 @@ void Object<GeometryTriangle>::vertexShader(SurfaceObjectBase *surf, AppendableS
   shader.append(triangle_vert);
 }
 
-void Object<GeometryTriangle>::fragmentShaderMain(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryTriangle>::fragmentShaderMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
-  if(primitive_color_array) {
+  if (primitive_color_array) {
     int index = surf->resourceIndex(PRIMITIVE_COLOR_ARRAY);
     primitive_color_array->declare(index, shader);
   }
-  if(primitive_attribute0_array) {
+  if (primitive_attribute0_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE0_ARRAY);
     primitive_attribute0_array->declare(index, shader);
   }
-  if(primitive_attribute1_array) {
+  if (primitive_attribute1_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE1_ARRAY);
     primitive_attribute1_array->declare(index, shader);
   }
-  if(primitive_attribute2_array) {
+  if (primitive_attribute2_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE2_ARRAY);
     primitive_attribute2_array->declare(index, shader);
   }
-  if(primitive_attribute3_array) {
+  if (primitive_attribute3_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE3_ARRAY);
     primitive_attribute3_array->declare(index, shader);
   }
@@ -443,31 +467,31 @@ void Object<GeometryTriangle>::fragmentShaderMain(SurfaceObjectBase *surf, Appen
 
   shader.append(triangle_frag);
 
-  if(primitive_color_array) {
+  if (primitive_color_array) {
     int index = surf->resourceIndex(PRIMITIVE_COLOR_ARRAY);
     shader.append("  color = ");
     primitive_color_array->sample(index, shader);
     shader.append(gl_primitive_id);
   }
-  if(primitive_attribute0_array) {
+  if (primitive_attribute0_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE0_ARRAY);
     shader.append("  attribute0 = ");
     primitive_attribute0_array->sample(index, shader);
     shader.append(gl_primitive_id);
   }
-  if(primitive_attribute1_array) {
+  if (primitive_attribute1_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE1_ARRAY);
     shader.append("  attribute1 = ");
     primitive_attribute1_array->sample(index, shader);
     shader.append(gl_primitive_id);
   }
-  if(primitive_attribute2_array) {
+  if (primitive_attribute2_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE2_ARRAY);
     shader.append("  attribute2 = ");
     primitive_attribute2_array->sample(index, shader);
     shader.append(gl_primitive_id);
   }
-  if(primitive_attribute3_array) {
+  if (primitive_attribute3_array) {
     int index = surf->resourceIndex(PRIMITIVE_ATTRIBUTE3_ARRAY);
     shader.append("  attribute3 = ");
     primitive_attribute3_array->sample(index, shader);
@@ -475,23 +499,27 @@ void Object<GeometryTriangle>::fragmentShaderMain(SurfaceObjectBase *surf, Appen
   }
 }
 
-void Object<GeometryTriangle>::vertexShaderShadow(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryTriangle>::vertexShaderShadow(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(triangle_vert_shadow);
 }
 
-void Object<GeometryTriangle>::geometryShaderShadow(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryTriangle>::geometryShaderShadow(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(shadow_block_declaration);
   shader.append(triangle_geom_shadow);
 }
 
-void Object<GeometryTriangle>::fragmentShaderShadowMain(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryTriangle>::fragmentShaderShadowMain(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(empty_fragment_shader);
 }
 
-void Object<GeometryTriangle>::vertexShaderOcclusion(SurfaceObjectBase *surf, AppendableShader &shader)
+void Object<GeometryTriangle>::vertexShaderOcclusion(
+    SurfaceObjectBase *surf, AppendableShader &shader)
 {
   shader.append(shader_conversions);
   shader.append(occlusion_declaration);
@@ -499,18 +527,17 @@ void Object<GeometryTriangle>::vertexShaderOcclusion(SurfaceObjectBase *surf, Ap
   shader.append(triangle_vert_occlusion_resolve);
 }
 
-
-static void triangle_delete_objects(Object<Device> *deviceObj, GLuint vao) {
+static void triangle_delete_objects(Object<Device> *deviceObj, GLuint vao)
+{
   auto &gl = deviceObj->gl;
   gl.DeleteVertexArrays(1, &vao);
 }
 
 Object<GeometryTriangle>::~Object()
 {
-  if(vao) {
+  if (vao) {
     thisDevice->queue.enqueue(triangle_delete_objects, thisDevice, vao);
   }
 }
 
-} //namespace visgl
-
+} // namespace visgl

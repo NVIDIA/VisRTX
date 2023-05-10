@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "AppendableShader.h"
 #include "shader_blocks.h"
@@ -37,24 +36,23 @@
 
 #include <cstdio>
 
-namespace visgl{
+namespace visgl {
 
 Object<Surface>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
-{
-
-}
+{}
 
 void Object<Surface>::commit()
 {
   DefaultObject::commit();
-  geometry = acquire<GeometryObjectBase*>(current.geometry);
-  material = acquire<MaterialObjectBase*>(current.material);
+  geometry = acquire<GeometryObjectBase *>(current.geometry);
+  material = acquire<MaterialObjectBase *>(current.material);
 }
 
-void Object<Surface>::allocateTexture(int slot, GLenum target, GLuint texture, GLuint sampler)
+void Object<Surface>::allocateTexture(
+    int slot, GLenum target, GLuint texture, GLuint sampler)
 {
-  if(slot >= SURFACE_MAX_RESOURCES) {
+  if (slot >= SURFACE_MAX_RESOURCES) {
     return;
   }
 
@@ -67,7 +65,7 @@ void Object<Surface>::allocateTexture(int slot, GLenum target, GLuint texture, G
 
 void Object<Surface>::allocateStorageBuffer(int slot, GLuint buffer)
 {
-  if(slot >= SURFACE_MAX_RESOURCES) {
+  if (slot >= SURFACE_MAX_RESOURCES) {
     return;
   }
 
@@ -78,7 +76,7 @@ void Object<Surface>::allocateStorageBuffer(int slot, GLuint buffer)
 
 void Object<Surface>::allocateTransform(int slot)
 {
-  if(slot >= SURFACE_MAX_RESOURCES) {
+  if (slot >= SURFACE_MAX_RESOURCES) {
     return;
   }
 
@@ -88,65 +86,71 @@ void Object<Surface>::allocateTransform(int slot)
 
 int Object<Surface>::resourceIndex(int slot)
 {
-  if(slot < SURFACE_MAX_RESOURCES) {
+  if (slot < SURFACE_MAX_RESOURCES) {
     return resources[slot].index;
   } else {
     return -1;
   }
 }
 
-void Object<Surface>::addAttributeFlags(int attrib, uint32_t flags) {
-  if(0<=attrib && attrib<ATTRIBUTE_COUNT) {
+void Object<Surface>::addAttributeFlags(int attrib, uint32_t flags)
+{
+  if (0 <= attrib && attrib < ATTRIBUTE_COUNT) {
     attributeFlags[attrib] |= flags;
   }
 }
 
-uint32_t Object<Surface>::getAttributeFlags(int attrib) {
-  if(0<=attrib && attrib<ATTRIBUTE_COUNT) {
+uint32_t Object<Surface>::getAttributeFlags(int attrib)
+{
+  if (0 <= attrib && attrib < ATTRIBUTE_COUNT) {
     return attributeFlags[attrib];
   } else {
     return 0u;
   }
 }
 
-
 static void surface_compile_shader(ObjectRef<Surface> surfaceObj,
-  StaticAppendableShader<SHADER_SEGMENTS> vs, StaticAppendableShader<SHADER_SEGMENTS> fs,
-  StaticAppendableShader<SHADER_SEGMENTS> vs_shadow,
-  StaticAppendableShader<SHADER_SEGMENTS> gs_shadow,
-  StaticAppendableShader<SHADER_SEGMENTS> fs_shadow,
-  StaticAppendableShader<SHADER_SEGMENTS> vs_occlusion
-) {
-  if(surfaceObj->shader == 0) {
+    StaticAppendableShader<SHADER_SEGMENTS> vs,
+    StaticAppendableShader<SHADER_SEGMENTS> fs,
+    StaticAppendableShader<SHADER_SEGMENTS> vs_shadow,
+    StaticAppendableShader<SHADER_SEGMENTS> gs_shadow,
+    StaticAppendableShader<SHADER_SEGMENTS> fs_shadow,
+    StaticAppendableShader<SHADER_SEGMENTS> vs_occlusion)
+{
+  if (surfaceObj->shader == 0) {
     surfaceObj->shader = surfaceObj->thisDevice->shaders.get(vs, fs);
-    surfaceObj->shadow_shader = surfaceObj->thisDevice->shaders.get(vs_shadow, gs_shadow, fs_shadow);
+    surfaceObj->shadow_shader =
+        surfaceObj->thisDevice->shaders.get(vs_shadow, gs_shadow, fs_shadow);
 
-    const char *version = surfaceObj->thisDevice->gl.VERSION_4_3 ? version_430 : version_320_es;
-    
+    const char *version =
+        surfaceObj->thisDevice->gl.VERSION_4_3 ? version_430 : version_320_es;
+
     StaticAppendableShader<SHADER_SEGMENTS> empty;
     empty.append(version);
     empty.append(empty_fragment_shader);
-    
-    surfaceObj->occlusion_shader = surfaceObj->thisDevice->shaders.get(vs_occlusion, empty);
+
+    surfaceObj->occlusion_shader =
+        surfaceObj->thisDevice->shaders.get(vs_occlusion, empty);
   }
 }
 
 void Object<Surface>::update()
 {
   DefaultObject::update();
-  
+
   bool rebuild = false;
-  if(material) {
+  if (material) {
     rebuild |= material_epoch < material->objectEpoch();
   }
 
-  if(geometry) {
+  if (geometry) {
     rebuild |= geometry_epoch < geometry->objectEpoch();
   }
 
-  if(shader == 0 || rebuild) {
-    if(geometry && material) {
-      const char *version = thisDevice->gl.VERSION_4_3 ? version_430 : version_320_es;
+  if (shader == 0 || rebuild) {
+    if (geometry && material) {
+      const char *version =
+          thisDevice->gl.VERSION_4_3 ? version_430 : version_320_es;
 
       // reset
       ssboCount = GLOBAL_SSBO_OFFSET;
@@ -161,7 +165,7 @@ void Object<Surface>::update()
       vs.append(version);
       vs.append(shader_preamble);
       geometry->vertexShader(this, vs);
-       
+
       StaticAppendableShader<SHADER_SEGMENTS> fs;
       fs.append(version);
       fs.append(shader_preamble);
@@ -169,7 +173,6 @@ void Object<Surface>::update()
       material->fragmentShaderDeclarations(this, fs);
       geometry->fragmentShaderMain(this, fs);
       material->fragmentShaderMain(this, fs);
-
 
       StaticAppendableShader<SHADER_SEGMENTS> vs_shadow;
       vs_shadow.append(version);
@@ -180,7 +183,7 @@ void Object<Surface>::update()
       gs_shadow.append(version);
       gs_shadow.append(shader_preamble);
       geometry->geometryShaderShadow(this, gs_shadow);
-       
+
       StaticAppendableShader<SHADER_SEGMENTS> fs_shadow;
       fs_shadow.append(version);
       fs_shadow.append(shader_preamble);
@@ -189,14 +192,21 @@ void Object<Surface>::update()
       geometry->fragmentShaderShadowMain(this, fs_shadow);
       material->fragmentShaderShadowMain(this, fs_shadow);
 
-
       StaticAppendableShader<SHADER_SEGMENTS> vs_occlusion;
       vs_occlusion.append(version);
       vs_occlusion.append(shader_preamble);
       geometry->vertexShaderOcclusion(this, vs_occlusion);
 
-      thisDevice->queue.enqueue(surface_compile_shader, this, vs, fs, vs_shadow, gs_shadow, fs_shadow, vs_occlusion).wait();
-
+      thisDevice->queue
+          .enqueue(surface_compile_shader,
+              this,
+              vs,
+              fs,
+              vs_shadow,
+              gs_shadow,
+              fs_shadow,
+              vs_occlusion)
+          .wait();
 
       material_epoch = material->objectEpoch();
       geometry_epoch = geometry->objectEpoch();
@@ -213,6 +223,4 @@ void Object<Surface>::drawCommand(DrawCommand &command)
   command.occlusion_resolve_shader = occlusion_shader;
 }
 
-
-} //namespace visgl
-
+} // namespace visgl

@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
@@ -37,11 +36,12 @@
 
 #include <array>
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
-class Object<Spatial_FieldStructuredRegular> : public DefaultObject<Spatial_FieldStructuredRegular, SpatialFieldObjectBase>
+class Object<Spatial_FieldStructuredRegular>
+    : public DefaultObject<Spatial_FieldStructuredRegular,
+          SpatialFieldObjectBase>
 {
   GLuint sampler = 0;
   size_t transform_index;
@@ -53,23 +53,22 @@ class Object<Spatial_FieldStructuredRegular> : public DefaultObject<Spatial_Fiel
   GLuint box_position = 0;
   GLuint box_index = 0;
 
-  friend void field_init_objects(ObjectRef<Spatial_FieldStructuredRegular> samplerObj, int filter);
-public:
+  friend void field_init_objects(
+      ObjectRef<Spatial_FieldStructuredRegular> samplerObj, int filter);
 
+ public:
   Object(ANARIDevice d, ANARIObject handle);
 
   void commit() override;
   void update() override;
 
-  void drawCommand(VolumeObjectBase*, DrawCommand&) override;
-  void vertexShaderMain(VolumeObjectBase*, AppendableShader&) override;
-  void fragmentShaderMain(VolumeObjectBase*, AppendableShader&) override;
+  void drawCommand(VolumeObjectBase *, DrawCommand &) override;
+  void vertexShaderMain(VolumeObjectBase *, AppendableShader &) override;
+  void fragmentShaderMain(VolumeObjectBase *, AppendableShader &) override;
   uint32_t index() override;
   std::array<float, 6> bounds() override;
 
   ~Object();
-
 };
 
-} //namespace visgl
-
+} // namespace visgl

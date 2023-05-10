@@ -37,8 +37,7 @@
 #include <cstdlib>
 #include <cstring>
 
-namespace visgl{
-
+namespace visgl {
 
 Object<CameraOrthographic>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
@@ -46,9 +45,7 @@ Object<CameraOrthographic>::Object(ANARIDevice d, ANARIObject handle)
   commit();
 }
 
-void Object<CameraOrthographic>::calculateMatrices(float near, float far) {
-
-}
+void Object<CameraOrthographic>::calculateMatrices(float near, float far) {}
 
 void Object<CameraOrthographic>::commit()
 {
@@ -69,10 +66,10 @@ void Object<CameraOrthographic>::updateAt(size_t index, float *bounds) const
 {
   float range[2];
   projectBoundingBox(range, bounds, position, direction);
-  float far = range[1]*1.0001f;
-  float near = fast_maxf(far*1.0e-3, range[0]*0.9999f);
+  float far = range[1] * 1.0001f;
+  float near = fast_maxf(far * 1.0e-3, range[0] * 0.9999f);
 
-  float width = height*aspect;
+  float width = height * aspect;
 
   std::array<float, 16> projection;
   std::array<float, 16> view;
@@ -83,37 +80,43 @@ void Object<CameraOrthographic>::updateAt(size_t index, float *bounds) const
   std::array<float, 16> inverse_projection_view;
 
   setOrtho(projection.data(),
-    width*(2.0f*region[0]-1.0f),
-    width*(2.0f*region[2]-1.0f),
-    height*(2.0f*region[3]-1.0f),
-    height*(2.0f*region[1]-1.0f),
-    near, far);
+      width * (2.0f * region[0] - 1.0f),
+      width * (2.0f * region[2] - 1.0f),
+      height * (2.0f * region[3] - 1.0f),
+      height * (2.0f * region[1] - 1.0f),
+      near,
+      far);
   setLookDirection(view.data(), position, direction, up);
   mul3(projection_view.data(), projection.data(), view.data());
 
-
   setInverseOrtho(inverse_projection.data(),
-    width*(2.0f*region[0]-1.0f),
-    width*(2.0f*region[2]-1.0f),
-    height*(2.0f*region[3]-1.0f),
-    height*(2.0f*region[1]-1.0f),
-    near, far);
+      width * (2.0f * region[0] - 1.0f),
+      width * (2.0f * region[2] - 1.0f),
+      height * (2.0f * region[3] - 1.0f),
+      height * (2.0f * region[1] - 1.0f),
+      near,
+      far);
   setInverseLookDirection(inverse_view.data(), position, direction, up);
-  mul3(inverse_projection_view.data(), inverse_view.data(), inverse_projection.data());
+  mul3(inverse_projection_view.data(),
+      inverse_view.data(),
+      inverse_projection.data());
 
-  std::array<float, 16> aux{
-    position[0], position[1], position[2], 1.0f,
-    -direction[0], -direction[1], -direction[2], 0.0f
-  };
+  std::array<float, 16> aux{position[0],
+      position[1],
+      position[2],
+      1.0f,
+      -direction[0],
+      -direction[1],
+      -direction[2],
+      0.0f};
 
-  thisDevice->transforms.set(index+0, projection_view);
-  thisDevice->transforms.set(index+1, inverse_projection_view);
-  thisDevice->transforms.set(index+2, projection);
-  thisDevice->transforms.set(index+3, inverse_projection);
-  thisDevice->transforms.set(index+4, view);
-  thisDevice->transforms.set(index+5, inverse_view);
-  thisDevice->transforms.set(index+6, aux);
+  thisDevice->transforms.set(index + 0, projection_view);
+  thisDevice->transforms.set(index + 1, inverse_projection_view);
+  thisDevice->transforms.set(index + 2, projection);
+  thisDevice->transforms.set(index + 3, inverse_projection);
+  thisDevice->transforms.set(index + 4, view);
+  thisDevice->transforms.set(index + 5, inverse_view);
+  thisDevice->transforms.set(index + 6, aux);
 }
 
-} //namespace visgl
-
+} // namespace visgl

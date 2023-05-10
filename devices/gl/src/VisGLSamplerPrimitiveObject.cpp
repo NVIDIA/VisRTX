@@ -29,22 +29,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLSpecializations.h"
 #include "shader_blocks.h"
 #include "anari2gl_types.h"
 
-namespace visgl{
+namespace visgl {
 
 Object<SamplerPrimitive>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
-{
-}
+{}
 
 void Object<SamplerPrimitive>::commit()
 {
   DefaultObject::commit();
-  array = acquire<DataArray1D*>(current.array);
+  array = acquire<DataArray1D *>(current.array);
 }
 
 void Object<SamplerPrimitive>::update()
@@ -56,9 +54,10 @@ void Object<SamplerPrimitive>::update()
   meta[0] = offset;
 }
 
-void Object<SamplerPrimitive>::allocateResources(SurfaceObjectBase *surf, int slot)
+void Object<SamplerPrimitive>::allocateResources(
+    SurfaceObjectBase *surf, int slot)
 {
-  if(array) {
+  if (array) {
     surf->allocateStorageBuffer(slot, array->getBuffer());
   }
   surf->addAttributeFlags(ATTRIBUTE_PRIMITIVE_ID, ATTRIBUTE_FLAG_USED);
@@ -66,7 +65,7 @@ void Object<SamplerPrimitive>::allocateResources(SurfaceObjectBase *surf, int sl
 
 void Object<SamplerPrimitive>::drawCommand(int index, DrawCommand &command)
 {
-  if(array) {
+  if (array) {
     // these sevens are magic numbers for now
     array->drawCommand(index, command);
   }
@@ -74,14 +73,15 @@ void Object<SamplerPrimitive>::drawCommand(int index, DrawCommand &command)
 
 void Object<SamplerPrimitive>::declare(int index, AppendableShader &shader)
 {
-  if(array) {
+  if (array) {
     array->declare(index, shader);
   }
 }
 
-void Object<SamplerPrimitive>::sample(int index, AppendableShader &shader, const char *meta)
+void Object<SamplerPrimitive>::sample(
+    int index, AppendableShader &shader, const char *meta)
 {
-  if(array) {
+  if (array) {
     array->sample(index, shader);
     shader.append("primitiveId+floatBitsToUint(");
     shader.append(meta);
@@ -91,13 +91,11 @@ void Object<SamplerPrimitive>::sample(int index, AppendableShader &shader, const
   }
 }
 
-std::array<uint32_t, 4> Object<SamplerPrimitive>::metadata() {
+std::array<uint32_t, 4> Object<SamplerPrimitive>::metadata()
+{
   return meta;
 }
 
-Object<SamplerPrimitive>::~Object()
-{
-}
+Object<SamplerPrimitive>::~Object() {}
 
-} //namespace visgl
-
+} // namespace visgl

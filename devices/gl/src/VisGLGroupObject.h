@@ -29,22 +29,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
 class Object<Group> : public DefaultObject<Group>
 {
-public:
+ public:
   Object(ANARIDevice d, ANARIObject handle);
 
   void commit() override;
 };
 
-} //namespace visgl
-
+} // namespace visgl

@@ -29,12 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
 
-namespace visgl{
+namespace visgl {
 
 template <>
 class Object<RendererDefault> : public DefaultObject<RendererDefault>
@@ -42,8 +41,8 @@ class Object<RendererDefault> : public DefaultObject<RendererDefault>
   std::array<float, 4> ambient;
   size_t ambient_index;
   bool dirty = true;
-public:
 
+ public:
   Object(ANARIDevice d, ANARIObject handle);
 
   void commit() override;
@@ -51,5 +50,4 @@ public:
   uint32_t index();
 };
 
-} //namespace visgl
-
+} // namespace visgl

@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 // anari
@@ -203,7 +202,8 @@ struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
   T handle_cast(H handle)
   {
     ObjectBase *base = fromHandle(handle);
-    if (base && is_convertible<typename std::remove_pointer<T>::type>::check(base)) {
+    if (base
+        && is_convertible<typename std::remove_pointer<T>::type>::check(base)) {
       return static_cast<T>(base);
     } else {
       return nullptr;
@@ -231,7 +231,8 @@ struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
       idx = objects.add();
       handle = reinterpret_cast<ANARIObject>(idx);
     }
-    objects[idx].reset(ObjectAllocator<T>::allocate(this_device(), handle, args...));
+    objects[idx].reset(
+        ObjectAllocator<T>::allocate(this_device(), handle, args...));
     objects[idx]->init();
     return static_cast<R>(handle);
   }
@@ -243,7 +244,6 @@ struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
       return objects[id].reset(nullptr);
     }
   }
-
 
   ANARIStatusCallback statusCallback;
   const void *statusCallbackUserData;
@@ -270,12 +270,11 @@ template <class T>
 T ObjectBase::acquire(ANARIObject h)
 {
   T obj = visgl::handle_cast<T>(device, h);
-  if(obj) {
+  if (obj) {
     obj->update();
   }
   return obj;
 }
-
 
 template <class T>
 T ObjectBase::handle_cast(ParameterBase &h)
@@ -289,5 +288,4 @@ T ObjectBase::acquire(ParameterBase &h)
   return acquire<T>(h.getHandle());
 }
 
-} //namespace visgl
-
+} // namespace visgl

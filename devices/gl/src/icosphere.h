@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+// clang-format off
 static const uint32_t index_count0 = 60;
 static const uint32_t indices0[] = {
   0, 1, 8,

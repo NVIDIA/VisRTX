@@ -33,26 +33,24 @@
 
 #include "VisGLDevice.h"
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
 class Object<World> : public DefaultObject<World>
 {
-public:
-  //occlusion
+ public:
+  // occlusion
   GLuint occlusionbuffer = 0;
   uint32_t occlusioncapacity = 0;
   uint32_t occlusionsamples = 0;
-  //occlusion
+  // occlusion
 
-  //shadowmaps
+  // shadowmaps
   GLuint shadowtex = 0;
   GLuint shadowfbo = 0;
   uint32_t shadow_map_size = 0;
   int shadow_map_count = 0;
-  //shadowmaps
-
+  // shadowmaps
 
   uint64_t worldEpoch = 0;
   uint64_t lightEpoch = 0;
@@ -63,11 +61,10 @@ public:
   ~Object();
 
   int getProperty(const char *propname,
-    ANARIDataType type,
-    void *mem,
-    uint64_t size,
-    ANARIWaitMask mask) override;
+      ANARIDataType type,
+      void *mem,
+      uint64_t size,
+      ANARIWaitMask mask) override;
 };
 
-} //namespace visgl
-
+} // namespace visgl

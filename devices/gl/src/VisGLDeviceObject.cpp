@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include "VisGLDeviceObject.h"
 #include "VisGLSpecializations.h"
 
@@ -46,23 +45,23 @@
 #include "glx_context.h"
 #endif
 
-namespace visgl{
+namespace visgl {
 
-Object<Device>::Object(ANARIDevice d)
-    : DefaultObject(d, this), queue(128)
-{}
+Object<Device>::Object(ANARIDevice d) : DefaultObject(d, this), queue(128) {}
 
 int Object<Device>::getProperty(const char *propname,
-  ANARIDataType type,
-  void *mem,
-  uint64_t size,
-  ANARIWaitMask mask)
+    ANARIDataType type,
+    void *mem,
+    uint64_t size,
+    ANARIWaitMask mask)
 {
-  if(type == ANARI_INT32 && size >= sizeof(int32_t) && std::strncmp("version", propname, 7) == 0) {
+  if (type == ANARI_INT32 && size >= sizeof(int32_t)
+      && std::strncmp("version", propname, 7) == 0) {
     int32_t version = 0; // use actual version number
     std::memcpy(mem, &version, sizeof(version));
     return 1;
-  } else if(type == ANARI_UINT64 && size >= sizeof(uint64_t) && std::strncmp("geometryMaxIndex", propname, 16) == 0) {
+  } else if (type == ANARI_UINT64 && size >= sizeof(uint64_t)
+      && std::strncmp("geometryMaxIndex", propname, 16) == 0) {
     uint64_t geometryMaxIndex = INT32_MAX; // use actual value
     std::memcpy(mem, &geometryMaxIndex, sizeof(geometryMaxIndex));
     return 1;
@@ -74,48 +73,67 @@ int Object<Device>::getProperty(const char *propname,
 void Object<Device>::commit()
 {
   DefaultObject::commit();
-
 }
 
-static void debug_callback(GLenum source, GLenum type, GLenum id, GLenum severity,
-  GLsizei length, const GLchar* message, const void* userdata)
+static void debug_callback(GLenum source,
+    GLenum type,
+    GLenum id,
+    GLenum severity,
+    GLsizei length,
+    const GLchar *message,
+    const void *userdata)
 {
-  if(severity != GL_DEBUG_SEVERITY_HIGH) {
+  if (severity != GL_DEBUG_SEVERITY_HIGH) {
     return;
   }
-  ANARIDevice device = reinterpret_cast<ANARIDevice>(const_cast<void*>(userdata));
-  anariReportStatus(device, device, ANARI_DEVICE,
-        ANARI_SEVERITY_INFO, ANARI_STATUS_NO_ERROR,
-        "[OpenGL] %s", message);
+  ANARIDevice device =
+      reinterpret_cast<ANARIDevice>(const_cast<void *>(userdata));
+  anariReportStatus(device,
+      device,
+      ANARI_DEVICE,
+      ANARI_SEVERITY_INFO,
+      ANARI_STATUS_NO_ERROR,
+      "[OpenGL] %s",
+      message);
 }
 
-
-static void device_context_init(Object<Device> *deviceObj, int clientapi, int32_t debug) {
+static void device_context_init(
+    Object<Device> *deviceObj, int clientapi, int32_t debug)
+{
   deviceObj->context->init();
   deviceObj->context->makeCurrent();
 
   int version = 0;
-  if(clientapi == STRING_ENUM_OpenGL_ES) {
-    version = gladLoadGLES2Context(&deviceObj->gl, (GLADloadfunc)deviceObj->context->loaderFunc());
-  } else if(clientapi == STRING_ENUM_OpenGL) {
-    version = gladLoadGLContext(&deviceObj->gl, (GLADloadfunc)deviceObj->context->loaderFunc());
+  if (clientapi == STRING_ENUM_OpenGL_ES) {
+    version = gladLoadGLES2Context(
+        &deviceObj->gl, (GLADloadfunc)deviceObj->context->loaderFunc());
+  } else if (clientapi == STRING_ENUM_OpenGL) {
+    version = gladLoadGLContext(
+        &deviceObj->gl, (GLADloadfunc)deviceObj->context->loaderFunc());
   }
 
   auto &gl = deviceObj->gl;
 
-  if(version == 0) {
-    anariReportStatus(deviceObj->device, deviceObj->handle, ANARI_DEVICE,
-      ANARI_SEVERITY_INFO, ANARI_STATUS_NO_ERROR,
-      "[GLAD] Failed to load GLES entry points");
+  if (version == 0) {
+    anariReportStatus(deviceObj->device,
+        deviceObj->handle,
+        ANARI_DEVICE,
+        ANARI_SEVERITY_INFO,
+        ANARI_STATUS_NO_ERROR,
+        "[GLAD] Failed to load GLES entry points");
   }
 
-  if(debug && deviceObj->gl.DebugMessageCallback) {
+  if (debug && deviceObj->gl.DebugMessageCallback) {
     gl.DebugMessageCallback(debug_callback, deviceObj->device);
   }
 
-  anariReportStatus(deviceObj->device, deviceObj->handle, ANARI_DEVICE,
-    ANARI_SEVERITY_INFO, ANARI_STATUS_NO_ERROR,
-    "%s\n", gl.GetString(GL_VERSION));
+  anariReportStatus(deviceObj->device,
+      deviceObj->handle,
+      ANARI_DEVICE,
+      ANARI_SEVERITY_INFO,
+      ANARI_STATUS_NO_ERROR,
+      "%s\n",
+      gl.GetString(GL_VERSION));
 
   deviceObj->transforms.init(&deviceObj->gl);
   deviceObj->materials.init(&deviceObj->gl);
@@ -124,27 +142,43 @@ static void device_context_init(Object<Device> *deviceObj, int clientapi, int32_
 
   // insert matrices for the 0 instance
   std::array<float, 16> identity_matrix = {
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
-    0, 0, 0, 1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
   };
   deviceObj->transforms.allocate(3);
   deviceObj->transforms.set(0, identity_matrix);
   deviceObj->transforms.set(1, identity_matrix);
   deviceObj->transforms.set(2, identity_matrix);
 
-
   deviceObj->lights.allocate(1);
   std::array<float, 4> zero = {0.0f, 0.0f, 0.0f, 0.0f};
   deviceObj->lights.set(0, zero);
 
-#define REPORT_GL_INT(X) {\
-    GLint value;\
-    gl.GetIntegerv(X, &value);\
-    anariReportStatus(deviceObj->device, deviceObj->handle, ANARI_DEVICE,\
-          ANARI_SEVERITY_INFO, ANARI_STATUS_NO_ERROR,\
-          "[OpenGL] " #X " %d", value);\
+#define REPORT_GL_INT(X)                                                       \
+  {                                                                            \
+    GLint value;                                                               \
+    gl.GetIntegerv(X, &value);                                                 \
+    anariReportStatus(deviceObj->device,                                       \
+        deviceObj->handle,                                                     \
+        ANARI_DEVICE,                                                          \
+        ANARI_SEVERITY_INFO,                                                   \
+        ANARI_STATUS_NO_ERROR,                                                 \
+        "[OpenGL] " #X " %d",                                                  \
+        value);                                                                \
   }
 }
 
@@ -152,7 +186,7 @@ void Object<Device>::update()
 {
   DefaultObject::update();
 
-  if(context) {
+  if (context) {
     return;
   }
 
@@ -163,26 +197,27 @@ void Object<Device>::update()
 
 #ifdef VISGL_USE_GLX
   Display *display = glXGetCurrentDisplay();
-  if(display) {
+  if (display) {
     GLXContext glx_context = glXGetCurrentContext();
     context.reset(new glxContext(device, display, glx_context, debug));
   } else {
 #endif
 
 #ifdef VISGL_USE_EGL
-  EGLenum api;
-  if(clientapi == STRING_ENUM_OpenGL_ES) {
-    api = EGL_OPENGL_ES_API;
-  } else if(clientapi == STRING_ENUM_OpenGL) {
-    api = EGL_OPENGL_API;
-  }
+    EGLenum api;
+    if (clientapi == STRING_ENUM_OpenGL_ES) {
+      api = EGL_OPENGL_ES_API;
+    } else if (clientapi == STRING_ENUM_OpenGL) {
+      api = EGL_OPENGL_API;
+    }
 
-  EGLDisplay egldisplay = EGL_NO_DISPLAY;
-  current.EGLDisplay.get(ANARI_VOID_POINTER, &egldisplay);
-  if(egldisplay == EGL_NO_DISPLAY) {
-    egldisplay = eglGetCurrentDisplay();
-  }
-  context.reset(new eglContext(device, egldisplay, api, debug?EGL_TRUE:EGL_FALSE));
+    EGLDisplay egldisplay = EGL_NO_DISPLAY;
+    current.EGLDisplay.get(ANARI_VOID_POINTER, &egldisplay);
+    if (egldisplay == EGL_NO_DISPLAY) {
+      egldisplay = eglGetCurrentDisplay();
+    }
+    context.reset(
+        new eglContext(device, egldisplay, api, debug ? EGL_TRUE : EGL_FALSE));
 #endif
 
 #ifdef VISGL_USE_GLX
@@ -192,10 +227,12 @@ void Object<Device>::update()
   queue.enqueue(device_context_init, this, clientapi, debug).wait();
 }
 
-void device_init_occlusion(GladGLContext &gl, OcclusionResources *res) {
+void device_init_occlusion(GladGLContext &gl, OcclusionResources *res)
+{
   gl.GenTextures(1, &res->tex);
   gl.BindTexture(GL_TEXTURE_2D_ARRAY, res->tex);
-  gl.TexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_DEPTH_COMPONENT24, res->size, res->size, 12);
+  gl.TexStorage3D(
+      GL_TEXTURE_2D_ARRAY, 1, GL_DEPTH_COMPONENT24, res->size, res->size, 12);
   gl.TexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   gl.TexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -206,7 +243,8 @@ void device_init_occlusion(GladGLContext &gl, OcclusionResources *res) {
   gl.TexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, ones4f);
 
   // user percentage close filtering
-  gl.TexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+  gl.TexParameteri(
+      GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
   gl.TexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 
   gl.GenFramebuffers(1, &res->fbo);
@@ -214,23 +252,27 @@ void device_init_occlusion(GladGLContext &gl, OcclusionResources *res) {
   gl.FramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, res->tex, 0);
 }
 
-OcclusionResources* Object<Device>::getOcclusionResources() {
-  if(occlusion.tex == 0) {
-    //queue.enqueue(device_init_occlusion, gl, &occlusion).wait();
+OcclusionResources *Object<Device>::getOcclusionResources()
+{
+  if (occlusion.tex == 0) {
+    // queue.enqueue(device_init_occlusion, gl, &occlusion).wait();
     device_init_occlusion(gl, &occlusion);
   }
   return &occlusion;
 }
 
-uint64_t anariIncrementEpoch(Object<Device> *device, ObjectBase*) {
+uint64_t anariIncrementEpoch(Object<Device> *device, ObjectBase *)
+{
   return ++device->epochCounter;
 }
 
-uint64_t Object<Device>::globalEpoch() const {
+uint64_t Object<Device>::globalEpoch() const
+{
   return epochCounter;
 }
 
-static void device_context_free(Object<Device> *deviceObj) {
+static void device_context_free(Object<Device> *deviceObj)
+{
   deviceObj->transforms.release();
   deviceObj->materials.release();
   deviceObj->lights.release();
@@ -245,5 +287,4 @@ Object<Device>::~Object()
   context.reset(nullptr);
 }
 
-} //namespace visgl
-
+} // namespace visgl

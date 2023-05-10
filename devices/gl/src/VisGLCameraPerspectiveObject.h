@@ -29,18 +29,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #pragma once
 
 #include "VisGLDevice.h"
 
 #include <array>
 
-namespace visgl{
-
+namespace visgl {
 
 template <>
-class Object<CameraPerspective> : public DefaultObject<CameraPerspective, CameraObjectBase>
+class Object<CameraPerspective>
+    : public DefaultObject<CameraPerspective, CameraObjectBase>
 {
   float position[3];
   float direction[3];
@@ -51,8 +50,8 @@ class Object<CameraPerspective> : public DefaultObject<CameraPerspective, Camera
   float aspect;
 
   void calculateMatrices(float near, float far);
-public:
 
+ public:
   Object(ANARIDevice d, ANARIObject handle);
 
   void updateAt(size_t index, float *bounds) const override;
@@ -60,5 +59,4 @@ public:
   void commit() override;
 };
 
-} //namespace visgl
-
+} // namespace visgl
