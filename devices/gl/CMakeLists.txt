@@ -35,44 +35,7 @@ find_package(Threads REQUIRED)
 find_package(OpenGL REQUIRED COMPONENTS OpenGL OPTIONAL_COMPONENTS EGL GLX)
 find_package(X11)
 
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.12")
-  find_package(Python3 REQUIRED COMPONENTS Interpreter)
-
-  add_custom_target(generate_VisGL_queries
-    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_queries.py
-      --json ${ANARI_CODE_GEN_ROOT}
-      --json ${CMAKE_CURRENT_SOURCE_DIR}
-      --prefix VisGL
-      --device ${CMAKE_CURRENT_SOURCE_DIR}/visgl_device.json
-      --namespace visgl
-      --output ${CMAKE_CURRENT_SOURCE_DIR}/generated
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS visgl_device.json
-  )
-
-  add_custom_target(generate_VisGL_debug_objects
-    COMMAND ${Python3_EXECUTABLE} ${ANARI_CODE_GEN_ROOT}/generate_debug_objects.py
-      --json ${ANARI_CODE_GEN_ROOT}
-      --json ${CMAKE_CURRENT_SOURCE_DIR}
-      --device ${CMAKE_CURRENT_SOURCE_DIR}/visgl_device.json
-      --prefix VisGL
-      --namespace visgl
-      --output ${CMAKE_CURRENT_SOURCE_DIR}/generated
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    DEPENDS visgl_device.json
-  )
-
-  anari_generate_frontend(
-    TARGET generate_visgl_frontend
-    DEFINITIONS ${CMAKE_CURRENT_SOURCE_DIR}/visgl_device.json
-    NAME VisGL
-    PREFIX VisGL
-    NAMESPACE visgl
-    DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}
-    CODE_HEADER_FILE ${CMAKE_CURRENT_LIST_DIR}/license.txt
-    JSON ${CMAKE_CURRENT_SOURCE_DIR}
-  )
-endif()
+add_subdirectory(generated)
 
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
 
