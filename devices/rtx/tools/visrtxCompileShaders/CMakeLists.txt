@@ -27,26 +27,13 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.17)
+project(visrtxCompileShaders LANGUAGES CXX)
 
-message(STATUS "CMake version: ${CMAKE_VERSION}")
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_BUILD_TYPE_INIT "Release")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+add_executable(${PROJECT_NAME} main.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE anari_library_visrtx)
 
 option(VISRTX_PRECOMPILE_SHADERS "Run visrtxCompileShaders at build time?" ON)
-
 if (VISRTX_PRECOMPILE_SHADERS)
-  project(visrtxCompileShaders LANGUAGES CXX)
-
-  find_package(VisRTX REQUIRED)
-
-  add_executable(${PROJECT_NAME} main.cpp)
-  target_link_libraries(${PROJECT_NAME} PRIVATE VisRTX::anari_library_visrtx)
-
   add_custom_target(build_shaders
     ALL
     COMMAND ${CMAKE_BINARY_DIR}/${PROJECT_NAME}
