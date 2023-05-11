@@ -57,6 +57,16 @@ option(
 )
 mark_as_advanced(VISRTX_SET_SOVERSION)
 
+if (VISRTX_SET_SOVERSION)
+  set(VISRTX_CMAKE_INSTALL_DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
+  )
+else()
+  set(VISRTX_CMAKE_INSTALL_DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  )
+endif()
+
 ## Dependencies ###############################################################
 
 # ANARI-SDK
@@ -93,16 +103,6 @@ add_subdirectory(tests)
 add_subdirectory(tools)
 
 ## Configure CMake find_package() config files ################################
-
-if (VISRTX_SET_SOVERSION)
-  set(VISRTX_CMAKE_INSTALL_DESTINATION
-    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
-  )
-else()
-  set(VISRTX_CMAKE_INSTALL_DESTINATION
-    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-  )
-endif()
 
 include(CMakePackageConfigHelpers)
 
