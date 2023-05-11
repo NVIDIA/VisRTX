@@ -49,7 +49,7 @@ include(EmbedPTX)
 option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
 
-## Code generation
+## Code generation ##
 
 option(VISRTX_ENABLE_CODE_GEN "Enable Python code generation for query updates" OFF)
 mark_as_advanced(VISRTX_ENABLE_CODE_GEN)
@@ -281,3 +281,7 @@ install(EXPORT VisRTX_Exports
   DESTINATION ${VISRTX_CMAKE_INSTALL_DESTINATION}
   NAMESPACE VisRTX::
 )
+
+## Build tools ##
+
+add_subdirectory(tools)
