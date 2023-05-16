@@ -419,7 +419,7 @@ class CollectScene : public ObjectVisitorBase
     lights.push_back(obj->index());
     lights.push_back(instance ? instance->index() : 0);
     lights.push_back(0xFFFFFFFFu); // shadow map index
-    lights.push_back(0); // padding
+    lights.push_back(obj->lightType()); // type
 
     if (shadow_caster_count < 12
         && is_convertible<Object<LightDirectional>>::check(obj)) {

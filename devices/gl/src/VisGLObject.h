@@ -298,6 +298,7 @@ class LightObjectBase : public ObjectBase
  public:
   LightObjectBase(ANARIDevice d, ANARIObject handle) : ObjectBase(d, handle) {}
   virtual uint32_t index() = 0;
+  virtual uint32_t lightType() = 0;
 };
 
 template <>
@@ -457,6 +458,7 @@ class DefaultObject : public B
  public:
   T current;
   Object<Device> *const thisDevice;
+  static const uint32_t ID = T::id | base_flags<B>::value;
 
   bool set(const char *paramname, ANARIDataType type, const void *mem) override
   {

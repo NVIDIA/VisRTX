@@ -52,6 +52,7 @@ class Object<LightDirectional>
   void commit() override;
   void update() override;
   uint32_t index() override;
+  uint32_t lightType() override;
 };
 
 } // namespace visgl

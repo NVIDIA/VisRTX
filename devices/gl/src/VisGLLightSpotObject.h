@@ -29,53 +29,30 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "VisGLSpecializations.h"
-#include "anari/type_utility.h"
-#include "math_util.h"
-#include <math.h>
+#pragma once
 
-#include <cstdlib>
-#include <cstring>
+#include "VisGLDevice.h"
+
+#include <array>
 
 namespace visgl {
 
-Object<LightPoint>::Object(ANARIDevice d, ANARIObject handle)
-    : DefaultObject(d, handle)
+template <>
+class Object<LightSpot> : public DefaultObject<LightSpot, LightObjectBase>
 {
-  light_index = thisDevice->lights.allocate(2);
+  std::array<float, 4> color;
+  std::array<float, 4> position;
+  std::array<float, 4> spot;
+  size_t light_index;
+  bool dirty = true;
 
-  commit();
-}
+ public:
+  Object(ANARIDevice d, ANARIObject handle);
 
-void Object<LightPoint>::commit()
-{
-  DefaultObject::commit();
-
-  current.color.get(ANARI_FLOAT32_VEC3, color.data());
-  current.intensity.get(ANARI_FLOAT32, color.data() + 3);
-  current.position.get(ANARI_FLOAT32_VEC3, position.data());
-  position[3] = 1;
-  dirty = true;
-}
-
-void Object<LightPoint>::update()
-{
-  DefaultObject::update();
-  if (dirty) {
-    thisDevice->lights.set(light_index + 0, color);
-    thisDevice->lights.set(light_index + 1, position);
-    dirty = false;
-  }
-}
-
-uint32_t Object<LightPoint>::index()
-{
-  return light_index;
-}
-
-uint32_t Object<LightPoint>::lightType()
-{
-  return LIGHT_TYPE_POINT;
-}
+  void commit() override;
+  void update() override;
+  uint32_t index() override;
+  uint32_t lightType() override;
+};
 
 } // namespace visgl

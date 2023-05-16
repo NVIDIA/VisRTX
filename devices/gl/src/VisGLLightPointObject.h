@@ -51,6 +51,7 @@ class Object<LightPoint> : public DefaultObject<LightPoint, LightObjectBase>
   void commit() override;
   void update() override;
   uint32_t index() override;
+  uint32_t lightType() override;
 };
 
 } // namespace visgl

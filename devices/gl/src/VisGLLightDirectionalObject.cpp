@@ -54,6 +54,7 @@ void Object<LightDirectional>::commit()
   current.color.get(ANARI_FLOAT32_VEC3, color.data());
   current.irradiance.get(ANARI_FLOAT32, color.data() + 3);
   current.direction.get(ANARI_FLOAT32_VEC3, direction.data());
+  normalize3(direction.data());
   direction[0] = -direction[0];
   direction[1] = -direction[1];
   direction[2] = -direction[2];
@@ -74,6 +75,11 @@ void Object<LightDirectional>::update()
 uint32_t Object<LightDirectional>::index()
 {
   return light_index;
+}
+
+uint32_t Object<LightDirectional>::lightType()
+{
+  return LIGHT_TYPE_DIRECTIONAL;
 }
 
 } // namespace visgl

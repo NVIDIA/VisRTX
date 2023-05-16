@@ -49,6 +49,7 @@
 #include "VisGLMaterialPbrObject.h"
 #include "VisGLLightDirectionalObject.h"
 #include "VisGLLightPointObject.h"
+#include "VisGLLightSpotObject.h"
 #include "VisGLSamplerImage1DObject.h"
 #include "VisGLSamplerImage2DObject.h"
 #include "VisGLSamplerImage3DObject.h"

@@ -43,6 +43,7 @@ Object<MaterialPhysicallyBased>::Object(ANARIDevice d, ANARIObject handle)
   commit();
 }
 
+// clang-format off
 const char *pbr_material_eval_block = R"GLSL(
   vec4 lighting = lights[ambientIdx];
 
@@ -63,15 +64,12 @@ const char *pbr_material_eval_block = R"GLSL(
   float NdotV = dot(N,V);
 
   for(uint i=0u;i<lightCount;++i) {
-    vec4 c = lights[lightIndices[i].x];
-    mat4 t = transforms[lightIndices[i].y];
-    vec4 x = t*lights[lightIndices[i].x+1u];
+)GLSL"
+UNPACK_LIGHT("i")
+R"GLSL(
     float shadow = sampleShadow(worldPosition, geometryNormal, lightIndices[i].z);
 
-    vec3 light_color = c.xyz * c.w;
-    vec3 L = x.xyz - worldPosition.xyz*x.w;
-    float attenuation = 1.0/dot(L, L);
-    L = normalize(L);
+    vec3 L = normalize(direction);
     vec3 H = normalize(L+V);
 
     float k = 1.0 - abs(dot(V, H));
@@ -102,6 +100,7 @@ const char *pbr_material_eval_block = R"GLSL(
   FragColor.w *= opacity.x;
 }
 )GLSL";
+// clang-format on
 
 #define BASE_COLOR_SAMPLER MATERIAL_RESOURCE(0)
 #define OPACITY_SAMPLER MATERIAL_RESOURCE(1)

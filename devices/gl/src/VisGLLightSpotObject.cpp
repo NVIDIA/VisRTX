@@ -39,15 +39,15 @@
 
 namespace visgl {
 
-Object<LightPoint>::Object(ANARIDevice d, ANARIObject handle)
+Object<LightSpot>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
 {
-  light_index = thisDevice->lights.allocate(2);
+  light_index = thisDevice->lights.allocate(3);
 
   commit();
 }
 
-void Object<LightPoint>::commit()
+void Object<LightSpot>::commit()
 {
   DefaultObject::commit();
 
@@ -55,27 +55,35 @@ void Object<LightPoint>::commit()
   current.intensity.get(ANARI_FLOAT32, color.data() + 3);
   current.position.get(ANARI_FLOAT32_VEC3, position.data());
   position[3] = 1;
+
+  current.direction.get(ANARI_FLOAT32_VEC3, spot.data());
+  normalize3(spot.data());
+  float opening_angle = 1.0f;
+  current.openingAngle.get(ANARI_FLOAT32, &opening_angle);
+  spot[3] = cosf(opening_angle * 0.5f);
+
   dirty = true;
 }
 
-void Object<LightPoint>::update()
+void Object<LightSpot>::update()
 {
   DefaultObject::update();
   if (dirty) {
     thisDevice->lights.set(light_index + 0, color);
     thisDevice->lights.set(light_index + 1, position);
+    thisDevice->lights.set(light_index + 2, spot);
     dirty = false;
   }
 }
 
-uint32_t Object<LightPoint>::index()
+uint32_t Object<LightSpot>::index()
 {
   return light_index;
 }
 
-uint32_t Object<LightPoint>::lightType()
+uint32_t Object<LightSpot>::lightType()
 {
-  return LIGHT_TYPE_POINT;
+  return LIGHT_TYPE_SPOT;
 }
 
 } // namespace visgl

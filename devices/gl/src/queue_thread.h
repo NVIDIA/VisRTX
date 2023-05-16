@@ -78,7 +78,7 @@ class queue_thread
   {}
 
   template <class F, class... Args>
-  std::future<void> enqueue(F &&f, Args &&...args)
+  std::future<void> enqueue(F &&f, Args &&... args)
   {
     std::packaged_task<void()> task(
         std::bind(std::forward<F>(f), std::forward<Args>(args)...));
