@@ -58,6 +58,7 @@ add_library(${PROJECT_NAME} SHARED
   src/VisGLCameraOrthographicObject.cpp
   src/VisGLLightDirectionalObject.cpp
   src/VisGLLightPointObject.cpp
+  src/VisGLLightSpotObject.cpp
   src/VisGLSamplerImage1DObject.cpp
   src/VisGLSamplerImage2DObject.cpp
   src/VisGLSamplerImage3DObject.cpp

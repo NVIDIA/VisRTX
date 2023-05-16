@@ -51,20 +51,17 @@ const char *matte_opacity = "  vec4 opacity = ";
 
 const char *matte_uniformOpacity = "materials[instanceIndices.y+1u]\n";
 
+// clang-format off
 const char *matte_material_eval_block = R"GLSL(
   vec4 lighting = vec4(0.0, 0.0, 0.0, 1.0);
 
   baseColor.w *= opacity.x;
 
   for(uint i=0u;i<lightCount;++i) {
-    vec4 c = lights[lightIndices[i].x];
-    mat4 t = transforms[lightIndices[i].y];
-    vec4 x = t*lights[lightIndices[i].x+1u];
+)GLSL"
+UNPACK_LIGHT("i")
+R"GLSL(
     float shadow = sampleShadow(worldPosition, geometryNormal, lightIndices[i].z);
-
-    vec3 light_color = c.xyz * c.w;
-    vec3 direction = x.xyz - worldPosition.xyz*x.w;
-    float attenuation = 1.0/dot(direction, direction);
     lighting.xyz += shadow*attenuation*light_color*max(0.0, dot(normalize(direction), worldNormal.xyz));
   }
 
@@ -79,6 +76,7 @@ const char *matte_material_eval_block = R"GLSL(
   FragColor.w *= coverage;
 }
 )GLSL";
+// clang-format on
 
 #define COLOR_SAMPLER MATERIAL_RESOURCE(0)
 #define OPACITY_SAMPLER MATERIAL_RESOURCE(1)

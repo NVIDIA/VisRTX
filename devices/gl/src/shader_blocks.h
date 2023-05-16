@@ -78,6 +78,25 @@ static int attribIndex(int value)
   }
 }
 
+#define LIGHT_TYPE_POINT 1
+#define LIGHT_TYPE_DIRECTIONAL 2
+#define LIGHT_TYPE_SPOT 3
+
+// clang-format off
+#define UNPACK_LIGHT(I)                                                        \
+"    uvec4 indices = lightIndices[" I "];\n"                                   \
+"    vec4 c = lights[indices.x];\n"                                            \
+"    mat4 t = transforms[indices.y];\n"                                        \
+"    vec4 x = t*lights[indices.x+1u];\n"                                       \
+"    vec3 light_color = c.xyz * c.w;\n"                                        \
+"    vec3 direction = x.xyz - worldPosition.xyz*x.w;\n"                        \
+"    float attenuation = 1.0/dot(direction, direction);\n"                     \
+"    if(indices.w == 3u) {\n"                                                  \
+"      vec4 cone = lights[indices.x+2u];\n"                                    \
+"      attenuation *= step(cone.w, dot(normalize(direction), cone.xyz));\n"    \
+"    }\n"
+// clang-format on
+
 static const char *version_320_es = "#version 320 es\n";
 
 static const char *version_430 = "#version 430\n";

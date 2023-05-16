@@ -141,24 +141,14 @@ static void device_context_init(
   deviceObj->shaders.init(&deviceObj->gl);
 
   // insert matrices for the 0 instance
+  // clang-format off
   std::array<float, 16> identity_matrix = {
-      1,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-      0,
-      0,
-      0,
-      1,
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1,
   };
+  // clang-format on
   deviceObj->transforms.allocate(3);
   deviceObj->transforms.set(0, identity_matrix);
   deviceObj->transforms.set(1, identity_matrix);
