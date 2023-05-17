@@ -558,7 +558,7 @@ class renderer_default : public DebugObject<ANARI_RENDERER> {
             return;
          }
          case 4: { //shadowMapSize
-            ANARIDataType shadowMapSize_types[] = {ANARI_UINT32, ANARI_UNKNOWN};
+            ANARIDataType shadowMapSize_types[] = {ANARI_INT32, ANARI_UNKNOWN};
             check_type(ANARI_RENDERER, "default", paramname, paramtype, shadowMapSize_types);
             return;
          }

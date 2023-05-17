@@ -48,7 +48,7 @@ class Object<World> : public DefaultObject<World>
   // shadowmaps
   GLuint shadowtex = 0;
   GLuint shadowfbo = 0;
-  uint32_t shadow_map_size = 0;
+  int32_t shadow_map_size = 0;
   int shadow_map_count = 0;
   // shadowmaps
 

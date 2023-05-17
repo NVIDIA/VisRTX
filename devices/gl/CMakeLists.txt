@@ -35,6 +35,17 @@ find_package(Threads REQUIRED)
 find_package(OpenGL REQUIRED COMPONENTS OpenGL OPTIONAL_COMPONENTS EGL GLX)
 find_package(X11)
 
+anari_generate_frontend(
+  TARGET generate_visgl_frontend
+  DEFINITIONS ${CMAKE_CURRENT_SOURCE_DIR}/visgl_device.json
+  NAME VisGL
+  PREFIX VisGL
+  NAMESPACE visgl
+  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}
+  CODE_HEADER_FILE ${CMAKE_CURRENT_LIST_DIR}/license.txt
+  JSON ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
 add_subdirectory(generated)
 
 set(CMAKE_INSTALL_RPATH "$ORIGIN")

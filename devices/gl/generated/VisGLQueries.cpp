@@ -1044,6 +1044,13 @@ static const void * ANARI_RENDERER_default_shadowMapSize_info(ANARIDataType para
          } else {
             return nullptr;
          }
+      case 1: // default
+         if(paramType == ANARI_INT32 && infoType == ANARI_INT32) {
+            static const int32_t default_value[1] = {INT32_C(0)};
+            return default_value;
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "shadow map dimension";
@@ -9851,7 +9858,7 @@ static const void * ANARI_RENDERER_default_info(int infoName, ANARIDataType info
                {"ambientColor", ANARI_FLOAT32_VEC3},
                {"ambientRadiance", ANARI_FLOAT32},
                {"background", ANARI_FLOAT32_VEC4},
-               {"shadowMapSize", ANARI_UINT32},
+               {"shadowMapSize", ANARI_INT32},
                {"occlusionMode", ANARI_STRING},
                {0, ANARI_UNKNOWN}
             };
