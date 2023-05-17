@@ -12,7 +12,8 @@
             "parameters" : [
                 {
                     "name" : "shadowMapSize",
-                    "types" : ["ANARI_UINT32"],
+                    "types" : ["ANARI_INT32"],
+                    "default" : 0,
                     "tags" : [],
                     "description" : "shadow map dimension"
                 }

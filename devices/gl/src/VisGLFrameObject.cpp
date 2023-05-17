@@ -812,7 +812,10 @@ void Object<Frame>::renderFrame()
     renderer->current.background.get(ANARI_FLOAT32_VEC4, clearColor.data());
     ambient_index = renderer->index();
 
-    renderer->current.shadowMapSize.get(ANARI_UINT32, &shadow_map_size);
+    renderer->current.shadowMapSize.get(ANARI_INT32, &shadow_map_size);
+    if (shadow_map_size == 0) {
+      shadow_map_size = 4096;
+    }
     occlusionMode = renderer->current.occlusionMode.getStringEnum();
   }
 

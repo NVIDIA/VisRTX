@@ -210,7 +210,7 @@ public:
    Parameter<ANARI_FLOAT32_VEC3> ambientColor;
    Parameter<ANARI_FLOAT32> ambientRadiance;
    Parameter<ANARI_FLOAT32_VEC4> background;
-   Parameter<ANARI_UINT32> shadowMapSize;
+   Parameter<ANARI_INT32> shadowMapSize;
    Parameter<ANARI_STRING> occlusionMode;
 
    RendererDefault(ANARIDevice d, ANARIObject o);

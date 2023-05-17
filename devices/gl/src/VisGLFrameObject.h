@@ -58,7 +58,7 @@ class Object<Frame> : public DefaultObject<Frame, FrameObjectBase>
 
   GLuint shadowubo = 0;
   bool shadow_dirty = true;
-  uint32_t shadow_map_size = 4096;
+  int32_t shadow_map_size = 4096;
 
   int occlusionMode = STRING_ENUM_none;
 

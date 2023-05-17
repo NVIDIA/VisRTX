@@ -664,6 +664,10 @@ RendererDefault::RendererDefault(ANARIDevice device, ANARIObject o) : device(dev
       background.set(device, object, ANARI_FLOAT32_VEC4, value);
    }
    {
+      int32_t value[] = {INT32_C(0)};
+      shadowMapSize.set(device, object, ANARI_INT32, value);
+   }
+   {
       const char *value = "none";
       occlusionMode.set(device, object, ANARI_STRING, value);
    }
@@ -713,7 +717,10 @@ void RendererDefault::unset(const char *paramname) {
          }
          return;
       case 78: //shadowMapSize
-         shadowMapSize.unset(device, object);
+         {
+            int32_t value[] = {INT32_C(0)};
+            shadowMapSize.set(device, object, ANARI_INT32, value);
+         }
          return;
       case 58: //occlusionMode
          {
