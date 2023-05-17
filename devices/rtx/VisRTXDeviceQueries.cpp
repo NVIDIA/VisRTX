@@ -53,7 +53,7 @@ static int param_hash(const char *str) {
    return -1;
 }
 static int info_hash(const char *str) {
-   static const uint32_t table[] = {0x69680014u,0x6665001bu,0x6d6c0038u,0x66650043u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6a61004au,0x0u,0x0u,0x6261005fu,0x0u,0x66650068u,0x706f0070u,0x0u,0x0u,0x6261007du,0x62610015u,0x6f6e0016u,0x6f6e0017u,0x66650018u,0x6d6c0019u,0x100001au,0x8000000au,0x7466001cu,0x6261002au,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6463002fu,0x7675002bu,0x6d6c002cu,0x7574002du,0x100002eu,0x80000001u,0x73720030u,0x6a690031u,0x71700032u,0x75740033u,0x6a690034u,0x706f0035u,0x6f6e0036u,0x1000037u,0x80000004u,0x66650039u,0x6e6d003au,0x6665003bu,0x6f6e003cu,0x7574003du,0x5554003eu,0x7a79003fu,0x71700040u,0x66650041u,0x1000042u,0x80000005u,0x62610044u,0x75740045u,0x76750046u,0x73720047u,0x66650048u,0x1000049u,0x80000008u,0x79780053u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f6e0059u,0x6a690054u,0x6e6d0055u,0x76750056u,0x6e6d0057u,0x1000058u,0x80000003u,0x6a69005au,0x6e6d005bu,0x7675005cu,0x6e6d005du,0x100005eu,0x80000002u,0x73720060u,0x62610061u,0x6e6d0062u,0x66650063u,0x75740064u,0x66650065u,0x73720066u,0x1000067u,0x80000009u,0x72710069u,0x7675006au,0x6a69006bu,0x7372006cu,0x6665006du,0x6564006eu,0x100006fu,0x80000000u,0x76750071u,0x73720072u,0x64630073u,0x66650074u,0x47460075u,0x66650076u,0x62610077u,0x75740078u,0x76750079u,0x7372007au,0x6665007bu,0x100007cu,0x80000007u,0x6d6c007eu,0x7675007fu,0x66650080u,0x1000081u,0x80000006u};
+   static const uint32_t table[] = {0x69680014u,0x6665001bu,0x6d6c0038u,0x66650043u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6a61004au,0x0u,0x0u,0x6261005fu,0x0u,0x66650068u,0x706f0070u,0x0u,0x7473007du,0x62610080u,0x62610015u,0x6f6e0016u,0x6f6e0017u,0x66650018u,0x6d6c0019u,0x100001au,0x8000000au,0x7466001cu,0x6261002au,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6463002fu,0x7675002bu,0x6d6c002cu,0x7574002du,0x100002eu,0x80000001u,0x73720030u,0x6a690031u,0x71700032u,0x75740033u,0x6a690034u,0x706f0035u,0x6f6e0036u,0x1000037u,0x80000004u,0x66650039u,0x6e6d003au,0x6665003bu,0x6f6e003cu,0x7574003du,0x5554003eu,0x7a79003fu,0x71700040u,0x66650041u,0x1000042u,0x80000005u,0x62610044u,0x75740045u,0x76750046u,0x73720047u,0x66650048u,0x1000049u,0x80000008u,0x79780053u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6f6e0059u,0x6a690054u,0x6e6d0055u,0x76750056u,0x6e6d0057u,0x1000058u,0x80000003u,0x6a69005au,0x6e6d005bu,0x7675005cu,0x6e6d005du,0x100005eu,0x80000002u,0x73720060u,0x62610061u,0x6e6d0062u,0x66650063u,0x75740064u,0x66650065u,0x73720066u,0x1000067u,0x80000009u,0x72710069u,0x7675006au,0x6a69006bu,0x7372006cu,0x6665006du,0x6564006eu,0x100006fu,0x80000000u,0x76750071u,0x73720072u,0x64630073u,0x66650074u,0x47460075u,0x66650076u,0x62610077u,0x75740078u,0x76750079u,0x7372007au,0x6665007bu,0x100007cu,0x80000007u,0x6665007eu,0x100007fu,0x8000000bu,0x6d6c0081u,0x76750082u,0x66650083u,0x1000084u,0x80000006u};
    uint32_t cur = 0x77630000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
@@ -2366,6 +2366,12 @@ static const void * ANARI_CAMERA_orthographic_position_info(ANARIDataType paramT
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "point";
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "camera position";
@@ -2398,6 +2404,12 @@ static const void * ANARI_CAMERA_orthographic_direction_info(ANARIDataType param
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "direction";
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "main viewing direction";
@@ -2427,6 +2439,12 @@ static const void * ANARI_CAMERA_orthographic_up_info(ANARIDataType paramType, i
          if(paramType == ANARI_FLOAT32_VEC3 && infoType == ANARI_FLOAT32_VEC3) {
             static const float default_value[3] = {0.000000f, 1.000000f, 0.000000f};
             return default_value;
+         } else {
+            return nullptr;
+         }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "direction";
          } else {
             return nullptr;
          }
@@ -2834,6 +2852,12 @@ static const void * ANARI_CAMERA_perspective_position_info(ANARIDataType paramTy
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "point";
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "camera position";
@@ -2866,6 +2890,12 @@ static const void * ANARI_CAMERA_perspective_direction_info(ANARIDataType paramT
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "direction";
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "main viewing direction";
@@ -2895,6 +2925,12 @@ static const void * ANARI_CAMERA_perspective_up_info(ANARIDataType paramType, in
          if(paramType == ANARI_FLOAT32_VEC3 && infoType == ANARI_FLOAT32_VEC3) {
             static const float default_value[3] = {0.000000f, 1.000000f, 0.000000f};
             return default_value;
+         } else {
+            return nullptr;
+         }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "direction";
          } else {
             return nullptr;
          }
@@ -6859,6 +6895,12 @@ static const void * ANARI_LIGHT_directional_color_info(ANARIDataType paramType, 
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "color";
+         } else {
+            return nullptr;
+         }
       case 2: // minimum
          if(paramType == ANARI_FLOAT32_VEC3 && infoType == ANARI_FLOAT32_VEC3) {
             static const float default_value[3] = {0.000000f, 0.000000f, 0.000000f};
@@ -6937,6 +6979,12 @@ static const void * ANARI_LIGHT_directional_direction_info(ANARIDataType paramTy
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "direction";
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "emission direction of the light";
@@ -7008,6 +7056,12 @@ static const void * ANARI_LIGHT_point_color_info(ANARIDataType paramType, int in
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "color";
+         } else {
+            return nullptr;
+         }
       case 2: // minimum
          if(paramType == ANARI_FLOAT32_VEC3 && infoType == ANARI_FLOAT32_VEC3) {
             static const float default_value[3] = {0.000000f, 0.000000f, 0.000000f};
@@ -7051,6 +7105,12 @@ static const void * ANARI_LIGHT_point_position_info(ANARIDataType paramType, int
          if(paramType == ANARI_FLOAT32_VEC3 && infoType == ANARI_FLOAT32_VEC3) {
             static const float default_value[3] = {0.000000f, 0.000000f, 0.000000f};
             return default_value;
+         } else {
+            return nullptr;
+         }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "point";
          } else {
             return nullptr;
          }
@@ -7188,6 +7248,12 @@ static const void * ANARI_MATERIAL_matte_color_info(ANARIDataType paramType, int
          if(paramType == ANARI_FLOAT32_VEC3 && infoType == ANARI_FLOAT32_VEC3) {
             static const float default_value[3] = {0.800000f, 0.800000f, 0.800000f};
             return default_value;
+         } else {
+            return nullptr;
+         }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "color";
          } else {
             return nullptr;
          }
@@ -7381,6 +7447,12 @@ static const void * ANARI_MATERIAL_physicallyBased_baseColor_info(ANARIDataType 
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "color";
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "base color";
@@ -7562,6 +7634,12 @@ static const void * ANARI_MATERIAL_physicallyBased_emissive_info(ANARIDataType p
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "color";
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "emissive factor";
@@ -7733,6 +7811,12 @@ static const void * ANARI_MATERIAL_physicallyBased_specularColor_info(ANARIDataT
          if(paramType == ANARI_FLOAT32_VEC3 && infoType == ANARI_FLOAT32_VEC3) {
             static const float default_value[3] = {1.000000f, 1.000000f, 1.000000f};
             return default_value;
+         } else {
+            return nullptr;
+         }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "color";
          } else {
             return nullptr;
          }
@@ -8027,6 +8111,12 @@ static const void * ANARI_MATERIAL_physicallyBased_attenuationColor_info(ANARIDa
          } else {
             return nullptr;
          }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "color";
+         } else {
+            return nullptr;
+         }
       case 4: // description
          {
             static const char *description = "attenuation color";
@@ -8056,6 +8146,12 @@ static const void * ANARI_MATERIAL_physicallyBased_sheenColor_info(ANARIDataType
          if(paramType == ANARI_FLOAT32_VEC3 && infoType == ANARI_FLOAT32_VEC3) {
             static const float default_value[3] = {0.000000f, 0.000000f, 0.000000f};
             return default_value;
+         } else {
+            return nullptr;
+         }
+      case 11: // use
+         if(infoType == ANARI_STRING) {
+            return "color";
          } else {
             return nullptr;
          }
