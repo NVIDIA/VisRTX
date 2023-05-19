@@ -30,7 +30,7 @@
  */
 
 #include "VisGLSpecializations.h"
-#include "anari/type_utility.h"
+
 
 #include "anari2gl_types.h"
 #include "shader_compile_segmented.h"
@@ -152,7 +152,7 @@ void main() {
 
   if(!hit) {
     discard;
-  }  
+  }
 
   vec4 projected = projection*(transform*vec4(center_radius.xyz, 1.0));
   gl_FragDepth = projected.z/projected.w*0.5 + 0.5;

@@ -30,7 +30,7 @@
  */
 
 #include "VisGLSpecializations.h"
-#include "anari/type_utility.h"
+
 
 #include "anari2gl_types.h"
 #include "shader_compile_segmented.h"
@@ -116,7 +116,7 @@ void main() {
   if(occlusionMode != 0u) {
     vertexOcclusion = min(1.0, 2.0*occlusion[instanceIndices.w + uint(gl_VertexID)]);
   }
-  
+
   vertexColor = in_color;
   vertexAttribute0 = in_attr0;
   vertexAttribute1 = in_attr1;

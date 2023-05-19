@@ -30,7 +30,7 @@
  */
 
 #include "VisGLSpecializations.h"
-#include "anari/type_utility.h"
+
 
 #include "anari2gl_types.h"
 #include "AppendableShader.h"

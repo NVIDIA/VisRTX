@@ -30,8 +30,6 @@
  */
 
 #include "array/Array.h"
-// anari
-#include "anari/type_utility.h"
 
 namespace visrtx {
 

@@ -30,7 +30,7 @@
  */
 
 #include "VisGLSpecializations.h"
-#include "anari/type_utility.h"
+
 
 #include "anari2gl_types.h"
 #include "shader_compile_segmented.h"
@@ -226,7 +226,7 @@ bool intersect_cylinder(vec3 dir, vec3 origin, vec3 v1, vec3 v2, float radius, b
 
   // x_near >= 0 indicates an outside hit
   x = x_near >= 0.0 ? x_near : x_far;
-  
+
   // if the front plane is hit between the cylinder intercepts
   // we hit the cap
   bool hit_cap = x_near < p_near && p_near < x_far;
@@ -240,7 +240,7 @@ bool intersect_cylinder(vec3 dir, vec3 origin, vec3 v1, vec3 v2, float radius, b
 
   float p = dot(axis, origin) + x*dot(axis, dir);
   u = (p - dot(axis, v1))/ dot(axis, v2 - v1);
-  
+
   vec3 center = mix(v1, v2, u);
 
   normal = normalize(origin - center + x*dir);
@@ -320,7 +320,7 @@ void main() {
     vec3 directionality2 = occ2.xyz/occ2.w;
     float fragmentOcclusion2 = occ2.w*(1.0 - dot(worldNormal.xyz, directionality2));
     fragmentOcclusion2 = max(0.0, 2.0*fragmentOcclusion2);
-  
+
     fragmentOcclusion = mix(fragmentOcclusion1, fragmentOcclusion2, u);
   }
 
@@ -482,7 +482,7 @@ bool intersect_cylinder(vec3 dir, vec3 origin, vec3 v1, vec3 v2, float radius, b
 
   // x_near >= 0 indicates an outside hit
   x = x_near >= 0.0 ? x_near : x_far;
-  
+
   // if the front plane is hit between the cylinder intercepts
   // we hit the cap
   bool hit_cap = x_near < p_near && p_near < x_far;
@@ -496,7 +496,7 @@ bool intersect_cylinder(vec3 dir, vec3 origin, vec3 v1, vec3 v2, float radius, b
 
   float p = dot(axis, origin) + x*dot(axis, dir);
   u = (p - dot(axis, v1))/ dot(axis, v2 - v1);
-  
+
   vec3 center = mix(v1, v2, u);
 
   normal = normalize(origin - center + x*dir);
@@ -568,7 +568,7 @@ void main() {
     float shadow2 = sampleShadowBias(transform*vec4(p2, 1.0), 0.001, i);
     float shadow3 = sampleShadowBias(transform*vec4(mix(p1, p2, 0.25) - r*radial, 1.0), 0.001, i);
     float shadow4 = sampleShadowBias(transform*vec4(mix(p1, p2, 0.75) - r*radial, 1.0), 0.001, i);
-    
+
     sum1 += max(shadow1, shadow3)*vec4(dir, 1.0);
     sum2 += max(shadow2, shadow4)*vec4(dir, 1.0);
   }

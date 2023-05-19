@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "anari/type_utility.h"
 #include "anari2gl_types.h"
 #include "VisGLObject.h"
 #include "VisGLArrayObjects.h"

@@ -30,7 +30,7 @@
  */
 
 #include "VisGLSpecializations.h"
-#include "anari/type_utility.h"
+
 
 #include "shader_compile_segmented.h"
 #include "math_util.h"

@@ -30,8 +30,6 @@
  */
 
 #include "StructuredRegularField.h"
-// anari
-#include "anari/type_utility.h"
 // std
 #include <algorithm>
 #include <limits>

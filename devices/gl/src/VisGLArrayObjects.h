@@ -32,7 +32,6 @@
 #pragma once
 
 #include "VisGLDevice.h"
-#include "anari/type_utility.h"
 #include "anari2gl_types.h"
 #include "shader_blocks.h"
 

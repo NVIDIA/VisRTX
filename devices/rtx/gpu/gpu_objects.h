@@ -37,7 +37,7 @@
 // curand
 #include <curand_kernel.h>
 // anari
-#include "anari/anari_enums.h"
+#include <anari/anari_cpp.hpp>
 
 #define DECLARE_FRAME_DATA(n)                                                  \
   extern "C" {                                                                 \
