@@ -140,8 +140,7 @@ layout(std430, binding = 3) coherent restrict buffer OcclusionBlock {
 
 struct ShadowProjection
 {
-  std::array<float, 16> matrix;
-  std::array<float, 4> meta;
+  std::array<float, 20> matrix;
 };
 
 struct ShadowData
@@ -183,14 +182,7 @@ float sampleShadow(vec4 worldPosition, vec3 geometryNormal, uint i) {
     return 1.0;
   }
   mat4 projection = shadowProjection[i].matrix;
-
-  mat4 tprojection = transpose(projection);
-
-  vec2 texsize = vec2(textureSize(shadowSampler, 0));
-  float texelsize = 1.0/sqrt(
-      dot(tprojection[0].xyz, tprojection[0].xyz)*sqr(texsize.x)
-    + dot(tprojection[1].xyz, tprojection[1].xyz)*sqr(texsize.y)
-  );
+  float texelsize = dot(shadowProjection[i].meta.xyz, worldPosition.xyz) + shadowProjection[i].meta.w;
 
   vec4 shadow = projection*(worldPosition + vec4(4.0*texelsize*geometryNormal, 0.0));
   shadow.xyz = 0.5*shadow.xyz + vec3(0.5);
@@ -205,19 +197,6 @@ float sampleShadowBias(vec4 worldPosition, float bias, uint i) {
   mat4 projection = shadowProjection[i].matrix;
 
   vec4 shadow = projection*worldPosition;
-  shadow.xyz = 0.5*shadow.xyz + vec3(0.5);
-  shadow.z -= bias;
-  return texture(shadowSampler, vec4(shadow.xy, i, shadow.z));
-}
-
-float sampleShadowBiasOffset(vec4 worldPosition, float bias, float offset, uint i) {
-  if(i>=12u) {
-    return 1.0;
-  }
-  mat4 projection = shadowProjection[i].matrix;
-  vec3 direction = normalize(vec3(projection[0][2], projection[1][2], projection[2][2]));
-
-  vec4 shadow = projection*(worldPosition+offset*vec4(direction, 0.0));
   shadow.xyz = 0.5*shadow.xyz + vec3(0.5);
   shadow.z -= bias;
   return texture(shadowSampler, vec4(shadow.xy, i, shadow.z));

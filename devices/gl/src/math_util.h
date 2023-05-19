@@ -291,19 +291,19 @@ static inline void setInverseFrustum(float *A, float left, float right, float to
     A[0] = (right - left) / (2.0f * near);
     A[4] = 0;
     A[8] = 0;
-    A[12] = (right + left) / (2 * near);
+    A[12] = (right + left) / (2.0f * near);
     A[1] = 0;
     A[5] = (top - bottom) / (2.0f * near);
     A[9] = 0;
-    A[13] = (top + bottom) / (2 * near);
+    A[13] = (top + bottom) / (2.0f * near);
     A[2] = 0;
     A[6] = 0;
     A[10] = 0;
     A[14] = -1;
     A[3] = 0;
     A[7] = 0;
-    A[11] = (near - far) / (2 * near * far);
-    A[15] = (near + far) / (2 * near * far);
+    A[11] = (near - far) / (2.0f * near * far);
+    A[15] = (near + far) / (2.0f * near * far);
 }
 static inline void mulInverseFrustum(float *A, float left, float right, float top, float bottom, float near,
                                      float far) {

@@ -477,7 +477,7 @@ int absmin_index(const float *x)
   }
 }
 
-std::array<float, 16> bounds_projection(const float *dir, const float *bounds)
+std::array<float, 20> bounds_projection(const float *dir, const float *bounds, int size)
 {
   std::array<float, 3> unitdir{dir[0], dir[1], dir[2]};
   std::array<float, 3> ortho1{0.0f, 0.0f, 0.0f};
@@ -529,7 +529,7 @@ std::array<float, 16> bounds_projection(const float *dir, const float *bounds)
   float z_scale = 1.0f / (far - near);
   float z_offset = -(far + near) * z_scale;
 
-  std::array<float, 16> projection;
+  std::array<float, 20> projection;
   projection[0] = 2.0f * ortho2[0] * x_scale;
   projection[4] = 2.0f * ortho2[1] * x_scale;
   projection[8] = 2.0f * ortho2[2] * x_scale;
@@ -550,8 +550,41 @@ std::array<float, 16> bounds_projection(const float *dir, const float *bounds)
   projection[11] = 0.0f;
   projection[15] = 1.0f;
 
+  projection[16] = 0.0f;
+  projection[17] = 0.0f;
+  projection[18] = 0.0f;
+  projection[19] = fast_maxf(right - left, top - bottom)/size;
+
   return projection;
 }
+
+std::array<float, 20> cone_projection(const float *pos, const float *dir, float angle, const float *bounds, int size) {
+  std::array<float, 3> unitdir{dir[0], dir[1], dir[2]};
+  std::array<float, 3> up{0.0f, 0.0f, 0.0f};
+  normalize3(unitdir.data());
+  up[absmin_index(dir)] = 1.0f;
+
+  float s = dot3(unitdir.data(), up.data());
+  up[0] -= s * unitdir[0];
+  up[1] -= s * unitdir[1];
+  up[2] -= s * unitdir[2];
+  normalize3(up.data());
+
+  std::array<float, 20> projection;
+
+  float c = tanf(angle*0.5f);
+  float near = 0.1f;
+  float far = 10.0f;
+  setFrustum(projection.data(), -s*near, s*near, s*near, -s*near, near, far);
+  mulLookDirection(projection.data(), pos, unitdir.data(), up.data());
+
+  projection[16] = c/size*unitdir[0];
+  projection[17] = c/size*unitdir[1];
+  projection[18] = c/size*unitdir[2];
+  projection[19] = -dot3(projection.data()+16, pos);
+  return projection;
+}
+
 
 extern const float sphere_sample_directions[1800];
 
@@ -633,7 +666,7 @@ void frame_render(ObjectRef<Frame> frameObj,
       for (int i = 0; i < 12; ++i) {
         oc.projections[i].matrix = bounds_projection(
             sphere_sample_directions + 3 * (i + worldObj->occlusionsamples),
-            collector.world_bounds.data());
+            collector.world_bounds.data(), occlusion->size);
       }
       oc.samples = worldObj->occlusionsamples;
       oc.count = 12;
@@ -726,7 +759,7 @@ void frame_render(ObjectRef<Frame> frameObj,
 
   for (int i = 0; i < collector.shadow_caster_count; ++i) {
     oc.projections[i].matrix = bounds_projection(
-        collector.directions[i], collector.world_bounds.data());
+        collector.directions[i], collector.world_bounds.data(), worldObj->shadow_map_size);
   }
   oc.samples = 0;
   oc.count = collector.shadow_caster_count;
