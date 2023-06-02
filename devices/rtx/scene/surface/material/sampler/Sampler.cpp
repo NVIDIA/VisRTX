@@ -62,6 +62,7 @@ Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
 void Sampler::commit()
 {
   m_inAttribute = getParamString("inAttribute", "attribute0");
+  m_transform = getParam<mat4>("inTransform", mat4(1.f));
 }
 
 SamplerGPUData Sampler::gpuData() const
@@ -77,6 +78,7 @@ SamplerGPUData Sampler::gpuData() const
     retval.attribute = 3;
   else if (m_inAttribute == "color")
     retval.attribute = 4;
+  retval.transform = m_transform;
   return retval;
 }
 

@@ -220,6 +220,7 @@ struct SamplerGPUData
 {
   SamplerType type{SamplerType::UNKNOWN};
   int attribute{-1};
+  mat4 transform;
   union
   {
     ColorMapGPUData colormap{};

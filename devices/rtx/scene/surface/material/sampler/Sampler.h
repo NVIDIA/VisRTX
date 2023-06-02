@@ -51,6 +51,7 @@ struct Sampler : public RegisteredObject<SamplerGPUData>
 
  private:
   std::string m_inAttribute;
+  mat4 m_transform;
 };
 
 } // namespace visrtx
