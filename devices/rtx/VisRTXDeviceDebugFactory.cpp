@@ -2539,6 +2539,118 @@ class sampler_image2D : public DebugObject<ANARI_SAMPLER> {
       return "image2D";
    }
 };
+class sampler_primitive : public DebugObject<ANARI_SAMPLER> {
+   static int param_hash(const char *str) {
+      static const uint32_t table[] = {0x7372000fu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610014u,0x67660018u,0x73720010u,0x62610011u,0x7a790012u,0x1000013u,0x80000001u,0x6e6d0015u,0x66650016u,0x1000017u,0x80000000u,0x67660019u,0x7473001au,0x6665001bu,0x7574001cu,0x100001du,0x80000002u};
+      uint32_t cur = 0x70610000u;
+      for(int i = 0;cur!=0;++i) {
+         uint32_t idx = cur&0xFFFFu;
+         uint32_t low = (cur>>16u)&0xFFu;
+         uint32_t high = (cur>>24u)&0xFFu;
+         uint32_t c = (uint32_t)str[i];
+         if(c>=low && c<high) {
+            cur = table[idx+c-low];
+         } else {
+            break;
+         }
+         if(cur&0x80000000u) {
+            return cur&0xFFFFu;
+         }
+         if(str[i]==0) {
+            break;
+         }
+      }
+      return -1;
+   }
+   public:
+   sampler_primitive(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
+   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
+      DebugObject::setParameter(paramname, paramtype, mem);
+      int idx = param_hash(paramname);
+      switch(idx) {
+         case 0: { //name
+            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "primitive", paramname, paramtype, name_types);
+            return;
+         }
+         case 1: { //array
+            ANARIDataType array_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "primitive", paramname, paramtype, array_types);
+            return;
+         }
+         case 2: { //offset
+            ANARIDataType offset_types[] = {ANARI_UINT64, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "primitive", paramname, paramtype, offset_types);
+            return;
+         }
+         default: // unknown param
+            unknown_parameter(ANARI_SAMPLER, "primitive", paramname, paramtype);
+            return;
+      }
+   }
+   void commit() {
+      DebugObject::commit();
+   }
+   const char* getSubtype() {
+      return "primitive";
+   }
+};
+class sampler_transform : public DebugObject<ANARI_SAMPLER> {
+   static int param_hash(const char *str) {
+      static const uint32_t table[] = {0x6f6e000cu,0x0u,0x0u,0x0u,0x0u,0x62610017u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7372001bu,0x4241000du,0x7574000eu,0x7574000fu,0x73720010u,0x6a690011u,0x63620012u,0x76750013u,0x75740014u,0x66650015u,0x1000016u,0x80000001u,0x6e6d0018u,0x66650019u,0x100001au,0x80000000u,0x6261001cu,0x6f6e001du,0x7473001eu,0x6766001fu,0x706f0020u,0x73720021u,0x6e6d0022u,0x1000023u,0x80000002u};
+      uint32_t cur = 0x75690000u;
+      for(int i = 0;cur!=0;++i) {
+         uint32_t idx = cur&0xFFFFu;
+         uint32_t low = (cur>>16u)&0xFFu;
+         uint32_t high = (cur>>24u)&0xFFu;
+         uint32_t c = (uint32_t)str[i];
+         if(c>=low && c<high) {
+            cur = table[idx+c-low];
+         } else {
+            break;
+         }
+         if(cur&0x80000000u) {
+            return cur&0xFFFFu;
+         }
+         if(str[i]==0) {
+            break;
+         }
+      }
+      return -1;
+   }
+   public:
+   sampler_transform(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
+   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
+      DebugObject::setParameter(paramname, paramtype, mem);
+      int idx = param_hash(paramname);
+      switch(idx) {
+         case 0: { //name
+            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "transform", paramname, paramtype, name_types);
+            return;
+         }
+         case 1: { //inAttribute
+            ANARIDataType inAttribute_types[] = {ANARI_STRING, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "transform", paramname, paramtype, inAttribute_types);
+            return;
+         }
+         case 2: { //transform
+            ANARIDataType transform_types[] = {ANARI_FLOAT32_MAT4, ANARI_UNKNOWN};
+            check_type(ANARI_SAMPLER, "transform", paramname, paramtype, transform_types);
+            return;
+         }
+         default: // unknown param
+            unknown_parameter(ANARI_SAMPLER, "transform", paramname, paramtype);
+            return;
+      }
+   }
+   void commit() {
+      DebugObject::commit();
+   }
+   const char* getSubtype() {
+      return "transform";
+   }
+};
 class spatial_field_structuredRegular : public DebugObject<ANARI_SPATIAL_FIELD> {
    static int param_hash(const char *str) {
       static const uint32_t table[] = {0x62610010u,0x0u,0x6a690014u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6261001au,0x7372001eu,0x0u,0x0u,0x0u,0x71700024u,0x75740011u,0x62610012u,0x1000013u,0x80000001u,0x6d6c0015u,0x75740016u,0x66650017u,0x73720018u,0x1000019u,0x80000004u,0x6e6d001bu,0x6665001cu,0x100001du,0x80000000u,0x6a69001fu,0x68670020u,0x6a690021u,0x6f6e0022u,0x1000023u,0x80000002u,0x62610025u,0x64630026u,0x6a690027u,0x6f6e0028u,0x68670029u,0x100002au,0x80000003u};
@@ -2955,8 +3067,8 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_renderer(const char *name, DebugD
    }
 }
 static int sampler_object_hash(const char *str) {
-   static const uint32_t table[] = {0x706f0007u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6e6d000fu,0x6d6c0008u,0x706f0009u,0x7372000au,0x4e4d000bu,0x6261000cu,0x7170000du,0x100000eu,0x80000000u,0x62610010u,0x68670011u,0x66650012u,0x33310013u,0x45440015u,0x45440017u,0x1000016u,0x80000001u,0x1000018u,0x80000002u};
-   uint32_t cur = 0x6a630000u;
+   static const uint32_t table[] = {0x706f0012u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6e6d001au,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720024u,0x0u,0x0u,0x0u,0x7372002du,0x6d6c0013u,0x706f0014u,0x73720015u,0x4e4d0016u,0x62610017u,0x71700018u,0x1000019u,0x80000000u,0x6261001bu,0x6867001cu,0x6665001du,0x3331001eu,0x45440020u,0x45440022u,0x1000021u,0x80000001u,0x1000023u,0x80000002u,0x6a690025u,0x6e6d0026u,0x6a690027u,0x75740028u,0x6a690029u,0x7776002au,0x6665002bu,0x100002cu,0x80000003u,0x6261002eu,0x6f6e002fu,0x74730030u,0x67660031u,0x706f0032u,0x73720033u,0x6e6d0034u,0x1000035u,0x80000004u};
+   uint32_t cur = 0x75630000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
       uint32_t low = (cur>>16u)&0xFFu;
@@ -2985,6 +3097,10 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_sampler(const char *name, DebugDe
          return new sampler_image1D(td, this, wh, h);
       case 2:
          return new sampler_image2D(td, this, wh, h);
+      case 3:
+         return new sampler_primitive(td, this, wh, h);
+      case 4:
+         return new sampler_transform(td, this, wh, h);
       default:
          unknown_subtype(td, ANARI_SAMPLER, name);
          return new SubtypedDebugObject<ANARI_SAMPLER>(td, wh, h, name);

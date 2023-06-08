@@ -90,25 +90,6 @@ commited via `anariCommit()`.
 Note that variance estimation and convergence progress properties are not yet
 implemented.
 
-#### "VISRTX_SAMPLER_COLOR_MAP"
-
-This vendor extension indicates that an additional sampler subtype is available:
-`"colorMap"`. This sampler takes the first channel of the input attribute and
-applies a transfer function (normalization + color) to it. This sampler has the
-following parameters in addition to the base ANARI sampler parameters:
-
-| Name           | Type               | Default | Description                                                             |
-|:---------------|:-------------------|--------:|:------------------------------------------------------------------------|
-| color          | ARRAY1D of Color   |         | array to map sampled and clamped field values to color                  |
-| color.position | ARRAY1D of FLOAT32 |         | optional array to position the elements of color values in `valueRange` |
-| valueRange     | FLOAT32_BOX1       |  \[0,1\]| input attribute values are clamped to this range                        |
-
-This sampler follows the same rules for the `color` and `color.position`
-parameters as they are found on the `"scivis"` volume subtype. Values from this
-sampler are output as `VEC3(r, g, b, 1)` to the input of the material where the
-sampler used, where `r`, `g`, and `b` come from the values in `color`
-respectively.
-
 #### "VISRTX_CUDA_OUTPUT_BUFFERS"
 
 This vendor extension indicates that raw CUDA GPU buffers from frame objects can

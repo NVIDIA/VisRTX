@@ -31,39 +31,22 @@
 
 #pragma once
 
-#include "array/Array1D.h"
 #include "Sampler.h"
+#include "array/Array1D.h"
 
 namespace visrtx {
 
-struct ColorMap : public Sampler
+struct TransformSampler : public Sampler
 {
-  ColorMap(DeviceGlobalState *d);
-  ~ColorMap();
+  TransformSampler(DeviceGlobalState *d);
+  ~TransformSampler() = default;
 
   void commit() override;
 
   int numChannels() const override;
 
-  bool isValid() const override;
-
  private:
   SamplerGPUData gpuData() const override;
-  void discritizeTFData();
-  void cleanup();
-
-  struct
-  {
-    helium::IntrusivePtr<Array1D> color;
-    helium::IntrusivePtr<Array1D> colorPosition;
-    box1 valueRange{0.f, 1.f};
-  } m_params;
-
-  std::vector<vec4> m_tf;
-  int m_tfDim{256};
-
-  cudaArray_t m_cudaArray{};
-  cudaTextureObject_t m_textureObject{};
 };
 
 } // namespace visrtx

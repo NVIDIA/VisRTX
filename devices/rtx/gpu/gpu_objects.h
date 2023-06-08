@@ -191,7 +191,7 @@ enum class SamplerType
   TEXTURE1D,
   TEXTURE2D,
   PRIMITIVE,
-  COLOR_MAP,
+  TRANSFORM,
   UNKNOWN
 };
 
@@ -210,12 +210,6 @@ struct PrimIDSamplerData
   AttributePtr attr;
 };
 
-struct ColorMapGPUData
-{
-  cudaTextureObject_t tfTex{};
-  box1 valueRange{};
-};
-
 struct SamplerGPUData
 {
   SamplerType type{SamplerType::UNKNOWN};
@@ -224,7 +218,6 @@ struct SamplerGPUData
   mat4 outTransform;
   union
   {
-    ColorMapGPUData colormap{};
     Image1DData image1D;
     Image2DData image2D;
     PrimIDSamplerData primitive;

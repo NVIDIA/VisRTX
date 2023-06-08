@@ -20,11 +20,12 @@
       "khr_material_physically_based",
       "khr_sampler_image1d",
       "khr_sampler_image2d",
+      "khr_sampler_primitive",
+      "khr_sampler_transform",
       "khr_spatial_field_structured_regular",
       "khr_volume_scivis",
       "visrtx_array1d_dynamic_region",
       "visrtx_cuda_output_buffers",
-      "visrtx_sampler_color_map",
       "visrtx_triangle_attribute_indexing"
     ]
   },

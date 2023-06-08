@@ -29,61 +29,31 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Sampler.h"
-// specific types
-#include "Image1D.h"
-#include "Image2D.h"
-#include "PrimitiveSampler.h"
 #include "TransformSampler.h"
-#include "UnknownSampler.h"
+#include "utility/populateAttributePtr.h"
 
 namespace visrtx {
 
-Sampler::Sampler(DeviceGlobalState *s)
-    : RegisteredObject<SamplerGPUData>(ANARI_SAMPLER, s)
+TransformSampler::TransformSampler(DeviceGlobalState *d) : Sampler(d) {}
+
+void TransformSampler::commit()
 {
-  setRegistry(s->registry.samplers);
+  Sampler::commit();
+  m_inTransform = getParam<mat4>("transform", mat4(1.f));
+  m_outTransform = mat4(1.f);
+  upload();
 }
 
-Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
+SamplerGPUData TransformSampler::gpuData() const
 {
-  if (subtype == "image1D")
-    return new Image1D(d);
-  else if (subtype == "image2D")
-    return new Image2D(d);
-  else if (subtype == "primitive")
-    return new PrimitiveSampler(d);
-  else if (subtype == "transform")
-    return new TransformSampler(d);
-  else
-    return new UnknownSampler(subtype, d);
-}
-
-void Sampler::commit()
-{
-  m_inAttribute = getParamString("inAttribute", "attribute0");
-  m_inTransform = getParam<mat4>("inTransform", mat4(1.f));
-  m_outTransform = getParam<mat4>("outTransform", mat4(1.f));
-}
-
-SamplerGPUData Sampler::gpuData() const
-{
-  SamplerGPUData retval;
-  if (m_inAttribute == "attribute0")
-    retval.attribute = 0;
-  else if (m_inAttribute == "attribute1")
-    retval.attribute = 1;
-  else if (m_inAttribute == "attribute2")
-    retval.attribute = 2;
-  else if (m_inAttribute == "attribute3")
-    retval.attribute = 3;
-  else if (m_inAttribute == "color")
-    retval.attribute = 4;
-  retval.inTransform = m_inTransform;
-  retval.outTransform = m_outTransform;
+  SamplerGPUData retval = Sampler::gpuData();
+  retval.type = SamplerType::TRANSFORM;
   return retval;
 }
 
-} // namespace visrtx
+int TransformSampler::numChannels() const
+{
+  return 4;
+}
 
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Sampler *);
+} // namespace visrtx

@@ -131,11 +131,11 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/surface/material/PBR.cpp
   scene/surface/material/UnknownMaterial.cpp
 
-  scene/surface/material/sampler/ColorMap.cpp
   scene/surface/material/sampler/Image1D.cpp
   scene/surface/material/sampler/Image2D.cpp
   scene/surface/material/sampler/PrimitiveSampler.cpp
   scene/surface/material/sampler/Sampler.cpp
+  scene/surface/material/sampler/TransformSampler.cpp
   scene/surface/material/sampler/UnknownSampler.cpp
 
   scene/volume/Volume.cpp

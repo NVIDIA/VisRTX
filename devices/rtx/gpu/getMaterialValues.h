@@ -244,9 +244,8 @@ RT_FUNCTION T evaluateSampler(
     retval = getAttributeValue(sampler.primitive.attr, hit.primID);
     break;
   }
-  case SamplerType::COLOR_MAP: {
-    float coord = position(tc.x, sampler.colormap.valueRange);
-    retval = make_vec4(tex1D<::float4>(sampler.colormap.tfTex, coord));
+  case SamplerType::TRANSFORM: {
+    retval = tc;
     break;
   }
   default:

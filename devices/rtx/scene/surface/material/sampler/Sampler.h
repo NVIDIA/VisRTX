@@ -49,7 +49,6 @@ struct Sampler : public RegisteredObject<SamplerGPUData>
  protected:
   virtual SamplerGPUData gpuData() const override = 0;
 
- private:
   std::string m_inAttribute;
   mat4 m_inTransform;
   mat4 m_outTransform;
