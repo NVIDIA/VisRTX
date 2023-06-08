@@ -132,7 +132,7 @@
           "description": "ambient light color (RGB)"
         },
         {
-          "name": "ambientIntensity",
+          "name": "ambientRadiance",
           "types": [
             "ANARI_FLOAT32"
           ],
@@ -266,7 +266,7 @@
           "description": "ambient light color (RGB)"
         },
         {
-          "name": "ambientIntensity",
+          "name": "ambientRadiance",
           "types": [
             "ANARI_FLOAT32"
           ],
@@ -400,7 +400,7 @@
           "description": "ambient light color (RGB)"
         },
         {
-          "name": "ambientIntensity",
+          "name": "ambientRadiance",
           "types": [
             "ANARI_FLOAT32"
           ],

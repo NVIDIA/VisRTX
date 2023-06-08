@@ -145,7 +145,7 @@ void Renderer::commit()
   m_bgColor = getParam<vec4>("background", vec4(vec3(0.f), 1.f));
   m_spp = getParam<int>("pixelSamples", 1);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
-  m_ambientIntensity = getParam<float>("ambientIntensity", 1.f);
+  m_ambientIntensity = getParam<float>("ambientRadiance", 1.f);
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
   m_checkerboard = getParam<bool>("checkerboarding", false);
   m_denoise = getParam<bool>("denoise", false);
