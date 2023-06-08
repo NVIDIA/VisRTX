@@ -33,7 +33,13 @@
 
 namespace visrtx {
 
-UnknownCamera::UnknownCamera(DeviceGlobalState *s) : Camera(s) {}
+UnknownCamera::UnknownCamera(std::string_view subtype, DeviceGlobalState *s)
+    : Camera(s)
+{
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "ANARICamera subtype '%s' not implemented",
+      std::string(subtype).c_str());
+}
 
 bool UnknownCamera::isValid() const
 {

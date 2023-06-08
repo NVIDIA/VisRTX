@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownSampler : public Sampler
 {
-  UnknownSampler(DeviceGlobalState *d);
+  UnknownSampler(std::string_view subtype, DeviceGlobalState *d);
   ~UnknownSampler() = default;
   bool isValid() const override;
 

@@ -65,7 +65,7 @@ Geometry *Geometry::createInstance(
   else if (subtype == "curve")
     return new Curve(d);
   else
-    return new UnknownGeometry(d);
+    return new UnknownGeometry(subtype, d);
 }
 
 void Geometry::commit()

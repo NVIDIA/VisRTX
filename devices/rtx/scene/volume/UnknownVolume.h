@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownVolume : public Volume
 {
-  UnknownVolume(DeviceGlobalState *d);
+  UnknownVolume(std::string_view subtype, DeviceGlobalState *d);
   ~UnknownVolume() = default;
   bool isValid() const override;
 

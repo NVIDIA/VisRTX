@@ -109,7 +109,7 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
       retval->setParam("method", ANARI_STRING, names[1].c_str());
     return retval;
   } else
-    return new UnknownRenderer(d, subtype);
+    return new UnknownRenderer(subtype, d);
 }
 
 // Renderer definitions ///////////////////////////////////////////////////////

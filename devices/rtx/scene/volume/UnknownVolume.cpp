@@ -33,7 +33,13 @@
 
 namespace visrtx {
 
-UnknownVolume::UnknownVolume(DeviceGlobalState *d) : Volume(d) {}
+UnknownVolume::UnknownVolume(std::string_view subtype, DeviceGlobalState *d)
+    : Volume(d)
+{
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "ANARIVolume subtype '%s' not implemented",
+      std::string(subtype).c_str());
+}
 
 bool UnknownVolume::isValid() const
 {

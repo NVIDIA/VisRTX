@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownMaterial : public Material
 {
-  UnknownMaterial(DeviceGlobalState *d);
+  UnknownMaterial(std::string_view subtype, DeviceGlobalState *d);
   ~UnknownMaterial() = default;
   bool isValid() const override;
 

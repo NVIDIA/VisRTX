@@ -33,7 +33,13 @@
 
 namespace visrtx {
 
-UnknownMaterial::UnknownMaterial(DeviceGlobalState *d) : Material(d) {}
+UnknownMaterial::UnknownMaterial(std::string_view subtype, DeviceGlobalState *d)
+    : Material(d)
+{
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "ANARIMaterial subtype '%s' not implemented",
+      std::string(subtype).c_str());
+}
 
 bool UnknownMaterial::isValid() const
 {

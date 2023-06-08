@@ -33,7 +33,13 @@
 
 namespace visrtx {
 
-UnknownLight::UnknownLight(DeviceGlobalState *d) : Light(d) {}
+UnknownLight::UnknownLight(std::string_view subtype, DeviceGlobalState *d)
+    : Light(d)
+{
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "ANARILight subtype '%s' not implemented",
+      std::string(subtype).c_str());
+}
 
 bool UnknownLight::isValid() const
 {

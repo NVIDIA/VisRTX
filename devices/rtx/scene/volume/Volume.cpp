@@ -71,10 +71,10 @@ void Volume::markCommitted()
 
 Volume *Volume::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  if (subtype == "scivis")
+  if (subtype == "transferFunction1D" || subtype == "scivis")
     return new SciVisVolume(d);
   else
-    return new UnknownVolume(d);
+    return new UnknownVolume(subtype, d);
 }
 
 } // namespace visrtx

@@ -54,7 +54,7 @@ SpatialField *SpatialField::createInstance(
   if (subtype == "structuredRegular")
     return new StructuredRegularField(d);
   else
-    return new UnknownSpatialField(d);
+    return new UnknownSpatialField(subtype, d);
 }
 
 } // namespace visrtx

@@ -62,7 +62,7 @@ Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
   else if (subtype == "point")
     return new Point(d);
   else
-    return new UnknownLight(d);
+    return new UnknownLight(subtype, d);
 }
 
 } // namespace visrtx

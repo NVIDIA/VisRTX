@@ -51,7 +51,7 @@ Material *Material::createInstance(
   else if (subtype == "pbr" || subtype == "physicallyBased")
     return new PBR(d);
   else
-    return new UnknownMaterial(d);
+    return new UnknownMaterial(subtype, d);
 }
 
 } // namespace visrtx

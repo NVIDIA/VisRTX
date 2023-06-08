@@ -33,7 +33,13 @@
 
 namespace visrtx {
 
-UnknownSampler::UnknownSampler(DeviceGlobalState *d) : Sampler(d) {}
+UnknownSampler::UnknownSampler(std::string_view subtype, DeviceGlobalState *d)
+    : Sampler(d)
+{
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "ANARISampler subtype '%s' not implemented",
+      std::string(subtype).c_str());
+}
 
 bool UnknownSampler::isValid() const
 {

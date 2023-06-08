@@ -61,7 +61,7 @@ Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
   else if (subtype == "orthographic")
     return new Orthographic(d);
   else
-    return new UnknownCamera(d);
+    return new UnknownCamera(subtype, d);
 }
 
 void *Camera::deviceData() const

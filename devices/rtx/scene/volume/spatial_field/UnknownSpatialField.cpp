@@ -33,9 +33,14 @@
 
 namespace visrtx {
 
-UnknownSpatialField::UnknownSpatialField(DeviceGlobalState *d)
+UnknownSpatialField::UnknownSpatialField(
+    std::string_view subtype, DeviceGlobalState *d)
     : SpatialField(d)
-{}
+{
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "ANARISpatialField subtype '%s' not implemented",
+      std::string(subtype).c_str());
+}
 
 bool UnknownSpatialField::isValid() const
 {

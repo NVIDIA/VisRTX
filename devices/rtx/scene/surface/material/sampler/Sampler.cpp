@@ -56,7 +56,7 @@ Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
   else if (subtype == "colorMap")
     return new ColorMap(d);
   else
-    return new UnknownSampler(d);
+    return new UnknownSampler(subtype, d);
 }
 
 void Sampler::commit()

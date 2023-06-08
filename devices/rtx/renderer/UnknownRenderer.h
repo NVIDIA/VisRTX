@@ -37,7 +37,7 @@ namespace visrtx {
 
 struct UnknownRenderer : public Renderer
 {
-  UnknownRenderer(DeviceGlobalState *d, std::string_view subtype);
+  UnknownRenderer(std::string_view subtype, DeviceGlobalState *d);
   ~UnknownRenderer() = default;
   bool isValid() const override;
   OptixModule optixModule() const override;

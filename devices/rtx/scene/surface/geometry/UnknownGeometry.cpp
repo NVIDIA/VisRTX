@@ -33,7 +33,13 @@
 
 namespace visrtx {
 
-UnknownGeometry::UnknownGeometry(DeviceGlobalState *d) : Geometry(d) {}
+UnknownGeometry::UnknownGeometry(std::string_view subtype, DeviceGlobalState *d)
+    : Geometry(d)
+{
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "ANARIGeometry subtype '%s' not implemented",
+      std::string(subtype).c_str());
+}
 
 void UnknownGeometry::populateBuildInput(OptixBuildInput &) const
 {

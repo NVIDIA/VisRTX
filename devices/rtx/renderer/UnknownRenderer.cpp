@@ -33,13 +33,12 @@
 
 namespace visrtx {
 
-UnknownRenderer::UnknownRenderer(
-    DeviceGlobalState *s, std::string_view _subtype)
+UnknownRenderer::UnknownRenderer(std::string_view subtype, DeviceGlobalState *s)
     : Renderer(s)
 {
-  std::string subtype(_subtype);
-  reportMessage(
-      ANARI_SEVERITY_WARNING, "unknown '%s' created", subtype.c_str());
+  reportMessage(ANARI_SEVERITY_WARNING,
+      "ANARIRenderer subtype '%s' not implemented",
+      std::string(subtype).c_str());
 }
 
 bool UnknownRenderer::isValid() const
