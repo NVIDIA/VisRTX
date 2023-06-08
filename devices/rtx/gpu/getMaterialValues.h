@@ -230,7 +230,7 @@ RT_FUNCTION T evaluateSampler(
   vec4 retval{0.f};
   const auto &sampler = getSamplerData(fd, _s);
   const vec4 tc =
-      readAttributeValue(sampler.attribute, hit) * sampler.transform;
+      readAttributeValue(sampler.attribute, hit) * sampler.inTransform;
   switch (sampler.type) {
   case SamplerType::TEXTURE1D: {
     retval = make_vec4(tex1D<::float4>(sampler.image1D.texobj, tc.x));
@@ -252,7 +252,7 @@ RT_FUNCTION T evaluateSampler(
   default:
     break;
   }
-  return bit_cast<T>(retval);
+  return bit_cast<T>(retval * sampler.outTransform);
 }
 
 template <typename T>
