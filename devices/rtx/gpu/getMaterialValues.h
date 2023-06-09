@@ -241,7 +241,8 @@ RT_FUNCTION T evaluateSampler(
     break;
   }
   case SamplerType::PRIMITIVE: {
-    retval = getAttributeValue(sampler.primitive.attr, hit.primID);
+    retval = getAttributeValue(
+        sampler.primitive.attr, hit.primID + sampler.primitive.offset);
     break;
   }
   case SamplerType::TRANSFORM: {

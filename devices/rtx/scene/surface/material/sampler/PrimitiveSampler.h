@@ -52,6 +52,7 @@ struct PrimitiveSampler : public Sampler
 
   helium::IntrusivePtr<Array1D> m_data;
   AttributePtr m_ap;
+  uint32_t m_offset{0};
 };
 
 } // namespace visrtx

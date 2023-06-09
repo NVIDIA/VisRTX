@@ -208,6 +208,7 @@ struct Image2DData
 struct PrimIDSamplerData
 {
   AttributePtr attr;
+  uint32_t offset;
 };
 
 struct SamplerGPUData

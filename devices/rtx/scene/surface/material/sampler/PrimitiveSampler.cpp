@@ -44,6 +44,7 @@ void PrimitiveSampler::commit()
   m_ap.data = nullptr;
 
   m_data = getParamObject<Array1D>("array");
+  m_offset = getParam<uint32_t>("offset", getParam<uint64_t>("offset", 0));
 
   if (!m_data) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -61,6 +62,7 @@ SamplerGPUData PrimitiveSampler::gpuData() const
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::PRIMITIVE;
   retval.primitive.attr = m_ap;
+  retval.primitive.offset = m_offset;
   return retval;
 }
 
