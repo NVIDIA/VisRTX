@@ -46,7 +46,7 @@ void Image2D::commit()
 
   cleanup();
 
-  m_params.filter = getParamString("filter", "nearest");
+  m_params.filter = getParamString("filter", "linear");
   m_params.wrap1 = getParamString("wrapMode1", "clampToEdge");
   m_params.wrap2 = getParamString("wrapMode2", "clampToEdge");
   m_params.image = getParamObject<Array2D>("image");
