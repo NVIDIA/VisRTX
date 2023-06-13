@@ -86,6 +86,16 @@ inline void populateMaterialParameter(MaterialParameter<T> &mp,
   }
 }
 
+inline AlphaMode alphaModeFromString(const std::string &s)
+{
+  if (s == "blend")
+    return AlphaMode::BLEND;
+  else if (s == "mask")
+    return AlphaMode::MASK;
+  else
+    return AlphaMode::OPAQUE;
+}
+
 } // namespace visrtx
 
 VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Material *, ANARI_MATERIAL);

@@ -298,7 +298,15 @@ RT_FUNCTION MaterialValues getMaterialValues(
 {
   MaterialValues retval;
   retval.baseColor = getMaterialParameter(fd, md.baseColor, hit);
-  retval.opacity = getMaterialParameter(fd, md.opacity, hit);
+  if (md.mode == AlphaMode::OPAQUE)
+    retval.opacity = 1.f;
+  else {
+    float opacity = getMaterialParameter(fd, md.opacity, hit);
+    if (md.mode == AlphaMode::BLEND)
+      retval.opacity = opacity;
+    else
+      retval.opacity = opacity < md.cutoff ? 0.f : 1.f;
+  }
   return retval;
 }
 

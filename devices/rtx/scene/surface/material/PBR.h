@@ -45,7 +45,8 @@ struct PBR : public Material
  private:
   MaterialGPUData gpuData() const override;
 
-  bool m_separateOpacity{false};
+  float m_cutoff{0.5f};
+  AlphaMode m_mode{AlphaMode::OPAQUE};
 
   vec3 m_color{1.f};
   helium::IntrusivePtr<Sampler> m_colorSampler;
@@ -54,22 +55,6 @@ struct PBR : public Material
   float m_opacity{1.f};
   helium::IntrusivePtr<Sampler> m_opacitySampler;
   std::string m_opacityAttribute;
-
-  float m_metalness{0.f};
-  helium::IntrusivePtr<Sampler> m_metalnessSampler;
-  std::string m_metalnessAttribute;
-
-  vec3 m_emissive{0.f};
-  helium::IntrusivePtr<Sampler> m_emissiveSampler;
-  std::string m_emissiveAttribute;
-
-  float m_transmissiveness{0.f};
-  helium::IntrusivePtr<Sampler> m_transmissivenessSampler;
-  std::string m_transmissivenessAttribute;
-
-  float m_roughness{1.f};
-  helium::IntrusivePtr<Sampler> m_roughnessSampler;
-  std::string m_roughnessAttribute;
 };
 
 } // namespace visrtx

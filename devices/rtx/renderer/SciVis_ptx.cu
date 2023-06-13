@@ -100,9 +100,8 @@ RT_PROGRAM void __anyhit__shadow()
     SurfaceHit hit;
     ray::populateSurfaceHit(hit);
     const auto &material = *hit.material;
-    const auto mat_opacity =
-        getMaterialParameter(frameData, material.opacity, hit);
-    if (mat_opacity >= 0.99f) {
+    const auto matValues = getMaterialValues(frameData, material, hit);
+    if (matValues.opacity >= 0.99f) {
       auto &occluded = ray::rayData<uint32_t>();
       occluded = true;
       optixTerminateRay();
@@ -170,10 +169,7 @@ RT_PROGRAM void __raygen__()
       }
 
       const auto &material = *surfaceHit.material;
-      const auto mat_baseColor =
-          getMaterialParameter(frameData, material.baseColor, surfaceHit);
-      const auto mat_opacity =
-          getMaterialParameter(frameData, material.opacity, surfaceHit);
+      const auto matValues = getMaterialValues(frameData, material, surfaceHit);
 
       const float aoFactor = (scivisParams.aoSamples > 0 ? computeAO(ss,
                                   ray,
@@ -185,12 +181,12 @@ RT_PROGRAM void __raygen__()
           * rendererParams.ambientIntensity;
 
       accumulateValue(color,
-          (mat_baseColor
+          (matValues.baseColor
               * (computeLightConrib(ss, surfaceHit)
                   + (rendererParams.ambientColor * aoFactor
                       * scivisParams.lightFalloff))),
           opacity);
-      accumulateValue(opacity, mat_opacity, opacity);
+      accumulateValue(opacity, matValues.opacity, opacity);
 
       color *= opacity;
       accumulateValue(outputColor, color, outputOpacity);

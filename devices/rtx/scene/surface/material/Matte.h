@@ -54,6 +54,9 @@ struct Matte : public Material
   float m_opacity{1.f};
   helium::IntrusivePtr<Sampler> m_opacitySampler;
   std::string m_opacityAttribute;
+
+  float m_cutoff{0.5f};
+  AlphaMode m_mode{AlphaMode::OPAQUE};
 };
 
 } // namespace visrtx

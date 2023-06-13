@@ -37,13 +37,24 @@ PBR::PBR(DeviceGlobalState *d) : Material(d) {}
 
 void PBR::commit()
 {
-  m_color = getParam<vec3>("baseColor", vec3(1.f));
-  m_colorSampler = getParamObject<Sampler>("baseColor");
-  m_colorAttribute = getParamString("baseColor", "");
-
   m_opacity = getParam<float>("opacity", 1.f);
   m_opacitySampler = getParamObject<Sampler>("opacity");
   m_opacityAttribute = getParamString("opacity", "");
+
+  vec4 c;
+  if (getParam("baseColor", ANARI_FLOAT32_VEC4, &c)) {
+    m_color = vec3(c.x, c.y, c.z);
+    m_opacity *= c.w;
+  } else if (getParam("baseColor", ANARI_FLOAT32_VEC3, &c)) {
+    m_color = vec3(c.x, c.y, c.z);
+  } else {
+    m_color = vec3(1.f, 1.f, 1.f);
+  }
+  m_colorSampler = getParamObject<Sampler>("baseColor");
+  m_colorAttribute = getParamString("baseColor", "");
+
+  m_cutoff = getParam<float>("alphaCutoff", 0.5f);
+  m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
 
   upload();
 }
@@ -61,6 +72,9 @@ MaterialGPUData PBR::gpuData() const
     populateMaterialParameter(
         retval.opacity, m_opacity, m_opacitySampler, m_opacityAttribute);
   }
+
+  retval.cutoff = m_cutoff;
+  retval.mode = m_mode;
 
   return retval;
 }

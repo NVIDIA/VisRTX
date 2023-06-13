@@ -270,6 +270,7 @@ static ScenePtr generateCylinders(anari::Device d, CylindersConfig config)
   auto mat = anari::newObject<anari::Material>(d, "matte");
   anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
+  anari::setParameter(d, mat, "alphaMode", "blend");
   anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
@@ -346,6 +347,7 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
   auto mat = anari::newObject<anari::Material>(d, "matte");
   anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
+  anari::setParameter(d, mat, "alphaMode", "blend");
   anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
@@ -539,6 +541,7 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
   anari::Sampler sampler{nullptr};
   anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
+  anari::setParameter(d, mat, "alphaMode", "blend");
   anari::commitParameters(d, mat);
   anari::setParameter(d, surface, "material", mat);
 

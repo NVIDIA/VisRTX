@@ -89,16 +89,14 @@ RT_PROGRAM void __raygen__()
       }
 
       const auto &material = *surfaceHit.material;
-      const auto mat_baseColor =
-          getMaterialParameter(frameData, material.baseColor, surfaceHit);
-      const auto mat_opacity =
-          getMaterialParameter(frameData, material.opacity, surfaceHit);
+      const auto matValues = getMaterialValues(frameData, material, surfaceHit);
 
       const auto falloff =
-          mat_baseColor * glm::abs(glm::dot(ray.dir, surfaceHit.Ns));
+          matValues.baseColor * glm::abs(glm::dot(ray.dir, surfaceHit.Ns));
 
-      accumulateValue(color, glm::mix(mat_baseColor, falloff, 0.5f), opacity);
-      accumulateValue(opacity, mat_opacity, opacity);
+      accumulateValue(
+          color, glm::mix(matValues.baseColor, falloff, 0.5f), opacity);
+      accumulateValue(opacity, matValues.opacity, opacity);
 
       color *= opacity;
       accumulateValue(outputColor, color, outputOpacity);

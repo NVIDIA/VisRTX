@@ -261,10 +261,19 @@ struct MaterialParameter
   }
 };
 
+enum AlphaMode
+{
+  OPAQUE = 0,
+  BLEND,
+  MASK
+};
+
 struct MaterialGPUData
 {
   MaterialParameter<vec3> baseColor{vec3(1.f)};
   MaterialParameter<float> opacity{1.f};
+  float cutoff;
+  AlphaMode mode;
 };
 
 struct MaterialValues
