@@ -267,7 +267,7 @@ static ScenePtr generateCylinders(anari::Device d, CylindersConfig config)
   auto surface = anari::newObject<anari::Surface>(d);
   anari::setAndReleaseParameter(d, surface, "geometry", geom);
 
-  auto mat = anari::newObject<anari::Material>(d, "transparentMatte");
+  auto mat = anari::newObject<anari::Material>(d, "matte");
   anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
   anari::commitParameters(d, mat);
@@ -343,7 +343,7 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
   auto surface = anari::newObject<anari::Surface>(d);
   anari::setAndReleaseParameter(d, surface, "geometry", geom);
 
-  auto mat = anari::newObject<anari::Material>(d, "transparentMatte");
+  auto mat = anari::newObject<anari::Material>(d, "matte");
   anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
   anari::commitParameters(d, mat);
@@ -525,9 +525,6 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
     anari::unmap(d, colorArray);
   }
 
-  visrtx::Features features = visrtx::getInstanceFeatures(d, d);
-  const bool haveColorMapSampler = features.VISRTX_SAMPLER_COLOR_MAP;
-
   auto geom = anari::newObject<anari::Geometry>(d, "sphere");
   anari::setParameter(d, geom, "vertex.position", positionArray);
   anari::setParameter(d, geom, "primitive.color", colorArray);
@@ -538,28 +535,9 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
   auto surface = anari::newObject<anari::Surface>(d);
   anari::setParameter(d, surface, "geometry", geom);
 
-  auto mat = anari::newObject<anari::Material>(d, "transparentMatte");
+  auto mat = anari::newObject<anari::Material>(d, "matte");
   anari::Sampler sampler{nullptr};
-  if (haveColorMapSampler) {
-    sampler = anari::newObject<anari::Sampler>(d, "colorMap");
-    anari::setParameter(d, sampler, "inAttribute", "attribute0");
-    anari::setParameter(d, sampler, "valueRange", glm::vec2(0.f, maxDistance));
-    std::vector<glm::vec3> tf = {glm::vec3(1.f, 1.f, 0.f),
-        glm::vec3(0.f, 1.f, 0.f),
-        glm::vec3(0.f, 0.f, 1.f)};
-    std::vector<float> tfPos = {
-        maxDistance * 0.0f, maxDistance * 0.25f, maxDistance * 0.75f};
-    anari::setAndReleaseParameter(
-        d, sampler, "color", anari::newArray1D(d, tf.data(), tf.size()));
-    anari::setAndReleaseParameter(d,
-        sampler,
-        "color.position",
-        anari::newArray1D(d, tfPos.data(), tfPos.size()));
-    anari::commitParameters(d, sampler);
-    anari::setParameter(d, mat, "color", sampler);
-  } else {
-    anari::setParameter(d, mat, "color", "color");
-  }
+  anari::setParameter(d, mat, "color", "color");
   anari::setParameter(d, mat, "opacity", config.opacity);
   anari::commitParameters(d, mat);
   anari::setParameter(d, surface, "material", mat);
@@ -574,7 +552,6 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
   float radius = config.radius;
   int capacity = config.numSpheres;
   int count = config.numSpheres;
-  bool useColorMap = true;
 
   auto retval = std::make_unique<Scene>(
       d,
@@ -594,19 +571,6 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
           anari::commitParameters(d, distArray);
         }
 
-        if (haveColorMapSampler) {
-          if (ImGui::RadioButton("gradient colors", useColorMap)) {
-            anari::setParameter(d, mat, "color", sampler);
-            anari::commitParameters(d, mat);
-            useColorMap = true;
-          }
-          if (ImGui::RadioButton("random colors", !useColorMap)) {
-            anari::setParameter(d, mat, "color", "color");
-            anari::commitParameters(d, mat);
-            useColorMap = false;
-          }
-        }
-
         if (ImGui::Button("randomize positions")) {
           rng.seed(std::random_device{}());
           auto *b = anari::map<glm::vec3>(d, positionArray);
@@ -618,8 +582,6 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
           });
           anari::unmap(d, positionArray);
         }
-
-        ImGui::BeginDisabled(useColorMap);
 
         if (ImGui::Button("randomize colors")) {
           rng.seed(std::random_device{}());
@@ -633,8 +595,6 @@ static ScenePtr generateSpheres(anari::Device d, SpheresConfig config)
           });
           anari::unmap(d, colorArray);
         }
-
-        ImGui::EndDisabled();
       },
       [=]() {
         anari::release(d, geom);
@@ -1060,7 +1020,7 @@ static anari::World loadObj(
   TextureCache cache;
 
   for (auto &mat : objdata.materials) {
-    auto m = anari::newObject<anari::Material>(d, "transparentMatte");
+    auto m = anari::newObject<anari::Material>(d, "matte");
 
     anari::setParameter(d, m, "color", ANARI_FLOAT32_VEC3, &mat.diffuse[0]);
     anari::setParameter(d, m, "opacity", ANARI_FLOAT32, &mat.dissolve);

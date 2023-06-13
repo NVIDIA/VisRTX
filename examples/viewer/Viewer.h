@@ -121,7 +121,7 @@ class Viewer : public match3D::Application
   glm::vec4 m_imageRegion{glm::vec2(0.f), glm::vec2(1.f)};
 
   std::vector<anari::Renderer> m_renderers;
-  float m_ambientIntensity{1.f};
+  float m_ambientIntensity{0.f};
   glm::vec3 m_ambientColor{1.f};
   float m_ambientOcclusionDistance{100.f};
   std::array<anari::Light, 1> m_lights;

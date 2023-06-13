@@ -38,7 +38,7 @@
 #include <cuda_gl_interop.h>
 // anari
 #define ANARI_FEATURE_UTILITY_IMPL
-#include "anari/anari_feature_utility.h"
+#include "anari/frontend/anari_feature_utility.h"
 // VisRTX
 #include "anari/ext/visrtx/visrtx.h"
 // glm
@@ -330,7 +330,7 @@ void Viewer::updateFrame()
   anari::setParameter(
       m_device, m_currentRenderer, "ambientColor", m_ambientColor);
   anari::setParameter(
-      m_device, m_currentRenderer, "ambientIntensity", m_ambientIntensity);
+      m_device, m_currentRenderer, "ambientRadiance", m_ambientIntensity);
   anari::setParameter(m_device,
       m_currentRenderer,
       "ambientOcclusionDistance",
@@ -720,7 +720,7 @@ void Viewer::ui_makeWindow_renderer()
   update |= ImGui::SliderInt("pixelSamples", &m_pixelSamples, 1, 256);
 
   update |= ImGui::DragFloat(
-      "ambientIntensity", &m_ambientIntensity, 0.001f, 0.f, 1000.f);
+      "ambientRadiance", &m_ambientIntensity, 0.001f, 0.f, 1000.f);
 
   update |= ImGui::ColorEdit3("ambientColor", &m_ambientColor.x);
 
