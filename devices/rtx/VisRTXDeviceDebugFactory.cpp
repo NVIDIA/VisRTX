@@ -2798,87 +2798,6 @@ class volume_scivis : public DebugObject<ANARI_VOLUME> {
       return "scivis";
    }
 };
-class sampler_colorMap : public DebugObject<ANARI_SAMPLER> {
-   static int param_hash(const char *str) {
-      static const uint32_t table[] = {0x706f0014u,0x66650050u,0x0u,0x0u,0x0u,0x0u,0x6f6e005cu,0x0u,0x0u,0x0u,0x0u,0x62610067u,0x7170006bu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x626100a9u,0x6d6c0015u,0x706f0016u,0x73720017u,0x2f000018u,0x80000003u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x71700047u,0x706f0048u,0x74730049u,0x6a69004au,0x7574004bu,0x6a69004cu,0x706f004du,0x6f6e004eu,0x100004fu,0x80000004u,0x6f6e0051u,0x74730052u,0x6a690053u,0x75740054u,0x7a790055u,0x54530056u,0x64630057u,0x62610058u,0x6d6c0059u,0x6665005au,0x100005bu,0x80000007u,0x4241005du,0x7574005eu,0x7574005fu,0x73720060u,0x6a690061u,0x63620062u,0x76750063u,0x75740064u,0x66650065u,0x1000066u,0x80000001u,0x6e6d0068u,0x66650069u,0x100006au,0x80000000u,0x6261006cu,0x6463006du,0x6a69006eu,0x7574006fu,0x7a790070u,0x2f000071u,0x80000005u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x717000a0u,0x706f00a1u,0x747300a2u,0x6a6900a3u,0x757400a4u,0x6a6900a5u,0x706f00a6u,0x6f6e00a7u,0x10000a8u,0x80000006u,0x6d6c00aau,0x767500abu,0x666500acu,0x535200adu,0x626100aeu,0x6f6e00afu,0x686700b0u,0x666500b1u,0x10000b2u,0x80000002u};
-      uint32_t cur = 0x77630000u;
-      for(int i = 0;cur!=0;++i) {
-         uint32_t idx = cur&0xFFFFu;
-         uint32_t low = (cur>>16u)&0xFFu;
-         uint32_t high = (cur>>24u)&0xFFu;
-         uint32_t c = (uint32_t)str[i];
-         if(c>=low && c<high) {
-            cur = table[idx+c-low];
-         } else {
-            break;
-         }
-         if(cur&0x80000000u) {
-            return cur&0xFFFFu;
-         }
-         if(str[i]==0) {
-            break;
-         }
-      }
-      return -1;
-   }
-   public:
-   sampler_colorMap(DebugDevice *td, VisRTXDeviceDebugFactory *factory, ANARIObject wh, ANARIObject h): DebugObject(td, wh, h) { (void)factory; }
-   void setParameter(const char *paramname, ANARIDataType paramtype, const void *mem) {
-      DebugObject::setParameter(paramname, paramtype, mem);
-      int idx = param_hash(paramname);
-      switch(idx) {
-         case 0: { //name
-            ANARIDataType name_types[] = {ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_SAMPLER, "colorMap", paramname, paramtype, name_types);
-            return;
-         }
-         case 1: { //inAttribute
-            ANARIDataType inAttribute_types[] = {ANARI_STRING, ANARI_UNKNOWN};
-            check_type(ANARI_SAMPLER, "colorMap", paramname, paramtype, inAttribute_types);
-            return;
-         }
-         case 2: { //valueRange
-            ANARIDataType valueRange_types[] = {ANARI_FLOAT32_BOX1, ANARI_UNKNOWN};
-            check_type(ANARI_SAMPLER, "colorMap", paramname, paramtype, valueRange_types);
-            return;
-         }
-         case 3: { //color
-            ANARIDataType color_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
-            check_type(ANARI_SAMPLER, "colorMap", paramname, paramtype, color_types);
-            return;
-         }
-         case 4: { //color.position
-            ANARIDataType color_position_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
-            check_type(ANARI_SAMPLER, "colorMap", paramname, paramtype, color_position_types);
-            return;
-         }
-         case 5: { //opacity
-            ANARIDataType opacity_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
-            check_type(ANARI_SAMPLER, "colorMap", paramname, paramtype, opacity_types);
-            return;
-         }
-         case 6: { //opacity.position
-            ANARIDataType opacity_position_types[] = {ANARI_ARRAY1D, ANARI_UNKNOWN};
-            check_type(ANARI_SAMPLER, "colorMap", paramname, paramtype, opacity_position_types);
-            return;
-         }
-         case 7: { //densityScale
-            ANARIDataType densityScale_types[] = {ANARI_FLOAT32, ANARI_UNKNOWN};
-            check_type(ANARI_SAMPLER, "colorMap", paramname, paramtype, densityScale_types);
-            return;
-         }
-         default: // unknown param
-            unknown_parameter(ANARI_SAMPLER, "colorMap", paramname, paramtype);
-            return;
-      }
-   }
-   void commit() {
-      DebugObject::commit();
-   }
-   const char* getSubtype() {
-      return "colorMap";
-   }
-};
 }
 static int camera_object_hash(const char *str) {
    static const uint32_t table[] = {0x73720002u,0x6665000eu,0x75740003u,0x69680004u,0x706f0005u,0x68670006u,0x73720007u,0x62610008u,0x71700009u,0x6968000au,0x6a69000bu,0x6463000cu,0x100000du,0x80000000u,0x7372000fu,0x74730010u,0x71700011u,0x66650012u,0x64630013u,0x75740014u,0x6a690015u,0x77760016u,0x66650017u,0x1000018u,0x80000001u};
@@ -3067,8 +2986,8 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_renderer(const char *name, DebugD
    }
 }
 static int sampler_object_hash(const char *str) {
-   static const uint32_t table[] = {0x706f0012u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6e6d001au,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720024u,0x0u,0x0u,0x0u,0x7372002du,0x6d6c0013u,0x706f0014u,0x73720015u,0x4e4d0016u,0x62610017u,0x71700018u,0x1000019u,0x80000000u,0x6261001bu,0x6867001cu,0x6665001du,0x3331001eu,0x45440020u,0x45440022u,0x1000021u,0x80000001u,0x1000023u,0x80000002u,0x6a690025u,0x6e6d0026u,0x6a690027u,0x75740028u,0x6a690029u,0x7776002au,0x6665002bu,0x100002cu,0x80000003u,0x6261002eu,0x6f6e002fu,0x74730030u,0x67660031u,0x706f0032u,0x73720033u,0x6e6d0034u,0x1000035u,0x80000004u};
-   uint32_t cur = 0x75630000u;
+   static const uint32_t table[] = {0x6e6d000cu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720016u,0x0u,0x0u,0x0u,0x7372001fu,0x6261000du,0x6867000eu,0x6665000fu,0x33310010u,0x45440012u,0x45440014u,0x1000013u,0x80000000u,0x1000015u,0x80000001u,0x6a690017u,0x6e6d0018u,0x6a690019u,0x7574001au,0x6a69001bu,0x7776001cu,0x6665001du,0x100001eu,0x80000002u,0x62610020u,0x6f6e0021u,0x74730022u,0x67660023u,0x706f0024u,0x73720025u,0x6e6d0026u,0x1000027u,0x80000003u};
+   uint32_t cur = 0x75690000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
       uint32_t low = (cur>>16u)&0xFFu;
@@ -3092,14 +3011,12 @@ DebugObjectBase* VisRTXDeviceDebugFactory::new_sampler(const char *name, DebugDe
    int idx = sampler_object_hash(name);
    switch(idx) {
       case 0:
-         return new sampler_colorMap(td, this, wh, h);
-      case 1:
          return new sampler_image1D(td, this, wh, h);
-      case 2:
+      case 1:
          return new sampler_image2D(td, this, wh, h);
-      case 3:
+      case 2:
          return new sampler_primitive(td, this, wh, h);
-      case 4:
+      case 3:
          return new sampler_transform(td, this, wh, h);
       default:
          unknown_subtype(td, ANARI_SAMPLER, name);

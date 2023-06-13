@@ -138,7 +138,7 @@
             "ANARI_FLOAT32"
           ],
           "tags": [],
-          "default": 1.0,
+          "default": 0.0,
           "description": "ambient light intensity"
         },
         {
@@ -272,7 +272,7 @@
             "ANARI_FLOAT32"
           ],
           "tags": [],
-          "default": 1.0,
+          "default": 0.0,
           "description": "ambient light intensity"
         },
         {
@@ -406,7 +406,7 @@
             "ANARI_FLOAT32"
           ],
           "tags": [],
-          "default": 1.0,
+          "default": 0.0,
           "description": "ambient light intensity"
         },
         {
