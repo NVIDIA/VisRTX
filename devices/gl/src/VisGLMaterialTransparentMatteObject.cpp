@@ -122,6 +122,11 @@ void Object<MaterialTransparentMatte>::fragmentShaderMain(
     SurfaceObjectBase *surf, AppendableShader &shader)
 {
   MATERIAL_FRAG_SAMPLE("baseColor", color, ANARI_FLOAT32_VEC3, 0, COLOR_SAMPLER)
+
+  if(current.alphaMode.getStringEnum() == STRING_ENUM_opaque) {
+    shader.append("  baseColor.w = 1.0;\n");
+  }
+
   MATERIAL_FRAG_SAMPLE("opacity", opacity, ANARI_FLOAT32, 1, OPACITY_SAMPLER)
 
   shader.append(transparent_matte_material_eval_block);

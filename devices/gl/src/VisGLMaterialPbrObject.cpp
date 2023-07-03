@@ -91,7 +91,7 @@ R"GLSL(
     vec3 f_diffuse = (vec3(1.0) - F)*(1.0/PI)*c_diff;
     vec3 f_specular = F*D*G/(4.0*abs(NdotV)*abs(NdotL));
 
-    lighting.xyz += attenuation*light_color*(f_diffuse + f_specular)*max(0.0, NdotL);
+    lighting.xyz += shadow*attenuation*light_color*(f_diffuse + f_specular)*max(0.0, NdotL);
   }
 
 
@@ -189,6 +189,11 @@ void Object<MaterialPhysicallyBased>::fragmentShaderMain(
 {
   MATERIAL_FRAG_SAMPLE(
       "baseColor", baseColor, ANARI_FLOAT32_VEC3, 1, BASE_COLOR_SAMPLER)
+  
+  if(current.alphaMode.getStringEnum() == STRING_ENUM_opaque) {
+    shader.append("  baseColor.w = 1.0;\n");
+  }
+
   MATERIAL_FRAG_SAMPLE("opacity", opacity, ANARI_FLOAT32, 2, OPACITY_SAMPLER)
   MATERIAL_FRAG_SAMPLE("metallic", metallic, ANARI_FLOAT32, 3, METALLIC_SAMPLER)
   MATERIAL_FRAG_SAMPLE(
