@@ -66,8 +66,9 @@ void Object<CameraOrthographic>::updateAt(size_t index, float *bounds) const
 {
   float range[2];
   projectBoundingBox(range, bounds, position, direction);
-  float far = range[1] * 1.0001f;
-  float near = fast_maxf(far * 1.0e-3, range[0] * 0.9999f);
+  float depth = range[1]-range[0];
+  float far = range[1] + 0.001f*depth;
+  float near = fast_maxf(0.0f, range[0] - 0.001f*depth);
 
   float width = height * aspect;
 
@@ -80,20 +81,20 @@ void Object<CameraOrthographic>::updateAt(size_t index, float *bounds) const
   std::array<float, 16> inverse_projection_view;
 
   setOrtho(projection.data(),
-      width * (2.0f * region[0] - 1.0f),
-      width * (2.0f * region[2] - 1.0f),
-      height * (2.0f * region[3] - 1.0f),
-      height * (2.0f * region[1] - 1.0f),
+      0.5f * width * (2.0f * region[0] - 1.0f),
+      0.5f * width * (2.0f * region[2] - 1.0f),
+      0.5f * height * (2.0f * region[3] - 1.0f),
+      0.5f * height * (2.0f * region[1] - 1.0f),
       near,
       far);
   setLookDirection(view.data(), position, direction, up);
   mul3(projection_view.data(), projection.data(), view.data());
 
   setInverseOrtho(inverse_projection.data(),
-      width * (2.0f * region[0] - 1.0f),
-      width * (2.0f * region[2] - 1.0f),
-      height * (2.0f * region[3] - 1.0f),
-      height * (2.0f * region[1] - 1.0f),
+      0.5f * width * (2.0f * region[0] - 1.0f),
+      0.5f * width * (2.0f * region[2] - 1.0f),
+      0.5f * height * (2.0f * region[3] - 1.0f),
+      0.5f * height * (2.0f * region[1] - 1.0f),
       near,
       far);
   setInverseLookDirection(inverse_view.data(), position, direction, up);
