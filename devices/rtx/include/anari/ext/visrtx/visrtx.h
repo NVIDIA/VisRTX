@@ -58,32 +58,29 @@ typedef struct
   int VISRTX_CUDA_OUTPUT_BUFFERS;
   int VISRTX_SAMPLER_COLOR_MAP;
   int VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
-} VisRTXFeatures;
+} VisRTXExtensions;
 
-VISRTX_DEVICE_INTERFACE int visrtxGetObjectFeatures(VisRTXFeatures *features,
-    ANARILibrary,
-    const char *deviceName,
-    const char *objectName,
-    ANARIDataType objectType);
+VISRTX_DEVICE_INTERFACE int visrtxGetObjectExtensions(
+    VisRTXExtensions *features,
+    ANARIDevice device,
+    ANARIDataType objectType,
+    const char *objectSubtype);
 
-VISRTX_DEVICE_INTERFACE int visrtxGetInstanceFeatures(
-    VisRTXFeatures *features, ANARIDevice device, ANARIObject object);
+VISRTX_DEVICE_INTERFACE int visrtxGetInstanceExtensions(
+    VisRTXExtensions *features, ANARIDevice device, ANARIObject object);
 
 #ifdef __cplusplus
 } // extern "C"
 
 namespace visrtx {
 
-using Features = VisRTXFeatures;
+using Extensions = VisRTXExtensions;
+
+VISRTX_DEVICE_INTERFACE Extensions getObjectExtensions(
+    anari::Device d, anari::DataType objectType, const char *objectSubtype);
 
 VISRTX_DEVICE_INTERFACE
-Features getObjectFeatures(anari::Library library,
-    const char *device,
-    const char *objectSubtype,
-    anari::DataType objectType);
-
-VISRTX_DEVICE_INTERFACE
-Features getInstanceFeatures(anari::Device, anari::Object);
+Extensions getInstanceExtensions(anari::Device, anari::Object);
 
 } // namespace visrtx
 #endif

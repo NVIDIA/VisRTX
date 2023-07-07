@@ -116,8 +116,7 @@ ANARIArray1D VisRTXDevice::newArray1D(const void *appMemory,
     ANARIMemoryDeleter deleter,
     const void *userData,
     ANARIDataType type,
-    uint64_t numItems,
-    uint64_t byteStride)
+    uint64_t numItems)
 {
   initDevice();
   CUDADeviceScope ds(this);
@@ -128,7 +127,6 @@ ANARIArray1D VisRTXDevice::newArray1D(const void *appMemory,
   md.deleterPtr = userData;
   md.elementType = type;
   md.numItems = numItems;
-  md.byteStride = byteStride;
 
   if (anari::isObject(type))
     return createObjectForAPI<ObjectArray, ANARIArray1D>(deviceState(), md);
@@ -141,9 +139,7 @@ ANARIArray2D VisRTXDevice::newArray2D(const void *appMemory,
     const void *userData,
     ANARIDataType type,
     uint64_t numItems1,
-    uint64_t numItems2,
-    uint64_t byteStride1,
-    uint64_t byteStride2)
+    uint64_t numItems2)
 {
   initDevice();
   CUDADeviceScope ds(this);
@@ -155,8 +151,6 @@ ANARIArray2D VisRTXDevice::newArray2D(const void *appMemory,
   md.elementType = type;
   md.numItems1 = numItems1;
   md.numItems2 = numItems2;
-  md.byteStride1 = byteStride1;
-  md.byteStride2 = byteStride2;
 
   return createObjectForAPI<Array2D, ANARIArray2D>(deviceState(), md);
 }
@@ -167,10 +161,7 @@ ANARIArray3D VisRTXDevice::newArray3D(const void *appMemory,
     ANARIDataType type,
     uint64_t numItems1,
     uint64_t numItems2,
-    uint64_t numItems3,
-    uint64_t byteStride1,
-    uint64_t byteStride2,
-    uint64_t byteStride3)
+    uint64_t numItems3)
 {
   initDevice();
   CUDADeviceScope ds(this);
@@ -183,9 +174,6 @@ ANARIArray3D VisRTXDevice::newArray3D(const void *appMemory,
   md.numItems1 = numItems1;
   md.numItems2 = numItems2;
   md.numItems3 = numItems3;
-  md.byteStride1 = byteStride1;
-  md.byteStride2 = byteStride2;
-  md.byteStride3 = byteStride3;
 
   return createObjectForAPI<Array3D, ANARIArray3D>(deviceState(), md);
 }
@@ -292,6 +280,36 @@ ANARIWorld VisRTXDevice::newWorld()
   initDevice();
   CUDADeviceScope ds(this);
   return createObjectForAPI<World, ANARIWorld>(deviceState());
+}
+
+// Query functions ////////////////////////////////////////////////////////////
+
+const char **VisRTXDevice::getObjectSubtypes(ANARIDataType objectType)
+{
+  return query_object_types(objectType);
+}
+
+const void *VisRTXDevice::getObjectInfo(ANARIDataType objectType,
+    const char *objectSubtype,
+    const char *infoName,
+    ANARIDataType infoType)
+{
+  return query_object_info(objectType, objectSubtype, infoName, infoType);
+}
+
+const void *VisRTXDevice::getParameterInfo(ANARIDataType objectType,
+    const char *objectSubtype,
+    const char *parameterName,
+    ANARIDataType parameterType,
+    const char *infoName,
+    ANARIDataType infoType)
+{
+  return query_param_info(objectType,
+      objectSubtype,
+      parameterName,
+      parameterType,
+      infoName,
+      infoType);
 }
 
 // Object + Parameter Lifetime Management /////////////////////////////////////
@@ -686,44 +704,6 @@ extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_DEVICE_SUBTYPES(
 {
   static const char *devices[] = {"visrtx", nullptr};
   return devices;
-}
-
-extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_SUBTYPES(
-    visrtx, library, deviceSubtype, objectType)
-{
-  return visrtx::query_object_types(objectType);
-}
-
-extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_PROPERTY(
-    visrtx,
-    library,
-    deviceSubtype,
-    objectSubtype,
-    objectType,
-    propertyName,
-    propertyType)
-{
-  return visrtx::query_object_info(
-      objectType, objectSubtype, propertyName, propertyType);
-}
-
-extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(
-    visrtx,
-    library,
-    deviceSubtype,
-    objectSubtype,
-    objectType,
-    parameterName,
-    parameterType,
-    propertyName,
-    propertyType)
-{
-  return visrtx::query_param_info(objectType,
-      objectSubtype,
-      parameterName,
-      parameterType,
-      propertyName,
-      propertyType);
 }
 
 extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice(

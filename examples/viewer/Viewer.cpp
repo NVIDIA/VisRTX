@@ -132,13 +132,13 @@ Viewer::Viewer(const char *libName, const char *objFileName)
   if (!m_device)
     std::exit(1);
 
-  visrtx::Features features = visrtx::getInstanceFeatures(m_device, m_device);
-  m_haveCUDAInterop = g_glInterop && features.VISRTX_CUDA_OUTPUT_BUFFERS;
+  visrtx::Extensions extensions =
+      visrtx::getInstanceExtensions(m_device, m_device);
+  m_haveCUDAInterop = g_glInterop && extensions.VISRTX_CUDA_OUTPUT_BUFFERS;
 
   // ANARI //
 
-  const char **r_subtypes =
-      anariGetObjectSubtypes(m_library, "default", ANARI_RENDERER);
+  const char **r_subtypes = anariGetObjectSubtypes(m_device, ANARI_RENDERER);
 
   if (r_subtypes != nullptr) {
     for (int i = 0; r_subtypes[i] != nullptr; i++) {
@@ -323,8 +323,8 @@ void Viewer::updateFrame()
     anari::setParameter(
         m_device, m_currentRenderer, "background", m_backgroundTop);
   }
-    anari::setParameter(
-        m_device, m_currentRenderer, "checkerboard", m_checkerboard);
+  anari::setParameter(
+      m_device, m_currentRenderer, "checkerboard", m_checkerboard);
   anari::setParameter(
       m_device, m_currentRenderer, "pixelSamples", m_pixelSamples);
   anari::setParameter(

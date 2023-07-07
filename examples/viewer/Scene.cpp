@@ -1007,8 +1007,8 @@ struct OBJData
 static anari::World loadObj(
     anari::Device d, const OBJData &objdata, const std::string &basePath)
 {
-  visrtx::Features features = visrtx::getInstanceFeatures(d, d);
-  const bool attributeIndexing = features.VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
+  visrtx::Extensions extensions = visrtx::getInstanceExtensions(d, d);
+  const bool attributeIndexing = extensions.VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
 
   auto world = anari::newObject<anari::World>(d);
 

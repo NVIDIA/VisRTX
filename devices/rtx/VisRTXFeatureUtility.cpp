@@ -36,9 +36,10 @@
 
 namespace visrtx {
 
-static void fillFeatureStruct(VisRTXFeatures *features, const char *const *list)
+static void fillExtensionStruct(
+    VisRTXExtensions *features, const char *const *list)
 {
-  std::memset(features, 0, sizeof(VisRTXFeatures));
+  std::memset(features, 0, sizeof(VisRTXExtensions));
   for (const auto *i = list; *i != NULL; ++i) {
     std::string_view feature = *i;
     if (feature == "ANARI_VISRTX_ARRAY1D_DYNAMIC_REGION")
@@ -52,29 +53,24 @@ static void fillFeatureStruct(VisRTXFeatures *features, const char *const *list)
   }
 }
 
-extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetObjectFeatures(
-    VisRTXFeatures *features,
-    ANARILibrary library,
-    const char *deviceName,
-    const char *objectName,
-    ANARIDataType objectType)
+extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetObjectExtensions(
+    VisRTXExtensions *features,
+    ANARIDevice device,
+    ANARIDataType objectType,
+    const char *objectSubtype)
 {
-  const char *const *list = (const char *const *)anariGetObjectInfo(library,
-      deviceName,
-      objectName,
-      objectType,
-      "feature",
-      ANARI_STRING_LIST);
+  const char *const *list = (const char *const *)anariGetObjectInfo(
+      device, objectType, objectSubtype, "feature", ANARI_STRING_LIST);
   if (list) {
-    fillFeatureStruct(features, list);
+    fillExtensionStruct(features, list);
     return 1;
   } else {
     return 0;
   }
 }
 
-extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetInstanceFeatures(
-    VisRTXFeatures *features, ANARIDevice device, ANARIObject object)
+extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetInstanceExtensions(
+    VisRTXExtensions *features, ANARIDevice device, ANARIObject object)
 {
   const char *const *list = NULL;
   anariGetProperty(device,
@@ -85,28 +81,26 @@ extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetInstanceFeatures(
       sizeof(list),
       ANARI_WAIT);
   if (list) {
-    fillFeatureStruct(features, list);
+    fillExtensionStruct(features, list);
     return 1;
   } else {
     return 0;
   }
 }
 
-VISRTX_DEVICE_INTERFACE Features getObjectFeatures(anari::Library l,
-    const char *device,
-    const char *objectSubtype,
-    anari::DataType objectType)
+VISRTX_DEVICE_INTERFACE Extensions getObjectExtensions(
+    anari::Device d, anari::DataType objectType, const char *objectSubtype)
 {
-  Features f;
-  visrtxGetObjectFeatures(&f, l, device, objectSubtype, objectType);
+  Extensions f;
+  visrtxGetObjectExtensions(&f, d, objectType, objectSubtype);
   return f;
 }
 
-VISRTX_DEVICE_INTERFACE Features getInstanceFeatures(
+VISRTX_DEVICE_INTERFACE Extensions getInstanceExtensions(
     anari::Device d, anari::Object o)
 {
-  Features f;
-  visrtxGetInstanceFeatures(&f, d, o);
+  Extensions f;
+  visrtxGetInstanceExtensions(&f, d, o);
   return f;
 }
 

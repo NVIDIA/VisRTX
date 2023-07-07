@@ -180,7 +180,7 @@ int main()
   auto device = makeVisRTXDevice(statusFunc);
 
   anari::Features features =
-      anari::feature::getInstanceFeatures(device, device);
+      anari::feature::getInstanceFeatureStruct(device, device);
 
   if (!features.ANARI_KHR_GEOMETRY_SPHERE)
     printf("WARNING: device doesn't support ANARI_KHR_GEOMETRY_SPHERE\n");
