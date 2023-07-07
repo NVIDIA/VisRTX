@@ -71,7 +71,9 @@ void *Camera::deviceData() const
 
 void Camera::readBaseParameters(CameraGPUData &hd)
 {
-  hd.region = getParam<vec4>("imageRegion", vec4(0.f, 0.f, 1.f, 1.f));
+  vec4 region = vec4(0.f, 0.f, 1.f, 1.f);
+  getParam("imageRegion", ANARI_FLOAT32_BOX2, &region);
+  hd.region = region;
   hd.pos = getParam<vec3>("position", vec3(0.f));
   hd.dir = normalize(getParam<vec3>("direction", vec3(0.f, 0.f, 1.f)));
   hd.up = normalize(getParam<vec3>("up", vec3(0.f, 1.f, 0.f)));
