@@ -195,16 +195,16 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
     if (isPopulated(ap)) {
       const uvec2 idx = decodeCylinderAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
-      return b.y * getAttributeValue(ap, idx.x)
-          + b.z * getAttributeValue(ap, idx.y);
+      return b.z * getAttributeValue(ap, idx.x)
+          + b.y * getAttributeValue(ap, idx.y);
     }
   } else if (ggd.type == GeometryType::CURVE) {
     const auto &ap = ggd.curve.vertexAttr[attributeID];
     if (isPopulated(ap)) {
       const uint32_t idx = decodeCurveAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
-      return b.y * getAttributeValue(ap, idx)
-          + b.z * getAttributeValue(ap, idx + 1);
+      return b.z * getAttributeValue(ap, idx)
+          + b.y * getAttributeValue(ap, idx + 1);
     }
   } else if (ggd.type == GeometryType::SPHERE) {
     const auto &ap = ggd.sphere.vertexAttr[attributeID];
