@@ -39,8 +39,8 @@
 namespace visgl {
 
 template <>
-class Object<VolumeScivis>
-    : public DefaultObject<VolumeScivis, VolumeObjectBase>
+class Object<VolumeTransferFunction1D>
+    : public DefaultObject<VolumeTransferFunction1D, VolumeObjectBase>
 {
   bool dirty = true;
 
@@ -52,7 +52,7 @@ class Object<VolumeScivis>
   std::array<float, 2> valueRange;
   float densityScale;
 
-  friend void scivis_init_objects(ObjectRef<VolumeScivis> scivisObj);
+  friend void scivis_init_objects(ObjectRef<VolumeTransferFunction1D> scivisObj);
 
   size_t material_index;
 

@@ -76,7 +76,7 @@ add_library(${PROJECT_NAME} SHARED
   src/VisGLSamplerPrimitiveObject.cpp
   src/VisGLSamplerTransformObject.cpp
   src/VisGLSpatial_FieldStructuredRegularObject.cpp
-  src/VisGLVolumeScivisObject.cpp
+  src/VisGLVolumeTransferFunction1DObject.cpp
   src/VisGLRendererDefaultObject.cpp
   src/sphere_sample_directions.cpp
   generated/VisGLObjects.cpp

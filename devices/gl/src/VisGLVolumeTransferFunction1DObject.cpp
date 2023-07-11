@@ -44,7 +44,7 @@ namespace visgl {
 
 #define LUT_RESOLUTION 1024
 
-Object<VolumeScivis>::Object(ANARIDevice d, ANARIObject handle)
+Object<VolumeTransferFunction1D>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle), lutData(LUT_RESOLUTION)
 {
   material_index = thisDevice->materials.allocate(1);
@@ -58,7 +58,7 @@ static bool compare_and_assign(A &a, const B &b)
   return cmp;
 }
 
-void Object<VolumeScivis>::commit()
+void Object<VolumeTransferFunction1D>::commit()
 {
   DefaultObject::commit();
 
@@ -94,7 +94,7 @@ vec4 transferSample(vec4 coord) {
 }
 )GLSL";
 
-void scivis_init_objects(ObjectRef<VolumeScivis> scivisObj)
+void scivis_init_objects(ObjectRef<VolumeTransferFunction1D> scivisObj)
 {
   auto &gl = scivisObj->thisDevice->gl;
 
@@ -135,7 +135,7 @@ void scivis_init_objects(ObjectRef<VolumeScivis> scivisObj)
   }
 }
 
-static void volume_compile_shader(ObjectRef<VolumeScivis> scivisObj,
+static void volume_compile_shader(ObjectRef<VolumeTransferFunction1D> scivisObj,
     StaticAppendableShader<SHADER_SEGMENTS> vs,
     StaticAppendableShader<SHADER_SEGMENTS> fs)
 {
@@ -144,7 +144,7 @@ static void volume_compile_shader(ObjectRef<VolumeScivis> scivisObj,
   }
 }
 
-void Object<VolumeScivis>::update()
+void Object<VolumeTransferFunction1D>::update()
 {
   DefaultObject::update();
 
@@ -219,7 +219,7 @@ void Object<VolumeScivis>::update()
   dirty = false;
 }
 
-void Object<VolumeScivis>::drawCommand(DrawCommand &command)
+void Object<VolumeTransferFunction1D>::drawCommand(DrawCommand &command)
 {
   command.shader = shader;
 
@@ -231,7 +231,7 @@ void Object<VolumeScivis>::drawCommand(DrawCommand &command)
   command.texcount += 1;
 }
 
-uint32_t Object<VolumeScivis>::index()
+uint32_t Object<VolumeTransferFunction1D>::index()
 {
   return material_index;
 }
@@ -242,7 +242,7 @@ static void scivis_delete_objects(Object<Device> *deviceObj, GLuint lut)
   gl.DeleteTextures(1, &lut);
 };
 
-Object<VolumeScivis>::~Object()
+Object<VolumeTransferFunction1D>::~Object()
 {
   thisDevice->queue.enqueue(scivis_delete_objects, thisDevice, lut);
 }

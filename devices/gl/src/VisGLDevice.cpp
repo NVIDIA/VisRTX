@@ -61,6 +61,48 @@ void VisGLDevice::unmapArray(ANARIArray handle)
   }
 }
 
+const char ** query_extensions();
+const char **query_object_types(ANARIDataType type);
+const void *query_object_info(ANARIDataType type,
+    const char *subtype,
+    const char *infoName,
+    ANARIDataType infoType);
+const void *query_param_info(ANARIDataType type,
+    const char *subtype,
+    const char *paramName,
+    ANARIDataType paramType,
+    const char *infoName,
+    ANARIDataType infoType);
+
+const char ** VisGLDevice::getObjectSubtypes(ANARIDataType objectType)
+{
+  return query_object_types(objectType);
+}
+
+const void* VisGLDevice::getObjectInfo(ANARIDataType objectType,
+    const char* objectSubtype,
+    const char* infoName,
+    ANARIDataType infoType)
+{
+  return query_object_info(
+      objectType, objectSubtype, infoName, infoType);
+}
+
+const void* VisGLDevice::getParameterInfo(ANARIDataType objectType,
+    const char* objectSubtype,
+    const char* parameterName,
+    ANARIDataType parameterType,
+    const char* infoName,
+    ANARIDataType infoType)
+{
+  return query_param_info(objectType,
+      objectSubtype,
+      parameterName,
+      parameterType,
+      infoName,
+      infoType);
+}
+
 anari::debug_device::ObjectFactory *getDebugFactory();
 
 int VisGLDevice::getProperty(ANARIObject handle,
@@ -93,6 +135,68 @@ void VisGLDevice::unsetParameter(ANARIObject handle, const char *name)
 {
   if (auto obj = handle_cast<ObjectBase *>(handle)) {
     obj->unset(name);
+  }
+}
+
+void* VisGLDevice::mapParameterArray1D(ANARIObject handle,
+    const char* name,
+    ANARIDataType dataType,
+    uint64_t numElements1,
+    uint64_t* elementStride)
+{
+  if (auto obj = handle_cast<ObjectBase *>(handle)) {
+    return obj->mapParameter1D(name,
+      dataType,
+      numElements1,
+      elementStride);
+  } else {
+    return nullptr;
+  }
+}
+
+void* VisGLDevice::mapParameterArray2D(ANARIObject handle,
+    const char* name,
+    ANARIDataType dataType,
+    uint64_t numElements1,
+    uint64_t numElements2,
+    uint64_t* elementStride)
+{
+  if (auto obj = handle_cast<ObjectBase *>(handle)) {
+    return obj->mapParameter2D(name,
+      dataType,
+      numElements1,
+      numElements2,
+      elementStride);
+  } else {
+    return nullptr;
+  }
+}
+
+void* VisGLDevice::mapParameterArray3D(ANARIObject handle,
+    const char* name,
+    ANARIDataType dataType,
+    uint64_t numElements1,
+    uint64_t numElements2,
+    uint64_t numElements3,
+    uint64_t* elementStride)
+{
+  if (auto obj = handle_cast<ObjectBase *>(handle)) {
+    return obj->mapParameter3D(name,
+      dataType,
+      numElements1,
+      numElements2,
+      numElements3,
+      elementStride);
+  } else {
+    return nullptr;
+  }
+}
+
+void VisGLDevice::unmapParameterArray(ANARIObject handle,
+    const char* name)
+{
+  if (auto obj = handle_cast<ObjectBase *>(handle)) {
+    return obj->unmapParameter(name);
   }
 }
 
@@ -304,44 +408,10 @@ extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_DEVICE_SUBTYPES(
   return devices;
 }
 
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_SUBTYPES(
-    visgl, library, deviceSubtype, objectType)
+extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_DEVICE_FEATURES(
+    visgl, library, deviceSubtype)
 {
   (void)library;
   (void)deviceSubtype;
-  return visgl::query_object_types(objectType);
-}
-
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_OBJECT_PROPERTY(visgl,
-    library,
-    deviceSubtype,
-    objectSubtype,
-    objectType,
-    propertyName,
-    propertyType)
-{
-  (void)library;
-  (void)deviceSubtype;
-  return visgl::query_object_info(
-      objectType, objectSubtype, propertyName, propertyType);
-}
-
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_PARAMETER_PROPERTY(visgl,
-    library,
-    deviceSubtype,
-    objectSubtype,
-    objectType,
-    parameterName,
-    parameterType,
-    propertyName,
-    propertyType)
-{
-  (void)library;
-  (void)deviceSubtype;
-  return visgl::query_param_info(objectType,
-      objectSubtype,
-      parameterName,
-      parameterType,
-      propertyName,
-      propertyType);
+  return (const char**)visgl::query_extensions();
 }

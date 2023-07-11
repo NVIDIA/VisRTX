@@ -51,7 +51,7 @@ void Object<SamplerTransform>::update()
   DefaultObject::update();
   std::array<float, 16> transform;
 
-  if (current.transform.get(ANARI_FLOAT32_MAT4, transform.data())) {
+  if (current.outTransform.get(ANARI_FLOAT32_MAT4, transform.data())) {
     thisDevice->transforms.set(transform_index, transform);
   }
 }

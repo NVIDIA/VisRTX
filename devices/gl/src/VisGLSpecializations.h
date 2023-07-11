@@ -56,5 +56,5 @@
 #include "VisGLSamplerTransformObject.h"
 #include "VisGLSamplerPrimitiveObject.h"
 #include "VisGLSpatial_FieldStructuredRegularObject.h"
-#include "VisGLVolumeScivisObject.h"
+#include "VisGLVolumeTransferFunction1DObject.h"
 #include "VisGLRendererDefaultObject.h"

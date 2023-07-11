@@ -48,8 +48,7 @@ struct ObjectAllocator<Array1D>
       ANARIMemoryDeleter deleter,
       const void *userdata,
       ANARIDataType type,
-      uint64_t numItems1,
-      uint64_t byteStride1);
+      uint64_t numItems1);
 };
 
 template <>
@@ -61,8 +60,6 @@ class Object<Array2D> : public DefaultObject<Array2D, ArrayObjectBase>
   ANARIDataType elementType;
   uint64_t numItems1;
   uint64_t numItems2;
-  uint64_t byteStride1;
-  uint64_t byteStride2;
 
   GLuint texture = 0;
   std::future<void> future;
@@ -78,9 +75,7 @@ class Object<Array2D> : public DefaultObject<Array2D, ArrayObjectBase>
       const void *userdata,
       ANARIDataType type,
       uint64_t numItems1,
-      uint64_t numItems2,
-      uint64_t byteStride1,
-      uint64_t byteStride2);
+      uint64_t numItems2);
 
   void init() override;
   void *map() override;
@@ -107,9 +102,6 @@ class Object<Array3D> : public DefaultObject<Array3D, ArrayObjectBase>
   uint64_t numItems1;
   uint64_t numItems2;
   uint64_t numItems3;
-  uint64_t byteStride1;
-  uint64_t byteStride2;
-  uint64_t byteStride3;
 
   GLuint texture = 0;
   std::future<void> future;
@@ -126,10 +118,7 @@ class Object<Array3D> : public DefaultObject<Array3D, ArrayObjectBase>
       ANARIDataType type,
       uint64_t numItems1,
       uint64_t numItems2,
-      uint64_t numItems3,
-      uint64_t byteStride1,
-      uint64_t byteStride2,
-      uint64_t byteStride3);
+      uint64_t numItems3);
 
   void init() override;
   void *map() override;

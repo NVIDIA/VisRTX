@@ -53,7 +53,7 @@ template <typename T, typename G>
 class StorageBuffer
 {
   static const int N = 1;
-  G *gl;
+  G *gl = nullptr;
   std::vector<T> data;
   GLuint ssbo[N] = {};
   size_t ssbo_capacity = 0;
@@ -122,7 +122,9 @@ class StorageBuffer
   }
   void release()
   {
-    gl->DeleteBuffers(N, ssbo);
+    if(gl) {
+      gl->DeleteBuffers(N, ssbo);
+    }
   }
 };
 

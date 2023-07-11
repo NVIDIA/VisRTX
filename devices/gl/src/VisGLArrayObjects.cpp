@@ -148,8 +148,7 @@ class TypedArray1D : public DefaultObject<Array1D, ArrayObjectBase>
       ANARIMemoryDeleter deleter,
       const void *userdata,
       ANARIDataType type,
-      uint64_t numItems1,
-      uint64_t byteStride1)
+      uint64_t numItems1)
       : DefaultObject(d, handle)
   {}
 
@@ -192,7 +191,6 @@ class TypedArray1D<T, typename std::enable_if<T >= 1000>::type>
   ANARIMemoryDeleter deleter;
   const void *userdata;
   uint64_t numItems1;
-  uint64_t byteStride1;
 
   void *mapping = nullptr;
   GLuint buffer = 0;
@@ -393,20 +391,13 @@ class TypedArray1D<T, typename std::enable_if<T >= 1000>::type>
       ANARIMemoryDeleter deleter,
       const void *userdata,
       ANARIDataType type,
-      uint64_t numItems1,
-      uint64_t byteStride1)
+      uint64_t numItems1)
       : DefaultObject(d, handle),
         appMemory(appMemory),
         deleter(deleter),
         userdata(userdata),
-        numItems1(numItems1),
-        byteStride1(byteStride1)
+        numItems1(numItems1)
   {
-    uint64_t elementSize = sizeof(array_type);
-
-    if (this->byteStride1 == 0) {
-      this->byteStride1 = elementSize;
-    }
   }
 
   void init() override
@@ -547,7 +538,6 @@ class TypedArray1D<T, typename std::enable_if<anari::isObject(T)>::type>
   ANARIMemoryDeleter deleter;
   const void *userdata;
   uint64_t numItems1;
-  uint64_t byteStride1;
 
   std::vector<base_type> objectArray;
 
@@ -558,14 +548,12 @@ class TypedArray1D<T, typename std::enable_if<anari::isObject(T)>::type>
       ANARIMemoryDeleter deleter,
       const void *userdata,
       ANARIDataType type,
-      uint64_t numItems1,
-      uint64_t byteStride1)
+      uint64_t numItems1)
       : DefaultObject(d, handle),
         appMemory(appMemory),
         deleter(deleter),
         userdata(userdata),
-        numItems1(numItems1),
-        byteStride1(byteStride1)
+        numItems1(numItems1)
   {
     if (appMemory == nullptr) {
       this->appMemory = std::calloc(numItems1, sizeof(base_type));
@@ -651,11 +639,10 @@ struct TypedAllocator
       ANARIMemoryDeleter deleter,
       const void *userdata,
       ANARIDataType type,
-      uint64_t numItems1,
-      uint64_t byteStride1)
+      uint64_t numItems1)
   {
     return new TypedArray1D<T>(
-        d, handle, appMemory, deleter, userdata, type, numItems1, byteStride1);
+        d, handle, appMemory, deleter, userdata, type, numItems1);
   }
 };
 
@@ -665,8 +652,7 @@ ArrayObjectBase *ObjectAllocator<Array1D>::allocate(ANARIDevice d,
     ANARIMemoryDeleter deleter,
     const void *userdata,
     ANARIDataType type,
-    uint64_t numItems1,
-    uint64_t byteStride1)
+    uint64_t numItems1)
 {
   return anari::anariTypeInvoke<ArrayObjectBase *, TypedAllocator>(type,
       d,
@@ -675,8 +661,7 @@ ArrayObjectBase *ObjectAllocator<Array1D>::allocate(ANARIDevice d,
       deleter,
       userdata,
       type,
-      numItems1,
-      byteStride1);
+      numItems1);
 }
 
 void array2d_allocate_objects(ObjectRef<Array2D> arrayObj)
@@ -707,26 +692,15 @@ Object<Array2D>::Object(ANARIDevice d,
     const void *userdata,
     ANARIDataType elementType,
     uint64_t numItems1,
-    uint64_t numItems2,
-    uint64_t byteStride1,
-    uint64_t byteStride2)
+    uint64_t numItems2)
     : DefaultObject(d, handle),
       appMemory(appMemory),
       deleter(deleter),
       userdata(userdata),
       elementType(elementType),
       numItems1(numItems1),
-      numItems2(numItems2),
-      byteStride1(byteStride1),
-      byteStride2(byteStride2)
+      numItems2(numItems2)
 {
-  if (this->byteStride1 == 0) {
-    this->byteStride1 = anari::sizeOf(elementType);
-  }
-  if (this->byteStride2 == 0) {
-    this->byteStride2 = this->byteStride1 * numItems1;
-  }
-
   if (this->appMemory == nullptr) {
     size_t byte_size = anari::sizeOf(elementType) * numItems1 * numItems2;
     this->appMemory = std::malloc(byte_size);
@@ -830,10 +804,7 @@ Object<Array3D>::Object(ANARIDevice d,
     ANARIDataType elementType,
     uint64_t numItems1,
     uint64_t numItems2,
-    uint64_t numItems3,
-    uint64_t byteStride1,
-    uint64_t byteStride2,
-    uint64_t byteStride3)
+    uint64_t numItems3)
     : DefaultObject(d, handle),
       appMemory(appMemory),
       deleter(deleter),
@@ -841,21 +812,8 @@ Object<Array3D>::Object(ANARIDevice d,
       elementType(elementType),
       numItems1(numItems1),
       numItems2(numItems2),
-      numItems3(numItems3),
-      byteStride1(byteStride1),
-      byteStride2(byteStride2),
-      byteStride3(byteStride3)
+      numItems3(numItems3)
 {
-  if (this->byteStride1 == 0) {
-    this->byteStride1 = anari::sizeOf(elementType);
-  }
-  if (this->byteStride2 == 0) {
-    this->byteStride2 = this->byteStride1 * numItems1;
-  }
-  if (this->byteStride3 == 0) {
-    this->byteStride3 = this->byteStride2 * numItems2;
-  }
-
   if (appMemory == nullptr) {
     size_t byte_size =
         anari::sizeOf(elementType) * numItems1 * numItems2 * numItems3;

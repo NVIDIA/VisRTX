@@ -93,17 +93,14 @@ struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
       ANARIMemoryDeleter deleter,
       const void *userdata,
       ANARIDataType,
-      uint64_t numItems1,
-      uint64_t byteStride1) override;
+      uint64_t numItems1) override;
 
   ANARIArray2D newArray2D(const void *appMemory,
       ANARIMemoryDeleter deleter,
       const void *userdata,
       ANARIDataType,
       uint64_t numItems1,
-      uint64_t numItems2,
-      uint64_t byteStride1,
-      uint64_t byteStride2) override;
+      uint64_t numItems2) override;
 
   ANARIArray3D newArray3D(const void *appMemory,
       ANARIMemoryDeleter deleter,
@@ -111,10 +108,7 @@ struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
       ANARIDataType,
       uint64_t numItems1,
       uint64_t numItems2,
-      uint64_t numItems3,
-      uint64_t byteStride1,
-      uint64_t byteStride2,
-      uint64_t byteStride3) override;
+      uint64_t numItems3) override;
 
   void *mapArray(ANARIArray) override;
   void unmapArray(ANARIArray) override;
@@ -147,6 +141,19 @@ struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
 
   ANARIWorld newWorld() override;
 
+  // Query functions //////////////////////////////////////////////////////////
+
+  const char ** getObjectSubtypes(ANARIDataType objectType) override;
+  const void* getObjectInfo(ANARIDataType objectType,
+      const char* objectSubtype,
+      const char* infoName,
+      ANARIDataType infoType) override;
+  const void* getParameterInfo(ANARIDataType objectType,
+      const char* objectSubtype,
+      const char* parameterName,
+      ANARIDataType parameterType,
+      const char* infoName,
+      ANARIDataType infoType) override;
   // Object + Parameter Lifetime Management ///////////////////////////////////
 
   int getProperty(ANARIObject object,
@@ -162,6 +169,27 @@ struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
       const void *mem) override;
 
   void unsetParameter(ANARIObject object, const char *name) override;
+
+  void* mapParameterArray1D(ANARIObject object,
+      const char* name,
+      ANARIDataType dataType,
+      uint64_t numElements1,
+      uint64_t *elementStride) override;
+  void* mapParameterArray2D(ANARIObject object,
+      const char* name,
+      ANARIDataType dataType,
+      uint64_t numElements1,
+      uint64_t numElements2,
+      uint64_t *elementStride) override;
+  void* mapParameterArray3D(ANARIObject object,
+      const char* name,
+      ANARIDataType dataType,
+      uint64_t numElements1,
+      uint64_t numElements2,
+      uint64_t numElements3,
+      uint64_t *elementStride) override;
+  void unmapParameterArray(ANARIObject object,
+      const char* name) override;
 
   void commitParameters(ANARIObject object) override;
 

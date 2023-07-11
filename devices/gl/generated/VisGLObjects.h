@@ -645,7 +645,9 @@ public:
    Parameter<ANARI_STRING> filter;
    Parameter<ANARI_STRING> wrapMode1;
    Parameter<ANARI_FLOAT32_MAT4> inTransform;
+   Parameter<ANARI_FLOAT32_VEC4> inOffset;
    Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_VEC4> outOffset;
 
    SamplerImage1D(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
@@ -669,7 +671,9 @@ public:
    Parameter<ANARI_STRING> wrapMode1;
    Parameter<ANARI_STRING> wrapMode2;
    Parameter<ANARI_FLOAT32_MAT4> inTransform;
+   Parameter<ANARI_FLOAT32_VEC4> inOffset;
    Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_VEC4> outOffset;
 
    SamplerImage2D(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
@@ -694,7 +698,9 @@ public:
    Parameter<ANARI_STRING> wrapMode2;
    Parameter<ANARI_STRING> wrapMode3;
    Parameter<ANARI_FLOAT32_MAT4> inTransform;
+   Parameter<ANARI_FLOAT32_VEC4> inOffset;
    Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_VEC4> outOffset;
 
    SamplerImage3D(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
@@ -713,7 +719,7 @@ public:
    static const uint32_t id = 27;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_ARRAY1D> array;
-   Parameter<ANARI_UINT64> offset;
+   Parameter<ANARI_UINT64> inOffset;
 
    SamplerPrimitive(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
@@ -732,7 +738,8 @@ public:
    static const uint32_t id = 28;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_STRING> inAttribute;
-   Parameter<ANARI_FLOAT32_MAT4> transform;
+   Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_MAT4> outOffset;
 
    SamplerTransform(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
@@ -763,23 +770,23 @@ public:
    const char** paramNames() const override;
    size_t paramCount() const override;
 };
-class VolumeScivis : public ParameterPack {
+class VolumeTransferFunction1D : public ParameterPack {
 public:
    ANARIDevice device;
    ANARIObject object;
    static const int type = ANARI_VOLUME;
-   static constexpr const char *subtype = "scivis";
+   static constexpr const char *subtype = "transferFunction1D";
    static const uint32_t id = 30;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_SPATIAL_FIELD> field;
-   Parameter<ANARI_FLOAT32_BOX1> valueRange;
+   Parameter<ANARI_FLOAT32_BOX1, ANARI_FLOAT64_BOX1> valueRange;
    Parameter<ANARI_ARRAY1D> color;
    Parameter<ANARI_ARRAY1D> color_position;
    Parameter<ANARI_ARRAY1D> opacity;
    Parameter<ANARI_ARRAY1D> opacity_position;
    Parameter<ANARI_FLOAT32> densityScale;
 
-   VolumeScivis(ANARIDevice d, ANARIObject o);
+   VolumeTransferFunction1D(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
    void unset(const char *paramname) override;
    ParameterBase& operator[](size_t idx) override;

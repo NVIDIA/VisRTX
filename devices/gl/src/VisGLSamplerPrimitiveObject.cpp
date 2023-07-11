@@ -49,7 +49,7 @@ void Object<SamplerPrimitive>::update()
 {
   DefaultObject::update();
   uint64_t offset = 0;
-  current.offset.get(ANARI_UINT64, &offset);
+  current.inOffset.get(ANARI_UINT64, &offset);
 
   meta[0] = offset;
 }

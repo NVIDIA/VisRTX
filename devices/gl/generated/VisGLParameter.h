@@ -186,6 +186,7 @@ public:
    virtual ANARIDataType type() = 0;
    virtual operator bool() = 0;
    virtual uint32_t getVersion() const = 0;
+   virtual bool accepts(ANARIDataType) const = 0;
 };
 
 class EmptyParameter : public ParameterBase {
@@ -199,7 +200,7 @@ public:
    ANARIDataType type() override { return ANARI_UNKNOWN; }
    operator bool() override { return false; }
    uint32_t getVersion() const override { return 0; }
-
+   bool accepts(ANARIDataType) const override { return false; }
 };
 
 template<int... T>
@@ -257,6 +258,9 @@ public:
    }
    uint32_t getVersion() const override{
       return version;
+   }
+   bool accepts(ANARIDataType type) const override {
+      return contains<T...>(type);
    }
 };
 

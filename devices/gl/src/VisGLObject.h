@@ -39,6 +39,8 @@
 #include <type_traits>
 #include "anari/anari.h"
 
+#include "VisGLParameter.h"
+
 #include "DrawCommand.h"
 #include "AppendableShader.h"
 
@@ -102,6 +104,24 @@ class ObjectBase
   virtual bool set(
       const char *paramname, ANARIDataType type, const void *mem) = 0;
   virtual void unset(const char *paramname) = 0;
+
+  virtual void* mapParameter1D(const char *paramname,
+    ANARIDataType type,
+    uint64_t numElements1,
+    uint64_t *stride) = 0;
+  virtual void* mapParameter2D(const char *paramname,
+    ANARIDataType type,
+    uint64_t numElements1,
+    uint64_t numElements2,
+    uint64_t *stride) = 0;
+  virtual void* mapParameter3D(const char *paramname,
+    ANARIDataType type,
+    uint64_t numElements1,
+    uint64_t numElements2,
+    uint64_t numElements3,
+    uint64_t *stride) = 0;
+  virtual void unmapParameter(const char *paramname) = 0;
+
   virtual void commit() = 0;
   virtual int getProperty(const char *propname,
       ANARIDataType type,
@@ -467,6 +487,61 @@ class DefaultObject : public B
   void unset(const char *paramname) override
   {
     staging.unset(paramname);
+  }
+ void* mapParameter1D(const char *paramname,
+    ANARIDataType type,
+    uint64_t numElements1,
+    uint64_t *stride) override
+  {
+    ParameterBase &param = staging[paramname];
+    if(param.accepts(ANARI_ARRAY1D)) {
+      ANARIArray1D a = anariNewArray1D(B::device, nullptr, nullptr, nullptr, type, numElements1);
+      param.set(B::device, B::handle, ANARI_ARRAY1D, &a);
+      *stride = anari::sizeOf(type);
+      return anariMapArray(B::device, a);
+    } else {
+      return nullptr;
+    }
+  }
+  void* mapParameter2D(const char *paramname,
+    ANARIDataType type,
+    uint64_t numElements1,
+    uint64_t numElements2,
+    uint64_t *stride) override
+  {
+    ParameterBase &param = staging[paramname];
+    if(param.accepts(ANARI_ARRAY2D)) {
+      ANARIArray2D a = anariNewArray2D(B::device, nullptr, nullptr, nullptr, type, numElements1, numElements2);
+      param.set(B::device, B::handle, ANARI_ARRAY2D, &a);
+      *stride = anari::sizeOf(type);
+      return anariMapArray(B::device, a);
+    } else {
+      return nullptr;
+    }
+  }
+  void* mapParameter3D(const char *paramname,
+    ANARIDataType type,
+    uint64_t numElements1,
+    uint64_t numElements2,
+    uint64_t numElements3,
+    uint64_t *stride) override
+  {
+    ParameterBase &param = staging[paramname];
+    if(param.accepts(ANARI_ARRAY3D)) {
+      ANARIArray3D a = anariNewArray3D(B::device, nullptr, nullptr, nullptr, type, numElements1, numElements2, numElements3);
+      param.set(B::device, B::handle, ANARI_ARRAY3D, &a);
+      *stride = anari::sizeOf(type);
+      return anariMapArray(B::device, a);
+    } else {
+      return nullptr;
+    }
+  }
+  void unmapParameter(const char *paramname) override
+  {
+    if(auto a = staging[paramname].getHandle()) {
+      anariUnmapArray(B::device, static_cast<ANARIArray>(a));
+      anariRelease(B::device, a);
+    }
   }
   void commit() override
   {
