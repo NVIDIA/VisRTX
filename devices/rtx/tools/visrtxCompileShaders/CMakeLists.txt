@@ -28,15 +28,5 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 project(visrtxCompileShaders LANGUAGES CXX)
-
 add_executable(${PROJECT_NAME} main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE anari_library_visrtx)
-
-option(VISRTX_PRECOMPILE_SHADERS "Run visrtxCompileShaders at build time?" ON)
-if (VISRTX_PRECOMPILE_SHADERS)
-  add_custom_target(build_shaders
-    ALL
-    COMMAND ${CMAKE_BINARY_DIR}/${PROJECT_NAME}
-  )
-  add_dependencies(build_shaders ${PROJECT_NAME})
-endif()
