@@ -138,6 +138,13 @@ void VisGLDevice::unsetParameter(ANARIObject handle, const char *name)
   }
 }
 
+void VisGLDevice::unsetAllParameters(ANARIObject handle)
+{
+  if (auto obj = handle_cast<ObjectBase *>(handle)) {
+    obj->unsetAll();
+  }
+}
+
 void* VisGLDevice::mapParameterArray1D(ANARIObject handle,
     const char* name,
     ANARIDataType dataType,

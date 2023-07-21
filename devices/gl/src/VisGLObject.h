@@ -104,6 +104,7 @@ class ObjectBase
   virtual bool set(
       const char *paramname, ANARIDataType type, const void *mem) = 0;
   virtual void unset(const char *paramname) = 0;
+  virtual void unsetAll() = 0;
 
   virtual void* mapParameter1D(const char *paramname,
     ANARIDataType type,
@@ -487,6 +488,11 @@ class DefaultObject : public B
   void unset(const char *paramname) override
   {
     staging.unset(paramname);
+  }
+  void unsetAll() override
+  {
+    for (size_t i = 0; i < staging.paramCount(); i++)
+      staging[i].unset(staging.device, staging.object);
   }
  void* mapParameter1D(const char *paramname,
     ANARIDataType type,

@@ -169,6 +169,7 @@ struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
       const void *mem) override;
 
   void unsetParameter(ANARIObject object, const char *name) override;
+  void unsetAllParameters(ANARIObject object) override;
 
   void* mapParameterArray1D(ANARIObject object,
       const char* name,
