@@ -131,69 +131,63 @@ cudaTextureAddressMode stringToAddressMode(const std::string &str)
     return cudaAddressModeClamp;
 }
 
-CudaImageTexture makeCudaTextureUint8(const Array &image,
-    uvec2 size,
-    const std::string &filter,
-    const std::string &wrap1,
-    const std::string &wrap2)
+cudaArray_t makeCudaArrayUint8(const Array &array, uvec2 size)
 {
-  CudaImageTexture retval;
-
-  const ANARIDataType format = image.elementType();
+  const ANARIDataType format = array.elementType();
   auto nc = numANARIChannels(format);
 
   // Create CUDA texture //
 
-  std::vector<uint8_t> stagingBuffer(image.totalSize() * 4);
+  std::vector<uint8_t> stagingBuffer(array.totalSize() * 4);
 
   if (nc == 4) {
     if (isFloat(format))
-      transformToStagingBufferUint8<4, float>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<4, float>(array, stagingBuffer.data());
     else if (isFixed32(format))
-      transformToStagingBufferUint8<4, uint32_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<4, uint32_t>(array, stagingBuffer.data());
     else if (isFixed16(format))
-      transformToStagingBufferUint8<4, uint16_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<4, uint16_t>(array, stagingBuffer.data());
     else if (isFixed8(format))
-      transformToStagingBufferUint8<4, uint8_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<4, uint8_t>(array, stagingBuffer.data());
     else if (isSrgb8(format))
       transformToStagingBufferUint8<4, uint8_t, true>(
-          image, stagingBuffer.data());
+          array, stagingBuffer.data());
   } else if (nc == 3) {
     if (isFloat(format))
-      transformToStagingBufferUint8<3, float>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<3, float>(array, stagingBuffer.data());
     else if (isFixed32(format))
-      transformToStagingBufferUint8<3, uint32_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<3, uint32_t>(array, stagingBuffer.data());
     else if (isFixed16(format))
-      transformToStagingBufferUint8<3, uint16_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<3, uint16_t>(array, stagingBuffer.data());
     else if (isFixed8(format))
-      transformToStagingBufferUint8<3, uint8_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<3, uint8_t>(array, stagingBuffer.data());
     else if (isSrgb8(format))
       transformToStagingBufferUint8<3, uint8_t, true>(
-          image, stagingBuffer.data());
+          array, stagingBuffer.data());
   } else if (nc == 2) {
     if (isFloat(format))
-      transformToStagingBufferUint8<2, float>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<2, float>(array, stagingBuffer.data());
     else if (isFixed32(format))
-      transformToStagingBufferUint8<2, uint32_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<2, uint32_t>(array, stagingBuffer.data());
     else if (isFixed16(format))
-      transformToStagingBufferUint8<2, uint16_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<2, uint16_t>(array, stagingBuffer.data());
     else if (isFixed8(format))
-      transformToStagingBufferUint8<2, uint8_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<2, uint8_t>(array, stagingBuffer.data());
     else if (isSrgb8(format))
       transformToStagingBufferUint8<2, uint8_t, true>(
-          image, stagingBuffer.data());
+          array, stagingBuffer.data());
   } else if (nc == 1) {
     if (isFloat(format))
-      transformToStagingBufferUint8<1, float>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<1, float>(array, stagingBuffer.data());
     else if (isFixed32(format))
-      transformToStagingBufferUint8<1, uint32_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<1, uint32_t>(array, stagingBuffer.data());
     else if (isFixed16(format))
-      transformToStagingBufferUint8<1, uint16_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<1, uint16_t>(array, stagingBuffer.data());
     else if (isFixed8(format))
-      transformToStagingBufferUint8<1, uint8_t>(image, stagingBuffer.data());
+      transformToStagingBufferUint8<1, uint8_t>(array, stagingBuffer.data());
     else if (isSrgb8(format))
       transformToStagingBufferUint8<1, uint8_t, true>(
-          image, stagingBuffer.data());
+          array, stagingBuffer.data());
   }
 
   if (nc == 3)
@@ -205,8 +199,10 @@ CudaImageTexture makeCudaTextureUint8(const Array &image,
       nc >= 3 ? 8 : 0,
       cudaChannelFormatKindUnsigned);
 
-  cudaMallocArray(&retval.cuArray, &desc, size.x, size.y);
-  cudaMemcpy2DToArray(retval.cuArray,
+  cudaArray_t retval = {};
+
+  cudaMallocArray(&retval, &desc, size.x, size.y);
+  cudaMemcpy2DToArray(retval,
       0,
       0,
       stagingBuffer.data(),
@@ -215,10 +211,102 @@ CudaImageTexture makeCudaTextureUint8(const Array &image,
       size.y,
       cudaMemcpyHostToDevice);
 
+  return retval;
+}
+
+cudaArray_t makeCudaArrayFloat(const Array &array, uvec2 size)
+{
+  const ANARIDataType format = array.elementType();
+  auto nc = numANARIChannels(format);
+
+  // Create CUDA texture //
+
+  std::vector<float> stagingBuffer(array.totalSize() * 4);
+
+  if (nc == 4) {
+    if (isFloat(format))
+      transformToStagingBufferFloat<4, float>(array, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBufferFloat<4, uint32_t>(array, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBufferFloat<4, uint16_t>(array, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBufferFloat<4, uint8_t>(array, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBufferFloat<4, uint8_t, true>(
+          array, stagingBuffer.data());
+  } else if (nc == 3) {
+    if (isFloat(format))
+      transformToStagingBufferFloat<3, float>(array, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBufferFloat<3, uint32_t>(array, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBufferFloat<3, uint16_t>(array, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBufferFloat<3, uint8_t>(array, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBufferFloat<3, uint8_t, true>(
+          array, stagingBuffer.data());
+  } else if (nc == 2) {
+    if (isFloat(format))
+      transformToStagingBufferFloat<2, float>(array, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBufferFloat<2, uint32_t>(array, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBufferFloat<2, uint16_t>(array, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBufferFloat<2, uint8_t>(array, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBufferFloat<2, uint8_t, true>(
+          array, stagingBuffer.data());
+  } else if (nc == 1) {
+    if (isFloat(format))
+      transformToStagingBufferFloat<1, float>(array, stagingBuffer.data());
+    else if (isFixed32(format))
+      transformToStagingBufferFloat<1, uint32_t>(array, stagingBuffer.data());
+    else if (isFixed16(format))
+      transformToStagingBufferFloat<1, uint16_t>(array, stagingBuffer.data());
+    else if (isFixed8(format))
+      transformToStagingBufferFloat<1, uint8_t>(array, stagingBuffer.data());
+    else if (isSrgb8(format))
+      transformToStagingBufferFloat<1, uint8_t, true>(
+          array, stagingBuffer.data());
+  }
+
+  if (nc == 3)
+    nc = 4;
+
+  auto desc = cudaCreateChannelDesc(nc >= 1 ? 32 : 0,
+      nc >= 2 ? 32 : 0,
+      nc >= 3 ? 32 : 0,
+      nc >= 3 ? 32 : 0,
+      cudaChannelFormatKindFloat);
+
+  cudaArray_t retval = {};
+
+  cudaMallocArray(&retval, &desc, size.x, size.y);
+  cudaMemcpy2DToArray(retval,
+      0,
+      0,
+      stagingBuffer.data(),
+      size.x * nc * sizeof(float),
+      size.x * nc * sizeof(float),
+      size.y,
+      cudaMemcpyHostToDevice);
+
+  return retval;
+}
+
+cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
+    bool readModeNormalizedFloat,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2)
+{
   cudaResourceDesc resDesc;
   memset(&resDesc, 0, sizeof(resDesc));
   resDesc.resType = cudaResourceTypeArray;
-  resDesc.res.array.array = retval.cuArray;
+  resDesc.res.array.array = cuArray;
 
   cudaTextureDesc texDesc;
   memset(&texDesc, 0, sizeof(texDesc));
@@ -226,10 +314,27 @@ CudaImageTexture makeCudaTextureUint8(const Array &image,
   texDesc.addressMode[1] = stringToAddressMode(wrap2);
   texDesc.filterMode =
       filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
-  texDesc.readMode = cudaReadModeNormalizedFloat;
+  texDesc.readMode = readModeNormalizedFloat ? cudaReadModeNormalizedFloat
+                                             : cudaReadModeElementType;
   texDesc.normalizedCoords = 1;
 
-  cudaCreateTextureObject(&retval.cuObject, &resDesc, &texDesc, nullptr);
+  cudaTextureObject_t retval = {};
+  cudaCreateTextureObject(&retval, &resDesc, &texDesc, nullptr);
+
+  return retval;
+}
+
+CudaImageTexture makeCudaTextureUint8(const Array &image,
+    uvec2 size,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2)
+{
+  CudaImageTexture retval;
+
+  retval.cuArray = makeCudaArrayUint8(image, size);
+  retval.cuObject =
+      makeCudaTextureObject(retval.cuArray, true, filter, wrap1, wrap2);
 
   return retval;
 }
@@ -242,97 +347,9 @@ CudaImageTexture makeCudaTextureFloat(const Array &image,
 {
   CudaImageTexture retval;
 
-  const ANARIDataType format = image.elementType();
-  auto nc = numANARIChannels(format);
-
-  // Create CUDA texture //
-
-  std::vector<float> stagingBuffer(image.totalSize() * 4);
-
-  if (nc == 4) {
-    if (isFloat(format))
-      transformToStagingBufferFloat<4, float>(image, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferFloat<4, uint32_t>(image, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferFloat<4, uint16_t>(image, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferFloat<4, uint8_t>(image, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferFloat<4, uint8_t, true>(
-          image, stagingBuffer.data());
-  } else if (nc == 3) {
-    if (isFloat(format))
-      transformToStagingBufferFloat<3, float>(image, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferFloat<3, uint32_t>(image, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferFloat<3, uint16_t>(image, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferFloat<3, uint8_t>(image, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferFloat<3, uint8_t, true>(
-          image, stagingBuffer.data());
-  } else if (nc == 2) {
-    if (isFloat(format))
-      transformToStagingBufferFloat<2, float>(image, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferFloat<2, uint32_t>(image, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferFloat<2, uint16_t>(image, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferFloat<2, uint8_t>(image, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferFloat<2, uint8_t, true>(
-          image, stagingBuffer.data());
-  } else if (nc == 1) {
-    if (isFloat(format))
-      transformToStagingBufferFloat<1, float>(image, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferFloat<1, uint32_t>(image, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferFloat<1, uint16_t>(image, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferFloat<1, uint8_t>(image, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferFloat<1, uint8_t, true>(
-          image, stagingBuffer.data());
-  }
-
-  if (nc == 3)
-    nc = 4;
-
-  auto desc = cudaCreateChannelDesc(nc >= 1 ? 32 : 0,
-      nc >= 2 ? 32 : 0,
-      nc >= 3 ? 32 : 0,
-      nc >= 3 ? 32 : 0,
-      cudaChannelFormatKindFloat);
-
-  cudaMallocArray(&retval.cuArray, &desc, size.x, size.y);
-  cudaMemcpy2DToArray(retval.cuArray,
-      0,
-      0,
-      stagingBuffer.data(),
-      size.x * nc * sizeof(float),
-      size.x * nc * sizeof(float),
-      size.y,
-      cudaMemcpyHostToDevice);
-
-  cudaResourceDesc resDesc;
-  memset(&resDesc, 0, sizeof(resDesc));
-  resDesc.resType = cudaResourceTypeArray;
-  resDesc.res.array.array = retval.cuArray;
-
-  cudaTextureDesc texDesc;
-  memset(&texDesc, 0, sizeof(texDesc));
-  texDesc.addressMode[0] = stringToAddressMode(wrap1);
-  texDesc.addressMode[1] = stringToAddressMode(wrap2);
-  texDesc.filterMode =
-      filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
-  texDesc.readMode = cudaReadModeElementType;
-  texDesc.normalizedCoords = 1;
-
-  cudaCreateTextureObject(&retval.cuObject, &resDesc, &texDesc, nullptr);
+  retval.cuArray = makeCudaArrayFloat(image, size);
+  retval.cuObject =
+      makeCudaTextureObject(retval.cuArray, false, filter, wrap1, wrap2);
 
   return retval;
 }

@@ -69,11 +69,9 @@ void Image2D::commit()
   auto &image = *m_params.image;
   image.addCommitObserver(this);
 
-  m_texture = makeCudaTextureUint8(image,
-      m_params.image->size(),
-      m_params.filter,
-      m_params.wrap1,
-      m_params.wrap2);
+  auto cuArray = image.acquireCUDAArrayUint8();
+  m_texture = makeCudaTextureObject(
+      cuArray, true, m_params.filter, m_params.wrap1, m_params.wrap2);
 
   upload();
 }
@@ -82,7 +80,7 @@ SamplerGPUData Image2D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE2D;
-  retval.image2D.texobj = m_texture.cuObject;
+  retval.image2D.texobj = m_texture;
   return retval;
 }
 
@@ -99,9 +97,13 @@ bool Image2D::isValid() const
 
 void Image2D::cleanup()
 {
-  m_texture.cleanup();
-  if (m_params.image)
+  if (m_params.image) {
+    if (m_texture) {
+      cudaDestroyTextureObject(m_texture);
+      m_params.image->releaseCUDAArrayUint8();
+    }
     m_params.image->removeCommitObserver(this);
+  }
 }
 
 } // namespace visrtx

@@ -30,6 +30,7 @@
  */
 
 #include "array/Array2D.h"
+#include "utility/CudaImageTexture.h"
 
 namespace visrtx {
 
@@ -63,6 +64,40 @@ uvec2 Array2D::size() const
 void Array2D::privatize()
 {
   makePrivatizedCopy(size(0) * size(1));
+}
+
+cudaArray_t Array2D::acquireCUDAArrayFloat()
+{
+  if (!m_cuArrayFloat)
+    m_cuArrayFloat = makeCudaArrayFloat(*this, size());
+  m_arrayRefCountFloat++;
+  return m_cuArrayFloat;
+}
+
+void Array2D::releaseCUDAArrayFloat()
+{
+  m_arrayRefCountFloat--;
+  if (m_arrayRefCountFloat == 0) {
+    cudaFreeArray(m_cuArrayFloat);
+    m_cuArrayFloat = {};
+  }
+}
+
+cudaArray_t Array2D::acquireCUDAArrayUint8()
+{
+  if (!m_cuArrayUint8)
+    m_cuArrayUint8 = makeCudaArrayUint8(*this, size());
+  m_arrayRefCountUint8++;
+  return m_cuArrayUint8;
+}
+
+void Array2D::releaseCUDAArrayUint8()
+{
+  m_arrayRefCountUint8--;
+  if (m_arrayRefCountUint8 == 0) {
+    cudaFreeArray(m_cuArrayUint8);
+    m_cuArrayUint8 = {};
+  }
 }
 
 } // namespace visrtx

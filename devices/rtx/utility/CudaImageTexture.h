@@ -72,6 +72,15 @@ struct CudaImageTexture
   }
 };
 
+cudaArray_t makeCudaArrayUint8(const Array &array, uvec2 size);
+cudaArray_t makeCudaArrayFloat(const Array &array, uvec2 size);
+
+cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
+    bool readModeNormalizedFloat,
+    const std::string &filter,
+    const std::string &wrap1 = "clampToEdge",
+    const std::string &wrap2 = "clampToEdge");
+
 CudaImageTexture makeCudaTextureUint8(const Array &array,
     uvec2 size,
     const std::string &filter,

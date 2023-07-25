@@ -54,8 +54,19 @@ struct Array2D : public Array
 
   void privatize() override;
 
+  cudaArray_t acquireCUDAArrayFloat();
+  void releaseCUDAArrayFloat();
+
+  cudaArray_t acquireCUDAArrayUint8();
+  void releaseCUDAArrayUint8();
+
  private:
   size_t m_size[2] = {0, 0};
+
+  cudaArray_t m_cuArrayFloat{};
+  size_t m_arrayRefCountFloat{0};
+  cudaArray_t m_cuArrayUint8{};
+  size_t m_arrayRefCountUint8{0};
 };
 
 } // namespace visrtx
