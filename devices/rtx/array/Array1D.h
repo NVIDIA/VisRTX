@@ -62,10 +62,23 @@ struct Array1D : public Array
 
   void privatize() override;
 
+  cudaArray_t acquireCUDAArrayFloat();
+  void releaseCUDAArrayFloat();
+
+  cudaArray_t acquireCUDAArrayUint8();
+  void releaseCUDAArrayUint8();
+
+  void uploadArrayData() const override;
+
  private:
   size_t m_capacity{0};
   size_t m_begin{0};
   size_t m_end{0};
+
+  mutable cudaArray_t m_cuArrayFloat{};
+  size_t m_arrayRefCountFloat{0};
+  mutable cudaArray_t m_cuArrayUint8{};
+  size_t m_arrayRefCountUint8{0};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////

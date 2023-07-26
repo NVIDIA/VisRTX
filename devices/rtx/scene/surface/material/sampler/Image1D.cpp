@@ -68,8 +68,9 @@ void Image1D::commit()
   auto &image = *m_params.image;
   image.addCommitObserver(this);
 
-  m_texture = makeCudaTextureUint8(
-      image, uvec2(m_params.image->size(), 1), m_params.filter, m_params.wrap1);
+  auto cuArray = image.acquireCUDAArrayUint8();
+  m_texture =
+      makeCudaTextureObject(cuArray, true, m_params.filter, m_params.wrap1);
 
   upload();
 }
@@ -78,7 +79,7 @@ SamplerGPUData Image1D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE1D;
-  retval.image1D.texobj = m_texture.cuObject;
+  retval.image1D.texobj = m_texture;
   return retval;
 }
 
@@ -95,9 +96,13 @@ bool Image1D::isValid() const
 
 void Image1D::cleanup()
 {
-  m_texture.cleanup();
-  if (m_params.image)
+  if (m_params.image) {
+    if (m_texture) {
+      cudaDestroyTextureObject(m_texture);
+      m_params.image->releaseCUDAArrayUint8();
+    }
     m_params.image->removeCommitObserver(this);
+  }
 }
 
 } // namespace visrtx

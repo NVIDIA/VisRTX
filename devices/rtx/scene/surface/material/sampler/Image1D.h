@@ -60,7 +60,7 @@ struct Image1D : public Sampler
     helium::IntrusivePtr<Array1D> image;
   } m_params;
 
-  CudaImageTexture m_texture;
+  cudaTextureObject_t m_texture{};
 };
 
 } // namespace visrtx

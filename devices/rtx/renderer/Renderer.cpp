@@ -128,18 +128,18 @@ Renderer::Renderer(DeviceGlobalState *s) : Object(ANARI_RENDERER, s)
 
 Renderer::~Renderer()
 {
-  m_backgroundTexture.cleanup();
+  cleanup();
   optixPipelineDestroy(m_pipeline);
   s_numRenderers--;
 }
 
 void Renderer::commit()
 {
-  m_backgroundTexture.cleanup();
+  cleanup();
   m_backgroundImage = getParamObject<Array2D>("background");
   if (m_backgroundImage) {
-    m_backgroundTexture = makeCudaTextureFloat(
-        *m_backgroundImage, m_backgroundImage->size(), "linear");
+    auto cuArray = m_backgroundImage->acquireCUDAArrayUint8();
+    m_backgroundTexture = makeCudaTextureObject(cuArray, true, "linear");
   }
 
   m_bgColor = getParam<vec4>("background", vec4(vec3(0.f), 1.f));
@@ -166,7 +166,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
 {
   if (m_backgroundImage) {
     fd.renderer.backgroundMode = BackgroundMode::IMAGE;
-    fd.renderer.background.texobj = m_backgroundTexture.cuObject;
+    fd.renderer.background.texobj = m_backgroundTexture;
   } else {
     fd.renderer.backgroundMode = BackgroundMode::COLOR;
     fd.renderer.background.color = bgColor();
@@ -483,6 +483,17 @@ OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions()
   pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
   pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
   return pipelineCompileOptions;
+}
+
+void Renderer::cleanup()
+{
+  if (m_backgroundImage) {
+    if (m_backgroundTexture) {
+      cudaDestroyTextureObject(m_backgroundTexture);
+      m_backgroundImage->releaseCUDAArrayUint8();
+    }
+    m_backgroundImage->removeCommitObserver(this);
+  }
 }
 
 } // namespace visrtx

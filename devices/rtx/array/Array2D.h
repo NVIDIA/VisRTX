@@ -60,12 +60,14 @@ struct Array2D : public Array
   cudaArray_t acquireCUDAArrayUint8();
   void releaseCUDAArrayUint8();
 
+  void uploadArrayData() const override;
+
  private:
   size_t m_size[2] = {0, 0};
 
-  cudaArray_t m_cuArrayFloat{};
+  mutable cudaArray_t m_cuArrayFloat{};
   size_t m_arrayRefCountFloat{0};
-  cudaArray_t m_cuArrayUint8{};
+  mutable cudaArray_t m_cuArrayUint8{};
   size_t m_arrayRefCountUint8{0};
 };
 

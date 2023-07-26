@@ -30,6 +30,7 @@
  */
 
 #include "array/Array1D.h"
+#include "utility/CudaImageTexture.h"
 
 namespace visrtx {
 
@@ -100,6 +101,49 @@ size_t Array1D::size() const
 void Array1D::privatize()
 {
   makePrivatizedCopy(size());
+}
+
+cudaArray_t Array1D::acquireCUDAArrayFloat()
+{
+  if (!m_cuArrayFloat)
+    makeCudaArrayFloat(m_cuArrayFloat, *this, {totalSize(), 1});
+  m_arrayRefCountFloat++;
+  return m_cuArrayFloat;
+}
+
+void Array1D::releaseCUDAArrayFloat()
+{
+  m_arrayRefCountFloat--;
+  if (m_arrayRefCountFloat == 0) {
+    cudaFreeArray(m_cuArrayFloat);
+    m_cuArrayFloat = {};
+  }
+}
+
+cudaArray_t Array1D::acquireCUDAArrayUint8()
+{
+  if (!m_cuArrayUint8)
+    makeCudaArrayUint8(m_cuArrayUint8, *this, {totalSize(), 1});
+  m_arrayRefCountUint8++;
+  return m_cuArrayUint8;
+}
+
+void Array1D::releaseCUDAArrayUint8()
+{
+  m_arrayRefCountUint8--;
+  if (m_arrayRefCountUint8 == 0) {
+    cudaFreeArray(m_cuArrayUint8);
+    m_cuArrayUint8 = {};
+  }
+}
+
+void Array1D::uploadArrayData() const
+{
+  Array::uploadArrayData();
+  if (m_cuArrayFloat)
+    makeCudaArrayFloat(m_cuArrayFloat, *this, {totalSize(), 1});
+  if (m_cuArrayUint8)
+    makeCudaArrayUint8(m_cuArrayUint8, *this, {totalSize(), 1});
 }
 
 } // namespace visrtx

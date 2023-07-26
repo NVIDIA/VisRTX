@@ -69,7 +69,7 @@ void Array2D::privatize()
 cudaArray_t Array2D::acquireCUDAArrayFloat()
 {
   if (!m_cuArrayFloat)
-    m_cuArrayFloat = makeCudaArrayFloat(*this, size());
+    makeCudaArrayFloat(m_cuArrayFloat, *this, size());
   m_arrayRefCountFloat++;
   return m_cuArrayFloat;
 }
@@ -86,7 +86,7 @@ void Array2D::releaseCUDAArrayFloat()
 cudaArray_t Array2D::acquireCUDAArrayUint8()
 {
   if (!m_cuArrayUint8)
-    m_cuArrayUint8 = makeCudaArrayUint8(*this, size());
+    makeCudaArrayUint8(m_cuArrayUint8, *this, size());
   m_arrayRefCountUint8++;
   return m_cuArrayUint8;
 }
@@ -98,6 +98,15 @@ void Array2D::releaseCUDAArrayUint8()
     cudaFreeArray(m_cuArrayUint8);
     m_cuArrayUint8 = {};
   }
+}
+
+void Array2D::uploadArrayData() const
+{
+  Array::uploadArrayData();
+  if (m_cuArrayFloat)
+    makeCudaArrayFloat(m_cuArrayFloat, *this, size());
+  if (m_cuArrayUint8)
+    makeCudaArrayUint8(m_cuArrayUint8, *this, size());
 }
 
 } // namespace visrtx

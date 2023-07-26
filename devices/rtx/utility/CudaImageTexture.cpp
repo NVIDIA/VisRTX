@@ -131,7 +131,7 @@ cudaTextureAddressMode stringToAddressMode(const std::string &str)
     return cudaAddressModeClamp;
 }
 
-cudaArray_t makeCudaArrayUint8(const Array &array, uvec2 size)
+void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec2 size)
 {
   const ANARIDataType format = array.elementType();
   auto nc = numANARIChannels(format);
@@ -199,10 +199,9 @@ cudaArray_t makeCudaArrayUint8(const Array &array, uvec2 size)
       nc >= 3 ? 8 : 0,
       cudaChannelFormatKindUnsigned);
 
-  cudaArray_t retval = {};
-
-  cudaMallocArray(&retval, &desc, size.x, size.y);
-  cudaMemcpy2DToArray(retval,
+  if (!cuArray)
+    cudaMallocArray(&cuArray, &desc, size.x, size.y);
+  cudaMemcpy2DToArray(cuArray,
       0,
       0,
       stagingBuffer.data(),
@@ -210,11 +209,9 @@ cudaArray_t makeCudaArrayUint8(const Array &array, uvec2 size)
       size.x * nc * sizeof(uint8_t),
       size.y,
       cudaMemcpyHostToDevice);
-
-  return retval;
 }
 
-cudaArray_t makeCudaArrayFloat(const Array &array, uvec2 size)
+void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec2 size)
 {
   const ANARIDataType format = array.elementType();
   auto nc = numANARIChannels(format);
@@ -282,10 +279,9 @@ cudaArray_t makeCudaArrayFloat(const Array &array, uvec2 size)
       nc >= 3 ? 32 : 0,
       cudaChannelFormatKindFloat);
 
-  cudaArray_t retval = {};
-
-  cudaMallocArray(&retval, &desc, size.x, size.y);
-  cudaMemcpy2DToArray(retval,
+  if (!cuArray)
+    cudaMallocArray(&cuArray, &desc, size.x, size.y);
+  cudaMemcpy2DToArray(cuArray,
       0,
       0,
       stagingBuffer.data(),
@@ -293,8 +289,6 @@ cudaArray_t makeCudaArrayFloat(const Array &array, uvec2 size)
       size.x * nc * sizeof(float),
       size.y,
       cudaMemcpyHostToDevice);
-
-  return retval;
 }
 
 cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
@@ -320,36 +314,6 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
 
   cudaTextureObject_t retval = {};
   cudaCreateTextureObject(&retval, &resDesc, &texDesc, nullptr);
-
-  return retval;
-}
-
-CudaImageTexture makeCudaTextureUint8(const Array &image,
-    uvec2 size,
-    const std::string &filter,
-    const std::string &wrap1,
-    const std::string &wrap2)
-{
-  CudaImageTexture retval;
-
-  retval.cuArray = makeCudaArrayUint8(image, size);
-  retval.cuObject =
-      makeCudaTextureObject(retval.cuArray, true, filter, wrap1, wrap2);
-
-  return retval;
-}
-
-CudaImageTexture makeCudaTextureFloat(const Array &image,
-    uvec2 size,
-    const std::string &filter,
-    const std::string &wrap1,
-    const std::string &wrap2)
-{
-  CudaImageTexture retval;
-
-  retval.cuArray = makeCudaArrayFloat(image, size);
-  retval.cuObject =
-      makeCudaTextureObject(retval.cuArray, false, filter, wrap1, wrap2);
 
   return retval;
 }

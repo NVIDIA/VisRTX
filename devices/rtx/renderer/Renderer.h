@@ -92,7 +92,7 @@ struct Renderer : public Object
   int m_sampleLimit{0};
 
   helium::IntrusivePtr<Array2D> m_backgroundImage;
-  CudaImageTexture m_backgroundTexture;
+  cudaTextureObject_t m_backgroundTexture{};
 
   // OptiX //
 
@@ -108,6 +108,7 @@ struct Renderer : public Object
 
  private:
   void initOptixPipeline();
+  void cleanup();
 
   HitgroupFunctionNames m_defaultHitgroupNames;
   std::string m_defaultMissName{"__miss__"};
