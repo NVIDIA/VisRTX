@@ -37,10 +37,10 @@
 
 namespace visrtx {
 
-struct SciVisVolume : public Volume
+struct TransferFunction1D : public Volume
 {
-  SciVisVolume(DeviceGlobalState *d);
-  ~SciVisVolume();
+  TransferFunction1D(DeviceGlobalState *d);
+  ~TransferFunction1D();
 
   void commit() override;
 

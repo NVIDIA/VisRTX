@@ -31,7 +31,7 @@
 
 #include "Volume.h"
 // specific types
-#include "SciVisVolume.h"
+#include "TransferFunction1D.h"
 #include "UnknownVolume.h"
 
 namespace visrtx {
@@ -72,7 +72,7 @@ void Volume::markCommitted()
 Volume *Volume::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
   if (subtype == "transferFunction1D" || subtype == "scivis")
-    return new SciVisVolume(d);
+    return new TransferFunction1D(d);
   else
     return new UnknownVolume(subtype, d);
 }

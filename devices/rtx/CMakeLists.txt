@@ -138,9 +138,9 @@ target_sources(${PROJECT_NAME} PRIVATE
   scene/surface/material/sampler/TransformSampler.cpp
   scene/surface/material/sampler/UnknownSampler.cpp
 
-  scene/volume/Volume.cpp
-  scene/volume/SciVisVolume.cpp
+  scene/volume/TransferFunction1D.cpp
   scene/volume/UnknownVolume.cpp
+  scene/volume/Volume.cpp
 
   scene/volume/space_skipping/UniformGrid.cu
 

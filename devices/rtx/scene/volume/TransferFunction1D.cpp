@@ -29,19 +29,19 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "SciVisVolume.h"
+#include "TransferFunction1D.h"
 #include "utility/colorMapHelpers.h"
 
 namespace visrtx {
 
-SciVisVolume::SciVisVolume(DeviceGlobalState *d) : Volume(d) {}
+TransferFunction1D::TransferFunction1D(DeviceGlobalState *d) : Volume(d) {}
 
-SciVisVolume::~SciVisVolume()
+TransferFunction1D::~TransferFunction1D()
 {
   cleanup();
 }
 
-void SciVisVolume::commit()
+void TransferFunction1D::commit()
 {
   cleanup();
 
@@ -79,7 +79,7 @@ void SciVisVolume::commit()
   if (m_params.colorPosition
       && m_params.color->totalSize() != m_params.colorPosition->totalSize()) {
     reportMessage(ANARI_SEVERITY_ERROR,
-        "SciVisVolume 'color' and 'color.position'"
+        "TransferFunction1D 'color' and 'color.position'"
         " arrays are of different size");
     return;
   }
@@ -88,7 +88,7 @@ void SciVisVolume::commit()
       && m_params.opacity->totalSize()
           != m_params.opacityPosition->totalSize()) {
     reportMessage(ANARI_SEVERITY_ERROR,
-        "SciVisVolume 'opacity' and 'opacity.position'"
+        "TransferFunction1D 'opacity' and 'opacity.position'"
         " arrays are of different size");
     return;
   }
@@ -135,12 +135,12 @@ void SciVisVolume::commit()
       deviceState()->stream, m_textureObject, m_tfDim);
 }
 
-bool SciVisVolume::isValid() const
+bool TransferFunction1D::isValid() const
 {
   return m_params.color && m_params.opacity && m_params.field;
 }
 
-VolumeGPUData SciVisVolume::gpuData() const
+VolumeGPUData TransferFunction1D::gpuData() const
 {
   VolumeGPUData retval{};
   retval.type = VolumeType::SCIVIS;
@@ -153,7 +153,7 @@ VolumeGPUData SciVisVolume::gpuData() const
   return retval;
 }
 
-void SciVisVolume::discritizeTFData()
+void TransferFunction1D::discritizeTFData()
 {
   m_tf.resize(m_tfDim);
 
@@ -193,7 +193,7 @@ void SciVisVolume::discritizeTFData()
   }
 }
 
-void SciVisVolume::cleanup()
+void TransferFunction1D::cleanup()
 {
   if (m_textureObject)
     cudaDestroyTextureObject(m_textureObject);
