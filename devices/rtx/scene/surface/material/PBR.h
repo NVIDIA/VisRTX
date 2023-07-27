@@ -48,7 +48,7 @@ struct PBR : public Material
   float m_cutoff{0.5f};
   AlphaMode m_mode{AlphaMode::OPAQUE};
 
-  vec3 m_color{1.f};
+  vec4 m_color{1.f};
   helium::IntrusivePtr<Sampler> m_colorSampler;
   std::string m_colorAttribute;
 

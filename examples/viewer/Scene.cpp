@@ -142,6 +142,7 @@ static anari::Surface makePlane(anari::Device d, const box3 &bounds)
 
   auto mat = anari::newObject<anari::Material>(d, "matte");
   anari::setAndReleaseParameter(d, mat, "color", tex);
+  anari::setParameter(d, mat, "alphaMode", "blend");
   anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
@@ -468,6 +469,7 @@ static ScenePtr generateCurves(anari::Device d, CurvesConfig config)
 
   auto mat = anari::newObject<anari::Material>(d, "matte");
   anari::setParameter(d, mat, "color", "color");
+  anari::setParameter(d, mat, "alphaMode", "blend");
   anari::commitParameters(d, mat);
   anari::setAndReleaseParameter(d, surface, "material", mat);
 
@@ -876,6 +878,7 @@ static ScenePtr generateGravityVolume(
     anari::commitParameters(d, geom);
 
     auto mat = anari::newObject<anari::Material>(d, "matte");
+    anari::setParameter(d, mat, "alphaMode", "blend");
     anari::commitParameters(d, mat);
 
     auto surface = anari::newObject<anari::Surface>(d);
@@ -1027,6 +1030,7 @@ static anari::World loadObj(
 
     anari::setParameter(d, m, "color", ANARI_FLOAT32_VEC3, &mat.diffuse[0]);
     anari::setParameter(d, m, "opacity", ANARI_FLOAT32, &mat.dissolve);
+    anari::setParameter(d, m, "alphaMode", "blend");
 
     if (!mat.diffuse_texname.empty())
       loadTexture(d, m, basePath + mat.diffuse_texname, cache);

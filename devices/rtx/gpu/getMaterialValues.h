@@ -230,7 +230,8 @@ RT_FUNCTION T evaluateSampler(
   vec4 retval{0.f};
   const auto &sampler = getSamplerData(fd, _s);
   const vec4 tc =
-      sampler.inTransform * readAttributeValue(sampler.attribute, hit);
+      sampler.inTransform * readAttributeValue(sampler.attribute, hit)
+      + sampler.inOffset;
   switch (sampler.type) {
   case SamplerType::TEXTURE1D: {
     retval = make_vec4(tex1D<::float4>(sampler.image1D.texobj, tc.x));
@@ -252,7 +253,7 @@ RT_FUNCTION T evaluateSampler(
   default:
     break;
   }
-  return bit_cast<T>(retval * sampler.outTransform);
+  return bit_cast<T>(retval * sampler.outTransform + sampler.outOffset);
 }
 
 template <typename T>
@@ -297,11 +298,12 @@ RT_FUNCTION MaterialValues getMaterialValues(
     const FrameGPUData &fd, const MaterialGPUData &md, const SurfaceHit &hit)
 {
   MaterialValues retval;
-  retval.baseColor = getMaterialParameter(fd, md.baseColor, hit);
+  const auto c = getMaterialParameter(fd, md.baseColor, hit);
+  retval.baseColor = vec3(c);
   if (md.mode == AlphaMode::OPAQUE)
     retval.opacity = 1.f;
   else {
-    float opacity = getMaterialParameter(fd, md.opacity, hit);
+    float opacity = getMaterialParameter(fd, md.opacity, hit) * c.w;
     if (md.mode == AlphaMode::BLEND)
       retval.opacity = opacity;
     else

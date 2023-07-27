@@ -63,7 +63,9 @@ void Sampler::commit()
 {
   m_inAttribute = getParamString("inAttribute", "attribute0");
   m_inTransform = getParam<mat4>("inTransform", mat4(1.f));
+  m_inOffset = getParam<vec4>("inOffset", vec4(0.f));
   m_outTransform = getParam<mat4>("outTransform", mat4(1.f));
+  m_outOffset = getParam<vec4>("outOffset", vec4(0.f));
 }
 
 SamplerGPUData Sampler::gpuData() const
@@ -80,7 +82,9 @@ SamplerGPUData Sampler::gpuData() const
   else if (m_inAttribute == "color")
     retval.attribute = 4;
   retval.inTransform = m_inTransform;
+  retval.inOffset = m_inOffset;
   retval.outTransform = m_outTransform;
+  retval.outOffset = m_outOffset;
   return retval;
 }
 

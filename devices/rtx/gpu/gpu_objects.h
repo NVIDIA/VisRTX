@@ -216,7 +216,9 @@ struct SamplerGPUData
   SamplerType type{SamplerType::UNKNOWN};
   int attribute{-1};
   mat4 inTransform;
+  vec4 inOffset;
   mat4 outTransform;
+  vec4 outOffset;
   union
   {
     Image1DData image1D;
@@ -270,7 +272,7 @@ enum AlphaMode
 
 struct MaterialGPUData
 {
-  MaterialParameter<vec3> baseColor{vec3(1.f)};
+  MaterialParameter<vec4> baseColor{vec4(1.f)};
   MaterialParameter<float> opacity{1.f};
   float cutoff;
   AlphaMode mode;

@@ -41,15 +41,9 @@ void Matte::commit()
   m_opacitySampler = getParamObject<Sampler>("opacity");
   m_opacityAttribute = getParamString("opacity", "");
 
-  vec4 c;
-  if (getParam("color", ANARI_FLOAT32_VEC4, &c)) {
-    m_color = vec3(c.x, c.y, c.z);
-    m_opacity *= c.w;
-  } else if (getParam("color", ANARI_FLOAT32_VEC3, &c)) {
-    m_color = vec3(c.x, c.y, c.z);
-  } else {
-    m_color = vec3(1.f, 1.f, 1.f);
-  }
+  vec4 c(1.f);
+  getParam("color", ANARI_FLOAT32_VEC4, &c);
+  getParam("color", ANARI_FLOAT32_VEC3, &c);
   m_colorSampler = getParamObject<Sampler>("color");
   m_colorAttribute = getParamString("color", "");
 
@@ -65,13 +59,8 @@ MaterialGPUData Matte::gpuData() const
 
   populateMaterialParameter(
       retval.baseColor, m_color, m_colorSampler, m_colorAttribute);
-
-  if (m_colorSampler && m_colorSampler->numChannels() > 3)
-    retval.opacity = 1.f;
-  else {
-    populateMaterialParameter(
-        retval.opacity, m_opacity, m_opacitySampler, m_opacityAttribute);
-  }
+  populateMaterialParameter(
+      retval.opacity, m_opacity, m_opacitySampler, m_opacityAttribute);
 
   retval.cutoff = m_cutoff;
   retval.mode = m_mode;
