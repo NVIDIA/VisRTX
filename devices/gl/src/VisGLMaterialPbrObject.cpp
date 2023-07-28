@@ -95,9 +95,8 @@ R"GLSL(
   }
 
 
-  FragColor = baseColor*lighting;
+  FragColor = vec4(lighting.xyz*baseColor.xyz, opacity.x);
   FragColor.w *= coverage;
-  FragColor.w *= opacity.x;
 }
 )GLSL";
 // clang-format on
@@ -189,12 +188,16 @@ void Object<MaterialPhysicallyBased>::fragmentShaderMain(
 {
   MATERIAL_FRAG_SAMPLE(
       "baseColor", baseColor, ANARI_FLOAT32_VEC3, 1, BASE_COLOR_SAMPLER)
-  
+  MATERIAL_FRAG_SAMPLE("opacity", opacity, ANARI_FLOAT32, 2, OPACITY_SAMPLER)
+
   if(current.alphaMode.getStringEnum() == STRING_ENUM_opaque) {
-    shader.append("  baseColor.w = 1.0;\n");
+    shader.append("  opacity.x = 1.0;\n");
+  } else if(current.alphaMode.getStringEnum() == STRING_ENUM_blend) {
+    shader.append("  opacity.x *= baseColor.w;\n");
+  } else if(current.alphaMode.getStringEnum() == STRING_ENUM_mask) {
+    shader.append("  opacity.x = step(opacity.x*baseColor.w, 0.5);\n");
   }
 
-  MATERIAL_FRAG_SAMPLE("opacity", opacity, ANARI_FLOAT32, 2, OPACITY_SAMPLER)
   MATERIAL_FRAG_SAMPLE("metallic", metallic, ANARI_FLOAT32, 3, METALLIC_SAMPLER)
   MATERIAL_FRAG_SAMPLE(
       "roughness", roughness, ANARI_FLOAT32, 4, ROUGHNESS_SAMPLER)

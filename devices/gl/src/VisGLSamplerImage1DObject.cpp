@@ -38,7 +38,7 @@ namespace visgl {
 Object<SamplerImage1D>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
 {
-  transform_index = thisDevice->transforms.allocate(2);
+  transform_index = thisDevice->transforms.allocate(3);
 }
 
 void image1d_init_objects(
@@ -70,6 +70,7 @@ void Object<SamplerImage1D>::update()
   DefaultObject::update();
   std::array<float, 16> inTransform;
   std::array<float, 16> outTransform;
+  std::array<float, 16> offsets;
 
   if (current.inTransform.get(ANARI_FLOAT32_MAT4, inTransform.data())) {
     thisDevice->transforms.set(transform_index, inTransform);
@@ -78,6 +79,10 @@ void Object<SamplerImage1D>::update()
   if (current.outTransform.get(ANARI_FLOAT32_MAT4, outTransform.data())) {
     thisDevice->transforms.set(transform_index + 1, outTransform);
   }
+
+  current.inOffset.get(ANARI_FLOAT32_VEC4, offsets.data());
+  current.outOffset.get(ANARI_FLOAT32_VEC4, offsets.data()+4);
+  thisDevice->transforms.set(transform_index+2, offsets);
 
   int filter = current.filter.getStringEnum();
   GLenum wrapS = gl_wrap(current.wrapMode1.getStringEnum());
@@ -124,7 +129,8 @@ void Object<SamplerImage1D>::drawCommand(int index, DrawCommand &command)
   "  uint idx = floatBitsToUint(meta.x);\n"\
   "  mat4 inTransform = transforms[idx];\n"\
   "  mat4 outTransform = transforms[idx+1u];\n"\
-  "  return outTransform*texture(sampler" #I ", (inTransform*attrib).x);\n"\
+  "  mat4 offsets = transforms[idx+2u];\n"\
+  "  return outTransform*texture(sampler" #I ", (inTransform*attrib+offsets[0]).x)+offsets[1];\n"\
   "}\n"
 
 static const char *declareSampler1D[] = {
