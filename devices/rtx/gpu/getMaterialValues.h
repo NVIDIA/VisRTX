@@ -253,7 +253,7 @@ RT_FUNCTION T evaluateSampler(
   default:
     break;
   }
-  return bit_cast<T>(retval * sampler.outTransform + sampler.outOffset);
+  return bit_cast<T>(sampler.outTransform * retval + sampler.outOffset);
 }
 
 template <typename T>
