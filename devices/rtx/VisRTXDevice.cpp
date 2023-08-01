@@ -33,7 +33,6 @@
 
 #include "VisRTXDevice.h"
 
-#include "anari/backend/LibraryImpl.h"
 #include "anari/ext/debug/DebugObject.h"
 
 #include "array/Array1D.h"
@@ -689,25 +688,3 @@ VisRTXDevice::CUDADeviceScope::~CUDADeviceScope()
 }
 
 } // namespace visrtx
-
-extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_NEW_DEVICE(
-    visrtx, library, _subtype)
-{
-  auto subtype = std::string_view(_subtype);
-  if (subtype == "default" || subtype == "visrtx")
-    return (ANARIDevice) new visrtx::VisRTXDevice(library);
-  return nullptr;
-}
-
-extern "C" VISRTX_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_DEVICE_SUBTYPES(
-    visrtx, libdata)
-{
-  static const char *devices[] = {"visrtx", nullptr};
-  return devices;
-}
-
-extern "C" VISRTX_DEVICE_INTERFACE ANARIDevice makeVisRTXDevice(
-    ANARIStatusCallback defaultCallback, const void *userPtr)
-{
-  return (ANARIDevice) new visrtx::VisRTXDevice(defaultCallback, userPtr);
-}

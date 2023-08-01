@@ -32,7 +32,6 @@
 #include <cstdarg>
 #include <cstdint>
 #include "VisGLDevice.h"
-#include "anari/backend/LibraryImpl.h"
 
 // debug interface
 #include "anari/ext/debug/DebugObject.h"
@@ -394,31 +393,3 @@ void anariReportStatus(ANARIDevice handle,
 }
 
 } // namespace visgl
-
-static char deviceName[] = "visgl";
-
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_NEW_DEVICE(
-    visgl, library, subtype)
-{
-  if (subtype == std::string("default") || subtype == std::string("visgl"))
-    return (ANARIDevice) new visgl::VisGLDevice(library);
-  return nullptr;
-}
-
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_INIT(visgl) {}
-
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_DEVICE_SUBTYPES(
-    visgl, library)
-{
-  (void)library;
-  static const char *devices[] = {deviceName, nullptr};
-  return devices;
-}
-
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_GET_DEVICE_FEATURES(
-    visgl, library, deviceSubtype)
-{
-  (void)library;
-  (void)deviceSubtype;
-  return (const char**)visgl::query_extensions();
-}

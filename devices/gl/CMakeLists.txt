@@ -51,6 +51,7 @@ add_subdirectory(generated)
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
 
 add_library(${PROJECT_NAME} SHARED
+  src/VisGLLibrary.cpp
   src/VisGLDevice.cpp
   src/VisGLArrayObjects.cpp
   src/VisGLInstanceObject.cpp

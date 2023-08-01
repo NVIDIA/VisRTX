@@ -46,25 +46,8 @@
 #include <type_traits>
 #include <vector>
 
-#ifdef _WIN32
-#ifdef DEVICE_STATIC_DEFINE
-#define DEVICE_INTERFACE
-#else
-#ifdef anari_library_VisGL_EXPORTS
-#define DEVICE_INTERFACE __declspec(dllexport)
-#else
-#define DEVICE_INTERFACE __declspec(dllimport)
-#endif
-#endif
-#elif defined __GNUC__
-#define DEVICE_INTERFACE __attribute__((__visibility__("default")))
-#else
-#define DEVICE_INTERFACE
-#endif
-
 // clang-format off
 namespace visgl{
-
 
 void anariRetainInternal(ANARIDevice, ANARIObject, ANARIObject);
 void anariReleaseInternal(ANARIDevice, ANARIObject, ANARIObject);
@@ -85,7 +68,7 @@ T deviceHandle(ANARIDevice d)
   return static_cast<T>(ad);
 }
 
-struct DEVICE_INTERFACE VisGLDevice : public anari::DeviceImpl
+struct VisGLDevice : public anari::DeviceImpl
 {
   // Data Arrays //////////////////////////////////////////////////////////////
 
