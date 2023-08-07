@@ -37,24 +37,24 @@
 namespace visrtx {
 
 static void fillExtensionStruct(
-    VisRTXExtensions *features, const char *const *list)
+    VisRTXExtensions *extensions, const char *const *list)
 {
-  std::memset(features, 0, sizeof(VisRTXExtensions));
+  std::memset(extensions, 0, sizeof(VisRTXExtensions));
   for (const auto *i = list; *i != NULL; ++i) {
     std::string_view feature = *i;
     if (feature == "ANARI_VISRTX_ARRAY1D_DYNAMIC_REGION")
-      features->VISRTX_ARRAY1D_DYNAMIC_REGION = 1;
+      extensions->VISRTX_ARRAY1D_DYNAMIC_REGION = 1;
     else if (feature == "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS")
-      features->VISRTX_CUDA_OUTPUT_BUFFERS = 1;
+      extensions->VISRTX_CUDA_OUTPUT_BUFFERS = 1;
     else if (feature == "ANARI_VISRTX_SAMPLER_COLOR_MAP")
-      features->VISRTX_SAMPLER_COLOR_MAP = 1;
+      extensions->VISRTX_SAMPLER_COLOR_MAP = 1;
     else if (feature == "ANARI_VISRTX_TRIANGLE_ATTRIBUTE_INDEXING")
-      features->VISRTX_TRIANGLE_ATTRIBUTE_INDEXING = 1;
+      extensions->VISRTX_TRIANGLE_ATTRIBUTE_INDEXING = 1;
   }
 }
 
 extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetObjectExtensions(
-    VisRTXExtensions *features,
+    VisRTXExtensions *extensions,
     ANARIDevice device,
     ANARIDataType objectType,
     const char *objectSubtype)
@@ -62,7 +62,7 @@ extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetObjectExtensions(
   const char *const *list = (const char *const *)anariGetObjectInfo(
       device, objectType, objectSubtype, "feature", ANARI_STRING_LIST);
   if (list) {
-    fillExtensionStruct(features, list);
+    fillExtensionStruct(extensions, list);
     return 1;
   } else {
     return 0;
@@ -70,7 +70,7 @@ extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetObjectExtensions(
 }
 
 extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetInstanceExtensions(
-    VisRTXExtensions *features, ANARIDevice device, ANARIObject object)
+    VisRTXExtensions *extensions, ANARIDevice device, ANARIObject object)
 {
   const char *const *list = NULL;
   anariGetProperty(device,
@@ -81,7 +81,7 @@ extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetInstanceExtensions(
       sizeof(list),
       ANARI_WAIT);
   if (list) {
-    fillExtensionStruct(features, list);
+    fillExtensionStruct(extensions, list);
     return 1;
   } else {
     return 0;

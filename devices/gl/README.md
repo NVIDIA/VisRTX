@@ -21,7 +21,7 @@ The underlying API can be selected by setting the device parameter `"glAPI"` to 
 
 VisGL only has a single renderer type `"default"`.
 
-In addition to the `KHR_RENDERER_BACKGROUND_COLOR` and `KHR_RENDERER_AMBIENT_LIGHT` features the renderer supports the following parameters:
+In addition to the `KHR_RENDERER_BACKGROUND_COLOR` and `KHR_RENDERER_AMBIENT_LIGHT` extensions the renderer supports the following parameters:
 
 | Name            | Type         | Default   | Description                                                    |
 |:----------------|:-------------|----------:|:---------------------------------------------------------------|
@@ -36,7 +36,7 @@ In `incremental` mode occlusion samples are collected each frame up to a thresho
 
 WGL/Windows support is not yet implemented
 
-Some of the reported ANARI features are still aspirational. The following may not be (fully) implemented yet:
+Some of the reported ANARI extensions are still aspirational. The following may not be (fully) implemented yet:
 
 - Cone geometry
 - Curve geometry

@@ -30,7 +30,7 @@
  */
 
 // anari_cpp
-#define ANARI_FEATURE_UTILITY_IMPL
+#define ANARI_EXTENSION_UTILITY_IMPL
 #include <anari/anari_cpp.hpp>
 // C++ std anari_cpp type inference (VEC types from std::array<>)
 #include <anari/anari_cpp/ext/std.h>
@@ -179,16 +179,16 @@ int main()
 
   auto device = makeVisRTXDevice(statusFunc);
 
-  anari::Features features =
-      anari::feature::getInstanceFeatureStruct(device, device);
+  anari::Extensions extensions =
+      anari::extension::getInstanceExtensionStruct(device, device);
 
-  if (!features.ANARI_KHR_GEOMETRY_SPHERE)
+  if (!extensions.ANARI_KHR_GEOMETRY_SPHERE)
     printf("WARNING: device doesn't support ANARI_KHR_GEOMETRY_SPHERE\n");
-  if (!features.ANARI_KHR_CAMERA_PERSPECTIVE)
+  if (!extensions.ANARI_KHR_CAMERA_PERSPECTIVE)
     printf("WARNING: device doesn't support ANARI_KHR_CAMERA_PERSPECTIVE\n");
-  if (!features.ANARI_KHR_LIGHT_DIRECTIONAL)
+  if (!extensions.ANARI_KHR_LIGHT_DIRECTIONAL)
     printf("WARNING: device doesn't support ANARI_KHR_LIGHT_DIRECTIONAL\n");
-  if (!features.ANARI_KHR_MATERIAL_MATTE)
+  if (!extensions.ANARI_KHR_MATERIAL_MATTE)
     printf("WARNING: device doesn't support ANARI_KHR_MATERIAL_MATTE\n");
 
   // Create world from a helper function //

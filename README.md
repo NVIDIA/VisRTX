@@ -71,7 +71,7 @@ dependency.
 # Feature Overview
 
 The following sections describes details of VisRTX's ANARI completeness,
-provided extensions, and known missing features to add in the future.
+provided extensions, and known missing extensions to add in the future.
 
 ## Queryable ANARI Extensions
 
@@ -238,18 +238,16 @@ change parameters.
 
 ## Known Missing Core ANARI Features + Extensions
 
-The following features are not yet implemented by VisRTX:
+The following extensions are not yet implemented by VisRTX:
 
 - Light: `spot`, instancing
-- Camera: `omnidirectional`, stereo rendering, direct transform parameter
-- Sampler: `image3D`, in/out transforms on `image2D`
+- Camera: `omnidirectional`, stereo rendering
+- Sampler: `image3D`
 - Frame: variance property
-- Sparse shared arrays (non-zero stride)
 - Core extensions:
-    - `ANARI_KHR_AREA_LIGHTS`
     - `ANARI_KHR_FRAME_COMPLETION_CALLBACK`
     - `ANARI_KHR_DEVICE_SYNCHRONIZATION`
     - `ANARI_KHR_TRANSFORMATION_MOTION_BLUR`
 
-For any found bugs in features that are implemented, please [open an
+For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!

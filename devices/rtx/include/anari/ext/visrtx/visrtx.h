@@ -61,13 +61,13 @@ typedef struct
 } VisRTXExtensions;
 
 VISRTX_DEVICE_INTERFACE int visrtxGetObjectExtensions(
-    VisRTXExtensions *features,
+    VisRTXExtensions *extensions,
     ANARIDevice device,
     ANARIDataType objectType,
     const char *objectSubtype);
 
 VISRTX_DEVICE_INTERFACE int visrtxGetInstanceExtensions(
-    VisRTXExtensions *features, ANARIDevice device, ANARIObject object);
+    VisRTXExtensions *extensions, ANARIDevice device, ANARIObject object);
 
 #ifdef __cplusplus
 } // extern "C"

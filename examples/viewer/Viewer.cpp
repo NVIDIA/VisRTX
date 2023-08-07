@@ -37,8 +37,8 @@
 // CUDA
 #include <cuda_gl_interop.h>
 // anari
-#define ANARI_FEATURE_UTILITY_IMPL
-#include "anari/frontend/anari_feature_utility.h"
+#define ANARI_EXTENSION_UTILITY_IMPL
+#include "anari/frontend/anari_extension_utility.h"
 // VisRTX
 #include "anari/ext/visrtx/visrtx.h"
 // glm

@@ -162,7 +162,7 @@ static anari::Instance makePlaneInstance(anari::Device d, const box3 &bounds)
 
   anari::release(d, surface);
 
-  auto inst = anari::newObject<anari::Instance>(d);
+  auto inst = anari::newObject<anari::Instance>(d, "transform");
   anari::setAndReleaseParameter(d, inst, "group", group);
   anari::commitParameters(d, inst);
 
@@ -189,7 +189,7 @@ static std::vector<anari::Instance> makeGridOfInstances(
   for (int x = 1; x < 4; x++) {
     for (int y = 1; y < 4; y++) {
       for (int z = 1; z < 4; z++) {
-        auto inst = anari::newObject<anari::Instance>(d);
+        auto inst = anari::newObject<anari::Instance>(d, "transform");
         auto tl = glm::translate(glm::mat4(1.f), 4.f * glm::vec3(x, y, z));
         auto rot_x = glm::rotate(glm::mat4(1.f), float(x), glm::vec3(1, 0, 0));
         auto rot_y = glm::rotate(glm::mat4(1.f), float(y), glm::vec3(0, 1, 0));
