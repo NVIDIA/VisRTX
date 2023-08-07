@@ -159,32 +159,13 @@ public:
    const char** paramNames() const override;
    size_t paramCount() const override;
 };
-class Instance : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_INSTANCE;
-   static constexpr const char *subtype = nullptr;
-   static const uint32_t id = 6;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_FLOAT32_MAT4> transform;
-   Parameter<ANARI_GROUP> group;
-
-   Instance(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
 class World : public ParameterPack {
 public:
    ANARIDevice device;
    ANARIObject object;
    static const int type = ANARI_WORLD;
    static constexpr const char *subtype = nullptr;
-   static const uint32_t id = 7;
+   static const uint32_t id = 6;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_ARRAY1D> instance;
    Parameter<ANARI_ARRAY1D> surface;
@@ -205,7 +186,7 @@ public:
    ANARIObject object;
    static const int type = ANARI_RENDERER;
    static constexpr const char *subtype = "default";
-   static const uint32_t id = 8;
+   static const uint32_t id = 7;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_FLOAT32_VEC3> ambientColor;
    Parameter<ANARI_FLOAT32> ambientRadiance;
@@ -227,12 +208,31 @@ public:
    ANARIObject object;
    static const int type = ANARI_SURFACE;
    static constexpr const char *subtype = nullptr;
-   static const uint32_t id = 9;
+   static const uint32_t id = 8;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_GEOMETRY> geometry;
    Parameter<ANARI_MATERIAL> material;
 
    Surface(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
+class InstanceTransform : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_INSTANCE;
+   static constexpr const char *subtype = "transform";
+   static const uint32_t id = 9;
+   Parameter<ANARI_STRING> name;
+   Parameter<ANARI_FLOAT32_MAT4> transform;
+   Parameter<ANARI_GROUP> group;
+
+   InstanceTransform(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
    void unset(const char *paramname) override;
    ParameterBase& operator[](size_t idx) override;

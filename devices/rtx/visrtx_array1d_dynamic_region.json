@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "VISRTX_ARRAY1D_DYNAMIC_REGION",
-    "type": "feature",
+    "type": "extension",
     "dependencies": []
   },
   "objects": [

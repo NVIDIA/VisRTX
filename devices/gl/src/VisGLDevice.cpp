@@ -102,8 +102,6 @@ const void* VisGLDevice::getParameterInfo(ANARIDataType objectType,
       infoType);
 }
 
-anari::debug_device::ObjectFactory *getDebugFactory();
-
 int VisGLDevice::getProperty(ANARIObject handle,
     const char *name,
     ANARIDataType type,
@@ -111,11 +109,7 @@ int VisGLDevice::getProperty(ANARIObject handle,
     uint64_t size,
     ANARIWaitMask mask)
 {
-  if (handle == this_device() && type == ANARI_FUNCTION_POINTER
-      && std::strncmp(name, "debugObjects", 12) == 0) {
-    writeToVoidP(mem, getDebugFactory);
-    return 1;
-  } else if (auto obj = handle_cast<ObjectBase *>(handle)) {
+  if (auto obj = handle_cast<ObjectBase *>(handle)) {
     return obj->getProperty(name, type, mem, size, mask);
   } else {
     return 0;

@@ -36,7 +36,7 @@
 namespace visgl {
 
 template <>
-class Object<Instance> : public DefaultObject<Instance, InstanceObjectBase>
+class Object<InstanceTransform> : public DefaultObject<InstanceTransform, InstanceObjectBase>
 {
   std::array<float, 16> instanceTransform;
   std::array<float, 16> inverseTransform;

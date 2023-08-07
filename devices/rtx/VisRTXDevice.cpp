@@ -76,8 +76,6 @@ const void *query_param_info(ANARIDataType type,
     const char *infoName,
     ANARIDataType infoType);
 
-anari::debug_device::ObjectFactory *getDebugFactory();
-
 const char **query_extensions();
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -265,7 +263,7 @@ ANARIGroup VisRTXDevice::newGroup()
   return createObjectForAPI<Group, ANARIGroup>(deviceState());
 }
 
-ANARIInstance VisRTXDevice::newInstance()
+ANARIInstance VisRTXDevice::newInstance(const char *type)
 {
   initDevice();
   CUDADeviceScope ds(this);
@@ -335,9 +333,6 @@ int VisRTXDevice::getProperty(ANARIObject object,
       return 1;
     } else if (prop == "version.patch" && type == ANARI_INT32) {
       helium::writeToVoidP(mem, VISRTX_VERSION_PATCH);
-      return 1;
-    } else if (prop == "debugObjects" && type == ANARI_FUNCTION_POINTER) {
-      helium::writeToVoidP(mem, getDebugFactory);
       return 1;
     } else if (prop == "feature" && type == ANARI_STRING_LIST) {
       helium::writeToVoidP(mem, query_extensions());

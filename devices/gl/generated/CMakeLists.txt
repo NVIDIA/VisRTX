@@ -34,11 +34,3 @@ anari_generate_queries(
   JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../
   JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/../visgl_device.json
 )
-
-anari_generate_debug_objects(
-  NAME visgl
-  PREFIX VisGL
-  CPP_NAMESPACE visgl
-  JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/../
-  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/../visgl_device.json
-)

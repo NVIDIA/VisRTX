@@ -70,9 +70,6 @@ ANARIFrame VisGLDevice::newFrame() {
 ANARIGroup VisGLDevice::newGroup() {
    return allocate<ANARIGroup, Group>();
 }
-ANARIInstance VisGLDevice::newInstance() {
-   return allocate<ANARIInstance, Instance>();
-}
 ANARIWorld VisGLDevice::newWorld() {
    return allocate<ANARIWorld, World>();
 }
@@ -88,6 +85,16 @@ ANARIRenderer VisGLDevice::newRenderer(const char *type) {
 }
 ANARISurface VisGLDevice::newSurface() {
    return allocate<ANARISurface, Surface>();
+}
+ANARIInstance VisGLDevice::newInstance(const char *type) {
+   int idx = obj_hash(type);
+   switch(idx) {
+      case 20: //transform
+         return allocate<ANARIInstance, InstanceTransform>();
+      default: // unknown object
+         return 0;
+   }
+   return 0;
 }
 ANARICamera VisGLDevice::newCamera(const char *type) {
    int idx = obj_hash(type);

@@ -1,7 +1,7 @@
 {
     "info" : {
         "name" : "VISGL_PRECISION_PARAMS",
-        "type" : "feature",
+        "type" : "extension",
         "dependencies" : ["anari_core_1_0"]
     },
 

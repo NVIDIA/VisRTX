@@ -497,78 +497,6 @@ size_t Group::paramCount() const {
    return 4;
 }
 
-Instance::Instance(ANARIDevice device, ANARIObject o) : device(device), object(o) {
-   {
-      float value[] = {1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f};
-      transform.set(device, object, ANARI_FLOAT32_MAT4, value);
-   }
-}
-bool Instance::set(const char *paramname, ANARIDataType type, const void *mem) {
-   int idx = param_hash(paramname);
-   switch(idx) {
-      case 55: //name
-         return name.set(device, object, type, mem);
-      case 91: //transform
-         return transform.set(device, object, type, mem);
-      case 36: //group
-         return group.set(device, object, type, mem);
-      default: // unknown param
-         //unknown parameter
-         return false;
-   }
-}
-void Instance::unset(const char *paramname) {
-   int idx = param_hash(paramname);
-   switch(idx) {
-      case 55: //name
-         name.unset(device, object);
-         return;
-      case 91: //transform
-         {
-            float value[] = {1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f};
-            transform.set(device, object, ANARI_FLOAT32_MAT4, value);
-         }
-         return;
-      case 36: //group
-         group.unset(device, object);
-         return;
-      default: // unknown param
-         //unknown parameter
-         return;
-   }
-}
-ParameterBase& Instance::operator[](size_t idx) {
-   static EmptyParameter empty;
-   switch(idx) {
-      case 0: return name;
-      case 1: return transform;
-      case 2: return group;
-      default: return empty;
-   }
-}
-ParameterBase& Instance::operator[](const char *paramname) {
-   static EmptyParameter empty;
-   int idx = param_hash(paramname);
-   switch(idx) {
-      case 55: return name;
-      case 91: return transform;
-      case 36: return group;
-      default: return empty;
-   }
-}
-const char ** Instance::paramNames() const {
-   static const char *paramnames[] = {
-      "name",
-      "transform",
-      "group",
-      nullptr
-   };
-   return paramnames;
-}
-size_t Instance::paramCount() const {
-   return 3;
-}
-
 World::World(ANARIDevice device, ANARIObject o) : device(device), object(o) {
 }
 bool World::set(const char *paramname, ANARIDataType type, const void *mem) {
@@ -836,6 +764,78 @@ const char ** Surface::paramNames() const {
    return paramnames;
 }
 size_t Surface::paramCount() const {
+   return 3;
+}
+
+InstanceTransform::InstanceTransform(ANARIDevice device, ANARIObject o) : device(device), object(o) {
+   {
+      float value[] = {1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f};
+      transform.set(device, object, ANARI_FLOAT32_MAT4, value);
+   }
+}
+bool InstanceTransform::set(const char *paramname, ANARIDataType type, const void *mem) {
+   int idx = param_hash(paramname);
+   switch(idx) {
+      case 55: //name
+         return name.set(device, object, type, mem);
+      case 91: //transform
+         return transform.set(device, object, type, mem);
+      case 36: //group
+         return group.set(device, object, type, mem);
+      default: // unknown param
+         //unknown parameter
+         return false;
+   }
+}
+void InstanceTransform::unset(const char *paramname) {
+   int idx = param_hash(paramname);
+   switch(idx) {
+      case 55: //name
+         name.unset(device, object);
+         return;
+      case 91: //transform
+         {
+            float value[] = {1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f, 0.000000f, 0.000000f, 0.000000f, 0.000000f, 1.000000f};
+            transform.set(device, object, ANARI_FLOAT32_MAT4, value);
+         }
+         return;
+      case 36: //group
+         group.unset(device, object);
+         return;
+      default: // unknown param
+         //unknown parameter
+         return;
+   }
+}
+ParameterBase& InstanceTransform::operator[](size_t idx) {
+   static EmptyParameter empty;
+   switch(idx) {
+      case 0: return name;
+      case 1: return transform;
+      case 2: return group;
+      default: return empty;
+   }
+}
+ParameterBase& InstanceTransform::operator[](const char *paramname) {
+   static EmptyParameter empty;
+   int idx = param_hash(paramname);
+   switch(idx) {
+      case 55: return name;
+      case 91: return transform;
+      case 36: return group;
+      default: return empty;
+   }
+}
+const char ** InstanceTransform::paramNames() const {
+   static const char *paramnames[] = {
+      "name",
+      "transform",
+      "group",
+      nullptr
+   };
+   return paramnames;
+}
+size_t InstanceTransform::paramCount() const {
    return 3;
 }
 

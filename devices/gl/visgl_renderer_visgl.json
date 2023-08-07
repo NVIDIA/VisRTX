@@ -1,7 +1,7 @@
 {
     "info" : {
         "name" : "VISGL_RENDERER_VISGL",
-        "type" : "feature",
+        "type" : "extension",
         "dependencies" : ["anari_core_1_0"],
         "implements" : [
             "khr_renderer_background_color",

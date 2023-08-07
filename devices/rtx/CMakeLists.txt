@@ -61,14 +61,6 @@ if (VISRTX_ENABLE_CODE_GEN)
     JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
     JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
   )
-
-  anari_generate_debug_objects(
-    NAME visrtx
-    PREFIX VisRTXDevice
-    CPP_NAMESPACE visrtx
-    JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
-    JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
-  )
 endif()
 
 ## Build library target ##
@@ -79,7 +71,6 @@ target_sources(${PROJECT_NAME} PRIVATE
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
-  VisRTXDeviceDebugFactory.cpp
   VisRTXDeviceQueries.cpp
   VisRTXFeatureUtility.cpp
   VisRTXLibrary.cpp

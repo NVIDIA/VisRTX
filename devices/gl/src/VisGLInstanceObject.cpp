@@ -34,7 +34,7 @@
 
 namespace visgl {
 
-Object<Instance>::Object(ANARIDevice d, ANARIObject handle)
+Object<InstanceTransform>::Object(ANARIDevice d, ANARIObject handle)
     : DefaultObject(d, handle)
 {
   transform_index = thisDevice->transforms.allocate(3);
@@ -42,7 +42,7 @@ Object<Instance>::Object(ANARIDevice d, ANARIObject handle)
   commit();
 }
 
-void Object<Instance>::commit()
+void Object<InstanceTransform>::commit()
 {
   DefaultObject::commit();
 
@@ -54,7 +54,7 @@ void Object<Instance>::commit()
   dirty = true;
 }
 
-void Object<Instance>::update()
+void Object<InstanceTransform>::update()
 {
   DefaultObject::update();
   if (dirty) {
@@ -65,12 +65,12 @@ void Object<Instance>::update()
   }
 }
 
-const std::array<float, 16> &Object<Instance>::transform()
+const std::array<float, 16> &Object<InstanceTransform>::transform()
 {
   return instanceTransform;
 }
 
-uint32_t Object<Instance>::index()
+uint32_t Object<InstanceTransform>::index()
 {
   return transform_index;
 }

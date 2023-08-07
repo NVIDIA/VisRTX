@@ -84,7 +84,6 @@ add_library(${PROJECT_NAME} SHARED
   generated/VisGLDeviceFactories.cpp
   generated/VisGLString.cpp
   generated/VisGLQueries.cpp
-  generated/VisGLDebugFactory.cpp
   src/glad/src/gl.c
 )
 

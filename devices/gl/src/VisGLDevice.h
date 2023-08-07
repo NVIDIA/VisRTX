@@ -118,7 +118,7 @@ struct VisGLDevice : public anari::DeviceImpl
 
   ANARIGroup newGroup() override;
 
-  ANARIInstance newInstance() override;
+  ANARIInstance newInstance(const char *type) override;
 
   // Top-level Worlds /////////////////////////////////////////////////////////
 
