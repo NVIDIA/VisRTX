@@ -597,6 +597,7 @@ void VisRTXDevice::initDevice()
     std::string log(2048, '\n');
     size_t sizeof_log = log.size();
 
+#if OPTIX_VERSION < 70700
     OPTIX_CHECK(optixModuleCreateFromPTX(state.optixContext,
         &moduleCompileOptions,
         &pipelineCompileOptions,
@@ -605,6 +606,16 @@ void VisRTXDevice::initDevice()
         log.data(),
         &sizeof_log,
         &module));
+#else
+    OPTIX_CHECK(optixModuleCreate(state.optixContext,
+        &moduleCompileOptions,
+        &pipelineCompileOptions,
+        ptxCode.c_str(),
+        ptxCode.size(),
+        log.data(),
+        &sizeof_log,
+        &module));
+#endif
 
     if (sizeof_log > 1)
       reportMessage(ANARI_SEVERITY_DEBUG, "PTX Compile Log:\n%s", log.data());
