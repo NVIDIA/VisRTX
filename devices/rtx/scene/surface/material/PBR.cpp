@@ -41,9 +41,9 @@ void PBR::commit()
   m_opacitySampler = getParamObject<Sampler>("opacity");
   m_opacityAttribute = getParamString("opacity", "");
 
-  vec4 c(1.f);
-  getParam("baseColor", ANARI_FLOAT32_VEC4, &c);
-  getParam("baseColor", ANARI_FLOAT32_VEC3, &c);
+  m_color = vec4(1.f);
+  getParam("baseColor", ANARI_FLOAT32_VEC4, &m_color);
+  getParam("baseColor", ANARI_FLOAT32_VEC3, &m_color);
   m_colorSampler = getParamObject<Sampler>("baseColor");
   m_colorAttribute = getParamString("baseColor", "");
 

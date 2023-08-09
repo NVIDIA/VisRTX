@@ -41,9 +41,9 @@ void Matte::commit()
   m_opacitySampler = getParamObject<Sampler>("opacity");
   m_opacityAttribute = getParamString("opacity", "");
 
-  vec4 c(1.f);
-  getParam("color", ANARI_FLOAT32_VEC4, &c);
-  getParam("color", ANARI_FLOAT32_VEC3, &c);
+  m_color = vec4(1.f);
+  getParam("color", ANARI_FLOAT32_VEC4, &m_color);
+  getParam("color", ANARI_FLOAT32_VEC3, &m_color);
   m_colorSampler = getParamObject<Sampler>("color");
   m_colorAttribute = getParamString("color", "");
 
