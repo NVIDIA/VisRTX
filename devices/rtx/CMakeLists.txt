@@ -175,7 +175,6 @@ PUBLIC
   anari::anari
 PRIVATE
   anari::helium
-  anari::anari_library_debug
   glm_visrtx
   OptiX7::OptiX7
   CUDA::cuda_driver

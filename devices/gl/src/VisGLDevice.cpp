@@ -33,9 +33,6 @@
 #include <cstdint>
 #include "VisGLDevice.h"
 
-// debug interface
-#include "anari/ext/debug/DebugObject.h"
-
 namespace visgl {
 
 template <typename T>

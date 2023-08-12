@@ -644,7 +644,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
   anari::setParameter(d, field, "data", voxelArray);
   anari::commitParameters(d, field);
 
-  auto volume = anari::newObject<anari::Volume>(d, "scivis");
+  auto volume = anari::newObject<anari::Volume>(d, "transferFunction1D");
   anari::setAndReleaseParameter(d, volume, "field", field);
   anari::setParameter(d, volume, "densityScale", config.density);
 
@@ -828,7 +828,7 @@ static ScenePtr generateGravityVolume(
             d, voxels.data(), volumeDims, volumeDims, volumeDims));
     anari::commitParameters(d, field);
 
-    auto volume = anariNewVolume(d, "scivis");
+    auto volume = anari::newObject<anari::Volume>(d, "transferFunction1D");
     anari::setAndReleaseParameter(d, volume, "field", field);
     anari::setParameter(d, volume, "densityScale", config.density);
 
