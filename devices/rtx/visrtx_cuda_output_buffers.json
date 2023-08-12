@@ -1,0 +1,8 @@
+{
+  "info": {
+    "name": "VISRTX_CUDA_OUTPUT_BUFFERS",
+    "type": "extension",
+    "dependencies": []
+  },
+  "objects": []
+}

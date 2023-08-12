@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+##### TBD
+- Added new GL based device implementation
+- Added support for image backgrounds via the `background` renderer parameter
+- Improved `sphere` geometry update speed for large numbers of primitives
+- Improved handling of renderers of an unknown subtype
+- Fix incorrect type for `scivis` volume `"valueRange"` parameter
+- Fix numeric issue in edge case when generating cone geometry
+- Fix support for non-float element types in `structuredRegular` spatial fields
+
 ## 0.5.0
 ##### 2023-01-23
 - Update to latest ANARI SDK v0.3.0

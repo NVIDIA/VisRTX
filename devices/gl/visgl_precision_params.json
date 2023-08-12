@@ -1,0 +1,62 @@
+{
+    "info" : {
+        "name" : "VISGL_PRECISION_PARAMS",
+        "type" : "extension",
+        "dependencies" : ["anari_core_1_0"]
+    },
+
+    "objects" : [
+        {
+            "type" : "ANARI_DEVICE",
+            "parameters" : [
+                {
+                    "name" : "geometryPrecision",
+                    "types" : ["ANARI_STRING"],
+                    "tags" : [],
+                    "values" : ["tessellate", "exact"],
+                    "default" : "tessellate",
+                    "description" : "default behavior of non mesh primitives"
+                }
+            ]
+        }, {
+            "type" : "ANARI_GEOMETRY",
+            "name" : "sphere",
+            "parameters" : [
+                {
+                    "name" : "geometryPrecision",
+                    "types" : ["ANARI_STRING"],
+                    "tags" : [],
+                    "values" : ["device", "tessellate", "exact"],
+                    "default" : "device",
+                    "description" : "behavior of non mesh primitives"
+                }
+            ]
+        }, {
+            "type" : "ANARI_GEOMETRY",
+            "name" : "cylinder",
+            "parameters" : [
+                {
+                    "name" : "geometryPrecision",
+                    "types" : ["ANARI_STRING"],
+                    "tags" : [],
+                    "values" : ["device", "tessellate", "exact"],
+                    "default" : "device",
+                    "description" : "behavior of non mesh primitives"
+                }
+            ]
+        }, {
+            "type" : "ANARI_GEOMETRY",
+            "name" : "cone",
+            "parameters" : [
+                {
+                    "name" : "geometryPrecision",
+                    "types" : ["ANARI_STRING"],
+                    "tags" : [],
+                    "values" : ["device", "tessellate", "exact"],
+                    "default" : "device",
+                    "description" : "behavior of non mesh primitives"
+                }
+            ]
+        }
+    ]
+}

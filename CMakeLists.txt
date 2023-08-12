@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Redistribution and use in source and binary forms, with or without
@@ -35,9 +35,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_CUDA_STANDARD 17)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
 set(CMAKE_BUILD_TYPE_INIT "Release")
 
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
@@ -49,7 +46,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-project(VisRTX VERSION 0.5.0 LANGUAGES C CXX CUDA)
+project(VisRTX VERSION 0.6.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
@@ -60,11 +57,28 @@ option(
 )
 mark_as_advanced(VISRTX_SET_SOVERSION)
 
+if (VISRTX_SET_SOVERSION)
+  set(VISRTX_CMAKE_INSTALL_DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
+  )
+else()
+  set(VISRTX_CMAKE_INSTALL_DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  )
+endif()
+
 ## Dependencies ###############################################################
 
 # ANARI-SDK
-set(ANARI_REQUIRED_VERSION 0.3.0)
+set(ANARI_REQUIRED_VERSION 0.7.0)
 find_package(anari ${ANARI_REQUIRED_VERSION} EXACT REQUIRED)
+
+# CUDA
+find_package(CUDAToolkit 11.3.1)
+find_package(OptiX7)
+
+# OpenGL
+find_package(OpenGL)
 
 # glm (locally included)
 set(glm_DIR ${CMAKE_CURRENT_LIST_DIR}/external/glm/lib/cmake/glm)
@@ -83,27 +97,11 @@ add_subdirectory(external)
 
 enable_testing()
 
-add_subdirectory(device)
+add_subdirectory(devices)
 add_subdirectory(examples)
 add_subdirectory(tests)
-add_subdirectory(tools)
 
 ## Configure CMake find_package() config files ################################
-
-if (VISRTX_SET_SOVERSION)
-  set(VISRTX_CMAKE_INSTALL_DESTINATION
-    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
-  )
-else()
-  set(VISRTX_CMAKE_INSTALL_DESTINATION
-    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-  )
-endif()
-
-install(EXPORT VisRTX_Exports
-  DESTINATION ${VISRTX_CMAKE_INSTALL_DESTINATION}
-  NAMESPACE VisRTX::
-)
 
 include(CMakePackageConfigHelpers)
 
@@ -133,3 +131,11 @@ install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/cmake
   FILES_MATCHING
     PATTERN *.cmake
 )
+
+option(VISRTX_PRECOMPILE_SHADERS "Run visrtxCompileShaders after install?" ON)
+if (TARGET visrtxCompileShaders AND VISRTX_PRECOMPILE_SHADERS)
+  install(
+    CODE
+    "execute_process(COMMAND ${CMAKE_BINARY_DIR}/visrtxCompileShaders)"
+  )
+endif()

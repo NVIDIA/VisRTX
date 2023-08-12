@@ -1,0 +1,20 @@
+stages:
+  - build
+
+variables:
+  GIT_DEPTH: "15"
+
+build-ubuntu-22_04:
+  stage: build
+  script:
+    - ci/build_linux.sh
+  tags:
+    - linux
+    - ubuntu
+
+build-windows:
+  stage: build
+  script:
+    - ci/build_win.ps1
+  tags:
+    - windows

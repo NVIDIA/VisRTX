@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,16 +30,18 @@
  */
 
 // anari_cpp
-#define ANARI_FEATURE_UTILITY_IMPL
+#define ANARI_EXTENSION_UTILITY_IMPL
 #include <anari/anari_cpp.hpp>
 // C++ std anari_cpp type inference (VEC types from std::array<>)
 #include <anari/anari_cpp/ext/std.h>
 // VisRTX
 #include <anari/ext/visrtx/visrtx.h>
 // std
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <iostream>
+#include <numeric>
 #include <random>
 // stb_image
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -177,16 +179,16 @@ int main()
 
   auto device = makeVisRTXDevice(statusFunc);
 
-  anari::Features features =
-      anari::feature::getInstanceFeatures(device, device);
+  anari::Extensions extensions =
+      anari::extension::getInstanceExtensionStruct(device, device);
 
-  if (!features.ANARI_KHR_GEOMETRY_SPHERE)
+  if (!extensions.ANARI_KHR_GEOMETRY_SPHERE)
     printf("WARNING: device doesn't support ANARI_KHR_GEOMETRY_SPHERE\n");
-  if (!features.ANARI_KHR_CAMERA_PERSPECTIVE)
+  if (!extensions.ANARI_KHR_CAMERA_PERSPECTIVE)
     printf("WARNING: device doesn't support ANARI_KHR_CAMERA_PERSPECTIVE\n");
-  if (!features.ANARI_KHR_LIGHT_DIRECTIONAL)
+  if (!extensions.ANARI_KHR_LIGHT_DIRECTIONAL)
     printf("WARNING: device doesn't support ANARI_KHR_LIGHT_DIRECTIONAL\n");
-  if (!features.ANARI_KHR_MATERIAL_MATTE)
+  if (!extensions.ANARI_KHR_MATERIAL_MATTE)
     printf("WARNING: device doesn't support ANARI_KHR_MATERIAL_MATTE\n");
 
   // Create world from a helper function //

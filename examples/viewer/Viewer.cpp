@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,10 +37,12 @@
 // CUDA
 #include <cuda_gl_interop.h>
 // anari
-#define ANARI_FEATURE_UTILITY_IMPL
-#include "anari/anari_feature_utility.h"
+#define ANARI_EXTENSION_UTILITY_IMPL
+#include "anari/frontend/anari_extension_utility.h"
 // VisRTX
 #include "anari/ext/visrtx/visrtx.h"
+// glm
+#include <glm/ext.hpp>
 
 #include "ui_scenes.h"
 
@@ -130,13 +132,13 @@ Viewer::Viewer(const char *libName, const char *objFileName)
   if (!m_device)
     std::exit(1);
 
-  visrtx::Features features = visrtx::getInstanceFeatures(m_device, m_device);
-  m_haveCUDAInterop = g_glInterop && features.VISRTX_CUDA_OUTPUT_BUFFERS;
+  visrtx::Extensions extensions =
+      visrtx::getInstanceExtensions(m_device, m_device);
+  m_haveCUDAInterop = g_glInterop && extensions.VISRTX_CUDA_OUTPUT_BUFFERS;
 
   // ANARI //
 
-  const char **r_subtypes =
-      anariGetObjectSubtypes(m_library, "default", ANARI_RENDERER);
+  const char **r_subtypes = anariGetObjectSubtypes(m_device, ANARI_RENDERER);
 
   if (r_subtypes != nullptr) {
     for (int i = 0; r_subtypes[i] != nullptr; i++) {
@@ -305,18 +307,35 @@ void Viewer::updateFrame()
     anari::setParameter(m_device, m_frame, "camera", m_perspCamera);
   anari::setParameter(m_device, m_frame, "renderer", m_currentRenderer);
 
+  if (m_backgroundGradient) {
+    constexpr int IMAGE_SIZE = 128;
+    auto gradientArray =
+        anari::newArray2D(m_device, ANARI_FLOAT32_VEC4, 1, IMAGE_SIZE + 1);
+    auto *gradientColors = anari::map<glm::vec4>(m_device, gradientArray);
+    for (int i = 0; i <= IMAGE_SIZE; i++) {
+      gradientColors[i] =
+          glm::mix(m_backgroundBottom, m_backgroundTop, i / float(IMAGE_SIZE));
+    }
+    anari::unmap(m_device, gradientArray);
+    anari::setAndReleaseParameter(
+        m_device, m_currentRenderer, "background", gradientArray);
+  } else {
+    anari::setParameter(
+        m_device, m_currentRenderer, "background", m_backgroundTop);
+  }
   anari::setParameter(
-      m_device, m_currentRenderer, "backgroundColor", m_background);
+      m_device, m_currentRenderer, "checkerboard", m_checkerboard);
   anari::setParameter(
       m_device, m_currentRenderer, "pixelSamples", m_pixelSamples);
   anari::setParameter(
       m_device, m_currentRenderer, "ambientColor", m_ambientColor);
   anari::setParameter(
-      m_device, m_currentRenderer, "ambientIntensity", m_ambientIntensity);
+      m_device, m_currentRenderer, "ambientRadiance", m_ambientIntensity);
   anari::setParameter(m_device,
       m_currentRenderer,
       "ambientOcclusionDistance",
       m_ambientOcclusionDistance);
+  anari::setParameter(m_device, m_currentRenderer, "denoise", m_denoise);
 
   anari::commitParameters(m_device, m_currentRenderer);
   anari::commitParameters(m_device, m_frame);
@@ -625,17 +644,6 @@ void Viewer::ui_makeWindow_frame()
   if (scale != m_resolutionScale)
     updateFrame();
 
-  if (ImGui::Checkbox("denoise", &m_denoise)) {
-    anari::setParameter(m_device, m_frame, "denoise", m_denoise);
-    anari::commitParameters(m_device, m_frame);
-  }
-
-  static bool checkerboard = false;
-  if (ImGui::Checkbox("checkerboard", &checkerboard)) {
-    anari::setParameter(m_device, m_frame, "checkerboard", checkerboard);
-    anari::commitParameters(m_device, m_frame);
-  }
-
   ImGui::Checkbox("show depth", &m_showDepth);
 
   if (ImGui::Button("take screenshot"))
@@ -689,12 +697,30 @@ void Viewer::ui_makeWindow_renderer()
       nullptr,
       g_renderers.size());
 
-  update |= ImGui::ColorEdit3("background", &m_background.x);
+  if (ImGui::Checkbox("denoise", &m_denoise)) {
+    anari::setParameter(m_device, m_currentRenderer, "denoise", m_denoise);
+    anari::commitParameters(m_device, m_currentRenderer);
+  }
+
+  if (ImGui::Checkbox("checkerboard", &m_checkerboard)) {
+    anari::setParameter(
+        m_device, m_currentRenderer, "checkerboarding", m_checkerboard);
+    anari::commitParameters(m_device, m_currentRenderer);
+  }
+
+  update |= ImGui::Checkbox("gradient background", &m_backgroundGradient);
+
+  if (m_backgroundGradient) {
+    update |= ImGui::ColorEdit3("backgroundTop", &m_backgroundTop.x);
+    update |= ImGui::ColorEdit3("backgroundBottom", &m_backgroundBottom.x);
+  } else {
+    update |= ImGui::ColorEdit3("background", &m_backgroundTop.x);
+  }
 
   update |= ImGui::SliderInt("pixelSamples", &m_pixelSamples, 1, 256);
 
   update |= ImGui::DragFloat(
-      "ambientIntensity", &m_ambientIntensity, 0.001f, 0.f, 1000.f);
+      "ambientRadiance", &m_ambientIntensity, 0.001f, 0.f, 1000.f);
 
   update |= ImGui::ColorEdit3("ambientColor", &m_ambientColor.x);
 

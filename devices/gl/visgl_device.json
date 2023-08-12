@@ -1,0 +1,17 @@
+{
+    "info" : {
+        "name" : "VisGL",
+        "type" : "device",
+        "dependencies" : [
+            "anari_core_1_0",
+            "anari_core_objects_all_1_0",
+            "khr_material_physically_based",
+            "khr_renderer_ambient_light",
+            "khr_renderer_background_color",
+            "visgl_gl_context_params",
+            "visgl_precision_params",
+            "visgl_shadow_map_params",
+            "visgl_occlusion_params"
+        ]
+    }
+}

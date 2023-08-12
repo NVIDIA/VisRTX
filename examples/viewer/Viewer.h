@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -96,8 +96,11 @@ class Viewer : public match3D::Application
   ObjFileConfig m_objFileConfig;
   int m_selectedScene{0};
   int m_lastSceneType{0};
-  glm::vec4 m_background{0.1f, 0.1f, 0.1f, 1.f};
+  glm::vec4 m_backgroundTop{0.8f, 0.8f, 0.8f, 1.f};
+  glm::vec4 m_backgroundBottom{0.1f, 0.1f, 0.1f, 1.f};
+  bool m_backgroundGradient{false};
   int m_pixelSamples{1};
+  bool m_checkerboard{false};
 
   std::unique_ptr<Scene> m_currentScene;
 
@@ -118,7 +121,7 @@ class Viewer : public match3D::Application
   glm::vec4 m_imageRegion{glm::vec2(0.f), glm::vec2(1.f)};
 
   std::vector<anari::Renderer> m_renderers;
-  float m_ambientIntensity{1.f};
+  float m_ambientIntensity{0.f};
   glm::vec3 m_ambientColor{1.f};
   float m_ambientOcclusionDistance{100.f};
   std::array<anari::Light, 1> m_lights;

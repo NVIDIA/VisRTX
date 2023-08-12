@@ -1,0 +1,39 @@
+{
+    "info" : {
+        "name" : "VISGL_GL_CONTEXT_PARAMS",
+        "type" : "extension",
+        "dependencies" : ["anari_core_1_0"]
+    },
+
+    "objects" : [
+        {
+            "type" : "ANARI_DEVICE",
+            "parameters" : [
+                {
+                    "name" : "glAPI",
+                    "types" : ["ANARI_STRING"],
+                    "tags" : [],
+                    "values" : ["OpenGL", "OpenGL_ES"],
+                    "default" : "OpenGL_ES",
+                    "description" : "GL API"
+                }, {
+                    "name" : "glDebug",
+                    "types" : ["ANARI_BOOL"],
+                    "tags" : [],
+                    "default" : 0,
+                    "description" : "Use a debug context"
+                }, {
+                    "name" : "EGLDisplay",
+                    "types" : ["ANARI_VOID_POINTER"],
+                    "tags" : [],
+                    "description" : "EGLDisplay"
+                }, {
+                    "name" : "EGlContext",
+                    "types" : ["ANARI_VOID_POINTER"],
+                    "tags" : [],
+                    "description" : "EGLContext to share with"
+                }
+            ]
+        }
+    ]
+}

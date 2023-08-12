@@ -31,7 +31,7 @@ Building VisRTX requires the following:
 - NVIDIA Driver 495+
 - CUDA 11.3.1+
 - [OptiX 7.4+](https://developer.nvidia.com/rtx/ray-tracing/optix)
-- [ANARI-SDK 0.3.0](https://github.com/KhronosGroup/ANARI-SDK)
+- [ANARI-SDK 0.7.0](https://github.com/KhronosGroup/ANARI-SDK)
 
 Building VisRTX is done through invoking CMake on the source directory from a
 stand alone build directory. This might look like
@@ -71,43 +71,13 @@ dependency.
 # Feature Overview
 
 The following sections describes details of VisRTX's ANARI completeness,
-provided extensions, and known missing features to add in the future.
+provided extensions, and known missing extensions to add in the future.
 
 ## Queryable ANARI Extensions
 
-The following extension strings will return true when queried with
-`anariDeviceImplements()`. Note that all vendor extensions are subject to change
-at any time.
-
-#### "ANARI_KHR_STOCHASTIC_RENDERING"
-
-This core extension indicates that frames will accumulate samples when
-subsequent calls to `anariRenderFrame()` are made if no objects modifications
-are made since the previously rendered frame.  Accumulation will not reset on
-`anariSetParameter()`, but only if objects that have parameter changes have been
-commited via `anariCommit()`.
-
-Note that variance estimation and convergence progress properties are not yet
-implemented.
-
-#### "VISRTX_SAMPLER_COLOR_MAP"
-
-This vendor extension indicates that an additional sampler subtype is available:
-`"colorMap"`. This sampler takes the first channel of the input attribute and
-applies a transfer function (normalization + color) to it. This sampler has the
-following parameters in addition to the base ANARI sampler parameters:
-
-| Name           | Type               | Default | Description                                                             |
-|:---------------|:-------------------|--------:|:------------------------------------------------------------------------|
-| color          | ARRAY1D of Color   |         | array to map sampled and clamped field values to color                  |
-| color.position | ARRAY1D of FLOAT32 |         | optional array to position the elements of color values in `valueRange` |
-| valueRange     | FLOAT32_BOX1       |  \[0,1\]| input attribute values are clamped to this range                        |
-
-This sampler follows the same rules for the `color` and `color.position`
-parameters as they are found on the `"scivis"` volume subtype. Values from this
-sampler are output as `VEC3(r, g, b, 1)` to the input of the material where the
-sampler used, where `r`, `g`, and `b` come from the values in `color`
-respectively.
+In addition to standard `ANARI_KHR` extensions, the following vendor extensions
+are also implemented in the `visrtx` device. Note that all vendor extensions are
+subject to change
 
 #### "VISRTX_CUDA_OUTPUT_BUFFERS"
 
@@ -121,24 +91,6 @@ additional channels can be mapped:
 GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary `color` and `depth` channels.
-
-#### "VISRTX_ARRAY1D_DYNAMIC_REGION"
-
-This vendor extension permits applications to use a subset of `ANARIArray1D`
-elements via parameters. This is helpful for applications to more quickly resize
-an array without needing to reallocate the array by making a new array object.
-The following parameters are consumed by 1D arrays:
-
-| Name  | Type     |    Default | Description                                         |
-|:------|:---------|-----------:|:----------------------------------------------------|
-| begin | UINT64   |          0 | first index (inclusive) to be used by parent objects |
-| end   | UINT64   |  *capacity | last index (exclusive) to be used by parent objects  |
-
-When an array is constructed, it's initial size is the maximum capacity allowed
-by that array object. The `begin` and `end` parameters establish a contiguous
-subset of the array, which is interpreted as the elements to be used by parent
-objects referencing the array. Note that mapping the array will always return
-the first element of the array (element `0`), which may be below `begin`.
 
 #### "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING" (experimental)
 
@@ -176,19 +128,6 @@ device.
 
 #### Frame
 
-The following optional parameters are available to set on `ANARIFrame`:
-
-| Name         | Type | Default | Description                                      |
-|:-------------|:-----|--------:|:-------------------------------------------------|
-| denoise      | BOOL |   false | enable the OptiX denoiser on the `color` channel |
-| checkerboard | BOOL |   false | trade fewer samples per-frame for interactivity  |
-
-The `checkerboard` parameter will sample subsets of the image at a faster rate,
-while still converging to the same image, as the final set of samples taken for
-each pixel ends up being the same. The pattern and method of which this feature
-is implementented is subject to change, so applications which desire exact
-sample counts should use the `numSamples` property described below.
-
 The following properties are available to query on `ANARIFrame`:
 
 | Name           | Type  | Description                                           |
@@ -197,78 +136,26 @@ The following properties are available to query on `ANARIFrame`:
 | nextFrameReset | BOOL  | query whether the next frame will reset accumulation  |
 
 The `numSamples` property is the lower bound of pixel samples taken when the
-`checkerboard` parameter is enabled because not every pixel will have the same
-number of samples accumulated.
+`checkerboard` renderer parameter (see below) is enabled because not every pixel
+will have the same number of samples accumulated.
 
 The `nextFrameReset` property can give the application feedback for when
 accumulation is about to reset in the next frame. When the property is queried
 and the current frame is complete, all committed objects since the last
 rendering operation will be internally updated (may be expensive).
 
-#### Renderer
+## Known Missing Core ANARI Extensions + Features
 
-The ANARI specification does not have any required renderer subtypes devices
-must provite, other than the existence of a `default` subtype. VisRTX provides
-the following subtypes:
-
-- `scivis` (default)
-- `ao`
-- `raycast`
-- `debug`
-
-All renderers share the following parameters:
-
-| Name            | Type         | Default   | Description                                               |
-|:----------------|:-------------|----------:|:----------------------------------------------------------|
-| backgroundColor | FLOAT32_VEC4 | {1,1,1,1} | color of the background                                   |
-| pixelSamples    | INT32        |         1 | number of samples taken per call to `anariRenderFrame()`  |
-
-The `pixelSamples` parameter is equivalent to calling `anariRenderFrame()` N
-times to reduce noise in the image.
-
-The `debug` renderer is designed to help developers understand how VisRTX is
-interpreting the scene it is rendering. This renderer uses a `STRING` parameter
-named `"method"` to control which debugging views of the scene is used. The
-following values are valid values:
-
-| Method   | Description                                                |
-|:---------|:-----------------------------------------------------------|
-| primID   | visualize geometry primitive index                         |
-| geomID   | visualize geometry index within a group                    |
-| instID   | visualize instance index within the world                  |
-| Ng       | visualize geometric normal                                 |
-| uvw      | visualize geometry barycentric coordinates                 |
-| istri    | show objects as green if they are HW accelerated triangles |
-| isvol    | show objects as green if they are a volume                 |
-| backface | show front facing primitives as green, red if back facing  |
-
-The `debug` renderer can use a `_[method]` suffix on the subtype string to set
-the default method. This can be a convenient alternative for applications to
-switch between debug renderer views. For example, `"debug_Ng"` would initially
-use the `Ng` method. The debug renderer with method suffixes are listed out as
-complete subtypes by `anariGetObjectSubtypes()`.
-
-Note that VisRTX renderers and their parameters are very much still in flux, so
-applications should use ANARI object introspection query functions to get the
-latest available parameters they can use. When the list of renderers and their
-parameters stabilize over time, they will be documented here. VisRTX will always
-keep the `default` renderer subtype as something usable without needing to
-change parameters.
-
-## Known Missing Core ANARI Features + Extensions
-
-The following features are not yet implemented by VisRTX:
+The following extensions are not yet implemented by VisRTX:
 
 - Light: `spot`, instancing
-- Camera: `omnidirectional`, stereo rendering, direct transform parameter
-- Sampler: `image3D`, in/out transforms on `image2D`
+- Camera: `omnidirectional`, stereo rendering
+- Sampler: `image3D`
 - Frame: variance property
-- Sparse shared arrays (non-zero stride)
 - Core extensions:
-    - `ANARI_KHR_AREA_LIGHTS`
     - `ANARI_KHR_FRAME_COMPLETION_CALLBACK`
     - `ANARI_KHR_DEVICE_SYNCHRONIZATION`
     - `ANARI_KHR_TRANSFORMATION_MOTION_BLUR`
 
-For any found bugs in features that are implemented, please [open an
+For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!
