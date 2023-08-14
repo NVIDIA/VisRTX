@@ -44,7 +44,6 @@ class Object<CameraOrthographic>
   float position[3];
   float direction[3];
   float up[3];
-  float transform[16];
   float region[4];
   float aspect;
   float height;

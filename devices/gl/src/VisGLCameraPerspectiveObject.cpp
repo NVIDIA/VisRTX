@@ -54,7 +54,6 @@ void Object<CameraPerspective>::commit()
   current.position.get(ANARI_FLOAT32_VEC3, position);
   current.direction.get(ANARI_FLOAT32_VEC3, direction);
   current.up.get(ANARI_FLOAT32_VEC3, up);
-  current.transform.get(ANARI_FLOAT32_MAT4, transform);
   current.imageRegion.get(ANARI_FLOAT32_BOX2, region);
   current.fovy.get(ANARI_FLOAT32, &fovy);
   current.aspect.get(ANARI_FLOAT32, &aspect);

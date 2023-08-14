@@ -66,7 +66,6 @@ add_library(${PROJECT_NAME} SHARED
   src/VisGLGeometrySphereObject.cpp
   src/VisGLGeometryCylinderObject.cpp
   src/VisGLMaterialMatteObject.cpp
-  src/VisGLMaterialTransparentMatteObject.cpp
   src/VisGLMaterialPbrObject.cpp
   src/VisGLCameraPerspectiveObject.cpp
   src/VisGLCameraOrthographicObject.cpp

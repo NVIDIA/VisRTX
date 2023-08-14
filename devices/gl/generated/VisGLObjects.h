@@ -240,26 +240,21 @@ public:
    const char** paramNames() const override;
    size_t paramCount() const override;
 };
-class CameraOmnidirectional : public ParameterPack {
+class VolumeTransferFunction1D : public ParameterPack {
 public:
    ANARIDevice device;
    ANARIObject object;
-   static const int type = ANARI_CAMERA;
-   static constexpr const char *subtype = "omnidirectional";
+   static const int type = ANARI_VOLUME;
+   static constexpr const char *subtype = "transferFunction1D";
    static const uint32_t id = 10;
    Parameter<ANARI_STRING> name;
-   Parameter<ANARI_FLOAT32_VEC3> position;
-   Parameter<ANARI_FLOAT32_VEC3> direction;
-   Parameter<ANARI_FLOAT32_VEC3> up;
-   Parameter<ANARI_FLOAT32_MAT4> transform;
-   Parameter<ANARI_FLOAT32_BOX2> imageRegion;
-   Parameter<ANARI_FLOAT32> apertureRadius;
-   Parameter<ANARI_FLOAT32> focusDistance;
-   Parameter<ANARI_STRING> stereoMode;
-   Parameter<ANARI_FLOAT32> interpupillaryDistance;
-   Parameter<ANARI_STRING> layout;
+   Parameter<ANARI_SPATIAL_FIELD> value;
+   Parameter<ANARI_FLOAT32_BOX1, ANARI_FLOAT64_BOX1> valueRange;
+   Parameter<ANARI_FLOAT32_VEC4, ANARI_FLOAT32_VEC3, ANARI_ARRAY1D> color;
+   Parameter<ANARI_FLOAT32, ANARI_ARRAY1D> opacity;
+   Parameter<ANARI_FLOAT32> unitDistance;
 
-   CameraOmnidirectional(ANARIDevice d, ANARIObject o);
+   VolumeTransferFunction1D(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
    void unset(const char *paramname) override;
    ParameterBase& operator[](size_t idx) override;
@@ -278,14 +273,9 @@ public:
    Parameter<ANARI_FLOAT32_VEC3> position;
    Parameter<ANARI_FLOAT32_VEC3> direction;
    Parameter<ANARI_FLOAT32_VEC3> up;
-   Parameter<ANARI_FLOAT32_MAT4> transform;
    Parameter<ANARI_FLOAT32_BOX2> imageRegion;
-   Parameter<ANARI_FLOAT32> apertureRadius;
-   Parameter<ANARI_FLOAT32> focusDistance;
-   Parameter<ANARI_STRING> stereoMode;
-   Parameter<ANARI_FLOAT32> interpupillaryDistance;
-   Parameter<ANARI_FLOAT32> height;
    Parameter<ANARI_FLOAT32> aspect;
+   Parameter<ANARI_FLOAT32> height;
    Parameter<ANARI_FLOAT32> near;
    Parameter<ANARI_FLOAT32> far;
 
@@ -308,12 +298,7 @@ public:
    Parameter<ANARI_FLOAT32_VEC3> position;
    Parameter<ANARI_FLOAT32_VEC3> direction;
    Parameter<ANARI_FLOAT32_VEC3> up;
-   Parameter<ANARI_FLOAT32_MAT4> transform;
    Parameter<ANARI_FLOAT32_BOX2> imageRegion;
-   Parameter<ANARI_FLOAT32> apertureRadius;
-   Parameter<ANARI_FLOAT32> focusDistance;
-   Parameter<ANARI_STRING> stereoMode;
-   Parameter<ANARI_FLOAT32> interpupillaryDistance;
    Parameter<ANARI_FLOAT32> fovy;
    Parameter<ANARI_FLOAT32> aspect;
    Parameter<ANARI_FLOAT32> near;
@@ -327,79 +312,13 @@ public:
    const char** paramNames() const override;
    size_t paramCount() const override;
 };
-class GeometryCone : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_GEOMETRY;
-   static constexpr const char *subtype = "cone";
-   static const uint32_t id = 13;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_ARRAY1D> primitive_color;
-   Parameter<ANARI_ARRAY1D> primitive_attribute0;
-   Parameter<ANARI_ARRAY1D> primitive_attribute1;
-   Parameter<ANARI_ARRAY1D> primitive_attribute2;
-   Parameter<ANARI_ARRAY1D> primitive_attribute3;
-   Parameter<ANARI_ARRAY1D> primitive_id;
-   Parameter<ANARI_ARRAY1D> vertex_position;
-   Parameter<ANARI_ARRAY1D> vertex_radius;
-   Parameter<ANARI_ARRAY1D> vertex_cap;
-   Parameter<ANARI_ARRAY1D> vertex_color;
-   Parameter<ANARI_ARRAY1D> vertex_attribute0;
-   Parameter<ANARI_ARRAY1D> vertex_attribute1;
-   Parameter<ANARI_ARRAY1D> vertex_attribute2;
-   Parameter<ANARI_ARRAY1D> vertex_attribute3;
-   Parameter<ANARI_ARRAY1D> primitive_index;
-   Parameter<ANARI_STRING> caps;
-   Parameter<ANARI_STRING> geometryPrecision;
-
-   GeometryCone(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
-class GeometryCurve : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_GEOMETRY;
-   static constexpr const char *subtype = "curve";
-   static const uint32_t id = 14;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_ARRAY1D> primitive_color;
-   Parameter<ANARI_ARRAY1D> primitive_attribute0;
-   Parameter<ANARI_ARRAY1D> primitive_attribute1;
-   Parameter<ANARI_ARRAY1D> primitive_attribute2;
-   Parameter<ANARI_ARRAY1D> primitive_attribute3;
-   Parameter<ANARI_ARRAY1D> primitive_id;
-   Parameter<ANARI_ARRAY1D> vertex_position;
-   Parameter<ANARI_ARRAY1D> vertex_radius;
-   Parameter<ANARI_ARRAY1D> vertex_color;
-   Parameter<ANARI_ARRAY1D> vertex_attribute0;
-   Parameter<ANARI_ARRAY1D> vertex_attribute1;
-   Parameter<ANARI_ARRAY1D> vertex_attribute2;
-   Parameter<ANARI_ARRAY1D> vertex_attribute3;
-   Parameter<ANARI_ARRAY1D> primitive_index;
-   Parameter<ANARI_FLOAT32> radius;
-
-   GeometryCurve(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
 class GeometryCylinder : public ParameterPack {
 public:
    ANARIDevice device;
    ANARIObject object;
    static const int type = ANARI_GEOMETRY;
    static constexpr const char *subtype = "cylinder";
-   static const uint32_t id = 15;
+   static const uint32_t id = 13;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_ARRAY1D> primitive_color;
    Parameter<ANARI_ARRAY1D> primitive_attribute0;
@@ -428,45 +347,13 @@ public:
    const char** paramNames() const override;
    size_t paramCount() const override;
 };
-class GeometryQuad : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_GEOMETRY;
-   static constexpr const char *subtype = "quad";
-   static const uint32_t id = 16;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_ARRAY1D> primitive_color;
-   Parameter<ANARI_ARRAY1D> primitive_attribute0;
-   Parameter<ANARI_ARRAY1D> primitive_attribute1;
-   Parameter<ANARI_ARRAY1D> primitive_attribute2;
-   Parameter<ANARI_ARRAY1D> primitive_attribute3;
-   Parameter<ANARI_ARRAY1D> primitive_id;
-   Parameter<ANARI_ARRAY1D> vertex_position;
-   Parameter<ANARI_ARRAY1D> vertex_normal;
-   Parameter<ANARI_ARRAY1D> vertex_tangent;
-   Parameter<ANARI_ARRAY1D> vertex_color;
-   Parameter<ANARI_ARRAY1D> vertex_attribute0;
-   Parameter<ANARI_ARRAY1D> vertex_attribute1;
-   Parameter<ANARI_ARRAY1D> vertex_attribute2;
-   Parameter<ANARI_ARRAY1D> vertex_attribute3;
-   Parameter<ANARI_ARRAY1D> primitive_index;
-
-   GeometryQuad(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
 class GeometrySphere : public ParameterPack {
 public:
    ANARIDevice device;
    ANARIObject object;
    static const int type = ANARI_GEOMETRY;
    static constexpr const char *subtype = "sphere";
-   static const uint32_t id = 17;
+   static const uint32_t id = 14;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_ARRAY1D> primitive_color;
    Parameter<ANARI_ARRAY1D> primitive_attribute0;
@@ -499,7 +386,7 @@ public:
    ANARIObject object;
    static const int type = ANARI_GEOMETRY;
    static constexpr const char *subtype = "triangle";
-   static const uint32_t id = 18;
+   static const uint32_t id = 15;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_ARRAY1D> primitive_color;
    Parameter<ANARI_ARRAY1D> primitive_attribute0;
@@ -531,7 +418,7 @@ public:
    ANARIObject object;
    static const int type = ANARI_LIGHT;
    static constexpr const char *subtype = "directional";
-   static const uint32_t id = 19;
+   static const uint32_t id = 16;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_FLOAT32_VEC3> color;
    Parameter<ANARI_FLOAT32> irradiance;
@@ -551,7 +438,7 @@ public:
    ANARIObject object;
    static const int type = ANARI_LIGHT;
    static constexpr const char *subtype = "point";
-   static const uint32_t id = 20;
+   static const uint32_t id = 17;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_FLOAT32_VEC3> color;
    Parameter<ANARI_FLOAT32_VEC3> position;
@@ -572,7 +459,7 @@ public:
    ANARIObject object;
    static const int type = ANARI_LIGHT;
    static constexpr const char *subtype = "spot";
-   static const uint32_t id = 21;
+   static const uint32_t id = 18;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_FLOAT32_VEC3> color;
    Parameter<ANARI_FLOAT32_VEC3> position;
@@ -596,7 +483,7 @@ public:
    ANARIObject object;
    static const int type = ANARI_MATERIAL;
    static constexpr const char *subtype = "matte";
-   static const uint32_t id = 22;
+   static const uint32_t id = 19;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_FLOAT32_VEC3, ANARI_SAMPLER, ANARI_STRING> color;
    Parameter<ANARI_FLOAT32, ANARI_SAMPLER, ANARI_STRING> opacity;
@@ -611,196 +498,13 @@ public:
    const char** paramNames() const override;
    size_t paramCount() const override;
 };
-class MaterialTransparentMatte : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_MATERIAL;
-   static constexpr const char *subtype = "transparentMatte";
-   static const uint32_t id = 23;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_FLOAT32_VEC3, ANARI_SAMPLER, ANARI_STRING> color;
-   Parameter<ANARI_FLOAT32, ANARI_SAMPLER, ANARI_STRING> opacity;
-   Parameter<ANARI_STRING> alphaMode;
-   Parameter<ANARI_FLOAT32> alphaCutoff;
-
-   MaterialTransparentMatte(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
-class SamplerImage1D : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_SAMPLER;
-   static constexpr const char *subtype = "image1D";
-   static const uint32_t id = 24;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_ARRAY1D> image;
-   Parameter<ANARI_STRING> inAttribute;
-   Parameter<ANARI_STRING> filter;
-   Parameter<ANARI_STRING> wrapMode1;
-   Parameter<ANARI_FLOAT32_MAT4> inTransform;
-   Parameter<ANARI_FLOAT32_VEC4> inOffset;
-   Parameter<ANARI_FLOAT32_MAT4> outTransform;
-   Parameter<ANARI_FLOAT32_VEC4> outOffset;
-
-   SamplerImage1D(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
-class SamplerImage2D : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_SAMPLER;
-   static constexpr const char *subtype = "image2D";
-   static const uint32_t id = 25;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_ARRAY2D> image;
-   Parameter<ANARI_STRING> inAttribute;
-   Parameter<ANARI_STRING> filter;
-   Parameter<ANARI_STRING> wrapMode1;
-   Parameter<ANARI_STRING> wrapMode2;
-   Parameter<ANARI_FLOAT32_MAT4> inTransform;
-   Parameter<ANARI_FLOAT32_VEC4> inOffset;
-   Parameter<ANARI_FLOAT32_MAT4> outTransform;
-   Parameter<ANARI_FLOAT32_VEC4> outOffset;
-
-   SamplerImage2D(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
-class SamplerImage3D : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_SAMPLER;
-   static constexpr const char *subtype = "image3D";
-   static const uint32_t id = 26;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_ARRAY3D> image;
-   Parameter<ANARI_STRING> inAttribute;
-   Parameter<ANARI_STRING> filter;
-   Parameter<ANARI_STRING> wrapMode1;
-   Parameter<ANARI_STRING> wrapMode2;
-   Parameter<ANARI_STRING> wrapMode3;
-   Parameter<ANARI_FLOAT32_MAT4> inTransform;
-   Parameter<ANARI_FLOAT32_VEC4> inOffset;
-   Parameter<ANARI_FLOAT32_MAT4> outTransform;
-   Parameter<ANARI_FLOAT32_VEC4> outOffset;
-
-   SamplerImage3D(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
-class SamplerPrimitive : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_SAMPLER;
-   static constexpr const char *subtype = "primitive";
-   static const uint32_t id = 27;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_ARRAY1D> array;
-   Parameter<ANARI_UINT64> inOffset;
-
-   SamplerPrimitive(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
-class SamplerTransform : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_SAMPLER;
-   static constexpr const char *subtype = "transform";
-   static const uint32_t id = 28;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_STRING> inAttribute;
-   Parameter<ANARI_FLOAT32_MAT4> outTransform;
-   Parameter<ANARI_FLOAT32_MAT4> outOffset;
-
-   SamplerTransform(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
-class Spatial_FieldStructuredRegular : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_SPATIAL_FIELD;
-   static constexpr const char *subtype = "structuredRegular";
-   static const uint32_t id = 29;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_ARRAY3D> data;
-   Parameter<ANARI_FLOAT32_VEC3> origin;
-   Parameter<ANARI_FLOAT32_VEC3> spacing;
-   Parameter<ANARI_STRING> filter;
-
-   Spatial_FieldStructuredRegular(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
-class VolumeTransferFunction1D : public ParameterPack {
-public:
-   ANARIDevice device;
-   ANARIObject object;
-   static const int type = ANARI_VOLUME;
-   static constexpr const char *subtype = "transferFunction1D";
-   static const uint32_t id = 30;
-   Parameter<ANARI_STRING> name;
-   Parameter<ANARI_SPATIAL_FIELD> field;
-   Parameter<ANARI_FLOAT32_BOX1, ANARI_FLOAT64_BOX1> valueRange;
-   Parameter<ANARI_ARRAY1D> color;
-   Parameter<ANARI_ARRAY1D> color_position;
-   Parameter<ANARI_ARRAY1D> opacity;
-   Parameter<ANARI_ARRAY1D> opacity_position;
-   Parameter<ANARI_FLOAT32> densityScale;
-
-   VolumeTransferFunction1D(ANARIDevice d, ANARIObject o);
-   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
-   void unset(const char *paramname) override;
-   ParameterBase& operator[](size_t idx) override;
-   ParameterBase& operator[](const char *paramname) override;
-   const char** paramNames() const override;
-   size_t paramCount() const override;
-};
 class MaterialPhysicallyBased : public ParameterPack {
 public:
    ANARIDevice device;
    ANARIObject object;
    static const int type = ANARI_MATERIAL;
    static constexpr const char *subtype = "physicallyBased";
-   static const uint32_t id = 31;
+   static const uint32_t id = 20;
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_FLOAT32_VEC3, ANARI_SAMPLER, ANARI_STRING> baseColor;
    Parameter<ANARI_FLOAT32, ANARI_SAMPLER, ANARI_STRING> opacity;
@@ -828,6 +532,161 @@ public:
    Parameter<ANARI_FLOAT32, ANARI_SAMPLER, ANARI_STRING> iridescenceThickness;
 
    MaterialPhysicallyBased(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
+class SamplerImage1D : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_SAMPLER;
+   static constexpr const char *subtype = "image1D";
+   static const uint32_t id = 21;
+   Parameter<ANARI_STRING> name;
+   Parameter<ANARI_ARRAY1D> image;
+   Parameter<ANARI_STRING> inAttribute;
+   Parameter<ANARI_STRING> filter;
+   Parameter<ANARI_STRING> wrapMode1;
+   Parameter<ANARI_FLOAT32_MAT4> inTransform;
+   Parameter<ANARI_FLOAT32_VEC4> inOffset;
+   Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_VEC4> outOffset;
+
+   SamplerImage1D(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
+class SamplerImage2D : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_SAMPLER;
+   static constexpr const char *subtype = "image2D";
+   static const uint32_t id = 22;
+   Parameter<ANARI_STRING> name;
+   Parameter<ANARI_ARRAY2D> image;
+   Parameter<ANARI_STRING> inAttribute;
+   Parameter<ANARI_STRING> filter;
+   Parameter<ANARI_STRING> wrapMode1;
+   Parameter<ANARI_STRING> wrapMode2;
+   Parameter<ANARI_FLOAT32_MAT4> inTransform;
+   Parameter<ANARI_FLOAT32_VEC4> inOffset;
+   Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_VEC4> outOffset;
+
+   SamplerImage2D(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
+class SamplerImage3D : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_SAMPLER;
+   static constexpr const char *subtype = "image3D";
+   static const uint32_t id = 23;
+   Parameter<ANARI_STRING> name;
+   Parameter<ANARI_ARRAY3D> image;
+   Parameter<ANARI_STRING> inAttribute;
+   Parameter<ANARI_STRING> filter;
+   Parameter<ANARI_STRING> wrapMode1;
+   Parameter<ANARI_STRING> wrapMode2;
+   Parameter<ANARI_STRING> wrapMode3;
+   Parameter<ANARI_FLOAT32_MAT4> inTransform;
+   Parameter<ANARI_FLOAT32_VEC4> inOffset;
+   Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_VEC4> outOffset;
+
+   SamplerImage3D(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
+class SamplerPrimitive : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_SAMPLER;
+   static constexpr const char *subtype = "primitive";
+   static const uint32_t id = 24;
+   Parameter<ANARI_STRING> name;
+   Parameter<ANARI_ARRAY1D> array;
+   Parameter<ANARI_UINT64> inOffset;
+
+   SamplerPrimitive(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
+class SamplerTransform : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_SAMPLER;
+   static constexpr const char *subtype = "transform";
+   static const uint32_t id = 25;
+   Parameter<ANARI_STRING> name;
+   Parameter<ANARI_STRING> inAttribute;
+   Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_MAT4> outOffset;
+
+   SamplerTransform(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
+class Spatial_FieldStructuredRegular : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_SPATIAL_FIELD;
+   static constexpr const char *subtype = "structuredRegular";
+   static const uint32_t id = 26;
+   Parameter<ANARI_STRING> name;
+   Parameter<ANARI_ARRAY3D> data;
+   Parameter<ANARI_FLOAT32_VEC3> origin;
+   Parameter<ANARI_FLOAT32_VEC3> spacing;
+   Parameter<ANARI_STRING> filter;
+
+   Spatial_FieldStructuredRegular(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
+class GeometryCone : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_GEOMETRY;
+   static constexpr const char *subtype = "cone";
+   static const uint32_t id = 27;
+   Parameter<ANARI_STRING> geometryPrecision;
+
+   GeometryCone(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
    void unset(const char *paramname) override;
    ParameterBase& operator[](size_t idx) override;
