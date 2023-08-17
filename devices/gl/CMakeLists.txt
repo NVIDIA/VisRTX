@@ -96,12 +96,12 @@ generate_export_header(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME}
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generated>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/egl>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/glx>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-  generated
-  src
-  src/glad/include
-  src/egl/
-  src/glx/
 )
 
 target_link_libraries(${PROJECT_NAME}
