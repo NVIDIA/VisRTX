@@ -162,6 +162,13 @@ PRIVATE
   "anari_library_visgl_EXPORTS"
 )
 
+if (MSVC)
+  target_compile_options(${PROJECT_NAME}
+  PRIVATE
+    "/bigobj"
+  )
+endif()
+
 install(TARGETS ${PROJECT_NAME} 
   EXPORT VisGL_Exports
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
