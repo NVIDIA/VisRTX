@@ -148,7 +148,7 @@ if(OpenGL_GLX_FOUND AND X11_FOUND)
   )
   target_include_directories(${PROJECT_NAME}
   PUBLIC
-    X11_INCLUDE_DIR
+    ${X11_INCLUDE_DIR}
   )
 
   target_compile_definitions(${PROJECT_NAME}
@@ -169,7 +169,7 @@ if (MSVC)
   )
 endif()
 
-install(TARGETS ${PROJECT_NAME} 
+install(TARGETS ${PROJECT_NAME}
   EXPORT VisGL_Exports
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
