@@ -36,6 +36,10 @@
 #include <atomic>
 #include <mutex>
 
+#if _WIN32 || _WIN64
+#include <intrin.h>
+#endif
+
 // This is an array of exponentially growing chunks
 // Only addition of elements needs to be protected
 // by a lock while elements remain accessible even
@@ -52,7 +56,22 @@ class ConcurrentArray
 
   static uint64_t msb(uint64_t x)
   {
+#ifdef _WIN64
+    unsigned long index;
+    _BitScanReverse64(&index, x);
+    return index;
+#elif _WIN32
+    unsigned long index;
+    if (x >> 32) {
+      _BitScanReverse(&index, x >> 32);
+      return index + 32;
+    } else {
+      _BitScanReverse(&index, x);
+      return index;
+    }
+#else
     return UINT64_C(63) - __builtin_clzll(x);
+#endif
   }
   static uint64_t block(uint64_t i)
   {
