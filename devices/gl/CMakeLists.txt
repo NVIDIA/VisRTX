@@ -100,9 +100,20 @@ PUBLIC
 target_link_libraries(${PROJECT_NAME}
 PUBLIC
   anari::anari
-  OpenGL::OpenGL
   Threads::Threads
 )
+
+if(WIN32)
+  target_link_libraries(${PROJECT_NAME}
+  PUBLIC
+    OpenGL::GL
+  )
+else()
+  target_link_libraries(${PROJECT_NAME}
+  PUBLIC
+    OpenGL::OpenGL
+  )
+endif()
 
 if(OpenGL_EGL_FOUND)
   target_sources(${PROJECT_NAME} PRIVATE
