@@ -36,7 +36,7 @@
 #include <atomic>
 #include <mutex>
 
-#if _WIN32 || _WIN64
+#ifdef _WIN32
 #include <intrin.h>
 #endif
 
@@ -60,7 +60,7 @@ class ConcurrentArray
     unsigned long index;
     _BitScanReverse64(&index, x);
     return index;
-#elif _WIN32
+#elif defined(_WIN32)
     unsigned long index;
     if (x >> 32) {
       _BitScanReverse(&index, x >> 32);
