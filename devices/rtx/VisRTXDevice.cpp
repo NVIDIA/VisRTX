@@ -418,10 +418,10 @@ VisRTXDevice::VisRTXDevice(ANARILibrary l) : helium::BaseDevice(l)
 
 VisRTXDevice::~VisRTXDevice()
 {
-  if (m_state.get() == nullptr)
-    return;
-
   reportMessage(ANARI_SEVERITY_DEBUG, "destroying VisRTX device");
+
+  if (!m_initialized)
+    return;
 
   auto &state = *deviceState();
 
