@@ -27,6 +27,8 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+include(GenerateExportHeader)
+
 set(CMAKE_CXX_STANDARD 11)
 
 project(anari_library_visgl LANGUAGES CXX)
@@ -87,22 +89,38 @@ add_library(${PROJECT_NAME} SHARED
   src/glad/src/gl.c
 )
 
+generate_export_header(${PROJECT_NAME}
+  EXPORT_MACRO_NAME "VISGL_DEVICE_INTERFACE"
+)
+
 target_include_directories(${PROJECT_NAME}
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
-  generated
-  src
-  src/glad/include
-  src/egl/
-  src/glx/
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/generated>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/egl>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/glx>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 )
 
 target_link_libraries(${PROJECT_NAME}
 PUBLIC
   anari::anari
-  OpenGL::OpenGL
   Threads::Threads
 )
+
+if(WIN32)
+  target_link_libraries(${PROJECT_NAME}
+  PUBLIC
+    OpenGL::GL
+  )
+else()
+  target_link_libraries(${PROJECT_NAME}
+  PUBLIC
+    OpenGL::OpenGL
+  )
+endif()
 
 if(OpenGL_EGL_FOUND)
   target_sources(${PROJECT_NAME} PRIVATE
@@ -130,7 +148,7 @@ if(OpenGL_GLX_FOUND AND X11_FOUND)
   )
   target_include_directories(${PROJECT_NAME}
   PUBLIC
-    X11_INCLUDE_DIR
+    ${X11_INCLUDE_DIR}
   )
 
   target_compile_definitions(${PROJECT_NAME}
@@ -144,8 +162,36 @@ PRIVATE
   "anari_library_visgl_EXPORTS"
 )
 
+if (MSVC)
+  target_compile_options(${PROJECT_NAME}
+  PRIVATE
+    "/bigobj"
+  )
+endif()
+
 install(TARGETS ${PROJECT_NAME}
+  EXPORT VisGL_Exports
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+if (VISRTX_USE_SOVERSION)
+  set_target_properties(${PROJECT_NAME}
+      PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
+
+  install(TARGETS ${PROJECT_NAME}
+    EXPORT VisGL_Exports
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      NAMELINK_SKIP
+    # on Windows put the dlls into bin
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    # ... and the import lib into the devel package
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+endif()
+
+install(EXPORT VisGL_Exports
+  DESTINATION ${VISRTX_CMAKE_INSTALL_DESTINATION}
+  NAMESPACE VisGL::
 )

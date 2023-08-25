@@ -31,22 +31,7 @@
 
 #include "VisGLDevice.h"
 #include "anari/backend/LibraryImpl.h"
-
-#ifdef _WIN32
-#ifdef DEVICE_STATIC_DEFINE
-#define DEVICE_INTERFACE
-#else
-#ifdef anari_library_VisGL_EXPORTS
-#define DEVICE_INTERFACE __declspec(dllexport)
-#else
-#define DEVICE_INTERFACE __declspec(dllimport)
-#endif
-#endif
-#elif defined __GNUC__
-#define DEVICE_INTERFACE __attribute__((__visibility__("default")))
-#else
-#define DEVICE_INTERFACE
-#endif
+#include "anari_library_visgl_export.h"
 
 namespace visgl {
 
@@ -82,7 +67,7 @@ const char **VisGLLibrary::getDeviceExtensions(const char * /*deviceType*/)
 
 // Define library entrypoint //////////////////////////////////////////////////
 
-extern "C" DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_ENTRYPOINT(
+extern "C" VISGL_DEVICE_INTERFACE ANARI_DEFINE_LIBRARY_ENTRYPOINT(
     visgl, handle, scb, scbPtr)
 {
   return (ANARILibrary) new visgl::VisGLLibrary(handle, scb, scbPtr);

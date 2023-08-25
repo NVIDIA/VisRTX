@@ -47,6 +47,10 @@
 #include <stdexcept>
 #include <vector>
 
+#ifdef OPAQUE
+#undef OPAQUE
+#endif
+
 constexpr int PAYLOAD_VALUES = 5;
 constexpr int ATTRIBUTE_VALUES = 4;
 
