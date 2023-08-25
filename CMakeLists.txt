@@ -71,7 +71,7 @@ endif()
 
 # ANARI-SDK
 set(ANARI_REQUIRED_VERSION 0.7.0)
-find_package(anari ${ANARI_REQUIRED_VERSION} EXACT REQUIRED)
+find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
 # CUDA
 find_package(CUDAToolkit 11.3.1)
