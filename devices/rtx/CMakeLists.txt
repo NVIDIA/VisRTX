@@ -31,6 +31,8 @@ include(GenerateExportHeader)
 
 ## Establish project ##
 
+set(CMAKE_CUDA_ARCHITECTURES OFF)
+
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 
 set(CMAKE_CUDA_STANDARD 17)
