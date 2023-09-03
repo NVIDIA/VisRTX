@@ -38,7 +38,7 @@ Point::Point(DeviceGlobalState *d) : Light(d) {}
 void Point::commit()
 {
   Light::commit();
-  m_position = glm::normalize(getParam<vec3>("position", vec3(0.f, 0.f, -1.f)));
+  m_position = getParam<vec3>("position", vec3(0.f, 0.f, 0.f));
   m_intensity = std::clamp(getParam<float>("intensity", 1.f),
       0.f,
       std::numeric_limits<float>::max());
