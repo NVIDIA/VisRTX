@@ -39,8 +39,7 @@ TransformSampler::TransformSampler(DeviceGlobalState *d) : Sampler(d) {}
 void TransformSampler::commit()
 {
   Sampler::commit();
-  m_inTransform = getParam<mat4>("transform", mat4(1.f));
-  m_outTransform = mat4(1.f);
+  m_inTransform = mat4(1.f);
   upload();
 }
 
