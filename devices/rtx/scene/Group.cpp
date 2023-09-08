@@ -99,10 +99,6 @@ void Group::commit()
   m_volumeData = getParamObject<ObjectArray>("volume");
   m_lightData = getParamObject<ObjectArray>("light");
 
-  partitionValidGeometriesByType();
-  partitionValidVolumes();
-  partitionValidLights();
-
   m_objectUpdates.lastSurfaceBVHBuilt = 0;
   m_objectUpdates.lastVolumeBVHBuilt = 0;
   m_objectUpdates.lastLightRebuild = 0;
@@ -193,38 +189,50 @@ Span<const DeviceObjectIndex> Group::lightGPUIndices() const
 
 void Group::rebuildSurfaceBVHs()
 {
-  if (!m_surfaces) {
-    m_triangleBounds = box3();
-    m_curveBounds = box3();
-    m_userBounds = box3();
-    m_traversableTriangle = {};
-    m_traversableCurve = {};
-    m_traversableUser = {};
+  partitionValidGeometriesByType();
+
+  m_triangleBounds = box3();
+  m_curveBounds = box3();
+  m_userBounds = box3();
+  m_traversableTriangle = {};
+  m_traversableCurve = {};
+  m_traversableUser = {};
+
+  if (!m_surfacesTriangle.empty()) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building triangle BVH");
+    buildOptixBVH(createOBI(m_surfacesTriangle),
+        m_bvhTriangle,
+        m_traversableTriangle,
+        m_triangleBounds,
+        this);
+  } else {
     reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping surface BVH build");
-    return;
+        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping triangle BVH build");
   }
 
-  reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building triangle BVH");
-  buildOptixBVH(createOBI(m_surfacesTriangle),
-      m_bvhTriangle,
-      m_traversableTriangle,
-      m_triangleBounds,
-      this);
+  if (!m_surfacesCurve.empty()) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building curve BVH");
+    buildOptixBVH(createOBI(m_surfacesCurve),
+        m_bvhCurve,
+        m_traversableCurve,
+        m_curveBounds,
+        this);
+  } else {
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping curve BVH build");
+  }
 
-  reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building curve BVH");
-  buildOptixBVH(createOBI(m_surfacesCurve),
-      m_bvhCurve,
-      m_traversableCurve,
-      m_curveBounds,
-      this);
-
-  reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building user BVH");
-  buildOptixBVH(createOBI(m_surfacesUser),
-      m_bvhUser,
-      m_traversableUser,
-      m_userBounds,
-      this);
+  if (!m_surfacesUser.empty()) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building user BVH");
+    buildOptixBVH(createOBI(m_surfacesUser),
+        m_bvhUser,
+        m_traversableUser,
+        m_userBounds,
+        this);
+  } else {
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping user BVH build");
+  }
 
   buildSurfaceGPUData();
 
@@ -233,6 +241,7 @@ void Group::rebuildSurfaceBVHs()
 
 void Group::rebuildVolumeBVH()
 {
+  partitionValidVolumes();
   if (m_volumes.empty()) {
     m_volumeBounds = box3();
     m_traversableVolume = {};

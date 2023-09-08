@@ -202,6 +202,8 @@ void StructuredRegularField::commit()
 
 box3 StructuredRegularField::bounds() const
 {
+  if (!isValid())
+    return {box3(vec3(0.f), vec3(1.f))};
   auto dims = m_params.data->size();
   return box3(m_params.origin,
       m_params.origin + ((vec3(dims) - 1.f) * m_params.spacing));
