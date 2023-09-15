@@ -238,27 +238,19 @@ GenerateEmbeddedPTX(scene Intersectors)
 
 ## Install library + headers ##
 
-install(TARGETS ${PROJECT_NAME}
-  EXPORT VisRTX_Exports
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
 if (VISRTX_USE_SOVERSION)
   set_target_properties(${PROJECT_NAME}
       PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
-
-  install(TARGETS ${PROJECT_NAME}
-    EXPORT VisRTX_Exports
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      NAMELINK_SKIP
-    # on Windows put the dlls into bin
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    # ... and the import lib into the devel package
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  )
 endif()
+
+install(TARGETS ${PROJECT_NAME}
+  EXPORT VisRTX_Exports
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  # on Windows put the dlls into bin
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  # ... and the import lib into the devel package
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
 
 install(
 FILES
