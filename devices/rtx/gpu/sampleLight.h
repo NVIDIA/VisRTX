@@ -61,6 +61,7 @@ RT_FUNCTION LightSample samplePoint(const LightGPUData &ld, const Hit &hit)
   LightSample ls;
   ls.dir = ld.point.position - hit.hitpoint;
   ls.dist = length(ls.dir);
+  ls.dir = glm::normalize(ls.dir);
   ls.pdf = 1.f;
   ls.radiance = ld.color * ld.point.intensity;
   return ls;
