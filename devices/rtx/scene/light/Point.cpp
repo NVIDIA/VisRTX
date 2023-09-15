@@ -39,9 +39,10 @@ void Point::commit()
 {
   Light::commit();
   m_position = getParam<vec3>("position", vec3(0.f, 0.f, 0.f));
-  m_intensity = std::clamp(getParam<float>("intensity", 1.f),
-      0.f,
-      std::numeric_limits<float>::max());
+  m_intensity =
+      std::clamp(getParam<float>("intensity", getParam<float>("power", 1.f)),
+          0.f,
+          std::numeric_limits<float>::max());
   upload();
 }
 
