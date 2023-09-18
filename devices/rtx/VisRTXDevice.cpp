@@ -566,7 +566,7 @@ void VisRTXDevice::initDevice()
                             void *_device) {
     auto *device = (VisRTXDevice *)_device;
     auto severity =
-        level <= 2 ? ANARI_SEVERITY_FATAL_ERROR : ANARI_SEVERITY_INFO;
+        level <= 2 ? ANARI_SEVERITY_FATAL_ERROR : ANARI_SEVERITY_DEBUG;
     device->reportMessage(
         severity, "OptiX message [%u][%s]:\n%s", level, tag, message);
   };
@@ -619,21 +619,21 @@ void VisRTXDevice::initDevice()
       reportMessage(ANARI_SEVERITY_DEBUG, "PTX Compile Log:\n%s", log.data());
   };
 
-  reportMessage(ANARI_SEVERITY_DEBUG, "Compiling 'debug' renderer");
+  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'debug' renderer");
   init_module(state.rendererModules.debug, Debug::ptx());
-  reportMessage(ANARI_SEVERITY_DEBUG, "Compiling 'raycast' renderer");
+  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'raycast' renderer");
   init_module(state.rendererModules.raycast, Raycast::ptx());
-  reportMessage(ANARI_SEVERITY_DEBUG, "Compiling 'ao' renderer");
+  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'ao' renderer");
   init_module(state.rendererModules.ambientOcclusion, AmbientOcclusion::ptx());
-  reportMessage(ANARI_SEVERITY_DEBUG, "Compiling 'dpt' renderer");
+  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'dpt' renderer");
   init_module(
       state.rendererModules.diffusePathTracer, DiffusePathTracer::ptx());
-  reportMessage(ANARI_SEVERITY_DEBUG, "Compiling 'scivis' renderer");
+  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'scivis' renderer");
   init_module(state.rendererModules.scivis, SciVis::ptx());
-  reportMessage(ANARI_SEVERITY_DEBUG, "Compiling 'test' renderer");
+  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'test' renderer");
   init_module(state.rendererModules.test, Test::ptx());
 
-  reportMessage(ANARI_SEVERITY_DEBUG, "Compiling custom intersectors");
+  reportMessage(ANARI_SEVERITY_INFO, "Compiling custom intersectors");
   init_module(state.intersectionModules.customIntersectors, intersection_ptx());
 
   OptixBuiltinISOptions builtinISOptions = {};
