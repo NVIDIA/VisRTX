@@ -56,6 +56,7 @@ static void statusFunc(const void * /*userData*/,
   } else if (severity == ANARI_SEVERITY_DEBUG) {
     printf("[DEBUG][%p] %s\n", source, message);
   }
+  fflush(stdout);
 }
 
 int main()
