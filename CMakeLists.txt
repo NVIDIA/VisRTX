@@ -134,8 +134,8 @@ install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/cmake
 
 option(VISRTX_PRECOMPILE_SHADERS "Run visrtxCompileShaders after install?" ON)
 if (TARGET visrtxCompileShaders AND VISRTX_PRECOMPILE_SHADERS)
-  install(
-    CODE
+  install(CODE "message(STATUS \"Precompile VisRTX OptiX shaders\")")
+  install(CODE
     "execute_process(COMMAND ${CMAKE_BINARY_DIR}/visrtxCompileShaders)"
   )
 endif()
