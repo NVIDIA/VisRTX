@@ -98,13 +98,11 @@ void Cylinder::commit()
   const auto *posBegin = m_vertex->beginAs<vec3>();
   size_t cylinderID = 0;
   std::transform(
-      indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &v) {
+      indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &c) {
         const float r = radius ? radius[cylinderID++] : m_globalRadius;
-        const vec3 &v1 = *(posBegin + v.x);
-        const vec3 &v2 = *(posBegin + v.y);
-        box3 bounds = box3(v1 - r, v1 + r);
-        bounds.extend(box3(v2 - r, v2 + r));
-        return bounds;
+        const vec3 &v0 = *(posBegin + c.x);
+        const vec3 &v1 = *(posBegin + c.y);
+        return box3(glm::min(v0, v1) - r, glm::max(v0, v1) + r);
       });
 
   m_aabbs.upload();

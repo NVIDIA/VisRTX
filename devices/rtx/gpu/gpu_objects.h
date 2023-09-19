@@ -539,36 +539,4 @@ struct ScreenSample
   const FrameGPUData *frameData;
 };
 
-struct Ray
-{
-  vec3 org;
-  vec3 dir;
-  box1 t{0.f, std::numeric_limits<float>::max()};
-};
-
-struct SurfaceHit
-{
-  bool foundHit;
-  float t;
-  vec3 hitpoint;
-  vec3 Ng;
-  vec3 Ns;
-  vec3 uvw;
-  uint32_t primID;
-  float epsilon;
-  const GeometryGPUData *geometry{nullptr};
-  const MaterialGPUData *material{nullptr};
-};
-
-struct VolumeHit
-{
-  bool foundHit;
-  Ray localRay;
-  uint32_t volID{~0u};
-  uint32_t instID{~0u};
-  const VolumeGPUData *volumeData{nullptr};
-};
-
-using Hit = SurfaceHit;
-
 } // namespace visrtx
