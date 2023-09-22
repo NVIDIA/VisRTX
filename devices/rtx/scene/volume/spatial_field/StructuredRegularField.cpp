@@ -226,6 +226,7 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.type = SpatialFieldType::STRUCTURED_REGULAR;
   sf.data.structuredRegular.texObj = m_textureObject;
   sf.data.structuredRegular.origin = m_params.origin;
+  sf.data.structuredRegular.spacing = m_params.spacing;
   sf.data.structuredRegular.invSpacing =
       vec3(1.f) / (m_params.spacing * vec3(dims));
   sf.grid = m_uniformGrid.gpuData();
