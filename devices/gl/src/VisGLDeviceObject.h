@@ -36,7 +36,7 @@
 #include "queue_thread.h"
 
 #include "glContextInterface.h"
-#include "glad/gl.h"
+#include "ogl.h"
 #include "shader_compile_segmented.h"
 #include "AppendableShader.h"
 

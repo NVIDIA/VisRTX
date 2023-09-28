@@ -32,7 +32,7 @@
 #pragma once
 
 #include <anari/anari.h>
-#include "glad/gl.h"
+#include "ogl.h"
 #include "VisGLString.h"
 
 namespace visgl {
