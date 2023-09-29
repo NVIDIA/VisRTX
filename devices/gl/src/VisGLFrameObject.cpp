@@ -85,6 +85,48 @@ static GLenum anari2gl(ANARIDataType format)
   }
 }
 
+const char *full_screen_vert = R"GLSL(
+precision highp float;
+precision highp int;
+
+const vec4 tri[3] = vec4[3](
+  vec4(-1.0, -1.0, 0.0, 1.0),
+  vec4(-1.0, 3.0, 0.0, 1.0),
+  vec4(3.0, -1.0, 0.0, 1.0)
+);
+
+out vec2 screen_coord;
+
+void main() {
+  gl_Position = tri[gl_VertexID];
+  screen_coord = gl_Position.xy;
+}
+)GLSL";
+
+const char *multisample_resolve_frag = R"GLSL(
+precision highp float;
+precision highp int;
+
+highp layout(binding = 0) uniform sampler2DMS color;
+//highp layout(binding = 1) uniform sampler2DMS depth;
+
+in vec2 screen_coord;
+
+layout(location = 0) out vec4 FragColor;
+layout(location = 1) out float LinearDepth;
+
+void main() {
+  ivec2 icoord = ivec2(gl_FragCoord.xy);
+
+  int colorsamples = textureSamples(color);
+  FragColor = vec4(0.0);
+  for(int i=0;i<colorsamples;++i) {
+    FragColor += texelFetch(color, icoord, i);
+  }
+  FragColor *= 1.0/float(colorsamples);
+}
+)GLSL";
+
 void frame_allocate_objects(ObjectRef<Frame> frameObj)
 {
   auto &gl = frameObj->thisDevice->gl;
@@ -97,6 +139,18 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
   GLint max_samples = 4;
   gl.GetIntegerv(GL_MAX_SAMPLES, &max_samples);
   GLint samples = std::min(8, max_samples);
+
+  if(frameObj->resolve_shader == 0) {
+    const char *version = gl.VERSION_4_3 ? version_430 : version_320_es;
+
+    const char *resolve_vert[] = {version, full_screen_vert, nullptr};
+    const char *resolve_frag[] = {version, multisample_resolve_frag, nullptr};
+
+    frameObj->resolve_shader = shader_build_graphics_segmented(gl,
+      resolve_vert, nullptr, nullptr, nullptr, resolve_frag);
+    gl.GenVertexArrays(1, &frameObj->resolve_vao);
+  }
+
 
   // delete these in case this is a rebuild
   gl.DeleteBuffers(1, &frameObj->colorbuffer);
@@ -141,30 +195,31 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
   GLenum bufs[] = {GL_COLOR_ATTACHMENT0};
   gl.DrawBuffers(1, bufs);
 
-  gl.DeleteRenderbuffers(1, &frameObj->multicolortarget);
-  gl.DeleteRenderbuffers(1, &frameObj->multidepthtarget);
+  // second framebuffer to resolve multisampling
+  gl.DeleteTextures(1, &frameObj->multicolortarget);
+  gl.DeleteTextures(1, &frameObj->multidepthtarget);
   gl.DeleteFramebuffers(1, &frameObj->multifbo);
 
-  gl.GenRenderbuffers(1, &frameObj->multicolortarget);
-  gl.BindRenderbuffer(GL_RENDERBUFFER, frameObj->multicolortarget);
-  gl.RenderbufferStorageMultisample(
-      GL_RENDERBUFFER, samples, format, width, height);
+  gl.GenTextures(1, &frameObj->multicolortarget);
+  gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multicolortarget);
+  gl.TexStorage2DMultisample(
+      GL_TEXTURE_2D_MULTISAMPLE, samples, format, width, height, GL_TRUE);
 
-  gl.GenRenderbuffers(1, &frameObj->multidepthtarget);
-  gl.BindRenderbuffer(GL_RENDERBUFFER, frameObj->multidepthtarget);
-  gl.RenderbufferStorageMultisample(
-      GL_RENDERBUFFER, samples, GL_DEPTH_COMPONENT32F, width, height);
+  gl.GenTextures(1, &frameObj->multidepthtarget);
+  gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multidepthtarget);
+  gl.TexStorage2DMultisample(
+      GL_TEXTURE_2D_MULTISAMPLE, samples, GL_DEPTH_COMPONENT32F, width, height, GL_TRUE);
 
   gl.GenFramebuffers(1, &frameObj->multifbo);
   gl.BindFramebuffer(GL_FRAMEBUFFER, frameObj->multifbo);
-  gl.FramebufferRenderbuffer(GL_FRAMEBUFFER,
+  gl.FramebufferTexture(GL_FRAMEBUFFER,
       GL_COLOR_ATTACHMENT0,
-      GL_RENDERBUFFER,
-      frameObj->multicolortarget);
-  gl.FramebufferRenderbuffer(GL_FRAMEBUFFER,
+      frameObj->multicolortarget,
+      0);
+  gl.FramebufferTexture(GL_FRAMEBUFFER,
       GL_DEPTH_ATTACHMENT,
-      GL_RENDERBUFFER,
-      frameObj->multidepthtarget);
+      frameObj->multidepthtarget,
+      0);
   gl.DrawBuffers(1, bufs);
 
   gl.ClearColor(1, 0, 1, 1);
@@ -225,7 +280,13 @@ void frame_map_color(ObjectRef<Frame> frameObj, uint64_t size, void **ptr)
 void frame_map_depth(ObjectRef<Frame> frameObj, uint64_t size, void **ptr)
 {
   auto &gl = frameObj->thisDevice->gl;
+  uint32_t width = frameObj->size[0];
+  uint32_t height = frameObj->size[1];
+
+  gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->fbo);
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->depthbuffer);
+  gl.ReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
+
   *ptr = gl.MapBufferRange(GL_PIXEL_PACK_BUFFER, 0, size, GL_MAP_READ_BIT);
 }
 
@@ -623,8 +684,8 @@ void frame_render(ObjectRef<Frame> frameObj,
   mapping[1] = ambient_index;
   mapping[2] = collector.lights.size() / 4; // light count
   mapping[3] = frameObj->occlusionMode != STRING_ENUM_none;
-  mapping[4] = width; // padding
-  mapping[5] = height; // padding
+  mapping[4] = width;
+  mapping[5] = height;
   mapping[6] = 0; // padding
   mapping[7] = 0; // padding
   std::memcpy(mapping + 8,
@@ -802,11 +863,27 @@ void frame_render(ObjectRef<Frame> frameObj,
   for (auto &command : collector.draws) {
     command(gl, 0);
   }
-
+/*
   gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->multifbo);
   gl.BindFramebuffer(GL_DRAW_FRAMEBUFFER, frameObj->fbo);
   gl.BlitFramebuffer(
       0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+*/
+
+  gl.BindFramebuffer(GL_DRAW_FRAMEBUFFER, frameObj->fbo);
+  gl.UseProgram(frameObj->resolve_shader);
+
+  gl.ActiveTexture(GL_TEXTURE0 + 0);
+  gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multicolortarget);
+  gl.Uniform1i(0, 0);
+
+  gl.ActiveTexture(GL_TEXTURE0 + 1);
+  gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multidepthtarget);
+  gl.Uniform1i(1, 1);
+
+  gl.BindVertexArray(frameObj->resolve_vao);
+  gl.Disable(GL_DEPTH_TEST);
+  gl.DrawArrays(GL_TRIANGLES, 0, 3);
 
   gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->fbo);
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->colorbuffer);
@@ -914,7 +991,8 @@ void frame_free_objects(Object<Device> *deviceObj,
     GLuint multicolortarget,
     GLuint multidepthtarget,
     GLuint multifbo,
-    GLuint duration_query)
+    GLuint duration_query,
+    GLuint resolve_shader)
 {
   auto &gl = deviceObj->gl;
   gl.DeleteBuffers(1, &colorbuffer);
@@ -932,6 +1010,7 @@ void frame_free_objects(Object<Device> *deviceObj,
   } else if (gl.EXT_disjoint_timer_query) {
     gl.DeleteQueriesEXT(1, &duration_query);
   }
+  gl.DeleteProgram(resolve_shader);
 }
 
 Object<Frame>::~Object()
@@ -946,7 +1025,8 @@ Object<Frame>::~Object()
       multicolortarget,
       multidepthtarget,
       multifbo,
-      duration_query);
+      duration_query,
+      resolve_shader);
 }
 
 } // namespace visgl

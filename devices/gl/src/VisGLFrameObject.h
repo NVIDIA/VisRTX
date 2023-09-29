@@ -56,6 +56,9 @@ class Object<Frame> : public DefaultObject<Frame, FrameObjectBase>
   GLuint multidepthtarget = 0;
   GLuint multifbo = 0;
 
+  GLuint resolve_shader = 0;
+  GLuint resolve_vao = 0;
+
   GLuint shadowubo = 0;
   bool shadow_dirty = true;
   int32_t shadow_map_size = 4096;
