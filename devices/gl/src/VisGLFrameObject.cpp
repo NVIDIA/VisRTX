@@ -242,6 +242,7 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
 
   gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->fbo);
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->colorbuffer);
+  gl.ReadBuffer(GL_COLOR_ATTACHMENT0);
   gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
   if (frameObj->sceneubo == 0) {
@@ -295,6 +296,7 @@ void frame_map_depth(ObjectRef<Frame> frameObj, uint64_t size, void **ptr)
 
   gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->fbo);
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->depthbuffer);
+  gl.ReadBuffer(GL_COLOR_ATTACHMENT1);
   gl.ReadPixels(0, 0, width, height, GL_DEPTH_COMPONENT, GL_FLOAT, 0);
 
   *ptr = gl.MapBufferRange(GL_PIXEL_PACK_BUFFER, 0, size, GL_MAP_READ_BIT);
