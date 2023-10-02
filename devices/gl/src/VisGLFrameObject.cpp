@@ -33,6 +33,7 @@
 
 
 #include "shader_compile_segmented.h"
+#include "shader_blocks.h"
 #include "math_util.h"
 
 #include <cstdlib>
@@ -104,11 +105,8 @@ void main() {
 )GLSL";
 
 const char *multisample_resolve_frag = R"GLSL(
-precision highp float;
-precision highp int;
-
 highp layout(binding = 0) uniform sampler2DMS color;
-//highp layout(binding = 1) uniform sampler2DMS depth;
+highp layout(binding = 1) uniform sampler2DMS depth;
 
 in vec2 screen_coord;
 
@@ -116,14 +114,26 @@ layout(location = 0) out vec4 FragColor;
 layout(location = 1) out float LinearDepth;
 
 void main() {
+  mat4 projection = transforms[cameraIdx];
+  mat4 inverse_projection = transforms[cameraIdx+1u];
+  vec4 camera_position = transforms[cameraIdx+6u][0];
+
   ivec2 icoord = ivec2(gl_FragCoord.xy);
 
   int colorsamples = textureSamples(color);
   FragColor = vec4(0.0);
+  float min_depth = 1.0;
+
   for(int i=0;i<colorsamples;++i) {
     FragColor += texelFetch(color, icoord, i);
+    min_depth = min(min_depth, texelFetch(depth, icoord, i).x);
   }
   FragColor *= 1.0/float(colorsamples);
+
+  vec4 position = inverse_projection*vec4(screen_coord, 2.0*min_depth-1.0, 1.0);
+  position *= 1.0/position.w;
+
+  LinearDepth = distance(position.xyz, camera_position.xyz);
 }
 )GLSL";
 
@@ -144,7 +154,7 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
     const char *version = gl.VERSION_4_3 ? version_430 : version_320_es;
 
     const char *resolve_vert[] = {version, full_screen_vert, nullptr};
-    const char *resolve_frag[] = {version, multisample_resolve_frag, nullptr};
+    const char *resolve_frag[] = {version, shader_preamble, multisample_resolve_frag, nullptr};
 
     frameObj->resolve_shader = shader_build_graphics_segmented(gl,
       resolve_vert, nullptr, nullptr, nullptr, resolve_frag);
@@ -180,7 +190,7 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
 
   gl.GenTextures(1, &frameObj->depthtarget);
   gl.BindTexture(GL_TEXTURE_2D, frameObj->depthtarget);
-  gl.TexStorage2D(GL_TEXTURE_2D, 1, GL_DEPTH_COMPONENT32F, width, height);
+  gl.TexStorage2D(GL_TEXTURE_2D, 1, GL_R32F, width, height);
   gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -191,9 +201,9 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
   gl.FramebufferTexture(
       GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, frameObj->colortarget, 0);
   gl.FramebufferTexture(
-      GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, frameObj->depthtarget, 0);
-  GLenum bufs[] = {GL_COLOR_ATTACHMENT0};
-  gl.DrawBuffers(1, bufs);
+      GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, frameObj->depthtarget, 0);
+  GLenum bufs[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+  gl.DrawBuffers(2, bufs);
 
   // second framebuffer to resolve multisampling
   gl.DeleteTextures(1, &frameObj->multicolortarget);
@@ -863,6 +873,7 @@ void frame_render(ObjectRef<Frame> frameObj,
   for (auto &command : collector.draws) {
     command(gl, 0);
   }
+
 /*
   gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->multifbo);
   gl.BindFramebuffer(GL_DRAW_FRAMEBUFFER, frameObj->fbo);
@@ -870,22 +881,20 @@ void frame_render(ObjectRef<Frame> frameObj,
       0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 */
 
-  gl.BindFramebuffer(GL_DRAW_FRAMEBUFFER, frameObj->fbo);
+  // custom msaa resolve with depth linearization
+  gl.BindFramebuffer(GL_FRAMEBUFFER, frameObj->fbo);
   gl.UseProgram(frameObj->resolve_shader);
 
   gl.ActiveTexture(GL_TEXTURE0 + 0);
   gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multicolortarget);
-  gl.Uniform1i(0, 0);
 
   gl.ActiveTexture(GL_TEXTURE0 + 1);
   gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multidepthtarget);
-  gl.Uniform1i(1, 1);
 
   gl.BindVertexArray(frameObj->resolve_vao);
   gl.Disable(GL_DEPTH_TEST);
   gl.DrawArrays(GL_TRIANGLES, 0, 3);
 
-  gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->fbo);
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->colorbuffer);
   gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
