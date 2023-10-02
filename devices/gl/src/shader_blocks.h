@@ -112,7 +112,7 @@ layout(std140, binding = 0) uniform WorldBlock {
   uint occlusionMode;
   uint frame_width;
   uint frame_height;
-  uint pad4;
+  uint samples;
   uint pad5;
   uvec4 lightIndices[254];
 };

@@ -120,7 +120,7 @@ void main() {
 
   ivec2 icoord = ivec2(gl_FragCoord.xy);
 
-  int colorsamples = textureSamples(color);
+  int colorsamples = int(samples);
   FragColor = vec4(0.0);
   float min_depth = 1.0;
 
@@ -148,7 +148,7 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
 
   GLint max_samples = 4;
   gl.GetIntegerv(GL_MAX_SAMPLES, &max_samples);
-  GLint samples = std::min(8, max_samples);
+  frameObj->samples = std::min(8, max_samples);
 
   if(frameObj->resolve_shader == 0) {
     const char *version = gl.VERSION_4_3 ? version_430 : version_320_es;
@@ -213,12 +213,12 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
   gl.GenTextures(1, &frameObj->multicolortarget);
   gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multicolortarget);
   gl.TexStorage2DMultisample(
-      GL_TEXTURE_2D_MULTISAMPLE, samples, format, width, height, GL_TRUE);
+      GL_TEXTURE_2D_MULTISAMPLE, frameObj->samples, format, width, height, GL_TRUE);
 
   gl.GenTextures(1, &frameObj->multidepthtarget);
   gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multidepthtarget);
   gl.TexStorage2DMultisample(
-      GL_TEXTURE_2D_MULTISAMPLE, samples, GL_DEPTH_COMPONENT32F, width, height, GL_TRUE);
+      GL_TEXTURE_2D_MULTISAMPLE, frameObj->samples, GL_DEPTH_COMPONENT32F, width, height, GL_TRUE);
 
   gl.GenFramebuffers(1, &frameObj->multifbo);
   gl.BindFramebuffer(GL_FRAMEBUFFER, frameObj->multifbo);
@@ -698,7 +698,7 @@ void frame_render(ObjectRef<Frame> frameObj,
   mapping[3] = frameObj->occlusionMode != STRING_ENUM_none;
   mapping[4] = width;
   mapping[5] = height;
-  mapping[6] = 0; // padding
+  mapping[6] = frameObj->samples; // padding
   mapping[7] = 0; // padding
   std::memcpy(mapping + 8,
       collector.lights.data(),

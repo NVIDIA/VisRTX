@@ -45,6 +45,7 @@ class Object<Frame> : public DefaultObject<Frame, FrameObjectBase>
   std::array<uint32_t, 2> size{0, 0};
   ANARIDataType colorType = ANARI_UNKNOWN;
   ANARIDataType depthType = ANARI_UNKNOWN;
+  GLint samples;
 
   GLuint colortarget = 0;
   GLuint colorbuffer = 0;
