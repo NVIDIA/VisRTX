@@ -54,6 +54,9 @@
 #include "renderer/SciVis.h"
 #include "renderer/Test.h"
 
+// std
+#include <future>
+
 namespace visrtx {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -591,53 +594,64 @@ void VisRTXDevice::initDevice()
 
   auto init_module = [&](OptixModule &module,
                          unsigned char *ptx,
-                         const char *name) {
-    reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
+                         const char *name) -> std::future<void> {
+    return std::async([&]() {
+      reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
 
-    const std::string ptxCode = (const char *)ptx;
+      const std::string ptxCode = (const char *)ptx;
 
-    std::string log(2048, '\n');
-    size_t sizeof_log = log.size();
+      std::string log(2048, '\n');
+      size_t sizeof_log = log.size();
 
 #if OPTIX_VERSION < 70700
-    OPTIX_CHECK(optixModuleCreateFromPTX(state.optixContext,
-        &moduleCompileOptions,
-        &pipelineCompileOptions,
-        ptxCode.c_str(),
-        ptxCode.size(),
-        log.data(),
-        &sizeof_log,
-        &module));
+      OPTIX_CHECK(optixModuleCreateFromPTX(state.optixContext,
+          &moduleCompileOptions,
+          &pipelineCompileOptions,
+          ptxCode.c_str(),
+          ptxCode.size(),
+          log.data(),
+          &sizeof_log,
+          &module));
 #else
-    OPTIX_CHECK(optixModuleCreate(state.optixContext,
-        &moduleCompileOptions,
-        &pipelineCompileOptions,
-        ptxCode.c_str(),
-        ptxCode.size(),
-        log.data(),
-        &sizeof_log,
-        &module));
+      OPTIX_CHECK(optixModuleCreate(state.optixContext,
+          &moduleCompileOptions,
+          &pipelineCompileOptions,
+          ptxCode.c_str(),
+          ptxCode.size(),
+          log.data(),
+          &sizeof_log,
+          &module));
 #endif
 
-    if (sizeof_log > 1)
-      reportMessage(ANARI_SEVERITY_DEBUG, "PTX Compile Log:\n%s", log.data());
+      if (sizeof_log > 1)
+        reportMessage(ANARI_SEVERITY_DEBUG, "PTX Compile Log:\n%s", log.data());
+    });
   };
 
-  init_module(state.rendererModules.debug, Debug::ptx(), "'debug' renderer");
-  init_module(
-      state.rendererModules.raycast, Raycast::ptx(), "'raycast' renderer");
-  init_module(state.rendererModules.ambientOcclusion,
-      AmbientOcclusion::ptx(),
-      "'ao' renderer");
-  init_module(state.rendererModules.diffusePathTracer,
-      DiffusePathTracer::ptx(),
-      "'dpt' renderer");
-  init_module(state.rendererModules.scivis, SciVis::ptx(), "'scivis' renderer");
-  init_module(state.rendererModules.test, Test::ptx(), "'test' renderer");
+  std::vector<std::future<void>> compileTasks;
 
-  init_module(state.intersectionModules.customIntersectors,
-      intersection_ptx(),
-      "custom intersectors");
+  compileTasks.push_back(init_module(
+      state.rendererModules.debug, Debug::ptx(), "'debug' renderer"));
+  compileTasks.push_back(init_module(
+      state.rendererModules.raycast, Raycast::ptx(), "'raycast' renderer"));
+  compileTasks.push_back(init_module(state.rendererModules.ambientOcclusion,
+      AmbientOcclusion::ptx(),
+      "'ao' renderer"));
+  compileTasks.push_back(init_module(state.rendererModules.diffusePathTracer,
+      DiffusePathTracer::ptx(),
+      "'dpt' renderer"));
+  compileTasks.push_back(init_module(
+      state.rendererModules.scivis, SciVis::ptx(), "'scivis' renderer"));
+  compileTasks.push_back(
+      init_module(state.rendererModules.test, Test::ptx(), "'test' renderer"));
+
+  compileTasks.push_back(
+      init_module(state.intersectionModules.customIntersectors,
+          intersection_ptx(),
+          "custom intersectors"));
+
+  for (auto &f : compileTasks)
+    f.wait();
 
   OptixBuiltinISOptions builtinISOptions = {};
   builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;
