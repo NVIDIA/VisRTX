@@ -589,7 +589,11 @@ void VisRTXDevice::initDevice()
 
   auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
-  auto init_module = [&](OptixModule &module, unsigned char *ptx) {
+  auto init_module = [&](OptixModule &module,
+                         unsigned char *ptx,
+                         const char *name) {
+    reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
+
     const std::string ptxCode = (const char *)ptx;
 
     std::string log(2048, '\n');
@@ -619,22 +623,21 @@ void VisRTXDevice::initDevice()
       reportMessage(ANARI_SEVERITY_DEBUG, "PTX Compile Log:\n%s", log.data());
   };
 
-  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'debug' renderer");
-  init_module(state.rendererModules.debug, Debug::ptx());
-  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'raycast' renderer");
-  init_module(state.rendererModules.raycast, Raycast::ptx());
-  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'ao' renderer");
-  init_module(state.rendererModules.ambientOcclusion, AmbientOcclusion::ptx());
-  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'dpt' renderer");
+  init_module(state.rendererModules.debug, Debug::ptx(), "'debug' renderer");
   init_module(
-      state.rendererModules.diffusePathTracer, DiffusePathTracer::ptx());
-  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'scivis' renderer");
-  init_module(state.rendererModules.scivis, SciVis::ptx());
-  reportMessage(ANARI_SEVERITY_INFO, "Compiling 'test' renderer");
-  init_module(state.rendererModules.test, Test::ptx());
+      state.rendererModules.raycast, Raycast::ptx(), "'raycast' renderer");
+  init_module(state.rendererModules.ambientOcclusion,
+      AmbientOcclusion::ptx(),
+      "'ao' renderer");
+  init_module(state.rendererModules.diffusePathTracer,
+      DiffusePathTracer::ptx(),
+      "'dpt' renderer");
+  init_module(state.rendererModules.scivis, SciVis::ptx(), "'scivis' renderer");
+  init_module(state.rendererModules.test, Test::ptx(), "'test' renderer");
 
-  reportMessage(ANARI_SEVERITY_INFO, "Compiling custom intersectors");
-  init_module(state.intersectionModules.customIntersectors, intersection_ptx());
+  init_module(state.intersectionModules.customIntersectors,
+      intersection_ptx(),
+      "custom intersectors");
 
   OptixBuiltinISOptions builtinISOptions = {};
   builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_ROUND_LINEAR;

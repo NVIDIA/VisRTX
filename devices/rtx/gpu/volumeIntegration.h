@@ -179,17 +179,25 @@ RT_FUNCTION float rayMarchAllVolumes(ScreenSample &ss,
     RAY_TYPE type,
     float tfar,
     vec3 &color,
-    float &opacity)
+    float &opacity,
+    uint32_t &objID,
+    uint32_t &instID)
 {
   VolumeHit hit;
   ray.t.upper = tfar;
   float depth = tfar;
+  bool firstHit = true;
 
   do {
     hit.foundHit = false;
     intersectVolume(ss, ray, type, &hit);
     if (!hit.foundHit)
       break;
+    else if (firstHit) {
+      objID = hit.volumeData->id;
+      instID = hit.instID;
+      firstHit = false;
+    }
     depth = min(depth, hit.localRay.t.lower);
     hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
     detail::rayMarchVolume(ss, hit, &color, opacity);
@@ -206,7 +214,9 @@ RT_FUNCTION float sampleDistanceAllVolumes(ScreenSample &ss,
     float tfar,
     vec3 &albedo,
     float &extinction,
-    float &transmittance)
+    float &transmittance,
+    uint32_t &objID,
+    uint32_t &instID)
 {
   VolumeHit hit;
   ray.t.upper = tfar;
@@ -227,6 +237,8 @@ RT_FUNCTION float sampleDistanceAllVolumes(ScreenSample &ss,
       albedo = alb;
       extinction = ext;
       transmittance = tr;
+      objID = hit.volumeData->id;
+      instID = hit.instID;
     }
     ray.t.lower = hit.localRay.t.upper + 1e-3f;
   }

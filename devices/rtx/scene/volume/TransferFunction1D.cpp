@@ -43,6 +43,8 @@ TransferFunction1D::~TransferFunction1D()
 
 void TransferFunction1D::commit()
 {
+  Volume::commit();
+
   cleanup();
 
   m_params.color = getParamObject<Array1D>("color");
@@ -146,7 +148,7 @@ bool TransferFunction1D::isValid() const
 
 VolumeGPUData TransferFunction1D::gpuData() const
 {
-  VolumeGPUData retval{};
+  VolumeGPUData retval = Volume::gpuData();
   retval.type = VolumeType::SCIVIS;
   retval.bounds = m_params.field->bounds();
   retval.stepSize = m_params.field->stepSize();

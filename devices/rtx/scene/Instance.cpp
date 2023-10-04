@@ -52,10 +52,16 @@ Instance::~Instance()
 
 void Instance::commit()
 {
+  m_id = getParam<uint32_t>("id", ~0u);
   m_xfm = getParam<mat4x3>("transform", getParam<mat4>("transform", mat4(1)));
   m_group = getParamObject<Group>("group");
   if (!m_group)
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'group' on ANARIInstance");
+}
+
+uint32_t Instance::userID() const
+{
+  return m_id;
 }
 
 mat4x3 Instance::xfm() const

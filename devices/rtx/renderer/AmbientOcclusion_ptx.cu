@@ -92,6 +92,9 @@ RT_PROGRAM void __raygen__()
   vec3 outputNormal = ray.dir;
   float outputOpacity = 0.f;
   float depth = 1e30f;
+  uint32_t primID = ~0u;
+  uint32_t objID = ~0u;
+  uint32_t instID = ~0u;
   bool firstHit = true;
 
   while (outputOpacity < 0.99f) {
@@ -103,13 +106,32 @@ RT_PROGRAM void __raygen__()
     float opacity = 0.f;
 
     if (surfaceHit.foundHit) {
-      depth = min(depth,
-          rayMarchAllVolumes(
-              ss, ray, RayType::PRIMARY, surfaceHit.t, color, opacity));
+      uint32_t vObjID = ~0u;
+      uint32_t vInstID = ~0u;
+      const float vDepth = rayMarchAllVolumes(ss,
+          ray,
+          RayType::PRIMARY,
+          surfaceHit.t,
+          color,
+          opacity,
+          vObjID,
+          vInstID);
 
       if (firstHit) {
-        outputNormal = surfaceHit.Ng;
-        depth = min(depth, surfaceHit.t);
+        const bool volumeFirst = vDepth < surfaceHit.t;
+        if (volumeFirst) {
+          outputNormal = -ray.dir;
+          depth = vDepth;
+          primID = 0;
+          objID = vObjID;
+          instID = vInstID;
+        } else {
+          outputNormal = surfaceHit.Ng;
+          depth = surfaceHit.t;
+          primID = surfaceHit.primID;
+          objID = surfaceHit.objID;
+          instID = surfaceHit.instID;
+        }
         firstHit = false;
       }
 
@@ -135,11 +157,23 @@ RT_PROGRAM void __raygen__()
 
       ray.t.lower = surfaceHit.t + surfaceHit.epsilon;
     } else {
-      const float volumeDepth = rayMarchAllVolumes(
-          ss, ray, RayType::PRIMARY, ray.t.upper, color, opacity);
+      uint32_t vObjID = ~0u;
+      uint32_t vInstID = ~0u;
+      const float volumeDepth = rayMarchAllVolumes(ss,
+          ray,
+          RayType::PRIMARY,
+          ray.t.upper,
+          color,
+          opacity,
+          vObjID,
+          vInstID);
 
-      if (firstHit)
+      if (firstHit) {
         depth = min(depth, volumeDepth);
+        primID = 0;
+        objID = vObjID;
+        instID = vInstID;
+      }
 
       color *= opacity;
 
@@ -157,7 +191,10 @@ RT_PROGRAM void __raygen__()
       vec4(outputColor, outputOpacity),
       depth,
       outputColor,
-      outputNormal);
+      outputNormal,
+      primID,
+      objID,
+      instID);
 }
 
 } // namespace visrtx

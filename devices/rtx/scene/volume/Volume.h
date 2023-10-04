@@ -40,15 +40,21 @@ struct Volume : public RegisteredObject<VolumeGPUData>
   Volume(DeviceGlobalState *d);
   ~Volume() = default;
 
+  void commit() override;
+
   OptixBuildInput buildInput() const;
 
   void markCommitted() override;
 
   static Volume *createInstance(std::string_view subtype, DeviceGlobalState *d);
 
+ protected:
+  VolumeGPUData gpuData() const override;
+
  private:
   mutable DeviceBuffer m_aabbsBuffer;
   mutable CUdeviceptr m_aabbsBufferPtr{};
+  uint32_t m_id{~0u};
 };
 
 } // namespace visrtx

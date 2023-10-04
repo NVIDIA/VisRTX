@@ -98,6 +98,9 @@ RT_PROGRAM void __raygen__()
   vec3 outColor(bg);
   vec3 outNormal = ray.dir;
   float outDepth = tmax;
+  uint32_t primID = ~0u;
+  uint32_t objID = ~0u;
+  uint32_t instID = ~0u;
 
   while (true) {
     if (debug())
@@ -108,13 +111,17 @@ RT_PROGRAM void __raygen__()
     float volumeOpacity = 0.f;
     vec3 volumeColor(0.f);
     float Tr = 0.f;
+    uint32_t vObjID = ~0u;
+    uint32_t vInstID = ~0u;
     const float volumeDepth = sampleDistanceAllVolumes(ss,
         ray,
         RayType::DIFFUSE_RADIANCE,
         hit.foundHit ? hit.t : ray.t.upper,
         volumeColor,
         volumeOpacity,
-        Tr);
+        Tr,
+        vObjID,
+        vInstID);
 
     const bool volumeHit = Tr < 1.f && (!hit.foundHit || volumeDepth < hit.t);
 
@@ -164,8 +171,12 @@ RT_PROGRAM void __raygen__()
     ray.t.upper = rendererParams.occlusionDistance;
 
     if (pathData.depth == 0) {
-      outDepth = min(hit.t, volumeDepth);
+      const bool volumeFirst = volumeDepth < hit.t;
+      outDepth = volumeFirst ? volumeDepth : hit.t;
       outNormal = hit.Ng; // TODO: for volume (gradient?)
+      primID = volumeFirst ? 0 : hit.primID;
+      objID = volumeFirst ? vObjID : hit.objID;
+      instID = volumeFirst ? vInstID : hit.instID;
     }
   }
 
@@ -174,14 +185,20 @@ RT_PROGRAM void __raygen__()
   //   Ld = ...;
   // }
 
-  vec3 color =
-      pathData.depth ? pathData.Lw * Ld : vec3(bg);
+  vec3 color = pathData.depth ? pathData.Lw * Ld : vec3(bg);
   if (crosshair())
     color = vec3(1) - color;
   if (debug())
     printf("========== END: FrameID %i ==========\n", frameData.fb.frameID);
-  accumResults(
-      frameData.fb, ss.pixel, vec4(color, 1.f), outDepth, outColor, outNormal);
+  accumResults(frameData.fb,
+      ss.pixel,
+      vec4(color, 1.f),
+      outDepth,
+      outColor,
+      outNormal,
+      primID,
+      objID,
+      instID);
 }
 
 } // namespace visrtx
