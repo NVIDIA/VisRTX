@@ -44,6 +44,8 @@ struct Instance : public Object
 
   void commit() override;
 
+  uint32_t userID() const;
+
   mat4x3 xfm() const;
   bool xfmIsIdentity() const;
 
@@ -57,6 +59,7 @@ struct Instance : public Object
  private:
   mat4x3 m_xfm;
   helium::IntrusivePtr<Group> m_group;
+  uint32_t m_id{~0u};
 };
 
 } // namespace visrtx

@@ -139,6 +139,8 @@ void World::commit()
   } else
     m_zeroGroup->removeParam("light");
 
+  m_zeroInstance->setParam("id", getParam<uint32_t>("id", ~0u));
+
   m_zeroGroup->commit();
   m_zeroInstance->commit();
 
@@ -337,12 +339,13 @@ void World::buildInstanceSurfaceGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *sd = m_instanceSurfaceGPUData.dataHost();
+    auto id = inst->userID();
     if (group->containsTriangleGeometry())
-      sd[instID++] = {group->surfaceTriangleGPUIndices().data()};
+      sd[instID++] = {group->surfaceTriangleGPUIndices().data(), id};
     if (group->containsCurveGeometry())
-      sd[instID++] = {group->surfaceCurveGPUIndices().data()};
+      sd[instID++] = {group->surfaceCurveGPUIndices().data(), id};
     if (group->containsUserGeometry())
-      sd[instID++] = {group->surfaceUserGPUIndices().data()};
+      sd[instID++] = {group->surfaceUserGPUIndices().data(), id};
   });
 
   m_instanceSurfaceGPUData.upload();
@@ -356,8 +359,9 @@ void World::buildInstanceVolumeGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *vd = m_instanceVolumeGPUData.dataHost();
+    auto id = inst->userID();
     if (group->containsVolumes())
-      vd[instID++] = {group->volumeGPUIndices().data()};
+      vd[instID++] = {group->volumeGPUIndices().data(), id};
   });
 
   m_instanceVolumeGPUData.upload();

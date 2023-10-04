@@ -79,6 +79,9 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   void *mapGPUColorBuffer();
   void *mapDepthBuffer();
   void *mapGPUDepthBuffer();
+  void *mapPrimIDBuffer();
+  void *mapObjIDBuffer();
+  void *mapInstIDBuffer();
   void *mapAlbedoBuffer();
   void *mapNormalBuffer();
 
@@ -100,6 +103,9 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
 
   anari::DataType m_colorType{ANARI_UNKNOWN};
   anari::DataType m_depthType{ANARI_UNKNOWN};
+  anari::DataType m_primIDType{ANARI_UNKNOWN};
+  anari::DataType m_objIDType{ANARI_UNKNOWN};
+  anari::DataType m_instIDType{ANARI_UNKNOWN};
   anari::DataType m_albedoType{ANARI_UNKNOWN};
   anari::DataType m_normalType{ANARI_UNKNOWN};
 
@@ -107,6 +113,9 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   HostDeviceArray<uint8_t> m_pixelBuffer;
 
   HostDeviceArray<float> m_depthBuffer;
+  HostDeviceArray<uint32_t> m_primIDBuffer;
+  HostDeviceArray<uint32_t> m_objIDBuffer;
+  HostDeviceArray<uint32_t> m_instIDBuffer;
 
   thrust::device_vector<vec3> m_accumAlbedo;
   thrust::device_vector<vec3> m_deviceAlbedoBuffer;

@@ -41,6 +41,7 @@ Surface::Surface(DeviceGlobalState *d)
 
 void Surface::commit()
 {
+  m_id = getParam<uint32_t>("id", ~0u);
   m_geometry = getParamObject<Geometry>("geometry");
   m_material = getParamObject<Material>("material");
 
@@ -99,6 +100,7 @@ bool Surface::materialIsValid() const
 SurfaceGPUData Surface::gpuData() const
 {
   SurfaceGPUData retval;
+  retval.id = m_id;
   retval.geometry = geometry() ? geometry()->index() : -1;
   retval.material = material() ? material()->index() : -1;
   return retval;

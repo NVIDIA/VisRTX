@@ -98,7 +98,9 @@ struct SurfaceHit
   vec3 Ng;
   vec3 Ns;
   vec3 uvw;
-  uint32_t primID;
+  uint32_t primID{~0u};
+  uint32_t objID{~0u};
+  uint32_t instID{~0u};
   float epsilon;
   const GeometryGPUData *geometry{nullptr};
   const MaterialGPUData *material{nullptr};

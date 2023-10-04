@@ -42,6 +42,11 @@ Volume::Volume(DeviceGlobalState *d)
   setRegistry(d->registry.volumes);
 }
 
+void Volume::commit()
+{
+  m_id = getParam<uint32_t>("id", ~0u);
+}
+
 OptixBuildInput Volume::buildInput() const
 {
   OptixBuildInput buildInput{};
@@ -75,6 +80,13 @@ Volume *Volume::createInstance(std::string_view subtype, DeviceGlobalState *d)
     return new TransferFunction1D(d);
   else
     return new UnknownVolume(subtype, d);
+}
+
+VolumeGPUData Volume::gpuData() const
+{
+  VolumeGPUData retval{};
+  retval.id = m_id;
+  return retval;
 }
 
 } // namespace visrtx

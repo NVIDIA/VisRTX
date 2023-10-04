@@ -36,6 +36,18 @@
 
 namespace visrtx {
 
+RT_FUNCTION const InstanceSurfaceGPUData &getSurfaceInstanceData(
+    const FrameGPUData &frameData, DeviceObjectIndex idx)
+{
+  return frameData.world.surfaceInstances[idx];
+}
+
+RT_FUNCTION const InstanceVolumeGPUData &getVolumeInstanceData(
+    const FrameGPUData &frameData, DeviceObjectIndex idx)
+{
+  return frameData.world.volumeInstances[idx];
+}
+
 RT_FUNCTION const GeometryGPUData &getGeometryData(
     const FrameGPUData &frameData, DeviceObjectIndex idx)
 {
@@ -286,6 +298,7 @@ RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
 
   auto &gd = getGeometryData(fd, sd.geometry);
   auto &md = getMaterialData(fd, sd.material);
+  auto &isd = getSurfaceInstanceData(fd, ray::instID());
 
   hit.foundHit = true;
   hit.geometry = &gd;
@@ -294,6 +307,8 @@ RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
   hit.hitpoint = ray::hitpoint();
   hit.uvw = ray::uvw(gd.type);
   hit.primID = ray::primID();
+  hit.objID = sd.id;
+  hit.instID = isd.id;
   hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
   ray::computeNormal(gd, ray::primID(), hit);
 }
@@ -303,11 +318,13 @@ RT_FUNCTION void populateVolumeHit(VolumeHit &hit)
   auto &ss = ray::screenSample();
   auto &fd = *ss.frameData;
 
+  auto &ivd = getVolumeInstanceData(fd, ray::instID());
+
   hit.foundHit = true;
   hit.volumeData = &ray::volumeData(fd);
 
   hit.volID = ray::objID();
-  hit.instID = ray::instID();
+  hit.instID = ivd.id;
 
   const auto ro = optixGetWorldRayOrigin();
   hit.localRay.org = make_vec3(optixTransformPointFromWorldToObjectSpace(ro));

@@ -290,6 +290,7 @@ struct SurfaceGPUData
 {
   DeviceObjectIndex material;
   DeviceObjectIndex geometry;
+  uint32_t id;
 };
 
 // Spatial Fields //
@@ -351,6 +352,7 @@ struct VolumeGPUData
   } data;
   float stepSize;
   box3 bounds;
+  uint32_t id;
 };
 
 // Lights //
@@ -391,11 +393,13 @@ struct LightGPUData
 struct InstanceSurfaceGPUData
 {
   const DeviceObjectIndex *surfaces;
+  uint32_t id;
 };
 
 struct InstanceVolumeGPUData
 {
   const DeviceObjectIndex *volumes;
+  uint32_t id;
 };
 
 struct InstanceLightGPUData
@@ -491,6 +495,9 @@ struct FrameBuffers
   glm::vec4 *outColorVec4;
   uint32_t *outColorUint;
   float *depth;
+  uint32_t *primID;
+  uint32_t *objID;
+  uint32_t *instID;
   glm::vec3 *albedo;
   glm::vec3 *normal;
 };

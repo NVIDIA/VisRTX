@@ -179,6 +179,9 @@ RT_PROGRAM void __raygen__()
   auto color = vec3(getBackground(frameData.renderer, ss.screen));
   auto depth = ray.t.upper;
   auto normal = ray.dir;
+  uint32_t primID = ~0u;
+  uint32_t objID = ~0u;
+  uint32_t instID = ~0u;
 
   SurfaceRayData srd{};
   intersectSurface(ss, ray, RayType::DEBUG, &srd);
@@ -187,20 +190,47 @@ RT_PROGRAM void __raygen__()
   intersectVolume(ss, ray, RayType::DEBUG, &vrd);
 
   if (srd.foundHit && vrd.foundHit) {
-    color = srd.t < vrd.localRay.t.lower ? srd.outColor : vrd.outColor;
-    depth = min(srd.t, vrd.localRay.t.lower);
-    normal = srd.t < vrd.localRay.t.lower ? srd.Ng : -ray.dir;
+    const bool volumeFirst = vrd.localRay.t.lower < srd.t;
+    if (volumeFirst) {
+      color = vrd.outColor;
+      depth = vrd.localRay.t.lower;
+      normal = -ray.dir;
+      primID = 0;
+      objID = vrd.volumeData->id;
+      instID = vrd.instID;
+    } else {
+      color = srd.outColor;
+      depth = srd.t;
+      normal = srd.Ng;
+      primID = srd.primID;
+      objID = srd.objID;
+      instID = srd.instID;
+    }
   } else if (srd.foundHit) {
     color = srd.outColor;
     depth = srd.t;
     normal = srd.Ng;
+    primID = srd.primID;
+    objID = srd.objID;
+    instID = srd.instID;
   } else if (vrd.foundHit) {
     color = vrd.outColor;
     depth = vrd.localRay.t.lower;
     normal = -ray.dir;
+    primID = 0;
+    objID = vrd.volumeData->id;
+    instID = vrd.instID;
   }
 
-  accumResults(frameData.fb, ss.pixel, vec4(color, 1.f), depth, color, normal);
+  accumResults(frameData.fb,
+      ss.pixel,
+      vec4(color, 1.f),
+      depth,
+      color,
+      normal,
+      primID,
+      objID,
+      instID);
 }
 
 } // namespace visrtx
