@@ -88,7 +88,6 @@ struct Group : public Object
   // Geometry //
 
   helium::IntrusivePtr<ObjectArray> m_surfaceData;
-  Span<Surface *> m_surfaces;
 
   std::vector<Surface *> m_surfacesTriangle;
   std::vector<Surface *> m_surfacesCurve;

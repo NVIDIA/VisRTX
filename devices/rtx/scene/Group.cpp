@@ -277,17 +277,18 @@ void Group::markCommitted()
 
 void Group::partitionValidGeometriesByType()
 {
-  m_surfaces.reset();
-  if (!m_surfaceData)
-    return;
-
-  m_surfaces = make_Span(
-      (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
   m_surfacesTriangle.clear();
   m_surfacesCurve.clear();
   m_surfacesUser.clear();
-  for (auto s : m_surfaces) {
-    if (!s->isValid()) {
+
+  if (!m_surfaceData)
+    return;
+
+  auto surfaces = make_Span(
+      (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
+
+  for (auto s : surfaces) {
+    if (!(s && s->isValid())) {
       reportMessage(ANARI_SEVERITY_WARNING,
           "visrtx::Group encountered invalid surface %p",
           s);
@@ -312,7 +313,7 @@ void Group::partitionValidVolumes()
   auto volumes = make_Span(
       (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
   for (auto v : volumes) {
-    if (!v->isValid()) {
+    if (!(v && v->isValid())) {
       reportMessage(ANARI_SEVERITY_WARNING,
           "visrtx::Group encountered invalid volume %p",
           v);
