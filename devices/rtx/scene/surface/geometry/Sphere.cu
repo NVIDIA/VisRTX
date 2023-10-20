@@ -82,11 +82,11 @@ void Sphere::commit()
   m_aabbs.resize(m_index ? m_index->size() : m_vertex->size());
 
   const float globalRadius = m_globalRadius;
-  float *radii = nullptr;
+  const float *radii = nullptr;
   if (m_vertexRadius)
     radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
 
-  auto *vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  const auto *vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
   auto &state = *deviceState();
 

@@ -152,12 +152,12 @@ void Renderer::commit()
   m_sampleLimit = getParam<int>("sampleLimit", 128);
 }
 
-Span<const HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
+Span<HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
 {
   return make_Span(&m_defaultHitgroupNames, 1);
 }
 
-Span<const std::string> Renderer::missSbtNames() const
+Span<std::string> Renderer::missSbtNames() const
 {
   return make_Span(&m_defaultMissName, 1);
 }

@@ -131,26 +131,26 @@ OptixTraversableHandle Group::optixTraversableVolume() const
   return m_traversableVolume;
 }
 
-Span<const DeviceObjectIndex> Group::surfaceTriangleGPUIndices() const
+Span<DeviceObjectIndex> Group::surfaceTriangleGPUIndices() const
 {
   return make_Span(
       (const DeviceObjectIndex *)m_surfaceTriangleObjectIndices.ptr(),
       m_surfacesTriangle.size());
 }
 
-Span<const DeviceObjectIndex> Group::surfaceCurveGPUIndices() const
+Span<DeviceObjectIndex> Group::surfaceCurveGPUIndices() const
 {
   return make_Span((const DeviceObjectIndex *)m_surfaceCurveObjectIndices.ptr(),
       m_surfacesCurve.size());
 }
 
-Span<const DeviceObjectIndex> Group::surfaceUserGPUIndices() const
+Span<DeviceObjectIndex> Group::surfaceUserGPUIndices() const
 {
   return make_Span((const DeviceObjectIndex *)m_surfaceUserObjectIndices.ptr(),
       m_surfacesUser.size());
 }
 
-Span<const DeviceObjectIndex> Group::volumeGPUIndices() const
+Span<DeviceObjectIndex> Group::volumeGPUIndices() const
 {
   return make_Span(
       (const DeviceObjectIndex *)m_volumeObjectIndices.ptr(), m_volumes.size());
@@ -181,7 +181,7 @@ bool Group::containsLights() const
   return m_lights.size() > 0;
 }
 
-Span<const DeviceObjectIndex> Group::lightGPUIndices() const
+Span<DeviceObjectIndex> Group::lightGPUIndices() const
 {
   return make_Span(
       (const DeviceObjectIndex *)m_lightObjectIndices.ptr(), m_lights.size());

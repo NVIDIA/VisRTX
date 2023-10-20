@@ -107,7 +107,7 @@ struct AttributePtr
 {
   ANARIDataType type;
   int numChannels;
-  void *data;
+  const void *data;
 };
 
 struct TriangleGeometryData
@@ -163,7 +163,7 @@ struct ConeGeometryData
 struct SphereGeometryData
 {
   const uint32_t *indices;
-  vec3 *centers;
+  const vec3 *centers;
   AttributePtr vertexAttr[5]; // attribute0-3 + color
   const float *radii;
   float radius;

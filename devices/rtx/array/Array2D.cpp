@@ -35,41 +35,20 @@
 namespace visrtx {
 
 Array2D::Array2D(DeviceGlobalState *state, const Array2DMemoryDescriptor &d)
-    : Array(ANARI_ARRAY2D, state, d)
+    : helium::Array2D(state, d)
+{}
+
+const void *Array2D::dataGPU() const
 {
-  if (d.byteStride1 != 0 || d.byteStride2 != 0)
-    throw std::runtime_error("strided arrays not yet supported!");
-
-  m_size[0] = d.numItems1;
-  m_size[1] = d.numItems2;
-
-  initManagedMemory();
-}
-
-size_t Array2D::totalSize() const
-{
-  return size(0) * size(1);
-}
-
-size_t Array2D::size(int dim) const
-{
-  return m_size[dim];
-}
-
-uvec2 Array2D::size() const
-{
-  return uvec2(uint32_t(size(0)), uint32_t(size(1)));
-}
-
-void Array2D::privatize()
-{
-  makePrivatizedCopy(size(0) * size(1));
+  const_cast<Array2D *>(this)->markDataIsOffloaded(true);
+  uploadArrayData();
+  return m_deviceData.buffer.ptr();
 }
 
 cudaArray_t Array2D::acquireCUDAArrayFloat()
 {
   if (!m_cuArrayFloat)
-    makeCudaArrayFloat(m_cuArrayFloat, *this, size());
+    makeCudaArrayFloat(m_cuArrayFloat, *this, uvec2(size().x, size().y));
   m_arrayRefCountFloat++;
   return m_cuArrayFloat;
 }
@@ -86,7 +65,7 @@ void Array2D::releaseCUDAArrayFloat()
 cudaArray_t Array2D::acquireCUDAArrayUint8()
 {
   if (!m_cuArrayUint8)
-    makeCudaArrayUint8(m_cuArrayUint8, *this, size());
+    makeCudaArrayUint8(m_cuArrayUint8, *this, uvec2(size().x, size().y));
   m_arrayRefCountUint8++;
   return m_cuArrayUint8;
 }
@@ -102,11 +81,13 @@ void Array2D::releaseCUDAArrayUint8()
 
 void Array2D::uploadArrayData() const
 {
-  Array::uploadArrayData();
+  helium::Array2D::uploadArrayData();
+  m_deviceData.buffer.upload(
+      (uint8_t *)data(), anari::sizeOf(elementType()) * totalSize());
   if (m_cuArrayFloat)
-    makeCudaArrayFloat(m_cuArrayFloat, *this, size());
+    makeCudaArrayFloat(m_cuArrayFloat, *this, uvec2(size().x, size().y));
   if (m_cuArrayUint8)
-    makeCudaArrayUint8(m_cuArrayUint8, *this, size());
+    makeCudaArrayUint8(m_cuArrayUint8, *this, uvec2(size().x, size().y));
 }
 
 } // namespace visrtx

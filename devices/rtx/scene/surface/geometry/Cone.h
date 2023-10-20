@@ -32,7 +32,7 @@
 #pragma once
 
 #include "Geometry.h"
-#include "array/Array.h"
+#include "array/Array1D.h"
 
 namespace visrtx {
 

@@ -170,7 +170,7 @@ void Quad::generateIndices()
   if (m_index) {
     size_t numIndices = 2 * m_index->size();
     m_indices.resize(numIndices);
-    auto *indicesIn = (const uvec4 *)m_index->data();
+    auto *indicesIn = (const uvec4 *)m_index->dataAs<uvec4>(AddressSpace::HOST);
     auto *indicesOut = m_indices.dataHost();
     for (size_t i = 0; i < m_index->size(); i++) {
       auto idx = indicesIn[i];

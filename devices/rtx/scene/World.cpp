@@ -180,17 +180,17 @@ OptixTraversableHandle World::optixTraversableHandleVolumes() const
   return m_traversableVolumes;
 }
 
-Span<const InstanceSurfaceGPUData> World::instanceSurfaceGPUData() const
+Span<InstanceSurfaceGPUData> World::instanceSurfaceGPUData() const
 {
   return m_instanceSurfaceGPUData.deviceSpan();
 }
 
-Span<const InstanceVolumeGPUData> World::instanceVolumeGPUData() const
+Span<InstanceVolumeGPUData> World::instanceVolumeGPUData() const
 {
   return m_instanceVolumeGPUData.deviceSpan();
 }
 
-Span<const InstanceLightGPUData> World::instanceLightGPUData() const
+Span<InstanceLightGPUData> World::instanceLightGPUData() const
 {
   return m_instanceLightGPUData.deviceSpan();
 }

@@ -31,33 +31,21 @@
 
 #pragma once
 
-#include "array/Array.h"
+#include "GPUArray.h"
+// helium
+#include <helium/array/Array3D.h>
 
 namespace visrtx {
 
-struct Array3DMemoryDescriptor : public ArrayMemoryDescriptor
-{
-  uint64_t numItems1{0};
-  uint64_t numItems2{0};
-  uint64_t numItems3{0};
-  uint64_t byteStride1{0};
-  uint64_t byteStride2{0};
-  uint64_t byteStride3{0};
-};
+using Array3DMemoryDescriptor = helium::Array3DMemoryDescriptor;
 
-struct Array3D : public Array
+struct Array3D : public helium::Array3D, GPUArray
 {
   Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d);
 
-  size_t totalSize() const override;
+  const void *dataGPU() const override;
 
-  size_t size(int dim) const;
-  uvec3 size() const;
-
-  void privatize() override;
-
- private:
-  size_t m_size[3] = {0, 0, 0};
+  void uploadArrayData() const override;
 };
 
 } // namespace visrtx

@@ -61,8 +61,8 @@ struct Renderer : public Object
 
   virtual OptixModule optixModule() const = 0;
 
-  virtual Span<const HitgroupFunctionNames> hitgroupSbtNames() const;
-  virtual Span<const std::string> missSbtNames() const;
+  virtual Span<HitgroupFunctionNames> hitgroupSbtNames() const;
+  virtual Span<std::string> missSbtNames() const;
 
   virtual void populateFrameData(FrameGPUData &fd) const;
 

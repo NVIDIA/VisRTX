@@ -64,11 +64,11 @@ struct Group : public Object
   bool containsVolumes() const;
   bool containsLights() const;
 
-  Span<const DeviceObjectIndex> surfaceTriangleGPUIndices() const;
-  Span<const DeviceObjectIndex> surfaceCurveGPUIndices() const;
-  Span<const DeviceObjectIndex> surfaceUserGPUIndices() const;
-  Span<const DeviceObjectIndex> volumeGPUIndices() const;
-  Span<const DeviceObjectIndex> lightGPUIndices() const;
+  Span<DeviceObjectIndex> surfaceTriangleGPUIndices() const;
+  Span<DeviceObjectIndex> surfaceCurveGPUIndices() const;
+  Span<DeviceObjectIndex> surfaceUserGPUIndices() const;
+  Span<DeviceObjectIndex> volumeGPUIndices() const;
+  Span<DeviceObjectIndex> lightGPUIndices() const;
 
   void rebuildSurfaceBVHs();
   void rebuildVolumeBVH();

@@ -31,28 +31,19 @@
 
 #pragma once
 
-#include "array/Array.h"
+#include "GPUArray.h"
+// helium
+#include <helium/array/Array2D.h>
 
 namespace visrtx {
 
-struct Array2DMemoryDescriptor : public ArrayMemoryDescriptor
-{
-  uint64_t numItems1{0};
-  uint64_t numItems2{0};
-  uint64_t byteStride1{0};
-  uint64_t byteStride2{0};
-};
+using Array2DMemoryDescriptor = helium::Array2DMemoryDescriptor;
 
-struct Array2D : public Array
+struct Array2D : public helium::Array2D, GPUArray
 {
   Array2D(DeviceGlobalState *state, const Array2DMemoryDescriptor &d);
 
-  size_t totalSize() const override;
-
-  size_t size(int dim) const;
-  uvec2 size() const;
-
-  void privatize() override;
+  const void *dataGPU() const override;
 
   cudaArray_t acquireCUDAArrayFloat();
   void releaseCUDAArrayFloat();
@@ -61,14 +52,6 @@ struct Array2D : public Array
   void releaseCUDAArrayUint8();
 
   void uploadArrayData() const override;
-
- private:
-  size_t m_size[2] = {0, 0};
-
-  mutable cudaArray_t m_cuArrayFloat{};
-  size_t m_arrayRefCountFloat{0};
-  mutable cudaArray_t m_cuArrayUint8{};
-  size_t m_arrayRefCountUint8{0};
 };
 
 } // namespace visrtx

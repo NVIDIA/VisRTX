@@ -56,8 +56,8 @@ struct HostDeviceArray
   void upload();
   void download();
 
-  Span<const T> hostSpan() const;
-  Span<const T> deviceSpan() const;
+  Span<T> hostSpan() const;
+  Span<T> deviceSpan() const;
 
   T *dataHost();
   T *dataDevice();
@@ -144,13 +144,13 @@ inline void HostDeviceArray<T>::download()
 }
 
 template <typename T>
-inline Span<const T> HostDeviceArray<T>::hostSpan() const
+inline Span<T> HostDeviceArray<T>::hostSpan() const
 {
   return make_Span(dataHost(), size());
 }
 
 template <typename T>
-inline Span<const T> HostDeviceArray<T>::deviceSpan() const
+inline Span<T> HostDeviceArray<T>::deviceSpan() const
 {
   return make_Span(dataDevice(), size());
 }

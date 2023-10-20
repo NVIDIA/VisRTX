@@ -77,10 +77,10 @@ target_sources(${PROJECT_NAME} PRIVATE
   VisRTXFeatureUtility.cpp
   VisRTXLibrary.cpp
 
-  array/Array.cpp
   array/Array1D.cpp
   array/Array2D.cpp
   array/Array3D.cpp
+  array/GPUArray.cpp
   array/ObjectArray.cpp
 
   camera/Camera.cpp

@@ -89,7 +89,7 @@ void Cylinder::commit()
     indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
   }
 
-  float *radius = nullptr;
+  const float *radius = nullptr;
   if (m_radius)
     radius = m_radius->beginAs<float>();
 

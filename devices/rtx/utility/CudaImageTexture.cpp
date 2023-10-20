@@ -73,7 +73,7 @@ template <int IN_NC /*num components*/,
     typename IN_COMP_T /*component type*/,
     bool SRGB = false>
 static void transformToStagingBufferUint8(
-    const Array &image, uint8_t *stagingBuffer)
+    const helium::Array &image, uint8_t *stagingBuffer)
 {
   auto *begin = (const IN_COMP_T *)image.data();
   auto *end = begin + (image.totalSize() * IN_NC);
@@ -91,7 +91,7 @@ template <int IN_NC /*num components*/,
     typename IN_COMP_T /*component type*/,
     bool SRGB = false>
 static void transformToStagingBufferFloat(
-    const Array &image, float *stagingBuffer)
+    const helium::Array &image, float *stagingBuffer)
 {
   auto *begin = (const IN_COMP_T *)image.data();
   auto *end = begin + (image.totalSize() * IN_NC);
@@ -131,7 +131,8 @@ cudaTextureAddressMode stringToAddressMode(const std::string &str)
     return cudaAddressModeClamp;
 }
 
-void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec2 size)
+void makeCudaArrayUint8(
+    cudaArray_t &cuArray, const helium::Array &array, uvec2 size)
 {
   const ANARIDataType format = array.elementType();
   auto nc = numANARIChannels(format);
@@ -211,7 +212,8 @@ void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec2 size)
       cudaMemcpyHostToDevice);
 }
 
-void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec2 size)
+void makeCudaArrayFloat(
+    cudaArray_t &cuArray, const helium::Array &array, uvec2 size)
 {
   const ANARIDataType format = array.elementType();
   auto nc = numANARIChannels(format);

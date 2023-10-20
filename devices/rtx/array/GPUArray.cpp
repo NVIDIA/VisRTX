@@ -29,50 +29,25 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include "Geometry.h"
-#include "array/Array1D.h"
-#include "utility/HostDeviceArray.h"
+#include "array/GPUArray.h"
 
 namespace visrtx {
 
-struct Curve : public Geometry
+static size_t s_numArrays = 0;
+
+size_t GPUArray::objectCount()
 {
-  Curve(DeviceGlobalState *d);
-  ~Curve() override;
+  return s_numArrays;
+}
 
-  void commit() override;
+GPUArray::GPUArray()
+{
+  s_numArrays++;
+}
 
-  void populateBuildInput(OptixBuildInput &) const override;
-
-  int optixGeometryType() const override;
-
-  bool isValid() const override;
-
- private:
-  void computeIndices();
-  void computeRadii();
-  GeometryGPUData gpuData() const override;
-  void cleanup();
-
-  helium::IntrusivePtr<Array1D> m_index;
-
-  helium::IntrusivePtr<Array1D> m_vertexPosition;
-  helium::IntrusivePtr<Array1D> m_vertexRadius;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
-  helium::IntrusivePtr<Array1D> m_vertexColor;
-
-  float m_globalRadius;
-
-  HostDeviceArray<uint32_t> m_generatedIndices;
-  HostDeviceArray<float> m_generatedRadii;
-
-  CUdeviceptr m_vertexBufferPtr{};
-  CUdeviceptr m_radiusBufferPtr{};
-};
+GPUArray::~GPUArray()
+{
+  s_numArrays--;
+}
 
 } // namespace visrtx

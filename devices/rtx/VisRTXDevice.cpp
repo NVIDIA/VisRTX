@@ -507,10 +507,10 @@ VisRTXDevice::~VisRTXDevice()
   reportLeakedRegistryValues("spatial field", state.registry.fields);
   reportLeakedRegistryValues("sampler", state.registry.samplers);
 
-  if (Array::objectCount() != 0) {
+  if (GPUArray::objectCount() != 0) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "detected %zu leaked arrays",
-        Array::objectCount());
+        GPUArray::objectCount());
   }
 }
 

@@ -58,7 +58,7 @@ static void convertElements(const void *_begin, size_t size, TO_T *output)
   std::transform(begin, begin + size, output, toFloat);
 }
 
-static std::vector<float> makeFloatStagingBuffer(Array &array)
+static std::vector<float> makeFloatStagingBuffer(Array3D &array)
 {
   const void *input = array.data();
   size_t size = array.totalSize();
@@ -167,8 +167,9 @@ void StructuredRegularField::commit()
 
   cudaMemcpy3DParms copyParams;
   std::memset(&copyParams, 0, sizeof(copyParams));
-  copyParams.srcPtr = make_cudaPitchedPtr(
-      stagingBuffer.empty() ? m_params.data->data() : stagingBuffer.data(),
+  copyParams.srcPtr = make_cudaPitchedPtr(stagingBuffer.empty()
+          ? const_cast<void *>(m_params.data->data())
+          : stagingBuffer.data(),
       dims.x * sizeof(float),
       dims.x,
       dims.y);
@@ -206,7 +207,8 @@ box3 StructuredRegularField::bounds() const
     return {box3(vec3(0.f), vec3(1.f))};
   auto dims = m_params.data->size();
   return box3(m_params.origin,
-      m_params.origin + ((vec3(dims) - 1.f) * m_params.spacing));
+      m_params.origin
+          + ((vec3(dims.x, dims.y, dims.z) - 1.f) * m_params.spacing));
 }
 
 float StructuredRegularField::stepSize() const
@@ -228,7 +230,7 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.data.structuredRegular.origin = m_params.origin;
   sf.data.structuredRegular.spacing = m_params.spacing;
   sf.data.structuredRegular.invSpacing =
-      vec3(1.f) / (m_params.spacing * vec3(dims));
+      vec3(1.f) / (m_params.spacing * vec3(dims.x, dims.y, dims.z));
   sf.grid = m_uniformGrid.gpuData();
   return sf;
 }

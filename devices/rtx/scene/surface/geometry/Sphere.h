@@ -31,8 +31,8 @@
 
 #pragma once
 
-#include "array/Array.h"
 #include "Geometry.h"
+#include "array/Array1D.h"
 #include "utility/HostDeviceArray.h"
 // thrust
 #include <thrust/device_vector.h>
