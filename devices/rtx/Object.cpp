@@ -40,6 +40,7 @@ Object::Object(ANARIDataType type, DeviceGlobalState *s)
     : helium::BaseObject(type, s)
 {
   helium::BaseObject::markUpdated();
+  s->commitBuffer.addObject(this);
 }
 
 void Object::commit()
