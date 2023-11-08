@@ -99,9 +99,10 @@ void Cylinder::commit()
   size_t cylinderID = 0;
   std::transform(
       indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &c) {
-        const float r = radius ? radius[cylinderID++] : m_globalRadius;
-        const vec3 &v0 = *(posBegin + c.x);
-        const vec3 &v1 = *(posBegin + c.y);
+        const float r =
+            std::abs(radius ? radius[cylinderID++] : m_globalRadius);
+        const vec3 &v0 = posBegin[c.x];
+        const vec3 &v1 = posBegin[c.y];
         return box3(glm::min(v0, v1) - r, glm::max(v0, v1) + r);
       });
 

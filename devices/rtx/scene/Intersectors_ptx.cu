@@ -92,15 +92,15 @@ RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
 {
   const auto &cylinderData = geometryData.cylinder;
 
-  const uvec2 pidx = cylinderData.indices
-      ? cylinderData.indices[ray::primID()]
-      : uvec2(2 * ray::primID(), 2 * ray::primID() + 1);
+  const uvec2 pidx = cylinderData.indices ? cylinderData.indices[ray::primID()]
+                                          : (2 * ray::primID() + uvec2(0, 1));
 
   const auto p0 = cylinderData.vertices[pidx.x];
   const auto p1 = cylinderData.vertices[pidx.y];
 
-  const float radius = cylinderData.radii ? cylinderData.radii[ray::primID()]
-                                          : cylinderData.radius;
+  const float radius =
+      glm::abs(cylinderData.radii ? cylinderData.radii[ray::primID()]
+                                  : cylinderData.radius);
 
   const vec3 ro = ray::localOrigin();
   const vec3 rd = ray::localDirection();
