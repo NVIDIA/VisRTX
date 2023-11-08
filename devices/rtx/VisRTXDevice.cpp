@@ -559,7 +559,7 @@ void VisRTXDevice::initDevice()
   auto init_module = [&](OptixModule &module,
                          unsigned char *ptx,
                          const char *name) -> std::future<void> {
-    return std::async([&]() {
+    auto f = std::async([&]() {
       reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
 
       const std::string ptxCode = (const char *)ptx;
@@ -590,6 +590,10 @@ void VisRTXDevice::initDevice()
       if (sizeof_log > 1)
         reportMessage(ANARI_SEVERITY_DEBUG, "PTX Compile Log:\n%s", log.data());
     });
+#ifndef VISRTX_PARALLEL_MODULE_BUILD
+    f.wait();
+#endif
+    return f;
   };
 
   std::vector<std::future<void>> compileTasks;

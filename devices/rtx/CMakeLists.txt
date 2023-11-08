@@ -67,9 +67,9 @@ endif()
 
 ## Build library target ##
 
-add_library(${PROJECT_NAME} SHARED)
+project_add_library(SHARED)
 
-target_sources(${PROJECT_NAME} PRIVATE
+project_sources(PRIVATE
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
@@ -165,14 +165,14 @@ set_source_files_properties(scene/Intersectors_ptx.cu
   PROPERTIES COMPILE_FLAGS "--expt-relaxed-constexpr"
 )
 
-target_include_directories(${PROJECT_NAME}
+project_include_directories(
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>
 )
 
-target_link_libraries(${PROJECT_NAME}
+project_link_libraries(
 PUBLIC
   anari::anari
 PRIVATE
@@ -184,7 +184,7 @@ PRIVATE
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
 )
 
-target_compile_definitions(${PROJECT_NAME}
+project_compile_definitions(
 PRIVATE
   VISRTX_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
   VISRTX_VERSION_MINOR=${PROJECT_VERSION_MINOR}
@@ -192,7 +192,11 @@ PRIVATE
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:USE_NVTX>
 )
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE visrtx_EXPORTS)
+if(NOT WIN32)
+  project_compile_definitions(PRIVATE VISRTX_PARALLEL_MODULE_BUILD)
+endif()
+
+project_compile_definitions(PRIVATE visrtx_EXPORTS)
 
 ## Generate OptiX programs as embedded PTX ##
 
