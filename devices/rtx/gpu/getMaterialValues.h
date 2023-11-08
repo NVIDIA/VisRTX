@@ -154,6 +154,15 @@ RT_FUNCTION uvec2 decodeCylinderAttributeIndices(
     return 2 * hit.primID + uvec2(0, 1);
 }
 
+RT_FUNCTION uvec2 decodeConeAttributeIndices(
+    const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
+{
+  if (ggd.cone.indices != nullptr)
+    return ggd.cone.indices[hit.primID];
+  else
+    return 2 * hit.primID + uvec2(0, 1);
+}
+
 RT_FUNCTION uint32_t decodeCurveAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
 {
@@ -198,6 +207,14 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
       return b.z * getAttributeValue(ap, idx.x)
           + b.y * getAttributeValue(ap, idx.y);
     }
+  } else if (ggd.type == GeometryType::CONE) {
+    const auto &ap = ggd.cone.vertexAttr[attributeID];
+    if (isPopulated(ap)) {
+      const uvec2 idx = decodeConeAttributeIndices(ggd, attributeID, hit);
+      const vec3 b = hit.uvw;
+      return b.z * getAttributeValue(ap, idx.x)
+          + b.y * getAttributeValue(ap, idx.y);
+    }
   } else if (ggd.type == GeometryType::CURVE) {
     const auto &ap = ggd.curve.vertexAttr[attributeID];
     if (isPopulated(ap)) {
@@ -217,8 +234,6 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
   const auto &ap = ggd.attr[attributeID];
   if (ggd.type == GeometryType::QUAD)
     return getAttributeValue(ap, hit.primID / 2);
-  else if (ggd.type == GeometryType::CONE)
-    return getAttributeValue(ap, hit.primID / ggd.cone.trianglesPerCone);
   else
     return getAttributeValue(ap, hit.primID);
 }

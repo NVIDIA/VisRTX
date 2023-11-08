@@ -31,6 +31,8 @@
 
 #include "gpu/gpu_math.h"
 #include "gpu/shading_api.h"
+// glm
+#include <glm/gtx/norm.hpp>
 
 namespace visrtx {
 
@@ -137,6 +139,62 @@ RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
   }
 }
 
+RT_FUNCTION void intersectCone(const GeometryGPUData &geometryData)
+{
+  const auto &coneData = geometryData.cone;
+
+  const uvec2 pidx = coneData.indices ? coneData.indices[ray::primID()]
+                                      : (2 * ray::primID() + uvec2(0, 1));
+
+  const auto p0 = coneData.vertices[pidx.x];
+  const auto p1 = coneData.vertices[pidx.y];
+
+  const float ra = coneData.radii[pidx.x];
+  const float rb = coneData.radii[pidx.y];
+
+  const vec3 ro = ray::localOrigin();
+  const vec3 rd = ray::localDirection();
+
+  const vec3 ba = p1 - p0;
+  const vec3 oa = ro - p0;
+  const vec3 ob = ro - p1;
+
+  const float m0 = glm::dot(ba, ba);
+  const float m1 = glm::dot(oa, ba);
+  const float m2 = glm::dot(ob, ba);
+  const float m3 = glm::dot(rd, ba);
+
+  if (m1 < 0.0f) {
+    if (glm::length2(oa * m3 - rd * m1) < (ra * ra * m3 * m3))
+      reportIntersection(-m1 / m3, -ba * glm::inversesqrt(m0), 0.f);
+  } else if (m2 > 0.0f) {
+    if (glm::length2(ob * m3 - rd * m2) < (rb * rb * m3 * m3))
+      reportIntersection(-m2 / m3, ba * glm::inversesqrt(m0), 1.f);
+  }
+
+  const float m4 = glm::dot(rd, oa);
+  const float m5 = glm::dot(oa, oa);
+  const float rr = ra - rb;
+  const float hy = m0 + rr * rr;
+
+  float k2 = m0 * m0 - m3 * m3 * hy;
+  float k1 = m0 * m0 * m4 - m1 * m3 * hy + m0 * ra * (rr * m3 * 1.0f);
+  float k0 = m0 * m0 * m5 - m1 * m1 * hy + m0 * ra * (rr * m1 * 2.0f - m0 * ra);
+
+  const float h = k1 * k1 - k2 * k0;
+  if (h < 0.0f)
+    return;
+
+  const float t = (-k1 - glm::sqrt(h)) / k2;
+
+  const float y = m1 + t * m3;
+  if (y > 0.0f && y < m0) {
+    reportIntersection(t,
+        glm::normalize(m0 * (m0 * (oa + t * rd) + rr * ba * ra) - ba * hy * y),
+        position(y, box1(0.f, m0)));
+  }
+}
+
 RT_FUNCTION void intersectVolume()
 {
   auto &hit = ray::rayData<VolumeHit>();
@@ -179,6 +237,9 @@ RT_FUNCTION void intersectGeometry()
     break;
   case GeometryType::CYLINDER:
     intersectCylinder(geometryData);
+    break;
+  case GeometryType::CONE:
+    intersectCone(geometryData);
     break;
   }
 }

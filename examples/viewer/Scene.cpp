@@ -337,7 +337,7 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
 
   anari::setAndReleaseParameter(d,
       geom,
-      "primitive.color",
+      "vertex.color",
       anari::newArray1D(d, colors.data(), colors.size()));
 
   anari::commitParameters(d, geom);

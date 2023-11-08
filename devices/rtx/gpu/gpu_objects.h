@@ -144,20 +144,20 @@ struct CylinderGeometryData
   bool caps;
 };
 
+struct ConeGeometryData
+{
+  const uvec2 *indices;
+  const vec3 *vertices;
+  const float *radii;
+  AttributePtr vertexAttr[5]; // attribute0-3 + color
+};
+
 struct CurveGeometryData
 {
   const uint32_t *indices;
   const vec3 *vertices;
   AttributePtr vertexAttr[5]; // attribute0-3 + color
   const float *radii;
-};
-
-struct ConeGeometryData
-{
-  const uvec3 *indices; // actually triangles
-  const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
-  uint8_t trianglesPerCone;
 };
 
 struct SphereGeometryData
