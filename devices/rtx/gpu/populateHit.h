@@ -236,14 +236,7 @@ RT_FUNCTION void computeNormal(
     hit.Ns = hit.Ng;
     break;
   }
-  case GeometryType::SPHERE: {
-    if (ggd.sphere.indices) {
-      hit.Ng = hit.Ns =
-          hitpoint() - ggd.sphere.centers[ggd.sphere.indices[primID]];
-    } else
-      hit.Ng = hit.Ns = hitpoint() - ggd.sphere.centers[primID];
-    break;
-  }
+  case GeometryType::SPHERE:
   case GeometryType::CONE:
   case GeometryType::CYLINDER: {
     hit.Ng = hit.Ns = vec3(bit_cast<float>(optixGetAttribute_1()),

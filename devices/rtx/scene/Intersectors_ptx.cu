@@ -87,7 +87,10 @@ RT_FUNCTION void intersectSphere(const GeometryGPUData &geometryData)
   if (l2 > r2)
     return;
   const float td = glm::sqrt((r2 - l2) * rd2);
-  reportIntersection(projCO - td);
+  const float t = projCO - td;
+  const vec3 h = ray::localOrigin() + t * ray::localDirection();
+  const vec3 n = h - center;
+  reportIntersection(t, n, 0.f);
 }
 
 RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
