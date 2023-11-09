@@ -104,8 +104,8 @@ void Cone::commit()
         const vec3 &v0 = posBegin[c.x];
         const vec3 &v1 = posBegin[c.y];
         const float &r0 = radius[c.x];
-        const float &r1 = radius[c.x];
-        return box3(glm::min(v0, v1) - glm::min(r0, r1),
+        const float &r1 = radius[c.y];
+        return box3(glm::min(v0, v1) - glm::max(r0, r1),
             glm::max(v0, v1) + glm::max(r0, r1));
       });
 
