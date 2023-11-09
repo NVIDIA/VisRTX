@@ -217,7 +217,7 @@ int main()
 
   auto renderer = anari::newObject<anari::Renderer>(device, "raycast");
   const vec4 backgroundColor = {0.1f, 0.1f, 0.1f, 1.f};
-  anari::setParameter(device, renderer, "backgroundColor", backgroundColor);
+  anari::setParameter(device, renderer, "background", backgroundColor);
   anari::commitParameters(device, renderer);
 
   // Create frame (top-level object) //
