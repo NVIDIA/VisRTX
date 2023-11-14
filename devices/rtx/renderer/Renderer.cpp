@@ -39,6 +39,7 @@
 #include "Test.h"
 #include "UnknownRenderer.h"
 // std
+#include <atomic>
 #include <stdlib.h>
 #include <string_view>
 // this include may only appear in a single source file:
@@ -114,11 +115,11 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 
 // Renderer definitions ///////////////////////////////////////////////////////
 
-static size_t s_numRenderers = 0;
+static std::atomic<size_t> s_numRenderers = 0;
 
 size_t Renderer::objectCount()
 {
-  return s_numRenderers;
+  return s_numRenderers.load();
 }
 
 Renderer::Renderer(DeviceGlobalState *s) : Object(ANARI_RENDERER, s)

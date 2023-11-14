@@ -30,14 +30,16 @@
  */
 
 #include "array/GPUArray.h"
+// std
+#include <atomic>
 
 namespace visrtx {
 
-static size_t s_numArrays = 0;
+static std::atomic<size_t> s_numArrays = 0;
 
 size_t GPUArray::objectCount()
 {
-  return s_numArrays;
+  return s_numArrays.load();
 }
 
 GPUArray::GPUArray()

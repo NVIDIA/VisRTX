@@ -33,6 +33,7 @@
 #include "utility/instrument.h"
 // std
 #include <algorithm>
+#include <atomic>
 #include <random>
 // thrust
 #include <thrust/fill.h>
@@ -42,7 +43,7 @@ namespace visrtx {
 
 // Frame definitions //////////////////////////////////////////////////////////
 
-static size_t s_numFrames = 0;
+static std::atomic<size_t> s_numFrames = 0;
 
 size_t Frame::objectCount()
 {
@@ -206,7 +207,7 @@ bool Frame::getProperty(
     if (flags & ANARI_WAIT)
       wait();
     if (ready())
-      deviceState()->commitBuffer.flush();
+      deviceState()->commitBufferFlush();
     checkAccumulationReset();
     helium::writeToVoidP(ptr, m_nextFrameReset);
     return true;
@@ -223,7 +224,7 @@ void Frame::renderFrame()
 
   instrument::rangePush("update scene");
   instrument::rangePush("flush commits");
-  state.commitBuffer.flush();
+  state.commitBufferFlush();
   instrument::rangePop(); // flush commits
 
   instrument::rangePush("flush array uploads");
@@ -519,8 +520,8 @@ void Frame::checkAccumulationReset()
     return;
 
   auto &state = *deviceState();
-  if (m_lastCommitOccured < state.commitBuffer.lastFlush()) {
-    m_lastCommitOccured = state.commitBuffer.lastFlush();
+  if (m_lastCommitOccured < state.commitBufferLastFlush()) {
+    m_lastCommitOccured = state.commitBufferLastFlush();
     m_nextFrameReset = true;
   }
   if (m_lastUploadOccured < state.uploadBuffer.lastFlush()) {
