@@ -40,18 +40,21 @@
 
 namespace visrtx {
 
+enum class DeviceInitStatus
+{
+  UNINITIALIZED,
+  SUCCESS,
+  FAILURE
+};
+
 struct VisRTXDevice : public helium::BaseDevice
 {
   /////////////////////////////////////////////////////////////////////////////
   // Main interface to accepting API calls
   /////////////////////////////////////////////////////////////////////////////
 
-  // Data Arrays //////////////////////////////////////////////////////////////
-
   void *mapArray(ANARIArray) override;
   void unmapArray(ANARIArray) override;
-
-  // API Objects //////////////////////////////////////////////////////////////
 
   ANARIArray1D newArray1D(const void *appMemory,
       ANARIMemoryDeleter deleter,
@@ -88,8 +91,6 @@ struct VisRTXDevice : public helium::BaseDevice
   ANARIVolume newVolume(const char *type) override;
   ANARIWorld newWorld() override;
 
-  // Query functions //////////////////////////////////////////////////////////
-
   const char **getObjectSubtypes(ANARIDataType objectType) override;
   const void *getObjectInfo(ANARIDataType objectType,
       const char *objectSubtype,
@@ -102,8 +103,6 @@ struct VisRTXDevice : public helium::BaseDevice
       const char *infoName,
       ANARIDataType infoType) override;
 
-  // Object + Parameter Lifetime Management ///////////////////////////////////
-
   int getProperty(ANARIObject object,
       const char *name,
       ANARIDataType type,
@@ -111,15 +110,11 @@ struct VisRTXDevice : public helium::BaseDevice
       uint64_t size,
       uint32_t mask) override;
 
-  // FrameBuffer Manipulation /////////////////////////////////////////////////
-
   const void *frameBufferMap(ANARIFrame fb,
       const char *channel,
       uint32_t *width,
       uint32_t *height,
       ANARIDataType *pixelType) override;
-
-  // Frame Rendering //////////////////////////////////////////////////////////
 
   void renderFrame(ANARIFrame) override;
   int frameReady(ANARIFrame, ANARIWaitMask) override;
@@ -133,7 +128,7 @@ struct VisRTXDevice : public helium::BaseDevice
   VisRTXDevice(ANARILibrary);
   ~VisRTXDevice() override;
 
-  void initDevice(); // thread safe initialization
+  bool initDevice(); // thread safe initialization
 
  private:
   struct CUDADeviceScope
@@ -159,8 +154,7 @@ struct VisRTXDevice : public helium::BaseDevice
   int m_desiredGpuID{0};
   int m_appGpuID{-1};
   bool m_eagerInit{false};
-  bool m_initialized{false};
-  bool m_optixInitialized{false};
+  DeviceInitStatus m_initStatus{DeviceInitStatus::UNINITIALIZED};
 };
 
 } // namespace visrtx
