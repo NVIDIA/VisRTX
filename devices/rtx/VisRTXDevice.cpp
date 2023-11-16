@@ -553,8 +553,7 @@ void VisRTXDevice::initOptix()
 
   reportMessage(ANARI_SEVERITY_DEBUG, "initializing VisRTX device", this);
 
-  cudaFree(nullptr);
-  int numDevices;
+  int numDevices = 0;
   cudaGetDeviceCount(&numDevices);
   if (numDevices == 0) {
     reportMessage(ANARI_SEVERITY_FATAL_ERROR, "no CUDA capable devices found!");
