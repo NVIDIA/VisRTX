@@ -133,6 +133,7 @@ struct OcclusionResources
   GLuint fbo = 0;
   GLuint tex = 0;
   int size = 1024;
+  GLuint clear_shader = 0;
 };
 
 template <>

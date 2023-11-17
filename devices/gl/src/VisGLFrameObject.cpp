@@ -722,18 +722,21 @@ void frame_render(ObjectRef<Frame> frameObj,
   }
 
   if (frameObj->occlusionMode != STRING_ENUM_none) {
+
+    OcclusionResources *occlusion = deviceObj->getOcclusionResources();
+    gl.BindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, worldObj->occlusionbuffer);
     if (worldObj->occlusionsamples == 0) {
       float zerof = 0.0f;
-      gl.BindBuffer(GL_SHADER_STORAGE_BUFFER, worldObj->occlusionbuffer);
-      gl.ClearBufferData(
-          GL_SHADER_STORAGE_BUFFER, GL_R32F, GL_RED, GL_FLOAT, &zerof);
+      //gl.BindBuffer(GL_SHADER_STORAGE_BUFFER, worldObj->occlusionbuffer);
+      //gl.ClearBufferData(
+      //    GL_SHADER_STORAGE_BUFFER, GL_R32F, GL_RED, GL_FLOAT, &zerof);
+
+      gl.UseProgram(occlusion->clear_shader);
+      gl.Uniform1i(0, worldObj->occlusioncapacity);
+      gl.DispatchCompute(worldObj->occlusioncapacity/(128), 1, 1);
     }
-    gl.BindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, worldObj->occlusionbuffer);
     while (worldObj->occlusionsamples < 600) {
       gl.BindBuffer(GL_SHADER_STORAGE_BUFFER, worldObj->occlusionbuffer);
-
-      OcclusionResources *occlusion = deviceObj->getOcclusionResources();
-
       ShadowData oc{};
 
       for (int i = 0; i < 12; ++i) {

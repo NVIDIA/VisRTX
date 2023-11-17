@@ -138,6 +138,21 @@ layout(std430, binding = 3) coherent restrict buffer OcclusionBlock {
 };
 )GLSL";
 
+static const char *clear_occlusion_source = R"GLSL(
+precision highp float;
+precision highp int;
+
+layout(local_size_x=128) in;
+layout(location = 0) uniform int N;
+
+void main() {
+  int threads = int(gl_NumWorkGroups.x*gl_WorkGroupSize.x);
+  for(int i = int(gl_GlobalInvocationID);i<N;i+=threads) {
+    occlusion[i] = 0.0;
+  }
+}
+)GLSL";
+
 struct ShadowProjection
 {
   std::array<float, 20> matrix;
