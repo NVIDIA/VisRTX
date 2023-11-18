@@ -53,17 +53,13 @@ mark_as_advanced(VISRTX_ENABLE_NVTX)
 
 ## Code generation ##
 
-option(VISRTX_ENABLE_CODE_GEN "Enable Python code generation for query updates" OFF)
-mark_as_advanced(VISRTX_ENABLE_CODE_GEN)
-if (VISRTX_ENABLE_CODE_GEN)
-  anari_generate_queries(
-    NAME visrtx
-    PREFIX VisRTXDevice
-    CPP_NAMESPACE visrtx
-    JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
-    JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
-  )
-endif()
+anari_generate_queries(
+  NAME visrtx
+  PREFIX VisRTXDevice
+  CPP_NAMESPACE visrtx
+  JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
+  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
+)
 
 ## Build library target ##
 

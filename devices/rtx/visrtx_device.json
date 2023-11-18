@@ -8,6 +8,7 @@
       "khr_auxiliary_buffers",
       "khr_camera_orthographic",
       "khr_camera_perspective",
+      "khr_device_synchronization",
       "khr_frame_accumulation",
       "khr_frame_channel_primitive_id",
       "khr_frame_channel_object_id",
