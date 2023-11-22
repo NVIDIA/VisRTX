@@ -144,18 +144,38 @@ accumulation is about to reset in the next frame. When the property is queried
 and the current frame is complete, all committed objects since the last
 rendering operation will be internally updated (may be expensive).
 
-## Known Missing Core ANARI Extensions + Features
+## List of Implemented ANARI Extensions
 
-The following extensions are not yet implemented by VisRTX:
+The following extensions are either partially or fully implemented by VisRTX:
 
-- Light: `spot`, instancing
-- Camera: `omnidirectional`, stereo rendering
-- Sampler: `image3D`
-- Frame: variance property
-- Core extensions:
-    - `ANARI_KHR_FRAME_COMPLETION_CALLBACK`
-    - `ANARI_KHR_DEVICE_SYNCHRONIZATION`
-    - `ANARI_KHR_TRANSFORMATION_MOTION_BLUR`
+- `KHR_ARRAY1D_REGION`
+- `KHR_AUXILIARY_BUFFERS`
+- `KHR_CAMERA_ORTHOGRAPHIC`
+- `KHR_CAMERA_PERSPECTIVE`
+- `KHR_DEVICE_SYNCHRONIZATION`
+- `KHR_FRAME_ACCUMULATION`
+- `KHR_FRAME_CHANNEL_PRIMITIVE_ID`
+- `KHR_FRAME_CHANNEL_OBJECT_ID`
+- `KHR_FRAME_CHANNEL_INSTANCE_ID`
+- `KHR_GEOMETRY_CONE`
+- `KHR_GEOMETRY_CURVE`
+- `KHR_GEOMETRY_CYLINDER`
+- `KHR_GEOMETRY_QUAD`
+- `KHR_GEOMETRY_SPHERE`
+- `KHR_GEOMETRY_TRIANGLE`
+- `KHR_INSTANCE_TRANSFORM`
+- `KHR_LIGHT_DIRECTIONAL`
+- `KHR_LIGHT_POINT`
+- `KHR_MATERIAL_MATTE`
+- `KHR_MATERIAL_PHYSICALLY_BASED`
+- `KHR_SAMPLER_IMAGE1D`
+- `KHR_SAMPLER_IMAGE2D`
+- `KHR_SAMPLER_PRIMITIVE`
+- `KHR_SAMPLER_TRANSFORM`
+- `KHR_SPATIAL_FIELD_STRUCTURED_REGULAR`
+- `KHR_VOLUME_TRANSFER_FUNCTION1D`
+- `VISRTX_CUDA_OUTPUT_BUFFERS`
+- `VISRTX_TRIANGLE_ATTRIBUTE_INDEXING`
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!
