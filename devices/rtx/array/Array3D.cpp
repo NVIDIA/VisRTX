@@ -34,36 +34,21 @@
 namespace visrtx {
 
 Array3D::Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d)
-    : Array(ANARI_ARRAY3D, state, d)
+    : helium::Array3D(state, d)
+{}
+
+const void *Array3D::dataGPU() const
 {
-  if (d.byteStride1 != 0 || d.byteStride2 != 0 || d.byteStride3 != 0)
-    throw std::runtime_error("strided arrays not yet supported!");
-
-  m_size[0] = d.numItems1;
-  m_size[1] = d.numItems2;
-  m_size[2] = d.numItems3;
-
-  initManagedMemory();
+  const_cast<Array3D *>(this)->markDataIsOffloaded(true);
+  uploadArrayData();
+  return m_deviceData.buffer.ptr();
 }
 
-size_t Array3D::totalSize() const
+void Array3D::uploadArrayData() const
 {
-  return size(0) * size(1) * size(2);
-}
-
-size_t Array3D::size(int dim) const
-{
-  return m_size[dim];
-}
-
-uvec3 Array3D::size() const
-{
-  return uvec3(uint32_t(size(0)), uint32_t(size(1)), uint32_t(size(2)));
-}
-
-void Array3D::privatize()
-{
-  makePrivatizedCopy(size(0) * size(1) * size(2));
+  helium::Array3D::uploadArrayData();
+  m_deviceData.buffer.upload(
+      (uint8_t *)data(), anari::sizeOf(elementType()) * totalSize());
 }
 
 } // namespace visrtx

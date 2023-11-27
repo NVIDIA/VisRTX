@@ -54,7 +54,7 @@ inline void populateAttributePtr(
 
   aptr.type = type;
   aptr.numChannels = numANARIChannels(type);
-  aptr.data = array->deviceData();
+  aptr.data = array->dataGPU();
 }
 
 } // namespace visrtx

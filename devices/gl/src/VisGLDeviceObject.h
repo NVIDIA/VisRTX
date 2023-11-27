@@ -36,7 +36,7 @@
 #include "queue_thread.h"
 
 #include "glContextInterface.h"
-#include "glad/gl.h"
+#include "ogl.h"
 #include "shader_compile_segmented.h"
 #include "AppendableShader.h"
 
@@ -133,6 +133,7 @@ struct OcclusionResources
   GLuint fbo = 0;
   GLuint tex = 0;
   int size = 1024;
+  GLuint clear_shader = 0;
 };
 
 template <>

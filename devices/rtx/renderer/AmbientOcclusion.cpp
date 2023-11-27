@@ -59,13 +59,12 @@ OptixModule AmbientOcclusion::optixModule() const
   return deviceState()->rendererModules.ambientOcclusion;
 }
 
-Span<const HitgroupFunctionNames> AmbientOcclusion::hitgroupSbtNames()
-    const
+Span<HitgroupFunctionNames> AmbientOcclusion::hitgroupSbtNames() const
 {
   return make_Span(g_aoHitNames.data(), g_aoHitNames.size());
 }
 
-Span<const std::string> AmbientOcclusion::missSbtNames() const
+Span<std::string> AmbientOcclusion::missSbtNames() const
 {
   return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
 }

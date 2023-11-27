@@ -35,72 +35,33 @@
 namespace visrtx {
 
 Array1D::Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d)
-    : Array(ANARI_ARRAY1D, state, d), m_capacity(d.numItems), m_end(d.numItems)
+    : helium::Array1D(state, d)
+{}
+
+const void *Array1D::dataGPU() const
 {
-  if (d.byteStride != 0)
-    throw std::runtime_error("strided arrays not yet supported!");
-  initManagedMemory();
+  const_cast<Array1D *>(this)->markDataIsOffloaded(true);
+  uploadArrayData();
+  return m_deviceData.buffer.ptr();
 }
 
-void Array1D::commit()
+const void *Array1D::data(AddressSpace as) const
 {
-  auto oldBegin = m_begin;
-  auto oldEnd = m_end;
-
-  m_begin = getParam<size_t>("begin", 0);
-  m_begin = std::clamp(m_begin, size_t(0), m_capacity - 1);
-  m_end = getParam<size_t>("end", m_capacity);
-  m_end = std::clamp(m_end, size_t(1), m_capacity);
-
-  if (size() == 0) {
-    reportMessage(ANARI_SEVERITY_ERROR, "array size must be greater than zero");
-    return;
-  }
-
-  if (m_begin > m_end) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "array 'begin' is not less than 'end', swapping values");
-    std::swap(m_begin, m_end);
-  }
-
-  if (m_begin != oldBegin || m_end != oldEnd) {
-    markDataModified();
-    notifyCommitObservers();
-  }
+  return as == AddressSpace::GPU ? dataGPU() : helium::Array1D::data();
 }
 
-size_t Array1D::totalSize() const
-{
-  return size();
-}
-
-size_t Array1D::totalCapacity() const
-{
-  return m_capacity;
-}
-
-void *Array1D::begin(AddressSpace as) const
+const void *Array1D::begin(AddressSpace as) const
 {
   auto *p = (unsigned char *)data(as);
   auto s = anari::sizeOf(elementType());
   return p + (s * m_begin);
 }
 
-void *Array1D::end(AddressSpace as) const
+const void *Array1D::end(AddressSpace as) const
 {
   auto *p = (unsigned char *)data(as);
   auto s = anari::sizeOf(elementType());
   return p + (s * m_end);
-}
-
-size_t Array1D::size() const
-{
-  return m_end - m_begin;
-}
-
-void Array1D::privatize()
-{
-  makePrivatizedCopy(size());
 }
 
 cudaArray_t Array1D::acquireCUDAArrayFloat()
@@ -139,7 +100,9 @@ void Array1D::releaseCUDAArrayUint8()
 
 void Array1D::uploadArrayData() const
 {
-  Array::uploadArrayData();
+  helium::Array1D::uploadArrayData();
+  m_deviceData.buffer.upload((uint8_t *)data(AddressSpace::HOST),
+      anari::sizeOf(elementType()) * totalSize());
   if (m_cuArrayFloat)
     makeCudaArrayFloat(m_cuArrayFloat, *this, {totalSize(), 1});
   if (m_cuArrayUint8)

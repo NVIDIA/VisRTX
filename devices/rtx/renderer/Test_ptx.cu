@@ -60,8 +60,15 @@ RT_PROGRAM void __raygen__()
   auto ray = makePrimaryRay(ss);
   /////////////////////////////////////////////////////////////////////////////
 
-  accumResults(
-      frameData.fb, ss.pixel, vec4(ray.dir, 1.f), 1.f, ray.dir, -ray.dir);
+  accumResults(frameData.fb,
+      ss.pixel,
+      vec4(ray.dir, 1.f),
+      1.f,
+      ray.dir,
+      -ray.dir,
+      ~0u,
+      ~0u,
+      ~0u);
 }
 
 } // namespace visrtx

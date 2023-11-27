@@ -56,6 +56,7 @@ static void ui_cylindersConfig(CylindersConfig &config)
 {
   ui_config(config);
   ImGui::DragInt("numCylinders", &config.numCylinders, 1.f, 1, 100);
+  ImGui::InputFloat("position range", &config.positionRange);
   ImGui::InputFloat("radius", &config.radius);
   ImGui::Checkbox("caps", &config.caps);
   ImGui::Checkbox("randomize seed", &config.useRandomSeed);
@@ -66,6 +67,8 @@ static void ui_conesConfig(ConesConfig &config)
 {
   ui_config(config);
   ImGui::DragInt("numCones", &config.numCones, 1.f, 1, 100);
+  ImGui::InputFloat("position range", &config.positionRange);
+  ImGui::InputFloat("arrow radius", &config.arrowRadius);
   ImGui::Checkbox("caps", &config.caps);
   ImGui::Checkbox("randomize seed", &config.useRandomSeed);
   ImGui::DragFloat("opacity", &config.opacity, 0.001f, 0.f, 1.f);

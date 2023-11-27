@@ -43,6 +43,8 @@ TransferFunction1D::~TransferFunction1D()
 
 void TransferFunction1D::commit()
 {
+  Volume::commit();
+
   cleanup();
 
   m_params.color = getParamObject<Array1D>("color");
@@ -60,19 +62,19 @@ void TransferFunction1D::commit()
 
   if (!m_params.field) {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'field' on scivis ANARIVolume");
+        "missing parameter 'field' on transferFunction1D ANARIVolume");
     return;
   }
 
   if (!m_params.color) {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'color' on scivis ANARIVolume");
+        "missing parameter 'color' on transferFunction1D ANARIVolume");
     return;
   }
 
   if (!m_params.opacity) {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'opacity' on scivis ANARIVolume");
+        "missing parameter 'opacity' on transferFunction1D ANARIVolume");
     return;
   }
 
@@ -93,6 +95,7 @@ void TransferFunction1D::commit()
     return;
   }
 
+  m_params.field->addCommitObserver(this);
   m_params.color->addCommitObserver(this);
   m_params.opacity->addCommitObserver(this);
   if (m_params.colorPosition)
@@ -129,20 +132,23 @@ void TransferFunction1D::commit()
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
 
-  upload();
+  if (m_params.field->isValid()) {
+    m_params.field->m_uniformGrid.computeMaxOpacities(
+        deviceState()->stream, m_textureObject, m_tfDim);
+  }
 
-  m_params.field->m_uniformGrid.computeMaxOpacities(
-      deviceState()->stream, m_textureObject, m_tfDim);
+  upload();
 }
 
 bool TransferFunction1D::isValid() const
 {
-  return m_params.color && m_params.opacity && m_params.field;
+  return m_params.color && m_params.opacity && m_params.field
+      && m_params.field->isValid();
 }
 
 VolumeGPUData TransferFunction1D::gpuData() const
 {
-  VolumeGPUData retval{};
+  VolumeGPUData retval = Volume::gpuData();
   retval.type = VolumeType::SCIVIS;
   retval.bounds = m_params.field->bounds();
   retval.stepSize = m_params.field->stepSize();
@@ -201,6 +207,8 @@ void TransferFunction1D::cleanup()
     cudaFreeArray(m_cudaArray);
   m_textureObject = {};
   m_cudaArray = {};
+  if (m_params.field)
+    m_params.field->removeCommitObserver(this);
   if (m_params.color)
     m_params.color->removeCommitObserver(this);
   if (m_params.colorPosition)

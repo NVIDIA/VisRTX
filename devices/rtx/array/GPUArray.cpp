@@ -29,83 +29,27 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Surface.h"
+#include "array/GPUArray.h"
+// std
+#include <atomic>
 
 namespace visrtx {
 
-Surface::Surface(DeviceGlobalState *d)
-    : RegisteredObject<SurfaceGPUData>(ANARI_SURFACE, d)
+static std::atomic<size_t> s_numArrays = 0;
+
+size_t GPUArray::objectCount()
 {
-  setRegistry(d->registry.surfaces);
+  return s_numArrays.load();
 }
 
-void Surface::commit()
+GPUArray::GPUArray()
 {
-  m_id = getParam<uint32_t>("id", ~0u);
-  m_geometry = getParamObject<Geometry>("geometry");
-  m_material = getParamObject<Material>("material");
-
-  if (!m_material) {
-    reportMessage(ANARI_SEVERITY_WARNING, "missing 'material' on ANARISurface");
-    return;
-  }
-
-  if (!m_geometry) {
-    reportMessage(ANARI_SEVERITY_WARNING, "missing 'geometry' on ANARISurface");
-    return;
-  }
-
-  upload();
+  s_numArrays++;
 }
 
-const Geometry *Surface::geometry() const
+GPUArray::~GPUArray()
 {
-  return m_geometry.ptr;
-}
-
-const Material *Surface::material() const
-{
-  return m_material.ptr;
-}
-
-OptixBuildInput Surface::buildInput() const
-{
-  OptixBuildInput obi = {};
-  if (geometryIsValid())
-    m_geometry->populateBuildInput(obi);
-  return obi;
-}
-
-void Surface::markCommitted()
-{
-  Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
-}
-
-bool Surface::isValid() const
-{
-  return geometryIsValid() && materialIsValid();
-}
-
-bool Surface::geometryIsValid() const
-{
-  return m_geometry && m_geometry->isValid();
-}
-
-bool Surface::materialIsValid() const
-{
-  return m_material && m_material->isValid();
-}
-
-SurfaceGPUData Surface::gpuData() const
-{
-  SurfaceGPUData retval;
-  retval.id = m_id;
-  retval.geometry = geometry() ? geometry()->index() : -1;
-  retval.material = material() ? material()->index() : -1;
-  return retval;
+  s_numArrays--;
 }
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Surface *);

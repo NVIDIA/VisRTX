@@ -227,15 +227,15 @@ static ScenePtr generateCylinders(anari::Device d, CylindersConfig config)
     rng.seed(std::random_device()());
   else
     rng.seed(0);
-  std::uniform_real_distribution<float> dist(0.f, 1.f);
+  std::uniform_real_distribution<float> pos_dist(0.f, config.positionRange);
 
   std::vector<glm::vec3> positions(2 * config.numCylinders);
   std::vector<glm::uvec2> indices(config.numCylinders);
 
   for (auto &s : positions) {
-    s.x = dist(rng);
-    s.y = dist(rng);
-    s.z = dist(rng);
+    s.x = pos_dist(rng);
+    s.y = pos_dist(rng);
+    s.z = pos_dist(rng);
   }
 
   for (int i = 0; i < config.numCylinders; i++)
@@ -249,12 +249,14 @@ static ScenePtr generateCylinders(anari::Device d, CylindersConfig config)
   anari::setParameter(d, geom, "radius", config.radius);
   anari::setParameter(d, geom, "caps", config.caps ? "both" : "none");
 
+  std::uniform_real_distribution<float> col_dist(0.f, 1.f);
+
   std::vector<glm::vec4> colors(2 * config.numCylinders);
 
   for (auto &s : colors) {
-    s.x = dist(rng);
-    s.y = dist(rng);
-    s.z = dist(rng);
+    s.x = col_dist(rng);
+    s.y = col_dist(rng);
+    s.z = col_dist(rng);
     s.w = 1.f;
   }
 
@@ -298,22 +300,22 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
     rng.seed(std::random_device()());
   else
     rng.seed(0);
-  std::uniform_real_distribution<float> dist(0.f, 1.f);
+  std::uniform_real_distribution<float> pos_dist(0.f, config.positionRange);
 
   std::vector<glm::vec3> positions(2 * config.numCones);
   std::vector<glm::uvec2> indices(config.numCones);
 
   for (auto &s : positions) {
-    s.x = dist(rng);
-    s.y = dist(rng);
-    s.z = dist(rng);
+    s.x = pos_dist(rng);
+    s.y = pos_dist(rng);
+    s.z = pos_dist(rng);
   }
 
   for (int i = 0; i < config.numCones; i++)
     indices[i] = glm::uvec2(2 * i) + glm::uvec2(0, 1);
 
   std::vector<glm::vec2> radii(config.numCones);
-  std::fill(radii.begin(), radii.end(), glm::vec2(0.125f, 0.f));
+  std::fill(radii.begin(), radii.end(), glm::vec2(config.arrowRadius, 0.f));
 
   auto geom = anari::newObject<anari::Geometry>(d, "cone");
   anari::setAndReleaseParameter(d,
@@ -326,18 +328,20 @@ static ScenePtr generateCones(anari::Device d, ConesConfig config)
       anari::newArray1D(d, (float *)radii.data(), radii.size() * 2));
   anari::setParameter(d, geom, "caps", config.caps ? "caps" : "none");
 
+  std::uniform_real_distribution<float> col_dist(0.f, 1.f);
+
   std::vector<glm::vec4> colors(2 * config.numCones);
 
   for (auto &s : colors) {
-    s.x = dist(rng);
-    s.y = dist(rng);
-    s.z = dist(rng);
+    s.x = col_dist(rng);
+    s.y = col_dist(rng);
+    s.z = col_dist(rng);
     s.w = 1.f;
   }
 
   anari::setAndReleaseParameter(d,
       geom,
-      "primitive.color",
+      "vertex.color",
       anari::newArray1D(d, colors.data(), colors.size()));
 
   anari::commitParameters(d, geom);

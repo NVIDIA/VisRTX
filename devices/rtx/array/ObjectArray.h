@@ -31,46 +31,33 @@
 
 #pragma once
 
+#include "Object.h"
 #include "array/Array1D.h"
+// helium
+#include <helium/array/ObjectArray.h>
+// thrust
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 
 namespace visrtx {
 
-struct ObjectArray : public Array
+struct ObjectArray : public helium::ObjectArray, GPUArray
 {
   ObjectArray(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
-  ~ObjectArray();
-
-  void commit() override;
-
-  size_t totalSize() const override;
-  size_t totalCapacity() const override;
-
-  size_t size() const;
-
-  void privatize() override;
-  void unmap() override;
 
   Object **handlesBegin(bool uploadData = true) const;
   Object **handlesEnd(bool uploadData = true) const;
 
-  void *deviceData() const override;
-
-  void appendHandle(Object *);
-  void removeAppendedHandles();
+  const void *dataGPU() const override;
 
   void uploadArrayData() const override;
 
  private:
-  void updateInternalHandleArrays() const;
-
   mutable std::vector<Object *> m_appendedHandles;
   mutable std::vector<Object *> m_appHandles;
   mutable std::vector<Object *> m_liveHandles;
   mutable thrust::host_vector<void *> m_GPUDataHost;
   mutable thrust::device_vector<void *> m_GPUDataDevice;
-  size_t m_capacity{0};
-  size_t m_begin{0};
-  size_t m_end{0};
 };
 
 } // namespace visrtx

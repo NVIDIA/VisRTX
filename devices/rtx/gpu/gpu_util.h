@@ -231,15 +231,17 @@ RT_FUNCTION void accumValue(T *arr, size_t idx, size_t fid, const T &v)
     arr[idx] += v;
 }
 
-RT_FUNCTION void accumDepth(float *arr, size_t idx, size_t fid, const float &v)
+RT_FUNCTION bool accumDepth(float *arr, size_t idx, size_t fid, const float &v)
 {
   if (!arr)
-    return;
+    return true; // no previous depth to compare with
 
-  if (fid == 0)
+  const bool closerSample = fid == 0 || arr[idx] < v;
+
+  if (closerSample)
     arr[idx] = v;
-  else
-    arr[idx] = min(arr[idx], v);
+
+  return closerSample;
 }
 
 RT_FUNCTION void writeOutputColor(
@@ -268,14 +270,25 @@ RT_FUNCTION void accumResults(const FramebufferGPUData &fb,
     const vec4 &color,
     float depth,
     const vec3 &albedo,
-    const vec3 &normal)
+    const vec3 &normal,
+    uint32_t primID,
+    uint32_t objID,
+    uint32_t instID)
 {
   const uint32_t idx = detail::pixelIndex(fb, pixel);
 
   detail::accumValue(fb.buffers.colorAccumulation, idx, fb.frameID, color);
-  detail::accumDepth(fb.buffers.depth, idx, fb.frameID, depth);
   detail::accumValue(fb.buffers.albedo, idx, fb.frameID, albedo);
   detail::accumValue(fb.buffers.normal, idx, fb.frameID, normal);
+
+  if (detail::accumDepth(fb.buffers.depth, idx, fb.frameID, depth)) {
+    if (fb.buffers.primID)
+      fb.buffers.primID[idx] = primID;
+    if (fb.buffers.objID)
+      fb.buffers.objID[idx] = objID;
+    if (fb.buffers.instID)
+      fb.buffers.instID[idx] = instID;
+  }
 
   const auto accumColor = fb.buffers.colorAccumulation[idx];
   detail::writeOutputColor(fb, accumColor, idx);

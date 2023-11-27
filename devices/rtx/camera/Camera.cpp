@@ -34,14 +34,16 @@
 #include "Orthographic.h"
 #include "Perspective.h"
 #include "UnknownCamera.h"
+// std
+#include <atomic>
 
 namespace visrtx {
 
-static size_t s_numCameras = 0;
+static std::atomic<size_t> s_numCameras = 0;
 
 size_t Camera::objectCount()
 {
-  return s_numCameras;
+  return s_numCameras.load();
 }
 
 Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s)

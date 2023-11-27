@@ -55,9 +55,9 @@ struct World : public Object
   OptixTraversableHandle optixTraversableHandleSurfaces() const;
   OptixTraversableHandle optixTraversableHandleVolumes() const;
 
-  Span<const InstanceSurfaceGPUData> instanceSurfaceGPUData() const;
-  Span<const InstanceVolumeGPUData> instanceVolumeGPUData() const;
-  Span<const InstanceLightGPUData> instanceLightGPUData() const;
+  Span<InstanceSurfaceGPUData> instanceSurfaceGPUData() const;
+  Span<InstanceVolumeGPUData> instanceVolumeGPUData() const;
+  Span<InstanceLightGPUData> instanceLightGPUData() const;
 
   void rebuildBVHs();
 

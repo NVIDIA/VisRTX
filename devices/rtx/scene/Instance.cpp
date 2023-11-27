@@ -30,14 +30,16 @@
  */
 
 #include "Instance.h"
+// std
+#include <atomic>
 
 namespace visrtx {
 
-static size_t s_numInstances = 0;
+static std::atomic<size_t> s_numInstances = 0;
 
 size_t Instance::objectCount()
 {
-  return s_numInstances;
+  return s_numInstances.load();
 }
 
 Instance::Instance(DeviceGlobalState *d) : Object(ANARI_INSTANCE, d)
@@ -52,10 +54,16 @@ Instance::~Instance()
 
 void Instance::commit()
 {
+  m_id = getParam<uint32_t>("id", ~0u);
   m_xfm = getParam<mat4x3>("transform", getParam<mat4>("transform", mat4(1)));
   m_group = getParamObject<Group>("group");
   if (!m_group)
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'group' on ANARIInstance");
+}
+
+uint32_t Instance::userID() const
+{
+  return m_id;
 }
 
 mat4x3 Instance::xfm() const

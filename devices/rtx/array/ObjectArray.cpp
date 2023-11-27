@@ -33,111 +33,21 @@
 
 namespace visrtx {
 
-// Helper functions ///////////////////////////////////////////////////////////
-
-static void refIncObject(Object *obj)
-{
-  if (obj)
-    obj->refInc(helium::RefType::INTERNAL);
-}
-
-static void refDecObject(Object *obj)
-{
-  if (obj)
-    obj->refDec(helium::RefType::INTERNAL);
-}
-
-// ObjectArray definitions ////////////////////////////////////////////////////
-
 ObjectArray::ObjectArray(
     DeviceGlobalState *state, const Array1DMemoryDescriptor &d)
-    : Array(ANARI_ARRAY1D, state, d), m_capacity(d.numItems), m_end(d.numItems)
+    : helium::ObjectArray(state, d)
+{}
+
+const void *ObjectArray::dataGPU() const
 {
-  if (d.byteStride != 0)
-    throw std::runtime_error("strided arrays not yet supported!");
-  m_appHandles.resize(d.numItems, nullptr);
-  initManagedMemory();
-  updateInternalHandleArrays();
-  markDataModified();
-}
-
-ObjectArray::~ObjectArray()
-{
-  std::for_each(m_appHandles.begin(), m_appHandles.end(), refDecObject);
-  std::for_each(
-      m_appendedHandles.begin(), m_appendedHandles.end(), refDecObject);
-}
-
-void ObjectArray::commit()
-{
-  auto oldBegin = m_begin;
-  auto oldEnd = m_end;
-
-  m_begin = getParam<size_t>("begin", 0);
-  m_begin = std::clamp(m_begin, size_t(0), m_capacity - 1);
-  m_end = getParam<size_t>("end", m_capacity);
-  m_end = std::clamp(m_end, size_t(1), m_capacity);
-
-  if (size() == 0) {
-    reportMessage(ANARI_SEVERITY_ERROR, "array size must be greater than zero");
-    return;
-  }
-
-  if (m_begin > m_end) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "array 'begin' is not less than 'end', swapping values");
-    std::swap(m_begin, m_end);
-  }
-
-  if (m_begin != oldBegin || m_end != oldEnd) {
-    markDataModified();
-    notifyCommitObservers();
-  }
-}
-
-size_t ObjectArray::totalSize() const
-{
-  return size() + m_appendedHandles.size();
-}
-
-size_t ObjectArray::totalCapacity() const
-{
-  return m_capacity;
-}
-
-size_t ObjectArray::size() const
-{
-  return m_end - m_begin;
-}
-
-void ObjectArray::privatize()
-{
-  makePrivatizedCopy(size());
-  freeAppMemory();
-  if (data()) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "ObjectArray privatized but host array still present");
-  }
-}
-
-void ObjectArray::unmap()
-{
-  if (!m_mapped) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "array unmapped again without being previously mapped");
-    return;
-  }
-  m_mapped = false;
-  updateInternalHandleArrays();
-  markDataModified();
-  notifyCommitObservers();
+  return thrust::raw_pointer_cast(m_GPUDataDevice.data());
 }
 
 Object **ObjectArray::handlesBegin(bool uploadData) const
 {
   if (uploadData)
     uploadArrayData();
-  return m_liveHandles.data() + m_begin;
+  return (Object **)helium::ObjectArray::handlesBegin();
 }
 
 Object **ObjectArray::handlesEnd(bool uploadData) const
@@ -145,41 +55,10 @@ Object **ObjectArray::handlesEnd(bool uploadData) const
   return handlesBegin(uploadData) + totalSize();
 }
 
-void *ObjectArray::deviceData() const
-{
-  return thrust::raw_pointer_cast(m_GPUDataDevice.data());
-}
-
-void ObjectArray::appendHandle(Object *o)
-{
-  o->refInc(helium::RefType::INTERNAL);
-  m_appendedHandles.push_back(o);
-  markDataModified();
-}
-
-void ObjectArray::removeAppendedHandles()
-{
-  m_liveHandles.resize(size());
-  std::for_each(
-      m_appendedHandles.begin(), m_appendedHandles.end(), refDecObject);
-  m_appendedHandles.clear();
-  markDataModified();
-}
-
 void ObjectArray::uploadArrayData() const
 {
   if (!needToUploadData())
     return;
-
-  updateInternalHandleArrays();
-
-  auto &state = *deviceState();
-
-  const auto type = elementType();
-  if (type == ANARI_INSTANCE)
-    state.objectUpdates.lastTLASChange = helium::newTimeStamp();
-  else if (type == ANARI_SURFACE || type == ANARI_VOLUME)
-    state.objectUpdates.lastBLASChange = helium::newTimeStamp();
 
   m_GPUDataHost.resize(totalSize());
 
@@ -189,28 +68,8 @@ void ObjectArray::uploadArrayData() const
       [](Object *obj) { return obj ? obj->deviceData() : nullptr; });
 
   m_GPUDataDevice = m_GPUDataHost;
-  markDataUploaded();
-}
 
-void ObjectArray::updateInternalHandleArrays() const
-{
-  m_liveHandles.resize(totalSize());
-
-  if (data()) {
-    auto **srcAllBegin = (Object **)data();
-    auto **srcAllEnd = srcAllBegin + totalCapacity();
-    std::for_each(srcAllBegin, srcAllEnd, refIncObject);
-    std::for_each(m_appHandles.begin(), m_appHandles.end(), refDecObject);
-    std::copy(srcAllBegin, srcAllEnd, m_appHandles.data());
-
-    auto **srcRegionBegin = srcAllBegin + m_begin;
-    auto **srcRegionEnd = srcRegionBegin + size();
-    std::copy(srcRegionBegin, srcRegionEnd, m_liveHandles.data());
-  }
-
-  std::copy(m_appendedHandles.begin(),
-      m_appendedHandles.end(),
-      m_liveHandles.begin() + size());
+  helium::ObjectArray::uploadArrayData();
 }
 
 } // namespace visrtx

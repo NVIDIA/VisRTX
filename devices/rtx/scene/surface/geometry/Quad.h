@@ -31,8 +31,8 @@
 
 #pragma once
 
-#include "array/Array.h"
 #include "Geometry.h"
+#include "array/Array1D.h"
 
 namespace visrtx {
 

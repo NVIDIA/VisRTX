@@ -48,7 +48,8 @@ RT_FUNCTION float sampleSpatialField(
 
   // TODO: runtime compile errors if these are in the switch()
   const auto &srf = sf.data.structuredRegular;
-  const auto srfCoords = (location - srf.origin) * srf.invSpacing;
+  const auto srfCoords =
+      ((location - srf.origin) + 0.5f * srf.spacing) * srf.invSpacing;
 
   switch (sf.type) {
   case SpatialFieldType::STRUCTURED_REGULAR:

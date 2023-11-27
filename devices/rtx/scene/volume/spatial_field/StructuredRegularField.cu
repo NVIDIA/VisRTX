@@ -108,7 +108,8 @@ void StructuredRegularField::buildGrid()
   buildGridGPU<<<iDivUp(numVoxels, numThreads),
       numThreads,
       0,
-      deviceState()->stream>>>(m_textureObject, dims, m_uniformGrid.gpuData());
+      deviceState()->stream>>>(
+      m_textureObject, ivec3(dims.x, dims.y, dims.z), m_uniformGrid.gpuData());
 }
 
 } // namespace visrtx

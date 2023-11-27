@@ -107,7 +107,7 @@ struct AttributePtr
 {
   ANARIDataType type;
   int numChannels;
-  void *data;
+  const void *data;
 };
 
 struct TriangleGeometryData
@@ -144,6 +144,14 @@ struct CylinderGeometryData
   bool caps;
 };
 
+struct ConeGeometryData
+{
+  const uvec2 *indices;
+  const vec3 *vertices;
+  const float *radii;
+  AttributePtr vertexAttr[5]; // attribute0-3 + color
+};
+
 struct CurveGeometryData
 {
   const uint32_t *indices;
@@ -152,18 +160,10 @@ struct CurveGeometryData
   const float *radii;
 };
 
-struct ConeGeometryData
-{
-  const uvec3 *indices; // actually triangles
-  const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
-  uint8_t trianglesPerCone;
-};
-
 struct SphereGeometryData
 {
   const uint32_t *indices;
-  vec3 *centers;
+  const vec3 *centers;
   AttributePtr vertexAttr[5]; // attribute0-3 + color
   const float *radii;
   float radius;
@@ -290,6 +290,7 @@ struct SurfaceGPUData
 {
   DeviceObjectIndex material;
   DeviceObjectIndex geometry;
+  uint32_t id;
 };
 
 // Spatial Fields //
@@ -304,6 +305,7 @@ struct StructuredRegularData
 {
   cudaTextureObject_t texObj{};
   vec3 origin;
+  vec3 spacing;
   vec3 invSpacing;
 };
 
@@ -350,6 +352,7 @@ struct VolumeGPUData
   } data;
   float stepSize;
   box3 bounds;
+  uint32_t id;
 };
 
 // Lights //
@@ -390,11 +393,13 @@ struct LightGPUData
 struct InstanceSurfaceGPUData
 {
   const DeviceObjectIndex *surfaces;
+  uint32_t id;
 };
 
 struct InstanceVolumeGPUData
 {
   const DeviceObjectIndex *volumes;
+  uint32_t id;
 };
 
 struct InstanceLightGPUData
@@ -490,6 +495,9 @@ struct FrameBuffers
   glm::vec4 *outColorVec4;
   uint32_t *outColorUint;
   float *depth;
+  uint32_t *primID;
+  uint32_t *objID;
+  uint32_t *instID;
   glm::vec3 *albedo;
   glm::vec3 *normal;
 };
@@ -538,37 +546,5 @@ struct ScreenSample
   RandState rs;
   const FrameGPUData *frameData;
 };
-
-struct Ray
-{
-  vec3 org;
-  vec3 dir;
-  box1 t{0.f, std::numeric_limits<float>::max()};
-};
-
-struct SurfaceHit
-{
-  bool foundHit;
-  float t;
-  vec3 hitpoint;
-  vec3 Ng;
-  vec3 Ns;
-  vec3 uvw;
-  uint32_t primID;
-  float epsilon;
-  const GeometryGPUData *geometry{nullptr};
-  const MaterialGPUData *material{nullptr};
-};
-
-struct VolumeHit
-{
-  bool foundHit;
-  Ray localRay;
-  uint32_t volID{~0u};
-  uint32_t instID{~0u};
-  const VolumeGPUData *volumeData{nullptr};
-};
-
-using Hit = SurfaceHit;
 
 } // namespace visrtx

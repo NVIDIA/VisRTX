@@ -139,6 +139,21 @@ struct ShaderCache
   {
     this->gl = gl;
   }
+  GLuint getCompute(const StaticAppendableShader<N> &cs)
+  {
+    StaticAppendableShader<N> empty;
+    Key k(cs, empty, empty);
+    auto iter = map.find(k);
+    if (iter != map.end()) {
+      return iter->second;
+    } else {
+      GLuint shader = shader_build_compute_segmented(
+          *gl, cs.source());
+
+      map.emplace(k, shader);
+      return shader;
+    }
+  }
   GLuint get(const StaticAppendableShader<N> &vs)
   {
     StaticAppendableShader<N> gs;

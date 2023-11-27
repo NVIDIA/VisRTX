@@ -31,32 +31,36 @@
 
 #pragma once
 
-#include "VisGLDevice.h"
+#include "Object.h"
+#include "utility/DeviceBuffer.h"
 
-namespace visgl {
+namespace visrtx {
 
-template <>
-class Object<MaterialTransparentMatte>
-    : public DefaultObject<MaterialTransparentMatte, MaterialObjectBase>
+enum class AddressSpace
 {
-  size_t material_index;
-
- public:
-  Object(ANARIDevice d, ANARIObject handle);
-
-  void commit() override;
-  void allocateResources(SurfaceObjectBase *) override;
-  void drawCommand(SurfaceObjectBase *, DrawCommand &) override;
-  void fragmentShaderDeclarations(
-      SurfaceObjectBase *, AppendableShader &) override;
-  void fragmentShaderMain(SurfaceObjectBase *, AppendableShader &) override;
-
-  void fragmentShaderShadowDeclarations(
-      SurfaceObjectBase *, AppendableShader &) override;
-  void fragmentShaderShadowMain(
-      SurfaceObjectBase *, AppendableShader &) override;
-
-  uint32_t index() override;
+  HOST,
+  GPU
 };
 
-} // namespace visgl
+struct GPUArray
+{
+  static size_t objectCount();
+
+  GPUArray();
+  ~GPUArray();
+
+  virtual const void *dataGPU() const = 0;
+
+ protected:
+  struct
+  {
+    mutable DeviceBuffer buffer;
+  } m_deviceData;
+
+  mutable cudaArray_t m_cuArrayFloat{};
+  size_t m_arrayRefCountFloat{0};
+  mutable cudaArray_t m_cuArrayUint8{};
+  size_t m_arrayRefCountUint8{0};
+};
+
+} // namespace visrtx

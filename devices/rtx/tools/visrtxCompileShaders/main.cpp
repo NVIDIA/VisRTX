@@ -42,46 +42,16 @@ static void statusFunc(const void * /*userData*/,
     ANARIStatusCode /*code*/,
     const char *message)
 {
-  if (severity == ANARI_SEVERITY_FATAL_ERROR) {
-    printf("[FATAL][%p] %s\n", source, message);
-    std::exit(1);
-  } else if (severity == ANARI_SEVERITY_ERROR) {
-    printf("[ERROR][%p] %s\n", source, message);
-  } else if (severity == ANARI_SEVERITY_WARNING) {
-    printf("[WARN ][%p] %s\n", source, message);
-  } else if (severity == ANARI_SEVERITY_PERFORMANCE_WARNING) {
-    printf("[PERF ][%p] %s\n", source, message);
-  } else if (severity == ANARI_SEVERITY_INFO) {
-    printf("[INFO ][%p] %s\n", source, message);
-  } else if (severity == ANARI_SEVERITY_DEBUG) {
-    printf("[DEBUG][%p] %s\n", source, message);
-  }
+  if (severity == ANARI_SEVERITY_INFO)
+    printf("%s\n", message);
+  fflush(stdout);
 }
 
 int main()
 {
   auto device = makeVisRTXDevice(statusFunc);
-
-  const char **r_subtypes = nullptr;
-  bool foundSubtypes = anariGetProperty(device,
-      device,
-      "subtypes.renderer",
-      ANARI_STRING_LIST,
-      &r_subtypes,
-      sizeof(r_subtypes),
-      ANARI_WAIT);
-
-  if (!foundSubtypes || !r_subtypes) {
-    printf("ERROR: unable to read renderer subtypes");
-    return 1;
-  }
-
-  for (int i = 0; r_subtypes[i] != nullptr; i++) {
-    auto r = anari::newObject<anari::Renderer>(device, r_subtypes[i]);
-    anari::release(device, r);
-  }
-
+  anari::setParameter(device, device, "forceInit", true);
+  anari::commitParameters(device, device);
   anari::release(device, device);
-
   return 0;
 }

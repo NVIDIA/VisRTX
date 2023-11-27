@@ -31,6 +31,8 @@
 
 #include "VisGLDeviceObject.h"
 #include "VisGLSpecializations.h"
+#include "AppendableShader.h"
+#include "shader_blocks.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -217,8 +219,9 @@ void Object<Device>::update()
   queue.enqueue(device_context_init, this, clientapi, debug).wait();
 }
 
-void device_init_occlusion(GladGLContext &gl, OcclusionResources *res)
+void device_init_occlusion(ObjectRef<Device> device, OcclusionResources *res)
 {
+  auto &gl = device->gl;
   gl.GenTextures(1, &res->tex);
   gl.BindTexture(GL_TEXTURE_2D_ARRAY, res->tex);
   gl.TexStorage3D(
@@ -240,13 +243,24 @@ void device_init_occlusion(GladGLContext &gl, OcclusionResources *res)
   gl.GenFramebuffers(1, &res->fbo);
   gl.BindFramebuffer(GL_FRAMEBUFFER, res->fbo);
   gl.FramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, res->tex, 0);
+
+  const char *version = gl.VERSION_4_3 ? version_430 : version_320_es;
+
+  StaticAppendableShader<SHADER_SEGMENTS> clear_shader;
+  clear_shader.append(version);
+  clear_shader.append(occlusion_declaration);
+  clear_shader.append(clear_occlusion_source);
+
+  res->clear_shader =
+    device->shaders.getCompute(clear_shader);
+
 }
 
 OcclusionResources *Object<Device>::getOcclusionResources()
 {
   if (occlusion.tex == 0) {
     // queue.enqueue(device_init_occlusion, gl, &occlusion).wait();
-    device_init_occlusion(gl, &occlusion);
+    device_init_occlusion(ObjectRef<Device>(this), &occlusion);
   }
   return &occlusion;
 }

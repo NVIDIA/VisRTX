@@ -31,36 +31,34 @@
 
 #pragma once
 
-#include "array/Array.h"
+#include "GPUArray.h"
+// helium
+#include <helium/array/Array1D.h>
+// std
+#include <cassert>
 
 namespace visrtx {
 
-struct Array1DMemoryDescriptor : public ArrayMemoryDescriptor
-{
-  uint64_t numItems{0};
-  uint64_t byteStride{0};
-};
+using Array1DMemoryDescriptor = helium::Array1DMemoryDescriptor;
 
-struct Array1D : public Array
+struct Array1D : public helium::Array1D, GPUArray
 {
   Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
 
-  void commit() override;
+  const void *dataGPU() const override;
 
-  size_t totalSize() const override;
-  size_t totalCapacity() const override;
-
-  void *begin(AddressSpace as = AddressSpace::HOST) const;
-  void *end(AddressSpace as = AddressSpace::HOST) const;
+  const void *data(AddressSpace as) const;
 
   template <typename T>
-  T *beginAs(AddressSpace as = AddressSpace::HOST) const;
+  const T *dataAs(AddressSpace as = AddressSpace::HOST) const;
+
+  const void *begin(AddressSpace as = AddressSpace::HOST) const;
+  const void *end(AddressSpace as = AddressSpace::HOST) const;
+
   template <typename T>
-  T *endAs(AddressSpace as = AddressSpace::HOST) const;
-
-  size_t size() const;
-
-  void privatize() override;
+  const T *beginAs(AddressSpace as = AddressSpace::HOST) const;
+  template <typename T>
+  const T *endAs(AddressSpace as = AddressSpace::HOST) const;
 
   cudaArray_t acquireCUDAArrayFloat();
   void releaseCUDAArrayFloat();
@@ -69,36 +67,32 @@ struct Array1D : public Array
   void releaseCUDAArrayUint8();
 
   void uploadArrayData() const override;
-
- private:
-  size_t m_capacity{0};
-  size_t m_begin{0};
-  size_t m_end{0};
-
-  mutable cudaArray_t m_cuArrayFloat{};
-  size_t m_arrayRefCountFloat{0};
-  mutable cudaArray_t m_cuArrayUint8{};
-  size_t m_arrayRefCountUint8{0};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>
-inline T *Array1D::beginAs(AddressSpace as) const
+inline const T *Array1D::dataAs(AddressSpace as) const
 {
-  if (anari::ANARITypeFor<T>::value != elementType())
-    throw std::runtime_error("incorrect element type queried for array");
+  assert(anari::ANARITypeFor<T>::value != elementType());
 
-  return (T *)data(as) + m_begin;
+  return (const T *)data(as);
 }
 
 template <typename T>
-inline T *Array1D::endAs(AddressSpace as) const
+inline const T *Array1D::beginAs(AddressSpace as) const
 {
-  if (anari::ANARITypeFor<T>::value != elementType())
-    throw std::runtime_error("incorrect element type queried for array");
+  assert(anari::ANARITypeFor<T>::value != elementType());
 
-  return (T *)data(as) + m_end;
+  return dataAs<T>(as) + m_begin;
+}
+
+template <typename T>
+inline const T *Array1D::endAs(AddressSpace as) const
+{
+  assert(anari::ANARITypeFor<T>::value != elementType());
+
+  return dataAs<T>(as) + m_end;
 }
 
 } // namespace visrtx

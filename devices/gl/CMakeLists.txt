@@ -66,7 +66,6 @@ add_library(${PROJECT_NAME} SHARED
   src/VisGLGeometrySphereObject.cpp
   src/VisGLGeometryCylinderObject.cpp
   src/VisGLMaterialMatteObject.cpp
-  src/VisGLMaterialTransparentMatteObject.cpp
   src/VisGLMaterialPbrObject.cpp
   src/VisGLCameraPerspectiveObject.cpp
   src/VisGLCameraOrthographicObject.cpp
@@ -169,27 +168,19 @@ if (MSVC)
   )
 endif()
 
+if (VISRTX_USE_SOVERSION)
+  set_target_properties(${PROJECT_NAME}
+      PROPERTIES VERSION "${CMAKE_PROJECT_VERSION}" SOVERSION "${CMAKE_PROJECT_VERSION_MAJOR}")
+endif()
+
 install(TARGETS ${PROJECT_NAME}
   EXPORT VisGL_Exports
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  # on Windows put the dlls into bin
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  # ... and the import lib into the devel package
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
-
-if (VISRTX_USE_SOVERSION)
-  set_target_properties(${PROJECT_NAME}
-      PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
-
-  install(TARGETS ${PROJECT_NAME}
-    EXPORT VisGL_Exports
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      NAMELINK_SKIP
-    # on Windows put the dlls into bin
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    # ... and the import lib into the devel package
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  )
-endif()
 
 install(EXPORT VisGL_Exports
   DESTINATION ${VISRTX_CMAKE_INSTALL_DESTINATION}

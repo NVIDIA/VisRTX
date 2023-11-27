@@ -33,6 +33,7 @@
 #include "utility/instrument.h"
 // std
 #include <algorithm>
+#include <atomic>
 #include <random>
 // thrust
 #include <thrust/fill.h>
@@ -42,7 +43,7 @@ namespace visrtx {
 
 // Frame definitions //////////////////////////////////////////////////////////
 
-static size_t s_numFrames = 0;
+static std::atomic<size_t> s_numFrames = 0;
 
 size_t Frame::objectCount()
 {
@@ -122,12 +123,22 @@ void Frame::commit()
   hd.fb.invSize = 1.f / vec2(hd.fb.size);
 
   m_depthType = getParam<ANARIDataType>("channel.depth", ANARI_UNKNOWN);
+  m_primIDType = getParam<ANARIDataType>("channel.primitiveId", ANARI_UNKNOWN);
+  m_objIDType = getParam<ANARIDataType>("channel.objectId", ANARI_UNKNOWN);
+  m_instIDType = getParam<ANARIDataType>("channel.instanceId", ANARI_UNKNOWN);
   m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
   m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
 
-  const bool channelDepth = m_depthType == ANARI_FLOAT32;
+  const bool channelPrimID = m_primIDType == ANARI_UINT32;
+  const bool channelObjID = m_objIDType == ANARI_UINT32;
+  const bool channelInstID = m_instIDType == ANARI_UINT32;
   const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
   const bool channelNormal = m_normalType == ANARI_FLOAT32;
+
+  const bool channelDepth = m_depthType == ANARI_FLOAT32 || channelPrimID
+      || channelObjID || channelInstID;
+  if (channelDepth && m_depthType != ANARI_FLOAT32)
+    m_depthType = ANARI_FLOAT32;
 
   const auto numPixels = hd.fb.size.x * hd.fb.size.y;
 
@@ -136,6 +147,9 @@ void Frame::commit()
   m_pixelBuffer.resize(numPixels * m_perPixelBytes);
 
   m_depthBuffer.resize(channelDepth ? numPixels : 0);
+  m_primIDBuffer.resize(channelPrimID ? numPixels : 0);
+  m_objIDBuffer.resize(channelObjID ? numPixels : 0);
+  m_instIDBuffer.resize(channelInstID ? numPixels : 0);
 
   m_accumAlbedo.resize(channelAlbedo ? numPixels : 0);
   m_deviceAlbedoBuffer.resize(channelAlbedo ? numPixels : 0);
@@ -157,6 +171,9 @@ void Frame::commit()
     hd.fb.buffers.outColorUint = (uint32_t *)m_pixelBuffer.dataDevice();
 
   hd.fb.buffers.depth = channelDepth ? m_depthBuffer.dataDevice() : nullptr;
+  hd.fb.buffers.primID = channelPrimID ? m_primIDBuffer.dataDevice() : nullptr;
+  hd.fb.buffers.objID = channelObjID ? m_objIDBuffer.dataDevice() : nullptr;
+  hd.fb.buffers.instID = channelInstID ? m_instIDBuffer.dataDevice() : nullptr;
   hd.fb.buffers.albedo =
       channelAlbedo ? thrust::raw_pointer_cast(m_accumAlbedo.data()) : nullptr;
   hd.fb.buffers.normal =
@@ -190,7 +207,7 @@ bool Frame::getProperty(
     if (flags & ANARI_WAIT)
       wait();
     if (ready())
-      deviceState()->commitBuffer.flush();
+      deviceState()->commitBufferFlush();
     checkAccumulationReset();
     helium::writeToVoidP(ptr, m_nextFrameReset);
     return true;
@@ -207,7 +224,7 @@ void Frame::renderFrame()
 
   instrument::rangePush("update scene");
   instrument::rangePush("flush commits");
-  state.commitBuffer.flush();
+  state.commitBufferFlush();
   instrument::rangePop(); // flush commits
 
   instrument::rangePush("flush array uploads");
@@ -311,34 +328,54 @@ void *Frame::map(std::string_view channel,
 {
   wait();
 
-  const auto &hd = data();
-  *width = hd.fb.size.x;
-  *height = hd.fb.size.y;
+  ANARIDataType type = ANARI_UNKNOWN;
+  void *retval = nullptr;
+
+  const bool channelDepth = m_depthType == ANARI_FLOAT32;
+  const bool channelPrimID = m_primIDType == ANARI_UINT32;
+  const bool channelObjID = m_objIDType == ANARI_UINT32;
+  const bool channelInstID = m_instIDType == ANARI_UINT32;
+  const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
+  const bool channelNormal = m_normalType == ANARI_FLOAT32;
 
   if (channel == "channel.color") {
-    *pixelType = m_colorType;
-    return mapColorBuffer();
-  } else if (channel == "channel.depth") {
-    *pixelType = ANARI_FLOAT32;
-    return mapDepthBuffer();
+    type = m_colorType;
+    retval = mapColorBuffer();
   } else if (channel == "channel.colorGPU") {
-    *pixelType = m_colorType;
-    return mapGPUColorBuffer();
-  } else if (channel == "channel.depthGPU") {
-    *pixelType = ANARI_FLOAT32;
-    return mapGPUDepthBuffer();
-  } else if (channel == "channel.normal") {
-    *pixelType = ANARI_FLOAT32_VEC3;
-    return mapNormalBuffer();
-  } else if (channel == "channel.albedo") {
-    *pixelType = ANARI_FLOAT32_VEC3;
-    return mapAlbedoBuffer();
-  } else {
-    *width = 0;
-    *height = 0;
-    *pixelType = ANARI_UNKNOWN;
-    return nullptr;
+    type = m_colorType;
+    retval = mapGPUColorBuffer();
+  } else if (channelDepth && channel == "channel.depth") {
+    type = ANARI_FLOAT32;
+    retval = mapDepthBuffer();
+  } else if (channelDepth && channel == "channel.depthGPU") {
+    type = ANARI_FLOAT32;
+    retval = mapGPUDepthBuffer();
+  } else if (channelPrimID && channel == "channel.primitiveId") {
+    type = ANARI_UINT32;
+    retval = mapPrimIDBuffer();
+  } else if (channelObjID && channel == "channel.objectId") {
+    type = ANARI_UINT32;
+    retval = mapObjIDBuffer();
+  } else if (channelInstID && channel == "channel.instanceId") {
+    type = ANARI_UINT32;
+    retval = mapInstIDBuffer();
+  } else if (channelNormal && channel == "channel.normal") {
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapNormalBuffer();
+  } else if (channelAlbedo && channel == "channel.albedo") {
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapAlbedoBuffer();
   }
+
+  if (type != ANARI_UNKNOWN) {
+    const auto &hd = data();
+    *width = hd.fb.size.x;
+    *height = hd.fb.size.y;
+  }
+
+  *pixelType = type;
+
+  return retval;
 }
 
 void Frame::unmap(std::string_view channel)
@@ -413,6 +450,27 @@ void *Frame::mapGPUDepthBuffer()
   return m_depthBuffer.dataDevice();
 }
 
+void *Frame::mapPrimIDBuffer()
+{
+  m_primIDBuffer.download();
+  m_frameMappedOnce = true;
+  return m_primIDBuffer.dataHost();
+}
+
+void *Frame::mapObjIDBuffer()
+{
+  m_objIDBuffer.download();
+  m_frameMappedOnce = true;
+  return m_objIDBuffer.dataHost();
+}
+
+void *Frame::mapInstIDBuffer()
+{
+  m_instIDBuffer.download();
+  m_frameMappedOnce = true;
+  return m_instIDBuffer.dataHost();
+}
+
 void *Frame::mapAlbedoBuffer()
 {
   auto &state = *deviceState();
@@ -462,8 +520,8 @@ void Frame::checkAccumulationReset()
     return;
 
   auto &state = *deviceState();
-  if (m_lastCommitOccured < state.commitBuffer.lastFlush()) {
-    m_lastCommitOccured = state.commitBuffer.lastFlush();
+  if (m_lastCommitOccured < state.commitBufferLastFlush()) {
+    m_lastCommitOccured = state.commitBufferLastFlush();
     m_nextFrameReset = true;
   }
   if (m_lastUploadOccured < state.uploadBuffer.lastFlush()) {

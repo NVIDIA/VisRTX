@@ -38,7 +38,7 @@
 #include "anari/backend/DeviceImpl.h"
 #include "ConcurrentArray.h"
 
-#include "glad/gl.h"
+#include "ogl.h"
 
 #include <atomic>
 #include <memory>

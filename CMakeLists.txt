@@ -46,7 +46,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-project(VisRTX VERSION 0.6.1 LANGUAGES C CXX)
+project(VisRTX VERSION 0.7.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
@@ -70,7 +70,7 @@ endif()
 ## Dependencies ###############################################################
 
 # ANARI-SDK
-set(ANARI_REQUIRED_VERSION 0.7.0)
+set(ANARI_REQUIRED_VERSION 0.8.0)
 find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
 # CUDA
@@ -134,8 +134,8 @@ install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/cmake
 
 option(VISRTX_PRECOMPILE_SHADERS "Run visrtxCompileShaders after install?" ON)
 if (TARGET visrtxCompileShaders AND VISRTX_PRECOMPILE_SHADERS)
-  install(
-    CODE
+  install(CODE "message(STATUS \"Precompile VisRTX OptiX shaders\")")
+  install(CODE
     "execute_process(COMMAND ${CMAKE_BINARY_DIR}/visrtxCompileShaders)"
   )
 endif()

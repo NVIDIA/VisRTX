@@ -76,7 +76,7 @@ bool Group::getProperty(
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
-      deviceState()->commitBuffer.flush();
+      deviceState()->commitBufferFlush();
       rebuildSurfaceBVHs();
       rebuildVolumeBVH();
     }
@@ -98,10 +98,6 @@ void Group::commit()
   m_surfaceData = getParamObject<ObjectArray>("surface");
   m_volumeData = getParamObject<ObjectArray>("volume");
   m_lightData = getParamObject<ObjectArray>("light");
-
-  partitionValidGeometriesByType();
-  partitionValidVolumes();
-  partitionValidLights();
 
   m_objectUpdates.lastSurfaceBVHBuilt = 0;
   m_objectUpdates.lastVolumeBVHBuilt = 0;
@@ -135,26 +131,26 @@ OptixTraversableHandle Group::optixTraversableVolume() const
   return m_traversableVolume;
 }
 
-Span<const DeviceObjectIndex> Group::surfaceTriangleGPUIndices() const
+Span<DeviceObjectIndex> Group::surfaceTriangleGPUIndices() const
 {
   return make_Span(
       (const DeviceObjectIndex *)m_surfaceTriangleObjectIndices.ptr(),
       m_surfacesTriangle.size());
 }
 
-Span<const DeviceObjectIndex> Group::surfaceCurveGPUIndices() const
+Span<DeviceObjectIndex> Group::surfaceCurveGPUIndices() const
 {
   return make_Span((const DeviceObjectIndex *)m_surfaceCurveObjectIndices.ptr(),
       m_surfacesCurve.size());
 }
 
-Span<const DeviceObjectIndex> Group::surfaceUserGPUIndices() const
+Span<DeviceObjectIndex> Group::surfaceUserGPUIndices() const
 {
   return make_Span((const DeviceObjectIndex *)m_surfaceUserObjectIndices.ptr(),
       m_surfacesUser.size());
 }
 
-Span<const DeviceObjectIndex> Group::volumeGPUIndices() const
+Span<DeviceObjectIndex> Group::volumeGPUIndices() const
 {
   return make_Span(
       (const DeviceObjectIndex *)m_volumeObjectIndices.ptr(), m_volumes.size());
@@ -185,7 +181,7 @@ bool Group::containsLights() const
   return m_lights.size() > 0;
 }
 
-Span<const DeviceObjectIndex> Group::lightGPUIndices() const
+Span<DeviceObjectIndex> Group::lightGPUIndices() const
 {
   return make_Span(
       (const DeviceObjectIndex *)m_lightObjectIndices.ptr(), m_lights.size());
@@ -193,38 +189,50 @@ Span<const DeviceObjectIndex> Group::lightGPUIndices() const
 
 void Group::rebuildSurfaceBVHs()
 {
-  if (!m_surfaces) {
-    m_triangleBounds = box3();
-    m_curveBounds = box3();
-    m_userBounds = box3();
-    m_traversableTriangle = {};
-    m_traversableCurve = {};
-    m_traversableUser = {};
+  partitionValidGeometriesByType();
+
+  m_triangleBounds = box3();
+  m_curveBounds = box3();
+  m_userBounds = box3();
+  m_traversableTriangle = {};
+  m_traversableCurve = {};
+  m_traversableUser = {};
+
+  if (!m_surfacesTriangle.empty()) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building triangle BVH");
+    buildOptixBVH(createOBI(m_surfacesTriangle),
+        m_bvhTriangle,
+        m_traversableTriangle,
+        m_triangleBounds,
+        this);
+  } else {
     reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping surface BVH build");
-    return;
+        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping triangle BVH build");
   }
 
-  reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building triangle BVH");
-  buildOptixBVH(createOBI(m_surfacesTriangle),
-      m_bvhTriangle,
-      m_traversableTriangle,
-      m_triangleBounds,
-      this);
+  if (!m_surfacesCurve.empty()) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building curve BVH");
+    buildOptixBVH(createOBI(m_surfacesCurve),
+        m_bvhCurve,
+        m_traversableCurve,
+        m_curveBounds,
+        this);
+  } else {
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping curve BVH build");
+  }
 
-  reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building curve BVH");
-  buildOptixBVH(createOBI(m_surfacesCurve),
-      m_bvhCurve,
-      m_traversableCurve,
-      m_curveBounds,
-      this);
-
-  reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building user BVH");
-  buildOptixBVH(createOBI(m_surfacesUser),
-      m_bvhUser,
-      m_traversableUser,
-      m_userBounds,
-      this);
+  if (!m_surfacesUser.empty()) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building user BVH");
+    buildOptixBVH(createOBI(m_surfacesUser),
+        m_bvhUser,
+        m_traversableUser,
+        m_userBounds,
+        this);
+  } else {
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping user BVH build");
+  }
 
   buildSurfaceGPUData();
 
@@ -233,6 +241,7 @@ void Group::rebuildSurfaceBVHs()
 
 void Group::rebuildVolumeBVH()
 {
+  partitionValidVolumes();
   if (m_volumes.empty()) {
     m_volumeBounds = box3();
     m_traversableVolume = {};
@@ -268,17 +277,18 @@ void Group::markCommitted()
 
 void Group::partitionValidGeometriesByType()
 {
-  m_surfaces.reset();
-  if (!m_surfaceData)
-    return;
-
-  m_surfaces = make_Span(
-      (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
   m_surfacesTriangle.clear();
   m_surfacesCurve.clear();
   m_surfacesUser.clear();
-  for (auto s : m_surfaces) {
-    if (!s->isValid()) {
+
+  if (!m_surfaceData)
+    return;
+
+  auto surfaces = make_Span(
+      (Surface **)m_surfaceData->handlesBegin(), m_surfaceData->totalSize());
+
+  for (auto s : surfaces) {
+    if (!(s && s->isValid())) {
       reportMessage(ANARI_SEVERITY_WARNING,
           "visrtx::Group encountered invalid surface %p",
           s);
@@ -303,7 +313,7 @@ void Group::partitionValidVolumes()
   auto volumes = make_Span(
       (Volume **)m_volumeData->handlesBegin(), m_volumeData->totalSize());
   for (auto v : volumes) {
-    if (!v->isValid()) {
+    if (!(v && v->isValid())) {
       reportMessage(ANARI_SEVERITY_WARNING,
           "visrtx::Group encountered invalid volume %p",
           v);

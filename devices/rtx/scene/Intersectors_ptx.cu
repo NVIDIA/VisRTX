@@ -29,7 +29,10 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/gpu_math.h"
 #include "gpu/shading_api.h"
+// glm
+#include <glm/gtx/norm.hpp>
 
 namespace visrtx {
 
@@ -84,74 +87,114 @@ RT_FUNCTION void intersectSphere(const GeometryGPUData &geometryData)
   if (l2 > r2)
     return;
   const float td = glm::sqrt((r2 - l2) * rd2);
-  reportIntersection(projCO - td);
+  const float t = projCO - td;
+  const vec3 h = ray::localOrigin() + t * ray::localDirection();
+  const vec3 n = h - center;
+  reportIntersection(t, n, 0.f);
 }
 
 RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
 {
   const auto &cylinderData = geometryData.cylinder;
 
-  const uvec2 pidx = cylinderData.indices
-      ? cylinderData.indices[ray::primID()]
-      : uvec2(2 * ray::primID(), 2 * ray::primID() + 1);
+  const uvec2 pidx = cylinderData.indices ? cylinderData.indices[ray::primID()]
+                                          : (2 * ray::primID() + uvec2(0, 1));
 
   const auto p0 = cylinderData.vertices[pidx.x];
   const auto p1 = cylinderData.vertices[pidx.y];
 
-  const float radius = cylinderData.radii ? cylinderData.radii[ray::primID()]
-                                          : cylinderData.radius;
+  const float radius =
+      glm::abs(cylinderData.radii ? cylinderData.radii[ray::primID()]
+                                  : cylinderData.radius);
 
   const vec3 ro = ray::localOrigin();
   const vec3 rd = ray::localDirection();
 
-  const vec3 cZ = p1 - p0;
-  const vec3 q = ro - p0;
+  vec3 ca = p1 - p0;
+  vec3 oc = ro - p0;
 
-  const float z2 = glm::dot(cZ, cZ);
-  const float d = glm::dot(cZ, rd);
-  const float c = glm::dot(cZ, q);
+  float caca = glm::dot(ca, ca);
+  float card = glm::dot(ca, rd);
+  float caoc = glm::dot(ca, oc);
 
-  const float A = z2 - (d * d);
-  const float B = z2 * glm::dot(q, rd) - c * d;
-  const float C = z2 * glm::dot(q, q) - (c * c) - (radius * radius) * z2;
+  float a = caca - card * card;
+  float b = caca * glm::dot(oc, rd) - caoc * card;
+  float c = caca * glm::dot(oc, oc) - caoc * caoc - radius * radius * caca;
+  float h = b * b - a * c;
 
-  float radical = B * B - A * C;
-  if (radical < 0.f)
+  if (h < 0.f)
     return;
 
-  radical = glm::sqrt(radical);
+  h = glm::sqrt(h);
+  float d = (-b - h) / a;
 
-  // First hit //
-
-  const float tin = (-B - radical) / A;
-  const float yin = c + tin * d;
-  if (yin > 0.f && yin < z2) {
-    const vec3 normal = (q + tin * rd - cZ * yin * (1.f / z2)) * (1.f / radius);
-    reportIntersection(tin, normal, yin * (1.f / z2));
-  } else if (cylinderData.caps) {
-    const float tcapin = (((yin < 0.f) ? 0.f : z2) - c) / d;
-    if (abs(B + A * tcapin) < radical) {
-      const float us = yin < 0.f ? -1.f : 1.f;
-      const vec3 normal = cZ * us / z2;
-      reportIntersection(tin, normal, (yin < 0.f) ? 0.f : 1.f);
-    }
+  float y = caoc + d * card;
+  if (y > 0.f && y < caca) {
+    auto n = (oc + d * rd - ca * y / caca) / radius;
+    reportIntersection(d, n, position(y, box1(0.f, caca)));
   }
 
-  // Second hit //
+  d = ((y < 0.f ? 0.f : caca) - caoc) / card;
 
-  const float tout = (-B + radical) / A;
-  const float yout = c + tout * d;
-  if (yout > 0.f && yout < z2) {
-    const vec3 normal =
-        (q + tout * rd - cZ * yout * (1.f / z2)) * (1.f / radius);
-    reportIntersection(tout, normal, yout * (1.f / z2));
-  } else if (cylinderData.caps) {
-    const float tcapout = (((yout < 0.f) ? 0.f : z2) - c) / d;
-    if (abs(B + A * tcapout) < radical) {
-      const float us = yout < 0.f ? -1.f : 1.f;
-      const vec3 normal = cZ * us / z2;
-      reportIntersection(tout, normal, (yout < 0.f) ? 0.f : 1.f);
-    }
+  if (glm::abs(b + a * d) < h) {
+    auto n = ca * glm::sign(y) / caca;
+    reportIntersection(d, n, y < 0.f ? 0.f : 1.f);
+  }
+}
+
+RT_FUNCTION void intersectCone(const GeometryGPUData &geometryData)
+{
+  const auto &coneData = geometryData.cone;
+
+  const uvec2 pidx = coneData.indices ? coneData.indices[ray::primID()]
+                                      : (2 * ray::primID() + uvec2(0, 1));
+
+  const auto p0 = coneData.vertices[pidx.x];
+  const auto p1 = coneData.vertices[pidx.y];
+
+  const float ra = coneData.radii[pidx.x];
+  const float rb = coneData.radii[pidx.y];
+
+  const vec3 ro = ray::localOrigin();
+  const vec3 rd = ray::localDirection();
+
+  const vec3 ba = p1 - p0;
+  const vec3 oa = ro - p0;
+  const vec3 ob = ro - p1;
+
+  const float m0 = glm::dot(ba, ba);
+  const float m1 = glm::dot(oa, ba);
+  const float m2 = glm::dot(ob, ba);
+  const float m3 = glm::dot(rd, ba);
+
+  if (m1 < 0.0f) {
+    if (glm::length2(oa * m3 - rd * m1) < (ra * ra * m3 * m3))
+      reportIntersection(-m1 / m3, -ba * glm::inversesqrt(m0), 0.f);
+  } else if (m2 > 0.0f) {
+    if (glm::length2(ob * m3 - rd * m2) < (rb * rb * m3 * m3))
+      reportIntersection(-m2 / m3, ba * glm::inversesqrt(m0), 1.f);
+  }
+
+  const float m4 = glm::dot(rd, oa);
+  const float m5 = glm::dot(oa, oa);
+  const float rr = ra - rb;
+  const float hy = m0 + rr * rr;
+
+  float k2 = m0 * m0 - m3 * m3 * hy;
+  float k1 = m0 * m0 * m4 - m1 * m3 * hy + m0 * ra * (rr * m3 * 1.0f);
+  float k0 = m0 * m0 * m5 - m1 * m1 * hy + m0 * ra * (rr * m1 * 2.0f - m0 * ra);
+
+  const float h = k1 * k1 - k2 * k0;
+  if (h < 0.0f)
+    return;
+
+  const float t = (-k1 - glm::sqrt(h)) / k2;
+
+  const float y = m1 + t * m3;
+  if (y > 0.0f && y < m0) {
+    reportIntersection(t,
+        glm::normalize(m0 * (m0 * (oa + t * rd) + rr * ba * ra) - ba * hy * y),
+        position(y, box1(0.f, m0)));
   }
 }
 
@@ -197,6 +240,9 @@ RT_FUNCTION void intersectGeometry()
     break;
   case GeometryType::CYLINDER:
     intersectCylinder(geometryData);
+    break;
+  case GeometryType::CONE:
+    intersectCone(geometryData);
     break;
   }
 }

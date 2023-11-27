@@ -112,7 +112,7 @@ layout(std140, binding = 0) uniform WorldBlock {
   uint occlusionMode;
   uint frame_width;
   uint frame_height;
-  uint pad4;
+  uint samples;
   uint pad5;
   uvec4 lightIndices[254];
 };
@@ -136,6 +136,21 @@ static const char *occlusion_declaration = R"GLSL(
 layout(std430, binding = 3) coherent restrict buffer OcclusionBlock {
   float occlusion[];
 };
+)GLSL";
+
+static const char *clear_occlusion_source = R"GLSL(
+precision highp float;
+precision highp int;
+
+layout(local_size_x=128) in;
+layout(location = 0) uniform int N;
+
+void main() {
+  int threads = int(gl_NumWorkGroups.x*gl_WorkGroupSize.x);
+  for(int i = int(gl_GlobalInvocationID);i<N;i+=threads) {
+    occlusion[i] = 0.0;
+  }
+}
 )GLSL";
 
 struct ShadowProjection

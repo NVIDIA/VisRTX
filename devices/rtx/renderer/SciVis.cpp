@@ -66,12 +66,12 @@ OptixModule SciVis::optixModule() const
   return deviceState()->rendererModules.scivis;
 }
 
-Span<const HitgroupFunctionNames> SciVis::hitgroupSbtNames() const
+Span<HitgroupFunctionNames> SciVis::hitgroupSbtNames() const
 {
   return make_Span(g_scivisHitNames.data(), g_scivisHitNames.size());
 }
 
-Span<const std::string> SciVis::missSbtNames() const
+Span<std::string> SciVis::missSbtNames() const
 {
   return make_Span(g_scivisMissNames.data(), g_scivisMissNames.size());
 }

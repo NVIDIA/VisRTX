@@ -32,7 +32,7 @@
 #pragma once
 
 #include "Geometry.h"
-#include "array/Array.h"
+#include "array/Array1D.h"
 
 namespace visrtx {
 
@@ -51,24 +51,20 @@ struct Cone : public Geometry
 
  private:
   GeometryGPUData gpuData() const override;
-  void generateCone();
   void cleanup();
-
-  struct GeneratedCone
-  {
-    std::vector<vec3> vertices;
-    std::vector<uvec3> indices;
-
-    DeviceBuffer vertexBuffer;
-    DeviceBuffer indexBuffer;
-
-    CUdeviceptr vertexBufferPtr{};
-  } m_cones;
 
   helium::IntrusivePtr<Array1D> m_index;
   helium::IntrusivePtr<Array1D> m_radius;
 
   helium::IntrusivePtr<Array1D> m_vertex;
+  helium::IntrusivePtr<Array1D> m_vertexColor;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
+  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
+
+  HostDeviceArray<box3> m_aabbs;
+  CUdeviceptr m_aabbsBufferPtr{};
 
   bool m_caps{false};
 };

@@ -36,6 +36,18 @@
 
 namespace visrtx {
 
+RT_FUNCTION const InstanceSurfaceGPUData &getSurfaceInstanceData(
+    const FrameGPUData &frameData, DeviceObjectIndex idx)
+{
+  return frameData.world.surfaceInstances[idx];
+}
+
+RT_FUNCTION const InstanceVolumeGPUData &getVolumeInstanceData(
+    const FrameGPUData &frameData, DeviceObjectIndex idx)
+{
+  return frameData.world.volumeInstances[idx];
+}
+
 RT_FUNCTION const GeometryGPUData &getGeometryData(
     const FrameGPUData &frameData, DeviceObjectIndex idx)
 {
@@ -106,8 +118,7 @@ RT_FUNCTION vec2 uv(GeometryType type)
 {
   switch (type) {
   case GeometryType::TRIANGLE:
-  case GeometryType::QUAD:
-  case GeometryType::CONE: {
+  case GeometryType::QUAD: {
     const ::float2 values = optixGetTriangleBarycentrics();
     return vec2(values.x, values.y);
   }
@@ -117,6 +128,7 @@ RT_FUNCTION vec2 uv(GeometryType type)
   }
   case GeometryType::SPHERE:
   case GeometryType::CYLINDER:
+  case GeometryType::CONE:
   default: {
     const float u = bit_cast<float>(optixGetAttribute_0());
     return vec2(u, 1.f - u);
@@ -224,32 +236,12 @@ RT_FUNCTION void computeNormal(
     hit.Ns = hit.Ng;
     break;
   }
-  case GeometryType::SPHERE: {
-    if (ggd.sphere.indices) {
-      hit.Ng = hit.Ns =
-          hitpoint() - ggd.sphere.centers[ggd.sphere.indices[primID]];
-    } else
-      hit.Ng = hit.Ns = hitpoint() - ggd.sphere.centers[primID];
-    break;
-  }
+  case GeometryType::SPHERE:
+  case GeometryType::CONE:
   case GeometryType::CYLINDER: {
     hit.Ng = hit.Ns = vec3(bit_cast<float>(optixGetAttribute_1()),
         bit_cast<float>(optixGetAttribute_2()),
         bit_cast<float>(optixGetAttribute_3()));
-    break;
-  }
-  case GeometryType::CONE: {
-    const auto *indices = ggd.cone.indices;
-    const uvec3 idx =
-        indices ? ggd.cone.indices[primID] : uvec3(0, 1, 2) + primID * 3;
-    const vec3 v0 = ggd.cone.vertices[idx.x];
-    const vec3 v1 = ggd.cone.vertices[idx.y];
-    const vec3 v2 = ggd.cone.vertices[idx.z];
-    hit.Ng = cross(v1 - v0, v2 - v0);
-
-    if (!optixIsFrontFaceHit())
-      hit.Ng = -hit.Ng;
-    hit.Ns = hit.Ng;
     break;
   }
   case GeometryType::CURVE: {
@@ -286,6 +278,7 @@ RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
 
   auto &gd = getGeometryData(fd, sd.geometry);
   auto &md = getMaterialData(fd, sd.material);
+  auto &isd = getSurfaceInstanceData(fd, ray::instID());
 
   hit.foundHit = true;
   hit.geometry = &gd;
@@ -294,6 +287,8 @@ RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
   hit.hitpoint = ray::hitpoint();
   hit.uvw = ray::uvw(gd.type);
   hit.primID = ray::primID();
+  hit.objID = sd.id;
+  hit.instID = isd.id;
   hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
   ray::computeNormal(gd, ray::primID(), hit);
 }
@@ -303,11 +298,13 @@ RT_FUNCTION void populateVolumeHit(VolumeHit &hit)
   auto &ss = ray::screenSample();
   auto &fd = *ss.frameData;
 
+  auto &ivd = getVolumeInstanceData(fd, ray::instID());
+
   hit.foundHit = true;
   hit.volumeData = &ray::volumeData(fd);
 
   hit.volID = ray::objID();
-  hit.instID = ray::instID();
+  hit.instID = ivd.id;
 
   const auto ro = optixGetWorldRayOrigin();
   hit.localRay.org = make_vec3(optixTransformPointFromWorldToObjectSpace(ro));

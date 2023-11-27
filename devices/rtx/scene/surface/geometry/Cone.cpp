@@ -30,75 +30,8 @@
  */
 
 #include "Cone.h"
-// glm
-#include <glm/gtx/rotate_vector.hpp>
 
 namespace visrtx {
-
-static mat4 orientConeMatrix(vec3 dir)
-{
-  const vec3 v = glm::vec3(0, -dir.z, dir.y);
-  if (glm::length(v) == 0.f)
-    return mat4(1);
-  const float angle = acos(dir.x / glm::length(dir));
-  return glm::rotate(angle, v);
-}
-
-static void appendCone(const vec3 &vtx0,
-    const vec3 &vtx1,
-    float r0,
-    float r1,
-    bool addCaps,
-    std::vector<vec3> &vertices,
-    std::vector<uvec3> &indices)
-{
-  unsigned int baseOffset = vertices.size();
-
-  auto dir = glm::normalize(vtx1 - vtx0);
-  auto m = orientConeMatrix(dir);
-
-  auto v00 = vec4(0.f, r0, 0.f, 1.f);
-  auto v01 = vec4(0.f, 0.f, -r0, 1.f);
-  auto v02 = vec4(0.f, -r0, 0.f, 1.f);
-  auto v03 = vec4(0.f, 0.f, r0, 1.f);
-
-  auto v10 = vec4(0.f, r1, 0.f, 1.f);
-  auto v11 = vec4(0.f, 0.f, -r1, 1.f);
-  auto v12 = vec4(0.f, -r1, 0.f, 1.f);
-  auto v13 = vec4(0.f, 0.f, r1, 1.f);
-
-  vertices.push_back(vec3(m * v00) + vtx0); // 0
-  vertices.push_back(vec3(m * v01) + vtx0); // 1
-  vertices.push_back(vec3(m * v02) + vtx0); // 2
-  vertices.push_back(vec3(m * v03) + vtx0); // 3
-
-  vertices.push_back(vec3(m * v10) + vtx1); // 4
-  vertices.push_back(vec3(m * v11) + vtx1); // 5
-  vertices.push_back(vec3(m * v12) + vtx1); // 6
-  vertices.push_back(vec3(m * v13) + vtx1); // 7
-
-  indices.push_back(baseOffset + uvec3(5, 1, 4));
-  indices.push_back(baseOffset + uvec3(0, 4, 1));
-
-  indices.push_back(baseOffset + uvec3(1, 5, 2));
-  indices.push_back(baseOffset + uvec3(6, 2, 5));
-
-  indices.push_back(baseOffset + uvec3(2, 6, 3));
-  indices.push_back(baseOffset + uvec3(7, 3, 6));
-
-  indices.push_back(baseOffset + uvec3(3, 7, 0));
-  indices.push_back(baseOffset + uvec3(4, 0, 7));
-
-  if (addCaps) {
-    indices.push_back(baseOffset + uvec3(0, 1, 2));
-    indices.push_back(baseOffset + uvec3(2, 3, 0));
-
-    indices.push_back(baseOffset + uvec3(4, 5, 6));
-    indices.push_back(baseOffset + uvec3(6, 7, 4));
-  }
-}
-
-// Cone definitions ///////////////////////////////////////////////////////////
 
 Cone::Cone(DeviceGlobalState *d) : Geometry(d) {}
 
@@ -118,6 +51,11 @@ void Cone::commit()
   m_caps = getParamString("caps", "none") != "none";
 
   m_vertex = getParamObject<Array1D>("vertex.position");
+  m_vertexColor = getParamObject<Array1D>("vertex.color");
+  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
+  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
+  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
+  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -140,57 +78,6 @@ void Cone::commit()
   m_vertex->addCommitObserver(this);
   m_radius->addCommitObserver(this);
 
-  generateCone();
-
-  upload();
-}
-
-void Cone::populateBuildInput(OptixBuildInput &buildInput) const
-{
-  buildInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
-
-  buildInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-  buildInput.triangleArray.vertexStrideInBytes = sizeof(vec3);
-  buildInput.triangleArray.numVertices = m_cones.vertices.size();
-  buildInput.triangleArray.vertexBuffers = &m_cones.vertexBufferPtr;
-
-  buildInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-  buildInput.triangleArray.indexStrideInBytes = sizeof(uvec3);
-  buildInput.triangleArray.numIndexTriplets = m_cones.indices.size();
-  buildInput.triangleArray.indexBuffer = (CUdeviceptr)m_cones.indexBuffer.ptr();
-
-  static uint32_t buildInputFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
-
-  buildInput.triangleArray.flags = buildInputFlags;
-  buildInput.triangleArray.numSbtRecords = 1;
-}
-
-int Cone::optixGeometryType() const
-{
-  return OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
-}
-
-bool Cone::isValid() const
-{
-  return m_vertex && m_radius;
-}
-
-GeometryGPUData Cone::gpuData() const
-{
-  auto retval = Geometry::gpuData();
-  retval.type = GeometryType::CONE;
-
-  auto &cone = retval.cone;
-
-  cone.vertices = (const vec3 *)m_cones.vertexBuffer.ptr();
-  cone.indices = (const uvec3 *)m_cones.indexBuffer.ptr();
-  cone.trianglesPerCone = m_caps ? 12 : 8;
-
-  return retval;
-}
-
-void Cone::generateCone()
-{
   std::vector<uvec2> implicitIndices;
   Span<uvec2> indices;
 
@@ -207,29 +94,68 @@ void Cone::generateCone()
     indices = make_Span(m_index->beginAs<uvec2>(), m_index->size());
   }
 
-  m_cones.vertices.clear();
-  m_cones.indices.clear();
+  const float *radius = m_radius->beginAs<float>();
 
-  {
-    auto *begin = indices.begin();
-    auto *end = indices.end();
+  m_aabbs.resize(indices.size());
 
-    auto *radius = m_radius->beginAs<float>();
-    auto *vertex = m_vertex->beginAs<vec3>();
+  const auto *posBegin = m_vertex->beginAs<vec3>();
+  std::transform(
+      indices.begin(), indices.end(), m_aabbs.begin(), [&](const uvec2 &c) {
+        const vec3 &v0 = posBegin[c.x];
+        const vec3 &v1 = posBegin[c.y];
+        const float &r0 = radius[c.x];
+        const float &r1 = radius[c.y];
+        return box3(glm::min(v0, v1) - glm::max(r0, r1),
+            glm::max(v0, v1) + glm::max(r0, r1));
+      });
 
-    size_t coneID = 0;
-    std::for_each(begin, end, [&](const uvec2 &i) {
-      const auto v0 = vertex[i.x];
-      const auto v1 = vertex[i.y];
-      const auto r0 = radius[i.x];
-      const auto r1 = radius[i.y];
-      appendCone(v0, v1, r0, r1, m_caps, m_cones.vertices, m_cones.indices);
-    });
-  }
+  m_aabbs.upload();
+  m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.dataDevice();
 
-  m_cones.vertexBuffer.upload(m_cones.vertices);
-  m_cones.indexBuffer.upload(m_cones.indices);
-  m_cones.vertexBufferPtr = (CUdeviceptr)m_cones.vertexBuffer.ptr();
+  upload();
+}
+
+void Cone::populateBuildInput(OptixBuildInput &buildInput) const
+{
+  buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+
+  buildInput.customPrimitiveArray.aabbBuffers = &m_aabbsBufferPtr;
+  buildInput.customPrimitiveArray.numPrimitives = m_aabbs.size();
+
+  static uint32_t buildInputFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
+
+  buildInput.customPrimitiveArray.flags = buildInputFlags;
+  buildInput.customPrimitiveArray.numSbtRecords = 1;
+}
+
+int Cone::optixGeometryType() const
+{
+  return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+}
+
+bool Cone::isValid() const
+{
+  return m_vertex && m_radius;
+}
+
+GeometryGPUData Cone::gpuData() const
+{
+  auto retval = Geometry::gpuData();
+  retval.type = GeometryType::CONE;
+
+  auto &cone = retval.cone;
+
+  cone.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
+  cone.indices = m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
+  cone.radii = m_radius->beginAs<float>(AddressSpace::GPU);
+
+  populateAttributePtr(m_vertexAttribute0, cone.vertexAttr[0]);
+  populateAttributePtr(m_vertexAttribute1, cone.vertexAttr[1]);
+  populateAttributePtr(m_vertexAttribute2, cone.vertexAttr[2]);
+  populateAttributePtr(m_vertexAttribute3, cone.vertexAttr[3]);
+  populateAttributePtr(m_vertexColor, cone.vertexAttr[4]);
+
+  return retval;
 }
 
 void Cone::cleanup()

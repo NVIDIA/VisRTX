@@ -63,13 +63,9 @@ void Object<VolumeTransferFunction1D>::commit()
   DefaultObject::commit();
 
   dirty |= compare_and_assign(
-      field, acquire<SpatialFieldObjectBase *>(current.field));
+      field, acquire<SpatialFieldObjectBase *>(current.value));
   dirty |= compare_and_assign(color, acquire<DataArray1D *>(current.color));
-  dirty |= compare_and_assign(
-      color_position, acquire<DataArray1D *>(current.color_position));
   dirty |= compare_and_assign(opacity, acquire<DataArray1D *>(current.opacity));
-  dirty |= compare_and_assign(
-      opacity_position, acquire<DataArray1D *>(current.opacity_position));
 }
 
 const char *transfer_sampler1d = R"GLSL(
@@ -150,7 +146,7 @@ void Object<VolumeTransferFunction1D>::update()
 
   std::array<float, 4> data;
   current.valueRange.get(ANARI_FLOAT32_BOX1, data.data());
-  current.densityScale.get(ANARI_FLOAT32, data.data() + 2);
+  current.unitDistance.get(ANARI_FLOAT32, data.data() + 2);
   thisDevice->materials.set(material_index, data);
 
   if (dirty) {
@@ -171,7 +167,7 @@ void Object<VolumeTransferFunction1D>::update()
       }
     }
 
-    if (opacity && false) {
+    if (opacity) {
       uint64_t N = opacity->size();
       for (uint64_t i = 0; i < N - 1; ++i) {
         uint64_t begin = i * LUT_RESOLUTION / (N - 1);

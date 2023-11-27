@@ -78,6 +78,7 @@ struct SpheresConfig : public Config
 struct CylindersConfig : public Config
 {
   int numCylinders{10};
+  float positionRange{1.f};
   float radius{0.025f};
   float opacity{1.f};
   bool useRandomSeed{false};
@@ -87,6 +88,8 @@ struct CylindersConfig : public Config
 struct ConesConfig : public Config
 {
   int numCones{10};
+  float positionRange{1.f};
+  float arrowRadius{0.125f};
   float opacity{1.f};
   bool useRandomSeed{false};
   bool caps{true};

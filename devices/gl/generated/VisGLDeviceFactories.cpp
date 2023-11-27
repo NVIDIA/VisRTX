@@ -34,7 +34,7 @@
 #include "VisGLSpecializations.h"
 namespace visgl{
 static int obj_hash(const char *str) {
-   static const uint32_t table[] = {0x7a6f0012u,0x6a65002bu,0x0u,0x0u,0x0u,0x0u,0x6e6d0040u,0x0u,0x0u,0x0u,0x6261004du,0x0u,0x736d0052u,0x73650071u,0x767500a3u,0x0u,0x757000a7u,0x737200cau,0x6f6e001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x73720020u,0x0u,0x0u,0x0u,0x6d6c0024u,0x6665001eu,0x100001fu,0x80000000u,0x77760021u,0x66650022u,0x1000023u,0x80000001u,0x6a690025u,0x6f6e0026u,0x65640027u,0x66650028u,0x73720029u,0x100002au,0x80000002u,0x67660030u,0x0u,0x0u,0x0u,0x73720036u,0x62610031u,0x76750032u,0x6d6c0033u,0x75740034u,0x1000035u,0x80000003u,0x66650037u,0x64630038u,0x75740039u,0x6a69003au,0x706f003bu,0x6f6e003cu,0x6261003du,0x6d6c003eu,0x100003fu,0x80000004u,0x62610041u,0x68670042u,0x66650043u,0x34310044u,0x45440047u,0x45440049u,0x4544004bu,0x1000048u,0x80000005u,0x100004au,0x80000006u,0x100004cu,0x80000007u,0x7574004eu,0x7574004fu,0x66650050u,0x1000051u,0x80000008u,0x6f6e0058u,0x0u,0x0u,0x0u,0x0u,0x75740066u,0x6a690059u,0x6564005au,0x6a69005bu,0x7372005cu,0x6665005du,0x6463005eu,0x7574005fu,0x6a690060u,0x706f0061u,0x6f6e0062u,0x62610063u,0x6d6c0064u,0x1000065u,0x80000009u,0x69680067u,0x706f0068u,0x68670069u,0x7372006au,0x6261006bu,0x7170006cu,0x6968006du,0x6a69006eu,0x6463006fu,0x1000070u,0x8000000au,0x7372007fu,0x0u,0x0u,0x7a790089u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6a690097u,0x0u,0x0u,0x6a69009bu,0x74730080u,0x71700081u,0x66650082u,0x64630083u,0x75740084u,0x6a690085u,0x77760086u,0x66650087u,0x1000088u,0x8000000bu,0x7473008au,0x6a69008bu,0x6463008cu,0x6261008du,0x6d6c008eu,0x6d6c008fu,0x7a790090u,0x43420091u,0x62610092u,0x74730093u,0x66650094u,0x65640095u,0x1000096u,0x8000000cu,0x6f6e0098u,0x75740099u,0x100009au,0x8000000du,0x6e6d009cu,0x6a69009du,0x7574009eu,0x6a69009fu,0x777600a0u,0x666500a1u,0x10000a2u,0x8000000eu,0x626100a4u,0x656400a5u,0x10000a6u,0x8000000fu,0x706800acu,0x0u,0x0u,0x0u,0x737200bau,0x666500b4u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x757400b8u,0x737200b5u,0x666500b6u,0x10000b7u,0x80000010u,0x10000b9u,0x80000011u,0x767500bbu,0x646300bcu,0x757400bdu,0x767500beu,0x737200bfu,0x666500c0u,0x656400c1u,0x535200c2u,0x666500c3u,0x686700c4u,0x767500c5u,0x6d6c00c6u,0x626100c7u,0x737200c8u,0x10000c9u,0x80000012u,0x6a6100cbu,0x6f6e00d4u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x62610106u,0x747300d5u,0x716600d6u,0x706500e1u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x626100fbu,0x737200ecu,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x737200f8u,0x474600edu,0x767500eeu,0x6f6e00efu,0x646300f0u,0x757400f1u,0x6a6900f2u,0x706f00f3u,0x6f6e00f4u,0x323100f5u,0x454400f6u,0x10000f7u,0x80000013u,0x6e6d00f9u,0x10000fau,0x80000014u,0x737200fcu,0x666500fdu,0x6f6e00feu,0x757400ffu,0x4e4d0100u,0x62610101u,0x75740102u,0x75740103u,0x66650104u,0x1000105u,0x80000015u,0x6f6e0107u,0x68670108u,0x6d6c0109u,0x6665010au,0x100010bu,0x80000016u};
+   static const uint32_t table[] = {0x7a6f0012u,0x6a650027u,0x0u,0x0u,0x0u,0x0u,0x6e6d003cu,0x0u,0x0u,0x0u,0x62610049u,0x0u,0x7372004eu,0x7365005au,0x0u,0x0u,0x7570008cu,0x737200afu,0x6f6e001du,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6d6c0020u,0x6665001eu,0x100001fu,0x80000000u,0x6a690021u,0x6f6e0022u,0x65640023u,0x66650024u,0x73720025u,0x1000026u,0x80000001u,0x6766002cu,0x0u,0x0u,0x0u,0x73720032u,0x6261002du,0x7675002eu,0x6d6c002fu,0x75740030u,0x1000031u,0x80000002u,0x66650033u,0x64630034u,0x75740035u,0x6a690036u,0x706f0037u,0x6f6e0038u,0x62610039u,0x6d6c003au,0x100003bu,0x80000003u,0x6261003du,0x6867003eu,0x6665003fu,0x34310040u,0x45440043u,0x45440045u,0x45440047u,0x1000044u,0x80000004u,0x1000046u,0x80000005u,0x1000048u,0x80000006u,0x7574004au,0x7574004bu,0x6665004cu,0x100004du,0x80000007u,0x7574004fu,0x69680050u,0x706f0051u,0x68670052u,0x73720053u,0x62610054u,0x71700055u,0x69680056u,0x6a690057u,0x64630058u,0x1000059u,0x80000008u,0x73720068u,0x0u,0x0u,0x7a790072u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x6a690080u,0x0u,0x0u,0x6a690084u,0x74730069u,0x7170006au,0x6665006bu,0x6463006cu,0x7574006du,0x6a69006eu,0x7776006fu,0x66650070u,0x1000071u,0x80000009u,0x74730073u,0x6a690074u,0x64630075u,0x62610076u,0x6d6c0077u,0x6d6c0078u,0x7a790079u,0x4342007au,0x6261007bu,0x7473007cu,0x6665007du,0x6564007eu,0x100007fu,0x8000000au,0x6f6e0081u,0x75740082u,0x1000083u,0x8000000bu,0x6e6d0085u,0x6a690086u,0x75740087u,0x6a690088u,0x77760089u,0x6665008au,0x100008bu,0x8000000cu,0x70680091u,0x0u,0x0u,0x0u,0x7372009fu,0x66650099u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x7574009du,0x7372009au,0x6665009bu,0x100009cu,0x8000000du,0x100009eu,0x8000000eu,0x767500a0u,0x646300a1u,0x757400a2u,0x767500a3u,0x737200a4u,0x666500a5u,0x656400a6u,0x535200a7u,0x666500a8u,0x686700a9u,0x767500aau,0x6d6c00abu,0x626100acu,0x737200adu,0x10000aeu,0x8000000fu,0x6a6100b0u,0x6f6e00b9u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x626100d6u,0x747300bau,0x676600bbu,0x706500bcu,0x737200c7u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x0u,0x737200d3u,0x474600c8u,0x767500c9u,0x6f6e00cau,0x646300cbu,0x757400ccu,0x6a6900cdu,0x706f00ceu,0x6f6e00cfu,0x323100d0u,0x454400d1u,0x10000d2u,0x80000010u,0x6e6d00d4u,0x10000d5u,0x80000011u,0x6f6e00d7u,0x686700d8u,0x6d6c00d9u,0x666500dau,0x10000dbu,0x80000012u};
    uint32_t cur = 0x75630000u;
    for(int i = 0;cur!=0;++i) {
       uint32_t idx = cur&0xFFFFu;
@@ -76,7 +76,7 @@ ANARIWorld VisGLDevice::newWorld() {
 ANARIRenderer VisGLDevice::newRenderer(const char *type) {
    int idx = obj_hash(type);
    switch(idx) {
-      case 3: //default
+      case 2: //default
          return allocate<ANARIRenderer, RendererDefault>();
       default: // unknown object
          return 0;
@@ -89,8 +89,18 @@ ANARISurface VisGLDevice::newSurface() {
 ANARIInstance VisGLDevice::newInstance(const char *type) {
    int idx = obj_hash(type);
    switch(idx) {
-      case 20: //transform
+      case 17: //transform
          return allocate<ANARIInstance, InstanceTransform>();
+      default: // unknown object
+         return 0;
+   }
+   return 0;
+}
+ANARIVolume VisGLDevice::newVolume(const char *type) {
+   int idx = obj_hash(type);
+   switch(idx) {
+      case 16: //transferFunction1D
+         return allocate<ANARIVolume, VolumeTransferFunction1D>();
       default: // unknown object
          return 0;
    }
@@ -99,11 +109,9 @@ ANARIInstance VisGLDevice::newInstance(const char *type) {
 ANARICamera VisGLDevice::newCamera(const char *type) {
    int idx = obj_hash(type);
    switch(idx) {
-      case 9: //omnidirectional
-         return allocate<ANARICamera, CameraOmnidirectional>();
-      case 10: //orthographic
+      case 8: //orthographic
          return allocate<ANARICamera, CameraOrthographic>();
-      case 11: //perspective
+      case 9: //perspective
          return allocate<ANARICamera, CameraPerspective>();
       default: // unknown object
          return 0;
@@ -113,18 +121,14 @@ ANARICamera VisGLDevice::newCamera(const char *type) {
 ANARIGeometry VisGLDevice::newGeometry(const char *type) {
    int idx = obj_hash(type);
    switch(idx) {
+      case 1: //cylinder
+         return allocate<ANARIGeometry, GeometryCylinder>();
+      case 13: //sphere
+         return allocate<ANARIGeometry, GeometrySphere>();
+      case 18: //triangle
+         return allocate<ANARIGeometry, GeometryTriangle>();
       case 0: //cone
          return allocate<ANARIGeometry, GeometryCone>();
-      case 1: //curve
-         return allocate<ANARIGeometry, GeometryCurve>();
-      case 2: //cylinder
-         return allocate<ANARIGeometry, GeometryCylinder>();
-      case 15: //quad
-         return allocate<ANARIGeometry, GeometryQuad>();
-      case 16: //sphere
-         return allocate<ANARIGeometry, GeometrySphere>();
-      case 22: //triangle
-         return allocate<ANARIGeometry, GeometryTriangle>();
       default: // unknown object
          return 0;
    }
@@ -133,11 +137,11 @@ ANARIGeometry VisGLDevice::newGeometry(const char *type) {
 ANARILight VisGLDevice::newLight(const char *type) {
    int idx = obj_hash(type);
    switch(idx) {
-      case 4: //directional
+      case 3: //directional
          return allocate<ANARILight, LightDirectional>();
-      case 13: //point
+      case 11: //point
          return allocate<ANARILight, LightPoint>();
-      case 17: //spot
+      case 14: //spot
          return allocate<ANARILight, LightSpot>();
       default: // unknown object
          return 0;
@@ -147,11 +151,9 @@ ANARILight VisGLDevice::newLight(const char *type) {
 ANARIMaterial VisGLDevice::newMaterial(const char *type) {
    int idx = obj_hash(type);
    switch(idx) {
-      case 8: //matte
+      case 7: //matte
          return allocate<ANARIMaterial, MaterialMatte>();
-      case 21: //transparentMatte
-         return allocate<ANARIMaterial, MaterialTransparentMatte>();
-      case 12: //physicallyBased
+      case 10: //physicallyBased
          return allocate<ANARIMaterial, MaterialPhysicallyBased>();
       default: // unknown object
          return 0;
@@ -161,15 +163,15 @@ ANARIMaterial VisGLDevice::newMaterial(const char *type) {
 ANARISampler VisGLDevice::newSampler(const char *type) {
    int idx = obj_hash(type);
    switch(idx) {
-      case 5: //image1D
+      case 4: //image1D
          return allocate<ANARISampler, SamplerImage1D>();
-      case 6: //image2D
+      case 5: //image2D
          return allocate<ANARISampler, SamplerImage2D>();
-      case 7: //image3D
+      case 6: //image3D
          return allocate<ANARISampler, SamplerImage3D>();
-      case 14: //primitive
+      case 12: //primitive
          return allocate<ANARISampler, SamplerPrimitive>();
-      case 20: //transform
+      case 17: //transform
          return allocate<ANARISampler, SamplerTransform>();
       default: // unknown object
          return 0;
@@ -179,18 +181,8 @@ ANARISampler VisGLDevice::newSampler(const char *type) {
 ANARISpatialField VisGLDevice::newSpatialField(const char *type) {
    int idx = obj_hash(type);
    switch(idx) {
-      case 18: //structuredRegular
+      case 15: //structuredRegular
          return allocate<ANARISpatialField, Spatial_FieldStructuredRegular>();
-      default: // unknown object
-         return 0;
-   }
-   return 0;
-}
-ANARIVolume VisGLDevice::newVolume(const char *type) {
-   int idx = obj_hash(type);
-   switch(idx) {
-      case 19: //transferFunction1D
-         return allocate<ANARIVolume, VolumeTransferFunction1D>();
       default: // unknown object
          return 0;
    }

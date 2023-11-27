@@ -79,6 +79,44 @@ using box1 = range_t<float>;
 using box2 = range_t<vec2>;
 using box3 = range_t<vec3>;
 
+struct Ray
+{
+  vec3 org;
+  vec3 dir;
+  box1 t{0.f, std::numeric_limits<float>::max()};
+};
+
+struct GeometryGPUData;
+struct MaterialGPUData;
+struct VolumeGPUData;
+
+struct SurfaceHit
+{
+  bool foundHit;
+  float t;
+  vec3 hitpoint;
+  vec3 Ng;
+  vec3 Ns;
+  vec3 uvw;
+  uint32_t primID{~0u};
+  uint32_t objID{~0u};
+  uint32_t instID{~0u};
+  float epsilon;
+  const GeometryGPUData *geometry{nullptr};
+  const MaterialGPUData *material{nullptr};
+};
+
+struct VolumeHit
+{
+  bool foundHit;
+  Ray localRay;
+  uint32_t volID{~0u};
+  uint32_t instID{~0u};
+  const VolumeGPUData *volumeData{nullptr};
+};
+
+using Hit = SurfaceHit;
+
 // Operations on range_t //
 
 VISRTX_HOST_DEVICE box1 make_box1(const vec2 &v)
@@ -162,6 +200,20 @@ VISRTX_HOST_DEVICE bool empty(const box3 &r)
 VISRTX_HOST_DEVICE int64_t iDivUp(int64_t a, int64_t b)
 {
   return (a + b - 1) / b;
+}
+
+VISRTX_HOST_DEVICE bool intersectBox(
+    const box3 &b, const vec3 &org, const vec3 &dir, box1 &inout)
+{
+  const vec3 mins = (b.lower - org) * (1.f / dir);
+  const vec3 maxs = (b.upper - org) * (1.f / dir);
+  const vec3 nears = glm::min(mins, maxs);
+  const vec3 fars = glm::max(mins, maxs);
+  const float tin = glm::compMax(nears);
+  const float tout = glm::compMin(fars);
+  if (tin < tout)
+    inout = box1(tin, tout);
+  return tin < tout;
 }
 
 } // namespace visrtx

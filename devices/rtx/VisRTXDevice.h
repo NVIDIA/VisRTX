@@ -40,13 +40,21 @@
 
 namespace visrtx {
 
+enum class DeviceInitStatus
+{
+  UNINITIALIZED,
+  SUCCESS,
+  FAILURE
+};
+
 struct VisRTXDevice : public helium::BaseDevice
 {
   /////////////////////////////////////////////////////////////////////////////
   // Main interface to accepting API calls
   /////////////////////////////////////////////////////////////////////////////
 
-  // Data Arrays //////////////////////////////////////////////////////////////
+  void *mapArray(ANARIArray) override;
+  void unmapArray(ANARIArray) override;
 
   ANARIArray1D newArray1D(const void *appMemory,
       ANARIMemoryDeleter deleter,
@@ -69,38 +77,19 @@ struct VisRTXDevice : public helium::BaseDevice
       uint64_t numItems2,
       uint64_t numItems3) override;
 
-  void *mapArray(ANARIArray) override;
-  void unmapArray(ANARIArray) override;
-
-  // Renderable Objects ///////////////////////////////////////////////////////
-
-  ANARILight newLight(const char *type) override;
-
   ANARICamera newCamera(const char *type) override;
-
+  ANARIFrame newFrame() override;
   ANARIGeometry newGeometry(const char *type) override;
+  ANARIGroup newGroup() override;
+  ANARIInstance newInstance(const char *type) override;
+  ANARILight newLight(const char *type) override;
+  ANARIMaterial newMaterial(const char *material_type) override;
+  ANARIRenderer newRenderer(const char *type) override;
+  ANARISampler newSampler(const char *type) override;
   ANARISpatialField newSpatialField(const char *type) override;
-
   ANARISurface newSurface() override;
   ANARIVolume newVolume(const char *type) override;
-
-  // Surface Meta-Data ////////////////////////////////////////////////////////
-
-  ANARIMaterial newMaterial(const char *material_type) override;
-
-  ANARISampler newSampler(const char *type) override;
-
-  // Instancing ///////////////////////////////////////////////////////////////
-
-  ANARIGroup newGroup() override;
-
-  ANARIInstance newInstance(const char *type) override;
-
-  // Top-level Worlds /////////////////////////////////////////////////////////
-
   ANARIWorld newWorld() override;
-
-  // Query functions //////////////////////////////////////////////////////////
 
   const char **getObjectSubtypes(ANARIDataType objectType) override;
   const void *getObjectInfo(ANARIDataType objectType,
@@ -114,8 +103,6 @@ struct VisRTXDevice : public helium::BaseDevice
       const char *infoName,
       ANARIDataType infoType) override;
 
-  // Object + Parameter Lifetime Management ///////////////////////////////////
-
   int getProperty(ANARIObject object,
       const char *name,
       ANARIDataType type,
@@ -123,19 +110,11 @@ struct VisRTXDevice : public helium::BaseDevice
       uint64_t size,
       uint32_t mask) override;
 
-  // FrameBuffer Manipulation /////////////////////////////////////////////////
-
-  ANARIFrame newFrame() override;
-
   const void *frameBufferMap(ANARIFrame fb,
       const char *channel,
       uint32_t *width,
       uint32_t *height,
       ANARIDataType *pixelType) override;
-
-  // Frame Rendering //////////////////////////////////////////////////////////
-
-  ANARIRenderer newRenderer(const char *type) override;
 
   void renderFrame(ANARIFrame) override;
   int frameReady(ANARIFrame, ANARIWaitMask) override;
@@ -149,7 +128,7 @@ struct VisRTXDevice : public helium::BaseDevice
   VisRTXDevice(ANARILibrary);
   ~VisRTXDevice() override;
 
-  void initDevice();
+  bool initDevice(); // thread safe initialization
 
  private:
   struct CUDADeviceScope
@@ -162,7 +141,10 @@ struct VisRTXDevice : public helium::BaseDevice
   };
 
   void deviceCommitParameters() override;
+  int deviceGetProperty(
+      const char *name, ANARIDataType type, void *mem, uint64_t size) override;
 
+  void initOptix(); // _not_ thread safe init of OptiX
   void setCUDADevice();
   void revertCUDADevice();
 
@@ -172,7 +154,7 @@ struct VisRTXDevice : public helium::BaseDevice
   int m_desiredGpuID{0};
   int m_appGpuID{-1};
   bool m_eagerInit{false};
-  bool m_initialized{false};
+  DeviceInitStatus m_initStatus{DeviceInitStatus::UNINITIALIZED};
 };
 
 } // namespace visrtx

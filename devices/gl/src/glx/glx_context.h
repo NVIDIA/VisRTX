@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "glad/gl.h"
+#include "ogl.h"
 
 #include <GL/glx.h>
 

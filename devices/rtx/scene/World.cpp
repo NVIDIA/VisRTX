@@ -94,7 +94,7 @@ bool World::getProperty(
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
-      deviceState()->commitBuffer.flush();
+      deviceState()->commitBufferFlush();
       rebuildBVHs();
     }
     auto bounds = m_surfaceBounds;
@@ -139,6 +139,8 @@ void World::commit()
   } else
     m_zeroGroup->removeParam("light");
 
+  m_zeroInstance->setParam("id", getParam<uint32_t>("id", ~0u));
+
   m_zeroGroup->commit();
   m_zeroInstance->commit();
 
@@ -178,17 +180,17 @@ OptixTraversableHandle World::optixTraversableHandleVolumes() const
   return m_traversableVolumes;
 }
 
-Span<const InstanceSurfaceGPUData> World::instanceSurfaceGPUData() const
+Span<InstanceSurfaceGPUData> World::instanceSurfaceGPUData() const
 {
   return m_instanceSurfaceGPUData.deviceSpan();
 }
 
-Span<const InstanceVolumeGPUData> World::instanceVolumeGPUData() const
+Span<InstanceVolumeGPUData> World::instanceVolumeGPUData() const
 {
   return m_instanceVolumeGPUData.deviceSpan();
 }
 
-Span<const InstanceLightGPUData> World::instanceLightGPUData() const
+Span<InstanceLightGPUData> World::instanceLightGPUData() const
 {
   return m_instanceLightGPUData.deviceSpan();
 }
@@ -337,12 +339,13 @@ void World::buildInstanceSurfaceGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *sd = m_instanceSurfaceGPUData.dataHost();
+    auto id = inst->userID();
     if (group->containsTriangleGeometry())
-      sd[instID++] = {group->surfaceTriangleGPUIndices().data()};
+      sd[instID++] = {group->surfaceTriangleGPUIndices().data(), id};
     if (group->containsCurveGeometry())
-      sd[instID++] = {group->surfaceCurveGPUIndices().data()};
+      sd[instID++] = {group->surfaceCurveGPUIndices().data(), id};
     if (group->containsUserGeometry())
-      sd[instID++] = {group->surfaceUserGPUIndices().data()};
+      sd[instID++] = {group->surfaceUserGPUIndices().data(), id};
   });
 
   m_instanceSurfaceGPUData.upload();
@@ -356,8 +359,9 @@ void World::buildInstanceVolumeGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *vd = m_instanceVolumeGPUData.dataHost();
+    auto id = inst->userID();
     if (group->containsVolumes())
-      vd[instID++] = {group->volumeGPUIndices().data()};
+      vd[instID++] = {group->volumeGPUIndices().data(), id};
   });
 
   m_instanceVolumeGPUData.upload();

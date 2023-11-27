@@ -45,7 +45,6 @@
 #include "VisGLCameraPerspectiveObject.h"
 #include "VisGLCameraOrthographicObject.h"
 #include "VisGLMaterialMatteObject.h"
-#include "VisGLMaterialTransparentMatteObject.h"
 #include "VisGLMaterialPbrObject.h"
 #include "VisGLLightDirectionalObject.h"
 #include "VisGLLightPointObject.h"

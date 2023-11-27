@@ -60,6 +60,8 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
   helium::IntrusivePtr<Material> m_material;
 
   OptixBuildInput m_buildInput{};
+
+  uint32_t m_id{~0u};
 };
 
 } // namespace visrtx
