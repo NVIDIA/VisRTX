@@ -74,7 +74,7 @@ struct Array1D : public helium::Array1D, GPUArray
 template <typename T>
 inline const T *Array1D::dataAs(AddressSpace as) const
 {
-  assert(anari::ANARITypeFor<T>::value != elementType());
+  assert(anari::ANARITypeFor<T>::value == elementType());
 
   return (const T *)data(as);
 }
@@ -82,7 +82,7 @@ inline const T *Array1D::dataAs(AddressSpace as) const
 template <typename T>
 inline const T *Array1D::beginAs(AddressSpace as) const
 {
-  assert(anari::ANARITypeFor<T>::value != elementType());
+  assert(anari::ANARITypeFor<T>::value == elementType());
 
   return dataAs<T>(as) + m_begin;
 }
@@ -90,7 +90,7 @@ inline const T *Array1D::beginAs(AddressSpace as) const
 template <typename T>
 inline const T *Array1D::endAs(AddressSpace as) const
 {
-  assert(anari::ANARITypeFor<T>::value != elementType());
+  assert(anari::ANARITypeFor<T>::value == elementType());
 
   return dataAs<T>(as) + m_end;
 }
