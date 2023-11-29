@@ -27,7 +27,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.23)
 
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 

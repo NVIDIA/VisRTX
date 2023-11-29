@@ -31,7 +31,10 @@ include(GenerateExportHeader)
 
 ## Establish project ##
 
-set(CMAKE_CUDA_ARCHITECTURES OFF)
+if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CMAKE_CUDA_ARCHITECTURES native)
+endif()
+
 if (NOT WIN32)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1")
 endif()
@@ -151,8 +154,6 @@ generate_export_header(${PROJECT_NAME}
   EXPORT_MACRO_NAME "VISRTX_DEVICE_INTERFACE"
 )
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY CUDA_ARCHITECTURES OFF)
-
 set_source_files_properties(
   frame/Frame.cu
   frame/Denoiser.cu
@@ -223,7 +224,6 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     ${CMAKE_CURRENT_LIST_DIR}
   )
   set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_PTX_COMPILATION ON)
-  set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_ARCHITECTURES OFF)
 
   EmbedPTX(
     OUTPUT_HEADER_FILE ${OUTPUT_HEADER}
