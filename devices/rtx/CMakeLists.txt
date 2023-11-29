@@ -32,6 +32,9 @@ include(GenerateExportHeader)
 ## Establish project ##
 
 set(CMAKE_CUDA_ARCHITECTURES OFF)
+if (NOT WIN32)
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1")
+endif()
 
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 
