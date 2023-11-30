@@ -116,10 +116,9 @@ struct TriangleGeometryData
 
   const vec3 *vertices;
   AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributePtr vertexAttrFV[5]; // attribute0-3 + color
   const vec3 *vertexNormals;
-
-  const uvec3 *vertexNormalIndices;
-  const uvec3 *vertexAttrIndices[5];
+  const vec3 *vertexNormalsFV;
 };
 
 struct QuadGeometryData

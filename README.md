@@ -75,15 +75,15 @@ provided extensions, and known missing extensions to add in the future.
 
 ## Queryable ANARI Extensions
 
-In addition to standard `ANARI_KHR` extensions, the following vendor extensions
-are also implemented in the `visrtx` device. Note that all vendor extensions are
-subject to change
+In addition to standard `ANARI_KHR` extensions, the following extensions are
+also implemented in the `visrtx` device. Note that all extensions are subject to
+change
 
 #### "VISRTX_CUDA_OUTPUT_BUFFERS"
 
-This vendor extension indicates that raw CUDA GPU buffers from frame objects can
-be mapped for applications which are already using CUDA. The following
-additional channels can be mapped:
+This extension indicates that raw CUDA GPU buffers from frame objects can be
+mapped for applications which are already using CUDA. The following additional
+channels can be mapped:
 
 - `"colorGPU"`
 - `"depthGPU"`
@@ -92,25 +92,25 @@ GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary `color` and `depth` channels.
 
-#### "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING" (experimental)
+#### "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES" (experimental)
 
-This vendor extension indicates that additional attribute indexing is
-available for the `triangle` geometry subtype. Specifically, the following
-additional index arrays will be interpreted if set on the geometry:
+This extension indicates that additional attribute mappings are available for
+the `triangle` geometry subtype. Specifically, the following face-unique vertex
+attribute arrays can be specified:
 
-- `vertex.color.index`
-- `vertex.normal.index`
-- `vertex.attribute0.index`
-- `vertex.attribute1.index`
-- `vertex.attribute2.index`
-- `vertex.attribute3.index`
+- `faceVarying.normal`
+- `faceVarying.color`
+- `faceVarying.attribute0`
+- `faceVarying.attribute1`
+- `faceVarying.attribute2`
+- `faceVarying.attribute3`
 
-Each of these arrays must be of type `UINT32_VEC3` and is indexed per-triangle
-on the geometry where each component indexes into the corresponding index array
-that matches. For example, `vertex.color.index` for primitive 0 (first triangle)
-will load values from `vertex.color` accordingly. For every `.index` array
-present, the matching vertex array must also be present. All index values must
-be within the size of the corresponding vertex array it accesses.
+Each `faceVarying` attribute array is indexed by 3 * `primID` + `{0, 1, 2}`,
+giving each triangle primitive a unique set of 3 vertex attributes. This follows
+the USD definition of "face-varying" interpolated primvars.
+
+If a `faceVarying` attribute array is present, it takes precedence over `vertex`
+and `primitive` attribute arrays when they are also present.
 
 ## Additional ANARI Parameter and Property Extensions
 

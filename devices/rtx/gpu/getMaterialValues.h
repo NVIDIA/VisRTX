@@ -128,9 +128,7 @@ RT_FUNCTION uint32_t decodeSphereAttributeIndices(
 RT_FUNCTION uvec3 decodeTriangleAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
 {
-  if (ggd.tri.vertexAttrIndices[attributeID] != nullptr)
-    return ggd.tri.vertexAttrIndices[attributeID][hit.primID];
-  else if (ggd.tri.indices != nullptr)
+  if (ggd.tri.indices != nullptr)
     return ggd.tri.indices[hit.primID];
   else
     return 3 * hit.primID + uvec3(0, 1, 2);
@@ -176,7 +174,14 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
   // First check per-vertex attributes
   if (ggd.type == GeometryType::TRIANGLE) {
     const auto &ap = ggd.tri.vertexAttr[attributeID];
-    if (isPopulated(ap)) {
+    const auto &apFV = ggd.tri.vertexAttrFV[attributeID];
+    if (isPopulated(apFV)) {
+      const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
+      const vec3 b = hit.uvw;
+      return b.x * getAttributeValue(apFV, idx.x)
+          + b.y * getAttributeValue(apFV, idx.y)
+          + b.z * getAttributeValue(apFV, idx.z);
+    } else if (isPopulated(ap)) {
       const uvec3 idx = decodeTriangleAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
       return b.x * getAttributeValue(ap, idx.x)
