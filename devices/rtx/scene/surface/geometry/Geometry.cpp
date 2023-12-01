@@ -39,9 +39,43 @@
 #include "Triangle.h"
 #include "UnknownGeometry.h"
 // std
+#include <cstring>
 #include <string_view>
+// helium
+#include <helium/helium_math.h>
+
+#include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
+
+// Helper functions ///////////////////////////////////////////////////////////
+
+static void populateAttributeData(helium::IntrusivePtr<Array1D> array,
+    AttributeData &attr,
+    const std::optional<vec4> &uniformValue)
+{
+  attr.type = ANARI_UNKNOWN;
+  attr.numChannels = 0;
+  attr.data = nullptr;
+  std::memcpy(&attr.uniformValue,
+      &helium::DEFAULT_ATTRIBUTE_VALUE,
+      sizeof(attr.uniformValue));
+
+  if (!array && !uniformValue)
+    return;
+
+  auto type = array ? array->elementType() : ANARI_FLOAT32_VEC4;
+
+  if (!isColor(type) && !uniformValue)
+    return;
+
+  attr.type = isColor(type) ? type : ANARI_FLOAT32_VEC4;
+  attr.numChannels = numANARIChannels(attr.type);
+  attr.data = array ? array->dataGPU() : nullptr;
+  attr.uniformValue = *uniformValue;
+}
+
+// Geometry definitions ///////////////////////////////////////////////////////
 
 Geometry::Geometry(DeviceGlobalState *s)
     : RegisteredObject<GeometryGPUData>(ANARI_GEOMETRY, s)
@@ -70,11 +104,7 @@ Geometry *Geometry::createInstance(
 
 void Geometry::commit()
 {
-  m_attribute0 = getParamObject<Array1D>("primitive.attribute0");
-  m_attribute1 = getParamObject<Array1D>("primitive.attribute1");
-  m_attribute2 = getParamObject<Array1D>("primitive.attribute2");
-  m_attribute3 = getParamObject<Array1D>("primitive.attribute3");
-  m_color = getParamObject<Array1D>("primitive.color");
+  commitAttributes("primitive.", m_primitiveAttributes);
 }
 
 void Geometry::markCommitted()
@@ -86,12 +116,48 @@ void Geometry::markCommitted()
 GeometryGPUData Geometry::gpuData() const
 {
   GeometryGPUData retval{};
-  populateAttributePtr(m_attribute0, retval.attr[0]);
-  populateAttributePtr(m_attribute1, retval.attr[1]);
-  populateAttributePtr(m_attribute2, retval.attr[2]);
-  populateAttributePtr(m_attribute3, retval.attr[3]);
-  populateAttributePtr(m_color, retval.attr[4]);
+  populateAttributeDataSet(m_primitiveAttributes, retval.attr);
   return retval;
+}
+
+void Geometry::commitAttributes(const char *_prefix, GeometryAttributes &attrs)
+{
+  std::string prefix = _prefix;
+
+  attrs.attribute0 = getParamObject<Array1D>(prefix + "attribute0");
+  attrs.attribute1 = getParamObject<Array1D>(prefix + "attribute1");
+  attrs.attribute2 = getParamObject<Array1D>(prefix + "attribute2");
+  attrs.attribute3 = getParamObject<Array1D>(prefix + "attribute3");
+  attrs.color = getParamObject<Array1D>(prefix + "color");
+
+  auto getUniformAttribute =
+      [&](const std::string &pName) -> std::optional<vec4> {
+    vec4 v(0.f, 0.f, 0.f, 1.f);
+    if (getParam(pName, ANARI_FLOAT32_VEC4, &v))
+      return v;
+    else
+      return {};
+  };
+
+  attrs.uniformAttribute0 = getUniformAttribute(prefix + "attribute0");
+  attrs.uniformAttribute1 = getUniformAttribute(prefix + "attribute1");
+  attrs.uniformAttribute2 = getUniformAttribute(prefix + "attribute2");
+  attrs.uniformAttribute3 = getUniformAttribute(prefix + "attribute3");
+  attrs.uniformColor = getUniformAttribute(prefix + "color");
+}
+
+void Geometry::populateAttributeDataSet(
+    const GeometryAttributes &hostAttrs, AttributeDataSet &gpuAttrs) const
+{
+  populateAttributeData(
+      hostAttrs.attribute0, gpuAttrs[0], hostAttrs.uniformAttribute0);
+  populateAttributeData(
+      hostAttrs.attribute1, gpuAttrs[1], hostAttrs.uniformAttribute1);
+  populateAttributeData(
+      hostAttrs.attribute2, gpuAttrs[2], hostAttrs.uniformAttribute2);
+  populateAttributeData(
+      hostAttrs.attribute3, gpuAttrs[3], hostAttrs.uniformAttribute3);
+  populateAttributeData(hostAttrs.color, gpuAttrs[4], hostAttrs.uniformColor);
 }
 
 } // namespace visrtx

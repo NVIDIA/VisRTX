@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBURES",
-    "type": "feature",
+    "name": "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+    "type": "extension",
     "dependencies": []
   },
   "objects": [

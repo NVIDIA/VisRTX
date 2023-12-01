@@ -50,14 +50,9 @@ void Sphere::commit()
   cleanup();
 
   m_index = getParamObject<Array1D>("primitive.index");
-
   m_vertex = getParamObject<Array1D>("vertex.position");
-  m_vertexColor = getParamObject<Array1D>("vertex.color");
-  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
-  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
-  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
-  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
   m_vertexRadius = getParamObject<Array1D>("vertex.radius");
+  commitAttributes("vertex.", m_vertexAttributes);
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -142,7 +137,6 @@ GeometryGPUData Sphere::gpuData() const
   retval.type = GeometryType::SPHERE;
 
   auto &sphere = retval.sphere;
-
   sphere.centers = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   sphere.indices = nullptr;
   if (m_index)
@@ -151,12 +145,7 @@ GeometryGPUData Sphere::gpuData() const
   if (m_vertexRadius)
     sphere.radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
   sphere.radius = m_globalRadius;
-
-  populateAttributePtr(m_vertexAttribute0, sphere.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, sphere.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, sphere.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, sphere.vertexAttr[3]);
-  populateAttributePtr(m_vertexColor, sphere.vertexAttr[4]);
+  populateAttributeDataSet(m_vertexAttributes, sphere.vertexAttr);
 
   return retval;
 }

@@ -51,7 +51,7 @@ struct PrimitiveSampler : public Sampler
   SamplerGPUData gpuData() const override;
 
   helium::IntrusivePtr<Array1D> m_data;
-  AttributePtr m_ap;
+  AttributeData m_ap;
   uint32_t m_offset{0};
 };
 

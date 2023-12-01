@@ -59,12 +59,8 @@ struct Sphere : public Geometry
   helium::IntrusivePtr<Array1D> m_index;
 
   helium::IntrusivePtr<Array1D> m_vertex;
-  helium::IntrusivePtr<Array1D> m_vertexColor;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
   helium::IntrusivePtr<Array1D> m_vertexRadius;
+  GeometryAttributes m_vertexAttributes;
 
   thrust::device_vector<box3> m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};

@@ -32,7 +32,8 @@
       "khr_spatial_field_structured_regular",
       "khr_volume_scivis",
       "visrtx_cuda_output_buffers",
-      "visrtx_triangle_attribute_indexing"
+      "visrtx_triangle_face_varying_attributes",
+      "visrtx_uniform_attributes"
     ]
   },
   "objects": [

@@ -103,6 +103,8 @@ const char ** query_extensions() {
       "ANARI_KHR_SAMPLER_TRANSFORM",
       "ANARI_KHR_SPATIAL_FIELD_STRUCTURED_REGULAR",
       "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
+      "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+      "ANARI_VISRTX_UNIFORM_ATTRIBUTES",
       0
    };
    return extensions;
@@ -6371,6 +6373,14 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_normal_info(ANARIDataTyp
          } else {
             return nullptr;
          }
+      case 7: // sourceExtension
+         if(infoType == ANARI_STRING) {
+            static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
+            return extension;
+         } else if(infoType == ANARI_INT32) {
+            static const int32_t value = 25;
+            return &value;
+         }
       default: return nullptr;
    }
 }
@@ -6394,6 +6404,14 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_color_info(ANARIDataType
             return values;
          } else {
             return nullptr;
+         }
+      case 7: // sourceExtension
+         if(infoType == ANARI_STRING) {
+            static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
+            return extension;
+         } else if(infoType == ANARI_INT32) {
+            static const int32_t value = 25;
+            return &value;
          }
       default: return nullptr;
    }
@@ -6419,6 +6437,14 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_attribute0_info(ANARIDat
          } else {
             return nullptr;
          }
+      case 7: // sourceExtension
+         if(infoType == ANARI_STRING) {
+            static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
+            return extension;
+         } else if(infoType == ANARI_INT32) {
+            static const int32_t value = 25;
+            return &value;
+         }
       default: return nullptr;
    }
 }
@@ -6442,6 +6468,14 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_attribute1_info(ANARIDat
             return values;
          } else {
             return nullptr;
+         }
+      case 7: // sourceExtension
+         if(infoType == ANARI_STRING) {
+            static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
+            return extension;
+         } else if(infoType == ANARI_INT32) {
+            static const int32_t value = 25;
+            return &value;
          }
       default: return nullptr;
    }
@@ -6467,6 +6501,14 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_attribute2_info(ANARIDat
          } else {
             return nullptr;
          }
+      case 7: // sourceExtension
+         if(infoType == ANARI_STRING) {
+            static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
+            return extension;
+         } else if(infoType == ANARI_INT32) {
+            static const int32_t value = 25;
+            return &value;
+         }
       default: return nullptr;
    }
 }
@@ -6490,6 +6532,14 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_attribute3_info(ANARIDat
             return values;
          } else {
             return nullptr;
+         }
+      case 7: // sourceExtension
+         if(infoType == ANARI_STRING) {
+            static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
+            return extension;
+         } else if(infoType == ANARI_INT32) {
+            static const int32_t value = 25;
+            return &value;
          }
       default: return nullptr;
    }
@@ -9485,6 +9535,8 @@ static const void * ANARI_RENDERER_default_info(int infoName, ANARIDataType info
                "ANARI_KHR_SAMPLER_TRANSFORM",
                "ANARI_KHR_SPATIAL_FIELD_STRUCTURED_REGULAR",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
+               "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+               "ANARI_VISRTX_UNIFORM_ATTRIBUTES",
                0
             };
             return extensions;
@@ -9544,6 +9596,8 @@ static const void * ANARI_RENDERER_scivis_info(int infoName, ANARIDataType infoT
                "ANARI_KHR_SAMPLER_TRANSFORM",
                "ANARI_KHR_SPATIAL_FIELD_STRUCTURED_REGULAR",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
+               "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+               "ANARI_VISRTX_UNIFORM_ATTRIBUTES",
                0
             };
             return extensions;
@@ -9602,6 +9656,8 @@ static const void * ANARI_RENDERER_ao_info(int infoName, ANARIDataType infoType)
                "ANARI_KHR_SAMPLER_TRANSFORM",
                "ANARI_KHR_SPATIAL_FIELD_STRUCTURED_REGULAR",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
+               "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+               "ANARI_VISRTX_UNIFORM_ATTRIBUTES",
                0
             };
             return extensions;
@@ -9655,6 +9711,8 @@ static const void * ANARI_RENDERER_dpt_info(int infoName, ANARIDataType infoType
                "ANARI_KHR_SAMPLER_TRANSFORM",
                "ANARI_KHR_SPATIAL_FIELD_STRUCTURED_REGULAR",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
+               "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+               "ANARI_VISRTX_UNIFORM_ATTRIBUTES",
                0
             };
             return extensions;
@@ -9709,6 +9767,8 @@ static const void * ANARI_RENDERER_raycast_info(int infoName, ANARIDataType info
                "ANARI_KHR_SAMPLER_TRANSFORM",
                "ANARI_KHR_SPATIAL_FIELD_STRUCTURED_REGULAR",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
+               "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+               "ANARI_VISRTX_UNIFORM_ATTRIBUTES",
                0
             };
             return extensions;
@@ -9764,6 +9824,8 @@ static const void * ANARI_RENDERER_debug_info(int infoName, ANARIDataType infoTy
                "ANARI_KHR_SAMPLER_TRANSFORM",
                "ANARI_KHR_SPATIAL_FIELD_STRUCTURED_REGULAR",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
+               "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+               "ANARI_VISRTX_UNIFORM_ATTRIBUTES",
                0
             };
             return extensions;
@@ -9820,6 +9882,8 @@ static const void * ANARI_DEVICE_info(int infoName, ANARIDataType infoType) {
                "ANARI_KHR_SAMPLER_TRANSFORM",
                "ANARI_KHR_SPATIAL_FIELD_STRUCTURED_REGULAR",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
+               "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+               "ANARI_VISRTX_UNIFORM_ATTRIBUTES",
                0
             };
             return extensions;

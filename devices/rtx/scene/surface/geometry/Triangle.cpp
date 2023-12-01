@@ -49,19 +49,10 @@ void Triangle::commit()
   m_index = getParamObject<Array1D>("primitive.index");
 
   m_vertex = getParamObject<Array1D>("vertex.position");
-  m_vertexColor = getParamObject<Array1D>("vertex.color");
   m_vertexNormal = getParamObject<Array1D>("vertex.normal");
-  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
-  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
-  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
-  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
-
+  commitAttributes("vertex.", m_vertexAttributes);
+  commitAttributes("faceVarying.", m_vertexAttributesFV);
   m_vertexNormalFV = getParamObject<Array1D>("faceVarying.normal");
-  m_vertexAttribute0FV = getParamObject<Array1D>("faceVarying.attribute0");
-  m_vertexAttribute1FV = getParamObject<Array1D>("faceVarying.attribute1");
-  m_vertexAttribute2FV = getParamObject<Array1D>("faceVarying.attribute2");
-  m_vertexAttribute3FV = getParamObject<Array1D>("faceVarying.attribute3");
-  m_vertexColorFV = getParamObject<Array1D>("faceVarying.color");
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -141,29 +132,16 @@ GeometryGPUData Triangle::gpuData() const
   retval.type = GeometryType::TRIANGLE;
 
   auto &tri = retval.tri;
-
   tri.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   tri.indices = m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
-
   tri.vertexNormals = m_vertexNormal
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
-
-  populateAttributePtr(m_vertexAttribute0, tri.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, tri.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, tri.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, tri.vertexAttr[3]);
-  populateAttributePtr(m_vertexColor, tri.vertexAttr[4]);
-
+  populateAttributeDataSet(m_vertexAttributes, tri.vertexAttr);
+  populateAttributeDataSet(m_vertexAttributesFV, tri.vertexAttrFV);
   tri.vertexNormalsFV = m_vertexNormalFV
       ? m_vertexNormalFV->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
-
-  populateAttributePtr(m_vertexAttribute0FV, tri.vertexAttrFV[0]);
-  populateAttributePtr(m_vertexAttribute1FV, tri.vertexAttrFV[1]);
-  populateAttributePtr(m_vertexAttribute2FV, tri.vertexAttrFV[2]);
-  populateAttributePtr(m_vertexAttribute3FV, tri.vertexAttrFV[3]);
-  populateAttributePtr(m_vertexColorFV, tri.vertexAttrFV[4]);
 
   return retval;
 }

@@ -51,11 +51,7 @@ void Cylinder::commit()
   m_caps = getParamString("caps", "none") != "none";
 
   m_vertex = getParamObject<Array1D>("vertex.position");
-  m_vertexColor = getParamObject<Array1D>("vertex.color");
-  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
-  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
-  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
-  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
+  commitAttributes("vertex.", m_vertexAttributes);
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -131,7 +127,6 @@ GeometryGPUData Cylinder::gpuData() const
   retval.type = GeometryType::CYLINDER;
 
   auto &cylinder = retval.cylinder;
-
   cylinder.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   cylinder.indices =
       m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
@@ -139,12 +134,7 @@ GeometryGPUData Cylinder::gpuData() const
       m_radius ? m_radius->beginAs<float>(AddressSpace::GPU) : nullptr;
   cylinder.radius = m_globalRadius;
   cylinder.caps = m_caps;
-
-  populateAttributePtr(m_vertexAttribute0, cylinder.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, cylinder.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, cylinder.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, cylinder.vertexAttr[3]);
-  populateAttributePtr(m_vertexColor, cylinder.vertexAttr[4]);
+  populateAttributeDataSet(m_vertexAttributes, cylinder.vertexAttr);
 
   return retval;
 }

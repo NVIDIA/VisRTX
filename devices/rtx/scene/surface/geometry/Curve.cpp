@@ -52,11 +52,7 @@ void Curve::commit()
 
   m_vertexPosition = getParamObject<Array1D>("vertex.position");
   m_vertexRadius = getParamObject<Array1D>("vertex.radius");
-  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
-  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
-  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
-  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
-  m_vertexColor = getParamObject<Array1D>("vertex.color");
+  commitAttributes("vertex.", m_vertexAttributes);
 
   if (!m_vertexPosition) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -150,16 +146,10 @@ GeometryGPUData Curve::gpuData() const
   retval.type = GeometryType::CURVE;
 
   auto &curve = retval.curve;
-
   curve.vertices = m_vertexPosition->beginAs<vec3>(AddressSpace::GPU);
   curve.indices = m_generatedIndices.dataDevice();
   curve.radii = m_generatedRadii.dataDevice();
-
-  populateAttributePtr(m_vertexAttribute0, curve.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, curve.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, curve.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, curve.vertexAttr[3]);
-  populateAttributePtr(m_vertexColor, curve.vertexAttr[4]);
+  populateAttributeDataSet(m_vertexAttributes, curve.vertexAttr);
 
   return retval;
 }

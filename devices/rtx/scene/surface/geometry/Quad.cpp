@@ -49,19 +49,8 @@ void Quad::commit()
   m_index = getParamObject<Array1D>("primitive.index");
 
   m_vertex = getParamObject<Array1D>("vertex.position");
-  m_vertexColor = getParamObject<Array1D>("vertex.color");
   m_vertexNormal = getParamObject<Array1D>("vertex.normal");
-  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
-  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
-  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
-  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
-
-  m_vertexNormalIndex = getParamObject<Array1D>("vertex.normal.index");
-  m_vertexAttribute0Index = getParamObject<Array1D>("vertex.attribute0.index");
-  m_vertexAttribute1Index = getParamObject<Array1D>("vertex.attribute1.index");
-  m_vertexAttribute2Index = getParamObject<Array1D>("vertex.attribute2.index");
-  m_vertexAttribute3Index = getParamObject<Array1D>("vertex.attribute3.index");
-  m_vertexColorIndex = getParamObject<Array1D>("vertex.color.index");
+  commitAttributes("vertex.", m_vertexAttributes);
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -126,41 +115,12 @@ GeometryGPUData Quad::gpuData() const
   retval.type = GeometryType::QUAD;
 
   auto &quad = retval.quad;
-
   quad.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   quad.indices = m_indices.dataDevice();
-
   quad.vertexNormals = m_vertexNormal
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
-
-  populateAttributePtr(m_vertexAttribute0, quad.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, quad.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, quad.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, quad.vertexAttr[3]);
-
-  populateAttributePtr(m_vertexColor, quad.vertexAttr[4]);
-
-  quad.vertexNormalIndices = m_vertexNormalIndex
-      ? m_vertexNormalIndex->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-
-  quad.vertexAttrIndices[0] = m_vertexAttribute0Index
-      ? m_vertexAttribute0Index->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-  quad.vertexAttrIndices[1] = m_vertexAttribute1Index
-      ? m_vertexAttribute1Index->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-  quad.vertexAttrIndices[2] = m_vertexAttribute2Index
-      ? m_vertexAttribute2Index->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-  quad.vertexAttrIndices[3] = m_vertexAttribute3Index
-      ? m_vertexAttribute3Index->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-
-  quad.vertexAttrIndices[4] = m_vertexColorIndex
-      ? m_vertexColorIndex->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
+  populateAttributeDataSet(m_vertexAttributes, quad.vertexAttr);
 
   return retval;
 }

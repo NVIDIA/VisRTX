@@ -30,7 +30,6 @@
  */
 
 #include "TransformSampler.h"
-#include "utility/populateAttributePtr.h"
 
 namespace visrtx {
 

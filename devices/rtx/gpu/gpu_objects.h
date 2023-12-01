@@ -103,20 +103,22 @@ enum class GeometryType
   UNKNOWN
 };
 
-struct AttributePtr
+struct AttributeData
 {
   ANARIDataType type;
   int numChannels;
   const void *data;
+  vec4 uniformValue;
 };
+
+using AttributeDataSet = AttributeData[5]; // attribute0-3 + color
 
 struct TriangleGeometryData
 {
   const uvec3 *indices;
-
   const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
-  AttributePtr vertexAttrFV[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
+  AttributeDataSet vertexAttrFV;
   const vec3 *vertexNormals;
   const vec3 *vertexNormalsFV;
 };
@@ -124,20 +126,16 @@ struct TriangleGeometryData
 struct QuadGeometryData
 {
   const uvec3 *indices;
-
   const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
   const vec3 *vertexNormals;
-
-  const uvec3 *vertexNormalIndices;
-  const uvec3 *vertexAttrIndices[5];
 };
 
 struct CylinderGeometryData
 {
   const uvec2 *indices;
   const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
   const float *radii;
   float radius;
   bool caps;
@@ -148,14 +146,14 @@ struct ConeGeometryData
   const uvec2 *indices;
   const vec3 *vertices;
   const float *radii;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
 };
 
 struct CurveGeometryData
 {
   const uint32_t *indices;
   const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
   const float *radii;
 };
 
@@ -163,7 +161,7 @@ struct SphereGeometryData
 {
   const uint32_t *indices;
   const vec3 *centers;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
   const float *radii;
   float radius;
 };
@@ -171,7 +169,7 @@ struct SphereGeometryData
 struct GeometryGPUData
 {
   GeometryType type{GeometryType::UNKNOWN};
-  AttributePtr attr[5]; // attribute0-3 + color
+  AttributeDataSet attr;
   union
   {
     TriangleGeometryData tri{};
@@ -206,7 +204,7 @@ struct Image2DData
 
 struct PrimIDSamplerData
 {
-  AttributePtr attr;
+  AttributeData attr;
   uint32_t offset;
 };
 

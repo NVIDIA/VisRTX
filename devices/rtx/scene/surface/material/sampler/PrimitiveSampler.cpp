@@ -30,11 +30,16 @@
  */
 
 #include "PrimitiveSampler.h"
-#include "utility/populateAttributePtr.h"
+#include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
 
-PrimitiveSampler::PrimitiveSampler(DeviceGlobalState *d) : Sampler(d) {}
+PrimitiveSampler::PrimitiveSampler(DeviceGlobalState *d) : Sampler(d)
+{
+  std::memcpy(&m_ap.uniformValue,
+      &helium::DEFAULT_ATTRIBUTE_VALUE,
+      sizeof(m_ap.uniformValue));
+}
 
 void PrimitiveSampler::commit()
 {
@@ -52,7 +57,16 @@ void PrimitiveSampler::commit()
     return;
   }
 
-  populateAttributePtr(m_data, m_ap);
+  auto type = m_data->elementType();
+  if (!isColor(type)) {
+    m_ap.type = ANARI_UNKNOWN;
+    m_ap.numChannels = 0;
+    m_ap.data = nullptr;
+  } else {
+    m_ap.type = type;
+    m_ap.numChannels = numANARIChannels(type);
+    m_ap.data = m_data->dataGPU();
+  }
 
   upload();
 }

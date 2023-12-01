@@ -36,9 +36,9 @@
 
 namespace visrtx {
 
-RT_FUNCTION bool isPopulated(const AttributePtr &ap)
+RT_FUNCTION bool isPopulated(const AttributeData &ap)
 {
-  return ap.data != nullptr && ap.numChannels > 0;
+  return ap.numChannels > 0;
 }
 
 RT_FUNCTION const SamplerGPUData &getSamplerData(
@@ -55,23 +55,23 @@ RT_FUNCTION const T *typedOffset(const void *mem, uint32_t offset)
 
 template <typename ELEMENT_T>
 RT_FUNCTION vec4 getAttributeValue_ufixed(
-    const AttributePtr &ap, uint32_t offset)
+    const AttributeData &attr, uint32_t offset)
 {
   constexpr float m = float(static_cast<ELEMENT_T>(0xFFFFFFFF));
   vec4 retval(0.f, 0.f, 0.f, 1.f);
-  switch (ap.numChannels) {
+  switch (attr.numChannels) {
   case 4:
     retval.w =
-        *typedOffset<ELEMENT_T>(ap.data, ap.numChannels * offset + 3) / m;
+        *typedOffset<ELEMENT_T>(attr.data, attr.numChannels * offset + 3) / m;
   case 3:
     retval.z =
-        *typedOffset<ELEMENT_T>(ap.data, ap.numChannels * offset + 2) / m;
+        *typedOffset<ELEMENT_T>(attr.data, attr.numChannels * offset + 2) / m;
   case 2:
     retval.y =
-        *typedOffset<ELEMENT_T>(ap.data, ap.numChannels * offset + 1) / m;
+        *typedOffset<ELEMENT_T>(attr.data, attr.numChannels * offset + 1) / m;
   case 1:
     retval.x =
-        *typedOffset<ELEMENT_T>(ap.data, ap.numChannels * offset + 0) / m;
+        *typedOffset<ELEMENT_T>(attr.data, attr.numChannels * offset + 0) / m;
   default:
     break;
   }
@@ -79,17 +79,18 @@ RT_FUNCTION vec4 getAttributeValue_ufixed(
   return retval;
 }
 
-RT_FUNCTION vec4 getAttributeValue_f32(const AttributePtr &ap, uint32_t offset)
+RT_FUNCTION vec4 getAttributeValue_f32(
+    const AttributeData &attr, uint32_t offset)
 {
-  switch (ap.numChannels) {
+  switch (attr.numChannels) {
   case 1:
-    return vec4(*typedOffset<float>(ap.data, offset), 0.f, 0.f, 1.f);
+    return vec4(*typedOffset<float>(attr.data, offset), 0.f, 0.f, 1.f);
   case 2:
-    return vec4(*typedOffset<vec2>(ap.data, offset), 0.f, 1.f);
+    return vec4(*typedOffset<vec2>(attr.data, offset), 0.f, 1.f);
   case 3:
-    return vec4(*typedOffset<vec3>(ap.data, offset), 1.f);
+    return vec4(*typedOffset<vec3>(attr.data, offset), 1.f);
   case 4:
-    return *typedOffset<vec4>(ap.data, offset);
+    return *typedOffset<vec4>(attr.data, offset);
   default:
     break;
   }
@@ -97,21 +98,21 @@ RT_FUNCTION vec4 getAttributeValue_f32(const AttributePtr &ap, uint32_t offset)
   return vec4(0.f, 0.f, 0.f, 1.f);
 }
 
-RT_FUNCTION vec4 getAttributeValue(const AttributePtr &ap, uint32_t offset)
+RT_FUNCTION vec4 getAttributeValue(const AttributeData &attr, uint32_t offset)
 {
-  if (offset == 0xFFFFFFFF)
-    return vec4(0.f, 0.f, 0.f, 1.f);
+  if (attr.data == nullptr || offset == 0xFFFFFFFF)
+    return attr.uniformValue;
 
-  if (isFloat(ap.type))
-    return getAttributeValue_f32(ap, offset);
-  else if (isFixed8(ap.type))
-    return getAttributeValue_ufixed<uint8_t>(ap, offset);
-  else if (isSrgb8(ap.type))
-    return convertLinearToSRGB(getAttributeValue_ufixed<uint8_t>(ap, offset));
-  else if (isFixed16(ap.type))
-    return getAttributeValue_ufixed<uint16_t>(ap, offset);
-  else if (isFixed32(ap.type))
-    return getAttributeValue_ufixed<uint32_t>(ap, offset);
+  if (isFloat(attr.type))
+    return getAttributeValue_f32(attr, offset);
+  else if (isFixed8(attr.type))
+    return getAttributeValue_ufixed<uint8_t>(attr, offset);
+  else if (isSrgb8(attr.type))
+    return convertLinearToSRGB(getAttributeValue_ufixed<uint8_t>(attr, offset));
+  else if (isFixed16(attr.type))
+    return getAttributeValue_ufixed<uint16_t>(attr, offset);
+  else if (isFixed32(attr.type))
+    return getAttributeValue_ufixed<uint32_t>(attr, offset);
 
   return vec4(0.f, 0.f, 0.f, 1.f);
 }

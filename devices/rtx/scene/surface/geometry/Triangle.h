@@ -56,19 +56,10 @@ struct Triangle : public Geometry
   helium::IntrusivePtr<Array1D> m_index;
 
   helium::IntrusivePtr<Array1D> m_vertex;
-  helium::IntrusivePtr<Array1D> m_vertexColor;
   helium::IntrusivePtr<Array1D> m_vertexNormal;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
-
-  helium::IntrusivePtr<Array1D> m_vertexColorFV;
+  GeometryAttributes m_vertexAttributes;
+  GeometryAttributes m_vertexAttributesFV;
   helium::IntrusivePtr<Array1D> m_vertexNormalFV;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute0FV;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute1FV;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute2FV;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute3FV;
 
   CUdeviceptr m_vertexBufferPtr{};
 };
