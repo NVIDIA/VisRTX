@@ -98,10 +98,11 @@ RT_FUNCTION vec4 getAttributeValue_f32(
   return vec4(0.f, 0.f, 0.f, 1.f);
 }
 
-RT_FUNCTION vec4 getAttributeValue(const AttributeData &attr, uint32_t offset)
+RT_FUNCTION vec4 getAttributeValue(
+    const AttributeData &attr, uint32_t offset, const vec4 &uniformFallback)
 {
   if (attr.data == nullptr || offset == 0xFFFFFFFF)
-    return attr.uniformValue;
+    return uniformFallback;
 
   if (isFloat(attr.type))
     return getAttributeValue_f32(attr, offset);
@@ -114,7 +115,7 @@ RT_FUNCTION vec4 getAttributeValue(const AttributeData &attr, uint32_t offset)
   else if (isFixed32(attr.type))
     return getAttributeValue_ufixed<uint32_t>(attr, offset);
 
-  return vec4(0.f, 0.f, 0.f, 1.f);
+  return uniformFallback;
 }
 
 RT_FUNCTION uint32_t decodeSphereAttributeIndices(
@@ -171,6 +172,7 @@ RT_FUNCTION uint32_t decodeCurveAttributeIndices(
 RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
 {
   const auto &ggd = *hit.geometry;
+  const vec4 &uf = ggd.attrUniform[attributeID];
 
   // First check per-vertex attributes
   if (ggd.type == GeometryType::TRIANGLE) {
@@ -179,15 +181,15 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
     if (isPopulated(apFV)) {
       const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
       const vec3 b = hit.uvw;
-      return b.x * getAttributeValue(apFV, idx.x)
-          + b.y * getAttributeValue(apFV, idx.y)
-          + b.z * getAttributeValue(apFV, idx.z);
+      return b.x * getAttributeValue(apFV, idx.x, uf)
+          + b.y * getAttributeValue(apFV, idx.y, uf)
+          + b.z * getAttributeValue(apFV, idx.z, uf);
     } else if (isPopulated(ap)) {
       const uvec3 idx = decodeTriangleAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
-      return b.x * getAttributeValue(ap, idx.x)
-          + b.y * getAttributeValue(ap, idx.y)
-          + b.z * getAttributeValue(ap, idx.z);
+      return b.x * getAttributeValue(ap, idx.x, uf)
+          + b.y * getAttributeValue(ap, idx.y, uf)
+          + b.z * getAttributeValue(ap, idx.z, uf);
     }
   } else if (ggd.type == GeometryType::QUAD) {
     const auto &ap = ggd.quad.vertexAttr[attributeID];
@@ -195,10 +197,10 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
       const uvec4 idx =
           decodeQuadAttributeIndices(ggd, attributeID, hit.primID);
       const vec3 b = hit.uvw;
-      const auto v0 = getAttributeValue(ap, idx.x);
-      const auto v1 = getAttributeValue(ap, idx.y);
-      const auto v2 = getAttributeValue(ap, idx.w);
-      const auto v3 = getAttributeValue(ap, idx.z);
+      const auto v0 = getAttributeValue(ap, idx.x, uf);
+      const auto v1 = getAttributeValue(ap, idx.y, uf);
+      const auto v2 = getAttributeValue(ap, idx.w, uf);
+      const auto v3 = getAttributeValue(ap, idx.z, uf);
       const float u = hit.primID & 0x1 ? b.y : 1.f - b.y;
       const float v = hit.primID & 0x1 ? b.z : 1.f - b.z;
       const auto l0 = v1 + (v0 - v1) * u;
@@ -210,45 +212,45 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
     if (isPopulated(ap)) {
       const uvec2 idx = decodeCylinderAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
-      return b.z * getAttributeValue(ap, idx.x)
-          + b.y * getAttributeValue(ap, idx.y);
+      return b.z * getAttributeValue(ap, idx.x, uf)
+          + b.y * getAttributeValue(ap, idx.y, uf);
     }
   } else if (ggd.type == GeometryType::CONE) {
     const auto &ap = ggd.cone.vertexAttr[attributeID];
     if (isPopulated(ap)) {
       const uvec2 idx = decodeConeAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
-      return b.z * getAttributeValue(ap, idx.x)
-          + b.y * getAttributeValue(ap, idx.y);
+      return b.z * getAttributeValue(ap, idx.x, uf)
+          + b.y * getAttributeValue(ap, idx.y, uf);
     }
   } else if (ggd.type == GeometryType::CURVE) {
     const auto &ap = ggd.curve.vertexAttr[attributeID];
     if (isPopulated(ap)) {
       const uint32_t idx = decodeCurveAttributeIndices(ggd, attributeID, hit);
       const vec3 b = hit.uvw;
-      return b.z * getAttributeValue(ap, idx)
-          + b.y * getAttributeValue(ap, idx + 1);
+      return b.z * getAttributeValue(ap, idx, uf)
+          + b.y * getAttributeValue(ap, idx + 1, uf);
     }
   } else if (ggd.type == GeometryType::SPHERE) {
     const auto &ap = ggd.sphere.vertexAttr[attributeID];
     const uint32_t idx = decodeSphereAttributeIndices(ggd, hit);
     if (isPopulated(ap))
-      return getAttributeValue(ap, idx);
+      return getAttributeValue(ap, idx, uf);
   }
 
   // Else fall through to per-primitive attributes
   const auto &ap = ggd.attr[attributeID];
   if (ggd.type == GeometryType::QUAD)
-    return getAttributeValue(ap, hit.primID / 2);
+    return getAttributeValue(ap, hit.primID / 2, uf);
   else
-    return getAttributeValue(ap, hit.primID);
+    return getAttributeValue(ap, hit.primID, uf);
 }
 
 template <typename T>
 RT_FUNCTION T evaluateSampler(
     const FrameGPUData &fd, const DeviceObjectIndex _s, const SurfaceHit &hit)
 {
-  vec4 retval{0.f};
+  vec4 retval{0.f, 0.f, 0.f, 1.f};
   const auto &sampler = getSamplerData(fd, _s);
   const vec4 tc =
       sampler.inTransform * readAttributeValue(sampler.attribute, hit)
@@ -264,7 +266,7 @@ RT_FUNCTION T evaluateSampler(
   }
   case SamplerType::PRIMITIVE: {
     retval = getAttributeValue(
-        sampler.primitive.attr, hit.primID + sampler.primitive.offset);
+        sampler.primitive.attr, hit.primID + sampler.primitive.offset, retval);
     break;
   }
   case SamplerType::TRANSFORM: {

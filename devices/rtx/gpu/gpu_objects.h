@@ -112,6 +112,7 @@ struct AttributeData
 };
 
 using AttributeDataSet = AttributeData[5]; // attribute0-3 + color
+using AttributeDataSetUniform = vec4[5]; // attribute0-3 + color
 
 struct TriangleGeometryData
 {
@@ -170,6 +171,7 @@ struct GeometryGPUData
 {
   GeometryType type{GeometryType::UNKNOWN};
   AttributeDataSet attr;
+  AttributeDataSetUniform attrUniform;
   union
   {
     TriangleGeometryData tri{};

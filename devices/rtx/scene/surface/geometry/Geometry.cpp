@@ -50,29 +50,24 @@ namespace visrtx {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static void populateAttributeData(helium::IntrusivePtr<Array1D> array,
-    AttributeData &attr,
-    const std::optional<vec4> &uniformValue)
+static void populateAttributeData(
+    helium::IntrusivePtr<Array1D> array, AttributeData &attr)
 {
   attr.type = ANARI_UNKNOWN;
   attr.numChannels = 0;
   attr.data = nullptr;
-  std::memcpy(&attr.uniformValue,
-      &helium::DEFAULT_ATTRIBUTE_VALUE,
-      sizeof(attr.uniformValue));
 
-  if (!array && !uniformValue)
+  if (!array)
     return;
 
-  auto type = array ? array->elementType() : ANARI_FLOAT32_VEC4;
+  auto type = array->elementType();
 
-  if (!isColor(type) && !uniformValue)
+  if (!isColor(type))
     return;
 
-  attr.type = isColor(type) ? type : ANARI_FLOAT32_VEC4;
+  attr.type = type;
   attr.numChannels = numANARIChannels(attr.type);
-  attr.data = array ? array->dataGPU() : nullptr;
-  attr.uniformValue = *uniformValue;
+  attr.data = array->dataGPU();
 }
 
 // Geometry definitions ///////////////////////////////////////////////////////
@@ -105,6 +100,21 @@ Geometry *Geometry::createInstance(
 void Geometry::commit()
 {
   commitAttributes("primitive.", m_primitiveAttributes);
+
+  auto getUniformAttribute =
+      [&](const std::string &pName) -> std::optional<vec4> {
+    vec4 v(0.f, 0.f, 0.f, 1.f);
+    if (getParam(pName, ANARI_FLOAT32_VEC4, &v))
+      return v;
+    else
+      return {};
+  };
+
+  m_uniformAttributes.attribute0 = getUniformAttribute("attribute0");
+  m_uniformAttributes.attribute1 = getUniformAttribute("attribute1");
+  m_uniformAttributes.attribute2 = getUniformAttribute("attribute2");
+  m_uniformAttributes.attribute3 = getUniformAttribute("attribute3");
+  m_uniformAttributes.color = getUniformAttribute("color");
 }
 
 void Geometry::markCommitted()
@@ -116,48 +126,36 @@ void Geometry::markCommitted()
 GeometryGPUData Geometry::gpuData() const
 {
   GeometryGPUData retval{};
+
+  const vec4 defaultAttr(0.f, 0.f, 0.f, 1.f);
+  retval.attrUniform[0] = m_uniformAttributes.attribute0.value_or(defaultAttr);
+  retval.attrUniform[1] = m_uniformAttributes.attribute1.value_or(defaultAttr);
+  retval.attrUniform[2] = m_uniformAttributes.attribute2.value_or(defaultAttr);
+  retval.attrUniform[3] = m_uniformAttributes.attribute3.value_or(defaultAttr);
+  retval.attrUniform[4] = m_uniformAttributes.color.value_or(defaultAttr);
   populateAttributeDataSet(m_primitiveAttributes, retval.attr);
+
   return retval;
 }
 
 void Geometry::commitAttributes(const char *_prefix, GeometryAttributes &attrs)
 {
   std::string prefix = _prefix;
-
   attrs.attribute0 = getParamObject<Array1D>(prefix + "attribute0");
   attrs.attribute1 = getParamObject<Array1D>(prefix + "attribute1");
   attrs.attribute2 = getParamObject<Array1D>(prefix + "attribute2");
   attrs.attribute3 = getParamObject<Array1D>(prefix + "attribute3");
   attrs.color = getParamObject<Array1D>(prefix + "color");
-
-  auto getUniformAttribute =
-      [&](const std::string &pName) -> std::optional<vec4> {
-    vec4 v(0.f, 0.f, 0.f, 1.f);
-    if (getParam(pName, ANARI_FLOAT32_VEC4, &v))
-      return v;
-    else
-      return {};
-  };
-
-  attrs.uniformAttribute0 = getUniformAttribute(prefix + "attribute0");
-  attrs.uniformAttribute1 = getUniformAttribute(prefix + "attribute1");
-  attrs.uniformAttribute2 = getUniformAttribute(prefix + "attribute2");
-  attrs.uniformAttribute3 = getUniformAttribute(prefix + "attribute3");
-  attrs.uniformColor = getUniformAttribute(prefix + "color");
 }
 
 void Geometry::populateAttributeDataSet(
     const GeometryAttributes &hostAttrs, AttributeDataSet &gpuAttrs) const
 {
-  populateAttributeData(
-      hostAttrs.attribute0, gpuAttrs[0], hostAttrs.uniformAttribute0);
-  populateAttributeData(
-      hostAttrs.attribute1, gpuAttrs[1], hostAttrs.uniformAttribute1);
-  populateAttributeData(
-      hostAttrs.attribute2, gpuAttrs[2], hostAttrs.uniformAttribute2);
-  populateAttributeData(
-      hostAttrs.attribute3, gpuAttrs[3], hostAttrs.uniformAttribute3);
-  populateAttributeData(hostAttrs.color, gpuAttrs[4], hostAttrs.uniformColor);
+  populateAttributeData(hostAttrs.attribute0, gpuAttrs[0]);
+  populateAttributeData(hostAttrs.attribute1, gpuAttrs[1]);
+  populateAttributeData(hostAttrs.attribute2, gpuAttrs[2]);
+  populateAttributeData(hostAttrs.attribute3, gpuAttrs[3]);
+  populateAttributeData(hostAttrs.color, gpuAttrs[4]);
 }
 
 } // namespace visrtx
