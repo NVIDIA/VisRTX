@@ -56,7 +56,7 @@ RT_FUNCTION float computeAO(ScreenSample &ss,
       hits += weight;
   }
 
-  return 1.f - hits / weights;
+  return weights > 0.f ? 1.f - hits / weights : 0.f;
 }
 
 } // namespace visrtx
