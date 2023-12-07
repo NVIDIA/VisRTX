@@ -142,6 +142,9 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   helium::TimeStamp m_lastUploadOccured{0};
 
   Denoiser m_denoiser;
+
+  anari::FrameCompletionCallback m_callback{nullptr};
+  const void *m_callbackUserPtr{nullptr};
 };
 
 } // namespace visrtx

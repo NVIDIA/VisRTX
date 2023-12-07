@@ -222,6 +222,17 @@ int main()
   anari::setParameter(device, frame, "camera", camera);
   anari::setParameter(device, frame, "renderer", renderer);
 
+  auto fccb = [](const void *uptr, anari::Device, anari::Frame) {
+    printf("callback notifying frame completion! user ptr: %p\n", uptr);
+  };
+
+  anari::setParameter(device,
+      frame,
+      "frameCompletionCallback",
+      (anari::FrameCompletionCallback)fccb);
+  anari::setParameter(
+      device, frame, "frameCompletionCallbackUserData", (void *)device);
+
   anari::commitParameters(device, frame);
 
   // Render frame and print out duration property //

@@ -107,6 +107,11 @@ void Frame::commit()
   if (!m_valid)
     return;
 
+  m_callback = getParam<ANARIFrameCompletionCallback>(
+      "frameCompletionCallback", nullptr);
+  m_callbackUserPtr =
+      getParam<void *>("frameCompletionCallbackUserData", nullptr);
+
   auto format =
       getParam<ANARIDataType>("channel.color", ANARI_UFIXED8_RGBA_SRGB);
   const bool useFloatFB = m_denoise || format == ANARI_FLOAT32_VEC4;
@@ -314,6 +319,17 @@ void Frame::renderFrame()
 
   if (m_denoise)
     m_denoiser.launch();
+
+  if (m_callback) {
+    cudaLaunchHostFunc(
+        state.stream,
+        [](void *_this) {
+          auto &self = *(Frame *)_this;
+          auto *d = self.deviceState()->anariDevice;
+          self.m_callback(self.m_callbackUserPtr, d, (ANARIFrame)_this);
+        },
+        this);
+  }
 
   instrument::rangePop(); // render all frames
   cudaEventRecord(m_eventEnd, state.stream);

@@ -122,6 +122,8 @@ using ptx_ptr = unsigned char *;
 
 struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
+  anari::Device anariDevice{nullptr};
+
   CUcontext cudaContext;
   CUstream stream;
   cudaDeviceProp deviceProps;
