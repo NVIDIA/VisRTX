@@ -49,8 +49,6 @@ namespace visrtx {
 
 struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
 {
-  static size_t objectCount();
-
   Frame(DeviceGlobalState *d);
   ~Frame();
 

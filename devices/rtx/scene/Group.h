@@ -41,8 +41,6 @@ namespace visrtx {
 
 struct Group : public Object
 {
-  static size_t objectCount();
-
   Group(DeviceGlobalState *d);
   ~Group() override;
 

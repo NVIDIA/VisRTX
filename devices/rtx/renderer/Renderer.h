@@ -52,8 +52,6 @@ struct HitgroupFunctionNames
 
 struct Renderer : public Object
 {
-  static size_t objectCount();
-
   Renderer(DeviceGlobalState *s);
   ~Renderer() override;
 

@@ -37,10 +37,8 @@ namespace visrtx {
 
 struct Instance : public Object
 {
-  static size_t objectCount();
-
   Instance(DeviceGlobalState *d);
-  ~Instance() override;
+  ~Instance() override = default;
 
   void commit() override;
 

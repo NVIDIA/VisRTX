@@ -30,27 +30,10 @@
  */
 
 #include "Instance.h"
-// std
-#include <atomic>
 
 namespace visrtx {
 
-static std::atomic<size_t> s_numInstances = 0;
-
-size_t Instance::objectCount()
-{
-  return s_numInstances.load();
-}
-
-Instance::Instance(DeviceGlobalState *d) : Object(ANARI_INSTANCE, d)
-{
-  s_numInstances++;
-}
-
-Instance::~Instance()
-{
-  s_numInstances--;
-}
+Instance::Instance(DeviceGlobalState *d) : Object(ANARI_INSTANCE, d) {}
 
 void Instance::commit()
 {

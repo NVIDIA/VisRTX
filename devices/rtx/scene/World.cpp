@@ -63,17 +63,8 @@ static std::vector<OptixBuildInput> createOBI(
 
 // World definitions //////////////////////////////////////////////////////////
 
-static size_t s_numWorlds = 0;
-
-size_t World::objectCount()
-{
-  return s_numWorlds;
-}
-
 World::World(DeviceGlobalState *d) : Object(ANARI_WORLD, d)
 {
-  s_numWorlds++;
-
   m_zeroGroup = new Group(d);
   m_zeroInstance = new Instance(d);
   m_zeroInstance->setParamDirect("group", m_zeroGroup.ptr);
@@ -86,7 +77,6 @@ World::World(DeviceGlobalState *d) : Object(ANARI_WORLD, d)
 World::~World()
 {
   cleanup();
-  s_numWorlds--;
 }
 
 bool World::getProperty(

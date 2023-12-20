@@ -44,10 +44,8 @@ enum class AddressSpace
 
 struct GPUArray
 {
-  static size_t objectCount();
-
-  GPUArray();
-  ~GPUArray();
+  GPUArray() = default;
+  ~GPUArray() = default;
 
   virtual const void *dataGPU() const = 0;
 

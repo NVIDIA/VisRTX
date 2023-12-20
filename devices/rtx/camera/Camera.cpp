@@ -39,22 +39,7 @@
 
 namespace visrtx {
 
-static std::atomic<size_t> s_numCameras = 0;
-
-size_t Camera::objectCount()
-{
-  return s_numCameras.load();
-}
-
-Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s)
-{
-  s_numCameras++;
-}
-
-Camera::~Camera()
-{
-  s_numCameras--;
-}
+Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s) {}
 
 Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {

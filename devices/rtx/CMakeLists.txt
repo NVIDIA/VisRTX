@@ -82,7 +82,6 @@ project_sources(PRIVATE
   array/Array1D.cpp
   array/Array2D.cpp
   array/Array3D.cpp
-  array/GPUArray.cpp
   array/ObjectArray.cpp
 
   camera/Camera.cpp

@@ -33,7 +33,6 @@
 #include "utility/instrument.h"
 // std
 #include <algorithm>
-#include <atomic>
 #include <random>
 // thrust
 #include <thrust/fill.h>
@@ -43,16 +42,8 @@ namespace visrtx {
 
 // Frame definitions //////////////////////////////////////////////////////////
 
-static std::atomic<size_t> s_numFrames = 0;
-
-size_t Frame::objectCount()
-{
-  return s_numFrames;
-}
-
 Frame::Frame(DeviceGlobalState *d) : helium::BaseFrame(d), m_denoiser(d)
 {
-  s_numFrames++;
   cudaEventCreate(&m_eventStart);
   cudaEventCreate(&m_eventEnd);
 
@@ -66,7 +57,6 @@ Frame::~Frame()
 
   cudaEventDestroy(m_eventStart);
   cudaEventDestroy(m_eventEnd);
-  s_numFrames--;
 }
 
 bool Frame::isValid() const
