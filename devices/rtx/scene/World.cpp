@@ -35,9 +35,9 @@
 
 namespace visrtx {
 
-ptx_ptr intersection_ptx()
+ptx_blob intersection_ptx()
 {
-  return Intersectors_ptx;
+  return {Intersectors_ptx, sizeof(Intersectors_ptx)};
 }
 
 // Helper functions ///////////////////////////////////////////////////////////

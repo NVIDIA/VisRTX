@@ -42,7 +42,10 @@ static void statusFunc(const void * /*userData*/,
     ANARIStatusCode /*code*/,
     const char *message)
 {
-  if (severity == ANARI_SEVERITY_INFO)
+  if (severity == ANARI_SEVERITY_FATAL_ERROR) {
+    printf("===ERROR===\n\n %s\n", message);
+    exit(0);
+  } else if (severity == ANARI_SEVERITY_INFO)
     printf("%s\n", message);
   fflush(stdout);
 }

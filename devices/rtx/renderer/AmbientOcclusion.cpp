@@ -69,9 +69,9 @@ Span<std::string> AmbientOcclusion::missSbtNames() const
   return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
 }
 
-ptx_ptr AmbientOcclusion::ptx()
+ptx_blob AmbientOcclusion::ptx()
 {
-  return AmbientOcclusion_ptx;
+  return {AmbientOcclusion_ptx, sizeof(AmbientOcclusion_ptx)};
 }
 
 } // namespace visrtx

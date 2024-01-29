@@ -42,9 +42,9 @@ OptixModule Raycast::optixModule() const
   return deviceState()->rendererModules.raycast;
 }
 
-ptx_ptr Raycast::ptx()
+ptx_blob Raycast::ptx()
 {
-  return Raycast_ptx;
+  return {Raycast_ptx, sizeof(Raycast_ptx)};
 }
 
 } // namespace visrtx

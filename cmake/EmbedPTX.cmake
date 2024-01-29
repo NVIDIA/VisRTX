@@ -42,29 +42,12 @@ function(EmbedPTX)
   endif()
 
   get_target_property(PTX_PROP ${EMBED_PTX_INPUT_TARGET} CUDA_PTX_COMPILATION)
-  if (NOT PTX_PROP)
+  get_target_property(OPTIX_PROP ${EMBED_PTX_INPUT_TARGET} CUDA_OPTIX_COMPILATION)
+  if (NOT PTX_PROP AND NOT OPTIX_PROP)
     message(FATAL_ERROR "'${EMBED_PTX_INPUT_TARGET}' target property 'CUDA_PTX_COMPILATION' must be set to 'ON'")
   endif()
 
-  ## Find bin2c and CMake script to feed it ##
-
-  # We need to wrap bin2c with a script for multiple reasons:
-  #   1. bin2c only converts a single file at a time
-  #   2. bin2c has only standard out support, so we have to manually redirect to
-  #      a cmake buffer
-  #   3. We want to pack everything into a single output file, so we need to use
-  #      the --name option
-
-  get_filename_component(CUDA_COMPILER_BIN "${CMAKE_CUDA_COMPILER}" DIRECTORY)
-  find_program(BIN_TO_C NAMES bin2c PATHS ${CUDA_COMPILER_BIN})
-  mark_as_advanced(BIN_TO_C)
-  if(NOT BIN_TO_C)
-    message(FATAL_ERROR
-      "bin2c not found:\n"
-      "  CMAKE_CUDA_COMPILER='${CMAKE_CUDA_COMPILER}'\n"
-      "  CUDA_COMPILER_BIN='${CUDA_COMPILER_BIN}'\n"
-      )
-  endif()
+  ## Find EmbedPTXRun CMake script ##
 
   set(CMAKE_PREFIX_PATH ${CMAKE_MODULE_PATH})
   find_file(EMBED_PTX_RUN EmbedPTXRun.cmake)

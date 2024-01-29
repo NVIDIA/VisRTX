@@ -76,9 +76,9 @@ Span<std::string> SciVis::missSbtNames() const
   return make_Span(g_scivisMissNames.data(), g_scivisMissNames.size());
 }
 
-ptx_ptr SciVis::ptx()
+ptx_blob SciVis::ptx()
 {
-  return SciVis_ptx;
+  return {SciVis_ptx, sizeof(SciVis_ptx)};
 }
 
 } // namespace visrtx

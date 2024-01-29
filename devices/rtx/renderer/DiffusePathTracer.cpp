@@ -62,9 +62,9 @@ Span<HitgroupFunctionNames> DiffusePathTracer::hitgroupSbtNames() const
   return make_Span(g_dptHitNames.data(), g_dptHitNames.size());
 }
 
-ptx_ptr DiffusePathTracer::ptx()
+ptx_blob DiffusePathTracer::ptx()
 {
-  return DiffusePathTracer_ptx;
+  return {DiffusePathTracer_ptx, sizeof(DiffusePathTracer_ptx)};
 }
 
 } // namespace visrtx

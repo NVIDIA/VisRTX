@@ -551,12 +551,10 @@ void VisRTXDevice::initOptix()
   auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
   auto init_module = [&](OptixModule &module,
-                         unsigned char *ptx,
+                         ptx_blob ptx,
                          const char *name) -> std::future<void> {
     auto f = std::async([&]() {
       reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
-
-      const std::string ptxCode = (const char *)ptx;
 
       std::string log(2048, '\n');
       size_t sizeof_log = log.size();
@@ -565,8 +563,8 @@ void VisRTXDevice::initOptix()
       OPTIX_CHECK(optixModuleCreateFromPTX(state.optixContext,
           &moduleCompileOptions,
           &pipelineCompileOptions,
-          ptxCode.c_str(),
-          ptxCode.size(),
+          (const char *)ptx.ptr,
+          ptx.size,
           log.data(),
           &sizeof_log,
           &module));
@@ -574,8 +572,8 @@ void VisRTXDevice::initOptix()
       OPTIX_CHECK(optixModuleCreate(state.optixContext,
           &moduleCompileOptions,
           &pipelineCompileOptions,
-          ptxCode.c_str(),
-          ptxCode.size(),
+          (const char *)ptx.ptr,
+          ptx.size,
           log.data(),
           &sizeof_log,
           &module));

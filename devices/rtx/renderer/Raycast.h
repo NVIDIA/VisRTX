@@ -40,7 +40,7 @@ struct Raycast : public Renderer
   Raycast(DeviceGlobalState *s);
   OptixModule optixModule() const override;
 
-  static ptx_ptr ptx();
+  static ptx_blob ptx();
 };
 
 } // namespace visrtx

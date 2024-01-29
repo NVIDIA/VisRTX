@@ -44,7 +44,7 @@ struct AmbientOcclusion : public Renderer
   Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
   Span<std::string> missSbtNames() const override;
 
-  static ptx_ptr ptx();
+  static ptx_blob ptx();
 
  private:
   int m_aoSamples{1};

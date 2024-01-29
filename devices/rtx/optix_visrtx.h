@@ -118,7 +118,11 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box1, ANARI_FLOAT32_BOX1);
 
 namespace visrtx {
 
-using ptx_ptr = unsigned char *;
+struct ptx_blob
+{
+  unsigned char *ptr{nullptr};
+  size_t size{0};
+};
 
 struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
