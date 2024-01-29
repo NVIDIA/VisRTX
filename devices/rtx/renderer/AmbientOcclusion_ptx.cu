@@ -54,11 +54,11 @@ RT_PROGRAM void __anyhit__ao()
   ray::populateSurfaceHit(hit);
   const auto &material = *hit.material;
   const auto matValues = getMaterialValues(frameData, material, hit);
-  if (matValues.opacity >= 0.99f) {
-    auto &occluded = ray::rayData<uint32_t>();
-    occluded = true;
+  auto &o = ray::rayData<float>();
+  accumulateValue(o, matValues.opacity, o);
+  if (o >= 0.99f)
     optixTerminateRay();
-  } else
+  else
     optixIgnoreIntersection();
 }
 

@@ -49,7 +49,7 @@ DECLARE_FRAME_DATA(frameData)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-RT_FUNCTION float attenuation(ScreenSample &ss, Ray r)
+RT_FUNCTION float volumeAttenuation(ScreenSample &ss, Ray r)
 {
   RayAttenuation ra;
   ra.ray = &r;
@@ -78,10 +78,10 @@ RT_FUNCTION vec3 computeLightConrib(ScreenSample &ss, const SurfaceHit &hit)
       r.org = shadePoint;
       r.dir = ls.dir;
       r.t.upper = ls.dist;
-      if (!isOccluded(ss, r, RayType::SHADOW)) {
-        contrib += ls.radiance * dot(ls.dir, hit.Ns) * scivisParams.lightFalloff
-            * (1.f - attenuation(ss, r));
-      }
+      const float surface_o = 1.f - surfaceAttenuation(ss, r, RayType::SHADOW);
+      const float volume_o = 1.f - volumeAttenuation(ss, r);
+      contrib += surface_o * ls.radiance * dot(ls.dir, hit.Ns)
+          * scivisParams.lightFalloff * volume_o;
     }
   }
   return contrib;
@@ -101,11 +101,11 @@ RT_PROGRAM void __anyhit__shadow()
     ray::populateSurfaceHit(hit);
     const auto &material = *hit.material;
     const auto matValues = getMaterialValues(frameData, material, hit);
-    if (matValues.opacity >= 0.99f) {
-      auto &occluded = ray::rayData<uint32_t>();
-      occluded = true;
+    auto &o = ray::rayData<float>();
+    accumulateValue(o, matValues.opacity, o);
+    if (o >= 0.99f)
       optixTerminateRay();
-    } else
+    else
       optixIgnoreIntersection();
   } else {
     auto &ra = ray::rayData<RayAttenuation>();

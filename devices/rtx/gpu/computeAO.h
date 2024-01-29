@@ -52,8 +52,8 @@ RT_FUNCTION float computeAO(ScreenSample &ss,
     aoRay.t.upper = dist;
     const float weight = max(0.f, dot(aoRay.dir, currentHit.Ns));
     weights += weight;
-    if (weight != 0.f && isOccluded(ss, aoRay, rayType))
-      hits += weight;
+    if (weight != 0.f)
+      hits += weight * surfaceAttenuation(ss, aoRay, rayType);
   }
 
   return weights > 0.f ? 1.f - hits / weights : 0.f;
