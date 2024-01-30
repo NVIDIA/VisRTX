@@ -199,7 +199,7 @@ project_compile_definitions(PRIVATE visrtx_EXPORTS)
 
 ## Generate OptiX programs as embedded PTX ##
 
-function(GenerateEmbeddedPTX DIR BASE_NAME)
+function(GenerateEmbeddedPTX USE_OPTIX_IR DIR BASE_NAME)
   set(INPUT_CU_FILE ${DIR}/${BASE_NAME}_ptx.cu)
   set(INPUT_TARGET ${BASE_NAME}_ptx)
   set(OUTPUT_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${BASE_NAME}_ptx.h)
@@ -222,7 +222,11 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}
   )
-  set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_PTX_COMPILATION ON)
+  if (USE_OPTIX_IR)
+    set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_OPTIX_COMPILATION ON)
+  else()
+    set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_PTX_COMPILATION ON)
+  endif()
 
   EmbedPTX(
     OUTPUT_HEADER_FILE ${OUTPUT_HEADER}
@@ -231,14 +235,14 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   )
 endfunction()
 
-GenerateEmbeddedPTX(renderer AmbientOcclusion)
-GenerateEmbeddedPTX(renderer Debug)
-GenerateEmbeddedPTX(renderer DiffusePathTracer)
-GenerateEmbeddedPTX(renderer Raycast)
-GenerateEmbeddedPTX(renderer SciVis)
-GenerateEmbeddedPTX(renderer Test)
+GenerateEmbeddedPTX(OFF renderer AmbientOcclusion)
+GenerateEmbeddedPTX(OFF renderer Debug)
+GenerateEmbeddedPTX(OFF renderer DiffusePathTracer)
+GenerateEmbeddedPTX(OFF renderer Raycast)
+GenerateEmbeddedPTX(OFF renderer SciVis)
+GenerateEmbeddedPTX(OFF renderer Test)
 
-GenerateEmbeddedPTX(scene Intersectors)
+GenerateEmbeddedPTX(ON scene Intersectors)
 
 ## Install library + headers ##
 
