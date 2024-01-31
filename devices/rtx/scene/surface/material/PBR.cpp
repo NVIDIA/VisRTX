@@ -47,6 +47,16 @@ void PBR::commit()
   m_colorSampler = getParamObject<Sampler>("baseColor");
   m_colorAttribute = getParamString("baseColor", "");
 
+  m_metallic = getParam<float>("metallic", 1.f);
+  m_metallicSampler = getParamObject<Sampler>("metallic");
+  m_metallicAttribute = getParamString("metallic", "");
+
+  m_roughness = getParam<float>("roughness", 1.f);
+  m_roughnessSampler = getParamObject<Sampler>("roughness");
+  m_roughnessAttribute = getParamString("roughness", "");
+
+  m_ior = getParam<float>("ior", 1.5f);
+
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
   m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
 
@@ -61,9 +71,15 @@ MaterialGPUData PBR::gpuData() const
       retval.baseColor, m_color, m_colorSampler, m_colorAttribute);
   populateMaterialParameter(
       retval.opacity, m_opacity, m_opacitySampler, m_opacityAttribute);
+  populateMaterialParameter(
+      retval.metallic, m_metallic, m_metallicSampler, m_metallicAttribute);
+  populateMaterialParameter(
+      retval.roughness, m_roughness, m_roughnessSampler, m_roughnessAttribute);
 
+  retval.ior = m_ior;
   retval.cutoff = m_cutoff;
   retval.mode = m_mode;
+  retval.isPBR = true;
 
   return retval;
 }

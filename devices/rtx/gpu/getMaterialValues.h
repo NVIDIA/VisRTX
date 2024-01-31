@@ -321,8 +321,12 @@ RT_FUNCTION MaterialValues getMaterialValues(
     const FrameGPUData &fd, const MaterialGPUData &md, const SurfaceHit &hit)
 {
   MaterialValues retval;
+  retval.isPBR = md.isPBR;
+
+  // baseColor
   const auto c = getMaterialParameter(fd, md.baseColor, hit);
   retval.baseColor = vec3(c);
+  // opacity
   if (md.mode == AlphaMode::OPAQUE)
     retval.opacity = 1.f;
   else {
@@ -332,7 +336,69 @@ RT_FUNCTION MaterialValues getMaterialValues(
     else
       retval.opacity = opacity < md.cutoff ? 0.f : 1.f;
   }
+  // mettalic
+  retval.metallic = getMaterialParameter(fd, md.metallic, hit);
+  // roughness
+  retval.roughness = getMaterialParameter(fd, md.roughness, hit);
+  // ior
+  retval.ior = md.ior;
+
   return retval;
+}
+
+RT_FUNCTION vec4 evalMaterial(const FrameGPUData &fd,
+    const MaterialGPUData &md,
+    const SurfaceHit &hit,
+    const vec3 &viewDir,
+    const vec3 &lightDir,
+    const float lightIntensity)
+{
+  const auto matValues = getMaterialValues(fd, md, hit);
+
+  if (!matValues.isPBR)
+    return {matValues.baseColor * lightIntensity, matValues.opacity};
+
+  const vec3 H = normalize(lightDir + viewDir);
+  const float NdotH = dot(hit.Ns, H);
+  const float NdotL = dot(hit.Ns, lightDir);
+  const float NdotV = dot(hit.Ns, viewDir);
+  const float VdotH = dot(viewDir, H);
+  const float LdotH = dot(lightDir, H);
+
+  // Alpha
+  const float alpha = pow2(matValues.roughness) * matValues.opacity;
+
+  // Fresnel
+  const vec3 f0 =
+      glm::mix(vec3(pow2((1.f - matValues.ior) / (1.f + matValues.ior))),
+          matValues.baseColor,
+          matValues.metallic);
+  const vec3 F = f0 + (vec3(1.f) - f0) * pow5(1.f - fabsf(VdotH));
+
+  // Metallic materials don't reflect diffusely:
+  const vec3 diffuseColor =
+      glm::mix(matValues.baseColor, vec3(0.f), matValues.metallic);
+
+  const vec3 diffuseBRDF =
+      (vec3(1.f) - F) * float(M_1_PI) * diffuseColor * fmaxf(0.f, NdotL);
+
+  // GGX microfacet distribution
+  const float D = (alpha * alpha * heaviside(NdotH))
+      / (float(M_PI) * pow2(NdotH * NdotH * (alpha * alpha - 1.f) + 1.f));
+
+  // Masking-shadowing term
+  const float G =
+      ((2.f * fabsf(NdotL) * heaviside(LdotH))
+          / (fabsf(NdotL)
+              + sqrtf(alpha * alpha + (1.f - alpha * alpha) * NdotL * NdotL)))
+      * ((2.f * fabsf(NdotV) * heaviside(VdotH))
+          / (fabsf(NdotV)
+              + sqrtf(alpha * alpha + (1.f - alpha * alpha) * NdotV * NdotV)));
+
+  const float denom = 4.f * fabsf(NdotV) * fabsf(NdotL);
+  const vec3 specularBRDF = denom != 0.f ? (F * D * G) / denom : vec3(0.f);
+
+  return {(diffuseBRDF + specularBRDF) * lightIntensity, matValues.opacity};
 }
 
 } // namespace visrtx

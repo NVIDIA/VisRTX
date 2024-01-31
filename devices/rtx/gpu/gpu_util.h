@@ -154,8 +154,8 @@ RT_FUNCTION vec3 randomDir(RandState &rs)
 #if 0
   const float r1 = curand_uniform(&rs);
   const float r2 = curand_uniform(&rs);
-  return normalize(vec3(cos(2 * M_PI * r1) * sqrt(1 - (r2 * r2)),
-      sin(2 * M_PI * r1) * sqrt(1 - (r2 * r2)),
+  return normalize(vec3(cos(2 * float(M_PI) * r1) * sqrt(1 - (r2 * r2)),
+      sin(2 * float(M_PI) * r1) * sqrt(1 - (r2 * r2)),
       r2 * r2));
 #else
   const auto r = curand_uniform4(&rs);
@@ -174,7 +174,7 @@ RT_FUNCTION vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
   // sample unit sphere
   const float cost = 1.f - 2.f * curand_uniform(&rs);
   const float sint = sqrtf(fmaxf(0.f, 1.f - cost * cost));
-  const float phi = 2.f * M_PI * curand_uniform(&rs);
+  const float phi = 2.f * float(M_PI) * curand_uniform(&rs);
   // make ortho basis and transform to ray-centric coordinates:
   const vec3 w = normal;
   const vec3 v = fabsf(w.x) > fabsf(w.y) ? normalize(vec3(-w.z, 0.f, w.x))

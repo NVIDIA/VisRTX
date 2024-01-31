@@ -273,14 +273,22 @@ struct MaterialGPUData
 {
   MaterialParameter<vec4> baseColor{vec4(1.f)};
   MaterialParameter<float> opacity{1.f};
-  float cutoff;
-  AlphaMode mode;
+  MaterialParameter<float> metallic{1.f};
+  MaterialParameter<float> roughness{1.f};
+  float ior{1.5f};
+  float cutoff{0.5f};
+  AlphaMode mode{AlphaMode::OPAQUE};
+  bool isPBR{false};
 };
 
 struct MaterialValues
 {
+  bool isPBR;
   vec3 baseColor;
   float opacity;
+  float metallic;
+  float roughness;
+  float ior;
 };
 
 // Surface //

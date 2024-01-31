@@ -135,9 +135,6 @@ RT_PROGRAM void __raygen__()
         firstHit = false;
       }
 
-      const auto &material = *surfaceHit.material;
-      const auto matValues = getMaterialValues(frameData, material, surfaceHit);
-
       const float aoFactor = aoParams.aoSamples > 0 ? computeAO(ss,
                                  ray,
                                  RayType::AO,
@@ -145,11 +142,17 @@ RT_PROGRAM void __raygen__()
                                  rendererParams.occlusionDistance,
                                  aoParams.aoSamples)
                                                     : 1.f;
-      const auto lighting = aoFactor * rendererParams.ambientColor
-          * rendererParams.ambientIntensity;
 
-      accumulateValue(color, matValues.baseColor * lighting, opacity);
-      accumulateValue(opacity, matValues.opacity, opacity);
+      const auto lighting = aoFactor * rendererParams.ambientIntensity;
+      const auto matResult = evalMaterial(frameData,
+          *surfaceHit.material,
+          surfaceHit,
+          -ray.dir,
+          -ray.dir,
+          lighting);
+
+      accumulateValue(color, vec3(matResult), opacity);
+      accumulateValue(opacity, matResult.w, opacity);
 
       color *= opacity;
       accumulateValue(outputColor, color, outputOpacity);

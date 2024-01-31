@@ -64,6 +64,7 @@ MaterialGPUData Matte::gpuData() const
 
   retval.cutoff = m_cutoff;
   retval.mode = m_mode;
+  retval.isPBR = false;
 
   return retval;
 }

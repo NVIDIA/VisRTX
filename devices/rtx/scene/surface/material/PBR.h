@@ -55,6 +55,16 @@ struct PBR : public Material
   float m_opacity{1.f};
   helium::IntrusivePtr<Sampler> m_opacitySampler;
   std::string m_opacityAttribute;
+
+  float m_metallic{1.f};
+  helium::IntrusivePtr<Sampler> m_metallicSampler;
+  std::string m_metallicAttribute;
+
+  float m_roughness{1.f};
+  helium::IntrusivePtr<Sampler> m_roughnessSampler;
+  std::string m_roughnessAttribute;
+
+  float m_ior{1.5f};
 };
 
 } // namespace visrtx

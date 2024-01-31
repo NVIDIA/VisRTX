@@ -202,6 +202,22 @@ VISRTX_HOST_DEVICE int64_t iDivUp(int64_t a, int64_t b)
   return (a + b - 1) / b;
 }
 
+VISRTX_HOST_DEVICE float pow2(float f)
+{
+  return f * f;
+}
+
+VISRTX_HOST_DEVICE float pow5(float f)
+{
+  return f * f * f * f * f;
+}
+
+template <typename T>
+VISRTX_HOST_DEVICE T heaviside(const T &x)
+{
+  return x < T(0.0) ? T(0.0) : T(1.0);
+}
+
 VISRTX_HOST_DEVICE bool intersectBox(
     const box3 &b, const vec3 &org, const vec3 &dir, box1 &inout)
 {

@@ -110,15 +110,16 @@ RT_PROGRAM void __raygen__()
         firstHit = false;
       }
 
-      const auto &material = *surfaceHit.material;
-      const auto matValues = getMaterialValues(frameData, material, surfaceHit);
+      const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns));
+      const auto matResult = evalMaterial(frameData,
+          *surfaceHit.material,
+          surfaceHit,
+          -ray.dir,
+          -ray.dir,
+          lighting);
 
-      const auto falloff =
-          matValues.baseColor * glm::abs(glm::dot(ray.dir, surfaceHit.Ns));
-
-      accumulateValue(
-          color, glm::mix(matValues.baseColor, falloff, 0.5f), opacity);
-      accumulateValue(opacity, matValues.opacity, opacity);
+      accumulateValue(color, vec3(matResult), opacity);
+      accumulateValue(opacity, matResult.w, opacity);
 
       color *= opacity;
       accumulateValue(outputColor, color, outputOpacity);
