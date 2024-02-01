@@ -281,12 +281,12 @@ RT_FUNCTION T evaluateSampler(
 
 template <typename T>
 RT_FUNCTION T getMaterialParameter(const FrameGPUData &fd,
-    const MaterialParameter<T> &mp,
+    const MaterialParameter &mp,
     const SurfaceHit &hit)
 {
   switch (mp.type) {
   case MaterialParameterType::VALUE:
-    return mp.value;
+    return bit_cast<T>(mp.value);
   case MaterialParameterType::SAMPLER:
     return evaluateSampler<T>(fd, mp.sampler, hit);
   case MaterialParameterType::ATTRIB_0:
@@ -323,23 +323,31 @@ RT_FUNCTION MaterialValues getMaterialValues(
   MaterialValues retval;
   retval.isPBR = md.isPBR;
 
+  // NOTE(jda): We _need_ to use a loop here to get parameters, otherwise
+  //            compile times go through the roof. We actually don't want this
+  //            unrolled, which always happens when MaterialGPUData::values[]
+  //            are each their own named data members of that struct. This is
+  //            weird, but it's a less terrible development experience this way.
+  vec4 values[4];
+  for (int i = 0; i < 4; i++)
+    values[i] = getMaterialParameter<vec4>(fd, md.values[i], hit);
+
   // baseColor
-  const auto c = getMaterialParameter(fd, md.baseColor, hit);
-  retval.baseColor = vec3(c);
+  retval.baseColor = vec3(values[MV_BASE_COLOR]);
   // opacity
   if (md.mode == AlphaMode::OPAQUE)
     retval.opacity = 1.f;
   else {
-    float opacity = getMaterialParameter(fd, md.opacity, hit) * c.w;
+    const float opacity = values[MV_OPACITY].x * values[MV_BASE_COLOR].w;
     if (md.mode == AlphaMode::BLEND)
       retval.opacity = opacity;
     else
       retval.opacity = opacity < md.cutoff ? 0.f : 1.f;
   }
   // mettalic
-  retval.metallic = getMaterialParameter(fd, md.metallic, hit);
+  retval.metallic = values[MV_METALLIC].x;
   // roughness
-  retval.roughness = getMaterialParameter(fd, md.roughness, hit);
+  retval.roughness = values[MV_ROUGHNESS].x;
   // ior
   retval.ior = md.ior;
 

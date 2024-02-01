@@ -244,18 +244,17 @@ enum class MaterialParameterType
   UNKNOWN
 };
 
-template <typename T>
 struct MaterialParameter
 {
   MaterialParameterType type{MaterialParameterType::UNKNOWN};
   union
   {
-    T value;
+    vec4 value;
     DeviceObjectIndex sampler;
   };
 
   MaterialParameter() = default;
-  MaterialParameter(T v)
+  MaterialParameter(vec4 v)
   {
     type = MaterialParameterType::VALUE;
     value = v;
@@ -269,12 +268,16 @@ enum AlphaMode
   MASK
 };
 
+constexpr int MV_BASE_COLOR = 0;
+constexpr int MV_OPACITY = 1;
+constexpr int MV_METALLIC = 2;
+constexpr int MV_ROUGHNESS = 3;
+
 struct MaterialGPUData
 {
-  MaterialParameter<vec4> baseColor{vec4(1.f)};
-  MaterialParameter<float> opacity{1.f};
-  MaterialParameter<float> metallic{1.f};
-  MaterialParameter<float> roughness{1.f};
+  // See getMaterialValues() for why this is an array and not named members
+  MaterialParameter values[4];
+
   float ior{1.5f};
   float cutoff{0.5f};
   AlphaMode mode{AlphaMode::OPAQUE};

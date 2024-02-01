@@ -48,7 +48,7 @@ struct Material : public RegisteredObject<MaterialGPUData>
 // Inlined helper functions ///////////////////////////////////////////////////
 
 template <typename T>
-inline void populateMaterialParameter(MaterialParameter<T> &mp,
+inline void populateMaterialParameter(MaterialParameter &mp,
     T value,
     helium::IntrusivePtr<Sampler> sampler,
     const std::string &attrib)
@@ -78,11 +78,11 @@ inline void populateMaterialParameter(MaterialParameter<T> &mp,
     } else {
       // TODO: other attributes!
       mp.type = MaterialParameterType::VALUE;
-      mp.value = value;
+      mp.value = vec4(value);
     }
   } else {
     mp.type = MaterialParameterType::VALUE;
-    mp.value = value;
+    mp.value = vec4(value);
   }
 }
 

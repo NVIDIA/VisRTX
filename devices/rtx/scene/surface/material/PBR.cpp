@@ -68,13 +68,19 @@ MaterialGPUData PBR::gpuData() const
   MaterialGPUData retval;
 
   populateMaterialParameter(
-      retval.baseColor, m_color, m_colorSampler, m_colorAttribute);
-  populateMaterialParameter(
-      retval.opacity, m_opacity, m_opacitySampler, m_opacityAttribute);
-  populateMaterialParameter(
-      retval.metallic, m_metallic, m_metallicSampler, m_metallicAttribute);
-  populateMaterialParameter(
-      retval.roughness, m_roughness, m_roughnessSampler, m_roughnessAttribute);
+      retval.values[MV_BASE_COLOR], m_color, m_colorSampler, m_colorAttribute);
+  populateMaterialParameter(retval.values[MV_OPACITY],
+      m_opacity,
+      m_opacitySampler,
+      m_opacityAttribute);
+  populateMaterialParameter(retval.values[MV_METALLIC],
+      m_metallic,
+      m_metallicSampler,
+      m_metallicAttribute);
+  populateMaterialParameter(retval.values[MV_ROUGHNESS],
+      m_roughness,
+      m_roughnessSampler,
+      m_roughnessAttribute);
 
   retval.ior = m_ior;
   retval.cutoff = m_cutoff;
