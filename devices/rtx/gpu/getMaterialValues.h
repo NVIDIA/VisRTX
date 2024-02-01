@@ -246,8 +246,7 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
     return getAttributeValue(ap, hit.primID, uf);
 }
 
-template <typename T>
-RT_FUNCTION T evaluateSampler(
+RT_FUNCTION vec4 evaluateSampler(
     const FrameGPUData &fd, const DeviceObjectIndex _s, const SurfaceHit &hit)
 {
   vec4 retval{0.f, 0.f, 0.f, 1.f};
@@ -276,45 +275,43 @@ RT_FUNCTION T evaluateSampler(
   default:
     break;
   }
-  return bit_cast<T>(sampler.outTransform * retval + sampler.outOffset);
+  return sampler.outTransform * retval + sampler.outOffset;
 }
 
-template <typename T>
-RT_FUNCTION T getMaterialParameter(const FrameGPUData &fd,
-    const MaterialParameter &mp,
-    const SurfaceHit &hit)
+RT_FUNCTION vec4 getMaterialParameter(
+    const FrameGPUData &fd, const MaterialParameter &mp, const SurfaceHit &hit)
 {
   switch (mp.type) {
   case MaterialParameterType::VALUE:
-    return bit_cast<T>(mp.value);
+    return mp.value;
   case MaterialParameterType::SAMPLER:
-    return evaluateSampler<T>(fd, mp.sampler, hit);
+    return evaluateSampler(fd, mp.sampler, hit);
   case MaterialParameterType::ATTRIB_0:
-    return bit_cast<T>(readAttributeValue(0, hit));
+    return readAttributeValue(0, hit);
   case MaterialParameterType::ATTRIB_1:
-    return bit_cast<T>(readAttributeValue(1, hit));
+    return readAttributeValue(1, hit);
   case MaterialParameterType::ATTRIB_2:
-    return bit_cast<T>(readAttributeValue(2, hit));
+    return readAttributeValue(2, hit);
   case MaterialParameterType::ATTRIB_3:
-    return bit_cast<T>(readAttributeValue(3, hit));
+    return readAttributeValue(3, hit);
   case MaterialParameterType::ATTRIB_COLOR:
-    return bit_cast<T>(readAttributeValue(4, hit));
+    return readAttributeValue(4, hit);
   case MaterialParameterType::WORLD_POSITION:
-    return bit_cast<T>(vec4(hit.hitpoint, 1.f));
+    return vec4(hit.hitpoint, 1.f);
   case MaterialParameterType::WORLD_NORMAL:
-    return bit_cast<T>(vec4(hit.Ng, 1.f));
+    return vec4(hit.Ng, 1.f);
   /////////////////////////////////////////////////////////////////////////////
   // NOTE: these are in world space - need to quantify best performing option
   case MaterialParameterType::OBJECT_POSITION:
-    return bit_cast<T>(vec4(hit.hitpoint, 1.f));
+    return vec4(hit.hitpoint, 1.f);
   case MaterialParameterType::OBJECT_NORMAL:
-    return bit_cast<T>(vec4(hit.Ng, 1.f));
+    return vec4(hit.Ng, 1.f);
   /////////////////////////////////////////////////////////////////////////////
   default:
     break;
   }
 
-  return T{};
+  return vec4{};
 }
 
 RT_FUNCTION MaterialValues getMaterialValues(
@@ -330,7 +327,7 @@ RT_FUNCTION MaterialValues getMaterialValues(
   //            weird, but it's a less terrible development experience this way.
   vec4 values[4];
   for (int i = 0; i < 4; i++)
-    values[i] = getMaterialParameter<vec4>(fd, md.values[i], hit);
+    values[i] = getMaterialParameter(fd, md.values[i], hit);
 
   // baseColor
   retval.baseColor = vec3(values[MV_BASE_COLOR]);

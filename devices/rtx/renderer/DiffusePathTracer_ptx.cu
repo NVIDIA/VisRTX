@@ -63,7 +63,7 @@ RT_PROGRAM void __anyhit__()
   ray::populateSurfaceHit(hit);
   const auto &material = *hit.material;
   const auto mat_opacity =
-      getMaterialParameter<float>(frameData, material.values[MV_OPACITY], hit);
+      getMaterialParameter(frameData, material.values[MV_OPACITY], hit).x;
   if (mat_opacity < 0.99f)
     optixIgnoreIntersection();
 }
@@ -139,8 +139,8 @@ RT_PROGRAM void __raygen__()
     if (!volumeHit) {
       pos = hit.hitpoint + (hit.epsilon * hit.Ng);
       const auto &material = *hit.material;
-      albedo = getMaterialParameter<vec3>(
-          frameData, material.values[MV_BASE_COLOR], hit);
+      albedo =
+          getMaterialParameter(frameData, material.values[MV_BASE_COLOR], hit);
     } else {
       pos = ray.org + volumeDepth * ray.dir;
       albedo = volumeColor;
