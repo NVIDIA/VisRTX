@@ -47,6 +47,10 @@
 #include "glx_context.h"
 #endif
 
+
+#ifdef VISGL_USE_WGL
+#include "wgl_context.h"
+#endif
 namespace visgl {
 
 Object<Device>::Object(ANARIDevice d) : DefaultObject(d, this), queue(128) {}
@@ -214,6 +218,13 @@ void Object<Device>::update()
 
 #ifdef VISGL_USE_GLX
   }
+#endif
+
+#ifdef VISGL_USE_WGL
+  HDC dc = wglGetCurrentDC();
+  HGLRC wgl_context = wglGetCurrentContext();
+  context.reset(new wglContext(
+      device, dc, wgl_context, clientapi == STRING_ENUM_OpenGL_ES, debug));
 #endif
 
   queue.enqueue(device_context_init, this, clientapi, debug).wait();
