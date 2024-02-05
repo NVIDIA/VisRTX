@@ -97,14 +97,25 @@ void glxContext::init() {
         PFNGLXCREATECONTEXTATTRIBSARBPROC glXCreateContextAttribsARB =
             (PFNGLXCREATECONTEXTATTRIBSARBPROC)glXGetProcAddress((const GLubyte*)"glXCreateContextAttribsARB");
 
+        if(debug) {
+            anariReportStatus(device, device, ANARI_DEVICE,
+                ANARI_SEVERITY_INFO, ANARI_STATUS_NO_ERROR,
+                "[OpenGL] create debug context");
+        }
+
+
         const int contextAttribs[] = {
-            GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB | (debug ? GLX_CONTEXT_DEBUG_BIT_ARB : 0),
+            GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+            GLX_CONTEXT_FLAGS_ARB, (debug ? GLX_CONTEXT_DEBUG_BIT_ARB : 0),
             GLX_CONTEXT_MAJOR_VERSION_ARB, 4,
             GLX_CONTEXT_MINOR_VERSION_ARB, 3,
             None
         };
         context = glXCreateContextAttribsARB(display, config[0], share, true, contextAttribs);
     } else {
+        anariReportStatus(device, device, ANARI_DEVICE,
+            ANARI_SEVERITY_INFO, ANARI_STATUS_NO_ERROR,
+            "[OpenGL] fall back to legacy context creation");
         context = glXCreateNewContext(display, config[0], GLX_RGBA_TYPE, share, true);
     }
     if(!context) {

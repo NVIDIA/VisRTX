@@ -130,7 +130,19 @@ static void device_context_init(
   }
 
   if (debug && deviceObj->gl.DebugMessageCallback) {
+    anariReportStatus(deviceObj->device,
+      deviceObj->handle,
+      ANARI_DEVICE,
+      ANARI_SEVERITY_INFO,
+      ANARI_STATUS_NO_ERROR,
+      "[OpenGL] setup debug callback\n");
     gl.DebugMessageCallback(debug_callback, deviceObj->device);
+    gl.DebugMessageInsert(
+      GL_DEBUG_SOURCE_APPLICATION,
+      GL_DEBUG_TYPE_OTHER,
+      0,
+      GL_DEBUG_SEVERITY_NOTIFICATION,
+      -1, "test message callback.");
   }
 
   anariReportStatus(deviceObj->device,
