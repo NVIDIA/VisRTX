@@ -110,6 +110,116 @@ RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
   const vec3 ro = ray::localOrigin();
   const vec3 rd = ray::localDirection();
 
+#if 0 // OSPRay
+  const vec3 cZ = p1 - p0;
+  const vec3 q = ro - p0;
+
+  const float z2 = glm::dot(cZ, cZ);
+  const float d = glm::dot(cZ, rd);
+  const float c = glm::dot(cZ, q);
+
+  const float A = z2 - (d * d);
+  const float B = z2 * glm::dot(q, rd) - c * d;
+  const float C = z2 * glm::dot(q, q) - (c * c) - (radius * radius) * z2;
+
+  float radical = B * B - A * C;
+  if (radical < 0.f)
+    return;
+
+  radical = glm::sqrt(radical);
+
+  const float tin = (-B - radical) / A;
+  const float tout = (-B + radical) / A;
+
+  // first hit
+  const float yin = c + tin * d;
+  if (yin > 0.f && yin < z2) {
+    // body hit
+    const float u = yin * (1.f / z2);
+    const vec3 N = (q + tin * rd - cZ * yin * (1.f / z2)) * (1.f / radius);
+    reportIntersection(tin, N, u);
+  } else {
+    const float tcapin = (((yin < 0.f) ? 0.f : z2) - c) / d;
+    if (glm::abs(B + A * tcapin) < radical) {
+      // cap hit
+      const float u = (yin < 0.f) ? 0.f : 1.f;
+      const float us = yin < 0.f ? -1.f : 1.f;
+      const vec3 N = cZ * us / z2;
+      reportIntersection(tin, N, u);
+    }
+  }
+
+  // second hit
+  const float yout = c + tout * d;
+  if (yout > 0.f && yout < z2) {
+    // body hit
+    const float u = yout * (1.f / z2);
+    const vec3 N = (q + tout * rd - cZ * yout * (1.f / z2)) * (1.f / radius);
+    reportIntersection(tout, N, u);
+  } else {
+    const float tcapout = (((yout < 0.f) ? 0.f : z2) - c) / d;
+    if (glm::abs(B + A * tcapout) < radical) {
+      // cap hit
+      const float u = (yout < 0.f) ? 0.f : 1.f;
+      const float us = yout < 0.f ? -1.f : 1.f;
+      const vec3 N = cZ * us / z2;
+      reportIntersection(tout, N, u);
+    }
+  }
+#elif 1 // OVITO provided kernel
+  const vec3 s = p1 - p0; // axis
+  const vec3 sxd = glm::cross(s, rd);
+  const float a = glm::dot(sxd, sxd); // (s x d)^2
+
+  if (a == 0.f)
+    return;
+
+  const vec3 f = p0 - ro;
+  const vec3 sxf = glm::cross(s, f);
+  const float ra = 1.0f / a;
+  const float ts =
+      glm::dot(sxd, sxf) * ra; // (s x d)(s x f) / (s x d)^2, in ray-space
+  const vec3 fp = f - ts * rd; // f' = p0 - closest point to axis
+
+  const float s2 = glm::dot(s, s); // s^2
+  const vec3 perp = glm::cross(s, fp); // s x f'
+  const float c =
+      (radius * radius) * s2 - glm::dot(perp, perp); //  r^2 s^2 - (s x f')^2
+
+  if (c < 0.f)
+    return;
+
+  float td = glm::sqrt(c * ra);
+  const float tin = ts - td;
+  const float tout = ts + td;
+
+  // clip to cylinder caps
+  const float sf = glm::dot(s, f);
+  const float sd = glm::dot(s, rd);
+
+  const float u_in = (tin * sd - sf) * (1.f / s2);
+  const vec3 N_in = -td * rd - fp - u_in * s;
+  const float u_out = (tout * sd - sf) * (1.f / s2);
+  const vec3 N_out = td * rd - fp - u_out * s;
+
+  if (sd != 0.0f) { // Note: sd will become zero if cylinder is oriented
+                    // perpendicular to ray direction.
+    const float rsd = 1.f / sd;
+    const float tA = sf * rsd;
+    const float tB = tA + s2 * rsd;
+
+    const float cap_tin = glm::min(tA, tB);
+    const float cap_tout = glm::max(tA, tB);
+
+    if (tin > cap_tin && tin < cap_tout)
+      reportIntersection(tin, N_in, u_in);
+    if (tout > cap_tin && tout < cap_tout)
+      reportIntersection(tout, N_out, u_out);
+  } else if (sf <= 0.0f && sf >= -s2) {
+    reportIntersection(tin, N_in, u_in);
+    reportIntersection(tout, N_out, u_out);
+  }
+#else
   vec3 ca = p1 - p0;
   vec3 oc = ro - p0;
 
@@ -140,6 +250,7 @@ RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
     auto n = ca * glm::sign(y) / caca;
     reportIntersection(d, n, y < 0.f ? 0.f : 1.f);
   }
+#endif
 }
 
 RT_FUNCTION void intersectCone(const GeometryGPUData &geometryData)
