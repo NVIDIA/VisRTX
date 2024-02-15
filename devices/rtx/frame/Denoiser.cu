@@ -65,14 +65,10 @@ void Denoiser::setup(
   m_state.reserve(sizes.stateSizeInBytes);
   m_scratch.reserve(sizes.withoutOverlapScratchSizeInBytes);
 
-  if (format != ANARI_FLOAT32_VEC4) {
-    auto numPixels = size_t(size.x) * size_t(size.y);
-    m_uintDevicePixels.resize(numPixels);
-    m_uintMappedPixels.resize(numPixels);
-  } else {
-    m_uintDevicePixels = {};
-    m_uintMappedPixels = {};
-  }
+  if (format != ANARI_FLOAT32_VEC4)
+    m_uintPixels.resize(size_t(size.x) * size_t(size.y));
+  else
+    m_uintPixels.clear();
 
   OPTIX_CHECK(optixDenoiserSetup(m_denoiser,
       state.stream,
@@ -96,8 +92,6 @@ void Denoiser::cleanup()
 {
   m_state.reset();
   m_scratch.reset();
-  m_uintDevicePixels = {};
-  m_uintMappedPixels = {};
 }
 
 void Denoiser::launch()
@@ -129,7 +123,7 @@ void Denoiser::launch()
       thrust::transform(thrust::cuda::par.on(state.stream),
           begin,
           end,
-          m_uintDevicePixels.begin(),
+          thrust::device_pointer_cast<uint32_t>(m_uintPixels.dataDevice()),
           [] __device__(const vec4 &in) {
             return glm::packUnorm4x8(glm::convertLinearToSRGB(in));
           });
@@ -137,7 +131,7 @@ void Denoiser::launch()
       thrust::transform(thrust::cuda::par.on(state.stream),
           begin,
           end,
-          m_uintDevicePixels.begin(),
+          thrust::device_pointer_cast<uint32_t>(m_uintPixels.dataDevice()),
           [] __device__(const vec4 &in) { return glm::packUnorm4x8(in); });
     }
     instrument::rangePop(); // denoiser transform pixels
@@ -150,16 +144,15 @@ void *Denoiser::mapColorBuffer()
     m_pixelBuffer->download();
     return m_pixelBuffer->dataHost();
   } else {
-    m_uintMappedPixels = m_uintDevicePixels;
-    return m_uintMappedPixels.data();
+    m_uintPixels.download();
+    return m_uintPixels.dataHost();
   }
 }
 
 void *Denoiser::mapGPUColorBuffer()
 {
-  return m_format == ANARI_FLOAT32_VEC4
-      ? (void *)m_pixelBuffer->dataDevice()
-      : (void *)thrust::raw_pointer_cast(m_uintDevicePixels.data());
+  return m_format == ANARI_FLOAT32_VEC4 ? (void *)m_pixelBuffer->dataDevice()
+                                        : (void *)m_uintPixels.dataDevice();
 }
 
 void Denoiser::init()

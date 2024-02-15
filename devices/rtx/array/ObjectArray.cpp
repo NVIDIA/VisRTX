@@ -40,7 +40,7 @@ ObjectArray::ObjectArray(
 
 const void *ObjectArray::dataGPU() const
 {
-  return thrust::raw_pointer_cast(m_GPUDataDevice.data());
+  return m_GPUData.dataDevice();
 }
 
 Object **ObjectArray::handlesBegin(bool uploadData) const
@@ -60,15 +60,14 @@ void ObjectArray::uploadArrayData() const
   if (!needToUploadData())
     return;
 
-  m_GPUDataHost.resize(totalSize());
+  m_GPUData.resize(totalSize());
 
   std::transform(handlesBegin(false),
       handlesEnd(false),
-      m_GPUDataHost.begin(),
+      m_GPUData.begin(),
       [](Object *obj) { return obj ? obj->deviceData() : nullptr; });
 
-  m_GPUDataDevice = m_GPUDataHost;
-
+  m_GPUData.upload();
   helium::ObjectArray::uploadArrayData();
 }
 
