@@ -76,6 +76,13 @@ RT_FUNCTION void launchRay(ScreenSample &ss,
 
 } // namespace detail
 
+RT_FUNCTION uint32_t primaryRayOptiXFlags(const RendererGPUData &rd)
+{
+  return rd.cullTriangleBF ? OPTIX_RAY_FLAG_DISABLE_ANYHIT
+          | OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES
+                           : OPTIX_RAY_FLAG_DISABLE_ANYHIT;
+}
+
 template <typename T>
 RT_FUNCTION void intersectSurface(ScreenSample &ss,
     Ray r,

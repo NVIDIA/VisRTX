@@ -100,7 +100,11 @@ RT_PROGRAM void __raygen__()
   while (outputOpacity < 0.99f) {
     ray.t.upper = tmax;
     surfaceHit.foundHit = false;
-    intersectSurface(ss, ray, RayType::PRIMARY, &surfaceHit);
+    intersectSurface(ss,
+        ray,
+        RayType::PRIMARY,
+        &surfaceHit,
+        primaryRayOptiXFlags(rendererParams));
 
     vec3 color(0.f);
     float opacity = 0.f;

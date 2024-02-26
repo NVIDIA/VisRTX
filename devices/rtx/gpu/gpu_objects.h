@@ -487,6 +487,7 @@ struct RendererGPUData
   glm::vec3 ambientColor;
   float ambientIntensity;
   float occlusionDistance;
+  bool cullTriangleBF;
 };
 
 // Frame //

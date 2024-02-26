@@ -67,11 +67,7 @@ struct Renderer : public Object
   OptixPipeline pipeline() const;
   const OptixShaderBindingTable *sbt();
 
-  vec4 bgColor() const;
   int spp() const;
-  vec3 ambientColor() const;
-  float ambientIntensity() const;
-  float ambientOcclusionDistance() const;
   bool checkerboarding() const;
   bool denoise() const;
   int sampleLimit() const;
@@ -88,6 +84,7 @@ struct Renderer : public Object
   bool m_checkerboard{false};
   bool m_denoise{false};
   int m_sampleLimit{0};
+  bool m_cullTriangleBF{false};
 
   helium::IntrusivePtr<Array2D> m_backgroundImage;
   cudaTextureObject_t m_backgroundTexture{};

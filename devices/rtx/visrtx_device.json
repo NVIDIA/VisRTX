@@ -99,6 +99,15 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
+        },
+        {
           "name": "checkerboarding",
           "types": [
             "ANARI_BOOL"
@@ -231,6 +240,15 @@
           "tags": [],
           "default": false,
           "description": "enable the OptiX denoiser"
+        },
+        {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
         },
         {
           "name": "checkerboarding",
@@ -367,6 +385,15 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
+        },
+        {
           "name": "checkerboarding",
           "types": [
             "ANARI_BOOL"
@@ -451,6 +478,15 @@
           "tags": [],
           "default": false,
           "description": "enable the OptiX denoiser"
+        },
+        {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
         },
         {
           "name": "checkerboarding",
@@ -541,6 +577,15 @@
           "tags": [],
           "default": false,
           "description": "enable the OptiX denoiser"
+        },
+        {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
         },
         {
           "name": "checkerboarding",

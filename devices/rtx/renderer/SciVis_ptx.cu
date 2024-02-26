@@ -152,6 +152,8 @@ RT_PROGRAM void __miss__()
 
 RT_PROGRAM void __raygen__()
 {
+  auto &rendererParams = frameData.renderer;
+
   /////////////////////////////////////////////////////////////////////////////
   // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
@@ -175,7 +177,11 @@ RT_PROGRAM void __raygen__()
   while (outputOpacity < 0.99f) {
     ray.t.upper = tmax;
     surfaceHit.foundHit = false;
-    intersectSurface(ss, ray, RayType::PRIMARY, &surfaceHit);
+    intersectSurface(ss,
+        ray,
+        RayType::PRIMARY,
+        &surfaceHit,
+        primaryRayOptiXFlags(rendererParams));
 
     vec3 color(0.f);
     float opacity = 0.f;

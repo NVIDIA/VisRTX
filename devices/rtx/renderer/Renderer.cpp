@@ -139,6 +139,7 @@ void Renderer::commit()
   m_checkerboard = getParam<bool>("checkerboarding", false);
   m_denoise = getParam<bool>("denoise", false);
   m_sampleLimit = getParam<int>("sampleLimit", 128);
+  m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
 }
 
 Span<HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -158,11 +159,12 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
     fd.renderer.background.texobj = m_backgroundTexture;
   } else {
     fd.renderer.backgroundMode = BackgroundMode::COLOR;
-    fd.renderer.background.color = bgColor();
+    fd.renderer.background.color = m_bgColor;
   }
-  fd.renderer.ambientColor = ambientColor();
-  fd.renderer.ambientIntensity = ambientIntensity();
-  fd.renderer.occlusionDistance = ambientOcclusionDistance();
+  fd.renderer.ambientColor = m_ambientColor;
+  fd.renderer.ambientIntensity = m_ambientIntensity;
+  fd.renderer.occlusionDistance = m_occlusionDistance;
+  fd.renderer.cullTriangleBF = m_cullTriangleBF;
 }
 
 OptixPipeline Renderer::pipeline() const
@@ -178,29 +180,9 @@ const OptixShaderBindingTable *Renderer::sbt()
   return &m_sbt;
 }
 
-vec4 Renderer::bgColor() const
-{
-  return m_bgColor;
-}
-
 int Renderer::spp() const
 {
   return m_spp;
-}
-
-vec3 Renderer::ambientColor() const
-{
-  return m_ambientColor;
-}
-
-float Renderer::ambientIntensity() const
-{
-  return m_ambientIntensity;
-}
-
-float Renderer::ambientOcclusionDistance() const
-{
-  return m_occlusionDistance;
 }
 
 bool Renderer::checkerboarding() const

@@ -106,7 +106,11 @@ RT_PROGRAM void __raygen__()
     if (debug())
       printf("-------- BOUNCE: %i --------\n", pathData.depth);
     hit.foundHit = false;
-    intersectSurface(ss, ray, RayType::DIFFUSE_RADIANCE, &hit, 0);
+    intersectSurface(ss,
+        ray,
+        RayType::DIFFUSE_RADIANCE,
+        &hit,
+        primaryRayOptiXFlags(rendererParams));
 
     float volumeOpacity = 0.f;
     vec3 volumeColor(0.f);
