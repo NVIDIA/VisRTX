@@ -85,6 +85,8 @@ void Triangle::commit()
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
+  m_cullBackfaces = getParam<bool>("cullBackfaces", false);
+
   upload();
 }
 
@@ -142,6 +144,7 @@ GeometryGPUData Triangle::gpuData() const
   tri.vertexNormalsFV = m_vertexNormalFV
       ? m_vertexNormalFV->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
+  tri.cullBackfaces = m_cullBackfaces;
 
   return retval;
 }

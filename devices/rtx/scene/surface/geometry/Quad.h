@@ -62,6 +62,8 @@ struct Quad : public Geometry
   GeometryAttributes m_vertexAttributes;
 
   CUdeviceptr m_vertexBufferPtr{};
+
+  bool m_cullBackfaces{false};
 };
 
 } // namespace visrtx

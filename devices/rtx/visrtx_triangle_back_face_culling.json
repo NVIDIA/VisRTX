@@ -1,0 +1,37 @@
+{
+  "info": {
+    "name": "VISRTX_TRIANGLE_BACK_FACE_CULLING",
+    "type": "extension",
+    "dependencies": []
+  },
+  "objects": [
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "triangle",
+      "parameters": [
+        {
+          "name": "cullBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "description": "cull back facing primitives in primary visibility"
+        }
+      ]
+    },
+    {
+      "type": "ANARI_GEOMETRY",
+      "name": "quad",
+      "parameters": [
+        {
+          "name": "cullBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "description": "cull back facing primitives in primary visibility"
+        }
+      ]
+    }
+  ]
+}

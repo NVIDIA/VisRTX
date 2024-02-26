@@ -33,6 +33,7 @@
       "khr_spatial_field_structured_regular",
       "khr_volume_scivis",
       "visrtx_cuda_output_buffers",
+      "visrtx_triangle_back_face_culling",
       "visrtx_triangle_face_varying_attributes",
       "visrtx_uniform_attributes"
     ]

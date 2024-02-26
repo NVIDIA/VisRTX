@@ -39,6 +39,8 @@ struct Raycast : public Renderer
 {
   Raycast(DeviceGlobalState *s);
   OptixModule optixModule() const override;
+  Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
+  Span<std::string> missSbtNames() const override;
 
   static ptx_blob ptx();
 };

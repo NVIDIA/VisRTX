@@ -36,7 +36,7 @@
 namespace visrtx {
 
 static const std::vector<HitgroupFunctionNames> g_scivisHitNames = {
-    {"__closesthit__primary", ""},
+    {"__closesthit__primary", "__anyhit__primary"},
     {"__closesthit__shadow", "__anyhit__shadow"}};
 
 static const std::vector<std::string> g_scivisMissNames = {

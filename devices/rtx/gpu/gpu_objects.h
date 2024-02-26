@@ -122,6 +122,7 @@ struct TriangleGeometryData
   AttributeDataSet vertexAttrFV;
   const vec3 *vertexNormals;
   const vec3 *vertexNormalsFV;
+  bool cullBackfaces;
 };
 
 struct QuadGeometryData
@@ -130,6 +131,7 @@ struct QuadGeometryData
   const vec3 *vertices;
   AttributeDataSet vertexAttr;
   const vec3 *vertexNormals;
+  bool cullBackfaces;
 };
 
 struct CylinderGeometryData

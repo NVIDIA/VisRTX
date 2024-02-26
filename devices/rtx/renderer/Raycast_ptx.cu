@@ -40,7 +40,12 @@ enum class RayType
 
 DECLARE_FRAME_DATA(frameData)
 
-RT_PROGRAM void __closesthit__()
+RT_PROGRAM void __anyhit__primary()
+{
+  ray::cullbackFaces();
+}
+
+RT_PROGRAM void __closesthit__primary()
 {
   ray::populateHit();
 }

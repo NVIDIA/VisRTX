@@ -76,6 +76,8 @@ void Quad::commit()
   generateIndices();
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
+  m_cullBackfaces = getParam<bool>("cullBackfaces", false);
+
   upload();
 }
 
@@ -120,6 +122,7 @@ GeometryGPUData Quad::gpuData() const
   quad.vertexNormals = m_vertexNormal
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
+  quad.cullBackfaces = m_cullBackfaces;
   populateAttributeDataSet(m_vertexAttributes, quad.vertexAttr);
 
   return retval;

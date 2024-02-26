@@ -270,6 +270,20 @@ RT_FUNCTION void computeNormal(
       optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ns)));
 }
 
+RT_FUNCTION void cullbackFaces()
+{
+  if (optixIsTriangleFrontFaceHit())
+    return;
+  auto &ss = ray::screenSample();
+  auto &fd = *ss.frameData;
+  auto &sd = ray::surfaceData(fd);
+  auto &gd = getGeometryData(fd, sd.geometry);
+  const bool cull = (gd.type == GeometryType::TRIANGLE && gd.tri.cullBackfaces)
+      || (gd.type == GeometryType::QUAD && gd.quad.cullBackfaces);
+  if (cull)
+    optixIgnoreIntersection();
+}
+
 RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
 {
   auto &ss = ray::screenSample();

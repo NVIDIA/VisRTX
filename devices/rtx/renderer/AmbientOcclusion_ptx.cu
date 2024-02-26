@@ -62,6 +62,11 @@ RT_PROGRAM void __anyhit__ao()
     optixIgnoreIntersection();
 }
 
+RT_PROGRAM void __anyhit__primary()
+{
+  ray::cullbackFaces();
+}
+
 RT_PROGRAM void __closesthit__primary()
 {
   ray::populateHit();

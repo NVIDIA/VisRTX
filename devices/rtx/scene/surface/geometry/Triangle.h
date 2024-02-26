@@ -62,6 +62,8 @@ struct Triangle : public Geometry
   helium::IntrusivePtr<Array1D> m_vertexNormalFV;
 
   CUdeviceptr m_vertexBufferPtr{};
+
+  bool m_cullBackfaces{false};
 };
 
 } // namespace visrtx
