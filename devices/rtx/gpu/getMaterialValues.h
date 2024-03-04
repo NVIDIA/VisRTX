@@ -356,7 +356,7 @@ RT_FUNCTION vec4 evalMaterial(const FrameGPUData &fd,
     const SurfaceHit &hit,
     const vec3 &viewDir,
     const vec3 &lightDir,
-    const float lightIntensity)
+    const vec3 &lightIntensity)
 {
   const auto matValues = getMaterialValues(fd, md, hit);
 

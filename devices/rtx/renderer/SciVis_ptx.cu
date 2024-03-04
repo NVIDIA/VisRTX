@@ -81,7 +81,7 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
       hit,
       -ray.dir,
       -ray.dir,
-      rendererParams.ambientIntensity);
+      rendererParams.ambientIntensity * rendererParams.ambientColor);
 
   // Compute contribution from other lights //
 
@@ -102,7 +102,7 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
       const float volume_o = 1.f - volumeAttenuation(ss, r);
       const float attenuation = surface_o * volume_o;
       const vec4 matResult = evalMaterial(
-          frameData, *hit.material, hit, -ray.dir, ls.dir, ls.radiance.x);
+          frameData, *hit.material, hit, -ray.dir, ls.dir, ls.radiance);
       contrib += vec3(matResult) * dot(ls.dir, hit.Ns)
           * scivisParams.lightFalloff * attenuation;
     }

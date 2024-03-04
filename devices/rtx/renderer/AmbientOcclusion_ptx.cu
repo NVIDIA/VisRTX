@@ -152,7 +152,8 @@ RT_PROGRAM void __raygen__()
                                  aoParams.aoSamples)
                                                     : 1.f;
 
-      const auto lighting = aoFactor * rendererParams.ambientIntensity;
+      const auto lighting = aoFactor * rendererParams.ambientIntensity
+          * rendererParams.ambientColor;
       const auto matResult = evalMaterial(frameData,
           *surfaceHit.material,
           surfaceHit,

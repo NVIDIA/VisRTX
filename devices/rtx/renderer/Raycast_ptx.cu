@@ -121,7 +121,8 @@ RT_PROGRAM void __raygen__()
         firstHit = false;
       }
 
-      const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns));
+      const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns))
+          * rendererParams.ambientColor;
       const auto matResult = evalMaterial(frameData,
           *surfaceHit.material,
           surfaceHit,
