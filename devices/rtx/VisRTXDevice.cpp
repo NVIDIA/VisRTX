@@ -480,6 +480,8 @@ void VisRTXDevice::initOptix()
   if (m_initStatus != DeviceInitStatus::UNINITIALIZED)
     return;
 
+  m_initStatus = DeviceInitStatus::FAILURE;
+
   auto &state = *deviceState();
 
   reportMessage(ANARI_SEVERITY_DEBUG, "initializing VisRTX device", this);
@@ -488,7 +490,6 @@ void VisRTXDevice::initOptix()
   cudaGetDeviceCount(&numDevices);
   if (numDevices == 0) {
     reportMessage(ANARI_SEVERITY_FATAL_ERROR, "no CUDA capable devices found!");
-    m_initStatus = DeviceInitStatus::FAILURE;
     return;
   }
 
@@ -502,7 +503,7 @@ void VisRTXDevice::initOptix()
   }
   m_gpuID = m_desiredGpuID;
 
-  OPTIX_CHECK(optixInit());
+  OPTIX_CHECK_RETURN(optixInit());
   setCUDADevice();
   cudaStreamCreate(&state.stream);
 
@@ -537,7 +538,7 @@ void VisRTXDevice::initOptix()
   options.logCallbackData = this;
   options.logCallbackLevel = 4;
 
-  OPTIX_CHECK(optixDeviceContextCreate(
+  OPTIX_CHECK_RETURN(optixDeviceContextCreate(
       state.cudaContext, &options, &state.optixContext));
 
   // Create OptiX modules //
