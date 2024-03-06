@@ -212,6 +212,11 @@ VISRTX_HOST_DEVICE float pow5(float f)
   return f * f * f * f * f;
 }
 
+VISRTX_HOST_DEVICE float clampedDot(const vec3 &x, const vec3 &y)
+{
+  return glm::clamp(dot(x, y), 0.f, 1.f);
+}
+
 template <typename T>
 VISRTX_HOST_DEVICE T heaviside(const T &x)
 {

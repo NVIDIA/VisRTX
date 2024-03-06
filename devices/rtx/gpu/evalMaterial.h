@@ -325,8 +325,8 @@ RT_FUNCTION MaterialValues getMaterialValues(
   //            unrolled, which always happens when MaterialGPUData::values[]
   //            are each their own named data members of that struct. This is
   //            weird, but it's a less terrible development experience this way.
-  vec4 values[4];
-  for (int i = 0; i < 4; i++)
+  vec4 values[MV_NUM_VALUES];
+  for (int i = 0; i < MV_NUM_VALUES; i++)
     values[i] = getMaterialParameter(fd, md.values[i], hit);
 
   // baseColor
@@ -345,11 +345,21 @@ RT_FUNCTION MaterialValues getMaterialValues(
   retval.metallic = values[MV_METALLIC].x;
   // roughness
   retval.roughness = values[MV_ROUGHNESS].x;
+  // specular
+  retval.specular = values[MV_SPECULAR].x;
+  // specular color
+  retval.specularColor = vec3(values[MV_SPECULAR_COLOR]);
+  // emissive
+  retval.emissive = vec3(values[MV_EMISSIVE]);
   // ior
   retval.ior = md.ior;
 
   return retval;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 RT_FUNCTION vec4 evalMaterial(const FrameGPUData &fd,
     const MaterialGPUData &md,
@@ -363,6 +373,7 @@ RT_FUNCTION vec4 evalMaterial(const FrameGPUData &fd,
   if (!matValues.isPBR)
     return {matValues.baseColor * lightIntensity, matValues.opacity};
 
+#if 0 // Original attempt
   const vec3 H = normalize(lightDir + viewDir);
   const float NdotH = dot(hit.Ns, H);
   const float NdotL = dot(hit.Ns, lightDir);
@@ -404,6 +415,53 @@ RT_FUNCTION vec4 evalMaterial(const FrameGPUData &fd,
   const vec3 specularBRDF = denom != 0.f ? (F * D * G) / denom : vec3(0.f);
 
   return {(diffuseBRDF + specularBRDF) * lightIntensity, matValues.opacity};
+#elif 1 // new attempt
+  const vec3 h = normalize(lightDir + viewDir);
+  const float NdotH = dot(hit.Ns, h);
+  const float NdotL = dot(hit.Ns, lightDir);
+  const float NdotV = dot(hit.Ns, viewDir);
+  const float VdotH = dot(viewDir, h);
+  const float LdotH = dot(lightDir, h);
+
+  const float alphaRoughness = pow2(matValues.roughness);
+
+  vec3 f0 = matValues.specular * matValues.specularColor;
+  const vec3 f90(1.f);
+#if 0
+  const vec3 c_diff = matValues.baseColor * (1.f - max(max(f0.r, f0.g), f0.b));
+#else
+  const vec3 c_diff =
+      glm::mix(matValues.baseColor, vec3(0.f), matValues.metallic);
+#endif
+  f0 = mix(f0, matValues.baseColor, matValues.metallic);
+
+  const vec3 f_diffuse = lightIntensity * NdotL
+      * BRDF_lambertian(f0, f90, c_diff, matValues.specular, VdotH);
+  const vec3 f_specular = lightIntensity * NdotL
+      * BRDF_specularGGX(f0,
+          f90,
+          alphaRoughness,
+          matValues.specular,
+          VdotH,
+          NdotL,
+          NdotV,
+          NdotH);
+
+  const auto diffuse = /*f_diffuse_ibl + */ f_diffuse;
+  const auto specular = /*f_specular_ibl + */ f_specular;
+#if 0
+  const auto sheen = /*f_sheen_ibl + */ f_sheen;
+  const auto clearcoat = /*f_clearcoat_ibl + */ f_clearcoat;
+#endif
+
+  vec3 color = matValues.emissive + diffuse + specular;
+#if 0
+  color = sheen + color * albedoSheenScaling;
+  color = color * (1.0 - clearcoatFactor * clearcoatFresnel) + clearcoat;
+#endif
+
+  return {color, matValues.opacity};
+#endif
 }
 
 } // namespace visrtx

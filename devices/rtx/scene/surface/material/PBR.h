@@ -48,9 +48,9 @@ struct PBR : public Material
   float m_cutoff{0.5f};
   AlphaMode m_mode{AlphaMode::OPAQUE};
 
-  vec4 m_color{1.f};
-  helium::IntrusivePtr<Sampler> m_colorSampler;
-  std::string m_colorAttribute;
+  vec4 m_baseColor{1.f};
+  helium::IntrusivePtr<Sampler> m_baseColorSampler;
+  std::string m_baseColorAttribute;
 
   float m_opacity{1.f};
   helium::IntrusivePtr<Sampler> m_opacitySampler;
@@ -63,6 +63,18 @@ struct PBR : public Material
   float m_roughness{1.f};
   helium::IntrusivePtr<Sampler> m_roughnessSampler;
   std::string m_roughnessAttribute;
+
+  float m_specular{1.f};
+  helium::IntrusivePtr<Sampler> m_specularSampler;
+  std::string m_specularAttribute;
+
+  vec3 m_specularColor{1.f, 1.f, 1.f};
+  helium::IntrusivePtr<Sampler> m_specularColorSampler;
+  std::string m_specularColorAttribute;
+
+  vec3 m_emissive{0.f, 0.f, 0.f};
+  helium::IntrusivePtr<Sampler> m_emissiveSampler;
+  std::string m_emissiveAttribute;
 
   float m_ior{1.5f};
 };

@@ -53,6 +53,7 @@ inline void populateMaterialParameter(MaterialParameter &mp,
     helium::IntrusivePtr<Sampler> sampler,
     const std::string &attrib)
 {
+  mp.value = vec4(0.f, 0.f, 0.f, 1.f);
   if (sampler && sampler->isValid()) {
     mp.type = MaterialParameterType::SAMPLER;
     mp.sampler = sampler->index();
@@ -76,13 +77,12 @@ inline void populateMaterialParameter(MaterialParameter &mp,
     } else if (attrib == "objectNormal") {
       mp.type = MaterialParameterType::OBJECT_NORMAL;
     } else {
-      // TODO: other attributes!
       mp.type = MaterialParameterType::VALUE;
-      mp.value = vec4(value);
+      memcpy(&mp.value, &value, sizeof(T));
     }
   } else {
     mp.type = MaterialParameterType::VALUE;
-    mp.value = vec4(value);
+    memcpy(&mp.value, &value, sizeof(T));
   }
 }
 

@@ -272,15 +272,22 @@ enum AlphaMode
   MASK
 };
 
-constexpr int MV_BASE_COLOR = 0;
-constexpr int MV_OPACITY = 1;
-constexpr int MV_METALLIC = 2;
-constexpr int MV_ROUGHNESS = 3;
+enum MaterialValueIndex
+{
+  MV_BASE_COLOR,
+  MV_OPACITY,
+  MV_METALLIC,
+  MV_ROUGHNESS,
+  MV_SPECULAR,
+  MV_SPECULAR_COLOR,
+  MV_EMISSIVE,
+  MV_NUM_VALUES
+};
 
 struct MaterialGPUData
 {
   // See getMaterialValues() for why this is an array and not named members
-  MaterialParameter values[4];
+  MaterialParameter values[MV_NUM_VALUES];
 
   float ior{1.5f};
   float cutoff{0.5f};
@@ -295,6 +302,9 @@ struct MaterialValues
   float opacity;
   float metallic;
   float roughness;
+  float specular;
+  vec3 specularColor;
+  vec3 emissive;
   float ior;
 };
 
