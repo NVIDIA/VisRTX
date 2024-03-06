@@ -459,4 +459,20 @@ static GLenum gl_wrap(int value)
   }
 }
 
+
+static GLenum gl_compressed_image(int value)
+{
+  switch (value) {
+    case STRING_ENUM_BC1_RGB: return GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+    case STRING_ENUM_BC1_RGBA: return GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+    case STRING_ENUM_BC1_RGBA_SRGB: return GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT;
+    case STRING_ENUM_BC1_RGB_SRGB: return GL_COMPRESSED_SRGB_S3TC_DXT1_EXT;
+    case STRING_ENUM_BC2: return GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
+    case STRING_ENUM_BC2_SRGB: return GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT;
+    case STRING_ENUM_BC3: return GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+    case STRING_ENUM_BC3_SRGB: return GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT;
+    default: return GL_NONE;
+  }
+}
+
 } // namespace visgl

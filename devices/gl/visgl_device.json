@@ -25,6 +25,8 @@
             "khr_sampler_primitive",
             "khr_sampler_transform",
             "khr_spatial_field_structured_regular",
+            "ext_sampler_compressed_image2d",
+            "ext_sampler_compressed_format_bc123",
             "visgl_gl_context_params",
             "visgl_precision_params",
             "visgl_shadow_map_params",

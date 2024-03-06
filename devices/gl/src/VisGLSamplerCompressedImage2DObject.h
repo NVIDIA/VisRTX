@@ -30,31 +30,46 @@
  */
 
 #pragma once
-#include "VisGLDevice.h"
 
-#include "VisGLDeviceObject.h"
-#include "VisGLArrayObjects.h"
-#include "VisGLInstanceObject.h"
-#include "VisGLGroupObject.h"
-#include "VisGLWorldObject.h"
-#include "VisGLSurfaceObject.h"
-#include "VisGLFrameObject.h"
-#include "VisGLGeometryTriangleObject.h"
-#include "VisGLGeometrySphereObject.h"
-#include "VisGLGeometryCylinderObject.h"
-#include "VisGLCameraPerspectiveObject.h"
-#include "VisGLCameraOrthographicObject.h"
-#include "VisGLMaterialMatteObject.h"
-#include "VisGLMaterialPbrObject.h"
-#include "VisGLLightDirectionalObject.h"
-#include "VisGLLightPointObject.h"
-#include "VisGLLightSpotObject.h"
-#include "VisGLSamplerImage1DObject.h"
-#include "VisGLSamplerImage2DObject.h"
-#include "VisGLSamplerImage3DObject.h"
-#include "VisGLSamplerCompressedImage2DObject.h"
-#include "VisGLSamplerTransformObject.h"
-#include "VisGLSamplerPrimitiveObject.h"
-#include "VisGLSpatial_FieldStructuredRegularObject.h"
-#include "VisGLVolumeTransferFunction1DObject.h"
-#include "VisGLRendererDefaultObject.h"
+#include "VisGLDevice.h"
+#include "AppendableShader.h"
+
+#include <array>
+
+namespace visgl {
+
+template <>
+class Object<SamplerCompressedImage2D>
+    : public DefaultObject<SamplerCompressedImage2D, SamplerObjectBase>
+{
+  GLuint texture = 0;
+  GLuint sampler = 0;
+  size_t transform_index;
+  ObjectRef<DataArray1D> image;
+
+  friend void compressed_image2d_init_objects(ObjectRef<SamplerCompressedImage2D> samplerObj,
+    int filter,
+    GLenum wrapS,
+    GLenum wrapT,
+    GLenum internalformat,
+    GLsizei width,
+    GLsizei height,
+    GLsizei byteSize,
+    GLuint buffer);
+
+ public:
+  Object(ANARIDevice d, ANARIObject handle);
+
+  void commit() override;
+  void update() override;
+
+  void allocateResources(SurfaceObjectBase *, int) override;
+  void drawCommand(int index, DrawCommand &command) override;
+  void declare(int index, AppendableShader &shader) override;
+  void sample(int index, AppendableShader &shader, const char *meta) override;
+  std::array<uint32_t, 4> metadata() override;
+
+  ~Object();
+};
+
+} // namespace visgl

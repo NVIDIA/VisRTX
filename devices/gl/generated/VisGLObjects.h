@@ -320,6 +320,11 @@ public:
    static constexpr const char *subtype = "cylinder";
    static const uint32_t id = 13;
    Parameter<ANARI_STRING> name;
+   Parameter<ANARI_FLOAT32_VEC4> color;
+   Parameter<ANARI_FLOAT32_VEC4> attribute0;
+   Parameter<ANARI_FLOAT32_VEC4> attribute1;
+   Parameter<ANARI_FLOAT32_VEC4> attribute2;
+   Parameter<ANARI_FLOAT32_VEC4> attribute3;
    Parameter<ANARI_ARRAY1D> primitive_color;
    Parameter<ANARI_ARRAY1D> primitive_attribute0;
    Parameter<ANARI_ARRAY1D> primitive_attribute1;
@@ -355,6 +360,11 @@ public:
    static constexpr const char *subtype = "sphere";
    static const uint32_t id = 14;
    Parameter<ANARI_STRING> name;
+   Parameter<ANARI_FLOAT32_VEC4> color;
+   Parameter<ANARI_FLOAT32_VEC4> attribute0;
+   Parameter<ANARI_FLOAT32_VEC4> attribute1;
+   Parameter<ANARI_FLOAT32_VEC4> attribute2;
+   Parameter<ANARI_FLOAT32_VEC4> attribute3;
    Parameter<ANARI_ARRAY1D> primitive_color;
    Parameter<ANARI_ARRAY1D> primitive_attribute0;
    Parameter<ANARI_ARRAY1D> primitive_attribute1;
@@ -388,6 +398,11 @@ public:
    static constexpr const char *subtype = "triangle";
    static const uint32_t id = 15;
    Parameter<ANARI_STRING> name;
+   Parameter<ANARI_FLOAT32_VEC4> color;
+   Parameter<ANARI_FLOAT32_VEC4> attribute0;
+   Parameter<ANARI_FLOAT32_VEC4> attribute1;
+   Parameter<ANARI_FLOAT32_VEC4> attribute2;
+   Parameter<ANARI_FLOAT32_VEC4> attribute3;
    Parameter<ANARI_ARRAY1D> primitive_color;
    Parameter<ANARI_ARRAY1D> primitive_attribute0;
    Parameter<ANARI_ARRAY1D> primitive_attribute1;
@@ -646,7 +661,7 @@ public:
    Parameter<ANARI_STRING> name;
    Parameter<ANARI_STRING> inAttribute;
    Parameter<ANARI_FLOAT32_MAT4> outTransform;
-   Parameter<ANARI_FLOAT32_MAT4> outOffset;
+   Parameter<ANARI_FLOAT32_VEC4> outOffset;
 
    SamplerTransform(ANARIDevice d, ANARIObject o);
    bool set(const char *paramname, ANARIDataType type, const void *mem) override;
@@ -677,13 +692,41 @@ public:
    const char** paramNames() const override;
    size_t paramCount() const override;
 };
+class SamplerCompressedImage2D : public ParameterPack {
+public:
+   ANARIDevice device;
+   ANARIObject object;
+   static const int type = ANARI_SAMPLER;
+   static constexpr const char *subtype = "compressedImage2D";
+   static const uint32_t id = 27;
+   Parameter<ANARI_STRING> name;
+   Parameter<ANARI_ARRAY1D> image;
+   Parameter<ANARI_STRING> format;
+   Parameter<ANARI_UINT64_VEC2> size;
+   Parameter<ANARI_STRING> inAttribute;
+   Parameter<ANARI_STRING> filter;
+   Parameter<ANARI_STRING> wrapMode1;
+   Parameter<ANARI_STRING> wrapMode2;
+   Parameter<ANARI_FLOAT32_MAT4> inTransform;
+   Parameter<ANARI_FLOAT32_VEC4> inOffset;
+   Parameter<ANARI_FLOAT32_MAT4> outTransform;
+   Parameter<ANARI_FLOAT32_VEC4> outOffset;
+
+   SamplerCompressedImage2D(ANARIDevice d, ANARIObject o);
+   bool set(const char *paramname, ANARIDataType type, const void *mem) override;
+   void unset(const char *paramname) override;
+   ParameterBase& operator[](size_t idx) override;
+   ParameterBase& operator[](const char *paramname) override;
+   const char** paramNames() const override;
+   size_t paramCount() const override;
+};
 class GeometryCone : public ParameterPack {
 public:
    ANARIDevice device;
    ANARIObject object;
    static const int type = ANARI_GEOMETRY;
    static constexpr const char *subtype = "cone";
-   static const uint32_t id = 27;
+   static const uint32_t id = 28;
    Parameter<ANARI_STRING> geometryPrecision;
 
    GeometryCone(ANARIDevice d, ANARIObject o);

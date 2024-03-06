@@ -74,6 +74,7 @@ add_library(${PROJECT_NAME} SHARED
   src/VisGLLightSpotObject.cpp
   src/VisGLSamplerImage1DObject.cpp
   src/VisGLSamplerImage2DObject.cpp
+  src/VisGLSamplerCompressedImage2DObject.cpp
   src/VisGLSamplerImage3DObject.cpp
   src/VisGLSamplerPrimitiveObject.cpp
   src/VisGLSamplerTransformObject.cpp
