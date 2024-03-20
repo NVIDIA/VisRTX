@@ -67,6 +67,8 @@ struct PerspectiveCameraGPUData
   vec3 dir_du;
   vec3 dir_dv;
   vec3 dir_00;
+  float scaledAperture;
+  float aspect;
 };
 
 struct OrthographicCameraGPUData

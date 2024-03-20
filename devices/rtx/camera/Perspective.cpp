@@ -37,20 +37,37 @@ Perspective::Perspective(DeviceGlobalState *s) : Camera(s) {}
 
 void Perspective::commit()
 {
-  float fovy = getParam<float>("fovy", glm::radians(60.f));
-  float aspect = getParam<float>("aspect", 1.f);
+  auto &hd = data();
+  readBaseParameters(hd);
+  hd.type = CameraType::PERSPECTIVE;
+
+  const float fovy = getParam<float>("fovy", glm::radians(60.f));
+  const float aspect = getParam<float>("aspect", 1.f);
 
   vec2 imgPlaneSize;
   imgPlaneSize.y = 2.f * tanf(0.5f * fovy);
   imgPlaneSize.x = imgPlaneSize.y * aspect;
 
-  auto &hd = data();
-  readBaseParameters(hd);
-  hd.type = CameraType::PERSPECTIVE;
+  vec3 dir_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;
+  vec3 dir_dv = normalize(cross(dir_du, hd.dir)) * imgPlaneSize.y;
+  vec3 dir_00 = hd.dir - .5f * dir_du - .5f * dir_dv;
+
+  const float focusDistance = getParam<float>("focusDistance", 1.f);
+  const float apertureRadius =
+      getParam<float>("apertureRadius", 0.f) / (imgPlaneSize.x * focusDistance);
+  if (apertureRadius > 0.f) {
+    dir_du *= focusDistance;
+    dir_dv *= focusDistance;
+    dir_00 *= focusDistance;
+  }
+
   auto &p = hd.perspective;
-  p.dir_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;
-  p.dir_dv = normalize(cross(p.dir_du, hd.dir)) * imgPlaneSize.y;
-  p.dir_00 = hd.dir - .5f * p.dir_du - .5f * p.dir_dv;
+  p.dir_du = dir_du;
+  p.dir_dv = dir_dv;
+  p.dir_00 = dir_00;
+  p.scaledAperture = apertureRadius;
+  p.aspect = aspect;
+
   upload();
 }
 

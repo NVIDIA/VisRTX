@@ -232,4 +232,11 @@ VISRTX_HOST_DEVICE bool intersectBox(
   return tin < tout;
 }
 
+VISRTX_HOST_DEVICE vec2 uniformSampleDisk(float radius, const vec2 &s)
+{
+  const float r = sqrtf(s.x) * radius;
+  const float phi = 2.f * float(M_PI) * s.y;
+  return vec2{r * cosf(phi), r * sinf(phi)};
+}
+
 } // namespace visrtx
