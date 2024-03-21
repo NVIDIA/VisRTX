@@ -41,16 +41,11 @@
 #include "helium/BaseFrame.h"
 // std
 #include <memory>
-// thrust
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
 
 namespace visrtx {
 
 struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
 {
-  static size_t objectCount();
-
   Frame(DeviceGlobalState *d);
   ~Frame();
 
@@ -91,6 +86,7 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   bool checkerboarding() const;
   void checkAccumulationReset();
   void newFrame();
+  size_t numPixels() const;
 
   //// Data ////
 
@@ -109,21 +105,17 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   anari::DataType m_albedoType{ANARI_UNKNOWN};
   anari::DataType m_normalType{ANARI_UNKNOWN};
 
-  thrust::device_vector<vec4> m_accumColor;
   HostDeviceArray<uint8_t> m_pixelBuffer;
-
   HostDeviceArray<float> m_depthBuffer;
+  HostDeviceArray<vec3> m_normalBuffer;
+  HostDeviceArray<vec3> m_albedoBuffer;
   HostDeviceArray<uint32_t> m_primIDBuffer;
   HostDeviceArray<uint32_t> m_objIDBuffer;
   HostDeviceArray<uint32_t> m_instIDBuffer;
 
-  thrust::device_vector<vec3> m_accumAlbedo;
-  thrust::device_vector<vec3> m_deviceAlbedoBuffer;
-  thrust::host_vector<vec3> m_mappedAlbedoBuffer;
-
-  thrust::device_vector<vec3> m_accumNormal;
-  thrust::device_vector<vec3> m_deviceNormalBuffer;
-  thrust::host_vector<vec3> m_mappedNormalBuffer;
+  DeviceBuffer m_accumColor; // vec4
+  DeviceBuffer m_accumAlbedo; // vec3
+  DeviceBuffer m_accumNormal; // vec3
 
   helium::IntrusivePtr<Renderer> m_renderer;
   helium::IntrusivePtr<Camera> m_camera;
@@ -142,6 +134,9 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   helium::TimeStamp m_lastUploadOccured{0};
 
   Denoiser m_denoiser;
+
+  anari::FrameCompletionCallback m_callback{nullptr};
+  const void *m_callbackUserPtr{nullptr};
 };
 
 } // namespace visrtx

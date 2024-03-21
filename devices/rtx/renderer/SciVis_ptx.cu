@@ -49,7 +49,7 @@ DECLARE_FRAME_DATA(frameData)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-RT_FUNCTION float attenuation(ScreenSample &ss, Ray r)
+RT_FUNCTION float volumeAttenuation(ScreenSample &ss, Ray r)
 {
   RayAttenuation ra;
   ra.ray = &r;
@@ -58,15 +58,35 @@ RT_FUNCTION float attenuation(ScreenSample &ss, Ray r)
   return ra.attenuation;
 }
 
-RT_FUNCTION vec3 computeLightConrib(ScreenSample &ss, const SurfaceHit &hit)
+RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 {
-  const auto &scivisParams = frameData.renderer.params.scivis;
+  const auto &rendererParams = frameData.renderer;
+  const auto &scivisParams = rendererParams.params.scivis;
 
   auto &world = frameData.world;
 
   const vec3 shadePoint = hit.hitpoint + (hit.epsilon * hit.Ns);
 
-  vec3 contrib(0.f);
+  // Compute ambient light contribution //
+
+  const float aoFactor = scivisParams.aoSamples > 0 ? computeAO(ss,
+                             ray,
+                             RayType::SHADOW,
+                             hit,
+                             rendererParams.occlusionDistance,
+                             scivisParams.aoSamples)
+                                                    : 1.f;
+  const vec4 matAoResult = evalMaterial(frameData,
+      *hit.material,
+      hit,
+      -ray.dir,
+      -ray.dir,
+      rendererParams.ambientIntensity * rendererParams.ambientColor);
+
+  // Compute contribution from other lights //
+
+  vec3 contrib = vec3(matAoResult) * aoFactor;
+  float opacity = matAoResult.w;
   for (size_t i = 0; i < world.numLightInstances; i++) {
     auto *inst = world.lightInstances + i;
     if (!inst)
@@ -78,13 +98,16 @@ RT_FUNCTION vec3 computeLightConrib(ScreenSample &ss, const SurfaceHit &hit)
       r.org = shadePoint;
       r.dir = ls.dir;
       r.t.upper = ls.dist;
-      if (!isOccluded(ss, r, RayType::SHADOW)) {
-        contrib += ls.radiance * dot(ls.dir, hit.Ns) * scivisParams.lightFalloff
-            * (1.f - attenuation(ss, r));
-      }
+      const float surface_o = 1.f - surfaceAttenuation(ss, r, RayType::SHADOW);
+      const float volume_o = 1.f - volumeAttenuation(ss, r);
+      const float attenuation = surface_o * volume_o;
+      const vec4 matResult = evalMaterial(
+          frameData, *hit.material, hit, -ray.dir, ls.dir, ls.radiance);
+      contrib += vec3(matResult) * dot(ls.dir, hit.Ns)
+          * scivisParams.lightFalloff * attenuation;
     }
   }
-  return contrib;
+  return {contrib, opacity};
 }
 
 // OptiX programs /////////////////////////////////////////////////////////////
@@ -101,11 +124,11 @@ RT_PROGRAM void __anyhit__shadow()
     ray::populateSurfaceHit(hit);
     const auto &material = *hit.material;
     const auto matValues = getMaterialValues(frameData, material, hit);
-    if (matValues.opacity >= 0.99f) {
-      auto &occluded = ray::rayData<uint32_t>();
-      occluded = true;
+    auto &o = ray::rayData<float>();
+    accumulateValue(o, matValues.opacity, o);
+    if (o >= 0.99f)
       optixTerminateRay();
-    } else
+    else
       optixIgnoreIntersection();
   } else {
     auto &ra = ray::rayData<RayAttenuation>();
@@ -115,6 +138,11 @@ RT_PROGRAM void __anyhit__shadow()
     if (ra.attenuation < 0.99f)
       optixIgnoreIntersection();
   }
+}
+
+RT_PROGRAM void __anyhit__primary()
+{
+  ray::cullbackFaces();
 }
 
 RT_PROGRAM void __closesthit__primary()
@@ -129,8 +157,7 @@ RT_PROGRAM void __miss__()
 
 RT_PROGRAM void __raygen__()
 {
-  const auto &rendererParams = frameData.renderer;
-  const auto &scivisParams = rendererParams.params.scivis;
+  auto &rendererParams = frameData.renderer;
 
   /////////////////////////////////////////////////////////////////////////////
   // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
@@ -155,7 +182,11 @@ RT_PROGRAM void __raygen__()
   while (outputOpacity < 0.99f) {
     ray.t.upper = tmax;
     surfaceHit.foundHit = false;
-    intersectSurface(ss, ray, RayType::PRIMARY, &surfaceHit);
+    intersectSurface(ss,
+        ray,
+        RayType::PRIMARY,
+        &surfaceHit,
+        primaryRayOptiXFlags(rendererParams));
 
     vec3 color(0.f);
     float opacity = 0.f;
@@ -190,25 +221,9 @@ RT_PROGRAM void __raygen__()
         firstHit = false;
       }
 
-      const auto &material = *surfaceHit.material;
-      const auto matValues = getMaterialValues(frameData, material, surfaceHit);
-
-      const float aoFactor = (scivisParams.aoSamples > 0 ? computeAO(ss,
-                                  ray,
-                                  RayType::SHADOW,
-                                  surfaceHit,
-                                  rendererParams.occlusionDistance,
-                                  scivisParams.aoSamples)
-                                                         : 1.f)
-          * rendererParams.ambientIntensity;
-
-      accumulateValue(color,
-          (matValues.baseColor
-              * (computeLightConrib(ss, surfaceHit)
-                  + (rendererParams.ambientColor * aoFactor
-                      * scivisParams.lightFalloff))),
-          opacity);
-      accumulateValue(opacity, matValues.opacity, opacity);
+      const vec4 shadingResult = shadeSurface(ss, ray, surfaceHit);
+      accumulateValue(color, vec3(shadingResult), opacity);
+      accumulateValue(opacity, shadingResult.w, opacity);
 
       color *= opacity;
       accumulateValue(outputColor, color, outputOpacity);

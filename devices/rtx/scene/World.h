@@ -36,12 +36,10 @@
 
 namespace visrtx {
 
-ptx_ptr intersection_ptx();
+ptx_blob intersection_ptx();
 
 struct World : public Object
 {
-  static size_t objectCount();
-
   World(DeviceGlobalState *d);
   ~World() override;
 

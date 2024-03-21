@@ -51,11 +51,7 @@ void Cone::commit()
   m_caps = getParamString("caps", "none") != "none";
 
   m_vertex = getParamObject<Array1D>("vertex.position");
-  m_vertexColor = getParamObject<Array1D>("vertex.color");
-  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
-  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
-  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
-  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
+  commitAttributes("vertex.", m_vertexAttributes);
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -144,16 +140,10 @@ GeometryGPUData Cone::gpuData() const
   retval.type = GeometryType::CONE;
 
   auto &cone = retval.cone;
-
   cone.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   cone.indices = m_index ? m_index->beginAs<uvec2>(AddressSpace::GPU) : nullptr;
   cone.radii = m_radius->beginAs<float>(AddressSpace::GPU);
-
-  populateAttributePtr(m_vertexAttribute0, cone.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, cone.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, cone.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, cone.vertexAttr[3]);
-  populateAttributePtr(m_vertexColor, cone.vertexAttr[4]);
+  populateAttributeDataSet(m_vertexAttributes, cone.vertexAttr);
 
   return retval;
 }

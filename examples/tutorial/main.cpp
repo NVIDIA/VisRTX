@@ -90,6 +90,8 @@ anari::World generateScene(anari::Device device)
   // Create and parameterize geometry //
 
   auto geometry = anari::newObject<anari::Geometry>(device, "sphere");
+  anari::setParameter(
+      device, geometry, "vertex.color", vec4{1.f, 0.f, 0.f, 1.f});
   anari::setAndReleaseParameter(
       device, geometry, "primitive.index", indicesArray);
   anari::setAndReleaseParameter(
@@ -134,18 +136,7 @@ anari::World generateScene(anari::Device device)
   // Create and parameterize world //
 
   auto world = anari::newObject<anari::World>(device);
-#if 1
-  {
-    auto surfaceArray = anari::newArray1D(device, ANARI_SURFACE, 1);
-    auto *s = anari::map<anari::Surface>(device, surfaceArray);
-    s[0] = surface;
-    anari::unmap(device, surfaceArray);
-    anari::setAndReleaseParameter(device, world, "surface", surfaceArray);
-  }
-#else
-  anari::setAndReleaseParameter(
-      device, world, "surface", anari::newArray1D(device, &surface));
-#endif
+  anari::setParameterArray1D(device, world, "surface", &surface, 1);
   anari::release(device, surface);
   anari::commitParameters(device, world);
 
@@ -230,6 +221,17 @@ int main()
   anari::setParameter(device, frame, "world", world);
   anari::setParameter(device, frame, "camera", camera);
   anari::setParameter(device, frame, "renderer", renderer);
+
+  auto fccb = [](const void *uptr, anari::Device, anari::Frame) {
+    printf("callback notifying frame completion! user ptr: %p\n", uptr);
+  };
+
+  anari::setParameter(device,
+      frame,
+      "frameCompletionCallback",
+      (anari::FrameCompletionCallback)fccb);
+  anari::setParameter(
+      device, frame, "frameCompletionCallbackUserData", (void *)device);
 
   anari::commitParameters(device, frame);
 

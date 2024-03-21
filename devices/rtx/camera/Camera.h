@@ -39,10 +39,8 @@ namespace visrtx {
 
 struct Camera : public Object, public DeviceObject<CameraGPUData>
 {
-  static size_t objectCount();
-
   Camera(DeviceGlobalState *d);
-  ~Camera() override;
+  ~Camera() override = default;
 
   static Camera *createInstance(std::string_view subtype, DeviceGlobalState *d);
 

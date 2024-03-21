@@ -54,15 +54,36 @@
 constexpr int PAYLOAD_VALUES = 5;
 constexpr int ATTRIBUTE_VALUES = 4;
 
+#define OPTIX_CHECK_REPORT_MESSAGE(call)                                       \
+  std::stringstream ss;                                                        \
+  const char *res_str = optixGetErrorName(res);                                \
+  ss << "Optix call (" << #call << ") failed with code " << res_str            \
+     << " (line " << __LINE__ << ")\n";                                        \
+  reportMessage(ANARI_SEVERITY_FATAL_ERROR, "%s", ss.str().c_str());
+
 #define OPTIX_CHECK(call)                                                      \
   {                                                                            \
     OptixResult res = call;                                                    \
     if (res != OPTIX_SUCCESS) {                                                \
-      std::stringstream ss;                                                    \
-      const char *res_str = optixGetErrorName(res);                            \
-      ss << "Optix call (" << #call << ") failed with code " << res_str        \
-         << " (line " << __LINE__ << ")\n";                                    \
-      reportMessage(ANARI_SEVERITY_FATAL_ERROR, "%s", ss.str().c_str());       \
+      OPTIX_CHECK_REPORT_MESSAGE(call)                                         \
+    }                                                                          \
+  }
+
+#define OPTIX_CHECK_RETURN(call)                                               \
+  {                                                                            \
+    OptixResult res = call;                                                    \
+    if (res != OPTIX_SUCCESS) {                                                \
+      OPTIX_CHECK_REPORT_MESSAGE(call)                                         \
+      return;                                                                  \
+    }                                                                          \
+  }
+
+#define OPTIX_CHECK_RETURN_VALUE(call, x)                                      \
+  {                                                                            \
+    OptixResult res = call;                                                    \
+    if (res != OPTIX_SUCCESS) {                                                \
+      OPTIX_CHECK_REPORT_MESSAGE(call)                                         \
+      return x;                                                                \
     }                                                                          \
   }
 
@@ -118,10 +139,16 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box1, ANARI_FLOAT32_BOX1);
 
 namespace visrtx {
 
-using ptx_ptr = unsigned char *;
+struct ptx_blob
+{
+  unsigned char *ptr{nullptr};
+  size_t size{0};
+};
 
 struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
+  anari::Device anariDevice{nullptr};
+
   CUcontext cudaContext;
   CUstream stream;
   cudaDeviceProp deviceProps;

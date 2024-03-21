@@ -36,7 +36,7 @@
 namespace visrtx {
 
 static const std::vector<HitgroupFunctionNames> g_scivisHitNames = {
-    {"__closesthit__primary", ""},
+    {"__closesthit__primary", "__anyhit__primary"},
     {"__closesthit__shadow", "__anyhit__shadow"}};
 
 static const std::vector<std::string> g_scivisMissNames = {
@@ -76,9 +76,9 @@ Span<std::string> SciVis::missSbtNames() const
   return make_Span(g_scivisMissNames.data(), g_scivisMissNames.size());
 }
 
-ptx_ptr SciVis::ptx()
+ptx_blob SciVis::ptx()
 {
-  return SciVis_ptx;
+  return {SciVis_ptx, sizeof(SciVis_ptx)};
 }
 
 } // namespace visrtx

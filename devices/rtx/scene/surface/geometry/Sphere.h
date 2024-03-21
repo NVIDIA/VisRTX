@@ -34,8 +34,6 @@
 #include "Geometry.h"
 #include "array/Array1D.h"
 #include "utility/HostDeviceArray.h"
-// thrust
-#include <thrust/device_vector.h>
 
 namespace visrtx {
 
@@ -59,15 +57,12 @@ struct Sphere : public Geometry
   helium::IntrusivePtr<Array1D> m_index;
 
   helium::IntrusivePtr<Array1D> m_vertex;
-  helium::IntrusivePtr<Array1D> m_vertexColor;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
   helium::IntrusivePtr<Array1D> m_vertexRadius;
+  GeometryAttributes m_vertexAttributes;
 
-  thrust::device_vector<box3> m_aabbs;
+  DeviceBuffer m_aabbs;
   CUdeviceptr m_aabbsBufferPtr{};
+  size_t m_numSpheres{0};
 
   float m_globalRadius{1.f};
 };

@@ -47,6 +47,10 @@
 #include "glx_context.h"
 #endif
 
+
+#ifdef VISGL_USE_WGL
+#include "wgl_context.h"
+#endif
 namespace visgl {
 
 Object<Device>::Object(ANARIDevice d) : DefaultObject(d, this), queue(128) {}
@@ -126,7 +130,19 @@ static void device_context_init(
   }
 
   if (debug && deviceObj->gl.DebugMessageCallback) {
+    anariReportStatus(deviceObj->device,
+      deviceObj->handle,
+      ANARI_DEVICE,
+      ANARI_SEVERITY_INFO,
+      ANARI_STATUS_NO_ERROR,
+      "[OpenGL] setup debug callback\n");
     gl.DebugMessageCallback(debug_callback, deviceObj->device);
+    gl.DebugMessageInsert(
+      GL_DEBUG_SOURCE_APPLICATION,
+      GL_DEBUG_TYPE_OTHER,
+      0,
+      GL_DEBUG_SEVERITY_NOTIFICATION,
+      -1, "test message callback.");
   }
 
   anariReportStatus(deviceObj->device,
@@ -214,6 +230,13 @@ void Object<Device>::update()
 
 #ifdef VISGL_USE_GLX
   }
+#endif
+
+#ifdef VISGL_USE_WGL
+  HDC dc = wglGetCurrentDC();
+  HGLRC wgl_context = wglGetCurrentContext();
+  context.reset(new wglContext(
+      device, dc, wgl_context, clientapi == STRING_ENUM_OpenGL_ES, debug));
 #endif
 
   queue.enqueue(device_context_init, this, clientapi, debug).wait();

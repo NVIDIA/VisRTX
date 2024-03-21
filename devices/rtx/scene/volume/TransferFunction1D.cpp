@@ -52,7 +52,7 @@ void TransferFunction1D::commit()
   m_params.opacity = getParamObject<Array1D>("opacity");
   m_params.opacityPosition = getParamObject<Array1D>("opacity.position");
   m_params.densityScale = getParam<float>("densityScale", 1.f);
-  m_params.field = getParamObject<SpatialField>("field");
+  m_params.field = getParamObject<SpatialField>("value");
 
   {
     auto valueRangeAsVec2 = getParam<vec2>("valueRange", vec2(0.f, 1.f));
@@ -62,7 +62,7 @@ void TransferFunction1D::commit()
 
   if (!m_params.field) {
     reportMessage(ANARI_SEVERITY_WARNING,
-        "missing parameter 'field' on transferFunction1D ANARIVolume");
+        "missing parameter 'value' on transferFunction1D ANARIVolume");
     return;
   }
 

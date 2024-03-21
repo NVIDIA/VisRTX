@@ -100,6 +100,7 @@ PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/glad/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/egl>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/glx>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/wgl>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 )
 
@@ -110,9 +111,17 @@ PUBLIC
 )
 
 if(WIN32)
+  target_sources(${PROJECT_NAME} PRIVATE
+    src/wgl/wgl_context.cpp
+    src/glad/src/wgl.c
+  )
   target_link_libraries(${PROJECT_NAME}
   PUBLIC
     OpenGL::GL
+  )
+  target_compile_definitions(${PROJECT_NAME}
+  PUBLIC
+    VISGL_USE_WGL
   )
 else()
   target_link_libraries(${PROJECT_NAME}

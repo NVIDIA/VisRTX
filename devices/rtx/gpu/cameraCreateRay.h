@@ -35,7 +35,7 @@
 
 namespace visrtx {
 
-RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *c, vec2 screen)
+RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *c, vec2 screen, vec2 r)
 {
   Ray ray;
 
@@ -46,7 +46,16 @@ RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *c, vec2 screen)
   case CameraType::PERSPECTIVE: {
     const auto &p = c->perspective;
     ray.org = c->pos;
-    ray.dir = normalize(p.dir_00 + screen.x * p.dir_du + screen.y * p.dir_dv);
+    ray.dir = p.dir_00 + screen.x * p.dir_du + screen.y * p.dir_dv;
+
+    if (p.scaledAperture > 0.f) {
+      const vec2 llp = uniformSampleDisk(p.scaledAperture, r);
+      const vec3 lp = (llp.x * p.dir_du) + ((llp.y * p.aspect) * p.dir_dv);
+      ray.org += lp;
+      ray.dir -= lp;
+    }
+
+    ray.dir = normalize(ray.dir);
     break;
   }
   case CameraType::ORTHOGRAPHIC: {
@@ -64,10 +73,10 @@ RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *c, vec2 screen)
 
 RT_FUNCTION Ray makePrimaryRay(ScreenSample &ss)
 {
-  const vec2 r(curand_uniform(&ss.rs) - 0.5f, curand_uniform(&ss.rs) - 0.5f);
+  const float4 r = curand_uniform4(&ss.rs);
   ss.screen =
       vec2(ss.pixel.x + r.x, ss.pixel.y + r.y) * ss.frameData->fb.invSize;
-  return cameraCreateRay(ss.frameData->camera, ss.screen);
+  return cameraCreateRay(ss.frameData->camera, ss.screen, {r.z, r.w});
 }
 
 } // namespace visrtx

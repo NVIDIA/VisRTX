@@ -36,7 +36,8 @@
 namespace visrtx {
 
 static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
-    {"__closesthit__primary", ""}, {"__closesthit__ao", "__anyhit__ao"}};
+    {"__closesthit__primary", "__anyhit__primary"},
+    {"__closesthit__ao", "__anyhit__ao"}};
 
 static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
 
@@ -69,9 +70,9 @@ Span<std::string> AmbientOcclusion::missSbtNames() const
   return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
 }
 
-ptx_ptr AmbientOcclusion::ptx()
+ptx_blob AmbientOcclusion::ptx()
 {
-  return AmbientOcclusion_ptx;
+  return {AmbientOcclusion_ptx, sizeof(AmbientOcclusion_ptx)};
 }
 
 } // namespace visrtx

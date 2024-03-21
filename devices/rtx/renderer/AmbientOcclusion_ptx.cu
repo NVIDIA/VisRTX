@@ -54,12 +54,17 @@ RT_PROGRAM void __anyhit__ao()
   ray::populateSurfaceHit(hit);
   const auto &material = *hit.material;
   const auto matValues = getMaterialValues(frameData, material, hit);
-  if (matValues.opacity >= 0.99f) {
-    auto &occluded = ray::rayData<uint32_t>();
-    occluded = true;
+  auto &o = ray::rayData<float>();
+  accumulateValue(o, matValues.opacity, o);
+  if (o >= 0.99f)
     optixTerminateRay();
-  } else
+  else
     optixIgnoreIntersection();
+}
+
+RT_PROGRAM void __anyhit__primary()
+{
+  ray::cullbackFaces();
 }
 
 RT_PROGRAM void __closesthit__primary()
@@ -100,7 +105,11 @@ RT_PROGRAM void __raygen__()
   while (outputOpacity < 0.99f) {
     ray.t.upper = tmax;
     surfaceHit.foundHit = false;
-    intersectSurface(ss, ray, RayType::PRIMARY, &surfaceHit);
+    intersectSurface(ss,
+        ray,
+        RayType::PRIMARY,
+        &surfaceHit,
+        primaryRayOptiXFlags(rendererParams));
 
     vec3 color(0.f);
     float opacity = 0.f;
@@ -135,9 +144,6 @@ RT_PROGRAM void __raygen__()
         firstHit = false;
       }
 
-      const auto &material = *surfaceHit.material;
-      const auto matValues = getMaterialValues(frameData, material, surfaceHit);
-
       const float aoFactor = aoParams.aoSamples > 0 ? computeAO(ss,
                                  ray,
                                  RayType::AO,
@@ -145,11 +151,18 @@ RT_PROGRAM void __raygen__()
                                  rendererParams.occlusionDistance,
                                  aoParams.aoSamples)
                                                     : 1.f;
-      const auto lighting = aoFactor * rendererParams.ambientColor
-          * rendererParams.ambientIntensity;
 
-      accumulateValue(color, matValues.baseColor * lighting, opacity);
-      accumulateValue(opacity, matValues.opacity, opacity);
+      const auto lighting = aoFactor * rendererParams.ambientIntensity
+          * rendererParams.ambientColor;
+      const auto matResult = evalMaterial(frameData,
+          *surfaceHit.material,
+          surfaceHit,
+          -ray.dir,
+          -ray.dir,
+          lighting);
+
+      accumulateValue(color, vec3(matResult), opacity);
+      accumulateValue(opacity, matResult.w, opacity);
 
       color *= opacity;
       accumulateValue(outputColor, color, outputOpacity);

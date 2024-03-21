@@ -35,6 +35,11 @@
 
 namespace visrtx {
 
+static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
+    {"__closesthit__primary", "__anyhit__primary"}};
+
+static const std::vector<std::string> g_aoMissNames = {"__miss__"};
+
 Raycast::Raycast(DeviceGlobalState *s) : Renderer(s) {}
 
 OptixModule Raycast::optixModule() const
@@ -42,9 +47,19 @@ OptixModule Raycast::optixModule() const
   return deviceState()->rendererModules.raycast;
 }
 
-ptx_ptr Raycast::ptx()
+Span<HitgroupFunctionNames> Raycast::hitgroupSbtNames() const
 {
-  return Raycast_ptx;
+  return make_Span(g_aoHitNames.data(), g_aoHitNames.size());
+}
+
+Span<std::string> Raycast::missSbtNames() const
+{
+  return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
+}
+
+ptx_blob Raycast::ptx()
+{
+  return {Raycast_ptx, sizeof(Raycast_ptx)};
 }
 
 } // namespace visrtx

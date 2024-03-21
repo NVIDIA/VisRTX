@@ -33,9 +33,9 @@
 #include "utility/instrument.h"
 // std
 #include <algorithm>
-#include <atomic>
 #include <random>
 // thrust
+#include <thrust/device_ptr.h>
 #include <thrust/fill.h>
 #include <thrust/transform.h>
 
@@ -43,16 +43,8 @@ namespace visrtx {
 
 // Frame definitions //////////////////////////////////////////////////////////
 
-static std::atomic<size_t> s_numFrames = 0;
-
-size_t Frame::objectCount()
-{
-  return s_numFrames;
-}
-
 Frame::Frame(DeviceGlobalState *d) : helium::BaseFrame(d), m_denoiser(d)
 {
-  s_numFrames++;
   cudaEventCreate(&m_eventStart);
   cudaEventCreate(&m_eventEnd);
 
@@ -66,7 +58,6 @@ Frame::~Frame()
 
   cudaEventDestroy(m_eventStart);
   cudaEventDestroy(m_eventEnd);
-  s_numFrames--;
 }
 
 bool Frame::isValid() const
@@ -107,6 +98,11 @@ void Frame::commit()
   if (!m_valid)
     return;
 
+  m_callback = getParam<ANARIFrameCompletionCallback>(
+      "frameCompletionCallback", nullptr);
+  m_callbackUserPtr =
+      getParam<void *>("frameCompletionCallbackUserData", nullptr);
+
   auto format =
       getParam<ANARIDataType>("channel.color", ANARI_UFIXED8_RGBA_SRGB);
   const bool useFloatFB = m_denoise || format == ANARI_FLOAT32_VEC4;
@@ -140,27 +136,21 @@ void Frame::commit()
   if (channelDepth && m_depthType != ANARI_FLOAT32)
     m_depthType = ANARI_FLOAT32;
 
-  const auto numPixels = hd.fb.size.x * hd.fb.size.y;
-
-  m_accumColor.resize(numPixels);
   m_perPixelBytes = 4 * (useFloatFB ? 4 : 1);
-  m_pixelBuffer.resize(numPixels * m_perPixelBytes);
 
-  m_depthBuffer.resize(channelDepth ? numPixels : 0);
-  m_primIDBuffer.resize(channelPrimID ? numPixels : 0);
-  m_objIDBuffer.resize(channelObjID ? numPixels : 0);
-  m_instIDBuffer.resize(channelInstID ? numPixels : 0);
+  m_pixelBuffer.resize(numPixels() * m_perPixelBytes);
+  m_depthBuffer.resize(channelDepth ? numPixels() : 0);
+  m_normalBuffer.resize(channelNormal ? numPixels() : 0);
+  m_albedoBuffer.resize(channelAlbedo ? numPixels() : 0);
+  m_primIDBuffer.resize(channelPrimID ? numPixels() : 0);
+  m_objIDBuffer.resize(channelObjID ? numPixels() : 0);
+  m_instIDBuffer.resize(channelInstID ? numPixels() : 0);
 
-  m_accumAlbedo.resize(channelAlbedo ? numPixels : 0);
-  m_deviceAlbedoBuffer.resize(channelAlbedo ? numPixels : 0);
-  m_mappedAlbedoBuffer.resize(channelAlbedo ? numPixels : 0);
+  m_accumColor.reserve(numPixels() * sizeof(vec4));
+  m_accumAlbedo.reserve((channelAlbedo ? numPixels() : 0) * sizeof(vec3));
+  m_accumNormal.reserve((channelNormal ? numPixels() : 0) * sizeof(vec3));
 
-  m_accumNormal.resize(channelNormal ? numPixels : 0);
-  m_deviceNormalBuffer.resize(channelNormal ? numPixels : 0);
-  m_mappedNormalBuffer.resize(channelNormal ? numPixels : 0);
-
-  hd.fb.buffers.colorAccumulation =
-      thrust::raw_pointer_cast(m_accumColor.data());
+  hd.fb.buffers.colorAccumulation = m_accumColor.ptrAs<vec4>();
 
   hd.fb.buffers.outColorVec4 = nullptr;
   hd.fb.buffers.outColorUint = nullptr;
@@ -174,10 +164,8 @@ void Frame::commit()
   hd.fb.buffers.primID = channelPrimID ? m_primIDBuffer.dataDevice() : nullptr;
   hd.fb.buffers.objID = channelObjID ? m_objIDBuffer.dataDevice() : nullptr;
   hd.fb.buffers.instID = channelInstID ? m_instIDBuffer.dataDevice() : nullptr;
-  hd.fb.buffers.albedo =
-      channelAlbedo ? thrust::raw_pointer_cast(m_accumAlbedo.data()) : nullptr;
-  hd.fb.buffers.normal =
-      channelNormal ? thrust::raw_pointer_cast(m_accumNormal.data()) : nullptr;
+  hd.fb.buffers.albedo = channelAlbedo ? m_accumAlbedo.ptrAs<vec3>() : nullptr;
+  hd.fb.buffers.normal = channelNormal ? m_accumNormal.ptrAs<vec3>() : nullptr;
 
   if (m_denoise)
     m_denoiser.setup(hd.fb.size, m_pixelBuffer, format);
@@ -314,6 +302,17 @@ void Frame::renderFrame()
 
   if (m_denoise)
     m_denoiser.launch();
+
+  if (m_callback) {
+    cudaLaunchHostFunc(
+        state.stream,
+        [](void *_this) {
+          auto &self = *(Frame *)_this;
+          auto *d = self.deviceState()->anariDevice;
+          self.m_callback(self.m_callbackUserPtr, d, (ANARIFrame)_this);
+        },
+        this);
+  }
 
   instrument::rangePop(); // render all frames
   cudaEventRecord(m_eventEnd, state.stream);
@@ -475,28 +474,32 @@ void *Frame::mapAlbedoBuffer()
 {
   auto &state = *deviceState();
   const float invFrameID = m_invFrameID;
+  auto begin = thrust::device_pointer_cast<vec3>((vec3 *)m_accumAlbedo.ptr());
+  auto end = begin + numPixels();
   thrust::transform(thrust::cuda::par.on(state.stream),
-      m_accumAlbedo.begin(),
-      m_accumAlbedo.end(),
-      m_deviceAlbedoBuffer.begin(),
+      begin,
+      end,
+      thrust::device_pointer_cast<vec3>(m_albedoBuffer.dataDevice()),
       [=] __device__(const vec3 &in) { return in * invFrameID; });
-  m_mappedAlbedoBuffer = m_deviceAlbedoBuffer;
+  m_albedoBuffer.download();
   m_frameMappedOnce = true;
-  return m_mappedAlbedoBuffer.data();
+  return m_albedoBuffer.dataHost();
 }
 
 void *Frame::mapNormalBuffer()
 {
   auto &state = *deviceState();
   const float invFrameID = m_invFrameID;
+  auto begin = thrust::device_pointer_cast<vec3>((vec3 *)m_accumNormal.ptr());
+  auto end = begin + numPixels();
   thrust::transform(thrust::cuda::par.on(state.stream),
-      m_accumNormal.begin(),
-      m_accumNormal.end(),
-      m_deviceNormalBuffer.begin(),
+      begin,
+      end,
+      thrust::device_pointer_cast<vec3>(m_normalBuffer.dataDevice()),
       [=] __device__(const vec3 &in) { return in * invFrameID; });
-  m_mappedNormalBuffer = m_deviceNormalBuffer;
+  m_normalBuffer.download();
   m_frameMappedOnce = true;
-  return m_mappedNormalBuffer.data();
+  return m_normalBuffer.dataHost();
 }
 
 bool Frame::ready() const
@@ -545,6 +548,12 @@ void Frame::newFrame()
 
   hd.fb.invFrameID = m_invFrameID = 1.f / (hd.fb.frameID + 1);
   m_frameChanged = false;
+}
+
+size_t Frame::numPixels() const
+{
+  auto &hd = data();
+  return size_t(hd.fb.size.x) * size_t(hd.fb.size.y);
 }
 
 } // namespace visrtx

@@ -58,12 +58,15 @@ MaterialGPUData Matte::gpuData() const
   MaterialGPUData retval;
 
   populateMaterialParameter(
-      retval.baseColor, m_color, m_colorSampler, m_colorAttribute);
-  populateMaterialParameter(
-      retval.opacity, m_opacity, m_opacitySampler, m_opacityAttribute);
+      retval.values[MV_BASE_COLOR], m_color, m_colorSampler, m_colorAttribute);
+  populateMaterialParameter(retval.values[MV_OPACITY],
+      m_opacity,
+      m_opacitySampler,
+      m_opacityAttribute);
 
   retval.cutoff = m_cutoff;
   retval.mode = m_mode;
+  retval.isPBR = false;
 
   return retval;
 }

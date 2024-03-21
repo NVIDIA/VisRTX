@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "VISRTX_TRIANGLE_ATTRIBUTE_INDEXING",
-    "type": "feature",
+    "name": "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
+    "type": "extension",
     "dependencies": []
   },
   "objects": [
@@ -10,7 +10,7 @@
       "name": "triangle",
       "parameters": [
         {
-          "name": "vertex.normal.index",
+          "name": "faceVarying.normal",
           "types": [
             "ANARI_ARRAY1D"
           ],
@@ -21,7 +21,7 @@
           "description": "indexed vertex normal"
         },
         {
-          "name": "vertex.color.index",
+          "name": "faceVarying.color",
           "types": [
             "ANARI_ARRAY1D"
           ],
@@ -32,7 +32,7 @@
           "description": "vertex color"
         },
         {
-          "name": "vertex.attribute0.index",
+          "name": "faceVarying.attribute0",
           "types": [
             "ANARI_ARRAY1D"
           ],
@@ -43,7 +43,7 @@
           "description": "vertex attribute0"
         },
         {
-          "name": "vertex.attribute1.index",
+          "name": "faceVarying.attribute1",
           "types": [
             "ANARI_ARRAY1D"
           ],
@@ -54,7 +54,7 @@
           "description": "vertex attribute1"
         },
         {
-          "name": "vertex.attribute2.index",
+          "name": "faceVarying.attribute2",
           "types": [
             "ANARI_ARRAY1D"
           ],
@@ -65,7 +65,7 @@
           "description": "vertex attribute2"
         },
         {
-          "name": "vertex.attribute3.index",
+          "name": "faceVarying.attribute3",
           "types": [
             "ANARI_ARRAY1D"
           ],

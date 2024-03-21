@@ -44,7 +44,7 @@ struct SciVis : public Renderer
   Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
   Span<std::string> missSbtNames() const override;
 
-  static ptx_ptr ptx();
+  static ptx_blob ptx();
 
  private:
   float m_lightFalloff{0.25f};

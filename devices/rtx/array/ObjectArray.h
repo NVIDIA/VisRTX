@@ -33,11 +33,9 @@
 
 #include "Object.h"
 #include "array/Array1D.h"
+#include "utility/HostDeviceArray.h"
 // helium
 #include <helium/array/ObjectArray.h>
-// thrust
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
 
 namespace visrtx {
 
@@ -56,8 +54,7 @@ struct ObjectArray : public helium::ObjectArray, GPUArray
   mutable std::vector<Object *> m_appendedHandles;
   mutable std::vector<Object *> m_appHandles;
   mutable std::vector<Object *> m_liveHandles;
-  mutable thrust::host_vector<void *> m_GPUDataHost;
-  mutable thrust::device_vector<void *> m_GPUDataDevice;
+  mutable HostDeviceArray<void *> m_GPUData;
 };
 
 } // namespace visrtx

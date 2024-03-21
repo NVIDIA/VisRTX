@@ -43,7 +43,7 @@ struct DiffusePathTracer : public Renderer
   OptixModule optixModule() const override;
   Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
 
-  static ptx_ptr ptx();
+  static ptx_blob ptx();
 
  private:
   int m_maxDepth{0};

@@ -32,9 +32,30 @@
 #pragma once
 
 #include "RegisteredObject.h"
-#include "utility/populateAttributePtr.h"
+#include "array/Array1D.h"
+#include "gpu/gpu_objects.h"
+// std
+#include <optional>
 
 namespace visrtx {
+
+struct GeometryAttributes
+{
+  helium::IntrusivePtr<Array1D> attribute0;
+  helium::IntrusivePtr<Array1D> attribute1;
+  helium::IntrusivePtr<Array1D> attribute2;
+  helium::IntrusivePtr<Array1D> attribute3;
+  helium::IntrusivePtr<Array1D> color;
+};
+
+struct GeometryAttributesUniform
+{
+  std::optional<vec4> attribute0;
+  std::optional<vec4> attribute1;
+  std::optional<vec4> attribute2;
+  std::optional<vec4> attribute3;
+  std::optional<vec4> color;
+};
 
 struct Geometry : public RegisteredObject<GeometryGPUData>
 {
@@ -53,11 +74,12 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
  protected:
   virtual GeometryGPUData gpuData() const = 0;
 
-  helium::IntrusivePtr<Array1D> m_attribute0;
-  helium::IntrusivePtr<Array1D> m_attribute1;
-  helium::IntrusivePtr<Array1D> m_attribute2;
-  helium::IntrusivePtr<Array1D> m_attribute3;
-  helium::IntrusivePtr<Array1D> m_color;
+  void commitAttributes(const char *prefix, GeometryAttributes &attrs);
+  void populateAttributeDataSet(
+      const GeometryAttributes &hostAttrs, AttributeDataSet &gpuAttrs) const;
+
+  GeometryAttributes m_primitiveAttributes;
+  GeometryAttributesUniform m_uniformAttributes;
 };
 
 } // namespace visrtx

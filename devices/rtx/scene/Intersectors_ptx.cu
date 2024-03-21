@@ -106,39 +106,81 @@ RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
   const float radius =
       glm::abs(cylinderData.radii ? cylinderData.radii[ray::primID()]
                                   : cylinderData.radius);
+  const bool caps = cylinderData.caps;
 
   const vec3 ro = ray::localOrigin();
   const vec3 rd = ray::localDirection();
 
-  vec3 ca = p1 - p0;
-  vec3 oc = ro - p0;
+  const vec3 s = p1 - p0; // axis
+  const vec3 sxd = glm::cross(s, rd);
+  const float a = glm::dot(sxd, sxd); // (s x d)^2
 
-  float caca = glm::dot(ca, ca);
-  float card = glm::dot(ca, rd);
-  float caoc = glm::dot(ca, oc);
-
-  float a = caca - card * card;
-  float b = caca * glm::dot(oc, rd) - caoc * card;
-  float c = caca * glm::dot(oc, oc) - caoc * caoc - radius * radius * caca;
-  float h = b * b - a * c;
-
-  if (h < 0.f)
+  if (a == 0.f)
     return;
 
-  h = glm::sqrt(h);
-  float d = (-b - h) / a;
+  const vec3 f = p0 - ro;
+  const vec3 sxf = glm::cross(s, f);
+  const float ra = 1.0f / a;
+  const float ts =
+      glm::dot(sxd, sxf) * ra; // (s x d)(s x f) / (s x d)^2, in ray-space
+  const vec3 fp = f - ts * rd; // f' = p0 - closest point to axis
 
-  float y = caoc + d * card;
-  if (y > 0.f && y < caca) {
-    auto n = (oc + d * rd - ca * y / caca) / radius;
-    reportIntersection(d, n, position(y, box1(0.f, caca)));
+  const float s2 = glm::dot(s, s); // s^2
+  const vec3 perp = glm::cross(s, fp); // s x f'
+  const float c =
+      (radius * radius) * s2 - glm::dot(perp, perp); //  r^2 s^2 - (s x f')^2
+
+  if (c < 0.f)
+    return;
+
+  float td = glm::sqrt(c * ra);
+  const float tin = ts - td;
+  const float tout = ts + td;
+
+  // clip to cylinder caps
+  const float sf = glm::dot(s, f);
+  const float sd = glm::dot(s, rd);
+
+  const float u_in = (tin * sd - sf) * (1.f / s2);
+  const vec3 N_in = -td * rd - fp - u_in * s;
+  const float u_out = (tout * sd - sf) * (1.f / s2);
+  const vec3 N_out = td * rd - fp - u_out * s;
+
+  if (sd != 0.0f) { // Note: sd will become zero if cylinder is oriented
+                    // perpendicular to ray direction.
+    const float rsd = 1.f / sd;
+    const float tA = sf * rsd;
+    const float tB = tA + s2 * rsd;
+
+    const float cap_tin = glm::min(tA, tB);
+    const float cap_tout = glm::max(tA, tB);
+
+    if (tin > cap_tin && tin < cap_tout)
+      reportIntersection(tin, N_in, u_in);
+    if (tout > cap_tin && tout < cap_tout)
+      reportIntersection(tout, N_out, u_out);
+  } else if (sf <= 0.0f && sf >= -s2) {
+    reportIntersection(tin, N_in, u_in);
+    reportIntersection(tout, N_out, u_out);
   }
 
-  d = ((y < 0.f ? 0.f : caca) - caoc) / card;
+  if (caps) {
+    const float a = s2 - sd * sd;
+    const float b = s2 * glm::dot(-f, rd) + (sf * sd);
+    const float c = s2 * glm::dot(-f, -f) - (sf * sf) - (radius * radius * s2);
+    float h = b * b - a * c;
 
-  if (glm::abs(b + a * d) < h) {
-    auto n = ca * glm::sign(y) / caca;
-    reportIntersection(d, n, y < 0.f ? 0.f : 1.f);
+    if (h < 0.f)
+      return;
+
+    h = glm::sqrt(h);
+    const float y = ((-b - h) / a) * sd - sf;
+    const float d = ((y < 0.f ? 0.f : s2) + sf) / sd;
+
+    if (glm::abs(b + a * d) < h) {
+      auto n = s * glm::sign(y) / s2;
+      reportIntersection(d, n, y < 0.f ? 0.f : 1.f);
+    }
   }
 }
 

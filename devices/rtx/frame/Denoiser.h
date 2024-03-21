@@ -33,9 +33,6 @@
 #include "optix_visrtx.h"
 #include "utility/DeviceBuffer.h"
 #include "utility/HostDeviceArray.h"
-// thrust
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
 
 namespace visrtx {
 
@@ -70,9 +67,8 @@ struct Denoiser : public Object
   DeviceBuffer m_state;
   DeviceBuffer m_scratch;
 
-  // These buffers are only used when format != ANARI_FLOAT32_VEC4
-  thrust::device_vector<uint32_t> m_uintDevicePixels;
-  thrust::host_vector<uint32_t> m_uintMappedPixels;
+  // This buffer is only used when format != ANARI_FLOAT32_VEC4
+  HostDeviceArray<uint32_t> m_uintPixels;
 };
 
 } // namespace visrtx

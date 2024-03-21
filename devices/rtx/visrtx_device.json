@@ -14,6 +14,7 @@
       "khr_frame_channel_primitive_id",
       "khr_frame_channel_object_id",
       "khr_frame_channel_instance_id",
+      "khr_frame_completion_callback",
       "khr_geometry_cone",
       "khr_geometry_curve",
       "khr_geometry_cylinder",
@@ -32,7 +33,9 @@
       "khr_spatial_field_structured_regular",
       "khr_volume_scivis",
       "visrtx_cuda_output_buffers",
-      "visrtx_triangle_attribute_indexing"
+      "visrtx_triangle_back_face_culling",
+      "visrtx_triangle_face_varying_attributes",
+      "visrtx_uniform_attributes"
     ]
   },
   "objects": [
@@ -95,6 +98,15 @@
           "tags": [],
           "default": false,
           "description": "enable the OptiX denoiser"
+        },
+        {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
         },
         {
           "name": "checkerboarding",
@@ -231,6 +243,15 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
+        },
+        {
           "name": "checkerboarding",
           "types": [
             "ANARI_BOOL"
@@ -365,6 +386,15 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
+        },
+        {
           "name": "checkerboarding",
           "types": [
             "ANARI_BOOL"
@@ -449,6 +479,15 @@
           "tags": [],
           "default": false,
           "description": "enable the OptiX denoiser"
+        },
+        {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
         },
         {
           "name": "checkerboarding",
@@ -539,6 +578,15 @@
           "tags": [],
           "default": false,
           "description": "enable the OptiX denoiser"
+        },
+        {
+          "name": "cullTriangleBackfaces",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "enable triangle back face culling"
         },
         {
           "name": "checkerboarding",

@@ -92,9 +92,9 @@ OptixModule Debug::optixModule() const
   return deviceState()->rendererModules.debug;
 }
 
-ptx_ptr Debug::ptx()
+ptx_blob Debug::ptx()
 {
-  return Debug_ptx;
+  return {Debug_ptx, sizeof(Debug_ptx)};
 }
 
 } // namespace visrtx

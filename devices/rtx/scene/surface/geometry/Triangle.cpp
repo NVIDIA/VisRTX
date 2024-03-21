@@ -49,19 +49,10 @@ void Triangle::commit()
   m_index = getParamObject<Array1D>("primitive.index");
 
   m_vertex = getParamObject<Array1D>("vertex.position");
-  m_vertexColor = getParamObject<Array1D>("vertex.color");
   m_vertexNormal = getParamObject<Array1D>("vertex.normal");
-  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
-  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
-  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
-  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
-
-  m_vertexNormalIndex = getParamObject<Array1D>("vertex.normal.index");
-  m_vertexAttribute0Index = getParamObject<Array1D>("vertex.attribute0.index");
-  m_vertexAttribute1Index = getParamObject<Array1D>("vertex.attribute1.index");
-  m_vertexAttribute2Index = getParamObject<Array1D>("vertex.attribute2.index");
-  m_vertexAttribute3Index = getParamObject<Array1D>("vertex.attribute3.index");
-  m_vertexColorIndex = getParamObject<Array1D>("vertex.color.index");
+  commitAttributes("vertex.", m_vertexAttributes);
+  commitAttributes("faceVarying.", m_vertexAttributesFV);
+  m_vertexNormalFV = getParamObject<Array1D>("faceVarying.normal");
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -76,8 +67,7 @@ void Triangle::commit()
     return;
   }
 
-  if (m_vertexNormal && !m_vertexNormalIndex
-      && m_vertex->size() != m_vertexNormal->size()) {
+  if (m_vertexNormal && m_vertex->size() != m_vertexNormal->size()) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "'vertex.normal' on triangle geometry not the same size as "
         "'vertex.position' (%zu) vs. (%zu)",
@@ -94,6 +84,8 @@ void Triangle::commit()
   m_vertex->addCommitObserver(this);
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
+
+  m_cullBackfaces = getParam<bool>("cullBackfaces", false);
 
   upload();
 }
@@ -142,41 +134,17 @@ GeometryGPUData Triangle::gpuData() const
   retval.type = GeometryType::TRIANGLE;
 
   auto &tri = retval.tri;
-
   tri.vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   tri.indices = m_index ? m_index->beginAs<uvec3>(AddressSpace::GPU) : nullptr;
-
   tri.vertexNormals = m_vertexNormal
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
-
-  populateAttributePtr(m_vertexAttribute0, tri.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, tri.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, tri.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, tri.vertexAttr[3]);
-
-  populateAttributePtr(m_vertexColor, tri.vertexAttr[4]);
-
-  tri.vertexNormalIndices = m_vertexNormalIndex
-      ? m_vertexNormalIndex->beginAs<uvec3>(AddressSpace::GPU)
+  populateAttributeDataSet(m_vertexAttributes, tri.vertexAttr);
+  populateAttributeDataSet(m_vertexAttributesFV, tri.vertexAttrFV);
+  tri.vertexNormalsFV = m_vertexNormalFV
+      ? m_vertexNormalFV->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
-
-  tri.vertexAttrIndices[0] = m_vertexAttribute0Index
-      ? m_vertexAttribute0Index->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-  tri.vertexAttrIndices[1] = m_vertexAttribute1Index
-      ? m_vertexAttribute1Index->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-  tri.vertexAttrIndices[2] = m_vertexAttribute2Index
-      ? m_vertexAttribute2Index->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-  tri.vertexAttrIndices[3] = m_vertexAttribute3Index
-      ? m_vertexAttribute3Index->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
-
-  tri.vertexAttrIndices[4] = m_vertexColorIndex
-      ? m_vertexColorIndex->beginAs<uvec3>(AddressSpace::GPU)
-      : nullptr;
+  tri.cullBackfaces = m_cullBackfaces;
 
   return retval;
 }

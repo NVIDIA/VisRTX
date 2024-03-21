@@ -67,6 +67,8 @@ struct PerspectiveCameraGPUData
   vec3 dir_du;
   vec3 dir_dv;
   vec3 dir_00;
+  float scaledAperture;
+  float aspect;
 };
 
 struct OrthographicCameraGPUData
@@ -103,42 +105,42 @@ enum class GeometryType
   UNKNOWN
 };
 
-struct AttributePtr
+struct AttributeData
 {
   ANARIDataType type;
   int numChannels;
   const void *data;
+  vec4 uniformValue;
 };
+
+using AttributeDataSet = AttributeData[5]; // attribute0-3 + color
+using AttributeDataSetUniform = vec4[5]; // attribute0-3 + color
 
 struct TriangleGeometryData
 {
   const uvec3 *indices;
-
   const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
+  AttributeDataSet vertexAttrFV;
   const vec3 *vertexNormals;
-
-  const uvec3 *vertexNormalIndices;
-  const uvec3 *vertexAttrIndices[5];
+  const vec3 *vertexNormalsFV;
+  bool cullBackfaces;
 };
 
 struct QuadGeometryData
 {
   const uvec3 *indices;
-
   const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
   const vec3 *vertexNormals;
-
-  const uvec3 *vertexNormalIndices;
-  const uvec3 *vertexAttrIndices[5];
+  bool cullBackfaces;
 };
 
 struct CylinderGeometryData
 {
   const uvec2 *indices;
   const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
   const float *radii;
   float radius;
   bool caps;
@@ -149,14 +151,14 @@ struct ConeGeometryData
   const uvec2 *indices;
   const vec3 *vertices;
   const float *radii;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
 };
 
 struct CurveGeometryData
 {
   const uint32_t *indices;
   const vec3 *vertices;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
   const float *radii;
 };
 
@@ -164,7 +166,7 @@ struct SphereGeometryData
 {
   const uint32_t *indices;
   const vec3 *centers;
-  AttributePtr vertexAttr[5]; // attribute0-3 + color
+  AttributeDataSet vertexAttr;
   const float *radii;
   float radius;
 };
@@ -172,7 +174,8 @@ struct SphereGeometryData
 struct GeometryGPUData
 {
   GeometryType type{GeometryType::UNKNOWN};
-  AttributePtr attr[5]; // attribute0-3 + color
+  AttributeDataSet attr;
+  AttributeDataSetUniform attrUniform;
   union
   {
     TriangleGeometryData tri{};
@@ -207,7 +210,7 @@ struct Image2DData
 
 struct PrimIDSamplerData
 {
-  AttributePtr attr;
+  AttributeData attr;
   uint32_t offset;
 };
 
@@ -245,18 +248,17 @@ enum class MaterialParameterType
   UNKNOWN
 };
 
-template <typename T>
 struct MaterialParameter
 {
   MaterialParameterType type{MaterialParameterType::UNKNOWN};
   union
   {
-    T value;
+    vec4 value;
     DeviceObjectIndex sampler;
   };
 
   MaterialParameter() = default;
-  MaterialParameter(T v)
+  MaterialParameter(vec4 v)
   {
     type = MaterialParameterType::VALUE;
     value = v;
@@ -270,18 +272,30 @@ enum AlphaMode
   MASK
 };
 
+constexpr int MV_BASE_COLOR = 0;
+constexpr int MV_OPACITY = 1;
+constexpr int MV_METALLIC = 2;
+constexpr int MV_ROUGHNESS = 3;
+
 struct MaterialGPUData
 {
-  MaterialParameter<vec4> baseColor{vec4(1.f)};
-  MaterialParameter<float> opacity{1.f};
-  float cutoff;
-  AlphaMode mode;
+  // See getMaterialValues() for why this is an array and not named members
+  MaterialParameter values[4];
+
+  float ior{1.5f};
+  float cutoff{0.5f};
+  AlphaMode mode{AlphaMode::OPAQUE};
+  bool isPBR{false};
 };
 
 struct MaterialValues
 {
+  bool isPBR;
   vec3 baseColor;
   float opacity;
+  float metallic;
+  float roughness;
+  float ior;
 };
 
 // Surface //
@@ -477,6 +491,7 @@ struct RendererGPUData
   glm::vec3 ambientColor;
   float ambientIntensity;
   float occlusionDistance;
+  bool cullTriangleBF;
 };
 
 // Frame //

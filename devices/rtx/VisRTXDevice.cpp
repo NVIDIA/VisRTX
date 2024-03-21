@@ -402,75 +402,6 @@ VisRTXDevice::~VisRTXDevice()
   optixModuleDestroy(state.intersectionModules.customIntersectors);
 
   optixDeviceContextDestroy(state.optixContext);
-
-  if (Frame::objectCount() != 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked frames",
-        Frame::objectCount());
-  }
-  if (Camera::objectCount() != 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked cameras",
-        Camera::objectCount());
-  }
-  if (Renderer::objectCount() != 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked renderers",
-        Renderer::objectCount());
-  }
-  if (World::objectCount() != 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked worlds",
-        World::objectCount());
-  }
-  if (Instance::objectCount() != 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked instances",
-        Instance::objectCount());
-  }
-  if (Group::objectCount() != 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked groups",
-        Group::objectCount());
-  }
-
-  auto reportLeakedRegistryValues = [&](const char *type, auto &r) {
-    if (r.empty())
-      return;
-
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked %s objects",
-        r.size(),
-        type);
-
-    for (int i = 0; i < r.capacity(); i++) {
-      auto *obj = (Object *)r.hostObject(i);
-      if (!obj)
-        continue;
-      auto name = obj->getParamString("name", "<no name>");
-      reportMessage(ANARI_SEVERITY_WARNING,
-          "    leaked %s (%p) | ref counts [%zu, %zu] | name '%s'",
-          type,
-          obj,
-          obj->useCount(helium::RefType::PUBLIC),
-          obj->useCount(helium::RefType::INTERNAL),
-          name.c_str());
-    }
-  };
-
-  reportLeakedRegistryValues("light", state.registry.lights);
-  reportLeakedRegistryValues("surface", state.registry.surfaces);
-  reportLeakedRegistryValues("volume", state.registry.volumes);
-  reportLeakedRegistryValues("geometry", state.registry.geometries);
-  reportLeakedRegistryValues("material", state.registry.materials);
-  reportLeakedRegistryValues("spatial field", state.registry.fields);
-  reportLeakedRegistryValues("sampler", state.registry.samplers);
-
-  if (GPUArray::objectCount() != 0) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "detected %zu leaked arrays",
-        GPUArray::objectCount());
-  }
 }
 
 bool VisRTXDevice::initDevice()
@@ -549,6 +480,8 @@ void VisRTXDevice::initOptix()
   if (m_initStatus != DeviceInitStatus::UNINITIALIZED)
     return;
 
+  m_initStatus = DeviceInitStatus::FAILURE;
+
   auto &state = *deviceState();
 
   reportMessage(ANARI_SEVERITY_DEBUG, "initializing VisRTX device", this);
@@ -557,7 +490,6 @@ void VisRTXDevice::initOptix()
   cudaGetDeviceCount(&numDevices);
   if (numDevices == 0) {
     reportMessage(ANARI_SEVERITY_FATAL_ERROR, "no CUDA capable devices found!");
-    m_initStatus = DeviceInitStatus::FAILURE;
     return;
   }
 
@@ -571,7 +503,7 @@ void VisRTXDevice::initOptix()
   }
   m_gpuID = m_desiredGpuID;
 
-  OPTIX_CHECK(optixInit());
+  OPTIX_CHECK_RETURN(optixInit());
   setCUDADevice();
   cudaStreamCreate(&state.stream);
 
@@ -606,7 +538,7 @@ void VisRTXDevice::initOptix()
   options.logCallbackData = this;
   options.logCallbackLevel = 4;
 
-  OPTIX_CHECK(optixDeviceContextCreate(
+  OPTIX_CHECK_RETURN(optixDeviceContextCreate(
       state.cudaContext, &options, &state.optixContext));
 
   // Create OptiX modules //
@@ -620,12 +552,10 @@ void VisRTXDevice::initOptix()
   auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
   auto init_module = [&](OptixModule &module,
-                         unsigned char *ptx,
+                         ptx_blob ptx,
                          const char *name) -> std::future<void> {
     auto f = std::async([&]() {
       reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
-
-      const std::string ptxCode = (const char *)ptx;
 
       std::string log(2048, '\n');
       size_t sizeof_log = log.size();
@@ -634,8 +564,8 @@ void VisRTXDevice::initOptix()
       OPTIX_CHECK(optixModuleCreateFromPTX(state.optixContext,
           &moduleCompileOptions,
           &pipelineCompileOptions,
-          ptxCode.c_str(),
-          ptxCode.size(),
+          (const char *)ptx.ptr,
+          ptx.size,
           log.data(),
           &sizeof_log,
           &module));
@@ -643,8 +573,8 @@ void VisRTXDevice::initOptix()
       OPTIX_CHECK(optixModuleCreate(state.optixContext,
           &moduleCompileOptions,
           &pipelineCompileOptions,
-          ptxCode.c_str(),
-          ptxCode.size(),
+          (const char *)ptx.ptr,
+          ptx.size,
           log.data(),
           &sizeof_log,
           &module));

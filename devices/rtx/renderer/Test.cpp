@@ -42,9 +42,9 @@ OptixModule Test::optixModule() const
   return deviceState()->rendererModules.test;
 }
 
-ptx_ptr Test::ptx()
+ptx_blob Test::ptx()
 {
-  return Test_ptx;
+  return {Test_ptx, sizeof(Test_ptx)};
 }
 
 } // namespace visrtx

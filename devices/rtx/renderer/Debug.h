@@ -42,7 +42,7 @@ struct Debug : public Renderer
   void commit() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
-  static ptx_ptr ptx();
+  static ptx_blob ptx();
  private:
   DebugMethod m_method{DebugMethod::PRIM_ID};
 };

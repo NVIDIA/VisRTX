@@ -31,6 +31,7 @@
 
 #include "Sphere.h"
 // thrust
+#include <thrust/device_ptr.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
@@ -50,14 +51,9 @@ void Sphere::commit()
   cleanup();
 
   m_index = getParamObject<Array1D>("primitive.index");
-
   m_vertex = getParamObject<Array1D>("vertex.position");
-  m_vertexColor = getParamObject<Array1D>("vertex.color");
-  m_vertexAttribute0 = getParamObject<Array1D>("vertex.attribute0");
-  m_vertexAttribute1 = getParamObject<Array1D>("vertex.attribute1");
-  m_vertexAttribute2 = getParamObject<Array1D>("vertex.attribute2");
-  m_vertexAttribute3 = getParamObject<Array1D>("vertex.attribute3");
   m_vertexRadius = getParamObject<Array1D>("vertex.radius");
+  commitAttributes("vertex.", m_vertexAttributes);
 
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -79,7 +75,8 @@ void Sphere::commit()
 
   // Calculate bounds //
 
-  m_aabbs.resize(m_index ? m_index->size() : m_vertex->size());
+  m_numSpheres = m_index ? m_index->size() : m_vertex->size();
+  m_aabbs.reserve(m_numSpheres * sizeof(box3));
 
   const float globalRadius = m_globalRadius;
   const float *radii = nullptr;
@@ -93,24 +90,26 @@ void Sphere::commit()
   if (m_index) {
     auto *begin = m_index->beginAs<uint32_t>(AddressSpace::GPU);
     auto *end = m_index->endAs<uint32_t>(AddressSpace::GPU);
-
     thrust::transform(thrust::cuda::par.on(state.stream),
         begin,
         end,
-        m_aabbs.begin(),
+        thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr()),
         [=] __device__(uint32_t i) {
           const auto &v = vertices[i];
           const float r = radii ? radii[i] : globalRadius;
           return box3(v - r, v + r);
         });
   } else {
-    thrust::device_vector<uint32_t> index(m_aabbs.size());
-    thrust::sequence(
-        thrust::cuda::par.on(state.stream), index.begin(), index.end());
+    DeviceBuffer index;
+    index.reserve(m_numSpheres * sizeof(uint32_t));
+    auto idx_begin =
+        thrust::device_pointer_cast<uint32_t>((uint32_t *)index.ptr());
+    auto idx_end = idx_begin + m_numSpheres;
+    thrust::sequence(thrust::cuda::par.on(state.stream), idx_begin, idx_end);
     thrust::transform(thrust::cuda::par.on(state.stream),
-        index.begin(),
-        index.end(),
-        m_aabbs.begin(),
+        idx_begin,
+        idx_end,
+        thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr()),
         [=] __device__(uint32_t i) {
           const auto &v = vertices[i];
           const float r = radii ? radii[i] : globalRadius;
@@ -118,7 +117,7 @@ void Sphere::commit()
         });
   }
 
-  m_aabbsBufferPtr = (CUdeviceptr)thrust::raw_pointer_cast(m_aabbs.data());
+  m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
 
   upload();
 }
@@ -128,7 +127,7 @@ void Sphere::populateBuildInput(OptixBuildInput &buildInput) const
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
 
   buildInput.customPrimitiveArray.aabbBuffers = &m_aabbsBufferPtr;
-  buildInput.customPrimitiveArray.numPrimitives = m_aabbs.size();
+  buildInput.customPrimitiveArray.numPrimitives = m_numSpheres;
 
   static uint32_t buildInputFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
@@ -142,7 +141,6 @@ GeometryGPUData Sphere::gpuData() const
   retval.type = GeometryType::SPHERE;
 
   auto &sphere = retval.sphere;
-
   sphere.centers = m_vertex->beginAs<vec3>(AddressSpace::GPU);
   sphere.indices = nullptr;
   if (m_index)
@@ -151,12 +149,7 @@ GeometryGPUData Sphere::gpuData() const
   if (m_vertexRadius)
     sphere.radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
   sphere.radius = m_globalRadius;
-
-  populateAttributePtr(m_vertexAttribute0, sphere.vertexAttr[0]);
-  populateAttributePtr(m_vertexAttribute1, sphere.vertexAttr[1]);
-  populateAttributePtr(m_vertexAttribute2, sphere.vertexAttr[2]);
-  populateAttributePtr(m_vertexAttribute3, sphere.vertexAttr[3]);
-  populateAttributePtr(m_vertexColor, sphere.vertexAttr[4]);
+  populateAttributeDataSet(m_vertexAttributes, sphere.vertexAttr);
 
   return retval;
 }
@@ -179,6 +172,7 @@ void Sphere::cleanup()
     m_vertex->removeCommitObserver(this);
   if (m_vertexRadius)
     m_vertexRadius->removeCommitObserver(this);
+  m_numSpheres = 0;
 }
 
 } // namespace visrtx

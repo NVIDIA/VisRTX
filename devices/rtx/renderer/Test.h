@@ -39,7 +39,7 @@ struct Test : public Renderer
 {
   Test(DeviceGlobalState *s);
   OptixModule optixModule() const override;
-  static ptx_ptr ptx();
+  static ptx_blob ptx();
 };
 
 } // namespace visrtx

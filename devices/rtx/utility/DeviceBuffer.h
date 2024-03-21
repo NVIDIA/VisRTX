@@ -54,6 +54,8 @@ struct DeviceBuffer
   template <typename T>
   void download(T *dst, size_t numElements = 1, size_t byteOffsetStart = 0);
 
+  template <typename T>
+  T *ptrAs() const;
   void *ptr() const;
   size_t bytes() const;
 
@@ -123,6 +125,12 @@ inline void DeviceBuffer::download(
       (uint8_t *)m_ptr + byteOffsetStart,
       requestedBytes,
       cudaMemcpyDeviceToHost);
+}
+
+template <typename T>
+inline T *DeviceBuffer::ptrAs() const
+{
+  return (T *)ptr();
 }
 
 inline void *DeviceBuffer::ptr() const

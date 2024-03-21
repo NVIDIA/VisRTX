@@ -125,7 +125,7 @@ void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
 ///////////////////////////////////////////////////////////////////////////////
 
 DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
-    : helium::BaseGlobalDeviceState(d)
+    : helium::BaseGlobalDeviceState(d), anariDevice(d)
 {}
 
 } // namespace visrtx

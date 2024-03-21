@@ -53,22 +53,11 @@ static std::vector<OptixBuildInput> createOBI(const std::vector<T *> &objs)
 
 // Group definitions //////////////////////////////////////////////////////////
 
-static size_t s_numGroups = 0;
-
-size_t Group::objectCount()
-{
-  return s_numGroups;
-}
-
-Group::Group(DeviceGlobalState *d) : Object(ANARI_GROUP, d)
-{
-  s_numGroups++;
-}
+Group::Group(DeviceGlobalState *d) : Object(ANARI_GROUP, d) {}
 
 Group::~Group()
 {
   cleanup();
-  s_numGroups--;
 }
 
 bool Group::getProperty(

@@ -76,6 +76,12 @@ RT_FUNCTION void launchRay(ScreenSample &ss,
 
 } // namespace detail
 
+RT_FUNCTION uint32_t primaryRayOptiXFlags(const RendererGPUData &rd)
+{
+  return rd.cullTriangleBF ? OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES
+                           : OPTIX_RAY_FLAG_NONE;
+}
+
 template <typename T>
 RT_FUNCTION void intersectSurface(ScreenSample &ss,
     Ray r,
@@ -97,11 +103,11 @@ RT_FUNCTION void intersectVolume(ScreenSample &ss,
 }
 
 template <typename T>
-RT_FUNCTION bool isOccluded(ScreenSample &ss, Ray r, T rayType)
+RT_FUNCTION float surfaceAttenuation(ScreenSample &ss, Ray r, T rayType)
 {
-  uint32_t o = 0;
-  intersectSurface(ss, r, rayType, &o, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
-  return static_cast<bool>(o);
+  float a = 0.f;
+  intersectSurface(ss, r, rayType, &a, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
+  return a;
 }
 
 } // namespace visrtx

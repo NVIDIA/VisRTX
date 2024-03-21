@@ -57,14 +57,9 @@ struct Curve : public Geometry
   void cleanup();
 
   helium::IntrusivePtr<Array1D> m_index;
-
   helium::IntrusivePtr<Array1D> m_vertexPosition;
   helium::IntrusivePtr<Array1D> m_vertexRadius;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute0;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute1;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute2;
-  helium::IntrusivePtr<Array1D> m_vertexAttribute3;
-  helium::IntrusivePtr<Array1D> m_vertexColor;
+  GeometryAttributes m_vertexAttributes;
 
   float m_globalRadius;
 

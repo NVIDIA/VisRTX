@@ -63,7 +63,7 @@ RT_PROGRAM void __anyhit__()
   ray::populateSurfaceHit(hit);
   const auto &material = *hit.material;
   const auto mat_opacity =
-      getMaterialParameter(frameData, material.opacity, hit);
+      getMaterialParameter(frameData, material.values[MV_OPACITY], hit).x;
   if (mat_opacity < 0.99f)
     optixIgnoreIntersection();
 }
@@ -106,7 +106,11 @@ RT_PROGRAM void __raygen__()
     if (debug())
       printf("-------- BOUNCE: %i --------\n", pathData.depth);
     hit.foundHit = false;
-    intersectSurface(ss, ray, RayType::DIFFUSE_RADIANCE, &hit, 0);
+    intersectSurface(ss,
+        ray,
+        RayType::DIFFUSE_RADIANCE,
+        &hit,
+        primaryRayOptiXFlags(rendererParams));
 
     float volumeOpacity = 0.f;
     vec3 volumeColor(0.f);
@@ -139,7 +143,8 @@ RT_PROGRAM void __raygen__()
     if (!volumeHit) {
       pos = hit.hitpoint + (hit.epsilon * hit.Ng);
       const auto &material = *hit.material;
-      albedo = getMaterialParameter(frameData, material.baseColor, hit);
+      albedo =
+          getMaterialParameter(frameData, material.values[MV_BASE_COLOR], hit);
     } else {
       pos = ray.org + volumeDepth * ray.dir;
       albedo = volumeColor;

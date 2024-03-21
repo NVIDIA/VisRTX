@@ -29,27 +29,37 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "array/GPUArray.h"
-// std
-#include <atomic>
+#pragma once
 
-namespace visrtx {
+#include "ogl.h"
 
-static std::atomic<size_t> s_numArrays = 0;
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <glad/wgl.h>
 
-size_t GPUArray::objectCount()
-{
-  return s_numArrays.load();
-}
+#undef near
+#undef far
 
-GPUArray::GPUArray()
-{
-  s_numArrays++;
-}
+#include "glContextInterface.h"
+#include  "anari/anari.h"
 
-GPUArray::~GPUArray()
-{
-  s_numArrays--;
-}
 
-} // namespace visrtx
+class wglContext : public glContextInterface {
+private:
+    ANARIDevice device;
+    HDC host_dc;
+    HGLRC host_wgl_context;
+    bool use_es;
+    int32_t debug;
+
+    HWND hwnd;
+    HDC dc;
+    HGLRC wgl_context;
+   public:
+    wglContext(ANARIDevice device, HDC dc, HGLRC wgl_context, bool ues_es, int32_t debug);
+    void init() override;
+    void release() override;
+    void makeCurrent() override;
+    loader_func_t* loaderFunc() override;
+    ~wglContext();
+};

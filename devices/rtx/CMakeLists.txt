@@ -82,7 +82,6 @@ project_sources(PRIVATE
   array/Array1D.cpp
   array/Array2D.cpp
   array/Array3D.cpp
-  array/GPUArray.cpp
   array/ObjectArray.cpp
 
   camera/Camera.cpp
@@ -223,7 +222,10 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}
   )
-  set_property(TARGET ${INPUT_TARGET} PROPERTY CUDA_PTX_COMPILATION ON)
+  set_target_properties(${INPUT_TARGET} PROPERTIES
+    CUDA_PTX_COMPILATION ON
+    CUDA_ARCHITECTURES OFF
+  )
 
   EmbedPTX(
     OUTPUT_HEADER_FILE ${OUTPUT_HEADER}

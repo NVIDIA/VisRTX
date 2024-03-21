@@ -40,7 +40,12 @@ enum class RayType
 
 DECLARE_FRAME_DATA(frameData)
 
-RT_PROGRAM void __closesthit__()
+RT_PROGRAM void __anyhit__primary()
+{
+  ray::cullbackFaces();
+}
+
+RT_PROGRAM void __closesthit__primary()
 {
   ray::populateHit();
 }
@@ -52,6 +57,8 @@ RT_PROGRAM void __miss__()
 
 RT_PROGRAM void __raygen__()
 {
+  auto &rendererParams = frameData.renderer;
+
   /////////////////////////////////////////////////////////////////////////////
   // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
@@ -75,7 +82,11 @@ RT_PROGRAM void __raygen__()
   while (outputOpacity < 0.99f) {
     ray.t.upper = tmax;
     surfaceHit.foundHit = false;
-    intersectSurface(ss, ray, RayType::PRIMARY, &surfaceHit);
+    intersectSurface(ss,
+        ray,
+        RayType::PRIMARY,
+        &surfaceHit,
+        primaryRayOptiXFlags(rendererParams));
 
     vec3 color(0.f);
     float opacity = 0.f;
@@ -110,15 +121,17 @@ RT_PROGRAM void __raygen__()
         firstHit = false;
       }
 
-      const auto &material = *surfaceHit.material;
-      const auto matValues = getMaterialValues(frameData, material, surfaceHit);
+      const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns))
+          * rendererParams.ambientColor;
+      const auto matResult = evalMaterial(frameData,
+          *surfaceHit.material,
+          surfaceHit,
+          -ray.dir,
+          -ray.dir,
+          lighting);
 
-      const auto falloff =
-          matValues.baseColor * glm::abs(glm::dot(ray.dir, surfaceHit.Ns));
-
-      accumulateValue(
-          color, glm::mix(matValues.baseColor, falloff, 0.5f), opacity);
-      accumulateValue(opacity, matValues.opacity, opacity);
+      accumulateValue(color, vec3(matResult), opacity);
+      accumulateValue(opacity, matResult.w, opacity);
 
       color *= opacity;
       accumulateValue(outputColor, color, outputOpacity);

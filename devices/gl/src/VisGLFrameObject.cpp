@@ -896,6 +896,7 @@ void frame_render(ObjectRef<Frame> frameObj,
   gl.ActiveTexture(GL_TEXTURE0 + 1);
   gl.BindTexture(GL_TEXTURE_2D_MULTISAMPLE, frameObj->multidepthtarget);
 
+  gl.Disable(GL_CULL_FACE);
   gl.BindVertexArray(frameObj->resolve_vao);
   gl.Disable(GL_DEPTH_TEST);
   gl.DrawArrays(GL_TRIANGLES, 0, 3);
