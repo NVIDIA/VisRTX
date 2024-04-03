@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "VisGLDeviceObject.h"
 #include "VisGLSpecializations.h"
 #include "shader_blocks.h"
 #include "anari2gl_types.h"
@@ -107,6 +108,13 @@ void Object<SamplerCompressedImage2D>::update()
   current.size.get(ANARI_UINT64_VEC2, size);
 
   GLenum internalformat = gl_compressed_image(current.format.getStringEnum());
+
+  // anariReportStatus(thisDevice->device,
+  //     handle,
+  //     ANARI_DEVICE,
+  //     ANARI_SEVERITY_INFO,
+  //     ANARI_STATUS_NO_ERROR,
+  //     "[OpenGL] compressed sampler %d %d %d\n", (int)size[0], (int)size[1], (int)internalformat);
 
   if(image) {
     thisDevice->queue.enqueue(compressed_image2d_init_objects, this,

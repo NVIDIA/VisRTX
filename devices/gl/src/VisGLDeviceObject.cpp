@@ -33,6 +33,7 @@
 #include "VisGLSpecializations.h"
 #include "AppendableShader.h"
 #include "shader_blocks.h"
+#include "generated/VisGLQueries.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -70,6 +71,11 @@ int Object<Device>::getProperty(const char *propname,
       && std::strncmp("geometryMaxIndex", propname, 16) == 0) {
     uint64_t geometryMaxIndex = INT32_MAX; // use actual value
     std::memcpy(mem, &geometryMaxIndex, sizeof(geometryMaxIndex));
+    return 1;
+  } else if (type == ANARI_STRING_LIST && size >= sizeof(const char**)
+      && std::strncmp("extension", propname, 9) == 0) {
+    const char ** value = query_extensions();
+    std::memcpy(mem, &value, sizeof(const char**));
     return 1;
   } else {
     return 0;
