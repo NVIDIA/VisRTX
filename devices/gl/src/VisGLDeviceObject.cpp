@@ -74,7 +74,7 @@ int Object<Device>::getProperty(const char *propname,
     return 1;
   } else if (type == ANARI_STRING_LIST && size >= sizeof(const char**)
       && std::strncmp("extension", propname, 9) == 0) {
-    const char ** value = query_extensions();
+    const char ** value = extensions.data();
     std::memcpy(mem, &value, sizeof(const char**));
     return 1;
   } else {
@@ -125,6 +125,30 @@ static void device_context_init(
   }
 
   auto &gl = deviceObj->gl;
+
+  const char **ext = query_extensions();
+  for(int i = 0;ext[i] != nullptr;++i) {
+    if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC123", ext[i], 41)==0) {
+      if(gl.EXT_texture_compression_s3tc) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC45", ext[i], 40)==0) {
+      if(gl.ARB_texture_compression_rgtc) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC67", ext[i], 40)==0) {
+      if(gl.ARB_texture_compression_bptc) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ASTC", ext[i], 40)==0) {
+      if(gl.KHR_texture_compression_astc_ldr) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else {
+      deviceObj->extensions.push_back(ext[i]);
+    }
+  }
+  deviceObj->extensions.push_back(nullptr);
 
   if (version == 0) {
     anariReportStatus(deviceObj->device,

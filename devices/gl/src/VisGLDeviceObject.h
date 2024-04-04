@@ -46,6 +46,7 @@
 #include <thread>
 #include <unordered_map>
 #include <atomic>
+#include <vector>
 
 namespace visgl {
 
@@ -148,6 +149,7 @@ class Object<Device> : public DefaultObject<Device>
   std::unique_ptr<glContextInterface> context;
   int clientapi;
   GladGLContext gl{};
+  std::vector<const char*> extensions;
 
   queue_thread queue;
   StorageBuffer<std::array<float, 16>, GladGLContext> transforms;

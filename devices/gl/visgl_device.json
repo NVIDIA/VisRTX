@@ -27,6 +27,8 @@
             "khr_spatial_field_structured_regular",
             "ext_sampler_compressed_image2d",
             "ext_sampler_compressed_format_bc123",
+            "ext_sampler_compressed_format_bc45",
+            "ext_sampler_compressed_format_bc67",
             "ext_sampler_compressed_format_astc",
             "visgl_gl_context_params",
             "visgl_precision_params",
