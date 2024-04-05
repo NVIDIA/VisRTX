@@ -141,7 +141,15 @@ static void device_context_init(
         deviceObj->extensions.push_back(ext[i]);
       }
     } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ASTC", ext[i], 40)==0) {
-      if(gl.KHR_texture_compression_astc_ldr) {
+      if(gl.KHR_texture_compression_astc_ldr || gl.ES_VERSION_3_2) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ETC2", ext[i], 40)==0) {
+      if(gl.VERSION_4_3 || gl.ES_VERSION_3_2) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_EAC", ext[i], 39)==0) {
+      if(gl.VERSION_4_3 || gl.ES_VERSION_3_2) {
         deviceObj->extensions.push_back(ext[i]);
       }
     } else {

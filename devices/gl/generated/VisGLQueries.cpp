@@ -103,6 +103,8 @@ const char ** query_extensions() {
       "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC45",
       "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC67",
       "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ASTC",
+      "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ETC2",
+      "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_EAC",
       "ANARI_VISGL_GL_CONTEXT_PARAMS",
       "ANARI_VISGL_PRECISION_PARAMS",
       "ANARI_VISGL_SHADOW_MAP_PARAMS",
@@ -248,7 +250,7 @@ static const void * ANARI_DEVICE_glAPI_info(ANARIDataType paramType, int infoNam
             static const char *extension = "VISGL_GL_CONTEXT_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 25;
+            static const int32_t value = 27;
             return &value;
          }
       default: return nullptr;
@@ -280,7 +282,7 @@ static const void * ANARI_DEVICE_glDebug_info(ANARIDataType paramType, int infoN
             static const char *extension = "VISGL_GL_CONTEXT_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 25;
+            static const int32_t value = 27;
             return &value;
          }
       default: return nullptr;
@@ -305,7 +307,7 @@ static const void * ANARI_DEVICE_EGLDisplay_info(ANARIDataType paramType, int in
             static const char *extension = "VISGL_GL_CONTEXT_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 25;
+            static const int32_t value = 27;
             return &value;
          }
       default: return nullptr;
@@ -330,7 +332,7 @@ static const void * ANARI_DEVICE_EGlContext_info(ANARIDataType paramType, int in
             static const char *extension = "VISGL_GL_CONTEXT_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 25;
+            static const int32_t value = 27;
             return &value;
          }
       default: return nullptr;
@@ -369,7 +371,7 @@ static const void * ANARI_DEVICE_geometryPrecision_info(ANARIDataType paramType,
             static const char *extension = "VISGL_PRECISION_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 26;
+            static const int32_t value = 28;
             return &value;
          }
       default: return nullptr;
@@ -1008,7 +1010,7 @@ static const void * ANARI_RENDERER_default_shadowMapSize_info(ANARIDataType para
             static const char *extension = "VISGL_SHADOW_MAP_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 27;
+            static const int32_t value = 29;
             return &value;
          }
       default: return nullptr;
@@ -1047,7 +1049,7 @@ static const void * ANARI_RENDERER_default_occlusionMode_info(ANARIDataType para
             static const char *extension = "VISGL_SHADOW_MAP_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 27;
+            static const int32_t value = 29;
             return &value;
          }
       default: return nullptr;
@@ -2769,7 +2771,7 @@ static const void * ANARI_GEOMETRY_cylinder_geometryPrecision_info(ANARIDataType
             static const char *extension = "VISGL_PRECISION_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 26;
+            static const int32_t value = 28;
             return &value;
          }
       default: return nullptr;
@@ -3485,7 +3487,7 @@ static const void * ANARI_GEOMETRY_sphere_geometryPrecision_info(ANARIDataType p
             static const char *extension = "VISGL_PRECISION_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 26;
+            static const int32_t value = 28;
             return &value;
          }
       default: return nullptr;
@@ -7644,7 +7646,7 @@ static const void * ANARI_SAMPLER_compressedImage2D_format_info(ANARIDataType pa
          }
       case 6: // value
          if(paramType == ANARI_STRING && infoType == ANARI_STRING_LIST) {
-            static const char *values[] = {"BC1_RGB", "BC1_RGB_SRGB", "BC1_RGBA", "BC1_RGBA_SRGB", "BC2", "BC2_SRGB", "BC3", "BC3_SRGB", "BC4", "BC4_SNORM", "BC5", "BC5_SNORM", "BC6H_UFLOAT", "BC6H_SFLOAT", "BC7", "BC7_SRGB", "ASTC_4x4", "ASTC_4x4_SRGB", "ASTC_5x4", "ASTC_5x4_SRGB", "ASTC_5x5", "ASTC_5x5_SRGB", "ASTC_6x5", "ASTC_6x5_SRGB", "ASTC_6x6", "ASTC_6x6_SRGB", "ASTC_8x5", "ASTC_8x5_SRGB", "ASTC_8x6", "ASTC_8x6_SRGB", "ASTC_8x8", "ASTC_8x8_SRGB", "ASTC_10x5", "ASTC_10x5_SRGB", "ASTC_10x6", "ASTC_10x6_SRGB", "ASTC_10x8", "ASTC_10x8_SRGB", "ASTC_10x10", "ASTC_10x10_SRGB", "ASTC_12x10", "ASTC_12x10_SRGB", "ASTC_12x12", "ASTC_12x12_SRGB", nullptr};
+            static const char *values[] = {"BC1_RGB", "BC1_RGB_SRGB", "BC1_RGBA", "BC1_RGBA_SRGB", "BC2", "BC2_SRGB", "BC3", "BC3_SRGB", "BC4", "BC4_SNORM", "BC5", "BC5_SNORM", "BC6H_UFLOAT", "BC6H_SFLOAT", "BC7", "BC7_SRGB", "ASTC_4x4", "ASTC_4x4_SRGB", "ASTC_5x4", "ASTC_5x4_SRGB", "ASTC_5x5", "ASTC_5x5_SRGB", "ASTC_6x5", "ASTC_6x5_SRGB", "ASTC_6x6", "ASTC_6x6_SRGB", "ASTC_8x5", "ASTC_8x5_SRGB", "ASTC_8x6", "ASTC_8x6_SRGB", "ASTC_8x8", "ASTC_8x8_SRGB", "ASTC_10x5", "ASTC_10x5_SRGB", "ASTC_10x6", "ASTC_10x6_SRGB", "ASTC_10x8", "ASTC_10x8_SRGB", "ASTC_10x10", "ASTC_10x10_SRGB", "ASTC_12x10", "ASTC_12x10_SRGB", "ASTC_12x12", "ASTC_12x12_SRGB", "ETC2_R8G8B8", "ETC2_R8G8B8_SRGB", "ETC2_R8G8B8A1", "ETC2_R8G8B8A1_SRGB", "ETC2_R8G8B8A8", "ETC2_R8G8B8A8_SRGB", "EAC_R11_UNORM", "EAC_R11_SNORM", "EAC_R11G11_UNORM", "EAC_R11G11_SNORM", nullptr};
             return values;
          } else {
             return nullptr;
@@ -8032,7 +8034,7 @@ static const void * ANARI_GEOMETRY_cone_geometryPrecision_info(ANARIDataType par
             static const char *extension = "VISGL_PRECISION_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 26;
+            static const int32_t value = 28;
             return &value;
          }
       default: return nullptr;
@@ -8238,6 +8240,8 @@ static const void * ANARI_DEVICE_info(int infoName, ANARIDataType infoType) {
                "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC45",
                "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC67",
                "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ASTC",
+               "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ETC2",
+               "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_EAC",
                "ANARI_VISGL_GL_CONTEXT_PARAMS",
                "ANARI_VISGL_PRECISION_PARAMS",
                "ANARI_VISGL_SHADOW_MAP_PARAMS",
@@ -8444,6 +8448,8 @@ static const void * ANARI_RENDERER_default_info(int infoName, ANARIDataType info
                "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC45",
                "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC67",
                "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ASTC",
+               "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ETC2",
+               "ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_EAC",
                "ANARI_VISGL_GL_CONTEXT_PARAMS",
                "ANARI_VISGL_PRECISION_PARAMS",
                "ANARI_VISGL_SHADOW_MAP_PARAMS",
@@ -9281,7 +9287,7 @@ static const void * ANARI_GEOMETRY_cone_info(int infoName, ANARIDataType infoTyp
             static const char *extension = "VISGL_PRECISION_PARAMS";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int value = 26;
+            static const int value = 28;
             return &value;
          } else {
             return nullptr;
