@@ -63,7 +63,12 @@ static std::vector<OptixBuildInput> createOBI(
 
 // World definitions //////////////////////////////////////////////////////////
 
-World::World(DeviceGlobalState *d) : Object(ANARI_WORLD, d)
+World::World(DeviceGlobalState *d)
+    : Object(ANARI_WORLD, d),
+      m_zeroSurfaceData(this),
+      m_zeroVolumeData(this),
+      m_zeroLightData(this),
+      m_instanceData(this)
 {
   m_zeroGroup = new Group(d);
   m_zeroInstance = new Instance(d);
@@ -74,10 +79,7 @@ World::World(DeviceGlobalState *d) : Object(ANARI_WORLD, d)
   m_zeroInstance->refDec(helium::RefType::PUBLIC);
 }
 
-World::~World()
-{
-  cleanup();
-}
+World::~World() = default;
 
 bool World::getProperty(
     const std::string_view &name, ANARIDataType type, void *ptr, uint32_t flags)
@@ -98,8 +100,6 @@ bool World::getProperty(
 
 void World::commit()
 {
-  cleanup();
-
   m_zeroSurfaceData = getParamObject<ObjectArray>("surface");
   m_zeroVolumeData = getParamObject<ObjectArray>("volume");
   m_zeroLightData = getParamObject<ObjectArray>("light");
@@ -149,15 +149,6 @@ void World::commit()
 
   m_objectUpdates.lastTLASBuild = 0;
   m_objectUpdates.lastBLASCheck = 0;
-
-  if (m_instanceData)
-    m_instanceData->addCommitObserver(this);
-  if (m_zeroSurfaceData)
-    m_zeroSurfaceData->addCommitObserver(this);
-  if (m_zeroVolumeData)
-    m_zeroVolumeData->addCommitObserver(this);
-  if (m_zeroLightData)
-    m_zeroLightData->addCommitObserver(this);
 }
 
 OptixTraversableHandle World::optixTraversableHandleSurfaces() const
@@ -377,18 +368,6 @@ void World::buildInstanceLightGPUData()
   });
 
   m_instanceLightGPUData.upload();
-}
-
-void World::cleanup()
-{
-  if (m_instanceData)
-    m_instanceData->removeCommitObserver(this);
-  if (m_zeroSurfaceData)
-    m_zeroSurfaceData->removeCommitObserver(this);
-  if (m_zeroVolumeData)
-    m_zeroVolumeData->removeCommitObserver(this);
-  if (m_zeroLightData)
-    m_zeroLightData->removeCommitObserver(this);
 }
 
 } // namespace visrtx

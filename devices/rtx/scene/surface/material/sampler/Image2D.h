@@ -53,13 +53,10 @@ struct Image2D : public Sampler
 
   void cleanup();
 
-  struct
-  {
-    std::string filter;
-    std::string wrap1;
-    std::string wrap2;
-    helium::IntrusivePtr<Array2D> image;
-  } m_params;
+  std::string m_filter;
+  std::string m_wrap1;
+  std::string m_wrap2;
+  helium::CommitObserverPtr<Array2D> m_image;
 
   cudaTextureObject_t m_texture{};
 };

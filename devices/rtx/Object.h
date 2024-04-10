@@ -33,6 +33,7 @@
 
 // helium
 #include "helium/BaseObject.h"
+#include "helium/utility/CommitObserverPtr.h"
 // anari_cpp
 #include "anari/anari_cpp/ext/glm.h"
 // glm

@@ -33,18 +33,15 @@
 
 namespace visrtx {
 
-Cone::Cone(DeviceGlobalState *d) : Geometry(d) {}
+Cone::Cone(DeviceGlobalState *d)
+    : Geometry(d), m_index(this), m_radius(this), m_vertex(this)
+{}
 
-Cone::~Cone()
-{
-  cleanup();
-}
+Cone::~Cone() = default;
 
 void Cone::commit()
 {
   Geometry::commit();
-
-  cleanup();
 
   m_index = getParamObject<Array1D>("primitive.index");
   m_radius = getParamObject<Array1D>("vertex.radius");
@@ -68,11 +65,6 @@ void Cone::commit()
   reportMessage(ANARI_SEVERITY_DEBUG,
       "committing %s cone geometry",
       m_index ? "indexed" : "soup");
-
-  if (m_index)
-    m_index->addCommitObserver(this);
-  m_vertex->addCommitObserver(this);
-  m_radius->addCommitObserver(this);
 
   std::vector<uvec2> implicitIndices;
   Span<uvec2> indices;
@@ -146,16 +138,6 @@ GeometryGPUData Cone::gpuData() const
   populateAttributeDataSet(m_vertexAttributes, cone.vertexAttr);
 
   return retval;
-}
-
-void Cone::cleanup()
-{
-  if (m_index)
-    m_index->removeCommitObserver(this);
-  if (m_vertex)
-    m_vertex->removeCommitObserver(this);
-  if (m_radius)
-    m_radius->removeCommitObserver(this);
 }
 
 } // namespace visrtx

@@ -54,10 +54,9 @@ struct Sphere : public Geometry
   GeometryGPUData gpuData() const override;
   void cleanup();
 
-  helium::IntrusivePtr<Array1D> m_index;
-
-  helium::IntrusivePtr<Array1D> m_vertex;
-  helium::IntrusivePtr<Array1D> m_vertexRadius;
+  helium::CommitObserverPtr<Array1D> m_index;
+  helium::CommitObserverPtr<Array1D> m_vertex;
+  helium::CommitObserverPtr<Array1D> m_vertexRadius;
   GeometryAttributes m_vertexAttributes;
 
   DeviceBuffer m_aabbs;

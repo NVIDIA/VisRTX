@@ -54,13 +54,10 @@ struct StructuredRegularField : public SpatialField
 
   void buildGrid();
 
-  struct Parameters
-  {
-    vec3 origin;
-    vec3 spacing;
-    std::string filter;
-    helium::IntrusivePtr<Array3D> data;
-  } m_params;
+  vec3 m_origin;
+  vec3 m_spacing;
+  std::string m_filter;
+  helium::CommitObserverPtr<Array3D> m_data;
 
   cudaArray_t m_cudaArray{};
   cudaTextureObject_t m_textureObject{};

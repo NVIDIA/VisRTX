@@ -51,18 +51,15 @@ struct TransferFunction1D : public Volume
   void discritizeTFData();
   void cleanup();
 
-  struct
-  {
-    helium::IntrusivePtr<Array1D> color;
-    helium::IntrusivePtr<Array1D> colorPosition;
-    helium::IntrusivePtr<Array1D> opacity;
-    helium::IntrusivePtr<Array1D> opacityPosition;
+  helium::CommitObserverPtr<Array1D> m_color;
+  helium::CommitObserverPtr<Array1D> m_colorPosition;
+  helium::CommitObserverPtr<Array1D> m_opacity;
+  helium::CommitObserverPtr<Array1D> m_opacityPosition;
 
-    box1 valueRange{0.f, 1.f};
-    float densityScale{1.f};
+  box1 m_valueRange{0.f, 1.f};
+  float m_densityScale{1.f};
 
-    helium::IntrusivePtr<SpatialField> field;
-  } m_params;
+  helium::IntrusivePtr<SpatialField> m_field;
 
   std::vector<vec4> m_tf;
   int m_tfDim{256};

@@ -120,7 +120,7 @@ static bool validFieldDataType(ANARIDataType format)
 // StructuredRegularField definitions /////////////////////////////////////////
 
 StructuredRegularField::StructuredRegularField(DeviceGlobalState *d)
-    : SpatialField(d)
+    : SpatialField(d), m_data(this)
 {}
 
 StructuredRegularField::~StructuredRegularField()
@@ -132,18 +132,18 @@ void StructuredRegularField::commit()
 {
   cleanup();
 
-  m_params.origin = getParam<vec3>("origin", vec3(0.f));
-  m_params.spacing = getParam<vec3>("spacing", vec3(1.f));
-  m_params.filter = getParamString("filter", "linear");
-  m_params.data = getParamObject<Array3D>("data");
+  m_origin = getParam<vec3>("origin", vec3(0.f));
+  m_spacing = getParam<vec3>("spacing", vec3(1.f));
+  m_filter = getParamString("filter", "linear");
+  m_data = getParamObject<Array3D>("data");
 
-  if (!m_params.data) {
+  if (!m_data) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'data' on structuredRegular spatial field");
     return;
   }
 
-  ANARIDataType format = m_params.data->elementType();
+  ANARIDataType format = m_data->elementType();
 
   if (!validFieldDataType(format)) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -153,12 +153,11 @@ void StructuredRegularField::commit()
     return;
   }
 
-  m_params.data->addCommitObserver(this);
-  const auto dims = m_params.data->size();
+  const auto dims = m_data->size();
 
   std::vector<float> stagingBuffer;
   if (format != ANARI_FLOAT32)
-    stagingBuffer = makeFloatStagingBuffer(*m_params.data);
+    stagingBuffer = makeFloatStagingBuffer(*m_data);
 
   auto desc = cudaCreateChannelDesc(
       sizeof(float) * 8, 0, 0, 0, cudaChannelFormatKindFloat);
@@ -168,7 +167,7 @@ void StructuredRegularField::commit()
   cudaMemcpy3DParms copyParams;
   std::memset(&copyParams, 0, sizeof(copyParams));
   copyParams.srcPtr = make_cudaPitchedPtr(stagingBuffer.empty()
-          ? const_cast<void *>(m_params.data->data())
+          ? const_cast<void *>(m_data->data())
           : stagingBuffer.data(),
       dims.x * sizeof(float),
       dims.x,
@@ -190,7 +189,7 @@ void StructuredRegularField::commit()
   texDesc.addressMode[1] = cudaAddressModeClamp;
   texDesc.addressMode[2] = cudaAddressModeClamp;
   texDesc.filterMode =
-      m_params.filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
+      m_filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
   texDesc.readMode = cudaReadModeElementType;
   texDesc.normalizedCoords = 1;
 
@@ -205,32 +204,31 @@ box3 StructuredRegularField::bounds() const
 {
   if (!isValid())
     return {box3(vec3(0.f), vec3(1.f))};
-  auto dims = m_params.data->size();
-  return box3(m_params.origin,
-      m_params.origin
-          + ((vec3(dims.x, dims.y, dims.z) - 1.f) * m_params.spacing));
+  auto dims = m_data->size();
+  return box3(
+      m_origin, m_origin + ((vec3(dims.x, dims.y, dims.z) - 1.f) * m_spacing));
 }
 
 float StructuredRegularField::stepSize() const
 {
-  return glm::compMin(m_params.spacing / 2.f);
+  return glm::compMin(m_spacing / 2.f);
 }
 
 bool StructuredRegularField::isValid() const
 {
-  return m_params.data && validFieldDataType(m_params.data->elementType());
+  return m_data && validFieldDataType(m_data->elementType());
 }
 
 SpatialFieldGPUData StructuredRegularField::gpuData() const
 {
   SpatialFieldGPUData sf;
-  auto dims = m_params.data->size();
+  auto dims = m_data->size();
   sf.type = SpatialFieldType::STRUCTURED_REGULAR;
   sf.data.structuredRegular.texObj = m_textureObject;
-  sf.data.structuredRegular.origin = m_params.origin;
-  sf.data.structuredRegular.spacing = m_params.spacing;
+  sf.data.structuredRegular.origin = m_origin;
+  sf.data.structuredRegular.spacing = m_spacing;
   sf.data.structuredRegular.invSpacing =
-      vec3(1.f) / (m_params.spacing * vec3(dims.x, dims.y, dims.z));
+      vec3(1.f) / (m_spacing * vec3(dims.x, dims.y, dims.z));
   sf.grid = m_uniformGrid.gpuData();
   return sf;
 }
@@ -243,8 +241,6 @@ void StructuredRegularField::cleanup()
     cudaFreeArray(m_cudaArray);
   m_textureObject = {};
   m_cudaArray = {};
-  if (m_params.data)
-    m_params.data->removeCommitObserver(this);
   m_uniformGrid.cleanup();
 }
 

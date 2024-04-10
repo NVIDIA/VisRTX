@@ -81,11 +81,10 @@ struct Group : public Object
   void buildSurfaceGPUData();
   void buildVolumeGPUData();
   void buildLightGPUData();
-  void cleanup();
 
   // Geometry //
 
-  helium::IntrusivePtr<ObjectArray> m_surfaceData;
+  helium::CommitObserverPtr<ObjectArray> m_surfaceData;
 
   std::vector<Surface *> m_surfacesTriangle;
   std::vector<Surface *> m_surfacesCurve;
@@ -97,14 +96,14 @@ struct Group : public Object
 
   // Volume //
 
-  helium::IntrusivePtr<ObjectArray> m_volumeData;
+  helium::CommitObserverPtr<ObjectArray> m_volumeData;
   std::vector<Volume *> m_volumes;
 
   DeviceBuffer m_volumeObjectIndices;
 
   // Light //
 
-  helium::IntrusivePtr<ObjectArray> m_lightData;
+  helium::CommitObserverPtr<ObjectArray> m_lightData;
   std::vector<Light *> m_lights;
 
   DeviceBuffer m_lightObjectIndices;

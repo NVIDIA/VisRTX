@@ -67,11 +67,11 @@ struct World : public Object
   void buildInstanceLightGPUData();
   void cleanup();
 
-  helium::IntrusivePtr<ObjectArray> m_zeroSurfaceData;
-  helium::IntrusivePtr<ObjectArray> m_zeroVolumeData;
-  helium::IntrusivePtr<ObjectArray> m_zeroLightData;
+  helium::CommitObserverPtr<ObjectArray> m_zeroSurfaceData;
+  helium::CommitObserverPtr<ObjectArray> m_zeroVolumeData;
+  helium::CommitObserverPtr<ObjectArray> m_zeroLightData;
 
-  helium::IntrusivePtr<ObjectArray> m_instanceData;
+  helium::CommitObserverPtr<ObjectArray> m_instanceData;
   Span<Instance *> m_instances;
 
   bool m_addZeroInstance{false};

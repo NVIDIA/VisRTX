@@ -98,7 +98,7 @@ __global__ void buildGridGPU(
 
 void StructuredRegularField::buildGrid()
 {
-  auto dims = m_params.data->size();
+  auto dims = m_data->size();
   ivec3 gridDims(iDivUp(dims.x, 16), iDivUp(dims.y, 16), iDivUp(dims.z, 16));
   m_uniformGrid.init(gridDims, bounds());
 

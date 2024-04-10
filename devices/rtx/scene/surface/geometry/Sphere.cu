@@ -37,18 +37,15 @@
 
 namespace visrtx {
 
-Sphere::Sphere(DeviceGlobalState *d) : Geometry(d) {}
+Sphere::Sphere(DeviceGlobalState *d)
+    : Geometry(d), m_index(this), m_vertex(this), m_vertexRadius(this)
+{}
 
-Sphere::~Sphere()
-{
-  cleanup();
-}
+Sphere::~Sphere() = default;
 
 void Sphere::commit()
 {
   Geometry::commit();
-
-  cleanup();
 
   m_index = getParamObject<Array1D>("primitive.index");
   m_vertex = getParamObject<Array1D>("vertex.position");
@@ -64,12 +61,6 @@ void Sphere::commit()
   reportMessage(ANARI_SEVERITY_DEBUG,
       "committing %s sphere geometry",
       m_index ? "indexed" : "soup");
-
-  m_vertex->addCommitObserver(this);
-  if (m_vertexRadius)
-    m_vertexRadius->addCommitObserver(this);
-  if (m_index)
-    m_index->addCommitObserver(this);
 
   m_globalRadius = getParam<float>("radius", 0.01f);
 
@@ -162,17 +153,6 @@ int Sphere::optixGeometryType() const
 bool Sphere::isValid() const
 {
   return m_vertex;
-}
-
-void Sphere::cleanup()
-{
-  if (m_index)
-    m_index->removeCommitObserver(this);
-  if (m_vertex)
-    m_vertex->removeCommitObserver(this);
-  if (m_vertexRadius)
-    m_vertexRadius->removeCommitObserver(this);
-  m_numSpheres = 0;
 }
 
 } // namespace visrtx

@@ -52,12 +52,11 @@ struct Quad : public Geometry
  private:
   GeometryGPUData gpuData() const override;
   void generateIndices();
-  void cleanup();
 
   HostDeviceArray<uvec3> m_indices;
 
-  helium::IntrusivePtr<Array1D> m_index;
-  helium::IntrusivePtr<Array1D> m_vertex;
+  helium::CommitObserverPtr<Array1D> m_index;
+  helium::CommitObserverPtr<Array1D> m_vertex;
   helium::IntrusivePtr<Array1D> m_vertexNormal;
   GeometryAttributes m_vertexAttributes;
 
