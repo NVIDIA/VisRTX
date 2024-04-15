@@ -192,7 +192,10 @@ PRIVATE
 )
 
 if(NOT WIN32)
-  project_compile_definitions(PRIVATE VISRTX_PARALLEL_MODULE_BUILD)
+  option(VISRTX_SHADER_PARALLEL_BUILD "Build shaders in parallel" ON)
+  if (VISRTX_SHADER_PARALLEL_BUILD)
+    project_compile_definitions(PRIVATE VISRTX_PARALLEL_MODULE_BUILD)
+  endif()
 endif()
 
 project_compile_definitions(PRIVATE visrtx_EXPORTS)
