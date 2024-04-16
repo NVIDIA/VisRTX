@@ -225,8 +225,22 @@ void Frame::renderFrame()
   instrument::rangePop(); // update scene
 
   if (!isValid()) {
+    std::string problemMsg = "<unknown>";
+    if (!m_renderer)
+      problemMsg = "missing ANARIRenderer";
+    else if (!m_renderer->isValid())
+      problemMsg = "invalid ANARIRenderer";
+    else if (!m_camera)
+      problemMsg = "missing ANARICamera";
+    else if (!m_camera->isValid())
+      problemMsg = "invalid ANARICamera";
+    else if (!m_world)
+      problemMsg = "missing ANARIWorld";
+    else if (!m_world->isValid())
+      problemMsg = "invalid ANARIWorld";
     reportMessage(ANARI_SEVERITY_ERROR,
-        "skipping render of incomplete or invalid frame object");
+        "skipping render of incomplete or invalid frame object -- issue: %s",
+        problemMsg.c_str());
     return;
   }
 
