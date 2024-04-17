@@ -205,6 +205,10 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
   GLenum bufs[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
   gl.DrawBuffers(2, bufs);
 
+  // clear to signal color
+  gl.ClearColor(1, 0, 1, 1);
+  gl.Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
   // second framebuffer to resolve multisampling
   gl.DeleteTextures(1, &frameObj->multicolortarget);
   gl.DeleteTextures(1, &frameObj->multidepthtarget);
@@ -232,13 +236,14 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
       0);
   gl.DrawBuffers(1, bufs);
 
+  // clear to signal color
   gl.ClearColor(1, 0, 1, 1);
   gl.Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->multifbo);
-  gl.BindFramebuffer(GL_DRAW_FRAMEBUFFER, frameObj->fbo);
-  gl.BlitFramebuffer(
-      0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+  // gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->multifbo);
+  // gl.BindFramebuffer(GL_DRAW_FRAMEBUFFER, frameObj->fbo);
+  // gl.BlitFramebuffer(
+  //     0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
   gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->fbo);
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->colorbuffer);
@@ -873,7 +878,9 @@ void frame_render(ObjectRef<Frame> frameObj,
   gl.Enable(GL_DEPTH_TEST);
 
   gl.Enable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-  gl.Enable(GL_SAMPLE_ALPHA_TO_ONE);
+  if(gl.VERSION_3_3) {
+    gl.Enable(GL_SAMPLE_ALPHA_TO_ONE);    
+  }
 
   for (auto &command : collector.draws) {
     command(gl, 0);
