@@ -154,12 +154,10 @@ RT_PROGRAM void __raygen__()
 
       const auto lighting = aoFactor * rendererParams.ambientIntensity
           * rendererParams.ambientColor;
-      const auto matResult = evalMaterial(frameData,
-          *surfaceHit.material,
-          surfaceHit,
-          -ray.dir,
-          -ray.dir,
-          lighting);
+      const auto matValues =
+          getMaterialValues(frameData, *surfaceHit.material, surfaceHit);
+      const auto matResult =
+          vec4(matValues.baseColor * lighting, matValues.opacity);
 
       accumulateValue(color, vec3(matResult), opacity);
       accumulateValue(opacity, matResult.w, opacity);
