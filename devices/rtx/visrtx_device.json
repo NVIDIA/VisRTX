@@ -7,6 +7,7 @@
       "anari_core_objects_base_1_0",
       "khr_array1d_region",
       "khr_auxiliary_buffers",
+      "khr_camera_depth_of_field",
       "khr_camera_orthographic",
       "khr_camera_perspective",
       "khr_device_synchronization",
