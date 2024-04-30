@@ -61,7 +61,7 @@ RT_FUNCTION float volumeAttenuation(ScreenSample &ss, Ray r)
 RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 {
   const auto &rendererParams = frameData.renderer;
-  const auto &scivisParams = rendererParams.params.scivis;
+  const auto &directLightParams = rendererParams.params.directLight;
 
   auto &world = frameData.world;
 
@@ -69,13 +69,13 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 
   // Compute ambient light contribution //
 
-  const float aoFactor = scivisParams.aoSamples > 0 ? computeAO(ss,
+  const float aoFactor = directLightParams.aoSamples > 0 ? computeAO(ss,
                              ray,
                              RayType::SHADOW,
                              hit,
                              rendererParams.occlusionDistance,
-                             scivisParams.aoSamples)
-                                                    : 1.f;
+                             directLightParams.aoSamples)
+                                                         : 1.f;
   const vec4 matAoResult = evalMaterial(frameData,
       *hit.material,
       hit,
@@ -104,7 +104,7 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
       const vec4 matResult = evalMaterial(
           frameData, *hit.material, hit, -ray.dir, ls.dir, ls.radiance);
       contrib += vec3(matResult) * dot(ls.dir, hit.Ns)
-          * scivisParams.lightFalloff * attenuation;
+          * directLightParams.lightFalloff * attenuation;
     }
   }
   return {contrib, opacity};

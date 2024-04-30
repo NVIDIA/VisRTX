@@ -45,10 +45,10 @@ RT_FUNCTION vec4 classifySample(const VolumeGPUData &v, float s)
 {
   vec4 retval(0.f);
   switch (v.type) {
-  case VolumeType::SCIVIS: {
-    float coord = position(s, v.data.scivis.valueRange);
-    retval = make_vec4(tex1D<::float4>(v.data.scivis.tfTex, coord));
-    retval.w *= v.data.scivis.densityScale;
+  case VolumeType::TF1D: {
+    float coord = position(s, v.data.tf1d.valueRange);
+    retval = make_vec4(tex1D<::float4>(v.data.tf1d.tfTex, coord));
+    retval.w *= v.data.tf1d.densityScale;
     break;
   }
   default:
@@ -63,7 +63,7 @@ RT_FUNCTION float rayMarchVolume(
   const auto &volume = *hit.volumeData;
   /////////////////////////////////////////////////////////////////////////////
   // TODO: need to generalize
-  auto &svv = volume.data.scivis;
+  auto &svv = volume.data.tf1d;
   auto &field = getSpatialFieldData(*ss.frameData, svv.field);
   /////////////////////////////////////////////////////////////////////////////
 
@@ -98,7 +98,7 @@ RT_FUNCTION float sampleDistance(ScreenSample &ss,
   const auto &volume = *hit.volumeData;
   /////////////////////////////////////////////////////////////////////////////
   // TODO: need to generalize
-  auto &svv = volume.data.scivis;
+  auto &svv = volume.data.tf1d;
   auto &field = getSpatialFieldData(*ss.frameData, svv.field);
   /////////////////////////////////////////////////////////////////////////////
 

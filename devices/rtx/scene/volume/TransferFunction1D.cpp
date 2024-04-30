@@ -143,13 +143,13 @@ bool TransferFunction1D::isValid() const
 VolumeGPUData TransferFunction1D::gpuData() const
 {
   VolumeGPUData retval = Volume::gpuData();
-  retval.type = VolumeType::SCIVIS;
+  retval.type = VolumeType::TF1D;
   retval.bounds = m_field->bounds();
   retval.stepSize = m_field->stepSize();
-  retval.data.scivis.tfTex = m_textureObject;
-  retval.data.scivis.valueRange = m_valueRange;
-  retval.data.scivis.densityScale = m_densityScale;
-  retval.data.scivis.field = m_field->index();
+  retval.data.tf1d.tfTex = m_textureObject;
+  retval.data.tf1d.valueRange = m_valueRange;
+  retval.data.tf1d.densityScale = m_densityScale;
+  retval.data.tf1d.field = m_field->index();
   return retval;
 }
 

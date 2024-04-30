@@ -29,28 +29,57 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include "Renderer.h"
+#include "DirectLight.h"
+// ptx
+#include "DirectLight_ptx.h"
 
 namespace visrtx {
 
-struct SciVis : public Renderer
+static const std::vector<HitgroupFunctionNames> g_directLightHitNames = {
+    {"__closesthit__primary", "__anyhit__primary"},
+    {"__closesthit__shadow", "__anyhit__shadow"}};
+
+static const std::vector<std::string> g_directLightMissNames = {
+    "__miss__", "__miss__"};
+
+DirectLight::DirectLight(DeviceGlobalState *s) : Renderer(s) {}
+
+void DirectLight::commit()
 {
-  SciVis(DeviceGlobalState *s);
-  void commit() override;
-  void populateFrameData(FrameGPUData &fd) const override;
-  OptixModule optixModule() const override;
-  Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
-  Span<std::string> missSbtNames() const override;
+  Renderer::commit();
+  m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
+  m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
+}
 
-  static ptx_blob ptx();
+void DirectLight::populateFrameData(FrameGPUData &fd) const
+{
+  Renderer::populateFrameData(fd);
+  auto &directLight = fd.renderer.params.directLight;
+  directLight.lightFalloff = m_lightFalloff;
+  directLight.aoSamples = m_aoSamples;
+  directLight.aoColor = m_aoColor;
+  directLight.aoIntensity = m_aoIntensity;
+}
 
- private:
-  float m_lightFalloff{0.25f};
-  int m_aoSamples{1};
-  vec3 m_aoColor{1.f};
-  float m_aoIntensity{1.f};
-};
+OptixModule DirectLight::optixModule() const
+{
+  return deviceState()->rendererModules.directLight;
+}
+
+Span<HitgroupFunctionNames> DirectLight::hitgroupSbtNames() const
+{
+  return make_Span(g_directLightHitNames.data(), g_directLightHitNames.size());
+}
+
+Span<std::string> DirectLight::missSbtNames() const
+{
+  return make_Span(
+      g_directLightMissNames.data(), g_directLightMissNames.size());
+}
+
+ptx_blob DirectLight::ptx()
+{
+  return {DirectLight_ptx, sizeof(DirectLight_ptx)};
+}
 
 } // namespace visrtx

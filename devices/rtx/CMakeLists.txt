@@ -95,9 +95,9 @@ project_sources(PRIVATE
   renderer/AmbientOcclusion.cpp
   renderer/Debug.cpp
   renderer/DiffusePathTracer.cpp
+  renderer/DirectLight.cpp
   renderer/Raycast.cpp
   renderer/Renderer.cpp
-  renderer/SciVis.cpp
   renderer/Test.cpp
   renderer/UnknownRenderer.cpp
 
@@ -240,8 +240,8 @@ endfunction()
 GenerateEmbeddedPTX(renderer AmbientOcclusion)
 GenerateEmbeddedPTX(renderer Debug)
 GenerateEmbeddedPTX(renderer DiffusePathTracer)
+GenerateEmbeddedPTX(renderer DirectLight)
 GenerateEmbeddedPTX(renderer Raycast)
-GenerateEmbeddedPTX(renderer SciVis)
 GenerateEmbeddedPTX(renderer Test)
 
 GenerateEmbeddedPTX(scene Intersectors)

@@ -34,8 +34,8 @@
 #include "AmbientOcclusion.h"
 #include "Debug.h"
 #include "DiffusePathTracer.h"
+#include "DirectLight.h"
 #include "Raycast.h"
-#include "SciVis.h"
 #include "Test.h"
 #include "UnknownRenderer.h"
 // std
@@ -98,8 +98,8 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     return new AmbientOcclusion(d);
   else if (subtype == "diffuse_pathtracer" || subtype == "dpt")
     return new DiffusePathTracer(d);
-  else if (subtype == "scivis" || subtype == "sv" || subtype == "default")
-    return new SciVis(d);
+  else if (subtype == "directLight" || subtype == "default")
+    return new DirectLight(d);
   else if (subtype == "test")
     return new Test(d);
   else if (beginsWith(subtype, "debug")) {

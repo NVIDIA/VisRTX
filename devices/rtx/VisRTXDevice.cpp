@@ -50,8 +50,8 @@
 #include "renderer/AmbientOcclusion.h"
 #include "renderer/Debug.h"
 #include "renderer/DiffusePathTracer.h"
+#include "renderer/DirectLight.h"
 #include "renderer/Raycast.h"
-#include "renderer/SciVis.h"
 #include "renderer/Test.h"
 
 // std
@@ -396,7 +396,7 @@ VisRTXDevice::~VisRTXDevice()
   optixModuleDestroy(state.rendererModules.raycast);
   optixModuleDestroy(state.rendererModules.ambientOcclusion);
   optixModuleDestroy(state.rendererModules.diffusePathTracer);
-  optixModuleDestroy(state.rendererModules.scivis);
+  optixModuleDestroy(state.rendererModules.directLight);
   optixModuleDestroy(state.rendererModules.test);
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
@@ -601,8 +601,9 @@ void VisRTXDevice::initOptix()
   compileTasks.push_back(init_module(state.rendererModules.diffusePathTracer,
       DiffusePathTracer::ptx(),
       "'dpt' renderer"));
-  compileTasks.push_back(init_module(
-      state.rendererModules.scivis, SciVis::ptx(), "'scivis' renderer"));
+  compileTasks.push_back(init_module(state.rendererModules.directLight,
+      DirectLight::ptx(),
+      "'default' renderer"));
   compileTasks.push_back(
       init_module(state.rendererModules.test, Test::ptx(), "'test' renderer"));
 

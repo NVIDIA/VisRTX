@@ -29,56 +29,28 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "SciVis.h"
-// ptx
-#include "SciVis_ptx.h"
+#pragma once
+
+#include "Renderer.h"
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_scivisHitNames = {
-    {"__closesthit__primary", "__anyhit__primary"},
-    {"__closesthit__shadow", "__anyhit__shadow"}};
-
-static const std::vector<std::string> g_scivisMissNames = {
-    "__miss__", "__miss__"};
-
-SciVis::SciVis(DeviceGlobalState *s) : Renderer(s) {}
-
-void SciVis::commit()
+struct DirectLight : public Renderer
 {
-  Renderer::commit();
-  m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
-  m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
-}
+  DirectLight(DeviceGlobalState *s);
+  void commit() override;
+  void populateFrameData(FrameGPUData &fd) const override;
+  OptixModule optixModule() const override;
+  Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
+  Span<std::string> missSbtNames() const override;
 
-void SciVis::populateFrameData(FrameGPUData &fd) const
-{
-  Renderer::populateFrameData(fd);
-  auto &scivis = fd.renderer.params.scivis;
-  scivis.lightFalloff = m_lightFalloff;
-  scivis.aoSamples = m_aoSamples;
-  scivis.aoColor = m_aoColor;
-  scivis.aoIntensity = m_aoIntensity;
-}
+  static ptx_blob ptx();
 
-OptixModule SciVis::optixModule() const
-{
-  return deviceState()->rendererModules.scivis;
-}
-
-Span<HitgroupFunctionNames> SciVis::hitgroupSbtNames() const
-{
-  return make_Span(g_scivisHitNames.data(), g_scivisHitNames.size());
-}
-
-Span<std::string> SciVis::missSbtNames() const
-{
-  return make_Span(g_scivisMissNames.data(), g_scivisMissNames.size());
-}
-
-ptx_blob SciVis::ptx()
-{
-  return {SciVis_ptx, sizeof(SciVis_ptx)};
-}
+ private:
+  float m_lightFalloff{0.25f};
+  int m_aoSamples{1};
+  vec3 m_aoColor{1.f};
+  float m_aoIntensity{1.f};
+};
 
 } // namespace visrtx

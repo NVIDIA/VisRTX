@@ -345,11 +345,11 @@ struct SpatialFieldGPUData
 
 enum class VolumeType
 {
-  SCIVIS,
+  TF1D,
   UNKNOWN
 };
 
-struct ScivisVolumeGPUData
+struct TF1DVolumeGPUData
 {
   DeviceObjectIndex field;
   cudaTextureObject_t tfTex{};
@@ -359,10 +359,10 @@ struct ScivisVolumeGPUData
 
 struct VolumeGPUData
 {
-  VolumeType type{VolumeType::SCIVIS};
+  VolumeType type{VolumeType::TF1D};
   union
   {
-    ScivisVolumeGPUData scivis{};
+    TF1DVolumeGPUData tf1d{};
   } data;
   float stepSize;
   box3 bounds;
@@ -455,7 +455,7 @@ struct DPTRendererGPUData
   int maxDepth;
 };
 
-struct SciVisRendererGPUData
+struct DirectLightRendererGPUData
 {
   float lightFalloff;
   int aoSamples;
@@ -468,7 +468,7 @@ union RendererParametersGPUData
   DebugRendererGPUData debug;
   AORendererGPUData ao;
   DPTRendererGPUData dpt;
-  SciVisRendererGPUData scivis;
+  DirectLightRendererGPUData directLight;
 };
 
 enum class BackgroundMode
