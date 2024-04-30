@@ -38,7 +38,7 @@ namespace visrtx {
 static const std::vector<HitgroupFunctionNames> g_dptHitNames = {
     {"__closesthit__", "__anyhit__"}};
 
-DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s) {}
+DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
 void DiffusePathTracer::commit()
 {

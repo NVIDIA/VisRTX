@@ -52,7 +52,7 @@ struct HitgroupFunctionNames
 
 struct Renderer : public Object
 {
-  Renderer(DeviceGlobalState *s);
+  Renderer(DeviceGlobalState *s, float defaultAmbientRadiance = 0.f);
   ~Renderer() override;
 
   virtual void commit() override;
@@ -107,6 +107,7 @@ struct Renderer : public Object
 
   HitgroupFunctionNames m_defaultHitgroupNames;
   std::string m_defaultMissName{"__miss__"};
+  float m_defaultAmbientRadiance{0.f};
 };
 
 OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions();

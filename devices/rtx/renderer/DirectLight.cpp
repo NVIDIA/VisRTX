@@ -42,7 +42,7 @@ static const std::vector<HitgroupFunctionNames> g_directLightHitNames = {
 static const std::vector<std::string> g_directLightMissNames = {
     "__miss__", "__miss__"};
 
-DirectLight::DirectLight(DeviceGlobalState *s) : Renderer(s) {}
+DirectLight::DirectLight(DeviceGlobalState *s) : Renderer(s, 0.f) {}
 
 void DirectLight::commit()
 {
