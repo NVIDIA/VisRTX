@@ -69,13 +69,14 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 
   // Compute ambient light contribution //
 
-  const float aoFactor = directLightParams.aoSamples > 0 ? computeAO(ss,
-                             ray,
-                             RayType::SHADOW,
-                             hit,
-                             rendererParams.occlusionDistance,
-                             directLightParams.aoSamples)
-                                                         : 1.f;
+  const float aoFactor = directLightParams.aoSamples > 0
+      ? computeAO(ss,
+            ray,
+            RayType::SHADOW,
+            hit,
+            rendererParams.occlusionDistance,
+            directLightParams.aoSamples)
+      : 1.f;
   const vec4 matAoResult = evalMaterial(frameData,
       *hit.material,
       hit,
@@ -122,10 +123,15 @@ RT_PROGRAM void __anyhit__shadow()
   if (ray::isIntersectingSurfaces()) {
     SurfaceHit hit;
     ray::populateSurfaceHit(hit);
-    const auto &material = *hit.material;
-    const auto matValues = getMaterialValues(frameData, material, hit);
+
+    const auto &fd = frameData;
+    const auto &md = *hit.material;
+    vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
+    float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
+    opacity = adjustedMaterialOpacity(opacity, md) * color.w;
+
     auto &o = ray::rayData<float>();
-    accumulateValue(o, matValues.opacity, o);
+    accumulateValue(o, opacity, o);
     if (o >= 0.99f)
       optixTerminateRay();
     else

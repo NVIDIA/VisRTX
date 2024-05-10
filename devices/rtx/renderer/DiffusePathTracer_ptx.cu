@@ -61,9 +61,12 @@ RT_PROGRAM void __anyhit__()
 {
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
-  const auto &material = *hit.material;
-  const auto opacity =
-      getMaterialParameter(frameData, material.values[MV_OPACITY], hit).x;
+
+  const auto &fd = frameData;
+  const auto &md = *hit.material;
+  vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
+  float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
+  opacity = adjustedMaterialOpacity(opacity, md) * color.w;
   if (opacity < 0.99f && curand_uniform(&ray::screenSample().rs) > opacity)
     optixIgnoreIntersection();
 }
