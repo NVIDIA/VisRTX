@@ -171,6 +171,10 @@ Span<DeviceObjectIndex> Group::lightGPUIndices() const
 
 void Group::rebuildSurfaceBVHs()
 {
+  const auto &state = *deviceState();
+  if (state.objectUpdates.lastBLASChange < m_objectUpdates.lastSurfaceBVHBuilt)
+    return;
+
   partitionValidGeometriesByType();
 
   m_triangleBounds = box3();

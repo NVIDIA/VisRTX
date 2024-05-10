@@ -219,6 +219,10 @@ void World::rebuildBVHs()
 
   buildInstanceLightGPUData();
 
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "visrtx::World finished building world over %zu instances",
+      m_instances.size());
+
   m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
 }
 
