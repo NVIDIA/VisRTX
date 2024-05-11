@@ -86,7 +86,7 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 
   // Compute contribution from other lights //
 
-  vec3 contrib = vec3(matAoResult) * aoFactor;
+  vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
   float opacity = matAoResult.w;
   for (size_t i = 0; i < world.numLightInstances; i++) {
     auto *inst = world.lightInstances + i;
