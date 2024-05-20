@@ -70,15 +70,13 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   int frameReady(ANARIWaitMask m) override;
   void discard() override;
 
-  void *mapColorBuffer();
-  void *mapGPUColorBuffer();
-  void *mapDepthBuffer();
-  void *mapGPUDepthBuffer();
-  void *mapPrimIDBuffer();
-  void *mapObjIDBuffer();
-  void *mapInstIDBuffer();
-  void *mapAlbedoBuffer();
-  void *mapNormalBuffer();
+  void *mapColorBuffer(bool gpu);
+  void *mapDepthBuffer(bool gpu);
+  void *mapPrimIDBuffer(bool gpu);
+  void *mapObjIDBuffer(bool gpu);
+  void *mapInstIDBuffer(bool gpu);
+  void *mapAlbedoBuffer(bool gpu);
+  void *mapNormalBuffer(bool gpu);
 
  private:
   bool ready() const;

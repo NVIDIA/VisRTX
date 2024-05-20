@@ -353,37 +353,53 @@ void *Frame::map(std::string_view channel,
 
   if (channel == "channel.color") {
     type = m_colorType;
-    retval = mapColorBuffer();
+    retval = mapColorBuffer(false);
   } else if (channel == "channel.colorGPU") {
     type = m_colorType;
-    retval = mapGPUColorBuffer();
+    retval = mapColorBuffer(true);
   } else if (channelDepth && channel == "channel.depth") {
     type = ANARI_FLOAT32;
-    retval = mapDepthBuffer();
+    retval = mapDepthBuffer(false);
   } else if (channelDepth && channel == "channel.depthGPU") {
     type = ANARI_FLOAT32;
-    retval = mapGPUDepthBuffer();
+    retval = mapDepthBuffer(true);
   } else if (channelPrimID && channel == "channel.primitiveId") {
     type = ANARI_UINT32;
-    retval = mapPrimIDBuffer();
+    retval = mapPrimIDBuffer(false);
+  } else if (channelPrimID && channel == "channel.primitiveIdGPU") {
+    type = ANARI_UINT32;
+    retval = mapPrimIDBuffer(true);
   } else if (channelObjID && channel == "channel.objectId") {
     type = ANARI_UINT32;
-    retval = mapObjIDBuffer();
+    retval = mapObjIDBuffer(false);
+  } else if (channelObjID && channel == "channel.objectIdGPU") {
+    type = ANARI_UINT32;
+    retval = mapObjIDBuffer(true);
   } else if (channelInstID && channel == "channel.instanceId") {
     type = ANARI_UINT32;
-    retval = mapInstIDBuffer();
+    retval = mapInstIDBuffer(false);
+  } else if (channelInstID && channel == "channel.instanceIdGPU") {
+    type = ANARI_UINT32;
+    retval = mapInstIDBuffer(true);
   } else if (channelNormal && channel == "channel.normal") {
     type = ANARI_FLOAT32_VEC3;
-    retval = mapNormalBuffer();
+    retval = mapNormalBuffer(false);
+  } else if (channelNormal && channel == "channel.normalGPU") {
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapNormalBuffer(true);
   } else if (channelAlbedo && channel == "channel.albedo") {
     type = ANARI_FLOAT32_VEC3;
-    retval = mapAlbedoBuffer();
+    retval = mapAlbedoBuffer(false);
+  } else if (channelAlbedo && channel == "channel.albedoGPU") {
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapAlbedoBuffer(true);
   }
 
   if (type != ANARI_UNKNOWN) {
     const auto &hd = data();
     *width = hd.fb.size.x;
     *height = hd.fb.size.y;
+    m_frameMappedOnce = true;
   }
 
   *pixelType = type;
@@ -411,80 +427,83 @@ void Frame::discard()
   // no-op
 }
 
-void *Frame::mapColorBuffer()
+void *Frame::mapColorBuffer(bool gpu)
 {
   void *retval = nullptr;
 
-  if (!m_frameMappedOnce)
-    instrument::rangePop(); // time until FB map
+  if (gpu) {
+    if (!m_frameMappedOnce) {
+      instrument::rangePop(); // time until FB map
+      instrument::rangePop(); // frame + map
+    }
 
-  instrument::rangePush("copy to host");
+    m_frameMappedOnce = true;
 
-  if (m_denoise)
-    retval = m_denoiser.mapColorBuffer();
-  else {
-    m_pixelBuffer.download();
-    retval = m_pixelBuffer.dataHost();
+    retval =
+        m_denoise ? m_denoiser.mapGPUColorBuffer() : m_pixelBuffer.dataDevice();
+  } else {
+    if (!m_frameMappedOnce)
+      instrument::rangePop(); // time until FB map
+
+    instrument::rangePush("copy to host");
+
+    if (m_denoise)
+      retval = m_denoiser.mapColorBuffer();
+    else {
+      m_pixelBuffer.download();
+      retval = m_pixelBuffer.dataHost();
+    }
+
+    instrument::rangePop(); // copy to host
+
+    if (!m_frameMappedOnce)
+      instrument::rangePop(); // frame + map
   }
-
-  instrument::rangePop(); // copy to host
-
-  if (!m_frameMappedOnce)
-    instrument::rangePop(); // frame + map
-
-  m_frameMappedOnce = true;
 
   return retval;
 }
 
-void *Frame::mapGPUColorBuffer()
+void *Frame::mapDepthBuffer(bool gpu)
 {
-  if (!m_frameMappedOnce) {
-    instrument::rangePop(); // time until FB map
-    instrument::rangePop(); // frame + map
+  if (gpu)
+    return m_depthBuffer.dataDevice();
+  else {
+    m_depthBuffer.download();
+    return m_depthBuffer.dataHost();
   }
-
-  m_frameMappedOnce = true;
-
-  return m_denoise ? m_denoiser.mapGPUColorBuffer()
-                   : m_pixelBuffer.dataDevice();
 }
 
-void *Frame::mapDepthBuffer()
+void *Frame::mapPrimIDBuffer(bool gpu)
 {
-  m_depthBuffer.download();
-  m_frameMappedOnce = true;
-  return m_depthBuffer.dataHost();
+  if (gpu)
+    return m_primIDBuffer.dataDevice();
+  else {
+    m_primIDBuffer.download();
+    return m_primIDBuffer.dataHost();
+  }
 }
 
-void *Frame::mapGPUDepthBuffer()
+void *Frame::mapObjIDBuffer(bool gpu)
 {
-  m_frameMappedOnce = true;
-  return m_depthBuffer.dataDevice();
+  if (gpu)
+    return m_objIDBuffer.dataDevice();
+  else {
+    m_objIDBuffer.download();
+    return m_objIDBuffer.dataHost();
+  }
 }
 
-void *Frame::mapPrimIDBuffer()
+void *Frame::mapInstIDBuffer(bool gpu)
 {
-  m_primIDBuffer.download();
-  m_frameMappedOnce = true;
-  return m_primIDBuffer.dataHost();
+  if (gpu)
+    return m_instIDBuffer.dataDevice();
+  else {
+    m_instIDBuffer.download();
+    return m_instIDBuffer.dataHost();
+  }
 }
 
-void *Frame::mapObjIDBuffer()
-{
-  m_objIDBuffer.download();
-  m_frameMappedOnce = true;
-  return m_objIDBuffer.dataHost();
-}
-
-void *Frame::mapInstIDBuffer()
-{
-  m_instIDBuffer.download();
-  m_frameMappedOnce = true;
-  return m_instIDBuffer.dataHost();
-}
-
-void *Frame::mapAlbedoBuffer()
+void *Frame::mapAlbedoBuffer(bool gpu)
 {
   auto &state = *deviceState();
   const float invFrameID = m_invFrameID;
@@ -495,12 +514,15 @@ void *Frame::mapAlbedoBuffer()
       end,
       thrust::device_pointer_cast<vec3>(m_albedoBuffer.dataDevice()),
       [=] __device__(const vec3 &in) { return in * invFrameID; });
-  m_albedoBuffer.download();
-  m_frameMappedOnce = true;
-  return m_albedoBuffer.dataHost();
+  if (gpu)
+    return m_albedoBuffer.dataDevice();
+  else {
+    m_albedoBuffer.download();
+    return m_albedoBuffer.dataHost();
+  }
 }
 
-void *Frame::mapNormalBuffer()
+void *Frame::mapNormalBuffer(bool gpu)
 {
   auto &state = *deviceState();
   const float invFrameID = m_invFrameID;
@@ -511,9 +533,12 @@ void *Frame::mapNormalBuffer()
       end,
       thrust::device_pointer_cast<vec3>(m_normalBuffer.dataDevice()),
       [=] __device__(const vec3 &in) { return in * invFrameID; });
-  m_normalBuffer.download();
-  m_frameMappedOnce = true;
-  return m_normalBuffer.dataHost();
+  if (gpu)
+    return m_normalBuffer.dataDevice();
+  else {
+    m_normalBuffer.download();
+    return m_normalBuffer.dataHost();
+  }
 }
 
 bool Frame::ready() const
