@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -879,7 +879,7 @@ void frame_render(ObjectRef<Frame> frameObj,
 
   gl.Enable(GL_SAMPLE_ALPHA_TO_COVERAGE);
   if(gl.VERSION_3_3) {
-    gl.Enable(GL_SAMPLE_ALPHA_TO_ONE);    
+    gl.Enable(GL_SAMPLE_ALPHA_TO_ONE);
   }
 
   for (auto &command : collector.draws) {
