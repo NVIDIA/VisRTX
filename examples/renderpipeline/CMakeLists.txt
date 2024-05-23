@@ -27,20 +27,27 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-set(CMAKE_DISABLE_SOURCE_CHANGES ON)
-set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
+project(renderpipeline LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+enable_language(CUDA)
+find_package(CUDAToolkit REQUIRED)
 
-set(CMAKE_BUILD_TYPE_INIT "RelWithDebInfo")
+find_package(OpenGL REQUIRED)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+project_add_executable()
+project_sources(PRIVATE RenderPass.cu RenderPipeline.cpp pipeline_example.cpp)
+project_include_directories(PUBLIC ${CMAKE_CURRENT_LIST_DIR}/..)
+project_link_libraries(
+PUBLIC
+  anari::anari
+  CUDA::cudart
+  OpenGL::GL
+  glm_visrtx
+PRIVATE
+  stb_image
+)
 
-option(VISRTX_BUILD_EXAMPLES "Build VisRTX examples" OFF)
-if (VISRTX_BUILD_EXAMPLES)
-  add_subdirectory(tutorial)
-  add_subdirectory(renderpipeline)
-  add_subdirectory(viewer)
-endif()
+set_source_files_properties(
+  RenderPass.cu
+  PROPERTIES COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
+)
