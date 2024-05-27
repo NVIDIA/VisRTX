@@ -109,7 +109,7 @@ void TransferFunction1D::commit()
       make_cudaPitchedPtr(m_tf.data(), m_tfDim * sizeof(vec4), m_tfDim, 0);
   copyParams.dstArray = m_cudaArray;
   copyParams.extent = make_cudaExtent(m_tfDim, 1, 1);
-  copyParams.kind = cudaMemcpyHostToDevice;
+  copyParams.kind = cudaMemcpyDefault;
 
   cudaMemcpy3D(&copyParams);
 

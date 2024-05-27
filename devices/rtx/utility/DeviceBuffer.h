@@ -40,10 +40,11 @@
 
 namespace visrtx {
 
-struct DeviceBuffer
+template <bool MANAGED>
+struct GPUBuffer
 {
-  DeviceBuffer() = default;
-  ~DeviceBuffer();
+  GPUBuffer() = default;
+  ~GPUBuffer();
 
   template <typename T>
   void upload(const T *src, size_t numElements = 1, size_t byteOffsetStart = 0);
@@ -75,15 +76,20 @@ struct DeviceBuffer
   void *m_ptr{nullptr};
 };
 
+using DeviceBuffer = GPUBuffer<false>;
+using ManagedBuffer = GPUBuffer<true>;
+
 // Inlined definitions ////////////////////////////////////////////////////////
 
-inline DeviceBuffer::~DeviceBuffer()
+template <bool MANAGED>
+inline GPUBuffer<MANAGED>::~GPUBuffer()
 {
   reset();
 }
 
+template <bool MANAGED>
 template <typename T>
-inline void DeviceBuffer::upload(
+inline void GPUBuffer<MANAGED>::upload(
     const T *src, size_t numElements, size_t byteOffsetStart)
 {
   static_assert(std::is_trivially_copyable<T>::value);
@@ -98,17 +104,19 @@ inline void DeviceBuffer::upload(
   cudaMemcpy((uint8_t *)m_ptr + byteOffsetStart,
       src,
       bytesof<T>(numElements),
-      cudaMemcpyHostToDevice);
+      cudaMemcpyDefault);
 }
 
+template <bool MANAGED>
 template <typename T>
-inline void DeviceBuffer::upload(const std::vector<T> &v)
+inline void GPUBuffer<MANAGED>::upload(const std::vector<T> &v)
 {
   upload(v.data(), v.size());
 }
 
+template <bool MANAGED>
 template <typename T>
-inline void DeviceBuffer::download(
+inline void GPUBuffer<MANAGED>::download(
     T *dst, size_t numElements, size_t byteOffsetStart)
 {
   static_assert(std::is_trivially_copyable<T>::value);
@@ -117,64 +125,76 @@ inline void DeviceBuffer::download(
     return;
 
   if (!ptr())
-    throw std::runtime_error("downloading from empty DeviceBuffer");
+    throw std::runtime_error("downloading from empty GPUBuffer");
   const auto requestedBytes = bytesof<T>(numElements);
   if ((requestedBytes + byteOffsetStart) > m_bytes)
-    throw std::runtime_error("downloading too much data from DeviceBuffer");
+    throw std::runtime_error("downloading too much data from GPUBuffer");
   cudaMemcpy(dst,
       (uint8_t *)m_ptr + byteOffsetStart,
       requestedBytes,
-      cudaMemcpyDeviceToHost);
+      cudaMemcpyDefault);
 }
 
+template <bool MANAGED>
 template <typename T>
-inline T *DeviceBuffer::ptrAs() const
+inline T *GPUBuffer<MANAGED>::ptrAs() const
 {
   return (T *)ptr();
 }
 
-inline void *DeviceBuffer::ptr() const
+template <bool MANAGED>
+inline void *GPUBuffer<MANAGED>::ptr() const
 {
   return m_ptr;
 }
 
-inline size_t DeviceBuffer::bytes() const
+template <bool MANAGED>
+inline size_t GPUBuffer<MANAGED>::bytes() const
 {
   return m_bytes;
 }
 
-inline void DeviceBuffer::reset()
+template <bool MANAGED>
+inline void GPUBuffer<MANAGED>::reset()
 {
   free();
   m_ptr = nullptr;
   m_bytes = 0;
 }
 
-inline void DeviceBuffer::reserve(size_t numBytes)
+template <bool MANAGED>
+inline void GPUBuffer<MANAGED>::reserve(size_t numBytes)
 {
   if (numBytes > bytes())
     alloc(numBytes);
 }
 
-inline DeviceBuffer::operator bool() const
+template <bool MANAGED>
+inline GPUBuffer<MANAGED>::operator bool() const
 {
   return ptr() != nullptr;
 }
 
+template <bool MANAGED>
 template <typename T>
-inline size_t DeviceBuffer::bytesof(size_t numElements)
+inline size_t GPUBuffer<MANAGED>::bytesof(size_t numElements)
 {
   return sizeof(T) * numElements;
 }
 
-inline void DeviceBuffer::alloc(size_t bytes)
+template <bool MANAGED>
+inline void GPUBuffer<MANAGED>::alloc(size_t bytes)
 {
   free();
   m_bytes = bytes;
-  cudaMalloc(&m_ptr, bytes);
+  if constexpr (MANAGED)
+    cudaMallocManaged(&m_ptr, bytes);
+  else
+    cudaMalloc(&m_ptr, bytes);
 }
 
-inline void DeviceBuffer::free()
+template <bool MANAGED>
+inline void GPUBuffer<MANAGED>::free()
 {
   if (m_ptr)
     cudaFree(m_ptr);
