@@ -649,7 +649,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
   anari::commitParameters(d, field);
 
   auto volume = anari::newObject<anari::Volume>(d, "transferFunction1D");
-  anari::setAndReleaseParameter(d, volume, "field", field);
+  anari::setAndReleaseParameter(d, volume, "value", field);
   anari::setParameter(d, volume, "densityScale", config.density);
 
   {
