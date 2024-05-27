@@ -555,7 +555,6 @@ struct FrameGPUData
 
 struct ScreenSample
 {
-  uint3 launchIdx;
   glm::uvec2 pixel;
   glm::vec2 screen;
   RandState rs;
