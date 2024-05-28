@@ -71,11 +71,12 @@ RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *c, vec2 screen, vec2 r)
   return ray;
 }
 
-RT_FUNCTION Ray makePrimaryRay(ScreenSample &ss)
+RT_FUNCTION Ray makePrimaryRay(ScreenSample &ss, bool centerPixel = false)
 {
   const float4 r = curand_uniform4(&ss.rs);
-  ss.screen =
-      vec2(ss.pixel.x + r.x, ss.pixel.y + r.y) * ss.frameData->fb.invSize;
+  ss.screen = (centerPixel ? vec2(ss.pixel.x, ss.pixel.y)
+                           : vec2(ss.pixel.x + r.x, ss.pixel.y + r.y))
+      * ss.frameData->fb.invSize;
   return cameraCreateRay(ss.frameData->camera, ss.screen, {r.z, r.w});
 }
 

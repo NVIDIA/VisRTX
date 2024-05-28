@@ -419,25 +419,6 @@
           "description": "background color and alpha (RGBA)"
         },
         {
-          "name": "sampleLimit",
-          "types": [
-            "ANARI_INT32"
-          ],
-          "tags": [],
-          "default": 128,
-          "minimum": 0,
-          "description": "stop refining the frame after this number of samples"
-        },
-        {
-          "name": "denoise",
-          "types": [
-            "ANARI_BOOL"
-          ],
-          "tags": [],
-          "default": false,
-          "description": "enable the OptiX denoiser"
-        },
-        {
           "name": "cullTriangleBackfaces",
           "types": [
             "ANARI_BOOL"
@@ -445,25 +426,6 @@
           "tags": [],
           "default": false,
           "description": "enable triangle back face culling"
-        },
-        {
-          "name": "checkerboarding",
-          "types": [
-            "ANARI_BOOL"
-          ],
-          "tags": [],
-          "default": false,
-          "description": "use checkerboarding to lower frame latency"
-        },
-        {
-          "name": "pixelSamples",
-          "types": [
-            "ANARI_INT32"
-          ],
-          "tags": [],
-          "default": 1,
-          "minimum": 1,
-          "description": "samples per-pixel"
         }
       ]
     },

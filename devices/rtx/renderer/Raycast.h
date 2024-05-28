@@ -38,6 +38,7 @@ namespace visrtx {
 struct Raycast : public Renderer
 {
   Raycast(DeviceGlobalState *s);
+  void commit() override;
   OptixModule optixModule() const override;
   Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
   Span<std::string> missSbtNames() const override;

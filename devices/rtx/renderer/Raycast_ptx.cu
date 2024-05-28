@@ -64,7 +64,7 @@ RT_PROGRAM void __raygen__()
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
-  auto ray = makePrimaryRay(ss);
+  auto ray = makePrimaryRay(ss, true /*pixel centered*/);
   float tmax = ray.t.upper;
   /////////////////////////////////////////////////////////////////////////////
 

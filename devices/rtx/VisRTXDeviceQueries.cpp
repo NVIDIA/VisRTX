@@ -240,7 +240,7 @@ static const void * ANARI_RENDERER_default_denoise_info(ANARIDataType paramType,
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -264,7 +264,7 @@ static const void * ANARI_RENDERER_default_cullTriangleBackfaces_info(ANARIDataT
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -288,7 +288,7 @@ static const void * ANARI_RENDERER_default_checkerboarding_info(ANARIDataType pa
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -600,7 +600,7 @@ static const void * ANARI_RENDERER_ao_denoise_info(ANARIDataType paramType, int 
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -624,7 +624,7 @@ static const void * ANARI_RENDERER_ao_cullTriangleBackfaces_info(ANARIDataType p
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -648,7 +648,7 @@ static const void * ANARI_RENDERER_ao_checkerboarding_info(ANARIDataType paramTy
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -870,7 +870,7 @@ static const void * ANARI_RENDERER_dpt_denoise_info(ANARIDataType paramType, int
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -894,7 +894,7 @@ static const void * ANARI_RENDERER_dpt_cullTriangleBackfaces_info(ANARIDataType 
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -918,7 +918,7 @@ static const void * ANARI_RENDERER_dpt_checkerboarding_info(ANARIDataType paramT
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -1035,61 +1035,6 @@ static const void * ANARI_RENDERER_raycast_background_info(ANARIDataType paramTy
       default: return nullptr;
    }
 }
-static const void * ANARI_RENDERER_raycast_sampleLimit_info(ANARIDataType paramType, int infoName, ANARIDataType infoType) {
-   (void)paramType;
-   switch(infoName) {
-      case 0: // required
-         if(infoType == ANARI_BOOL) {
-            return &anari_false;
-         } else {
-            return nullptr;
-         }
-      case 1: // default
-         if(paramType == ANARI_INT32 && infoType == ANARI_INT32) {
-            static const int32_t default_value[1] = {INT32_C(128)};
-            return default_value;
-         } else {
-            return nullptr;
-         }
-      case 2: // minimum
-         if(paramType == ANARI_INT32 && infoType == ANARI_INT32) {
-            static const int32_t default_value[1] = {INT32_C(0)};
-            return default_value;
-         } else {
-            return nullptr;
-         }
-      case 4: // description
-         {
-            static const char *description = "stop refining the frame after this number of samples";
-            return description;
-         }
-      default: return nullptr;
-   }
-}
-static const void * ANARI_RENDERER_raycast_denoise_info(ANARIDataType paramType, int infoName, ANARIDataType infoType) {
-   (void)paramType;
-   switch(infoName) {
-      case 0: // required
-         if(infoType == ANARI_BOOL) {
-            return &anari_false;
-         } else {
-            return nullptr;
-         }
-      case 1: // default
-         if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
-            return default_value;
-         } else {
-            return nullptr;
-         }
-      case 4: // description
-         {
-            static const char *description = "enable the OptiX denoiser";
-            return description;
-         }
-      default: return nullptr;
-   }
-}
 static const void * ANARI_RENDERER_raycast_cullTriangleBackfaces_info(ANARIDataType paramType, int infoName, ANARIDataType infoType) {
    (void)paramType;
    switch(infoName) {
@@ -1101,7 +1046,7 @@ static const void * ANARI_RENDERER_raycast_cullTriangleBackfaces_info(ANARIDataT
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -1114,75 +1059,12 @@ static const void * ANARI_RENDERER_raycast_cullTriangleBackfaces_info(ANARIDataT
       default: return nullptr;
    }
 }
-static const void * ANARI_RENDERER_raycast_checkerboarding_info(ANARIDataType paramType, int infoName, ANARIDataType infoType) {
-   (void)paramType;
-   switch(infoName) {
-      case 0: // required
-         if(infoType == ANARI_BOOL) {
-            return &anari_false;
-         } else {
-            return nullptr;
-         }
-      case 1: // default
-         if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
-            return default_value;
-         } else {
-            return nullptr;
-         }
-      case 4: // description
-         {
-            static const char *description = "use checkerboarding to lower frame latency";
-            return description;
-         }
-      default: return nullptr;
-   }
-}
-static const void * ANARI_RENDERER_raycast_pixelSamples_info(ANARIDataType paramType, int infoName, ANARIDataType infoType) {
-   (void)paramType;
-   switch(infoName) {
-      case 0: // required
-         if(infoType == ANARI_BOOL) {
-            return &anari_false;
-         } else {
-            return nullptr;
-         }
-      case 1: // default
-         if(paramType == ANARI_INT32 && infoType == ANARI_INT32) {
-            static const int32_t default_value[1] = {INT32_C(1)};
-            return default_value;
-         } else {
-            return nullptr;
-         }
-      case 2: // minimum
-         if(paramType == ANARI_INT32 && infoType == ANARI_INT32) {
-            static const int32_t default_value[1] = {INT32_C(1)};
-            return default_value;
-         } else {
-            return nullptr;
-         }
-      case 4: // description
-         {
-            static const char *description = "samples per-pixel";
-            return description;
-         }
-      default: return nullptr;
-   }
-}
 static const void * ANARI_RENDERER_raycast_param_info(const char *paramName, ANARIDataType paramType, int infoName, ANARIDataType infoType) {
    switch(param_hash(paramName)) {
       case 16:
          return ANARI_RENDERER_raycast_background_info(paramType, infoName, infoType);
-      case 92:
-         return ANARI_RENDERER_raycast_sampleLimit_info(paramType, infoName, infoType);
-      case 33:
-         return ANARI_RENDERER_raycast_denoise_info(paramType, infoName, infoType);
       case 31:
          return ANARI_RENDERER_raycast_cullTriangleBackfaces_info(paramType, infoName, infoType);
-      case 25:
-         return ANARI_RENDERER_raycast_checkerboarding_info(paramType, infoName, infoType);
-      case 77:
-         return ANARI_RENDERER_raycast_pixelSamples_info(paramType, infoName, infoType);
       default:
          return nullptr;
    }
@@ -1260,7 +1142,7 @@ static const void * ANARI_RENDERER_debug_denoise_info(ANARIDataType paramType, i
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -1284,7 +1166,7 @@ static const void * ANARI_RENDERER_debug_checkerboarding_info(ANARIDataType para
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;
@@ -10666,11 +10548,7 @@ static const void * ANARI_RENDERER_raycast_info(int infoName, ANARIDataType info
             static const ANARIParameter parameters[] = {
                {"background", ANARI_FLOAT32_VEC4},
                {"background", ANARI_ARRAY2D},
-               {"sampleLimit", ANARI_INT32},
-               {"denoise", ANARI_BOOL},
                {"cullTriangleBackfaces", ANARI_BOOL},
-               {"checkerboarding", ANARI_BOOL},
-               {"pixelSamples", ANARI_INT32},
                {0, ANARI_UNKNOWN}
             };
             return parameters;
