@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Redistribution and use in source and binary forms, with or without
@@ -74,6 +74,7 @@ add_library(${PROJECT_NAME} SHARED
   src/VisGLLightSpotObject.cpp
   src/VisGLSamplerImage1DObject.cpp
   src/VisGLSamplerImage2DObject.cpp
+  src/VisGLSamplerCompressedImage2DObject.cpp
   src/VisGLSamplerImage3DObject.cpp
   src/VisGLSamplerPrimitiveObject.cpp
   src/VisGLSamplerTransformObject.cpp

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,12 +41,12 @@ static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
 
 static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
 
-AmbientOcclusion::AmbientOcclusion(DeviceGlobalState *s) : Renderer(s) {}
+AmbientOcclusion::AmbientOcclusion(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
 void AmbientOcclusion::commit()
 {
   Renderer::commit();
-  m_aoSamples = std::clamp(getParam<int>("aoSamples", 1), 0, 256);
+  m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
 }
 
 void AmbientOcclusion::populateFrameData(FrameGPUData &fd) const

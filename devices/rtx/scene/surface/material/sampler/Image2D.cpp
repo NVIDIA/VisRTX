@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,7 @@
 
 namespace visrtx {
 
-Image2D::Image2D(DeviceGlobalState *d) : Sampler(d) {}
+Image2D::Image2D(DeviceGlobalState *d) : Sampler(d), m_image(this) {}
 
 Image2D::~Image2D()
 {
@@ -46,18 +46,18 @@ void Image2D::commit()
 
   cleanup();
 
-  m_params.filter = getParamString("filter", "linear");
-  m_params.wrap1 = getParamString("wrapMode1", "clampToEdge");
-  m_params.wrap2 = getParamString("wrapMode2", "clampToEdge");
-  m_params.image = getParamObject<Array2D>("image");
+  m_filter = getParamString("filter", "linear");
+  m_wrap1 = getParamString("wrapMode1", "clampToEdge");
+  m_wrap2 = getParamString("wrapMode2", "clampToEdge");
+  m_image = getParamObject<Array2D>("image");
 
-  if (!m_params.image) {
+  if (!m_image) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'image' on image2D sampler");
     return;
   }
 
-  const ANARIDataType format = m_params.image->elementType();
+  const ANARIDataType format = m_image->elementType();
   auto nc = numANARIChannels(format);
   if (nc == 0) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -66,12 +66,8 @@ void Image2D::commit()
     return;
   }
 
-  auto &image = *m_params.image;
-  image.addCommitObserver(this);
-
-  auto cuArray = image.acquireCUDAArrayUint8();
-  m_texture = makeCudaTextureObject(
-      cuArray, true, m_params.filter, m_params.wrap1, m_params.wrap2);
+  auto cuArray = m_image->acquireCUDAArrayUint8();
+  m_texture = makeCudaTextureObject(cuArray, true, m_filter, m_wrap1, m_wrap2);
 
   upload();
 }
@@ -86,23 +82,20 @@ SamplerGPUData Image2D::gpuData() const
 
 int Image2D::numChannels() const
 {
-  ANARIDataType format = m_params.image->elementType();
+  ANARIDataType format = m_image->elementType();
   return numANARIChannels(format);
 }
 
 bool Image2D::isValid() const
 {
-  return m_params.image;
+  return m_image;
 }
 
 void Image2D::cleanup()
 {
-  if (m_params.image) {
-    if (m_texture) {
-      cudaDestroyTextureObject(m_texture);
-      m_params.image->releaseCUDAArrayUint8();
-    }
-    m_params.image->removeCommitObserver(this);
+  if (m_image && m_texture) {
+    cudaDestroyTextureObject(m_texture);
+    m_image->releaseCUDAArrayUint8();
   }
 }
 

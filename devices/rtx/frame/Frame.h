@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -70,15 +70,13 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   int frameReady(ANARIWaitMask m) override;
   void discard() override;
 
-  void *mapColorBuffer();
-  void *mapGPUColorBuffer();
-  void *mapDepthBuffer();
-  void *mapGPUDepthBuffer();
-  void *mapPrimIDBuffer();
-  void *mapObjIDBuffer();
-  void *mapInstIDBuffer();
-  void *mapAlbedoBuffer();
-  void *mapNormalBuffer();
+  void *mapColorBuffer(bool gpu);
+  void *mapDepthBuffer(bool gpu);
+  void *mapPrimIDBuffer(bool gpu);
+  void *mapObjIDBuffer(bool gpu);
+  void *mapInstIDBuffer(bool gpu);
+  void *mapAlbedoBuffer(bool gpu);
+  void *mapNormalBuffer(bool gpu);
 
  private:
   bool ready() const;

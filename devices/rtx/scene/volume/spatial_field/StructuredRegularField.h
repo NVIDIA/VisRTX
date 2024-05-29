@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,13 +54,10 @@ struct StructuredRegularField : public SpatialField
 
   void buildGrid();
 
-  struct Parameters
-  {
-    vec3 origin;
-    vec3 spacing;
-    std::string filter;
-    helium::IntrusivePtr<Array3D> data;
-  } m_params;
+  vec3 m_origin;
+  vec3 m_spacing;
+  std::string m_filter;
+  helium::ChangeObserverPtr<Array3D> m_data;
 
   cudaArray_t m_cudaArray{};
   cudaTextureObject_t m_textureObject{};

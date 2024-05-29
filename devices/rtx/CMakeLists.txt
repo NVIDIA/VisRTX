@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Redistribution and use in source and binary forms, with or without
@@ -95,9 +95,9 @@ project_sources(PRIVATE
   renderer/AmbientOcclusion.cpp
   renderer/Debug.cpp
   renderer/DiffusePathTracer.cpp
+  renderer/DirectLight.cpp
   renderer/Raycast.cpp
   renderer/Renderer.cpp
-  renderer/SciVis.cpp
   renderer/Test.cpp
   renderer/UnknownRenderer.cpp
 
@@ -192,7 +192,10 @@ PRIVATE
 )
 
 if(NOT WIN32)
-  project_compile_definitions(PRIVATE VISRTX_PARALLEL_MODULE_BUILD)
+  option(VISRTX_SHADER_PARALLEL_BUILD "Build shaders in parallel" ON)
+  if (VISRTX_SHADER_PARALLEL_BUILD)
+    project_compile_definitions(PRIVATE VISRTX_PARALLEL_MODULE_BUILD)
+  endif()
 endif()
 
 project_compile_definitions(PRIVATE visrtx_EXPORTS)
@@ -237,8 +240,8 @@ endfunction()
 GenerateEmbeddedPTX(renderer AmbientOcclusion)
 GenerateEmbeddedPTX(renderer Debug)
 GenerateEmbeddedPTX(renderer DiffusePathTracer)
+GenerateEmbeddedPTX(renderer DirectLight)
 GenerateEmbeddedPTX(renderer Raycast)
-GenerateEmbeddedPTX(renderer SciVis)
 GenerateEmbeddedPTX(renderer Test)
 
 GenerateEmbeddedPTX(scene Intersectors)

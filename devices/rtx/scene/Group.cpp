@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,12 +53,14 @@ static std::vector<OptixBuildInput> createOBI(const std::vector<T *> &objs)
 
 // Group definitions //////////////////////////////////////////////////////////
 
-Group::Group(DeviceGlobalState *d) : Object(ANARI_GROUP, d) {}
+Group::Group(DeviceGlobalState *d)
+    : Object(ANARI_GROUP, d),
+      m_surfaceData(this),
+      m_volumeData(this),
+      m_lightData(this)
+{}
 
-Group::~Group()
-{
-  cleanup();
-}
+Group::~Group() = default;
 
 bool Group::getProperty(
     const std::string_view &name, ANARIDataType type, void *ptr, uint32_t flags)
@@ -82,8 +84,6 @@ bool Group::getProperty(
 
 void Group::commit()
 {
-  cleanup();
-
   m_surfaceData = getParamObject<ObjectArray>("surface");
   m_volumeData = getParamObject<ObjectArray>("volume");
   m_lightData = getParamObject<ObjectArray>("light");
@@ -91,13 +91,6 @@ void Group::commit()
   m_objectUpdates.lastSurfaceBVHBuilt = 0;
   m_objectUpdates.lastVolumeBVHBuilt = 0;
   m_objectUpdates.lastLightRebuild = 0;
-
-  if (m_surfaceData)
-    m_surfaceData->addCommitObserver(this);
-  if (m_volumeData)
-    m_volumeData->addCommitObserver(this);
-  if (m_lightData)
-    m_lightData->addCommitObserver(this);
 }
 
 OptixTraversableHandle Group::optixTraversableTriangle() const
@@ -178,6 +171,10 @@ Span<DeviceObjectIndex> Group::lightGPUIndices() const
 
 void Group::rebuildSurfaceBVHs()
 {
+  const auto &state = *deviceState();
+  if (state.objectUpdates.lastBLASChange < m_objectUpdates.lastSurfaceBVHBuilt)
+    return;
+
   partitionValidGeometriesByType();
 
   m_triangleBounds = box3();
@@ -384,16 +381,6 @@ void Group::buildLightGPUData()
     return l->index();
   });
   m_lightObjectIndices.upload(tmp);
-}
-
-void Group::cleanup()
-{
-  if (m_surfaceData)
-    m_surfaceData->removeCommitObserver(this);
-  if (m_volumeData)
-    m_volumeData->removeCommitObserver(this);
-  if (m_lightData)
-    m_lightData->removeCommitObserver(this);
 }
 
 } // namespace visrtx

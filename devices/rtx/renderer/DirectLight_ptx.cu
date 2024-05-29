@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -61,7 +61,7 @@ RT_FUNCTION float volumeAttenuation(ScreenSample &ss, Ray r)
 RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 {
   const auto &rendererParams = frameData.renderer;
-  const auto &scivisParams = rendererParams.params.scivis;
+  const auto &directLightParams = rendererParams.params.directLight;
 
   auto &world = frameData.world;
 
@@ -69,13 +69,14 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 
   // Compute ambient light contribution //
 
-  const float aoFactor = scivisParams.aoSamples > 0 ? computeAO(ss,
-                             ray,
-                             RayType::SHADOW,
-                             hit,
-                             rendererParams.occlusionDistance,
-                             scivisParams.aoSamples)
-                                                    : 1.f;
+  const float aoFactor = directLightParams.aoSamples > 0
+      ? computeAO(ss,
+            ray,
+            RayType::SHADOW,
+            hit,
+            rendererParams.occlusionDistance,
+            directLightParams.aoSamples)
+      : 1.f;
   const vec4 matAoResult = evalMaterial(frameData,
       *hit.material,
       hit,
@@ -85,7 +86,7 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 
   // Compute contribution from other lights //
 
-  vec3 contrib = vec3(matAoResult) * aoFactor;
+  vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
   float opacity = matAoResult.w;
   for (size_t i = 0; i < world.numLightInstances; i++) {
     auto *inst = world.lightInstances + i;
@@ -104,7 +105,7 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
       const vec4 matResult = evalMaterial(
           frameData, *hit.material, hit, -ray.dir, ls.dir, ls.radiance);
       contrib += vec3(matResult) * dot(ls.dir, hit.Ns)
-          * scivisParams.lightFalloff * attenuation;
+          * directLightParams.lightFalloff * attenuation;
     }
   }
   return {contrib, opacity};
@@ -122,10 +123,15 @@ RT_PROGRAM void __anyhit__shadow()
   if (ray::isIntersectingSurfaces()) {
     SurfaceHit hit;
     ray::populateSurfaceHit(hit);
-    const auto &material = *hit.material;
-    const auto matValues = getMaterialValues(frameData, material, hit);
+
+    const auto &fd = frameData;
+    const auto &md = *hit.material;
+    vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
+    float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
+    opacity = adjustedMaterialOpacity(opacity, md) * color.w;
+
     auto &o = ray::rayData<float>();
-    accumulateValue(o, matValues.opacity, o);
+    accumulateValue(o, opacity, o);
     if (o >= 0.99f)
       optixTerminateRay();
     else

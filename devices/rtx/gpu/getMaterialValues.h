@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -314,6 +314,19 @@ RT_FUNCTION vec4 getMaterialParameter(
   return vec4{};
 }
 
+RT_FUNCTION float adjustedMaterialOpacity(
+    float opacityIn, const MaterialGPUData &md)
+{
+  if (md.mode == AlphaMode::OPAQUE)
+    return 1.f;
+  else {
+    if (md.mode == AlphaMode::BLEND)
+      return opacityIn;
+    else
+      return opacityIn < md.cutoff ? 0.f : 1.f;
+  }
+}
+
 RT_FUNCTION MaterialValues getMaterialValues(
     const FrameGPUData &fd, const MaterialGPUData &md, const SurfaceHit &hit)
 {
@@ -332,15 +345,8 @@ RT_FUNCTION MaterialValues getMaterialValues(
   // baseColor
   retval.baseColor = vec3(values[MV_BASE_COLOR]);
   // opacity
-  if (md.mode == AlphaMode::OPAQUE)
-    retval.opacity = 1.f;
-  else {
-    const float opacity = values[MV_OPACITY].x * values[MV_BASE_COLOR].w;
-    if (md.mode == AlphaMode::BLEND)
-      retval.opacity = opacity;
-    else
-      retval.opacity = opacity < md.cutoff ? 0.f : 1.f;
-  }
+  retval.opacity = adjustedMaterialOpacity(
+      values[MV_OPACITY].x * values[MV_BASE_COLOR].w, md);
   // mettalic
   retval.metallic = values[MV_METALLIC].x;
   // roughness

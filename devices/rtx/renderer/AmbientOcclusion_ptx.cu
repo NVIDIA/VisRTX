@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,10 +52,15 @@ RT_PROGRAM void __anyhit__ao()
 {
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
-  const auto &material = *hit.material;
-  const auto matValues = getMaterialValues(frameData, material, hit);
+
+  const auto &fd = frameData;
+  const auto &md = *hit.material;
+  vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
+  float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
+  opacity = adjustedMaterialOpacity(opacity, md) * color.w;
+
   auto &o = ray::rayData<float>();
-  accumulateValue(o, matValues.opacity, o);
+  accumulateValue(o, opacity, o);
   if (o >= 0.99f)
     optixTerminateRay();
   else
@@ -144,22 +149,21 @@ RT_PROGRAM void __raygen__()
         firstHit = false;
       }
 
-      const float aoFactor = aoParams.aoSamples > 0 ? computeAO(ss,
-                                 ray,
-                                 RayType::AO,
-                                 surfaceHit,
-                                 rendererParams.occlusionDistance,
-                                 aoParams.aoSamples)
-                                                    : 1.f;
+      const float aoFactor = aoParams.aoSamples > 0
+          ? computeAO(ss,
+                ray,
+                RayType::AO,
+                surfaceHit,
+                rendererParams.occlusionDistance,
+                aoParams.aoSamples)
+          : 1.f;
 
       const auto lighting = aoFactor * rendererParams.ambientIntensity
           * rendererParams.ambientColor;
-      const auto matResult = evalMaterial(frameData,
-          *surfaceHit.material,
-          surfaceHit,
-          -ray.dir,
-          -ray.dir,
-          lighting);
+      const auto matValues =
+          getMaterialValues(frameData, *surfaceHit.material, surfaceHit);
+      const auto matResult =
+          vec4(matValues.baseColor * lighting, matValues.opacity);
 
       accumulateValue(color, vec3(matResult), opacity);
       accumulateValue(opacity, matResult.w, opacity);

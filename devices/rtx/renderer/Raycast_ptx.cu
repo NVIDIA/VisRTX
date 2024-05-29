@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -64,7 +64,7 @@ RT_PROGRAM void __raygen__()
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
-  auto ray = makePrimaryRay(ss);
+  auto ray = makePrimaryRay(ss, true /*pixel centered*/);
   float tmax = ray.t.upper;
   /////////////////////////////////////////////////////////////////////////////
 
@@ -123,12 +123,10 @@ RT_PROGRAM void __raygen__()
 
       const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns))
           * rendererParams.ambientColor;
-      const auto matResult = evalMaterial(frameData,
-          *surfaceHit.material,
-          surfaceHit,
-          -ray.dir,
-          -ray.dir,
-          lighting);
+      const auto matValues =
+          getMaterialValues(frameData, *surfaceHit.material, surfaceHit);
+      const auto matResult =
+          vec4(matValues.baseColor * lighting, matValues.opacity);
 
       accumulateValue(color, vec3(matResult), opacity);
       accumulateValue(opacity, matResult.w, opacity);

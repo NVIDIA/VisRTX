@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,11 +51,10 @@ struct Cone : public Geometry
 
  private:
   GeometryGPUData gpuData() const override;
-  void cleanup();
 
-  helium::IntrusivePtr<Array1D> m_index;
-  helium::IntrusivePtr<Array1D> m_radius;
-  helium::IntrusivePtr<Array1D> m_vertex;
+  helium::ChangeObserverPtr<Array1D> m_index;
+  helium::ChangeObserverPtr<Array1D> m_radius;
+  helium::ChangeObserverPtr<Array1D> m_vertex;
   GeometryAttributes m_vertexAttributes;
 
   HostDeviceArray<box3> m_aabbs;

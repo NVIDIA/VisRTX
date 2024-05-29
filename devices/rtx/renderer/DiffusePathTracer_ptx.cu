@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -61,10 +61,13 @@ RT_PROGRAM void __anyhit__()
 {
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
-  const auto &material = *hit.material;
-  const auto mat_opacity =
-      getMaterialParameter(frameData, material.values[MV_OPACITY], hit).x;
-  if (mat_opacity < 0.99f)
+
+  const auto &fd = frameData;
+  const auto &md = *hit.material;
+  vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
+  float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
+  opacity = adjustedMaterialOpacity(opacity, md) * color.w;
+  if (opacity < 0.99f && curand_uniform(&ray::screenSample().rs) > opacity)
     optixIgnoreIntersection();
 }
 

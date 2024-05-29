@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@ Object<MaterialPhysicallyBased>::Object(ANARIDevice d, ANARIObject handle)
 
 // clang-format off
 const char *pbr_material_eval_block = R"GLSL(
-  vec4 lighting = lights[ambientIdx];
+  vec4 lighting = vec4(0.0, 0.0, 0.0, 1.0);
 
   vec4 scalars = materials[instanceIndices.y];
   float ior = scalars.x;
@@ -91,9 +91,10 @@ R"GLSL(
     vec3 f_diffuse = (vec3(1.0) - F)*(1.0/PI)*c_diff;
     vec3 f_specular = F*D*G/(4.0*abs(NdotV)*abs(NdotL));
 
-    lighting.xyz += shadow*attenuation*light_color*(f_diffuse + f_specular)*max(0.0, NdotL);
+    lighting.xyz += max(vec3(0.0), shadow*attenuation*light_color*(f_diffuse + f_specular)*max(0.0, NdotL));
   }
 
+  lighting.xyz += fragmentOcclusion*lights[ambientIdx].xyz;
 
   FragColor = vec4(lighting.xyz*baseColor.xyz, opacity.x);
   FragColor.w *= coverage;

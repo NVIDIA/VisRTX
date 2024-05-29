@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -675,15 +675,15 @@ static void transformBoundingBox(float *out, const float *transform, const float
     for(int i=0;i<8;++i) {
         float x[3];
         float y[3];
-        
+
         //enumerate the corners of the bounding box
         x[0] = (i&1) ? bounds[0] : bounds[3];
         x[1] = (i&2) ? bounds[1] : bounds[4];
         x[2] = (i&4) ? bounds[2] : bounds[5];
-        
+
         //transform it
         affineTransformVector3(y, transform, x);
-        
+
         // calculate the new bounds
         tmp[0] = fast_minf(tmp[0], y[0]);
         tmp[1] = fast_minf(tmp[1], y[1]);
@@ -708,17 +708,17 @@ static void foldBoundingBox(float *out, const float *bounds) {
 
 
 static void projectBoundingBox(float *out, const float *bounds, const float *zero, const float *axis) {
-    float offset = dot3(zero, axis);        
+    float offset = dot3(zero, axis);
     out[0] = FLT_MAX;
     out[1] = -FLT_MAX;
     for(int i=0;i<8;++i) {
         float x[3];
-        
+
         //enumerate the corners of the bounding box
         x[0] = (i&1) ? bounds[0] : bounds[3];
         x[1] = (i&2) ? bounds[1] : bounds[4];
         x[2] = (i&4) ? bounds[2] : bounds[5];
-        
+
         float s = dot3(x, axis)-offset;
         out[0] = fast_minf(s, out[0]);
         out[1] = fast_maxf(s, out[1]);

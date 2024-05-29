@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -161,7 +161,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule raycast{nullptr};
     OptixModule ambientOcclusion{nullptr};
     OptixModule diffusePathTracer{nullptr};
-    OptixModule scivis{nullptr};
+    OptixModule directLight{nullptr};
     OptixModule test{nullptr};
   } rendererModules;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,18 +33,14 @@
 
 namespace visrtx {
 
-Cylinder::Cylinder(DeviceGlobalState *d) : Geometry(d) {}
+Cylinder::Cylinder(DeviceGlobalState *d) : Geometry(d),
+ m_index(this), m_radius(this), m_vertex(this) {}
 
-Cylinder::~Cylinder()
-{
-  cleanup();
-}
+Cylinder::~Cylinder() = default;
 
 void Cylinder::commit()
 {
   Geometry::commit();
-
-  cleanup();
 
   m_index = getParamObject<Array1D>("primitive.index");
   m_radius = getParamObject<Array1D>("primitive.radius");
@@ -62,10 +58,6 @@ void Cylinder::commit()
   reportMessage(ANARI_SEVERITY_DEBUG,
       "committing %s cylinder geometry",
       m_index ? "indexed" : "soup");
-
-  if (m_index)
-    m_index->addCommitObserver(this);
-  m_vertex->addCommitObserver(this);
 
   m_globalRadius = getParam<float>("radius", 1.f);
 
@@ -147,14 +139,6 @@ int Cylinder::optixGeometryType() const
 bool Cylinder::isValid() const
 {
   return m_vertex;
-}
-
-void Cylinder::cleanup()
-{
-  if (m_index)
-    m_index->removeCommitObserver(this);
-  if (m_vertex)
-    m_vertex->removeCommitObserver(this);
 }
 
 } // namespace visrtx

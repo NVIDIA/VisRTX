@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,56 +29,57 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "SciVis.h"
+#include "DirectLight.h"
 // ptx
-#include "SciVis_ptx.h"
+#include "DirectLight_ptx.h"
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_scivisHitNames = {
+static const std::vector<HitgroupFunctionNames> g_directLightHitNames = {
     {"__closesthit__primary", "__anyhit__primary"},
     {"__closesthit__shadow", "__anyhit__shadow"}};
 
-static const std::vector<std::string> g_scivisMissNames = {
+static const std::vector<std::string> g_directLightMissNames = {
     "__miss__", "__miss__"};
 
-SciVis::SciVis(DeviceGlobalState *s) : Renderer(s) {}
+DirectLight::DirectLight(DeviceGlobalState *s) : Renderer(s, 0.f) {}
 
-void SciVis::commit()
+void DirectLight::commit()
 {
   Renderer::commit();
   m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
   m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
 }
 
-void SciVis::populateFrameData(FrameGPUData &fd) const
+void DirectLight::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
-  auto &scivis = fd.renderer.params.scivis;
-  scivis.lightFalloff = m_lightFalloff;
-  scivis.aoSamples = m_aoSamples;
-  scivis.aoColor = m_aoColor;
-  scivis.aoIntensity = m_aoIntensity;
+  auto &directLight = fd.renderer.params.directLight;
+  directLight.lightFalloff = m_lightFalloff;
+  directLight.aoSamples = m_aoSamples;
+  directLight.aoColor = m_aoColor;
+  directLight.aoIntensity = m_aoIntensity;
 }
 
-OptixModule SciVis::optixModule() const
+OptixModule DirectLight::optixModule() const
 {
-  return deviceState()->rendererModules.scivis;
+  return deviceState()->rendererModules.directLight;
 }
 
-Span<HitgroupFunctionNames> SciVis::hitgroupSbtNames() const
+Span<HitgroupFunctionNames> DirectLight::hitgroupSbtNames() const
 {
-  return make_Span(g_scivisHitNames.data(), g_scivisHitNames.size());
+  return make_Span(g_directLightHitNames.data(), g_directLightHitNames.size());
 }
 
-Span<std::string> SciVis::missSbtNames() const
+Span<std::string> DirectLight::missSbtNames() const
 {
-  return make_Span(g_scivisMissNames.data(), g_scivisMissNames.size());
+  return make_Span(
+      g_directLightMissNames.data(), g_directLightMissNames.size());
 }
 
-ptx_blob SciVis::ptx()
+ptx_blob DirectLight::ptx()
 {
-  return {SciVis_ptx, sizeof(SciVis_ptx)};
+  return {DirectLight_ptx, sizeof(DirectLight_ptx)};
 }
 
 } // namespace visrtx

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,6 +53,8 @@ static DebugMethod methodFromString(const std::string &name)
     return DebugMethod::NS_ABS;
   else if (name == "uvw")
     return DebugMethod::RAY_UVW;
+  else if (name == "backface")
+    return DebugMethod::BACKFACE;
   else if (name == "istri")
     return DebugMethod::IS_TRIANGLE;
   else if (name == "isvol")
@@ -70,7 +72,7 @@ static DebugMethod methodFromString(const std::string &name)
   else if (name == "geometry.color")
     return DebugMethod::GEOMETRY_ATTRIBUTE_COLOR;
   else
-    return DebugMethod::BACKFACE;
+    return DebugMethod::PRIM_ID; // match default value
 }
 
 Debug::Debug(DeviceGlobalState *s) : Renderer(s) {}

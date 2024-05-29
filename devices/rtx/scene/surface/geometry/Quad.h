@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,12 +52,11 @@ struct Quad : public Geometry
  private:
   GeometryGPUData gpuData() const override;
   void generateIndices();
-  void cleanup();
 
   HostDeviceArray<uvec3> m_indices;
 
-  helium::IntrusivePtr<Array1D> m_index;
-  helium::IntrusivePtr<Array1D> m_vertex;
+  helium::ChangeObserverPtr<Array1D> m_index;
+  helium::ChangeObserverPtr<Array1D> m_vertex;
   helium::IntrusivePtr<Array1D> m_vertexNormal;
   GeometryAttributes m_vertexAttributes;
 

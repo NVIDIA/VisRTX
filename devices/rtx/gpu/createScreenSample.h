@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,15 +49,13 @@ RT_FUNCTION ScreenSample createScreenSample(const FrameGPUData &frameData)
 {
   ScreenSample ss;
 
-  ss.launchIdx = optixGetLaunchIndex();
-
   // random state //
 
-  int x = computePixelX(ss.launchIdx.x, frameData.fb.checkerboardID);
-  int y = computePixelY(ss.launchIdx.y, frameData.fb.checkerboardID);
-  int w = frameData.fb.size.x;
-  int frameID = frameData.fb.frameID;
-  curand_init(y * w + x, 0, frameID * 512, &ss.rs);
+  const auto launchIdx = optixGetLaunchIndex();
+  const int x = computePixelX(launchIdx.x, frameData.fb.checkerboardID);
+  const int y = computePixelY(launchIdx.y, frameData.fb.checkerboardID);
+  const int w = frameData.fb.size.x;
+  curand_init(y * w + x, 0, frameData.fb.frameID * 512, &ss.rs);
 
   ss.pixel.x = x;
   ss.pixel.y = y;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,6 +33,7 @@
 #include "VisGLSpecializations.h"
 #include "AppendableShader.h"
 #include "shader_blocks.h"
+#include "generated/VisGLQueries.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -70,6 +71,11 @@ int Object<Device>::getProperty(const char *propname,
       && std::strncmp("geometryMaxIndex", propname, 16) == 0) {
     uint64_t geometryMaxIndex = INT32_MAX; // use actual value
     std::memcpy(mem, &geometryMaxIndex, sizeof(geometryMaxIndex));
+    return 1;
+  } else if (type == ANARI_STRING_LIST && size >= sizeof(const char**)
+      && std::strncmp("extension", propname, 9) == 0) {
+    const char ** value = extensions.data();
+    std::memcpy(mem, &value, sizeof(const char**));
     return 1;
   } else {
     return 0;
@@ -119,6 +125,38 @@ static void device_context_init(
   }
 
   auto &gl = deviceObj->gl;
+
+  const char **ext = query_extensions();
+  for(int i = 0;ext[i] != nullptr;++i) {
+    if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC123", ext[i], 41)==0) {
+      if(gl.EXT_texture_compression_s3tc) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC45", ext[i], 40)==0) {
+      if(gl.ARB_texture_compression_rgtc) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC67", ext[i], 40)==0) {
+      if(gl.ARB_texture_compression_bptc) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ASTC", ext[i], 40)==0) {
+      if(gl.KHR_texture_compression_astc_ldr || gl.ES_VERSION_3_2) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ETC2", ext[i], 40)==0) {
+      if(gl.VERSION_4_3 || gl.ES_VERSION_3_2) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else if(strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_EAC", ext[i], 39)==0) {
+      if(gl.VERSION_4_3 || gl.ES_VERSION_3_2) {
+        deviceObj->extensions.push_back(ext[i]);
+      }
+    } else {
+      deviceObj->extensions.push_back(ext[i]);
+    }
+  }
+  deviceObj->extensions.push_back(nullptr);
 
   if (version == 0) {
     anariReportStatus(deviceObj->device,

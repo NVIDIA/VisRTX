@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,18 +33,15 @@
 
 namespace visrtx {
 
-Triangle::Triangle(DeviceGlobalState *d) : Geometry(d) {}
+Triangle::Triangle(DeviceGlobalState *d)
+    : Geometry(d), m_index(this), m_vertex(this)
+{}
 
-Triangle::~Triangle()
-{
-  cleanup();
-}
+Triangle::~Triangle() = default;
 
 void Triangle::commit()
 {
   Geometry::commit();
-
-  cleanup();
 
   m_index = getParamObject<Array1D>("primitive.index");
 
@@ -78,10 +75,6 @@ void Triangle::commit()
   reportMessage(ANARI_SEVERITY_DEBUG,
       "committing %s triangle geometry",
       m_index ? "indexed" : "soup");
-
-  if (m_index)
-    m_index->addCommitObserver(this);
-  m_vertex->addCommitObserver(this);
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
@@ -147,14 +140,6 @@ GeometryGPUData Triangle::gpuData() const
   tri.cullBackfaces = m_cullBackfaces;
 
   return retval;
-}
-
-void Triangle::cleanup()
-{
-  if (m_index)
-    m_index->removeCommitObserver(this);
-  if (m_vertex)
-    m_vertex->removeCommitObserver(this);
 }
 
 } // namespace visrtx

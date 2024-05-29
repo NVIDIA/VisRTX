@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,18 +33,13 @@
 
 namespace visrtx {
 
-Quad::Quad(DeviceGlobalState *d) : Geometry(d) {}
+Quad::Quad(DeviceGlobalState *d) : Geometry(d), m_index(this), m_vertex(this) {}
 
-Quad::~Quad()
-{
-  cleanup();
-}
+Quad::~Quad() = default;
 
 void Quad::commit()
 {
   Geometry::commit();
-
-  cleanup();
 
   m_index = getParamObject<Array1D>("primitive.index");
 
@@ -68,10 +63,6 @@ void Quad::commit()
   reportMessage(ANARI_SEVERITY_DEBUG,
       "committing %s quad geometry",
       m_index ? "indexed" : "soup");
-
-  if (m_index)
-    m_index->addCommitObserver(this);
-  m_vertex->addCommitObserver(this);
 
   generateIndices();
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
@@ -151,14 +142,6 @@ void Quad::generateIndices()
   }
 
   m_indices.upload();
-}
-
-void Quad::cleanup()
-{
-  if (m_index)
-    m_index->removeCommitObserver(this);
-  if (m_vertex)
-    m_vertex->removeCommitObserver(this);
 }
 
 } // namespace visrtx

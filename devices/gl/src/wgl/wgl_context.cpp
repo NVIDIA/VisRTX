@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,7 @@ static void (*wgl_loader(char const *name))(void)
   }
 
   void (*fptr)() = nullptr;
-  
+
   if (wglGetProcAddress) {
     fptr = (void (*)())wglGetProcAddress((const LPCSTR)name);
   }
@@ -214,7 +214,7 @@ void wglContext::init()
       WGL_CONTEXT_CORE_PROFILE_BIT_ARB | WGL_CONTEXT_ES2_PROFILE_BIT_EXT
           | (debug ? WGL_CONTEXT_DEBUG_BIT_ARB : 0),
       0};
-	
+
   wgl_context = wglCreateContextAttribsARB(
         dc, NULL, use_es ? context_attributes_ES : context_attributes);
 

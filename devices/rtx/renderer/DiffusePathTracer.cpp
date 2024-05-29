@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,7 @@ namespace visrtx {
 static const std::vector<HitgroupFunctionNames> g_dptHitNames = {
     {"__closesthit__", "__anyhit__"}};
 
-DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s) {}
+DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
 void DiffusePathTracer::commit()
 {

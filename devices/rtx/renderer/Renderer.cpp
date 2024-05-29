@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,8 +34,8 @@
 #include "AmbientOcclusion.h"
 #include "Debug.h"
 #include "DiffusePathTracer.h"
+#include "DirectLight.h"
 #include "Raycast.h"
-#include "SciVis.h"
 #include "Test.h"
 #include "UnknownRenderer.h"
 // std
@@ -98,8 +98,8 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     return new AmbientOcclusion(d);
   else if (subtype == "diffuse_pathtracer" || subtype == "dpt")
     return new DiffusePathTracer(d);
-  else if (subtype == "scivis" || subtype == "sv" || subtype == "default")
-    return new SciVis(d);
+  else if (subtype == "directLight" || subtype == "default")
+    return new DirectLight(d);
   else if (subtype == "test")
     return new Test(d);
   else if (beginsWith(subtype, "debug")) {
@@ -114,7 +114,10 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 
 // Renderer definitions ///////////////////////////////////////////////////////
 
-Renderer::Renderer(DeviceGlobalState *s) : Object(ANARI_RENDERER, s) {}
+Renderer::Renderer(DeviceGlobalState *s, float defaultAmbientRadiance)
+    : Object(ANARI_RENDERER, s),
+      m_defaultAmbientRadiance(defaultAmbientRadiance)
+{}
 
 Renderer::~Renderer()
 {
@@ -134,7 +137,8 @@ void Renderer::commit()
   m_bgColor = getParam<vec4>("background", vec4(vec3(0.f), 1.f));
   m_spp = getParam<int>("pixelSamples", 1);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
-  m_ambientIntensity = getParam<float>("ambientRadiance", 0.f);
+  m_ambientIntensity =
+      getParam<float>("ambientRadiance", m_defaultAmbientRadiance);
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
   m_checkerboard = getParam<bool>("checkerboarding", false);
   m_denoise = getParam<bool>("denoise", false);
@@ -463,7 +467,7 @@ void Renderer::cleanup()
       cudaDestroyTextureObject(m_backgroundTexture);
       m_backgroundImage->releaseCUDAArrayUint8();
     }
-    m_backgroundImage->removeCommitObserver(this);
+    m_backgroundImage->removeChangeObserver(this);
   }
 }
 

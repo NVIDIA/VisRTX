@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,18 +35,15 @@
 
 namespace visrtx {
 
-Curve::Curve(DeviceGlobalState *d) : Geometry(d) {}
+Curve::Curve(DeviceGlobalState *d)
+    : Geometry(d), m_index(this), m_vertexPosition(this), m_vertexRadius(this)
+{}
 
-Curve::~Curve()
-{
-  cleanup();
-}
+Curve::~Curve() = default;
 
 void Curve::commit()
 {
   Geometry::commit();
-
-  cleanup();
 
   m_index = getParamObject<Array1D>("primitive.index");
 
@@ -63,10 +60,6 @@ void Curve::commit()
   reportMessage(ANARI_SEVERITY_DEBUG,
       "committing %s curve geometry",
       m_index ? "indexed" : "soup");
-
-  if (m_index)
-    m_index->addCommitObserver(this);
-  m_vertexPosition->addCommitObserver(this);
 
   m_globalRadius = getParam<float>("radius", 1.f);
 
@@ -152,14 +145,6 @@ GeometryGPUData Curve::gpuData() const
   populateAttributeDataSet(m_vertexAttributes, curve.vertexAttr);
 
   return retval;
-}
-
-void Curve::cleanup()
-{
-  if (m_index)
-    m_index->removeCommitObserver(this);
-  if (m_vertexPosition)
-    m_vertexPosition->removeCommitObserver(this);
 }
 
 } // namespace visrtx

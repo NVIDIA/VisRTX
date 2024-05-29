@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,7 @@ struct HitgroupFunctionNames
 
 struct Renderer : public Object
 {
-  Renderer(DeviceGlobalState *s);
+  Renderer(DeviceGlobalState *s, float defaultAmbientRadiance = 0.f);
   ~Renderer() override;
 
   virtual void commit() override;
@@ -107,6 +107,7 @@ struct Renderer : public Object
 
   HitgroupFunctionNames m_defaultHitgroupNames;
   std::string m_defaultMissName{"__miss__"};
+  float m_defaultAmbientRadiance{0.f};
 };
 
 OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions();

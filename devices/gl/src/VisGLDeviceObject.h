@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,6 +46,7 @@
 #include <thread>
 #include <unordered_map>
 #include <atomic>
+#include <vector>
 
 namespace visgl {
 
@@ -148,6 +149,7 @@ class Object<Device> : public DefaultObject<Device>
   std::unique_ptr<glContextInterface> context;
   int clientapi;
   GladGLContext gl{};
+  std::vector<const char*> extensions;
 
   queue_thread queue;
   StorageBuffer<std::array<float, 16>, GladGLContext> transforms;

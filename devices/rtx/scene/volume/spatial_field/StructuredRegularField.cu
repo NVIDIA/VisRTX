@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -98,7 +98,7 @@ __global__ void buildGridGPU(
 
 void StructuredRegularField::buildGrid()
 {
-  auto dims = m_params.data->size();
+  auto dims = m_data->size();
   ivec3 gridDims(iDivUp(dims.x, 16), iDivUp(dims.y, 16), iDivUp(dims.z, 16));
   m_uniformGrid.init(gridDims, bounds());
 

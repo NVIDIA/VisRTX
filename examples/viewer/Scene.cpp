@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -649,7 +649,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
   anari::commitParameters(d, field);
 
   auto volume = anari::newObject<anari::Volume>(d, "transferFunction1D");
-  anari::setAndReleaseParameter(d, volume, "field", field);
+  anari::setAndReleaseParameter(d, volume, "value", field);
   anari::setParameter(d, volume, "densityScale", config.density);
 
   {

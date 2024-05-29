@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,18 +51,15 @@ struct TransferFunction1D : public Volume
   void discritizeTFData();
   void cleanup();
 
-  struct
-  {
-    helium::IntrusivePtr<Array1D> color;
-    helium::IntrusivePtr<Array1D> colorPosition;
-    helium::IntrusivePtr<Array1D> opacity;
-    helium::IntrusivePtr<Array1D> opacityPosition;
+  helium::ChangeObserverPtr<Array1D> m_color;
+  helium::ChangeObserverPtr<Array1D> m_colorPosition;
+  helium::ChangeObserverPtr<Array1D> m_opacity;
+  helium::ChangeObserverPtr<Array1D> m_opacityPosition;
 
-    box1 valueRange{0.f, 1.f};
-    float densityScale{1.f};
+  box1 m_valueRange{0.f, 1.f};
+  float m_densityScale{1.f};
 
-    helium::IntrusivePtr<SpatialField> field;
-  } m_params;
+  helium::IntrusivePtr<SpatialField> m_field;
 
   std::vector<vec4> m_tf;
   int m_tfDim{256};

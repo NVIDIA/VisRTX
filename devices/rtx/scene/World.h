@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,11 +67,11 @@ struct World : public Object
   void buildInstanceLightGPUData();
   void cleanup();
 
-  helium::IntrusivePtr<ObjectArray> m_zeroSurfaceData;
-  helium::IntrusivePtr<ObjectArray> m_zeroVolumeData;
-  helium::IntrusivePtr<ObjectArray> m_zeroLightData;
+  helium::ChangeObserverPtr<ObjectArray> m_zeroSurfaceData;
+  helium::ChangeObserverPtr<ObjectArray> m_zeroVolumeData;
+  helium::ChangeObserverPtr<ObjectArray> m_zeroLightData;
 
-  helium::IntrusivePtr<ObjectArray> m_instanceData;
+  helium::ChangeObserverPtr<ObjectArray> m_instanceData;
   Span<Instance *> m_instances;
 
   bool m_addZeroInstance{false};

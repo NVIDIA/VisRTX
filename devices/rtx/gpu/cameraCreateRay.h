@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -71,11 +71,12 @@ RT_FUNCTION Ray cameraCreateRay(const CameraGPUData *c, vec2 screen, vec2 r)
   return ray;
 }
 
-RT_FUNCTION Ray makePrimaryRay(ScreenSample &ss)
+RT_FUNCTION Ray makePrimaryRay(ScreenSample &ss, bool centerPixel = false)
 {
   const float4 r = curand_uniform4(&ss.rs);
-  ss.screen =
-      vec2(ss.pixel.x + r.x, ss.pixel.y + r.y) * ss.frameData->fb.invSize;
+  ss.screen = (centerPixel ? vec2(ss.pixel.x, ss.pixel.y)
+                           : vec2(ss.pixel.x + r.x, ss.pixel.y + r.y))
+      * ss.frameData->fb.invSize;
   return cameraCreateRay(ss.frameData->camera, ss.screen, {r.z, r.w});
 }
 

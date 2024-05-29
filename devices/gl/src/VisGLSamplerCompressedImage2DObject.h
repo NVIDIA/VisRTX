@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,26 +31,45 @@
 
 #pragma once
 
-#include "Renderer.h"
+#include "VisGLDevice.h"
+#include "AppendableShader.h"
 
-namespace visrtx {
+#include <array>
 
-struct SciVis : public Renderer
+namespace visgl {
+
+template <>
+class Object<SamplerCompressedImage2D>
+    : public DefaultObject<SamplerCompressedImage2D, SamplerObjectBase>
 {
-  SciVis(DeviceGlobalState *s);
+  GLuint texture = 0;
+  GLuint sampler = 0;
+  size_t transform_index;
+  ObjectRef<DataArray1D> image;
+
+  friend void compressed_image2d_init_objects(ObjectRef<SamplerCompressedImage2D> samplerObj,
+    int filter,
+    GLenum wrapS,
+    GLenum wrapT,
+    GLenum internalformat,
+    GLsizei width,
+    GLsizei height,
+    GLsizei byteSize,
+    GLuint buffer);
+
+ public:
+  Object(ANARIDevice d, ANARIObject handle);
+
   void commit() override;
-  void populateFrameData(FrameGPUData &fd) const override;
-  OptixModule optixModule() const override;
-  Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
-  Span<std::string> missSbtNames() const override;
+  void update() override;
 
-  static ptx_blob ptx();
+  void allocateResources(SurfaceObjectBase *, int) override;
+  void drawCommand(int index, DrawCommand &command) override;
+  void declare(int index, AppendableShader &shader) override;
+  void sample(int index, AppendableShader &shader, const char *meta) override;
+  std::array<uint32_t, 4> metadata() override;
 
- private:
-  float m_lightFalloff{0.25f};
-  int m_aoSamples{1};
-  vec3 m_aoColor{1.f};
-  float m_aoIntensity{1.f};
+  ~Object();
 };
 
-} // namespace visrtx
+} // namespace visgl

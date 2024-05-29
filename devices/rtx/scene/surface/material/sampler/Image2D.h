@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,13 +53,10 @@ struct Image2D : public Sampler
 
   void cleanup();
 
-  struct
-  {
-    std::string filter;
-    std::string wrap1;
-    std::string wrap2;
-    helium::IntrusivePtr<Array2D> image;
-  } m_params;
+  std::string m_filter;
+  std::string m_wrap1;
+  std::string m_wrap2;
+  helium::ChangeObserverPtr<Array2D> m_image;
 
   cudaTextureObject_t m_texture{};
 };
