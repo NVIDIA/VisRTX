@@ -55,9 +55,9 @@ struct Curve : public Geometry
   void computeRadii();
   GeometryGPUData gpuData() const override;
 
-  helium::CommitObserverPtr<Array1D> m_index;
-  helium::CommitObserverPtr<Array1D> m_vertexPosition;
-  helium::CommitObserverPtr<Array1D> m_vertexRadius;
+  helium::ChangeObserverPtr<Array1D> m_index;
+  helium::ChangeObserverPtr<Array1D> m_vertexPosition;
+  helium::ChangeObserverPtr<Array1D> m_vertexRadius;
   GeometryAttributes m_vertexAttributes;
 
   float m_globalRadius;

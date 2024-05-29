@@ -84,7 +84,7 @@ struct Group : public Object
 
   // Geometry //
 
-  helium::CommitObserverPtr<ObjectArray> m_surfaceData;
+  helium::ChangeObserverPtr<ObjectArray> m_surfaceData;
 
   std::vector<Surface *> m_surfacesTriangle;
   std::vector<Surface *> m_surfacesCurve;
@@ -96,14 +96,14 @@ struct Group : public Object
 
   // Volume //
 
-  helium::CommitObserverPtr<ObjectArray> m_volumeData;
+  helium::ChangeObserverPtr<ObjectArray> m_volumeData;
   std::vector<Volume *> m_volumes;
 
   DeviceBuffer m_volumeObjectIndices;
 
   // Light //
 
-  helium::CommitObserverPtr<ObjectArray> m_lightData;
+  helium::ChangeObserverPtr<ObjectArray> m_lightData;
   std::vector<Light *> m_lights;
 
   DeviceBuffer m_lightObjectIndices;

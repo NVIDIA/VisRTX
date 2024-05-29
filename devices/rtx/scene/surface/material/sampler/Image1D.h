@@ -55,7 +55,7 @@ struct Image1D : public Sampler
 
   std::string m_filter;
   std::string m_wrap1;
-  helium::CommitObserverPtr<Array1D> m_image;
+  helium::ChangeObserverPtr<Array1D> m_image;
 
   cudaTextureObject_t m_texture{};
 };

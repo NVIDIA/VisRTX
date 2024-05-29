@@ -55,8 +55,8 @@ struct Quad : public Geometry
 
   HostDeviceArray<uvec3> m_indices;
 
-  helium::CommitObserverPtr<Array1D> m_index;
-  helium::CommitObserverPtr<Array1D> m_vertex;
+  helium::ChangeObserverPtr<Array1D> m_index;
+  helium::ChangeObserverPtr<Array1D> m_vertex;
   helium::IntrusivePtr<Array1D> m_vertexNormal;
   GeometryAttributes m_vertexAttributes;
 

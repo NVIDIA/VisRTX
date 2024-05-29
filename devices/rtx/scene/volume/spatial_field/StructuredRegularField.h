@@ -57,7 +57,7 @@ struct StructuredRegularField : public SpatialField
   vec3 m_origin;
   vec3 m_spacing;
   std::string m_filter;
-  helium::CommitObserverPtr<Array3D> m_data;
+  helium::ChangeObserverPtr<Array3D> m_data;
 
   cudaArray_t m_cudaArray{};
   cudaTextureObject_t m_textureObject{};

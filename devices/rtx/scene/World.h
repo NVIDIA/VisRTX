@@ -67,11 +67,11 @@ struct World : public Object
   void buildInstanceLightGPUData();
   void cleanup();
 
-  helium::CommitObserverPtr<ObjectArray> m_zeroSurfaceData;
-  helium::CommitObserverPtr<ObjectArray> m_zeroVolumeData;
-  helium::CommitObserverPtr<ObjectArray> m_zeroLightData;
+  helium::ChangeObserverPtr<ObjectArray> m_zeroSurfaceData;
+  helium::ChangeObserverPtr<ObjectArray> m_zeroVolumeData;
+  helium::ChangeObserverPtr<ObjectArray> m_zeroLightData;
 
-  helium::CommitObserverPtr<ObjectArray> m_instanceData;
+  helium::ChangeObserverPtr<ObjectArray> m_instanceData;
   Span<Instance *> m_instances;
 
   bool m_addZeroInstance{false};

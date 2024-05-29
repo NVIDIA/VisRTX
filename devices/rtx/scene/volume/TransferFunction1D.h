@@ -51,10 +51,10 @@ struct TransferFunction1D : public Volume
   void discritizeTFData();
   void cleanup();
 
-  helium::CommitObserverPtr<Array1D> m_color;
-  helium::CommitObserverPtr<Array1D> m_colorPosition;
-  helium::CommitObserverPtr<Array1D> m_opacity;
-  helium::CommitObserverPtr<Array1D> m_opacityPosition;
+  helium::ChangeObserverPtr<Array1D> m_color;
+  helium::ChangeObserverPtr<Array1D> m_colorPosition;
+  helium::ChangeObserverPtr<Array1D> m_opacity;
+  helium::ChangeObserverPtr<Array1D> m_opacityPosition;
 
   box1 m_valueRange{0.f, 1.f};
   float m_densityScale{1.f};

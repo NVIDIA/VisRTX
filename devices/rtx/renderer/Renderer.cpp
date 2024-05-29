@@ -467,7 +467,7 @@ void Renderer::cleanup()
       cudaDestroyTextureObject(m_backgroundTexture);
       m_backgroundImage->releaseCUDAArrayUint8();
     }
-    m_backgroundImage->removeCommitObserver(this);
+    m_backgroundImage->removeChangeObserver(this);
   }
 }
 
