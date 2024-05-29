@@ -52,7 +52,7 @@ if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   endif()
 endif()
 
-project(VisRTX VERSION 0.8.1 LANGUAGES C CXX)
+project(VisRTX VERSION 0.9.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
