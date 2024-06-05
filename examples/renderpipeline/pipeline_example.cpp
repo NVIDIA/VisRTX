@@ -36,6 +36,7 @@
 // std
 #include <array>
 #include <cstdio>
+#include <numeric>
 #include <random>
 // stb_image
 #define STB_IMAGE_WRITE_IMPLEMENTATION

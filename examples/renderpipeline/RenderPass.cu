@@ -92,7 +92,7 @@ DEVICE_FCN uint32_t shadePixel(uint32_t c_in)
 
 // Thrust kernels /////////////////////////////////////////////////////////////
 
-static void thrustCompositeFrame(RenderPass::CUDABuffers &b_out,
+void thrustCompositeFrame(RenderPass::CUDABuffers &b_out,
     const RenderPass::CUDABuffers &b_in,
     glm::uvec2 size,
     bool firstPass)
@@ -112,7 +112,7 @@ static void thrustCompositeFrame(RenderPass::CUDABuffers &b_out,
       });
 }
 
-static void thrustComputeOutline(
+void thrustComputeOutline(
     RenderPass::CUDABuffers &b, uint32_t outlineId, glm::uvec2 size)
 {
   thrust::for_each(thrust::device,

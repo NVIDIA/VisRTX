@@ -37,6 +37,10 @@
 #include <vector>
 // anari
 #include <anari/anari_cpp.hpp>
+// windows
+#ifdef _WIN32
+#include "Windows.h"
+#endif
 // OpenGL
 #include <GL/gl.h>
 // CUDA
