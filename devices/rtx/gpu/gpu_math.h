@@ -38,7 +38,6 @@
 #include <glm/gtx/component_wise.hpp>
 // std
 #include <limits>
-#include <variant>
 // cuda
 #include <cuda_runtime.h>
 
