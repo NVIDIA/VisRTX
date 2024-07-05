@@ -85,6 +85,7 @@ struct Ray
   box1 t{0.f, std::numeric_limits<float>::max()};
 };
 
+struct InstanceSurfaceGPUData;
 struct GeometryGPUData;
 struct MaterialGPUData;
 struct VolumeGPUData;
@@ -101,6 +102,7 @@ struct SurfaceHit
   uint32_t objID{~0u};
   uint32_t instID{~0u};
   float epsilon;
+  const InstanceSurfaceGPUData *instance{nullptr};
   const GeometryGPUData *geometry{nullptr};
   const MaterialGPUData *material{nullptr};
 };

@@ -109,22 +109,25 @@ void World::commit()
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World will add zero instance");
 
   if (m_zeroSurfaceData) {
-    reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::World found surfaces in zero instance");
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World found %zu surfaces in zero instance",
+        m_zeroSurfaceData->totalSize());
     m_zeroGroup->setParamDirect("surface", getParamDirect("surface"));
   } else
     m_zeroGroup->removeParam("surface");
 
   if (m_zeroVolumeData) {
-    reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::World found volumes in zero instance");
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World found %zu volumes in zero instance",
+        m_zeroVolumeData->totalSize());
     m_zeroGroup->setParamDirect("volume", getParamDirect("volume"));
   } else
     m_zeroGroup->removeParam("volume");
 
   if (m_zeroLightData) {
-    reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::World found lights in zero instance");
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World found %zu lights in zero instance",
+        m_zeroLightData->totalSize());
     m_zeroGroup->setParamDirect("light", getParamDirect("light"));
   } else
     m_zeroGroup->removeParam("light");
@@ -320,17 +323,48 @@ void World::buildInstanceSurfaceGPUData()
   m_instanceSurfaceGPUData.resize(
       m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
 
+  auto makeInstanceGPUData = [](const DeviceObjectIndex *s,
+                                 const UniformAttributes &ua,
+                                 uint32_t id) -> InstanceSurfaceGPUData {
+    InstanceSurfaceGPUData retval;
+
+    retval.surfaces = s;
+    retval.attrUniform[0] = ua.attribute0.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[0] = ua.attribute0.has_value();
+    retval.attrUniform[1] = ua.attribute1.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[1] = ua.attribute1.has_value();
+    retval.attrUniform[2] = ua.attribute2.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[2] = ua.attribute2.has_value();
+    retval.attrUniform[3] = ua.attribute3.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[3] = ua.attribute3.has_value();
+    retval.attrUniform[4] = ua.color.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[4] = ua.color.has_value();
+    retval.id = id;
+
+    return retval;
+  };
+
   int instID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *sd = m_instanceSurfaceGPUData.dataHost();
     auto id = inst->userID();
-    if (group->containsTriangleGeometry())
-      sd[instID++] = {group->surfaceTriangleGPUIndices().data(), id};
-    if (group->containsCurveGeometry())
-      sd[instID++] = {group->surfaceCurveGPUIndices().data(), id};
-    if (group->containsUserGeometry())
-      sd[instID++] = {group->surfaceUserGPUIndices().data(), id};
+
+    if (group->containsTriangleGeometry()) {
+      sd[instID++] =
+          makeInstanceGPUData(group->surfaceTriangleGPUIndices().data(),
+              inst->uniformAttributes(),
+              id);
+    }
+    if (group->containsCurveGeometry()) {
+      sd[instID++] = makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
+          inst->uniformAttributes(),
+          id);
+    }
+    if (group->containsUserGeometry()) {
+      sd[instID++] = makeInstanceGPUData(
+          group->surfaceUserGPUIndices().data(), inst->uniformAttributes(), id);
+    }
   });
 
   m_instanceSurfaceGPUData.upload();

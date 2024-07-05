@@ -171,8 +171,12 @@ RT_FUNCTION uint32_t decodeCurveAttributeIndices(
 
 RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
 {
+  const auto &isd = *hit.instance;
   const auto &ggd = *hit.geometry;
   const vec4 &uf = ggd.attrUniform[attributeID];
+
+  if (isd.attrUniformPresent[attributeID])
+    return isd.attrUniform[attributeID];
 
   // First check per-vertex attributes
   if (ggd.type == GeometryType::TRIANGLE) {

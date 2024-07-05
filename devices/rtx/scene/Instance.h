@@ -50,6 +50,8 @@ struct Instance : public Object
   const Group *group() const;
   Group *group();
 
+  const UniformAttributes &uniformAttributes() const;
+
   void markCommitted() override;
 
   bool isValid() const override;
@@ -57,6 +59,7 @@ struct Instance : public Object
  private:
   mat4x3 m_xfm;
   helium::IntrusivePtr<Group> m_group;
+  UniformAttributes m_uniformAttributes;
   uint32_t m_id{~0u};
 };
 

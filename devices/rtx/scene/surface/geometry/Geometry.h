@@ -39,6 +39,15 @@
 
 namespace visrtx {
 
+struct UniformAttributes
+{
+  std::optional<vec4> attribute0;
+  std::optional<vec4> attribute1;
+  std::optional<vec4> attribute2;
+  std::optional<vec4> attribute3;
+  std::optional<vec4> color;
+};
+
 struct GeometryAttributes
 {
   helium::IntrusivePtr<Array1D> attribute0;
@@ -46,15 +55,6 @@ struct GeometryAttributes
   helium::IntrusivePtr<Array1D> attribute2;
   helium::IntrusivePtr<Array1D> attribute3;
   helium::IntrusivePtr<Array1D> color;
-};
-
-struct GeometryAttributesUniform
-{
-  std::optional<vec4> attribute0;
-  std::optional<vec4> attribute1;
-  std::optional<vec4> attribute2;
-  std::optional<vec4> attribute3;
-  std::optional<vec4> color;
 };
 
 struct Geometry : public RegisteredObject<GeometryGPUData>
@@ -79,7 +79,7 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
       const GeometryAttributes &hostAttrs, AttributeDataSet &gpuAttrs) const;
 
   GeometryAttributes m_primitiveAttributes;
-  GeometryAttributesUniform m_uniformAttributes;
+  UniformAttributes m_uniformAttributes;
 };
 
 } // namespace visrtx

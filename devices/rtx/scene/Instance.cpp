@@ -42,6 +42,21 @@ void Instance::commit()
   m_group = getParamObject<Group>("group");
   if (!m_group)
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'group' on ANARIInstance");
+
+  auto getUniformAttribute =
+      [&](const std::string &pName) -> std::optional<vec4> {
+    vec4 v(0.f, 0.f, 0.f, 1.f);
+    if (getParam(pName, ANARI_FLOAT32_VEC4, &v))
+      return v;
+    else
+      return {};
+  };
+
+  m_uniformAttributes.attribute0 = getUniformAttribute("attribute0");
+  m_uniformAttributes.attribute1 = getUniformAttribute("attribute1");
+  m_uniformAttributes.attribute2 = getUniformAttribute("attribute2");
+  m_uniformAttributes.attribute3 = getUniformAttribute("attribute3");
+  m_uniformAttributes.color = getUniformAttribute("color");
 }
 
 uint32_t Instance::userID() const
@@ -67,6 +82,11 @@ const Group *Instance::group() const
 Group *Instance::group()
 {
   return m_group.ptr;
+}
+
+const UniformAttributes &Instance::uniformAttributes() const
+{
+  return m_uniformAttributes;
 }
 
 void Instance::markCommitted()

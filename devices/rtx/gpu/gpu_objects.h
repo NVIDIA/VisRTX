@@ -407,6 +407,8 @@ struct LightGPUData
 struct InstanceSurfaceGPUData
 {
   const DeviceObjectIndex *surfaces;
+  AttributeDataSetUniform attrUniform;
+  bool attrUniformPresent[5];
   uint32_t id;
 };
 

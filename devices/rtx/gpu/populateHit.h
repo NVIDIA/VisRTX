@@ -295,6 +295,7 @@ RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
   auto &isd = getSurfaceInstanceData(fd, ray::instID());
 
   hit.foundHit = true;
+  hit.instance = &isd;
   hit.geometry = &gd;
   hit.material = &md;
   hit.t = ray::t();
