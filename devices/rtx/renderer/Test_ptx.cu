@@ -52,13 +52,10 @@ RT_PROGRAM void __miss__()
 
 RT_PROGRAM void __raygen__()
 {
-  /////////////////////////////////////////////////////////////////////////////
-  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
   auto ray = makePrimaryRay(ss);
-  /////////////////////////////////////////////////////////////////////////////
 
   accumResults(frameData.fb,
       ss.pixel,

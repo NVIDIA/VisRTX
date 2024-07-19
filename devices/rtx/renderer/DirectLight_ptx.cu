@@ -165,14 +165,11 @@ RT_PROGRAM void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
 
-  /////////////////////////////////////////////////////////////////////////////
-  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
   auto ray = makePrimaryRay(ss);
   float tmax = ray.t.upper;
-  /////////////////////////////////////////////////////////////////////////////
 
   SurfaceHit surfaceHit;
   VolumeHit volumeHit;

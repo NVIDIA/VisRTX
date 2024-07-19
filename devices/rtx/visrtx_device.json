@@ -27,6 +27,9 @@
       "khr_light_point",
       "khr_material_matte",
       "khr_material_physically_based",
+      "khr_renderer_ambient_light",
+      "khr_renderer_background_color",
+      "khr_renderer_background_image",
       "khr_sampler_image1d",
       "khr_sampler_image2d",
       "khr_sampler_primitive",
@@ -44,43 +47,6 @@
       "type": "ANARI_RENDERER",
       "name": "default",
       "parameters": [
-        {
-          "name": "background",
-          "types": [
-            "ANARI_FLOAT32_VEC4",
-            "ANARI_ARRAY2D"
-          ],
-          "elementType": [
-            "ANARI_UFIXED8",
-            "ANARI_UFIXED8_VEC2",
-            "ANARI_UFIXED8_VEC3",
-            "ANARI_UFIXED8_VEC4",
-            "ANARI_UFIXED8_R_SRGB",
-            "ANARI_UFIXED8_RA_SRGB",
-            "ANARI_UFIXED8_RGB_SRGB",
-            "ANARI_UFIXED8_RGBA_SRGB",
-            "ANARI_UFIXED16",
-            "ANARI_UFIXED16_VEC2",
-            "ANARI_UFIXED16_VEC3",
-            "ANARI_UFIXED16_VEC4",
-            "ANARI_UFIXED32",
-            "ANARI_UFIXED32_VEC2",
-            "ANARI_UFIXED32_VEC3",
-            "ANARI_UFIXED32_VEC4",
-            "ANARI_FLOAT32",
-            "ANARI_FLOAT32_VEC2",
-            "ANARI_FLOAT32_VEC3",
-            "ANARI_FLOAT32_VEC4"
-          ],
-          "tags": [],
-          "default": [
-            0.0,
-            0.0,
-            0.0,
-            1.0
-          ],
-          "description": "background color and alpha (RGBA)"
-        },
         {
           "name": "sampleLimit",
           "types": [
@@ -137,28 +103,6 @@
           "default": 1,
           "minimum": 0,
           "description": "AO samples per-pixel, per-frame"
-        },
-        {
-          "name": "ambientColor",
-          "types": [
-            "ANARI_FLOAT32_VEC3"
-          ],
-          "tags": [],
-          "default": [
-            1.0,
-            1.0,
-            1.0
-          ],
-          "description": "ambient light color (RGB)"
-        },
-        {
-          "name": "ambientRadiance",
-          "types": [
-            "ANARI_FLOAT32"
-          ],
-          "tags": [],
-          "default": 0.0,
-          "description": "ambient light intensity"
         },
         {
           "name": "ambientOcclusionDistance",
@@ -188,43 +132,6 @@
       "name": "ao",
       "parameters": [
         {
-          "name": "background",
-          "types": [
-            "ANARI_FLOAT32_VEC4",
-            "ANARI_ARRAY2D"
-          ],
-          "elementType": [
-            "ANARI_UFIXED8",
-            "ANARI_UFIXED8_VEC2",
-            "ANARI_UFIXED8_VEC3",
-            "ANARI_UFIXED8_VEC4",
-            "ANARI_UFIXED8_R_SRGB",
-            "ANARI_UFIXED8_RA_SRGB",
-            "ANARI_UFIXED8_RGB_SRGB",
-            "ANARI_UFIXED8_RGBA_SRGB",
-            "ANARI_UFIXED16",
-            "ANARI_UFIXED16_VEC2",
-            "ANARI_UFIXED16_VEC3",
-            "ANARI_UFIXED16_VEC4",
-            "ANARI_UFIXED32",
-            "ANARI_UFIXED32_VEC2",
-            "ANARI_UFIXED32_VEC3",
-            "ANARI_UFIXED32_VEC4",
-            "ANARI_FLOAT32",
-            "ANARI_FLOAT32_VEC2",
-            "ANARI_FLOAT32_VEC3",
-            "ANARI_FLOAT32_VEC4"
-          ],
-          "tags": [],
-          "default": [
-            0.0,
-            0.0,
-            0.0,
-            1.0
-          ],
-          "description": "background color and alpha (RGBA)"
-        },
-        {
           "name": "sampleLimit",
           "types": [
             "ANARI_INT32"
@@ -280,28 +187,6 @@
           "default": 1,
           "minimum": 0,
           "description": "AO samples per-pixel, per-frame"
-        },
-        {
-          "name": "ambientColor",
-          "types": [
-            "ANARI_FLOAT32_VEC3"
-          ],
-          "tags": [],
-          "default": [
-            1.0,
-            1.0,
-            1.0
-          ],
-          "description": "ambient light color (RGB)"
-        },
-        {
-          "name": "ambientRadiance",
-          "types": [
-            "ANARI_FLOAT32"
-          ],
-          "tags": [],
-          "default": 1.0,
-          "description": "ambient light intensity"
         },
         {
           "name": "ambientOcclusionDistance",
@@ -365,15 +250,6 @@
           "default": 1,
           "minimum": 1,
           "description": "samples per-pixel"
-        },
-        {
-          "name": "ambientRadiance",
-          "types": [
-            "ANARI_FLOAT32"
-          ],
-          "tags": [],
-          "default": 1.0,
-          "description": "ambient light intensity"
         }
       ]
     },
@@ -381,43 +257,6 @@
       "type": "ANARI_RENDERER",
       "name": "raycast",
       "parameters": [
-        {
-          "name": "background",
-          "types": [
-            "ANARI_FLOAT32_VEC4",
-            "ANARI_ARRAY2D"
-          ],
-          "elementType": [
-            "ANARI_UFIXED8",
-            "ANARI_UFIXED8_VEC2",
-            "ANARI_UFIXED8_VEC3",
-            "ANARI_UFIXED8_VEC4",
-            "ANARI_UFIXED8_R_SRGB",
-            "ANARI_UFIXED8_RA_SRGB",
-            "ANARI_UFIXED8_RGB_SRGB",
-            "ANARI_UFIXED8_RGBA_SRGB",
-            "ANARI_UFIXED16",
-            "ANARI_UFIXED16_VEC2",
-            "ANARI_UFIXED16_VEC3",
-            "ANARI_UFIXED16_VEC4",
-            "ANARI_UFIXED32",
-            "ANARI_UFIXED32_VEC2",
-            "ANARI_UFIXED32_VEC3",
-            "ANARI_UFIXED32_VEC4",
-            "ANARI_FLOAT32",
-            "ANARI_FLOAT32_VEC2",
-            "ANARI_FLOAT32_VEC3",
-            "ANARI_FLOAT32_VEC4"
-          ],
-          "tags": [],
-          "default": [
-            0.0,
-            0.0,
-            0.0,
-            1.0
-          ],
-          "description": "background color and alpha (RGBA)"
-        },
         {
           "name": "cullTriangleBackfaces",
           "types": [
@@ -433,81 +272,6 @@
       "type": "ANARI_RENDERER",
       "name": "debug",
       "parameters": [
-        {
-          "name": "background",
-          "types": [
-            "ANARI_FLOAT32_VEC4",
-            "ANARI_ARRAY2D"
-          ],
-          "elementType": [
-            "ANARI_UFIXED8",
-            "ANARI_UFIXED8_VEC2",
-            "ANARI_UFIXED8_VEC3",
-            "ANARI_UFIXED8_VEC4",
-            "ANARI_UFIXED8_R_SRGB",
-            "ANARI_UFIXED8_RA_SRGB",
-            "ANARI_UFIXED8_RGB_SRGB",
-            "ANARI_UFIXED8_RGBA_SRGB",
-            "ANARI_UFIXED16",
-            "ANARI_UFIXED16_VEC2",
-            "ANARI_UFIXED16_VEC3",
-            "ANARI_UFIXED16_VEC4",
-            "ANARI_UFIXED32",
-            "ANARI_UFIXED32_VEC2",
-            "ANARI_UFIXED32_VEC3",
-            "ANARI_UFIXED32_VEC4",
-            "ANARI_FLOAT32",
-            "ANARI_FLOAT32_VEC2",
-            "ANARI_FLOAT32_VEC3",
-            "ANARI_FLOAT32_VEC4"
-          ],
-          "tags": [],
-          "default": [
-            0.0,
-            0.0,
-            0.0,
-            1.0
-          ],
-          "description": "background color and alpha (RGBA)"
-        },
-        {
-          "name": "sampleLimit",
-          "types": [
-            "ANARI_INT32"
-          ],
-          "tags": [],
-          "default": 128,
-          "minimum": 0,
-          "description": "stop refining the frame after this number of samples"
-        },
-        {
-          "name": "denoise",
-          "types": [
-            "ANARI_BOOL"
-          ],
-          "tags": [],
-          "default": false,
-          "description": "enable the OptiX denoiser"
-        },
-        {
-          "name": "checkerboarding",
-          "types": [
-            "ANARI_BOOL"
-          ],
-          "tags": [],
-          "default": false,
-          "description": "use checkerboarding to lower frame latency"
-        },
-        {
-          "name": "pixelSamples",
-          "types": [
-            "ANARI_INT32"
-          ],
-          "tags": [],
-          "default": 1,
-          "minimum": 1,
-          "description": "samples per-pixel"
-        },
         {
           "name": "method",
           "types": [

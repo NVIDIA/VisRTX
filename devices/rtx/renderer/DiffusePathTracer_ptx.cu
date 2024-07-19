@@ -85,14 +85,11 @@ RT_PROGRAM void __raygen__()
 
   auto &hit = pathData.currentHit;
 
-  /////////////////////////////////////////////////////////////////////////////
-  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
   auto ray = makePrimaryRay(ss);
   auto tmax = ray.t.upper;
-  /////////////////////////////////////////////////////////////////////////////
 
   if (debug())
     printf("========== BEGIN: FrameID %i ==========\n", frameData.fb.frameID);
