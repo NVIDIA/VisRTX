@@ -47,7 +47,7 @@ void Image1D::commit()
   cleanup();
 
   m_filter = getParamString("filter", "linear");
-  m_wrap1 = getParamString("wrapMode1", "clampToEdge");
+  m_wrap1 = getParamString("wrapMode", "clampToEdge");
   m_image = getParamObject<Array1D>("image");
 
   if (!m_image) {
