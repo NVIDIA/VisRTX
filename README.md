@@ -92,10 +92,11 @@ GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary `color` and `depth` channels.
 
-#### "VISRTX_UNIFORM_ATTRIBUTES" (experimental)
+#### "VISRTX_INSTANCE_ATTRIBUTES" (experimental)
 
 This extension indicates that all attributes can be set as a single
-`ANARI_FLOAT32_VEC4` value, which is constant over the entire geometry.
+`ANARI_FLOAT32_VEC4` value on the instance, which overrides any values on the
+geometries within the instanced group.
 
 #### "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES" (experimental)
 
@@ -180,8 +181,8 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_SPATIAL_FIELD_STRUCTURED_REGULAR`
 - `KHR_VOLUME_TRANSFER_FUNCTION1D`
 - `VISRTX_CUDA_OUTPUT_BUFFERS`
+- `VISRTX_INSTANCE_ATTRIBUTES`
 - `VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES`
-- `VISRTX_UNIFORM_ATTRIBUTES`
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!
