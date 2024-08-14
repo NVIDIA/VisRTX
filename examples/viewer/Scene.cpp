@@ -1015,7 +1015,6 @@ static anari::World loadObj(
     anari::Device d, const OBJData &objdata, const std::string &basePath)
 {
   visrtx::Extensions extensions = visrtx::getInstanceExtensions(d, d);
-  const bool attributeIndexing = extensions.VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
 
   auto world = anari::newObject<anari::World>(d);
 
@@ -1100,22 +1099,6 @@ static anari::World loadObj(
     anari::setParameter(d, geom, "vertex.position", positionArray);
     anari::setAndReleaseParameter(
         d, geom, "primitive.index", anari::newArray1D(d, vi.data(), vi.size()));
-
-    if (attributeIndexing && texcoordArray) {
-      anari::setAndReleaseParameter(d,
-          geom,
-          "vertex.attribute0.index",
-          anari::newArray1D(d, vti.data(), vti.size()));
-      anari::setParameter(d, geom, "vertex.attribute0", texcoordArray);
-    }
-
-    if (attributeIndexing && normalsArray) {
-      anari::setAndReleaseParameter(d,
-          geom,
-          "vertex.normal.index",
-          anari::newArray1D(d, vni.data(), vni.size()));
-      anari::setParameter(d, geom, "vertex.normal", normalsArray);
-    }
 
     anari::commitParameters(d, geom);
 

@@ -60,6 +60,9 @@ struct Array1D : public helium::Array1D, GPUArray
   template <typename T>
   const T *endAs(AddressSpace as = AddressSpace::HOST) const;
 
+  template <typename T>
+  const T *valueAt(size_t i) const;
+
   cudaArray_t acquireCUDAArrayFloat();
   void releaseCUDAArrayFloat();
 
@@ -93,6 +96,13 @@ inline const T *Array1D::endAs(AddressSpace as) const
   assert(anari::ANARITypeFor<T>::value == elementType());
 
   return dataAs<T>(as) + m_end;
+}
+
+
+template <typename T>
+inline const T *Array1D::valueAt(size_t i) const
+{
+  return &beginAs<T>()[i];
 }
 
 } // namespace visrtx

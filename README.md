@@ -98,6 +98,14 @@ This extension indicates that all attributes can be set as a single
 `ANARI_FLOAT32_VEC4` value on the instance, which overrides any values on the
 geometries within the instanced group.
 
+#### "VISRTX_INSTANCE_TRANSFORM_ARRAY" (experimental)
+
+This extension indicates that the instance subtype `"transform"` can take an
+array of `ANARI_FLOAT32_MAT4` to create multiple instances of a group using a
+single `ANARIInstance` object. Similarly, all other parameters (except the
+`group` and `name` parameters) can also be set as an array, applied element-wise
+to each instance in the scene.
+
 #### "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES" (experimental)
 
 This extension indicates that additional attribute mappings are available for

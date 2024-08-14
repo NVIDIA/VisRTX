@@ -238,28 +238,32 @@ void World::populateOptixInstances()
   m_numLightInstances = 0;
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
-    auto *group = inst->group();
+    const auto *group = inst->group();
+    const size_t numTransforms = inst->numTransforms();
     if (group->containsTriangleGeometry())
-      m_numTriangleInstances++;
+      m_numTriangleInstances += numTransforms;
     if (group->containsCurveGeometry())
-      m_numCurveInstances++;
+      m_numCurveInstances += numTransforms;
     if (group->containsUserGeometry())
-      m_numUserInstances++;
+      m_numUserInstances += numTransforms;
     if (group->containsVolumes())
-      m_numVolumeInstances++;
+      m_numVolumeInstances += numTransforms;
     if (group->containsLights())
-      m_numLightInstances++;
+      m_numLightInstances += numTransforms;
   });
 
   m_optixSurfaceInstances.resize(
       m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
   m_optixVolumeInstances.resize(m_numVolumeInstances);
 
-  auto prepInstance =
-      [](auto &i, int instID, auto handle, int sbtOffset) -> OptixInstance {
+  auto prepInstance = [](auto &i,
+                          int instID,
+                          size_t t,
+                          auto handle,
+                          int sbtOffset) -> OptixInstance {
     OptixInstance inst{};
 
-    mat3x4 xfm = glm::transpose(i->xfm());
+    mat3x4 xfm = glm::transpose(i->xfm(t));
     std::memcpy(inst.transform, &xfm, sizeof(xfm));
 
     auto *group = i->group();
@@ -275,28 +279,36 @@ void World::populateOptixInstances()
   int instID = 0;
   int instVolID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
-    auto *group = inst->group();
+    const auto *group = inst->group();
     auto *osi = m_optixSurfaceInstances.dataHost();
     auto *ovi = m_optixVolumeInstances.dataHost();
-    if (group->containsTriangleGeometry()) {
-      osi[instID] = prepInstance(
-          inst, instID, group->optixTraversableTriangle(), SBT_TRIANGLE_OFFSET);
-      instID++;
-    }
-    if (group->containsCurveGeometry()) {
-      osi[instID] = prepInstance(
-          inst, instID, group->optixTraversableCurve(), SBT_CURVE_OFFSET);
-      instID++;
-    }
-    if (group->containsUserGeometry()) {
-      osi[instID] = prepInstance(
-          inst, instID, group->optixTraversableUser(), SBT_CUSTOM_OFFSET);
-      instID++;
-    }
-    if (group->containsVolumes()) {
-      ovi[instVolID] = prepInstance(
-          inst, instVolID, group->optixTraversableVolume(), SBT_CUSTOM_OFFSET);
-      instVolID++;
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      if (group->containsTriangleGeometry()) {
+        osi[instID] = prepInstance(inst,
+            instID,
+            t,
+            group->optixTraversableTriangle(),
+            SBT_TRIANGLE_OFFSET);
+        instID++;
+      }
+      if (group->containsCurveGeometry()) {
+        osi[instID] = prepInstance(
+            inst, instID, t, group->optixTraversableCurve(), SBT_CURVE_OFFSET);
+        instID++;
+      }
+      if (group->containsUserGeometry()) {
+        osi[instID] = prepInstance(
+            inst, instID, t, group->optixTraversableUser(), SBT_CUSTOM_OFFSET);
+        instID++;
+      }
+      if (group->containsVolumes()) {
+        ovi[instVolID] = prepInstance(inst,
+            instVolID,
+            t,
+            group->optixTraversableVolume(),
+            SBT_CUSTOM_OFFSET);
+        instVolID++;
+      }
     }
   });
 
@@ -348,22 +360,27 @@ void World::buildInstanceSurfaceGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *sd = m_instanceSurfaceGPUData.dataHost();
-    auto id = inst->userID();
 
-    if (group->containsTriangleGeometry()) {
-      sd[instID++] =
-          makeInstanceGPUData(group->surfaceTriangleGPUIndices().data(),
-              inst->uniformAttributes(),
-              id);
-    }
-    if (group->containsCurveGeometry()) {
-      sd[instID++] = makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
-          inst->uniformAttributes(),
-          id);
-    }
-    if (group->containsUserGeometry()) {
-      sd[instID++] = makeInstanceGPUData(
-          group->surfaceUserGPUIndices().data(), inst->uniformAttributes(), id);
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      auto id = inst->userID(t);
+      if (group->containsTriangleGeometry()) {
+        sd[instID++] =
+            makeInstanceGPUData(group->surfaceTriangleGPUIndices().data(),
+                inst->uniformAttributes(),
+                id);
+      }
+      if (group->containsCurveGeometry()) {
+        sd[instID++] =
+            makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
+                inst->uniformAttributes(),
+                id);
+      }
+      if (group->containsUserGeometry()) {
+        sd[instID++] =
+            makeInstanceGPUData(group->surfaceUserGPUIndices().data(),
+                inst->uniformAttributes(),
+                id);
+      }
     }
   });
 
@@ -378,9 +395,11 @@ void World::buildInstanceVolumeGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *vd = m_instanceVolumeGPUData.dataHost();
-    auto id = inst->userID();
-    if (group->containsVolumes())
-      vd[instID++] = {group->volumeGPUIndices().data(), id};
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      auto id = inst->userID(t);
+      if (group->containsVolumes())
+        vd[instID++] = {group->volumeGPUIndices().data(), id};
+    }
   });
 
   m_instanceVolumeGPUData.upload();
@@ -394,10 +413,14 @@ void World::buildInstanceLightGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *li = m_instanceLightGPUData.dataHost();
-    if (group->containsLights()) {
-      group->rebuildLights();
-      const auto lgi = group->lightGPUIndices();
-      if (!inst->xfmIsIdentity() && lgi.size() != 0) {
+    if (!group->containsLights())
+      return;
+
+    group->rebuildLights();
+    const auto lgi = group->lightGPUIndices();
+
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      if (!inst->xfmIsIdentity(t) && lgi.size() != 0) {
         inst->reportMessage(
             ANARI_SEVERITY_WARNING, "light transformations not implemented");
       }
