@@ -42,24 +42,27 @@ struct Instance : public Object
 
   void commit() override;
 
-  uint32_t userID() const;
+  uint32_t userID(size_t i = 0) const;
 
-  mat4x3 xfm() const;
-  bool xfmIsIdentity() const;
+  size_t numTransforms() const;
+  mat4x3 xfm(size_t i = 0) const;
+  bool xfmIsIdentity(size_t i = 0) const;
 
   const Group *group() const;
   Group *group();
 
-  const UniformAttributes &uniformAttributes() const;
+  const UniformAttributes &uniformAttributes(size_t i = 0) const;
 
   void markCommitted() override;
 
   bool isValid() const override;
 
  private:
+  helium::ChangeObserverPtr<Array1D> m_xfmArray;
   mat4x3 m_xfm;
   helium::IntrusivePtr<Group> m_group;
   UniformAttributes m_uniformAttributes;
+  helium::ChangeObserverPtr<Array1D> m_idArray;
   uint32_t m_id{~0u};
 };
 

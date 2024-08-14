@@ -33,12 +33,38 @@
 
 namespace visrtx {
 
-Instance::Instance(DeviceGlobalState *d) : Object(ANARI_INSTANCE, d) {}
+Instance::Instance(DeviceGlobalState *d)
+    : Object(ANARI_INSTANCE, d), m_xfmArray(this), m_idArray(this)
+{}
 
 void Instance::commit()
 {
+  m_idArray = getParamObject<Array1D>("id");
+  if (m_idArray && m_idArray->elementType() != ANARI_UINT32) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'id' array elements are %s, but need to be %s",
+        anari::toString(m_idArray->elementType()),
+        anari::toString(ANARI_UINT32));
+    m_idArray = {};
+  }
   m_id = getParam<uint32_t>("id", ~0u);
+
+  m_xfmArray = getParamObject<Array1D>("transform");
+  if (m_xfmArray && m_xfmArray->elementType() != ANARI_FLOAT32_MAT4) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'transform' array elements are %s, but need to be %s",
+        anari::toString(m_idArray->elementType()),
+        anari::toString(ANARI_FLOAT32_MAT4));
+    m_xfmArray = {};
+  }
   m_xfm = getParam<mat4x3>("transform", getParam<mat4>("transform", mat4(1)));
+
+  if (m_xfmArray) {
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "using array transforms for ANARIInstance of size %zu",
+        m_xfmArray->totalSize());
+  }
+
   m_group = getParamObject<Group>("group");
   if (!m_group)
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'group' on ANARIInstance");
@@ -59,19 +85,24 @@ void Instance::commit()
   m_uniformAttributes.color = getUniformAttribute("color");
 }
 
-uint32_t Instance::userID() const
+uint32_t Instance::userID(size_t i) const
 {
-  return m_id;
+  return m_xfmArray && m_idArray ? *m_idArray->valueAt<uint32_t>(i) : m_id;
 }
 
-mat4x3 Instance::xfm() const
+size_t Instance::numTransforms() const
 {
-  return m_xfm;
+  return m_xfmArray ? m_xfmArray->totalSize() : 1;
 }
 
-bool Instance::xfmIsIdentity() const
+mat4x3 Instance::xfm(size_t i) const
 {
-  return xfm() == mat4x3(1);
+  return m_xfmArray ? mat4x3(*m_xfmArray->valueAt<mat4>(i)) : m_xfm;
+}
+
+bool Instance::xfmIsIdentity(size_t i) const
+{
+  return xfm(i) == mat4x3(1);
 }
 
 const Group *Instance::group() const
@@ -84,7 +115,7 @@ Group *Instance::group()
   return m_group.ptr;
 }
 
-const UniformAttributes &Instance::uniformAttributes() const
+const UniformAttributes &Instance::uniformAttributes(size_t i) const
 {
   return m_uniformAttributes;
 }
