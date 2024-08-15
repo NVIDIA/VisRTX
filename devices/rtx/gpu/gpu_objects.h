@@ -110,7 +110,6 @@ struct AttributeData
   ANARIDataType type;
   int numChannels;
   const void *data;
-  vec4 uniformValue;
 };
 
 using AttributeDataSet = AttributeData[5]; // attribute0-3 + color

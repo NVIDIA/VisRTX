@@ -34,12 +34,7 @@
 
 namespace visrtx {
 
-PrimitiveSampler::PrimitiveSampler(DeviceGlobalState *d) : Sampler(d)
-{
-  std::memcpy(&m_ap.uniformValue,
-      &helium::DEFAULT_ATTRIBUTE_VALUE,
-      sizeof(m_ap.uniformValue));
-}
+PrimitiveSampler::PrimitiveSampler(DeviceGlobalState *d) : Sampler(d) {}
 
 void PrimitiveSampler::commit()
 {

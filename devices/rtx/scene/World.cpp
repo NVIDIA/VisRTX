@@ -355,17 +355,16 @@ void World::buildInstanceSurfaceGPUData()
     retval.attrUniform[4] = ua.color.value_or(vec4(0, 0, 0, 1));
     retval.attrUniformPresent[4] = ua.color.has_value();
 
-
-    // FIXME: Fill up   retval.attrUniformArray and retval.attrUniformArrayPresent from ua
-    constexpr const auto setupUniformArray = [](const helium::IntrusivePtr<Array1D>& array) -> AttributeData {
+    // FIXME: Fill up retval.attrUniformArray and
+    // retval.attrUniformArrayPresent from ua
+    constexpr const auto setupUniformArray =
+        [](const helium::IntrusivePtr<Array1D> &array) -> AttributeData {
       AttributeData ad = {};
       if (array.ptr) {
-        ad.uniformValue = vec4(0, 0, 0, 1);
         ad.type = array->elementType();
         ad.data = array->dataGPU();
         ad.numChannels = numANARIChannels(array->elementType());
       }
-
       return ad;
     };
 
