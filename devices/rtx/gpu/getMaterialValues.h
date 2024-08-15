@@ -359,7 +359,7 @@ RT_FUNCTION MaterialValues getMaterialValues(
   retval.baseColor = vec3(values[MV_BASE_COLOR]);
   // opacity
   retval.opacity = adjustedMaterialOpacity(
-      values[MV_OPACITY].x * values[MV_BASE_COLOR].w, md);
+      values[MV_OPACITY].x, md);
   // mettalic
   retval.metallic = values[MV_METALLIC].x;
   // roughness
