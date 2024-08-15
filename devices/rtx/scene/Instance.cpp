@@ -72,17 +72,32 @@ void Instance::commit()
   auto getUniformAttribute =
       [&](const std::string &pName) -> std::optional<vec4> {
     vec4 v(0.f, 0.f, 0.f, 1.f);
-    if (getParam(pName, ANARI_FLOAT32_VEC4, &v))
+    if (getParam(pName, ANARI_FLOAT32, &v))
+      return v;
+    else if (getParam(pName, ANARI_FLOAT32_VEC2, &v))
+      return v;
+    else if (getParam(pName, ANARI_FLOAT32_VEC3, &v))
+      return v;
+    else if (getParam(pName, ANARI_FLOAT32_VEC4, &v))
       return v;
     else
       return {};
   };
 
+  m_uniformAttributes.attribute0Array = getParamObject<Array1D>("attribute0");
   m_uniformAttributes.attribute0 = getUniformAttribute("attribute0");
+
+  m_uniformAttributes.attribute1Array = getParamObject<Array1D>("attribute1");
   m_uniformAttributes.attribute1 = getUniformAttribute("attribute1");
+
   m_uniformAttributes.attribute2 = getUniformAttribute("attribute2");
+  m_uniformAttributes.attribute2Array = getParamObject<Array1D>("attribute2");
+
   m_uniformAttributes.attribute3 = getUniformAttribute("attribute3");
+  m_uniformAttributes.attribute3Array = getParamObject<Array1D>("attribute3");
+
   m_uniformAttributes.color = getUniformAttribute("color");
+  m_uniformAttributes.colorArray = getParamObject<Array1D>("color");
 }
 
 uint32_t Instance::userID(size_t i) const
