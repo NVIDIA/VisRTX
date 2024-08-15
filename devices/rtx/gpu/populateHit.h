@@ -217,7 +217,16 @@ RT_FUNCTION void computeNormal(
       hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
       if (dot(hit.Ng, hit.Ns) < 0.f)
         hit.Ns = -hit.Ns;
-    } else
+    } else if (ggd.tri.vertexNormalsFV != nullptr) {
+      const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
+
+      const vec3 n0 = ggd.tri.vertexNormalsFV[idx.x];
+      const vec3 n1 = ggd.tri.vertexNormalsFV[idx.y];
+      const vec3 n2 = ggd.tri.vertexNormalsFV[idx.z];
+      hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
+      if (dot(hit.Ng, hit.Ns) < 0.f)
+        hit.Ns = -hit.Ns;
+    }  else
       hit.Ns = hit.Ng;
 
     break;
