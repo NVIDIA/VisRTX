@@ -30,8 +30,11 @@
  */
 
 #include "World.h"
+#include <helium/utility/IntrusivePtr.h>
 // ptx
 #include "Intersectors_ptx.h"
+#include "gpu/gpu_objects.h"
+#include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
 
@@ -351,6 +354,32 @@ void World::buildInstanceSurfaceGPUData()
     retval.attrUniformPresent[3] = ua.attribute3.has_value();
     retval.attrUniform[4] = ua.color.value_or(vec4(0, 0, 0, 1));
     retval.attrUniformPresent[4] = ua.color.has_value();
+
+
+    // FIXME: Fill up   retval.attrUniformArray and retval.attrUniformArrayPresent from ua
+    constexpr const auto setupUniformArray = [](const helium::IntrusivePtr<Array1D>& array) -> AttributeData {
+      AttributeData ad = {};
+      if (array.ptr) {
+        ad.uniformValue = vec4(0, 0, 0, 1);
+        ad.type = array->elementType();
+        ad.data = array->dataGPU();
+        ad.numChannels = numANARIChannels(array->elementType());
+      }
+
+      return ad;
+    };
+
+    retval.attrUniformArrayPresent[0] = ua.attribute0Array.ptr != nullptr;
+    retval.attrUniformArray[0] = setupUniformArray(ua.attribute0Array);
+    retval.attrUniformArrayPresent[1] = ua.attribute1Array.ptr != nullptr;
+    retval.attrUniformArray[1] = setupUniformArray(ua.attribute1Array);
+    retval.attrUniformArrayPresent[2] = ua.attribute2Array.ptr != nullptr;
+    retval.attrUniformArray[2] = setupUniformArray(ua.attribute2Array);
+    retval.attrUniformArrayPresent[3] = ua.attribute3Array.ptr != nullptr;
+    retval.attrUniformArray[3] = setupUniformArray(ua.attribute3Array);
+    retval.attrUniformArrayPresent[4] = ua.colorArray.ptr != nullptr;
+    retval.attrUniformArray[4] = setupUniformArray(ua.colorArray);
+
     retval.id = id;
 
     return retval;

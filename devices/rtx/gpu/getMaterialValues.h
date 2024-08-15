@@ -175,9 +175,6 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
   const auto &ggd = *hit.geometry;
   const vec4 &uf = ggd.attrUniform[attributeID];
 
-  if (isd.attrUniformPresent[attributeID])
-    return isd.attrUniform[attributeID];
-
   // First check per-vertex attributes
   if (ggd.type == GeometryType::TRIANGLE) {
     const auto &ap = ggd.tri.vertexAttr[attributeID];
@@ -242,12 +239,23 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
       return getAttributeValue(ap, idx, uf);
   }
 
-  // Else fall through to per-primitive attributes
-  const auto &ap = ggd.attr[attributeID];
-  if (ggd.type == GeometryType::QUAD)
-    return getAttributeValue(ap, hit.primID / 2, uf);
-  else
-    return getAttributeValue(ap, hit.primID, uf);
+  // Else check for  per-primitive attributes
+  if (const auto &ap = ggd.attr[attributeID]; isPopulated(ap)) {
+    if (ggd.type == GeometryType::QUAD)
+      return getAttributeValue(ap, hit.primID / 2, uf);
+    else
+      return getAttributeValue(ap, hit.primID, uf);
+  }
+
+  // Eventually process instance values if any
+  if (isd.attrUniformArrayPresent[attributeID]) {
+    return getAttributeValue(isd.attrUniformArray[attributeID], isd.id, uf);
+  }
+
+  if (isd.attrUniformPresent[attributeID])
+    return isd.attrUniform[attributeID];
+
+  return uf;
 }
 
 RT_FUNCTION vec4 evaluateSampler(

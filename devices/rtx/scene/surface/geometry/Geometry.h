@@ -41,6 +41,12 @@ namespace visrtx {
 
 struct UniformAttributes
 {
+  helium::IntrusivePtr<Array1D> attribute0Array;
+  helium::IntrusivePtr<Array1D> attribute1Array;
+  helium::IntrusivePtr<Array1D> attribute2Array;
+  helium::IntrusivePtr<Array1D> attribute3Array;
+  helium::IntrusivePtr<Array1D> colorArray;
+
   std::optional<vec4> attribute0;
   std::optional<vec4> attribute1;
   std::optional<vec4> attribute2;
