@@ -411,6 +411,7 @@ struct InstanceSurfaceGPUData
   bool attrUniformArrayPresent[5];
   bool attrUniformPresent[5];
   uint32_t id;
+  uint32_t localArrayId; // offset inside an instance with a transform arrays
 };
 
 struct InstanceVolumeGPUData

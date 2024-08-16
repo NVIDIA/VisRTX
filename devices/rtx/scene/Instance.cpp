@@ -130,7 +130,7 @@ Group *Instance::group()
   return m_group.ptr;
 }
 
-const UniformAttributes &Instance::uniformAttributes(size_t i) const
+const UniformAttributes &Instance::uniformAttributes() const
 {
   return m_uniformAttributes;
 }

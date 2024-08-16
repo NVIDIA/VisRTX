@@ -51,7 +51,7 @@ struct Instance : public Object
   const Group *group() const;
   Group *group();
 
-  const UniformAttributes &uniformAttributes(size_t i = 0) const;
+  const UniformAttributes &uniformAttributes() const;
 
   void markCommitted() override;
 

@@ -340,7 +340,8 @@ void World::buildInstanceSurfaceGPUData()
 
   auto makeInstanceGPUData = [](const DeviceObjectIndex *s,
                                  const UniformAttributes &ua,
-                                 uint32_t id) -> InstanceSurfaceGPUData {
+                                 uint32_t id,
+                                 uint32_t arrayOffset = 0) {
     InstanceSurfaceGPUData retval;
 
     retval.surfaces = s;
@@ -380,6 +381,7 @@ void World::buildInstanceSurfaceGPUData()
     retval.attrUniformArray[4] = setupUniformArray(ua.colorArray);
 
     retval.id = id;
+    retval.localArrayId = arrayOffset;
 
     return retval;
   };
@@ -395,19 +397,22 @@ void World::buildInstanceSurfaceGPUData()
         sd[instID++] =
             makeInstanceGPUData(group->surfaceTriangleGPUIndices().data(),
                 inst->uniformAttributes(),
-                id);
+                id,
+                t);
       }
       if (group->containsCurveGeometry()) {
         sd[instID++] =
             makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
                 inst->uniformAttributes(),
-                id);
+                id,
+                t);
       }
       if (group->containsUserGeometry()) {
         sd[instID++] =
             makeInstanceGPUData(group->surfaceUserGPUIndices().data(),
                 inst->uniformAttributes(),
-                id);
+                id,
+                t);
       }
     }
   });

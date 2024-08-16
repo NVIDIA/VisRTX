@@ -249,7 +249,8 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
 
   // Eventually process instance values if any
   if (isd.attrUniformArrayPresent[attributeID]) {
-    return getAttributeValue(isd.attrUniformArray[attributeID], isd.id, uf);
+    return getAttributeValue(
+        isd.attrUniformArray[attributeID], isd.localArrayId, uf);
   }
 
   if (isd.attrUniformPresent[attributeID])
