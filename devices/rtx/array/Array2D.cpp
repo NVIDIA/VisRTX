@@ -41,7 +41,8 @@ Array2D::Array2D(DeviceGlobalState *state, const Array2DMemoryDescriptor &d)
 const void *Array2D::dataGPU() const
 {
   const_cast<Array2D *>(this)->markDataIsOffloaded(true);
-  uploadArrayData();
+  if (needToUploadData())
+    uploadArrayData();
   return m_deviceData.buffer.ptr();
 }
 
