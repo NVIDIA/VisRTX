@@ -40,7 +40,8 @@ Array3D::Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d)
 const void *Array3D::dataGPU() const
 {
   const_cast<Array3D *>(this)->markDataIsOffloaded(true);
-  uploadArrayData();
+  if (needToUploadData())
+    uploadArrayData();
   return m_deviceData.buffer.ptr();
 }
 
