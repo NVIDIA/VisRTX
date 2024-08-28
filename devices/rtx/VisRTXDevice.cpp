@@ -422,7 +422,7 @@ bool VisRTXDevice::initDevice()
   if (!m_eagerInit)
     deviceCommitParameters();
 
-  initOptix();
+  m_initStatus = initOptix();
 
   return m_initStatus == DeviceInitStatus::SUCCESS;
 }
@@ -440,8 +440,10 @@ void VisRTXDevice::deviceCommitParameters()
         m_desiredGpuID);
   }
 
-  if (m_eagerInit)
-    initOptix();
+  if (m_eagerInit && m_initStatus == DeviceInitStatus::UNINITIALIZED) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "eagerly initializing device");
+    m_initStatus = initOptix();
+  }
 }
 
 int VisRTXDevice::deviceGetProperty(
@@ -475,12 +477,10 @@ int VisRTXDevice::deviceGetProperty(
   return 0;
 }
 
-void VisRTXDevice::initOptix()
+DeviceInitStatus VisRTXDevice::initOptix()
 {
   if (m_initStatus != DeviceInitStatus::UNINITIALIZED)
-    return;
-
-  m_initStatus = DeviceInitStatus::FAILURE;
+    return m_initStatus;
 
   auto &state = *deviceState();
 
@@ -490,7 +490,7 @@ void VisRTXDevice::initOptix()
   cudaGetDeviceCount(&numDevices);
   if (numDevices == 0) {
     reportMessage(ANARI_SEVERITY_FATAL_ERROR, "no CUDA capable devices found!");
-    return;
+    return DeviceInitStatus::FAILURE;
   }
 
   if (m_desiredGpuID >= numDevices) {
@@ -503,7 +503,7 @@ void VisRTXDevice::initOptix()
   }
   m_gpuID = m_desiredGpuID;
 
-  OPTIX_CHECK_RETURN(optixInit());
+  OPTIX_CHECK_RETURN_VALUE(optixInit(), DeviceInitStatus::FAILURE);
   setCUDADevice();
   cudaStreamCreate(&state.stream);
 
@@ -518,8 +518,7 @@ void VisRTXDevice::initOptix()
     reportMessage(ANARI_SEVERITY_FATAL_ERROR,
         "error querying current CUDA context: error code '%i'",
         cuRes);
-    m_initStatus = DeviceInitStatus::FAILURE;
-    return;
+    return DeviceInitStatus::FAILURE;
   }
 
   auto context_log_cb = [](unsigned int level,
@@ -538,8 +537,10 @@ void VisRTXDevice::initOptix()
   options.logCallbackData = this;
   options.logCallbackLevel = 4;
 
-  OPTIX_CHECK_RETURN(optixDeviceContextCreate(
-      state.cudaContext, &options, &state.optixContext));
+  OPTIX_CHECK_RETURN_VALUE(
+      optixDeviceContextCreate(
+          state.cudaContext, &options, &state.optixContext),
+      DeviceInitStatus::FAILURE);
 
   // Create OptiX modules //
 
@@ -624,7 +625,7 @@ void VisRTXDevice::initOptix()
       &builtinISOptions,
       &state.intersectionModules.curveIntersector));
 
-  m_initStatus = DeviceInitStatus::SUCCESS;
+  return DeviceInitStatus::SUCCESS;
 }
 
 void VisRTXDevice::setCUDADevice()

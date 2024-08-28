@@ -31,8 +31,13 @@ if (WIN32)
   return()
 endif()
 
-project(api_tests LANGUAGES CXX)
-add_executable(${PROJECT_NAME} api_tests.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE anari_library_visrtx)
+macro(make_test TEST_NAME)
+  project(${TEST_NAME} LANGUAGES CXX)
+  project_add_executable(${PROJECT_NAME}.cpp)
+  project_link_libraries(PRIVATE anari_library_visrtx)
+  add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+endmacro()
 
-add_test(NAME "DeviceInit" COMMAND ${PROJECT_NAME})
+make_test(TestDeviceInit)
+make_test(TestMultiThreadedObjectCreation)
+
