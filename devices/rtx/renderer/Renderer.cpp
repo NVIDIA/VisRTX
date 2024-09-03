@@ -171,8 +171,11 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
 }
 
-OptixPipeline Renderer::pipeline() const
+OptixPipeline Renderer::pipeline()
 {
+  if (!m_pipeline)
+    initOptixPipeline();
+
   return m_pipeline;
 }
 

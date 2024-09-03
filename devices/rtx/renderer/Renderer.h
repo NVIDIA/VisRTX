@@ -64,7 +64,7 @@ struct Renderer : public Object
 
   virtual void populateFrameData(FrameGPUData &fd) const;
 
-  OptixPipeline pipeline() const;
+  OptixPipeline pipeline();
   const OptixShaderBindingTable *sbt();
 
   int spp() const;
