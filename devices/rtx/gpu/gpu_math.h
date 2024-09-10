@@ -51,19 +51,19 @@ struct range_t
   using element_t = T;
 
   range_t() = default;
-  VISRTX_HOST_DEVICE range_t(const T &t) : lower(t), upper(t) {}
-  VISRTX_HOST_DEVICE range_t(const T &_lower, const T &_upper)
+  VISRTX_HOST_DEVICE constexpr range_t(const T &t) : lower(t), upper(t) {}
+  VISRTX_HOST_DEVICE constexpr range_t(const T &_lower, const T &_upper)
       : lower(_lower), upper(_upper)
   {}
 
-  VISRTX_HOST_DEVICE range_t<T> &extend(const T &t)
+  VISRTX_HOST_DEVICE constexpr range_t<T> &extend(const T &t)
   {
     lower = min(lower, t);
     upper = max(upper, t);
     return *this;
   }
 
-  VISRTX_HOST_DEVICE range_t<T> &extend(const range_t<T> &t)
+  VISRTX_HOST_DEVICE constexpr range_t<T> &extend(const range_t<T> &t)
   {
     lower = min(lower, t.lower);
     upper = max(upper, t.upper);
@@ -120,49 +120,49 @@ using Hit = SurfaceHit;
 
 // Operations on range_t //
 
-VISRTX_HOST_DEVICE box1 make_box1(const vec2 &v)
+VISRTX_HOST_DEVICE constexpr box1 make_box1(const vec2 &v)
 {
   return box1(v.x, v.y);
 }
 
 template <typename T>
-VISRTX_HOST_DEVICE typename range_t<T>::element_t size(const range_t<T> &r)
+VISRTX_HOST_DEVICE constexpr typename range_t<T>::element_t size(const range_t<T> &r)
 {
   return r.upper - r.lower;
 }
 
 template <typename T>
-VISRTX_HOST_DEVICE typename range_t<T>::element_t center(const range_t<T> &r)
+VISRTX_HOST_DEVICE constexpr typename range_t<T>::element_t center(const range_t<T> &r)
 {
   return .5f * (r.lower + r.upper);
 }
 
 template <typename T>
-VISRTX_HOST_DEVICE typename range_t<T>::element_t clamp(
+VISRTX_HOST_DEVICE constexpr typename range_t<T>::element_t clamp(
     const typename range_t<T>::element_t &t, const range_t<T> &r)
 {
   return max(r.lower, min(t, r.upper));
 }
 
-VISRTX_HOST_DEVICE bool contains(float v, const box1 &r)
+VISRTX_HOST_DEVICE constexpr bool contains(float v, const box1 &r)
 {
   return v >= r.lower && v <= r.upper;
 }
 
-VISRTX_HOST_DEVICE float position(float v, const box1 &r)
+VISRTX_HOST_DEVICE constexpr float position(float v, const box1 &r)
 {
   v = clamp(v, r);
   return (v - r.lower) * (1.f / size(r));
 }
 
 template <typename T>
-VISRTX_HOST_DEVICE size_t largest_axis(const range_t<T> &r)
+VISRTX_HOST_DEVICE constexpr size_t largest_axis(const range_t<T> &r)
 {
   return 0;
 }
 
 template <>
-VISRTX_HOST_DEVICE size_t largest_axis(const box3 &r)
+VISRTX_HOST_DEVICE constexpr size_t largest_axis(const box3 &r)
 {
   auto d = size(r);
   size_t axis = 0;
@@ -173,24 +173,24 @@ VISRTX_HOST_DEVICE size_t largest_axis(const box3 &r)
   return axis;
 }
 
-VISRTX_HOST_DEVICE float largest_extent(const box3 &r)
+VISRTX_HOST_DEVICE constexpr float largest_extent(const box3 &r)
 {
   return size(r)[largest_axis(r)];
 }
 
-VISRTX_HOST_DEVICE float half_area(const box3 &r)
+VISRTX_HOST_DEVICE constexpr float half_area(const box3 &r)
 {
   auto d = size(r);
   return (d[0] + d[1]) * d[2] + d[0] * d[1];
 }
 
-VISRTX_HOST_DEVICE float volume(const box3 &r)
+VISRTX_HOST_DEVICE constexpr float volume(const box3 &r)
 {
   auto d = size(r);
   return d[0] * d[1] * d[2];
 }
 
-VISRTX_HOST_DEVICE bool empty(const box3 &r)
+VISRTX_HOST_DEVICE constexpr bool empty(const box3 &r)
 {
   return r.lower.x > r.upper.x || r.lower.y > r.upper.y
       || r.lower.z > r.upper.z;
@@ -198,42 +198,42 @@ VISRTX_HOST_DEVICE bool empty(const box3 &r)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-VISRTX_HOST_DEVICE int64_t iDivUp(int64_t a, int64_t b)
+VISRTX_HOST_DEVICE constexpr int64_t iDivUp(int64_t a, int64_t b)
 {
   return (a + b - 1) / b;
 }
 
-VISRTX_HOST_DEVICE float pow2(float f)
+VISRTX_HOST_DEVICE constexpr float pow2(float f)
 {
   return f * f;
 }
 
-VISRTX_HOST_DEVICE float pow5(float f)
+VISRTX_HOST_DEVICE constexpr float pow5(float f)
 {
   return f * f * f * f * f;
 }
 
 template <typename T>
-VISRTX_HOST_DEVICE T heaviside(const T &x)
+VISRTX_HOST_DEVICE constexpr T heaviside(const T &x)
 {
   return x < T(0.0) ? T(0.0) : T(1.0);
 }
 
-VISRTX_HOST_DEVICE bool intersectBox(
+VISRTX_HOST_DEVICE constexpr bool intersectBox(
     const box3 &b, const vec3 &org, const vec3 &dir, box1 &inout)
 {
   const vec3 mins = (b.lower - org) * (1.f / dir);
   const vec3 maxs = (b.upper - org) * (1.f / dir);
   const vec3 nears = glm::min(mins, maxs);
   const vec3 fars = glm::max(mins, maxs);
-  const float tin = glm::compMax(nears);
-  const float tout = glm::compMin(fars);
+  const float tin = glm::max(nears.x, glm::max(nears.y, nears.z));
+  const float tout = glm::min(fars.x, glm::min(fars.y, fars.z));
   if (tin < tout)
     inout = box1(tin, tout);
   return tin < tout;
 }
 
-VISRTX_HOST_DEVICE vec2 uniformSampleDisk(float radius, const vec2 &s)
+VISRTX_HOST_DEVICE constexpr vec2 uniformSampleDisk(float radius, const vec2 &s)
 {
   const float r = sqrtf(s.x) * radius;
   const float phi = 2.f * float(M_PI) * s.y;

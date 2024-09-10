@@ -36,12 +36,12 @@
 
 namespace visrtx {
 
-RT_FUNCTION size_t linearIndex(const ivec3 index, const ivec3 dims)
+VISRTX_DEVICE size_t linearIndex(const ivec3 index, const ivec3 dims)
 {
   return index.z * size_t(dims.x) * dims.y + index.y * dims.x + index.x;
 }
 
-RT_FUNCTION ivec3 projectOnGrid(
+VISRTX_DEVICE ivec3 projectOnGrid(
     const vec3 V, const ivec3 dims, const box3 worldBounds)
 {
   const vec3 V01 =

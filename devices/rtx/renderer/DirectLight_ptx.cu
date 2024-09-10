@@ -49,7 +49,7 @@ DECLARE_FRAME_DATA(frameData)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-RT_FUNCTION float volumeAttenuation(ScreenSample &ss, Ray r)
+VISRTX_DEVICE float volumeAttenuation(ScreenSample &ss, Ray r)
 {
   RayAttenuation ra;
   ra.ray = &r;
@@ -58,7 +58,7 @@ RT_FUNCTION float volumeAttenuation(ScreenSample &ss, Ray r)
   return ra.attenuation;
 }
 
-RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
+VISRTX_DEVICE vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 {
   const auto &rendererParams = frameData.renderer;
   const auto &directLightParams = rendererParams.params.directLight;
@@ -113,12 +113,12 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 
 // OptiX programs /////////////////////////////////////////////////////////////
 
-RT_PROGRAM void __closesthit__shadow()
+VISRTX_GLOBAL void __closesthit__shadow()
 {
   // no-op
 }
 
-RT_PROGRAM void __anyhit__shadow()
+VISRTX_GLOBAL void __anyhit__shadow()
 {
   if (ray::isIntersectingSurfaces()) {
     SurfaceHit hit;
@@ -146,22 +146,22 @@ RT_PROGRAM void __anyhit__shadow()
   }
 }
 
-RT_PROGRAM void __anyhit__primary()
+VISRTX_GLOBAL void __anyhit__primary()
 {
   ray::cullbackFaces();
 }
 
-RT_PROGRAM void __closesthit__primary()
+VISRTX_GLOBAL void __closesthit__primary()
 {
   ray::populateHit();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // TODO
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
 

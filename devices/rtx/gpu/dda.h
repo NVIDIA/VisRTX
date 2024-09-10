@@ -41,7 +41,7 @@ namespace visrtx {
 typedef ivec3 GridIterationState;
 
 template <typename Func>
-RT_FUNCTION void dda3(Ray ray, ivec3 gridDims, box3 modelBounds, Func func)
+VISRTX_DEVICE void dda3(Ray ray, ivec3 gridDims, box3 modelBounds, Func func)
 {
   const vec3 rcp_dir(ray.dir.x != 0.f ? 1.f / ray.dir.x : 0.f,
       ray.dir.y != 0.f ? 1.f / ray.dir.y : 0.f,

@@ -51,7 +51,7 @@ struct VolumeRayData : public VolumeHit
 
 DECLARE_FRAME_DATA(frameData)
 
-RT_FUNCTION void handleSurfaceHit()
+VISRTX_DEVICE void handleSurfaceHit()
 {
   auto &rd = ray::rayData<SurfaceRayData>();
   ray::populateSurfaceHit(rd);
@@ -120,7 +120,7 @@ RT_FUNCTION void handleSurfaceHit()
   rd.outColor = glm::mix(rd.outColor, c, 0.5f);
 }
 
-RT_FUNCTION void handleVolumeHit()
+VISRTX_DEVICE void handleVolumeHit()
 {
   auto &rd = ray::rayData<VolumeRayData>();
   ray::populateVolumeHit(rd);
@@ -153,7 +153,7 @@ RT_FUNCTION void handleVolumeHit()
   }
 }
 
-RT_PROGRAM void __closesthit__()
+VISRTX_GLOBAL void __closesthit__()
 {
   if (ray::isIntersectingSurfaces())
     handleSurfaceHit();
@@ -161,12 +161,12 @@ RT_PROGRAM void __closesthit__()
     handleVolumeHit();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // no-op
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))

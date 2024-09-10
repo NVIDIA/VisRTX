@@ -37,48 +37,48 @@ namespace visrtx {
 
 struct LinearBSplineSegment
 {
-  RT_FUNCTION LinearBSplineSegment(const vec4 *q)
+  VISRTX_DEVICE LinearBSplineSegment(const vec4 *q)
   {
     p[0] = q[0];
     p[1] = q[1] - q[0];
   }
 
-  RT_FUNCTION float radius(const float &u) const
+  VISRTX_DEVICE float radius(const float &u) const
   {
     return p[0].w + p[1].w * u;
   }
 
-  RT_FUNCTION vec3 position3(float u) const
+  VISRTX_DEVICE vec3 position3(float u) const
   {
     return (vec3 &)p[0] + u * (vec3 &)p[1];
   }
-  RT_FUNCTION vec4 position4(float u) const
+  VISRTX_DEVICE vec4 position4(float u) const
   {
     return p[0] + u * p[1];
   }
 
-  RT_FUNCTION float min_radius(float u1, float u2) const
+  VISRTX_DEVICE float min_radius(float u1, float u2) const
   {
     return fminf(radius(u1), radius(u2));
   }
 
-  RT_FUNCTION float max_radius(float u1, float u2) const
+  VISRTX_DEVICE float max_radius(float u1, float u2) const
   {
     if (!p[1].w)
       return p[0].w;
     return fmaxf(radius(u1), radius(u2));
   }
 
-  RT_FUNCTION vec3 velocity3(float u) const
+  VISRTX_DEVICE vec3 velocity3(float u) const
   {
     return (vec3 &)p[1];
   }
-  RT_FUNCTION vec4 velocity4(float u) const
+  VISRTX_DEVICE vec4 velocity4(float u) const
   {
     return p[1];
   }
 
-  RT_FUNCTION vec3 acceleration3(float u) const
+  VISRTX_DEVICE vec3 acceleration3(float u) const
   {
     return vec3(0.f);
   }
@@ -86,7 +86,7 @@ struct LinearBSplineSegment
   vec4 p[2];
 };
 
-RT_FUNCTION vec3 curveSurfaceNormal(
+VISRTX_DEVICE vec3 curveSurfaceNormal(
     const LinearBSplineSegment &bc, float u, const vec3 &ps)
 {
   const vec4 p4 = bc.position4(u);

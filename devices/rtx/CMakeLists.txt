@@ -39,6 +39,8 @@ if (NOT WIN32)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1")
 endif()
 
+set(CMAKE_CUDA_FLAGS "--expt-relaxed-constexpr --extended-lambda")
+
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 
 set(CMAKE_CUDA_STANDARD 17)
@@ -153,17 +155,6 @@ generate_export_header(${PROJECT_NAME}
   EXPORT_MACRO_NAME "VISRTX_DEVICE_INTERFACE"
 )
 
-set_source_files_properties(
-  frame/Frame.cu
-  frame/Denoiser.cu
-  scene/surface/geometry/Sphere.cu
-  PROPERTIES COMPILE_FLAGS "--extended-lambda"
-)
-
-set_source_files_properties(scene/Intersectors_ptx.cu
-  PROPERTIES COMPILE_FLAGS "--expt-relaxed-constexpr"
-)
-
 project_include_directories(
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
@@ -203,12 +194,27 @@ project_compile_definitions(PRIVATE visrtx_EXPORTS)
 ## Generate OptiX programs as embedded PTX ##
 
 function(GenerateEmbeddedPTX DIR BASE_NAME)
+  set(multiValueArgs ENTRIES)
+  cmake_parse_arguments(
+    GEN_EMBEDDED_PTX
+    ""  # options
+    "" # single value arguments
+    "ENTRIES" # multi value arguments
+    ${ARGN}
+  )
+
   set(INPUT_CU_FILE ${DIR}/${BASE_NAME}_ptx.cu)
   set(INPUT_TARGET ${BASE_NAME}_ptx)
   set(OUTPUT_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${BASE_NAME}_ptx.h)
 
+  if (GEN_EMBEDDED_PTX_ENTRIES)
+    string(REPLACE ";" "," GEN_EMBEDDED_PTX_ENTRIES "${GEN_EMBEDDED_PTX_ENTRIES}")
+    set(GEN_EMBEDDED_PTX_ARGS "--entries ${GEN_EMBEDDED_PTX_ENTRIES}")
+  endif()
+
+
   set_source_files_properties(${INPUT_CU_FILE}
-    PROPERTIES COMPILE_FLAGS "--expt-relaxed-constexpr"
+    PROPERTIES COMPILE_FLAGS "-rdc=true ${GEN_EMBEDDED_PTX_ARGS}"
   )
 
   add_library(${INPUT_TARGET} OBJECT ${INPUT_CU_FILE})

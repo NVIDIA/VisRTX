@@ -48,7 +48,7 @@ namespace visrtx {
 // Utility functions //////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-RT_FUNCTION float atomicMinf(float *address, float val)
+VISRTX_DEVICE float atomicMinf(float *address, float val)
 {
   int ret = __float_as_int(*address);
   while (val < __int_as_float(ret)) {
@@ -59,7 +59,7 @@ RT_FUNCTION float atomicMinf(float *address, float val)
   return __int_as_float(ret);
 }
 
-RT_FUNCTION float atomicMaxf(float *address, float val)
+VISRTX_DEVICE float atomicMaxf(float *address, float val)
 {
   int ret = __float_as_int(*address);
   while (val > __int_as_float(ret)) {
@@ -71,7 +71,7 @@ RT_FUNCTION float atomicMaxf(float *address, float val)
 }
 
 template <typename T_OUT, typename T_IN>
-RT_FUNCTION T_OUT bit_cast(T_IN v)
+VISRTX_DEVICE T_OUT bit_cast(T_IN v)
 {
   static_assert(sizeof(T_OUT) <= sizeof(T_IN),
       "bit_cast<> should only be used to cast to types equal "
@@ -79,32 +79,32 @@ RT_FUNCTION T_OUT bit_cast(T_IN v)
   return *reinterpret_cast<T_OUT *>(&v);
 }
 
-RT_FUNCTION vec3 make_vec3(const ::float3 &v)
+VISRTX_DEVICE vec3 make_vec3(const ::float3 &v)
 {
   return vec3(v.x, v.y, v.z);
 }
 
-RT_FUNCTION vec4 make_vec4(const ::float4 &v)
+VISRTX_DEVICE vec4 make_vec4(const ::float4 &v)
 {
   return vec4(v.x, v.y, v.z, v.w);
 }
 
 template <typename T>
-RT_FUNCTION void accumulateValue(T &a, const T &b, float interp)
+VISRTX_DEVICE void accumulateValue(T &a, const T &b, float interp)
 {
   a += b * (1.f - interp);
 }
 
 namespace detail {
 
-RT_FUNCTION void packPointer(void *ptr, uint32_t &i0, uint32_t &i1)
+VISRTX_DEVICE void packPointer(void *ptr, uint32_t &i0, uint32_t &i1)
 {
   const uint64_t uptr = reinterpret_cast<uint64_t>(ptr);
   i0 = uptr >> 32;
   i1 = uptr & 0x00000000ffffffff;
 }
 
-RT_FUNCTION void *unpackPointer(uint32_t i0, uint32_t i1)
+VISRTX_DEVICE void *unpackPointer(uint32_t i0, uint32_t i1)
 {
   const uint64_t uptr = static_cast<uint64_t>(i0) << 32 | i1;
   void *ptr = reinterpret_cast<void *>(uptr);
@@ -118,7 +118,7 @@ enum class PRDSelector
 };
 
 template <typename T>
-RT_FUNCTION T *getPRD(PRDSelector s)
+VISRTX_DEVICE T *getPRD(PRDSelector s)
 {
   if (s == PRDSelector::SCREEN_SAMPLE) {
     const uint32_t u0 = optixGetPayload_0();
@@ -133,7 +133,7 @@ RT_FUNCTION T *getPRD(PRDSelector s)
 
 } // namespace detail
 
-RT_FUNCTION vec3 makeRandomColor(uint32_t i)
+VISRTX_DEVICE vec3 makeRandomColor(uint32_t i)
 {
   const uint32_t mx = 13 * 17 * 43;
   const uint32_t my = 11 * 29;
@@ -144,12 +144,12 @@ RT_FUNCTION vec3 makeRandomColor(uint32_t i)
       (g % mz) * (1.f / (mz - 1)));
 }
 
-RT_FUNCTION vec3 boolColor(bool pred)
+VISRTX_DEVICE vec3 boolColor(bool pred)
 {
   return pred ? vec3(0.f, 1.f, 0.f) : vec3(1.f, 0.f, 0.f);
 }
 
-RT_FUNCTION vec3 randomDir(RandState &rs)
+VISRTX_DEVICE vec3 randomDir(RandState &rs)
 {
 #if 0
   const float r1 = curand_uniform(&rs);
@@ -163,13 +163,13 @@ RT_FUNCTION vec3 randomDir(RandState &rs)
 #endif
 }
 
-RT_FUNCTION vec3 randomDir(RandState &rs, const vec3 &normal)
+VISRTX_DEVICE vec3 randomDir(RandState &rs, const vec3 &normal)
 {
   const auto dir = randomDir(rs);
   return dot(dir, normal) > 0.f ? dir : -dir;
 }
 
-RT_FUNCTION vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
+VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
 {
   // sample unit sphere
   const float cost = 1.f - 2.f * curand_uniform(&rs);
@@ -185,28 +185,28 @@ RT_FUNCTION vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
 
 #define ulpEpsilon 0x1.fp-21
 
-RT_FUNCTION float epsilonFrom(const vec3 &P, const vec3 &dir, float t)
+VISRTX_DEVICE float epsilonFrom(const vec3 &P, const vec3 &dir, float t)
 {
   return glm::compMax(vec4(abs(P), glm::compMax(abs(dir)) * t)) * ulpEpsilon;
 }
 
-RT_FUNCTION bool pixelOutOfFrame(
+VISRTX_DEVICE bool pixelOutOfFrame(
     const uvec2 &pixel, const FramebufferGPUData &fb)
 {
   return pixel.x >= fb.size.x || pixel.y >= fb.size.y;
 }
 
-RT_FUNCTION bool isFirstPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+VISRTX_DEVICE bool isFirstPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
 {
   return pixel.x == 0 && pixel.y == 0;
 }
 
-RT_FUNCTION bool isMiddelPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+VISRTX_DEVICE bool isMiddelPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
 {
   return pixel.x == (fb.size.x / 2) && pixel.y == (fb.size.y / 2);
 }
 
-RT_FUNCTION vec4 getBackground(const RendererGPUData &rd, const vec2 &loc)
+VISRTX_DEVICE vec4 getBackground(const RendererGPUData &rd, const vec2 &loc)
 {
   return rd.backgroundMode == BackgroundMode::COLOR
       ? rd.background.color
@@ -220,7 +220,7 @@ RT_FUNCTION vec4 getBackground(const RendererGPUData &rd, const vec2 &loc)
 namespace detail {
 
 template <typename T>
-RT_FUNCTION void accumValue(T *arr, size_t idx, size_t fid, const T &v)
+VISRTX_DEVICE void accumValue(T *arr, size_t idx, size_t fid, const T &v)
 {
   if (!arr)
     return;
@@ -231,7 +231,7 @@ RT_FUNCTION void accumValue(T *arr, size_t idx, size_t fid, const T &v)
     arr[idx] += v;
 }
 
-RT_FUNCTION bool accumDepth(float *arr, size_t idx, size_t fid, const float &v)
+VISRTX_DEVICE bool accumDepth(float *arr, size_t idx, size_t fid, const float &v)
 {
   if (!arr)
     return true; // no previous depth to compare with
@@ -244,7 +244,7 @@ RT_FUNCTION bool accumDepth(float *arr, size_t idx, size_t fid, const float &v)
   return closerSample;
 }
 
-RT_FUNCTION void writeOutputColor(
+VISRTX_DEVICE void writeOutputColor(
     const FramebufferGPUData &fb, const vec4 &color, uint32_t idx)
 {
   const auto c = color * fb.invFrameID;
@@ -257,7 +257,7 @@ RT_FUNCTION void writeOutputColor(
     fb.buffers.outColorVec4[idx] = c;
 }
 
-RT_FUNCTION uint32_t pixelIndex(
+VISRTX_DEVICE uint32_t pixelIndex(
     const FramebufferGPUData &fb, const uvec2 &pixel)
 {
   return pixel.x + pixel.y * fb.size.x;
@@ -265,7 +265,7 @@ RT_FUNCTION uint32_t pixelIndex(
 
 } // namespace detail
 
-RT_FUNCTION void accumResults(const FramebufferGPUData &fb,
+VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
     const uvec2 &pixel,
     const vec4 &color,
     float depth,

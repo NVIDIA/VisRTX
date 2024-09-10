@@ -52,12 +52,12 @@ DECLARE_FRAME_DATA(frameData)
 
 // OptiX programs /////////////////////////////////////////////////////////////
 
-RT_PROGRAM void __closesthit__()
+VISRTX_GLOBAL void __closesthit__()
 {
   ray::populateHit();
 }
 
-RT_PROGRAM void __anyhit__()
+VISRTX_GLOBAL void __anyhit__()
 {
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
@@ -71,12 +71,12 @@ RT_PROGRAM void __anyhit__()
     optixIgnoreIntersection();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // no-op
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
   auto &dptParams = rendererParams.params.dpt;

@@ -38,7 +38,7 @@ namespace visrtx {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-RT_FUNCTION void reportIntersection(float t, const vec3 &normal, float u)
+VISRTX_DEVICE void reportIntersection(float t, const vec3 &normal, float u)
 {
   optixReportIntersection(t,
       0,
@@ -48,12 +48,12 @@ RT_FUNCTION void reportIntersection(float t, const vec3 &normal, float u)
       bit_cast<uint32_t>(normal.z));
 }
 
-RT_FUNCTION void reportIntersection(float t)
+VISRTX_DEVICE void reportIntersection(float t)
 {
   optixReportIntersection(t, 0, bit_cast<uint32_t>(0.f));
 }
 
-RT_FUNCTION void reportIntersectionVolume(const box1 &t)
+VISRTX_DEVICE void reportIntersectionVolume(const box1 &t)
 {
   const auto rd = optixGetObjectRayDirection();
   optixReportIntersection(t.lower,
@@ -66,7 +66,7 @@ RT_FUNCTION void reportIntersectionVolume(const box1 &t)
 
 // Primitive intersectors /////////////////////////////////////////////////////
 
-RT_FUNCTION void intersectSphere(const GeometryGPUData &geometryData)
+VISRTX_DEVICE void intersectSphere(const GeometryGPUData &geometryData)
 {
   const auto &sphereData = geometryData.sphere;
 
@@ -93,7 +93,7 @@ RT_FUNCTION void intersectSphere(const GeometryGPUData &geometryData)
   reportIntersection(t, n, 0.f);
 }
 
-RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
+VISRTX_DEVICE void intersectCylinder(const GeometryGPUData &geometryData)
 {
   const auto &cylinderData = geometryData.cylinder;
 
@@ -184,7 +184,7 @@ RT_FUNCTION void intersectCylinder(const GeometryGPUData &geometryData)
   }
 }
 
-RT_FUNCTION void intersectCone(const GeometryGPUData &geometryData)
+VISRTX_DEVICE void intersectCone(const GeometryGPUData &geometryData)
 {
   const auto &coneData = geometryData.cone;
 
@@ -240,7 +240,7 @@ RT_FUNCTION void intersectCone(const GeometryGPUData &geometryData)
   }
 }
 
-RT_FUNCTION void intersectVolume()
+VISRTX_DEVICE void intersectVolume()
 {
   auto &hit = ray::rayData<VolumeHit>();
   if (hit.volID == ray::primID() && hit.instID == ray::instID())
@@ -269,7 +269,7 @@ RT_FUNCTION void intersectVolume()
 
 // Generic geometry dispatch //////////////////////////////////////////////////
 
-RT_FUNCTION void intersectGeometry()
+VISRTX_DEVICE void intersectGeometry()
 {
   const auto &ss = ray::screenSample();
   const auto &frameData = *ss.frameData;
@@ -291,7 +291,7 @@ RT_FUNCTION void intersectGeometry()
 
 // Main intersection dispatch /////////////////////////////////////////////////
 
-RT_PROGRAM void __intersection__()
+VISRTX_GLOBAL void __intersection__()
 {
   if (ray::isIntersectingSurfaces())
     intersectGeometry();

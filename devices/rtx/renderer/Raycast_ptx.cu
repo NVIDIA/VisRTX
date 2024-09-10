@@ -40,22 +40,22 @@ enum class RayType
 
 DECLARE_FRAME_DATA(frameData)
 
-RT_PROGRAM void __anyhit__primary()
+VISRTX_GLOBAL void __anyhit__primary()
 {
   ray::cullbackFaces();
 }
 
-RT_PROGRAM void __closesthit__primary()
+VISRTX_GLOBAL void __closesthit__primary()
 {
   ray::populateHit();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // no-op
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
 
