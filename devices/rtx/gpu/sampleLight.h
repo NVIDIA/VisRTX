@@ -46,7 +46,7 @@ struct LightSample
 
 namespace detail {
 
-RT_FUNCTION LightSample sampleDirectional(const LightGPUData &ld)
+VISRTX_DEVICE LightSample sampleDirectional(const LightGPUData &ld)
 {
   LightSample ls;
   ls.dir = -ld.distant.direction;
@@ -56,7 +56,7 @@ RT_FUNCTION LightSample sampleDirectional(const LightGPUData &ld)
   return ls;
 }
 
-RT_FUNCTION LightSample samplePoint(const LightGPUData &ld, const Hit &hit)
+VISRTX_DEVICE LightSample samplePoint(const LightGPUData &ld, const Hit &hit)
 {
   LightSample ls;
   ls.dir = ld.point.position - hit.hitpoint;
@@ -69,7 +69,7 @@ RT_FUNCTION LightSample samplePoint(const LightGPUData &ld, const Hit &hit)
 
 } // namespace detail
 
-RT_FUNCTION LightSample sampleLight(
+VISRTX_DEVICE LightSample sampleLight(
     ScreenSample &ss, const Hit &hit, DeviceObjectIndex idx)
 {
   auto &ld = ss.frameData->registry.lights[idx];

@@ -35,17 +35,17 @@
 
 namespace visrtx {
 
-RT_FUNCTION int computePixelX(int idx, int checkerboardID)
+VISRTX_DEVICE int computePixelX(int idx, int checkerboardID)
 {
   return checkerboardID < 0 ? idx : idx * 2 + (checkerboardID & 0x1);
 }
 
-RT_FUNCTION int computePixelY(int idy, int checkerboardID)
+VISRTX_DEVICE int computePixelY(int idy, int checkerboardID)
 {
   return checkerboardID < 0 ? idy : idy * 2 + ((checkerboardID >> 1) & 0x1);
 }
 
-RT_FUNCTION ScreenSample createScreenSample(const FrameGPUData &frameData)
+VISRTX_DEVICE ScreenSample createScreenSample(const FrameGPUData &frameData)
 {
   ScreenSample ss;
 

@@ -36,25 +36,25 @@
 
 namespace visrtx {
 
-RT_FUNCTION bool isPopulated(const AttributeData &ap)
+VISRTX_DEVICE bool isPopulated(const AttributeData &ap)
 {
   return ap.numChannels > 0;
 }
 
-RT_FUNCTION const SamplerGPUData &getSamplerData(
+VISRTX_DEVICE const SamplerGPUData &getSamplerData(
     const FrameGPUData &frameData, DeviceObjectIndex idx)
 {
   return frameData.registry.samplers[idx];
 }
 
 template <typename T>
-RT_FUNCTION const T *typedOffset(const void *mem, uint32_t offset)
+VISRTX_DEVICE const T *typedOffset(const void *mem, uint32_t offset)
 {
   return ((const T *)mem) + offset;
 }
 
 template <typename ELEMENT_T>
-RT_FUNCTION vec4 getAttributeValue_ufixed(
+VISRTX_DEVICE vec4 getAttributeValue_ufixed(
     const AttributeData &attr, uint32_t offset)
 {
   constexpr float m = float(static_cast<ELEMENT_T>(0xFFFFFFFF));
@@ -79,7 +79,7 @@ RT_FUNCTION vec4 getAttributeValue_ufixed(
   return retval;
 }
 
-RT_FUNCTION vec4 getAttributeValue_f32(
+VISRTX_DEVICE vec4 getAttributeValue_f32(
     const AttributeData &attr, uint32_t offset)
 {
   switch (attr.numChannels) {
@@ -98,7 +98,7 @@ RT_FUNCTION vec4 getAttributeValue_f32(
   return vec4(0.f, 0.f, 0.f, 1.f);
 }
 
-RT_FUNCTION vec4 getAttributeValue(
+VISRTX_DEVICE vec4 getAttributeValue(
     const AttributeData &attr, uint32_t offset, const vec4 &uniformFallback)
 {
   if (attr.data == nullptr || offset == 0xFFFFFFFF)
@@ -118,7 +118,7 @@ RT_FUNCTION vec4 getAttributeValue(
   return uniformFallback;
 }
 
-RT_FUNCTION uint32_t decodeSphereAttributeIndices(
+VISRTX_DEVICE uint32_t decodeSphereAttributeIndices(
     const GeometryGPUData &ggd, const SurfaceHit &hit)
 {
   if (ggd.sphere.indices != nullptr)
@@ -127,7 +127,7 @@ RT_FUNCTION uint32_t decodeSphereAttributeIndices(
     return hit.primID;
 }
 
-RT_FUNCTION uvec3 decodeTriangleAttributeIndices(
+VISRTX_DEVICE uvec3 decodeTriangleAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
 {
   if (ggd.tri.indices != nullptr)
@@ -136,7 +136,7 @@ RT_FUNCTION uvec3 decodeTriangleAttributeIndices(
     return 3 * hit.primID + uvec3(0, 1, 2);
 }
 
-RT_FUNCTION uvec4 decodeQuadAttributeIndices(
+VISRTX_DEVICE uvec4 decodeQuadAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, uint32_t _primID)
 {
   auto primID = _primID & ~0x1;
@@ -145,7 +145,7 @@ RT_FUNCTION uvec4 decodeQuadAttributeIndices(
   return uvec4(i0.x, i0.y, i0.z, i1.x); // 0, 1, 3, 2
 }
 
-RT_FUNCTION uvec2 decodeCylinderAttributeIndices(
+VISRTX_DEVICE uvec2 decodeCylinderAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
 {
   if (ggd.cylinder.indices != nullptr)
@@ -154,7 +154,7 @@ RT_FUNCTION uvec2 decodeCylinderAttributeIndices(
     return 2 * hit.primID + uvec2(0, 1);
 }
 
-RT_FUNCTION uvec2 decodeConeAttributeIndices(
+VISRTX_DEVICE uvec2 decodeConeAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
 {
   if (ggd.cone.indices != nullptr)
@@ -163,13 +163,13 @@ RT_FUNCTION uvec2 decodeConeAttributeIndices(
     return 2 * hit.primID + uvec2(0, 1);
 }
 
-RT_FUNCTION uint32_t decodeCurveAttributeIndices(
+VISRTX_DEVICE uint32_t decodeCurveAttributeIndices(
     const GeometryGPUData &ggd, uint32_t attributeID, const SurfaceHit &hit)
 {
   return ggd.curve.indices[hit.primID];
 }
 
-RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
+VISRTX_DEVICE vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
 {
   const auto &isd = *hit.instance;
   const auto &ggd = *hit.geometry;
@@ -259,7 +259,7 @@ RT_FUNCTION vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
   return uf;
 }
 
-RT_FUNCTION vec4 evaluateSampler(
+VISRTX_DEVICE vec4 evaluateSampler(
     const FrameGPUData &fd, const DeviceObjectIndex _s, const SurfaceHit &hit)
 {
   vec4 retval{0.f, 0.f, 0.f, 1.f};
@@ -291,7 +291,7 @@ RT_FUNCTION vec4 evaluateSampler(
   return sampler.outTransform * retval + sampler.outOffset;
 }
 
-RT_FUNCTION vec4 getMaterialParameter(
+VISRTX_DEVICE vec4 getMaterialParameter(
     const FrameGPUData &fd, const MaterialParameter &mp, const SurfaceHit &hit)
 {
   switch (mp.type) {
@@ -327,7 +327,7 @@ RT_FUNCTION vec4 getMaterialParameter(
   return vec4{};
 }
 
-RT_FUNCTION float adjustedMaterialOpacity(
+VISRTX_DEVICE float adjustedMaterialOpacity(
     float opacityIn, const MaterialGPUData &md)
 {
   if (md.mode == AlphaMode::OPAQUE)
@@ -340,7 +340,7 @@ RT_FUNCTION float adjustedMaterialOpacity(
   }
 }
 
-RT_FUNCTION MaterialValues getMaterialValues(
+VISRTX_DEVICE MaterialValues getMaterialValues(
     const FrameGPUData &fd, const MaterialGPUData &md, const SurfaceHit &hit)
 {
   MaterialValues retval;
@@ -370,11 +370,7 @@ RT_FUNCTION MaterialValues getMaterialValues(
   return retval;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-
-RT_FUNCTION vec4 evalMaterial(const FrameGPUData &fd,
+VISRTX_DEVICE vec4 evalMaterial(const FrameGPUData &fd,
     const MaterialGPUData &md,
     const SurfaceHit &hit,
     const vec3 &viewDir,

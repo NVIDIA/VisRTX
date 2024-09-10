@@ -35,13 +35,13 @@
 
 namespace visrtx {
 
-RT_FUNCTION const SpatialFieldGPUData &getSpatialFieldData(
+VISRTX_DEVICE const SpatialFieldGPUData &getSpatialFieldData(
     const FrameGPUData &frameData, DeviceObjectIndex idx)
 {
   return frameData.registry.fields[idx];
 }
 
-RT_FUNCTION float sampleSpatialField(
+VISRTX_DEVICE float sampleSpatialField(
     const SpatialFieldGPUData &sf, const vec3 &location)
 {
   float retval = 0.f;

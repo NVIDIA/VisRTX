@@ -41,7 +41,7 @@ namespace visrtx {
 
 namespace detail {
 
-RT_FUNCTION vec4 classifySample(const VolumeGPUData &v, float s)
+VISRTX_DEVICE vec4 classifySample(const VolumeGPUData &v, float s)
 {
   vec4 retval(0.f);
   switch (v.type) {
@@ -57,7 +57,7 @@ RT_FUNCTION vec4 classifySample(const VolumeGPUData &v, float s)
   return retval;
 }
 
-RT_FUNCTION float rayMarchVolume(
+VISRTX_DEVICE float rayMarchVolume(
     ScreenSample &ss, const VolumeHit &hit, vec3 *color, float &opacity)
 {
   const auto &volume = *hit.volumeData;
@@ -89,7 +89,7 @@ RT_FUNCTION float rayMarchVolume(
   return depth;
 }
 
-RT_FUNCTION float sampleDistance(ScreenSample &ss,
+VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
     const VolumeHit &hit,
     vec3 *albedo,
     float &extinction,
@@ -161,20 +161,20 @@ RT_FUNCTION float sampleDistance(ScreenSample &ss,
 
 } // namespace detail
 
-RT_FUNCTION float rayMarchVolume(
+VISRTX_DEVICE float rayMarchVolume(
     ScreenSample &ss, const VolumeHit &hit, float &opacity)
 {
   return detail::rayMarchVolume(ss, hit, nullptr, opacity);
 }
 
-RT_FUNCTION float rayMarchVolume(
+VISRTX_DEVICE float rayMarchVolume(
     ScreenSample &ss, const VolumeHit &hit, vec3 &color, float &opacity)
 {
   return detail::rayMarchVolume(ss, hit, &color, opacity);
 }
 
 template <typename RAY_TYPE>
-RT_FUNCTION float rayMarchAllVolumes(ScreenSample &ss,
+VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
     Ray ray,
     RAY_TYPE type,
     float tfar,
@@ -208,7 +208,7 @@ RT_FUNCTION float rayMarchAllVolumes(ScreenSample &ss,
 }
 
 template <typename RAY_TYPE>
-RT_FUNCTION float sampleDistanceAllVolumes(ScreenSample &ss,
+VISRTX_DEVICE float sampleDistanceAllVolumes(ScreenSample &ss,
     Ray ray,
     RAY_TYPE type,
     float tfar,

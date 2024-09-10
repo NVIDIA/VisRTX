@@ -36,25 +36,25 @@
 
 namespace visrtx {
 
-RT_FUNCTION const InstanceSurfaceGPUData &getSurfaceInstanceData(
+VISRTX_DEVICE const InstanceSurfaceGPUData &getSurfaceInstanceData(
     const FrameGPUData &frameData, DeviceObjectIndex idx)
 {
   return frameData.world.surfaceInstances[idx];
 }
 
-RT_FUNCTION const InstanceVolumeGPUData &getVolumeInstanceData(
+VISRTX_DEVICE const InstanceVolumeGPUData &getVolumeInstanceData(
     const FrameGPUData &frameData, DeviceObjectIndex idx)
 {
   return frameData.world.volumeInstances[idx];
 }
 
-RT_FUNCTION const GeometryGPUData &getGeometryData(
+VISRTX_DEVICE const GeometryGPUData &getGeometryData(
     const FrameGPUData &frameData, DeviceObjectIndex idx)
 {
   return frameData.registry.geometries[idx];
 }
 
-RT_FUNCTION const MaterialGPUData &getMaterialData(
+VISRTX_DEVICE const MaterialGPUData &getMaterialData(
     const FrameGPUData &frameData, DeviceObjectIndex idx)
 {
   return frameData.registry.materials[idx];
@@ -62,59 +62,59 @@ RT_FUNCTION const MaterialGPUData &getMaterialData(
 
 namespace ray {
 
-RT_FUNCTION vec3 origin()
+VISRTX_DEVICE vec3 origin()
 {
   return make_vec3(optixGetWorldRayOrigin());
 }
 
-RT_FUNCTION vec3 localOrigin()
+VISRTX_DEVICE vec3 localOrigin()
 {
   return make_vec3(optixGetObjectRayOrigin());
 }
 
-RT_FUNCTION vec3 direction()
+VISRTX_DEVICE vec3 direction()
 {
   return make_vec3(optixGetWorldRayDirection());
 }
 
-RT_FUNCTION vec3 localDirection()
+VISRTX_DEVICE vec3 localDirection()
 {
   return make_vec3(optixGetObjectRayDirection());
 }
 
-RT_FUNCTION float tmin()
+VISRTX_DEVICE float tmin()
 {
   return optixGetRayTmin();
 }
 
-RT_FUNCTION float tmax()
+VISRTX_DEVICE float tmax()
 {
   return optixGetRayTmax();
 }
 
-RT_FUNCTION float t()
+VISRTX_DEVICE float t()
 {
   return tmax();
 }
 
-RT_FUNCTION float volume_out_t()
+VISRTX_DEVICE float volume_out_t()
 {
   return bit_cast<float>(optixGetAttribute_0());
 }
 
-RT_FUNCTION vec3 volume_local_direction()
+VISRTX_DEVICE vec3 volume_local_direction()
 {
   return vec3(bit_cast<float>(optixGetAttribute_1()),
       bit_cast<float>(optixGetAttribute_2()),
       bit_cast<float>(optixGetAttribute_3()));
 }
 
-RT_FUNCTION vec3 hitpoint()
+VISRTX_DEVICE vec3 hitpoint()
 {
   return origin() + (t() * direction());
 }
 
-RT_FUNCTION vec2 uv(GeometryType type)
+VISRTX_DEVICE vec2 uv(GeometryType type)
 {
   switch (type) {
   case GeometryType::TRIANGLE:
@@ -136,63 +136,63 @@ RT_FUNCTION vec2 uv(GeometryType type)
   }
 }
 
-RT_FUNCTION vec3 uvw(GeometryType type)
+VISRTX_DEVICE vec3 uvw(GeometryType type)
 {
   const auto values = uv(type);
   return vec3(1.f - values.x - values.y, values.x, values.y);
 }
 
-RT_FUNCTION uint32_t primID()
+VISRTX_DEVICE uint32_t primID()
 {
   return optixGetPrimitiveIndex();
 }
 
-RT_FUNCTION uint32_t objID()
+VISRTX_DEVICE uint32_t objID()
 {
   return optixGetSbtGASIndex();
 }
 
-RT_FUNCTION uint32_t instID()
+VISRTX_DEVICE uint32_t instID()
 {
   return optixGetInstanceIndex();
 }
 
-RT_FUNCTION ScreenSample &screenSample()
+VISRTX_DEVICE ScreenSample &screenSample()
 {
   return *detail::getPRD<ScreenSample>(detail::PRDSelector::SCREEN_SAMPLE);
 }
 
 template <typename T>
-RT_FUNCTION T &rayData()
+VISRTX_DEVICE T &rayData()
 {
   return *detail::getPRD<T>(detail::PRDSelector::RAY_DATA);
 }
 
-RT_FUNCTION bool isIntersectingSurfaces()
+VISRTX_DEVICE bool isIntersectingSurfaces()
 {
   return optixGetPayload_4();
 }
 
-RT_FUNCTION bool isIntersectingVolumes()
+VISRTX_DEVICE bool isIntersectingVolumes()
 {
   return !isIntersectingSurfaces();
 }
 
-RT_FUNCTION const SurfaceGPUData &surfaceData(const FrameGPUData &frameData)
+VISRTX_DEVICE const SurfaceGPUData &surfaceData(const FrameGPUData &frameData)
 {
   auto &inst = frameData.world.surfaceInstances[ray::instID()];
   auto idx = inst.surfaces[ray::objID()];
   return frameData.registry.surfaces[idx];
 }
 
-RT_FUNCTION const VolumeGPUData &volumeData(const FrameGPUData &frameData)
+VISRTX_DEVICE const VolumeGPUData &volumeData(const FrameGPUData &frameData)
 {
   auto &inst = frameData.world.volumeInstances[ray::instID()];
   auto idx = inst.volumes[ray::objID()];
   return frameData.registry.volumes[idx];
 }
 
-RT_FUNCTION void computeNormal(
+VISRTX_DEVICE void computeNormal(
     const GeometryGPUData &ggd, uint32_t primID, SurfaceHit &hit)
 {
   const vec3 b = ray::uvw(ggd.type);
@@ -279,7 +279,7 @@ RT_FUNCTION void computeNormal(
       optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ns)));
 }
 
-RT_FUNCTION void cullbackFaces()
+VISRTX_DEVICE void cullbackFaces()
 {
   if (optixIsTriangleFrontFaceHit())
     return;
@@ -293,7 +293,7 @@ RT_FUNCTION void cullbackFaces()
     optixIgnoreIntersection();
 }
 
-RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
+VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
 {
   auto &ss = ray::screenSample();
   auto &fd = *ss.frameData;
@@ -317,7 +317,7 @@ RT_FUNCTION void populateSurfaceHit(SurfaceHit &hit)
   ray::computeNormal(gd, ray::primID(), hit);
 }
 
-RT_FUNCTION void populateVolumeHit(VolumeHit &hit)
+VISRTX_DEVICE void populateVolumeHit(VolumeHit &hit)
 {
   auto &ss = ray::screenSample();
   auto &fd = *ss.frameData;
@@ -337,7 +337,7 @@ RT_FUNCTION void populateVolumeHit(VolumeHit &hit)
   hit.localRay.t.upper = ray::volume_out_t();
 }
 
-RT_FUNCTION void populateHit()
+VISRTX_DEVICE void populateHit()
 {
   if (ray::isIntersectingSurfaces()) {
     auto &hit = ray::rayData<SurfaceHit>();
