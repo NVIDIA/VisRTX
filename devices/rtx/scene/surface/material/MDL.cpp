@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,19 +29,51 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "gpu/shading_api.h"
+#include "MDL.h"
 
-using namespace visrtx;
+#include <anari/frontend/anari_enums.h>
 
-// Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
-VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
-    const FrameGPUData *fd,
-    const MaterialGPUData::Matte *md,
-    const SurfaceHit *hit,
-    const vec3 * /*viewDir*/,
-    const vec3 * /*lightDir*/,
-    const vec3 *lightIntensity)
+#include "gpu/gpu_objects.h"
+#include "mdl/MDLMaterialManager.h"
+#include "scene/surface/material/Material.h"
+
+namespace visrtx {
+
+MDL::MDL(DeviceGlobalState *d) : Material(d) {}
+
+void MDL::commit()
 {
-  const auto matValues = getMaterialValues(*fd, *md, *hit);
-  return {matValues.baseColor * (*lightIntensity), matValues.opacity};
+  auto sourceType = getParamString("sourceType", "module");
+  auto source = getParamString("source", "::visrtx::default::simple");
+
+  auto &materialManager = deviceState()->mdl.materialManager;
+
+  if (sourceType == "module") {
+    if (source != m_source) {
+      m_implementationId = materialManager->acquireModule(source.c_str());
+      m_implementationIndex =
+          materialManager->getModuleIndex(m_implementationId);
+
+      m_source = source;
+    }
+  } else if (sourceType == "code") {
+    reportMessage(
+        ANARI_SEVERITY_ERROR, "MDL::commit(): sourceType 'code' not supported");
+  } else {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "MDL::commit(): sourceType must be either 'module' or 'code'");
+  }
+
+  upload();
 }
+
+MaterialGPUData MDL::gpuData() const
+{
+  MaterialGPUData retval;
+  retval.materialType = MaterialType::MDL;
+  retval.mdl.implementationId = m_implementationIndex;
+
+  return retval;
+}
+
+} // namespace visrtx

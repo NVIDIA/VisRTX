@@ -31,9 +31,11 @@
 
 #pragma once
 
+#include <memory>
 #include "gpu/gpu_objects.h"
 #include "utility/DeferredArrayUploadBuffer.h"
 #include "utility/DeviceObjectArray.h"
+
 // helium
 #include "helium/BaseGlobalDeviceState.h"
 // anari
@@ -139,9 +141,16 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box1, ANARI_FLOAT32_BOX1);
 
 namespace visrtx {
 
+// mdl
+#define HAS_MDL 1
+#if HAS_MDL
+class MDLSDK;
+class MDLMaterialManager;
+#endif // HAS_MDL
+
 struct ptx_blob
 {
-  unsigned char *ptr{nullptr};
+  const unsigned char *ptr{nullptr};
   size_t size{0};
 };
 
@@ -163,6 +172,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule diffusePathTracer{nullptr};
     OptixModule directLight{nullptr};
     OptixModule test{nullptr};
+    OptixModule mdl{nullptr};
   } rendererModules;
 
   struct IntersectionModules
@@ -196,9 +206,17 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     DeviceObjectArray<VolumeGPUData> volumes;
   } registry;
 
+  // MDL
+  struct
+  {
+    MDLSDK *sdk;
+    MDLMaterialManager *materialManager;
+  } mdl;
+
   // Helper methods //
 
   DeviceGlobalState(ANARIDevice d);
+  ~DeviceGlobalState() override;
 };
 
 struct Object;
