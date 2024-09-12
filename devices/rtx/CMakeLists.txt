@@ -103,6 +103,9 @@ project_sources(PRIVATE
   renderer/Test.cpp
   renderer/UnknownRenderer.cpp
 
+  shaders/MatteShader.cpp
+  shaders/PhysicallyBasedShader.cpp
+
   scene/Group.cpp
   scene/Instance.cpp
   scene/World.cpp
@@ -249,6 +252,9 @@ GenerateEmbeddedPTX(renderer DiffusePathTracer)
 GenerateEmbeddedPTX(renderer DirectLight)
 GenerateEmbeddedPTX(renderer Raycast)
 GenerateEmbeddedPTX(renderer Test)
+
+GenerateEmbeddedPTX(shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)
+GenerateEmbeddedPTX(shaders PhysicallyBasedShader ENTRIES __direct__callable__evalSurfaceMaterial)
 
 GenerateEmbeddedPTX(scene Intersectors)
 

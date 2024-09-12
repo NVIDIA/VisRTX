@@ -32,6 +32,7 @@
 #define VISRTX_DEBUGGING 0
 
 #include "gpu/gpu_debug.h"
+#include "gpu/evalMaterial.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -64,9 +65,9 @@ VISRTX_GLOBAL void __anyhit__()
 
   const auto &fd = frameData;
   const auto &md = *hit.material;
-  vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
-  float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
-  opacity = adjustedMaterialOpacity(opacity, md) * color.w;
+  const auto& materialValues = getMaterialValues(fd, md, hit);
+
+  float opacity = materialValues.opacity;
   if (opacity < 0.99f && curand_uniform(&ray::screenSample().rs) > opacity)
     optixIgnoreIntersection();
 }
@@ -143,8 +144,8 @@ VISRTX_GLOBAL void __raygen__()
     if (!volumeHit) {
       pos = hit.hitpoint + (hit.epsilon * hit.Ng);
       const auto &material = *hit.material;
-      albedo =
-          getMaterialParameter(frameData, material.values[MV_BASE_COLOR], hit);
+      const auto &materialValues = getMaterialValues(frameData, material, hit);
+      albedo = vec3(materialValues.baseColor);
     } else {
       pos = ray.org + volumeDepth * ray.dir;
       albedo = volumeColor;

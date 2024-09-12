@@ -54,6 +54,10 @@
 #include "renderer/Raycast.h"
 #include "renderer/Test.h"
 
+// materials
+#include "shaders/MatteShader.h"
+#include "shaders/PhysicallyBasedShader.h"
+
 // std
 #include <future>
 
@@ -612,6 +616,16 @@ DeviceInitStatus VisRTXDevice::initOptix()
       init_module(state.intersectionModules.customIntersectors,
           intersection_ptx(),
           "custom intersectors"));
+  
+  compileTasks.push_back(
+    init_module(state.materialShaders.matte,
+          MatteShader::ptx(),
+          "'matte' shader"));
+
+  compileTasks.push_back(
+    init_module(state.materialShaders.physicallyBased,
+          PhysicallyBasedShader::ptx(),
+          "'physicallyBased' shader"));
 
   for (auto &f : compileTasks)
     f.wait();

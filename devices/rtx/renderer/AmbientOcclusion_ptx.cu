@@ -53,14 +53,12 @@ VISRTX_GLOBAL void __anyhit__ao()
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
 
-  const auto &fd = frameData;
-  const auto &md = *hit.material;
-  vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
-  float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
-  opacity = adjustedMaterialOpacity(opacity, md) * color.w;
+  const auto& fd = frameData;
+  const auto& md = *hit.material;
+  const auto& materialValues = getMaterialValues(fd, md, hit);
 
   auto &o = ray::rayData<float>();
-  accumulateValue(o, opacity, o);
+  accumulateValue(o, materialValues.opacity, o);
   if (o >= 0.99f)
     optixTerminateRay();
   else

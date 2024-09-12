@@ -28,49 +28,11 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
-#include "Matte.h"
-#include "gpu/gpu_objects.h"
+#include "MatteShader.h"
+#include "MatteShader_ptx.h"
 
 namespace visrtx {
 
-Matte::Matte(DeviceGlobalState *d) : Material(d) {}
-
-void Matte::commit()
-{
-  m_opacity = getParam<float>("opacity", 1.f);
-  m_opacitySampler = getParamObject<Sampler>("opacity");
-  m_opacityAttribute = getParamString("opacity", "");
-
-  m_color = vec4(1.f);
-  getParam("color", ANARI_FLOAT32_VEC4, &m_color);
-  getParam("color", ANARI_FLOAT32_VEC3, &m_color);
-  m_colorSampler = getParamObject<Sampler>("color");
-  m_colorAttribute = getParamString("color", "");
-
-  m_cutoff = getParam<float>("alphaCutoff", 0.5f);
-  m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
-
-  upload();
-}
-
-MaterialGPUData Matte::gpuData() const
-{
-  MaterialGPUData retval;
-
-  retval.materialType = MaterialType::MATTE;
-
-  populateMaterialParameter(
-      retval.matte.color, m_color, m_colorSampler, m_colorAttribute);
-  populateMaterialParameter(retval.matte.opacity,
-      m_opacity,
-      m_opacitySampler,
-      m_opacityAttribute);
-
-  retval.matte.cutoff = m_cutoff;
-  retval.matte.alphaMode = m_mode;
-
-  return retval;
-}
+ptx_blob MatteShader::ptx() { return {MatteShader_ptx, sizeof(MatteShader_ptx)}; }
 
 } // namespace visrtx

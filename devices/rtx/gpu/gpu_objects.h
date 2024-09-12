@@ -276,15 +276,45 @@ constexpr int MV_OPACITY = 1;
 constexpr int MV_METALLIC = 2;
 constexpr int MV_ROUGHNESS = 3;
 
+enum class MaterialType
+{
+  UNKNOWN = -1,
+  MATTE = 0, // Akin to callable id
+  PHYSICALLYBASED
+};
+
 struct MaterialGPUData
 {
-  // See getMaterialValues() for why this is an array and not named members
-  MaterialParameter values[4];
+  struct Matte {
+      MaterialParameter color;
+      MaterialParameter opacity;
+      float cutoff;
+      AlphaMode alphaMode;
+  };
 
-  float ior{1.5f};
-  float cutoff{0.5f};
-  AlphaMode mode{AlphaMode::OPAQUE};
-  bool isPBR{false};
+  struct PhysicallyBased {
+      MaterialParameter baseColor;
+      MaterialParameter opacity;
+      MaterialParameter metallic;
+      MaterialParameter roughness;
+      float ior;
+      float cutoff;
+      AlphaMode alphaMode;
+  };
+
+  MaterialType materialType;
+
+  union
+  {
+    Matte matte;
+    PhysicallyBased physicallyBased;
+  };
+
+  MaterialGPUData() {
+    materialType = MaterialType::UNKNOWN;
+    matte = {};
+    physicallyBased = {};
+  }
 };
 
 struct MaterialValues

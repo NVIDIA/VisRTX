@@ -30,6 +30,7 @@
  */
 
 #include "Renderer.h"
+
 // specific renderers
 #include "AmbientOcclusion.h"
 #include "Debug.h"
@@ -38,7 +39,9 @@
 #include "Raycast.h"
 #include "Test.h"
 #include "UnknownRenderer.h"
+
 // std
+#include <optix_types.h>
 #include <stdlib.h>
 #include <string_view>
 // this include may only appear in a single source file:
@@ -54,6 +57,7 @@ struct SBTRecord
 using RaygenRecord = SBTRecord;
 using MissRecord = SBTRecord;
 using HitgroupRecord = SBTRecord;
+using MaterialRecord = SBTRecord;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -381,6 +385,36 @@ void Renderer::initOptixPipeline()
     }
   }
 
+  // Materials
+  {
+      // Matte and PhysicallyBased
+      m_materialPGs.resize(2);
+
+      OptixProgramGroupOptions callable_options = {};
+      OptixProgramGroupDesc    callable_descs[2] = {};
+      callable_descs[SBT_CALLABLE_MATTE_OFFSET].kind                          = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+      callable_descs[SBT_CALLABLE_MATTE_OFFSET].callables.moduleDC            = deviceState()->materialShaders.matte;
+      callable_descs[SBT_CALLABLE_MATTE_OFFSET].callables.entryFunctionNameDC = "__direct_callable__evalSurfaceMaterial";
+      callable_descs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET].kind                          = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+      callable_descs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET].callables.moduleDC            = deviceState()->materialShaders.physicallyBased;
+      callable_descs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET].callables.entryFunctionNameDC = "__direct_callable__evalSurfaceMaterial";
+
+      sizeof_log = sizeof(log);
+      OPTIX_CHECK(optixProgramGroupCreate(
+        state.optixContext,
+        callable_descs,
+        std::size(m_materialPGs),
+        &callable_options,
+        log,
+        &sizeof_log,
+        m_materialPGs.data()));
+      if (sizeof_log > 1) {
+        reportMessage(
+      
+          ANARI_SEVERITY_DEBUG, "PG Callables Log:\n%s", log);
+      }
+  }
+
   // Pipeline //
 
   {
@@ -395,6 +429,8 @@ void Renderer::initOptixPipeline()
     for (auto pg : m_missPGs)
       programGroups.push_back(pg);
     for (auto pg : m_hitgroupPGs)
+      programGroups.push_back(pg);
+    for (auto pg: m_materialPGs)
       programGroups.push_back(pg);
 
     sizeof_log = sizeof(log);
@@ -444,6 +480,17 @@ void Renderer::initOptixPipeline()
     m_sbt.hitgroupRecordBase = (CUdeviceptr)m_hitgroupRecordsBuffer.ptr();
     m_sbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
     m_sbt.hitgroupRecordCount = hitgroupRecords.size();
+
+    std::vector<MaterialRecord> materialRecords;
+    for (auto &pg : m_materialPGs) {
+      MaterialRecord rec;
+      OPTIX_CHECK(optixSbtRecordPackHeader(pg, &rec));
+      materialRecords.push_back(rec);
+    }
+    m_materialRecordsBuffer.upload(materialRecords);
+    m_sbt.callablesRecordBase = (CUdeviceptr)m_materialRecordsBuffer.ptr();
+    m_sbt.callablesRecordStrideInBytes = sizeof(MaterialRecord);
+    m_sbt.callablesRecordCount = materialRecords.size();
   }
 }
 
