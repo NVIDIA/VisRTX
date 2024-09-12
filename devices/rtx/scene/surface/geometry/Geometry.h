@@ -78,7 +78,7 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void markCommitted() override;
 
  protected:
-  virtual GeometryGPUData gpuData() const = 0;
+  GeometryGPUData gpuData() const override = 0;
 
   void commitAttributes(const char *prefix, GeometryAttributes &attrs);
   void populateAttributeDataSet(

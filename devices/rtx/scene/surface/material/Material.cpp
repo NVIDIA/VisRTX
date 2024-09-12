@@ -31,6 +31,7 @@
 
 #include "Material.h"
 // specific types
+#include "MDL.h"
 #include "Matte.h"
 #include "PBR.h"
 #include "UnknownMaterial.h"
@@ -50,6 +51,8 @@ Material *Material::createInstance(
     return new Matte(d);
   else if (subtype == "pbr" || subtype == "physicallyBased")
     return new PBR(d);
+  else if (subtype == "mdl")
+    return new MDL(d);
   else
     return new UnknownMaterial(subtype, d);
 }

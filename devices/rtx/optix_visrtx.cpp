@@ -30,7 +30,10 @@
  */
 
 #include "optix_visrtx.h"
+#include <memory>
 #include "Object.h"
+#include "mdl/MDLMaterialManager.h"
+#include "mdl/MDLSDK.h"
 
 namespace visrtx {
 
@@ -127,6 +130,8 @@ void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
 DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
     : helium::BaseGlobalDeviceState(d), anariDevice(d)
 {}
+
+DeviceGlobalState::~DeviceGlobalState() = default;
 
 } // namespace visrtx
 

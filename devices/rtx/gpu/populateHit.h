@@ -31,7 +31,10 @@
 
 #pragma once
 
+#include <glm/fwd.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include "gpu/curveHelpers.h"
+#include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 
 namespace visrtx {
@@ -226,7 +229,7 @@ VISRTX_DEVICE void computeNormal(
       hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
       if (dot(hit.Ng, hit.Ns) < 0.f)
         hit.Ns = -hit.Ns;
-    }  else
+    } else
       hit.Ns = hit.Ng;
 
     break;
@@ -279,6 +282,137 @@ VISRTX_DEVICE void computeNormal(
       optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ns)));
 }
 
+VISRTX_DEVICE void computeTangents(
+    const GeometryGPUData &ggd, uint32_t primID, SurfaceHit &hit)
+{
+  const vec3 b = ray::uvw(ggd.type);
+
+  switch (ggd.type) {
+  case GeometryType::TRIANGLE: {
+    const auto *indices = ggd.tri.indices;
+    const uvec3 idx =
+        indices ? ggd.tri.indices[primID] : uvec3(0, 1, 2) + primID * 3;
+
+    if (ggd.tri.vertexNormals != nullptr) {
+      const vec3 n0 = normalize(ggd.tri.vertexNormals[idx.x]);
+      const vec3 n1 = normalize(ggd.tri.vertexNormals[idx.y]);
+      const vec3 n2 = normalize(ggd.tri.vertexNormals[idx.z]);
+
+      const quat q0 = glm::rotation(vec3(0.0f, 0.0f, 1.0f), n0);
+      const quat q1 = glm::rotation(vec3(0.0f, 0.0f, 1.0f), n1);
+      const quat q2 = glm::rotation(vec3(0.0f, 0.0f, 1.0f), n2);
+
+      const vec3 t0 = glm::rotate(q0, vec3(1.0f, 0.0f, 0.0f));
+      const vec3 b0 = glm::rotate(q0, vec3(0.0f, 1.0f, 0.0f));
+
+      const vec3 t1 = glm::rotate(q1, vec3(1.0f, 0.0f, 0.0f));
+      const vec3 b1 = glm::rotate(q1, vec3(0.0f, 1.0f, 0.0f));
+
+      const vec3 t2 = glm::rotate(q2, vec3(1.0f, 0.0f, 0.0f));
+      const vec3 b2 = glm::rotate(q2, vec3(0.0f, 1.0f, 0.0f));
+
+      hit.T = b.x * t0 + b.y * t1 + b.z * t2;
+      hit.B = b.x * b0 + b.y * b1 + b.z * b2;
+
+      printf("T %f %f %f\n", hit.T.x, hit.T.y, hit.T.z);
+      printf("B %f %f %f\n", hit.B.x, hit.B.y, hit.B.z);
+
+      // See if we need to reverse the tangent as we do for the normal.
+      // hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
+      // if (dot(hit.Ng, hit.Ns) < 0.f)
+      //   hit.Ns = -hit.Ns;
+
+    } else if (ggd.tri.vertexNormalsFV != nullptr) {
+      const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
+
+      const vec3 n0 = ggd.tri.vertexNormalsFV[idx.x];
+      const vec3 n1 = ggd.tri.vertexNormalsFV[idx.y];
+      const vec3 n2 = ggd.tri.vertexNormalsFV[idx.z];
+
+      const quat q0 = glm::rotation(vec3(0.0f, 0.0f, 1.0f), n0);
+      const quat q1 = glm::rotation(vec3(0.0f, 0.0f, 1.0f), n1);
+      const quat q2 = glm::rotation(vec3(0.0f, 0.0f, 1.0f), n2);
+
+      const vec3 t0 = glm::rotate(q0, vec3(1.0f, 0.0f, 0.0f));
+      const vec3 b0 = glm::rotate(q0, vec3(0.0f, 1.0f, 0.0f));
+
+      const vec3 t1 = glm::rotate(q1, vec3(1.0f, 0.0f, 0.0f));
+      const vec3 b1 = glm::rotate(q1, vec3(0.0f, 1.0f, 0.0f));
+
+      const vec3 t2 = glm::rotate(q2, vec3(1.0f, 0.0f, 0.0f));
+      const vec3 b2 = glm::rotate(q2, vec3(0.0f, 1.0f, 0.0f));
+
+      hit.T = b.x * t0 + b.y * t1 + b.z * t2;
+      hit.B = b.x * b0 + b.y * b1 + b.z * b2;
+
+      // printf("T %f %f %f\n", hit.T.x, hit.T.y, hit.T.z);
+      // printf("B %f %f %f\n", hit.B.x, hit.B.y, hit.B.z);
+      // See if we need to reverse the tangent as we do for the normal.
+      // hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
+      // if (dot(hit.Ng, hit.Ns) < 0.f)
+      //   hit.Ns = -hit.Ns;
+
+    } else
+      hit.Ns = hit.Ng;
+
+    break;
+  }
+  case GeometryType::QUAD: {
+    const auto *indices = ggd.quad.indices;
+    const uvec3 idx =
+        indices ? ggd.quad.indices[primID] : uvec3(0, 1, 2) + primID * 3;
+    const vec3 v0 = ggd.quad.vertices[idx.x];
+    const vec3 v1 = ggd.quad.vertices[idx.y];
+    const vec3 v2 = ggd.quad.vertices[idx.z];
+    hit.Ng = cross(v1 - v0, v2 - v0);
+
+    if (!optixIsFrontFaceHit())
+      hit.Ng = -hit.Ng;
+    hit.Ns = hit.Ng;
+    break;
+  }
+  case GeometryType::SPHERE:
+  case GeometryType::CONE:
+  case GeometryType::CYLINDER: {
+    hit.Ng = hit.Ns = vec3(bit_cast<float>(optixGetAttribute_1()),
+        bit_cast<float>(optixGetAttribute_2()),
+        bit_cast<float>(optixGetAttribute_3()));
+    const quat q0 = glm::rotation(vec3(0.0f, 0.0f, 1.0f), hit.Ns);
+
+    hit.T = glm::rotate(q0, vec3(1.0f, 0.0f, 0.0f));
+    hit.B = glm::rotate(q0, vec3(0.0f, 1.0f, 0.0f));
+
+    // printf("T %f %f %f\n", hit.T.x, hit.T.y, hit.T.z);
+    // printf("B %f %f %f\n", hit.B.x, hit.B.y, hit.B.z);
+
+    break;
+  }
+  case GeometryType::CURVE: {
+    const uint32_t idx = ggd.curve.indices[primID];
+    const vec3 v0 = ggd.curve.vertices[idx + 0];
+    const vec3 v1 = ggd.curve.vertices[idx + 1];
+    const float r0 = ggd.curve.radii[idx + 0];
+    const float r1 = ggd.curve.radii[idx + 1];
+    vec4 controlPoints[2] = {{v0.x, v0.y, v0.z, r0}, {v1.x, v1.y, v1.z, r1}};
+
+    LinearBSplineSegment interpolator(controlPoints);
+    auto hp =
+        optixTransformPointFromWorldToObjectSpace((::float3 &)hit.hitpoint);
+    auto u = optixGetCurveParameter();
+    hit.Ng = hit.Ns =
+        curveSurfaceNormal(interpolator, u, vec3(hp.x, hp.y, hp.z));
+    break;
+  }
+  default:
+    break;
+  }
+
+  hit.Ng = normalize(make_vec3(
+      optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ng)));
+  hit.Ns = normalize(make_vec3(
+      optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ns)));
+}
+
 VISRTX_DEVICE void cullbackFaces()
 {
   if (optixIsTriangleFrontFaceHit())
@@ -295,13 +429,13 @@ VISRTX_DEVICE void cullbackFaces()
 
 VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
 {
-  auto &ss = ray::screenSample();
-  auto &fd = *ss.frameData;
-  auto &sd = ray::surfaceData(fd);
+  const auto &ss = ray::screenSample();
+  const auto &fd = *ss.frameData;
+  const auto &sd = ray::surfaceData(fd);
 
-  auto &gd = getGeometryData(fd, sd.geometry);
-  auto &md = getMaterialData(fd, sd.material);
-  auto &isd = getSurfaceInstanceData(fd, ray::instID());
+  const auto &gd = getGeometryData(fd, sd.geometry);
+  const auto &md = getMaterialData(fd, sd.material);
+  const auto &isd = getSurfaceInstanceData(fd, ray::instID());
 
   hit.foundHit = true;
   hit.instance = &isd;
@@ -315,6 +449,19 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   hit.instID = isd.id;
   hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
   ray::computeNormal(gd, ray::primID(), hit);
+  ray::computeTangents(gd, ray::primID(), hit);
+
+  const auto &handle = optixGetTransformListHandle(0);
+  const float4 *tW = optixGetInstanceTransformFromHandle(handle);
+  const float4 *tO = optixGetInstanceInverseTransformFromHandle(handle);
+
+  hit.objectToWorld[0] = bit_cast<vec4>(tW[0]);
+  hit.objectToWorld[1] = bit_cast<vec4>(tW[1]);
+  hit.objectToWorld[2] = bit_cast<vec4>(tW[2]);
+
+  hit.worldToObject[0] = bit_cast<vec4>(tO[0]);
+  hit.worldToObject[1] = bit_cast<vec4>(tO[1]);
+  hit.worldToObject[2] = bit_cast<vec4>(tO[2]);
 }
 
 VISRTX_DEVICE void populateVolumeHit(VolumeHit &hit)

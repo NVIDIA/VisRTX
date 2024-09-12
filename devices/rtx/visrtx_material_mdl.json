@@ -1,0 +1,29 @@
+{
+    "info" : {
+        "name" : "VISRTX_MATERIAL_MDL",
+        "type" : "extension",
+        "dependencies" : []
+    },
+
+    "objects" : [
+        {
+            "type" : "ANARI_MATERIAL",
+            "name" : "mdl",
+            "description" : "mdl material object",
+            "parameters" : [
+                {
+                    "name": "sourceType",
+                    "types": ["ANARI_STRING"],
+                    "tags": [],
+                    "description": "The type of the source parameter. Might be `module`, `mdle`, or `code`"
+                },
+                {
+                    "name": "source",
+                    "types": ["ANARI_STRING"],
+                    "tags": [],
+                    "description": "The source of the MDL content. Depends on how the `sourceType` field is set"
+                }
+            ]
+        }
+    ]
+}

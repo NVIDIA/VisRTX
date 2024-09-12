@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,41 +29,51 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "gpu/shading_api.h"
+#include "MDL.h"
 
-using namespace visrtx;
+#include <anari/frontend/anari_enums.h>
 
-// Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
-VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
-    const FrameGPUData *fd,
-    const MaterialGPUData::Matte *md,
-    const SurfaceHit *hit,
-    const vec3 *viewDir,
-    const vec3 *lightDir,
-    const vec3 *lightIntensity)
+#include "gpu/gpu_objects.h"
+#include "mdl/MDLMaterialManager.h"
+#include "scene/surface/material/Material.h"
+
+namespace visrtx {
+
+MDL::MDL(DeviceGlobalState *d) : Material(d) {}
+
+void MDL::commit()
 {
-  const auto matValues = getMaterialValues(*fd, *md, *hit);
+  auto sourceType = getParamString("sourceType", "module");
+  auto source = getParamString("source", "::visrtx::default::simple");
 
-  const vec3 H = normalize(*lightDir + *viewDir);
-  const float NdotH = dot(hit->Ns, H);
-  const float NdotL = dot(hit->Ns, *lightDir);
-  const float NdotV = dot(hit->Ns, *viewDir);
-  const float VdotH = dot(*viewDir, H);
-  const float LdotH = dot(*lightDir, H);
+  auto &materialManager = deviceState()->mdl.materialManager;
 
-  // Fresnel
-  const vec3 f0 =
-      glm::mix(vec3(pow2((1.f - matValues.ior) / (1.f + matValues.ior))),
-          matValues.baseColor,
-          matValues.metallic);
-  const vec3 F = f0 + (vec3(1.f) - f0) * pow5(1.f - fabsf(VdotH));
+  if (sourceType == "module") {
+    if (source != m_source) {
+      m_implementationId = materialManager->acquireModule(source.c_str());
+      m_implementationIndex =
+          materialManager->getModuleIndex(m_implementationId);
 
-  // Metallic materials don't reflect diffusely:
-  const vec3 diffuseColor =
-      glm::mix(matValues.baseColor, vec3(0.f), matValues.metallic);
+      m_source = source;
+    }
+  } else if (sourceType == "code") {
+    reportMessage(
+        ANARI_SEVERITY_ERROR, "MDL::commit(): sourceType 'code' not supported");
+  } else {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "MDL::commit(): sourceType must be either 'module' or 'code'");
+  }
 
-  const vec3 diffuseBRDF =
-      (vec3(1.f) - F) * float(M_1_PI) * diffuseColor * fmaxf(0.f, NdotL);
-
-  return {diffuseBRDF * *lightIntensity, matValues.opacity};
+  upload();
 }
+
+MaterialGPUData MDL::gpuData() const
+{
+  MaterialGPUData retval;
+  retval.materialType = MaterialType::MDL;
+  retval.mdl.implementationId = m_implementationIndex;
+
+  return retval;
+}
+
+} // namespace visrtx

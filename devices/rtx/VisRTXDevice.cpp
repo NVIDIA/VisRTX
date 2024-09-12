@@ -58,8 +58,13 @@
 #include "shaders/MatteShader.h"
 #include "shaders/PhysicallyBasedShader.h"
 
+// MDL
+#include "mdl/MDLMaterialManager.h"
+#include "mdl/MDLSDK.h"
+
 // std
 #include <future>
+#include <memory>
 
 namespace visrtx {
 
@@ -391,6 +396,13 @@ VisRTXDevice::~VisRTXDevice()
 
   auto &state = *deviceState();
 
+  if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
+    state.mdl = {};
+    m_mdlMaterialManager.reset();
+    m_mdlSdk.reset();
+    m_mdlInitStatus = DeviceInitStatus::UNINITIALIZED;
+  }
+
   state.commitBufferClear();
   state.uploadBuffer.clear();
 
@@ -401,6 +413,7 @@ VisRTXDevice::~VisRTXDevice()
   optixModuleDestroy(state.rendererModules.ambientOcclusion);
   optixModuleDestroy(state.rendererModules.diffusePathTracer);
   optixModuleDestroy(state.rendererModules.directLight);
+  optixModuleDestroy(state.rendererModules.mdl);
   optixModuleDestroy(state.rendererModules.test);
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
@@ -427,6 +440,7 @@ bool VisRTXDevice::initDevice()
     deviceCommitParameters();
 
   m_initStatus = initOptix();
+  m_mdlInitStatus = initMDL();
 
   return m_initStatus == DeviceInitStatus::SUCCESS;
 }
@@ -595,7 +609,6 @@ DeviceInitStatus VisRTXDevice::initOptix()
   };
 
   std::vector<std::future<void>> compileTasks;
-
   compileTasks.push_back(init_module(
       state.rendererModules.debug, Debug::ptx(), "'debug' renderer"));
   compileTasks.push_back(init_module(
@@ -616,16 +629,13 @@ DeviceInitStatus VisRTXDevice::initOptix()
       init_module(state.intersectionModules.customIntersectors,
           intersection_ptx(),
           "custom intersectors"));
-  
-  compileTasks.push_back(
-    init_module(state.materialShaders.matte,
-          MatteShader::ptx(),
-          "'matte' shader"));
 
-  compileTasks.push_back(
-    init_module(state.materialShaders.physicallyBased,
-          PhysicallyBasedShader::ptx(),
-          "'physicallyBased' shader"));
+  compileTasks.push_back(init_module(
+      state.materialShaders.matte, MatteShader::ptx(), "'matte' shader"));
+
+  compileTasks.push_back(init_module(state.materialShaders.physicallyBased,
+      PhysicallyBasedShader::ptx(),
+      "'physicallyBased' shader"));
 
   for (auto &f : compileTasks)
     f.wait();
@@ -638,6 +648,27 @@ DeviceInitStatus VisRTXDevice::initOptix()
       &pipelineCompileOptions,
       &builtinISOptions,
       &state.intersectionModules.curveIntersector));
+
+  return DeviceInitStatus::SUCCESS;
+}
+
+DeviceInitStatus VisRTXDevice::initMDL()
+{
+  if (m_mdlInitStatus != DeviceInitStatus::UNINITIALIZED)
+    return m_mdlInitStatus;
+
+  auto &state = *deviceState();
+
+  m_mdlSdk = std::make_unique<MDLSDK>(this);
+  if (!m_mdlSdk->isValid()) {
+    return DeviceInitStatus::FAILURE;
+  }
+
+  m_mdlMaterialManager = std::make_unique<MDLMaterialManager>(m_mdlSdk.get());
+
+  auto deviceGlobalState = deviceState();
+  deviceGlobalState->mdl.sdk = m_mdlSdk.get();
+  deviceGlobalState->mdl.materialManager = m_mdlMaterialManager.get();
 
   return DeviceInitStatus::SUCCESS;
 }

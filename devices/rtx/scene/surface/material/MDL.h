@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,41 +29,30 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "gpu/shading_api.h"
+#pragma once
 
-using namespace visrtx;
 
-// Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
-VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
-    const FrameGPUData *fd,
-    const MaterialGPUData::Matte *md,
-    const SurfaceHit *hit,
-    const vec3 *viewDir,
-    const vec3 *lightDir,
-    const vec3 *lightIntensity)
+#include "Material.h"
+#include "gpu/gpu_objects.h"
+#include "mdl/MDLMaterialManager.h"
+#include "optix_visrtx.h"
+
+namespace visrtx {
+
+struct MDL : public Material
 {
-  const auto matValues = getMaterialValues(*fd, *md, *hit);
+  MDL(DeviceGlobalState *d);
 
-  const vec3 H = normalize(*lightDir + *viewDir);
-  const float NdotH = dot(hit->Ns, H);
-  const float NdotL = dot(hit->Ns, *lightDir);
-  const float NdotV = dot(hit->Ns, *viewDir);
-  const float VdotH = dot(*viewDir, H);
-  const float LdotH = dot(*lightDir, H);
+  void commit() override;
 
-  // Fresnel
-  const vec3 f0 =
-      glm::mix(vec3(pow2((1.f - matValues.ior) / (1.f + matValues.ior))),
-          matValues.baseColor,
-          matValues.metallic);
-  const vec3 F = f0 + (vec3(1.f) - f0) * pow5(1.f - fabsf(VdotH));
+ private:
+  static MDLMaterialManager m_manager;
+  MaterialGPUData gpuData() const override;
 
-  // Metallic materials don't reflect diffusely:
-  const vec3 diffuseColor =
-      glm::mix(matValues.baseColor, vec3(0.f), matValues.metallic);
+  MDLMaterialManager::Uuid m_implementationId{};
+  uint64_t m_implementationIndex{};
 
-  const vec3 diffuseBRDF =
-      (vec3(1.f) - F) * float(M_1_PI) * diffuseColor * fmaxf(0.f, NdotL);
+  std::string m_source;
+};
 
-  return {diffuseBRDF * *lightIntensity, matValues.opacity};
-}
+} // namespace visrtx

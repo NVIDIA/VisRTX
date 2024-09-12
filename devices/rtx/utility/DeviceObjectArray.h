@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "optix_visrtx.h"
+#include "../gpu/gpu_decl.h"
 #include "utility/HostDeviceArray.h"
 // std
 #include <mutex>
