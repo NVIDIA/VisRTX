@@ -30,6 +30,8 @@
  */
 
 #include "PBR.h"
+#include "gpu/gpu_objects.h"
+
 
 namespace visrtx {
 
@@ -67,25 +69,26 @@ MaterialGPUData PBR::gpuData() const
 {
   MaterialGPUData retval;
 
+  retval.materialType = MaterialType::PHYSICALLYBASED;
+
   populateMaterialParameter(
-      retval.values[MV_BASE_COLOR], m_color, m_colorSampler, m_colorAttribute);
-  populateMaterialParameter(retval.values[MV_OPACITY],
+      retval.physicallyBased.baseColor, m_color, m_colorSampler, m_colorAttribute);
+  populateMaterialParameter(retval.physicallyBased.opacity,
       m_opacity,
       m_opacitySampler,
       m_opacityAttribute);
-  populateMaterialParameter(retval.values[MV_METALLIC],
+  populateMaterialParameter(retval.physicallyBased.metallic,
       m_metallic,
       m_metallicSampler,
       m_metallicAttribute);
-  populateMaterialParameter(retval.values[MV_ROUGHNESS],
+  populateMaterialParameter(retval.physicallyBased.roughness,
       m_roughness,
       m_roughnessSampler,
       m_roughnessAttribute);
 
-  retval.ior = m_ior;
-  retval.cutoff = m_cutoff;
-  retval.mode = m_mode;
-  retval.isPBR = true;
+  retval.physicallyBased.ior = m_ior;
+  retval.physicallyBased.cutoff = m_cutoff;
+  retval.physicallyBased.alphaMode = m_mode;
 
   return retval;
 }

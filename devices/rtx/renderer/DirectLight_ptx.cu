@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <glm/ext/vector_float4.hpp>
+#include "gpu/evalMaterial.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -126,12 +128,12 @@ VISRTX_GLOBAL void __anyhit__shadow()
 
     const auto &fd = frameData;
     const auto &md = *hit.material;
-    vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
-    float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
-    opacity = adjustedMaterialOpacity(opacity, md) * color.w;
 
+    const auto& materialValues = getMaterialValues(fd, md, hit);
     auto &o = ray::rayData<float>();
-    accumulateValue(o, opacity, o);
+
+    accumulateValue(o, materialValues.opacity, o);
+
     if (o >= 0.99f)
       optixTerminateRay();
     else

@@ -96,9 +96,11 @@ struct Renderer : public Object
   std::vector<OptixProgramGroup> m_raygenPGs;
   std::vector<OptixProgramGroup> m_missPGs;
   std::vector<OptixProgramGroup> m_hitgroupPGs;
+  std::vector<OptixProgramGroup> m_materialPGs;
   DeviceBuffer m_raygenRecordsBuffer;
   DeviceBuffer m_missRecordsBuffer;
   DeviceBuffer m_hitgroupRecordsBuffer;
+  DeviceBuffer m_materialRecordsBuffer;
   OptixShaderBindingTable m_sbt{};
 
  private:

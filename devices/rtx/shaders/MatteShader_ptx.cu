@@ -29,48 +29,40 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Matte.h"
-#include "gpu/gpu_objects.h"
+#include "gpu/shading_api.h"
 
-namespace visrtx {
+using namespace visrtx;
 
-Matte::Matte(DeviceGlobalState *d) : Material(d) {}
-
-void Matte::commit()
+VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
+    const FrameGPUData* fd,
+    const MaterialGPUData::Matte* md,
+    const SurfaceHit* hit,
+    const vec3* viewDir,
+    const vec3* lightDir,
+    const vec3* lightIntensity)
 {
-  m_opacity = getParam<float>("opacity", 1.f);
-  m_opacitySampler = getParamObject<Sampler>("opacity");
-  m_opacityAttribute = getParamString("opacity", "");
+  const auto matValues = getMaterialValues(*fd, *md, *hit);
 
-  m_color = vec4(1.f);
-  getParam("color", ANARI_FLOAT32_VEC4, &m_color);
-  getParam("color", ANARI_FLOAT32_VEC3, &m_color);
-  m_colorSampler = getParamObject<Sampler>("color");
-  m_colorAttribute = getParamString("color", "");
+  const vec3 H = normalize(*lightDir + *viewDir);
+  const float NdotH = dot(hit->Ns, H);
+  const float NdotL = dot(hit->Ns, *lightDir);
+  const float NdotV = dot(hit->Ns, *viewDir);
+  const float VdotH = dot(*viewDir, H);
+  const float LdotH = dot(*lightDir, H);
 
-  m_cutoff = getParam<float>("alphaCutoff", 0.5f);
-  m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
+  // Fresnel
+  const vec3 f0 =
+      glm::mix(vec3(pow2((1.f - matValues.ior) / (1.f + matValues.ior))),
+          matValues.baseColor,
+          matValues.metallic);
+  const vec3 F = f0 + (vec3(1.f) - f0) * pow5(1.f - fabsf(VdotH));
 
-  upload();
+  // Metallic materials don't reflect diffusely:
+  const vec3 diffuseColor =
+      glm::mix(matValues.baseColor, vec3(0.f), matValues.metallic);
+
+  const vec3 diffuseBRDF =
+      (vec3(1.f) - F) * float(M_1_PI) * diffuseColor * fmaxf(0.f, NdotL);
+
+  return {diffuseBRDF * *lightIntensity, matValues.opacity};
 }
-
-MaterialGPUData Matte::gpuData() const
-{
-  MaterialGPUData retval;
-
-  retval.materialType = MaterialType::MATTE;
-
-  populateMaterialParameter(
-      retval.matte.color, m_color, m_colorSampler, m_colorAttribute);
-  populateMaterialParameter(retval.matte.opacity,
-      m_opacity,
-      m_opacitySampler,
-      m_opacityAttribute);
-
-  retval.matte.cutoff = m_cutoff;
-  retval.matte.alphaMode = m_mode;
-
-  return retval;
-}
-
-} // namespace visrtx

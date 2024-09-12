@@ -171,6 +171,12 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule customIntersectors{nullptr};
   } intersectionModules;
 
+  struct MaterialModules
+  {
+    OptixModule matte{nullptr};
+    OptixModule physicallyBased{nullptr};
+  } materialShaders;
+
   struct ObjectUpdates
   {
     helium::TimeStamp lastBLASChange{0};
