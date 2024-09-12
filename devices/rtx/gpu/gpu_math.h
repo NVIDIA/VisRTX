@@ -105,6 +105,11 @@ struct SurfaceHit
   const InstanceSurfaceGPUData *instance{nullptr};
   const GeometryGPUData *geometry{nullptr};
   const MaterialGPUData *material{nullptr};
+
+  mat3x4 worldToObject;
+  mat3x4 objectToWorld;
+  vec3 T;
+  vec3 B;
 };
 
 struct VolumeHit

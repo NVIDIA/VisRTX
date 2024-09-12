@@ -33,13 +33,15 @@
 
 using namespace visrtx;
 
+// Signature must match the call inside shaderPhysicallyBasedSurface in
+// PhysicallyBasedShader.cuh.
 VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
-    const FrameGPUData* fd,
-    const MaterialGPUData::PhysicallyBased* md,
-    const SurfaceHit* hit,
-    const vec3* viewDir,
-    const vec3* lightDir,
-    const vec3* lightIntensity)
+    const FrameGPUData *fd,
+    const MaterialGPUData::PhysicallyBased *md,
+    const SurfaceHit *hit,
+    const vec3 *viewDir,
+    const vec3 *lightDir,
+    const vec3 *lightIntensity)
 {
   const auto matValues = getMaterialValues(*fd, *md, *hit);
 
@@ -85,4 +87,3 @@ VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
 
   return {(diffuseBRDF + specularBRDF) * *lightIntensity, matValues.opacity};
 }
-

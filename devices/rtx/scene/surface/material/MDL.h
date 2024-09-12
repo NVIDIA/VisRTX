@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,19 +29,30 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "gpu/shading_api.h"
+#pragma once
 
-using namespace visrtx;
 
-// Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
-VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
-    const FrameGPUData *fd,
-    const MaterialGPUData::Matte *md,
-    const SurfaceHit *hit,
-    const vec3 * /*viewDir*/,
-    const vec3 * /*lightDir*/,
-    const vec3 *lightIntensity)
+#include "Material.h"
+#include "gpu/gpu_objects.h"
+#include "mdl/MDLMaterialManager.h"
+#include "optix_visrtx.h"
+
+namespace visrtx {
+
+struct MDL : public Material
 {
-  const auto matValues = getMaterialValues(*fd, *md, *hit);
-  return {matValues.baseColor * (*lightIntensity), matValues.opacity};
-}
+  MDL(DeviceGlobalState *d);
+
+  void commit() override;
+
+ private:
+  static MDLMaterialManager m_manager;
+  MaterialGPUData gpuData() const override;
+
+  MDLMaterialManager::Uuid m_implementationId{};
+  uint64_t m_implementationIndex{};
+
+  std::string m_source;
+};
+
+} // namespace visrtx
