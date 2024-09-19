@@ -464,7 +464,7 @@ int VisRTXDevice::deviceGetProperty(
   } else if (prop == "version.patch" && type == ANARI_INT32) {
     helium::writeToVoidP(mem, VISRTX_VERSION_PATCH);
     return 1;
-  } else if (prop == "feature" && type == ANARI_STRING_LIST) {
+  } else if (prop == "extension" && type == ANARI_STRING_LIST) {
     helium::writeToVoidP(mem, query_extensions());
     return 1;
   } else if (prop == "subtypes.renderer" && type == ANARI_STRING_LIST) {
