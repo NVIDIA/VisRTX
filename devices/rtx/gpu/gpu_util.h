@@ -236,7 +236,7 @@ RT_FUNCTION bool accumDepth(float *arr, size_t idx, size_t fid, const float &v)
   if (!arr)
     return true; // no previous depth to compare with
 
-  const bool closerSample = fid == 0 || arr[idx] < v;
+  const bool closerSample = fid == 0 || v < arr[idx];
 
   if (closerSample)
     arr[idx] = v;
