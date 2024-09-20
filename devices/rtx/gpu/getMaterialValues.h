@@ -379,18 +379,12 @@ RT_FUNCTION vec4 evalMaterial(const FrameGPUData &fd,
 {
   const auto matValues = getMaterialValues(fd, md, hit);
 
-  if (!matValues.isPBR)
-    return {matValues.baseColor * lightIntensity, matValues.opacity};
-
   const vec3 H = normalize(lightDir + viewDir);
   const float NdotH = dot(hit.Ns, H);
   const float NdotL = dot(hit.Ns, lightDir);
   const float NdotV = dot(hit.Ns, viewDir);
   const float VdotH = dot(viewDir, H);
   const float LdotH = dot(lightDir, H);
-
-  // Alpha
-  const float alpha = pow2(matValues.roughness) * matValues.opacity;
 
   // Fresnel
   const vec3 f0 =
@@ -405,6 +399,12 @@ RT_FUNCTION vec4 evalMaterial(const FrameGPUData &fd,
 
   const vec3 diffuseBRDF =
       (vec3(1.f) - F) * float(M_1_PI) * diffuseColor * fmaxf(0.f, NdotL);
+
+  if (!matValues.isPBR)
+    return {diffuseBRDF * lightIntensity, matValues.opacity};
+
+  // Alpha
+  const float alpha = pow2(matValues.roughness) * matValues.opacity;
 
   // GGX microfacet distribution
   const float D = (alpha * alpha * heaviside(NdotH))
