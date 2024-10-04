@@ -59,12 +59,10 @@
 #include "shaders/PhysicallyBasedShader.h"
 
 // MDL
-#include "mdl/MDLMaterialManager.h"
-#include "mdl/MDLSDK.h"
+#include "mdl/MDLCompiler.h"
 
 // std
 #include <future>
-#include <memory>
 
 namespace visrtx {
 
@@ -394,12 +392,10 @@ VisRTXDevice::~VisRTXDevice()
   if (m_initStatus != DeviceInitStatus::SUCCESS)
     return;
 
-  auto &state = *deviceState();
+  auto& state = *deviceState();
 
   if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
-    state.mdl = {};
-    m_mdlMaterialManager.reset();
-    m_mdlSdk.reset();
+    MDLCompiler::tearDown(&state);
     m_mdlInitStatus = DeviceInitStatus::UNINITIALIZED;
   }
 
@@ -657,18 +653,10 @@ DeviceInitStatus VisRTXDevice::initMDL()
   if (m_mdlInitStatus != DeviceInitStatus::UNINITIALIZED)
     return m_mdlInitStatus;
 
-  auto &state = *deviceState();
-
-  m_mdlSdk = std::make_unique<MDLSDK>(this);
-  if (!m_mdlSdk->isValid()) {
+  if (!MDLCompiler::setUp(deviceState())) {
+    reportMessage(ANARI_SEVERITY_ERROR, "Failed initializing ANARI MDL support.");
     return DeviceInitStatus::FAILURE;
   }
-
-  m_mdlMaterialManager = std::make_unique<MDLMaterialManager>(m_mdlSdk.get());
-
-  auto deviceGlobalState = deviceState();
-  deviceGlobalState->mdl.sdk = m_mdlSdk.get();
-  deviceGlobalState->mdl.materialManager = m_mdlMaterialManager.get();
 
   return DeviceInitStatus::SUCCESS;
 }

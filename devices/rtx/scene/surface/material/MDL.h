@@ -34,7 +34,7 @@
 
 #include "Material.h"
 #include "gpu/gpu_objects.h"
-#include "mdl/MDLMaterialManager.h"
+#include "mdl/MDLCompiler.h"
 #include "optix_visrtx.h"
 
 namespace visrtx {
@@ -46,10 +46,9 @@ struct MDL : public Material
   void commit() override;
 
  private:
-  static MDLMaterialManager m_manager;
   MaterialGPUData gpuData() const override;
 
-  MDLMaterialManager::Uuid m_implementationId{};
+  MDLCompiler::Uuid m_implementationId{};
   uint64_t m_implementationIndex{};
 
   std::string m_source;

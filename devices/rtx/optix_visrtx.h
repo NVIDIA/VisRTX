@@ -31,7 +31,6 @@
 
 #pragma once
 
-#include <memory>
 #include "gpu/gpu_objects.h"
 #include "utility/DeferredArrayUploadBuffer.h"
 #include "utility/DeviceObjectArray.h"
@@ -43,10 +42,20 @@
 // optix
 #include <optix.h>
 #include <optix_stubs.h>
+// mdl
+#include <mi/base/handle.h>
+#include <mi/base/ilogger.h>
+#include <mi/neuraylib/icompiled_material.h>
+#include <mi/neuraylib/ineuray.h>
+#include <mi/neuraylib/imdl_compiler.h>
+#include <mi/neuraylib/imdl_configuration.h>
+#include <mi/neuraylib/idatabase.h>
+#include <mi/neuraylib/iscope.h>
+#include <mi/neuraylib/imdl_factory.h>
+#include <mi/neuraylib/imdl_execution_context.h>
+#include <mi/neuraylib/imdl_backend.h>
+#include <mi/neuraylib/iimage_api.h>
 // std
-#include <functional>
-#include <sstream>
-#include <stdexcept>
 #include <vector>
 
 #ifdef OPAQUE
@@ -141,13 +150,6 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box1, ANARI_FLOAT32_BOX1);
 
 namespace visrtx {
 
-// mdl
-#define HAS_MDL 1
-#if HAS_MDL
-class MDLSDK;
-class MDLMaterialManager;
-#endif // HAS_MDL
-
 struct ptx_blob
 {
   const unsigned char *ptr{nullptr};
@@ -207,10 +209,41 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   } registry;
 
   // MDL
-  struct
+  struct MDLContext
   {
-    MDLSDK *sdk;
-    MDLMaterialManager *materialManager;
+  private:
+    struct UuidHasher
+    {
+      std::size_t operator()(const mi::base::Uuid &uuid) const noexcept
+      {
+        return mi::base::uuid_hash32(uuid);
+      }
+    };
+
+  public:
+    mi::base::Handle<mi::neuraylib::INeuray> neuray;
+    mi::base::Handle<mi::base::ILogger> logger;
+    mi::base::Handle<mi::neuraylib::IMdl_compiler> mdlCompiler;
+    mi::base::Handle<mi::neuraylib::IMdl_configuration> mdlConfiguration;
+    mi::base::Handle<mi::neuraylib::IDatabase> database;
+    mi::base::Handle<mi::neuraylib::IScope> globalScope;
+    mi::base::Handle<mi::neuraylib::IMdl_factory> mdlFactory;
+
+    mi::base::Handle<mi::neuraylib::IMdl_execution_context> executionContext;
+
+    mi::base::Handle<mi::neuraylib::IMdl_backend> backendCudaPtx;
+    mi::base::Handle<mi::neuraylib::IImage_api> imageApi;
+
+    using TargetCodeCache = std::unordered_map<mi::base::Uuid, mi::base::Handle<mi::neuraylib::ITarget_code const>, UuidHasher>;
+
+    /// Maps a compiled material hash to a target code object to avoid generation
+    /// of duplicate code.
+    TargetCodeCache targetCodeCache;
+#if MI_PLATFORM_WINDOWS
+    HMODULE dllHandle = nullptr;
+#else
+    void* dllHandle = {};
+#endif
   } mdl;
 
   // Helper methods //

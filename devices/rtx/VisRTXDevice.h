@@ -37,14 +37,10 @@
 #include "optix_visrtx.h"
 // std
 #include <atomic>
-#include <memory>
 
 #include "Object.h"
 
 namespace visrtx {
-
-class MDLMaterialManager;
-class MDLSDK;
 
 enum class DeviceInitStatus
 {
@@ -55,8 +51,6 @@ enum class DeviceInitStatus
 
 struct VisRTXDevice : public helium::BaseDevice
 {
-  friend class MDLSDK;
-
   /////////////////////////////////////////////////////////////////////////////
   // Main interface to accepting API calls
   /////////////////////////////////////////////////////////////////////////////
@@ -165,8 +159,6 @@ struct VisRTXDevice : public helium::BaseDevice
   bool m_eagerInit{false};
   std::atomic<DeviceInitStatus> m_initStatus{DeviceInitStatus::UNINITIALIZED};
 
-  std::unique_ptr<MDLSDK> m_mdlSdk;
-  std::unique_ptr<MDLMaterialManager> m_mdlMaterialManager;
   std::atomic<DeviceInitStatus> m_mdlInitStatus{
       DeviceInitStatus::UNINITIALIZED};
 };

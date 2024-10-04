@@ -34,25 +34,25 @@
 #include <anari/frontend/anari_enums.h>
 
 #include "gpu/gpu_objects.h"
-#include "mdl/MDLMaterialManager.h"
+#include "mdl/MDLCompiler.h"
 #include "scene/surface/material/Material.h"
 
 namespace visrtx {
 
-MDL::MDL(DeviceGlobalState *d) : Material(d) {}
+MDL::MDL(DeviceGlobalState *d) : Material(d) {
+}
 
 void MDL::commit()
 {
   auto sourceType = getParamString("sourceType", "module");
   auto source = getParamString("source", "::visrtx::default::simple");
-
-  auto &materialManager = deviceState()->mdl.materialManager;
+  
+  auto mdlCompiler = MDLCompiler::getMDLCompiler(deviceState());
 
   if (sourceType == "module") {
     if (source != m_source) {
-      m_implementationId = materialManager->acquireModule(source.c_str());
-      m_implementationIndex =
-          materialManager->getModuleIndex(m_implementationId);
+      m_implementationId = mdlCompiler->acquireModule(source.c_str());
+      m_implementationIndex = mdlCompiler->getModuleIndex(m_implementationId);
 
       m_source = source;
     }
