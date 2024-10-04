@@ -314,9 +314,6 @@ VISRTX_DEVICE void computeTangents(
       hit.T = b.x * t0 + b.y * t1 + b.z * t2;
       hit.B = b.x * b0 + b.y * b1 + b.z * b2;
 
-      printf("T %f %f %f\n", hit.T.x, hit.T.y, hit.T.z);
-      printf("B %f %f %f\n", hit.B.x, hit.B.y, hit.B.z);
-
       // See if we need to reverse the tangent as we do for the normal.
       // hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
       // if (dot(hit.Ng, hit.Ns) < 0.f)

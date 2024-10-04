@@ -31,8 +31,11 @@
 
 #pragma once
 
+#include "MDLMaterialInfo.h"
 #include "VisRTXDevice.h"
-#include "mdl/MDLMaterialManager.h"
+#include "renderer/MaterialSbtData.cuh"
+
+#include "optix_visrtx.h"
 
 #include <anari/frontend/anari_enums.h>
 
@@ -67,22 +70,34 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace visrtx {
 
-class MDLMaterialManager;
+class VisRTXDevice;
 
-class MDLSDK
+struct MDLParamDesc
 {
-  class Logger;
+  enum class Semantic
+  {
+    Scalar, // Treat inputs as singular values
+    Range, // The set of inputs is to be considered as a range ()
+    Color,
+  };
+  std::string name;
+  std::string displayName;
+  ANARIDataType type;
+  Semantic semantic;
+};
 
-  friend class MDLMaterialManager;
-
- public:
-  MDLSDK(VisRTXDevice *device);
-  ~MDLSDK();
+class MDLCompiler
+{
+  friend class VisRTXDevice;
+public:
+  static MDLCompiler* getMDLCompiler(DeviceGlobalState* deviceState) {
+    auto it = s_instances.find(deviceState);
+    return it != s_instances.end() ? it->second : nullptr;
+  }
 
   using Uuid = mi::base::Uuid;
 
@@ -98,7 +113,8 @@ class MDLSDK
     // compiled material and related argblocks.
   };
 
-  std::optional<MDLSDK::CompilationResult> compileMaterial(
+  /// Compiles a material from a given source file.
+  std::optional<CompilationResult> compileMaterial(
       mi::neuraylib::ITransaction *transaction,
       const std::string &material_name,
       std::vector<mi::neuraylib::Target_function_description> &descs,
@@ -107,21 +123,19 @@ class MDLSDK
   /// Create an MDL SDK transaction.
   mi::base::Handle<mi::neuraylib::ITransaction> createTransaction()
   {
-    return mi::base::make_handle<mi::neuraylib::ITransaction>(
-        m_globalScope->create_transaction());
+    return mi::base::make_handle(m_deviceState->mdl.globalScope->create_transaction());
   }
 
   /// Get the image API component.
   mi::base::Handle<mi::neuraylib::IImage_api> getImagApi()
   {
-    return m_imageApi;
+    return m_deviceState->mdl.imageApi;
   }
 
   /// Get the import export API component.
   mi::base::Handle<mi::neuraylib::IMdl_impexp_api> getImpexpApi()
   {
-    return mi::base::Handle<mi::neuraylib::IMdl_impexp_api>(
-        m_neuray->get_api_component<mi::neuraylib::IMdl_impexp_api>());
+    return mi::base::make_handle(m_deviceState->mdl.neuray->get_api_component<mi::neuraylib::IMdl_impexp_api>());
   }
 
   void addMdlSearchPath(const std::filesystem::path &path);
@@ -129,42 +143,47 @@ class MDLSDK
 
   bool isValid() const
   {
-    return m_neuray && m_neuray.is_valid_interface()
-        && m_imageApi.is_valid_interface();
+    return m_deviceState && m_deviceState->mdl.neuray.is_valid_interface();
   }
 
- private:
-  VisRTXDevice *m_device;
+  using Index = uint64_t;
+  static const constexpr auto INVALID_ID = std::numeric_limits<Index>::max();
 
-  mi::base::Handle<mi::neuraylib::INeuray> m_neuray;
-  mi::base::Handle<mi::base::ILogger> m_logger;
-  mi::base::Handle<mi::neuraylib::IMdl_compiler> m_mdlCompiler;
-  mi::base::Handle<mi::neuraylib::IMdl_configuration> m_mdlConfiguration;
-  mi::base::Handle<mi::neuraylib::IDatabase> m_database;
-  mi::base::Handle<mi::neuraylib::IScope> m_globalScope;
-  mi::base::Handle<mi::neuraylib::IMdl_factory> m_mdlFactory;
-
-  mi::base::Handle<mi::neuraylib::IMdl_execution_context> m_executionContext;
-
-  mi::base::Handle<mi::neuraylib::IMdl_backend> m_backendCudaPtx;
-  mi::base::Handle<mi::neuraylib::IImage_api> m_imageApi;
-
-  mi::neuraylib::INeuray *loadAndGetINeuray(const char *filename = nullptr);
-  bool unloadINeuray();
-  mi::Sint32 loadPlugin(mi::neuraylib::INeuray *neuray, const char *path);
-
-  template <typename... Args>
-  void reportMessage(
-      ANARIStatusSeverity severity, const char *format, Args &&...args)
+  Uuid acquireModule(const char *modulePath);
+  void releaseModule(Uuid moduleUuid);
+  Index getModuleIndex(Uuid moduleUuid)
   {
-    m_device->reportMessage(severity, format, std::forward<Args>(args)...);
+    auto it = m_uuidToIndex.find(moduleUuid);
+    if (it == m_uuidToIndex.cend()) {
+      return INVALID_ID;
+    }
+    return it->second;
   }
 
-  bool logMessages(mi::neuraylib::IMdl_execution_context *context);
-  bool parseCmdArgumentMaterialName(const std::string &argument,
-    std::string &out_module_name,
-    std::string &out_material_name,
-    bool prepend_colons_if_missing);
+  std::vector<MDLParamDesc> getModuleParameters(Uuid moduleUuid);
+  std::vector<ptx_blob> getPTXBlobs();
+  std::vector<MaterialSbtData> getMaterialSbtEntries();
+ private:
+   MDLCompiler(const MDLCompiler&) = default;
+   MDLCompiler(MDLCompiler&&) = default;
+   MDLCompiler& operator=(const MDLCompiler&) = default;
+   MDLCompiler& operator=(MDLCompiler&&) = default;
+
+   friend class std::unordered_map<DeviceGlobalState* const, MDLCompiler>;
+   friend class std::pair<DeviceGlobalState* const, MDLCompiler>;
+   friend class std::pair<DeviceGlobalState*, visrtx::MDLCompiler>;
+   friend class std::allocator<std::pair<visrtx::DeviceGlobalState* const, visrtx::MDLCompiler> >;
+
+   MDLCompiler(DeviceGlobalState* deviceState);
+  ~MDLCompiler();
+
+  static bool setUp(DeviceGlobalState* deviceState);
+  static void tearDown(DeviceGlobalState* deviceState);
+
+  static std::unordered_map<DeviceGlobalState*, MDLCompiler*> s_instances;
+
+  DeviceGlobalState* m_deviceState;
+
 
   struct UuidHasher
   {
@@ -174,19 +193,43 @@ class MDLSDK
     }
   };
 
-  using TargetCodeCache = std::unordered_map<mi::base::Uuid,
-      mi::base::Handle<mi::neuraylib::ITarget_code const>,
-      UuidHasher>;
+  struct MaterialImplementation
+  {
+    MDLMaterialInfo materialInfo;
+    std::vector<unsigned char> ptxBlob;
+  };
+  std::vector<MaterialImplementation> m_materialImplementations;
+  std::unordered_map<mi::base::Uuid, uint64_t, UuidHasher> m_uuidToIndex;
 
-  /// Maps a compiled material hash to a target code object to avoid generation
-  /// of duplicate code.
-  TargetCodeCache m_targetCodeCache;
+  DeviceBuffer m_argblocksBuffer;
 
 #ifdef MI_PLATFORM_WINDOWS
-  HMODULE m_dso_handle = {};
+  using DllHandle = HMODULE;
 #else
-  void *m_dso_handle = {};
+  using DllHandle = void*;
 #endif
+
+  // MDL API helpers
+  static DllHandle loadMdlSdk(const DeviceGlobalState* deviceState, const char *filename = nullptr);
+  static bool unloadMdlSdk(const DeviceGlobalState* deviceState, DllHandle handle);
+  static mi::neuraylib::INeuray* getINeuray(const DeviceGlobalState* deviceState, DllHandle handle);
+  
+  bool parseCmdArgumentMaterialName(
+    const std::string &argument,
+    std::string &out_module_name,
+    std::string &out_material_name,
+    bool prepend_colons_if_missing);
+
+  static std::string addMissingMaterialSignature(const mi::neuraylib::IModule *module, const std::string &material_name);
+  static std::string messageKindToString(mi::neuraylib::IMessage::Kind messageKind);
+  bool logMessages(mi::neuraylib::IMdl_execution_context *context);
+
+  // ANARI reporting
+  template<typename... Args>
+  void reportMessage(ANARIStatusSeverity severity, const char *fmt, Args &&...args) const;
+
+  template<typename... Args>
+  static void reportMessage(const DeviceGlobalState* deviceState, ANARIStatusSeverity severity, const char *fmt, Args &&...args);
 };
 
 } // namespace visrtx

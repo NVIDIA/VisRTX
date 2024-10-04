@@ -40,7 +40,6 @@
 #include <anari/anari_cpp.hpp>
 #include <glm/ext/matrix_float3x4.hpp>
 
-#include <mi/mdl_sdk.h>
 
 #define DECLARE_FRAME_DATA(n)                                                  \
   extern "C" {                                                                 \
