@@ -30,10 +30,7 @@
  */
 
 #include "optix_visrtx.h"
-#include <memory>
 #include "Object.h"
-#include "mdl/MDLMaterialManager.h"
-#include "mdl/MDLSDK.h"
 
 namespace visrtx {
 

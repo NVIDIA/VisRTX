@@ -42,7 +42,7 @@
 
 // Materials
 #include "MaterialSbtData.cuh"
-#include "mdl/MDLMaterialManager.h"
+#include "mdl/MDLCompiler.h"
 #include "shaders/MatteShader.h"
 #include "shaders/PhysicallyBasedShader.h"
 
@@ -421,7 +421,7 @@ void Renderer::initOptixPipeline()
         "__direct_callable__evalSurfaceMaterial";
 
     // MDLs
-    for (const auto &ptxBlob : state.mdl.materialManager->getPTXBlobs()) {
+    for (const auto &ptxBlob : MDLCompiler::getMDLCompiler(&state)->getPTXBlobs()) {
       OptixModule module;
       OptixModuleCompileOptions moduleCompileOptions = {};
       moduleCompileOptions.maxRegisterCount =
@@ -545,13 +545,12 @@ void Renderer::initOptixPipeline()
         optixSbtRecordPackHeader(m_materialPGs[i++], &materialRecords[1]));
 
     // MDL
-    auto mdlSbtEntries = state.mdl.materialManager->getMaterialSbtEntries();
+    auto compiler = MDLCompiler::getMDLCompiler(&state);
+    auto mdlSbtEntries = compiler->getMaterialSbtEntries();
 
-    for (const auto &materialSbtData :
-        state.mdl.materialManager->getMaterialSbtEntries()) {
+    for (const auto &materialSbtData : mdlSbtEntries) {
       materialRecords.push_back({.data = materialSbtData});
-      OPTIX_CHECK(optixSbtRecordPackHeader(
-          m_materialPGs[i++], &materialRecords.back()));
+      OPTIX_CHECK(optixSbtRecordPackHeader(m_materialPGs[i++], &materialRecords.back()));
     }
 
     m_materialRecordsBuffer.upload(materialRecords);

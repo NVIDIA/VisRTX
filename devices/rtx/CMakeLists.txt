@@ -95,8 +95,7 @@ project_sources(PRIVATE
   frame/Denoiser.cu
   frame/Frame.cu
 
-  mdl/MDLMaterialManager.cpp
-  mdl/MDLSDK.cpp
+  mdl/MDLCompiler.cpp
 
   renderer/AmbientOcclusion.cpp
   renderer/Debug.cpp
