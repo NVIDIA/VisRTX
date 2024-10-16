@@ -72,6 +72,7 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     const std::string &filter,
     const std::string &wrap1 = "clampToEdge",
     const std::string &wrap2 = "clampToEdge",
-    const std::string &wrap3 = "clampToEdge");
+    const std::string &wrap3 = "clampToEdge",
+    bool normalizedCoords = true);
 
 } // namespace visrtx

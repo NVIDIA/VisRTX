@@ -73,6 +73,7 @@ void Image1D::commit()
     cuArray = m_image->acquireCUDAArrayUint8();
   }
   m_texture = makeCudaTextureObject(cuArray, !isFp, m_filter, m_wrap1);
+  m_texels = makeCudaTextureObject(cuArray, !isFp, "nearest", m_wrap1, "clampToEdge", "clampToEdge", false);
 
   upload();
 }
@@ -82,8 +83,10 @@ SamplerGPUData Image1D::gpuData() const
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE1D;
   retval.image1D.texobj = m_texture;
+  retval.image1D.texelTexobj = m_texels;
   retval.image1D.size = m_image->size();
   retval.image1D.invSize = 1.0f / m_image->size();
+
   return retval;
 }
 
@@ -101,6 +104,7 @@ bool Image1D::isValid() const
 void Image1D::cleanup()
 {
   if (m_image && m_texture) {
+    cudaDestroyTextureObject(m_texels);
     cudaDestroyTextureObject(m_texture);
     if (isFloat(m_image->elementType())) {
       m_image->releaseCUDAArrayFloat();

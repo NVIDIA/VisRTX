@@ -316,7 +316,8 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     const std::string &filter,
     const std::string &wrap1,
     const std::string &wrap2,
-    const std::string &wrap3)
+    const std::string &wrap3,
+    bool normalizedCoords)
 {
   cudaResourceDesc resDesc;
   memset(&resDesc, 0, sizeof(resDesc));
@@ -332,7 +333,7 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
       filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
   texDesc.readMode = readModeNormalizedFloat ? cudaReadModeNormalizedFloat
                                              : cudaReadModeElementType;
-  texDesc.normalizedCoords = true;
+  texDesc.normalizedCoords = normalizedCoords;
 
   cudaTextureObject_t retval = {};
   cudaCreateTextureObject(&retval, &resDesc, &texDesc, nullptr);
