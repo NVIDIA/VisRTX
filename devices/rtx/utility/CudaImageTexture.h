@@ -62,10 +62,16 @@ void makeCudaArrayUint8(
 void makeCudaArrayFloat(
     cudaArray_t &cuArray, const helium::Array &array, uvec2 size);
 
+void makeCudaArrayUint8(
+    cudaArray_t &cuArray, const helium::Array &array, uvec3 size);
+void makeCudaArrayFloat(
+    cudaArray_t &cuArray, const helium::Array &array, uvec3 size);
+
 cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
     const std::string &filter,
     const std::string &wrap1 = "clampToEdge",
-    const std::string &wrap2 = "clampToEdge");
+    const std::string &wrap2 = "clampToEdge",
+    const std::string &wrap3 = "clampToEdge");
 
 } // namespace visrtx

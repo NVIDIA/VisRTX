@@ -31,29 +31,35 @@
 
 #pragma once
 
-#include "GPUArray.h"
-// helium
-#include <helium/array/Array3D.h>
+#include "Sampler.h"
+#include "array/Array3D.h"
+#include "utility/CudaImageTexture.h"
 
 namespace visrtx {
 
-using Array3DMemoryDescriptor = helium::Array3DMemoryDescriptor;
-
-struct Array3D : public helium::Array3D, GPUArray
+struct Image3D : public Sampler
 {
-  Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d);
+  Image3D(DeviceGlobalState *d);
+  ~Image3D();
 
-  const void *dataGPU() const override;
+  void commit() override;
 
-  cudaArray_t acquireCUDAArrayFloat();
-  void releaseCUDAArrayFloat();
+  int numChannels() const override;
 
-  cudaArray_t acquireCUDAArrayUint8();
-  void releaseCUDAArrayUint8();
+  bool isValid() const override;
 
-  void uploadArrayData() const override;
+ private:
+  SamplerGPUData gpuData() const override;
+
+  void cleanup();
+
+  std::string m_filter;
+  std::string m_wrap1;
+  std::string m_wrap2;
+  std::string m_wrap3;
+  helium::ChangeObserverPtr<Array3D> m_image;
+
+  cudaTextureObject_t m_texture{};
 };
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Array3D *, ANARI_ARRAY3D);
