@@ -77,6 +77,8 @@ SamplerGPUData Image2D::gpuData() const
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE2D;
   retval.image2D.texobj = m_texture;
+  retval.image2D.size = glm::uvec2(m_image->size().x, m_image->size().y);
+  retval.image2D.invSize = glm::vec2(1.0f / m_image->size().x, 1.0f / m_image->size().y);
   return retval;
 }
 

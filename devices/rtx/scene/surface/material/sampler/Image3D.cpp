@@ -82,6 +82,8 @@ SamplerGPUData Image3D::gpuData() const
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE3D;
   retval.image3D.texobj = m_texture;
+  retval.image3D.size = glm::uvec3(m_image->size().x, m_image->size().y, m_image->size().z);
+  retval.image3D.invSize = glm::vec3(1.0f / m_image->size().x, 1.0f / m_image->size().y, 1.0f / m_image->size().z);
   return retval;
 }
 
