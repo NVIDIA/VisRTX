@@ -79,6 +79,7 @@ void Image3D::commit()
     cuArray = m_image->acquireCUDAArrayUint8();
   }
   m_texture = makeCudaTextureObject(cuArray, !isFp, m_filter, m_wrap1, m_wrap2, m_wrap3);
+  m_texels = makeCudaTextureObject(cuArray, !isFp, "nearest", m_wrap1, m_wrap2, m_wrap3, false);
 
   upload();
 }
@@ -88,6 +89,7 @@ SamplerGPUData Image3D::gpuData() const
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE3D;
   retval.image3D.texobj = m_texture;
+  retval.image3D.texelTexobj = m_texels;
   retval.image3D.size = glm::uvec3(m_image->size().x, m_image->size().y, m_image->size().z);
   retval.image3D.invSize = glm::vec3(1.0f / m_image->size().x, 1.0f / m_image->size().y, 1.0f / m_image->size().z);
   return retval;
@@ -107,8 +109,13 @@ bool Image3D::isValid() const
 void Image3D::cleanup()
 {
   if (m_image && m_texture) {
+    cudaDestroyTextureObject(m_texels);
     cudaDestroyTextureObject(m_texture);
-    m_image->releaseCUDAArrayUint8();
+    if (isFloat(m_image->elementType())) {
+      m_image->releaseCUDAArrayFloat();
+    } else {
+      m_image->releaseCUDAArrayUint8();
+    }
   }
 }
 
