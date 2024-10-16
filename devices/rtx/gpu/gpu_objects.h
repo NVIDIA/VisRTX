@@ -201,15 +201,21 @@ enum class SamplerType
 struct Image1DData
 {
   cudaTextureObject_t texobj;
+  uint32_t size;
+  float invSize;
 };
 
 struct Image2DData
 {
   cudaTextureObject_t texobj;
+  uvec2 size;
+  vec2 invSize;
 
 struct Image3DData
 {
   cudaTextureObject_t texobj;
+  uvec3 size;
+  vec3 invSize;
 };
 
 struct PrimIDSamplerData

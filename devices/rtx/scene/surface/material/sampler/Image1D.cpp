@@ -76,6 +76,8 @@ SamplerGPUData Image1D::gpuData() const
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE1D;
   retval.image1D.texobj = m_texture;
+  retval.image1D.size = m_image->size();
+  retval.image1D.invSize = 1.0f / m_image->size();
   return retval;
 }
 
