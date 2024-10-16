@@ -71,8 +71,14 @@ void Image3D::commit()
     return;
   }
 
-  auto cuArray = m_image->acquireCUDAArrayUint8();
-  m_texture = makeCudaTextureObject(cuArray, true, m_filter, m_wrap1, m_wrap2, m_wrap3);
+  cudaArray_t cuArray = {};
+  bool isFp = isFloat(m_image->elementType());
+  if (isFp) {
+    cuArray = m_image->acquireCUDAArrayFloat();
+  } else {
+    cuArray = m_image->acquireCUDAArrayUint8();
+  }
+  m_texture = makeCudaTextureObject(cuArray, !isFp, m_filter, m_wrap1, m_wrap2, m_wrap3);
 
   upload();
 }

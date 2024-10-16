@@ -66,8 +66,14 @@ void Image2D::commit()
     return;
   }
 
-  auto cuArray = m_image->acquireCUDAArrayUint8();
-  m_texture = makeCudaTextureObject(cuArray, true, m_filter, m_wrap1, m_wrap2);
+  cudaArray_t cuArray = {};
+  bool isFp = isFloat(m_image->elementType());
+  if (isFp) {
+    cuArray = m_image->acquireCUDAArrayFloat();
+  } else {
+    cuArray = m_image->acquireCUDAArrayUint8();
+  }
+  m_texture = makeCudaTextureObject(cuArray, !isFp, m_filter, m_wrap1, m_wrap2);
 
   upload();
 }
@@ -97,7 +103,11 @@ void Image2D::cleanup()
 {
   if (m_image && m_texture) {
     cudaDestroyTextureObject(m_texture);
-    m_image->releaseCUDAArrayUint8();
+    if (isFloat(m_image->elementType())) {
+      m_image->releaseCUDAArrayFloat();
+    } else {
+      m_image->releaseCUDAArrayUint8();
+    }
   }
 }
 
