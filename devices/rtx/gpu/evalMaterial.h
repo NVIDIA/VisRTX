@@ -276,6 +276,10 @@ VISRTX_DEVICE vec4 evaluateSampler(
     retval = make_vec4(tex2D<::float4>(sampler.image2D.texobj, tc.x, tc.y));
     break;
   }
+  case SamplerType::TEXTURE3D: {
+    retval = make_vec4(tex3D<::float4>(sampler.image3D.texobj, tc.x, tc.y, tc.z));
+    break;
+  }
   case SamplerType::PRIMITIVE: {
     retval = getAttributeValue(
         sampler.primitive.attr, hit.primID + sampler.primitive.offset, retval);

@@ -30,6 +30,10 @@
  */
 
 #include "CudaImageTexture.h"
+#include <cuda_runtime_api.h>
+#include <driver_functions.h>
+#include <driver_types.h>
+#include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
 
@@ -134,6 +138,12 @@ cudaTextureAddressMode stringToAddressMode(const std::string &str)
 void makeCudaArrayUint8(
     cudaArray_t &cuArray, const helium::Array &array, uvec2 size)
 {
+  makeCudaArrayUint8(cuArray, array, uvec3(size, 1));
+}
+
+void makeCudaArrayUint8(
+    cudaArray_t &cuArray, const helium::Array &array, uvec3 size)
+{
   const ANARIDataType format = array.elementType();
   auto nc = numANARIChannels(format);
 
@@ -194,26 +204,33 @@ void makeCudaArrayUint8(
   if (nc == 3)
     nc = 4;
 
-  auto desc = cudaCreateChannelDesc(nc >= 1 ? 8 : 0,
+  if (!cuArray) {
+    auto desc = cudaCreateChannelDesc(nc >= 1 ? 8 : 0,
       nc >= 2 ? 8 : 0,
       nc >= 3 ? 8 : 0,
-      nc >= 3 ? 8 : 0,
+      nc >= 4 ? 8 : 0,
       cudaChannelFormatKindUnsigned);
 
-  if (!cuArray)
-    cudaMallocArray(&cuArray, &desc, size.x, size.y);
-  cudaMemcpy2DToArray(cuArray,
-      0,
-      0,
-      stagingBuffer.data(),
-      size.x * nc * sizeof(uint8_t),
-      size.x * nc * sizeof(uint8_t),
-      size.y,
-      cudaMemcpyHostToDevice);
+    cudaMalloc3DArray(&cuArray, &desc, make_cudaExtent(size.x, size.y, size.z <= 1 ? 0 : size.z));
+  }
+
+  cudaMemcpy3DParms p = {};
+  p.dstArray = cuArray;
+  p.srcPtr = make_cudaPitchedPtr(stagingBuffer.data(), size.x * nc * sizeof(uint8_t), size.x, size.y);
+  p.srcPos = p.dstPos = make_cudaPos(0, 0, 0);
+  p.extent = make_cudaExtent(size.x, size.y, size.z);
+  p.kind = cudaMemcpyHostToDevice;
+  cudaMemcpy3D(&p);
 }
 
 void makeCudaArrayFloat(
     cudaArray_t &cuArray, const helium::Array &array, uvec2 size)
+{
+  makeCudaArrayFloat(cuArray, array, uvec3(size, 1));
+}
+
+void makeCudaArrayFloat(
+    cudaArray_t &cuArray, const helium::Array &array, uvec3 size)
 {
   const ANARIDataType format = array.elementType();
   auto nc = numANARIChannels(format);
@@ -275,29 +292,31 @@ void makeCudaArrayFloat(
   if (nc == 3)
     nc = 4;
 
-  auto desc = cudaCreateChannelDesc(nc >= 1 ? 32 : 0,
+  if (!cuArray) {
+    auto desc = cudaCreateChannelDesc(nc >= 1 ? 32 : 0,
       nc >= 2 ? 32 : 0,
       nc >= 3 ? 32 : 0,
-      nc >= 3 ? 32 : 0,
+      nc >= 4 ? 32 : 0,
       cudaChannelFormatKindFloat);
 
-  if (!cuArray)
-    cudaMallocArray(&cuArray, &desc, size.x, size.y);
-  cudaMemcpy2DToArray(cuArray,
-      0,
-      0,
-      stagingBuffer.data(),
-      size.x * nc * sizeof(float),
-      size.x * nc * sizeof(float),
-      size.y,
-      cudaMemcpyHostToDevice);
+    cudaMalloc3DArray(&cuArray, &desc, make_cudaExtent(size.x, size.y <= 1 ? 0 : size.y, size.z <= 1 ? 0 : size.z));
+  }
+
+  cudaMemcpy3DParms p = {};
+  p.dstArray = cuArray;
+  p.srcPtr = make_cudaPitchedPtr(stagingBuffer.data(), size.x * nc * sizeof(float), size.x, size.y);
+  p.srcPos = p.dstPos = make_cudaPos(0, 0, 0);
+  p.extent = make_cudaExtent(size.x, size.y, size.z);
+  p.kind = cudaMemcpyHostToDevice;
+  cudaMemcpy3D(&p);
 }
 
 cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
     const std::string &filter,
     const std::string &wrap1,
-    const std::string &wrap2)
+    const std::string &wrap2,
+    const std::string &wrap3)
 {
   cudaResourceDesc resDesc;
   memset(&resDesc, 0, sizeof(resDesc));
@@ -308,11 +327,12 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
   memset(&texDesc, 0, sizeof(texDesc));
   texDesc.addressMode[0] = stringToAddressMode(wrap1);
   texDesc.addressMode[1] = stringToAddressMode(wrap2);
+  texDesc.addressMode[2] = stringToAddressMode(wrap3);
   texDesc.filterMode =
       filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
   texDesc.readMode = readModeNormalizedFloat ? cudaReadModeNormalizedFloat
                                              : cudaReadModeElementType;
-  texDesc.normalizedCoords = 1;
+  texDesc.normalizedCoords = true;
 
   cudaTextureObject_t retval = {};
   cudaCreateTextureObject(&retval, &resDesc, &texDesc, nullptr);

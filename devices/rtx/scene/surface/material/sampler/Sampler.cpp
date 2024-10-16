@@ -33,6 +33,7 @@
 // specific types
 #include "Image1D.h"
 #include "Image2D.h"
+#include "Image3D.h"
 #include "PrimitiveSampler.h"
 #include "TransformSampler.h"
 #include "UnknownSampler.h"
@@ -51,6 +52,8 @@ Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
     return new Image1D(d);
   else if (subtype == "image2D")
     return new Image2D(d);
+  else if (subtype == "image3D")
+    return new Image3D(d);
   else if (subtype == "primitive")
     return new PrimitiveSampler(d);
   else if (subtype == "transform")

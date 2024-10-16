@@ -30,6 +30,7 @@
  */
 
 #include "array/Array3D.h"
+#include "utility/CudaImageTexture.h"
 
 namespace visrtx {
 
@@ -43,6 +44,39 @@ const void *Array3D::dataGPU() const
   if (needToUploadData())
     uploadArrayData();
   return m_deviceData.buffer.ptr();
+}
+cudaArray_t Array3D::acquireCUDAArrayFloat()
+{
+  if (!m_cuArrayFloat)
+    makeCudaArrayFloat(m_cuArrayFloat, *this, uvec3(size().x, size().y, size().z));
+  m_arrayRefCountFloat++;
+  return m_cuArrayFloat;
+}
+
+void Array3D::releaseCUDAArrayFloat()
+{
+  m_arrayRefCountFloat--;
+  if (m_arrayRefCountFloat == 0) {
+    cudaFreeArray(m_cuArrayFloat);
+    m_cuArrayFloat = {};
+  }
+}
+
+cudaArray_t Array3D::acquireCUDAArrayUint8()
+{
+  if (!m_cuArrayUint8)
+    makeCudaArrayUint8(m_cuArrayUint8, *this, uvec3(size().x, size().y, size().z));
+  m_arrayRefCountUint8++;
+  return m_cuArrayUint8;
+}
+
+void Array3D::releaseCUDAArrayUint8()
+{
+  m_arrayRefCountUint8--;
+  if (m_arrayRefCountUint8 == 0) {
+    cudaFreeArray(m_cuArrayUint8);
+    m_cuArrayUint8 = {};
+  }
 }
 
 void Array3D::uploadArrayData() const

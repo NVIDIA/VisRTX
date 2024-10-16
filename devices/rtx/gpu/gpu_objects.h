@@ -192,6 +192,7 @@ enum class SamplerType
 {
   TEXTURE1D,
   TEXTURE2D,
+  TEXTURE3D,
   PRIMITIVE,
   TRANSFORM,
   UNKNOWN
@@ -203,6 +204,10 @@ struct Image1DData
 };
 
 struct Image2DData
+{
+  cudaTextureObject_t texobj;
+
+struct Image3DData
 {
   cudaTextureObject_t texobj;
 };
@@ -225,6 +230,7 @@ struct SamplerGPUData
   {
     Image1DData image1D;
     Image2DData image2D;
+    Image3DData image3D;
     PrimIDSamplerData primitive;
   };
 };

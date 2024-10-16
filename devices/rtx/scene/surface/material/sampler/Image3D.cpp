@@ -29,31 +29,79 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include "GPUArray.h"
-// helium
-#include <helium/array/Array3D.h>
+#include "Image3D.h"
+#include <cuda_runtime_api.h>
+#include <driver_types.h>
+#include "optix_visrtx.h"
+#include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
 
-using Array3DMemoryDescriptor = helium::Array3DMemoryDescriptor;
+Image3D::Image3D(DeviceGlobalState *d) : Sampler(d), m_image(this) {}
 
-struct Array3D : public helium::Array3D, GPUArray
+Image3D::~Image3D()
 {
-  Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d);
+  cleanup();
+}
 
-  const void *dataGPU() const override;
+void Image3D::commit()
+{
+  Sampler::commit();
 
-  cudaArray_t acquireCUDAArrayFloat();
-  void releaseCUDAArrayFloat();
+  cleanup();
 
-  cudaArray_t acquireCUDAArrayUint8();
-  void releaseCUDAArrayUint8();
+  m_filter = getParamString("filter", "linear");
+  m_wrap1 = getParamString("wrapMode1", "clampToEdge");
+  m_wrap2 = getParamString("wrapMode2", "clampToEdge");
+  m_wrap3 = getParamString("wrapMode3", "clampToEdge");
+  m_image = getParamObject<Array3D>("image");
 
-  void uploadArrayData() const override;
-};
+  if (!m_image) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "missing required parameter 'image' on image3D sampler");
+    return;
+  }
+
+  const ANARIDataType format = m_image->elementType();
+  auto nc = numANARIChannels(format);
+  if (nc == 0) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "invalid texture type encountered in image3D sampler (%s)",
+        anari::toString(format));
+    return;
+  }
+
+  auto cuArray = m_image->acquireCUDAArrayUint8();
+  m_texture = makeCudaTextureObject(cuArray, true, m_filter, m_wrap1, m_wrap2, m_wrap3);
+
+  upload();
+}
+
+SamplerGPUData Image3D::gpuData() const
+{
+  SamplerGPUData retval = Sampler::gpuData();
+  retval.type = SamplerType::TEXTURE3D;
+  retval.image3D.texobj = m_texture;
+  return retval;
+}
+
+int Image3D::numChannels() const
+{
+  ANARIDataType format = m_image->elementType();
+  return numANARIChannels(format);
+}
+
+bool Image3D::isValid() const
+{
+  return m_image;
+}
+
+void Image3D::cleanup()
+{
+  if (m_image && m_texture) {
+    cudaDestroyTextureObject(m_texture);
+    m_image->releaseCUDAArrayUint8();
+  }
+}
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Array3D *, ANARI_ARRAY3D);
