@@ -1060,29 +1060,22 @@ static anari::World loadObj(
   auto &n = objdata.attrib.normals;
   anari::Array1D positionArray =
       anari::newArray1D(d, (glm::vec3 *)v.data(), v.size() / 3);
-  anari::Array1D texcoordArray = !t.empty()
-      ? anari::newArray1D(d, (glm::vec2 *)t.data(), t.size() / 2)
-      : nullptr;
-  anari::Array1D normalsArray = !n.empty()
-      ? anari::newArray1D(d, (glm::vec3 *)n.data(), n.size() / 3)
-      : nullptr;
 
   std::vector<glm::uvec3> vi;
-  std::vector<glm::uvec3> vti;
-  std::vector<glm::uvec3> vni;
+
+  std::vector<glm::vec2> texcoords;
+  std::vector<glm::vec3> normals;
 
   for (auto &shape : objdata.shapes) {
     auto numSrcIndices = shape.mesh.indices.size();
 
     vi.clear();
-    vti.clear();
-    vni.clear();
+    texcoords.clear();
+    normals.clear();
 
     size_t numIndices = shape.mesh.indices.size();
 
     vi.reserve(numIndices);
-    vti.reserve(numIndices);
-    vni.reserve(numIndices);
 
     for (size_t i = 0; i < numIndices; i += 3) {
       const auto &i0 = shape.mesh.indices[i + 0];
@@ -1090,15 +1083,47 @@ static anari::World loadObj(
       const auto &i2 = shape.mesh.indices[i + 2];
 
       vi.emplace_back(i0.vertex_index, i1.vertex_index, i2.vertex_index);
-      vti.emplace_back(i0.texcoord_index, i1.texcoord_index, i2.texcoord_index);
-      vni.emplace_back(i0.normal_index, i1.normal_index, i2.normal_index);
+
+      if (t.data()) {
+        float u = t.data()[i0.texcoord_index * 2];
+        float v = t.data()[i0.texcoord_index * 2 + 1];
+        texcoords.emplace_back(u, v);
+        u = t.data()[i1.texcoord_index * 2];
+        v = t.data()[i1.texcoord_index * 2 + 1];
+        texcoords.emplace_back(u, v);
+        u = t.data()[i2.texcoord_index * 2];
+        v = t.data()[i2.texcoord_index * 2 + 1];
+        texcoords.emplace_back(u, v);
+      }
+
+      if (n.data()) {
+        float x = n.data()[i0.normal_index * 3];
+        float y = n.data()[i0.normal_index * 3 + 1];
+        float z = n.data()[i0.normal_index * 3 + 2];
+        normals.emplace_back(x, y, z);
+        x = n.data()[i1.normal_index * 3];
+        y = n.data()[i1.normal_index * 3 + 1];
+        z = n.data()[i1.normal_index * 3 + 2];
+        normals.emplace_back(x, y, z);
+        x = n.data()[i2.normal_index * 3];
+        y = n.data()[i2.normal_index * 3 + 1];
+        z = n.data()[i2.normal_index * 3 + 2];
+        normals.emplace_back(x, y, z);
+      }
     }
 
     auto geom = anari::newObject<anari::Geometry>(d, "triangle");
 
     anari::setParameter(d, geom, "vertex.position", positionArray);
-    anari::setAndReleaseParameter(
-        d, geom, "primitive.index", anari::newArray1D(d, vi.data(), vi.size()));
+    if (!normals.empty()) {
+      anari::Array1D normalsArray = anari::newArray1D(d, normals.data(), normals.size());
+      anari::setAndReleaseParameter(d, geom, "faceVarying.normal", normalsArray);
+    }
+    if (!texcoords.empty()) {
+      anari::Array1D texcoordArray = anari::newArray1D(d, texcoords.data(), texcoords.size());
+      anari::setAndReleaseParameter(d, geom, "faceVarying.attribute0", texcoordArray);
+    }
+    anari::setAndReleaseParameter(d, geom, "primitive.index", anari::newArray1D(d, vi.data(), vi.size()));
 
     anari::commitParameters(d, geom);
 
@@ -1117,8 +1142,6 @@ static anari::World loadObj(
   }
 
   anari::release(d, positionArray);
-  anari::release(d, texcoordArray);
-  anari::release(d, normalsArray);
 
   anari::setAndReleaseParameter(
       d, world, "surface", anari::newArray1D(d, meshes.data(), meshes.size()));
