@@ -63,6 +63,12 @@ option(
 )
 mark_as_advanced(VISRTX_SET_SOVERSION)
 
+option(
+  VISRTX_ENABLE_MDL_SUPPORT
+  "Whether to enable NVIDIA MDL support for VisRTX materials"
+  OFF
+)
+
 if (VISRTX_SET_SOVERSION)
   set(VISRTX_CMAKE_INSTALL_DESTINATION
     ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}

@@ -31,10 +31,20 @@
 
 #include "World.h"
 #include <helium/utility/IntrusivePtr.h>
+#include <helium/utility/TimeStamp.h>
 // ptx
 #include "Intersectors_ptx.h"
+#include "array/ObjectArray.h"
 #include "gpu/gpu_objects.h"
+#include "optix_visrtx.h"
 #include "utility/AnariTypeHelpers.h"
+
+#ifdef USE_MDL
+#include "scene/surface/material/MDL.h"
+#include <set>
+#endif // defined(USE_MDL)
+
+
 
 namespace visrtx {
 
@@ -224,6 +234,10 @@ void World::rebuildBVHs()
   buildInstanceVolumeGPUData();
 
   buildInstanceLightGPUData();
+
+#ifdef USE_MDL
+  buildMDLMaterialGPUData();
+#endif // defined(USE_MDL)
 
   reportMessage(ANARI_SEVERITY_DEBUG,
       "visrtx::World finished building world over %zu instances",
@@ -463,6 +477,33 @@ void World::buildInstanceLightGPUData()
 
   m_instanceLightGPUData.upload();
 }
+
+#ifdef USE_MDL
+void World::buildMDLMaterialGPUData() {
+  auto state = static_cast<DeviceGlobalState*>(deviceState());
+  if (state->objectUpdates.lastMDLMaterialChange <= m_objectUpdates.lastMDLMaterialCheck)
+    return;
+
+  std::set<const MDL*> processed;
+
+  for (const auto& instance : m_instances) {
+    const auto group = instance->group();
+    const auto surfaceObjects = group->getParamObject<ObjectArray>("surface");
+    const auto surfaces = make_Span(
+      reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()), surfaceObjects->totalSize());
+    for (auto surface: surfaces) {
+      if (auto material  = dynamic_cast<const MDL*>(surface->material())) {
+        if (material->lastCommitted() > m_objectUpdates.lastMDLMaterialCheck &&
+            processed.find(material) == processed.end()) {
+            const_cast<MDL*>(material)->upload();
+            processed.insert(material);
+        }
+      }
+    }
+  }
+  m_objectUpdates.lastMDLMaterialCheck = helium::newTimeStamp();
+}
+#endif // defined(USE_MDL)
 
 } // namespace visrtx
 

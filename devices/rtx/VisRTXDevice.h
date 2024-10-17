@@ -147,7 +147,9 @@ struct VisRTXDevice : public helium::BaseDevice
       const char *name, ANARIDataType type, void *mem, uint64_t size) override;
 
   DeviceInitStatus initOptix();
+#ifdef USE_MDL
   DeviceInitStatus initMDL();
+#endif // defined(USE_MDL)
   void setCUDADevice();
   void revertCUDADevice();
 
@@ -158,9 +160,10 @@ struct VisRTXDevice : public helium::BaseDevice
   int m_appGpuID{-1};
   bool m_eagerInit{false};
   std::atomic<DeviceInitStatus> m_initStatus{DeviceInitStatus::UNINITIALIZED};
-
+#ifdef USE_MDL
   std::atomic<DeviceInitStatus> m_mdlInitStatus{
       DeviceInitStatus::UNINITIALIZED};
+#endif // defined(USE_MDL)
 };
 
 } // namespace visrtx
