@@ -201,6 +201,7 @@ enum class SamplerType
 struct Image1DData
 {
   cudaTextureObject_t texobj;
+  cudaTextureObject_t texelTexobj;
   uint32_t size;
   float invSize;
 };
@@ -208,12 +209,15 @@ struct Image1DData
 struct Image2DData
 {
   cudaTextureObject_t texobj;
+  cudaTextureObject_t texelTexobj;
   uvec2 size;
   vec2 invSize;
+};
 
 struct Image3DData
 {
   cudaTextureObject_t texobj;
+  cudaTextureObject_t texelTexobj;
   uvec3 size;
   vec3 invSize;
 };
