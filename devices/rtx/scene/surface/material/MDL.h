@@ -43,7 +43,7 @@ struct MDL : public Material
 {
   MDL(DeviceGlobalState *d);
 
-  void commit() override;
+  void markCommitted() override;
 
  private:
   MaterialGPUData gpuData() const override;
@@ -52,6 +52,7 @@ struct MDL : public Material
   uint64_t m_implementationIndex{};
 
   std::string m_source;
+  std::vector<const Sampler*> m_samplers;
 };
 
 } // namespace visrtx

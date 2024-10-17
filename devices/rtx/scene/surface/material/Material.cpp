@@ -31,11 +31,13 @@
 
 #include "Material.h"
 // specific types
-#include "MDL.h"
+
 #include "Matte.h"
 #include "PBR.h"
 #include "UnknownMaterial.h"
-
+#ifdef USE_MDL
+#include "MDL.h"
+#endif // defined(USE_MDL)
 namespace visrtx {
 
 Material::Material(DeviceGlobalState *s)
@@ -51,8 +53,10 @@ Material *Material::createInstance(
     return new Matte(d);
   else if (subtype == "pbr" || subtype == "physicallyBased")
     return new PBR(d);
+#ifdef USE_MDL
   else if (subtype == "mdl")
     return new MDL(d);
+#endif // defined(USE_MDL)
   else
     return new UnknownMaterial(subtype, d);
 }

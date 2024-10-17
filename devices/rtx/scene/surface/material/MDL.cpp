@@ -30,8 +30,7 @@
  */
 
 #include "MDL.h"
-
-#include <anari/frontend/anari_enums.h>
+#include <cuda_runtime_api.h>
 
 #include "gpu/gpu_objects.h"
 #include "mdl/MDLCompiler.h"
@@ -42,19 +41,21 @@ namespace visrtx {
 MDL::MDL(DeviceGlobalState *d) : Material(d) {
 }
 
-void MDL::commit()
+MaterialGPUData MDL::gpuData() const
 {
-  auto sourceType = getParamString("sourceType", "module");
-  auto source = getParamString("source", "::visrtx::default::simple");
+  auto self = const_cast<MDL*>(this);
+  auto sourceType = self->getParamString("sourceType", "module");
+  auto source = self->getParamString("source", "::visrtx::default::simple");
   
   auto mdlCompiler = MDLCompiler::getMDLCompiler(deviceState());
 
   if (sourceType == "module") {
     if (source != m_source) {
-      m_implementationId = mdlCompiler->acquireModule(source.c_str());
-      m_implementationIndex = mdlCompiler->getModuleIndex(m_implementationId);
+      self->m_implementationId = mdlCompiler->acquireModule(source.c_str());
+      self->m_implementationIndex = mdlCompiler->getModuleIndex(m_implementationId);
+      self->m_samplers = mdlCompiler->getModuleSamplers(m_implementationId);
 
-      m_source = source;
+      self->m_source = source;
     }
   } else if (sourceType == "code") {
     reportMessage(
@@ -64,16 +65,27 @@ void MDL::commit()
         "MDL::commit(): sourceType must be either 'module' or 'code'");
   }
 
-  upload();
-}
-
-MaterialGPUData MDL::gpuData() const
-{
   MaterialGPUData retval;
   retval.materialType = MaterialType::MDL;
   retval.mdl.implementationId = m_implementationIndex;
+  retval.mdl.numTextures = std::min(std::size(retval.mdl.samplers), size(m_samplers));
+
+  using std::begin, std::end;
+
+  std::fill(begin(retval.mdl.samplers), end(retval.mdl.samplers), 0);
+  std::generate_n(begin(retval.mdl.samplers), retval.mdl.numTextures, [it= cbegin(m_samplers)]() mutable {
+    auto idx = (*it)->index();
+    ++it;
+    return idx;
+  });
 
   return retval;
+}
+
+void MDL::markCommitted()
+{
+  Object::markCommitted();
+  deviceState()->objectUpdates.lastMDLMaterialChange = helium::newTimeStamp();
 }
 
 } // namespace visrtx

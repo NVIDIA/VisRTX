@@ -59,7 +59,9 @@
 #include "shaders/PhysicallyBasedShader.h"
 
 // MDL
+#ifdef USE_MDL
 #include "mdl/MDLCompiler.h"
+#endif // defined(USE_MDL)
 
 // std
 #include <future>
@@ -394,10 +396,12 @@ VisRTXDevice::~VisRTXDevice()
 
   auto& state = *deviceState();
 
+#ifdef USE_MDL
   if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
     MDLCompiler::tearDown(&state);
     m_mdlInitStatus = DeviceInitStatus::UNINITIALIZED;
   }
+#endif // defined(USE_MDL)
 
   state.commitBufferClear();
   state.uploadBuffer.clear();
@@ -409,7 +413,9 @@ VisRTXDevice::~VisRTXDevice()
   optixModuleDestroy(state.rendererModules.ambientOcclusion);
   optixModuleDestroy(state.rendererModules.diffusePathTracer);
   optixModuleDestroy(state.rendererModules.directLight);
+#ifdef USE_MDL
   optixModuleDestroy(state.rendererModules.mdl);
+#endif // defined(USE_MDL)
   optixModuleDestroy(state.rendererModules.test);
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
@@ -436,8 +442,9 @@ bool VisRTXDevice::initDevice()
     deviceCommitParameters();
 
   m_initStatus = initOptix();
+#ifdef USE_MDL
   m_mdlInitStatus = initMDL();
-
+#endif // defined(USE_MDL)
   return m_initStatus == DeviceInitStatus::SUCCESS;
 }
 
@@ -648,6 +655,7 @@ DeviceInitStatus VisRTXDevice::initOptix()
   return DeviceInitStatus::SUCCESS;
 }
 
+#ifdef USE_MDL
 DeviceInitStatus VisRTXDevice::initMDL()
 {
   if (m_mdlInitStatus != DeviceInitStatus::UNINITIALIZED)
@@ -660,6 +668,7 @@ DeviceInitStatus VisRTXDevice::initMDL()
 
   return DeviceInitStatus::SUCCESS;
 }
+#endif // defined(USE_MDL)
 
 void VisRTXDevice::setCUDADevice()
 {

@@ -40,9 +40,11 @@
 // anari
 #include <anari/anari_cpp.hpp>
 // optix
+#include <helium/utility/TimeStamp.h>
 #include <optix.h>
 #include <optix_stubs.h>
 // mdl
+#ifdef USE_MDL
 #include <mi/base/handle.h>
 #include <mi/base/ilogger.h>
 #include <mi/neuraylib/icompiled_material.h>
@@ -55,6 +57,7 @@
 #include <mi/neuraylib/imdl_execution_context.h>
 #include <mi/neuraylib/imdl_backend.h>
 #include <mi/neuraylib/iimage_api.h>
+#endif // defined(USE_MDL)
 // std
 #include <vector>
 
@@ -150,6 +153,9 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box1, ANARI_FLOAT32_BOX1);
 
 namespace visrtx {
 
+struct Object;
+struct MDL;
+
 struct ptx_blob
 {
   const unsigned char *ptr{nullptr};
@@ -193,6 +199,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   {
     helium::TimeStamp lastBLASChange{0};
     helium::TimeStamp lastTLASChange{0};
+    helium::TimeStamp lastMDLMaterialChange{0};
   } objectUpdates;
 
   DeferredArrayUploadBuffer uploadBuffer;
@@ -209,6 +216,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   } registry;
 
   // MDL
+#ifdef USE_MDL
   struct MDLContext
   {
   private:
@@ -245,14 +253,12 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     void* dllHandle = {};
 #endif
   } mdl;
-
+#endif // defined(USE_MDL)
   // Helper methods //
 
   DeviceGlobalState(ANARIDevice d);
   ~DeviceGlobalState() override;
 };
-
-struct Object;
 
 void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
     DeviceBuffer &bvh,
