@@ -41,10 +41,12 @@
 #include "UnknownRenderer.h"
 
 // Materials
-#include "MaterialSbtData.cuh"
-#include "mdl/MDLCompiler.h"
 #include "shaders/MatteShader.h"
 #include "shaders/PhysicallyBasedShader.h"
+#ifdef USE_MDL
+#include "MaterialSbtData.cuh"
+#include "mdl/MDLCompiler.h"
+#endif // defined(USE_MDL)
 
 // std
 #include <optix_types.h>
@@ -74,7 +76,11 @@ struct SbtRecord<void>
 using RaygenRecord = SbtRecord<void>;
 using MissRecord = SbtRecord<void>;
 using HitgroupRecord = SbtRecord<void>;
+#ifdef USE_MDL
 using MaterialRecord = SbtRecord<MaterialSbtData>;
+#else
+using MaterialRecord = SbtRecord<void>;
+#endif // defined(USE_MDL)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -421,6 +427,7 @@ void Renderer::initOptixPipeline()
         "__direct_callable__evalSurfaceMaterial";
 
     // MDLs
+#ifdef USE_MDL
     for (const auto &ptxBlob : MDLCompiler::getMDLCompiler(&state)->getPTXBlobs()) {
       OptixModule module;
       OptixModuleCompileOptions moduleCompileOptions = {};
@@ -449,12 +456,11 @@ void Renderer::initOptixPipeline()
           "__direct_callable__evalSurfaceMaterial";
       callableDescs.push_back(callableDesc);
     }
+#endif // defined(USE_MDL)
 
     //
     m_materialPGs.resize(size(callableDescs));
-    OptixProgramGroupOptions callableOptions = {
-
-    };
+    OptixProgramGroupOptions callableOptions = {};
     sizeof_log = sizeof(log);
     OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
         data(callableDescs),
@@ -545,6 +551,7 @@ void Renderer::initOptixPipeline()
         optixSbtRecordPackHeader(m_materialPGs[i++], &materialRecords[1]));
 
     // MDL
+#ifdef USE_MDL
     auto compiler = MDLCompiler::getMDLCompiler(&state);
     auto mdlSbtEntries = compiler->getMaterialSbtEntries();
 
@@ -552,6 +559,7 @@ void Renderer::initOptixPipeline()
       materialRecords.push_back({.data = materialSbtData});
       OPTIX_CHECK(optixSbtRecordPackHeader(m_materialPGs[i++], &materialRecords.back()));
     }
+#endif // defined(USE_MDL)
 
     m_materialRecordsBuffer.upload(materialRecords);
     m_sbt.callablesRecordBase = (CUdeviceptr)m_materialRecordsBuffer.ptr();

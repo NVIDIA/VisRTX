@@ -33,6 +33,7 @@
 
 #include "MDLMaterialInfo.h"
 #include "VisRTXDevice.h"
+#include "gpu/gpu_objects.h"
 #include "renderer/MaterialSbtData.cuh"
 
 #include "optix_visrtx.h"
@@ -74,6 +75,7 @@
 
 namespace visrtx {
 
+class Sampler;
 class VisRTXDevice;
 
 struct MDLParamDesc
@@ -118,6 +120,7 @@ public:
       mi::neuraylib::ITransaction *transaction,
       const std::string &material_name,
       std::vector<mi::neuraylib::Target_function_description> &descs,
+      const ptx_blob& llvmRenderModule = {},
       bool class_compilation = true);
 
   /// Create an MDL SDK transaction.
@@ -127,7 +130,7 @@ public:
   }
 
   /// Get the image API component.
-  mi::base::Handle<mi::neuraylib::IImage_api> getImagApi()
+  mi::base::Handle<mi::neuraylib::IImage_api> getImageApi()
   {
     return m_deviceState->mdl.imageApi;
   }
@@ -151,7 +154,7 @@ public:
 
   Uuid acquireModule(const char *modulePath);
   void releaseModule(Uuid moduleUuid);
-  Index getModuleIndex(Uuid moduleUuid)
+  Index getModuleIndex(Uuid moduleUuid) const
   {
     auto it = m_uuidToIndex.find(moduleUuid);
     if (it == m_uuidToIndex.cend()) {
@@ -163,6 +166,10 @@ public:
   std::vector<MDLParamDesc> getModuleParameters(Uuid moduleUuid);
   std::vector<ptx_blob> getPTXBlobs();
   std::vector<MaterialSbtData> getMaterialSbtEntries();
+
+  std::vector<const Sampler*> getModuleSamplers(Uuid moduleUuid) const {
+    return m_materialImplementations[getModuleIndex(moduleUuid)].materialInfo.getSamplers();
+  }
  private:
    MDLCompiler(const MDLCompiler&) = default;
    MDLCompiler(MDLCompiler&&) = default;
@@ -222,7 +229,14 @@ public:
 
   static std::string addMissingMaterialSignature(const mi::neuraylib::IModule *module, const std::string &material_name);
   static std::string messageKindToString(mi::neuraylib::IMessage::Kind messageKind);
-  bool logMessages(mi::neuraylib::IMdl_execution_context *context);
+  bool logExecutionContextMessages(mi::neuraylib::IMdl_execution_context *context);
+
+  // Textures
+  Sampler*  prepareTexture(
+    mi::neuraylib::ITransaction* transaction,
+    char const* texture_db_name,
+    mi::neuraylib::ITarget_code::Texture_shape textureShape);
+
 
   // ANARI reporting
   template<typename... Args>

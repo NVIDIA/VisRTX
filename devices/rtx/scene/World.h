@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include <helium/utility/TimeStamp.h>
 #include "Instance.h"
 #include "utility/HostDeviceArray.h"
 
@@ -65,6 +66,9 @@ struct World : public Object
   void buildInstanceSurfaceGPUData();
   void buildInstanceVolumeGPUData();
   void buildInstanceLightGPUData();
+#ifdef USE_MDL
+  void buildMDLMaterialGPUData();
+#endif // defined(USE_MDL)
   void cleanup();
 
   helium::ChangeObserverPtr<ObjectArray> m_zeroSurfaceData;
@@ -91,6 +95,9 @@ struct World : public Object
   {
     helium::TimeStamp lastTLASBuild{0};
     helium::TimeStamp lastBLASCheck{0};
+#ifdef USE_MDL
+    helium::TimeStamp lastMDLMaterialCheck{0};
+#endif // defined(USE_MDL)
   } m_objectUpdates;
 
   // Surfaces //

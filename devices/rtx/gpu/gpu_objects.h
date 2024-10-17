@@ -326,6 +326,8 @@ struct MaterialGPUData
   struct MDL
   {
     uint32_t implementationId;
+    DeviceObjectIndex samplers[16]; // Should be sized according to MDL's execution context configuration. See MDLCompiler.cpp.
+    uint32_t numTextures;
   };
 
   MaterialType materialType;

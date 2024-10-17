@@ -30,9 +30,15 @@
  */
 
 #include "MDLCompiler.h"
-#include "MDLShader_ptx.h"
 
+#include "MDLShaderEvalSurfaceMaterial_ptx.h"
+#include "MDLTexture_ptx.h"
+#include "array/Array2D.h"
+#include "array/Array3D.h"
 #include "optix_visrtx.h"
+
+#include "scene/surface/material/sampler/Image2D.h"
+#include "scene/surface/material/sampler/Image3D.h"
 
 #include <anari/frontend/anari_enums.h>
 #include <helium/BaseDevice.h>
@@ -56,12 +62,19 @@
 #include <mi/neuraylib/version.h>
 #include <anari/anari_cpp.hpp>
 
+#include <string_view>
+
 #ifdef MI_PLATFORM_WINDOWS
 #include <mi/base/miwindows.h>
 #include <direct.h>
 #else
 #include <dlfcn.h>
 #endif
+
+
+#include <fstream>
+
+using namespace std::string_view_literals;
 
 namespace {
 
@@ -115,7 +128,7 @@ class Logger : public mi::base::Interface_implement<mi::base::ILogger>
       const char *message) override
   {
     m_deviceState->messageFunction(miSeverityToAnari(level),
-        string_printf("%s %s", moduleCategory, message),
+        string_printf("[MDL:%s]  %s", moduleCategory, message),
         ANARI_UNKNOWN,
         nullptr);
   }
@@ -126,14 +139,8 @@ class Logger : public mi::base::Interface_implement<mi::base::ILogger>
 
 std::unordered_map<DeviceGlobalState*, MDLCompiler*> MDLCompiler::s_instances;
 
-MDLCompiler::MDLCompiler(DeviceGlobalState *deviceState) : m_deviceState(deviceState) {
-  auto path = std::filesystem::current_path() / "shaders";
-  addMdlSearchPath(path);
-}
-MDLCompiler::~MDLCompiler() {
-  auto path = std::filesystem::current_path() / "shaders";
-  removeMdlSearchPath(path);
-}
+MDLCompiler::MDLCompiler(DeviceGlobalState *deviceState) : m_deviceState(deviceState) {}
+MDLCompiler::~MDLCompiler() = default;
 
 template <typename... Args>
 inline void MDLCompiler::reportMessage(
@@ -154,7 +161,7 @@ inline void MDLCompiler::reportMessage(const DeviceGlobalState *deviceState,
   deviceState->messageFunction(severity,
       string_printf(fmt, std::forward<Args>(args)...),
       ANARI_DEVICE,
-      nullptr);
+      deviceState);
 }
 
 bool MDLCompiler::setUp(DeviceGlobalState *deviceState)
@@ -271,8 +278,8 @@ bool MDLCompiler::setUp(DeviceGlobalState *deviceState)
   }
 
   // FIXME This needs to be configurable. Per device parameters?
-  const int numTextureSpaces = 2;
-  const int numTextureResults = 2;
+  const int numTextureSpaces = 4; // ANARI attributes 0 to 3 
+  const int numTextureResults = 16; // Number of actually supported textures. Let's assume this is enough for now.
   const bool enable_derivatives = false;
 
   auto mdlBackendApi = mi::base::make_handle(
@@ -309,7 +316,7 @@ bool MDLCompiler::setUp(DeviceGlobalState *deviceState)
         "Setting PTX option num_texture_results failed.");
     return false;
   }
-  if (backendCudaPtx->set_option("sm_version", "75") != 0) {
+  if (backendCudaPtx->set_option("sm_version", "52") != 0) {
     reportMessage(deviceState,
         ANARI_SEVERITY_ERROR,
         "Setting PTX option sm_version failed.");
@@ -333,13 +340,13 @@ bool MDLCompiler::setUp(DeviceGlobalState *deviceState)
           "Setting PTX option texture_runtime_with_derivs failed.");
     }
   }
-  if (backendCudaPtx->set_option("inline_aggressively", "off") != 0) {
+  if (backendCudaPtx->set_option("inline_aggressively", "on") != 0) {
     reportMessage(deviceState,
         ANARI_SEVERITY_WARNING,
         "Setting PTX option inline_aggressively failed.");
   }
 
-  if (backendCudaPtx->set_option("opt_level", "0") != 0) {
+  if (backendCudaPtx->set_option("opt_level", "2") != 0) {
     reportMessage(deviceState,
         ANARI_SEVERITY_WARNING,
         "Setting PTX option opt_level failed.");
@@ -512,17 +519,17 @@ std::string MDLCompiler::messageKindToString(
 {
   switch (messageKind) {
   case mi::neuraylib::IMessage::MSG_INTEGRATION:
-    return "MDL SDK";
+    return "[MDL:SDK]";
   case mi::neuraylib::IMessage::MSG_IMP_EXP:
-    return "Importer/Exporter";
+    return "[MDL:Importer/Exporter]";
   case mi::neuraylib::IMessage::MSG_COMILER_BACKEND:
-    return "Compiler Backend";
+    return "[MDL:Compiler Backend]";
   case mi::neuraylib::IMessage::MSG_COMILER_CORE:
-    return "Compiler Core";
+    return "[MDL:Compiler Core]";
   case mi::neuraylib::IMessage::MSG_COMPILER_ARCHIVE_TOOL:
-    return "Compiler Archive Tool";
+    return "[MDL:Compiler Archive Tool]";
   case mi::neuraylib::IMessage::MSG_COMPILER_DAG:
-    return "Compiler DAG generator";
+    return "[MDL:Compiler DAG generator]";
   default:
     return {};
   }
@@ -531,13 +538,13 @@ std::string MDLCompiler::messageKindToString(
 // Prints the messages of the given context.
 // Returns true, if the context does not contain any error messages, false
 // otherwise.
-bool MDLCompiler::logMessages(mi::neuraylib::IMdl_execution_context *context)
+bool MDLCompiler::logExecutionContextMessages(mi::neuraylib::IMdl_execution_context *context)
 {
   for (mi::Size i = 0; i < context->get_messages_count(); ++i) {
     auto message = mi::base::make_handle(context->get_message(i));
     reportMessage(miSeverityToAnari(message->get_severity()),
         "%s: %s",
-        messageKindToString(message->get_kind()),
+        messageKindToString(message->get_kind()).c_str(),
         message->get_string());
   }
   return context->get_error_messages_count() == 0;
@@ -547,6 +554,7 @@ std::optional<MDLCompiler::CompilationResult> MDLCompiler::compileMaterial(
     mi::neuraylib::ITransaction *transaction,
     std::string const &materialName,
     std::vector<mi::neuraylib::Target_function_description> &descs,
+    const ptx_blob& llvmRenderModule,
     bool classCompilation)
 // Material_info **out_mat_info)
 {
@@ -565,7 +573,7 @@ std::optional<MDLCompiler::CompilationResult> MDLCompiler::compileMaterial(
   mdlImpexpApi->load_module(transaction,
       moduleName.c_str(),
       m_deviceState->mdl.executionContext.get());
-  if (!logMessages(m_deviceState->mdl.executionContext.get()))
+  if (!logExecutionContextMessages(m_deviceState->mdl.executionContext.get()))
     return {};
 
   // Get the database name for the module we loaded
@@ -579,9 +587,6 @@ std::optional<MDLCompiler::CompilationResult> MDLCompiler::compileMaterial(
         moduleName.c_str());
     return {};
   }
-
-  // FIXME: Check for iModule->get_material(0) and see what names it returns
-  // FIXME: Use the argument editor to get a description of the material
 
   // Append the material name
   std::string materialDbName =
@@ -630,7 +635,7 @@ std::optional<MDLCompiler::CompilationResult> MDLCompiler::compileMaterial(
   compiledMaterial = materialInstance->create_compiled_material(
       flags, m_deviceState->mdl.executionContext.get());
 
-  if (!logMessages(m_deviceState->mdl.executionContext.get()))
+  if (!logExecutionContextMessages(m_deviceState->mdl.executionContext.get()))
     return {};
 
   mi::base::Handle<mi::neuraylib::ITarget_code const> targetCode;
@@ -640,6 +645,17 @@ std::optional<MDLCompiler::CompilationResult> MDLCompiler::compileMaterial(
   if (it != m_deviceState->mdl.targetCodeCache.end()) {
     targetCode = it->second;
   } else {
+    // Configure bitcode embdedding if any.
+    if (llvmRenderModule.ptr && llvmRenderModule.size) {
+      if (m_deviceState->mdl.backendCudaPtx->set_option_binary("llvm_renderer_module", reinterpret_cast<const char*>(llvmRenderModule.ptr), llvmRenderModule.size) != 0) {
+        reportMessage(ANARI_SEVERITY_ERROR, "Failed to set llvm renderer module");
+      }
+    } else {
+      if (m_deviceState->mdl.backendCudaPtx->set_option_binary("llvm_renderer_module", nullptr, 0) != 0) {
+        reportMessage(ANARI_SEVERITY_ERROR, "Failed to reset llvm renderer module");
+      }
+    }
+
     // Generate target code for the compiled material
     mi::base::Handle<mi::neuraylib::ILink_unit> linkUnit(
         m_deviceState->mdl.backendCudaPtx->create_link_unit(
@@ -649,13 +665,15 @@ std::optional<MDLCompiler::CompilationResult> MDLCompiler::compileMaterial(
         descs.size(),
         m_deviceState->mdl.executionContext.get());
 
-    if (!logMessages(m_deviceState->mdl.executionContext.get()))
+    if (!logExecutionContextMessages(m_deviceState->mdl.executionContext.get()))
       return {};
 
+
+    // m_deviceState->mdl.backendCudaPtx->set_option("visible_functions", "__direct_callable__evalSurfaceMaterial");
     targetCode = mi::base::Handle<const mi::neuraylib::ITarget_code>(
         m_deviceState->mdl.backendCudaPtx->translate_link_unit(
             linkUnit.get(), m_deviceState->mdl.executionContext.get()));
-    if (!logMessages(m_deviceState->mdl.executionContext.get())) {
+    if (!logExecutionContextMessages(m_deviceState->mdl.executionContext.get())) {
       return {};
     }
 
@@ -790,7 +808,7 @@ mi::neuraylib::INeuray* MDLCompiler::getINeuray(const DeviceGlobalState* deviceS
 
 MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
 {
-  auto tx = createTransaction();
+  auto transaction = createTransaction();
 
   // The entry points we want expose.
   std::vector<mi::neuraylib::Target_function_description> descs{
@@ -825,13 +843,11 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
       mi::neuraylib::Target_function_description("backface.emission.intensity"));
 #endif
 
+
   reportMessage(ANARI_SEVERITY_INFO, "Compiling material %s", materialName);
-  auto compilationResult = compileMaterial(tx.get(), materialName, descs, true);
+  auto compilationResult = compileMaterial(transaction.get(), materialName, descs, {}, true);
 
-  tx->commit();
-
-  if (!compilationResult.has_value()
-      || !compilationResult->targetCode.is_valid_interface()) {
+  if (!compilationResult.has_value() || !compilationResult->targetCode.is_valid_interface()) {
     reportMessage(ANARI_SEVERITY_ERROR, "Failed compiling MDL: %s", materialName);
     return {};
   }
@@ -845,103 +861,157 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
   std::vector<unsigned char> ptxBlob(
       reinterpret_cast<const uint8_t *>(targetCode),
       reinterpret_cast<const uint8_t *>(targetCode) + targetCodeSize
-
   );
+
 
   // Hack time. An alternative would be to compile shaderMain as LLVM byte code
   // and then embed it using "llvm_render_module" parameter to MDL's ptx
   // backend. Lets save that for later if we want and add such a dependency on
   // LLVM.
-  std::vector<unsigned char> shaderMain(MDLShader_ptx, MDLShader_ptx + sizeof(MDLShader_ptx));
+  std::vector<unsigned char> shaderMain(MDLShaderEvalSurfaceMaterial_ptx, MDLShaderEvalSurfaceMaterial_ptx + sizeof(MDLShaderEvalSurfaceMaterial_ptx));
+  std::vector<unsigned char> shaderTexture(MDLTexture_ptx, MDLTexture_ptx + sizeof(MDLTexture_ptx));
 
   // As we are blending to separate compilation unit PTXs, make sure headers are
   // not conflicting.
-  static const std::string dotkwords[] = {
-      "\n.version ",
-      "\n.target",
-      "\n.address_size",
-  };
+  static constexpr const auto versionKw = "\n.version "sv;
+  static constexpr const auto targetKw = "\n.target "sv;
+  static constexpr const auto addressSizeKw = "\n.address_size "sv;
 
-  // Cleanup both ptxBlob and shaderMain for headers.
-  // Keep the highest version and target and insert those after the final string
+  // Cleanup both ptxBlob and shaderMain for headers. Keep the highest version and target and insert those after the final string
   // is built.
   std::string version;
   std::string target;
   std::string addressSize = ".address_size 64";
-  for (auto dotkword : dotkwords) {
-    if (auto it = std::search(begin(shaderMain),
-            end(shaderMain),
-            cbegin(dotkword),
-            cend(dotkword));
-        it != end(shaderMain)) {
-      auto eolIt = std::find(it + 1, end(shaderMain), '\n');
-      std::string sub(it, eolIt);
-      shaderMain.erase(it, eolIt);
-      if (dotkword == dotkwords[0]) { // .version
-        if (sub > version)
-          version = sub;
-      } else if (dotkword == dotkwords[1]) { //.target
-        if (sub > target)
-          target = sub;
-      }
-    }
-    if (auto it = std::search(
-            begin(ptxBlob), end(ptxBlob), cbegin(dotkword), cend(dotkword));
-        it != end(ptxBlob)) {
-      auto eolIt = std::find(it + 1, end(ptxBlob), '\n');
-      std::string sub(it, eolIt);
-      ptxBlob.erase(it, eolIt);
-      if (dotkword == dotkwords[0]) { // .version
-        if (sub > version)
-          version = sub;
-      } else if (dotkword == dotkwords[1]) { //.target
-        if (sub > target)
-          target = sub;
+
+  for (auto blobIt: { &shaderMain, &shaderTexture, &ptxBlob }) {
+    auto& blob = *blobIt;
+    for (auto dotkword : { versionKw, targetKw, addressSizeKw }) {
+      if (auto it = std::search(begin(blob), end(blob), cbegin(dotkword), cend(dotkword));
+          it != end(blob)) {
+        auto eolIt = std::find(it + 1, end(blob), '\n');
+        std::string sub(it + 1, eolIt);
+        blob.erase(it, eolIt);
+        if (dotkword == versionKw) { // .version
+          if (sub > version)
+            version = sub;
+        } else if (dotkword == targetKw) { //.target
+          if (sub > target)
+            target = sub;
+        }
       }
     }
   }
 
   // Same cleanup with forward decls possibly conflicting with actual
   // declarations.
-  static const std::string mdlPrefixes[] = {
-      "\n.extern .func mdlBsdf_",
-      "\n.extern .func  (.param .b32 func_retval0) mdl_isThinWalled\n",
+  static constexpr const std::string_view externPrefixes[] = {
+      "\n.extern .func mdlBsdf_"sv,
+      "\n.extern .func tex_"sv,
   };
-  for (const auto &mdlPrefix : mdlPrefixes) {
-    for (auto it = std::search(begin(shaderMain),
-             end(shaderMain),
-             cbegin(mdlPrefix),
-             cend(mdlPrefix));
-        it != end(shaderMain);) {
-      auto semiColonIt = std::find(it, end(shaderMain), ';');
-      if (semiColonIt != end(shaderMain)) {
-        shaderMain.erase(it, ++semiColonIt);
+
+  for (auto blobIt: { &shaderMain, &ptxBlob}) {
+    auto& blob = *blobIt;
+    for (const auto &externPrefix : externPrefixes) {
+      for (auto it = std::search(begin(blob), end(blob), cbegin(externPrefix), cend(externPrefix));
+          it != end(blob);) {
+        auto semiColonIt = std::find(it, end(blob), ';');
+        if (semiColonIt != end(blob)) {
+          blob.erase(it, ++semiColonIt);
+        }
+        it = std::search(it, end(blob), cbegin(externPrefix), cend(externPrefix));
       }
-      it = std::search(it, end(shaderMain), cbegin(mdlPrefix), cend(mdlPrefix));
     }
   }
 
+
   // And ditto with colliding symbol names (focusing on constant strings for
   // now).
-  static const std::string strPrefix = "$str";
-  for (auto it = std::search(begin(shaderMain),
-           end(shaderMain),
-           cbegin(strPrefix),
-           cend(strPrefix));
-      it != end(shaderMain);) {
-    *++it = 'S';
-    it = std::search(it, end(shaderMain), cbegin(strPrefix), cend(strPrefix));
+  for (auto&& [blobIt, prefix]: {
+        std::tuple{ &shaderMain, "_main_"sv },
+        std::tuple{ &shaderTexture, "_texture_"sv },
+  }) {
+    auto& blob = *blobIt;
+    static const std::string strPrefix = "$str";
+    for (auto it = std::search(begin(blob), end(blob),cbegin(strPrefix), cend(strPrefix));
+        it != end(blob);) {
+      // Insertion might invalidate the iterator. Make sure to get the after insertion value.
+      it = blob.insert(++it, cbegin(prefix), cend(prefix));
+      // And search for next occurrence from there. Note that current $str has been broken to $_something_str and is not a match anymore
+      // for the search, so we can resume at current position.
+      it = std::search(it, end(blob), cbegin(strPrefix), cend(strPrefix));
+    }
   }
 
-  ptxBlob.insert(cend(ptxBlob), cbegin(shaderMain), cend(shaderMain));
-  std::string header = version + target + addressSize;
-  ptxBlob.insert(begin(ptxBlob), cbegin(header), cend(header));
+  // Last pass: remove duplicates between the texture shader and main shader.
+  static constexpr const std::string_view weakGlobalPrefix[] = {
+    ".weak .global "sv,
+    ".weak .const "sv,
+  };
+  {
+    std::vector<std::string> decls;
+    for (const auto& prefix : weakGlobalPrefix) {
+      for (auto it = std::search(begin(shaderTexture), end(shaderTexture),cbegin(prefix), cend(prefix));
+        it != end(shaderTexture);) {
+          auto equalSignIt = std::find(it, end(shaderTexture), '=');
+          if (equalSignIt != end(shaderTexture)) {
+            decls.emplace_back(it, equalSignIt);
+          } else {
+            // FIXME: Unexpected...
+          }
+          it = std::search(++it, end(shaderTexture),cbegin(prefix), cend(prefix));
+      }
+    }
+    for (const auto& decl : decls) {
+      auto it = std::search(begin(shaderMain), end(shaderMain),cbegin(decl), cend(decl));
+      if (it != end(shaderMain)) {
+        auto eolIt = std::find(it, end(shaderMain), '\n');
+        if (eolIt != end(shaderMain)) {
+          shaderMain.erase(it, ++eolIt);
+        }
+      }
+    }
+  }
+
+  std::vector<unsigned char> finalPtx;
+  std::string header = "// Generated\n" + version + "\n" + target + "\n" + addressSize + "\n\n";
+  finalPtx.insert(end(finalPtx), cbegin(header), cend(header));
+  header = "//:FILE: shaderTexture\n\n";
+  finalPtx.insert(end(finalPtx), cbegin(header), cend(header));
+  finalPtx.insert(end(finalPtx), cbegin(shaderTexture), cend(shaderTexture));
+  header = "//:FILE: mdlGen\n\n";
+  finalPtx.insert(end(finalPtx), cbegin(header), cend(header));
+  finalPtx.insert(end(finalPtx), cbegin(ptxBlob), cend(ptxBlob));
+  header = "//:FILE: shaderMain\n\n";
+  finalPtx.insert(end(finalPtx), cbegin(header), cend(header));
+  finalPtx.insert(end(finalPtx), cbegin(shaderMain), cend(shaderMain));
+
+  // Handle textures
+  std::vector<const Sampler*> samplers;
+  for (auto i = 1; i < compilationResult->targetCode->get_texture_count(); ++i) {
+    auto textureDbName = compilationResult->targetCode->get_texture(i);
+    auto textureShape = compilationResult->targetCode->get_texture_shape(i);
+
+    auto texture= mi::base::make_handle(transaction->access<mi::neuraylib::ITexture>(textureDbName));
+    auto imageDBName = texture->get_image();
+    auto image = mi::base::make_handle(transaction->access<mi::neuraylib::IImage>(imageDBName));
+    auto canvas = image->get_canvas(0, 0 ,0);
+
+    switch (textureShape) {
+    case mi::neuraylib::ITarget_code::Texture_shape::Texture_shape_2d:
+    case mi::neuraylib::ITarget_code::Texture_shape::Texture_shape_3d:
+    case mi::neuraylib::ITarget_code::Texture_shape::Texture_shape_bsdf_data: {
+        samplers.push_back(prepareTexture(transaction.get(), textureDbName, textureShape));
+        break;
+    }
+    case mi::neuraylib::ITarget_code::Texture_shape::Texture_shape_cube:
+      reportMessage(ANARI_SEVERITY_WARNING, "Unsupported sampler of type cube map. Ignoring.");
+    default:
+      break;
+    }
+  }
 
   // MaterialInfo
-  MDLMaterialInfo materialInfo(
-      compilationResult->targetCode->get_argument_block_count() == 1
-          ? compilationResult->targetCode->get_argument_block(0)
-          : nullptr);
+  MDLMaterialInfo materialInfo(compilationResult->targetCode.get(), samplers);
 
   // Get a free slot in the material implementations list and get its index.
   auto it = std::find_if(begin(m_materialImplementations),
@@ -951,16 +1021,18 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
     it = m_materialImplementations.insert(it,
         {
             .materialInfo = std::move(materialInfo),
-            .ptxBlob = std::move(ptxBlob),
+            .ptxBlob = std::move(finalPtx),
         });
   } else {
     *it = {
         .materialInfo = std::move(materialInfo),
-        .ptxBlob = std::move(ptxBlob),
+        .ptxBlob = std::move(finalPtx), 
     };
   }
 
   m_uuidToIndex[uuid] = std::distance(begin(m_materialImplementations), it);
+
+  transaction->commit();
 
   return uuid;
 }
@@ -1013,6 +1085,130 @@ std::vector<MaterialSbtData> MDLCompiler::getMaterialSbtEntries()
   }
 
   return entries;
+}
+
+// Prepare the texture identified by the texture_index for use by the texture access functions
+// on the GPU.
+Sampler* MDLCompiler::prepareTexture(
+    mi::neuraylib::ITransaction* transaction,
+    char const* texture_db_name,
+    mi::neuraylib::ITarget_code::Texture_shape textureShape)
+{
+    // Get access to the texture data by the texture database name from the target code.
+    auto texture = mi::base::make_handle(transaction->access<mi::neuraylib::ITexture>(texture_db_name));
+    auto imageApi = getImageApi();
+
+    // FIXME: Needs a texture cache.
+
+    // Access image and canvas via the texture object
+    auto image = mi::base::make_handle(transaction->access<mi::neuraylib::IImage>(texture->get_image()));
+    auto canvas = mi::base::make_handle(image->get_canvas(0, 0, 0));
+    mi::Uint32 tex_width = canvas->get_resolution_x();
+    mi::Uint32 tex_height = canvas->get_resolution_y();
+    mi::Uint32 tex_layers = canvas->get_layers_size();
+    std::string image_type = image->get_type(0, 0);
+
+    if (image->is_uvtile() || image->is_animated()) {
+        reportMessage(ANARI_SEVERITY_WARNING, "Unsupported uvtile and/or animated textures.");
+        return {};
+    }
+
+    // Convert to linear color space if necessary
+    if (texture->get_effective_gamma(0, 0) != 1.0f) {
+        // Copy/convert to float4 canvas and adjust gamma from "effective gamma" to 1.
+        mi::base::Handle<mi::neuraylib::ICanvas> gamma_canvas(imageApi->convert(canvas.get(), "Color"));
+        gamma_canvas->set_gamma(texture->get_effective_gamma(0, 0));
+        imageApi->adjust_gamma(gamma_canvas.get(), 1.0f);
+        canvas = gamma_canvas;
+    }
+
+    image_type = canvas->get_type();
+
+    ANARIDataType dataType;
+    if (image_type == "Sint8"sv) {
+      dataType = ANARI_FIXED8;
+    } else if (image_type == "Sint32"sv) {
+      dataType = ANARI_FIXED32;
+    } else if (image_type == "Float32"sv) {
+      dataType = ANARI_FLOAT32;
+    } else if (image_type == "Float32<2>"sv) {
+      dataType = ANARI_FLOAT32_VEC2;
+    } else if (image_type == "Float32<3>"sv) {
+      dataType = ANARI_FLOAT32_VEC3;
+    } else if (image_type == "Float32<4>"sv || image_type == "Color"sv) {
+      dataType = ANARI_FLOAT32_VEC4;
+    } else if (image_type == "Rgb"sv) {
+      dataType = ANARI_UFIXED8_VEC3;
+    } else if (image_type == "Rgba"sv) {
+      dataType = ANARI_UFIXED8_VEC4;
+    } else if (image_type == "Rgb_16"sv) {
+      dataType = ANARI_UFIXED16_VEC3;
+    } else if (image_type == "Rgba_16"sv) {
+      dataType = ANARI_UFIXED16_VEC4;
+    } else if (image_type == "Rgb_fp"sv) {
+      dataType = ANARI_FLOAT32_VEC3;
+    } else if (image_type == "Color") {
+      dataType = ANARI_FLOAT32_VEC3;
+    } else { // rgbe, rgbea, 
+      reportMessage(ANARI_SEVERITY_WARNING, "Unsupported image type '%s'", image_type.c_str());
+      return {};
+    }
+
+    Sampler* sampler = {};
+    switch (textureShape) {
+      case mi::neuraylib::ITarget_code::Texture_shape_2d: {
+        Array2DMemoryDescriptor desc = {
+          {
+            .appMemory = canvas->get_tile(0)->get_data(),
+            .elementType = dataType,
+          },
+         .numItems1 = tex_width,
+         .numItems2 = tex_height,
+        };
+
+        auto array2d = new Array2D(m_deviceState, desc);
+        array2d->commit();
+        auto image2d = new Image2D(m_deviceState);
+        image2d->setParam("image", array2d);
+        image2d->commit();
+        sampler = image2d;
+        break;
+      }
+      case mi::neuraylib::ITarget_code::Texture_shape_3d:
+      case mi::neuraylib::ITarget_code::Texture_shape_bsdf_data:
+      {
+        Array3DMemoryDescriptor desc = {
+          {
+            .appMemory = canvas->get_tile(0)->get_data(),
+            .elementType = dataType,
+          },
+         .numItems1 = tex_width,
+         .numItems2 = tex_height,
+         .numItems3 = tex_layers,
+        };
+
+        auto array3d = new Array3D(m_deviceState, desc);
+        array3d->commit();
+        auto image3d = new Image3D(m_deviceState);
+        image3d->setParam("image", array3d);
+        image3d->commit();
+        sampler = image3d;
+        break;
+      }
+
+      default: {
+        reportMessage(ANARI_SEVERITY_WARNING, "Unsupported sampler type %i", int(textureShape));
+        break;
+      }
+    }
+
+    if (!sampler) return nullptr;
+
+    return sampler;
+}
+
+void MDLCompiler::releaseModule(Uuid uuid) {
+  // FIXME: To implement.
 }
 
 } // namespace visrtx
