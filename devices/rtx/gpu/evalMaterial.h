@@ -316,13 +316,13 @@ VISRTX_DEVICE vec4 getMaterialParameter(
   case MaterialParameterType::WORLD_POSITION:
     return vec4(hit.hitpoint, 1.f);
   case MaterialParameterType::WORLD_NORMAL:
-    return vec4(hit.Ng, 1.f);
+    return vec4(hit.Ns, 1.f);
   /////////////////////////////////////////////////////////////////////////////
   // NOTE: these are in world space - need to quantify best performing option
   case MaterialParameterType::OBJECT_POSITION:
     return vec4(hit.hitpoint, 1.f);
   case MaterialParameterType::OBJECT_NORMAL:
-    return vec4(hit.Ng, 1.f);
+    return vec4(hit.Ns, 1.f);
   /////////////////////////////////////////////////////////////////////////////
   default:
     break;
