@@ -143,6 +143,7 @@ public:
 
   void addMdlSearchPath(const std::filesystem::path &path);
   void removeMdlSearchPath(const std::filesystem::path &path);
+  void setMdlSearchPaths(const std::vector<std::filesystem::path> &paths);
 
   bool isValid() const
   {
