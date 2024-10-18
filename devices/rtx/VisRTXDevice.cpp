@@ -464,6 +464,10 @@ void VisRTXDevice::deviceCommitParameters()
   if (m_eagerInit && m_initStatus == DeviceInitStatus::UNINITIALIZED) {
     reportMessage(ANARI_SEVERITY_DEBUG, "eagerly initializing device");
     m_initStatus = initOptix();
+#ifdef USE_MDL
+    m_mdlInitStatus = initMDL();
+#endif // defined(USE_MDL)
+  }
   }
 }
 

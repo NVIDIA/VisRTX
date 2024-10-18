@@ -52,6 +52,8 @@ static void fillExtensionStruct(
       extensions->VISRTX_TRIANGLE_BACK_FACE_CULLING = 1;
     else if (feature == "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES")
       extensions->VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES = 1;
+    else if (feature == "ANARI_VISRTX_MATERIAL_MDL")
+      extensions->VISRTX_MATERIAL_MDL = 1;
   }
 }
 
