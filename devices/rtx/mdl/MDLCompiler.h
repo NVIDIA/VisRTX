@@ -168,7 +168,12 @@ public:
   std::vector<MaterialSbtData> getMaterialSbtEntries();
 
   std::vector<const Sampler*> getModuleSamplers(Uuid moduleUuid) const {
-    return m_materialImplementations[getModuleIndex(moduleUuid)].materialInfo.getSamplers();
+    auto moduleIndex = getModuleIndex(moduleUuid);
+    if (moduleIndex != INVALID_ID) {
+      return m_materialImplementations[moduleIndex].materialInfo.getSamplers();
+    } else {
+      return {};
+    }
   }
  private:
    MDLCompiler(const MDLCompiler&) = default;
