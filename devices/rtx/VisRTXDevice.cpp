@@ -468,7 +468,24 @@ void VisRTXDevice::deviceCommitParameters()
     m_mdlInitStatus = initMDL();
 #endif // defined(USE_MDL)
   }
+
+#ifdef USE_MDL
+  if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
+    auto paths = getParamString("mdlSearchPaths", "");
+    auto mdlSearchPaths = std::vector<std::filesystem::path>{};
+
+    for (auto it = cbegin(paths);;) {
+      while (it != cend(paths) && *it == ':') ++it;
+      if (it == cend(paths)) break;
+      auto endOfPathIt = std::find(it, cend(paths), ':');
+      mdlSearchPaths.emplace_back(it, endOfPathIt);
+      it = endOfPathIt;
+    }
+
+
+    MDLCompiler::getMDLCompiler(deviceState())->setMdlSearchPaths(mdlSearchPaths);
   }
+#endif // defined(USE_MDL)
 }
 
 int VisRTXDevice::deviceGetProperty(

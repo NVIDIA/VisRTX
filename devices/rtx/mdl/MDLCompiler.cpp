@@ -702,6 +702,14 @@ void MDLCompiler::removeMdlSearchPath(const std::filesystem::path &path)
   m_deviceState->mdl.mdlConfiguration->remove_mdl_path(path.u8string().c_str());
 }
 
+void MDLCompiler::setMdlSearchPaths(const std::vector<std::filesystem::path> &paths)
+{
+  m_deviceState->mdl.mdlConfiguration->clear_mdl_paths();
+  m_deviceState->mdl.mdlConfiguration->add_mdl_system_paths();
+  m_deviceState->mdl.mdlConfiguration->add_mdl_user_paths();
+  for (const auto& p : paths) addMdlSearchPath(p);
+}
+
 MDLCompiler::DllHandle MDLCompiler::loadMdlSdk(const DeviceGlobalState* deviceState, const char* filename) {
   if (!filename)
     filename = "libmdl_sdk" MI_BASE_DLL_FILE_EXT;
