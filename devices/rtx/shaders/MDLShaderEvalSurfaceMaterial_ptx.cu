@@ -106,16 +106,7 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
   state.tangent_v = &B;
 
   // Resources shared by all mdl calls.
-  TextureHandler texHandler{
-    // .fd = fd,
-    // .textures = {
-    //     md->textures[0],
-    //     md->textures[1],
-    //     md->textures[2],
-    //     md->textures[3],
-    // }
-  };
-  texHandler.vtable = nullptr;
+  TextureHandler texHandler{};
   texHandler.fd = fd;
   texHandler.ss = ss;
   memcpy(texHandler.samplers, md->samplers, sizeof(md->samplers));

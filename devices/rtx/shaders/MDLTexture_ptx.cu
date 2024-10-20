@@ -10,13 +10,6 @@
 
 #include <mi/mdl/mdl_stdlib_types.h>
 
-#if 1
-#define IF_DEBUG() \
-    if (textureHandler->ss->pixel.x == (textureHandler->fd->fb.size.x / 2) && textureHandler->ss->pixel.y == (textureHandler->fd->fb.size.y / 2))
-#else
-#define if (0) 
-#endif
-
 VISRTX_DEVICE bool handleWrapping(float& coord, float invDim, mi::neuraylib::Tex_wrap_mode wrapMode, const float cropVals[2])
 {
   if (wrapMode == mi::neuraylib::TEX_WRAP_REPEAT)
