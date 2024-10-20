@@ -58,7 +58,7 @@ struct World : public Object
   Span<InstanceVolumeGPUData> instanceVolumeGPUData() const;
   Span<InstanceLightGPUData> instanceLightGPUData() const;
 
-  void rebuildBVHs();
+  void rebuildWorld();
 
  private:
   void populateOptixInstances();
