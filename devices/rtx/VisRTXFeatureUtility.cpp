@@ -77,7 +77,7 @@ extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetInstanceExtensions(
   const char *const *list = NULL;
   anariGetProperty(device,
       object,
-      "feature",
+      "extension",
       ANARI_STRING_LIST,
       &list,
       sizeof(list),
