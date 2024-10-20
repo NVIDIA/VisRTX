@@ -1046,11 +1046,10 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
 }
 
 
-  std::vector<ptx_blob> MDLCompiler::getPTXBlobs()
+std::vector<ptx_blob> MDLCompiler::getPTXBlobs()
 {
   std::vector<ptx_blob> blobs;
 
-  // for (const auto& compiledResult : m_compiledResults) {
   for (const auto &materialImplementation : m_materialImplementations) {
     blobs.push_back({
         .ptr = data(materialImplementation.ptxBlob),
