@@ -100,7 +100,7 @@ bool World::getProperty(
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
       deviceState()->commitBufferFlush();
-      rebuildBVHs();
+      rebuildWorld();
     }
     auto bounds = m_surfaceBounds;
     bounds.extend(m_volumeBounds);
@@ -192,7 +192,7 @@ Span<InstanceLightGPUData> World::instanceLightGPUData() const
   return m_instanceLightGPUData.deviceSpan();
 }
 
-void World::rebuildBVHs()
+void World::rebuildWorld()
 {
   const auto &state = *deviceState();
 
