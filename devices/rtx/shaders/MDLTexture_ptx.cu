@@ -114,13 +114,13 @@ VISRTX_CALLABLE void tex_lookup_float4_2d(float (&result)[4],
 {
     vec4 sample(0.0f);
     if (tex_texture_isvalid(textureHandler, textureIdx)) {
-        auto samplerData = getSamplerData(*textureHandler->fd, textureIdx - 1);
+        auto samplerData = getSamplerData(*textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
         auto invSize = samplerData.image2D.invSize;
         float2 coords = {coord[0], coord[1]};
 
         if (handleWrapping(coords.x, invSize.x, wrapU, cropU) &&
             handleWrapping(coords.y, invSize.y, wrapV, cropV))
-           sample = evaluateImageTextureSampler(*textureHandler->fd, textureIdx - 1, vec4(coords.x, coords.y, 0.0f, 0.0f));
+           sample = evaluateImageTextureSampler(samplerData, vec4(coords.x, coords.y, 0.0f, 0.0f));
     }
     storeResult(result, sample);
 }
@@ -137,13 +137,13 @@ VISRTX_CALLABLE void tex_lookup_float3_2d(float (&result)[3],
 {
     vec3 sample(0.0f);
     if (tex_texture_isvalid(textureHandler, textureIdx)) {
-        auto samplerData = getSamplerData(*textureHandler->fd, textureIdx - 1);
+        auto samplerData = getSamplerData(*textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
         auto invSize = samplerData.image2D.invSize;
         float2 coords = {coord[0], coord[1]};
 
         if (handleWrapping(coords.x, invSize.x, wrapU, cropU) &&
             handleWrapping(coords.y, invSize.y, wrapV, cropV))
-           sample = evaluateImageTextureSampler(*textureHandler->fd, textureIdx - 1, vec4(coords.x, coords.y, 0.0f, 0.0f));
+           sample = evaluateImageTextureSampler(samplerData, vec4(coords.x, coords.y, 0.0f, 0.0f));
     }
 
     storeResult(result, sample);
@@ -158,7 +158,8 @@ VISRTX_CALLABLE void tex_texel_float4_2d(float (&result)[4],
 {
     vec4 sample(0.0f);
     if (tex_texture_isvalid(textureHandler, textureIdx)) {
-        sample = evaluateImageTexelSampler(*textureHandler->fd, textureIdx - 1, vec4(coord[0], coord[1], 0.0f, 0.0f));
+        auto samplerData = getSamplerData(*textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
+        sample = evaluateImageTexelSampler(samplerData, vec4(coord[0], coord[1], 0.0f, 0.0f));
     }
 
     storeResult(result, sample);  
@@ -180,14 +181,14 @@ VISRTX_CALLABLE void tex_lookup_float4_3d(float (&result)[4],
 {
     vec4 sample(0.0f);
     if (tex_texture_isvalid(textureHandler, textureIdx)) {
-        auto samplerData = getSamplerData(*textureHandler->fd, textureIdx - 1);
+        auto samplerData = getSamplerData(*textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
         auto invSize = samplerData.image3D.invSize;
         float3 coords = {coord[0], coord[1], coord[2]};
 
         if (handleWrapping(coords.x, invSize.x, wrapU, cropU) &&
             handleWrapping(coords.y, invSize.y, wrapV, cropV) &&
             handleWrapping(coords.z, invSize.z, wrapW, cropW))
-           sample = evaluateImageTextureSampler(*textureHandler->fd, textureIdx - 1, vec4(coords.x, coords.y, coords.z, 0.0f));
+           sample = evaluateImageTextureSampler(samplerData, vec4(coords.x, coords.y, coords.z, 0.0f));
     }
 
     storeResult(result, sample.x, sample.y, sample.z, sample.w);
@@ -207,14 +208,14 @@ VISRTX_CALLABLE void tex_lookup_float3_3d(float (&result)[3],
 {
     vec3 sample(0.0f);
     if (tex_texture_isvalid(textureHandler, textureIdx)) {
-        auto samplerData = getSamplerData(*textureHandler->fd, textureIdx - 1);
+        auto samplerData = getSamplerData(*textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
         auto invSize = samplerData.image3D.invSize;
         float3 coords = {coord[0], coord[1], coord[2]};
 
         if (handleWrapping(coords.x, invSize.x, wrapU, cropU) &&
             handleWrapping(coords.y, invSize.y, wrapV, cropV) &&
             handleWrapping(coords.z, invSize.z, wrapW, cropW))
-           sample = evaluateImageTextureSampler(*textureHandler->fd, textureIdx - 1, vec4(coords.x, coords.y, coords.z, 0.0f));
+           sample = evaluateImageTextureSampler(samplerData, vec4(coords.x, coords.y, coords.z, 0.0f));
     }
 
     storeResult(result, sample.x, sample.y, sample.z);
@@ -228,7 +229,8 @@ VISRTX_CALLABLE void tex_texel_float4_3d(float (&result)[4],
 {
     vec4 sample(0.0f);
     if (tex_texture_isvalid(textureHandler, textureIdx)) {
-        sample = evaluateImageTexelSampler(*textureHandler->fd, textureIdx - 1, vec4(coord[0], coord[1], coord[2], 0.0f));
+        auto samplerData = getSamplerData(*textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
+        sample = evaluateImageTexelSampler(samplerData, vec4(coord[0], coord[1], coord[2], 0.0f));
     }
 
     storeResult(result, sample);    
@@ -253,7 +255,7 @@ VISRTX_CALLABLE void tex_resolution_2d(int (&result)[2],
     ivec2 v(0);
 
     if (tex_texture_isvalid(textureHandler, textureIdx)) {
-        auto samplerData = getSamplerData(*textureHandler->fd, textureIdx - 1);
+        auto samplerData = getSamplerData(*textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
         v = samplerData.image2D.size;
     }
     
@@ -268,7 +270,7 @@ VISRTX_CALLABLE void tex_resolution_3d(int (&result)[3],
     ivec3 v(0);
 
     if (tex_texture_isvalid(textureHandler, textureIdx)) {
-        auto samplerData = getSamplerData(*textureHandler->fd, textureIdx - 1);
+        auto samplerData = getSamplerData(*textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
         v = samplerData.image3D.size;
     }
     
