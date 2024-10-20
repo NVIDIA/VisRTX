@@ -36,6 +36,7 @@
 #include "gpu/gpu_objects.h"
 #include "utility/CudaImageTexture.h"
 // optix
+#include <helium/utility/TimeStamp.h>
 #include <optix.h>
 // std
 #include <vector>
@@ -110,6 +111,10 @@ struct Renderer : public Object
   HitgroupFunctionNames m_defaultHitgroupNames;
   std::string m_defaultMissName{"__miss__"};
   float m_defaultAmbientRadiance{0.f};
+
+#ifdef USE_MDL
+  helium::TimeStamp m_lastMDLMaterialCheck;
+#endif // defined(USE_MDL)
 };
 
 OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions();
