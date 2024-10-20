@@ -950,6 +950,25 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
     }
   }
 
+  // Remove .visible qualifier in from of all functions
+  for (auto blobIt: { &shaderMain, &shaderTexture, &ptxBlob }) {
+    auto& blob = *blobIt;
+    static constexpr std::string_view dotVisible = "\n.visible ";
+    static constexpr std::string_view directCallableSemantic = "__direct_callable__";
+
+    for (auto it = std::search(begin(blob), end(blob),cbegin(dotVisible), cend(dotVisible));
+        it != end(blob);) {
+      it = next(it); // Skip the new line.
+      auto eolIt = std::find(it, end(blob), '\n');
+      if (std::search(it, eolIt, cbegin(directCallableSemantic), cend(directCallableSemantic)) == eolIt) {
+        blob.erase(it, it + dotVisible.size() - 1);
+      }
+      // And search for next occurrence from there. Note that current $str has been broken to $_something_str and is not a match anymore
+      // for the search, so we can resume at current position.
+      it = std::search(it, end(blob), cbegin(dotVisible), cend(dotVisible));
+    }
+  }
+
   // Last pass: remove duplicates between the texture shader and main shader.
   static constexpr const std::string_view weakGlobalPrefix[] = {
     ".weak .global "sv,
