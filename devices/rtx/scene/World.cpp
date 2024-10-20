@@ -501,7 +501,8 @@ void World::buildMDLMaterialGPUData() {
       }
     }
   }
-  m_objectUpdates.lastMDLMaterialCheck = helium::newTimeStamp();
+  state->rendererModules.lastMDLMaterialChange =
+    m_objectUpdates.lastMDLMaterialCheck = helium::newTimeStamp();
 }
 #endif // defined(USE_MDL)
 

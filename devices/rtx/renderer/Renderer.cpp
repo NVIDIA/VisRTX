@@ -30,6 +30,7 @@
  */
 
 #include "Renderer.h"
+#include <helium/utility/TimeStamp.h>
 
 // specific renderers
 #include "AmbientOcclusion.h"
@@ -200,7 +201,11 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
 
 OptixPipeline Renderer::pipeline()
 {
+#ifndef USE_MDL
   if (!m_pipeline)
+#else
+  if (!m_pipeline || deviceState()->rendererModules.lastMDLMaterialChange > m_lastMDLMaterialCheck)
+#endif
     initOptixPipeline();
 
   return m_pipeline;
@@ -208,7 +213,12 @@ OptixPipeline Renderer::pipeline()
 
 const OptixShaderBindingTable *Renderer::sbt()
 {
+#ifndef USE_MDL
   if (!m_pipeline)
+#else
+  if (!m_pipeline || deviceState()->rendererModules.lastMDLMaterialChange > m_lastMDLMaterialCheck)
+#endif
+  
     initOptixPipeline();
 
   return &m_sbt;
@@ -566,6 +576,10 @@ void Renderer::initOptixPipeline()
     m_sbt.callablesRecordStrideInBytes = sizeof(MaterialRecord);
     m_sbt.callablesRecordCount = materialRecords.size();
   }
+
+#ifdef USE_MDL
+  m_lastMDLMaterialCheck = helium::newTimeStamp();
+#endif // defined(USE_MDL)
 }
 
 OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions()

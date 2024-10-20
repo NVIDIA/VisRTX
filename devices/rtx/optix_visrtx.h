@@ -180,7 +180,10 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule diffusePathTracer{nullptr};
     OptixModule directLight{nullptr};
     OptixModule test{nullptr};
+#ifdef USE_MDL
     OptixModule mdl{nullptr};
+    helium::TimeStamp lastMDLMaterialChange{0};
+#endif
   } rendererModules;
 
   struct IntersectionModules
@@ -199,7 +202,9 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   {
     helium::TimeStamp lastBLASChange{0};
     helium::TimeStamp lastTLASChange{0};
+#ifdef USE_MDL
     helium::TimeStamp lastMDLMaterialChange{0};
+#endif // defined(USE_MDL)
   } objectUpdates;
 
   DeferredArrayUploadBuffer uploadBuffer;
