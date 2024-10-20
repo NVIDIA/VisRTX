@@ -220,7 +220,7 @@ void Frame::renderFrame()
   instrument::rangePop(); // flush array uploads
 
   instrument::rangePush("rebuild BVHs");
-  m_world->rebuildBVHs();
+  m_world->rebuildWorld();
   instrument::rangePop(); // rebuild BVHs
   instrument::rangePop(); // update scene
 
