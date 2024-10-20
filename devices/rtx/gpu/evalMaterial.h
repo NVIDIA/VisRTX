@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 #include "gpu/sampleLight.h"
 #include "shaders/MDLShader.cuh"
@@ -265,11 +266,9 @@ VISRTX_DEVICE vec4 readAttributeValue(
   return uf;
 }
 
-VISRTX_DEVICE vec4 evaluateImageTextureSampler(
-    const FrameGPUData &fd, const DeviceObjectIndex _s, vec4 at)
+VISRTX_DEVICE vec4 evaluateImageTextureSampler(const SamplerGPUData& sampler, vec4 at)
 {
   vec4 retval{0.f, 0.f, 0.f, 1.f};
-  const auto &sampler = getSamplerData(fd, _s);
   const vec4 tc = sampler.inTransform * at + sampler.inOffset;
   switch (sampler.type) {
   case SamplerType::TEXTURE1D: {
@@ -290,11 +289,8 @@ VISRTX_DEVICE vec4 evaluateImageTextureSampler(
   return sampler.outTransform * retval + sampler.outOffset;
 }
 
-VISRTX_DEVICE vec4 evaluateImageTexelSampler(
-      const FrameGPUData &fd, const DeviceObjectIndex _s, ivec4 at)
-{
+VISRTX_DEVICE vec4 evaluateImageTexelSampler(const SamplerGPUData& sampler, ivec4 at) {
   vec4 retval{0.f, 0.f, 0.f, 1.f};
-  const auto &sampler = getSamplerData(fd, _s);
   const vec4 tc = sampler.inTransform * at + sampler.inOffset;
   switch (sampler.type) {
   case SamplerType::TEXTURE1D: {
