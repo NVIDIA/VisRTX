@@ -71,6 +71,10 @@ add_executable(${PROJECT_NAME}
   ui_scenes.cpp
   Viewer.cpp
 )
+project_compile_definitions(
+PRIVATE
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:USE_MDL>
+)
 target_link_libraries(${PROJECT_NAME} PRIVATE
   match3D::match3D
   VisRTX::anari_library_visrtx

@@ -31,6 +31,8 @@
 
 #include "Scene.h"
 // glm
+#include <anari/anari_cpp.hpp>
+#include <anari/anari_cpp/anari_cpp_impl.hpp>
 #include <glm/glm.hpp>
 #include "glm/ext/matrix_transform.hpp"
 // anari
@@ -94,6 +96,116 @@ static anari::Array2D makeTextureData(anari::Device d, int dim)
   return anariNewArray2D(
       d, data, &anari_free, nullptr, ANARI_UFIXED8_VEC3, dim, dim);
 #endif
+}
+
+static anari::Surface makeNormalizedCube(anari::Device d)
+{
+  std::vector<glm::vec3> vertices{
+   {-1.0f, -1.0f,  1.0f },
+   { 1.0f, -1.0f,  1.0f },
+   {-1.0f,  1.0f,  1.0f },
+   { 1.0f,  1.0f,  1.0f },
+   {-1.0f, -1.0f, -1.0f },
+   { 1.0f, -1.0f, -1.0f },
+   {-1.0f,  1.0f, -1.0f },
+   { 1.0f,  1.0f, -1.0f },
+  };
+  std::vector<glm::vec2> uvs{
+    { 0.0f, 0.0f },
+    { 1.0f, 0.0f },
+    { 0.0f, 1.0f },
+    { 1.0f, 1.0f },
+  };
+  std::vector<glm::vec3> normals{
+    {  0.0f,  0.0f,  1.0f },
+    {  1.0f,  0.0f,  0.0f },
+    {  0.0f,  0.0f, -1.0f },
+    { -1.0f,  0.0f,  0.0f },
+    {  0.0f,  1.0f,  0.0f },
+    {  0.0f, -1.0f,  0.0f },
+  };
+  std::vector<glm::uvec3> vertexIndices{
+      {0, 1, 2},
+      {2, 1, 3},
+      {1, 5, 3},
+      {3, 5, 7},
+      {5, 4, 7},
+      {7, 4, 6},
+      {4, 0, 6},
+      {6, 0, 2},
+      {2, 3, 6},
+      {6, 3, 7},
+      {5, 4, 1},
+      {1, 4, 0},
+  };
+  std::vector<glm::uvec3> uvIndices{
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+  };
+  std::vector<glm::uvec3> normalIndices{
+      {0, 0, 0},
+      {0, 0, 0},
+      {1, 1, 1},
+      {1, 1, 1},
+      {2, 2, 2},
+      {2, 2, 2},
+      {3, 3, 3},
+      {3, 3, 3},
+      {4, 4, 4},
+      {4, 4, 4},
+      {5, 5, 5},
+      {5, 5, 5},
+  };
+
+  std::vector<glm::vec2> perFacePerVertexUVs;
+  perFacePerVertexUVs.reserve(uvIndices.size() * 3);
+  for (auto indices : uvIndices) {
+    perFacePerVertexUVs.push_back(uvs[indices.x]);
+    perFacePerVertexUVs.push_back(uvs[indices.y]);
+    perFacePerVertexUVs.push_back(uvs[indices.z]);
+  }
+  std::vector<glm::vec3> perFacePerVertexNormals;
+  perFacePerVertexNormals.reserve(normalIndices.size() * 3);
+  for (auto indices : normalIndices) {
+    perFacePerVertexNormals.push_back(normals[indices.x]);
+    perFacePerVertexNormals.push_back(normals[indices.y]);
+    perFacePerVertexNormals.push_back(normals[indices.z]);
+  }
+
+  auto geom = anari::newObject<anari::Geometry>(d, "triangle");
+  anari::setAndReleaseParameter(d,
+      geom,
+      "primitive.index",
+      anari::newArray1D(d, vertexIndices.data(), vertexIndices.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.position",
+      anari::newArray1D(d, vertices.data(), vertices.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "faceVarying.attribute0",
+      anari::newArray1D(d, perFacePerVertexUVs.data(), perFacePerVertexUVs.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "faceVarying.normal",
+      anari::newArray1D(d, perFacePerVertexNormals.data(), perFacePerVertexNormals.size()));
+  anari::commitParameters(d, geom);
+
+  auto surface = anari::newObject<anari::Surface>(d);
+  anari::setAndReleaseParameter(d, surface, "geometry", geom);
+  anari::commitParameters(d, surface);
+
+  return surface;
 }
 
 static anari::Surface makePlane(anari::Device d, const box3 &bounds)
@@ -1191,6 +1303,25 @@ static ScenePtr loadObjFile(anari::Device d, ObjFileConfig config)
   return std::make_unique<Scene>(d, world);
 }
 
+#ifdef USE_MDL
+///////////////////////////////////////////////////////////////////////////////
+// MDL cube scene /////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+static ScenePtr generateMDLCubeScene(
+    anari::Device d, MDLCubeConfig config)
+{
+  auto world = anari::newObject<anari::World>(d);
+  auto cube = makeNormalizedCube(d);
+  anari::setParameter(d, cube, "material", config.material);
+
+  anari::setAndReleaseParameter(d, world, "surface", anari::newArray1D(d, &cube));
+  anari::release(d, cube);
+
+  return std::make_unique<Scene>(d, world);
+}
+#endif // defined(USE_MDL)
+
 ///////////////////////////////////////////////////////////////////////////////
 // Scene definitions //////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -1251,6 +1382,16 @@ ScenePtr generateScene(anari::Device d, SceneConfig config)
           retval = generateGravityVolume(d, arg);
         else if constexpr (std::is_same_v<T, ObjFileConfig>)
           retval = loadObjFile(d, arg);
+#ifdef USE_MDL
+        else if constexpr (std::is_same_v<T, MDLCubeConfig>) {
+          auto material = anari::newObject<anari::Material>(d, "mdl");
+          anari::setParameter(d, material, "source", arg.choices[arg.selection]);
+          anari::commitParameters(d, material);
+          arg.material = material;
+
+          retval = generateMDLCubeScene(d, arg);
+        }
+#endif // defined(USE_MDL)
 
         addPlane = arg.addPlane;
       },

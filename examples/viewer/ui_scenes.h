@@ -38,4 +38,7 @@ bool ui_scenes(SpheresConfig &spheresConfig,
     NoiseVolumeConfig &noiseVolumeConfig,
     GravityVolumeConfig &gravityVolumeConfig,
     ObjFileConfig &objFileConfig,
+#ifdef USE_MDL
+    MDLCubeConfig &mdlCubeConfig,
+#endif // defined(USE_MDL)
     int &whichScene);
