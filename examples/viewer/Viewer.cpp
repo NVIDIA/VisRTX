@@ -33,6 +33,7 @@
 // std
 #include <cstring>
 // stb_image
+#include "Scene.h"
 #include "stb_image_write.h"
 // CUDA
 #include <cuda_gl_interop.h>
@@ -45,6 +46,8 @@
 #include <glm/ext.hpp>
 
 #include "ui_scenes.h"
+
+#include <filesystem>
 
 struct RendererParameter
 {
@@ -136,6 +139,10 @@ Viewer::Viewer(const char *libName, const char *objFileName)
       visrtx::getInstanceExtensions(m_device, m_device);
   m_haveCUDAInterop = g_glInterop && extensions.VISRTX_CUDA_OUTPUT_BUFFERS;
 
+  if (extensions.VISRTX_MATERIAL_MDL) {
+    auto path = std::filesystem::current_path() / "shaders";
+    anari::setParameter(m_device, m_device, "mdlSearchPaths", path.string());
+  }
   // ANARI //
 
   const char **r_subtypes = anariGetObjectSubtypes(m_device, ANARI_RENDERER);
@@ -387,6 +394,11 @@ void Viewer::updateWorld()
   case SceneTypes::NOISE_VOLUME:
     m_currentScene = generateScene(m_device, m_noiseVolumeConfig);
     break;
+#ifdef USE_MDL
+  case SceneTypes::MDL_CUBE:
+    m_currentScene = generateScene(m_device, m_mdlCubeConfig);
+    break;
+#endif // defined(USE_MDL)
   case SceneTypes::GRAVITY_VOLUME:
   default:
     m_currentScene = generateScene(m_device, m_gravityVolumeConfig);
@@ -588,6 +600,9 @@ void Viewer::ui_makeWindow()
             m_noiseVolumeConfig,
             m_gravityVolumeConfig,
             m_objFileConfig,
+#ifdef USE_MDL
+            m_mdlCubeConfig,
+#endif // defined(USE_MDL)
             m_selectedScene)) {
       updateWorld();
     }
