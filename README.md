@@ -98,14 +98,6 @@ This extension indicates that all attributes can be set as a single
 `ANARI_FLOAT32_VEC4` value on the instance, which overrides any values on the
 geometries within the instanced group.
 
-#### "VISRTX_INSTANCE_TRANSFORM_ARRAY" (experimental)
-
-This extension indicates that the instance subtype `"transform"` can take an
-array of `ANARI_FLOAT32_MAT4` to create multiple instances of a group using a
-single `ANARIInstance` object. Similarly, all other parameters (except the
-`group` and `name` parameters) can also be set as an array, applied element-wise
-to each instance in the scene.
-
 #### "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES" (experimental)
 
 This extension indicates that additional attribute mappings are available for
@@ -164,6 +156,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 
 - `KHR_ARRAY1D_REGION`
 - `KHR_AUXILIARY_BUFFERS`
+- `KHR_CAMERA_DEPTH_OF_FIELD`
 - `KHR_CAMERA_ORTHOGRAPHIC`
 - `KHR_CAMERA_PERSPECTIVE`
 - `KHR_DEVICE_SYNCHRONIZATION`
@@ -178,6 +171,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_GEOMETRY_SPHERE`
 - `KHR_GEOMETRY_TRIANGLE`
 - `KHR_INSTANCE_TRANSFORM`
+- `KHR_INSTANCE_TRANSFORM_ARRAY`
 - `KHR_LIGHT_DIRECTIONAL`
 - `KHR_LIGHT_POINT`
 - `KHR_MATERIAL_MATTE`
@@ -190,6 +184,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_VOLUME_TRANSFER_FUNCTION1D`
 - `VISRTX_CUDA_OUTPUT_BUFFERS`
 - `VISRTX_INSTANCE_ATTRIBUTES`
+- `VISRTX_TRIANGLE_BACK_FACE_CULLING`
 - `VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES`
 
 For any found bugs in extensions that are implemented, please [open an
