@@ -110,7 +110,6 @@ const char ** query_extensions() {
       "ANARI_KHR_VOLUME_TRANSFER_FUNCTION1D",
       "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
       "ANARI_VISRTX_INSTANCE_ATTRIBUTES",
-      "ANARI_VISRTX_INSTANCE_TRANSFORM_ARRAY",
       "ANARI_VISRTX_MATERIAL_MDL",
       "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING",
       "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
@@ -5364,7 +5363,7 @@ static const void * ANARI_GEOMETRY_quad_cullBackfaces_info(ANARIDataType paramTy
             static const char *extension = "VISRTX_TRIANGLE_BACK_FACE_CULLING";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 34;
+            static const int32_t value = 33;
             return &value;
          }
       default: return nullptr;
@@ -6740,7 +6739,7 @@ static const void * ANARI_GEOMETRY_triangle_cullBackfaces_info(ANARIDataType par
             static const char *extension = "VISRTX_TRIANGLE_BACK_FACE_CULLING";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 34;
+            static const int32_t value = 33;
             return &value;
          }
       default: return nullptr;
@@ -6772,7 +6771,7 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_normal_info(ANARIDataTyp
             static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 35;
+            static const int32_t value = 34;
             return &value;
          }
       default: return nullptr;
@@ -6804,7 +6803,7 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_color_info(ANARIDataType
             static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 35;
+            static const int32_t value = 34;
             return &value;
          }
       default: return nullptr;
@@ -6836,7 +6835,7 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_attribute0_info(ANARIDat
             static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 35;
+            static const int32_t value = 34;
             return &value;
          }
       default: return nullptr;
@@ -6868,7 +6867,7 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_attribute1_info(ANARIDat
             static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 35;
+            static const int32_t value = 34;
             return &value;
          }
       default: return nullptr;
@@ -6900,7 +6899,7 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_attribute2_info(ANARIDat
             static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 35;
+            static const int32_t value = 34;
             return &value;
          }
       default: return nullptr;
@@ -6932,7 +6931,7 @@ static const void * ANARI_GEOMETRY_triangle_faceVarying_attribute3_info(ANARIDat
             static const char *extension = "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 35;
+            static const int32_t value = 34;
             return &value;
          }
       default: return nullptr;
@@ -10085,7 +10084,7 @@ static const void * ANARI_MATERIAL_mdl_sourceType_info(ANARIDataType paramType, 
             static const char *extension = "VISRTX_MATERIAL_MDL";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 33;
+            static const int32_t value = 32;
             return &value;
          }
       default: return nullptr;
@@ -10110,7 +10109,7 @@ static const void * ANARI_MATERIAL_mdl_source_info(ANARIDataType paramType, int 
             static const char *extension = "VISRTX_MATERIAL_MDL";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int32_t value = 33;
+            static const int32_t value = 32;
             return &value;
          }
       default: return nullptr;
@@ -10344,7 +10343,6 @@ static const void * ANARI_RENDERER_default_info(int infoName, ANARIDataType info
                "ANARI_KHR_VOLUME_TRANSFER_FUNCTION1D",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
                "ANARI_VISRTX_INSTANCE_ATTRIBUTES",
-               "ANARI_VISRTX_INSTANCE_TRANSFORM_ARRAY",
                "ANARI_VISRTX_MATERIAL_MDL",
                "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING",
                "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
@@ -10410,7 +10408,6 @@ static const void * ANARI_RENDERER_ao_info(int infoName, ANARIDataType infoType)
                "ANARI_KHR_VOLUME_TRANSFER_FUNCTION1D",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
                "ANARI_VISRTX_INSTANCE_ATTRIBUTES",
-               "ANARI_VISRTX_INSTANCE_TRANSFORM_ARRAY",
                "ANARI_VISRTX_MATERIAL_MDL",
                "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING",
                "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
@@ -10474,7 +10471,6 @@ static const void * ANARI_RENDERER_dpt_info(int infoName, ANARIDataType infoType
                "ANARI_KHR_VOLUME_TRANSFER_FUNCTION1D",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
                "ANARI_VISRTX_INSTANCE_ATTRIBUTES",
-               "ANARI_VISRTX_INSTANCE_TRANSFORM_ARRAY",
                "ANARI_VISRTX_MATERIAL_MDL",
                "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING",
                "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
@@ -10534,7 +10530,6 @@ static const void * ANARI_RENDERER_raycast_info(int infoName, ANARIDataType info
                "ANARI_KHR_VOLUME_TRANSFER_FUNCTION1D",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
                "ANARI_VISRTX_INSTANCE_ATTRIBUTES",
-               "ANARI_VISRTX_INSTANCE_TRANSFORM_ARRAY",
                "ANARI_VISRTX_MATERIAL_MDL",
                "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING",
                "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
@@ -10594,7 +10589,6 @@ static const void * ANARI_RENDERER_debug_info(int infoName, ANARIDataType infoTy
                "ANARI_KHR_VOLUME_TRANSFER_FUNCTION1D",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
                "ANARI_VISRTX_INSTANCE_ATTRIBUTES",
-               "ANARI_VISRTX_INSTANCE_TRANSFORM_ARRAY",
                "ANARI_VISRTX_MATERIAL_MDL",
                "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING",
                "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
@@ -10661,7 +10655,6 @@ static const void * ANARI_DEVICE_info(int infoName, ANARIDataType infoType) {
                "ANARI_KHR_VOLUME_TRANSFER_FUNCTION1D",
                "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS",
                "ANARI_VISRTX_INSTANCE_ATTRIBUTES",
-               "ANARI_VISRTX_INSTANCE_TRANSFORM_ARRAY",
                "ANARI_VISRTX_MATERIAL_MDL",
                "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING",
                "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES",
@@ -11326,7 +11319,6 @@ static const void * ANARI_INSTANCE_transform_info(int infoName, ANARIDataType in
             static const ANARIParameter parameters[] = {
                {"name", ANARI_STRING},
                {"transform", ANARI_FLOAT32_MAT4},
-               {"transform", ANARI_ARRAY1D},
                {"group", ANARI_GROUP},
                {"color", ANARI_FLOAT32_VEC4},
                {"attribute0", ANARI_FLOAT32_VEC4},
@@ -11781,7 +11773,7 @@ static const void * ANARI_MATERIAL_mdl_info(int infoName, ANARIDataType infoType
             static const char *extension = "VISRTX_MATERIAL_MDL";
             return extension;
          } else if(infoType == ANARI_INT32) {
-            static const int value = 33;
+            static const int value = 32;
             return &value;
          } else {
             return nullptr;
