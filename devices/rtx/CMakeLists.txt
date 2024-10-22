@@ -133,6 +133,7 @@ project_sources(PRIVATE
 
   scene/surface/material/sampler/Image1D.cpp
   scene/surface/material/sampler/Image2D.cpp
+  scene/surface/material/sampler/Image3D.cpp
   scene/surface/material/sampler/PrimitiveSampler.cpp
   scene/surface/material/sampler/Sampler.cpp
   scene/surface/material/sampler/TransformSampler.cpp
