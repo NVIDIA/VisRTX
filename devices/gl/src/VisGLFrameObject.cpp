@@ -909,6 +909,7 @@ void frame_render(ObjectRef<Frame> frameObj,
   gl.DrawArrays(GL_TRIANGLES, 0, 3);
 
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->colorbuffer);
+  gl.ReadBuffer(GL_COLOR_ATTACHMENT0);
   gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 
   if (gl.VERSION_3_3) {

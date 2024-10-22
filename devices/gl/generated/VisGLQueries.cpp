@@ -267,7 +267,7 @@ static const void * ANARI_DEVICE_glDebug_info(ANARIDataType paramType, int infoN
          }
       case 1: // default
          if(paramType == ANARI_BOOL && infoType == ANARI_BOOL) {
-            static const int32_t default_value[1] = {INT32_C(0)};
+            static const int8_t default_value[1] = {INT8_C(0)};
             return default_value;
          } else {
             return nullptr;

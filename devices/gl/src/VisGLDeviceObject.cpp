@@ -238,7 +238,7 @@ void Object<Device>::update()
 
   // retrieve gl context parameters
   clientapi = current.glAPI.getStringEnum();
-  int32_t debug = 0;
+  int8_t debug = 0;
   current.glDebug.get(ANARI_BOOL, &debug);
 
 #ifdef VISGL_USE_GLX

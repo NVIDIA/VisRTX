@@ -60,7 +60,7 @@ Device::Device(ANARIDevice device, ANARIObject o) : device(device), object(o) {
       glAPI.set(device, object, ANARI_STRING, value);
    }
    {
-      int32_t value[] = {INT32_C(0)};
+      int8_t value[] = {INT8_C(0)};
       glDebug.set(device, object, ANARI_BOOL, value);
    }
    {
@@ -112,7 +112,7 @@ void Device::unset(const char *paramname) {
          return;
       case 35: //glDebug
          {
-            int32_t value[] = {INT32_C(0)};
+            int8_t value[] = {INT8_C(0)};
             glDebug.set(device, object, ANARI_BOOL, value);
          }
          return;
