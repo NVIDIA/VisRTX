@@ -77,8 +77,7 @@ anari_generate_queries(
 project_add_library(SHARED)
 
 if(VISRTX_ENABLE_MDL_SUPPORT)
-  set(PROJECT_SOURCES mdl/MDLCompiler.cpp scene/surface/material/MDL.cpp)
-  set(PROJECT_INCLUDE_DIRS ${MDL_SDK_INCLUDE_DIRS})
+  set(PROJECT_SOURCES )
 endif()
 
 
@@ -163,7 +162,10 @@ project_sources(PRIVATE
   utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
 
-  ${PROJECT_SOURCES}
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:
+    mdl/MDLCompiler.cpp
+    scene/surface/material/MDL.cpp
+  >
 )
 
 generate_export_header(${PROJECT_NAME}
@@ -193,6 +195,7 @@ PRIVATE
   CUDA::cuda_driver
   CUDA::curand
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:MDL_SDK::MDL_SDK>
 )
 
 project_compile_definitions(
