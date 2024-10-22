@@ -31,7 +31,13 @@
 
 #pragma once
 
+#include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
+#include "gpu/sampleLight.h"
+#include "shaders/MDLShader.cuh"
+#include "shaders/MatteShader.cuh"
+#include "shaders/PhysicallyBasedShader.cuh"
+
 #include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
@@ -169,7 +175,8 @@ VISRTX_DEVICE uint32_t decodeCurveAttributeIndices(
   return ggd.curve.indices[hit.primID];
 }
 
-VISRTX_DEVICE vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hit)
+VISRTX_DEVICE vec4 readAttributeValue(
+    uint32_t attributeID, const SurfaceHit &hit)
 {
   const auto &isd = *hit.instance;
   const auto &ggd = *hit.geometry;
@@ -259,11 +266,9 @@ VISRTX_DEVICE vec4 readAttributeValue(uint32_t attributeID, const SurfaceHit &hi
   return uf;
 }
 
-VISRTX_DEVICE vec4 evaluateImageTextureSampler(
-    const FrameGPUData &fd, const DeviceObjectIndex _s, vec4 at)
+VISRTX_DEVICE vec4 evaluateImageTextureSampler(const SamplerGPUData& sampler, vec4 at)
 {
   vec4 retval{0.f, 0.f, 0.f, 1.f};
-  const auto &sampler = getSamplerData(fd, _s);
   const vec4 tc = sampler.inTransform * at + sampler.inOffset;
   switch (sampler.type) {
   case SamplerType::TEXTURE1D: {
@@ -284,11 +289,8 @@ VISRTX_DEVICE vec4 evaluateImageTextureSampler(
   return sampler.outTransform * retval + sampler.outOffset;
 }
 
-VISRTX_DEVICE vec4 evaluateImageTexelSampler(
-      const FrameGPUData &fd, const DeviceObjectIndex _s, ivec4 at)
-{
+VISRTX_DEVICE vec4 evaluateImageTexelSampler(const SamplerGPUData& sampler, ivec4 at) {
   vec4 retval{0.f, 0.f, 0.f, 1.f};
-  const auto &sampler = getSamplerData(fd, _s);
   const vec4 tc = sampler.inTransform * at + sampler.inOffset;
   switch (sampler.type) {
   case SamplerType::TEXTURE1D: {
@@ -431,7 +433,7 @@ VISRTX_DEVICE MaterialValues getMaterialValues(const FrameGPUData &fd,
   float opacity = getMaterialParameter(fd, md.opacity, hit).x;
 
   return {
-      .isPBR = false,
+      .materialType = MaterialType::MATTE,
       .baseColor = vec3(color),
       .opacity = adjustedMaterialOpacity(color.w * opacity, md),
       .metallic = 0.0f,
@@ -448,7 +450,7 @@ VISRTX_DEVICE MaterialValues getMaterialValues(const FrameGPUData &fd,
   float opacity = getMaterialParameter(fd, md.opacity, hit).x;
 
   return {
-      .isPBR = true,
+      .materialType = MaterialType::PHYSICALLYBASED,
       .baseColor = vec3(color),
       .opacity = adjustedMaterialOpacity(color.w * opacity, md),
       .metallic = getMaterialParameter(fd, md.metallic, hit).x,
@@ -467,7 +469,7 @@ VISRTX_DEVICE MaterialValues getMaterialValues(
     return getMaterialValues(fd, md.physicallyBased, hit);
   default:
     return {
-        .isPBR = false,
+        .materialType = MaterialType::MATTE,
         .baseColor = vec3(0.8f, 0.8f, 0.8f),
         .opacity = 1.0f,
         .metallic = 0.0f,
@@ -478,32 +480,21 @@ VISRTX_DEVICE MaterialValues getMaterialValues(
 }
 
 VISRTX_DEVICE vec4 evalMaterial(const FrameGPUData &fd,
+    const ScreenSample &ss,
     const MaterialGPUData &md,
     const SurfaceHit &hit,
-    const vec3 &viewDir,
-    const vec3 &lightDir,
-    const vec3 &lightIntensity)
+    const Ray &ray,
+    const LightSample &ls)
 {
   switch (md.materialType) {
   case MaterialType::MATTE: {
-    return optixDirectCall<vec4>(
-        static_cast<unsigned int>(MaterialType::MATTE),
-        &fd,
-        &md.matte,
-        &hit,
-        &viewDir,
-        &lightDir,
-        &lightIntensity);
+    return shadeMatteSurface(fd, md.matte, ray, hit, ls);
   }
   case MaterialType::PHYSICALLYBASED: {
-    return optixDirectCall<vec4>(
-        static_cast<unsigned int>(MaterialType::PHYSICALLYBASED),
-        &fd,
-        &md.physicallyBased,
-        &hit,
-        &viewDir,
-        &lightDir,
-        &lightIntensity);
+    return shadePhysicallyBasedSurface(fd, md.physicallyBased, ray, hit, ls);
+  }
+  case MaterialType::MDL: {
+    return shadeMDLSurface(fd, ss, md.mdl, ray, hit, ls);
   }
   default:
     return vec4(0.8f, 0.8f, 0.8f, 1.0f);

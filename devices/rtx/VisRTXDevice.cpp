@@ -58,6 +58,11 @@
 #include "shaders/MatteShader.h"
 #include "shaders/PhysicallyBasedShader.h"
 
+// MDL
+#ifdef USE_MDL
+#include "mdl/MDLCompiler.h"
+#endif // defined(USE_MDL)
+
 // std
 #include <future>
 
@@ -389,7 +394,14 @@ VisRTXDevice::~VisRTXDevice()
   if (m_initStatus != DeviceInitStatus::SUCCESS)
     return;
 
-  auto &state = *deviceState();
+  auto& state = *deviceState();
+
+#ifdef USE_MDL
+  if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
+    MDLCompiler::tearDown(&state);
+    m_mdlInitStatus = DeviceInitStatus::UNINITIALIZED;
+  }
+#endif // defined(USE_MDL)
 
   state.commitBufferClear();
   state.uploadBuffer.clear();
@@ -401,6 +413,9 @@ VisRTXDevice::~VisRTXDevice()
   optixModuleDestroy(state.rendererModules.ambientOcclusion);
   optixModuleDestroy(state.rendererModules.diffusePathTracer);
   optixModuleDestroy(state.rendererModules.directLight);
+#ifdef USE_MDL
+  optixModuleDestroy(state.rendererModules.mdl);
+#endif // defined(USE_MDL)
   optixModuleDestroy(state.rendererModules.test);
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
@@ -427,7 +442,9 @@ bool VisRTXDevice::initDevice()
     deviceCommitParameters();
 
   m_initStatus = initOptix();
-
+#ifdef USE_MDL
+  m_mdlInitStatus = initMDL();
+#endif // defined(USE_MDL)
   return m_initStatus == DeviceInitStatus::SUCCESS;
 }
 
@@ -447,7 +464,28 @@ void VisRTXDevice::deviceCommitParameters()
   if (m_eagerInit && m_initStatus == DeviceInitStatus::UNINITIALIZED) {
     reportMessage(ANARI_SEVERITY_DEBUG, "eagerly initializing device");
     m_initStatus = initOptix();
+#ifdef USE_MDL
+    m_mdlInitStatus = initMDL();
+#endif // defined(USE_MDL)
   }
+
+#ifdef USE_MDL
+  if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
+    auto paths = getParamString("mdlSearchPaths", "");
+    auto mdlSearchPaths = std::vector<std::filesystem::path>{};
+
+    for (auto it = cbegin(paths);;) {
+      while (it != cend(paths) && *it == ':') ++it;
+      if (it == cend(paths)) break;
+      auto endOfPathIt = std::find(it, cend(paths), ':');
+      mdlSearchPaths.emplace_back(it, endOfPathIt);
+      it = endOfPathIt;
+    }
+
+
+    MDLCompiler::getMDLCompiler(deviceState())->setMdlSearchPaths(mdlSearchPaths);
+  }
+#endif // defined(USE_MDL)
 }
 
 int VisRTXDevice::deviceGetProperty(
@@ -595,7 +633,6 @@ DeviceInitStatus VisRTXDevice::initOptix()
   };
 
   std::vector<std::future<void>> compileTasks;
-
   compileTasks.push_back(init_module(
       state.rendererModules.debug, Debug::ptx(), "'debug' renderer"));
   compileTasks.push_back(init_module(
@@ -616,16 +653,13 @@ DeviceInitStatus VisRTXDevice::initOptix()
       init_module(state.intersectionModules.customIntersectors,
           intersection_ptx(),
           "custom intersectors"));
-  
-  compileTasks.push_back(
-    init_module(state.materialShaders.matte,
-          MatteShader::ptx(),
-          "'matte' shader"));
 
-  compileTasks.push_back(
-    init_module(state.materialShaders.physicallyBased,
-          PhysicallyBasedShader::ptx(),
-          "'physicallyBased' shader"));
+  compileTasks.push_back(init_module(
+      state.materialShaders.matte, MatteShader::ptx(), "'matte' shader"));
+
+  compileTasks.push_back(init_module(state.materialShaders.physicallyBased,
+      PhysicallyBasedShader::ptx(),
+      "'physicallyBased' shader"));
 
   for (auto &f : compileTasks)
     f.wait();
@@ -641,6 +675,21 @@ DeviceInitStatus VisRTXDevice::initOptix()
 
   return DeviceInitStatus::SUCCESS;
 }
+
+#ifdef USE_MDL
+DeviceInitStatus VisRTXDevice::initMDL()
+{
+  if (m_mdlInitStatus != DeviceInitStatus::UNINITIALIZED)
+    return m_mdlInitStatus;
+
+  if (!MDLCompiler::setUp(deviceState())) {
+    reportMessage(ANARI_SEVERITY_ERROR, "Failed initializing ANARI MDL support.");
+    return DeviceInitStatus::FAILURE;
+  }
+
+  return DeviceInitStatus::SUCCESS;
+}
+#endif // defined(USE_MDL)
 
 void VisRTXDevice::setCUDADevice()
 {

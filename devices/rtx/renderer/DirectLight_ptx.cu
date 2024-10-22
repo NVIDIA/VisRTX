@@ -60,7 +60,8 @@ VISRTX_DEVICE float volumeAttenuation(ScreenSample &ss, Ray r)
   return ra.attenuation;
 }
 
-VISRTX_DEVICE vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
+VISRTX_DEVICE vec4 shadeSurface(
+    ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 {
   const auto &rendererParams = frameData.renderer;
   const auto &directLightParams = rendererParams.params.directLight;
@@ -79,17 +80,21 @@ VISRTX_DEVICE vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hi
             rendererParams.occlusionDistance,
             directLightParams.aoSamples)
       : 1.f;
-  const vec4 matAoResult = evalMaterial(frameData,
-      *hit.material,
-      hit,
-      -ray.dir,
-      -ray.dir,
-      rendererParams.ambientIntensity * rendererParams.ambientColor);
+
+  // Env faking
+  LightSample ls = {
+      .radiance = rendererParams.ambientIntensity * rendererParams.ambientColor,
+      .dir = -ray.dir,
+      .dist = 1000.f,
+      .pdf = 1.0f,
+  };
+  const vec4 matAoResult =
+      evalMaterial(frameData, ss, *hit.material, hit, ray, ls);
 
   // Compute contribution from other lights //
-
   vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
   float opacity = matAoResult.w;
+
   for (size_t i = 0; i < world.numLightInstances; i++) {
     auto *inst = world.lightInstances + i;
     if (!inst)
@@ -104,8 +109,8 @@ VISRTX_DEVICE vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hi
       const float surface_o = 1.f - surfaceAttenuation(ss, r, RayType::SHADOW);
       const float volume_o = 1.f - volumeAttenuation(ss, r);
       const float attenuation = surface_o * volume_o;
-      const vec4 matResult = evalMaterial(
-          frameData, *hit.material, hit, -ray.dir, ls.dir, ls.radiance);
+      const vec4 matResult =
+          evalMaterial(frameData, ss, *hit.material, hit, ray, ls);
       contrib += vec3(matResult) * dot(ls.dir, hit.Ns)
           * directLightParams.lightFalloff * attenuation;
     }
@@ -129,7 +134,7 @@ VISRTX_GLOBAL void __anyhit__shadow()
     const auto &fd = frameData;
     const auto &md = *hit.material;
 
-    const auto& materialValues = getMaterialValues(fd, md, hit);
+    const auto &materialValues = getMaterialValues(fd, md, hit);
     auto &o = ray::rayData<float>();
 
     accumulateValue(o, materialValues.opacity, o);

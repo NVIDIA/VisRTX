@@ -38,6 +38,8 @@
 #include <curand_kernel.h>
 // anari
 #include <anari/anari_cpp.hpp>
+#include <glm/ext/matrix_float3x4.hpp>
+
 
 #define DECLARE_FRAME_DATA(n)                                                  \
   extern "C" {                                                                 \
@@ -296,26 +298,36 @@ enum class MaterialType
 {
   UNKNOWN = -1,
   MATTE = 0, // Akin to callable id
-  PHYSICALLYBASED
+  PHYSICALLYBASED,
+  MDL,
 };
 
 struct MaterialGPUData
 {
-  struct Matte {
-      MaterialParameter color;
-      MaterialParameter opacity;
-      float cutoff;
-      AlphaMode alphaMode;
+  struct Matte
+  {
+    MaterialParameter color;
+    MaterialParameter opacity;
+    float cutoff;
+    AlphaMode alphaMode;
   };
 
-  struct PhysicallyBased {
-      MaterialParameter baseColor;
-      MaterialParameter opacity;
-      MaterialParameter metallic;
-      MaterialParameter roughness;
-      float ior;
-      float cutoff;
-      AlphaMode alphaMode;
+  struct PhysicallyBased
+  {
+    MaterialParameter baseColor;
+    MaterialParameter opacity;
+    MaterialParameter metallic;
+    MaterialParameter roughness;
+    float ior;
+    float cutoff;
+    AlphaMode alphaMode;
+  };
+
+  struct MDL
+  {
+    uint32_t implementationId;
+    DeviceObjectIndex samplers[16]; // Should be sized according to MDL's execution context configuration. See MDLCompiler.cpp.
+    uint32_t numTextures;
   };
 
   MaterialType materialType;
@@ -324,18 +336,21 @@ struct MaterialGPUData
   {
     Matte matte;
     PhysicallyBased physicallyBased;
+    MDL mdl;
   };
 
-  MaterialGPUData() {
+  MaterialGPUData()
+  {
     materialType = MaterialType::UNKNOWN;
     matte = {};
     physicallyBased = {};
+    mdl = {};
   }
 };
 
 struct MaterialValues
 {
-  bool isPBR;
+  MaterialType materialType;
   vec3 baseColor;
   float opacity;
   float metallic;
@@ -513,12 +528,21 @@ struct DirectLightRendererGPUData
   float aoIntensity;
 };
 
+struct MDLRendererGPUData
+{
+  float lightFalloff;
+  int aoSamples;
+  vec3 aoColor;
+  float aoIntensity;
+};
+
 union RendererParametersGPUData
 {
   DebugRendererGPUData debug;
   AORendererGPUData ao;
   DPTRendererGPUData dpt;
   DirectLightRendererGPUData directLight;
+  MDLRendererGPUData mdl;
 };
 
 enum class BackgroundMode
@@ -607,7 +631,7 @@ struct ScreenSample
 {
   glm::uvec2 pixel;
   glm::vec2 screen;
-  RandState rs;
+  mutable RandState rs;
   const FrameGPUData *frameData;
 };
 

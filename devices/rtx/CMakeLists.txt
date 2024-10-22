@@ -53,6 +53,9 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
 find_package(CUDAToolkit 11.3.1 REQUIRED)
 find_package(OptiX7 REQUIRED)
+if(VISRTX_ENABLE_MDL_SUPPORT)
+  find_package(MDL_SDK REQUIRED)
+endif()
 
 include(EmbedPTX)
 
@@ -72,6 +75,11 @@ anari_generate_queries(
 ## Build library target ##
 
 project_add_library(SHARED)
+
+if(VISRTX_ENABLE_MDL_SUPPORT)
+  set(PROJECT_SOURCES )
+endif()
+
 
 project_sources(PRIVATE
   Object.cpp
@@ -101,7 +109,7 @@ project_sources(PRIVATE
   renderer/Raycast.cpp
   renderer/Renderer.cpp
   renderer/Test.cpp
-  renderer/UnknownRenderer.cpp
+  renderer/UnknownRenderer.cpp  
 
   shaders/MatteShader.cpp
   shaders/PhysicallyBasedShader.cpp
@@ -153,6 +161,11 @@ project_sources(PRIVATE
   utility/CudaImageTexture.cpp
   utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
+
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:
+    mdl/MDLCompiler.cpp
+    scene/surface/material/MDL.cpp
+  >
 )
 
 generate_export_header(${PROJECT_NAME}
@@ -166,6 +179,12 @@ PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>
 )
 
+project_include_directories(
+  SYSTEM
+    PRIVATE
+      ${PROJECT_INCLUDE_DIRS}
+)
+
 project_link_libraries(
 PUBLIC
   anari::anari
@@ -176,6 +195,7 @@ PRIVATE
   CUDA::cuda_driver
   CUDA::curand
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:MDL_SDK::MDL_SDK>
 )
 
 project_compile_definitions(
@@ -184,6 +204,7 @@ PRIVATE
   VISRTX_VERSION_MINOR=${PROJECT_VERSION_MINOR}
   VISRTX_VERSION_PATCH=${PROJECT_VERSION_PATCH}
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:USE_NVTX>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:USE_MDL>
 )
 
 if(NOT WIN32)
@@ -196,19 +217,10 @@ endif()
 project_compile_definitions(PRIVATE visrtx_EXPORTS)
 
 ## Generate OptiX programs as embedded PTX ##
-
 function(GenerateEmbeddedPTX DIR BASE_NAME)
-  set(multiValueArgs ENTRIES)
-  cmake_parse_arguments(
-    GEN_EMBEDDED_PTX
-    ""  # options
-    "" # single value arguments
-    "ENTRIES" # multi value arguments
-    ${ARGN}
-  )
+  set(INPUT_TARGET ${BASE_NAME}_ptx)
 
   set(INPUT_CU_FILE ${DIR}/${BASE_NAME}_ptx.cu)
-  set(INPUT_TARGET ${BASE_NAME}_ptx)
   set(OUTPUT_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${BASE_NAME}_ptx.h)
 
   if (GEN_EMBEDDED_PTX_ENTRIES)
@@ -234,7 +246,9 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}
+    ${MDL_SDK_INCLUDE_DIRS}
   )
+
   set_target_properties(${INPUT_TARGET} PROPERTIES
     CUDA_PTX_COMPILATION ON
     CUDA_ARCHITECTURES OFF
@@ -253,11 +267,15 @@ GenerateEmbeddedPTX(renderer DiffusePathTracer)
 GenerateEmbeddedPTX(renderer DirectLight)
 GenerateEmbeddedPTX(renderer Raycast)
 GenerateEmbeddedPTX(renderer Test)
-
+GenerateEmbeddedPTX(scene Intersectors)
 GenerateEmbeddedPTX(shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)
 GenerateEmbeddedPTX(shaders PhysicallyBasedShader ENTRIES __direct__callable__evalSurfaceMaterial)
+if(VISRTX_ENABLE_MDL_SUPPORT)
+  GenerateEmbeddedPTX(shaders MDLShaderEvalSurfaceMaterial ENTRIES __direct__callable__evalSurfaceMaterial)
+  GenerateEmbeddedPTX(shaders MDLTexture)
+endif()
 
-GenerateEmbeddedPTX(scene Intersectors)
+# GenerateEmbeddedBC(shaders MDLShaderEvalSurfaceMaterial)
 
 ## Install library + headers ##
 

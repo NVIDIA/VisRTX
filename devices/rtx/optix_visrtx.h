@@ -34,17 +34,31 @@
 #include "gpu/gpu_objects.h"
 #include "utility/DeferredArrayUploadBuffer.h"
 #include "utility/DeviceObjectArray.h"
+
 // helium
 #include "helium/BaseGlobalDeviceState.h"
 // anari
 #include <anari/anari_cpp.hpp>
 // optix
+#include <helium/utility/TimeStamp.h>
 #include <optix.h>
 #include <optix_stubs.h>
+// mdl
+#ifdef USE_MDL
+#include <mi/base/handle.h>
+#include <mi/base/ilogger.h>
+#include <mi/neuraylib/icompiled_material.h>
+#include <mi/neuraylib/ineuray.h>
+#include <mi/neuraylib/imdl_compiler.h>
+#include <mi/neuraylib/imdl_configuration.h>
+#include <mi/neuraylib/idatabase.h>
+#include <mi/neuraylib/iscope.h>
+#include <mi/neuraylib/imdl_factory.h>
+#include <mi/neuraylib/imdl_execution_context.h>
+#include <mi/neuraylib/imdl_backend.h>
+#include <mi/neuraylib/iimage_api.h>
+#endif // defined(USE_MDL)
 // std
-#include <functional>
-#include <sstream>
-#include <stdexcept>
 #include <vector>
 
 #ifdef OPAQUE
@@ -139,9 +153,12 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box1, ANARI_FLOAT32_BOX1);
 
 namespace visrtx {
 
+struct Object;
+struct MDL;
+
 struct ptx_blob
 {
-  unsigned char *ptr{nullptr};
+  const unsigned char *ptr{nullptr};
   size_t size{0};
 };
 
@@ -163,6 +180,10 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule diffusePathTracer{nullptr};
     OptixModule directLight{nullptr};
     OptixModule test{nullptr};
+#ifdef USE_MDL
+    OptixModule mdl{nullptr};
+    helium::TimeStamp lastMDLMaterialChange{0};
+#endif
   } rendererModules;
 
   struct IntersectionModules
@@ -181,6 +202,9 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   {
     helium::TimeStamp lastBLASChange{0};
     helium::TimeStamp lastTLASChange{0};
+#ifdef USE_MDL
+    helium::TimeStamp lastMDLMaterialChange{0};
+#endif // defined(USE_MDL)
   } objectUpdates;
 
   DeferredArrayUploadBuffer uploadBuffer;
@@ -196,12 +220,50 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     DeviceObjectArray<VolumeGPUData> volumes;
   } registry;
 
+  // MDL
+#ifdef USE_MDL
+  struct MDLContext
+  {
+  private:
+    struct UuidHasher
+    {
+      std::size_t operator()(const mi::base::Uuid &uuid) const noexcept
+      {
+        return mi::base::uuid_hash32(uuid);
+      }
+    };
+
+  public:
+    mi::base::Handle<mi::neuraylib::INeuray> neuray;
+    mi::base::Handle<mi::base::ILogger> logger;
+    mi::base::Handle<mi::neuraylib::IMdl_compiler> mdlCompiler;
+    mi::base::Handle<mi::neuraylib::IMdl_configuration> mdlConfiguration;
+    mi::base::Handle<mi::neuraylib::IDatabase> database;
+    mi::base::Handle<mi::neuraylib::IScope> globalScope;
+    mi::base::Handle<mi::neuraylib::IMdl_factory> mdlFactory;
+
+    mi::base::Handle<mi::neuraylib::IMdl_execution_context> executionContext;
+
+    mi::base::Handle<mi::neuraylib::IMdl_backend> backendCudaPtx;
+    mi::base::Handle<mi::neuraylib::IImage_api> imageApi;
+
+    using TargetCodeCache = std::unordered_map<mi::base::Uuid, mi::base::Handle<mi::neuraylib::ITarget_code const>, UuidHasher>;
+
+    /// Maps a compiled material hash to a target code object to avoid generation
+    /// of duplicate code.
+    TargetCodeCache targetCodeCache;
+#if MI_PLATFORM_WINDOWS
+    HMODULE dllHandle = nullptr;
+#else
+    void* dllHandle = {};
+#endif
+  } mdl;
+#endif // defined(USE_MDL)
   // Helper methods //
 
   DeviceGlobalState(ANARIDevice d);
+  ~DeviceGlobalState() override;
 };
-
-struct Object;
 
 void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
     DeviceBuffer &bvh,

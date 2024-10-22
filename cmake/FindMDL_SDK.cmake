@@ -27,58 +27,22 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-option(VISRTX_BUILD_INTERACTIVE_EXAMPLE "Build interactive example" OFF)
-if (NOT VISRTX_BUILD_INTERACTIVE_EXAMPLE)
+if (TARGET MDL_SDK::MDL_SDK)
   return()
 endif()
 
-## Fetch match3D ##
+message(STATUS "find_path(MDL_SDK_ROOT NAMES mdl_sdk.h PATHS ${MDL_SDK_PATH} ENV MDL_SDK_PATH PATH_SUFFIXES include/mi/)")
+set(CMAKE_FIND_DEBUG_MODE TRUE)
+find_path(MDL_SDK_ROOT NAMES "include/mi/mdl_sdk.h" PATHS ${MDL_SDK_PATH} ENV MDL_SDK_PATH)
+set(CMAKE_FIND_DEBUG_MODE FALSE)
 
-include(FetchContent)
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(MDL_SDK DEFAULT_MSG MDL_SDK_ROOT)
 
-set(match3D_LOC ${CMAKE_BINARY_DIR}/match3D_src)
 
-FetchContent_Populate(match3D_src
-  URL https://github.com/jeffamstutz/match3D/archive/refs/heads/main.zip
-  SOURCE_DIR ${match3D_LOC}
-)
-set(match3D_DIR ${match3D_LOC}/cmake)
-set(match3D_CACHE_IN_SOURCE_TREE ON)
-find_package(match3D REQUIRED COMPONENTS stb_image)
+set(MDL_SDK_INCLUDE_DIR ${MDL_SDK_ROOT}/include)
+set(MDL_SDK_INCLUDE_DIRS ${MDL_SDK_ROOT}/include)
+mark_as_advanced(MDL_SDK_INCLUDE_DIR MDL_SDK_INCLUDE_DIRS)
 
-mark_as_advanced(
-  FETCHCONTENT_BASE_DIR
-  FETCHCONTENT_FULLY_DISCONNECTED
-  FETCHCONTENT_QUIET
-  FETCHCONTENT_UPDATES_DISCONNECTED
-)
-
-## Find CUDA for frame buffer interop ##
-
-find_package(CUDAToolkit REQUIRED)
-
-## Find VisRTX to use extension feature testing utility ##
-
-find_package(VisRTX REQUIRED)
-
-## viewer app ##
-
-project(viewer)
-add_executable(${PROJECT_NAME}
-  main.cpp
-  Orbit.cpp
-  Scene.cpp
-  ui_scenes.cpp
-  Viewer.cpp
-)
-project_compile_definitions(
-PRIVATE
-  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:USE_MDL>
-)
-target_link_libraries(${PROJECT_NAME} PRIVATE
-  match3D::match3D
-  VisRTX::anari_library_visrtx
-  glm_visrtx
-  CUDA::cudart
-  tiny_obj_loader
-)
+add_library(MDL_SDK::MDL_SDK INTERFACE IMPORTED)
+target_include_directories(MDL_SDK::MDL_SDK INTERFACE ${MDL_SDK_INCLUDE_DIR})

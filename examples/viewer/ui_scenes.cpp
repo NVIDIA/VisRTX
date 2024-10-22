@@ -102,6 +102,15 @@ static void ui_gravityVolumeConfig(GravityVolumeConfig &config)
   ImGui::Checkbox("show bodies", &config.withBodies);
 }
 
+#ifdef USE_MDL
+static void ui_mdlCubeConfig(MDLCubeConfig& config)
+{
+  ui_config(config);
+  
+  ImGui::Combo("material", &config.selection, std::data(config.choices), std::size(config.choices));
+}
+#endif // defined(USE_MDL)
+
 bool ui_scenes(SpheresConfig &spheresConfig,
     CylindersConfig &cylindersConfig,
     ConesConfig &conesConfig,
@@ -109,6 +118,9 @@ bool ui_scenes(SpheresConfig &spheresConfig,
     NoiseVolumeConfig &noiseVolumeConfig,
     GravityVolumeConfig &gravityVolumeConfig,
     ObjFileConfig &objFileConfig,
+#ifdef USE_MDL
+    MDLCubeConfig &mdlCubeConfig,
+#endif // defined(USE_MDL)
     int &whichScene)
 {
   ImGui::Text("Scene:");
@@ -119,11 +131,19 @@ bool ui_scenes(SpheresConfig &spheresConfig,
   if (!objFileConfig.filename.empty()) {
     ImGui::Combo("##whichScene",
         &whichScene,
-        "random spheres\0random cylinders\0random cones\0streamlines\0noise volume\0gravity volume\0obj file\0\0");
+        "random spheres\0random cylinders\0random cones\0streamlines\0noise volume\0gravity volume\0"
+#ifdef USE_MDL
+        "mdl cube\0"
+#endif // defined(USE_MDL)
+        "obj file\0\0");
   } else {
     ImGui::Combo("##whichScene",
         &whichScene,
-        "random spheres\0random cylinders\0random cones\0streamlines\0noise volume\0gravity volume\0\0");
+        "random spheres\0random cylinders\0random cones\0streamlines\0noise volume\0gravity volume\0"
+#ifdef USE_MDL
+        "mdl cube"
+#endif // defined(USE_MDL)
+        "\0\0");
   }
 
   switch (whichScene) {
@@ -148,6 +168,11 @@ bool ui_scenes(SpheresConfig &spheresConfig,
   case SceneTypes::GRAVITY_VOLUME:
     ui_gravityVolumeConfig(gravityVolumeConfig);
     break;
+#if USE_MDL
+  case SceneTypes::MDL_CUBE:
+    ui_mdlCubeConfig(mdlCubeConfig);
+    break;
+#endif // defined(USE_MDL)
   default:
     break;
   }

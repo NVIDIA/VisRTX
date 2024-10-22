@@ -23,7 +23,6 @@
       "khr_geometry_sphere",
       "khr_geometry_triangle",
       "khr_instance_transform",
-      "khr_instance_transform_array",
       "khr_light_directional",
       "khr_light_point",
       "khr_material_matte",
@@ -39,6 +38,8 @@
       "khr_volume_transfer_function1d",
       "visrtx_cuda_output_buffers",
       "visrtx_instance_attributes",
+      "visrtx_instance_transform_array",
+      "visrtx_material_mdl",
       "visrtx_triangle_back_face_culling",
       "visrtx_triangle_face_varying_attributes"
     ]
