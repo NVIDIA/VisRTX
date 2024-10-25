@@ -53,7 +53,11 @@ static void fillExtensionStruct(
     else if (feature == "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES")
       extensions->VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES = 1;
     else if (feature == "ANARI_VISRTX_MATERIAL_MDL")
+#ifdef USE_MDL
       extensions->VISRTX_MATERIAL_MDL = 1;
+#else
+      extensions->VISRTX_MATERIAL_MDL = 0;
+#endif // defined(USE_MDL)
   }
 }
 

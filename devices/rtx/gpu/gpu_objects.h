@@ -528,21 +528,12 @@ struct DirectLightRendererGPUData
   float aoIntensity;
 };
 
-struct MDLRendererGPUData
-{
-  float lightFalloff;
-  int aoSamples;
-  vec3 aoColor;
-  float aoIntensity;
-};
-
 union RendererParametersGPUData
 {
   DebugRendererGPUData debug;
   AORendererGPUData ao;
   DPTRendererGPUData dpt;
   DirectLightRendererGPUData directLight;
-  MDLRendererGPUData mdl;
 };
 
 enum class BackgroundMode
