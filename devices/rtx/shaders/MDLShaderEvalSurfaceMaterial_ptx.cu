@@ -77,19 +77,31 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
   auto position = make_float3(hit->hitpoint);
   auto Ns = make_float3(hit->Ns);
   auto Ng = make_float3(hit->Ng);
-  auto T = make_float3(hit->T);
-  auto B = make_float3(hit->B);
+
   auto objectToWorld =
       bit_cast<const std::array<float4, 3>>(hit->objectToWorld);
   auto worldToObject =
       bit_cast<const std::array<float4, 3>>(hit->worldToObject);
-  float3 textCoords[4] = { // The number of texture spaces we support. Matching the number of attributes ANARI exposes (4)
+      // The number of texture spaces we support. Matching the number of attributes ANARI exposes (4)
+  auto textureResults = std::array<float4, 16>{}; // The maximum number of samplers we support. See MDLCompiler.cpp numTextureSpaces and numTextureResults.
+  auto textureCoords = std::array{
     make_float3(readAttributeValue(0, *hit)),
     make_float3(readAttributeValue(1, *hit)),
     make_float3(readAttributeValue(2, *hit)),
     make_float3(readAttributeValue(3, *hit)),
   };
-  float4 texture_results[16] = { make_float4(0.0f) }; // The maximum number of samplers we support. See MDLCompiler.cpp numTextureSpaces and numTextureResults.
+  auto textureTangentsU = std::array{
+    float3{1.0f, 0.0f, 0.0f} ,
+    float3{1.0f, 0.0f, 0.0f} ,
+    float3{1.0f, 0.0f, 0.0f} ,
+    float3{1.0f, 0.0f, 0.0f} ,
+  };
+  auto textureTangentsV = std::array{
+    float3{ 0.0f, 1.0f, 0.0f },
+    float3{ 0.0f, 1.0f, 0.0f },
+    float3{ 0.0f, 1.0f, 0.0f },
+    float3{ 0.0f, 1.0f, 0.0f },
+  };
 
   state.animation_time = 0.0f;
   state.geom_normal = Ng;
@@ -97,13 +109,13 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
   state.position = position;
   state.meters_per_scene_unit = 1.0f;
   state.object_id = hit->objID;
-  state.object_to_world = objectToWorld.data();
-  state.world_to_object = worldToObject.data();
+  state.object_to_world = data(objectToWorld);
+  state.world_to_object = data(worldToObject);
   state.ro_data_segment = nullptr;
-  state.text_coords = textCoords;
-  state.text_results = texture_results;
-  state.tangent_u = &T;
-  state.tangent_v = &B;
+  state.text_coords = data(textureCoords);
+  state.text_results = data(textureResults);
+  state.tangent_u = data(textureTangentsU);
+  state.tangent_v = data(textureTangentsV);
 
   // Resources shared by all mdl calls.
   TextureHandler texHandler{};
