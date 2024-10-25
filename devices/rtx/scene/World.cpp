@@ -488,15 +488,16 @@ void World::buildMDLMaterialGPUData() {
 
   for (const auto& instance : m_instances) {
     const auto group = instance->group();
-    const auto surfaceObjects = group->getParamObject<ObjectArray>("surface");
-    const auto surfaces = make_Span(
-      reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()), surfaceObjects->totalSize());
-    for (auto surface: surfaces) {
-      if (auto material  = dynamic_cast<const MDL*>(surface->material())) {
-        if (material->lastCommitted() > m_objectUpdates.lastMDLMaterialCheck &&
-            processed.find(material) == processed.end()) {
-            const_cast<MDL*>(material)->upload();
-            processed.insert(material);
+    if (const auto surfaceObjects = group->getParamObject<ObjectArray>("surface")) {
+      const auto surfaces = make_Span(
+        reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()), surfaceObjects->totalSize());
+      for (auto surface: surfaces) {
+        if (auto material  = dynamic_cast<const MDL*>(surface->material())) {
+          if (material->lastCommitted() > m_objectUpdates.lastMDLMaterialCheck &&
+              processed.find(material) == processed.end()) {
+              const_cast<MDL*>(material)->upload();
+              processed.insert(material);
+          }
         }
       }
     }
