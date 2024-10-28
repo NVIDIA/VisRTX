@@ -207,7 +207,7 @@ bool MDLCompiler::setUp(DeviceGlobalState *deviceState)
         "Successfully loaded the plugin library dds");
   } else {
     reportMessage(
-        deviceState, ANARI_SEVERITY_ERROR, "Failed to load the dds plugin.");
+        deviceState, ANARI_SEVERITY_WARNING, "Failed to load the dds plugin.");
   }
 
   // Handle user path.
