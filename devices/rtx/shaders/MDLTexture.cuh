@@ -19,6 +19,7 @@ struct TextureHandler : mi::neuraylib::Texture_handler_base {
     uint numTextures;
 };
 
+using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
 // 2D Lookup
 
 VISRTX_CALLABLE void tex_lookup_float4_2d(float (&result)[4],
@@ -104,4 +105,89 @@ VISRTX_CALLABLE void tex_resolution_3d(int (&result)[3],
     mi::Uint32 textureIdx,
     float frame);
 
+// Scene data lookup
+
+VISRTX_CALLABLE bool scene_data_isvalid(
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id);
+ 
+VISRTX_CALLABLE void scene_data_lookup_float4(
+    float                                  result[4],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[4],
+    bool                                   uniform_lookup);
+
+
+VISRTX_CALLABLE void scene_data_lookup_float3(
+    float                                  result[3],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[3],
+    bool                                   uniform_lookup);
+ 
+VISRTX_CALLABLE void scene_data_lookup_color(
+    float                                  result[3],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[3],
+    bool                                   uniform_lookup);
+ 
+VISRTX_CALLABLE void scene_data_lookup_float2(
+    float                                  result[2],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[2],
+    bool                                   uniform_lookup);
+
+VISRTX_CALLABLE float scene_data_lookup_float(
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value,
+    bool                                   uniform_lookup);
+
+VISRTX_CALLABLE void scene_data_lookup_int4(
+    int                                    result[4],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    int const                              default_value[4],
+    bool                                   uniform_lookup);
+
+VISRTX_CALLABLE void scene_data_lookup_int3(
+    int                                    result[3],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    int const                              default_value[3],
+    bool                                   uniform_lookup);
+
+VISRTX_CALLABLE void scene_data_lookup_int2(
+    int                                    result[2],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    int const                              default_value[2],
+    bool                                   uniform_lookup);
+
+VISRTX_CALLABLE int scene_data_lookup_int(
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    int                                    default_value,
+    bool                                   uniform_lookup);
+
+VISRTX_CALLABLE void scene_data_lookup_float4x4(
+    float                                  result[16],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[16],
+    bool                                   uniform_lookup);
 } // namespace visrtx

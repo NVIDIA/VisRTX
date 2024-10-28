@@ -270,4 +270,148 @@ VISRTX_CALLABLE void tex_resolution_3d(int (&result)[3],
     storeResult(result, v);
 }
 
+// Scene data lookup
+
+VISRTX_DEVICE bool scene_data_isvalid(
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id)
+{
+    return false;
+}
+
+VISRTX_CALLABLE void scene_data_lookup_float4(
+    float                                  result[4],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[4],
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    result[0] = default_value[0];
+    result[1] = default_value[1];
+    result[2] = default_value[2];
+    result[3] = default_value[3];
+}
+
+VISRTX_CALLABLE void scene_data_lookup_float3(
+    float                                  result[3],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[3],
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    result[0] = default_value[0];
+    result[1] = default_value[1];
+    result[2] = default_value[2];
+}
+
+VISRTX_CALLABLE void scene_data_lookup_color(
+    float                                  result[3],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[3],
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    result[0] = default_value[0];
+    result[1] = default_value[1];
+    result[2] = default_value[2];
+}
+ 
+VISRTX_CALLABLE void scene_data_lookup_float2(
+    float                                  result[2],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[2],
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    result[0] = default_value[0];
+    result[1] = default_value[1];
+}
+
+VISRTX_CALLABLE float scene_data_lookup_float(
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value,
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    return default_value;
+}
+
+VISRTX_CALLABLE void scene_data_lookup_int4(
+    int                                    result[4],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    int const                              default_value[4],
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    result[0] = default_value[0];
+    result[1] = default_value[1];
+    result[2] = default_value[2];
+    result[3] = default_value[3];
+}
+ 
+VISRTX_CALLABLE void scene_data_lookup_int3(
+    int                                    result[3],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    int const                              default_value[3],
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    result[0] = default_value[0];
+    result[1] = default_value[1];
+    result[2] = default_value[2];
+}
+ 
+VISRTX_CALLABLE void scene_data_lookup_int2(
+    int                                    result[2],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    int const                              default_value[2],
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    result[0] = default_value[0];
+    result[1] = default_value[1];
+}
+
+VISRTX_CALLABLE int scene_data_lookup_int(
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    int                                    default_value,
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    return default_value;
+}
+ 
+VISRTX_CALLABLE void scene_data_lookup_float4x4(
+    float                                  result[16],
+    TextureHandler const            *self_base,
+    ShadingStateMaterial                *state,
+    unsigned                               scene_data_id,
+    float const                            default_value[16],
+    bool                                   uniform_lookup)
+{
+    // just return default value
+    for (int i = 0; i < 16; ++i)
+        result[i] = default_value[i];
+}
+
+
 } // namespace visrtx
