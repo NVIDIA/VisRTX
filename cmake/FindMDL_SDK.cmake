@@ -32,9 +32,7 @@ if (TARGET MDL_SDK::MDL_SDK)
 endif()
 
 message(STATUS "find_path(MDL_SDK_ROOT NAMES mdl_sdk.h PATHS ${MDL_SDK_PATH} ENV MDL_SDK_PATH PATH_SUFFIXES include/mi/)")
-set(CMAKE_FIND_DEBUG_MODE TRUE)
 find_path(MDL_SDK_ROOT NAMES "include/mi/mdl_sdk.h" PATHS ${MDL_SDK_PATH} ENV MDL_SDK_PATH)
-set(CMAKE_FIND_DEBUG_MODE FALSE)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(MDL_SDK DEFAULT_MSG MDL_SDK_ROOT)
