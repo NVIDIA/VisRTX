@@ -913,8 +913,7 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
   // Same cleanup with forward decls possibly conflicting with actual
   // declarations.
   static constexpr const std::string_view externPrefixes[] = {
-      "\n.extern .func mdlBsdf_"sv,
-      "\n.extern .func tex_"sv,
+      "\n.extern .func "sv,
   };
 
   for (auto blobIt: { &shaderMain, &ptxBlob}) {
