@@ -204,7 +204,9 @@ OptixPipeline Renderer::pipeline()
 #ifndef USE_MDL
   if (!m_pipeline)
 #else
-  if (!m_pipeline || deviceState()->rendererModules.lastMDLMaterialChange > m_lastMDLMaterialCheck)
+  if (!m_pipeline
+      || deviceState()->rendererModules.lastMDLMaterialChange
+          > m_lastMDLMaterialCheck)
 #endif
     initOptixPipeline();
 
@@ -216,9 +218,11 @@ const OptixShaderBindingTable *Renderer::sbt()
 #ifndef USE_MDL
   if (!m_pipeline)
 #else
-  if (!m_pipeline || deviceState()->rendererModules.lastMDLMaterialChange > m_lastMDLMaterialCheck)
+  if (!m_pipeline
+      || deviceState()->rendererModules.lastMDLMaterialChange
+          > m_lastMDLMaterialCheck)
 #endif
-  
+
     initOptixPipeline();
 
   return &m_sbt;

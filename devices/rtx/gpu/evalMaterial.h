@@ -268,7 +268,8 @@ VISRTX_DEVICE vec4 readAttributeValue(
   return uf;
 }
 
-VISRTX_DEVICE vec4 evaluateImageTextureSampler(const SamplerGPUData& sampler, vec4 at)
+VISRTX_DEVICE vec4 evaluateImageTextureSampler(
+    const SamplerGPUData &sampler, vec4 at)
 {
   vec4 retval{0.f, 0.f, 0.f, 1.f};
   const vec4 tc = sampler.inTransform * at + sampler.inOffset;
@@ -282,7 +283,8 @@ VISRTX_DEVICE vec4 evaluateImageTextureSampler(const SamplerGPUData& sampler, ve
     break;
   }
   case SamplerType::TEXTURE3D: {
-    retval = make_vec4(tex3D<::float4>(sampler.image3D.texobj, tc.x, tc.y, tc.z));
+    retval =
+        make_vec4(tex3D<::float4>(sampler.image3D.texobj, tc.x, tc.y, tc.z));
     break;
   }
   default:
@@ -291,7 +293,9 @@ VISRTX_DEVICE vec4 evaluateImageTextureSampler(const SamplerGPUData& sampler, ve
   return sampler.outTransform * retval + sampler.outOffset;
 }
 
-VISRTX_DEVICE vec4 evaluateImageTexelSampler(const SamplerGPUData& sampler, ivec4 at) {
+VISRTX_DEVICE vec4 evaluateImageTexelSampler(
+    const SamplerGPUData &sampler, ivec4 at)
+{
   vec4 retval{0.f, 0.f, 0.f, 1.f};
   const vec4 tc = sampler.inTransform * at + sampler.inOffset;
   switch (sampler.type) {
@@ -300,11 +304,13 @@ VISRTX_DEVICE vec4 evaluateImageTexelSampler(const SamplerGPUData& sampler, ivec
     break;
   }
   case SamplerType::TEXTURE2D: {
-    retval = make_vec4(tex2D<::float4>(sampler.image2D.texelTexobj, tc.x, tc.y));
+    retval =
+        make_vec4(tex2D<::float4>(sampler.image2D.texelTexobj, tc.x, tc.y));
     break;
   }
   case SamplerType::TEXTURE3D: {
-    retval = make_vec4(tex3D<::float4>(sampler.image3D.texelTexobj, tc.x, tc.y, tc.z));
+    retval = make_vec4(
+        tex3D<::float4>(sampler.image3D.texelTexobj, tc.x, tc.y, tc.z));
     break;
   }
   default:
@@ -331,7 +337,8 @@ VISRTX_DEVICE vec4 evaluateSampler(
     break;
   }
   case SamplerType::TEXTURE3D: {
-    retval = make_vec4(tex3D<::float4>(sampler.image3D.texobj, tc.x, tc.y, tc.z));
+    retval =
+        make_vec4(tex3D<::float4>(sampler.image3D.texobj, tc.x, tc.y, tc.z));
     break;
   }
   case SamplerType::PRIMITIVE: {

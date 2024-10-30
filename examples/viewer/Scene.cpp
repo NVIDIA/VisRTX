@@ -101,28 +101,28 @@ static anari::Array2D makeTextureData(anari::Device d, int dim)
 static anari::Surface makeNormalizedCube(anari::Device d)
 {
   std::vector<glm::vec3> vertices{
-   {-1.0f, -1.0f,  1.0f },
-   { 1.0f, -1.0f,  1.0f },
-   {-1.0f,  1.0f,  1.0f },
-   { 1.0f,  1.0f,  1.0f },
-   {-1.0f, -1.0f, -1.0f },
-   { 1.0f, -1.0f, -1.0f },
-   {-1.0f,  1.0f, -1.0f },
-   { 1.0f,  1.0f, -1.0f },
+      {-1.0f, -1.0f, 1.0f},
+      {1.0f, -1.0f, 1.0f},
+      {-1.0f, 1.0f, 1.0f},
+      {1.0f, 1.0f, 1.0f},
+      {-1.0f, -1.0f, -1.0f},
+      {1.0f, -1.0f, -1.0f},
+      {-1.0f, 1.0f, -1.0f},
+      {1.0f, 1.0f, -1.0f},
   };
   std::vector<glm::vec2> uvs{
-    { 0.0f, 0.0f },
-    { 1.0f, 0.0f },
-    { 0.0f, 1.0f },
-    { 1.0f, 1.0f },
+      {0.0f, 0.0f},
+      {1.0f, 0.0f},
+      {0.0f, 1.0f},
+      {1.0f, 1.0f},
   };
   std::vector<glm::vec3> normals{
-    {  0.0f,  0.0f,  1.0f },
-    {  1.0f,  0.0f,  0.0f },
-    {  0.0f,  0.0f, -1.0f },
-    { -1.0f,  0.0f,  0.0f },
-    {  0.0f,  1.0f,  0.0f },
-    {  0.0f, -1.0f,  0.0f },
+      {0.0f, 0.0f, 1.0f},
+      {1.0f, 0.0f, 0.0f},
+      {0.0f, 0.0f, -1.0f},
+      {-1.0f, 0.0f, 0.0f},
+      {0.0f, 1.0f, 0.0f},
+      {0.0f, -1.0f, 0.0f},
   };
   std::vector<glm::uvec3> vertexIndices{
       {0, 1, 2},
@@ -194,11 +194,13 @@ static anari::Surface makeNormalizedCube(anari::Device d)
   anari::setAndReleaseParameter(d,
       geom,
       "faceVarying.attribute0",
-      anari::newArray1D(d, perFacePerVertexUVs.data(), perFacePerVertexUVs.size()));
+      anari::newArray1D(
+          d, perFacePerVertexUVs.data(), perFacePerVertexUVs.size()));
   anari::setAndReleaseParameter(d,
       geom,
       "faceVarying.normal",
-      anari::newArray1D(d, perFacePerVertexNormals.data(), perFacePerVertexNormals.size()));
+      anari::newArray1D(
+          d, perFacePerVertexNormals.data(), perFacePerVertexNormals.size()));
   anari::commitParameters(d, geom);
 
   auto surface = anari::newObject<anari::Surface>(d);
@@ -1228,14 +1230,19 @@ static anari::World loadObj(
 
     anari::setParameter(d, geom, "vertex.position", positionArray);
     if (!normals.empty()) {
-      anari::Array1D normalsArray = anari::newArray1D(d, normals.data(), normals.size());
-      anari::setAndReleaseParameter(d, geom, "faceVarying.normal", normalsArray);
+      anari::Array1D normalsArray =
+          anari::newArray1D(d, normals.data(), normals.size());
+      anari::setAndReleaseParameter(
+          d, geom, "faceVarying.normal", normalsArray);
     }
     if (!texcoords.empty()) {
-      anari::Array1D texcoordArray = anari::newArray1D(d, texcoords.data(), texcoords.size());
-      anari::setAndReleaseParameter(d, geom, "faceVarying.attribute0", texcoordArray);
+      anari::Array1D texcoordArray =
+          anari::newArray1D(d, texcoords.data(), texcoords.size());
+      anari::setAndReleaseParameter(
+          d, geom, "faceVarying.attribute0", texcoordArray);
     }
-    anari::setAndReleaseParameter(d, geom, "primitive.index", anari::newArray1D(d, vi.data(), vi.size()));
+    anari::setAndReleaseParameter(
+        d, geom, "primitive.index", anari::newArray1D(d, vi.data(), vi.size()));
 
     anari::commitParameters(d, geom);
 
@@ -1308,14 +1315,14 @@ static ScenePtr loadObjFile(anari::Device d, ObjFileConfig config)
 // MDL cube scene /////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-static ScenePtr generateMDLCubeScene(
-    anari::Device d, MDLCubeConfig config)
+static ScenePtr generateMDLCubeScene(anari::Device d, MDLCubeConfig config)
 {
   auto world = anari::newObject<anari::World>(d);
   auto cube = makeNormalizedCube(d);
   anari::setParameter(d, cube, "material", config.material);
 
-  anari::setAndReleaseParameter(d, world, "surface", anari::newArray1D(d, &cube));
+  anari::setAndReleaseParameter(
+      d, world, "surface", anari::newArray1D(d, &cube));
   anari::release(d, cube);
 
   return std::make_unique<Scene>(d, world);
@@ -1385,7 +1392,8 @@ ScenePtr generateScene(anari::Device d, SceneConfig config)
 #ifdef USE_MDL
         else if constexpr (std::is_same_v<T, MDLCubeConfig>) {
           auto material = anari::newObject<anari::Material>(d, "mdl");
-          anari::setParameter(d, material, "source", arg.choices[arg.selection]);
+          anari::setParameter(
+              d, material, "source", arg.choices[arg.selection]);
           anari::commitParameters(d, material);
           arg.material = material;
 
