@@ -48,15 +48,15 @@
 #include <mi/base/handle.h>
 #include <mi/base/ilogger.h>
 #include <mi/neuraylib/icompiled_material.h>
-#include <mi/neuraylib/ineuray.h>
+#include <mi/neuraylib/idatabase.h>
+#include <mi/neuraylib/iimage_api.h>
+#include <mi/neuraylib/imdl_backend.h>
 #include <mi/neuraylib/imdl_compiler.h>
 #include <mi/neuraylib/imdl_configuration.h>
-#include <mi/neuraylib/idatabase.h>
-#include <mi/neuraylib/iscope.h>
-#include <mi/neuraylib/imdl_factory.h>
 #include <mi/neuraylib/imdl_execution_context.h>
-#include <mi/neuraylib/imdl_backend.h>
-#include <mi/neuraylib/iimage_api.h>
+#include <mi/neuraylib/imdl_factory.h>
+#include <mi/neuraylib/ineuray.h>
+#include <mi/neuraylib/iscope.h>
 #endif // defined(USE_MDL)
 // std
 #include <vector>
@@ -224,7 +224,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 #ifdef USE_MDL
   struct MDLContext
   {
-  private:
+   private:
     struct UuidHasher
     {
       std::size_t operator()(const mi::base::Uuid &uuid) const noexcept
@@ -233,7 +233,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
       }
     };
 
-  public:
+   public:
     mi::base::Handle<mi::neuraylib::INeuray> neuray;
     mi::base::Handle<mi::base::ILogger> logger;
     mi::base::Handle<mi::neuraylib::IMdl_compiler> mdlCompiler;
@@ -247,15 +247,17 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     mi::base::Handle<mi::neuraylib::IMdl_backend> backendCudaPtx;
     mi::base::Handle<mi::neuraylib::IImage_api> imageApi;
 
-    using TargetCodeCache = std::unordered_map<mi::base::Uuid, mi::base::Handle<mi::neuraylib::ITarget_code const>, UuidHasher>;
+    using TargetCodeCache = std::unordered_map<mi::base::Uuid,
+        mi::base::Handle<mi::neuraylib::ITarget_code const>,
+        UuidHasher>;
 
-    /// Maps a compiled material hash to a target code object to avoid generation
-    /// of duplicate code.
+    /// Maps a compiled material hash to a target code object to avoid
+    /// generation of duplicate code.
     TargetCodeCache targetCodeCache;
 #ifdef MI_PLATFORM_WINDOWS
     HMODULE dllHandle = nullptr;
 #else
-    void* dllHandle = {};
+    void *dllHandle = {};
 #endif
   } mdl;
 #endif // defined(USE_MDL)
