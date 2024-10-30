@@ -438,33 +438,35 @@ void Renderer::initOptixPipeline()
 
     // MDLs
 #ifdef USE_MDL
-    for (const auto &ptxBlob : MDLCompiler::getMDLCompiler(&state)->getPTXBlobs()) {
-      OptixModule module;
-      OptixModuleCompileOptions moduleCompileOptions = {};
-      moduleCompileOptions.maxRegisterCount =
-          OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
-      moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-      moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
-      moduleCompileOptions.numPayloadTypes = 0;
-      moduleCompileOptions.payloadTypes = 0;
+    if (auto mdlCompiler = MDLCompiler::getMDLCompiler(&state)) {
+      for (const auto &ptxBlob : mdlCompiler->getPTXBlobs()) {
+        OptixModule module;
+        OptixModuleCompileOptions moduleCompileOptions = {};
+        moduleCompileOptions.maxRegisterCount =
+            OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+        moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+        moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+        moduleCompileOptions.numPayloadTypes = 0;
+        moduleCompileOptions.payloadTypes = 0;
 
-      auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
+        auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
-      OPTIX_CHECK(optixModuleCreate(state.optixContext,
-          &moduleCompileOptions,
-          &pipelineCompileOptions,
-          reinterpret_cast<const char *>(ptxBlob.ptr),
-          ptxBlob.size,
-          log,
-          &sizeof_log,
-          &module));
+        OPTIX_CHECK(optixModuleCreate(state.optixContext,
+            &moduleCompileOptions,
+            &pipelineCompileOptions,
+            reinterpret_cast<const char *>(ptxBlob.ptr),
+            ptxBlob.size,
+            log,
+            &sizeof_log,
+            &module));
 
-      OptixProgramGroupDesc callableDesc = {};
-      callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-      callableDesc.callables.moduleDC = module;
-      callableDesc.callables.entryFunctionNameDC =
-          "__direct_callable__evalSurfaceMaterial";
-      callableDescs.push_back(callableDesc);
+        OptixProgramGroupDesc callableDesc = {};
+        callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+        callableDesc.callables.moduleDC = module;
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evalSurfaceMaterial";
+        callableDescs.push_back(callableDesc);
+      }
     }
 #endif // defined(USE_MDL)
 
@@ -562,14 +564,16 @@ void Renderer::initOptixPipeline()
 
     // MDL
 #ifdef USE_MDL
-    auto compiler = MDLCompiler::getMDLCompiler(&state);
-    auto mdlSbtEntries = compiler->getMaterialSbtEntries();
+    if (auto compiler = MDLCompiler::getMDLCompiler(&state)) {
+      auto mdlSbtEntries = compiler->getMaterialSbtEntries();
 
-    for (const auto &materialSbtData : mdlSbtEntries) {
-      MaterialRecord rec;
-      rec.data = materialSbtData;
-      materialRecords.push_back(rec);
-      OPTIX_CHECK(optixSbtRecordPackHeader(m_materialPGs[i++], &materialRecords.back()));
+      for (const auto &materialSbtData : mdlSbtEntries) {
+        MaterialRecord rec;
+        rec.data = materialSbtData;
+        materialRecords.push_back(rec);
+        OPTIX_CHECK(optixSbtRecordPackHeader(
+            m_materialPGs[i++], &materialRecords.back()));
+      }
     }
 #endif // defined(USE_MDL)
 
