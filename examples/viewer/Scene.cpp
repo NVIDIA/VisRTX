@@ -827,7 +827,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
           rng.seed(std::random_device{}());
           auto *b = anari::map<float>(d, voxelArray);
           auto *e = b + (volumeDims * volumeDims * volumeDims);
-          std::for_each(b, e, [&](auto &v) { v = dist(rng); });
+          std::generate(b, e, [&]() { return dist(rng); });
           anari::unmap(d, voxelArray);
         }
 
