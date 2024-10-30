@@ -40,6 +40,8 @@
 
 #include "utility/AnariTypeHelpers.h"
 
+#include <texture_indirect_functions.h>
+
 namespace visrtx {
 
 VISRTX_DEVICE bool isPopulated(const AttributeData &ap)
@@ -433,12 +435,12 @@ VISRTX_DEVICE MaterialValues getMaterialValues(const FrameGPUData &fd,
   float opacity = getMaterialParameter(fd, md.opacity, hit).x;
 
   return {
-      .materialType = MaterialType::MATTE,
-      .baseColor = vec3(color),
-      .opacity = adjustedMaterialOpacity(color.w * opacity, md),
-      .metallic = 0.0f,
-      .roughness = 0.5f,
-      .ior = 1.0f,
+      MaterialType::MATTE,
+      vec3(color),
+      adjustedMaterialOpacity(color.w * opacity, md),
+      0.0f,
+      0.5f,
+      1.0f,
   };
 }
 
@@ -450,12 +452,12 @@ VISRTX_DEVICE MaterialValues getMaterialValues(const FrameGPUData &fd,
   float opacity = getMaterialParameter(fd, md.opacity, hit).x;
 
   return {
-      .materialType = MaterialType::PHYSICALLYBASED,
-      .baseColor = vec3(color),
-      .opacity = adjustedMaterialOpacity(color.w * opacity, md),
-      .metallic = getMaterialParameter(fd, md.metallic, hit).x,
-      .roughness = getMaterialParameter(fd, md.roughness, hit).x,
-      .ior = md.ior,
+      MaterialType::PHYSICALLYBASED,
+      vec3(color),
+      adjustedMaterialOpacity(color.w * opacity, md),
+      getMaterialParameter(fd, md.metallic, hit).x,
+      getMaterialParameter(fd, md.roughness, hit).x,
+      md.ior,
   };
 }
 
@@ -469,12 +471,12 @@ VISRTX_DEVICE MaterialValues getMaterialValues(
     return getMaterialValues(fd, md.physicallyBased, hit);
   default:
     return {
-        .materialType = MaterialType::MATTE,
-        .baseColor = vec3(0.8f, 0.8f, 0.8f),
-        .opacity = 1.0f,
-        .metallic = 0.0f,
-        .roughness = 0.5f,
-        .ior = 1.0f,
+        MaterialType::MATTE,
+        vec3(0.8f, 0.8f, 0.8f),
+        1.0f,
+        0.0f,
+        0.5f,
+        1.0f,
     };
   }
 }

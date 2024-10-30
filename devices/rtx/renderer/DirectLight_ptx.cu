@@ -83,10 +83,10 @@ VISRTX_DEVICE vec4 shadeSurface(
 
   // Env faking
   LightSample ls = {
-      .radiance = rendererParams.ambientIntensity * rendererParams.ambientColor,
-      .dir = -ray.dir,
-      .dist = 1000.f,
-      .pdf = 1.0f,
+      rendererParams.ambientIntensity * rendererParams.ambientColor,
+      -ray.dir,
+      1000.f,
+      1.0f,
   };
   const vec4 matAoResult =
       evalMaterial(frameData, ss, *hit.material, hit, ray, ls);

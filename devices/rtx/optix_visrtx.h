@@ -252,7 +252,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     /// Maps a compiled material hash to a target code object to avoid generation
     /// of duplicate code.
     TargetCodeCache targetCodeCache;
-#if MI_PLATFORM_WINDOWS
+#ifdef MI_PLATFORM_WINDOWS
     HMODULE dllHandle = nullptr;
 #else
     void* dllHandle = {};
