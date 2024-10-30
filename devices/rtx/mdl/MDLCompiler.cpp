@@ -67,6 +67,11 @@
 #ifdef MI_PLATFORM_WINDOWS
 #include <mi/base/miwindows.h>
 #include <direct.h>
+#ifdef UNICODE
+#define FMT_LPTSTR "%ls"
+#else // UNICODE
+#define FMT_LPTSTR "%s"
+#endif // UNICODE
 #else
 #include <dlfcn.h>
 #endif
@@ -369,22 +374,22 @@ bool MDLCompiler::setUp(DeviceGlobalState *deviceState)
   }
 
   deviceState->mdl = DeviceGlobalState::MDLContext{
-      .neuray = neuray,
-      .logger = logger,
-      .mdlCompiler = mdlCompiler,
-      .mdlConfiguration = mdlConfiguration,
-      .database = database,
-      .globalScope = globalScope,
-      .mdlFactory = mdlFactory,
+      neuray,
+      logger,
+      mdlCompiler,
+      mdlConfiguration,
+      database,
+      globalScope,
+      mdlFactory,
 
-      .executionContext = executionContext,
+      executionContext,
 
-      .backendCudaPtx = backendCudaPtx,
-      .imageApi = imageApi,
+      backendCudaPtx,
+      imageApi,
 
-      .targetCodeCache = {},
+      {},
 
-      .dllHandle = dllHandle,
+      dllHandle,
   };
 
   s_instances.insert({deviceState, new MDLCompiler(deviceState)});
@@ -687,8 +692,8 @@ std::optional<MDLCompiler::CompilationResult> MDLCompiler::compileMaterial(
       : nullptr;
 
   return CompilationResult{
-      .uuid = materialHash,
-      .targetCode = targetCode,
+      materialHash,
+      targetCode,
   };
 }
 
@@ -719,7 +724,7 @@ MDLCompiler::DllHandle MDLCompiler::loadMdlSdk(const DeviceGlobalState* deviceSt
 #ifdef MI_PLATFORM_WINDOWS
   handle = LoadLibraryA(filename);
   if (handle == nullptr) {
-    reportMessage(deviceState, "Failed to load MDL SDK: %s", getLastErrorString().c_str());
+    reportMessage(deviceState, ANARI_SEVERITY_ERROR, "Failed to load MDL SDK.");
     LPTSTR buffer = 0;
     LPCTSTR message = TEXT("unknown failure");
     DWORD errorCode = GetLastError();
@@ -767,7 +772,7 @@ bool MDLCompiler::unloadMdlSdk(const DeviceGlobalState* deviceState, DllHandle d
 
 mi::neuraylib::INeuray* MDLCompiler::getINeuray(const DeviceGlobalState* deviceState, DllHandle dllHandle) {
 #ifdef MI_PLATFORM_WINDOWS
-  void *symbol = GetProcAddress(handle, "mi_factory");
+  void *symbol = GetProcAddress(dllHandle, "mi_factory");
   if (!symbol) {
     LPTSTR buffer = 0;
     LPCTSTR message = TEXT("unknown failure");
@@ -781,13 +786,15 @@ mi::neuraylib::INeuray* MDLCompiler::getINeuray(const DeviceGlobalState* deviceS
             0,
             0))
       message = buffer;
-    reportMessage(deviceState, ANARI_SEVERITY_ERROR,
+    reportMessage(deviceState,
+        ANARI_SEVERITY_ERROR,
         "GetProcAddress error (%u): " FMT_LPTSTR,
         error_code,
         message);
     if (buffer)
       LocalFree(buffer);
     return nullptr;
+  }
 #else
   void *symbol = dlsym(dllHandle, "mi_factory");
   if (!symbol) {
@@ -1046,13 +1053,13 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
   if (it == end(m_materialImplementations)) {
     it = m_materialImplementations.insert(it,
         {
-            .materialInfo = std::move(materialInfo),
-            .ptxBlob = std::move(finalPtx),
+            std::move(materialInfo),
+            std::move(finalPtx),
         });
   } else {
     *it = {
-        .materialInfo = std::move(materialInfo),
-        .ptxBlob = std::move(finalPtx), 
+        std::move(materialInfo),
+        std::move(finalPtx), 
     };
   }
 
@@ -1070,8 +1077,8 @@ std::vector<ptx_blob> MDLCompiler::getPTXBlobs()
 
   for (const auto &materialImplementation : m_materialImplementations) {
     blobs.push_back({
-        .ptr = data(materialImplementation.ptxBlob),
-        .size = size(materialImplementation.ptxBlob),
+        data(materialImplementation.ptxBlob),
+        size(materialImplementation.ptxBlob),
     });
   }
 
@@ -1104,7 +1111,7 @@ std::vector<MaterialSbtData> MDLCompiler::getMaterialSbtEntries()
 
   for (auto &offset : offsets) {
     entries.push_back(
-        {.mdl = {.materialData = offset != -1ul
+        { {offset != -1ul
                  ? reinterpret_cast<const MDLMaterialData *>(baseAddr + offset)
                  : nullptr}});
   }
@@ -1184,11 +1191,13 @@ Sampler* MDLCompiler::prepareTexture(
       case mi::neuraylib::ITarget_code::Texture_shape_2d: {
         Array2DMemoryDescriptor desc = {
           {
-            .appMemory = canvas->get_tile(0)->get_data(),
-            .elementType = dataType,
+            canvas->get_tile(0)->get_data(),
+            nullptr,
+            nullptr,
+            dataType,
           },
-         .numItems1 = tex_width,
-         .numItems2 = tex_height,
+         tex_width,
+         tex_height,
         };
 
         auto array2d = new Array2D(m_deviceState, desc);
@@ -1204,12 +1213,14 @@ Sampler* MDLCompiler::prepareTexture(
       {
         Array3DMemoryDescriptor desc = {
           {
-            .appMemory = canvas->get_tile(0)->get_data(),
-            .elementType = dataType,
+            canvas->get_tile(0)->get_data(),
+            nullptr,
+            nullptr,
+            dataType,
           },
-         .numItems1 = tex_width,
-         .numItems2 = tex_height,
-         .numItems3 = tex_layers,
+         tex_width,
+         tex_height,
+         tex_layers,
         };
 
         auto array3d = new Array3D(m_deviceState, desc);

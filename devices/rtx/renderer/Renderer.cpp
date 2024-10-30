@@ -566,7 +566,9 @@ void Renderer::initOptixPipeline()
     auto mdlSbtEntries = compiler->getMaterialSbtEntries();
 
     for (const auto &materialSbtData : mdlSbtEntries) {
-      materialRecords.push_back({.data = materialSbtData});
+      MaterialRecord rec;
+      rec.data = materialSbtData;
+      materialRecords.push_back(rec);
       OPTIX_CHECK(optixSbtRecordPackHeader(m_materialPGs[i++], &materialRecords.back()));
     }
 #endif // defined(USE_MDL)
