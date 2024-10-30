@@ -54,7 +54,7 @@ Material *Material::createInstance(
   else if (subtype == "pbr" || subtype == "physicallyBased")
     return new PBR(d);
 #ifdef USE_MDL
-  else if (subtype == "mdl")
+  else if (subtype == "mdl" && MDLCompiler::getMDLCompiler(d))
     return new MDL(d);
 #endif // defined(USE_MDL)
   else
