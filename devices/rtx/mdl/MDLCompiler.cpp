@@ -930,7 +930,7 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
           it != end(blob);) {
         auto semiColonIt = std::find(it, end(blob), ';');
         if (semiColonIt != end(blob)) {
-          blob.erase(it, ++semiColonIt);
+          it = blob.erase(it, ++semiColonIt);
         }
         it = std::search(it, end(blob), cbegin(externPrefix), cend(externPrefix));
       }
@@ -967,7 +967,7 @@ MDLCompiler::Uuid MDLCompiler::acquireModule(const char *materialName)
       it = next(it); // Skip the new line.
       auto eolIt = std::find(it, end(blob), '\n');
       if (std::search(it, eolIt, cbegin(directCallableSemantic), cend(directCallableSemantic)) == eolIt) {
-        blob.erase(it, it + dotVisible.size() - 1);
+        it = blob.erase(it, it + dotVisible.size() - 1);
       }
       // And search for next occurrence from there. Note that current $str has been broken to $_something_str and is not a match anymore
       // for the search, so we can resume at current position.
