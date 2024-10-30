@@ -112,6 +112,7 @@ enable_testing()
 add_subdirectory(devices)
 add_subdirectory(examples)
 add_subdirectory(tests)
+add_subdirectory(shaders)
 
 ## Configure CMake find_package() config files ################################
 
