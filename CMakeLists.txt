@@ -49,6 +49,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   if (CMAKE_VERSION VERSION_LESS "3.23")
     set(CMAKE_CUDA_ARCHITECTURES OFF)
+  else()
+    set(CMAKE_CUDA_ARCHITECTURES all-major)
   endif()
 endif()
 
@@ -62,6 +64,9 @@ option(
   OFF
 )
 mark_as_advanced(VISRTX_SET_SOVERSION)
+
+option(VISRTX_BUILD_TSD "Build TSD sample applications" OFF)
+mark_as_advanced(VISRTX_BUILD_TSD)
 
 option(
   VISRTX_ENABLE_MDL_SUPPORT
@@ -113,6 +118,9 @@ add_subdirectory(devices)
 add_subdirectory(examples)
 add_subdirectory(tests)
 add_subdirectory(shaders)
+if (VISRTX_BUILD_TSD)
+  add_subdirectory(tsd)
+endif()
 
 ## Configure CMake find_package() config files ################################
 

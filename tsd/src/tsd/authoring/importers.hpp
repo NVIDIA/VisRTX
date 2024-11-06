@@ -1,0 +1,21 @@
+// Copyright 2024 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include "tsd/core/Context.hpp"
+
+namespace tsd {
+
+// clang-format off
+
+void import_ASSIMP(Context &ctx, const char *filename, bool flatten = false);
+void import_DLAF(Context &ctx, const char *filename, bool useDefaultMaterial = false);
+void import_HDRI(Context &ctx, const char *filename);
+void import_NBODY(Context &ctx, const char *filename, bool useDefaultMaterial = false);
+void import_OBJ(Context &ctx, const char *filename, bool useDefaultMaterial = false);
+void import_PLY(Context &ctx, const char *filename);
+
+// clang-format on
+
+} // namespace tsd

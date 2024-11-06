@@ -1,0 +1,42 @@
+// Copyright 2024 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include "../AppContext.h"
+#include "../Logging.h"
+// anari_viewer
+#include "anari_viewer/windows/Window.h"
+// std
+#include <array>
+
+namespace tsd_viewer {
+
+struct Log : public anari_viewer::windows::Window
+{
+  Log(AppContext *ctx, bool installAsLoggingTarget = true);
+  ~Log();
+
+  void buildUI() override;
+
+ private:
+  void addText(logging::LogLevel level, const char *fmt, va_list &args);
+  void showLine(int line_no, bool useFilter);
+  void clear();
+
+  // Data //
+
+  AppContext *m_context{nullptr};
+  bool m_isLoggingTarget{false};
+
+  ImGuiTextBuffer m_buf;
+  ImGuiTextFilter m_filter;
+  ImVector<int> m_lineOffsets;
+  ImVector<int> m_colorIDs;
+
+  std::array<ImVec4, 7> m_colors;
+
+  bool m_autoScroll{true};
+};
+
+} // namespace tsd_viewer

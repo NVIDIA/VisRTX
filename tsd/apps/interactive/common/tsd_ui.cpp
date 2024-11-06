@@ -1,0 +1,351 @@
+// Copyright 2024 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#include "tsd_ui.h"
+
+namespace tsd::ui {
+
+// Helper functions ///////////////////////////////////////////////////////////
+
+static Any parseValue(ANARIDataType type, const void *mem)
+{
+  if (type == ANARI_STRING)
+    return Any(ANARI_STRING, "");
+  else if (anari::isObject(type)) {
+    ANARIObject nullHandle = ANARI_INVALID_HANDLE;
+    return Any(type, &nullHandle);
+  } else if (mem)
+    return Any(type, mem);
+  else
+    return {};
+}
+
+static bool UI_stringList_callback(void *p, int index, const char **out_text)
+{
+  const auto &stringList = ((Parameter *)p)->stringValues();
+  *out_text = stringList[index].c_str();
+  return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void buildUI_object(
+    tsd::Object &o, const tsd::Context &ctx, bool useTableForParameters)
+{
+  ImGui::PushID(&o);
+  if (o.type() == ANARI_SURFACE) {
+    // no-subtype
+    ImGui::Text("[%zu]: '%s'", o.index(), o.name().c_str());
+  } else {
+    // is-subtyped
+    ImGui::Text("[%zu]: '%s' (subtype: '%s')",
+        o.index(),
+        o.name().c_str(),
+        o.subtype().c_str());
+  }
+
+  if (o.type() == ANARI_SURFACE) {
+    auto *s = (tsd::Surface *)&o;
+    ImGui::Indent(tsd::ui::INDENT_AMOUNT);
+    ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+    if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_None)) {
+      const auto *p = s->parameter(tsd::tokens::surface::material);
+      auto pVal = p->value();
+      auto &m = *ctx.getObject<Material>(pVal.getAsObjectIndex());
+      buildUI_object(m, ctx);
+    }
+    ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+    if (ImGui::CollapsingHeader("Geometry", ImGuiTreeNodeFlags_None)) {
+      const auto *p = s->parameter(tsd::tokens::surface::geometry);
+      auto pVal = p->value();
+      auto &g = *ctx.getObject<Geometry>(pVal.getAsObjectIndex());
+      buildUI_object(g, ctx);
+    }
+    ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
+  } else if (o.numParameters() > 0) {
+    ImGui::Separator();
+    if (useTableForParameters) {
+      const ImGuiTableFlags flags =
+          ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable;
+      if (ImGui::BeginTable("parameters", 2, flags)) {
+        ImGui::TableSetupColumn("Parameter");
+        ImGui::TableSetupColumn("Value");
+        ImGui::TableHeadersRow();
+
+        for (size_t i = 0; i < o.numParameters(); i++) {
+          ImGui::TableNextRow();
+          auto &p = o.parameterAt(i);
+          buildUI_parameter(p, ctx, useTableForParameters);
+        }
+
+        ImGui::EndTable();
+      }
+    } else {
+      for (size_t i = 0; i < o.numParameters(); i++)
+        buildUI_parameter(o.parameterAt(i), ctx);
+    }
+  }
+
+  ImGui::PopID();
+}
+
+void buildUI_parameter(
+    tsd::Parameter &p, const tsd::Context &ctx, bool useTable)
+{
+  ImGui::PushID(&p);
+
+  bool update = false;
+
+  auto type = p.type();
+  const char *name = p.name().c_str();
+
+  auto pVal = p.value();
+  const auto pMin = p.min();
+  const auto pMax = p.max();
+
+  void *value = pVal.data();
+
+  const auto usage = p.usage();
+  const bool bounded = pMin || pMax;
+  const bool isArray = anari::isArray(type);
+  const bool showTooltip = !p.description().empty() || isArray;
+
+  if (useTable) {
+    ImGui::TableSetColumnIndex(0);
+    ImGui::Text("%s", name);
+    name = "";
+    ImGui::TableSetColumnIndex(1);
+    ImGui::PushItemWidth(-FLT_MIN); // Right-aligned
+  }
+
+  switch (type) {
+  case ANARI_BOOL:
+    update |= ImGui::Checkbox(name, (bool *)value);
+    break;
+  case ANARI_INT32:
+    if (bounded) {
+      if (pMin && pMax) {
+        update |= ImGui::SliderInt(
+            name, (int *)value, pMin.get<int>(), pMax.get<int>());
+      } else {
+        int min = pMin ? pMin.get<int>() : std::numeric_limits<int>::lowest();
+        int max = pMax ? pMax.get<int>() : std::numeric_limits<int>::max();
+        update |= ImGui::DragInt(name, (int *)value, 1.f, min, max);
+      }
+    } else
+      update |= ImGui::InputInt(name, (int *)value);
+    break;
+  case ANARI_FLOAT32:
+    if (bounded) {
+      if (pMin && pMax) {
+        update |= ImGui::SliderFloat(
+            name, (float *)value, pMin.get<float>(), pMax.get<float>());
+      } else {
+        float min =
+            pMin ? pMin.get<float>() : std::numeric_limits<float>::lowest();
+        float max =
+            pMax ? pMax.get<float>() : std::numeric_limits<float>::max();
+        update |= ImGui::DragFloat(name, (float *)value, 1.f, min, max);
+      }
+    } else
+      update |= ImGui::DragFloat(name, (float *)value);
+    break;
+  case ANARI_FLOAT32_VEC2:
+    if (bounded) {
+      if (pMin && pMax) {
+        update |= ImGui::SliderFloat2(
+            name, (float *)value, pMin.get<float2>().x, pMax.get<float2>().x);
+      } else {
+        float min =
+            pMin ? pMin.get<float2>().x : std::numeric_limits<float>::lowest();
+        float max =
+            pMax ? pMax.get<float2>().x : std::numeric_limits<float>::max();
+        update |= ImGui::DragFloat2(name, (float *)value, 1.f, min, max);
+      }
+    } else
+      update |= ImGui::DragFloat2(name, (float *)value);
+    break;
+  case ANARI_FLOAT32_VEC3:
+    if (usage & tsd::ParameterUsageHint::COLOR)
+      update |= ImGui::ColorEdit3(name, (float *)value);
+    else
+      update |= ImGui::DragFloat3(name, (float *)value);
+    break;
+  case ANARI_FLOAT32_VEC4:
+    if (usage & tsd::ParameterUsageHint::COLOR)
+      update |= ImGui::ColorEdit4(name, (float *)value);
+    else
+      update |= ImGui::DragFloat4(name, (float *)value);
+    break;
+  case ANARI_STRING: {
+    if (!p.stringValues().empty()) {
+      auto ss = p.stringSelection();
+      update |= ImGui::Combo(
+          name, &ss, UI_stringList_callback, &p, p.stringValues().size());
+
+      if (update) {
+        pVal = p.stringValues()[ss].c_str();
+        p.setStringSelection(ss);
+      }
+    } else {
+#if 1
+      if (useTable)
+        ImGui::Text("\"%s\"", pVal.getString().c_str());
+      else
+        ImGui::BulletText("%s | '%s'", name, pVal.getString().c_str());
+#else
+      constexpr int MAX_LENGTH = 2000;
+      p.value.reserveString(MAX_LENGTH);
+
+      if (ImGui::Button("...")) {
+        nfdchar_t *outPath = nullptr;
+        nfdfilteritem_t filterItem[1] = {{"OBJ Files", "obj"}};
+        nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 1, nullptr);
+        if (result == NFD_OKAY) {
+          p.value = std::string(outPath).c_str();
+          update = true;
+          NFD_FreePath(outPath);
+        } else {
+          printf("NFD Error: %s\n", NFD_GetError());
+        }
+      }
+
+      ImGui::SameLine();
+
+      auto text_cb = [](ImGuiInputTextCallbackData *cbd) {
+        auto &p = *(ui::Parameter *)cbd->UserData;
+        p.value.resizeString(cbd->BufTextLen);
+        return 0;
+      };
+      update |= ImGui::InputText(name,
+          (char *)value,
+          MAX_LENGTH,
+          ImGuiInputTextFlags_CallbackEdit,
+          text_cb,
+          &p);
+#endif
+    }
+  } break;
+  default:
+    if (useTable)
+      ImGui::Text("%s", anari::toString(type));
+    else
+      ImGui::BulletText("%s | %s", name, anari::toString(type));
+    break;
+  }
+
+  if (showTooltip && ImGui::IsItemHovered()) {
+    ImGui::BeginTooltip();
+    if (isArray) {
+      const auto &a = *ctx.getObject<Array>(pVal.getAsObjectIndex());
+      const auto s = a.shape();
+      if (s == 3)
+        ImGui::Text(" size: %zu x %zu x %zu", a.dim(0), a.dim(1), a.dim(2));
+      else if (s == 2)
+        ImGui::Text(" size: %zu x %zu", a.dim(0), a.dim(1));
+      else
+        ImGui::Text(" size: %zu", a.dim(0));
+      ImGui::Text("shape: %zuD", s);
+      ImGui::Text(" type: %s", anari::toString(a.elementType()));
+    } else
+      ImGui::Text("%s", p.description().c_str());
+    ImGui::EndTooltip();
+  }
+
+  if (update)
+    p.setValue(pVal);
+
+  ImGui::PopID();
+}
+
+void addDefaultRendererParameters(Object &o)
+{
+  auto &background = o.addParameterRaw("background"_t);
+  background.setUsage(ParameterUsageHint::COLOR);
+  background.setValue(float4(0.05f, 0.05f, 0.05f, 1.f));
+
+  auto &ambientRadiance = o.addParameterRaw("ambientRadiance"_t);
+  ambientRadiance.setValue(0.25f);
+  ambientRadiance.setMin(0.f);
+
+  auto &ambientColor = o.addParameterRaw("ambientColor"_t);
+  ambientColor.setUsage(ParameterUsageHint::COLOR);
+  ambientColor.setValue(float3(1.f));
+}
+
+Object parseANARIObject(
+    anari::Device d, ANARIDataType objectType, const char *subtype)
+{
+  Object retval(objectType, subtype);
+
+  if (objectType == ANARI_RENDERER)
+    addDefaultRendererParameters(retval);
+
+  auto *parameter = (const ANARIParameter *)anariGetObjectInfo(
+      d, objectType, subtype, "parameter", ANARI_PARAMETER_LIST);
+
+  for (; parameter && parameter->name != nullptr; parameter++) {
+    tsd::Token name(parameter->name);
+    if (retval.parameter(name))
+      continue;
+
+    auto &p = retval.addParameter(name, Any(parameter->type, nullptr));
+
+    auto *description = (const char *)anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "description",
+        ANARI_STRING);
+
+    const void *defaultValue = anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "default",
+        parameter->type);
+
+    const void *minValue = anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "minimum",
+        parameter->type);
+
+    const void *maxValue = anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "maximum",
+        parameter->type);
+
+    const auto **stringValues = (const char **)anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "value",
+        ANARI_STRING_LIST);
+
+    p.setDescription(description ? description : "");
+    p.setValue(parseValue(parameter->type, defaultValue));
+    if (minValue)
+      p.setMin(parseValue(parameter->type, minValue));
+    if (maxValue)
+      p.setMax(parseValue(parameter->type, maxValue));
+
+    std::vector<std::string> svs;
+    for (; stringValues && *stringValues; stringValues++)
+      svs.push_back(*stringValues);
+    if (!svs.empty())
+      p.setStringValues(svs);
+  }
+
+  return retval;
+}
+
+} // namespace tsd::ui

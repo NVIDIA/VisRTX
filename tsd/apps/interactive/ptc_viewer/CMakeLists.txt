@@ -1,0 +1,9 @@
+## Copyright 2024 NVIDIA Corporation
+## SPDX-License-Identifier: Apache-2.0
+
+find_package(MPI REQUIRED)
+
+project(ptcViewer)
+project_add_executable(DistributedViewport.cpp ptcViewer.cpp)
+project_link_libraries(PRIVATE tsd_viewer_common MPI::MPI_CXX)
+project_include_directories(PRIVATE external)
