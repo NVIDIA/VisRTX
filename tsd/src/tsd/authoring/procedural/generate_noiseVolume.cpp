@@ -8,7 +8,9 @@
 
 namespace tsd {
 
-void generate_noiseVolume(Context &ctx)
+IndexedVectorRef<Volume> generate_noiseVolume(Context &ctx,
+    IndexedVectorRef<Array> colorArray,
+    IndexedVectorRef<Array> opacityArray)
 {
   // Generate spatial field //
 
@@ -38,10 +40,10 @@ void generate_noiseVolume(Context &ctx)
   auto volume = ctx.createObject<Volume>(tokens::volume::transferFunction1D);
   volume->setName("noise_volume");
 
-  auto colorArray = ctx.createArray(ANARI_FLOAT32_VEC3, 3);
-  auto opacityArray = ctx.createArray(ANARI_FLOAT32, 2);
+  if (!(colorArray && opacityArray)) {
+    colorArray = ctx.createArray(ANARI_FLOAT32_VEC3, 3);
+    opacityArray = ctx.createArray(ANARI_FLOAT32, 2);
 
-  {
     std::vector<float3> colors;
     std::vector<float> opacities;
 
@@ -63,6 +65,8 @@ void generate_noiseVolume(Context &ctx)
 
   ctx.tree.insert_last_child(
       ctx.tree.root(), utility::Any(ANARI_VOLUME, volume.index()));
+
+  return volume;
 }
 
 } // namespace tsd

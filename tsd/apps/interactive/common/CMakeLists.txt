@@ -8,6 +8,7 @@ project_sources(PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/windows/Log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/ObjectEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/ObjectTree.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/windows/TransferFunctionEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/Viewport.cpp
   ${CMAKE_CURRENT_LIST_DIR}/AppContext.cpp
   ${CMAKE_CURRENT_LIST_DIR}/Logging.cpp
