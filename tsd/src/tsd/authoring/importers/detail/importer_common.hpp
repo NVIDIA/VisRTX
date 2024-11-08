@@ -7,11 +7,14 @@
 // std
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace tsd {
 
 std::string pathOf(const std::string &filepath);
 std::string fileOf(const std::string &filepath);
+std::string extensionOf(const std::string &filepath);
+std::vector<std::string> splitString(const std::string &s, char delim);
 
 using TextureCache = std::unordered_map<std::string, IndexedVectorRef<Sampler>>;
 IndexedVectorRef<Sampler> importTexture(

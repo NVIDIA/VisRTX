@@ -23,6 +23,7 @@ enum class ImporterType
   PLY,
   OBJ,
   HDRI,
+  RAW,
   NONE
 };
 

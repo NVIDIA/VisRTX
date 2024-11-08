@@ -5,12 +5,6 @@ project_add_library(STATIC)
 
 project_sources(
 PRIVATE
-  authoring/procedural/generate_cylinders.cpp
-  authoring/procedural/generate_material_orb.cpp
-  authoring/procedural/generate_monkey.cpp
-  authoring/procedural/generate_noiseVolume.cpp
-  authoring/procedural/generate_randomSpheres.cpp
-  authoring/procedural/generate_rtow.cpp
   authoring/importers/detail/HDRImage.cpp
   authoring/importers/detail/importer_common.cpp
   authoring/importers/import_ASSIMP.cpp
@@ -19,6 +13,13 @@ PRIVATE
   authoring/importers/import_NBODY.cpp
   authoring/importers/import_OBJ.cpp
   authoring/importers/import_PLY.cpp
+  authoring/importers/import_RAW.cpp
+  authoring/procedural/generate_cylinders.cpp
+  authoring/procedural/generate_material_orb.cpp
+  authoring/procedural/generate_monkey.cpp
+  authoring/procedural/generate_noiseVolume.cpp
+  authoring/procedural/generate_randomSpheres.cpp
+  authoring/procedural/generate_rtow.cpp
   authoring/serialization/serialization.cpp
   core/AnariObjectCache.cpp
   core/Context.cpp

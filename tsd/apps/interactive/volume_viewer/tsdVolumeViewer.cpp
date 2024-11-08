@@ -21,6 +21,7 @@
 
 using tsd_viewer::ImporterType;
 
+static std::string g_filename;
 static tsd_viewer::AppContext *g_context = nullptr;
 static const char *g_defaultLayout =
     R"layout(
@@ -156,8 +157,15 @@ class Application : public anari_viewer::Application
       auto colorArray = g_context->tsd.ctx.createArray(ANARI_FLOAT32_VEC3, 256);
       auto opacityArray = g_context->tsd.ctx.createArray(ANARI_FLOAT32, 256);
 
-      auto volume = tsd::generate_noiseVolume(
-          g_context->tsd.ctx, colorArray, opacityArray);
+      tsd::IndexedVectorRef<tsd::Volume> volume;
+
+      if (!g_filename.empty()) {
+        volume = tsd::import_RAW(
+            g_context->tsd.ctx, g_filename.c_str(), colorArray, opacityArray);
+      } else {
+        volume = tsd::generate_noiseVolume(
+            g_context->tsd.ctx, colorArray, opacityArray);
+      }
       tf->setValueRange({0.f, 1.f});
 
       g_context->setupSceneFromCommandLine(true);
@@ -181,8 +189,6 @@ class Application : public anari_viewer::Application
       g_context->tsd.sceneLoadComplete = true;
 
       viewport->setLibrary(g_context->commandLine.libraryList[0], false);
-
-      m->setConfig(tsd::float3(0.f), 5.f, tsd::float2(320.f, 35.f));
 
       tf->setUpdateCallback([=](const tsd::float2 &valueRange,
                                 const std::vector<tsd::float4> &co) mutable {
@@ -265,6 +271,9 @@ class Application : public anari_viewer::Application
 int main(int argc, char *argv[])
 {
   {
+    if (argc > 1)
+      g_filename = argv[1];
+
     auto context = std::make_unique<tsd_viewer::AppContext>();
     g_context = context.get();
 

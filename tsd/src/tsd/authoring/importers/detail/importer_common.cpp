@@ -4,6 +4,8 @@
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 // stb_image
 #include "tsd_stb/stb_image.h"
+// std
+#include <sstream>
 
 namespace tsd {
 
@@ -29,6 +31,23 @@ std::string fileOf(const std::string &filepath)
   return filepath.substr(pos + 1, filepath.size());
 }
 
+std::string extensionOf(const std::string &filepath)
+{
+  size_t pos = filepath.rfind('.');
+  if (pos == filepath.npos)
+    return "";
+  return filepath.substr(pos);
+}
+
+std::vector<std::string> splitString(const std::string &s, char delim)
+{
+  std::vector<std::string> result;
+  std::istringstream stream(s);
+  for (std::string token; std::getline(stream, token, delim);)
+    result.push_back(token);
+  return result;
+}
+
 IndexedVectorRef<Sampler> importTexture(
     Context &ctx, std::string filepath, TextureCache &cache)
 {
@@ -48,8 +67,9 @@ IndexedVectorRef<Sampler> importTexture(
       if (!data)
         printf("failed to import texture '%s'\n", filepath.c_str());
       else
-        printf(
-            "texture '%s' with %i channels not imported\n", filepath.c_str(), n);
+        printf("texture '%s' with %i channels not imported\n",
+            filepath.c_str(),
+            n);
       return {};
     }
 

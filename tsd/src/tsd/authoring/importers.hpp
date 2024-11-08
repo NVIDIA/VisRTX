@@ -15,6 +15,10 @@ void import_HDRI(Context &ctx, const char *filename);
 void import_NBODY(Context &ctx, const char *filename, bool useDefaultMaterial = false);
 void import_OBJ(Context &ctx, const char *filename, bool useDefaultMaterial = false);
 void import_PLY(Context &ctx, const char *filename);
+IndexedVectorRef<Volume> import_RAW(Context &ctx,
+    const char *filename,
+    IndexedVectorRef<Array> colors,
+    IndexedVectorRef<Array> opacities);
 
 // clang-format on
 

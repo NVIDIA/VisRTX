@@ -112,6 +112,8 @@ void AppContext::parseCommandLine(int argc, char *argv[])
       importerType = ImporterType::ASSIMP_FLAT;
     else if (arg == "-ply")
       importerType = ImporterType::PLY;
+    else if (arg == "-raw")
+      importerType = ImporterType::RAW;
     else if (importerType != ImporterType::NONE)
       this->commandLine.filenames.push_back({importerType, arg});
   }
@@ -169,6 +171,10 @@ void AppContext::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_NBODY(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::HDRI)
         tsd::import_HDRI(tsd.ctx, f.second.c_str());
+#if 0
+      else if (f.first == ImporterType::RAW)
+        tsd::import_RAW(tsd.ctx, f.second.c_str());
+#endif
     }
   }
 }
