@@ -224,7 +224,7 @@ VISRTX_GLOBAL void __raygen__()
         } else {
           outputNormal = surfaceHit.Ns;
           depth = surfaceHit.t;
-          primID = surfaceHit.primID;
+          primID = computeGeometryPrimId(surfaceHit);
           objID = surfaceHit.objID;
           instID = surfaceHit.instID;
         }

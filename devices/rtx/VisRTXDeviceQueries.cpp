@@ -981,7 +981,7 @@ static const void * ANARI_RENDERER_debug_method_info(ANARIDataType paramType, in
          }
       case 6: // value
          if(paramType == ANARI_STRING && infoType == ANARI_STRING_LIST) {
-            static const char *values[] = {"primID", "geomID", "instID", "Ng", "Ng.abs", "Ns", "Ns.abs", "uvw", "backface", "istri", "isvol", "hasMaterial", "geometry.attribute0", "geometry.attribute1", "geometry.attribute2", "geometry.attribute3", "geometry.color", nullptr};
+            static const char *values[] = {"primitiveId", "objectId", "instanceId", "primIndex", "objIndex", "instIndex", "Ng", "Ng.abs", "Ns", "Ns.abs", "uvw", "backface", "istri", "isvol", "hasMaterial", "geometry.attribute0", "geometry.attribute1", "geometry.attribute2", "geometry.attribute3", "geometry.color", nullptr};
             return values;
          } else {
             return nullptr;

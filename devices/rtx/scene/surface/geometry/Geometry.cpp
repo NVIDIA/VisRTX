@@ -115,6 +115,7 @@ void Geometry::commit()
   m_uniformAttributes.attribute2 = getUniformAttribute("attribute2");
   m_uniformAttributes.attribute3 = getUniformAttribute("attribute3");
   m_uniformAttributes.color = getUniformAttribute("color");
+  m_primitiveId = getParamObject<Array1D>("primitive.id");
 }
 
 void Geometry::markCommitted()
@@ -134,6 +135,8 @@ GeometryGPUData Geometry::gpuData() const
   retval.attrUniform[3] = m_uniformAttributes.attribute3.value_or(defaultAttr);
   retval.attrUniform[4] = m_uniformAttributes.color.value_or(defaultAttr);
   populateAttributeDataSet(m_primitiveAttributes, retval.attr);
+  retval.primitiveId =
+      (const uint32_t *)(m_primitiveId ? m_primitiveId->dataGPU() : nullptr);
 
   return retval;
 }

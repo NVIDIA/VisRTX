@@ -36,8 +36,11 @@ namespace visrtx {
 enum class DebugMethod
 {
   PRIM_ID,
-  GEOM_ID,
+  OBJ_ID,
   INST_ID,
+  PRIM_INDEX,
+  OBJ_INDEX,
+  INST_INDEX,
   NG,
   NG_ABS,
   NS,

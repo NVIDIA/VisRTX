@@ -61,12 +61,21 @@ VISRTX_DEVICE void handleSurfaceHit()
 
   switch (method) {
   case DebugMethod::PRIM_ID:
-    rd.outColor = makeRandomColor(ray::primID());
+    rd.outColor = makeRandomColor(computeGeometryPrimId(rd));
     break;
-  case DebugMethod::GEOM_ID:
-    rd.outColor = makeRandomColor(ray::objID());
+  case DebugMethod::OBJ_ID:
+    rd.outColor = makeRandomColor(rd.objID);
     break;
   case DebugMethod::INST_ID:
+    rd.outColor = makeRandomColor(rd.instID);
+    break;
+  case DebugMethod::PRIM_INDEX:
+    rd.outColor = makeRandomColor(ray::primID());
+    break;
+  case DebugMethod::OBJ_INDEX:
+    rd.outColor = makeRandomColor(ray::objID());
+    break;
+  case DebugMethod::INST_INDEX:
     rd.outColor = makeRandomColor(ray::instID());
     break;
   case DebugMethod::RAY_UVW:
@@ -129,13 +138,20 @@ VISRTX_DEVICE void handleVolumeHit()
       static_cast<DebugMethod>(frameData.renderer.params.debug.method);
 
   switch (method) {
-  case DebugMethod::PRIM_ID:
-    rd.outColor = makeRandomColor(ray::primID());
-    break;
-  case DebugMethod::GEOM_ID:
-    rd.outColor = makeRandomColor(ray::objID());
+  case DebugMethod::OBJ_ID:
+    rd.outColor = makeRandomColor(rd.volID);
     break;
   case DebugMethod::INST_ID:
+    rd.outColor = makeRandomColor(rd.instID);
+    break;
+  case DebugMethod::PRIM_ID:
+  case DebugMethod::PRIM_INDEX:
+    rd.outColor = makeRandomColor(ray::primID());
+    break;
+  case DebugMethod::OBJ_INDEX:
+    rd.outColor = makeRandomColor(ray::objID());
+    break;
+  case DebugMethod::INST_INDEX:
     rd.outColor = makeRandomColor(ray::instID());
     break;
   case DebugMethod::IS_TRIANGLE:

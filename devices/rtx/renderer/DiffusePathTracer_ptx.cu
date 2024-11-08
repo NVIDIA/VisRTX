@@ -180,7 +180,7 @@ VISRTX_GLOBAL void __raygen__()
       const bool volumeFirst = volumeDepth < hit.t;
       outDepth = volumeFirst ? volumeDepth : hit.t;
       outNormal = hit.Ng; // TODO: for volume (gradient?)
-      primID = volumeFirst ? 0 : hit.primID;
+      primID = volumeFirst ? 0 : computeGeometryPrimId(hit);
       objID = volumeFirst ? vObjID : hit.objID;
       instID = volumeFirst ? vInstID : hit.instID;
     }

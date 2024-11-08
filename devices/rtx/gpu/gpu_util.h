@@ -213,6 +213,14 @@ VISRTX_DEVICE vec4 getBackground(const RendererGPUData &rd, const vec2 &loc)
       : make_vec4(tex2D<::float4>(rd.background.texobj, loc.x, loc.y));
 }
 
+VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
+{
+  if (!hit.foundHit)
+    return ~0u;
+  return hit.geometry->primitiveId ? hit.geometry->primitiveId[hit.primID]
+                                   : hit.primID;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Outputs ////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////

@@ -86,6 +86,7 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
 
   GeometryAttributes m_primitiveAttributes;
   UniformAttributes m_uniformAttributes;
+  helium::IntrusivePtr<Array1D> m_primitiveId;
 };
 
 } // namespace visrtx

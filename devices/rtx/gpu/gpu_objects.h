@@ -177,6 +177,7 @@ struct GeometryGPUData
   GeometryType type{GeometryType::UNKNOWN};
   AttributeDataSet attr;
   AttributeDataSetUniform attrUniform;
+  const uint32_t *primitiveId;
   union
   {
     TriangleGeometryData tri{};
