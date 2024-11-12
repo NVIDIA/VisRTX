@@ -4,6 +4,7 @@
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
+#include "tsd/core/Logging.hpp"
 // std
 #include <array>
 #include <fstream>
@@ -26,13 +27,13 @@ void importNBODYFile(const char *filename, NBODYScene &s)
     return;
   fin >> numParticles;
   s.points.resize(numParticles);
-  printf("np: %zu\n", numParticles);
+  logStatus("[import_NBODY] np: %zu", numParticles);
   for (uint64_t i = 0; i < numParticles; i++) {
     float3 p;
     fin >> p.x;
     fin >> p.y;
     fin >> p.z;
-    printf("p: %f %f %f\n", p.x, p.y, p.z);
+    logStatus("[import_NBODY] p: %f %f %f", p.x, p.y, p.z);
     s.points.push_back(p);
   }
   fin.close();

@@ -21,7 +21,7 @@ struct RenderIndex : public BaseUpdateDelegate
   anari::Device device() const;
   anari::World world() const;
 
-  void printCacheInfo() const;
+  void logCacheInfo() const;
 
   void populate(Context &ctx, bool setAsUpdateDelegate = true);
 

@@ -1,7 +1,8 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/rendering/RenderIndex.hpp"
+#include "RenderIndex.hpp"
+#include "tsd/core/Logging.hpp"
 
 namespace tsd {
 
@@ -31,19 +32,19 @@ anari::World RenderIndex::world() const
   return m_world;
 }
 
-void RenderIndex::printCacheInfo() const
+void RenderIndex::logCacheInfo() const
 {
-  printf("RENDER INDEX:\n");
-  printf("      device: %p\n", device());
-  printf("       world: %p\n", world());
-  printf("    surfaces: %zu\n", m_cache.surface.size());
-  printf("  geometries: %zu\n", m_cache.geometry.size());
-  printf("   materials: %zu\n", m_cache.material.size());
-  printf("    samplers: %zu\n", m_cache.sampler.size());
-  printf("     volumes: %zu\n", m_cache.volume.size());
-  printf("      fields: %zu\n", m_cache.field.size());
-  printf("      lights: %zu\n", m_cache.light.size());
-  printf("      arrays: %zu\n", m_cache.array.size());
+  logStatus("RENDER INDEX:");
+  logStatus("      device: %p", device());
+  logStatus("       world: %p", world());
+  logStatus("    surfaces: %zu", m_cache.surface.size());
+  logStatus("  geometries: %zu", m_cache.geometry.size());
+  logStatus("   materials: %zu", m_cache.material.size());
+  logStatus("    samplers: %zu", m_cache.sampler.size());
+  logStatus("     volumes: %zu", m_cache.volume.size());
+  logStatus("      fields: %zu", m_cache.field.size());
+  logStatus("      lights: %zu", m_cache.light.size());
+  logStatus("      arrays: %zu", m_cache.array.size());
 }
 
 void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)

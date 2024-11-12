@@ -1,14 +1,17 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+// std
 #include <algorithm>
 #include <cstring>
-
+// stb
 #include "tsd_stb/stb_image.h"
 #include "tsd_stb/stb_image_write.h"
 #ifndef _WIN32
 #include "tsd_tinyexr/tinyexr.h"
 #endif
+// tsd
+#include "tsd/core/Logging.hpp"
 
 #include "HDRImage.h"
 
@@ -49,7 +52,7 @@ bool HDRImage::import(std::string fileName)
     const char *err;
     int ret = LoadEXR(&imgData, &w, &h, fileName.c_str(), &err);
     if (ret != 0) {
-      printf("Error importing EXR: %s\n", err);
+      logError("import_HDRI] error importing EXR: %s", err);
       return false;
     }
     n = 4;

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/serialization.hpp"
+#include "tsd/core/Logging.hpp"
 #if TSD_ENABLE_SERIALIZATION
 // conduit
 #include <conduit.hpp>
@@ -10,6 +11,10 @@
 #include <stack>
 #include <stdexcept>
 #include <type_traits>
+
+#ifndef TSD_ENABLE_SERIALIZATION
+#define TSD_ENABLE_SERIALIZATION 1
+#endif
 
 namespace tsd {
 
@@ -190,7 +195,7 @@ static void conduitToObject(Context &ctx, const conduit::Node &node)
   const size_t index = node["index"].to_uint64();
 
   if (!anari::isObject(type)) {
-    printf("PARSED INVALID OBJECT TYPE FROM CONDUIT: '%s'\n",
+    logError("[conduitToObject] parsed invalid object type from conduit: '%s'",
         anari::toString(type));
     return;
   }
@@ -252,12 +257,13 @@ static void conduitToObject(Context &ctx, const conduit::Node &node)
   }
 
   if (!obj) {
-    printf("UNABLE TO CREATE OBJECT FROM CONDUIT\n");
+    logError("[conduitToObject] unable to create object from Conduit");
     return;
   }
 
   if (obj->index() != index) {
-    printf("object (%s) index mismatch importing from Conduit: %zu | %zu\n",
+    logError(
+        "[conduitToObject] object (%s) index mismatch on import: %zu | %zu",
         anari::toString(type),
         obj->index(),
         index);
@@ -343,7 +349,7 @@ void save_Context(Context &ctx, const char *filename)
 
   root.save(filename, "conduit_bin");
 #else
-  throw std::runtime_error("serialization not enabled in TSD build");
+  logError("[save_Context] serialization not enabled in TSD build.");
 #endif
 }
 
@@ -378,7 +384,7 @@ void import_Context(Context &ctx, const char *filename)
 
   conduitToObjectTree(root["objectTree"], ctx.tree);
 #else
-  throw std::runtime_error("serialization not enabled in TSD build");
+  logError("[import_Context] serialization not enabled in TSD build.");
 #endif
 }
 

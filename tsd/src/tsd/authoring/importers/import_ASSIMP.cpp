@@ -3,6 +3,7 @@
 
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
+#include "tsd/core/Logging.hpp"
 // assimp
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
@@ -17,12 +18,10 @@ static IndexedVectorRef<Sampler> importEmbeddedTexture(
   std::string filepath = embeddedTexture->mFilename.C_Str();
   const bool validTexture =
       embeddedTexture->mHeight != 0 && embeddedTexture->pcData != nullptr;
-#if 0
-  printf("EMBEDDED '%s' TEXTURE VALID: %i HEIGHT: %i\n",
+  logDebug("[import_ASSIMP] embedded '%s' texture | valid: %i height: %i",
       filepath.c_str(),
       int(validTexture),
       int(embeddedTexture->mHeight));
-#endif
 
   auto tex = cache[filepath];
 

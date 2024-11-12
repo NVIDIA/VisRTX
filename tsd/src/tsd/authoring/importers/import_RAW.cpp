@@ -3,6 +3,7 @@
 
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
+#include "tsd/core/Logging.hpp"
 // std
 #include <cstdio>
 
@@ -53,7 +54,8 @@ IndexedVectorRef<SpatialField> import_RAW(Context &ctx, const char *filepath)
       type = ANARI_FLOAT32;
 
     if (!(dimX && dimY && dimZ)) {
-      printf("unable to parse info from RAW file: '%s'\n", file.c_str());
+      logError("[import_RAW] unable to parse info from RAW file: '%s'",
+          file.c_str());
       return {};
     }
   }
@@ -68,7 +70,7 @@ IndexedVectorRef<SpatialField> import_RAW(Context &ctx, const char *filepath)
   auto fileHandle = std::fopen(filepath, "rb");
   size_t size = dimX * size_t(dimY) * dimZ * anari::sizeOf(type);
   if (!std::fread((char *)voxelData, size, 1, fileHandle)) {
-    printf("unable to open RAW file: '%s'\n", file.c_str());
+    logError("[import_RAW] unable to open RAW file: '%s'", file.c_str());
     voxelArray->unmap();
     ctx.removeObject(*voxelArray);
     ctx.removeObject(*field);

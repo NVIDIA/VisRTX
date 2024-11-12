@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers/detail/importer_common.hpp"
+#include "tsd/core/Logging.hpp"
 // stb_image
 #include "tsd_stb/stb_image.h"
 // std
@@ -64,12 +65,14 @@ IndexedVectorRef<Sampler> importTexture(
     void *data = stbi_loadf(filepath.c_str(), &width, &height, &n, 0);
 
     if (!data || n < 1) {
-      if (!data)
-        printf("failed to import texture '%s'\n", filepath.c_str());
-      else
-        printf("texture '%s' with %i channels not imported\n",
+      if (!data) {
+        logError(
+            "[importTexture] failed to import texture '%s'", filepath.c_str());
+      } else {
+        logWarning("[importTexture] texture '%s' with %i channels not imported",
             filepath.c_str(),
             n);
+      }
       return {};
     }
 

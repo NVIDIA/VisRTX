@@ -61,6 +61,11 @@ if (TSD_ENABLE_SERIALIZATION)
   project_link_libraries(PRIVATE $<BUILD_INTERFACE:tsd_conduit>)
   set_source_files_properties(authoring/serialization/serialization.cpp
     PROPERTIES
-      COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION
+      COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=1
+  )
+else()
+  set_source_files_properties(authoring/serialization/serialization.cpp
+    PROPERTIES
+      COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=0
   )
 endif()
