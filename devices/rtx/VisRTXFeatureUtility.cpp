@@ -46,8 +46,6 @@ static void fillExtensionStruct(
       extensions->VISRTX_CUDA_OUTPUT_BUFFERS = 1;
     else if (feature == "ANARI_VISRTX_INSTANCE_ATTRIBUTES")
       extensions->VISRTX_INSTANCE_ATTRIBUTES = 1;
-    else if (feature == "ANARI_VISRTX_INSTANCE_TRANSFORM_ARRAY")
-      extensions->VISRTX_INSTANCE_TRANSFORM_ARRAY = 1;
     else if (feature == "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING")
       extensions->VISRTX_TRIANGLE_BACK_FACE_CULLING = 1;
     else if (feature == "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES")
