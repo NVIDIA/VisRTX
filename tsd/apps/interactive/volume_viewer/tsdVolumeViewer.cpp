@@ -160,7 +160,7 @@ class Application : public anari_viewer::Application
       tsd::IndexedVectorRef<tsd::Volume> volume;
 
       if (!g_filename.empty()) {
-        volume = tsd::import_RAW(
+        volume = tsd::import_volume(
             g_context->tsd.ctx, g_filename.c_str(), colorArray, opacityArray);
       } else {
         volume = tsd::generate_noiseVolume(

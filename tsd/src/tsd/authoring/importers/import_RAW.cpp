@@ -8,10 +8,7 @@
 
 namespace tsd {
 
-IndexedVectorRef<Volume> import_RAW(Context &ctx,
-    const char *filepath,
-    IndexedVectorRef<Array> colorArray,
-    IndexedVectorRef<Array> opacityArray)
+IndexedVectorRef<SpatialField> import_RAW(Context &ctx, const char *filepath)
 {
   std::string file = fileOf(filepath);
   if (file.empty())
@@ -86,17 +83,7 @@ IndexedVectorRef<Volume> import_RAW(Context &ctx,
   field->setParameter("spacing"_t, 2.f / float3(dimX, dimY, dimZ));
   field->setParameterObject("data"_t, *voxelArray);
 
-  auto volume = ctx.createObject<Volume>(tokens::volume::transferFunction1D);
-  volume->setName(file.c_str());
-  volume->setParameterObject("value", *field);
-  volume->setParameterObject("color", *colorArray);
-  volume->setParameterObject("opacity", *opacityArray);
-  volume->setParameter("densityScale", 0.1f);
-
-  ctx.tree.insert_last_child(
-      ctx.tree.root(), utility::Any(ANARI_VOLUME, volume.index()));
-
-  return volume;
+  return field;
 }
 
 } // namespace tsd
