@@ -77,10 +77,10 @@ struct Renderer : public Object
       std::string_view subtype, DeviceGlobalState *d);
 
  protected:
-  vec4 m_bgColor{1.f};
+  vec4 m_bgColor{0.f, 0.f, 0.f, 1.f};
   int m_spp{1};
   vec3 m_ambientColor{1.f};
-  float m_ambientIntensity{1.f};
+  float m_ambientIntensity{0.f};
   float m_occlusionDistance{1e20f};
   bool m_checkerboard{false};
   bool m_denoise{false};

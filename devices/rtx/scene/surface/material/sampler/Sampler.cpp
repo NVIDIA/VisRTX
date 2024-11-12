@@ -44,6 +44,8 @@ Sampler::Sampler(DeviceGlobalState *s)
     : RegisteredObject<SamplerGPUData>(ANARI_SAMPLER, s)
 {
   setRegistry(s->registry.samplers);
+  helium::BaseObject::markUpdated();
+  s->commitBufferAddObject(this);
 }
 
 Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)

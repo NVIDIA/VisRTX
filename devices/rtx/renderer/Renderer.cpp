@@ -145,7 +145,11 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 Renderer::Renderer(DeviceGlobalState *s, float defaultAmbientRadiance)
     : Object(ANARI_RENDERER, s),
       m_defaultAmbientRadiance(defaultAmbientRadiance)
-{}
+{
+  m_ambientIntensity = defaultAmbientRadiance;
+  helium::BaseObject::markUpdated();
+  s->commitBufferAddObject(this);
+}
 
 Renderer::~Renderer()
 {

@@ -41,6 +41,8 @@ Light::Light(DeviceGlobalState *s)
     : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
 {
   setRegistry(s->registry.lights);
+  helium::BaseObject::markUpdated();
+  s->commitBufferAddObject(this);
 }
 
 void Light::commit()
