@@ -38,6 +38,9 @@ void ObjectTree::buildUI()
 
     const auto &style = ImGui::GetStyle();
 
+    // to track if children are also disabled:
+    const void *firstDisabledNode = nullptr;
+
     m_needToTreePop.resize(tree.size());
     auto onNodeEntryBuildUI = [&](auto &node, int level) {
       ImGui::TableNextRow();
@@ -47,13 +50,16 @@ void ObjectTree::buildUI()
 
       tsd::Object *obj = ctx.getObject(node->value);
 
-      const bool enabled = node->enabled;
+      const bool firstDisabled = firstDisabledNode == nullptr && !node->enabled;
+      if (firstDisabled) {
+        firstDisabledNode = &node;
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.3f, 0.3f, 1.f));
+      }
+
       const bool selected = obj && m_context->tsd.selectedObject == obj;
       if (selected) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));
         node_flags |= ImGuiTreeNodeFlags_Selected;
-      } else if (!enabled) {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.3f, 0.3f, 1.f));
       }
 
       const char *nameText = "<unhandled UI node type>";
@@ -118,14 +124,18 @@ void ObjectTree::buildUI()
       if (ImGui::IsItemClicked() && m_contextMenuNode == tsd::INVALID_INDEX)
         m_context->setSelectedObject(obj);
 
-      if (selected || !enabled)
+      if (selected)
         ImGui::PopStyleColor(1);
 
-      return open && enabled;
+      return open;
     };
 
     int nodeIndex = 0;
     auto onNodeExitTreePop = [&](auto &node, int level) {
+      if (&node == firstDisabledNode) {
+        firstDisabledNode = nullptr;
+        ImGui::PopStyleColor(1);
+      }
       if (m_needToTreePop[node.index()])
         ImGui::TreePop();
     };
