@@ -64,6 +64,9 @@ inline RenderToAnariObjectsVisitor::~RenderToAnariObjectsVisitor()
 
 inline bool RenderToAnariObjectsVisitor::preChildren(InstanceNode &n, int level)
 {
+  if (!n->enabled)
+    return false;
+
   auto &current = m_objects.top();
 
   const bool included = isIncludedAfterFiltering(n);

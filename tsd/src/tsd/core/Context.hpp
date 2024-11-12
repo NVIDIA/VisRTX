@@ -29,6 +29,7 @@ struct InstanceTreeData
 
   utility::Any value;
   std::string name;
+  bool enabled{true};
   FlatMap<std::string, utility::Any> customParameters;
 };
 using InstanceTree = utility::Forest<InstanceTreeData>;

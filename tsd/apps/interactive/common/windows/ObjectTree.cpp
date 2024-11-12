@@ -47,10 +47,13 @@ void ObjectTree::buildUI()
 
       tsd::Object *obj = ctx.getObject(node->value);
 
+      const bool enabled = node->enabled;
       const bool selected = obj && m_context->tsd.selectedObject == obj;
       if (selected) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));
         node_flags |= ImGuiTreeNodeFlags_Selected;
+      } else if (!enabled) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.3f, 0.3f, 1.f));
       }
 
       const char *nameText = "<unhandled UI node type>";
@@ -115,10 +118,10 @@ void ObjectTree::buildUI()
       if (ImGui::IsItemClicked() && m_contextMenuNode == tsd::INVALID_INDEX)
         m_context->setSelectedObject(obj);
 
-      if (selected)
+      if (selected || !enabled)
         ImGui::PopStyleColor(1);
 
-      return open;
+      return open && enabled;
     };
 
     int nodeIndex = 0;
@@ -151,16 +154,20 @@ void ObjectTree::buildUI()
 
 void ObjectTree::buildUI_objectContextMenu()
 {
+  auto &tsd_ctx = m_context->tsd.ctx;
+  auto &tree = tsd_ctx.tree;
+
   if (ImGui::BeginPopup("ObjectTree_contextMenu")) {
+    if (ImGui::Checkbox("visible", &(*tree.at(m_contextMenuNode))->enabled))
+      tsd_ctx.signalInstanceTreeChange();
+
     if (ImGui::BeginMenu("add")) {
       if (ImGui::BeginMenu("light")) {
-        auto &tsd_ctx = m_context->tsd.ctx;
-
         if (ImGui::MenuItem("directional")) {
           auto l =
               tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::directional);
           l->setName("directional light");
-          tsd_ctx.addInstancedObject(tsd_ctx.tree.at(m_contextMenuNode),
+          tsd_ctx.addInstancedObject(tree.at(m_contextMenuNode),
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "directional light");
           m_contextMenuNode = tsd::INVALID_INDEX;
@@ -170,7 +177,7 @@ void ObjectTree::buildUI_objectContextMenu()
         if (ImGui::MenuItem("point")) {
           auto l = tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::point);
           l->setName("point light");
-          tsd_ctx.addInstancedObject(tsd_ctx.tree.at(m_contextMenuNode),
+          tsd_ctx.addInstancedObject(tree.at(m_contextMenuNode),
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "point light");
           m_contextMenuNode = tsd::INVALID_INDEX;
@@ -180,7 +187,7 @@ void ObjectTree::buildUI_objectContextMenu()
         if (ImGui::MenuItem("quad")) {
           auto l = tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::quad);
           l->setName("quad light");
-          tsd_ctx.addInstancedObject(tsd_ctx.tree.at(m_contextMenuNode),
+          tsd_ctx.addInstancedObject(tree.at(m_contextMenuNode),
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "quad light");
           m_contextMenuNode = tsd::INVALID_INDEX;
@@ -197,9 +204,7 @@ void ObjectTree::buildUI_objectContextMenu()
 
     if (ImGui::MenuItem("delete")) {
       if (m_contextMenuNode != tsd::INVALID_INDEX) {
-        auto &ctx = m_context->tsd.ctx;
-        auto &tree = ctx.tree;
-        ctx.removeInstancedObject(tree.at(m_contextMenuNode));
+        tsd_ctx.removeInstancedObject(tree.at(m_contextMenuNode));
         m_contextMenuNode = tsd::INVALID_INDEX;
         m_context->setSelectedObject(nullptr);
       }
