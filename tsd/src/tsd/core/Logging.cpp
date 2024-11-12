@@ -1,9 +1,9 @@
-// Copyright 2023-2024 The Khronos Group
+// Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "Logging.h"
+#include "Logging.hpp"
 
-namespace tsd_viewer::logging {
+namespace tsd {
 
 static LoggingCallback g_loggingCallback;
 
@@ -68,4 +68,4 @@ void setLoggingCallback(LoggingCallback cb)
   g_loggingCallback = cb;
 }
 
-} // namespace tsd_viewer::logging
+} // namespace tsd

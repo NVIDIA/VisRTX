@@ -1,4 +1,4 @@
-// Copyright 2023-2024 The Khronos Group
+// Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -7,7 +7,7 @@
 #include <cstdarg>
 #include <functional>
 
-namespace tsd_viewer::logging {
+namespace tsd {
 
 void logStatus(const char *fmt, ...);
 void logError(const char *fmt, ...);
@@ -31,4 +31,4 @@ using LoggingCallback = std::function<void(LogLevel, const char *, va_list &)>;
 
 void setLoggingCallback(LoggingCallback cb);
 
-} // namespace tsd_viewer::logging
+} // namespace tsd

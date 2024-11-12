@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "AppContext.h"
-#include "Logging.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
 #include "windows/Viewport.h"
@@ -190,7 +189,7 @@ class Application : public anari_viewer::Application
   void saveContext()
   {
     tsd::save_Context(g_context->tsd.ctx, "state.tsd");
-    logging::logStatus("context saved to 'state.tsd'");
+    tsd::logStatus("context saved to 'state.tsd'");
   }
 
   manipulators::Orbit m_manipulator;

@@ -11,7 +11,6 @@ project_sources(PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/windows/TransferFunctionEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/Viewport.cpp
   ${CMAKE_CURRENT_LIST_DIR}/AppContext.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/Logging.cpp
   ${CMAKE_CURRENT_LIST_DIR}/Manipulator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tsd_ui.cpp
 )

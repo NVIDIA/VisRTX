@@ -48,7 +48,7 @@ void Viewport::buildUI()
 {
   bool deviceReady = m_device != nullptr;
   if (deviceReady && !m_deviceReadyToUse) {
-    logging::logStatus("[viewport] initialized scene for '%s' device in %.2fs",
+    tsd::logStatus("[viewport] initialized scene for '%s' device in %.2fs",
         m_libName.c_str(),
         m_timeToLoadDevice);
     m_anariPass = m_pipeline.emplace_back<tsd::AnariRenderPass>(m_device);
@@ -108,7 +108,7 @@ void Viewport::resetView(bool resetAzEl)
           &bounds[0],
           sizeof(bounds),
           ANARI_WAIT)) {
-    logging::logWarning("[viewport] ANARIWorld returned no bounds!");
+    tsd::logWarning("[viewport] ANARIWorld returned no bounds!");
   }
 
   auto center = 0.5f * (bounds[0] + bounds[1]);
@@ -124,7 +124,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
   teardownDevice();
 
   if (!libName.empty() && libName != "{none}") {
-    logging::logStatus(
+    tsd::logStatus(
         "[viewport] *** setting viewport to use ANARI device '%s' ***",
         libName.c_str());
   }
@@ -143,7 +143,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
     if (d) {
       anari::retain(d, d);
 
-      logging::logStatus("[viewport] getting renderer params...");
+      tsd::logStatus("[viewport] getting renderer params...");
 
       const char **r_subtypes = anariGetObjectSubtypes(d, ANARI_RENDERER);
 
@@ -169,12 +169,12 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       m_perspCamera = anari::newObject<anari::Camera>(d, "perspective");
       m_orthoCamera = anari::newObject<anari::Camera>(d, "orthographic");
 
-      logging::logStatus("[viewport] populating render index...");
+      tsd::logStatus("[viewport] populating render index...");
 
       m_rIdx = m_context->acquireRenderIndex(d);
       setSelectionVisibilityFilterEnabled(m_showOnlySelected);
 
-      logging::logStatus("[viewport] getting scene bounds...");
+      tsd::logStatus("[viewport] getting scene bounds...");
 
       m_device = d;
 
@@ -193,7 +193,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
             ANARI_WAIT);
       }
 
-      logging::logStatus("[viewport] ...device load complete");
+      tsd::logStatus("[viewport] ...device load complete");
     }
 
     auto end = std::chrono::steady_clock::now();
@@ -281,14 +281,14 @@ void Viewport::pick(tsd::math::int2 l, bool selectObject)
   if (fb.data) {
     id = fb.data[i];
 
-    logging::logStatus("[viewport] picked object '%u' @ (%i, %i) | z: %f",
+    tsd::logStatus("[viewport] picked object '%u' @ (%i, %i) | z: %f",
         id,
         l.x,
         l.y,
         m_pickedDepth);
 
   } else {
-    logging::logError(
+    tsd::logError(
         "[viewport] failed to pick: unable to map 'objectId' buffer");
   }
 
@@ -400,7 +400,7 @@ void Viewport::updateImage()
         4,
         color.data,
         4 * color.width);
-    logging::logStatus(
+    tsd::logStatus(
         "[viewport] frame saved to '%s'\n", filename.c_str());
     m_saveNextFrame = false;
   }
@@ -413,10 +413,10 @@ void Viewport::echoCameraConfig()
   const auto d = m_arcball->dir();
   const auto u = m_arcball->up();
 
-  logging::logStatus("Camera:");
-  logging::logStatus("  p: %f, %f, %f", p.x, p.y, p.z);
-  logging::logStatus("  d: %f, %f, %f", d.x, d.y, d.z);
-  logging::logStatus("  u: %f, %f, %f", u.x, u.y, u.z);
+  tsd::logStatus("Camera:");
+  tsd::logStatus("  p: %f, %f, %f", p.x, p.y, p.z);
+  tsd::logStatus("  d: %f, %f, %f", d.x, d.y, d.z);
+  tsd::logStatus("  u: %f, %f, %f", u.x, u.y, u.z);
 }
 
 void Viewport::ui_handleInput()
@@ -528,7 +528,7 @@ void Viewport::ui_picking()
     const auto p = m_arcball->eye();
     const auto c = p + m_pickedDepth * dir;
 
-    logging::logStatus(
+    tsd::logStatus(
         "[viewport] pick [%i, %i] {%f, %f} depth %f / %f| {%f, %f, %f}",
         int(pixel.x),
         int(pixel.y),
@@ -715,7 +715,7 @@ void Viewport::ui_contextMenu()
             sizeof(bounds),
             ANARI_WAIT);
 
-        logging::logStatus(
+        tsd::logStatus(
             "[viewport] current world bounds {%f, %f, %f} x {%f, %f, %f}\n",
             bounds[0].x,
             bounds[0].y,

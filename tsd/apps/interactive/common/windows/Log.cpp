@@ -10,7 +10,7 @@ namespace tsd_viewer {
 // Helper functions ///////////////////////////////////////////////////////////
 
 static void printMessage(
-    logging::LogLevel level, const char *fmt, va_list &args, bool workOnCopy)
+    tsd::LogLevel level, const char *fmt, va_list &args, bool workOnCopy)
 {
   ImGuiTextBuffer buf;
   if (workOnCopy) {
@@ -43,8 +43,8 @@ Log::Log(AppContext *ctx, bool installAsLoggingTarget)
   m_colors[6] = ImVec4(1.0f, 0.0f, 1.0f, 1.0f); // Log window problem
 
   if (installAsLoggingTarget) {
-    logging::setLoggingCallback(
-        [window = this](logging::LogLevel level,
+    tsd::setLoggingCallback(
+        [window = this](tsd::LogLevel level,
             const char *fmt,
             va_list &args) { window->addText(level, fmt, args); });
   }
@@ -53,8 +53,8 @@ Log::Log(AppContext *ctx, bool installAsLoggingTarget)
 Log::~Log()
 {
   if (m_isLoggingTarget) {
-    logging::setLoggingCallback(
-        [](logging::LogLevel level, const char *fmt, va_list &args) {
+    tsd::setLoggingCallback(
+        [](tsd::LogLevel level, const char *fmt, va_list &args) {
           printMessage(level, fmt, args, false);
         });
   }
@@ -109,7 +109,7 @@ void Log::buildUI()
   ImGui::EndChild();
 }
 
-void Log::addText(logging::LogLevel level, const char *fmt, va_list &args)
+void Log::addText(tsd::LogLevel level, const char *fmt, va_list &args)
 {
   m_colorIDs.push_back(static_cast<int>(level));
 

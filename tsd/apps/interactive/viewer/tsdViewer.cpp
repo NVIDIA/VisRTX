@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "AppContext.h"
-#include "Logging.h"
 #include "modals/AppSettings.h"
 #include "windows/DatabaseEditor.h"
 #include "windows/Log.h"
@@ -138,7 +137,7 @@ class Application : public anari_viewer::Application
           std::chrono::duration<float>(loadEnd - loadStart).count();
 
       if (!g_context->commandLine.loadingContext) {
-        logging::logStatus("...setting up directional light");
+        tsd::logStatus("...setting up directional light");
 
         auto light = g_context->tsd.ctx.createObject<tsd::Light>(
             tsd::tokens::light::directional);
@@ -150,8 +149,8 @@ class Application : public anari_viewer::Application
             tsd::utility::Any(ANARI_LIGHT, light.index()));
       }
 
-      logging::logStatus("...scene load complete! (%.3fs)", loadSeconds);
-      logging::logStatus(
+      tsd::logStatus("...scene load complete! (%.3fs)", loadSeconds);
+      tsd::logStatus(
           "%s", tsd::objectDBInfo(g_context->tsd.ctx.objectDB()).c_str());
       g_context->tsd.sceneLoadComplete = true;
 
@@ -222,7 +221,7 @@ class Application : public anari_viewer::Application
   void saveContext()
   {
     tsd::save_Context(g_context->tsd.ctx, "state.tsd");
-    logging::logStatus("context saved to 'state.tsd'");
+    tsd::logStatus("context saved to 'state.tsd'");
   }
 
   manipulators::Orbit m_manipulator;

@@ -24,6 +24,7 @@ PRIVATE
   authoring/serialization/serialization.cpp
   core/AnariObjectCache.cpp
   core/Context.cpp
+  core/Logging.cpp
   core/Object.cpp
   core/Parameter.cpp
   core/Token.cpp

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "core/Context.hpp"
+#include "core/Logging.hpp"
 
 #include "authoring/importers.hpp"
 #include "authoring/procedural.hpp"

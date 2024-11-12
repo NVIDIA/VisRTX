@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "DistributedViewport.h"
-#include "Logging.h"
 // std
 #include <cstring>
 // stb_image
@@ -120,7 +119,7 @@ void DistributedViewport::resetView(bool resetAzEl)
           &bounds[0],
           sizeof(bounds),
           ANARI_WAIT)) {
-    logging::logWarning("No bounds returned by the ANARIWorld!");
+    tsd::logWarning("No bounds returned by the ANARIWorld!");
   }
 
   auto center = 0.5f * (bounds[0] + bounds[1]);

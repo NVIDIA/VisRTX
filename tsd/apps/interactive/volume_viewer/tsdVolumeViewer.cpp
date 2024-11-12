@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "AppContext.h"
-#include "Logging.h"
 #include "modals/AppSettings.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
@@ -171,7 +170,7 @@ class Application : public anari_viewer::Application
       g_context->setupSceneFromCommandLine(true);
 
       if (!g_context->commandLine.loadingContext) {
-        logging::logStatus("...setting up directional light");
+        tsd::logStatus("...setting up directional light");
 
         auto light = g_context->tsd.ctx.createObject<tsd::Light>(
             tsd::tokens::light::directional);
@@ -183,8 +182,8 @@ class Application : public anari_viewer::Application
             tsd::utility::Any(ANARI_LIGHT, light.index()));
       }
 
-      logging::logStatus("...scene load complete!");
-      logging::logStatus(
+      tsd::logStatus("...scene load complete!");
+      tsd::logStatus(
           "%s", tsd::objectDBInfo(g_context->tsd.ctx.objectDB()).c_str());
       g_context->tsd.sceneLoadComplete = true;
 

@@ -22,16 +22,16 @@ static void statusFunc(const void *_appContext,
     fprintf(stderr, "[ANARI][FATAL][%s][%p] %s", typeStr, source, message);
     std::exit(1);
   } else if (severity == ANARI_SEVERITY_ERROR)
-    logging::logError("[ANARI][ERROR][%s][%p] %s", typeStr, source, message);
+    tsd::logError("[ANARI][ERROR][%s][%p] %s", typeStr, source, message);
   else if (severity == ANARI_SEVERITY_WARNING)
-    logging::logWarning("[ANARI][WARN ][%s][%p] %s", typeStr, source, message);
+    tsd::logWarning("[ANARI][WARN ][%s][%p] %s", typeStr, source, message);
   else if (verbose && severity == ANARI_SEVERITY_PERFORMANCE_WARNING)
-    logging::logPerfWarning(
+    tsd::logPerfWarning(
         "[ANARI][PERF ][%s][%p] %s", typeStr, source, message);
   else if (verbose && severity == ANARI_SEVERITY_INFO)
-    logging::logInfo("[ANARI][INFO ][%s][%p] %s", typeStr, source, message);
+    tsd::logInfo("[ANARI][INFO ][%s][%p] %s", typeStr, source, message);
   else if (verbose && severity == ANARI_SEVERITY_DEBUG)
-    logging::logDebug("[ANARI][DEBUG][%s][%p] %s", typeStr, source, message);
+    tsd::logDebug("[ANARI][DEBUG][%s][%p] %s", typeStr, source, message);
 }
 
 static std::vector<std::string> parseLibraryList()
@@ -125,7 +125,7 @@ void AppContext::setupSceneFromCommandLine(bool hdriOnly)
 {
   if (hdriOnly) {
     for (const auto &f : commandLine.filenames) {
-      logging::logStatus("...loading file '%s'", f.second.c_str());
+      tsd::logStatus("...loading file '%s'", f.second.c_str());
       if (f.first == ImporterType::HDRI)
         tsd::import_HDRI(tsd.ctx, f.second.c_str());
     }
@@ -134,27 +134,27 @@ void AppContext::setupSceneFromCommandLine(bool hdriOnly)
 
   if (commandLine.filenames.empty()) {
 #if 0
-      logging::logStatus("...generating noise volume");
+      tsd::logStatus("...generating noise volume");
       tsd::generate_noiseVolume(tsd.ctx);
 #elif 0
-    logging::logStatus("...generating cylinders");
+    tsd::logStatus("...generating cylinders");
     tsd::generate_cylinders(tsd.ctx);
 #elif 0
-    logging::logStatus("...generating rtow spheres");
+    tsd::logStatus("...generating rtow spheres");
     tsd::generate_rtow(tsd.ctx);
 #elif 0
-    logging::logStatus("...generating monkey from embedded data");
+    tsd::logStatus("...generating monkey from embedded data");
     tsd::generate_monkey(tsd.ctx);
 #elif 1
-    logging::logStatus("...generating material_orb from embedded data");
+    tsd::logStatus("...generating material_orb from embedded data");
     tsd::generate_material_orb(tsd.ctx);
 #else
-    logging::logStatus("...generating random spheres");
+    tsd::logStatus("...generating random spheres");
     tsd::generate_randomSpheres(tsd.ctx);
 #endif
   } else {
     for (const auto &f : commandLine.filenames) {
-      logging::logStatus("...loading file '%s'", f.second.c_str());
+      tsd::logStatus("...loading file '%s'", f.second.c_str());
       if (f.first == ImporterType::TSD)
         tsd::import_Context(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::PLY)

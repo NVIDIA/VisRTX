@@ -3,7 +3,6 @@
 
 #include "AppContext.h"
 #include "DistributedViewport.h"
-#include "Logging.h"
 #include "ViewState.h"
 #include "windows/Log.h"
 // anari_viewer
@@ -91,15 +90,15 @@ static void statusFunc(const void *_appContext,
     fprintf(stderr, "[ANARI][FATAL][%p] %s", source, message);
     std::exit(1);
   } else if (severity == ANARI_SEVERITY_ERROR)
-    logging::logError("[ANARI][ERROR] %s", source, message);
+    tsd::logError("[ANARI][ERROR] %s", source, message);
   else if (severity == ANARI_SEVERITY_WARNING)
-    logging::logWarning("[ANARI][WARN ][%p] %s", source, message);
+    tsd::logWarning("[ANARI][WARN ][%p] %s", source, message);
   else if (verbose && severity == ANARI_SEVERITY_PERFORMANCE_WARNING)
-    logging::logPerfWarning("[ANARI][PERF ][%p] %s", source, message);
+    tsd::logPerfWarning("[ANARI][PERF ][%p] %s", source, message);
   else if (verbose && severity == ANARI_SEVERITY_INFO)
-    logging::logInfo("[ANARI][INFO ][%p] %s", source, message);
+    tsd::logInfo("[ANARI][INFO ][%p] %s", source, message);
   else if (verbose && severity == ANARI_SEVERITY_DEBUG)
-    logging::logDebug("[ANARI][DEBUG][%p] %s", source, message);
+    tsd::logDebug("[ANARI][DEBUG][%p] %s", source, message);
 }
 
 static void initializeANARI()
@@ -185,7 +184,7 @@ class Application : public anari_viewer::Application
     auto *log = new Log(g_context);
 
     if (!g_context->logging.verbose)
-      logging::logStatus("app window running on rank '%i'", g_rank);
+      tsd::logStatus("app window running on rank '%i'", g_rank);
 
     auto *viewport = new DistributedViewport(
         g_context, g_win, g_rendererName.c_str(), "Viewport");

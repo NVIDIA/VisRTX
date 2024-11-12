@@ -4,7 +4,6 @@
 #pragma once
 
 #include "../AppContext.h"
-#include "../Logging.h"
 // anari_viewer
 #include "anari_viewer/windows/Window.h"
 // std
@@ -20,7 +19,7 @@ struct Log : public anari_viewer::windows::Window
   void buildUI() override;
 
  private:
-  void addText(logging::LogLevel level, const char *fmt, va_list &args);
+  void addText(tsd::LogLevel level, const char *fmt, va_list &args);
   void showLine(int line_no, bool useFilter);
   void clear();
 
