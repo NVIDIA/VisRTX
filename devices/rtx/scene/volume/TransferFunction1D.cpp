@@ -39,7 +39,8 @@ TransferFunction1D::TransferFunction1D(DeviceGlobalState *d)
       m_color(this),
       m_colorPosition(this),
       m_opacity(this),
-      m_opacityPosition(this)
+      m_opacityPosition(this),
+      m_field(this)
 {}
 
 TransferFunction1D::~TransferFunction1D()

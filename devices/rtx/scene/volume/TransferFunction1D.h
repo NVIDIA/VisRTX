@@ -59,7 +59,7 @@ struct TransferFunction1D : public Volume
   box1 m_valueRange{0.f, 1.f};
   float m_densityScale{1.f};
 
-  helium::IntrusivePtr<SpatialField> m_field;
+  helium::ChangeObserverPtr<SpatialField> m_field;
 
   std::vector<vec4> m_tf;
   int m_tfDim{256};
