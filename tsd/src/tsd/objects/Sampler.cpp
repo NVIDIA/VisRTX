@@ -13,8 +13,22 @@ Sampler::Sampler(Token subtype) : Object(ANARI_SAMPLER, subtype)
         .setStringValues(
             {"attribute0", "attribute1", "attribute2", "attribute3", "color"});
     addParameter("filter"_t, "linear").setStringValues({"linear", "nearest"});
-    addParameter("wrapMode"_t, "clampToEdge")
-        .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
+    if (subtype == tokens::sampler::image1D) {
+      addParameter("wrapMode"_t, "clampToEdge")
+          .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
+    } else if (subtype == tokens::sampler::image2D) {
+      addParameter("wrapMode1"_t, "clampToEdge")
+          .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
+      addParameter("wrapMode2"_t, "clampToEdge")
+          .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
+    } else if (subtype == tokens::sampler::image3D) {
+      addParameter("wrapMode1"_t, "clampToEdge")
+          .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
+      addParameter("wrapMode2"_t, "clampToEdge")
+          .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
+      addParameter("wrapMode3"_t, "clampToEdge")
+          .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
+    }
     addParameter("inTransform"_t, math::scaling_matrix(float3(1.f)));
     addParameter("inOffset"_t, float4(0.f));
     addParameter("outTransform"_t, math::scaling_matrix(float3(1.f)));

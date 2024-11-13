@@ -89,6 +89,7 @@ struct Context
   IndexedVectorRef<T> getObject(size_t i) const;
   Object *getObject(const utility::Any &a) const;
   Object *getObject(anari::DataType type, size_t i) const;
+
   void removeObject(const Object &o);
   void removeObject(const utility::Any &o);
   void removeAllObjects();

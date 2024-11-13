@@ -29,8 +29,10 @@ static bool UI_stringList_callback(void *p, int index, const char **out_text)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void buildUI_object(
-    tsd::Object &o, const tsd::Context &ctx, bool useTableForParameters)
+void buildUI_object(tsd::Object &o,
+    const tsd::Context &ctx,
+    bool useTableForParameters,
+    int level)
 {
   ImGui::PushID(&o);
   if (o.type() == ANARI_SURFACE) {
@@ -44,26 +46,9 @@ void buildUI_object(
         o.subtype().c_str());
   }
 
-  if (o.type() == ANARI_SURFACE) {
-    auto *s = (tsd::Surface *)&o;
-    ImGui::Indent(tsd::ui::INDENT_AMOUNT);
-    ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
-    if (ImGui::CollapsingHeader("Material", ImGuiTreeNodeFlags_None)) {
-      const auto *p = s->parameter(tsd::tokens::surface::material);
-      auto pVal = p->value();
-      auto &m = *ctx.getObject<Material>(pVal.getAsObjectIndex());
-      buildUI_object(m, ctx);
-    }
-    ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
-    if (ImGui::CollapsingHeader("Geometry", ImGuiTreeNodeFlags_None)) {
-      const auto *p = s->parameter(tsd::tokens::surface::geometry);
-      auto pVal = p->value();
-      auto &g = *ctx.getObject<Geometry>(pVal.getAsObjectIndex());
-      buildUI_object(g, ctx);
-    }
-    ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
-  } else if (o.numParameters() > 0) {
-    ImGui::Separator();
+  if (o.numParameters() > 0) {
+    // regular parameters //
+
     if (useTableForParameters) {
       const ImGuiTableFlags flags =
           ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable;
@@ -73,8 +58,10 @@ void buildUI_object(
         ImGui::TableHeadersRow();
 
         for (size_t i = 0; i < o.numParameters(); i++) {
-          ImGui::TableNextRow();
           auto &p = o.parameterAt(i);
+          if (p.value().holdsObject())
+            continue;
+          ImGui::TableNextRow();
           buildUI_parameter(p, ctx, useTableForParameters);
         }
 
@@ -84,6 +71,33 @@ void buildUI_object(
       for (size_t i = 0; i < o.numParameters(); i++)
         buildUI_parameter(o.parameterAt(i), ctx);
     }
+
+    // object parameters //
+
+    if (level > 0)
+      ImGui::Indent(tsd::ui::INDENT_AMOUNT);
+
+    for (size_t i = 0; i < o.numParameters(); i++) {
+      auto &p = o.parameterAt(i);
+      auto &pVal = p.value();
+      if (!pVal.holdsObject() || anari::isArray(pVal.type()))
+        continue;
+
+      ImGui::NewLine();
+
+      if (auto *obj = ctx.getObject(pVal); obj != nullptr) {
+        static std::string pName;
+        pName = p.name().c_str();
+        pName += " : ";
+        pName += anari::toString(pVal.type());
+        ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+        if (ImGui::CollapsingHeader(pName.c_str(), ImGuiTreeNodeFlags_None))
+          buildUI_object(*obj, ctx, useTableForParameters, level + 1);
+      }
+    }
+
+    if (level > 0)
+      ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
   }
 
   ImGui::PopID();

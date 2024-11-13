@@ -14,7 +14,8 @@ constexpr float INDENT_AMOUNT = 25.f;
 
 void buildUI_object(tsd::Object &o,
     const tsd::Context &ctxeg,
-    bool useTableForParameters = false);
+    bool useTableForParameters = false,
+    int level = 0);
 void buildUI_parameter(
     tsd::Parameter &p, const tsd::Context &ctxeg, bool asTable = false);
 
