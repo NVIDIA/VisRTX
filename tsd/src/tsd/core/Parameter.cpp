@@ -19,6 +19,11 @@ const std::string &Parameter::description() const
   return m_description;
 }
 
+bool Parameter::isEnabled() const
+{
+  return m_enabled;
+}
+
 Parameter &Parameter::setDescription(const char *d)
 {
   m_description = d;
@@ -60,6 +65,14 @@ Parameter &Parameter::setStringSelection(int s)
 Parameter &Parameter::setUsage(ParameterUsageHint u)
 {
   m_usageHint = u;
+  return *this;
+}
+
+Parameter &Parameter::setEnabled(bool enabled)
+{
+  m_enabled = enabled;
+  if (m_observer)
+    m_observer->parameterChanged(this);
   return *this;
 }
 

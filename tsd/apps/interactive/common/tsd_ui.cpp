@@ -122,15 +122,19 @@ void buildUI_parameter(
   const auto usage = p.usage();
   const bool bounded = pMin || pMax;
   const bool isArray = anari::isArray(type);
-  const bool showTooltip = !p.description().empty() || isArray;
+
+  bool enabled = p.isEnabled();
 
   if (useTable) {
     ImGui::TableSetColumnIndex(0);
-    ImGui::Text("%s", name);
+    if (ImGui::Checkbox(name, &enabled))
+      p.setEnabled(enabled);
     name = "";
     ImGui::TableSetColumnIndex(1);
     ImGui::PushItemWidth(-FLT_MIN); // Right-aligned
   }
+
+  ImGui::BeginDisabled(!enabled);
 
   switch (type) {
   case ANARI_BOOL:
@@ -165,6 +169,7 @@ void buildUI_parameter(
       update |= ImGui::DragFloat(name, (float *)value);
     break;
   case ANARI_FLOAT32_VEC2:
+  case ANARI_FLOAT32_BOX1:
     if (bounded) {
       if (pMin && pMax) {
         update |= ImGui::SliderFloat2(
@@ -248,7 +253,9 @@ void buildUI_parameter(
     break;
   }
 
-  if (showTooltip && ImGui::IsItemHovered()) {
+  ImGui::EndDisabled();
+
+  if (ImGui::IsItemHovered()) {
     ImGui::BeginTooltip();
     if (isArray) {
       const auto &a = *ctx.getObject<Array>(pVal.getAsObjectIndex());
@@ -261,8 +268,12 @@ void buildUI_parameter(
         ImGui::Text(" size: %zu", a.dim(0));
       ImGui::Text("shape: %zuD", s);
       ImGui::Text(" type: %s", anari::toString(a.elementType()));
-    } else
-      ImGui::Text("%s", p.description().c_str());
+    } else {
+      if (p.description().empty())
+        ImGui::Text("%s", anari::toString(type));
+      else
+        ImGui::Text("%s | %s", anari::toString(type), p.description().c_str());
+    }
     ImGui::EndTooltip();
   }
 

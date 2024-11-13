@@ -151,7 +151,9 @@ void Object::updateANARIParameter(anari::Device d,
     const char *n,
     AnariObjectCache *cache) const
 {
-  if (cache && p.value().holdsObject()) {
+  if (cache && !p.isEnabled()) {
+    anari::unsetParameter(d, o, n);
+  } else if (cache && p.value().holdsObject()) {
     auto objType = p.value().type();
     auto objHandle = cache->getHandle(objType, p.value().getAsObjectIndex());
     anari::setParameter(d, o, n, objType, &objHandle);

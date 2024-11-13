@@ -35,6 +35,8 @@ struct Parameter
   Token name() const;
   const std::string &description() const;
 
+  bool isEnabled() const;
+
   // Builder pattern methods for progressive construction //
 
   Parameter &setDescription(const char *d);
@@ -44,6 +46,7 @@ struct Parameter
   Parameter &setStringValues(const std::vector<std::string> &sv);
   Parameter &setStringSelection(int s);
   Parameter &setUsage(ParameterUsageHint u);
+  Parameter &setEnabled(bool enabled);
 
   // Value access //
 
@@ -91,6 +94,7 @@ struct Parameter
   Any m_max;
   std::vector<std::string> m_stringValues;
   int m_stringSelection{0};
+  bool m_enabled{true};
 };
 
 template <typename T>
