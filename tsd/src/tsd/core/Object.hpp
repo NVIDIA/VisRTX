@@ -38,7 +38,7 @@ extern Token unknown;
 
 using ParameterMap = FlatMap<Token, Parameter>;
 
-struct Object : public ParameterObserver //, public ArrayObserver
+struct Object : public ParameterObserver
 {
   Object(anari::DataType type = ANARI_UNKNOWN, Token subtype = tokens::none);
 
@@ -61,10 +61,7 @@ struct Object : public ParameterObserver //, public ArrayObserver
   //// Parameters ////
 
   // Token-based access
-  template <typename T, typename... Args>
-  Parameter &addParameter(Token name, T value, Args &&...args);
-  Parameter &addParameterRaw(
-      Token name, ANARIDataType type = ANARI_UNKNOWN, const void *v = nullptr);
+  Parameter &addParameter(Token name);
   template <typename T>
   void setParameter(Token name, T value);
   void setParameter(Token name, ANARIDataType type, const void *v);
@@ -116,14 +113,6 @@ void print(const Object &obj, std::ostream &out = std::cout);
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-template <typename T, typename... Args>
-inline Parameter &Object::addParameter(Token name, T value, Args &&...args)
-{
-  m_parameters.set(name,
-      Parameter(this, name.c_str(), Any(value), std::forward<Args>(args)...));
-  return *parameter(name);
-}
-
 template <typename T>
 inline void Object::setParameter(Token name, T value)
 {
@@ -131,7 +120,7 @@ inline void Object::setParameter(Token name, T value)
   if (p)
     p->setValue(value);
   else
-    addParameter(name, value);
+    addParameter(name).setValue(value);
 }
 
 } // namespace tsd

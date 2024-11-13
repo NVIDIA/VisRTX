@@ -61,7 +61,7 @@ SCENARIO("tsd::Object interface", "[Object]")
       {
         auto &p = obj.parameterAt(0);
         REQUIRE(p.value().is<int>());
-        REQUIRE(p.type() == ANARI_INT32);
+        REQUIRE(p.value().type() == ANARI_INT32);
         REQUIRE(p.value().get<int>() == 5);
       }
 

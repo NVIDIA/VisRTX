@@ -68,7 +68,7 @@ static void parameterToConduit(const Parameter &p, conduit::Node &node)
 {
   node["name"] = p.name().c_str();
   node["description"] = p.description();
-  node["type"] = anari::toString(p.type());
+  node["type"] = anari::toString(p.value().type());
   node["usage"] = static_cast<int>(p.usage());
 
   anyToConduit(p.value(), node["value"]);
@@ -183,7 +183,7 @@ static void conduitToObjectParameters(const conduit::Node &node, Object &obj)
     const Token parameterName(parameterNode["name"].as_char8_str());
     const auto parameterType =
         static_cast<anari::DataType>(parameterNode["value/type"].to_int());
-    auto &p = obj.addParameterRaw(parameterName);
+    auto &p = obj.addParameter(parameterName);
     conduitToParameter(parameterNode, p);
   }
 }

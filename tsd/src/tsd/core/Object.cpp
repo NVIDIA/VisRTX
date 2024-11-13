@@ -70,10 +70,9 @@ void Object::setName(const char *n)
   m_name = n;
 }
 
-Parameter &Object::addParameterRaw(
-    Token name, ANARIDataType type, const void *v)
+Parameter &Object::addParameter(Token name)
 {
-  m_parameters.set(name, Parameter(this, name.c_str(), type, v));
+  m_parameters.set(name, Parameter(this, name.c_str()));
   return *parameter(name);
 }
 
@@ -86,7 +85,7 @@ void Object::setParameter(Token name, ANARIDataType type, const void *v)
   if (p)
     p->setValue({type, v});
   else {
-    auto &np = addParameter(name, 0);
+    auto &np = addParameter(name);
     np.setValue({type, v});
   }
 }
@@ -96,10 +95,8 @@ void Object::setParameterObject(Token name, const Object &obj)
   auto *p = parameter(name);
   if (p)
     p->setValue({obj.type(), obj.index()});
-  else {
-    auto &np = addParameter(name, 0);
-    np.setValue({obj.type(), obj.index()});
-  }
+  else
+    addParameter(name).setValue({obj.type(), obj.index()});
 }
 
 Parameter *Object::parameter(Token name)
@@ -155,11 +152,11 @@ void Object::updateANARIParameter(anari::Device d,
     AnariObjectCache *cache) const
 {
   if (cache && p.value().holdsObject()) {
-    auto objType = p.type();
+    auto objType = p.value().type();
     auto objHandle = cache->getHandle(objType, p.value().getAsObjectIndex());
     anari::setParameter(d, o, n, objType, &objHandle);
   } else if (!p.value().holdsObject()) {
-    if (p.type() == ANARI_FLOAT32_VEC2
+    if (p.value().type() == ANARI_FLOAT32_VEC2
         && p.usage() & ParameterUsageHint::DIRECTION) {
       const auto azel = p.value().get<float2>();
       const float az = math::radians(azel.x);
@@ -171,7 +168,7 @@ void Object::updateANARIParameter(anari::Device d,
               std::sin(el),
               std::cos(az) * std::cos(el)));
     } else {
-      anari::setParameter(d, o, n, p.type(), p.data());
+      anari::setParameter(d, o, n, p.value().type(), p.value().data());
     }
   }
 }
@@ -211,10 +208,10 @@ void print(const Object &obj, std::ostream &out)
     out << "  subtype : " << obj.subtype().c_str() << '\n';
 
   out << "\nparameters(" << obj.numParameters() << "):\n";
-  for (int p = 0; p < obj.numParameters(); p++) {
-    auto &param = obj.parameterAt(p);
-    auto *name = obj.parameterNameAt(p);
-    out << std::setw(20) << name << "\t| " << anari::toString(param.type())
+  for (int i = 0; i < obj.numParameters(); i++) {
+    auto &p = obj.parameterAt(i);
+    auto *name = obj.parameterNameAt(i);
+    out << std::setw(20) << name << "\t| " << anari::toString(p.value().type())
         << '\n';
   }
 }

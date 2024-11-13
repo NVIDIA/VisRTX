@@ -5,15 +5,9 @@
 
 namespace tsd {
 
-Parameter::Parameter(ParameterObserver *object,
-    Token name,
-    ANARIDataType type,
-    const void *v,
-    ParameterUsageHint usage)
-    : m_observer(object), m_name(name), m_usageHint(usage)
-{
-  setValue(Any(type, v));
-}
+Parameter::Parameter(ParameterObserver *object, Token name)
+    : m_observer(object), m_name(name)
+{}
 
 Token Parameter::name() const
 {
@@ -25,14 +19,48 @@ const std::string &Parameter::description() const
   return m_description;
 }
 
-void Parameter::setDescription(const char *d)
+Parameter &Parameter::setDescription(const char *d)
 {
   m_description = d;
+  return *this;
 }
 
-const void *Parameter::data() const
+Parameter &Parameter::setValue(const Any &newValue)
 {
-  return m_value.data();
+  m_value = newValue;
+  if (m_observer)
+    m_observer->parameterChanged(this);
+  return *this;
+}
+
+Parameter &Parameter::setMin(const Any &newMin)
+{
+  m_min = newMin;
+  return *this;
+}
+
+Parameter &Parameter::setMax(const Any &newMax)
+{
+  m_max = newMax;
+  return *this;
+}
+
+Parameter &Parameter::setStringValues(const std::vector<std::string> &sv)
+{
+  m_stringValues = sv;
+  return *this;
+}
+
+Parameter &Parameter::setStringSelection(int s)
+{
+  m_stringSelection = s;
+  return *this;
+}
+
+Parameter &Parameter::setUsage(ParameterUsageHint u)
+{
+  m_usageHint = u;
+  return *this;
 }
 
 const Any &Parameter::value() const
@@ -40,36 +68,9 @@ const Any &Parameter::value() const
   return m_value;
 }
 
-void Parameter::setValue(const Any &newValue)
-{
-  m_value = newValue;
-  if (m_observer)
-    m_observer->parameterChanged(this);
-}
-
-ANARIDataType Parameter::type() const
-{
-  return m_value.type();
-}
-
 ParameterUsageHint Parameter::usage() const
 {
   return m_usageHint;
-}
-
-void Parameter::setUsage(ParameterUsageHint u)
-{
-  m_usageHint = u;
-}
-
-void Parameter::setMin(const Any &newMin)
-{
-  m_min = newMin;
-}
-
-void Parameter::setMax(const Any &newMax)
-{
-  m_max = newMax;
 }
 
 const Any &Parameter::min() const
@@ -84,12 +85,12 @@ const Any &Parameter::max() const
 
 bool Parameter::hasMin() const
 {
-  return m_min.type() == type();
+  return min().type() == value().type();
 }
 
 bool Parameter::hasMax() const
 {
-  return m_max.type() == type();
+  return max().type() == value().type();
 }
 
 const std::vector<std::string> &Parameter::stringValues() const
@@ -97,19 +98,9 @@ const std::vector<std::string> &Parameter::stringValues() const
   return m_stringValues;
 }
 
-void Parameter::setStringValues(const std::vector<std::string> &sv)
-{
-  m_stringValues = sv;
-}
-
 int Parameter::stringSelection() const
 {
   return m_stringSelection;
-}
-
-void Parameter::setStringSelection(int s)
-{
-  m_stringSelection = s;
 }
 
 void Parameter::setObserver(ParameterObserver *o)

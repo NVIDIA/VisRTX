@@ -110,10 +110,10 @@ void buildUI_parameter(
 
   bool update = false;
 
-  auto type = p.type();
   const char *name = p.name().c_str();
 
   auto pVal = p.value();
+  auto type = pVal.type();
   const auto pMin = p.min();
   const auto pMax = p.max();
 
@@ -274,17 +274,18 @@ void buildUI_parameter(
 
 void addDefaultRendererParameters(Object &o)
 {
-  auto &background = o.addParameterRaw("background"_t);
-  background.setUsage(ParameterUsageHint::COLOR);
-  background.setValue(float4(0.05f, 0.05f, 0.05f, 1.f));
-
-  auto &ambientRadiance = o.addParameterRaw("ambientRadiance"_t);
-  ambientRadiance.setValue(0.25f);
-  ambientRadiance.setMin(0.f);
-
-  auto &ambientColor = o.addParameterRaw("ambientColor"_t);
-  ambientColor.setUsage(ParameterUsageHint::COLOR);
-  ambientColor.setValue(float3(1.f));
+  o.addParameter("background")
+      .setValue(float4(0.05f, 0.05f, 0.05f, 1.f))
+      .setDescription("background color")
+      .setUsage(ParameterUsageHint::COLOR);
+  o.addParameter("ambientRadiance")
+      .setValue(0.25f)
+      .setDescription("intensity of ambient light")
+      .setMin(0.f);
+  o.addParameter("ambientColor")
+      .setValue(float3(1.f))
+      .setDescription("color of ambient light")
+      .setUsage(ParameterUsageHint::COLOR);
 }
 
 Object parseANARIObject(
@@ -302,8 +303,6 @@ Object parseANARIObject(
     tsd::Token name(parameter->name);
     if (retval.parameter(name))
       continue;
-
-    auto &p = retval.addParameter(name, Any(parameter->type, nullptr));
 
     auto *description = (const char *)anariGetParameterInfo(d,
         objectType,
@@ -345,6 +344,8 @@ Object parseANARIObject(
         "value",
         ANARI_STRING_LIST);
 
+    auto &p = retval.addParameter(name);
+    p.setValue(Any(parameter->type, nullptr));
     p.setDescription(description ? description : "");
     p.setValue(parseValue(parameter->type, defaultValue));
     if (minValue)

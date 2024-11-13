@@ -10,117 +10,120 @@ namespace tsd {
 Material::Material(Token subtype) : Object(ANARI_MATERIAL, subtype)
 {
   auto injectAlphaMode = [&]() {
-    addParameter("alphaCutoff"_t, 0.5f, "threshold when alphaMode is 'mask'");
-    auto &alphaMode =
-        addParameter("alphaMode"_t, "blend", "ANARI mode controlling opacity");
-    alphaMode.setStringValues({"opaque", "mask", "blend"});
-    alphaMode.setStringSelection(2);
+    addParameter("alphaCutoff")
+        .setValue(0.5f)
+        .setDescription("threshold when alphaMode is 'mask'");
+    addParameter("alphaMode")
+        .setValue("blend")
+        .setDescription("ANARI mode controlling opacity")
+        .setStringValues({"opaque", "mask", "blend"})
+        .setStringSelection(2);
   };
 
   if (subtype == tokens::material::matte) {
-    addParameter("color"_t,
-        float3(1.f, 0.f, 0.f),
-        "material color",
-        ParameterUsageHint::COLOR);
-    addParameter("opacity"_t,
-        1.f,
-        "material opacity",
-        ParameterUsageHint::NONE,
-        0.f,
-        1.f);
+    addParameter("color")
+        .setValue(float3(1.f, 0.f, 0.f))
+        .setDescription("material color")
+        .setUsage(ParameterUsageHint::COLOR);
+    addParameter("opacity")
+        .setValue(1.f)
+        .setDescription("material opacity")
+        .setMin(0.f)
+        .setMax(1.f);
     injectAlphaMode();
   } else if (subtype == tokens::material::physicallyBased) {
-    addParameter("baseColor"_t,
-        float3(0.8f, 0.8f, 0.8f),
-        "base color",
-        ParameterUsageHint::COLOR);
-    addParameter(
-        "opacity"_t, 1.f, "opacity", ParameterUsageHint::NONE, 0.f, 1.f);
+    addParameter("baseColor")
+        .setValue(float3(0.8f, 0.8f, 0.8f))
+        .setDescription("base color")
+        .setUsage(ParameterUsageHint::COLOR);
+    addParameter("opacity")
+        .setValue(1.f)
+        .setDescription("opacity")
+        .setMin(0.f)
+        .setMax(1.f);
     injectAlphaMode();
-    addParameter(
-        "metallic"_t, 1.f, "metalness", ParameterUsageHint::NONE, 0.f, 1.f);
-    addParameter(
-        "roughness"_t, 1.f, "roughness", ParameterUsageHint::NONE, 0.f, 1.f);
-    addParameter("emissive"_t,
-        float3(0.f, 0.f, 0.f),
-        "emissive",
-        ParameterUsageHint::COLOR);
-    addParameter("specular"_t,
-        0.f,
-        "strength of the specular reflection",
-        ParameterUsageHint::NONE,
-        0.f,
-        10.f);
-    addParameter("specularColor"_t,
-        float3(1.f, 1.f, 1.f),
-        "color of the specular reflection at normal incidence",
-        ParameterUsageHint::COLOR);
-    addParameter("clearcoat"_t,
-        0.f,
-        "strength of the clearcoat layer",
-        ParameterUsageHint::NONE,
-        0.f,
-        1.f);
-    addParameter("clearcoatRoughness"_t,
-        0.f,
-        "roughness of the clearcoat layer",
-        ParameterUsageHint::NONE,
-        0.f,
-        1.f);
-    addParameter("transmission"_t,
-        0.f,
-        "strength of the transmission",
-        ParameterUsageHint::NONE,
-        0.f,
-        1.f);
-    addParameter("ior"_t,
-        1.5f,
-        "index of refraction",
-        ParameterUsageHint::NONE,
-        1.f,
-        4.f);
-    addParameter("thickness"_t,
-        0.f,
-        "thickness of the volume beneath the surface "
-        "(with 0 the material is thin-walled)",
-        ParameterUsageHint::NONE,
-        0.f);
-    addParameter("attenuationDistance"_t,
-        std::numeric_limits<float>::max(),
-        "average distance that light travels in the medium "
-        "before interacting with a particle",
-        ParameterUsageHint::NONE,
-        0.f);
-    addParameter("attenuationColor"_t,
-        float3(1.f, 1.f, 1.f),
-        "color that white light turns into due to absorption "
-        "when reaching the attenuation distance",
-        ParameterUsageHint::COLOR);
-    addParameter("sheenColor"_t,
-        float3(0.f, 0.f, 0.f),
-        "sheen color",
-        ParameterUsageHint::COLOR);
-    addParameter("sheenRoughness"_t,
-        0.f,
-        "sheen roughness",
-        ParameterUsageHint::NONE,
-        0.f,
-        1.f);
-    addParameter("iridescence"_t,
-        0.f,
-        "stength of the thin-film layer",
-        ParameterUsageHint::NONE);
-    addParameter("iridescenceIor"_t,
-        1.3f,
-        "index of refraction of the thin-film layer",
-        ParameterUsageHint::NONE,
-        1.f,
-        4.f);
-    addParameter("iridescenceThickness"_t,
-        0.f,
-        "thickness of the thin-film layer",
-        ParameterUsageHint::NONE,
-        0.f);
+    addParameter("metallic")
+        .setValue(1.f)
+        .setDescription("metalness")
+        .setMin(0.f)
+        .setMax(1.f);
+    addParameter("roughness")
+        .setValue(1.f)
+        .setDescription("roughness")
+        .setMin(0.f)
+        .setMax(1.f);
+    addParameter("emissive")
+        .setValue(float3(0.f, 0.f, 0.f))
+        .setDescription("strength of emissiveness")
+        .setUsage(ParameterUsageHint::COLOR);
+    addParameter("specular")
+        .setValue(0.f)
+        .setDescription("strength of the specular reflection")
+        .setMin(0.f)
+        .setMax(10.f);
+    addParameter("specularColor")
+        .setValue(float3(1.f, 1.f, 1.f))
+        .setDescription("color of the specular reflection at normal incidence")
+        .setUsage(ParameterUsageHint::COLOR);
+    addParameter("clearcoat")
+        .setValue(0.f)
+        .setDescription("strength of the clearcoat layer")
+        .setMin(0.f)
+        .setMax(1.f);
+    addParameter("clearcoatRoughness")
+        .setValue(0.f)
+        .setDescription("roughness of the clearcoat layer")
+        .setMin(0.f)
+        .setMax(1.f);
+    addParameter("transmission")
+        .setValue(0.f)
+        .setDescription("strength of the transmission")
+        .setMin(0.f)
+        .setMax(1.f);
+    addParameter("ior")
+        .setValue(1.5f)
+        .setDescription("index of refraction")
+        .setMin(1.f)
+        .setMax(4.f);
+    addParameter("thickness")
+        .setValue(0.f)
+        .setDescription(
+            "thickness of the volume beneath the surface "
+            "(with 0 the material is thin-walled)")
+        .setMin(0.f);
+    addParameter("attenuationDistance")
+        .setValue(1e20f)
+        .setDescription(
+            "average distance that light travels in the medium "
+            "before interacting with a particle")
+        .setMin(0.f);
+    addParameter("attenuationColor")
+        .setValue(float3(1.f, 1.f, 1.f))
+        .setDescription(
+            "color that white light turns into due to absorption "
+            "when reaching the attenuation distance")
+        .setUsage(ParameterUsageHint::COLOR);
+    addParameter("sheenColor")
+        .setValue(float3(0.f, 0.f, 0.f))
+        .setDescription("sheen color")
+        .setUsage(ParameterUsageHint::COLOR);
+    addParameter("sheenRoughness")
+        .setValue(0.f)
+        .setDescription("sheen roughness")
+        .setMin(0.f)
+        .setMax(1.f);
+    addParameter("iridescence")
+        .setValue(0.f)
+        .setDescription("stength of the thin-film layer");
+    addParameter("iridescenceIor")
+        .setValue(1.3f)
+        .setDescription("index of refraction of the thin-film layer")
+        .setMin(1.f)
+        .setMax(4.f);
+    addParameter("iridescenceThickness")
+        .setValue(0.f)
+        .setDescription("thickness of the thin-film layer")
+        .setMin(0.f);
   }
 }
 

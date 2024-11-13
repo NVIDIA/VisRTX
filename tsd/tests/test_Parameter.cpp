@@ -27,7 +27,8 @@ SCENARIO("tsd::Parameter interface", "[Parameter]")
   GIVEN("A constructed Parameter with a value")
   {
     MockObject obj;
-    tsd::Parameter prop(&obj, "test_parameter", 5);
+    tsd::Parameter prop(&obj, "test_parameter");
+    prop.setValue(5);
 
     THEN("The Parameter name is correct")
     {
@@ -47,7 +48,7 @@ SCENARIO("tsd::Parameter interface", "[Parameter]")
 
     THEN("The Parameter type is correct")
     {
-      REQUIRE(prop.type() == ANARI_INT32);
+      REQUIRE(prop.value().type() == ANARI_INT32);
     }
 
     THEN("The Parameter has no min value")
@@ -78,13 +79,11 @@ SCENARIO("tsd::Parameter interface", "[Parameter]")
   GIVEN("A constructed Parameter with a value and min/max")
   {
     MockObject obj;
-    tsd::Parameter prop(&obj,
-        "test_parameter",
-        5,
-        "this is a test parameter",
-        tsd::ParameterUsageHint::NONE,
-        0,
-        10);
+    tsd::Parameter prop(&obj, "test_parameter");
+    prop.setValue(5)
+        .setDescription("this is a test parameter")
+        .setMin(0)
+        .setMax(10);
 
     THEN("The Parameter has a min value")
     {

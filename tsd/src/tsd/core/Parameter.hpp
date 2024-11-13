@@ -30,52 +30,41 @@ struct ParameterObserver
 
 struct Parameter
 {
-  template <typename T>
-  Parameter(ParameterObserver *object,
-      Token name,
-      T value,
-      std::string description = "",
-      ParameterUsageHint usage = ParameterUsageHint::NONE,
-      Any min = {},
-      Any max = {});
-
-  Parameter(ParameterObserver *object,
-      Token name,
-      ANARIDataType type,
-      const void *v,
-      ParameterUsageHint usage = ParameterUsageHint::NONE);
+  Parameter(ParameterObserver *object, Token name);
 
   Token name() const;
   const std::string &description() const;
-  void setDescription(const char *d);
 
-  // Value //
+  // Builder pattern methods for progressive construction //
 
-  const void *data() const;
+  Parameter &setDescription(const char *d);
+  Parameter &setValue(const Any &newValue);
+  Parameter &setMin(const Any &newMin);
+  Parameter &setMax(const Any &newMax);
+  Parameter &setStringValues(const std::vector<std::string> &sv);
+  Parameter &setStringSelection(int s);
+  Parameter &setUsage(ParameterUsageHint u);
+
+  // Value access //
 
   const Any &value() const;
-  void setValue(const Any &newValue);
-  ANARIDataType type() const;
 
   template <typename T>
   void operator=(T newValue);
 
   ParameterUsageHint usage() const;
-  void setUsage(ParameterUsageHint u);
 
   // Value min/max bounds //
 
-  void setMin(const Any &newMin);
-  void setMax(const Any &newMax);
   const Any &min() const;
   const Any &max() const;
   bool hasMin() const;
   bool hasMax() const;
 
+  // Methods when holding multi-string values //
+
   const std::vector<std::string> &stringValues() const;
-  void setStringValues(const std::vector<std::string> &sv);
   int stringSelection() const;
-  void setStringSelection(int s);
 
   ////////////////////////////////////////
 
@@ -111,24 +100,6 @@ constexpr ANARIDataType anariType()
 }
 
 // Inlined definitions ////////////////////////////////////////////////////////
-
-template <typename T>
-inline Parameter::Parameter(ParameterObserver *object,
-    Token name,
-    T value,
-    std::string description,
-    ParameterUsageHint usage,
-    Any minValue,
-    Any maxValue)
-    : m_observer(object),
-      m_name(name),
-      m_description(description),
-      m_usageHint(usage)
-{
-  setValue(value);
-  setMin(minValue);
-  setMax(maxValue);
-}
 
 template <typename T>
 inline void Parameter::operator=(T newValue)
