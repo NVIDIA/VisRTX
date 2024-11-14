@@ -15,6 +15,7 @@ anari::Object SpatialField::makeANARIObject(anari::Device d) const
 namespace tokens::spatial_field {
 
 const Token structuredRegular = "structuredRegular";
+const Token amr = "amr";
 
 } // namespace tokens::spatial_field
 

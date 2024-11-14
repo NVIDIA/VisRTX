@@ -89,6 +89,9 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
   setupANARICacheArray(db.volume, m_cache.volume);
   setupANARICacheArray(db.light, m_cache.light);
 
+  // NOTE: ensure that object arrays are properly populated
+  foreach_item_const(db.array, [&](auto *a) { updateObjectArrayData(a); });
+
   if (setAsUpdateDelegate)
     ctx.setUpdateDelegate(this);
 
@@ -174,19 +177,10 @@ void RenderIndex::signalArrayMapped(const Array *a)
 
 void RenderIndex::signalArrayUnmapped(const Array *a)
 {
-  const anari::DataType elementType = a->elementType();
-  if (anari::isObject(elementType)) {
-    if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr) {
-      auto *src = a->dataAs<size_t>();
-      auto *dst = (anari::Object *)anariMapArray(device(), arr);
-      std::transform(src, src + a->size(), dst, [&](size_t idx) {
-        return m_cache.getHandle(elementType, idx);
-      });
-      anariUnmapArray(device(), arr);
-    }
-  } else if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr) {
+  if (anari::isObject(a->elementType()))
+    updateObjectArrayData(a);
+  else if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr)
     anariUnmapArray(device(), (anari::Array)arr);
-  }
 }
 
 void RenderIndex::signalInstanceStructureChanged()
@@ -212,6 +206,25 @@ void RenderIndex::signalRemoveAllObjects()
   anari::unsetAllParameters(d, w);
   anari::commitParameters(d, w);
   m_cache.clear();
+}
+
+void RenderIndex::updateObjectArrayData(const Array *a) const
+{
+  auto elementType = a->elementType();
+  if (!a || !anari::isObject(elementType))
+    return;
+
+  if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr) {
+    auto *src = a->dataAs<size_t>();
+    auto *dst = (anari::Object *)anariMapArray(device(), arr);
+    std::transform(src, src + a->size(), dst, [&](size_t idx) {
+      auto handle = m_cache.getHandle(elementType, idx);
+      if (handle == nullptr)
+        logWarning("[RenderIndex] object array encountered null handle");
+      return handle;
+    });
+    anariUnmapArray(device(), arr);
+  }
 }
 
 } // namespace tsd

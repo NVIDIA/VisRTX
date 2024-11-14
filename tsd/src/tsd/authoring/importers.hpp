@@ -16,6 +16,7 @@ void import_NBODY(Context &ctx, const char *filename, bool useDefaultMaterial = 
 void import_OBJ(Context &ctx, const char *filename, bool useDefaultMaterial = false);
 void import_PLY(Context &ctx, const char *filename);
 IndexedVectorRef<SpatialField> import_RAW(Context &ctx, const char *filename);
+IndexedVectorRef<SpatialField> import_FLASH(Context &ctx, const char *filename);
 
 IndexedVectorRef<Volume> import_volume(Context &ctx,
     const char *filename,

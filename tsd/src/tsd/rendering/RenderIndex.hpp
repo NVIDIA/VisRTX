@@ -46,6 +46,9 @@ struct RenderIndex : public BaseUpdateDelegate
   AnariObjectCache m_cache;
 
   anari::World m_world{nullptr};
+
+private:
+  void updateObjectArrayData(const Array *a) const;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////

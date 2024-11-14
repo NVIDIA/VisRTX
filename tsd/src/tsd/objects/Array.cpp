@@ -144,8 +144,6 @@ Array::Array(anari::DataType arrayType,
       m_dim1(items1),
       m_dim2(items2)
 {
-  if (anari::isObject(type))
-    throw std::runtime_error("cannot create arrays of ANARI objects in TSD");
   m_data.resize(dim(0) * dim(1) * dim(2) * elementSize());
 }
 

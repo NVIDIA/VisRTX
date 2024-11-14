@@ -30,6 +30,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 ## Global options ##
 
 option(TSD_ENABLE_SERIALIZATION "Use conduit to serialize contexts" OFF)
+option(TSD_USE_HDF5 "Support loading AMR grids from HDF5" OFF)
 
 ## Establish project ##
 

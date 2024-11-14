@@ -18,6 +18,8 @@ IndexedVectorRef<Volume> import_volume(Context &ctx,
   auto ext = extensionOf(filepath);
   if (ext == ".raw")
     field = import_RAW(ctx, filepath);
+  else if (ext == ".flash")
+    field = import_FLASH(ctx, filepath);
 
   auto volume = ctx.createObject<Volume>(tokens::volume::transferFunction1D);
   volume->setName(fileOf(filepath).c_str());

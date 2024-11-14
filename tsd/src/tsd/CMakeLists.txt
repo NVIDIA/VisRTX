@@ -9,6 +9,7 @@ PRIVATE
   authoring/importers/detail/importer_common.cpp
   authoring/importers/import_ASSIMP.cpp
   authoring/importers/import_DLAF.cpp
+  authoring/importers/import_FLASH.cpp
   authoring/importers/import_HDRI.cpp
   authoring/importers/import_NBODY.cpp
   authoring/importers/import_OBJ.cpp
@@ -68,4 +69,11 @@ else()
     PROPERTIES
       COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=0
   )
+endif()
+if (TSD_USE_HDF5)
+  find_package(HDF5 REQUIRED COMPONENTS CXX)
+  project_compile_definitions(PRIVATE -DTSD_USE_HDF5=1)
+  project_link_libraries(PRIVATE $<BUILD_INTERFACE:HDF5::HDF5>)
+else()
+  project_compile_definitions(PRIVATE -DTSD_USE_HDF5=0)
 endif()

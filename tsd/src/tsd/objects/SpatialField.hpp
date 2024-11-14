@@ -22,6 +22,7 @@ struct SpatialField : public Object
 namespace tokens::spatial_field {
 
 extern const Token structuredRegular;
+extern const Token amr;
 
 } // namespace tokens::spatial_field
 
