@@ -10,11 +10,15 @@ project_sources(PRIVATE RenderPass.cpp RenderPipeline.cpp)
 project_include_directories(PUBLIC ${CMAKE_CURRENT_LIST_DIR}/..)
 project_link_libraries(PUBLIC tsd OpenGL::GL)
 
-option(
-  TSD_RENDER_PIPELINE_USE_CUDA
-  "Use CUDA for the render pipeline library"
-  ON
-)
+if (APPLE)
+  set(TSD_RENDER_PIPELINE_USE_CUDA OFF)
+else()
+  option(
+    TSD_RENDER_PIPELINE_USE_CUDA
+    "Use CUDA for the render pipeline library"
+    ON
+  )
+endif()
 
 if (TSD_RENDER_PIPELINE_USE_CUDA)
   enable_language(CUDA)
@@ -28,6 +32,6 @@ if (TSD_RENDER_PIPELINE_USE_CUDA)
   )
   project_compile_definitions(PRIVATE ENABLE_CUDA)
 else()
-  find_package(Thrust REQUIRED COMPONENTS TBB)
-  project_link_libraries(PRIVATE Thrust::TBB Thrust::TBB::Device)
+  find_package(TBB REQUIRED)
+  project_link_libraries(PRIVATE TBB::tbb)
 endif()

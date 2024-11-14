@@ -10,7 +10,11 @@
 // anari
 #include <anari/anari_cpp.hpp>
 // OpenGL
+#if __APPLE__
+#include <OpenGL/gl.h>
+#else
 #include <GL/gl.h>
+#endif
 
 namespace tsd {
 

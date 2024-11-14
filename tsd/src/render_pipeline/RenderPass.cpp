@@ -3,22 +3,16 @@
 
 #include "RenderPass.h"
 // std
+#include <algorithm>
 #include <cstring>
 #include <limits>
-// thrust
-#include <thrust/execution_policy.h>
-#include <thrust/for_each.h>
-#include <thrust/iterator/counting_iterator.h>
+
+#include "detail/parallel_for.h"
 
 #ifdef ENABLE_CUDA
 // cuda
 #include <cuda_gl_interop.h>
 #include <cuda_runtime_api.h>
-#define DEVICE_FCN __device__
-#define DEVICE_FCN_INLINE __forceinline__ __device__
-#else
-#define DEVICE_FCN
-#define DEVICE_FCN_INLINE inline
 #endif
 
 namespace tsd {
@@ -38,10 +32,8 @@ static void thrustCompositeFrame(RenderPass::Buffers &b_out,
     tsd::uint2 size,
     bool firstPass)
 {
-  thrust::for_each(thrust::device,
-      thrust::make_counting_iterator(0u),
-      thrust::make_counting_iterator(uint32_t(size.x * size.y)),
-      [=] DEVICE_FCN(uint32_t i) {
+  detail::parallel_for(
+      0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
         const float currentDepth = b_in.depth[i];
         const float incomingDepth = b_out.depth[i];
         if (firstPass || currentDepth < incomingDepth) {
@@ -56,10 +48,8 @@ static void thrustCompositeFrame(RenderPass::Buffers &b_out,
 static void thrustComputeOutline(
     RenderPass::Buffers &b, uint32_t outlineId, tsd::uint2 size)
 {
-  thrust::for_each(thrust::device,
-      thrust::make_counting_iterator(0u),
-      thrust::make_counting_iterator(uint32_t(size.x * size.y)),
-      [=] DEVICE_FCN(uint32_t i) {
+  detail::parallel_for(
+      0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
         uint32_t y = i / size.x;
         uint32_t x = i % size.x;
 
@@ -185,11 +175,19 @@ void AnariRenderPass::updateSize()
   m_buffers.color = detail::allocate<uint32_t>(totalSize);
   m_buffers.depth = detail::allocate<float>(totalSize);
   m_buffers.objectId = detail::allocate<uint32_t>(totalSize);
+#if ENABLE_CUDA
   thrust::fill(m_buffers.color, m_buffers.color + totalSize, 0u);
   thrust::fill(m_buffers.depth,
       m_buffers.depth + totalSize,
       std::numeric_limits<float>::infinity());
   thrust::fill(m_buffers.objectId, m_buffers.objectId + totalSize, ~0u);
+#else
+  std::fill(m_buffers.color, m_buffers.color + totalSize, 0u);
+  std::fill(m_buffers.depth,
+      m_buffers.depth + totalSize,
+      std::numeric_limits<float>::infinity());
+  std::fill(m_buffers.objectId, m_buffers.objectId + totalSize, ~0u);
+#endif
 }
 
 void AnariRenderPass::render(Buffers &b, int stageId)
