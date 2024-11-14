@@ -165,14 +165,28 @@ void RenderIndex::signalParameterRemoved(const Object *o, const Parameter *p)
 
 void RenderIndex::signalArrayMapped(const Array *a)
 {
-  if (anari::Object obj = m_cache.getHandle(a))
-    anariMapArray(device(), (ANARIArray)obj);
+  if (anari::isObject(a->elementType()))
+    return;
+
+  if (anari::Object obj = m_cache.getHandle(a); obj != nullptr)
+    anariMapArray(device(), (anari::Array)obj);
 }
 
 void RenderIndex::signalArrayUnmapped(const Array *a)
 {
-  if (anari::Object obj = m_cache.getHandle(a))
-    anariUnmapArray(device(), (ANARIArray)obj);
+  const anari::DataType elementType = a->elementType();
+  if (anari::isObject(elementType)) {
+    if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr) {
+      auto *src = a->dataAs<size_t>();
+      auto *dst = (anari::Object *)anariMapArray(device(), arr);
+      std::transform(src, src + a->size(), dst, [&](size_t idx) {
+        return m_cache.getHandle(elementType, idx);
+      });
+      anariUnmapArray(device(), arr);
+    }
+  } else if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr) {
+    anariUnmapArray(device(), (anari::Array)arr);
+  }
 }
 
 void RenderIndex::signalInstanceStructureChanged()
@@ -187,8 +201,6 @@ void RenderIndex::signalObjectFilteringChanged()
 
 void RenderIndex::signalObjectRemoved(const Object *o)
 {
-  if (o->type() == ANARI_GEOMETRY)
-    m_cache.removeHandle(ANARI_SURFACE, o->index());
   m_cache.removeHandle(o);
   updateWorld();
 }
@@ -199,17 +211,6 @@ void RenderIndex::signalRemoveAllObjects()
   auto w = world();
   anari::unsetAllParameters(d, w);
   anari::commitParameters(d, w);
-
-  // NOTE(jda) - query bounds to cause the commit buffer to flush...
-  tsd::math::float3 bounds[2] = {{-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}};
-  anariGetProperty(d,
-      w,
-      "bounds",
-      ANARI_FLOAT32_BOX3,
-      &bounds[0],
-      sizeof(bounds),
-      ANARI_WAIT);
-
   m_cache.clear();
 }
 

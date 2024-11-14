@@ -17,7 +17,7 @@ AnariObjectCache::~AnariObjectCache()
   anari::release(device, device);
 }
 
-anari::Object AnariObjectCache::getHandle(ANARIDataType type, size_t i) const
+anari::Object AnariObjectCache::getHandle(anari::DataType type, size_t i) const
 {
   anari::Object obj = nullptr;
 
@@ -61,7 +61,7 @@ anari::Object AnariObjectCache::getHandle(const Object *o) const
   return getHandle(o->type(), o->index());
 }
 
-void AnariObjectCache::removeHandle(ANARIDataType type, size_t index)
+void AnariObjectCache::removeHandle(anari::DataType type, size_t index)
 {
   auto handle = getHandle(type, index);
   anari::release(device, handle);

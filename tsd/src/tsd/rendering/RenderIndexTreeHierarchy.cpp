@@ -220,7 +220,7 @@ inline void RenderToAnariObjectsVisitor::createInstanceFromTop()
   if (!m_xfmArray)
     anari::setParameter(m_device, instance, "transform", xfm);
   else {
-    const auto *xfms_in = m_xfmArray->mapAs<tsd::mat4>();
+    const auto *xfms_in = m_xfmArray->dataAs<tsd::mat4>();
 
     uint64_t stride = 0;
     auto *xfms_out = (tsd::mat4 *)anariMapParameterArray1D(m_device,
@@ -241,7 +241,6 @@ inline void RenderToAnariObjectsVisitor::createInstanceFromTop()
 
     anariUnmapParameterArray(m_device, instance, "transform");
 
-    m_xfmArray->unmap();
     m_xfmArray = nullptr;
   }
   anari::setParameter(m_device, instance, "group", group);

@@ -70,9 +70,8 @@ void *Array::map()
   return m_data.data();
 }
 
-const void *Array::map() const
+const void *Array::data() const
 {
-  m_mapped = true;
   return m_data.data();
 }
 
@@ -81,11 +80,6 @@ void Array::unmap()
   m_mapped = false;
   if (auto *ud = updateDelegate(); ud != nullptr)
     ud->signalArrayUnmapped(this);
-}
-
-void Array::unmap() const
-{
-  m_mapped = false;
 }
 
 void Array::setData(const void *data, size_t byteOffset)
@@ -100,20 +94,30 @@ anari::Object Array::makeANARIObject(anari::Device d) const
   if (elementType() == ANARI_UNKNOWN)
     return nullptr;
 
+  const bool isObjectArray = anari::isObject(elementType());
   anari::Object retval = nullptr;
 
   switch (shape()) {
   case 1:
-    retval = anariNewArray1D(
-        d, m_data.data(), nullptr, nullptr, elementType(), dim(0));
+    retval = anariNewArray1D(d,
+        isObjectArray ? nullptr : m_data.data(),
+        nullptr,
+        nullptr,
+        elementType(),
+        dim(0));
     break;
   case 2:
-    retval = anariNewArray2D(
-        d, m_data.data(), nullptr, nullptr, elementType(), dim(0), dim(1));
+    retval = anariNewArray2D(d,
+        isObjectArray ? nullptr : m_data.data(),
+        nullptr,
+        nullptr,
+        elementType(),
+        dim(0),
+        dim(1));
     break;
   case 3:
     retval = anariNewArray3D(d,
-        m_data.data(),
+        isObjectArray ? nullptr : m_data.data(),
         nullptr,
         nullptr,
         elementType(),

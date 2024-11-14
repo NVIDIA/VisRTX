@@ -33,15 +33,13 @@ struct Array : public Object
   anari::DataType elementType() const;
 
   void *map();
-  const void *map() const;
-
   template <typename T>
   T *mapAs();
-  template <typename T>
-  const T *mapAs() const;
-
   void unmap();
-  void unmap() const;
+
+  const void *data() const;
+  template <typename T>
+  const T *dataAs() const;
 
   template <typename T>
   void setData(const T *data, size_t size, size_t startOffset = 0);
@@ -83,10 +81,10 @@ inline T *Array::mapAs()
 }
 
 template <typename T>
-inline const T *Array::mapAs() const
+inline const T *Array::dataAs() const
 {
   assert(anari::ANARITypeFor<T>::value == elementType());
-  return reinterpret_cast<const T *>(map());
+  return reinterpret_cast<const T *>(data());
 }
 
 template <typename T>

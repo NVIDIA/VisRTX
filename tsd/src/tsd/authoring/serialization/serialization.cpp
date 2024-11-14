@@ -105,9 +105,8 @@ static void arrayToConduit(const Array &arr, conduit::Node &node)
   arrayData["shape"] = arr.shape();
   arrayData["dim"] = {arr.dim(0), arr.dim(1), arr.dim(2)};
 
-  const auto *mem = reinterpret_cast<const uint8_t *>(arr.map());
+  const auto *mem = reinterpret_cast<const uint8_t *>(arr.data());
   arrayData["bytes"].set(mem, arr.size() * arr.elementSize());
-  arr.unmap();
 }
 
 static void objectTreeToConduit(InstanceTree &tree, conduit::Node &node)
