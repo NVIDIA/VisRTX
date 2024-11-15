@@ -3,6 +3,7 @@
 
 #include "AppContext.h"
 #include "modals/AppSettings.h"
+#include "windows/IsosurfaceEditor.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
 #include "windows/ObjectTree.h"
@@ -25,13 +26,13 @@ static tsd_viewer::AppContext *g_context = nullptr;
 static const char *g_defaultLayout =
     R"layout(
 [Window][MainDockSpace]
-Pos=0,25
-Size=1920,1054
+Pos=0,22
+Size=2489,1211
 Collapsed=0
 
 [Window][Viewport]
-Pos=550,25
-Size=1370,806
+Pos=550,22
+Size=1389,963
 Collapsed=0
 DockId=0x00000003,0
 
@@ -42,8 +43,8 @@ Collapsed=0
 DockId=0x00000004,0
 
 [Window][Log]
-Pos=550,833
-Size=1370,246
+Pos=550,987
+Size=1389,246
 Collapsed=0
 DockId=0x00000002,0
 
@@ -53,22 +54,28 @@ Size=400,400
 Collapsed=0
 
 [Window][Object Tree]
-Pos=0,588
-Size=548,176
+Pos=0,22
+Size=548,450
 Collapsed=0
 DockId=0x00000007,0
 
 [Window][Object Editor]
-Pos=0,766
-Size=548,313
+Pos=0,474
+Size=548,759
 Collapsed=0
 DockId=0x00000008,0
 
 [Window][TF Editor]
-Pos=0,25
-Size=548,561
+Pos=1941,22
+Size=548,606
 Collapsed=0
 DockId=0x00000009,0
+
+[Window][Isosurface Editor]
+Pos=1941,630
+Size=548,603
+Collapsed=0
+DockId=0x0000000A,0
 
 [Table][0x39E9F5ED,1]
 Column 0  Weight=1.0000
@@ -93,18 +100,36 @@ Column 1  Weight=1.0000
 Column 0  Weight=1.0000
 Column 1  Weight=1.0000
 
+[Table][0xD3B898DD,2]
+Column 0  Weight=1.0000
+Column 1  Weight=1.0000
+
+[Table][0x348E3E86,2]
+Column 0  Weight=1.0000
+Column 1  Weight=1.0000
+
+[Table][0x4D7E8B1D,2]
+Column 0  Weight=1.0000
+Column 1  Weight=1.0000
+
+[Table][0x2F5F88FA,2]
+Column 0  Weight=1.0000
+Column 1  Weight=1.0000
+
 [Docking][Data]
-DockSpace       ID=0x782A6D6B Window=0xDEDC5B90 Pos=0,25 Size=1920,1054 Split=X Selected=0x13926F0B
-  DockNode      ID=0x00000005 Parent=0x782A6D6B SizeRef=548,626 Split=Y Selected=0x1FD98235
-    DockNode    ID=0x00000009 Parent=0x00000005 SizeRef=548,561 Selected=0xE3280322
-    DockNode    ID=0x0000000A Parent=0x00000005 SizeRef=548,491 Split=Y Selected=0x1FD98235
-      DockNode  ID=0x00000007 Parent=0x0000000A SizeRef=548,176 Selected=0x1FD98235
-      DockNode  ID=0x00000008 Parent=0x0000000A SizeRef=548,313 Selected=0xAFC1D085
-  DockNode      ID=0x00000006 Parent=0x782A6D6B SizeRef=1370,626 Split=Y Selected=0x13926F0B
-    DockNode    ID=0x00000001 Parent=0x00000006 SizeRef=1049,626 Split=X Selected=0x13926F0B
-      DockNode  ID=0x00000003 Parent=0x00000001 SizeRef=684,626 CentralNode=1 Selected=0x13926F0B
-      DockNode  ID=0x00000004 Parent=0x00000001 SizeRef=684,626 Selected=0xBAF13E1E
-    DockNode    ID=0x00000002 Parent=0x00000006 SizeRef=1049,246 Selected=0x64F50EE5
+DockSpace         ID=0x782A6D6B Window=0xDEDC5B90 Pos=0,22 Size=2489,1211 Split=X Selected=0x13926F0B
+  DockNode        ID=0x0000000B Parent=0x782A6D6B SizeRef=1326,1475 Split=X
+    DockNode      ID=0x00000005 Parent=0x0000000B SizeRef=548,626 Split=Y Selected=0x1FD98235
+      DockNode    ID=0x00000007 Parent=0x00000005 SizeRef=548,162 Selected=0x1FD98235
+      DockNode    ID=0x00000008 Parent=0x00000005 SizeRef=548,273 Selected=0xAFC1D085
+    DockNode      ID=0x00000006 Parent=0x0000000B SizeRef=1370,626 Split=Y Selected=0x13926F0B
+      DockNode    ID=0x00000001 Parent=0x00000006 SizeRef=1049,626 Split=X Selected=0x13926F0B
+        DockNode  ID=0x00000003 Parent=0x00000001 SizeRef=684,626 CentralNode=1 Selected=0x13926F0B
+        DockNode  ID=0x00000004 Parent=0x00000001 SizeRef=684,626 Selected=0xBAF13E1E
+      DockNode    ID=0x00000002 Parent=0x00000006 SizeRef=1049,246 Selected=0x64F50EE5
+  DockNode        ID=0x0000000C Parent=0x782A6D6B SizeRef=548,1475 Split=Y Selected=0xE3280322
+    DockNode      ID=0x00000009 Parent=0x0000000C SizeRef=548,738 Selected=0xE3280322
+    DockNode      ID=0x0000000A Parent=0x0000000C SizeRef=548,735 Selected=0x2468BDAC
 )layout";
 
 namespace tsd_viewer {
@@ -139,6 +164,7 @@ class Application : public anari_viewer::Application
     auto *oeditor = new ObjectEditor(g_context);
     auto *otree = new ObjectTree(g_context);
     auto *tfeditor = new TransferFunctionEditor(g_context);
+    auto *isoeditor = new IsosurfaceEditor(g_context);
 
     anari_viewer::WindowArray windows;
     windows.emplace_back(m_viewport);
@@ -147,6 +173,7 @@ class Application : public anari_viewer::Application
     windows.emplace_back(otree);
     windows.emplace_back(log);
     windows.emplace_back(tfeditor);
+    windows.emplace_back(isoeditor);
 
     // Populate scene //
 

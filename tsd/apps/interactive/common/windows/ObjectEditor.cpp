@@ -12,8 +12,10 @@ ObjectEditor::ObjectEditor(AppContext *state, const char *name)
 
 void ObjectEditor::buildUI()
 {
-  if (m_context->tsd.selectedObject == nullptr)
+  if (m_context->tsd.selectedObject == nullptr) {
+    ImGui::Text("{no object selected}");
     return;
+  }
 
   ImGui::BeginDisabled(!m_context->tsd.sceneLoadComplete);
   tsd::ui::buildUI_object(

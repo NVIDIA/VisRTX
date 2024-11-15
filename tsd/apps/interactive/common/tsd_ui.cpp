@@ -59,7 +59,7 @@ void buildUI_object(tsd::Object &o,
 
         for (size_t i = 0; i < o.numParameters(); i++) {
           auto &p = o.parameterAt(i);
-          if (p.value().holdsObject())
+          if (p.value().holdsObject() && !anari::isArray(p.value().type()))
             continue;
           ImGui::TableNextRow();
           buildUI_parameter(p, ctx, useTableForParameters);

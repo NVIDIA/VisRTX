@@ -26,6 +26,7 @@ namespace tokens::geometry {
 extern const Token cone;
 extern const Token curve;
 extern const Token cylinder;
+extern const Token isosurface;
 extern const Token quad;
 extern const Token sphere;
 extern const Token triangle;

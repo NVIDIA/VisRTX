@@ -5,6 +5,7 @@ project(tsd_viewer_common)
 project_add_library(OBJECT)
 project_sources(PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/modals/AppSettings.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/windows/IsosurfaceEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/Log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/ObjectEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/ObjectTree.cpp
