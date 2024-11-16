@@ -22,8 +22,10 @@ void ObjectTree::buildUI()
   auto &ctx = m_context->tsd.ctx;
   auto &tree = ctx.tree;
 
-  if (ImGui::Button("clear scene"))
+  if (ImGui::Button("clear scene")) {
+    m_context->clearSelected();
     m_context->tsd.ctx.removeAllObjects();
+  }
 
   ImGui::Separator();
 
@@ -122,7 +124,7 @@ void ObjectTree::buildUI()
         m_hoveredNode = node.index();
 
       if (ImGui::IsItemClicked() && m_contextMenuNode == tsd::INVALID_INDEX)
-        m_context->setSelectedObject(obj);
+        m_context->setSelectedNode(node);
 
       if (selected)
         ImGui::PopStyleColor(1);
@@ -155,7 +157,7 @@ void ObjectTree::buildUI()
       ImGui::OpenPopup("ObjectTree_contextMenu");
     } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
         && m_hoveredNode == tsd::INVALID_INDEX) {
-      m_context->setSelectedObject(nullptr);
+      m_context->clearSelected();
     }
   }
 
@@ -181,7 +183,7 @@ void ObjectTree::buildUI_objectContextMenu()
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "directional light");
           m_contextMenuNode = tsd::INVALID_INDEX;
-          m_context->setSelectedObject(nullptr);
+          m_context->clearSelected();
         }
 
         if (ImGui::MenuItem("point")) {
@@ -191,7 +193,7 @@ void ObjectTree::buildUI_objectContextMenu()
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "point light");
           m_contextMenuNode = tsd::INVALID_INDEX;
-          m_context->setSelectedObject(nullptr);
+          m_context->clearSelected();
         }
 
         if (ImGui::MenuItem("quad")) {
@@ -201,7 +203,7 @@ void ObjectTree::buildUI_objectContextMenu()
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "quad light");
           m_contextMenuNode = tsd::INVALID_INDEX;
-          m_context->setSelectedObject(nullptr);
+          m_context->clearSelected();
         }
 
         ImGui::EndMenu();
@@ -216,7 +218,7 @@ void ObjectTree::buildUI_objectContextMenu()
       if (m_contextMenuNode != tsd::INVALID_INDEX) {
         tsd_ctx.removeInstancedObject(tree.at(m_contextMenuNode));
         m_contextMenuNode = tsd::INVALID_INDEX;
-        m_context->setSelectedObject(nullptr);
+        m_context->clearSelected();
       }
     }
 

@@ -26,8 +26,7 @@ static void statusFunc(const void *_appContext,
   else if (severity == ANARI_SEVERITY_WARNING)
     tsd::logWarning("[ANARI][WARN ][%s][%p] %s", typeStr, source, message);
   else if (verbose && severity == ANARI_SEVERITY_PERFORMANCE_WARNING)
-    tsd::logPerfWarning(
-        "[ANARI][PERF ][%s][%p] %s", typeStr, source, message);
+    tsd::logPerfWarning("[ANARI][PERF ][%s][%p] %s", typeStr, source, message);
   else if (verbose && severity == ANARI_SEVERITY_INFO)
     tsd::logInfo("[ANARI][INFO ][%s][%p] %s", typeStr, source, message);
   else if (verbose && severity == ANARI_SEVERITY_DEBUG)
@@ -266,8 +265,25 @@ void AppContext::releaseAllDevices()
 
 void AppContext::setSelectedObject(tsd::Object *o)
 {
+  const bool wasSelected = tsd.selectedObject != nullptr;
   tsd.selectedObject = o;
-  anari.delegate.signalObjectFilteringChanged();
+  if (o != nullptr && !wasSelected || o == nullptr && wasSelected)
+    anari.delegate.signalObjectFilteringChanged();
+}
+
+void AppContext::setSelectedNode(tsd::InstanceNode &n)
+{
+  setSelectedObject(tsd.ctx.getObject(n->value));
+  tsd.selectedNode = tsd.ctx.tree.at(n.index());
+}
+
+void AppContext::clearSelected()
+{
+  if (tsd.selectedObject != nullptr) {
+    tsd.selectedObject = nullptr;
+    tsd.selectedNode = {};
+    anari.delegate.signalObjectFilteringChanged();
+  }
 }
 
 } // namespace tsd_viewer

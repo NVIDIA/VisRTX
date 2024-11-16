@@ -46,6 +46,7 @@ struct AppContext
     tsd::Context ctx;
     bool sceneLoadComplete{false};
     tsd::Object *selectedObject{nullptr};
+    tsd::InstanceNode::Ref selectedNode;
   } tsd;
 
   struct DeviceState
@@ -82,6 +83,8 @@ struct AppContext
   void releaseAllDevices();
 
   void setSelectedObject(tsd::Object *o);
+  void setSelectedNode(tsd::InstanceNode &n);
+  void clearSelected();
 
   // Not copyable or moveable //
   AppContext(const AppContext &) = delete;
