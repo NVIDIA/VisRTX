@@ -326,7 +326,7 @@ static std::vector<LightRef> importASSIMPLights(
 }
 
 static void populateASSIMPInstanceTree(Context &ctx,
-    InstanceNodeRef tsdTreeRef,
+    InstanceNode::Ref tsdTreeRef,
     const std::vector<SurfaceRef> &surfaces,
     const aiNode *node)
 {

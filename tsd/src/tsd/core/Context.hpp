@@ -22,9 +22,14 @@ struct InstanceTreeData
 {
   InstanceTreeData() = default;
   template <typename T>
-  InstanceTreeData(T v, const char *n = "") : value(v), name(n)
-  {}
-  InstanceTreeData(utility::Any v, const char *n) : value(v), name(n) {}
+  InstanceTreeData(T v, const char *n = "");
+  InstanceTreeData(utility::Any v, const char *n);
+
+  bool isObject() const;
+  bool isTransform() const;
+  bool isEmpty() const;
+
+  // Data //
 
   utility::Any value;
   std::string name;
@@ -33,7 +38,6 @@ struct InstanceTreeData
 };
 using InstanceTree = utility::Forest<InstanceTreeData>;
 using InstanceNode = utility::ForestNode<InstanceTreeData>;
-using InstanceNodeRef = InstanceNode::Ref;
 using InstanceVisitor = utility::ForestVisitor<InstanceTreeData>;
 
 struct BaseUpdateDelegate;
@@ -99,8 +103,8 @@ struct Context
   // Instanced objects (surfaces, volumes, and lights) //
 
   template <typename... Args>
-  void addInstancedObject(InstanceNodeRef parent, Args &&...args);
-  void removeInstancedObject(InstanceNodeRef obj);
+  void addInstancedObject(InstanceNode::Ref parent, Args &&...args);
+  void removeInstancedObject(InstanceNode::Ref obj);
   void signalInstanceTreeChange();
 
   InstanceTree tree{
@@ -123,6 +127,34 @@ struct Context
 ///////////////////////////////////////////////////////////////////////////////
 // Inlined definitions ////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+
+// InstanceTreeData //
+
+template <typename T>
+inline InstanceTreeData::InstanceTreeData(T v, const char *n)
+    : value(v), name(n)
+{}
+
+inline InstanceTreeData::InstanceTreeData(utility::Any v, const char *n)
+    : value(v), name(n)
+{}
+
+inline bool InstanceTreeData::isObject() const
+{
+  return anari::isObject(value.type());
+}
+
+inline bool InstanceTreeData::isTransform() const
+{
+  return value.type() == ANARI_FLOAT32_MAT4;
+}
+
+inline bool InstanceTreeData::isEmpty() const
+{
+  return value;
+}
+
+// Context //
 
 template <typename T>
 inline IndexedVectorRef<T> Context::createObject()
@@ -263,7 +295,7 @@ inline IndexedVectorRef<OBJ_T> Context::createObjectImpl(
 }
 
 template <typename... Args>
-inline void Context::addInstancedObject(InstanceNodeRef parent, Args &&...args)
+inline void Context::addInstancedObject(InstanceNode::Ref parent, Args &&...args)
 {
   tree.insert_first_child(parent, {std::forward<Args>(args)...});
   signalInstanceTreeChange();

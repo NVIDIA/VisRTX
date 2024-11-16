@@ -6,7 +6,7 @@
 
 namespace tsd {
 
-void generate_monkey(Context &ctx, InstanceNodeRef location)
+void generate_monkey(Context &ctx, InstanceNode::Ref location)
 {
   if (!location)
     location = ctx.tree.root();

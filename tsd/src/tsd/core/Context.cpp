@@ -203,12 +203,12 @@ const ObjectDatabase &Context::objectDB() const
   return m_db;
 }
 
-void Context::removeInstancedObject(InstanceNodeRef obj)
+void Context::removeInstancedObject(InstanceNode::Ref obj)
 {
   if (obj->isRoot())
     return;
 
-  std::vector<InstanceNodeRef> objects;
+  std::vector<InstanceNode::Ref> objects;
   tree.traverse(obj, [&](auto &node, int level) {
     if (node.isLeaf())
       objects.push_back(tree.at(node.index()));

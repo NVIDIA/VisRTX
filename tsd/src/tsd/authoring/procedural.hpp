@@ -12,7 +12,7 @@ namespace tsd {
 void generate_cylinders(Context &ctx, bool useDefaultMaterial = false);
 void generate_icosphere8(Context &ctx);
 void generate_material_orb(Context &ctx);
-void generate_monkey(Context &ctx, InstanceNodeRef location = {});
+void generate_monkey(Context &ctx, InstanceNode::Ref location = {});
 VolumeRef generate_noiseVolume(Context &ctx, ArrayRef colors = {}, ArrayRef opacities = {});
 void generate_randomSpheres(Context &ctx, bool useDefaultMaterial = false);
 void generate_rtow(Context &ctx);

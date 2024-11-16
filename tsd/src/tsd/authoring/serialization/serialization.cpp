@@ -275,9 +275,9 @@ static void conduitToObject(Context &ctx, const conduit::Node &node)
 
 static void conduitToObjectTree(conduit::Node &rootNode, InstanceTree &tree)
 {
-  std::stack<InstanceNodeRef> tsdNodes;
-  InstanceNodeRef currentParentNode;
-  InstanceNodeRef currentNode = tree.root();
+  std::stack<InstanceNode::Ref> tsdNodes;
+  InstanceNode::Ref currentParentNode;
+  InstanceNode::Ref currentNode = tree.root();
   int currentLevel = -1;
   conduit_utility::TraverseNodes(rootNode, [&](auto &node, int level) {
     if (level & 0x1 || !node.has_child("children"))
