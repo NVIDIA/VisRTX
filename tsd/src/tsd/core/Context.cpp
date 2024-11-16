@@ -29,15 +29,15 @@ Context::Context()
   defaultMat->setName("default_material");
 }
 
-IndexedVectorRef<Material> Context::defaultMaterial() const
+MaterialRef Context::defaultMaterial() const
 {
   return getObject<Material>(0);
 }
 
-IndexedVectorRef<Array> Context::createArray(
+ArrayRef Context::createArray(
     anari::DataType type, size_t items0, size_t items1, size_t items2)
 {
-  IndexedVectorRef<Array> retval;
+  ArrayRef retval;
 
   if (items2 != 0)
     retval = m_db.array.emplace(type, items0, items1, items2);
@@ -54,9 +54,8 @@ IndexedVectorRef<Array> Context::createArray(
   return retval;
 }
 
-IndexedVectorRef<Surface> Context::createSurface(const char *name,
-    IndexedVectorRef<Geometry> g,
-    IndexedVectorRef<Material> m)
+SurfaceRef Context::createSurface(
+    const char *name, GeometryRef g, MaterialRef m)
 {
   auto surface = createObject<Surface>();
   surface->setGeometry(g);

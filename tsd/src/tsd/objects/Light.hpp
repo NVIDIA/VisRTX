@@ -19,6 +19,8 @@ struct Light : public Object
   anari::Object makeANARIObject(anari::Device d) const override;
 };
 
+using LightRef = IndexedVectorRef<Light>;
+
 namespace tokens::light {
 
 extern const Token directional;

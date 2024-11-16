@@ -22,7 +22,7 @@ void import_HDRI(Context &ctx, const char *filepath)
       }
     }
 
-    tsd::IndexedVectorRef<tsd::Array> arr =
+    tsd::ArrayRef arr =
         ctx.createArray(ANARI_FLOAT32_VEC3, img.width, img.height);
     arr->setData(rgb.data());
 

@@ -19,6 +19,8 @@ struct Sampler : public Object
   anari::Object makeANARIObject(anari::Device d) const override;
 };
 
+using SamplerRef = IndexedVectorRef<Sampler>;
+
 namespace tokens::sampler {
 
 extern const Token image1D;

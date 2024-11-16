@@ -15,13 +15,13 @@ void import_HDRI(Context &ctx, const char *filename);
 void import_NBODY(Context &ctx, const char *filename, bool useDefaultMaterial = false);
 void import_OBJ(Context &ctx, const char *filename, bool useDefaultMaterial = false);
 void import_PLY(Context &ctx, const char *filename);
-IndexedVectorRef<SpatialField> import_RAW(Context &ctx, const char *filename);
-IndexedVectorRef<SpatialField> import_FLASH(Context &ctx, const char *filename);
+SpatialFieldRef import_RAW(Context &ctx, const char *filename);
+SpatialFieldRef import_FLASH(Context &ctx, const char *filename);
 
-IndexedVectorRef<Volume> import_volume(Context &ctx,
+VolumeRef import_volume(Context &ctx,
     const char *filename,
-    IndexedVectorRef<Array> colors,
-    IndexedVectorRef<Array> opacities);
+    ArrayRef colors,
+    ArrayRef opacities);
 
 // clang-format on
 

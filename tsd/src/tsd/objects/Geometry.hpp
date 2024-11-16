@@ -19,6 +19,8 @@ struct Geometry : public Object
   anari::Object makeANARIObject(anari::Device d) const override;
 };
 
+using GeometryRef = IndexedVectorRef<Geometry>;
+
 namespace tokens::geometry {
 
 extern const Token cone;

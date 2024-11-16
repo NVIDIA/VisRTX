@@ -19,6 +19,8 @@ struct SpatialField : public Object
   anari::Object makeANARIObject(anari::Device d) const override;
 };
 
+using SpatialFieldRef = IndexedVectorRef<SpatialField>;
+
 namespace tokens::spatial_field {
 
 extern const Token structuredRegular;

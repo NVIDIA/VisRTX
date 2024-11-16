@@ -8,9 +8,9 @@
 
 namespace tsd {
 
-IndexedVectorRef<Volume> generate_noiseVolume(Context &ctx,
-    IndexedVectorRef<Array> colorArray,
-    IndexedVectorRef<Array> opacityArray)
+VolumeRef generate_noiseVolume(Context &ctx,
+    ArrayRef colorArray,
+    ArrayRef opacityArray)
 {
   // Generate spatial field //
 

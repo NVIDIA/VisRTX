@@ -49,7 +49,7 @@ std::vector<std::string> splitString(const std::string &s, char delim)
   return result;
 }
 
-IndexedVectorRef<Sampler> importTexture(
+SamplerRef importTexture(
     Context &ctx, std::string filepath, TextureCache &cache)
 {
   std::transform(

@@ -46,7 +46,7 @@ void import_OBJ(Context &ctx, const char *filepath, bool useDefaultMaterial)
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
 
-  std::vector<IndexedVectorRef<Material>> materials;
+  std::vector<MaterialRef> materials;
 
   TextureCache cache;
 
@@ -86,7 +86,7 @@ void import_OBJ(Context &ctx, const char *filepath, bool useDefaultMaterial)
     auto *outVertices = vertexPositionArray->mapAs<float3>();
 
     float2 *outTexcoords = nullptr;
-    IndexedVectorRef<Array> texcoordArray;
+    ArrayRef texcoordArray;
 
     if (texcoords) {
       texcoordArray = ctx.createArray(ANARI_FLOAT32_VEC2, numVertices);

@@ -16,8 +16,8 @@ std::string fileOf(const std::string &filepath);
 std::string extensionOf(const std::string &filepath);
 std::vector<std::string> splitString(const std::string &s, char delim);
 
-using TextureCache = std::unordered_map<std::string, IndexedVectorRef<Sampler>>;
-IndexedVectorRef<Sampler> importTexture(
+using TextureCache = std::unordered_map<std::string, SamplerRef>;
+SamplerRef importTexture(
     Context &ctx, std::string filepath, TextureCache &cache);
 
 } // namespace tsd

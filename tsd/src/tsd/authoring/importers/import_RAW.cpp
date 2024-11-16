@@ -9,7 +9,7 @@
 
 namespace tsd {
 
-IndexedVectorRef<SpatialField> import_RAW(Context &ctx, const char *filepath)
+SpatialFieldRef import_RAW(Context &ctx, const char *filepath)
 {
   std::string file = fileOf(filepath);
   if (file.empty())

@@ -19,6 +19,8 @@ struct Volume : public Object
   anari::Object makeANARIObject(anari::Device d) const override;
 };
 
+using VolumeRef = IndexedVectorRef<Volume>;
+
 namespace tokens::volume {
 
 extern const Token transferFunction1D;

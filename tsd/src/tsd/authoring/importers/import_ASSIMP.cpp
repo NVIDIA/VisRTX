@@ -12,7 +12,7 @@
 
 namespace tsd {
 
-static IndexedVectorRef<Sampler> importEmbeddedTexture(
+static SamplerRef importEmbeddedTexture(
     Context &ctx, const aiTexture *embeddedTexture, TextureCache &cache)
 {
   std::string filepath = embeddedTexture->mFilename.C_Str();
@@ -45,11 +45,11 @@ static IndexedVectorRef<Sampler> importEmbeddedTexture(
   return tex;
 }
 
-static std::vector<IndexedVectorRef<Surface>> importASSIMPSurfaces(Context &ctx,
-    const std::vector<IndexedVectorRef<Material>> &materials,
+static std::vector<SurfaceRef> importASSIMPSurfaces(Context &ctx,
+    const std::vector<MaterialRef> &materials,
     const aiScene *scene)
 {
-  std::vector<IndexedVectorRef<Surface>> tsdMeshes;
+  std::vector<SurfaceRef> tsdMeshes;
 
   for (unsigned i = 0; i < scene->mNumMeshes; ++i) {
     aiMesh *mesh = scene->mMeshes[i];
@@ -183,10 +183,10 @@ static std::vector<IndexedVectorRef<Surface>> importASSIMPSurfaces(Context &ctx,
   return tsdMeshes;
 }
 
-static std::vector<IndexedVectorRef<Material>> importASSIMPMaterials(
+static std::vector<MaterialRef> importASSIMPMaterials(
     Context &ctx, const aiScene *scene, const std::string &filename)
 {
-  std::vector<IndexedVectorRef<Material>> materials;
+  std::vector<MaterialRef> materials;
 
   TextureCache cache;
 
@@ -197,7 +197,7 @@ static std::vector<IndexedVectorRef<Material>> importASSIMPMaterials(
     ai_int matType;
     assimpMat->Get(AI_MATKEY_SHADING_MODEL, matType);
 
-    IndexedVectorRef<Material> m;
+    MaterialRef m;
 
     if (matType == aiShadingMode_PBR_BRDF) {
       aiColor3D baseColor;
@@ -252,7 +252,7 @@ static std::vector<IndexedVectorRef<Material>> importASSIMPMaterials(
 
       auto loadTexture = [&](const char *paramName, const aiString &texName) {
         if (texName.length != 0) {
-          IndexedVectorRef<Sampler> tex;
+          SamplerRef tex;
           auto *embeddedTexture = scene->GetEmbeddedTexture(texName.C_Str());
           if (embeddedTexture)
             tex = importEmbeddedTexture(ctx, embeddedTexture, cache);
@@ -306,10 +306,10 @@ static std::vector<IndexedVectorRef<Material>> importASSIMPMaterials(
   return materials;
 }
 
-static std::vector<IndexedVectorRef<Light>> importASSIMPLights(
+static std::vector<LightRef> importASSIMPLights(
     Context &ctx, const aiScene *scene)
 {
-  std::vector<IndexedVectorRef<Light>> lights;
+  std::vector<LightRef> lights;
 
   for (unsigned i = 0; i < scene->mNumLights; ++i) {
     aiLight *assimpLight = scene->mLights[i];
@@ -327,7 +327,7 @@ static std::vector<IndexedVectorRef<Light>> importASSIMPLights(
 
 static void populateASSIMPInstanceTree(Context &ctx,
     InstanceNodeRef tsdTreeRef,
-    const std::vector<IndexedVectorRef<Surface>> &surfaces,
+    const std::vector<SurfaceRef> &surfaces,
     const aiNode *node)
 {
   static_assert(

@@ -7,12 +7,12 @@ namespace tsd {
 
 Surface::Surface() : Object(ANARI_SURFACE) {}
 
-void Surface::setGeometry(IndexedVectorRef<Geometry> g)
+void Surface::setGeometry(GeometryRef g)
 {
   setParameterObject(tokens::surface::geometry, *g);
 }
 
-void Surface::setMaterial(IndexedVectorRef<Material> m)
+void Surface::setMaterial(MaterialRef m)
 {
   setParameterObject(tokens::surface::material, *m);
 }

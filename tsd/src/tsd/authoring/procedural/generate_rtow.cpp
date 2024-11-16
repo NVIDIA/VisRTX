@@ -17,7 +17,7 @@ double drand48()
 
 namespace tsd {
 
-inline IndexedVectorRef<Surface> makeSphere(
+inline SurfaceRef makeSphere(
     Context &ctx, float3 pos, float radius, int ID)
 {
   auto sphere = ctx.createObject<Geometry>(tokens::geometry::sphere);
@@ -43,7 +43,7 @@ inline IndexedVectorRef<Surface> makeSphere(
   return ctx.createSurface(name.c_str(), sphere);
 }
 
-inline IndexedVectorRef<Material> makeDielectric(
+inline MaterialRef makeDielectric(
     Context &ctx, float ior, int ID)
 {
   auto material = ctx.createObject<Material>(tokens::material::physicallyBased);
@@ -53,7 +53,7 @@ inline IndexedVectorRef<Material> makeDielectric(
   return material;
 }
 
-inline IndexedVectorRef<Material> makeLambertian(
+inline MaterialRef makeLambertian(
     Context &ctx, float3 color, int ID)
 {
   auto material = ctx.createObject<Material>(tokens::material::matte);
@@ -62,7 +62,7 @@ inline IndexedVectorRef<Material> makeLambertian(
   return material;
 }
 
-inline IndexedVectorRef<Material> makeMetal(Context &ctx, float3 refl, int ID)
+inline MaterialRef makeMetal(Context &ctx, float3 refl, int ID)
 {
   auto material = ctx.createObject<Material>(tokens::material::physicallyBased);
   material->setParameter("baseColor"_t, refl);

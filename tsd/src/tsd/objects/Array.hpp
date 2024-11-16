@@ -71,6 +71,8 @@ struct Array : public Object
   mutable bool m_mapped{false};
 };
 
+using ArrayRef = IndexedVectorRef<Array>;
+
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>

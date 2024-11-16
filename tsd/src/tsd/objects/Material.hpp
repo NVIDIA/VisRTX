@@ -19,6 +19,8 @@ struct Material : public Object
   anari::Object makeANARIObject(anari::Device d) const override;
 };
 
+using MaterialRef = IndexedVectorRef<Material>;
+
 namespace tokens::material {
 
 extern const Token matte;

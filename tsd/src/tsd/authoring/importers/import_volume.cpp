@@ -8,12 +8,12 @@
 
 namespace tsd {
 
-IndexedVectorRef<Volume> import_volume(Context &ctx,
+VolumeRef import_volume(Context &ctx,
     const char *filepath,
-    IndexedVectorRef<Array> colorArray,
-    IndexedVectorRef<Array> opacityArray)
+    ArrayRef colorArray,
+    ArrayRef opacityArray)
 {
-  IndexedVectorRef<SpatialField> field;
+  SpatialFieldRef field;
 
   auto ext = extensionOf(filepath);
   if (ext == ".raw")

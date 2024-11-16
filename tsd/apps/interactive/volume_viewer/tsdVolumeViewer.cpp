@@ -156,7 +156,7 @@ class Application : public anari_viewer::Application
       auto colorArray = g_context->tsd.ctx.createArray(ANARI_FLOAT32_VEC3, 256);
       auto opacityArray = g_context->tsd.ctx.createArray(ANARI_FLOAT32, 256);
 
-      tsd::IndexedVectorRef<tsd::Volume> volume;
+      tsd::VolumeRef volume;
 
       if (!g_filename.empty()) {
         volume = tsd::import_volume(

@@ -17,11 +17,13 @@ struct Surface : public Object
   Surface();
   virtual ~Surface() = default;
 
-  void setGeometry(IndexedVectorRef<Geometry> g);
-  void setMaterial(IndexedVectorRef<Material> m);
+  void setGeometry(GeometryRef g);
+  void setMaterial(MaterialRef m);
 
   anari::Object makeANARIObject(anari::Device d) const override;
 };
+
+using SurfaceRef = IndexedVectorRef<Surface>;
 
 namespace tokens::surface {
 

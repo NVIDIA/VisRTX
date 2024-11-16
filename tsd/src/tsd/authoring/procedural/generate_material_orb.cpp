@@ -43,7 +43,7 @@ namespace tsd {
         orb_root, utility::Any(ANARI_SURFACE, surface.index()));               \
   }
 
-static IndexedVectorRef<Sampler> makeCheckboardTexture(Context &ctx, int size)
+static SamplerRef makeCheckboardTexture(Context &ctx, int size)
 {
   auto tex = ctx.createObject<Sampler>(tokens::sampler::image2D);
 
@@ -79,7 +79,7 @@ void generate_material_orb(Context &ctx)
   auto orb_root = ctx.tree.insert_last_child(
       ctx.tree.root(), {tsd::mat4(tsd::math::identity), "material_orb"});
 
-  IndexedVectorRef<Material> mat;
+  MaterialRef mat;
 
   addObject("base", obj2header::TestOrb_base, mat);
   mat->setParameter("baseColor"_t, tsd::math::float3(0.292f));

@@ -406,7 +406,7 @@ struct FlashReader
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-IndexedVectorRef<SpatialField> import_FLASH(Context &ctx, const char *filepath)
+SpatialFieldRef import_FLASH(Context &ctx, const char *filepath)
 {
   std::string file = fileOf(filepath);
   if (file.empty())
@@ -457,7 +457,7 @@ IndexedVectorRef<SpatialField> import_FLASH(Context &ctx, const char *filepath)
   return field;
 }
 #else
-IndexedVectorRef<SpatialField> import_FLASH(Context &, const char *)
+SpatialFieldRef import_FLASH(Context &, const char *)
 {
   logError("[import_FLASH] HDF5 not enabled in TSD build.");
   return {};

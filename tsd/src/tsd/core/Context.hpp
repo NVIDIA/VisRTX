@@ -24,8 +24,7 @@ struct InstanceTreeData
   template <typename T>
   InstanceTreeData(T v, const char *n = "") : value(v), name(n)
   {}
-  InstanceTreeData(utility::Any v, const char *n) : value(v), name(n)
-  {}
+  InstanceTreeData(utility::Any v, const char *n) : value(v), name(n) {}
 
   utility::Any value;
   std::string name;
@@ -69,7 +68,7 @@ struct Context
 {
   Context();
 
-  IndexedVectorRef<Material> defaultMaterial() const;
+  MaterialRef defaultMaterial() const;
 
   // Flat object collections //
 
@@ -77,13 +76,11 @@ struct Context
   IndexedVectorRef<T> createObject();
   template <typename T>
   IndexedVectorRef<T> createObject(Token subtype);
-  IndexedVectorRef<Array> createArray(anari::DataType type,
+  ArrayRef createArray(anari::DataType type,
       size_t items0,
       size_t items1 = 0,
       size_t items2 = 0);
-  IndexedVectorRef<Surface> createSurface(const char *name,
-      IndexedVectorRef<Geometry> g,
-      IndexedVectorRef<Material> m = {});
+  SurfaceRef createSurface(const char *name, GeometryRef g, MaterialRef m = {});
 
   template <typename T>
   IndexedVectorRef<T> getObject(size_t i) const;
@@ -110,7 +107,6 @@ struct Context
       {tsd::mat4(tsd::math::identity), "root"}}; // root must be a matrix
 
  private:
-
   friend void save_Context(Context &ctx, const char *filename);
   friend void import_Context(Context &ctx, const char *filename);
 
@@ -139,7 +135,7 @@ inline IndexedVectorRef<T> Context::createObject()
 }
 
 template <>
-inline IndexedVectorRef<Surface> Context::createObject()
+inline SurfaceRef Context::createObject()
 {
   return createObjectImpl(m_db.surface);
 }
@@ -155,37 +151,37 @@ inline IndexedVectorRef<T> Context::createObject(Token subtype)
 }
 
 template <>
-inline IndexedVectorRef<Geometry> Context::createObject(Token subtype)
+inline GeometryRef Context::createObject(Token subtype)
 {
   return createObjectImpl(m_db.geometry, subtype);
 }
 
 template <>
-inline IndexedVectorRef<Material> Context::createObject(Token subtype)
+inline MaterialRef Context::createObject(Token subtype)
 {
   return createObjectImpl(m_db.material, subtype);
 }
 
 template <>
-inline IndexedVectorRef<Sampler> Context::createObject(Token subtype)
+inline SamplerRef Context::createObject(Token subtype)
 {
   return createObjectImpl(m_db.sampler, subtype);
 }
 
 template <>
-inline IndexedVectorRef<Volume> Context::createObject(Token subtype)
+inline VolumeRef Context::createObject(Token subtype)
 {
   return createObjectImpl(m_db.volume, subtype);
 }
 
 template <>
-inline IndexedVectorRef<SpatialField> Context::createObject(Token subtype)
+inline SpatialFieldRef Context::createObject(Token subtype)
 {
   return createObjectImpl(m_db.field, subtype);
 }
 
 template <>
-inline IndexedVectorRef<Light> Context::createObject(Token subtype)
+inline LightRef Context::createObject(Token subtype)
 {
   return createObjectImpl(m_db.light, subtype);
 }
@@ -199,43 +195,43 @@ inline IndexedVectorRef<T> Context::getObject(size_t i) const
 }
 
 template <>
-inline IndexedVectorRef<Array> Context::getObject(size_t i) const
+inline ArrayRef Context::getObject(size_t i) const
 {
   return m_db.array.at(i);
 }
 
 template <>
-inline IndexedVectorRef<Geometry> Context::getObject(size_t i) const
+inline GeometryRef Context::getObject(size_t i) const
 {
   return m_db.geometry.at(i);
 }
 
 template <>
-inline IndexedVectorRef<Material> Context::getObject(size_t i) const
+inline MaterialRef Context::getObject(size_t i) const
 {
   return m_db.material.at(i);
 }
 
 template <>
-inline IndexedVectorRef<Sampler> Context::getObject(size_t i) const
+inline SamplerRef Context::getObject(size_t i) const
 {
   return m_db.sampler.at(i);
 }
 
 template <>
-inline IndexedVectorRef<Volume> Context::getObject(size_t i) const
+inline VolumeRef Context::getObject(size_t i) const
 {
   return m_db.volume.at(i);
 }
 
 template <>
-inline IndexedVectorRef<SpatialField> Context::getObject(size_t i) const
+inline SpatialFieldRef Context::getObject(size_t i) const
 {
   return m_db.field.at(i);
 }
 
 template <>
-inline IndexedVectorRef<Light> Context::getObject(size_t i) const
+inline LightRef Context::getObject(size_t i) const
 {
   return m_db.light.at(i);
 }
