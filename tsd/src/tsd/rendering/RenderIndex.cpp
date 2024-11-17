@@ -215,7 +215,7 @@ void RenderIndex::updateObjectArrayData(const Array *a) const
     return;
 
   if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr) {
-    auto *src = a->dataAs<size_t>();
+    auto *src = (const size_t *)a->data();
     auto *dst = (anari::Object *)anariMapArray(device(), arr);
     std::transform(src, src + a->size(), dst, [&](size_t idx) {
       auto handle = m_cache.getHandle(elementType, idx);

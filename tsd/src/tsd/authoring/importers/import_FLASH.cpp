@@ -442,7 +442,7 @@ SpatialFieldRef import_FLASH(Context &ctx, const char *filepath)
   cellWidth->setData(data.cellWidth);
 
   auto blockBounds = ctx.createArray(ANARI_INT32_BOX3, data.blockBounds.size());
-  blockBounds->setData(data.blockBounds);
+  blockBounds->setData(data.blockBounds.data());
 
   auto blockLevel = ctx.createArray(ANARI_INT32, data.blockLevel.size());
   blockLevel->setData(data.blockLevel);
