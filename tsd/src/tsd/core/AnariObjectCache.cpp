@@ -23,31 +23,31 @@ anari::Object AnariObjectCache::getHandle(anari::DataType type, size_t i) const
 
   switch (type) {
   case ANARI_SURFACE:
-    obj = *surface.at(i);
+    obj = surface.at(i).value_or(nullptr);
     break;
   case ANARI_GEOMETRY:
-    obj = *geometry.at(i);
+    obj = geometry.at(i).value_or(nullptr);
     break;
   case ANARI_MATERIAL:
-    obj = *material.at(i);
+    obj = material.at(i).value_or(nullptr);
     break;
   case ANARI_SAMPLER:
-    obj = *sampler.at(i);
+    obj = sampler.at(i).value_or(nullptr);
     break;
   case ANARI_VOLUME:
-    obj = *volume.at(i);
+    obj = volume.at(i).value_or(nullptr);
     break;
   case ANARI_SPATIAL_FIELD:
-    obj = *field.at(i);
+    obj = field.at(i).value_or(nullptr);
     break;
   case ANARI_LIGHT:
-    obj = *light.at(i);
+    obj = light.at(i).value_or(nullptr);
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
   case ANARI_ARRAY3D:
-    obj = *array.at(i);
+    obj = array.at(i).value_or(nullptr);
     break;
   default:
     break; // no-op

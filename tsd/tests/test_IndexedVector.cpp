@@ -99,6 +99,12 @@ SCENARIO("IndexedVector defragmentation", "[IndexedVector]")
       REQUIRE(iv.density() == 1.f);
     }
 
+    THEN("An out-of-bounds access should return the argument to value_or()")
+    {
+      REQUIRE(iv.at(1).value_or(100) != 100);
+      REQUIRE(iv.at(10).value_or(100) == 100);
+    }
+
     WHEN("1 value is erased")
     {
       iv.erase(1);

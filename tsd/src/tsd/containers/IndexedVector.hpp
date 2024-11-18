@@ -69,6 +69,8 @@ struct IndexedVectorRef
 
   const IndexedVector<T> &storage() const;
 
+  T value_or(T alt) const;
+
   T *data();
   const T *data() const;
 
@@ -77,6 +79,7 @@ struct IndexedVectorRef
   T *operator->();
   const T *operator->() const;
 
+  bool valid() const;
   operator bool() const;
 
   IndexedVectorRef(const IndexedVectorRef &) = default;
@@ -255,6 +258,12 @@ inline const IndexedVector<T> &IndexedVectorRef<T>::storage() const
 }
 
 template <typename T>
+inline T IndexedVectorRef<T>::value_or(T alt) const
+{
+  return valid() ? *data() : alt;
+}
+
+template <typename T>
 inline T *IndexedVectorRef<T>::data()
 {
   return &storage()[index()];
@@ -291,9 +300,15 @@ inline const T *IndexedVectorRef<T>::operator->() const
 }
 
 template <typename T>
-inline IndexedVectorRef<T>::operator bool() const
+inline bool IndexedVectorRef<T>::valid() const
 {
   return m_idx != INVALID_INDEX && m_iv;
+}
+
+template <typename T>
+inline IndexedVectorRef<T>::operator bool() const
+{
+  return valid();
 }
 
 template <typename T>

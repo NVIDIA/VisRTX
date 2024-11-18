@@ -57,37 +57,48 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
 
   const auto &db = ctx.objectDB();
 
-  // Setup individual leaf object handles //
+  // Setup individual leaf object handles, create first then set params //
 
-  auto setupANARICacheArray = [&](const auto &objArray, auto &handleArray) {
+  auto createANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
     foreach_item_const(objArray, [&](auto *obj) {
-      if (!obj) {
-        handleArray.insert({});
-        return;
-      }
-
       using handle_t = typename std::remove_reference<
           decltype(handleArray)>::type::element_t;
-      auto o = (handle_t)obj->makeANARIObject(d);
-      obj->updateAllANARIParameters(d, o, &m_cache);
-      if (obj->type() == ANARI_SURFACE)
-        anari::setParameter(d, o, "id", uint32_t(obj->index()));
-      anari::commitParameters(d, o);
-      handleArray.insert(std::move(o));
+      handleArray.insert((handle_t)(obj ? obj->makeANARIObject(d) : nullptr));
     });
-
     handleArray.sync_slots(objArray);
   };
 
   // NOTE: These needs to go from bottom to top of the ANARI hierarchy!
-  setupANARICacheArray(db.array, m_cache.array);
-  setupANARICacheArray(db.sampler, m_cache.sampler);
-  setupANARICacheArray(db.material, m_cache.material);
-  setupANARICacheArray(db.geometry, m_cache.geometry);
-  setupANARICacheArray(db.surface, m_cache.surface);
-  setupANARICacheArray(db.field, m_cache.field);
-  setupANARICacheArray(db.volume, m_cache.volume);
-  setupANARICacheArray(db.light, m_cache.light);
+  createANARICacheObjects(db.array, m_cache.array);
+  createANARICacheObjects(db.sampler, m_cache.sampler);
+  createANARICacheObjects(db.material, m_cache.material);
+  createANARICacheObjects(db.geometry, m_cache.geometry);
+  createANARICacheObjects(db.surface, m_cache.surface);
+  createANARICacheObjects(db.field, m_cache.field);
+  createANARICacheObjects(db.volume, m_cache.volume);
+  createANARICacheObjects(db.light, m_cache.light);
+
+  auto setupANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
+    foreach_item_const(objArray, [&](auto *obj) {
+      if (!obj)
+        return;
+      auto o = handleArray[obj->index()];
+      obj->updateAllANARIParameters(d, o, &m_cache);
+      if (obj->type() == ANARI_SURFACE)
+        anari::setParameter(d, o, "id", uint32_t(obj->index()));
+      anari::commitParameters(d, o);
+    });
+  };
+
+  // NOTE: These needs to go from bottom to top of the ANARI hierarchy!
+  setupANARICacheObjects(db.array, m_cache.array);
+  setupANARICacheObjects(db.sampler, m_cache.sampler);
+  setupANARICacheObjects(db.material, m_cache.material);
+  setupANARICacheObjects(db.geometry, m_cache.geometry);
+  setupANARICacheObjects(db.surface, m_cache.surface);
+  setupANARICacheObjects(db.field, m_cache.field);
+  setupANARICacheObjects(db.volume, m_cache.volume);
+  setupANARICacheObjects(db.light, m_cache.light);
 
   // NOTE: ensure that object arrays are properly populated
   foreach_item_const(db.array, [&](auto *a) { updateObjectArrayData(a); });
