@@ -288,12 +288,17 @@ void Viewport::pick(tsd::math::int2 l, bool selectObject)
         m_pickedDepth);
 
   } else {
-    tsd::logError(
-        "[viewport] failed to pick: unable to map 'objectId' buffer");
+    tsd::logError("[viewport] failed to pick: unable to map 'objectId' buffer");
+  }
+
+  anari::DataType objectType = ANARI_SURFACE;
+  if (id != ~0u && id & 0x80000000u) {
+    objectType = ANARI_VOLUME;
+    id &= 0x7FFFFFFF;
   }
 
   m_context->setSelectedObject(
-      id == ~0u ? nullptr : m_context->tsd.ctx.getObject(ANARI_SURFACE, id));
+      id == ~0u ? nullptr : m_context->tsd.ctx.getObject(objectType, id));
 
   anari::unmap(m_device, frame, "channel.objectId");
 }
@@ -372,10 +377,17 @@ void Viewport::updateImage()
       m_device, frame, "numSamples", m_frameSamples, ANARI_NO_WAIT);
 
   const auto &tsd_ctx = m_context->tsd;
+  const auto *selectedObject = tsd_ctx.selectedObject;
   const bool doHighlight = !m_showOnlySelected && m_highlightSelection
-      && tsd_ctx.selectedObject
-      && tsd_ctx.selectedObject->type() == ANARI_SURFACE;
-  const auto id = doHighlight ? tsd_ctx.selectedObject->index() : uint32_t(~0u);
+      && selectedObject
+      && (selectedObject->type() == ANARI_SURFACE
+          || selectedObject->type() == ANARI_VOLUME);
+  auto id = uint32_t(~0u);
+  if (doHighlight) {
+    id = selectedObject->index();
+    if (selectedObject->type() == ANARI_VOLUME)
+      id |= 0x80000000u;
+  }
   m_outlinePass->setOutlineId(id);
 
   auto start = std::chrono::steady_clock::now();

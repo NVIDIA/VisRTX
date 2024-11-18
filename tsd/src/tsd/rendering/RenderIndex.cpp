@@ -86,6 +86,8 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
       obj->updateAllANARIParameters(d, o, &m_cache);
       if (obj->type() == ANARI_SURFACE)
         anari::setParameter(d, o, "id", uint32_t(obj->index()));
+      else if (obj->type() == ANARI_VOLUME)
+        anari::setParameter(d, o, "id", uint32_t(obj->index()) | 0x80000000u);
       anari::commitParameters(d, o);
     });
   };
