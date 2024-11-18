@@ -48,8 +48,10 @@ ArrayRef Context::createArray(
 
   retval->m_index = retval.index();
 
-  if (m_updateDelegate)
+  if (m_updateDelegate) {
+    retval->setUpdateDelegate(m_updateDelegate);
     m_updateDelegate->signalObjectAdded(retval.data());
+  }
 
   return retval;
 }
