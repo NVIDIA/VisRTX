@@ -5,7 +5,26 @@
 
 namespace tsd {
 
-Volume::Volume(Token stype) : Object(ANARI_VOLUME, stype) {}
+Volume::Volume(Token stype) : Object(ANARI_VOLUME, stype)
+{
+  if (stype == tokens::volume::transferFunction1D) {
+    addParameter("color")
+        .setValue(float3{1.f})
+        .setUsage(ParameterUsageHint::COLOR)
+        .setDescription("transfer function color");
+    addParameter("opacity")
+        .setValue(1.f)
+        .setDescription("transfer function opacity");
+    addParameter("densityScale")
+        .setValue(1.f)
+        .setDescription("uniform scale applied to opacity")
+        .setMin(0.f);
+    float2 defaultValueRange{0.f, 1.f};
+    addParameter("valueRange")
+        .setValue({ANARI_FLOAT32_BOX1, &defaultValueRange})
+        .setDescription("transfer function value range");
+  }
+}
 
 anari::Object Volume::makeANARIObject(anari::Device d) const
 {

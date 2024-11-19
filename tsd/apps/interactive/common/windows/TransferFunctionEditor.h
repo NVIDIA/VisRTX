@@ -80,8 +80,8 @@ class TransferFunctionEditor : public anari_viewer::windows::Window
   float m_globalOpacityScale{1.f};
 
   // domain (value range) of transfer function
-  tsd::float2 m_valueRange{-1.f, 1.f};
-  tsd::float2 m_defaultValueRange{-1.f, 1.f};
+  tsd::float2 m_valueRange{0.f, 1.f};
+  tsd::float2 m_defaultValueRange{0.f, 1.f};
 
   // texture for displaying transfer function color palette
   GLuint tfnPaletteTexture{0};

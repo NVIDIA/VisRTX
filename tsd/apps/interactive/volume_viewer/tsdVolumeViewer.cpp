@@ -192,7 +192,12 @@ class Application : public anari_viewer::Application
         volume = tsd::generate_noiseVolume(
             g_context->tsd.ctx, colorArray, opacityArray);
       }
-      tf->setValueRange({0.f, 1.f});
+
+      if (volume) {
+        tf->setValueRange(volume->parameter("valueRange")
+                              ->value()
+                              .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
+      }
 
       g_context->setupSceneFromCommandLine(true);
 

@@ -7,6 +7,8 @@
 
 namespace tsd {
 
+struct Context;
+
 struct SpatialField : public Object
 {
   static constexpr anari::DataType ANARI_TYPE = ANARI_SPATIAL_FIELD;
@@ -17,6 +19,8 @@ struct SpatialField : public Object
   virtual ~SpatialField() = default;
 
   anari::Object makeANARIObject(anari::Device d) const override;
+
+  float2 computeValueRange(const Context *ctx);
 };
 
 using SpatialFieldRef = IndexedVectorRef<SpatialField>;

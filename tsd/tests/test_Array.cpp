@@ -4,7 +4,7 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/algorithms/compute.hpp"
+#include "tsd/algorithms/computeScalarRange.hpp"
 #include "tsd/objects/Array.hpp"
 // std
 #include <numeric>

@@ -1,7 +1,6 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/algorithms/compute.hpp"
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 #include "tsd/core/Logging.hpp"
@@ -81,9 +80,6 @@ SpatialFieldRef import_RAW(Context &ctx, const char *filepath)
 
   std::fclose(fileHandle);
   voxelArray->unmap();
-
-  const auto range = algorithm::computeScalarRange(*voxelArray);
-  logStatus("[import_RAW] got float data range: {%f, %f}", range.x, range.y);
 
   field->setParameter("spacing"_t, 2.f / float3(dimX));
   field->setParameterObject("data"_t, *voxelArray);

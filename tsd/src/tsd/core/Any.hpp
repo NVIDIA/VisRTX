@@ -43,6 +43,8 @@ struct Any
 
   template <typename T>
   T get() const;
+  template <typename T>
+  T getAs(anari::DataType expectedHeldAnariType = ANARI_UNKNOWN) const;
 
   size_t getAsObjectIndex() const; // when storing object indices only
 
@@ -99,8 +101,7 @@ template <typename T>
 inline Any::Any(T value) : Any()
 {
   constexpr auto type = anari::ANARITypeFor<T>::value;
-  static_assert(
-      type != ANARI_UNKNOWN, "unknown type used initialize visrtx::Any");
+  static_assert(type != ANARI_UNKNOWN, "unknown type used initialize tsd::Any");
 
   if constexpr (type == ANARI_STRING)
     m_string = value;
@@ -192,6 +193,14 @@ inline bool Any::operator!=(const Any &rhs) const
 template <typename T>
 inline T Any::get() const
 {
+  if (!is<T>())
+    throw std::runtime_error("get() called with invalid type on tsd::Any");
+  return getAs<T>(type());
+}
+
+template <typename T>
+inline T Any::getAs(anari::DataType expectedType) const
+{
   constexpr ANARIDataType type = anari::ANARITypeFor<T>::value;
   static_assert(
       !anari::isObject(type), "use Any::getObject() for getting objects");
@@ -199,9 +208,10 @@ inline T Any::get() const
       type != ANARI_STRING, "use Any::getString() for getting strings");
 
   if (!valid())
-    throw std::runtime_error("get() called on empty visrtx::Any");
-  if (!is<T>()) {
-    throw std::runtime_error("get() called with invalid type on visrtx::Any");
+    throw std::runtime_error("Any::getAs<>() called on empty tsd::Any");
+  else if (expectedType != ANARI_UNKNOWN && this->type() != expectedType) {
+    throw std::runtime_error(
+        "Any::getAs<>() given a type that disagress with what is held");
   }
 
   return storageAs<T>();

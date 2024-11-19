@@ -21,12 +21,17 @@ VolumeRef import_volume(Context &ctx,
   else if (ext == ".flash")
     field = import_FLASH(ctx, filepath);
 
+  float2 valueRange{0.f, 1.f};
+  if (field)
+    valueRange = field->computeValueRange(&ctx);
+
   auto volume = ctx.createObject<Volume>(tokens::volume::transferFunction1D);
   volume->setName(fileOf(filepath).c_str());
   volume->setParameterObject("value", *field);
   volume->setParameterObject("color", *colorArray);
   volume->setParameterObject("opacity", *opacityArray);
   volume->setParameter("densityScale", 0.1f);
+  volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
 
   ctx.tree.insert_last_child(
       ctx.tree.root(), utility::Any(ANARI_VOLUME, volume.index()));
