@@ -4,7 +4,10 @@
 // catch
 #include "catch.hpp"
 // tsd
+#include "tsd/algorithms/compute.hpp"
 #include "tsd/objects/Array.hpp"
+// std
+#include <numeric>
 
 using namespace tsd::literals;
 
@@ -49,6 +52,22 @@ SCENARIO("tsd::Array interface", "[Array]")
       void *m = arr.map();
       REQUIRE(m != nullptr);
       arr.unmap();
+    }
+  }
+
+  GIVEN("A constructed float Array with linear elements")
+  {
+    auto arr = tsd::Array(ANARI_UFIXED8, 256);
+    auto *begin = arr.mapAs<uint8_t>();
+    auto *end = begin + 256;
+    std::iota(begin, end, 0);
+    arr.unmap();
+
+    THEN("Computing the range will return the correct min + max")
+    {
+      auto range = tsd::algorithm::computeScalarRange(arr);
+      REQUIRE(range.x == 0.f);
+      REQUIRE(range.y == 1.f);
     }
   }
 }
