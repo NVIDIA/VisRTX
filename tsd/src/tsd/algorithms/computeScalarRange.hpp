@@ -3,10 +3,10 @@
 
 #pragma once
 
-#include "tsd/core/TSDMath.hpp"
-#include "tsd/objects/Array.hpp"
+#include "tsd/core/Context.hpp"
 // std
 #include <algorithm>
+#include <limits>
 
 namespace tsd::algorithm {
 
@@ -41,13 +41,32 @@ struct ComputeScalarRange
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-inline float2 computeScalarRange(const Array &a)
+inline float2 computeScalarRange(const Array &a, const Context *ctx = nullptr)
 {
+  constexpr float maxFloat = std::numeric_limits<float>::max();
+  float2 retval{maxFloat, -maxFloat};
+
   const anari::DataType type = a.elementType();
-  if (anari::isObject(type) || anari::componentsOf(type) != 1)
-    return {0.f, 0.f};
-  else
-    return anari::anariTypeInvoke<float2, detail::ComputeScalarRange>(type, a);
+  const bool elementsAreArrays = anari::isArray(type) && ctx;
+  const bool elementsAreScalars =
+      !anari::isObject(type) && anari::componentsOf(type) == 1;
+
+  if (elementsAreArrays) {
+    const auto *begin = (uint64_t *)a.data();
+    const auto *end = begin + a.size();
+    std::for_each(begin, end, [&](uint64_t idx) {
+      float2 subRange{maxFloat, -maxFloat};
+      if (auto subArray = ctx->getObject<Array>(idx); subArray)
+        subRange = computeScalarRange(*subArray, ctx);
+      retval.x = std::min(retval.x, subRange.x);
+      retval.y = std::max(retval.y, subRange.y);
+    });
+  } else if (elementsAreScalars) {
+    retval =
+        anari::anariTypeInvoke<float2, detail::ComputeScalarRange>(type, a);
+  }
+
+  return retval;
 }
 
 } // namespace tsd::algorithm

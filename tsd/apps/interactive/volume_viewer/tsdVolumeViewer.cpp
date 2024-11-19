@@ -194,6 +194,7 @@ class Application : public anari_viewer::Application
       }
 
       if (volume) {
+        g_context->tsd.selectedObject = volume.data();
         tf->setValueRange(volume->parameter("valueRange")
                               ->value()
                               .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));

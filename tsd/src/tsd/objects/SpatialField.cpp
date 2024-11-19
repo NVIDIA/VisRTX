@@ -30,28 +30,31 @@ anari::Object SpatialField::makeANARIObject(anari::Device d) const
 
 float2 SpatialField::computeValueRange(const Context *ctx)
 {
+  float2 retval{0.f, 1.f};
+
   auto getDataRangeFromParameter = [&](Parameter *p) -> std::optional<float2> {
     if (!p || !anari::isArray(p->value().type()))
       return {};
     else if (auto a = ctx->getObject<Array>(p->value().getAsObjectIndex()); a)
-      return algorithm::computeScalarRange(*a);
+      return algorithm::computeScalarRange(*a, ctx);
     else
       return {};
   };
 
   if (subtype() == tokens::spatial_field::structuredRegular) {
-    auto range = getDataRangeFromParameter(parameter("data"));
-    return range ? *range : float2{0.f, 1.f};
+    if (auto range = getDataRangeFromParameter(parameter("data")); range)
+      retval = *range;
   } else if (subtype() == tokens::spatial_field::amr) {
-    // TODO
-    return {0.f, 1.f};
+    if (auto range = getDataRangeFromParameter(parameter("block.data")); range)
+      retval = *range;
   } else {
     logWarning(
         "implementation not yet provided for computing the data "
         "range of '%s' spatial fields",
         subtype().c_str());
-    return {0.f, 1.f};
   }
+
+  return retval;
 }
 
 namespace tokens::spatial_field {
