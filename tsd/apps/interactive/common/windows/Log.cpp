@@ -27,9 +27,9 @@ static void printMessage(
 
 // Log definitions ////////////////////////////////////////////////////////////
 
-Log::Log(AppContext *ctx, bool installAsLoggingTarget)
+Log::Log(AppCore *ctx, bool installAsLoggingTarget)
     : anari_viewer::windows::Window("Log", true),
-      m_context(ctx),
+      m_core(ctx),
       m_isLoggingTarget(installAsLoggingTarget)
 {
   this->clear();
@@ -63,8 +63,8 @@ Log::~Log()
 void Log::buildUI()
 {
   if (ImGui::BeginPopup("Options")) {
-    ImGui::Checkbox("Log verbose ANARI messages", &m_context->logging.verbose);
-    ImGui::Checkbox("Echo log to stdout", &m_context->logging.echoOutput);
+    ImGui::Checkbox("Log verbose ANARI messages", &m_core->logging.verbose);
+    ImGui::Checkbox("Echo log to stdout", &m_core->logging.echoOutput);
     ImGui::Checkbox("Auto-scroll", &m_autoScroll);
     ImGui::EndPopup();
   }
@@ -113,7 +113,7 @@ void Log::addText(tsd::LogLevel level, const char *fmt, va_list &args)
 {
   m_colorIDs.push_back(static_cast<int>(level));
 
-  if (m_context && m_context->logging.echoOutput)
+  if (m_core && m_core->logging.echoOutput)
     printMessage(level, fmt, args, true);
 
   auto old_size = m_buf.size();

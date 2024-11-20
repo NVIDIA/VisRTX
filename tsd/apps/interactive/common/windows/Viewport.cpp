@@ -19,8 +19,8 @@ int g_screenshotIndex = 0;
 
 // Viewport definitions ///////////////////////////////////////////////////////
 
-Viewport::Viewport(AppContext *ctx, manipulators::Orbit *m, const char *name)
-    : anari_viewer::windows::Window(name, true), m_context(ctx)
+Viewport::Viewport(AppCore *ctx, manipulators::Orbit *m, const char *name)
+    : anari_viewer::windows::Window(name, true), m_core(ctx)
 {
   stbi_flip_vertically_on_write(1);
 
@@ -29,8 +29,8 @@ Viewport::Viewport(AppContext *ctx, manipulators::Orbit *m, const char *name)
   m_overlayWindowName = "overlay_";
   m_overlayWindowName += name;
 
-  m_contextMenuName = "vpContextMenu_";
-  m_contextMenuName += name;
+  m_coreMenuName = "vpContextMenu_";
+  m_coreMenuName += name;
 
   // GL //
 
@@ -85,7 +85,7 @@ void Viewport::buildUI()
   ui_picking();
   ui_contextMenu();
 
-  if (!m_contextMenuVisible)
+  if (!m_coreMenuVisible)
     ui_handleInput();
 }
 
@@ -131,7 +131,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
   auto updateLibrary = [&, libName = libName]() {
     auto start = std::chrono::steady_clock::now();
-    auto d = m_context->loadDevice(libName);
+    auto d = m_core->loadDevice(libName);
     m_rud.d = d;
     m_libName = libName;
 
@@ -171,7 +171,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       tsd::logStatus("[viewport] populating render index...");
 
-      m_rIdx = m_context->acquireRenderIndex(d);
+      m_rIdx = m_core->acquireRenderIndex(d);
       setSelectionVisibilityFilterEnabled(m_showOnlySelected);
 
       tsd::logStatus("[viewport] getting scene bounds...");
@@ -216,7 +216,7 @@ void Viewport::teardownDevice()
   m_outlinePass = nullptr;
   m_outputPass = nullptr;
 
-  m_context->releaseRenderIndex(m_device);
+  m_core->releaseRenderIndex(m_device);
   m_rIdx = nullptr;
   m_libName.clear();
 
@@ -297,8 +297,8 @@ void Viewport::pick(tsd::math::int2 l, bool selectObject)
     id &= 0x7FFFFFFF;
   }
 
-  m_context->setSelectedObject(
-      id == ~0u ? nullptr : m_context->tsd.ctx.getObject(objectType, id));
+  m_core->setSelectedObject(
+      id == ~0u ? nullptr : m_core->tsd.ctx.getObject(objectType, id));
 
   anari::unmap(m_device, frame, "channel.objectId");
 }
@@ -309,8 +309,8 @@ void Viewport::setSelectionVisibilityFilterEnabled(bool enabled)
     m_rIdx->setFilterFunction({});
   else {
     m_rIdx->setFilterFunction([&](const tsd::Object *obj) {
-      return !m_context->tsd.selectedObject
-          || obj == m_context->tsd.selectedObject;
+      return !m_core->tsd.selectedObject
+          || obj == m_core->tsd.selectedObject;
     });
   }
 }
@@ -376,7 +376,7 @@ void Viewport::updateImage()
   anari::getProperty(
       m_device, frame, "numSamples", m_frameSamples, ANARI_NO_WAIT);
 
-  const auto &tsd_ctx = m_context->tsd;
+  const auto &tsd_ctx = m_core->tsd;
   const auto *selectedObject = tsd_ctx.selectedObject;
   const bool doHighlight = !m_showOnlySelected && m_highlightSelection
       && selectedObject
@@ -439,7 +439,7 @@ void Viewport::ui_handleInput()
   ImGuiIO &io = ImGui::GetIO();
 
   if (io.KeysDown[GLFW_KEY_ESCAPE])
-    m_context->clearSelected();
+    m_core->clearSelected();
 
   const bool dolly = ImGui::IsMouseDown(ImGuiMouseButton_Right)
       || (ImGui::IsMouseDown(ImGuiMouseButton_Left)
@@ -579,19 +579,19 @@ void Viewport::ui_contextMenu()
   const bool openMenu = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)
       || io.KeysDown[GLFW_KEY_MENU];
   if (openMenu && ImGui::IsWindowHovered()) {
-    m_contextMenuVisible = true;
-    ImGui::OpenPopup(m_contextMenuName.c_str());
+    m_coreMenuVisible = true;
+    ImGui::OpenPopup(m_coreMenuName.c_str());
   }
 
-  if (ImGui::BeginPopup(m_contextMenuName.c_str())) {
+  if (ImGui::BeginPopup(m_coreMenuName.c_str())) {
     // Device //
-    ImGui::BeginDisabled(!m_context->tsd.sceneLoadComplete);
+    ImGui::BeginDisabled(!m_core->tsd.sceneLoadComplete);
 
     ImGui::Text("Device:");
     ImGui::Indent(INDENT_AMOUNT);
 
     if (ImGui::BeginMenu("Device")) {
-      for (auto &libName : m_context->commandLine.libraryList) {
+      for (auto &libName : m_core->commandLine.libraryList) {
         const bool isThisLibrary = m_libName == libName;
         if (ImGui::RadioButton(libName.c_str(), isThisLibrary))
           setLibrary(libName);
@@ -621,7 +621,7 @@ void Viewport::ui_contextMenu()
 
         if (!m_rendererObjects.empty() && ImGui::BeginMenu("parameters")) {
           tsd::ui::buildUI_object(
-              m_rendererObjects[m_currentRenderer], m_context->tsd.ctx, false);
+              m_rendererObjects[m_currentRenderer], m_core->tsd.ctx, false);
           ImGui::EndMenu();
         }
 
@@ -740,8 +740,8 @@ void Viewport::ui_contextMenu()
       ImGui::Unindent(INDENT_AMOUNT);
     }
 
-    if (!ImGui::IsPopupOpen(m_contextMenuName.c_str()))
-      m_contextMenuVisible = false;
+    if (!ImGui::IsPopupOpen(m_coreMenuName.c_str()))
+      m_coreMenuVisible = false;
 
     ImGui::EndPopup();
   }

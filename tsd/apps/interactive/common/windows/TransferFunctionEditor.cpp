@@ -32,8 +32,8 @@ static float lerp(const float &l,
 }
 
 TransferFunctionEditor::TransferFunctionEditor(
-    AppContext *ctx, const char *name)
-    : Window(name, true), m_context(ctx)
+    AppCore *ctx, const char *name)
+    : Window(name, true), m_core(ctx)
 {
   loadDefaultMaps();
 

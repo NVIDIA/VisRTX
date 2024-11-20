@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "AppContext.h"
+#include "AppCore.h"
 // anari_viewer
 #include "anari_viewer/windows/Window.h"
 
@@ -12,7 +12,7 @@ namespace tsd_viewer {
 struct InstancingControls : public anari_viewer::windows::Window
 {
   InstancingControls(
-      AppContext *state, const char *name = "Instancing Controls");
+      AppCore *state, const char *name = "Instancing Controls");
 
   void buildUI() override;
 
@@ -21,7 +21,7 @@ struct InstancingControls : public anari_viewer::windows::Window
   void generateSpheres();
   void generateInstances();
 
-  AppContext *m_context{nullptr};
+  AppCore *m_core{nullptr};
   int m_numInstances{5000};
   float m_spacing{25.f};
   float m_particleRadius{0.5f};

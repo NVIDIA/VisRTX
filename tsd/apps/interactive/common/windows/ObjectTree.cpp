@@ -11,26 +11,26 @@ static ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow
 
 // ObjectTree definitions /////////////////////////////////////////////////////
 
-ObjectTree::ObjectTree(AppContext *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_context(state)
+ObjectTree::ObjectTree(AppCore *state, const char *name)
+    : anari_viewer::windows::Window(name, true), m_core(state)
 {}
 
 void ObjectTree::buildUI()
 {
-  ImGui::BeginDisabled(!m_context->tsd.sceneLoadComplete);
+  ImGui::BeginDisabled(!m_core->tsd.sceneLoadComplete);
 
-  auto &ctx = m_context->tsd.ctx;
+  auto &ctx = m_core->tsd.ctx;
   auto &tree = ctx.tree;
 
   if (ImGui::Button("clear scene")) {
-    m_context->clearSelected();
-    m_context->tsd.ctx.removeAllObjects();
+    m_core->clearSelected();
+    m_core->tsd.ctx.removeAllObjects();
   }
 
   ImGui::Separator();
 
-  if (!m_contextMenuVisible)
-    m_contextMenuNode = tsd::INVALID_INDEX;
+  if (!m_coreMenuVisible)
+    m_coreMenuNode = tsd::INVALID_INDEX;
   m_hoveredNode = tsd::INVALID_INDEX;
 
   const ImGuiTableFlags flags =
@@ -58,7 +58,7 @@ void ObjectTree::buildUI()
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.3f, 0.3f, 1.f));
       }
 
-      const bool selected = obj && m_context->tsd.selectedObject == obj;
+      const bool selected = obj && m_core->tsd.selectedObject == obj;
       if (selected) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));
         node_flags |= ImGuiTreeNodeFlags_Selected;
@@ -123,8 +123,8 @@ void ObjectTree::buildUI()
       if (ImGui::IsItemHovered())
         m_hoveredNode = node.index();
 
-      if (ImGui::IsItemClicked() && m_contextMenuNode == tsd::INVALID_INDEX)
-        m_context->setSelectedNode(node);
+      if (ImGui::IsItemClicked() && m_coreMenuNode == tsd::INVALID_INDEX)
+        m_core->setSelectedNode(node);
 
       if (selected)
         ImGui::PopStyleColor(1);
@@ -152,12 +152,12 @@ void ObjectTree::buildUI()
   if (ImGui::IsWindowHovered()) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)
         && m_hoveredNode != tsd::INVALID_INDEX) {
-      m_contextMenuVisible = true;
-      m_contextMenuNode = m_hoveredNode;
+      m_coreMenuVisible = true;
+      m_coreMenuNode = m_hoveredNode;
       ImGui::OpenPopup("ObjectTree_contextMenu");
     } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
         && m_hoveredNode == tsd::INVALID_INDEX) {
-      m_context->clearSelected();
+      m_core->clearSelected();
     }
   }
 
@@ -166,11 +166,11 @@ void ObjectTree::buildUI()
 
 void ObjectTree::buildUI_objectContextMenu()
 {
-  auto &tsd_ctx = m_context->tsd.ctx;
+  auto &tsd_ctx = m_core->tsd.ctx;
   auto &tree = tsd_ctx.tree;
 
   if (ImGui::BeginPopup("ObjectTree_contextMenu")) {
-    if (ImGui::Checkbox("visible", &(*tree.at(m_contextMenuNode))->enabled))
+    if (ImGui::Checkbox("visible", &(*tree.at(m_coreMenuNode))->enabled))
       tsd_ctx.signalInstanceTreeChange();
 
     if (ImGui::BeginMenu("add")) {
@@ -179,31 +179,31 @@ void ObjectTree::buildUI_objectContextMenu()
           auto l =
               tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::directional);
           l->setName("directional light");
-          tsd_ctx.addInstancedObject(tree.at(m_contextMenuNode),
+          tsd_ctx.addInstancedObject(tree.at(m_coreMenuNode),
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "directional light");
-          m_contextMenuNode = tsd::INVALID_INDEX;
-          m_context->clearSelected();
+          m_coreMenuNode = tsd::INVALID_INDEX;
+          m_core->clearSelected();
         }
 
         if (ImGui::MenuItem("point")) {
           auto l = tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::point);
           l->setName("point light");
-          tsd_ctx.addInstancedObject(tree.at(m_contextMenuNode),
+          tsd_ctx.addInstancedObject(tree.at(m_coreMenuNode),
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "point light");
-          m_contextMenuNode = tsd::INVALID_INDEX;
-          m_context->clearSelected();
+          m_coreMenuNode = tsd::INVALID_INDEX;
+          m_core->clearSelected();
         }
 
         if (ImGui::MenuItem("quad")) {
           auto l = tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::quad);
           l->setName("quad light");
-          tsd_ctx.addInstancedObject(tree.at(m_contextMenuNode),
+          tsd_ctx.addInstancedObject(tree.at(m_coreMenuNode),
               tsd::utility::Any(ANARI_LIGHT, l.index()),
               "quad light");
-          m_contextMenuNode = tsd::INVALID_INDEX;
-          m_context->clearSelected();
+          m_coreMenuNode = tsd::INVALID_INDEX;
+          m_core->clearSelected();
         }
 
         ImGui::EndMenu();
@@ -215,10 +215,10 @@ void ObjectTree::buildUI_objectContextMenu()
     ImGui::Separator();
 
     if (ImGui::MenuItem("delete")) {
-      if (m_contextMenuNode != tsd::INVALID_INDEX) {
-        tsd_ctx.removeInstancedObject(tree.at(m_contextMenuNode));
-        m_contextMenuNode = tsd::INVALID_INDEX;
-        m_context->clearSelected();
+      if (m_coreMenuNode != tsd::INVALID_INDEX) {
+        tsd_ctx.removeInstancedObject(tree.at(m_coreMenuNode));
+        m_coreMenuNode = tsd::INVALID_INDEX;
+        m_core->clearSelected();
       }
     }
 
@@ -226,7 +226,7 @@ void ObjectTree::buildUI_objectContextMenu()
   }
 
   if (!ImGui::IsPopupOpen("ObjectTree_contextMenu"))
-    m_contextMenuVisible = false;
+    m_coreMenuVisible = false;
 }
 
 } // namespace tsd_viewer

@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "AppContext.h"
+#include "AppCore.h"
 // anari_viewer
 #include "anari_viewer/windows/Window.h"
 
@@ -11,13 +11,13 @@ namespace tsd_viewer {
 
 struct IsosurfaceEditor : public anari_viewer::windows::Window
 {
-  IsosurfaceEditor(AppContext *state, const char *name = "Isosurface Editor");
+  IsosurfaceEditor(AppCore *state, const char *name = "Isosurface Editor");
   void buildUI() override;
 
  private:
   void addIsosurfaceGeometryFromSelected();
 
-  AppContext *m_context{nullptr};
+  AppCore *m_core{nullptr};
 };
 
 } // namespace tsd_viewer

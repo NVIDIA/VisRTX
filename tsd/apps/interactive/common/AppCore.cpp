@@ -1,12 +1,12 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AppContext.h"
+#include "AppCore.h"
 #include "windows/Log.h"
 
 namespace tsd_viewer {
 
-static void statusFunc(const void *_appContext,
+static void statusFunc(const void *_core,
     ANARIDevice device,
     ANARIObject source,
     ANARIDataType sourceType,
@@ -15,8 +15,8 @@ static void statusFunc(const void *_appContext,
     const char *message)
 {
   const char *typeStr = anari::toString(sourceType);
-  const auto *ctx = (const AppContext *)_appContext;
-  const bool verbose = ctx->logging.verbose;
+  const auto *core = (const AppCore *)_core;
+  const bool verbose = core->logging.verbose;
 
   if (severity == ANARI_SEVERITY_FATAL_ERROR) {
     fprintf(stderr, "[ANARI][FATAL][%s][%p] %s", typeStr, source, message);
@@ -66,19 +66,19 @@ static std::vector<std::string> parseLibraryList()
   return libList;
 }
 
-// AppContext definitions /////////////////////////////////////////////////////
+// AppCore definitions /////////////////////////////////////////////////////
 
-AppContext::AppContext()
+AppCore::AppCore()
 {
   tsd.ctx.setUpdateDelegate(&anari.delegate);
 }
 
-AppContext::~AppContext()
+AppCore::~AppCore()
 {
   releaseAllDevices();
 }
 
-void AppContext::parseCommandLine(int argc, char *argv[])
+void AppCore::parseCommandLine(int argc, char *argv[])
 {
   auto importerType = ImporterType::NONE;
 
@@ -111,8 +111,8 @@ void AppContext::parseCommandLine(int argc, char *argv[])
       importerType = ImporterType::ASSIMP_FLAT;
     else if (arg == "-ply")
       importerType = ImporterType::PLY;
-    else if (arg == "-raw")
-      importerType = ImporterType::RAW;
+    else if (arg == "-volume")
+      importerType = ImporterType::VOLUME;
     else if (importerType != ImporterType::NONE)
       this->commandLine.filenames.push_back({importerType, arg});
   }
@@ -120,7 +120,7 @@ void AppContext::parseCommandLine(int argc, char *argv[])
   this->commandLine.libraryList = parseLibraryList();
 }
 
-void AppContext::setupSceneFromCommandLine(bool hdriOnly)
+void AppCore::setupSceneFromCommandLine(bool hdriOnly)
 {
   if (hdriOnly) {
     for (const auto &f : commandLine.filenames) {
@@ -171,14 +171,14 @@ void AppContext::setupSceneFromCommandLine(bool hdriOnly)
       else if (f.first == ImporterType::HDRI)
         tsd::import_HDRI(tsd.ctx, f.second.c_str());
 #if 0
-      else if (f.first == ImporterType::RAW)
-        tsd::import_RAW(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::VOLUME)
+        tsd::import_volume(tsd.ctx, f.second.c_str());
 #endif
     }
   }
 }
 
-anari::Device AppContext::loadDevice(const std::string &libraryName)
+anari::Device AppCore::loadDevice(const std::string &libraryName)
 {
   anari::Device dev = this->anari.loadedDevices[libraryName];
 
@@ -229,7 +229,7 @@ anari::Device AppContext::loadDevice(const std::string &libraryName)
   return dev;
 }
 
-tsd::RenderIndex *AppContext::acquireRenderIndex(anari::Device d)
+tsd::RenderIndex *AppCore::acquireRenderIndex(anari::Device d)
 {
   auto &liveIdx = this->anari.rIdxs[d];
   if (liveIdx.refCount == 0) {
@@ -244,7 +244,7 @@ tsd::RenderIndex *AppContext::acquireRenderIndex(anari::Device d)
   return liveIdx.idx;
 }
 
-void AppContext::releaseRenderIndex(anari::Device d)
+void AppCore::releaseRenderIndex(anari::Device d)
 {
   auto &liveIdx = this->anari.rIdxs[d];
   if (liveIdx.refCount == 0)
@@ -254,7 +254,7 @@ void AppContext::releaseRenderIndex(anari::Device d)
   liveIdx.refCount--;
 }
 
-void AppContext::releaseAllDevices()
+void AppCore::releaseAllDevices()
 {
   for (auto &d : anari.loadedDevices) {
     if (d.second)
@@ -263,7 +263,7 @@ void AppContext::releaseAllDevices()
   anari.loadedDevices.clear();
 }
 
-void AppContext::setSelectedObject(tsd::Object *o)
+void AppCore::setSelectedObject(tsd::Object *o)
 {
   const bool wasSelected = tsd.selectedObject != nullptr;
   tsd.selectedObject = o;
@@ -271,13 +271,13 @@ void AppContext::setSelectedObject(tsd::Object *o)
     anari.delegate.signalObjectFilteringChanged();
 }
 
-void AppContext::setSelectedNode(tsd::InstanceNode &n)
+void AppCore::setSelectedNode(tsd::InstanceNode &n)
 {
   setSelectedObject(tsd.ctx.getObject(n->value));
   tsd.selectedNode = tsd.ctx.tree.at(n.index());
 }
 
-void AppContext::clearSelected()
+void AppCore::clearSelected()
 {
   if (tsd.selectedObject != nullptr) {
     tsd.selectedObject = nullptr;

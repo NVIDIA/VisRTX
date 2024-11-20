@@ -11,11 +11,11 @@
 
 namespace tsd_viewer {
 
-DistributedViewport::DistributedViewport(AppContext *ctx,
+DistributedViewport::DistributedViewport(AppCore *ctx,
     RemoteAppStateWindow *win,
     const char *rendererSubtype,
     const char *name)
-    : anari_viewer::windows::Window(name, true), m_context(ctx), m_win(win)
+    : anari_viewer::windows::Window(name, true), m_core(ctx), m_win(win)
 {
   stbi_flip_vertically_on_write(1);
 
@@ -27,8 +27,8 @@ DistributedViewport::DistributedViewport(AppContext *ctx,
   m_overlayWindowName = "overlay_";
   m_overlayWindowName += name;
 
-  m_contextMenuName = "vpContextMenu_";
-  m_contextMenuName += name;
+  m_coreMenuName = "vpContextMenu_";
+  m_coreMenuName += name;
 
   // GL //
 
@@ -79,7 +79,7 @@ void DistributedViewport::buildUI()
 
   ui_contextMenu();
 
-  if (!m_contextMenuVisible)
+  if (!m_coreMenuVisible)
     ui_handleInput();
 }
 
@@ -362,15 +362,15 @@ void DistributedViewport::ui_contextMenu()
       || io.KeysDown[GLFW_KEY_MENU];
 
   if (rightClicked && ImGui::IsWindowHovered()) {
-    m_contextMenuVisible = true;
-    ImGui::OpenPopup(m_contextMenuName.c_str());
+    m_coreMenuVisible = true;
+    ImGui::OpenPopup(m_coreMenuName.c_str());
   }
 
-  if (ImGui::BeginPopup(m_contextMenuName.c_str())) {
+  if (ImGui::BeginPopup(m_coreMenuName.c_str())) {
     ImGui::Text("Renderer:");
     ImGui::Indent(INDENT_AMOUNT);
     if (ImGui::BeginMenu("parameters")) {
-      tsd::ui::buildUI_object(m_rendererObject, m_context->tsd.ctx, false);
+      tsd::ui::buildUI_object(m_rendererObject, m_core->tsd.ctx, false);
       ImGui::EndMenu();
     }
 
@@ -462,8 +462,8 @@ void DistributedViewport::ui_contextMenu()
 
     ImGui::Unindent(INDENT_AMOUNT);
 
-    if (!ImGui::IsPopupOpen(m_contextMenuName.c_str()))
-      m_contextMenuVisible = false;
+    if (!ImGui::IsPopupOpen(m_coreMenuName.c_str()))
+      m_coreMenuVisible = false;
 
     ImGui::EndPopup();
   }

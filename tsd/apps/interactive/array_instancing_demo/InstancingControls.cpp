@@ -13,8 +13,8 @@ using namespace tsd::literals;
 
 // InstancingControls definitions /////////////////////////////////////////////
 
-InstancingControls::InstancingControls(AppContext *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_context(state)
+InstancingControls::InstancingControls(AppCore *state, const char *name)
+    : anari_viewer::windows::Window(name, true), m_core(state)
 {
   createScene();
 }
@@ -22,7 +22,7 @@ InstancingControls::InstancingControls(AppContext *state, const char *name)
 void InstancingControls::buildUI()
 {
   if (ImGui::Button("clear scene"))
-    m_context->tsd.ctx.removeAllObjects();
+    m_core->tsd.ctx.removeAllObjects();
 
   ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
   if (ImGui::CollapsingHeader("Instancing")) {
@@ -39,13 +39,13 @@ void InstancingControls::buildUI()
 
   ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
   if (ImGui::CollapsingHeader("Lighting")) {
-    tsd::ui::buildUI_object(*m_light, m_context->tsd.ctx, true);
+    tsd::ui::buildUI_object(*m_light, m_core->tsd.ctx, true);
   }
 }
 
 void InstancingControls::createScene()
 {
-  auto &ctx = m_context->tsd.ctx;
+  auto &ctx = m_core->tsd.ctx;
 
   // Clear out previous scene //
 
@@ -81,7 +81,7 @@ void InstancingControls::createScene()
 
 void InstancingControls::generateSpheres()
 {
-  auto &ctx = m_context->tsd.ctx;
+  auto &ctx = m_core->tsd.ctx;
 
   // Generate geometry //
 
@@ -121,7 +121,7 @@ void InstancingControls::generateSpheres()
 
 void InstancingControls::generateInstances()
 {
-  auto &ctx = m_context->tsd.ctx;
+  auto &ctx = m_core->tsd.ctx;
 
   // Setup transforms //
 

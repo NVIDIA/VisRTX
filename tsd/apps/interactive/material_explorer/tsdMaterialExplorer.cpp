@@ -1,7 +1,7 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AppContext.h"
+#include "AppCore.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
 #include "windows/ObjectTree.h"
@@ -17,7 +17,7 @@
 
 using tsd_viewer::ImporterType;
 
-static tsd_viewer::AppContext *g_context = nullptr;
+static tsd_viewer::AppCore *g_core = nullptr;
 static const char *g_defaultLayout =
     R"layout(
 [Window][MainDockSpace]
@@ -105,17 +105,17 @@ class Application : public anari_viewer::Application
     io.FontGlobalScale = 1.5f;
     io.IniFilename = nullptr;
 
-    if (g_context->commandLine.useDefaultLayout)
+    if (g_core->commandLine.useDefaultLayout)
       ImGui::LoadIniSettingsFromMemory(g_defaultLayout);
 
     auto *manipulator = &m_manipulator;
 
-    auto *log = new Log(g_context);
-    m_viewport = new Viewport(g_context, manipulator, "Viewport");
-    m_viewport2 = new Viewport(g_context, manipulator, "Secondary View");
+    auto *log = new Log(g_core);
+    m_viewport = new Viewport(g_core, manipulator, "Viewport");
+    m_viewport2 = new Viewport(g_core, manipulator, "Secondary View");
     m_viewport2->hide();
-    auto *oeditor = new ObjectEditor(g_context);
-    auto *otree = new ObjectTree(g_context);
+    auto *oeditor = new ObjectEditor(g_core);
+    auto *otree = new ObjectTree(g_core);
 
     anari_viewer::WindowArray windows;
     windows.emplace_back(m_viewport);
@@ -127,29 +127,29 @@ class Application : public anari_viewer::Application
     // Populate scene //
 
     m_sceneLoadFuture = std::async([viewport = m_viewport, m = manipulator]() {
-      tsd::generate_material_orb(g_context->tsd.ctx);
+      tsd::generate_material_orb(g_core->tsd.ctx);
 
-      g_context->setupSceneFromCommandLine(true);
+      g_core->setupSceneFromCommandLine(true);
 
-      if (!g_context->commandLine.loadingContext) {
+      if (!g_core->commandLine.loadingContext) {
         tsd::logStatus("...setting up directional light");
 
-        auto light = g_context->tsd.ctx.createObject<tsd::Light>(
+        auto light = g_core->tsd.ctx.createObject<tsd::Light>(
             tsd::tokens::light::directional);
         light->setName("mainLight");
         light->setParameter("direction", tsd::float2(0.f, 240.f));
 
-        g_context->tsd.ctx.tree.insert_first_child(
-            g_context->tsd.ctx.tree.root(),
+        g_core->tsd.ctx.tree.insert_first_child(
+            g_core->tsd.ctx.tree.root(),
             tsd::utility::Any(ANARI_LIGHT, light.index()));
       }
 
       tsd::logStatus("...scene load complete!");
       tsd::logStatus(
-          "%s", tsd::objectDBInfo(g_context->tsd.ctx.objectDB()).c_str());
-      g_context->tsd.sceneLoadComplete = true;
+          "%s", tsd::objectDBInfo(g_core->tsd.ctx.objectDB()).c_str());
+      g_core->tsd.sceneLoadComplete = true;
 
-      viewport->setLibrary(g_context->commandLine.libraryList[0], false);
+      viewport->setLibrary(g_core->commandLine.libraryList[0], false);
 
       m->setConfig(
           tsd::float3(0.f, 0.136f, 0.f), 0.75f, tsd::float2(330.f, 35.f));
@@ -202,14 +202,14 @@ class Application : public anari_viewer::Application
 int main(int argc, char *argv[])
 {
   {
-    auto context = std::make_unique<tsd_viewer::AppContext>();
-    g_context = context.get();
+    auto core = std::make_unique<tsd_viewer::AppCore>();
+    g_core = core.get();
 
-    context->parseCommandLine(argc, argv);
+    core->parseCommandLine(argc, argv);
 
     tsd_viewer::Application app;
     app.run(1920, 1080, "TSD Material Explorer");
-    g_context = nullptr;
+    g_core = nullptr;
   }
 
   return 0;

@@ -17,7 +17,7 @@
 #include "tsd/core/Object.hpp"
 #include "tsd/core/UpdateDelegate.hpp"
 
-#include "AppContext.h"
+#include "AppCore.h"
 #include "ViewState.h"
 #include "Manipulator.h"
 
@@ -25,7 +25,7 @@ namespace tsd_viewer {
 
 struct DistributedViewport : public anari_viewer::windows::Window
 {
-  DistributedViewport(AppContext *state,
+  DistributedViewport(AppCore *state,
       RemoteAppStateWindow *win,
       const char *rendererSubtype,
       const char *name = "Viewport");
@@ -57,13 +57,13 @@ struct DistributedViewport : public anari_viewer::windows::Window
 
   // Data /////////////////////////////////////////////////////////////////////
 
-  AppContext *m_context{nullptr};
+  AppCore *m_core{nullptr};
   RemoteAppStateWindow *m_win{nullptr};
 
   tsd::math::float2 m_previousMouse{-1.f, -1.f};
   bool m_mouseRotating{false};
   bool m_manipulating{false};
-  bool m_contextMenuVisible{false};
+  bool m_coreMenuVisible{false};
   bool m_saveNextFrame{false};
   int m_screenshotIndex{0};
 
@@ -120,7 +120,7 @@ struct DistributedViewport : public anari_viewer::windows::Window
   float m_maxFL{-std::numeric_limits<float>::max()};
 
   std::string m_overlayWindowName;
-  std::string m_contextMenuName;
+  std::string m_coreMenuName;
 };
 
 } // namespace tsd_viewer

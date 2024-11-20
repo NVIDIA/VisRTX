@@ -4,17 +4,17 @@
 #include "DatabaseEditor.h"
 #include "tsd_ui.h"
 
-#include "AppContext.h"
+#include "AppCore.h"
 
 namespace tsd_viewer {
 
-DatabaseEditor::DatabaseEditor(AppContext *ctx, const char *name)
-    : anari_viewer::windows::Window(name, true), m_context(ctx)
+DatabaseEditor::DatabaseEditor(AppCore *ctx, const char *name)
+    : anari_viewer::windows::Window(name, true), m_core(ctx)
 {}
 
 void DatabaseEditor::buildUI()
 {
-  ImGui::BeginDisabled(!m_context->tsd.sceneLoadComplete);
+  ImGui::BeginDisabled(!m_core->tsd.sceneLoadComplete);
 
   auto buildUI_objectSection = [&](const auto &ctxList,
                                    const char *headerText) {
@@ -23,12 +23,12 @@ void DatabaseEditor::buildUI()
     ImGui::SetNextItemOpen(false, ImGuiCond_FirstUseEver);
     if (ImGui::CollapsingHeader(headerText, ImGuiTreeNodeFlags_None)) {
       tsd::foreach_item_const(ctxList, [&](auto *o) {
-        tsd::ui::buildUI_object(*o, m_context->tsd.ctx, true);
+        tsd::ui::buildUI_object(*o, m_core->tsd.ctx, true);
       });
     }
   };
 
-  const auto &db = m_context->tsd.ctx.objectDB();
+  const auto &db = m_core->tsd.ctx.objectDB();
 
   buildUI_objectSection(db.light, "Lights");
   buildUI_objectSection(db.sampler, "Samplers");

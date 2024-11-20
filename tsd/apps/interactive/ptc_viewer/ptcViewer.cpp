@@ -1,7 +1,7 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AppContext.h"
+#include "AppCore.h"
 #include "DistributedViewport.h"
 #include "ViewState.h"
 #include "windows/Log.h"
@@ -31,7 +31,7 @@ static std::string g_libraryName = "ptc";
 static std::string g_rendererName = "default";
 static std::vector<std::string> g_filenames;
 static ImporterType g_importerType = ImporterType::NONE;
-static tsd_viewer::AppContext *g_context = nullptr;
+static tsd_viewer::AppCore *g_core = nullptr;
 static int g_numRanks = -1;
 static RemoteAppStateWindow *g_win = nullptr;
 static tsd::RenderIndex *g_rIdx = nullptr;
@@ -69,7 +69,7 @@ DockSpace   ID=0x782A6D6B Window=0xDEDC5B90 Pos=0,25 Size=1600,874 Split=Y
 
 namespace ptc_demo_viewer {
 
-static void statusFunc(const void *_appContext,
+static void statusFunc(const void *_AppCore,
     ANARIDevice device,
     ANARIObject source,
     ANARIDataType sourceType,
@@ -77,7 +77,7 @@ static void statusFunc(const void *_appContext,
     ANARIStatusCode code,
     const char *message)
 {
-  const auto *ctx = (const AppContext *)_appContext;
+  const auto *ctx = (const AppCore *)_AppCore;
   if (g_rank != 0) {
     printf("[WORKER][%i][A] %s\n", g_rank, message);
     fflush(stdout);
@@ -103,7 +103,7 @@ static void statusFunc(const void *_appContext,
 
 static void initializeANARI()
 {
-  g_device = g_context->loadDevice(g_libraryName);
+  g_device = g_core->loadDevice(g_libraryName);
 }
 
 static void teardownANARI()
@@ -122,38 +122,38 @@ static void setupScene()
   rng.seed(g_rank);
   std::normal_distribution<float> dist(0.2f, 0.8f);
 
-  auto mat = g_context->tsd.ctx.defaultMaterial();
+  auto mat = g_core->tsd.ctx.defaultMaterial();
   mat->setParameter("color"_t, float3(dist(rng), dist(rng), dist(rng)));
 
   // Load actual scene //
 
   if (g_importerType == ImporterType::NONE)
-    tsd::generate_randomSpheres(g_context->tsd.ctx);
+    tsd::generate_randomSpheres(g_core->tsd.ctx);
   else {
     for (size_t i = 0; i < g_filenames.size(); i++) {
       if (g_numRanks > 0 && (i % g_numRanks != g_rank))
         continue;
       const auto &f = g_filenames[i];
       if (g_importerType == ImporterType::PLY)
-        tsd::import_PLY(g_context->tsd.ctx, f.c_str());
+        tsd::import_PLY(g_core->tsd.ctx, f.c_str());
       else if (g_importerType == ImporterType::OBJ)
-        tsd::import_OBJ(g_context->tsd.ctx, f.c_str(), true);
+        tsd::import_OBJ(g_core->tsd.ctx, f.c_str(), true);
       else if (g_importerType == ImporterType::ASSIMP)
-        tsd::import_ASSIMP(g_context->tsd.ctx, f.c_str());
+        tsd::import_ASSIMP(g_core->tsd.ctx, f.c_str());
       else if (g_importerType == ImporterType::DLAF)
-        tsd::import_DLAF(g_context->tsd.ctx, f.c_str(), true);
+        tsd::import_DLAF(g_core->tsd.ctx, f.c_str(), true);
       else if (g_importerType == ImporterType::NBODY)
-        tsd::import_NBODY(g_context->tsd.ctx, f.c_str());
+        tsd::import_NBODY(g_core->tsd.ctx, f.c_str());
     }
   }
 
   printf("[%i] %s\n",
       g_rank,
-      tsd::objectDBInfo(g_context->tsd.ctx.objectDB()).c_str());
+      tsd::objectDBInfo(g_core->tsd.ctx.objectDB()).c_str());
 
   // Create render index to map to a concrete ANARI objects //
 
-  g_rIdx = g_context->acquireRenderIndex(g_device);
+  g_rIdx = g_core->acquireRenderIndex(g_device);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -181,13 +181,13 @@ class Application : public anari_viewer::Application
 
     // ANARI //
 
-    auto *log = new Log(g_context);
+    auto *log = new Log(g_core);
 
-    if (!g_context->logging.verbose)
+    if (!g_core->logging.verbose)
       tsd::logStatus("app window running on rank '%i'", g_rank);
 
     auto *viewport = new DistributedViewport(
-        g_context, g_win, g_rendererName.c_str(), "Viewport");
+        g_core, g_win, g_rendererName.c_str(), "Viewport");
 
     g_win->fence();
     initializeANARI();
@@ -252,7 +252,7 @@ static void printUsage()
 
 static void parseCommandLine(int argc, char *argv[])
 {
-  g_context->parseCommandLine(argc, argv);
+  g_core->parseCommandLine(argc, argv);
 
   for (int i = 1; i < argc; i++) {
     std::string arg = argv[i];
@@ -408,8 +408,8 @@ int main(int argc, char *argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &g_numRanks);
 
   {
-    auto context = std::make_unique<tsd_viewer::AppContext>();
-    g_context = context.get();
+    auto core = std::make_unique<tsd_viewer::AppCore>();
+    g_core = core.get();
 
     auto win = std::make_unique<RemoteAppStateWindow>();
     g_win = win.get();
@@ -429,7 +429,7 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
     ptc_demo_viewer::teardownANARI();
-    g_context = nullptr;
+    g_core = nullptr;
   }
 
   MPI_Finalize();

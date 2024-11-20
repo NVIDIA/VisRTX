@@ -6,7 +6,6 @@
 // tsd
 #include "tsd/TSD.hpp"
 // std
-#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -23,11 +22,11 @@ enum class ImporterType
   PLY,
   OBJ,
   HDRI,
-  RAW,
+  VOLUME,
   NONE
 };
 
-struct AppContext
+struct AppCore
 {
   struct CommandLineOptions
   {
@@ -49,7 +48,7 @@ struct AppContext
     tsd::InstanceNode::Ref selectedNode;
   } tsd;
 
-  struct DeviceState
+  struct ANARIState
   {
     struct LiveAnariIndex
     {
@@ -71,8 +70,8 @@ struct AppContext
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
 
-  AppContext();
-  ~AppContext();
+  AppCore();
+  ~AppCore();
 
   void parseCommandLine(int argc, char *argv[]);
   void setupSceneFromCommandLine(bool hdriOnly = false);
@@ -87,10 +86,10 @@ struct AppContext
   void clearSelected();
 
   // Not copyable or moveable //
-  AppContext(const AppContext &) = delete;
-  AppContext(AppContext &&) = delete;
-  AppContext &operator=(const AppContext &) = delete;
-  AppContext &operator=(AppContext &&) = delete;
+  AppCore(const AppCore &) = delete;
+  AppCore(AppCore &&) = delete;
+  AppCore &operator=(const AppCore &) = delete;
+  AppCore &operator=(AppCore &&) = delete;
   //////////////////////////////
 };
 

@@ -8,17 +8,17 @@
 
 namespace tsd_viewer {
 
-IsosurfaceEditor::IsosurfaceEditor(AppContext *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_context(state)
+IsosurfaceEditor::IsosurfaceEditor(AppCore *state, const char *name)
+    : anari_viewer::windows::Window(name, true), m_core(state)
 {}
 
 void IsosurfaceEditor::buildUI()
 {
-  auto &ctx = m_context->tsd.ctx;
+  auto &ctx = m_core->tsd.ctx;
 
   tsd::Object *selectedIsosurface = nullptr;
   tsd::Object *selectedVolume = nullptr;
-  tsd::Object *selectedObject = m_context->tsd.selectedObject;
+  tsd::Object *selectedObject = m_core->tsd.selectedObject;
 
   if (selectedObject != nullptr) {
     if (selectedObject->type() == ANARI_VOLUME)
@@ -93,12 +93,12 @@ void IsosurfaceEditor::buildUI()
 
 void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
 {
-  tsd::Object *selectedObject = m_context->tsd.selectedObject;
-  auto &ctx = m_context->tsd.ctx;
+  tsd::Object *selectedObject = m_core->tsd.selectedObject;
+  auto &ctx = m_core->tsd.ctx;
 
   tsd::Object *field = nullptr;
   if (auto *p = selectedObject->parameter("value"); p != nullptr)
-    field = m_context->tsd.ctx.getObject(p->value());
+    field = m_core->tsd.ctx.getObject(p->value());
   auto isovalue = ctx.createArray(ANARI_FLOAT32, 1);
 
   auto g = ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::isosurface);
@@ -114,7 +114,7 @@ void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
   auto n = ctx.tree.insert_last_child(
       ctx.tree.root(), tsd::utility::Any(ANARI_SURFACE, s.index()));
 
-  m_context->setSelectedNode(*n);
+  m_core->setSelectedNode(*n);
   ctx.signalInstanceTreeChange();
 }
 

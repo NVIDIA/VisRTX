@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "AppContext.h"
+#include "AppCore.h"
 // anari_viewer
 #include "anari_viewer/windows/Window.h"
 
@@ -11,10 +11,10 @@ namespace tsd_viewer {
 
 struct ObjectEditor : public anari_viewer::windows::Window
 {
-  ObjectEditor(AppContext *state, const char *name = "Object Editor");
+  ObjectEditor(AppCore *state, const char *name = "Object Editor");
   void buildUI() override;
  private:
-  AppContext *m_context{nullptr};
+  AppCore *m_core{nullptr};
 };
 
 } // namespace tsd_viewer

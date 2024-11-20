@@ -1,7 +1,7 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AppContext.h"
+#include "AppCore.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
 #include "windows/Viewport.h"
@@ -18,7 +18,7 @@
 
 using tsd_viewer::ImporterType;
 
-static tsd_viewer::AppContext *g_context = nullptr;
+static tsd_viewer::AppCore *g_core = nullptr;
 static const char *g_defaultLayout =
     R"layout(
 [Window][MainDockSpace]
@@ -118,17 +118,17 @@ class Application : public anari_viewer::Application
     io.FontGlobalScale = 1.5f;
     io.IniFilename = nullptr;
 
-    if (g_context->commandLine.useDefaultLayout)
+    if (g_core->commandLine.useDefaultLayout)
       ImGui::LoadIniSettingsFromMemory(g_defaultLayout);
 
     auto *manipulator = &m_manipulator;
 
-    auto *log = new Log(g_context);
-    m_viewport = new Viewport(g_context, manipulator, "Viewport");
-    m_viewport2 = new Viewport(g_context, manipulator, "Secondary View");
+    auto *log = new Log(g_core);
+    m_viewport = new Viewport(g_core, manipulator, "Viewport");
+    m_viewport2 = new Viewport(g_core, manipulator, "Secondary View");
     m_viewport2->hide();
-    auto *icontrols = new InstancingControls(g_context, "Scene Controls");
-    auto *oeditor = new ObjectEditor(g_context);
+    auto *icontrols = new InstancingControls(g_core, "Scene Controls");
+    auto *oeditor = new ObjectEditor(g_core);
 
     anari_viewer::WindowArray windows;
     windows.emplace_back(m_viewport);
@@ -137,10 +137,10 @@ class Application : public anari_viewer::Application
     windows.emplace_back(oeditor);
     windows.emplace_back(log);
 
-    g_context->setupSceneFromCommandLine(true);
-    g_context->tsd.sceneLoadComplete = true;
+    g_core->setupSceneFromCommandLine(true);
+    g_core->tsd.sceneLoadComplete = true;
 
-    m_viewport->setLibrary(g_context->commandLine.libraryList[0], false);
+    m_viewport->setLibrary(g_core->commandLine.libraryList[0], false);
     m_manipulator.setConfig(
         tsd::float3(2.743f, 4.747f, 0.944f), 90.f, tsd::float2(180.f, 0.f));
 
@@ -188,7 +188,7 @@ class Application : public anari_viewer::Application
  private:
   void saveContext()
   {
-    tsd::save_Context(g_context->tsd.ctx, "state.tsd");
+    tsd::save_Context(g_core->tsd.ctx, "state.tsd");
     tsd::logStatus("context saved to 'state.tsd'");
   }
 
@@ -207,14 +207,14 @@ class Application : public anari_viewer::Application
 int main(int argc, char *argv[])
 {
   {
-    auto context = std::make_unique<tsd_viewer::AppContext>();
-    g_context = context.get();
+    auto core = std::make_unique<tsd_viewer::AppCore>();
+    g_core = core.get();
 
-    context->parseCommandLine(argc, argv);
+    core->parseCommandLine(argc, argv);
 
     tsd_viewer::Application app;
     app.run(1920, 1080, "TSD Array Instancing Demo");
-    g_context = nullptr;
+    g_core = nullptr;
   }
 
   return 0;

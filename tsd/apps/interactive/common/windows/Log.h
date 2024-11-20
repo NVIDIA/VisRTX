@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "../AppContext.h"
+#include "../AppCore.h"
 // anari_viewer
 #include "anari_viewer/windows/Window.h"
 // std
@@ -13,7 +13,7 @@ namespace tsd_viewer {
 
 struct Log : public anari_viewer::windows::Window
 {
-  Log(AppContext *ctx, bool installAsLoggingTarget = true);
+  Log(AppCore *ctx, bool installAsLoggingTarget = true);
   ~Log();
 
   void buildUI() override;
@@ -25,7 +25,7 @@ struct Log : public anari_viewer::windows::Window
 
   // Data //
 
-  AppContext *m_context{nullptr};
+  AppCore *m_core{nullptr};
   bool m_isLoggingTarget{false};
 
   ImGuiTextBuffer m_buf;

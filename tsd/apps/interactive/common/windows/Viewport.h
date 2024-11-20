@@ -20,7 +20,7 @@
 // render_pipeline
 #include "render_pipeline/RenderPipeline.h"
 
-#include "../AppContext.h"
+#include "../AppCore.h"
 #include "../Manipulator.h"
 
 namespace tsd_viewer {
@@ -28,7 +28,7 @@ namespace tsd_viewer {
 struct Viewport : public anari_viewer::windows::Window
 {
   Viewport(
-      AppContext *state, manipulators::Orbit *m, const char *name = "Viewport");
+      AppCore *state, manipulators::Orbit *m, const char *name = "Viewport");
   ~Viewport();
 
   void buildUI() override;
@@ -57,7 +57,7 @@ struct Viewport : public anari_viewer::windows::Window
   float m_timeToLoadDevice{0.f};
   std::future<void> m_initFuture;
   bool m_deviceReadyToUse{false};
-  AppContext *m_context{nullptr};
+  AppCore *m_core{nullptr};
   std::string m_libName;
   tsd::RenderIndex *m_rIdx{nullptr};
 
@@ -65,7 +65,7 @@ struct Viewport : public anari_viewer::windows::Window
   float m_pickedDepth{0.f};
   bool m_mouseRotating{false};
   bool m_manipulating{false};
-  bool m_contextMenuVisible{false};
+  bool m_coreMenuVisible{false};
   bool m_frameCancelled{false};
   bool m_saveNextFrame{false};
   bool m_echoCameraConfig{false};
@@ -126,7 +126,7 @@ struct Viewport : public anari_viewer::windows::Window
   float m_maxFL{-std::numeric_limits<float>::max()};
 
   std::string m_overlayWindowName;
-  std::string m_contextMenuName;
+  std::string m_coreMenuName;
 };
 
 } // namespace tsd_viewer

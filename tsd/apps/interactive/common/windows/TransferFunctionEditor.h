@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "../AppContext.h"
+#include "../AppCore.h"
 // glad
 #include <glad/glad.h>
 // anari
@@ -26,7 +26,7 @@ using TFUpdateCallback =
 class TransferFunctionEditor : public anari_viewer::windows::Window
 {
  public:
-  TransferFunctionEditor(AppContext *ctx, const char *name = "TF Editor");
+  TransferFunctionEditor(AppCore *ctx, const char *name = "TF Editor");
   ~TransferFunctionEditor();
 
   void buildUI() override;
@@ -56,7 +56,7 @@ class TransferFunctionEditor : public anari_viewer::windows::Window
 
   // Data //
 
-  AppContext *m_context{nullptr};
+  AppCore *m_core{nullptr};
 
   // callback called whenever transfer function is updated
   TFUpdateCallback m_updateCallback;

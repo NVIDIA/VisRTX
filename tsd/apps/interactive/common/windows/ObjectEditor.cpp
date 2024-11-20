@@ -6,20 +6,20 @@
 
 namespace tsd_viewer {
 
-ObjectEditor::ObjectEditor(AppContext *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_context(state)
+ObjectEditor::ObjectEditor(AppCore *state, const char *name)
+    : anari_viewer::windows::Window(name, true), m_core(state)
 {}
 
 void ObjectEditor::buildUI()
 {
-  if (m_context->tsd.selectedObject == nullptr) {
+  if (m_core->tsd.selectedObject == nullptr) {
     ImGui::Text("{no object selected}");
     return;
   }
 
-  ImGui::BeginDisabled(!m_context->tsd.sceneLoadComplete);
+  ImGui::BeginDisabled(!m_core->tsd.sceneLoadComplete);
   tsd::ui::buildUI_object(
-      *m_context->tsd.selectedObject, m_context->tsd.ctx, true);
+      *m_core->tsd.selectedObject, m_core->tsd.ctx, true);
   ImGui::EndDisabled();
 }
 
