@@ -7,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <limits>
 // stb_image
 #include "tsd_stb/stb_image_write.h"
 // tsd
@@ -14,6 +15,7 @@
 
 namespace tsd_viewer {
 
+constexpr float inf = std::numeric_limits<float>::infinity();
 static std::atomic_bool g_firstFrame = true;
 int g_screenshotIndex = 0;
 
@@ -178,7 +180,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       m_device = d;
 
-      if (g_firstFrame) {
+      if (g_firstFrame || m_arcball->distance() == inf) {
         resetView(true);
         g_firstFrame = false;
       } else {
