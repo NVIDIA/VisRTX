@@ -41,23 +41,23 @@ struct ComputeScalarRange
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-inline float2 computeScalarRange(const Array &a, const Context *ctx = nullptr)
+inline float2 computeScalarRange(const Array &a)
 {
   constexpr float maxFloat = std::numeric_limits<float>::max();
   float2 retval{maxFloat, -maxFloat};
 
   const anari::DataType type = a.elementType();
-  const bool elementsAreArrays = anari::isArray(type) && ctx;
+  const bool elementsAreArrays = anari::isArray(type);
   const bool elementsAreScalars =
       !anari::isObject(type) && anari::componentsOf(type) == 1;
 
-  if (elementsAreArrays) {
+  if (auto *ctx = a.context(); elementsAreArrays && ctx) {
     const auto *begin = (uint64_t *)a.data();
     const auto *end = begin + a.size();
     std::for_each(begin, end, [&](uint64_t idx) {
       float2 subRange{maxFloat, -maxFloat};
       if (auto subArray = ctx->getObject<Array>(idx); subArray)
-        subRange = computeScalarRange(*subArray, ctx);
+        subRange = computeScalarRange(*subArray);
       retval.x = std::min(retval.x, subRange.x);
       retval.y = std::max(retval.y, subRange.y);
     });

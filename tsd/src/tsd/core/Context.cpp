@@ -46,6 +46,7 @@ ArrayRef Context::createArray(
   else
     retval = m_db.array.emplace(type, items0);
 
+  retval->m_context = this;
   retval->m_index = retval.index();
 
   if (m_updateDelegate) {

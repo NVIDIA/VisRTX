@@ -26,6 +26,7 @@ Object::Object(Object &&o)
   m_type = std::move(o.m_type);
   m_subtype = std::move(o.m_subtype);
   m_name = std::move(o.m_name);
+  m_context = std::move(o.m_context);
   m_index = std::move(o.m_index);
   m_updateDelegate = std::move(o.m_updateDelegate);
   for (auto &p : m_parameters)
@@ -38,6 +39,7 @@ Object &Object::operator=(Object &&o)
   m_type = std::move(o.m_type);
   m_subtype = std::move(o.m_subtype);
   m_name = std::move(o.m_name);
+  m_context = std::move(o.m_context);
   m_index = std::move(o.m_index);
   m_updateDelegate = std::move(o.m_updateDelegate);
   for (auto &p : m_parameters)
@@ -58,6 +60,11 @@ Token Object::subtype() const
 size_t Object::index() const
 {
   return m_index;
+}
+
+Context *Object::context() const
+{
+  return m_context;
 }
 
 const std::string &Object::name() const

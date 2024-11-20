@@ -273,6 +273,7 @@ inline IndexedVectorRef<OBJ_T> Context::createObjectImpl(
     IndexedVector<OBJ_T> &iv, Token subtype)
 {
   auto retval = iv.emplace(subtype);
+  retval->m_context = this;
   retval->m_index = retval.index();
   if (m_updateDelegate) {
     retval->setUpdateDelegate(m_updateDelegate);
@@ -286,6 +287,7 @@ inline IndexedVectorRef<OBJ_T> Context::createObjectImpl(
     IndexedVector<OBJ_T> &iv)
 {
   auto retval = iv.emplace();
+  retval->m_context = this;
   retval->m_index = retval.index();
   if (m_updateDelegate) {
     retval->setUpdateDelegate(m_updateDelegate);

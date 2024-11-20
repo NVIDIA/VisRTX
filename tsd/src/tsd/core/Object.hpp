@@ -16,6 +16,7 @@
 namespace tsd {
 
 using namespace literals;
+struct Context;
 
 // Token declarations /////////////////////////////////////////////////////////
 
@@ -52,6 +53,7 @@ struct Object : public ParameterObserver
   virtual anari::DataType type() const;
   Token subtype() const;
   size_t index() const;
+  Context *context() const;
 
   //// Metadata ////
 
@@ -100,6 +102,7 @@ struct Object : public ParameterObserver
  private:
   friend struct Context;
 
+  Context *m_context{nullptr};
   ParameterMap m_parameters;
   anari::DataType m_type{ANARI_UNKNOWN};
   Token m_subtype;

@@ -28,15 +28,18 @@ anari::Object SpatialField::makeANARIObject(anari::Device d) const
   return anari::newObject<anari::SpatialField>(d, subtype().c_str());
 }
 
-float2 SpatialField::computeValueRange(const Context *ctx)
+float2 SpatialField::computeValueRange()
 {
   float2 retval{0.f, 1.f};
+  auto *ctx = this->context();
+  if (!ctx)
+    return retval;
 
   auto getDataRangeFromParameter = [&](Parameter *p) -> std::optional<float2> {
     if (!p || !anari::isArray(p->value().type()))
       return {};
     else if (auto a = ctx->getObject<Array>(p->value().getAsObjectIndex()); a)
-      return algorithm::computeScalarRange(*a, ctx);
+      return algorithm::computeScalarRange(*a);
     else
       return {};
   };

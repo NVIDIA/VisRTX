@@ -23,7 +23,7 @@ VolumeRef import_volume(Context &ctx,
 
   float2 valueRange{0.f, 1.f};
   if (field)
-    valueRange = field->computeValueRange(&ctx);
+    valueRange = field->computeValueRange();
 
   auto volume = ctx.createObject<Volume>(tokens::volume::transferFunction1D);
   volume->setName(fileOf(filepath).c_str());
