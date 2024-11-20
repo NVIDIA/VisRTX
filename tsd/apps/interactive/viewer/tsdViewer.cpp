@@ -1,28 +1,87 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AppCore.h"
-#include "modals/AppSettings.h"
+#include "BaseApplication.h"
 #include "windows/DatabaseEditor.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
 #include "windows/ObjectTree.h"
 #include "windows/Viewport.h"
-// anari_viewer
-#include "anari_viewer/Application.h"
-// tsd
-#include "tsd/TSD.hpp"
-#include "tsd_ui.h"
 // std
 #include <chrono>
-#include <iostream>
-#include <vector>
 
-using tsd_viewer::ImporterType;
+namespace tsd_viewer {
 
-static tsd_viewer::AppCore *g_core = nullptr;
-static const char *g_defaultLayout =
-    R"layout(
+class Application : public BaseApplication
+{
+ public:
+  Application(int argc, const char *argv[]) : BaseApplication(argc, argv) {}
+  ~Application() override = default;
+
+  anari_viewer::WindowArray setupWindows() override
+  {
+    auto windows = BaseApplication::setupWindows();
+
+    auto *core = appCore();
+
+    auto *log = new Log(core);
+    auto *viewport = new Viewport(core, &m_manipulator, "Viewport");
+    auto *viewport2 = new Viewport(core, &m_manipulator, "Secondary View");
+    viewport2->hide();
+    auto *dbeditor = new DatabaseEditor(core);
+    auto *oeditor = new ObjectEditor(core);
+    auto *otree = new ObjectTree(core);
+
+    windows.emplace_back(viewport);
+    windows.emplace_back(viewport2);
+    windows.emplace_back(dbeditor);
+    windows.emplace_back(oeditor);
+    windows.emplace_back(otree);
+    windows.emplace_back(log);
+
+    setWindowArray(windows);
+
+    // Populate scene //
+
+    m_sceneLoadFuture = std::async([vp = viewport, core = core]() {
+      auto loadStart = std::chrono::steady_clock::now();
+      core->setupSceneFromCommandLine();
+      auto loadEnd = std::chrono::steady_clock::now();
+      auto loadSeconds =
+          std::chrono::duration<float>(loadEnd - loadStart).count();
+
+      if (!core->commandLine.loadingContext) {
+        tsd::logStatus("...setting up directional light");
+
+        auto light = core->tsd.ctx.createObject<tsd::Light>(
+            tsd::tokens::light::directional);
+        light->setName("mainLight");
+        light->setParameter("direction", tsd::float2(0.f, 240.f));
+
+        core->tsd.ctx.tree.insert_first_child(core->tsd.ctx.tree.root(),
+            tsd::utility::Any(ANARI_LIGHT, light.index()));
+      }
+
+      tsd::logStatus("...scene load complete! (%.3fs)", loadSeconds);
+      tsd::logStatus("%s", tsd::objectDBInfo(core->tsd.ctx.objectDB()).c_str());
+      core->tsd.sceneLoadComplete = true;
+
+      vp->setLibrary(core->commandLine.libraryList[0], false);
+    });
+
+    return windows;
+  }
+
+  void teardown() override
+  {
+    if (m_sceneLoadFuture.valid())
+      m_sceneLoadFuture.get();
+    BaseApplication::teardown();
+  }
+
+  const char *getDefaultLayout() const override
+  {
+    return R"layout(
 [Window][MainDockSpace]
 Pos=0,25
 Size=1600,874
@@ -87,149 +146,11 @@ DockSpace       ID=0x782A6D6B Window=0xDEDC5B90 Pos=0,25 Size=1600,874 Split=X
       DockNode  ID=0x00000008 Parent=0x00000005 SizeRef=522,617 Selected=0xBAF13E1E
     DockNode    ID=0x00000006 Parent=0x00000002 SizeRef=1049,255 Selected=0x64F50EE5
 )layout";
-
-namespace tsd_viewer {
-
-class Application : public anari_viewer::Application
-{
- public:
-  Application() = default;
-  ~Application() override = default;
-
-  anari_viewer::WindowArray setupWindows() override
-  {
-    anari_viewer::ui::init();
-
-    // ImGui //
-
-    ImGuiIO &io = ImGui::GetIO();
-    io.FontGlobalScale = 1.5f;
-    io.IniFilename = nullptr;
-
-    if (g_core->commandLine.useDefaultLayout)
-      ImGui::LoadIniSettingsFromMemory(g_defaultLayout);
-
-    m_appSettings = std::make_unique<tsd_viewer::AppSettings>();
-
-    auto *log = new Log(g_core);
-    m_viewport = new Viewport(g_core, &m_manipulator, "Viewport");
-    m_viewport2 = new Viewport(g_core, &m_manipulator, "Secondary View");
-    m_viewport2->hide();
-    auto *dbeditor = new DatabaseEditor(g_core);
-    auto *oeditor = new ObjectEditor(g_core);
-    auto *otree = new ObjectTree(g_core);
-
-    anari_viewer::WindowArray windows;
-    windows.emplace_back(m_viewport);
-    windows.emplace_back(m_viewport2);
-    windows.emplace_back(dbeditor);
-    windows.emplace_back(oeditor);
-    windows.emplace_back(otree);
-    windows.emplace_back(log);
-
-    // Populate scene //
-
-    m_sceneLoadFuture = std::async([viewport = m_viewport]() {
-      auto loadStart = std::chrono::steady_clock::now();
-      g_core->setupSceneFromCommandLine();
-      auto loadEnd = std::chrono::steady_clock::now();
-      auto loadSeconds =
-          std::chrono::duration<float>(loadEnd - loadStart).count();
-
-      if (!g_core->commandLine.loadingContext) {
-        tsd::logStatus("...setting up directional light");
-
-        auto light = g_core->tsd.ctx.createObject<tsd::Light>(
-            tsd::tokens::light::directional);
-        light->setName("mainLight");
-        light->setParameter("direction", tsd::float2(0.f, 240.f));
-
-        g_core->tsd.ctx.tree.insert_first_child(
-            g_core->tsd.ctx.tree.root(),
-            tsd::utility::Any(ANARI_LIGHT, light.index()));
-      }
-
-      tsd::logStatus("...scene load complete! (%.3fs)", loadSeconds);
-      tsd::logStatus(
-          "%s", tsd::objectDBInfo(g_core->tsd.ctx.objectDB()).c_str());
-      g_core->tsd.sceneLoadComplete = true;
-
-      viewport->setLibrary(g_core->commandLine.libraryList[0], false);
-    });
-
-    return windows;
-  }
-
-  void uiFrameStart() override
-  {
-    // Handle app shortcuts //
-
-    ImGuiIO &io = ImGui::GetIO();
-    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
-      saveContext();
-
-    // Main Menu //
-
-    if (ImGui::BeginMainMenuBar()) {
-      if (ImGui::BeginMenu("File")) {
-        if (ImGui::MenuItem("Save", "CTRL+S"))
-          saveContext();
-
-        ImGui::Separator();
-
-        if (ImGui::MenuItem("Print UI Layout")) {
-          const char *info = ImGui::SaveIniSettingsToMemory();
-          printf("%s\n", info);
-        }
-
-        ImGui::Separator();
-
-        if (ImGui::MenuItem("Quit", "SHIFT+Q"))
-          std::exit(0);
-
-        ImGui::EndMenu();
-      }
-
-      if (ImGui::BeginMenu("Edit")) {
-        if (ImGui::MenuItem("Settings"))
-          m_appSettings->show();
-        ImGui::EndMenu();
-      }
-
-      if (ImGui::BeginMenu("View")) {
-        ImGui::Checkbox("secondary view", m_viewport2->visiblePtr());
-        ImGui::EndMenu();
-      }
-
-      ImGui::EndMainMenuBar();
-    }
-
-    // Modals //
-
-    if (m_appSettings->visible())
-      m_appSettings->renderUI();
-  }
-
-  void teardown() override
-  {
-    if (m_sceneLoadFuture.valid())
-      m_sceneLoadFuture.get();
-    anari_viewer::ui::shutdown();
   }
 
  private:
-  void saveContext()
-  {
-    tsd::save_Context(g_core->tsd.ctx, "state.tsd");
-    tsd::logStatus("context saved to 'state.tsd'");
-  }
-
-  manipulators::Orbit m_manipulator;
-  tsd_viewer::Viewport *m_viewport{nullptr};
-  tsd_viewer::Viewport *m_viewport2{nullptr};
-  std::unique_ptr<tsd_viewer::AppSettings> m_appSettings;
   std::future<void> m_sceneLoadFuture;
-}; // namespace tsd_viewer
+};
 
 } // namespace tsd_viewer
 
@@ -237,17 +158,11 @@ class Application : public anari_viewer::Application
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-int main(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
   {
-    auto core = std::make_unique<tsd_viewer::AppCore>();
-    g_core = core.get();
-
-    core->parseCommandLine(argc, argv);
-
-    tsd_viewer::Application app;
+    tsd_viewer::Application app(argc, argv);
     app.run(1920, 1080, "TSD Viewer");
-    g_core = nullptr;
   }
 
   return 0;

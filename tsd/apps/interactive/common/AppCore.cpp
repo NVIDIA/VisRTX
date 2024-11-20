@@ -78,8 +78,13 @@ AppCore::~AppCore()
   releaseAllDevices();
 }
 
-void AppCore::parseCommandLine(int argc, char *argv[])
+void AppCore::parseCommandLine(int argc, const char **argv)
 {
+  this->commandLine.libraryList = parseLibraryList();
+
+  if (argc < 2 || argv == nullptr)
+    return;
+
   auto importerType = ImporterType::NONE;
 
   for (int i = 1; i < argc; i++) {
@@ -116,8 +121,6 @@ void AppCore::parseCommandLine(int argc, char *argv[])
     else if (importerType != ImporterType::NONE)
       this->commandLine.filenames.push_back({importerType, arg});
   }
-
-  this->commandLine.libraryList = parseLibraryList();
 }
 
 void AppCore::setupSceneFromCommandLine(bool hdriOnly)

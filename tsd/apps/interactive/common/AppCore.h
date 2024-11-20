@@ -73,7 +73,7 @@ struct AppCore
   AppCore();
   ~AppCore();
 
-  void parseCommandLine(int argc, char *argv[]);
+  void parseCommandLine(int argc, const char **argv);
   void setupSceneFromCommandLine(bool hdriOnly = false);
 
   anari::Device loadDevice(const std::string &libName);

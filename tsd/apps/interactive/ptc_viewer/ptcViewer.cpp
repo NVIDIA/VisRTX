@@ -250,7 +250,7 @@ static void printUsage()
             << "   [{--plyFile|-ply}] <filename.ply>\n";
 }
 
-static void parseCommandLine(int argc, char *argv[])
+static void parseCommandLine(int argc, const char *argv[])
 {
   g_core->parseCommandLine(argc, argv);
 
@@ -401,7 +401,7 @@ static void runWorker()
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-int main(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
   MPI_Init(nullptr, nullptr);
   MPI_Comm_rank(MPI_COMM_WORLD, &g_rank);
