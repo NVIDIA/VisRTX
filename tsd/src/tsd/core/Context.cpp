@@ -111,6 +111,45 @@ Object *Context::getObject(ANARIDataType type, size_t i) const
   return obj;
 }
 
+size_t Context::numberOfObjects(anari::DataType type) const
+{
+  size_t numObjects = 0;
+
+  switch (type) {
+  case ANARI_SURFACE:
+    numObjects = m_db.surface.capacity();
+    break;
+  case ANARI_GEOMETRY:
+    numObjects = m_db.geometry.capacity();
+    break;
+  case ANARI_MATERIAL:
+    numObjects = m_db.material.capacity();
+    break;
+  case ANARI_SAMPLER:
+    numObjects = m_db.sampler.capacity();
+    break;
+  case ANARI_VOLUME:
+    numObjects = m_db.volume.capacity();
+    break;
+  case ANARI_SPATIAL_FIELD:
+    numObjects = m_db.field.capacity();
+    break;
+  case ANARI_LIGHT:
+    numObjects = m_db.light.capacity();
+    break;
+  case ANARI_ARRAY:
+  case ANARI_ARRAY1D:
+  case ANARI_ARRAY2D:
+  case ANARI_ARRAY3D:
+    numObjects = m_db.array.capacity();
+    break;
+  default:
+    break; // no-op
+  }
+
+  return numObjects;
+}
+
 void Context::removeObject(const utility::Any &o)
 {
   if (auto *optr = getObject(o.type(), o.getAsObjectIndex()); optr)

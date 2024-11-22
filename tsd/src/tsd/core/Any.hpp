@@ -15,6 +15,8 @@ namespace tsd::utility {
 
 struct Any
 {
+  static constexpr size_t INVALID_INDEX = ~size_t(0);
+
   Any();
   Any(const Any &copy);
   Any(Any &&tmp);
@@ -24,7 +26,7 @@ struct Any
   Any(bool value);
 
   Any(ANARIDataType type, const void *v);
-  Any(ANARIDataType type, size_t v); // only use for object index storage
+  Any(ANARIDataType type, size_t v = INVALID_INDEX); // only use for objects
 
   ~Any();
 

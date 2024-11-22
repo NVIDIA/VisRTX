@@ -34,7 +34,12 @@ void buildUI_object(tsd::Object &o,
     bool useTableForParameters,
     int level)
 {
+  static anari::DataType typeForSelection = ANARI_UNKNOWN;
+  static tsd::Parameter *paramForSelection = nullptr;
+  static bool openPopup = false;
+
   ImGui::PushID(&o);
+
   if (o.type() == ANARI_SURFACE) {
     // no-subtype
     ImGui::Text("[%zu]: '%s'", o.index(), o.name().c_str());
@@ -78,6 +83,8 @@ void buildUI_object(tsd::Object &o,
       ImGui::Indent(tsd::ui::INDENT_AMOUNT);
 
     for (size_t i = 0; i < o.numParameters(); i++) {
+      ImGui::PushID(i);
+
       auto &p = o.parameterAt(i);
       auto &pVal = p.value();
       if (!pVal.holdsObject() || anari::isArray(pVal.type()))
@@ -85,15 +92,35 @@ void buildUI_object(tsd::Object &o,
 
       ImGui::NewLine();
 
-      if (auto *obj = ctx.getObject(pVal); obj != nullptr) {
-        static std::string pName;
-        pName = p.name().c_str();
-        pName += " : ";
-        pName += anari::toString(pVal.type());
-        ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
-        if (ImGui::CollapsingHeader(pName.c_str(), ImGuiTreeNodeFlags_None))
+      auto *obj = ctx.getObject(pVal);
+
+      static std::string pName;
+      pName = p.name().c_str();
+      pName += " : ";
+      pName += anari::toString(pVal.type());
+
+      ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+      if (ImGui::CollapsingHeader(pName.c_str(), ImGuiTreeNodeFlags_None)) {
+        ImGui::BeginDisabled(obj == nullptr);
+        if (ImGui::Button("unset"))
+          p.setValue({pVal.type()});
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+
+        ImGui::BeginDisabled(ctx.numberOfObjects(pVal.type()) == 0);
+        if (ImGui::Button("select")) {
+          typeForSelection = pVal.type();
+          paramForSelection = &p;
+          openPopup = true;
+        }
+        ImGui::EndDisabled();
+
+        if (obj != nullptr)
           buildUI_object(*obj, ctx, useTableForParameters, level + 1);
       }
+
+      ImGui::PopID();
     }
 
     if (level > 0)
@@ -101,6 +128,39 @@ void buildUI_object(tsd::Object &o,
   }
 
   ImGui::PopID();
+
+  // popup menu //
+
+  if (level != 0)
+    return;
+
+  if (openPopup) {
+    ImGui::OpenPopup("buildUI_object_contextMenu");
+    openPopup = false;
+  }
+
+  if (ImGui::BeginPopup("buildUI_object_contextMenu")) {
+    ImGui::Text("%s", anari::toString(typeForSelection));
+    ImGui::Separator();
+    for (size_t i = 0; i < ctx.numberOfObjects(typeForSelection); i++) {
+      ImGui::PushID(i);
+
+      auto *obj = ctx.getObject(typeForSelection, i);
+      if (!obj)
+        continue;
+
+      static std::string oTitle;
+      oTitle = '[';
+      oTitle += std::to_string(i);
+      oTitle += ']';
+      oTitle += obj->name();
+      if (ImGui::MenuItem(oTitle.c_str()))
+        paramForSelection->setValue({typeForSelection, i});
+
+      ImGui::PopID();
+    }
+    ImGui::EndPopup();
+  }
 }
 
 void buildUI_parameter(

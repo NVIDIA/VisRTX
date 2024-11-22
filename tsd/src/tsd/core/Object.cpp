@@ -163,7 +163,10 @@ void Object::updateANARIParameter(anari::Device d,
   } else if (cache && p.value().holdsObject()) {
     auto objType = p.value().type();
     auto objHandle = cache->getHandle(objType, p.value().getAsObjectIndex());
-    anari::setParameter(d, o, n, objType, &objHandle);
+    if (objHandle)
+      anari::setParameter(d, o, n, objType, &objHandle);
+    else
+      anari::unsetParameter(d, o, n);
   } else if (!p.value().holdsObject()) {
     if (p.value().type() == ANARI_FLOAT32_VEC2
         && p.usage() & ParameterUsageHint::DIRECTION) {

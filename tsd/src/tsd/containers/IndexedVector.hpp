@@ -266,13 +266,13 @@ inline T IndexedVectorRef<T>::value_or(T alt) const
 template <typename T>
 inline T *IndexedVectorRef<T>::data()
 {
-  return &storage()[index()];
+  return valid() ? &storage()[index()] : nullptr;
 }
 
 template <typename T>
 inline const T *IndexedVectorRef<T>::data() const
 {
-  return &storage()[index()];
+  return valid() ? &storage()[index()] : nullptr;
 }
 
 template <typename T>
