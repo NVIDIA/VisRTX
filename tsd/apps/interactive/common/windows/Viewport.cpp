@@ -54,6 +54,8 @@ void Viewport::buildUI()
         m_libName.c_str(),
         m_timeToLoadDevice);
     m_anariPass = m_pipeline.emplace_back<tsd::AnariRenderPass>(m_device);
+    m_visualizeDepthPass = m_pipeline.emplace_back<tsd::VisualizeDepthPass>();
+    m_visualizeDepthPass->setEnabled(false);
     m_outlinePass = m_pipeline.emplace_back<tsd::OutlineRenderPass>();
     m_outputPass = m_pipeline.emplace_back<tsd::CopyToGLImagePass>();
     reshape(m_viewportSize);
@@ -311,8 +313,7 @@ void Viewport::setSelectionVisibilityFilterEnabled(bool enabled)
     m_rIdx->setFilterFunction({});
   else {
     m_rIdx->setFilterFunction([&](const tsd::Object *obj) {
-      return !m_core->tsd.selectedObject
-          || obj == m_core->tsd.selectedObject;
+      return !m_core->tsd.selectedObject || obj == m_core->tsd.selectedObject;
     });
   }
 }
@@ -694,6 +695,18 @@ void Viewport::ui_contextMenu()
         ImGui::EndMenu();
       }
 
+      ImGui::Separator();
+
+      if (ImGui::Checkbox("visualize depth", &m_visualizeDepth))
+        m_visualizeDepthPass->setEnabled(m_visualizeDepth);
+
+      ImGui::BeginDisabled(!m_visualizeDepth);
+      if (ImGui::DragFloat("maximum", &m_depthVisualMaximum, 1.f, 1e-3f, 1e20f))
+        m_visualizeDepthPass->setMaxDepth(m_depthVisualMaximum);
+      ImGui::EndDisabled();
+
+      ImGui::Separator();
+
       ImGui::BeginDisabled(m_showOnlySelected);
       ImGui::Checkbox("highlight selection", &m_highlightSelection);
       ImGui::EndDisabled();
@@ -701,11 +714,15 @@ void Viewport::ui_contextMenu()
       if (ImGui::Checkbox("only show selection", &m_showOnlySelected))
         setSelectionVisibilityFilterEnabled(m_showOnlySelected);
 
+      ImGui::Separator();
+
       ImGui::Checkbox("show stats", &m_showOverlay);
       if (ImGui::MenuItem("reset stats")) {
         m_minFL = m_latestFL;
         m_maxFL = m_latestFL;
       }
+
+      ImGui::Separator();
 
       if (ImGui::MenuItem("take screenshot"))
         m_saveNextFrame = true;

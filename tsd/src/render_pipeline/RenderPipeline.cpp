@@ -45,6 +45,8 @@ void RenderPipeline::render()
   int stageId = 0;
 #define PRINT_LATENCIES 0
   for (auto &p : m_passes) {
+    if (!p->isEnabled())
+      continue;
 #if PRINT_LATENCIES
     auto start = std::chrono::steady_clock::now();
 #endif

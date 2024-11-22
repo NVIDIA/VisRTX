@@ -30,6 +30,9 @@ struct RenderPass
   RenderPass();
   virtual ~RenderPass();
 
+  void setEnabled(bool enabled);
+  bool isEnabled() const;
+
   tsd::uint2 getDimensions() const;
 
  protected:
@@ -40,6 +43,7 @@ struct RenderPass
   void setDimensions(uint32_t width, uint32_t height);
 
   tsd::uint2 m_size{0, 0};
+  bool m_enabled{true};
 
   friend struct RenderPipeline;
 };
@@ -74,6 +78,19 @@ struct AnariRenderPass : public RenderPass
   anari::Camera m_camera{nullptr};
   anari::Renderer m_renderer{nullptr};
   anari::World m_world{nullptr};
+};
+
+struct VisualizeDepthPass : public RenderPass
+{
+  VisualizeDepthPass();
+  ~VisualizeDepthPass() override;
+
+  void setMaxDepth(float d);
+
+ private:
+  void render(Buffers &b, int stageId) override;
+
+  float m_maxDepth{1.f};
 };
 
 struct OutlineRenderPass : public RenderPass

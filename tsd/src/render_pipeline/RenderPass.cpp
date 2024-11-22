@@ -27,7 +27,7 @@ DEVICE_FCN_INLINE uint32_t shadePixel(uint32_t c_in)
   return helium::cvt_color_to_uint32(c_out);
 };
 
-static void thrustCompositeFrame(RenderPass::Buffers &b_out,
+static void compositeFrame(RenderPass::Buffers &b_out,
     const RenderPass::Buffers &b_in,
     tsd::uint2 size,
     bool firstPass)
@@ -45,7 +45,7 @@ static void thrustCompositeFrame(RenderPass::Buffers &b_out,
       });
 }
 
-static void thrustComputeOutline(
+static void computeOutline(
     RenderPass::Buffers &b, uint32_t outlineId, tsd::uint2 size)
 {
   detail::parallel_for(
@@ -71,6 +71,17 @@ static void thrustComputeOutline(
       });
 }
 
+static void computeDepthImage(
+    RenderPass::Buffers &b, float maxDepth, tsd::uint2 size)
+{
+  detail::parallel_for(
+      0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
+        const float depth = b.depth[i];
+        const float v = std::clamp(depth / maxDepth, 0.f, 1.f);
+        b.color[i] = helium::cvt_color_to_uint32({tsd::float3(v), 1.f});
+      });
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // RenderPass /////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -79,15 +90,14 @@ RenderPass::RenderPass() = default;
 
 RenderPass::~RenderPass() = default;
 
-void RenderPass::setDimensions(uint32_t width, uint32_t height)
+void RenderPass::setEnabled(bool enabled)
 {
-  if (m_size.x == width && m_size.y == height)
-    return;
+  m_enabled = enabled;
+}
 
-  m_size.x = width;
-  m_size.y = height;
-
-  updateSize();
+bool RenderPass::isEnabled() const
+{
+  return m_enabled;
 }
 
 void RenderPass::updateSize()
@@ -98,6 +108,17 @@ void RenderPass::updateSize()
 tsd::uint2 RenderPass::getDimensions() const
 {
   return m_size;
+}
+
+void RenderPass::setDimensions(uint32_t width, uint32_t height)
+{
+  if (m_size.x == width && m_size.y == height)
+    return;
+
+  m_size.x = width;
+  m_size.y = height;
+
+  updateSize();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -243,7 +264,7 @@ void AnariRenderPass::composite(Buffers &b, int stageId)
     detail::copy(b.depth, m_buffers.depth, totalSize);
     detail::copy(b.objectId, m_buffers.objectId, totalSize);
   } else {
-    thrustCompositeFrame(b, m_buffers, size, firstPass);
+    compositeFrame(b, m_buffers, size, firstPass);
   }
 }
 
@@ -252,6 +273,27 @@ void AnariRenderPass::cleanup()
   detail::free(m_buffers.color);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// VisualizeDepthPass //////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+VisualizeDepthPass::VisualizeDepthPass() = default;
+
+VisualizeDepthPass::~VisualizeDepthPass() = default;
+
+void VisualizeDepthPass::setMaxDepth(float d)
+{
+  m_maxDepth = d;
+}
+
+void VisualizeDepthPass::render(Buffers &b, int stageId)
+{
+  if (stageId == 0)
+    return;
+
+  computeDepthImage(b, m_maxDepth, getDimensions());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -272,7 +314,7 @@ void OutlineRenderPass::render(Buffers &b, int stageId)
   if (!b.objectId || stageId == 0 || m_outlineId == ~0u)
     return;
 
-  thrustComputeOutline(b, m_outlineId, getDimensions());
+  computeOutline(b, m_outlineId, getDimensions());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

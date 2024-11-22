@@ -77,6 +77,9 @@ struct Viewport : public anari_viewer::windows::Window
   int m_frameSamples{0};
   bool m_useOrthoCamera{false};
 
+  bool m_visualizeDepth{false};
+  float m_depthVisualMaximum{1.f};
+
   float m_fov{40.f};
 
   // ANARI objects //
@@ -113,6 +116,7 @@ struct Viewport : public anari_viewer::windows::Window
 
   tsd::RenderPipeline m_pipeline;
   tsd::AnariRenderPass *m_anariPass{nullptr};
+  tsd::VisualizeDepthPass *m_visualizeDepthPass{nullptr};
   tsd::OutlineRenderPass *m_outlinePass{nullptr};
   tsd::CopyToGLImagePass *m_outputPass{nullptr};
 
