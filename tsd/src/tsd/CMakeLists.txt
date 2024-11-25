@@ -51,6 +51,7 @@ PUBLIC
 project_link_libraries(
 PUBLIC
   anari::helium
+  anari::anari
   assimp::assimp
 PRIVATE
   $<BUILD_INTERFACE:tsd_stb>
