@@ -3,6 +3,7 @@
 
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
+#include "tsd/core/Logging.hpp"
 // std
 #include <cstdio>
 
@@ -15,11 +16,22 @@ VolumeRef import_volume(Context &ctx,
 {
   SpatialFieldRef field;
 
+  auto file = fileOf(filepath);
   auto ext = extensionOf(filepath);
   if (ext == ".raw")
     field = import_RAW(ctx, filepath);
   else if (ext == ".flash")
     field = import_FLASH(ctx, filepath);
+  else {
+    logError("[import_volume] no loader for file type '%s'", ext.c_str());
+    return {};
+  }
+
+  if (!field) {
+    logError(
+        "[import_volume] unable to load field from file '%s'", file.c_str());
+    return {};
+  }
 
   float2 valueRange{0.f, 1.f};
   if (field)

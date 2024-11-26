@@ -62,17 +62,20 @@ class Application : public BaseApplication
       if (!g_filename.empty()) {
         volume = tsd::import_volume(
             core->tsd.ctx, g_filename.c_str(), colorArray, opacityArray);
-      } else {
+      }
+
+      if (!volume) {
+        if (!g_filename.empty())
+          tsd::logWarning("unable to load volume from file, using placeholder");
+
         volume =
             tsd::generate_noiseVolume(core->tsd.ctx, colorArray, opacityArray);
       }
 
-      if (volume) {
-        core->tsd.selectedObject = volume.data();
-        tf->setValueRange(volume->parameter("valueRange")
-                              ->value()
-                              .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
-      }
+      core->tsd.selectedObject = volume.data();
+      tf->setValueRange(volume->parameter("valueRange")
+                            ->value()
+                            .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
 
       core->setupSceneFromCommandLine(true);
 
