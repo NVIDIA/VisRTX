@@ -20,6 +20,29 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
         .setValue(float3(1.f, 1.f, 1.f))
         .setMin(float3(0.f, 0.f, 0.f))
         .setDescription("voxel size in object-space units");
+    addParameter("data")
+        .setValue({ANARI_ARRAY3D, INVALID_INDEX})
+        .setDescription("vertex-centered voxel data");
+  } else if (stype == tokens::spatial_field::amr) {
+    addParameter("gridOrigin")
+        .setValue(float3(0.f, 0.f, 0.f))
+        .setDescription("bottom-left corner of the field");
+    addParameter("gridSpacing")
+        .setValue(float3(1.f, 1.f, 1.f))
+        .setMin(float3(0.f, 0.f, 0.f))
+        .setDescription("voxel size in object-space units");
+    addParameter("cellWidth")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("array of each level's cell width");
+    addParameter("block.bounds")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("array of grid sizes, in voxels, for each AMR block");
+    addParameter("block.level")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("array of each block's refinement level");
+    addParameter("block.data")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("array of 3D arrays containing the scalar voxel data");
   }
 }
 
