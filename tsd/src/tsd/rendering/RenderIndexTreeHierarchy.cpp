@@ -108,6 +108,9 @@ inline bool RenderToAnariObjectsVisitor::preChildren(InstanceNode &n, int level)
 inline void RenderToAnariObjectsVisitor::postChildren(
     InstanceNode &n, int level)
 {
+  if (!n->enabled)
+    return;
+
   bool consumeXfmArray = false;
   switch (n->value.type()) {
   case ANARI_ARRAY1D: {
