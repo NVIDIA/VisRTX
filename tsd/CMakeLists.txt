@@ -21,7 +21,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_BUILD_TYPE_INIT Release)
 set(CMAKE_INSTALL_MESSAGE LAZY)
 
-set(CMAKE_CUDA_ARCHITECTURES all)
+set(CMAKE_CUDA_ARCHITECTURES all-major)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -33,11 +33,21 @@ option(TSD_ENABLE_SERIALIZATION "Use conduit to serialize contexts" OFF)
 option(TSD_USE_HDF5 "Support loading AMR grids from HDF5" OFF)
 option(TSD_USE_ASSIMP "Support loading geometry with libassimp" OFF)
 
+if (APPLE)
+  set(TSD_USE_CUDA OFF)
+else()
+  option(TSD_USE_CUDA "Use CUDA code paths where relevant" ON)
+endif()
+
 ## Establish project ##
 
 project(tsd LANGUAGES CXX)
 
 find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED COMPONENTS viewer)
+if (TSD_USE_CUDA)
+  enable_language(CUDA)
+  find_package(CUDAToolkit REQUIRED)
+endif()
 
 ## Testing Setup ##
 

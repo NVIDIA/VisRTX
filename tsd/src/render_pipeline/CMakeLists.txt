@@ -10,19 +10,7 @@ project_sources(PRIVATE RenderPass.cpp RenderPipeline.cpp)
 project_include_directories(PUBLIC ${CMAKE_CURRENT_LIST_DIR}/..)
 project_link_libraries(PUBLIC tsd OpenGL::GL)
 
-if (APPLE)
-  set(TSD_RENDER_PIPELINE_USE_CUDA OFF)
-else()
-  option(
-    TSD_RENDER_PIPELINE_USE_CUDA
-    "Use CUDA for the render pipeline library"
-    ON
-  )
-endif()
-
-if (TSD_RENDER_PIPELINE_USE_CUDA)
-  enable_language(CUDA)
-  find_package(CUDAToolkit REQUIRED)
+if (TSD_USE_CUDA)
   project_link_libraries(PRIVATE CUDA::cudart)
   set_source_files_properties(
     RenderPass.cpp
