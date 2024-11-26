@@ -52,7 +52,6 @@ project_link_libraries(
 PUBLIC
   anari::helium
   anari::anari
-  assimp::assimp
 PRIVATE
   $<BUILD_INTERFACE:tsd_stb>
   $<BUILD_INTERFACE:tsd_tiny_obj_loader>
@@ -71,10 +70,19 @@ else()
       COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=0
   )
 endif()
+
 if (TSD_USE_HDF5)
   find_package(HDF5 REQUIRED COMPONENTS CXX)
   project_compile_definitions(PRIVATE -DTSD_USE_HDF5=1)
   project_link_libraries(PRIVATE $<BUILD_INTERFACE:HDF5::HDF5>)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_HDF5=0)
+endif()
+
+if (TSD_USE_ASSIMP)
+  find_package(assimp REQUIRED)
+  project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=1)
+  project_link_libraries(PRIVATE $<BUILD_INTERFACE:assimp::assimp>)
+else()
+  project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=0)
 endif()

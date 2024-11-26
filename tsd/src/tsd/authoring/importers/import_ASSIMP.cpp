@@ -1,16 +1,24 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef TSD_USE_ASSIMP
+#define TSD_USE_ASSIMP 1
+#endif
+
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 #include "tsd/core/Logging.hpp"
+#if TSD_USE_ASSIMP
 // assimp
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <assimp/DefaultLogger.hpp>
 #include <assimp/Importer.hpp>
+#endif
 
 namespace tsd {
+
+#if TSD_USE_ASSIMP
 
 static SamplerRef importEmbeddedTexture(
     Context &ctx, const aiTexture *embeddedTexture, TextureCache &cache)
@@ -374,5 +382,11 @@ void import_ASSIMP(Context &ctx, const char *filename, bool flatten)
 
   populateASSIMPInstanceTree(ctx, ctx.tree.root(), meshes, scene->mRootNode);
 }
+#else
+void import_ASSIMP(Context &ctx, const char *filename, bool flatten)
+{
+  logError("[import_ASSIMP] ASSIMP not enabled in TSD build.");
+}
+#endif
 
 } // namespace tsd

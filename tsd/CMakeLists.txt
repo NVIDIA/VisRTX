@@ -31,13 +31,13 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 option(TSD_ENABLE_SERIALIZATION "Use conduit to serialize contexts" OFF)
 option(TSD_USE_HDF5 "Support loading AMR grids from HDF5" OFF)
+option(TSD_USE_ASSIMP "Support loading geometry with libassimp" OFF)
 
 ## Establish project ##
 
 project(tsd LANGUAGES CXX)
 
 find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED COMPONENTS viewer)
-find_package(assimp REQUIRED)
 
 ## Testing Setup ##
 
