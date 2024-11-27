@@ -23,11 +23,8 @@ void IsosurfaceEditor::buildUI()
   if (selectedObject != nullptr) {
     if (selectedObject->type() == ANARI_VOLUME)
       selectedVolume = selectedObject;
-    else if (selectedObject->type() == ANARI_SURFACE) {
-      // Get the geometry from the selected surface for us to actually check
-      if (auto *p = selectedObject->parameter("geometry"); p != nullptr)
-        selectedObject = ctx.getObject(p->value());
-    }
+    else if (selectedObject->type() == ANARI_SURFACE)
+      selectedObject = selectedObject->parameterValueAsObject("geometry");
 
     // NOTE: will get in here here if originally a surface was selected
     if (selectedObject && selectedObject->type() == ANARI_GEOMETRY
@@ -47,8 +44,8 @@ void IsosurfaceEditor::buildUI()
 
   ImGui::Text("isovalues:");
 
-  auto *arr = (tsd::Array *)ctx.getObject(
-      selectedIsosurface->parameter("isovalue")->value());
+  auto *arr =
+      selectedIsosurface->parameterValueAsObject<tsd::Array>("isovalue");
   if (!arr) {
     ImGui::Text("{no isovalue array object found!}");
     return;
@@ -96,15 +93,12 @@ void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
   tsd::Object *selectedObject = m_core->tsd.selectedObject;
   auto &ctx = m_core->tsd.ctx;
 
-  tsd::Object *field = nullptr;
-  if (auto *p = selectedObject->parameter("value"); p != nullptr)
-    field = m_core->tsd.ctx.getObject(p->value());
   auto isovalue = ctx.createArray(ANARI_FLOAT32, 1);
 
   auto g = ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::isosurface);
   g->setName("isosurface_geometry");
 
-  if (field)
+  if (auto *field = selectedObject->parameterValueAsObject("value"); field)
     g->setParameterObject("field", *field);
 
   g->setParameterObject("isovalue", *isovalue);

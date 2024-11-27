@@ -58,14 +58,10 @@ class Application : public BaseApplication
     auto colorArray = ctx.createArray(ANARI_FLOAT32_VEC3, 256);
     auto opacityArray = ctx.createArray(ANARI_FLOAT32, 256);
 
-    auto jacobiData = ctx.createArray(ANARI_FLOAT32, 256, 256, 256);
-    solver->setDataArray(jacobiData.data());
-
     auto field = ctx.createObject<tsd::SpatialField>(
         tsd::tokens::spatial_field::structuredRegular);
     field->setName("jacobi_field");
-    field->setParameterObject("data", *jacobiData);
-    field->setParameter("spacing", 2.f / tsd::float3(256));
+    solver->setField(field.data());
 
     auto volume =
         ctx.createObject<tsd::Volume>(tsd::tokens::volume::transferFunction1D);

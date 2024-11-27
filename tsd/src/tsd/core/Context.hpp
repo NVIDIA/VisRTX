@@ -298,10 +298,26 @@ inline IndexedVectorRef<OBJ_T> Context::createObjectImpl(
 }
 
 template <typename... Args>
-inline void Context::addInstancedObject(InstanceNode::Ref parent, Args &&...args)
+inline void Context::addInstancedObject(
+    InstanceNode::Ref parent, Args &&...args)
 {
   tree.insert_first_child(parent, {std::forward<Args>(args)...});
   signalInstanceTreeChange();
+}
+
+// Object definitions /////////////////////////////////////////////////////////
+
+template <typename T>
+inline T *Object::parameterValueAsObject(Token name)
+{
+  static_assert(isObject<T>(),
+      "Object::parameterValueAsObject() can only retrieve object values");
+
+  auto *p = parameter(name);
+  auto *ctx = context();
+  if (!p || !ctx || !p->value().holdsObject())
+    return nullptr;
+  return (T *)ctx->getObject(p->value());
 }
 
 } // namespace tsd

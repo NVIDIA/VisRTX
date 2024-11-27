@@ -12,6 +12,8 @@
 #include "tsd/core/UpdateDelegate.hpp"
 // std
 #include <iostream>
+#include <optional>
+#include <type_traits>
 
 namespace tsd {
 
@@ -68,7 +70,13 @@ struct Object : public ParameterObserver
   void setParameter(Token name, T value);
   void setParameter(Token name, ANARIDataType type, const void *v);
   void setParameterObject(Token name, const Object &obj);
+
   Parameter *parameter(Token name);
+  template <typename T>
+  std::optional<T> parameterValueAs(Token name);
+  template <typename T = Object>
+  T *parameterValueAsObject(Token name);
+
   void removeParameter(Token name);
   void removeAllParameters();
 
@@ -114,6 +122,14 @@ struct Object : public ParameterObserver
 
 void print(const Object &obj, std::ostream &out = std::cout);
 
+// Type trait-like helper functions //
+
+template <typename T>
+constexpr bool isObject()
+{
+  return std::is_same<Object, T>::value || std::is_base_of<Object, T>::value;
+}
+
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>
@@ -124,6 +140,18 @@ inline void Object::setParameter(Token name, T value)
     p->setValue(value);
   else
     addParameter(name).setValue(value);
+}
+
+template <typename T>
+inline std::optional<T> Object::parameterValueAs(Token name)
+{
+  static_assert(!isObject<T>(),
+      "Object::parameterValueAs() does not work on parameters holding objects");
+
+  auto *p = parameter(name);
+  if (!p || !p->value().is<T>())
+    return {};
+  return p->value().get<T>();
 }
 
 } // namespace tsd
