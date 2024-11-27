@@ -3,7 +3,6 @@
 
 add_subdirectory(common)
 
-add_subdirectory(array_instancing_demo)
 add_subdirectory(demos)
 add_subdirectory(material_explorer)
 add_subdirectory(viewer)

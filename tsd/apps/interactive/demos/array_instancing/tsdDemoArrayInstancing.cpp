@@ -138,7 +138,7 @@ int main(int argc, const char *argv[])
 {
   {
     tsd_viewer::Application app;
-    app.run(1920, 1080, "TSD Array Instancing Demo");
+    app.run(1920, 1080, "TSD Demo | Array Instancing");
   }
 
   return 0;
