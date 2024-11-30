@@ -38,9 +38,7 @@ void generate_monkey(Context &ctx, InstanceNode::Ref location)
   monkey->setParameterObject("primitive.index"_t, *indexArray);
 
   auto surface = ctx.createSurface("monkey", monkey);
-
-  ctx.tree.insert_last_child(
-      location, utility::Any(ANARI_SURFACE, surface.index()));
+  ctx.insertChildObjectNode(location, surface);
 }
 
 } // namespace tsd

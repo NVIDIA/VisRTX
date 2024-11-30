@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers.hpp"
-
 #include "tsd/authoring/importers/detail/HDRImage.h"
+#include "tsd/authoring/importers/detail/importer_common.hpp"
 
 namespace tsd {
 
@@ -22,15 +22,13 @@ void import_HDRI(Context &ctx, const char *filepath)
       }
     }
 
-    tsd::ArrayRef arr =
-        ctx.createArray(ANARI_FLOAT32_VEC3, img.width, img.height);
+    auto arr = ctx.createArray(ANARI_FLOAT32_VEC3, img.width, img.height);
     arr->setData(rgb.data());
 
-    auto hdri = ctx.createObject<tsd::Light>("hdri"_t);
-    hdri->setName("HDRI");
+    auto [inst, hdri] = ctx.insertNewChildObjectNode<tsd::Light>(
+        ctx.tree.root(), tsd::tokens::light::hdri);
+    hdri->setName(fileOf(filepath).c_str());
     hdri->setParameterObject("radiance"_t, *arr);
-    ctx.tree.insert_last_child(
-        ctx.tree.root(), tsd::utility::Any(ANARI_LIGHT, hdri.index()));
   }
 }
 

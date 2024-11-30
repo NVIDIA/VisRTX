@@ -160,7 +160,7 @@ void import_PLY(Context &ctx, const char *filename)
     // Mesh //
 
     auto ply_root =
-        ctx.tree.insert_last_child(ctx.tree.root(), fileOf(filename).c_str());
+        ctx.insertChildNode(ctx.tree.root(), fileOf(filename).c_str());
     auto mesh = ctx.createObject<Geometry>(tokens::geometry::triangle);
 
     auto makeArray1DForMesh = [&](Token parameterName,

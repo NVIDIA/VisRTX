@@ -14,9 +14,6 @@ RenderIndex::RenderIndex(anari::Device d) : m_cache(d)
 
 RenderIndex::~RenderIndex()
 {
-#if 0 // NOTE(jda) - should be ok, but causes OSPRay to crash on exit
-  signalRemoveAllObjects();
-#endif
   auto d = device();
   anari::release(d, m_world); // release before AnariObjectCache
   anari::release(d, d);

@@ -15,8 +15,11 @@
 #include "tsd/objects/Volume.hpp"
 // std
 #include <type_traits>
+#include <utility>
 
 namespace tsd {
+
+struct BaseUpdateDelegate;
 
 struct InstanceTreeData
 {
@@ -39,8 +42,6 @@ struct InstanceTreeData
 using InstanceTree = utility::Forest<InstanceTreeData>;
 using InstanceNode = utility::ForestNode<InstanceTreeData>;
 using InstanceVisitor = utility::ForestVisitor<InstanceTreeData>;
-
-struct BaseUpdateDelegate;
 
 struct ObjectDatabase
 {
@@ -74,7 +75,9 @@ struct Context
 
   MaterialRef defaultMaterial() const;
 
+  /////////////////////////////
   // Flat object collections //
+  /////////////////////////////
 
   template <typename T>
   IndexedVectorRef<T> createObject();
@@ -101,11 +104,34 @@ struct Context
 
   const ObjectDatabase &objectDB() const;
 
+  ///////////////////////////////////////////////////////
   // Instanced objects (surfaces, volumes, and lights) //
+  ///////////////////////////////////////////////////////
 
-  template <typename... Args>
-  void addInstancedObject(InstanceNode::Ref parent, Args &&...args);
+  // Insert nodes //
+
+  InstanceNode::Ref insertChildNode(
+      InstanceNode::Ref parent, const char *name = "");
+  InstanceNode::Ref insertChildTransformNode(InstanceNode::Ref parent,
+      mat4 xfm = tsd::mat4(tsd::math::identity),
+      const char *name = "");
+  template <typename T>
+  InstanceNode::Ref insertChildObjectNode(
+      InstanceNode::Ref parent, IndexedVectorRef<T> obj, const char *name = "");
+
+  // NOTE: convenience to create an object _and_ insert it into the tree
+  template <typename T>
+  using AddedObject = std::pair<InstanceNode::Ref, IndexedVectorRef<T>>;
+  template <typename T>
+  AddedObject<T> insertNewChildObjectNode(
+      InstanceNode::Ref parent, Token subtype, const char *name = "");
+
+  // Remove nodes //
+
   void removeInstancedObject(InstanceNode::Ref obj);
+
+  // Indicate changes occurred //
+
   void signalInstanceTreeChange();
 
   InstanceTree tree{
@@ -297,12 +323,27 @@ inline IndexedVectorRef<OBJ_T> Context::createObjectImpl(
   return retval;
 }
 
-template <typename... Args>
-inline void Context::addInstancedObject(
-    InstanceNode::Ref parent, Args &&...args)
+template <typename T>
+inline InstanceNode::Ref Context::insertChildObjectNode(
+    InstanceNode::Ref parent, IndexedVectorRef<T> obj, const char *name)
 {
-  tree.insert_first_child(parent, {std::forward<Args>(args)...});
+  auto inst = tree.insert_last_child(
+      parent, tsd::utility::Any{obj->type(), obj->index()});
+  (*inst)->name = name;
   signalInstanceTreeChange();
+  return inst;
+}
+
+template <typename T>
+inline Context::AddedObject<T> Context::insertNewChildObjectNode(
+    InstanceNode::Ref parent, Token subtype, const char *name)
+{
+  auto obj = createObject<T>(subtype);
+  auto inst = tree.insert_last_child(
+      parent, tsd::utility::Any{obj->type(), obj->index()});
+  (*inst)->name = name;
+  signalInstanceTreeChange();
+  return std::make_pair(inst, obj);
 }
 
 // Object definitions /////////////////////////////////////////////////////////

@@ -15,6 +15,8 @@ namespace math {
 using namespace anari::math;
 using namespace helium::math;
 
+static constexpr mat4 IDENTITY_MAT4 = identity;
+
 inline float radians(float degrees)
 {
   return degrees * M_PI / 180.f;

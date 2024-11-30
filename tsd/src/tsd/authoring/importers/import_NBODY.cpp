@@ -47,8 +47,8 @@ void import_NBODY(Context &ctx, const char *filepath, bool useDefaultMaterial)
   if (scene.points.empty())
     return;
 
-  auto nbody_root = ctx.tree.insert_last_child(ctx.tree.root(),
-      {tsd::mat4(tsd::math::identity), fileOf(filepath).c_str()});
+  auto nbody_root =
+      ctx.insertChildNode(ctx.tree.root(), fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.getObject<Material>(0)
@@ -70,14 +70,8 @@ void import_NBODY(Context &ctx, const char *filepath, bool useDefaultMaterial)
     geom->setParameter("radius"_t, scene.radius);
     geom->setParameterObject("vertex.position"_t, *vertexPositionArray);
 
-    std::string xfmName = "NBODY_xfm_" + std::to_string(i);
-    auto nbody_xfm = ctx.tree.insert_last_child(
-        nbody_root, {tsd::mat4(tsd::math::identity), xfmName.c_str()});
-
     auto surface = ctx.createSurface(geomName.c_str(), geom, mat);
-
-    ctx.tree.insert_last_child(
-        nbody_xfm, utility::Any(ANARI_SURFACE, surface.index()));
+    ctx.insertChildObjectNode(nbody_root, surface);
   }
 }
 

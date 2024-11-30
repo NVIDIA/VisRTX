@@ -245,6 +245,23 @@ const ObjectDatabase &Context::objectDB() const
   return m_db;
 }
 
+InstanceNode::Ref Context::insertChildNode(
+    InstanceNode::Ref parent, const char *name)
+{
+  auto inst = tree.insert_first_child(parent, tsd::utility::Any{});
+  (*inst)->name = name;
+  return inst;
+}
+
+InstanceNode::Ref Context::insertChildTransformNode(
+    InstanceNode::Ref parent, mat4 xfm, const char *name)
+{
+  auto inst = tree.insert_first_child(parent, tsd::utility::Any{xfm});
+  (*inst)->name = name;
+  signalInstanceTreeChange();
+  return inst;
+}
+
 void Context::removeInstancedObject(InstanceNode::Ref obj)
 {
   if (obj->isRoot())

@@ -21,6 +21,7 @@ class Application : public BaseApplication
     auto windows = BaseApplication::setupWindows();
 
     auto *core = appCore();
+    core->tsd.sceneLoadComplete = true;
 
     auto *log = new Log(core);
     auto *viewport = new Viewport(core, &m_manipulator, "Viewport");

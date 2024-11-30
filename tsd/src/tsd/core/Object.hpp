@@ -39,18 +39,18 @@ extern Token unknown;
 
 // Type declarations //////////////////////////////////////////////////////////
 
-using ParameterMap = FlatMap<Token, Parameter>;
-
 struct Object : public ParameterObserver
 {
+  using ParameterMap = FlatMap<Token, Parameter>;
+
   Object(anari::DataType type = ANARI_UNKNOWN, Token subtype = tokens::none);
+  virtual ~Object() = default;
 
   // Movable, not copyable
   Object(const Object &) = delete;
   Object &operator=(const Object &) = delete;
   Object(Object &&);
   Object &operator=(Object &&);
-  virtual ~Object() = default;
 
   virtual anari::DataType type() const;
   Token subtype() const;

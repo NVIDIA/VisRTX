@@ -166,42 +166,34 @@ void ObjectTree::buildUI()
 
 void ObjectTree::buildUI_objectContextMenu()
 {
-  auto &tsd_ctx = m_core->tsd.ctx;
-  auto &tree = tsd_ctx.tree;
+  auto &ctx = m_core->tsd.ctx;
+  auto &tree = ctx.tree;
 
   if (ImGui::BeginPopup("ObjectTree_contextMenu")) {
     if (ImGui::Checkbox("visible", &(*tree.at(m_coreMenuNode))->enabled))
-      tsd_ctx.signalInstanceTreeChange();
+      ctx.signalInstanceTreeChange();
 
     if (ImGui::BeginMenu("add")) {
       if (ImGui::BeginMenu("light")) {
         if (ImGui::MenuItem("directional")) {
-          auto l =
-              tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::directional);
-          l->setName("directional light");
-          tsd_ctx.addInstancedObject(tree.at(m_coreMenuNode),
-              tsd::utility::Any(ANARI_LIGHT, l.index()),
+          ctx.insertNewChildObjectNode<tsd::Light>(tree.at(m_coreMenuNode),
+              tsd::tokens::light::directional,
               "directional light");
           m_coreMenuNode = tsd::INVALID_INDEX;
           m_core->clearSelected();
         }
 
         if (ImGui::MenuItem("point")) {
-          auto l = tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::point);
-          l->setName("point light");
-          tsd_ctx.addInstancedObject(tree.at(m_coreMenuNode),
-              tsd::utility::Any(ANARI_LIGHT, l.index()),
+          ctx.insertNewChildObjectNode<tsd::Light>(tree.at(m_coreMenuNode),
+              tsd::tokens::light::point,
               "point light");
           m_coreMenuNode = tsd::INVALID_INDEX;
           m_core->clearSelected();
         }
 
         if (ImGui::MenuItem("quad")) {
-          auto l = tsd_ctx.createObject<tsd::Light>(tsd::tokens::light::quad);
-          l->setName("quad light");
-          tsd_ctx.addInstancedObject(tree.at(m_coreMenuNode),
-              tsd::utility::Any(ANARI_LIGHT, l.index()),
-              "quad light");
+          ctx.insertNewChildObjectNode<tsd::Light>(
+              tree.at(m_coreMenuNode), tsd::tokens::light::quad, "quad light");
           m_coreMenuNode = tsd::INVALID_INDEX;
           m_core->clearSelected();
         }
@@ -216,7 +208,7 @@ void ObjectTree::buildUI_objectContextMenu()
 
     if (ImGui::MenuItem("delete")) {
       if (m_coreMenuNode != tsd::INVALID_INDEX) {
-        tsd_ctx.removeInstancedObject(tree.at(m_coreMenuNode));
+        ctx.removeInstancedObject(tree.at(m_coreMenuNode));
         m_coreMenuNode = tsd::INVALID_INDEX;
         m_core->clearSelected();
       }

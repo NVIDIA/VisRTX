@@ -68,9 +68,7 @@ void generate_randomSpheres(Context &ctx, bool useDefaultMaterial)
   }
 
   auto surface = ctx.createSurface("random_spheres", spheres, material);
-
-  ctx.tree.insert_last_child(
-      ctx.tree.root(), utility::Any(ANARI_SURFACE, surface.index()));
+  ctx.insertChildObjectNode(ctx.tree.root(), surface);
 }
 
 } // namespace tsd

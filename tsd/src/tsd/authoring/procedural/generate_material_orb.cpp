@@ -38,9 +38,7 @@ namespace tsd {
     mat->setParameter("baseColor"_t, float3(1.f));                             \
                                                                                \
     auto surface = ctx.createSurface(name, mesh, mat);                         \
-                                                                               \
-    ctx.tree.insert_last_child(                                                \
-        orb_root, utility::Any(ANARI_SURFACE, surface.index()));               \
+    ctx.insertChildObjectNode(orb_root, surface);                              \
   }
 
 static SamplerRef makeCheckboardTexture(Context &ctx, int size)

@@ -8,9 +8,8 @@
 
 namespace tsd {
 
-VolumeRef generate_noiseVolume(Context &ctx,
-    ArrayRef colorArray,
-    ArrayRef opacityArray)
+VolumeRef generate_noiseVolume(
+    Context &ctx, ArrayRef colorArray, ArrayRef opacityArray)
 {
   // Generate spatial field //
 
@@ -37,7 +36,8 @@ VolumeRef generate_noiseVolume(Context &ctx,
 
   // Setup volume //
 
-  auto volume = ctx.createObject<Volume>(tokens::volume::transferFunction1D);
+  auto [inst, volume] = ctx.insertNewChildObjectNode<Volume>(
+      ctx.tree.root(), tokens::volume::transferFunction1D);
   volume->setName("noise_volume");
 
   if (!(colorArray && opacityArray)) {
@@ -62,9 +62,6 @@ VolumeRef generate_noiseVolume(Context &ctx,
   volume->setParameterObject("color"_t, *colorArray);
   volume->setParameterObject("opacity"_t, *opacityArray);
   volume->setParameter("densityScale"_t, 0.1f);
-
-  ctx.tree.insert_last_child(
-      ctx.tree.root(), utility::Any(ANARI_VOLUME, volume.index()));
 
   return volume;
 }

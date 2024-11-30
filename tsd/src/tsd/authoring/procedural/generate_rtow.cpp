@@ -17,8 +17,7 @@ double drand48()
 
 namespace tsd {
 
-inline SurfaceRef makeSphere(
-    Context &ctx, float3 pos, float radius, int ID)
+inline SurfaceRef makeSphere(Context &ctx, float3 pos, float radius, int ID)
 {
   auto sphere = ctx.createObject<Geometry>(tokens::geometry::sphere);
 
@@ -43,8 +42,7 @@ inline SurfaceRef makeSphere(
   return ctx.createSurface(name.c_str(), sphere);
 }
 
-inline MaterialRef makeDielectric(
-    Context &ctx, float ior, int ID)
+inline MaterialRef makeDielectric(Context &ctx, float ior, int ID)
 {
   auto material = ctx.createObject<Material>(tokens::material::physicallyBased);
   material->setParameter("baseColor"_t, float3(1.0f, 1.0f, 1.0f));
@@ -53,8 +51,7 @@ inline MaterialRef makeDielectric(
   return material;
 }
 
-inline MaterialRef makeLambertian(
-    Context &ctx, float3 color, int ID)
+inline MaterialRef makeLambertian(Context &ctx, float3 color, int ID)
 {
   auto material = ctx.createObject<Material>(tokens::material::matte);
   material->setParameter("color"_t, color);
@@ -75,7 +72,7 @@ inline MaterialRef makeMetal(Context &ctx, float3 refl, int ID)
 
 void generate_rtow(Context &ctx)
 {
-  auto rtow_root = ctx.tree.insert_last_child(ctx.tree.root(), utility::Any());
+  auto rtow_root = ctx.insertChildNode(ctx.tree.root());
 
   int i = 0;
 
@@ -83,8 +80,7 @@ void generate_rtow(Context &ctx)
   hugeSphere->setMaterial(makeLambertian(ctx, float3(0.5f, 0.5f, 0.5f), i));
   i++;
 
-  ctx.tree.insert_last_child(
-      rtow_root, utility::Any(ANARI_SURFACE, hugeSphere.index()));
+  ctx.insertChildObjectNode(rtow_root, hugeSphere);
 
   for (int a = -11; a < 11; ++a) {
     for (int b = -11; b < 11; ++b) {
@@ -109,8 +105,7 @@ void generate_rtow(Context &ctx)
         } else {
           sphere->setMaterial(makeDielectric(ctx, 1.5f, i));
         }
-        ctx.tree.insert_last_child(
-            rtow_root, utility::Any(ANARI_SURFACE, sphere.index()));
+        ctx.insertChildObjectNode(rtow_root, sphere);
         i++;
       }
     }
@@ -118,20 +113,17 @@ void generate_rtow(Context &ctx)
 
   auto sphere1 = makeSphere(ctx, float3(0, 1, 0), 1.5f, i);
   sphere1->setMaterial(makeDielectric(ctx, 1.5f, i));
-  ctx.tree.insert_last_child(
-      rtow_root, utility::Any(ANARI_SURFACE, sphere1.index()));
+  ctx.insertChildObjectNode(rtow_root, sphere1);
   i++;
 
   auto sphere2 = makeSphere(ctx, float3(-4, 1, 0), 1.0f, i);
   sphere2->setMaterial(makeLambertian(ctx, float3(0.5f, 0.2f, 0.1f), i));
-  ctx.tree.insert_last_child(
-      rtow_root, utility::Any(ANARI_SURFACE, sphere2.index()));
+  ctx.insertChildObjectNode(rtow_root, sphere2);
   i++;
 
   auto sphere3 = makeSphere(ctx, float3(4, 1, 0), 1.0f, i);
   sphere3->setMaterial(makeMetal(ctx, float3(0.7f, 0.6f, 0.5f), i));
-  ctx.tree.insert_last_child(
-      rtow_root, utility::Any(ANARI_SURFACE, sphere3.index()));
+  ctx.insertChildObjectNode(rtow_root, sphere3);
   i++;
 }
 

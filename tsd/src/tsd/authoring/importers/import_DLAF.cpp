@@ -47,8 +47,8 @@ void import_DLAF(Context &ctx, const char *filepath, bool useDefaultMaterial)
   if (scene.points.empty())
     return;
 
-  auto dlaf_root = ctx.tree.insert_last_child(ctx.tree.root(),
-      {tsd::mat4(tsd::math::identity), fileOf(filepath).c_str()});
+  auto dlaf_root =
+      ctx.insertChildNode(ctx.tree.root(), fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.defaultMaterial()
@@ -93,14 +93,9 @@ void import_DLAF(Context &ctx, const char *filepath, bool useDefaultMaterial)
     geom->setParameterObject("vertex.position"_t, *vertexPositionArray);
     geom->setParameterObject("primitive.attribute0"_t, *attributeArray);
 
-    std::string xfmName = "DLAF_xfm_" + std::to_string(i);
-    auto dlaf_xfm = ctx.tree.insert_last_child(
-        dlaf_root, {tsd::mat4(tsd::math::identity), xfmName.c_str()});
-
     auto surface = ctx.createSurface(geomName.c_str(), geom, mat);
 
-    ctx.tree.insert_last_child(
-        dlaf_xfm, utility::Any(ANARI_SURFACE, surface.index()));
+    ctx.insertChildObjectNode(dlaf_root, surface);
   }
 }
 

@@ -60,9 +60,7 @@ void generate_cylinders(Context &ctx, bool useDefaultMaterial)
   }
 
   auto surface = ctx.createSurface("random_cylinders", cylinders, material);
-
-  ctx.tree.insert_last_child(
-      ctx.tree.root(), utility::Any(ANARI_SURFACE, surface.index()));
+  ctx.insertChildObjectNode(ctx.tree.root(), surface);
 }
 
 } // namespace tsd

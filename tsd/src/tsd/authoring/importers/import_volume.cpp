@@ -37,16 +37,14 @@ VolumeRef import_volume(Context &ctx,
   if (field)
     valueRange = field->computeValueRange();
 
-  auto volume = ctx.createObject<Volume>(tokens::volume::transferFunction1D);
+  auto [inst, volume] = ctx.insertNewChildObjectNode<tsd::Volume>(
+      ctx.tree.root(), tokens::volume::transferFunction1D);
   volume->setName(fileOf(filepath).c_str());
   volume->setParameterObject("value", *field);
   volume->setParameterObject("color", *colorArray);
   volume->setParameterObject("opacity", *opacityArray);
   volume->setParameter("densityScale", 0.1f);
   volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-
-  ctx.tree.insert_last_child(
-      ctx.tree.root(), utility::Any(ANARI_VOLUME, volume.index()));
 
   return volume;
 }

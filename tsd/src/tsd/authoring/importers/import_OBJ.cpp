@@ -39,8 +39,7 @@ void import_OBJ(Context &ctx, const char *filepath, bool useDefaultMaterial)
     return;
   }
 
-  auto obj_root = ctx.tree.insert_last_child(
-      ctx.tree.root(), {tsd::mat4(tsd::math::identity), file.c_str()});
+  auto obj_root = ctx.insertChildNode(ctx.tree.root(), file.c_str());
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
@@ -135,8 +134,7 @@ void import_OBJ(Context &ctx, const char *filepath, bool useDefaultMaterial)
     auto mat = useDefault ? ctx.defaultMaterial() : materials[size_t(matID)];
 
     auto surface = ctx.createSurface(name.c_str(), mesh, mat);
-    ctx.tree.insert_last_child(
-        obj_root, utility::Any(ANARI_SURFACE, surface.index()));
+    ctx.insertChildObjectNode(obj_root, surface);
   }
 }
 
