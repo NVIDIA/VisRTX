@@ -45,6 +45,9 @@ void ObjectTree::buildUI()
 
     m_needToTreePop.resize(tree.size());
     auto onNodeEntryBuildUI = [&](auto &node, int level) {
+      if (level == 0)
+        return true;
+
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(0);
 
@@ -58,7 +61,8 @@ void ObjectTree::buildUI()
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.3f, 0.3f, 1.f));
       }
 
-      const bool selected = obj && m_core->tsd.selectedObject == obj;
+      const bool selected = (obj && m_core->tsd.selectedObject == obj)
+          || (m_core->tsd.selectedNode && node == *m_core->tsd.selectedNode);
       if (selected) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));
         node_flags |= ImGuiTreeNodeFlags_Selected;
@@ -134,6 +138,8 @@ void ObjectTree::buildUI()
 
     int nodeIndex = 0;
     auto onNodeExitTreePop = [&](auto &node, int level) {
+      if (level == 0)
+        return;
       if (&node == firstDisabledNode) {
         firstDisabledNode = nullptr;
         ImGui::PopStyleColor(1);

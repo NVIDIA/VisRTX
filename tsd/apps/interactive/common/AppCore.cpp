@@ -268,6 +268,7 @@ void AppCore::releaseAllDevices()
 
 void AppCore::setSelectedObject(tsd::Object *o)
 {
+  tsd.selectedNode = {};
   const bool wasSelected = tsd.selectedObject != nullptr;
   tsd.selectedObject = o;
   if (o != nullptr && !wasSelected || o == nullptr && wasSelected)

@@ -20,6 +20,7 @@
 namespace tsd {
 
 struct BaseUpdateDelegate;
+struct Context;
 
 struct InstanceTreeData
 {
@@ -32,12 +33,16 @@ struct InstanceTreeData
   bool isTransform() const;
   bool isEmpty() const;
 
+  Object *getObject(Context *ctx) const;
+  math::mat4 getTransform() const;
+
   // Data //
 
   utility::Any value;
   std::string name;
   bool enabled{true};
   FlatMap<std::string, utility::Any> customParameters;
+  FlatMap<std::string, utility::Any> valueCache;
 };
 using InstanceTree = utility::Forest<InstanceTreeData>;
 using InstanceNode = utility::ForestNode<InstanceTreeData>;
@@ -179,6 +184,16 @@ inline bool InstanceTreeData::isTransform() const
 inline bool InstanceTreeData::isEmpty() const
 {
   return value;
+}
+
+inline Object *InstanceTreeData::getObject(Context *ctx) const
+{
+  return ctx->getObject(value);
+}
+
+inline math::mat4 InstanceTreeData::getTransform() const
+{
+  return isTransform() ? value.getAs<math::mat4>() : math::IDENTITY_MAT4;
 }
 
 // Context //
