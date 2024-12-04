@@ -8,9 +8,14 @@
 
 namespace tsd {
 
-VolumeRef generate_noiseVolume(
-    Context &ctx, ArrayRef colorArray, ArrayRef opacityArray)
+VolumeRef generate_noiseVolume(Context &ctx,
+    InstanceNode::Ref location,
+    ArrayRef colorArray,
+    ArrayRef opacityArray)
 {
+  if (!location)
+    location = ctx.tree.root();
+
   // Generate spatial field //
 
   static std::mt19937 rng;
@@ -37,7 +42,7 @@ VolumeRef generate_noiseVolume(
   // Setup volume //
 
   auto [inst, volume] = ctx.insertNewChildObjectNode<Volume>(
-      ctx.tree.root(), tokens::volume::transferFunction1D);
+      location, tokens::volume::transferFunction1D);
   volume->setName("noise_volume");
 
   if (!(colorArray && opacityArray)) {

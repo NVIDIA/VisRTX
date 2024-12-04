@@ -70,9 +70,12 @@ inline MaterialRef makeMetal(Context &ctx, float3 refl, int ID)
   return material;
 }
 
-void generate_rtow(Context &ctx)
+void generate_rtow(Context &ctx, InstanceNode::Ref location)
 {
-  auto rtow_root = ctx.insertChildNode(ctx.tree.root());
+  if (!location)
+    location = ctx.tree.root();
+
+  auto rtow_root = ctx.insertChildNode(location);
 
   int i = 0;
 

@@ -156,8 +156,7 @@ void ObjectTree::buildUI()
   ImGui::EndDisabled();
 
   if (ImGui::IsWindowHovered()) {
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)
-        && m_hoveredNode != tsd::INVALID_INDEX) {
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
       m_coreMenuVisible = true;
       m_coreMenuNode = m_hoveredNode;
       ImGui::OpenPopup("ObjectTree_contextMenu");
@@ -174,34 +173,71 @@ void ObjectTree::buildUI_objectContextMenu()
 {
   auto &ctx = m_core->tsd.ctx;
   auto &tree = ctx.tree;
+  const bool nodeSelected = m_coreMenuNode != tsd::INVALID_INDEX;
+  auto menuNode = nodeSelected ? tree.at(m_coreMenuNode) : tree.root();
+
+  bool clearSelectedNode = false;
 
   if (ImGui::BeginPopup("ObjectTree_contextMenu")) {
-    if (ImGui::Checkbox("visible", &(*tree.at(m_coreMenuNode))->enabled))
+    if (nodeSelected && ImGui::Checkbox("visible", &(*menuNode)->enabled))
       ctx.signalInstanceTreeChange();
 
     if (ImGui::BeginMenu("add")) {
+      if (ImGui::MenuItem("transform")) {
+        ctx.insertChildTransformNode(menuNode);
+        clearSelectedNode = true;
+      }
+
+      ImGui::Separator();
+
+      if (ImGui::BeginMenu("procedural")) {
+        if (ImGui::MenuItem("cylinders")) {
+          generate_cylinders(ctx, menuNode);
+          clearSelectedNode = true;
+        }
+
+        if (ImGui::MenuItem("material_orb")) {
+          generate_material_orb(ctx, menuNode);
+          clearSelectedNode = true;
+        }
+
+        if (ImGui::MenuItem("monkey")) {
+          generate_monkey(ctx, menuNode);
+          clearSelectedNode = true;
+        }
+
+        if (ImGui::MenuItem("randomSpheres")) {
+          generate_randomSpheres(ctx, menuNode);
+          clearSelectedNode = true;
+        }
+
+        if (ImGui::MenuItem("rtow")) {
+          generate_rtow(ctx, menuNode);
+          clearSelectedNode = true;
+        }
+
+        ImGui::EndMenu();
+      }
+
+      ImGui::Separator();
+
       if (ImGui::BeginMenu("light")) {
         if (ImGui::MenuItem("directional")) {
-          ctx.insertNewChildObjectNode<tsd::Light>(tree.at(m_coreMenuNode),
-              tsd::tokens::light::directional,
-              "directional light");
-          m_coreMenuNode = tsd::INVALID_INDEX;
-          m_core->clearSelected();
+          ctx.insertNewChildObjectNode<tsd::Light>(
+              menuNode, tsd::tokens::light::directional, "directional light");
+          clearSelectedNode = true;
         }
 
         if (ImGui::MenuItem("point")) {
-          ctx.insertNewChildObjectNode<tsd::Light>(tree.at(m_coreMenuNode),
-              tsd::tokens::light::point,
-              "point light");
-          m_coreMenuNode = tsd::INVALID_INDEX;
-          m_core->clearSelected();
+          ctx.insertNewChildObjectNode<tsd::Light>(
+              menuNode, tsd::tokens::light::point, "point light");
+          clearSelectedNode = true;
         }
 
         if (ImGui::MenuItem("quad")) {
           ctx.insertNewChildObjectNode<tsd::Light>(
-              tree.at(m_coreMenuNode), tsd::tokens::light::quad, "quad light");
-          m_coreMenuNode = tsd::INVALID_INDEX;
-          m_core->clearSelected();
+              menuNode, tsd::tokens::light::quad, "quad light");
+          clearSelectedNode = true;
         }
 
         ImGui::EndMenu();
@@ -210,17 +246,24 @@ void ObjectTree::buildUI_objectContextMenu()
       ImGui::EndMenu();
     }
 
-    ImGui::Separator();
+    if (nodeSelected) {
+      ImGui::Separator();
 
-    if (ImGui::MenuItem("delete")) {
-      if (m_coreMenuNode != tsd::INVALID_INDEX) {
-        ctx.removeInstancedObject(tree.at(m_coreMenuNode));
-        m_coreMenuNode = tsd::INVALID_INDEX;
-        m_core->clearSelected();
+      if (ImGui::MenuItem("delete")) {
+        if (m_coreMenuNode != tsd::INVALID_INDEX) {
+          ctx.removeInstancedObject(tree.at(m_coreMenuNode));
+          m_coreMenuNode = tsd::INVALID_INDEX;
+          m_core->clearSelected();
+        }
       }
     }
 
     ImGui::EndPopup();
+
+    if (clearSelectedNode) {
+      m_coreMenuNode = tsd::INVALID_INDEX;
+      m_core->clearSelected();
+    }
   }
 
   if (!ImGui::IsPopupOpen("ObjectTree_contextMenu"))

@@ -7,8 +7,12 @@
 
 namespace tsd {
 
-void generate_randomSpheres(Context &ctx, bool useDefaultMaterial)
+void generate_randomSpheres(
+    Context &ctx, InstanceNode::Ref location, bool useDefaultMaterial)
 {
+  if (!location)
+    location = ctx.tree.root();
+
   // Generate geometry //
 
   auto spheres = ctx.createObject<Geometry>(tokens::geometry::sphere);
@@ -68,7 +72,7 @@ void generate_randomSpheres(Context &ctx, bool useDefaultMaterial)
   }
 
   auto surface = ctx.createSurface("random_spheres", spheres, material);
-  ctx.insertChildObjectNode(ctx.tree.root(), surface);
+  ctx.insertChildObjectNode(location, surface);
 }
 
 } // namespace tsd

@@ -7,8 +7,12 @@
 
 namespace tsd {
 
-void generate_cylinders(Context &ctx, bool useDefaultMaterial)
+void generate_cylinders(
+    Context &ctx, InstanceNode::Ref location, bool useDefaultMaterial)
 {
+  if (!location)
+    location = ctx.tree.root();
+
   // Generate geometry //
 
   auto cylinders = ctx.createObject<Geometry>(tokens::geometry::cylinder);
@@ -60,7 +64,7 @@ void generate_cylinders(Context &ctx, bool useDefaultMaterial)
   }
 
   auto surface = ctx.createSurface("random_cylinders", cylinders, material);
-  ctx.insertChildObjectNode(ctx.tree.root(), surface);
+  ctx.insertChildObjectNode(location, surface);
 }
 
 } // namespace tsd

@@ -135,25 +135,8 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
   }
 
   if (commandLine.filenames.empty()) {
-#if 0
-      tsd::logStatus("...generating noise volume");
-      tsd::generate_noiseVolume(tsd.ctx);
-#elif 0
-    tsd::logStatus("...generating cylinders");
-    tsd::generate_cylinders(tsd.ctx);
-#elif 0
-    tsd::logStatus("...generating rtow spheres");
-    tsd::generate_rtow(tsd.ctx);
-#elif 0
-    tsd::logStatus("...generating monkey from embedded data");
-    tsd::generate_monkey(tsd.ctx);
-#elif 1
     tsd::logStatus("...generating material_orb from embedded data");
     tsd::generate_material_orb(tsd.ctx);
-#else
-    tsd::logStatus("...generating random spheres");
-    tsd::generate_randomSpheres(tsd.ctx);
-#endif
   } else {
     for (const auto &f : commandLine.filenames) {
       tsd::logStatus("...loading file '%s'", f.second.c_str());
