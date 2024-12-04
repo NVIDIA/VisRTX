@@ -29,6 +29,7 @@ struct InstanceTreeData
   InstanceTreeData(T v, const char *n = "");
   InstanceTreeData(utility::Any v, const char *n);
 
+  bool hasDefault() const;
   bool isObject() const;
   bool isTransform() const;
   bool isEmpty() const;
@@ -39,6 +40,7 @@ struct InstanceTreeData
   // Data //
 
   utility::Any value;
+  utility::Any defaultValue;
   std::string name;
   bool enabled{true};
   FlatMap<std::string, utility::Any> customParameters;
@@ -164,12 +166,20 @@ struct Context
 
 template <typename T>
 inline InstanceTreeData::InstanceTreeData(T v, const char *n)
-    : value(v), name(n)
+    : InstanceTreeData(utility::Any(v), n)
 {}
 
 inline InstanceTreeData::InstanceTreeData(utility::Any v, const char *n)
     : value(v), name(n)
-{}
+{
+  if (!isObject())
+    defaultValue = v;
+}
+
+inline bool InstanceTreeData::hasDefault() const
+{
+  return defaultValue;
+}
 
 inline bool InstanceTreeData::isObject() const
 {

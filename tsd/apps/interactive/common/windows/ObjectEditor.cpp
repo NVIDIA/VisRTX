@@ -31,27 +31,47 @@ void ObjectEditor::buildUI()
     if (auto *selectedObject = selectedNode->getObject(ctx); selectedObject) {
       tsd::ui::buildUI_object(*selectedObject, m_core->tsd.ctx, true);
     } else if (selectedNode->isTransform()) {
+      // Setup transform values //
+
       math::mat3 srt;
 
       auto &sc = srt[0];
       auto &azelrot = srt[1];
       auto &tl = srt[2];
 
-      const bool hasCachedSRT = selectedNode->valueCache.contains("SRT");
-      if (hasCachedSRT)
-        srt = selectedNode->valueCache["SRT"].getAs<math::mat3>();
-      else {
+      auto setSRTCache = [&]() {
         math::mat4 rot;
         math::decomposeMatrix(selectedNode->getTransform(), sc, rot, tl);
         azelrot = math::degrees(math::matrixToAzElRoll(rot));
         selectedNode->valueCache["SRT"] = srt;
-      }
+      };
+
+      const bool hasCachedSRT = selectedNode->valueCache.contains("SRT");
+      if (hasCachedSRT)
+        srt = selectedNode->valueCache["SRT"].getAs<math::mat3>();
+      else
+        setSRTCache();
+
+      // UI widgets //
 
       bool doUpdate = false;
+
+      ImGui::BeginDisabled(selectedNode->value == selectedNode->defaultValue);
+      if (ImGui::Button("reset")) {
+        selectedNode->value = selectedNode->defaultValue;
+        doUpdate = true;
+        setSRTCache();
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("set default"))
+        selectedNode->defaultValue = selectedNode->value;
+      ImGui::EndDisabled();
 
       doUpdate |= ImGui::DragFloat3("scale", &sc.x);
       doUpdate |= ImGui::SliderFloat3("rotation", &azelrot.x, 0.f, 360.f);
       doUpdate |= ImGui::DragFloat3("translation", &tl.x);
+
+      // Handle transform update //
 
       if (doUpdate) {
         auto rot = math::IDENTITY_MAT4;
@@ -70,7 +90,6 @@ void ObjectEditor::buildUI()
         selectedNode->valueCache["SRT"] = srt;
         ctx->signalInstanceTreeChange();
       }
-
     } else if (!selectedNode->isEmpty()) {
       ImGui::Text(
           "{unhandled '%s' node}", anari::toString(selectedNode->value.type()));
