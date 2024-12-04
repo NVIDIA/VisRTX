@@ -194,7 +194,7 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
 
   auto library = anari::loadLibrary(libraryName.c_str(), statusFunc, this);
   if (!library)
-    throw std::runtime_error("Failed to load ANARI library");
+    return nullptr;
 
   if (!this->commandLine.debug && this->commandLine.enableDebug)
     this->commandLine.debug = anari::loadLibrary("debug", statusFunc, this);
