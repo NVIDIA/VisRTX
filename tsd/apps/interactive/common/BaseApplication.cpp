@@ -82,6 +82,20 @@ void BaseApplication::uiFrameStart()
       ImGui::EndMenu();
     }
 
+    if (ImGui::BeginMenu("USD")) {
+      if (usdDeviceSetup()) {
+        if (ImGui::MenuItem("Disable"))
+          teardownUsdDevice();
+        ImGui::Separator();
+        if (ImGui::MenuItem("Sync"))
+          syncUsdScene();
+      } else {
+        if (ImGui::MenuItem("Enable"))
+          setupUsdDevice();
+      }
+      ImGui::EndMenu();
+    }
+
     ImGui::EndMainMenuBar();
 
     // Modals //
@@ -93,6 +107,7 @@ void BaseApplication::uiFrameStart()
 
 void BaseApplication::teardown()
 {
+  teardownUsdDevice();
   anari_viewer::ui::shutdown();
 }
 
@@ -100,6 +115,55 @@ void BaseApplication::saveContext()
 {
   tsd::save_Context(appCore()->tsd.ctx, "state.tsd");
   tsd::logStatus("context saved to 'state.tsd'");
+}
+
+void BaseApplication::setupUsdDevice()
+{
+  if (usdDeviceSetup())
+    return;
+
+  auto d = m_usd.device;
+
+  if (d == nullptr) {
+    d = m_core.loadDevice("usd");
+    if (!d) {
+      tsd::logWarning("USD device failed to load");
+      return;
+    }
+    anari::retain(d, d);
+    m_usd.device = d;
+  }
+
+  m_usd.renderIndex = m_core.acquireRenderIndex(d);
+  m_usd.frame = anari::newObject<anari::Frame>(d);
+  anari::setParameter(d, m_usd.frame, "world", m_usd.renderIndex->world());
+}
+
+bool BaseApplication::usdDeviceSetup() const
+{
+  return m_usd.device != nullptr && m_usd.renderIndex != nullptr;
+}
+
+void BaseApplication::syncUsdScene()
+{
+  if (!usdDeviceSetup()) {
+    tsd::logWarning("USD device not setup -- cannot sync scene");
+    return;
+  }
+  anari::render(m_usd.device, m_usd.frame);
+  anari::wait(m_usd.device, m_usd.frame);
+}
+
+void BaseApplication::teardownUsdDevice()
+{
+  if (!usdDeviceSetup())
+    return;
+  auto d = m_usd.device;
+  m_core.releaseRenderIndex(d);
+  anari::release(d, m_usd.frame);
+  anari::release(d, d);
+  m_usd.device = nullptr;
+  m_usd.renderIndex = nullptr;
 }
 
 void BaseApplication::setWindowArray(const anari_viewer::WindowArray &wa)

@@ -29,6 +29,12 @@ class BaseApplication : public anari_viewer::Application
 
  protected:
   void saveContext();
+
+  void setupUsdDevice();
+  bool usdDeviceSetup() const;
+  void syncUsdScene();
+  void teardownUsdDevice();
+
   void setWindowArray(const anari_viewer::WindowArray &wa);
   virtual const char *getDefaultLayout() const = 0;
 
@@ -40,6 +46,13 @@ class BaseApplication : public anari_viewer::Application
 
  private:
   AppCore m_core;
+
+  struct UsdDevic3State
+  {
+    anari::Device device{nullptr};
+    anari::Frame frame{nullptr};
+    tsd::RenderIndex *renderIndex{nullptr};
+  } m_usd;
 };
 
 } // namespace tsd_viewer
