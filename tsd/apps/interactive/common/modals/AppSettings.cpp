@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "AppSettings.h"
+// glfw
+#include <GLFW/glfw3.h>
 
 namespace tsd_viewer {
 
@@ -18,6 +20,12 @@ void AppSettings::buildUI()
 
   if (doUpdate)
     update();
+
+  ImGui::NewLine();
+
+  ImGuiIO &io = ImGui::GetIO();
+  if(ImGui::Button("close") || io.KeysDown[GLFW_KEY_ESCAPE])
+    this->hide();
 }
 
 void AppSettings::update()

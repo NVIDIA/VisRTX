@@ -12,10 +12,11 @@
 
 namespace tsd_viewer {
 
+struct ImportFileDialog;
+
 enum class ImporterType
 {
-  TSD,
-  ASSIMP,
+  ASSIMP = 0,
   ASSIMP_FLAT,
   DLAF,
   NBODY,
@@ -23,6 +24,7 @@ enum class ImporterType
   OBJ,
   HDRI,
   VOLUME,
+  TSD,
   NONE
 };
 
@@ -65,6 +67,11 @@ struct AppCore
     bool verbose{false};
     bool echoOutput{false};
   } logging;
+
+  struct Windows
+  {
+    ImportFileDialog *importDialog{nullptr};
+  } windows;
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////

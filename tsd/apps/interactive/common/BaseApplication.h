@@ -6,6 +6,7 @@
 #include "AppCore.h"
 #include "Manipulator.h"
 #include "modals/AppSettings.h"
+#include "modals/ImportFileDialog.h"
 // anari_viewer
 #include "anari_viewer/Application.h"
 // tsd
@@ -43,11 +44,12 @@ class BaseApplication : public anari_viewer::Application
   manipulators::Orbit m_manipulator;
   std::vector<anari_viewer::windows::Window *> m_windows;
   std::unique_ptr<tsd_viewer::AppSettings> m_appSettings;
+  std::unique_ptr<tsd_viewer::ImportFileDialog> m_fileDialog;
 
  private:
   AppCore m_core;
 
-  struct UsdDevic3State
+  struct UsdDeviceState
   {
     anari::Device device{nullptr};
     anari::Frame frame{nullptr};

@@ -4,6 +4,8 @@
 #include "ObjectTree.h"
 #include "tsd_ui.h"
 
+#include "../modals/ImportFileDialog.h"
+
 namespace tsd_viewer {
 
 static ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow
@@ -29,8 +31,8 @@ void ObjectTree::buildUI()
 
   ImGui::Separator();
 
-  if (!m_coreMenuVisible)
-    m_coreMenuNode = tsd::INVALID_INDEX;
+  if (!m_menuVisible)
+    m_menuNode = tsd::INVALID_INDEX;
   m_hoveredNode = tsd::INVALID_INDEX;
 
   const ImGuiTableFlags flags =
@@ -127,7 +129,7 @@ void ObjectTree::buildUI()
       if (ImGui::IsItemHovered())
         m_hoveredNode = node.index();
 
-      if (ImGui::IsItemClicked() && m_coreMenuNode == tsd::INVALID_INDEX)
+      if (ImGui::IsItemClicked() && m_menuNode == tsd::INVALID_INDEX)
         m_core->setSelectedNode(node);
 
       if (selected)
@@ -157,8 +159,8 @@ void ObjectTree::buildUI()
 
   if (ImGui::IsWindowHovered()) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-      m_coreMenuVisible = true;
-      m_coreMenuNode = m_hoveredNode;
+      m_menuVisible = true;
+      m_menuNode = m_hoveredNode;
       ImGui::OpenPopup("ObjectTree_contextMenu");
     } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
         && m_hoveredNode == tsd::INVALID_INDEX) {
@@ -173,8 +175,8 @@ void ObjectTree::buildUI_objectContextMenu()
 {
   auto &ctx = m_core->tsd.ctx;
   auto &tree = ctx.tree;
-  const bool nodeSelected = m_coreMenuNode != tsd::INVALID_INDEX;
-  auto menuNode = nodeSelected ? tree.at(m_coreMenuNode) : tree.root();
+  const bool nodeSelected = m_menuNode != tsd::INVALID_INDEX;
+  auto menuNode = nodeSelected ? tree.at(m_menuNode) : tree.root();
 
   bool clearSelectedNode = false;
 
@@ -189,6 +191,11 @@ void ObjectTree::buildUI_objectContextMenu()
       }
 
       ImGui::Separator();
+
+      if (ImGui::MenuItem("imported file")) {
+        m_core->windows.importDialog->show();
+        clearSelectedNode = true;
+      }
 
       if (ImGui::BeginMenu("procedural")) {
         if (ImGui::MenuItem("cylinders")) {
@@ -250,9 +257,9 @@ void ObjectTree::buildUI_objectContextMenu()
       ImGui::Separator();
 
       if (ImGui::MenuItem("delete")) {
-        if (m_coreMenuNode != tsd::INVALID_INDEX) {
-          ctx.removeInstancedObject(tree.at(m_coreMenuNode));
-          m_coreMenuNode = tsd::INVALID_INDEX;
+        if (m_menuNode != tsd::INVALID_INDEX) {
+          ctx.removeInstancedObject(tree.at(m_menuNode));
+          m_menuNode = tsd::INVALID_INDEX;
           m_core->clearSelected();
         }
       }
@@ -261,13 +268,13 @@ void ObjectTree::buildUI_objectContextMenu()
     ImGui::EndPopup();
 
     if (clearSelectedNode) {
-      m_coreMenuNode = tsd::INVALID_INDEX;
+      m_menuNode = tsd::INVALID_INDEX;
       m_core->clearSelected();
     }
   }
 
   if (!ImGui::IsPopupOpen("ObjectTree_contextMenu"))
-    m_coreMenuVisible = false;
+    m_menuVisible = false;
 }
 
 } // namespace tsd_viewer

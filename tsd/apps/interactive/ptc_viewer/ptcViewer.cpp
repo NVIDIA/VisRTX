@@ -133,15 +133,16 @@ static void setupScene()
     for (size_t i = 0; i < g_filenames.size(); i++) {
       if (g_numRanks > 0 && (i % g_numRanks != g_rank))
         continue;
+      auto root = g_core->tsd.ctx.tree.root();
       const auto &f = g_filenames[i];
       if (g_importerType == ImporterType::PLY)
         tsd::import_PLY(g_core->tsd.ctx, f.c_str());
       else if (g_importerType == ImporterType::OBJ)
-        tsd::import_OBJ(g_core->tsd.ctx, f.c_str(), true);
+        tsd::import_OBJ(g_core->tsd.ctx, f.c_str(), root, true);
       else if (g_importerType == ImporterType::ASSIMP)
-        tsd::import_ASSIMP(g_core->tsd.ctx, f.c_str());
+        tsd::import_ASSIMP(g_core->tsd.ctx, f.c_str(), root);
       else if (g_importerType == ImporterType::DLAF)
-        tsd::import_DLAF(g_core->tsd.ctx, f.c_str(), true);
+        tsd::import_DLAF(g_core->tsd.ctx, f.c_str(), root, true);
       else if (g_importerType == ImporterType::NBODY)
         tsd::import_NBODY(g_core->tsd.ctx, f.c_str());
     }

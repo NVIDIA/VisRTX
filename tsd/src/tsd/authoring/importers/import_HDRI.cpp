@@ -7,7 +7,7 @@
 
 namespace tsd {
 
-void import_HDRI(Context &ctx, const char *filepath)
+void import_HDRI(Context &ctx, const char *filepath, InstanceNode::Ref location)
 {
   std::string hdriFilename = filepath;
   HDRImage img;
@@ -26,7 +26,7 @@ void import_HDRI(Context &ctx, const char *filepath)
     arr->setData(rgb.data());
 
     auto [inst, hdri] = ctx.insertNewChildObjectNode<tsd::Light>(
-        ctx.tree.root(), tsd::tokens::light::hdri);
+        location ? location : ctx.tree.root(), tsd::tokens::light::hdri);
     hdri->setName(fileOf(filepath).c_str());
     hdri->setParameterObject("radiance"_t, *arr);
   }

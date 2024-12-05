@@ -39,7 +39,10 @@ void importNBODYFile(const char *filename, NBODYScene &s)
   fin.close();
 }
 
-void import_NBODY(Context &ctx, const char *filepath, bool useDefaultMaterial)
+void import_NBODY(Context &ctx,
+    const char *filepath,
+    InstanceNode::Ref location,
+    bool useDefaultMaterial)
 {
   NBODYScene scene;
   importNBODYFile(filepath, scene);
@@ -47,8 +50,8 @@ void import_NBODY(Context &ctx, const char *filepath, bool useDefaultMaterial)
   if (scene.points.empty())
     return;
 
-  auto nbody_root =
-      ctx.insertChildNode(ctx.tree.root(), fileOf(filepath).c_str());
+  auto nbody_root = ctx.insertChildNode(
+      location ? location : ctx.tree.root(), fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.getObject<Material>(0)

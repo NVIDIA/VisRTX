@@ -39,7 +39,10 @@ void importDLAFFile(const char *filename, DLAFScene &s)
   std::fclose(fp);
 }
 
-void import_DLAF(Context &ctx, const char *filepath, bool useDefaultMaterial)
+void import_DLAF(Context &ctx,
+    const char *filepath,
+    InstanceNode::Ref location,
+    bool useDefaultMaterial)
 {
   DLAFScene scene;
   importDLAFFile(filepath, scene);
@@ -47,8 +50,8 @@ void import_DLAF(Context &ctx, const char *filepath, bool useDefaultMaterial)
   if (scene.points.empty())
     return;
 
-  auto dlaf_root =
-      ctx.insertChildNode(ctx.tree.root(), fileOf(filepath).c_str());
+  auto dlaf_root = ctx.insertChildNode(
+      location ? location : ctx.tree.root(), fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.defaultMaterial()

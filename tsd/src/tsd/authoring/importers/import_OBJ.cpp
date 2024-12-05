@@ -16,7 +16,10 @@ struct OBJData
   std::vector<tinyobj::material_t> materials;
 };
 
-void import_OBJ(Context &ctx, const char *filepath, bool useDefaultMaterial)
+void import_OBJ(Context &ctx,
+    const char *filepath,
+    InstanceNode::Ref location,
+    bool useDefaultMaterial)
 {
   OBJData objdata;
   std::string warn;
@@ -39,7 +42,8 @@ void import_OBJ(Context &ctx, const char *filepath, bool useDefaultMaterial)
     return;
   }
 
-  auto obj_root = ctx.insertChildNode(ctx.tree.root(), file.c_str());
+  auto obj_root =
+      ctx.insertChildNode(location ? location : ctx.tree.root(), file.c_str());
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////

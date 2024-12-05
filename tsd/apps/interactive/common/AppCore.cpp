@@ -140,6 +140,7 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
   } else {
     for (const auto &f : commandLine.filenames) {
       tsd::logStatus("...loading file '%s'", f.second.c_str());
+      auto root = tsd.ctx.tree.root();
       if (f.first == ImporterType::TSD)
         tsd::import_Context(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::PLY)
@@ -147,9 +148,9 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
       else if (f.first == ImporterType::OBJ)
         tsd::import_OBJ(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::ASSIMP)
-        tsd::import_ASSIMP(tsd.ctx, f.second.c_str(), false);
+        tsd::import_ASSIMP(tsd.ctx, f.second.c_str(), root, false);
       else if (f.first == ImporterType::ASSIMP_FLAT)
-        tsd::import_ASSIMP(tsd.ctx, f.second.c_str(), true);
+        tsd::import_ASSIMP(tsd.ctx, f.second.c_str(), root, true);
       else if (f.first == ImporterType::DLAF)
         tsd::import_DLAF(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::NBODY)

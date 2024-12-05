@@ -441,7 +441,7 @@ void Viewport::ui_handleInput()
 
   ImGuiIO &io = ImGui::GetIO();
 
-  if (io.KeysDown[GLFW_KEY_ESCAPE])
+  if (ImGui::IsWindowFocused() && io.KeysDown[GLFW_KEY_ESCAPE])
     m_core->clearSelected();
 
   const bool dolly = ImGui::IsMouseDown(ImGuiMouseButton_Right)

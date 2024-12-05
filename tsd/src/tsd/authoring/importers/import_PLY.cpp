@@ -13,7 +13,7 @@ namespace tsd {
 
 using namespace tinyply;
 
-void import_PLY(Context &ctx, const char *filename)
+void import_PLY(Context &ctx, const char *filename, InstanceNode::Ref location)
 {
   std::unique_ptr<std::istream> file_stream;
   std::vector<uint8_t> byte_buffer;
@@ -159,8 +159,8 @@ void import_PLY(Context &ctx, const char *filename)
 
     // Mesh //
 
-    auto ply_root =
-        ctx.insertChildNode(ctx.tree.root(), fileOf(filename).c_str());
+    auto ply_root = ctx.insertChildNode(
+        location ? location : ctx.tree.root(), fileOf(filename).c_str());
     auto mesh = ctx.createObject<Geometry>(tokens::geometry::triangle);
 
     auto makeArray1DForMesh = [&](Token parameterName,

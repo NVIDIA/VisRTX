@@ -359,7 +359,10 @@ static void populateASSIMPInstanceTree(Context &ctx,
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-void import_ASSIMP(Context &ctx, const char *filename, bool flatten)
+void import_ASSIMP(Context &ctx,
+    const char *filename,
+    InstanceNode::Ref location,
+    bool flatten)
 {
   Assimp::DefaultLogger::create("", Assimp::Logger::VERBOSE);
 
@@ -380,7 +383,8 @@ void import_ASSIMP(Context &ctx, const char *filename, bool flatten)
   auto materials = importASSIMPMaterials(ctx, scene, filename);
   auto meshes = importASSIMPSurfaces(ctx, materials, scene);
 
-  populateASSIMPInstanceTree(ctx, ctx.tree.root(), meshes, scene->mRootNode);
+  populateASSIMPInstanceTree(
+      ctx, location ? location : ctx.tree.root(), meshes, scene->mRootNode);
 }
 #else
 void import_ASSIMP(Context &ctx, const char *filename, bool flatten)

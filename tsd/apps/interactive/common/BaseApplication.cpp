@@ -33,6 +33,9 @@ anari_viewer::WindowArray BaseApplication::setupWindows()
     ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
 
   m_appSettings = std::make_unique<tsd_viewer::AppSettings>();
+  m_fileDialog = std::make_unique<tsd_viewer::ImportFileDialog>(appCore());
+
+  m_core.windows.importDialog = m_fileDialog.get();
 
   return {};
 }
@@ -102,6 +105,9 @@ void BaseApplication::uiFrameStart()
 
     if (m_appSettings->visible())
       m_appSettings->renderUI();
+
+    if (m_fileDialog->visible())
+      m_fileDialog->renderUI();
   }
 }
 

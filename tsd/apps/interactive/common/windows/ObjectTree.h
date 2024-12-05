@@ -9,6 +9,8 @@
 
 namespace tsd_viewer {
 
+struct ImportFileDialog;
+
 struct ObjectTree : public anari_viewer::windows::Window
 {
   ObjectTree(AppCore *state, const char *name = "Object Tree");
@@ -19,8 +21,8 @@ struct ObjectTree : public anari_viewer::windows::Window
 
   AppCore *m_core{nullptr};
   size_t m_hoveredNode{tsd::INVALID_INDEX};
-  size_t m_coreMenuNode{tsd::INVALID_INDEX};
-  bool m_coreMenuVisible{false};
+  size_t m_menuNode{tsd::INVALID_INDEX};
+  bool m_menuVisible{false};
   std::vector<int> m_needToTreePop;
 };
 
