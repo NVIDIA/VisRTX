@@ -54,7 +54,7 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 find_package(CUDAToolkit 11.3.1 REQUIRED)
 find_package(OptiX7 REQUIRED)
 if(VISRTX_ENABLE_MDL_SUPPORT)
-  find_package(MDL_SDK REQUIRED)
+  find_package(mdl REQUIRED)
 endif()
 
 include(EmbedPTX)
@@ -195,7 +195,7 @@ PRIVATE
   CUDA::cuda_driver
   CUDA::curand
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
-  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:MDL_SDK::MDL_SDK>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:mdl::mdl_sdk>
 )
 
 project_compile_definitions(
