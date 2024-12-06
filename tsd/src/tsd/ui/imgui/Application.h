@@ -53,9 +53,14 @@ class Application : public anari_viewer::Application
   void loadStateForNextFrame();
 
   void setupUsdDevice();
-  bool usdDeviceSetup() const;
+  bool usdDeviceIsSetup() const;
   void syncUsdScene();
   void teardownUsdDevice();
+
+  void setupTsdDevice();
+  bool tsdDeviceIsSetup() const;
+  void syncTsdScene();
+  void teardownTsdDevice();
 
   void setWindowArray(const anari_viewer::WindowArray &wa);
   virtual const char *getDefaultLayout() const = 0;
@@ -89,7 +94,14 @@ class Application : public anari_viewer::Application
     anari::Device device{nullptr};
     anari::Frame frame{nullptr};
     tsd::rendering::RenderIndex *renderIndex{nullptr};
-  } m_usd;
+  } m_usdDevice;
+
+  struct TsdDeviceState
+  {
+    anari::Device device{nullptr};
+    anari::Frame frame{nullptr};
+    tsd::rendering::RenderIndex *renderIndex{nullptr};
+  } m_tsdDevice;
 };
 
 } // namespace tsd::ui::imgui

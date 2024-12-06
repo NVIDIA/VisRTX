@@ -102,7 +102,7 @@ struct TSDState
 
 struct ANARIDeviceManager
 {
-  ANARIDeviceManager(Core *core);
+  ANARIDeviceManager(const bool *verboseFlag = nullptr);
 
   anari::Device loadDevice(const std::string &libName,
       const std::vector<DeviceInitParam> &initialDeviceParams = {});
@@ -122,7 +122,7 @@ struct ANARIDeviceManager
   void loadSettings(tsd::core::DataNode &root);
 
  private:
-  Core *m_core{nullptr};
+  const bool *m_verboseFlag{nullptr};
   struct LiveAnariIndex
   {
     int refCount{0};

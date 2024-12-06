@@ -7,9 +7,10 @@
 
 namespace tsd::core {
 
-LayerNodeData::LayerNodeData(const char *n) : m_name(n)
+LayerNodeData::LayerNodeData(const char *n)
 {
   setEmpty();
+  m_name = n;
 }
 
 LayerNodeData::LayerNodeData(Object *o, const char *n) : LayerNodeData(n)

@@ -18,7 +18,7 @@
 
 namespace tsd::app {
 
-void anariStatusFunc(const void *_core,
+void anariStatusFunc(const void *_verboseFlag,
     ANARIDevice device,
     ANARIObject source,
     ANARIDataType sourceType,
@@ -27,8 +27,8 @@ void anariStatusFunc(const void *_core,
     const char *message)
 {
   const char *typeStr = anari::toString(sourceType);
-  const auto *core = (const Core *)_core;
-  const bool verbose = core->logging.verbose;
+  const auto *verboseFlag = (const bool *)_verboseFlag;
+  const bool verbose = verboseFlag ? *verboseFlag : false;
 
   if (severity == ANARI_SEVERITY_FATAL_ERROR) {
     fprintf(stderr, "[ANARI][FATAL][%s][%p] %s", typeStr, source, message);
@@ -85,7 +85,7 @@ static std::vector<std::string> parseLibraryList(bool defaultNone)
 
 // Core definitions ////////////////////////////////////////////////////////
 
-Core::Core() : anari(this)
+Core::Core() : anari(&logging.verbose)
 {
   tsd.scene.setUpdateDelegate(&anari.getUpdateDelegate());
 
@@ -357,7 +357,9 @@ void Core::importAnimations(const std::vector<ImportAnimationFiles> &files,
   }
 }
 
-ANARIDeviceManager::ANARIDeviceManager(Core *core) : m_core(core) {}
+ANARIDeviceManager::ANARIDeviceManager(const bool *verboseFlag)
+    : m_verboseFlag(verboseFlag)
+{}
 
 anari::Device ANARIDeviceManager::loadDevice(const std::string &libraryName,
     const std::vector<DeviceInitParam> &initialDeviceParams)
@@ -372,7 +374,7 @@ anari::Device ANARIDeviceManager::loadDevice(const std::string &libraryName,
   }
 
   auto library =
-      anari::loadLibrary(libraryName.c_str(), anariStatusFunc, m_core);
+      anari::loadLibrary(libraryName.c_str(), anariStatusFunc, m_verboseFlag);
   if (!library)
     return nullptr;
 

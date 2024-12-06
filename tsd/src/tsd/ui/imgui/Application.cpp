@@ -3,6 +3,7 @@
 
 // tsd_core
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/Timer.hpp"
 // tsd_io
 #include "tsd/io/serialization.hpp"
 // tsd_rendering
@@ -145,12 +146,11 @@ void Application::uiFrameStart()
     modalActive = true;
   }
 
-    // Handle app shortcuts //
-    if (m_exportNanoVDBFileDialog->visible()) {
-      m_exportNanoVDBFileDialog->renderUI();
-      modalActive = true;
-    }
-
+  // Handle app shortcuts //
+  if (m_exportNanoVDBFileDialog->visible()) {
+    m_exportNanoVDBFileDialog->renderUI();
+    modalActive = true;
+  }
 
   if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S))
     this->getFilenameFromDialog(m_filenameToSaveNextFrame, true);
@@ -254,25 +254,49 @@ void Application::uiMainMenuBar()
     ImGui::EndMenu();
   }
 
+  if (ImGui::BeginMenu("Tools")) {
+    if (ImGui::BeginMenu("OpenUSD Device")) {
+      if (usdDeviceIsSetup()) {
+        if (ImGui::MenuItem("Disable"))
+          teardownUsdDevice();
+      } else {
+        if (ImGui::MenuItem("Enable"))
+          setupUsdDevice();
+      }
+      ImGui::Separator();
+      ImGui::BeginDisabled(!usdDeviceIsSetup());
+      if (ImGui::MenuItem("Sync"))
+        syncUsdScene();
+      ImGui::EndDisabled();
+      ImGui::EndMenu();
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::BeginMenu("TSD Device")) {
+      if (tsdDeviceIsSetup()) {
+        if (ImGui::MenuItem("Disable"))
+          teardownTsdDevice();
+      } else {
+        if (ImGui::MenuItem("Enable"))
+          setupTsdDevice();
+      }
+      ImGui::Separator();
+      ImGui::BeginDisabled(!tsdDeviceIsSetup());
+      if (ImGui::MenuItem("Sync"))
+        syncTsdScene();
+      ImGui::EndDisabled();
+      ImGui::EndMenu();
+    }
+
+    ImGui::EndMenu();
+  }
+
   if (ImGui::BeginMenu("View")) {
     for (auto &w : m_windows) {
       ImGui::PushID(&w);
       ImGui::Checkbox(w->name(), w->visiblePtr());
       ImGui::PopID();
-    }
-    ImGui::EndMenu();
-  }
-
-  if (ImGui::BeginMenu("USD")) {
-    if (usdDeviceSetup()) {
-      if (ImGui::MenuItem("Disable"))
-        teardownUsdDevice();
-      ImGui::Separator();
-      if (ImGui::MenuItem("Sync"))
-        syncUsdScene();
-    } else {
-      if (ImGui::MenuItem("Enable"))
-        setupUsdDevice();
     }
     ImGui::EndMenu();
   }
@@ -422,10 +446,10 @@ void Application::loadStateForNextFrame()
 
 void Application::setupUsdDevice()
 {
-  if (usdDeviceSetup())
+  if (usdDeviceIsSetup())
     return;
 
-  auto d = m_usd.device;
+  auto d = m_usdDevice.device;
 
   if (d == nullptr) {
     d = m_core.anari.loadDevice("usd");
@@ -434,39 +458,106 @@ void Application::setupUsdDevice()
       return;
     }
     anari::retain(d, d);
-    m_usd.device = d;
+    m_usdDevice.device = d;
   }
 
-  m_usd.renderIndex = m_core.anari.acquireRenderIndex(m_core.tsd.scene, d);
-  m_usd.frame = anari::newObject<anari::Frame>(d);
-  anari::setParameter(d, m_usd.frame, "world", m_usd.renderIndex->world());
+  m_usdDevice.renderIndex =
+      m_core.anari.acquireRenderIndex(m_core.tsd.scene, d);
+  m_usdDevice.frame = anari::newObject<anari::Frame>(d);
+  anari::setParameter(
+      d, m_usdDevice.frame, "world", m_usdDevice.renderIndex->world());
 }
 
-bool Application::usdDeviceSetup() const
+bool Application::usdDeviceIsSetup() const
 {
-  return m_usd.device != nullptr && m_usd.renderIndex != nullptr;
+  return m_usdDevice.device != nullptr && m_usdDevice.renderIndex != nullptr;
 }
 
 void Application::syncUsdScene()
 {
-  if (!usdDeviceSetup()) {
+  tsd::core::logStatus("synchronizing USD ANARI device scene...");
+  if (!usdDeviceIsSetup()) {
     tsd::core::logWarning("USD device not setup -- cannot sync scene");
     return;
   }
-  anari::render(m_usd.device, m_usd.frame);
-  anari::wait(m_usd.device, m_usd.frame);
+  tsd::core::Timer timer;
+  timer.start();
+  anari::render(m_usdDevice.device, m_usdDevice.frame);
+  anari::wait(m_usdDevice.device, m_usdDevice.frame);
+  timer.end();
+  tsd::core::logStatus("...sync complete (%.2f ms)", timer.milliseconds());
 }
 
 void Application::teardownUsdDevice()
 {
-  if (!usdDeviceSetup())
+  if (!usdDeviceIsSetup())
     return;
-  auto d = m_usd.device;
+  tsd::core::logStatus("tearing down USD device...");
+  auto d = m_usdDevice.device;
   m_core.anari.releaseRenderIndex(d);
-  anari::release(d, m_usd.frame);
+  anari::release(d, m_usdDevice.frame);
   anari::release(d, d);
-  m_usd.device = nullptr;
-  m_usd.renderIndex = nullptr;
+  m_usdDevice.device = nullptr;
+  m_usdDevice.renderIndex = nullptr;
+}
+
+void Application::setupTsdDevice()
+{
+  if (tsdDeviceIsSetup())
+    return;
+
+  auto d = m_tsdDevice.device;
+
+  if (d == nullptr) {
+    d = m_core.anari.loadDevice("tsd");
+    if (!d) {
+      tsd::core::logWarning("TSD device failed to load");
+      return;
+    }
+    anari::retain(d, d);
+    m_tsdDevice.device = d;
+  }
+
+  m_tsdDevice.renderIndex =
+      m_core.anari.acquireRenderIndex(m_core.tsd.scene, d);
+  m_tsdDevice.frame = anari::newObject<anari::Frame>(d);
+  anari::setParameter(
+      d, m_tsdDevice.frame, "world", m_tsdDevice.renderIndex->world());
+
+  syncTsdScene();
+}
+
+bool Application::tsdDeviceIsSetup() const
+{
+  return m_tsdDevice.device != nullptr && m_tsdDevice.renderIndex != nullptr;
+}
+
+void Application::syncTsdScene()
+{
+  tsd::core::logStatus("synchronizing TSD ANARI device scene...");
+  if (!tsdDeviceIsSetup()) {
+    tsd::core::logWarning("TSD device not setup -- cannot sync scene");
+    return;
+  }
+  tsd::core::Timer timer;
+  timer.start();
+  anari::render(m_tsdDevice.device, m_tsdDevice.frame);
+  anari::wait(m_tsdDevice.device, m_tsdDevice.frame);
+  timer.end();
+  tsd::core::logStatus("...sync complete (%.2f ms)", timer.milliseconds());
+}
+
+void Application::teardownTsdDevice()
+{
+  if (!tsdDeviceIsSetup())
+    return;
+  tsd::core::logStatus("tearing down TSD device...");
+  auto d = m_tsdDevice.device;
+  m_core.anari.releaseRenderIndex(d);
+  anari::release(d, m_tsdDevice.frame);
+  anari::release(d, d);
+  m_tsdDevice.device = nullptr;
+  m_tsdDevice.renderIndex = nullptr;
 }
 
 void Application::setWindowArray(const anari_viewer::WindowArray &wa)

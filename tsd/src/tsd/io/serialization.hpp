@@ -36,7 +36,14 @@ void load_Scene(Scene &scene, const char *filename);
 void load_Scene(Scene &scene, core::DataNode &root);
 
 void export_SceneToUSD(Scene &scene, const char *filename);
-void export_StructuredRegularVolumeToNanoVDB(const SpatialField* spatialField, std::string_view outputFilename, bool useUndefinedValue = false, float undefinedValue = std::numeric_limits<float>::quiet_NaN(), VDBPrecision precision = VDBPrecision::Fp16, bool enableDithering = false);
+void export_StructuredRegularVolumeToNanoVDB(
+  const SpatialField* spatialField,
+  std::string_view outputFilename,
+  bool useUndefinedValue = false,
+  float undefinedValue = std::numeric_limits<float>::quiet_NaN(),
+  VDBPrecision precision = VDBPrecision::Fp16,
+  bool enableDithering = false
+);
 
 // clang-format on
 
