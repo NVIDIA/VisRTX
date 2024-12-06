@@ -27,8 +27,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-add_subdirectory(catch)
-add_subdirectory(fmtlib)
-add_subdirectory(nonstd)
-add_subdirectory(stb_image)
-add_subdirectory(tiny_obj_loader)
+add_library(fmt STATIC src/format.cc)
+target_include_directories(fmt PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+add_library(fmt::fmt ALIAS fmt)
+
