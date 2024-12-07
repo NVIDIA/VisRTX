@@ -387,7 +387,10 @@ void import_ASSIMP(Context &ctx,
       ctx, location ? location : ctx.tree.root(), meshes, scene->mRootNode);
 }
 #else
-void import_ASSIMP(Context &ctx, const char *filename, bool flatten)
+void import_ASSIMP(Context &ctx,
+    const char *filename,
+    InstanceNode::Ref location,
+    bool flatten)
 {
   logError("[import_ASSIMP] ASSIMP not enabled in TSD build.");
 }
