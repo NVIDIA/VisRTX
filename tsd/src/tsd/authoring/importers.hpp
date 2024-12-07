@@ -17,6 +17,7 @@ void import_OBJ(Context &ctx, const char *filename, InstanceNode::Ref location =
 void import_PLY(Context &ctx, const char *filename, InstanceNode::Ref location = {});
 SpatialFieldRef import_RAW(Context &ctx, const char *filename);
 SpatialFieldRef import_FLASH(Context &ctx, const char *filename);
+SpatialFieldRef import_NVDB(Context &ctx, const char *filename);
 
 VolumeRef import_volume(Context &ctx,
     const char *filename,

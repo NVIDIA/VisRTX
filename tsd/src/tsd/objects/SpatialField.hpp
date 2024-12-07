@@ -29,6 +29,7 @@ namespace tokens::spatial_field {
 
 extern const Token structuredRegular;
 extern const Token amr;
+extern const Token nanovdb;
 
 } // namespace tokens::spatial_field
 
