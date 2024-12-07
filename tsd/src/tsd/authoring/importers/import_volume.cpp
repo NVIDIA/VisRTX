@@ -22,6 +22,8 @@ VolumeRef import_volume(Context &ctx,
     field = import_RAW(ctx, filepath);
   else if (ext == ".flash")
     field = import_FLASH(ctx, filepath);
+  else if (ext == ".nvdb")
+    field = import_NVDB(ctx, filepath);
   else {
     logError("[import_volume] no loader for file type '%s'", ext.c_str());
     return {};

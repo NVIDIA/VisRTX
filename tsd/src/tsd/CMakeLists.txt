@@ -12,6 +12,7 @@ PRIVATE
   authoring/importers/import_FLASH.cpp
   authoring/importers/import_HDRI.cpp
   authoring/importers/import_NBODY.cpp
+  authoring/importers/import_NVDB.cpp
   authoring/importers/import_OBJ.cpp
   authoring/importers/import_PLY.cpp
   authoring/importers/import_RAW.cpp
@@ -53,6 +54,7 @@ PUBLIC
   anari::helium
   anari::anari
 PRIVATE
+  $<BUILD_INTERFACE:tsd_nanovdb>
   $<BUILD_INTERFACE:tsd_stb>
   $<BUILD_INTERFACE:tsd_tiny_obj_loader>
   $<BUILD_INTERFACE:tsd_tinyply>

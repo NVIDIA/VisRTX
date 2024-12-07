@@ -43,6 +43,10 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
     addParameter("block.data")
         .setValue({ANARI_ARRAY1D, INVALID_INDEX})
         .setDescription("array of 3D arrays containing the scalar voxel data");
+  } else if (stype == tokens::spatial_field::nanovdb) {
+    addParameter("gridData")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("array containing serialzed NanoVDB grid");
   }
 }
 
@@ -87,6 +91,7 @@ namespace tokens::spatial_field {
 
 const Token structuredRegular = "structuredRegular";
 const Token amr = "amr";
+const Token nanovdb = "nanovdb";
 
 } // namespace tokens::spatial_field
 
