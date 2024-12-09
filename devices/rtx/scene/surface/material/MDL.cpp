@@ -163,7 +163,7 @@ void MDL::syncParameters()
         break;
       }
       default: {
-        fmt::println(stderr, "Don't know how to set '{}'");
+        reportMessage(ANARI_SEVERITY_WARNING, "Don't know how to set '{}' (unsupported type)", name);
       }
       }
     }

@@ -159,7 +159,6 @@ void ArgumentBlockInstance::setTextureValue(std::string_view name,
         transaction->create<mi::neuraylib::ITexture>("Texture"));
     auto image = mi::base::make_handle(
         transaction->create<mi::neuraylib::IImage>("Image"));
-    fmt::println(stderr, "  Setting texture to path {}", filePath);
     if (image->reset_file(std::string(filePath).c_str()) != 0) {
       if (m_core)
         m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
