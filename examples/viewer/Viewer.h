@@ -97,10 +97,8 @@ class Viewer : public match3D::Application
   ObjFileConfig m_objFileConfig;
 #if USE_MDL
   MDLCubeConfig m_mdlCubeConfig;
-  int m_selectedScene{MDL_CUBE};
-#else
-  int m_selectedScene{0};
 #endif
+  int m_selectedScene{0};
   int m_lastSceneType{0};
   glm::vec4 m_backgroundTop{0.8f, 0.8f, 0.8f, 1.f};
   glm::vec4 m_backgroundBottom{0.1f, 0.1f, 0.1f, 1.f};
