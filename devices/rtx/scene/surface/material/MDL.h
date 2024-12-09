@@ -53,10 +53,12 @@ struct MDL : public Material
 
   // Handle source changes
   void syncSource();
-  // Handle argument block update
-  void syncParameters();
   // Update actual implementation index to use for the material.
   void syncImplementationIndex();
+  // Handle argument block update
+  void syncParameters();
+  // Update the samplers used by the material. To be called after syncParameters.
+  void updateSamplers();
 
  private:
   MaterialGPUData gpuData() const override;
@@ -67,8 +69,8 @@ struct MDL : public Material
   std::string m_sourceType;
   std::vector<const Sampler *> m_samplers;
 
-  libmdl::Uuid m_uuid;
-  mdl::MaterialRegistry::ImplementationIndex m_implementationIndex;
+  libmdl::Uuid m_uuid{};
+  mdl::MaterialRegistry::ImplementationIndex m_implementationIndex{};
   std::optional<libmdl::ArgumentBlockInstance> m_argumentBlockInstance;
 };
 

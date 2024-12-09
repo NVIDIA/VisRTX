@@ -18,6 +18,7 @@
 #include <mi/neuraylib/imdl_backend.h>
 #include <mi/neuraylib/imdl_backend_api.h>
 #include <mi/neuraylib/imdl_configuration.h>
+#include <mi/neuraylib/imdl_entity_resolver.h>
 #include <mi/neuraylib/imdl_execution_context.h>
 #include <mi/neuraylib/imdl_factory.h>
 #include <mi/neuraylib/imdl_impexp_api.h>
@@ -173,6 +174,11 @@ Core::Core(mi::neuraylib::INeuray *neuray, mi::base::ILogger *logger)
   if (!m_executionContext.is_valid_interface()) {
     throw std::runtime_error("Failed acquiring an execution context");
   }
+
+  // Some default options that other cloned contexts will use.
+  // We will load resources ourselves. Let's save us from autoloading things
+  // that might not be used.
+  m_executionContext->set_option("resolve_resources", false);
 }
 
 Core::~Core()
@@ -237,8 +243,12 @@ const mi::neuraylib::IModule *Core::loadModule(
     moduleName = name->get_c_str();
   }
 
+  // Clone the context so we can go and at least have message isloation.
+  auto executionContext =
+      make_handle(m_mdlFactory->clone(m_executionContext.get()));
+
   if (impexpApi->load_module(
-          transaction, moduleName.c_str(), m_executionContext.get())
+          transaction, moduleName.c_str(), executionContext.get())
       < 0)
     return {};
 
@@ -321,10 +331,6 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
   auto executionContext =
       make_handle(m_mdlFactory->clone(m_executionContext.get()));
 
-  // FIXME: Needs to test with that...
-  // executionContext->set_option("resolve_resources", false);
-  ptxBackend->set_option("resolve_resources", "0");
-
   // ANARI attributes 0 to 3
   const int numTextureSpaces = 4;
   // Number of actually supported textures. MDL's default, let's assume this is
@@ -352,7 +358,7 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
   };
 
   // Generate target code for the compiled material
-  mi::base::Handle<mi::neuraylib::ILink_unit> linkUnit(
+  auto linkUnit = make_handle(
       ptxBackend->create_link_unit(transaction, executionContext.get()));
   linkUnit->add_material(
       compiledMaterial, data(descs), size(descs), executionContext.get());
@@ -367,20 +373,6 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
   }
 
   return targetCode;
-}
-
-mi::neuraylib::IValue_texture *Core::loadTexture(
-    std::string_view filePath, mi::neuraylib::ITransaction *transaction)
-{
-  auto vf = make_handle(m_mdlFactory->create_value_factory(transaction));
-  auto tf = make_handle(vf->get_type_factory());
-
-  auto textureType =
-      make_handle(tf->create_texture(mi::neuraylib::IType_texture::TS_2D));
-  auto textureValue =
-      vf->create_texture(textureType.get(), std::string(filePath).c_str());
-
-  return textureValue;
 }
 
 bool Core::logExecutionContextMessages(
@@ -428,6 +420,31 @@ auto Core::setMdlSearchPaths(nonstd::span<std::filesystem::path> paths) -> void
   }
   mdlConfiguration->add_mdl_system_paths();
   mdlConfiguration->add_mdl_user_paths();
+}
+
+auto Core::setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths) -> void
+{
+  auto mdlConfiguration = make_handle(
+      m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
+  mdlConfiguration->clear_resource_paths();
+  for (const auto &path : paths) {
+    mdlConfiguration->add_resource_path(path.string().c_str());
+  }
+}
+
+auto Core::resolveResource(const char* resourcePath,
+  const char* owner
+) -> const char*
+{
+  auto mdlConfiguration = make_handle(
+    m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
+  auto entityResolver = make_handle(mdlConfiguration->get_entity_resolver());
+  auto resolvedResource = make_handle(entityResolver->resolve_resource(
+    resourcePath, owner, nullptr, 0, 0
+  ));
+  auto firstResolvedResourceElement = resolvedResource->get_element(0);
+
+  return firstResolvedResourceElement->get_filename(0);
 }
 
 } // namespace visrtx::libmdl

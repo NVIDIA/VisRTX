@@ -3,7 +3,6 @@
 #include "gpu/evalMaterial.h"
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
-#include "renderer/MaterialSbtData.cuh"
 
 #include <curand.h>
 
@@ -101,10 +100,10 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
       float3{1.0f, 0.0f, 0.0f},
   };
   auto textureTangentsV = std::array{
-      float3{0.0f, 1.0f, 0.0f},
-      float3{0.0f, 1.0f, 0.0f},
-      float3{0.0f, 1.0f, 0.0f},
-      float3{0.0f, 1.0f, 0.0f},
+      float3{0.0f, 0.0f, 1.0f},
+      float3{0.0f, 0.0f, 1.0f},
+      float3{0.0f, 0.0f, 1.0f},
+      float3{0.0f, 0.0f, 1.0f},
   };
 
   state.animation_time = 0.0f;

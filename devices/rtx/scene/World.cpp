@@ -40,7 +40,6 @@
 #include "utility/AnariTypeHelpers.h"
 
 #ifdef USE_MDL
-#include <set>
 #include "scene/surface/material/MDL.h"
 #endif // defined(USE_MDL)
 
@@ -489,7 +488,7 @@ void World::buildMDLMaterialGPUData()
       < m_objectUpdates.lastMDLObjectCheck)
     return;
 
-  std::set<const MDL *> processed;
+  std::vector<MDL *> mdls;
 
   for (const auto &instance : m_instances) {
     const auto group = instance->group();
@@ -498,22 +497,28 @@ void World::buildMDLMaterialGPUData()
       const auto surfaces = make_Span(
           reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()),
           surfaceObjects->totalSize());
+      
       for (auto surface : surfaces) {
         if (auto material = dynamic_cast<MDL *>(surface->material())) {
-          if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck
-              && processed.find(material) == processed.end()) {
-            material->syncSource();
-            material->syncParameters();
-            // FIXME: Should only be done when materialregistry has been updated
-            // with new or removed materials.
-            material->syncImplementationIndex();
-            material->upload();
-            processed.insert(material);
+          if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck) {
+            mdls.push_back(material);
           }
         }
       }
     }
   }
+
+  std::sort(begin(mdls), end(mdls));
+  mdls.erase(std::unique(begin(mdls), end(mdls)), end(mdls));
+
+  for (auto mdl : mdls) {
+    mdl->syncSource();
+    mdl->syncImplementationIndex();
+    mdl->syncParameters();
+    mdl->updateSamplers();
+    mdl->upload();
+  };
+ 
   state->rendererModules.lastMDLMaterialChange =
       m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
 }

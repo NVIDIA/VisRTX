@@ -63,8 +63,6 @@
 // MDL
 #ifdef USE_MDL
 #include "libmdl/Core.h"
-#include "mdl/MaterialRegistry.h"
-#include "mdl/SamplerRegistry.h"
 #endif // defined(USE_MDL)
 
 // std
@@ -491,6 +489,20 @@ void VisRTXDevice::deviceCommitParameters()
       it = endOfPathIt;
     }
     deviceState()->mdl->core.setMdlSearchPaths(mdlSearchPaths);
+
+    paths = getParamString("mdlResourceSearchPaths", "");
+    mdlSearchPaths = std::vector<std::filesystem::path>{};
+
+    for (auto it = cbegin(paths);;) {
+      while (it != cend(paths) && *it == ':')
+        ++it;
+      if (it == cend(paths))
+        break;
+      auto endOfPathIt = std::find(it, cend(paths), ':');
+      mdlSearchPaths.emplace_back(it, endOfPathIt);
+      it = endOfPathIt;
+    }
+    deviceState()->mdl->core.setMdlResourceSearchPaths(mdlSearchPaths);
   }
 #endif // defined(USE_MDL)
 }
