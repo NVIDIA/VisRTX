@@ -35,10 +35,23 @@
 #include "fmt/base.h"
 
 #ifdef MI_PLATFORM_WINDOWS
+#define WINDOWS_LEAN_AND_MEAN
 #include <Windows.h>
+static_assert(sizeof(HMODULE) <= sizeof(void*));
+
+#define loadLibrary(s) reinterpret_cast<void*>(LoadLibrary(s))
+#define freeLibrary(l) FreeLibrary(reinterpret_cast<HMODULE>(l))
+#define getProcAddress(l, s) GetProcAddress(reinterpret_cast<HMODULE>(l), s)
+
 #else
 #include <dlfcn.h>
+
+#define loadLibrary(s) dlopen(s, RTLD_LAZY)
+#define freeLibrary(l) dlclose(l)
+#define getProcAddress(l, s) dlsym(l, s)
+
 #endif
+
 
 #include <nonstd/scope.hpp>
 
@@ -48,16 +61,6 @@ using namespace std::string_literals;
 using mi::base::make_handle;
 
 namespace visrtx::libmdl {
-
-#ifdef MI_PLATFORM_WINDOWS
-#define loadLibrary(s) LoadLibrary(s)
-#define freeLibrary(l) FreeLibrary(l)
-#define getProcAddress(l, s) GetProcAddress(l, s)
-#else
-#define loadLibrary(s) dlopen(s, RTLD_LAZY)
-#define freeLibrary(l) dlclose(l)
-#define getProcAddress(l, s) dlsym(l, s)
-#endif
 
 Core::Core() : Core({}, {}) {}
 
@@ -421,7 +424,7 @@ auto Core::setMdlSearchPaths(nonstd::span<std::filesystem::path> paths) -> void
       m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
   mdlConfiguration->clear_mdl_paths();
   for (const auto &path : paths) {
-    mdlConfiguration->add_mdl_path(path.c_str());
+    mdlConfiguration->add_mdl_path(path.string().c_str());
   }
   mdlConfiguration->add_mdl_system_paths();
   mdlConfiguration->add_mdl_user_paths();
