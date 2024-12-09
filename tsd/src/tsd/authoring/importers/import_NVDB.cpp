@@ -8,7 +8,7 @@
 #include <nanovdb/NanoVDB.h>
 #include <nanovdb/GridHandle.h>
 #include <nanovdb/HostBuffer.h>
-#include <nanovdb/util/IO.h>
+#include <nanovdb/io/IO.h>
 
 namespace tsd {
 
@@ -22,7 +22,7 @@ SpatialFieldRef import_NVDB(Context &ctx, const char *filepath)
   field->setName(file.c_str());
 
   auto grid = nanovdb::io::readGrid(filepath);
-  
+
   auto gridData = ctx.createArray(ANARI_FLOAT32, grid.size());
   {
     auto *dst = (uint8_t *)gridData->map();

@@ -3,4 +3,4 @@
 
 project(tsd_nanovdb LANGUAGES CXX)
 project_add_library(INTERFACE)
-project_include_directories(INTERFACE ${CMAKE_CURRENT_LIST_DIR}/..)
+project_include_directories(INTERFACE ${CMAKE_CURRENT_LIST_DIR})
