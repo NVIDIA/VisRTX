@@ -112,11 +112,7 @@ class Core
  private:
   Core(mi::neuraylib::INeuray *neuray, mi::base::ILogger *logger);
 
-#ifdef MI_PLATFORM_WINDOWS
-  using DllHandle = HANDLE;
-#else
   using DllHandle = void *;
-#endif
   DllHandle m_dllHandle;
   mi::base::Handle<mi::neuraylib::INeuray> m_neuray;
   mi::base::Handle<mi::neuraylib::IScope> m_globalScope;
