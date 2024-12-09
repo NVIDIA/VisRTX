@@ -31,28 +31,45 @@
 
 #pragma once
 
-
 #include "Material.h"
 #include "gpu/gpu_objects.h"
-#include "mdl/MDLCompiler.h"
+#include "mdl/MaterialRegistry.h"
 #include "optix_visrtx.h"
+
+#include "libmdl/ArgumentBlockInstance.h"
+
+#include <optional>
 
 namespace visrtx {
 
 struct MDL : public Material
 {
   MDL(DeviceGlobalState *d);
+  ~MDL() override;
 
   void markCommitted() override;
+
+  void commit() override;
+
+  // Handle source changes
+  void syncSource();
+  // Handle argument block update
+  void syncParameters();
+  // Update actual implementation index to use for the material.
+  void syncImplementationIndex();
 
  private:
   MaterialGPUData gpuData() const override;
 
-  MDLCompiler::Uuid m_implementationId{};
-  uint64_t m_implementationIndex{};
+  mutable DeviceBuffer m_argBlockBuffer;
 
   std::string m_source;
-  std::vector<const Sampler*> m_samplers;
+  std::string m_sourceType;
+  std::vector<const Sampler *> m_samplers;
+
+  libmdl::Uuid m_uuid;
+  mdl::MaterialRegistry::ImplementationIndex m_implementationIndex;
+  std::optional<libmdl::ArgumentBlockInstance> m_argumentBlockInstance;
 };
 
 } // namespace visrtx

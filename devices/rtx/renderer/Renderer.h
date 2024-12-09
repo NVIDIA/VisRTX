@@ -113,7 +113,7 @@ struct Renderer : public Object
   float m_defaultAmbientRadiance{0.f};
 
 #ifdef USE_MDL
-  helium::TimeStamp m_lastMDLMaterialCheck;
+  helium::TimeStamp m_lastMDLMaterialLibraryUpdateCheck{};
 #endif // defined(USE_MDL)
 };
 

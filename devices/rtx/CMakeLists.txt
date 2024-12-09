@@ -76,11 +76,6 @@ anari_generate_queries(
 
 project_add_library(SHARED)
 
-if(VISRTX_ENABLE_MDL_SUPPORT)
-  set(PROJECT_SOURCES )
-endif()
-
-
 project_sources(PRIVATE
   Object.cpp
   optix_visrtx.cpp
@@ -109,7 +104,7 @@ project_sources(PRIVATE
   renderer/Raycast.cpp
   renderer/Renderer.cpp
   renderer/Test.cpp
-  renderer/UnknownRenderer.cpp  
+  renderer/UnknownRenderer.cpp
 
   shaders/MatteShader.cpp
   shaders/PhysicallyBasedShader.cpp
@@ -163,7 +158,10 @@ project_sources(PRIVATE
   utility/instrument.cpp
 
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:
-    mdl/MDLCompiler.cpp
+    mdl/Logger.cpp
+    mdl/ptx.cpp
+    mdl/MaterialRegistry.cpp
+    mdl/SamplerRegistry.cpp
     scene/surface/material/MDL.cpp
   >
 )
@@ -194,7 +192,13 @@ PRIVATE
   OptiX7::OptiX7
   CUDA::cuda_driver
   CUDA::curand
+  fmt::fmt
+  nonstd::expected-lite
+  nonstd::scope-lite
+  nonstd::span-lite
+
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:libmdl>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:mdl::mdl_sdk>
 )
 

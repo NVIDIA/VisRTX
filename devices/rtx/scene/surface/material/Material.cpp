@@ -38,6 +38,11 @@
 #ifdef USE_MDL
 #include "MDL.h"
 #endif // defined(USE_MDL)
+
+#include <string>
+
+using namespace std::string_literals;
+
 namespace visrtx {
 
 Material::Material(DeviceGlobalState *s)
@@ -56,7 +61,7 @@ Material *Material::createInstance(
   else if (subtype == "pbr" || subtype == "physicallyBased")
     return new PBR(d);
 #ifdef USE_MDL
-  else if (subtype == "mdl" && MDLCompiler::getMDLCompiler(d))
+  else if (subtype == "mdl" && d->mdl)
     return new MDL(d);
 #endif // defined(USE_MDL)
   else

@@ -40,7 +40,6 @@
 #include <anari/anari_cpp.hpp>
 #include <glm/ext/matrix_float3x4.hpp>
 
-
 #define DECLARE_FRAME_DATA(n)                                                  \
   extern "C" {                                                                 \
   __constant__ FrameGPUData n;                                                 \
@@ -326,9 +325,12 @@ struct MaterialGPUData
 
   struct MDL
   {
-    uint32_t implementationId;
-    DeviceObjectIndex samplers[16]; // Should be sized according to MDL's execution context configuration. See MDLCompiler.cpp.
-    uint32_t numTextures;
+    const char *argBlock;
+    uint32_t implementationIndex;
+    uint32_t numSamplers;
+    DeviceObjectIndex
+        samplers[32]; // Should be sized according to MDL's execution context
+                      // configuration. See MDLCompiler.cpp.
   };
 
   MaterialType materialType;

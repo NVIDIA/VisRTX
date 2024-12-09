@@ -31,6 +31,7 @@
 
 #include "anari_library_visrtx_export.h"
 
+#include <anari/frontend/anari_enums.h>
 #include "VisRTXDevice.h"
 
 #include "array/Array1D.h"
@@ -39,6 +40,7 @@
 #include "array/ObjectArray.h"
 #include "camera/Camera.h"
 #include "frame/Frame.h"
+#include "optix_visrtx.h"
 #include "renderer/Renderer.h"
 #include "scene/World.h"
 #include "scene/surface/material/sampler/Sampler.h"
@@ -60,11 +62,16 @@
 
 // MDL
 #ifdef USE_MDL
-#include "mdl/MDLCompiler.h"
+#include "libmdl/Core.h"
+#include "mdl/MaterialRegistry.h"
+#include "mdl/SamplerRegistry.h"
 #endif // defined(USE_MDL)
 
 // std
+#include <filesystem>
 #include <future>
+#include <string>
+#include <vector>
 
 namespace visrtx {
 
@@ -394,11 +401,11 @@ VisRTXDevice::~VisRTXDevice()
   if (m_initStatus != DeviceInitStatus::SUCCESS)
     return;
 
-  auto& state = *deviceState();
+  auto &state = *deviceState();
 
 #ifdef USE_MDL
   if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
-    MDLCompiler::tearDown(&state);
+    state.mdl.reset();
     m_mdlInitStatus = DeviceInitStatus::UNINITIALIZED;
   }
 #endif // defined(USE_MDL)
@@ -475,15 +482,15 @@ void VisRTXDevice::deviceCommitParameters()
     auto mdlSearchPaths = std::vector<std::filesystem::path>{};
 
     for (auto it = cbegin(paths);;) {
-      while (it != cend(paths) && *it == ':') ++it;
-      if (it == cend(paths)) break;
+      while (it != cend(paths) && *it == ':')
+        ++it;
+      if (it == cend(paths))
+        break;
       auto endOfPathIt = std::find(it, cend(paths), ':');
       mdlSearchPaths.emplace_back(it, endOfPathIt);
       it = endOfPathIt;
     }
-
-
-    MDLCompiler::getMDLCompiler(deviceState())->setMdlSearchPaths(mdlSearchPaths);
+    deviceState()->mdl->core.setMdlSearchPaths(mdlSearchPaths);
   }
 #endif // defined(USE_MDL)
 }
@@ -682,8 +689,19 @@ DeviceInitStatus VisRTXDevice::initMDL()
   if (m_mdlInitStatus != DeviceInitStatus::UNINITIALIZED)
     return m_mdlInitStatus;
 
-  if (!MDLCompiler::setUp(deviceState())) {
-    reportMessage(ANARI_SEVERITY_ERROR, "Failed initializing ANARI MDL support.");
+  auto ineuray = static_cast<mi::neuraylib::INeuray *>(
+      getParam<void *>("ineuray", nullptr));
+  try {
+    auto deviceGlobalState = static_cast<DeviceGlobalState *>(deviceState());
+    if (ineuray) {
+      deviceGlobalState->mdl.emplace(deviceGlobalState, ineuray);
+    } else {
+      deviceGlobalState->mdl.emplace(deviceGlobalState);
+    }
+    ineuray = deviceGlobalState->mdl->core.getINeuray();
+  } catch (const std::exception &e) {
+    reportMessage(
+        ANARI_SEVERITY_ERROR, "Failed initializing VisRTX MDL support.");
     return DeviceInitStatus::FAILURE;
   }
 

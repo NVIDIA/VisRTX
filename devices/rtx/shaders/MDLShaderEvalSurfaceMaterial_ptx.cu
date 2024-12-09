@@ -24,7 +24,8 @@ using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
 using ResourceData = mi::neuraylib::Resource_data;
 
 using BsdfSampleData = mi::neuraylib::Bsdf_sample_data;
-using BsdfEvaluateData = mi::neuraylib::Bsdf_evaluate_data<mi::neuraylib::DF_HSM_NONE>;
+using BsdfEvaluateData =
+    mi::neuraylib::Bsdf_evaluate_data<mi::neuraylib::DF_HSM_NONE>;
 using BsdfPdfData = mi::neuraylib::Bsdf_pdf_data;
 
 using BsdfIsThinWalled = bool(
@@ -38,23 +39,28 @@ VISRTX_CALLABLE BsdfIsThinWalled mdl_isThinWalled;
 
 namespace visrtx {
 
-VISRTX_DEVICE float4 make_float4(float f) {
+VISRTX_DEVICE float4 make_float4(float f)
+{
   return ::make_float4(f, f, f, f);
 }
 
-VISRTX_DEVICE float4 make_float4(const vec4& v) {
+VISRTX_DEVICE float4 make_float4(const vec4 &v)
+{
   return ::make_float4(v.x, v.y, v.z, v.w);
 }
 
-VISRTX_DEVICE float3 make_float3(float f) {
+VISRTX_DEVICE float3 make_float3(float f)
+{
   return ::make_float3(f, f, f);
 }
 
-VISRTX_DEVICE float3 make_float3(const vec4& v) {
+VISRTX_DEVICE float3 make_float3(const vec4 &v)
+{
   return ::make_float3(v.x, v.y, v.z);
 }
 
-VISRTX_DEVICE float3 make_float3(const vec3& v) {
+VISRTX_DEVICE float3 make_float3(const vec3 &v)
+{
   return ::make_float3(v.x, v.y, v.z);
 }
 
@@ -67,11 +73,6 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
     const SurfaceHit *hit,
     const LightSample *ls)
 {
-  auto materialSbtData =
-      bit_cast<const MaterialSbtData *>(optixGetSbtDataPointer());
-  auto materialData =
-      materialSbtData ? materialSbtData->mdl.materialData : nullptr;
-
   // Create MDL state
   ShadingStateMaterial state;
   auto position = make_float3(hit->hitpoint);
@@ -82,25 +83,28 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
       bit_cast<const std::array<float4, 3>>(hit->objectToWorld);
   auto worldToObject =
       bit_cast<const std::array<float4, 3>>(hit->worldToObject);
-      // The number of texture spaces we support. Matching the number of attributes ANARI exposes (4)
-  auto textureResults = std::array<float4, 16>{}; // The maximum number of samplers we support. See MDLCompiler.cpp numTextureSpaces and numTextureResults.
+  // The number of texture spaces we support. Matching the number of attributes
+  // ANARI exposes (4)
+  auto textureResults = std::array<float4,
+      32>{}; // The maximum number of samplers we support. See MDLCompiler.cpp
+             // numTextureSpaces and numTextureResults.
   auto textureCoords = std::array{
-    make_float3(readAttributeValue(0, *hit)),
-    make_float3(readAttributeValue(1, *hit)),
-    make_float3(readAttributeValue(2, *hit)),
-    make_float3(readAttributeValue(3, *hit)),
+      make_float3(readAttributeValue(0, *hit)),
+      make_float3(readAttributeValue(1, *hit)),
+      make_float3(readAttributeValue(2, *hit)),
+      make_float3(readAttributeValue(3, *hit)),
   };
   auto textureTangentsU = std::array{
-    float3{1.0f, 0.0f, 0.0f} ,
-    float3{1.0f, 0.0f, 0.0f} ,
-    float3{1.0f, 0.0f, 0.0f} ,
-    float3{1.0f, 0.0f, 0.0f} ,
+      float3{1.0f, 0.0f, 0.0f},
+      float3{1.0f, 0.0f, 0.0f},
+      float3{1.0f, 0.0f, 0.0f},
+      float3{1.0f, 0.0f, 0.0f},
   };
   auto textureTangentsV = std::array{
-    float3{ 0.0f, 1.0f, 0.0f },
-    float3{ 0.0f, 1.0f, 0.0f },
-    float3{ 0.0f, 1.0f, 0.0f },
-    float3{ 0.0f, 1.0f, 0.0f },
+      float3{0.0f, 1.0f, 0.0f},
+      float3{0.0f, 1.0f, 0.0f},
+      float3{0.0f, 1.0f, 0.0f},
+      float3{0.0f, 1.0f, 0.0f},
   };
 
   state.animation_time = 0.0f;
@@ -122,18 +126,19 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
   texHandler.fd = fd;
   texHandler.ss = ss;
   memcpy(texHandler.samplers, md->samplers, sizeof(md->samplers));
-  texHandler.numTextures = md->numTextures;
+  texHandler.numSamplers = md->numSamplers;
 
   ResourceData resData = {nullptr, &texHandler};
-  auto argblock = materialData ? *materialData : nullptr;
+
+  // Argument block
+  auto argblock = md->argBlock;
 
   // Init
   mdlBsdf_init(&state, &resData, argblock); // Should be factored out
 
   // Eval
   BsdfEvaluateData eval_data = {};
-  const float cos_theta =
-      dot(make_float3(-ray->dir), normalize(state.normal));
+  const float cos_theta = dot(make_float3(-ray->dir), normalize(state.normal));
   if (cos_theta > 0.0f) {
     float3 radiance_over_pdf = bit_cast<float3>(ls->radiance / ls->pdf);
     eval_data.ior1 = make_float3(1.0f);

@@ -32,6 +32,7 @@
 #include "Viewer.h"
 // std
 #include <cstring>
+#include <glm/geometric.hpp>
 // stb_image
 #include "Scene.h"
 #include "stb_image_write.h"
@@ -434,9 +435,20 @@ void Viewer::resetView()
       bounds[1].z);
 
   auto center = 0.5f * (bounds[0] + bounds[1]);
-  auto diag = bounds[1] - bounds[0];
+  auto boundingSphereRadius = glm::distance(bounds[0], bounds[1]) / 2.0f;
+  auto aspectRatio = float(m_windowSize.y) / m_windowSize.x;
+  auto fovy = glm::radians(
+      60.f); // default value from the specification. Not changed by the app.
+  auto referenceSize = boundingSphereRadius;
+  if (aspectRatio > 1.0f) { // Width is the limiting factor here. Compensate for
+                            // y and still compute using fovy.
+    referenceSize /= aspectRatio;
+  }
+  float distance = referenceSize / tanf(fovy / 2.0f);
+  // Add some slack so that the bounding sphere actually fits in the frustum.
+  distance *= 1.1f;
 
-  m_arcball = Orbit(center, 0.25f * glm::length(diag), m_arcball.azel());
+  m_arcball = Orbit(center, distance, m_arcball.azel());
   updateCamera();
 }
 
@@ -698,6 +710,10 @@ void Viewer::ui_makeWindow_camera()
 
   ImGui::Separator();
 
+  if (ImGui::Button("fit scene")) {
+    resetView();
+  }
+
   if (ImGui::Button("reset view")) {
     resetCameraAZEL();
     resetView();
@@ -794,3 +810,5 @@ void Viewer::ui_makeWindow_lights()
   if (update)
     updateLights();
 }
+
+void Viewer::ui_makeWindow_materials() {}

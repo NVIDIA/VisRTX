@@ -103,11 +103,9 @@ static void ui_gravityVolumeConfig(GravityVolumeConfig &config)
 }
 
 #ifdef USE_MDL
-static void ui_mdlCubeConfig(MDLCubeConfig& config)
+static void ui_mdlCubeConfig(MDLCubeConfig &config)
 {
   ui_config(config);
-  
-  ImGui::Combo("material", &config.selection, std::data(config.choices), std::size(config.choices));
 }
 #endif // defined(USE_MDL)
 

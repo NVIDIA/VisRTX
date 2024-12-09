@@ -96,7 +96,7 @@ struct World : public Object
     helium::TimeStamp lastTLASBuild{0};
     helium::TimeStamp lastBLASCheck{0};
 #ifdef USE_MDL
-    helium::TimeStamp lastMDLMaterialCheck{0};
+    helium::TimeStamp lastMDLObjectCheck{0};
 #endif // defined(USE_MDL)
   } m_objectUpdates;
 
