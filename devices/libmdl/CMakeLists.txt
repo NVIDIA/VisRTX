@@ -3,7 +3,7 @@
 
 project(libmdl LANGUAGES CXX)
 
-find_package(mdl REQUIRED)
+find_package(MDL_SDK REQUIRED)
 
 project_add_library(STATIC
   ArgumentBlockDescriptor.cpp
@@ -15,7 +15,7 @@ project_add_library(STATIC
 )
 
 project_link_libraries(
-  PUBLIC mdl::mdl_sdk
+  PUBLIC MDL_SDK::MDL_SDK
          nonstd::span-lite nonstd::expected-lite
   PRIVATE fmt::fmt nonstd::scope-lite
 )
