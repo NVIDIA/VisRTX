@@ -29,6 +29,9 @@
 
 option(VISRTX_BUILD_RTX_DEVICE "Build CUDA/OptiX device" ON)
 if (VISRTX_BUILD_RTX_DEVICE)
+  if(VISRTX_ENABLE_MDL_SUPPORT)
+    add_subdirectory(libmdl)
+  endif()
   add_subdirectory(rtx)
 endif()
 
