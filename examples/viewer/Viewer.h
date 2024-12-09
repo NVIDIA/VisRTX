@@ -78,6 +78,7 @@ class Viewer : public match3D::Application
   void ui_makeWindow_camera();
   void ui_makeWindow_renderer();
   void ui_makeWindow_lights();
+  void ui_makeWindow_materials();
 
   // Input state //
 
@@ -96,8 +97,10 @@ class Viewer : public match3D::Application
   ObjFileConfig m_objFileConfig;
 #if USE_MDL
   MDLCubeConfig m_mdlCubeConfig;
-#endif
+  int m_selectedScene{MDL_CUBE};
+#else
   int m_selectedScene{0};
+#endif
   int m_lastSceneType{0};
   glm::vec4 m_backgroundTop{0.8f, 0.8f, 0.8f, 1.f};
   glm::vec4 m_backgroundBottom{0.1f, 0.1f, 0.1f, 1.f};
@@ -163,4 +166,6 @@ class Viewer : public match3D::Application
   GLuint m_framebufferObject{0};
   glm::ivec2 m_windowSize{1920, 1080};
   glm::ivec2 m_windowSizeScaled{1920, 1080};
+
+  std::vector<anari::Material> materials;
 };

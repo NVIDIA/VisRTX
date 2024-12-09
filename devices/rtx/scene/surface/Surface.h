@@ -42,7 +42,9 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
 
   void commit() override;
 
+  Geometry *geometry();
   const Geometry *geometry() const;
+  Material *material();
   const Material *material() const;
 
   OptixBuildInput buildInput() const;

@@ -130,15 +130,16 @@ struct ObjFileConfig : public Config
 #ifdef USE_MDL
 struct MDLCubeConfig : public Config
 {
-  anari::Material material{};
-  static constexpr const char* choices[] = {
-    "::visrtx::default::simpleWhite",
-    "::visrtx::test_material::test_uv",
-    "::visrtx::test_material::test_texture",
-    "::visrtx::test_material::test_texel_fetch",
-    "::visrtx::test_material::test_noise",
-  }; // The cube material to be tweaked through the UI
-  int selection = 0;
+  static constexpr const char *choices[] = {
+      "::visrtx::default::simpleWhite",
+      "::visrtx::test_material::test_uv",
+      "::visrtx::test_material::test_texture",
+      "::visrtx::test_material::test_texel_fetch",
+      "::visrtx::test_material::test_noise",
+      "::visrtx::test_material::test_mix",
+  }; // The cube materials to be tweaked through the UI
+
+  int materialEditTarget = 0;
 };
 #endif // defined(USE_MDL)
 
@@ -150,7 +151,8 @@ using SceneConfig = std::variant<SpheresConfig,
     GravityVolumeConfig,
     ObjFileConfig
 #ifdef USE_MDL
-    , MDLCubeConfig
+    ,
+    MDLCubeConfig
 #endif // defined(USE_MDL)
     >;
 

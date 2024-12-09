@@ -42,17 +42,12 @@
 #include "UnknownRenderer.h"
 
 // Materials
-#include "shaders/MatteShader.h"
-#include "shaders/PhysicallyBasedShader.h"
 #ifdef USE_MDL
-#include "MaterialSbtData.cuh"
-#include "mdl/MDLCompiler.h"
 #endif // defined(USE_MDL)
 
 // std
 #include <optix_types.h>
 #include <stdlib.h>
-#include <fstream>
 #include <string_view>
 // this include may only appear in a single source file:
 #include <optix_function_table_definition.h>
@@ -77,11 +72,7 @@ struct SbtRecord<void>
 using RaygenRecord = SbtRecord<void>;
 using MissRecord = SbtRecord<void>;
 using HitgroupRecord = SbtRecord<void>;
-#ifdef USE_MDL
-using MaterialRecord = SbtRecord<MaterialSbtData>;
-#else
 using MaterialRecord = SbtRecord<void>;
-#endif // defined(USE_MDL)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -209,8 +200,8 @@ OptixPipeline Renderer::pipeline()
   if (!m_pipeline)
 #else
   if (!m_pipeline
-      || deviceState()->rendererModules.lastMDLMaterialChange
-          > m_lastMDLMaterialCheck)
+      || deviceState()->mdl->materialRegistry.getLastUpdateTime()
+          > m_lastMDLMaterialLibraryUpdateCheck)
 #endif
     initOptixPipeline();
 
@@ -223,8 +214,8 @@ const OptixShaderBindingTable *Renderer::sbt()
   if (!m_pipeline)
 #else
   if (!m_pipeline
-      || deviceState()->rendererModules.lastMDLMaterialChange
-          > m_lastMDLMaterialCheck)
+      || deviceState()->mdl->materialRegistry.getLastUpdateTime()
+          > m_lastMDLMaterialLibraryUpdateCheck)
 #endif
 
     initOptixPipeline();
@@ -446,36 +437,37 @@ void Renderer::initOptixPipeline()
 
     // MDLs
 #ifdef USE_MDL
-    if (auto mdlCompiler = MDLCompiler::getMDLCompiler(&state)) {
-      for (const auto &ptxBlob : mdlCompiler->getPTXBlobs()) {
-        OptixModule module;
-        OptixModuleCompileOptions moduleCompileOptions = {};
-        moduleCompileOptions.maxRegisterCount =
-            OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
-        moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-        moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
-        moduleCompileOptions.numPayloadTypes = 0;
-        moduleCompileOptions.payloadTypes = 0;
+    for (const auto &ptxBlob : state.mdl->materialRegistry.getPtxBlobs()) {
+      OptixModule module;
+      OptixModuleCompileOptions moduleCompileOptions = {};
+      moduleCompileOptions.maxRegisterCount =
+          OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+      moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+      moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+      moduleCompileOptions.numPayloadTypes = 0;
+      moduleCompileOptions.payloadTypes = 0;
 
-        auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
+      auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
-        OPTIX_CHECK(optixModuleCreate(state.optixContext,
-            &moduleCompileOptions,
-            &pipelineCompileOptions,
-            reinterpret_cast<const char *>(ptxBlob.ptr),
-            ptxBlob.size,
-            log,
-            &sizeof_log,
-            &module));
+      OPTIX_CHECK(optixModuleCreate(state.optixContext,
+          &moduleCompileOptions,
+          &pipelineCompileOptions,
+          std::data(ptxBlob),
+          std::size(ptxBlob),
+          log,
+          &sizeof_log,
+          &module));
 
-        OptixProgramGroupDesc callableDesc = {};
-        callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-        callableDesc.callables.moduleDC = module;
-        callableDesc.callables.entryFunctionNameDC =
-            "__direct_callable__evalSurfaceMaterial";
-        callableDescs.push_back(callableDesc);
-      }
+      OptixProgramGroupDesc callableDesc = {};
+      callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+      callableDesc.callables.moduleDC = module;
+      callableDesc.callables.entryFunctionNameDC =
+          "__direct_callable__evalSurfaceMaterial";
+      callableDescs.push_back(callableDesc);
     }
+
+    m_lastMDLMaterialLibraryUpdateCheck =
+        deviceState()->mdl->materialRegistry.getLastUpdateTime();
 #endif // defined(USE_MDL)
 
     //
@@ -562,38 +554,18 @@ void Renderer::initOptixPipeline()
     m_sbt.hitgroupRecordCount = hitgroupRecords.size();
 
     std::vector<MaterialRecord> materialRecords;
-    uint64_t i = 0;
-    materialRecords.push_back({}); // Matte
-    OPTIX_CHECK(
-        optixSbtRecordPackHeader(m_materialPGs[i++], &materialRecords[0]));
-    materialRecords.push_back({}); // PhysicallyBased
-    OPTIX_CHECK(
-        optixSbtRecordPackHeader(m_materialPGs[i++], &materialRecords[1]));
+    for (auto &mpg : m_materialPGs) {
+      MaterialRecord rec;
+      OPTIX_CHECK(optixSbtRecordPackHeader(mpg, &rec));
 
-    // MDL
-#ifdef USE_MDL
-    if (auto compiler = MDLCompiler::getMDLCompiler(&state)) {
-      auto mdlSbtEntries = compiler->getMaterialSbtEntries();
-
-      for (const auto &materialSbtData : mdlSbtEntries) {
-        MaterialRecord rec;
-        rec.data = materialSbtData;
-        materialRecords.push_back(rec);
-        OPTIX_CHECK(optixSbtRecordPackHeader(
-            m_materialPGs[i++], &materialRecords.back()));
-      }
+      materialRecords.push_back(rec);
     }
-#endif // defined(USE_MDL)
 
     m_materialRecordsBuffer.upload(materialRecords);
     m_sbt.callablesRecordBase = (CUdeviceptr)m_materialRecordsBuffer.ptr();
     m_sbt.callablesRecordStrideInBytes = sizeof(MaterialRecord);
     m_sbt.callablesRecordCount = materialRecords.size();
   }
-
-#ifdef USE_MDL
-  m_lastMDLMaterialCheck = helium::newTimeStamp();
-#endif // defined(USE_MDL)
 }
 
 OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions()

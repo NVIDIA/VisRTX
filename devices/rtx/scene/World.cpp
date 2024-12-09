@@ -40,11 +40,9 @@
 #include "utility/AnariTypeHelpers.h"
 
 #ifdef USE_MDL
-#include "scene/surface/material/MDL.h"
 #include <set>
+#include "scene/surface/material/MDL.h"
 #endif // defined(USE_MDL)
-
-
 
 namespace visrtx {
 
@@ -201,49 +199,49 @@ void World::rebuildWorld()
     rebuildBLASs();
   }
 
-  if (state.objectUpdates.lastTLASChange < m_objectUpdates.lastTLASBuild)
-    return;
+  if (m_objectUpdates.lastTLASBuild <= state.objectUpdates.lastTLASChange) {
+    m_surfaceBounds = box3();
+    m_volumeBounds = box3();
+    m_traversableSurfaces = {};
+    m_traversableVolumes = {};
 
-  m_surfaceBounds = box3();
-  m_volumeBounds = box3();
-  m_traversableSurfaces = {};
-  m_traversableVolumes = {};
+    populateOptixInstances();
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World building surface BVH over %zu instances",
+        m_optixSurfaceInstances.size());
+    buildOptixBVH(createOBI(m_optixSurfaceInstances),
+        m_bvhSurfaces,
+        m_traversableSurfaces,
+        m_surfaceBounds,
+        this);
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::World building surface gpu data");
+    buildInstanceSurfaceGPUData();
 
-  populateOptixInstances();
-  reportMessage(ANARI_SEVERITY_DEBUG,
-      "visrtx::World building surface BVH over %zu instances",
-      m_optixSurfaceInstances.size());
-  buildOptixBVH(createOBI(m_optixSurfaceInstances),
-      m_bvhSurfaces,
-      m_traversableSurfaces,
-      m_surfaceBounds,
-      this);
-  reportMessage(
-      ANARI_SEVERITY_DEBUG, "visrtx::World building surface gpu data");
-  buildInstanceSurfaceGPUData();
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World building volume BVH over %zu instances",
+        m_optixVolumeInstances.size());
+    buildOptixBVH(createOBI(m_optixVolumeInstances),
+        m_bvhVolumes,
+        m_traversableVolumes,
+        m_volumeBounds,
+        this);
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::World building volume gpu data");
+    buildInstanceVolumeGPUData();
 
-  reportMessage(ANARI_SEVERITY_DEBUG,
-      "visrtx::World building volume BVH over %zu instances",
-      m_optixVolumeInstances.size());
-  buildOptixBVH(createOBI(m_optixVolumeInstances),
-      m_bvhVolumes,
-      m_traversableVolumes,
-      m_volumeBounds,
-      this);
-  reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World building volume gpu data");
-  buildInstanceVolumeGPUData();
+    buildInstanceLightGPUData();
 
-  buildInstanceLightGPUData();
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World finished building world over %zu instances",
+        m_instances.size());
+
+    m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
+  }
 
 #ifdef USE_MDL
   buildMDLMaterialGPUData();
 #endif // defined(USE_MDL)
-
-  reportMessage(ANARI_SEVERITY_DEBUG,
-      "visrtx::World finished building world over %zu instances",
-      m_instances.size());
-
-  m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
 }
 
 void World::populateOptixInstances()
@@ -479,31 +477,42 @@ void World::buildInstanceLightGPUData()
 }
 
 #ifdef USE_MDL
-void World::buildMDLMaterialGPUData() {
-  auto state = static_cast<DeviceGlobalState*>(deviceState());
-  if (state->objectUpdates.lastMDLMaterialChange <= m_objectUpdates.lastMDLMaterialCheck)
+void World::buildMDLMaterialGPUData()
+{
+  auto state = static_cast<DeviceGlobalState *>(deviceState());
+
+  if (state->objectUpdates.lastMDLObjectChange
+      < m_objectUpdates.lastMDLObjectCheck)
     return;
 
-  std::set<const MDL*> processed;
+  std::set<const MDL *> processed;
 
-  for (const auto& instance : m_instances) {
+  for (const auto &instance : m_instances) {
     const auto group = instance->group();
-    if (const auto surfaceObjects = group->getParamObject<ObjectArray>("surface")) {
+    if (const auto surfaceObjects =
+            group->getParamObject<ObjectArray>("surface")) {
       const auto surfaces = make_Span(
-        reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()), surfaceObjects->totalSize());
-      for (auto surface: surfaces) {
-        if (auto material  = dynamic_cast<const MDL*>(surface->material())) {
-          if (material->lastCommitted() > m_objectUpdates.lastMDLMaterialCheck &&
-              processed.find(material) == processed.end()) {
-              const_cast<MDL*>(material)->upload();
-              processed.insert(material);
+          reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()),
+          surfaceObjects->totalSize());
+      for (auto surface : surfaces) {
+        if (auto material = dynamic_cast<MDL *>(surface->material())) {
+          if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck
+              && processed.find(material) == processed.end()) {
+            material->syncSource();
+            material->syncParameters();
+            // FIXME: Should only be done when materialregistry has been updated
+            // with new or removed materials.
+            material->syncImplementationIndex();
+
+            const_cast<MDL *>(material)->upload();
+            processed.insert(material);
           }
         }
       }
     }
   }
   state->rendererModules.lastMDLMaterialChange =
-    m_objectUpdates.lastMDLMaterialCheck = helium::newTimeStamp();
+      m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
 }
 #endif // defined(USE_MDL)
 

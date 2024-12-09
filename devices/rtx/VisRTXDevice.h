@@ -38,8 +38,6 @@
 // std
 #include <atomic>
 
-#include "Object.h"
-
 namespace visrtx {
 
 enum class DeviceInitStatus

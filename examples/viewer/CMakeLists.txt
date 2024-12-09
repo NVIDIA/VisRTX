@@ -81,4 +81,5 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   glm_visrtx
   CUDA::cudart
   tiny_obj_loader
+  fmt::fmt
 )
