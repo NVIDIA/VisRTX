@@ -42,7 +42,9 @@ static void fillExtensionStruct(
   std::memset(extensions, 0, sizeof(VisRTXExtensions));
   for (const auto *i = list; *i != NULL; ++i) {
     std::string_view feature = *i;
-    if (feature == "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS")
+    if (feature == "ANARI_VISRTX_ARRAY_CUDA")
+      extensions->VISRTX_ARRAY_CUDA = 1;
+    else if (feature == "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS")
       extensions->VISRTX_CUDA_OUTPUT_BUFFERS = 1;
     else if (feature == "ANARI_VISRTX_INSTANCE_ATTRIBUTES")
       extensions->VISRTX_INSTANCE_ATTRIBUTES = 1;

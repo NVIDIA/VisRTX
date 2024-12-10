@@ -60,8 +60,21 @@ PRIVATE
   $<BUILD_INTERFACE:tsd_tinyply>
 )
 
+if (TSD_USE_CUDA)
+  project_compile_definitions(PUBLIC -DTSD_USE_CUDA=1)
+  project_link_libraries(PUBLIC CUDA::cudart)
+  set_source_files_properties(
+    objects/SpatialField.cpp
+    PROPERTIES
+      COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
+      LANGUAGE CUDA
+  )
+else()
+  project_compile_definitions(PUBLIC -DTSD_USE_CUDA=0)
+endif()
+
 if (TSD_ENABLE_SERIALIZATION)
-  project_link_libraries(PRIVATE $<BUILD_INTERFACE:tsd_conduit>)
+  project_link_libraries(PRIVATE tsd_conduit)
   set_source_files_properties(authoring/serialization/serialization.cpp
     PROPERTIES
       COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=1
@@ -76,7 +89,7 @@ endif()
 if (TSD_USE_HDF5)
   find_package(HDF5 REQUIRED COMPONENTS CXX)
   project_compile_definitions(PRIVATE -DTSD_USE_HDF5=1)
-  project_link_libraries(PRIVATE $<BUILD_INTERFACE:HDF5::HDF5>)
+  project_link_libraries(PRIVATE HDF5::HDF5)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_HDF5=0)
 endif()
@@ -84,7 +97,7 @@ endif()
 if (TSD_USE_ASSIMP)
   find_package(assimp REQUIRED)
   project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=1)
-  project_link_libraries(PRIVATE $<BUILD_INTERFACE:assimp::assimp>)
+  project_link_libraries(PRIVATE assimp::assimp)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=0)
 endif()

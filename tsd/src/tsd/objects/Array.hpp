@@ -8,25 +8,36 @@
 #include <cassert>
 #include <cstddef>
 #include <memory>
-#include <vector>
 
 namespace tsd {
 
 struct Array : public Object
 {
   static constexpr anari::DataType ANARI_TYPE = ANARI_ARRAY;
+  // clang-format off
+  enum class MemoryKind { HOST, CUDA };
+  // clang-format on
 
-  Array(anari::DataType type, size_t items0);
-  Array(anari::DataType type, size_t items0, size_t items1);
-  Array(anari::DataType type, size_t items0, size_t items1, size_t items2);
+  Array(
+      anari::DataType type, size_t items0, MemoryKind kind = MemoryKind::HOST);
+  Array(anari::DataType type,
+      size_t items0,
+      size_t items1,
+      MemoryKind kind = MemoryKind::HOST);
+  Array(anari::DataType type,
+      size_t items0,
+      size_t items1,
+      size_t items2,
+      MemoryKind kind = MemoryKind::HOST);
 
   Array() = default;
-  ~Array() override = default;
+  ~Array() override;
 
   size_t size() const;
   size_t elementSize() const;
   bool isEmpty() const;
 
+  MemoryKind kind() const;
   size_t shape() const;
   size_t dim(size_t d) const;
 
@@ -52,17 +63,19 @@ struct Array : public Object
   // Movable, not copyable
   Array(const Array &) = delete;
   Array &operator=(const Array &) = delete;
-  Array(Array &&) = default;
-  Array &operator=(Array &&) = default;
+  Array(Array &&);
+  Array &operator=(Array &&);
 
  private:
   Array(anari::DataType arrayType,
       anari::DataType type,
       size_t items0,
       size_t items1,
-      size_t items2);
+      size_t items2,
+      MemoryKind kind);
 
-  std::vector<unsigned char> m_data;
+  void *m_data{nullptr};
+  MemoryKind m_kind{MemoryKind::HOST};
   anari::DataType m_elementType{ANARI_UNKNOWN};
   size_t m_shape{0};
   size_t m_dim0{0};

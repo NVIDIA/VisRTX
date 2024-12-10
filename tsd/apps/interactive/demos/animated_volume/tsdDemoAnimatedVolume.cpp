@@ -61,7 +61,7 @@ class Application : public BaseApplication
     auto field = ctx.createObject<tsd::SpatialField>(
         tsd::tokens::spatial_field::structuredRegular);
     field->setName("jacobi_field");
-    solver->setField(field.data());
+    solver->setField(field);
 
     auto volume =
         ctx.createObject<tsd::Volume>(tsd::tokens::volume::transferFunction1D);

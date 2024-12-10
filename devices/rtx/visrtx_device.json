@@ -37,6 +37,7 @@
       "khr_sampler_transform",
       "khr_spatial_field_structured_regular",
       "khr_volume_transfer_function1d",
+      "visrtx_array_cuda",
       "visrtx_cuda_output_buffers",
       "visrtx_instance_attributes",
       $<$<BOOL:$<TARGET_EXISTS:MDL_SDK::MDL_SDK>>:"visrtx_material_mdl",>

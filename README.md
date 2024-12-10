@@ -79,6 +79,13 @@ In addition to standard `ANARI_KHR` extensions, the following extensions are
 also implemented in the `visrtx` device. Note that all extensions are subject to
 change
 
+#### "VISRTX_CUDA_ARRAY" (experimental)
+
+This extension indicates that applications can use pointers to CUDA device
+memory when created shared and captured arrays when using VisRTX. This is
+currently only working with `sharedStructured` spatial fields and is under
+active development.
+
 #### "VISRTX_CUDA_OUTPUT_BUFFERS"
 
 This extension indicates that raw CUDA GPU buffers from frame objects can be

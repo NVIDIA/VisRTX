@@ -1,6 +1,11 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#ifdef TSD_USE_CUDA
+#undef TSD_USE_CUDA
+#define TSD_USE_CUDA 0
+#endif
+
 // catch
 #include "catch.hpp"
 // tsd

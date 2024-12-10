@@ -11,6 +11,9 @@
 #include <cstdio>
 #include <random>
 #include <vector>
+// thrust
+#include <thrust/copy.h>
+#include <thrust/device_ptr.h>
 
 #include "jacobi3D.h"
 
@@ -22,7 +25,7 @@ SolverControls::SolverControls(AppCore *core, const char *name)
 
 void SolverControls::buildUI()
 {
-  if (m_data == nullptr) {
+  if (!m_field) {
     ImGui::Text("{solver window not setup correctly}");
     return;
   }
@@ -61,13 +64,19 @@ void SolverControls::buildUI()
 
   ImGui::SliderInt("iterations-per-cycle", &m_iterationsPerCycle, 1, 100);
 
+  ImGui::BeginDisabled(m_totalIterations > 0);
+  if (ImGui::Checkbox("use GPU array interop", &m_useGPUInterop))
+    resetSolver();
+  ImGui::EndDisabled();
+  ImGui::Checkbox("auto update transfer function", &m_updateTF);
+
   ImGui::Separator();
 
   if (ImGui::Button("export .raw"))
     exportRAW();
 }
 
-void SolverControls::setField(tsd::SpatialField *f)
+void SolverControls::setField(tsd::SpatialFieldRef f)
 {
   m_field = f;
   resetSolver();
@@ -86,11 +95,25 @@ void SolverControls::remakeDataArray()
   }
 
   auto &ctx = m_core->tsd.ctx;
-  if (m_data)
-    ctx.removeObject(*m_data);
+  if (m_dataHost)
+    ctx.removeObject(*m_dataHost);
+  if (m_dataCUDA_1)
+    ctx.removeObject(*m_dataCUDA_1);
+  if (m_dataCUDA_2)
+    ctx.removeObject(*m_dataCUDA_2);
 
-  m_data = ctx.createArray(ANARI_FLOAT32, m_dims.x, m_dims.y, m_dims.z).data();
-  m_field->setParameterObject("data", *m_data);
+  m_dataHost = {};
+  m_dataCUDA_1 = {};
+  m_dataCUDA_2 = {};
+
+  if (m_useGPUInterop) {
+    m_dataCUDA_1 =
+        ctx.createArrayCUDA(ANARI_FLOAT32, m_dims.x, m_dims.y, m_dims.z);
+    m_dataCUDA_2 =
+        ctx.createArrayCUDA(ANARI_FLOAT32, m_dims.x, m_dims.y, m_dims.z);
+  } else {
+    m_dataHost = ctx.createArray(ANARI_FLOAT32, m_dims.x, m_dims.y, m_dims.z);
+  }
   m_field->setParameter("spacing", 2.f / tsd::float3(m_dims.x));
 }
 
@@ -113,16 +136,16 @@ void SolverControls::resetSolver()
   rng.seed(0);
   std::uniform_real_distribution<float> dist(-100.f, 100.0f);
 
-  const auto nx = m_data->dim(0);
-  const auto ny = m_data->dim(1);
-  const auto nz = m_data->dim(2);
-  auto *h_grid = m_data->mapAs<float>();
+  const auto nx = m_dims.x;
+  const auto ny = m_dims.y;
+  const auto nz = m_dims.z;
+  std::vector<float> h_grid(nx * ny * nz);
 
   // Example: Set initial values and boundary conditions
   for (int z = 0; z < nz; ++z) {
     for (int y = 0; y < ny; ++y) {
       for (int x = 0; x < nx; ++x) {
-        const auto idx = x + nx * (y + ny * z);
+        const auto idx = size_t(x) + size_t(nx) * (y + size_t(ny) * z);
         if (x == 0 || x == nx - 1 || y == 0 || y == ny - 1 || z == 0
             || z == nz - 1)
           h_grid[idx] = 1.0; // Boundary condition
@@ -132,7 +155,20 @@ void SolverControls::resetSolver()
     }
   }
 
-  m_data->unmap();
+  if (m_useGPUInterop) {
+    cudaMemcpy(m_dataCUDA_2->map(),
+        h_grid.data(),
+        m_dataCUDA_2->size() * anari::sizeOf(m_dataCUDA_2->elementSize()),
+        cudaMemcpyHostToDevice);
+    m_dataCUDA_2->unmap();
+    m_field->setParameterObject("data", *m_dataCUDA_2);
+  } else {
+    std::memcpy(m_dataHost->map(),
+        h_grid.data(),
+        m_dataHost->size() * anari::sizeOf(m_dataHost->elementSize()));
+    m_dataHost->unmap();
+    m_field->setParameterObject("data", *m_dataHost);
+  }
 
   if (m_cb)
     m_cb();
@@ -152,12 +188,26 @@ void SolverControls::iterateSolver()
 
   auto start = std::chrono::steady_clock::now();
 
-  const auto nx = m_data->dim(0);
-  const auto ny = m_data->dim(1);
-  const auto nz = m_data->dim(2);
-  auto *h_grid = m_data->mapAs<float>();
-  tsd::jacobi3D(nx, ny, nz, h_grid, m_iterationsPerCycle);
-  m_data->unmap();
+  const auto nx = m_dims.x;
+  const auto ny = m_dims.y;
+  const auto nz = m_dims.z;
+  if (m_useGPUInterop) {
+    auto *d_grid_1 = m_dataCUDA_1->mapAs<float>();
+    auto *d_grid_2 = m_dataCUDA_2->mapAs<float>();
+    if (m_totalIterations % 2)
+      std::swap(d_grid_1, d_grid_2);
+    tsd::jacobi3D(nx, ny, nz, d_grid_1, d_grid_2, m_iterationsPerCycle);
+    m_dataCUDA_1->unmap();
+    m_dataCUDA_2->unmap();
+    if (m_iterationsPerCycle % 2) {
+      m_field->setParameterObject(
+          "data", m_totalIterations % 2 ? *m_dataCUDA_1 : *m_dataCUDA_2);
+    }
+  } else {
+    auto *h_grid = m_dataHost->mapAs<float>();
+    tsd::jacobi3D(nx, ny, nz, h_grid, m_iterationsPerCycle);
+    m_dataHost->unmap();
+  }
 
   m_totalIterations += m_iterationsPerCycle;
 
@@ -170,7 +220,7 @@ void SolverControls::iterateSolver()
 
   start = std::chrono::steady_clock::now();
 
-  if (m_cb)
+  if (m_updateTF && m_cb)
     m_cb();
 
   end = std::chrono::steady_clock::now();
@@ -183,9 +233,9 @@ void SolverControls::iterateSolver()
 
 void SolverControls::exportRAW()
 {
-  const auto nx = m_data->dim(0);
-  const auto ny = m_data->dim(1);
-  const auto nz = m_data->dim(2);
+  const auto nx = size_t(m_dims.x);
+  const auto ny = size_t(m_dims.y);
+  const auto nz = size_t(m_dims.z);
 
   std::string filename;
   filename.resize(100);
@@ -196,8 +246,19 @@ void SolverControls::exportRAW()
       nx,
       ny,
       nz));
+
+  if (m_useGPUInterop) {
+    cudaMemcpy(m_dataHost->map(),
+        m_dataCUDA_2->map(),
+        m_dataHost->size() * anari::sizeOf(m_dataHost->elementSize()),
+        cudaMemcpyDeviceToHost);
+    m_dataCUDA_2->unmap();
+    m_dataHost->unmap();
+  }
+
   auto *fp = std::fopen(filename.c_str(), "wb");
-  std::fwrite(m_data->dataAs<float>(), sizeof(float), m_data->size(), fp);
+  std::fwrite(
+      m_dataHost->dataAs<float>(), sizeof(float), m_dataHost->size(), fp);
   std::fclose(fp);
 
   tsd::logStatus("[jacobi solver] exported data to %s", filename.c_str());

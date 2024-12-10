@@ -29,36 +29,29 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
-
-#include "Object.h"
-#include "utility/DeviceBuffer.h"
+#include "UploadableArray.h"
 
 namespace visrtx {
 
-enum class AddressSpace
+UploadableArray::UploadableArray(ANARIDataType arrayType, DeviceGlobalState *s)
+    : helium::BaseArray(arrayType, s)
+{}
+
+UploadableArray::~UploadableArray() = default;
+
+void UploadableArray::markDataModified()
 {
-  HOST,
-  GPU
-};
+  m_lastDataModified = helium::newTimeStamp();
+}
 
-struct GPUArray
+void UploadableArray::markDataUploaded() const
 {
-  GPUArray() = default;
-  ~GPUArray() = default;
+  m_lastDataUploaded = helium::newTimeStamp();
+}
 
-  virtual const void *dataGPU() const = 0;
-
- protected:
-  struct
-  {
-    mutable DeviceBuffer buffer;
-  } m_deviceData;
-
-  mutable cudaArray_t m_cuArrayFloat{};
-  size_t m_arrayRefCountFloat{0};
-  mutable cudaArray_t m_cuArrayUint8{};
-  size_t m_arrayRefCountUint8{0};
-};
+bool UploadableArray::needToUploadData() const
+{
+  return m_lastDataModified > m_lastDataUploaded;
+}
 
 } // namespace visrtx

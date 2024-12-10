@@ -1,33 +1,58 @@
 // Copyright 2024 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef TSD_USE_CUDA
+#define TSD_USE_CUDA 1
+#endif
+
 #include "tsd/objects/Array.hpp"
 // std
-#include <exception>
+#include <stdexcept>
+#if TSD_USE_CUDA
+// cuda
+#include <cuda_runtime.h>
+#endif
 
 namespace tsd {
 
-Array::Array(anari::DataType type, size_t items0)
-    : Array(ANARI_ARRAY1D, type, items0, 1, 1)
+Array::Array(anari::DataType type, size_t items0, Array::MemoryKind kind)
+    : Array(ANARI_ARRAY1D, type, items0, 1, 1, kind)
 {
   m_shape = 1;
 }
 
-Array::Array(anari::DataType type, size_t items0, size_t items1)
-    : Array(ANARI_ARRAY2D, type, items0, items1, 1)
+Array::Array(
+    anari::DataType type, size_t items0, size_t items1, Array::MemoryKind kind)
+    : Array(ANARI_ARRAY2D, type, items0, items1, 1, kind)
 {
   m_shape = 2;
 }
 
-Array::Array(anari::DataType type, size_t items0, size_t items1, size_t items2)
-    : Array(ANARI_ARRAY3D, type, items0, items1, items2)
+Array::Array(anari::DataType type,
+    size_t items0,
+    size_t items1,
+    size_t items2,
+    Array::MemoryKind kind)
+    : Array(ANARI_ARRAY3D, type, items0, items1, items2, kind)
 {
   m_shape = 3;
 }
 
+Array::~Array()
+{
+  if (m_data) {
+#if TSD_USE_CUDA
+    if (kind() == MemoryKind::CUDA)
+      cudaMalloc(&m_data, size() * elementSize());
+    else
+#endif
+      std::free(m_data);
+  }
+}
+
 size_t Array::size() const
 {
-  return m_data.size() / elementSize();
+  return dim(0) * dim(1) * dim(2);
 }
 
 size_t Array::elementSize() const
@@ -38,6 +63,11 @@ size_t Array::elementSize() const
 bool Array::isEmpty() const
 {
   return size() == 0;
+}
+
+Array::MemoryKind Array::kind() const
+{
+  return m_kind;
 }
 
 size_t Array::shape() const
@@ -67,12 +97,12 @@ void *Array::map()
   m_mapped = true;
   if (auto *ud = updateDelegate(); ud != nullptr)
     ud->signalArrayMapped(this);
-  return m_data.data();
+  return m_data;
 }
 
 const void *Array::data() const
 {
-  return m_data.data();
+  return m_data;
 }
 
 void Array::unmap()
@@ -94,36 +124,20 @@ anari::Object Array::makeANARIObject(anari::Device d) const
   if (elementType() == ANARI_UNKNOWN)
     return nullptr;
 
-  const bool isObjectArray = anari::isObject(elementType());
   anari::Object retval = nullptr;
 
   switch (shape()) {
   case 1:
-    retval = anariNewArray1D(d,
-        isObjectArray ? nullptr : m_data.data(),
-        nullptr,
-        nullptr,
-        elementType(),
-        dim(0));
+    retval =
+        anari::newArray1D(d, m_data, nullptr, nullptr, elementType(), dim(0));
     break;
   case 2:
-    retval = anariNewArray2D(d,
-        isObjectArray ? nullptr : m_data.data(),
-        nullptr,
-        nullptr,
-        elementType(),
-        dim(0),
-        dim(1));
+    retval = anari::newArray2D(
+        d, m_data, nullptr, nullptr, elementType(), dim(0), dim(1));
     break;
   case 3:
-    retval = anariNewArray3D(d,
-        isObjectArray ? nullptr : m_data.data(),
-        nullptr,
-        nullptr,
-        elementType(),
-        dim(0),
-        dim(1),
-        dim(2));
+    retval = anari::newArray3D(
+        d, m_data, nullptr, nullptr, elementType(), dim(0), dim(1), dim(2));
     break;
   default:
     break;
@@ -133,18 +147,62 @@ anari::Object Array::makeANARIObject(anari::Device d) const
   return retval;
 }
 
+Array::Array(Array &&o) : Object(std::move(static_cast<Object &&>(o)))
+{
+  m_data = o.m_data;
+  m_kind = o.m_kind;
+  m_elementType = o.m_elementType;
+  m_shape = o.m_shape;
+  m_dim0 = o.m_dim0;
+  m_dim1 = o.m_dim1;
+  m_dim2 = o.m_dim2;
+  m_mapped = o.m_mapped;
+  o.m_data = nullptr;
+}
+
+Array &Array::operator=(Array &&o)
+{
+  if (this != &o) {
+    *static_cast<Object *>(this) = std::move(*static_cast<Object *>(&o));
+    m_data = o.m_data;
+    m_kind = o.m_kind;
+    m_elementType = o.m_elementType;
+    m_shape = o.m_shape;
+    m_dim0 = o.m_dim0;
+    m_dim1 = o.m_dim1;
+    m_dim2 = o.m_dim2;
+    m_mapped = o.m_mapped;
+    o.m_data = nullptr;
+  }
+  return *this;
+}
+
 Array::Array(anari::DataType arrayType,
     anari::DataType type,
     size_t items0,
     size_t items1,
-    size_t items2)
+    size_t items2,
+    MemoryKind kind)
     : Object(arrayType),
+      m_kind(kind),
       m_elementType(type),
       m_dim0(items0),
       m_dim1(items1),
       m_dim2(items2)
 {
-  m_data.resize(dim(0) * dim(1) * dim(2) * elementSize());
+  if (anari::isObject(type) && kind == MemoryKind::CUDA)
+    throw std::runtime_error("cannot create CUDA arrays of objects!");
+  else if (anari::isObject(type))
+    return;
+
+  if (kind == MemoryKind::CUDA) {
+#if TSD_USE_CUDA
+    cudaMalloc(&m_data, size() * elementSize());
+#else
+    throw std::runtime_error("CUDA support not enabled!");
+#endif
+  } else
+    m_data = std::malloc(size() * elementSize());
 }
 
 } // namespace tsd

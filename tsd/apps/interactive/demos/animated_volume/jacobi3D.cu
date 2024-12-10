@@ -69,29 +69,40 @@ struct JacobiStep
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-void jacobi3D(int nx, int ny, int nz, float *h_grid, int iterations)
+void jacobi3D(int nx,
+    int ny,
+    int nz,
+    float *d_grid_ptr,
+    float *d_old_grid_ptr,
+    int iterations)
 {
-  const size_t grid_size = nx * ny * nz;
-
-  thrust::device_vector<float> d_grid(grid_size);
-  thrust::device_vector<float> d_old_grid(grid_size);
-
-  thrust::copy(h_grid, h_grid + grid_size, d_grid.begin());
-  d_old_grid = d_grid;
-
+  auto d_grid = thrust::device_pointer_cast(d_grid_ptr);
+  auto d_old_grid = thrust::device_pointer_cast(d_old_grid_ptr);
   for (int iter = 0; iter < iterations; ++iter) {
     thrust::for_each(thrust::device,
         thrust::make_counting_iterator(size_t(0u)),
-        thrust::make_counting_iterator(grid_size),
-        JacobiStep(d_grid.data(), d_old_grid.data(), nx, ny, nz));
-
+        thrust::make_counting_iterator(size_t(nx * ny * nz)),
+        JacobiStep(d_grid, d_old_grid, nx, ny, nz));
     thrust::swap(d_grid, d_old_grid);
   }
+}
 
+void jacobi3D(int nx, int ny, int nz, float *h_grid, int iterations)
+{
+  // Setup GPU grids from host grid
+  const size_t grid_size = nx * ny * nz;
+  thrust::device_vector<float> d_grid_v(grid_size);
+  thrust::device_vector<float> d_old_grid_v(grid_size);
+  thrust::copy(h_grid, h_grid + grid_size, d_grid_v.begin());
+  d_old_grid_v = d_grid_v;
+  // Invoke GPU kernel
+  float *d_grid = thrust::raw_pointer_cast(d_grid_v.data());
+  float *d_old_grid = thrust::raw_pointer_cast(d_old_grid_v.data());
+  jacobi3D(nx, ny, nz, d_grid, d_old_grid, iterations);
+  // Copy data back to host
   if (iterations % 2)
     thrust::swap(d_grid, d_old_grid);
-
-  thrust::copy(d_grid.begin(), d_grid.end(), h_grid);
+  thrust::copy(d_grid_v.data(), d_grid_v.data() + grid_size, h_grid);
 }
 
 } // namespace tsd

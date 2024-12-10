@@ -30,6 +30,7 @@
  */
 
 #include "StructuredRegularField.h"
+#include "../../../utility/AnariTypeHelpers.h"
 // std
 #include <algorithm>
 #include <limits>
@@ -39,72 +40,10 @@ namespace visrtx {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-template <typename FROM_T, typename TO_T = float>
-static void convertElementsNormalized(
-    const void *_begin, size_t size, TO_T *output)
-{
-  auto toFloatNormalized = [](auto c) {
-    return TO_T(c / float(std::numeric_limits<FROM_T>::max()));
-  };
-  auto *begin = (const FROM_T *)_begin;
-  std::transform(begin, begin + size, output, toFloatNormalized);
-}
-
-template <typename FROM_T, typename TO_T = float>
-static void convertElements(const void *_begin, size_t size, TO_T *output)
-{
-  auto toFloat = [](auto c) { return TO_T(c); };
-  auto *begin = (const FROM_T *)_begin;
-  std::transform(begin, begin + size, output, toFloat);
-}
-
-static std::vector<float> makeFloatStagingBuffer(Array3D &array)
-{
-  const void *input = array.data();
-  size_t size = array.totalSize();
-
-  std::vector<float> stagingBuffer(size);
-
-  ANARIDataType format = array.elementType();
-
-  switch (format) {
-  case ANARI_UINT8:
-    convertElements<uint8_t>(input, size, stagingBuffer.data());
-    break;
-  case ANARI_INT16:
-    convertElements<int16_t>(input, size, stagingBuffer.data());
-    break;
-  case ANARI_UINT16:
-    convertElements<uint16_t>(input, size, stagingBuffer.data());
-    break;
-  case ANARI_UFIXED8:
-    convertElementsNormalized<uint8_t>(input, size, stagingBuffer.data());
-    break;
-  case ANARI_FIXED16:
-    convertElementsNormalized<int16_t>(input, size, stagingBuffer.data());
-    break;
-  case ANARI_UFIXED16:
-    convertElementsNormalized<uint16_t>(input, size, stagingBuffer.data());
-    break;
-  case ANARI_FLOAT32:
-    convertElements<float>(input, size, stagingBuffer.data());
-    break;
-  case ANARI_FLOAT64:
-    convertElements<double>(input, size, stagingBuffer.data());
-    break;
-  default:
-    break;
-  }
-
-  return stagingBuffer;
-}
-
-static bool validFieldDataType(ANARIDataType format)
+static bool validFieldDataType(anari::DataType format)
 {
   switch (format) {
-  case ANARI_UINT8:
-  case ANARI_INT16:
-  case ANARI_UINT16:
+  case ANARI_FIXED8:
   case ANARI_UFIXED8:
   case ANARI_FIXED16:
   case ANARI_UFIXED16:
@@ -115,6 +54,24 @@ static bool validFieldDataType(ANARIDataType format)
     break;
   }
   return false;
+}
+
+static cudaChannelFormatKind getCudaChannelFormatKind(anari::DataType format)
+{
+  switch (format) {
+  case ANARI_UFIXED8:
+  case ANARI_UFIXED16:
+    return cudaChannelFormatKindUnsigned;
+  case ANARI_FIXED16:
+  case ANARI_FIXED8:
+    return cudaChannelFormatKindSigned;
+  case ANARI_FLOAT32:
+  case ANARI_FLOAT64:
+  default:
+    return cudaChannelFormatKindFloat;
+    break;
+  }
+  return cudaChannelFormatKindFloat;
 }
 
 // StructuredRegularField definitions /////////////////////////////////////////
@@ -155,28 +112,24 @@ void StructuredRegularField::commit()
 
   const auto dims = m_data->size();
 
-  std::vector<float> stagingBuffer;
-  if (format != ANARI_FLOAT32)
-    stagingBuffer = makeFloatStagingBuffer(*m_data);
-
   auto desc = cudaCreateChannelDesc(
-      sizeof(float) * 8, 0, 0, 0, cudaChannelFormatKindFloat);
+      anari::sizeOf(format) * 8, 0, 0, 0, getCudaChannelFormatKind(format));
   cudaMalloc3DArray(
       &m_cudaArray, &desc, make_cudaExtent(dims.x, dims.y, dims.z));
 
   cudaMemcpy3DParms copyParams;
   std::memset(&copyParams, 0, sizeof(copyParams));
-  copyParams.srcPtr = make_cudaPitchedPtr(stagingBuffer.empty()
-          ? const_cast<void *>(m_data->data())
-          : stagingBuffer.data(),
-      dims.x * sizeof(float),
+  copyParams.srcPtr = make_cudaPitchedPtr(const_cast<void *>(m_data->dataGPU()),
+      dims.x * anari::sizeOf(format),
       dims.x,
       dims.y);
   copyParams.dstArray = m_cudaArray;
   copyParams.extent = make_cudaExtent(dims.x, dims.y, dims.z);
-  copyParams.kind = cudaMemcpyHostToDevice;
+  copyParams.kind = cudaMemcpyDeviceToDevice;
 
   cudaMemcpy3D(&copyParams);
+
+  m_data->evictGPU();
 
   cudaResourceDesc resDesc;
   std::memset(&resDesc, 0, sizeof(resDesc));
@@ -190,7 +143,8 @@ void StructuredRegularField::commit()
   texDesc.addressMode[2] = cudaAddressModeClamp;
   texDesc.filterMode =
       m_filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
-  texDesc.readMode = cudaReadModeElementType;
+  texDesc.readMode =
+      isFloat(format) ? cudaReadModeElementType : cudaReadModeNormalizedFloat;
   texDesc.normalizedCoords = 1;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);

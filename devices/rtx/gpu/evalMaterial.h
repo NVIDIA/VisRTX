@@ -112,7 +112,7 @@ VISRTX_DEVICE vec4 getAttributeValue(
   if (attr.data == nullptr || offset == 0xFFFFFFFF)
     return uniformFallback;
 
-  if (isFloat(attr.type))
+  if (isFloat32(attr.type))
     return getAttributeValue_f32(attr, offset);
   else if (isFixed8(attr.type))
     return getAttributeValue_ufixed<uint8_t>(attr, offset);

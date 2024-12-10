@@ -52,14 +52,14 @@ namespace visrtx {
 struct Object : public helium::BaseObject
 {
   Object(ANARIDataType type, DeviceGlobalState *s);
-  virtual ~Object() = default;
+  virtual ~Object() override;
 
   virtual bool getProperty(const std::string_view &name,
       ANARIDataType type,
       void *ptr,
-      uint32_t flags);
+      uint32_t flags) override;
 
-  virtual void commit();
+  virtual void commit() override;
 
   virtual void *deviceData() const;
 

@@ -20,7 +20,7 @@ struct SpatialField : public Object
 
   anari::Object makeANARIObject(anari::Device d) const override;
 
-  float2 computeValueRange();
+  tsd::float2 computeValueRange();
 };
 
 using SpatialFieldRef = IndexedVectorRef<SpatialField>;

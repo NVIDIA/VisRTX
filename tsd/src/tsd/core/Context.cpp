@@ -37,24 +37,13 @@ MaterialRef Context::defaultMaterial() const
 ArrayRef Context::createArray(
     anari::DataType type, size_t items0, size_t items1, size_t items2)
 {
-  ArrayRef retval;
+  return createArrayImpl(type, items0, items1, items2, Array::MemoryKind::HOST);
+}
 
-  if (items2 != 0)
-    retval = m_db.array.emplace(type, items0, items1, items2);
-  else if (items1 != 0)
-    retval = m_db.array.emplace(type, items0, items1);
-  else
-    retval = m_db.array.emplace(type, items0);
-
-  retval->m_context = this;
-  retval->m_index = retval.index();
-
-  if (m_updateDelegate) {
-    retval->setUpdateDelegate(m_updateDelegate);
-    m_updateDelegate->signalObjectAdded(retval.data());
-  }
-
-  return retval;
+ArrayRef Context::createArrayCUDA(
+    anari::DataType type, size_t items0, size_t items1, size_t items2)
+{
+  return createArrayImpl(type, items0, items1, items2, Array::MemoryKind::CUDA);
 }
 
 SurfaceRef Context::createSurface(
@@ -286,6 +275,32 @@ void Context::signalInstanceTreeChange()
 {
   if (m_updateDelegate)
     m_updateDelegate->signalInstanceStructureChanged();
+}
+
+ArrayRef Context::createArrayImpl(anari::DataType type,
+    size_t items0,
+    size_t items1,
+    size_t items2,
+    Array::MemoryKind kind)
+{
+  ArrayRef retval;
+
+  if (items2 != 0)
+    retval = m_db.array.emplace(type, items0, items1, items2, kind);
+  else if (items1 != 0)
+    retval = m_db.array.emplace(type, items0, items1, kind);
+  else
+    retval = m_db.array.emplace(type, items0, kind);
+
+  retval->m_context = this;
+  retval->m_index = retval.index();
+
+  if (m_updateDelegate) {
+    retval->setUpdateDelegate(m_updateDelegate);
+    m_updateDelegate->signalObjectAdded(retval.data());
+  }
+
+  return retval;
 }
 
 } // namespace tsd

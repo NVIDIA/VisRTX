@@ -88,14 +88,16 @@ project_sources(PRIVATE
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/VisRTXDeviceQueries.cpp 
+  ${CMAKE_CURRENT_BINARY_DIR}/VisRTXDeviceQueries.cpp
   VisRTXFeatureUtility.cpp
   VisRTXLibrary.cpp
 
+  array/Array.cpp
   array/Array1D.cpp
   array/Array2D.cpp
   array/Array3D.cpp
   array/ObjectArray.cpp
+  array/UploadableArray.cpp
 
   camera/Camera.cpp
   camera/Orthographic.cpp

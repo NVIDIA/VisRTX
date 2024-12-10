@@ -31,73 +31,26 @@
 
 #pragma once
 
-#include "Array.h"
+#include "optix_visrtx.h"
 // helium
-#include <helium/array/Array1D.h>
-// std
-#include <cassert>
+#include <helium/array/Array.h>
 
 namespace visrtx {
 
-using Array1DMemoryDescriptor = helium::Array1DMemoryDescriptor;
-
-struct Array1D : public Array
+struct UploadableArray : public helium::BaseArray
 {
-  Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
+  UploadableArray(ANARIDataType arrayType, DeviceGlobalState *s);
+  ~UploadableArray();
 
-  void commit() override;
+  virtual void uploadArrayData() const = 0;
 
-  size_t totalSize() const override;
-  size_t size() const;
-
-  const void *begin(AddressSpace as = AddressSpace::HOST) const;
-  const void *end(AddressSpace as = AddressSpace::HOST) const;
-
-  template <typename T>
-  const T *beginAs(AddressSpace as = AddressSpace::HOST) const;
-  template <typename T>
-  const T *endAs(AddressSpace as = AddressSpace::HOST) const;
-
-  template <typename T>
-  const T *valueAt(size_t i) const;
-
-  cudaArray_t acquireCUDAArrayFloat();
-  void releaseCUDAArrayFloat();
-
-  cudaArray_t acquireCUDAArrayUint8();
-  void releaseCUDAArrayUint8();
-
-  void uploadArrayData() const override;
+  void markDataModified();
+  void markDataUploaded() const;
+  bool needToUploadData() const;
 
  private:
-  size_t m_begin{0};
-  size_t m_end{0};
+  helium::TimeStamp m_lastDataModified{0};
+  mutable helium::TimeStamp m_lastDataUploaded{0};
 };
 
-// Inlined definitions ////////////////////////////////////////////////////////
-
-template <typename T>
-inline const T *Array1D::beginAs(AddressSpace as) const
-{
-  assert(anari::ANARITypeFor<T>::value == elementType());
-
-  return dataAs<T>(as) + m_begin;
-}
-
-template <typename T>
-inline const T *Array1D::endAs(AddressSpace as) const
-{
-  assert(anari::ANARITypeFor<T>::value == elementType());
-
-  return dataAs<T>(as) + m_end;
-}
-
-template <typename T>
-inline const T *Array1D::valueAt(size_t i) const
-{
-  return &beginAs<T>()[i];
-}
-
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Array1D *, ANARI_ARRAY1D);

@@ -14,25 +14,24 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
 {
   if (stype == tokens::spatial_field::structuredRegular) {
     addParameter("origin")
-        .setValue(float3(0.f, 0.f, 0.f))
+        .setValue(tsd::float3(0.f, 0.f, 0.f))
         .setDescription("bottom-left corner of the field");
     addParameter("spacing")
-        .setValue(float3(1.f, 1.f, 1.f))
-        .setMin(float3(0.f, 0.f, 0.f))
+        .setValue(tsd::float3(1.f, 1.f, 1.f))
+        .setMin(tsd::float3(0.f, 0.f, 0.f))
         .setDescription("voxel size in object-space units");
-    addParameter("filter")
-        .setValue("linear")
-        .setStringValues({"nearest", "linear"});
+    addParameter("filter").setValue("linear").setStringValues(
+        {"nearest", "linear"});
     addParameter("data")
         .setValue({ANARI_ARRAY3D, INVALID_INDEX})
         .setDescription("vertex-centered voxel data");
   } else if (stype == tokens::spatial_field::amr) {
     addParameter("gridOrigin")
-        .setValue(float3(0.f, 0.f, 0.f))
+        .setValue(tsd::float3(0.f, 0.f, 0.f))
         .setDescription("bottom-left corner of the field");
     addParameter("gridSpacing")
-        .setValue(float3(1.f, 1.f, 1.f))
-        .setMin(float3(0.f, 0.f, 0.f))
+        .setValue(tsd::float3(1.f, 1.f, 1.f))
+        .setMin(tsd::float3(0.f, 0.f, 0.f))
         .setDescription("voxel size in object-space units");
     addParameter("cellWidth")
         .setValue({ANARI_ARRAY1D, INVALID_INDEX})
@@ -50,9 +49,8 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
     addParameter("gridData")
         .setValue({ANARI_ARRAY1D, INVALID_INDEX})
         .setDescription("array containing serialzed NanoVDB grid");
-    addParameter("filter")
-        .setValue("linear")
-        .setStringValues({"nearest", "linear"});
+    addParameter("filter").setValue("linear").setStringValues(
+        {"linear", "nearest"});
   }
 }
 
@@ -61,14 +59,15 @@ anari::Object SpatialField::makeANARIObject(anari::Device d) const
   return anari::newObject<anari::SpatialField>(d, subtype().c_str());
 }
 
-float2 SpatialField::computeValueRange()
+tsd::float2 SpatialField::computeValueRange()
 {
-  float2 retval{0.f, 1.f};
+  tsd::float2 retval{0.f, 1.f};
   auto *ctx = this->context();
   if (!ctx)
     return retval;
 
-  auto getDataRangeFromParameter = [&](Parameter *p) -> std::optional<float2> {
+  auto getDataRangeFromParameter =
+      [&](Parameter *p) -> std::optional<tsd::float2> {
     if (!p || !anari::isArray(p->value().type()))
       return {};
     else if (auto a = ctx->getObject<Array>(p->value().getAsObjectIndex()); a)

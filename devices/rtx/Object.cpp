@@ -40,6 +40,8 @@ Object::Object(ANARIDataType type, DeviceGlobalState *s)
     : helium::BaseObject(type, s)
 {}
 
+Object::~Object() = default;
+
 void Object::commit()
 {
   // no-op

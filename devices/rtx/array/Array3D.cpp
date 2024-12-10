@@ -35,20 +35,29 @@
 namespace visrtx {
 
 Array3D::Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d)
-    : helium::Array3D(state, d)
-{}
-
-const void *Array3D::dataGPU() const
+    : Array(ANARI_ARRAY3D, state, d, d.numItems1 * d.numItems2 * d.numItems3)
 {
-  const_cast<Array3D *>(this)->markDataIsOffloaded(true);
-  if (needToUploadData())
-    uploadArrayData();
-  return m_deviceData.buffer.ptr();
+  m_size[0] = d.numItems1;
+  m_size[1] = d.numItems2;
+  m_size[2] = d.numItems3;
 }
+
+size_t Array3D::size(int dim) const
+{
+  return m_size[dim];
+}
+
+anari::math::uint3 Array3D::size() const
+{
+  return anari::math::uint3(
+      uint32_t(size(0)), uint32_t(size(1)), uint32_t(size(2)));
+}
+
 cudaArray_t Array3D::acquireCUDAArrayFloat()
 {
   if (!m_cuArrayFloat)
-    makeCudaArrayFloat(m_cuArrayFloat, *this, uvec3(size().x, size().y, size().z));
+    makeCudaArrayFloat(
+        m_cuArrayFloat, *this, uvec3(size().x, size().y, size().z));
   m_arrayRefCountFloat++;
   return m_cuArrayFloat;
 }
@@ -65,7 +74,8 @@ void Array3D::releaseCUDAArrayFloat()
 cudaArray_t Array3D::acquireCUDAArrayUint8()
 {
   if (!m_cuArrayUint8)
-    makeCudaArrayUint8(m_cuArrayUint8, *this, uvec3(size().x, size().y, size().z));
+    makeCudaArrayUint8(
+        m_cuArrayUint8, *this, uvec3(size().x, size().y, size().z));
   m_arrayRefCountUint8++;
   return m_cuArrayUint8;
 }
@@ -81,9 +91,15 @@ void Array3D::releaseCUDAArrayUint8()
 
 void Array3D::uploadArrayData() const
 {
-  helium::Array3D::uploadArrayData();
-  m_deviceData.buffer.upload(
-      (uint8_t *)data(), anari::sizeOf(elementType()) * totalSize());
+  Array::uploadArrayData();
+  if (m_cuArrayFloat) {
+    makeCudaArrayFloat(
+        m_cuArrayFloat, *this, uvec3(size().x, size().y, size().z));
+  }
+  if (m_cuArrayUint8) {
+    makeCudaArrayUint8(
+        m_cuArrayUint8, *this, uvec3(size().x, size().y, size().z));
+  }
 }
 
 } // namespace visrtx

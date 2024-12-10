@@ -94,6 +94,10 @@ struct Context
       size_t items0,
       size_t items1 = 0,
       size_t items2 = 0);
+  ArrayRef createArrayCUDA(anari::DataType type,
+      size_t items0,
+      size_t items1 = 0,
+      size_t items2 = 0);
   SurfaceRef createSurface(const char *name, GeometryRef g, MaterialRef m = {});
 
   template <typename T>
@@ -153,6 +157,12 @@ struct Context
       IndexedVector<OBJ_T> &iv, Token subtype);
   template <typename OBJ_T>
   IndexedVectorRef<OBJ_T> createObjectImpl(IndexedVector<OBJ_T> &iv);
+
+  ArrayRef createArrayImpl(anari::DataType type,
+      size_t items0,
+      size_t items1,
+      size_t items2,
+      Array::MemoryKind kind);
 
   ObjectDatabase m_db;
   BaseUpdateDelegate *m_updateDelegate{nullptr};
