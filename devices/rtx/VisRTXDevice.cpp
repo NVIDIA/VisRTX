@@ -692,7 +692,7 @@ DeviceInitStatus VisRTXDevice::initMDL()
   auto ineuray = static_cast<mi::neuraylib::INeuray *>(
       getParam<void *>("ineuray", nullptr));
   try {
-    auto deviceGlobalState = static_cast<DeviceGlobalState *>(deviceState());
+    auto deviceGlobalState = deviceState();
     if (ineuray) {
       deviceGlobalState->mdl.emplace(deviceGlobalState, ineuray);
     } else {
