@@ -41,11 +41,11 @@
 #include <anari/anari_cpp.hpp>
 // optix
 #include <helium/utility/TimeStamp.h>
-#include <mi/neuraylib/ineuray.h>
 #include <optix.h>
 #include <optix_stubs.h>
 // mdl
 #ifdef USE_MDL
+#include <mi/neuraylib/ineuray.h>
 #include "libmdl/Core.h"
 #include "mdl/Logger.h"
 #include "mdl/MaterialRegistry.h"
