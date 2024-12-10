@@ -20,6 +20,9 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
         .setValue(float3(1.f, 1.f, 1.f))
         .setMin(float3(0.f, 0.f, 0.f))
         .setDescription("voxel size in object-space units");
+    addParameter("filter")
+        .setValue("linear")
+        .setStringValues({"nearest", "linear"});
     addParameter("data")
         .setValue({ANARI_ARRAY3D, INVALID_INDEX})
         .setDescription("vertex-centered voxel data");
@@ -47,6 +50,9 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
     addParameter("gridData")
         .setValue({ANARI_ARRAY1D, INVALID_INDEX})
         .setDescription("array containing serialzed NanoVDB grid");
+    addParameter("filter")
+        .setValue("linear")
+        .setStringValues({"nearest", "linear"});
   }
 }
 
