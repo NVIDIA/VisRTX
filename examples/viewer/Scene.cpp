@@ -1384,7 +1384,7 @@ static ScenePtr generateMDLCubeScene(anari::Device d, MDLCubeConfig config)
       materials.push_back(material);
 
       auto surface = anari::newObject<anari::Surface>(d);
-      anari::setAndReleaseParameter(d, surface, "geometry", geom);
+      anari::setParameter(d, surface, "geometry", geom);
       anari::setParameter(d, surface, "material", material);
       anari::commitParameters(d, surface);
 
