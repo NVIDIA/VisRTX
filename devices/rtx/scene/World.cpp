@@ -503,8 +503,7 @@ void World::buildMDLMaterialGPUData()
             // FIXME: Should only be done when materialregistry has been updated
             // with new or removed materials.
             material->syncImplementationIndex();
-
-            const_cast<MDL *>(material)->upload();
+            material->upload();
             processed.insert(material);
           }
         }
