@@ -64,23 +64,31 @@ mark_as_advanced(VISRTX_ENABLE_NVTX)
 
 ## Code generation ##
 
+file(GLOB DEVICE_JSONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "visrtx_*.json")
+foreach(file ${DEVICE_JSONS})
+  file(GENERATE OUTPUT ${file} INPUT ${file})
+endforeach()
+
 anari_generate_queries(
   NAME visrtx
   PREFIX VisRTXDevice
   CPP_NAMESPACE visrtx
-  JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
-  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
+  JSON_ROOT_LOCATION ${CMAKE_CURRENT_BINARY_DIR}
+  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_BINARY_DIR}/visrtx_device.json
+  OUTPUT_LOCATION ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 ## Build library target ##
 
 project_add_library(SHARED)
 
+add_dependencies(${PROJECT_NAME} generate_visrtx)
+
 project_sources(PRIVATE
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
-  VisRTXDeviceQueries.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/VisRTXDeviceQueries.cpp 
   VisRTXFeatureUtility.cpp
   VisRTXLibrary.cpp
 
