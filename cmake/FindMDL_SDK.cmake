@@ -31,7 +31,6 @@ if (TARGET MDL_SDK::MDL_SDK)
   return()
 endif()
 
-message(STATUS "find_path(MDL_SDK_ROOT NAMES mdl_sdk.h PATHS ${MDL_SDK_PATH} ENV MDL_SDK_PATH PATH_SUFFIXES include/mi/)")
 find_path(MDL_SDK_ROOT NAMES "include/mi/mdl_sdk.h" PATHS ${MDL_SDK_PATH} ENV MDL_SDK_PATH)
 
 include(FindPackageHandleStandardArgs)
