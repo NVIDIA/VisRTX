@@ -57,8 +57,7 @@ if (BUILD_TESTING)
 endif()
 
 ## Build Libraries ##
-
-add_subdirectory(apps)
 add_subdirectory(external)
 add_subdirectory(src)
+add_subdirectory(apps)
 add_subdirectory(tests)
