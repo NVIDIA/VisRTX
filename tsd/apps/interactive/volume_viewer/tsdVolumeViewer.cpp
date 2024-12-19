@@ -68,8 +68,10 @@ class Application : public BaseApplication
         if (!g_filename.empty())
           tsd::logWarning("unable to load volume from file, using placeholder");
 
+        auto tx1 = core->tsd.ctx.insertChildTransformNode(core->tsd.ctx.tree.root());
+
         volume = tsd::generate_noiseVolume(
-            core->tsd.ctx, core->tsd.ctx.tree.root(), colorArray, opacityArray);
+            core->tsd.ctx, tx1, colorArray, opacityArray);
       }
 
       core->tsd.selectedObject = volume.data();

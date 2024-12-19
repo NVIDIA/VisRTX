@@ -39,8 +39,10 @@ VolumeRef import_volume(Context &ctx,
   if (field)
     valueRange = field->computeValueRange();
 
+  auto tx = ctx.insertChildTransformNode(ctx.tree.root());
+
   auto [inst, volume] = ctx.insertNewChildObjectNode<tsd::Volume>(
-      ctx.tree.root(), tokens::volume::transferFunction1D);
+      tx, tokens::volume::transferFunction1D);
   volume->setName(fileOf(filepath).c_str());
   volume->setParameterObject("value", *field);
   volume->setParameterObject("color", *colorArray);
