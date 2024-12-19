@@ -32,6 +32,8 @@
 #pragma once
 
 #include <nanovdb/NanoVDB.h>
+#include <texture_types.h>
+#include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
 #include "nanovdb/math/Math.h"
 #include "nanovdb/math/SampleFromVoxels.h"
@@ -44,6 +46,64 @@ VISRTX_DEVICE const SpatialFieldGPUData &getSpatialFieldData(
   return frameData.registry.fields[idx];
 }
 
+template<typename T>
+class SpatialFieldSampler {
+};
+
+template<>
+class SpatialFieldSampler<cudaTextureObject_t> {
+public:
+  VISRTX_DEVICE SpatialFieldSampler(const SpatialFieldGPUData& sf) {
+    m_texObj = sf.data.structuredRegular.texObj;
+    m_origin = sf.data.structuredRegular.origin;
+    m_spacing = sf.data.structuredRegular.spacing;
+    m_invSpacing = sf.data.structuredRegular.invSpacing;
+  }
+
+  VISRTX_DEVICE float operator()(const vec3 &location) {
+    const auto srfCoords =
+        ((location - m_origin) + 0.5f * m_spacing) * m_invSpacing;
+    return tex3D<float>(m_texObj, srfCoords.x, srfCoords.y, srfCoords.z);
+  }
+
+private:
+  cudaTextureObject_t m_texObj;
+  vec3 m_origin;
+  vec3 m_spacing;
+  vec3 m_invSpacing;
+};
+
+template<typename T>
+class SpatialFieldSampler<nanovdb::Grid<nanovdb::NanoTree<T>>> {
+  using GridType = typename nanovdb::Grid<nanovdb::NanoTree<T>>;
+  using AccessorType = typename GridType::AccessorType;
+  using SamplerType = nanovdb::math::SampleFromVoxels<AccessorType, 1>;
+
+public:
+  VISRTX_DEVICE SpatialFieldSampler(const SpatialFieldGPUData& sf) :
+    m_grid(reinterpret_cast<const GridType *>(sf.data.nvdbRegular.gridData)),
+    m_accessor(m_grid->getAccessor()),
+    m_sampler(nanovdb::math::createSampler<1>(m_accessor))
+  {
+  }
+
+  VISRTX_DEVICE float operator()(const vec3 &location) {
+    const auto nvdbLoc = nanovdb::Vec3d(location.x, location.y, location.z);
+    return m_sampler(nanovdb::math::Vec3d(m_grid->worldToIndexF(nvdbLoc)));
+  }
+
+private:
+  const GridType* m_grid;
+  const AccessorType m_accessor;
+  SamplerType m_sampler;
+};
+
+template<typename T>
+using NvdbSpatialFieldSampler = SpatialFieldSampler<nanovdb::Grid<nanovdb::NanoTree<T>>>;
+
+
+// FIXME: To remove once done with replace sampleSpatialField with SpatialFieldSamplers
+#if 1
 VISRTX_DEVICE float sampleSpatialField(
     const SpatialFieldGPUData &sf, const vec3 &location)
 {
@@ -65,6 +125,7 @@ VISRTX_DEVICE float sampleSpatialField(
     const auto nvdbLoc = nanovdb::Vec3d(location.x, location.y, location.z);
 
     switch (metadata.gridType) {
+#if 0
     case nanovdb::GridType::Fp4: {
       auto grid = reinterpret_cast<const nanovdb::Fp4Grid *>(metadata.gridData);
       auto acc = grid->getAccessor();
@@ -108,6 +169,12 @@ VISRTX_DEVICE float sampleSpatialField(
       retval = res;
       break;
     }
+#endif
+   case nanovdb::GridType::Float: {
+      NvdbSpatialFieldSampler<float> sampler(sf);
+      retval = sampler(location);
+      break;
+    }
     default:
       break;
     }
@@ -117,5 +184,6 @@ VISRTX_DEVICE float sampleSpatialField(
   }
   return retval;
 }
+#endif
 
 } // namespace visrtx
