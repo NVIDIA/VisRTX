@@ -83,12 +83,12 @@ void buildUI_object(tsd::Object &o,
       ImGui::Indent(tsd::ui::INDENT_AMOUNT);
 
     for (size_t i = 0; i < o.numParameters(); i++) {
-      ImGui::PushID(i);
-
       auto &p = o.parameterAt(i);
       auto &pVal = p.value();
       if (!pVal.holdsObject() || anari::isArray(pVal.type()))
         continue;
+
+      ImGui::PushID(i);
 
       ImGui::NewLine();
 
@@ -143,11 +143,11 @@ void buildUI_object(tsd::Object &o,
     ImGui::Text("%s", anari::toString(typeForSelection));
     ImGui::Separator();
     for (size_t i = 0; i < ctx.numberOfObjects(typeForSelection); i++) {
-      ImGui::PushID(i);
-
       auto *obj = ctx.getObject(typeForSelection, i);
       if (!obj)
         continue;
+
+      ImGui::PushID(i);
 
       static std::string oTitle;
       oTitle = '[';
