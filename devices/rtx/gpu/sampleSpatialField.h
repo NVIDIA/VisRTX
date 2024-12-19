@@ -31,7 +31,10 @@
 
 #pragma once
 
+#include <nanovdb/NanoVDB.h>
 #include "gpu/gpu_objects.h"
+#include "nanovdb/math/Math.h"
+#include "nanovdb/math/SampleFromVoxels.h"
 
 namespace visrtx {
 
@@ -47,14 +50,68 @@ VISRTX_DEVICE float sampleSpatialField(
   float retval = 0.f;
 
   // TODO: runtime compile errors if these are in the switch()
-  const auto &srf = sf.data.structuredRegular;
-  const auto srfCoords =
-      ((location - srf.origin) + 0.5f * srf.spacing) * srf.invSpacing;
 
   switch (sf.type) {
-  case SpatialFieldType::STRUCTURED_REGULAR:
+  case SpatialFieldType::STRUCTURED_REGULAR: {
+    const auto &srf = sf.data.structuredRegular;
+    const auto srfCoords =
+        ((location - srf.origin) + 0.5f * srf.spacing) * srf.invSpacing;
+
     retval = tex3D<float>(srf.texObj, srfCoords.x, srfCoords.y, srfCoords.z);
     break;
+  }
+  case SpatialFieldType::NANOVDB_REGULAR: {
+    const auto &metadata = sf.data.nvdbRegular;
+    const auto nvdbLoc = nanovdb::Vec3d(location.x, location.y, location.z);
+
+    switch (metadata.gridType) {
+    case nanovdb::GridType::Fp4: {
+      auto grid = reinterpret_cast<const nanovdb::Fp4Grid *>(metadata.gridData);
+      auto acc = grid->getAccessor();
+      auto sampler = nanovdb::math::createSampler<1>(acc);
+      auto res = sampler(nanovdb::math::Vec3d(grid->worldToIndexF(nvdbLoc)));
+      retval = res;
+      break;
+    }
+    case nanovdb::GridType::Fp8: {
+      auto grid = reinterpret_cast<const nanovdb::Fp8Grid *>(metadata.gridData);
+      auto acc = grid->getAccessor();
+      auto sampler = nanovdb::math::createSampler<1>(acc);
+      auto res = sampler(nanovdb::math::Vec3d(grid->worldToIndexF(nvdbLoc)));
+      retval = res;
+      break;
+    }
+    case nanovdb::GridType::Fp16: {
+      auto grid =
+          reinterpret_cast<const nanovdb::Fp16Grid *>(metadata.gridData);
+      auto acc = grid->getAccessor();
+      auto sampler = nanovdb::math::createSampler<1>(acc);
+      auto res = sampler(nanovdb::math::Vec3d(grid->worldToIndexF(nvdbLoc)));
+      retval = res;
+      break;
+    }
+    case nanovdb::GridType::FpN: {
+      auto grid = reinterpret_cast<const nanovdb::FpNGrid *>(metadata.gridData);
+      auto acc = grid->getAccessor();
+      auto sampler = nanovdb::math::createSampler<1>(acc);
+      auto res = sampler(nanovdb::math::Vec3d(grid->worldToIndexF(nvdbLoc)));
+      retval = res;
+      break;
+    }
+
+    case nanovdb::GridType::Float: {
+      auto grid =
+          reinterpret_cast<const nanovdb::FloatGrid *>(metadata.gridData);
+      auto acc = grid->getAccessor();
+      auto sampler = nanovdb::math::createSampler<1>(acc);
+      auto res = sampler(grid->worldToIndexF(nvdbLoc));
+      retval = res;
+      break;
+    }
+    default:
+      break;
+    }
+  }
   default:
     break;
   }

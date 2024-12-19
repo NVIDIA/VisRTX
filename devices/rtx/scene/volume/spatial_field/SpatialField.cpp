@@ -31,6 +31,7 @@
 
 #include "SpatialField.h"
 // specific types
+#include "NvdbRegularField.h"
 #include "StructuredRegularField.h"
 #include "UnknownSpatialField.h"
 
@@ -53,6 +54,8 @@ SpatialField *SpatialField::createInstance(
 {
   if (subtype == "structuredRegular")
     return new StructuredRegularField(d);
+  else if (subtype == "nanovdb")
+    return new NvdbRegularField(d);
   else
     return new UnknownSpatialField(subtype, d);
 }
