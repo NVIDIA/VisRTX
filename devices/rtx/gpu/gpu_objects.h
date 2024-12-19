@@ -32,6 +32,7 @@
 #pragma once
 
 #include "gpu/gpu_math.h"
+
 // optix
 #include <optix.h>
 // curand
@@ -39,6 +40,8 @@
 // anari
 #include <anari/anari_cpp.hpp>
 #include <glm/ext/matrix_float3x4.hpp>
+// nanovdb
+#include <nanovdb/NanoVDB.h>
 
 #define DECLARE_FRAME_DATA(n)                                                  \
   extern "C" {                                                                 \
@@ -375,15 +378,8 @@ struct SurfaceGPUData
 enum class SpatialFieldType
 {
   STRUCTURED_REGULAR,
+  NANOVDB_REGULAR,
   UNKNOWN
-};
-
-struct StructuredRegularData
-{
-  cudaTextureObject_t texObj{};
-  vec3 origin;
-  vec3 spacing;
-  vec3 invSpacing;
 };
 
 struct UniformGridData
@@ -394,12 +390,29 @@ struct UniformGridData
   float *maxOpacities; // used for adaptive sampling/space skipping
 };
 
+struct StructuredRegularData
+{
+  cudaTextureObject_t texObj;
+  vec3 origin;
+  vec3 spacing;
+  vec3 invSpacing;
+};
+
+struct NVdbRegularData
+{
+  vec3 origin;
+  vec3 voxelSize;
+  nanovdb::GridType gridType;
+  const void *gridData;
+};
+
 struct SpatialFieldGPUData
 {
   SpatialFieldType type{SpatialFieldType::UNKNOWN};
   union
   {
-    StructuredRegularData structuredRegular{};
+    StructuredRegularData structuredRegular;
+    NVdbRegularData nvdbRegular;
   } data;
   UniformGridData grid;
 };

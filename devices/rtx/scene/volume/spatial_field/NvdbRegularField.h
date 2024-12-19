@@ -31,32 +31,37 @@
 
 #pragma once
 
-#include "gpu/gpu_math.h"
-#include "gpu/gpu_objects.h"
+#include "array/Array1D.h"
+#include "nanovdb/GridHandle.h"
+#include "nanovdb/NanoVDB.h"
+#include "nanovdb/cuda/DeviceBuffer.h"
+#include "scene/volume/spatial_field/SpatialField.h"
+#include "utility/DeviceBuffer.h"
 
 namespace visrtx {
 
-struct UniformGrid
+struct NvdbRegularField : public SpatialField
 {
-  void init(ivec3 dims, box3 worldBounds, const SpatialFieldGPUData &sfgd = {});
+  NvdbRegularField(DeviceGlobalState *d);
+  ~NvdbRegularField();
+
+  void commit() override;
+
+  box3 bounds() const override;
+  float stepSize() const override;
+
+  bool isValid() const override;
+
+ private:
+  SpatialFieldGPUData gpuData() const override;
   void cleanup();
-  UniformGridData gpuData() const;
-  void computeMaxOpacities(CUstream stream,
-      cudaTextureObject_t cm,
-      size_t cmSize,
-      box1 cmRange = {0.f, 1.f});
 
-  // min/max value ranges
-  box1 *m_valueRanges = nullptr;
-
-  // Majorants/max opacities
-  float *m_maxOpacities = nullptr;
-
-  // Number of MCs
-  ivec3 m_dims;
-
-  // World bounds the grid spans
-  box3 m_worldBounds;
+  box3 m_bounds;
+  vec3 m_voxelSize;
+  std::string m_filter;
+  helium::ChangeObserverPtr<Array1D> m_data;
+  std::optional<nanovdb::GridMetaData> m_gridMetadata;
+  DeviceBuffer m_deviceBuffer;
 };
 
 } // namespace visrtx

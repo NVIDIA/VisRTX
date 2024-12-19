@@ -159,6 +159,7 @@ project_sources(PRIVATE
   scene/volume/space_skipping/UniformGrid.cu
 
   scene/volume/spatial_field/SpatialField.cpp
+  scene/volume/spatial_field/NvdbRegularField.cpp
   scene/volume/spatial_field/StructuredRegularField.cpp
   scene/volume/spatial_field/StructuredRegularField.cu
   scene/volume/spatial_field/UnknownSpatialField.cpp
@@ -206,6 +207,7 @@ PRIVATE
   nonstd::expected-lite
   nonstd::scope-lite
   nonstd::span-lite
+  libnanovdb
 
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:libmdl>
@@ -255,6 +257,7 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     glm_visrtx
     OptiX7::OptiX7
     CUDA::curand
+    libnanovdb
   )
   target_include_directories(${INPUT_TARGET}
   PRIVATE
