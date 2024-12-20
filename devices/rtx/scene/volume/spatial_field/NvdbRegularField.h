@@ -32,11 +32,10 @@
 #pragma once
 
 #include "array/Array1D.h"
-#include "nanovdb/GridHandle.h"
-#include "nanovdb/NanoVDB.h"
-#include "nanovdb/cuda/DeviceBuffer.h"
 #include "scene/volume/spatial_field/SpatialField.h"
 #include "utility/DeviceBuffer.h"
+
+#include <nanovdb/NanoVDB.h>
 
 namespace visrtx {
 

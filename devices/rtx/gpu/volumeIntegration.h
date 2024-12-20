@@ -38,7 +38,6 @@
 #include "gpu/gpu_util.h"
 #include "gpu/sampleSpatialField.h"
 #include "nanovdb/NanoVDB.h"
-#include "scene/volume/spatial_field/StructuredRegularField.h"
 
 namespace visrtx {
 
@@ -60,9 +59,12 @@ VISRTX_DEVICE vec4 classifySample(const VolumeGPUData &v, float s)
   return retval;
 }
 
-template<typename Sampler>
-VISRTX_DEVICE void _rayMarchVolume(
-  ScreenSample &ss, const VolumeHit &hit, box1 interval, vec3 *color, float &opacity)
+template <typename Sampler>
+VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
+    const VolumeHit &hit,
+    box1 interval,
+    vec3 *color,
+    float &opacity)
 {
   const auto &volume = *hit.volumeData;
   /////////////////////////////////////////////////////////////////////////////
@@ -105,45 +107,52 @@ VISRTX_DEVICE float rayMarchVolume(
   const float depth = interval.lower;
   interval.lower += stepSize * curand_uniform(&ss.rs); // jitter
 
-
   switch (field.type) {
-    case SpatialFieldType::STRUCTURED_REGULAR: {
-      _rayMarchVolume<SpatialFieldSampler<cudaTextureObject_t>>(ss, hit, interval, color, opacity);
+  case SpatialFieldType::STRUCTURED_REGULAR: {
+    _rayMarchVolume<SpatialFieldSampler<cudaTextureObject_t>>(
+        ss, hit, interval, color, opacity);
+    break;
+  }
+  case SpatialFieldType::NANOVDB_REGULAR: {
+    switch (field.data.nvdbRegular.gridType) {
+    case nanovdb::GridType::Fp4: {
+      _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp4>>(
+          ss, hit, interval, color, opacity);
       break;
     }
-    case SpatialFieldType::NANOVDB_REGULAR: {
-      switch (field.data.nvdbRegular.gridType) {
-        case nanovdb::GridType::Fp4: {
-          _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp4>>(ss, hit, interval, color, opacity);
-          break;
-        }
-        case nanovdb::GridType::Fp8: {
-          _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp8>>(ss, hit, interval, color, opacity);
-          break;
-        }
-        case nanovdb::GridType::Fp16: {
-          _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp16>>(ss, hit, interval, color, opacity);
-          break;
-        }
-        case nanovdb::GridType::FpN: {
-          _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::FpN>>(ss, hit, interval, color, opacity);
-          break;
-        }
-        case nanovdb::GridType::Float: {
-          _rayMarchVolume<NvdbSpatialFieldSampler<float>>(ss, hit, interval, color, opacity);
-          break;
-        }
-        default: break;
-      }
+    case nanovdb::GridType::Fp8: {
+      _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp8>>(
+          ss, hit, interval, color, opacity);
       break;
     }
-    default: break;
+    case nanovdb::GridType::Fp16: {
+      _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp16>>(
+          ss, hit, interval, color, opacity);
+      break;
+    }
+    case nanovdb::GridType::FpN: {
+      _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::FpN>>(
+          ss, hit, interval, color, opacity);
+      break;
+    }
+    case nanovdb::GridType::Float: {
+      _rayMarchVolume<NvdbSpatialFieldSampler<float>>(
+          ss, hit, interval, color, opacity);
+      break;
+    }
+    default:
+      break;
+    }
+    break;
+  }
+  default:
+    break;
   }
 
   return depth;
 }
 
-template<typename Sampler>
+template <typename Sampler>
 VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
     const VolumeHit &hit,
     vec3 *albedo,
@@ -158,7 +167,6 @@ VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
   /////////////////////////////////////////////////////////////////////////////
 
   Sampler sampler(field);
-
 
   const float stepSize = volume.stepSize;
   float t_out = hit.localRay.t.upper;
@@ -222,7 +230,8 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
     vec3 *albedo,
     float &extinction,
     float &tr)
-{const auto &volume = *hit.volumeData;
+{
+  const auto &volume = *hit.volumeData;
   /////////////////////////////////////////////////////////////////////////////
   // TODO: need to generalize
   auto &svv = volume.data.tf1d;
@@ -230,42 +239,49 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
   /////////////////////////////////////////////////////////////////////////////
 
   switch (field.type) {
-    case SpatialFieldType::STRUCTURED_REGULAR: {
-      return _sampleDistance<SpatialFieldSampler<cudaTextureObject_t>>(ss, hit, albedo, extinction, tr);
+  case SpatialFieldType::STRUCTURED_REGULAR: {
+    return _sampleDistance<SpatialFieldSampler<cudaTextureObject_t>>(
+        ss, hit, albedo, extinction, tr);
+    break;
+  }
+  case SpatialFieldType::NANOVDB_REGULAR: {
+    switch (field.data.nvdbRegular.gridType) {
+    case nanovdb::GridType::Fp4: {
+      return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp4>>(
+          ss, hit, albedo, extinction, tr);
       break;
     }
-    case SpatialFieldType::NANOVDB_REGULAR: {
-      switch (field.data.nvdbRegular.gridType) {
-        case nanovdb::GridType::Fp4: {
-          return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp4>>(ss, hit, albedo, extinction, tr);
-          break;
-        }
-        case nanovdb::GridType::Fp8: {
-          return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp8>>(ss, hit, albedo, extinction, tr);
-          break;
-        }
-        case nanovdb::GridType::Fp16: {
-          return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp16>>(ss, hit, albedo, extinction, tr);
-          break;
-        }
-        case nanovdb::GridType::FpN: {
-          return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::FpN>>(ss, hit, albedo, extinction, tr);
-          break;
-        }
-        case nanovdb::GridType::Float: {
-          return _sampleDistance<NvdbSpatialFieldSampler<float>>(ss, hit, albedo, extinction, tr);
-          break;
-        }
-        default: break;
-      }
+    case nanovdb::GridType::Fp8: {
+      return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp8>>(
+          ss, hit, albedo, extinction, tr);
       break;
     }
-    default: break;
+    case nanovdb::GridType::Fp16: {
+      return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp16>>(
+          ss, hit, albedo, extinction, tr);
+      break;
+    }
+    case nanovdb::GridType::FpN: {
+      return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::FpN>>(
+          ss, hit, albedo, extinction, tr);
+      break;
+    }
+    case nanovdb::GridType::Float: {
+      return _sampleDistance<NvdbSpatialFieldSampler<float>>(
+          ss, hit, albedo, extinction, tr);
+      break;
+    }
+    default:
+      break;
+    }
+    break;
+  }
+  default:
+    break;
   }
 
   return hit.localRay.t.upper;
 }
-
 
 } // namespace detail
 

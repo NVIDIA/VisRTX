@@ -68,7 +68,8 @@ class Application : public BaseApplication
         if (!g_filename.empty())
           tsd::logWarning("unable to load volume from file, using placeholder");
 
-        auto tx1 = core->tsd.ctx.insertChildTransformNode(core->tsd.ctx.tree.root());
+        auto tx1 =
+            core->tsd.ctx.insertChildTransformNode(core->tsd.ctx.tree.root());
 
         volume = tsd::generate_noiseVolume(
             core->tsd.ctx, tx1, colorArray, opacityArray);
@@ -76,8 +77,8 @@ class Application : public BaseApplication
 
       core->tsd.selectedObject = volume.data();
       tf->setValueRange(volume->parameter("valueRange")
-                            ->value()
-                            .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
+              ->value()
+              .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
 
       core->setupSceneFromCommandLine(true);
 
