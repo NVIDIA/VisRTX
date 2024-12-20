@@ -93,16 +93,18 @@ Array::Array(ANARIDataType arrayType,
 
   switch (ownership()) {
   case ArrayDataOwnership::SHARED:
-    as == AddressSpace::HOST
-        ? m_data.shared.host = HostMemoryAllocation(appMem, bytes)
-        : m_data.shared.device = CudaMemoryAllocation(appMem, bytes);
+    if (as == AddressSpace::HOST) {
+      m_data.shared.host = HostMemoryAllocation(appMem, bytes);
+    } else {
+      m_data.shared.device = CudaMemoryAllocation(appMem, bytes);
+    }
     break;
   case ArrayDataOwnership::CAPTURED:
-    as == AddressSpace::HOST
-        ? m_data.captured.host =
-              HostMemoryAllocation(appMem, bytes, d.deleter, d.deleterPtr)
-        : m_data.captured.device =
-              CudaMemoryAllocation(appMem, bytes, d.deleter, d.deleterPtr);
+    if (as == AddressSpace::HOST) {
+      m_data.captured.host = HostMemoryAllocation(appMem, bytes, d.deleter, d.deleterPtr);
+    } else {
+      m_data.captured.device = CudaMemoryAllocation(appMem, bytes, d.deleter, d.deleterPtr);
+    }
     m_data.captured.deleter = d.deleter;
     m_data.captured.deleterPtr = d.deleterPtr;
     break;
