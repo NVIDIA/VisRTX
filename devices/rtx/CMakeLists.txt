@@ -161,7 +161,6 @@ project_sources(PRIVATE
   scene/volume/spatial_field/SpatialField.cpp
   scene/volume/spatial_field/NvdbRegularField.cpp
   scene/volume/spatial_field/StructuredRegularField.cpp
-  scene/volume/spatial_field/StructuredRegularField.cu
   scene/volume/spatial_field/UnknownSpatialField.cpp
 
   utility/CudaImageTexture.cpp

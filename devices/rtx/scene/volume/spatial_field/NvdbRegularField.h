@@ -56,6 +56,8 @@ struct NvdbRegularField : public SpatialField
   SpatialFieldGPUData gpuData() const override;
   void cleanup();
 
+  void buildGrid();
+
   box3 m_bounds;
   vec3 m_voxelSize;
   std::string m_filter;

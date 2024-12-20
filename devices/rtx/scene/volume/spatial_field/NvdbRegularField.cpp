@@ -119,13 +119,7 @@ void NvdbRegularField::commit()
     voxelSize[0], voxelSize[1], voxelSize[2]
   );
 
-  auto gridSize = m_gridMetadata->indexBBox().dim();
-
-  m_uniformGrid.init(
-    ivec3(gridSize[0], gridSize[1], gridSize[2]), m_bounds,
-    gpuData()
-  );
-
+  buildGrid();
 
   upload();
 }
@@ -162,6 +156,15 @@ SpatialFieldGPUData NvdbRegularField::gpuData() const
 void NvdbRegularField::cleanup()
 {
   m_uniformGrid.cleanup();
+}
+
+void NvdbRegularField::buildGrid()
+{
+  auto gridSize = m_gridMetadata->indexBBox().dim();
+  m_uniformGrid.init(ivec3(gridSize[0], gridSize[1], gridSize[2]), m_bounds);
+
+  size_t numVoxels = (gridSize[0] - 1) * size_t(gridSize[1] - 1) * (gridSize[2] - 1);
+  m_uniformGrid.buildGrid(gpuData());
 }
 
 } // namespace visrtx
