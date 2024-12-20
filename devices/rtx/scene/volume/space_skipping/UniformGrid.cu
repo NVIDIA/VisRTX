@@ -89,11 +89,11 @@ __global__ void computeMaxOpacitiesGPU(float *maxOpacities,
   maxOpacities[threadID] = maxOpacity;
 }
 
-__global__ void buildGridGPUNvdb(box1 *valueRanges,
-    ivec3 dims,
-    box3 worldBounds,
-    const SpatialFieldGPUData *sfgd)
+template<typename Sampler>
+__global__ void buildGridGPU(box1 *valueRanges, ivec3 dims, box3 worldBounds, const SpatialFieldGPUData* sfgd)
 {
+  Sampler sampler(*sfgd);
+
   size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
 
   size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
@@ -125,7 +125,7 @@ __global__ void buildGridGPUNvdb(box1 *valueRanges,
   float voxelValue = -1e30f;
   for (int i = 0; i < 8; ++i) {
     float retval =
-        sampleSpatialField(*sfgd, vec3(tcs[i].x, tcs[i].y, tcs[i].z));
+        sampler(vec3(tcs[i].x, tcs[i].y, tcs[i].z));
     voxelValue = fmaxf(voxelValue, retval);
   }
 
@@ -147,10 +147,9 @@ __global__ void buildGridGPUNvdb(box1 *valueRanges,
   }
 }
 
-void UniformGrid::init(
-    ivec3 dims, box3 worldBounds, const SpatialFieldGPUData &sfgd)
+void UniformGrid::init(ivec3 dims, box3 worldBounds)
 {
-  m_dims = dims;
+  m_dims = ivec3(iDivUp(dims.x, 16), iDivUp(dims.y, 16), iDivUp(dims.z, 16));
   m_worldBounds = worldBounds;
 
   size_t numMCs = m_dims.x * size_t(m_dims.y) * m_dims.z;
@@ -161,28 +160,63 @@ void UniformGrid::init(
   cudaMalloc(&m_valueRanges, numMCs * sizeof(box1));
   cudaMalloc(&m_maxOpacities, numMCs * sizeof(float));
 
-  size_t numThreads = 256;
+  size_t numThreads = 1024;
   invalidateRangesGPU<<<(uint32_t)iDivUp(numMCs, numThreads),
       (uint32_t)numThreads>>>(m_valueRanges, m_dims);
+}
 
-  if (sfgd.type == SpatialFieldType::NANOVDB_REGULAR) {
-    fprintf(stderr,
-        "Initializing with grid size %i %i %i\n",
-        dims.x,
-        dims.y,
-        dims.z);
+void UniformGrid::buildGrid(const SpatialFieldGPUData &sfgd)
+{
+  size_t numVoxels = (m_dims.x - 1) * size_t(m_dims.y - 1) * (m_dims.z - 1); 
+  size_t numThreads = 1024;
 
-    SpatialFieldGPUData *sfgdDevice = {};
-    cudaMalloc(&sfgdDevice, sizeof(sfgd));
-    cudaMemcpy(sfgdDevice, &sfgd, sizeof(sfgd), cudaMemcpyHostToDevice);
+  // We ned to get the spatialfield gpu data upload, but we don't get
+  // to access the framedata store. 
+  // Let's do a temporary upload so we can do the job.
+  SpatialFieldGPUData *sfgdDevice = {};
+  cudaMalloc(&sfgdDevice, sizeof(sfgd));
+  cudaMemcpy(sfgdDevice, &sfgd, sizeof(sfgd), cudaMemcpyHostToDevice);
 
-    size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
-
-    buildGridGPUNvdb<<<iDivUp(numVoxels, numThreads), numThreads>>>(
-        m_valueRanges, dims, worldBounds, sfgdDevice);
-
-    cudaFree(sfgdDevice);
+  switch (sfgd.type) {
+    case SpatialFieldType::STRUCTURED_REGULAR: {
+      buildGridGPU<SpatialFieldSampler<cudaTextureObject_t>><<<iDivUp(numVoxels, numThreads), numThreads>>>(
+        m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+      break;
+    }
+    case SpatialFieldType::NANOVDB_REGULAR: {
+      switch (sfgd.data.nvdbRegular.gridType) {
+        case nanovdb::GridType::Fp4: {
+          buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp4>><<<iDivUp(numVoxels, numThreads), numThreads>>>(
+        m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+          break;
+        }
+        case nanovdb::GridType::Fp8: {
+          buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp8>><<<iDivUp(numVoxels, numThreads), numThreads>>>(
+        m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+          break;
+        }
+        case nanovdb::GridType::Fp16: {
+          buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp16>><<<iDivUp(numVoxels, numThreads), numThreads>>>(
+        m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+          break;
+        }
+        case nanovdb::GridType::FpN: {
+          buildGridGPU<NvdbSpatialFieldSampler<nanovdb::FpN>><<<iDivUp(numVoxels, numThreads), numThreads>>>(
+        m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+          break;
+        }
+        case nanovdb::GridType::Float: {
+          buildGridGPU<NvdbSpatialFieldSampler<float>><<<iDivUp(numVoxels, numThreads), numThreads>>>(
+        m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+          break;
+        }
+        default: break;
+      }
+      break;
+    }
   }
+
+  cudaFree(sfgdDevice);
 }
 
 void UniformGrid::cleanup()

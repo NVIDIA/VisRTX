@@ -198,4 +198,13 @@ void StructuredRegularField::cleanup()
   m_uniformGrid.cleanup();
 }
 
+void StructuredRegularField::buildGrid()
+{
+  auto dims = m_data->size();
+  m_uniformGrid.init(ivec3(dims.x, dims.y, dims.z), bounds());
+
+  size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
+  m_uniformGrid.buildGrid(gpuData());
+}
+
 } // namespace visrtx
