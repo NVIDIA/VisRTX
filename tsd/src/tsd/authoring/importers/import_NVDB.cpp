@@ -104,8 +104,8 @@ SpatialFieldRef import_NVDB(Context &ctx, const char *filepath)
     gridData->unmap();
 
     // gridData is the parameter name used by visionaray. Keep this for now
-    // waiting for the switch to the more general data named parameter, as used by
-    // the structured reguar field type.
+    // waiting for the switch to the more general data named parameter, as used
+    // by the structured reguar field type.
     field->setParameterObject("gridData", *gridData);
     field->setParameterObject("data", *gridData);
 

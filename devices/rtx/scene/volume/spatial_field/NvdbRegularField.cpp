@@ -31,27 +31,20 @@
 
 #include "NvdbRegularField.h"
 
-// nanovdb
-#include <anari/frontend/anari_enums.h>
-#include <nanovdb/NanoVDB.h>
-#include <nanovdb/GridHandle.h>
-
-// std
-
-#include <algorithm>
-#include <glm/ext/vector_float3.hpp>
-#include <glm/gtx/component_wise.hpp>
-#include <limits>
-#include <vector>
-#include "RegisteredObject.h"
 #include "array/Array1D.h"
-#include "array/GPUArray.h"
-#include "nanovdb/HostBuffer.h"
-#include "nanovdb/cuda/DeviceBuffer.h"
-#include "nanovdb/math/Math.h"
 #include "utility/DeviceBuffer.h"
 
-#include <glm/gtx/component_wise.hpp>
+#include <anari/frontend/anari_enums.h>
+
+// nanovdb
+#include <nanovdb/GridHandle.h>
+#include <nanovdb/NanoVDB.h>
+#include <nanovdb/HostBuffer.h>
+#include <nanovdb/math/Math.h>
+
+// glm
+#include <glm/ext/vector_float3.hpp>
+
 
 namespace visrtx {
 
@@ -88,36 +81,30 @@ void NvdbRegularField::commit()
     return;
   }
 
-  // Data might not be aligned, make sure we get something that works for nanovdb.
+  // Data might not be aligned, make sure we get something that works for
+  // nanovdb.
   auto hostbuffer = nanovdb::HostBuffer::create(m_data->size());
   std::memcpy(
-    hostbuffer.data(),
-    m_data->data(AddressSpace::HOST),
-    m_data->size());
-    
+      hostbuffer.data(), m_data->data(AddressSpace::HOST), m_data->size());
 
   auto gridHandle = nanovdb::GridHandle<>(std::move(hostbuffer));
   m_gridMetadata = *gridHandle.gridMetaData();
 
   m_deviceBuffer.upload(
-    static_cast<const std::byte*>(gridHandle.data()), gridHandle.size()
-  );
+      static_cast<const std::byte *>(gridHandle.data()), gridHandle.size());
 
   if (gridHandle.gridCount() != 1) {
-    reportMessage(ANARI_SEVERITY_WARNING, "VisRTX NanoVDB support's a single grid per file");
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "VisRTX NanoVDB support's a single grid per file");
     return;
   }
 
   auto boundsMin = m_gridMetadata->worldBBox().min();
   auto boundsMax = m_gridMetadata->worldBBox().max();
-  m_bounds = box3(
-    glm::vec3(boundsMin[0], boundsMin[1], boundsMin[2]),
-    glm::vec3(boundsMax[0], boundsMax[1], boundsMax[2])
-  );
+  m_bounds = box3(glm::vec3(boundsMin[0], boundsMin[1], boundsMin[2]),
+      glm::vec3(boundsMax[0], boundsMax[1], boundsMax[2]));
   auto voxelSize = m_gridMetadata->voxelSize();
-  m_voxelSize = glm::vec3(
-    voxelSize[0], voxelSize[1], voxelSize[2]
-  );
+  m_voxelSize = glm::vec3(voxelSize[0], voxelSize[1], voxelSize[2]);
 
   buildGrid();
 
@@ -163,7 +150,8 @@ void NvdbRegularField::buildGrid()
   auto gridSize = m_gridMetadata->indexBBox().dim();
   m_uniformGrid.init(ivec3(gridSize[0], gridSize[1], gridSize[2]), m_bounds);
 
-  size_t numVoxels = (gridSize[0] - 1) * size_t(gridSize[1] - 1) * (gridSize[2] - 1);
+  size_t numVoxels =
+      (gridSize[0] - 1) * size_t(gridSize[1] - 1) * (gridSize[2] - 1);
   m_uniformGrid.buildGrid(gpuData());
 }
 
