@@ -20,8 +20,10 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
         .setValue(tsd::float3(1.f, 1.f, 1.f))
         .setMin(tsd::float3(0.f, 0.f, 0.f))
         .setDescription("voxel size in object-space units");
-    addParameter("filter").setValue("linear").setStringValues(
-        {"nearest", "linear"});
+    addParameter("filter")
+        .setValue("linear")
+        .setStringValues({"nearest", "linear"})
+        .setStringSelection(1);
     addParameter("data")
         .setValue({ANARI_ARRAY3D, INVALID_INDEX})
         .setDescription("vertex-centered voxel data");
