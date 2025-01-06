@@ -79,7 +79,7 @@ In addition to standard `ANARI_KHR` extensions, the following extensions are
 also implemented in the `visrtx` device. Note that all extensions are subject to
 change
 
-#### "VISRTX_CUDA_ARRAY" (experimental)
+#### "VISRTX_ARRAY_CUDA" (experimental)
 
 This extension indicates that applications can use pointers to CUDA device
 memory when created shared and captured arrays when using VisRTX. This is
@@ -104,6 +104,14 @@ to the host should instead map the ordinary `color` and `depth` channels.
 This extension indicates that all attributes can be set as a single
 `ANARI_FLOAT32_VEC4` value on the instance, which overrides any values on the
 geometries within the instanced group.
+
+#### "VISRTX_SPATIAL_FIELD_NANOVDB" (experimental)
+
+This extension adds the ability to render
+[NanoVDB](https://developer.nvidia.com/nanovdb) spatial fields. This subtype
+takes a single array parameter called `data`, where the array is of type `UINT8`
+containing the raw bytes containing of the grid data. Currently `float`,
+`nanovdb::Fp4/8/16/N` grids are supported.
 
 #### "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES" (experimental)
 
@@ -189,8 +197,10 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_SAMPLER_TRANSFORM`
 - `KHR_SPATIAL_FIELD_STRUCTURED_REGULAR`
 - `KHR_VOLUME_TRANSFER_FUNCTION1D`
+- `VISRTX_ARRAY_CUDA`
 - `VISRTX_CUDA_OUTPUT_BUFFERS`
 - `VISRTX_INSTANCE_ATTRIBUTES`
+- `VISRTX_SPATIAL_FIELD_NANOVDB`
 - `VISRTX_TRIANGLE_BACK_FACE_CULLING`
 - `VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES`
 
