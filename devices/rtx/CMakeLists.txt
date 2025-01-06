@@ -62,25 +62,6 @@ include(EmbedPTX)
 option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
 
-## Code generation ##
-
-add_custom_target(visrtx_process_json
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/process_json.cmake
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
-
-anari_generate_queries(
-  NAME visrtx_queries
-  PREFIX VisRTXDevice
-  CPP_NAMESPACE visrtx
-  JSON_ROOT_LOCATION ${CMAKE_CURRENT_BINARY_DIR}
-  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_BINARY_DIR}/visrtx_device.json
-  OUTPUT_LOCATION ${CMAKE_CURRENT_BINARY_DIR}
-)
-
-add_dependencies(generate_visrtx_queries visrtx_process_json)
-
-
 ## Build library target ##
 
 project_add_library(SHARED)
@@ -89,7 +70,6 @@ project_sources(PRIVATE
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
-  ${CMAKE_CURRENT_BINARY_DIR}/VisRTXDeviceQueries.cpp
   VisRTXFeatureUtility.cpp
   VisRTXLibrary.cpp
 
@@ -233,6 +213,7 @@ endif()
 project_compile_definitions(PRIVATE visrtx_EXPORTS)
 
 ## Generate OptiX programs as embedded PTX ##
+
 function(GenerateEmbeddedPTX DIR BASE_NAME)
   set(INPUT_TARGET ${BASE_NAME}_ptx)
 
@@ -293,6 +274,21 @@ if(VISRTX_ENABLE_MDL_SUPPORT)
 endif()
 
 # GenerateEmbeddedBC(shaders MDLShaderEvalSurfaceMaterial)
+
+## Query code generation ##
+
+file(GLOB DEVICE_JSONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "visrtx_*.json")
+foreach(file ${DEVICE_JSONS})
+  file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file} INPUT ${file})
+endforeach()
+
+anari_generate_queries(
+  DEVICE_TARGET ${PROJECT_NAME}
+  CPP_NAMESPACE visrtx
+  JSON_ROOT_LOCATION ${CMAKE_CURRENT_BINARY_DIR}
+  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_BINARY_DIR}/visrtx_device.json
+  JSON_EXTENSION_FILES ${DEVICE_JSONS}
+)
 
 ## Install library + headers ##
 

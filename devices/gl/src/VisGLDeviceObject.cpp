@@ -33,7 +33,8 @@
 #include "VisGLSpecializations.h"
 #include "AppendableShader.h"
 #include "shader_blocks.h"
-#include "generated/VisGLQueries.h"
+
+#include "anari_library_visgl_queries.h"
 
 #include <cstdlib>
 #include <cstring>
