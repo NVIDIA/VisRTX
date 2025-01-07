@@ -158,6 +158,9 @@ void Object::updateANARIParameter(anari::Device d,
     const char *n,
     AnariObjectCache *cache) const
 {
+  if (!o)
+    return;
+
   if (cache && !p.isEnabled()) {
     anari::unsetParameter(d, o, n);
   } else if (cache && p.value().holdsObject()) {
@@ -188,6 +191,9 @@ void Object::updateANARIParameter(anari::Device d,
 void Object::updateAllANARIParameters(
     anari::Device d, anari::Object o, AnariObjectCache *cache) const
 {
+  if (!o)
+    return;
+
   for (size_t i = 0; i < numParameters(); i++)
     updateANARIParameter(d, o, parameterAt(i), parameterNameAt(i), cache);
 }

@@ -79,13 +79,14 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
     foreach_item_const(objArray, [&](auto *obj) {
       if (!obj)
         return;
-      auto o = handleArray[obj->index()];
-      obj->updateAllANARIParameters(d, o, &m_cache);
-      if (obj->type() == ANARI_SURFACE)
-        anari::setParameter(d, o, "id", uint32_t(obj->index()));
-      else if (obj->type() == ANARI_VOLUME)
-        anari::setParameter(d, o, "id", uint32_t(obj->index()) | 0x80000000u);
-      anari::commitParameters(d, o);
+      if (auto o = handleArray[obj->index()]; o != nullptr) {
+        obj->updateAllANARIParameters(d, o, &m_cache);
+        if (obj->type() == ANARI_SURFACE)
+          anari::setParameter(d, o, "id", uint32_t(obj->index()));
+        else if (obj->type() == ANARI_VOLUME)
+          anari::setParameter(d, o, "id", uint32_t(obj->index()) | 0x80000000u);
+        anari::commitParameters(d, o);
+      }
     });
   };
 
@@ -125,7 +126,8 @@ void RenderIndex::signalObjectAdded(const Object *obj)
   switch (obj->type()) {
   case ANARI_SURFACE: {
     auto s = m_cache.surface.insert((anari::Surface)o);
-    anari::setParameter(d, o, "id", uint32_t(obj->index()));
+    if (o)
+      anari::setParameter(d, o, "id", uint32_t(obj->index()));
   } break;
   case ANARI_GEOMETRY:
     m_cache.geometry.insert((anari::Geometry)o);
@@ -155,7 +157,8 @@ void RenderIndex::signalObjectAdded(const Object *obj)
     break; // no-op
   }
 
-  anari::commitParameters(d, o);
+  if (o)
+    anari::commitParameters(d, o);
 }
 
 void RenderIndex::signalParameterUpdated(const Object *o, const Parameter *p)
@@ -221,7 +224,7 @@ void RenderIndex::signalRemoveAllObjects()
 void RenderIndex::updateObjectArrayData(const Array *a) const
 {
   auto elementType = a->elementType();
-  if (!a || !anari::isObject(elementType))
+  if (!a || !anari::isObject(elementType) || a->isEmpty())
     return;
 
   if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr) {

@@ -6,6 +6,7 @@
 #endif
 
 #include "tsd/objects/Array.hpp"
+#include "tsd/core/Logging.hpp"
 // std
 #include <stdexcept>
 #if TSD_USE_CUDA
@@ -181,6 +182,13 @@ Array::Array(anari::DataType arrayType,
     throw std::runtime_error("cannot create CUDA arrays of objects!");
   else if (anari::isObject(type))
     return;
+
+  if (isEmpty()) {
+    logWarning("%s of %s elements created with 0 size",
+        anari::toString(this->type()),
+        anari::toString(this->elementType()));
+    return;
+  }
 
   if (kind == MemoryKind::CUDA) {
 #if TSD_USE_CUDA
