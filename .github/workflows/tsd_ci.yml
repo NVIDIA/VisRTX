@@ -28,13 +28,13 @@ jobs:
         ${{github.workspace}}/tsd/cmake/build_deps
 
     - name: Build + install ANARI-SDK
-      run: cmake --build ${{github.workspace}}/deps_build --config ${{ matrix.config }}
+      run: cmake --build ${{ github.workspace }}/deps_build --config ${{ matrix.config }}
 
     - name: Configure TSD CMake
       run: >
         cmake -LA -B ${{github.workspace}}/build
         -DBUILD_INTERACTIVE_APPS=OFF
-        -DCMAKE_PREFIX_PATH=${{github.workspace}}/deps
+        -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
         -DCMAKE_BUILD_TYPE=${{ matrix.config }}
         -DTSD_USE_ASSIMP=OFF
         -DTSD_USE_CUDA=OFF
@@ -42,11 +42,11 @@ jobs:
         -DTSD_USE_OPENGL=OFF
         -DTSD_USE_TBB=OFF
         -DTSD_ENABLE_SERIALIZATION=OFF
-        ${{github.workspace}}/tsd
+        ${{ github.workspace }}/tsd
 
     - name: Build
-      run: cmake --build ${{github.workspace}}/build --config ${{ matrix.config }}
+      run: cmake --build ${{ github.workspace }}/build --config ${{ matrix.config }}
 
     - name: Unit Tests
-      working-directory: ${{github.workspace}}/build
+      working-directory: ${{  github.workspace }}/build
       run: ctest -C ${{ matrix.config }} --output-on-failure

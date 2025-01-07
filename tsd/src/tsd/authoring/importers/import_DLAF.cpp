@@ -76,8 +76,8 @@ void import_DLAF(Context &ctx,
     mat->setParameterObject("color"_t, *sampler);
   }
 
-  ssize_t numRemainingPoints = scene.distances.size();
-  constexpr ssize_t CHUNK = 1e7;
+  int64_t numRemainingPoints = scene.distances.size();
+  constexpr int64_t CHUNK = 1e7;
 
   for (int i = 0; numRemainingPoints > 0; numRemainingPoints -= CHUNK, i++) {
     const size_t numPoints =

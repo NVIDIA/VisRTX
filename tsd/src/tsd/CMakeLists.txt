@@ -53,13 +53,22 @@ PUBLIC
 project_link_libraries(
 PUBLIC
   anari::helium
-  anari::anari
 PRIVATE
   $<BUILD_INTERFACE:tsd_nanovdb>
   $<BUILD_INTERFACE:tsd_stb>
   $<BUILD_INTERFACE:tsd_tiny_obj_loader>
   $<BUILD_INTERFACE:tsd_tinyply>
 )
+
+if (WIN32)
+  project_link_libraries(PUBLIC anari::anari_static)
+else()
+  project_link_libraries(PUBLIC anari::anari)
+endif()
+
+if (MSVC)
+  project_compile_options(PRIVATE /bigobj)
+endif()
 
 if (TSD_USE_CUDA)
   project_compile_definitions(PUBLIC -DTSD_USE_CUDA=1)
