@@ -319,14 +319,13 @@ void buildUI_parameter(
     ImGui::BeginTooltip();
     if (isArray) {
       const auto &a = *ctx.getObject<Array>(pVal.getAsObjectIndex());
-      const auto s = a.shape();
-      if (s == 3)
+      const auto t = a.type();
+      if (t == ANARI_ARRAY3D)
         ImGui::Text(" size: %zu x %zu x %zu", a.dim(0), a.dim(1), a.dim(2));
-      else if (s == 2)
+      else if (t == ANARI_ARRAY2D)
         ImGui::Text(" size: %zu x %zu", a.dim(0), a.dim(1));
       else
         ImGui::Text(" size: %zu", a.dim(0));
-      ImGui::Text("shape: %zuD", s);
       ImGui::Text(" type: %s", anari::toString(a.elementType()));
     } else {
       if (p.description().empty())

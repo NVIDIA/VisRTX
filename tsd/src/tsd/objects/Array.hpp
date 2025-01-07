@@ -38,7 +38,6 @@ struct Array : public Object
   bool isEmpty() const;
 
   MemoryKind kind() const;
-  size_t shape() const;
   size_t dim(size_t d) const;
 
   anari::DataType elementType() const;
@@ -77,7 +76,6 @@ struct Array : public Object
   void *m_data{nullptr};
   MemoryKind m_kind{MemoryKind::HOST};
   anari::DataType m_elementType{ANARI_UNKNOWN};
-  size_t m_shape{0};
   size_t m_dim0{0};
   size_t m_dim1{0};
   size_t m_dim2{0};

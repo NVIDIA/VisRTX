@@ -102,7 +102,6 @@ static void arrayToConduit(const Array &arr, conduit::Node &node)
   auto &arrayData = node["arrayData"];
   arrayData["elementType"] = static_cast<int>(arr.elementType());
   arrayData["size"] = arr.size();
-  arrayData["shape"] = arr.shape();
   arrayData["dim"] = {arr.dim(0), arr.dim(1), arr.dim(2)};
 
   const auto *mem = reinterpret_cast<const uint8_t *>(arr.data());

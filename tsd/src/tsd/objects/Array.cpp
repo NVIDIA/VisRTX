@@ -17,16 +17,12 @@ namespace tsd {
 
 Array::Array(anari::DataType type, size_t items0, Array::MemoryKind kind)
     : Array(ANARI_ARRAY1D, type, items0, 1, 1, kind)
-{
-  m_shape = 1;
-}
+{}
 
 Array::Array(
     anari::DataType type, size_t items0, size_t items1, Array::MemoryKind kind)
     : Array(ANARI_ARRAY2D, type, items0, items1, 1, kind)
-{
-  m_shape = 2;
-}
+{}
 
 Array::Array(anari::DataType type,
     size_t items0,
@@ -34,9 +30,7 @@ Array::Array(anari::DataType type,
     size_t items2,
     Array::MemoryKind kind)
     : Array(ANARI_ARRAY3D, type, items0, items1, items2, kind)
-{
-  m_shape = 3;
-}
+{}
 
 Array::~Array()
 {
@@ -68,11 +62,6 @@ bool Array::isEmpty() const
 Array::MemoryKind Array::kind() const
 {
   return m_kind;
-}
-
-size_t Array::shape() const
-{
-  return m_shape;
 }
 
 size_t Array::dim(size_t d) const
@@ -126,16 +115,16 @@ anari::Object Array::makeANARIObject(anari::Device d) const
 
   anari::Object retval = nullptr;
 
-  switch (shape()) {
-  case 1:
+  switch (type()) {
+  case ANARI_ARRAY1D:
     retval =
         anari::newArray1D(d, m_data, nullptr, nullptr, elementType(), dim(0));
     break;
-  case 2:
+  case ANARI_ARRAY2D:
     retval = anari::newArray2D(
         d, m_data, nullptr, nullptr, elementType(), dim(0), dim(1));
     break;
-  case 3:
+  case ANARI_ARRAY3D:
     retval = anari::newArray3D(
         d, m_data, nullptr, nullptr, elementType(), dim(0), dim(1), dim(2));
     break;
@@ -152,7 +141,6 @@ Array::Array(Array &&o) : Object(std::move(static_cast<Object &&>(o)))
   m_data = o.m_data;
   m_kind = o.m_kind;
   m_elementType = o.m_elementType;
-  m_shape = o.m_shape;
   m_dim0 = o.m_dim0;
   m_dim1 = o.m_dim1;
   m_dim2 = o.m_dim2;
@@ -167,7 +155,6 @@ Array &Array::operator=(Array &&o)
     m_data = o.m_data;
     m_kind = o.m_kind;
     m_elementType = o.m_elementType;
-    m_shape = o.m_shape;
     m_dim0 = o.m_dim0;
     m_dim1 = o.m_dim1;
     m_dim2 = o.m_dim2;

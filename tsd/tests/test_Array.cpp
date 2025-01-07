@@ -42,9 +42,9 @@ SCENARIO("tsd::Array interface", "[Array]")
       REQUIRE(arr.size() == 4);
     }
 
-    THEN("The array shape is correct")
+    THEN("The array type/shape is correct")
     {
-      REQUIRE(arr.shape() == 1);
+      REQUIRE(arr.type() == ANARI_ARRAY1D);
     }
 
     THEN("The array element type is correct")
