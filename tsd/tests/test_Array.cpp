@@ -60,7 +60,7 @@ SCENARIO("tsd::Array interface", "[Array]")
     }
   }
 
-  GIVEN("A constructed float Array with linear elements")
+  GIVEN("A constructed a UFIXED8 Array with linear elements")
   {
     auto arr = tsd::Array(ANARI_UFIXED8, 256);
     auto *begin = arr.mapAs<uint8_t>();
