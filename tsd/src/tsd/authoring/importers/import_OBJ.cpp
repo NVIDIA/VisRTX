@@ -24,8 +24,8 @@ void import_OBJ(Context &ctx,
   OBJData objdata;
   std::string warn;
   std::string err;
-  std::string basePath = pathOf(filepath);
-  std::string file = fileOf(filepath);
+  const std::string basePath = pathOf(filepath);
+  const std::string file = fileOf(filepath);
 
   auto retval = tinyobj::LoadObj(&objdata.attrib,
       &objdata.shapes,
@@ -77,11 +77,11 @@ void import_OBJ(Context &ctx,
   auto *texcoords = objdata.attrib.texcoords.data();
 
   for (auto &shape : objdata.shapes) {
-    size_t numIndices = shape.mesh.indices.size();
+    const size_t numIndices = shape.mesh.indices.size();
     if (numIndices == 0)
       continue;
 
-    size_t numVertices = numIndices * 3;
+    const size_t numVertices = numIndices;
 
     auto mesh = ctx.createObject<Geometry>(tokens::geometry::triangle);
 
