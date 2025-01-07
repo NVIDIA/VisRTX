@@ -121,7 +121,7 @@ void Array::setData(const void *data, size_t byteOffset)
 
 anari::Object Array::makeANARIObject(anari::Device d) const
 {
-  if (elementType() == ANARI_UNKNOWN)
+  if (elementType() == ANARI_UNKNOWN || isEmpty())
     return nullptr;
 
   anari::Object retval = nullptr;
