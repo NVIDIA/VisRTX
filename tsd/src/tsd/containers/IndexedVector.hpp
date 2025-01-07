@@ -188,7 +188,7 @@ template <typename T>
 template <typename... Args>
 IndexedVectorRef<T> IndexedVector<T>::emplace(Args &&...args)
 {
-  return insert(T(std::forward<Args>(args)...));
+  return insert(std::move(T(std::forward<Args>(args)...)));
 }
 
 template <typename T>

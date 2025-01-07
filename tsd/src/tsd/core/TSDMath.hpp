@@ -22,7 +22,8 @@ static constexpr tsd::math::float3 to_float3(const tsd::math::float4 &v)
   return tsd::math::float3(v.x, v.y, v.z);
 };
 
-static constexpr bool neql(float a, float b, float eps = 1e-6f)
+template <typename T>
+static constexpr bool neql(T a, T b, T eps = 1e-6)
 {
   return std::abs(a - b) <= eps;
 }
@@ -39,7 +40,7 @@ static constexpr tsd::math::float3 radians(tsd::math::float3 v)
 
 static constexpr float degrees(float radians)
 {
-  return radians * 180.f / M_PI;
+  return radians * 180.f / float(M_PI);
 };
 
 static constexpr tsd::math::float3 degrees(tsd::math::float3 v)

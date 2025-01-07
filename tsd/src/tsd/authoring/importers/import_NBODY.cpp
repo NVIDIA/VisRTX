@@ -57,8 +57,8 @@ void import_NBODY(Context &ctx,
       ? ctx.getObject<Material>(0)
       : ctx.createObject<Material>(tokens::material::matte);
 
-  ssize_t numRemainingPoints = scene.points.size();
-  constexpr ssize_t CHUNK = 1e7;
+  int64_t numRemainingPoints = scene.points.size();
+  constexpr int64_t CHUNK = 1e7;
 
   for (int i = 0; numRemainingPoints > 0; numRemainingPoints -= CHUNK, i++) {
     const size_t numPoints =
