@@ -89,14 +89,14 @@ using ArrayRef = IndexedVectorRef<Array>;
 template <typename T>
 inline T *Array::mapAs()
 {
-  assert(anari::ANARITypeFor<T>::value == elementType());
+  assert(sizeof(T) == anari::sizeOf(elementType()));
   return reinterpret_cast<T *>(map());
 }
 
 template <typename T>
 inline const T *Array::dataAs() const
 {
-  assert(anari::ANARITypeFor<T>::value == elementType());
+  assert(sizeof(T) == anari::sizeOf(elementType()));
   return reinterpret_cast<const T *>(data());
 }
 

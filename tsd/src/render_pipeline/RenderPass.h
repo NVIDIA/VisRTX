@@ -9,11 +9,14 @@
 #include <vector>
 // anari
 #include <anari/anari_cpp.hpp>
+
+#ifdef ENABLE_OPENGL
 // OpenGL
 #if __APPLE__
 #include <OpenGL/gl.h>
 #else
 #include <GL/gl.h>
+#endif
 #endif
 
 namespace tsd {
@@ -106,6 +109,7 @@ struct OutlineRenderPass : public RenderPass
   uint32_t m_outlineId{~0u};
 };
 
+#ifdef ENABLE_OPENGL
 struct CopyToGLImagePass : public RenderPass
 {
   CopyToGLImagePass();
@@ -120,6 +124,7 @@ struct CopyToGLImagePass : public RenderPass
   struct CopyToGLImagePassImpl;
   CopyToGLImagePassImpl *m_impl{nullptr};
 };
+#endif
 
 // Utility functions //////////////////////////////////////////////////////////
 

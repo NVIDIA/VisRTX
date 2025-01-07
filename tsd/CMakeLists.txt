@@ -29,9 +29,12 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 ## Global options ##
 
+option(BUILD_INTERACTIVE_APPS "Build interactive applications" ON)
 option(TSD_ENABLE_SERIALIZATION "Use conduit to serialize contexts" OFF)
 option(TSD_USE_HDF5 "Support loading AMR grids from HDF5" OFF)
 option(TSD_USE_ASSIMP "Support loading geometry with libassimp" OFF)
+option(TSD_USE_OPENGL "Use OpenGL interop in render pipeline" ON)
+option(TSD_USE_TBB "Use TBB code paths where relevant" ON)
 
 if (APPLE)
   set(TSD_USE_CUDA OFF)
@@ -43,7 +46,14 @@ endif()
 
 project(tsd LANGUAGES CXX)
 
-find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED COMPONENTS viewer)
+## Major dependencies ##
+
+if (BUILD_INTERACTIVE_APPS)
+  find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED COMPONENTS viewer)
+else()
+  find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
+endif()
+
 if (TSD_USE_CUDA)
   enable_language(CUDA)
   find_package(CUDAToolkit REQUIRED)
