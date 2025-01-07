@@ -19,7 +19,10 @@ ObjectTree::ObjectTree(AppCore *state, const char *name)
 
 void ObjectTree::buildUI()
 {
-  ImGui::BeginDisabled(!m_core->tsd.sceneLoadComplete);
+  if (!m_core->tsd.sceneLoadComplete) {
+    ImGui::Text("PLEASE WAIT...LOADING SCENE");
+    return;
+  }
 
   auto &ctx = m_core->tsd.ctx;
   auto &tree = ctx.tree;
@@ -154,8 +157,6 @@ void ObjectTree::buildUI()
 
     ImGui::EndTable();
   }
-
-  ImGui::EndDisabled();
 
   if (ImGui::IsWindowHovered()) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
