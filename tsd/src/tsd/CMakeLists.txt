@@ -5,6 +5,7 @@ project_add_library(STATIC)
 
 project_sources(
 PRIVATE
+  algorithms/computeScalarRange.cpp
   authoring/importers/detail/HDRImage.cpp
   authoring/importers/detail/importer_common.cpp
   authoring/importers/import_ASSIMP.cpp
@@ -64,6 +65,7 @@ if (TSD_USE_CUDA)
   project_compile_definitions(PUBLIC -DTSD_USE_CUDA=1)
   project_link_libraries(PUBLIC CUDA::cudart)
   set_source_files_properties(
+    algorithms/computeScalarRange.cpp
     objects/SpatialField.cpp
     PROPERTIES
       COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
