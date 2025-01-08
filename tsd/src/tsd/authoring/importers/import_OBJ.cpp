@@ -75,6 +75,7 @@ void import_OBJ(Context &ctx,
 
   auto *vertices = objdata.attrib.vertices.data();
   auto *texcoords = objdata.attrib.texcoords.data();
+  auto *normals = objdata.attrib.normals.data();
 
   for (auto &shape : objdata.shapes) {
     const size_t numIndices = shape.mesh.indices.size();
@@ -90,10 +91,16 @@ void import_OBJ(Context &ctx,
 
     float2 *outTexcoords = nullptr;
     ArrayRef texcoordArray;
-
     if (texcoords) {
       texcoordArray = ctx.createArray(ANARI_FLOAT32_VEC2, numVertices);
       outTexcoords = texcoordArray->mapAs<float2>();
+    }
+
+    float3 *outNormals = nullptr;
+    ArrayRef normalsArray;
+    if (normals) {
+      normalsArray = ctx.createArray(ANARI_FLOAT32_VEC3, numVertices);
+      outNormals = normalsArray->mapAs<float3>();
     }
 
     for (size_t i = 0; i < numIndices; i += 3) {
@@ -118,14 +125,34 @@ void import_OBJ(Context &ctx,
         outTexcoords[i + 1] = ti1 >= 0 ? float2(t1[0], t1[1]) : float2(0.f);
         outTexcoords[i + 2] = ti2 >= 0 ? float2(t2[0], t2[1]) : float2(0.f);
       }
+
+      if (normals) {
+        const auto ni0 = shape.mesh.indices[i + 0].normal_index;
+        const auto ni1 = shape.mesh.indices[i + 1].normal_index;
+        const auto ni2 = shape.mesh.indices[i + 2].normal_index;
+        const auto *n0 = normals + (ni0 * 3);
+        const auto *n1 = normals + (ni1 * 3);
+        const auto *n2 = normals + (ni2 * 3);
+        outNormals[i + 0] =
+            ni0 >= 0 ? float3(n0[0], n0[1], n0[2]) : float3(1.f);
+        outNormals[i + 1] =
+            ni1 >= 0 ? float3(n1[0], n1[1], n1[2]) : float3(1.f);
+        outNormals[i + 2] =
+            ni2 >= 0 ? float3(n2[0], n2[1], n2[2]) : float3(1.f);
+      }
     }
 
     vertexPositionArray->unmap();
-    mesh->setParameterObject("vertex.position"_t, *vertexPositionArray);
+    mesh->setParameterObject("vertex.position", *vertexPositionArray);
 
     if (texcoords) {
       texcoordArray->unmap();
-      mesh->setParameterObject("vertex.attribute0"_t, *texcoordArray);
+      mesh->setParameterObject("vertex.attribute0", *texcoordArray);
+    }
+
+    if (normals) {
+      normalsArray->unmap();
+      mesh->setParameterObject("vertex.normal", *normalsArray);
     }
 
     auto name = shape.name;
