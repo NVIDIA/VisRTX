@@ -64,7 +64,8 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
     box1 interval,
     vec3 *color,
-    float &opacity)
+    float &opacity,
+    float invSamplingRate)
 {
   const auto &volume = *hit.volumeData;
   /////////////////////////////////////////////////////////////////////////////
@@ -75,7 +76,7 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
 
   Sampler sampler(field);
 
-  const float stepSize = volume.stepSize;
+  const float stepSize = volume.stepSize * invSamplingRate;
   interval.lower += stepSize * curand_uniform(&ss.rs); // jitter
 
   while (opacity < 0.99f && size(interval) >= 0.f) {
@@ -85,16 +86,19 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
     if (!glm::isnan(s)) {
       const vec4 co = detail::classifySample(volume, s);
       if (color)
-        accumulateValue(*color, vec3(co) * co.w, opacity);
-      accumulateValue(opacity, co.w, opacity);
+        accumulateValue(*color, vec3(co) * co.w * invSamplingRate, opacity);
+      accumulateValue(opacity, co.w * invSamplingRate, opacity);
     }
 
     interval.lower += stepSize;
   }
 }
 
-VISRTX_DEVICE float rayMarchVolume(
-    ScreenSample &ss, const VolumeHit &hit, vec3 *color, float &opacity)
+VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
+    const VolumeHit &hit,
+    vec3 *color,
+    float &opacity,
+    float invSamplingRate)
 {
   const auto &volume = *hit.volumeData;
   /////////////////////////////////////////////////////////////////////////////
@@ -110,34 +114,34 @@ VISRTX_DEVICE float rayMarchVolume(
   switch (field.type) {
   case SpatialFieldType::STRUCTURED_REGULAR: {
     _rayMarchVolume<SpatialFieldSampler<cudaTextureObject_t>>(
-        ss, hit, interval, color, opacity);
+        ss, hit, interval, color, opacity, invSamplingRate);
     break;
   }
   case SpatialFieldType::NANOVDB_REGULAR: {
     switch (field.data.nvdbRegular.gridType) {
     case nanovdb::GridType::Fp4: {
       _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp4>>(
-          ss, hit, interval, color, opacity);
+          ss, hit, interval, color, opacity, invSamplingRate);
       break;
     }
     case nanovdb::GridType::Fp8: {
       _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp8>>(
-          ss, hit, interval, color, opacity);
+          ss, hit, interval, color, opacity, invSamplingRate);
       break;
     }
     case nanovdb::GridType::Fp16: {
       _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp16>>(
-          ss, hit, interval, color, opacity);
+          ss, hit, interval, color, opacity, invSamplingRate);
       break;
     }
     case nanovdb::GridType::FpN: {
       _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::FpN>>(
-          ss, hit, interval, color, opacity);
+          ss, hit, interval, color, opacity, invSamplingRate);
       break;
     }
     case nanovdb::GridType::Float: {
       _rayMarchVolume<NvdbSpatialFieldSampler<float>>(
-          ss, hit, interval, color, opacity);
+          ss, hit, interval, color, opacity, invSamplingRate);
       break;
     }
     default:
@@ -285,16 +289,21 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
 
 } // namespace detail
 
-VISRTX_DEVICE float rayMarchVolume(
-    ScreenSample &ss, const VolumeHit &hit, float &opacity)
+VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
+    const VolumeHit &hit,
+    float &opacity,
+    float invSamplingRate)
 {
-  return detail::rayMarchVolume(ss, hit, nullptr, opacity);
+  return detail::rayMarchVolume(ss, hit, nullptr, opacity, invSamplingRate);
 }
 
-VISRTX_DEVICE float rayMarchVolume(
-    ScreenSample &ss, const VolumeHit &hit, vec3 &color, float &opacity)
+VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
+    const VolumeHit &hit,
+    vec3 &color,
+    float &opacity,
+    float invSamplingRate)
 {
-  return detail::rayMarchVolume(ss, hit, &color, opacity);
+  return detail::rayMarchVolume(ss, hit, &color, opacity, invSamplingRate);
 }
 
 template <typename RAY_TYPE>
@@ -302,6 +311,7 @@ VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
     Ray ray,
     RAY_TYPE type,
     float tfar,
+    float invSamplingRate,
     vec3 &color,
     float &opacity,
     uint32_t &objID,
@@ -324,7 +334,7 @@ VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
     }
     depth = min(depth, hit.localRay.t.lower);
     hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
-    detail::rayMarchVolume(ss, hit, &color, opacity);
+    detail::rayMarchVolume(ss, hit, &color, opacity, invSamplingRate);
     ray.t.lower = hit.localRay.t.upper + 1e-3f;
   } while (opacity < 0.99f);
 

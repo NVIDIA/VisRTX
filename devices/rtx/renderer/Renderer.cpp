@@ -167,6 +167,8 @@ void Renderer::commit()
   m_denoise = getParam<bool>("denoise", false);
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
+  m_volumeSamplingRate =
+      std::clamp(getParam<float>("volumeSamplingRate", 1.f), 1e-3f, 10.f);
 }
 
 Span<HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -192,6 +194,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.ambientIntensity = m_ambientIntensity;
   fd.renderer.occlusionDistance = m_occlusionDistance;
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
+  fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
 }
 
 OptixPipeline Renderer::pipeline()

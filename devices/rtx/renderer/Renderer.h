@@ -86,6 +86,7 @@ struct Renderer : public Object
   bool m_denoise{false};
   int m_sampleLimit{0};
   bool m_cullTriangleBF{false};
+  float m_volumeSamplingRate{1.f};
 
   helium::IntrusivePtr<Array2D> m_backgroundImage;
   cudaTextureObject_t m_backgroundTexture{};

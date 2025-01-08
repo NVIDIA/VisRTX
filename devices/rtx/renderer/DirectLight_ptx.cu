@@ -127,6 +127,8 @@ VISRTX_GLOBAL void __closesthit__shadow()
 
 VISRTX_GLOBAL void __anyhit__shadow()
 {
+  auto &rendererParams = frameData.renderer;
+
   if (ray::isIntersectingSurfaces()) {
     SurfaceHit hit;
     ray::populateSurfaceHit(hit);
@@ -147,7 +149,10 @@ VISRTX_GLOBAL void __anyhit__shadow()
     auto &ra = ray::rayData<RayAttenuation>();
     VolumeHit hit;
     ray::populateVolumeHit(hit);
-    rayMarchVolume(ray::screenSample(), hit, ra.attenuation);
+    rayMarchVolume(ray::screenSample(),
+        hit,
+        ra.attenuation,
+        rendererParams.inverseVolumeSamplingRate);
     if (ra.attenuation < 0.99f)
       optixIgnoreIntersection();
   }
@@ -208,6 +213,7 @@ VISRTX_GLOBAL void __raygen__()
           ray,
           RayType::PRIMARY,
           surfaceHit.t,
+          rendererParams.inverseVolumeSamplingRate,
           color,
           opacity,
           vObjID,
@@ -247,6 +253,7 @@ VISRTX_GLOBAL void __raygen__()
           ray,
           RayType::PRIMARY,
           ray.t.upper,
+          rendererParams.inverseVolumeSamplingRate,
           color,
           opacity,
           vObjID,

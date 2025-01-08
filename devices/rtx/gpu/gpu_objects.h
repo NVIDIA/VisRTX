@@ -571,6 +571,7 @@ struct RendererGPUData
   RendererBackgroundGPUData background;
   glm::vec3 ambientColor;
   float ambientIntensity;
+  float inverseVolumeSamplingRate;
   float occlusionDistance;
   bool cullTriangleBF;
 };
