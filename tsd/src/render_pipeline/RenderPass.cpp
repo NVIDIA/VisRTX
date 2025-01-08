@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "RenderPass.h"
+#include "tsd/core/Logging.hpp"
 // std
 #include <algorithm>
 #include <cstring>
@@ -359,23 +360,30 @@ GLuint CopyToGLImagePass::getGLTexture() const
 
 bool CopyToGLImagePass::checkGLInterop()
 {
+#ifdef ENABLE_CUDA
   unsigned int numDevices = 0;
   int cudaDevices[8]; // Assuming max 8 devices for simplicity
 
   cudaError_t err =
       cudaGLGetDevices(&numDevices, cudaDevices, 8, cudaGLDeviceListAll);
-  if (err != cudaSuccess)
+  if (err != cudaSuccess) {
+    tsd::logWarning("[render_pipeline] failed to get CUDA GL devices");
     return false;
+  }
 
   if (numDevices > 0) {
     int currentDevice = 0;
     cudaGetDevice(&currentDevice);
     for (unsigned int i = 0; i < numDevices; ++i) {
-      if (currentDevice == cudaDevices[i])
+      if (currentDevice == cudaDevices[i]) {
+        tsd::logStatus("[render_pipeline] using CUDA-GL interop");
         return true;
+      }
     }
   }
+#endif
 
+  tsd::logWarning("[render_pipeline] unable to use CUDA-GL interop");
   return false;
 }
 
