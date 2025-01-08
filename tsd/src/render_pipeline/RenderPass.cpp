@@ -325,6 +325,7 @@ void OutlineRenderPass::render(Buffers &b, int stageId)
 struct CopyToGLImagePass::CopyToGLImagePassImpl
 {
   GLuint texture{0};
+  bool glInteropAvailable{false};
 #ifdef ENABLE_CUDA
   cudaGraphicsResource_t graphicsResource{nullptr};
 #endif
@@ -337,6 +338,7 @@ CopyToGLImagePass::CopyToGLImagePass()
   glBindTexture(GL_TEXTURE_2D, m_impl->texture);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  m_impl->glInteropAvailable = checkGLInterop();
 }
 
 CopyToGLImagePass::~CopyToGLImagePass()
@@ -355,33 +357,60 @@ GLuint CopyToGLImagePass::getGLTexture() const
   return m_impl->texture;
 }
 
+bool CopyToGLImagePass::checkGLInterop()
+{
+  unsigned int numDevices = 0;
+  int cudaDevices[8]; // Assuming max 8 devices for simplicity
+
+  cudaError_t err =
+      cudaGLGetDevices(&numDevices, cudaDevices, 8, cudaGLDeviceListAll);
+  if (err != cudaSuccess)
+    return false;
+
+  if (numDevices > 0) {
+    int currentDevice = 0;
+    cudaGetDevice(&currentDevice);
+    for (unsigned int i = 0; i < numDevices; ++i) {
+      if (currentDevice == cudaDevices[i])
+        return true;
+    }
+  }
+
+  return false;
+}
+
 void CopyToGLImagePass::render(Buffers &b, int /*stageId*/)
 {
   const auto size = getDimensions();
 #ifdef ENABLE_CUDA
-  cudaGraphicsMapResources(1, &m_impl->graphicsResource);
-  cudaArray_t array;
-  cudaGraphicsSubResourceGetMappedArray(&array, m_impl->graphicsResource, 0, 0);
-  cudaMemcpy2DToArray(array,
-      0,
-      0,
-      b.color,
-      size.x * 4,
-      size.x * 4,
-      size.y,
-      cudaMemcpyDeviceToDevice);
-  cudaGraphicsUnmapResources(1, &m_impl->graphicsResource);
-#else
-  glBindTexture(GL_TEXTURE_2D, m_impl->texture);
-  glTexSubImage2D(GL_TEXTURE_2D,
-      0,
-      0,
-      0,
-      size.x,
-      size.y,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      b.color);
+  if (m_impl->glInteropAvailable) {
+    cudaGraphicsMapResources(1, &m_impl->graphicsResource);
+    cudaArray_t array;
+    cudaGraphicsSubResourceGetMappedArray(
+        &array, m_impl->graphicsResource, 0, 0);
+    cudaMemcpy2DToArray(array,
+        0,
+        0,
+        b.color,
+        size.x * 4,
+        size.x * 4,
+        size.y,
+        cudaMemcpyDeviceToDevice);
+    cudaGraphicsUnmapResources(1, &m_impl->graphicsResource);
+  } else {
+#endif
+    glBindTexture(GL_TEXTURE_2D, m_impl->texture);
+    glTexSubImage2D(GL_TEXTURE_2D,
+        0,
+        0,
+        0,
+        size.x,
+        size.y,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        b.color);
+#ifdef ENABLE_CUDA
+  }
 #endif
 }
 

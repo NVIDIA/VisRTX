@@ -118,6 +118,7 @@ struct CopyToGLImagePass : public RenderPass
   GLuint getGLTexture() const;
 
  private:
+  bool checkGLInterop();
   void render(Buffers &b, int stageId) override;
   void updateSize() override;
 
