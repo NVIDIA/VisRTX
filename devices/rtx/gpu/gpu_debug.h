@@ -43,7 +43,7 @@
 
 namespace visrtx {
 
-RT_FUNCTION bool debug()
+VISRTX_DEVICE bool debug()
 {
 #if VISRTX_DEBUGGING
   glm::uvec2 pixel(optixGetLaunchIndex().x, optixGetLaunchIndex().y);
@@ -53,7 +53,7 @@ RT_FUNCTION bool debug()
 #endif
 }
 
-RT_FUNCTION bool crosshair()
+VISRTX_DEVICE bool crosshair()
 {
   glm::uvec2 pixel(optixGetLaunchIndex().x, optixGetLaunchIndex().y);
   return VISRTX_DEBUGGING

@@ -40,33 +40,30 @@ enum class RayType
 
 DECLARE_FRAME_DATA(frameData)
 
-RT_PROGRAM void __anyhit__primary()
+VISRTX_GLOBAL void __anyhit__primary()
 {
   ray::cullbackFaces();
 }
 
-RT_PROGRAM void __closesthit__primary()
+VISRTX_GLOBAL void __closesthit__primary()
 {
   ray::populateHit();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // no-op
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
 
-  /////////////////////////////////////////////////////////////////////////////
-  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
   auto ray = makePrimaryRay(ss, true /*pixel centered*/);
   float tmax = ray.t.upper;
-  /////////////////////////////////////////////////////////////////////////////
 
   SurfaceHit surfaceHit;
   VolumeHit volumeHit;
@@ -98,6 +95,7 @@ RT_PROGRAM void __raygen__()
           ray,
           RayType::PRIMARY,
           surfaceHit.t,
+          rendererParams.inverseVolumeSamplingRate,
           color,
           opacity,
           vObjID,
@@ -114,7 +112,7 @@ RT_PROGRAM void __raygen__()
         } else {
           outputNormal = surfaceHit.Ng;
           depth = surfaceHit.t;
-          primID = surfaceHit.primID;
+          primID = computeGeometryPrimId(surfaceHit);
           objID = surfaceHit.objID;
           instID = surfaceHit.instID;
         }
@@ -143,6 +141,7 @@ RT_PROGRAM void __raygen__()
           ray,
           RayType::PRIMARY,
           ray.t.upper,
+          rendererParams.inverseVolumeSamplingRate,
           color,
           opacity,
           vObjID,

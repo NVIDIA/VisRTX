@@ -48,8 +48,6 @@ anari_generate_frontend(
   JSON ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_subdirectory(generated)
-
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
 
 add_library(${PROJECT_NAME} SHARED
@@ -85,8 +83,14 @@ add_library(${PROJECT_NAME} SHARED
   generated/VisGLObjects.cpp
   generated/VisGLDeviceFactories.cpp
   generated/VisGLString.cpp
-  generated/VisGLQueries.cpp
   src/glad/src/gl.c
+)
+
+anari_generate_queries(
+  DEVICE_TARGET ${PROJECT_NAME}
+  CPP_NAMESPACE visgl
+  JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
+  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visgl_device.json
 )
 
 generate_export_header(${PROJECT_NAME}

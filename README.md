@@ -79,6 +79,13 @@ In addition to standard `ANARI_KHR` extensions, the following extensions are
 also implemented in the `visrtx` device. Note that all extensions are subject to
 change
 
+#### "VISRTX_ARRAY_CUDA" (experimental)
+
+This extension indicates that applications can use pointers to CUDA device
+memory when created shared and captured arrays when using VisRTX. This is
+currently only working with `sharedStructured` spatial fields and is under
+active development.
+
 #### "VISRTX_CUDA_OUTPUT_BUFFERS"
 
 This extension indicates that raw CUDA GPU buffers from frame objects can be
@@ -92,10 +99,19 @@ GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary `color` and `depth` channels.
 
-#### "VISRTX_UNIFORM_ATTRIBUTES" (experimental)
+#### "VISRTX_INSTANCE_ATTRIBUTES" (experimental)
 
 This extension indicates that all attributes can be set as a single
-`ANARI_FLOAT32_VEC4` value, which is constant over the entire geometry.
+`ANARI_FLOAT32_VEC4` value on the instance, which overrides any values on the
+geometries within the instanced group.
+
+#### "VISRTX_SPATIAL_FIELD_NANOVDB" (experimental)
+
+This extension adds the ability to render
+[NanoVDB](https://developer.nvidia.com/nanovdb) spatial fields. This subtype
+takes a single array parameter called `data`, where the array is of type `UINT8`
+containing the raw bytes containing of the grid data. Currently `float`,
+`nanovdb::Fp4/8/16/N` grids are supported.
 
 #### "VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES" (experimental)
 
@@ -155,6 +171,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 
 - `KHR_ARRAY1D_REGION`
 - `KHR_AUXILIARY_BUFFERS`
+- `KHR_CAMERA_DEPTH_OF_FIELD`
 - `KHR_CAMERA_ORTHOGRAPHIC`
 - `KHR_CAMERA_PERSPECTIVE`
 - `KHR_DEVICE_SYNCHRONIZATION`
@@ -169,6 +186,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_GEOMETRY_SPHERE`
 - `KHR_GEOMETRY_TRIANGLE`
 - `KHR_INSTANCE_TRANSFORM`
+- `KHR_INSTANCE_TRANSFORM_ARRAY`
 - `KHR_LIGHT_DIRECTIONAL`
 - `KHR_LIGHT_POINT`
 - `KHR_MATERIAL_MATTE`
@@ -179,9 +197,12 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_SAMPLER_TRANSFORM`
 - `KHR_SPATIAL_FIELD_STRUCTURED_REGULAR`
 - `KHR_VOLUME_TRANSFER_FUNCTION1D`
+- `VISRTX_ARRAY_CUDA`
 - `VISRTX_CUDA_OUTPUT_BUFFERS`
+- `VISRTX_INSTANCE_ATTRIBUTES`
+- `VISRTX_SPATIAL_FIELD_NANOVDB`
+- `VISRTX_TRIANGLE_BACK_FACE_CULLING`
 - `VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES`
-- `VISRTX_UNIFORM_ATTRIBUTES`
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!

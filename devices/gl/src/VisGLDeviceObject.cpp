@@ -33,7 +33,8 @@
 #include "VisGLSpecializations.h"
 #include "AppendableShader.h"
 #include "shader_blocks.h"
-#include "generated/VisGLQueries.h"
+
+#include "anari_library_visgl_queries.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -238,7 +239,7 @@ void Object<Device>::update()
 
   // retrieve gl context parameters
   clientapi = current.glAPI.getStringEnum();
-  int32_t debug = 0;
+  int8_t debug = 0;
   current.glDebug.get(ANARI_BOOL, &debug);
 
 #ifdef VISGL_USE_GLX

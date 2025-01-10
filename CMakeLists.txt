@@ -35,6 +35,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 set(CMAKE_BUILD_TYPE_INIT "Release")
 
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
@@ -49,10 +51,12 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   if (CMAKE_VERSION VERSION_LESS "3.23")
     set(CMAKE_CUDA_ARCHITECTURES OFF)
+  else()
+    set(CMAKE_CUDA_ARCHITECTURES all-major)
   endif()
 endif()
 
-project(VisRTX VERSION 0.9.0 LANGUAGES C CXX)
+project(VisRTX VERSION 0.10.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
@@ -62,6 +66,15 @@ option(
   OFF
 )
 mark_as_advanced(VISRTX_SET_SOVERSION)
+
+option(VISRTX_BUILD_TSD "Build TSD sample applications" OFF)
+mark_as_advanced(VISRTX_BUILD_TSD)
+
+option(
+  VISRTX_ENABLE_MDL_SUPPORT
+  "Whether to enable NVIDIA MDL support for VisRTX materials"
+  OFF
+)
 
 if (VISRTX_SET_SOVERSION)
   set(VISRTX_CMAKE_INSTALL_DESTINATION
@@ -76,7 +89,7 @@ endif()
 ## Dependencies ###############################################################
 
 # ANARI-SDK
-set(ANARI_REQUIRED_VERSION 0.10.0)
+set(ANARI_REQUIRED_VERSION 0.12.0)
 find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
 # CUDA
@@ -106,6 +119,10 @@ enable_testing()
 add_subdirectory(devices)
 add_subdirectory(examples)
 add_subdirectory(tests)
+add_subdirectory(shaders)
+if (VISRTX_BUILD_TSD)
+  add_subdirectory(tsd)
+endif()
 
 ## Configure CMake find_package() config files ################################
 

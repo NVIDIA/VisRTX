@@ -36,6 +36,7 @@
 #include "gpu/gpu_objects.h"
 #include "utility/CudaImageTexture.h"
 // optix
+#include <helium/utility/TimeStamp.h>
 #include <optix.h>
 // std
 #include <vector>
@@ -64,7 +65,7 @@ struct Renderer : public Object
 
   virtual void populateFrameData(FrameGPUData &fd) const;
 
-  OptixPipeline pipeline() const;
+  OptixPipeline pipeline();
   const OptixShaderBindingTable *sbt();
 
   int spp() const;
@@ -76,15 +77,16 @@ struct Renderer : public Object
       std::string_view subtype, DeviceGlobalState *d);
 
  protected:
-  vec4 m_bgColor{1.f};
+  vec4 m_bgColor{0.f, 0.f, 0.f, 1.f};
   int m_spp{1};
   vec3 m_ambientColor{1.f};
-  float m_ambientIntensity{1.f};
+  float m_ambientIntensity{0.f};
   float m_occlusionDistance{1e20f};
   bool m_checkerboard{false};
   bool m_denoise{false};
   int m_sampleLimit{0};
   bool m_cullTriangleBF{false};
+  float m_volumeSamplingRate{1.f};
 
   helium::IntrusivePtr<Array2D> m_backgroundImage;
   cudaTextureObject_t m_backgroundTexture{};
@@ -96,9 +98,11 @@ struct Renderer : public Object
   std::vector<OptixProgramGroup> m_raygenPGs;
   std::vector<OptixProgramGroup> m_missPGs;
   std::vector<OptixProgramGroup> m_hitgroupPGs;
+  std::vector<OptixProgramGroup> m_materialPGs;
   DeviceBuffer m_raygenRecordsBuffer;
   DeviceBuffer m_missRecordsBuffer;
   DeviceBuffer m_hitgroupRecordsBuffer;
+  DeviceBuffer m_materialRecordsBuffer;
   OptixShaderBindingTable m_sbt{};
 
  private:
@@ -108,6 +112,10 @@ struct Renderer : public Object
   HitgroupFunctionNames m_defaultHitgroupNames;
   std::string m_defaultMissName{"__miss__"};
   float m_defaultAmbientRadiance{0.f};
+
+#ifdef USE_MDL
+  helium::TimeStamp m_lastMDLMaterialLibraryUpdateCheck{};
+#endif // defined(USE_MDL)
 };
 
 OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions();

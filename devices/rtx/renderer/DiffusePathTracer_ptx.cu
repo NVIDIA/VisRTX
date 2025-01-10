@@ -32,6 +32,7 @@
 #define VISRTX_DEBUGGING 0
 
 #include "gpu/gpu_debug.h"
+#include "gpu/evalMaterial.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -52,31 +53,31 @@ DECLARE_FRAME_DATA(frameData)
 
 // OptiX programs /////////////////////////////////////////////////////////////
 
-RT_PROGRAM void __closesthit__()
+VISRTX_GLOBAL void __closesthit__()
 {
   ray::populateHit();
 }
 
-RT_PROGRAM void __anyhit__()
+VISRTX_GLOBAL void __anyhit__()
 {
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
 
   const auto &fd = frameData;
   const auto &md = *hit.material;
-  vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
-  float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
-  opacity = adjustedMaterialOpacity(opacity, md) * color.w;
+  const auto& materialValues = getMaterialValues(fd, md, hit);
+
+  float opacity = materialValues.opacity;
   if (opacity < 0.99f && curand_uniform(&ray::screenSample().rs) > opacity)
     optixIgnoreIntersection();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // no-op
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
   auto &dptParams = rendererParams.params.dpt;
@@ -85,14 +86,11 @@ RT_PROGRAM void __raygen__()
 
   auto &hit = pathData.currentHit;
 
-  /////////////////////////////////////////////////////////////////////////////
-  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
   auto ray = makePrimaryRay(ss);
   auto tmax = ray.t.upper;
-  /////////////////////////////////////////////////////////////////////////////
 
   if (debug())
     printf("========== BEGIN: FrameID %i ==========\n", frameData.fb.frameID);
@@ -146,8 +144,8 @@ RT_PROGRAM void __raygen__()
     if (!volumeHit) {
       pos = hit.hitpoint + (hit.epsilon * hit.Ng);
       const auto &material = *hit.material;
-      albedo =
-          getMaterialParameter(frameData, material.values[MV_BASE_COLOR], hit);
+      const auto &materialValues = getMaterialValues(frameData, material, hit);
+      albedo = vec3(materialValues.baseColor);
     } else {
       pos = ray.org + volumeDepth * ray.dir;
       albedo = volumeColor;
@@ -182,7 +180,7 @@ RT_PROGRAM void __raygen__()
       const bool volumeFirst = volumeDepth < hit.t;
       outDepth = volumeFirst ? volumeDepth : hit.t;
       outNormal = hit.Ng; // TODO: for volume (gradient?)
-      primID = volumeFirst ? 0 : hit.primID;
+      primID = volumeFirst ? 0 : computeGeometryPrimId(hit);
       objID = volumeFirst ? vObjID : hit.objID;
       instID = volumeFirst ? vInstID : hit.instID;
     }

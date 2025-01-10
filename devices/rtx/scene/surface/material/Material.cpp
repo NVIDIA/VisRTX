@@ -31,9 +31,17 @@
 
 #include "Material.h"
 // specific types
+
 #include "Matte.h"
 #include "PBR.h"
 #include "UnknownMaterial.h"
+#ifdef USE_MDL
+#include "MDL.h"
+#endif // defined(USE_MDL)
+
+#include <string>
+
+using namespace std::string_literals;
 
 namespace visrtx {
 
@@ -41,6 +49,8 @@ Material::Material(DeviceGlobalState *s)
     : RegisteredObject<MaterialGPUData>(ANARI_MATERIAL, s)
 {
   setRegistry(s->registry.materials);
+  helium::BaseObject::markUpdated();
+  s->commitBufferAddObject(this);
 }
 
 Material *Material::createInstance(
@@ -50,6 +60,10 @@ Material *Material::createInstance(
     return new Matte(d);
   else if (subtype == "pbr" || subtype == "physicallyBased")
     return new PBR(d);
+#ifdef USE_MDL
+  else if (subtype == "mdl" && d->mdl)
+    return new MDL(d);
+#endif // defined(USE_MDL)
   else
     return new UnknownMaterial(subtype, d);
 }

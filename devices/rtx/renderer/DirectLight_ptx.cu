@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <glm/ext/vector_float4.hpp>
+#include "gpu/evalMaterial.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -49,7 +51,7 @@ DECLARE_FRAME_DATA(frameData)
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-RT_FUNCTION float volumeAttenuation(ScreenSample &ss, Ray r)
+VISRTX_DEVICE float volumeAttenuation(ScreenSample &ss, Ray r)
 {
   RayAttenuation ra;
   ra.ray = &r;
@@ -58,7 +60,8 @@ RT_FUNCTION float volumeAttenuation(ScreenSample &ss, Ray r)
   return ra.attenuation;
 }
 
-RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
+VISRTX_DEVICE vec4 shadeSurface(
+    ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 {
   const auto &rendererParams = frameData.renderer;
   const auto &directLightParams = rendererParams.params.directLight;
@@ -77,17 +80,21 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
             rendererParams.occlusionDistance,
             directLightParams.aoSamples)
       : 1.f;
-  const vec4 matAoResult = evalMaterial(frameData,
-      *hit.material,
-      hit,
+
+  // Env faking
+  LightSample ls = {
+      rendererParams.ambientIntensity * rendererParams.ambientColor,
       -ray.dir,
-      -ray.dir,
-      rendererParams.ambientIntensity * rendererParams.ambientColor);
+      1000.f,
+      1.0f,
+  };
+  const vec4 matAoResult =
+      evalMaterial(frameData, ss, *hit.material, hit, ray, ls);
 
   // Compute contribution from other lights //
-
   vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
   float opacity = matAoResult.w;
+
   for (size_t i = 0; i < world.numLightInstances; i++) {
     auto *inst = world.lightInstances + i;
     if (!inst)
@@ -102,8 +109,8 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
       const float surface_o = 1.f - surfaceAttenuation(ss, r, RayType::SHADOW);
       const float volume_o = 1.f - volumeAttenuation(ss, r);
       const float attenuation = surface_o * volume_o;
-      const vec4 matResult = evalMaterial(
-          frameData, *hit.material, hit, -ray.dir, ls.dir, ls.radiance);
+      const vec4 matResult =
+          evalMaterial(frameData, ss, *hit.material, hit, ray, ls);
       contrib += vec3(matResult) * dot(ls.dir, hit.Ns)
           * directLightParams.lightFalloff * attenuation;
     }
@@ -113,25 +120,27 @@ RT_FUNCTION vec4 shadeSurface(ScreenSample &ss, Ray &ray, const SurfaceHit &hit)
 
 // OptiX programs /////////////////////////////////////////////////////////////
 
-RT_PROGRAM void __closesthit__shadow()
+VISRTX_GLOBAL void __closesthit__shadow()
 {
   // no-op
 }
 
-RT_PROGRAM void __anyhit__shadow()
+VISRTX_GLOBAL void __anyhit__shadow()
 {
+  auto &rendererParams = frameData.renderer;
+
   if (ray::isIntersectingSurfaces()) {
     SurfaceHit hit;
     ray::populateSurfaceHit(hit);
 
     const auto &fd = frameData;
     const auto &md = *hit.material;
-    vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
-    float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
-    opacity = adjustedMaterialOpacity(opacity, md) * color.w;
 
+    const auto &materialValues = getMaterialValues(fd, md, hit);
     auto &o = ray::rayData<float>();
-    accumulateValue(o, opacity, o);
+
+    accumulateValue(o, materialValues.opacity, o);
+
     if (o >= 0.99f)
       optixTerminateRay();
     else
@@ -140,39 +149,39 @@ RT_PROGRAM void __anyhit__shadow()
     auto &ra = ray::rayData<RayAttenuation>();
     VolumeHit hit;
     ray::populateVolumeHit(hit);
-    rayMarchVolume(ray::screenSample(), hit, ra.attenuation);
+    rayMarchVolume(ray::screenSample(),
+        hit,
+        ra.attenuation,
+        rendererParams.inverseVolumeSamplingRate);
     if (ra.attenuation < 0.99f)
       optixIgnoreIntersection();
   }
 }
 
-RT_PROGRAM void __anyhit__primary()
+VISRTX_GLOBAL void __anyhit__primary()
 {
   ray::cullbackFaces();
 }
 
-RT_PROGRAM void __closesthit__primary()
+VISRTX_GLOBAL void __closesthit__primary()
 {
   ray::populateHit();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // TODO
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
 
-  /////////////////////////////////////////////////////////////////////////////
-  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
   auto ray = makePrimaryRay(ss);
   float tmax = ray.t.upper;
-  /////////////////////////////////////////////////////////////////////////////
 
   SurfaceHit surfaceHit;
   VolumeHit volumeHit;
@@ -204,6 +213,7 @@ RT_PROGRAM void __raygen__()
           ray,
           RayType::PRIMARY,
           surfaceHit.t,
+          rendererParams.inverseVolumeSamplingRate,
           color,
           opacity,
           vObjID,
@@ -218,9 +228,9 @@ RT_PROGRAM void __raygen__()
           objID = vObjID;
           instID = vInstID;
         } else {
-          outputNormal = surfaceHit.Ng;
+          outputNormal = surfaceHit.Ns;
           depth = surfaceHit.t;
-          primID = surfaceHit.primID;
+          primID = computeGeometryPrimId(surfaceHit);
           objID = surfaceHit.objID;
           instID = surfaceHit.instID;
         }
@@ -243,6 +253,7 @@ RT_PROGRAM void __raygen__()
           ray,
           RayType::PRIMARY,
           ray.t.upper,
+          rendererParams.inverseVolumeSamplingRate,
           color,
           opacity,
           vObjID,

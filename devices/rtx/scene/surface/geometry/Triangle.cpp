@@ -72,6 +72,14 @@ void Triangle::commit()
         m_vertex->size());
   }
 
+  if (m_vertexNormalFV && 3 * m_index->size() != m_vertexNormalFV->size()) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'faceVarying.normal' on triangle geometry is not matching "
+        "the number of triangles in 'primitive.index' (%zu) vs. (%zu)",
+        m_vertexNormalFV->size(),
+        m_index->size());
+  }
+
   reportMessage(ANARI_SEVERITY_DEBUG,
       "committing %s triangle geometry",
       m_index ? "indexed" : "soup");

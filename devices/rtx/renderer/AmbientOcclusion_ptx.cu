@@ -43,58 +43,53 @@ DECLARE_FRAME_DATA(frameData)
 
 // OptiX programs /////////////////////////////////////////////////////////////
 
-RT_PROGRAM void __closesthit__ao()
+VISRTX_GLOBAL void __closesthit__ao()
 {
   // no-op
 }
 
-RT_PROGRAM void __anyhit__ao()
+VISRTX_GLOBAL void __anyhit__ao()
 {
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
 
-  const auto &fd = frameData;
-  const auto &md = *hit.material;
-  vec4 color = getMaterialParameter(fd, md.values[MV_BASE_COLOR], hit);
-  float opacity = getMaterialParameter(fd, md.values[MV_OPACITY], hit).x;
-  opacity = adjustedMaterialOpacity(opacity, md) * color.w;
+  const auto& fd = frameData;
+  const auto& md = *hit.material;
+  const auto& materialValues = getMaterialValues(fd, md, hit);
 
   auto &o = ray::rayData<float>();
-  accumulateValue(o, opacity, o);
+  accumulateValue(o, materialValues.opacity, o);
   if (o >= 0.99f)
     optixTerminateRay();
   else
     optixIgnoreIntersection();
 }
 
-RT_PROGRAM void __anyhit__primary()
+VISRTX_GLOBAL void __anyhit__primary()
 {
   ray::cullbackFaces();
 }
 
-RT_PROGRAM void __closesthit__primary()
+VISRTX_GLOBAL void __closesthit__primary()
 {
   ray::populateHit();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // no-op
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
   auto &aoParams = rendererParams.params.ao;
 
-  /////////////////////////////////////////////////////////////////////////////
-  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
   auto ray = makePrimaryRay(ss);
   float tmax = ray.t.upper;
-  /////////////////////////////////////////////////////////////////////////////
 
   SurfaceHit surfaceHit;
   VolumeHit volumeHit;
@@ -126,6 +121,7 @@ RT_PROGRAM void __raygen__()
           ray,
           RayType::PRIMARY,
           surfaceHit.t,
+          rendererParams.inverseVolumeSamplingRate,
           color,
           opacity,
           vObjID,
@@ -142,7 +138,7 @@ RT_PROGRAM void __raygen__()
         } else {
           outputNormal = surfaceHit.Ng;
           depth = surfaceHit.t;
-          primID = surfaceHit.primID;
+          primID = computeGeometryPrimId(surfaceHit);
           objID = surfaceHit.objID;
           instID = surfaceHit.instID;
         }
@@ -180,6 +176,7 @@ RT_PROGRAM void __raygen__()
           ray,
           RayType::PRIMARY,
           ray.t.upper,
+          rendererParams.inverseVolumeSamplingRate,
           color,
           opacity,
           vObjID,

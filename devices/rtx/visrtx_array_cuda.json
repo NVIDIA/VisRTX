@@ -1,0 +1,8 @@
+{
+  "info": {
+    "name": "VISRTX_ARRAY_CUDA",
+    "type": "extension",
+    "dependencies": []
+  },
+  "objects": []
+}

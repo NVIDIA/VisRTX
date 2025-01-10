@@ -38,10 +38,9 @@ namespace visrtx {
 
 Object::Object(ANARIDataType type, DeviceGlobalState *s)
     : helium::BaseObject(type, s)
-{
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
-}
+{}
+
+Object::~Object() = default;
 
 void Object::commit()
 {

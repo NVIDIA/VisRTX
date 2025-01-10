@@ -35,14 +35,20 @@
 namespace visrtx {
 
 Array2D::Array2D(DeviceGlobalState *state, const Array2DMemoryDescriptor &d)
-    : helium::Array2D(state, d)
-{}
-
-const void *Array2D::dataGPU() const
+    : Array(ANARI_ARRAY2D, state, d, d.numItems1 * d.numItems2)
 {
-  const_cast<Array2D *>(this)->markDataIsOffloaded(true);
-  uploadArrayData();
-  return m_deviceData.buffer.ptr();
+  m_size[0] = d.numItems1;
+  m_size[1] = d.numItems2;
+}
+
+size_t Array2D::size(int dim) const
+{
+  return m_size[dim];
+}
+
+anari::math::uint2 Array2D::size() const
+{
+  return anari::math::uint2(uint32_t(size(0)), uint32_t(size(1)));
 }
 
 cudaArray_t Array2D::acquireCUDAArrayFloat()
@@ -81,9 +87,7 @@ void Array2D::releaseCUDAArrayUint8()
 
 void Array2D::uploadArrayData() const
 {
-  helium::Array2D::uploadArrayData();
-  m_deviceData.buffer.upload(
-      (uint8_t *)data(), anari::sizeOf(elementType()) * totalSize());
+  Array::uploadArrayData();
   if (m_cuArrayFloat)
     makeCudaArrayFloat(m_cuArrayFloat, *this, uvec2(size().x, size().y));
   if (m_cuArrayUint8)

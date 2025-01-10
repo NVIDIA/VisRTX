@@ -37,7 +37,7 @@
 
 namespace visrtx {
 
-constexpr bool isFloat(ANARIDataType format)
+constexpr bool isFloat32(ANARIDataType format)
 {
   switch (format) {
   case ANARI_FLOAT32_VEC4:
@@ -49,6 +49,25 @@ constexpr bool isFloat(ANARIDataType format)
     break;
   }
   return false;
+}
+
+constexpr bool isFloat64(ANARIDataType format)
+{
+  switch (format) {
+  case ANARI_FLOAT64_VEC4:
+  case ANARI_FLOAT64_VEC3:
+  case ANARI_FLOAT64_VEC2:
+  case ANARI_FLOAT64:
+    return true;
+  default:
+    break;
+  }
+  return false;
+}
+
+constexpr bool isFloat(ANARIDataType format)
+{
+  return isFloat32(format) || isFloat64(format);
 }
 
 constexpr bool isFixed32(ANARIDataType format)

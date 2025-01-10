@@ -34,17 +34,25 @@
 #include "gpu/gpu_objects.h"
 #include "utility/DeferredArrayUploadBuffer.h"
 #include "utility/DeviceObjectArray.h"
+
 // helium
 #include "helium/BaseGlobalDeviceState.h"
 // anari
 #include <anari/anari_cpp.hpp>
 // optix
+#include <helium/utility/TimeStamp.h>
 #include <optix.h>
 #include <optix_stubs.h>
+// mdl
+#ifdef USE_MDL
+#include <mi/neuraylib/ineuray.h>
+#include "libmdl/Core.h"
+#include "mdl/Logger.h"
+#include "mdl/MaterialRegistry.h"
+#include "mdl/SamplerRegistry.h"
+#endif // defined(USE_MDL)
 // std
-#include <functional>
-#include <sstream>
-#include <stdexcept>
+#include <optional>
 #include <vector>
 
 #ifdef OPAQUE
@@ -139,9 +147,12 @@ VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box1, ANARI_FLOAT32_BOX1);
 
 namespace visrtx {
 
+struct Object;
+struct MDL;
+
 struct ptx_blob
 {
-  unsigned char *ptr{nullptr};
+  const unsigned char *ptr{nullptr};
   size_t size{0};
 };
 
@@ -163,6 +174,10 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule diffusePathTracer{nullptr};
     OptixModule directLight{nullptr};
     OptixModule test{nullptr};
+#ifdef USE_MDL
+    OptixModule mdl{nullptr};
+    helium::TimeStamp lastMDLMaterialChange{0};
+#endif
   } rendererModules;
 
   struct IntersectionModules
@@ -171,10 +186,19 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule customIntersectors{nullptr};
   } intersectionModules;
 
+  struct MaterialModules
+  {
+    OptixModule matte{nullptr};
+    OptixModule physicallyBased{nullptr};
+  } materialShaders;
+
   struct ObjectUpdates
   {
     helium::TimeStamp lastBLASChange{0};
     helium::TimeStamp lastTLASChange{0};
+#ifdef USE_MDL
+    helium::TimeStamp lastMDLObjectChange{0};
+#endif // defined(USE_MDL)
   } objectUpdates;
 
   DeferredArrayUploadBuffer uploadBuffer;
@@ -190,12 +214,32 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     DeviceObjectArray<VolumeGPUData> volumes;
   } registry;
 
+  // MDL
+#ifdef USE_MDL
+  struct MDL
+  {
+    libmdl::Core core;
+    mdl::MaterialRegistry materialRegistry;
+    mdl::SamplerRegistry samplerRegistry;
+
+    MDL(DeviceGlobalState *deviceState)
+        : core(new mdl::Logger(deviceState)),
+          materialRegistry(&core),
+          samplerRegistry(&core, deviceState)
+    {}
+    MDL(DeviceGlobalState *deviceState, mi::neuraylib::INeuray *neuray)
+        : core(neuray),
+          materialRegistry(&core),
+          samplerRegistry(&core, deviceState)
+    {}
+  };
+  std::optional<MDL> mdl;
+#endif // defined(USE_MDL)
   // Helper methods //
 
   DeviceGlobalState(ANARIDevice d);
+  ~DeviceGlobalState() override;
 };
-
-struct Object;
 
 void buildOptixBVH(std::vector<OptixBuildInput> buildInput,
     DeviceBuffer &bvh,

@@ -58,6 +58,7 @@ struct Image1D : public Sampler
   helium::ChangeObserverPtr<Array1D> m_image;
 
   cudaTextureObject_t m_texture{};
+  cudaTextureObject_t m_texels{};
 };
 
 } // namespace visrtx

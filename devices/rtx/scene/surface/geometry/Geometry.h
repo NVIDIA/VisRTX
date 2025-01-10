@@ -39,6 +39,21 @@
 
 namespace visrtx {
 
+struct UniformAttributes
+{
+  helium::IntrusivePtr<Array1D> attribute0Array;
+  helium::IntrusivePtr<Array1D> attribute1Array;
+  helium::IntrusivePtr<Array1D> attribute2Array;
+  helium::IntrusivePtr<Array1D> attribute3Array;
+  helium::IntrusivePtr<Array1D> colorArray;
+
+  std::optional<vec4> attribute0;
+  std::optional<vec4> attribute1;
+  std::optional<vec4> attribute2;
+  std::optional<vec4> attribute3;
+  std::optional<vec4> color;
+};
+
 struct GeometryAttributes
 {
   helium::IntrusivePtr<Array1D> attribute0;
@@ -46,15 +61,6 @@ struct GeometryAttributes
   helium::IntrusivePtr<Array1D> attribute2;
   helium::IntrusivePtr<Array1D> attribute3;
   helium::IntrusivePtr<Array1D> color;
-};
-
-struct GeometryAttributesUniform
-{
-  std::optional<vec4> attribute0;
-  std::optional<vec4> attribute1;
-  std::optional<vec4> attribute2;
-  std::optional<vec4> attribute3;
-  std::optional<vec4> color;
 };
 
 struct Geometry : public RegisteredObject<GeometryGPUData>
@@ -72,14 +78,15 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   void markCommitted() override;
 
  protected:
-  virtual GeometryGPUData gpuData() const = 0;
+  GeometryGPUData gpuData() const override = 0;
 
   void commitAttributes(const char *prefix, GeometryAttributes &attrs);
   void populateAttributeDataSet(
       const GeometryAttributes &hostAttrs, AttributeDataSet &gpuAttrs) const;
 
   GeometryAttributes m_primitiveAttributes;
-  GeometryAttributesUniform m_uniformAttributes;
+  UniformAttributes m_uniformAttributes;
+  helium::IntrusivePtr<Array1D> m_primitiveId;
 };
 
 } // namespace visrtx

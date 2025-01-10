@@ -51,7 +51,7 @@ struct VolumeRayData : public VolumeHit
 
 DECLARE_FRAME_DATA(frameData)
 
-RT_FUNCTION void handleSurfaceHit()
+VISRTX_DEVICE void handleSurfaceHit()
 {
   auto &rd = ray::rayData<SurfaceRayData>();
   ray::populateSurfaceHit(rd);
@@ -61,12 +61,21 @@ RT_FUNCTION void handleSurfaceHit()
 
   switch (method) {
   case DebugMethod::PRIM_ID:
-    rd.outColor = makeRandomColor(ray::primID());
+    rd.outColor = makeRandomColor(computeGeometryPrimId(rd));
     break;
-  case DebugMethod::GEOM_ID:
-    rd.outColor = makeRandomColor(ray::objID());
+  case DebugMethod::OBJ_ID:
+    rd.outColor = makeRandomColor(rd.objID);
     break;
   case DebugMethod::INST_ID:
+    rd.outColor = makeRandomColor(rd.instID);
+    break;
+  case DebugMethod::PRIM_INDEX:
+    rd.outColor = makeRandomColor(ray::primID());
+    break;
+  case DebugMethod::OBJ_INDEX:
+    rd.outColor = makeRandomColor(ray::objID());
+    break;
+  case DebugMethod::INST_INDEX:
     rd.outColor = makeRandomColor(ray::instID());
     break;
   case DebugMethod::RAY_UVW:
@@ -120,7 +129,7 @@ RT_FUNCTION void handleSurfaceHit()
   rd.outColor = glm::mix(rd.outColor, c, 0.5f);
 }
 
-RT_FUNCTION void handleVolumeHit()
+VISRTX_DEVICE void handleVolumeHit()
 {
   auto &rd = ray::rayData<VolumeRayData>();
   ray::populateVolumeHit(rd);
@@ -129,13 +138,20 @@ RT_FUNCTION void handleVolumeHit()
       static_cast<DebugMethod>(frameData.renderer.params.debug.method);
 
   switch (method) {
-  case DebugMethod::PRIM_ID:
-    rd.outColor = makeRandomColor(ray::primID());
-    break;
-  case DebugMethod::GEOM_ID:
-    rd.outColor = makeRandomColor(ray::objID());
+  case DebugMethod::OBJ_ID:
+    rd.outColor = makeRandomColor(rd.volID);
     break;
   case DebugMethod::INST_ID:
+    rd.outColor = makeRandomColor(rd.instID);
+    break;
+  case DebugMethod::PRIM_ID:
+  case DebugMethod::PRIM_INDEX:
+    rd.outColor = makeRandomColor(ray::primID());
+    break;
+  case DebugMethod::OBJ_INDEX:
+    rd.outColor = makeRandomColor(ray::objID());
+    break;
+  case DebugMethod::INST_INDEX:
     rd.outColor = makeRandomColor(ray::instID());
     break;
   case DebugMethod::IS_TRIANGLE:
@@ -153,7 +169,7 @@ RT_FUNCTION void handleVolumeHit()
   }
 }
 
-RT_PROGRAM void __closesthit__()
+VISRTX_GLOBAL void __closesthit__()
 {
   if (ray::isIntersectingSurfaces())
     handleSurfaceHit();
@@ -161,20 +177,17 @@ RT_PROGRAM void __closesthit__()
     handleVolumeHit();
 }
 
-RT_PROGRAM void __miss__()
+VISRTX_GLOBAL void __miss__()
 {
   // no-op
 }
 
-RT_PROGRAM void __raygen__()
+VISRTX_GLOBAL void __raygen__()
 {
-  /////////////////////////////////////////////////////////////////////////////
-  // TODO: clean this up! need to split out Ray/RNG, don't need screen samples
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
-  auto ray = makePrimaryRay(ss);
-  /////////////////////////////////////////////////////////////////////////////
+  auto ray = makePrimaryRay(ss, true /*pixel centered*/);
 
   auto color = vec3(getBackground(frameData.renderer, ss.screen));
   auto depth = ray.t.upper;

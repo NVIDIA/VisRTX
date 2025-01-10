@@ -38,7 +38,6 @@
 #include <glm/gtx/component_wise.hpp>
 // std
 #include <limits>
-#include <variant>
 // cuda
 #include <cuda_runtime.h>
 
@@ -86,6 +85,7 @@ struct Ray
   box1 t{0.f, std::numeric_limits<float>::max()};
 };
 
+struct InstanceSurfaceGPUData;
 struct GeometryGPUData;
 struct MaterialGPUData;
 struct VolumeGPUData;
@@ -102,8 +102,12 @@ struct SurfaceHit
   uint32_t objID{~0u};
   uint32_t instID{~0u};
   float epsilon;
+  const InstanceSurfaceGPUData *instance{nullptr};
   const GeometryGPUData *geometry{nullptr};
   const MaterialGPUData *material{nullptr};
+
+  mat3x4 worldToObject;
+  mat3x4 objectToWorld;
 };
 
 struct VolumeHit
@@ -225,8 +229,8 @@ VISRTX_HOST_DEVICE bool intersectBox(
   const vec3 maxs = (b.upper - org) * (1.f / dir);
   const vec3 nears = glm::min(mins, maxs);
   const vec3 fars = glm::max(mins, maxs);
-  const float tin = glm::compMax(nears);
-  const float tout = glm::compMin(fars);
+  const float tin = glm::max(nears.x, glm::max(nears.y, nears.z));
+  const float tout = glm::min(fars.x, glm::min(fars.y, fars.z));
   if (tin < tout)
     inout = box1(tin, tout);
   return tin < tout;

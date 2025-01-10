@@ -37,7 +37,7 @@ namespace visrtx {
 namespace detail {
 
 template <typename T>
-RT_FUNCTION void launchRay(ScreenSample &ss,
+VISRTX_DEVICE void launchRay(ScreenSample &ss,
     Ray r,
     T rayType,
     bool tracingSurfaces,
@@ -76,14 +76,14 @@ RT_FUNCTION void launchRay(ScreenSample &ss,
 
 } // namespace detail
 
-RT_FUNCTION uint32_t primaryRayOptiXFlags(const RendererGPUData &rd)
+VISRTX_DEVICE uint32_t primaryRayOptiXFlags(const RendererGPUData &rd)
 {
   return rd.cullTriangleBF ? OPTIX_RAY_FLAG_CULL_BACK_FACING_TRIANGLES
                            : OPTIX_RAY_FLAG_NONE;
 }
 
 template <typename T>
-RT_FUNCTION void intersectSurface(ScreenSample &ss,
+VISRTX_DEVICE void intersectSurface(ScreenSample &ss,
     Ray r,
     T rayType,
     void *dataPtr = nullptr,
@@ -93,7 +93,7 @@ RT_FUNCTION void intersectSurface(ScreenSample &ss,
 }
 
 template <typename T>
-RT_FUNCTION void intersectVolume(ScreenSample &ss,
+VISRTX_DEVICE void intersectVolume(ScreenSample &ss,
     Ray r,
     T rayType,
     void *dataPtr = nullptr,
@@ -103,7 +103,7 @@ RT_FUNCTION void intersectVolume(ScreenSample &ss,
 }
 
 template <typename T>
-RT_FUNCTION float surfaceAttenuation(ScreenSample &ss, Ray r, T rayType)
+VISRTX_DEVICE float surfaceAttenuation(ScreenSample &ss, Ray r, T rayType)
 {
   float a = 0.f;
   intersectSurface(ss, r, rayType, &a, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);

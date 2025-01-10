@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "array/Array.h"
 #include "optix_visrtx.h"
 #include "utility/AnariTypeHelpers.h"
 // std
@@ -57,15 +58,18 @@ using byte_chunk_t = std::array<uint8_t, SIZE>;
 int countCudaChannels(const cudaChannelFormatDesc &desc);
 cudaTextureAddressMode stringToAddressMode(const std::string &str);
 
-void makeCudaArrayUint8(
-    cudaArray_t &cuArray, const helium::Array &array, uvec2 size);
-void makeCudaArrayFloat(
-    cudaArray_t &cuArray, const helium::Array &array, uvec2 size);
+void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec2 size);
+void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec2 size);
+
+void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec3 size);
+void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec3 size);
 
 cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
     const std::string &filter,
     const std::string &wrap1 = "clampToEdge",
-    const std::string &wrap2 = "clampToEdge");
+    const std::string &wrap2 = "clampToEdge",
+    const std::string &wrap3 = "clampToEdge",
+    bool normalizedCoords = true);
 
 } // namespace visrtx

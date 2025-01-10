@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "GPUArray.h"
+#include "Array.h"
 // helium
 #include <helium/array/Array3D.h>
 
@@ -39,13 +39,23 @@ namespace visrtx {
 
 using Array3DMemoryDescriptor = helium::Array3DMemoryDescriptor;
 
-struct Array3D : public helium::Array3D, GPUArray
+struct Array3D : public Array
 {
   Array3D(DeviceGlobalState *state, const Array3DMemoryDescriptor &d);
 
-  const void *dataGPU() const override;
+  size_t size(int dim) const;
+  anari::math::uint3 size() const;
+
+  cudaArray_t acquireCUDAArrayFloat();
+  void releaseCUDAArrayFloat();
+
+  cudaArray_t acquireCUDAArrayUint8();
+  void releaseCUDAArrayUint8();
 
   void uploadArrayData() const override;
+
+ private:
+  size_t m_size[3] = {0, 0, 0};
 };
 
 } // namespace visrtx

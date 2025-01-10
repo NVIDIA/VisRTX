@@ -31,9 +31,10 @@
 
 #pragma once
 
-#include "optix_visrtx.h"
+#include "../gpu/gpu_decl.h"
 #include "utility/HostDeviceArray.h"
 // std
+#include <mutex>
 #include <stack>
 
 namespace visrtx {
@@ -69,6 +70,7 @@ struct DeviceObjectArray
   std::stack<DOI, std::vector<DOI>> m_freeIndices;
 
   std::vector<DOI> m_objectsToUpload;
+  std::mutex m_allocationMutex;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
@@ -80,6 +82,8 @@ inline DeviceObjectIndex DeviceObjectArray<T>::alloc(void *hostObj)
 
   if (!hostObj)
     throw std::runtime_error("invalid DeviceObjectArray<> allocation");
+
+  std::scoped_lock<std::mutex> lock(m_allocationMutex);
 
   if (!m_freeIndices.empty()) {
     i = m_freeIndices.top();
@@ -98,6 +102,7 @@ inline DeviceObjectIndex DeviceObjectArray<T>::alloc(void *hostObj)
 template <typename T>
 inline void DeviceObjectArray<T>::free(DeviceObjectIndex idx)
 {
+  std::scoped_lock<std::mutex> lock(m_allocationMutex);
   m_freeIndices.push(idx);
   m_hostObjects[idx] = nullptr;
 }

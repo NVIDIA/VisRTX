@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "GPUArray.h"
+#include "Array.h"
 // helium
 #include <helium/array/Array1D.h>
 // std
@@ -41,16 +41,14 @@ namespace visrtx {
 
 using Array1DMemoryDescriptor = helium::Array1DMemoryDescriptor;
 
-struct Array1D : public helium::Array1D, GPUArray
+struct Array1D : public Array
 {
   Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
 
-  const void *dataGPU() const override;
+  void commit() override;
 
-  const void *data(AddressSpace as) const;
-
-  template <typename T>
-  const T *dataAs(AddressSpace as = AddressSpace::HOST) const;
+  size_t totalSize() const override;
+  size_t size() const;
 
   const void *begin(AddressSpace as = AddressSpace::HOST) const;
   const void *end(AddressSpace as = AddressSpace::HOST) const;
@@ -60,6 +58,9 @@ struct Array1D : public helium::Array1D, GPUArray
   template <typename T>
   const T *endAs(AddressSpace as = AddressSpace::HOST) const;
 
+  template <typename T>
+  const T *valueAt(size_t i) const;
+
   cudaArray_t acquireCUDAArrayFloat();
   void releaseCUDAArrayFloat();
 
@@ -67,17 +68,13 @@ struct Array1D : public helium::Array1D, GPUArray
   void releaseCUDAArrayUint8();
 
   void uploadArrayData() const override;
+
+ private:
+  size_t m_begin{0};
+  size_t m_end{0};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
-
-template <typename T>
-inline const T *Array1D::dataAs(AddressSpace as) const
-{
-  assert(anari::ANARITypeFor<T>::value == elementType());
-
-  return (const T *)data(as);
-}
 
 template <typename T>
 inline const T *Array1D::beginAs(AddressSpace as) const
@@ -93,6 +90,12 @@ inline const T *Array1D::endAs(AddressSpace as) const
   assert(anari::ANARITypeFor<T>::value == elementType());
 
   return dataAs<T>(as) + m_end;
+}
+
+template <typename T>
+inline const T *Array1D::valueAt(size_t i) const
+{
+  return &beginAs<T>()[i];
 }
 
 } // namespace visrtx

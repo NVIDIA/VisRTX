@@ -58,9 +58,19 @@ void Surface::commit()
   upload();
 }
 
+Geometry *Surface::geometry()
+{
+  return m_geometry.ptr;
+}
+
 const Geometry *Surface::geometry() const
 {
   return m_geometry.ptr;
+}
+
+Material *Surface::material()
+{
+  return m_material.ptr;
 }
 
 const Material *Surface::material() const

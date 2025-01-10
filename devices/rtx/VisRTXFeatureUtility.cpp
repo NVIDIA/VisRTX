@@ -42,14 +42,24 @@ static void fillExtensionStruct(
   std::memset(extensions, 0, sizeof(VisRTXExtensions));
   for (const auto *i = list; *i != NULL; ++i) {
     std::string_view feature = *i;
-    if (feature == "ANARI_VISRTX_ARRAY1D_DYNAMIC_REGION")
-      extensions->VISRTX_ARRAY1D_DYNAMIC_REGION = 1;
+    if (feature == "ANARI_VISRTX_ARRAY_CUDA")
+      extensions->VISRTX_ARRAY_CUDA = 1;
     else if (feature == "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS")
       extensions->VISRTX_CUDA_OUTPUT_BUFFERS = 1;
-    else if (feature == "ANARI_VISRTX_SAMPLER_COLOR_MAP")
-      extensions->VISRTX_SAMPLER_COLOR_MAP = 1;
-    else if (feature == "ANARI_VISRTX_TRIANGLE_ATTRIBUTE_INDEXING")
-      extensions->VISRTX_TRIANGLE_ATTRIBUTE_INDEXING = 1;
+    else if (feature == "ANARI_VISRTX_INSTANCE_ATTRIBUTES")
+      extensions->VISRTX_INSTANCE_ATTRIBUTES = 1;
+    else if (feature == "ANARI_VISRTX_SPATIAL_FIELD_NANOVDB")
+      extensions->VISRTX_SPATIAL_FIELD_NANOVDB = 1;
+    else if (feature == "ANARI_VISRTX_TRIANGLE_BACK_FACE_CULLING")
+      extensions->VISRTX_TRIANGLE_BACK_FACE_CULLING = 1;
+    else if (feature == "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES")
+      extensions->VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES = 1;
+    else if (feature == "ANARI_VISRTX_MATERIAL_MDL")
+#ifdef USE_MDL
+      extensions->VISRTX_MATERIAL_MDL = 1;
+#else
+      extensions->VISRTX_MATERIAL_MDL = 0;
+#endif // defined(USE_MDL)
   }
 }
 
@@ -75,7 +85,7 @@ extern "C" VISRTX_DEVICE_INTERFACE int visrtxGetInstanceExtensions(
   const char *const *list = NULL;
   anariGetProperty(device,
       object,
-      "feature",
+      "extension",
       ANARI_STRING_LIST,
       &list,
       sizeof(list),

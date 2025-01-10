@@ -37,12 +37,18 @@ namespace visrtx {
 
 static DebugMethod methodFromString(const std::string &name)
 {
-  if (name == "primID")
+  if (name == "primitiveId")
     return DebugMethod::PRIM_ID;
-  else if (name == "geomID")
-    return DebugMethod::GEOM_ID;
-  else if (name == "instID")
+  else if (name == "objectId")
+    return DebugMethod::OBJ_ID;
+  else if (name == "instanceId")
     return DebugMethod::INST_ID;
+  else if (name == "primIndex")
+    return DebugMethod::PRIM_INDEX;
+  else if (name == "objIndex")
+    return DebugMethod::OBJ_INDEX;
+  else if (name == "instIndex")
+    return DebugMethod::INST_INDEX;
   else if (name == "Ng")
     return DebugMethod::NG;
   else if (name == "Ng.abs")

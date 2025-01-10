@@ -35,8 +35,8 @@
 #include "helium/BaseDevice.h"
 // optix
 #include "optix_visrtx.h"
-
-#include "Object.h"
+// std
+#include <atomic>
 
 namespace visrtx {
 
@@ -144,7 +144,10 @@ struct VisRTXDevice : public helium::BaseDevice
   int deviceGetProperty(
       const char *name, ANARIDataType type, void *mem, uint64_t size) override;
 
-  void initOptix(); // _not_ thread safe init of OptiX
+  DeviceInitStatus initOptix();
+#ifdef USE_MDL
+  DeviceInitStatus initMDL();
+#endif // defined(USE_MDL)
   void setCUDADevice();
   void revertCUDADevice();
 
@@ -154,7 +157,11 @@ struct VisRTXDevice : public helium::BaseDevice
   int m_desiredGpuID{0};
   int m_appGpuID{-1};
   bool m_eagerInit{false};
-  DeviceInitStatus m_initStatus{DeviceInitStatus::UNINITIALIZED};
+  std::atomic<DeviceInitStatus> m_initStatus{DeviceInitStatus::UNINITIALIZED};
+#ifdef USE_MDL
+  std::atomic<DeviceInitStatus> m_mdlInitStatus{
+      DeviceInitStatus::UNINITIALIZED};
+#endif // defined(USE_MDL)
 };
 
 } // namespace visrtx

@@ -31,8 +31,7 @@
 
 #pragma once
 
-// cuda
-#include <cuda_runtime.h>
+#include "MemoryAllocation.h"
 // std
 #include <stdexcept>
 #include <type_traits>
@@ -69,18 +68,13 @@ struct DeviceBuffer
   size_t bytesof(size_t numElements);
 
   void alloc(size_t bytes);
-  void free();
 
-  size_t m_bytes{0};
-  void *m_ptr{nullptr};
+  CudaMemoryAllocation m_mem;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-inline DeviceBuffer::~DeviceBuffer()
-{
-  reset();
-}
+inline DeviceBuffer::~DeviceBuffer() = default;
 
 template <typename T>
 inline void DeviceBuffer::upload(
@@ -95,7 +89,7 @@ inline void DeviceBuffer::upload(
   if (neededBytes > bytes())
     alloc(neededBytes);
 
-  cudaMemcpy((uint8_t *)m_ptr + byteOffsetStart,
+  cudaMemcpy((uint8_t *)ptr() + byteOffsetStart,
       src,
       bytesof<T>(numElements),
       cudaMemcpyHostToDevice);
@@ -119,10 +113,10 @@ inline void DeviceBuffer::download(
   if (!ptr())
     throw std::runtime_error("downloading from empty DeviceBuffer");
   const auto requestedBytes = bytesof<T>(numElements);
-  if ((requestedBytes + byteOffsetStart) > m_bytes)
+  if ((requestedBytes + byteOffsetStart) > bytes())
     throw std::runtime_error("downloading too much data from DeviceBuffer");
   cudaMemcpy(dst,
-      (uint8_t *)m_ptr + byteOffsetStart,
+      (uint8_t *)ptr() + byteOffsetStart,
       requestedBytes,
       cudaMemcpyDeviceToHost);
 }
@@ -135,19 +129,17 @@ inline T *DeviceBuffer::ptrAs() const
 
 inline void *DeviceBuffer::ptr() const
 {
-  return m_ptr;
+  return m_mem.ptr();
 }
 
 inline size_t DeviceBuffer::bytes() const
 {
-  return m_bytes;
+  return m_mem.bytes();
 }
 
 inline void DeviceBuffer::reset()
 {
-  free();
-  m_ptr = nullptr;
-  m_bytes = 0;
+  m_mem = CudaMemoryAllocation();
 }
 
 inline void DeviceBuffer::reserve(size_t numBytes)
@@ -169,15 +161,7 @@ inline size_t DeviceBuffer::bytesof(size_t numElements)
 
 inline void DeviceBuffer::alloc(size_t bytes)
 {
-  free();
-  m_bytes = bytes;
-  cudaMalloc(&m_ptr, bytes);
-}
-
-inline void DeviceBuffer::free()
-{
-  if (m_ptr)
-    cudaFree(m_ptr);
+  m_mem = CudaMemoryAllocation(bytes);
 }
 
 } // namespace visrtx

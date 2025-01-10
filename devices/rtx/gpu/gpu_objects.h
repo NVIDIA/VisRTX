@@ -32,12 +32,16 @@
 #pragma once
 
 #include "gpu/gpu_math.h"
+
 // optix
 #include <optix.h>
 // curand
 #include <curand_kernel.h>
 // anari
 #include <anari/anari_cpp.hpp>
+#include <glm/ext/matrix_float3x4.hpp>
+// nanovdb
+#include <nanovdb/NanoVDB.h>
 
 #define DECLARE_FRAME_DATA(n)                                                  \
   extern "C" {                                                                 \
@@ -110,7 +114,6 @@ struct AttributeData
   ANARIDataType type;
   int numChannels;
   const void *data;
-  vec4 uniformValue;
 };
 
 using AttributeDataSet = AttributeData[5]; // attribute0-3 + color
@@ -176,6 +179,7 @@ struct GeometryGPUData
   GeometryType type{GeometryType::UNKNOWN};
   AttributeDataSet attr;
   AttributeDataSetUniform attrUniform;
+  const uint32_t *primitiveId;
   union
   {
     TriangleGeometryData tri{};
@@ -193,6 +197,7 @@ enum class SamplerType
 {
   TEXTURE1D,
   TEXTURE2D,
+  TEXTURE3D,
   PRIMITIVE,
   TRANSFORM,
   UNKNOWN
@@ -201,11 +206,25 @@ enum class SamplerType
 struct Image1DData
 {
   cudaTextureObject_t texobj;
+  cudaTextureObject_t texelTexobj;
+  uint32_t size;
+  float invSize;
 };
 
 struct Image2DData
 {
   cudaTextureObject_t texobj;
+  cudaTextureObject_t texelTexobj;
+  uvec2 size;
+  vec2 invSize;
+};
+
+struct Image3DData
+{
+  cudaTextureObject_t texobj;
+  cudaTextureObject_t texelTexobj;
+  uvec3 size;
+  vec3 invSize;
 };
 
 struct PrimIDSamplerData
@@ -226,6 +245,7 @@ struct SamplerGPUData
   {
     Image1DData image1D;
     Image2DData image2D;
+    Image3DData image3D;
     PrimIDSamplerData primitive;
   };
 };
@@ -277,20 +297,66 @@ constexpr int MV_OPACITY = 1;
 constexpr int MV_METALLIC = 2;
 constexpr int MV_ROUGHNESS = 3;
 
+enum class MaterialType
+{
+  UNKNOWN = -1,
+  MATTE = 0, // Akin to callable id
+  PHYSICALLYBASED,
+  MDL,
+};
+
 struct MaterialGPUData
 {
-  // See getMaterialValues() for why this is an array and not named members
-  MaterialParameter values[4];
+  struct Matte
+  {
+    MaterialParameter color;
+    MaterialParameter opacity;
+    float cutoff;
+    AlphaMode alphaMode;
+  };
 
-  float ior{1.5f};
-  float cutoff{0.5f};
-  AlphaMode mode{AlphaMode::OPAQUE};
-  bool isPBR{false};
+  struct PhysicallyBased
+  {
+    MaterialParameter baseColor;
+    MaterialParameter opacity;
+    MaterialParameter metallic;
+    MaterialParameter roughness;
+    float ior;
+    float cutoff;
+    AlphaMode alphaMode;
+  };
+
+  struct MDL
+  {
+    const char *argBlock;
+    uint32_t implementationIndex;
+    uint32_t numSamplers;
+    DeviceObjectIndex
+        samplers[32]; // Should be sized according to MDL's execution context
+                      // configuration. See MDLCompiler.cpp.
+  };
+
+  MaterialType materialType;
+
+  union
+  {
+    Matte matte;
+    PhysicallyBased physicallyBased;
+    MDL mdl;
+  };
+
+  MaterialGPUData()
+  {
+    materialType = MaterialType::UNKNOWN;
+    matte = {};
+    physicallyBased = {};
+    mdl = {};
+  }
 };
 
 struct MaterialValues
 {
-  bool isPBR;
+  MaterialType materialType;
   vec3 baseColor;
   float opacity;
   float metallic;
@@ -312,15 +378,8 @@ struct SurfaceGPUData
 enum class SpatialFieldType
 {
   STRUCTURED_REGULAR,
+  NANOVDB_REGULAR,
   UNKNOWN
-};
-
-struct StructuredRegularData
-{
-  cudaTextureObject_t texObj{};
-  vec3 origin;
-  vec3 spacing;
-  vec3 invSpacing;
 };
 
 struct UniformGridData
@@ -331,12 +390,29 @@ struct UniformGridData
   float *maxOpacities; // used for adaptive sampling/space skipping
 };
 
+struct StructuredRegularData
+{
+  cudaTextureObject_t texObj;
+  vec3 origin;
+  vec3 spacing;
+  vec3 invSpacing;
+};
+
+struct NVdbRegularData
+{
+  vec3 origin;
+  vec3 voxelSize;
+  nanovdb::GridType gridType;
+  const void *gridData;
+};
+
 struct SpatialFieldGPUData
 {
   SpatialFieldType type{SpatialFieldType::UNKNOWN};
   union
   {
-    StructuredRegularData structuredRegular{};
+    StructuredRegularData structuredRegular;
+    NVdbRegularData nvdbRegular;
   } data;
   UniformGridData grid;
 };
@@ -407,7 +483,12 @@ struct LightGPUData
 struct InstanceSurfaceGPUData
 {
   const DeviceObjectIndex *surfaces;
+  AttributeDataSet attrUniformArray;
+  AttributeDataSetUniform attrUniform;
+  bool attrUniformArrayPresent[5];
+  bool attrUniformPresent[5];
   uint32_t id;
+  uint32_t localArrayId; // offset inside an instance with a transform arrays
 };
 
 struct InstanceVolumeGPUData
@@ -490,6 +571,7 @@ struct RendererGPUData
   RendererBackgroundGPUData background;
   glm::vec3 ambientColor;
   float ambientIntensity;
+  float inverseVolumeSamplingRate;
   float occlusionDistance;
   bool cullTriangleBF;
 };
@@ -557,7 +639,7 @@ struct ScreenSample
 {
   glm::uvec2 pixel;
   glm::vec2 screen;
-  RandState rs;
+  mutable RandState rs;
   const FrameGPUData *frameData;
 };
 

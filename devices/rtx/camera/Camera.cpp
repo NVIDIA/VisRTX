@@ -39,7 +39,11 @@
 
 namespace visrtx {
 
-Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s) {}
+Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s)
+{
+  helium::BaseObject::markUpdated();
+  s->commitBufferAddObject(this);
+}
 
 Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {

@@ -31,6 +31,7 @@
 
 #include "anari_library_visrtx_export.h"
 
+#include <anari/frontend/anari_enums.h>
 #include "VisRTXDevice.h"
 
 #include "array/Array1D.h"
@@ -39,6 +40,7 @@
 #include "array/ObjectArray.h"
 #include "camera/Camera.h"
 #include "frame/Frame.h"
+#include "optix_visrtx.h"
 #include "renderer/Renderer.h"
 #include "scene/World.h"
 #include "scene/surface/material/sampler/Sampler.h"
@@ -54,8 +56,22 @@
 #include "renderer/Raycast.h"
 #include "renderer/Test.h"
 
+// materials
+#include "shaders/MatteShader.h"
+#include "shaders/PhysicallyBasedShader.h"
+
+// MDL
+#ifdef USE_MDL
+#include "libmdl/Core.h"
+#include "mdl/MaterialRegistry.h"
+#include "mdl/SamplerRegistry.h"
+#endif // defined(USE_MDL)
+
 // std
+#include <filesystem>
 #include <future>
+#include <string>
+#include <vector>
 
 namespace visrtx {
 
@@ -387,6 +403,13 @@ VisRTXDevice::~VisRTXDevice()
 
   auto &state = *deviceState();
 
+#ifdef USE_MDL
+  if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
+    state.mdl.reset();
+    m_mdlInitStatus = DeviceInitStatus::UNINITIALIZED;
+  }
+#endif // defined(USE_MDL)
+
   state.commitBufferClear();
   state.uploadBuffer.clear();
 
@@ -397,6 +420,9 @@ VisRTXDevice::~VisRTXDevice()
   optixModuleDestroy(state.rendererModules.ambientOcclusion);
   optixModuleDestroy(state.rendererModules.diffusePathTracer);
   optixModuleDestroy(state.rendererModules.directLight);
+#ifdef USE_MDL
+  optixModuleDestroy(state.rendererModules.mdl);
+#endif // defined(USE_MDL)
   optixModuleDestroy(state.rendererModules.test);
 
   optixModuleDestroy(state.intersectionModules.customIntersectors);
@@ -422,8 +448,10 @@ bool VisRTXDevice::initDevice()
   if (!m_eagerInit)
     deviceCommitParameters();
 
-  initOptix();
-
+  m_initStatus = initOptix();
+#ifdef USE_MDL
+  m_mdlInitStatus = initMDL();
+#endif // defined(USE_MDL)
   return m_initStatus == DeviceInitStatus::SUCCESS;
 }
 
@@ -440,8 +468,31 @@ void VisRTXDevice::deviceCommitParameters()
         m_desiredGpuID);
   }
 
-  if (m_eagerInit)
-    initOptix();
+  if (m_eagerInit && m_initStatus == DeviceInitStatus::UNINITIALIZED) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "eagerly initializing device");
+    m_initStatus = initOptix();
+#ifdef USE_MDL
+    m_mdlInitStatus = initMDL();
+#endif // defined(USE_MDL)
+  }
+
+#ifdef USE_MDL
+  if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
+    auto paths = getParamString("mdlSearchPaths", "");
+    auto mdlSearchPaths = std::vector<std::filesystem::path>{};
+
+    for (auto it = cbegin(paths);;) {
+      while (it != cend(paths) && *it == ':')
+        ++it;
+      if (it == cend(paths))
+        break;
+      auto endOfPathIt = std::find(it, cend(paths), ':');
+      mdlSearchPaths.emplace_back(it, endOfPathIt);
+      it = endOfPathIt;
+    }
+    deviceState()->mdl->core.setMdlSearchPaths(mdlSearchPaths);
+  }
+#endif // defined(USE_MDL)
 }
 
 int VisRTXDevice::deviceGetProperty(
@@ -462,7 +513,7 @@ int VisRTXDevice::deviceGetProperty(
   } else if (prop == "version.patch" && type == ANARI_INT32) {
     helium::writeToVoidP(mem, VISRTX_VERSION_PATCH);
     return 1;
-  } else if (prop == "feature" && type == ANARI_STRING_LIST) {
+  } else if (prop == "extension" && type == ANARI_STRING_LIST) {
     helium::writeToVoidP(mem, query_extensions());
     return 1;
   } else if (prop == "subtypes.renderer" && type == ANARI_STRING_LIST) {
@@ -475,12 +526,10 @@ int VisRTXDevice::deviceGetProperty(
   return 0;
 }
 
-void VisRTXDevice::initOptix()
+DeviceInitStatus VisRTXDevice::initOptix()
 {
   if (m_initStatus != DeviceInitStatus::UNINITIALIZED)
-    return;
-
-  m_initStatus = DeviceInitStatus::FAILURE;
+    return m_initStatus;
 
   auto &state = *deviceState();
 
@@ -490,7 +539,7 @@ void VisRTXDevice::initOptix()
   cudaGetDeviceCount(&numDevices);
   if (numDevices == 0) {
     reportMessage(ANARI_SEVERITY_FATAL_ERROR, "no CUDA capable devices found!");
-    return;
+    return DeviceInitStatus::FAILURE;
   }
 
   if (m_desiredGpuID >= numDevices) {
@@ -503,7 +552,7 @@ void VisRTXDevice::initOptix()
   }
   m_gpuID = m_desiredGpuID;
 
-  OPTIX_CHECK_RETURN(optixInit());
+  OPTIX_CHECK_RETURN_VALUE(optixInit(), DeviceInitStatus::FAILURE);
   setCUDADevice();
   cudaStreamCreate(&state.stream);
 
@@ -518,8 +567,7 @@ void VisRTXDevice::initOptix()
     reportMessage(ANARI_SEVERITY_FATAL_ERROR,
         "error querying current CUDA context: error code '%i'",
         cuRes);
-    m_initStatus = DeviceInitStatus::FAILURE;
-    return;
+    return DeviceInitStatus::FAILURE;
   }
 
   auto context_log_cb = [](unsigned int level,
@@ -538,8 +586,10 @@ void VisRTXDevice::initOptix()
   options.logCallbackData = this;
   options.logCallbackLevel = 4;
 
-  OPTIX_CHECK_RETURN(optixDeviceContextCreate(
-      state.cudaContext, &options, &state.optixContext));
+  OPTIX_CHECK_RETURN_VALUE(
+      optixDeviceContextCreate(
+          state.cudaContext, &options, &state.optixContext),
+      DeviceInitStatus::FAILURE);
 
   // Create OptiX modules //
 
@@ -590,7 +640,6 @@ void VisRTXDevice::initOptix()
   };
 
   std::vector<std::future<void>> compileTasks;
-
   compileTasks.push_back(init_module(
       state.rendererModules.debug, Debug::ptx(), "'debug' renderer"));
   compileTasks.push_back(init_module(
@@ -612,6 +661,13 @@ void VisRTXDevice::initOptix()
           intersection_ptx(),
           "custom intersectors"));
 
+  compileTasks.push_back(init_module(
+      state.materialShaders.matte, MatteShader::ptx(), "'matte' shader"));
+
+  compileTasks.push_back(init_module(state.materialShaders.physicallyBased,
+      PhysicallyBasedShader::ptx(),
+      "'physicallyBased' shader"));
+
   for (auto &f : compileTasks)
     f.wait();
 
@@ -624,8 +680,34 @@ void VisRTXDevice::initOptix()
       &builtinISOptions,
       &state.intersectionModules.curveIntersector));
 
-  m_initStatus = DeviceInitStatus::SUCCESS;
+  return DeviceInitStatus::SUCCESS;
 }
+
+#ifdef USE_MDL
+DeviceInitStatus VisRTXDevice::initMDL()
+{
+  if (m_mdlInitStatus != DeviceInitStatus::UNINITIALIZED)
+    return m_mdlInitStatus;
+
+  auto ineuray = static_cast<mi::neuraylib::INeuray *>(
+      getParam<void *>("ineuray", nullptr));
+  try {
+    auto deviceGlobalState = deviceState();
+    if (ineuray) {
+      deviceGlobalState->mdl.emplace(deviceGlobalState, ineuray);
+    } else {
+      deviceGlobalState->mdl.emplace(deviceGlobalState);
+    }
+    ineuray = deviceGlobalState->mdl->core.getINeuray();
+  } catch (const std::exception &e) {
+    reportMessage(
+        ANARI_SEVERITY_ERROR, "Failed initializing VisRTX MDL support.");
+    return DeviceInitStatus::FAILURE;
+  }
+
+  return DeviceInitStatus::SUCCESS;
+}
+#endif // defined(USE_MDL)
 
 void VisRTXDevice::setCUDADevice()
 {

@@ -30,8 +30,19 @@
  */
 
 #include "World.h"
+#include <helium/utility/IntrusivePtr.h>
+#include <helium/utility/TimeStamp.h>
 // ptx
 #include "Intersectors_ptx.h"
+#include "array/ObjectArray.h"
+#include "gpu/gpu_objects.h"
+#include "optix_visrtx.h"
+#include "utility/AnariTypeHelpers.h"
+
+#ifdef USE_MDL
+#include <set>
+#include "scene/surface/material/MDL.h"
+#endif // defined(USE_MDL)
 
 namespace visrtx {
 
@@ -87,7 +98,7 @@ bool World::getProperty(
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
       deviceState()->commitBufferFlush();
-      rebuildBVHs();
+      rebuildWorld();
     }
     auto bounds = m_surfaceBounds;
     bounds.extend(m_volumeBounds);
@@ -109,22 +120,25 @@ void World::commit()
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World will add zero instance");
 
   if (m_zeroSurfaceData) {
-    reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::World found surfaces in zero instance");
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World found %zu surfaces in zero instance",
+        m_zeroSurfaceData->totalSize());
     m_zeroGroup->setParamDirect("surface", getParamDirect("surface"));
   } else
     m_zeroGroup->removeParam("surface");
 
   if (m_zeroVolumeData) {
-    reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::World found volumes in zero instance");
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World found %zu volumes in zero instance",
+        m_zeroVolumeData->totalSize());
     m_zeroGroup->setParamDirect("volume", getParamDirect("volume"));
   } else
     m_zeroGroup->removeParam("volume");
 
   if (m_zeroLightData) {
-    reportMessage(
-        ANARI_SEVERITY_DEBUG, "visrtx::World found lights in zero instance");
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World found %zu lights in zero instance",
+        m_zeroLightData->totalSize());
     m_zeroGroup->setParamDirect("light", getParamDirect("light"));
   } else
     m_zeroGroup->removeParam("light");
@@ -176,7 +190,7 @@ Span<InstanceLightGPUData> World::instanceLightGPUData() const
   return m_instanceLightGPUData.deviceSpan();
 }
 
-void World::rebuildBVHs()
+void World::rebuildWorld()
 {
   const auto &state = *deviceState();
 
@@ -185,45 +199,49 @@ void World::rebuildBVHs()
     rebuildBLASs();
   }
 
-  if (state.objectUpdates.lastTLASChange < m_objectUpdates.lastTLASBuild)
-    return;
+  if (m_objectUpdates.lastTLASBuild <= state.objectUpdates.lastTLASChange) {
+    m_surfaceBounds = box3();
+    m_volumeBounds = box3();
+    m_traversableSurfaces = {};
+    m_traversableVolumes = {};
 
-  m_surfaceBounds = box3();
-  m_volumeBounds = box3();
-  m_traversableSurfaces = {};
-  m_traversableVolumes = {};
+    populateOptixInstances();
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World building surface BVH over %zu instances",
+        m_optixSurfaceInstances.size());
+    buildOptixBVH(createOBI(m_optixSurfaceInstances),
+        m_bvhSurfaces,
+        m_traversableSurfaces,
+        m_surfaceBounds,
+        this);
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::World building surface gpu data");
+    buildInstanceSurfaceGPUData();
 
-  populateOptixInstances();
-  reportMessage(ANARI_SEVERITY_DEBUG,
-      "visrtx::World building surface BVH over %zu instances",
-      m_optixSurfaceInstances.size());
-  buildOptixBVH(createOBI(m_optixSurfaceInstances),
-      m_bvhSurfaces,
-      m_traversableSurfaces,
-      m_surfaceBounds,
-      this);
-  reportMessage(
-      ANARI_SEVERITY_DEBUG, "visrtx::World building surface gpu data");
-  buildInstanceSurfaceGPUData();
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World building volume BVH over %zu instances",
+        m_optixVolumeInstances.size());
+    buildOptixBVH(createOBI(m_optixVolumeInstances),
+        m_bvhVolumes,
+        m_traversableVolumes,
+        m_volumeBounds,
+        this);
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::World building volume gpu data");
+    buildInstanceVolumeGPUData();
 
-  reportMessage(ANARI_SEVERITY_DEBUG,
-      "visrtx::World building volume BVH over %zu instances",
-      m_optixVolumeInstances.size());
-  buildOptixBVH(createOBI(m_optixVolumeInstances),
-      m_bvhVolumes,
-      m_traversableVolumes,
-      m_volumeBounds,
-      this);
-  reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World building volume gpu data");
-  buildInstanceVolumeGPUData();
+    buildInstanceLightGPUData();
 
-  buildInstanceLightGPUData();
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "visrtx::World finished building world over %zu instances",
+        m_instances.size());
 
-  reportMessage(ANARI_SEVERITY_DEBUG,
-      "visrtx::World finished building world over %zu instances",
-      m_instances.size());
+    m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
+  }
 
-  m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
+#ifdef USE_MDL
+  buildMDLMaterialGPUData();
+#endif // defined(USE_MDL)
 }
 
 void World::populateOptixInstances()
@@ -235,28 +253,32 @@ void World::populateOptixInstances()
   m_numLightInstances = 0;
 
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
-    auto *group = inst->group();
+    const auto *group = inst->group();
+    const size_t numTransforms = inst->numTransforms();
     if (group->containsTriangleGeometry())
-      m_numTriangleInstances++;
+      m_numTriangleInstances += numTransforms;
     if (group->containsCurveGeometry())
-      m_numCurveInstances++;
+      m_numCurveInstances += numTransforms;
     if (group->containsUserGeometry())
-      m_numUserInstances++;
+      m_numUserInstances += numTransforms;
     if (group->containsVolumes())
-      m_numVolumeInstances++;
+      m_numVolumeInstances += numTransforms;
     if (group->containsLights())
-      m_numLightInstances++;
+      m_numLightInstances += numTransforms;
   });
 
   m_optixSurfaceInstances.resize(
       m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
   m_optixVolumeInstances.resize(m_numVolumeInstances);
 
-  auto prepInstance =
-      [](auto &i, int instID, auto handle, int sbtOffset) -> OptixInstance {
+  auto prepInstance = [](auto &i,
+                          int instID,
+                          size_t t,
+                          auto handle,
+                          int sbtOffset) -> OptixInstance {
     OptixInstance inst{};
 
-    mat3x4 xfm = glm::transpose(i->xfm());
+    mat3x4 xfm = glm::transpose(i->xfm(t));
     std::memcpy(inst.transform, &xfm, sizeof(xfm));
 
     auto *group = i->group();
@@ -272,28 +294,36 @@ void World::populateOptixInstances()
   int instID = 0;
   int instVolID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
-    auto *group = inst->group();
+    const auto *group = inst->group();
     auto *osi = m_optixSurfaceInstances.dataHost();
     auto *ovi = m_optixVolumeInstances.dataHost();
-    if (group->containsTriangleGeometry()) {
-      osi[instID] = prepInstance(
-          inst, instID, group->optixTraversableTriangle(), SBT_TRIANGLE_OFFSET);
-      instID++;
-    }
-    if (group->containsCurveGeometry()) {
-      osi[instID] = prepInstance(
-          inst, instID, group->optixTraversableCurve(), SBT_CURVE_OFFSET);
-      instID++;
-    }
-    if (group->containsUserGeometry()) {
-      osi[instID] = prepInstance(
-          inst, instID, group->optixTraversableUser(), SBT_CUSTOM_OFFSET);
-      instID++;
-    }
-    if (group->containsVolumes()) {
-      ovi[instVolID] = prepInstance(
-          inst, instVolID, group->optixTraversableVolume(), SBT_CUSTOM_OFFSET);
-      instVolID++;
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      if (group->containsTriangleGeometry()) {
+        osi[instID] = prepInstance(inst,
+            instID,
+            t,
+            group->optixTraversableTriangle(),
+            SBT_TRIANGLE_OFFSET);
+        instID++;
+      }
+      if (group->containsCurveGeometry()) {
+        osi[instID] = prepInstance(
+            inst, instID, t, group->optixTraversableCurve(), SBT_CURVE_OFFSET);
+        instID++;
+      }
+      if (group->containsUserGeometry()) {
+        osi[instID] = prepInstance(
+            inst, instID, t, group->optixTraversableUser(), SBT_CUSTOM_OFFSET);
+        instID++;
+      }
+      if (group->containsVolumes()) {
+        ovi[instVolID] = prepInstance(inst,
+            instVolID,
+            t,
+            group->optixTraversableVolume(),
+            SBT_CUSTOM_OFFSET);
+        instVolID++;
+      }
     }
   });
 
@@ -320,17 +350,83 @@ void World::buildInstanceSurfaceGPUData()
   m_instanceSurfaceGPUData.resize(
       m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
 
+  auto makeInstanceGPUData = [](const DeviceObjectIndex *s,
+                                 const UniformAttributes &ua,
+                                 uint32_t id,
+                                 uint32_t arrayOffset = 0) {
+    InstanceSurfaceGPUData retval;
+
+    retval.surfaces = s;
+    retval.attrUniform[0] = ua.attribute0.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[0] = ua.attribute0.has_value();
+    retval.attrUniform[1] = ua.attribute1.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[1] = ua.attribute1.has_value();
+    retval.attrUniform[2] = ua.attribute2.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[2] = ua.attribute2.has_value();
+    retval.attrUniform[3] = ua.attribute3.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[3] = ua.attribute3.has_value();
+    retval.attrUniform[4] = ua.color.value_or(vec4(0, 0, 0, 1));
+    retval.attrUniformPresent[4] = ua.color.has_value();
+
+    // FIXME: Fill up retval.attrUniformArray and
+    // retval.attrUniformArrayPresent from ua
+    constexpr const auto setupUniformArray =
+        [](const helium::IntrusivePtr<Array1D> &array) -> AttributeData {
+      AttributeData ad = {};
+      if (array.ptr) {
+        ad.type = array->elementType();
+        ad.data = array->dataGPU();
+        ad.numChannels = numANARIChannels(array->elementType());
+      }
+      return ad;
+    };
+
+    retval.attrUniformArrayPresent[0] = ua.attribute0Array.ptr != nullptr;
+    retval.attrUniformArray[0] = setupUniformArray(ua.attribute0Array);
+    retval.attrUniformArrayPresent[1] = ua.attribute1Array.ptr != nullptr;
+    retval.attrUniformArray[1] = setupUniformArray(ua.attribute1Array);
+    retval.attrUniformArrayPresent[2] = ua.attribute2Array.ptr != nullptr;
+    retval.attrUniformArray[2] = setupUniformArray(ua.attribute2Array);
+    retval.attrUniformArrayPresent[3] = ua.attribute3Array.ptr != nullptr;
+    retval.attrUniformArray[3] = setupUniformArray(ua.attribute3Array);
+    retval.attrUniformArrayPresent[4] = ua.colorArray.ptr != nullptr;
+    retval.attrUniformArray[4] = setupUniformArray(ua.colorArray);
+
+    retval.id = id;
+    retval.localArrayId = arrayOffset;
+
+    return retval;
+  };
+
   int instID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *sd = m_instanceSurfaceGPUData.dataHost();
-    auto id = inst->userID();
-    if (group->containsTriangleGeometry())
-      sd[instID++] = {group->surfaceTriangleGPUIndices().data(), id};
-    if (group->containsCurveGeometry())
-      sd[instID++] = {group->surfaceCurveGPUIndices().data(), id};
-    if (group->containsUserGeometry())
-      sd[instID++] = {group->surfaceUserGPUIndices().data(), id};
+
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      auto id = inst->userID(t);
+      if (group->containsTriangleGeometry()) {
+        sd[instID++] =
+            makeInstanceGPUData(group->surfaceTriangleGPUIndices().data(),
+                inst->uniformAttributes(),
+                id,
+                t);
+      }
+      if (group->containsCurveGeometry()) {
+        sd[instID++] =
+            makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
+                inst->uniformAttributes(),
+                id,
+                t);
+      }
+      if (group->containsUserGeometry()) {
+        sd[instID++] =
+            makeInstanceGPUData(group->surfaceUserGPUIndices().data(),
+                inst->uniformAttributes(),
+                id,
+                t);
+      }
+    }
   });
 
   m_instanceSurfaceGPUData.upload();
@@ -344,9 +440,11 @@ void World::buildInstanceVolumeGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *vd = m_instanceVolumeGPUData.dataHost();
-    auto id = inst->userID();
-    if (group->containsVolumes())
-      vd[instID++] = {group->volumeGPUIndices().data(), id};
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      auto id = inst->userID(t);
+      if (group->containsVolumes())
+        vd[instID++] = {group->volumeGPUIndices().data(), id};
+    }
   });
 
   m_instanceVolumeGPUData.upload();
@@ -360,10 +458,14 @@ void World::buildInstanceLightGPUData()
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
     auto *li = m_instanceLightGPUData.dataHost();
-    if (group->containsLights()) {
-      group->rebuildLights();
-      const auto lgi = group->lightGPUIndices();
-      if (!inst->xfmIsIdentity() && lgi.size() != 0) {
+    if (!group->containsLights())
+      return;
+
+    group->rebuildLights();
+    const auto lgi = group->lightGPUIndices();
+
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      if (!inst->xfmIsIdentity(t) && lgi.size() != 0) {
         inst->reportMessage(
             ANARI_SEVERITY_WARNING, "light transformations not implemented");
       }
@@ -373,6 +475,45 @@ void World::buildInstanceLightGPUData()
 
   m_instanceLightGPUData.upload();
 }
+
+#ifdef USE_MDL
+void World::buildMDLMaterialGPUData()
+{
+  auto state = static_cast<DeviceGlobalState *>(deviceState());
+
+  if (state->objectUpdates.lastMDLObjectChange
+      < m_objectUpdates.lastMDLObjectCheck)
+    return;
+
+  std::set<const MDL *> processed;
+
+  for (const auto &instance : m_instances) {
+    const auto group = instance->group();
+    if (const auto surfaceObjects =
+            group->getParamObject<ObjectArray>("surface")) {
+      const auto surfaces = make_Span(
+          reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()),
+          surfaceObjects->totalSize());
+      for (auto surface : surfaces) {
+        if (auto material = dynamic_cast<MDL *>(surface->material())) {
+          if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck
+              && processed.find(material) == processed.end()) {
+            material->syncSource();
+            material->syncParameters();
+            // FIXME: Should only be done when materialregistry has been updated
+            // with new or removed materials.
+            material->syncImplementationIndex();
+            material->upload();
+            processed.insert(material);
+          }
+        }
+      }
+    }
+  }
+  state->rendererModules.lastMDLMaterialChange =
+      m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
+}
+#endif // defined(USE_MDL)
 
 } // namespace visrtx
 

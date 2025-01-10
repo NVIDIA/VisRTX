@@ -36,7 +36,7 @@
 namespace visrtx {
 
 template <typename T>
-RT_FUNCTION float computeAO(ScreenSample &ss,
+VISRTX_DEVICE float computeAO(ScreenSample &ss,
     const Ray &primaryRay,
     T rayType,
     const Hit &currentHit,

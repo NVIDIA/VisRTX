@@ -39,6 +39,9 @@ namespace visrtx {
 struct UniformGrid
 {
   void init(ivec3 dims, box3 worldBounds);
+
+  void buildGrid(const SpatialFieldGPUData &sfgd);
+
   void cleanup();
   UniformGridData gpuData() const;
   void computeMaxOpacities(CUstream stream,

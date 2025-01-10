@@ -32,7 +32,9 @@
 #include "Viewer.h"
 // std
 #include <cstring>
+#include <glm/geometric.hpp>
 // stb_image
+#include "Scene.h"
 #include "stb_image_write.h"
 // CUDA
 #include <cuda_gl_interop.h>
@@ -45,6 +47,8 @@
 #include <glm/ext.hpp>
 
 #include "ui_scenes.h"
+
+#include <filesystem>
 
 struct RendererParameter
 {
@@ -136,6 +140,10 @@ Viewer::Viewer(const char *libName, const char *objFileName)
       visrtx::getInstanceExtensions(m_device, m_device);
   m_haveCUDAInterop = g_glInterop && extensions.VISRTX_CUDA_OUTPUT_BUFFERS;
 
+  if (extensions.VISRTX_MATERIAL_MDL) {
+    auto path = std::filesystem::current_path() / "shaders";
+    anari::setParameter(m_device, m_device, "mdlSearchPaths", path.string());
+  }
   // ANARI //
 
   const char **r_subtypes = anariGetObjectSubtypes(m_device, ANARI_RENDERER);
@@ -387,6 +395,11 @@ void Viewer::updateWorld()
   case SceneTypes::NOISE_VOLUME:
     m_currentScene = generateScene(m_device, m_noiseVolumeConfig);
     break;
+#ifdef USE_MDL
+  case SceneTypes::MDL_CUBE:
+    m_currentScene = generateScene(m_device, m_mdlCubeConfig);
+    break;
+#endif // defined(USE_MDL)
   case SceneTypes::GRAVITY_VOLUME:
   default:
     m_currentScene = generateScene(m_device, m_gravityVolumeConfig);
@@ -422,9 +435,20 @@ void Viewer::resetView()
       bounds[1].z);
 
   auto center = 0.5f * (bounds[0] + bounds[1]);
-  auto diag = bounds[1] - bounds[0];
+  auto boundingSphereRadius = glm::distance(bounds[0], bounds[1]) / 2.0f;
+  auto aspectRatio = float(m_windowSize.y) / m_windowSize.x;
+  auto fovy = glm::radians(
+      60.f); // default value from the specification. Not changed by the app.
+  auto referenceSize = boundingSphereRadius;
+  if (aspectRatio > 1.0f) { // Width is the limiting factor here. Compensate for
+                            // y and still compute using fovy.
+    referenceSize /= aspectRatio;
+  }
+  float distance = referenceSize / tanf(fovy / 2.0f);
+  // Add some slack so that the bounding sphere actually fits in the frustum.
+  distance *= 1.1f;
 
-  m_arcball = Orbit(center, 0.25f * glm::length(diag), m_arcball.azel());
+  m_arcball = Orbit(center, distance, m_arcball.azel());
   updateCamera();
 }
 
@@ -588,6 +612,9 @@ void Viewer::ui_makeWindow()
             m_noiseVolumeConfig,
             m_gravityVolumeConfig,
             m_objFileConfig,
+#ifdef USE_MDL
+            m_mdlCubeConfig,
+#endif // defined(USE_MDL)
             m_selectedScene)) {
       updateWorld();
     }
@@ -682,6 +709,10 @@ void Viewer::ui_makeWindow_camera()
   }
 
   ImGui::Separator();
+
+  if (ImGui::Button("fit scene")) {
+    resetView();
+  }
 
   if (ImGui::Button("reset view")) {
     resetCameraAZEL();
@@ -779,3 +810,5 @@ void Viewer::ui_makeWindow_lights()
   if (update)
     updateLights();
 }
+
+void Viewer::ui_makeWindow_materials() {}

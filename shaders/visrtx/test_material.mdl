@@ -1,0 +1,82 @@
+mdl 1.8;
+
+import ::anno::*;
+import ::base::*;
+import ::df::*;
+import ::state::*;
+import ::tex::*;
+import ::math::*;
+
+export material test_uv() = let
+{
+  float3 texCoord3 = state::texture_coordinate(0);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : color(texCoord3));
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material test_texture() = let
+{
+  texture_2d texture = texture_2d("./3x3.png");
+  float3 texCoord3 = state::texture_coordinate(0);
+  float2 texCoord2 = float2(texCoord3.x, texCoord3.y);
+
+  float3 v = tex::lookup_float3(texture, texCoord2);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : color(v));
+
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material test_texel_fetch() = let
+{
+  texture_2d texture = texture_2d("./3x3.png");
+  float3 texCoord3 = state::texture_coordinate(0);
+  float2 texCoord2 = float2(texCoord3.x, texCoord3.y);
+
+  int2 texelCoord =
+      int2(texCoord2 * float2(tex::width(texture) - 1, tex::height(texture) - 1)
+          + 0.5);
+
+  float3 v = tex::texel_float3(texture, texelCoord);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : color(v));
+
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material test_mix(uniform texture_2d texture = texture_2d("./wood.jpg"),
+    float mix = 0.5f, ) = let
+{
+  texture_2d body_texture = texture_2d("./metal.jpg");
+
+  float3 texCoord3 = state::texture_coordinate(0);
+  float2 texCoord2 = float2(texCoord3.x, texCoord3.y);
+
+  color a = color(tex::lookup_float3(texture, texCoord2));
+  color b = color(tex::lookup_float3(body_texture, texCoord2));
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : math::lerp(a, b, mix));
+
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material test_noise(float scale = 2.0f,
+    color color1 = color(0.25f, 0.5f, 1.0f),
+    color color2 = color(0.5f, 1.0f, 0.25f)) = let
+{
+  base::texture_return noise = ::base::perlin_noise_texture(color1 : color1,
+      color2 : color2,
+      absolute_noise : true,
+      uvw : base::transform_coordinate(
+          transform : base::rotation_translation_scale(scaling : float3(scale)),
+          coordinate : base::coordinate_source(
+              coordinate_system : base::texture_coordinate_object)));
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : noise.tint);
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;

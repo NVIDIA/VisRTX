@@ -29,8 +29,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <cuda_runtime_api.h>
 #include "UniformGrid.h"
 #include "gpu/gpu_math.h"
+#include "gpu/gpu_objects.h"
+#include "gpu/sampleSpatialField.h"
+#include "gpu/uniformGrid.h"
+#ifdef __CUDA_ARCH__
+#include "gpu/gpu_util.h"
+#endif
 
 namespace visrtx {
 
@@ -82,9 +89,69 @@ __global__ void computeMaxOpacitiesGPU(float *maxOpacities,
   maxOpacities[threadID] = maxOpacity;
 }
 
+template <typename Sampler>
+__global__ void buildGridGPU(box1 *valueRanges,
+    ivec3 dims,
+    box3 worldBounds,
+    const SpatialFieldGPUData *sfgd)
+{
+  Sampler sampler(*sfgd);
+
+  size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
+
+  size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
+
+  if (threadID >= numVoxels)
+    return;
+
+  ivec3 voxelID(threadID % (dims.x - 1),
+      threadID / (dims.x - 1) % (dims.y - 1),
+      threadID / ((dims.x - 1) * (dims.y - 1)));
+
+  vec3 worldExtend = size(worldBounds);
+  vec3 voxelExtend = worldExtend / vec3(dims - 1);
+  box3 voxelBounds(worldBounds.lower + vec3(voxelID) * voxelExtend,
+      worldBounds.lower + vec3(voxelID) * voxelExtend + voxelExtend);
+
+  // compute the max value of all the cells that can
+  // overlap this voxel; splat out the _max_ over the
+  // overlapping MCs. (that's essentially a box filter)
+  vec3 tcs[8] = {(vec3(voxelID) + vec3(-.5f, -.5f, -.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(+.5f, -.5f, -.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(+.5f, +.5f, -.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(-.5f, +.5f, -.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(-.5f, -.5f, +.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(+.5f, -.5f, +.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(+.5f, +.5f, +.5f)) / vec3(dims),
+      (vec3(voxelID) + vec3(-.5f, +.5f, +.5f)) / vec3(dims)};
+
+  float voxelValue = -1e30f;
+  for (int i = 0; i < 8; ++i) {
+    float retval = sampler(vec3(tcs[i].x, tcs[i].y, tcs[i].z));
+    voxelValue = fmaxf(voxelValue, retval);
+  }
+
+  // find out which MCs we overlap and splat the value out
+  // on the respective ranges
+  const ivec3 loMC = projectOnGrid(voxelBounds.lower, dims, worldBounds);
+  const ivec3 upMC = projectOnGrid(voxelBounds.upper, dims, worldBounds);
+
+  for (int mcz = loMC.z; mcz <= upMC.z; ++mcz) {
+    for (int mcy = loMC.y; mcy <= upMC.y; ++mcy) {
+      for (int mcx = loMC.x; mcx <= upMC.x; ++mcx) {
+        const ivec3 mcID(mcx, mcy, mcz);
+#ifdef __CUDA_ARCH__
+        atomicMinf(&valueRanges[linearIndex(mcID, dims)].lower, voxelValue);
+        atomicMaxf(&valueRanges[linearIndex(mcID, dims)].upper, voxelValue);
+#endif
+      }
+    }
+  }
+}
+
 void UniformGrid::init(ivec3 dims, box3 worldBounds)
 {
-  m_dims = dims;
+  m_dims = ivec3(iDivUp(dims.x, 16), iDivUp(dims.y, 16), iDivUp(dims.z, 16));
   m_worldBounds = worldBounds;
 
   size_t numMCs = m_dims.x * size_t(m_dims.y) * m_dims.z;
@@ -98,6 +165,67 @@ void UniformGrid::init(ivec3 dims, box3 worldBounds)
   size_t numThreads = 1024;
   invalidateRangesGPU<<<(uint32_t)iDivUp(numMCs, numThreads),
       (uint32_t)numThreads>>>(m_valueRanges, m_dims);
+}
+
+void UniformGrid::buildGrid(const SpatialFieldGPUData &sfgd)
+{
+  size_t numVoxels = (m_dims.x - 1) * size_t(m_dims.y - 1) * (m_dims.z - 1);
+  size_t numThreads = 1024;
+
+  // We ned to get the spatialfield gpu data upload, but we don't get
+  // to access the framedata store.
+  // Let's do a temporary upload so we can do the job.
+  SpatialFieldGPUData *sfgdDevice = {};
+  cudaMalloc(&sfgdDevice, sizeof(sfgd));
+  cudaMemcpy(sfgdDevice, &sfgd, sizeof(sfgd), cudaMemcpyHostToDevice);
+
+  switch (sfgd.type) {
+  case SpatialFieldType::STRUCTURED_REGULAR: {
+    buildGridGPU<SpatialFieldSampler<cudaTextureObject_t>>
+        <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+            m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+    break;
+  }
+  case SpatialFieldType::NANOVDB_REGULAR: {
+    switch (sfgd.data.nvdbRegular.gridType) {
+    case nanovdb::GridType::Fp4: {
+      buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp4>>
+          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+      break;
+    }
+    case nanovdb::GridType::Fp8: {
+      buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp8>>
+          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+      break;
+    }
+    case nanovdb::GridType::Fp16: {
+      buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp16>>
+          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+      break;
+    }
+    case nanovdb::GridType::FpN: {
+      buildGridGPU<NvdbSpatialFieldSampler<nanovdb::FpN>>
+          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+      break;
+    }
+    case nanovdb::GridType::Float: {
+      buildGridGPU<NvdbSpatialFieldSampler<float>>
+          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+      break;
+    }
+    default:
+      break;
+    }
+    break;
+  }
+  }
+
+  cudaFree(sfgdDevice);
 }
 
 void UniformGrid::cleanup()

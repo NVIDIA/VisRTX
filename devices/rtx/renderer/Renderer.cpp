@@ -30,6 +30,8 @@
  */
 
 #include "Renderer.h"
+#include <helium/utility/TimeStamp.h>
+
 // specific renderers
 #include "AmbientOcclusion.h"
 #include "Debug.h"
@@ -38,7 +40,13 @@
 #include "Raycast.h"
 #include "Test.h"
 #include "UnknownRenderer.h"
+
+// Materials
+#ifdef USE_MDL
+#endif // defined(USE_MDL)
+
 // std
+#include <optix_types.h>
 #include <stdlib.h>
 #include <string_view>
 // this include may only appear in a single source file:
@@ -46,14 +54,25 @@
 
 namespace visrtx {
 
-struct SBTRecord
+template <typename T>
+struct SbtRecord
 {
-  alignas(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+  __align__(
+      OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+  T data;
 };
 
-using RaygenRecord = SBTRecord;
-using MissRecord = SBTRecord;
-using HitgroupRecord = SBTRecord;
+template <>
+struct SbtRecord<void>
+{
+  __align__(
+      OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+};
+
+using RaygenRecord = SbtRecord<void>;
+using MissRecord = SbtRecord<void>;
+using HitgroupRecord = SbtRecord<void>;
+using MaterialRecord = SbtRecord<void>;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -117,7 +136,11 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 Renderer::Renderer(DeviceGlobalState *s, float defaultAmbientRadiance)
     : Object(ANARI_RENDERER, s),
       m_defaultAmbientRadiance(defaultAmbientRadiance)
-{}
+{
+  m_ambientIntensity = defaultAmbientRadiance;
+  helium::BaseObject::markUpdated();
+  s->commitBufferAddObject(this);
+}
 
 Renderer::~Renderer()
 {
@@ -144,6 +167,8 @@ void Renderer::commit()
   m_denoise = getParam<bool>("denoise", false);
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
+  m_volumeSamplingRate =
+      std::clamp(getParam<float>("volumeSamplingRate", 1.f), 1e-3f, 10.f);
 }
 
 Span<HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -169,16 +194,33 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.ambientIntensity = m_ambientIntensity;
   fd.renderer.occlusionDistance = m_occlusionDistance;
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
+  fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
 }
 
-OptixPipeline Renderer::pipeline() const
+OptixPipeline Renderer::pipeline()
 {
+#ifndef USE_MDL
+  if (!m_pipeline)
+#else
+  if (!m_pipeline
+      || deviceState()->mdl->materialRegistry.getLastUpdateTime()
+          > m_lastMDLMaterialLibraryUpdateCheck)
+#endif
+    initOptixPipeline();
+
   return m_pipeline;
 }
 
 const OptixShaderBindingTable *Renderer::sbt()
 {
+#ifndef USE_MDL
   if (!m_pipeline)
+#else
+  if (!m_pipeline
+      || deviceState()->mdl->materialRegistry.getLastUpdateTime()
+          > m_lastMDLMaterialLibraryUpdateCheck)
+#endif
+
     initOptixPipeline();
 
   return &m_sbt;
@@ -378,6 +420,77 @@ void Renderer::initOptixPipeline()
     }
   }
 
+  // Materials
+  {
+    // Matte and PhysicallyBased
+    std::vector<OptixProgramGroupDesc> callableDescs(2);
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET].kind =
+        OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET].callables.moduleDC =
+        deviceState()->materialShaders.matte;
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET].callables.entryFunctionNameDC =
+        "__direct_callable__evalSurfaceMaterial";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET].kind =
+        OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET].callables.moduleDC =
+        deviceState()->materialShaders.physicallyBased;
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET]
+        .callables.entryFunctionNameDC =
+        "__direct_callable__evalSurfaceMaterial";
+
+    // MDLs
+#ifdef USE_MDL
+    for (const auto &ptxBlob : state.mdl->materialRegistry.getPtxBlobs()) {
+      OptixModule module;
+      OptixModuleCompileOptions moduleCompileOptions = {};
+      moduleCompileOptions.maxRegisterCount =
+          OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+      moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+      moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+      moduleCompileOptions.numPayloadTypes = 0;
+      moduleCompileOptions.payloadTypes = 0;
+
+      auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
+
+      OPTIX_CHECK(optixModuleCreate(state.optixContext,
+          &moduleCompileOptions,
+          &pipelineCompileOptions,
+          std::data(ptxBlob),
+          std::size(ptxBlob),
+          log,
+          &sizeof_log,
+          &module));
+
+      OptixProgramGroupDesc callableDesc = {};
+      callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+      callableDesc.callables.moduleDC = module;
+      callableDesc.callables.entryFunctionNameDC =
+          "__direct_callable__evalSurfaceMaterial";
+      callableDescs.push_back(callableDesc);
+    }
+
+    m_lastMDLMaterialLibraryUpdateCheck =
+        deviceState()->mdl->materialRegistry.getLastUpdateTime();
+#endif // defined(USE_MDL)
+
+    //
+    m_materialPGs.resize(size(callableDescs));
+    OptixProgramGroupOptions callableOptions = {};
+    sizeof_log = sizeof(log);
+    OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+        data(callableDescs),
+        size(callableDescs),
+        &callableOptions,
+        log,
+        &sizeof_log,
+        data(m_materialPGs)));
+    if (sizeof_log > 1) {
+      reportMessage(
+
+          ANARI_SEVERITY_DEBUG, "PG Callables Log:\n%s", log);
+    }
+  }
+
   // Pipeline //
 
   {
@@ -392,6 +505,8 @@ void Renderer::initOptixPipeline()
     for (auto pg : m_missPGs)
       programGroups.push_back(pg);
     for (auto pg : m_hitgroupPGs)
+      programGroups.push_back(pg);
+    for (auto pg : m_materialPGs)
       programGroups.push_back(pg);
 
     sizeof_log = sizeof(log);
@@ -409,7 +524,6 @@ void Renderer::initOptixPipeline()
   }
 
   // SBT //
-
   {
     std::vector<RaygenRecord> raygenRecords;
     for (auto &pg : m_raygenPGs) {
@@ -441,6 +555,19 @@ void Renderer::initOptixPipeline()
     m_sbt.hitgroupRecordBase = (CUdeviceptr)m_hitgroupRecordsBuffer.ptr();
     m_sbt.hitgroupRecordStrideInBytes = sizeof(HitgroupRecord);
     m_sbt.hitgroupRecordCount = hitgroupRecords.size();
+
+    std::vector<MaterialRecord> materialRecords;
+    for (auto &mpg : m_materialPGs) {
+      MaterialRecord rec;
+      OPTIX_CHECK(optixSbtRecordPackHeader(mpg, &rec));
+
+      materialRecords.push_back(rec);
+    }
+
+    m_materialRecordsBuffer.upload(materialRecords);
+    m_sbt.callablesRecordBase = (CUdeviceptr)m_materialRecordsBuffer.ptr();
+    m_sbt.callablesRecordStrideInBytes = sizeof(MaterialRecord);
+    m_sbt.callablesRecordCount = materialRecords.size();
   }
 }
 
@@ -457,6 +584,7 @@ OptixPipelineCompileOptions makeVisRTXOptixPipelineCompileOptions()
   pipelineCompileOptions.numAttributeValues = ATTRIBUTE_VALUES;
   pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
   pipelineCompileOptions.pipelineLaunchParamsVariableName = "frameData";
+
   return pipelineCompileOptions;
 }
 

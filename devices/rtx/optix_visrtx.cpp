@@ -128,6 +128,8 @@ DeviceGlobalState::DeviceGlobalState(ANARIDevice d)
     : helium::BaseGlobalDeviceState(d), anariDevice(d)
 {}
 
+DeviceGlobalState::~DeviceGlobalState() = default;
+
 } // namespace visrtx
 
 VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::box1);

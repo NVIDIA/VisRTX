@@ -31,12 +31,23 @@
 
 #include "Scene.h"
 // glm
+#include <algorithm>
+#include <anari/anari_cpp.hpp>
+#include <anari/anari_cpp/anari_cpp_impl.hpp>
+#include <cfloat>
+#include <filesystem>
+#include <glm/common.hpp>
+#include <glm/fwd.hpp>
 #include <glm/glm.hpp>
+#include <string>
+#include <variant>
 #include "glm/ext/matrix_transform.hpp"
 // anari
 #include <anari/anari_cpp/ext/glm.h>
+#include <anari/frontend/anari_enums.h>
 // VisRTX
 #include "anari/ext/visrtx/visrtx.h"
+#include "imgui.h"
 // tiny_obj_loader
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -44,14 +55,28 @@
 #include "stb_image.h"
 // match3D
 #include <match3D/match3D.h>
+// fmt
+#include <fmt/format.h>
 // std
+#include <any>
 #include <cstring>
 #include <limits>
+#include <map>
 #include <random>
 #include <type_traits>
 #include <unordered_map>
 
 // Helper functions  //////////////////////////////////////////////////////////
+
+// helper type for the visitor #4
+template <class... Ts>
+struct overloaded : Ts...
+{
+  using Ts::operator()...;
+};
+// explicit deduction guide (not needed as of C++20)
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
 
 static void anari_free(const void * /*user_data*/, const void *ptr)
 {
@@ -96,6 +121,114 @@ static anari::Array2D makeTextureData(anari::Device d, int dim)
 #endif
 }
 
+static anari::Geometry makeNormalizedCubeGeometry(anari::Device d)
+{
+  std::vector<glm::vec3> vertices{
+      {-1.0f, -1.0f, 1.0f},
+      {1.0f, -1.0f, 1.0f},
+      {-1.0f, 1.0f, 1.0f},
+      {1.0f, 1.0f, 1.0f},
+      {-1.0f, -1.0f, -1.0f},
+      {1.0f, -1.0f, -1.0f},
+      {-1.0f, 1.0f, -1.0f},
+      {1.0f, 1.0f, -1.0f},
+  };
+  std::vector<glm::vec2> uvs{
+      {0.0f, 0.0f},
+      {1.0f, 0.0f},
+      {0.0f, 1.0f},
+      {1.0f, 1.0f},
+  };
+  std::vector<glm::vec3> normals{
+      {0.0f, 0.0f, 1.0f},
+      {1.0f, 0.0f, 0.0f},
+      {0.0f, 0.0f, -1.0f},
+      {-1.0f, 0.0f, 0.0f},
+      {0.0f, 1.0f, 0.0f},
+      {0.0f, -1.0f, 0.0f},
+  };
+  std::vector<glm::uvec3> vertexIndices{
+      {0, 1, 2},
+      {2, 1, 3},
+      {1, 5, 3},
+      {3, 5, 7},
+      {5, 4, 7},
+      {7, 4, 6},
+      {4, 0, 6},
+      {6, 0, 2},
+      {2, 3, 6},
+      {6, 3, 7},
+      {5, 4, 1},
+      {1, 4, 0},
+  };
+  std::vector<glm::uvec3> uvIndices{
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+      {0, 1, 2},
+      {2, 1, 3},
+  };
+  std::vector<glm::uvec3> normalIndices{
+      {0, 0, 0},
+      {0, 0, 0},
+      {1, 1, 1},
+      {1, 1, 1},
+      {2, 2, 2},
+      {2, 2, 2},
+      {3, 3, 3},
+      {3, 3, 3},
+      {4, 4, 4},
+      {4, 4, 4},
+      {5, 5, 5},
+      {5, 5, 5},
+  };
+
+  std::vector<glm::vec2> perFacePerVertexUVs;
+  perFacePerVertexUVs.reserve(uvIndices.size() * 3);
+  for (auto indices : uvIndices) {
+    perFacePerVertexUVs.push_back(uvs[indices.x]);
+    perFacePerVertexUVs.push_back(uvs[indices.y]);
+    perFacePerVertexUVs.push_back(uvs[indices.z]);
+  }
+  std::vector<glm::vec3> perFacePerVertexNormals;
+  perFacePerVertexNormals.reserve(normalIndices.size() * 3);
+  for (auto indices : normalIndices) {
+    perFacePerVertexNormals.push_back(normals[indices.x]);
+    perFacePerVertexNormals.push_back(normals[indices.y]);
+    perFacePerVertexNormals.push_back(normals[indices.z]);
+  }
+
+  auto geom = anari::newObject<anari::Geometry>(d, "triangle");
+  anari::setAndReleaseParameter(d,
+      geom,
+      "primitive.index",
+      anari::newArray1D(d, vertexIndices.data(), vertexIndices.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "vertex.position",
+      anari::newArray1D(d, vertices.data(), vertices.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "faceVarying.attribute0",
+      anari::newArray1D(
+          d, perFacePerVertexUVs.data(), perFacePerVertexUVs.size()));
+  anari::setAndReleaseParameter(d,
+      geom,
+      "faceVarying.normal",
+      anari::newArray1D(
+          d, perFacePerVertexNormals.data(), perFacePerVertexNormals.size()));
+  anari::commitParameters(d, geom);
+
+  return geom;
+}
+
 static anari::Surface makePlane(anari::Device d, const box3 &bounds)
 {
   std::vector<glm::vec3> vertices;
@@ -114,8 +247,7 @@ static anari::Surface makePlane(anari::Device d, const box3 &bounds)
       {0.f, 0.f},
       {0.f, 1.f},
       {1.f, 1.f},
-      {1.f, 0.f}
-      //
+      {1.f, 0.f} //
   };
 
   auto geom = anari::newObject<anari::Geometry>(d, "quad");
@@ -715,7 +847,7 @@ static ScenePtr generateNoiseVolume(ANARIDevice d, NoiseVolumeConfig config)
           rng.seed(std::random_device{}());
           auto *b = anari::map<float>(d, voxelArray);
           auto *e = b + (volumeDims * volumeDims * volumeDims);
-          std::for_each(b, e, [&](auto &v) { v = dist(rng); });
+          std::generate(b, e, [&]() { return dist(rng); });
           anari::unmap(d, voxelArray);
         }
 
@@ -1015,7 +1147,6 @@ static anari::World loadObj(
     anari::Device d, const OBJData &objdata, const std::string &basePath)
 {
   visrtx::Extensions extensions = visrtx::getInstanceExtensions(d, d);
-  const bool attributeIndexing = extensions.VISRTX_TRIANGLE_ATTRIBUTE_INDEXING;
 
   auto world = anari::newObject<anari::World>(d);
 
@@ -1061,29 +1192,22 @@ static anari::World loadObj(
   auto &n = objdata.attrib.normals;
   anari::Array1D positionArray =
       anari::newArray1D(d, (glm::vec3 *)v.data(), v.size() / 3);
-  anari::Array1D texcoordArray = !t.empty()
-      ? anari::newArray1D(d, (glm::vec2 *)t.data(), t.size() / 2)
-      : nullptr;
-  anari::Array1D normalsArray = !n.empty()
-      ? anari::newArray1D(d, (glm::vec3 *)n.data(), n.size() / 3)
-      : nullptr;
 
   std::vector<glm::uvec3> vi;
-  std::vector<glm::uvec3> vti;
-  std::vector<glm::uvec3> vni;
+
+  std::vector<glm::vec2> texcoords;
+  std::vector<glm::vec3> normals;
 
   for (auto &shape : objdata.shapes) {
     auto numSrcIndices = shape.mesh.indices.size();
 
     vi.clear();
-    vti.clear();
-    vni.clear();
+    texcoords.clear();
+    normals.clear();
 
     size_t numIndices = shape.mesh.indices.size();
 
     vi.reserve(numIndices);
-    vti.reserve(numIndices);
-    vni.reserve(numIndices);
 
     for (size_t i = 0; i < numIndices; i += 3) {
       const auto &i0 = shape.mesh.indices[i + 0];
@@ -1091,31 +1215,52 @@ static anari::World loadObj(
       const auto &i2 = shape.mesh.indices[i + 2];
 
       vi.emplace_back(i0.vertex_index, i1.vertex_index, i2.vertex_index);
-      vti.emplace_back(i0.texcoord_index, i1.texcoord_index, i2.texcoord_index);
-      vni.emplace_back(i0.normal_index, i1.normal_index, i2.normal_index);
+
+      if (t.data()) {
+        float u = t.data()[i0.texcoord_index * 2];
+        float v = t.data()[i0.texcoord_index * 2 + 1];
+        texcoords.emplace_back(u, v);
+        u = t.data()[i1.texcoord_index * 2];
+        v = t.data()[i1.texcoord_index * 2 + 1];
+        texcoords.emplace_back(u, v);
+        u = t.data()[i2.texcoord_index * 2];
+        v = t.data()[i2.texcoord_index * 2 + 1];
+        texcoords.emplace_back(u, v);
+      }
+
+      if (n.data()) {
+        float x = n.data()[i0.normal_index * 3];
+        float y = n.data()[i0.normal_index * 3 + 1];
+        float z = n.data()[i0.normal_index * 3 + 2];
+        normals.emplace_back(x, y, z);
+        x = n.data()[i1.normal_index * 3];
+        y = n.data()[i1.normal_index * 3 + 1];
+        z = n.data()[i1.normal_index * 3 + 2];
+        normals.emplace_back(x, y, z);
+        x = n.data()[i2.normal_index * 3];
+        y = n.data()[i2.normal_index * 3 + 1];
+        z = n.data()[i2.normal_index * 3 + 2];
+        normals.emplace_back(x, y, z);
+      }
     }
 
     auto geom = anari::newObject<anari::Geometry>(d, "triangle");
 
     anari::setParameter(d, geom, "vertex.position", positionArray);
+    if (!normals.empty()) {
+      anari::Array1D normalsArray =
+          anari::newArray1D(d, normals.data(), normals.size());
+      anari::setAndReleaseParameter(
+          d, geom, "faceVarying.normal", normalsArray);
+    }
+    if (!texcoords.empty()) {
+      anari::Array1D texcoordArray =
+          anari::newArray1D(d, texcoords.data(), texcoords.size());
+      anari::setAndReleaseParameter(
+          d, geom, "faceVarying.attribute0", texcoordArray);
+    }
     anari::setAndReleaseParameter(
         d, geom, "primitive.index", anari::newArray1D(d, vi.data(), vi.size()));
-
-    if (attributeIndexing && texcoordArray) {
-      anari::setAndReleaseParameter(d,
-          geom,
-          "vertex.attribute0.index",
-          anari::newArray1D(d, vti.data(), vti.size()));
-      anari::setParameter(d, geom, "vertex.attribute0", texcoordArray);
-    }
-
-    if (attributeIndexing && normalsArray) {
-      anari::setAndReleaseParameter(d,
-          geom,
-          "vertex.normal.index",
-          anari::newArray1D(d, vni.data(), vni.size()));
-      anari::setParameter(d, geom, "vertex.normal", normalsArray);
-    }
 
     anari::commitParameters(d, geom);
 
@@ -1134,8 +1279,6 @@ static anari::World loadObj(
   }
 
   anari::release(d, positionArray);
-  anari::release(d, texcoordArray);
-  anari::release(d, normalsArray);
 
   anari::setAndReleaseParameter(
       d, world, "surface", anari::newArray1D(d, meshes.data(), meshes.size()));
@@ -1184,6 +1327,173 @@ static ScenePtr loadObjFile(anari::Device d, ObjFileConfig config)
 
   return std::make_unique<Scene>(d, world);
 }
+
+#ifdef USE_MDL
+///////////////////////////////////////////////////////////////////////////////
+// MDL cube scene /////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+static ScenePtr generateMDLCubeScene(anari::Device d, MDLCubeConfig config)
+{
+  std::vector<anari::Instance> instances;
+  std::vector<anari::Material> materials;
+  std::vector<std::string> materialNames;
+  std::vector<std::string> materialTypes;
+  std::vector<std::map<std::string, std::any>> materialValues;
+
+  auto world = anari::newObject<anari::World>(d);
+  auto geom = makeNormalizedCubeGeometry(d);
+
+  constexpr const auto maxx = 4; // That actually half size - 1
+  constexpr const auto maxy = 4; // That actually half size - 1
+
+  static constexpr const char *textures[] = {
+      "wood.jpg",
+      "tile.jpg",
+  };
+
+  for (auto j = 0; j < maxy; ++j) {
+    for (auto i = 0; i < maxx; ++i) {
+      auto material = anari::newObject<anari::Material>(d, "mdl");
+      int materialIdx = (i + maxx * j) % std::size(config.choices);
+      std::string materialType = config.choices[materialIdx];
+      std::string materialName =
+          materialType + std::to_string(j) + "x" + std::to_string(i);
+
+      anari::setParameter(d, material, "source", materialType);
+      std::map<std::string, std::any> values;
+      if (materialType == "::visrtx::test_material::test_mix") {
+        values["textureIndex"] = 0;
+        auto texturePath =
+            std::filesystem::current_path() / "shaders/visrtx" / textures[0];
+        anari::setParameter(d, material, "texture", texturePath.string());
+        values["mix"] = 0.5f;
+        anari::setParameter(d, material, "mix", 0.5f);
+      } else if (materialType == "::visrtx::test_material::test_noise") {
+        values["scale"] = 10.0f;
+        anari::setParameter(d, material, "scale", 10.0f);
+        values["color1"] = glm::vec3(0.25f, 0.5f, 1.0f);
+        anari::setParameter(
+            d, material, "color1", glm::vec3(0.25f, 0.5f, 1.0f));
+        values["color2"] = glm::vec3(0.5f, 1.0f, 0.25f);
+        anari::setParameter(
+            d, material, "color2", glm::vec3(0.5f, 1.0f, 0.25f));
+      }
+
+      anari::commitParameters(d, material);
+      materials.push_back(material);
+
+      auto surface = anari::newObject<anari::Surface>(d);
+      anari::setParameter(d, surface, "geometry", geom);
+      anari::setParameter(d, surface, "material", material);
+      anari::commitParameters(d, surface);
+
+      auto group = anari::newObject<anari::Group>(d);
+      anari::setAndReleaseParameter(
+          d, group, "surface", anari::newArray1D(d, &surface, 1));
+      anari::commitParameters(d, group);
+      anari::release(d, surface);
+
+      auto instance = anari::newObject<anari::Instance>(d, "transform");
+      anari::setAndReleaseParameter(d, instance, "group", group);
+      anari::setParameter(d,
+          instance,
+          "transform",
+          glm::translate(
+              glm::identity<glm::mat4>(), glm::vec3(i * 2.2f, j * 2.2f, 0.0f)));
+      anari::commitParameters(d, instance);
+
+      instances.push_back(instance);
+
+      materialNames.push_back(materialName);
+      materialTypes.push_back(config.choices[materialIdx]);
+      materialValues.push_back(values);
+    }
+  }
+  anari::release(d, geom);
+
+  anari::setAndReleaseParameter(d,
+      world,
+      "instance",
+      anari::newArray1D(d, data(instances), size(instances)));
+  for (auto instance : instances)
+    anari::release(d, instance);
+
+  return std::make_unique<Scene>(
+      d,
+      world,
+      [d,
+          config = config,
+          materials = materials,
+          materialNames = materialNames,
+          materialTypes = materialTypes,
+          allMaterialValues = materialValues]() mutable {
+        std::vector<const char *> materialNamesC;
+        for (const auto &materialName : materialNames)
+          materialNamesC.push_back(materialName.c_str());
+        ImGui::Combo("Material",
+            &config.materialEditTarget,
+            data(materialNamesC),
+            size(materialNamesC));
+
+        bool doCommit = false;
+        auto material = materials[config.materialEditTarget];
+        ImGui::PushID(materialNamesC[config.materialEditTarget]);
+        const auto &materialType = materialTypes[config.materialEditTarget];
+        auto &materialValues = allMaterialValues[config.materialEditTarget];
+        if (materialType == "::visrtx::test_material::test_mix") {
+          int currentValue = std::any_cast<int>(materialValues["textureIndex"]);
+          if (ImGui::Combo(
+                  "Texture", &currentValue, textures, std::size(textures))) {
+            auto texturePath = std::filesystem::current_path()
+                / "shaders/visrtx" / textures[currentValue];
+            anari::setParameter(d, material, "texture", texturePath.string());
+            materialValues["textureIndex"] = currentValue;
+            doCommit = true;
+          }
+          float mix = std::any_cast<float>(materialValues["mix"]);
+          if (ImGui::SliderFloat("Mix", &mix, 0.0f, 1.0f)) {
+            anari::setParameter(d, material, "mix", mix);
+            materialValues["mix"] = mix;
+            doCommit = true;
+          }
+        } else if (materialTypes[config.materialEditTarget]
+            == "::visrtx::test_material::test_noise") {
+          float scale = std::any_cast<float>(materialValues["scale"]);
+          if (ImGui::SliderFloat("Scale", &scale, 0.5f, 20.0f)) {
+            anari::setParameter(d, material, "scale", scale);
+            materialValues["scale"] = scale;
+            doCommit = true;
+          }
+          glm::vec3 color = std::any_cast<glm::vec3>(materialValues["color1"]);
+          if (ImGui::ColorEdit3("Color1",
+                  &color.x)) { // ImGui::ColorPicker3("Color1", &color.x)) {
+
+            anari::setParameter(d, material, "color1", color);
+            materialValues["color1"] = color;
+            doCommit = true;
+          }
+          color = std::any_cast<glm::vec3>(materialValues["color2"]);
+          if (ImGui::ColorEdit3("Color2", &color.x)) {
+            anari::setParameter(d, material, "color2", color);
+            materialValues["color2"] = color;
+            doCommit = true;
+          }
+        } else {
+          ImGui::TextUnformatted("No supported parameters to edit");
+        }
+        ImGui::PopID();
+
+        if (doCommit) {
+          anari::commitParameters(d, materials[config.materialEditTarget]);
+        }
+      },
+      [d, materials = materials]() {
+        for (auto material : materials)
+          anari::release(d, material);
+      });
+}
+#endif // defined(USE_MDL)
 
 ///////////////////////////////////////////////////////////////////////////////
 // Scene definitions //////////////////////////////////////////////////////////
@@ -1245,6 +1555,12 @@ ScenePtr generateScene(anari::Device d, SceneConfig config)
           retval = generateGravityVolume(d, arg);
         else if constexpr (std::is_same_v<T, ObjFileConfig>)
           retval = loadObjFile(d, arg);
+#ifdef USE_MDL
+        else if constexpr (std::is_same_v<T, MDLCubeConfig>) {
+          retval = generateMDLCubeScene(d, arg);
+          arg.addPlane = false;
+        }
+#endif // defined(USE_MDL)
 
         addPlane = arg.addPlane;
       },

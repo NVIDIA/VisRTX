@@ -60,7 +60,10 @@ enum SceneTypes
   STREAMLINES,
   NOISE_VOLUME,
   GRAVITY_VOLUME,
-  OBJ_FILE
+#ifdef USE_MDL
+  MDL_CUBE,
+#endif // defined(USE_MDL)
+  OBJ_FILE,
 };
 
 struct Config
@@ -124,13 +127,34 @@ struct ObjFileConfig : public Config
   std::string filename;
 };
 
+#ifdef USE_MDL
+struct MDLCubeConfig : public Config
+{
+  static constexpr const char *choices[] = {
+      "::visrtx::default::simpleWhite",
+      "::visrtx::test_material::test_uv",
+      "::visrtx::test_material::test_texture",
+      "::visrtx::test_material::test_texel_fetch",
+      "::visrtx::test_material::test_noise",
+      "::visrtx::test_material::test_mix",
+  }; // The cube materials to be tweaked through the UI
+
+  int materialEditTarget = 0;
+};
+#endif // defined(USE_MDL)
+
 using SceneConfig = std::variant<SpheresConfig,
     CylindersConfig,
     ConesConfig,
     CurvesConfig,
     NoiseVolumeConfig,
     GravityVolumeConfig,
-    ObjFileConfig>;
+    ObjFileConfig
+#ifdef USE_MDL
+    ,
+    MDLCubeConfig
+#endif // defined(USE_MDL)
+    >;
 
 using UICallback = std::function<void()>;
 using CleanupCallback = std::function<void()>;

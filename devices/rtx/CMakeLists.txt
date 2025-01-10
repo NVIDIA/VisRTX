@@ -39,6 +39,8 @@ if (NOT WIN32)
   set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1")
 endif()
 
+set(CMAKE_CUDA_FLAGS "--expt-relaxed-constexpr --extended-lambda")
+
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 
 set(CMAKE_CUDA_STANDARD 17)
@@ -51,21 +53,14 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
 find_package(CUDAToolkit 11.3.1 REQUIRED)
 find_package(OptiX7 REQUIRED)
+if(VISRTX_ENABLE_MDL_SUPPORT)
+  find_package(MDL_SDK REQUIRED)
+endif()
 
 include(EmbedPTX)
 
 option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
-
-## Code generation ##
-
-anari_generate_queries(
-  NAME visrtx
-  PREFIX VisRTXDevice
-  CPP_NAMESPACE visrtx
-  JSON_ROOT_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}
-  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_SOURCE_DIR}/visrtx_device.json
-)
 
 ## Build library target ##
 
@@ -75,14 +70,15 @@ project_sources(PRIVATE
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
-  VisRTXDeviceQueries.cpp
   VisRTXFeatureUtility.cpp
   VisRTXLibrary.cpp
 
+  array/Array.cpp
   array/Array1D.cpp
   array/Array2D.cpp
   array/Array3D.cpp
   array/ObjectArray.cpp
+  array/UploadableArray.cpp
 
   camera/Camera.cpp
   camera/Orthographic.cpp
@@ -100,6 +96,9 @@ project_sources(PRIVATE
   renderer/Renderer.cpp
   renderer/Test.cpp
   renderer/UnknownRenderer.cpp
+
+  shaders/MatteShader.cpp
+  shaders/PhysicallyBasedShader.cpp
 
   scene/Group.cpp
   scene/Instance.cpp
@@ -128,6 +127,7 @@ project_sources(PRIVATE
 
   scene/surface/material/sampler/Image1D.cpp
   scene/surface/material/sampler/Image2D.cpp
+  scene/surface/material/sampler/Image3D.cpp
   scene/surface/material/sampler/PrimitiveSampler.cpp
   scene/surface/material/sampler/Sampler.cpp
   scene/surface/material/sampler/TransformSampler.cpp
@@ -140,28 +140,25 @@ project_sources(PRIVATE
   scene/volume/space_skipping/UniformGrid.cu
 
   scene/volume/spatial_field/SpatialField.cpp
+  scene/volume/spatial_field/NvdbRegularField.cpp
   scene/volume/spatial_field/StructuredRegularField.cpp
-  scene/volume/spatial_field/StructuredRegularField.cu
   scene/volume/spatial_field/UnknownSpatialField.cpp
 
   utility/CudaImageTexture.cpp
   utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
+
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:
+    mdl/Logger.cpp
+    mdl/ptx.cpp
+    mdl/MaterialRegistry.cpp
+    mdl/SamplerRegistry.cpp
+    scene/surface/material/MDL.cpp
+  >
 )
 
 generate_export_header(${PROJECT_NAME}
   EXPORT_MACRO_NAME "VISRTX_DEVICE_INTERFACE"
-)
-
-set_source_files_properties(
-  frame/Frame.cu
-  frame/Denoiser.cu
-  scene/surface/geometry/Sphere.cu
-  PROPERTIES COMPILE_FLAGS "--extended-lambda"
-)
-
-set_source_files_properties(scene/Intersectors_ptx.cu
-  PROPERTIES COMPILE_FLAGS "--expt-relaxed-constexpr"
 )
 
 project_include_directories(
@@ -169,6 +166,12 @@ PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>
+)
+
+project_include_directories(
+  SYSTEM
+    PRIVATE
+      ${PROJECT_INCLUDE_DIRS}
 )
 
 project_link_libraries(
@@ -180,7 +183,15 @@ PRIVATE
   OptiX7::OptiX7
   CUDA::cuda_driver
   CUDA::curand
+  fmt::fmt
+  nonstd::expected-lite
+  nonstd::scope-lite
+  nonstd::span-lite
+  libnanovdb
+
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:libmdl>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:MDL_SDK::MDL_SDK>
 )
 
 project_compile_definitions(
@@ -189,6 +200,7 @@ PRIVATE
   VISRTX_VERSION_MINOR=${PROJECT_VERSION_MINOR}
   VISRTX_VERSION_PATCH=${PROJECT_VERSION_PATCH}
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:USE_NVTX>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:USE_MDL>
 )
 
 if(NOT WIN32)
@@ -203,12 +215,19 @@ project_compile_definitions(PRIVATE visrtx_EXPORTS)
 ## Generate OptiX programs as embedded PTX ##
 
 function(GenerateEmbeddedPTX DIR BASE_NAME)
-  set(INPUT_CU_FILE ${DIR}/${BASE_NAME}_ptx.cu)
   set(INPUT_TARGET ${BASE_NAME}_ptx)
+
+  set(INPUT_CU_FILE ${DIR}/${BASE_NAME}_ptx.cu)
   set(OUTPUT_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${BASE_NAME}_ptx.h)
 
+  if (GEN_EMBEDDED_PTX_ENTRIES)
+    string(REPLACE ";" "," GEN_EMBEDDED_PTX_ENTRIES "${GEN_EMBEDDED_PTX_ENTRIES}")
+    set(GEN_EMBEDDED_PTX_ARGS "--entries ${GEN_EMBEDDED_PTX_ENTRIES}")
+  endif()
+
+
   set_source_files_properties(${INPUT_CU_FILE}
-    PROPERTIES COMPILE_FLAGS "--expt-relaxed-constexpr"
+    PROPERTIES COMPILE_FLAGS "-rdc=true ${GEN_EMBEDDED_PTX_ARGS}"
   )
 
   add_library(${INPUT_TARGET} OBJECT ${INPUT_CU_FILE})
@@ -219,12 +238,15 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     glm_visrtx
     OptiX7::OptiX7
     CUDA::curand
+    libnanovdb
   )
   target_include_directories(${INPUT_TARGET}
   PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_LIST_DIR}
+    ${MDL_SDK_INCLUDE_DIRS}
   )
+
   set_target_properties(${INPUT_TARGET} PROPERTIES
     CUDA_PTX_COMPILATION ON
     CUDA_ARCHITECTURES OFF
@@ -243,8 +265,30 @@ GenerateEmbeddedPTX(renderer DiffusePathTracer)
 GenerateEmbeddedPTX(renderer DirectLight)
 GenerateEmbeddedPTX(renderer Raycast)
 GenerateEmbeddedPTX(renderer Test)
-
 GenerateEmbeddedPTX(scene Intersectors)
+GenerateEmbeddedPTX(shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)
+GenerateEmbeddedPTX(shaders PhysicallyBasedShader ENTRIES __direct__callable__evalSurfaceMaterial)
+if(VISRTX_ENABLE_MDL_SUPPORT)
+  GenerateEmbeddedPTX(shaders MDLShaderEvalSurfaceMaterial ENTRIES __direct__callable__evalSurfaceMaterial)
+  GenerateEmbeddedPTX(shaders MDLTexture)
+endif()
+
+# GenerateEmbeddedBC(shaders MDLShaderEvalSurfaceMaterial)
+
+## Query code generation ##
+
+file(GLOB DEVICE_JSONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "visrtx_*.json")
+foreach(file ${DEVICE_JSONS})
+  file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file} INPUT ${file})
+endforeach()
+
+anari_generate_queries(
+  DEVICE_TARGET ${PROJECT_NAME}
+  CPP_NAMESPACE visrtx
+  JSON_ROOT_LOCATION ${CMAKE_CURRENT_BINARY_DIR}
+  JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_BINARY_DIR}/visrtx_device.json
+  JSON_EXTENSION_FILES ${DEVICE_JSONS}
+)
 
 ## Install library + headers ##
 

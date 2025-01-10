@@ -66,8 +66,15 @@ void Image2D::commit()
     return;
   }
 
-  auto cuArray = m_image->acquireCUDAArrayUint8();
-  m_texture = makeCudaTextureObject(cuArray, true, m_filter, m_wrap1, m_wrap2);
+  cudaArray_t cuArray = {};
+  bool isFp = isFloat(m_image->elementType());
+  if (isFp) {
+    cuArray = m_image->acquireCUDAArrayFloat();
+  } else {
+    cuArray = m_image->acquireCUDAArrayUint8();
+  }
+  m_texture = makeCudaTextureObject(cuArray, !isFp, m_filter, m_wrap1, m_wrap2);
+  m_texels = makeCudaTextureObject(cuArray, !isFp, "nearest", m_wrap1, m_wrap2, "clampToEdge", false);
 
   upload();
 }
@@ -77,6 +84,10 @@ SamplerGPUData Image2D::gpuData() const
   SamplerGPUData retval = Sampler::gpuData();
   retval.type = SamplerType::TEXTURE2D;
   retval.image2D.texobj = m_texture;
+  retval.image2D.texelTexobj = m_texels;
+  retval.image2D.size = glm::uvec2(m_image->size().x, m_image->size().y);
+  retval.image2D.invSize = glm::vec2(1.0f / m_image->size().x, 1.0f / m_image->size().y);
+
   return retval;
 }
 
@@ -94,8 +105,13 @@ bool Image2D::isValid() const
 void Image2D::cleanup()
 {
   if (m_image && m_texture) {
+    cudaDestroyTextureObject(m_texels);
     cudaDestroyTextureObject(m_texture);
-    m_image->releaseCUDAArrayUint8();
+    if (isFloat(m_image->elementType())) {
+      m_image->releaseCUDAArrayFloat();
+    } else {
+      m_image->releaseCUDAArrayUint8();
+    }
   }
 }
 

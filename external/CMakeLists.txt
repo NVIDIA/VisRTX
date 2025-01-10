@@ -28,5 +28,8 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 add_subdirectory(catch)
+add_subdirectory(fmtlib)
+add_subdirectory(nanovdb)
+add_subdirectory(nonstd)
 add_subdirectory(stb_image)
 add_subdirectory(tiny_obj_loader)

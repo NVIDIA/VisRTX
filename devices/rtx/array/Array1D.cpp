@@ -31,23 +31,51 @@
 
 #include "array/Array1D.h"
 #include "utility/CudaImageTexture.h"
+// std
+#include <algorithm>
 
 namespace visrtx {
 
 Array1D::Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d)
-    : helium::Array1D(state, d)
+    : Array(ANARI_ARRAY1D, state, d, d.numItems), m_end(d.numItems)
 {}
 
-const void *Array1D::dataGPU() const
+void Array1D::commit()
 {
-  const_cast<Array1D *>(this)->markDataIsOffloaded(true);
-  uploadArrayData();
-  return m_deviceData.buffer.ptr();
+  const auto oldBegin = m_begin;
+  const auto oldEnd = m_end;
+  const auto capacity = totalCapacity();
+
+  m_begin = getParam<size_t>("begin", 0);
+  m_begin = std::clamp(m_begin, size_t(0), capacity - 1);
+  m_end = getParam<size_t>("end", capacity);
+  m_end = std::clamp(m_end, size_t(1), capacity);
+
+  if (size() == 0) {
+    reportMessage(ANARI_SEVERITY_ERROR, "array size must be greater than zero");
+    return;
+  }
+
+  if (m_begin > m_end) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "array 'begin' is not less than 'end', swapping values");
+    std::swap(m_begin, m_end);
+  }
+
+  if (m_begin != oldBegin || m_end != oldEnd) {
+    markDataModified();
+    notifyChangeObservers();
+  }
 }
 
-const void *Array1D::data(AddressSpace as) const
+size_t Array1D::totalSize() const
 {
-  return as == AddressSpace::GPU ? dataGPU() : helium::Array1D::data();
+  return size();
+}
+
+size_t Array1D::size() const
+{
+  return m_end - m_begin;
 }
 
 const void *Array1D::begin(AddressSpace as) const
@@ -100,9 +128,7 @@ void Array1D::releaseCUDAArrayUint8()
 
 void Array1D::uploadArrayData() const
 {
-  helium::Array1D::uploadArrayData();
-  m_deviceData.buffer.upload((uint8_t *)data(AddressSpace::HOST),
-      anari::sizeOf(elementType()) * totalSize());
+  Array::uploadArrayData();
   if (m_cuArrayFloat)
     makeCudaArrayFloat(m_cuArrayFloat, *this, {totalSize(), 1});
   if (m_cuArrayUint8)
