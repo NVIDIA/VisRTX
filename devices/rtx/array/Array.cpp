@@ -101,9 +101,11 @@ Array::Array(ANARIDataType arrayType,
     break;
   case ArrayDataOwnership::CAPTURED:
     if (as == AddressSpace::HOST) {
-      m_data.captured.host = HostMemoryAllocation(appMem, bytes, d.deleter, d.deleterPtr);
+      m_data.captured.host =
+          HostMemoryAllocation(appMem, bytes, d.deleter, d.deleterPtr);
     } else {
-      m_data.captured.device = CudaMemoryAllocation(appMem, bytes, d.deleter, d.deleterPtr);
+      m_data.captured.device =
+          CudaMemoryAllocation(appMem, bytes, d.deleter, d.deleterPtr);
     }
     m_data.captured.deleter = d.deleter;
     m_data.captured.deleterPtr = d.deleterPtr;
