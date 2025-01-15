@@ -147,6 +147,7 @@ project_sources(PRIVATE
   utility/CudaImageTexture.cpp
   utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
+  utility/MemoryAllocation.cpp
 
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:
     mdl/Logger.cpp

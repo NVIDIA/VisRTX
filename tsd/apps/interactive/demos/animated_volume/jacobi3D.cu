@@ -94,7 +94,7 @@ void jacobi3D(int nx, int ny, int nz, float *h_grid, int iterations)
   thrust::device_vector<float> d_grid_v(grid_size);
   thrust::device_vector<float> d_old_grid_v(grid_size);
   thrust::copy(h_grid, h_grid + grid_size, d_grid_v.begin());
-  d_old_grid_v = d_grid_v;
+  thrust::copy(d_grid_v.begin(), d_grid_v.end(), d_old_grid_v.begin());
   // Invoke GPU kernel
   float *d_grid = thrust::raw_pointer_cast(d_grid_v.data());
   float *d_old_grid = thrust::raw_pointer_cast(d_old_grid_v.data());
