@@ -597,7 +597,7 @@ void Viewport::ui_contextMenu()
       for (auto &libName : m_core->commandLine.libraryList) {
         const bool isThisLibrary = m_libName == libName;
         if (ImGui::RadioButton(libName.c_str(), isThisLibrary))
-          setLibrary(libName);
+          setLibrary(libName, false);
       }
       ImGui::EndMenu();
     }
