@@ -28,7 +28,7 @@ DEVICE_FCN_INLINE uint32_t shadePixel(uint32_t c_in)
   return helium::cvt_color_to_uint32(c_out);
 };
 
-static void compositeFrame(RenderPass::Buffers &b_out,
+void compositeFrame(RenderPass::Buffers &b_out,
     const RenderPass::Buffers &b_in,
     tsd::uint2 size,
     bool firstPass)
@@ -46,7 +46,7 @@ static void compositeFrame(RenderPass::Buffers &b_out,
       });
 }
 
-static void computeOutline(
+void computeOutline(
     RenderPass::Buffers &b, uint32_t outlineId, tsd::uint2 size)
 {
   detail::parallel_for(
@@ -72,7 +72,7 @@ static void computeOutline(
       });
 }
 
-static void computeDepthImage(
+void computeDepthImage(
     RenderPass::Buffers &b, float maxDepth, tsd::uint2 size)
 {
   detail::parallel_for(

@@ -67,7 +67,9 @@ else()
 endif()
 
 if (MSVC)
-  project_compile_options(PRIVATE /bigobj)
+  set_source_files_properties(
+    authoring/procedural/generate_material_orb.cpp
+    PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
 if (TSD_USE_CUDA)

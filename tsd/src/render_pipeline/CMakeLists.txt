@@ -24,8 +24,9 @@ elseif(TSD_USE_TBB)
 endif()
 
 if (TSD_USE_OPENGL)
+  find_package(glfw3 REQUIRED)
   find_package(OpenGL REQUIRED)
-  project_link_libraries(PUBLIC tsd OpenGL::GL)
+  project_link_libraries(PUBLIC tsd glfw OpenGL::GL)
   project_compile_definitions(PUBLIC ENABLE_OPENGL)
 endif()
 
