@@ -7,4 +7,4 @@ endif()
 
 project(tsdDemoAnimatedVolume)
 project_add_executable(jacobi3D.cu SolverControls.cpp tsdDemoAnimatedVolume.cpp)
-project_link_libraries(tsd_viewer_common CUDA::cudart)
+project_link_libraries(PRIVATE tsd_viewer_common)

@@ -11,12 +11,7 @@
 #include <anari/anari_cpp.hpp>
 
 #ifdef ENABLE_OPENGL
-// OpenGL
-#if __APPLE__
-#include <OpenGL/gl.h>
-#else
-#include <GL/gl.h>
-#endif
+#include <GLFW/glfw3.h>
 #endif
 
 namespace tsd {
