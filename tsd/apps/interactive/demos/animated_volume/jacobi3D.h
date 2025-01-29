@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <thrust/device_ptr.h>
-
 namespace tsd {
 
 // Use existing GPU grids
