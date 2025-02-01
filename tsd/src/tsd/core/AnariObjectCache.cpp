@@ -3,12 +3,41 @@
 
 #include "tsd/core/AnariObjectCache.hpp"
 #include "tsd/core/Object.hpp"
+#include "tsd/core/Logging.hpp"
 
 namespace tsd {
+
+// Helper functions ///////////////////////////////////////////////////////////
+
+static bool supportsCUDAArrays(anari::Device d)
+{
+  bool supportsCUDA = false;
+  auto list = (const char *const *)anariGetObjectInfo(
+    d,
+    ANARI_DEVICE,
+    "default",
+    "extension",
+    ANARI_STRING_LIST
+  );
+
+  for(const char *const *i = list; *i != nullptr; ++i) {
+    if (std::string(*i) == "ANARI_VISRTX_ARRAY_CUDA") {
+      supportsCUDA = true;
+      break;
+    }
+  }
+
+  return supportsCUDA;
+}
+
+// AnariObjectCache definitions ///////////////////////////////////////////////
 
 AnariObjectCache::AnariObjectCache(anari::Device d) : device(d)
 {
   anari::retain(device, device);
+  m_supportsCUDA = supportsCUDAArrays(d);
+  tsd::logStatus("[ANARI object cache] device %s CUDA arrays",
+    m_supportsCUDA ? "supports" : "does NOT support");
 }
 
 AnariObjectCache::~AnariObjectCache()
@@ -122,6 +151,11 @@ void AnariObjectCache::clear()
   releaseAllHandles(sampler);
   releaseAllHandles(light);
   releaseAllHandles(array); // this needs to be last!
+}
+
+bool AnariObjectCache::supportsCUDA() const
+{
+  return m_supportsCUDA;
 }
 
 } // namespace tsd

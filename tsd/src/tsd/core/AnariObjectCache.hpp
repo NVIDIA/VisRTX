@@ -20,6 +20,7 @@ struct AnariObjectCache
   void removeHandle(anari::DataType type, size_t index);
   void removeHandle(const Object *o);
   void clear();
+  bool supportsCUDA() const;
 
   IndexedVector<anari::Surface> surface;
   IndexedVector<anari::Geometry> geometry;
@@ -31,6 +32,9 @@ struct AnariObjectCache
   IndexedVector<anari::Array> array;
 
   anari::Device device{nullptr};
+
+private:
+  bool m_supportsCUDA{false};
 };
 
 } // namespace tsd
