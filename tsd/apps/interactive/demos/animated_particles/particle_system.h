@@ -19,6 +19,7 @@ struct ParticleSystemParameters
 void particlesComputeTimestep(int numParticles,
     tsd::math::float3 *positions /* GPU */,
     tsd::math::float3 *velocities /* GPU */,
+    float *distances /* GPU */,
     const tsd::math::float3 &bhPosition1,
     const tsd::math::float3 &bhPosition2,
     const ParticleSystemParameters &params);

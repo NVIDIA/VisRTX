@@ -20,6 +20,7 @@ namespace tsd {
 void particlesComputeTimestep(int numParticles,
     tsd::math::float3 *positions_ /* GPU */,
     tsd::math::float3 *velocities_ /* GPU */,
+    float *distances /* GPU */,
     const tsd::math::float3 &bhPos1_,
     const tsd::math::float3 &bhPos2_,
     const ParticleSystemParameters &params)
@@ -56,6 +57,7 @@ void particlesComputeTimestep(int numParticles,
 
         positions[idx] = p;
         velocities[idx] = v;
+        distances[idx] = glm::length(p);
       });
 }
 

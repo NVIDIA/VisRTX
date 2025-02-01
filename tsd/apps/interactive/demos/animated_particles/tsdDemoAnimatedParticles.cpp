@@ -51,6 +51,8 @@ class Application : public BaseApplication
 
     // Populate scene data //
 
+    // Geometry
+
     auto particles =
       ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
     particles->setName("particle_geometry");
@@ -61,15 +63,35 @@ class Application : public BaseApplication
     blackHoles->setName("blackHole_geometry");
     blackHoles->setParameter("radius", 0.1f);
 
-    solver->setGeometry(particles, blackHoles);
+    // Colormap sampler
+
+    auto samplerImageArray = ctx.createArray(ANARI_FLOAT32_VEC4, 3);
+    auto *colorMapPtr = samplerImageArray->mapAs<tsd::float4>();
+    colorMapPtr[0] = tsd::float4(0.f, 0.f, 1.f, 1.f);
+    colorMapPtr[1] = tsd::float4(0.f, 1.f, 0.f, 1.f);
+    colorMapPtr[2] = tsd::float4(1.f, 0.f, 0.f, 1.f);
+    samplerImageArray->unmap();
+
+    auto sampler =
+      ctx.createObject<tsd::Sampler>(tsd::tokens::sampler::image1D);
+    sampler->setParameter("inAttribute", "attribute0");
+    sampler->setParameter("filter", "linear");
+    sampler->setParameter("wrapMode", "mirrorRepeat");
+    sampler->setParameterObject("image", *samplerImageArray);
+
+    solver->setGeometry(particles, blackHoles, sampler);
+
+    // Materials
 
     auto particleMat =
       ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
-    particleMat->setParameter("color", tsd::float3(0.9f));
+    particleMat->setParameterObject("color", *sampler);
 
     auto bhMat =
       ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
     bhMat->setParameter("color", tsd::float3(0.f));
+
+    // Surfaces
 
     auto surface = ctx.createObject<tsd::Surface>();
     surface->setName("particle_surface");

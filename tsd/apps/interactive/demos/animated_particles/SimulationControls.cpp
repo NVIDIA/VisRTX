@@ -5,6 +5,7 @@
 // tsd_viewer
 #include "tsd_ui.h"
 // tsd
+#include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 // std
 #include <algorithm>
@@ -72,15 +73,21 @@ void SimulationControls::buildUI()
   ImGui::DragFloat("rotation speed", &m_rotationSpeed, 1.f);
   ImGui::DragFloat("gravity", &m_params.gravity, 1.f);
   ImGui::DragFloat("particle mass", &m_params.particleMass, 0.1f);
-  ImGui::DragFloat("max distance", &m_params.maxDistance, 1.f);
+  if (ImGui::DragFloat("max distance", &m_params.maxDistance, 1.f))
+    updateColorMapScale();
+  if (ImGui::DragFloat("color map scale", &m_colorMapScaleFactor, 1.f))
+    updateColorMapScale();
   ImGui::InputFloat("delta T", &m_params.deltaT);
 }
 
 void SimulationControls::setGeometry(tsd::GeometryRef particles,
-  tsd::GeometryRef blackHoles)
+  tsd::GeometryRef blackHoles,
+  tsd::SamplerRef sampler)
 {
   m_particleGeom = particles;
   m_bhGeom = blackHoles;
+  m_particleColorSampler = sampler;
+  updateColorMapScale();
   resetSimulation();
 }
 
@@ -95,6 +102,8 @@ void SimulationControls::remakeDataArrays()
 
   resetArrayRef(m_dataPoints);
   resetArrayRef(m_dataPointsCUDA);
+  resetArrayRef(m_dataDistances);
+  resetArrayRef(m_dataDistancesCUDA);
   resetArrayRef(m_dataVelocities);
   resetArrayRef(m_dataVelocitiesCUDA);
   resetArrayRef(m_dataBhPoints);
@@ -103,8 +112,10 @@ void SimulationControls::remakeDataArrays()
       m_particlesPerSide * m_particlesPerSide * m_particlesPerSide;
 
   m_dataPointsCUDA = ctx.createArrayCUDA(ANARI_FLOAT32_VEC3, numParticles);
+  m_dataDistancesCUDA = ctx.createArrayCUDA(ANARI_FLOAT32, numParticles);
   m_dataVelocitiesCUDA = ctx.createArrayCUDA(ANARI_FLOAT32_VEC3, numParticles);
   m_dataPoints = ctx.createArray(ANARI_FLOAT32_VEC3, numParticles);
+  m_dataDistances = ctx.createArray(ANARI_FLOAT32, numParticles);
   m_dataVelocities = ctx.createArray(ANARI_FLOAT32_VEC3, numParticles);
   m_dataBhPoints = ctx.createArray(ANARI_FLOAT32_VEC3, 2);
 }
@@ -142,13 +153,20 @@ void SimulationControls::resetSimulation()
     std::fill(velocities, velocities + numParticles, tsd::float3(0.f));
   }
 
+  auto *distances = m_dataDistances->mapAs<float>();
+
   auto *positions = m_dataPoints->mapAs<tsd::math::float3>();
   const float d = 2.0f / m_particlesPerSide;
   size_t i = 0;
-  for (int x = 0; x < m_particlesPerSide; x++)
-    for (int y = 0; y < m_particlesPerSide; y++)
-      for (int z = 0; z < m_particlesPerSide; z++)
-        positions[i++] = tsd::float3(d * x - 1.f, d * y - 1.f, d * z - 1.f);
+  for (int x = 0; x < m_particlesPerSide; x++) {
+    for (int y = 0; y < m_particlesPerSide; y++) {
+      for (int z = 0; z < m_particlesPerSide; z++) {
+        auto p = tsd::float3(d * x - 1.f, d * y - 1.f, d * z - 1.f);
+        positions[i] = p;
+        distances[i++] = tsd::math::length(p);
+      }
+    }
+  }
 
   cudaMemcpy(m_dataVelocitiesCUDA->map(),
       velocities,
@@ -162,15 +180,36 @@ void SimulationControls::resetSimulation()
       cudaMemcpyHostToDevice);
   m_dataPointsCUDA->unmap();
 
+  cudaMemcpy(m_dataDistancesCUDA->map(),
+      distances,
+      m_dataDistancesCUDA->size() * m_dataDistancesCUDA->elementSize(),
+      cudaMemcpyHostToDevice);
+  m_dataDistancesCUDA->unmap();
+
   m_dataVelocities->unmap();
   m_dataPoints->unmap();
+  m_dataDistances->unmap();
 
-  if (m_useGPUInterop)
+  if (m_useGPUInterop) {
     m_particleGeom->setParameterObject("vertex.position", *m_dataPointsCUDA);
-  else
+    m_particleGeom->setParameterObject("vertex.attribute0",
+      *m_dataDistancesCUDA);
+  } else {
     m_particleGeom->setParameterObject("vertex.position", *m_dataPoints);
+    m_particleGeom->setParameterObject("vertex.attribute0",
+      *m_dataDistances);
+  }
 
   m_bhGeom->setParameterObject("vertex.position", *m_dataBhPoints);
+}
+
+void SimulationControls::updateColorMapScale()
+{
+  m_particleColorSampler->setParameter(
+      "inTransform",
+      tsd::makeColorMapTransform(0.f,
+                                 m_params.maxDistance / m_colorMapScaleFactor)
+  );
 }
 
 std::pair<tsd::float3, tsd::float3> SimulationControls::updateBhPoints()
@@ -214,11 +253,13 @@ void SimulationControls::iterateSimulation()
 
   auto *pointsCUDA = m_dataPointsCUDA->mapAs<tsd::float3>();
   auto *velocitiesCUDA = m_dataVelocitiesCUDA->mapAs<tsd::float3>();
+  auto *distancesCUDA = m_dataDistancesCUDA->mapAs<float>();
 
   tsd::particlesComputeTimestep(
     numParticles,
     pointsCUDA,
     velocitiesCUDA,
+    distancesCUDA,
     tsd::float3(bh1.x, bh1.y, bh1.z),
     tsd::float3(bh2.x, bh2.y, bh2.z),
     m_params
@@ -228,6 +269,7 @@ void SimulationControls::iterateSimulation()
   {
     auto *points = m_dataPoints->mapAs<tsd::float3>();
     auto *velocities = m_dataVelocities->mapAs<tsd::float3>();
+    auto *distances = m_dataDistances->mapAs<float>();
 
     cudaMemcpy(velocities,
         velocitiesCUDA,
@@ -240,10 +282,17 @@ void SimulationControls::iterateSimulation()
         m_dataPointsCUDA->size() * m_dataPointsCUDA->elementSize(),
         cudaMemcpyDeviceToHost);
     m_dataPoints->unmap();
+
+    cudaMemcpy(distances,
+        distancesCUDA,
+        m_dataDistancesCUDA->size() * sizeof(float),
+        cudaMemcpyDeviceToHost);
+    m_dataDistances->unmap();
   }
 
   m_dataPointsCUDA->unmap();
   m_dataVelocitiesCUDA->unmap();
+  m_dataDistancesCUDA->unmap();
 }
 
 } // namespace tsd_viewer
