@@ -25,8 +25,8 @@ void particlesComputeTimestep(int numParticles,
     const tsd::math::float3 &bhPos2_,
     const ParticleSystemParameters &params)
 {
-  auto *positions = (glm::vec3*)positions_;
-  auto *velocities = (glm::vec3*)velocities_;
+  auto *positions = (glm::vec3 *)positions_;
+  auto *velocities = (glm::vec3 *)velocities_;
   glm::vec3 bhPos1, bhPos2;
   std::memcpy(&bhPos1, &bhPos1_, sizeof(bhPos1));
   std::memcpy(&bhPos2, &bhPos2_, sizeof(bhPos2));
@@ -36,7 +36,7 @@ void particlesComputeTimestep(int numParticles,
   thrust::for_each(thrust::device,
       thrust::make_counting_iterator(0),
       thrust::make_counting_iterator(numParticles),
-      [=] GPU_FCN (int idx) {
+      [=] GPU_FCN(int idx) {
         auto p = positions[idx];
         auto v = velocities[idx];
 

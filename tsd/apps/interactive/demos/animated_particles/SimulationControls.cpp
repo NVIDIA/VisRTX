@@ -81,8 +81,8 @@ void SimulationControls::buildUI()
 }
 
 void SimulationControls::setGeometry(tsd::GeometryRef particles,
-  tsd::GeometryRef blackHoles,
-  tsd::SamplerRef sampler)
+    tsd::GeometryRef blackHoles,
+    tsd::SamplerRef sampler)
 {
   m_particleGeom = particles;
   m_bhGeom = blackHoles;
@@ -146,9 +146,9 @@ void SimulationControls::resetSimulation()
     std::mt19937 rng;
     rng.seed(0);
     std::normal_distribution<float> dist(-0.1f, 0.1f);
-    std::for_each((float*) velocities,
-      (float*)(velocities + numParticles),
-      [&](auto &v) { v = dist(rng) * 255; });
+    std::for_each((float *)velocities,
+        (float *)(velocities + numParticles),
+        [&](auto &v) { v = dist(rng) * 255; });
   } else {
     std::fill(velocities, velocities + numParticles, tsd::float3(0.f));
   }
@@ -192,12 +192,11 @@ void SimulationControls::resetSimulation()
 
   if (m_useGPUInterop) {
     m_particleGeom->setParameterObject("vertex.position", *m_dataPointsCUDA);
-    m_particleGeom->setParameterObject("vertex.attribute0",
-      *m_dataDistancesCUDA);
+    m_particleGeom->setParameterObject(
+        "vertex.attribute0", *m_dataDistancesCUDA);
   } else {
     m_particleGeom->setParameterObject("vertex.position", *m_dataPoints);
-    m_particleGeom->setParameterObject("vertex.attribute0",
-      *m_dataDistances);
+    m_particleGeom->setParameterObject("vertex.attribute0", *m_dataDistances);
   }
 
   m_bhGeom->setParameterObject("vertex.position", *m_dataBhPoints);
@@ -205,11 +204,9 @@ void SimulationControls::resetSimulation()
 
 void SimulationControls::updateColorMapScale()
 {
-  m_particleColorSampler->setParameter(
-      "inTransform",
-      tsd::makeColorMapTransform(0.f,
-                                 m_params.maxDistance / m_colorMapScaleFactor)
-  );
+  m_particleColorSampler->setParameter("inTransform",
+      tsd::makeColorMapTransform(
+          0.f, m_params.maxDistance / m_colorMapScaleFactor));
 }
 
 std::pair<tsd::float3, tsd::float3> SimulationControls::updateBhPoints()
@@ -217,7 +214,7 @@ std::pair<tsd::float3, tsd::float3> SimulationControls::updateBhPoints()
   const auto rot = tsd::math::rotation_matrix(
       tsd::math::rotation_quat(tsd::math::float3(0, 0, 1), m_angle));
   tsd::float4 bh1_ = tsd::math::mul(rot, tsd::float4(5.f, 0.f, 0.f, 1.f));
-  tsd::float4 bh2_ = tsd::math::mul(rot,tsd::float4(-5.f, 0.f, 0.f, 1.f));
+  tsd::float4 bh2_ = tsd::math::mul(rot, tsd::float4(-5.f, 0.f, 0.f, 1.f));
 
   tsd::float3 bh1(bh1_.x, bh1_.y, bh1_.z);
   tsd::float3 bh2(bh2_.x, bh2_.y, bh2_.z);
@@ -255,18 +252,15 @@ void SimulationControls::iterateSimulation()
   auto *velocitiesCUDA = m_dataVelocitiesCUDA->mapAs<tsd::float3>();
   auto *distancesCUDA = m_dataDistancesCUDA->mapAs<float>();
 
-  tsd::particlesComputeTimestep(
-    numParticles,
-    pointsCUDA,
-    velocitiesCUDA,
-    distancesCUDA,
-    tsd::float3(bh1.x, bh1.y, bh1.z),
-    tsd::float3(bh2.x, bh2.y, bh2.z),
-    m_params
-  );
+  tsd::particlesComputeTimestep(numParticles,
+      pointsCUDA,
+      velocitiesCUDA,
+      distancesCUDA,
+      tsd::float3(bh1.x, bh1.y, bh1.z),
+      tsd::float3(bh2.x, bh2.y, bh2.z),
+      m_params);
 
-  if (!m_useGPUInterop)
-  {
+  if (!m_useGPUInterop) {
     auto *points = m_dataPoints->mapAs<tsd::float3>();
     auto *velocities = m_dataVelocities->mapAs<tsd::float3>();
     auto *distances = m_dataDistances->mapAs<float>();

@@ -20,8 +20,8 @@ struct SimulationControls : public anari_viewer::windows::Window
 
   void buildUI() override;
   void setGeometry(tsd::GeometryRef particles,
-    tsd::GeometryRef blackHoles,
-    tsd::SamplerRef particleColorSampler);
+      tsd::GeometryRef blackHoles,
+      tsd::SamplerRef particleColorSampler);
 
  private:
   void remakeDataArrays();

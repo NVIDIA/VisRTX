@@ -54,12 +54,12 @@ class Application : public BaseApplication
     // Geometry
 
     auto particles =
-      ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
+        ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
     particles->setName("particle_geometry");
     particles->setParameter("radius", 0.01f);
 
     auto blackHoles =
-      ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
+        ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
     blackHoles->setName("blackHole_geometry");
     blackHoles->setParameter("radius", 0.1f);
 
@@ -73,7 +73,7 @@ class Application : public BaseApplication
     samplerImageArray->unmap();
 
     auto sampler =
-      ctx.createObject<tsd::Sampler>(tsd::tokens::sampler::image1D);
+        ctx.createObject<tsd::Sampler>(tsd::tokens::sampler::image1D);
     sampler->setParameter("inAttribute", "attribute0");
     sampler->setParameter("filter", "linear");
     sampler->setParameter("wrapMode", "mirrorRepeat");
@@ -84,11 +84,10 @@ class Application : public BaseApplication
     // Materials
 
     auto particleMat =
-      ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
+        ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
     particleMat->setParameterObject("color", *sampler);
 
-    auto bhMat =
-      ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
+    auto bhMat = ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
     bhMat->setParameter("color", tsd::float3(0.f));
 
     // Surfaces
