@@ -120,37 +120,37 @@ class Application : public BaseApplication
   {
     return R"layout(
 [Window][MainDockSpace]
-Pos=0,22
-Size=1200,777
+Pos=0,26
+Size=1920,1054
 Collapsed=0
 
 [Window][Viewport]
-Pos=551,22
-Size=649,535
+Pos=593,26
+Size=1327,812
 Collapsed=0
-DockId=0x00000004,0
+DockId=0x00000009,0
 
 [Window][Object Editor]
-Pos=0,550
-Size=549,249
+Pos=0,742
+Size=591,338
 Collapsed=0
 DockId=0x00000006,0
 
 [Window][Object Tree]
-Pos=0,329
-Size=549,219
+Pos=0,442
+Size=591,298
 Collapsed=0
 DockId=0x00000008,0
 
 [Window][Log]
-Pos=551,559
-Size=649,240
+Pos=593,840
+Size=1327,240
 Collapsed=0
 DockId=0x00000005,0
 
 [Window][Simulation Controls]
-Pos=0,22
-Size=549,305
+Pos=0,26
+Size=591,414
 Collapsed=0
 DockId=0x00000007,0
 
@@ -159,18 +159,26 @@ Pos=60,60
 Size=400,400
 Collapsed=0
 
+[Window][Secondary View]
+Pos=1370,26
+Size=550,812
+Collapsed=0
+DockId=0x0000000A,0
+
 [Table][0x39E9F5ED,1]
 Column 0  Weight=1.0000
 
 [Docking][Data]
-DockSpace       ID=0x782A6D6B Window=0xDEDC5B90 Pos=0,22 Size=1200,777 Split=X
-  DockNode      ID=0x00000001 Parent=0x782A6D6B SizeRef=549,1057 Split=Y Selected=0x1FD98235
+DockSpace       ID=0x782A6D6B Window=0xDEDC5B90 Pos=0,26 Size=1920,1054 Split=X
+  DockNode      ID=0x00000001 Parent=0x782A6D6B SizeRef=591,1057 Split=Y Selected=0x1FD98235
     DockNode    ID=0x00000003 Parent=0x00000001 SizeRef=549,716 Split=Y Selected=0x1FD98235
       DockNode  ID=0x00000007 Parent=0x00000003 SizeRef=549,305 Selected=0x4DDE13CE
       DockNode  ID=0x00000008 Parent=0x00000003 SizeRef=549,219 Selected=0x1FD98235
     DockNode    ID=0x00000006 Parent=0x00000001 SizeRef=549,339 Selected=0xAFC1D085
-  DockNode      ID=0x00000002 Parent=0x782A6D6B SizeRef=1369,1057 Split=Y Selected=0x13926F0B
-    DockNode    ID=0x00000004 Parent=0x00000002 SizeRef=1369,815 CentralNode=1 Selected=0x13926F0B
+  DockNode      ID=0x00000002 Parent=0x782A6D6B SizeRef=1327,1057 Split=Y Selected=0x13926F0B
+    DockNode    ID=0x00000004 Parent=0x00000002 SizeRef=1369,815 Split=X Selected=0x13926F0B
+      DockNode  ID=0x00000009 Parent=0x00000004 SizeRef=775,812 CentralNode=1 Selected=0x13926F0B
+      DockNode  ID=0x0000000A Parent=0x00000004 SizeRef=550,812 Selected=0xBAF13E1E
     DockNode    ID=0x00000005 Parent=0x00000002 SizeRef=1369,240 Selected=0x64F50EE5
 )layout";
   }
@@ -186,7 +194,7 @@ int main(int argc, const char *argv[])
 {
   {
     tsd_viewer::Application app(argc, argv);
-    app.run(1200, 800, "TSD Demo | Animated Particles");
+    app.run(1920, 1080, "TSD Demo | Animated Particles");
   }
 
   return 0;

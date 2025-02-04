@@ -771,7 +771,7 @@ void Viewport::ui_overlay()
   ImGuiIO &io = ImGui::GetIO();
   ImVec2 windowPos = ImGui::GetWindowPos();
   windowPos.x += 10;
-  windowPos.y += 25 * io.FontGlobalScale;
+  windowPos.y += 35 * io.FontGlobalScale;
 
   ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration
       | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_AlwaysAutoResize
