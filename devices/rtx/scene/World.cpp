@@ -165,29 +165,24 @@ void World::commit()
   m_objectUpdates.lastBLASCheck = 0;
 }
 
-OptixTraversableHandle World::optixTraversableHandleSurfaces() const
+WorldGPUData World::gpuData() const
 {
-  return m_traversableSurfaces;
-}
+  WorldGPUData retval;
 
-OptixTraversableHandle World::optixTraversableHandleVolumes() const
-{
-  return m_traversableVolumes;
-}
+  retval.surfaceInstances = m_instanceSurfaceGPUData.dataDevice();
+  retval.numSurfaceInstances = m_instanceSurfaceGPUData.size();
+  retval.surfacesTraversable = m_traversableSurfaces;
 
-Span<InstanceSurfaceGPUData> World::instanceSurfaceGPUData() const
-{
-  return m_instanceSurfaceGPUData.deviceSpan();
-}
+  retval.volumeInstances = m_instanceVolumeGPUData.dataDevice();
+  retval.numVolumeInstances = m_instanceVolumeGPUData.size();
+  retval.volumesTraversable = m_traversableVolumes;
 
-Span<InstanceVolumeGPUData> World::instanceVolumeGPUData() const
-{
-  return m_instanceVolumeGPUData.deviceSpan();
-}
+  retval.lightInstances = m_instanceLightGPUData.dataDevice();
+  retval.numLightInstances = m_instanceLightGPUData.size();
 
-Span<InstanceLightGPUData> World::instanceLightGPUData() const
-{
-  return m_instanceLightGPUData.deviceSpan();
+  retval.hdri = m_hdri;
+
+  return retval;
 }
 
 void World::rebuildWorld()
@@ -454,6 +449,8 @@ void World::buildInstanceLightGPUData()
 {
   m_instanceLightGPUData.resize(m_numLightInstances);
 
+  m_hdri = -1;
+
   int instID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
@@ -463,6 +460,9 @@ void World::buildInstanceLightGPUData()
 
     group->rebuildLights();
     const auto lgi = group->lightGPUIndices();
+
+    if (m_hdri == -1)
+      m_hdri = group->firstHDRI();
 
     for (size_t t = 0; t < inst->numTransforms(); t++) {
       if (!inst->xfmIsIdentity(t) && lgi.size() != 0) {

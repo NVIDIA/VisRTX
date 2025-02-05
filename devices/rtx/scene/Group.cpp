@@ -169,6 +169,11 @@ Span<DeviceObjectIndex> Group::lightGPUIndices() const
       (const DeviceObjectIndex *)m_lightObjectIndices.ptr(), m_lights.size());
 }
 
+DeviceObjectIndex Group::firstHDRI() const
+{
+  return m_firstHDRI;
+}
+
 void Group::rebuildSurfaceBVHs()
 {
   const auto &state = *deviceState();
@@ -312,6 +317,7 @@ void Group::partitionValidVolumes()
 void Group::partitionValidLights()
 {
   m_lights.clear();
+  m_firstHDRI = -1;
   if (!m_lightData)
     return;
 
@@ -325,6 +331,8 @@ void Group::partitionValidLights()
       continue;
     }
     m_lights.push_back(l);
+    if (m_firstHDRI == -1 && l->isHDRI())
+      m_firstHDRI = l->index();
   }
 }
 

@@ -29,52 +29,35 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#pragma once
+
 #include "Light.h"
-// specific types
-#include "Directional.h"
-#include "HDRI.h"
-#include "Point.h"
-#include "UnknownLight.h"
+#include "array/Array2D.h"
+#include "utility/CudaImageTexture.h"
 
 namespace visrtx {
 
-Light::Light(DeviceGlobalState *s)
-    : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
+struct HDRI : public Light
 {
-  setRegistry(s->registry.lights);
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
-}
+  HDRI(DeviceGlobalState *d);
+  ~HDRI() override;
 
-void Light::commit()
-{
-  m_color = getParam<vec3>("color", vec3(1.f));
-}
+  void commit() override;
 
-LightGPUData Light::gpuData() const
-{
-  LightGPUData retval;
-  retval.color = m_color;
-  return retval;
-}
+  bool isHDRI() const override;
 
-Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
-{
-  if (subtype == "directional")
-    return new Directional(d);
-  else if (subtype == "hdri")
-    return new HDRI(d);
-  else if (subtype == "point")
-    return new Point(d);
-  else
-    return new UnknownLight(subtype, d);
-}
+ private:
+  LightGPUData gpuData() const override;
+  void cleanup();
 
-bool Light::isHDRI() const
-{
-  return false;
-}
+  // Data //
+
+  vec3 m_up{0.f, 0.f, 1.f};
+  vec3 m_direction{1.f, 0.f, 0.f};
+  float m_scale{1.f};
+  bool m_visible{true};
+  helium::ChangeObserverPtr<Array2D> m_radiance;
+  cudaTextureObject_t m_radianceTex{};
+};
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Light *);

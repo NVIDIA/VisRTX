@@ -44,6 +44,8 @@ struct Light : public RegisteredObject<LightGPUData>
 
   static Light *createInstance(std::string_view subtype, DeviceGlobalState *d);
 
+  virtual bool isHDRI() const;
+
  protected:
   virtual LightGPUData gpuData() const override = 0;
 

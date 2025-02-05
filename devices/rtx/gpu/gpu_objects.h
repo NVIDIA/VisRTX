@@ -449,9 +449,9 @@ struct VolumeGPUData
 
 enum class LightType
 {
-  AMBIENT,
   DIRECTIONAL,
   POINT,
+  HDRI,
   UNKNOWN
 };
 
@@ -467,6 +467,14 @@ struct PointLightGPUData
   float intensity;
 };
 
+struct HDRILightGPUData
+{
+  mat3 xfm;
+  cudaTextureObject_t radiance;
+  float scale;
+  bool visible;
+};
+
 struct LightGPUData
 {
   LightType type{LightType::UNKNOWN};
@@ -475,6 +483,7 @@ struct LightGPUData
   {
     DirectionalLightGPUData distant;
     PointLightGPUData point;
+    HDRILightGPUData hdri;
   };
 };
 
@@ -517,6 +526,8 @@ struct WorldGPUData
 
   const InstanceLightGPUData *lightInstances;
   size_t numLightInstances;
+
+  DeviceObjectIndex hdri;
 };
 
 // Renderer //

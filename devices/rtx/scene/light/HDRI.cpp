@@ -29,52 +29,80 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Light.h"
-// specific types
-#include "Directional.h"
 #include "HDRI.h"
-#include "Point.h"
-#include "UnknownLight.h"
 
 namespace visrtx {
 
-Light::Light(DeviceGlobalState *s)
-    : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
+HDRI::HDRI(DeviceGlobalState *d) : Light(d), m_radiance(this) {}
+
+HDRI::~HDRI()
 {
-  setRegistry(s->registry.lights);
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
+  cleanup();
 }
 
-void Light::commit()
+void HDRI::commit()
 {
-  m_color = getParam<vec3>("color", vec3(1.f));
+  Light::commit();
+
+  m_radiance = getParamObject<Array2D>("radiance");
+  if (!m_radiance) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "missing required parameter 'radiance' on HDRI light");
+    return;
+  }
+
+  cleanup();
+
+  m_direction = getParam<vec3>("direction", vec3(1.f, 0.f, 0.f));
+  m_up = getParam<vec3>("up", vec3(0.f, 0.f, 1.f));
+  m_scale = getParam<float>("scale", 1.f);
+  m_visible = getParam<bool>("visible", true);
+
+  cudaArray_t cuArray = {};
+  const bool isFp = isFloat(m_radiance->elementType());
+  if (isFp)
+    cuArray = m_radiance->acquireCUDAArrayFloat();
+  else
+    cuArray = m_radiance->acquireCUDAArrayUint8();
+
+  m_radianceTex = makeCudaTextureObject(cuArray, !isFp, "linear");
+
+  upload();
 }
 
-LightGPUData Light::gpuData() const
+bool HDRI::isHDRI() const
 {
-  LightGPUData retval;
-  retval.color = m_color;
+  return true;
+}
+
+LightGPUData HDRI::gpuData() const
+{
+  auto retval = Light::gpuData();
+
+  const vec3 forward = glm::normalize(-m_direction);
+  const vec3 right = glm::normalize(glm::cross(m_up, forward));
+  const vec3 up = glm::normalize(glm::cross(forward, right));
+
+  retval.type = LightType::HDRI;
+  retval.hdri.xfm[0] = forward;
+  retval.hdri.xfm[1] = right;
+  retval.hdri.xfm[2] = up;
+  retval.hdri.scale = m_scale;
+  retval.hdri.radiance = m_radianceTex;
+  retval.hdri.visible = m_visible;
+
   return retval;
 }
 
-Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
+void HDRI::cleanup()
 {
-  if (subtype == "directional")
-    return new Directional(d);
-  else if (subtype == "hdri")
-    return new HDRI(d);
-  else if (subtype == "point")
-    return new Point(d);
-  else
-    return new UnknownLight(subtype, d);
-}
-
-bool Light::isHDRI() const
-{
-  return false;
+  if (m_radiance && m_radianceTex) {
+    cudaDestroyTextureObject(m_radianceTex);
+    if (isFloat(m_radiance->elementType()))
+      m_radiance->releaseCUDAArrayFloat();
+    else
+      m_radiance->releaseCUDAArrayUint8();
+  }
 }
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Light *);

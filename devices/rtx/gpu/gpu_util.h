@@ -196,21 +196,46 @@ VISRTX_DEVICE bool pixelOutOfFrame(
   return pixel.x >= fb.size.x || pixel.y >= fb.size.y;
 }
 
-VISRTX_DEVICE bool isFirstPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+VISRTX_DEVICE bool isFirstPixel(
+    const uvec2 &pixel, const FramebufferGPUData &fb)
 {
   return pixel.x == 0 && pixel.y == 0;
 }
 
-VISRTX_DEVICE bool isMiddelPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+VISRTX_DEVICE bool isMiddelPixel(
+    const uvec2 &pixel, const FramebufferGPUData &fb)
 {
   return pixel.x == (fb.size.x / 2) && pixel.y == (fb.size.y / 2);
 }
 
-VISRTX_DEVICE vec4 getBackground(const RendererGPUData &rd, const vec2 &loc)
+VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
+{
+  if (ld.type != LightType::HDRI)
+    return vec3(0.f);
+  const vec3 d = ld.hdri.xfm * rayDir;
+  const float u = atan2(d.y, d.x) / (2.0f * float(M_PI)) + 0.5f;
+  const float v = acos(d.z) / float(M_PI);
+  return vec3(make_vec4(tex2D<::float4>(ld.hdri.radiance, u, v)))
+      * ld.hdri.scale;
+}
+
+VISRTX_DEVICE vec4 getBackgroundImage(
+    const RendererGPUData &rd, const vec2 &loc)
 {
   return rd.backgroundMode == BackgroundMode::COLOR
       ? rd.background.color
       : make_vec4(tex2D<::float4>(rd.background.texobj, loc.x, loc.y));
+}
+
+VISRTX_DEVICE vec4 getBackground(
+    const FrameGPUData &fd, const vec2 &loc, const vec3 &rayDir)
+{
+  const LightGPUData *hdri =
+      fd.world.hdri != -1 ? &fd.registry.lights[fd.world.hdri] : nullptr;
+  if (hdri && hdri->hdri.visible)
+    return vec4(sampleHDRI(*hdri, rayDir), 1.f);
+  else
+    return getBackgroundImage(fd.renderer, loc);
 }
 
 VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
@@ -239,7 +264,8 @@ VISRTX_DEVICE void accumValue(T *arr, size_t idx, size_t fid, const T &v)
     arr[idx] += v;
 }
 
-VISRTX_DEVICE bool accumDepth(float *arr, size_t idx, size_t fid, const float &v)
+VISRTX_DEVICE bool accumDepth(
+    float *arr, size_t idx, size_t fid, const float &v)
 {
   if (!arr)
     return true; // no previous depth to compare with

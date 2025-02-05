@@ -51,12 +51,7 @@ struct World : public Object
 
   void commit() override;
 
-  OptixTraversableHandle optixTraversableHandleSurfaces() const;
-  OptixTraversableHandle optixTraversableHandleVolumes() const;
-
-  Span<InstanceSurfaceGPUData> instanceSurfaceGPUData() const;
-  Span<InstanceVolumeGPUData> instanceVolumeGPUData() const;
-  Span<InstanceLightGPUData> instanceLightGPUData() const;
+  WorldGPUData gpuData() const;
 
   void rebuildWorld();
 
@@ -119,6 +114,7 @@ struct World : public Object
   // Lights //
 
   HostDeviceArray<InstanceLightGPUData> m_instanceLightGPUData;
+  DeviceObjectIndex m_hdri{-1};
 };
 
 } // namespace visrtx

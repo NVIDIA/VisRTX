@@ -68,6 +68,8 @@ struct Group : public Object
   Span<DeviceObjectIndex> volumeGPUIndices() const;
   Span<DeviceObjectIndex> lightGPUIndices() const;
 
+  DeviceObjectIndex firstHDRI() const;
+
   void rebuildSurfaceBVHs();
   void rebuildVolumeBVH();
   void rebuildLights();
@@ -107,6 +109,7 @@ struct Group : public Object
   std::vector<Light *> m_lights;
 
   DeviceBuffer m_lightObjectIndices;
+  DeviceObjectIndex m_firstHDRI{-1};
 
   // BVH //
 

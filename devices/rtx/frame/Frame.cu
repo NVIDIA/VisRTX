@@ -268,17 +268,7 @@ void Frame::renderFrame()
   m_renderer->populateFrameData(hd);
 
   hd.camera = (CameraGPUData *)m_camera->deviceData();
-
-  hd.world.surfaceInstances = m_world->instanceSurfaceGPUData().data();
-  hd.world.numSurfaceInstances = m_world->instanceSurfaceGPUData().size();
-  hd.world.surfacesTraversable = m_world->optixTraversableHandleSurfaces();
-
-  hd.world.volumeInstances = m_world->instanceVolumeGPUData().data();
-  hd.world.numVolumeInstances = m_world->instanceVolumeGPUData().size();
-  hd.world.volumesTraversable = m_world->optixTraversableHandleVolumes();
-
-  hd.world.lightInstances = m_world->instanceLightGPUData().data();
-  hd.world.numLightInstances = m_world->instanceLightGPUData().size();
+  hd.world = m_world->gpuData();
 
   hd.registry.samplers = state.registry.samplers.devicePtr();
   hd.registry.geometries = state.registry.geometries.devicePtr();

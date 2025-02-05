@@ -53,9 +53,9 @@ VISRTX_GLOBAL void __anyhit__ao()
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
 
-  const auto& fd = frameData;
-  const auto& md = *hit.material;
-  const auto& materialValues = getMaterialValues(fd, md, hit);
+  const auto &fd = frameData;
+  const auto &md = *hit.material;
+  const auto &materialValues = getMaterialValues(fd, md, hit);
 
   auto &o = ray::rayData<float>();
   accumulateValue(o, materialValues.opacity, o);
@@ -191,7 +191,7 @@ VISRTX_GLOBAL void __raygen__()
 
       color *= opacity;
 
-      const auto bg = getBackground(frameData.renderer, ss.screen);
+      const auto bg = getBackground(frameData, ss.screen, ray.dir);
       accumulateValue(color, vec3(bg), opacity);
       accumulateValue(opacity, bg.w, opacity);
       accumulateValue(outputColor, color, outputOpacity);
