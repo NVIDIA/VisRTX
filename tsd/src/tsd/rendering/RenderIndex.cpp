@@ -59,7 +59,7 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
   auto createANARICacheArrays =
     [&](const auto &objArray, auto &handleArray, bool supportsCUDA) {
     foreach_item_const(objArray, [&](auto *obj) {
-      if (!obj || !supportsCUDA && obj->kind() == Array::MemoryKind::CUDA)
+      if (!obj || (!supportsCUDA && obj->kind() == Array::MemoryKind::CUDA))
         handleArray.insert(nullptr);
       else
         handleArray.insert((anari::Array)obj->makeANARIObject(d));

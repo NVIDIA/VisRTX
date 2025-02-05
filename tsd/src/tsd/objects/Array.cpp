@@ -116,18 +116,18 @@ anari::Object Array::makeANARIObject(anari::Device d) const
 
   anari::Object retval = nullptr;
 
+  const void *ptr = anari::isObject(elementType()) ? nullptr : m_data;
   switch (type()) {
   case ANARI_ARRAY1D:
-    retval =
-        anari::newArray1D(d, m_data, nullptr, nullptr, elementType(), dim(0));
+    retval = anari::newArray1D(d, ptr, nullptr, nullptr, elementType(), dim(0));
     break;
   case ANARI_ARRAY2D:
     retval = anari::newArray2D(
-        d, m_data, nullptr, nullptr, elementType(), dim(0), dim(1));
+        d, ptr, nullptr, nullptr, elementType(), dim(0), dim(1));
     break;
   case ANARI_ARRAY3D:
     retval = anari::newArray3D(
-        d, m_data, nullptr, nullptr, elementType(), dim(0), dim(1), dim(2));
+        d, ptr, nullptr, nullptr, elementType(), dim(0), dim(1), dim(2));
     break;
   default:
     break;
@@ -180,8 +180,6 @@ Array::Array(anari::DataType arrayType,
 {
   if (anari::isObject(type) && kind == MemoryKind::CUDA)
     throw std::runtime_error("cannot create CUDA arrays of objects!");
-  else if (anari::isObject(type))
-    return;
 
   if (isEmpty()) {
     logWarning("%s of %s elements created with 0 size",
