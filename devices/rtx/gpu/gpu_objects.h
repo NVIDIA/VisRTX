@@ -319,11 +319,11 @@ struct MaterialGPUData
   {
     MaterialParameter baseColor;
     MaterialParameter opacity;
+    float cutoff;
+    AlphaMode alphaMode;
     MaterialParameter metallic;
     MaterialParameter roughness;
     float ior;
-    float cutoff;
-    AlphaMode alphaMode;
   };
 
   struct MDL

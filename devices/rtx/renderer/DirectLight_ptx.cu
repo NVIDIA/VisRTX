@@ -86,14 +86,20 @@ VISRTX_DEVICE vec4 shadeSurface(
       rendererParams.ambientIntensity * rendererParams.ambientColor,
       -ray.dir,
       1000.f,
-      1.0f,
-  };
+      1.0f};
+#if 0
   const vec4 matAoResult =
       evalMaterial(frameData, ss, *hit.material, hit, ray, ls);
+  vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
+#else
+  const vec4 matAoResult =
+      shadeMatteSurface(frameData, hit.material->matte, ray, hit, ls);
+  vec3 contrib = vec3(matAoResult) * aoFactor;
+#endif
+
+  float opacity = matAoResult.w;
 
   // Compute contribution from other lights //
-  vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
-  float opacity = matAoResult.w;
 
   for (size_t i = 0; i < world.numLightInstances; i++) {
     auto *inst = world.lightInstances + i;
@@ -102,6 +108,8 @@ VISRTX_DEVICE vec4 shadeSurface(
 
     for (size_t l = 0; l < inst->numLights; l++) {
       auto ls = sampleLight(ss, hit, inst->indices[l]);
+      if (ls.pdf == 0.f)
+        continue;
       Ray r;
       r.org = shadePoint;
       r.dir = ls.dir;

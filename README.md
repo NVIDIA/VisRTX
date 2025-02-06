@@ -189,6 +189,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_INSTANCE_TRANSFORM_ARRAY`
 - `KHR_LIGHT_DIRECTIONAL`
 - `KHR_LIGHT_POINT`
+- `KHR_LIGHT_HDRI`
 - `KHR_MATERIAL_MATTE`
 - `KHR_MATERIAL_PHYSICALLY_BASED`
 - `KHR_SAMPLER_IMAGE1D`
