@@ -53,6 +53,7 @@
 #endif // defined(USE_MDL)
 // std
 #include <optional>
+#include <sstream>
 #include <vector>
 
 #ifdef OPAQUE

@@ -42,11 +42,6 @@ Object::Object(ANARIDataType type, DeviceGlobalState *s)
 
 Object::~Object() = default;
 
-void Object::commit()
-{
-  // no-op
-}
-
 bool Object::getProperty(
     const std::string_view &name, ANARIDataType type, void *ptr, uint32_t flags)
 {
@@ -58,14 +53,24 @@ bool Object::getProperty(
   return false;
 }
 
-void *Object::deviceData() const
+void Object::commitParameters()
 {
-  return nullptr;
+  // no-op
+}
+
+void Object::finalize()
+{
+  // no-op
 }
 
 bool Object::isValid() const
 {
   return true;
+}
+
+void *Object::deviceData() const
+{
+  return nullptr;
 }
 
 DeviceGlobalState *Object::deviceState() const

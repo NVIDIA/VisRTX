@@ -36,7 +36,7 @@ namespace visrtx {
 
 Matte::Matte(DeviceGlobalState *d) : Material(d) {}
 
-void Matte::commit()
+void Matte::commitParameters()
 {
   m_opacity = getParam<float>("opacity", 1.f);
   m_opacitySampler = getParamObject<Sampler>("opacity");
@@ -50,8 +50,6 @@ void Matte::commit()
 
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
   m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
-
-  upload();
 }
 
 MaterialGPUData Matte::gpuData() const

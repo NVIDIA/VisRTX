@@ -39,7 +39,7 @@ struct Sampler : public RegisteredObject<SamplerGPUData>
 {
   Sampler(DeviceGlobalState *d);
 
-  virtual void commit() override;
+  virtual void commitParameters() override;
 
   virtual int numChannels() const = 0;
 

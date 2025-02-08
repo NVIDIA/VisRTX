@@ -38,7 +38,7 @@ namespace visrtx {
 struct Perspective : public Camera
 {
   Perspective(DeviceGlobalState *d);
-  void commit() override;
+  void commitParameters() override;
 };
 
 } // namespace visrtx

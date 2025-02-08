@@ -43,9 +43,9 @@ SpatialField::SpatialField(DeviceGlobalState *s)
   setRegistry(s->registry.fields);
 }
 
-void SpatialField::markCommitted()
+void SpatialField::markFinalized()
 {
-  Object::markCommitted();
+  Object::markFinalized();
   deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 

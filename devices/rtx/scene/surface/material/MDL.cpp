@@ -63,9 +63,20 @@ MDL::~MDL()
   }
 }
 
-void MDL::commit()
+void MDL::commitParameters()
 {
-  Material::commit();
+  Material::commitParameters();
+}
+
+void MDL::finalize()
+{
+  // NOTE(jda) - *skip* calling this->upload() as MDL is handled differently
+}
+
+void MDL::markFinalized()
+{
+  Material::markFinalized();
+  deviceState()->objectUpdates.lastMDLObjectChange = helium::newTimeStamp();
 }
 
 void MDL::syncSource()
@@ -86,11 +97,11 @@ void MDL::syncSource()
     } else if (sourceType == "code") {
       uuid = {};
       reportMessage(ANARI_SEVERITY_ERROR,
-          "MDL::commit(): sourceType 'code' not supported yet");
+          "MDL::commitParameters(): sourceType 'code' not supported yet");
     } else {
       uuid = {};
       reportMessage(ANARI_SEVERITY_ERROR,
-          "MDL::commit(): sourceType must be either 'module' or 'code'");
+          "MDL::commitParameters(): sourceType must be either 'module' or 'code'");
     }
 
     if (uuid != libmdl::Uuid{}) {
@@ -163,7 +174,9 @@ void MDL::syncParameters()
         break;
       }
       default: {
-        reportMessage(ANARI_SEVERITY_WARNING, "Don't know how to set '{}' (unsupported type)", name);
+        reportMessage(ANARI_SEVERITY_WARNING,
+            "Don't know how to set '{}' (unsupported type)",
+            name);
       }
       }
     }
@@ -236,12 +249,6 @@ MaterialGPUData MDL::gpuData() const
       m_argBlockBuffer.bytes() ? m_argBlockBuffer.ptrAs<const char>() : nullptr;
 
   return retval;
-}
-
-void MDL::markCommitted()
-{
-  Material::markCommitted();
-  deviceState()->objectUpdates.lastMDLObjectChange = helium::newTimeStamp();
 }
 
 } // namespace visrtx

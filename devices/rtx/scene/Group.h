@@ -49,7 +49,9 @@ struct Group : public Object
       void *ptr,
       uint32_t flags) override;
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  void markFinalized() override;
 
   OptixTraversableHandle optixTraversableTriangle() const;
   OptixTraversableHandle optixTraversableCurve() const;
@@ -73,8 +75,6 @@ struct Group : public Object
   void rebuildSurfaceBVHs();
   void rebuildVolumeBVH();
   void rebuildLights();
-
-  void markCommitted() override;
 
  private:
   void partitionValidGeometriesByType();

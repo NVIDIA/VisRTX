@@ -56,7 +56,8 @@ struct Renderer : public Object
   Renderer(DeviceGlobalState *s, float defaultAmbientRadiance = 0.f);
   ~Renderer() override;
 
-  virtual void commit() override;
+  virtual void commitParameters() override;
+  virtual void finalize() override;
 
   virtual OptixModule optixModule() const = 0;
 
@@ -88,7 +89,7 @@ struct Renderer : public Object
   bool m_cullTriangleBF{false};
   float m_volumeSamplingRate{1.f};
 
-  helium::IntrusivePtr<Array2D> m_backgroundImage;
+  helium::ChangeObserverPtr<Array2D> m_backgroundImage;
   cudaTextureObject_t m_backgroundTexture{};
 
   // OptiX //

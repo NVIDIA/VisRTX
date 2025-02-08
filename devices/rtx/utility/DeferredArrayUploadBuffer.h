@@ -32,19 +32,20 @@
 #pragma once
 
 // helium
-#include "helium/array/Array.h"
 #include "helium/utility/TimeStamp.h"
 // std
 #include <vector>
 
 namespace visrtx {
 
+struct UploadableArray;
+
 struct DeferredArrayUploadBuffer
 {
   DeferredArrayUploadBuffer();
   ~DeferredArrayUploadBuffer();
 
-  void addArray(helium::Array *arr);
+  void addArray(UploadableArray *arr);
 
   bool flush();
   helium::TimeStamp lastFlush() const;
@@ -53,7 +54,7 @@ struct DeferredArrayUploadBuffer
   bool empty() const;
 
  private:
-  std::vector<helium::Array *> m_arraysToUpload;
+  std::vector<UploadableArray *> m_arraysToUpload;
   helium::TimeStamp m_lastFlush{0};
 };
 

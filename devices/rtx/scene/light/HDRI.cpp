@@ -40,18 +40,21 @@ HDRI::~HDRI()
   cleanup();
 }
 
-void HDRI::commit()
+void HDRI::commitParameters()
 {
-  Light::commit();
-
+  Light::commitParameters();
   m_radiance = getParamObject<Array2D>("radiance");
+}
+
+void HDRI::finalize()
+{
+  cleanup();
+
   if (!m_radiance) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'radiance' on HDRI light");
     return;
   }
-
-  cleanup();
 
   m_direction = getParam<vec3>("direction", vec3(1.f, 0.f, 0.f));
   m_up = getParam<vec3>("up", vec3(0.f, 0.f, 1.f));
@@ -68,6 +71,11 @@ void HDRI::commit()
   m_radianceTex = makeCudaTextureObject(cuArray, !isFp, "linear");
 
   upload();
+}
+
+bool HDRI::isValid() const
+{
+  return m_radiance;
 }
 
 bool HDRI::isHDRI() const

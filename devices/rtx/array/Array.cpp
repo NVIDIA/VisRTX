@@ -126,7 +126,12 @@ bool Array::getProperty(
   return false;
 }
 
-void Array::commit()
+void Array::commitParameters()
+{
+  // no-op
+}
+
+void Array::finalize()
 {
   // no-op
 }

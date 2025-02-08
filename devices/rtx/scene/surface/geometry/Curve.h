@@ -42,13 +42,13 @@ struct Curve : public Geometry
   Curve(DeviceGlobalState *d);
   ~Curve() override;
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
 
   int optixGeometryType() const override;
-
-  bool isValid() const override;
 
  private:
   void computeIndices();

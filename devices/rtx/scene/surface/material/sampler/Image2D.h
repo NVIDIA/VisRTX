@@ -42,11 +42,11 @@ struct Image2D : public Sampler
   Image2D(DeviceGlobalState *d);
   ~Image2D();
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
   int numChannels() const override;
-
-  bool isValid() const override;
 
  private:
   SamplerGPUData gpuData() const override;

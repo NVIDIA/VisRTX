@@ -35,7 +35,7 @@ namespace visrtx {
 
 Perspective::Perspective(DeviceGlobalState *s) : Camera(s) {}
 
-void Perspective::commit()
+void Perspective::commitParameters()
 {
   auto &hd = data();
   readBaseParameters(hd);
@@ -67,8 +67,6 @@ void Perspective::commit()
   p.dir_00 = dir_00;
   p.scaledAperture = apertureRadius;
   p.aspect = aspect;
-
-  upload();
 }
 
 } // namespace visrtx

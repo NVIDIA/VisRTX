@@ -40,7 +40,10 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
 {
   Surface(DeviceGlobalState *d);
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  void markFinalized() override;
+  bool isValid() const override;
 
   Geometry *geometry();
   const Geometry *geometry() const;
@@ -48,10 +51,6 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
   const Material *material() const;
 
   OptixBuildInput buildInput() const;
-
-  void markCommitted() override;
-
-  bool isValid() const override;
 
  private:
   bool geometryIsValid() const;

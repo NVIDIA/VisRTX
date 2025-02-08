@@ -70,12 +70,11 @@ struct Geometry : public RegisteredObject<GeometryGPUData>
   static Geometry *createInstance(
       std::string_view subtype, DeviceGlobalState *d);
 
-  void commit() override;
+  void commitParameters() override;
+  void markFinalized() override;
 
   virtual void populateBuildInput(OptixBuildInput &) const = 0;
   virtual int optixGeometryType() const = 0;
-
-  void markCommitted() override;
 
  protected:
   GeometryGPUData gpuData() const override = 0;

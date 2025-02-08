@@ -45,7 +45,8 @@ struct Array1D : public Array
 {
   Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
 
   size_t totalSize() const override;
   size_t size() const;

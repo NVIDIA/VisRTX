@@ -40,7 +40,7 @@ struct Light : public RegisteredObject<LightGPUData>
   Light(DeviceGlobalState *d);
   ~Light() = default;
 
-  void commit() override;
+  void commitParameters() override;
 
   static Light *createInstance(std::string_view subtype, DeviceGlobalState *d);
 

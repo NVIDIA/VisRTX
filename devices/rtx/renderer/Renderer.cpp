@@ -135,11 +135,12 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 
 Renderer::Renderer(DeviceGlobalState *s, float defaultAmbientRadiance)
     : Object(ANARI_RENDERER, s),
+      m_backgroundImage(this),
       m_defaultAmbientRadiance(defaultAmbientRadiance)
 {
   m_ambientIntensity = defaultAmbientRadiance;
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
+  helium::BaseObject::markParameterChanged();
+  s->commitBuffer.addObjectToCommit(this);
 }
 
 Renderer::~Renderer()
@@ -148,15 +149,9 @@ Renderer::~Renderer()
   optixPipelineDestroy(m_pipeline);
 }
 
-void Renderer::commit()
+void Renderer::commitParameters()
 {
-  cleanup();
   m_backgroundImage = getParamObject<Array2D>("background");
-  if (m_backgroundImage) {
-    auto cuArray = m_backgroundImage->acquireCUDAArrayUint8();
-    m_backgroundTexture = makeCudaTextureObject(cuArray, true, "linear");
-  }
-
   m_bgColor = getParam<vec4>("background", vec4(vec3(0.f), 1.f));
   m_spp = getParam<int>("pixelSamples", 1);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
@@ -169,6 +164,15 @@ void Renderer::commit()
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
       std::clamp(getParam<float>("volumeSamplingRate", 1.f), 1e-3f, 10.f);
+}
+
+void Renderer::finalize()
+{
+  cleanup();
+  if (m_backgroundImage) {
+    auto cuArray = m_backgroundImage->acquireCUDAArrayUint8();
+    m_backgroundTexture = makeCudaTextureObject(cuArray, true, "linear");
+  }
 }
 
 Span<HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -595,7 +599,6 @@ void Renderer::cleanup()
       cudaDestroyTextureObject(m_backgroundTexture);
       m_backgroundImage->releaseCUDAArrayUint8();
     }
-    m_backgroundImage->removeChangeObserver(this);
   }
 }
 

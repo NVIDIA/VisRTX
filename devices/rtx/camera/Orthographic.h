@@ -38,7 +38,7 @@ namespace visrtx {
 struct Orthographic : public Camera
 {
   Orthographic(DeviceGlobalState *d);
-  void commit() override;
+  void commitParameters() override;
 };
 
 } // namespace visrtx

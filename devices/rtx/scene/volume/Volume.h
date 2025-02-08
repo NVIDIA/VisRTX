@@ -40,11 +40,10 @@ struct Volume : public RegisteredObject<VolumeGPUData>
   Volume(DeviceGlobalState *d);
   ~Volume() = default;
 
-  void commit() override;
+  void commitParameters() override;
+  void markFinalized() override;
 
   OptixBuildInput buildInput() const;
-
-  void markCommitted() override;
 
   static Volume *createInstance(std::string_view subtype, DeviceGlobalState *d);
 

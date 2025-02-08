@@ -67,7 +67,7 @@ bool Group::getProperty(
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
-      deviceState()->commitBufferFlush();
+      deviceState()->commitBuffer.flush();
       rebuildSurfaceBVHs();
       rebuildVolumeBVH();
     }
@@ -82,15 +82,24 @@ bool Group::getProperty(
   return Object::getProperty(name, type, ptr, flags);
 }
 
-void Group::commit()
+void Group::commitParameters()
 {
   m_surfaceData = getParamObject<ObjectArray>("surface");
   m_volumeData = getParamObject<ObjectArray>("volume");
   m_lightData = getParamObject<ObjectArray>("light");
+}
 
+void Group::finalize()
+{
   m_objectUpdates.lastSurfaceBVHBuilt = 0;
   m_objectUpdates.lastVolumeBVHBuilt = 0;
   m_objectUpdates.lastLightRebuild = 0;
+}
+
+void Group::markFinalized()
+{
+  Object::markFinalized();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 OptixTraversableHandle Group::optixTraversableTriangle() const
@@ -258,12 +267,6 @@ void Group::rebuildLights()
   partitionValidLights();
   buildLightGPUData();
   m_objectUpdates.lastLightRebuild = helium::newTimeStamp();
-}
-
-void Group::markCommitted()
-{
-  Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 void Group::partitionValidGeometriesByType()

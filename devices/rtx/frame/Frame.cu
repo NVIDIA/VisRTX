@@ -70,23 +70,37 @@ DeviceGlobalState *Frame::deviceState() const
   return (DeviceGlobalState *)helium::BaseObject::m_state;
 }
 
-void Frame::commit()
+void Frame::commitParameters()
 {
-  auto &hd = data();
-
   m_renderer = getParamObject<Renderer>("renderer");
+  m_camera = getParamObject<Camera>("camera");
+  m_world = getParamObject<World>("world");
+  m_callback = getParam<ANARIFrameCompletionCallback>(
+      "frameCompletionCallback", nullptr);
+  m_callbackUserPtr =
+      getParam<void *>("frameCompletionCallbackUserData", nullptr);
+  m_colorType =
+      getParam<ANARIDataType>("channel.color", ANARI_UFIXED8_RGBA_SRGB);
+  auto &hd = data();
+  hd.fb.size = getParam<uvec2>("size", uvec2(10));
+  m_depthType = getParam<ANARIDataType>("channel.depth", ANARI_UNKNOWN);
+  m_primIDType = getParam<ANARIDataType>("channel.primitiveId", ANARI_UNKNOWN);
+  m_objIDType = getParam<ANARIDataType>("channel.objectId", ANARI_UNKNOWN);
+  m_instIDType = getParam<ANARIDataType>("channel.instanceId", ANARI_UNKNOWN);
+  m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
+  m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
+}
+
+void Frame::finalize()
+{
   if (!m_renderer) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'renderer' on frame");
   }
-
-  m_camera = getParamObject<Camera>("camera");
   if (!m_camera) {
     reportMessage(
         ANARI_SEVERITY_WARNING, "missing required parameter 'camera' on frame");
   }
-
-  m_world = getParamObject<World>("world");
   if (!m_world) {
     reportMessage(
         ANARI_SEVERITY_WARNING, "missing required parameter 'world' on frame");
@@ -98,32 +112,17 @@ void Frame::commit()
   if (!m_valid)
     return;
 
-  m_callback = getParam<ANARIFrameCompletionCallback>(
-      "frameCompletionCallback", nullptr);
-  m_callbackUserPtr =
-      getParam<void *>("frameCompletionCallbackUserData", nullptr);
+  auto &hd = data();
 
-  auto format =
-      getParam<ANARIDataType>("channel.color", ANARI_UFIXED8_RGBA_SRGB);
-  const bool useFloatFB = m_denoise || format == ANARI_FLOAT32_VEC4;
+  const bool useFloatFB = m_denoise || m_colorType == ANARI_FLOAT32_VEC4;
   if (useFloatFB)
     hd.fb.format = FrameFormat::FLOAT;
-  else if (format == ANARI_UFIXED8_RGBA_SRGB)
+  else if (m_colorType == ANARI_UFIXED8_RGBA_SRGB)
     hd.fb.format = FrameFormat::SRGB;
   else
     hd.fb.format = FrameFormat::UINT;
 
-  m_colorType = format;
-
-  hd.fb.size = getParam<uvec2>("size", uvec2(10));
   hd.fb.invSize = 1.f / vec2(hd.fb.size);
-
-  m_depthType = getParam<ANARIDataType>("channel.depth", ANARI_UNKNOWN);
-  m_primIDType = getParam<ANARIDataType>("channel.primitiveId", ANARI_UNKNOWN);
-  m_objIDType = getParam<ANARIDataType>("channel.objectId", ANARI_UNKNOWN);
-  m_instIDType = getParam<ANARIDataType>("channel.instanceId", ANARI_UNKNOWN);
-  m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
-  m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
 
   const bool channelPrimID = m_primIDType == ANARI_UINT32;
   const bool channelObjID = m_objIDType == ANARI_UINT32;
@@ -168,7 +167,7 @@ void Frame::commit()
   hd.fb.buffers.normal = channelNormal ? m_accumNormal.ptrAs<vec3>() : nullptr;
 
   if (m_denoise)
-    m_denoiser.setup(hd.fb.size, m_pixelBuffer, format);
+    m_denoiser.setup(hd.fb.size, m_pixelBuffer, m_colorType);
   else
     m_denoiser.cleanup();
 
@@ -195,7 +194,7 @@ bool Frame::getProperty(
     if (flags & ANARI_WAIT)
       wait();
     if (ready())
-      deviceState()->commitBufferFlush();
+      deviceState()->commitBuffer.flush();
     checkAccumulationReset();
     helium::writeToVoidP(ptr, m_nextFrameReset);
     return true;
@@ -212,7 +211,7 @@ void Frame::renderFrame()
 
   instrument::rangePush("update scene");
   instrument::rangePush("flush commits");
-  state.commitBufferFlush();
+  state.commitBuffer.flush();
   instrument::rangePop(); // flush commits
 
   instrument::rangePush("flush array uploads");
@@ -247,7 +246,7 @@ void Frame::renderFrame()
   bool wasDenoising = m_denoise;
   m_denoise = m_renderer->denoise();
   if (m_denoise != wasDenoising)
-    this->commit();
+    this->finalize();
 
   m_frameMappedOnce = false;
 
@@ -552,12 +551,12 @@ void Frame::checkAccumulationReset()
     return;
 
   auto &state = *deviceState();
-  if (m_lastCommitOccured < state.commitBufferLastFlush()) {
-    m_lastCommitOccured = state.commitBufferLastFlush();
+  if (m_lastCommitFlushOccured < state.commitBuffer.lastFlush()) {
+    m_lastCommitFlushOccured = state.commitBuffer.lastFlush();
     m_nextFrameReset = true;
   }
-  if (m_lastUploadOccured < state.uploadBuffer.lastFlush()) {
-    m_lastUploadOccured = state.uploadBuffer.lastFlush();
+  if (m_lastUploadFlushOccured < state.uploadBuffer.lastFlush()) {
+    m_lastUploadFlushOccured = state.uploadBuffer.lastFlush();
     m_nextFrameReset = true;
   }
 }

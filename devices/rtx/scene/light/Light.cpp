@@ -42,11 +42,9 @@ Light::Light(DeviceGlobalState *s)
     : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
 {
   setRegistry(s->registry.lights);
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
 }
 
-void Light::commit()
+void Light::commitParameters()
 {
   m_color = getParam<vec3>("color", vec3(1.f));
 }

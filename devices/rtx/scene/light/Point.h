@@ -39,7 +39,7 @@ struct Point : public Light
 {
   Point(DeviceGlobalState *d);
 
-  void commit() override;
+  void commitParameters() override;
 
  private:
   LightGPUData gpuData() const override;

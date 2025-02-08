@@ -68,7 +68,8 @@ struct Array : public UploadableArray
       ANARIDataType type,
       void *ptr,
       uint32_t flags) override;
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
 
   // helium::BaseArray interface //
 

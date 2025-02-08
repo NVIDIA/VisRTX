@@ -44,12 +44,12 @@ struct NvdbRegularField : public SpatialField
   NvdbRegularField(DeviceGlobalState *d);
   ~NvdbRegularField();
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
   box3 bounds() const override;
   float stepSize() const override;
-
-  bool isValid() const override;
 
  private:
   SpatialFieldGPUData gpuData() const override;

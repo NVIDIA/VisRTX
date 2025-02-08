@@ -39,17 +39,18 @@ Cone::Cone(DeviceGlobalState *d)
 
 Cone::~Cone() = default;
 
-void Cone::commit()
+void Cone::commitParameters()
 {
-  Geometry::commit();
-
+  Geometry::commitParameters();
   m_index = getParamObject<Array1D>("primitive.index");
   m_radius = getParamObject<Array1D>("vertex.radius");
   m_caps = getParamString("caps", "none") != "none";
-
   m_vertex = getParamObject<Array1D>("vertex.position");
   commitAttributes("vertex.", m_vertexAttributes);
+}
 
+void Cone::finalize()
+{
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on cone geometry");
@@ -63,7 +64,7 @@ void Cone::commit()
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
-      "committing %s cone geometry",
+      "finalizing %s cone geometry",
       m_index ? "indexed" : "soup");
 
   std::vector<uvec2> implicitIndices;
@@ -103,6 +104,11 @@ void Cone::commit()
   upload();
 }
 
+bool Cone::isValid() const
+{
+  return m_vertex && m_radius;
+}
+
 void Cone::populateBuildInput(OptixBuildInput &buildInput) const
 {
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
@@ -119,11 +125,6 @@ void Cone::populateBuildInput(OptixBuildInput &buildInput) const
 int Cone::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
-}
-
-bool Cone::isValid() const
-{
-  return m_vertex && m_radius;
 }
 
 GeometryGPUData Cone::gpuData() const

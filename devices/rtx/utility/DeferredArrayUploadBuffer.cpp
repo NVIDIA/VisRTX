@@ -30,6 +30,7 @@
  */
 
 #include "DeferredArrayUploadBuffer.h"
+#include "array/UploadableArray.h"
 
 namespace visrtx {
 
@@ -43,7 +44,7 @@ DeferredArrayUploadBuffer::~DeferredArrayUploadBuffer()
   clear();
 }
 
-void DeferredArrayUploadBuffer::addArray(helium::Array *arr)
+void DeferredArrayUploadBuffer::addArray(UploadableArray *arr)
 {
   arr->refInc(helium::RefType::INTERNAL);
   m_arraysToUpload.push_back(arr);

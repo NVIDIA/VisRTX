@@ -127,10 +127,10 @@ Sampler *SamplerRegistry::acquireSampler(std::string_view dbName,
     };
 
     auto array2d = new Array2D(m_deviceState, desc);
-    array2d->commit();
+    array2d->commitParameters();
     auto image2d = new Image2D(m_deviceState);
     image2d->setParam("image", array2d);
-    image2d->commit();
+    image2d->commitParameters();
     sampler = image2d;
     break;
   }
@@ -149,10 +149,10 @@ Sampler *SamplerRegistry::acquireSampler(std::string_view dbName,
     };
 
     auto array3d = new Array3D(m_deviceState, desc);
-    array3d->commit();
+    array3d->commitParameters();
     auto image3d = new Image2D(m_deviceState);
     image3d->setParam("image", array3d);
-    image3d->commit();
+    image3d->commitParameters();
     sampler = image3d;
     break;
   }

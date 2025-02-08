@@ -47,9 +47,9 @@ struct MDL : public Material
   MDL(DeviceGlobalState *d);
   ~MDL() override;
 
-  void markCommitted() override;
-
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  void markFinalized() override;
 
   // Handle source changes
   void syncSource();

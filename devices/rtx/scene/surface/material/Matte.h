@@ -40,7 +40,7 @@ struct Matte : public Material
 {
   Matte(DeviceGlobalState *d);
 
-  void commit() override;
+  void commitParameters() override;
 
  private:
   MaterialGPUData gpuData() const override;

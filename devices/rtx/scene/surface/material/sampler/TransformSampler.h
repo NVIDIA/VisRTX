@@ -41,7 +41,7 @@ struct TransformSampler : public Sampler
   TransformSampler(DeviceGlobalState *d);
   ~TransformSampler() = default;
 
-  void commit() override;
+  void commitParameters() override;
 
   int numChannels() const override;
 

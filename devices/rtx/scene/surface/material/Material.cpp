@@ -49,8 +49,6 @@ Material::Material(DeviceGlobalState *s)
     : RegisteredObject<MaterialGPUData>(ANARI_MATERIAL, s)
 {
   setRegistry(s->registry.materials);
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
 }
 
 Material *Material::createInstance(

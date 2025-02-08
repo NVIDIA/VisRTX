@@ -97,7 +97,7 @@ Geometry *Geometry::createInstance(
     return new UnknownGeometry(subtype, d);
 }
 
-void Geometry::commit()
+void Geometry::commitParameters()
 {
   commitAttributes("primitive.", m_primitiveAttributes);
 
@@ -118,9 +118,9 @@ void Geometry::commit()
   m_primitiveId = getParamObject<Array1D>("primitive.id");
 }
 
-void Geometry::markCommitted()
+void Geometry::markFinalized()
 {
-  Object::markCommitted();
+  Object::markFinalized();
   deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 

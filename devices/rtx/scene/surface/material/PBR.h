@@ -40,7 +40,7 @@ struct PBR : public Material
 {
   PBR(DeviceGlobalState *d);
 
-  void commit() override;
+  void commitParameters() override;
 
  private:
   MaterialGPUData gpuData() const override;

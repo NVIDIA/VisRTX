@@ -48,23 +48,24 @@ TransferFunction1D::~TransferFunction1D()
   cleanup();
 }
 
-void TransferFunction1D::commit()
+void TransferFunction1D::commitParameters()
 {
-  Volume::commit();
-
-  cleanup();
-
+  Volume::commitParameters();
   m_color = getParamObject<Array1D>("color");
   m_colorPosition = getParamObject<Array1D>("color.position");
   m_opacity = getParamObject<Array1D>("opacity");
   m_opacityPosition = getParamObject<Array1D>("opacity.position");
   m_densityScale = getParam<float>("densityScale", 1.f);
   m_field = getParamObject<SpatialField>("value");
-
   {
     auto valueRangeAsVec2 = getParam<vec2>("valueRange", vec2(0.f, 1.f));
     m_valueRange = getParam<box1>("valueRange", make_box1(valueRangeAsVec2));
   }
+}
+
+void TransferFunction1D::finalize()
+{
+  cleanup();
 
   if (!m_field) {
     reportMessage(ANARI_SEVERITY_WARNING,

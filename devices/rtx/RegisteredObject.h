@@ -45,6 +45,7 @@ struct RegisteredObject : public Object
   RegisteredObject(ANARIDataType type, DeviceGlobalState *d);
   virtual ~RegisteredObject();
 
+  void finalize() override;
   void upload();
 
   DeviceObjectIndex index() const;
@@ -65,12 +66,21 @@ template <typename GPU_DATA_T>
 inline RegisteredObject<GPU_DATA_T>::RegisteredObject(
     ANARIDataType type, DeviceGlobalState *d)
     : Object(type, d)
-{}
+{
+  helium::BaseObject::markParameterChanged();
+  d->commitBuffer.addObjectToCommit(this);
+}
 
 template <typename GPU_DATA_T>
 inline RegisteredObject<GPU_DATA_T>::~RegisteredObject()
 {
   m_registryArray->free(index());
+}
+
+template <typename GPU_DATA_T>
+inline void RegisteredObject<GPU_DATA_T>::finalize()
+{
+  upload();
 }
 
 template <typename GPU_DATA_T>

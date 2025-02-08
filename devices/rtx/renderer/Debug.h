@@ -39,7 +39,7 @@ namespace visrtx {
 struct Debug : public Renderer
 {
   Debug(DeviceGlobalState *s);
-  void commit() override;
+  void commitParameters() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
   static ptx_blob ptx();

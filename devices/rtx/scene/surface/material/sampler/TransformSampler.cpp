@@ -35,11 +35,10 @@ namespace visrtx {
 
 TransformSampler::TransformSampler(DeviceGlobalState *d) : Sampler(d) {}
 
-void TransformSampler::commit()
+void TransformSampler::commitParameters()
 {
-  Sampler::commit();
+  Sampler::commitParameters();
   m_inTransform = mat4(1.f);
-  upload();
 }
 
 SamplerGPUData TransformSampler::gpuData() const

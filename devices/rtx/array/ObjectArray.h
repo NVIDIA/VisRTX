@@ -45,7 +45,8 @@ struct ObjectArray : public Array
   ObjectArray(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
   ~ObjectArray() override;
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
   void unmap() override;
 
   size_t totalSize() const override;

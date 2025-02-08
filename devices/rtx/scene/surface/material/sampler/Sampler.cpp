@@ -44,8 +44,6 @@ Sampler::Sampler(DeviceGlobalState *s)
     : RegisteredObject<SamplerGPUData>(ANARI_SAMPLER, s)
 {
   setRegistry(s->registry.samplers);
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
 }
 
 Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
@@ -64,7 +62,7 @@ Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
     return new UnknownSampler(subtype, d);
 }
 
-void Sampler::commit()
+void Sampler::commitParameters()
 {
   m_inAttribute = getParamString("inAttribute", "attribute0");
   m_inTransform = getParam<mat4>("inTransform", mat4(1.f));

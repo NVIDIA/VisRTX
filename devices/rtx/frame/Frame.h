@@ -58,7 +58,8 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
       void *ptr,
       uint32_t flags) override;
 
-  void commit();
+  void commitParameters() override;
+  void finalize() override;
 
   void renderFrame() override;
 
@@ -128,8 +129,8 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   helium::TimeStamp m_cameraLastChanged{0};
   helium::TimeStamp m_rendererLastChanged{0};
   helium::TimeStamp m_worldLastChanged{0};
-  helium::TimeStamp m_lastCommitOccured{0};
-  helium::TimeStamp m_lastUploadOccured{0};
+  helium::TimeStamp m_lastCommitFlushOccured{0};
+  helium::TimeStamp m_lastUploadFlushOccured{0};
 
   Denoiser m_denoiser;
 

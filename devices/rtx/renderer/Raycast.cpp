@@ -42,9 +42,9 @@ static const std::vector<std::string> g_aoMissNames = {"__miss__"};
 
 Raycast::Raycast(DeviceGlobalState *s) : Renderer(s) {}
 
-void Raycast::commit()
+void Raycast::commitParameters()
 {
-  Renderer::commit();
+  Renderer::commitParameters();
   m_sampleLimit = 1; // single-shot renderer
 }
 

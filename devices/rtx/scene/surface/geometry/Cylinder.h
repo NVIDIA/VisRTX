@@ -42,13 +42,13 @@ struct Cylinder : public Geometry
   Cylinder(DeviceGlobalState *d);
   ~Cylinder() override;
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
 
   int optixGeometryType() const override;
-
-  bool isValid() const override;
 
  private:
   GeometryGPUData gpuData() const override;

@@ -42,6 +42,8 @@ struct Camera : public Object, public DeviceObject<CameraGPUData>
   Camera(DeviceGlobalState *d);
   ~Camera() override = default;
 
+  void finalize() override;
+
   static Camera *createInstance(std::string_view subtype, DeviceGlobalState *d);
 
   void *deviceData() const override;

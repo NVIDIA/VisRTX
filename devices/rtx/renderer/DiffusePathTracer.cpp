@@ -40,9 +40,9 @@ static const std::vector<HitgroupFunctionNames> g_dptHitNames = {
 
 DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
-void DiffusePathTracer::commit()
+void DiffusePathTracer::commitParameters()
 {
-  Renderer::commit();
+  Renderer::commitParameters();
   m_maxDepth = std::clamp(getParam<int>("maxDepth", 5), 1, 256);
 }
 

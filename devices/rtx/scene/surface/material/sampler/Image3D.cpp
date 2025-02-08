@@ -44,17 +44,19 @@ Image3D::~Image3D()
   cleanup();
 }
 
-void Image3D::commit()
+void Image3D::commitParameters()
 {
-  Sampler::commit();
-
-  cleanup();
-
+  Sampler::commitParameters();
   m_filter = getParamString("filter", "linear");
   m_wrap1 = getParamString("wrapMode1", "clampToEdge");
   m_wrap2 = getParamString("wrapMode2", "clampToEdge");
   m_wrap3 = getParamString("wrapMode3", "clampToEdge");
   m_image = getParamObject<Array3D>("image");
+}
+
+void Image3D::finalize()
+{
+  cleanup();
 
   if (!m_image) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -78,21 +80,17 @@ void Image3D::commit()
   } else {
     cuArray = m_image->acquireCUDAArrayUint8();
   }
-  m_texture = makeCudaTextureObject(cuArray, !isFp, m_filter, m_wrap1, m_wrap2, m_wrap3);
-  m_texels = makeCudaTextureObject(cuArray, !isFp, "nearest", m_wrap1, m_wrap2, m_wrap3, false);
+  m_texture = makeCudaTextureObject(
+      cuArray, !isFp, m_filter, m_wrap1, m_wrap2, m_wrap3);
+  m_texels = makeCudaTextureObject(
+      cuArray, !isFp, "nearest", m_wrap1, m_wrap2, m_wrap3, false);
 
   upload();
 }
 
-SamplerGPUData Image3D::gpuData() const
+bool Image3D::isValid() const
 {
-  SamplerGPUData retval = Sampler::gpuData();
-  retval.type = SamplerType::TEXTURE3D;
-  retval.image3D.texobj = m_texture;
-  retval.image3D.texelTexobj = m_texels;
-  retval.image3D.size = glm::uvec3(m_image->size().x, m_image->size().y, m_image->size().z);
-  retval.image3D.invSize = glm::vec3(1.0f / m_image->size().x, 1.0f / m_image->size().y, 1.0f / m_image->size().z);
-  return retval;
+  return m_image;
 }
 
 int Image3D::numChannels() const
@@ -101,9 +99,18 @@ int Image3D::numChannels() const
   return numANARIChannels(format);
 }
 
-bool Image3D::isValid() const
+SamplerGPUData Image3D::gpuData() const
 {
-  return m_image;
+  SamplerGPUData retval = Sampler::gpuData();
+  retval.type = SamplerType::TEXTURE3D;
+  retval.image3D.texobj = m_texture;
+  retval.image3D.texelTexobj = m_texels;
+  retval.image3D.size =
+      glm::uvec3(m_image->size().x, m_image->size().y, m_image->size().z);
+  retval.image3D.invSize = glm::vec3(1.0f / m_image->size().x,
+      1.0f / m_image->size().y,
+      1.0f / m_image->size().z);
+  return retval;
 }
 
 void Image3D::cleanup()

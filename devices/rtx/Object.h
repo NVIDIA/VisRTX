@@ -59,12 +59,10 @@ struct Object : public helium::BaseObject
       void *ptr,
       uint32_t flags) override;
 
-  virtual void commit() override;
-
-  virtual void *deviceData() const;
-
+  virtual void commitParameters() override;
+  virtual void finalize() override;
   virtual bool isValid() const;
-
+  virtual void *deviceData() const;
   DeviceGlobalState *deviceState() const;
 };
 

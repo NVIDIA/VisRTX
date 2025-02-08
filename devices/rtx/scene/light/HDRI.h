@@ -42,8 +42,9 @@ struct HDRI : public Light
   HDRI(DeviceGlobalState *d);
   ~HDRI() override;
 
-  void commit() override;
-
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
   bool isHDRI() const override;
 
  private:

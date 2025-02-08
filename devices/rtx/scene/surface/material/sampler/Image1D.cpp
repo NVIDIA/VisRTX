@@ -40,15 +40,17 @@ Image1D::~Image1D()
   cleanup();
 }
 
-void Image1D::commit()
+void Image1D::commitParameters()
 {
-  Sampler::commit();
-
-  cleanup();
-
+  Sampler::commitParameters();
   m_filter = getParamString("filter", "linear");
   m_wrap1 = getParamString("wrapMode", "clampToEdge");
   m_image = getParamObject<Array1D>("image");
+}
+
+void Image1D::finalize()
+{
+  cleanup();
 
   if (!m_image) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -73,9 +75,21 @@ void Image1D::commit()
     cuArray = m_image->acquireCUDAArrayUint8();
   }
   m_texture = makeCudaTextureObject(cuArray, !isFp, m_filter, m_wrap1);
-  m_texels = makeCudaTextureObject(cuArray, !isFp, "nearest", m_wrap1, "clampToEdge", "clampToEdge", false);
+  m_texels = makeCudaTextureObject(
+      cuArray, !isFp, "nearest", m_wrap1, "clampToEdge", "clampToEdge", false);
 
   upload();
+}
+
+bool Image1D::isValid() const
+{
+  return m_image;
+}
+
+int Image1D::numChannels() const
+{
+  ANARIDataType format = m_image->elementType();
+  return numANARIChannels(format);
 }
 
 SamplerGPUData Image1D::gpuData() const
@@ -88,17 +102,6 @@ SamplerGPUData Image1D::gpuData() const
   retval.image1D.invSize = 1.0f / m_image->size();
 
   return retval;
-}
-
-int Image1D::numChannels() const
-{
-  ANARIDataType format = m_image->elementType();
-  return numANARIChannels(format);
-}
-
-bool Image1D::isValid() const
-{
-  return m_image;
 }
 
 void Image1D::cleanup()

@@ -39,7 +39,7 @@ struct Directional : public Light
 {
   Directional(DeviceGlobalState *d);
 
-  void commit() override;
+  void commitParameters() override;
 
  private:
   LightGPUData gpuData() const override;

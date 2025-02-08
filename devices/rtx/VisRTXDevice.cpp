@@ -410,7 +410,7 @@ VisRTXDevice::~VisRTXDevice()
   }
 #endif // defined(USE_MDL)
 
-  state.commitBufferClear();
+  state.commitBuffer.clear();
   state.uploadBuffer.clear();
 
   CUDA_SYNC_CHECK();

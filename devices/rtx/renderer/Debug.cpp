@@ -83,9 +83,9 @@ static DebugMethod methodFromString(const std::string &name)
 
 Debug::Debug(DeviceGlobalState *s) : Renderer(s) {}
 
-void Debug::commit()
+void Debug::commitParameters()
 {
-  Renderer::commit();
+  Renderer::commitParameters();
   m_method = methodFromString(getParamString("method", "primID"));
 }
 

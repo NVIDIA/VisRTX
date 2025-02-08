@@ -37,16 +37,18 @@ Quad::Quad(DeviceGlobalState *d) : Geometry(d), m_index(this), m_vertex(this) {}
 
 Quad::~Quad() = default;
 
-void Quad::commit()
+void Quad::commitParameters()
 {
-  Geometry::commit();
-
+  Geometry::commitParameters();
   m_index = getParamObject<Array1D>("primitive.index");
-
   m_vertex = getParamObject<Array1D>("vertex.position");
   m_vertexNormal = getParamObject<Array1D>("vertex.normal");
+  m_cullBackfaces = getParam<bool>("cullBackfaces", false);
   commitAttributes("vertex.", m_vertexAttributes);
+}
 
+void Quad::finalize()
+{
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on quad geometry");
@@ -61,15 +63,18 @@ void Quad::commit()
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
-      "committing %s quad geometry",
+      "finalizing %s quad geometry",
       m_index ? "indexed" : "soup");
 
   generateIndices();
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
 
-  m_cullBackfaces = getParam<bool>("cullBackfaces", false);
-
   upload();
+}
+
+bool Quad::isValid() const
+{
+  return m_vertex;
 }
 
 void Quad::populateBuildInput(OptixBuildInput &buildInput) const
@@ -95,11 +100,6 @@ void Quad::populateBuildInput(OptixBuildInput &buildInput) const
 int Quad::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
-}
-
-bool Quad::isValid() const
-{
-  return m_vertex;
 }
 
 GeometryGPUData Quad::gpuData() const

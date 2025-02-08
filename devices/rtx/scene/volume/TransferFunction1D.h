@@ -42,8 +42,8 @@ struct TransferFunction1D : public Volume
   TransferFunction1D(DeviceGlobalState *d);
   ~TransferFunction1D();
 
-  void commit() override;
-
+  void commitParameters() override;
+  void finalize() override;
   bool isValid() const override;
 
  private:
