@@ -25,6 +25,8 @@ enum class ImporterType
   HDRI,
   VOLUME,
   TSD,
+  SWC,
+  SWCS,
   NONE
 };
 
