@@ -95,6 +95,10 @@ void ImportFileDialog::buildUI()
       tsd::import_NBODY(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::HDRI)
       tsd::import_HDRI(ctx, m_filename.c_str(), importRoot);
+    else if (selectedFileType == ImporterType::SWC)
+      tsd::import_SWC(ctx, m_filename.c_str(), importRoot);
+    else if (selectedFileType == ImporterType::SWCS)
+      tsd::import_SWCs(ctx, m_filename.c_str(), importRoot);
 
     ctx.signalInstanceTreeChange();
 
