@@ -120,8 +120,6 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::VOLUME;
     else if (arg == "-swc")
       importerType = ImporterType::SWC;
-    else if (arg == "-swcs")
-      importerType = ImporterType::SWCS;
     else if (importerType != ImporterType::NONE)
       this->commandLine.filenames.push_back({importerType, arg});
   }
@@ -163,8 +161,6 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_HDRI(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::SWC)
         tsd::import_SWC(tsd.ctx, f.second.c_str());
-      else if (f.first == ImporterType::SWCS)
-        tsd::import_SWCs(tsd.ctx, f.second.c_str());
 #if 0
       else if (f.first == ImporterType::VOLUME)
         tsd::import_volume(tsd.ctx, f.second.c_str());

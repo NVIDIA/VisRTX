@@ -26,7 +26,6 @@ enum class ImporterType
   VOLUME,
   TSD,
   SWC,
-  SWCS,
   NONE
 };
 
