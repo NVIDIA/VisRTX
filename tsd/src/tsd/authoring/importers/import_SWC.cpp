@@ -9,6 +9,11 @@
 #include <map>
 #include <random>
 
+namespace {
+const float DEFAULT_ROUGHNESS = 0.5f;
+const float DEFAULT_METALLIC = 0.5f;
+} // namespace
+
 namespace tsd {
 
 /**
@@ -143,8 +148,8 @@ void readSWCFile(
   std::uniform_real_distribution<> dis(0.0, 0.5);
   tsd::float3 baseColor(0.5 + dis(gen), 0.5 + dis(gen), 0.5 + dis(gen));
 
-  const float metallic = 0.5;
-  const float roughness = 0.5;
+  const float metallic = DEFAULT_METALLIC;
+  const float roughness = DEFAULT_ROUGHNESS;
 
   // Set the material properties
   m->setParameter("baseColor"_t, ANARI_FLOAT32_VEC3, &baseColor);
