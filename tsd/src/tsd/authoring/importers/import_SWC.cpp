@@ -9,34 +9,7 @@
 #include <map>
 #include <random>
 
-namespace fs = std::filesystem;
-
 namespace tsd {
-
-/**
- * Lists all files with a specified extension in a given folder.
- *
- * @param folderPath Path to the folder containing files.
- * @param extension The file extension to search for (e.g. ".swc").
- *
- * @return A vector of file names with the specified extension.
- */
-std::vector<std::string> listFiles(
-    const std::string &folderPath, const std::string &extension)
-{
-  std::vector<std::string> files;
-  for (const auto &entry : std::filesystem::directory_iterator(folderPath)) {
-    if (entry.is_regular_file()) {
-      std::string ext = entry.path().extension().string();
-      std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-      if (ext == extension) {
-        files.push_back(entry.path().filename().string());
-      }
-    }
-  }
-
-  return files;
-}
 
 /**
  * Represents a point in a SWC (Standard Warehouse Connector) file.
@@ -65,10 +38,8 @@ struct SWCPoint
  * added.
  * @param name A default name for the 3D representation.
  */
-void readSWCFile(Context &ctx,
-    const std::string &filename,
-    InstanceNode::Ref location,
-    const std::string &name = "morphology")
+void readSWCFile(
+    Context &ctx, const std::string &filename, InstanceNode::Ref location)
 {
   // Open the SWC file and check for errors
   std::ifstream file(filename);
@@ -180,14 +151,20 @@ void readSWCFile(Context &ctx,
   m->setParameter("metallic"_t, ANARI_FLOAT32, &metallic);
   m->setParameter("roughness"_t, ANARI_FLOAT32, &roughness);
 
-  // Create surfaces for the spheres and cones
-  const std::string conesName = name + "_cones";
-  auto conesSurface = ctx.createSurface(conesName.c_str(), cones, m);
-  ctx.insertChildObjectNode(location, conesSurface);
+  const auto swcLocation = ctx.tree.insert_first_child(
+      location, tsd::utility::Any(ANARI_GEOMETRY, 1));
 
-  const std::string spheresName = name + "_spheres";
+  // Create surfaces for the spheres and cones
+  const std::string basename =
+      std::filesystem::path(filename).filename().string();
+
+  const std::string conesName = basename + "_cones";
+  auto conesSurface = ctx.createSurface(conesName.c_str(), cones, m);
+  ctx.insertChildObjectNode(swcLocation, conesSurface);
+
+  const std::string spheresName = basename + "_spheres";
   auto sphereSurface = ctx.createSurface(spheresName.c_str(), spheres, m);
-  ctx.insertChildObjectNode(location, sphereSurface);
+  ctx.insertChildObjectNode(swcLocation, sphereSurface);
 }
 
 /**
@@ -201,25 +178,6 @@ void readSWCFile(Context &ctx,
 void import_SWC(Context &ctx, const char *filename, InstanceNode::Ref location)
 {
   readSWCFile(ctx, filename, location);
-}
-
-/**
- * Imports all SWC files in a given folder into the current context.
- *
- * @param ctx Context in which to import the SWC files.
- * @param folderPath Path to the folder containing the SWC files to import.
- * @param location Node in the scene graph where the SWC files should be
- * imported.
- */
-void import_SWCs(
-    Context &ctx, const char *folderPath, InstanceNode::Ref location)
-{
-  std::vector<std::string> swcFiles = listFiles(folderPath, ".swc");
-  for (const auto &swcFile : swcFiles) {
-    const fs::path fileName = swcFile;
-    const fs::path fullPath = folderPath / fileName;
-    readSWCFile(ctx, fullPath, location, swcFile);
-  }
 }
 
 } // namespace tsd
