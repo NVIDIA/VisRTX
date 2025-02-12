@@ -8,6 +8,7 @@
 #include <fstream>
 #include <map>
 #include <random>
+#include <sstream>
 
 namespace {
 const float DEFAULT_ROUGHNESS = 0.5f;
