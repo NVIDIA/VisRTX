@@ -118,8 +118,9 @@
           "name": "volumeSamplingRate",
           "types": ["ANARI_FLOAT32"],
           "tags": [],
-          "default": 1.0,
+          "default": 0.125,
           "minimum": 0.001,
+          "maximum": 10.0,
           "description": "sampling rate of volumes when ray marching"
         }
       ]
@@ -185,8 +186,9 @@
           "name": "volumeSamplingRate",
           "types": ["ANARI_FLOAT32"],
           "tags": [],
-          "default": 1.0,
+          "default": 0.125,
           "minimum": 0.001,
+          "maximum": 10.0,
           "description": "sampling rate of volumes when ray marching"
         }
       ]
@@ -249,8 +251,9 @@
           "name": "volumeSamplingRate",
           "types": ["ANARI_FLOAT32"],
           "tags": [],
-          "default": 1.0,
+          "default": 0.125,
           "minimum": 0.001,
+          "maximum": 10.0,
           "description": "sampling rate of volumes when ray marching"
         }
       ]

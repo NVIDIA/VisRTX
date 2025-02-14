@@ -35,12 +35,7 @@
 namespace visrtx {
 
 TransferFunction1D::TransferFunction1D(DeviceGlobalState *d)
-    : Volume(d),
-      m_color(this),
-      m_colorPosition(this),
-      m_opacity(this),
-      m_opacityPosition(this),
-      m_field(this)
+    : Volume(d), m_color(this), m_opacity(this), m_field(this)
 {}
 
 TransferFunction1D::~TransferFunction1D()
@@ -52,55 +47,96 @@ void TransferFunction1D::commitParameters()
 {
   Volume::commitParameters();
   m_color = getParamObject<Array1D>("color");
-  m_colorPosition = getParamObject<Array1D>("color.position");
+  m_uniformColor = vec4(1.f);
+  getParam("color", ANARI_FLOAT32_VEC3, &m_uniformColor);
+  getParam("color", ANARI_FLOAT32_VEC4, &m_uniformColor);
   m_opacity = getParamObject<Array1D>("opacity");
-  m_opacityPosition = getParamObject<Array1D>("opacity.position");
-  m_densityScale = getParam<float>("densityScale", 1.f);
+  m_uniformOpacity = getParam<float>("opacity", 1.f) * m_uniformColor.w;
+  m_unitDistance = getParam<float>("unitDistance", 1.f);
   m_field = getParamObject<SpatialField>("value");
-  {
-    auto valueRangeAsVec2 = getParam<vec2>("valueRange", vec2(0.f, 1.f));
-    m_valueRange = getParam<box1>("valueRange", make_box1(valueRangeAsVec2));
-  }
+  getParam("valueRange", ANARI_FLOAT32_VEC2, &m_valueRange);
+  getParam("valueRange", ANARI_FLOAT32_BOX1, &m_valueRange);
 }
 
 void TransferFunction1D::finalize()
 {
-  cleanup();
-
   if (!m_field) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing parameter 'value' on transferFunction1D ANARIVolume");
     return;
   }
 
-  if (!m_color) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "missing parameter 'color' on transferFunction1D ANARIVolume");
-    return;
-  }
-
-  if (!m_opacity) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "missing parameter 'opacity' on transferFunction1D ANARIVolume");
-    return;
-  }
-
-  if (m_colorPosition && m_color->totalSize() != m_colorPosition->totalSize()) {
-    reportMessage(ANARI_SEVERITY_ERROR,
-        "TransferFunction1D 'color' and 'color.position'"
-        " arrays are of different size");
-    return;
-  }
-
-  if (m_opacityPosition
-      && m_opacity->totalSize() != m_opacityPosition->totalSize()) {
-    reportMessage(ANARI_SEVERITY_ERROR,
-        "TransferFunction1D 'opacity' and 'opacity.position'"
-        " arrays are of different size");
-    return;
-  }
-
   discritizeTFData();
+  createTFTexture();
+  m_field->m_uniformGrid.computeMaxOpacities(
+      deviceState()->stream, m_textureObject, m_tfDim);
+  upload();
+}
+
+bool TransferFunction1D::isValid() const
+{
+  return m_field && m_field->isValid();
+}
+
+VolumeGPUData TransferFunction1D::gpuData() const
+{
+  VolumeGPUData retval = Volume::gpuData();
+  retval.type = VolumeType::TF1D;
+  retval.bounds = m_field->bounds();
+  retval.stepSize = m_field->stepSize();
+  retval.data.tf1d.tfTex = m_textureObject;
+  retval.data.tf1d.valueRange = m_valueRange;
+  retval.data.tf1d.unitDistance = m_unitDistance;
+  retval.data.tf1d.field = m_field->index();
+  retval.data.tf1d.uniformColor = vec3(m_uniformColor);
+  retval.data.tf1d.uniformOpacity = m_uniformOpacity;
+  return retval;
+}
+
+void TransferFunction1D::discritizeTFData()
+{
+  m_tf.resize(m_tfDim);
+
+  Span<float> cPositions;
+  Span<float> oPositions;
+
+  std::vector<float> linearColorPositions;
+  std::vector<float> linearOpacityPositions;
+
+  if (m_color) {
+    linearColorPositions =
+        generateLinearPositions(m_color->totalSize(), m_valueRange);
+    cPositions =
+        make_Span(linearColorPositions.data(), linearColorPositions.size());
+  }
+
+  if (m_opacity) {
+    linearOpacityPositions =
+        generateLinearPositions(m_opacity->totalSize(), m_valueRange);
+    oPositions =
+        make_Span(linearOpacityPositions.data(), linearOpacityPositions.size());
+  }
+
+  for (size_t i = 0; i < m_tf.size(); i++) {
+    const float p = float(i) / (m_tf.size() - 1);
+    const auto c = m_color
+        ? getInterpolatedValue(
+              m_color->beginAs<vec3>(), cPositions, m_valueRange, p)
+        : vec3(m_uniformColor);
+    const auto o = m_opacity
+        ? getInterpolatedValue(
+              m_opacity->beginAs<float>(), oPositions, m_valueRange, p)
+        : m_uniformOpacity;
+    m_tf[i] = vec4(c, o);
+  }
+}
+
+void TransferFunction1D::createTFTexture()
+{
+  cleanup();
+
+  if (m_tf.empty())
+    return;
 
   auto desc = cudaCreateChannelDesc(32, 32, 32, 32, cudaChannelFormatKindFloat);
   cudaMallocArray(&m_cudaArray, &desc, m_tfDim);
@@ -128,71 +164,6 @@ void TransferFunction1D::finalize()
   texDesc.normalizedCoords = 1;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
-
-  if (m_field->isValid()) {
-    m_field->m_uniformGrid.computeMaxOpacities(
-        deviceState()->stream, m_textureObject, m_tfDim);
-  }
-
-  upload();
-}
-
-bool TransferFunction1D::isValid() const
-{
-  return m_color && m_opacity && m_field && m_field->isValid();
-}
-
-VolumeGPUData TransferFunction1D::gpuData() const
-{
-  VolumeGPUData retval = Volume::gpuData();
-  retval.type = VolumeType::TF1D;
-  retval.bounds = m_field->bounds();
-  retval.stepSize = m_field->stepSize();
-  retval.data.tf1d.tfTex = m_textureObject;
-  retval.data.tf1d.valueRange = m_valueRange;
-  retval.data.tf1d.densityScale = m_densityScale;
-  retval.data.tf1d.field = m_field->index();
-  return retval;
-}
-
-void TransferFunction1D::discritizeTFData()
-{
-  m_tf.resize(m_tfDim);
-
-  Span<float> cPositions;
-  Span<float> oPositions;
-
-  std::vector<float> linearColorPositions;
-  std::vector<float> linearOpacityPositions;
-
-  if (m_colorPosition) {
-    cPositions =
-        make_Span(m_colorPosition->beginAs<float>(), m_colorPosition->size());
-  } else {
-    linearColorPositions =
-        generateLinearPositions(m_color->totalSize(), m_valueRange);
-    cPositions =
-        make_Span(linearColorPositions.data(), linearColorPositions.size());
-  }
-
-  if (m_colorPosition) {
-    oPositions = make_Span(
-        m_opacityPosition->beginAs<float>(), m_opacityPosition->size());
-  } else {
-    linearOpacityPositions =
-        generateLinearPositions(m_opacity->totalSize(), m_valueRange);
-    oPositions =
-        make_Span(linearOpacityPositions.data(), linearOpacityPositions.size());
-  }
-
-  for (size_t i = 0; i < m_tf.size(); i++) {
-    const float p = float(i) / (m_tf.size() - 1);
-    const auto c = getInterpolatedValue(
-        m_color->beginAs<vec3>(), cPositions, m_valueRange, p);
-    const auto o = getInterpolatedValue(
-        m_opacity->beginAs<float>(), oPositions, m_valueRange, p);
-    m_tf[i] = vec4(c, o);
-  }
 }
 
 void TransferFunction1D::cleanup()

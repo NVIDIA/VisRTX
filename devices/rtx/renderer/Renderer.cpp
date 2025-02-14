@@ -163,7 +163,7 @@ void Renderer::commitParameters()
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
-      std::clamp(getParam<float>("volumeSamplingRate", 1.f), 1e-3f, 10.f);
+      std::clamp(getParam<float>("volumeSamplingRate", 0.125f), 1e-3f, 10.f);
 }
 
 void Renderer::finalize()

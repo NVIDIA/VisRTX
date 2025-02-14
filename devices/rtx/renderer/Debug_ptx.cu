@@ -139,10 +139,10 @@ VISRTX_DEVICE void handleVolumeHit()
 
   switch (method) {
   case DebugMethod::OBJ_ID:
-    rd.outColor = makeRandomColor(rd.volID);
+    rd.outColor = makeRandomColor(rd.volume->id);
     break;
   case DebugMethod::INST_ID:
-    rd.outColor = makeRandomColor(rd.instID);
+    rd.outColor = makeRandomColor(rd.instance->id);
     break;
   case DebugMethod::PRIM_ID:
   case DebugMethod::PRIM_INDEX:
@@ -209,8 +209,8 @@ VISRTX_GLOBAL void __raygen__()
       depth = vrd.localRay.t.lower;
       normal = -ray.dir;
       primID = 0;
-      objID = vrd.volumeData->id;
-      instID = vrd.instID;
+      objID = vrd.volume->id;
+      instID = vrd.instance->id;
     } else {
       color = srd.outColor;
       depth = srd.t;
@@ -231,8 +231,8 @@ VISRTX_GLOBAL void __raygen__()
     depth = vrd.localRay.t.lower;
     normal = -ray.dir;
     primID = 0;
-    objID = vrd.volumeData->id;
-    instID = vrd.instID;
+    objID = vrd.volume->id;
+    instID = vrd.instance->id;
   }
 
   accumResults(frameData.fb,

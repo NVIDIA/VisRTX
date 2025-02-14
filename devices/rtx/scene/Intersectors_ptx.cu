@@ -243,12 +243,13 @@ VISRTX_DEVICE void intersectCone(const GeometryGPUData &geometryData)
 VISRTX_DEVICE void intersectVolume()
 {
   auto &hit = ray::rayData<VolumeHit>();
-  if (hit.volID == ray::primID() && hit.instID == ray::instID())
+  if (hit.lastVolID == ray::objID() && hit.lastInstID == ray::instID())
     return;
 
   const auto &ss = ray::screenSample();
   const auto &frameData = *ss.frameData;
   const auto &volumeData = ray::volumeData(frameData);
+
   const auto &bounds = volumeData.bounds;
   const vec3 mins =
       (bounds.lower - ray::localOrigin()) * (1.f / ray::localDirection());

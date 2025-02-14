@@ -74,7 +74,6 @@ class Application : public BaseApplication
     volume->setParameterObject("value", *field);
     volume->setParameterObject("color", *colorArray);
     volume->setParameterObject("opacity", *opacityArray);
-    volume->setParameter("densityScale", 0.1f);
 
     ctx.tree.insert_last_child(
         ctx.tree.root(), tsd::utility::Any(ANARI_VOLUME, volume.index()));

@@ -430,7 +430,9 @@ struct TF1DVolumeGPUData
   DeviceObjectIndex field;
   cudaTextureObject_t tfTex{};
   box1 valueRange;
-  float densityScale;
+  float unitDistance;
+  vec3 uniformColor;
+  float uniformOpacity;
 };
 
 struct VolumeGPUData

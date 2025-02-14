@@ -86,6 +86,7 @@ struct Ray
 };
 
 struct InstanceSurfaceGPUData;
+struct InstanceVolumeGPUData;
 struct GeometryGPUData;
 struct MaterialGPUData;
 struct VolumeGPUData;
@@ -114,9 +115,10 @@ struct VolumeHit
 {
   bool foundHit;
   Ray localRay;
-  uint32_t volID{~0u};
-  uint32_t instID{~0u};
-  const VolumeGPUData *volumeData{nullptr};
+  uint32_t lastVolID{~0u};
+  uint32_t lastInstID{~0u};
+  const VolumeGPUData *volume{nullptr};
+  const InstanceVolumeGPUData *instance{nullptr};
 };
 
 using Hit = SurfaceHit;

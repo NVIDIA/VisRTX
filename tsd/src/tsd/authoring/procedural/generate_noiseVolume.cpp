@@ -36,7 +36,6 @@ VolumeRef generate_noiseVolume(Context &ctx,
   voxelArray->unmap();
 
   field->setParameter("origin"_t, float3(-1, -1, -1));
-  field->setParameter("spacing"_t, float3(2.f / 64));
   field->setParameterObject("data"_t, *voxelArray);
 
   // Setup volume //
@@ -66,7 +65,6 @@ VolumeRef generate_noiseVolume(Context &ctx,
   volume->setParameterObject("value"_t, *field);
   volume->setParameterObject("color"_t, *colorArray);
   volume->setParameterObject("opacity"_t, *opacityArray);
-  volume->setParameter("densityScale"_t, 0.1f);
 
   return volume;
 }

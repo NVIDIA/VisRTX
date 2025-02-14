@@ -12,12 +12,13 @@ Volume::Volume(Token stype) : Object(ANARI_VOLUME, stype)
         .setValue(float3{1.f})
         .setUsage(ParameterUsageHint::COLOR)
         .setDescription("transfer function color");
-    addParameter("opacity")
+    addParameter("opacity").setValue(1.f).setDescription(
+        "transfer function opacity");
+    addParameter("unitDistance")
         .setValue(1.f)
-        .setDescription("transfer function opacity");
-    addParameter("densityScale")
-        .setValue(1.f)
-        .setDescription("uniform scale applied to opacity")
+        .setDescription(
+            "distance after which a 'opacity' fraction of light traveling "
+            "through the volume is absorbed")
         .setMin(0.f);
     float2 defaultValueRange{0.f, 1.f};
     addParameter("valueRange")
