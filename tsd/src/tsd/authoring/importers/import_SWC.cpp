@@ -52,7 +52,7 @@ void readSWCFile(
   std::string line;
 
   if (!file.is_open()) {
-    logError("Error opening file: %s", filename);
+    logError("Error opening file: %s", filename.c_str());
     return;
   }
 
