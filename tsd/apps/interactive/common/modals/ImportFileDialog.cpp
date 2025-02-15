@@ -34,11 +34,12 @@ void ImportFileDialog::buildUI()
 
   if (ImGui::Button("...")) {
     nfdchar_t *outPath = nullptr;
-    nfdfilteritem_t filterItem[3] = {
-        {"All Supported Files", "gltf,glb,obj,dlaf,nbody,ply,hdri"},
+    nfdfilteritem_t filterItem[4] = {
+        {"All Supported Files", "gltf,glb,obj,dlaf,nbody,ply,hdri,hdr"},
         {"glTF Files", "gltf,glb"},
-        {"OBJ Files", "obj"}};
-    nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 3, nullptr);
+        {"OBJ Files", "obj"},
+        {"HDRI Files", "hdr,hdri"}};
+    nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 4, nullptr);
     if (result == NFD_OKAY) {
       m_filename = std::string(outPath).c_str();
       update = true;
