@@ -93,7 +93,7 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
 
       if (color)
         *color += transmittance * (1.f - stepTransmittance) * vec3(co);
-      opacity += transmittance * (1.f - stepTransmittance) * co.w;
+      opacity += transmittance * (1.f - stepTransmittance);
 
       transmittance *= stepTransmittance;
     }
