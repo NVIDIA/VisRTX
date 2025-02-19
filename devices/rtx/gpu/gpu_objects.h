@@ -583,6 +583,7 @@ struct RendererGPUData
   BackgroundMode backgroundMode;
   RendererBackgroundGPUData background;
   glm::vec3 ambientColor;
+  int numIterations;
   float ambientIntensity;
   float inverseVolumeSamplingRate;
   float occlusionDistance;

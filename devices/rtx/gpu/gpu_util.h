@@ -278,10 +278,12 @@ VISRTX_DEVICE bool accumDepth(
   return closerSample;
 }
 
-VISRTX_DEVICE void writeOutputColor(
-    const FramebufferGPUData &fb, const vec4 &color, uint32_t idx)
+VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
+    const vec4 &color,
+    const uint32_t idx,
+    const int frameIDOffset)
 {
-  const auto c = color * fb.invFrameID;
+  const auto c = color / float(fb.frameID + frameIDOffset + 1);
   if (fb.format == FrameFormat::SRGB) {
     fb.buffers.outColorUint[idx] =
         glm::packUnorm4x8(glm::convertLinearToSRGB(c));
@@ -307,15 +309,18 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
     const vec3 &normal,
     uint32_t primID,
     uint32_t objID,
-    uint32_t instID)
+    uint32_t instID,
+    const int frameIDOffset = 0)
 {
   const uint32_t idx = detail::pixelIndex(fb, pixel);
 
-  detail::accumValue(fb.buffers.colorAccumulation, idx, fb.frameID, color);
-  detail::accumValue(fb.buffers.albedo, idx, fb.frameID, albedo);
-  detail::accumValue(fb.buffers.normal, idx, fb.frameID, normal);
+  const auto frameID = fb.frameID + frameIDOffset;
 
-  if (detail::accumDepth(fb.buffers.depth, idx, fb.frameID, depth)) {
+  detail::accumValue(fb.buffers.colorAccumulation, idx, frameID, color);
+  detail::accumValue(fb.buffers.albedo, idx, frameID, albedo);
+  detail::accumValue(fb.buffers.normal, idx, frameID, normal);
+
+  if (detail::accumDepth(fb.buffers.depth, idx, frameID, depth)) {
     if (fb.buffers.primID)
       fb.buffers.primID[idx] = primID;
     if (fb.buffers.objID)
@@ -325,20 +330,26 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
   }
 
   const auto accumColor = fb.buffers.colorAccumulation[idx];
-  detail::writeOutputColor(fb, accumColor, idx);
+  detail::writeOutputColor(fb, accumColor, idx, frameIDOffset);
 
-  if (fb.checkerboardID == 0 && fb.frameID == 0) {
+  if (fb.checkerboardID == 0 && frameID == 0) {
     auto adjPix = uvec2(pixel.x + 1, pixel.y + 0);
-    if (!pixelOutOfFrame(adjPix, fb))
-      detail::writeOutputColor(fb, accumColor, detail::pixelIndex(fb, adjPix));
+    if (!pixelOutOfFrame(adjPix, fb)) {
+      detail::writeOutputColor(
+          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+    }
 
     adjPix = uvec2(pixel.x + 0, pixel.y + 1);
-    if (!pixelOutOfFrame(adjPix, fb))
-      detail::writeOutputColor(fb, accumColor, detail::pixelIndex(fb, adjPix));
+    if (!pixelOutOfFrame(adjPix, fb)) {
+      detail::writeOutputColor(
+          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+    }
 
     adjPix = uvec2(pixel.x + 1, pixel.y + 1);
-    if (!pixelOutOfFrame(adjPix, fb))
-      detail::writeOutputColor(fb, accumColor, detail::pixelIndex(fb, adjPix));
+    if (!pixelOutOfFrame(adjPix, fb)) {
+      detail::writeOutputColor(
+          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+    }
   }
 }
 

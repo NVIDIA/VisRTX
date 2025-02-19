@@ -277,31 +277,27 @@ void Frame::renderFrame()
   hd.registry.fields = state.registry.fields.devicePtr();
   hd.registry.volumes = state.registry.volumes.devicePtr();
 
-  const int spp = std::max(m_renderer->spp(), 1);
-
   instrument::rangePop(); // frame setup
   instrument::rangePush("render all frames");
 
-  for (int i = 0; i < spp; i++) {
-    instrument::rangePush("Frame::newFrame()");
-    newFrame();
-    instrument::rangePop(); // Frame::newFrame()
+  instrument::rangePush("Frame::newFrame()");
+  newFrame();
+  instrument::rangePop(); // Frame::newFrame()
 
-    instrument::rangePush("Frame::upload()");
-    upload();
-    instrument::rangePop(); // Frame::upload()
+  instrument::rangePush("Frame::upload()");
+  upload();
+  instrument::rangePop(); // Frame::upload()
 
-    instrument::rangePush("optixLaunch()");
-    OPTIX_CHECK(optixLaunch(m_renderer->pipeline(),
-        state.stream,
-        (CUdeviceptr)deviceData(),
-        payloadBytes(),
-        m_renderer->sbt(),
-        checkerboarding() ? (hd.fb.size.x + 1) / 2 : hd.fb.size.x,
-        checkerboarding() ? (hd.fb.size.y + 1) / 2 : hd.fb.size.y,
-        1));
-    instrument::rangePop(); // optixLaunch()
-  }
+  instrument::rangePush("optixLaunch()");
+  OPTIX_CHECK(optixLaunch(m_renderer->pipeline(),
+      state.stream,
+      (CUdeviceptr)deviceData(),
+      payloadBytes(),
+      m_renderer->sbt(),
+      checkerboarding() ? (hd.fb.size.x + 1) / 2 : hd.fb.size.x,
+      checkerboarding() ? (hd.fb.size.y + 1) / 2 : hd.fb.size.y,
+      1));
+  instrument::rangePop(); // optixLaunch()
 
   if (m_denoise)
     m_denoiser.launch();
@@ -569,7 +565,10 @@ void Frame::newFrame()
     hd.fb.checkerboardID = checkerboarding() ? 0 : -1;
     m_nextFrameReset = false;
   } else {
-    hd.fb.frameID += (!checkerboarding() || hd.fb.checkerboardID == 3);
+    if (checkerboarding())
+      hd.fb.frameID += int(hd.fb.checkerboardID == 3);
+    else
+      hd.fb.frameID += m_renderer->spp();
     hd.fb.checkerboardID =
         checkerboarding() ? ((hd.fb.checkerboardID + 1) & 0x3) : -1;
   }

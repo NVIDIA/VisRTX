@@ -199,6 +199,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.occlusionDistance = m_occlusionDistance;
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
   fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
+  fd.renderer.numIterations = std::max(m_spp, 1);
 }
 
 OptixPipeline Renderer::pipeline()
