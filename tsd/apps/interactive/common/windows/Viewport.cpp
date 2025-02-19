@@ -781,7 +781,8 @@ void Viewport::ui_overlay()
   ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 
   if (ImGui::Begin(m_overlayWindowName.c_str(), nullptr, window_flags)) {
-    ImGui::Text("viewport: %i x %i", m_viewportSize.x, m_viewportSize.y);
+    ImGui::Text("  device: %s", m_libName.c_str());
+    ImGui::Text("Viewport: %i x %i", m_viewportSize.x, m_viewportSize.y);
     ImGui::Text("  render: %i x %i", m_renderSize.x, m_renderSize.y);
     ImGui::Text(" samples: %i", m_frameSamples);
 
