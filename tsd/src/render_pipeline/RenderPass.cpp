@@ -46,8 +46,7 @@ void compositeFrame(RenderPass::Buffers &b_out,
       });
 }
 
-void computeOutline(
-    RenderPass::Buffers &b, uint32_t outlineId, tsd::uint2 size)
+void computeOutline(RenderPass::Buffers &b, uint32_t outlineId, tsd::uint2 size)
 {
   detail::parallel_for(
       0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -56,11 +55,11 @@ void computeOutline(
 
         int cnt = 0;
         for (unsigned fy = std::max(0u, y - 1);
-             fy <= std::min(size.y - 1, y + 1);
-             fy++) {
+            fy <= std::min(size.y - 1, y + 1);
+            fy++) {
           for (unsigned fx = std::max(0u, x - 1);
-               fx <= std::min(size.x - 1, x + 1);
-               fx++) {
+              fx <= std::min(size.x - 1, x + 1);
+              fx++) {
             size_t fi = fx + size_t(size.x) * fy;
             if (b.objectId[fi] == outlineId)
               cnt++;
@@ -72,8 +71,7 @@ void computeOutline(
       });
 }
 
-void computeDepthImage(
-    RenderPass::Buffers &b, float maxDepth, tsd::uint2 size)
+void computeDepthImage(RenderPass::Buffers &b, float maxDepth, tsd::uint2 size)
 {
   detail::parallel_for(
       0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -126,6 +124,22 @@ void RenderPass::setDimensions(uint32_t width, uint32_t height)
 // AnariRenderPass ////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+static bool supportsCUDAFbData(anari::Device d)
+{
+  bool supportsCUDA = false;
+  auto list = (const char *const *)anariGetObjectInfo(
+      d, ANARI_DEVICE, "default", "extension", ANARI_STRING_LIST);
+
+  for (const char *const *i = list; *i != nullptr; ++i) {
+    if (std::string(*i) == "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS") {
+      supportsCUDA = true;
+      break;
+    }
+  }
+
+  return supportsCUDA;
+}
+
 AnariRenderPass::AnariRenderPass(anari::Device d) : m_device(d)
 {
   anari::retain(d, d);
@@ -135,9 +149,12 @@ AnariRenderPass::AnariRenderPass(anari::Device d) : m_device(d)
   anari::setParameter(d, m_frame, "channel.objectId", ANARI_UINT32);
   anari::setParameter(d, m_frame, "accumulation", true);
 
-#ifdef ENABLE_CUDA
-  anari::getProperty(d, d, "visrtx", m_deviceSupportsCUDAFrames);
-#endif
+  m_deviceSupportsCUDAFrames = supportsCUDAFbData(d);
+
+  if (m_deviceSupportsCUDAFrames)
+    tsd::logStatus("[render_pipeline] using CUDA-mapped fb channels");
+  else
+    tsd::logStatus("[render_pipeline] using host-mapped fb channels");
 }
 
 AnariRenderPass::~AnariRenderPass()
