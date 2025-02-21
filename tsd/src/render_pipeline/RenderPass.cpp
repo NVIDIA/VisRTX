@@ -126,6 +126,7 @@ void RenderPass::setDimensions(uint32_t width, uint32_t height)
 
 static bool supportsCUDAFbData(anari::Device d)
 {
+#ifdef ENABLE_CUDA
   bool supportsCUDA = false;
   auto list = (const char *const *)anariGetObjectInfo(
       d, ANARI_DEVICE, "default", "extension", ANARI_STRING_LIST);
@@ -138,6 +139,9 @@ static bool supportsCUDAFbData(anari::Device d)
   }
 
   return supportsCUDA;
+#else
+  return false;
+#endif
 }
 
 AnariRenderPass::AnariRenderPass(anari::Device d) : m_device(d)
