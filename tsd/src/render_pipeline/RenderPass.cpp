@@ -250,15 +250,16 @@ void AnariRenderPass::render(Buffers &b, int stageId)
 
 void AnariRenderPass::copyFrameData()
 {
-  auto color = anari::map<uint32_t>(m_device,
-      m_frame,
-      m_deviceSupportsCUDAFrames ? "channel.colorGPU" : "channel.color");
-  auto depth = anari::map<float>(m_device,
-      m_frame,
-      m_deviceSupportsCUDAFrames ? "channel.depthGPU" : "channel.depth");
-  auto objectId = anari::map<uint32_t>(m_device,
-      m_frame,
-      m_deviceSupportsCUDAFrames ? "channel.objectIdGPU" : "channel.objectId");
+  const char *colorChannel =
+      m_deviceSupportsCUDAFrames ? "channel.colorGPU" : "channel.color";
+  const char *depthChannel =
+      m_deviceSupportsCUDAFrames ? "channel.depthGPU" : "channel.depth";
+  const char *idChannel =
+      m_deviceSupportsCUDAFrames ? "channel.objectIdGPU" : "channel.objectId";
+
+  auto color = anari::map<uint32_t>(m_device, m_frame, colorChannel);
+  auto depth = anari::map<float>(m_device, m_frame, depthChannel);
+  auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
 
   const tsd::uint2 size(getDimensions());
   if (size.x == color.width && size.y == color.height) {
@@ -270,9 +271,9 @@ void AnariRenderPass::copyFrameData()
       detail::copy(m_buffers.objectId, objectId.data, totalSize);
   }
 
-  anari::unmap(m_device, m_frame, "channel.color");
-  anari::unmap(m_device, m_frame, "channel.depth");
-  anari::unmap(m_device, m_frame, "channel.objectId");
+  anari::unmap(m_device, m_frame, colorChannel);
+  anari::unmap(m_device, m_frame, depthChannel);
+  anari::unmap(m_device, m_frame, idChannel);
 }
 
 void AnariRenderPass::composite(Buffers &b, int stageId)
