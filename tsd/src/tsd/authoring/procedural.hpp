@@ -10,6 +10,7 @@ namespace tsd {
 // clang-format off
 
 void generate_cylinders(Context &ctx, InstanceNode::Ref location = {}, bool useDefaultMaterial = false);
+void generate_hdri_dome(Context &ctx, InstanceNode::Ref location = {});
 void generate_material_orb(Context &ctx, InstanceNode::Ref location = {});
 void generate_monkey(Context &ctx, InstanceNode::Ref location = {});
 VolumeRef generate_noiseVolume(Context &ctx, InstanceNode::Ref location = {}, ArrayRef colors = {}, ArrayRef opacities = {});

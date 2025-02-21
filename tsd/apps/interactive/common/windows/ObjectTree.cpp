@@ -204,7 +204,7 @@ void ObjectTree::buildUI_objectContextMenu()
           clearSelectedNode = true;
         }
 
-        if (ImGui::MenuItem("material_orb")) {
+        if (ImGui::MenuItem("material orb")) {
           generate_material_orb(ctx, menuNode);
           clearSelectedNode = true;
         }
@@ -245,6 +245,11 @@ void ObjectTree::buildUI_objectContextMenu()
         if (ImGui::MenuItem("quad")) {
           ctx.insertNewChildObjectNode<tsd::Light>(
               menuNode, tsd::tokens::light::quad, "quad light");
+          clearSelectedNode = true;
+        }
+
+        if (ImGui::MenuItem("hdri dome")) {
+          generate_hdri_dome(ctx, menuNode);
           clearSelectedNode = true;
         }
 

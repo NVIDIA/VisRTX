@@ -20,6 +20,7 @@ PRIVATE
   authoring/importers/import_RAW.cpp
   authoring/importers/import_volume.cpp
   authoring/procedural/generate_cylinders.cpp
+  authoring/procedural/generate_hdri_dome.cpp
   authoring/procedural/generate_material_orb.cpp
   authoring/procedural/generate_monkey.cpp
   authoring/procedural/generate_noiseVolume.cpp
