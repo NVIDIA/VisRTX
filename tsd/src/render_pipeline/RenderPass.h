@@ -56,6 +56,7 @@ struct AnariRenderPass : public RenderPass
   void setCamera(anari::Camera c);
   void setRenderer(anari::Renderer r);
   void setWorld(anari::World w);
+  void setColorFormat(anari::DataType t);
 
   anari::Frame getFrame() const;
 
@@ -73,9 +74,6 @@ struct AnariRenderPass : public RenderPass
 
   anari::Device m_device{nullptr};
   anari::Frame m_frame{nullptr};
-  anari::Camera m_camera{nullptr};
-  anari::Renderer m_renderer{nullptr};
-  anari::World m_world{nullptr};
 };
 
 struct VisualizeDepthPass : public RenderPass

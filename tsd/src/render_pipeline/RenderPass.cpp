@@ -9,6 +9,7 @@
 #include <limits>
 
 #include "detail/parallel_for.h"
+#include "detail/parallel_transform.h"
 
 #ifdef ENABLE_CUDA
 // cuda
@@ -19,6 +20,13 @@
 namespace tsd {
 
 // Thrust kernels /////////////////////////////////////////////////////////////
+
+void convertFloatColorBuffer(const float *v, uint8_t *out, size_t totalSize)
+{
+  detail::parallel_transform(v, v + totalSize, out, [] DEVICE_FCN(float v) {
+    return uint8_t(v * 255);
+  });
+}
 
 DEVICE_FCN_INLINE uint32_t shadePixel(uint32_t c_in)
 {
@@ -169,37 +177,31 @@ AnariRenderPass::~AnariRenderPass()
   anari::wait(m_device, m_frame);
 
   anari::release(m_device, m_frame);
-  anari::release(m_device, m_camera);
-  anari::release(m_device, m_renderer);
-  anari::release(m_device, m_world);
   anari::release(m_device, m_device);
 }
 
 void AnariRenderPass::setCamera(anari::Camera c)
 {
-  anari::release(m_device, m_camera);
   anari::setParameter(m_device, m_frame, "camera", c);
   anari::commitParameters(m_device, m_frame);
-  m_camera = c;
-  anari::retain(m_device, m_camera);
 }
 
 void AnariRenderPass::setRenderer(anari::Renderer r)
 {
-  anari::release(m_device, m_renderer);
   anari::setParameter(m_device, m_frame, "renderer", r);
   anari::commitParameters(m_device, m_frame);
-  m_renderer = r;
-  anari::retain(m_device, m_renderer);
 }
 
 void AnariRenderPass::setWorld(anari::World w)
 {
-  anari::release(m_device, m_world);
   anari::setParameter(m_device, m_frame, "world", w);
   anari::commitParameters(m_device, m_frame);
-  m_world = w;
-  anari::retain(m_device, m_world);
+}
+
+void AnariRenderPass::setColorFormat(anari::DataType t)
+{
+  anari::setParameter(m_device, m_frame, "channel.color", t);
+  anari::commitParameters(m_device, m_frame);
 }
 
 anari::Frame AnariRenderPass::getFrame() const
@@ -257,7 +259,7 @@ void AnariRenderPass::copyFrameData()
   const char *idChannel =
       m_deviceSupportsCUDAFrames ? "channel.objectIdGPU" : "channel.objectId";
 
-  auto color = anari::map<uint32_t>(m_device, m_frame, colorChannel);
+  auto color = anari::map<void>(m_device, m_frame, colorChannel);
   auto depth = anari::map<float>(m_device, m_frame, depthChannel);
   auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
 
@@ -265,7 +267,12 @@ void AnariRenderPass::copyFrameData()
   if (size.x == color.width && size.y == color.height) {
     const size_t totalSize = size.x * size.y;
 
-    detail::copy(m_buffers.color, color.data, totalSize);
+    if (color.pixelType == ANARI_FLOAT32_VEC4) {
+      convertFloatColorBuffer(
+          (const float *)color.data, (uint8_t *)m_buffers.color, totalSize * 4);
+    } else
+      detail::copy(m_buffers.color, (uint32_t *)color.data, totalSize);
+
     detail::copy(m_buffers.depth, depth.data, totalSize);
     if (objectId.data)
       detail::copy(m_buffers.objectId, objectId.data, totalSize);

@@ -677,6 +677,25 @@ void Viewport::ui_contextMenu()
       ImGui::Text("Viewport:");
       ImGui::Indent(INDENT_AMOUNT);
 
+      if (ImGui::BeginMenu("format")) {
+        const anari::DataType format = m_format;
+
+        if (ImGui::RadioButton(
+                "UFIXED8_RGBA_SRGB", m_format == ANARI_UFIXED8_RGBA_SRGB))
+          m_format = ANARI_UFIXED8_RGBA_SRGB;
+        if (ImGui::RadioButton("UFIXED8_VEC4", m_format == ANARI_UFIXED8_VEC4))
+          m_format = ANARI_UFIXED8_VEC4;
+        if (ImGui::RadioButton("FLOAT32_VEC4", m_format == ANARI_FLOAT32_VEC4))
+          m_format = ANARI_FLOAT32_VEC4;
+
+        if (format != m_format)
+          m_anariPass->setColorFormat(m_format);
+
+        ImGui::EndMenu();
+      }
+
+      ImGui::Separator();
+
       if (ImGui::BeginMenu("render resolution")) {
         const float current = m_resolutionScale;
         if (ImGui::RadioButton("100%", current == 1.f))
