@@ -1,6 +1,10 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef TSD_USE_CUDA
+#define TSD_USE_CUDA 1
+#endif
+
 #include "tsd/authoring/serialization.hpp"
 #include "tsd/core/Logging.hpp"
 #if TSD_ENABLE_SERIALIZATION
@@ -11,6 +15,10 @@
 #include <stack>
 #include <stdexcept>
 #include <type_traits>
+#if TSD_USE_CUDA
+// cuda
+#include <cuda_runtime.h>
+#endif
 
 #ifndef TSD_ENABLE_SERIALIZATION
 #define TSD_ENABLE_SERIALIZATION 1
@@ -105,7 +113,16 @@ static void arrayToConduit(const Array &arr, conduit::Node &node)
   arrayData["dim"] = {arr.dim(0), arr.dim(1), arr.dim(2)};
 
   const auto *mem = reinterpret_cast<const uint8_t *>(arr.data());
-  arrayData["bytes"].set(mem, arr.size() * arr.elementSize());
+  const size_t numBytes = arr.size() * arr.elementSize();
+#if TSD_USE_CUDA
+  if (arr.kind() == Array::MemoryKind::CUDA) {
+    // TODO
+    std::vector<uint8_t> hostBuf(numBytes);
+    cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
+    arrayData["bytes"].set(hostBuf.data(), numBytes);
+  } else
+#endif
+    arrayData["bytes"].set(mem, numBytes);
 }
 
 static void objectTreeToConduit(InstanceTree &tree, conduit::Node &node)
