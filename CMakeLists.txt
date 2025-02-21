@@ -94,7 +94,6 @@ find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
 # CUDA
 find_package(CUDAToolkit 11.3.1)
-find_package(OptiX7)
 
 # OpenGL
 find_package(OpenGL)

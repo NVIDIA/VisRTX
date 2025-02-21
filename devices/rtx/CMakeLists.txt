@@ -52,7 +52,7 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 ## Find dependencies ##
 
 find_package(CUDAToolkit 11.3.1 REQUIRED)
-find_package(OptiX7 REQUIRED)
+find_package(OptiX REQUIRED)
 if(VISRTX_ENABLE_MDL_SUPPORT)
   find_package(MDL_SDK REQUIRED)
 endif()
@@ -182,7 +182,7 @@ PUBLIC
 PRIVATE
   anari::helium
   glm_visrtx
-  OptiX7::OptiX7
+  OptiX::OptiX
   CUDA::cuda_driver
   CUDA::curand
   fmt::fmt
@@ -238,7 +238,7 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     anari::anari
     anari::helium
     glm_visrtx
-    OptiX7::OptiX7
+    OptiX::OptiX
     CUDA::curand
     libnanovdb
   )
