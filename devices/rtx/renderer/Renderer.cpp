@@ -164,6 +164,8 @@ void Renderer::commitParameters()
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
       std::clamp(getParam<float>("volumeSamplingRate", 0.125f), 1e-3f, 10.f);
+  if (m_checkerboard)
+    m_spp = 1;
 }
 
 void Renderer::finalize()
