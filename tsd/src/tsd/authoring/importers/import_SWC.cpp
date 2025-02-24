@@ -45,7 +45,7 @@ struct SWCPoint
  * @param name A default name for the 3D representation.
  */
 void readSWCFile(
-    Context &ctx, const std::string &filename, InstanceNode::Ref location)
+    Context &ctx, const std::string &filename, LayerNodeRef location)
 {
   // Open the SWC file and check for errors
   std::ifstream file(filename);
@@ -73,7 +73,7 @@ void readSWCFile(
 
   // Get the location node if not already provided
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
   // Default material for the 3D representation
   auto material = ctx.defaultMaterial();
@@ -157,7 +157,7 @@ void readSWCFile(
   m->setParameter("metallic"_t, ANARI_FLOAT32, &metallic);
   m->setParameter("roughness"_t, ANARI_FLOAT32, &roughness);
 
-  const auto swcLocation = ctx.tree.insert_first_child(
+  const auto swcLocation = ctx.defaultLayer()->insert_first_child(
       location, tsd::utility::Any(ANARI_GEOMETRY, 1));
 
   // Create surfaces for the spheres and cones
@@ -181,7 +181,7 @@ void readSWCFile(
  * @param location Node in the scene graph where the SWC file should be
  * imported.
  */
-void import_SWC(Context &ctx, const char *filename, InstanceNode::Ref location)
+void import_SWC(Context &ctx, const char *filename, LayerNodeRef location)
 {
   readSWCFile(ctx, filename, location);
 }

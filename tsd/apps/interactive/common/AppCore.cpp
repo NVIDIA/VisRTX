@@ -142,7 +142,7 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
   } else {
     for (const auto &f : commandLine.filenames) {
       tsd::logStatus("...loading file '%s'", f.second.c_str());
-      auto root = tsd.ctx.tree.root();
+      auto root = tsd.ctx.defaultLayer()->root();
       if (f.first == ImporterType::TSD)
         tsd::import_Context(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::PLY)
@@ -263,10 +263,10 @@ void AppCore::setSelectedObject(tsd::Object *o)
     anari.delegate.signalObjectFilteringChanged();
 }
 
-void AppCore::setSelectedNode(tsd::InstanceNode &n)
+void AppCore::setSelectedNode(tsd::LayerNode &n)
 {
   setSelectedObject(tsd.ctx.getObject(n->value));
-  tsd.selectedNode = tsd.ctx.tree.at(n.index());
+  tsd.selectedNode = tsd.ctx.defaultLayer()->at(n.index());
 }
 
 void AppCore::clearSelected()

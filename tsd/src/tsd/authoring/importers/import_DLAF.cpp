@@ -41,7 +41,7 @@ void importDLAFFile(const char *filename, DLAFScene &s)
 
 void import_DLAF(Context &ctx,
     const char *filepath,
-    InstanceNode::Ref location,
+    LayerNodeRef location,
     bool useDefaultMaterial)
 {
   DLAFScene scene;
@@ -51,7 +51,7 @@ void import_DLAF(Context &ctx,
     return;
 
   auto dlaf_root = ctx.insertChildNode(
-      location ? location : ctx.tree.root(), fileOf(filepath).c_str());
+      location ? location : ctx.defaultLayer()->root(), fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.defaultMaterial()

@@ -48,7 +48,7 @@ struct AppCore
     tsd::Context ctx;
     bool sceneLoadComplete{false};
     tsd::Object *selectedObject{nullptr};
-    tsd::InstanceNode::Ref selectedNode;
+    tsd::LayerNodeRef selectedNode;
   } tsd;
 
   struct ANARIState
@@ -90,7 +90,7 @@ struct AppCore
   void releaseAllDevices();
 
   void setSelectedObject(tsd::Object *o);
-  void setSelectedNode(tsd::InstanceNode &n);
+  void setSelectedNode(tsd::LayerNode &n);
   void clearSelected();
 
   // Not copyable or moveable //

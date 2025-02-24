@@ -25,7 +25,7 @@ void ObjectTree::buildUI()
   }
 
   auto &ctx = m_core->tsd.ctx;
-  auto &tree = ctx.tree;
+  auto &tree = *ctx.defaultLayer();
 
   if (ImGui::Button("clear scene")) {
     m_core->clearSelected();
@@ -175,7 +175,7 @@ void ObjectTree::buildUI()
 void ObjectTree::buildUI_objectContextMenu()
 {
   auto &ctx = m_core->tsd.ctx;
-  auto &tree = ctx.tree;
+  auto &tree = *ctx.defaultLayer();
   const bool nodeSelected = m_menuNode != tsd::INVALID_INDEX;
   auto menuNode = nodeSelected ? tree.at(m_menuNode) : tree.root();
 
@@ -183,7 +183,7 @@ void ObjectTree::buildUI_objectContextMenu()
 
   if (ImGui::BeginPopup("ObjectTree_contextMenu")) {
     if (nodeSelected && ImGui::Checkbox("visible", &(*menuNode)->enabled))
-      ctx.signalInstanceTreeChange();
+      ctx.signalLayerChange();
 
     if (ImGui::BeginMenu("add")) {
       if (ImGui::MenuItem("transform")) {

@@ -78,7 +78,7 @@ void ImportFileDialog::buildUI()
     auto &ctx = m_core->tsd.ctx;
     auto importRoot = m_core->tsd.selectedNode;
     if (!importRoot)
-      importRoot = m_core->tsd.ctx.tree.root();
+      importRoot = m_core->tsd.ctx.defaultLayer()->root();
 
     auto selectedFileType =
         static_cast<tsd_viewer::ImporterType>(m_selectedFileType);
@@ -99,7 +99,7 @@ void ImportFileDialog::buildUI()
     else if (selectedFileType == ImporterType::SWC)
       tsd::import_SWC(ctx, m_filename.c_str(), importRoot);
 
-    ctx.signalInstanceTreeChange();
+    ctx.signalLayerChange();
 
     this->hide();
   }

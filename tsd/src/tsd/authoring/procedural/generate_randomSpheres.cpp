@@ -8,10 +8,10 @@
 namespace tsd {
 
 void generate_randomSpheres(
-    Context &ctx, InstanceNode::Ref location, bool useDefaultMaterial)
+    Context &ctx, LayerNodeRef location, bool useDefaultMaterial)
 {
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
   // Generate geometry //
 

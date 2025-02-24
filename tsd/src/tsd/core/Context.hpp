@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include "tsd/containers/Forest.hpp"
-#include "tsd/containers/IndexedVector.hpp"
+#include "tsd/core/Layer.hpp"
 #include "tsd/objects/Array.hpp"
 #include "tsd/objects/Geometry.hpp"
 #include "tsd/objects/Light.hpp"
@@ -14,41 +13,13 @@
 #include "tsd/objects/Surface.hpp"
 #include "tsd/objects/Volume.hpp"
 // std
+#include <memory>
 #include <type_traits>
 #include <utility>
 
 namespace tsd {
 
 struct BaseUpdateDelegate;
-struct Context;
-
-struct InstanceTreeData
-{
-  InstanceTreeData() = default;
-  template <typename T>
-  InstanceTreeData(T v, const char *n = "");
-  InstanceTreeData(utility::Any v, const char *n);
-
-  bool hasDefault() const;
-  bool isObject() const;
-  bool isTransform() const;
-  bool isEmpty() const;
-
-  Object *getObject(Context *ctx) const;
-  math::mat4 getTransform() const;
-
-  // Data //
-
-  utility::Any value;
-  utility::Any defaultValue;
-  std::string name;
-  bool enabled{true};
-  FlatMap<std::string, utility::Any> customParameters;
-  FlatMap<std::string, utility::Any> valueCache;
-};
-using InstanceTree = utility::Forest<InstanceTreeData>;
-using InstanceNode = utility::ForestNode<InstanceTreeData>;
-using InstanceVisitor = utility::ForestVisitor<InstanceTreeData>;
 
 struct ObjectDatabase
 {
@@ -80,7 +51,13 @@ struct Context
 {
   Context();
 
+  Context(const Context &) = delete;
+  Context &operator=(const Context &) = delete;
+  Context(Context &&) = delete;
+  Context &operator=(Context &&) = delete;
+
   MaterialRef defaultMaterial() const;
+  Layer *defaultLayer() const;
 
   /////////////////////////////
   // Flat object collections //
@@ -121,32 +98,28 @@ struct Context
 
   // Insert nodes //
 
-  InstanceNode::Ref insertChildNode(
-      InstanceNode::Ref parent, const char *name = "");
-  InstanceNode::Ref insertChildTransformNode(InstanceNode::Ref parent,
+  LayerNodeRef insertChildNode(LayerNodeRef parent, const char *name = "");
+  LayerNodeRef insertChildTransformNode(LayerNodeRef parent,
       mat4 xfm = tsd::mat4(tsd::math::identity),
       const char *name = "");
   template <typename T>
-  InstanceNode::Ref insertChildObjectNode(
-      InstanceNode::Ref parent, IndexedVectorRef<T> obj, const char *name = "");
+  LayerNodeRef insertChildObjectNode(
+      LayerNodeRef parent, IndexedVectorRef<T> obj, const char *name = "");
 
   // NOTE: convenience to create an object _and_ insert it into the tree
   template <typename T>
-  using AddedObject = std::pair<InstanceNode::Ref, IndexedVectorRef<T>>;
+  using AddedObject = std::pair<LayerNodeRef, IndexedVectorRef<T>>;
   template <typename T>
   AddedObject<T> insertNewChildObjectNode(
-      InstanceNode::Ref parent, Token subtype, const char *name = "");
+      LayerNodeRef parent, Token subtype, const char *name = "");
 
   // Remove nodes //
 
-  void removeInstancedObject(InstanceNode::Ref obj);
+  void removeInstancedObject(LayerNodeRef obj);
 
   // Indicate changes occurred //
 
-  void signalInstanceTreeChange();
-
-  InstanceTree tree{
-      {tsd::mat4(tsd::math::identity), "root"}}; // root must be a matrix
+  void signalLayerChange();
 
  private:
   friend void save_Context(Context &ctx, const char *filename);
@@ -166,55 +139,13 @@ struct Context
 
   ObjectDatabase m_db;
   BaseUpdateDelegate *m_updateDelegate{nullptr};
+  FlatMap<std::string, std::unique_ptr<Layer>> m_layers;
+  Layer *m_defaultLayer{nullptr};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // Inlined definitions ////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
-// InstanceTreeData //
-
-template <typename T>
-inline InstanceTreeData::InstanceTreeData(T v, const char *n)
-    : InstanceTreeData(utility::Any(v), n)
-{}
-
-inline InstanceTreeData::InstanceTreeData(utility::Any v, const char *n)
-    : value(v), name(n)
-{
-  if (!isObject())
-    defaultValue = v;
-}
-
-inline bool InstanceTreeData::hasDefault() const
-{
-  return defaultValue;
-}
-
-inline bool InstanceTreeData::isObject() const
-{
-  return anari::isObject(value.type());
-}
-
-inline bool InstanceTreeData::isTransform() const
-{
-  return value.type() == ANARI_FLOAT32_MAT4;
-}
-
-inline bool InstanceTreeData::isEmpty() const
-{
-  return value;
-}
-
-inline Object *InstanceTreeData::getObject(Context *ctx) const
-{
-  return ctx->getObject(value);
-}
-
-inline math::mat4 InstanceTreeData::getTransform() const
-{
-  return isTransform() ? value.getAs<math::mat4>() : math::IDENTITY_MAT4;
-}
 
 // Context //
 
@@ -359,25 +290,25 @@ inline IndexedVectorRef<OBJ_T> Context::createObjectImpl(
 }
 
 template <typename T>
-inline InstanceNode::Ref Context::insertChildObjectNode(
-    InstanceNode::Ref parent, IndexedVectorRef<T> obj, const char *name)
+inline LayerNodeRef Context::insertChildObjectNode(
+    LayerNodeRef parent, IndexedVectorRef<T> obj, const char *name)
 {
-  auto inst = tree.insert_last_child(
+  auto inst = defaultLayer()->insert_last_child(
       parent, tsd::utility::Any{obj->type(), obj->index()});
   (*inst)->name = name;
-  signalInstanceTreeChange();
+  signalLayerChange();
   return inst;
 }
 
 template <typename T>
 inline Context::AddedObject<T> Context::insertNewChildObjectNode(
-    InstanceNode::Ref parent, Token subtype, const char *name)
+    LayerNodeRef parent, Token subtype, const char *name)
 {
   auto obj = createObject<T>(subtype);
-  auto inst = tree.insert_last_child(
+  auto inst = defaultLayer()->insert_last_child(
       parent, tsd::utility::Any{obj->type(), obj->index()});
   (*inst)->name = name;
-  signalInstanceTreeChange();
+  signalLayerChange();
   return std::make_pair(inst, obj);
 }
 

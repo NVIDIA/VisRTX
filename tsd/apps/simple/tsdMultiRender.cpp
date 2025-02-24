@@ -60,7 +60,7 @@ int main()
 
   // Populate spheres //
 
-  tsd::generate_randomSpheres(ctx, ctx.tree.root(), true);
+  tsd::generate_randomSpheres(ctx, ctx.defaultLayer()->root(), true);
 
   // Setup ANARI device //
 

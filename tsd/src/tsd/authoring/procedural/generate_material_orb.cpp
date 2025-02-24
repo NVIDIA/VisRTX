@@ -72,12 +72,12 @@ static SamplerRef makeCheckboardTexture(Context &ctx, int size)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void generate_material_orb(Context &ctx, InstanceNode::Ref location)
+void generate_material_orb(Context &ctx, LayerNodeRef location)
 {
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
-  auto orb_root = ctx.tree.insert_last_child(
+  auto orb_root = ctx.defaultLayer()->insert_last_child(
       location, {tsd::mat4(tsd::math::identity), "material_orb"});
 
   MaterialRef mat;

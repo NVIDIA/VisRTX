@@ -105,11 +105,11 @@ void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
 
   auto s = ctx.createSurface("isosurface", g, ctx.defaultMaterial());
 
-  auto n = ctx.tree.insert_last_child(
-      ctx.tree.root(), tsd::utility::Any(ANARI_SURFACE, s.index()));
+  auto n = ctx.defaultLayer()->insert_last_child(
+      ctx.defaultLayer()->root(), tsd::utility::Any(ANARI_SURFACE, s.index()));
 
   m_core->setSelectedNode(*n);
-  ctx.signalInstanceTreeChange();
+  ctx.signalLayerChange();
 }
 
 } // namespace tsd_viewer

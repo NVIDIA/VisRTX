@@ -75,8 +75,8 @@ class Application : public BaseApplication
     volume->setParameterObject("color", *colorArray);
     volume->setParameterObject("opacity", *opacityArray);
 
-    ctx.tree.insert_last_child(
-        ctx.tree.root(), tsd::utility::Any(ANARI_VOLUME, volume.index()));
+    ctx.defaultLayer()->insert_last_child(
+        ctx.defaultLayer()->root(), tsd::utility::Any(ANARI_VOLUME, volume.index()));
 
     // Setup app //
 

@@ -6,10 +6,10 @@
 
 namespace tsd {
 
-void generate_monkey(Context &ctx, InstanceNode::Ref location)
+void generate_monkey(Context &ctx, LayerNodeRef location)
 {
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
   auto monkey = ctx.createObject<Geometry>(tokens::geometry::triangle);
   monkey->setName("monkey_geometry");

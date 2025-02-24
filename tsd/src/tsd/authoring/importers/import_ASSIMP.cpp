@@ -333,8 +333,8 @@ static std::vector<LightRef> importASSIMPLights(
   return lights;
 }
 
-static void populateASSIMPInstanceTree(Context &ctx,
-    InstanceNode::Ref tsdTreeRef,
+static void populateASSIMPLayer(Context &ctx,
+    LayerNodeRef tsdTreeRef,
     const std::vector<SurfaceRef> &surfaces,
     const aiNode *node)
 {
@@ -343,16 +343,16 @@ static void populateASSIMPInstanceTree(Context &ctx,
   tsd::mat4 mat;
   std::memcpy(&mat, &node->mTransformation, sizeof(mat));
   mat = tsd::math::transpose(mat);
-  auto tr = ctx.tree.insert_last_child(tsdTreeRef, {mat, node->mName.C_Str()});
+  auto tr = ctx.defaultLayer()->insert_last_child(tsdTreeRef, {mat, node->mName.C_Str()});
 
   for (unsigned int i = 0; i < node->mNumMeshes; i++) {
     auto mesh = surfaces.at(node->mMeshes[i]);
-    ctx.tree.insert_last_child(
+    ctx.defaultLayer()->insert_last_child(
         tr, {utility::Any(ANARI_SURFACE, mesh.index()), mesh->name().c_str()});
   }
 
   for (unsigned int i = 0; i < node->mNumChildren; i++)
-    populateASSIMPInstanceTree(ctx, tr, surfaces, node->mChildren[i]);
+    populateASSIMPLayer(ctx, tr, surfaces, node->mChildren[i]);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -361,7 +361,7 @@ static void populateASSIMPInstanceTree(Context &ctx,
 
 void import_ASSIMP(Context &ctx,
     const char *filename,
-    InstanceNode::Ref location,
+    LayerNodeRef location,
     bool flatten)
 {
   Assimp::DefaultLogger::create("", Assimp::Logger::VERBOSE);
@@ -383,13 +383,13 @@ void import_ASSIMP(Context &ctx,
   auto materials = importASSIMPMaterials(ctx, scene, filename);
   auto meshes = importASSIMPSurfaces(ctx, materials, scene);
 
-  populateASSIMPInstanceTree(
-      ctx, location ? location : ctx.tree.root(), meshes, scene->mRootNode);
+  populateASSIMPLayer(
+      ctx, location ? location : ctx.defaultLayer()->root(), meshes, scene->mRootNode);
 }
 #else
 void import_ASSIMP(Context &ctx,
     const char *filename,
-    InstanceNode::Ref location,
+    LayerNodeRef location,
     bool flatten)
 {
   logError("[import_ASSIMP] ASSIMP not enabled in TSD build.");

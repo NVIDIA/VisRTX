@@ -69,7 +69,7 @@ class Application : public BaseApplication
           tsd::logWarning("unable to load volume from file, using placeholder");
 
         auto tx1 =
-            core->tsd.ctx.insertChildTransformNode(core->tsd.ctx.tree.root());
+            core->tsd.ctx.insertChildTransformNode(core->tsd.ctx.defaultLayer()->root());
 
         volume = tsd::generate_noiseVolume(
             core->tsd.ctx, tx1, colorArray, opacityArray);
@@ -90,7 +90,7 @@ class Application : public BaseApplication
         light->setName("mainLight");
         light->setParameter("direction", tsd::float2(0.f, 240.f));
 
-        core->tsd.ctx.tree.insert_first_child(core->tsd.ctx.tree.root(),
+        core->tsd.ctx.defaultLayer()->insert_first_child(core->tsd.ctx.defaultLayer()->root(),
             tsd::utility::Any(ANARI_LIGHT, light.index()));
       }
 

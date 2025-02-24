@@ -9,12 +9,12 @@
 namespace tsd {
 
 VolumeRef generate_noiseVolume(Context &ctx,
-    InstanceNode::Ref location,
+    LayerNodeRef location,
     ArrayRef colorArray,
     ArrayRef opacityArray)
 {
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
   // Generate spatial field //
 

@@ -29,6 +29,7 @@ PRIVATE
   authoring/serialization/serialization.cpp
   core/AnariObjectCache.cpp
   core/Context.cpp
+  core/Layer.cpp
   core/Logging.cpp
   core/Object.cpp
   core/Parameter.cpp

@@ -13,7 +13,7 @@ namespace tsd {
 
 using namespace tinyply;
 
-void import_PLY(Context &ctx, const char *filename, InstanceNode::Ref location)
+void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
 {
   std::unique_ptr<std::istream> file_stream;
   std::vector<uint8_t> byte_buffer;
@@ -160,7 +160,7 @@ void import_PLY(Context &ctx, const char *filename, InstanceNode::Ref location)
     // Mesh //
 
     auto ply_root = ctx.insertChildNode(
-        location ? location : ctx.tree.root(), fileOf(filename).c_str());
+        location ? location : ctx.defaultLayer()->root(), fileOf(filename).c_str());
     auto mesh = ctx.createObject<Geometry>(tokens::geometry::triangle);
 
     auto makeArray1DForMesh = [&](Token parameterName,
@@ -202,7 +202,7 @@ void import_PLY(Context &ctx, const char *filename, InstanceNode::Ref location)
     mesh->setName((objectName + "_mesh").c_str());
 
     auto surface = ctx.createSurface(objectName.c_str(), mesh, mat);
-    ctx.tree.insert_last_child(
+    ctx.defaultLayer()->insert_last_child(
         ply_root, utility::Any(ANARI_SURFACE, surface.index()));
 
   } catch (const std::exception &e) {

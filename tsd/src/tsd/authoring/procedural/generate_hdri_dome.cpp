@@ -5,10 +5,10 @@
 
 namespace tsd {
 
-void generate_hdri_dome(Context &ctx, InstanceNode::Ref location)
+void generate_hdri_dome(Context &ctx, LayerNodeRef location)
 {
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
   auto arr = ctx.createArray(ANARI_FLOAT32_VEC3, 1, 2);
   std::vector<float3> colors = {float3(0.8f, 0.8f, 0.8f), float3(0.1f)};

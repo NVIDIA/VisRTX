@@ -96,15 +96,15 @@ class Application : public BaseApplication
     surface->setName("particle_surface");
     surface->setParameterObject("geometry", *particles);
     surface->setParameterObject("material", *particleMat);
-    ctx.tree.insert_last_child(
-        ctx.tree.root(), tsd::utility::Any(ANARI_SURFACE, surface.index()));
+    ctx.defaultLayer()->insert_last_child(
+        ctx.defaultLayer()->root(), tsd::utility::Any(ANARI_SURFACE, surface.index()));
 
     surface = ctx.createObject<tsd::Surface>();
     surface->setName("bh_surface");
     surface->setParameterObject("geometry", *blackHoles);
     surface->setParameterObject("material", *bhMat);
-    ctx.tree.insert_last_child(
-        ctx.tree.root(), tsd::utility::Any(ANARI_SURFACE, surface.index()));
+    ctx.defaultLayer()->insert_last_child(
+        ctx.defaultLayer()->root(), tsd::utility::Any(ANARI_SURFACE, surface.index()));
 
     // Setup app //
 

@@ -83,10 +83,19 @@ using ForestVisitorExitFunction =
 template <typename T>
 struct Forest
 {
+  using Ref = IndexedVectorRef<Forest<T>>;
+  using Node = ForestNode<T>;
   using NodeRef = typename ForestNode<T>::Ref;
+  using Visitor = ForestVisitor<T>;
 
   Forest(T &&initialValue);
+  Forest() = delete;
   ~Forest() = default;
+
+  Forest(const Forest &) = delete;
+  Forest &operator=(const Forest &) = delete;
+  Forest(Forest &&) = delete;
+  Forest &operator=(Forest &&) = delete;
 
   // ForestNode access //
 
@@ -417,7 +426,7 @@ inline void Forest<T>::traverse_impl(
 template <typename T>
 inline typename Forest<T>::NodeRef Forest<T>::make_ForestNode(T &&v)
 {
-  auto n = m_nodes.insert(ForestNode<T>(v));
+  auto n = m_nodes.emplace(std::forward<T>(v));
   n->m_self = n;
   n->m_children_end = n;
   n->m_children_begin = n;

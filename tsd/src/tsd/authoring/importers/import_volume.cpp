@@ -39,7 +39,7 @@ VolumeRef import_volume(Context &ctx,
   if (field)
     valueRange = field->computeValueRange();
 
-  auto tx = ctx.insertChildTransformNode(ctx.tree.root());
+  auto tx = ctx.insertChildTransformNode(ctx.defaultLayer()->root());
 
   auto [inst, volume] = ctx.insertNewChildObjectNode<tsd::Volume>(
       tx, tokens::volume::transferFunction1D);
