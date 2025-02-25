@@ -202,7 +202,7 @@ void Context::removeAllObjects()
   if (m_updateDelegate)
     m_updateDelegate->signalRemoveAllObjects();
 
-  defaultLayer()->erase_subtree(defaultLayer()->root());
+  defaultLayer()->root()->erase_subtree();
 
   m_db.array.clear();
   m_db.surface.clear();

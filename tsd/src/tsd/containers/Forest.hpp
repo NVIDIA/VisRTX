@@ -6,6 +6,7 @@
 #include "IndexedVector.hpp"
 // std
 #include <functional>
+#include <utility>
 
 namespace tsd::utility {
 
@@ -18,7 +19,7 @@ struct ForestNode
   using Ref = IndexedVectorRef<ForestNode<T>>;
 
   ForestNode() = default;
-  ForestNode(T initialValue);
+  ForestNode(T initialValue, Forest<T> *f);
 
   T &value();
   const T &value() const;
@@ -38,7 +39,14 @@ struct ForestNode
 
   size_t index() const;
 
+  Ref insert_first_child(T &&v);
+  Ref insert_last_child(T &&v);
+  void erase_subtree();
+
  private:
+  Ref self() const;
+  Forest<T> *forest() const;
+
   friend struct Forest<T>;
   template <typename U>
   friend bool operator==(const ForestNode<U> &a, const ForestNode<U> &b);
@@ -49,6 +57,7 @@ struct ForestNode
   Ref m_children_end;
   Ref m_next;
   Ref m_self;
+  Forest<T> *m_forest{nullptr};
 };
 
 template <typename T>
@@ -88,7 +97,7 @@ struct Forest
   using NodeRef = typename ForestNode<T>::Ref;
   using Visitor = ForestVisitor<T>;
 
-  Forest(T &&initialValue);
+  Forest(T &&initialRootValue);
   Forest() = delete;
   ~Forest() = default;
 
@@ -137,7 +146,7 @@ struct Forest
 // ForestNode<> //
 
 template <typename T>
-inline ForestNode<T>::ForestNode(T v) : m_value(v)
+inline ForestNode<T>::ForestNode(T v,  Forest<T> *f) : m_value(v), m_forest(f)
 {}
 
 template <typename T>
@@ -191,13 +200,13 @@ inline bool ForestNode<T>::isRoot() const
 template <typename T>
 inline bool ForestNode<T>::isLeaf() const
 {
-  return *this && m_children_begin == m_self && m_children_end == m_self;
+  return *this && m_children_begin == self() && m_children_end == self();
 }
 
 template <typename T>
 inline typename ForestNode<T>::Ref ForestNode<T>::next() const
 {
-  return m_children_begin != m_self ? m_children_begin : m_next;
+  return m_children_begin != self() ? m_children_begin : m_next;
 }
 
 template <typename T>
@@ -215,13 +224,50 @@ inline typename ForestNode<T>::Ref ForestNode<T>::prev() const
 template <typename T>
 inline size_t ForestNode<T>::index() const
 {
-  return m_self.index();
+  return self().index();
+}
+
+template <typename T>
+inline typename ForestNode<T>::Ref ForestNode<T>::insert_first_child(T &&v)
+{
+  if (auto *f = forest(); f != nullptr)
+    return f->insert_first_child(self(), std::forward<T>(v));
+  else
+    return {};
+}
+
+template <typename T>
+inline typename ForestNode<T>::Ref ForestNode<T>::insert_last_child(T &&v)
+{
+  if (auto *f = forest(); f != nullptr)
+    return f->insert_last_child(self(), std::forward<T>(v));
+  else
+    return {};
+}
+
+template <typename T>
+inline void ForestNode<T>::erase_subtree()
+{
+  if (auto *f = forest(); f != nullptr)
+    f->erase_subtree(self());
+}
+
+template <typename T>
+inline typename ForestNode<T>::Ref ForestNode<T>::self() const
+{
+  return m_self;
+}
+
+template <typename T>
+inline Forest<T> *ForestNode<T>::forest() const
+{
+  return m_forest;
 }
 
 template <typename T>
 inline bool operator==(const ForestNode<T> &a, const ForestNode<T> &b)
 {
-  return a.m_self == b.m_self;
+  return a.self() == b.self();
 }
 
 template <typename T>
@@ -279,7 +325,7 @@ inline typename Forest<T>::NodeRef Forest<T>::insert_first_child(
     Forest<T>::NodeRef n, T &&v)
 {
   auto newForestNode = make_ForestNode(std::forward<T>(v));
-  newForestNode->m_prev = n->m_self;
+  newForestNode->m_prev = n->self();
   newForestNode->m_next = n->m_children_begin;
   if (n->isLeaf())
     n->m_children_end = newForestNode;
@@ -295,7 +341,7 @@ inline typename Forest<T>::NodeRef Forest<T>::insert_last_child(
 {
   auto newForestNode = make_ForestNode(std::forward<T>(v));
   newForestNode->m_prev = n->m_children_end;
-  newForestNode->m_next = n->m_self;
+  newForestNode->m_next = n->self();
   if (n->isLeaf())
     n->m_children_begin = newForestNode;
   else
@@ -312,7 +358,7 @@ inline void Forest<T>::erase(Forest<T>::NodeRef n)
   if (n->isRoot())
     return;
 
-  auto self = n->m_self;
+  auto self = n->self();
   auto prev = n->prev();
   auto next = n->next();
 
@@ -342,7 +388,7 @@ inline void Forest<T>::erase_subtree(Forest<T>::NodeRef n)
     bool preChildren(ForestNode<T> &node, int level) override
     {
       if (level != 0)
-        indices.push_back(node.m_self.index());
+        indices.push_back(node.self().index());
       return true;
     }
 
@@ -426,7 +472,7 @@ inline void Forest<T>::traverse_impl(
 template <typename T>
 inline typename Forest<T>::NodeRef Forest<T>::make_ForestNode(T &&v)
 {
-  auto n = m_nodes.emplace(std::forward<T>(v));
+  auto n = m_nodes.emplace(std::forward<T>(v), this);
   n->m_self = n;
   n->m_children_end = n;
   n->m_children_begin = n;

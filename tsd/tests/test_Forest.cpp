@@ -95,7 +95,7 @@ SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
 
         THEN("Erasing all children from the root empties the forest")
         {
-          f.erase_subtree(f.root());
+          f.root()->erase_subtree();
           REQUIRE(f.empty());
           REQUIRE(f.root()->isLeaf());
         }

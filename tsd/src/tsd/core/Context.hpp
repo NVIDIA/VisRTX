@@ -293,8 +293,8 @@ template <typename T>
 inline LayerNodeRef Context::insertChildObjectNode(
     LayerNodeRef parent, IndexedVectorRef<T> obj, const char *name)
 {
-  auto inst = defaultLayer()->insert_last_child(
-      parent, tsd::utility::Any{obj->type(), obj->index()});
+  auto inst =
+      parent->insert_last_child(tsd::utility::Any{obj->type(), obj->index()});
   (*inst)->name = name;
   signalLayerChange();
   return inst;
@@ -305,8 +305,8 @@ inline Context::AddedObject<T> Context::insertNewChildObjectNode(
     LayerNodeRef parent, Token subtype, const char *name)
 {
   auto obj = createObject<T>(subtype);
-  auto inst = defaultLayer()->insert_last_child(
-      parent, tsd::utility::Any{obj->type(), obj->index()});
+  auto inst =
+      parent->insert_last_child(tsd::utility::Any{obj->type(), obj->index()});
   (*inst)->name = name;
   signalLayerChange();
   return std::make_pair(inst, obj);

@@ -50,8 +50,9 @@ void import_DLAF(Context &ctx,
   if (scene.points.empty())
     return;
 
-  auto dlaf_root = ctx.insertChildNode(
-      location ? location : ctx.defaultLayer()->root(), fileOf(filepath).c_str());
+  auto dlaf_root =
+      ctx.insertChildNode(location ? location : ctx.defaultLayer()->root(),
+          fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.defaultMaterial()

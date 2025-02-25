@@ -334,7 +334,7 @@ static std::vector<LightRef> importASSIMPLights(
 }
 
 static void populateASSIMPLayer(Context &ctx,
-    LayerNodeRef tsdTreeRef,
+    LayerNodeRef tsdLayerRef,
     const std::vector<SurfaceRef> &surfaces,
     const aiNode *node)
 {
@@ -343,12 +343,12 @@ static void populateASSIMPLayer(Context &ctx,
   tsd::mat4 mat;
   std::memcpy(&mat, &node->mTransformation, sizeof(mat));
   mat = tsd::math::transpose(mat);
-  auto tr = ctx.defaultLayer()->insert_last_child(tsdTreeRef, {mat, node->mName.C_Str()});
+  auto tr = tsdLayerRef->insert_last_child({mat, node->mName.C_Str()});
 
   for (unsigned int i = 0; i < node->mNumMeshes; i++) {
     auto mesh = surfaces.at(node->mMeshes[i]);
-    ctx.defaultLayer()->insert_last_child(
-        tr, {utility::Any(ANARI_SURFACE, mesh.index()), mesh->name().c_str()});
+    tr->insert_last_child(
+        {utility::Any(ANARI_SURFACE, mesh.index()), mesh->name().c_str()});
   }
 
   for (unsigned int i = 0; i < node->mNumChildren; i++)
@@ -359,10 +359,8 @@ static void populateASSIMPLayer(Context &ctx,
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-void import_ASSIMP(Context &ctx,
-    const char *filename,
-    LayerNodeRef location,
-    bool flatten)
+void import_ASSIMP(
+    Context &ctx, const char *filename, LayerNodeRef location, bool flatten)
 {
   Assimp::DefaultLogger::create("", Assimp::Logger::VERBOSE);
 
@@ -383,14 +381,14 @@ void import_ASSIMP(Context &ctx,
   auto materials = importASSIMPMaterials(ctx, scene, filename);
   auto meshes = importASSIMPSurfaces(ctx, materials, scene);
 
-  populateASSIMPLayer(
-      ctx, location ? location : ctx.defaultLayer()->root(), meshes, scene->mRootNode);
+  populateASSIMPLayer(ctx,
+      location ? location : ctx.defaultLayer()->root(),
+      meshes,
+      scene->mRootNode);
 }
 #else
-void import_ASSIMP(Context &ctx,
-    const char *filename,
-    LayerNodeRef location,
-    bool flatten)
+void import_ASSIMP(
+    Context &ctx, const char *filename, LayerNodeRef location, bool flatten)
 {
   logError("[import_ASSIMP] ASSIMP not enabled in TSD build.");
 }
