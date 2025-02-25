@@ -263,17 +263,17 @@ RenderIndexTreeHierarchy::~RenderIndexTreeHierarchy() = default;
 void RenderIndexTreeHierarchy::setFilterFunction(RenderIndexFilterFcn f)
 {
   m_filter = f;
-  signalInstanceStructureChanged();
+  signalLayerChanged();
 }
 
 void RenderIndexTreeHierarchy::signalArrayUnmapped(const Array *a)
 {
   RenderIndex::signalArrayUnmapped(a);
   if (a->elementType() == ANARI_FLOAT32_MAT4)
-    signalInstanceStructureChanged();
+    signalLayerChanged();
 }
 
-void RenderIndexTreeHierarchy::signalInstanceStructureChanged()
+void RenderIndexTreeHierarchy::signalLayerChanged()
 {
   updateWorld();
 }

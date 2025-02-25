@@ -74,10 +74,10 @@ void MultiUpdateDelegate::signalRemoveAllObjects()
     d->signalRemoveAllObjects();
 }
 
-void MultiUpdateDelegate::signalInstanceStructureChanged()
+void MultiUpdateDelegate::signalLayerChanged()
 {
   for (auto &d : m_delegates)
-    d->signalInstanceStructureChanged();
+    d->signalLayerChanged();
 }
 
 void MultiUpdateDelegate::signalObjectFilteringChanged()

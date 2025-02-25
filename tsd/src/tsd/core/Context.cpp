@@ -284,7 +284,7 @@ void Context::removeInstancedObject(LayerNodeRef obj)
 void Context::signalLayerChange()
 {
   if (m_updateDelegate)
-    m_updateDelegate->signalInstanceStructureChanged();
+    m_updateDelegate->signalLayerChanged();
 }
 
 ArrayRef Context::createArrayImpl(anari::DataType type,

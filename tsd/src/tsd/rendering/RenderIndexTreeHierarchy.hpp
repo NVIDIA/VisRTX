@@ -15,7 +15,7 @@ struct RenderIndexTreeHierarchy : public RenderIndex
   void setFilterFunction(RenderIndexFilterFcn f) override;
 
   void signalArrayUnmapped(const Array *a) override;
-  void signalInstanceStructureChanged() override;
+  void signalLayerChanged() override;
   void signalObjectFilteringChanged() override;
 
  private:

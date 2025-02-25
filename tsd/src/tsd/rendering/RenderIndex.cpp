@@ -207,7 +207,7 @@ void RenderIndex::signalArrayUnmapped(const Array *a)
     anariUnmapArray(device(), (anari::Array)arr);
 }
 
-void RenderIndex::signalInstanceStructureChanged()
+void RenderIndex::signalLayerChanged()
 {
   // no-op
 }

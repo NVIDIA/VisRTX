@@ -26,7 +26,7 @@ struct BaseUpdateDelegate
   virtual void signalArrayUnmapped(const Array *a) = 0;
   virtual void signalObjectRemoved(const Object *o) = 0;
   virtual void signalRemoveAllObjects() = 0;
-  virtual void signalInstanceStructureChanged() = 0;
+  virtual void signalLayerChanged() = 0;
   virtual void signalObjectFilteringChanged() = 0;
 
   // Not copyable or movable
@@ -49,7 +49,7 @@ struct EmptyUpdateDelegate : public BaseUpdateDelegate
   void signalArrayUnmapped(const Array *) override {}
   void signalObjectRemoved(const Object *) override {}
   void signalRemoveAllObjects() override {}
-  void signalInstanceStructureChanged() override {}
+  void signalLayerChanged() override {}
   void signalObjectFilteringChanged() override {};
 };
 
@@ -74,7 +74,7 @@ struct MultiUpdateDelegate : public BaseUpdateDelegate
   void signalArrayUnmapped(const Array *a) override;
   void signalObjectRemoved(const Object *o) override;
   void signalRemoveAllObjects() override;
-  void signalInstanceStructureChanged() override;
+  void signalLayerChanged() override;
   void signalObjectFilteringChanged() override;
 
  private:
