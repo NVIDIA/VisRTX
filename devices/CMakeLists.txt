@@ -39,3 +39,8 @@ option(VISRTX_BUILD_GL_DEVICE "Build OpenGL device" ON)
 if (VISRTX_BUILD_GL_DEVICE)
   add_subdirectory(gl)
 endif()
+
+option(VISRTX_BUILD_GL2_DEVICE "Build OpenGL2 device" ON)
+if (VISRTX_BUILD_GL2_DEVICE)
+  add_subdirectory(gl2)
+endif()
