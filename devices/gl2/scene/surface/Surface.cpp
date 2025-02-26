@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2025 NVIDIA Corporation
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "Surface.h"
