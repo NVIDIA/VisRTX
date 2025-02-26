@@ -1,4 +1,4 @@
-// Copyright 2021-2025 NVIDIA Corporation
+// Copyright 2025 NVIDIA Corporation
 // SPDX-License-Identifier: BSD-3-Clause
 
 #pragma once
@@ -81,6 +81,15 @@ struct VisGL2Device : public helium::BaseDevice
  private:
   VisGL2DeviceGlobalState *deviceState() const;
 
+  friend void anariDeviceReportStatus(ANARIDevice,
+      ANARIStatusSeverity severity,
+      ANARIStatusCode code,
+      const char *format,
+      ...);
+
+  std::string m_glAPI{"OpenGL"};
+  bool m_glDebug{false};
+  void *m_eglDisplay{nullptr};
   bool m_initialized{false};
 };
 

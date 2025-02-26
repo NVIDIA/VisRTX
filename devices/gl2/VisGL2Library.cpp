@@ -1,9 +1,10 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2025 NVIDIA Corporation
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "VisGL2Device.h"
 #include "anari/backend/LibraryImpl.h"
 #include "anari_library_visgl2_export.h"
+#include "anari_library_visgl2_queries.h"
 
 namespace visgl2 {
 
@@ -30,7 +31,7 @@ ANARIDevice VisGL2Library::newDevice(const char * /*subtype*/)
 
 const char **VisGL2Library::getDeviceExtensions(const char * /*deviceType*/)
 {
-  return nullptr;
+  return query_extensions();
 }
 
 } // namespace visgl2
