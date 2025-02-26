@@ -1,4 +1,4 @@
-// Copyright 2021-2025 NVIDIA Corporation
+// Copyright 2025 NVIDIA Corporation
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "VisGL2Device.h"
@@ -12,7 +12,110 @@
 
 #include "anari_library_visgl2_queries.h"
 
+#ifdef VISGL2_USE_EGL
+#include "gl/egl/egl_context.h"
+#endif
+#ifdef VISGL2_USE_GLX
+#include "gl/glx/glx_context.h"
+#endif
+#ifdef VISGL2_USE_WGL
+#include "gl/wgl/wgl_context.h"
+#endif
+
 namespace visgl2 {
+
+// Helper functions ///////////////////////////////////////////////////////////
+
+static void gl_debug_callback(GLenum source,
+    GLenum type,
+    GLenum id,
+    GLenum severity,
+    GLsizei length,
+    const GLchar *message,
+    const void *userdata)
+{
+  if (severity != GL_DEBUG_SEVERITY_HIGH)
+    return;
+  auto device = reinterpret_cast<ANARIDevice>(const_cast<void *>(userdata));
+  anariDeviceReportStatus(device,
+      ANARI_SEVERITY_INFO,
+      ANARI_STATUS_NO_ERROR,
+      "[OpenGL] %s",
+      message);
+}
+
+static void gl_context_init(VisGL2DeviceGlobalState *state, bool debug)
+{
+  auto &context = state->gl.context;
+  auto &extensions = state->gl.extensions;
+  auto &gl = state->gl.gl;
+
+  context->init();
+  context->makeCurrent();
+
+  int version = 0;
+  if (state->gl.useGLES)
+    version = gladLoadGLES2Context(&gl, (GLADloadfunc)context->loaderFunc());
+  else
+    version = gladLoadGLContext(&gl, (GLADloadfunc)context->loaderFunc());
+
+  const char **ext = query_extensions();
+  for (int i = 0; ext[i] != nullptr; ++i) {
+    if (strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC123", ext[i], 41) == 0) {
+      if (gl.EXT_texture_compression_s3tc)
+        extensions.push_back(ext[i]);
+    } else if (strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC45", ext[i], 40)
+        == 0) {
+      if (gl.ARB_texture_compression_rgtc)
+        extensions.push_back(ext[i]);
+    } else if (strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_BC67", ext[i], 40)
+        == 0) {
+      if (gl.ARB_texture_compression_bptc)
+        extensions.push_back(ext[i]);
+    } else if (strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ASTC", ext[i], 40)
+        == 0) {
+      if (gl.KHR_texture_compression_astc_ldr || gl.ES_VERSION_3_2)
+        extensions.push_back(ext[i]);
+    } else if (strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_ETC2", ext[i], 40)
+        == 0) {
+      if (gl.VERSION_4_3 || gl.ES_VERSION_3_2)
+        extensions.push_back(ext[i]);
+    } else if (strncmp("ANARI_EXT_SAMPLER_COMPRESSED_FORMAT_EAC", ext[i], 39)
+        == 0) {
+      if (gl.VERSION_4_3 || gl.ES_VERSION_3_2)
+        extensions.push_back(ext[i]);
+    } else
+      extensions.push_back(ext[i]);
+  }
+  extensions.push_back(nullptr);
+
+  if (version == 0) {
+    anariDeviceReportStatus(state->device,
+        ANARI_SEVERITY_INFO,
+        ANARI_STATUS_NO_ERROR,
+        "[GLAD] Failed to load GLES entry points");
+  }
+
+  if (debug && gl.DebugMessageCallback) {
+    anariDeviceReportStatus(state->device,
+        ANARI_SEVERITY_INFO,
+        ANARI_STATUS_NO_ERROR,
+        "[OpenGL] setup debug callback\n");
+    gl.DebugMessageCallback(gl_debug_callback, state->device);
+    gl.DebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION,
+        GL_DEBUG_TYPE_OTHER,
+        0,
+        GL_DEBUG_SEVERITY_NOTIFICATION,
+        -1,
+        "test message callback.");
+  }
+
+  anariDeviceReportStatus(state->device,
+      ANARI_SEVERITY_INFO,
+      ANARI_STATUS_NO_ERROR,
+      "%s\n",
+      gl.GetString(GL_VERSION));
+}
 
 // API Objects ////////////////////////////////////////////////////////////////
 
@@ -215,13 +318,54 @@ void VisGL2Device::initDevice()
 {
   if (m_initialized)
     return;
+
   reportMessage(ANARI_SEVERITY_DEBUG, "initializing VisGL2 device (%p)", this);
+
+  auto &state = *deviceState();
+  auto &context = state.gl.context;
+
+  state.gl.useGLES = m_glAPI == "OpenGL_ES";
+
+#ifdef VISGL2_USE_GLX
+  Display *display = glXGetCurrentDisplay();
+  if (display) {
+    GLXContext glx_context = glXGetCurrentContext();
+    context.reset(
+        new glxContext(this_device(), display, glx_context, m_glDebug));
+  } else {
+#endif
+
+#ifdef VISGL2_USE_EGL
+    EGLenum api = state.gl.useGLES ? EGL_OPENGL_ES_API : EGL_OPENGL_API;
+    auto egldisplay = (EGLDisplay)m_eglDisplay;
+    if (egldisplay == EGL_NO_DISPLAY)
+      egldisplay = eglGetCurrentDisplay();
+    context.reset(new eglContext(
+        this_device(), egldisplay, api, m_glDebug ? EGL_TRUE : EGL_FALSE));
+#endif
+
+#ifdef VISGL2_USE_GLX
+  }
+#endif
+
+#ifdef VISGL2_USE_WGL
+  HDC dc = wglGetCurrentDC();
+  HGLRC wgl_context = wglGetCurrentContext();
+  context.reset(new wglContext(
+      this_device(), dc, wgl_context, state.gl.useGLES, m_glDebug));
+#endif
+
+  state.gl.thread.enqueue(gl_context_init, deviceState(), m_glDebug).wait();
+
   m_initialized = true;
 }
 
 void VisGL2Device::deviceCommitParameters()
 {
   helium::BaseDevice::deviceCommitParameters();
+  m_glAPI = getParamString("glAPI", "OpenGL");
+  m_glDebug = getParam<bool>("glDebug", false);
+  m_eglDisplay = getParam<void *>("EGLDisplay", nullptr);
 }
 
 int VisGL2Device::deviceGetProperty(

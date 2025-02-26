@@ -5,7 +5,8 @@
     "dependencies": [
       "anari_core_1_0",
       "anari_core_objects_base_1_0",
-      "khr_instance_transform"
+      "khr_device_synchronization",
+      "khr_renderer_background_color"
     ]
   },
   "objects": [
