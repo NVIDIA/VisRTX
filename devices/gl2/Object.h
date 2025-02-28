@@ -10,13 +10,11 @@
 #include "helium/utility/ChangeObserverPtr.h"
 // std
 #include <string_view>
+// gl
+#include "ogl.h"
 
 namespace visgl2 {
 
-// This is the base of all objects other than arrays and frames, where all
-// truely device-wide generic object data and behaviors can be consolidated. The
-// main addition this has over helium::BaseObject is the concept of "object
-// validity" (isValid() virtual function).
 struct Object : public helium::BaseObject
 {
   Object(ANARIDataType type, VisGL2DeviceGlobalState *s);
@@ -30,16 +28,12 @@ struct Object : public helium::BaseObject
   virtual void commitParameters() override;
   virtual void finalize() override;
 
-  // Returns whether this object is valid or not. Validity is defined as being
-  // a known object subtype and it is sufficiently parameterized to do something
-  // useful in rendering a frame. When assembling objects in the scene behind
-  // the API, it is useful to skip invalid objects as invalid/unknown object
-  // usage should not be fatal to the application.
   bool isValid() const override;
 
-  // Convenience function to get the generic helium::DeviceGlobalState as this
-  // device's specific global state type.
   VisGL2DeviceGlobalState *deviceState() const;
+
+  template <typename METHOD_T>
+  tasking::Future gl_enqueue_method(METHOD_T m);
 };
 
 // This gets instantiated for all object subtypes which are not known
@@ -49,6 +43,15 @@ struct UnknownObject : public Object
   ~UnknownObject() override = default;
   bool isValid() const override;
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+template <typename METHOD_T>
+inline tasking::Future Object::gl_enqueue_method(METHOD_T m)
+{
+  auto &state = *deviceState();
+  return state.gl.thread.enqueue(m, this);
+}
 
 } // namespace visgl2
 

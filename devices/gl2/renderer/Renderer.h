@@ -9,16 +9,6 @@
 
 namespace visgl2 {
 
-// This is just an example struct of what data is associated with each pixel.
-struct PixelSample
-{
-  vec4 color{0.f, 1.f, 0.f, 1.f};
-  float depth{std::numeric_limits<float>::max()};
-
-  PixelSample(vec4 c) : color(c) {}
-};
-
-// Inherit from this, add your functionality, and add it to 'createInstance()'
 struct Renderer : public Object
 {
   Renderer(VisGL2DeviceGlobalState *s);

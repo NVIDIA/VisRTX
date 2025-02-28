@@ -18,10 +18,10 @@ struct VisGL2DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
   struct GLState
   {
-    TaskQueue thread{128};
+    tasking::TaskQueue thread{128};
     std::unique_ptr<GLContextInterface> context;
     bool useGLES{false};
-    GladGLContext gl{};
+    GladGLContext glAPI{};
     std::vector<const char *> extensions;
   } gl;
 
