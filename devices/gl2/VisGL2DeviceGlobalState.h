@@ -16,7 +16,7 @@ namespace visgl2 {
 
 struct VisGL2DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
-  struct GLState
+  struct GLContextState
   {
     tasking::TaskQueue thread{128};
     std::unique_ptr<GLContextInterface> context;
