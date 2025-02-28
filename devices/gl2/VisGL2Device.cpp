@@ -48,7 +48,7 @@ static void gl_context_init(VisGL2DeviceGlobalState *state, bool debug)
 {
   auto &context = state->gl.context;
   auto &extensions = state->gl.extensions;
-  auto &gl = state->gl.gl;
+  auto &gl = state->gl.glAPI;
 
   context->init();
   context->makeCurrent();

@@ -13,6 +13,17 @@
 
 namespace visgl2 {
 
+struct FrameGLState
+{
+  GLuint colortarget{0};
+  GLuint colorbuffer{0};
+  GLuint depthtarget{0};
+  GLuint depthbuffer{0};
+  GLuint fbo{0};
+  void *mappedColorPtr{nullptr};
+  void *mappedDepthPtr{nullptr};
+};
+
 struct Frame : public helium::BaseFrame
 {
   Frame(VisGL2DeviceGlobalState *s);
@@ -44,18 +55,25 @@ struct Frame : public helium::BaseFrame
   void wait() const;
 
  private:
-  void writeSample(int x, int y, const PixelSample &s);
+  template <typename METHOD_T>
+  tasking::Future gl_enqueue_method(METHOD_T m);
+
+  void ogl_allocateObjects();
+  void ogl_freeObjects();
+  void ogl_renderFrame();
+  void ogl_mapColorBuffer();
+  void ogl_mapDepthBuffer();
+  void ogl_unmapColorBuffer();
+  void ogl_unmapDepthBuffer();
 
   //// Data ////
 
-  int m_perPixelBytes{1};
-  uvec2 m_size{0u, 0u};
+  FrameGLState m_glState;
+  tasking::Future m_future;
 
+  uvec2 m_size{0u, 0u};
   anari::DataType m_colorType{ANARI_UNKNOWN};
   anari::DataType m_depthType{ANARI_UNKNOWN};
-
-  std::vector<uint8_t> m_pixelBuffer;
-  std::vector<float> m_depthBuffer;
 
   helium::IntrusivePtr<Renderer> m_renderer;
   helium::IntrusivePtr<Camera> m_camera;
@@ -63,6 +81,15 @@ struct Frame : public helium::BaseFrame
 
   float m_duration{0.f};
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+template <typename METHOD_T>
+inline tasking::Future Frame::gl_enqueue_method(METHOD_T m)
+{
+  auto &state = *deviceState();
+  return state.gl.thread.enqueue(m, this);
+}
 
 } // namespace visgl2
 
