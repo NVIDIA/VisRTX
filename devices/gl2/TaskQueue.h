@@ -5,6 +5,7 @@
 
 // std
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <future>
@@ -13,7 +14,9 @@
 #include <utility>
 #include <vector>
 
-namespace visgl2 {
+namespace visgl2::tasking {
+
+using Future = std::future<void>;
 
 struct TaskQueue
 {
@@ -21,7 +24,7 @@ struct TaskQueue
   ~TaskQueue();
 
   template <class F, class... Args>
-  std::future<void> enqueue(F &&f, Args &&...args);
+  Future enqueue(F &&f, Args &&...args);
 
  private:
   static void thread_fun(TaskQueue *ct);
@@ -35,6 +38,9 @@ struct TaskQueue
   std::condition_variable m_condition;
   std::thread m_thread;
 };
+
+bool isReady(const Future &f);
+void wait(const Future &f);
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
@@ -52,11 +58,11 @@ inline TaskQueue::~TaskQueue()
 }
 
 template <class F, class... Args>
-inline std::future<void> TaskQueue::enqueue(F &&f, Args &&...args)
+inline Future TaskQueue::enqueue(F &&f, Args &&...args)
 {
   std::packaged_task<void()> task(
       std::bind(std::forward<F>(f), std::forward<Args>(args)...));
-  std::future<void> future = task.get_future();
+  Future future = task.get_future();
 
   if (std::this_thread::get_id() == m_thread.get_id())
     task();
@@ -90,4 +96,16 @@ inline void TaskQueue::thread_fun(TaskQueue *ct)
   }
 }
 
-} // namespace visgl2
+inline bool isReady(const Future &f)
+{
+  return !f.valid()
+      || f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+}
+
+inline void wait(const Future &f)
+{
+  if (f.valid())
+    f.wait();
+}
+
+} // namespace visgl2::tasking
