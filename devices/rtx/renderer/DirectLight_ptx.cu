@@ -84,18 +84,13 @@ VISRTX_DEVICE vec4 shadeSurface(
   // Env faking
   LightSample ls = {
       rendererParams.ambientIntensity * rendererParams.ambientColor,
-      -ray.dir,
+      hit.Ns,
       1000.f,
       1.0f};
-#if 0
+
   const vec4 matAoResult =
       evalMaterial(frameData, ss, *hit.material, hit, ray, ls);
   vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
-#else
-  const vec4 matAoResult =
-      shadeMatteSurface(frameData, hit.material->matte, ray, hit, ls);
-  vec3 contrib = vec3(matAoResult) * aoFactor;
-#endif
 
   float opacity = matAoResult.w;
 
