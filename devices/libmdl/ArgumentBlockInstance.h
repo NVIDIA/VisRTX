@@ -26,7 +26,7 @@ class ArgumentBlockInstance
   ArgumentBlockInstance() = default;
 
   ArgumentBlockInstance(
-      const ArgumentBlockDescriptor& argumentBlockDescriptor, Core *core);
+      const ArgumentBlockDescriptor &argumentBlockDescriptor, Core *core);
 
   using ArgumentType = ArgumentBlockDescriptor::ArgumentType;
   using Argument = ArgumentBlockDescriptor::Argument;
@@ -85,11 +85,12 @@ class ArgumentBlockInstance
       mi::neuraylib::ITransaction *transaction,
       mi::neuraylib::IMdl_factory *factory);
 
-enum class ColorSpace {
+  enum class ColorSpace
+  {
     Auto,
     Raw,
     sRGB,
-};
+  };
   void setTextureValue(std::string_view name,
       std::string_view pathName,
       ColorSpace colorspace,
@@ -104,8 +105,12 @@ enum class ColorSpace {
   // Finalize resources creation.
   void finalizeResourceCreation(mi::neuraylib::ITransaction *transaction);
 
-  // Returns the database names of the resources as they match the setValue calls.
-  const std::vector<std::string>& getTextureResourceNames() { return m_textureResourceNames; }
+  // Returns the database names of the resources as they match the setValue
+  // calls.
+  const std::vector<std::string> &getTextureResourceNames()
+  {
+    return m_textureResourceNames;
+  }
 
   // Resources as processed by our MDL's ResourceCallback implementation.
   template <typename T>
@@ -121,9 +126,9 @@ enum class ColorSpace {
           std::uint32_t,
           HandleHasher<const mi::neuraylib::IValue_resource>>;
   using ResourceDescriptors =
-    std::unordered_map<mi::base::Handle<const mi::neuraylib::IValue_resource>,
-    ArgumentBlockDescriptor::TextureDescriptor,
-        HandleHasher<const mi::neuraylib::IValue_resource>>;
+      std::unordered_map<mi::base::Handle<const mi::neuraylib::IValue_resource>,
+          ArgumentBlockDescriptor::TextureDescriptor,
+          HandleHasher<const mi::neuraylib::IValue_resource>>;
 
  private:
   ArgumentBlockDescriptor m_argumentBlockDescriptor = {};
@@ -135,19 +140,19 @@ enum class ColorSpace {
   Core *m_core = {};
 
   // Some helper function for setValue(int|float[2,3,4]);
-  template<typename T, std::size_t S>
+  template <typename T, std::size_t S>
   void _setValue(std::string_view name,
-    const T (&value)[S],
-    mi::neuraylib::ITransaction *transaction,
-    mi::neuraylib::IMdl_factory *factory);
+      const T (&value)[S],
+      mi::neuraylib::ITransaction *transaction,
+      mi::neuraylib::IMdl_factory *factory);
 
-    void loadTextureToDb(std::string_view filePath,
-        ColorSpace colorspace,
-        mi::neuraylib::ITransaction *transaction);
-    
-    bool loadTextureToDb(const libmdl::ArgumentBlockDescriptor::TextureDescriptor &textureDesc,
-        mi::neuraylib::ITransaction *transaction);
-        
+  void loadTextureToDb(std::string_view filePath,
+      ColorSpace colorspace,
+      mi::neuraylib::ITransaction *transaction);
+
+  bool loadTextureToDb(
+      const libmdl::ArgumentBlockDescriptor::TextureDescriptor &textureDesc,
+      mi::neuraylib::ITransaction *transaction);
 };
 
 } // namespace visrtx::libmdl

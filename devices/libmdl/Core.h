@@ -113,7 +113,8 @@ class Core
       const mi::neuraylib::ICompiled_material *compiledMaterial,
       mi::neuraylib::ITransaction *transaction);
 
-  const char* resolveResource(const char* resourcePath, const char* owner = nullptr);
+  const char *resolveResource(
+      const char *resourcePath, const char *owner = nullptr);
 
  private:
   Core(mi::neuraylib::INeuray *neuray, mi::base::ILogger *logger);
