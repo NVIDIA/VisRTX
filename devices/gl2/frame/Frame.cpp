@@ -10,23 +10,6 @@ namespace visgl2 {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static uint32_t cvt_uint32(const float &f)
-{
-  return static_cast<uint32_t>(255.f * std::clamp(f, 0.f, 1.f));
-}
-
-static uint32_t cvt_uint32(const vec4 &v)
-{
-  return (cvt_uint32(v.x) << 0) | (cvt_uint32(v.y) << 8)
-      | (cvt_uint32(v.z) << 16) | (cvt_uint32(v.w) << 24);
-}
-
-static uint32_t cvt_uint32_srgb(const vec4 &v)
-{
-  return cvt_uint32(vec4(
-      helium::toneMap(v.x), helium::toneMap(v.y), helium::toneMap(v.z), v.w));
-}
-
 static GLenum anari2gl(ANARIDataType format)
 {
   switch (format) {
@@ -191,7 +174,6 @@ void Frame::ogl_allocateObjects()
   const uint32_t height = m_size.y;
   const uint32_t elements = width * height;
   const uint32_t element_size = anari::sizeOf(m_colorType);
-  const GLenum format = anari2gl(m_colorType);
 
   ogl_freeObjects();
 
@@ -207,7 +189,7 @@ void Frame::ogl_allocateObjects()
 
   gl.GenTextures(1, &m_glState.colortarget);
   gl.BindTexture(GL_TEXTURE_2D, m_glState.colortarget);
-  gl.TexStorage2D(GL_TEXTURE_2D, 1, format, width, height);
+  gl.TexStorage2D(GL_TEXTURE_2D, 1, anari2gl(m_colorType), width, height);
   gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -250,7 +232,10 @@ void Frame::ogl_renderFrame()
   auto bgc = m_renderer ? m_renderer->background() : vec4(1.f, 0.f, 1.f, 1.f);
 
   gl.BindFramebuffer(GL_FRAMEBUFFER, m_glState.fbo);
-  gl.Enable(GL_FRAMEBUFFER_SRGB);
+  if (m_colorType == ANARI_UFIXED8_RGBA_SRGB)
+    gl.Enable(GL_FRAMEBUFFER_SRGB);
+  else
+    gl.Disable(GL_FRAMEBUFFER_SRGB);
   gl.Viewport(0, 0, m_size.x, m_size.y);
   gl.ClearColor(bgc.x, bgc.y, bgc.z, bgc.w);
   gl.Clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
