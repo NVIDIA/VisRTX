@@ -31,9 +31,6 @@ struct Object : public helium::BaseObject
   bool isValid() const override;
 
   VisGL2DeviceGlobalState *deviceState() const;
-
-  template <typename METHOD_T>
-  tasking::Future gl_enqueue_method(METHOD_T m);
 };
 
 // This gets instantiated for all object subtypes which are not known
@@ -46,11 +43,11 @@ struct UnknownObject : public Object
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-template <typename METHOD_T>
-inline tasking::Future Object::gl_enqueue_method(METHOD_T m)
+template <typename OBJECT_T, typename METHOD_T>
+inline tasking::Future gl_enqueue_method(OBJECT_T *o, METHOD_T m)
 {
-  auto &state = *deviceState();
-  return state.gl.thread.enqueue(m, this);
+  auto &state = *o->deviceState();
+  return state.gl.thread.enqueue(m, o);
 }
 
 } // namespace visgl2

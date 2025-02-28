@@ -4,10 +4,13 @@
 #pragma once
 
 #include "Object.h"
-// std
-#include <limits>
 
 namespace visgl2 {
+
+struct RendererGLState
+{
+  GLuint shaderProgram{0};
+};
 
 struct Renderer : public Object
 {
@@ -22,6 +25,9 @@ struct Renderer : public Object
   vec4 background() const;
 
  private:
+  void ogl_initShaders();
+
+  RendererGLState m_glState;
   vec4 m_background{0.f, 0.f, 0.f, 1.f};
 };
 
