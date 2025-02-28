@@ -34,14 +34,13 @@
 #include <mi/neuraylib/itype.h>
 #include <mi/neuraylib/ivalue.h>
 #include <mi/neuraylib/iversion.h>
-#include "fmt/base.h"
 
 #ifdef MI_PLATFORM_WINDOWS
 #define WINDOWS_LEAN_AND_MEAN
 #include <Windows.h>
-static_assert(sizeof(HMODULE) <= sizeof(void*));
+static_assert(sizeof(HMODULE) <= sizeof(void *));
 
-#define loadLibrary(s) reinterpret_cast<void*>(LoadLibrary(s))
+#define loadLibrary(s) reinterpret_cast<void *>(LoadLibrary(s))
 #define freeLibrary(l) FreeLibrary(reinterpret_cast<HMODULE>(l))
 #define getProcAddress(l, s) GetProcAddress(reinterpret_cast<HMODULE>(l), s)
 
@@ -53,7 +52,6 @@ static_assert(sizeof(HMODULE) <= sizeof(void*));
 #define getProcAddress(l, s) dlsym(l, s)
 
 #endif
-
 
 #include <nonstd/scope.hpp>
 
@@ -441,7 +439,8 @@ auto Core::setMdlSearchPaths(nonstd::span<std::filesystem::path> paths) -> void
   mdlConfiguration->add_mdl_user_paths();
 }
 
-auto Core::setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths) -> void
+auto Core::setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths)
+    -> void
 {
   auto mdlConfiguration = make_handle(
       m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
@@ -451,16 +450,14 @@ auto Core::setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths) 
   }
 }
 
-auto Core::resolveResource(const char* resourcePath,
-  const char* owner
-) -> const char*
+auto Core::resolveResource(const char *resourcePath, const char *owner) -> const
+    char *
 {
   auto mdlConfiguration = make_handle(
-    m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
+      m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
   auto entityResolver = make_handle(mdlConfiguration->get_entity_resolver());
-  auto resolvedResource = make_handle(entityResolver->resolve_resource(
-    resourcePath, owner, nullptr, 0, 0
-  ));
+  auto resolvedResource = make_handle(
+      entityResolver->resolve_resource(resourcePath, owner, nullptr, 0, 0));
   auto firstResolvedResourceElement = resolvedResource->get_element(0);
 
   return firstResolvedResourceElement->get_filename(0);

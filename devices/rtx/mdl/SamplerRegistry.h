@@ -23,8 +23,8 @@ class SamplerRegistry
   ~SamplerRegistry();
 
   // Material code
-  Sampler *acquireSampler(const std::string&textureDesc,
-        mi::neuraylib::ITransaction *transaction);
+  Sampler *acquireSampler(
+      const std::string &textureDesc, mi::neuraylib::ITransaction *transaction);
   bool releaseSampler(const Sampler *);
 
  private:
@@ -32,9 +32,9 @@ class SamplerRegistry
   DeviceGlobalState *m_deviceState = {};
 
   std::unordered_map<std::string, Sampler *> m_dbToSampler;
-  
-  Sampler* createSamplerFromDb(const std::string &textureDbName,
-    mi::neuraylib::ITransaction *transaction);
+
+  Sampler *createSamplerFromDb(const std::string &textureDbName,
+      mi::neuraylib::ITransaction *transaction);
 };
 
 } // namespace visrtx::mdl

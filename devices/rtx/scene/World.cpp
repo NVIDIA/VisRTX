@@ -497,7 +497,7 @@ void World::buildMDLMaterialGPUData()
       const auto surfaces = make_Span(
           reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()),
           surfaceObjects->totalSize());
-      
+
       for (auto surface : surfaces) {
         if (auto material = dynamic_cast<MDL *>(surface->material())) {
           if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck) {
@@ -518,7 +518,7 @@ void World::buildMDLMaterialGPUData()
     mdl->updateSamplers();
     mdl->upload();
   };
- 
+
   state->rendererModules.lastMDLMaterialChange =
       m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
 }

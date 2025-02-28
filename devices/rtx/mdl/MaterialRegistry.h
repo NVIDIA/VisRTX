@@ -90,8 +90,9 @@ class MaterialRegistry
   // acquire/release calls.
   std::vector<TargetCode> m_targetCodes;
 
-  std::unordered_map<std::string, 
-    std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor> > m_materialNameToUuid;
+  std::unordered_map<std::string,
+      std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>>
+      m_materialNameToUuid;
   std::unordered_map<libmdl::Uuid, std::size_t, libmdl::UuidHasher>
       m_uuidToIndex;
 

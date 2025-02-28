@@ -30,15 +30,16 @@ SamplerRegistry::SamplerRegistry(
     : m_core(core), m_deviceState(deviceState)
 {}
 
-SamplerRegistry::~SamplerRegistry() {
+SamplerRegistry::~SamplerRegistry()
+{
   if (!m_dbToSampler.empty()) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "SamplerRegistry is not empty on destruction");
   }
 }
 
-Sampler* SamplerRegistry::createSamplerFromDb(const std::string& textureDbName,
-  mi::neuraylib::ITransaction *transaction)
+Sampler *SamplerRegistry::createSamplerFromDb(
+    const std::string &textureDbName, mi::neuraylib::ITransaction *transaction)
 {
   // Get access to the texture data by the texture database name from the target
   // code.
@@ -46,7 +47,9 @@ Sampler* SamplerRegistry::createSamplerFromDb(const std::string& textureDbName,
       transaction->access<mi::neuraylib::ITexture>(textureDbName.c_str()));
 
   if (!texture.is_valid_interface()) {
-    m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR, "Texture {} not found is the database", textureDbName);
+    m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+        "Texture {} not found is the database",
+        textureDbName);
     return {};
   }
 
@@ -100,13 +103,14 @@ Sampler* SamplerRegistry::createSamplerFromDb(const std::string& textureDbName,
     dataType = ANARI_FLOAT32_VEC3;
   } else { // rgbe, rgbea,
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-        "Unsupported image type '{}'", image_type);
+        "Unsupported image type '{}'",
+        image_type);
     return {};
   }
 
   auto textureShape = image->resolution_z(0, 0, 0) == 1
-    ? mi::neuraylib::ITarget_code::Texture_shape_2d
-    : mi::neuraylib::ITarget_code::Texture_shape_3d;
+      ? mi::neuraylib::ITarget_code::Texture_shape_2d
+      : mi::neuraylib::ITarget_code::Texture_shape_3d;
 
   Sampler *sampler = {};
 
@@ -162,7 +166,8 @@ Sampler* SamplerRegistry::createSamplerFromDb(const std::string& textureDbName,
 
   default: {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-        "Unsupported sampler type {}", int(textureShape));
+        "Unsupported sampler type {}",
+        int(textureShape));
     break;
   }
   }
@@ -171,18 +176,19 @@ Sampler* SamplerRegistry::createSamplerFromDb(const std::string& textureDbName,
     sampler->refInc();
     m_dbToSampler.insert({textureDbName, sampler});
   } else {
-    m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR, "Unable to create sampler for texture db name `{}`", textureDbName);
+    m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+        "Unable to create sampler for texture db name `{}`",
+        textureDbName);
   }
 
   return sampler;
 }
 
-Sampler *SamplerRegistry::acquireSampler(const std::string&textureDbName,
-  mi::neuraylib::ITransaction *transaction)
+Sampler *SamplerRegistry::acquireSampler(
+    const std::string &textureDbName, mi::neuraylib::ITransaction *transaction)
 {
   {
-    if (auto it = m_dbToSampler.find(textureDbName);
-        it != end(m_dbToSampler)) {
+    if (auto it = m_dbToSampler.find(textureDbName); it != end(m_dbToSampler)) {
       it->second->refInc();
       return it->second;
     }
@@ -205,7 +211,8 @@ bool SamplerRegistry::releaseSampler(const Sampler *sampler)
     }
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-        "Removing an unknown sampler {}\n", fmt::ptr(sampler));
+        "Removing an unknown sampler {}\n",
+        fmt::ptr(sampler));
   }
 
   return false;

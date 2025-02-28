@@ -46,7 +46,7 @@ struct ArgumentBlockDescriptor
       Linear,
       sRGB,
     };
-  
+
     enum class Shape
     {
       Unknown,
@@ -60,7 +60,8 @@ struct ArgumentBlockDescriptor
     std::string url;
     ColorSpace colorSpace{ColorSpace::sRGB};
     Shape shape{Shape::TwoD};
-    struct {
+    struct
+    {
       const float *data = {};
       std::uint64_t dims[3] = {};
     } bsdf;
@@ -68,13 +69,11 @@ struct ArgumentBlockDescriptor
 
   ArgumentBlockDescriptor() = default;
 
-  ArgumentBlockDescriptor(
-      libmdl::Core* core,
+  ArgumentBlockDescriptor(libmdl::Core *core,
       const mi::neuraylib::ICompiled_material *compiledMaterial,
       const mi::neuraylib::ITarget_code *targetCode,
       const std::vector<TextureDescriptor> &textureDescs,
       std::uint32_t argumentBlockIndex = 0);
-
 
   mi::base::Handle<const mi::neuraylib::ITarget_code> m_targetCode;
   mi::base::Handle<const mi::neuraylib::ITarget_value_layout>
