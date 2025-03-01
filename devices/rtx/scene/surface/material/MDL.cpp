@@ -108,10 +108,10 @@ void MDL::syncSource()
       if (uuid == libmdl::Uuid{}) {
         reportMessage(ANARI_SEVERITY_ERROR,
             "Failed to acquire material %s, falling back to %s",
-            source.c_str(), "diffuseWhite");
+            source, "diffuseWhite");
             std::tie(uuid, argumentBlockDescriptor) =
             deviceState()->mdl->materialRegistry.acquireMaterial(
-                "::visrtx::default", "diffuseWhites");
+                "::visrtx::default", "diffuseWhite");
       }
     } else if (sourceType == "code") {
       uuid = {};
@@ -274,8 +274,12 @@ void MDL::syncParameters()
 
 void MDL::updateSamplers()
 {
-  auto transaction = make_handle(
-    deviceState()->mdl->materialRegistry.createTransaction());
+  if (!m_argumentBlockInstance.has_value()) {
+    return;
+  }
+
+  auto transaction =
+      make_handle(deviceState()->mdl->materialRegistry.createTransaction());
 
   auto releaseTransaction = nonstd::make_scope_exit ([&]() {
     transaction->abort();
@@ -312,30 +316,30 @@ void MDL::syncImplementationIndex()
 
 MaterialGPUData MDL::gpuData() const
 {
-  MaterialGPUData retval;
+  MaterialGPUData retval = {};
   retval.materialType = MaterialType::MDL;
   retval.mdl.implementationIndex = m_implementationIndex;
-  retval.mdl.numSamplers =
-      std::min(std::size(retval.mdl.samplers), size(m_samplers));
-  std::fill(std::begin(retval.mdl.samplers),
-      std::end(retval.mdl.samplers),
-      DeviceObjectIndex(~0));
-  std::transform(cbegin(m_samplers),
-      cend(m_samplers),
-      std::begin(retval.mdl.samplers),
-      [](const auto &v) {
-        return v ? v->index() : DeviceObjectIndex(~0);
-      });
+  if (m_argumentBlockInstance.has_value()) {
+    retval.mdl.numSamplers =
+        std::min(std::size(retval.mdl.samplers), size(m_samplers));
+    std::fill(std::begin(retval.mdl.samplers),
+        std::end(retval.mdl.samplers),
+        DeviceObjectIndex(~0));
+    std::transform(cbegin(m_samplers),
+        cend(m_samplers),
+        std::begin(retval.mdl.samplers),
+        [](const auto &v) { return v ? v->index() : DeviceObjectIndex(~0); });
 
-  if (const auto &argBlockData =
-          m_argumentBlockInstance->getArgumentBlockData();
-      !argBlockData.empty()) {
-    m_argBlockBuffer.upload(data(argBlockData), size(argBlockData));
-  } else {
-    m_argBlockBuffer.reset();
+    if (const auto &argBlockData =
+            m_argumentBlockInstance->getArgumentBlockData();
+        !argBlockData.empty()) {
+      m_argBlockBuffer.upload(data(argBlockData), size(argBlockData));
+    } else {
+      m_argBlockBuffer.reset();
+    }
+    retval.mdl.argBlock =
+        m_argBlockBuffer.bytes() ? m_argBlockBuffer.ptrAs<const char>() : nullptr;
   }
-  retval.mdl.argBlock =
-      m_argBlockBuffer.bytes() ? m_argBlockBuffer.ptrAs<const char>() : nullptr;
 
   return retval;
 }

@@ -17,6 +17,7 @@
 #include <mi/neuraylib/imaterial_instance.h>
 #include <mi/neuraylib/imdl_backend.h>
 #include <mi/neuraylib/imdl_backend_api.h>
+#include <mi/neuraylib/imdl_compiler.h>
 #include <mi/neuraylib/imdl_configuration.h>
 #include <mi/neuraylib/imdl_entity_resolver.h>
 #include <mi/neuraylib/imdl_execution_context.h>
@@ -219,6 +220,24 @@ mi::neuraylib::ITransaction *Core::createTransaction(
   return scope->create_transaction();
 }
 
+void Core::addBuiltinModule(
+    std::string_view moduleName, std::string_view moduleSource)
+{
+  auto mdlCompiler =
+      make_handle(m_neuray->get_api_component<mi::neuraylib::IMdl_compiler>());
+
+  if (mdlCompiler->add_builtin_module(
+          std::string(moduleName).c_str(), std::string(moduleSource).c_str())
+      == 0) {
+    logMessage(
+        mi::base::MESSAGE_SEVERITY_INFO, "Added builtin module {}", moduleName);
+  } else {
+    logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+        "Failed to add builtin module {}",
+        moduleName);
+  }
+}
+
 const mi::neuraylib::IModule *Core::loadModule(
     std::string_view moduleOrFileName, mi::neuraylib::ITransaction *transaction)
 {
@@ -236,7 +255,7 @@ const mi::neuraylib::IModule *Core::loadModule(
     }
   }
 
-  // Try and
+  // Try and get the module name from the MDL file name.
   if (auto name =
           make_handle(impexpApi->get_mdl_module_name(moduleName.c_str()));
       name.is_valid_interface()) {

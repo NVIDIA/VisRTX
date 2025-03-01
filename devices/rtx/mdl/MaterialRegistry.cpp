@@ -40,7 +40,12 @@ MaterialRegistry::MaterialRegistry(libmdl::Core *core)
     : m_core(core),
       m_scope(m_core->createScope("VisRTXMaterialResgistryScope"s
           + std::to_string(std::uintptr_t(this))))
-{}
+{
+  std::string_view defaultModule =
+#include "mdl/visrtx_default.mdl.inc"
+      ;
+  m_core->addBuiltinModule("visrtx::default", defaultModule);
+}
 
 MaterialRegistry::~MaterialRegistry()
 {
@@ -76,6 +81,12 @@ std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor> MaterialRegistry::acqu
   });
 
   auto module = make_handle(m_core->loadModule(moduleName, transaction.get()));
+  if (!module.is_valid_interface()) {
+    m_core->logMessage(
+        mi::base::MESSAGE_SEVERITY_ERROR, "Cannot find module {}", moduleName);
+    return {};
+  }
+
   auto functionDef = make_handle(m_core->getFunctionDefinition(
       module.get(), materialName, transaction.get()));
   if (!functionDef.is_valid_interface()) {

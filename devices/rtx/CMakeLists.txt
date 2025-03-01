@@ -155,6 +155,7 @@ project_sources(PRIVATE
     mdl/ptx.cpp
     mdl/MaterialRegistry.cpp
     mdl/SamplerRegistry.cpp
+    mdl/visrtx_default.mdl.inc
     scene/surface/material/MDL.cpp
   >
 )
