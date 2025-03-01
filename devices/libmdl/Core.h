@@ -54,6 +54,10 @@ class Core
   // Set MDL resources (textures, light profiles...) search path.
   void setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths);
 
+  // Add builtin modules to the global scope
+  void addBuiltinModule(
+      std::string_view moduleName, std::string_view moduleSource);
+
   // The main neuray interface can only be acquired once. Make sure it can be
   // shared if taken from there. The original subsystem keeps the ownership of
   // the returned value.
