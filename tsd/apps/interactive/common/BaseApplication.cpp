@@ -31,7 +31,7 @@ anari_viewer::WindowArray BaseApplication::setupWindows()
   io.IniFilename = nullptr;
   auto *font = io.Fonts->AddFontFromMemoryCompressedTTF(
       tsd_font_compressed_data, tsd_font_compressed_size, 20.f);
-  io.Fonts->ConfigData[1].FontDataOwnedByAtlas = false;
+  io.Fonts->ConfigData[0].FontDataOwnedByAtlas = false;
   io.FontDefault = font;
 
   if (appCore()->commandLine.useDefaultLayout)
