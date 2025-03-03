@@ -41,7 +41,7 @@ std::vector<char> stitchPTXs(
           it != end(result);) {
         auto eolIt = std::find(it + 1, end(result), '\n');
         std::string sub(it + 1, eolIt);
-        result.erase(it, eolIt);
+        it = result.erase(it, eolIt);
         if (dotkword == versionKw) { // .version
           if (sub > version)
             version = sub;

@@ -141,8 +141,12 @@ Viewer::Viewer(const char *libName, const char *objFileName)
   m_haveCUDAInterop = g_glInterop && extensions.VISRTX_CUDA_OUTPUT_BUFFERS;
 
   if (extensions.VISRTX_MATERIAL_MDL) {
-    auto path = std::filesystem::current_path() / "shaders";
-    anari::setParameter(m_device, m_device, "mdlSearchPaths", path.string());
+    auto path = (std::filesystem::current_path() / "shaders").string();
+#if defined(WIN32)
+    auto vcxprojPath = std::filesystem::current_path() / ".." / ".." / "shaders";
+    path += ";" + vcxprojPath.string();
+#endif
+    anari::setParameter(m_device, m_device, "mdlSearchPaths", path);
   }
   // ANARI //
 

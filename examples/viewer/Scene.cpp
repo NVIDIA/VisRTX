@@ -1364,9 +1364,15 @@ static ScenePtr generateMDLCubeScene(anari::Device d, MDLCubeConfig config)
       std::map<std::string, std::any> values;
       if (materialType == "::visrtx::test_material::test_mix") {
         values["textureIndex"] = 0;
-        auto texturePath =
-            std::filesystem::current_path() / "shaders/visrtx" / textures[0];
-        anari::setParameter(d, material, "texture", texturePath.string());
+        auto texturePath = std::filesystem::current_path() / "shaders/visrtx" / textures[0];
+        if (!std::filesystem::exists(texturePath)) {
+            // Assume that we are started from Visual Studio, from the build dir.
+          texturePath =
+              std::filesystem::current_path() / ".." / ".." / "shaders/visrtx" / textures[0];
+        }
+        anari::setParameter(
+            d, material, "texture", texturePath.generic_string());
+        
         values["mix"] = 0.5f;
         anari::setParameter(d, material, "mix", 0.5f);
       } else if (materialType == "::visrtx::test_material::test_noise") {

@@ -433,7 +433,7 @@ auto Core::setMdlSearchPaths(nonstd::span<std::filesystem::path> paths) -> void
       m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
   mdlConfiguration->clear_mdl_paths();
   for (const auto &path : paths) {
-    mdlConfiguration->add_mdl_path(path.string().c_str());
+    mdlConfiguration->add_mdl_path(path.generic_string().c_str());
   }
   mdlConfiguration->add_mdl_system_paths();
   mdlConfiguration->add_mdl_user_paths();
