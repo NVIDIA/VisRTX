@@ -105,7 +105,7 @@ void MDL::syncSource()
       if (uuid == libmdl::Uuid{}) {
         reportMessage(ANARI_SEVERITY_ERROR,
             "Failed to acquire material %s, falling back to %s",
-            source,
+            source.c_str(),
             "diffuseWhite");
         std::tie(uuid, argumentBlockDescriptor) =
             deviceState()->mdl->materialRegistry.acquireMaterial(
