@@ -114,6 +114,9 @@ bool Orbit::hasChanged(UpdateToken &t) const
 void Orbit::rotate(anari::math::float2 delta)
 {
   delta *= 100;
+  if (m_axis == OrbitAxis::POS_Z || m_axis == OrbitAxis::NEG_X
+      || m_axis == OrbitAxis::NEG_Y)
+    delta.x = -delta.x;
   delta.x = m_invertRotation ? -delta.x : delta.x;
   delta.y = m_distance < 0.f ? -delta.y : delta.y;
   m_azel += delta;
