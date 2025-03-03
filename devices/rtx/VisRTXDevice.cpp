@@ -479,12 +479,18 @@ void VisRTXDevice::deviceCommitParameters()
     auto paths = getParamString("mdlSearchPaths", "");
     auto mdlSearchPaths = std::vector<std::filesystem::path>{};
 
+#if defined(WIN32)
+    constexpr char sep = ';';
+#else
+    constexpr char sep = ':';
+#endif
+
     for (auto it = cbegin(paths);;) {
-      while (it != cend(paths) && *it == ':')
+      while (it != cend(paths) && *it == sep)
         ++it;
       if (it == cend(paths))
         break;
-      auto endOfPathIt = std::find(it, cend(paths), ':');
+      auto endOfPathIt = std::find(it, cend(paths), sep);
       mdlSearchPaths.emplace_back(it, endOfPathIt);
       it = endOfPathIt;
     }
@@ -494,11 +500,11 @@ void VisRTXDevice::deviceCommitParameters()
     mdlSearchPaths = std::vector<std::filesystem::path>{};
 
     for (auto it = cbegin(paths);;) {
-      while (it != cend(paths) && *it == ':')
+      while (it != cend(paths) && *it == sep)
         ++it;
       if (it == cend(paths))
         break;
-      auto endOfPathIt = std::find(it, cend(paths), ':');
+      auto endOfPathIt = std::find(it, cend(paths), sep);
       mdlSearchPaths.emplace_back(it, endOfPathIt);
       it = endOfPathIt;
     }
