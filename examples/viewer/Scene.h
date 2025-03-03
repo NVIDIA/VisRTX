@@ -131,7 +131,7 @@ struct ObjFileConfig : public Config
 struct MDLCubeConfig : public Config
 {
   static constexpr const char *choices[] = {
-      "::visrtx::default::simpleWhite",
+      "::visrtx::default::diffuseWhite",
       "::visrtx::test_material::test_uv",
       "::visrtx::test_material::test_texture",
       "::visrtx::test_material::test_texel_fetch",
