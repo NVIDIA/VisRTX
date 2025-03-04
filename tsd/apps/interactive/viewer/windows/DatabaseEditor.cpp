@@ -23,7 +23,17 @@ void DatabaseEditor::buildUI()
     ImGui::SetNextItemOpen(false, ImGuiCond_FirstUseEver);
     if (ImGui::CollapsingHeader(headerText, ImGuiTreeNodeFlags_None)) {
       tsd::foreach_item_const(ctxList, [&](auto *o) {
-        tsd::ui::buildUI_object(*o, m_core->tsd.ctx, true);
+        if (!o)
+          return;
+
+        ImGui::Separator();
+
+        ImGui::PushID(o);
+        if (ImGui::Button("delete"))
+          m_core->tsd.ctx.removeObject(*o);
+        else
+          tsd::ui::buildUI_object(*o, m_core->tsd.ctx, true);
+        ImGui::PopID();
       });
     }
   };
