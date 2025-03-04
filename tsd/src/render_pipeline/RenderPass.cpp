@@ -177,25 +177,37 @@ AnariRenderPass::~AnariRenderPass()
   anari::wait(m_device, m_frame);
 
   anari::release(m_device, m_frame);
+  anari::release(m_device, m_camera);
+  anari::release(m_device, m_renderer);
+  anari::release(m_device, m_world);
   anari::release(m_device, m_device);
 }
 
 void AnariRenderPass::setCamera(anari::Camera c)
 {
+  anari::retain(m_device, c);
   anari::setParameter(m_device, m_frame, "camera", c);
   anari::commitParameters(m_device, m_frame);
+  anari::release(m_device, m_camera);
+  m_camera = c;
 }
 
 void AnariRenderPass::setRenderer(anari::Renderer r)
 {
+  anari::retain(m_device, r);
   anari::setParameter(m_device, m_frame, "renderer", r);
   anari::commitParameters(m_device, m_frame);
+  anari::release(m_device, m_renderer);
+  m_renderer = r;
 }
 
 void AnariRenderPass::setWorld(anari::World w)
 {
+  anari::retain(m_device, w);
   anari::setParameter(m_device, m_frame, "world", w);
   anari::commitParameters(m_device, m_frame);
+  anari::release(m_device, m_world);
+  m_world = w;
 }
 
 void AnariRenderPass::setColorFormat(anari::DataType t)
@@ -264,9 +276,8 @@ void AnariRenderPass::copyFrameData()
   auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
 
   const tsd::uint2 size(getDimensions());
-  if (size.x == color.width && size.y == color.height) {
-    const size_t totalSize = size.x * size.y;
-
+  const size_t totalSize = size.x * size.y;
+  if (totalSize > 0 && size.x == color.width && size.y == color.height) {
     if (color.pixelType == ANARI_FLOAT32_VEC4) {
       convertFloatColorBuffer(
           (const float *)color.data, (uint8_t *)m_buffers.color, totalSize * 4);

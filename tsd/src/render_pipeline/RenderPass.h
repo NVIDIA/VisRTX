@@ -73,6 +73,9 @@ struct AnariRenderPass : public RenderPass
   bool m_deviceSupportsCUDAFrames{false};
 
   anari::Device m_device{nullptr};
+  anari::Camera m_camera{nullptr};
+  anari::Renderer m_renderer{nullptr};
+  anari::World m_world{nullptr};
   anari::Frame m_frame{nullptr};
 };
 
