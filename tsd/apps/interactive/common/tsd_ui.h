@@ -18,6 +18,7 @@ void buildUI_object(tsd::Object &o,
     int level = 0);
 void buildUI_parameter(
     tsd::Parameter &p, tsd::Context &ctx, bool asTable = false);
+size_t buildUI_objects_menulist(const Context &ctx, anari::DataType type);
 
 void addDefaultRendererParameters(Object &o);
 Object parseANARIObject(

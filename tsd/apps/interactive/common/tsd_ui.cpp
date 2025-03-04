@@ -27,31 +27,6 @@ static bool UI_stringList_callback(void *p, int index, const char **out_text)
   return true;
 }
 
-static size_t buildUI_objects_menulist(const Context &ctx, anari::DataType type)
-{
-  size_t retval = INVALID_INDEX;
-
-  for (size_t i = 0; i < ctx.numberOfObjects(type); i++) {
-    auto *obj = ctx.getObject(type, i);
-    if (!obj)
-      continue;
-
-    ImGui::PushID(i);
-
-    static std::string oTitle;
-    oTitle = '[';
-    oTitle += std::to_string(i);
-    oTitle += ']';
-    oTitle += obj->name();
-    if (ImGui::MenuItem(oTitle.c_str()))
-      retval = i;
-
-    ImGui::PopID();
-  }
-
-  return retval;
-}
-
 static void buildUI_parameter_contextMenu(Context &ctx, Parameter *p)
 {
   if (ImGui::BeginPopup("buildUI_parameter_contextMenu")) {
@@ -463,6 +438,31 @@ void buildUI_parameter(tsd::Parameter &p, tsd::Context &ctx, bool useTable)
   buildUI_parameter_contextMenu(ctx, &p);
 
   ImGui::PopID();
+}
+
+size_t buildUI_objects_menulist(const Context &ctx, anari::DataType type)
+{
+  size_t retval = INVALID_INDEX;
+
+  for (size_t i = 0; i < ctx.numberOfObjects(type); i++) {
+    auto *obj = ctx.getObject(type, i);
+    if (!obj)
+      continue;
+
+    ImGui::PushID(i);
+
+    static std::string oTitle;
+    oTitle = '[';
+    oTitle += std::to_string(i);
+    oTitle += ']';
+    oTitle += obj->name();
+    if (ImGui::MenuItem(oTitle.c_str()))
+      retval = i;
+
+    ImGui::PopID();
+  }
+
+  return retval;
 }
 
 void addDefaultRendererParameters(Object &o)

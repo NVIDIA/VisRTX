@@ -261,6 +261,17 @@ LayerNodeRef Context::insertChildTransformNode(
   return inst;
 }
 
+LayerNodeRef Context::insertChildObjectNode(LayerNodeRef parent,
+    anari::DataType type,
+    size_t idx,
+    const char *name)
+{
+  auto inst = parent->insert_last_child(tsd::utility::Any{type, idx});
+  (*inst)->name = name;
+  signalLayerChange();
+  return inst;
+}
+
 void Context::removeInstancedObject(LayerNodeRef obj)
 {
   if (obj->isRoot())

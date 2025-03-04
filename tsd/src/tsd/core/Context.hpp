@@ -105,6 +105,10 @@ struct Context
   template <typename T>
   LayerNodeRef insertChildObjectNode(
       LayerNodeRef parent, IndexedVectorRef<T> obj, const char *name = "");
+  LayerNodeRef insertChildObjectNode(LayerNodeRef parent,
+      anari::DataType type,
+      size_t idx,
+      const char *name = "");
 
   // NOTE: convenience to create an object _and_ insert it into the tree
   template <typename T>
@@ -293,11 +297,7 @@ template <typename T>
 inline LayerNodeRef Context::insertChildObjectNode(
     LayerNodeRef parent, IndexedVectorRef<T> obj, const char *name)
 {
-  auto inst =
-      parent->insert_last_child(tsd::utility::Any{obj->type(), obj->index()});
-  (*inst)->name = name;
-  signalLayerChange();
-  return inst;
+  return insertChildObjectNode(parent, obj->type(), obj->index(), name);
 }
 
 template <typename T>
@@ -305,10 +305,7 @@ inline Context::AddedObject<T> Context::insertNewChildObjectNode(
     LayerNodeRef parent, Token subtype, const char *name)
 {
   auto obj = createObject<T>(subtype);
-  auto inst =
-      parent->insert_last_child(tsd::utility::Any{obj->type(), obj->index()});
-  (*inst)->name = name;
-  signalLayerChange();
+  auto inst = insertChildObjectNode(parent, obj, name);
   return std::make_pair(inst, obj);
 }
 

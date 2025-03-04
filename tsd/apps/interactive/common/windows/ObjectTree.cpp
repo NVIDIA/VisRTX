@@ -198,6 +198,24 @@ void ObjectTree::buildUI_objectContextMenu()
         clearSelectedNode = true;
       }
 
+      ImGui::Separator();
+
+      if (ImGui::BeginMenu("existing")) {
+#define OBJECT_UI_MENU_ITEM(text, type)                                        \
+  if (ImGui::BeginMenu(text)) {                                                \
+    if (auto i = tsd::ui::buildUI_objects_menulist(ctx, type);                 \
+        i != tsd::INVALID_INDEX)                                               \
+      ctx.insertChildObjectNode(menuNode, type, i);                            \
+    ImGui::EndMenu();                                                          \
+  }
+        OBJECT_UI_MENU_ITEM("surface", ANARI_SURFACE);
+        OBJECT_UI_MENU_ITEM("volume", ANARI_VOLUME);
+        OBJECT_UI_MENU_ITEM("light", ANARI_LIGHT);
+        ImGui::EndMenu();
+      }
+
+      ImGui::Separator();
+
       if (ImGui::BeginMenu("procedural")) {
         if (ImGui::MenuItem("cylinders")) {
           generate_cylinders(ctx, menuNode);
