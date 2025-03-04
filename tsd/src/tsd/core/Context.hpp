@@ -119,7 +119,8 @@ struct Context
 
   // Remove nodes //
 
-  void removeInstancedObject(LayerNodeRef obj);
+  void removeInstancedObject(
+      LayerNodeRef obj, bool deleteReferencedObjects = false);
 
   // Indicate changes occurred //
 

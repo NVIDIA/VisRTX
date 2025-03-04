@@ -261,10 +261,8 @@ LayerNodeRef Context::insertChildTransformNode(
   return inst;
 }
 
-LayerNodeRef Context::insertChildObjectNode(LayerNodeRef parent,
-    anari::DataType type,
-    size_t idx,
-    const char *name)
+LayerNodeRef Context::insertChildObjectNode(
+    LayerNodeRef parent, anari::DataType type, size_t idx, const char *name)
 {
   auto inst = parent->insert_last_child(tsd::utility::Any{type, idx});
   (*inst)->name = name;
@@ -272,23 +270,26 @@ LayerNodeRef Context::insertChildObjectNode(LayerNodeRef parent,
   return inst;
 }
 
-void Context::removeInstancedObject(LayerNodeRef obj)
+void Context::removeInstancedObject(
+    LayerNodeRef obj, bool deleteReferencedObjects)
 {
   if (obj->isRoot())
     return;
 
-  std::vector<LayerNodeRef> objects;
-  defaultLayer()->traverse(obj, [&](auto &node, int level) {
-    if (node.isLeaf())
-      objects.push_back(defaultLayer()->at(node.index()));
-    return true;
-  });
+  if (deleteReferencedObjects) {
+    std::vector<LayerNodeRef> objects;
 
-  for (auto &o : objects)
-    removeObject(o->value().value);
+    defaultLayer()->traverse(obj, [&](auto &node, int level) {
+      if (node.isLeaf())
+        objects.push_back(defaultLayer()->at(node.index()));
+      return true;
+    });
+
+    for (auto &o : objects)
+      removeObject(o->value().value);
+  }
 
   defaultLayer()->erase(obj);
-
   signalLayerChange();
 }
 
