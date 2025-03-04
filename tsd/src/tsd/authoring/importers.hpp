@@ -16,6 +16,7 @@ void import_NBODY(Context &ctx, const char *filename, LayerNodeRef location = {}
 void import_OBJ(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
 void import_PLY(Context &ctx, const char *filename, LayerNodeRef location = {});
 void import_SWC(Context &ctx, const char *filename, LayerNodeRef location = {});
+void import_XYZDP(Context &ctx, const char *filename, LayerNodeRef location = {});
 SpatialFieldRef import_RAW(Context &ctx, const char *filename);
 SpatialFieldRef import_FLASH(Context &ctx, const char *filename);
 SpatialFieldRef import_NVDB(Context &ctx, const char *filename);
