@@ -184,8 +184,6 @@ void buildUI_object(tsd::Object &o,
 
         for (size_t i = 0; i < o.numParameters(); i++) {
           auto &p = o.parameterAt(i);
-          if (p.value().holdsObject() && !anari::isArray(p.value().type()))
-            continue;
           ImGui::TableNextRow();
           buildUI_parameter(p, ctx, useTableForParameters);
         }
@@ -406,10 +404,18 @@ void buildUI_parameter(
     }
   } break;
   default:
-    if (useTable)
-      ImGui::Text("%s", anari::toString(type));
-    else
-      ImGui::BulletText("%s | %s", name, anari::toString(type));
+    if (anari::isObject(type)) {
+      const auto idx = pVal.getAsObjectIndex();
+      if (useTable)
+        ImGui::Text("[%zu] %s", idx, anari::toString(type));
+      else
+        ImGui::BulletText("%s | [%zu] %s", name, idx, anari::toString(type));
+    } else {
+      if (useTable)
+        ImGui::Text("%s", anari::toString(type));
+      else
+        ImGui::BulletText("%s | %s", name, anari::toString(type));
+    }
     break;
   }
 
@@ -418,7 +424,7 @@ void buildUI_parameter(
   if (ImGui::IsItemHovered()) {
     ImGui::BeginTooltip();
     if (isArray) {
-      const auto idx =  pVal.getAsObjectIndex();
+      const auto idx = pVal.getAsObjectIndex();
       const auto &a = *ctx.getObject<Array>(idx);
       ImGui::Text("  idx: [%zu]", idx);
       const auto t = a.type();
