@@ -52,7 +52,7 @@ static size_t buildUI_objects_menulist(const Context &ctx, anari::DataType type)
   return retval;
 }
 
-static void buildUI_parameter_contextMenu(const Context &ctx, Parameter *p)
+static void buildUI_parameter_contextMenu(Context &ctx, Parameter *p)
 {
   if (ImGui::BeginPopup("buildUI_parameter_contextMenu")) {
     if (ImGui::BeginMenu("set type")) {
@@ -124,6 +124,23 @@ static void buildUI_parameter_contextMenu(const Context &ctx, Parameter *p)
       ImGui::Separator();
 
       if (ImGui::BeginMenu("object")) {
+        if (ImGui::BeginMenu("new")) {
+          if (ImGui::BeginMenu("material")) {
+            MaterialRef m;
+            if (ImGui::MenuItem("matte"))
+              m = ctx.createObject<Material>(tokens::material::matte);
+            if (ImGui::MenuItem("physicallyBased"))
+              m = ctx.createObject<Material>(tokens::material::physicallyBased);
+
+            if (m)
+              p->setValue({m->type(), m->index()});
+            ImGui::EndMenu(); // "material"
+          }
+          ImGui::EndMenu(); // "new"
+        }
+
+        ImGui::Separator();
+
 #define OBJECT_UI_MENU_ITEM(text, type)                                        \
   if (ImGui::BeginMenu(text)) {                                                \
     if (auto i = buildUI_objects_menulist(ctx, type); i != INVALID_INDEX && p) \
@@ -149,10 +166,8 @@ static void buildUI_parameter_contextMenu(const Context &ctx, Parameter *p)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void buildUI_object(tsd::Object &o,
-    const tsd::Context &ctx,
-    bool useTableForParameters,
-    int level)
+void buildUI_object(
+    tsd::Object &o, tsd::Context &ctx, bool useTableForParameters, int level)
 {
   static anari::DataType typeForSelection = ANARI_UNKNOWN;
   static tsd::Parameter *paramForSelection = nullptr;
@@ -286,8 +301,7 @@ void buildUI_object(tsd::Object &o,
   }
 }
 
-void buildUI_parameter(
-    tsd::Parameter &p, const tsd::Context &ctx, bool useTable)
+void buildUI_parameter(tsd::Parameter &p, tsd::Context &ctx, bool useTable)
 {
   ImGui::PushID(&p);
 
@@ -404,8 +418,7 @@ void buildUI_parameter(
     }
   } break;
   default:
-    if (anari::isObject(type)) {
-      const auto idx = pVal.getAsObjectIndex();
+    if (const auto idx = pVal.getAsObjectIndex(); idx != INVALID_INDEX) {
       if (useTable)
         ImGui::Text("[%zu] %s", idx, anari::toString(type));
       else

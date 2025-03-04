@@ -13,11 +13,11 @@ namespace tsd::ui {
 constexpr float INDENT_AMOUNT = 25.f;
 
 void buildUI_object(tsd::Object &o,
-    const tsd::Context &ctxeg,
+    tsd::Context &ctx,
     bool useTableForParameters = false,
     int level = 0);
 void buildUI_parameter(
-    tsd::Parameter &p, const tsd::Context &ctxeg, bool asTable = false);
+    tsd::Parameter &p, tsd::Context &ctx, bool asTable = false);
 
 void addDefaultRendererParameters(Object &o);
 Object parseANARIObject(
