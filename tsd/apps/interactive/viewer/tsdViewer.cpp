@@ -58,7 +58,7 @@ class Application : public BaseApplication
         light->setName("mainLight");
         light->setParameter("direction", tsd::float2(0.f, 240.f));
 
-        core->tsd.ctx.defaultLayer()->insert_first_child(core->tsd.ctx.defaultLayer()->root(),
+        core->tsd.ctx.defaultLayer()->root()->insert_first_child(
             tsd::utility::Any(ANARI_LIGHT, light.index()));
       }
 

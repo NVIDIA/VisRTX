@@ -75,15 +75,15 @@ class Application : public BaseApplication
     volume->setParameterObject("color", *colorArray);
     volume->setParameterObject("opacity", *opacityArray);
 
-    ctx.defaultLayer()->insert_last_child(
-        ctx.defaultLayer()->root(), tsd::utility::Any(ANARI_VOLUME, volume.index()));
+    ctx.defaultLayer()->root()->insert_first_child(
+        tsd::utility::Any(ANARI_VOLUME, volume.index()));
 
     // Setup app //
 
     core->tsd.selectedObject = volume.data();
     tfeditor->setValueRange(volume->parameter("valueRange")
-                                ->value()
-                                .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
+            ->value()
+            .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
 
     tsd::logStatus("%s", tsd::objectDBInfo(ctx.objectDB()).c_str());
     core->tsd.sceneLoadComplete = true;
