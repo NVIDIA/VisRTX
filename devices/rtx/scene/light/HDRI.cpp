@@ -68,7 +68,8 @@ void HDRI::finalize()
   else
     cuArray = m_radiance->acquireCUDAArrayUint8();
 
-  m_radianceTex = makeCudaTextureObject(cuArray, !isFp, "linear");
+  m_radianceTex =
+      makeCudaTextureObject(cuArray, !isFp, "linear", "repeat", "repeat");
 
   upload();
 }
