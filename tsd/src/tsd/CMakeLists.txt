@@ -6,6 +6,12 @@ project_add_library(STATIC)
 project_sources(
 PRIVATE
   algorithms/computeScalarRange.cpp
+  algorithms/detail/computeScalarRange_fixed8.cpp
+  algorithms/detail/computeScalarRange_fixed16.cpp
+  algorithms/detail/computeScalarRange_ufixed8.cpp
+  algorithms/detail/computeScalarRange_ufixed16.cpp
+  algorithms/detail/computeScalarRange_float32.cpp
+  algorithms/detail/computeScalarRange_float64.cpp
   authoring/importers/detail/HDRImage.cpp
   authoring/importers/detail/importer_common.cpp
   authoring/importers/import_ASSIMP.cpp
@@ -80,7 +86,12 @@ if (TSD_USE_CUDA)
   project_compile_definitions(PUBLIC -DTSD_USE_CUDA=1)
   project_link_libraries(PUBLIC CUDA::cudart)
   set_source_files_properties(
-    algorithms/computeScalarRange.cpp
+    algorithms/detail/computeScalarRange_fixed8.cpp
+    algorithms/detail/computeScalarRange_fixed16.cpp
+    algorithms/detail/computeScalarRange_ufixed8.cpp
+    algorithms/detail/computeScalarRange_ufixed16.cpp
+    algorithms/detail/computeScalarRange_float32.cpp
+    algorithms/detail/computeScalarRange_float64.cpp
     objects/SpatialField.cpp
     PROPERTIES
       COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
