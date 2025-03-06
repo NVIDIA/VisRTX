@@ -87,6 +87,8 @@ void Debug::commitParameters()
 {
   Renderer::commitParameters();
   m_method = methodFromString(getParamString("method", "primID"));
+  m_sampleLimit = 1; // single-shot renderer
+  m_denoise = false; // never denoise
 }
 
 void Debug::populateFrameData(FrameGPUData &fd) const

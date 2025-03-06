@@ -46,6 +46,7 @@ void Raycast::commitParameters()
 {
   Renderer::commitParameters();
   m_sampleLimit = 1; // single-shot renderer
+  m_denoise = false; // never denoise
 }
 
 OptixModule Raycast::optixModule() const
