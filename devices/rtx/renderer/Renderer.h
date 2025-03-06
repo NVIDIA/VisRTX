@@ -84,7 +84,7 @@ struct Renderer : public Object
   float m_ambientIntensity{0.f};
   float m_occlusionDistance{1e20f};
   bool m_checkerboard{false};
-  bool m_denoise{false};
+  bool m_denoise{true};
   int m_sampleLimit{0};
   bool m_cullTriangleBF{false};
   float m_volumeSamplingRate{1.f};

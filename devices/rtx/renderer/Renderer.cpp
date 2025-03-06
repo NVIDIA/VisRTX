@@ -159,7 +159,7 @@ void Renderer::commitParameters()
       getParam<float>("ambientRadiance", m_defaultAmbientRadiance);
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
   m_checkerboard = getParam<bool>("checkerboarding", false);
-  m_denoise = getParam<bool>("denoise", false);
+  m_denoise = getParam<bool>("denoise", true);
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
