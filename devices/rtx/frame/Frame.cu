@@ -547,12 +547,12 @@ void Frame::checkAccumulationReset()
     return;
 
   auto &state = *deviceState();
-  if (m_lastCommitFlushOccured < state.commitBuffer.lastFlush()) {
-    m_lastCommitFlushOccured = state.commitBuffer.lastFlush();
+  if (m_lastCommitFlushOccured < state.commitBuffer.lastObjectFinalization()) {
+    m_lastCommitFlushOccured = state.commitBuffer.lastObjectFinalization();
     m_nextFrameReset = true;
   }
-  if (m_lastUploadFlushOccured < state.uploadBuffer.lastFlush()) {
-    m_lastUploadFlushOccured = state.uploadBuffer.lastFlush();
+  if (m_lastUploadFlushOccured < state.uploadBuffer.lastUpload()) {
+    m_lastUploadFlushOccured = state.uploadBuffer.lastUpload();
     m_nextFrameReset = true;
   }
 }

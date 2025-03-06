@@ -50,24 +50,27 @@ void DeferredArrayUploadBuffer::addArray(UploadableArray *arr)
   m_arraysToUpload.push_back(arr);
 }
 
-bool DeferredArrayUploadBuffer::flush()
+void DeferredArrayUploadBuffer::flush()
 {
   if (m_arraysToUpload.empty())
-    return false;
+    return;
 
+  bool didUpload = false;
   for (auto arr : m_arraysToUpload) {
-    if (arr->useCount() > 1)
+    if (arr->useCount() > 1) {
+      didUpload = true;
       arr->uploadArrayData();
+    }
   }
+  if (didUpload)
+    m_lastUpload = helium::newTimeStamp();
 
   clear();
-  m_lastFlush = helium::newTimeStamp();
-  return true;
 }
 
-helium::TimeStamp DeferredArrayUploadBuffer::lastFlush() const
+helium::TimeStamp DeferredArrayUploadBuffer::lastUpload() const
 {
-  return m_lastFlush;
+  return m_lastUpload;
 }
 
 void DeferredArrayUploadBuffer::clear()
@@ -75,7 +78,6 @@ void DeferredArrayUploadBuffer::clear()
   for (auto &arr : m_arraysToUpload)
     arr->refDec(helium::RefType::INTERNAL);
   m_arraysToUpload.clear();
-  m_lastFlush = 0;
 }
 
 bool DeferredArrayUploadBuffer::empty() const

@@ -47,15 +47,15 @@ struct DeferredArrayUploadBuffer
 
   void addArray(UploadableArray *arr);
 
-  bool flush();
-  helium::TimeStamp lastFlush() const;
+  void flush();
+  helium::TimeStamp lastUpload() const;
 
   void clear();
   bool empty() const;
 
  private:
   std::vector<UploadableArray *> m_arraysToUpload;
-  helium::TimeStamp m_lastFlush{0};
+  helium::TimeStamp m_lastUpload{0};
 };
 
 } // namespace visrtx
