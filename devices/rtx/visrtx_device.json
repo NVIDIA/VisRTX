@@ -266,7 +266,7 @@
           "name": "method",
           "types": ["ANARI_STRING"],
           "tags": [],
-          "default": "primID",
+          "default": "primIndex",
           "values": [
             "primitiveId",
             "objectId",
