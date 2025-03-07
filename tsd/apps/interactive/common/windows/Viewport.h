@@ -25,6 +25,13 @@
 
 namespace tsd_viewer {
 
+struct CameraModel
+{
+  constexpr static int Perspective{0};
+  constexpr static int Orthographic{1};
+  constexpr static int Omnidirectional{2};
+};
+
 struct Viewport : public anari_viewer::windows::Window
 {
   Viewport(
@@ -75,7 +82,7 @@ struct Viewport : public anari_viewer::windows::Window
   bool m_highlightSelection{true};
   bool m_showOnlySelected{false};
   int m_frameSamples{0};
-  bool m_useOrthoCamera{false};
+  int m_cameraModel{CameraModel::Perspective};
 
   bool m_visualizeDepth{false};
   float m_depthVisualMaximum{1.f};
@@ -89,6 +96,7 @@ struct Viewport : public anari_viewer::windows::Window
   anari::Device m_device{nullptr};
   anari::Camera m_perspCamera{nullptr};
   anari::Camera m_orthoCamera{nullptr};
+  anari::Camera m_omniCamera{nullptr};
 
   std::vector<std::string> m_rendererNames;
   std::vector<anari::Renderer> m_renderers;

@@ -172,6 +172,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       m_perspCamera = anari::newObject<anari::Camera>(d, "perspective");
       m_orthoCamera = anari::newObject<anari::Camera>(d, "orthographic");
+      m_omniCamera = anari::newObject<anari::Camera>(d, "omnidirectional");
 
       tsd::logStatus("[viewport] populating render index...");
 
@@ -226,12 +227,14 @@ void Viewport::teardownDevice()
 
   anari::release(m_device, m_perspCamera);
   anari::release(m_device, m_orthoCamera);
+  anari::release(m_device, m_omniCamera);
   for (auto &r : m_renderers)
     anari::release(m_device, r);
   anari::release(m_device, m_device);
 
   m_perspCamera = nullptr;
   m_orthoCamera = nullptr;
+  m_omniCamera = nullptr;
   m_renderers.clear();
   m_rendererObjects.clear();
   m_device = nullptr;
@@ -324,7 +327,12 @@ void Viewport::updateFrame()
     return;
 
   m_rud.r = m_renderers[m_currentRenderer];
-  m_anariPass->setCamera(m_useOrthoCamera ? m_orthoCamera : m_perspCamera);
+  if (m_cameraModel == CameraModel::Orthographic)
+    m_anariPass->setCamera(m_orthoCamera);
+  else if (m_cameraModel == CameraModel::Omnidirectional)
+    m_anariPass->setCamera(m_omniCamera);
+  else
+    m_anariPass->setCamera(m_perspCamera);
   m_anariPass->setRenderer(m_rud.r);
   m_anariPass->setWorld(m_rIdx->world());
 }
@@ -348,6 +356,10 @@ void Viewport::updateCamera(bool force)
   anari::setParameter(
       m_device, m_orthoCamera, "height", m_arcball->distance() * 0.75f);
 
+  anari::setParameter(m_device, m_omniCamera, "position", m_arcball->eye());
+  anari::setParameter(m_device, m_omniCamera, "direction", m_arcball->dir());
+  anari::setParameter(m_device, m_omniCamera, "up", m_arcball->up());
+
   anari::setParameter(m_device,
       m_perspCamera,
       "aspect",
@@ -365,6 +377,7 @@ void Viewport::updateCamera(bool force)
 
   anari::commitParameters(m_device, m_perspCamera);
   anari::commitParameters(m_device, m_orthoCamera);
+  anari::commitParameters(m_device, m_omniCamera);
 
   if (m_echoCameraConfig)
     echoCameraConfig();
@@ -504,7 +517,7 @@ void Viewport::ui_picking()
 
   // Pick view center //
 
-  const bool shouldPickCenter = !m_useOrthoCamera
+  const bool shouldPickCenter = m_cameraModel == CameraModel::Perspective
       && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
       && io.KeysDown[GLFW_KEY_LEFT_SHIFT];
   if (shouldPickCenter && ImGui::IsWindowHovered()) {
@@ -637,10 +650,15 @@ void Viewport::ui_contextMenu()
       ImGui::Text("Camera:");
       ImGui::Indent(INDENT_AMOUNT);
 
-      if (ImGui::Checkbox("orthographic", &m_useOrthoCamera))
+      if (ImGui::RadioButton(
+              "perspective", &m_cameraModel, CameraModel::Perspective)
+          || ImGui::RadioButton(
+              "orthographic", &m_cameraModel, CameraModel::Orthographic)
+          || ImGui::RadioButton(
+              "omnidirectional", &m_cameraModel, CameraModel::Omnidirectional))
         updateFrame();
 
-      ImGui::BeginDisabled(m_useOrthoCamera);
+      ImGui::BeginDisabled(m_cameraModel != CameraModel::Perspective);
 
       if (ImGui::SliderFloat("fov", &m_fov, 0.1f, 180.f))
         updateCamera(true);
