@@ -248,7 +248,11 @@ void frame_allocate_objects(ObjectRef<Frame> frameObj)
   gl.BindFramebuffer(GL_READ_FRAMEBUFFER, frameObj->fbo);
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->colorbuffer);
   gl.ReadBuffer(GL_COLOR_ATTACHMENT0);
-  gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+  if(frameObj->colorType == ANARI_FLOAT32_VEC4) {
+    gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_FLOAT, 0);    
+  } else {
+    gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);    
+  }
 
   if (frameObj->sceneubo == 0) {
     gl.GenBuffers(1, &frameObj->sceneubo);
@@ -910,7 +914,11 @@ void frame_render(ObjectRef<Frame> frameObj,
 
   gl.BindBuffer(GL_PIXEL_PACK_BUFFER, frameObj->colorbuffer);
   gl.ReadBuffer(GL_COLOR_ATTACHMENT0);
-  gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+  if(frameObj->colorType == ANARI_FLOAT32_VEC4) {
+    gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_FLOAT, 0);    
+  } else {
+    gl.ReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);    
+  }
 
   if (gl.VERSION_3_3) {
     gl.EndQuery(GL_TIME_ELAPSED);
