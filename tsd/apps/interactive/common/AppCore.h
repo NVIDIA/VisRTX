@@ -62,6 +62,7 @@ struct AppCore
     std::map<anari::Device, LiveAnariIndex> rIdxs;
     tsd::MultiUpdateDelegate delegate;
     std::map<std::string, anari::Device> loadedDevices;
+    std::map<std::string, anari::Extensions> loadedDeviceExtensions;
   } anari;
 
   struct LogState
@@ -86,6 +87,7 @@ struct AppCore
   void setupSceneFromCommandLine(bool hdriOnly = false);
 
   anari::Device loadDevice(const std::string &libName);
+  const anari::Extensions *loadDeviceExtensions(const std::string &libName);
   tsd::RenderIndex *acquireRenderIndex(anari::Device device);
   void releaseRenderIndex(anari::Device device);
   void releaseAllDevices();

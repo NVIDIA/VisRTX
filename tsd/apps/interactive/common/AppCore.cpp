@@ -1,6 +1,8 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#define ANARI_EXTENSION_UTILITY_IMPL
+
 #include "AppCore.h"
 #include "windows/Log.h"
 
@@ -175,11 +177,11 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
 
 anari::Device AppCore::loadDevice(const std::string &libraryName)
 {
-  anari::Device dev = this->anari.loadedDevices[libraryName];
-
   if (libraryName.empty() || libraryName == "{none}")
     return nullptr;
-  else if (dev) {
+
+  anari::Device dev = this->anari.loadedDevices[libraryName];
+  if (dev) {
     anari::retain(dev, dev);
     return dev;
   }
@@ -192,6 +194,9 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
     this->commandLine.debug = anari::loadLibrary("debug", statusFunc, this);
 
   dev = anari::newDevice(library, "default");
+
+  this->anari.loadedDeviceExtensions[libraryName] =
+      anari::extension::getDeviceExtensionStruct(library, "default");
 
   anari::unloadLibrary(library);
 
@@ -222,6 +227,16 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
   anari::retain(dev, dev);
 
   return dev;
+}
+
+const anari::Extensions *AppCore::loadDeviceExtensions(
+    const std::string &libName)
+{
+  auto d = loadDevice(libName);
+  if (!d)
+    return nullptr;
+  anari::release(d, d);
+  return &this->anari.loadedDeviceExtensions[libName];
 }
 
 tsd::RenderIndex *AppCore::acquireRenderIndex(anari::Device d)
