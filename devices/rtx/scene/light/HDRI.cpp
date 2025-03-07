@@ -88,7 +88,7 @@ LightGPUData HDRI::gpuData() const
 {
   auto retval = Light::gpuData();
 
-  const vec3 forward = glm::normalize(-m_direction);
+  const vec3 forward = glm::normalize(m_direction);
   const vec3 right = glm::normalize(glm::cross(m_up, forward));
   const vec3 up = glm::normalize(glm::cross(forward, right));
 

@@ -33,6 +33,7 @@ bool HDRImage::import(std::string fileName)
     return false;
 
   if (extension == ".hdr") {
+    stbi_set_flip_vertically_on_load(1);
     int w, h, n;
     float *imgData = stbi_loadf(fileName.c_str(), &w, &h, &n, STBI_rgb);
     width = w;
