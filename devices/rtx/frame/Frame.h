@@ -89,7 +89,6 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
 
   //// Data ////
 
-  bool m_valid{false};
   float m_invFrameID{1.f};
   int m_perPixelBytes{1};
   bool m_denoise{false};

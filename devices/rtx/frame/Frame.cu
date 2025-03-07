@@ -62,7 +62,8 @@ Frame::~Frame()
 
 bool Frame::isValid() const
 {
-  return m_valid;
+  return m_renderer && m_renderer->isValid() && m_camera
+      && m_camera->isValid() && m_world && m_world->isValid();
 }
 
 DeviceGlobalState *Frame::deviceState() const
@@ -93,23 +94,7 @@ void Frame::commitParameters()
 
 void Frame::finalize()
 {
-  if (!m_renderer) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'renderer' on frame");
-  }
-  if (!m_camera) {
-    reportMessage(
-        ANARI_SEVERITY_WARNING, "missing required parameter 'camera' on frame");
-  }
-  if (!m_world) {
-    reportMessage(
-        ANARI_SEVERITY_WARNING, "missing required parameter 'world' on frame");
-  }
-
-  m_valid = m_renderer && m_renderer->isValid() && m_camera
-      && m_camera->isValid() && m_world && m_world->isValid();
-
-  if (!m_valid)
+  if (!isValid())
     return;
 
   auto &hd = data();
