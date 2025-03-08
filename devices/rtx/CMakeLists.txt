@@ -49,6 +49,27 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
+## Get OptiX headers ##
+
+set(OPTIX_FETCH_VERSION "7.7" CACHE STRING "Version of OptiX to get")
+set_property(CACHE OPTIX_FETCH_VERSION
+  PROPERTY STRINGS "7.7" "8.0" "8.1" "9.0")
+
+if(${OPTIX_FETCH_VERSION} STREQUAL "7.7")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v7.7.0.zip)
+elseif(${OPTIX_FETCH_VERSION} STREQUAL "8.0")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v8.0.0.zip)
+elseif(${OPTIX_FETCH_VERSION} STREQUAL "8.1")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v8.1.0.zip)
+elseif(${OPTIX_FETCH_VERSION} STREQUAL "9.0")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v9.0.0.zip)
+else()
+  message(FATAL_ERROR "Invalid/unknown version of OptiX selected")
+endif()
+
+anari_sdk_fetch_project(NAME optix_headers URL ${OPTIX_URL})
+list(APPEND CMAKE_PREFIX_PATH ${optix_headers_LOCATION})
+
 ## Find dependencies ##
 
 find_package(CUDAToolkit 11.3.1 REQUIRED)
