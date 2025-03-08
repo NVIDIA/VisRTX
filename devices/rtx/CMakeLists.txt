@@ -72,7 +72,7 @@ list(APPEND CMAKE_PREFIX_PATH ${optix_headers_LOCATION})
 
 ## Find dependencies ##
 
-find_package(CUDAToolkit 11.3.1 REQUIRED)
+find_package(CUDAToolkit 12.0.0 REQUIRED)
 find_package(OptiX REQUIRED)
 if(VISRTX_ENABLE_MDL_SUPPORT)
   find_package(MDL_SDK REQUIRED)
