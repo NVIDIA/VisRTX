@@ -62,8 +62,8 @@ Frame::~Frame()
 
 bool Frame::isValid() const
 {
-  return m_renderer && m_renderer->isValid() && m_camera
-      && m_camera->isValid() && m_world && m_world->isValid();
+  return m_renderer && m_renderer->isValid() && m_camera && m_camera->isValid()
+      && m_world && m_world->isValid();
 }
 
 DeviceGlobalState *Frame::deviceState() const
@@ -204,6 +204,7 @@ void Frame::renderFrame()
   instrument::rangePop(); // flush array uploads
 
   instrument::rangePush("rebuild BVHs");
+  auto worldLock = m_world->scopeLockObject();
   m_world->rebuildWorld();
   instrument::rangePop(); // rebuild BVHs
   instrument::rangePop(); // update scene
