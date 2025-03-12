@@ -51,6 +51,7 @@
 #include <string_view>
 // this include may only appear in a single source file:
 #include <optix_function_table_definition.h>
+#include <optix_stack_size.h>
 
 namespace visrtx {
 
@@ -535,6 +536,29 @@ void Renderer::initOptixPipeline()
 
     if (sizeof_log > 1)
       reportMessage(ANARI_SEVERITY_DEBUG, "Pipeline Create Log:\n%s", log);
+
+    // Handle stack sizes
+    OptixStackSizes stackSizes = {};
+    for (auto &pg : programGroups) {
+      OPTIX_CHECK(optixUtilAccumulateStackSizes(pg, &stackSizes, m_pipeline));
+    }
+    unsigned int directCallableStackSizeFromTraversal = {};
+    unsigned int directCallableStackSizeFromState = {};
+    unsigned int continuationStackSize = {};
+    OPTIX_CHECK(optixUtilComputeStackSizes(&stackSizes,
+        pipelineLinkOptions
+            .maxTraceDepth, // Reuse pipeline configured trace depth.
+        0, // We don't rely on continuation, but direct calls
+        2, // TBC if 2 is enough
+        &directCallableStackSizeFromTraversal,
+        &directCallableStackSizeFromState,
+        &continuationStackSize));
+    OPTIX_CHECK(optixPipelineSetStackSize(m_pipeline,
+        directCallableStackSizeFromTraversal,
+        directCallableStackSizeFromState,
+        continuationStackSize,
+        2) // expected for single ias graphs, as per our case.
+    );
   }
 
   // SBT //
