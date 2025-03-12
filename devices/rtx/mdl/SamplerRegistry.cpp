@@ -18,6 +18,7 @@
 
 #include <fmt/format.h>
 
+#include <limits>
 #include <string>
 #include <string_view>
 
@@ -75,12 +76,34 @@ Sampler *SamplerRegistry::createSamplerFromDb(
 
   image_type = canvas->get_type();
 
+  auto data = canvas->get_tile(0)->get_data();
+  bool dataNeedRelease = false;
+
   ANARIDataType dataType;
   if (image_type == "Sint8"sv) {
-    // FIXME: Go with UFIXED for now, as a broken placeholder.
+    auto unsignedData = new unsigned char[tex_width * tex_height * tex_layers];
+    auto signedData = static_cast<const char *>(data);
+    for (size_t i = 0; i < tex_width * tex_height * tex_layers; ++i) {
+      // first cast to unsigned where overflow behavior is defined
+      unsignedData[i] = static_cast<unsigned char>(signedData[i])
+          - static_cast<unsigned char>(std::numeric_limits<char>::lowest());
+    }
+
     dataType = isSrgb ? ANARI_UFIXED8_R_SRGB : ANARI_UFIXED8;
+    data = unsignedData;
+    dataNeedRelease = true;
   } else if (image_type == "Sint32"sv) {
+    auto unsignedData = new unsigned int[tex_width * tex_height * tex_layers];
+    auto signedData = static_cast<const int *>(data);
+    for (size_t i = 0; i < tex_width * tex_height * tex_layers; ++i) {
+      // first cast to unsigned where overflow behavior is defined
+      unsignedData[i] = static_cast<unsigned int>(signedData[i])
+          - static_cast<unsigned int>(std::numeric_limits<int>::lowest());
+    }
+
     dataType = ANARI_UFIXED32;
+    data = unsignedData;
+    dataNeedRelease = true;
   } else if (image_type == "Float32"sv) {
     dataType = ANARI_FLOAT32;
   } else if (image_type == "Float32<2>"sv) {
@@ -118,7 +141,7 @@ Sampler *SamplerRegistry::createSamplerFromDb(
   case mi::neuraylib::ITarget_code::Texture_shape_2d: {
     Array2DMemoryDescriptor desc = {
         {
-            canvas->get_tile(0)->get_data(),
+            data,
             nullptr,
             nullptr,
             dataType,
@@ -141,7 +164,7 @@ Sampler *SamplerRegistry::createSamplerFromDb(
   case mi::neuraylib::ITarget_code::Texture_shape_3d: {
     Array3DMemoryDescriptor desc = {
         {
-            canvas->get_tile(0)->get_data(),
+            data,
             nullptr,
             nullptr,
             dataType,
@@ -160,6 +183,14 @@ Sampler *SamplerRegistry::createSamplerFromDb(
     image3d->upload();
     sampler = image3d;
     array3d->refDec();
+
+    if (dataNeedRelease) {
+      if (dataType == ANARI_UFIXED8) {
+        delete[] static_cast<const unsigned char *>(data);
+      } else if (dataType == ANARI_UFIXED32) {
+        delete[] static_cast<const unsigned int *>(data);
+      }
+    }
 
     break;
   }
