@@ -627,10 +627,14 @@ DeviceInitStatus VisRTXDevice::initOptix()
 
   auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
-  auto init_module = [&](OptixModule &module,
+  auto init_module = [&](OptixModule *module,
                          ptx_blob ptx,
                          const char *name) -> std::future<void> {
-    auto f = std::async([&]() {
+    // Make sure that we capture init_module function parameters by value
+    // as those will be out of scope as soon as we exit the function, thereby
+    // creating dandling references to those parameters if we do not capture by
+    // value.
+    auto f = std::async([&, module, ptx, name]() {
       reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
 
       std::string log(2048, '\n');
@@ -653,7 +657,7 @@ DeviceInitStatus VisRTXDevice::initOptix()
           ptx.size,
           log.data(),
           &sizeof_log,
-          &module));
+          module));
 #endif
 
       if (sizeof_log > 1)
@@ -665,34 +669,30 @@ DeviceInitStatus VisRTXDevice::initOptix()
     return f;
   };
 
-  std::vector<std::future<void>> compileTasks;
-  compileTasks.push_back(init_module(
-      state.rendererModules.debug, Debug::ptx(), "'debug' renderer"));
-  compileTasks.push_back(init_module(
-      state.rendererModules.raycast, Raycast::ptx(), "'raycast' renderer"));
-  compileTasks.push_back(init_module(state.rendererModules.ambientOcclusion,
-      AmbientOcclusion::ptx(),
-      "'ao' renderer"));
-  compileTasks.push_back(init_module(state.rendererModules.diffusePathTracer,
-      DiffusePathTracer::ptx(),
-      "'dpt' renderer"));
-  compileTasks.push_back(init_module(state.rendererModules.directLight,
-      DirectLight::ptx(),
-      "'default' renderer"));
-  compileTasks.push_back(
-      init_module(state.rendererModules.test, Test::ptx(), "'test' renderer"));
-
-  compileTasks.push_back(
-      init_module(state.intersectionModules.customIntersectors,
+  auto compileTasks = std::array{
+      init_module(
+          &state.rendererModules.debug, Debug::ptx(), "'debug' renderer"),
+      init_module(
+          &state.rendererModules.raycast, Raycast::ptx(), "'raycast' renderer"),
+      init_module(&state.rendererModules.ambientOcclusion,
+          AmbientOcclusion::ptx(),
+          "'ao' renderer"),
+      init_module(&state.rendererModules.diffusePathTracer,
+          DiffusePathTracer::ptx(),
+          "'dpt' renderer"),
+      init_module(&state.rendererModules.directLight,
+          DirectLight::ptx(),
+          "'default' renderer"),
+      init_module(&state.rendererModules.test, Test::ptx(), "'test' renderer"),
+      init_module(&state.intersectionModules.customIntersectors,
           intersection_ptx(),
-          "custom intersectors"));
-
-  compileTasks.push_back(init_module(
-      state.materialShaders.matte, MatteShader::ptx(), "'matte' shader"));
-
-  compileTasks.push_back(init_module(state.materialShaders.physicallyBased,
-      PhysicallyBasedShader::ptx(),
-      "'physicallyBased' shader"));
+          "custom intersectors"),
+      init_module(
+          &state.materialShaders.matte, MatteShader::ptx(), "'matte' shader"),
+      init_module(&state.materialShaders.physicallyBased,
+          PhysicallyBasedShader::ptx(),
+          "'physicallyBased' shader"),
+  };
 
   for (auto &f : compileTasks)
     f.wait();
