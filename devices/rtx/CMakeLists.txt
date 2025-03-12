@@ -35,11 +35,10 @@ if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   set(CMAKE_CUDA_ARCHITECTURES native)
 endif()
 
-if (NOT WIN32)
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1")
-endif()
-
-set(CMAKE_CUDA_FLAGS "--expt-relaxed-constexpr --extended-lambda")
+set(CMAKE_CUDA_FLAGS_INIT "--expt-relaxed-constexpr --extended-lambda")
+# Make sure we have some debug info with debug and relwithdebinfo builds
+set(CMAKE_CUDA_FLAGS_DEBUG_INIT "-O0 -lineinfo") # -G would be nice, but does not work with glm.
+set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO_INIT "-lineinfo")
 
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 

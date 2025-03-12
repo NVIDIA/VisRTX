@@ -32,6 +32,7 @@
 #include "anari_library_visrtx_export.h"
 
 #include <anari/frontend/anari_enums.h>
+#include <optix_types.h>
 #include "VisRTXDevice.h"
 
 #include "array/Array1D.h"
@@ -614,8 +615,15 @@ DeviceInitStatus VisRTXDevice::initOptix()
   OptixModuleCompileOptions moduleCompileOptions = {};
   moduleCompileOptions.maxRegisterCount =
       OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+#ifdef NDEBUG
   moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
   moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+#else
+  moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+  moduleCompileOptions.debugLevel =
+      OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL; // Could be FULL if -G can be enabled
+                                         // at compile time
+#endif
 
   auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
