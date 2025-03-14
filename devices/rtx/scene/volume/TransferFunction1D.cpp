@@ -117,17 +117,30 @@ void TransferFunction1D::discritizeTFData()
         make_Span(linearOpacityPositions.data(), linearOpacityPositions.size());
   }
 
+  bool warnOnce = false;
   for (size_t i = 0; i < m_tf.size(); i++) {
     const float p = float(i) / (m_tf.size() - 1);
-    const auto c = m_color
-        ? getInterpolatedValue(
-              m_color->beginAs<vec3>(), cPositions, m_valueRange, p)
-        : vec3(m_uniformColor);
-    const auto o = m_opacity
+    vec4 c = m_uniformColor;
+    if (m_color) {
+      if (m_color->elementType() == ANARI_FLOAT32_VEC3) {
+        c = vec4(getInterpolatedValue(
+                     m_color->beginAs<vec3>(), cPositions, m_valueRange, p),
+            1.f);
+      } else if (m_color->elementType() == ANARI_FLOAT32_VEC4) {
+        c = getInterpolatedValue(
+            m_color->beginAs<vec4>(), cPositions, m_valueRange, p);
+      } else if (!warnOnce) {
+        reportMessage(ANARI_SEVERITY_WARNING,
+            "unusable tf1D color array type set (%s)",
+            anari::toString(m_color->elementType()));
+        warnOnce = true;
+      }
+    }
+    const float o = m_opacity
         ? getInterpolatedValue(
               m_opacity->beginAs<float>(), oPositions, m_valueRange, p)
         : m_uniformOpacity;
-    m_tf[i] = vec4(c, o);
+    m_tf[i] = vec4(c.x, c.y, c.z, c.w * o);
   }
 }
 
@@ -143,8 +156,8 @@ void TransferFunction1D::createTFTexture()
 
   cudaMemcpy3DParms copyParams;
   std::memset(&copyParams, 0, sizeof(copyParams));
-  copyParams.srcPtr =
-      make_cudaPitchedPtr(m_tf.data(), m_tfDim * sizeof(vec4), m_tfDim, 0);
+  copyParams.srcPtr = make_cudaPitchedPtr(
+      m_tf.data(), m_tf.size() * sizeof(vec4), m_tf.size(), 0);
   copyParams.dstArray = m_cudaArray;
   copyParams.extent = make_cudaExtent(m_tfDim, 1, 1);
   copyParams.kind = cudaMemcpyHostToDevice;
