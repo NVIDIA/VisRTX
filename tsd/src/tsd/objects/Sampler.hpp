@@ -23,6 +23,7 @@ using SamplerRef = IndexedVectorRef<Sampler>;
 
 namespace tokens::sampler {
 
+extern const Token compressedImage2D;
 extern const Token image1D;
 extern const Token image2D;
 extern const Token image3D;

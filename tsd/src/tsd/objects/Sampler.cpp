@@ -7,7 +7,9 @@ namespace tsd {
 
 Sampler::Sampler(Token subtype) : Object(ANARI_SAMPLER, subtype)
 {
-  if (subtype == tokens::sampler::image1D || subtype == tokens::sampler::image2D
+  if (subtype == tokens::sampler::compressedImage2D
+      || subtype == tokens::sampler::image1D
+      || subtype == tokens::sampler::image2D
       || subtype == tokens::sampler::image3D) {
     addParameter("inAttribute")
         .setValue("attribute0")
@@ -19,7 +21,8 @@ Sampler::Sampler(Token subtype) : Object(ANARI_SAMPLER, subtype)
       addParameter("wrapMode")
           .setValue("clampToEdge")
           .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
-    } else if (subtype == tokens::sampler::image2D) {
+    } else if (subtype == tokens::sampler::compressedImage2D
+        || subtype == tokens::sampler::image2D) {
       addParameter("wrapMode1")
           .setValue("clampToEdge")
           .setStringValues({"clampToEdge", "repeat", "mirrorRepeat"});
@@ -58,6 +61,7 @@ anari::Object Sampler::makeANARIObject(anari::Device d) const
 
 namespace tokens::sampler {
 
+const Token compressedImage2D = "compressedImage2D";
 const Token image1D = "image1D";
 const Token image2D = "image2D";
 const Token image3D = "image3D";
