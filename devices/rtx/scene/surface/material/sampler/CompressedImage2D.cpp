@@ -35,6 +35,13 @@
 #include <driver_types.h>
 #include "utility/CudaImageTexture.h"
 
+// Texture size is specified as a uint64_2 in the specifications.
+// Let's make sure we can process that.
+namespace anari {
+  ANARI_TYPEFOR_SPECIALIZATION(glm::u64vec2, ANARI_UINT64_VEC2);
+}
+
+
 namespace visrtx {
 
 CompressedImage2D::CompressedImage2D(DeviceGlobalState *d)
@@ -53,7 +60,8 @@ void CompressedImage2D::commitParameters()
   m_wrap1 = getParamString("wrapMode1", "clampToEdge");
   m_wrap2 = getParamString("wrapMode2", "clampToEdge");
   m_image = getParamObject<Array1D>("image");
-  m_size = getParam("size", glm::uvec2(0, 0));
+  auto size64 = getParam("size", glm::u64vec2(0, 0));
+  m_size = {size64.x, size64.y};
   m_format = getParamString("format", "");
 }
 
