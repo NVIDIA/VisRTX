@@ -11,9 +11,15 @@
 #include "tsd/objects/Sampler.hpp"
 #include "tsd_stb/stb_image.h"
 // std
+#include <atomic>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
+
+using U64Vec2 = tsd::math::vec<std::uint64_t, 2>;
+namespace anari {
+  ANARI_TYPEFOR_SPECIALIZATION(U64Vec2, ANARI_UINT64_VEC2);
+}
 
 namespace tsd {
 
@@ -200,8 +206,7 @@ SamplerRef importDdsTexture(
     tex = ctx.createObject<Sampler>(tokens::sampler::compressedImage2D);
     tex->setParameterObject("image"_t, *dataArray);
     tex->setParameter("format"_t, compressedFormat.value());
-    tex->setParameter(
-        "size"_t, tsd::math::uint2(dds->header.width, dds->header.height));
+    tex->setParameter("size"_t, U64Vec2(dds->header.width, dds->header.height));
     tex->setParameter("inAttribute"_t, "attribute0");
     tex->setParameter("wrapMode1"_t, "repeat");
     tex->setParameter("wrapMode2"_t, "repeat");
