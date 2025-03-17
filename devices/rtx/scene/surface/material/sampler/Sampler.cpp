@@ -31,6 +31,7 @@
 
 #include "Sampler.h"
 // specific types
+#include "CompressedImage2D.h"
 #include "Image1D.h"
 #include "Image2D.h"
 #include "Image3D.h"
@@ -48,7 +49,9 @@ Sampler::Sampler(DeviceGlobalState *s)
 
 Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  if (subtype == "image1D")
+  if (subtype == "compressedImage2D")
+    return new CompressedImage2D(d);
+  else if (subtype == "image1D")
     return new Image1D(d);
   else if (subtype == "image2D")
     return new Image2D(d);

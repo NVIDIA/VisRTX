@@ -33,6 +33,7 @@
 #include <cuda_runtime_api.h>
 #include <driver_functions.h>
 #include <driver_types.h>
+#include <texture_types.h>
 #include "utility/AnariTypeHelpers.h"
 
 namespace visrtx {
@@ -339,6 +340,195 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
   texDesc.normalizedCoords = normalizedCoords;
 
   cudaTextureObject_t retval = {};
+  cudaCreateTextureObject(&retval, &resDesc, &texDesc, nullptr);
+
+  return retval;
+}
+
+void makeCudaCompressedTextureArray(cudaArray_t &cuArray,
+    const uvec2 &size,
+    const Array &array,
+    const cudaChannelFormatKind channelFormatKind)
+{
+  assert(!cuArray);
+
+  const ANARIDataType format = array.elementType();
+  assert(format == ANARI_UINT8 || format == ANARI_INT8);
+
+  // Create CUDA texture //
+  cudaChannelFormatDesc desc;
+  std::uint32_t blockWidth{};
+  std::uint32_t bytesPerBlock{};
+
+  switch (channelFormatKind) {
+  case cudaChannelFormatKindUnsignedBlockCompressed1: {
+    desc =
+        cudaCreateChannelDesc<cudaChannelFormatKindUnsignedBlockCompressed1>();
+    blockWidth = 4;
+    bytesPerBlock = 8;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed1SRGB: {
+    desc = cudaCreateChannelDesc<
+        cudaChannelFormatKindUnsignedBlockCompressed1SRGB>();
+    blockWidth = 4;
+    bytesPerBlock = 8;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed2: {
+    desc =
+        cudaCreateChannelDesc<cudaChannelFormatKindUnsignedBlockCompressed2>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed2SRGB: {
+    desc = cudaCreateChannelDesc<
+        cudaChannelFormatKindUnsignedBlockCompressed2SRGB>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed3: {
+    desc =
+        cudaCreateChannelDesc<cudaChannelFormatKindUnsignedBlockCompressed3>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed3SRGB: {
+    desc = cudaCreateChannelDesc<
+        cudaChannelFormatKindUnsignedBlockCompressed3SRGB>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed4: {
+    desc =
+        cudaCreateChannelDesc<cudaChannelFormatKindUnsignedBlockCompressed4>();
+    blockWidth = 4;
+    bytesPerBlock = 8;
+    break;
+  }
+  case cudaChannelFormatKindSignedBlockCompressed4: {
+    desc = cudaCreateChannelDesc<cudaChannelFormatKindSignedBlockCompressed4>();
+    blockWidth = 4;
+    bytesPerBlock = 8;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed5: {
+    desc =
+        cudaCreateChannelDesc<cudaChannelFormatKindUnsignedBlockCompressed5>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindSignedBlockCompressed5: {
+    desc = cudaCreateChannelDesc<cudaChannelFormatKindSignedBlockCompressed5>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed6H: {
+    desc =
+        cudaCreateChannelDesc<cudaChannelFormatKindUnsignedBlockCompressed6H>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindSignedBlockCompressed6H: {
+    desc =
+        cudaCreateChannelDesc<cudaChannelFormatKindSignedBlockCompressed6H>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed7: {
+    desc =
+        cudaCreateChannelDesc<cudaChannelFormatKindUnsignedBlockCompressed7>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  case cudaChannelFormatKindUnsignedBlockCompressed7SRGB: {
+    desc = cudaCreateChannelDesc<
+        cudaChannelFormatKindUnsignedBlockCompressed7SRGB>();
+    blockWidth = 4;
+    bytesPerBlock = 16;
+    break;
+  }
+  default:
+    // Unknown format type
+    return;
+  };
+
+  if (blockWidth == 0 || bytesPerBlock == 0) {
+    return;
+  }
+
+  uint32_t widthInBlocks = (size.x + blockWidth - 1) / blockWidth;
+  uint32_t heightInBlocks = (size.y + blockWidth - 1) / blockWidth;
+
+  // Make sure the 3rd component is 0 so we allocate a 2D array. If 1 we
+  // allocate a 3D array of depth 1 which is not the same and will not work with
+  // the texture object.
+  cudaMalloc3DArray(&cuArray, &desc, make_cudaExtent(size.x, size.y, 0));
+  // cudaMalloc3DArray(&cuArray, &desc, make_cudaExtent(size.x, size.y, 0));
+
+  cudaMemcpy3DParms p = {};
+  p.dstArray = cuArray;
+  p.srcPtr = make_cudaPitchedPtr(const_cast<void *>(array.data()),
+      widthInBlocks * bytesPerBlock,
+      widthInBlocks,
+      heightInBlocks);
+  // Compare to the extent above, we want the 3rd component to be 1 here so we
+  // copy a full slice of data.
+  p.extent = make_cudaExtent(size.x, size.y, 1); // extent;
+  p.kind = cudaMemcpyHostToDevice;
+  cudaMemcpy3D(&p);
+}
+
+cudaTextureObject_t makeCudaCompressedTextureObject(cudaArray_t cuArray,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const std::string &wrap3,
+    bool normalizedCoords,
+    const cudaChannelFormatKind channelFormatKind)
+{
+  cudaResourceDesc resDesc{};
+  resDesc.resType = cudaResourceTypeArray;
+  resDesc.res.array.array = cuArray;
+
+  cudaTextureDesc texDesc{};
+  texDesc.addressMode[0] = stringToAddressMode(wrap1);
+  texDesc.addressMode[1] = stringToAddressMode(wrap2);
+  texDesc.addressMode[2] = stringToAddressMode(wrap3);
+  texDesc.filterMode =
+      filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
+  texDesc.normalizedCoords = normalizedCoords;
+
+  // Only explicit float type are to be read as element type. Others need to be
+  // read as normalized floats.
+  if (channelFormatKind != cudaChannelFormatKindUnsignedBlockCompressed6H
+      && channelFormatKind != cudaChannelFormatKindSignedBlockCompressed6H) {
+    texDesc.readMode = cudaReadModeNormalizedFloat;
+  }
+
+  // Correctly propagate sRGB information.
+  switch (channelFormatKind) {
+  case cudaChannelFormatKindUnsignedBlockCompressed1SRGB:
+  case cudaChannelFormatKindUnsignedBlockCompressed2SRGB:
+  case cudaChannelFormatKindUnsignedBlockCompressed3SRGB:
+  case cudaChannelFormatKindUnsignedBlockCompressed7SRGB:
+    texDesc.sRGB = true;
+    break;
+  default:
+    break;
+  }
+
+  cudaTextureObject_t retval = {};
+
   cudaCreateTextureObject(&retval, &resDesc, &texDesc, nullptr);
 
   return retval;

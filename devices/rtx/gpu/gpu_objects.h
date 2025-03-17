@@ -195,6 +195,7 @@ struct GeometryGPUData
 
 enum class SamplerType
 {
+  COMPRESSED_TEXTURE2D,
   TEXTURE1D,
   TEXTURE2D,
   TEXTURE3D,
@@ -227,6 +228,14 @@ struct Image3DData
   vec3 invSize;
 };
 
+struct CompressedImage2DData
+{
+  cudaTextureObject_t texobj;
+  cudaTextureObject_t texelTexobj;
+  uvec2 size;
+  vec2 invSize;
+};
+
 struct PrimIDSamplerData
 {
   AttributeData attr;
@@ -243,6 +252,7 @@ struct SamplerGPUData
   vec4 outOffset;
   union
   {
+    CompressedImage2DData compressedImage2D;
     Image1DData image1D;
     Image2DData image2D;
     Image3DData image3D;

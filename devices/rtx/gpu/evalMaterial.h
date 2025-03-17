@@ -278,6 +278,11 @@ VISRTX_DEVICE vec4 evaluateImageTextureSampler(
     retval = make_vec4(tex1D<::float4>(sampler.image1D.texobj, tc.x));
     break;
   }
+  case SamplerType::COMPRESSED_TEXTURE2D: {
+    retval = make_vec4(
+        tex2D<::float4>(sampler.compressedImage2D.texobj, tc.x, tc.y));
+    break;
+  }
   case SamplerType::TEXTURE2D: {
     retval = make_vec4(tex2D<::float4>(sampler.image2D.texobj, tc.x, tc.y));
     break;
@@ -301,6 +306,11 @@ VISRTX_DEVICE vec4 evaluateImageTexelSampler(
   switch (sampler.type) {
   case SamplerType::TEXTURE1D: {
     retval = make_vec4(tex1D<::float4>(sampler.image1D.texelTexobj, tc.x));
+    break;
+  }
+  case SamplerType::COMPRESSED_TEXTURE2D: {
+    retval = make_vec4(
+        tex2D<::float4>(sampler.compressedImage2D.texelTexobj, tc.x, tc.y));
     break;
   }
   case SamplerType::TEXTURE2D: {
@@ -330,6 +340,12 @@ VISRTX_DEVICE vec4 evaluateSampler(
   switch (sampler.type) {
   case SamplerType::TEXTURE1D: {
     retval = make_vec4(tex1D<::float4>(sampler.image1D.texobj, tc.x));
+    break;
+  }
+  case SamplerType::COMPRESSED_TEXTURE2D: {
+    retval = make_vec4(
+        tex2D<::float4>(sampler.compressedImage2D.texobj, tc.x, tc.y));
+
     break;
   }
   case SamplerType::TEXTURE2D: {
