@@ -5,6 +5,9 @@
     "dependencies": [
       "anari_core_1_0",
       "anari_core_objects_base_1_0",
+      "ext_sampler_compressed_image2d",
+      "ext_sampler_compressed_format_bc123",
+      "ext_sampler_compressed_format_bc45",
       "khr_array1d_region",
       "khr_auxiliary_buffers",
       "khr_camera_depth_of_field",
