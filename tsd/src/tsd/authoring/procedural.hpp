@@ -11,6 +11,7 @@ namespace tsd {
 
 void generate_cylinders(Context &ctx, LayerNodeRef location = {}, bool useDefaultMaterial = false);
 void generate_hdri_dome(Context &ctx, LayerNodeRef location = {});
+void generate_hdri_test_image(Context &ctx, LayerNodeRef location = {});
 void generate_material_orb(Context &ctx, LayerNodeRef location = {});
 void generate_monkey(Context &ctx, LayerNodeRef location = {});
 VolumeRef generate_noiseVolume(Context &ctx, LayerNodeRef location = {}, ArrayRef colors = {}, ArrayRef opacities = {});

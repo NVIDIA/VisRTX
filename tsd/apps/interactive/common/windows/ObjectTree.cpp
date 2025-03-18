@@ -266,9 +266,17 @@ void ObjectTree::buildUI_objectContextMenu()
           clearSelectedNode = true;
         }
 
-        if (ImGui::MenuItem("hdri dome")) {
-          generate_hdri_dome(ctx, menuNode);
-          clearSelectedNode = true;
+        if (ImGui::BeginMenu("hdri")) {
+          if (ImGui::MenuItem("simple dome")) {
+            generate_hdri_dome(ctx, menuNode);
+            clearSelectedNode = true;
+          }
+
+          if (ImGui::MenuItem("test image")) {
+            generate_hdri_test_image(ctx, menuNode);
+            clearSelectedNode = true;
+          }
+          ImGui::EndMenu();
         }
 
         ImGui::EndMenu();
