@@ -172,11 +172,11 @@ int CompressedImage2D::numChannels() const
 SamplerGPUData CompressedImage2D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
-  retval.type = SamplerType::COMPRESSED_TEXTURE2D;
-  retval.compressedImage2D.texobj = m_texture;
-  retval.compressedImage2D.texelTexobj = m_texels;
-  retval.compressedImage2D.size = m_size;
-  retval.compressedImage2D.invSize =
+  retval.type = SamplerType::TEXTURE2D;
+  retval.image2D.texobj = m_texture;
+  retval.image2D.texelTexobj = m_texels;
+  retval.image2D.size = m_size;
+  retval.image2D.invSize =
       glm::vec2(1.0f / m_size.x, 1.0f / m_size.y);
 
   return retval;
