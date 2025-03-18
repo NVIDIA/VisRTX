@@ -218,6 +218,22 @@ VISRTX_HOST_DEVICE float pow5(float f)
   return f * f * f * f * f;
 }
 
+VISRTX_HOST_DEVICE float pbrt_clampf(float f, float lo, float hi)
+{
+  return glm::max(lo, glm::min(hi, f));
+}
+
+VISRTX_HOST_DEVICE float pbrtSphericalTheta(const vec3 &v)
+{
+  return acosf(pbrt_clampf(v.z, -1.f, 1.f));
+}
+
+VISRTX_HOST_DEVICE float pbrtSphericalPhi(const vec3 &v)
+{
+  const float p = atan2f(v.y, v.x);
+  return p < 0.f ? p + (2.f * float(M_PI)) : p;
+}
+
 template <typename T>
 VISRTX_HOST_DEVICE T heaviside(const T &x)
 {

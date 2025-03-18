@@ -88,14 +88,12 @@ LightGPUData HDRI::gpuData() const
 {
   auto retval = Light::gpuData();
 
-  const vec3 forward = glm::normalize(m_direction);
-  const vec3 right = glm::normalize(glm::cross(m_up, forward));
-  const vec3 up = glm::normalize(glm::cross(forward, right));
+  const vec3 up = -glm::normalize(m_up);
+  const vec3 forward = -glm::normalize(glm::cross(up, m_direction));
+  const vec3 right = glm::normalize(glm::cross(forward, up));
 
   retval.type = LightType::HDRI;
-  retval.hdri.xfm[0] = forward;
-  retval.hdri.xfm[1] = right;
-  retval.hdri.xfm[2] = up;
+  retval.hdri.xfm = glm::inverse(mat3(right, forward, up));
   retval.hdri.scale = m_scale;
   retval.hdri.radiance = m_radianceTex;
   retval.hdri.visible = m_visible;

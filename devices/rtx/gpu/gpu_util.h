@@ -212,9 +212,15 @@ VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
 {
   if (ld.type != LightType::HDRI)
     return vec3(0.f);
+
+  constexpr float invPi = 1.f / float(M_PI);
+  constexpr float inv2Pi = 1.f / (2.f * float(M_PI));
   const vec3 d = ld.hdri.xfm * rayDir;
-  const float u = atan2(d.y, d.x) / (2.0f * float(M_PI)) + 0.5f;
-  const float v = acos(d.z) / float(M_PI);
+  const float theta = pbrtSphericalTheta(d);
+  const float phi = pbrtSphericalPhi(d);
+  const float u = phi * inv2Pi;
+  const float v = theta * invPi;
+
   return vec3(make_vec4(tex2D<::float4>(ld.hdri.radiance, u, v)))
       * ld.hdri.scale;
 }
