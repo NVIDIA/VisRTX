@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd_ui.h"
+// imgui
+#include <misc/cpp/imgui_stdlib.h>
 
 namespace tsd::ui {
+
+static std::string s_newParameterName;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -27,9 +31,18 @@ static bool UI_stringList_callback(void *p, int index, const char **out_text)
   return true;
 }
 
-static void buildUI_parameter_contextMenu(Context &ctx, Parameter *p)
+static void buildUI_parameter_contextMenu(Context &ctx, Object *o, Parameter *p)
 {
   if (ImGui::BeginPopup("buildUI_parameter_contextMenu")) {
+    if (ImGui::BeginMenu("add new")) {
+      ImGui::InputText("name", &s_newParameterName);
+      if (ImGui::Button("ok"))
+        o->addParameter(s_newParameterName);
+      ImGui::EndMenu(); // "add"
+    }
+
+    ImGui::Separator();
+
     if (ImGui::BeginMenu("set type")) {
       if (ImGui::BeginMenu("uniform")) {
         if (ImGui::BeginMenu("color")) {
@@ -183,14 +196,14 @@ void buildUI_object(
         for (size_t i = 0; i < o.numParameters(); i++) {
           auto &p = o.parameterAt(i);
           ImGui::TableNextRow();
-          buildUI_parameter(p, ctx, useTableForParameters);
+          buildUI_parameter(o, p, ctx, useTableForParameters);
         }
 
         ImGui::EndTable();
       }
     } else {
       for (size_t i = 0; i < o.numParameters(); i++)
-        buildUI_parameter(o.parameterAt(i), ctx);
+        buildUI_parameter(o, o.parameterAt(i), ctx);
     }
 
     // object parameters //
@@ -284,7 +297,8 @@ void buildUI_object(
   }
 }
 
-void buildUI_parameter(tsd::Parameter &p, tsd::Context &ctx, bool useTable)
+void buildUI_parameter(
+    tsd::Object &o, tsd::Parameter &p, tsd::Context &ctx, bool useTable)
 {
   ImGui::PushID(&p);
 
@@ -314,8 +328,11 @@ void buildUI_parameter(tsd::Parameter &p, tsd::Context &ctx, bool useTable)
 
     const bool showContextMenu =
         ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
-    if (showContextMenu)
+    if (showContextMenu) {
+      s_newParameterName.reserve(200);
+      s_newParameterName = "";
       ImGui::OpenPopup("buildUI_parameter_contextMenu");
+    }
 
     ImGui::TableSetColumnIndex(1);
     ImGui::PushItemWidth(-FLT_MIN); // Right-aligned
@@ -440,10 +457,21 @@ void buildUI_parameter(tsd::Parameter &p, tsd::Context &ctx, bool useTable)
     ImGui::EndTooltip();
   }
 
+  {
+    const bool showContextMenu =
+        ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
+    if (showContextMenu) {
+      s_newParameterName.reserve(200);
+      s_newParameterName = "";
+      ImGui::OpenPopup("buildUI_parameter_contextMenu");
+    }
+  }
+
   if (update)
     p.setValue(pVal);
 
-  buildUI_parameter_contextMenu(ctx, &p); // NOTE: 'p' can be deleted after this
+  buildUI_parameter_contextMenu(
+      ctx, &o, &p); // NOTE: 'p' can be deleted after this
 
   ImGui::PopID();
 }
