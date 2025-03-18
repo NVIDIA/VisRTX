@@ -15,6 +15,11 @@ struct MockObject : public tsd::ParameterObserver
     notified = true;
   }
 
+  void removeParameter(const tsd::Parameter *) override
+  {
+    // no-op
+  }
+
   bool notified{false};
 };
 

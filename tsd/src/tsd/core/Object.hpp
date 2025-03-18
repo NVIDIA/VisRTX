@@ -105,6 +105,7 @@ struct Object : public ParameterObserver
 
  protected:
   virtual void parameterChanged(const Parameter *p) override;
+  virtual void removeParameter(const Parameter *p) override;
   BaseUpdateDelegate *updateDelegate() const;
 
  private:

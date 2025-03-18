@@ -209,6 +209,11 @@ void Object::parameterChanged(const Parameter *p)
     m_updateDelegate->signalParameterUpdated(this, p);
 }
 
+void Object::removeParameter(const Parameter *p)
+{
+  removeParameter(p->name());
+}
+
 BaseUpdateDelegate *Object::updateDelegate() const
 {
   return m_updateDelegate;

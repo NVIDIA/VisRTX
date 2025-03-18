@@ -135,6 +135,14 @@ static void buildUI_parameter_contextMenu(Context &ctx, Parameter *p)
       ImGui::EndMenu(); // "set type"
     }
 
+    ImGui::Separator();
+
+    if (ImGui::BeginMenu("delete?")) {
+      if (ImGui::MenuItem("yes"))
+        p->remove();
+      ImGui::EndMenu(); // "delete?"
+    }
+
     ImGui::EndPopup();
   }
 }
@@ -435,7 +443,7 @@ void buildUI_parameter(tsd::Parameter &p, tsd::Context &ctx, bool useTable)
   if (update)
     p.setValue(pVal);
 
-  buildUI_parameter_contextMenu(ctx, &p);
+  buildUI_parameter_contextMenu(ctx, &p); // NOTE: 'p' can be deleted after this
 
   ImGui::PopID();
 }
