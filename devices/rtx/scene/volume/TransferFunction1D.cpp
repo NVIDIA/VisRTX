@@ -56,6 +56,11 @@ void TransferFunction1D::commitParameters()
   m_field = getParamObject<SpatialField>("value");
   getParam("valueRange", ANARI_FLOAT32_VEC2, &m_valueRange);
   getParam("valueRange", ANARI_FLOAT32_BOX1, &m_valueRange);
+  double valueRange_d[2] = {0.0, 1.0};
+  if (getParam("valueRange", ANARI_FLOAT64_BOX1, valueRange_d)) {
+    m_valueRange.lower = float(valueRange_d[0]);
+    m_valueRange.upper = float(valueRange_d[1]);
+  }
 }
 
 void TransferFunction1D::finalize()
