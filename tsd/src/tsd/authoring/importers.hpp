@@ -24,7 +24,7 @@ SpatialFieldRef import_NVDB(Context &ctx, const char *filename);
 VolumeRef import_volume(Context &ctx,
     const char *filename,
     ArrayRef colors,
-    ArrayRef opacities);
+    ArrayRef opacities = {});
 
 // clang-format on
 

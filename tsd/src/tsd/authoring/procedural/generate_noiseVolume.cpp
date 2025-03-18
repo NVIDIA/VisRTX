@@ -44,7 +44,7 @@ VolumeRef generate_noiseVolume(Context &ctx,
       location, tokens::volume::transferFunction1D);
   volume->setName("noise_volume");
 
-  if (!(colorArray && opacityArray)) {
+  if (!colorArray) {
     colorArray = ctx.createArray(ANARI_FLOAT32_VEC3, 3);
     opacityArray = ctx.createArray(ANARI_FLOAT32, 2);
 
@@ -60,11 +60,13 @@ VolumeRef generate_noiseVolume(Context &ctx,
 
     colorArray->setData(colors.data());
     opacityArray->setData(opacities.data());
+  } else {
+    volume->setParameterObject("color"_t, *colorArray);
+    if (opacityArray)
+      volume->setParameterObject("opacity"_t, *opacityArray);
   }
 
   volume->setParameterObject("value"_t, *field);
-  volume->setParameterObject("color"_t, *colorArray);
-  volume->setParameterObject("opacity"_t, *opacityArray);
 
   return volume;
 }

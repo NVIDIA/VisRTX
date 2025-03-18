@@ -46,7 +46,8 @@ VolumeRef import_volume(Context &ctx,
   volume->setName(fileOf(filepath).c_str());
   volume->setParameterObject("value", *field);
   volume->setParameterObject("color", *colorArray);
-  volume->setParameterObject("opacity", *opacityArray);
+  if (opacityArray)
+    volume->setParameterObject("opacity", *opacityArray);
   volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
 
   return volume;
