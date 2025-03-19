@@ -67,7 +67,7 @@
           "name": "denoise",
           "types": ["ANARI_BOOL"],
           "tags": [],
-          "default": true,
+          "default": false,
           "description": "enable the OptiX denoiser"
         },
         {
@@ -144,7 +144,7 @@
           "name": "denoise",
           "types": ["ANARI_BOOL"],
           "tags": [],
-          "default": true,
+          "default": false,
           "description": "enable the OptiX denoiser"
         },
         {
@@ -212,7 +212,7 @@
           "name": "denoise",
           "types": ["ANARI_BOOL"],
           "tags": [],
-          "default": true,
+          "default": false,
           "description": "enable the OptiX denoiser"
         },
         {
