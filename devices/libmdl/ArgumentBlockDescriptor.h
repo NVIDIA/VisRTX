@@ -64,6 +64,7 @@ struct ArgumentBlockDescriptor
     {
       const float *data = {};
       std::uint64_t dims[3] = {};
+      const char* pixelFormat = {};
     } bsdf;
   };
 
