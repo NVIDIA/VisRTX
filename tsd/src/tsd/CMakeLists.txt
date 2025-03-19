@@ -18,12 +18,13 @@ PRIVATE
   authoring/importers/import_DLAF.cpp
   authoring/importers/import_FLASH.cpp
   authoring/importers/import_HDRI.cpp
-  authoring/importers/import_SWC.cpp
+  authoring/importers/import_MHD.cpp
   authoring/importers/import_NBODY.cpp
   authoring/importers/import_NVDB.cpp
   authoring/importers/import_OBJ.cpp
   authoring/importers/import_PLY.cpp
   authoring/importers/import_RAW.cpp
+  authoring/importers/import_SWC.cpp
   authoring/importers/import_volume.cpp
   authoring/importers/import_XYZDP.cpp
   authoring/procedural/generate_cylinders.cpp
