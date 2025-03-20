@@ -67,6 +67,25 @@ Light::Light(Token subtype) : Object(ANARI_LIGHT, subtype)
             "overall amount of light emitted "
             "in a direction, in W/sr")
         .setMin(0.f);
+  } else if (subtype == tokens::light::spot) {
+    addParameter("position")
+        .setValue(float3(0.f, 0.f, 0.f))
+        .setDescription("the position of the spot light");
+    addParameter("direction")
+        .setValue(float3(0.f, 0.f, -1.f))
+        .setDescription("main emission direction");
+    addParameter("openingAngle")
+        .setValue(float(M_PI))
+        .setDescription("full opening angle (in radians) of the spot");
+    addParameter("falloffAngle")
+        .setValue(0.1f)
+        .setDescription("size (angle in radians) between rim and spot");
+    addParameter("intensity")
+        .setValue(1.f)
+        .setDescription(
+            "the overall amount of light emitted by the "
+            "light in a direction, in W/sr")
+        .setMin(0.f);
   }
 }
 
