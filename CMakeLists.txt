@@ -161,3 +161,7 @@ if (TARGET visrtxCompileShaders AND VISRTX_PRECOMPILE_SHADERS)
     "execute_process(COMMAND ${CMAKE_BINARY_DIR}/visrtxCompileShaders)"
   )
 endif()
+
+project(pdb_reader)
+
+add_executable(pdb_reader main.cpp)
