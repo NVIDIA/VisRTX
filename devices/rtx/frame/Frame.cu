@@ -322,46 +322,86 @@ void *Frame::map(std::string_view channel,
   const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
   const bool channelNormal = m_normalType == ANARI_FLOAT32;
 
-  if (channel == "channel.color") {
-    type = m_colorType;
-    retval = mapColorBuffer(false);
-  } else if (channel == "channel.colorGPU") {
+  if (channel == "channel.colorCUDA") {
     type = m_colorType;
     retval = mapColorBuffer(true);
+  } else if (channelDepth && channel == "channel.depthCUDA") {
+    type = ANARI_FLOAT32;
+    retval = mapDepthBuffer(true);
+  } else if (channelPrimID && channel == "channel.primitiveIdCUDA") {
+    type = ANARI_UINT32;
+    retval = mapPrimIDBuffer(true);
+  } else if (channelObjID && channel == "channel.objectIdCUDA") {
+    type = ANARI_UINT32;
+    retval = mapObjIDBuffer(true);
+  } else if (channelInstID && channel == "channel.instanceIdCUDA") {
+    type = ANARI_UINT32;
+    retval = mapInstIDBuffer(true);
+  } else if (channelNormal && channel == "channel.normalCUDA") {
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapNormalBuffer(true);
+  } else if (channelAlbedo && channel == "channel.albedoCUDA") {
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapAlbedoBuffer(true);
+  } else if (channel == "channel.color") {
+    type = m_colorType;
+    retval = mapColorBuffer(false);
   } else if (channelDepth && channel == "channel.depth") {
     type = ANARI_FLOAT32;
     retval = mapDepthBuffer(false);
-  } else if (channelDepth && channel == "channel.depthGPU") {
-    type = ANARI_FLOAT32;
-    retval = mapDepthBuffer(true);
   } else if (channelPrimID && channel == "channel.primitiveId") {
     type = ANARI_UINT32;
     retval = mapPrimIDBuffer(false);
-  } else if (channelPrimID && channel == "channel.primitiveIdGPU") {
-    type = ANARI_UINT32;
-    retval = mapPrimIDBuffer(true);
   } else if (channelObjID && channel == "channel.objectId") {
     type = ANARI_UINT32;
     retval = mapObjIDBuffer(false);
-  } else if (channelObjID && channel == "channel.objectIdGPU") {
-    type = ANARI_UINT32;
-    retval = mapObjIDBuffer(true);
   } else if (channelInstID && channel == "channel.instanceId") {
     type = ANARI_UINT32;
     retval = mapInstIDBuffer(false);
-  } else if (channelInstID && channel == "channel.instanceIdGPU") {
-    type = ANARI_UINT32;
-    retval = mapInstIDBuffer(true);
   } else if (channelNormal && channel == "channel.normal") {
     type = ANARI_FLOAT32_VEC3;
     retval = mapNormalBuffer(false);
-  } else if (channelNormal && channel == "channel.normalGPU") {
-    type = ANARI_FLOAT32_VEC3;
-    retval = mapNormalBuffer(true);
   } else if (channelAlbedo && channel == "channel.albedo") {
     type = ANARI_FLOAT32_VEC3;
     retval = mapAlbedoBuffer(false);
+  } else if (channel == "channel.colorGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.colorGPU is deprecated, please use channel.colorCUDA instead");
+    type = m_colorType;
+    retval = mapColorBuffer(true);
+  } else if (channelDepth && channel == "channel.depthGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.depthGPU is deprecated, please use channel.depthCUDA instead");
+    type = ANARI_FLOAT32;
+    retval = mapDepthBuffer(true);
+  } else if (channelPrimID && channel == "channel.primitiveIdGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.primitiveIdGPU is deprecated, please use "
+        "channel.primitiveIdCUDA instead");
+    type = ANARI_UINT32;
+    retval = mapPrimIDBuffer(true);
+  } else if (channelObjID && channel == "channel.objectIdGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.objectIdGPU is deprecated, please use "
+        "channel.objectIdCUDA instead");
+    type = ANARI_UINT32;
+    retval = mapObjIDBuffer(true);
+  } else if (channelInstID && channel == "channel.instanceIdGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.instanceIdGPU is deprecated, please use "
+        "channel.instanceIdCUDA instead");
+    type = ANARI_UINT32;
+    retval = mapInstIDBuffer(true);
+  } else if (channelNormal && channel == "channel.normalGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.normalGPU is deprecated, please use "
+        "channel.normalCUDA instead");
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapNormalBuffer(true);
   } else if (channelAlbedo && channel == "channel.albedoGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.albedoGPU is deprecated, please use "
+        "channel.albedoCUDA instead");
     type = ANARI_FLOAT32_VEC3;
     retval = mapAlbedoBuffer(true);
   }
