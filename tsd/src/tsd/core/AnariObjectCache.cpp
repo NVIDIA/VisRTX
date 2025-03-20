@@ -21,7 +21,7 @@ static bool supportsCUDAArrays(anari::Device d)
   );
 
   for(const char *const *i = list; *i != nullptr; ++i) {
-    if (std::string(*i) == "ANARI_VISRTX_ARRAY_CUDA") {
+    if (std::string(*i) == "ANARI_NV_ARRAY_CUDA") {
       supportsCUDA = true;
       break;
     }

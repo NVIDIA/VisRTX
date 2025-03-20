@@ -140,7 +140,7 @@ static bool supportsCUDAFbData(anari::Device d)
       d, ANARI_DEVICE, "default", "extension", ANARI_STRING_LIST);
 
   for (const char *const *i = list; *i != nullptr; ++i) {
-    if (std::string(*i) == "ANARI_VISRTX_CUDA_OUTPUT_BUFFERS") {
+    if (std::string(*i) == "ANARI_NV_FRAME_BUFFERS_CUDA") {
       supportsCUDA = true;
       break;
     }
@@ -265,11 +265,11 @@ void AnariRenderPass::render(Buffers &b, int stageId)
 void AnariRenderPass::copyFrameData()
 {
   const char *colorChannel =
-      m_deviceSupportsCUDAFrames ? "channel.colorGPU" : "channel.color";
+      m_deviceSupportsCUDAFrames ? "channel.colorCUDA" : "channel.color";
   const char *depthChannel =
-      m_deviceSupportsCUDAFrames ? "channel.depthGPU" : "channel.depth";
+      m_deviceSupportsCUDAFrames ? "channel.depthCUDA" : "channel.depth";
   const char *idChannel =
-      m_deviceSupportsCUDAFrames ? "channel.objectIdGPU" : "channel.objectId";
+      m_deviceSupportsCUDAFrames ? "channel.objectIdCUDA" : "channel.objectId";
 
   auto color = anari::map<void>(m_device, m_frame, colorChannel);
   auto depth = anari::map<float>(m_device, m_frame, depthChannel);
