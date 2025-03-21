@@ -147,7 +147,6 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
     if (d) {
       anari::retain(d, d);
 
-      m_device = d;
       if (auto *exts = m_core->loadDeviceExtensions(libName); exts != nullptr)
         m_extensions = *exts;
       else
@@ -189,6 +188,12 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       setSelectionVisibilityFilterEnabled(m_showOnlySelected);
 
       tsd::logStatus("[viewport] getting scene bounds...");
+
+      // NOTE(jda) - Setting the device on this viewport is what triggers active
+      //             rendering in the UI thread, so this must be done here and
+      //             no earlier. Also note that resetView() below will need this
+      //             device also to be set.
+      m_device = d;
 
       if (g_firstFrame || m_arcball->distance() == inf) {
         resetView(true);
