@@ -24,8 +24,8 @@ const std::string KEY_SEQRES = "SEQRES";
 const std::string KEY_REMARK = "REMARK";
 
 // https://en.wikipedia.org/wiki/Atomic_radius
-const double DEFAULT_ATOM_RADIUS = 25.0;
-const std::map<std::string, double> atomicRadii = {{{"H"}, {53.0}},
+const float DEFAULT_ATOM_RADIUS = 25.0;
+const std::map<std::string, float> atomicRadii = {{{"H"}, {53.0}},
     {{"HE"}, {31.0}},
     {{"LI"}, {167.0}},
     {{"BE"}, {112.0}},
@@ -235,20 +235,22 @@ namespace tsd {
 struct Atom
 {
   int serial; // Atom serial number
+  std::string name; // Atom name
   char altLoc; // Alternate location indicator
   std::string residueName; // Residue name
   char chainID; // Chain identifier
   int residueSeq; // Residue sequence number
   char iCode; // Code for insertion of residues
-  float3 position; // x, y, z coordinates
-  double occupancy; // Occupancy
-  double tempFactor; // Temperature factor
+  tsd::float3 position; // x, y, z coordinates
+  float radius; // Atomic radius
+  float occupancy; // Occupancy
+  float tempFactor; // Temperature factor
   std::string element; // Element symbol
   std::string charge; // Charge on the atom
+  tsd::float4 color; // Color of the atom
 };
 
 using Atoms = std::vector<Atom>;
-using AtomsMap = std::map<std::string, Atoms>;
 
 /**
  * Trims a string of whitespace characters.
@@ -271,7 +273,7 @@ static std::string trim(const std::string &str)
  * @param line The line to parse.
  * @param atomsMap The map of atoms to store the parsed atom in.
  */
-void parseAtomLine(const std::string &line, AtomsMap &atomsMap)
+void parseAtomLine(const std::string &line, Atoms &atoms)
 {
   // PDB format specification:
   // https://www.wwpdb.org/documentation/file-format-content/format33/sect9.html#ATOM
@@ -282,6 +284,7 @@ void parseAtomLine(const std::string &line, AtomsMap &atomsMap)
 
   Atom atom;
   atom.serial = std::stoi(line.substr(6, 5));
+  atom.name = trim(line.substr(12, 4));
   atom.altLoc = line[16];
   atom.residueName = trim(line.substr(17, 3));
   atom.chainID = line[21];
@@ -290,6 +293,7 @@ void parseAtomLine(const std::string &line, AtomsMap &atomsMap)
   atom.position.x = std::stod(line.substr(30, 8));
   atom.position.y = std::stod(line.substr(38, 8));
   atom.position.z = std::stod(line.substr(46, 8));
+  atom.radius = DEFAULT_ATOM_RADIUS;
 
   // Optional fields
   if (line.length() >= 60) {
@@ -305,8 +309,24 @@ void parseAtomLine(const std::string &line, AtomsMap &atomsMap)
     atom.charge = trim(line.substr(78, 2));
   }
 
-  const std::string name = trim(line.substr(12, 4));
-  atomsMap[name].push_back(atom);
+  auto itRadius = atomicRadii.find(atom.element);
+  if (itRadius != atomicRadii.end())
+    atom.radius = (*itRadius).second;
+  else {
+    itRadius = atomicRadii.find(atom.name);
+    if (itRadius != atomicRadii.end())
+      atom.radius = (*itRadius).second;
+  }
+
+  const auto itColor = atomColorMap.find(atom.name);
+  atom.color = tsd::float4(1.f, 1.f, 1.f, 1.f);
+  if (itColor != atomColorMap.end())
+    atom.color = tsd::float4((*itColor).second.r / 255.f,
+        (*itColor).second.g / 255.f,
+        (*itColor).second.b / 255.f,
+        1.f);
+
+  atoms.push_back(atom);
 }
 
 /**
@@ -325,13 +345,13 @@ void readPDBFile(Context &ctx, const char *filename, LayerNodeRef location)
     return;
   }
 
-  AtomsMap atomsMap;
+  Atoms atoms;
   std::string line;
 
   while (std::getline(file, line)) {
     if (line.substr(0, 4) == KEY_ATOM || line.substr(0, 6) == KEY_HETATM) {
       try {
-        parseAtomLine(line, atomsMap);
+        parseAtomLine(line, atoms);
       } catch (const std::exception &e) {
         logError("Error parsing line: %s", line.c_str());
         logError("Error: %s", e.what());
@@ -340,68 +360,53 @@ void readPDBFile(Context &ctx, const char *filename, LayerNodeRef location)
     }
   }
 
-  const auto pdbLocation = ctx.defaultLayer()->insert_first_child(
-      location, tsd::utility::Any(ANARI_GEOMETRY, 1));
+  // Generate spheres for each atom
+  auto spheres = ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
+  const std::string basename =
+      std::filesystem::path(filename).filename().string();
+  spheres->setName(basename.c_str());
 
-  for (const auto &[name, atoms] : atomsMap) {
-    // Generate spheres for each atom
-    auto spheres =
-        ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
-    spheres->setName(name.c_str());
+  // Initialize the positions and radii of the spheres
+  const size_t numAtoms = atoms.size();
+  std::vector<tsd::float3> spherePositions;
+  spherePositions.reserve(numAtoms);
+  std::vector<float> sphereRadii;
+  sphereRadii.reserve(numAtoms);
+  std::vector<tsd::float4> sphereColors;
+  sphereColors.reserve(numAtoms);
 
-    // Initialize the positions and radii of the spheres
-    const size_t numAtoms = atoms.size();
-    std::vector<float3> spherePositions;
-    spherePositions.reserve(numAtoms);
-    std::vector<float> sphereRadii;
-    sphereRadii.reserve(numAtoms);
-
-    for (const auto &atom : atoms) {
-      spherePositions.push_back(atom.position);
-
-      double radius = DEFAULT_ATOM_RADIUS;
-      auto it = atomicRadii.find(atom.element);
-      if (it != atomicRadii.end())
-        radius = (*it).second;
-      else {
-        it = atomicRadii.find(name);
-        if (it != atomicRadii.end())
-          radius = (*it).second;
-      }
-
-      sphereRadii.push_back(radius / 1e2);
-    }
-
-    // Create arrays to store the positions and radii of the spheres
-    auto spherePositionArray = ctx.createArray(ANARI_FLOAT32_VEC3, numAtoms);
-    auto sphereRadiusArray = ctx.createArray(ANARI_FLOAT32, numAtoms);
-
-    spherePositionArray->setData(spherePositions);
-    sphereRadiusArray->setData(sphereRadii);
-
-    // Set the positions and radii of the spheres
-    spheres->setParameterObject("vertex.position"_t, *spherePositionArray);
-    spheres->setParameterObject("vertex.radius"_t, *sphereRadiusArray);
-
-    const auto it = atomColorMap.find(name);
-    tsd::float3 baseColor{1.0, 1.0, 1.0};
-    if (it != atomColorMap.end())
-      baseColor = tsd::float3((*it).second.r / 255.0,
-          (*it).second.g / 255.0,
-          (*it).second.b / 255.0);
-
-    const std::string basename =
-        std::filesystem::path(filename).filename().string();
-    const std::string spheresName = basename + " (" + name + ")";
-
-    auto m = ctx.createObject<Material>(tokens::material::matte);
-    m->setParameter("color"_t, ANARI_FLOAT32_VEC3, &baseColor);
-    auto sphereSurface = ctx.createSurface(spheresName.c_str(), spheres, m);
-    const auto atomsLocation = ctx.defaultLayer()->insert_first_child(
-        pdbLocation, tsd::utility::Any(ANARI_GEOMETRY, 1));
-
-    ctx.insertChildObjectNode(atomsLocation, sphereSurface);
+  for (const auto &atom : atoms) {
+    spherePositions.push_back(atom.position);
+    sphereRadii.push_back(atom.radius / 1e2);
+    sphereColors.push_back(atom.color);
   }
+
+  // Create arrays to store the positions and radii of the spheres
+  auto spherePositionArray = ctx.createArray(ANARI_FLOAT32_VEC3, numAtoms);
+  auto sphereRadiusArray = ctx.createArray(ANARI_FLOAT32, numAtoms);
+  auto sphereColorsArray = ctx.createArray(ANARI_FLOAT32_VEC4, numAtoms);
+
+  spherePositionArray->setData(spherePositions);
+  sphereRadiusArray->setData(sphereRadii);
+  sphereColorsArray->setData(sphereColors);
+
+  // Set the positions and radii of the spheres
+  spheres->setParameterObject("vertex.position"_t, *spherePositionArray);
+  spheres->setParameterObject("vertex.radius"_t, *sphereRadiusArray);
+  spheres->setParameterObject("vertex.color"_t, *sphereColorsArray);
+
+  auto material = ctx.createObject<Material>(tokens::material::matte);
+  material->setParameter("color"_t, "color");
+  material->setName("atoms_material");
+
+  auto sphereSurface = ctx.createSurface(basename.c_str(), spheres, material);
+
+  // Create a transform node for the PDB model
+  auto transformationLocation =
+      location->insert_first_child(tsd::mat4(tsd::math::identity));
+  // Insert the surface reference into the layer tree
+  transformationLocation->insert_first_child(
+      tsd::utility::Any(ANARI_SURFACE, sphereSurface->index()));
 }
 
 /**
