@@ -276,10 +276,8 @@ void AppCore::releaseAllDevices()
 void AppCore::setSelectedObject(tsd::Object *o)
 {
   tsd.selectedNode = {};
-  const bool wasSelected = tsd.selectedObject != nullptr;
   tsd.selectedObject = o;
-  if (o != nullptr && !wasSelected || o == nullptr && wasSelected)
-    anari.delegate.signalObjectFilteringChanged();
+  anari.delegate.signalObjectFilteringChanged();
 }
 
 void AppCore::setSelectedNode(tsd::LayerNode &n)
