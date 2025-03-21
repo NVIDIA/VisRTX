@@ -22,6 +22,7 @@ PRIVATE
   authoring/importers/import_NBODY.cpp
   authoring/importers/import_NVDB.cpp
   authoring/importers/import_OBJ.cpp
+  authoring/importers/import_PDB.cpp
   authoring/importers/import_PLY.cpp
   authoring/importers/import_RAW.cpp
   authoring/importers/import_SWC.cpp

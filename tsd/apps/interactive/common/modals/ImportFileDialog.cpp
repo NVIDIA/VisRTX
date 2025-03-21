@@ -98,7 +98,8 @@ void ImportFileDialog::buildUI()
       tsd::import_HDRI(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::SWC)
       tsd::import_SWC(ctx, m_filename.c_str(), importRoot);
-
+    else if (selectedFileType == ImporterType::PDB)
+      tsd::import_PDB(ctx, m_filename.c_str(), importRoot);
     ctx.signalLayerChange();
 
     this->hide();
