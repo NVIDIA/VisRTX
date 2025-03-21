@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ObjectTree.h"
@@ -25,7 +25,7 @@ void ObjectTree::buildUI()
   }
 
   auto &ctx = m_core->tsd.ctx;
-  auto &tree = ctx.tree;
+  auto &tree = *ctx.defaultLayer();
 
   if (ImGui::Button("clear scene")) {
     m_core->clearSelected();
@@ -175,7 +175,7 @@ void ObjectTree::buildUI()
 void ObjectTree::buildUI_objectContextMenu()
 {
   auto &ctx = m_core->tsd.ctx;
-  auto &tree = ctx.tree;
+  auto &tree = *ctx.defaultLayer();
   const bool nodeSelected = m_menuNode != tsd::INVALID_INDEX;
   auto menuNode = nodeSelected ? tree.at(m_menuNode) : tree.root();
 
@@ -183,7 +183,7 @@ void ObjectTree::buildUI_objectContextMenu()
 
   if (ImGui::BeginPopup("ObjectTree_contextMenu")) {
     if (nodeSelected && ImGui::Checkbox("visible", &(*menuNode)->enabled))
-      ctx.signalInstanceTreeChange();
+      ctx.signalLayerChange();
 
     if (ImGui::BeginMenu("add")) {
       if (ImGui::MenuItem("transform")) {
@@ -198,13 +198,31 @@ void ObjectTree::buildUI_objectContextMenu()
         clearSelectedNode = true;
       }
 
+      ImGui::Separator();
+
+      if (ImGui::BeginMenu("existing")) {
+#define OBJECT_UI_MENU_ITEM(text, type)                                        \
+  if (ImGui::BeginMenu(text)) {                                                \
+    if (auto i = tsd::ui::buildUI_objects_menulist(ctx, type);                 \
+        i != tsd::INVALID_INDEX)                                               \
+      ctx.insertChildObjectNode(menuNode, type, i);                            \
+    ImGui::EndMenu();                                                          \
+  }
+        OBJECT_UI_MENU_ITEM("surface", ANARI_SURFACE);
+        OBJECT_UI_MENU_ITEM("volume", ANARI_VOLUME);
+        OBJECT_UI_MENU_ITEM("light", ANARI_LIGHT);
+        ImGui::EndMenu();
+      }
+
+      ImGui::Separator();
+
       if (ImGui::BeginMenu("procedural")) {
         if (ImGui::MenuItem("cylinders")) {
           generate_cylinders(ctx, menuNode);
           clearSelectedNode = true;
         }
 
-        if (ImGui::MenuItem("material_orb")) {
+        if (ImGui::MenuItem("material orb")) {
           generate_material_orb(ctx, menuNode);
           clearSelectedNode = true;
         }
@@ -246,6 +264,25 @@ void ObjectTree::buildUI_objectContextMenu()
           ctx.insertNewChildObjectNode<tsd::Light>(
               menuNode, tsd::tokens::light::quad, "quad light");
           clearSelectedNode = true;
+        }
+
+        if (ImGui::MenuItem("spot")) {
+          ctx.insertNewChildObjectNode<tsd::Light>(
+              menuNode, tsd::tokens::light::spot, "spot light");
+          clearSelectedNode = true;
+        }
+
+        if (ImGui::BeginMenu("hdri")) {
+          if (ImGui::MenuItem("simple dome")) {
+            generate_hdri_dome(ctx, menuNode);
+            clearSelectedNode = true;
+          }
+
+          if (ImGui::MenuItem("test image")) {
+            generate_hdri_test_image(ctx, menuNode);
+            clearSelectedNode = true;
+          }
+          ImGui::EndMenu();
         }
 
         ImGui::EndMenu();

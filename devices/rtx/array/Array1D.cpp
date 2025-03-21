@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,17 +40,17 @@ Array1D::Array1D(DeviceGlobalState *state, const Array1DMemoryDescriptor &d)
     : Array(ANARI_ARRAY1D, state, d, d.numItems), m_end(d.numItems)
 {}
 
-void Array1D::commit()
+void Array1D::commitParameters()
 {
-  const auto oldBegin = m_begin;
-  const auto oldEnd = m_end;
   const auto capacity = totalCapacity();
-
   m_begin = getParam<size_t>("begin", 0);
   m_begin = std::clamp(m_begin, size_t(0), capacity - 1);
   m_end = getParam<size_t>("end", capacity);
   m_end = std::clamp(m_end, size_t(1), capacity);
+}
 
+void Array1D::finalize()
+{
   if (size() == 0) {
     reportMessage(ANARI_SEVERITY_ERROR, "array size must be greater than zero");
     return;
@@ -62,10 +62,8 @@ void Array1D::commit()
     std::swap(m_begin, m_end);
   }
 
-  if (m_begin != oldBegin || m_end != oldEnd) {
-    markDataModified();
-    notifyChangeObservers();
-  }
+  markDataModified();
+  notifyChangeObservers();
 }
 
 size_t Array1D::totalSize() const

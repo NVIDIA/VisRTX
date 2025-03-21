@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,9 +48,11 @@ VISRTX_DEVICE vec4 classifySample(const VolumeGPUData &v, float s)
   vec4 retval(0.f);
   switch (v.type) {
   case VolumeType::TF1D: {
-    float coord = position(s, v.data.tf1d.valueRange);
-    retval = make_vec4(tex1D<::float4>(v.data.tf1d.tfTex, coord));
-    retval.w *= v.data.tf1d.densityScale;
+    if (v.data.tf1d.tfTex) {
+      float coord = position(s, v.data.tf1d.valueRange);
+      retval = make_vec4(tex1D<::float4>(v.data.tf1d.tfTex, coord));
+    } else
+      retval = vec4(v.data.tf1d.uniformColor, v.data.tf1d.uniformOpacity);
     break;
   }
   default:
@@ -67,7 +69,7 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
     float &opacity,
     float invSamplingRate)
 {
-  const auto &volume = *hit.volumeData;
+  const auto &volume = *hit.volume;
   /////////////////////////////////////////////////////////////////////////////
   // TODO: need to generalize
   auto &svv = volume.data.tf1d;
@@ -79,15 +81,21 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
   const float stepSize = volume.stepSize * invSamplingRate;
   interval.lower += stepSize * curand_uniform(&ss.rs); // jitter
 
+  float transmittance = 1.f;
   while (opacity < 0.99f && size(interval) >= 0.f) {
     const vec3 p = hit.localRay.org + hit.localRay.dir * interval.lower;
 
     const float s = sampler(p);
     if (!glm::isnan(s)) {
       const vec4 co = detail::classifySample(volume, s);
+      const float stepTransmittance =
+          glm::pow(1.f - co.w, stepSize / svv.unitDistance);
+
       if (color)
-        accumulateValue(*color, vec3(co) * co.w * invSamplingRate, opacity);
-      accumulateValue(opacity, co.w * invSamplingRate, opacity);
+        *color += transmittance * (1.f - stepTransmittance) * vec3(co);
+      opacity += transmittance * (1.f - stepTransmittance);
+
+      transmittance *= stepTransmittance;
     }
 
     interval.lower += stepSize;
@@ -100,7 +108,7 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
     float &opacity,
     float invSamplingRate)
 {
-  const auto &volume = *hit.volumeData;
+  const auto &volume = *hit.volume;
   /////////////////////////////////////////////////////////////////////////////
   // TODO: need to generalize
   auto &svv = volume.data.tf1d;
@@ -163,7 +171,7 @@ VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
     float &extinction,
     float &tr)
 {
-  const auto &volume = *hit.volumeData;
+  const auto &volume = *hit.volume;
   /////////////////////////////////////////////////////////////////////////////
   // TODO: need to generalize
   auto &svv = volume.data.tf1d;
@@ -235,7 +243,7 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
     float &extinction,
     float &tr)
 {
-  const auto &volume = *hit.volumeData;
+  const auto &volume = *hit.volume;
   /////////////////////////////////////////////////////////////////////////////
   // TODO: need to generalize
   auto &svv = volume.data.tf1d;
@@ -328,8 +336,8 @@ VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
     if (!hit.foundHit)
       break;
     else if (firstHit) {
-      objID = hit.volumeData->id;
-      instID = hit.instID;
+      objID = hit.volume->id;
+      instID = hit.instance->id;
       firstHit = false;
     }
     depth = min(depth, hit.localRay.t.lower);
@@ -371,8 +379,8 @@ VISRTX_DEVICE float sampleDistanceAllVolumes(ScreenSample &ss,
       albedo = alb;
       extinction = ext;
       transmittance = tr;
-      objID = hit.volumeData->id;
-      instID = hit.instID;
+      objID = hit.volume->id;
+      instID = hit.instance->id;
     }
     ray.t.lower = hit.localRay.t.upper + 1e-3f;
   }

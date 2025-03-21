@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -26,11 +26,14 @@ struct Parameter;
 struct ParameterObserver
 {
   virtual void parameterChanged(const Parameter *p) = 0;
+  virtual void removeParameter(const Parameter *p) = 0;
 };
 
 struct Parameter
 {
   Parameter(ParameterObserver *object, Token name);
+
+  void remove(); // remove (and delete) parameter from parent object
 
   Token name() const;
   const std::string &description() const;

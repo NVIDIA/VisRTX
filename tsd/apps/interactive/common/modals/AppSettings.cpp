@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "AppSettings.h"
@@ -9,14 +9,15 @@ namespace tsd_viewer {
 
 AppSettings::AppSettings() : Modal("AppSettings")
 {
-  update();
+  ImGuiIO &io = ImGui::GetIO();
+  m_fontScale = io.FontGlobalScale;
 }
 
 void AppSettings::buildUI()
 {
   bool doUpdate = false;
 
-  doUpdate |= ImGui::DragFloat("font size", &m_fontScale, 0.01f, 1.f, 4.f);
+  doUpdate |= ImGui::DragFloat("font size", &m_fontScale, 0.01f, 0.5f, 4.f);
 
   if (doUpdate)
     update();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,11 +40,10 @@ struct Volume : public RegisteredObject<VolumeGPUData>
   Volume(DeviceGlobalState *d);
   ~Volume() = default;
 
-  void commit() override;
+  void commitParameters() override;
+  void markFinalized() override;
 
   OptixBuildInput buildInput() const;
-
-  void markCommitted() override;
 
   static Volume *createInstance(std::string_view subtype, DeviceGlobalState *d);
 

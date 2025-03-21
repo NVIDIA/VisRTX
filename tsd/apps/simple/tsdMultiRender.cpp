@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd
@@ -60,7 +60,7 @@ int main()
 
   // Populate spheres //
 
-  tsd::generate_randomSpheres(ctx, ctx.tree.root(), true);
+  tsd::generate_randomSpheres(ctx, ctx.defaultLayer()->root(), true);
 
   // Setup ANARI device //
 

@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers.hpp"
@@ -7,7 +7,7 @@
 
 namespace tsd {
 
-void import_HDRI(Context &ctx, const char *filepath, InstanceNode::Ref location)
+void import_HDRI(Context &ctx, const char *filepath, LayerNodeRef location)
 {
   std::string hdriFilename = filepath;
   HDRImage img;
@@ -26,7 +26,7 @@ void import_HDRI(Context &ctx, const char *filepath, InstanceNode::Ref location)
     arr->setData(rgb.data());
 
     auto [inst, hdri] = ctx.insertNewChildObjectNode<tsd::Light>(
-        location ? location : ctx.tree.root(), tsd::tokens::light::hdri);
+        location ? location : ctx.defaultLayer()->root(), tsd::tokens::light::hdri);
     hdri->setName(fileOf(filepath).c_str());
     hdri->setParameterObject("radiance"_t, *arr);
   }

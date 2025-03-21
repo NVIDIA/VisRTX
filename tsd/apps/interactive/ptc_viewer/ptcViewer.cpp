@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "AppCore.h"
@@ -133,7 +133,7 @@ static void setupScene()
     for (size_t i = 0; i < g_filenames.size(); i++) {
       if (g_numRanks > 0 && (i % g_numRanks != g_rank))
         continue;
-      auto root = g_core->tsd.ctx.tree.root();
+      auto root = g_core->tsd.ctx.defaultLayer()->root();
       const auto &f = g_filenames[i];
       if (g_importerType == ImporterType::PLY)
         tsd::import_PLY(g_core->tsd.ctx, f.c_str());

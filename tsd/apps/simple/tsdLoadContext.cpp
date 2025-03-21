@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd
@@ -74,7 +74,7 @@ int main(int argc, const char *argv[])
     return true;
   };
 
-  ctx.tree.traverse(ctx.tree.root(), onNodeEntry);
+  ctx.defaultLayer()->traverse(ctx.defaultLayer()->root(), onNodeEntry);
 
   return 0;
 }

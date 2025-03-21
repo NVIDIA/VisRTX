@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,13 +42,13 @@ struct Curve : public Geometry
   Curve(DeviceGlobalState *d);
   ~Curve() override;
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
   void populateBuildInput(OptixBuildInput &) const override;
 
   int optixGeometryType() const override;
-
-  bool isValid() const override;
 
  private:
   void computeIndices();

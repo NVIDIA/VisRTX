@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -11,12 +11,7 @@
 #include <anari/anari_cpp.hpp>
 
 #ifdef ENABLE_OPENGL
-// OpenGL
-#if __APPLE__
-#include <OpenGL/gl.h>
-#else
-#include <GL/gl.h>
-#endif
+#include <GLFW/glfw3.h>
 #endif
 
 namespace tsd {
@@ -61,6 +56,7 @@ struct AnariRenderPass : public RenderPass
   void setCamera(anari::Camera c);
   void setRenderer(anari::Renderer r);
   void setWorld(anari::World w);
+  void setColorFormat(anari::DataType t);
 
   anari::Frame getFrame() const;
 
@@ -77,10 +73,10 @@ struct AnariRenderPass : public RenderPass
   bool m_deviceSupportsCUDAFrames{false};
 
   anari::Device m_device{nullptr};
-  anari::Frame m_frame{nullptr};
   anari::Camera m_camera{nullptr};
   anari::Renderer m_renderer{nullptr};
   anari::World m_world{nullptr};
+  anari::Frame m_frame{nullptr};
 };
 
 struct VisualizeDepthPass : public RenderPass

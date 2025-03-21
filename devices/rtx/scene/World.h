@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,14 +49,10 @@ struct World : public Object
       void *ptr,
       uint32_t flags) override;
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
 
-  OptixTraversableHandle optixTraversableHandleSurfaces() const;
-  OptixTraversableHandle optixTraversableHandleVolumes() const;
-
-  Span<InstanceSurfaceGPUData> instanceSurfaceGPUData() const;
-  Span<InstanceVolumeGPUData> instanceVolumeGPUData() const;
-  Span<InstanceLightGPUData> instanceLightGPUData() const;
+  WorldGPUData gpuData() const;
 
   void rebuildWorld();
 
@@ -119,6 +115,7 @@ struct World : public Object
   // Lights //
 
   HostDeviceArray<InstanceLightGPUData> m_instanceLightGPUData;
+  DeviceObjectIndex m_hdri{-1};
 };
 
 } // namespace visrtx

@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/procedural.hpp"
@@ -70,10 +70,10 @@ inline MaterialRef makeMetal(Context &ctx, float3 refl, int ID)
   return material;
 }
 
-void generate_rtow(Context &ctx, InstanceNode::Ref location)
+void generate_rtow(Context &ctx, LayerNodeRef location)
 {
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
   auto rtow_root = ctx.insertChildNode(location);
 

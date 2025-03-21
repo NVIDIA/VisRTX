@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,13 +38,12 @@
 
 // nanovdb
 #include <nanovdb/GridHandle.h>
-#include <nanovdb/NanoVDB.h>
 #include <nanovdb/HostBuffer.h>
+#include <nanovdb/NanoVDB.h>
 #include <nanovdb/math/Math.h>
 
 // glm
 #include <glm/ext/vector_float3.hpp>
-
 
 namespace visrtx {
 
@@ -59,12 +58,15 @@ NvdbRegularField::~NvdbRegularField()
   cleanup();
 }
 
-void NvdbRegularField::commit()
+void NvdbRegularField::commitParameters()
 {
-  cleanup();
-
   m_filter = getParamString("filter", "linear");
   m_data = getParamObject<Array1D>("data");
+}
+
+void NvdbRegularField::finalize()
+{
+  cleanup();
 
   if (!m_data) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -107,8 +109,12 @@ void NvdbRegularField::commit()
   m_voxelSize = glm::vec3(voxelSize[0], voxelSize[1], voxelSize[2]);
 
   buildGrid();
-
   upload();
+}
+
+bool NvdbRegularField::isValid() const
+{
+  return m_data && m_data->elementType() == ANARI_UINT8;
 }
 
 box3 NvdbRegularField::bounds() const
@@ -119,11 +125,6 @@ box3 NvdbRegularField::bounds() const
 float NvdbRegularField::stepSize() const
 {
   return glm::compMin(m_voxelSize) / 2.0f;
-}
-
-bool NvdbRegularField::isValid() const
-{
-  return m_data && m_data->elementType() == ANARI_UINT8;
 }
 
 SpatialFieldGPUData NvdbRegularField::gpuData() const

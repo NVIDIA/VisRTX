@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,8 +41,13 @@ namespace visrtx {
 
 Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s)
 {
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
+  helium::BaseObject::markParameterChanged();
+  s->commitBuffer.addObjectToCommit(this);
+}
+
+void Camera::finalize()
+{
+  upload();
 }
 
 Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)

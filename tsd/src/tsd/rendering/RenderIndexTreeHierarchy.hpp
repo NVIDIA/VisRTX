@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -15,7 +15,7 @@ struct RenderIndexTreeHierarchy : public RenderIndex
   void setFilterFunction(RenderIndexFilterFcn f) override;
 
   void signalArrayUnmapped(const Array *a) override;
-  void signalInstanceStructureChanged() override;
+  void signalLayerChanged() override;
   void signalObjectFilteringChanged() override;
 
  private:

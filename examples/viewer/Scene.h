@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -131,7 +131,7 @@ struct ObjFileConfig : public Config
 struct MDLCubeConfig : public Config
 {
   static constexpr const char *choices[] = {
-      "::visrtx::default::simpleWhite",
+      "::visrtx::default::diffuseWhite",
       "::visrtx::test_material::test_uv",
       "::visrtx::test_material::test_texture",
       "::visrtx::test_material::test_texel_fetch",

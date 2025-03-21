@@ -1,5 +1,9 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
+
+#ifndef TSD_USE_CUDA
+#define TSD_USE_CUDA 1
+#endif
 
 #include "tsd/authoring/serialization.hpp"
 #include "tsd/core/Logging.hpp"
@@ -11,6 +15,10 @@
 #include <stack>
 #include <stdexcept>
 #include <type_traits>
+#if TSD_USE_CUDA
+// cuda
+#include <cuda_runtime.h>
+#endif
 
 #ifndef TSD_ENABLE_SERIALIZATION
 #define TSD_ENABLE_SERIALIZATION 1
@@ -105,16 +113,25 @@ static void arrayToConduit(const Array &arr, conduit::Node &node)
   arrayData["dim"] = {arr.dim(0), arr.dim(1), arr.dim(2)};
 
   const auto *mem = reinterpret_cast<const uint8_t *>(arr.data());
-  arrayData["bytes"].set(mem, arr.size() * arr.elementSize());
+  const size_t numBytes = arr.size() * arr.elementSize();
+#if TSD_USE_CUDA
+  if (arr.kind() == Array::MemoryKind::CUDA) {
+    // TODO
+    std::vector<uint8_t> hostBuf(numBytes);
+    cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
+    arrayData["bytes"].set(hostBuf.data(), numBytes);
+  } else
+#endif
+    arrayData["bytes"].set(mem, numBytes);
 }
 
-static void objectTreeToConduit(InstanceTree &tree, conduit::Node &node)
+static void layerToConduit(Layer &layer, conduit::Node &node)
 {
   std::stack<conduit::Node *> nodes;
   conduit::Node *currentParentNode = nullptr;
   conduit::Node *currentNode = &node;
   int currentLevel = -1;
-  tree.traverse(tree.root(), [&](InstanceNode &tsdNode, int level) {
+  layer.traverse(layer.root(), [&](LayerNode &tsdNode, int level) {
     if (currentLevel < level) {
       nodes.push(currentNode);
       currentParentNode = currentNode;
@@ -272,11 +289,11 @@ static void conduitToObject(Context &ctx, const conduit::Node &node)
   conduitToObjectParameters(node["parameters"], *obj);
 }
 
-static void conduitToObjectTree(conduit::Node &rootNode, InstanceTree &tree)
+static void conduitToLayer(conduit::Node &rootNode, Layer &layer)
 {
-  std::stack<InstanceNode::Ref> tsdNodes;
-  InstanceNode::Ref currentParentNode;
-  InstanceNode::Ref currentNode = tree.root();
+  std::stack<LayerNodeRef> tsdNodes;
+  LayerNodeRef currentParentNode;
+  LayerNodeRef currentNode = layer.root();
   int currentLevel = -1;
   conduit_utility::TraverseNodes(rootNode, [&](auto &node, int level) {
     if (level & 0x1 || !node.has_child("children"))
@@ -295,12 +312,12 @@ static void conduitToObjectTree(conduit::Node &rootNode, InstanceTree &tree)
     currentLevel = level;
 
     if (level == 0)
-      currentNode = tree.root();
+      currentNode = layer.root();
     else {
       const char *name = "";
       if (node.has_child("name"))
         name = node["name"].as_char8_str();
-      currentNode = tree.insert_last_child(
+      currentNode = layer.insert_last_child(
           currentParentNode, {conduitToAny(node["value"]), name});
     }
 
@@ -318,8 +335,8 @@ void save_Context(Context &ctx, const char *filename)
 #if TSD_ENABLE_SERIALIZATION
   conduit::Node root;
 
-  auto &objectTree = root["objectTree"];
-  objectTreeToConduit(ctx.tree, objectTree);
+  auto &layer = root["objectTree"];
+  layerToConduit(*ctx.defaultLayer(), layer);
 
   auto &objectDB = root["objectDB"];
   auto objectArrayToConduit =
@@ -357,9 +374,9 @@ void import_Context(Context &ctx, const char *filename)
   // Clear out any existing context contents //
 
   ctx.removeAllObjects();
-  ctx.tree.erase_subtree(ctx.tree.root());
+  ctx.defaultLayer()->root()->erase_subtree();
 
-  // Load from the conduit file (objects then tree) //
+  // Load from the conduit file (objects then layer) //
 
   conduit::Node root;
   root.load(filename, "conduit_bin");
@@ -380,7 +397,9 @@ void import_Context(Context &ctx, const char *filename)
   conduitToObjectArray(objectDB, ctx, "light");
   conduitToObjectArray(objectDB, ctx, "array");
 
-  conduitToObjectTree(root["objectTree"], ctx.tree);
+  auto &v1LayerRoot = root["objectTree"];
+  if (v1LayerRoot.number_of_children() > 0)
+    conduitToLayer(v1LayerRoot, *ctx.defaultLayer());
 #else
   logError("[import_Context] serialization not enabled in TSD build.");
 #endif

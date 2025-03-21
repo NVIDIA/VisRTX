@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,37 +37,13 @@ Instance::Instance(DeviceGlobalState *d)
     : Object(ANARI_INSTANCE, d), m_xfmArray(this), m_idArray(this)
 {}
 
-void Instance::commit()
+void Instance::commitParameters()
 {
   m_idArray = getParamObject<Array1D>("id");
-  if (m_idArray && m_idArray->elementType() != ANARI_UINT32) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "'id' array elements are %s, but need to be %s",
-        anari::toString(m_idArray->elementType()),
-        anari::toString(ANARI_UINT32));
-    m_idArray = {};
-  }
   m_id = getParam<uint32_t>("id", ~0u);
-
   m_xfmArray = getParamObject<Array1D>("transform");
-  if (m_xfmArray && m_xfmArray->elementType() != ANARI_FLOAT32_MAT4) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "'transform' array elements are %s, but need to be %s",
-        anari::toString(m_idArray->elementType()),
-        anari::toString(ANARI_FLOAT32_MAT4));
-    m_xfmArray = {};
-  }
   m_xfm = getParam<mat4x3>("transform", getParam<mat4>("transform", mat4(1)));
-
-  if (m_xfmArray) {
-    reportMessage(ANARI_SEVERITY_DEBUG,
-        "using array transforms for ANARIInstance of size %zu",
-        m_xfmArray->totalSize());
-  }
-
   m_group = getParamObject<Group>("group");
-  if (!m_group)
-    reportMessage(ANARI_SEVERITY_WARNING, "missing 'group' on ANARIInstance");
 
   auto getUniformAttribute =
       [&](const std::string &pName) -> std::optional<vec4> {
@@ -98,6 +74,42 @@ void Instance::commit()
 
   m_uniformAttributes.color = getUniformAttribute("color");
   m_uniformAttributes.colorArray = getParamObject<Array1D>("color");
+}
+
+void Instance::finalize()
+{
+  if (m_idArray && m_idArray->elementType() != ANARI_UINT32) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'id' array elements are %s, but need to be %s",
+        anari::toString(m_idArray->elementType()),
+        anari::toString(ANARI_UINT32));
+    m_idArray = {};
+  }
+  if (m_xfmArray && m_xfmArray->elementType() != ANARI_FLOAT32_MAT4) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'transform' array elements are %s, but need to be %s",
+        anari::toString(m_idArray->elementType()),
+        anari::toString(ANARI_FLOAT32_MAT4));
+    m_xfmArray = {};
+  }
+  if (m_xfmArray) {
+    reportMessage(ANARI_SEVERITY_DEBUG,
+        "using array transforms for ANARIInstance of size %zu",
+        m_xfmArray->totalSize());
+  }
+  if (!m_group)
+    reportMessage(ANARI_SEVERITY_WARNING, "missing 'group' on ANARIInstance");
+}
+
+void Instance::markFinalized()
+{
+  Object::markFinalized();
+  deviceState()->objectUpdates.lastTLASChange = helium::newTimeStamp();
+}
+
+bool Instance::isValid() const
+{
+  return m_group;
 }
 
 uint32_t Instance::userID(size_t i) const
@@ -133,17 +145,6 @@ Group *Instance::group()
 const UniformAttributes &Instance::uniformAttributes() const
 {
   return m_uniformAttributes;
-}
-
-void Instance::markCommitted()
-{
-  Object::markCommitted();
-  deviceState()->objectUpdates.lastTLASChange = helium::newTimeStamp();
-}
-
-bool Instance::isValid() const
-{
-  return m_group;
 }
 
 } // namespace visrtx

@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "RenderIndex.hpp"
@@ -56,6 +56,17 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
 
   // Setup individual leaf object handles, create first then set params //
 
+  auto createANARICacheArrays =
+    [&](const auto &objArray, auto &handleArray, bool supportsCUDA) {
+    foreach_item_const(objArray, [&](auto *obj) {
+      if (!obj || (!supportsCUDA && obj->kind() == Array::MemoryKind::CUDA))
+        handleArray.insert(nullptr);
+      else
+        handleArray.insert((anari::Array)obj->makeANARIObject(d));
+    });
+    handleArray.sync_slots(objArray);
+  };
+
   auto createANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
     foreach_item_const(objArray, [&](auto *obj) {
       using handle_t = typename std::remove_reference<
@@ -66,7 +77,7 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
   };
 
   // NOTE: These needs to go from bottom to top of the ANARI hierarchy!
-  createANARICacheObjects(db.array, m_cache.array);
+  createANARICacheArrays(db.array, m_cache.array, m_cache.supportsCUDA());
   createANARICacheObjects(db.sampler, m_cache.sampler);
   createANARICacheObjects(db.material, m_cache.material);
   createANARICacheObjects(db.geometry, m_cache.geometry);
@@ -196,7 +207,7 @@ void RenderIndex::signalArrayUnmapped(const Array *a)
     anariUnmapArray(device(), (anari::Array)arr);
 }
 
-void RenderIndex::signalInstanceStructureChanged()
+void RenderIndex::signalLayerChanged()
 {
   // no-op
 }

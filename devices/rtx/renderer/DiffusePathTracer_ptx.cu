@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,8 +31,8 @@
 
 #define VISRTX_DEBUGGING 0
 
-#include "gpu/gpu_debug.h"
 #include "gpu/evalMaterial.h"
+#include "gpu/gpu_debug.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -65,7 +65,7 @@ VISRTX_GLOBAL void __anyhit__()
 
   const auto &fd = frameData;
   const auto &md = *hit.material;
-  const auto& materialValues = getMaterialValues(fd, md, hit);
+  const auto &materialValues = getMaterialValues(fd, md, hit);
 
   float opacity = materialValues.opacity;
   if (opacity < 0.99f && curand_uniform(&ray::screenSample().rs) > opacity)
@@ -89,122 +89,126 @@ VISRTX_GLOBAL void __raygen__()
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
-  auto ray = makePrimaryRay(ss);
-  auto tmax = ray.t.upper;
 
-  if (debug())
-    printf("========== BEGIN: FrameID %i ==========\n", frameData.fb.frameID);
+  for (int i = 0; i < frameData.renderer.numIterations; i++) {
+    auto ray = makePrimaryRay(ss);
+    auto tmax = ray.t.upper;
 
-  const auto bg = getBackground(frameData.renderer, ss.screen);
-  vec3 outColor(bg);
-  vec3 outNormal = ray.dir;
-  float outDepth = tmax;
-  uint32_t primID = ~0u;
-  uint32_t objID = ~0u;
-  uint32_t instID = ~0u;
-
-  while (true) {
     if (debug())
-      printf("-------- BOUNCE: %i --------\n", pathData.depth);
-    hit.foundHit = false;
-    intersectSurface(ss,
-        ray,
-        RayType::DIFFUSE_RADIANCE,
-        &hit,
-        primaryRayOptiXFlags(rendererParams));
+      printf("========== BEGIN: FrameID %i ==========\n", frameData.fb.frameID);
 
-    float volumeOpacity = 0.f;
-    vec3 volumeColor(0.f);
-    float Tr = 0.f;
-    uint32_t vObjID = ~0u;
-    uint32_t vInstID = ~0u;
-    const float volumeDepth = sampleDistanceAllVolumes(ss,
-        ray,
-        RayType::DIFFUSE_RADIANCE,
-        hit.foundHit ? hit.t : ray.t.upper,
-        volumeColor,
-        volumeOpacity,
-        Tr,
-        vObjID,
-        vInstID);
+    const auto bg = getBackground(frameData, ss.screen, ray.dir);
+    vec3 outColor(bg);
+    vec3 outNormal = ray.dir;
+    float outDepth = tmax;
+    uint32_t primID = ~0u;
+    uint32_t objID = ~0u;
+    uint32_t instID = ~0u;
 
-    const bool volumeHit = Tr < 1.f && (!hit.foundHit || volumeDepth < hit.t);
+    while (true) {
+      if (debug())
+        printf("-------- BOUNCE: %i --------\n", pathData.depth);
+      hit.foundHit = false;
+      intersectSurface(ss,
+          ray,
+          RayType::DIFFUSE_RADIANCE,
+          &hit,
+          primaryRayOptiXFlags(rendererParams));
 
-    if (!hit.foundHit && !volumeHit)
-      break;
+      float volumeOpacity = 0.f;
+      vec3 volumeColor(0.f);
+      float Tr = 0.f;
+      uint32_t vObjID = ~0u;
+      uint32_t vInstID = ~0u;
+      const float volumeDepth = sampleDistanceAllVolumes(ss,
+          ray,
+          RayType::DIFFUSE_RADIANCE,
+          hit.foundHit ? hit.t : ray.t.upper,
+          volumeColor,
+          volumeOpacity,
+          Tr,
+          vObjID,
+          vInstID);
 
-    if (pathData.depth++ >= dptParams.maxDepth) {
-      pathData.Lw = vec3(0.f);
-      break;
-    }
+      const bool volumeHit = Tr < 1.f && (!hit.foundHit || volumeDepth < hit.t);
 
-    vec3 albedo(1.f);
-    vec3 pos(0.f);
+      if (!hit.foundHit && !volumeHit)
+        break;
 
-    if (!volumeHit) {
-      pos = hit.hitpoint + (hit.epsilon * hit.Ng);
-      const auto &material = *hit.material;
-      const auto &materialValues = getMaterialValues(frameData, material, hit);
-      albedo = vec3(materialValues.baseColor);
-    } else {
-      pos = ray.org + volumeDepth * ray.dir;
-      albedo = volumeColor;
-    }
-    pathData.Lw *= albedo;
-
-    // RR absorption
-    float P = glm::compMax(pathData.Lw);
-    if (P < .2f /*lp.rouletteProb*/) {
-      if (curand_uniform(&ss.rs) > P) {
+      if (pathData.depth++ >= dptParams.maxDepth) {
         pathData.Lw = vec3(0.f);
         break;
       }
-      pathData.Lw /= P;
+
+      vec3 albedo(1.f);
+      vec3 pos(0.f);
+
+      if (!volumeHit) {
+        pos = hit.hitpoint + (hit.epsilon * hit.Ng);
+        const auto &material = *hit.material;
+        const auto &materialValues =
+            getMaterialValues(frameData, material, hit);
+        albedo = vec3(materialValues.baseColor);
+      } else {
+        pos = ray.org + volumeDepth * ray.dir;
+        albedo = volumeColor;
+      }
+      pathData.Lw *= albedo;
+
+      // RR absorption
+      float P = glm::compMax(pathData.Lw);
+      if (P < .2f /*lp.rouletteProb*/) {
+        if (curand_uniform(&ss.rs) > P) {
+          pathData.Lw = vec3(0.f);
+          break;
+        }
+        pathData.Lw /= P;
+      }
+
+      // pathData.Lw += Le; // TODO: emission
+
+      vec3 scatterDir(0.f);
+      if (!volumeHit) {
+        scatterDir = randomDir(ss.rs, hit.Ns);
+        pathData.Lw *= fmaxf(0.f, dot(scatterDir, hit.Ng));
+      } else
+        scatterDir = sampleUnitSphere(ss.rs, -ray.dir);
+
+      ray.org = pos;
+      ray.dir = scatterDir;
+      ray.t.lower = 0.f;
+      ray.t.upper = rendererParams.occlusionDistance;
+
+      if (pathData.depth == 0) {
+        const bool volumeFirst = volumeDepth < hit.t;
+        outDepth = volumeFirst ? volumeDepth : hit.t;
+        outNormal = hit.Ng; // TODO: for volume (gradient?)
+        primID = volumeFirst ? 0 : computeGeometryPrimId(hit);
+        objID = volumeFirst ? vObjID : hit.objID;
+        instID = volumeFirst ? vInstID : hit.instID;
+      }
     }
 
-    // pathData.Lw += Le; // TODO: emission
+    vec3 Ld(rendererParams.ambientIntensity); // ambient light!
+    // if (numLights > 0) {
+    //   Ld = ...;
+    // }
 
-    vec3 scatterDir(0.f);
-    if (!volumeHit) {
-      scatterDir = randomDir(ss.rs, hit.Ns);
-      pathData.Lw *= fmaxf(0.f, dot(scatterDir, hit.Ng));
-    } else
-      scatterDir = sampleUnitSphere(ss.rs, -ray.dir);
-
-    ray.org = pos;
-    ray.dir = scatterDir;
-    ray.t.lower = 0.f;
-    ray.t.upper = rendererParams.occlusionDistance;
-
-    if (pathData.depth == 0) {
-      const bool volumeFirst = volumeDepth < hit.t;
-      outDepth = volumeFirst ? volumeDepth : hit.t;
-      outNormal = hit.Ng; // TODO: for volume (gradient?)
-      primID = volumeFirst ? 0 : computeGeometryPrimId(hit);
-      objID = volumeFirst ? vObjID : hit.objID;
-      instID = volumeFirst ? vInstID : hit.instID;
-    }
+    vec3 color = pathData.depth ? pathData.Lw * Ld : vec3(bg);
+    if (crosshair())
+      color = vec3(1) - color;
+    if (debug())
+      printf("========== END: FrameID %i ==========\n", frameData.fb.frameID);
+    accumResults(frameData.fb,
+        ss.pixel,
+        vec4(color, 1.f),
+        outDepth,
+        outColor,
+        outNormal,
+        primID,
+        objID,
+        instID);
   }
-
-  vec3 Ld(rendererParams.ambientIntensity); // ambient light!
-  // if (numLights > 0) {
-  //   Ld = ...;
-  // }
-
-  vec3 color = pathData.depth ? pathData.Lw * Ld : vec3(bg);
-  if (crosshair())
-    color = vec3(1) - color;
-  if (debug())
-    printf("========== END: FrameID %i ==========\n", frameData.fb.frameID);
-  accumResults(frameData.fb,
-      ss.pixel,
-      vec4(color, 1.f),
-      outDepth,
-      outColor,
-      outNormal,
-      primID,
-      objID,
-      instID);
 }
 
 } // namespace visrtx

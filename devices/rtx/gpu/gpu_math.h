@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -86,6 +86,7 @@ struct Ray
 };
 
 struct InstanceSurfaceGPUData;
+struct InstanceVolumeGPUData;
 struct GeometryGPUData;
 struct MaterialGPUData;
 struct VolumeGPUData;
@@ -114,9 +115,10 @@ struct VolumeHit
 {
   bool foundHit;
   Ray localRay;
-  uint32_t volID{~0u};
-  uint32_t instID{~0u};
-  const VolumeGPUData *volumeData{nullptr};
+  uint32_t lastVolID{~0u};
+  uint32_t lastInstID{~0u};
+  const VolumeGPUData *volume{nullptr};
+  const InstanceVolumeGPUData *instance{nullptr};
 };
 
 using Hit = SurfaceHit;
@@ -214,6 +216,22 @@ VISRTX_HOST_DEVICE float pow2(float f)
 VISRTX_HOST_DEVICE float pow5(float f)
 {
   return f * f * f * f * f;
+}
+
+VISRTX_HOST_DEVICE float pbrt_clampf(float f, float lo, float hi)
+{
+  return glm::max(lo, glm::min(hi, f));
+}
+
+VISRTX_HOST_DEVICE float pbrtSphericalTheta(const vec3 &v)
+{
+  return acosf(pbrt_clampf(v.z, -1.f, 1.f));
+}
+
+VISRTX_HOST_DEVICE float pbrtSphericalPhi(const vec3 &v)
+{
+  const float p = atan2f(v.y, v.x);
+  return p < 0.f ? p + (2.f * float(M_PI)) : p;
 }
 
 template <typename T>

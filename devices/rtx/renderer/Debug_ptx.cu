@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -139,10 +139,10 @@ VISRTX_DEVICE void handleVolumeHit()
 
   switch (method) {
   case DebugMethod::OBJ_ID:
-    rd.outColor = makeRandomColor(rd.volID);
+    rd.outColor = makeRandomColor(rd.volume->id);
     break;
   case DebugMethod::INST_ID:
-    rd.outColor = makeRandomColor(rd.instID);
+    rd.outColor = makeRandomColor(rd.instance->id);
     break;
   case DebugMethod::PRIM_ID:
   case DebugMethod::PRIM_INDEX:
@@ -189,7 +189,7 @@ VISRTX_GLOBAL void __raygen__()
     return;
   auto ray = makePrimaryRay(ss, true /*pixel centered*/);
 
-  auto color = vec3(getBackground(frameData.renderer, ss.screen));
+  auto color = vec3(getBackgroundImage(frameData.renderer, ss.screen));
   auto depth = ray.t.upper;
   auto normal = ray.dir;
   uint32_t primID = ~0u;
@@ -209,8 +209,8 @@ VISRTX_GLOBAL void __raygen__()
       depth = vrd.localRay.t.lower;
       normal = -ray.dir;
       primID = 0;
-      objID = vrd.volumeData->id;
-      instID = vrd.instID;
+      objID = vrd.volume->id;
+      instID = vrd.instance->id;
     } else {
       color = srd.outColor;
       depth = srd.t;
@@ -231,8 +231,8 @@ VISRTX_GLOBAL void __raygen__()
     depth = vrd.localRay.t.lower;
     normal = -ray.dir;
     primID = 0;
-    objID = vrd.volumeData->id;
-    instID = vrd.instID;
+    objID = vrd.volume->id;
+    instID = vrd.instance->id;
   }
 
   accumResults(frameData.fb,

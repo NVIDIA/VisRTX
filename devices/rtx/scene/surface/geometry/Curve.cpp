@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,16 +41,18 @@ Curve::Curve(DeviceGlobalState *d)
 
 Curve::~Curve() = default;
 
-void Curve::commit()
+void Curve::commitParameters()
 {
-  Geometry::commit();
-
+  Geometry::commitParameters();
   m_index = getParamObject<Array1D>("primitive.index");
-
   m_vertexPosition = getParamObject<Array1D>("vertex.position");
   m_vertexRadius = getParamObject<Array1D>("vertex.radius");
+  m_globalRadius = getParam<float>("radius", 1.f);
   commitAttributes("vertex.", m_vertexAttributes);
+}
 
+void Curve::finalize()
+{
   if (!m_vertexPosition) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on curve geometry");
@@ -58,10 +60,8 @@ void Curve::commit()
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
-      "committing %s curve geometry",
+      "finalizing %s curve geometry",
       m_index ? "indexed" : "soup");
-
-  m_globalRadius = getParam<float>("radius", 1.f);
 
   computeIndices();
   computeRadii();

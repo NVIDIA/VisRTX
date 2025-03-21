@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -13,11 +13,12 @@ namespace tsd::ui {
 constexpr float INDENT_AMOUNT = 25.f;
 
 void buildUI_object(tsd::Object &o,
-    const tsd::Context &ctxeg,
+    tsd::Context &ctx,
     bool useTableForParameters = false,
     int level = 0);
 void buildUI_parameter(
-    tsd::Parameter &p, const tsd::Context &ctxeg, bool asTable = false);
+    tsd::Object &o, tsd::Parameter &p, tsd::Context &ctx, bool asTable = false);
+size_t buildUI_objects_menulist(const Context &ctx, anari::DataType type);
 
 void addDefaultRendererParameters(Object &o);
 Object parseANARIObject(

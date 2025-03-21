@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "VISRTX_CUDA_OUTPUT_BUFFERS",
+    "name": "NV_FRAME_BUFFERS_CUDA",
     "type": "extension",
     "dependencies": []
   },

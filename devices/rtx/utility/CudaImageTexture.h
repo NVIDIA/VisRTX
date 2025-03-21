@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -64,6 +64,11 @@ void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec2 size);
 void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec3 size);
 void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec3 size);
 
+void makeCudaCompressedTextureArray(cudaArray_t &cuArray,
+    const uvec2 &size,
+    const Array &array,
+    const cudaChannelFormatKind channelFormatKind);
+
 cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
     const std::string &filter,
@@ -71,5 +76,13 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     const std::string &wrap2 = "clampToEdge",
     const std::string &wrap3 = "clampToEdge",
     bool normalizedCoords = true);
+
+cudaTextureObject_t makeCudaCompressedTextureObject(cudaArray_t cuArray,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const std::string &wrap3,
+    bool normalizedCoords,
+    cudaChannelFormatKind channelFormatKind);
 
 } // namespace visrtx

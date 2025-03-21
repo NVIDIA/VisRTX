@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,11 +42,11 @@ struct Image3D : public Sampler
   Image3D(DeviceGlobalState *d);
   ~Image3D();
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
   int numChannels() const override;
-
-  bool isValid() const override;
 
  private:
   SamplerGPUData gpuData() const override;

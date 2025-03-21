@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "BaseApplication.h"
@@ -54,25 +54,23 @@ class Application : public BaseApplication
                                        m = manipulator,
                                        tf = tfeditor,
                                        core = core]() {
-      auto colorArray = core->tsd.ctx.createArray(ANARI_FLOAT32_VEC3, 256);
-      auto opacityArray = core->tsd.ctx.createArray(ANARI_FLOAT32, 256);
+      auto colorMapArray = core->tsd.ctx.createArray(ANARI_FLOAT32_VEC4, 256);
 
       tsd::VolumeRef volume;
 
       if (!g_filename.empty()) {
         volume = tsd::import_volume(
-            core->tsd.ctx, g_filename.c_str(), colorArray, opacityArray);
+            core->tsd.ctx, g_filename.c_str(), colorMapArray);
       }
 
       if (!volume) {
         if (!g_filename.empty())
           tsd::logWarning("unable to load volume from file, using placeholder");
 
-        auto tx1 =
-            core->tsd.ctx.insertChildTransformNode(core->tsd.ctx.tree.root());
+        auto tx1 = core->tsd.ctx.insertChildTransformNode(
+            core->tsd.ctx.defaultLayer()->root());
 
-        volume = tsd::generate_noiseVolume(
-            core->tsd.ctx, tx1, colorArray, opacityArray);
+        volume = tsd::generate_noiseVolume(core->tsd.ctx, tx1, colorMapArray);
       }
 
       core->tsd.selectedObject = volume.data();
@@ -90,7 +88,8 @@ class Application : public BaseApplication
         light->setName("mainLight");
         light->setParameter("direction", tsd::float2(0.f, 240.f));
 
-        core->tsd.ctx.tree.insert_first_child(core->tsd.ctx.tree.root(),
+        core->tsd.ctx.defaultLayer()->insert_first_child(
+            core->tsd.ctx.defaultLayer()->root(),
             tsd::utility::Any(ANARI_LIGHT, light.index()));
       }
 
@@ -102,18 +101,9 @@ class Application : public BaseApplication
 
       tf->setUpdateCallback([=](const tsd::float2 &valueRange,
                                 const std::vector<tsd::float4> &co) mutable {
-        auto *colors = colorArray->mapAs<tsd::float3>();
-        auto *opacities = opacityArray->mapAs<float>();
-        std::transform(co.begin(), co.end(), colors, [](const tsd::float4 &v) {
-          return tsd::float3(v.x, v.y, v.z);
-        });
-        std::transform(
-            co.begin(), co.end(), opacities, [](const tsd::float4 &v) {
-              return v.w;
-            });
-        colorArray->unmap();
-        opacityArray->unmap();
-
+        auto *colorMap = colorMapArray->mapAs<tsd::float4>();
+        std::copy(co.begin(), co.end(), colorMap);
+        colorMapArray->unmap();
         volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
       });
     });

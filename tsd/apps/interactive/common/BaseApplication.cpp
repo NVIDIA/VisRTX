@@ -1,8 +1,9 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "BaseApplication.h"
 // tsd
+#include "tsd_font.h"
 #include "tsd_ui.h"
 // anari_viewer
 #include "anari_viewer/ui_anari.h"
@@ -26,8 +27,12 @@ anari_viewer::WindowArray BaseApplication::setupWindows()
   anari_viewer::ui::init();
 
   ImGuiIO &io = ImGui::GetIO();
-  io.FontGlobalScale = 1.5f;
+  io.FontGlobalScale = 1.f;
   io.IniFilename = nullptr;
+  auto *font = io.Fonts->AddFontFromMemoryCompressedTTF(
+      tsd_font_compressed_data, tsd_font_compressed_size, 20.f);
+  io.Fonts->ConfigData[0].FontDataOwnedByAtlas = false;
+  io.FontDefault = font;
 
   if (appCore()->commandLine.useDefaultLayout)
     ImGui::LoadIniSettingsFromMemory(getDefaultLayout());

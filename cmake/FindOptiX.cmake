@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,34 +27,34 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-if (TARGET OptiX7::OptiX7)
+if (TARGET OptiX::OptiX)
   return()
 endif()
 
-macro(OptiX7_config_message)
-  if (NOT DEFINED OptiX7_FIND_QUIETLY)
+macro(OptiX_config_message)
+  if (NOT DEFINED OptiX_FIND_QUIETLY)
     message(${ARGN})
   endif()
 endmacro()
 
-find_path(OptiX7_ROOT_DIR NAMES include/optix.h)
+find_path(OptiX_ROOT_DIR NAMES include/optix.h)
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(OptiX7
-  FOUND_VAR OptiX7_FOUND
+find_package_handle_standard_args(OptiX
+  FOUND_VAR OptiX_FOUND
   REQUIRED_VARS
-    OptiX7_ROOT_DIR
+    OptiX_ROOT_DIR
   REASON_FAILURE_MESSAGE
-    "OptiX7 installation not found on CMAKE_PREFIX_PATH (include/optix.h)"
+    "OptiX installation not found on CMAKE_PREFIX_PATH (include/optix.h)"
 )
 
-if (NOT OptiX7_FOUND)
-  set(OptiX7_NOT_FOUND_MESSAGE "Unable to find OptiX7, please add your OptiX7 installation to CMAKE_PREFIX_PATH")
+if (NOT OptiX_FOUND)
+  set(OptiX_NOT_FOUND_MESSAGE "Unable to find OptiX, please add your OptiX installation to CMAKE_PREFIX_PATH")
   return()
 endif()
 
-set(OptiX7_INCLUDE_DIR ${OptiX7_ROOT_DIR}/include)
-set(OptiX7_INCLUDE_DIRS ${OptiX7_INCLUDE_DIR})
+set(OptiX_INCLUDE_DIR ${OptiX_ROOT_DIR}/include)
+set(OptiX_INCLUDE_DIRS ${OptiX_INCLUDE_DIR})
 
-add_library(OptiX7::OptiX7 INTERFACE IMPORTED)
-target_include_directories(OptiX7::OptiX7 INTERFACE ${OptiX7_INCLUDE_DIR})
+add_library(OptiX::OptiX INTERFACE IMPORTED)
+target_include_directories(OptiX::OptiX INTERFACE ${OptiX_INCLUDE_DIR})

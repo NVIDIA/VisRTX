@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/Context.hpp"
@@ -25,6 +25,12 @@ std::string objectDBInfo(const ObjectDatabase &db)
 
 Context::Context()
 {
+  // create default layer -- root must be a matrix
+  m_layers["default"].reset(
+      new Layer({tsd::mat4(tsd::math::identity), "root"}));
+  m_defaultLayer = m_layers.at_index(0).second.get();
+
+  // create default material
   auto defaultMat = createObject<Material>(tokens::material::matte);
   defaultMat->setName("default_material");
 }
@@ -32,6 +38,11 @@ Context::Context()
 MaterialRef Context::defaultMaterial() const
 {
   return getObject<Material>(0);
+}
+
+Layer *Context::defaultLayer() const
+{
+  return m_defaultLayer;
 }
 
 ArrayRef Context::createArray(
@@ -191,7 +202,7 @@ void Context::removeAllObjects()
   if (m_updateDelegate)
     m_updateDelegate->signalRemoveAllObjects();
 
-  tree.erase_subtree(tree.root());
+  defaultLayer()->root()->erase_subtree();
 
   m_db.array.clear();
   m_db.surface.clear();
@@ -234,47 +245,58 @@ const ObjectDatabase &Context::objectDB() const
   return m_db;
 }
 
-InstanceNode::Ref Context::insertChildNode(
-    InstanceNode::Ref parent, const char *name)
+LayerNodeRef Context::insertChildNode(LayerNodeRef parent, const char *name)
 {
-  auto inst = tree.insert_last_child(parent, tsd::utility::Any{});
+  auto inst = defaultLayer()->insert_last_child(parent, tsd::utility::Any{});
   (*inst)->name = name;
   return inst;
 }
 
-InstanceNode::Ref Context::insertChildTransformNode(
-    InstanceNode::Ref parent, mat4 xfm, const char *name)
+LayerNodeRef Context::insertChildTransformNode(
+    LayerNodeRef parent, mat4 xfm, const char *name)
 {
-  auto inst = tree.insert_last_child(parent, tsd::utility::Any{xfm});
+  auto inst = defaultLayer()->insert_last_child(parent, tsd::utility::Any{xfm});
   (*inst)->name = name;
-  signalInstanceTreeChange();
+  signalLayerChange();
   return inst;
 }
 
-void Context::removeInstancedObject(InstanceNode::Ref obj)
+LayerNodeRef Context::insertChildObjectNode(
+    LayerNodeRef parent, anari::DataType type, size_t idx, const char *name)
+{
+  auto inst = parent->insert_last_child(tsd::utility::Any{type, idx});
+  (*inst)->name = name;
+  signalLayerChange();
+  return inst;
+}
+
+void Context::removeInstancedObject(
+    LayerNodeRef obj, bool deleteReferencedObjects)
 {
   if (obj->isRoot())
     return;
 
-  std::vector<InstanceNode::Ref> objects;
-  tree.traverse(obj, [&](auto &node, int level) {
-    if (node.isLeaf())
-      objects.push_back(tree.at(node.index()));
-    return true;
-  });
+  if (deleteReferencedObjects) {
+    std::vector<LayerNodeRef> objects;
 
-  for (auto &o : objects)
-    removeObject(o->value().value);
+    defaultLayer()->traverse(obj, [&](auto &node, int level) {
+      if (node.isLeaf())
+        objects.push_back(defaultLayer()->at(node.index()));
+      return true;
+    });
 
-  tree.erase(obj);
+    for (auto &o : objects)
+      removeObject(o->value().value);
+  }
 
-  signalInstanceTreeChange();
+  defaultLayer()->erase(obj);
+  signalLayerChange();
 }
 
-void Context::signalInstanceTreeChange()
+void Context::signalLayerChange()
 {
   if (m_updateDelegate)
-    m_updateDelegate->signalInstanceStructureChanged();
+    m_updateDelegate->signalLayerChanged();
 }
 
 ArrayRef Context::createArrayImpl(anari::DataType type,

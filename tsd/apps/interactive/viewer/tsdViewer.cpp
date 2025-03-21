@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "BaseApplication.h"
@@ -58,7 +58,7 @@ class Application : public BaseApplication
         light->setName("mainLight");
         light->setParameter("direction", tsd::float2(0.f, 240.f));
 
-        core->tsd.ctx.tree.insert_first_child(core->tsd.ctx.tree.root(),
+        core->tsd.ctx.defaultLayer()->root()->insert_first_child(
             tsd::utility::Any(ANARI_LIGHT, light.index()));
       }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,22 +33,25 @@
 
 namespace visrtx {
 
-Cylinder::Cylinder(DeviceGlobalState *d) : Geometry(d),
- m_index(this), m_radius(this), m_vertex(this) {}
+Cylinder::Cylinder(DeviceGlobalState *d)
+    : Geometry(d), m_index(this), m_radius(this), m_vertex(this)
+{}
 
 Cylinder::~Cylinder() = default;
 
-void Cylinder::commit()
+void Cylinder::commitParameters()
 {
-  Geometry::commit();
-
+  Geometry::commitParameters();
   m_index = getParamObject<Array1D>("primitive.index");
   m_radius = getParamObject<Array1D>("primitive.radius");
   m_caps = getParamString("caps", "none") != "none";
-
   m_vertex = getParamObject<Array1D>("vertex.position");
+  m_globalRadius = getParam<float>("radius", 1.f);
   commitAttributes("vertex.", m_vertexAttributes);
+}
 
+void Cylinder::finalize()
+{
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on cylinders geometry");
@@ -56,10 +59,8 @@ void Cylinder::commit()
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
-      "committing %s cylinder geometry",
+      "finalizing %s cylinder geometry",
       m_index ? "indexed" : "soup");
-
-  m_globalRadius = getParam<float>("radius", 1.f);
 
   std::vector<uvec2> implicitIndices;
   Span<uvec2> indices;
@@ -100,6 +101,11 @@ void Cylinder::commit()
   upload();
 }
 
+bool Cylinder::isValid() const
+{
+  return m_vertex;
+}
+
 void Cylinder::populateBuildInput(OptixBuildInput &buildInput) const
 {
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
@@ -134,11 +140,6 @@ GeometryGPUData Cylinder::gpuData() const
 int Cylinder::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
-}
-
-bool Cylinder::isValid() const
-{
-  return m_vertex;
 }
 
 } // namespace visrtx

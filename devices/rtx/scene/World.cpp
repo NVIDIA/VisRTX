@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,6 @@
 #include "utility/AnariTypeHelpers.h"
 
 #ifdef USE_MDL
-#include <set>
 #include "scene/surface/material/MDL.h"
 #endif // defined(USE_MDL)
 
@@ -97,7 +96,7 @@ bool World::getProperty(
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
-      deviceState()->commitBufferFlush();
+      deviceState()->commitBuffer.flush();
       rebuildWorld();
     }
     auto bounds = m_surfaceBounds;
@@ -109,12 +108,16 @@ bool World::getProperty(
   return Object::getProperty(name, type, ptr, flags);
 }
 
-void World::commit()
+void World::commitParameters()
 {
   m_zeroSurfaceData = getParamObject<ObjectArray>("surface");
   m_zeroVolumeData = getParamObject<ObjectArray>("volume");
   m_zeroLightData = getParamObject<ObjectArray>("light");
+  m_instanceData = getParamObject<ObjectArray>("instance");
+}
 
+void World::finalize()
+{
   m_addZeroInstance = m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData;
   if (m_addZeroInstance)
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World will add zero instance");
@@ -145,10 +148,10 @@ void World::commit()
 
   m_zeroInstance->setParam("id", getParam<uint32_t>("id", ~0u));
 
-  m_zeroGroup->commit();
-  m_zeroInstance->commit();
-
-  m_instanceData = getParamObject<ObjectArray>("instance");
+  m_zeroGroup->commitParameters();
+  m_zeroInstance->commitParameters();
+  m_zeroGroup->finalize();
+  m_zeroInstance->finalize();
 
   m_instances.reset();
 
@@ -165,29 +168,24 @@ void World::commit()
   m_objectUpdates.lastBLASCheck = 0;
 }
 
-OptixTraversableHandle World::optixTraversableHandleSurfaces() const
+WorldGPUData World::gpuData() const
 {
-  return m_traversableSurfaces;
-}
+  WorldGPUData retval;
 
-OptixTraversableHandle World::optixTraversableHandleVolumes() const
-{
-  return m_traversableVolumes;
-}
+  retval.surfaceInstances = m_instanceSurfaceGPUData.dataDevice();
+  retval.numSurfaceInstances = m_instanceSurfaceGPUData.size();
+  retval.surfacesTraversable = m_traversableSurfaces;
 
-Span<InstanceSurfaceGPUData> World::instanceSurfaceGPUData() const
-{
-  return m_instanceSurfaceGPUData.deviceSpan();
-}
+  retval.volumeInstances = m_instanceVolumeGPUData.dataDevice();
+  retval.numVolumeInstances = m_instanceVolumeGPUData.size();
+  retval.volumesTraversable = m_traversableVolumes;
 
-Span<InstanceVolumeGPUData> World::instanceVolumeGPUData() const
-{
-  return m_instanceVolumeGPUData.deviceSpan();
-}
+  retval.lightInstances = m_instanceLightGPUData.dataDevice();
+  retval.numLightInstances = m_instanceLightGPUData.size();
 
-Span<InstanceLightGPUData> World::instanceLightGPUData() const
-{
-  return m_instanceLightGPUData.deviceSpan();
+  retval.hdri = m_hdri;
+
+  return retval;
 }
 
 void World::rebuildWorld()
@@ -454,6 +452,8 @@ void World::buildInstanceLightGPUData()
 {
   m_instanceLightGPUData.resize(m_numLightInstances);
 
+  m_hdri = -1;
+
   int instID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
@@ -463,6 +463,9 @@ void World::buildInstanceLightGPUData()
 
     group->rebuildLights();
     const auto lgi = group->lightGPUIndices();
+
+    if (m_hdri == -1)
+      m_hdri = group->firstHDRI();
 
     for (size_t t = 0; t < inst->numTransforms(); t++) {
       if (!inst->xfmIsIdentity(t) && lgi.size() != 0) {
@@ -485,7 +488,7 @@ void World::buildMDLMaterialGPUData()
       < m_objectUpdates.lastMDLObjectCheck)
     return;
 
-  std::set<const MDL *> processed;
+  std::vector<MDL *> mdls;
 
   for (const auto &instance : m_instances) {
     const auto group = instance->group();
@@ -494,22 +497,28 @@ void World::buildMDLMaterialGPUData()
       const auto surfaces = make_Span(
           reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()),
           surfaceObjects->totalSize());
+
       for (auto surface : surfaces) {
         if (auto material = dynamic_cast<MDL *>(surface->material())) {
-          if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck
-              && processed.find(material) == processed.end()) {
-            material->syncSource();
-            material->syncParameters();
-            // FIXME: Should only be done when materialregistry has been updated
-            // with new or removed materials.
-            material->syncImplementationIndex();
-            material->upload();
-            processed.insert(material);
+          if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck) {
+            mdls.push_back(material);
           }
         }
       }
     }
   }
+
+  std::sort(begin(mdls), end(mdls));
+  mdls.erase(std::unique(begin(mdls), end(mdls)), end(mdls));
+
+  for (auto mdl : mdls) {
+    mdl->syncSource();
+    mdl->syncImplementationIndex();
+    mdl->syncParameters();
+    mdl->updateSamplers();
+    mdl->upload();
+  };
+
   state->rendererModules.lastMDLMaterialChange =
       m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
 }

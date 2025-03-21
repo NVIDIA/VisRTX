@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ namespace visrtx {
 
 Orthographic::Orthographic(DeviceGlobalState *s) : Camera(s) {}
 
-void Orthographic::commit()
+void Orthographic::commitParameters()
 {
   const float aspect = getParam<float>("aspect", 1.f);
   const float height = getParam<float>("height", 1.f);
@@ -49,7 +49,6 @@ void Orthographic::commit()
   o.pos_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;
   o.pos_dv = normalize(cross(o.pos_du, hd.dir)) * imgPlaneSize.y;
   o.pos_00 = hd.pos - 0.5f * o.pos_du - 0.5f * o.pos_dv;
-  upload();
 }
 
 } // namespace visrtx

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,15 +36,17 @@ namespace visrtx {
 
 PrimitiveSampler::PrimitiveSampler(DeviceGlobalState *d) : Sampler(d) {}
 
-void PrimitiveSampler::commit()
+void PrimitiveSampler::commitParameters()
 {
-  Sampler::commit();
-
-  m_ap.numChannels = 0;
-  m_ap.data = nullptr;
-
+  Sampler::commitParameters();
   m_data = getParamObject<Array1D>("array");
   m_offset = getParam<uint32_t>("offset", getParam<uint64_t>("offset", 0));
+}
+
+void PrimitiveSampler::finalize()
+{
+  m_ap.numChannels = 0;
+  m_ap.data = nullptr;
 
   if (!m_data) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -66,13 +68,9 @@ void PrimitiveSampler::commit()
   upload();
 }
 
-SamplerGPUData PrimitiveSampler::gpuData() const
+bool PrimitiveSampler::isValid() const
 {
-  SamplerGPUData retval = Sampler::gpuData();
-  retval.type = SamplerType::PRIMITIVE;
-  retval.primitive.attr = m_ap;
-  retval.primitive.offset = m_offset;
-  return retval;
+  return m_data;
 }
 
 int PrimitiveSampler::numChannels() const
@@ -80,9 +78,13 @@ int PrimitiveSampler::numChannels() const
   return m_ap.numChannels;
 }
 
-bool PrimitiveSampler::isValid() const
+SamplerGPUData PrimitiveSampler::gpuData() const
 {
-  return m_data;
+  SamplerGPUData retval = Sampler::gpuData();
+  retval.type = SamplerType::PRIMITIVE;
+  retval.primitive.attr = m_ap;
+  retval.primitive.offset = m_offset;
+  return retval;
 }
 
 } // namespace visrtx

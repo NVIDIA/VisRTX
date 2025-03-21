@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/procedural.hpp"
@@ -8,10 +8,10 @@
 namespace tsd {
 
 void generate_randomSpheres(
-    Context &ctx, InstanceNode::Ref location, bool useDefaultMaterial)
+    Context &ctx, LayerNodeRef location, bool useDefaultMaterial)
 {
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
   // Generate geometry //
 

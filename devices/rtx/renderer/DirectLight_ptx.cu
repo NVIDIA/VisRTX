@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -84,16 +84,17 @@ VISRTX_DEVICE vec4 shadeSurface(
   // Env faking
   LightSample ls = {
       rendererParams.ambientIntensity * rendererParams.ambientColor,
-      -ray.dir,
+      hit.Ns,
       1000.f,
-      1.0f,
-  };
+      1.0f};
+
   const vec4 matAoResult =
       evalMaterial(frameData, ss, *hit.material, hit, ray, ls);
+  vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
+
+  float opacity = matAoResult.w;
 
   // Compute contribution from other lights //
-  vec3 contrib = vec3(matAoResult) * (aoFactor * float(M_PI));
-  float opacity = matAoResult.w;
 
   for (size_t i = 0; i < world.numLightInstances; i++) {
     auto *inst = world.lightInstances + i;
@@ -102,6 +103,8 @@ VISRTX_DEVICE vec4 shadeSurface(
 
     for (size_t l = 0; l < inst->numLights; l++) {
       auto ls = sampleLight(ss, hit, inst->indices[l]);
+      if (ls.pdf == 0.f)
+        continue;
       Ray r;
       r.org = shadePoint;
       r.dir = ls.dir;
@@ -180,112 +183,116 @@ VISRTX_GLOBAL void __raygen__()
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
-  auto ray = makePrimaryRay(ss);
-  float tmax = ray.t.upper;
 
-  SurfaceHit surfaceHit;
-  VolumeHit volumeHit;
-  vec3 outputColor(0.f);
-  vec3 outputNormal = ray.dir;
-  float outputOpacity = 0.f;
-  float depth = 1e30f;
-  uint32_t primID = ~0u;
-  uint32_t objID = ~0u;
-  uint32_t instID = ~0u;
-  bool firstHit = true;
+  for (int i = 0; i < frameData.renderer.numIterations; i++) {
+    auto ray = makePrimaryRay(ss);
+    float tmax = ray.t.upper;
 
-  while (outputOpacity < 0.99f) {
-    ray.t.upper = tmax;
-    surfaceHit.foundHit = false;
-    intersectSurface(ss,
-        ray,
-        RayType::PRIMARY,
-        &surfaceHit,
-        primaryRayOptiXFlags(rendererParams));
+    SurfaceHit surfaceHit;
+    VolumeHit volumeHit;
+    vec3 outputColor(0.f);
+    vec3 outputNormal = ray.dir;
+    float outputOpacity = 0.f;
+    float depth = 1e30f;
+    uint32_t primID = ~0u;
+    uint32_t objID = ~0u;
+    uint32_t instID = ~0u;
+    bool firstHit = true;
 
-    vec3 color(0.f);
-    float opacity = 0.f;
-
-    if (surfaceHit.foundHit) {
-      uint32_t vObjID = ~0u;
-      uint32_t vInstID = ~0u;
-      const float vDepth = rayMarchAllVolumes(ss,
+    while (outputOpacity < 0.99f) {
+      ray.t.upper = tmax;
+      surfaceHit.foundHit = false;
+      intersectSurface(ss,
           ray,
           RayType::PRIMARY,
-          surfaceHit.t,
-          rendererParams.inverseVolumeSamplingRate,
-          color,
-          opacity,
-          vObjID,
-          vInstID);
+          &surfaceHit,
+          primaryRayOptiXFlags(rendererParams));
 
-      if (firstHit) {
-        const bool volumeFirst = vDepth < surfaceHit.t;
-        if (volumeFirst) {
-          outputNormal = -ray.dir;
-          depth = vDepth;
+      vec3 color(0.f);
+      float opacity = 0.f;
+
+      if (surfaceHit.foundHit) {
+        uint32_t vObjID = ~0u;
+        uint32_t vInstID = ~0u;
+        const float vDepth = rayMarchAllVolumes(ss,
+            ray,
+            RayType::PRIMARY,
+            surfaceHit.t,
+            rendererParams.inverseVolumeSamplingRate,
+            color,
+            opacity,
+            vObjID,
+            vInstID);
+
+        if (firstHit) {
+          const bool volumeFirst = vDepth < surfaceHit.t;
+          if (volumeFirst) {
+            outputNormal = -ray.dir;
+            depth = vDepth;
+            primID = 0;
+            objID = vObjID;
+            instID = vInstID;
+          } else {
+            outputNormal = surfaceHit.Ns;
+            depth = surfaceHit.t;
+            primID = computeGeometryPrimId(surfaceHit);
+            objID = surfaceHit.objID;
+            instID = surfaceHit.instID;
+          }
+          firstHit = false;
+        }
+
+        const vec4 shadingResult = shadeSurface(ss, ray, surfaceHit);
+        accumulateValue(color, vec3(shadingResult), opacity);
+        accumulateValue(opacity, shadingResult.w, opacity);
+
+        color *= opacity;
+        accumulateValue(outputColor, color, outputOpacity);
+        accumulateValue(outputOpacity, opacity, outputOpacity);
+
+        ray.t.lower = surfaceHit.t + surfaceHit.epsilon;
+      } else {
+        uint32_t vObjID = ~0u;
+        uint32_t vInstID = ~0u;
+        const float volumeDepth = rayMarchAllVolumes(ss,
+            ray,
+            RayType::PRIMARY,
+            ray.t.upper,
+            rendererParams.inverseVolumeSamplingRate,
+            color,
+            opacity,
+            vObjID,
+            vInstID);
+
+        if (firstHit) {
+          depth = min(depth, volumeDepth);
           primID = 0;
           objID = vObjID;
           instID = vInstID;
-        } else {
-          outputNormal = surfaceHit.Ns;
-          depth = surfaceHit.t;
-          primID = computeGeometryPrimId(surfaceHit);
-          objID = surfaceHit.objID;
-          instID = surfaceHit.instID;
         }
-        firstHit = false;
+
+        color *= opacity;
+
+        const auto bg = getBackground(frameData, ss.screen, ray.dir);
+        accumulateValue(color, vec3(bg), opacity);
+        accumulateValue(opacity, bg.w, opacity);
+        accumulateValue(outputColor, color, outputOpacity);
+        accumulateValue(outputOpacity, opacity, outputOpacity);
+        break;
       }
-
-      const vec4 shadingResult = shadeSurface(ss, ray, surfaceHit);
-      accumulateValue(color, vec3(shadingResult), opacity);
-      accumulateValue(opacity, shadingResult.w, opacity);
-
-      color *= opacity;
-      accumulateValue(outputColor, color, outputOpacity);
-      accumulateValue(outputOpacity, opacity, outputOpacity);
-
-      ray.t.lower = surfaceHit.t + surfaceHit.epsilon;
-    } else {
-      uint32_t vObjID = ~0u;
-      uint32_t vInstID = ~0u;
-      const float volumeDepth = rayMarchAllVolumes(ss,
-          ray,
-          RayType::PRIMARY,
-          ray.t.upper,
-          rendererParams.inverseVolumeSamplingRate,
-          color,
-          opacity,
-          vObjID,
-          vInstID);
-
-      if (firstHit) {
-        depth = min(depth, volumeDepth);
-        primID = 0;
-        objID = vObjID;
-        instID = vInstID;
-      }
-
-      color *= opacity;
-
-      const auto bg = getBackground(frameData.renderer, ss.screen);
-      accumulateValue(color, vec3(bg), opacity);
-      accumulateValue(opacity, bg.w, opacity);
-      accumulateValue(outputColor, color, outputOpacity);
-      accumulateValue(outputOpacity, opacity, outputOpacity);
-      break;
     }
-  }
 
-  accumResults(frameData.fb,
-      ss.pixel,
-      vec4(outputColor, outputOpacity),
-      depth,
-      outputColor,
-      outputNormal,
-      primID,
-      objID,
-      instID);
+    accumResults(frameData.fb,
+        ss.pixel,
+        vec4(outputColor, outputOpacity),
+        depth,
+        outputColor,
+        outputNormal,
+        primID,
+        objID,
+        instID,
+        i);
+  }
 }
 
 } // namespace visrtx

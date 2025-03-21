@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers.hpp"
@@ -41,7 +41,7 @@ void importNBODYFile(const char *filename, NBODYScene &s)
 
 void import_NBODY(Context &ctx,
     const char *filepath,
-    InstanceNode::Ref location,
+    LayerNodeRef location,
     bool useDefaultMaterial)
 {
   NBODYScene scene;
@@ -51,7 +51,7 @@ void import_NBODY(Context &ctx,
     return;
 
   auto nbody_root = ctx.insertChildNode(
-      location ? location : ctx.tree.root(), fileOf(filepath).c_str());
+      location ? location : ctx.defaultLayer()->root(), fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.getObject<Material>(0)

@@ -1,9 +1,13 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd_ui.h"
+// imgui
+#include <misc/cpp/imgui_stdlib.h>
 
 namespace tsd::ui {
+
+static std::string s_newParameterName;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -27,12 +31,139 @@ static bool UI_stringList_callback(void *p, int index, const char **out_text)
   return true;
 }
 
+static void buildUI_parameter_contextMenu(Context &ctx, Object *o, Parameter *p)
+{
+  if (ImGui::BeginPopup("buildUI_parameter_contextMenu")) {
+    if (ImGui::BeginMenu("add new")) {
+      ImGui::InputText("name", &s_newParameterName);
+      if (ImGui::Button("ok"))
+        o->addParameter(s_newParameterName);
+      ImGui::EndMenu(); // "add"
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::BeginMenu("set type")) {
+      if (ImGui::BeginMenu("uniform")) {
+        if (ImGui::BeginMenu("color")) {
+          if (ImGui::MenuItem("float3") && p) {
+            p->setValue(tsd::float3(1));
+            p->setUsage(ParameterUsageHint::COLOR);
+          }
+          if (ImGui::MenuItem("float4") && p) {
+            p->setValue(tsd::float4(1));
+            p->setUsage(ParameterUsageHint::COLOR);
+          }
+          ImGui::EndMenu(); // "color"
+        }
+
+        if (ImGui::BeginMenu("float")) {
+          if (ImGui::MenuItem("float1") && p) {
+            p->setValue(1.f);
+            p->setUsage(ParameterUsageHint::NONE);
+          }
+          if (ImGui::MenuItem("float2") && p) {
+            p->setValue(tsd::float2(1.f));
+            p->setUsage(ParameterUsageHint::NONE);
+          }
+          if (ImGui::MenuItem("float3") && p) {
+            p->setValue(tsd::float3(1.f));
+            p->setUsage(ParameterUsageHint::NONE);
+          }
+          if (ImGui::MenuItem("float4") && p) {
+            p->setValue(tsd::float4(1.f));
+            p->setUsage(ParameterUsageHint::NONE);
+          }
+          ImGui::EndMenu(); // "float"
+        }
+
+        if (ImGui::BeginMenu("int")) {
+          if (ImGui::MenuItem("int1") && p) {
+            p->setValue(0);
+            p->setUsage(ParameterUsageHint::NONE);
+          }
+          if (ImGui::MenuItem("int2") && p) {
+            p->setValue(tsd::int2(1));
+            p->setUsage(ParameterUsageHint::NONE);
+          }
+          if (ImGui::MenuItem("int3") && p) {
+            p->setValue(tsd::int3(1));
+            p->setUsage(ParameterUsageHint::NONE);
+          }
+          if (ImGui::MenuItem("int4") && p) {
+            p->setValue(tsd::int4(1));
+            p->setUsage(ParameterUsageHint::NONE);
+          }
+          ImGui::EndMenu(); // "float"
+        }
+
+        ImGui::EndMenu(); // "uniform"
+      }
+
+      ImGui::Separator();
+
+      if (ImGui::MenuItem("attribute")) {
+        p->setValue("attribute0");
+        p->setStringValues(
+            {"attribute0", "attribute1", "attribute2", "attribute3", "color"});
+        p->setStringSelection(0);
+      }
+
+      ImGui::Separator();
+
+      if (ImGui::BeginMenu("object")) {
+        if (ImGui::BeginMenu("new")) {
+          if (ImGui::BeginMenu("material")) {
+            MaterialRef m;
+            if (ImGui::MenuItem("matte"))
+              m = ctx.createObject<Material>(tokens::material::matte);
+            if (ImGui::MenuItem("physicallyBased"))
+              m = ctx.createObject<Material>(tokens::material::physicallyBased);
+
+            if (m)
+              p->setValue({m->type(), m->index()});
+            ImGui::EndMenu(); // "material"
+          }
+          ImGui::EndMenu(); // "new"
+        }
+
+        ImGui::Separator();
+
+#define OBJECT_UI_MENU_ITEM(text, type)                                        \
+  if (ImGui::BeginMenu(text)) {                                                \
+    if (auto i = buildUI_objects_menulist(ctx, type); i != INVALID_INDEX && p) \
+      p->setValue({type, i});                                                  \
+    ImGui::EndMenu();                                                          \
+  }
+
+        OBJECT_UI_MENU_ITEM("array", ANARI_ARRAY);
+        OBJECT_UI_MENU_ITEM("geometry", ANARI_GEOMETRY);
+        OBJECT_UI_MENU_ITEM("material", ANARI_MATERIAL);
+        OBJECT_UI_MENU_ITEM("sampler", ANARI_SAMPLER);
+        OBJECT_UI_MENU_ITEM("spatial field", ANARI_SPATIAL_FIELD);
+
+        ImGui::EndMenu(); // "object"
+      }
+
+      ImGui::EndMenu(); // "set type"
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::BeginMenu("delete?")) {
+      if (ImGui::MenuItem("yes"))
+        p->remove();
+      ImGui::EndMenu(); // "delete?"
+    }
+
+    ImGui::EndPopup();
+  }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
-void buildUI_object(tsd::Object &o,
-    const tsd::Context &ctx,
-    bool useTableForParameters,
-    int level)
+void buildUI_object(
+    tsd::Object &o, tsd::Context &ctx, bool useTableForParameters, int level)
 {
   static anari::DataType typeForSelection = ANARI_UNKNOWN;
   static tsd::Parameter *paramForSelection = nullptr;
@@ -64,17 +195,15 @@ void buildUI_object(tsd::Object &o,
 
         for (size_t i = 0; i < o.numParameters(); i++) {
           auto &p = o.parameterAt(i);
-          if (p.value().holdsObject() && !anari::isArray(p.value().type()))
-            continue;
           ImGui::TableNextRow();
-          buildUI_parameter(p, ctx, useTableForParameters);
+          buildUI_parameter(o, p, ctx, useTableForParameters);
         }
 
         ImGui::EndTable();
       }
     } else {
       for (size_t i = 0; i < o.numParameters(); i++)
-        buildUI_parameter(o.parameterAt(i), ctx);
+        buildUI_parameter(o, o.parameterAt(i), ctx);
     }
 
     // object parameters //
@@ -105,6 +234,11 @@ void buildUI_object(tsd::Object &o,
         if (ImGui::Button("unset"))
           p.setValue({pVal.type()});
         ImGui::EndDisabled();
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("clear"))
+          p.setValue({});
 
         ImGui::SameLine();
 
@@ -164,7 +298,7 @@ void buildUI_object(tsd::Object &o,
 }
 
 void buildUI_parameter(
-    tsd::Parameter &p, const tsd::Context &ctx, bool useTable)
+    tsd::Object &o, tsd::Parameter &p, tsd::Context &ctx, bool useTable)
 {
   ImGui::PushID(&p);
 
@@ -187,9 +321,19 @@ void buildUI_parameter(
 
   if (useTable) {
     ImGui::TableSetColumnIndex(0);
+
     if (ImGui::Checkbox(name, &enabled))
       p.setEnabled(enabled);
     name = "";
+
+    const bool showContextMenu =
+        ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
+    if (showContextMenu) {
+      s_newParameterName.reserve(200);
+      s_newParameterName = "";
+      ImGui::OpenPopup("buildUI_parameter_contextMenu");
+    }
+
     ImGui::TableSetColumnIndex(1);
     ImGui::PushItemWidth(-FLT_MIN); // Right-aligned
   }
@@ -267,49 +411,24 @@ void buildUI_parameter(
         p.setStringSelection(ss);
       }
     } else {
-#if 1
       if (useTable)
         ImGui::Text("\"%s\"", pVal.getString().c_str());
       else
         ImGui::BulletText("%s | '%s'", name, pVal.getString().c_str());
-#else
-      constexpr int MAX_LENGTH = 2000;
-      p.value.reserveString(MAX_LENGTH);
-
-      if (ImGui::Button("...")) {
-        nfdchar_t *outPath = nullptr;
-        nfdfilteritem_t filterItem[1] = {{"OBJ Files", "obj"}};
-        nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 1, nullptr);
-        if (result == NFD_OKAY) {
-          p.value = std::string(outPath).c_str();
-          update = true;
-          NFD_FreePath(outPath);
-        } else {
-          printf("NFD Error: %s\n", NFD_GetError());
-        }
-      }
-
-      ImGui::SameLine();
-
-      auto text_cb = [](ImGuiInputTextCallbackData *cbd) {
-        auto &p = *(ui::Parameter *)cbd->UserData;
-        p.value.resizeString(cbd->BufTextLen);
-        return 0;
-      };
-      update |= ImGui::InputText(name,
-          (char *)value,
-          MAX_LENGTH,
-          ImGuiInputTextFlags_CallbackEdit,
-          text_cb,
-          &p);
-#endif
     }
   } break;
   default:
-    if (useTable)
-      ImGui::Text("%s", anari::toString(type));
-    else
-      ImGui::BulletText("%s | %s", name, anari::toString(type));
+    if (const auto idx = pVal.getAsObjectIndex(); idx != INVALID_INDEX) {
+      if (useTable)
+        ImGui::Text("[%zu] %s", idx, anari::toString(type));
+      else
+        ImGui::BulletText("%s | [%zu] %s", name, idx, anari::toString(type));
+    } else {
+      if (useTable)
+        ImGui::Text("%s", anari::toString(type));
+      else
+        ImGui::BulletText("%s | %s", name, anari::toString(type));
+    }
     break;
   }
 
@@ -318,7 +437,9 @@ void buildUI_parameter(
   if (ImGui::IsItemHovered()) {
     ImGui::BeginTooltip();
     if (isArray) {
-      const auto &a = *ctx.getObject<Array>(pVal.getAsObjectIndex());
+      const auto idx = pVal.getAsObjectIndex();
+      const auto &a = *ctx.getObject<Array>(idx);
+      ImGui::Text("  idx: [%zu]", idx);
       const auto t = a.type();
       if (t == ANARI_ARRAY3D)
         ImGui::Text(" size: %zu x %zu x %zu", a.dim(0), a.dim(1), a.dim(2));
@@ -336,10 +457,48 @@ void buildUI_parameter(
     ImGui::EndTooltip();
   }
 
+  {
+    const bool showContextMenu =
+        ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
+    if (showContextMenu) {
+      s_newParameterName.reserve(200);
+      s_newParameterName = "";
+      ImGui::OpenPopup("buildUI_parameter_contextMenu");
+    }
+  }
+
   if (update)
     p.setValue(pVal);
 
+  buildUI_parameter_contextMenu(
+      ctx, &o, &p); // NOTE: 'p' can be deleted after this
+
   ImGui::PopID();
+}
+
+size_t buildUI_objects_menulist(const Context &ctx, anari::DataType type)
+{
+  size_t retval = INVALID_INDEX;
+
+  for (size_t i = 0; i < ctx.numberOfObjects(type); i++) {
+    auto *obj = ctx.getObject(type, i);
+    if (!obj)
+      continue;
+
+    ImGui::PushID(i);
+
+    static std::string oTitle;
+    oTitle = '[';
+    oTitle += std::to_string(i);
+    oTitle += ']';
+    oTitle += obj->name();
+    if (ImGui::MenuItem(oTitle.c_str()))
+      retval = i;
+
+    ImGui::PopID();
+  }
+
+  return retval;
 }
 
 void addDefaultRendererParameters(Object &o)

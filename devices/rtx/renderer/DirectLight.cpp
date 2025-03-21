@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,9 +44,9 @@ static const std::vector<std::string> g_directLightMissNames = {
 
 DirectLight::DirectLight(DeviceGlobalState *s) : Renderer(s, 0.f) {}
 
-void DirectLight::commit()
+void DirectLight::commitParameters()
 {
-  Renderer::commit();
+  Renderer::commitParameters();
   m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
   m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
 }

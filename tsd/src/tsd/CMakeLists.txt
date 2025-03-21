@@ -1,4 +1,4 @@
-## Copyright 2024 NVIDIA Corporation
+## Copyright 2024-2025 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
 project_add_library(STATIC)
@@ -6,19 +6,31 @@ project_add_library(STATIC)
 project_sources(
 PRIVATE
   algorithms/computeScalarRange.cpp
+  algorithms/detail/computeScalarRange_fixed8.cpp
+  algorithms/detail/computeScalarRange_fixed16.cpp
+  algorithms/detail/computeScalarRange_ufixed8.cpp
+  algorithms/detail/computeScalarRange_ufixed16.cpp
+  algorithms/detail/computeScalarRange_float32.cpp
+  algorithms/detail/computeScalarRange_float64.cpp
   authoring/importers/detail/HDRImage.cpp
   authoring/importers/detail/importer_common.cpp
   authoring/importers/import_ASSIMP.cpp
   authoring/importers/import_DLAF.cpp
   authoring/importers/import_FLASH.cpp
   authoring/importers/import_HDRI.cpp
+  authoring/importers/import_MHD.cpp
   authoring/importers/import_NBODY.cpp
   authoring/importers/import_NVDB.cpp
   authoring/importers/import_OBJ.cpp
+  authoring/importers/import_PDB.cpp
   authoring/importers/import_PLY.cpp
   authoring/importers/import_RAW.cpp
+  authoring/importers/import_SWC.cpp
   authoring/importers/import_volume.cpp
+  authoring/importers/import_XYZDP.cpp
   authoring/procedural/generate_cylinders.cpp
+  authoring/procedural/generate_hdri_dome.cpp
+  authoring/procedural/generate_hdri_test_image.cpp
   authoring/procedural/generate_material_orb.cpp
   authoring/procedural/generate_monkey.cpp
   authoring/procedural/generate_noiseVolume.cpp
@@ -27,6 +39,7 @@ PRIVATE
   authoring/serialization/serialization.cpp
   core/AnariObjectCache.cpp
   core/Context.cpp
+  core/Layer.cpp
   core/Logging.cpp
   core/Object.cpp
   core/Parameter.cpp
@@ -67,14 +80,21 @@ else()
 endif()
 
 if (MSVC)
-  project_compile_options(PRIVATE /bigobj)
+  set_source_files_properties(
+    authoring/procedural/generate_material_orb.cpp
+    PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
 if (TSD_USE_CUDA)
   project_compile_definitions(PUBLIC -DTSD_USE_CUDA=1)
   project_link_libraries(PUBLIC CUDA::cudart)
   set_source_files_properties(
-    algorithms/computeScalarRange.cpp
+    algorithms/detail/computeScalarRange_fixed8.cpp
+    algorithms/detail/computeScalarRange_fixed16.cpp
+    algorithms/detail/computeScalarRange_ufixed8.cpp
+    algorithms/detail/computeScalarRange_ufixed16.cpp
+    algorithms/detail/computeScalarRange_float32.cpp
+    algorithms/detail/computeScalarRange_float64.cpp
     objects/SpatialField.cpp
     PROPERTIES
       COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"

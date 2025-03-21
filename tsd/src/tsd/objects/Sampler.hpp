@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -23,6 +23,7 @@ using SamplerRef = IndexedVectorRef<Sampler>;
 
 namespace tokens::sampler {
 
+extern const Token compressedImage2D;
 extern const Token image1D;
 extern const Token image2D;
 extern const Token image3D;

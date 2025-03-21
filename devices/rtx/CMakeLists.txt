@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Redistribution and use in source and binary forms, with or without
@@ -35,11 +35,10 @@ if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   set(CMAKE_CUDA_ARCHITECTURES native)
 endif()
 
-if (NOT WIN32)
-  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O1")
-endif()
-
-set(CMAKE_CUDA_FLAGS "--expt-relaxed-constexpr --extended-lambda")
+set(CMAKE_CUDA_FLAGS_INIT "--expt-relaxed-constexpr --extended-lambda")
+# Make sure we have some debug info with debug and relwithdebinfo builds
+set(CMAKE_CUDA_FLAGS_DEBUG_INIT "-O0 -lineinfo") # -G would be nice, but does not work with glm.
+set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO_INIT "-lineinfo")
 
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 
@@ -49,10 +48,31 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
 
+## Get OptiX headers ##
+
+set(OPTIX_FETCH_VERSION "7.7" CACHE STRING "Version of OptiX to get")
+set_property(CACHE OPTIX_FETCH_VERSION
+  PROPERTY STRINGS "7.7" "8.0" "8.1" "9.0")
+
+if(${OPTIX_FETCH_VERSION} STREQUAL "7.7")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v7.7.0.zip)
+elseif(${OPTIX_FETCH_VERSION} STREQUAL "8.0")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v8.0.0.zip)
+elseif(${OPTIX_FETCH_VERSION} STREQUAL "8.1")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v8.1.0.zip)
+elseif(${OPTIX_FETCH_VERSION} STREQUAL "9.0")
+  set(OPTIX_URL https://github.com/NVIDIA/optix-dev/archive/refs/tags/v9.0.0.zip)
+else()
+  message(FATAL_ERROR "Invalid/unknown version of OptiX selected")
+endif()
+
+anari_sdk_fetch_project(NAME optix_headers URL ${OPTIX_URL})
+list(APPEND CMAKE_PREFIX_PATH ${optix_headers_LOCATION})
+
 ## Find dependencies ##
 
-find_package(CUDAToolkit 11.3.1 REQUIRED)
-find_package(OptiX7 REQUIRED)
+find_package(CUDAToolkit 12.0.0 REQUIRED)
+find_package(OptiX REQUIRED)
 if(VISRTX_ENABLE_MDL_SUPPORT)
   find_package(MDL_SDK REQUIRED)
 endif()
@@ -105,8 +125,10 @@ project_sources(PRIVATE
   scene/World.cpp
 
   scene/light/Directional.cpp
+  scene/light/HDRI.cpp
   scene/light/Light.cpp
   scene/light/Point.cpp
+  scene/light/Spot.cpp
   scene/light/UnknownLight.cpp
 
   scene/surface/Surface.cpp
@@ -125,6 +147,7 @@ project_sources(PRIVATE
   scene/surface/material/PBR.cpp
   scene/surface/material/UnknownMaterial.cpp
 
+  scene/surface/material/sampler/CompressedImage2D.cpp
   scene/surface/material/sampler/Image1D.cpp
   scene/surface/material/sampler/Image2D.cpp
   scene/surface/material/sampler/Image3D.cpp
@@ -154,6 +177,7 @@ project_sources(PRIVATE
     mdl/ptx.cpp
     mdl/MaterialRegistry.cpp
     mdl/SamplerRegistry.cpp
+    mdl/visrtx_default.mdl.inc
     scene/surface/material/MDL.cpp
   >
 )
@@ -181,7 +205,7 @@ PUBLIC
 PRIVATE
   anari::helium
   glm_visrtx
-  OptiX7::OptiX7
+  OptiX::OptiX
   CUDA::cuda_driver
   CUDA::curand
   fmt::fmt
@@ -237,7 +261,7 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     anari::anari
     anari::helium
     glm_visrtx
-    OptiX7::OptiX7
+    OptiX::OptiX
     CUDA::curand
     libnanovdb
   )
@@ -278,7 +302,7 @@ endif()
 
 ## Query code generation ##
 
-file(GLOB DEVICE_JSONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "visrtx_*.json")
+file(GLOB DEVICE_JSONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.json")
 foreach(file ${DEVICE_JSONS})
   file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file} INPUT ${file})
 endforeach()

@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/procedural.hpp"
@@ -9,12 +9,12 @@
 namespace tsd {
 
 VolumeRef generate_noiseVolume(Context &ctx,
-    InstanceNode::Ref location,
+    LayerNodeRef location,
     ArrayRef colorArray,
     ArrayRef opacityArray)
 {
   if (!location)
-    location = ctx.tree.root();
+    location = ctx.defaultLayer()->root();
 
   // Generate spatial field //
 
@@ -36,7 +36,6 @@ VolumeRef generate_noiseVolume(Context &ctx,
   voxelArray->unmap();
 
   field->setParameter("origin"_t, float3(-1, -1, -1));
-  field->setParameter("spacing"_t, float3(2.f / 64));
   field->setParameterObject("data"_t, *voxelArray);
 
   // Setup volume //
@@ -45,7 +44,7 @@ VolumeRef generate_noiseVolume(Context &ctx,
       location, tokens::volume::transferFunction1D);
   volume->setName("noise_volume");
 
-  if (!(colorArray && opacityArray)) {
+  if (!colorArray) {
     colorArray = ctx.createArray(ANARI_FLOAT32_VEC3, 3);
     opacityArray = ctx.createArray(ANARI_FLOAT32, 2);
 
@@ -61,12 +60,13 @@ VolumeRef generate_noiseVolume(Context &ctx,
 
     colorArray->setData(colors.data());
     opacityArray->setData(opacities.data());
+  } else {
+    volume->setParameterObject("color"_t, *colorArray);
+    if (opacityArray)
+      volume->setParameterObject("opacity"_t, *opacityArray);
   }
 
   volume->setParameterObject("value"_t, *field);
-  volume->setParameterObject("color"_t, *colorArray);
-  volume->setParameterObject("opacity"_t, *opacityArray);
-  volume->setParameter("densityScale"_t, 0.1f);
 
   return volume;
 }

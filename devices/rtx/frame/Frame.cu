@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -62,7 +62,8 @@ Frame::~Frame()
 
 bool Frame::isValid() const
 {
-  return m_valid;
+  return m_renderer && m_renderer->isValid() && m_camera && m_camera->isValid()
+      && m_world && m_world->isValid();
 }
 
 DeviceGlobalState *Frame::deviceState() const
@@ -70,60 +71,43 @@ DeviceGlobalState *Frame::deviceState() const
   return (DeviceGlobalState *)helium::BaseObject::m_state;
 }
 
-void Frame::commit()
+void Frame::commitParameters()
 {
-  auto &hd = data();
-
   m_renderer = getParamObject<Renderer>("renderer");
-  if (!m_renderer) {
-    reportMessage(ANARI_SEVERITY_WARNING,
-        "missing required parameter 'renderer' on frame");
-  }
-
   m_camera = getParamObject<Camera>("camera");
-  if (!m_camera) {
-    reportMessage(
-        ANARI_SEVERITY_WARNING, "missing required parameter 'camera' on frame");
-  }
-
   m_world = getParamObject<World>("world");
-  if (!m_world) {
-    reportMessage(
-        ANARI_SEVERITY_WARNING, "missing required parameter 'world' on frame");
-  }
-
-  m_valid = m_renderer && m_renderer->isValid() && m_camera
-      && m_camera->isValid() && m_world && m_world->isValid();
-
-  if (!m_valid)
-    return;
-
   m_callback = getParam<ANARIFrameCompletionCallback>(
       "frameCompletionCallback", nullptr);
   m_callbackUserPtr =
       getParam<void *>("frameCompletionCallbackUserData", nullptr);
-
-  auto format =
+  m_colorType =
       getParam<ANARIDataType>("channel.color", ANARI_UFIXED8_RGBA_SRGB);
-  const bool useFloatFB = m_denoise || format == ANARI_FLOAT32_VEC4;
-  if (useFloatFB)
-    hd.fb.format = FrameFormat::FLOAT;
-  else if (format == ANARI_UFIXED8_RGBA_SRGB)
-    hd.fb.format = FrameFormat::SRGB;
-  else
-    hd.fb.format = FrameFormat::UINT;
-
-  m_colorType = format;
-
+  auto &hd = data();
   hd.fb.size = getParam<uvec2>("size", uvec2(10));
-  hd.fb.invSize = 1.f / vec2(hd.fb.size);
-
   m_depthType = getParam<ANARIDataType>("channel.depth", ANARI_UNKNOWN);
   m_primIDType = getParam<ANARIDataType>("channel.primitiveId", ANARI_UNKNOWN);
   m_objIDType = getParam<ANARIDataType>("channel.objectId", ANARI_UNKNOWN);
   m_instIDType = getParam<ANARIDataType>("channel.instanceId", ANARI_UNKNOWN);
   m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
   m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
+}
+
+void Frame::finalize()
+{
+  if (!isValid())
+    return;
+
+  auto &hd = data();
+
+  const bool useFloatFB = m_denoise || m_colorType == ANARI_FLOAT32_VEC4;
+  if (useFloatFB)
+    hd.fb.format = FrameFormat::FLOAT;
+  else if (m_colorType == ANARI_UFIXED8_RGBA_SRGB)
+    hd.fb.format = FrameFormat::SRGB;
+  else
+    hd.fb.format = FrameFormat::UINT;
+
+  hd.fb.invSize = 1.f / vec2(hd.fb.size);
 
   const bool channelPrimID = m_primIDType == ANARI_UINT32;
   const bool channelObjID = m_objIDType == ANARI_UINT32;
@@ -168,7 +152,7 @@ void Frame::commit()
   hd.fb.buffers.normal = channelNormal ? m_accumNormal.ptrAs<vec3>() : nullptr;
 
   if (m_denoise)
-    m_denoiser.setup(hd.fb.size, m_pixelBuffer, format);
+    m_denoiser.setup(hd.fb.size, m_pixelBuffer, m_colorType);
   else
     m_denoiser.cleanup();
 
@@ -195,7 +179,7 @@ bool Frame::getProperty(
     if (flags & ANARI_WAIT)
       wait();
     if (ready())
-      deviceState()->commitBufferFlush();
+      deviceState()->commitBuffer.flush();
     checkAccumulationReset();
     helium::writeToVoidP(ptr, m_nextFrameReset);
     return true;
@@ -212,7 +196,7 @@ void Frame::renderFrame()
 
   instrument::rangePush("update scene");
   instrument::rangePush("flush commits");
-  state.commitBufferFlush();
+  state.commitBuffer.flush();
   instrument::rangePop(); // flush commits
 
   instrument::rangePush("flush array uploads");
@@ -220,6 +204,7 @@ void Frame::renderFrame()
   instrument::rangePop(); // flush array uploads
 
   instrument::rangePush("rebuild BVHs");
+  auto worldLock = m_world->scopeLockObject();
   m_world->rebuildWorld();
   instrument::rangePop(); // rebuild BVHs
   instrument::rangePop(); // update scene
@@ -247,7 +232,7 @@ void Frame::renderFrame()
   bool wasDenoising = m_denoise;
   m_denoise = m_renderer->denoise();
   if (m_denoise != wasDenoising)
-    this->commit();
+    this->finalize();
 
   m_frameMappedOnce = false;
 
@@ -268,17 +253,7 @@ void Frame::renderFrame()
   m_renderer->populateFrameData(hd);
 
   hd.camera = (CameraGPUData *)m_camera->deviceData();
-
-  hd.world.surfaceInstances = m_world->instanceSurfaceGPUData().data();
-  hd.world.numSurfaceInstances = m_world->instanceSurfaceGPUData().size();
-  hd.world.surfacesTraversable = m_world->optixTraversableHandleSurfaces();
-
-  hd.world.volumeInstances = m_world->instanceVolumeGPUData().data();
-  hd.world.numVolumeInstances = m_world->instanceVolumeGPUData().size();
-  hd.world.volumesTraversable = m_world->optixTraversableHandleVolumes();
-
-  hd.world.lightInstances = m_world->instanceLightGPUData().data();
-  hd.world.numLightInstances = m_world->instanceLightGPUData().size();
+  hd.world = m_world->gpuData();
 
   hd.registry.samplers = state.registry.samplers.devicePtr();
   hd.registry.geometries = state.registry.geometries.devicePtr();
@@ -288,31 +263,27 @@ void Frame::renderFrame()
   hd.registry.fields = state.registry.fields.devicePtr();
   hd.registry.volumes = state.registry.volumes.devicePtr();
 
-  const int spp = std::max(m_renderer->spp(), 1);
-
   instrument::rangePop(); // frame setup
   instrument::rangePush("render all frames");
 
-  for (int i = 0; i < spp; i++) {
-    instrument::rangePush("Frame::newFrame()");
-    newFrame();
-    instrument::rangePop(); // Frame::newFrame()
+  instrument::rangePush("Frame::newFrame()");
+  newFrame();
+  instrument::rangePop(); // Frame::newFrame()
 
-    instrument::rangePush("Frame::upload()");
-    upload();
-    instrument::rangePop(); // Frame::upload()
+  instrument::rangePush("Frame::upload()");
+  upload();
+  instrument::rangePop(); // Frame::upload()
 
-    instrument::rangePush("optixLaunch()");
-    OPTIX_CHECK(optixLaunch(m_renderer->pipeline(),
-        state.stream,
-        (CUdeviceptr)deviceData(),
-        payloadBytes(),
-        m_renderer->sbt(),
-        checkerboarding() ? (hd.fb.size.x + 1) / 2 : hd.fb.size.x,
-        checkerboarding() ? (hd.fb.size.y + 1) / 2 : hd.fb.size.y,
-        1));
-    instrument::rangePop(); // optixLaunch()
-  }
+  instrument::rangePush("optixLaunch()");
+  OPTIX_CHECK(optixLaunch(m_renderer->pipeline(),
+      state.stream,
+      (CUdeviceptr)deviceData(),
+      payloadBytes(),
+      m_renderer->sbt(),
+      checkerboarding() ? (hd.fb.size.x + 1) / 2 : hd.fb.size.x,
+      checkerboarding() ? (hd.fb.size.y + 1) / 2 : hd.fb.size.y,
+      1));
+  instrument::rangePop(); // optixLaunch()
 
   if (m_denoise)
     m_denoiser.launch();
@@ -351,46 +322,86 @@ void *Frame::map(std::string_view channel,
   const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
   const bool channelNormal = m_normalType == ANARI_FLOAT32;
 
-  if (channel == "channel.color") {
-    type = m_colorType;
-    retval = mapColorBuffer(false);
-  } else if (channel == "channel.colorGPU") {
+  if (channel == "channel.colorCUDA") {
     type = m_colorType;
     retval = mapColorBuffer(true);
+  } else if (channelDepth && channel == "channel.depthCUDA") {
+    type = ANARI_FLOAT32;
+    retval = mapDepthBuffer(true);
+  } else if (channelPrimID && channel == "channel.primitiveIdCUDA") {
+    type = ANARI_UINT32;
+    retval = mapPrimIDBuffer(true);
+  } else if (channelObjID && channel == "channel.objectIdCUDA") {
+    type = ANARI_UINT32;
+    retval = mapObjIDBuffer(true);
+  } else if (channelInstID && channel == "channel.instanceIdCUDA") {
+    type = ANARI_UINT32;
+    retval = mapInstIDBuffer(true);
+  } else if (channelNormal && channel == "channel.normalCUDA") {
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapNormalBuffer(true);
+  } else if (channelAlbedo && channel == "channel.albedoCUDA") {
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapAlbedoBuffer(true);
+  } else if (channel == "channel.color") {
+    type = m_colorType;
+    retval = mapColorBuffer(false);
   } else if (channelDepth && channel == "channel.depth") {
     type = ANARI_FLOAT32;
     retval = mapDepthBuffer(false);
-  } else if (channelDepth && channel == "channel.depthGPU") {
-    type = ANARI_FLOAT32;
-    retval = mapDepthBuffer(true);
   } else if (channelPrimID && channel == "channel.primitiveId") {
     type = ANARI_UINT32;
     retval = mapPrimIDBuffer(false);
-  } else if (channelPrimID && channel == "channel.primitiveIdGPU") {
-    type = ANARI_UINT32;
-    retval = mapPrimIDBuffer(true);
   } else if (channelObjID && channel == "channel.objectId") {
     type = ANARI_UINT32;
     retval = mapObjIDBuffer(false);
-  } else if (channelObjID && channel == "channel.objectIdGPU") {
-    type = ANARI_UINT32;
-    retval = mapObjIDBuffer(true);
   } else if (channelInstID && channel == "channel.instanceId") {
     type = ANARI_UINT32;
     retval = mapInstIDBuffer(false);
-  } else if (channelInstID && channel == "channel.instanceIdGPU") {
-    type = ANARI_UINT32;
-    retval = mapInstIDBuffer(true);
   } else if (channelNormal && channel == "channel.normal") {
     type = ANARI_FLOAT32_VEC3;
     retval = mapNormalBuffer(false);
-  } else if (channelNormal && channel == "channel.normalGPU") {
-    type = ANARI_FLOAT32_VEC3;
-    retval = mapNormalBuffer(true);
   } else if (channelAlbedo && channel == "channel.albedo") {
     type = ANARI_FLOAT32_VEC3;
     retval = mapAlbedoBuffer(false);
+  } else if (channel == "channel.colorGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.colorGPU is deprecated, please use channel.colorCUDA instead");
+    type = m_colorType;
+    retval = mapColorBuffer(true);
+  } else if (channelDepth && channel == "channel.depthGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.depthGPU is deprecated, please use channel.depthCUDA instead");
+    type = ANARI_FLOAT32;
+    retval = mapDepthBuffer(true);
+  } else if (channelPrimID && channel == "channel.primitiveIdGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.primitiveIdGPU is deprecated, please use "
+        "channel.primitiveIdCUDA instead");
+    type = ANARI_UINT32;
+    retval = mapPrimIDBuffer(true);
+  } else if (channelObjID && channel == "channel.objectIdGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.objectIdGPU is deprecated, please use "
+        "channel.objectIdCUDA instead");
+    type = ANARI_UINT32;
+    retval = mapObjIDBuffer(true);
+  } else if (channelInstID && channel == "channel.instanceIdGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.instanceIdGPU is deprecated, please use "
+        "channel.instanceIdCUDA instead");
+    type = ANARI_UINT32;
+    retval = mapInstIDBuffer(true);
+  } else if (channelNormal && channel == "channel.normalGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.normalGPU is deprecated, please use "
+        "channel.normalCUDA instead");
+    type = ANARI_FLOAT32_VEC3;
+    retval = mapNormalBuffer(true);
   } else if (channelAlbedo && channel == "channel.albedoGPU") {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "channel.albedoGPU is deprecated, please use "
+        "channel.albedoCUDA instead");
     type = ANARI_FLOAT32_VEC3;
     retval = mapAlbedoBuffer(true);
   }
@@ -562,12 +573,12 @@ void Frame::checkAccumulationReset()
     return;
 
   auto &state = *deviceState();
-  if (m_lastCommitOccured < state.commitBufferLastFlush()) {
-    m_lastCommitOccured = state.commitBufferLastFlush();
+  if (m_lastCommitFlushOccured < state.commitBuffer.lastObjectFinalization()) {
+    m_lastCommitFlushOccured = state.commitBuffer.lastObjectFinalization();
     m_nextFrameReset = true;
   }
-  if (m_lastUploadOccured < state.uploadBuffer.lastFlush()) {
-    m_lastUploadOccured = state.uploadBuffer.lastFlush();
+  if (m_lastUploadFlushOccured < state.uploadBuffer.lastUpload()) {
+    m_lastUploadFlushOccured = state.uploadBuffer.lastUpload();
     m_nextFrameReset = true;
   }
 }
@@ -580,7 +591,10 @@ void Frame::newFrame()
     hd.fb.checkerboardID = checkerboarding() ? 0 : -1;
     m_nextFrameReset = false;
   } else {
-    hd.fb.frameID += (!checkerboarding() || hd.fb.checkerboardID == 3);
+    if (checkerboarding())
+      hd.fb.frameID += int(hd.fb.checkerboardID == 3);
+    else
+      hd.fb.frameID += m_renderer->spp();
     hd.fb.checkerboardID =
         checkerboarding() ? ((hd.fb.checkerboardID + 1) & 0x3) : -1;
   }

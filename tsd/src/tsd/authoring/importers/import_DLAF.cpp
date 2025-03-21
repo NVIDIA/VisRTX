@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers.hpp"
@@ -41,7 +41,7 @@ void importDLAFFile(const char *filename, DLAFScene &s)
 
 void import_DLAF(Context &ctx,
     const char *filepath,
-    InstanceNode::Ref location,
+    LayerNodeRef location,
     bool useDefaultMaterial)
 {
   DLAFScene scene;
@@ -50,8 +50,9 @@ void import_DLAF(Context &ctx,
   if (scene.points.empty())
     return;
 
-  auto dlaf_root = ctx.insertChildNode(
-      location ? location : ctx.tree.root(), fileOf(filepath).c_str());
+  auto dlaf_root =
+      ctx.insertChildNode(location ? location : ctx.defaultLayer()->root(),
+          fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.defaultMaterial()

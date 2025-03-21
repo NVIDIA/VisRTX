@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,6 +51,7 @@
 #include <string_view>
 // this include may only appear in a single source file:
 #include <optix_function_table_definition.h>
+#include <optix_stack_size.h>
 
 namespace visrtx {
 
@@ -135,11 +136,12 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 
 Renderer::Renderer(DeviceGlobalState *s, float defaultAmbientRadiance)
     : Object(ANARI_RENDERER, s),
+      m_backgroundImage(this),
       m_defaultAmbientRadiance(defaultAmbientRadiance)
 {
   m_ambientIntensity = defaultAmbientRadiance;
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
+  helium::BaseObject::markParameterChanged();
+  s->commitBuffer.addObjectToCommit(this);
 }
 
 Renderer::~Renderer()
@@ -148,15 +150,9 @@ Renderer::~Renderer()
   optixPipelineDestroy(m_pipeline);
 }
 
-void Renderer::commit()
+void Renderer::commitParameters()
 {
-  cleanup();
   m_backgroundImage = getParamObject<Array2D>("background");
-  if (m_backgroundImage) {
-    auto cuArray = m_backgroundImage->acquireCUDAArrayUint8();
-    m_backgroundTexture = makeCudaTextureObject(cuArray, true, "linear");
-  }
-
   m_bgColor = getParam<vec4>("background", vec4(vec3(0.f), 1.f));
   m_spp = getParam<int>("pixelSamples", 1);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
@@ -168,7 +164,18 @@ void Renderer::commit()
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
-      std::clamp(getParam<float>("volumeSamplingRate", 1.f), 1e-3f, 10.f);
+      std::clamp(getParam<float>("volumeSamplingRate", 0.125f), 1e-3f, 10.f);
+  if (m_checkerboard)
+    m_spp = 1;
+}
+
+void Renderer::finalize()
+{
+  cleanup();
+  if (m_backgroundImage) {
+    auto cuArray = m_backgroundImage->acquireCUDAArrayUint8();
+    m_backgroundTexture = makeCudaTextureObject(cuArray, true, "linear");
+  }
 }
 
 Span<HitgroupFunctionNames> Renderer::hitgroupSbtNames() const
@@ -195,6 +202,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.occlusionDistance = m_occlusionDistance;
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
   fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
+  fd.renderer.numIterations = std::max(m_spp, 1);
 }
 
 OptixPipeline Renderer::pipeline()
@@ -445,8 +453,15 @@ void Renderer::initOptixPipeline()
       OptixModuleCompileOptions moduleCompileOptions = {};
       moduleCompileOptions.maxRegisterCount =
           OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+#ifdef NDEBUG
       moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
       moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+#else
+      moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+      moduleCompileOptions.debugLevel =
+          OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL; // Could be FULL is -G can be
+                                             // enabled at compile time
+#endif
       moduleCompileOptions.numPayloadTypes = 0;
       moduleCompileOptions.payloadTypes = 0;
 
@@ -521,6 +536,29 @@ void Renderer::initOptixPipeline()
 
     if (sizeof_log > 1)
       reportMessage(ANARI_SEVERITY_DEBUG, "Pipeline Create Log:\n%s", log);
+
+    // Handle stack sizes
+    OptixStackSizes stackSizes = {};
+    for (auto &pg : programGroups) {
+      OPTIX_CHECK(optixUtilAccumulateStackSizes(pg, &stackSizes, m_pipeline));
+    }
+    unsigned int directCallableStackSizeFromTraversal = {};
+    unsigned int directCallableStackSizeFromState = {};
+    unsigned int continuationStackSize = {};
+    OPTIX_CHECK(optixUtilComputeStackSizes(&stackSizes,
+        pipelineLinkOptions
+            .maxTraceDepth, // Reuse pipeline configured trace depth.
+        0, // We don't rely on continuation, but direct calls
+        2, // TBC if 2 is enough
+        &directCallableStackSizeFromTraversal,
+        &directCallableStackSizeFromState,
+        &continuationStackSize));
+    OPTIX_CHECK(optixPipelineSetStackSize(m_pipeline,
+        directCallableStackSizeFromTraversal,
+        directCallableStackSizeFromState,
+        continuationStackSize,
+        2) // expected for single ias graphs, as per our case.
+    );
   }
 
   // SBT //
@@ -595,7 +633,6 @@ void Renderer::cleanup()
       cudaDestroyTextureObject(m_backgroundTexture);
       m_backgroundImage->releaseCUDAArrayUint8();
     }
-    m_backgroundImage->removeChangeObserver(this);
   }
 }
 

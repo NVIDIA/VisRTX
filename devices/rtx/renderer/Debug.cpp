@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -83,10 +83,12 @@ static DebugMethod methodFromString(const std::string &name)
 
 Debug::Debug(DeviceGlobalState *s) : Renderer(s) {}
 
-void Debug::commit()
+void Debug::commitParameters()
 {
-  Renderer::commit();
+  Renderer::commitParameters();
   m_method = methodFromString(getParamString("method", "primID"));
+  m_sampleLimit = 1; // single-shot renderer
+  m_denoise = false; // never denoise
 }
 
 void Debug::populateFrameData(FrameGPUData &fd) const

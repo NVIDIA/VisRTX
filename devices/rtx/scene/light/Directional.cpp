@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,15 +35,14 @@ namespace visrtx {
 
 Directional::Directional(DeviceGlobalState *d) : Light(d) {}
 
-void Directional::commit()
+void Directional::commitParameters()
 {
-  Light::commit();
+  Light::commitParameters();
   m_direction =
       glm::normalize(getParam<vec3>("direction", vec3(0.f, 0.f, -1.f)));
   m_irradiance = std::clamp(getParam<float>("irradiance", 1.f),
       0.f,
       std::numeric_limits<float>::max());
-  upload();
 }
 
 LightGPUData Directional::gpuData() const

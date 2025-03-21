@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers.hpp"
@@ -24,6 +24,8 @@ VolumeRef import_volume(Context &ctx,
     field = import_FLASH(ctx, filepath);
   else if (ext == ".nvdb")
     field = import_NVDB(ctx, filepath);
+  else if (ext == ".mhd")
+    field = import_MHD(ctx, filepath);
   else {
     logError("[import_volume] no loader for file type '%s'", ext.c_str());
     return {};
@@ -39,15 +41,15 @@ VolumeRef import_volume(Context &ctx,
   if (field)
     valueRange = field->computeValueRange();
 
-  auto tx = ctx.insertChildTransformNode(ctx.tree.root());
+  auto tx = ctx.insertChildTransformNode(ctx.defaultLayer()->root());
 
   auto [inst, volume] = ctx.insertNewChildObjectNode<tsd::Volume>(
       tx, tokens::volume::transferFunction1D);
   volume->setName(fileOf(filepath).c_str());
   volume->setParameterObject("value", *field);
   volume->setParameterObject("color", *colorArray);
-  volume->setParameterObject("opacity", *opacityArray);
-  volume->setParameter("densityScale", 0.1f);
+  if (opacityArray)
+    volume->setParameterObject("opacity", *opacityArray);
   volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
 
   return volume;

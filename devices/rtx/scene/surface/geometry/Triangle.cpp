@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,18 +39,20 @@ Triangle::Triangle(DeviceGlobalState *d)
 
 Triangle::~Triangle() = default;
 
-void Triangle::commit()
+void Triangle::commitParameters()
 {
-  Geometry::commit();
-
+  Geometry::commitParameters();
   m_index = getParamObject<Array1D>("primitive.index");
-
   m_vertex = getParamObject<Array1D>("vertex.position");
   m_vertexNormal = getParamObject<Array1D>("vertex.normal");
+  m_vertexNormalFV = getParamObject<Array1D>("faceVarying.normal");
+  m_cullBackfaces = getParam<bool>("cullBackfaces", false);
   commitAttributes("vertex.", m_vertexAttributes);
   commitAttributes("faceVarying.", m_vertexAttributesFV);
-  m_vertexNormalFV = getParamObject<Array1D>("faceVarying.normal");
+}
 
+void Triangle::finalize()
+{
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on triangle geometry");
@@ -81,12 +83,10 @@ void Triangle::commit()
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
-      "committing %s triangle geometry",
+      "finalizing %s triangle geometry",
       m_index ? "indexed" : "soup");
 
   m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
-
-  m_cullBackfaces = getParam<bool>("cullBackfaces", false);
 
   upload();
 }

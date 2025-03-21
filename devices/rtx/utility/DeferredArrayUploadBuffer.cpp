@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,6 +30,7 @@
  */
 
 #include "DeferredArrayUploadBuffer.h"
+#include "array/UploadableArray.h"
 
 namespace visrtx {
 
@@ -43,30 +44,33 @@ DeferredArrayUploadBuffer::~DeferredArrayUploadBuffer()
   clear();
 }
 
-void DeferredArrayUploadBuffer::addArray(helium::Array *arr)
+void DeferredArrayUploadBuffer::addArray(UploadableArray *arr)
 {
   arr->refInc(helium::RefType::INTERNAL);
   m_arraysToUpload.push_back(arr);
 }
 
-bool DeferredArrayUploadBuffer::flush()
+void DeferredArrayUploadBuffer::flush()
 {
   if (m_arraysToUpload.empty())
-    return false;
+    return;
 
+  bool didUpload = false;
   for (auto arr : m_arraysToUpload) {
-    if (arr->useCount() > 1)
+    if (arr->useCount() > 1) {
+      didUpload = true;
       arr->uploadArrayData();
+    }
   }
+  if (didUpload)
+    m_lastUpload = helium::newTimeStamp();
 
   clear();
-  m_lastFlush = helium::newTimeStamp();
-  return true;
 }
 
-helium::TimeStamp DeferredArrayUploadBuffer::lastFlush() const
+helium::TimeStamp DeferredArrayUploadBuffer::lastUpload() const
 {
-  return m_lastFlush;
+  return m_lastUpload;
 }
 
 void DeferredArrayUploadBuffer::clear()
@@ -74,7 +78,6 @@ void DeferredArrayUploadBuffer::clear()
   for (auto &arr : m_arraysToUpload)
     arr->refDec(helium::RefType::INTERNAL);
   m_arraysToUpload.clear();
-  m_lastFlush = 0;
 }
 
 bool DeferredArrayUploadBuffer::empty() const

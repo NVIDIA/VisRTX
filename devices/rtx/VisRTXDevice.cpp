@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,7 @@
 #include "anari_library_visrtx_export.h"
 
 #include <anari/frontend/anari_enums.h>
+#include <optix_types.h>
 #include "VisRTXDevice.h"
 
 #include "array/Array1D.h"
@@ -63,8 +64,6 @@
 // MDL
 #ifdef USE_MDL
 #include "libmdl/Core.h"
-#include "mdl/MaterialRegistry.h"
-#include "mdl/SamplerRegistry.h"
 #endif // defined(USE_MDL)
 
 // std
@@ -410,7 +409,7 @@ VisRTXDevice::~VisRTXDevice()
   }
 #endif // defined(USE_MDL)
 
-  state.commitBufferClear();
+  state.commitBuffer.clear();
   state.uploadBuffer.clear();
 
   CUDA_SYNC_CHECK();
@@ -481,16 +480,36 @@ void VisRTXDevice::deviceCommitParameters()
     auto paths = getParamString("mdlSearchPaths", "");
     auto mdlSearchPaths = std::vector<std::filesystem::path>{};
 
+#if defined(WIN32)
+    constexpr char sep = ';';
+#else
+    constexpr char sep = ':';
+#endif
+
     for (auto it = cbegin(paths);;) {
-      while (it != cend(paths) && *it == ':')
+      while (it != cend(paths) && *it == sep)
         ++it;
       if (it == cend(paths))
         break;
-      auto endOfPathIt = std::find(it, cend(paths), ':');
+      auto endOfPathIt = std::find(it, cend(paths), sep);
       mdlSearchPaths.emplace_back(it, endOfPathIt);
       it = endOfPathIt;
     }
     deviceState()->mdl->core.setMdlSearchPaths(mdlSearchPaths);
+
+    paths = getParamString("mdlResourceSearchPaths", "");
+    mdlSearchPaths = std::vector<std::filesystem::path>{};
+
+    for (auto it = cbegin(paths);;) {
+      while (it != cend(paths) && *it == sep)
+        ++it;
+      if (it == cend(paths))
+        break;
+      auto endOfPathIt = std::find(it, cend(paths), sep);
+      mdlSearchPaths.emplace_back(it, endOfPathIt);
+      it = endOfPathIt;
+    }
+    deviceState()->mdl->core.setMdlResourceSearchPaths(mdlSearchPaths);
   }
 #endif // defined(USE_MDL)
 }
@@ -596,15 +615,26 @@ DeviceInitStatus VisRTXDevice::initOptix()
   OptixModuleCompileOptions moduleCompileOptions = {};
   moduleCompileOptions.maxRegisterCount =
       OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+#ifdef NDEBUG
   moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
   moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+#else
+  moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+  moduleCompileOptions.debugLevel =
+      OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL; // Could be FULL if -G can be enabled
+                                         // at compile time
+#endif
 
   auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
-  auto init_module = [&](OptixModule &module,
+  auto init_module = [&](OptixModule *module,
                          ptx_blob ptx,
                          const char *name) -> std::future<void> {
-    auto f = std::async([&]() {
+    // Make sure that we capture init_module function parameters by value
+    // as those will be out of scope as soon as we exit the function, thereby
+    // creating dandling references to those parameters if we do not capture by
+    // value.
+    auto f = std::async([&, module, ptx, name]() {
       reportMessage(ANARI_SEVERITY_INFO, "Compiling OptiX module: %s", name);
 
       std::string log(2048, '\n');
@@ -627,7 +657,7 @@ DeviceInitStatus VisRTXDevice::initOptix()
           ptx.size,
           log.data(),
           &sizeof_log,
-          &module));
+          module));
 #endif
 
       if (sizeof_log > 1)
@@ -639,34 +669,30 @@ DeviceInitStatus VisRTXDevice::initOptix()
     return f;
   };
 
-  std::vector<std::future<void>> compileTasks;
-  compileTasks.push_back(init_module(
-      state.rendererModules.debug, Debug::ptx(), "'debug' renderer"));
-  compileTasks.push_back(init_module(
-      state.rendererModules.raycast, Raycast::ptx(), "'raycast' renderer"));
-  compileTasks.push_back(init_module(state.rendererModules.ambientOcclusion,
-      AmbientOcclusion::ptx(),
-      "'ao' renderer"));
-  compileTasks.push_back(init_module(state.rendererModules.diffusePathTracer,
-      DiffusePathTracer::ptx(),
-      "'dpt' renderer"));
-  compileTasks.push_back(init_module(state.rendererModules.directLight,
-      DirectLight::ptx(),
-      "'default' renderer"));
-  compileTasks.push_back(
-      init_module(state.rendererModules.test, Test::ptx(), "'test' renderer"));
-
-  compileTasks.push_back(
-      init_module(state.intersectionModules.customIntersectors,
+  auto compileTasks = std::array{
+      init_module(
+          &state.rendererModules.debug, Debug::ptx(), "'debug' renderer"),
+      init_module(
+          &state.rendererModules.raycast, Raycast::ptx(), "'raycast' renderer"),
+      init_module(&state.rendererModules.ambientOcclusion,
+          AmbientOcclusion::ptx(),
+          "'ao' renderer"),
+      init_module(&state.rendererModules.diffusePathTracer,
+          DiffusePathTracer::ptx(),
+          "'dpt' renderer"),
+      init_module(&state.rendererModules.directLight,
+          DirectLight::ptx(),
+          "'default' renderer"),
+      init_module(&state.rendererModules.test, Test::ptx(), "'test' renderer"),
+      init_module(&state.intersectionModules.customIntersectors,
           intersection_ptx(),
-          "custom intersectors"));
-
-  compileTasks.push_back(init_module(
-      state.materialShaders.matte, MatteShader::ptx(), "'matte' shader"));
-
-  compileTasks.push_back(init_module(state.materialShaders.physicallyBased,
-      PhysicallyBasedShader::ptx(),
-      "'physicallyBased' shader"));
+          "custom intersectors"),
+      init_module(
+          &state.materialShaders.matte, MatteShader::ptx(), "'matte' shader"),
+      init_module(&state.materialShaders.physicallyBased,
+          PhysicallyBasedShader::ptx(),
+          "'physicallyBased' shader"),
+  };
 
   for (auto &f : compileTasks)
     f.wait();

@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // catch
@@ -95,7 +95,7 @@ SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
 
         THEN("Erasing all children from the root empties the forest")
         {
-          f.erase_subtree(f.root());
+          f.root()->erase_subtree();
           REQUIRE(f.empty());
           REQUIRE(f.root()->isLeaf());
         }

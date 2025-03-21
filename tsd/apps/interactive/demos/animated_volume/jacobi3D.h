@@ -1,9 +1,7 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
-
-#include <thrust/device_ptr.h>
 
 namespace tsd {
 

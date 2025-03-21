@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,7 +67,7 @@ bool Group::getProperty(
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
-      deviceState()->commitBufferFlush();
+      deviceState()->commitBuffer.flush();
       rebuildSurfaceBVHs();
       rebuildVolumeBVH();
     }
@@ -82,15 +82,24 @@ bool Group::getProperty(
   return Object::getProperty(name, type, ptr, flags);
 }
 
-void Group::commit()
+void Group::commitParameters()
 {
   m_surfaceData = getParamObject<ObjectArray>("surface");
   m_volumeData = getParamObject<ObjectArray>("volume");
   m_lightData = getParamObject<ObjectArray>("light");
+}
 
+void Group::finalize()
+{
   m_objectUpdates.lastSurfaceBVHBuilt = 0;
   m_objectUpdates.lastVolumeBVHBuilt = 0;
   m_objectUpdates.lastLightRebuild = 0;
+}
+
+void Group::markFinalized()
+{
+  Object::markFinalized();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 OptixTraversableHandle Group::optixTraversableTriangle() const
@@ -167,6 +176,11 @@ Span<DeviceObjectIndex> Group::lightGPUIndices() const
 {
   return make_Span(
       (const DeviceObjectIndex *)m_lightObjectIndices.ptr(), m_lights.size());
+}
+
+DeviceObjectIndex Group::firstHDRI() const
+{
+  return m_firstHDRI;
 }
 
 void Group::rebuildSurfaceBVHs()
@@ -255,12 +269,6 @@ void Group::rebuildLights()
   m_objectUpdates.lastLightRebuild = helium::newTimeStamp();
 }
 
-void Group::markCommitted()
-{
-  Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
-}
-
 void Group::partitionValidGeometriesByType()
 {
   m_surfacesTriangle.clear();
@@ -312,6 +320,7 @@ void Group::partitionValidVolumes()
 void Group::partitionValidLights()
 {
   m_lights.clear();
+  m_firstHDRI = -1;
   if (!m_lightData)
     return;
 
@@ -325,6 +334,8 @@ void Group::partitionValidLights()
       continue;
     }
     m_lights.push_back(l);
+    if (m_firstHDRI == -1 && l->isHDRI())
+      m_firstHDRI = l->index();
   }
 }
 

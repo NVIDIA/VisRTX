@@ -51,6 +51,13 @@ class Core
   // Set MDL search path. It will also add user and system paths.
   void setMdlSearchPaths(nonstd::span<std::filesystem::path> paths);
 
+  // Set MDL resources (textures, light profiles...) search path.
+  void setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths);
+
+  // Add builtin modules to the global scope
+  void addBuiltinModule(
+      std::string_view moduleName, std::string_view moduleSource);
+
   // The main neuray interface can only be acquired once. Make sure it can be
   // shared if taken from there. The original subsystem keeps the ownership of
   // the returned value.
@@ -106,8 +113,8 @@ class Core
       const mi::neuraylib::ICompiled_material *compiledMaterial,
       mi::neuraylib::ITransaction *transaction);
 
-  mi::neuraylib::IValue_texture *loadTexture(
-      std::string_view filePath, mi::neuraylib::ITransaction *transaction);
+  const char *resolveResource(
+      const char *resourcePath, const char *owner = nullptr);
 
  private:
   Core(mi::neuraylib::INeuray *neuray, mi::base::ILogger *logger);

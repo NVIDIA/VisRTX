@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "TransferFunctionEditor.h"
@@ -160,6 +160,21 @@ void TransferFunctionEditor::loadDefaultMaps()
 
   m_tfnsEditable.push_back(false);
   m_tfnsNames.push_back("Jet");
+
+  // Cool to warm
+  colors.clear();
+
+  colors.emplace_back(0.0f, 0.231f, 0.298f, 0.752f);
+  colors.emplace_back(0.25f, 0.552f, 0.690f, 0.996f);
+  colors.emplace_back(0.5f, 0.866f, 0.866f, 0.866f);
+  colors.emplace_back(0.75f, 0.956f, 0.603f, 0.486f);
+  colors.emplace_back(1.0f, 0.705f, 0.015f, 0.149f);
+
+  m_tfnsColorPoints.push_back(colors);
+  m_tfnsOpacityPoints.push_back(opacities);
+
+  m_tfnsEditable.push_back(false);
+  m_tfnsNames.push_back("Cool to Warm");
 
   // Viridis
   colors.clear();

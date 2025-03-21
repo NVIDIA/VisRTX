@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -25,6 +25,9 @@ enum class ImporterType
   HDRI,
   VOLUME,
   TSD,
+  SWC,
+  PDB,
+  XYZDP,
   NONE
 };
 
@@ -47,7 +50,7 @@ struct AppCore
     tsd::Context ctx;
     bool sceneLoadComplete{false};
     tsd::Object *selectedObject{nullptr};
-    tsd::InstanceNode::Ref selectedNode;
+    tsd::LayerNodeRef selectedNode;
   } tsd;
 
   struct ANARIState
@@ -60,6 +63,7 @@ struct AppCore
     std::map<anari::Device, LiveAnariIndex> rIdxs;
     tsd::MultiUpdateDelegate delegate;
     std::map<std::string, anari::Device> loadedDevices;
+    std::map<std::string, anari::Extensions> loadedDeviceExtensions;
   } anari;
 
   struct LogState
@@ -84,12 +88,13 @@ struct AppCore
   void setupSceneFromCommandLine(bool hdriOnly = false);
 
   anari::Device loadDevice(const std::string &libName);
+  const anari::Extensions *loadDeviceExtensions(const std::string &libName);
   tsd::RenderIndex *acquireRenderIndex(anari::Device device);
   void releaseRenderIndex(anari::Device device);
   void releaseAllDevices();
 
   void setSelectedObject(tsd::Object *o);
-  void setSelectedNode(tsd::InstanceNode &n);
+  void setSelectedNode(tsd::LayerNode &n);
   void clearSelected();
 
   // Not copyable or moveable //

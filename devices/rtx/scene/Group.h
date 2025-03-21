@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,9 @@ struct Group : public Object
       void *ptr,
       uint32_t flags) override;
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  void markFinalized() override;
 
   OptixTraversableHandle optixTraversableTriangle() const;
   OptixTraversableHandle optixTraversableCurve() const;
@@ -68,11 +70,11 @@ struct Group : public Object
   Span<DeviceObjectIndex> volumeGPUIndices() const;
   Span<DeviceObjectIndex> lightGPUIndices() const;
 
+  DeviceObjectIndex firstHDRI() const;
+
   void rebuildSurfaceBVHs();
   void rebuildVolumeBVH();
   void rebuildLights();
-
-  void markCommitted() override;
 
  private:
   void partitionValidGeometriesByType();
@@ -107,6 +109,7 @@ struct Group : public Object
   std::vector<Light *> m_lights;
 
   DeviceBuffer m_lightObjectIndices;
+  DeviceObjectIndex m_firstHDRI{-1};
 
   // BVH //
 

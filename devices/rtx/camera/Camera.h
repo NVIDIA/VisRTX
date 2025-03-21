@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,6 +41,8 @@ struct Camera : public Object, public DeviceObject<CameraGPUData>
 {
   Camera(DeviceGlobalState *d);
   ~Camera() override = default;
+
+  void finalize() override;
 
   static Camera *createInstance(std::string_view subtype, DeviceGlobalState *d);
 

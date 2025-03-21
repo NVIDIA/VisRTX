@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
 #
 # Redistribution and use in source and binary forms, with or without
@@ -56,7 +56,7 @@ if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   endif()
 endif()
 
-project(VisRTX VERSION 0.10.1 LANGUAGES C CXX)
+project(VisRTX VERSION 0.11.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 
@@ -89,12 +89,11 @@ endif()
 ## Dependencies ###############################################################
 
 # ANARI-SDK
-set(ANARI_REQUIRED_VERSION 0.12.0)
+set(ANARI_REQUIRED_VERSION 0.13.1)
 find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
 # CUDA
-find_package(CUDAToolkit 11.3.1)
-find_package(OptiX7)
+find_package(CUDAToolkit 12)
 
 # OpenGL
 find_package(OpenGL)

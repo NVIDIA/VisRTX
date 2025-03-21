@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -85,14 +85,17 @@ StructuredRegularField::~StructuredRegularField()
   cleanup();
 }
 
-void StructuredRegularField::commit()
+void StructuredRegularField::commitParameters()
 {
-  cleanup();
-
   m_origin = getParam<vec3>("origin", vec3(0.f));
   m_spacing = getParam<vec3>("spacing", vec3(1.f));
   m_filter = getParamString("filter", "linear");
   m_data = getParamObject<Array3D>("data");
+}
+
+void StructuredRegularField::finalize()
+{
+  cleanup();
 
   if (!m_data) {
     reportMessage(ANARI_SEVERITY_WARNING,
@@ -150,8 +153,12 @@ void StructuredRegularField::commit()
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
 
   buildGrid();
-
   upload();
+}
+
+bool StructuredRegularField::isValid() const
+{
+  return m_data && validFieldDataType(m_data->elementType());
 }
 
 box3 StructuredRegularField::bounds() const
@@ -166,11 +173,6 @@ box3 StructuredRegularField::bounds() const
 float StructuredRegularField::stepSize() const
 {
   return glm::compMin(m_spacing / 2.f);
-}
-
-bool StructuredRegularField::isValid() const
-{
-  return m_data && validFieldDataType(m_data->elementType());
 }
 
 SpatialFieldGPUData StructuredRegularField::gpuData() const

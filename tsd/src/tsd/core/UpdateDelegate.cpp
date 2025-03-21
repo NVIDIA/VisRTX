@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/UpdateDelegate.hpp"
@@ -74,10 +74,10 @@ void MultiUpdateDelegate::signalRemoveAllObjects()
     d->signalRemoveAllObjects();
 }
 
-void MultiUpdateDelegate::signalInstanceStructureChanged()
+void MultiUpdateDelegate::signalLayerChanged()
 {
   for (auto &d : m_delegates)
-    d->signalInstanceStructureChanged();
+    d->signalLayerChanged();
 }
 
 void MultiUpdateDelegate::signalObjectFilteringChanged()

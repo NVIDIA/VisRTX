@@ -1,8 +1,0 @@
-mdl 1.8;
-
-import ::df::*;
-
-export material simpleWhite() = let {
-    bsdf diffuseWhite = df::diffuse_reflection_bsdf(tint: color(0.8f));
-    material mat = material(surface: material_surface(scattering: diffuseWhite));
-} in mat;

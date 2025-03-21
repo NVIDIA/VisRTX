@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,8 @@ struct ObjectArray : public Array
   ObjectArray(DeviceGlobalState *state, const Array1DMemoryDescriptor &d);
   ~ObjectArray() override;
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
   void unmap() override;
 
   size_t totalSize() const override;

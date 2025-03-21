@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,9 +42,15 @@ Volume::Volume(DeviceGlobalState *d)
   setRegistry(d->registry.volumes);
 }
 
-void Volume::commit()
+void Volume::commitParameters()
 {
   m_id = getParam<uint32_t>("id", ~0u);
+}
+
+void Volume::markFinalized()
+{
+  Object::markFinalized();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 OptixBuildInput Volume::buildInput() const
@@ -66,12 +72,6 @@ OptixBuildInput Volume::buildInput() const
   buildInput.customPrimitiveArray.numSbtRecords = 1;
 
   return buildInput;
-}
-
-void Volume::markCommitted()
-{
-  Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
 }
 
 Volume *Volume::createInstance(std::string_view subtype, DeviceGlobalState *d)

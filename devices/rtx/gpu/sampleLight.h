@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,24 +46,55 @@ struct LightSample
 
 namespace detail {
 
-VISRTX_DEVICE LightSample sampleDirectional(const LightGPUData &ld)
+VISRTX_DEVICE LightSample sampleDirectionalLight(const LightGPUData &ld)
 {
   LightSample ls;
   ls.dir = -ld.distant.direction;
   ls.dist = FLT_MAX;
-  ls.pdf = 1.f;
   ls.radiance = ld.color * ld.distant.irradiance;
+  ls.pdf = 1.f;
   return ls;
 }
 
-VISRTX_DEVICE LightSample samplePoint(const LightGPUData &ld, const Hit &hit)
+VISRTX_DEVICE LightSample samplePointLight(const LightGPUData &ld, const Hit &hit)
 {
   LightSample ls;
   ls.dir = ld.point.position - hit.hitpoint;
   ls.dist = length(ls.dir);
   ls.dir = glm::normalize(ls.dir);
-  ls.pdf = 1.f;
   ls.radiance = ld.color * ld.point.intensity;
+  ls.pdf = 1.f;
+  return ls;
+}
+
+VISRTX_DEVICE LightSample sampleSpotLight(const LightGPUData &ld, const Hit &hit)
+{
+  LightSample ls;
+  ls.dir = ld.spot.position - hit.hitpoint;
+  ls.dist = length(ls.dir);
+  ls.dir = glm::normalize(ls.dir);
+  float spot = dot(normalize(ld.spot.direction), -ls.dir);
+  if (spot < ld.spot.cosOuterAngle) spot = 0.f;
+  else if (spot > ld.spot.cosInnerAngle) spot = 1.f;
+  else {
+    spot = (spot - ld.spot.cosOuterAngle) / (ld.spot.cosInnerAngle - ld.spot.cosOuterAngle);
+    spot = spot * spot * (3.f - 2.f * spot);
+  }
+  ls.radiance = ld.color * ld.spot.intensity * spot;
+  ls.pdf = 1.f;
+  return ls;
+}
+
+VISRTX_DEVICE LightSample sampleHDRILight(
+  const LightGPUData &ld,
+  const Hit &hit,
+  RandState &rs)
+{
+  LightSample ls;
+  ls.dir = randomDir(rs);
+  ls.dist = 1e20f;
+  ls.radiance = sampleHDRI(ld, ls.dir);
+  ls.pdf = 0.f;
   return ls;
 }
 
@@ -76,9 +107,13 @@ VISRTX_DEVICE LightSample sampleLight(
 
   switch (ld.type) {
   case LightType::DIRECTIONAL:
-    return detail::sampleDirectional(ld);
+    return detail::sampleDirectionalLight(ld);
   case LightType::POINT:
-    return detail::samplePoint(ld, hit);
+    return detail::samplePointLight(ld, hit);
+  case LightType::SPOT:
+    return detail::sampleSpotLight(ld, hit);
+  case LightType::HDRI:
+    return detail::sampleHDRILight(ld, hit, ss.rs);
   default:
     break;
   }

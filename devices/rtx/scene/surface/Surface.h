@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,10 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
 {
   Surface(DeviceGlobalState *d);
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  void markFinalized() override;
+  bool isValid() const override;
 
   Geometry *geometry();
   const Geometry *geometry() const;
@@ -48,10 +51,6 @@ struct Surface : public RegisteredObject<SurfaceGPUData>
   const Material *material() const;
 
   OptixBuildInput buildInput() const;
-
-  void markCommitted() override;
-
-  bool isValid() const override;
 
  private:
   bool geometryIsValid() const;

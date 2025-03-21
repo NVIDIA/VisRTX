@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,12 +41,12 @@ struct StructuredRegularField : public SpatialField
   StructuredRegularField(DeviceGlobalState *d);
   ~StructuredRegularField();
 
-  void commit() override;
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
   box3 bounds() const override;
   float stepSize() const override;
-
-  bool isValid() const override;
 
  private:
   SpatialFieldGPUData gpuData() const override;

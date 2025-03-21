@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,23 +39,35 @@ Surface::Surface(DeviceGlobalState *d)
   setRegistry(d->registry.surfaces);
 }
 
-void Surface::commit()
+void Surface::commitParameters()
 {
   m_id = getParam<uint32_t>("id", ~0u);
   m_geometry = getParamObject<Geometry>("geometry");
   m_material = getParamObject<Material>("material");
+}
 
+void Surface::finalize()
+{
   if (!m_material) {
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'material' on ANARISurface");
     return;
   }
-
   if (!m_geometry) {
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'geometry' on ANARISurface");
     return;
   }
-
   upload();
+}
+
+void Surface::markFinalized()
+{
+  Object::markFinalized();
+  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
+}
+
+bool Surface::isValid() const
+{
+  return geometryIsValid() && materialIsValid();
 }
 
 Geometry *Surface::geometry()
@@ -84,17 +96,6 @@ OptixBuildInput Surface::buildInput() const
   if (geometryIsValid())
     m_geometry->populateBuildInput(obi);
   return obi;
-}
-
-void Surface::markCommitted()
-{
-  Object::markCommitted();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
-}
-
-bool Surface::isValid() const
-{
-  return geometryIsValid() && materialIsValid();
 }
 
 bool Surface::geometryIsValid() const

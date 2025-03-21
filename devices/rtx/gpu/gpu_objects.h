@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -319,11 +319,11 @@ struct MaterialGPUData
   {
     MaterialParameter baseColor;
     MaterialParameter opacity;
+    float cutoff;
+    AlphaMode alphaMode;
     MaterialParameter metallic;
     MaterialParameter roughness;
     float ior;
-    float cutoff;
-    AlphaMode alphaMode;
   };
 
   struct MDL
@@ -430,7 +430,9 @@ struct TF1DVolumeGPUData
   DeviceObjectIndex field;
   cudaTextureObject_t tfTex{};
   box1 valueRange;
-  float densityScale;
+  float unitDistance;
+  vec3 uniformColor;
+  float uniformOpacity;
 };
 
 struct VolumeGPUData
@@ -449,9 +451,10 @@ struct VolumeGPUData
 
 enum class LightType
 {
-  AMBIENT,
   DIRECTIONAL,
   POINT,
+  SPOT,
+  HDRI,
   UNKNOWN
 };
 
@@ -467,6 +470,23 @@ struct PointLightGPUData
   float intensity;
 };
 
+struct SpotLightGPUData
+{
+  vec3 position;
+  vec3 direction;
+  float cosOuterAngle;
+  float cosInnerAngle;
+  float intensity;
+};
+
+struct HDRILightGPUData
+{
+  mat3 xfm;
+  cudaTextureObject_t radiance;
+  float scale;
+  bool visible;
+};
+
 struct LightGPUData
 {
   LightType type{LightType::UNKNOWN};
@@ -475,6 +495,8 @@ struct LightGPUData
   {
     DirectionalLightGPUData distant;
     PointLightGPUData point;
+    SpotLightGPUData spot;
+    HDRILightGPUData hdri;
   };
 };
 
@@ -517,6 +539,8 @@ struct WorldGPUData
 
   const InstanceLightGPUData *lightInstances;
   size_t numLightInstances;
+
+  DeviceObjectIndex hdri;
 };
 
 // Renderer //
@@ -570,6 +594,7 @@ struct RendererGPUData
   BackgroundMode backgroundMode;
   RendererBackgroundGPUData background;
   glm::vec3 ambientColor;
+  int numIterations;
   float ambientIntensity;
   float inverseVolumeSamplingRate;
   float occlusionDistance;

@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -75,7 +75,6 @@ struct Viewport : public anari_viewer::windows::Window
   bool m_highlightSelection{true};
   bool m_showOnlySelected{false};
   int m_frameSamples{0};
-  bool m_useOrthoCamera{false};
 
   bool m_visualizeDepth{false};
   float m_depthVisualMaximum{1.f};
@@ -86,9 +85,12 @@ struct Viewport : public anari_viewer::windows::Window
 
   anari::DataType m_format{ANARI_UFIXED8_RGBA_SRGB};
 
+  anari::Extensions m_extensions{};
   anari::Device m_device{nullptr};
+  anari::Camera m_currentCamera{nullptr};
   anari::Camera m_perspCamera{nullptr};
   anari::Camera m_orthoCamera{nullptr};
+  anari::Camera m_omniCamera{nullptr};
 
   std::vector<std::string> m_rendererNames;
   std::vector<anari::Renderer> m_renderers;

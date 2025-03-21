@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,7 @@
 
 #include "Sampler.h"
 // specific types
+#include "CompressedImage2D.h"
 #include "Image1D.h"
 #include "Image2D.h"
 #include "Image3D.h"
@@ -44,13 +45,13 @@ Sampler::Sampler(DeviceGlobalState *s)
     : RegisteredObject<SamplerGPUData>(ANARI_SAMPLER, s)
 {
   setRegistry(s->registry.samplers);
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
 }
 
 Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
-  if (subtype == "image1D")
+  if (subtype == "compressedImage2D")
+    return new CompressedImage2D(d);
+  else if (subtype == "image1D")
     return new Image1D(d);
   else if (subtype == "image2D")
     return new Image2D(d);
@@ -64,7 +65,7 @@ Sampler *Sampler::createInstance(std::string_view subtype, DeviceGlobalState *d)
     return new UnknownSampler(subtype, d);
 }
 
-void Sampler::commit()
+void Sampler::commitParameters()
 {
   m_inAttribute = getParamString("inAttribute", "attribute0");
   m_inTransform = getParam<mat4>("inTransform", mat4(1.f));

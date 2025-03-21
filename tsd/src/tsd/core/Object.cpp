@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/Object.hpp"
@@ -207,6 +207,11 @@ void Object::parameterChanged(const Parameter *p)
 {
   if (m_updateDelegate)
     m_updateDelegate->signalParameterUpdated(this, p);
+}
+
+void Object::removeParameter(const Parameter *p)
+{
+  removeParameter(p->name());
 }
 
 BaseUpdateDelegate *Object::updateDelegate() const

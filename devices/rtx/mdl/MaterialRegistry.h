@@ -39,7 +39,7 @@ class MaterialRegistry
   }
 
   // Material code
-  libmdl::Uuid acquireMaterial(
+  std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor> acquireMaterial(
       std::string_view moduleName, std::string_view materialName);
   void releaseMaterial(const Uuid &uuid);
 
@@ -73,7 +73,7 @@ class MaterialRegistry
 
   // Per material instance data
   std::optional<libmdl::ArgumentBlockInstance> createArgumentBlock(
-      const Uuid &uuid) const;
+      const libmdl::ArgumentBlockDescriptor &uuid) const;
 
  private:
   libmdl::Core *m_core;
@@ -81,8 +81,7 @@ class MaterialRegistry
 
   struct TargetCode
   {
-    libmdl::ArgumentBlockDescriptor argumentBlockDescriptor;
-    mi::base::Handle<const mi::neuraylib::ITarget_code> targetCode;
+    // mi::base::Handle<const mi::neuraylib::ITarget_code> targetCode;
     std::vector<char> ptxBlob;
     int refCount{};
   };
@@ -91,6 +90,9 @@ class MaterialRegistry
   // acquire/release calls.
   std::vector<TargetCode> m_targetCodes;
 
+  std::unordered_map<std::string,
+      std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>>
+      m_materialNameToUuid;
   std::unordered_map<libmdl::Uuid, std::size_t, libmdl::UuidHasher>
       m_uuidToIndex;
 

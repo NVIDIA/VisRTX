@@ -1,5 +1,7 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
+
+#define ANARI_EXTENSION_UTILITY_IMPL
 
 #include "AppCore.h"
 #include "windows/Log.h"
@@ -118,6 +120,12 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::PLY;
     else if (arg == "-volume")
       importerType = ImporterType::VOLUME;
+    else if (arg == "-swc")
+      importerType = ImporterType::SWC;
+    else if (arg == "-pdb")
+      importerType = ImporterType::PDB;
+    else if (arg == "-xyzdp")
+      importerType = ImporterType::XYZDP;
     else if (importerType != ImporterType::NONE)
       this->commandLine.filenames.push_back({importerType, arg});
   }
@@ -140,7 +148,7 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
   } else {
     for (const auto &f : commandLine.filenames) {
       tsd::logStatus("...loading file '%s'", f.second.c_str());
-      auto root = tsd.ctx.tree.root();
+      auto root = tsd.ctx.defaultLayer()->root();
       if (f.first == ImporterType::TSD)
         tsd::import_Context(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::PLY)
@@ -157,6 +165,12 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_NBODY(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::HDRI)
         tsd::import_HDRI(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::SWC)
+        tsd::import_SWC(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::PDB)
+        tsd::import_PDB(tsd.ctx, f.second.c_str(), root);
+      else if (f.first == ImporterType::XYZDP)
+        tsd::import_XYZDP(tsd.ctx, f.second.c_str());
 #if 0
       else if (f.first == ImporterType::VOLUME)
         tsd::import_volume(tsd.ctx, f.second.c_str());
@@ -167,11 +181,11 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
 
 anari::Device AppCore::loadDevice(const std::string &libraryName)
 {
-  anari::Device dev = this->anari.loadedDevices[libraryName];
-
   if (libraryName.empty() || libraryName == "{none}")
     return nullptr;
-  else if (dev) {
+
+  anari::Device dev = this->anari.loadedDevices[libraryName];
+  if (dev) {
     anari::retain(dev, dev);
     return dev;
   }
@@ -184,6 +198,9 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
     this->commandLine.debug = anari::loadLibrary("debug", statusFunc, this);
 
   dev = anari::newDevice(library, "default");
+
+  this->anari.loadedDeviceExtensions[libraryName] =
+      anari::extension::getDeviceExtensionStruct(library, "default");
 
   anari::unloadLibrary(library);
 
@@ -214,6 +231,16 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
   anari::retain(dev, dev);
 
   return dev;
+}
+
+const anari::Extensions *AppCore::loadDeviceExtensions(
+    const std::string &libName)
+{
+  auto d = loadDevice(libName);
+  if (!d)
+    return nullptr;
+  anari::release(d, d);
+  return &this->anari.loadedDeviceExtensions[libName];
 }
 
 tsd::RenderIndex *AppCore::acquireRenderIndex(anari::Device d)
@@ -253,16 +280,14 @@ void AppCore::releaseAllDevices()
 void AppCore::setSelectedObject(tsd::Object *o)
 {
   tsd.selectedNode = {};
-  const bool wasSelected = tsd.selectedObject != nullptr;
   tsd.selectedObject = o;
-  if (o != nullptr && !wasSelected || o == nullptr && wasSelected)
-    anari.delegate.signalObjectFilteringChanged();
+  anari.delegate.signalObjectFilteringChanged();
 }
 
-void AppCore::setSelectedNode(tsd::InstanceNode &n)
+void AppCore::setSelectedNode(tsd::LayerNode &n)
 {
   setSelectedObject(tsd.ctx.getObject(n->value));
-  tsd.selectedNode = tsd.ctx.tree.at(n.index());
+  tsd.selectedNode = tsd.ctx.defaultLayer()->at(n.index());
 }
 
 void AppCore::clearSelected()

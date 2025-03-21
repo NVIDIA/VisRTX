@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "Viewport.h"
@@ -147,6 +147,11 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
     if (d) {
       anari::retain(d, d);
 
+      if (auto *exts = m_core->loadDeviceExtensions(libName); exts != nullptr)
+        m_extensions = *exts;
+      else
+        m_extensions = {};
+
       tsd::logStatus("[viewport] getting renderer params...");
 
       const char **r_subtypes = anariGetObjectSubtypes(d, ANARI_RENDERER);
@@ -171,7 +176,11 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       }
 
       m_perspCamera = anari::newObject<anari::Camera>(d, "perspective");
-      m_orthoCamera = anari::newObject<anari::Camera>(d, "orthographic");
+      m_currentCamera = m_perspCamera;
+      if (m_extensions.ANARI_KHR_CAMERA_ORTHOGRAPHIC)
+        m_orthoCamera = anari::newObject<anari::Camera>(d, "orthographic");
+      if (m_extensions.ANARI_KHR_CAMERA_OMNIDIRECTIONAL)
+        m_omniCamera = anari::newObject<anari::Camera>(d, "omnidirectional");
 
       tsd::logStatus("[viewport] populating render index...");
 
@@ -180,6 +189,10 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       tsd::logStatus("[viewport] getting scene bounds...");
 
+      // NOTE(jda) - Setting the device on this viewport is what triggers active
+      //             rendering in the UI thread, so this must be done here and
+      //             no earlier. Also note that resetView() below will need this
+      //             device also to be set.
       m_device = d;
 
       if (g_firstFrame || m_arcball->distance() == inf) {
@@ -226,12 +239,14 @@ void Viewport::teardownDevice()
 
   anari::release(m_device, m_perspCamera);
   anari::release(m_device, m_orthoCamera);
+  anari::release(m_device, m_omniCamera);
   for (auto &r : m_renderers)
     anari::release(m_device, r);
   anari::release(m_device, m_device);
 
   m_perspCamera = nullptr;
   m_orthoCamera = nullptr;
+  m_omniCamera = nullptr;
   m_renderers.clear();
   m_rendererObjects.clear();
   m_device = nullptr;
@@ -324,7 +339,7 @@ void Viewport::updateFrame()
     return;
 
   m_rud.r = m_renderers[m_currentRenderer];
-  m_anariPass->setCamera(m_useOrthoCamera ? m_orthoCamera : m_perspCamera);
+  m_anariPass->setCamera(m_currentCamera);
   m_anariPass->setRenderer(m_rud.r);
   m_anariPass->setWorld(m_rIdx->world());
 }
@@ -337,23 +352,13 @@ void Viewport::updateCamera(bool force)
   if ((!force && !m_arcball->hasChanged(m_cameraToken)))
     return;
 
+  // perspective camera //
+
   anari::setParameter(m_device, m_perspCamera, "position", m_arcball->eye());
   anari::setParameter(m_device, m_perspCamera, "direction", m_arcball->dir());
   anari::setParameter(m_device, m_perspCamera, "up", m_arcball->up());
-
-  anari::setParameter(
-      m_device, m_orthoCamera, "position", m_arcball->eye_FixedDistance());
-  anari::setParameter(m_device, m_orthoCamera, "direction", m_arcball->dir());
-  anari::setParameter(m_device, m_orthoCamera, "up", m_arcball->up());
-  anari::setParameter(
-      m_device, m_orthoCamera, "height", m_arcball->distance() * 0.75f);
-
   anari::setParameter(m_device,
       m_perspCamera,
-      "aspect",
-      m_viewportSize.x / float(m_viewportSize.y));
-  anari::setParameter(m_device,
-      m_orthoCamera,
       "aspect",
       m_viewportSize.x / float(m_viewportSize.y));
   anari::setParameter(
@@ -362,9 +367,32 @@ void Viewport::updateCamera(bool force)
       m_device, m_perspCamera, "focusDistance", m_focusDistance);
 
   anari::setParameter(m_device, m_perspCamera, "fovy", anari::radians(m_fov));
-
   anari::commitParameters(m_device, m_perspCamera);
-  anari::commitParameters(m_device, m_orthoCamera);
+
+  // orthographic camera //
+
+  if (m_orthoCamera) {
+    anari::setParameter(
+        m_device, m_orthoCamera, "position", m_arcball->eye_FixedDistance());
+    anari::setParameter(m_device, m_orthoCamera, "direction", m_arcball->dir());
+    anari::setParameter(m_device, m_orthoCamera, "up", m_arcball->up());
+    anari::setParameter(
+        m_device, m_orthoCamera, "height", m_arcball->distance() * 0.75f);
+    anari::setParameter(m_device,
+        m_orthoCamera,
+        "aspect",
+        m_viewportSize.x / float(m_viewportSize.y));
+    anari::commitParameters(m_device, m_orthoCamera);
+  }
+
+  // omnidirectional camera //
+
+  if (m_omniCamera) {
+    anari::setParameter(m_device, m_omniCamera, "position", m_arcball->eye());
+    anari::setParameter(m_device, m_omniCamera, "direction", m_arcball->dir());
+    anari::setParameter(m_device, m_omniCamera, "up", m_arcball->up());
+    anari::commitParameters(m_device, m_omniCamera);
+  }
 
   if (m_echoCameraConfig)
     echoCameraConfig();
@@ -504,7 +532,7 @@ void Viewport::ui_picking()
 
   // Pick view center //
 
-  const bool shouldPickCenter = !m_useOrthoCamera
+  const bool shouldPickCenter = m_currentCamera == m_perspCamera
       && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
       && io.KeysDown[GLFW_KEY_LEFT_SHIFT];
   if (shouldPickCenter && ImGui::IsWindowHovered()) {
@@ -597,7 +625,7 @@ void Viewport::ui_contextMenu()
       for (auto &libName : m_core->commandLine.libraryList) {
         const bool isThisLibrary = m_libName == libName;
         if (ImGui::RadioButton(libName.c_str(), isThisLibrary))
-          setLibrary(libName);
+          setLibrary(libName, false);
       }
       ImGui::EndMenu();
     }
@@ -637,10 +665,37 @@ void Viewport::ui_contextMenu()
       ImGui::Text("Camera:");
       ImGui::Indent(INDENT_AMOUNT);
 
-      if (ImGui::Checkbox("orthographic", &m_useOrthoCamera))
-        updateFrame();
+      if (ImGui::BeginMenu("type")) {
+        bool changeType = false;
+        if (ImGui::RadioButton(
+                "perspective", m_currentCamera == m_perspCamera)) {
+          m_currentCamera = m_perspCamera;
+          changeType = true;
+        }
 
-      ImGui::BeginDisabled(m_useOrthoCamera);
+        ImGui::BeginDisabled(!m_orthoCamera);
+        if (ImGui::RadioButton("orthographic",
+                m_orthoCamera && m_currentCamera == m_orthoCamera)) {
+          m_currentCamera = m_orthoCamera;
+          changeType = true;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::BeginDisabled(!m_omniCamera);
+        if (ImGui::RadioButton("omnidirectional",
+                m_omniCamera && m_currentCamera == m_omniCamera)) {
+          m_currentCamera = m_omniCamera;
+          changeType = true;
+        }
+        ImGui::EndDisabled();
+
+        if (changeType)
+          updateFrame();
+
+        ImGui::EndMenu();
+      }
+
+      ImGui::BeginDisabled(m_currentCamera != m_perspCamera);
 
       if (ImGui::SliderFloat("fov", &m_fov, 0.1f, 180.f))
         updateCamera(true);
@@ -676,6 +731,25 @@ void Viewport::ui_contextMenu()
 
       ImGui::Text("Viewport:");
       ImGui::Indent(INDENT_AMOUNT);
+
+      if (ImGui::BeginMenu("format")) {
+        const anari::DataType format = m_format;
+
+        if (ImGui::RadioButton(
+                "UFIXED8_RGBA_SRGB", m_format == ANARI_UFIXED8_RGBA_SRGB))
+          m_format = ANARI_UFIXED8_RGBA_SRGB;
+        if (ImGui::RadioButton("UFIXED8_VEC4", m_format == ANARI_UFIXED8_VEC4))
+          m_format = ANARI_UFIXED8_VEC4;
+        if (ImGui::RadioButton("FLOAT32_VEC4", m_format == ANARI_FLOAT32_VEC4))
+          m_format = ANARI_FLOAT32_VEC4;
+
+        if (format != m_format)
+          m_anariPass->setColorFormat(m_format);
+
+        ImGui::EndMenu();
+      }
+
+      ImGui::Separator();
 
       if (ImGui::BeginMenu("render resolution")) {
         const float current = m_resolutionScale;
@@ -771,7 +845,7 @@ void Viewport::ui_overlay()
   ImGuiIO &io = ImGui::GetIO();
   ImVec2 windowPos = ImGui::GetWindowPos();
   windowPos.x += 10;
-  windowPos.y += 25 * io.FontGlobalScale;
+  windowPos.y += 35 * io.FontGlobalScale;
 
   ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration
       | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_AlwaysAutoResize
@@ -781,7 +855,8 @@ void Viewport::ui_overlay()
   ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
 
   if (ImGui::Begin(m_overlayWindowName.c_str(), nullptr, window_flags)) {
-    ImGui::Text("viewport: %i x %i", m_viewportSize.x, m_viewportSize.y);
+    ImGui::Text("  device: %s", m_libName.c_str());
+    ImGui::Text("Viewport: %i x %i", m_viewportSize.x, m_viewportSize.y);
     ImGui::Text("  render: %i x %i", m_renderSize.x, m_renderSize.y);
     ImGui::Text(" samples: %i", m_frameSamples);
 

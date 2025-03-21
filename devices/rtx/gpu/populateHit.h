@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -340,10 +340,11 @@ VISRTX_DEVICE void populateVolumeHit(VolumeHit &hit)
   auto &ivd = getVolumeInstanceData(fd, ray::instID());
 
   hit.foundHit = true;
-  hit.volumeData = &ray::volumeData(fd);
+  hit.volume = &ray::volumeData(fd);
+  hit.instance = &ivd;
 
-  hit.volID = ray::objID();
-  hit.instID = ivd.id;
+  hit.lastVolID = ray::objID();
+  hit.lastInstID = ray::instID();
 
   const auto ro = optixGetWorldRayOrigin();
   hit.localRay.org = make_vec3(optixTransformPointFromWorldToObjectSpace(ro));

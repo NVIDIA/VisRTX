@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "RenderPass.h"
@@ -9,6 +9,7 @@
 #include <limits>
 
 #include "detail/parallel_for.h"
+#include "detail/parallel_transform.h"
 
 #ifdef ENABLE_CUDA
 // cuda
@@ -20,6 +21,13 @@ namespace tsd {
 
 // Thrust kernels /////////////////////////////////////////////////////////////
 
+void convertFloatColorBuffer(const float *v, uint8_t *out, size_t totalSize)
+{
+  detail::parallel_transform(v, v + totalSize, out, [] DEVICE_FCN(float v) {
+    return uint8_t(v * 255);
+  });
+}
+
 DEVICE_FCN_INLINE uint32_t shadePixel(uint32_t c_in)
 {
   auto c_in_f = helium::cvt_color_to_float4(c_in);
@@ -28,7 +36,7 @@ DEVICE_FCN_INLINE uint32_t shadePixel(uint32_t c_in)
   return helium::cvt_color_to_uint32(c_out);
 };
 
-static void compositeFrame(RenderPass::Buffers &b_out,
+void compositeFrame(RenderPass::Buffers &b_out,
     const RenderPass::Buffers &b_in,
     tsd::uint2 size,
     bool firstPass)
@@ -46,8 +54,7 @@ static void compositeFrame(RenderPass::Buffers &b_out,
       });
 }
 
-static void computeOutline(
-    RenderPass::Buffers &b, uint32_t outlineId, tsd::uint2 size)
+void computeOutline(RenderPass::Buffers &b, uint32_t outlineId, tsd::uint2 size)
 {
   detail::parallel_for(
       0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -56,11 +63,11 @@ static void computeOutline(
 
         int cnt = 0;
         for (unsigned fy = std::max(0u, y - 1);
-             fy <= std::min(size.y - 1, y + 1);
-             fy++) {
+            fy <= std::min(size.y - 1, y + 1);
+            fy++) {
           for (unsigned fx = std::max(0u, x - 1);
-               fx <= std::min(size.x - 1, x + 1);
-               fx++) {
+              fx <= std::min(size.x - 1, x + 1);
+              fx++) {
             size_t fi = fx + size_t(size.x) * fy;
             if (b.objectId[fi] == outlineId)
               cnt++;
@@ -72,8 +79,7 @@ static void computeOutline(
       });
 }
 
-static void computeDepthImage(
-    RenderPass::Buffers &b, float maxDepth, tsd::uint2 size)
+void computeDepthImage(RenderPass::Buffers &b, float maxDepth, tsd::uint2 size)
 {
   detail::parallel_for(
       0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -126,6 +132,26 @@ void RenderPass::setDimensions(uint32_t width, uint32_t height)
 // AnariRenderPass ////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+static bool supportsCUDAFbData(anari::Device d)
+{
+#ifdef ENABLE_CUDA
+  bool supportsCUDA = false;
+  auto list = (const char *const *)anariGetObjectInfo(
+      d, ANARI_DEVICE, "default", "extension", ANARI_STRING_LIST);
+
+  for (const char *const *i = list; *i != nullptr; ++i) {
+    if (std::string(*i) == "ANARI_NV_FRAME_BUFFERS_CUDA") {
+      supportsCUDA = true;
+      break;
+    }
+  }
+
+  return supportsCUDA;
+#else
+  return false;
+#endif
+}
+
 AnariRenderPass::AnariRenderPass(anari::Device d) : m_device(d)
 {
   anari::retain(d, d);
@@ -135,9 +161,12 @@ AnariRenderPass::AnariRenderPass(anari::Device d) : m_device(d)
   anari::setParameter(d, m_frame, "channel.objectId", ANARI_UINT32);
   anari::setParameter(d, m_frame, "accumulation", true);
 
-#ifdef ENABLE_CUDA
-  anari::getProperty(d, d, "visrtx", m_deviceSupportsCUDAFrames);
-#endif
+  m_deviceSupportsCUDAFrames = supportsCUDAFbData(d);
+
+  if (m_deviceSupportsCUDAFrames)
+    tsd::logStatus("[render_pipeline] using CUDA-mapped fb channels");
+  else
+    tsd::logStatus("[render_pipeline] using host-mapped fb channels");
 }
 
 AnariRenderPass::~AnariRenderPass()
@@ -156,29 +185,35 @@ AnariRenderPass::~AnariRenderPass()
 
 void AnariRenderPass::setCamera(anari::Camera c)
 {
-  anari::release(m_device, m_camera);
+  anari::retain(m_device, c);
   anari::setParameter(m_device, m_frame, "camera", c);
   anari::commitParameters(m_device, m_frame);
+  anari::release(m_device, m_camera);
   m_camera = c;
-  anari::retain(m_device, m_camera);
 }
 
 void AnariRenderPass::setRenderer(anari::Renderer r)
 {
-  anari::release(m_device, m_renderer);
+  anari::retain(m_device, r);
   anari::setParameter(m_device, m_frame, "renderer", r);
   anari::commitParameters(m_device, m_frame);
+  anari::release(m_device, m_renderer);
   m_renderer = r;
-  anari::retain(m_device, m_renderer);
 }
 
 void AnariRenderPass::setWorld(anari::World w)
 {
-  anari::release(m_device, m_world);
+  anari::retain(m_device, w);
   anari::setParameter(m_device, m_frame, "world", w);
   anari::commitParameters(m_device, m_frame);
+  anari::release(m_device, m_world);
   m_world = w;
-  anari::retain(m_device, m_world);
+}
+
+void AnariRenderPass::setColorFormat(anari::DataType t)
+{
+  anari::setParameter(m_device, m_frame, "channel.color", t);
+  anari::commitParameters(m_device, m_frame);
 }
 
 anari::Frame AnariRenderPass::getFrame() const
@@ -229,29 +264,34 @@ void AnariRenderPass::render(Buffers &b, int stageId)
 
 void AnariRenderPass::copyFrameData()
 {
-  auto color = anari::map<uint32_t>(m_device,
-      m_frame,
-      m_deviceSupportsCUDAFrames ? "channel.colorGPU" : "channel.color");
-  auto depth = anari::map<float>(m_device,
-      m_frame,
-      m_deviceSupportsCUDAFrames ? "channel.depthGPU" : "channel.depth");
-  auto objectId = anari::map<uint32_t>(m_device,
-      m_frame,
-      m_deviceSupportsCUDAFrames ? "channel.objectIdGPU" : "channel.objectId");
+  const char *colorChannel =
+      m_deviceSupportsCUDAFrames ? "channel.colorCUDA" : "channel.color";
+  const char *depthChannel =
+      m_deviceSupportsCUDAFrames ? "channel.depthCUDA" : "channel.depth";
+  const char *idChannel =
+      m_deviceSupportsCUDAFrames ? "channel.objectIdCUDA" : "channel.objectId";
+
+  auto color = anari::map<void>(m_device, m_frame, colorChannel);
+  auto depth = anari::map<float>(m_device, m_frame, depthChannel);
+  auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
 
   const tsd::uint2 size(getDimensions());
-  if (size.x == color.width && size.y == color.height) {
-    const size_t totalSize = size.x * size.y;
+  const size_t totalSize = size.x * size.y;
+  if (totalSize > 0 && size.x == color.width && size.y == color.height) {
+    if (color.pixelType == ANARI_FLOAT32_VEC4) {
+      convertFloatColorBuffer(
+          (const float *)color.data, (uint8_t *)m_buffers.color, totalSize * 4);
+    } else
+      detail::copy(m_buffers.color, (uint32_t *)color.data, totalSize);
 
-    detail::copy(m_buffers.color, color.data, totalSize);
     detail::copy(m_buffers.depth, depth.data, totalSize);
     if (objectId.data)
       detail::copy(m_buffers.objectId, objectId.data, totalSize);
   }
 
-  anari::unmap(m_device, m_frame, "channel.color");
-  anari::unmap(m_device, m_frame, "channel.depth");
-  anari::unmap(m_device, m_frame, "channel.objectId");
+  anari::unmap(m_device, m_frame, colorChannel);
+  anari::unmap(m_device, m_frame, depthChannel);
+  anari::unmap(m_device, m_frame, idChannel);
 }
 
 void AnariRenderPass::composite(Buffers &b, int stageId)

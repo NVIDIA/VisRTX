@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // std
@@ -33,13 +33,14 @@ bool HDRImage::import(std::string fileName)
     return false;
 
   if (extension == ".hdr") {
+    stbi_set_flip_vertically_on_load(1);
     int w, h, n;
     float *imgData = stbi_loadf(fileName.c_str(), &w, &h, &n, STBI_rgb);
     width = w;
     height = h;
     numComponents = n;
     pixel.resize(w * h * n);
-    memcpy(pixel.data(), imgData, w * h * n * sizeof(float));
+    std::memcpy(pixel.data(), imgData, w * h * n * sizeof(float));
     stbi_image_free(imgData);
     return width > 0 && height > 0
         && (numComponents == 3 || numComponents == 4);
@@ -61,7 +62,13 @@ bool HDRImage::import(std::string fileName)
     height = h;
     numComponents = n;
     pixel.resize(w * h * n);
-    memcpy(pixel.data(), imgData, w * h * n * sizeof(float));
+    // flip-y
+    const size_t rowStride = w * n;
+    for (int y = 0; y < h; ++y) {
+      std::memcpy(pixel.data() + y * rowStride,
+          imgData + (h - y - 1) * rowStride,
+          rowStride * sizeof(float));
+    }
     return width > 0 && height > 0
         && (numComponents == 3 || numComponents == 4);
   }

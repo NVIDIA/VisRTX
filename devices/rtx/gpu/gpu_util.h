@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -196,21 +196,52 @@ VISRTX_DEVICE bool pixelOutOfFrame(
   return pixel.x >= fb.size.x || pixel.y >= fb.size.y;
 }
 
-VISRTX_DEVICE bool isFirstPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+VISRTX_DEVICE bool isFirstPixel(
+    const uvec2 &pixel, const FramebufferGPUData &fb)
 {
   return pixel.x == 0 && pixel.y == 0;
 }
 
-VISRTX_DEVICE bool isMiddelPixel(const uvec2 &pixel, const FramebufferGPUData &fb)
+VISRTX_DEVICE bool isMiddelPixel(
+    const uvec2 &pixel, const FramebufferGPUData &fb)
 {
   return pixel.x == (fb.size.x / 2) && pixel.y == (fb.size.y / 2);
 }
 
-VISRTX_DEVICE vec4 getBackground(const RendererGPUData &rd, const vec2 &loc)
+VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
+{
+  if (ld.type != LightType::HDRI)
+    return vec3(0.f);
+
+  constexpr float invPi = 1.f / float(M_PI);
+  constexpr float inv2Pi = 1.f / (2.f * float(M_PI));
+  const vec3 d = ld.hdri.xfm * rayDir;
+  const float theta = pbrtSphericalTheta(d);
+  const float phi = pbrtSphericalPhi(d);
+  const float u = phi * inv2Pi;
+  const float v = theta * invPi;
+
+  return vec3(make_vec4(tex2D<::float4>(ld.hdri.radiance, u, v)))
+      * ld.hdri.scale;
+}
+
+VISRTX_DEVICE vec4 getBackgroundImage(
+    const RendererGPUData &rd, const vec2 &loc)
 {
   return rd.backgroundMode == BackgroundMode::COLOR
       ? rd.background.color
       : make_vec4(tex2D<::float4>(rd.background.texobj, loc.x, loc.y));
+}
+
+VISRTX_DEVICE vec4 getBackground(
+    const FrameGPUData &fd, const vec2 &loc, const vec3 &rayDir)
+{
+  const LightGPUData *hdri =
+      fd.world.hdri != -1 ? &fd.registry.lights[fd.world.hdri] : nullptr;
+  if (hdri && hdri->hdri.visible)
+    return vec4(sampleHDRI(*hdri, rayDir), 1.f);
+  else
+    return getBackgroundImage(fd.renderer, loc);
 }
 
 VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
@@ -239,7 +270,8 @@ VISRTX_DEVICE void accumValue(T *arr, size_t idx, size_t fid, const T &v)
     arr[idx] += v;
 }
 
-VISRTX_DEVICE bool accumDepth(float *arr, size_t idx, size_t fid, const float &v)
+VISRTX_DEVICE bool accumDepth(
+    float *arr, size_t idx, size_t fid, const float &v)
 {
   if (!arr)
     return true; // no previous depth to compare with
@@ -252,10 +284,12 @@ VISRTX_DEVICE bool accumDepth(float *arr, size_t idx, size_t fid, const float &v
   return closerSample;
 }
 
-VISRTX_DEVICE void writeOutputColor(
-    const FramebufferGPUData &fb, const vec4 &color, uint32_t idx)
+VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
+    const vec4 &color,
+    const uint32_t idx,
+    const int frameIDOffset)
 {
-  const auto c = color * fb.invFrameID;
+  const auto c = color / float(fb.frameID + frameIDOffset + 1);
   if (fb.format == FrameFormat::SRGB) {
     fb.buffers.outColorUint[idx] =
         glm::packUnorm4x8(glm::convertLinearToSRGB(c));
@@ -281,15 +315,18 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
     const vec3 &normal,
     uint32_t primID,
     uint32_t objID,
-    uint32_t instID)
+    uint32_t instID,
+    const int frameIDOffset = 0)
 {
   const uint32_t idx = detail::pixelIndex(fb, pixel);
 
-  detail::accumValue(fb.buffers.colorAccumulation, idx, fb.frameID, color);
-  detail::accumValue(fb.buffers.albedo, idx, fb.frameID, albedo);
-  detail::accumValue(fb.buffers.normal, idx, fb.frameID, normal);
+  const auto frameID = fb.frameID + frameIDOffset;
 
-  if (detail::accumDepth(fb.buffers.depth, idx, fb.frameID, depth)) {
+  detail::accumValue(fb.buffers.colorAccumulation, idx, frameID, color);
+  detail::accumValue(fb.buffers.albedo, idx, frameID, albedo);
+  detail::accumValue(fb.buffers.normal, idx, frameID, normal);
+
+  if (detail::accumDepth(fb.buffers.depth, idx, frameID, depth)) {
     if (fb.buffers.primID)
       fb.buffers.primID[idx] = primID;
     if (fb.buffers.objID)
@@ -299,20 +336,26 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
   }
 
   const auto accumColor = fb.buffers.colorAccumulation[idx];
-  detail::writeOutputColor(fb, accumColor, idx);
+  detail::writeOutputColor(fb, accumColor, idx, frameIDOffset);
 
-  if (fb.checkerboardID == 0 && fb.frameID == 0) {
+  if (fb.checkerboardID == 0 && frameID == 0) {
     auto adjPix = uvec2(pixel.x + 1, pixel.y + 0);
-    if (!pixelOutOfFrame(adjPix, fb))
-      detail::writeOutputColor(fb, accumColor, detail::pixelIndex(fb, adjPix));
+    if (!pixelOutOfFrame(adjPix, fb)) {
+      detail::writeOutputColor(
+          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+    }
 
     adjPix = uvec2(pixel.x + 0, pixel.y + 1);
-    if (!pixelOutOfFrame(adjPix, fb))
-      detail::writeOutputColor(fb, accumColor, detail::pixelIndex(fb, adjPix));
+    if (!pixelOutOfFrame(adjPix, fb)) {
+      detail::writeOutputColor(
+          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+    }
 
     adjPix = uvec2(pixel.x + 1, pixel.y + 1);
-    if (!pixelOutOfFrame(adjPix, fb))
-      detail::writeOutputColor(fb, accumColor, detail::pixelIndex(fb, adjPix));
+    if (!pixelOutOfFrame(adjPix, fb)) {
+      detail::writeOutputColor(
+          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+    }
   }
 }
 

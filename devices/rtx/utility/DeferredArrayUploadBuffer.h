@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,29 +32,30 @@
 #pragma once
 
 // helium
-#include "helium/array/Array.h"
 #include "helium/utility/TimeStamp.h"
 // std
 #include <vector>
 
 namespace visrtx {
 
+struct UploadableArray;
+
 struct DeferredArrayUploadBuffer
 {
   DeferredArrayUploadBuffer();
   ~DeferredArrayUploadBuffer();
 
-  void addArray(helium::Array *arr);
+  void addArray(UploadableArray *arr);
 
-  bool flush();
-  helium::TimeStamp lastFlush() const;
+  void flush();
+  helium::TimeStamp lastUpload() const;
 
   void clear();
   bool empty() const;
 
  private:
-  std::vector<helium::Array *> m_arraysToUpload;
-  helium::TimeStamp m_lastFlush{0};
+  std::vector<UploadableArray *> m_arraysToUpload;
+  helium::TimeStamp m_lastUpload{0};
 };
 
 } // namespace visrtx

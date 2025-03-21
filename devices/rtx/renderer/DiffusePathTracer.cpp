@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,9 +40,9 @@ static const std::vector<HitgroupFunctionNames> g_dptHitNames = {
 
 DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
-void DiffusePathTracer::commit()
+void DiffusePathTracer::commitParameters()
 {
-  Renderer::commit();
+  Renderer::commitParameters();
   m_maxDepth = std::clamp(getParam<int>("maxDepth", 5), 1, 256);
 }
 

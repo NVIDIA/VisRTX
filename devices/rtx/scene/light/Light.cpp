@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,9 @@
 #include "Light.h"
 // specific types
 #include "Directional.h"
+#include "HDRI.h"
 #include "Point.h"
+#include "Spot.h"
 #include "UnknownLight.h"
 
 namespace visrtx {
@@ -41,11 +43,9 @@ Light::Light(DeviceGlobalState *s)
     : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
 {
   setRegistry(s->registry.lights);
-  helium::BaseObject::markUpdated();
-  s->commitBufferAddObject(this);
 }
 
-void Light::commit()
+void Light::commitParameters()
 {
   m_color = getParam<vec3>("color", vec3(1.f));
 }
@@ -61,10 +61,19 @@ Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
 {
   if (subtype == "directional")
     return new Directional(d);
+  else if (subtype == "hdri")
+    return new HDRI(d);
   else if (subtype == "point")
     return new Point(d);
+  else if (subtype == "spot")
+    return new Spot(d);
   else
     return new UnknownLight(subtype, d);
+}
+
+bool Light::isHDRI() const
+{
+  return false;
 }
 
 } // namespace visrtx

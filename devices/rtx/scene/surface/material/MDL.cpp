@@ -31,8 +31,9 @@
 
 #include "MDL.h"
 
-#include "fmt/base.h"
 #include "gpu/gpu_objects.h"
+#include "libmdl/ArgumentBlockInstance.h"
+#include "nonstd/scope.hpp"
 #include "optix_visrtx.h"
 #include "scene/surface/material/Material.h"
 
@@ -45,34 +46,51 @@
 #include <mi/base/handle.h>
 #include <mi/neuraylib/ivalue.h>
 
+#include <nonstd/scope.hpp>
+
 #include <fmt/core.h>
 
 #include <algorithm>
 #include <string>
+#include <string_view>
+
+using namespace std::string_view_literals;
+
 namespace visrtx {
 
-MDL::MDL(DeviceGlobalState *d) : Material(d)
-{
-  auto &mdl = d->mdl;
-}
+MDL::MDL(DeviceGlobalState *d) : Material(d) {}
 
 MDL::~MDL()
 {
   for (auto sampler : m_samplers) {
-    deviceState()->mdl->samplerRegistry.releaseSampler(sampler);
+    if (sampler) {
+      deviceState()->mdl->samplerRegistry.releaseSampler(sampler);
+    }
   }
 }
 
-void MDL::commit()
+void MDL::commitParameters()
 {
-  Material::commit();
+  Material::commitParameters();
+}
+
+void MDL::finalize()
+{
+  // NOTE(jda) - *skip* calling this->upload() as MDL is handled differently
+}
+
+void MDL::markFinalized()
+{
+  Material::markFinalized();
+  deviceState()->objectUpdates.lastMDLObjectChange = helium::newTimeStamp();
 }
 
 void MDL::syncSource()
 {
   auto sourceType = getParamString("sourceType", "module");
-  auto source = getParamString("source", "::visrtx::default::diffusePink");
+  auto source = getParamString("source", "::visrtx::default::diffuseWhite");
   auto uuid = libmdl::Uuid{};
+  auto argumentBlockDescriptor = libmdl::ArgumentBlockDescriptor{};
 
   // Handle source changes separately as it probably implies a full material
   // change.
@@ -81,24 +99,37 @@ void MDL::syncSource()
     if (sourceType == "module") {
       auto &&[moduleName, materialName] = libmdl::parseCmdArgumentMaterialName(
           source, &deviceState()->mdl->core);
-      uuid = deviceState()->mdl->materialRegistry.acquireMaterial(
-          moduleName, materialName);
+      std::tie(uuid, argumentBlockDescriptor) =
+          deviceState()->mdl->materialRegistry.acquireMaterial(
+              moduleName, materialName);
+      if (uuid == libmdl::Uuid{}) {
+        reportMessage(ANARI_SEVERITY_ERROR,
+            "Failed to acquire material %s, falling back to %s",
+            source.c_str(),
+            "diffuseWhite");
+        std::tie(uuid, argumentBlockDescriptor) =
+            deviceState()->mdl->materialRegistry.acquireMaterial(
+                "::visrtx::default", "diffuseWhite");
+      }
     } else if (sourceType == "code") {
       uuid = {};
       reportMessage(ANARI_SEVERITY_ERROR,
-          "MDL::commit(): sourceType 'code' not supported yet");
+          "MDL::commitParameters(): sourceType 'code' not supported yet");
     } else {
       uuid = {};
       reportMessage(ANARI_SEVERITY_ERROR,
-          "MDL::commit(): sourceType must be either 'module' or 'code'");
+          "MDL::commitParameters(): sourceType must be either 'module' or 'code'");
     }
 
     if (uuid != libmdl::Uuid{}) {
       // We have successfully loaded a material, release the previous one and
       // use it instead.
-      deviceState()->mdl->materialRegistry.releaseMaterial(m_uuid);
+      if (m_uuid != libmdl::Uuid{}) {
+        deviceState()->mdl->materialRegistry.releaseMaterial(m_uuid);
+      }
       m_argumentBlockInstance =
-          deviceState()->mdl->materialRegistry.createArgumentBlock(uuid);
+          deviceState()->mdl->materialRegistry.createArgumentBlock(
+              argumentBlockDescriptor);
       m_uuid = uuid;
     }
 
@@ -110,16 +141,20 @@ void MDL::syncSource()
 void MDL::syncParameters()
 {
   if (m_argumentBlockInstance.has_value()) {
+    auto transaction = mi::base::make_handle(
+        deviceState()->mdl->materialRegistry.createTransaction());
+    auto releaseTransaction =
+        nonstd::make_scope_exit([&]() { transaction->commit(); });
+
     // Reset resource mapping
     m_argumentBlockInstance->resetResources();
 
-    auto transaction = mi::base::make_handle(
-        deviceState()->mdl->materialRegistry.createTransaction());
     auto factory = deviceState()->mdl->materialRegistry.getMdlFactory();
 
     auto &argumentBlockInstance = *m_argumentBlockInstance;
     for (auto &&[name, type] : argumentBlockInstance.enumerateArguments()) {
       auto sourceParamAny = getParamDirect(name);
+
       switch (type) {
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Bool: {
         if (sourceParamAny.type() == ANARI_BOOL) {
@@ -135,6 +170,32 @@ void MDL::syncParameters()
         }
         break;
       }
+      case libmdl::ArgumentBlockDescriptor::ArgumentType::Float2: {
+        if (sourceParamAny.type() == ANARI_FLOAT32_VEC2) {
+          auto value = sourceParamAny.get<glm::vec2>();
+          argumentBlockInstance.setValue(
+              name, {value.x, value.y}, transaction.get(), factory);
+        }
+        break;
+      }
+      case libmdl::ArgumentBlockDescriptor::ArgumentType::Float3: {
+        if (sourceParamAny.type() == ANARI_FLOAT32_VEC3) {
+          auto value = sourceParamAny.get<glm::vec3>();
+          argumentBlockInstance.setValue(
+              name, {value.x, value.y, value.z}, transaction.get(), factory);
+        }
+        break;
+      }
+      case libmdl::ArgumentBlockDescriptor::ArgumentType::Float4: {
+        if (sourceParamAny.type() == ANARI_FLOAT32_VEC4) {
+          auto value = sourceParamAny.get<glm::vec4>();
+          argumentBlockInstance.setValue(name,
+              {value.x, value.y, value.z, value.w},
+              transaction.get(),
+              factory);
+        }
+        break;
+      }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Int: {
         if (sourceParamAny.type() == ANARI_INT32) {
           argumentBlockInstance.setValue(
@@ -142,6 +203,33 @@ void MDL::syncParameters()
         }
         break;
       }
+      case libmdl::ArgumentBlockDescriptor::ArgumentType::Int2: {
+        if (sourceParamAny.type() == ANARI_INT32_VEC2) {
+          auto value = sourceParamAny.get<glm::ivec2>();
+          argumentBlockInstance.setValue(
+              name, {value.x, value.y}, transaction.get(), factory);
+        }
+        break;
+      }
+      case libmdl::ArgumentBlockDescriptor::ArgumentType::Int3: {
+        if (sourceParamAny.type() == ANARI_INT32_VEC3) {
+          auto value = sourceParamAny.get<glm::ivec3>();
+          argumentBlockInstance.setValue(
+              name, {value.x, value.y, value.z}, transaction.get(), factory);
+        }
+        break;
+      }
+      case libmdl::ArgumentBlockDescriptor::ArgumentType::Int4: {
+        if (sourceParamAny.type() == ANARI_INT32_VEC4) {
+          auto value = sourceParamAny.get<glm::ivec4>();
+          argumentBlockInstance.setValue(name,
+              {value.x, value.y, value.z, value.w},
+              transaction.get(),
+              factory);
+        }
+        break;
+      }
+
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Color: {
         if (sourceParamAny.type() == ANARI_FLOAT32_VEC3) {
           auto value = sourceParamAny.get<glm::vec3>();
@@ -155,52 +243,74 @@ void MDL::syncParameters()
           // FIXME: Deal with colorspace, possibly by reading a
           // `name.colorspace` attribute linearlizing on load here, or by
           // creating a matching sampler below.
+          auto colorspaceStr = getParamString(name + ".colorspace", "auto");
+          if (colorspaceStr != "auto" && colorspaceStr != "raw"
+              && colorspaceStr != "sRGB") {
+            reportMessage(ANARI_SEVERITY_WARNING,
+                "Unknown colorspace type {} for {}. Falling back to auto",
+                colorspaceStr,
+                name);
+            colorspaceStr = "auto"s;
+          }
+          auto colorspace = libmdl::ArgumentBlockInstance::ColorSpace::Auto;
+          if (colorspaceStr == "raw"sv) {
+            colorspace = libmdl::ArgumentBlockInstance::ColorSpace::Raw;
+          } else if (colorspaceStr == "srgb"sv) {
+            colorspace = libmdl::ArgumentBlockInstance::ColorSpace::sRGB;
+          }
+
           argumentBlockInstance.setTextureValue(name,
-              sourceParamAny.getString().c_str(),
+              sourceParamAny.getString(),
+              colorspace,
               transaction.get(),
               factory);
         }
         break;
       }
       default: {
-        reportMessage(ANARI_SEVERITY_WARNING, "Don't know how to set '{}' (unsupported type)", name);
+        reportMessage(ANARI_SEVERITY_WARNING,
+            "Don't know how to set '%s' (unsupported type %i)",
+            name.c_str(),
+            type);
       }
       }
     }
-
-    // Traverse resources to related samplers. Allocate actual ones and release
-    // previous ones. Note that unchanged samplers, compared to the previous
-    // commit will therby be reference both in samplers and newSamplers before
-    // being dereference when cleaning actual samplers.
-    std::vector<const Sampler *> newSamplers;
-    for (const auto &name :
-        m_argumentBlockInstance->getTextureResourceNames()) {
-      if (name.empty()) {
-        newSamplers.push_back({});
-      } else {
-        // FIXME:  How to deduce the shape from the type/resource/target code?
-        // FIXME: Handle colorspace (for instance, normals should be raw, not
-        // srgb) here or at load time (see above)
-        auto textureShape =
-            mi::neuraylib::ITarget_code::Texture_shape::Texture_shape_2d;
-
-        newSamplers.push_back(
-            deviceState()->mdl->samplerRegistry.acquireSampler(
-                name, textureShape, transaction.get()));
-      }
-    }
-
-    for (auto sampler : m_samplers) {
-      deviceState()->mdl->samplerRegistry.releaseSampler(sampler);
-    }
-    m_samplers.assign(next(cbegin(newSamplers)), cend(newSamplers));
-
-    // Pretty dumb, but we don't yet maintain a list of used resource, and those
-    // are for now only used to populate anari samplers, so we should be OK
-    // dropping everything that's in the current transaction. Note that this
-    // will imply reloading texture in between different commits...
-    transaction->commit();
+    m_argumentBlockInstance->finalizeResourceCreation(transaction.get());
   }
+}
+
+void MDL::updateSamplers()
+{
+  if (!m_argumentBlockInstance.has_value()) {
+    return;
+  }
+
+  auto transaction =
+      make_handle(deviceState()->mdl->materialRegistry.createTransaction());
+
+  auto releaseTransaction =
+      nonstd::make_scope_exit([&]() { transaction->abort(); });
+
+  // Traverse resources related to samplers. Allocate actual ones and release
+  // previous ones. Note that unchanged samplers, compared to the previous
+  // commit will therby be reference both in samplers and newSamplers before
+  // being dereference when cleaning actual samplers.
+  std::vector<const Sampler *> newSamplers;
+  for (const auto &textureDbName :
+      m_argumentBlockInstance->getTextureResourceNames()) {
+    if (textureDbName.empty()) {
+      newSamplers.push_back({});
+    } else {
+      newSamplers.push_back(deviceState()->mdl->samplerRegistry.acquireSampler(
+          textureDbName, transaction.get()));
+    }
+  }
+
+  for (auto sampler : m_samplers) {
+    if (sampler)
+      deviceState()->mdl->samplerRegistry.releaseSampler(sampler);
+  }
+  m_samplers = newSamplers;
 }
 
 void MDL::syncImplementationIndex()
@@ -212,36 +322,33 @@ void MDL::syncImplementationIndex()
 
 MaterialGPUData MDL::gpuData() const
 {
-  MaterialGPUData retval;
+  MaterialGPUData retval = {};
   retval.materialType = MaterialType::MDL;
   retval.mdl.implementationIndex = m_implementationIndex;
-  retval.mdl.numSamplers =
-      std::min(std::size(retval.mdl.samplers), size(m_samplers));
-  std::fill(std::begin(retval.mdl.samplers),
-      std::end(retval.mdl.samplers),
-      DeviceObjectIndex(~0));
-  std::transform(cbegin(m_samplers),
-      cend(m_samplers),
-      std::begin(retval.mdl.samplers),
-      [](const auto &v) { return v->index(); });
+  if (m_argumentBlockInstance.has_value()) {
+    retval.mdl.numSamplers =
+        std::min(std::size(retval.mdl.samplers), size(m_samplers));
+    std::fill(std::begin(retval.mdl.samplers),
+        std::end(retval.mdl.samplers),
+        DeviceObjectIndex(~0));
+    std::transform(cbegin(m_samplers),
+        cend(m_samplers),
+        std::begin(retval.mdl.samplers),
+        [](const auto &v) { return v ? v->index() : DeviceObjectIndex(~0); });
 
-  if (const auto &argBlockData =
-          m_argumentBlockInstance->getArgumentBlockData();
-      !argBlockData.empty()) {
-    m_argBlockBuffer.upload(data(argBlockData), size(argBlockData));
-  } else {
-    m_argBlockBuffer.reset();
+    if (const auto &argBlockData =
+            m_argumentBlockInstance->getArgumentBlockData();
+        !argBlockData.empty()) {
+      m_argBlockBuffer.upload(data(argBlockData), size(argBlockData));
+    } else {
+      m_argBlockBuffer.reset();
+    }
+    retval.mdl.argBlock = m_argBlockBuffer.bytes()
+        ? m_argBlockBuffer.ptrAs<const char>()
+        : nullptr;
   }
-  retval.mdl.argBlock =
-      m_argBlockBuffer.bytes() ? m_argBlockBuffer.ptrAs<const char>() : nullptr;
 
   return retval;
-}
-
-void MDL::markCommitted()
-{
-  Material::markCommitted();
-  deviceState()->objectUpdates.lastMDLObjectChange = helium::newTimeStamp();
 }
 
 } // namespace visrtx

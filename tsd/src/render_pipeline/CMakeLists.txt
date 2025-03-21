@@ -1,4 +1,4 @@
-## Copyright 2024 NVIDIA Corporation
+## Copyright 2024-2025 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
 project(render_pipeline LANGUAGES CXX)
@@ -24,8 +24,9 @@ elseif(TSD_USE_TBB)
 endif()
 
 if (TSD_USE_OPENGL)
+  find_package(glfw3 REQUIRED)
   find_package(OpenGL REQUIRED)
-  project_link_libraries(PUBLIC tsd OpenGL::GL)
+  project_link_libraries(PUBLIC tsd glfw OpenGL::GL)
   project_compile_definitions(PUBLIC ENABLE_OPENGL)
 endif()
 

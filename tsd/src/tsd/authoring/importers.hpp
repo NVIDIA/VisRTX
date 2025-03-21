@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -9,20 +9,24 @@ namespace tsd {
 
 // clang-format off
 
-void import_ASSIMP(Context &ctx, const char *filename, InstanceNode::Ref location = {}, bool flatten = false);
-void import_DLAF(Context &ctx, const char *filename, InstanceNode::Ref location = {}, bool useDefaultMaterial = false);
-void import_HDRI(Context &ctx, const char *filename, InstanceNode::Ref location = {});
-void import_NBODY(Context &ctx, const char *filename, InstanceNode::Ref location = {}, bool useDefaultMaterial = false);
-void import_OBJ(Context &ctx, const char *filename, InstanceNode::Ref location = {}, bool useDefaultMaterial = false);
-void import_PLY(Context &ctx, const char *filename, InstanceNode::Ref location = {});
+void import_ASSIMP(Context &ctx, const char *filename, LayerNodeRef location = {}, bool flatten = false);
+void import_DLAF(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
+void import_HDRI(Context &ctx, const char *filename, LayerNodeRef location = {});
+void import_NBODY(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
+void import_OBJ(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
+void import_PLY(Context &ctx, const char *filename, LayerNodeRef location = {});
+void import_PDB(Context &ctx, const char *filename, LayerNodeRef location = {});
+void import_SWC(Context &ctx, const char *filename, LayerNodeRef location = {});
+void import_XYZDP(Context &ctx, const char *filename, LayerNodeRef location = {});
 SpatialFieldRef import_RAW(Context &ctx, const char *filename);
 SpatialFieldRef import_FLASH(Context &ctx, const char *filename);
 SpatialFieldRef import_NVDB(Context &ctx, const char *filename);
+SpatialFieldRef import_MHD(Context &ctx, const char *filename);
 
 VolumeRef import_volume(Context &ctx,
     const char *filename,
     ArrayRef colors,
-    ArrayRef opacities);
+    ArrayRef opacities = {});
 
 // clang-format on
 

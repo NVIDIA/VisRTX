@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // catch
@@ -13,6 +13,11 @@ struct MockObject : public tsd::ParameterObserver
   void parameterChanged(const tsd::Parameter *) override
   {
     notified = true;
+  }
+
+  void removeParameter(const tsd::Parameter *) override
+  {
+    // no-op
   }
 
   bool notified{false};

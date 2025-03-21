@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers.hpp"
@@ -18,7 +18,7 @@ struct OBJData
 
 void import_OBJ(Context &ctx,
     const char *filepath,
-    InstanceNode::Ref location,
+    LayerNodeRef location,
     bool useDefaultMaterial)
 {
   OBJData objdata;
@@ -43,7 +43,7 @@ void import_OBJ(Context &ctx,
   }
 
   auto obj_root =
-      ctx.insertChildNode(location ? location : ctx.tree.root(), file.c_str());
+      ctx.insertChildNode(location ? location : ctx.defaultLayer()->root(), file.c_str());
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////

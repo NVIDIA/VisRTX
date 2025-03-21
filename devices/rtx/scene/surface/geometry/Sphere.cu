@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,15 +43,18 @@ Sphere::Sphere(DeviceGlobalState *d)
 
 Sphere::~Sphere() = default;
 
-void Sphere::commit()
+void Sphere::commitParameters()
 {
-  Geometry::commit();
-
+  Geometry::commitParameters();
   m_index = getParamObject<Array1D>("primitive.index");
   m_vertex = getParamObject<Array1D>("vertex.position");
   m_vertexRadius = getParamObject<Array1D>("vertex.radius");
+  m_globalRadius = getParam<float>("radius", 0.01f);
   commitAttributes("vertex.", m_vertexAttributes);
+}
 
+void Sphere::finalize()
+{
   if (!m_vertex) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "missing required parameter 'vertex.position' on sphere geometry");
@@ -59,10 +62,8 @@ void Sphere::commit()
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
-      "committing %s sphere geometry",
+      "finalizing %s sphere geometry",
       m_index ? "indexed" : "soup");
-
-  m_globalRadius = getParam<float>("radius", 0.01f);
 
   // Calculate bounds //
 
@@ -113,6 +114,11 @@ void Sphere::commit()
   upload();
 }
 
+bool Sphere::isValid() const
+{
+  return m_vertex;
+}
+
 void Sphere::populateBuildInput(OptixBuildInput &buildInput) const
 {
   buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
@@ -148,11 +154,6 @@ GeometryGPUData Sphere::gpuData() const
 int Sphere::optixGeometryType() const
 {
   return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
-}
-
-bool Sphere::isValid() const
-{
-  return m_vertex;
 }
 
 } // namespace visrtx

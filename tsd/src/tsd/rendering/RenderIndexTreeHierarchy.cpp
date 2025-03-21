@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/rendering/RenderIndexTreeHierarchy.hpp"
@@ -10,7 +10,7 @@ namespace tsd {
 
 // Helper types ///////////////////////////////////////////////////////////////
 
-struct RenderToAnariObjectsVisitor : public InstanceVisitor
+struct RenderToAnariObjectsVisitor : public LayerVisitor
 {
   RenderToAnariObjectsVisitor(anari::Device d,
       AnariObjectCache &oc,
@@ -18,13 +18,13 @@ struct RenderToAnariObjectsVisitor : public InstanceVisitor
       RenderIndexFilterFcn *f = nullptr);
   ~RenderToAnariObjectsVisitor();
 
-  bool preChildren(InstanceNode &n, int level) override;
-  void postChildren(InstanceNode &n, int level) override;
+  bool preChildren(LayerNode &n, int level) override;
+  void postChildren(LayerNode &n, int level) override;
 
   void populateWorld(anari::World w);
 
  private:
-  bool isIncludedAfterFiltering(const InstanceNode &n) const;
+  bool isIncludedAfterFiltering(const LayerNode &n) const;
   void createInstanceFromTop();
 
   struct GroupedObjects
@@ -62,7 +62,7 @@ inline RenderToAnariObjectsVisitor::~RenderToAnariObjectsVisitor()
   anari::release(m_device, m_device);
 }
 
-inline bool RenderToAnariObjectsVisitor::preChildren(InstanceNode &n, int level)
+inline bool RenderToAnariObjectsVisitor::preChildren(LayerNode &n, int level)
 {
   if (!n->enabled)
     return false;
@@ -84,7 +84,7 @@ inline bool RenderToAnariObjectsVisitor::preChildren(InstanceNode &n, int level)
   } break;
   case ANARI_LIGHT: {
     size_t i = n->value.getAsObjectIndex();
-    if (auto h = m_cache->light[i]; h != nullptr && included)
+    if (auto h = m_cache->light[i]; h != nullptr)
       current.lights.push_back(h);
   } break;
   case ANARI_FLOAT32_MAT4:
@@ -105,8 +105,7 @@ inline bool RenderToAnariObjectsVisitor::preChildren(InstanceNode &n, int level)
   return true;
 }
 
-inline void RenderToAnariObjectsVisitor::postChildren(
-    InstanceNode &n, int level)
+inline void RenderToAnariObjectsVisitor::postChildren(LayerNode &n, int level)
 {
   if (!n->enabled)
     return;
@@ -168,7 +167,7 @@ inline void RenderToAnariObjectsVisitor::populateWorld(anari::World w)
 }
 
 bool RenderToAnariObjectsVisitor::isIncludedAfterFiltering(
-    const InstanceNode &n) const
+    const LayerNode &n) const
 {
   if (!m_filter)
     return true;
@@ -264,17 +263,17 @@ RenderIndexTreeHierarchy::~RenderIndexTreeHierarchy() = default;
 void RenderIndexTreeHierarchy::setFilterFunction(RenderIndexFilterFcn f)
 {
   m_filter = f;
-  signalInstanceStructureChanged();
+  signalLayerChanged();
 }
 
 void RenderIndexTreeHierarchy::signalArrayUnmapped(const Array *a)
 {
   RenderIndex::signalArrayUnmapped(a);
   if (a->elementType() == ANARI_FLOAT32_MAT4)
-    signalInstanceStructureChanged();
+    signalLayerChanged();
 }
 
-void RenderIndexTreeHierarchy::signalInstanceStructureChanged()
+void RenderIndexTreeHierarchy::signalLayerChanged()
 {
   updateWorld();
 }
@@ -290,9 +289,11 @@ void RenderIndexTreeHierarchy::updateWorld()
   auto d = device();
   auto w = world();
 
+  auto layer = m_ctx->defaultLayer();
+
   RenderToAnariObjectsVisitor visitor(
       d, m_cache, m_ctx, m_filter ? &m_filter : nullptr);
-  m_ctx->tree.traverse(m_ctx->tree.root(), visitor);
+  layer->traverse(layer->root(), visitor);
   visitor.populateWorld(w);
 
   anari::commitParameters(d, w);

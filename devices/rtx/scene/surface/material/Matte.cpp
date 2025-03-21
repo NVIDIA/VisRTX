@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,7 @@ namespace visrtx {
 
 Matte::Matte(DeviceGlobalState *d) : Material(d) {}
 
-void Matte::commit()
+void Matte::commitParameters()
 {
   m_opacity = getParam<float>("opacity", 1.f);
   m_opacitySampler = getParamObject<Sampler>("opacity");
@@ -50,8 +50,6 @@ void Matte::commit()
 
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
   m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
-
-  upload();
 }
 
 MaterialGPUData Matte::gpuData() const

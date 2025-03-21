@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ObjectEditor.h"
@@ -88,7 +88,7 @@ void ObjectEditor::buildUI()
         selectedNode->value = math::mul(math::translation_matrix(tl),
             math::mul(rot, math::scaling_matrix(sc)));
         selectedNode->valueCache["SRT"] = srt;
-        ctx->signalInstanceTreeChange();
+        ctx->signalLayerChange();
       }
     } else if (!selectedNode->isEmpty()) {
       ImGui::Text(

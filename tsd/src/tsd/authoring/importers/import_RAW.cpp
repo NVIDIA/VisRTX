@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers.hpp"
@@ -81,7 +81,6 @@ SpatialFieldRef import_RAW(Context &ctx, const char *filepath)
   std::fclose(fileHandle);
   voxelArray->unmap();
 
-  field->setParameter("spacing"_t, 2.f / float3(dimX));
   field->setParameterObject("data"_t, *voxelArray);
 
   return field;

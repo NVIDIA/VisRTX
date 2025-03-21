@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "BaseApplication.h"
@@ -74,17 +74,16 @@ class Application : public BaseApplication
     volume->setParameterObject("value", *field);
     volume->setParameterObject("color", *colorArray);
     volume->setParameterObject("opacity", *opacityArray);
-    volume->setParameter("densityScale", 0.1f);
 
-    ctx.tree.insert_last_child(
-        ctx.tree.root(), tsd::utility::Any(ANARI_VOLUME, volume.index()));
+    ctx.defaultLayer()->root()->insert_first_child(
+        tsd::utility::Any(ANARI_VOLUME, volume.index()));
 
     // Setup app //
 
     core->tsd.selectedObject = volume.data();
     tfeditor->setValueRange(volume->parameter("valueRange")
-                                ->value()
-                                .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
+            ->value()
+            .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
 
     tsd::logStatus("%s", tsd::objectDBInfo(ctx.objectDB()).c_str());
     core->tsd.sceneLoadComplete = true;

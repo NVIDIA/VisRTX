@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ImportFileDialog.h"
@@ -34,11 +34,12 @@ void ImportFileDialog::buildUI()
 
   if (ImGui::Button("...")) {
     nfdchar_t *outPath = nullptr;
-    nfdfilteritem_t filterItem[3] = {
-        {"All Supported Files", "gltf,glb,obj,dlaf,nbody,ply,hdri"},
+    nfdfilteritem_t filterItem[4] = {
+        {"All Supported Files", "gltf,glb,obj,dlaf,nbody,ply,hdri,hdr"},
         {"glTF Files", "gltf,glb"},
-        {"OBJ Files", "obj"}};
-    nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 3, nullptr);
+        {"OBJ Files", "obj"},
+        {"HDRI Files", "hdr,hdri"}};
+    nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 4, nullptr);
     if (result == NFD_OKAY) {
       m_filename = std::string(outPath).c_str();
       update = true;
@@ -77,7 +78,7 @@ void ImportFileDialog::buildUI()
     auto &ctx = m_core->tsd.ctx;
     auto importRoot = m_core->tsd.selectedNode;
     if (!importRoot)
-      importRoot = m_core->tsd.ctx.tree.root();
+      importRoot = m_core->tsd.ctx.defaultLayer()->root();
 
     auto selectedFileType =
         static_cast<tsd_viewer::ImporterType>(m_selectedFileType);
@@ -95,8 +96,11 @@ void ImportFileDialog::buildUI()
       tsd::import_NBODY(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::HDRI)
       tsd::import_HDRI(ctx, m_filename.c_str(), importRoot);
-
-    ctx.signalInstanceTreeChange();
+    else if (selectedFileType == ImporterType::SWC)
+      tsd::import_SWC(ctx, m_filename.c_str(), importRoot);
+    else if (selectedFileType == ImporterType::PDB)
+      tsd::import_PDB(ctx, m_filename.c_str(), importRoot);
+    ctx.signalLayerChange();
 
     this->hide();
   }

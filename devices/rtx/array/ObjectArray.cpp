@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,12 +67,9 @@ ObjectArray::~ObjectArray()
       m_appendedHandles.begin(), m_appendedHandles.end(), refDecObject);
 }
 
-void ObjectArray::commit()
+void ObjectArray::commitParameters()
 {
-  const auto oldBegin = m_begin;
-  const auto oldEnd = m_end;
   const auto capacity = totalCapacity();
-
   m_begin = getParam<size_t>("begin", 0);
   m_begin = std::clamp(m_begin, size_t(0), capacity - 1);
   m_end = getParam<size_t>("end", capacity);
@@ -88,11 +85,12 @@ void ObjectArray::commit()
         "array 'begin' is not less than 'end', swapping values");
     std::swap(m_begin, m_end);
   }
+}
 
-  if (m_begin != oldBegin || m_end != oldEnd) {
-    markDataModified();
-    notifyChangeObservers();
-  }
+void ObjectArray::finalize()
+{
+  markDataModified();
+  notifyChangeObservers();
 }
 
 void ObjectArray::unmap()

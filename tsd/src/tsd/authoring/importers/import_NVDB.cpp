@@ -1,4 +1,4 @@
-// Copyright 2024 NVIDIA Corporation
+// Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/importers.hpp"
@@ -102,11 +102,6 @@ SpatialFieldRef import_NVDB(Context &ctx, const char *filepath)
     auto gridData = ctx.createArray(ANARI_UINT8, grid.size());
     std::memcpy(gridData->map(), grid.data(), grid.size());
     gridData->unmap();
-
-    // gridData is the parameter name used by visionaray. Keep this for now
-    // waiting for the switch to the more general data named parameter, as used
-    // by the structured reguar field type.
-    field->setParameterObject("gridData", *gridData);
     field->setParameterObject("data", *gridData);
 
     logStatus("[import_NVDB] ...done!");
