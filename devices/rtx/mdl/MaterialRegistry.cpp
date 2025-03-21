@@ -16,6 +16,7 @@
 #include <mi/neuraylib/imdl_backend.h>
 #include <mi/neuraylib/imdl_configuration.h>
 #include <mi/neuraylib/itexture.h>
+#include <mi/neuraylib/version.h>
 
 #include <glm/fwd.hpp>
 
@@ -165,10 +166,16 @@ MaterialRegistry::acquireMaterial(
     if (targetCode->get_texture_shape(i)
         == mi::neuraylib::ITarget_code::Texture_shape_bsdf_data) {
       mi::Size x, y, z;
+      const char* pixelFormat = {};
+#if MI_NEURAYLIB_API_VERSION >= 56
+      textureDesc.bsdf.data = targetCode->get_texture_df_data(i, x, y, z, pixelFormat);
+#else
       textureDesc.bsdf.data = targetCode->get_texture_df_data(i, x, y, z);
+#endif
       textureDesc.bsdf.dims[0] = x;
       textureDesc.bsdf.dims[1] = y;
       textureDesc.bsdf.dims[2] = z;
+      textureDesc.bsdf.pixelFormat = pixelFormat;
       textureDesc.colorSpace = libmdl::ArgumentBlockDescriptor::
           TextureDescriptor::ColorSpace::Linear;
       textureDesc.url =

@@ -7,6 +7,7 @@
 #include <mi/base/handle.h>
 #include <mi/base/ilogger.h>
 #include <mi/base/interface_implement.h>
+#include <mi/base/types.h>
 #include <mi/neuraylib/icanvas.h>
 #include <mi/neuraylib/icompiled_material.h>
 #include <mi/neuraylib/iimage.h>
@@ -349,14 +350,49 @@ bool ArgumentBlockInstance::loadTextureToDb(
       m_core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
           "Bsdf data textures must be in linear color space");
     }
-    auto canvas = imageApi->create_canvas("Float32",
-        textureDesc.bsdf.dims[0],
+    auto canvas = imageApi->create_canvas(
+    textureDesc.bsdf.pixelFormat ?  textureDesc.bsdf.pixelFormat : "Float32",
+         textureDesc.bsdf.dims[0],
         textureDesc.bsdf.dims[1],
         textureDesc.bsdf.dims[2]);
+        
+    std::uint64_t colorByteSize = sizeof(float);
+
+    if (textureDesc.bsdf.pixelFormat == "Sint8"sv) {
+      colorByteSize = sizeof(mi::Sint8);
+    } else if (textureDesc.bsdf.pixelFormat == "Sint32"sv) {
+      colorByteSize = sizeof(mi::Sint32);
+    } else if (textureDesc.bsdf.pixelFormat == "Float32"sv) {
+      colorByteSize = sizeof(mi::Float32);
+    } else if (textureDesc.bsdf.pixelFormat == "Float32<2>"sv) {
+      colorByteSize = sizeof(mi::Float32_2);
+    } else if (textureDesc.bsdf.pixelFormat == "Float32<3>"sv) {
+      colorByteSize = sizeof(mi::Float32_3);
+    } else if (textureDesc.bsdf.pixelFormat == "Float32<4>"sv) {
+      colorByteSize = sizeof(mi::Float32_4);
+    } else if (textureDesc.bsdf.pixelFormat == "Rgb"sv) {
+      colorByteSize = sizeof(mi::Uint8) * 3;
+    } else if (textureDesc.bsdf.pixelFormat == "Rgba"sv) {
+      colorByteSize = sizeof(mi::Uint8) * 4;
+    } else if (textureDesc.bsdf.pixelFormat == "Rgbe"sv) {
+      colorByteSize = sizeof(mi::Uint8) * 4;
+    } else if (textureDesc.bsdf.pixelFormat == "Rgbea"sv) {
+      colorByteSize = sizeof(mi::Uint8) * 5;
+    } else if (textureDesc.bsdf.pixelFormat == "Rgb_16"sv) {
+      colorByteSize = sizeof(mi::Uint16) * 4;
+    } else if (textureDesc.bsdf.pixelFormat == "Rgba_16"sv) {
+      colorByteSize = sizeof(mi::Uint16) * 4;
+    } else if (textureDesc.bsdf.pixelFormat == "Rgb_fp"sv) {
+      colorByteSize = sizeof(mi::Float32) * 3;
+    } else if (textureDesc.bsdf.pixelFormat == "Color"sv) {
+      colorByteSize = sizeof(mi::Color);
+    }
+    
+
     std::memcpy(canvas->get_tile()->get_data(),
         textureDesc.bsdf.data,
         textureDesc.bsdf.dims[0] * textureDesc.bsdf.dims[1]
-            * textureDesc.bsdf.dims[2] * sizeof(float));
+            * textureDesc.bsdf.dims[2] * colorByteSize);
 
     auto image =
         make_handle(transaction->create<mi::neuraylib::IImage>("Image"));
