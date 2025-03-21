@@ -360,6 +360,9 @@ void readPDBFile(Context &ctx, const char *filename, LayerNodeRef location)
     }
   }
 
+  if (!location)
+    location = ctx.defaultLayer()->root();
+
   // Generate spheres for each atom
   auto spheres = ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
   const std::string basename =
@@ -401,11 +404,8 @@ void readPDBFile(Context &ctx, const char *filename, LayerNodeRef location)
 
   auto sphereSurface = ctx.createSurface(basename.c_str(), spheres, material);
 
-  // Create a transform node for the PDB model
-  auto transformationLocation =
-      location->insert_first_child(tsd::mat4(tsd::math::identity));
   // Insert the surface reference into the layer tree
-  transformationLocation->insert_first_child(
+  location->insert_last_child(
       tsd::utility::Any(ANARI_SURFACE, sphereSurface->index()));
 }
 
