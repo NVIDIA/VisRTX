@@ -84,7 +84,7 @@ inline bool RenderToAnariObjectsVisitor::preChildren(LayerNode &n, int level)
   } break;
   case ANARI_LIGHT: {
     size_t i = n->value.getAsObjectIndex();
-    if (auto h = m_cache->light[i]; h != nullptr && included)
+    if (auto h = m_cache->light[i]; h != nullptr)
       current.lights.push_back(h);
   } break;
   case ANARI_FLOAT32_MAT4:
