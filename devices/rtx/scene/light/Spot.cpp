@@ -29,53 +29,41 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Light.h"
-// specific types
-#include "Directional.h"
-#include "HDRI.h"
-#include "Point.h"
 #include "Spot.h"
-#include "UnknownLight.h"
 
 namespace visrtx {
 
-Light::Light(DeviceGlobalState *s)
-    : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
+Spot::Spot(DeviceGlobalState *d) : Light(d) {}
+
+void Spot::commitParameters()
 {
-  setRegistry(s->registry.lights);
+  Light::commitParameters();
+  m_position = getParam<vec3>("position", vec3(0.f, 0.f, 0.f));
+  m_direction = getParam<vec3>("direction", vec3(0.f, 0.f, -1.f));
+  m_openingAngle = getParam<float>("openingAngle", M_PI);
+  m_falloffAngle = getParam<float>("falloffAngle", 0.1f);
+  m_intensity =
+      std::clamp(getParam<float>("intensity", getParam<float>("power", 1.f)),
+          0.f,
+          std::numeric_limits<float>::max());
 }
 
-void Light::commitParameters()
+LightGPUData Spot::gpuData() const
 {
-  m_color = getParam<vec3>("color", vec3(1.f));
-}
+  float innerAngle = m_openingAngle - 2.f * m_falloffAngle;
+  if (innerAngle < 0.f) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "falloffAngle should be smaller than half of openingAngle");
+  }
 
-LightGPUData Light::gpuData() const
-{
-  LightGPUData retval;
-  retval.color = m_color;
+  auto retval = Light::gpuData();
+  retval.type = LightType::SPOT;
+  retval.spot.position = m_position;
+  retval.spot.direction = m_direction;
+  retval.spot.cosOuterAngle = cosf(m_openingAngle);
+  retval.spot.cosInnerAngle = cosf(innerAngle);
+  retval.spot.intensity = m_intensity;
   return retval;
 }
 
-Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
-{
-  if (subtype == "directional")
-    return new Directional(d);
-  else if (subtype == "hdri")
-    return new HDRI(d);
-  else if (subtype == "point")
-    return new Point(d);
-  else if (subtype == "spot")
-    return new Spot(d);
-  else
-    return new UnknownLight(subtype, d);
-}
-
-bool Light::isHDRI() const
-{
-  return false;
-}
-
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Light *);
