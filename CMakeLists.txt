@@ -93,7 +93,7 @@ set(ANARI_REQUIRED_VERSION 0.13.1)
 find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
 # CUDA
-find_package(CUDAToolkit 11.3.1)
+find_package(CUDAToolkit 12)
 
 # OpenGL
 find_package(OpenGL)
