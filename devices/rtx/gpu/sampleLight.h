@@ -67,6 +67,24 @@ VISRTX_DEVICE LightSample samplePointLight(const LightGPUData &ld, const Hit &hi
   return ls;
 }
 
+VISRTX_DEVICE LightSample sampleSpotLight(const LightGPUData &ld, const Hit &hit)
+{
+  LightSample ls;
+  ls.dir = ld.spot.position - hit.hitpoint;
+  ls.dist = length(ls.dir);
+  ls.dir = glm::normalize(ls.dir);
+  float spot = dot(normalize(ld.spot.direction), -ls.dir);
+  if (spot < ld.spot.cosOuterAngle) spot = 0.f;
+  else if (spot > ld.spot.cosInnerAngle) spot = 1.f;
+  else {
+    spot = (spot - ld.spot.cosOuterAngle) / (ld.spot.cosInnerAngle - ld.spot.cosOuterAngle);
+    spot = spot * spot * (3.f - 2.f * spot);
+  }
+  ls.radiance = ld.color * ld.spot.intensity * spot;
+  ls.pdf = 1.f;
+  return ls;
+}
+
 VISRTX_DEVICE LightSample sampleHDRILight(
   const LightGPUData &ld,
   const Hit &hit,
@@ -92,6 +110,8 @@ VISRTX_DEVICE LightSample sampleLight(
     return detail::sampleDirectionalLight(ld);
   case LightType::POINT:
     return detail::samplePointLight(ld, hit);
+  case LightType::SPOT:
+    return detail::sampleSpotLight(ld, hit);
   case LightType::HDRI:
     return detail::sampleHDRILight(ld, hit, ss.rs);
   default:

@@ -453,6 +453,7 @@ enum class LightType
 {
   DIRECTIONAL,
   POINT,
+  SPOT,
   HDRI,
   UNKNOWN
 };
@@ -466,6 +467,15 @@ struct DirectionalLightGPUData
 struct PointLightGPUData
 {
   vec3 position;
+  float intensity;
+};
+
+struct SpotLightGPUData
+{
+  vec3 position;
+  vec3 direction;
+  float cosOuterAngle;
+  float cosInnerAngle;
   float intensity;
 };
 
@@ -485,6 +495,7 @@ struct LightGPUData
   {
     DirectionalLightGPUData distant;
     PointLightGPUData point;
+    SpotLightGPUData spot;
     HDRILightGPUData hdri;
   };
 };

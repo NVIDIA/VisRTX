@@ -34,6 +34,7 @@
 #include "Directional.h"
 #include "HDRI.h"
 #include "Point.h"
+#include "Spot.h"
 #include "UnknownLight.h"
 
 namespace visrtx {
@@ -64,6 +65,8 @@ Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
     return new HDRI(d);
   else if (subtype == "point")
     return new Point(d);
+  else if (subtype == "spot")
+    return new Spot(d);
   else
     return new UnknownLight(subtype, d);
 }

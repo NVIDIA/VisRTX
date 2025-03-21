@@ -128,6 +128,7 @@ project_sources(PRIVATE
   scene/light/HDRI.cpp
   scene/light/Light.cpp
   scene/light/Point.cpp
+  scene/light/Spot.cpp
   scene/light/UnknownLight.cpp
 
   scene/surface/Surface.cpp
