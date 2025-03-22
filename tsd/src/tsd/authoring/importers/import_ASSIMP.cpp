@@ -321,12 +321,60 @@ static std::vector<LightRef> importASSIMPLights(
 
   for (unsigned i = 0; i < scene->mNumLights; ++i) {
     aiLight *assimpLight = scene->mLights[i];
-    // TODO:
+    LightRef lightRef;
+
+    float intensity =
+        assimpLight->mColorDiffuse.r > assimpLight->mColorDiffuse.b
+        ? assimpLight->mColorDiffuse.r > assimpLight->mColorDiffuse.g
+            ? assimpLight->mColorDiffuse.r
+            : assimpLight->mColorDiffuse.g
+        : assimpLight->mColorDiffuse.b;
+
+    tsd::float3 color(assimpLight->mColorDiffuse.r / intensity,
+        assimpLight->mColorDiffuse.g / intensity,
+        assimpLight->mColorDiffuse.b / intensity);
+
     switch (assimpLight->mType) {
+    case aiLightSource_DIRECTIONAL:
+      lightRef = ctx.createObject<Light>(tokens::light::directional);
+      lightRef->setParameter("direction",
+          tsd::float3(assimpLight->mDirection.x,
+              assimpLight->mDirection.y,
+              assimpLight->mDirection.z));
+      lightRef->setParameter("intensity", intensity);
+      break;
     case aiLightSource_POINT:
+      lightRef = ctx.createObject<Light>(tokens::light::point);
+      lightRef->setParameter("position",
+          tsd::float3(assimpLight->mPosition.x,
+              assimpLight->mPosition.y,
+              assimpLight->mPosition.z));
+      lightRef->setParameter("intensity", intensity);
+      break;
+    case aiLightSource_SPOT:
+      lightRef = ctx.createObject<Light>(tokens::light::spot);
+      lightRef->setParameter("position",
+          tsd::float3(assimpLight->mPosition.x,
+              assimpLight->mPosition.y,
+              assimpLight->mPosition.z));
+      lightRef->setParameter("direction",
+          tsd::float3(assimpLight->mDirection.x,
+              assimpLight->mDirection.y,
+              assimpLight->mDirection.z));
+      lightRef->setParameter("openingAngle", assimpLight->mAngleOuterCone);
+      lightRef->setParameter("falloffAngle",
+          (assimpLight->mAngleOuterCone - assimpLight->mAngleInnerCone) / 2.f);
+      lightRef->setParameter("intensity", intensity);
       break;
     default:
       break;
+    }
+
+    if (lightRef) {
+      lightRef->setParameter("color", color);
+      aiString name = assimpLight->mName;
+      lightRef->setName(name.C_Str());
+      lights.push_back(lightRef);
     }
   }
 
@@ -336,6 +384,7 @@ static std::vector<LightRef> importASSIMPLights(
 static void populateASSIMPLayer(Context &ctx,
     LayerNodeRef tsdLayerRef,
     const std::vector<SurfaceRef> &surfaces,
+    const std::vector<LightRef> &lights,
     const aiNode *node)
 {
   static_assert(
@@ -351,8 +400,20 @@ static void populateASSIMPLayer(Context &ctx,
         {utility::Any(ANARI_SURFACE, mesh.index()), mesh->name().c_str()});
   }
 
+  // https://github.com/assimp/assimp/issues/1168#issuecomment-278673292
+  // We won't find the light directly on the node, but matching names
+  // indicate we're supposed to associate the light with the transform
+  std::string name(node->mName.C_Str());
+  auto it = std::find_if(lights.begin(),
+      lights.end(),
+      [name](const LightRef &lightRef) { return lightRef->name() == name; });
+
+  if (it != lights.end()) {
+    tr->insert_first_child(tsd::utility::Any(ANARI_LIGHT, (*it)->index()));
+  }
+
   for (unsigned int i = 0; i < node->mNumChildren; i++)
-    populateASSIMPLayer(ctx, tr, surfaces, node->mChildren[i]);
+    populateASSIMPLayer(ctx, tr, surfaces, lights, node->mChildren[i]);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -384,6 +445,7 @@ void import_ASSIMP(
   populateASSIMPLayer(ctx,
       location ? location : ctx.defaultLayer()->root(),
       meshes,
+      lights,
       scene->mRootNode);
 }
 #else
