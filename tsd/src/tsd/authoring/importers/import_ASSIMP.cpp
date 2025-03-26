@@ -208,19 +208,25 @@ static std::vector<MaterialRef> importASSIMPMaterials(
     MaterialRef m;
 
     if (matType == aiShadingMode_PBR_BRDF) {
-      aiColor3D baseColor;
-      ai_real metallic, roughness;
+      aiColor3D baseColor, sheenColor;
+      ai_real metallic, roughness, sheenRoughness;
       aiString baseColorTexture, metallicTexture, roughnessTexture,
-          metallicRoughnessTexture, normalTexture;
+          metallicRoughnessTexture, sheenColorTexture, sheenRoughnessTexture,
+          normalTexture;
 
       assimpMat->Get(AI_MATKEY_BASE_COLOR, baseColor);
       assimpMat->Get(AI_MATKEY_METALLIC_FACTOR, metallic);
       assimpMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness);
+      assimpMat->Get(AI_MATKEY_SHEEN_COLOR_FACTOR, sheenColor);
+      assimpMat->Get(AI_MATKEY_SHEEN_ROUGHNESS_FACTOR, sheenRoughness);
 
       assimpMat->GetTexture(AI_MATKEY_BASE_COLOR_TEXTURE, &baseColorTexture);
       assimpMat->GetTexture(AI_MATKEY_METALLIC_TEXTURE, &metallicTexture);
       assimpMat->GetTexture(AI_MATKEY_ROUGHNESS_TEXTURE, &roughnessTexture);
       assimpMat->GetTexture(AI_MATKEY_ROUGHNESS_TEXTURE, &roughnessTexture);
+      assimpMat->GetTexture(AI_MATKEY_SHEEN_COLOR_TEXTURE, &sheenColorTexture);
+      assimpMat->GetTexture(
+          AI_MATKEY_SHEEN_ROUGHNESS_TEXTURE, &sheenRoughnessTexture);
       // glTF has a combined metallic/roughness texture
       assimpMat->GetTexture(aiTextureType_UNKNOWN,
           0,
@@ -255,6 +261,8 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       m->setParameter("baseColor"_t, ANARI_FLOAT32_VEC3, &baseColor);
       m->setParameter("metallic"_t, ANARI_FLOAT32, &metallic);
       m->setParameter("roughness"_t, ANARI_FLOAT32, &roughness);
+      m->setParameter("sheenColor"_t, ANARI_FLOAT32_VEC3, &sheenColor);
+      m->setParameter("sheenRoughness"_t, ANARI_FLOAT32, &sheenRoughness);
 
       auto isEmbedded = [](const char *name) { return name[0] == '*'; };
 
@@ -276,6 +284,8 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       loadTexture("baseColor", baseColorTexture);
       loadTexture("metallic", metallicTexture);
       loadTexture("roughness", roughnessTexture);
+      loadTexture("sheenColor", sheenColorTexture);
+      loadTexture("sheenRoughness", sheenRoughnessTexture);
       loadTexture("normal", normalTexture);
 
       if (metallicRoughnessTexture.length != 0) {
