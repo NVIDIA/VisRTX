@@ -290,6 +290,11 @@ void AppCore::setSelectedNode(tsd::LayerNode &n)
   tsd.selectedNode = tsd.ctx.defaultLayer()->at(n.index());
 }
 
+bool AppCore::objectIsSelected() const
+{
+  return tsd.selectedObject != nullptr;
+}
+
 void AppCore::clearSelected()
 {
   if (tsd.selectedObject != nullptr) {

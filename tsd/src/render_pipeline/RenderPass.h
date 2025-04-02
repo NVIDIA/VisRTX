@@ -57,6 +57,7 @@ struct AnariRenderPass : public RenderPass
   void setRenderer(anari::Renderer r);
   void setWorld(anari::World w);
   void setColorFormat(anari::DataType t);
+  void setEnableIDs(bool on);
 
   anari::Frame getFrame() const;
 
@@ -71,12 +72,28 @@ struct AnariRenderPass : public RenderPass
 
   bool m_firstFrame{true};
   bool m_deviceSupportsCUDAFrames{false};
+  bool m_enableIDs{false};
 
   anari::Device m_device{nullptr};
   anari::Camera m_camera{nullptr};
   anari::Renderer m_renderer{nullptr};
   anari::World m_world{nullptr};
   anari::Frame m_frame{nullptr};
+};
+
+struct PickPass : public RenderPass
+{
+  using PickOpFunc = std::function<void(RenderPass::Buffers &b)>;
+
+  PickPass();
+  ~PickPass() override;
+
+  void setPickOperation(PickOpFunc &&f);
+
+ private:
+  void render(Buffers &b, int stageId) override;
+
+  PickOpFunc m_op;
 };
 
 struct VisualizeDepthPass : public RenderPass

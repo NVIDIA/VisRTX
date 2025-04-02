@@ -95,6 +95,7 @@ struct AppCore
 
   void setSelectedObject(tsd::Object *o);
   void setSelectedNode(tsd::LayerNode &n);
+  bool objectIsSelected() const;
   void clearSelected();
 
   // Not copyable or moveable //

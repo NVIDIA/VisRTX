@@ -158,7 +158,6 @@ AnariRenderPass::AnariRenderPass(anari::Device d) : m_device(d)
   m_frame = anari::newObject<anari::Frame>(d);
   anari::setParameter(d, m_frame, "channel.color", ANARI_UFIXED8_RGBA_SRGB);
   anari::setParameter(d, m_frame, "channel.depth", ANARI_FLOAT32);
-  anari::setParameter(d, m_frame, "channel.objectId", ANARI_UINT32);
   anari::setParameter(d, m_frame, "accumulation", true);
 
   m_deviceSupportsCUDAFrames = supportsCUDAFbData(d);
@@ -214,6 +213,39 @@ void AnariRenderPass::setColorFormat(anari::DataType t)
 {
   anari::setParameter(m_device, m_frame, "channel.color", t);
   anari::commitParameters(m_device, m_frame);
+}
+
+void AnariRenderPass::setEnableIDs(bool on)
+{
+  if (on == m_enableIDs)
+    return;
+
+  m_enableIDs = on;
+
+  if (on) {
+    tsd::logInfo("[render_pipeline] enabling objectId frame channel");
+
+    anari::discard(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+
+    anari::setParameter(m_device, m_frame, "channel.objectId", ANARI_UINT32);
+    anari::commitParameters(m_device, m_frame);
+
+    anari::render(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+  } else {
+    tsd::logInfo("[render_pipeline] disabling objectId frame channel");
+    anari::unsetParameter(m_device, m_frame, "channel.objectId");
+
+    auto size = getDimensions();
+    const size_t totalSize = size_t(size.x) * size_t(size.y);
+#if ENABLE_CUDA
+    thrust::fill(m_buffers.objectId, m_buffers.objectId + totalSize, ~0u);
+#else
+    std::fill(m_buffers.objectId, m_buffers.objectId + totalSize, ~0u);
+#endif
+    anari::commitParameters(m_device, m_frame);
+  }
 }
 
 anari::Frame AnariRenderPass::getFrame() const
@@ -314,6 +346,25 @@ void AnariRenderPass::cleanup()
   detail::free(m_buffers.color);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PickPass ///////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+PickPass::PickPass() = default;
+
+PickPass::~PickPass() = default;
+
+void PickPass::setPickOperation(PickOpFunc &&f)
+{
+  m_op = std::move(f);
+}
+
+void PickPass::render(Buffers &b, int /*stageId*/)
+{
+  if (m_op)
+    m_op(b);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

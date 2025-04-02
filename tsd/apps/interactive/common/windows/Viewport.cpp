@@ -54,6 +54,49 @@ void Viewport::buildUI()
         m_libName.c_str(),
         m_timeToLoadDevice);
     m_anariPass = m_pipeline.emplace_back<tsd::AnariRenderPass>(m_device);
+    m_pickPass = m_pipeline.emplace_back<tsd::PickPass>();
+    m_pickPass->setEnabled(false);
+    m_pickPass->setPickOperation([&](tsd::RenderPass::Buffers &b) {
+      // Get depth //
+
+      auto [width, height] = m_pickPass->getDimensions();
+
+      auto l = linalg::clamp(m_pickCoord,
+          tsd::math::int2(0, 0),
+          tsd::math::int2(width - 1, height - 1));
+      l.x = width - l.x;
+      l.y = height - l.y;
+      const auto i = l.y * width + l.x;
+
+      m_pickedDepth = b.depth ? b.depth[i] : 1e30f;
+
+      if (!m_selectObjectNextPick) {
+        m_pickPass->setEnabled(false);
+        return;
+      }
+
+      // Do object selection //
+
+      uint32_t id = b.objectId ? b.objectId[i] : ~0u;
+      if (id != ~0u) {
+        tsd::logStatus("[viewport] picked object '%u' @ (%i, %i) | z: %f",
+            id,
+            l.x,
+            l.y,
+            m_pickedDepth);
+      }
+
+      anari::DataType objectType = ANARI_SURFACE;
+      if (id != ~0u && id & 0x80000000u) {
+        objectType = ANARI_VOLUME;
+        id &= 0x7FFFFFFF;
+      }
+
+      m_core->setSelectedObject(
+          id == ~0u ? nullptr : m_core->tsd.ctx.getObject(objectType, id));
+
+      m_pickPass->setEnabled(false);
+    });
     m_visualizeDepthPass = m_pipeline.emplace_back<tsd::VisualizeDepthPass>();
     m_visualizeDepthPass->setEnabled(false);
     m_outlinePass = m_pipeline.emplace_back<tsd::OutlineRenderPass>();
@@ -86,11 +129,14 @@ void Viewport::buildUI()
 
   ImGui::EndDisabled();
 
-  ui_picking();
+  bool didPick = ui_picking();
   ui_contextMenu();
 
   if (!m_coreMenuVisible)
     ui_handleInput();
+
+  if (m_anariPass && !didPick)
+    m_anariPass->setEnableIDs(m_core->objectIsSelected());
 }
 
 void Viewport::setManipulator(manipulators::Orbit *m)
@@ -271,55 +317,10 @@ void Viewport::reshape(tsd::math::int2 newSize)
 
 void Viewport::pick(tsd::math::int2 l, bool selectObject)
 {
-  auto frame = m_anariPass->getFrame();
-
-  // Get depth //
-
-  auto depth = anari::map<float>(m_device, frame, "channel.depth");
-
-  l = linalg::clamp(l,
-      tsd::math::int2(0, 0),
-      tsd::math::int2(depth.width - 1, depth.height - 1));
-  l.x = depth.width - l.x;
-  l.y = depth.height - l.y;
-  auto i = l.y * depth.width + l.x;
-
-  m_pickedDepth = depth.pixelType == ANARI_FLOAT32
-      ? depth.data[i]
-      : std::numeric_limits<float>::max();
-  anari::unmap(m_device, frame, "channel.depth");
-
-  if (!selectObject)
-    return;
-
-  // Do object selection //
-
-  uint32_t id = ~0u;
-
-  auto fb = anari::map<uint32_t>(m_device, frame, "channel.objectId");
-  if (fb.data) {
-    id = fb.data[i];
-
-    tsd::logStatus("[viewport] picked object '%u' @ (%i, %i) | z: %f",
-        id,
-        l.x,
-        l.y,
-        m_pickedDepth);
-
-  } else {
-    tsd::logError("[viewport] failed to pick: unable to map 'objectId' buffer");
-  }
-
-  anari::DataType objectType = ANARI_SURFACE;
-  if (id != ~0u && id & 0x80000000u) {
-    objectType = ANARI_VOLUME;
-    id &= 0x7FFFFFFF;
-  }
-
-  m_core->setSelectedObject(
-      id == ~0u ? nullptr : m_core->tsd.ctx.getObject(objectType, id));
-
-  anari::unmap(m_device, frame, "channel.objectId");
+  m_selectObjectNextPick = selectObject;
+  m_pickCoord = l;
+  m_pickPass->setEnabled(true);
+  m_anariPass->setEnableIDs(true);
 }
 
 void Viewport::setSelectionVisibilityFilterEnabled(bool enabled)
@@ -526,9 +527,11 @@ void Viewport::ui_handleInput()
   }
 }
 
-void Viewport::ui_picking()
+bool Viewport::ui_picking()
 {
   const ImGuiIO &io = ImGui::GetIO();
+
+  bool didPick = false;
 
   // Pick view center //
 
@@ -585,6 +588,7 @@ void Viewport::ui_picking()
 
     m_arcball->setCenter(c);
     updateCamera();
+    didPick = true;
   }
 
   // Pick object //
@@ -598,7 +602,10 @@ void Viewport::ui_picking()
                      m_viewportSize.x - (mPos[0] - wMin[0]), mPos[1] - wMin[1])
         * m_resolutionScale;
     pick(tsd::math::int2(pixel), true);
+    didPick = true;
   }
+
+  return didPick;
 }
 
 void Viewport::ui_contextMenu()

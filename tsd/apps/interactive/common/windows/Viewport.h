@@ -48,7 +48,7 @@ struct Viewport : public anari_viewer::windows::Window
 
   void echoCameraConfig();
   void ui_handleInput();
-  void ui_picking();
+  bool ui_picking();
   void ui_contextMenu();
   void ui_overlay();
 
@@ -62,7 +62,6 @@ struct Viewport : public anari_viewer::windows::Window
   tsd::RenderIndex *m_rIdx{nullptr};
 
   tsd::math::float2 m_previousMouse{-1.f, -1.f};
-  float m_pickedDepth{0.f};
   bool m_mouseRotating{false};
   bool m_manipulating{false};
   bool m_coreMenuVisible{false};
@@ -80,6 +79,12 @@ struct Viewport : public anari_viewer::windows::Window
   float m_depthVisualMaximum{1.f};
 
   float m_fov{40.f};
+
+  // Picking state //
+
+  bool m_selectObjectNextPick{false};
+  tsd::math::int2 m_pickCoord{0, 0};
+  float m_pickedDepth{0.f};
 
   // ANARI objects //
 
@@ -118,6 +123,7 @@ struct Viewport : public anari_viewer::windows::Window
 
   tsd::RenderPipeline m_pipeline;
   tsd::AnariRenderPass *m_anariPass{nullptr};
+  tsd::PickPass *m_pickPass{nullptr};
   tsd::VisualizeDepthPass *m_visualizeDepthPass{nullptr};
   tsd::OutlineRenderPass *m_outlinePass{nullptr};
   tsd::CopyToGLImagePass *m_outputPass{nullptr};
