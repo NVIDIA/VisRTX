@@ -58,12 +58,12 @@ struct Sphere : public Geometry
   helium::ChangeObserverPtr<Array1D> m_vertex;
   helium::ChangeObserverPtr<Array1D> m_vertexRadius;
   GeometryAttributes m_vertexAttributes;
-
-  DeviceBuffer m_aabbs;
-  CUdeviceptr m_aabbsBufferPtr{};
-  size_t m_numSpheres{0};
-
   float m_globalRadius{1.f};
+
+  DeviceBuffer m_radii;
+  CUdeviceptr m_vertexBufferPtr{};
+  CUdeviceptr m_radiiBufferPtr{};
+  size_t m_numSpheres{0};
 };
 
 } // namespace visrtx

@@ -80,6 +80,7 @@ struct World : public Object
 
   size_t m_numTriangleInstances{0};
   size_t m_numCurveInstances{0};
+  size_t m_numSphereInstances{0};
   size_t m_numUserInstances{0};
   size_t m_numVolumeInstances{0};
   size_t m_numLightInstances{0};

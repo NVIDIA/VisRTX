@@ -73,6 +73,7 @@ bool Group::getProperty(
     }
     auto bounds = m_triangleBounds;
     bounds.extend(m_curveBounds);
+    bounds.extend(m_sphereBounds);
     bounds.extend(m_userBounds);
     bounds.extend(m_volumeBounds);
     std::memcpy(ptr, &bounds, sizeof(bounds));
@@ -112,6 +113,11 @@ OptixTraversableHandle Group::optixTraversableCurve() const
   return m_traversableCurve;
 }
 
+OptixTraversableHandle Group::optixTraversableSphere() const
+{
+  return m_traversableSphere;
+}
+
 OptixTraversableHandle Group::optixTraversableUser() const
 {
   return m_traversableUser;
@@ -135,6 +141,13 @@ Span<DeviceObjectIndex> Group::surfaceCurveGPUIndices() const
       m_surfacesCurve.size());
 }
 
+Span<DeviceObjectIndex> Group::surfaceSphereGPUIndices() const
+{
+  return make_Span(
+      (const DeviceObjectIndex *)m_surfaceSphereObjectIndices.ptr(),
+      m_surfacesSphere.size());
+}
+
 Span<DeviceObjectIndex> Group::surfaceUserGPUIndices() const
 {
   return make_Span((const DeviceObjectIndex *)m_surfaceUserObjectIndices.ptr(),
@@ -155,6 +168,11 @@ bool Group::containsTriangleGeometry() const
 bool Group::containsCurveGeometry() const
 {
   return !m_surfacesCurve.empty();
+}
+
+bool Group::containsSphereGeometry() const
+{
+  return !m_surfacesSphere.empty();
 }
 
 bool Group::containsUserGeometry() const
@@ -193,9 +211,11 @@ void Group::rebuildSurfaceBVHs()
 
   m_triangleBounds = box3();
   m_curveBounds = box3();
+  m_sphereBounds = box3();
   m_userBounds = box3();
   m_traversableTriangle = {};
   m_traversableCurve = {};
+  m_traversableSphere = {};
   m_traversableUser = {};
 
   if (!m_surfacesTriangle.empty()) {
@@ -220,6 +240,18 @@ void Group::rebuildSurfaceBVHs()
   } else {
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping curve BVH build");
+  }
+
+  if (!m_surfacesSphere.empty()) {
+    reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::Group building sphere BVH");
+    buildOptixBVH(createOBI(m_surfacesSphere),
+        m_bvhSphere,
+        m_traversableSphere,
+        m_sphereBounds,
+        this);
+  } else {
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "visrtx::Group skipping sphere BVH build");
   }
 
   if (!m_surfacesUser.empty()) {
@@ -273,6 +305,7 @@ void Group::partitionValidGeometriesByType()
 {
   m_surfacesTriangle.clear();
   m_surfacesCurve.clear();
+  m_surfacesSphere.clear();
   m_surfacesUser.clear();
 
   if (!m_surfaceData)
@@ -293,6 +326,8 @@ void Group::partitionValidGeometriesByType()
       m_surfacesTriangle.push_back(s);
     else if (g->optixGeometryType() == OPTIX_BUILD_INPUT_TYPE_CURVES)
       m_surfacesCurve.push_back(s);
+    else if (g->optixGeometryType() == OPTIX_BUILD_INPUT_TYPE_SPHERES)
+      m_surfacesSphere.push_back(s);
     else
       m_surfacesUser.push_back(s);
   }
@@ -362,6 +397,16 @@ void Group::buildSurfaceGPUData()
     m_surfaceCurveObjectIndices.upload(tmp);
   } else
     m_surfaceCurveObjectIndices.reset();
+
+  if (!m_surfacesSphere.empty()) {
+    std::vector<DeviceObjectIndex> tmp(m_surfacesSphere.size());
+    std::transform(m_surfacesSphere.begin(),
+        m_surfacesSphere.end(),
+        tmp.begin(),
+        [](auto v) { return v->index(); });
+    m_surfaceSphereObjectIndices.upload(tmp);
+  } else
+    m_surfaceSphereObjectIndices.reset();
 
   if (!m_surfacesUser.empty()) {
     std::vector<DeviceObjectIndex> tmp(m_surfacesUser.size());

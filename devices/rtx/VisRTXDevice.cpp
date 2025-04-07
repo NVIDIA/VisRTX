@@ -706,6 +706,13 @@ DeviceInitStatus VisRTXDevice::initOptix()
       &builtinISOptions,
       &state.intersectionModules.curveIntersector));
 
+  builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_SPHERE;
+  OPTIX_CHECK(optixBuiltinISModuleGet(state.optixContext,
+      &moduleCompileOptions,
+      &pipelineCompileOptions,
+      &builtinISOptions,
+      &state.intersectionModules.sphereIntersector));
+
   return DeviceInitStatus::SUCCESS;
 }
 

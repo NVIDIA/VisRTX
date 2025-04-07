@@ -55,17 +55,20 @@ struct Group : public Object
 
   OptixTraversableHandle optixTraversableTriangle() const;
   OptixTraversableHandle optixTraversableCurve() const;
+  OptixTraversableHandle optixTraversableSphere() const;
   OptixTraversableHandle optixTraversableUser() const;
   OptixTraversableHandle optixTraversableVolume() const;
 
   bool containsTriangleGeometry() const;
   bool containsCurveGeometry() const;
+  bool containsSphereGeometry() const;
   bool containsUserGeometry() const;
   bool containsVolumes() const;
   bool containsLights() const;
 
   Span<DeviceObjectIndex> surfaceTriangleGPUIndices() const;
   Span<DeviceObjectIndex> surfaceCurveGPUIndices() const;
+  Span<DeviceObjectIndex> surfaceSphereGPUIndices() const;
   Span<DeviceObjectIndex> surfaceUserGPUIndices() const;
   Span<DeviceObjectIndex> volumeGPUIndices() const;
   Span<DeviceObjectIndex> lightGPUIndices() const;
@@ -90,10 +93,12 @@ struct Group : public Object
 
   std::vector<Surface *> m_surfacesTriangle;
   std::vector<Surface *> m_surfacesCurve;
+  std::vector<Surface *> m_surfacesSphere;
   std::vector<Surface *> m_surfacesUser;
 
   DeviceBuffer m_surfaceTriangleObjectIndices;
   DeviceBuffer m_surfaceCurveObjectIndices;
+  DeviceBuffer m_surfaceSphereObjectIndices;
   DeviceBuffer m_surfaceUserObjectIndices;
 
   // Volume //
@@ -122,6 +127,7 @@ struct Group : public Object
 
   box3 m_triangleBounds;
   box3 m_curveBounds;
+  box3 m_sphereBounds;
   box3 m_userBounds;
   box3 m_volumeBounds;
 
@@ -130,6 +136,9 @@ struct Group : public Object
 
   OptixTraversableHandle m_traversableCurve{};
   DeviceBuffer m_bvhCurve;
+
+  OptixTraversableHandle m_traversableSphere{};
+  DeviceBuffer m_bvhSphere;
 
   OptixTraversableHandle m_traversableUser{};
   DeviceBuffer m_bvhUser;

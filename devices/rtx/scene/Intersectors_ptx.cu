@@ -66,33 +66,6 @@ VISRTX_DEVICE void reportIntersectionVolume(const box1 &t)
 
 // Primitive intersectors /////////////////////////////////////////////////////
 
-VISRTX_DEVICE void intersectSphere(const GeometryGPUData &geometryData)
-{
-  const auto &sphereData = geometryData.sphere;
-
-  const auto primID =
-      sphereData.indices ? sphereData.indices[ray::primID()] : ray::primID();
-
-  const auto center = sphereData.centers[primID];
-  const auto radius =
-      sphereData.radii ? sphereData.radii[primID] : sphereData.radius;
-
-  const vec3 d = ray::localDirection();
-  const float rd2 = 1.f / dot(d, d);
-  const vec3 CO = center - ray::localOrigin();
-  const float projCO = dot(CO, d) * rd2;
-  const vec3 perp = CO - projCO * d;
-  const float l2 = glm::dot(perp, perp);
-  const float r2 = radius * radius;
-  if (l2 > r2)
-    return;
-  const float td = glm::sqrt((r2 - l2) * rd2);
-  const float t = projCO - td;
-  const vec3 h = ray::localOrigin() + t * ray::localDirection();
-  const vec3 n = h - center;
-  reportIntersection(t, n, 0.f);
-}
-
 VISRTX_DEVICE void intersectCylinder(const GeometryGPUData &geometryData)
 {
   const auto &cylinderData = geometryData.cylinder;
@@ -278,9 +251,6 @@ VISRTX_DEVICE void intersectGeometry()
   const auto &geometryData = getGeometryData(frameData, surfaceData.geometry);
 
   switch (geometryData.type) {
-  case GeometryType::SPHERE:
-    intersectSphere(geometryData);
-    break;
   case GeometryType::CYLINDER:
     intersectCylinder(geometryData);
     break;

@@ -246,6 +246,7 @@ void World::populateOptixInstances()
 {
   m_numTriangleInstances = 0;
   m_numCurveInstances = 0;
+  m_numSphereInstances = 0;
   m_numUserInstances = 0;
   m_numVolumeInstances = 0;
   m_numLightInstances = 0;
@@ -257,6 +258,8 @@ void World::populateOptixInstances()
       m_numTriangleInstances += numTransforms;
     if (group->containsCurveGeometry())
       m_numCurveInstances += numTransforms;
+    if (group->containsSphereGeometry())
+      m_numSphereInstances += numTransforms;
     if (group->containsUserGeometry())
       m_numUserInstances += numTransforms;
     if (group->containsVolumes())
@@ -265,8 +268,8 @@ void World::populateOptixInstances()
       m_numLightInstances += numTransforms;
   });
 
-  m_optixSurfaceInstances.resize(
-      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
+  m_optixSurfaceInstances.resize(m_numTriangleInstances + m_numCurveInstances
+      + m_numSphereInstances + m_numUserInstances);
   m_optixVolumeInstances.resize(m_numVolumeInstances);
 
   auto prepInstance = [](auto &i,
@@ -309,6 +312,14 @@ void World::populateOptixInstances()
             inst, instID, t, group->optixTraversableCurve(), SBT_CURVE_OFFSET);
         instID++;
       }
+      if (group->containsSphereGeometry()) {
+        osi[instID] = prepInstance(inst,
+            instID,
+            t,
+            group->optixTraversableSphere(),
+            SBT_SPHERE_OFFSET);
+        instID++;
+      }
       if (group->containsUserGeometry()) {
         osi[instID] = prepInstance(
             inst, instID, t, group->optixTraversableUser(), SBT_CUSTOM_OFFSET);
@@ -345,8 +356,8 @@ void World::rebuildBLASs()
 
 void World::buildInstanceSurfaceGPUData()
 {
-  m_instanceSurfaceGPUData.resize(
-      m_numTriangleInstances + m_numCurveInstances + m_numUserInstances);
+  m_instanceSurfaceGPUData.resize(m_numTriangleInstances + m_numCurveInstances
+      + m_numSphereInstances + m_numUserInstances);
 
   auto makeInstanceGPUData = [](const DeviceObjectIndex *s,
                                  const UniformAttributes &ua,
@@ -413,6 +424,13 @@ void World::buildInstanceSurfaceGPUData()
       if (group->containsCurveGeometry()) {
         sd[instID++] =
             makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
+                inst->uniformAttributes(),
+                id,
+                t);
+      }
+      if (group->containsSphereGeometry()) {
+        sd[instID++] =
+            makeInstanceGPUData(group->surfaceSphereGPUIndices().data(),
                 inst->uniformAttributes(),
                 id,
                 t);

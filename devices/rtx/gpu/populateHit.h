@@ -129,7 +129,9 @@ VISRTX_DEVICE vec2 uv(GeometryType type)
     const float u = optixGetCurveParameter();
     return vec2(u, 1.f - u);
   }
-  case GeometryType::SPHERE:
+  case GeometryType::SPHERE: {
+    return vec2(0.f, 1.f);
+  }
   case GeometryType::CYLINDER:
   case GeometryType::CONE:
   default: {
@@ -248,7 +250,15 @@ VISRTX_DEVICE void computeNormal(
     hit.Ns = hit.Ng;
     break;
   }
-  case GeometryType::SPHERE:
+  case GeometryType::SPHERE: {
+    const auto *indices = ggd.sphere.indices;
+    const uint32_t idx = indices ? ggd.sphere.indices[primID] : primID;
+    const vec3 c = ggd.sphere.centers[idx];
+    const auto hp =
+        optixTransformPointFromWorldToObjectSpace((::float3 &)hit.hitpoint);
+    hit.Ng = hit.Ns = vec3(hp.x, hp.y, hp.z) - c;
+    break;
+  }
   case GeometryType::CONE:
   case GeometryType::CYLINDER: {
     hit.Ng = hit.Ns = vec3(bit_cast<float>(optixGetAttribute_1()),

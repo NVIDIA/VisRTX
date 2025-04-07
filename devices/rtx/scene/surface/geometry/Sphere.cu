@@ -32,8 +32,7 @@
 #include "Sphere.h"
 // thrust
 #include <thrust/device_ptr.h>
-#include <thrust/sequence.h>
-#include <thrust/transform.h>
+#include <thrust/fill.h>
 
 namespace visrtx {
 
@@ -61,55 +60,29 @@ void Sphere::finalize()
     return;
   }
 
-  reportMessage(ANARI_SEVERITY_DEBUG,
-      "finalizing %s sphere geometry",
-      m_index ? "indexed" : "soup");
-
-  // Calculate bounds //
-
-  m_numSpheres = m_index ? m_index->size() : m_vertex->size();
-  m_aabbs.reserve(m_numSpheres * sizeof(box3));
-
-  const float globalRadius = m_globalRadius;
-  const float *radii = nullptr;
-  if (m_vertexRadius)
-    radii = m_vertexRadius->beginAs<float>(AddressSpace::GPU);
-
-  const auto *vertices = m_vertex->beginAs<vec3>(AddressSpace::GPU);
-
-  auto &state = *deviceState();
+  m_numSpheres = m_vertex->size();
 
   if (m_index) {
-    auto *begin = m_index->beginAs<uint32_t>(AddressSpace::GPU);
-    auto *end = m_index->endAs<uint32_t>(AddressSpace::GPU);
-    thrust::transform(thrust::cuda::par.on(state.stream),
-        begin,
-        end,
-        thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr()),
-        [=] __device__(uint32_t i) {
-          const auto &v = vertices[i];
-          const float r = radii ? radii[i] : globalRadius;
-          return box3(v - r, v + r);
-        });
-  } else {
-    DeviceBuffer index;
-    index.reserve(m_numSpheres * sizeof(uint32_t));
-    auto idx_begin =
-        thrust::device_pointer_cast<uint32_t>((uint32_t *)index.ptr());
-    auto idx_end = idx_begin + m_numSpheres;
-    thrust::sequence(thrust::cuda::par.on(state.stream), idx_begin, idx_end);
-    thrust::transform(thrust::cuda::par.on(state.stream),
-        idx_begin,
-        idx_end,
-        thrust::device_pointer_cast<box3>((box3 *)m_aabbs.ptr()),
-        [=] __device__(uint32_t i) {
-          const auto &v = vertices[i];
-          const float r = radii ? radii[i] : globalRadius;
-          return box3(v - r, v + r);
-        });
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "indexed spheres not yet implemented -- interpreting as sphere soup.");
   }
 
-  m_aabbsBufferPtr = (CUdeviceptr)m_aabbs.ptr();
+  m_vertexBufferPtr = (CUdeviceptr)m_vertex->beginAs<vec3>(AddressSpace::GPU);
+
+  if (m_vertexRadius) {
+    m_radiiBufferPtr =
+        (CUdeviceptr)m_vertexRadius->beginAs<float>(AddressSpace::GPU);
+    m_radii.reset();
+  } else {
+    m_radii.reserve(m_numSpheres * sizeof(float));
+    auto *begin = m_radii.ptrAs<float>();
+    auto *end = begin + m_numSpheres;
+    thrust::fill(thrust::cuda::par.on(deviceState()->stream),
+        begin,
+        end,
+        m_globalRadius);
+    m_radiiBufferPtr = (CUdeviceptr)begin;
+  }
 
   upload();
 }
@@ -121,15 +94,21 @@ bool Sphere::isValid() const
 
 void Sphere::populateBuildInput(OptixBuildInput &buildInput) const
 {
-  buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+  buildInput.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
 
-  buildInput.customPrimitiveArray.aabbBuffers = &m_aabbsBufferPtr;
-  buildInput.customPrimitiveArray.numPrimitives = m_numSpheres;
+  auto &sphereArray = buildInput.sphereArray;
+
+  sphereArray.vertexBuffers = &m_vertexBufferPtr;
+  sphereArray.vertexStrideInBytes = 0;
+  sphereArray.numVertices = m_numSpheres;
+  sphereArray.radiusBuffers = &m_radiiBufferPtr;
+  sphereArray.radiusStrideInBytes = 0;
+  sphereArray.singleRadius = 0;
 
   static uint32_t buildInputFlags[1] = {OPTIX_GEOMETRY_FLAG_NONE};
 
-  buildInput.customPrimitiveArray.flags = buildInputFlags;
-  buildInput.customPrimitiveArray.numSbtRecords = 1;
+  sphereArray.flags = buildInputFlags;
+  sphereArray.numSbtRecords = 1;
 }
 
 GeometryGPUData Sphere::gpuData() const
@@ -153,7 +132,7 @@ GeometryGPUData Sphere::gpuData() const
 
 int Sphere::optixGeometryType() const
 {
-  return OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+  return OPTIX_BUILD_INPUT_TYPE_SPHERES;
 }
 
 } // namespace visrtx
