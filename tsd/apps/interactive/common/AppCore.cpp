@@ -97,6 +97,8 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       this->logging.echoOutput = true;
     else if (arg == "--noDefaultLayout")
       this->commandLine.useDefaultLayout = false;
+    else if (arg == "-pd" || arg == "--preloadDevices")
+      this->commandLine.preloadDevices = true;
     else if (arg == "--debug" || arg == "-g")
       this->commandLine.enableDebug = true;
     else if (arg == "--trace" || arg == "-t")

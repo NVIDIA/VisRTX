@@ -38,6 +38,7 @@ struct AppCore
     bool useDefaultLayout{true};
     bool enableDebug{false};
     bool loadingContext{false};
+    bool preloadDevices{false};
     anari::Library debug{nullptr};
     std::string traceDir;
     std::vector<std::pair<ImporterType, std::string>> filenames;

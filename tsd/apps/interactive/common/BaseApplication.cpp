@@ -12,7 +12,15 @@ namespace tsd_viewer {
 
 BaseApplication::BaseApplication(int argc, const char **argv)
 {
-  appCore()->parseCommandLine(argc, argv);
+  auto *core = appCore();
+  core->parseCommandLine(argc, argv);
+
+  if (core->commandLine.preloadDevices) {
+    printf("[TSD] pre-loading all ANARI devices...");
+    for (auto l : core->commandLine.libraryList)
+      core->loadDevice(l);
+    printf("done\n");
+  }
 }
 
 BaseApplication::~BaseApplication() = default;
