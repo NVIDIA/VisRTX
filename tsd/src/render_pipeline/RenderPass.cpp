@@ -305,7 +305,6 @@ void AnariRenderPass::copyFrameData()
 
   auto color = anari::map<void>(m_device, m_frame, colorChannel);
   auto depth = anari::map<float>(m_device, m_frame, depthChannel);
-  auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
 
   const tsd::uint2 size(getDimensions());
   const size_t totalSize = size.x * size.y;
@@ -317,13 +316,17 @@ void AnariRenderPass::copyFrameData()
       detail::copy(m_buffers.color, (uint32_t *)color.data, totalSize);
 
     detail::copy(m_buffers.depth, depth.data, totalSize);
-    if (objectId.data)
-      detail::copy(m_buffers.objectId, objectId.data, totalSize);
+    if (m_enableIDs) {
+      auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
+      if (objectId.data)
+        detail::copy(m_buffers.objectId, objectId.data, totalSize);
+    }
   }
 
   anari::unmap(m_device, m_frame, colorChannel);
   anari::unmap(m_device, m_frame, depthChannel);
-  anari::unmap(m_device, m_frame, idChannel);
+  if (m_enableIDs)
+    anari::unmap(m_device, m_frame, idChannel);
 }
 
 void AnariRenderPass::composite(Buffers &b, int stageId)
