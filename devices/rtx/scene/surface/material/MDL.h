@@ -39,6 +39,7 @@
 #include "libmdl/ArgumentBlockInstance.h"
 
 #include <optional>
+#include <unordered_map>
 
 namespace visrtx {
 
@@ -64,11 +65,15 @@ struct MDL : public Material
  private:
   MaterialGPUData gpuData() const override;
 
+  void clearSamplers();
+
   mutable DeviceBuffer m_argBlockBuffer;
 
   std::string m_source;
   std::string m_sourceType;
-  std::vector<const Sampler *> m_samplers;
+  std::unordered_map<std::string, int> m_inputToSamplerIndex;
+  std::vector<Sampler *> m_samplers;
+  std::vector<bool> m_samplerIsFromRegistry;
 
   libmdl::Uuid m_uuid{};
   mdl::MaterialRegistry::ImplementationIndex m_implementationIndex{};

@@ -230,6 +230,7 @@ PRIVATE
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:libmdl>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:MDL_SDK::MDL_SDK>
+  $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:stb_image>
 )
 
 project_compile_definitions(
@@ -312,7 +313,7 @@ GenerateEmbeddedPTX(scene Intersectors)
 GenerateEmbeddedPTX(shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)
 GenerateEmbeddedPTX(shaders PhysicallyBasedShader ENTRIES __direct__callable__evalSurfaceMaterial)
 if(VISRTX_ENABLE_MDL_SUPPORT)
-  GenerateEmbeddedPTX(shaders MDLShaderEvalSurfaceMaterial ENTRIES __direct__callable__evalSurfaceMaterial)
+  GenerateEmbeddedPTX(shaders MDLShader ENTRIES __direct__callable__evalSurfaceMaterial)
   GenerateEmbeddedPTX(shaders MDLTexture)
 endif()
 

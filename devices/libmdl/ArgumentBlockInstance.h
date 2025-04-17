@@ -12,6 +12,7 @@
 #include <mi/neuraylib/itransaction.h>
 #include <mi/neuraylib/ivalue.h>
 
+#include <algorithm>
 #include <nonstd/span.hpp>
 
 #include <cstdint>
@@ -37,53 +38,15 @@ class ArgumentBlockInstance
     return m_argumentBlockDescriptor.m_arguments;
   }
 
-  // Generic setter for given value.
-  void setValue(std::string_view name,
-      const mi::neuraylib::IValue *value,
-      mi::neuraylib::ITransaction *transaction);
-
-  // Shorthand setters creating resources in the database before setting the
-  // matching parameter.
-  void setValue(std::string_view name,
-      bool value,
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setValue(std::string_view name,
-      float value,
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setValue(std::string_view name,
-      const int (&value)[2],
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setValue(std::string_view name,
-      const int (&value)[3],
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setValue(std::string_view name,
-      const int (&value)[4],
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setValue(std::string_view name,
-      const float (&value)[2],
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setValue(std::string_view name,
-      const float (&value)[3],
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setValue(std::string_view name,
-      const float (&value)[4],
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setValue(std::string_view name,
-      int value,
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-  void setColorValue(std::string_view name,
-      const float (&value)[3],
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
+  void setValue(std::string_view name, bool value);  
+  void setValue(std::string_view name, int value);
+  void setValue(std::string_view name, const int (&value)[2]);
+  void setValue(std::string_view name, const int (&value)[3]);
+  void setValue(std::string_view name, const int (&value)[4]);
+  void setValue(std::string_view name, float value);
+  void setValue(std::string_view name, const float (&value)[2]);
+  void setValue(std::string_view name, const float (&value)[3]);
+  void setValue(std::string_view name, const float (&value)[4]);
 
   enum class ColorSpace
   {
@@ -91,26 +54,9 @@ class ArgumentBlockInstance
     Raw,
     sRGB,
   };
-  void setTextureValue(std::string_view name,
-      std::string_view pathName,
-      ColorSpace colorspace,
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
 
   // Return the up to date argument block content.
   nonstd::span<const std::byte> getArgumentBlockData() const;
-
-  // Reset resources prior to setValue calls
-  void resetResources();
-  // Finalize resources creation.
-  void finalizeResourceCreation(mi::neuraylib::ITransaction *transaction);
-
-  // Returns the database names of the resources as they match the setValue
-  // calls.
-  const std::vector<std::string> &getTextureResourceNames()
-  {
-    return m_textureResourceNames;
-  }
 
   // Resources as processed by our MDL's ResourceCallback implementation.
   template <typename T>
@@ -133,26 +79,11 @@ class ArgumentBlockInstance
  private:
   ArgumentBlockDescriptor m_argumentBlockDescriptor = {};
   mi::base::Handle<mi::neuraylib::ITarget_argument_block> m_argumentBlock = {};
-  ResourceMapping m_textureResourceMapping = {};
-  ResourceDescriptors m_textureResourceDescriptors = {};
-  std::vector<std::string> m_textureResourceNames = {};
-  std::uint32_t m_textureCounter = 0;
   Core *m_core = {};
 
-  // Some helper function for setValue(int|float[2,3,4]);
-  template <typename T, std::size_t S>
-  void _setValue(std::string_view name,
-      const T (&value)[S],
-      mi::neuraylib::ITransaction *transaction,
-      mi::neuraylib::IMdl_factory *factory);
-
-  void loadTextureToDb(std::string_view filePath,
-      ColorSpace colorspace,
-      mi::neuraylib::ITransaction *transaction);
-
-  bool loadTextureToDb(
-      const libmdl::ArgumentBlockDescriptor::TextureDescriptor &textureDesc,
-      mi::neuraylib::ITransaction *transaction);
+  // Some helper functions for setValue
+  template<typename T> void _setValue(std::string_view name, T value);
+  template<typename T, std::size_t S> void _setValue(std::string_view name, const T (&value)[S]);
 };
 
 } // namespace visrtx::libmdl

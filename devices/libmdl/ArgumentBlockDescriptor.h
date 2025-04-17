@@ -41,6 +41,7 @@ struct ArgumentBlockDescriptor
 
   struct TextureDescriptor
   {
+    uint64_t knownIndex;
     enum class ColorSpace
     {
       Linear,
@@ -83,8 +84,7 @@ struct ArgumentBlockDescriptor
 
   std::vector<Argument> m_arguments;
   std::vector<TextureDescriptor> m_defaultAndBodyTextureDescriptors;
-  std::unordered_map<std::string, mi::neuraylib::Target_value_layout_state>
-      m_nameToLayout;
+  std::unordered_map<std::string, std::size_t> m_nameToArgbBlockOffset;
 };
 
 } // namespace visrtx::libmdl

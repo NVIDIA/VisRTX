@@ -137,7 +137,11 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
     default:
       continue;
     }
-    m_nameToLayout[name] = m_argumentBlockLayout->get_nested_state(i);
+
+    mi::neuraylib::IValue::Kind kind2;
+    mi::Size param_size;
+    mi::Size offset = m_argumentBlockLayout->get_layout(kind2, param_size, m_argumentBlockLayout->get_nested_state(i));
+    m_nameToArgbBlockOffset[name] = offset;
   }
 }
 

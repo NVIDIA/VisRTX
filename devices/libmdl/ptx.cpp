@@ -7,6 +7,7 @@
 #include <array>
 #include <cassert>
 #include <cctype>
+#include <cstdint>
 #include <iterator>
 #include <set>
 #include <string>
@@ -37,9 +38,9 @@ std::vector<char> stitchPTXs(
   std::set<std::string> previouslySeenExtern;
 
   // For disambiguating info strings
-  uint32_t infoStringBaseIndex = 0;
+  std::uint32_t infoStringBaseIndex = 0;
   // For disambiguating file ids
-  uint32_t fileBaseIndex = 0;
+  std::uint32_t fileBaseIndex = 0;
 
   for (const auto &s : ptxBlobs) {
     std::vector<char> blob(std::cbegin(s), std::cend(s));
