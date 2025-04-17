@@ -1,6 +1,6 @@
 #include "ptx.h"
 
-#include "MDLShaderEvalSurfaceMaterial_ptx.h"
+#include "MDLShader_ptx.h"
 #include "MDLTexture_ptx.h"
 
 #include <array>
@@ -8,8 +8,8 @@
 namespace visrtx::mdl::ptx {
 
 ptx_blob MDLShaderEvalSurfaceMaterial{
-    std::data(MDLShaderEvalSurfaceMaterial_ptx),
-    std::size(MDLShaderEvalSurfaceMaterial_ptx),
+    std::data(MDLShader_ptx),
+    std::size(MDLShader_ptx),
 };
 
 ptx_blob MDLTexture{

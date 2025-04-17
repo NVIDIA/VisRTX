@@ -125,6 +125,7 @@ MaterialRegistry::acquireMaterial(
 
   for (auto i = 1ul; i < targetCode->get_texture_count(); ++i) {
     libmdl::ArgumentBlockDescriptor::TextureDescriptor textureDesc{
+      i - 1,
         targetCode->get_texture(i)};
 
     switch (targetCode->get_texture_shape(i)) {
@@ -179,7 +180,7 @@ MaterialRegistry::acquireMaterial(
       textureDesc.colorSpace = libmdl::ArgumentBlockDescriptor::
           TextureDescriptor::ColorSpace::Linear;
       textureDesc.url =
-          fmt::format("bsdf_data_{:0x}", fmt::ptr(textureDesc.bsdf.data));
+          fmt::format("bsdf_data_{}", fmt::ptr(textureDesc.bsdf.data));
     } else {
       auto moduleOwner = targetCode->get_texture_owner_module(i);
       textureDesc.url =

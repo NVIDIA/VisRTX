@@ -31,6 +31,7 @@
 
 #include "MDL.h"
 
+#include "fmt/base.h"
 #include "gpu/gpu_objects.h"
 #include "libmdl/ArgumentBlockInstance.h"
 #include "nonstd/scope.hpp"
@@ -43,6 +44,7 @@
 
 #include <anari/frontend/anari_enums.h>
 
+#include <anari/frontend/type_utility.h>
 #include <mi/base/handle.h>
 #include <mi/neuraylib/ivalue.h>
 
@@ -62,11 +64,22 @@ MDL::MDL(DeviceGlobalState *d) : Material(d) {}
 
 MDL::~MDL()
 {
-  for (auto sampler : m_samplers) {
-    if (sampler) {
-      deviceState()->mdl->samplerRegistry.releaseSampler(sampler);
+  clearSamplers();
+}
+
+void MDL::clearSamplers()
+{
+  auto& samplerRegistry = deviceState()->mdl->samplerRegistry;
+  for (auto i = 0; i < m_samplers.size(); ++i) {
+    if (m_samplerIsFromRegistry[i]) {
+      samplerRegistry.releaseSampler(m_samplers[i]);
+    } else {
+      m_samplers[i]->refDec();
     }
   }
+
+  m_samplers.clear();
+  m_samplerIsFromRegistry.clear();
 }
 
 void MDL::commitParameters()
@@ -92,6 +105,9 @@ void MDL::syncSource()
   auto uuid = libmdl::Uuid{};
   auto argumentBlockDescriptor = libmdl::ArgumentBlockDescriptor{};
 
+  auto& materialRegistry = deviceState()->mdl->materialRegistry;
+  auto& samplerRegistry = deviceState()->mdl->samplerRegistry;
+
   // Handle source changes separately as it probably implies a full material
   // change.
   if (source != m_source || sourceType != m_sourceType) {
@@ -100,7 +116,7 @@ void MDL::syncSource()
       auto &&[moduleName, materialName] = libmdl::parseCmdArgumentMaterialName(
           source, &deviceState()->mdl->core);
       std::tie(uuid, argumentBlockDescriptor) =
-          deviceState()->mdl->materialRegistry.acquireMaterial(
+          materialRegistry.acquireMaterial(
               moduleName, materialName);
       if (uuid == libmdl::Uuid{}) {
         reportMessage(ANARI_SEVERITY_ERROR,
@@ -108,7 +124,7 @@ void MDL::syncSource()
             source.c_str(),
             "diffuseWhite");
         std::tie(uuid, argumentBlockDescriptor) =
-            deviceState()->mdl->materialRegistry.acquireMaterial(
+            materialRegistry.acquireMaterial(
                 "::visrtx::default", "diffuseWhite");
       }
     } else if (sourceType == "code") {
@@ -125,12 +141,23 @@ void MDL::syncSource()
       // We have successfully loaded a material, release the previous one and
       // use it instead.
       if (m_uuid != libmdl::Uuid{}) {
-        deviceState()->mdl->materialRegistry.releaseMaterial(m_uuid);
+        materialRegistry.releaseMaterial(m_uuid);
       }
-      m_argumentBlockInstance =
-          deviceState()->mdl->materialRegistry.createArgumentBlock(
-              argumentBlockDescriptor);
+      m_argumentBlockInstance = materialRegistry.createArgumentBlock(argumentBlockDescriptor);
       m_uuid = uuid;
+
+      clearSamplers();
+
+      for (auto textureDesc: argumentBlockDescriptor.m_defaultAndBodyTextureDescriptors) {
+        auto sampler = samplerRegistry.acquireSampler(textureDesc);
+        auto index = textureDesc.knownIndex;
+        if (m_samplers.size() <= index) {
+          m_samplers.resize(index + 1);
+          m_samplerIsFromRegistry.resize(index + 1);
+        }
+        m_samplers[textureDesc.knownIndex] = sampler;
+        m_samplerIsFromRegistry[textureDesc.knownIndex] = true;
+      }
     }
 
     m_source = source;
@@ -158,74 +185,61 @@ void MDL::syncParameters()
       switch (type) {
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Bool: {
         if (sourceParamAny.type() == ANARI_BOOL) {
-          argumentBlockInstance.setValue(
-              name, sourceParamAny.get<bool>(), transaction.get(), factory);
+          argumentBlockInstance.setValue(name, sourceParamAny.get<bool>());
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Float: {
         if (sourceParamAny.type() == ANARI_FLOAT32) {
-          argumentBlockInstance.setValue(
-              name, sourceParamAny.get<float>(), transaction.get(), factory);
+          argumentBlockInstance.setValue(name, sourceParamAny.get<float>());
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Float2: {
         if (sourceParamAny.type() == ANARI_FLOAT32_VEC2) {
           auto value = sourceParamAny.get<glm::vec2>();
-          argumentBlockInstance.setValue(
-              name, {value.x, value.y}, transaction.get(), factory);
+          argumentBlockInstance.setValue(name, {value.x, value.y});
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Float3: {
         if (sourceParamAny.type() == ANARI_FLOAT32_VEC3) {
           auto value = sourceParamAny.get<glm::vec3>();
-          argumentBlockInstance.setValue(
-              name, {value.x, value.y, value.z}, transaction.get(), factory);
+          argumentBlockInstance.setValue(name, {value.x, value.y, value.z});
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Float4: {
         if (sourceParamAny.type() == ANARI_FLOAT32_VEC4) {
           auto value = sourceParamAny.get<glm::vec4>();
-          argumentBlockInstance.setValue(name,
-              {value.x, value.y, value.z, value.w},
-              transaction.get(),
-              factory);
+          argumentBlockInstance.setValue(name, {value.x, value.y, value.z, value.w});
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Int: {
         if (sourceParamAny.type() == ANARI_INT32) {
-          argumentBlockInstance.setValue(
-              name, sourceParamAny.get<int>(), transaction.get(), factory);
+          argumentBlockInstance.setValue(name, sourceParamAny.get<int>());
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Int2: {
         if (sourceParamAny.type() == ANARI_INT32_VEC2) {
           auto value = sourceParamAny.get<glm::ivec2>();
-          argumentBlockInstance.setValue(
-              name, {value.x, value.y}, transaction.get(), factory);
+          argumentBlockInstance.setValue(name, {value.x, value.y});
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Int3: {
         if (sourceParamAny.type() == ANARI_INT32_VEC3) {
           auto value = sourceParamAny.get<glm::ivec3>();
-          argumentBlockInstance.setValue(
-              name, {value.x, value.y, value.z}, transaction.get(), factory);
+          argumentBlockInstance.setValue(name, {value.x, value.y, value.z});
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Int4: {
         if (sourceParamAny.type() == ANARI_INT32_VEC4) {
           auto value = sourceParamAny.get<glm::ivec4>();
-          argumentBlockInstance.setValue(name,
-              {value.x, value.y, value.z, value.w},
-              transaction.get(),
-              factory);
+          argumentBlockInstance.setValue(name, {value.x, value.y, value.z, value.w});
         }
         break;
       }
@@ -233,23 +247,21 @@ void MDL::syncParameters()
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Color: {
         if (sourceParamAny.type() == ANARI_FLOAT32_VEC3) {
           auto value = sourceParamAny.get<glm::vec3>();
-          argumentBlockInstance.setColorValue(
-              name, {value.r, value.g, value.b}, transaction.get(), factory);
+          argumentBlockInstance.setValue(name, {value.r, value.g, value.b});
         }
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Texture: {
-        if (sourceParamAny.type() == ANARI_STRING) {
-          // FIXME: Deal with colorspace, possibly by reading a
-          // `name.colorspace` attribute linearlizing on load here, or by
-          // creating a matching sampler below.
+        Sampler* sampler = nullptr;
+        auto& samplerRegistry = deviceState()->mdl->samplerRegistry;
+
+        switch (sourceParamAny.type()) {
+        case ANARI_STRING: {
           auto colorspaceStr = getParamString(name + ".colorspace", "auto");
-          if (colorspaceStr != "auto" && colorspaceStr != "raw"
-              && colorspaceStr != "sRGB") {
+          if (colorspaceStr != "auto" && colorspaceStr != "raw" && colorspaceStr != "sRGB") {
             reportMessage(ANARI_SEVERITY_WARNING,
                 "Unknown colorspace type {} for {}. Falling back to auto",
-                colorspaceStr,
-                name);
+                colorspaceStr,  name);
             colorspaceStr = "auto"s;
           }
           auto colorspace = libmdl::ArgumentBlockInstance::ColorSpace::Auto;
@@ -259,11 +271,38 @@ void MDL::syncParameters()
             colorspace = libmdl::ArgumentBlockInstance::ColorSpace::sRGB;
           }
 
-          argumentBlockInstance.setTextureValue(name,
-              sourceParamAny.getString(),
-              colorspace,
-              transaction.get(),
-              factory);
+          sampler = samplerRegistry.acquireSampler(sourceParamAny.getString(), colorspace);
+          break;
+        }
+        case ANARI_SAMPLER: {
+          sampler = sourceParamAny.getObject<Sampler>();
+          break;
+        }
+        }
+
+        if (sampler) {
+          int index;
+          if (auto it = m_inputToSamplerIndex.find(name); it != end(m_inputToSamplerIndex)) {
+            // We already have a sampler. Release it.
+            index = it->second;
+            assert(!m_samplerIsFromRegistry[index]); // We should not end up release body resources.
+            samplerRegistry.releaseSampler(m_samplers[index]);
+            m_samplers[index] = sampler;
+          } else {
+            // We don't have a sampler
+            if (auto it = std::find(begin(m_samplers), end(m_samplers), sampler);
+                it != end(m_samplers)) {
+              index = std::distance(begin(m_samplers), it);
+            } else {
+              index = m_samplers.size();
+              m_samplers.push_back(sampler);
+              m_samplerIsFromRegistry.push_back(false);
+            }
+          }
+
+          argumentBlockInstance.setValue(name, index + 1); // MDL starts counting at 1, 0 being invalid.
+        } else {
+          reportMessage(ANARI_SEVERITY_WARNING, "Cannot assign sampler for parameter %s (type %s)", name.c_str(), anari::toString(sourceParamAny.type()));
         }
         break;
       }
@@ -281,6 +320,7 @@ void MDL::syncParameters()
 
 void MDL::updateSamplers()
 {
+  return;
   if (!m_argumentBlockInstance.has_value()) {
     return;
   }
@@ -295,7 +335,7 @@ void MDL::updateSamplers()
   // previous ones. Note that unchanged samplers, compared to the previous
   // commit will therby be reference both in samplers and newSamplers before
   // being dereference when cleaning actual samplers.
-  std::vector<const Sampler *> newSamplers;
+  std::vector<Sampler *> newSamplers;
   for (const auto &textureDbName :
       m_argumentBlockInstance->getTextureResourceNames()) {
     if (textureDbName.empty()) {
