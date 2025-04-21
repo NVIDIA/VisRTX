@@ -89,7 +89,7 @@ endif()
 ## Dependencies ###############################################################
 
 # ANARI-SDK
-set(ANARI_REQUIRED_VERSION 0.13.1)
+set(ANARI_REQUIRED_VERSION 0.14.0)
 find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
 # CUDA

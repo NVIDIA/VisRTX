@@ -50,9 +50,14 @@ add_subdirectory(
   ${CMAKE_CURRENT_BINARY_DIR}/stb_image
 )
 
-add_executable(${PROJECT_NAME} main.cpp)
-target_link_libraries(${PROJECT_NAME}
-PRIVATE
-  VisRTX::anari_library_visrtx
-  stb_image
-)
+function(create_visrtx_executable NAME)
+  add_executable(${NAME} ${NAME}.cpp)
+  target_link_libraries(${NAME}
+  PRIVATE
+    VisRTX::anari_library_visrtx
+    stb_image
+  )
+endfunction()
+
+create_visrtx_executable(testApp_spheres)
+create_visrtx_executable(testApp_evictGPUArray)

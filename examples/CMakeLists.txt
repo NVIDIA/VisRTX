@@ -40,6 +40,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 option(VISRTX_BUILD_EXAMPLES "Build VisRTX examples" OFF)
 if (VISRTX_BUILD_EXAMPLES)
-  add_subdirectory(tutorial)
+  add_subdirectory(simple)
   add_subdirectory(viewer)
 endif()

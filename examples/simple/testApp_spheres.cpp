@@ -247,7 +247,8 @@ int main()
 
   stbi_flip_vertically_on_write(1);
   auto fb = anari::map<uint32_t>(device, frame, "channel.color");
-  stbi_write_png("tutorial.png", fb.width, fb.height, 4, fb.data, 4 * fb.width);
+  stbi_write_png(
+      "testApp_spheres.png", fb.width, fb.height, 4, fb.data, 4 * fb.width);
   anari::unmap(device, frame, "channel.color");
 
   // Cleanup remaining ANARI objets //
