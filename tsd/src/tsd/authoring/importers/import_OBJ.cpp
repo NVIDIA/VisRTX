@@ -4,8 +4,12 @@
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 // tiny_obj_importer
+#if !TSD_USE_STAGE
 #define TINYOBJLOADER_IMPLEMENTATION
+#endif
 #include "tiny_obj_loader.h"
+// std
+#include <sstream>
 
 namespace tsd {
 

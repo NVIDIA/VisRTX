@@ -25,6 +25,7 @@ enum class ImporterType
   HDRI,
   VOLUME,
   TSD,
+  STAGE,
   SWC,
   PDB,
   XYZDP,

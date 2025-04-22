@@ -122,6 +122,8 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::PLY;
     else if (arg == "-volume")
       importerType = ImporterType::VOLUME;
+    else if (arg == "-stage")
+      importerType = ImporterType::STAGE;
     else if (arg == "-swc")
       importerType = ImporterType::SWC;
     else if (arg == "-pdb")
@@ -167,6 +169,8 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_NBODY(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::HDRI)
         tsd::import_HDRI(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::STAGE)
+        tsd::import_STAGE(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::SWC)
         tsd::import_SWC(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::PDB)

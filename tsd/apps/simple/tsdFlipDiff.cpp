@@ -9,6 +9,9 @@
 #include <cstdio>
 #include <vector>
 // stb_image
+#if TSD_USE_STAGE
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
 #include "tsd_stb/stb_image_write.h"
 // FLIP
 #include <FLIP.h>

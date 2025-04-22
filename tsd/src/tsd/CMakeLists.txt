@@ -25,6 +25,7 @@ PRIVATE
   authoring/importers/import_PDB.cpp
   authoring/importers/import_PLY.cpp
   authoring/importers/import_RAW.cpp
+  authoring/importers/import_STAGE.cpp
   authoring/importers/import_SWC.cpp
   authoring/importers/import_volume.cpp
   authoring/importers/import_XYZDP.cpp
@@ -131,4 +132,13 @@ if (TSD_USE_ASSIMP)
   project_link_libraries(PRIVATE assimp::assimp)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=0)
+endif()
+
+if (TSD_USE_STAGE)
+  find_package(TBB REQUIRED)
+  find_package(stage REQUIRED)
+  project_compile_definitions(PRIVATE -DTSD_USE_STAGE=1)
+  project_link_libraries(PRIVATE stage)
+else()
+  project_compile_definitions(PRIVATE -DTSD_USE_STAGE=0)
 endif()

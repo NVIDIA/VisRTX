@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.21)
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_LIST_DIR)
   message(STATUS "CMake version: ${CMAKE_VERSION}")
-  set(ANARI_REQUIRED_VERSION 0.11.0)
+  set(ANARI_REQUIRED_VERSION 0.13.1)
 endif()
 
 ## CMake setup ##
@@ -31,9 +31,10 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 option(BUILD_INTERACTIVE_APPS "Build interactive applications" ON)
 option(TSD_ENABLE_SERIALIZATION "Use conduit to serialize contexts" OFF)
-option(TSD_USE_HDF5 "Support loading AMR grids from HDF5" OFF)
 option(TSD_USE_ASSIMP "Support loading geometry with libassimp" OFF)
+option(TSD_USE_HDF5 "Support loading AMR grids from HDF5" OFF)
 option(TSD_USE_OPENGL "Use OpenGL interop in render pipeline" ON)
+option(TSD_USE_STAGE "Support loading geometry with the 'stage' library" OFF)
 option(TSD_USE_TBB "Use TBB code paths where relevant" ON)
 
 if (APPLE)

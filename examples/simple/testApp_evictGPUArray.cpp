@@ -45,7 +45,9 @@
 #include <random>
 #include <utility>
 // stb_image
+#if TSD_USE_STAGE
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#endif
 #include "stb_image_write.h"
 
 // These aliases function as our vec types, which the header above enables
