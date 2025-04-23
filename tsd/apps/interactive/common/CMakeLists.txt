@@ -8,10 +8,11 @@ project_add_library(OBJECT)
 project_sources(PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/modals/AppSettings.cpp
   ${CMAKE_CURRENT_LIST_DIR}/modals/ImportFileDialog.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/windows/DatabaseEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/IsosurfaceEditor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/windows/LayerTree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/Log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/ObjectEditor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/windows/LayerTree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/TransferFunctionEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/Viewport.cpp
   ${CMAKE_CURRENT_LIST_DIR}/AppCore.cpp
