@@ -11,9 +11,9 @@ namespace tsd_viewer {
 
 struct ImportFileDialog;
 
-struct ObjectTree : public anari_viewer::windows::Window
+struct LayerTree : public anari_viewer::windows::Window
 {
-  ObjectTree(AppCore *state, const char *name = "Object Tree");
+  LayerTree(AppCore *state, const char *name = "Layers");
   void buildUI() override;
 
  private:

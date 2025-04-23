@@ -5,7 +5,7 @@
 #include "windows/DatabaseEditor.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
-#include "windows/ObjectTree.h"
+#include "windows/LayerTree.h"
 #include "windows/Viewport.h"
 // std
 #include <chrono>
@@ -30,7 +30,7 @@ class Application : public BaseApplication
     viewport2->hide();
     auto *dbeditor = new DatabaseEditor(core);
     auto *oeditor = new ObjectEditor(core);
-    auto *otree = new ObjectTree(core);
+    auto *otree = new LayerTree(core);
 
     windows.emplace_back(viewport);
     windows.emplace_back(viewport2);
@@ -104,7 +104,7 @@ Size=549,438
 Collapsed=0
 DockId=0x00000004,1
 
-[Window][Object Tree]
+[Window][Layers]
 Pos=0,25
 Size=549,434
 Collapsed=0

@@ -1,7 +1,7 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "ObjectTree.h"
+#include "LayerTree.h"
 #include "tsd_ui.h"
 
 #include "../modals/ImportFileDialog.h"
@@ -11,13 +11,13 @@ namespace tsd_viewer {
 static ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow
     | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth;
 
-// ObjectTree definitions /////////////////////////////////////////////////////
+// LayerTree definitions /////////////////////////////////////////////////////
 
-ObjectTree::ObjectTree(AppCore *state, const char *name)
+LayerTree::LayerTree(AppCore *state, const char *name)
     : anari_viewer::windows::Window(name, true), m_core(state)
 {}
 
-void ObjectTree::buildUI()
+void LayerTree::buildUI()
 {
   if (!m_core->tsd.sceneLoadComplete) {
     ImGui::Text("PLEASE WAIT...LOADING SCENE");
@@ -162,7 +162,7 @@ void ObjectTree::buildUI()
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
       m_menuVisible = true;
       m_menuNode = m_hoveredNode;
-      ImGui::OpenPopup("ObjectTree_contextMenu");
+      ImGui::OpenPopup("LayerTree_contextMenu");
     } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
         && m_hoveredNode == tsd::INVALID_INDEX) {
       m_core->clearSelected();
@@ -172,7 +172,7 @@ void ObjectTree::buildUI()
   buildUI_objectContextMenu();
 }
 
-void ObjectTree::buildUI_objectContextMenu()
+void LayerTree::buildUI_objectContextMenu()
 {
   auto &ctx = m_core->tsd.ctx;
   auto &tree = *ctx.defaultLayer();
@@ -181,7 +181,7 @@ void ObjectTree::buildUI_objectContextMenu()
 
   bool clearSelectedNode = false;
 
-  if (ImGui::BeginPopup("ObjectTree_contextMenu")) {
+  if (ImGui::BeginPopup("LayerTree_contextMenu")) {
     if (nodeSelected && ImGui::Checkbox("visible", &(*menuNode)->enabled))
       ctx.signalLayerChange();
 
@@ -311,7 +311,7 @@ void ObjectTree::buildUI_objectContextMenu()
     }
   }
 
-  if (!ImGui::IsPopupOpen("ObjectTree_contextMenu"))
+  if (!ImGui::IsPopupOpen("LayerTree_contextMenu"))
     m_menuVisible = false;
 }
 

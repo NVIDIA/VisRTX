@@ -4,7 +4,7 @@
 #include "BaseApplication.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
-#include "windows/ObjectTree.h"
+#include "windows/LayerTree.h"
 #include "windows/Viewport.h"
 // std
 #include <vector>
@@ -29,7 +29,7 @@ class Application : public BaseApplication
     auto *viewport2 = new Viewport(core, manipulator, "Secondary View");
     viewport2->hide();
     auto *oeditor = new ObjectEditor(core);
-    auto *otree = new ObjectTree(core);
+    auto *otree = new LayerTree(core);
 
     windows.emplace_back(viewport);
     windows.emplace_back(viewport2);
@@ -110,7 +110,7 @@ Pos=60,60
 Size=400,400
 Collapsed=0
 
-[Window][Object Tree]
+[Window][Layers]
 Pos=0,25
 Size=548,347
 Collapsed=0

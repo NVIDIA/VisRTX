@@ -5,7 +5,7 @@
 #include "windows/IsosurfaceEditor.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
-#include "windows/ObjectTree.h"
+#include "windows/LayerTree.h"
 #include "windows/TransferFunctionEditor.h"
 #include "windows/Viewport.h"
 // std
@@ -35,7 +35,7 @@ class Application : public BaseApplication
     auto *viewport2 = new Viewport(core, manipulator, "Secondary View");
     viewport2->hide();
     auto *oeditor = new ObjectEditor(core);
-    auto *otree = new ObjectTree(core);
+    auto *otree = new LayerTree(core);
     auto *tfeditor = new TransferFunctionEditor(core);
     auto *isoeditor = new IsosurfaceEditor(core);
     auto *solver = new SolverControls(core);
@@ -146,7 +146,7 @@ Pos=60,60
 Size=400,400
 Collapsed=0
 
-[Window][Object Tree]
+[Window][Layers]
 Pos=0,268
 Size=548,348
 Collapsed=0

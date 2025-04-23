@@ -5,7 +5,7 @@
 #include "windows/IsosurfaceEditor.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
-#include "windows/ObjectTree.h"
+#include "windows/LayerTree.h"
 #include "windows/TransferFunctionEditor.h"
 #include "windows/Viewport.h"
 // std
@@ -35,7 +35,7 @@ class Application : public BaseApplication
     auto *viewport2 = new Viewport(core, manipulator, "Secondary View");
     viewport2->hide();
     auto *oeditor = new ObjectEditor(core);
-    auto *otree = new ObjectTree(core);
+    auto *otree = new LayerTree(core);
     auto *solver = new SimulationControls(core);
 
     windows.emplace_back(viewport);
@@ -136,7 +136,7 @@ Size=591,338
 Collapsed=0
 DockId=0x00000006,0
 
-[Window][Object Tree]
+[Window][Layers]
 Pos=0,442
 Size=591,298
 Collapsed=0

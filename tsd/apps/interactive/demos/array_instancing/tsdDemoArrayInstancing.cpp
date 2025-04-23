@@ -76,7 +76,7 @@ Pos=60,60
 Size=400,400
 Collapsed=0
 
-[Window][Object Tree]
+[Window][Layers]
 Pos=0,25
 Size=548,347
 Collapsed=0
