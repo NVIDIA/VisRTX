@@ -252,7 +252,7 @@ tsd::RenderIndex *AppCore::acquireRenderIndex(anari::Device d)
   auto &liveIdx = this->anari.rIdxs[d];
   if (liveIdx.refCount == 0) {
 #if 1
-    liveIdx.idx = anari.delegate.emplace<tsd::RenderIndexTreeHierarchy>(d);
+    liveIdx.idx = anari.delegate.emplace<tsd::RenderIndexAllLayers>(d);
 #else
     liveIdx.idx = anari.delegate.emplace<tsd::RenderIndexFlatRegistry>(d);
 #endif
@@ -291,7 +291,8 @@ void AppCore::setSelectedObject(tsd::Object *o)
 void AppCore::setSelectedNode(tsd::LayerNode &n)
 {
   setSelectedObject(tsd.ctx.getObject(n->value));
-  tsd.selectedNode = tsd.ctx.defaultLayer()->at(n.index());
+  auto *layer = n.container();
+  tsd.selectedNode = layer->at(n.index());
 }
 
 bool AppCore::objectIsSelected() const

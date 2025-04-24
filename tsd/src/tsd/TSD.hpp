@@ -11,4 +11,4 @@
 #include "authoring/serialization.hpp"
 
 #include "rendering/RenderIndexFlatRegistry.hpp"
-#include "rendering/RenderIndexTreeHierarchy.hpp"
+#include "rendering/RenderIndexAllLayers.hpp"

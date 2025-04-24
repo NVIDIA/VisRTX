@@ -3,15 +3,16 @@
 
 #pragma once
 
+#include "Layer.hpp"
 // std
 #include <memory>
 #include <vector>
 
 namespace tsd {
 
+struct Array;
 struct Object;
 struct Parameter;
-struct Array;
 
 /// UpdateDelegate interface containing all signals from items in a TSD context
 struct BaseUpdateDelegate
@@ -26,7 +27,9 @@ struct BaseUpdateDelegate
   virtual void signalArrayUnmapped(const Array *a) = 0;
   virtual void signalObjectRemoved(const Object *o) = 0;
   virtual void signalRemoveAllObjects() = 0;
-  virtual void signalLayerChanged() = 0;
+  virtual void signalLayerAdded(const Layer *l) = 0;
+  virtual void signalLayerUpdated(const Layer *l) = 0;
+  virtual void signalLayerRemoved(const Layer *l) = 0;
   virtual void signalObjectFilteringChanged() = 0;
 
   // Not copyable or movable
@@ -49,7 +52,9 @@ struct EmptyUpdateDelegate : public BaseUpdateDelegate
   void signalArrayUnmapped(const Array *) override {}
   void signalObjectRemoved(const Object *) override {}
   void signalRemoveAllObjects() override {}
-  void signalLayerChanged() override {}
+  void signalLayerAdded(const Layer *) override {}
+  void signalLayerUpdated(const Layer *) override {}
+  void signalLayerRemoved(const Layer *) override {}
   void signalObjectFilteringChanged() override {};
 };
 
@@ -74,7 +79,9 @@ struct MultiUpdateDelegate : public BaseUpdateDelegate
   void signalArrayUnmapped(const Array *a) override;
   void signalObjectRemoved(const Object *o) override;
   void signalRemoveAllObjects() override;
-  void signalLayerChanged() override;
+  void signalLayerAdded(const Layer *) override;
+  void signalLayerUpdated(const Layer *) override;
+  void signalLayerRemoved(const Layer *) override;
   void signalObjectFilteringChanged() override;
 
  private:

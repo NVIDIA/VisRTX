@@ -25,14 +25,8 @@ std::string objectDBInfo(const ObjectDatabase &db)
 
 Context::Context()
 {
-  // create default layer -- root must be a matrix
-  m_layers["default"].reset(
-      new Layer({tsd::mat4(tsd::math::identity), "root"}));
-  m_defaultLayer = m_layers.at_index(0).second.get();
-
-  // create default material
-  auto defaultMat = createObject<Material>(tokens::material::matte);
-  defaultMat->setName("default_material");
+  addLayer("default");
+  createObject<Material>(tokens::material::matte)->setName("default_material");
 }
 
 MaterialRef Context::defaultMaterial() const
@@ -42,7 +36,7 @@ MaterialRef Context::defaultMaterial() const
 
 Layer *Context::defaultLayer() const
 {
-  return m_defaultLayer;
+  return layer(0);
 }
 
 ArrayRef Context::createArray(
@@ -202,6 +196,7 @@ void Context::removeAllObjects()
   if (m_updateDelegate)
     m_updateDelegate->signalRemoveAllObjects();
 
+  removeAllSecondaryLayers();
   defaultLayer()->root()->erase_subtree();
 
   m_db.array.clear();
@@ -245,9 +240,51 @@ const ObjectDatabase &Context::objectDB() const
   return m_db;
 }
 
+const LayerMap &Context::layers() const
+{
+  return m_layers;
+}
+
+Layer *Context::layer(size_t i) const
+{
+  return m_layers.at_index(i).second.get();
+}
+
+Layer *Context::addLayer(Token name)
+{
+  auto &l = m_layers[name];
+  if (!l)
+    l.reset(new Layer({tsd::mat4(tsd::math::identity), "root"}));
+  if (m_updateDelegate)
+    m_updateDelegate->signalLayerAdded(l.get());
+  return l.get();
+}
+
+void Context::removeLayer(Token name)
+{
+  if (!m_layers.contains(name))
+    return;
+  if (m_updateDelegate)
+    m_updateDelegate->signalLayerRemoved(m_layers[name].get());
+  m_layers.erase(name);
+}
+
+void Context::removeLayer(const Layer *layer)
+{
+  for (size_t i = 0; i < m_layers.size(); i++) {
+    if (m_layers.at_index(i).second.get() == layer) {
+      if (m_updateDelegate)
+        m_updateDelegate->signalLayerRemoved(m_layers.at_index(i).second.get());
+      m_layers.erase(i);
+      return;
+    }
+  }
+}
+
 LayerNodeRef Context::insertChildNode(LayerNodeRef parent, const char *name)
 {
-  auto inst = defaultLayer()->insert_last_child(parent, tsd::utility::Any{});
+  auto *layer = parent->container();
+  auto inst = layer->insert_last_child(parent, tsd::utility::Any{});
   (*inst)->name = name;
   return inst;
 }
@@ -255,9 +292,10 @@ LayerNodeRef Context::insertChildNode(LayerNodeRef parent, const char *name)
 LayerNodeRef Context::insertChildTransformNode(
     LayerNodeRef parent, mat4 xfm, const char *name)
 {
-  auto inst = defaultLayer()->insert_last_child(parent, tsd::utility::Any{xfm});
+  auto *layer = parent->container();
+  auto inst = layer->insert_last_child(parent, tsd::utility::Any{xfm});
   (*inst)->name = name;
-  signalLayerChange();
+  signalLayerChange(parent->container());
   return inst;
 }
 
@@ -266,7 +304,7 @@ LayerNodeRef Context::insertChildObjectNode(
 {
   auto inst = parent->insert_last_child(tsd::utility::Any{type, idx});
   (*inst)->name = name;
-  signalLayerChange();
+  signalLayerChange(parent->container());
   return inst;
 }
 
@@ -276,12 +314,14 @@ void Context::removeInstancedObject(
   if (obj->isRoot())
     return;
 
+  auto *layer = obj->container();
+
   if (deleteReferencedObjects) {
     std::vector<LayerNodeRef> objects;
 
-    defaultLayer()->traverse(obj, [&](auto &node, int level) {
+    layer->traverse(obj, [&](auto &node, int level) {
       if (node.isLeaf())
-        objects.push_back(defaultLayer()->at(node.index()));
+        objects.push_back(layer->at(node.index()));
       return true;
     });
 
@@ -289,14 +329,24 @@ void Context::removeInstancedObject(
       removeObject(o->value().value);
   }
 
-  defaultLayer()->erase(obj);
-  signalLayerChange();
+  layer->erase(obj);
+  signalLayerChange(layer);
 }
 
-void Context::signalLayerChange()
+void Context::signalLayerChange(const Layer *l)
 {
   if (m_updateDelegate)
-    m_updateDelegate->signalLayerChanged();
+    m_updateDelegate->signalLayerUpdated(l);
+}
+
+void Context::removeAllSecondaryLayers()
+{
+  for (auto itr = m_layers.begin() + 1; itr != m_layers.end(); itr++) {
+    if (m_updateDelegate)
+      m_updateDelegate->signalLayerUpdated(itr->second.get());
+  }
+
+  m_layers.shrink(1);
 }
 
 ArrayRef Context::createArrayImpl(anari::DataType type,

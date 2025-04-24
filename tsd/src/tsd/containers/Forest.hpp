@@ -33,6 +33,8 @@ struct ForestNode
   bool isRoot() const;
   bool isLeaf() const;
 
+  Forest<T> *container() const;
+
   Ref next() const;
   Ref sibling() const;
   Ref prev() const;
@@ -146,7 +148,7 @@ struct Forest
 // ForestNode<> //
 
 template <typename T>
-inline ForestNode<T>::ForestNode(T v,  Forest<T> *f) : m_value(v), m_forest(f)
+inline ForestNode<T>::ForestNode(T v, Forest<T> *f) : m_value(v), m_forest(f)
 {}
 
 template <typename T>
@@ -201,6 +203,12 @@ template <typename T>
 inline bool ForestNode<T>::isLeaf() const
 {
   return *this && m_children_begin == self() && m_children_end == self();
+}
+
+template <typename T>
+Forest<T> *ForestNode<T>::container() const
+{
+  return m_forest;
 }
 
 template <typename T>

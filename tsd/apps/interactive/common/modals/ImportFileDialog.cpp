@@ -76,9 +76,10 @@ void ImportFileDialog::buildUI()
 
   if (ImGui::Button("import")) {
     auto &ctx = m_core->tsd.ctx;
+    auto *layer = m_core->tsd.ctx.defaultLayer();
     auto importRoot = m_core->tsd.selectedNode;
     if (!importRoot)
-      importRoot = m_core->tsd.ctx.defaultLayer()->root();
+      importRoot = layer->root();
 
     auto selectedFileType =
         static_cast<tsd_viewer::ImporterType>(m_selectedFileType);
@@ -100,7 +101,7 @@ void ImportFileDialog::buildUI()
       tsd::import_SWC(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::PDB)
       tsd::import_PDB(ctx, m_filename.c_str(), importRoot);
-    ctx.signalLayerChange();
+    ctx.signalLayerChange(layer);
 
     this->hide();
   }

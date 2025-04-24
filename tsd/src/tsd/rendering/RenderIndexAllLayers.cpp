@@ -1,12 +1,22 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/rendering/RenderIndexTreeHierarchy.hpp"
+#include "tsd/rendering/RenderIndexAllLayers.hpp"
 // std
 #include <algorithm>
+#include <iterator>
 #include <stack>
 
 namespace tsd {
+
+// Helper functions ///////////////////////////////////////////////////////////
+
+static void releaseInstances(
+    anari::Device d, const std::vector<anari::Instance> &instances)
+{
+  for (auto i : instances)
+    anari::release(d, i);
+}
 
 // Helper types ///////////////////////////////////////////////////////////////
 
@@ -14,14 +24,13 @@ struct RenderToAnariObjectsVisitor : public LayerVisitor
 {
   RenderToAnariObjectsVisitor(anari::Device d,
       AnariObjectCache &oc,
+      std::vector<anari::Instance> *instances,
       Context *ctx,
       RenderIndexFilterFcn *f = nullptr);
   ~RenderToAnariObjectsVisitor();
 
   bool preChildren(LayerNode &n, int level) override;
   void postChildren(LayerNode &n, int level) override;
-
-  void populateWorld(anari::World w);
 
  private:
   bool isIncludedAfterFiltering(const LayerNode &n) const;
@@ -36,7 +45,7 @@ struct RenderToAnariObjectsVisitor : public LayerVisitor
 
   anari::Device m_device{nullptr};
   AnariObjectCache *m_cache{nullptr};
-  std::vector<anari::Instance> m_instances;
+  std::vector<anari::Instance> *m_instances{nullptr};
   std::stack<tsd::mat4> m_xfms;
   std::stack<GroupedObjects> m_objects;
   const Array *m_xfmArray{nullptr};
@@ -48,9 +57,10 @@ struct RenderToAnariObjectsVisitor : public LayerVisitor
 
 inline RenderToAnariObjectsVisitor::RenderToAnariObjectsVisitor(anari::Device d,
     AnariObjectCache &oc,
+    std::vector<anari::Instance> *instances,
     Context *ctx,
     RenderIndexFilterFcn *f)
-    : m_device(d), m_cache(&oc), m_ctx(ctx), m_filter(f)
+    : m_device(d), m_cache(&oc), m_instances(instances), m_ctx(ctx), m_filter(f)
 {
   anari::retain(d, d);
   m_xfms.emplace(tsd::math::identity);
@@ -131,7 +141,7 @@ inline void RenderToAnariObjectsVisitor::postChildren(LayerNode &n, int level)
       //   TODO: Put setting TSD object parameters on an ANARI handle in a
       //         common spot for here + base Object updates physically the same.
       //
-      anari::Instance inst = m_instances.back();
+      anari::Instance inst = m_instances->back();
       for (auto &p : n->customParameters) {
         if (!p.second.holdsObject())
           continue;
@@ -150,20 +160,6 @@ inline void RenderToAnariObjectsVisitor::postChildren(LayerNode &n, int level)
     // no-op
     break;
   }
-}
-
-inline void RenderToAnariObjectsVisitor::populateWorld(anari::World w)
-{
-  if (m_instances.empty())
-    anari::unsetParameter(m_device, w, "instance");
-  else {
-    anari::setParameterArray1D(
-        m_device, w, "instance", m_instances.data(), m_instances.size());
-  }
-
-  for (auto i : m_instances)
-    anari::release(m_device, i);
-  m_instances.clear();
 }
 
 bool RenderToAnariObjectsVisitor::isIncludedAfterFiltering(
@@ -247,56 +243,111 @@ inline void RenderToAnariObjectsVisitor::createInstanceFromTop()
   }
   anari::setParameter(m_device, instance, "group", group);
   anari::commitParameters(m_device, instance);
-  m_instances.push_back(instance);
+  m_instances->push_back(instance);
 
   anari::release(m_device, group);
 }
 
-// RenderIndexTreeHierarchy definitions ///////////////////////////////////////
+// RenderIndexAllLayers definitions ///////////////////////////////////////////
 
-RenderIndexTreeHierarchy::RenderIndexTreeHierarchy(anari::Device d)
-    : RenderIndex(d)
-{}
+RenderIndexAllLayers::RenderIndexAllLayers(anari::Device d) : RenderIndex(d) {}
 
-RenderIndexTreeHierarchy::~RenderIndexTreeHierarchy() = default;
-
-void RenderIndexTreeHierarchy::setFilterFunction(RenderIndexFilterFcn f)
+RenderIndexAllLayers::~RenderIndexAllLayers()
 {
-  m_filter = f;
-  signalLayerChanged();
+  releaseAllInstances();
 }
 
-void RenderIndexTreeHierarchy::signalArrayUnmapped(const Array *a)
+void RenderIndexAllLayers::setFilterFunction(RenderIndexFilterFcn f)
+{
+  m_filter = f;
+  m_filterForceUpdate = true;
+  signalObjectFilteringChanged();
+}
+
+void RenderIndexAllLayers::signalArrayUnmapped(const Array *a)
 {
   RenderIndex::signalArrayUnmapped(a);
   if (a->elementType() == ANARI_FLOAT32_MAT4)
-    signalLayerChanged();
-}
-
-void RenderIndexTreeHierarchy::signalLayerChanged()
-{
-  updateWorld();
-}
-
-void RenderIndexTreeHierarchy::signalObjectFilteringChanged()
-{
-  if (m_filter)
     updateWorld();
 }
 
-void RenderIndexTreeHierarchy::updateWorld()
+void RenderIndexAllLayers::signalLayerAdded(const Layer *l)
+{
+  syncLayerInstances(l);
+  updateWorld();
+}
+
+void RenderIndexAllLayers::signalLayerUpdated(const Layer *l)
+{
+  syncLayerInstances(l);
+  updateWorld();
+}
+
+void RenderIndexAllLayers::signalLayerRemoved(const Layer *l)
+{
+  releaseInstances(device(), m_instanceCache[l]);
+  m_instanceCache.erase(l);
+  updateWorld();
+}
+
+void RenderIndexAllLayers::signalObjectFilteringChanged()
+{
+  if (m_filter || m_filterForceUpdate) {
+    releaseAllInstances();
+    updateWorld();
+    m_filterForceUpdate = false;
+  }
+}
+
+void RenderIndexAllLayers::updateWorld()
 {
   auto d = device();
   auto w = world();
 
-  auto layer = m_ctx->defaultLayer();
+  if (m_instanceCache.empty()) {
+    for (auto &l : m_ctx->layers())
+      syncLayerInstances(l.second.get());
+  }
 
-  RenderToAnariObjectsVisitor visitor(
-      d, m_cache, m_ctx, m_filter ? &m_filter : nullptr);
-  layer->traverse(layer->root(), visitor);
-  visitor.populateWorld(w);
+  std::vector<anari::Instance> instances;
+  instances.reserve(2000);
+
+  for (auto &i : m_instanceCache)
+    std::copy(i.second.begin(), i.second.end(), std::back_inserter(instances));
+
+  if (instances.empty())
+    anari::unsetParameter(d, w, "instance");
+  else {
+    anari::setParameterArray1D(
+        d, w, "instance", instances.data(), instances.size());
+  }
 
   anari::commitParameters(d, w);
+}
+
+void RenderIndexAllLayers::syncLayerInstances(const Layer *_layer)
+{
+  auto d = device();
+
+  std::vector<anari::Instance> instances;
+  instances.reserve(100);
+
+  auto *layer = const_cast<Layer *>(_layer);
+
+  RenderToAnariObjectsVisitor visitor(
+      d, m_cache, &instances, m_ctx, m_filter ? &m_filter : nullptr);
+  layer->traverse(layer->root(), visitor);
+
+  auto &cached = m_instanceCache[layer];
+  releaseInstances(d, cached);
+  cached = instances;
+}
+
+void RenderIndexAllLayers::releaseAllInstances()
+{
+  for (auto &i : m_instanceCache)
+    releaseInstances(device(), i.second);
+  m_instanceCache.clear();
 }
 
 } // namespace tsd

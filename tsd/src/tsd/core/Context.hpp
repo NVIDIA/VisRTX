@@ -47,6 +47,8 @@ std::string objectDBInfo(const ObjectDatabase &db);
 // Main TSD Context ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+using LayerMap = FlatMap<Token, std::shared_ptr<Layer>>;
+
 struct Context
 {
   Context();
@@ -96,6 +98,14 @@ struct Context
   // Instanced objects (surfaces, volumes, and lights) //
   ///////////////////////////////////////////////////////
 
+  // Layers //
+
+  const LayerMap &layers() const;
+  Layer *layer(size_t i) const;
+  Layer *addLayer(Token name);
+  void removeLayer(Token name);
+  void removeLayer(const Layer *layer);
+
   // Insert nodes //
 
   LayerNodeRef insertChildNode(LayerNodeRef parent, const char *name = "");
@@ -124,9 +134,11 @@ struct Context
 
   // Indicate changes occurred //
 
-  void signalLayerChange();
+  void signalLayerChange(const Layer *l);
 
  private:
+  void removeAllSecondaryLayers();
+
   friend void save_Context(Context &ctx, const char *filename);
   friend void import_Context(Context &ctx, const char *filename);
 
@@ -144,8 +156,7 @@ struct Context
 
   ObjectDatabase m_db;
   BaseUpdateDelegate *m_updateDelegate{nullptr};
-  FlatMap<std::string, std::unique_ptr<Layer>> m_layers;
-  Layer *m_defaultLayer{nullptr};
+  LayerMap m_layers;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

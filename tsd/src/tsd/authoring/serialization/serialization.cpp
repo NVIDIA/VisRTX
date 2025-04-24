@@ -335,8 +335,11 @@ void save_Context(Context &ctx, const char *filename)
 #if TSD_ENABLE_SERIALIZATION
   conduit::Node root;
 
-  auto &layer = root["objectTree"];
-  layerToConduit(*ctx.defaultLayer(), layer);
+  auto &layersRoot = root["layers"];
+  for (auto l : ctx.layers()) {
+    if (l.second)
+      layerToConduit(*l.second, layersRoot[l.first.c_str()]);
+  }
 
   auto &objectDB = root["objectDB"];
   auto objectArrayToConduit =
@@ -374,6 +377,7 @@ void import_Context(Context &ctx, const char *filename)
   // Clear out any existing context contents //
 
   ctx.removeAllObjects();
+  ctx.removeAllSecondaryLayers();
   ctx.defaultLayer()->root()->erase_subtree();
 
   // Load from the conduit file (objects then layer) //
@@ -400,6 +404,14 @@ void import_Context(Context &ctx, const char *filename)
   auto &v1LayerRoot = root["objectTree"];
   if (v1LayerRoot.number_of_children() > 0)
     conduitToLayer(v1LayerRoot, *ctx.defaultLayer());
+  else {
+    auto &v2LayerRoot = root["layers"];
+    for (size_t i = 0; i < v2LayerRoot.number_of_children(); i++) {
+      auto &cLayer = v2LayerRoot.child(i);
+      auto &tLayer = *ctx.addLayer(cLayer.name().c_str());
+      conduitToLayer(cLayer, tLayer);
+    }
+  }
 #else
   logError("[import_Context] serialization not enabled in TSD build.");
 #endif

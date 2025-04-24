@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -49,12 +50,18 @@ struct FlatMap
 
   bool contains(const KEY &key) const;
 
+  std::optional<size_t> indexOfKey(const KEY &key) const;
+  std::optional<size_t> indexOfFirstValue(const VALUE &value) const;
+  std::optional<KEY> keyOfFirstValue(const VALUE &value) const;
+
   // Storage mutation //
 
   void erase(const KEY &key);
+  void erase(size_t index);
 
   void clear();
   void reserve(size_t size);
+  void shrink(size_t newSize);
 
   // Iterators //
 
@@ -159,6 +166,40 @@ inline bool FlatMap<KEY, VALUE>::contains(const KEY &key) const
 }
 
 template <typename KEY, typename VALUE>
+inline std::optional<size_t> FlatMap<KEY, VALUE>::indexOfKey(
+    const KEY &key) const
+{
+  std::optional<size_t> idx;
+  for (size_t i = 0; !idx && i < values.size(); i++) {
+    if (values[i].first == key)
+      idx = i;
+  }
+  return idx;
+}
+
+template <typename KEY, typename VALUE>
+inline std::optional<size_t> FlatMap<KEY, VALUE>::indexOfFirstValue(
+    const VALUE &value) const
+{
+  std::optional<size_t> idx;
+  for (size_t i = 0; !idx && i < values.size(); i++) {
+    if (values[i].second == value)
+      idx = i;
+  }
+  return idx;
+}
+
+template <typename KEY, typename VALUE>
+inline std::optional<KEY> FlatMap<KEY, VALUE>::keyOfFirstValue(
+    const VALUE &value) const
+{
+  std::optional<KEY> retval;
+  if (auto idx = indexOfFirstValue(value); idx)
+    retval = at_index(*idx).first;
+  return retval;
+}
+
+template <typename KEY, typename VALUE>
 inline void FlatMap<KEY, VALUE>::erase(const KEY &key)
 {
   auto itr = std::stable_partition(values.begin(),
@@ -166,6 +207,14 @@ inline void FlatMap<KEY, VALUE>::erase(const KEY &key)
       [&](const item_t &i) { return i.first != key; });
 
   values.resize(std::distance(values.begin(), itr));
+}
+
+template <typename KEY, typename VALUE>
+inline void FlatMap<KEY, VALUE>::erase(size_t index)
+{
+  if (index >= values.size())
+    return;
+  values.erase(values.begin() + index);
 }
 
 template <typename KEY, typename VALUE>
@@ -178,6 +227,14 @@ template <typename KEY, typename VALUE>
 inline void FlatMap<KEY, VALUE>::reserve(size_t size)
 {
   return values.reserve(size);
+}
+
+template <typename KEY, typename VALUE>
+inline void FlatMap<KEY, VALUE>::shrink(size_t newSize)
+{
+  if (newSize >= values.size())
+    return;
+  values.resize(newSize);
 }
 
 // Iterators //

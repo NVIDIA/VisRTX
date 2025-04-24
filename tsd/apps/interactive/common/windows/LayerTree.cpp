@@ -3,13 +3,23 @@
 
 #include "LayerTree.h"
 #include "tsd_ui.h"
+// imgui
+#include <misc/cpp/imgui_stdlib.h>
+// glfw
+#include <GLFW/glfw3.h>
 
 #include "../modals/ImportFileDialog.h"
 
 namespace tsd_viewer {
 
-static ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow
-    | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth;
+static std::string s_newLayerName;
+
+static bool UI_layerName_callback(void *l, int index, const char **out_text)
+{
+  const auto &layers = *(const tsd::LayerMap *)l;
+  *out_text = layers.at_index(index).first.c_str();
+  return true;
+}
 
 // LayerTree definitions /////////////////////////////////////////////////////
 
@@ -24,15 +34,52 @@ void LayerTree::buildUI()
     return;
   }
 
-  auto &ctx = m_core->tsd.ctx;
-  auto &tree = *ctx.defaultLayer();
+  buildUI_layerHeader();
+  ImGui::Separator();
+  buildUI_tree();
+  buildUI_activateObjectContextMenu();
+  buildUI_buildObjectContextMenu();
+  buildUI_buildNewLayerContextMenu();
+}
 
-  if (ImGui::Button("clear scene")) {
+void LayerTree::buildUI_layerHeader()
+{
+  auto &ctx = m_core->tsd.ctx;
+  const auto &layers = ctx.layers();
+
+  ImGui::SetNextItemWidth(-1.0f);
+  ImGui::Combo("##layer",
+      &m_layerIdx,
+      UI_layerName_callback,
+      (void *)&layers,
+      layers.size());
+
+  if (ImGui::Button("clear")) {
     m_core->clearSelected();
     m_core->tsd.ctx.removeAllObjects();
   }
 
-  ImGui::Separator();
+  ImGui::SameLine();
+
+  if (ImGui::Button("new")) {
+    s_newLayerName.clear();
+    ImGui::OpenPopup("LayerTree_contextMenu_newLayer");
+  }
+
+  ImGui::SameLine();
+
+  ImGui::BeginDisabled(m_layerIdx == 0);
+  if (ImGui::Button("delete")) {
+    ctx.removeLayer(layers.at_index(m_layerIdx).first);
+    m_layerIdx--;
+  }
+  ImGui::EndDisabled();
+}
+
+void LayerTree::buildUI_tree()
+{
+  auto &ctx = m_core->tsd.ctx;
+  auto &layer = *ctx.layer(m_layerIdx);
 
   if (!m_menuVisible)
     m_menuNode = tsd::INVALID_INDEX;
@@ -48,7 +95,7 @@ void LayerTree::buildUI()
     // to track if children are also disabled:
     const void *firstDisabledNode = nullptr;
 
-    m_needToTreePop.resize(tree.size());
+    m_needToTreePop.resize(layer.size());
     auto onNodeEntryBuildUI = [&](auto &node, int level) {
       if (level == 0)
         return true;
@@ -56,7 +103,9 @@ void LayerTree::buildUI()
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(0);
 
-      ImGuiTreeNodeFlags node_flags = base_flags;
+      ImGuiTreeNodeFlags node_flags = ImGuiTreeNodeFlags_OpenOnArrow
+          | ImGuiTreeNodeFlags_OpenOnDoubleClick
+          | ImGuiTreeNodeFlags_SpanAvailWidth;
 
       tsd::Object *obj = ctx.getObject(node->value);
 
@@ -141,7 +190,6 @@ void LayerTree::buildUI()
       return open;
     };
 
-    int nodeIndex = 0;
     auto onNodeExitTreePop = [&](auto &node, int level) {
       if (level == 0)
         return;
@@ -153,37 +201,38 @@ void LayerTree::buildUI()
         ImGui::TreePop();
     };
 
-    tree.traverse(tree.root(), onNodeEntryBuildUI, onNodeExitTreePop);
+    layer.traverse(layer.root(), onNodeEntryBuildUI, onNodeExitTreePop);
 
     ImGui::EndTable();
   }
+}
 
+void LayerTree::buildUI_activateObjectContextMenu()
+{
   if (ImGui::IsWindowHovered()) {
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
       m_menuVisible = true;
       m_menuNode = m_hoveredNode;
-      ImGui::OpenPopup("LayerTree_contextMenu");
+      ImGui::OpenPopup("LayerTree_contextMenu_object");
     } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
         && m_hoveredNode == tsd::INVALID_INDEX) {
       m_core->clearSelected();
     }
   }
-
-  buildUI_objectContextMenu();
 }
 
-void LayerTree::buildUI_objectContextMenu()
+void LayerTree::buildUI_buildObjectContextMenu()
 {
   auto &ctx = m_core->tsd.ctx;
-  auto &tree = *ctx.defaultLayer();
+  auto &layer = *ctx.layer(m_layerIdx);
   const bool nodeSelected = m_menuNode != tsd::INVALID_INDEX;
-  auto menuNode = nodeSelected ? tree.at(m_menuNode) : tree.root();
+  auto menuNode = nodeSelected ? layer.at(m_menuNode) : layer.root();
 
   bool clearSelectedNode = false;
 
-  if (ImGui::BeginPopup("LayerTree_contextMenu")) {
+  if (ImGui::BeginPopup("LayerTree_contextMenu_object")) {
     if (nodeSelected && ImGui::Checkbox("visible", &(*menuNode)->enabled))
-      ctx.signalLayerChange();
+      ctx.signalLayerChange(&layer);
 
     if (ImGui::BeginMenu("add")) {
       if (ImGui::MenuItem("transform")) {
@@ -200,7 +249,7 @@ void LayerTree::buildUI_objectContextMenu()
 
       ImGui::Separator();
 
-      if (ImGui::BeginMenu("existing")) {
+      if (ImGui::BeginMenu("existing object")) {
 #define OBJECT_UI_MENU_ITEM(text, type)                                        \
   if (ctx.numberOfObjects(type) > 0 && ImGui::BeginMenu(text)) {               \
     if (auto i = tsd::ui::buildUI_objects_menulist(ctx, type);                 \
@@ -294,9 +343,9 @@ void LayerTree::buildUI_objectContextMenu()
     if (nodeSelected) {
       ImGui::Separator();
 
-      if (ImGui::MenuItem("delete")) {
+      if (ImGui::MenuItem("delete selected")) {
         if (m_menuNode != tsd::INVALID_INDEX) {
-          ctx.removeInstancedObject(tree.at(m_menuNode));
+          ctx.removeInstancedObject(layer.at(m_menuNode));
           m_menuNode = tsd::INVALID_INDEX;
           m_core->clearSelected();
         }
@@ -311,8 +360,42 @@ void LayerTree::buildUI_objectContextMenu()
     }
   }
 
-  if (!ImGui::IsPopupOpen("LayerTree_contextMenu"))
+  if (!ImGui::IsPopupOpen("LayerTree_contextMenu_object"))
     m_menuVisible = false;
+}
+
+void LayerTree::buildUI_buildNewLayerContextMenu()
+{
+  if (ImGui::BeginPopup("LayerTree_contextMenu_newLayer")) {
+    ImGui::InputText("layer name", &s_newLayerName);
+
+    ImGui::Separator();
+
+    ImGuiIO &io = ImGui::GetIO();
+    if ((ImGui::Button("ok") || io.KeysDown[GLFW_KEY_ENTER])
+        && !s_newLayerName.empty()) {
+      auto &ctx = m_core->tsd.ctx;
+      tsd::Token layerName = s_newLayerName.c_str();
+      ctx.addLayer(layerName);
+
+      auto &layers = ctx.layers();
+      for (int i = 0; i < int(layers.size()); i++) {
+        if (layers.at_index(i).first == layerName) {
+          m_layerIdx = i;
+          break;
+        }
+      }
+
+      ImGui::CloseCurrentPopup();
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("cancel"))
+      ImGui::CloseCurrentPopup();
+
+    ImGui::EndPopup();
+  }
 }
 
 } // namespace tsd_viewer

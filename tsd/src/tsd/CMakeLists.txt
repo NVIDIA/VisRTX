@@ -55,7 +55,7 @@ PRIVATE
   objects/Volume.cpp
   rendering/RenderIndex.cpp
   rendering/RenderIndexFlatRegistry.cpp
-  rendering/RenderIndexTreeHierarchy.cpp
+  rendering/RenderIndexAllLayers.cpp
 )
 
 project_include_directories(

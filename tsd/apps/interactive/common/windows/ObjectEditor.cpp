@@ -88,7 +88,8 @@ void ObjectEditor::buildUI()
         selectedNode->value = math::mul(math::translation_matrix(tl),
             math::mul(rot, math::scaling_matrix(sc)));
         selectedNode->valueCache["SRT"] = srt;
-        ctx->signalLayerChange();
+        auto *layer = selectedNode.container();
+        ctx->signalLayerChange(layer);
       }
     } else if (!selectedNode->isEmpty()) {
       ImGui::Text(
