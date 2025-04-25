@@ -44,6 +44,7 @@ struct AppCore
     std::vector<std::pair<ImporterType, std::string>> filenames;
     ImporterType importerType{ImporterType::NONE};
     std::vector<std::string> libraryList;
+    std::string secondaryViewportLibrary;
   } commandLine;
 
   struct TSDState

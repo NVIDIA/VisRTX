@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "BaseApplication.h"
+#include "windows/LayerTree.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
-#include "windows/LayerTree.h"
 #include "windows/Viewport.h"
 // std
 #include <vector>
@@ -27,7 +27,8 @@ class Application : public BaseApplication
     auto *log = new Log(core);
     auto *viewport = new Viewport(core, manipulator, "Viewport");
     auto *viewport2 = new Viewport(core, manipulator, "Secondary View");
-    viewport2->hide();
+    if (core->commandLine.secondaryViewportLibrary.empty())
+      viewport2->hide();
     auto *oeditor = new ObjectEditor(core);
     auto *otree = new LayerTree(core);
 
@@ -41,8 +42,8 @@ class Application : public BaseApplication
 
     // Populate scene //
 
-    m_sceneLoadFuture =
-        std::async([viewport = viewport, m = manipulator, core = core]() {
+    m_sceneLoadFuture = std::async(
+        [viewport = viewport, vp2 = viewport2, m = manipulator, core = core]() {
           tsd::generate_material_orb(core->tsd.ctx);
 
           core->setupSceneFromCommandLine(true);
@@ -65,6 +66,8 @@ class Application : public BaseApplication
           core->tsd.sceneLoadComplete = true;
 
           viewport->setLibrary(core->commandLine.libraryList[0], false);
+          if (!core->commandLine.secondaryViewportLibrary.empty())
+            vp2->setLibrary(core->commandLine.secondaryViewportLibrary);
 
           m->setConfig(
               tsd::float3(0.f, 0.136f, 0.f), 0.75f, tsd::float2(330.f, 35.f));

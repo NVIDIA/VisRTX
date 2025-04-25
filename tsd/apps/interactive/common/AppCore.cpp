@@ -103,6 +103,8 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       this->commandLine.enableDebug = true;
     else if (arg == "--trace" || arg == "-t")
       this->commandLine.traceDir = argv[++i];
+    else if (arg == "--secondaryView" || arg == "-sv")
+      this->commandLine.secondaryViewportLibrary = argv[++i];
     else if (arg == "-tsd") {
       importerType = ImporterType::TSD;
       this->commandLine.loadingContext = true;
