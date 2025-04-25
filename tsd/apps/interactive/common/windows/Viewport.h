@@ -34,6 +34,7 @@ struct Viewport : public anari_viewer::windows::Window
   void buildUI() override;
   void setManipulator(manipulators::Orbit *m);
   void resetView(bool resetAzEl = true);
+  void centerView();
   void setLibrary(const std::string &libName, bool doAsync = true);
 
  private:

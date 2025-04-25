@@ -150,7 +150,6 @@ void Viewport::resetView(bool resetAzEl)
     return;
 
   tsd::math::float3 bounds[2] = {{-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}};
-
   if (!anariGetProperty(m_device,
           m_rIdx->world(),
           "bounds",
@@ -166,6 +165,26 @@ void Viewport::resetView(bool resetAzEl)
 
   auto azel = resetAzEl ? tsd::math::float2(0.f, 20.f) : m_arcball->azel();
   m_arcball->setConfig(center, 1.25f * linalg::length(diag), azel);
+  m_cameraToken = 0;
+}
+
+void Viewport::centerView()
+{
+  if (!m_device)
+    return;
+
+  tsd::math::float3 bounds[2] = {{-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}};
+  if (!anariGetProperty(m_device,
+          m_rIdx->world(),
+          "bounds",
+          ANARI_FLOAT32_BOX3,
+          &bounds[0],
+          sizeof(bounds),
+          ANARI_WAIT)) {
+    tsd::logWarning("[viewport] ANARIWorld returned no bounds!");
+  }
+
+  m_arcball->setCenter(0.5f * (bounds[0] + bounds[1]));
   m_cameraToken = 0;
 }
 
@@ -724,8 +743,15 @@ void Viewport::ui_contextMenu()
         resetView();
       }
 
-      if (ImGui::MenuItem("reset view"))
-        resetView();
+      if (ImGui::BeginMenu("reset view")) {
+        if (ImGui::MenuItem("center"))
+          centerView();
+        if (ImGui::MenuItem("dist"))
+          resetView(false);
+        if (ImGui::MenuItem("angle + dist"))
+          resetView(true);
+        ImGui::EndMenu();
+      }
 
       if (ImGui::Checkbox("echo config", &m_echoCameraConfig)
           && m_echoCameraConfig)
