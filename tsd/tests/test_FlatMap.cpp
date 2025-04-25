@@ -102,8 +102,8 @@ SCENARIO("FlatMap interface tests", "[FlatMap]")
 
       THEN("Searching for the key of a value returns the correct key")
       {
-        REQUIRE(fm.keyOfFirstValue(0) == "first");
-        REQUIRE(fm.keyOfFirstValue(1) == "second");
+        REQUIRE(*fm.keyOfFirstValue(1) == "first");
+        REQUIRE(*fm.keyOfFirstValue(2) == "second");
       }
 
       THEN("The map contains the correct key/value at the indices")
