@@ -157,8 +157,8 @@ void readSWCFile(
   m->setParameter("metallic"_t, ANARI_FLOAT32, &metallic);
   m->setParameter("roughness"_t, ANARI_FLOAT32, &roughness);
 
-  const auto swcLocation = ctx.defaultLayer()->insert_first_child(
-      location, tsd::utility::Any(ANARI_GEOMETRY, 1));
+  const auto swcLocation =
+      location->insert_first_child(tsd::utility::Any(ANARI_GEOMETRY, 1));
 
   // Create surfaces for the spheres and cones
   const std::string basename =

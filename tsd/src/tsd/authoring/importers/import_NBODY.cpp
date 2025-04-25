@@ -50,8 +50,9 @@ void import_NBODY(Context &ctx,
   if (scene.points.empty())
     return;
 
-  auto nbody_root = ctx.insertChildNode(
-      location ? location : ctx.defaultLayer()->root(), fileOf(filepath).c_str());
+  auto nbody_root =
+      ctx.insertChildNode(location ? location : ctx.defaultLayer()->root(),
+          fileOf(filepath).c_str());
 
   auto mat = useDefaultMaterial
       ? ctx.getObject<Material>(0)

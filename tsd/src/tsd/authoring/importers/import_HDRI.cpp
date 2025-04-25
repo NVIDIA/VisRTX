@@ -26,7 +26,8 @@ void import_HDRI(Context &ctx, const char *filepath, LayerNodeRef location)
     arr->setData(rgb.data());
 
     auto [inst, hdri] = ctx.insertNewChildObjectNode<tsd::Light>(
-        location ? location : ctx.defaultLayer()->root(), tsd::tokens::light::hdri);
+        location ? location : ctx.defaultLayer()->root(),
+        tsd::tokens::light::hdri);
     hdri->setName(fileOf(filepath).c_str());
     hdri->setParameterObject("radiance"_t, *arr);
   }

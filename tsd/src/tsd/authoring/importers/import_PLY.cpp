@@ -159,8 +159,9 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
 
     // Mesh //
 
-    auto ply_root = ctx.insertChildNode(
-        location ? location : ctx.defaultLayer()->root(), fileOf(filename).c_str());
+    auto ply_root =
+        ctx.insertChildNode(location ? location : ctx.defaultLayer()->root(),
+            fileOf(filename).c_str());
     auto mesh = ctx.createObject<Geometry>(tokens::geometry::triangle);
 
     auto makeArray1DForMesh = [&](Token parameterName,
@@ -202,8 +203,7 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
     mesh->setName((objectName + "_mesh").c_str());
 
     auto surface = ctx.createSurface(objectName.c_str(), mesh, mat);
-    ctx.defaultLayer()->insert_last_child(
-        ply_root, utility::Any(ANARI_SURFACE, surface.index()));
+    ply_root->insert_last_child(utility::Any(ANARI_SURFACE, surface.index()));
 
   } catch (const std::exception &e) {
     std::cerr << "Caught tinyply exception: " << e.what() << std::endl;
