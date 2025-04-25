@@ -26,6 +26,7 @@ struct LayerTree : public anari_viewer::windows::Window
   AppCore *m_core{nullptr};
   size_t m_hoveredNode{tsd::INVALID_INDEX};
   size_t m_menuNode{tsd::INVALID_INDEX};
+  bool m_editingNodeName{false};
   bool m_menuVisible{false};
   std::vector<int> m_needToTreePop;
   int m_layerIdx{0};

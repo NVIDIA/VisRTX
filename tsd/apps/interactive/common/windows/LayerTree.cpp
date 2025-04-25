@@ -234,6 +234,11 @@ void LayerTree::buildUI_buildObjectContextMenu()
     if (nodeSelected && ImGui::Checkbox("visible", &(*menuNode)->enabled))
       ctx.signalLayerChange(&layer);
 
+    if (nodeSelected && ImGui::BeginMenu("rename")) {
+      ImGui::InputText("##edit_node_name", &(*menuNode)->name);
+      ImGui::EndMenu();
+    }
+
     if (ImGui::BeginMenu("add")) {
       if (ImGui::MenuItem("transform")) {
         ctx.insertChildTransformNode(menuNode);
