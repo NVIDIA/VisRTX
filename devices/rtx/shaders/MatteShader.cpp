@@ -33,6 +33,9 @@
 
 namespace visrtx {
 
-ptx_blob MatteShader::ptx() { return {MatteShader_ptx, sizeof(MatteShader_ptx)}; }
+ptx_blob MatteShader::ptx()
+{
+  return {MatteShader_ptx, sizeof(MatteShader_ptx)};
+}
 
 } // namespace visrtx

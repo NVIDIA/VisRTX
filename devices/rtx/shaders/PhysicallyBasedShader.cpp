@@ -33,6 +33,9 @@
 
 namespace visrtx {
 
-ptx_blob PhysicallyBasedShader::ptx() { return {PhysicallyBasedShader_ptx, sizeof(PhysicallyBasedShader_ptx) }; }
+ptx_blob PhysicallyBasedShader::ptx()
+{
+  return {PhysicallyBasedShader_ptx, sizeof(PhysicallyBasedShader_ptx)};
+}
 
 } // namespace visrtx

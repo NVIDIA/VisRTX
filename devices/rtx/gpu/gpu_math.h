@@ -119,7 +119,7 @@ struct VolumeGPUData;
 
 struct SurfaceHit
 {
-  bool foundHit;
+  bool foundHit{false};
   float t;
   vec3 hitpoint;
   vec3 Ng;
@@ -139,7 +139,7 @@ struct SurfaceHit
 
 struct VolumeHit
 {
-  bool foundHit;
+  bool foundHit{false};
   Ray localRay;
   uint32_t lastVolID{~0u};
   uint32_t lastInstID{~0u};
@@ -296,6 +296,11 @@ VISRTX_HOST_DEVICE vec3 xfmVec(const mat4 &m, const vec3 &p)
 VISRTX_HOST_DEVICE vec3 xfmPoint(const mat4 &m, const vec3 &p)
 {
   return mat3(m) * p;
+}
+
+VISRTX_HOST_DEVICE vec3 reflectSpecular(const vec3 &I, const vec3 &N)
+{
+  return I - 2.0f * dot(I, N) * N;
 }
 
 } // namespace visrtx
