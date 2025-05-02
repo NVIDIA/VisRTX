@@ -41,7 +41,8 @@ VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
     const SurfaceHit *hit,
     const vec3 *viewDir,
     const vec3 *lightDir,
-    const vec3 *lightIntensity)
+    const vec3 *lightIntensity,
+    const vec3 *reflectionColor)
 {
   const auto matValues = getMaterialValues(*fd, *md, *hit);
 
@@ -61,7 +62,7 @@ VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
 
   // Metallic materials don't reflect diffusely:
   const vec3 diffuseColor =
-      glm::mix(matValues.baseColor, vec3(0.f), matValues.metallic);
+      glm::mix(matValues.baseColor, *reflectionColor, matValues.metallic);
 
   const vec3 diffuseBRDF =
       (vec3(1.f) - F) * float(M_1_PI) * diffuseColor * fmaxf(0.f, NdotL);

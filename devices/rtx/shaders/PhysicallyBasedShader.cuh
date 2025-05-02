@@ -13,7 +13,8 @@ VISRTX_DEVICE vec4 shadePhysicallyBasedSurface(const FrameGPUData &fd,
     const MaterialGPUData::PhysicallyBased &md,
     const Ray &ray,
     const SurfaceHit &hit,
-    const LightSample &ls)
+    const LightSample &ls,
+    const vec3 &reflectionColor)
 {
   auto viewDir = -ray.dir;
 
@@ -26,7 +27,8 @@ VISRTX_DEVICE vec4 shadePhysicallyBasedSurface(const FrameGPUData &fd,
       &hit,
       &viewDir,
       &ls.dir,
-      &ls.radiance);
+      &ls.radiance,
+      &reflectionColor);
 }
 
 } // namespace visrtx

@@ -38,10 +38,12 @@ VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
     const FrameGPUData *fd,
     const MaterialGPUData::Matte *md,
     const SurfaceHit *hit,
-    const vec3 * /*viewDir*/,
+    const vec3 *viewDir,
     const vec3 * /*lightDir*/,
     const vec3 *lightIntensity)
 {
   const auto matValues = getMaterialValues(*fd, *md, *hit);
-  return {matValues.baseColor * (*lightIntensity), matValues.opacity};
+  const auto f = glm::abs(glm::dot(*viewDir, hit->Ns));
+  const auto c = glm::mix(matValues.baseColor, matValues.baseColor * f, 0.9f);
+  return {c * (*lightIntensity), matValues.opacity};
 }

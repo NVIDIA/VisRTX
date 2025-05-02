@@ -493,7 +493,7 @@ VISRTX_DEVICE MaterialValues getMaterialValues(
 ///////////////////////////////////////////////////////////////////////////////
 
 VISRTX_DEVICE vec4 evalMaterial(const FrameGPUData &fd,
-    const ScreenSample &ss,
+    ScreenSample &ss,
     const MaterialGPUData &md,
     const SurfaceHit &hit,
     const Ray &ray,
@@ -504,7 +504,28 @@ VISRTX_DEVICE vec4 evalMaterial(const FrameGPUData &fd,
     return shadeMatteSurface(fd, md.matte, ray, hit, ls);
   }
   case MaterialType::PHYSICALLYBASED: {
-    return shadePhysicallyBasedSurface(fd, md.physicallyBased, ray, hit, ls);
+    vec3 rc(0.f);
+
+    Ray reflectionRay;
+    reflectionRay.org = hit.hitpoint + (hit.epsilon * hit.Ng);
+    reflectionRay.dir = reflectSpecular(ray.dir, hit.Ns);
+    SurfaceHit reflectionHit;
+    intersectSurface(ss,
+        reflectionRay,
+        0u, // must always be RayType::PRIMARY
+        &reflectionHit,
+        primaryRayOptiXFlags(fd.renderer));
+
+    if (!reflectionHit.foundHit)
+      rc = vec3(getBackground(fd, ss.screen, reflectionRay.dir));
+    else {
+      const auto matValues =
+          getMaterialValues(fd, *reflectionHit.material, reflectionHit);
+      rc = matValues.baseColor;
+    }
+
+    return shadePhysicallyBasedSurface(
+        fd, md.physicallyBased, ray, hit, ls, rc);
   }
   case MaterialType::MDL: {
     return shadeMDLSurface(fd, ss, md.mdl, ray, hit, ls);
