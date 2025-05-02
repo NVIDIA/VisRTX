@@ -98,10 +98,18 @@ find_package(CUDAToolkit 12)
 # OpenGL
 find_package(OpenGL)
 
-# glm (locally included)
-set(glm_DIR ${CMAKE_CURRENT_LIST_DIR}/external/glm/lib/cmake/glm)
-find_package(glm REQUIRED)
+# glm
+find_package(glm QUIET)
+if (TARGET glm::glm)
+  message(STATUS "Found glm: (external) ${glm_DIR}")
+else()
+  # Use locally provided version of glm
+  set(glm_DIR ${CMAKE_CURRENT_LIST_DIR}/external/glm/lib/cmake/glm)
+  find_package(glm REQUIRED)
+  message(STATUS "Found glm: (internal) ${glm_DIR}")
+endif()
 mark_as_advanced(glm_DIR)
+
 add_library(glm_visrtx INTERFACE IMPORTED)
 target_link_libraries(glm_visrtx INTERFACE glm::glm)
 if(WIN32)
