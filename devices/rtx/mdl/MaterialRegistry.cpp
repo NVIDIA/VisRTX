@@ -215,7 +215,7 @@ MaterialRegistry::acquireMaterial(
 
   // Reuse an existing targetCode and its matching ptx generated code if we
   // already have it.
-  if (auto it = m_uuidToIndex.find(uuid); it != cend(m_uuidToIndex)) {
+  if (auto it = m_uuidToIndex.find(uuid); it != std::cend(m_uuidToIndex)) {
     ++m_targetCodes[it->second].refCount;
     return {uuid, argBlockDesc};
   }
@@ -232,15 +232,15 @@ MaterialRegistry::acquireMaterial(
   });
 
   // Find an empty slot if possible
-  auto targetIt = std::find_if(begin(m_targetCodes),
-      end(m_targetCodes),
+  auto targetIt = std::find_if(std::begin(m_targetCodes),
+      std::end(m_targetCodes),
       [](const auto &v) { return v.refCount == 0; });
 
-  if (targetIt == end(m_targetCodes)) {
-    targetIt = m_targetCodes.insert(end(m_targetCodes), {ptxBlob, 1});
+  if (targetIt == std::end(m_targetCodes)) {
+    targetIt = m_targetCodes.insert(std::end(m_targetCodes), {ptxBlob, 1});
   }
 
-  auto targetIndex = std::distance(begin(m_targetCodes), targetIt);
+  auto targetIndex = std::distance(std::begin(m_targetCodes), targetIt);
 
   m_uuidToIndex.insert({uuid, targetIndex});
   m_materialNameToUuid.insert(
@@ -273,7 +273,7 @@ MaterialRegistry::createArgumentBlock(
 
 void MaterialRegistry::releaseMaterial(const Uuid &uuid)
 {
-  if (auto it = m_uuidToIndex.find(uuid); it != end(m_uuidToIndex)) {
+  if (auto it = m_uuidToIndex.find(uuid); it != std::end(m_uuidToIndex)) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_DEBUG,
         "Releasing material with uuid {:04x}-{:04x}-{:04x}-{:04x}",
         uuid.m_id1,

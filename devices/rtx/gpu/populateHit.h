@@ -320,8 +320,8 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   ray::computeNormal(gd, ray::primID(), hit);
 
   const auto &handle = optixGetTransformListHandle(0);
-  const float4 *tW = optixGetInstanceTransformFromHandle(handle);
-  const float4 *tO = optixGetInstanceInverseTransformFromHandle(handle);
+  const ::float4 *tW = optixGetInstanceTransformFromHandle(handle);
+  const ::float4 *tO = optixGetInstanceInverseTransformFromHandle(handle);
 
   hit.objectToWorld[0] = bit_cast<vec4>(tW[0]);
   hit.objectToWorld[1] = bit_cast<vec4>(tW[1]);

@@ -84,7 +84,7 @@ __global__ void computeMaxOpacitiesGPU(float *maxOpacities,
   float maxOpacity = 0.f;
   for (int i = lo; i <= hi; ++i) {
     float tc = (i + .5f) / numColors;
-    maxOpacity = fmaxf(maxOpacity, tex1D<float4>(colorMap, tc).w);
+    maxOpacity = fmaxf(maxOpacity, tex1D<::float4>(colorMap, tc).w);
   }
   maxOpacities[threadID] = maxOpacity;
 }

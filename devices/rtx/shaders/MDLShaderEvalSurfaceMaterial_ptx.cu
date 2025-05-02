@@ -38,27 +38,27 @@ VISRTX_CALLABLE BsdfIsThinWalled mdl_isThinWalled;
 
 namespace visrtx {
 
-VISRTX_DEVICE float4 make_float4(float f)
+VISRTX_DEVICE ::float4 make_float4(float f)
 {
   return ::make_float4(f, f, f, f);
 }
 
-VISRTX_DEVICE float4 make_float4(const vec4 &v)
+VISRTX_DEVICE ::float4 make_float4(const vec4 &v)
 {
   return ::make_float4(v.x, v.y, v.z, v.w);
 }
 
-VISRTX_DEVICE float3 make_float3(float f)
+VISRTX_DEVICE ::float3 make_float3(float f)
 {
   return ::make_float3(f, f, f);
 }
 
-VISRTX_DEVICE float3 make_float3(const vec4 &v)
+VISRTX_DEVICE ::float3 make_float3(const vec4 &v)
 {
   return ::make_float3(v.x, v.y, v.z);
 }
 
-VISRTX_DEVICE float3 make_float3(const vec3 &v)
+VISRTX_DEVICE ::float3 make_float3(const vec3 &v)
 {
   return ::make_float3(v.x, v.y, v.z);
 }
@@ -79,12 +79,12 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
   auto Ng = make_float3(hit->Ng);
 
   auto objectToWorld =
-      bit_cast<const std::array<float4, 3>>(hit->objectToWorld);
+      bit_cast<const std::array<::float4, 3>>(hit->objectToWorld);
   auto worldToObject =
-      bit_cast<const std::array<float4, 3>>(hit->worldToObject);
+      bit_cast<const std::array<::float4, 3>>(hit->worldToObject);
   // The number of texture spaces we support. Matching the number of attributes
   // ANARI exposes (4)
-  auto textureResults = std::array<float4,
+  auto textureResults = std::array<::float4,
       32>{}; // The maximum number of samplers we support. See MDLCompiler.cpp
              // numTextureSpaces and numTextureResults.
   auto textureCoords = std::array{
@@ -94,16 +94,16 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
       make_float3(readAttributeValue(3, *hit)),
   };
   auto textureTangentsU = std::array{
-      float3{1.0f, 0.0f, 0.0f},
-      float3{1.0f, 0.0f, 0.0f},
-      float3{1.0f, 0.0f, 0.0f},
-      float3{1.0f, 0.0f, 0.0f},
+      ::float3{1.0f, 0.0f, 0.0f},
+      ::float3{1.0f, 0.0f, 0.0f},
+      ::float3{1.0f, 0.0f, 0.0f},
+      ::float3{1.0f, 0.0f, 0.0f},
   };
   auto textureTangentsV = std::array{
-      float3{0.0f, 0.0f, 1.0f},
-      float3{0.0f, 0.0f, 1.0f},
-      float3{0.0f, 0.0f, 1.0f},
-      float3{0.0f, 0.0f, 1.0f},
+      ::float3{0.0f, 0.0f, 1.0f},
+      ::float3{0.0f, 0.0f, 1.0f},
+      ::float3{0.0f, 0.0f, 1.0f},
+      ::float3{0.0f, 0.0f, 1.0f},
   };
 
   state.animation_time = 0.0f;
@@ -139,7 +139,7 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
   BsdfEvaluateData eval_data = {};
   const float cos_theta = dot(make_float3(-ray->dir), normalize(state.normal));
   if (cos_theta > 0.0f) {
-    float3 radiance_over_pdf = bit_cast<float3>(ls->radiance / ls->pdf);
+    auto radiance_over_pdf = bit_cast<::float3>(ls->radiance / ls->pdf);
     eval_data.ior1 = make_float3(1.0f);
     eval_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
 
@@ -150,7 +150,7 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
 
     mdlBsdf_evaluate(&eval_data, &state, &resData, argblock);
 
-    float3 contrib =
+    auto contrib =
         radiance_over_pdf * (eval_data.bsdf_diffuse + eval_data.bsdf_glossy);
     return vec4(contrib.x, contrib.y, contrib.z, 1.0f);
   }

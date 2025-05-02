@@ -503,8 +503,8 @@ void World::buildMDLMaterialGPUData()
     }
   }
 
-  std::sort(begin(mdls), end(mdls));
-  mdls.erase(std::unique(begin(mdls), end(mdls)), end(mdls));
+  std::sort(std::begin(mdls), std::end(mdls));
+  mdls.erase(std::unique(std::begin(mdls), std::end(mdls)), std::end(mdls));
 
   for (auto mdl : mdls) {
     mdl->syncSource();

@@ -112,6 +112,7 @@ mark_as_advanced(glm_DIR)
 
 add_library(glm_visrtx INTERFACE IMPORTED)
 target_link_libraries(glm_visrtx INTERFACE glm::glm)
+target_compile_definitions(glm_visrtx INTERFACE GLM_ENABLE_EXPERIMENTAL)
 if(WIN32)
   target_compile_definitions(glm_visrtx INTERFACE _USE_MATH_DEFINES NOMINMAX)
 endif()

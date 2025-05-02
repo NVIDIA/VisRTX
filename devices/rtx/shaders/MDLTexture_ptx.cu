@@ -123,7 +123,7 @@ VISRTX_CALLABLE void tex_lookup_float4_2d(float (&result)[4],
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
     auto invSize = samplerData.image2D.invSize;
-    float2 coords = {coord[0], coord[1]};
+    ::float2 coords = {coord[0], coord[1]};
 
     if (handleWrapping(coords.x, invSize.x, wrapU, cropU)
         && handleWrapping(coords.y, invSize.y, wrapV, cropV))
@@ -148,7 +148,7 @@ VISRTX_CALLABLE void tex_lookup_float3_2d(float (&result)[3],
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
     auto invSize = samplerData.image2D.invSize;
-    float2 coords = {coord[0], coord[1]};
+    ::float2 coords = {coord[0], coord[1]};
 
     if (handleWrapping(coords.x, invSize.x, wrapU, cropU)
         && handleWrapping(coords.y, invSize.y, wrapV, cropV))
@@ -196,7 +196,7 @@ VISRTX_CALLABLE void tex_lookup_float4_3d(float (&result)[4],
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
     auto invSize = samplerData.image3D.invSize;
-    float3 coords = {coord[0], coord[1], coord[2]};
+    ::float3 coords = {coord[0], coord[1], coord[2]};
 
     if (handleWrapping(coords.x, invSize.x, wrapU, cropU)
         && handleWrapping(coords.y, invSize.y, wrapV, cropV)
@@ -225,7 +225,7 @@ VISRTX_CALLABLE void tex_lookup_float3_3d(float (&result)[3],
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
     auto invSize = samplerData.image3D.invSize;
-    float3 coords = {coord[0], coord[1], coord[2]};
+    ::float3 coords = {coord[0], coord[1], coord[2]};
 
     if (handleWrapping(coords.x, invSize.x, wrapU, cropU)
         && handleWrapping(coords.y, invSize.y, wrapV, cropV)

@@ -219,7 +219,8 @@ Sampler *SamplerRegistry::acquireSampler(
     const std::string &textureDbName, mi::neuraylib::ITransaction *transaction)
 {
   {
-    if (auto it = m_dbToSampler.find(textureDbName); it != end(m_dbToSampler)) {
+    if (auto it = m_dbToSampler.find(textureDbName);
+        it != std::end(m_dbToSampler)) {
       it->second->refInc();
       return it->second;
     }
@@ -230,10 +231,10 @@ Sampler *SamplerRegistry::acquireSampler(
 
 bool SamplerRegistry::releaseSampler(const Sampler *sampler)
 {
-  if (auto it = std::find_if(begin(m_dbToSampler),
-          end(m_dbToSampler),
+  if (auto it = std::find_if(std::begin(m_dbToSampler),
+          std::end(m_dbToSampler),
           [sampler](const auto &p) { return p.second == sampler; });
-      it != end(m_dbToSampler)) {
+      it != std::end(m_dbToSampler)) {
     it->second->refDec();
     if (it->second->useCount() == 1) {
       it->second->refDec();
