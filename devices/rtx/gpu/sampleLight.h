@@ -46,20 +46,22 @@ struct LightSample
 
 namespace detail {
 
-VISRTX_DEVICE LightSample sampleDirectionalLight(const LightGPUData &ld)
+VISRTX_DEVICE LightSample sampleDirectionalLight(
+    const LightGPUData &ld, const mat4 &xfm)
 {
   LightSample ls;
-  ls.dir = -ld.distant.direction;
+  ls.dir = xfmVec(xfm, -ld.distant.direction);
   ls.dist = FLT_MAX;
   ls.radiance = ld.color * ld.distant.irradiance;
   ls.pdf = 1.f;
   return ls;
 }
 
-VISRTX_DEVICE LightSample samplePointLight(const LightGPUData &ld, const Hit &hit)
+VISRTX_DEVICE LightSample samplePointLight(
+    const LightGPUData &ld, const mat4 &xfm, const Hit &hit)
 {
   LightSample ls;
-  ls.dir = ld.point.position - hit.hitpoint;
+  ls.dir = xfmPoint(xfm, ld.point.position) - hit.hitpoint;
   ls.dist = length(ls.dir);
   ls.dir = glm::normalize(ls.dir);
   ls.radiance = ld.color * ld.point.intensity;
@@ -67,17 +69,21 @@ VISRTX_DEVICE LightSample samplePointLight(const LightGPUData &ld, const Hit &hi
   return ls;
 }
 
-VISRTX_DEVICE LightSample sampleSpotLight(const LightGPUData &ld, const Hit &hit)
+VISRTX_DEVICE LightSample sampleSpotLight(
+    const LightGPUData &ld, const mat4 &xfm, const Hit &hit)
 {
   LightSample ls;
-  ls.dir = ld.spot.position - hit.hitpoint;
+  ls.dir = xfmPoint(xfm, ld.spot.position) - hit.hitpoint;
   ls.dist = length(ls.dir);
   ls.dir = glm::normalize(ls.dir);
   float spot = dot(normalize(ld.spot.direction), -ls.dir);
-  if (spot < ld.spot.cosOuterAngle) spot = 0.f;
-  else if (spot > ld.spot.cosInnerAngle) spot = 1.f;
+  if (spot < ld.spot.cosOuterAngle)
+    spot = 0.f;
+  else if (spot > ld.spot.cosInnerAngle)
+    spot = 1.f;
   else {
-    spot = (spot - ld.spot.cosOuterAngle) / (ld.spot.cosInnerAngle - ld.spot.cosOuterAngle);
+    spot = (spot - ld.spot.cosOuterAngle)
+        / (ld.spot.cosInnerAngle - ld.spot.cosOuterAngle);
     spot = spot * spot * (3.f - 2.f * spot);
   }
   ls.radiance = ld.color * ld.spot.intensity * spot;
@@ -86,12 +92,10 @@ VISRTX_DEVICE LightSample sampleSpotLight(const LightGPUData &ld, const Hit &hit
 }
 
 VISRTX_DEVICE LightSample sampleHDRILight(
-  const LightGPUData &ld,
-  const Hit &hit,
-  RandState &rs)
+    const LightGPUData &ld, const mat4 &xfm, const Hit &hit, RandState &rs)
 {
   LightSample ls;
-  ls.dir = randomDir(rs);
+  ls.dir = xfmVec(xfm, randomDir(rs));
   ls.dist = 1e20f;
   ls.radiance = sampleHDRI(ld, ls.dir);
   ls.pdf = 0.f;
@@ -101,19 +105,19 @@ VISRTX_DEVICE LightSample sampleHDRILight(
 } // namespace detail
 
 VISRTX_DEVICE LightSample sampleLight(
-    ScreenSample &ss, const Hit &hit, DeviceObjectIndex idx)
+    ScreenSample &ss, const Hit &hit, DeviceObjectIndex idx, const mat4 &xfm)
 {
   auto &ld = ss.frameData->registry.lights[idx];
 
   switch (ld.type) {
   case LightType::DIRECTIONAL:
-    return detail::sampleDirectionalLight(ld);
+    return detail::sampleDirectionalLight(ld, xfm);
   case LightType::POINT:
-    return detail::samplePointLight(ld, hit);
+    return detail::samplePointLight(ld, xfm, hit);
   case LightType::SPOT:
-    return detail::sampleSpotLight(ld, hit);
+    return detail::sampleSpotLight(ld, xfm, hit);
   case LightType::HDRI:
-    return detail::sampleHDRILight(ld, hit, ss.rs);
+    return detail::sampleHDRILight(ld, xfm, hit, ss.rs);
   default:
     break;
   }

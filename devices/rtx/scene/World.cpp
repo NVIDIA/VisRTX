@@ -467,13 +467,8 @@ void World::buildInstanceLightGPUData()
     if (m_hdri == -1)
       m_hdri = group->firstHDRI();
 
-    for (size_t t = 0; t < inst->numTransforms(); t++) {
-      if (!inst->xfmIsIdentity(t) && lgi.size() != 0) {
-        inst->reportMessage(
-            ANARI_SEVERITY_WARNING, "light transformations not implemented");
-      }
-      li[instID++] = {lgi.data(), lgi.size()};
-    }
+    for (size_t t = 0; t < inst->numTransforms(); t++)
+      li[instID++] = {lgi.data(), lgi.size(), mat4(inst->xfm(t))};
   });
 
   m_instanceLightGPUData.upload();

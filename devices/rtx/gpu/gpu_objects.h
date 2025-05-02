@@ -523,6 +523,7 @@ struct InstanceLightGPUData
 {
   const DeviceObjectIndex *indices;
   size_t numLights;
+  mat4 xfm;
 };
 
 // World //
