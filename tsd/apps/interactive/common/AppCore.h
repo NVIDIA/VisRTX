@@ -9,6 +9,8 @@
 #include <map>
 #include <memory>
 #include <string>
+// anari_viewer
+#include "anari_viewer/Application.h"
 
 namespace tsd_viewer {
 
@@ -79,11 +81,13 @@ struct AppCore
     ImportFileDialog *importDialog{nullptr};
   } windows;
 
+  anari_viewer::Application *application{nullptr};
+
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
 
-  AppCore();
+  AppCore(anari_viewer::Application *app);
   ~AppCore();
 
   void parseCommandLine(int argc, const char **argv);

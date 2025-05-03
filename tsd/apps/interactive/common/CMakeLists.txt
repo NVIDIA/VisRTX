@@ -1,8 +1,6 @@
 ## Copyright 2024-2025 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
-find_package(glfw3 REQUIRED)
-
 project(tsd_viewer_common)
 project_add_library(OBJECT)
 project_sources(PRIVATE
@@ -26,7 +24,6 @@ PUBLIC
   tsd_stb
   tsd_tinyexr
   render_pipeline
-  glfw
 PRIVATE
   anari::anari_viewer
 )

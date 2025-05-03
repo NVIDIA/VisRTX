@@ -412,136 +412,42 @@ void OutlineRenderPass::render(Buffers &b, int stageId)
   computeOutline(b, m_outlineId, getDimensions());
 }
 
-#ifdef ENABLE_OPENGL
+#ifdef ENABLE_SDL
 ///////////////////////////////////////////////////////////////////////////////
-// CopyToGLImagePass //////////////////////////////////////////////////////////
+// CopyToSDLTexturePass ///////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-struct CopyToGLImagePass::CopyToGLImagePassImpl
-{
-  GLuint texture{0};
-  bool glInteropAvailable{false};
-#ifdef ENABLE_CUDA
-  cudaGraphicsResource_t graphicsResource{nullptr};
-#endif
-};
+CopyToSDLTexturePass::CopyToSDLTexturePass(SDL_Renderer *renderer)
+    : m_renderer(renderer)
+{}
 
-CopyToGLImagePass::CopyToGLImagePass()
+CopyToSDLTexturePass::~CopyToSDLTexturePass()
 {
-  m_impl = new CopyToGLImagePassImpl;
-  glGenTextures(1, &m_impl->texture);
-  glBindTexture(GL_TEXTURE_2D, m_impl->texture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  m_impl->glInteropAvailable = checkGLInterop();
+  SDL_DestroyTexture(m_texture);
 }
 
-CopyToGLImagePass::~CopyToGLImagePass()
+SDL_Texture *CopyToSDLTexturePass::getTexture() const
 {
-#ifdef ENABLE_CUDA
-  if (m_impl->graphicsResource)
-    cudaGraphicsUnregisterResource(m_impl->graphicsResource);
-#endif
-  glDeleteTextures(1, &m_impl->texture);
-  delete m_impl;
-  m_impl = nullptr;
+  return m_texture;
 }
 
-GLuint CopyToGLImagePass::getGLTexture() const
-{
-  return m_impl->texture;
-}
-
-bool CopyToGLImagePass::checkGLInterop()
-{
-#ifdef ENABLE_CUDA
-  unsigned int numDevices = 0;
-  int cudaDevices[8]; // Assuming max 8 devices for simplicity
-
-  cudaError_t err =
-      cudaGLGetDevices(&numDevices, cudaDevices, 8, cudaGLDeviceListAll);
-  if (err != cudaSuccess) {
-    tsd::logWarning("[render_pipeline] failed to get CUDA GL devices");
-    return false;
-  }
-
-  if (numDevices > 0) {
-    int currentDevice = 0;
-    cudaGetDevice(&currentDevice);
-    for (unsigned int i = 0; i < numDevices; ++i) {
-      if (currentDevice == cudaDevices[i]) {
-        tsd::logStatus("[render_pipeline] using CUDA-GL interop");
-        return true;
-      }
-    }
-  }
-#endif
-
-  tsd::logWarning("[render_pipeline] unable to use CUDA-GL interop");
-  return false;
-}
-
-void CopyToGLImagePass::render(Buffers &b, int /*stageId*/)
+void CopyToSDLTexturePass::render(Buffers &b, int /*stageId*/)
 {
   const auto size = getDimensions();
-#ifdef ENABLE_CUDA
-  if (m_impl->glInteropAvailable) {
-    cudaGraphicsMapResources(1, &m_impl->graphicsResource);
-    cudaArray_t array;
-    cudaGraphicsSubResourceGetMappedArray(
-        &array, m_impl->graphicsResource, 0, 0);
-    cudaMemcpy2DToArray(array,
-        0,
-        0,
-        b.color,
-        size.x * 4,
-        size.x * 4,
-        size.y,
-        cudaMemcpyDeviceToDevice);
-    cudaGraphicsUnmapResources(1, &m_impl->graphicsResource);
-  } else {
-#endif
-    glBindTexture(GL_TEXTURE_2D, m_impl->texture);
-    glTexSubImage2D(GL_TEXTURE_2D,
-        0,
-        0,
-        0,
-        size.x,
-        size.y,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        b.color);
-#ifdef ENABLE_CUDA
-  }
-#endif
+  SDL_UpdateTexture(
+      m_texture, nullptr, b.color, getDimensions().x * sizeof(b.color[0]));
 }
 
-void CopyToGLImagePass::updateSize()
+void CopyToSDLTexturePass::updateSize()
 {
-#ifdef ENABLE_CUDA
-  if (m_impl->graphicsResource)
-    cudaGraphicsUnregisterResource(m_impl->graphicsResource);
-#endif
-
+  if (m_texture)
+    SDL_DestroyTexture(m_texture);
   auto newSize = getDimensions();
-  glViewport(0, 0, newSize.x, newSize.y);
-  glBindTexture(GL_TEXTURE_2D, m_impl->texture);
-  glTexImage2D(GL_TEXTURE_2D,
-      0,
-      GL_RGBA8,
+  m_texture = SDL_CreateTexture(m_renderer,
+      SDL_PIXELFORMAT_RGBA32,
+      SDL_TEXTUREACCESS_STREAMING,
       newSize.x,
-      newSize.y,
-      0,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      0);
-
-#ifdef ENABLE_CUDA
-  cudaGraphicsGLRegisterImage(&m_impl->graphicsResource,
-      m_impl->texture,
-      GL_TEXTURE_2D,
-      cudaGraphicsRegisterFlagsWriteDiscard);
-#endif
+      newSize.y);
 }
 #endif
 

@@ -7,8 +7,6 @@
 #include "Manipulator.h"
 #include "modals/AppSettings.h"
 #include "modals/ImportFileDialog.h"
-// anari_viewer
-#include "anari_viewer/Application.h"
 // tsd
 #include "tsd/TSD.hpp"
 

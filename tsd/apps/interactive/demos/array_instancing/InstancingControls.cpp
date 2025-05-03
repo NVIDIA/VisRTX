@@ -13,8 +13,8 @@ using namespace tsd::literals;
 
 // InstancingControls definitions /////////////////////////////////////////////
 
-InstancingControls::InstancingControls(AppCore *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(state)
+InstancingControls::InstancingControls(AppCore *core, const char *name)
+    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
 {
   createScene();
 }

@@ -23,8 +23,8 @@ static bool UI_layerName_callback(void *l, int index, const char **out_text)
 
 // LayerTree definitions /////////////////////////////////////////////////////
 
-LayerTree::LayerTree(AppCore *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(state)
+LayerTree::LayerTree(AppCore *core, const char *name)
+    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
 {}
 
 void LayerTree::buildUI()
@@ -377,7 +377,7 @@ void LayerTree::buildUI_buildNewLayerContextMenu()
     ImGui::Separator();
 
     ImGuiIO &io = ImGui::GetIO();
-    if ((ImGui::Button("ok") || io.KeysDown[GLFW_KEY_ENTER])
+    if ((ImGui::Button("ok") || ImGui::IsKeyDown(ImGuiKey_Enter))
         && !s_newLayerName.empty()) {
       auto &ctx = m_core->tsd.ctx;
       tsd::Token layerName = s_newLayerName.c_str();

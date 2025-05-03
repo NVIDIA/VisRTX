@@ -11,8 +11,7 @@ namespace tsd_viewer {
 
 struct InstancingControls : public anari_viewer::windows::Window
 {
-  InstancingControls(
-      AppCore *state, const char *name = "Instancing Controls");
+  InstancingControls(AppCore *core, const char *name = "Instancing Controls");
 
   void buildUI() override;
 

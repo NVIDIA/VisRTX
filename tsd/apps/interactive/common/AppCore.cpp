@@ -70,7 +70,7 @@ static std::vector<std::string> parseLibraryList()
 
 // AppCore definitions /////////////////////////////////////////////////////
 
-AppCore::AppCore()
+AppCore::AppCore(anari_viewer::Application *app) : application(app)
 {
   tsd.ctx.setUpdateDelegate(&anari.delegate);
 }

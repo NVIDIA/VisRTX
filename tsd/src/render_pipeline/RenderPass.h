@@ -10,8 +10,8 @@
 // anari
 #include <anari/anari_cpp.hpp>
 
-#ifdef ENABLE_OPENGL
-#include <GLFW/glfw3.h>
+#ifdef ENABLE_SDL
+#include <SDL3/SDL.h>
 #endif
 
 namespace tsd {
@@ -122,21 +122,20 @@ struct OutlineRenderPass : public RenderPass
   uint32_t m_outlineId{~0u};
 };
 
-#ifdef ENABLE_OPENGL
-struct CopyToGLImagePass : public RenderPass
+#ifdef ENABLE_SDL
+struct CopyToSDLTexturePass : public RenderPass
 {
-  CopyToGLImagePass();
-  ~CopyToGLImagePass() override;
+  CopyToSDLTexturePass(SDL_Renderer *renderer);
+  ~CopyToSDLTexturePass() override;
 
-  GLuint getGLTexture() const;
+  SDL_Texture *getTexture() const;
 
  private:
-  bool checkGLInterop();
   void render(Buffers &b, int stageId) override;
   void updateSize() override;
 
-  struct CopyToGLImagePassImpl;
-  CopyToGLImagePassImpl *m_impl{nullptr};
+  SDL_Renderer *m_renderer{nullptr};
+  SDL_Texture *m_texture{nullptr};
 };
 #endif
 

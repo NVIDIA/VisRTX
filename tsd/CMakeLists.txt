@@ -33,7 +33,7 @@ option(BUILD_INTERACTIVE_APPS "Build interactive applications" ON)
 option(TSD_ENABLE_SERIALIZATION "Use conduit to serialize contexts" OFF)
 option(TSD_USE_HDF5 "Support loading AMR grids from HDF5" OFF)
 option(TSD_USE_ASSIMP "Support loading geometry with libassimp" OFF)
-option(TSD_USE_OPENGL "Use OpenGL interop in render pipeline" ON)
+option(TSD_USE_SDL3 "Use SDL3 interop in render pipeline" ON)
 option(TSD_USE_TBB "Use TBB code paths where relevant" ON)
 
 if (APPLE)

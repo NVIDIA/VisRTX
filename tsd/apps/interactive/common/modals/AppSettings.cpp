@@ -2,12 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "AppSettings.h"
-// glfw
-#include <GLFW/glfw3.h>
 
 namespace tsd_viewer {
 
-AppSettings::AppSettings() : Modal("AppSettings")
+AppSettings::AppSettings(AppCore *core) : Modal(core, "AppSettings")
 {
   ImGuiIO &io = ImGui::GetIO();
   m_fontScale = io.FontGlobalScale;
@@ -24,8 +22,7 @@ void AppSettings::buildUI()
 
   ImGui::NewLine();
 
-  ImGuiIO &io = ImGui::GetIO();
-  if(ImGui::Button("close") || io.KeysDown[GLFW_KEY_ESCAPE])
+  if (ImGui::Button("close") || ImGui::IsKeyDown(ImGuiKey_Escape))
     this->hide();
 }
 

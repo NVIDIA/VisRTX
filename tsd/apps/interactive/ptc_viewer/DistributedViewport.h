@@ -5,8 +5,8 @@
 
 #include "anari_viewer/ui_anari.h"
 #include "anari_viewer/windows/Window.h"
-// glfw
-#include <GLFW/glfw3.h>
+// SDL
+#include <SDL3/SDL.h>
 // anari
 #include <anari/anari_cpp/ext/linalg.h>
 #include <anari/anari_cpp.hpp>
@@ -105,7 +105,7 @@ struct DistributedViewport : public anari_viewer::windows::Window
 
   // OpenGL + display
 
-  GLuint m_framebufferTexture{0};
+  SDL_Texture *m_framebufferTexture{nullptr};
   tsd::math::int2 m_viewportSize{1920, 1080};
 #if 1
   tsd::math::int2 m_renderSize{1920, 1080};

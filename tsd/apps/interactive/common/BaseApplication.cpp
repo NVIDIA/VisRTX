@@ -7,10 +7,11 @@
 #include "tsd_ui.h"
 // anari_viewer
 #include "anari_viewer/ui_anari.h"
+#include "anari_viewer/windows/Window.h"
 
 namespace tsd_viewer {
 
-BaseApplication::BaseApplication(int argc, const char **argv)
+BaseApplication::BaseApplication(int argc, const char **argv) : m_core(this)
 {
   auto *core = appCore();
   core->parseCommandLine(argc, argv);
@@ -45,7 +46,7 @@ anari_viewer::WindowArray BaseApplication::setupWindows()
   if (appCore()->commandLine.useDefaultLayout)
     ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
 
-  m_appSettings = std::make_unique<tsd_viewer::AppSettings>();
+  m_appSettings = std::make_unique<tsd_viewer::AppSettings>(appCore());
   m_fileDialog = std::make_unique<tsd_viewer::ImportFileDialog>(appCore());
 
   m_core.windows.importDialog = m_fileDialog.get();

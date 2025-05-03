@@ -31,10 +31,15 @@ static float lerp(const float &l,
   return l * dr + r * dl;
 }
 
-TransferFunctionEditor::TransferFunctionEditor(
-    AppCore *ctx, const char *name)
-    : Window(name, true), m_core(ctx)
+TransferFunctionEditor::TransferFunctionEditor(AppCore *core, const char *name)
+    : Window(core->application, name, true), m_core(core)
 {
+  m_tfnPaletteTexture = SDL_CreateTexture(core->application->sdlRenderer(),
+      SDL_PIXELFORMAT_RGB96_FLOAT,
+      SDL_TEXTUREACCESS_STATIC,
+      256,
+      1);
+
   loadDefaultMaps();
 
   m_tfnColorPoints = &(m_tfnsColorPoints[m_currentMap]);
@@ -44,8 +49,7 @@ TransferFunctionEditor::TransferFunctionEditor(
 
 TransferFunctionEditor::~TransferFunctionEditor()
 {
-  if (tfnPaletteTexture)
-    glDeleteTextures(1, &tfnPaletteTexture);
+  SDL_DestroyTexture(m_tfnPaletteTexture);
 }
 
 void TransferFunctionEditor::buildUI()
@@ -332,49 +336,15 @@ float TransferFunctionEditor::interpolateOpacity(
 
 void TransferFunctionEditor::updateTfnPaletteTexture()
 {
-  const size_t textureWidth = 256, textureHeight = 1;
-
-  // backup currently bound texture
-  GLint prevBinding = 0;
-  glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevBinding);
-
-  // create transfer function palette texture if it doesn't exist
-  if (!tfnPaletteTexture) {
-    glGenTextures(1, &tfnPaletteTexture);
-    glBindTexture(GL_TEXTURE_2D, tfnPaletteTexture);
-    glTexImage2D(GL_TEXTURE_2D,
-        0,
-        GL_RGBA8,
-        textureWidth,
-        textureHeight,
-        0,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  }
-
-  // sample the palette then upload the data
-  std::vector<tsd::float4> palette = getSampledColorsAndOpacities(textureWidth);
-
-  // save palette to texture
-  glBindTexture(GL_TEXTURE_2D, tfnPaletteTexture);
-  glTexImage2D(GL_TEXTURE_2D,
-      0,
-      GL_RGB,
-      textureWidth,
-      textureHeight,
-      0,
-      GL_RGBA,
-      GL_FLOAT,
-      static_cast<const void *>(palette.data()));
-
-  // restore previously bound texture
-  if (prevBinding)
-    glBindTexture(GL_TEXTURE_2D, prevBinding);
+  std::vector<tsd::float4> palette = getSampledColorsAndOpacities(256);
+  std::vector<tsd::float3> rgb(256);
+  std::transform(palette.begin(), palette.end(), rgb.begin(), [](auto &c) {
+    return tsd::float3(c.x, c.y, c.z);
+  });
+  SDL_UpdateTexture(m_tfnPaletteTexture,
+      nullptr,
+      rgb.data(),
+      rgb.size() * sizeof(tsd::float4));
 }
 
 void TransferFunctionEditor::drawEditor()
@@ -396,8 +366,8 @@ void TransferFunctionEditor::drawEditor()
 
   // draw preview texture
   ImGui::SetCursorScreenPos(ImVec2(canvas_x + margin, canvas_y));
-  ImGui::Image(
-      reinterpret_cast<void *>(tfnPaletteTexture), ImVec2(width, height));
+  ImGui::Image(reinterpret_cast<ImTextureID>(m_tfnPaletteTexture),
+      ImVec2(width, height));
 
   ImGui::SetCursorScreenPos(ImVec2(canvas_x, canvas_y));
   {

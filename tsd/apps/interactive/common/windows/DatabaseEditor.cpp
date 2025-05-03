@@ -8,8 +8,8 @@
 
 namespace tsd_viewer {
 
-DatabaseEditor::DatabaseEditor(AppCore *ctx, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(ctx)
+DatabaseEditor::DatabaseEditor(AppCore *core, const char *name)
+    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
 {}
 
 void DatabaseEditor::buildUI()

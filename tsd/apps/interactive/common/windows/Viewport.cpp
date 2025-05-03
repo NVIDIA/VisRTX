@@ -21,21 +21,15 @@ int g_screenshotIndex = 0;
 
 // Viewport definitions ///////////////////////////////////////////////////////
 
-Viewport::Viewport(AppCore *ctx, manipulators::Orbit *m, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(ctx)
+Viewport::Viewport(AppCore *core, manipulators::Orbit *m, const char *name)
+    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
 {
   stbi_flip_vertically_on_write(1);
-
   setManipulator(m);
-
   m_overlayWindowName = "overlay_";
   m_overlayWindowName += name;
-
   m_coreMenuName = "vpContextMenu_";
   m_coreMenuName += name;
-
-  // GL //
-
   setLibrary("");
 }
 
@@ -100,7 +94,8 @@ void Viewport::buildUI()
     m_visualizeDepthPass = m_pipeline.emplace_back<tsd::VisualizeDepthPass>();
     m_visualizeDepthPass->setEnabled(false);
     m_outlinePass = m_pipeline.emplace_back<tsd::OutlineRenderPass>();
-    m_outputPass = m_pipeline.emplace_back<tsd::CopyToGLImagePass>();
+    m_outputPass = m_pipeline.emplace_back<tsd::CopyToSDLTexturePass>(
+        m_core->application->sdlRenderer());
     reshape(m_viewportSize);
   }
 
@@ -118,7 +113,7 @@ void Viewport::buildUI()
   ImGui::BeginDisabled(!m_deviceReadyToUse);
 
   if (m_outputPass) {
-    ImGui::Image((void *)(intptr_t)m_outputPass->getGLTexture(),
+    ImGui::Image((ImTextureID)m_outputPass->getTexture(),
         ImGui::GetContentRegionAvail(),
         ImVec2(0, 1),
         ImVec2(1, 0));
@@ -489,15 +484,15 @@ void Viewport::ui_handleInput()
 
   ImGuiIO &io = ImGui::GetIO();
 
-  if (ImGui::IsWindowFocused() && io.KeysDown[GLFW_KEY_ESCAPE])
+  if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter))
     m_core->clearSelected();
 
   const bool dolly = ImGui::IsMouseDown(ImGuiMouseButton_Right)
       || (ImGui::IsMouseDown(ImGuiMouseButton_Left)
-          && io.KeysDown[GLFW_KEY_LEFT_SHIFT]);
+          && ImGui::IsKeyDown(ImGuiKey_LeftShift));
   const bool pan = ImGui::IsMouseDown(ImGuiMouseButton_Middle)
       || (ImGui::IsMouseDown(ImGuiMouseButton_Left)
-          && io.KeysDown[GLFW_KEY_LEFT_ALT]);
+          && ImGui::IsKeyDown(ImGuiKey_LeftAlt));
   const bool orbit = ImGui::IsMouseDown(ImGuiMouseButton_Left);
 
   const bool anyMovement = dolly || pan || orbit;
@@ -556,7 +551,7 @@ bool Viewport::ui_picking()
 
   const bool shouldPickCenter = m_currentCamera == m_perspCamera
       && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
-      && io.KeysDown[GLFW_KEY_LEFT_SHIFT];
+      && ImGui::IsKeyDown(ImGuiKey_LeftShift);
   if (shouldPickCenter && ImGui::IsWindowHovered()) {
     auto mPos = ImGui::GetMousePos();
     auto wMin = ImGui::GetItemRectMin();
@@ -634,7 +629,7 @@ void Viewport::ui_contextMenu()
   const ImGuiIO &io = ImGui::GetIO();
 
   const bool openMenu = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)
-      || io.KeysDown[GLFW_KEY_MENU];
+      || ImGui::IsKeyDown(ImGuiKey_Menu);
   if (openMenu && ImGui::IsWindowHovered()) {
     m_coreMenuVisible = true;
     ImGui::OpenPopup(m_coreMenuName.c_str());

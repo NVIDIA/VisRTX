@@ -8,8 +8,8 @@ namespace math = tsd::math;
 
 namespace tsd_viewer {
 
-ObjectEditor::ObjectEditor(AppCore *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(state)
+ObjectEditor::ObjectEditor(AppCore *core, const char *name)
+    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
 {}
 
 void ObjectEditor::buildUI()

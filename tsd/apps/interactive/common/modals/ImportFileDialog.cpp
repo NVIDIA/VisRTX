@@ -4,21 +4,16 @@
 #include "ImportFileDialog.h"
 // glfw
 #include <GLFW/glfw3.h>
-// nfd (from anari::anari_viewer)
-#include "nfd.h"
+// SDL
+#include <SDL3/SDL_dialog.h>
 
 namespace tsd_viewer {
 
-ImportFileDialog::ImportFileDialog(AppCore *ctx)
-    : Modal("ImportFileDialog"), m_core(ctx)
-{
-  NFD_Init();
-}
+ImportFileDialog::ImportFileDialog(AppCore *core)
+    : Modal(core, "ImportFileDialog"), m_core(core)
+{}
 
-ImportFileDialog::~ImportFileDialog()
-{
-  NFD_Quit();
-}
+ImportFileDialog::~ImportFileDialog() = default;
 
 void ImportFileDialog::buildUI()
 {
@@ -32,21 +27,40 @@ void ImportFileDialog::buildUI()
 
   ImGui::Combo("importer type", &m_selectedFileType, importers, 7);
 
+  static std::string outPath;
   if (ImGui::Button("...")) {
-    nfdchar_t *outPath = nullptr;
-    nfdfilteritem_t filterItem[4] = {
-        {"All Supported Files", "gltf,glb,obj,dlaf,nbody,ply,hdri,hdr"},
-        {"glTF Files", "gltf,glb"},
+    outPath.clear();
+    auto fileDialogCb =
+        [](void *userdata, const char *const *filelist, int filter) {
+          std::string &out = *(std::string *)userdata;
+          if (!filelist) {
+            printf("ERROR: %s\n", SDL_GetError());
+            return;
+          }
+
+          if (*filelist)
+            out = *filelist;
+        };
+
+    SDL_DialogFileFilter filterItem[5] = {
+        {"All Supported Files", "gltf;glb;obj;dlaf;nbody;ply;hdri;hdr"},
+        {"glTF Files", "gltf;glb"},
         {"OBJ Files", "obj"},
-        {"HDRI Files", "hdr,hdri"}};
-    nfdresult_t result = NFD_OpenDialog(&outPath, filterItem, 4, nullptr);
-    if (result == NFD_OKAY) {
-      m_filename = std::string(outPath).c_str();
-      update = true;
-      NFD_FreePath(outPath);
-    } else {
-      tsd::logWarning("NFD Error: %s\n", NFD_GetError());
-    }
+        {"HDRI Files", "hdr,hdri"},
+        {"All Files", "*"}};
+    SDL_ShowOpenFileDialog(fileDialogCb,
+        &outPath,
+        m_core->application->sdlWindow(),
+        filterItem,
+        5,
+        nullptr,
+        false);
+  }
+
+  if (!outPath.empty()) {
+    m_filename = outPath;
+    update = true;
+    outPath.clear();
   }
 
   ImGui::SameLine();
@@ -69,7 +83,7 @@ void ImportFileDialog::buildUI()
   ImGui::NewLine();
 
   ImGuiIO &io = ImGui::GetIO();
-  if (ImGui::Button("cancel") || io.KeysDown[GLFW_KEY_ESCAPE])
+  if (ImGui::Button("cancel") || ImGui::IsKeyDown(ImGuiKey_Escape))
     this->hide();
 
   ImGui::SameLine();

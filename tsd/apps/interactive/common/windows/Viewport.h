@@ -127,7 +127,7 @@ struct Viewport : public anari_viewer::windows::Window
   tsd::PickPass *m_pickPass{nullptr};
   tsd::VisualizeDepthPass *m_visualizeDepthPass{nullptr};
   tsd::OutlineRenderPass *m_outlinePass{nullptr};
-  tsd::CopyToGLImagePass *m_outputPass{nullptr};
+  tsd::CopyToSDLTexturePass *m_outputPass{nullptr};
 
   tsd::math::int2 m_viewportSize{0, 0};
   tsd::math::int2 m_renderSize{0, 0};

@@ -15,7 +15,7 @@ using JacobiUpdateCallback = std::function<void()>;
 
 struct SolverControls : public anari_viewer::windows::Window
 {
-  SolverControls(AppCore *state, const char *name = "Solver Controls");
+  SolverControls(AppCore *core, const char *name = "Solver Controls");
 
   void buildUI() override;
   void setField(tsd::SpatialFieldRef f);

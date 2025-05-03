@@ -9,7 +9,7 @@ namespace tsd_viewer {
 
 struct AppSettings : public Modal
 {
-  AppSettings();
+  AppSettings(AppCore *core);
   ~AppSettings() override = default;
 
   void buildUI() override;

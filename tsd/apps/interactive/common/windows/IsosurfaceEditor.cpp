@@ -8,8 +8,8 @@
 
 namespace tsd_viewer {
 
-IsosurfaceEditor::IsosurfaceEditor(AppCore *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(state)
+IsosurfaceEditor::IsosurfaceEditor(AppCore *core, const char *name)
+    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
 {}
 
 void IsosurfaceEditor::buildUI()

@@ -4,8 +4,6 @@
 #pragma once
 
 #include "../AppCore.h"
-// glad
-#include <glad/glad.h>
 // anari
 #include "anari_viewer/windows/Window.h"
 // tsd
@@ -14,6 +12,8 @@
 #include <functional>
 #include <string>
 #include <vector>
+// SDL
+#include <SDL3/SDL.h>
 
 namespace tsd_viewer {
 
@@ -84,7 +84,7 @@ class TransferFunctionEditor : public anari_viewer::windows::Window
   tsd::float2 m_defaultValueRange{0.f, 1.f};
 
   // texture for displaying transfer function color palette
-  GLuint tfnPaletteTexture{0};
+  SDL_Texture *m_tfnPaletteTexture{nullptr};
 };
 
 } // namespace tsd_viewer

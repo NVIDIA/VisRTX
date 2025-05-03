@@ -409,7 +409,7 @@ int main(int argc, const char *argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &g_numRanks);
 
   {
-    auto core = std::make_unique<tsd_viewer::AppCore>();
+    auto core = std::make_unique<tsd_viewer::AppCore>(nullptr);
     g_core = core.get();
 
     auto win = std::make_unique<RemoteAppStateWindow>();
@@ -422,6 +422,7 @@ int main(int argc, const char *argv[])
 
     if (g_rank == 0) {
       ptc_demo_viewer::Application app;
+      core->application = &app;
       app.run(1600, 900, "Distributed TSD Viewer");
     } else {
       ptc_demo_viewer::runWorker();

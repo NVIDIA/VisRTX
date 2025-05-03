@@ -27,9 +27,9 @@ static void printMessage(
 
 // Log definitions ////////////////////////////////////////////////////////////
 
-Log::Log(AppCore *ctx, bool installAsLoggingTarget)
-    : anari_viewer::windows::Window("Log", true),
-      m_core(ctx),
+Log::Log(AppCore *core, bool installAsLoggingTarget)
+    : anari_viewer::windows::Window(core->application, "Log", true),
+      m_core(core),
       m_isLoggingTarget(installAsLoggingTarget)
 {
   this->clear();
@@ -44,9 +44,9 @@ Log::Log(AppCore *ctx, bool installAsLoggingTarget)
 
   if (installAsLoggingTarget) {
     tsd::setLoggingCallback(
-        [window = this](tsd::LogLevel level,
-            const char *fmt,
-            va_list &args) { window->addText(level, fmt, args); });
+        [window = this](tsd::LogLevel level, const char *fmt, va_list &args) {
+          window->addText(level, fmt, args);
+        });
   }
 }
 
@@ -96,7 +96,7 @@ void Log::buildUI()
     clipper.Begin(m_lineOffsets.Size);
     while (clipper.Step()) {
       for (int line_no = clipper.DisplayStart; line_no < clipper.DisplayEnd;
-           line_no++)
+          line_no++)
         showLine(line_no, false);
     }
     clipper.End();
