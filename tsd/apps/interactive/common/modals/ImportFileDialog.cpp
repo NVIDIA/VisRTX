@@ -44,7 +44,7 @@ void ImportFileDialog::buildUI()
         {"All Supported Files", "gltf;glb;obj;dlaf;nbody;ply;hdri;hdr"},
         {"glTF Files", "gltf;glb"},
         {"OBJ Files", "obj"},
-        {"HDRI Files", "hdr,hdri"},
+        {"HDRI Files", "hdr;hdri"},
         {"All Files", "*"}};
     SDL_ShowOpenFileDialog(fileDialogCb,
         &outPath,
