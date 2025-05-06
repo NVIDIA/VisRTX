@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ImportFileDialog.h"
-// glfw
-#include <GLFW/glfw3.h>
 // SDL
 #include <SDL3/SDL_dialog.h>
 

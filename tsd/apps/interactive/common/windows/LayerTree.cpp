@@ -5,8 +5,6 @@
 #include "tsd_ui.h"
 // imgui
 #include <misc/cpp/imgui_stdlib.h>
-// glfw
-#include <GLFW/glfw3.h>
 
 #include "../modals/ImportFileDialog.h"
 

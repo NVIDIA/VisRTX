@@ -5,8 +5,6 @@
 
 #include "anari_viewer/ui_anari.h"
 #include "anari_viewer/windows/Window.h"
-// glfw
-#include <GLFW/glfw3.h>
 // anari
 #include <anari/anari_cpp/ext/linalg.h>
 #include <anari/anari_cpp.hpp>
