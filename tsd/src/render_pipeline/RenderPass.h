@@ -131,11 +131,12 @@ struct CopyToSDLTexturePass : public RenderPass
   SDL_Texture *getTexture() const;
 
  private:
+  bool checkGLInterop() const;
   void render(Buffers &b, int stageId) override;
   void updateSize() override;
 
-  SDL_Renderer *m_renderer{nullptr};
-  SDL_Texture *m_texture{nullptr};
+  struct CopyToSDLTexturePassImpl;
+  CopyToSDLTexturePassImpl *m_impl{nullptr};
 };
 #endif
 
