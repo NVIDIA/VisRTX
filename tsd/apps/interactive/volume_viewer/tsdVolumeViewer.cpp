@@ -123,23 +123,23 @@ class Application : public BaseApplication
     return R"layout(
 [Window][MainDockSpace]
 Pos=0,26
-Size=1920,1054
+Size=1920,1105
 Collapsed=0
 
 [Window][Viewport]
 Pos=507,26
-Size=915,762
+Size=915,407
 Collapsed=0
-DockId=0x0000000B,0
+DockId=0x00000003,0
 
 [Window][Secondary View]
-Pos=1236,25
-Size=684,806
+Pos=507,435
+Size=915,404
 Collapsed=0
 DockId=0x00000004,0
 
 [Window][Log]
-Pos=507,790
+Pos=507,841
 Size=915,290
 Collapsed=0
 DockId=0x0000000C,0
@@ -151,25 +151,25 @@ Collapsed=0
 
 [Window][Layers]
 Pos=0,26
-Size=505,233
+Size=505,245
 Collapsed=0
 DockId=0x00000005,0
 
 [Window][Object Editor]
-Pos=0,261
-Size=505,819
+Pos=0,273
+Size=505,858
 Collapsed=0
 DockId=0x00000006,0
 
 [Window][TF Editor]
 Pos=1424,26
-Size=496,502
+Size=496,526
 Collapsed=0
 DockId=0x00000009,0
 
 [Window][Isosurface Editor]
-Pos=1424,530
-Size=496,550
+Pos=1424,554
+Size=496,577
 Collapsed=0
 DockId=0x0000000A,0
 
@@ -231,21 +231,29 @@ Column 1  Weight=1.0000
 Column 0  Weight=1.0000
 Column 1  Weight=1.0000
 
+[Table][0xE47AB827,2]
+Column 0  Weight=1.0000
+Column 1  Weight=1.0000
+
+[Table][0xFD82B7C8,2]
+Column 0  Weight=1.0000
+Column 1  Weight=1.0000
+
 [Docking][Data]
-DockSpace       ID=0x782A6D6B Pos=0,22 Size=2489,1211 Split=X Selected=0x13926F0B
-  DockNode      ID=0x00000003 Parent=0x782A6D6B SizeRef=684,626 CentralNode=1 Selected=0x13926F0B
-  DockNode      ID=0x00000004 Parent=0x782A6D6B SizeRef=684,626 Selected=0xBAF13E1E
-DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1054 Split=X
-  DockNode      ID=0x00000007 Parent=0x80F5B4C5 SizeRef=1422,1413 Split=X
-    DockNode    ID=0x00000001 Parent=0x00000007 SizeRef=505,1413 Split=Y Selected=0xCD8384B1
-      DockNode  ID=0x00000005 Parent=0x00000001 SizeRef=547,313 Selected=0xCD8384B1
-      DockNode  ID=0x00000006 Parent=0x00000001 SizeRef=547,1098 Selected=0x82B4C496
-    DockNode    ID=0x00000002 Parent=0x00000007 SizeRef=915,1413 Split=Y Selected=0xC450F867
-      DockNode  ID=0x0000000B Parent=0x00000002 SizeRef=1595,762 CentralNode=1 Selected=0xC450F867
-      DockNode  ID=0x0000000C Parent=0x00000002 SizeRef=1595,290 Selected=0x139FDA3F
-  DockNode      ID=0x00000008 Parent=0x80F5B4C5 SizeRef=496,1413 Split=Y Selected=0x3429FA32
-    DockNode    ID=0x00000009 Parent=0x00000008 SizeRef=548,673 Selected=0x3429FA32
-    DockNode    ID=0x0000000A Parent=0x00000008 SizeRef=548,738 Selected=0xBCE6538B
+DockSpace         ID=0x782A6D6B Pos=0,22 Size=2489,1211 CentralNode=1 Selected=0x13926F0B
+DockSpace         ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
+  DockNode        ID=0x00000007 Parent=0x80F5B4C5 SizeRef=1422,1413 Split=X
+    DockNode      ID=0x00000001 Parent=0x00000007 SizeRef=505,1413 Split=Y Selected=0xCD8384B1
+      DockNode    ID=0x00000005 Parent=0x00000001 SizeRef=547,313 Selected=0xCD8384B1
+      DockNode    ID=0x00000006 Parent=0x00000001 SizeRef=547,1098 Selected=0x82B4C496
+    DockNode      ID=0x00000002 Parent=0x00000007 SizeRef=915,1413 Split=Y Selected=0xC450F867
+      DockNode    ID=0x0000000B Parent=0x00000002 SizeRef=1595,762 Split=Y Selected=0xC450F867
+        DockNode  ID=0x00000003 Parent=0x0000000B SizeRef=915,407 CentralNode=1 Selected=0xC450F867
+        DockNode  ID=0x00000004 Parent=0x0000000B SizeRef=915,404 Selected=0xA3219422
+      DockNode    ID=0x0000000C Parent=0x00000002 SizeRef=1595,290 Selected=0x139FDA3F
+  DockNode        ID=0x00000008 Parent=0x80F5B4C5 SizeRef=496,1413 Split=Y Selected=0x3429FA32
+    DockNode      ID=0x00000009 Parent=0x00000008 SizeRef=548,673 Selected=0x3429FA32
+    DockNode      ID=0x0000000A Parent=0x00000008 SizeRef=548,738 Selected=0xBCE6538B
 )layout";
   }
 
