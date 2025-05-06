@@ -62,9 +62,10 @@ Size=400,400
 Collapsed=0
 
 [Docking][Data]
-DockSpace   ID=0x782A6D6B Window=0xDEDC5B90 Pos=0,25 Size=1600,874 Split=Y
-  DockNode  ID=0x00000001 Parent=0x782A6D6B SizeRef=1600,642 CentralNode=1 Selected=0x13926F0B
-  DockNode  ID=0x00000002 Parent=0x782A6D6B SizeRef=1600,230 Selected=0x64F50EE5
+DockSpace   ID=0x782A6D6B Pos=0,25 Size=1600,874 CentralNode=1
+DockSpace   ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,25 Size=1600,874 Split=Y Selected=0xC450F867
+  DockNode  ID=0x00000001 Parent=0x80F5B4C5 SizeRef=1600,642 CentralNode=1 Selected=0xC450F867
+  DockNode  ID=0x00000002 Parent=0x80F5B4C5 SizeRef=1600,230 Selected=0x139FDA3F
 )layout";
 
 namespace ptc_demo_viewer {
