@@ -95,9 +95,6 @@ find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 # CUDA
 find_package(CUDAToolkit 12)
 
-# OpenGL
-find_package(OpenGL)
-
 # glm
 find_package(glm QUIET)
 if (TARGET glm::glm)

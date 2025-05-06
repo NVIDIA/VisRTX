@@ -118,7 +118,7 @@ struct Viewport : public anari_viewer::windows::Window
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
 
-  // OpenGL + display
+  // display
 
   tsd::RenderPipeline m_pipeline;
   tsd::AnariRenderPass *m_anariPass{nullptr};

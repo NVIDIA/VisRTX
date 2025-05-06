@@ -103,7 +103,7 @@ struct DistributedViewport : public anari_viewer::windows::Window
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
 
-  // OpenGL + display
+  // display
 
   SDL_Texture *m_framebufferTexture{nullptr};
   tsd::math::int2 m_viewportSize{1920, 1080};
