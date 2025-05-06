@@ -72,3 +72,7 @@ add_subdirectory(apps)
 add_subdirectory(external)
 add_subdirectory(src)
 add_subdirectory(tests)
+
+## Cleanup CMake variables ##
+
+include(cmake/mark_cache_variables_as_advanced.cmake)
