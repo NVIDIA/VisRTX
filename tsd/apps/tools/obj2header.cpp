@@ -147,7 +147,6 @@ int main(int argc, const char *argv[])
   fprintf(fout, "// SPDX-License-Identifier: Apache-2.0\n");
   fprintf(fout, "\n");
   fprintf(fout, "#include <cstdint>\n");
-  fprintf(fout, "#include <vector>\n");
   fprintf(fout, "\n");
   fprintf(fout, "namespace obj2header {\n"); // namespace
 
@@ -157,7 +156,7 @@ int main(int argc, const char *argv[])
 
   // Vertex array //
 
-  fprintf(fout, "static std::vector<float> vertex_position = {\n");
+  fprintf(fout, "static float vertex_position[] = {\n");
   for (auto &a : v)
     fprintf(fout, "    %ff, %ff, %ff,\n", a.x, a.y, a.z);
   fprintf(fout, "}; // vertex_position\n"); // vertices
@@ -166,7 +165,7 @@ int main(int argc, const char *argv[])
 
   // Normals array //
 
-  fprintf(fout, "static std::vector<float> vertex_normal = {\n");
+  fprintf(fout, "static float vertex_normal[] = {\n");
   for (auto &a : vn)
     fprintf(fout, "    %ff, %ff, %ff,\n", a.x, a.y, a.z);
   fprintf(fout, "}; // vertex_normal\n"); // vertices
@@ -175,7 +174,7 @@ int main(int argc, const char *argv[])
 
   // Texcoord array //
 
-  fprintf(fout, "static std::vector<float> vertex_uv = {\n");
+  fprintf(fout, "static float vertex_uv[] = {\n");
   for (auto &a : vt)
     fprintf(fout, "    %ff, %ff,\n", a.x, a.y);
   fprintf(fout, "}; // vertex_uv\n"); // vertices
