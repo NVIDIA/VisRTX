@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include <limits>
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 
@@ -51,7 +52,7 @@ VISRTX_DEVICE LightSample sampleDirectionalLight(
 {
   LightSample ls;
   ls.dir = xfmVec(xfm, -ld.distant.direction);
-  ls.dist = FLT_MAX;
+  ls.dist = (std::numeric_limits<float>::max)();
   ls.radiance = ld.color * ld.distant.irradiance;
   ls.pdf = 1.f;
   return ls;

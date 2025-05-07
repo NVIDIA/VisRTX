@@ -31,9 +31,9 @@
 
 #pragma once
 
-#include "gpu/gpu_objects.h"
-#include "gpu/gpu_util.h"
-#include "gpu/sampleLight.h"
+#include "gpu_objects.h"
+#include "gpu_util.h"
+#include "sampleLight.h"
 #include "shaders/MDLShader.cuh"
 #include "shaders/MatteShader.cuh"
 #include "shaders/PhysicallyBasedShader.cuh"

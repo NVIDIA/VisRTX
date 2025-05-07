@@ -35,6 +35,8 @@
 #include <algorithm>
 #include <limits>
 #include <vector>
+// glm
+#include <glm/gtx/component_wise.hpp>
 
 namespace visrtx {
 

@@ -4,12 +4,8 @@
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
 
-#include <curand.h>
-
-#include "gpu/vector.cuh"
-
-#include <anari/anari_cpp/ext/linalg.h>
 #include <mi/neuraylib/target_code_types.h>
+#include <anari/anari_cpp/ext/linalg.h>
 #include <optix_device.h>
 
 // No derivatives yet
@@ -38,31 +34,6 @@ VISRTX_CALLABLE BsdfIsThinWalled mdl_isThinWalled;
 
 namespace visrtx {
 
-VISRTX_DEVICE ::float4 make_float4(float f)
-{
-  return ::make_float4(f, f, f, f);
-}
-
-VISRTX_DEVICE ::float4 make_float4(const vec4 &v)
-{
-  return ::make_float4(v.x, v.y, v.z, v.w);
-}
-
-VISRTX_DEVICE ::float3 make_float3(float f)
-{
-  return ::make_float3(f, f, f);
-}
-
-VISRTX_DEVICE ::float3 make_float3(const vec4 &v)
-{
-  return ::make_float3(v.x, v.y, v.z);
-}
-
-VISRTX_DEVICE ::float3 make_float3(const vec3 &v)
-{
-  return ::make_float3(v.x, v.y, v.z);
-}
-
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
 VISRTX_CALLABLE
 vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
@@ -74,9 +45,9 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
 {
   // Create MDL state
   ShadingStateMaterial state;
-  auto position = make_float3(hit->hitpoint);
-  auto Ns = make_float3(hit->Ns);
-  auto Ng = make_float3(hit->Ng);
+  auto position = hit->hitpoint;
+  auto Ns = hit->Ns;
+  auto Ng = hit->Ng;
 
   auto objectToWorld =
       bit_cast<const std::array<::float4, 3>>(hit->objectToWorld);
@@ -107,9 +78,9 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
   };
 
   state.animation_time = 0.0f;
-  state.geom_normal = Ng;
-  state.normal = Ns;
-  state.position = position;
+  state.geom_normal = make_float3(Ng);
+  state.normal = make_float3(Ns);
+  state.position = make_float3(position);
   state.meters_per_scene_unit = 1.0f;
   state.object_id = hit->objID;
   state.object_to_world = data(objectToWorld);
@@ -137,22 +108,21 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
 
   // Eval
   BsdfEvaluateData eval_data = {};
-  const float cos_theta = dot(make_float3(-ray->dir), normalize(state.normal));
+  const float cos_theta = dot(-ray->dir, normalize(Ns));
   if (cos_theta > 0.0f) {
-    auto radiance_over_pdf = bit_cast<::float3>(ls->radiance / ls->pdf);
-    eval_data.ior1 = make_float3(1.0f);
+    eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
     eval_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
 
     eval_data.k1 = make_float3(-ray->dir);
     eval_data.k2 = make_float3(normalize(ls->dir));
-    eval_data.bsdf_diffuse = make_float3(0.0f);
-    eval_data.bsdf_glossy = make_float3(0.0f);
+    eval_data.bsdf_diffuse = make_float3(0.0f, 0.0f, 0.0f);
+    eval_data.bsdf_glossy = make_float3(0.0f, 0.0f, 0.0f);
 
     mdlBsdf_evaluate(&eval_data, &state, &resData, argblock);
 
-    auto contrib =
-        radiance_over_pdf * (eval_data.bsdf_diffuse + eval_data.bsdf_glossy);
-    return vec4(contrib.x, contrib.y, contrib.z, 1.0f);
+    auto radiance_over_pdf = ls->radiance / ls->pdf;
+    auto contrib = radiance_over_pdf * (make_vec3(eval_data.bsdf_diffuse) + make_vec3(eval_data.bsdf_glossy));
+    return vec4(contrib, 1.0f);
   }
 
   return vec4(0.0f, 0.0f, 0.0f, 1.0f);

@@ -31,18 +31,71 @@
 
 #pragma once
 
-#include "gpu/cameraCreateRay.h"
-#include "gpu/gpu_objects.h"
+#include "cameraCreateRay.h"
+#include "gpu_objects.h"
 // optix
 #include <optix_device.h>
 // std
 #include <cstdint>
+// glm
+#include <glm/gtc/color_space.hpp>
+#include <glm/gtx/component_wise.hpp>
+#include <glm/packing.hpp>
+// cuda
+#include <vector_types.h>
 
 #ifndef __CUDACC__
 #error "gpu_util.h can only be included in device code"
 #endif
 
 namespace visrtx {
+
+//
+template <typename T_OUT, typename T_IN>
+VISRTX_DEVICE T_OUT bit_cast(T_IN v)
+{
+  static_assert(sizeof(T_OUT) <= sizeof(T_IN),
+      "bit_cast<> should only be used to cast to types equal "
+      "or smaller than the input value");
+  return *reinterpret_cast<T_OUT *>(&v);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Conversion functions
+///////////////////////////////////////////////////////////////////////////////
+
+// Make sure to bring global make_float* so we can access there global set of
+// overload despite the definitions below
+using ::make_float1, ::make_float2, ::make_float3, ::make_float4;
+using ::make_int1, ::make_int2, ::make_int3, ::make_int4;
+using ::make_uint1, ::make_uint2, ::make_uint3, ::make_uint4;
+
+VISRTX_DEVICE glm::vec1 make_vec1(const float1& v) { return bit_cast<glm::vec1>(v); }
+VISRTX_DEVICE glm::vec2 make_vec2(const float2& v) { return bit_cast<glm::vec2>(v); }
+VISRTX_DEVICE glm::vec3 make_vec3(const float3& v) { return bit_cast<glm::vec3>(v); }
+VISRTX_DEVICE glm::vec4 make_vec4(const float4& v) { return bit_cast<glm::vec4>(v); }
+VISRTX_DEVICE glm::ivec1 make_ivec1(const int1& v) { return bit_cast<glm::ivec1>(v); }
+VISRTX_DEVICE glm::ivec2 make_ivec2(const int2& v) { return bit_cast<glm::ivec2>(v); }
+VISRTX_DEVICE glm::ivec3 make_ivec3(const int3& v) { return bit_cast<glm::ivec3>(v); }
+VISRTX_DEVICE glm::ivec4 make_ivec4(const int4& v) { return bit_cast<glm::ivec4>(v); }
+VISRTX_DEVICE glm::uvec1 make_uvec2(const uint1& v) { return bit_cast<glm::uvec1>(v); }
+VISRTX_DEVICE glm::uvec2 make_uvec2(const uint2& v) { return bit_cast<glm::uvec2>(v); }
+VISRTX_DEVICE glm::uvec3 make_uvec3(const uint3& v) { return bit_cast<glm::uvec3>(v); }
+VISRTX_DEVICE glm::uvec4 make_uvec4(const uint4& v) { return bit_cast<glm::uvec4>(v); }
+
+VISRTX_DEVICE float1 make_float1(const glm::vec2& v) { return bit_cast<float1>(v); }
+VISRTX_DEVICE float2 make_float2(const glm::vec2& v) { return bit_cast<float2>(v); }
+VISRTX_DEVICE float3 make_float3(const glm::vec3& v) { return bit_cast<float3>(v); }
+VISRTX_DEVICE float4 make_float4(const glm::vec4& v) { return bit_cast<float4>(v); }
+VISRTX_DEVICE int1 make_int1(const glm::ivec1& v) { return bit_cast<int1>(v); }
+VISRTX_DEVICE int2 make_int2(const glm::ivec2& v) { return bit_cast<int2>(v); }
+VISRTX_DEVICE int3 make_int3(const glm::ivec3& v) { return bit_cast<int3>(v); }
+VISRTX_DEVICE int4 make_int4(const glm::ivec4& v) { return bit_cast<int4>(v); }
+VISRTX_DEVICE uint1 make_uint1(const glm::uvec1& v) { return bit_cast<uint1>(v); }
+VISRTX_DEVICE uint2 make_uint2(const glm::uvec2& v) { return bit_cast<uint2>(v); }
+VISRTX_DEVICE uint3 make_uint3(const glm::uvec3& v) { return bit_cast<uint3>(v); }
+VISRTX_DEVICE uint4 make_uint4(const glm::uvec4& v) { return bit_cast<uint4>(v); }
 
 ///////////////////////////////////////////////////////////////////////////////
 // Utility functions //////////////////////////////////////////////////////////
@@ -68,25 +121,6 @@ VISRTX_DEVICE float atomicMaxf(float *address, float val)
       break;
   }
   return __int_as_float(ret);
-}
-
-template <typename T_OUT, typename T_IN>
-VISRTX_DEVICE T_OUT bit_cast(T_IN v)
-{
-  static_assert(sizeof(T_OUT) <= sizeof(T_IN),
-      "bit_cast<> should only be used to cast to types equal "
-      "or smaller than the input value");
-  return *reinterpret_cast<T_OUT *>(&v);
-}
-
-VISRTX_DEVICE vec3 make_vec3(const ::float3 &v)
-{
-  return vec3(v.x, v.y, v.z);
-}
-
-VISRTX_DEVICE vec4 make_vec4(const ::float4 &v)
-{
-  return vec4(v.x, v.y, v.z, v.w);
 }
 
 template <typename T>

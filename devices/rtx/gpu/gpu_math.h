@@ -31,19 +31,45 @@
 
 #pragma once
 
-#include "gpu/gpu_decl.h"
+#include "gpu_decl.h"
 
-#include <glm/ext.hpp>
-#include <glm/glm.hpp>
-#include <glm/gtx/component_wise.hpp>
+// glm
+#include <glm/fwd.hpp>
+#include <glm/ext/vector_float2.hpp>
+#include <glm/ext/vector_float3.hpp>
+#include <glm/ext/matrix_float3x3.hpp>
+#include <glm/ext/matrix_float3x4.hpp>
 // std
 #include <limits>
-// cuda
-#include <cuda_runtime.h>
 
 namespace visrtx {
 
-using namespace glm;
+using glm::ivec1;
+using glm::ivec2;
+using glm::ivec3;
+using glm::ivec4;
+using glm::uvec1;
+using glm::uvec2;
+using glm::uvec3;
+using glm::uvec4;
+using glm::vec1;
+using glm::vec2;
+using glm::vec3;
+using glm::vec4;
+using glm::mat2;
+using glm::mat3;
+using glm::mat4;
+using glm::mat2x2;
+using glm::mat2x3;
+using glm::mat2x4;
+using glm::mat3x2;
+using glm::mat3x3;
+using glm::mat3x4;
+using glm::mat4x2;
+using glm::mat4x3;
+using glm::mat4x4;
+using glm::quat;
+using glm::fquat;
 
 template <typename T>
 struct range_t
@@ -146,6 +172,7 @@ template <typename T>
 VISRTX_HOST_DEVICE typename range_t<T>::element_t clamp(
     const typename range_t<T>::element_t &t, const range_t<T> &r)
 {
+  using glm::min, glm::max;
   return max(r.lower, min(t, r.upper));
 }
 
@@ -268,7 +295,7 @@ VISRTX_HOST_DEVICE vec3 xfmVec(const mat4 &m, const vec3 &p)
 
 VISRTX_HOST_DEVICE vec3 xfmPoint(const mat4 &m, const vec3 &p)
 {
-  return vec3(m * vec4(p, 1.f));
+  return mat3(m) * p;
 }
 
 } // namespace visrtx

@@ -39,6 +39,7 @@
 #include <curand_kernel.h>
 // anari
 #include <anari/anari_cpp.hpp>
+#include <glm/ext/vector_uint2.hpp>
 #include <glm/ext/matrix_float3x4.hpp>
 // nanovdb
 #include <nanovdb/NanoVDB.h>

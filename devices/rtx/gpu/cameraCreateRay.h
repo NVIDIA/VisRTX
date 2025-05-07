@@ -31,7 +31,7 @@
 
 #pragma once
 
-#include "gpu/gpu_objects.h"
+#include "gpu_objects.h"
 
 namespace visrtx {
 
