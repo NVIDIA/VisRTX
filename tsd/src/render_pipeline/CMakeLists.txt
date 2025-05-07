@@ -13,7 +13,7 @@ if (TSD_USE_CUDA)
   set_source_files_properties(
     RenderPass.cpp
     PROPERTIES
-      COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
+      COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"
       LANGUAGE CUDA
   )
   project_compile_definitions(PRIVATE ENABLE_CUDA)

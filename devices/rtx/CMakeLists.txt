@@ -35,12 +35,17 @@ if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   set(CMAKE_CUDA_ARCHITECTURES native)
 endif()
 
-set(CMAKE_CUDA_FLAGS_INIT "--expt-relaxed-constexpr --extended-lambda")
-# Make sure we have some debug info with debug and relwithdebinfo builds
-set(CMAKE_CUDA_FLAGS_DEBUG_INIT "-O0 -lineinfo") # -G would be nice, but does not work with glm.
-set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO_INIT "-lineinfo")
-
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
+
+set(VISRTX_CUDA_COMPILE_OPTIONS
+  "--expt-relaxed-constexpr" "--extended-lambda" # Lambdas from device code
+  # Silence the spamming of glm warning about `__host__ annotation is ignored on a function("vec") that is explicitly defaulted on its first declaration`
+  "-Xcudafe=--diag_suppress=20012"
+  # Silence the multitude of warnings about deprecated/to be removed GPU architectures
+  "-Wno-deprecated-gpu-targets"
+  # Debug info support
+  "$<$<CONFIG:DEBUG>:-O0;-lineinfo>" # -G would be nice for debug, but does not work with glm...
+  "$<$<CONFIG:RELWITHDEBINFO>:-lineinfo>")
 
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -86,7 +91,7 @@ mark_as_advanced(VISRTX_ENABLE_NVTX)
 
 project_add_library(SHARED)
 
-project_sources(PRIVATE
+set(SOURCES
   Object.cpp
   optix_visrtx.cpp
   VisRTXDevice.cpp
@@ -182,6 +187,14 @@ project_sources(PRIVATE
   >
 )
 
+project_sources(PRIVATE ${SOURCES})
+set(CUDA_SOURCES ${SOURCES})
+list(FILTER CUDA_SOURCES INCLUDE REGEX ".*\\.cu$")
+
+set_source_files_properties(${CUDA_SOURCES}
+  PROPERTIES COMPILE_OPTIONS "${VISRTX_CUDA_COMPILE_OPTIONS}"
+)
+
 generate_export_header(${PROJECT_NAME}
   EXPORT_MACRO_NAME "VISRTX_DEVICE_INTERFACE"
 )
@@ -247,12 +260,12 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
 
   if (GEN_EMBEDDED_PTX_ENTRIES)
     string(REPLACE ";" "," GEN_EMBEDDED_PTX_ENTRIES "${GEN_EMBEDDED_PTX_ENTRIES}")
-    set(GEN_EMBEDDED_PTX_ARGS "--entries ${GEN_EMBEDDED_PTX_ENTRIES}")
+    set(GEN_EMBEDDED_PTX_ARGS "--entries" "${GEN_EMBEDDED_PTX_ENTRIES}")
   endif()
 
-
   set_source_files_properties(${INPUT_CU_FILE}
-    PROPERTIES COMPILE_FLAGS "-rdc=true ${GEN_EMBEDDED_PTX_ARGS}"
+    # -rdc=true is for relocatable code, can be resolved at link time.
+    PROPERTIES COMPILE_OPTIONS "${VISRTX_CUDA_COMPILE_OPTIONS};-rdc=true;${GEN_EMBEDDED_PTX_ARGS}"
   )
 
   add_library(${INPUT_TARGET} OBJECT ${INPUT_CU_FILE})

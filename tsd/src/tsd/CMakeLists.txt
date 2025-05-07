@@ -97,7 +97,7 @@ if (TSD_USE_CUDA)
     algorithms/detail/computeScalarRange_float64.cpp
     objects/SpatialField.cpp
     PROPERTIES
-      COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
+      COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"
       LANGUAGE CUDA
   )
 else()

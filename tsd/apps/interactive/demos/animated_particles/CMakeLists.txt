@@ -18,6 +18,6 @@ project_link_libraries(tsd_viewer_common glm::glm)
 set_source_files_properties(
   particle_system.cu
   PROPERTIES
-    COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
+    COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"
     LANGUAGE CUDA
 )
