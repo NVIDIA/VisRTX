@@ -13,7 +13,7 @@ void print(tsd::utility::Forest<T> &f)
   f.traverse(f.root(), [](auto &node, int level) {
     for (int i = 0; i < level; i++)
       std::cout << "  ";
-    std::cout << *node << std::endl;
+    std::cout << *node << " : " << level << std::endl;
     return true;
   });
   std::cout << "--------------\n";
@@ -40,6 +40,14 @@ int main()
   f.erase(l2r);
 
   print(f);
+
+  int sum = 0;
+  tsd::utility::foreach_child(f.root(), [&](int &v) { sum += v; });
+  std::cout << "sum of root node's children: " << sum << std::endl;
+
+  sum = f.root()->value();
+  tsd::utility::forall_children(f.root(), [&](int &v) { sum += v; });
+  std::cout << "sum of entire tree: " << sum << std::endl;
 
   return 0;
 }

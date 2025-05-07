@@ -63,6 +63,9 @@ struct ForestNode
 };
 
 template <typename T>
+using ForestNodeRef = IndexedVectorRef<ForestNode<T>>;
+
+template <typename T>
 bool operator==(const ForestNode<T> &a, const ForestNode<T> &b);
 template <typename T>
 bool operator!=(const ForestNode<T> &a, const ForestNode<T> &b);
@@ -142,6 +145,14 @@ struct Forest
   IndexedVector<ForestNode<T>> m_nodes;
   NodeRef m_root;
 };
+
+// Algorithms /////////////////////////////////////////////////////////////////
+
+template <typename T, typename FCN>
+void foreach_child(ForestNodeRef<T> node, FCN &&fcn);
+
+template <typename T, typename FCN>
+void forall_children(ForestNodeRef<T> node, FCN &&fcn);
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
@@ -485,6 +496,32 @@ inline typename Forest<T>::NodeRef Forest<T>::make_ForestNode(T &&v)
   n->m_children_end = n;
   n->m_children_begin = n;
   return n;
+}
+
+// Algorithms //
+
+template <typename T, typename FCN>
+inline void foreach_child(ForestNodeRef<T> node, FCN &&fcn)
+{
+  if (auto *forest = node->container(); forest != nullptr) {
+    forest->traverse(node, [&](auto &v, int level) {
+      if (level != 0)
+        fcn(*v);
+      return level == 0;
+    });
+  }
+}
+
+template <typename T, typename FCN>
+inline void forall_children(ForestNodeRef<T> node, FCN &&fcn)
+{
+  if (auto *forest = node->container(); forest != nullptr) {
+    forest->traverse(node, [&](auto &v, int level) {
+      if (level != 0)
+        fcn(*v);
+      return true;
+    });
+  }
 }
 
 } // namespace tsd::utility
