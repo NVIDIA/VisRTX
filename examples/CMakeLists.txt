@@ -38,8 +38,4 @@ set(CMAKE_BUILD_TYPE_INIT "RelWithDebInfo")
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-option(VISRTX_BUILD_EXAMPLES "Build VisRTX examples" OFF)
-if (VISRTX_BUILD_EXAMPLES)
-  add_subdirectory(simple)
-  add_subdirectory(viewer)
-endif()
+add_subdirectory(simple)
