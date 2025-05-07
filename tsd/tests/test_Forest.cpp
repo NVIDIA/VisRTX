@@ -26,6 +26,7 @@ SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
     {
       REQUIRE(f.at(0)->isRoot());
       REQUIRE(*f.at(0) == f.root());
+      REQUIRE(!f.root()->parent());
     }
 
     THEN("The first node is the root value")
@@ -53,6 +54,12 @@ SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
         REQUIRE(f.root()->value() == -1);
       }
 
+      THEN("The next node after root points back to the parent")
+      {
+        REQUIRE(c->parent() == f.root());
+        REQUIRE(f.root()->next()->parent() == f.root());
+      }
+
       THEN("The next node after root holds the new value")
       {
         REQUIRE(f.root()->next());
@@ -74,7 +81,7 @@ SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
 
       WHEN("Another child is prepended")
       {
-        f.insert_first_child(f.root(), 5);
+        auto c2 = f.insert_first_child(f.root(), 5);
         THEN("The next node after root holds the new value")
         {
           REQUIRE(f.root()->next());
@@ -89,6 +96,7 @@ SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
 
         THEN("The second child points back to the root")
         {
+          REQUIRE(c2->parent() == f.root());
           REQUIRE(f.root()->next()->next()->next());
           REQUIRE(f.root() == f.root()->next()->next()->next());
         }
@@ -103,7 +111,7 @@ SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
 
       WHEN("Another child is appended")
       {
-        f.insert_last_child(f.root(), 5);
+        auto c3 = f.insert_last_child(f.root(), 5);
         THEN("The next node after root holds the new value")
         {
           REQUIRE(f.root()->next());
@@ -118,6 +126,7 @@ SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
 
         THEN("The second child points back to the root")
         {
+          REQUIRE(c3->parent() == f.root());
           REQUIRE(f.root()->next()->next()->next());
           REQUIRE(f.root() == f.root()->next()->next()->next());
         }

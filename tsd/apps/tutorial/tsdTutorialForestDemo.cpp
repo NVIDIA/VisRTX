@@ -36,6 +36,9 @@ int main()
 
   print(f);
 
+  auto s = tsd::utility::find_first_child(l1r, [](auto &v) { return v == 4; });
+  std::cout << "looking for '4' under '2', found " << **s << std::endl;
+
   std::cout << "erasing '5'" << std::endl;
   f.erase(l2r);
 
