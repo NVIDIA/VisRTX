@@ -33,6 +33,8 @@
 
 #include "gpu/gpu_util.h"
 
+#include <glm/vec4.hpp>
+
 namespace visrtx {
 
 struct LinearBSplineSegment
@@ -90,10 +92,10 @@ VISRTX_DEVICE vec3 curveSurfaceNormal(
     const LinearBSplineSegment &bc, float u, const vec3 &ps)
 {
   const vec4 p4 = bc.position4(u);
-  const vec3 p(p4);
+  const vec3 p = p4;
   const float r = p4.w;
   const vec4 d4 = bc.velocity4(u);
-  const vec3 d = make_vec3(d4);
+  const vec3 d = d4;
 
   float dd = dot(d, d);
 
