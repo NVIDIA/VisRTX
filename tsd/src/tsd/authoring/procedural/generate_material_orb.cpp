@@ -11,33 +11,33 @@
 
 namespace tsd {
 
-#define addObject(name, source, mat_type, mat)                                 \
-  {                                                                            \
-    auto mesh = ctx.createObject<Geometry>(tokens::geometry::triangle);        \
-    mesh->setName((std::string(name) + "_geometry").c_str());                  \
-                                                                               \
-    auto positionArray = ctx.createArray(                                      \
-        ANARI_FLOAT32_VEC3, source::vertex_position.size() / 3);               \
-    positionArray->setData(source::vertex_position.data());                    \
-                                                                               \
-    auto normalArray =                                                         \
-        ctx.createArray(ANARI_FLOAT32_VEC3, source::vertex_normal.size() / 3); \
-    normalArray->setData(source::vertex_normal.data());                        \
-                                                                               \
-    auto uvArray =                                                             \
-        ctx.createArray(ANARI_FLOAT32_VEC2, source::vertex_uv.size() / 2);     \
-    uvArray->setData(source::vertex_uv.data());                                \
-                                                                               \
-    mesh->setParameterObject("vertex.position"_t, *positionArray);             \
-    mesh->setParameterObject("vertex.normal"_t, *normalArray);                 \
-    mesh->setParameterObject("vertex.attribute0"_t, *uvArray);                 \
-                                                                               \
-    mat = ctx.createObject<Material>(mat_type);                                \
-    auto matName = std::string(name) + "_material";                            \
-    mat->setName(matName.c_str());                                             \
-                                                                               \
-    auto surface = ctx.createSurface(name, mesh, mat);                         \
-    ctx.insertChildObjectNode(orb_root, surface);                              \
+#define addObject(name, source, mat_type, mat)                                     \
+  {                                                                                \
+    auto mesh = ctx.createObject<Geometry>(tokens::geometry::triangle);            \
+    mesh->setName((std::string(name) + "_geometry").c_str());                      \
+                                                                                   \
+    auto positionArray = ctx.createArray(                                          \
+        ANARI_FLOAT32_VEC3, std::size(source::vertex_position) / 3);               \
+    positionArray->setData(std::data(source::vertex_position));                    \
+                                                                                   \
+    auto normalArray =                                                             \
+        ctx.createArray(ANARI_FLOAT32_VEC3, std::size(source::vertex_normal) / 3); \
+    normalArray->setData(std::data(source::vertex_normal));                        \
+                                                                                   \
+    auto uvArray =                                                                 \
+        ctx.createArray(ANARI_FLOAT32_VEC2, std::size(source::vertex_uv) / 2);     \
+    uvArray->setData(std::data(source::vertex_uv));                                    \
+                                                                                   \
+    mesh->setParameterObject("vertex.position"_t, *positionArray);                 \
+    mesh->setParameterObject("vertex.normal"_t, *normalArray);                     \
+    mesh->setParameterObject("vertex.attribute0"_t, *uvArray);                     \
+                                                                                   \
+    mat = ctx.createObject<Material>(mat_type);                                    \
+    auto matName = std::string(name) + "_material";                                \
+    mat->setName(matName.c_str());                                                 \
+                                                                                   \
+    auto surface = ctx.createSurface(name, mesh, mat);                             \
+    ctx.insertChildObjectNode(orb_root, surface);                                  \
   }
 
 static SamplerRef makeCheckboardTexture(Context &ctx, int size)
