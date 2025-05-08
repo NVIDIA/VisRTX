@@ -253,6 +253,11 @@ project_compile_definitions(PRIVATE visrtx_EXPORTS)
 ## Generate OptiX programs as embedded PTX ##
 
 function(GenerateEmbeddedPTX DIR BASE_NAME)
+  set(options)
+  set(oneValueArgs)
+  set(multiValueArgs ENTRIES)
+  cmake_parse_arguments(GEN_EMBEDDED_PTX "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
   set(INPUT_TARGET ${BASE_NAME}_ptx)
 
   set(INPUT_CU_FILE ${DIR}/${BASE_NAME}_ptx.cu)
