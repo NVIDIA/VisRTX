@@ -4,8 +4,8 @@
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
 
-#include <mi/neuraylib/target_code_types.h>
 #include <anari/anari_cpp/ext/linalg.h>
+#include <mi/neuraylib/target_code_types.h>
 #include <optix_device.h>
 
 // No derivatives yet
@@ -121,7 +121,9 @@ vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
     mdlBsdf_evaluate(&eval_data, &state, &resData, argblock);
 
     auto radiance_over_pdf = ls->radiance / ls->pdf;
-    auto contrib = radiance_over_pdf * (make_vec3(eval_data.bsdf_diffuse) + make_vec3(eval_data.bsdf_glossy));
+    auto contrib = radiance_over_pdf
+        * (make_vec3(eval_data.bsdf_diffuse)
+            + make_vec3(eval_data.bsdf_glossy));
     return vec4(contrib, 1.0f);
   }
 

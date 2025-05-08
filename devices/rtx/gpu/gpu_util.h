@@ -60,7 +60,6 @@ VISRTX_DEVICE T_OUT bit_cast(T_IN v)
   return *reinterpret_cast<T_OUT *>(&v);
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
 // Conversion functions
 ///////////////////////////////////////////////////////////////////////////////
@@ -70,6 +69,8 @@ VISRTX_DEVICE T_OUT bit_cast(T_IN v)
 using ::make_float1, ::make_float2, ::make_float3, ::make_float4;
 using ::make_int1, ::make_int2, ::make_int3, ::make_int4;
 using ::make_uint1, ::make_uint2, ::make_uint3, ::make_uint4;
+
+// clang-format off
 
 VISRTX_DEVICE glm::vec1 make_vec1(const float1& v) { return bit_cast<glm::vec1>(v); }
 VISRTX_DEVICE glm::vec2 make_vec2(const float2& v) { return bit_cast<glm::vec2>(v); }
@@ -96,6 +97,8 @@ VISRTX_DEVICE uint1 make_uint1(const glm::uvec1& v) { return bit_cast<uint1>(v);
 VISRTX_DEVICE uint2 make_uint2(const glm::uvec2& v) { return bit_cast<uint2>(v); }
 VISRTX_DEVICE uint3 make_uint3(const glm::uvec3& v) { return bit_cast<uint3>(v); }
 VISRTX_DEVICE uint4 make_uint4(const glm::uvec4& v) { return bit_cast<uint4>(v); }
+
+// clang-format on
 
 ///////////////////////////////////////////////////////////////////////////////
 // Utility functions //////////////////////////////////////////////////////////

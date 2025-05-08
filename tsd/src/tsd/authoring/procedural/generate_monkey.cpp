@@ -18,8 +18,8 @@ void generate_monkey(Context &ctx, LayerNodeRef location)
       ANARI_FLOAT32_VEC3, std::size(obj2header::vertex_position) / 3);
   positionArray->setData(std::data(obj2header::vertex_position));
 
-  auto normalArray =
-      ctx.createArray(ANARI_FLOAT32_VEC3, std::size(obj2header::vertex_normal) / 3);
+  auto normalArray = ctx.createArray(
+      ANARI_FLOAT32_VEC3, std::size(obj2header::vertex_normal) / 3);
   normalArray->setData(std::data(obj2header::vertex_normal));
 
   auto uvArray =

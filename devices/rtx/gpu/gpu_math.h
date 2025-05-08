@@ -34,20 +34,34 @@
 #include "gpu_decl.h"
 
 // glm
-#include <glm/fwd.hpp>
-#include <glm/ext/vector_float2.hpp>
-#include <glm/ext/vector_float3.hpp>
 #include <glm/ext/matrix_float3x3.hpp>
 #include <glm/ext/matrix_float3x4.hpp>
+#include <glm/ext/vector_float2.hpp>
+#include <glm/ext/vector_float3.hpp>
+#include <glm/fwd.hpp>
 // std
 #include <limits>
 
 namespace visrtx {
 
+using glm::fquat;
 using glm::ivec1;
 using glm::ivec2;
 using glm::ivec3;
 using glm::ivec4;
+using glm::mat2;
+using glm::mat2x2;
+using glm::mat2x3;
+using glm::mat2x4;
+using glm::mat3;
+using glm::mat3x2;
+using glm::mat3x3;
+using glm::mat3x4;
+using glm::mat4;
+using glm::mat4x2;
+using glm::mat4x3;
+using glm::mat4x4;
+using glm::quat;
 using glm::uvec1;
 using glm::uvec2;
 using glm::uvec3;
@@ -56,20 +70,6 @@ using glm::vec1;
 using glm::vec2;
 using glm::vec3;
 using glm::vec4;
-using glm::mat2;
-using glm::mat3;
-using glm::mat4;
-using glm::mat2x2;
-using glm::mat2x3;
-using glm::mat2x4;
-using glm::mat3x2;
-using glm::mat3x3;
-using glm::mat3x4;
-using glm::mat4x2;
-using glm::mat4x3;
-using glm::mat4x4;
-using glm::quat;
-using glm::fquat;
 
 template <typename T>
 struct range_t

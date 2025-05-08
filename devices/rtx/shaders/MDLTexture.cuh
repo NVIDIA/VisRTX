@@ -6,8 +6,8 @@
 #include <mi/base/types.h>
 #include <mi/neuraylib/target_code_types.h>
 #include <texture_types.h>
-#include <vector_types.h>
 #include <vector_functions.h>
+#include <vector_types.h>
 
 namespace visrtx {
 
