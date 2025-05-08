@@ -52,11 +52,7 @@ add_subdirectory(
 
 function(create_visrtx_executable NAME)
   add_executable(${NAME} ${NAME}.cpp)
-  target_link_libraries(${NAME}
-  PRIVATE
-    VisRTX::anari_library_visrtx
-    stb_image
-  )
+  target_link_libraries(${NAME} PRIVATE VisRTX::anari_library_visrtx stb_image)
 endfunction()
 
 create_visrtx_executable(testApp_spheres)

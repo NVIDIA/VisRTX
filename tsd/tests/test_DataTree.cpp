@@ -18,7 +18,7 @@ SCENARIO("tsd::serialization::DataTree interface", "[DataTree]")
 
     THEN("The root node is called 'root'")
     {
-      REQUIRE(root.name() == "root");
+      REQUIRE(root.name() == "<root>");
     }
 
     THEN("The root node has no children")
@@ -75,12 +75,12 @@ SCENARIO("tsd::serialization::DataTree interface", "[DataTree]")
         child = 50;
         THEN("The value returned is the correct type")
         {
-          REQUIRE(child.value().is<int>());
-          REQUIRE(child.value().type() == ANARI_INT32);
+          REQUIRE(child.getValue().is<int>());
+          REQUIRE(child.getValue().type() == ANARI_INT32);
         }
         THEN("The value returned is the correct value")
         {
-          REQUIRE(child.valueAs<int>() == 50);
+          REQUIRE(child.getValueAs<int>() == 50);
         }
       }
     }
@@ -148,6 +148,16 @@ SCENARIO("tsd::serialization::DataTree interface", "[DataTree]")
           REQUIRE(root.child("child1b") != nullptr);
         }
       }
+
+      WHEN("Setting a value on an intermediate node")
+      {
+        root["child1a"]["child2a"] = 100;
+        THEN("The original leaf child should no longer exist")
+        {
+          REQUIRE(root["child1a"]["child2a"].child("child3a") == nullptr);
+          REQUIRE(root["child1a"]["child2a"].getValueAs<int>() == 100);
+        }
+      }
     }
 
     WHEN("Setting an array as a value")
@@ -171,7 +181,7 @@ SCENARIO("tsd::serialization::DataTree interface", "[DataTree]")
       {
         int *checkedValues = nullptr;
         size_t size = 0;
-        child.valueAsArray(&checkedValues, &size);
+        child.getValueAsArray(&checkedValues, &size);
         REQUIRE(size == 5);
         REQUIRE(checkedValues != nullptr);
         REQUIRE(std::equal(values, values + size, checkedValues));

@@ -6,6 +6,7 @@
 #include "tsd/containers/Forest.hpp"
 #include "tsd/core/Any.hpp"
 // std
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -21,6 +22,7 @@ struct DataTree;
 struct DataNode
 {
   using Ptr = std::unique_ptr<DataNode>;
+  using Ref = utility::ForestNodeRef<DataNode::Ptr>;
 
   DataNode() = default;
   ~DataNode();
@@ -40,6 +42,7 @@ struct DataNode
 
   template <typename T>
   void setValue(const T &v);
+  void setValue(anari::DataType type, const void *v);
 
   template <typename T>
   void setValueAsArray(const std::vector<T> &v);
@@ -47,20 +50,28 @@ struct DataNode
   void setValueAsArray(const T *v, size_t numElements);
   void setValueAsArray(anari::DataType type, const void *v, size_t numElements);
 
+  void *setValueAsArray(anari::DataType type, size_t numElements);
+
   void clearValue();
 
   // Getting values //
 
   template <typename T>
-  void valueAsArray(T **ptr, size_t *size) const;
+  void getValueAsArray(const T **ptr, size_t *size) const;
+  template <typename T>
+  void getValueAsArray(T **ptr, size_t *size);
+  void getValueAsArray(
+      anari::DataType *type, const void **ptr, size_t *size) const;
+  void getValueAsArray(anari::DataType *type, void **ptr, size_t *size);
 
   template <typename T>
-  T valueAs() const;
-  const Any &value() const;
+  T getValueAs() const;
+  const Any &getValue() const;
 
   bool holdsArray() const;
   anari::DataType arrayType() const;
   bool empty() const;
+  bool isLeaf() const;
 
   // Access children //
 
@@ -79,7 +90,7 @@ struct DataNode
 #ifndef TSD_DATA_TREE_TEST_MODE // allow access to self() in unit tests only (!)
  private:
 #endif
-  utility::ForestNodeRef<DataNode::Ptr> self() const;
+  Ref self() const;
 
  private:
   friend struct DataTree;
@@ -90,7 +101,7 @@ struct DataNode
 
   struct NodeData
   {
-    utility::ForestNodeRef<DataNode::Ptr> self;
+    Ref self;
     std::string name;
     Any value;
     std::vector<uint8_t> arrayBytes;
@@ -109,7 +120,8 @@ struct DataTree
 
   // File I/O //
 
-  // TODO
+  void save(const char *filename);
+  void load(const char *filename);
 
   // Not movable or copyable //
 
@@ -119,6 +131,9 @@ struct DataTree
   DataTree &operator=(DataTree &&) = delete;
 
  private:
+  void writeDataNode(
+      std::FILE *fp, const DataNode &node, const std::string &path) const;
+
   utility::Forest<std::unique_ptr<DataNode>> m_tree;
 };
 
@@ -171,6 +186,15 @@ inline void DataNode::setValue(const T &v)
   detail::validateStorageType<T>();
   clearValue();
   m_data.value = v;
+  self()->erase_subtree();
+}
+
+inline void DataNode::setValue(anari::DataType type, const void *v)
+{
+  detail::validateStorageType(type);
+  clearValue();
+  m_data.value = Any(type, v);
+  self()->erase_subtree();
 }
 
 template <typename T>
@@ -193,6 +217,17 @@ inline void DataNode::setValueAsArray(
   m_data.arrayType = type;
   m_data.arrayBytes.resize(numElements * anari::sizeOf(type));
   std::memcpy(m_data.arrayBytes.data(), v, m_data.arrayBytes.size());
+  self()->erase_subtree();
+}
+
+inline void *DataNode::setValueAsArray(anari::DataType type, size_t numElements)
+{
+  detail::validateStorageType(type);
+  clearValue();
+  m_data.arrayType = type;
+  m_data.arrayBytes.resize(numElements * anari::sizeOf(type));
+  self()->erase_subtree();
+  return m_data.arrayBytes.data();
 }
 
 inline void DataNode::clearValue()
@@ -203,7 +238,7 @@ inline void DataNode::clearValue()
 }
 
 template <typename T>
-inline void DataNode::valueAsArray(T **ptr, size_t *size) const
+inline void DataNode::getValueAsArray(T **ptr, size_t *size)
 {
   detail::validateStorageType<T>();
   if (!holdsArray() || m_data.arrayType != anari::ANARITypeFor<T>::value) {
@@ -216,12 +251,59 @@ inline void DataNode::valueAsArray(T **ptr, size_t *size) const
 }
 
 template <typename T>
-inline T DataNode::valueAs() const
+inline void DataNode::getValueAsArray(const T **ptr, size_t *size) const
 {
-  return value().getAs<T>();
+  detail::validateStorageType<T>();
+  if (!holdsArray() || m_data.arrayType != anari::ANARITypeFor<T>::value) {
+    *ptr = nullptr;
+    *size = 0;
+  } else {
+    *ptr = (const T *)m_data.arrayBytes.data();
+    *size = m_data.arrayBytes.size() / sizeof(T);
+  }
 }
 
-inline const Any &DataNode::value() const
+inline void DataNode::getValueAsArray(
+    anari::DataType *type, void **ptr, size_t *size)
+{
+  if (!holdsArray()) {
+    *type = ANARI_UNKNOWN;
+    *ptr = nullptr;
+    *size = 0;
+  } else {
+    *type = m_data.arrayType;
+    *ptr = m_data.arrayBytes.data();
+    *size = m_data.arrayBytes.size() / anari::sizeOf(m_data.arrayType);
+  }
+}
+
+inline void DataNode::getValueAsArray(
+    anari::DataType *type, const void **ptr, size_t *size) const
+{
+  if (!holdsArray()) {
+    *type = ANARI_UNKNOWN;
+    *ptr = nullptr;
+    *size = 0;
+  } else {
+    *type = m_data.arrayType;
+    *ptr = m_data.arrayBytes.data();
+    *size = m_data.arrayBytes.size() / anari::sizeOf(m_data.arrayType);
+  }
+}
+
+template <typename T>
+inline T DataNode::getValueAs() const
+{
+  return getValue().getAs<T>();
+}
+
+template <>
+inline std::string DataNode::getValueAs() const
+{
+  return getValue().getString();
+}
+
+inline const Any &DataNode::getValue() const
 {
   return m_data.value;
 }
@@ -239,6 +321,11 @@ inline anari::DataType DataNode::arrayType() const
 inline bool DataNode::empty() const
 {
   return !m_data.value && !holdsArray();
+}
+
+inline bool DataNode::isLeaf() const
+{
+  return self()->isLeaf();
 }
 
 inline size_t DataNode::numChildren() const
@@ -286,6 +373,8 @@ inline const DataNode *DataNode::child(size_t childIdx) const
 
 inline DataNode &DataNode::append(const std::string &newChildName)
 {
+  clearValue();
+
   if (newChildName.empty()) {
     std::string name = '<' + std::to_string(numChildren() + 1) + '>';
     auto ref = self()->insert_last_child(DataNode::Ptr{new DataNode(name)});
@@ -314,7 +403,7 @@ inline void DataNode::remove(DataNode &childNode)
   self()->container()->erase(childNode.self());
 }
 
-inline utility::ForestNodeRef<DataNode::Ptr> DataNode::self() const
+inline DataNode::Ref DataNode::self() const
 {
   return m_data.self;
 }
@@ -326,7 +415,7 @@ inline DataNode::DataNode(const std::string &name)
 
 // DataTree //
 
-inline DataTree::DataTree() : m_tree(DataNode::Ptr{new DataNode("root")})
+inline DataTree::DataTree() : m_tree(DataNode::Ptr{new DataNode("<root>")})
 {
   root().m_data.self = m_tree.root();
 }
@@ -336,6 +425,197 @@ inline DataTree::~DataTree() = default;
 inline DataNode &DataTree::root()
 {
   return ***m_tree.root();
+}
+
+inline void DataTree::save(const char *filename)
+{
+  std::FILE *fp = std::fopen(filename, "wb");
+  if (!fp)
+    return;
+
+  // Count + write number of leaf nodes //
+
+  size_t numLeafNodes = 0;
+  m_tree.traverse(m_tree.root(), [&](auto &nodeRef, int level) {
+    if (level == 0)
+      return true;
+    else if (auto &node = **nodeRef; nodeRef.isLeaf())
+      numLeafNodes++;
+    return true;
+  });
+
+  std::fwrite(&numLeafNodes, sizeof(size_t), 1, fp);
+
+  // Travese tree and write nodes //
+
+  std::string path;
+  path.reserve(256);
+  m_tree.traverse(
+      m_tree.root(),
+      [&](auto &nodeRef, int level) {
+        if (level == 0)
+          return true;
+
+        if (auto &node = **nodeRef; nodeRef.isLeaf()) {
+          writeDataNode(fp, node, path);
+          numLeafNodes++;
+        } else {
+          const auto &name = node.name();
+          if (!path.empty())
+            path.push_back('\0');
+          std::copy(name.begin(), name.end(), std::back_inserter(path));
+        }
+
+        return true;
+      },
+      [&](auto &nodeRef, int level) {
+        if (level == 0)
+          return;
+        else if (level == 1) {
+          path.clear();
+          return;
+        }
+
+        auto &node = **nodeRef;
+        auto &parent = ***node.self()->parent();
+        if (!nodeRef.isLeaf())
+          path.resize(path.size() - (parent.name().size() + 2));
+      });
+
+  std::fclose(fp);
+}
+
+inline void DataTree::load(const char *filename)
+{
+  auto splitNullSeparatedStrings =
+      [](const char *buffer, size_t bufferSize) -> std::vector<std::string> {
+    std::vector<std::string> result;
+    for (size_t start = 0; start < bufferSize;) {
+      size_t end = start;
+      while (end < bufferSize && buffer[end] != '\0')
+        ++end;
+      if (end > start)
+        result.emplace_back(buffer + start, end - start);
+      start = end + 1;
+    }
+
+    return result;
+  };
+
+  /////////////////////////////////////////////////////////////////////////////
+
+  auto *fp = std::fopen(filename, "rb");
+  if (!fp)
+    return;
+
+  m_tree.root()->erase_subtree();
+  auto &rootNode = root();
+
+  size_t numLeafNodes = 0;
+  auto r = std::fread(&numLeafNodes, sizeof(size_t), 1, fp);
+
+  for (size_t i = 0; i < numLeafNodes; i++) {
+    size_t size = 0;
+
+    // name
+    r = std::fread(&size, sizeof(size_t), 1, fp);
+    std::string name(size, '\0');
+    r = std::fread(name.data(), sizeof(char), size, fp);
+
+    // path
+    r = std::fread(&size, sizeof(size_t), 1, fp);
+    std::string fullPath(size, '\0');
+    r = std::fread(fullPath.data(), sizeof(char), size, fp);
+
+    // Create node //
+
+    auto path =
+        splitNullSeparatedStrings(fullPath.c_str(), fullPath.size() + 1);
+
+    DataNode *parentPtr = &rootNode;
+    for (auto &loc : path) {
+      if (!loc.empty())
+        parentPtr = &parentPtr->append(loc);
+    }
+
+    auto &node = parentPtr->append(name);
+
+    // Read node value //
+
+    // isArray
+    uint8_t isArray = 0;
+    r = std::fread(&isArray, sizeof(uint8_t), 1, fp);
+
+    // type
+    anari::DataType type = ANARI_UNKNOWN;
+    r = std::fread(&type, sizeof(anari::DataType), 1, fp);
+
+    if (isArray) {
+      // array size + data
+      r = std::fread(&size, sizeof(size_t), 1, fp);
+      void *dataPtr = node.setValueAsArray(type, size);
+      r = std::fread(dataPtr, anari::sizeOf(type), size, fp);
+    } else {
+      // value data
+      if (type == ANARI_STRING) {
+        r = std::fread(&size, sizeof(size_t), 1, fp);
+        std::string str(size, '\0');
+        r = std::fread(str.data(), sizeof(char), size, fp);
+        node = str.c_str();
+      } else {
+        constexpr int MAX_SIZE = 16 * sizeof(float);
+        if (anari::sizeOf(type) <= MAX_SIZE) {
+          uint8_t data[MAX_SIZE];
+          r = std::fread(data, anari::sizeOf(type), 1, fp);
+          node.setValue(type, (void *)data);
+        } else {
+          printf("ERROR: type %s is too large to read when parsing DataTree\n",
+              anari::toString(type));
+        }
+      }
+    }
+  }
+
+  std::fclose(fp);
+}
+
+inline void DataTree::writeDataNode(
+    std::FILE *fp, const DataNode &node, const std::string &path) const
+{
+  // name
+  size_t size = node.name().size();
+  std::fwrite(&size, sizeof(size_t), 1, fp);
+  std::fwrite(node.name().c_str(), sizeof(char), size, fp);
+  // path
+  size = path.size();
+  std::fwrite(&size, sizeof(size_t), 1, fp);
+  std::fwrite(path.c_str(), sizeof(char), size, fp);
+  // isArray
+  const uint8_t isArray = node.holdsArray();
+  std::fwrite(&isArray, sizeof(uint8_t), 1, fp);
+  if (isArray) {
+    // array info + data
+    anari::DataType type = ANARI_UNKNOWN;
+    const void *data = nullptr;
+    size = 0;
+    node.getValueAsArray(&type, &data, &size);
+    std::fwrite(&type, sizeof(anari::DataType), 1, fp);
+    std::fwrite(&size, sizeof(size_t), 1, fp);
+    std::fwrite(data, sizeof(uint8_t), size * anari::sizeOf(type), fp);
+  } else {
+    // value info + data
+    auto &v = node.getValue();
+    auto type = v.type();
+    std::fwrite(&type, sizeof(anari::DataType), 1, fp);
+    if (type == ANARI_STRING) {
+      const char *data = v.getCStr();
+      size = std::strlen(data);
+      std::fwrite(&size, sizeof(size_t), 1, fp);
+      std::fwrite(data, sizeof(char), size, fp);
+    } else {
+      std::fwrite(v.data(), anari::sizeOf(type), 1, fp);
+    }
+  }
 }
 
 } // namespace tsd::serialization
