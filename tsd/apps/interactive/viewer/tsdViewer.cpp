@@ -44,35 +44,39 @@ class Application : public BaseApplication
 
     // Populate scene //
 
-    m_sceneLoadFuture =
-        std::async([vp = viewport, vp2 = viewport2, core = core]() {
-          auto loadStart = std::chrono::steady_clock::now();
-          core->setupSceneFromCommandLine();
-          auto loadEnd = std::chrono::steady_clock::now();
-          auto loadSeconds =
-              std::chrono::duration<float>(loadEnd - loadStart).count();
+    auto populateScene = [vp = viewport, vp2 = viewport2, core = core]() {
+      auto loadStart = std::chrono::steady_clock::now();
+      core->setupSceneFromCommandLine();
+      auto loadEnd = std::chrono::steady_clock::now();
+      auto loadSeconds =
+          std::chrono::duration<float>(loadEnd - loadStart).count();
 
-          if (!core->commandLine.loadingContext) {
-            tsd::logStatus("...setting up directional light");
+      if (!core->commandLine.loadingContext) {
+        tsd::logStatus("...setting up directional light");
 
-            auto light = core->tsd.ctx.createObject<tsd::Light>(
-                tsd::tokens::light::directional);
-            light->setName("mainLight");
-            light->setParameter("direction", tsd::float2(0.f, 240.f));
+        auto light = core->tsd.ctx.createObject<tsd::Light>(
+            tsd::tokens::light::directional);
+        light->setName("mainLight");
+        light->setParameter("direction", tsd::float2(0.f, 240.f));
 
-            core->tsd.ctx.defaultLayer()->root()->insert_first_child(
-                tsd::utility::Any(ANARI_LIGHT, light.index()));
-          }
+        core->tsd.ctx.defaultLayer()->root()->insert_first_child(
+            tsd::utility::Any(ANARI_LIGHT, light.index()));
+      }
 
-          tsd::logStatus("...scene load complete! (%.3fs)", loadSeconds);
-          tsd::logStatus(
-              "%s", tsd::objectDBInfo(core->tsd.ctx.objectDB()).c_str());
-          core->tsd.sceneLoadComplete = true;
+      tsd::logStatus("...scene load complete! (%.3fs)", loadSeconds);
+      tsd::logStatus("%s", tsd::objectDBInfo(core->tsd.ctx.objectDB()).c_str());
+      core->tsd.sceneLoadComplete = true;
 
-          vp->setLibrary(core->commandLine.libraryList[0], false);
-          if (!core->commandLine.secondaryViewportLibrary.empty())
-            vp2->setLibrary(core->commandLine.secondaryViewportLibrary);
-        });
+      vp->setLibrary(core->commandLine.libraryList[0], false);
+      if (!core->commandLine.secondaryViewportLibrary.empty())
+        vp2->setLibrary(core->commandLine.secondaryViewportLibrary);
+    };
+
+#if 1
+    m_sceneLoadFuture = std::async(populateScene);
+#else
+    populateScene();
+#endif
 
     return windows;
   }

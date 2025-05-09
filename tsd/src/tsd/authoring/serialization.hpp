@@ -12,6 +12,9 @@ namespace tsd {
 void save_Context(Context &ctx, const char *filename);
 void import_Context(Context &ctx, const char *filename);
 
+void save_Context_Conduit(Context &ctx, const char *filename);
+void import_Context_Conduit(Context &ctx, const char *filename);
+
 // clang-format on
 
 } // namespace tsd

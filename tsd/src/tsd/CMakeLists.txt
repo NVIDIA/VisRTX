@@ -36,7 +36,8 @@ PRIVATE
   authoring/procedural/generate_noiseVolume.cpp
   authoring/procedural/generate_randomSpheres.cpp
   authoring/procedural/generate_rtow.cpp
-  authoring/serialization/serialization.cpp
+  authoring/serialization/serialization_conduit.cpp
+  authoring/serialization/serialization_datatree.cpp
   core/AnariObjectCache.cpp
   core/Context.cpp
   core/Layer.cpp
@@ -106,12 +107,12 @@ endif()
 
 if (TSD_ENABLE_SERIALIZATION)
   project_link_libraries(PRIVATE tsd_conduit)
-  set_source_files_properties(authoring/serialization/serialization.cpp
+  set_source_files_properties(authoring/serialization/serialization_conduit.cpp
     PROPERTIES
       COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=1
   )
 else()
-  set_source_files_properties(authoring/serialization/serialization.cpp
+  set_source_files_properties(authoring/serialization/serialization_conduit.cpp
     PROPERTIES
       COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=0
   )

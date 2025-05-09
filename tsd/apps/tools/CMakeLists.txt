@@ -4,3 +4,7 @@
 project(obj2header)
 project_add_executable(obj2header.cpp)
 project_link_libraries(tsd tsd_tiny_obj_loader)
+
+project(printDataTree)
+project_add_executable(printDataTree.cpp)
+project_link_libraries(tsd)

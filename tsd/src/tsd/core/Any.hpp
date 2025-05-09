@@ -242,6 +242,12 @@ inline bool Any::is() const
   return is(anari::ANARITypeFor<T>::value);
 }
 
+template <>
+inline bool Any::is<bool>() const
+{
+  return is(ANARI_BOOL);
+}
+
 inline bool Any::is(ANARIDataType t) const
 {
   return type() == t;

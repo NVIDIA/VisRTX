@@ -15,6 +15,7 @@ define_tutorial(tsdTutorialLoadObj)
 define_tutorial(tsdTutorialMultiRender)
 define_tutorial(tsdTutorialPipeline)
 define_tutorial(tsdTutorialRender)
+define_tutorial(tsdTutorialSaveContext)
 define_tutorial(tsdTutorialSimple)
 
 find_package(OpenMP)

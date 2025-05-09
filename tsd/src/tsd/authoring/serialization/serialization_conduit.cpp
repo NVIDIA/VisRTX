@@ -330,7 +330,7 @@ static void conduitToLayer(conduit::Node &rootNode, Layer &layer)
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-void save_Context(Context &ctx, const char *filename)
+void save_Context_Conduit(Context &ctx, const char *filename)
 {
 #if TSD_ENABLE_SERIALIZATION
   conduit::Node root;
@@ -371,7 +371,7 @@ void save_Context(Context &ctx, const char *filename)
 #endif
 }
 
-void import_Context(Context &ctx, const char *filename)
+void import_Context_Conduit(Context &ctx, const char *filename)
 {
 #if TSD_ENABLE_SERIALIZATION
   // Clear out any existing context contents //
