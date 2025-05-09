@@ -102,12 +102,17 @@ add_subdirectory(external)
 
 ## Build targets ##############################################################
 
+option(VISRTX_BUILD_RTX_DEVICE "Build CUDA/OptiX device" ON)
+option(VISRTX_BUILD_GL_DEVICE "Build OpenGL device" ON)
+
 set(VISRTX_CMAKE_INSTALL_DESTINATION
   ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
 
 add_subdirectory(devices)
-add_subdirectory(examples)
+if (VISRTX_BUILD_RTX_DEVICE)
+  add_subdirectory(examples)
+endif()
 add_subdirectory(tests)
 add_subdirectory(shaders)
 if (VISRTX_BUILD_TSD)
