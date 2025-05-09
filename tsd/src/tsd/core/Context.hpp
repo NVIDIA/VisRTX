@@ -141,6 +141,8 @@ struct Context
 
   friend void save_Context(Context &ctx, const char *filename);
   friend void import_Context(Context &ctx, const char *filename);
+  friend void save_Context_Conduit(Context &ctx, const char *filename);
+  friend void import_Context_Conduit(Context &ctx, const char *filename);
 
   template <typename OBJ_T>
   IndexedVectorRef<OBJ_T> createObjectImpl(

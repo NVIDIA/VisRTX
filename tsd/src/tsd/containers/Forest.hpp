@@ -113,6 +113,8 @@ struct Forest
   Forest(Forest &&) = delete;
   Forest &operator=(Forest &&) = delete;
 
+  void reserve(size_t size);
+
   // ForestNode access //
 
   size_t size() const;
@@ -315,6 +317,12 @@ template <typename T>
 inline Forest<T>::Forest(T &&v)
 {
   m_root = make_ForestNode(std::forward<T>(v));
+}
+
+template <typename T>
+inline void Forest<T>::reserve(size_t size)
+{
+  m_nodes.reserve(size);
 }
 
 template <typename T>
