@@ -238,6 +238,9 @@ MaterialRegistry::acquireMaterial(
 
   if (targetIt == std::end(m_targetCodes)) {
     targetIt = m_targetCodes.insert(std::end(m_targetCodes), {ptxBlob, 1});
+  } else {
+    targetIt->ptxBlob = ptxBlob;
+    targetIt->refCount = 1;
   }
 
   auto targetIndex = std::distance(std::begin(m_targetCodes), targetIt);
