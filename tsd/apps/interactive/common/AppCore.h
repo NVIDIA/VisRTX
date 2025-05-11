@@ -27,6 +27,7 @@ enum class ImporterType
   HDRI,
   VOLUME,
   TSD,
+  TSD_CONDUIT,
   SWC,
   PDB,
   XYZDP,
