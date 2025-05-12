@@ -65,7 +65,7 @@ static void arrayToNode(const Array &arr, serialization::DataNode &node)
   node["arrayDim"] = tsd::uint3{
       uint32_t(arr.dim(0)), uint32_t(arr.dim(1)), uint32_t(arr.dim(2))};
 
-  const auto *mem = reinterpret_cast<const uint8_t *>(arr.data());
+  const void *mem = arr.data();
 #if TSD_USE_CUDA
   if (arr.kind() == Array::MemoryKind::CUDA) {
     const size_t numBytes = arr.size() * arr.elementSize();
@@ -75,7 +75,8 @@ static void arrayToNode(const Array &arr, serialization::DataNode &node)
         arr.elementType(), hostBuf.data(), numBytes);
   } else
 #endif
-    node["arrayData"].setValueAsArray(arr.elementType(), mem, arr.size());
+    node["arrayData"].setValueAsExternalArray(
+        arr.elementType(), mem, arr.size());
 }
 
 static void layerToNode(Layer &layer, serialization::DataNode &node)

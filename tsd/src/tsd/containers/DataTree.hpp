@@ -49,8 +49,10 @@ struct DataNode
   template <typename T>
   void setValueAsArray(const T *v, size_t numElements);
   void setValueAsArray(anari::DataType type, const void *v, size_t numElements);
-
   void *setValueAsArray(anari::DataType type, size_t numElements);
+
+  void setValueAsExternalArray(
+      anari::DataType type, const void *v, size_t numElements);
 
   void setValueObject(anari::DataType type, size_t idx);
 
@@ -74,6 +76,7 @@ struct DataNode
 
   bool holdsObjectIdx() const;
   bool holdsArray() const;
+  bool holdsExternalArray() const; // cannot get mutable pointer to data
   anari::DataType arrayType() const;
   bool empty() const;
   bool isLeaf() const;
@@ -118,6 +121,8 @@ struct DataNode
     Any value;
     std::vector<uint8_t> arrayBytes;
     anari::DataType arrayType{ANARI_UNKNOWN};
+    const void *externalArray{nullptr};
+    size_t externalArraySize{0};
   } m_data;
 };
 
@@ -237,6 +242,16 @@ inline void *DataNode::setValueAsArray(anari::DataType type, size_t numElements)
   return m_data.arrayBytes.data();
 }
 
+inline void DataNode::setValueAsExternalArray(
+    anari::DataType type, const void *v, size_t numElements)
+{
+  clearValue();
+  self()->erase_subtree();
+  m_data.arrayType = type;
+  m_data.externalArray = v;
+  m_data.externalArraySize = numElements * anari::sizeOf(type);
+}
+
 inline void DataNode::setValueObject(anari::DataType type, size_t idx)
 {
   setValue(utility::Any(type, idx));
@@ -247,6 +262,8 @@ inline void DataNode::clearValue()
   m_data.value.reset();
   m_data.arrayBytes.clear();
   m_data.arrayType = ANARI_UNKNOWN;
+  m_data.externalArray = nullptr;
+  m_data.externalArraySize = 0;
 }
 
 template <typename T>
@@ -254,12 +271,17 @@ inline void DataNode::getValueAsArray(T **ptr, size_t *size)
 {
   static_assert(!anari::isObject(anari::ANARITypeFor<T>::value),
       "getValueAsArray<T> does not work for ANARI object types");
-  if (!holdsArray() || m_data.arrayType != anari::ANARITypeFor<T>::value) {
-    *ptr = nullptr;
-    *size = 0;
-  } else {
+
+  *ptr = nullptr;
+  *size = 0;
+
+  const bool compatible = holdsArray()
+      && m_data.arrayType == anari::ANARITypeFor<T>::value
+      && !m_data.arrayBytes.empty();
+
+  if (compatible) {
     *ptr = (T *)m_data.arrayBytes.data();
-    *size = m_data.arrayBytes.size() / sizeof(T);
+    *size = m_data.arrayBytes.size() / anari::sizeOf(m_data.arrayType);
   }
 }
 
@@ -272,19 +294,24 @@ inline void DataNode::getValueAsArray(const T **ptr, size_t *size) const
     *ptr = nullptr;
     *size = 0;
   } else {
-    *ptr = (const T *)m_data.arrayBytes.data();
-    *size = m_data.arrayBytes.size() / sizeof(T);
+    if (!m_data.arrayBytes.empty()) {
+      *ptr = (const T *)m_data.arrayBytes.data();
+      *size = m_data.arrayBytes.size() / anari::sizeOf(m_data.arrayType);
+    } else {
+      *ptr = (const T *)m_data.externalArray;
+      *size = m_data.externalArraySize / anari::sizeOf(m_data.arrayType);
+    }
   }
 }
 
 inline void DataNode::getValueAsArray(
     anari::DataType *type, void **ptr, size_t *size)
 {
-  if (!holdsArray()) {
-    *type = ANARI_UNKNOWN;
-    *ptr = nullptr;
-    *size = 0;
-  } else {
+  *type = ANARI_UNKNOWN;
+  *ptr = nullptr;
+  *size = 0;
+
+  if (holdsArray() && !m_data.arrayBytes.empty()) {
     *type = m_data.arrayType;
     *ptr = m_data.arrayBytes.data();
     *size = m_data.arrayBytes.size() / anari::sizeOf(m_data.arrayType);
@@ -294,14 +321,19 @@ inline void DataNode::getValueAsArray(
 inline void DataNode::getValueAsArray(
     anari::DataType *type, const void **ptr, size_t *size) const
 {
-  if (!holdsArray()) {
-    *type = ANARI_UNKNOWN;
-    *ptr = nullptr;
-    *size = 0;
-  } else {
+  *type = ANARI_UNKNOWN;
+  *ptr = nullptr;
+  *size = 0;
+
+  if (holdsArray()) {
     *type = m_data.arrayType;
-    *ptr = m_data.arrayBytes.data();
-    *size = m_data.arrayBytes.size() / anari::sizeOf(m_data.arrayType);
+    if (!m_data.arrayBytes.empty()) {
+      *ptr = m_data.arrayBytes.data();
+      *size = m_data.arrayBytes.size() / anari::sizeOf(m_data.arrayType);
+    } else {
+      *ptr = m_data.externalArray;
+      *size = m_data.externalArraySize / anari::sizeOf(m_data.arrayType);
+    }
   }
 }
 
