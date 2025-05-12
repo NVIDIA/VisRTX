@@ -25,7 +25,7 @@ SpatialFieldRef import_MHD(Context &ctx, const char *filename);
 
 VolumeRef import_volume(Context &ctx,
     const char *filename,
-    ArrayRef colors,
+    ArrayRef colors = {},
     ArrayRef opacities = {});
 
 // clang-format on

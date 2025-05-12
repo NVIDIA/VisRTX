@@ -3,6 +3,7 @@
 
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
+#include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 // std
 #include <cstdio>
@@ -35,6 +36,11 @@ VolumeRef import_volume(Context &ctx,
     logError(
         "[import_volume] unable to load field from file '%s'", file.c_str());
     return {};
+  }
+
+  if (!colorArray) {
+    colorArray = ctx.createArray(ANARI_FLOAT32_VEC4, 256);
+    colorArray->setData(makeDefaultColorMap(colorArray->size()).data());
   }
 
   float2 valueRange{0.f, 1.f};

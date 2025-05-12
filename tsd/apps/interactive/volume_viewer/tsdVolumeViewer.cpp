@@ -3,9 +3,9 @@
 
 #include "BaseApplication.h"
 #include "windows/IsosurfaceEditor.h"
+#include "windows/LayerTree.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
-#include "windows/LayerTree.h"
 #include "windows/TransferFunctionEditor.h"
 #include "windows/Viewport.h"
 // std
@@ -49,18 +49,17 @@ class Application : public BaseApplication
     setWindowArray(windows);
 
     // Populate scene //
-
-    m_sceneLoadFuture = std::async([viewport = viewport,
-                                       m = manipulator,
-                                       tf = tfeditor,
-                                       core = core]() {
-      auto colorMapArray = core->tsd.ctx.createArray(ANARI_FLOAT32_VEC4, 256);
+    auto setupScene = [viewport = viewport,
+                          tfeditor = tfeditor,
+                          m = manipulator,
+                          core = core]() {
+      auto colorArray = core->tsd.ctx.createArray(ANARI_FLOAT32_VEC4, 256);
 
       tsd::VolumeRef volume;
 
       if (!g_filename.empty()) {
-        volume = tsd::import_volume(
-            core->tsd.ctx, g_filename.c_str(), colorMapArray);
+        volume =
+            tsd::import_volume(core->tsd.ctx, g_filename.c_str(), colorArray);
       }
 
       if (!volume) {
@@ -70,13 +69,10 @@ class Application : public BaseApplication
         auto tx1 = core->tsd.ctx.insertChildTransformNode(
             core->tsd.ctx.defaultLayer()->root());
 
-        volume = tsd::generate_noiseVolume(core->tsd.ctx, tx1, colorMapArray);
+        volume = tsd::generate_noiseVolume(core->tsd.ctx, tx1, colorArray);
       }
 
       core->tsd.selectedObject = volume.data();
-      tf->setValueRange(volume->parameter("valueRange")
-              ->value()
-              .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
 
       core->setupSceneFromCommandLine(true);
 
@@ -98,15 +94,13 @@ class Application : public BaseApplication
       core->tsd.sceneLoadComplete = true;
 
       viewport->setLibrary(core->commandLine.libraryList[0], false);
+    };
 
-      tf->setUpdateCallback([=](const tsd::float2 &valueRange,
-                                const std::vector<tsd::float4> &co) mutable {
-        auto *colorMap = colorMapArray->mapAs<tsd::float4>();
-        std::copy(co.begin(), co.end(), colorMap);
-        colorMapArray->unmap();
-        volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-      });
-    });
+#if 1
+    m_sceneLoadFuture = std::async(setupScene);
+#else
+    setupScene();
+#endif
 
     return windows;
   }

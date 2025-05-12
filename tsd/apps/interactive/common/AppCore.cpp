@@ -180,10 +180,8 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_PDB(tsd.ctx, f.second.c_str(), root);
       else if (f.first == ImporterType::XYZDP)
         tsd::import_XYZDP(tsd.ctx, f.second.c_str());
-#if 0
       else if (f.first == ImporterType::VOLUME)
         tsd::import_volume(tsd.ctx, f.second.c_str());
-#endif
     }
   }
 }

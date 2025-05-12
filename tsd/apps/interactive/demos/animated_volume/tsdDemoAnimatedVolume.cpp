@@ -3,9 +3,9 @@
 
 #include "BaseApplication.h"
 #include "windows/IsosurfaceEditor.h"
+#include "windows/LayerTree.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
-#include "windows/LayerTree.h"
 #include "windows/TransferFunctionEditor.h"
 #include "windows/Viewport.h"
 // std
@@ -55,8 +55,7 @@ class Application : public BaseApplication
 
     // Populate scene data //
 
-    auto colorArray = ctx.createArray(ANARI_FLOAT32_VEC3, 256);
-    auto opacityArray = ctx.createArray(ANARI_FLOAT32, 256);
+    auto colorArray = core->tsd.ctx.createArray(ANARI_FLOAT32_VEC4, 256);
 
     auto field = ctx.createObject<tsd::SpatialField>(
         tsd::tokens::spatial_field::structuredRegular);
@@ -73,7 +72,6 @@ class Application : public BaseApplication
     volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
     volume->setParameterObject("value", *field);
     volume->setParameterObject("color", *colorArray);
-    volume->setParameterObject("opacity", *opacityArray);
 
     ctx.defaultLayer()->root()->insert_first_child(
         tsd::utility::Any(ANARI_VOLUME, volume.index()));
@@ -81,36 +79,16 @@ class Application : public BaseApplication
     // Setup app //
 
     core->tsd.selectedObject = volume.data();
-    tfeditor->setValueRange(volume->parameter("valueRange")
-            ->value()
-            .getAs<tsd::float2>(ANARI_FLOAT32_BOX1));
 
     tsd::logStatus("%s", tsd::objectDBInfo(ctx.objectDB()).c_str());
     core->tsd.sceneLoadComplete = true;
 
     viewport->setLibrary(core->commandLine.libraryList[0], false);
 
-    tfeditor->setUpdateCallback(
-        [=](const tsd::float2 &valueRange,
-            const std::vector<tsd::float4> &co) mutable {
-          auto *colors = colorArray->mapAs<tsd::float3>();
-          auto *opacities = opacityArray->mapAs<float>();
-          std::transform(
-              co.begin(), co.end(), colors, [](const tsd::float4 &v) {
-                return tsd::float3(v.x, v.y, v.z);
-              });
-          std::transform(
-              co.begin(), co.end(), opacities, [](const tsd::float4 &v) {
-                return v.w;
-              });
-          colorArray->unmap();
-          opacityArray->unmap();
-
-          volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-        });
-
-    solver->setUpdateCallback(
-        [=]() mutable { tfeditor->setValueRange(field->computeValueRange()); });
+    solver->setUpdateCallback([=]() mutable {
+      auto valueRange = field->computeValueRange();
+      volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+    });
 
     return windows;
   }

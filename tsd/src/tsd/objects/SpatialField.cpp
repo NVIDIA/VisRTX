@@ -82,9 +82,8 @@ tsd::float2 SpatialField::computeValueRange()
     if (auto range = getDataRangeFromParameter(parameter("data")); range)
       retval = *range;
   } else if (subtype() == tokens::spatial_field::nanovdb) {
-    if (auto range = parameter("range")) {
+    if (auto range = parameter("range"))
       retval = range->value().get<tsd::float2>();
-    }
   } else if (subtype() == tokens::spatial_field::amr) {
     if (auto range = getDataRangeFromParameter(parameter("block.data")); range)
       retval = *range;

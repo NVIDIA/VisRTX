@@ -3,9 +3,11 @@
 
 #include "BaseApplication.h"
 #include "windows/DatabaseEditor.h"
+#include "windows/IsosurfaceEditor.h"
 #include "windows/LayerTree.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
+#include "windows/TransferFunctionEditor.h"
 #include "windows/Viewport.h"
 // std
 #include <chrono>
@@ -27,11 +29,11 @@ class Application : public BaseApplication
     auto *log = new Log(core);
     auto *viewport = new Viewport(core, &m_manipulator, "Viewport");
     auto *viewport2 = new Viewport(core, &m_manipulator, "Secondary View");
-    if (core->commandLine.secondaryViewportLibrary.empty())
-      viewport2->hide();
     auto *dbeditor = new DatabaseEditor(core);
     auto *oeditor = new ObjectEditor(core);
     auto *otree = new LayerTree(core);
+    auto *tfeditor = new TransferFunctionEditor(core);
+    auto *isoeditor = new IsosurfaceEditor(core);
 
     windows.emplace_back(viewport);
     windows.emplace_back(viewport2);
@@ -39,8 +41,15 @@ class Application : public BaseApplication
     windows.emplace_back(oeditor);
     windows.emplace_back(otree);
     windows.emplace_back(log);
+    windows.emplace_back(tfeditor);
+    windows.emplace_back(isoeditor);
 
     setWindowArray(windows);
+
+    if (core->commandLine.secondaryViewportLibrary.empty())
+      viewport2->hide();
+    tfeditor->hide();
+    isoeditor->hide();
 
     // Populate scene //
 
@@ -93,7 +102,7 @@ class Application : public BaseApplication
     return R"layout(
 [Window][MainDockSpace]
 Pos=0,26
-Size=1920,1105
+Size=1920,1054
 Collapsed=0
 
 [Window][Debug##Default]
@@ -103,30 +112,30 @@ Collapsed=0
 
 [Window][Viewport]
 Pos=549,26
-Size=1371,848
+Size=1371,797
 Collapsed=0
 DockId=0x00000006,0
 
 [Window][Database Editor]
-Pos=0,603
-Size=547,528
+Pos=0,576
+Size=547,504
 Collapsed=0
 DockId=0x00000009,0
 
 [Window][Layers]
 Pos=0,26
-Size=547,575
+Size=547,548
 Collapsed=0
 DockId=0x00000008,0
 
 [Window][Object Editor]
-Pos=0,603
-Size=547,528
+Pos=0,576
+Size=547,504
 Collapsed=0
 DockId=0x00000009,1
 
 [Window][Log]
-Pos=549,876
+Pos=549,825
 Size=1371,255
 Collapsed=0
 DockId=0x00000005,0
@@ -136,6 +145,18 @@ Pos=1237,26
 Size=683,848
 Collapsed=0
 DockId=0x00000007,0
+
+[Window][Isosurface Editor]
+Pos=1370,26
+Size=550,1054
+Collapsed=0
+DockId=0x0000000C,0
+
+[Window][TF Editor]
+Pos=1370,26
+Size=550,590
+Collapsed=0
+DockId=0x0000000B,0
 
 [Table][0x44C159D3,2]
 Column 0  Weight=1.0000
@@ -167,15 +188,19 @@ Column 0  Weight=1.0000
 Column 1  Weight=1.0000
 
 [Docking][Data]
-DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
-  DockNode      ID=0x00000001 Parent=0x80F5B4C5 SizeRef=547,1105 Split=Y Selected=0xCD8384B1
-    DockNode    ID=0x00000008 Parent=0x00000001 SizeRef=547,575 Selected=0xCD8384B1
-    DockNode    ID=0x00000009 Parent=0x00000001 SizeRef=547,528 Selected=0x82B4C496
-  DockNode      ID=0x00000002 Parent=0x80F5B4C5 SizeRef=1371,1105 Split=Y
-    DockNode    ID=0x00000004 Parent=0x00000002 SizeRef=1370,797 Split=X Selected=0xC450F867
-      DockNode  ID=0x00000006 Parent=0x00000004 SizeRef=685,848 CentralNode=1 Selected=0xC450F867
-      DockNode  ID=0x00000007 Parent=0x00000004 SizeRef=683,848 Selected=0xA3219422
-    DockNode    ID=0x00000005 Parent=0x00000002 SizeRef=1370,255 Selected=0x139FDA3F
+DockSpace         ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1054 Split=X
+  DockNode        ID=0x00000003 Parent=0x80F5B4C5 SizeRef=1368,1054 Split=X
+    DockNode      ID=0x00000001 Parent=0x00000003 SizeRef=547,1105 Split=Y Selected=0xCD8384B1
+      DockNode    ID=0x00000008 Parent=0x00000001 SizeRef=547,575 Selected=0xCD8384B1
+      DockNode    ID=0x00000009 Parent=0x00000001 SizeRef=547,528 Selected=0x82B4C496
+    DockNode      ID=0x00000002 Parent=0x00000003 SizeRef=1371,1105 Split=Y
+      DockNode    ID=0x00000004 Parent=0x00000002 SizeRef=1370,797 Split=X Selected=0xC450F867
+        DockNode  ID=0x00000006 Parent=0x00000004 SizeRef=685,848 CentralNode=1 Selected=0xC450F867
+        DockNode  ID=0x00000007 Parent=0x00000004 SizeRef=683,848 Selected=0xA3219422
+      DockNode    ID=0x00000005 Parent=0x00000002 SizeRef=1370,255 Selected=0x139FDA3F
+  DockNode        ID=0x0000000A Parent=0x80F5B4C5 SizeRef=550,1054 Split=Y Selected=0x3429FA32
+    DockNode      ID=0x0000000B Parent=0x0000000A SizeRef=550,590 Selected=0x3429FA32
+    DockNode      ID=0x0000000C Parent=0x0000000A SizeRef=550,462 Selected=0xBCE6538B
 )layout";
   }
 
