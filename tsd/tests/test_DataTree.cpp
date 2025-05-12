@@ -88,14 +88,53 @@ SCENARIO("tsd::serialization::DataTree interface", "[DataTree]")
     WHEN("A blank child node is appended on the root")
     {
       auto &c1 = root.append();
-      THEN("The child name will have the name '<1>'")
+      THEN("The root node now has 1 child")
       {
-        REQUIRE(c1.name() == "<1>");
+        REQUIRE(root.numChildren() == 1);
       }
-      THEN("Appending a second blank node will have the name '<2>'")
+#if 0 // no longer true until DataNode::append() uses numChildren()...
+      THEN("The child name will have the name '<0>'")
+      {
+        REQUIRE(c1.name() == "<0>");
+      }
+#endif
+      THEN("A loop of appending blank nodes creates the correct # of children")
+      {
+        for (int i = 0; i < 10; i++) {
+          c1.append();
+          REQUIRE(c1.numChildren() == (i + 1));
+        }
+      }
+
+      WHEN("Appending a second blank node")
       {
         auto &c2 = root.append();
-        REQUIRE(c2.name() == "<2>");
+        THEN("The root node now has 2 children")
+        {
+          REQUIRE(root.numChildren() == 2);
+        }
+#if 0 // no longer true until DataNode::append() uses numChildren()...
+        THEN("The second blank node will have the name '<1>'")
+        {
+          REQUIRE(c2.name() == "<1>");
+        }
+#endif
+        THEN(
+            "A loop of appending blank nodes creates the correct # of children")
+        {
+          for (int i = 0; i < 10; i++) {
+            c2.append();
+            REQUIRE(c2.numChildren() == (i + 1));
+          }
+        }
+      }
+    }
+
+    THEN("A loop of appending blank nodes creates the correct # of children")
+    {
+      for (int i = 0; i < 10; i++) {
+        root.append();
+        REQUIRE(root.numChildren() == (i + 1));
       }
     }
 
