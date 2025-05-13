@@ -13,6 +13,7 @@
 #include "tsd/core/UpdateDelegate.hpp"
 // std
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <type_traits>
 
@@ -128,6 +129,8 @@ struct Object : public ParameterObserver
  private:
   friend struct Context;
 
+  void initMetadata() const;
+
   Context *m_context{nullptr};
   ParameterMap m_parameters;
   anari::DataType m_type{ANARI_UNKNOWN};
@@ -136,7 +139,7 @@ struct Object : public ParameterObserver
   std::string m_description;
   size_t m_index{0};
   BaseUpdateDelegate *m_updateDelegate{nullptr};
-  serialization::DataTree m_metadata;
+  mutable std::unique_ptr<serialization::DataTree> m_metadata;
 };
 
 void print(const Object &obj, std::ostream &out = std::cout);

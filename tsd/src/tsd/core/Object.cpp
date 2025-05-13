@@ -29,6 +29,7 @@ Object::Object(Object &&o)
   m_context = std::move(o.m_context);
   m_index = std::move(o.m_index);
   m_updateDelegate = std::move(o.m_updateDelegate);
+  m_metadata = std::move(o.m_metadata);
   for (auto &p : m_parameters)
     p.second.setObserver(this);
 }
@@ -42,6 +43,7 @@ Object &Object::operator=(Object &&o)
   m_context = std::move(o.m_context);
   m_index = std::move(o.m_index);
   m_updateDelegate = std::move(o.m_updateDelegate);
+  m_metadata = std::move(o.m_metadata);
   for (auto &p : m_parameters)
     p.second.setObserver(this);
   return *this;
@@ -79,7 +81,9 @@ void Object::setName(const char *n)
 
 Any Object::getMetadataValue(const std::string &name) const
 {
-  if (const auto *c = m_metadata.root().child(name); c != nullptr)
+  if (!m_metadata)
+    return {};
+  else if (const auto *c = m_metadata->root().child(name); c != nullptr)
     return c->getValue();
   else
     return {};
@@ -93,13 +97,16 @@ void Object::getMetadataArray(const std::string &name,
   *type = ANARI_UNKNOWN;
   *ptr = nullptr;
   *size = 0;
-  if (const auto *c = m_metadata.root().child(name); c != nullptr)
+  if (!m_metadata)
+    return;
+  if (const auto *c = m_metadata->root().child(name); c != nullptr)
     c->getValueAsArray(type, ptr, size);
 }
 
 void Object::setMetadataValue(const std::string &name, Any v)
 {
-  m_metadata.root()[name] = v;
+  initMetadata();
+  m_metadata->root().append(name) = v;
 }
 
 void Object::setMetadataArray(const std::string &name,
@@ -107,22 +114,29 @@ void Object::setMetadataArray(const std::string &name,
     const void *v,
     size_t numElements)
 {
-  m_metadata.root()[name].setValueAsArray(type, v, numElements);
+  initMetadata();
+  m_metadata->root().append(name).setValueAsArray(type, v, numElements);
 }
 
 void Object::removeMetadata(const std::string &name)
 {
-  m_metadata.root().remove(name);
+  if (!m_metadata)
+    return;
+  m_metadata->root().remove(name);
 }
 
 size_t Object::numMetadata() const
 {
-  return m_metadata.root().numChildren();
+  if (!m_metadata)
+    return 0;
+  return m_metadata->root().numChildren();
 }
 
 const char *Object::getMetadataName(size_t i) const
 {
-  if (const auto *c = m_metadata.root().child(i); c != nullptr)
+  if (!m_metadata)
+    return "";
+  if (const auto *c = m_metadata->root().child(i); c != nullptr)
     return c->name().c_str();
   else
     return "";
@@ -268,6 +282,12 @@ void Object::removeParameter(const Parameter *p)
 BaseUpdateDelegate *Object::updateDelegate() const
 {
   return m_updateDelegate;
+}
+
+void Object::initMetadata() const
+{
+  if (!m_metadata)
+    m_metadata = std::make_unique<serialization::DataTree>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
