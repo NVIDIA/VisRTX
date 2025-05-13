@@ -26,11 +26,11 @@ enum class ImporterType
   OBJ,
   HDRI,
   VOLUME,
-  TSD,
-  TSD_CONDUIT,
   SWC,
   PDB,
   XYZDP,
+  TSD,
+  TSD_CONDUIT,
   NONE
 };
 

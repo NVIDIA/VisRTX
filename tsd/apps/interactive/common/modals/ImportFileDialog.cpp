@@ -20,10 +20,19 @@ void ImportFileDialog::buildUI()
 
   bool update = false;
 
-  const char *importers[] = {
-      "ASSIMP", "ASSIMP_FLAT", "DLAF", "NBODY", "PLY", "OBJ", "HDRI"};
+  const char *importers[] = {"ASSIMP",
+      "ASSIMP_FLAT",
+      "DLAF",
+      "NBODY",
+      "PLY",
+      "OBJ",
+      "HDRI",
+      "VOLUME",
+      "SWC",
+      "PDB",
+      "XYZDP"};
 
-  ImGui::Combo("importer type", &m_selectedFileType, importers, 7);
+  ImGui::Combo("importer type", &m_selectedFileType, importers, 10);
 
   static std::string outPath;
   if (ImGui::Button("...")) {
@@ -40,17 +49,11 @@ void ImportFileDialog::buildUI()
             out = *filelist;
         };
 
-    SDL_DialogFileFilter filterItem[5] = {
-        {"All Supported Files", "gltf;glb;obj;dlaf;nbody;ply;hdri;hdr"},
-        {"glTF Files", "gltf;glb"},
-        {"OBJ Files", "obj"},
-        {"HDRI Files", "hdr;hdri"},
-        {"All Files", "*"}};
     SDL_ShowOpenFileDialog(fileDialogCb,
         &outPath,
         m_core->application->sdlWindow(),
-        filterItem,
-        5,
+        nullptr,
+        0,
         nullptr,
         false);
   }
@@ -113,6 +116,10 @@ void ImportFileDialog::buildUI()
       tsd::import_SWC(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::PDB)
       tsd::import_PDB(ctx, m_filename.c_str(), importRoot);
+    else if (selectedFileType == ImporterType::XYZDP)
+      tsd::import_XYZDP(ctx, m_filename.c_str());
+    else if (selectedFileType == ImporterType::VOLUME)
+      tsd::import_volume(ctx, m_filename.c_str());
     ctx.signalLayerChange(layer);
 
     this->hide();
