@@ -139,6 +139,7 @@ struct DataTree
   // Root node access //
 
   DataNode &root();
+  const DataNode &root() const;
 
   // Traverse nodes //
 
@@ -540,6 +541,11 @@ inline DataNode &DataTree::root()
   return ***m_tree.root();
 }
 
+inline const DataNode &DataTree::root() const
+{
+  return ***m_tree.root();
+}
+
 inline void DataTree::traverse(DataTreeVisitorEntryFunction &&onNodeEntry,
     DataTreeVisitorExitFunction &&onNodeExit)
 {
@@ -581,7 +587,6 @@ inline void DataTree::save(const char *filename)
 
   std::string path;
   path.reserve(256);
-  int currentLevel = 0;
   m_tree.traverse(
       m_tree.root(),
       [&](auto &nodeRef, int level) {

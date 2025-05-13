@@ -77,6 +77,57 @@ void Object::setName(const char *n)
   m_name = n;
 }
 
+Any Object::getMetadataValue(const std::string &name) const
+{
+  if (const auto *c = m_metadata.root().child(name); c != nullptr)
+    return c->getValue();
+  else
+    return {};
+}
+
+void Object::getMetadataArray(const std::string &name,
+    anari::DataType *type,
+    const void **ptr,
+    size_t *size) const
+{
+  *type = ANARI_UNKNOWN;
+  *ptr = nullptr;
+  *size = 0;
+  if (const auto *c = m_metadata.root().child(name); c != nullptr)
+    c->getValueAsArray(type, ptr, size);
+}
+
+void Object::setMetadataValue(const std::string &name, Any v)
+{
+  m_metadata.root()[name] = v;
+}
+
+void Object::setMetadataArray(const std::string &name,
+    anari::DataType type,
+    const void *v,
+    size_t numElements)
+{
+  m_metadata.root()[name].setValueAsArray(type, v, numElements);
+}
+
+void Object::removeMetadata(const std::string &name)
+{
+  m_metadata.root().remove(name);
+}
+
+size_t Object::numMetadata() const
+{
+  return m_metadata.root().numChildren();
+}
+
+const char *Object::getMetadataName(size_t i) const
+{
+  if (const auto *c = m_metadata.root().child(i); c != nullptr)
+    return c->name().c_str();
+  else
+    return "";
+}
+
 Parameter &Object::addParameter(Token name)
 {
   m_parameters.set(name, Parameter(this, name.c_str()));

@@ -56,6 +56,21 @@ static void objectToNode(const Object &obj, serialization::DataNode &node)
       parameterToNode(p, params.append(p.name().c_str()));
     }
   }
+
+  if (obj.numMetadata() > 0) {
+    auto &metadata = node["metadata"];
+    for (size_t i = 0; i < obj.numMetadata(); i++) {
+      std::string n = obj.getMetadataName(i);
+      anari::DataType type = ANARI_UNKNOWN;
+      const void *ptr = nullptr;
+      size_t size = 0;
+      obj.getMetadataArray(n, &type, &ptr, &size);
+      if (type != ANARI_UNKNOWN)
+        metadata[n].setValueAsExternalArray(type, ptr, size);
+      else if (auto v = obj.getMetadataValue(n); v.valid())
+        metadata[n] = v;
+    }
+  }
 }
 
 static void arrayToNode(const Array &arr, serialization::DataNode &node)
@@ -149,6 +164,21 @@ static void nodeToObjectParameters(serialization::DataNode &node, Object &obj)
   });
 }
 
+static void nodeToObjectMetadata(serialization::DataNode &node, Object &obj)
+{
+  node.foreach_child([&](serialization::DataNode &parameterNode) {
+    if (node.holdsArray()) {
+      anari::DataType type = ANARI_UNKNOWN;
+      const void *ptr = nullptr;
+      size_t size = 0;
+      node.getValueAsArray(&type, &ptr, &size);
+      obj.setMetadataArray(node.name(), type, ptr, size);
+    } else {
+      obj.setMetadataValue(node.name(), node.getValue());
+    }
+  });
+}
+
 static void nodeToObject(Context &ctx, serialization::DataNode &node)
 {
   const utility::Any self = node["self"].getValue();
@@ -234,6 +264,9 @@ static void nodeToObject(Context &ctx, serialization::DataNode &node)
 
   if (auto *c = node.child("parameters"); c != nullptr)
     nodeToObjectParameters(*c, *obj);
+
+  if (auto *c = node.child("metadata"); c != nullptr)
+    nodeToObjectMetadata(*c, *obj);
 }
 
 static void nodeToLayer(serialization::DataNode &rootNode, Layer &layer)

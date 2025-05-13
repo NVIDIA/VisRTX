@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/containers/DataTree.hpp"
 #include "tsd/containers/FlatMap.hpp"
 #include "tsd/containers/IndexedVector.hpp"
 #include "tsd/core/AnariObjectCache.hpp"
@@ -62,6 +63,22 @@ struct Object : public ParameterObserver
   const std::string &name() const;
   void setName(const char *n);
 
+  Any getMetadataValue(const std::string &name) const;
+  void getMetadataArray(const std::string &name,
+      anari::DataType *type,
+      const void **ptr,
+      size_t *size) const;
+
+  void setMetadataValue(const std::string &name, Any v);
+  void setMetadataArray(const std::string &name,
+      anari::DataType type,
+      const void *v,
+      size_t numElements);
+  void removeMetadata(const std::string &name);
+
+  size_t numMetadata() const;
+  const char *getMetadataName(size_t i) const;
+
   //// Parameters ////
 
   // Token-based access
@@ -119,6 +136,7 @@ struct Object : public ParameterObserver
   std::string m_description;
   size_t m_index{0};
   BaseUpdateDelegate *m_updateDelegate{nullptr};
+  serialization::DataTree m_metadata;
 };
 
 void print(const Object &obj, std::ostream &out = std::cout);
