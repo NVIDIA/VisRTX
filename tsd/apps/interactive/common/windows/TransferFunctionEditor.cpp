@@ -275,6 +275,25 @@ void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
   if (m_volume != selectedVolume) {
     m_volume = selectedVolume;
     m_colorMapArray = m_volume->parameterValueAsObject<tsd::Array>("color");
+
+    anari::DataType type = ANARI_UNKNOWN;
+    const tsd::float2 *opacityPoints = nullptr;
+    size_t size = 0;
+    m_volume->getMetadataArray(
+        "opacityControlPoints", &type, (const void **)&opacityPoints, &size);
+    if (type == ANARI_FLOAT32_VEC2 && size > 0) {
+      tsd::logStatus("[tfn_editor] Receiving opacity control points");
+      m_tfnOpacityPoints.resize(size);
+      std::copy(
+          opacityPoints, opacityPoints + size, m_tfnOpacityPoints.begin());
+    } else {
+      tsd::logWarning(
+          "[tfn_editor] No metadata for opacity control points found!");
+      m_tfnOpacityPoints.resize(2);
+      m_tfnOpacityPoints[0] = {0.f, 0.f};
+      m_tfnOpacityPoints[1] = {1.f, 1.f};
+    }
+
     updateTfnPaletteTexture();
   }
 }
@@ -404,6 +423,11 @@ void TransferFunctionEditor::updateVolume()
   auto *colorMap = m_colorMapArray->mapAs<tsd::float4>();
   std::copy(co.begin(), co.end(), colorMap);
   m_colorMapArray->unmap();
+
+  m_volume->setMetadataArray("opacityControlPoints",
+      ANARI_FLOAT32_VEC2,
+      m_tfnOpacityPoints.data(),
+      m_tfnOpacityPoints.size());
 }
 
 void TransferFunctionEditor::updateTfnPaletteTexture()

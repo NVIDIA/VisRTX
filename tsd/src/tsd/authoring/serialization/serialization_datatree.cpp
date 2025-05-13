@@ -166,15 +166,15 @@ static void nodeToObjectParameters(serialization::DataNode &node, Object &obj)
 
 static void nodeToObjectMetadata(serialization::DataNode &node, Object &obj)
 {
-  node.foreach_child([&](serialization::DataNode &parameterNode) {
-    if (node.holdsArray()) {
+  node.foreach_child([&](serialization::DataNode &n) {
+    if (n.holdsArray()) {
       anari::DataType type = ANARI_UNKNOWN;
       const void *ptr = nullptr;
       size_t size = 0;
-      node.getValueAsArray(&type, &ptr, &size);
-      obj.setMetadataArray(node.name(), type, ptr, size);
+      n.getValueAsArray(&type, &ptr, &size);
+      obj.setMetadataArray(n.name(), type, ptr, size);
     } else {
-      obj.setMetadataValue(node.name(), node.getValue());
+      obj.setMetadataValue(n.name(), n.getValue());
     }
   });
 }
