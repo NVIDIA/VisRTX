@@ -57,6 +57,7 @@ struct DataNode
   void setValueObject(anari::DataType type, size_t idx);
 
   void clearValue();
+  void eraseSubtree();
 
   // Getting values //
 
@@ -199,7 +200,7 @@ inline DataNode &DataNode::operator=(const std::string &v)
 inline void DataNode::setValue(const utility::Any &v)
 {
   clearValue();
-  self()->erase_subtree();
+  eraseSubtree();
   m_data.value = v;
 }
 
@@ -236,7 +237,7 @@ inline void DataNode::setValueAsArray(
 inline void *DataNode::setValueAsArray(anari::DataType type, size_t numElements)
 {
   clearValue();
-  self()->erase_subtree();
+  eraseSubtree();
   m_data.arrayType = type;
   m_data.arrayBytes.resize(numElements * anari::sizeOf(type));
   return m_data.arrayBytes.data();
@@ -246,7 +247,7 @@ inline void DataNode::setValueAsExternalArray(
     anari::DataType type, const void *v, size_t numElements)
 {
   clearValue();
-  self()->erase_subtree();
+  eraseSubtree();
   m_data.arrayType = type;
   m_data.externalArray = v;
   m_data.externalArraySize = numElements * anari::sizeOf(type);
@@ -264,6 +265,12 @@ inline void DataNode::clearValue()
   m_data.arrayType = ANARI_UNKNOWN;
   m_data.externalArray = nullptr;
   m_data.externalArraySize = 0;
+}
+
+inline void DataNode::eraseSubtree()
+{
+  if (auto s = self(); s)
+    s->erase_subtree();
 }
 
 template <typename T>
@@ -388,18 +395,21 @@ inline bool DataNode::empty() const
 
 inline bool DataNode::isLeaf() const
 {
-  return self()->isLeaf();
+  return self() ? self()->isLeaf() : true;
 }
 
 inline size_t DataNode::numChildren() const
 {
   size_t num = 0;
-  utility::foreach_child(self(), [&](auto &n) { num++; });
+  if (self())
+    utility::foreach_child(self(), [&](auto &n) { num++; });
   return num;
 }
 
 inline DataNode *DataNode::child(const std::string &childName)
 {
+  if (!self())
+    return nullptr;
   auto n = utility::find_first_child(
       self(), [&](DataNode::Ptr &cn) { return cn->name() == childName; });
   return n ? (**n).get() : nullptr;
@@ -407,6 +417,8 @@ inline DataNode *DataNode::child(const std::string &childName)
 
 inline const DataNode *DataNode::child(const std::string &childName) const
 {
+  if (!self())
+    return nullptr;
   auto n = utility::find_first_child(
       self(), [&](DataNode::Ptr &cn) { return cn->name() == childName; });
   return n ? (**n).get() : nullptr;
@@ -420,6 +432,8 @@ inline DataNode &DataNode::operator[](const std::string &childName)
 
 inline DataNode *DataNode::child(size_t childIdx)
 {
+  if (!self())
+    return nullptr;
   size_t i = 0;
   auto n = utility::find_first_child(
       self(), [&](DataNode::Ptr &cn) { return i++ == childIdx; });
@@ -428,6 +442,8 @@ inline DataNode *DataNode::child(size_t childIdx)
 
 inline const DataNode *DataNode::child(size_t childIdx) const
 {
+  if (!self())
+    return nullptr;
   size_t i = 0;
   auto n = utility::find_first_child(
       self(), [&](DataNode::Ptr &cn) { return i++ == childIdx; });
@@ -459,29 +475,39 @@ inline DataNode &DataNode::append(const std::string &newChildName)
 
 inline void DataNode::remove(const std::string &name)
 {
+  if (!self())
+    return;
   if (auto *c = child(name); c != nullptr)
     self()->container()->erase(c->self());
 }
 
 inline void DataNode::remove(DataNode &childNode)
 {
+  if (!self())
+    return;
   self()->container()->erase(childNode.self());
 }
 
 inline void DataNode::traverse(
     std::function<bool(DataNode &n, int level)> &&fcn)
 {
+  if (!self())
+    return;
   self()->container()->traverse(
       self(), [&](auto &ref, int level) { return fcn(**ref, level); });
 }
 
 inline void DataNode::forall_children(std::function<void(DataNode &)> &&fcn)
 {
+  if (!self())
+    return;
   utility::forall_children(self(), [&](auto &ref) { fcn(*ref); });
 }
 
 inline void DataNode::foreach_child(std::function<void(DataNode &)> &&fcn)
 {
+  if (!self())
+    return;
   utility::foreach_child(self(), [&](auto &ref) { fcn(*ref); });
 }
 
@@ -492,7 +518,7 @@ inline DataNode::Ref DataNode::self() const
 
 inline DataNode::Ref DataNode::parent() const
 {
-  return m_data.self->parent();
+  return self() ? m_data.self->parent() : DataNode::Ref{};
 }
 
 inline DataNode::DataNode(const std::string &name)
