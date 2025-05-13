@@ -241,10 +241,17 @@ std::vector<tsd::float4> TransferFunctionEditor::getSampledColorsAndOpacities(
   const float dx = 1.f / (numSamples - 1);
 
   for (int i = 0; i < numSamples; i++) {
-    sampledColorsAndOpacities.push_back(
-        tsd::float4(tsd::detail::interpolateColor(*m_tfnColorPoints, i * dx),
-            tsd::detail::interpolateOpacity(m_tfnOpacityPoints, i * dx)
-                * m_globalOpacityScale));
+    const bool interpolateColor = m_currentMap != 0;
+    tsd::float3 color(0.f);
+    if (interpolateColor)
+      color = tsd::detail::interpolateColor(*m_tfnColorPoints, i * dx);
+    else {
+      auto co = (*m_tfnColorPoints)[i];
+      color = tsd::float3(co.x, co.y, co.z);
+    }
+    auto opacity = tsd::detail::interpolateOpacity(m_tfnOpacityPoints, i * dx)
+        * m_globalOpacityScale;
+    sampledColorsAndOpacities.push_back(tsd::float4(color, opacity));
   }
 
   return sampledColorsAndOpacities;
@@ -273,8 +280,17 @@ void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
   }
 
   if (m_volume != selectedVolume) {
+    setMap(0);
+
     m_volume = selectedVolume;
     m_colorMapArray = m_volume->parameterValueAsObject<tsd::Array>("color");
+
+    auto &cm = m_tfnsColorPoints[0];
+    cm.resize(m_colorMapArray->size());
+    auto *colorsIn = m_colorMapArray->dataAs<tsd::float4>();
+    std::copy(colorsIn, colorsIn + m_colorMapArray->size(), cm.begin());
+
+    // Get opacity control points from volume //
 
     anari::DataType type = ANARI_UNKNOWN;
     const tsd::float2 *opacityPoints = nullptr;
@@ -301,6 +317,10 @@ void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
 void TransferFunctionEditor::loadDefaultMaps()
 {
   std::vector<tsd::ColorPoint> colors;
+
+  // Incoming color map
+  m_tfnsNames.push_back("{from volume}");
+  m_tfnsColorPoints.push_back(colors);
 
   // Jet
   colors.clear();
@@ -440,9 +460,11 @@ void TransferFunctionEditor::updateTfnPaletteTexture()
   if (width != m_tfnPaletteWidth)
     resizeTfnPaletteTexture(width);
 
-  std::vector<tsd::float4> palette = getSampledColorsAndOpacities(width);
+  std::vector<tsd::float4> palette = m_currentMap == 0
+      ? *m_tfnColorPoints
+      : getSampledColorsAndOpacities(width);
   std::vector<tsd::float3> rgb(width, tsd::float3(1.f, 0.f, 0.f));
-  std::transform(palette.begin(), palette.end(), rgb.begin(), [](auto &c) {
+  std::transform(palette.begin(), palette.end(), rgb.begin(), [&](auto &c) {
     return tsd::float3(c.x, c.y, c.z);
   });
 
