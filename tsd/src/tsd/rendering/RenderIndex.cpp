@@ -57,15 +57,15 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
   // Setup individual leaf object handles, create first then set params //
 
   auto createANARICacheArrays =
-    [&](const auto &objArray, auto &handleArray, bool supportsCUDA) {
-    foreach_item_const(objArray, [&](auto *obj) {
-      if (!obj || (!supportsCUDA && obj->kind() == Array::MemoryKind::CUDA))
-        handleArray.insert(nullptr);
-      else
-        handleArray.insert((anari::Array)obj->makeANARIObject(d));
-    });
-    handleArray.sync_slots(objArray);
-  };
+      [&](const auto &objArray, auto &handleArray, bool supportsCUDA) {
+        foreach_item_const(objArray, [&](auto *obj) {
+          if (!obj || (!supportsCUDA && obj->kind() == Array::MemoryKind::CUDA))
+            handleArray.insert(nullptr);
+          else
+            handleArray.insert((anari::Array)obj->makeANARIObject(d));
+        });
+        handleArray.sync_slots(objArray);
+      };
 
   auto createANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
     foreach_item_const(objArray, [&](auto *obj) {
@@ -151,6 +151,7 @@ void RenderIndex::signalObjectAdded(const Object *obj)
     break;
   case ANARI_VOLUME:
     m_cache.volume.insert((anari::Volume)o);
+    anari::setParameter(d, o, "id", uint32_t(obj->index()) | 0x80000000u);
     break;
   case ANARI_SPATIAL_FIELD:
     m_cache.field.insert((anari::SpatialField)o);
