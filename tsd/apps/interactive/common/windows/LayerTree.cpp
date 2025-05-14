@@ -294,6 +294,11 @@ void LayerTree::buildUI_buildObjectContextMenu()
           clearSelectedNode = true;
         }
 
+        if (ImGui::MenuItem("noise volume")) {
+          generate_noiseVolume(ctx, menuNode);
+          clearSelectedNode = true;
+        }
+
         ImGui::EndMenu();
       }
 
