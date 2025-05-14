@@ -198,16 +198,8 @@ void TransferFunctionEditor::buildUI_drawEditor()
 
 void TransferFunctionEditor::buildUI_opacityScale()
 {
-  bool opacityChanged =
-      ImGui::SliderFloat("opacity scale", &m_globalOpacityScale, 0.f, 10.f);
-
-  if (ImGui::Button("reset##opacity")) {
-    m_globalOpacityScale = 1.f;
-    opacityChanged = true;
-  }
-
-  if (opacityChanged)
-    updateVolume();
+  tsd::ui::buildUI_parameter(
+      *m_volume, *m_volume->parameter("opacity"), m_core->tsd.ctx);
 }
 
 void TransferFunctionEditor::buildUI_valueRange()
@@ -246,8 +238,7 @@ std::vector<tsd::float4> TransferFunctionEditor::getSampledColorsAndOpacities(
       auto co = (*m_tfnColorPoints)[i];
       color = tsd::float3(co.x, co.y, co.z);
     }
-    auto opacity = tsd::detail::interpolateOpacity(m_tfnOpacityPoints, i * dx)
-        * m_globalOpacityScale;
+    auto opacity = tsd::detail::interpolateOpacity(m_tfnOpacityPoints, i * dx);
     sampledColorsAndOpacities.push_back(tsd::float4(color, opacity));
   }
 

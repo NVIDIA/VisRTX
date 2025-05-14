@@ -57,9 +57,6 @@ class TransferFunctionEditor : public anari_viewer::windows::Window
   int m_nextMap{0};
   std::vector<tsd::ColorPoint> *m_tfnColorPoints{nullptr};
 
-  // scaling factor for generated opacities
-  float m_globalOpacityScale{1.f};
-
   // domain (value range) of transfer function
   tsd::float2 m_valueRange{0.f, 1.f};
   tsd::float2 m_defaultValueRange{0.f, 1.f};
