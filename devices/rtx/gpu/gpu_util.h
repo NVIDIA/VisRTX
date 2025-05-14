@@ -295,6 +295,26 @@ VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
 
 namespace detail {
 
+VISRTX_DEVICE
+vec3 tonemap(vec3 v) {
+  return v / (1.0f + max(0.0f, compMax(v)));
+}
+
+VISRTX_DEVICE
+vec3 inverseTonemap(vec3 v) {
+  return v / max(1e-8f, 1.f - compMax(v));
+}
+
+VISRTX_DEVICE
+vec4 tonemap(vec4 v) {
+  return vec4(tonemap(vec3(v)), v.w);
+}
+
+VISRTX_DEVICE
+vec4 inverseTonemap(vec4 v) {
+  return vec4(inverseTonemap(vec3(v)), v.w);
+}
+
 template <typename T>
 VISRTX_DEVICE void accumValue(T *arr, size_t idx, size_t fid, const T &v)
 {
@@ -326,7 +346,7 @@ VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
     const uint32_t idx,
     const int frameIDOffset)
 {
-  const auto c = color / float(fb.frameID + frameIDOffset + 1);
+  const auto c = detail::inverseTonemap(color / float(fb.frameID + frameIDOffset + 1));
   if (fb.format == FrameFormat::SRGB) {
     fb.buffers.outColorUint[idx] =
         glm::packUnorm4x8(glm::convertLinearToSRGB(c));
@@ -359,7 +379,7 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
 
   const auto frameID = fb.frameID + frameIDOffset;
 
-  detail::accumValue(fb.buffers.colorAccumulation, idx, frameID, color);
+  detail::accumValue(fb.buffers.colorAccumulation, idx, frameID, detail::tonemap(color));
   detail::accumValue(fb.buffers.albedo, idx, frameID, albedo);
   detail::accumValue(fb.buffers.normal, idx, frameID, normal);
 
