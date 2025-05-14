@@ -5,9 +5,6 @@
 #include "../tsd_ui.h"
 // std
 #include <algorithm>
-#include <cmath>
-#include <iostream>
-#include <stdexcept>
 // tsd
 #include "tsd/core/ColorMapUtil.hpp"
 
@@ -195,7 +192,7 @@ void TransferFunctionEditor::buildUI_drawEditor()
     const int idx = find_idx(m_tfnOpacityPoints, x);
     tsd::OpacityPoint pt(x, y);
     m_tfnOpacityPoints.insert(m_tfnOpacityPoints.begin() + idx, pt);
-    m_tfnChanged = true;
+    updateVolume();
   }
 }
 

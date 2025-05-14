@@ -10,7 +10,6 @@
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 // std
-#include <functional>
 #include <string>
 #include <vector>
 // SDL
@@ -57,9 +56,6 @@ class TransferFunctionEditor : public anari_viewer::windows::Window
   int m_currentMap{-1};
   int m_nextMap{0};
   std::vector<tsd::ColorPoint> *m_tfnColorPoints{nullptr};
-
-  // flag indicating transfer function has changed in UI
-  bool m_tfnChanged{true};
 
   // scaling factor for generated opacities
   float m_globalOpacityScale{1.f};
