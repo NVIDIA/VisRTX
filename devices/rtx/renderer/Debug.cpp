@@ -57,6 +57,12 @@ static DebugMethod methodFromString(const std::string &name)
     return DebugMethod::NS;
   else if (name == "Ns.abs")
     return DebugMethod::NS_ABS;
+  else if (name == "tU")
+    return DebugMethod::TANGENT_U;
+  else if (name == "tU.handedness")
+    return DebugMethod::TANGENT_HANDEDNESS;
+  else if (name == "tV")
+    return DebugMethod::TANGENT_V;
   else if (name == "uvw")
     return DebugMethod::RAY_UVW;
   else if (name == "backface")

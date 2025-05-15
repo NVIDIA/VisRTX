@@ -125,6 +125,7 @@ struct SurfaceHit
   vec3 Ng;
   vec3 Ns;
   vec3 uvw;
+  vec3 tU, tV;
   uint32_t primID{~0u};
   uint32_t objID{~0u};
   uint32_t instID{~0u};

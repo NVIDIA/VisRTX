@@ -45,6 +45,9 @@ enum class DebugMethod
   NG_ABS,
   NS,
   NS_ABS,
+  TANGENT_U,
+  TANGENT_HANDEDNESS,
+  TANGENT_V,
   RAY_UVW,
   IS_TRIANGLE,
   IS_VOLUME,
@@ -54,7 +57,8 @@ enum class DebugMethod
   GEOMETRY_ATTRIBUTE_1,
   GEOMETRY_ATTRIBUTE_2,
   GEOMETRY_ATTRIBUTE_3,
-  GEOMETRY_ATTRIBUTE_COLOR
+  GEOMETRY_ATTRIBUTE_COLOR,
+
 };
 
 } // namespace visrtx

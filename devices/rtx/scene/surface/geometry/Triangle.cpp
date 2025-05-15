@@ -46,6 +46,8 @@ void Triangle::commitParameters()
   m_vertex = getParamObject<Array1D>("vertex.position");
   m_vertexNormal = getParamObject<Array1D>("vertex.normal");
   m_vertexNormalFV = getParamObject<Array1D>("faceVarying.normal");
+  m_vertexTangent = getParamObject<Array1D>("vertex.tangent");
+  m_vertexTangentFV = getParamObject<Array1D>("faceVarying.tangent");
   m_cullBackfaces = getParam<bool>("cullBackfaces", false);
   commitAttributes("vertex.", m_vertexAttributes);
   commitAttributes("faceVarying.", m_vertexAttributesFV);
@@ -79,6 +81,22 @@ void Triangle::finalize()
         "'faceVarying.normal' on triangle geometry is not matching "
         "the number of triangles in 'primitive.index' (%zu) vs. (%zu)",
         m_vertexNormalFV->size(),
+        m_index->size());
+  }
+
+  if (m_vertexTangent && m_vertex->size() != m_vertexTangent->size()) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'vertex.Tangent' on triangle geometry not the same size as "
+        "'vertex.position' (%zu) vs. (%zu)",
+        m_vertexTangent->size(),
+        m_vertex->size());
+  }
+
+  if (m_vertexTangentFV && 3 * m_index->size() != m_vertexTangentFV->size()) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "'faceVarying.Tangent' on triangle geometry is not matching "
+        "the number of triangles in 'primitive.index' (%zu) vs. (%zu)",
+        m_vertexTangentFV->size(),
         m_index->size());
   }
 
@@ -140,10 +158,16 @@ GeometryGPUData Triangle::gpuData() const
   tri.vertexNormals = m_vertexNormal
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
+  tri.vertexTangents = m_vertexTangent
+      ? m_vertexTangent->beginAs<vec4>(AddressSpace::GPU)
+      : nullptr;
   populateAttributeDataSet(m_vertexAttributes, tri.vertexAttr);
   populateAttributeDataSet(m_vertexAttributesFV, tri.vertexAttrFV);
   tri.vertexNormalsFV = m_vertexNormalFV
       ? m_vertexNormalFV->beginAs<vec3>(AddressSpace::GPU)
+      : nullptr;
+  tri.vertexTangentsFV = m_vertexTangentFV
+      ? m_vertexTangentFV->beginAs<vec4>(AddressSpace::GPU)
       : nullptr;
   tri.cullBackfaces = m_cullBackfaces;
 
