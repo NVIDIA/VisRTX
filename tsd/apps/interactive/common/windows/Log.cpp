@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "Log.h"
+#include "../AppCore.h"
 // std
 #include <cstdio>
 
@@ -28,9 +29,7 @@ static void printMessage(
 // Log definitions ////////////////////////////////////////////////////////////
 
 Log::Log(AppCore *core, bool installAsLoggingTarget)
-    : anari_viewer::windows::Window(core->application, "Log", true),
-      m_core(core),
-      m_isLoggingTarget(installAsLoggingTarget)
+    : Window(core, "Log"), m_isLoggingTarget(installAsLoggingTarget)
 {
   this->clear();
 

@@ -4,7 +4,6 @@
 #pragma once
 
 #include "anari_viewer/ui_anari.h"
-#include "anari_viewer/windows/Window.h"
 // SDL
 #include <SDL3/SDL.h>
 // anari
@@ -18,12 +17,13 @@
 #include "tsd/core/UpdateDelegate.hpp"
 
 #include "AppCore.h"
-#include "ViewState.h"
 #include "Manipulator.h"
+#include "ViewState.h"
+#include "windows/Window.h"
 
 namespace tsd_viewer {
 
-struct DistributedViewport : public anari_viewer::windows::Window
+struct DistributedViewport : public Window
 {
   DistributedViewport(AppCore *state,
       RemoteAppStateWindow *win,
@@ -34,11 +34,8 @@ struct DistributedViewport : public anari_viewer::windows::Window
   void buildUI() override;
 
   void setWorld(anari::World world = nullptr, bool resetCameraView = true);
-
   void setManipulator(manipulators::Orbit *m);
-
   void resetView(bool resetAzEl = true);
-
   void setDevice(anari::Device d);
 
  private:
@@ -57,7 +54,6 @@ struct DistributedViewport : public anari_viewer::windows::Window
 
   // Data /////////////////////////////////////////////////////////////////////
 
-  AppCore *m_core{nullptr};
   RemoteAppStateWindow *m_win{nullptr};
 
   tsd::math::float2 m_previousMouse{-1.f, -1.f};

@@ -3,15 +3,15 @@
 
 #pragma once
 
-#include "AppCore.h"
-// anari_viewer
-#include "anari_viewer/windows/Window.h"
+#include "Window.h"
+// tsd
+#include "tsd/containers/IndexedVector.hpp"
 
 namespace tsd_viewer {
 
 struct ImportFileDialog;
 
-struct LayerTree : public anari_viewer::windows::Window
+struct LayerTree : public Window
 {
   LayerTree(AppCore *state, const char *name = "Layers");
   void buildUI() override;
@@ -23,7 +23,8 @@ struct LayerTree : public anari_viewer::windows::Window
   void buildUI_buildObjectContextMenu();
   void buildUI_buildNewLayerContextMenu();
 
-  AppCore *m_core{nullptr};
+  // Data //
+
   size_t m_hoveredNode{tsd::INVALID_INDEX};
   size_t m_menuNode{tsd::INVALID_INDEX};
   bool m_editingNodeName{false};

@@ -4,12 +4,12 @@
 #include "DatabaseEditor.h"
 #include "tsd_ui.h"
 
-#include "AppCore.h"
+#include "../AppCore.h"
 
 namespace tsd_viewer {
 
 DatabaseEditor::DatabaseEditor(AppCore *core, const char *name)
-    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
+    : Window(core, name)
 {}
 
 void DatabaseEditor::buildUI()

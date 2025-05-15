@@ -7,6 +7,8 @@
 // std
 #include <random>
 
+#include "AppCore.h"
+
 namespace tsd_viewer {
 
 using namespace tsd::literals;
@@ -14,7 +16,7 @@ using namespace tsd::literals;
 // InstancingControls definitions /////////////////////////////////////////////
 
 InstancingControls::InstancingControls(AppCore *core, const char *name)
-    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
+    : Window(core, name)
 {
   createScene();
 }

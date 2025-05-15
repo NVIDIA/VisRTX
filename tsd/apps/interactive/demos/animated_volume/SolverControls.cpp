@@ -17,10 +17,12 @@
 
 #include "jacobi3D.h"
 
+#include "AppCore.h"
+
 namespace tsd_viewer {
 
 SolverControls::SolverControls(AppCore *core, const char *name)
-    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
+    : Window(core, name)
 {}
 
 void SolverControls::buildUI()

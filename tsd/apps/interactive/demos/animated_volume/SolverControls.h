@@ -3,9 +3,10 @@
 
 #pragma once
 
-#include "AppCore.h"
-// anari_viewer
-#include "anari_viewer/windows/Window.h"
+#include "windows/Window.h"
+// tsd
+#include "tsd/objects/Array.hpp"
+#include "tsd/objects/SpatialField.hpp"
 // std
 #include <functional>
 
@@ -13,7 +14,7 @@ namespace tsd_viewer {
 
 using JacobiUpdateCallback = std::function<void()>;
 
-struct SolverControls : public anari_viewer::windows::Window
+struct SolverControls : public Window
 {
   SolverControls(AppCore *core, const char *name = "Solver Controls");
 
@@ -27,7 +28,6 @@ struct SolverControls : public anari_viewer::windows::Window
   void iterateSolver();
   void exportRAW();
 
-  AppCore *m_core{nullptr};
   tsd::SpatialFieldRef m_field;
   tsd::ArrayRef m_dataHost;
   tsd::ArrayRef m_dataCUDA_1;

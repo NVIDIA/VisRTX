@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "LayerTree.h"
-#include "tsd_ui.h"
+#include "../AppCore.h"
+#include "../tsd_ui.h"
 // imgui
 #include <misc/cpp/imgui_stdlib.h>
 
@@ -21,9 +22,7 @@ static bool UI_layerName_callback(void *l, int index, const char **out_text)
 
 // LayerTree definitions /////////////////////////////////////////////////////
 
-LayerTree::LayerTree(AppCore *core, const char *name)
-    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
-{}
+LayerTree::LayerTree(AppCore *core, const char *name) : Window(core, name) {}
 
 void LayerTree::buildUI()
 {

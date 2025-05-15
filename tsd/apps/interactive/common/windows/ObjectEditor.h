@@ -3,18 +3,14 @@
 
 #pragma once
 
-#include "AppCore.h"
-// anari_viewer
-#include "anari_viewer/windows/Window.h"
+#include "Window.h"
 
 namespace tsd_viewer {
 
-struct ObjectEditor : public anari_viewer::windows::Window
+struct ObjectEditor : public Window
 {
   ObjectEditor(AppCore *state, const char *name = "Object Editor");
   void buildUI() override;
- private:
-  AppCore *m_core{nullptr};
 };
 
 } // namespace tsd_viewer

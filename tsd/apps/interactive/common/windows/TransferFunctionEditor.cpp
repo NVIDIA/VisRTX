@@ -3,6 +3,7 @@
 
 #include "TransferFunctionEditor.h"
 #include "../tsd_ui.h"
+#include "../AppCore.h"
 // std
 #include <algorithm>
 // tsd
@@ -25,7 +26,7 @@ static int find_idx(const std::vector<T> &A, float p)
 // TransferFunctionEditor definitions /////////////////////////////////////////
 
 TransferFunctionEditor::TransferFunctionEditor(AppCore *core, const char *name)
-    : Window(core->application, name, true), m_core(core)
+    : Window(core, name)
 {
   loadDefaultMaps();
   m_tfnOpacityPoints.resize(2);

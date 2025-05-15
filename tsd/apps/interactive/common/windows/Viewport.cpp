@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "Viewport.h"
+#include "../AppCore.h"
 #include "Log.h"
 // std
 #include <atomic>
@@ -22,7 +23,7 @@ int g_screenshotIndex = 0;
 // Viewport definitions ///////////////////////////////////////////////////////
 
 Viewport::Viewport(AppCore *core, manipulators::Orbit *m, const char *name)
-    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
+    : Window(core, name)
 {
   stbi_flip_vertically_on_write(1);
   setManipulator(m);

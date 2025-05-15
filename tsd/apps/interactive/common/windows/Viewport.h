@@ -3,11 +3,9 @@
 
 #pragma once
 
+#include "Window.h"
+
 #include "anari_viewer/ui_anari.h"
-#include "anari_viewer/windows/Window.h"
-// anari
-#include <anari/anari_cpp/ext/linalg.h>
-#include <anari/anari_cpp.hpp>
 // std
 #include <array>
 #include <future>
@@ -15,15 +13,15 @@
 // tsd
 #include "tsd/core/Object.hpp"
 #include "tsd/core/UpdateDelegate.hpp"
+#include "tsd/rendering/RenderIndex.hpp"
 // render_pipeline
 #include "render_pipeline/RenderPipeline.h"
 
-#include "../AppCore.h"
 #include "../Manipulator.h"
 
 namespace tsd_viewer {
 
-struct Viewport : public anari_viewer::windows::Window
+struct Viewport : public Window
 {
   Viewport(
       AppCore *state, manipulators::Orbit *m, const char *name = "Viewport");
@@ -56,7 +54,6 @@ struct Viewport : public anari_viewer::windows::Window
   float m_timeToLoadDevice{0.f};
   std::future<void> m_initFuture;
   bool m_deviceReadyToUse{false};
-  AppCore *m_core{nullptr};
   std::string m_libName;
   tsd::RenderIndex *m_rIdx{nullptr};
 

@@ -3,12 +3,11 @@
 
 #pragma once
 
-#include "../AppCore.h"
-// anari
-#include "anari_viewer/windows/Window.h"
+#include "Window.h"
 // tsd
-#include "tsd/core/TSDMath.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
+#include "tsd/objects/Array.hpp"
+#include "tsd/objects/Volume.hpp"
 // std
 #include <string>
 #include <vector>
@@ -17,7 +16,7 @@
 
 namespace tsd_viewer {
 
-class TransferFunctionEditor : public anari_viewer::windows::Window
+class TransferFunctionEditor : public Window
 {
  public:
   TransferFunctionEditor(AppCore *ctx, const char *name = "TF Editor");
@@ -41,8 +40,6 @@ class TransferFunctionEditor : public anari_viewer::windows::Window
   void resizeTfnPaletteTexture(size_t width);
 
   // Data //
-
-  AppCore *m_core{nullptr};
 
   tsd::Volume *m_volume{nullptr};
   tsd::Array *m_colorMapArray{nullptr};

@@ -11,13 +11,11 @@
 
 namespace tsd_viewer {
 
-DistributedViewport::DistributedViewport(AppCore *ctx,
+DistributedViewport::DistributedViewport(AppCore *core,
     RemoteAppStateWindow *win,
     const char *rendererSubtype,
     const char *name)
-    : anari_viewer::windows::Window(ctx->application, name, true),
-      m_core(ctx),
-      m_win(win)
+    : Window(core, name), m_win(win)
 {
   stbi_flip_vertically_on_write(1);
   m_rendererSubtype = rendererSubtype;

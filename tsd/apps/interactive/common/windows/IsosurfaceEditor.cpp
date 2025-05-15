@@ -6,10 +6,12 @@
 // std
 #include <algorithm>
 
+#include "../AppCore.h"
+
 namespace tsd_viewer {
 
 IsosurfaceEditor::IsosurfaceEditor(AppCore *core, const char *name)
-    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
+    : Window(core, name)
 {}
 
 void IsosurfaceEditor::buildUI()

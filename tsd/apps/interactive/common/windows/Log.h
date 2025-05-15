@@ -3,15 +3,16 @@
 
 #pragma once
 
-#include "../AppCore.h"
-// anari_viewer
-#include "anari_viewer/windows/Window.h"
+#include "Window.h"
+// tsd
+#include "tsd/containers/IndexedVector.hpp"
+#include "tsd/core/Logging.hpp"
 // std
 #include <array>
 
 namespace tsd_viewer {
 
-struct Log : public anari_viewer::windows::Window
+struct Log : public Window
 {
   Log(AppCore *ctx, bool installAsLoggingTarget = true);
   ~Log();
@@ -25,7 +26,6 @@ struct Log : public anari_viewer::windows::Window
 
   // Data //
 
-  AppCore *m_core{nullptr};
   bool m_isLoggingTarget{false};
 
   ImGuiTextBuffer m_buf;

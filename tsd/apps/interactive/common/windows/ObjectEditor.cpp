@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ObjectEditor.h"
-#include "tsd_ui.h"
+#include "../AppCore.h"
+#include "../tsd_ui.h"
 
 namespace math = tsd::math;
 
 namespace tsd_viewer {
 
-ObjectEditor::ObjectEditor(AppCore *core, const char *name)
-    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
+ObjectEditor::ObjectEditor(AppCore *core, const char *name) : Window(core, name)
 {}
 
 void ObjectEditor::buildUI()
