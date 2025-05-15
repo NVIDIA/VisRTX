@@ -157,9 +157,9 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
       tsd::logStatus("...loading file '%s'", f.second.c_str());
       auto root = tsd.ctx.defaultLayer()->root();
       if (f.first == ImporterType::TSD)
-        tsd::import_Context(tsd.ctx, f.second.c_str());
+        tsd::load_Context(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::TSD_CONDUIT)
-        tsd::import_Context_Conduit(tsd.ctx, f.second.c_str());
+        tsd::load_Context_Conduit(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::PLY)
         tsd::import_PLY(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::OBJ)

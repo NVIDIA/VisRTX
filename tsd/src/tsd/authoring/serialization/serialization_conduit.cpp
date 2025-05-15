@@ -371,7 +371,7 @@ void save_Context_Conduit(Context &ctx, const char *filename)
 #endif
 }
 
-void import_Context_Conduit(Context &ctx, const char *filename)
+void load_Context_Conduit(Context &ctx, const char *filename)
 {
 #if TSD_ENABLE_SERIALIZATION
   // Clear out any existing context contents //
@@ -413,7 +413,7 @@ void import_Context_Conduit(Context &ctx, const char *filename)
     }
   }
 #else
-  logError("[import_Context] serialization not enabled in TSD build.");
+  logError("[load_Context] serialization not enabled in TSD build.");
 #endif
 }
 

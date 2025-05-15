@@ -310,19 +310,21 @@ static void nodeToLayer(serialization::DataNode &rootNode, Layer &layer)
 void save_Context(Context &ctx, const char *filename)
 {
   tsd::logStatus("Saving context to file: %s", filename);
-
+  tsd::logStatus("  ...serializing context");
   serialization::DataTree tree;
-  auto &root = tree.root();
+  save_Context(ctx, tree.root());
+  tsd::logStatus("  ...writing file");
+  tree.save(filename);
+  tsd::logStatus("  ...done!");
+}
 
-  tsd::logStatus("  ...converting layers");
-
+void save_Context(Context &ctx, serialization::DataNode &root)
+{
   auto &layersRoot = root["layers"];
   for (auto l : ctx.layers()) {
     if (l.second)
       layerToNode(*l.second, layersRoot[l.first.c_str()]);
   }
-
-  tsd::logStatus("  ...converting objects");
 
   auto &objectDB = root["objectDB"];
   auto objectArrayToNode = [](serialization::DataNode &objArrayRoot,
@@ -351,18 +353,23 @@ void save_Context(Context &ctx, const char *filename)
   objectArrayToNode(objectDB, ctx.m_db.volume, "volume");
   objectArrayToNode(objectDB, ctx.m_db.light, "light");
   objectArrayToNode(objectDB, ctx.m_db.array, "array");
-
-  tsd::logStatus("  ...writing file");
-
-  tree.save(filename);
-
-  tsd::logStatus("  ...done!");
 }
 
-void import_Context(Context &ctx, const char *filename)
+void load_Context(Context &ctx, const char *filename)
 {
   tsd::logStatus("Loading context from file: %s", filename);
+  tsd::logStatus("  ...loading file");
+  serialization::DataTree tree;
+  tree.load(filename);
+  auto &root = tree.root();
+  if (auto *c = root.child("context"); c != nullptr)
+    load_Context(ctx, *c);
+  else
+    load_Context(ctx, root);
+}
 
+void load_Context(Context &ctx, serialization::DataNode &root)
+{
   // Clear out any existing context contents //
 
   tsd::logStatus("  ...clearing old context");
@@ -373,14 +380,8 @@ void import_Context(Context &ctx, const char *filename)
 
   // Load from the conduit file (objects then layer) //
 
-  tsd::logStatus("  ...loading file");
-
-  serialization::DataTree tree;
-  tree.load(filename);
-
   tsd::logStatus("  ...converting objects");
 
-  auto &root = tree.root();
   auto &objectDB = root["objectDB"];
   auto nodeToObjectArray = [](serialization::DataNode &node,
                                Context &ctx,
@@ -400,16 +401,11 @@ void import_Context(Context &ctx, const char *filename)
 
   tsd::logStatus("  ...converting layers");
 
-  auto &v1LayerRoot = root["objectTree"];
-  if (v1LayerRoot.numChildren() > 0)
-    nodeToLayer(v1LayerRoot, *ctx.defaultLayer());
-  else {
-    auto &v2LayerRoot = root["layers"];
-    v2LayerRoot.foreach_child([&](auto &nLayer) {
-      auto &tLayer = *ctx.addLayer(nLayer.name().c_str());
-      nodeToLayer(nLayer, tLayer);
-    });
-  }
+  auto &layerRoot = root["layers"];
+  layerRoot.foreach_child([&](auto &nLayer) {
+    auto &tLayer = *ctx.addLayer(nLayer.name().c_str());
+    nodeToLayer(nLayer, tLayer);
+  });
 
   tsd::logStatus("  ...done!");
 }

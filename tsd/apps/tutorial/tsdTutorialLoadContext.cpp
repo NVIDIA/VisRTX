@@ -14,7 +14,7 @@ int main(int argc, const char *argv[])
   }
 
   tsd::Context ctx;
-  tsd::import_Context(ctx, argv[1]);
+  tsd::load_Context(ctx, argv[1]);
   printf("-------------------TSD Context Info---------------------\n\n");
   printf("%s\n", objectDBInfo(ctx.objectDB()).c_str());
 

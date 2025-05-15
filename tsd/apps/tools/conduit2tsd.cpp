@@ -16,7 +16,7 @@ int main(int argc, const char *argv[])
   tsd::Context ctx;
   printf("Loading context from file: %s...", argv[1]);
   fflush(stdout);
-  tsd::import_Context_Conduit(ctx, argv[1]);
+  tsd::load_Context_Conduit(ctx, argv[1]);
   printf("done!\n");
 
   printf("Saving context to file: %s...", argv[2]);
