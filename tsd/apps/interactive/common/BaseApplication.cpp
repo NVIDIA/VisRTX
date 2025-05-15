@@ -83,7 +83,7 @@ void BaseApplication::uiFrameStart()
 
       ImGui::Separator();
 
-      if (ImGui::MenuItem("Quit", "SHIFT+Q"))
+      if (ImGui::MenuItem("Quit", "CTRL+Q"))
         std::exit(0);
 
       ImGui::EndMenu();
