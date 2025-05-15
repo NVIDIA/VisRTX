@@ -34,6 +34,8 @@ struct DataNode
 
   const std::string &name() const;
 
+  void reset(); // clear value and remove children
+
   // Setting values //
 
   template <typename T>
@@ -56,9 +58,14 @@ struct DataNode
 
   void setValueObject(anari::DataType type, size_t idx);
 
-  void clearValue();
+  void clearValue(); // only clear value if present
 
   // Getting values //
+
+  template <typename T>
+  T getValueAs() const;
+  const Any &getValue() const;
+  bool getValue(anari::DataType type, void *ptr) const;
 
   template <typename T>
   void getValueAsArray(const T **ptr, size_t *size) const;
@@ -69,10 +76,6 @@ struct DataNode
   void getValueAsArray(anari::DataType *type, void **ptr, size_t *size);
 
   void getValueAsObjectIdx(anari::DataType *type, size_t *idx) const;
-
-  template <typename T>
-  T getValueAs() const;
-  const Any &getValue() const;
 
   bool holdsObjectIdx() const;
   bool holdsArray() const;
@@ -183,6 +186,12 @@ inline const std::string &DataNode::name() const
   return m_data.name;
 }
 
+inline void DataNode::reset()
+{
+  clearValue();
+  self()->erase_subtree();
+}
+
 template <typename T>
 inline DataNode &DataNode::operator=(const T &v)
 {
@@ -199,8 +208,7 @@ inline DataNode &DataNode::operator=(const std::string &v)
 
 inline void DataNode::setValue(const utility::Any &v)
 {
-  clearValue();
-  self()->erase_subtree();
+  reset();
   m_data.value = v;
 }
 
@@ -236,8 +244,7 @@ inline void DataNode::setValueAsArray(
 
 inline void *DataNode::setValueAsArray(anari::DataType type, size_t numElements)
 {
-  clearValue();
-  self()->erase_subtree();
+  reset();
   m_data.arrayType = type;
   m_data.arrayBytes.resize(numElements * anari::sizeOf(type));
   return m_data.arrayBytes.data();
@@ -246,8 +253,7 @@ inline void *DataNode::setValueAsArray(anari::DataType type, size_t numElements)
 inline void DataNode::setValueAsExternalArray(
     anari::DataType type, const void *v, size_t numElements)
 {
-  clearValue();
-  self()->erase_subtree();
+  reset();
   m_data.arrayType = type;
   m_data.externalArray = v;
   m_data.externalArraySize = numElements * anari::sizeOf(type);
@@ -265,6 +271,36 @@ inline void DataNode::clearValue()
   m_data.arrayType = ANARI_UNKNOWN;
   m_data.externalArray = nullptr;
   m_data.externalArraySize = 0;
+}
+
+template <typename T>
+inline T DataNode::getValueAs() const
+{
+  return getValue().getAs<T>();
+}
+
+template <>
+inline std::string DataNode::getValueAs() const
+{
+  return getValue().getString();
+}
+
+inline const Any &DataNode::getValue() const
+{
+  return m_data.value;
+}
+
+inline bool DataNode::getValue(anari::DataType type, void *ptr) const
+{
+  const bool invalidQueryType = type == ANARI_STRING
+      || type == ANARI_STRING_LIST || type == ANARI_DATA_TYPE_LIST
+      || anari::isObject(type);
+
+  if (!invalidQueryType && m_data.value.is(type)) {
+    std::memcpy(ptr, m_data.value.data(), anari::sizeOf(type));
+    return true;
+  } else
+    return false;
 }
 
 template <typename T>
@@ -348,23 +384,6 @@ inline void DataNode::getValueAsObjectIdx(
     *type = m_data.value.type();
     *idx = m_data.value.getAsObjectIndex();
   }
-}
-
-template <typename T>
-inline T DataNode::getValueAs() const
-{
-  return getValue().getAs<T>();
-}
-
-template <>
-inline std::string DataNode::getValueAs() const
-{
-  return getValue().getString();
-}
-
-inline const Any &DataNode::getValue() const
-{
-  return m_data.value;
 }
 
 inline bool DataNode::holdsObjectIdx() const

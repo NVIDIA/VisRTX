@@ -37,25 +37,7 @@ void ImportFileDialog::buildUI()
   static std::string outPath;
   if (ImGui::Button("...")) {
     outPath.clear();
-    auto fileDialogCb =
-        [](void *userdata, const char *const *filelist, int filter) {
-          std::string &out = *(std::string *)userdata;
-          if (!filelist) {
-            printf("ERROR: %s\n", SDL_GetError());
-            return;
-          }
-
-          if (*filelist)
-            out = *filelist;
-        };
-
-    SDL_ShowOpenFileDialog(fileDialogCb,
-        &outPath,
-        m_core->application->sdlWindow(),
-        nullptr,
-        0,
-        nullptr,
-        false);
+    m_core->getFilenameFromDialog(outPath);
   }
 
   if (!outPath.empty()) {

@@ -5,6 +5,8 @@
 
 // anari-viewer
 #include "anari_viewer/windows/Window.h"
+// tsd
+#include "tsd/containers/DataTree.hpp"
 
 namespace tsd_viewer {
 
@@ -16,6 +18,8 @@ struct Window : public anari_viewer::windows::Window
   virtual ~Window() override;
 
   virtual void buildUI() = 0;
+  virtual void saveSettings(tsd::serialization::DataNode &thisWindowRoot);
+  virtual void loadSettings(tsd::serialization::DataNode &thisWindowRoot);
 
  protected:
   AppCore *m_core{nullptr};

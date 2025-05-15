@@ -390,14 +390,14 @@ void load_Context(Context &ctx, serialization::DataNode &root)
     objectsNode.foreach_child([&](auto &n) { nodeToObject(ctx, n); });
   };
 
-  nodeToObjectArray(objectDB, ctx, "geometry");
+  nodeToObjectArray(objectDB, ctx, "array");
   nodeToObjectArray(objectDB, ctx, "sampler");
   nodeToObjectArray(objectDB, ctx, "material");
+  nodeToObjectArray(objectDB, ctx, "geometry");
   nodeToObjectArray(objectDB, ctx, "surface");
   nodeToObjectArray(objectDB, ctx, "spatialfield");
   nodeToObjectArray(objectDB, ctx, "volume");
   nodeToObjectArray(objectDB, ctx, "light");
-  nodeToObjectArray(objectDB, ctx, "array");
 
   tsd::logStatus("  ...converting layers");
 
@@ -405,6 +405,7 @@ void load_Context(Context &ctx, serialization::DataNode &root)
   layerRoot.foreach_child([&](auto &nLayer) {
     auto &tLayer = *ctx.addLayer(nLayer.name().c_str());
     nodeToLayer(nLayer, tLayer);
+    ctx.signalLayerChange(&tLayer);
   });
 
   tsd::logStatus("  ...done!");

@@ -94,6 +94,8 @@ struct AppCore
   void parseCommandLine(int argc, const char **argv);
   void setupSceneFromCommandLine(bool hdriOnly = false);
 
+  void getFilenameFromDialog(std::string &filenameOut);
+
   anari::Device loadDevice(const std::string &libName);
   const anari::Extensions *loadDeviceExtensions(const std::string &libName);
   tsd::RenderIndex *acquireRenderIndex(anari::Device device);

@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "BaseApplication.h"
+#include "windows/Window.h"
 // tsd
 #include "tsd_font.h"
 #include "tsd_ui.h"
 // anari_viewer
 #include "anari_viewer/ui_anari.h"
 #include "anari_viewer/windows/Window.h"
+// SDL
+#include <SDL3/SDL_dialog.h>
+#include <SDL3/SDL_video.h>
 
 namespace tsd_viewer {
 
@@ -21,6 +25,12 @@ BaseApplication::BaseApplication(int argc, const char **argv) : m_core(this)
     for (auto l : core->commandLine.libraryList)
       core->loadDevice(l);
     printf("done\n");
+  }
+
+  auto &filenames = m_core.commandLine.filenames;
+  if (!filenames.empty() && filenames[0].first == ImporterType::NONE) {
+    m_filenameToLoadNextFrame = filenames[0].second;
+    filenames.clear();
   }
 }
 
@@ -46,40 +56,58 @@ anari_viewer::WindowArray BaseApplication::setupWindows()
   if (appCore()->commandLine.useDefaultLayout)
     ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
 
-  m_appSettings = std::make_unique<tsd_viewer::AppSettings>(appCore());
-  m_fileDialog = std::make_unique<tsd_viewer::ImportFileDialog>(appCore());
+  m_appSettingsDialog = std::make_unique<AppSettingsDialog>(appCore());
+  m_fileDialog = std::make_unique<ImportFileDialog>(appCore());
 
   m_core.windows.importDialog = m_fileDialog.get();
+
+  m_applicationName = SDL_GetWindowTitle(m_core.application->sdlWindow());
+  updateWindowTitle();
 
   return {};
 }
 
 void BaseApplication::uiFrameStart()
 {
+  if (!m_filenameToSaveNextFrame.empty()) {
+    saveApplicationState(m_filenameToSaveNextFrame.c_str());
+    m_currentSessionFilename = m_filenameToSaveNextFrame;
+    m_filenameToSaveNextFrame.clear();
+    updateWindowTitle();
+  } else if (!m_filenameToLoadNextFrame.empty()) {
+    m_core.clearSelected();
+    loadApplicationState(m_filenameToLoadNextFrame.c_str());
+    m_currentSessionFilename = m_filenameToLoadNextFrame;
+    m_filenameToLoadNextFrame.clear();
+    updateWindowTitle();
+  }
+
   // Handle app shortcuts //
 
-  ImGuiIO &io = ImGui::GetIO();
+  auto doSave = [&]() {
+    if (m_currentSessionFilename.empty())
+      m_core.getFilenameFromDialog(m_filenameToSaveNextFrame);
+    else
+      m_filenameToSaveNextFrame = m_currentSessionFilename;
+  };
+
   if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
-    saveContext();
+    doSave();
 
   // Main Menu //
 
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("File")) {
-      if (ImGui::MenuItem("Save", "CTRL+S"))
-        saveContext();
+      if (ImGui::MenuItem("Load"))
+        m_core.getFilenameFromDialog(m_filenameToLoadNextFrame);
 
       ImGui::Separator();
 
-      if (ImGui::BeginMenu("UI Layout")) {
-        if (ImGui::MenuItem("Print"))
-          printf("%s\n", ImGui::SaveIniSettingsToMemory());
+      if (ImGui::MenuItem("Save", "CTRL+S"))
+        doSave();
 
-        if (ImGui::MenuItem("Reset"))
-          ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
-
-        ImGui::EndMenu();
-      }
+      if (ImGui::MenuItem("Save As..."))
+        m_core.getFilenameFromDialog(m_filenameToSaveNextFrame);
 
       ImGui::Separator();
 
@@ -91,7 +119,22 @@ void BaseApplication::uiFrameStart()
 
     if (ImGui::BeginMenu("Edit")) {
       if (ImGui::MenuItem("Settings"))
-        m_appSettings->show();
+        m_appSettingsDialog->show();
+
+      ImGui::Separator();
+
+      if (ImGui::BeginMenu("UI Layout")) {
+        if (ImGui::MenuItem("Print"))
+          printf("%s\n", ImGui::SaveIniSettingsToMemory());
+
+        ImGui::Separator();
+
+        if (ImGui::MenuItem("Reset"))
+          ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
+
+        ImGui::EndMenu();
+      }
+
       ImGui::EndMenu();
     }
 
@@ -122,8 +165,8 @@ void BaseApplication::uiFrameStart()
 
     // Modals //
 
-    if (m_appSettings->visible())
-      m_appSettings->renderUI();
+    if (m_appSettingsDialog->visible())
+      m_appSettingsDialog->renderUI();
 
     if (m_fileDialog->visible())
       m_fileDialog->renderUI();
@@ -136,10 +179,59 @@ void BaseApplication::teardown()
   anari_viewer::ui::shutdown();
 }
 
-void BaseApplication::saveContext()
+void BaseApplication::saveApplicationState(const char *filename)
 {
-  tsd::save_Context(appCore()->tsd.ctx, "state.tsd");
-  tsd::logStatus("context saved to 'state.tsd'");
+  tsd::logStatus("serializing application state + context...");
+
+  auto &root = m_settings.root();
+
+  // Window state
+  auto &windows = root["windows"];
+  for (auto *w : m_windows)
+    w->saveSettings(root["windows"][w->name()]);
+
+  // ImGui window layout
+  root["layout"] = ImGui::SaveIniSettingsToMemory();
+
+  // Serialize TSD context
+  root["context"].reset();
+  tsd::save_Context(appCore()->tsd.ctx, root["context"]);
+
+  // Save to file
+  m_settings.save(filename);
+
+  // Clear out context tree
+  root["context"].reset();
+
+  tsd::logStatus("...state saved to '%s'", filename);
+}
+
+void BaseApplication::loadApplicationState(const char *filename)
+{
+  // Load from file
+  m_settings.load(filename);
+
+  auto &root = m_settings.root();
+
+  // Window state
+  auto &windows = root["windows"];
+  for (auto *w : m_windows)
+    w->loadSettings(root["windows"][w->name()]);
+
+  // ImGui window layout
+  if (auto *c = root.child("layout"); c != nullptr)
+    ImGui::LoadIniSettingsFromMemory(c->getValueAs<std::string>().c_str());
+
+  // TSD context from app state file, or context-only file
+  if (auto *c = root.child("context"); c != nullptr)
+    tsd::load_Context(appCore()->tsd.ctx, *c);
+  else
+    tsd::load_Context(appCore()->tsd.ctx, root);
+
+  // Clear out context tree
+  root["context"].reset();
+
+  tsd::logStatus("...state saved to 'state.tsd'");
 }
 
 void BaseApplication::setupUsdDevice()
@@ -194,7 +286,21 @@ void BaseApplication::teardownUsdDevice()
 void BaseApplication::setWindowArray(const anari_viewer::WindowArray &wa)
 {
   for (auto &w : wa)
-    m_windows.push_back(w.get());
+    m_windows.push_back((Window *)w.get());
+}
+
+void BaseApplication::updateWindowTitle()
+{
+  auto *w = m_core.application->sdlWindow();
+  if (!w)
+    return;
+
+  std::string title = m_applicationName + " | ";
+
+  title += m_currentSessionFilename.empty() ? std::string("{new session}")
+                                            : m_currentSessionFilename;
+
+  SDL_SetWindowTitle(w, title.c_str());
 }
 
 } // namespace tsd_viewer

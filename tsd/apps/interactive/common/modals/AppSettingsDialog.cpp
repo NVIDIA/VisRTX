@@ -1,17 +1,17 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AppSettings.h"
+#include "AppSettingsDialog.h"
 
 namespace tsd_viewer {
 
-AppSettings::AppSettings(AppCore *core) : Modal(core, "AppSettings")
+AppSettingsDialog::AppSettingsDialog(AppCore *core) : Modal(core, "AppSettings")
 {
   ImGuiIO &io = ImGui::GetIO();
   m_fontScale = io.FontGlobalScale;
 }
 
-void AppSettings::buildUI()
+void AppSettingsDialog::buildUI()
 {
   bool doUpdate = false;
 
@@ -26,7 +26,7 @@ void AppSettings::buildUI()
     this->hide();
 }
 
-void AppSettings::update()
+void AppSettingsDialog::update()
 {
   ImGuiIO &io = ImGui::GetIO();
   io.FontGlobalScale = m_fontScale;

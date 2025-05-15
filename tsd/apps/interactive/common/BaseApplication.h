@@ -5,12 +5,14 @@
 
 #include "AppCore.h"
 #include "Manipulator.h"
-#include "modals/AppSettings.h"
+#include "modals/AppSettingsDialog.h"
 #include "modals/ImportFileDialog.h"
 // tsd
 #include "tsd/TSD.hpp"
 
 namespace tsd_viewer {
+
+struct Window;
 
 class BaseApplication : public anari_viewer::Application
 {
@@ -26,8 +28,16 @@ class BaseApplication : public anari_viewer::Application
   virtual void uiFrameStart() override;
   virtual void teardown() override;
 
+  // Not movable or copyable //
+
+  BaseApplication(const BaseApplication &) = delete;
+  BaseApplication &operator=(const BaseApplication &) = delete;
+  BaseApplication(BaseApplication &&) = delete;
+  BaseApplication &operator=(BaseApplication &&) = delete;
+
  protected:
-  void saveContext();
+  void saveApplicationState(const char *filename = "state.tsd");
+  void loadApplicationState(const char *filename = "state.tsd");
 
   void setupUsdDevice();
   bool usdDeviceSetup() const;
@@ -40,12 +50,23 @@ class BaseApplication : public anari_viewer::Application
   // Data //
 
   manipulators::Orbit m_manipulator;
-  std::vector<anari_viewer::windows::Window *> m_windows;
-  std::unique_ptr<tsd_viewer::AppSettings> m_appSettings;
+  std::vector<Window *> m_windows;
+  std::unique_ptr<tsd_viewer::AppSettingsDialog> m_appSettingsDialog;
   std::unique_ptr<tsd_viewer::ImportFileDialog> m_fileDialog;
 
+  tsd::serialization::DataTree m_settings;
+
  private:
+  void updateWindowTitle();
+
+  // Data //
   AppCore m_core;
+
+  std::string m_applicationName = "TSD";
+
+  std::string m_currentSessionFilename;
+  std::string m_filenameToSaveNextFrame;
+  std::string m_filenameToLoadNextFrame;
 
   struct UsdDeviceState
   {

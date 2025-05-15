@@ -5,6 +5,8 @@
 
 #include "AppCore.h"
 #include "windows/Log.h"
+// SDL
+#include <SDL3/SDL_dialog.h>
 
 namespace tsd_viewer {
 
@@ -133,7 +135,7 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::PDB;
     else if (arg == "-xyzdp")
       importerType = ImporterType::XYZDP;
-    else if (importerType != ImporterType::NONE)
+    else
       this->commandLine.filenames.push_back({importerType, arg});
   }
 }
@@ -184,6 +186,29 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_volume(tsd.ctx, f.second.c_str());
     }
   }
+}
+
+void AppCore::getFilenameFromDialog(std::string &filenameOut)
+{
+  auto fileDialogCb =
+      [](void *userdata, const char *const *filelist, int filter) {
+        std::string &out = *(std::string *)userdata;
+        if (!filelist) {
+          tsd::logError("SDL DIALOG ERROR: %s\n", SDL_GetError());
+          return;
+        }
+
+        if (*filelist)
+          out = *filelist;
+      };
+
+  SDL_ShowOpenFileDialog(fileDialogCb,
+      &filenameOut,
+      application->sdlWindow(),
+      nullptr,
+      0,
+      nullptr,
+      false);
 }
 
 anari::Device AppCore::loadDevice(const std::string &libraryName)
