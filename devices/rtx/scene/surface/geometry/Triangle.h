@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include <helium/utility/IntrusivePtr.h>
 #include "Geometry.h"
 #include "array/Array1D.h"
 
@@ -59,6 +60,8 @@ struct Triangle : public Geometry
   GeometryAttributes m_vertexAttributes;
   GeometryAttributes m_vertexAttributesFV;
   helium::IntrusivePtr<Array1D> m_vertexNormalFV;
+  helium::IntrusivePtr<Array1D> m_vertexTangent;
+  helium::IntrusivePtr<Array1D> m_vertexTangentFV;
 
   CUdeviceptr m_vertexBufferPtr{};
 

@@ -128,6 +128,8 @@ struct TriangleGeometryData
   AttributeDataSet vertexAttrFV;
   const vec3 *vertexNormals;
   const vec3 *vertexNormalsFV;
+  const vec4 *vertexTangents;
+  const vec4 *vertexTangentsFV;
   bool cullBackfaces;
 };
 

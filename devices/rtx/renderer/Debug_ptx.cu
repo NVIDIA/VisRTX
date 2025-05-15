@@ -102,6 +102,17 @@ VISRTX_DEVICE void handleSurfaceHit()
   case DebugMethod::NS_ABS:
     rd.outColor = abs(rd.Ns);
     break;
+  case DebugMethod::TANGENT_U:
+    rd.outColor = rd.tU * 0.5f + 0.5f;
+    break;
+  case DebugMethod::TANGENT_HANDEDNESS: {
+    float handedness = copysignf(1.0f, dot(cross(rd.Ns, rd.tU), rd.tV));
+    rd.outColor = vec3(handedness, -handedness, 0.f);
+    break;
+  }
+  case DebugMethod::TANGENT_V:
+    rd.outColor = rd.tV * 0.5f + 0.5f;
+    break;
   case DebugMethod::HAS_MATERIAL:
     rd.outColor = boolColor(rd.material);
     break;
