@@ -71,9 +71,14 @@ void BaseApplication::uiFrameStart()
 
       ImGui::Separator();
 
-      if (ImGui::MenuItem("Print UI Layout")) {
-        const char *info = ImGui::SaveIniSettingsToMemory();
-        printf("%s\n", info);
+      if (ImGui::BeginMenu("UI Layout")) {
+        if (ImGui::MenuItem("Print"))
+          printf("%s\n", ImGui::SaveIniSettingsToMemory());
+
+        if (ImGui::MenuItem("Reset"))
+          ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
+
+        ImGui::EndMenu();
       }
 
       ImGui::Separator();
