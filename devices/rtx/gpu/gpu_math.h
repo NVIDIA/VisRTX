@@ -295,7 +295,7 @@ VISRTX_HOST_DEVICE vec3 xfmVec(const mat4 &m, const vec3 &p)
 
 VISRTX_HOST_DEVICE vec3 xfmPoint(const mat4 &m, const vec3 &p)
 {
-  return mat3(m) * p;
+  return m * vec4(p, 1.0f);
 }
 
 } // namespace visrtx
