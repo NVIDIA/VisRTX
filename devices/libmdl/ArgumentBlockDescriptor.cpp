@@ -1,5 +1,8 @@
 #include "ArgumentBlockDescriptor.h"
 
+#include "Core.h"
+#include "types.h"
+
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>
 #include <mi/base/interface_implement.h>
@@ -15,7 +18,7 @@
 #include <cstdio>
 #include <unordered_map>
 #include <vector>
-#include "libmdl/Core.h"
+
 
 namespace visrtx::libmdl {
 

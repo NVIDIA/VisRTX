@@ -51,7 +51,7 @@ SamplerRegistry::~SamplerRegistry()
   }
 }
 
-Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath)
+Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::ColorSpace colorSpace)
 {
   std::ifstream ifs(std::string(filePath), std::ios::in | std::ios::binary);
   if (!ifs.is_open()) {
@@ -289,7 +289,7 @@ Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath)
   return tex;
 }
 
-Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl::ArgumentBlockDescriptor::ColorSpace colorSpace)
+Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl::ColorSpace colorSpace)
 {
   auto filePathS = std::string(filePath);
   stbi_set_flip_vertically_on_load(1);
@@ -302,11 +302,11 @@ Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl
 
     // Data is hdr and then floats assumed to be in linear colorspace.
     switch (colorSpace) {
-      case libmdl::ArgumentBlockDescriptor::ColorSpace::Auto:
+      case libmdl::ColorSpace::Auto:
         break;
-      case libmdl::ArgumentBlockDescriptor::ColorSpace::Linear:
+      case libmdl::ColorSpace::Linear:
         break;
-      case libmdl::ArgumentBlockDescriptor::ColorSpace::sRGB:
+      case libmdl::ColorSpace::sRGB:
         // Convert to sRGB
         {
           auto *dataF = static_cast<float *>(data);
@@ -323,7 +323,7 @@ Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl
     data = stbi_load(filePathS.c_str(), &width, &height, &n, 0);
     // Data is ldr and then assumed to be in sRGB colorspace.
     switch (colorSpace) {
-      case libmdl::ArgumentBlockDescriptor::ColorSpace::Linear:
+      case libmdl::ColorSpace::Linear:
         // Convert to linear
         {
           auto *dataU8 = static_cast<unsigned char *>(data);
@@ -335,8 +335,8 @@ Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl
           }
         }
         break;
-      case libmdl::ArgumentBlockDescriptor::ColorSpace::Auto:
-      case libmdl::ArgumentBlockDescriptor::ColorSpace::sRGB:
+      case libmdl::ColorSpace::Auto:
+      case libmdl::ColorSpace::sRGB:
         break;
     }
 
@@ -381,7 +381,7 @@ Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl
   return image2d;
 }
 
-Sampler *SamplerRegistry::loadFromFile(const std::string_view &filePath, libmdl::ArgumentBlockDescriptor::ColorSpace colorSpace)
+Sampler *SamplerRegistry::loadFromFile(const std::string_view &filePath, libmdl::ColorSpace colorSpace)
 {
   if (size(filePath) > 4 && filePath.substr(size(filePath) - 4) == ".dds") {
     return loadFromDDS(filePath, colorSpace);
@@ -391,13 +391,13 @@ Sampler *SamplerRegistry::loadFromFile(const std::string_view &filePath, libmdl:
 }
 
 Sampler *SamplerRegistry::loadFromTextureDesc(
-    const libmdl::ArgumentBlockDescriptor::TextureDescriptor &textureDesc)
+    const libmdl::TextureDescriptor &textureDesc)
 {
   switch (textureDesc.shape) {
-  case libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::TwoD: {
+  case libmdl::Shape::TwoD: {
     return loadFromImage(textureDesc.url, textureDesc.colorSpace);
   }
-  case libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::BsdfData: {
+  case libmdl::Shape::BsdfData: {
     auto texelType = ANARI_FLOAT32_VEC4;
 
     if (textureDesc.bsdf.pixelFormat == "Sint8"sv) {
@@ -457,7 +457,7 @@ Sampler *SamplerRegistry::loadFromTextureDesc(
   return {};
 }
 
-Sampler *SamplerRegistry::acquireSampler(const std::string& filePath, libmdl::ArgumentBlockDescriptor::ColorSpace colorSpace)
+Sampler *SamplerRegistry::acquireSampler(const std::string& filePath, libmdl::ColorSpace colorSpace)
 {
   if (auto it = m_dbToSampler.find(filePath); it != end(m_dbToSampler)) {
     it->second->refInc();
@@ -478,7 +478,7 @@ Sampler *SamplerRegistry::acquireSampler(const std::string& filePath, libmdl::Ar
 }
 
 Sampler *SamplerRegistry::acquireSampler(
-    const libmdl::ArgumentBlockDescriptor::TextureDescriptor &textureDesc)
+    const libmdl::TextureDescriptor &textureDesc)
 {
   if (auto it = m_dbToSampler.find(textureDesc.url); it != end(m_dbToSampler)) {
     it->second->refInc();

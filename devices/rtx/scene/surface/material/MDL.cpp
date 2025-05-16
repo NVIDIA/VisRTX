@@ -257,11 +257,11 @@ void MDL::syncParameters()
                 colorspaceStr,  name);
             colorspaceStr = "auto"s;
           }
-          auto colorspace = libmdl::ArgumentBlockInstance::ColorSpace::Auto;
+          auto colorspace = libmdl::ColorSpace::Auto;
           if (colorspaceStr == "raw"sv) {
-            colorspace = libmdl::ArgumentBlockInstance::ColorSpace::Raw;
+            colorspace = libmdl::ColorSpace::Linear;
           } else if (colorspaceStr == "srgb"sv) {
-            colorspace = libmdl::ArgumentBlockInstance::ColorSpace::sRGB;
+            colorspace = libmdl::ColorSpace::sRGB;
           }
 
           sampler = samplerRegistry.acquireSampler(sourceParamAny.getString(), colorspace);
