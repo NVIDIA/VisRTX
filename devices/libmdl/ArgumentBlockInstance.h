@@ -73,7 +73,7 @@ class ArgumentBlockInstance
           HandleHasher<const mi::neuraylib::IValue_resource>>;
   using ResourceDescriptors =
       std::unordered_map<mi::base::Handle<const mi::neuraylib::IValue_resource>,
-          ArgumentBlockDescriptor::TextureDescriptor,
+          TextureDescriptor,
           HandleHasher<const mi::neuraylib::IValue_resource>>;
 
  private:

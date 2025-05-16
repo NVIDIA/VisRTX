@@ -23,8 +23,8 @@ class SamplerRegistry
   SamplerRegistry(libmdl::Core *core, DeviceGlobalState *deviceState);
   ~SamplerRegistry();
 
-  Sampler *acquireSampler(const std::string &filePath, libmdl::ArgumentBlockDescriptor::ColorSpace colorSpace = libmdl::ArgumentBlockDescriptor::ColorSpace::Auto);
-  Sampler *acquireSampler(const libmdl::ArgumentBlockDescriptor::TextureDescriptor &textureDesc);
+  Sampler *acquireSampler(const std::string &filePath, libmdl::ColorSpace colorSpace = libmdl::ColorSpace::Auto);
+  Sampler *acquireSampler(const libmdl::TextureDescriptor &textureDesc);
 
   bool releaseSampler(const Sampler *);
 
@@ -34,12 +34,11 @@ class SamplerRegistry
 
   std::unordered_map<std::string, Sampler *> m_dbToSampler;
 
-  Sampler* loadFromFile(const std::string_view& filePath, libmdl::ArgumentBlockDescriptor::ColorSpace colorSpace = libmdl::ArgumentBlockDescriptor::ColorSpace::Auto);
+  Sampler* loadFromFile(const std::string_view& filePath, libmdl::ColorSpace colorSpace = libmdl::ColorSpace::Auto);
 
-  Sampler* loadFromDDS(const std::string_view& filePath, libmdl::ArgumentBlockDescriptor::ColorSpace colorSpace = libmdl::ArgumentBlockDescriptor::ColorSpace::Auto);
-  Sampler* loadFromImage(const std::string_view& filePath, libmdl::ArgumentBlockDescriptor::ColorSpace colorSpace = libmdl::ArgumentBlockDescriptor::ColorSpace::Auto);
-
-  Sampler* loadFromTextureDesc(const libmdl::ArgumentBlockDescriptor::TextureDescriptor &textureDesc);
+  Sampler* loadFromDDS(const std::string_view& filePath, libmdl::ColorSpace colorSpace = libmdl::ColorSpace::Auto);
+  Sampler* loadFromImage(const std::string_view& filePath, libmdl::ColorSpace colorSpace = libmdl::ColorSpace::Auto);
+  Sampler* loadFromTextureDesc(const libmdl::TextureDescriptor &textureDesc);
 };
 
 } // namespace visrtx::mdl

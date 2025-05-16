@@ -121,45 +121,45 @@ MaterialRegistry::acquireMaterial(
   auto uuid = compiledMaterial->get_hash();
   auto targetCode = make_handle(
       m_core->getPtxTargetCode(compiledMaterial.get(), transaction.get()));
-  std::vector<libmdl::ArgumentBlockDescriptor::TextureDescriptor> textureDescs;
+  std::vector<libmdl::TextureDescriptor> textureDescs;
 
   for (auto i = 1ul; i < targetCode->get_texture_count(); ++i) {
-    libmdl::ArgumentBlockDescriptor::TextureDescriptor textureDesc{
+    libmdl::TextureDescriptor textureDesc{
       i - 1,
         targetCode->get_texture(i)};
 
     switch (targetCode->get_texture_shape(i)) {
     case mi::neuraylib::ITarget_code::Texture_shape_2d: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::TwoD;
+          libmdl::Shape::TwoD;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_3d: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::ThreeD;
+          libmdl::Shape::ThreeD;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_cube: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::Cube;
+          libmdl::Shape::Cube;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_bsdf_data: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::BsdfData;
+          libmdl::Shape::BsdfData;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_ptex: {
       m_core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
           "Ptex textures are not supported by VisRTX");
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::Unknown;
+          libmdl::Shape::Unknown;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_invalid:
     default: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::Unknown;
+          libmdl::Shape::Unknown;
       break;
     }
     }
@@ -177,8 +177,7 @@ MaterialRegistry::acquireMaterial(
       textureDesc.bsdf.dims[1] = y;
       textureDesc.bsdf.dims[2] = z;
       textureDesc.bsdf.pixelFormat = pixelFormat;
-      textureDesc.colorSpace = libmdl::ArgumentBlockDescriptor::
-          TextureDescriptor::ColorSpace::Linear;
+      textureDesc.colorSpace = libmdl::ColorSpace::Linear;
       textureDesc.url =
           fmt::format("bsdf_data_{}", fmt::ptr(textureDesc.bsdf.data));
     } else {
@@ -190,13 +189,11 @@ MaterialRegistry::acquireMaterial(
       case mi::neuraylib::ITarget_code::GM_GAMMA_DEFAULT:
       case mi::neuraylib::ITarget_code::GM_GAMMA_LINEAR:
       case mi::neuraylib::ITarget_code::GM_GAMMA_UNKNOWN: {
-        textureDesc.colorSpace = libmdl::ArgumentBlockDescriptor::
-            TextureDescriptor::ColorSpace::Linear;
+        textureDesc.colorSpace = libmdl::ColorSpace::Linear;
         break;
       }
       case mi::neuraylib::ITarget_code::GM_GAMMA_SRGB: {
-        textureDesc.colorSpace = libmdl::ArgumentBlockDescriptor::
-            TextureDescriptor::ColorSpace::sRGB;
+        textureDesc.colorSpace = libmdl::ColorSpace::sRGB;
         break;
       }
       case mi::neuraylib::ITarget_code::GM_FORCE_32_BIT: {

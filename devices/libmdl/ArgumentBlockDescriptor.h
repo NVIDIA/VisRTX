@@ -1,6 +1,8 @@
 #pragma once
 
-#include "libmdl/Core.h"
+#include "Core.h"
+#include "types.h"
+
 
 #include <mi/base/handle.h>
 #include <mi/neuraylib/argument_editor.h>
@@ -37,36 +39,6 @@ struct ArgumentBlockDescriptor
   {
     std::string name;
     ArgumentType type;
-  };
-
-  struct TextureDescriptor
-  {
-    uint64_t knownIndex;
-    enum class ColorSpace
-    {
-      Linear,
-      sRGB,
-    };
-
-    enum class Shape
-    {
-      Unknown,
-      TwoD,
-      ThreeD,
-      Cube,
-      PTex,
-      BsdfData,
-    };
-
-    std::string url;
-    ColorSpace colorSpace{ColorSpace::sRGB};
-    Shape shape{Shape::TwoD};
-    struct
-    {
-      const float *data = {};
-      std::uint64_t dims[3] = {};
-      const char* pixelFormat = {};
-    } bsdf;
   };
 
   ArgumentBlockDescriptor() = default;
