@@ -215,26 +215,9 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       tsd::logStatus("[viewport] getting renderer params...");
 
-      const char **r_subtypes = anariGetObjectSubtypes(d, ANARI_RENDERER);
-
-      std::vector<std::string> rendererNames;
-      if (r_subtypes != nullptr) {
-        for (int i = 0; r_subtypes[i] != nullptr; i++)
-          rendererNames.push_back(r_subtypes[i]);
-      } else
-        rendererNames.emplace_back("default");
       m_currentRenderer = 0;
-
-      for (auto &name : rendererNames) {
-        auto ar = anari::newObject<anari::Renderer>(d, name.c_str());
-        auto o = tsd::ui::parseANARIObject(d, ANARI_RENDERER, name.c_str());
-        o.setName(name.c_str());
-        o.setUpdateDelegate(&m_rud);
-        o.updateAllANARIParameters(d, ar);
-        anari::commitParameters(d, ar);
-        m_rendererObjects.push_back(std::move(o));
-        m_renderers.push_back(ar);
-      }
+      loadANARIRendererParameters(d);
+      updateAllRendererParameters(d);
 
       m_perspCamera = anari::newObject<anari::Camera>(d, "perspective");
       m_currentCamera = m_perspCamera;
@@ -291,6 +274,8 @@ void Viewport::saveSettings(tsd::serialization::DataNode &root)
 {
   root.reset(); // clear all previous values, if they exist
 
+  // Viewport settings //
+
   root["echoCameraConfig"] = m_echoCameraConfig;
   root["showOverlay"] = m_showOverlay;
   root["showCameraInfo"] = m_showCameraInfo;
@@ -303,17 +288,31 @@ void Viewport::saveSettings(tsd::serialization::DataNode &root)
 
   root["anariLibrary"] = m_libName;
 
+  // Camera //
+
   auto &camera = root["camera"];
   camera["at"] = m_arcball->at();
   camera["distance"] = m_arcball->distance();
   camera["azel"] = m_arcball->azel();
   camera["up"] = int(m_arcball->axis());
 
+  // Renderer settings //
+
+  auto &renderers = root["renderers"];
+  for (auto &ro : m_rendererObjects)
+    objectToNode(ro, renderers[ro.name()]);
+
+  // Base window settings //
+
   Window::saveSettings(root);
 }
 
 void Viewport::loadSettings(tsd::serialization::DataNode &root)
 {
+  Window::loadSettings(root);
+
+  // Viewport settings //
+
   root["echoCameraConfig"].getValue(ANARI_BOOL, &m_echoCameraConfig);
   root["showOverlay"].getValue(ANARI_BOOL, &m_showOverlay);
   root["showCameraInfo"].getValue(ANARI_BOOL, &m_showCameraInfo);
@@ -323,6 +322,8 @@ void Viewport::loadSettings(tsd::serialization::DataNode &root)
   root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
   root["fov"].getValue(ANARI_FLOAT32, &m_fov);
   root["resolutionScale"].getValue(ANARI_FLOAT32, &m_resolutionScale);
+
+  // Camera //
 
   if (auto *c = root.child("camera"); c != nullptr) {
     tsd::float3 at(0.f);
@@ -340,11 +341,62 @@ void Viewport::loadSettings(tsd::serialization::DataNode &root)
     m_arcball->setConfig(at, distance, azel);
   }
 
+  // Setup library //
+
   std::string libraryName;
   root["anariLibrary"].getValue(ANARI_STRING, &libraryName);
   setLibrary(libraryName, false);
 
-  Window::loadSettings(root);
+  // Renderer settings //
+
+  root["renderers"].foreach_child([&](auto &node) {
+    int i = 0;
+    for (auto &ro : m_rendererObjects) {
+      if (ro.subtype() == node.name()) {
+        nodeToObject(node, ro);
+        return;
+      }
+      i++;
+    }
+  });
+
+  updateAllRendererParameters(m_device);
+}
+
+void Viewport::loadANARIRendererParameters(anari::Device d)
+{
+  m_rendererObjects.clear();
+  for (auto &r : m_renderers)
+    anari::release(d, r);
+  m_renderers.clear();
+
+  const char **r_subtypes = anariGetObjectSubtypes(d, ANARI_RENDERER);
+
+  std::vector<std::string> rendererNames;
+  if (r_subtypes != nullptr) {
+    for (int i = 0; r_subtypes[i] != nullptr; i++)
+      rendererNames.push_back(r_subtypes[i]);
+  } else
+    rendererNames.emplace_back("default");
+
+  for (auto &name : rendererNames) {
+    auto ar = anari::newObject<anari::Renderer>(d, name.c_str());
+    auto o = tsd::ui::parseANARIObject(d, ANARI_RENDERER, name.c_str());
+    o.setName(name.c_str());
+    o.setUpdateDelegate(&m_rud);
+    m_rendererObjects.push_back(std::move(o));
+    m_renderers.push_back(ar);
+  }
+}
+
+void Viewport::updateAllRendererParameters(anari::Device d)
+{
+  for (size_t i = 0; i < m_rendererObjects.size(); i++) {
+    auto &ro = m_rendererObjects[i];
+    auto ar = m_renderers[i];
+    ro.updateAllANARIParameters(d, ar);
+    anari::commitParameters(d, ar);
+  }
 }
 
 void Viewport::teardownDevice()
@@ -725,7 +777,9 @@ void Viewport::ui_contextMenu()
 
       if (!m_rendererObjects.empty()) {
         ImGui::Text("Renderer:");
+
         ImGui::Indent(INDENT_AMOUNT);
+
         if (m_rendererObjects.size() > 1 && ImGui::BeginMenu("subtype")) {
           for (int i = 0; i < m_rendererObjects.size(); i++) {
             const char *rName = m_rendererObjects[i].name().c_str();
@@ -738,6 +792,15 @@ void Viewport::ui_contextMenu()
         if (!m_rendererObjects.empty() && ImGui::BeginMenu("parameters")) {
           tsd::ui::buildUI_object(
               m_rendererObjects[m_currentRenderer], m_core->tsd.ctx, false);
+          ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("reset defaults?")) {
+          if (ImGui::MenuItem("yes")) {
+            loadANARIRendererParameters(m_device);
+            updateAllRendererParameters(m_device);
+            updateFrame();
+          }
           ImGui::EndMenu();
         }
 

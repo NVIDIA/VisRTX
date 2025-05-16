@@ -9,6 +9,9 @@ namespace tsd {
 
 // clang-format off
 
+void objectToNode(const Object &obj, serialization::DataNode &node);
+void nodeToObject(serialization::DataNode &node, Object &obj);
+
 void save_Context(Context &ctx, const char *filename);
 void save_Context(Context &ctx, serialization::DataNode &root);
 void load_Context(Context &ctx, const char *filename);

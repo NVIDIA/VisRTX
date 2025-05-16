@@ -37,6 +37,9 @@ struct Viewport : public Window
   void saveSettings(tsd::serialization::DataNode &thisWindowRoot) override;
   void loadSettings(tsd::serialization::DataNode &thisWindowRoot) override;
 
+  void loadANARIRendererParameters(anari::Device d);
+  void updateAllRendererParameters(anari::Device d);
+
   void teardownDevice();
   void reshape(tsd::math::int2 newWindowSize);
   void pick(tsd::math::int2 location, bool selectObject);
@@ -96,7 +99,6 @@ struct Viewport : public Window
   anari::Camera m_orthoCamera{nullptr};
   anari::Camera m_omniCamera{nullptr};
 
-  std::vector<std::string> m_rendererNames;
   std::vector<anari::Renderer> m_renderers;
   std::vector<tsd::Object> m_rendererObjects;
   int m_currentRenderer{0};

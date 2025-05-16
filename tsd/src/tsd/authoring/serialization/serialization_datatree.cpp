@@ -43,7 +43,7 @@ static void parameterToNode(const Parameter &p, serialization::DataNode &node)
   }
 }
 
-static void objectToNode(const Object &obj, serialization::DataNode &node)
+void objectToNode(const Object &obj, serialization::DataNode &node)
 {
   node["name"] = obj.name();
   node["self"] = utility::Any(obj.type(), obj.index());
@@ -179,7 +179,19 @@ static void nodeToObjectMetadata(serialization::DataNode &node, Object &obj)
   });
 }
 
-static void nodeToObject(Context &ctx, serialization::DataNode &node)
+void nodeToObject(serialization::DataNode &node, Object &obj)
+{
+  if (auto *c = node.child("name"); c != nullptr)
+    obj.setName(c->getValueAs<std::string>().c_str());
+
+  if (auto *c = node.child("parameters"); c != nullptr)
+    nodeToObjectParameters(*c, obj);
+
+  if (auto *c = node.child("metadata"); c != nullptr)
+    nodeToObjectMetadata(*c, obj);
+}
+
+static void nodeToNewObject(Context &ctx, serialization::DataNode &node)
 {
   const utility::Any self = node["self"].getValue();
   const auto type = self.type();
@@ -259,14 +271,7 @@ static void nodeToObject(Context &ctx, serialization::DataNode &node)
         index);
   }
 
-  if (auto *c = node.child("name"); c != nullptr)
-    obj->setName(c->getValueAs<std::string>().c_str());
-
-  if (auto *c = node.child("parameters"); c != nullptr)
-    nodeToObjectParameters(*c, *obj);
-
-  if (auto *c = node.child("metadata"); c != nullptr)
-    nodeToObjectMetadata(*c, *obj);
+  nodeToObject(node, *obj);
 }
 
 static void nodeToLayer(serialization::DataNode &rootNode, Layer &layer)
@@ -387,7 +392,7 @@ void load_Context(Context &ctx, serialization::DataNode &root)
                                Context &ctx,
                                const char *childNodeName) {
     auto &objectsNode = node[childNodeName];
-    objectsNode.foreach_child([&](auto &n) { nodeToObject(ctx, n); });
+    objectsNode.foreach_child([&](auto &n) { nodeToNewObject(ctx, n); });
   };
 
   nodeToObjectArray(objectDB, ctx, "array");
