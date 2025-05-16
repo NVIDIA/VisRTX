@@ -241,10 +241,6 @@ void World::rebuildWorld()
 
     m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
   }
-
-#ifdef USE_MDL
-  buildMDLMaterialGPUData();
-#endif // defined(USE_MDL)
 }
 
 void World::populateOptixInstances()
@@ -478,51 +474,6 @@ void World::buildInstanceLightGPUData()
 
   m_instanceLightGPUData.upload();
 }
-
-#ifdef USE_MDL
-void World::buildMDLMaterialGPUData()
-{
-  auto state = static_cast<DeviceGlobalState *>(deviceState());
-
-  if (state->objectUpdates.lastMDLObjectChange
-      < m_objectUpdates.lastMDLObjectCheck)
-    return;
-
-  std::vector<MDL *> mdls;
-
-  for (const auto &instance : m_instances) {
-    const auto group = instance->group();
-    if (const auto surfaceObjects =
-            group->getParamObject<ObjectArray>("surface")) {
-      const auto surfaces = make_Span(
-          reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()),
-          surfaceObjects->totalSize());
-
-      for (auto surface : surfaces) {
-        if (auto material = dynamic_cast<MDL *>(surface->material())) {
-          if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck) {
-            mdls.push_back(material);
-          }
-        }
-      }
-    }
-  }
-
-  std::sort(std::begin(mdls), std::end(mdls));
-  mdls.erase(std::unique(std::begin(mdls), std::end(mdls)), std::end(mdls));
-
-  for (auto mdl : mdls) {
-    mdl->syncSource();
-    mdl->syncImplementationIndex();
-    mdl->syncParameters();
-    mdl->updateSamplers();
-    mdl->upload();
-  };
-
-  state->rendererModules.lastMDLMaterialChange =
-      m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
-}
-#endif // defined(USE_MDL)
 
 } // namespace visrtx
 

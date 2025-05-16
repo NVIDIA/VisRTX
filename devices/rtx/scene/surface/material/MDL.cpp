@@ -89,7 +89,10 @@ void MDL::commitParameters()
 
 void MDL::finalize()
 {
-  // NOTE(jda) - *skip* calling this->upload() as MDL is handled differently
+  syncSource();
+  syncImplementationIndex();
+  syncParameters();
+  upload();
 }
 
 void MDL::markFinalized()
@@ -168,16 +171,6 @@ void MDL::syncSource()
 void MDL::syncParameters()
 {
   if (m_argumentBlockInstance.has_value()) {
-    auto transaction = mi::base::make_handle(
-        deviceState()->mdl->materialRegistry.createTransaction());
-    auto releaseTransaction =
-        nonstd::make_scope_exit([&]() { transaction->commit(); });
-
-    // Reset resource mapping
-    m_argumentBlockInstance->resetResources();
-
-    auto factory = deviceState()->mdl->materialRegistry.getMdlFactory();
-
     auto &argumentBlockInstance = *m_argumentBlockInstance;
     for (auto &&[name, type] : argumentBlockInstance.enumerateArguments()) {
       auto sourceParamAny = getParamDirect(name);
@@ -301,8 +294,6 @@ void MDL::syncParameters()
           }
 
           argumentBlockInstance.setValue(name, index + 1); // MDL starts counting at 1, 0 being invalid.
-        } else {
-          reportMessage(ANARI_SEVERITY_WARNING, "Cannot assign sampler for parameter %s (type %s)", name.c_str(), anari::toString(sourceParamAny.type()));
         }
         break;
       }
@@ -314,43 +305,7 @@ void MDL::syncParameters()
       }
       }
     }
-    m_argumentBlockInstance->finalizeResourceCreation(transaction.get());
   }
-}
-
-void MDL::updateSamplers()
-{
-  return;
-  if (!m_argumentBlockInstance.has_value()) {
-    return;
-  }
-
-  auto transaction =
-      make_handle(deviceState()->mdl->materialRegistry.createTransaction());
-
-  auto releaseTransaction =
-      nonstd::make_scope_exit([&]() { transaction->abort(); });
-
-  // Traverse resources related to samplers. Allocate actual ones and release
-  // previous ones. Note that unchanged samplers, compared to the previous
-  // commit will therby be reference both in samplers and newSamplers before
-  // being dereference when cleaning actual samplers.
-  std::vector<Sampler *> newSamplers;
-  for (const auto &textureDbName :
-      m_argumentBlockInstance->getTextureResourceNames()) {
-    if (textureDbName.empty()) {
-      newSamplers.push_back({});
-    } else {
-      newSamplers.push_back(deviceState()->mdl->samplerRegistry.acquireSampler(
-          textureDbName, transaction.get()));
-    }
-  }
-
-  for (auto sampler : m_samplers) {
-    if (sampler)
-      deviceState()->mdl->samplerRegistry.releaseSampler(sampler);
-  }
-  m_samplers = newSamplers;
 }
 
 void MDL::syncImplementationIndex()

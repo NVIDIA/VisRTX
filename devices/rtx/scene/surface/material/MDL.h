@@ -58,9 +58,6 @@ struct MDL : public Material
   void syncImplementationIndex();
   // Handle argument block update
   void syncParameters();
-  // Update the samplers used by the material. To be called after
-  // syncParameters.
-  void updateSamplers();
 
  private:
   MaterialGPUData gpuData() const override;

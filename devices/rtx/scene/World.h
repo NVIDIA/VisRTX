@@ -64,9 +64,6 @@ struct World : public Object
   void buildInstanceSurfaceGPUData();
   void buildInstanceVolumeGPUData();
   void buildInstanceLightGPUData();
-#ifdef USE_MDL
-  void buildMDLMaterialGPUData();
-#endif // defined(USE_MDL)
   void cleanup();
 
   helium::ChangeObserverPtr<ObjectArray> m_zeroSurfaceData;
