@@ -43,6 +43,7 @@ class Orbit
   void pan(anari::math::float2 delta);
 
   void setAxis(OrbitAxis axis);
+  OrbitAxis axis() const;
 
   anari::math::float2 azel() const;
 

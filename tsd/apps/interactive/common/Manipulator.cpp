@@ -149,6 +149,11 @@ void Orbit::setAxis(OrbitAxis axis)
   update();
 }
 
+OrbitAxis Orbit::axis() const
+{
+  return m_axis;
+}
+
 anari::math::float2 Orbit::azel() const
 {
   return m_azel;

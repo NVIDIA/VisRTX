@@ -42,6 +42,7 @@ struct AppCore
     bool enableDebug{false};
     bool loadingContext{false};
     bool preloadDevices{false};
+    bool loadedFromStateFile{false};
     anari::Library debug{nullptr};
     std::string traceDir;
     std::vector<std::pair<ImporterType, std::string>> filenames;
@@ -80,6 +81,7 @@ struct AppCore
   struct Windows
   {
     ImportFileDialog *importDialog{nullptr};
+    float fontScale{1.25f};
   } windows;
 
   anari_viewer::Application *application{nullptr};

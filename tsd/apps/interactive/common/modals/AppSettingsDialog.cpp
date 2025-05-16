@@ -6,19 +6,17 @@
 namespace tsd_viewer {
 
 AppSettingsDialog::AppSettingsDialog(AppCore *core) : Modal(core, "AppSettings")
-{
-  ImGuiIO &io = ImGui::GetIO();
-  m_fontScale = io.FontGlobalScale;
-}
+{}
 
 void AppSettingsDialog::buildUI()
 {
   bool doUpdate = false;
 
-  doUpdate |= ImGui::DragFloat("font size", &m_fontScale, 0.01f, 0.5f, 4.f);
+  doUpdate |= ImGui::DragFloat(
+      "font size", &m_core->windows.fontScale, 0.01f, 0.5f, 4.f);
 
   if (doUpdate)
-    update();
+    applySettings();
 
   ImGui::NewLine();
 
@@ -26,10 +24,10 @@ void AppSettingsDialog::buildUI()
     this->hide();
 }
 
-void AppSettingsDialog::update()
+void AppSettingsDialog::applySettings()
 {
   ImGuiIO &io = ImGui::GetIO();
-  io.FontGlobalScale = m_fontScale;
+  io.FontGlobalScale = m_core->windows.fontScale;
 }
 
 } // namespace tsd_viewer

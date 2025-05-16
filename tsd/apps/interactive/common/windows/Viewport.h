@@ -34,6 +34,9 @@ struct Viewport : public Window
   void setLibrary(const std::string &libName, bool doAsync = true);
 
  private:
+  void saveSettings(tsd::serialization::DataNode &thisWindowRoot) override;
+  void loadSettings(tsd::serialization::DataNode &thisWindowRoot) override;
+
   void teardownDevice();
   void reshape(tsd::math::int2 newWindowSize);
   void pick(tsd::math::int2 location, bool selectObject);

@@ -76,9 +76,11 @@ class Application : public BaseApplication
       tsd::logStatus("%s", tsd::objectDBInfo(core->tsd.ctx.objectDB()).c_str());
       core->tsd.sceneLoadComplete = true;
 
-      vp->setLibrary(core->commandLine.libraryList[0], false);
-      if (!core->commandLine.secondaryViewportLibrary.empty())
-        vp2->setLibrary(core->commandLine.secondaryViewportLibrary);
+      if (!core->commandLine.loadedFromStateFile) {
+        vp->setLibrary(core->commandLine.libraryList[0], false);
+        if (!core->commandLine.secondaryViewportLibrary.empty())
+          vp2->setLibrary(core->commandLine.secondaryViewportLibrary);
+      }
     };
 
 #if 1

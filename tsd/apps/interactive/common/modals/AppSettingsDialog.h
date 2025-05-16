@@ -13,11 +13,7 @@ struct AppSettingsDialog : public Modal
   ~AppSettingsDialog() override = default;
 
   void buildUI() override;
-
- private:
-  void update();
-
-  float m_fontScale{1.25f};
+  void applySettings();
 };
 
 } // namespace tsd_viewer

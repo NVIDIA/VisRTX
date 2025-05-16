@@ -256,6 +256,9 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       //             device also to be set.
       m_device = d;
 
+      if (g_firstFrame && m_core->commandLine.loadedFromStateFile)
+        g_firstFrame = false;
+
       if (g_firstFrame || m_arcball->distance() == inf) {
         resetView(true);
         g_firstFrame = false;
@@ -282,6 +285,66 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
     m_initFuture = std::async(updateLibrary);
   else
     updateLibrary();
+}
+
+void Viewport::saveSettings(tsd::serialization::DataNode &root)
+{
+  root.reset(); // clear all previous values, if they exist
+
+  root["echoCameraConfig"] = m_echoCameraConfig;
+  root["showOverlay"] = m_showOverlay;
+  root["showCameraInfo"] = m_showCameraInfo;
+  root["showOnlySelected"] = m_showOnlySelected;
+  root["highlightSelection"] = m_highlightSelection;
+  root["showOnlySelected"] = m_showOnlySelected;
+  root["depthVisualMaximum"] = m_depthVisualMaximum;
+  root["fov"] = m_fov;
+  root["resolutionScale"] = m_resolutionScale;
+
+  root["anariLibrary"] = m_libName;
+
+  auto &camera = root["camera"];
+  camera["at"] = m_arcball->at();
+  camera["distance"] = m_arcball->distance();
+  camera["azel"] = m_arcball->azel();
+  camera["up"] = int(m_arcball->axis());
+
+  Window::saveSettings(root);
+}
+
+void Viewport::loadSettings(tsd::serialization::DataNode &root)
+{
+  root["echoCameraConfig"].getValue(ANARI_BOOL, &m_echoCameraConfig);
+  root["showOverlay"].getValue(ANARI_BOOL, &m_showOverlay);
+  root["showCameraInfo"].getValue(ANARI_BOOL, &m_showCameraInfo);
+  root["showOnlySelected"].getValue(ANARI_BOOL, &m_showOnlySelected);
+  root["highlightSelection"].getValue(ANARI_BOOL, &m_highlightSelection);
+  root["showOnlySelected"].getValue(ANARI_BOOL, &m_showOnlySelected);
+  root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
+  root["fov"].getValue(ANARI_FLOAT32, &m_fov);
+  root["resolutionScale"].getValue(ANARI_FLOAT32, &m_resolutionScale);
+
+  if (auto *c = root.child("camera"); c != nullptr) {
+    tsd::float3 at(0.f);
+    float distance = 0.f;
+    tsd::float2 azel(0.f);
+    int axis = 0;
+
+    auto &camera = *c;
+    camera["at"].getValue(ANARI_FLOAT32_VEC3, &at);
+    camera["distance"].getValue(ANARI_FLOAT32, &distance);
+    camera["azel"].getValue(ANARI_FLOAT32_VEC2, &azel);
+    camera["up"].getValue(ANARI_INT32, &axis);
+
+    m_arcball->setAxis(manipulators::OrbitAxis(axis));
+    m_arcball->setConfig(at, distance, azel);
+  }
+
+  std::string libraryName;
+  root["anariLibrary"].getValue(ANARI_STRING, &libraryName);
+  setLibrary(libraryName, false);
+
+  Window::loadSettings(root);
 }
 
 void Viewport::teardownDevice()

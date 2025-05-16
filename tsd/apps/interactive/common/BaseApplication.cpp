@@ -31,6 +31,7 @@ BaseApplication::BaseApplication(int argc, const char **argv) : m_core(this)
   if (!filenames.empty() && filenames[0].first == ImporterType::NONE) {
     m_filenameToLoadNextFrame = filenames[0].second;
     filenames.clear();
+    m_core.commandLine.loadedFromStateFile = true;
   }
 }
 
@@ -183,6 +184,7 @@ void BaseApplication::saveApplicationState(const char *filename)
 {
   tsd::logStatus("serializing application state + context...");
 
+  auto &core = *appCore();
   auto &root = m_settings.root();
 
   // Window state
@@ -193,9 +195,15 @@ void BaseApplication::saveApplicationState(const char *filename)
   // ImGui window layout
   root["layout"] = ImGui::SaveIniSettingsToMemory();
 
+  // General application settings
+  auto &settings = root["settings"];
+  settings["logVerbose"] = core.logging.verbose;
+  settings["logEchoOutput"] = core.logging.echoOutput;
+  settings["fontScale"] = core.windows.fontScale;
+
   // Serialize TSD context
   root["context"].reset();
-  tsd::save_Context(appCore()->tsd.ctx, root["context"]);
+  tsd::save_Context(core.tsd.ctx, root["context"]);
 
   // Save to file
   m_settings.save(filename);
@@ -211,6 +219,7 @@ void BaseApplication::loadApplicationState(const char *filename)
   // Load from file
   m_settings.load(filename);
 
+  auto &core = *appCore();
   auto &root = m_settings.root();
 
   // Window state
@@ -222,14 +231,24 @@ void BaseApplication::loadApplicationState(const char *filename)
   if (auto *c = root.child("layout"); c != nullptr)
     ImGui::LoadIniSettingsFromMemory(c->getValueAs<std::string>().c_str());
 
+  // General application settings
+  if (auto *c = root.child("settings"); c != nullptr) {
+    auto &settings = *c;
+    settings["logVerbose"].getValue(ANARI_BOOL, &core.logging.verbose);
+    settings["logEchoOutput"].getValue(ANARI_BOOL, &core.logging.echoOutput);
+    settings["fontScale"].getValue(ANARI_FLOAT32, &core.windows.fontScale);
+  }
+
   // TSD context from app state file, or context-only file
   if (auto *c = root.child("context"); c != nullptr)
-    tsd::load_Context(appCore()->tsd.ctx, *c);
+    tsd::load_Context(core.tsd.ctx, *c);
   else
-    tsd::load_Context(appCore()->tsd.ctx, root);
+    tsd::load_Context(core.tsd.ctx, root);
 
   // Clear out context tree
   root["context"].reset();
+
+  m_appSettingsDialog->applySettings();
 
   tsd::logStatus("...state saved to 'state.tsd'");
 }

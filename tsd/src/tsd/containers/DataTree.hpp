@@ -65,6 +65,8 @@ struct DataNode
   template <typename T>
   T getValueAs() const;
   const Any &getValue() const;
+
+  // NOTE: If getting ANARI_STRING, pass ptr to std::string
   bool getValue(anari::DataType type, void *ptr) const;
 
   template <typename T>
@@ -292,15 +294,18 @@ inline const Any &DataNode::getValue() const
 
 inline bool DataNode::getValue(anari::DataType type, void *ptr) const
 {
-  const bool invalidQueryType = type == ANARI_STRING
-      || type == ANARI_STRING_LIST || type == ANARI_DATA_TYPE_LIST
-      || anari::isObject(type);
+  const bool invalidQueryType = type == ANARI_STRING_LIST
+      || type == ANARI_DATA_TYPE_LIST || anari::isObject(type);
 
-  if (!invalidQueryType && m_data.value.is(type)) {
+  if (invalidQueryType || !m_data.value.is(type))
+    return false;
+  else if (m_data.value.is(ANARI_STRING)) {
+    *(std::string *)ptr = getValue().getCStr();
+    return true;
+  } else {
     std::memcpy(ptr, m_data.value.data(), anari::sizeOf(type));
     return true;
-  } else
-    return false;
+  }
 }
 
 template <typename T>
