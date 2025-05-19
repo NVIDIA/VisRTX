@@ -206,8 +206,6 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
     m_maxFL = -std::numeric_limits<float>::infinity();
 
     if (d) {
-      anari::retain(d, d);
-
       if (auto *exts = m_core->loadDeviceExtensions(libName); exts != nullptr)
         m_extensions = *exts;
       else
