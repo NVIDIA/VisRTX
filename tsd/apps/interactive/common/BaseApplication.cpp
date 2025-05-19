@@ -87,7 +87,7 @@ void BaseApplication::uiFrameStart()
 
   auto doSave = [&]() {
     if (m_currentSessionFilename.empty())
-      m_core.getFilenameFromDialog(m_filenameToSaveNextFrame);
+      m_core.getFilenameFromDialog(m_filenameToSaveNextFrame, true);
     else
       m_filenameToSaveNextFrame = m_currentSessionFilename;
   };
@@ -108,7 +108,7 @@ void BaseApplication::uiFrameStart()
         doSave();
 
       if (ImGui::MenuItem("Save As..."))
-        m_core.getFilenameFromDialog(m_filenameToSaveNextFrame);
+        m_core.getFilenameFromDialog(m_filenameToSaveNextFrame, true);
 
       ImGui::Separator();
 

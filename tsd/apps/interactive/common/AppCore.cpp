@@ -188,7 +188,7 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
   }
 }
 
-void AppCore::getFilenameFromDialog(std::string &filenameOut)
+void AppCore::getFilenameFromDialog(std::string &filenameOut, bool save)
 {
   auto fileDialogCb =
       [](void *userdata, const char *const *filelist, int filter) {
@@ -202,13 +202,22 @@ void AppCore::getFilenameFromDialog(std::string &filenameOut)
           out = *filelist;
       };
 
-  SDL_ShowOpenFileDialog(fileDialogCb,
-      &filenameOut,
-      application->sdlWindow(),
-      nullptr,
-      0,
-      nullptr,
-      false);
+  if (save) {
+    SDL_ShowSaveFileDialog(fileDialogCb,
+        &filenameOut,
+        application->sdlWindow(),
+        nullptr,
+        0,
+        nullptr);
+  } else {
+    SDL_ShowOpenFileDialog(fileDialogCb,
+        &filenameOut,
+        application->sdlWindow(),
+        nullptr,
+        0,
+        nullptr,
+        false);
+  }
 }
 
 anari::Device AppCore::loadDevice(const std::string &libraryName)
