@@ -131,8 +131,6 @@ static void layerToNode(Layer &layer, serialization::DataNode &node)
 
 static void nodeToParameter(serialization::DataNode &node, Parameter &p)
 {
-  p.setValue(node["value"].getValue());
-
   if (auto *c = node.child("desription"); c != nullptr)
     p.setDescription(c->getValueAs<std::string>().c_str());
 
@@ -153,6 +151,8 @@ static void nodeToParameter(serialization::DataNode &node, Parameter &p)
     p.setStringValues(stringValues);
     p.setStringSelection(node["stringSelection"].getValueAs<int>());
   }
+
+  p.setValue(node["value"].getValue());
 }
 
 static void nodeToObjectParameters(serialization::DataNode &node, Object &obj)

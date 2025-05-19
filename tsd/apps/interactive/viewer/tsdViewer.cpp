@@ -60,20 +60,24 @@ class Application : public BaseApplication
       auto loadSeconds =
           std::chrono::duration<float>(loadEnd - loadStart).count();
 
-      if (!core->commandLine.loadingContext) {
-        tsd::logStatus("...setting up directional light");
+      auto &ctx = core->tsd.ctx;
 
-        auto light = core->tsd.ctx.createObject<tsd::Light>(
-            tsd::tokens::light::directional);
+      const bool setupDefaultLight = !core->commandLine.loadedFromStateFile
+          && ctx.numberOfObjects(ANARI_LIGHT) == 0;
+      if (setupDefaultLight) {
+        tsd::logStatus("...setting up default light");
+
+        auto light =
+            ctx.createObject<tsd::Light>(tsd::tokens::light::directional);
         light->setName("mainLight");
         light->setParameter("direction", tsd::float2(0.f, 240.f));
 
-        core->tsd.ctx.defaultLayer()->root()->insert_first_child(
+        ctx.defaultLayer()->root()->insert_first_child(
             tsd::utility::Any(ANARI_LIGHT, light.index()));
       }
 
       tsd::logStatus("...scene load complete! (%.3fs)", loadSeconds);
-      tsd::logStatus("%s", tsd::objectDBInfo(core->tsd.ctx.objectDB()).c_str());
+      tsd::logStatus("%s", tsd::objectDBInfo(ctx.objectDB()).c_str());
       core->tsd.sceneLoadComplete = true;
 
       if (!core->commandLine.loadedFromStateFile) {
