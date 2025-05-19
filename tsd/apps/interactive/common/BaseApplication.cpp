@@ -225,7 +225,7 @@ void BaseApplication::loadApplicationState(const char *filename)
   // Window state
   auto &windows = root["windows"];
   for (auto *w : m_windows)
-    w->loadSettings(root["windows"][w->name()]);
+    w->loadSettings(windows[w->name()]);
 
   // ImGui window layout
   if (auto *c = root.child("layout"); c != nullptr)
@@ -250,7 +250,7 @@ void BaseApplication::loadApplicationState(const char *filename)
 
   m_appSettingsDialog->applySettings();
 
-  tsd::logStatus("...state saved to 'state.tsd'");
+  tsd::logStatus("...loaded state from '%s'", filename);
 }
 
 void BaseApplication::setupUsdDevice()
