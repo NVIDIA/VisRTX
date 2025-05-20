@@ -18,6 +18,7 @@ PRIVATE
   authoring/importers/import_DLAF.cpp
   authoring/importers/import_FLASH.cpp
   authoring/importers/import_HDRI.cpp
+  authoring/importers/import_HSMESH.cpp
   authoring/importers/import_MHD.cpp
   authoring/importers/import_NBODY.cpp
   authoring/importers/import_NVDB.cpp

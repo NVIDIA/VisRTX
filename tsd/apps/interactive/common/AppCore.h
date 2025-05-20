@@ -29,6 +29,7 @@ enum class ImporterType
   SWC,
   PDB,
   XYZDP,
+  HSMESH,
   TSD,
   TSD_CONDUIT,
   NONE

@@ -4,8 +4,8 @@
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 #include <anari/anari_cpp/ext/linalg.h>
 #include "tsd/authoring/importers/detail/dds.h"
+#include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/core/TSDMath.hpp"
 // stb_image
 #include "tsd/core/Token.hpp"
 #include "tsd/objects/Sampler.hpp"
@@ -18,7 +18,7 @@
 
 using U64Vec2 = tsd::math::vec<std::uint64_t, 2>;
 namespace anari {
-  ANARI_TYPEFOR_SPECIALIZATION(U64Vec2, ANARI_UINT64_VEC2);
+ANARI_TYPEFOR_SPECIALIZATION(U64Vec2, ANARI_UINT64_VEC2);
 }
 
 namespace tsd {
@@ -287,6 +287,25 @@ SamplerRef importTexture(
   }
 
   return tex;
+}
+
+SamplerRef makeDefaultColorMapSampler(Context &ctx, const float2 &range)
+{
+  auto samplerImageArray = ctx.createArray(ANARI_FLOAT32_VEC4, 3);
+  auto *colorMapPtr = samplerImageArray->mapAs<math::float4>();
+  colorMapPtr[0] = math::float4(0.f, 0.f, 1.f, 1.f);
+  colorMapPtr[1] = math::float4(0.f, 1.f, 0.f, 1.f);
+  colorMapPtr[2] = math::float4(1.f, 0.f, 0.f, 1.f);
+  samplerImageArray->unmap();
+
+  auto sampler = ctx.createObject<Sampler>(tokens::sampler::image1D);
+  sampler->setParameter("inAttribute", "attribute0");
+  sampler->setParameter("inTransform", makeColorMapTransform(range.x, range.y));
+  sampler->setParameter("filter", "linear");
+  sampler->setParameter("wrapMode", "mirrorRepeat");
+  sampler->setParameterObject("image", *samplerImageArray);
+
+  return sampler;
 }
 
 } // namespace tsd

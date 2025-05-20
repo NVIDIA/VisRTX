@@ -135,6 +135,8 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::PDB;
     else if (arg == "-xyzdp")
       importerType = ImporterType::XYZDP;
+    else if (arg == "-hsmesh")
+      importerType = ImporterType::HSMESH;
     else
       this->commandLine.filenames.push_back({importerType, arg});
   }
@@ -182,6 +184,8 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_PDB(tsd.ctx, f.second.c_str(), root);
       else if (f.first == ImporterType::XYZDP)
         tsd::import_XYZDP(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::HSMESH)
+        tsd::import_HSMESH(tsd.ctx, f.second.c_str(), root);
       else if (f.first == ImporterType::VOLUME)
         tsd::import_volume(tsd.ctx, f.second.c_str());
     }

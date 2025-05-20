@@ -20,4 +20,6 @@ using TextureCache = std::unordered_map<std::string, SamplerRef>;
 SamplerRef importTexture(
     Context &ctx, std::string filepath, TextureCache &cache);
 
+SamplerRef makeDefaultColorMapSampler(Context &ctx, const float2 &range);
+
 } // namespace tsd
