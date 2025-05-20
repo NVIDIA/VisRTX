@@ -98,4 +98,10 @@ void MultiUpdateDelegate::signalObjectFilteringChanged()
     d->signalObjectFilteringChanged();
 }
 
+void MultiUpdateDelegate::signalInvalidateCachedObjects()
+{
+  for (auto &d : m_delegates)
+    d->signalInvalidateCachedObjects();
+}
+
 } // namespace tsd

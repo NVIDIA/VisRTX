@@ -175,8 +175,16 @@ void LayerTree::buildUI_tree()
 
       m_needToTreePop[node.index()] = open && !node.isLeaf();
 
-      if (ImGui::IsItemHovered())
+      if (ImGui::IsItemHovered()) {
         m_hoveredNode = node.index();
+        if (anari::isObject(node->value.type())) {
+          ImGui::BeginTooltip();
+          ImGui::Text("%s[%zu]",
+              anari::toString(node->value.type()),
+              node->value.getAsObjectIndex());
+          ImGui::EndTooltip();
+        }
+      }
 
       if (ImGui::IsItemClicked() && m_menuNode == tsd::INVALID_INDEX)
         m_core->setSelectedNode(node);

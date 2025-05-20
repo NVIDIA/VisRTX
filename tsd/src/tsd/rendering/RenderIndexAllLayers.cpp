@@ -299,6 +299,12 @@ void RenderIndexAllLayers::signalObjectFilteringChanged()
   }
 }
 
+void RenderIndexAllLayers::signalRemoveAllObjects()
+{
+  releaseAllInstances();
+  RenderIndex::signalRemoveAllObjects();
+}
+
 void RenderIndexAllLayers::updateWorld()
 {
   auto d = device();

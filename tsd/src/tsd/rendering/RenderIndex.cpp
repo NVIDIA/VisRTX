@@ -243,6 +243,13 @@ void RenderIndex::signalRemoveAllObjects()
   m_cache.clear();
 }
 
+void RenderIndex::signalInvalidateCachedObjects()
+{
+  signalRemoveAllObjects();
+  populate(*m_ctx, false); // always 'false' as this may already be the delegate
+  updateWorld();
+}
+
 void RenderIndex::updateObjectArrayData(const Array *a) const
 {
   auto elementType = a->elementType();

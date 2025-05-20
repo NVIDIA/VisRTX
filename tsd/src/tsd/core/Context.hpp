@@ -47,7 +47,8 @@ std::string objectDBInfo(const ObjectDatabase &db);
 // Main TSD Context ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-using LayerMap = FlatMap<Token, std::shared_ptr<Layer>>;
+using LayerPtr = std::shared_ptr<Layer>;
+using LayerMap = FlatMap<Token, LayerPtr>;
 
 struct Context
 {
@@ -135,6 +136,12 @@ struct Context
   // Indicate changes occurred //
 
   void signalLayerChange(const Layer *l);
+
+  ////////////////////////
+  // Cleanup operations //
+  ////////////////////////
+
+  void defragmentObjectStorage();
 
  private:
   void removeAllSecondaryLayers();

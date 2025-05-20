@@ -44,7 +44,9 @@ struct ForestNode
 
   Ref insert_first_child(T &&v);
   Ref insert_last_child(T &&v);
+
   void erase_subtree();
+  void erase_self(); // remove this node from the forest
 
  private:
   Ref self() const;
@@ -285,6 +287,13 @@ inline void ForestNode<T>::erase_subtree()
 {
   if (auto *f = forest(); f != nullptr)
     f->erase_subtree(self());
+}
+
+template <typename T>
+inline void ForestNode<T>::erase_self()
+{
+  if (auto *f = forest(); f != nullptr && self())
+    f->erase(self());
 }
 
 template <typename T>

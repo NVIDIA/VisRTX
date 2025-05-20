@@ -136,6 +136,11 @@ void BaseApplication::uiFrameStart()
         ImGui::EndMenu();
       }
 
+      ImGui::Separator();
+
+      if (ImGui::MenuItem("Defragment Context"))
+        m_core.tsd.ctx.defragmentObjectStorage();
+
       ImGui::EndMenu();
     }
 

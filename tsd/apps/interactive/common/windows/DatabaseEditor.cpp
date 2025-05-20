@@ -44,6 +44,7 @@ void DatabaseEditor::buildUI()
   buildUI_objectSection(db.sampler, "Samplers");
   buildUI_objectSection(db.material, "Materials");
   buildUI_objectSection(db.geometry, "Geometries");
+  buildUI_objectSection(db.surface, "Surfaces");
   buildUI_objectSection(db.field, "SpatialFields");
   buildUI_objectSection(db.volume, "Volumes");
 

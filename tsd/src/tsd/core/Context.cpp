@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/Context.hpp"
+#include "tsd/core/Logging.hpp"
 // std
 #include <sstream>
 
@@ -339,11 +340,163 @@ void Context::signalLayerChange(const Layer *l)
     m_updateDelegate->signalLayerUpdated(l);
 }
 
+void Context::defragmentObjectStorage()
+{
+  FlatMap<anari::DataType, bool> defragmentations;
+
+  // Defragment object storage and stash whether something happened //
+
+  bool defrag = false;
+
+  defrag |= defragmentations[ANARI_ARRAY] = m_db.array.defragment();
+  defrag |= defragmentations[ANARI_SURFACE] = m_db.surface.defragment();
+  defrag |= defragmentations[ANARI_GEOMETRY] = m_db.geometry.defragment();
+  defrag |= defragmentations[ANARI_MATERIAL] = m_db.material.defragment();
+  defrag |= defragmentations[ANARI_SAMPLER] = m_db.sampler.defragment();
+  defrag |= defragmentations[ANARI_VOLUME] = m_db.volume.defragment();
+  defrag |= defragmentations[ANARI_SPATIAL_FIELD] = m_db.field.defragment();
+  defrag |= defragmentations[ANARI_LIGHT] = m_db.light.defragment();
+
+  if (!defrag) {
+    tsd::logStatus("No defragmentation needed");
+    return;
+  } else {
+    tsd::logStatus("Defragmenting context arrays:");
+    for (const auto &pair : defragmentations) {
+      if (pair.second)
+        tsd::logStatus("    --> %s", anari::toString(pair.first));
+    }
+  }
+
+  // Function to find the object holding an index and returning the new index //
+
+  auto getUpdatedIndex = [&](anari::DataType objType, size_t idx) -> size_t {
+    auto findIdx = [](const auto &a, size_t i) {
+      auto ref = find_item_if(a, [&](auto *o) { return o->index() == i; });
+      return ref ? ref.index() : INVALID_INDEX;
+    };
+
+    size_t newObjIndex = INVALID_INDEX;
+    switch (objType) {
+    case ANARI_SURFACE:
+      return findIdx(m_db.surface, idx);
+    case ANARI_GEOMETRY:
+      return findIdx(m_db.geometry, idx);
+    case ANARI_MATERIAL:
+      return findIdx(m_db.material, idx);
+    case ANARI_SAMPLER:
+      return findIdx(m_db.sampler, idx);
+    case ANARI_VOLUME:
+      return findIdx(m_db.volume, idx);
+    case ANARI_SPATIAL_FIELD:
+      return findIdx(m_db.field, idx);
+    case ANARI_LIGHT:
+      return findIdx(m_db.light, idx);
+    case ANARI_ARRAY:
+    case ANARI_ARRAY1D:
+    case ANARI_ARRAY2D:
+    case ANARI_ARRAY3D:
+      return findIdx(m_db.array, idx);
+    default:
+      break; // no-op
+    }
+
+    return INVALID_INDEX;
+  };
+
+  // Function to update indices to objects in layer nodes //
+
+  std::vector<LayerNode *> toErase;
+  auto updateLayerObjReferenceIndices = [&](Layer &layer) {
+    layer.traverse(layer.root(), [&](LayerNode &node, int /*level*/) {
+      if (!node->isObject())
+        return true;
+      auto objType = node->value.type();
+      if (!defragmentations[objType])
+        return true;
+
+      size_t newIdx = getUpdatedIndex(objType, node->value.getAsObjectIndex());
+      if (newIdx != INVALID_INDEX)
+        node->value = Any(objType, newIdx);
+      else
+        toErase.push_back(&node);
+
+      return true;
+    });
+  };
+
+  // Invoke above function on all layers//
+
+  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++)
+    updateLayerObjReferenceIndices(*itr->second);
+
+  for (auto *ln : toErase)
+    ln->erase_self();
+  toErase.clear();
+
+  // Function to update indices to objects on object parameters //
+
+  auto updateParameterReferences = [&](auto &array) {
+    foreach_item(array, [&](Object *o) {
+      if (!o)
+        return;
+      for (size_t i = 0; i < o->numParameters(); i++) {
+        auto &p = o->parameterAt(i);
+        const auto &v = p.value();
+        if (!v.holdsObject())
+          continue;
+        auto objType = v.type();
+        if (!defragmentations[objType])
+          continue;
+
+        auto newIdx = getUpdatedIndex(objType, v.getAsObjectIndex());
+        p.setValue(newIdx != INVALID_INDEX ? Any(objType, newIdx) : Any());
+      }
+    });
+  };
+
+  // Invoke above function on all object arrays //
+
+  updateParameterReferences(m_db.array);
+  updateParameterReferences(m_db.surface);
+  updateParameterReferences(m_db.geometry);
+  updateParameterReferences(m_db.material);
+  updateParameterReferences(m_db.sampler);
+  updateParameterReferences(m_db.volume);
+  updateParameterReferences(m_db.field);
+  updateParameterReferences(m_db.light);
+
+  // Function to update all self-held index values to the new actual index //
+
+  auto updateObjectHeldIndex = [&](auto &array) {
+    foreach_item_ref(array, [&](auto ref) {
+      if (!ref)
+        return;
+      ref->m_index = ref.index();
+    });
+  };
+
+  // Invoke above function on all object arrays //
+
+  updateObjectHeldIndex(m_db.array);
+  updateObjectHeldIndex(m_db.surface);
+  updateObjectHeldIndex(m_db.geometry);
+  updateObjectHeldIndex(m_db.material);
+  updateObjectHeldIndex(m_db.sampler);
+  updateObjectHeldIndex(m_db.volume);
+  updateObjectHeldIndex(m_db.field);
+  updateObjectHeldIndex(m_db.light);
+
+  // Signal updates to any delegates //
+  if (m_updateDelegate)
+    m_updateDelegate->signalInvalidateCachedObjects();
+}
+
 void Context::removeAllSecondaryLayers()
 {
   for (auto itr = m_layers.begin() + 1; itr != m_layers.end(); itr++) {
     if (m_updateDelegate)
-      m_updateDelegate->signalLayerUpdated(itr->second.get());
+      m_updateDelegate->signalLayerRemoved(itr->second.get());
   }
 
   m_layers.shrink(1);

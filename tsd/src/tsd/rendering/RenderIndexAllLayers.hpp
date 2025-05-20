@@ -23,6 +23,7 @@ struct RenderIndexAllLayers : public RenderIndex
   void signalLayerUpdated(const Layer *l) override;
   void signalLayerRemoved(const Layer *l) override;
   void signalObjectFilteringChanged() override;
+  void signalRemoveAllObjects() override;
 
  private:
   void updateWorld() override;
