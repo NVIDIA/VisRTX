@@ -30,9 +30,10 @@ void ImportFileDialog::buildUI()
       "VOLUME",
       "SWC",
       "PDB",
-      "XYZDP"};
+      "XYZDP",
+      "HSMESH"};
 
-  ImGui::Combo("importer type", &m_selectedFileType, importers, 10);
+  ImGui::Combo("importer type", &m_selectedFileType, importers, 12);
 
   static std::string outPath;
   if (ImGui::Button("...")) {
@@ -100,6 +101,8 @@ void ImportFileDialog::buildUI()
       tsd::import_PDB(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::XYZDP)
       tsd::import_XYZDP(ctx, m_filename.c_str());
+    else if (selectedFileType == ImporterType::HSMESH)
+      tsd::import_HSMESH(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::VOLUME)
       tsd::import_volume(ctx, m_filename.c_str());
     ctx.signalLayerChange(layer);
