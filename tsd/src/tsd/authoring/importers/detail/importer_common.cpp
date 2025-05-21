@@ -6,6 +6,8 @@
 #include "tsd/authoring/importers/detail/dds.h"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
+// mikktspace
+#include "mikktspace.h"
 // stb_image
 #include "tsd/core/Token.hpp"
 #include "tsd/objects/Sampler.hpp"
@@ -306,6 +308,131 @@ SamplerRef makeDefaultColorMapSampler(Context &ctx, const float2 &range)
   sampler->setParameterObject("image", *samplerImageArray);
 
   return sampler;
+}
+
+bool calcTangentsForTriangleMesh(const uint3 *indices,
+    const float3 *vertexPositions,
+    const float3 *vertexNormals,
+    const float3 *texCoords,
+    float4 *tangents,
+    size_t numIndices,
+    size_t numVertices)
+{
+  if (!texCoords)
+    return false;
+
+  SMikkTSpaceInterface iface{};
+  SMikkTSpaceContext context{};
+
+  struct Mesh
+  {
+    const uint3 *indices;
+    const float3 *vertexPositions;
+    const float3 *vertexNormals;
+    const float3 *texCoords;
+    float4 *tangents;
+    size_t numIndices;
+    size_t numVertices;
+  } mesh;
+
+  mesh.indices = indices;
+  mesh.vertexPositions = vertexPositions;
+  mesh.vertexNormals = vertexNormals;
+  mesh.texCoords = texCoords;
+  mesh.tangents = tangents;
+  mesh.numIndices = numIndices;
+  mesh.numVertices = numVertices;
+
+  // callback to get num faces of mesh
+  iface.m_getNumFaces = [](const SMikkTSpaceContext *ctx) -> int {
+    Mesh *mesh = (Mesh *)ctx->m_pUserData;
+    return (int)mesh->numIndices;
+  };
+
+  // callback to get num verts of a single face (hardcoded to 3 for triangles)
+  iface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext *ctx,
+                                     const int faceID) -> int {
+    (void)ctx;
+    (void)faceID;
+    return 3;
+  };
+
+  // callback to get the vertex normal
+  iface.m_getNormal = [](const SMikkTSpaceContext *ctx,
+                          float *outnormal,
+                          const int faceID,
+                          const int vertID) {
+    Mesh *mesh = (Mesh *)ctx->m_pUserData;
+
+    float3 &on = (float3 &)*outnormal;
+
+    uint3 index = mesh->indices[faceID];
+
+    if (mesh->vertexNormals) {
+      unsigned vID = index[vertID];
+      on = mesh->vertexNormals[vID];
+    } else {
+      float3 v1 = mesh->vertexPositions[index.x];
+      float3 v2 = mesh->vertexPositions[index.y];
+      float3 v3 = mesh->vertexPositions[index.z];
+      on = normalize(cross(v2 - v1, v3 - v1));
+    }
+  };
+
+  iface.m_getPosition = [](const SMikkTSpaceContext *ctx,
+                            float *outpos,
+                            const int faceID,
+                            const int vertID) {
+    Mesh *mesh = (Mesh *)ctx->m_pUserData;
+
+    float3 &op = (float3 &)*outpos;
+
+    uint3 index = mesh->indices[faceID];
+
+    unsigned vID = index[vertID];
+    op = mesh->vertexPositions[vID];
+  };
+
+  // callback to get the texture coordinate (the mesh *must* have these!)
+  iface.m_getTexCoord = [](const SMikkTSpaceContext *ctx,
+                            float *outcoord,
+                            const int faceID,
+                            const int vertID) {
+    Mesh *mesh = (Mesh *)ctx->m_pUserData;
+
+    float2 &oc = (float2 &)*outcoord;
+
+    uint3 index = mesh->indices[faceID];
+
+    assert(mesh->texCoords);
+    unsigned vID = index[vertID];
+    oc = {mesh->texCoords[vID].x, mesh->texCoords[vID].y};
+  };
+
+  // callback to assign output tangents
+  iface.m_setTSpaceBasic = [](const SMikkTSpaceContext *ctx,
+                               const float *tangentVector,
+                               const float tangentSign,
+                               const int faceID,
+                               const int vertID) {
+    Mesh *mesh = (Mesh *)ctx->m_pUserData;
+
+    uint3 index = mesh->indices[faceID];
+
+    unsigned vID = index[vertID];
+
+    float4 &outtangent = mesh->tangents[vID];
+
+    outtangent.x = tangentVector[0];
+    outtangent.y = tangentVector[1];
+    outtangent.z = tangentVector[2];
+    outtangent.w = tangentSign;
+  };
+
+  context.m_pInterface = &iface;
+  context.m_pUserData = &mesh;
+
+  return genTangSpaceDefault(&context);
 }
 
 } // namespace tsd
