@@ -70,20 +70,24 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Context &ctx,
 
     auto vertexNormalArray = ctx.createArray(
         ANARI_FLOAT32_VEC3, mesh->HasNormals() ? numVertices : 0);
-    auto outNormals = vertexNormalArray->mapAs<float3>();
+    float3 *outNormals =
+        vertexNormalArray ? vertexNormalArray->mapAs<float3>() : nullptr;
 
     auto vertexTexCoordArray = ctx.createArray(ANARI_FLOAT32_VEC3,
         mesh->HasTextureCoords(0 /*texcord set*/) ? numVertices : 0);
-    auto outTexCoords = vertexTexCoordArray->mapAs<float3>();
+    float3 *outTexCoords =
+        vertexTexCoordArray ? vertexTexCoordArray->mapAs<float3>() : nullptr;
 
     auto vertexTangentArray = ctx.createArray(
         ANARI_FLOAT32_VEC4, mesh->HasTangentsAndBitangents() ? numVertices : 0);
-    auto outTangents = vertexTangentArray->mapAs<float4>();
+    float4 *outTangents =
+        vertexTangentArray ? vertexTangentArray->mapAs<float4>() : nullptr;
 
     // TODO: test for AI_MAX_NUMBER_OF_COLOR_SETS, import all..
     auto vertexColorArray =
         ctx.createArray(ANARI_FLOAT32_VEC4, mesh->mColors[0] ? numVertices : 0);
-    auto *outColors = vertexColorArray->mapAs<float4>();
+    float4 *outColors =
+        vertexColorArray ? vertexColorArray->mapAs<float4>() : nullptr;
 
     for (unsigned j = 0; j < mesh->mNumVertices; ++j) {
       aiVector3D v = mesh->mVertices[j];
@@ -178,6 +182,24 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Context &ctx,
     if (outColors) {
       vertexColorArray->unmap();
       tsdMesh->setParameterObject("vertex.color"_t, *vertexColorArray);
+    }
+
+    // Calculate tangents if not supplied by mesh
+    if (!outTangents) {
+      auto vertexTangentArray =
+          ctx.createArray(ANARI_FLOAT32_VEC4, numVertices);
+      auto outTangents = vertexTangentArray->mapAs<float4>();
+
+      calcTangentsForTriangleMesh(outIndices,
+          outVertices,
+          outNormals,
+          outTexCoords,
+          outTangents,
+          numIndices,
+          numVertices);
+
+      vertexTangentArray->unmap();
+      tsdMesh->setParameterObject("vertex.tangent"_t, *vertexTangentArray);
     }
 
     tsdMesh->setName((std::string(mesh->mName.C_Str()) + "_geometry").c_str());

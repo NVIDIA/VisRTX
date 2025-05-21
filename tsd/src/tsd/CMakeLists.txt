@@ -69,6 +69,7 @@ project_link_libraries(
 PUBLIC
   anari::helium
 PRIVATE
+  $<BUILD_INTERFACE:tsd_mikktspace>
   $<BUILD_INTERFACE:tsd_nanovdb>
   $<BUILD_INTERFACE:tsd_stb>
   $<BUILD_INTERFACE:tsd_tiny_obj_loader>
