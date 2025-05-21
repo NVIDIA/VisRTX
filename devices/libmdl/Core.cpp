@@ -399,7 +399,7 @@ bool Core::logExecutionContextMessages(
       i < messageCount;
       ++i) {
     auto message = make_handle(executionContext->get_message(i));
-    logMessage(message->get_severity(), message->get_string());
+    logMessage(message->get_severity(), "{}", message->get_string());
   }
 
   for (auto i = 0ull,
@@ -407,7 +407,7 @@ bool Core::logExecutionContextMessages(
       i < messageCount;
       ++i) {
     auto message = make_handle(executionContext->get_error_message(i));
-    logMessage(message->get_severity(), message->get_string());
+    logMessage(message->get_severity(), "{}", message->get_string());
   }
 
   return executionContext->get_error_messages_count() == 0;

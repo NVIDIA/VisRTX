@@ -74,7 +74,7 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
         }
         default: {
           core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-              "Unsupport vector type {},  ignoring",
+              "Unsupport vector type {}, ignoring",
               int(element_type->get_kind()));
           break;
         }
@@ -93,7 +93,7 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
         }
         default: {
           core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-              "Unsupport vector type {},  ignoring",
+              "Unsupport vector type {}, ignoring",
               int(element_type->get_kind()));
           break;
         }
@@ -112,7 +112,7 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
         }
         default: {
           core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-              "Unsupport vector type {},  ignoring",
+              "Unsupport vector type {}, ignoring",
               int(element_type->get_kind()));
           break;
         }
