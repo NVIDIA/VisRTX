@@ -1,7 +1,7 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "BaseApplication.h"
+#include "TSDApplication.h"
 #include "windows/Window.h"
 // tsd
 #include "tsd_font.h"
@@ -15,7 +15,7 @@
 
 namespace tsd_viewer {
 
-BaseApplication::BaseApplication(int argc, const char **argv) : m_core(this)
+TSDApplication::TSDApplication(int argc, const char **argv) : m_core(this)
 {
   auto *core = appCore();
   core->parseCommandLine(argc, argv);
@@ -35,14 +35,14 @@ BaseApplication::BaseApplication(int argc, const char **argv) : m_core(this)
   }
 }
 
-BaseApplication::~BaseApplication() = default;
+TSDApplication::~TSDApplication() = default;
 
-AppCore *BaseApplication::appCore()
+AppCore *TSDApplication::appCore()
 {
   return &m_core;
 }
 
-anari_viewer::WindowArray BaseApplication::setupWindows()
+anari_viewer::WindowArray TSDApplication::setupWindows()
 {
   anari_viewer::ui::init();
 
@@ -68,7 +68,7 @@ anari_viewer::WindowArray BaseApplication::setupWindows()
   return {};
 }
 
-void BaseApplication::uiFrameStart()
+void TSDApplication::uiFrameStart()
 {
   if (!m_filenameToSaveNextFrame.empty()) {
     saveApplicationState(m_filenameToSaveNextFrame.c_str());
@@ -191,13 +191,13 @@ void BaseApplication::uiFrameStart()
   }
 }
 
-void BaseApplication::teardown()
+void TSDApplication::teardown()
 {
   teardownUsdDevice();
   anari_viewer::ui::shutdown();
 }
 
-void BaseApplication::saveApplicationState(const char *filename)
+void TSDApplication::saveApplicationState(const char *filename)
 {
   tsd::logStatus("serializing application state + context...");
 
@@ -231,7 +231,7 @@ void BaseApplication::saveApplicationState(const char *filename)
   tsd::logStatus("...state saved to '%s'", filename);
 }
 
-void BaseApplication::loadApplicationState(const char *filename)
+void TSDApplication::loadApplicationState(const char *filename)
 {
   // Load from file
   m_settings.load(filename);
@@ -270,7 +270,7 @@ void BaseApplication::loadApplicationState(const char *filename)
   tsd::logStatus("...loaded state from '%s'", filename);
 }
 
-void BaseApplication::setupUsdDevice()
+void TSDApplication::setupUsdDevice()
 {
   if (usdDeviceSetup())
     return;
@@ -292,12 +292,12 @@ void BaseApplication::setupUsdDevice()
   anari::setParameter(d, m_usd.frame, "world", m_usd.renderIndex->world());
 }
 
-bool BaseApplication::usdDeviceSetup() const
+bool TSDApplication::usdDeviceSetup() const
 {
   return m_usd.device != nullptr && m_usd.renderIndex != nullptr;
 }
 
-void BaseApplication::syncUsdScene()
+void TSDApplication::syncUsdScene()
 {
   if (!usdDeviceSetup()) {
     tsd::logWarning("USD device not setup -- cannot sync scene");
@@ -307,7 +307,7 @@ void BaseApplication::syncUsdScene()
   anari::wait(m_usd.device, m_usd.frame);
 }
 
-void BaseApplication::teardownUsdDevice()
+void TSDApplication::teardownUsdDevice()
 {
   if (!usdDeviceSetup())
     return;
@@ -319,13 +319,13 @@ void BaseApplication::teardownUsdDevice()
   m_usd.renderIndex = nullptr;
 }
 
-void BaseApplication::setWindowArray(const anari_viewer::WindowArray &wa)
+void TSDApplication::setWindowArray(const anari_viewer::WindowArray &wa)
 {
   for (auto &w : wa)
     m_windows.push_back((Window *)w.get());
 }
 
-void BaseApplication::updateWindowTitle()
+void TSDApplication::updateWindowTitle()
 {
   auto *w = m_core.application->sdlWindow();
   if (!w)

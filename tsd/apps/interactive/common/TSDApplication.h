@@ -14,11 +14,11 @@ namespace tsd_viewer {
 
 struct Window;
 
-class BaseApplication : public anari_viewer::Application
+class TSDApplication : public anari_viewer::Application
 {
  public:
-  BaseApplication(int argc = 0, const char **argv = nullptr);
-  ~BaseApplication() override;
+  TSDApplication(int argc = 0, const char **argv = nullptr);
+  ~TSDApplication() override;
 
   AppCore *appCore();
 
@@ -30,10 +30,10 @@ class BaseApplication : public anari_viewer::Application
 
   // Not movable or copyable //
 
-  BaseApplication(const BaseApplication &) = delete;
-  BaseApplication &operator=(const BaseApplication &) = delete;
-  BaseApplication(BaseApplication &&) = delete;
-  BaseApplication &operator=(BaseApplication &&) = delete;
+  TSDApplication(const TSDApplication &) = delete;
+  TSDApplication &operator=(const TSDApplication &) = delete;
+  TSDApplication(TSDApplication &&) = delete;
+  TSDApplication &operator=(TSDApplication &&) = delete;
 
  protected:
   void saveApplicationState(const char *filename = "state.tsd");

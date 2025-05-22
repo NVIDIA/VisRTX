@@ -1,7 +1,7 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "BaseApplication.h"
+#include "TSDApplication.h"
 #include "windows/DatabaseEditor.h"
 #include "windows/IsosurfaceEditor.h"
 #include "windows/LayerTree.h"
@@ -14,15 +14,15 @@
 
 namespace tsd_viewer {
 
-class Application : public BaseApplication
+class Application : public TSDApplication
 {
  public:
-  Application(int argc, const char *argv[]) : BaseApplication(argc, argv) {}
+  Application(int argc, const char *argv[]) : TSDApplication(argc, argv) {}
   ~Application() override = default;
 
   anari_viewer::WindowArray setupWindows() override
   {
-    auto windows = BaseApplication::setupWindows();
+    auto windows = TSDApplication::setupWindows();
 
     auto *core = appCore();
 
@@ -100,7 +100,7 @@ class Application : public BaseApplication
   {
     if (m_sceneLoadFuture.valid())
       m_sceneLoadFuture.get();
-    BaseApplication::teardown();
+    TSDApplication::teardown();
   }
 
   const char *getDefaultLayout() const override

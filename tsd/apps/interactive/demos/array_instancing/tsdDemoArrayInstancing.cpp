@@ -1,7 +1,7 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "BaseApplication.h"
+#include "TSDApplication.h"
 #include "windows/Log.h"
 #include "windows/ObjectEditor.h"
 #include "windows/Viewport.h"
@@ -10,7 +10,7 @@
 
 namespace tsd_viewer {
 
-class Application : public BaseApplication
+class Application : public TSDApplication
 {
  public:
   Application() = default;
@@ -18,7 +18,7 @@ class Application : public BaseApplication
 
   anari_viewer::WindowArray setupWindows() override
   {
-    auto windows = BaseApplication::setupWindows();
+    auto windows = TSDApplication::setupWindows();
 
     auto *core = appCore();
     core->tsd.sceneLoadComplete = true;
