@@ -142,6 +142,7 @@ struct Context
   ////////////////////////
 
   void defragmentObjectStorage();
+  void removeUnusedObjects();
 
  private:
   void removeAllSecondaryLayers();

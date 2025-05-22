@@ -138,8 +138,20 @@ void BaseApplication::uiFrameStart()
 
       ImGui::Separator();
 
-      if (ImGui::MenuItem("Defragment Context"))
-        m_core.tsd.ctx.defragmentObjectStorage();
+      if (ImGui::BeginMenu("Context")) {
+        if (ImGui::MenuItem("Cleanup Only"))
+          m_core.tsd.ctx.removeUnusedObjects();
+
+        if (ImGui::MenuItem("Defragment Only"))
+          m_core.tsd.ctx.defragmentObjectStorage();
+
+        if (ImGui::MenuItem("Cleanup + Defragment")) {
+          m_core.tsd.ctx.removeUnusedObjects();
+          m_core.tsd.ctx.defragmentObjectStorage();
+        }
+
+        ImGui::EndMenu();
+      }
 
       ImGui::EndMenu();
     }

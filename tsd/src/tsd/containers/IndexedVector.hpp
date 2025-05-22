@@ -40,7 +40,7 @@ struct IndexedVector
   IndexedVectorRef<T> insert(T &&v);
   template <typename... Args>
   IndexedVectorRef<T> emplace(Args &&...args);
-  void erase(size_t i);
+  bool erase(size_t i);
 
   void clear();
   void reserve(size_t size);
@@ -209,11 +209,16 @@ IndexedVectorRef<T> IndexedVector<T>::emplace(Args &&...args)
 }
 
 template <typename T>
-inline void IndexedVector<T>::erase(size_t i)
+inline bool IndexedVector<T>::erase(size_t i)
 {
+  if (slot_empty(i))
+    return false;
+
   m_values[i] = {};
   m_slots[i] = false;
   m_freeIndices.push(i);
+
+  return true;
 }
 
 template <typename T>

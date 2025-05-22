@@ -492,6 +492,99 @@ void Context::defragmentObjectStorage()
     m_updateDelegate->signalInvalidateCachedObjects();
 }
 
+void Context::removeUnusedObjects()
+{
+  tsd::logStatus("Removing unused context objects");
+
+  FlatMap<anari::DataType, std::vector<int>> usages;
+
+  usages[ANARI_ARRAY].resize(m_db.array.capacity(), 0);
+  usages[ANARI_SURFACE].resize(m_db.surface.capacity(), 0);
+  usages[ANARI_GEOMETRY].resize(m_db.geometry.capacity(), 0);
+  usages[ANARI_MATERIAL].resize(m_db.material.capacity(), 0);
+  usages[ANARI_SAMPLER].resize(m_db.sampler.capacity(), 0);
+  usages[ANARI_VOLUME].resize(m_db.volume.capacity(), 0);
+  usages[ANARI_SPATIAL_FIELD].resize(m_db.field.capacity(), 0);
+  usages[ANARI_LIGHT].resize(m_db.light.capacity(), 0);
+
+  // Function to count object references in layers //
+
+  auto countLayerObjReferenceIndices = [&](Layer &layer) {
+    layer.traverse(layer.root(), [&](LayerNode &node, int /*level*/) {
+      if (node->isObject()) {
+        auto objType = node->value.type();
+        if (anari::isArray(objType))
+          objType = ANARI_ARRAY;
+        auto idx = node->value.getAsObjectIndex();
+        if (idx != INVALID_INDEX)
+          usages[objType][idx]++;
+      }
+
+      return true;
+    });
+  };
+
+  // Invoke above function on all layers//
+
+  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++)
+    countLayerObjReferenceIndices(*itr->second);
+
+  // Function to count object references in object parameters //
+
+  auto countParameterReferences = [&](auto &array) {
+    foreach_item(array, [&](Object *o) {
+      if (!o)
+        return;
+      for (size_t i = 0; i < o->numParameters(); i++) {
+        auto &p = o->parameterAt(i);
+        const auto &v = p.value();
+        if (!v.holdsObject())
+          continue;
+        auto objType = v.type();
+        if (anari::isArray(objType))
+          objType = ANARI_ARRAY;
+        auto idx = v.getAsObjectIndex();
+        if (idx != INVALID_INDEX)
+          usages[objType][idx]++;
+      }
+    });
+  };
+
+  // Invoke above function on all object arrays //
+
+  countParameterReferences(m_db.array);
+  countParameterReferences(m_db.surface);
+  countParameterReferences(m_db.geometry);
+  countParameterReferences(m_db.material);
+  countParameterReferences(m_db.sampler);
+  countParameterReferences(m_db.volume);
+  countParameterReferences(m_db.field);
+  countParameterReferences(m_db.light);
+
+  // Remove unused objects from object arrays //
+
+  auto removeUnused = [&](auto &array) {
+    foreach_item_ref(array, [&](auto ref) {
+      if (!ref)
+        return;
+      auto objType = ref->type();
+      if (anari::isArray(objType))
+        objType = ANARI_ARRAY;
+      if (usages[objType][ref.index()] == 0)
+        removeObject(*ref);
+    });
+  };
+
+  removeUnused(m_db.array);
+  removeUnused(m_db.surface);
+  removeUnused(m_db.geometry);
+  removeUnused(m_db.material);
+  removeUnused(m_db.sampler);
+  removeUnused(m_db.volume);
+  removeUnused(m_db.field);
+  removeUnused(m_db.light);
+}
+
 void Context::removeAllSecondaryLayers()
 {
   for (auto itr = m_layers.begin() + 1; itr != m_layers.end(); itr++) {
@@ -508,6 +601,11 @@ ArrayRef Context::createArrayImpl(anari::DataType type,
     size_t items2,
     Array::MemoryKind kind)
 {
+  if (items0 + items1 + items2 == 0) {
+    tsd::logWarning("Not creating an array with zero elements");
+    return {};
+  }
+
   ArrayRef retval;
 
   if (items2 != 0)
