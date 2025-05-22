@@ -17,7 +17,7 @@ struct Window : public anari_viewer::windows::Window
   Window(AppCore *core, const char *name = "Window");
   virtual ~Window() override;
 
-  virtual void buildUI() = 0;
+  virtual void buildUI() override = 0;
   virtual void saveSettings(tsd::serialization::DataNode &thisWindowRoot);
   virtual void loadSettings(tsd::serialization::DataNode &thisWindowRoot);
 
