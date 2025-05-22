@@ -31,6 +31,9 @@
 
 #include "anari_library_visrtx_export.h"
 
+// nvml
+#include <nvml.h>
+
 #include <anari/frontend/anari_enums.h>
 #include <optix_types.h>
 #include "VisRTXDevice.h"
@@ -570,6 +573,25 @@ DeviceInitStatus VisRTXDevice::initOptix()
     m_desiredGpuID = 0;
   }
   m_gpuID = m_desiredGpuID;
+
+  {
+    int cudaVersion = 0;
+    cudaDriverGetVersion(&cudaVersion);
+    int major = cudaVersion / 1000;
+    int minor = (cudaVersion % 1000) / 10;
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "VisRTX using CUDA %i.%i", major, minor);
+  }
+
+  {
+    char driverVersion[80]; // Buffer to store driver version
+
+    nvmlInit();
+    nvmlSystemGetDriverVersion(driverVersion, sizeof(driverVersion));
+    reportMessage(
+        ANARI_SEVERITY_DEBUG, "VisRTX running on driver %s", driverVersion);
+    nvmlShutdown();
+  }
 
   OPTIX_CHECK_RETURN_VALUE(optixInit(), DeviceInitStatus::FAILURE);
   setCUDADevice();

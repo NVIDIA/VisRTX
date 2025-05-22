@@ -221,12 +221,12 @@ PRIVATE
   OptiX::OptiX
   CUDA::cuda_driver
   CUDA::curand
+  CUDA::nvml
   fmt::fmt
   nonstd::expected-lite
   nonstd::scope-lite
   nonstd::span-lite
   libnanovdb
-
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:libmdl>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:MDL_SDK::MDL_SDK>
