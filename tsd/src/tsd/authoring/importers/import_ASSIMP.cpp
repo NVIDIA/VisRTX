@@ -362,6 +362,9 @@ static std::vector<LightRef> importASSIMPLights(
             : assimpLight->mColorDiffuse.g
         : assimpLight->mColorDiffuse.b;
 
+    if (intensity == 0.f)
+      intensity = 1.f;
+
     tsd::float3 color(assimpLight->mColorDiffuse.r / intensity,
         assimpLight->mColorDiffuse.g / intensity,
         assimpLight->mColorDiffuse.b / intensity);
