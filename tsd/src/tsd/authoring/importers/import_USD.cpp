@@ -70,8 +70,10 @@ void import_USD(Context &ctx,
 
     // Insert a transform node for this prim
     std::string primName = prim.GetName().GetString();
-    if (primName.empty()) primName = "<unnamed_xform>";
-    auto xformNode = ctx.insertChildTransformNode(usd_root, tsdXform, primName.c_str());
+    if (primName.empty())
+      primName = "<unnamed_xform>";
+    auto xformNode =
+        ctx.insertChildTransformNode(usd_root, tsdXform, primName.c_str());
 
     pxr::UsdGeomMesh mesh(prim);
 
@@ -129,19 +131,13 @@ void import_USD(Context &ctx,
     auto meshObj = ctx.createObject<Geometry>(tokens::geometry::triangle);
     auto vertexPositionArray =
         ctx.createArray(ANARI_FLOAT32_VEC3, outVertices.size());
-    auto *outVerts = vertexPositionArray->mapAs<float3>();
-    for (size_t i = 0; i < outVertices.size(); ++i)
-      outVerts[i] = outVertices[i];
-    vertexPositionArray->unmap();
+    vertexPositionArray->setData(outVertices.data(), outVertices.size());
     meshObj->setParameterObject("vertex.position", *vertexPositionArray);
 
     if (!outNormals.empty()) {
       auto normalsArray =
           ctx.createArray(ANARI_FLOAT32_VEC3, outNormals.size());
-      auto *outNorms = normalsArray->mapAs<float3>();
-      for (size_t i = 0; i < outNormals.size(); ++i)
-        outNorms[i] = outNormals[i];
-      normalsArray->unmap();
+      normalsArray->setData(outNormals.data(), outNormals.size());
       meshObj->setParameterObject("vertex.normal", *normalsArray);
     }
 
