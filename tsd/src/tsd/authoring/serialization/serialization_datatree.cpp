@@ -119,6 +119,7 @@ static void layerToNode(Layer &layer, serialization::DataNode &node)
 
     currentNode->append("name") = tsdNode->name;
     currentNode->append("value") = tsdNode->value;
+    currentNode->append("enabled") = tsdNode->enabled;
     currentNode->append("children");
 
     return true;
@@ -227,12 +228,12 @@ static void nodeToNewObject(Context &ctx, serialization::DataNode &node)
     const size_t dim_y = is2D || is3D ? dim[1] : size_t(0);
     const size_t dim_z = is3D ? dim[2] : size_t(0);
     auto arr = ctx.createArray(arrayElementType, dim_x, dim_y, dim_z);
-    auto *memOut = arr->map();
-
-    std::memcpy(memOut, arrayPtr, arr->size() * arr->elementSize());
-    arr->unmap();
-
-    obj = arr.data();
+    if (arr) {
+      auto *memOut = arr->map();
+      std::memcpy(memOut, arrayPtr, arr->size() * arr->elementSize());
+      arr->unmap();
+      obj = arr.data();
+    }
   } break;
   case ANARI_GEOMETRY:
     obj = ctx.createObject<Geometry>(subtype).data();
@@ -302,6 +303,7 @@ static void nodeToLayer(serialization::DataNode &rootNode, Layer &layer)
       currentNode = layer.insert_last_child(currentParentNode,
           {node["value"].getValue(),
               node["name"].getValueAs<std::string>().c_str()});
+      (*currentNode)->enabled = node["enabled"].getValueOr(true);
     }
 
     return true;

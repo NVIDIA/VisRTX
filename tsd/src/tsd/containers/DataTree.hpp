@@ -64,6 +64,8 @@ struct DataNode
 
   template <typename T>
   T getValueAs() const;
+  template <typename T>
+  T getValueOr(const T &alt) const;
   const Any &getValue() const;
 
   // NOTE: If getting ANARI_STRING, pass ptr to std::string
@@ -285,6 +287,18 @@ template <>
 inline std::string DataNode::getValueAs() const
 {
   return getValue().getString();
+}
+
+template <typename T>
+inline T DataNode::getValueOr(const T &alt) const
+{
+  return getValue().is<T>() ? getValueAs<T>() : alt;
+}
+
+template <>
+inline std::string DataNode::getValueOr(const std::string &alt) const
+{
+  return getValue().is(ANARI_STRING) ? getValueAs<std::string>() : alt;
 }
 
 inline const Any &DataNode::getValue() const
