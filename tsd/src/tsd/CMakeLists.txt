@@ -66,9 +66,16 @@ PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/..>
 )
 
+# Add USD include and library paths
+find_package(pxr REQUIRED)
+
 project_link_libraries(
 PUBLIC
   anari::helium
+  usd
+  usdGeom
+  tf
+  gf
 PRIVATE
   $<BUILD_INTERFACE:tsd_mikktspace>
   $<BUILD_INTERFACE:tsd_nanovdb>
@@ -136,3 +143,11 @@ if (TSD_USE_ASSIMP)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=0)
 endif()
+
+# Print include directories for debugging
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+message(STATUS "[src/tsd] Include dirs = ${dirs}")
+
+find_package(Python3 COMPONENTS Development REQUIRED)
+include_directories(${Python3_INCLUDE_DIRS})
+link_directories(${Python3_LIBRARY_DIRS})

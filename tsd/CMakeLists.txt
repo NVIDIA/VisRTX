@@ -76,3 +76,24 @@ add_subdirectory(tests)
 ## Cleanup CMake variables ##
 
 include(cmake/mark_cache_variables_as_advanced.cmake)
+
+# Add USD support
+find_package(pxr REQUIRED)
+
+project_link_libraries(
+  PUBLIC
+    anari::helium
+    usd
+    usdGeom
+    tf
+    gf
+  PRIVATE
+    $<BUILD_INTERFACE:tsd_mikktspace>
+    $<BUILD_INTERFACE:tsd_nanovdb>
+    $<BUILD_INTERFACE:tsd_stb>
+    $<BUILD_INTERFACE:tsd_tiny_obj_loader>
+    $<BUILD_INTERFACE:tsd_tinyply>
+)
+
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+message(STATUS "Include dirs = ${dirs}")
