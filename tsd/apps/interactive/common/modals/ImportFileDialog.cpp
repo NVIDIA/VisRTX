@@ -26,6 +26,7 @@ void ImportFileDialog::buildUI()
       "NBODY",
       "PLY",
       "OBJ",
+      "USD",
       "HDRI",
       "VOLUME",
       "SWC",
@@ -33,7 +34,7 @@ void ImportFileDialog::buildUI()
       "XYZDP",
       "HSMESH"};
 
-  ImGui::Combo("importer type", &m_selectedFileType, importers, 12);
+  ImGui::Combo("importer type", &m_selectedFileType, importers, 13);
 
   static std::string outPath;
   if (ImGui::Button("...")) {
@@ -85,6 +86,8 @@ void ImportFileDialog::buildUI()
       tsd::import_PLY(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::OBJ)
       tsd::import_OBJ(ctx, m_filename.c_str(), importRoot);
+    else if (selectedFileType == ImporterType::USD)
+      tsd::import_USD(ctx, m_filename.c_str(), importRoot);
     else if (selectedFileType == ImporterType::ASSIMP)
       tsd::import_ASSIMP(ctx, m_filename.c_str(), importRoot, false);
     else if (selectedFileType == ImporterType::ASSIMP_FLAT)
