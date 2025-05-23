@@ -87,9 +87,9 @@ int main(int argc, char *argv[])
 
   auto camera = anari::newObject<anari::Camera>(device, "perspective");
 
-  const float3 eye = {0.f, 0.f, -10.f};
-  const float3 dir = {0.f, 0.f, 1.f};
-  const float3 up = {0.f, 1.f, 0.f};
+  const float3 eye = {75.0f, -600.0, 150.0f};
+  const float3 dir = {0.0f, 1.0f, 0.0f};
+  const float3 up = {0.0f, 0.0f, 1.0f};
 
   anari::setParameter(device, camera, "position", eye);
   anari::setParameter(device, camera, "direction", dir);

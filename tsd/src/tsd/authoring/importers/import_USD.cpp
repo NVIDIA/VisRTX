@@ -23,6 +23,7 @@
 // std
 #include <string>
 #include <vector>
+#include <limits>
 
 namespace tsd {
 
@@ -38,6 +39,14 @@ inline tsd::mat4 to_tsd_mat4(const pxr::GfMatrix4d &m)
   return out;
 }
 
+// Add these helpers at file or namespace scope if not already present:
+inline float3 min(const float3 &a, const float3 &b) {
+  return float3(std::min(a.x, b.x), std::min(a.y, b.y), std::min(a.z, b.z));
+}
+inline float3 max(const float3 &a, const float3 &b) {
+  return float3(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
+}
+
 void import_USD(Context &ctx,
     const char *filepath,
     LayerNodeRef location,
@@ -51,6 +60,30 @@ void import_USD(Context &ctx,
     return;
   }
 
+  // Print stage info
+  logInfo("[import_USD] Opened USD stage: %s", filepath);
+  printf("[import_USD] Opened USD stage: %s\n", filepath);
+
+  auto defaultPrim = stage->GetDefaultPrim();
+  if (defaultPrim) {
+    logInfo("[import_USD] Default prim: %s", defaultPrim.GetPath().GetString().c_str());
+    printf("[import_USD] Default prim: %s\n", defaultPrim.GetPath().GetString().c_str());
+  } else {
+    logInfo("[import_USD] No default prim set.");
+    printf("[import_USD] No default prim set.\n");
+  }
+
+  // Count prims
+  size_t primCount = 0;
+  for (auto it = stage->Traverse().begin(); it != stage->Traverse().end(); ++it)
+    ++primCount;
+  logInfo("[import_USD] Number of prims in stage: %zu", primCount);
+  printf("[import_USD] Number of prims in stage: %zu\n", primCount);
+
+  // --- Bounding box initialization ---
+  float3 sceneMin(std::numeric_limits<float>::max());
+  float3 sceneMax(std::numeric_limits<float>::lowest());
+
   // Create a root node in your scene
   auto usd_root = ctx.insertChildNode(
       location ? location : ctx.defaultLayer()->root(), filepath);
@@ -60,8 +93,18 @@ void import_USD(Context &ctx,
 
   // Traverse all prims in the USD file
   for (pxr::UsdPrim const &prim : stage->Traverse()) {
+    logInfo("[import_USD] Found prim: %s (type: %s, path: %s)",
+            prim.GetName().GetString().c_str(),
+            prim.GetTypeName().GetString().c_str(),
+            prim.GetPath().GetString().c_str());
+    printf("[import_USD] Found prim: %s (type: %s, path: %s)\n",
+            prim.GetName().GetString().c_str(),
+            prim.GetTypeName().GetString().c_str(),
+            prim.GetPath().GetString().c_str());
+
     if (!prim.IsA<pxr::UsdGeomMesh>()) {
-      logWarning("[import_USD] skipping prim (not UsdGeomMesh)");
+      logWarning("[import_USD] skipping prim (not UsdGeomMesh): %s", prim.GetName().GetString());
+      printf("[import_USD] skipping prim (not UsdGeomMesh): %s\n", prim.GetName().GetString().c_str());
       continue;
     }
     // Get the world transform for this prim
@@ -81,6 +124,16 @@ void import_USD(Context &ctx,
     pxr::VtArray<pxr::GfVec3f> points;
     mesh.GetPointsAttr().Get(&points);
 
+    // --- Update scene bounding box with transformed points ---
+    for (size_t i = 0; i < points.size(); ++i) {
+      pxr::GfVec3f p = points[i];
+      pxr::GfVec4d p4(p[0], p[1], p[2], 1.0);
+      pxr::GfVec4d wp4 = usdXform * p4;
+      float3 wp{float(wp4[0]), float(wp4[1]), float(wp4[2])};
+      sceneMin = tsd::min(sceneMin, wp);
+      sceneMax = tsd::max(sceneMax, wp);
+    }
+
     // Get face vertex indices
     pxr::VtArray<int> faceVertexIndices;
     mesh.GetFaceVertexIndicesAttr().Get(&faceVertexIndices);
@@ -92,6 +145,17 @@ void import_USD(Context &ctx,
     // Optionally get normals
     pxr::VtArray<pxr::GfVec3f> normals;
     mesh.GetNormalsAttr().Get(&normals);
+
+    logInfo("[import_USD] Mesh '%s': %zu points, %zu faces, %zu normals",
+            prim.GetName().GetString().c_str(),
+            points.size(),
+            faceVertexCounts.size(),
+            normals.size());
+    printf("[import_USD] Mesh '%s': %zu points, %zu faces, %zu normals\n",
+            prim.GetName().GetString().c_str(),
+            points.size(),
+            faceVertexCounts.size(),
+            normals.size());
 
     // TODO: Get texcoords if present
 
@@ -155,6 +219,14 @@ void import_USD(Context &ctx,
     auto surface = ctx.createSurface(primName.c_str(), meshObj, mat);
     ctx.insertChildObjectNode(xformNode, surface);
   }
+
+  // --- Print scene bounding box after the prim loop ---
+  logInfo("[import_USD] Scene bounds: min=(%f, %f, %f) max=(%f, %f, %f)",
+          sceneMin.x, sceneMin.y, sceneMin.z,
+          sceneMax.x, sceneMax.y, sceneMax.z);
+  printf("[import_USD] Scene bounds: min=(%f, %f, %f) max=(%f, %f, %f)\n",
+          sceneMin.x, sceneMin.y, sceneMin.z,
+          sceneMax.x, sceneMax.y, sceneMax.z);
 }
 #else
 void import_USD(Context &ctx,
