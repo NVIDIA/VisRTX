@@ -140,6 +140,8 @@ static void setupScene()
         tsd::import_PLY(g_core->tsd.ctx, f.c_str());
       else if (g_importerType == ImporterType::OBJ)
         tsd::import_OBJ(g_core->tsd.ctx, f.c_str(), root, true);
+      else if (g_importerType == ImporterType::USD)
+        tsd::import_USD(g_core->tsd.ctx, f.c_str(), root, true);
       else if (g_importerType == ImporterType::ASSIMP)
         tsd::import_ASSIMP(g_core->tsd.ctx, f.c_str(), root);
       else if (g_importerType == ImporterType::DLAF)

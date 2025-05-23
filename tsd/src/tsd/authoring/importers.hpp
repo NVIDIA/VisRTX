@@ -15,6 +15,7 @@ void import_HDRI(Context &ctx, const char *filename, LayerNodeRef location = {})
 void import_HSMESH(Context &ctx, const char *filename, LayerNodeRef location = {});
 void import_NBODY(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
 void import_OBJ(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
+void import_USD(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
 void import_PLY(Context &ctx, const char *filename, LayerNodeRef location = {});
 void import_PDB(Context &ctx, const char *filename, LayerNodeRef location = {});
 void import_SWC(Context &ctx, const char *filename, LayerNodeRef location = {});

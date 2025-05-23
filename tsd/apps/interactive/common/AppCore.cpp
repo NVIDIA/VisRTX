@@ -121,6 +121,8 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::NBODY;
     else if (arg == "-obj")
       importerType = ImporterType::OBJ;
+    else if (arg == "-usd")
+      importerType = ImporterType::USD;
     else if (arg == "-assimp")
       importerType = ImporterType::ASSIMP;
     else if (arg == "-assimp_flat")
@@ -168,6 +170,8 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_PLY(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::OBJ)
         tsd::import_OBJ(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::USD)
+        tsd::import_USD(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::ASSIMP)
         tsd::import_ASSIMP(tsd.ctx, f.second.c_str(), root, false);
       else if (f.first == ImporterType::ASSIMP_FLAT)
