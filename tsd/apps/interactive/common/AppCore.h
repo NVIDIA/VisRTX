@@ -16,6 +16,12 @@ namespace tsd_viewer {
 
 struct ImportFileDialog;
 
+struct CameraPose
+{
+  tsd::float3 lookat{0.f};
+  tsd::float3 azeldist{0.f};
+};
+
 enum class ImporterType
 {
   ASSIMP = 0,
@@ -78,6 +84,11 @@ struct AppCore
     bool verbose{false};
     bool echoOutput{false};
   } logging;
+
+  struct CameraPoses
+  {
+    FlatMap<std::string,
+  } cameras;
 
   struct Windows
   {
