@@ -62,8 +62,10 @@ anari_viewer::WindowArray TSDApplication::setupWindows()
 
   m_core.windows.importDialog = m_fileDialog.get();
 
-  m_applicationName = SDL_GetWindowTitle(m_core.application->sdlWindow());
+  m_applicationName = SDL_GetWindowTitle(sdlWindow());
   updateWindowTitle();
+
+  SDL_SetRenderVSync(sdlRenderer(), 1);
 
   return {};
 }

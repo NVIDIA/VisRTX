@@ -251,12 +251,7 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
 
   if (this->commandLine.enableDebug)
     anari::setParameter(dev, dev, "glDebug", true);
-
-#ifdef USE_GLES2
-  anari::setParameter(dev, dev, "glAPI", "OpenGL_ES");
-#else
   anari::setParameter(dev, dev, "glAPI", "OpenGL");
-#endif
 
   if (this->commandLine.debug) {
     anari::Device dbg = anari::newDevice(this->commandLine.debug, "debug");
