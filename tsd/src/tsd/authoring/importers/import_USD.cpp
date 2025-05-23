@@ -19,6 +19,10 @@
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/xform.h>
 #include <pxr/usd/usdGeom/xformCache.h>
+#include <pxr/usd/usdGeom/points.h>
+#include <pxr/usd/usdGeom/sphere.h>
+#include <pxr/usd/usdGeom/cone.h>
+#include <pxr/usd/usdGeom/cylinder.h>
 #endif
 // std
 #include <string>
@@ -120,10 +124,147 @@ static void import_usd_mesh(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef
   ctx.insertChildObjectNode(parent, surface);
 }
 
+// Helper: Import a UsdGeomPoints prim as a TSD sphere geometry (point cloud)
+static void import_usd_points(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, const pxr::GfMatrix4d &usdXform, float3 &sceneMin, float3 &sceneMax)
+{
+  pxr::UsdGeomPoints pointsPrim(prim);
+  pxr::VtArray<pxr::GfVec3f> points;
+  pointsPrim.GetPointsAttr().Get(&points);
+  pxr::VtArray<float> widths;
+  pointsPrim.GetWidthsAttr().Get(&widths);
+
+  std::vector<float3> outPositions;
+  std::vector<float> outRadii;
+  for (size_t i = 0; i < points.size(); ++i) {
+    pxr::GfVec3f p = points[i];
+    pxr::GfVec4d p4(p[0], p[1], p[2], 1.0);
+    pxr::GfVec4d wp4 = usdXform * p4;
+    float3 wp{float(wp4[0]), float(wp4[1]), float(wp4[2])};
+    sceneMin = tsd::min(sceneMin, wp);
+    sceneMax = tsd::max(sceneMax, wp);
+    outPositions.push_back(wp);
+    float r = (widths.size() == points.size()) ? widths[i] * 0.5f : 0.01f;
+    outRadii.push_back(r);
+  }
+  auto geom = ctx.createObject<Geometry>(tokens::geometry::sphere);
+  auto posArray = ctx.createArray(ANARI_FLOAT32_VEC3, outPositions.size());
+  posArray->setData(outPositions.data(), outPositions.size());
+  auto radArray = ctx.createArray(ANARI_FLOAT32, outRadii.size());
+  radArray->setData(outRadii.data(), outRadii.size());
+  geom->setParameterObject("vertex.position", *posArray);
+  geom->setParameterObject("vertex.radius", *radArray);
+  std::string primName = prim.GetName().GetString();
+  if (primName.empty()) primName = "<unnamed_points>";
+  geom->setName(primName.c_str());
+  auto mat = ctx.defaultMaterial();
+  auto surface = ctx.createSurface(primName.c_str(), geom, mat);
+  ctx.insertChildObjectNode(parent, surface);
+}
+
+// Helper: Import a UsdGeomSphere prim as a TSD sphere geometry
+static void import_usd_sphere(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, const pxr::GfMatrix4d &usdXform, float3 &sceneMin, float3 &sceneMax)
+{
+  pxr::UsdGeomSphere spherePrim(prim);
+  // UsdGeomSphere is always centered at the origin in local space
+  pxr::GfVec3f center(0.f, 0.f, 0.f);
+  double radius = 1.0;
+  spherePrim.GetRadiusAttr().Get(&radius);
+  pxr::GfVec4d c4(center[0], center[1], center[2], 1.0);
+  pxr::GfVec4d wc4 = usdXform * c4;
+  float3 wp{float(wc4[0]), float(wc4[1]), float(wc4[2])};
+  sceneMin = tsd::min(sceneMin, wp - float3(radius));
+  sceneMax = tsd::max(sceneMax, wp + float3(radius));
+  auto geom = ctx.createObject<Geometry>(tokens::geometry::sphere);
+  auto posArray = ctx.createArray(ANARI_FLOAT32_VEC3, 1);
+  posArray->setData(&wp, 1);
+  auto radArray = ctx.createArray(ANARI_FLOAT32, 1);
+  float r = float(radius);
+  radArray->setData(&r, 1);
+  geom->setParameterObject("vertex.position", *posArray);
+  geom->setParameterObject("vertex.radius", *radArray);
+  std::string primName = prim.GetName().GetString();
+  if (primName.empty()) primName = "<unnamed_sphere>";
+  geom->setName(primName.c_str());
+  auto mat = ctx.defaultMaterial();
+  auto surface = ctx.createSurface(primName.c_str(), geom, mat);
+  ctx.insertChildObjectNode(parent, surface);
+}
+
+// Helper: Import a UsdGeomCone prim as a TSD cone geometry
+static void import_usd_cone(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, const pxr::GfMatrix4d &usdXform, float3 &sceneMin, float3 &sceneMax)
+{
+  pxr::UsdGeomCone conePrim(prim);
+  // UsdGeomCone is always centered at the origin in local space
+  pxr::GfVec3f center(0.f, 0.f, 0.f);
+  double height = 2.0;
+  conePrim.GetHeightAttr().Get(&height);
+  double radius = 1.0;
+  conePrim.GetRadiusAttr().Get(&radius);
+  pxr::TfToken axis;
+  conePrim.GetAxisAttr().Get(&axis);
+  // TODO: Handle axis != Z
+  pxr::GfVec4d c4(center[0], center[1], center[2], 1.0);
+  pxr::GfVec4d wc4 = usdXform * c4;
+  float3 wp{float(wc4[0]), float(wc4[1]), float(wc4[2])};
+  sceneMin = tsd::min(sceneMin, wp - float3(radius, radius, height * 0.5f));
+  sceneMax = tsd::max(sceneMax, wp + float3(radius, radius, height * 0.5f));
+  // Represent as a 2-point cone (base and apex)
+  std::vector<float3> positions = {wp, wp + float3(0, 0, float(height))};
+  std::vector<float> radii = {float(radius), 0.f};
+  auto geom = ctx.createObject<Geometry>(tokens::geometry::cone);
+  auto posArray = ctx.createArray(ANARI_FLOAT32_VEC3, 2);
+  posArray->setData(positions.data(), 2);
+  auto radArray = ctx.createArray(ANARI_FLOAT32, 2);
+  radArray->setData(radii.data(), 2);
+  geom->setParameterObject("vertex.position", *posArray);
+  geom->setParameterObject("vertex.radius", *radArray);
+  std::string primName = prim.GetName().GetString();
+  if (primName.empty()) primName = "<unnamed_cone>";
+  geom->setName(primName.c_str());
+  auto mat = ctx.defaultMaterial();
+  auto surface = ctx.createSurface(primName.c_str(), geom, mat);
+  ctx.insertChildObjectNode(parent, surface);
+}
+
+// Helper: Import a UsdGeomCylinder prim as a TSD cylinder geometry
+static void import_usd_cylinder(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, const pxr::GfMatrix4d &usdXform, float3 &sceneMin, float3 &sceneMax)
+{
+  pxr::UsdGeomCylinder cylPrim(prim);
+  // UsdGeomCylinder is always centered at the origin in local space
+  pxr::GfVec3f center(0.f, 0.f, 0.f);
+  double height = 2.0;
+  cylPrim.GetHeightAttr().Get(&height);
+  double radius = 1.0;
+  cylPrim.GetRadiusAttr().Get(&radius);
+  pxr::TfToken axis;
+  cylPrim.GetAxisAttr().Get(&axis);
+  // TODO: Handle axis != Z
+  pxr::GfVec4d c4(center[0], center[1], center[2], 1.0);
+  pxr::GfVec4d wc4 = usdXform * c4;
+  float3 wp{float(wc4[0]), float(wc4[1]), float(wc4[2])};
+  sceneMin = tsd::min(sceneMin, wp - float3(radius, radius, height * 0.5f));
+  sceneMax = tsd::max(sceneMax, wp + float3(radius, radius, height * 0.5f));
+  // Represent as a 2-point cylinder (bottom and top)
+  std::vector<float3> positions = {wp - float3(0, 0, float(height) * 0.5f), wp + float3(0, 0, float(height) * 0.5f)};
+  std::vector<float> radii = {float(radius), float(radius)};
+  auto geom = ctx.createObject<Geometry>(tokens::geometry::cylinder);
+  auto posArray = ctx.createArray(ANARI_FLOAT32_VEC3, 2);
+  posArray->setData(positions.data(), 2);
+  auto radArray = ctx.createArray(ANARI_FLOAT32, 2);
+  radArray->setData(radii.data(), 2);
+  geom->setParameterObject("vertex.position", *posArray);
+  geom->setParameterObject("vertex.radius", *radArray);
+  std::string primName = prim.GetName().GetString();
+  if (primName.empty()) primName = "<unnamed_cylinder>";
+  geom->setName(primName.c_str());
+  auto mat = ctx.defaultMaterial();
+  auto surface = ctx.createSurface(primName.c_str(), geom, mat);
+  ctx.insertChildObjectNode(parent, surface);
+}
+
 // Recursive import function for prims and their children
 static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, pxr::UsdGeomXformCache &xformCache, float3 &sceneMin, float3 &sceneMax)
 {
-  // Get the world transform for this prim
   pxr::GfMatrix4d usdXform = xformCache.GetLocalToWorldTransform(prim);
   tsd::mat4 tsdXform = to_tsd_mat4(usdXform);
   std::string primName = prim.GetName().GetString();
@@ -132,9 +273,16 @@ static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, La
 
   if (prim.IsA<pxr::UsdGeomMesh>()) {
     import_usd_mesh(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
+  } else if (prim.IsA<pxr::UsdGeomPoints>()) {
+    import_usd_points(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
+  } else if (prim.IsA<pxr::UsdGeomSphere>()) {
+    import_usd_sphere(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
+  } else if (prim.IsA<pxr::UsdGeomCone>()) {
+    import_usd_cone(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
+  } else if (prim.IsA<pxr::UsdGeomCylinder>()) {
+    import_usd_cylinder(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
   }
 
-  // Recurse into children
   for (const auto &child : prim.GetChildren()) {
     import_usd_prim_recursive(ctx, child, xformNode, xformCache, sceneMin, sceneMax);
   }
