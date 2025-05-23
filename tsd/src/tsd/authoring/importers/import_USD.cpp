@@ -317,6 +317,7 @@ void import_USD(Context &ctx,
   float3 sceneMax(std::numeric_limits<float>::lowest());
   auto usd_root = ctx.insertChildNode(
       location ? location : ctx.defaultLayer()->root(), filepath);
+
   pxr::UsdGeomXformCache xformCache(pxr::UsdTimeCode::Default());
 
   // Traverse all prims in the USD file
@@ -359,6 +360,7 @@ void import_USD(Context &ctx,
   printf("[import_USD] Scene bounds: min=(%f, %f, %f) max=(%f, %f, %f)\n",
           sceneMin.x, sceneMin.y, sceneMin.z,
           sceneMax.x, sceneMax.y, sceneMax.z);
+
 }
 #else
 void import_USD(Context &ctx,

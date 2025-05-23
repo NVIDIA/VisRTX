@@ -91,6 +91,7 @@ int main(int argc, char *argv[])
   const float3 dir = {0.0f, 1.0f, 0.0f};
   const float3 up = {0.0f, 0.0f, 1.0f};
 
+
   anari::setParameter(device, camera, "position", eye);
   anari::setParameter(device, camera, "direction", dir);
   anari::setParameter(device, camera, "up", up);
