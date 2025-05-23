@@ -41,6 +41,7 @@ jobs:
         -DTSD_USE_HDF5=OFF
         -DTSD_USE_SDL3=OFF
         -DTSD_USE_TBB=OFF
+        -DTSD_USE_USD=OFF
         -DTSD_ENABLE_SERIALIZATION=OFF
         ${{ github.workspace }}/tsd
 
