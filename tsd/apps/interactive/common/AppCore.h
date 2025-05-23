@@ -24,6 +24,7 @@ enum class ImporterType
   NBODY,
   PLY,
   OBJ,
+  USD,
   HDRI,
   VOLUME,
   SWC,
