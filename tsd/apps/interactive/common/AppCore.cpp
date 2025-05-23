@@ -70,7 +70,7 @@ static std::vector<std::string> parseLibraryList()
   return libList;
 }
 
-// AppCore definitions /////////////////////////////////////////////////////
+// AppCore definitions ////////////////////////////////////////////////////////
 
 AppCore::AppCore(anari_viewer::Application *app) : application(app)
 {
@@ -101,10 +101,6 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       this->commandLine.useDefaultLayout = false;
     else if (arg == "-pd" || arg == "--preloadDevices")
       this->commandLine.preloadDevices = true;
-    else if (arg == "--debug" || arg == "-g")
-      this->commandLine.enableDebug = true;
-    else if (arg == "--trace" || arg == "-t")
-      this->commandLine.traceDir = argv[++i];
     else if (arg == "--secondaryView" || arg == "-sv")
       this->commandLine.secondaryViewportLibrary = argv[++i];
     else if (arg == "-tsd") {
@@ -243,9 +239,6 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
   if (!library)
     return nullptr;
 
-  if (!this->commandLine.debug && this->commandLine.enableDebug)
-    this->commandLine.debug = anari::loadLibrary("debug", statusFunc, this);
-
   dev = anari::newDevice(library, "default");
 
   this->anari.loadedDeviceExtensions[libraryName] =
@@ -253,22 +246,7 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
 
   anari::unloadLibrary(library);
 
-  if (this->commandLine.enableDebug)
-    anari::setParameter(dev, dev, "glDebug", true);
   anari::setParameter(dev, dev, "glAPI", "OpenGL");
-
-  if (this->commandLine.debug) {
-    anari::Device dbg = anari::newDevice(this->commandLine.debug, "debug");
-    anari::setParameter(dbg, dbg, "wrappedDevice", dev);
-    if (!this->commandLine.traceDir.empty()) {
-      anari::setParameter(dbg, dbg, "traceDir", this->commandLine.traceDir);
-      anari::setParameter(dbg, dbg, "traceMode", "code");
-    }
-    anari::commitParameters(dbg, dbg);
-    anari::release(dev, dev);
-    dev = dbg;
-  }
-
   anari::commitParameters(dev, dev);
 
   this->anari.loadedDevices[libraryName] = dev;
@@ -347,6 +325,28 @@ void AppCore::clearSelected()
     tsd.selectedNode = {};
     anari.delegate.signalObjectFilteringChanged();
   }
+}
+
+void AppCore::addCurrentViewToCameraPoses(const char *name)
+{
+  auto azel = view.manipulator.azel();
+  auto dist = view.manipulator.distance();
+  tsd::math::float3 azeldist(azel.x, azel.y, dist);
+
+  CameraPose pose;
+  pose.name = name;
+  pose.lookat = view.manipulator.at();
+  pose.azeldist = azeldist;
+  pose.upAxis = static_cast<int>(view.manipulator.axis());
+
+  view.poses.push_back(std::move(pose));
+}
+
+void AppCore::setCameraPose(const CameraPose &pose)
+{
+  view.manipulator.setConfig(
+      pose.lookat, pose.azeldist.z, {pose.azeldist.x, pose.azeldist.y});
+  view.manipulator.setAxis(static_cast<manipulators::OrbitAxis>(pose.upAxis));
 }
 
 } // namespace tsd_viewer

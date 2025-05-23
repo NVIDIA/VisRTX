@@ -21,11 +21,12 @@ class Application : public TSDApplication
     auto windows = TSDApplication::setupWindows();
 
     auto *core = appCore();
+    auto *manipulator = &core->view.manipulator;
     core->tsd.sceneLoadComplete = true;
 
     auto *log = new Log(core);
-    auto *viewport = new Viewport(core, &m_manipulator, "Viewport");
-    auto *viewport2 = new Viewport(core, &m_manipulator, "Secondary View");
+    auto *viewport = new Viewport(core, manipulator, "Viewport");
+    auto *viewport2 = new Viewport(core, manipulator, "Secondary View");
     viewport2->hide();
     auto *icontrols = new InstancingControls(core, "Scene Controls");
     auto *oeditor = new ObjectEditor(core);
@@ -39,7 +40,7 @@ class Application : public TSDApplication
     setWindowArray(windows);
 
     viewport->setLibrary(core->commandLine.libraryList[0], false);
-    m_manipulator.setConfig(
+    manipulator->setConfig(
         tsd::float3(2.743f, 4.747f, 0.944f), 90.f, tsd::float2(180.f, 0.f));
 
     return windows;

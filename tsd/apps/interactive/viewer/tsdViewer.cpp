@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "TSDApplication.h"
+#include "windows/CameraPoses.h"
 #include "windows/DatabaseEditor.h"
 #include "windows/IsosurfaceEditor.h"
 #include "windows/LayerTree.h"
@@ -26,15 +27,18 @@ class Application : public TSDApplication
 
     auto *core = appCore();
 
+    auto *cameras = new CameraPoses(core);
     auto *log = new Log(core);
-    auto *viewport = new Viewport(core, &m_manipulator, "Viewport");
-    auto *viewport2 = new Viewport(core, &m_manipulator, "Secondary View");
+    auto *viewport = new Viewport(core, &core->view.manipulator, "Viewport");
+    auto *viewport2 =
+        new Viewport(core, &core->view.manipulator, "Secondary View");
     auto *dbeditor = new DatabaseEditor(core);
     auto *oeditor = new ObjectEditor(core);
     auto *otree = new LayerTree(core);
     auto *tfeditor = new TransferFunctionEditor(core);
     auto *isoeditor = new IsosurfaceEditor(core);
 
+    windows.emplace_back(cameras);
     windows.emplace_back(viewport);
     windows.emplace_back(viewport2);
     windows.emplace_back(dbeditor);
@@ -108,7 +112,7 @@ class Application : public TSDApplication
     return R"layout(
 [Window][MainDockSpace]
 Pos=0,26
-Size=1920,1054
+Size=1920,1105
 Collapsed=0
 
 [Window][Debug##Default]
@@ -118,30 +122,30 @@ Collapsed=0
 
 [Window][Viewport]
 Pos=549,26
-Size=1371,797
+Size=1371,848
 Collapsed=0
 DockId=0x00000006,0
 
 [Window][Database Editor]
-Pos=0,576
-Size=547,504
+Pos=0,603
+Size=547,528
 Collapsed=0
-DockId=0x00000009,0
+DockId=0x00000009,1
 
 [Window][Layers]
 Pos=0,26
-Size=547,548
+Size=547,575
 Collapsed=0
 DockId=0x00000008,0
 
 [Window][Object Editor]
-Pos=0,576
-Size=547,504
+Pos=0,603
+Size=547,528
 Collapsed=0
-DockId=0x00000009,1
+DockId=0x00000009,0
 
 [Window][Log]
-Pos=549,825
+Pos=549,876
 Size=1371,255
 Collapsed=0
 DockId=0x00000005,0
@@ -163,6 +167,12 @@ Pos=1370,26
 Size=550,590
 Collapsed=0
 DockId=0x0000000B,0
+
+[Window][Camera Poses]
+Pos=0,26
+Size=547,575
+Collapsed=0
+DockId=0x00000008,1
 
 [Table][0x44C159D3,2]
 Column 0  Weight=1.0000
@@ -194,7 +204,7 @@ Column 0  Weight=1.0000
 Column 1  Weight=1.0000
 
 [Docking][Data]
-DockSpace         ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1054 Split=X
+DockSpace         ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
   DockNode        ID=0x00000003 Parent=0x80F5B4C5 SizeRef=1368,1054 Split=X
     DockNode      ID=0x00000001 Parent=0x00000003 SizeRef=547,1105 Split=Y Selected=0xCD8384B1
       DockNode    ID=0x00000008 Parent=0x00000001 SizeRef=547,575 Selected=0xCD8384B1
