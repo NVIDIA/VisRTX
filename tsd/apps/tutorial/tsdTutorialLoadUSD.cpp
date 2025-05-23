@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 
   auto camera = anari::newObject<anari::Camera>(device, "perspective");
 
-  const float3 eye = {0.f, 0.f, -2.f};
+  const float3 eye = {0.f, 0.f, -10.f};
   const float3 dir = {0.f, 0.f, 1.f};
   const float3 up = {0.f, 1.f, 0.f};
 
@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
   // Create renderer //
 
   auto renderer = anari::newObject<anari::Renderer>(device, "default");
-  const float4 backgroundColor = {0.1f, 0.1f, 0.1f, 1.f};
+  const float4 backgroundColor = {1.0f, 1.0f, 1.0f, 0.2f};
   anari::setParameter(device, renderer, "background", backgroundColor);
   anari::setParameter(device, renderer, "ambientRadiance", 0.2f);
   anari::setParameter(device, renderer, "pixelSamples", 16);

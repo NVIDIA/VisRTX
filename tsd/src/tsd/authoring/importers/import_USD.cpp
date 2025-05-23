@@ -8,6 +8,7 @@
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/TSDMath.hpp"
 #if TSD_USE_USD
 // usd
 #include <pxr/base/gf/vec2f.h>
@@ -17,6 +18,7 @@
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/xform.h>
+#include <pxr/usd/usdGeom/xformCache.h>
 #endif
 // std
 #include <string>
@@ -25,6 +27,16 @@
 namespace tsd {
 
 #if TSD_USE_USD
+
+// Helper: Convert pxr::GfMatrix4d to tsd::mat4 (float4x4)
+inline tsd::mat4 to_tsd_mat4(const pxr::GfMatrix4d &m)
+{
+  tsd::mat4 out;
+  for (int i = 0; i < 4; ++i)
+    for (int j = 0; j < 4; ++j)
+      out[i][j] = static_cast<float>(m[i][j]);
+  return out;
+}
 
 void import_USD(Context &ctx,
     const char *filepath,
@@ -43,12 +55,23 @@ void import_USD(Context &ctx,
   auto usd_root = ctx.insertChildNode(
       location ? location : ctx.defaultLayer()->root(), filepath);
 
+  // Create a transform cache at default time
+  pxr::UsdGeomXformCache xformCache(pxr::UsdTimeCode::Default());
+
   // Traverse all prims in the USD file
   for (pxr::UsdPrim const &prim : stage->Traverse()) {
     if (!prim.IsA<pxr::UsdGeomMesh>()) {
       logWarning("[import_USD] skipping prim (not UsdGeomMesh)");
       continue;
     }
+    // Get the world transform for this prim
+    pxr::GfMatrix4d usdXform = xformCache.GetLocalToWorldTransform(prim);
+    tsd::mat4 tsdXform = to_tsd_mat4(usdXform);
+
+    // Insert a transform node for this prim
+    std::string primName = prim.GetName().GetString();
+    if (primName.empty()) primName = "<unnamed_xform>";
+    auto xformNode = ctx.insertChildTransformNode(usd_root, tsdXform, primName.c_str());
 
     pxr::UsdGeomMesh mesh(prim);
 
@@ -125,15 +148,16 @@ void import_USD(Context &ctx,
     // TODO: Handle texcoords, colors, and materials if present
 
     // Set mesh name
-    std::string name = prim.GetName().GetString();
-    if (name.empty())
-      name = "<unnamed_mesh>";
-    meshObj->setName(name.c_str());
+    if (primName.empty())
+      primName = "<unnamed_mesh>";
+    meshObj->setName(primName.c_str());
 
     // Use default material for now
     auto mat = ctx.defaultMaterial();
-    auto surface = ctx.createSurface(name.c_str(), meshObj, mat);
-    ctx.insertChildObjectNode(usd_root, surface);
+
+    // Insert mesh as child of the transform node
+    auto surface = ctx.createSurface(primName.c_str(), meshObj, mat);
+    ctx.insertChildObjectNode(xformNode, surface);
   }
 }
 #else
