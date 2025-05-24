@@ -82,7 +82,10 @@ World::World(DeviceGlobalState *d)
 {
   m_zeroGroup = new Group(d);
   m_zeroInstance = new Instance(d);
+
   m_zeroInstance->setParamDirect("group", m_zeroGroup.ptr);
+  m_zeroInstance->commitParameters();
+  m_zeroInstance->finalize();
 
   // never any public ref to these objects
   m_zeroGroup->refDec(helium::RefType::PUBLIC);
@@ -118,8 +121,9 @@ void World::commitParameters()
 
 void World::finalize()
 {
-  m_addZeroInstance = m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData;
-  if (m_addZeroInstance)
+  const bool addZeroInstance =
+      m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData;
+  if (addZeroInstance)
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World will add zero instance");
 
   if (m_zeroSurfaceData) {
@@ -149,20 +153,21 @@ void World::finalize()
   m_zeroInstance->setParam("id", getParam<uint32_t>("id", ~0u));
 
   m_zeroGroup->commitParameters();
-  m_zeroInstance->commitParameters();
   m_zeroGroup->finalize();
-  m_zeroInstance->finalize();
 
-  m_instances.reset();
+  m_instances.clear();
 
   if (m_instanceData) {
-    m_instanceData->removeAppendedHandles();
-    if (m_addZeroInstance)
-      m_instanceData->appendHandle(m_zeroInstance.ptr);
-    m_instances = make_Span((Instance **)m_instanceData->handlesBegin(),
-        m_instanceData->totalSize());
-  } else if (m_addZeroInstance)
-    m_instances = make_Span(&m_zeroInstance.ptr, 1);
+    std::for_each(m_instanceData->handlesBegin(),
+        m_instanceData->handlesEnd(),
+        [&](auto *o) {
+          if (o && o->isValid())
+            m_instances.push_back((Instance *)o);
+        });
+  }
+
+  if (addZeroInstance)
+    m_instances.push_back(m_zeroInstance.ptr);
 
   m_objectUpdates.lastTLASBuild = 0;
   m_objectUpdates.lastBLASCheck = 0;

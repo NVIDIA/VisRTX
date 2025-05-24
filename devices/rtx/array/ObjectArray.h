@@ -59,13 +59,9 @@ struct ObjectArray : public Array
 
   void uploadArrayData() const override;
 
-  void appendHandle(Object *);
-  void removeAppendedHandles();
-
  private:
   void updateInternalHandleArrays() const;
 
-  mutable std::vector<Object *> m_appendedHandles;
   mutable std::vector<Object *> m_appHandles;
   mutable std::vector<Object *> m_liveHandles;
   mutable HostDeviceArray<void *> m_GPUData;
