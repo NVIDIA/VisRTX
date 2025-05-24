@@ -28,6 +28,10 @@
 #include <pxr/usd/usdShade/input.h>
 #include <pxr/usd/usdShade/output.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
+#include <pxr/usd/usdLux/distantLight.h>
+#include <pxr/usd/usdLux/rectLight.h>
+#include <pxr/usd/usdLux/sphereLight.h>
+#include <pxr/usd/usdLux/diskLight.h>
 #endif
 // std
 #include <string>
@@ -365,7 +369,85 @@ static void import_usd_cylinder(Context &ctx, const pxr::UsdPrim &prim, LayerNod
   ctx.insertChildObjectNode(parent, surface);
 }
 
-// Helper: Recursive import function for prims and their children
+// -----------------------------------------------------------------------------
+// Light import helpers
+// -----------------------------------------------------------------------------
+
+static bool import_usd_distant_light(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent) {
+  if (!prim.IsA<pxr::UsdLuxDistantLight>()) return false;
+  pxr::UsdLuxDistantLight usdLight(prim);
+  auto light = ctx.createObject<Light>(tokens::light::directional);
+  float intensity = 1.0f;
+  usdLight.GetIntensityAttr().Get(&intensity);
+  pxr::GfVec3f color(1.0f);
+  usdLight.GetColorAttr().Get(&color);
+  light->setParameter("color", float3(color[0], color[1], color[2]));
+  light->setParameter("irradiance", intensity);
+  // TODO: set direction from transform
+  ctx.insertChildObjectNode(parent, light);
+  return true;
+}
+
+static bool import_usd_rect_light(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent) {
+  if (!prim.IsA<pxr::UsdLuxRectLight>()) return false;
+  pxr::UsdLuxRectLight usdLight(prim);
+  auto light = ctx.createObject<Light>(tokens::light::quad);
+  float intensity = 1.0f;
+  usdLight.GetIntensityAttr().Get(&intensity);
+  pxr::GfVec3f color(1.0f);
+  usdLight.GetColorAttr().Get(&color);
+  double width = 1.0, height = 1.0;
+  usdLight.GetWidthAttr().Get(&width);
+  usdLight.GetHeightAttr().Get(&height);
+  light->setParameter("color", float3(color[0], color[1], color[2]));
+  light->setParameter("intensity", intensity);
+  light->setParameter("edge1", float3(width, 0.f, 0.f));
+  light->setParameter("edge2", float3(0.f, height, 0.f));
+  // TODO: set position from transform
+  ctx.insertChildObjectNode(parent, light);
+  return true;
+}
+
+static bool import_usd_sphere_light(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent) {
+  if (!prim.IsA<pxr::UsdLuxSphereLight>()) return false;
+  pxr::UsdLuxSphereLight usdLight(prim);
+  auto light = ctx.createObject<Light>(tokens::light::point);
+  float intensity = 1.0f;
+  usdLight.GetIntensityAttr().Get(&intensity);
+  pxr::GfVec3f color(1.0f);
+  usdLight.GetColorAttr().Get(&color);
+  double radius = 1.0;
+  usdLight.GetRadiusAttr().Get(&radius);
+  light->setParameter("color", float3(color[0], color[1], color[2]));
+  light->setParameter("intensity", intensity);
+  // TODO: set position from transform
+  // Optionally, set radius as metadata or custom param
+  ctx.insertChildObjectNode(parent, light);
+  return true;
+}
+
+static bool import_usd_disk_light(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent) {
+  if (!prim.IsA<pxr::UsdLuxDiskLight>()) return false;
+  pxr::UsdLuxDiskLight usdLight(prim);
+  auto light = ctx.createObject<Light>(tokens::light::ring);
+  float intensity = 1.0f;
+  usdLight.GetIntensityAttr().Get(&intensity);
+  pxr::GfVec3f color(1.0f);
+  usdLight.GetColorAttr().Get(&color);
+  double radius = 1.0;
+  usdLight.GetRadiusAttr().Get(&radius);
+  light->setParameter("color", float3(color[0], color[1], color[2]));
+  light->setParameter("intensity", intensity);
+  // TODO: set position from transform
+  // Optionally, set radius as metadata or custom param
+  ctx.insertChildObjectNode(parent, light);
+  return true;
+}
+
+// -----------------------------------------------------------------------------
+// Recursive import function for prims and their children
+// -----------------------------------------------------------------------------
+
 static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, pxr::UsdGeomXformCache &xformCache, float3 &sceneMin, float3 &sceneMax, const std::string &basePath)
 {
   if (prim.IsInstance()) {
@@ -390,6 +472,14 @@ static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, La
   std::string primName = prim.GetName().GetString();
   if (primName.empty()) primName = "<unnamed_xform>";
   auto xformNode = ctx.insertChildTransformNode(parent, tsdXform, primName.c_str());
+
+  // Import USD Lux lights
+#if TSD_USE_USD
+  if (import_usd_distant_light(ctx, prim, xformNode)) return;
+  if (import_usd_rect_light(ctx, prim, xformNode)) return;
+  if (import_usd_sphere_light(ctx, prim, xformNode)) return;
+  if (import_usd_disk_light(ctx, prim, xformNode)) return;
+#endif
 
   // Import geometry for this prim (if any)
   if (prim.IsA<pxr::UsdGeomMesh>()) {
