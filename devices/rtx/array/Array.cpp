@@ -300,4 +300,9 @@ void Array::on_NoInternalReferences()
   evictGPU();
 }
 
+void Array::on_NoPublicReferences()
+{
+  privatize();
+}
+
 } // namespace visrtx
