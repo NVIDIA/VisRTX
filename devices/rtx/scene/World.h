@@ -34,6 +34,8 @@
 #include <helium/utility/TimeStamp.h>
 #include "Instance.h"
 #include "utility/HostDeviceArray.h"
+// std
+#include <vector>
 
 namespace visrtx {
 
@@ -72,9 +74,8 @@ struct World : public Object
   helium::ChangeObserverPtr<ObjectArray> m_zeroLightData;
 
   helium::ChangeObserverPtr<ObjectArray> m_instanceData;
-  Span<Instance *> m_instances;
+  std::vector<Instance *> m_instances;
 
-  bool m_addZeroInstance{false};
   helium::IntrusivePtr<Group> m_zeroGroup;
   helium::IntrusivePtr<Instance> m_zeroInstance;
 

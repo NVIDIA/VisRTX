@@ -48,6 +48,7 @@ void import_HSMESH(Context &ctx, const char *filepath, LayerNodeRef location)
   auto hs_root = ctx.insertChildTransformNode(
       location ? location : ctx.defaultLayer()->root());
 
+  MaterialRef mat;
   auto geom = ctx.createObject<Geometry>(tokens::geometry::triangle);
   geom->setName(filename.c_str());
 
@@ -57,10 +58,12 @@ void import_HSMESH(Context &ctx, const char *filepath, LayerNodeRef location)
   readHsArray(ctx, geom, "primitive.index", ANARI_UINT32_VEC3, fp);
 
   auto scalars = readHsArray(ctx, geom, "vertex.attribute0", ANARI_FLOAT32, fp);
-  auto range = algorithm::computeScalarRange(*scalars);
-
-  auto mat = ctx.createObject<Material>(tsd::tokens::material::matte);
-  mat->setParameterObject("color", *makeDefaultColorMapSampler(ctx, range));
+  if (scalars) {
+    mat = ctx.createObject<Material>(tsd::tokens::material::matte);
+    auto range = algorithm::computeScalarRange(*scalars);
+    mat->setParameterObject("color", *makeDefaultColorMapSampler(ctx, range));
+  } else
+    mat = ctx.defaultMaterial();
 
   auto surface = ctx.createSurface(filename.c_str(), geom, mat);
 

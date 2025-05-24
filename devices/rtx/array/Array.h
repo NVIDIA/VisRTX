@@ -110,6 +110,7 @@ struct Array : public UploadableArray
 
  private:
   void on_NoInternalReferences() override;
+  void on_NoPublicReferences() override;
 
   struct AnariArrayData
   {
