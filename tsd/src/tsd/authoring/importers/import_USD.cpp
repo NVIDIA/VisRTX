@@ -32,6 +32,7 @@
 #include <pxr/usd/usdLux/rectLight.h>
 #include <pxr/usd/usdLux/sphereLight.h>
 #include <pxr/usd/usdLux/diskLight.h>
+#include <pxr/usd/usdLux/domeLight.h>
 #endif
 // std
 #include <string>
@@ -444,6 +445,42 @@ static bool import_usd_disk_light(Context &ctx, const pxr::UsdPrim &prim, LayerN
   return true;
 }
 
+static bool import_usd_dome_light(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, const std::string &basePath) {
+  if (!prim.IsA<pxr::UsdLuxDomeLight>()) return false;
+  pxr::UsdLuxDomeLight usdLight(prim);
+  auto light = ctx.createObject<Light>(tokens::light::hdri);
+  float intensity = 1.0f;
+  usdLight.GetIntensityAttr().Get(&intensity);
+  pxr::GfVec3f color(1.0f);
+  usdLight.GetColorAttr().Get(&color);
+  light->setParameter("color", float3(color[0], color[1], color[2]));
+  light->setParameter("scale", intensity);
+  // Load and set environment texture from usdLight.GetTextureFileAttr()
+  pxr::SdfAssetPath textureAsset;
+  if (usdLight.GetTextureFileAttr().Get(&textureAsset)) {
+    std::string texFile = textureAsset.GetResolvedPath();
+    if (texFile.empty())
+      texFile = textureAsset.GetAssetPath();
+    if (!texFile.empty()) {
+      // Use basePath to resolve relative paths if needed
+      std::string resolvedPath = texFile;
+      if (!resolvedPath.empty() && resolvedPath[0] != '/') {
+        // Try to resolve relative to basePath
+        resolvedPath = basePath + texFile;
+      }
+      // Try to import the texture as a sampler
+      static TextureCache domeCache;
+      auto sampler = importTexture(ctx, resolvedPath, domeCache);
+      if (sampler)
+        light->setParameterObject("image", *sampler);
+      else
+        printf("[import_USD] Warning: Failed to load dome light texture: %s\n", resolvedPath.c_str());
+    }
+  }
+  ctx.insertChildObjectNode(parent, light);
+  return true;
+}
+
 // -----------------------------------------------------------------------------
 // Recursive import function for prims and their children
 // -----------------------------------------------------------------------------
@@ -479,6 +516,7 @@ static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, La
   if (import_usd_rect_light(ctx, prim, xformNode)) return;
   if (import_usd_sphere_light(ctx, prim, xformNode)) return;
   if (import_usd_disk_light(ctx, prim, xformNode)) return;
+  if (import_usd_dome_light(ctx, prim, xformNode, basePath)) return;
 #endif
 
   // Import geometry for this prim (if any)
