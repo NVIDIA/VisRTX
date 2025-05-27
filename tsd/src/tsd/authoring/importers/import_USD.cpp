@@ -111,12 +111,10 @@ static MaterialRef import_usd_preview_surface_material(
 // Helper to get the bound material for a prim (USD or default)
 static MaterialRef get_bound_material(Context &ctx, const pxr::UsdPrim &prim, const std::string &basePath) {
   MaterialRef mat = ctx.defaultMaterial();
-#if TSD_USE_USD
   pxr::UsdShadeMaterialBindingAPI binding(prim);
   pxr::UsdShadeMaterial usdMat = binding.ComputeBoundMaterial();
   if (usdMat)
     mat = import_usd_preview_surface_material(ctx, usdMat, basePath);
-#endif
   return mat;
 }
 
