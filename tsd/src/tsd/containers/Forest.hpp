@@ -120,6 +120,7 @@ struct Forest
   // ForestNode access //
 
   size_t size() const;
+  size_t capacity() const; // to get highest possible node index
   bool empty() const;
 
   NodeRef at(size_t i) const;
@@ -338,6 +339,12 @@ template <typename T>
 inline size_t Forest<T>::size() const
 {
   return m_nodes.size();
+}
+
+template <typename T>
+inline size_t Forest<T>::capacity() const
+{
+  return m_nodes.capacity();
 }
 
 template <typename T>

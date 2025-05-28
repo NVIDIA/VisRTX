@@ -92,7 +92,8 @@ void LayerTree::buildUI_tree()
     // to track if children are also disabled:
     const void *firstDisabledNode = nullptr;
 
-    m_needToTreePop.resize(layer.size());
+    m_needToTreePop.clear();
+    m_needToTreePop.resize(layer.capacity(), false);
     auto onNodeEntryBuildUI = [&](auto &node, int level) {
       if (level == 0)
         return true;
