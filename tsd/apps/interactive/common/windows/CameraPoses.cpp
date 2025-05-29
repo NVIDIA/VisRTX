@@ -13,7 +13,7 @@ CameraPoses::CameraPoses(AppCore *core, const char *name) : Window(core, name)
 
 void CameraPoses::buildUI()
 {
-  if (ImGui::Button("save current"))
+  if (ImGui::Button("add current"))
     m_core->addCurrentViewToCameraPoses();
 
   ImGui::Separator();

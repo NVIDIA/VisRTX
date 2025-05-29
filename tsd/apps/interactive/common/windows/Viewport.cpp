@@ -237,8 +237,10 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       if (firstFrame || m_arcball->distance() == inf) {
         resetView(true);
-        if (m_core->view.poses.empty())
+        if (m_core->view.poses.empty()) {
+          tsd::logStatus("[viewport] adding 'default' camera pose");
           m_core->addCurrentViewToCameraPoses("default");
+        }
         firstFrame = false;
       } else {
         // NOTE(jda) - this *should* cause a commit buffer flush

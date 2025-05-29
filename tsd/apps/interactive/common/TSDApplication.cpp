@@ -210,10 +210,14 @@ void TSDApplication::teardown()
 
 void TSDApplication::saveApplicationState(const char *filename)
 {
+  tsd::logStatus("clearing old settings tree...");
+
+  auto &root = m_settings.root();
+  root.reset();
+
   tsd::logStatus("serializing application state + context...");
 
   auto &core = *appCore();
-  auto &root = m_settings.root();
 
   // Window state
   auto &windows = root["windows"];
