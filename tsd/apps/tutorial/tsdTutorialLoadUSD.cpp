@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 
   // Setup ANARI device //
 
-  anari::Library lib = anari::loadLibrary("visrtx", statusFunc);
+  anari::Library lib = anari::loadLibrary("helide", statusFunc);
   anari::Device device = anari::newDevice(lib, "default");
 
   // Setup render index //
@@ -90,9 +90,9 @@ int main(int argc, char *argv[])
   // Kitchen scene
   //const float3 eye = {75.0f, -600.0, 150.0f};
   // McDo scene
-  const float3 eye = {0.5f, 10.0f, 0.0f};
+  const float3 eye = {0.5f, 0.0f, 10.0f};
   
-  const float3 dir = {0.0f, -1.0f, 0.0f};
+  const float3 dir = {0.0f, 0.0f, -1.0f};
   const float3 up = {0.0f, 0.0f, 1.0f};
 
 

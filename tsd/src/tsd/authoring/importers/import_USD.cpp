@@ -33,6 +33,7 @@
 #include <pxr/usd/usdLux/sphereLight.h>
 #include <pxr/usd/usdLux/diskLight.h>
 #include <pxr/usd/usdLux/domeLight.h>
+#include <pxr/usd/usdGeom/scope.h>
 #endif
 // std
 #include <string>
@@ -475,6 +476,7 @@ static void import_usd_dome_light(Context &ctx, const pxr::UsdPrim &prim, LayerN
 
 static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, pxr::UsdGeomXformCache &xformCache, float3 &sceneMin, float3 &sceneMax, const std::string &basePath)
 {
+  //if (prim.IsPrototype()) return;
   if (prim.IsInstance()) {
     pxr::UsdPrim prototype = prim.GetPrototype();
     if (prototype) {
@@ -491,40 +493,68 @@ static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, La
     return;
   }
 
-  // Usual transform node logic
+  // Determine if this prim is a geometry or light
+  bool isGeometry = prim.IsA<pxr::UsdGeomMesh>() ||
+                    prim.IsA<pxr::UsdGeomPoints>() ||
+                    prim.IsA<pxr::UsdGeomSphere>() ||
+                    prim.IsA<pxr::UsdGeomCone>() ||
+                    prim.IsA<pxr::UsdGeomCylinder>();
+  bool isLight = prim.IsA<pxr::UsdLuxDistantLight>() ||
+                 prim.IsA<pxr::UsdLuxRectLight>() ||
+                 prim.IsA<pxr::UsdLuxSphereLight>() ||
+                 prim.IsA<pxr::UsdLuxDiskLight>() ||
+                 prim.IsA<pxr::UsdLuxDomeLight>();
+  bool isXform = prim.IsA<pxr::UsdGeomXform>() || prim.IsA<pxr::UsdGeomScope>();
+
+  // Count children
+  size_t numChildren = 0;
+  for (const auto &child : prim.GetChildren()) ++numChildren;
+
+  // Only create a transform node if:
+  // - This prim is geometry or light (so we need a node for it)
+  // - This prim is a grouping node (Xform/Scope) with more than one child
+  // - This prim is a grouping node (Xform/Scope) and is the root of a hierarchy (i.e., parent is null)
+  // Otherwise, skip this node and recurse into its children directly
+  bool createNode = isGeometry || isLight || (isXform && (numChildren > 1 || !parent));
+
   pxr::GfMatrix4d usdXform = xformCache.GetLocalToWorldTransform(prim);
   tsd::mat4 tsdXform = to_tsd_mat4(usdXform);
   std::string primName = prim.GetName().GetString();
   if (primName.empty()) primName = "<unnamed_xform>";
-  auto xformNode = ctx.insertChildTransformNode(parent, tsdXform, primName.c_str());
+
+  LayerNodeRef thisNode = parent;
+  if (createNode) {
+    thisNode = ctx.insertChildTransformNode(parent, tsdXform, primName.c_str());
+  }
 
   // Import geometry for this prim (if any)
   if (prim.IsA<pxr::UsdGeomMesh>()) {
-    import_usd_mesh(ctx, prim, xformNode, usdXform, sceneMin, sceneMax, basePath);
+    import_usd_mesh(ctx, prim, thisNode, usdXform, sceneMin, sceneMax, basePath);
   } else if (prim.IsA<pxr::UsdGeomPoints>()) {
-    import_usd_points(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
+    import_usd_points(ctx, prim, thisNode, usdXform, sceneMin, sceneMax);
   } else if (prim.IsA<pxr::UsdGeomSphere>()) {
-    import_usd_sphere(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
+    import_usd_sphere(ctx, prim, thisNode, usdXform, sceneMin, sceneMax);
   } else if (prim.IsA<pxr::UsdGeomCone>()) {
-    import_usd_cone(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
+    import_usd_cone(ctx, prim, thisNode, usdXform, sceneMin, sceneMax);
   } else if (prim.IsA<pxr::UsdGeomCylinder>()) {
-    import_usd_cylinder(ctx, prim, xformNode, usdXform, sceneMin, sceneMax);
+    import_usd_cylinder(ctx, prim, thisNode, usdXform, sceneMin, sceneMax);
   } else if (prim.IsA<pxr::UsdLuxDistantLight>()){
-    import_usd_distant_light(ctx, prim, xformNode);
+    import_usd_distant_light(ctx, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxRectLight>()){
-    import_usd_rect_light(ctx, prim, xformNode);
+    import_usd_rect_light(ctx, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxSphereLight>()){
-    import_usd_sphere_light(ctx, prim, xformNode);
+    import_usd_sphere_light(ctx, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxDiskLight>()){
-    import_usd_disk_light(ctx, prim, xformNode);
+    import_usd_disk_light(ctx, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxDomeLight>()){
-    import_usd_dome_light(ctx, prim, xformNode, basePath);
+    import_usd_dome_light(ctx, prim, thisNode, basePath);
   }
   // Recurse into children
   for (const auto &child : prim.GetChildren()) {
-    import_usd_prim_recursive(ctx, child, xformNode, xformCache, sceneMin, sceneMax, basePath);
+    import_usd_prim_recursive(ctx, child, thisNode, xformCache, sceneMin, sceneMax, basePath);
   }
 }
+
 
 void import_USD(Context &ctx,
     const char *filepath,
@@ -558,6 +588,7 @@ void import_USD(Context &ctx,
 
   // Traverse all prims in the USD file, but only import top-level prims
   for (pxr::UsdPrim const &prim : stage->Traverse()) {
+    //if (prim.IsPrototype()) continue;
     if (prim.GetParent() && prim.GetParent().IsPseudoRoot()) {
       import_usd_prim_recursive(ctx, prim, usd_root, xformCache, sceneMin, sceneMax, basePath);
     }
