@@ -4,7 +4,6 @@
 #pragma once
 
 #include "AppCore.h"
-#include "Manipulator.h"
 #include "modals/AppSettingsDialog.h"
 #include "modals/ImportFileDialog.h"
 // tsd
@@ -49,7 +48,6 @@ class TSDApplication : public anari_viewer::Application
 
   // Data //
 
-  manipulators::Orbit m_manipulator;
   std::vector<Window *> m_windows;
   std::unique_ptr<tsd_viewer::AppSettingsDialog> m_appSettingsDialog;
   std::unique_ptr<tsd_viewer::ImportFileDialog> m_fileDialog;

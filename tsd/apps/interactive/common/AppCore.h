@@ -12,9 +12,19 @@
 // anari_viewer
 #include "anari_viewer/Application.h"
 
+#include "Manipulator.h"
+
 namespace tsd_viewer {
 
 struct ImportFileDialog;
+
+struct CameraPose
+{
+  std::string name;
+  tsd::float3 lookat{0.f};
+  tsd::float3 azeldist{0.f};
+  int upAxis{0};
+};
 
 enum class ImporterType
 {
@@ -41,12 +51,9 @@ struct AppCore
   struct CommandLineOptions
   {
     bool useDefaultLayout{true};
-    bool enableDebug{false};
     bool loadingContext{false};
     bool preloadDevices{false};
     bool loadedFromStateFile{false};
-    anari::Library debug{nullptr};
-    std::string traceDir;
     std::vector<std::pair<ImporterType, std::string>> filenames;
     ImporterType importerType{ImporterType::NONE};
     std::vector<std::string> libraryList;
@@ -80,10 +87,17 @@ struct AppCore
     bool echoOutput{false};
   } logging;
 
+  struct CameraState
+  {
+    std::vector<CameraPose> poses;
+    std::string defaultPose;
+    manipulators::Orbit manipulator;
+  } view;
+
   struct Windows
   {
     ImportFileDialog *importDialog{nullptr};
-    float fontScale{1.25f};
+    float fontScale{1.f};
   } windows;
 
   anari_viewer::Application *application{nullptr};
@@ -110,6 +124,9 @@ struct AppCore
   void setSelectedNode(tsd::LayerNode &n);
   bool objectIsSelected() const;
   void clearSelected();
+
+  void addCurrentViewToCameraPoses(const char *name = "<view>");
+  void setCameraPose(const CameraPose &pose);
 
   // Not copyable or moveable //
   AppCore(const AppCore &) = delete;

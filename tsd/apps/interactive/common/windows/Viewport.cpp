@@ -5,27 +5,21 @@
 #include "../AppCore.h"
 #include "Log.h"
 // std
-#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <limits>
-// stb_image
-#include "tsd_stb/stb_image_write.h"
 // tsd
 #include "../tsd_ui.h"
 
 namespace tsd_viewer {
 
 constexpr float inf = std::numeric_limits<float>::infinity();
-static std::atomic_bool g_firstFrame = true;
-int g_screenshotIndex = 0;
 
 // Viewport definitions ///////////////////////////////////////////////////////
 
 Viewport::Viewport(AppCore *core, manipulators::Orbit *m, const char *name)
     : Window(core, name)
 {
-  stbi_flip_vertically_on_write(1);
   setManipulator(m);
   m_overlayWindowName = "overlay_";
   m_overlayWindowName += name;
@@ -237,12 +231,17 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       //             device also to be set.
       m_device = d;
 
-      if (g_firstFrame && m_core->commandLine.loadedFromStateFile)
-        g_firstFrame = false;
+      static bool firstFrame = true;
+      if (firstFrame && m_core->commandLine.loadedFromStateFile)
+        firstFrame = false;
 
-      if (g_firstFrame || m_arcball->distance() == inf) {
+      if (firstFrame || m_arcball->distance() == inf) {
         resetView(true);
-        g_firstFrame = false;
+        if (m_core->view.poses.empty()) {
+          tsd::logStatus("[viewport] adding 'default' camera pose");
+          m_core->addCurrentViewToCameraPoses("default");
+        }
+        firstFrame = false;
       } else {
         // NOTE(jda) - this *should* cause a commit buffer flush
         tsd::math::float3 bounds[2];
@@ -561,22 +560,6 @@ void Viewport::updateImage()
   m_latestAnariFL = duration * 1000;
   m_minFL = std::min(m_minFL, m_latestAnariFL);
   m_maxFL = std::max(m_maxFL, m_latestAnariFL);
-
-#if 0
-  if (m_saveNextFrame) {
-    std::string filename = "tsd_viewer-" + m_libName + '-'
-        + std::to_string(g_screenshotIndex++) + ".png";
-    stbi_write_png(filename.c_str(),
-        color.width,
-        color.height,
-        4,
-        color.data,
-        4 * color.width);
-    tsd::logStatus(
-        "[viewport] frame saved to '%s'\n", filename.c_str());
-    m_saveNextFrame = false;
-  }
-#endif
 }
 
 void Viewport::echoCameraConfig()
@@ -715,7 +698,6 @@ bool Viewport::ui_picking()
         c.z);
 
     m_arcball->setCenter(c);
-    updateCamera();
     didPick = true;
   }
 

@@ -26,9 +26,9 @@ class Application : public TSDApplication
   {
     auto windows = TSDApplication::setupWindows();
 
-    auto *manipulator = &m_manipulator;
     auto *core = appCore();
     auto &ctx = core->tsd.ctx;
+    auto *manipulator = &core->view.manipulator;
 
     auto *log = new Log(core);
     auto *viewport = new Viewport(core, manipulator, "Viewport");

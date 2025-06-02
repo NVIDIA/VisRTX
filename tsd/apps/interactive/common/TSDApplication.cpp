@@ -87,14 +87,20 @@ void TSDApplication::uiFrameStart()
 
   // Handle app shortcuts //
 
-  auto doSave = [&]() {
-    if (m_currentSessionFilename.empty())
+  auto doSave = [&](const std::string &name = "") {
+    if (!name.empty())
+      m_filenameToSaveNextFrame = name;
+    else if (m_currentSessionFilename.empty())
       m_core.getFilenameFromDialog(m_filenameToSaveNextFrame, true);
     else
       m_filenameToSaveNextFrame = m_currentSessionFilename;
   };
 
-  if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
+  if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S))
+    m_core.getFilenameFromDialog(m_filenameToSaveNextFrame, true);
+  else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_S))
+    doSave("state.tsd");
+  else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
     doSave();
 
   // Main Menu //
@@ -109,8 +115,11 @@ void TSDApplication::uiFrameStart()
       if (ImGui::MenuItem("Save", "CTRL+S"))
         doSave();
 
-      if (ImGui::MenuItem("Save As..."))
+      if (ImGui::MenuItem("Save As...", "CTRL+SHIFT+S"))
         m_core.getFilenameFromDialog(m_filenameToSaveNextFrame, true);
+
+      if (ImGui::MenuItem("Quick Save", "CTRL+ALT+S"))
+        doSave("state.tsd");
 
       ImGui::Separator();
 
@@ -201,10 +210,14 @@ void TSDApplication::teardown()
 
 void TSDApplication::saveApplicationState(const char *filename)
 {
+  tsd::logStatus("clearing old settings tree...");
+
+  auto &root = m_settings.root();
+  root.reset();
+
   tsd::logStatus("serializing application state + context...");
 
   auto &core = *appCore();
-  auto &root = m_settings.root();
 
   // Window state
   auto &windows = root["windows"];
@@ -219,6 +232,16 @@ void TSDApplication::saveApplicationState(const char *filename)
   settings["logVerbose"] = core.logging.verbose;
   settings["logEchoOutput"] = core.logging.echoOutput;
   settings["fontScale"] = core.windows.fontScale;
+
+  // Camera poses
+  auto &cameraPoses = root["cameraPoses"];
+  for (auto &p : core.view.poses) {
+    auto &pose = cameraPoses.append();
+    pose["name"] = p.name;
+    pose["lookat"] = p.lookat;
+    pose["azeldist"] = p.azeldist;
+    pose["upAxis"] = p.upAxis;
+  }
 
   // Serialize TSD context
   root["context"].reset();
@@ -256,6 +279,18 @@ void TSDApplication::loadApplicationState(const char *filename)
     settings["logVerbose"].getValue(ANARI_BOOL, &core.logging.verbose);
     settings["logEchoOutput"].getValue(ANARI_BOOL, &core.logging.echoOutput);
     settings["fontScale"].getValue(ANARI_FLOAT32, &core.windows.fontScale);
+  }
+
+  core.view.poses.clear();
+  if (auto *c = root.child("cameraPoses"); c != nullptr) {
+    c->foreach_child([&](auto &p) {
+      CameraPose pose;
+      p["name"].getValue(ANARI_STRING, &pose.name);
+      p["lookat"].getValue(ANARI_FLOAT32_VEC3, &pose.lookat);
+      p["azeldist"].getValue(ANARI_FLOAT32_VEC3, &pose.azeldist);
+      p["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
+      core.view.poses.push_back(std::move(pose));
+    });
   }
 
   // TSD context from app state file, or context-only file
