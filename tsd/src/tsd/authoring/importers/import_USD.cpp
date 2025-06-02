@@ -53,7 +53,7 @@ static void setShaderInputIfPresent(tsd::MaterialRef &mat, pxr::UsdShadeShader &
   pxr::UsdShadeInput input = shader.GetInput(pxr::TfToken(inputName));
   pxr::GfVec3f colorVal;
   if (input && input.Get(&colorVal)) {
-    printf("[import_USD] Setting %s: %f %f %f\n", paramName, colorVal[0], colorVal[1], colorVal[2]);
+    logStatus("[import_USD] Setting %s: %f %f %f\n", paramName, colorVal[0], colorVal[1], colorVal[2]);
     mat->setParameter(tsd::Token(paramName), tsd::float3(colorVal[0], colorVal[1], colorVal[2]));
   }
 }
@@ -62,7 +62,7 @@ static void setShaderInputIfPresent(tsd::MaterialRef &mat, pxr::UsdShadeShader &
   pxr::UsdShadeInput input = shader.GetInput(pxr::TfToken(inputName));
   float floatVal;
   if (input && input.Get(&floatVal)) {
-    printf("[import_USD] Setting %s: %f\n", paramName, floatVal);
+    logStatus("[import_USD] Setting %s: %f\n", paramName, floatVal);
     mat->setParameter(tsd::Token(paramName), floatVal);
   }
 }
@@ -79,7 +79,7 @@ static MaterialRef import_usd_preview_surface_material(
   pxr::UsdShadeOutput surfaceOutput = usdMat.GetOutput(outputName);
   
   if (surfaceOutput && surfaceOutput.HasConnectedSource()) {
-    printf("[import_USD] Surface output has connected source\n");
+    logStatus("[import_USD] Surface output has connected source\n");
     pxr::UsdShadeConnectableAPI source;
     pxr::TfToken sourceName;
     pxr::UsdShadeAttributeType sourceType;
@@ -104,7 +104,7 @@ static MaterialRef import_usd_preview_surface_material(
   std::string matName = usdMat.GetPrim().GetName().GetString();
   if (matName.empty()) matName = "USDPreviewSurface";
   mat->setName(matName.c_str());
-  printf("[import_USD] Created material: %s\n", matName.c_str());
+  logStatus("[import_USD] Created material: %s\n", matName.c_str());
 
   return mat;
 }
@@ -167,7 +167,7 @@ static void import_usd_mesh(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef
   pxr::VtArray<pxr::GfVec3f> normals;
   mesh.GetNormalsAttr().Get(&normals);
 
-  printf("[import_USD] Mesh '%s': %zu points, %zu faces, %zu normals\n",
+  logStatus("[import_USD] Mesh '%s': %zu points, %zu faces, %zu normals\n",
           prim.GetName().GetString().c_str(),
           points.size(),
           faceVertexCounts.size(),
@@ -211,7 +211,7 @@ static void import_usd_mesh(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef
   MaterialRef mat = get_bound_material(ctx, prim, basePath);
 
   auto surface = ctx.createSurface(primName.c_str(), meshObj, mat);
-  printf("[import_USD] Assigned material to mesh '%s': %s\n", primName.c_str(), mat->name().c_str());
+  logStatus("[import_USD] Assigned material to mesh '%s': %s\n", primName.c_str(), mat->name().c_str());
   ctx.insertChildObjectNode(parent, surface);
 }
 
@@ -252,7 +252,7 @@ static void import_usd_points(Context &ctx, const pxr::UsdPrim &prim, LayerNodeR
   MaterialRef mat = get_bound_material(ctx, prim, "");
 
   auto surface = ctx.createSurface(primName.c_str(), geom, mat);
-  printf("[import_USD] Assigned material to sphere '%s': %s\n", primName.c_str(), mat->name().c_str());
+  logStatus("[import_USD] Assigned material to sphere '%s': %s\n", primName.c_str(), mat->name().c_str());
   ctx.insertChildObjectNode(parent, surface);
 }
 
@@ -285,7 +285,7 @@ static void import_usd_sphere(Context &ctx, const pxr::UsdPrim &prim, LayerNodeR
   MaterialRef mat = get_bound_material(ctx, prim, "");
 
   auto surface = ctx.createSurface(primName.c_str(), geom, mat);
-  printf("[import_USD] Assigned material to sphere '%s': %s\n", primName.c_str(), mat->name().c_str());
+  logStatus("[import_USD] Assigned material to sphere '%s': %s\n", primName.c_str(), mat->name().c_str());
   ctx.insertChildObjectNode(parent, surface);
 }
 
@@ -325,7 +325,7 @@ static void import_usd_cone(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef
   MaterialRef mat = get_bound_material(ctx, prim, "");
 
   auto surface = ctx.createSurface(primName.c_str(), geom, mat);
-  printf("[import_USD] Assigned material to cone '%s': %s\n", primName.c_str(), mat->name().c_str());
+  logStatus("[import_USD] Assigned material to cone '%s': %s\n", primName.c_str(), mat->name().c_str());
   ctx.insertChildObjectNode(parent, surface);
 }
 
@@ -365,7 +365,7 @@ static void import_usd_cylinder(Context &ctx, const pxr::UsdPrim &prim, LayerNod
   MaterialRef mat = get_bound_material(ctx, prim, "");
 
   auto surface = ctx.createSurface(primName.c_str(), geom, mat);
-  printf("[import_USD] Assigned material to cylinder '%s': %s\n", primName.c_str(), mat->name().c_str());
+  logStatus("[import_USD] Assigned material to cylinder '%s': %s\n", primName.c_str(), mat->name().c_str());
   ctx.insertChildObjectNode(parent, surface);
 }
 
@@ -464,7 +464,7 @@ static void import_usd_dome_light(Context &ctx, const pxr::UsdPrim &prim, LayerN
       if (sampler)
         light->setParameterObject("image", *sampler);
       else
-        printf("[import_USD] Warning: Failed to load dome light texture: %s\n", resolvedPath.c_str());
+        logStatus("[import_USD] Warning: Failed to load dome light texture: %s\n", resolvedPath.c_str());
     }
   }
   ctx.insertChildObjectNode(parent, light);
@@ -488,7 +488,7 @@ static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, La
       // Recursively import the prototype under this transform node
       import_usd_prim_recursive(ctx, prototype, xformNode, xformCache, sceneMin, sceneMax, basePath);
     } else {
-      printf("[import_USD] Instance has no prototype: %s\n", prim.GetName().GetString().c_str());
+      logStatus("[import_USD] Instance has no prototype: %s\n", prim.GetName().GetString().c_str());
     }
     return;
   }
@@ -563,20 +563,20 @@ void import_USD(Context &ctx,
 {
   pxr::UsdStageRefPtr stage = pxr::UsdStage::Open(filepath);
   if (!stage) {
-    printf("[import_USD] failed to open stage '%s'", filepath);
+    logStatus("[import_USD] failed to open stage '%s'", filepath);
     return;
   }
-  printf("[import_USD] Opened USD stage: %s\n", filepath);
+  logStatus("[import_USD] Opened USD stage: %s\n", filepath);
   auto defaultPrim = stage->GetDefaultPrim();
   if (defaultPrim) {
-    printf("[import_USD] Default prim: %s\n", defaultPrim.GetPath().GetString().c_str());
+    logStatus("[import_USD] Default prim: %s\n", defaultPrim.GetPath().GetString().c_str());
   } else {
-    printf("[import_USD] No default prim set.\n");
+    logStatus("[import_USD] No default prim set.\n");
   }
   size_t primCount = 0;
   for (auto it = stage->Traverse().begin(); it != stage->Traverse().end(); ++it)
     ++primCount;
-  printf("[import_USD] Number of prims in stage: %zu\n", primCount);
+  logStatus("[import_USD] Number of prims in stage: %zu\n", primCount);
   float3 sceneMin(std::numeric_limits<float>::max());
   float3 sceneMax(std::numeric_limits<float>::lowest());
   auto usd_root = ctx.insertChildNode(
@@ -593,7 +593,7 @@ void import_USD(Context &ctx,
       import_usd_prim_recursive(ctx, prim, usd_root, xformCache, sceneMin, sceneMax, basePath);
     }
   }
-  printf("[import_USD] Scene bounds: min=(%f, %f, %f) max=(%f, %f, %f)\n",
+  logStatus("[import_USD] Scene bounds: min=(%f, %f, %f) max=(%f, %f, %f)\n",
           sceneMin.x, sceneMin.y, sceneMin.z,
           sceneMax.x, sceneMax.y, sceneMax.z);
 
@@ -604,7 +604,7 @@ void import_USD(Context &ctx,
     LayerNodeRef location,
     bool useDefaultMaterial)
 {
-  printf("[import_USD] USD not enabled in TSD build.");
+  logStatus("[import_USD] USD not enabled in TSD build.");
 }
 #endif
 
