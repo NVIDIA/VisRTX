@@ -41,6 +41,7 @@
 #include <limits>
 
 namespace tsd {
+using tsd::logStatus;
 
 #if TSD_USE_USD
 
@@ -365,7 +366,7 @@ static void import_usd_cylinder(Context &ctx, const pxr::UsdPrim &prim, LayerNod
   MaterialRef mat = get_bound_material(ctx, prim, "");
 
   auto surface = ctx.createSurface(primName.c_str(), geom, mat);
-  logStatus("[import_USD] Assigned material to cylinder '%s': %s\n", primName.c_str(), mat->name().c_str());
+  tsd::logStatus("[import_USD] Assigned material to cylinder '%s': %s\n", primName.c_str(), mat->name().c_str());
   ctx.insertChildObjectNode(parent, surface);
 }
 
@@ -464,34 +465,47 @@ static void import_usd_dome_light(Context &ctx, const pxr::UsdPrim &prim, LayerN
       if (sampler)
         light->setParameterObject("image", *sampler);
       else
-        logStatus("[import_USD] Warning: Failed to load dome light texture: %s\n", resolvedPath.c_str());
+        tsd::logStatus("[import_USD] Warning: Failed to load dome light texture: %s\n", resolvedPath.c_str());
     }
   }
   ctx.insertChildObjectNode(parent, light);
+}
+
+// Helper to check if a GfMatrix4d is identity
+static bool is_identity(const pxr::GfMatrix4d &m) {
+  static const pxr::GfMatrix4d IDENTITY(1.0);
+  return m == IDENTITY;
 }
 
 // -----------------------------------------------------------------------------
 // Recursive import function for prims and their children
 // -----------------------------------------------------------------------------
 
-static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, pxr::UsdGeomXformCache &xformCache, float3 &sceneMin, float3 &sceneMax, const std::string &basePath)
+static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, LayerNodeRef parent, pxr::UsdGeomXformCache &xformCache, float3 &sceneMin, float3 &sceneMax, const std::string &basePath, const pxr::GfMatrix4d &parentWorldXform = pxr::GfMatrix4d(1.0))
 {
   //if (prim.IsPrototype()) return;
   if (prim.IsInstance()) {
     pxr::UsdPrim prototype = prim.GetPrototype();
     if (prototype) {
-      pxr::GfMatrix4d usdXform = xformCache.GetLocalToWorldTransform(prim);
-      tsd::mat4 tsdXform = to_tsd_mat4(usdXform);
+      bool resetsXformStack = false;
+      pxr::GfMatrix4d usdLocalXform = xformCache.GetLocalTransformation(prim, &resetsXformStack);
+      pxr::GfMatrix4d thisWorldXform = resetsXformStack ? usdLocalXform : parentWorldXform * usdLocalXform;
+      tsd::mat4 tsdXform = to_tsd_mat4(usdLocalXform);
       std::string primName = prim.GetName().GetString();
       if (primName.empty()) primName = "<unnamed_instance>";
       auto xformNode = ctx.insertChildTransformNode(parent, tsdXform, primName.c_str());
       // Recursively import the prototype under this transform node
-      import_usd_prim_recursive(ctx, prototype, xformNode, xformCache, sceneMin, sceneMax, basePath);
+      import_usd_prim_recursive(ctx, prototype, xformNode, xformCache, sceneMin, sceneMax, basePath, thisWorldXform);
     } else {
-      logStatus("[import_USD] Instance has no prototype: %s\n", prim.GetName().GetString().c_str());
+      tsd::logStatus("[import_USD] Instance has no prototype: %s\n", prim.GetName().GetString().c_str());
     }
     return;
   }
+
+  // Only declare these in the main body (non-instance case)
+  bool resetsXformStack = false;
+  pxr::GfMatrix4d usdLocalXform = xformCache.GetLocalTransformation(prim, &resetsXformStack);
+  pxr::GfMatrix4d thisWorldXform = resetsXformStack ? usdLocalXform : parentWorldXform * usdLocalXform;
 
   // Determine if this prim is a geometry or light
   bool isGeometry = prim.IsA<pxr::UsdGeomMesh>() ||
@@ -511,14 +525,12 @@ static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, La
   for (const auto &child : prim.GetChildren()) ++numChildren;
 
   // Only create a transform node if:
-  // - This prim is geometry or light (so we need a node for it)
-  // - This prim is a grouping node (Xform/Scope) with more than one child
-  // - This prim is a grouping node (Xform/Scope) and is the root of a hierarchy (i.e., parent is null)
-  // Otherwise, skip this node and recurse into its children directly
-  bool createNode = isGeometry || isLight || (isXform && (numChildren > 1 || !parent));
+  // - The local transform is not identity
+  // - The prim is geometry or light
+  // - The prim resets the xform stack
+  bool createNode = !is_identity(usdLocalXform) || isGeometry || isLight || resetsXformStack;
 
-  pxr::GfMatrix4d usdXform = xformCache.GetLocalToWorldTransform(prim);
-  tsd::mat4 tsdXform = to_tsd_mat4(usdXform);
+  tsd::mat4 tsdXform = to_tsd_mat4(usdLocalXform);
   std::string primName = prim.GetName().GetString();
   if (primName.empty()) primName = "<unnamed_xform>";
 
@@ -529,15 +541,15 @@ static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, La
 
   // Import geometry for this prim (if any)
   if (prim.IsA<pxr::UsdGeomMesh>()) {
-    import_usd_mesh(ctx, prim, thisNode, usdXform, sceneMin, sceneMax, basePath);
+    import_usd_mesh(ctx, prim, thisNode, thisWorldXform, sceneMin, sceneMax, basePath);
   } else if (prim.IsA<pxr::UsdGeomPoints>()) {
-    import_usd_points(ctx, prim, thisNode, usdXform, sceneMin, sceneMax);
+    import_usd_points(ctx, prim, thisNode, thisWorldXform, sceneMin, sceneMax);
   } else if (prim.IsA<pxr::UsdGeomSphere>()) {
-    import_usd_sphere(ctx, prim, thisNode, usdXform, sceneMin, sceneMax);
+    import_usd_sphere(ctx, prim, thisNode, thisWorldXform, sceneMin, sceneMax);
   } else if (prim.IsA<pxr::UsdGeomCone>()) {
-    import_usd_cone(ctx, prim, thisNode, usdXform, sceneMin, sceneMax);
+    import_usd_cone(ctx, prim, thisNode, thisWorldXform, sceneMin, sceneMax);
   } else if (prim.IsA<pxr::UsdGeomCylinder>()) {
-    import_usd_cylinder(ctx, prim, thisNode, usdXform, sceneMin, sceneMax);
+    import_usd_cylinder(ctx, prim, thisNode, thisWorldXform, sceneMin, sceneMax);
   } else if (prim.IsA<pxr::UsdLuxDistantLight>()){
     import_usd_distant_light(ctx, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxRectLight>()){
@@ -551,7 +563,7 @@ static void import_usd_prim_recursive(Context &ctx, const pxr::UsdPrim &prim, La
   }
   // Recurse into children
   for (const auto &child : prim.GetChildren()) {
-    import_usd_prim_recursive(ctx, child, thisNode, xformCache, sceneMin, sceneMax, basePath);
+    import_usd_prim_recursive(ctx, child, thisNode, xformCache, sceneMin, sceneMax, basePath, thisWorldXform);
   }
 }
 
@@ -563,20 +575,20 @@ void import_USD(Context &ctx,
 {
   pxr::UsdStageRefPtr stage = pxr::UsdStage::Open(filepath);
   if (!stage) {
-    logStatus("[import_USD] failed to open stage '%s'", filepath);
+    tsd::logStatus("[import_USD] failed to open stage '%s'", filepath);
     return;
   }
-  logStatus("[import_USD] Opened USD stage: %s\n", filepath);
+  tsd::logStatus("[import_USD] Opened USD stage: %s\n", filepath);
   auto defaultPrim = stage->GetDefaultPrim();
   if (defaultPrim) {
-    logStatus("[import_USD] Default prim: %s\n", defaultPrim.GetPath().GetString().c_str());
+    tsd::logStatus("[import_USD] Default prim: %s\n", defaultPrim.GetPath().GetString().c_str());
   } else {
-    logStatus("[import_USD] No default prim set.\n");
+    tsd::logStatus("[import_USD] No default prim set.\n");
   }
   size_t primCount = 0;
   for (auto it = stage->Traverse().begin(); it != stage->Traverse().end(); ++it)
     ++primCount;
-  logStatus("[import_USD] Number of prims in stage: %zu\n", primCount);
+  tsd::logStatus("[import_USD] Number of prims in stage: %zu\n", primCount);
   float3 sceneMin(std::numeric_limits<float>::max());
   float3 sceneMax(std::numeric_limits<float>::lowest());
   auto usd_root = ctx.insertChildNode(
@@ -593,7 +605,7 @@ void import_USD(Context &ctx,
       import_usd_prim_recursive(ctx, prim, usd_root, xformCache, sceneMin, sceneMax, basePath);
     }
   }
-  logStatus("[import_USD] Scene bounds: min=(%f, %f, %f) max=(%f, %f, %f)\n",
+  tsd::logStatus("[import_USD] Scene bounds: min=(%f, %f, %f) max=(%f, %f, %f)\n",
           sceneMin.x, sceneMin.y, sceneMin.z,
           sceneMax.x, sceneMax.y, sceneMax.z);
 
@@ -604,7 +616,7 @@ void import_USD(Context &ctx,
     LayerNodeRef location,
     bool useDefaultMaterial)
 {
-  logStatus("[import_USD] USD not enabled in TSD build.");
+  tsd::logStatus("[import_USD] USD not enabled in TSD build.");
 }
 #endif
 
