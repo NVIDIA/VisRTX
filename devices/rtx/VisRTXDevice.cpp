@@ -590,6 +590,33 @@ DeviceInitStatus VisRTXDevice::initOptix()
     nvmlSystemGetDriverVersion(driverVersion, sizeof(driverVersion));
     reportMessage(
         ANARI_SEVERITY_DEBUG, "VisRTX running on driver %s", driverVersion);
+    int driverVersionMajor = 0;
+    std::sscanf(driverVersion, "%i.", &driverVersionMajor);
+    if (OPTIX_VERSION >= 90000 && driverVersionMajor < 570) {
+      reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+          "Using OptiX 9.0+ requires NVIDIA driver version 570 or higher, "
+          "found %i.x",
+          driverVersionMajor);
+      return DeviceInitStatus::FAILURE;
+    } else if (OPTIX_VERSION == 80100 && driverVersionMajor < 555) {
+      reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+          "Using OptiX 8.1 requires NVIDIA driver version 555 or higher, "
+          "found %i.x",
+          driverVersionMajor);
+      return DeviceInitStatus::FAILURE;
+    } else if (OPTIX_VERSION == 80000 && driverVersionMajor < 535) {
+      reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+          "Using OptiX 8.0 requires NVIDIA driver version 535 or higher, "
+          "found %i.x",
+          driverVersionMajor);
+      return DeviceInitStatus::FAILURE;
+    } else if (OPTIX_VERSION == 70700 && driverVersionMajor < 530) {
+      reportMessage(ANARI_SEVERITY_FATAL_ERROR,
+          "Using OptiX 7.7 requires NVIDIA driver version 530 or higher, "
+          "found %i.x",
+          driverVersionMajor);
+      return DeviceInitStatus::FAILURE;
+    }
     nvmlShutdown();
   }
 
