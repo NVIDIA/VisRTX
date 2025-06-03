@@ -7,7 +7,7 @@
 int main(int argc, const char *argv[])
 {
   if (argc < 2) {
-    printf("usage: ./printDataTree file.tsd\n");
+    printf("usage: ./%s <file.tsd>\n", argv[0]);
     return 1;
   }
 

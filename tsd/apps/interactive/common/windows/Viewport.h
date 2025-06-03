@@ -14,21 +14,21 @@
 #include "tsd/core/Object.hpp"
 #include "tsd/core/UpdateDelegate.hpp"
 #include "tsd/rendering/RenderIndex.hpp"
+#include "tsd/view/Manipulator.hpp"
 // render_pipeline
 #include "render_pipeline/RenderPipeline.h"
-
-#include "../Manipulator.h"
 
 namespace tsd_viewer {
 
 struct Viewport : public Window
 {
-  Viewport(
-      AppCore *state, manipulators::Orbit *m, const char *name = "Viewport");
+  Viewport(AppCore *state,
+      tsd::manipulators::Orbit *m,
+      const char *name = "Viewport");
   ~Viewport();
 
   void buildUI() override;
-  void setManipulator(manipulators::Orbit *m);
+  void setManipulator(tsd::manipulators::Orbit *m);
   void resetView(bool resetAzEl = true);
   void centerView();
   void setLibrary(const std::string &libName, bool doAsync = true);
@@ -114,9 +114,9 @@ struct Viewport : public Window
   // camera manipulator
 
   int m_arcballUp{1};
-  manipulators::Orbit m_localArcball;
-  manipulators::Orbit *m_arcball{nullptr};
-  manipulators::UpdateToken m_cameraToken{0};
+  tsd::manipulators::Orbit m_localArcball;
+  tsd::manipulators::Orbit *m_arcball{nullptr};
+  tsd::manipulators::UpdateToken m_cameraToken{0};
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
 

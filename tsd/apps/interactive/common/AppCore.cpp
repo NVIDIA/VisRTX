@@ -346,7 +346,8 @@ void AppCore::setCameraPose(const CameraPose &pose)
 {
   view.manipulator.setConfig(
       pose.lookat, pose.azeldist.z, {pose.azeldist.x, pose.azeldist.y});
-  view.manipulator.setAxis(static_cast<manipulators::OrbitAxis>(pose.upAxis));
+  view.manipulator.setAxis(
+      static_cast<tsd::manipulators::OrbitAxis>(pose.upAxis));
 }
 
 } // namespace tsd_viewer

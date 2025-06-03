@@ -73,6 +73,15 @@ void objectToNode(const Object &obj, serialization::DataNode &node)
   }
 }
 
+void cameraPoseToNode(
+    const manipulators::CameraPose &p, serialization::DataNode &node)
+{
+  node["name"] = p.name;
+  node["lookat"] = p.lookat;
+  node["azeldist"] = p.azeldist;
+  node["upAxis"] = p.upAxis;
+}
+
 static void arrayToNode(const Array &arr, serialization::DataNode &node)
 {
   objectToNode(arr, node);
@@ -190,6 +199,15 @@ void nodeToObject(serialization::DataNode &node, Object &obj)
 
   if (auto *c = node.child("metadata"); c != nullptr)
     nodeToObjectMetadata(*c, obj);
+}
+
+void nodeToCameraPose(
+    serialization::DataNode &node, manipulators::CameraPose &pose)
+{
+  node["name"].getValue(ANARI_STRING, &pose.name);
+  node["lookat"].getValue(ANARI_FLOAT32_VEC3, &pose.lookat);
+  node["azeldist"].getValue(ANARI_FLOAT32_VEC3, &pose.azeldist);
+  node["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
 }
 
 static void nodeToNewObject(Context &ctx, serialization::DataNode &node)

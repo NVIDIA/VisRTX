@@ -12,19 +12,11 @@
 // anari_viewer
 #include "anari_viewer/Application.h"
 
-#include "Manipulator.h"
-
 namespace tsd_viewer {
 
 struct ImportFileDialog;
 
-struct CameraPose
-{
-  std::string name;
-  tsd::float3 lookat{0.f};
-  tsd::float3 azeldist{0.f};
-  int upAxis{0};
-};
+using CameraPose = tsd::manipulators::CameraPose;
 
 enum class ImporterType
 {
@@ -91,7 +83,7 @@ struct AppCore
   {
     std::vector<CameraPose> poses;
     std::string defaultPose;
-    manipulators::Orbit manipulator;
+    tsd::manipulators::Orbit manipulator;
   } view;
 
   struct Windows

@@ -235,13 +235,8 @@ void TSDApplication::saveApplicationState(const char *filename)
 
   // Camera poses
   auto &cameraPoses = root["cameraPoses"];
-  for (auto &p : core.view.poses) {
-    auto &pose = cameraPoses.append();
-    pose["name"] = p.name;
-    pose["lookat"] = p.lookat;
-    pose["azeldist"] = p.azeldist;
-    pose["upAxis"] = p.upAxis;
-  }
+  for (auto &p : core.view.poses)
+    tsd::cameraPoseToNode(p, cameraPoses.append());
 
   // Serialize TSD context
   root["context"].reset();
@@ -285,10 +280,7 @@ void TSDApplication::loadApplicationState(const char *filename)
   if (auto *c = root.child("cameraPoses"); c != nullptr) {
     c->foreach_child([&](auto &p) {
       CameraPose pose;
-      p["name"].getValue(ANARI_STRING, &pose.name);
-      p["lookat"].getValue(ANARI_FLOAT32_VEC3, &pose.lookat);
-      p["azeldist"].getValue(ANARI_FLOAT32_VEC3, &pose.azeldist);
-      p["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
+      tsd::nodeToCameraPose(p, pose);
       core.view.poses.push_back(std::move(pose));
     });
   }

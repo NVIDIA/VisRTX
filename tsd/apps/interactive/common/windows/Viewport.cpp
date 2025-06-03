@@ -17,7 +17,7 @@ constexpr float inf = std::numeric_limits<float>::infinity();
 
 // Viewport definitions ///////////////////////////////////////////////////////
 
-Viewport::Viewport(AppCore *core, manipulators::Orbit *m, const char *name)
+Viewport::Viewport(AppCore *core, tsd::manipulators::Orbit *m, const char *name)
     : Window(core, name)
 {
   setManipulator(m);
@@ -129,7 +129,7 @@ void Viewport::buildUI()
     m_anariPass->setEnableIDs(m_core->objectIsSelected());
 }
 
-void Viewport::setManipulator(manipulators::Orbit *m)
+void Viewport::setManipulator(tsd::manipulators::Orbit *m)
 {
   m_arcball = m ? m : &m_localArcball;
 }
@@ -334,7 +334,7 @@ void Viewport::loadSettings(tsd::serialization::DataNode &root)
     camera["azel"].getValue(ANARI_FLOAT32_VEC2, &azel);
     camera["up"].getValue(ANARI_INT32, &axis);
 
-    m_arcball->setAxis(manipulators::OrbitAxis(axis));
+    m_arcball->setAxis(tsd::manipulators::OrbitAxis(axis));
     m_arcball->setConfig(at, distance, azel);
   }
 
@@ -841,7 +841,8 @@ void Viewport::ui_contextMenu()
       ImGui::EndDisabled();
 
       if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
-        m_arcball->setAxis(static_cast<manipulators::OrbitAxis>(m_arcballUp));
+        m_arcball->setAxis(
+            static_cast<tsd::manipulators::OrbitAxis>(m_arcballUp));
         resetView();
       }
 

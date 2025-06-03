@@ -286,6 +286,7 @@ void AnariRenderPass::render(Buffers &b, int stageId)
 {
   if (m_firstFrame) {
     anari::render(m_device, m_frame);
+    anari::wait(m_device, m_frame);
     m_firstFrame = false;
   }
 
