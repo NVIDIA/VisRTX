@@ -33,6 +33,14 @@ static constexpr float radians(float degrees)
   return degrees * M_PI / 180.f;
 };
 
+static constexpr tsd::math::float3 azelToDir(tsd::math::float2 azel)
+{
+  const float az = radians(azel.x);
+  const float el = radians(azel.y);
+  return tsd::math::float3(
+      std::sin(az) * std::cos(el), std::sin(el), std::cos(az) * std::cos(el));
+}
+
 static constexpr tsd::math::float3 radians(tsd::math::float3 v)
 {
   return tsd::math::float3(radians(v.x), radians(v.y), radians(v.z));
@@ -47,6 +55,20 @@ static constexpr tsd::math::float3 degrees(tsd::math::float3 v)
 {
   return tsd::math::float3(degrees(v.x), degrees(v.y), degrees(v.z));
 };
+
+inline tsd::math::mat4 makeValueRangeTransform(float lower, float upper)
+{
+  const auto scale =
+      tsd::math::scaling_matrix(tsd::math::float3(1.f / (upper - lower)));
+  const auto translation =
+      tsd::math::translation_matrix(tsd::math::float3(-lower, 0, 0));
+  return tsd::math::mul(scale, translation);
+}
+
+inline tsd::math::mat4 makeValueRangeTransform(const tsd::math::float2 &range)
+{
+  return makeValueRangeTransform(range.x, range.y);
+}
 
 inline void decomposeMatrix(const tsd::math::mat4 &m,
     tsd::math::float3 &scale,

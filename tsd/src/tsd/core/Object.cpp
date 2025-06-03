@@ -148,27 +148,31 @@ Parameter &Object::addParameter(Token name)
   return *parameter(name);
 }
 
-void Object::setParameter(Token name, ANARIDataType type, const void *v)
+Parameter *Object::setParameter(Token name, ANARIDataType type, const void *v)
 {
   if (anari::isObject(type))
-    return;
+    return nullptr;
 
   auto *p = parameter(name);
   if (p)
     p->setValue({type, v});
   else {
-    auto &np = addParameter(name);
-    np.setValue({type, v});
+    p = &(addParameter(name));
+    p->setValue({type, v});
   }
+  return p;
 }
 
-void Object::setParameterObject(Token name, const Object &obj)
+Parameter *Object::setParameterObject(Token name, const Object &obj)
 {
   auto *p = parameter(name);
   if (p)
     p->setValue({obj.type(), obj.index()});
-  else
-    addParameter(name).setValue({obj.type(), obj.index()});
+  else {
+    p = &(addParameter(name));
+    p->setValue({obj.type(), obj.index()});
+  }
+  return p;
 }
 
 Parameter *Object::parameter(Token name)
@@ -238,15 +242,11 @@ void Object::updateANARIParameter(anari::Device d,
   } else if (!p.value().holdsObject()) {
     if (p.value().type() == ANARI_FLOAT32_VEC2
         && p.usage() & ParameterUsageHint::DIRECTION) {
-      const auto azel = p.value().get<float2>();
-      const float az = math::radians(azel.x);
-      const float el = math::radians(azel.y);
-      anari::setParameter(d,
-          o,
-          n,
-          float3(std::sin(az) * std::cos(el),
-              std::sin(el),
-              std::cos(az) * std::cos(el)));
+      anari::setParameter(d, o, n, math::azelToDir(p.value().get<float2>()));
+    } else if (p.value().type() == ANARI_FLOAT32_VEC2
+        && p.usage() & ParameterUsageHint::VALUE_RANGE_TRANSFORM) {
+      anari::setParameter(
+          d, o, n, math::makeValueRangeTransform(p.value().get<float2>()));
     } else {
       anari::setParameter(d, o, n, p.value().type(), p.value().data());
     }

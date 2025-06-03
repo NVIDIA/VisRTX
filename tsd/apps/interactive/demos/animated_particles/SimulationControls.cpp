@@ -205,7 +205,7 @@ void SimulationControls::resetSimulation()
 void SimulationControls::updateColorMapScale()
 {
   m_particleColorSampler->setParameter("inTransform",
-      tsd::makeColorMapTransform(
+      tsd::math::makeValueRangeTransform(
           0.f, m_params.maxDistance / m_colorMapScaleFactor));
 }
 

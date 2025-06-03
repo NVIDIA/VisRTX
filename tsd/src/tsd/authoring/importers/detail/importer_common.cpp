@@ -302,7 +302,8 @@ SamplerRef makeDefaultColorMapSampler(Context &ctx, const float2 &range)
 
   auto sampler = ctx.createObject<Sampler>(tokens::sampler::image1D);
   sampler->setParameter("inAttribute", "attribute0");
-  sampler->setParameter("inTransform", makeColorMapTransform(range.x, range.y));
+  sampler->setParameter("inTransform", tsd::float2(range.x, range.y))
+      ->setUsage(ParameterUsageHint::VALUE_RANGE_TRANSFORM);
   sampler->setParameter("filter", "linear");
   sampler->setParameter("wrapMode", "mirrorRepeat");
   sampler->setParameterObject("image", *samplerImageArray);

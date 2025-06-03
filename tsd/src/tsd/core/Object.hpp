@@ -85,9 +85,9 @@ struct Object : public ParameterObserver
   // Token-based access
   Parameter &addParameter(Token name);
   template <typename T>
-  void setParameter(Token name, T value);
-  void setParameter(Token name, ANARIDataType type, const void *v);
-  void setParameterObject(Token name, const Object &obj);
+  Parameter *setParameter(Token name, T value);
+  Parameter *setParameter(Token name, ANARIDataType type, const void *v);
+  Parameter *setParameterObject(Token name, const Object &obj);
 
   Parameter *parameter(Token name);
   template <typename T>
@@ -155,13 +155,14 @@ constexpr bool isObject()
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>
-inline void Object::setParameter(Token name, T value)
+inline Parameter *Object::setParameter(Token name, T value)
 {
   auto *p = m_parameters.at(name);
   if (p)
     p->setValue(value);
   else
-    addParameter(name).setValue(value);
+    p = &(addParameter(name).setValue(value));
+  return p;
 }
 
 template <typename T>

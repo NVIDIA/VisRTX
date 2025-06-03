@@ -12,8 +12,6 @@ namespace tsd {
 using ColorPoint = float4;
 using OpacityPoint = float2;
 
-math::mat4 makeColorMapTransform(float lower, float upper);
-
 std::vector<math::float4> makeDefaultColorMap(size_t size = 256);
 
 template <typename T>
@@ -68,13 +66,6 @@ inline float interpolateOpacity(
 }
 
 } // namespace detail
-
-inline math::mat4 makeColorMapTransform(float lower, float upper)
-{
-  const auto scale = math::scaling_matrix(math::float3(1.f / (upper - lower)));
-  const auto translation = math::translation_matrix(math::float3(-lower, 0, 0));
-  return math::mul(scale, translation);
-}
 
 inline std::vector<math::float4> makeDefaultColorMap(size_t size)
 {
