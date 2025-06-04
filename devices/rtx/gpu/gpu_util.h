@@ -206,18 +206,37 @@ VISRTX_DEVICE vec3 randomDir(RandState &rs, const vec3 &normal)
   return dot(dir, normal) > 0.f ? dir : -dir;
 }
 
+VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3& normal)
+{
+  // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+  auto sign = normal.z >= 0.0f ? 1.0f : -1.0f;
+  auto a = -1.0f / (sign + normal.z);
+  auto b = normal.x * normal.y * a;
+  auto u = vec3(1.0f + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
+  auto v = vec3(b, sign + normal.y * normal.y * a, -normal.y);
+
+  return mat3(u, v, normal);
+}
+
+VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
+{
+  auto z = curand_uniform(&rs);
+  auto r = sqrtf(1.f - sqrt(z)); 
+  auto phi = 2.0f * M_PIf * curand_uniform(&rs);
+
+  auto sample =  vec3(r * cos(phi), r * sin(phi), z);
+
+  return computeOrthonormalBasis(normal) * sample;
+}
+
 VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
 {
   // sample unit sphere
   const float cost = 1.f - 2.f * curand_uniform(&rs);
   const float sint = sqrtf(fmaxf(0.f, 1.f - cost * cost));
   const float phi = 2.f * float(M_PI) * curand_uniform(&rs);
-  // make ortho basis and transform to ray-centric coordinates:
-  const vec3 w = normal;
-  const vec3 v = fabsf(w.x) > fabsf(w.y) ? normalize(vec3(-w.z, 0.f, w.x))
-                                         : normalize(vec3(0.f, w.z, -w.y));
-  const vec3 u = cross(v, w);
-  return normalize(sint * cosf(phi) * u + sint * sinf(phi) * v + cost * -w);
+
+  return computeOrthonormalBasis(normal) * vec3(sint * cosf(phi) , sint * sinf(phi), -cost);
 }
 
 #define ulpEpsilon 0x1.fp-21
