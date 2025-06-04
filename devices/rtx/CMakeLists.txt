@@ -318,7 +318,6 @@ if(VISRTX_ENABLE_MDL_SUPPORT)
   GenerateEmbeddedPTX(shaders MDLTexture)
 endif()
 
-# GenerateEmbeddedBC(shaders MDLShaderEvalSurfaceMaterial)
 
 ## Query code generation ##
 
