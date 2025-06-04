@@ -128,6 +128,7 @@ set(SOURCES
   scene/Group.cpp
   scene/Instance.cpp
   scene/World.cpp
+  scene/ComputeTangent.cu
 
   scene/light/Directional.cpp
   scene/light/HDRI.cpp
