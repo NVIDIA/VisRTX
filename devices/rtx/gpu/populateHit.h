@@ -212,41 +212,31 @@ VISRTX_DEVICE void computeTangentSpace(
     const vec3 v1 = ggd.tri.vertices[idx.y];
     const vec3 v2 = ggd.tri.vertices[idx.z];
 
-    hit.Ng = cross(v1 - v0, v2 - v0);
-    hit.tU = glm::vec3(1.0f, 0.0f, 0.0f);
-    hit.tV = glm::vec3(0.0f, 1.0f, 0.0f);
+    hit.Ng = normalize(cross(v1 - v0, v2 - v0));
+    hit.tU = vec3(1.0f, 0.0f, 0.0f);
+    hit.tV = vec3(0.0f, 0.0f, 1.0f);
 
     if (!optixIsFrontFaceHit())
       hit.Ng = -hit.Ng;
 
-    if (ggd.tri.vertexNormals != nullptr) {
-      const vec3 n0 = ggd.tri.vertexNormals[idx.x];
-      const vec3 n1 = ggd.tri.vertexNormals[idx.y];
-      const vec3 n2 = ggd.tri.vertexNormals[idx.z];
-      hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
-      if (dot(hit.Ng, hit.Ns) < 0.f)
-        hit.Ns = -hit.Ns;
-    } else if (ggd.tri.vertexNormalsFV != nullptr) {
+    if (ggd.tri.vertexNormalsFV != nullptr) {
       const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
 
       const vec3 n0 = ggd.tri.vertexNormalsFV[idx.x];
       const vec3 n1 = ggd.tri.vertexNormalsFV[idx.y];
       const vec3 n2 = ggd.tri.vertexNormalsFV[idx.z];
       hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
-      if (dot(hit.Ng, hit.Ns) < 0.f)
-        hit.Ns = -hit.Ns;
+    } else if (ggd.tri.vertexNormals != nullptr) {
+      const vec3 n0 = ggd.tri.vertexNormals[idx.x];
+      const vec3 n1 = ggd.tri.vertexNormals[idx.y];
+      const vec3 n2 = ggd.tri.vertexNormals[idx.z];
+      hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
     } else
       hit.Ns = hit.Ng;
 
-    if (ggd.tri.vertexTangents != nullptr) {
-      const vec3 t0 = ggd.tri.vertexTangents[idx.x];
-      const vec3 t1 = ggd.tri.vertexTangents[idx.y];
-      const vec3 t2 = ggd.tri.vertexTangents[idx.z];
-      const float handedness = ggd.tri.vertexTangents[idx.x].w;
+    hit.Ns = normalize(hit.Ns);
 
-      hit.tU = (b.x * t0 + b.y * t1 + b.z * t2);
-      hit.tV = handedness * normalize(cross(hit.Ns, hit.tU));
-    } else if (ggd.tri.vertexTangentsFV != nullptr) {
+    if (ggd.tri.vertexTangentsFV != nullptr) {
       const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
 
       const vec3 t0 = ggd.tri.vertexTangentsFV[idx.x];
@@ -255,7 +245,22 @@ VISRTX_DEVICE void computeTangentSpace(
       const float handedness = ggd.tri.vertexTangentsFV[idx.x].w;
       hit.tU = normalize(b.x * vec3(t0) + b.y * vec3(t1) + b.z * vec3(t2));
       hit.tV = handedness * normalize(cross(hit.Ns, hit.tU));
+    } else if (ggd.tri.vertexTangents != nullptr) {
+      const vec3 t0 = ggd.tri.vertexTangents[idx.x];
+      const vec3 t1 = ggd.tri.vertexTangents[idx.y];
+      const vec3 t2 = ggd.tri.vertexTangents[idx.z];
+      const float handedness = ggd.tri.vertexTangents[idx.x].w;
+
+      hit.tU = normalize(b.x * t0 + b.y * t1 + b.z * t2);
+      hit.tV = handedness * normalize(cross(hit.Ns, hit.tU));
     }
+
+    if (dot(hit.Ng, hit.Ns) < 0.f) {
+      hit.Ns = -hit.Ns;
+      hit.tU = -hit.tU;
+      hit.tV = -hit.tV;
+    }
+
 
     break;
   }
