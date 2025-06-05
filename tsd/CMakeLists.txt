@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 3.21)
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_LIST_DIR)
   message(STATUS "CMake version: ${CMAKE_VERSION}")
   set(ANARI_REQUIRED_VERSION 0.11.0)
+  set(TSD_STANDALONE_BUILD 1)
+else()
+  set(TSD_STANDALONE_BUILD 0)
 endif()
 
 ## CMake setup ##

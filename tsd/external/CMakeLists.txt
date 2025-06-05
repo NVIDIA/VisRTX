@@ -10,3 +10,7 @@ add_subdirectory(tsd_stb)
 add_subdirectory(tsd_tiny_obj_loader)
 add_subdirectory(tsd_tinyply)
 add_subdirectory(tsd_tinyexr)
+
+if (TSD_STANDALONE_BUILD)
+  add_subdirectory(../../external/fmtlib ${CMAKE_CURRENT_BINARY_DIR}/tsd_fmt)
+endif()

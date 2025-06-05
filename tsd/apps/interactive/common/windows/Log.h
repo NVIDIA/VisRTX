@@ -20,7 +20,7 @@ struct Log : public Window
   void buildUI() override;
 
  private:
-  void addText(tsd::LogLevel level, const char *fmt, va_list &args);
+  void addText(tsd::LogLevel level, const std::string &msg);
   void showLine(int line_no, bool useFilter);
   void clear();
 

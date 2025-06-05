@@ -6,6 +6,7 @@
 // std
 #include <cstdarg>
 #include <functional>
+#include <string>
 
 namespace tsd {
 
@@ -27,8 +28,10 @@ enum LogLevel
   UNKNOWN
 };
 
-using LoggingCallback = std::function<void(LogLevel, const char *, va_list &)>;
+using LoggingCallback = std::function<void(LogLevel, std::string)>;
 
 void setLoggingCallback(LoggingCallback cb);
+void setLogToStdout();
+void setNoLogging();
 
 } // namespace tsd

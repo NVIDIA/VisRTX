@@ -69,6 +69,7 @@ PUBLIC
 project_link_libraries(
 PUBLIC
   anari::helium
+  fmt::fmt
 PRIVATE
   $<BUILD_INTERFACE:tsd_mikktspace>
   $<BUILD_INTERFACE:tsd_nanovdb>
