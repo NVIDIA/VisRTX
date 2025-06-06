@@ -3,7 +3,7 @@
 
 #include "TSDApplication.h"
 #include "windows/Window.h"
-// tsd
+// tsd_viewer
 #include "tsd_font.h"
 #include "tsd_ui.h"
 // anari_viewer
@@ -85,7 +85,7 @@ void TSDApplication::uiFrameStart()
     updateWindowTitle();
   }
 
-  // Handle app shortcuts //
+  // Helper functions to save state //
 
   auto doSave = [&](const std::string &name = "") {
     if (!name.empty())
@@ -95,13 +95,6 @@ void TSDApplication::uiFrameStart()
     else
       m_filenameToSaveNextFrame = m_currentSessionFilename;
   };
-
-  if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S))
-    m_core.getFilenameFromDialog(m_filenameToSaveNextFrame, true);
-  else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_S))
-    doSave("state.tsd");
-  else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
-    doSave();
 
   // Main Menu //
 
@@ -194,11 +187,29 @@ void TSDApplication::uiFrameStart()
 
     // Modals //
 
-    if (m_appSettingsDialog->visible())
+    bool modalActive = false;
+    if (m_appSettingsDialog->visible()) {
       m_appSettingsDialog->renderUI();
+      modalActive = true;
+    }
 
-    if (m_fileDialog->visible())
+    if (m_fileDialog->visible()) {
       m_fileDialog->renderUI();
+      modalActive = true;
+    }
+
+    // Handle app shortcuts //
+
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S))
+      m_core.getFilenameFromDialog(m_filenameToSaveNextFrame, true);
+    else if (ImGui::IsKeyChordPressed(
+                 ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_S))
+      doSave("state.tsd");
+    else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
+      doSave();
+
+    if (!modalActive && ImGui::IsKeyChordPressed(ImGuiKey_Escape))
+      m_core.clearSelected();
   }
 }
 

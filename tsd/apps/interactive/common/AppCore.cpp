@@ -320,7 +320,7 @@ bool AppCore::objectIsSelected() const
 
 void AppCore::clearSelected()
 {
-  if (tsd.selectedObject != nullptr) {
+  if (tsd.selectedObject != nullptr || tsd.selectedNode) {
     tsd.selectedObject = nullptr;
     tsd.selectedNode = {};
     anari.delegate.signalObjectFilteringChanged();
