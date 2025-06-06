@@ -65,7 +65,7 @@ void DistributedViewport::buildUI()
     ui_handleInput();
 }
 
-void DistributedViewport::setManipulator(manipulators::Orbit *m)
+void DistributedViewport::setManipulator(tsd::manipulators::Orbit *m)
 {
   m_arcball = m ? m : &m_localArcball;
 }
@@ -366,7 +366,8 @@ void DistributedViewport::ui_contextMenu()
     }
 
     if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
-      m_arcball->setAxis(static_cast<manipulators::OrbitAxis>(m_arcballUp));
+      m_arcball->setAxis(
+          static_cast<tsd::manipulators::OrbitAxis>(m_arcballUp));
       resetView();
     }
 

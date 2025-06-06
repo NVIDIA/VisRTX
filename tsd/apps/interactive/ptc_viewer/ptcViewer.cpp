@@ -234,7 +234,7 @@ class Application : public anari_viewer::Application
   }
 
  private:
-  manipulators::Orbit m_manipulator;
+  tsd::manipulators::Orbit m_manipulator;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

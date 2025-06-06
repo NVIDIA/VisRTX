@@ -15,9 +15,9 @@
 // tsd
 #include "tsd/core/Object.hpp"
 #include "tsd/core/UpdateDelegate.hpp"
+#include "tsd/view/Manipulator.hpp"
 
 #include "AppCore.h"
-#include "Manipulator.h"
 #include "ViewState.h"
 #include "windows/Window.h"
 
@@ -34,7 +34,7 @@ struct DistributedViewport : public Window
   void buildUI() override;
 
   void setWorld(anari::World world = nullptr, bool resetCameraView = true);
-  void setManipulator(manipulators::Orbit *m);
+  void setManipulator(tsd::manipulators::Orbit *m);
   void resetView(bool resetAzEl = true);
   void setDevice(anari::Device d);
 
@@ -93,9 +93,9 @@ struct DistributedViewport : public Window
   // camera manipulator
 
   int m_arcballUp{1};
-  manipulators::Orbit m_localArcball;
-  manipulators::Orbit *m_arcball{nullptr};
-  manipulators::UpdateToken m_cameraToken{0};
+  tsd::manipulators::Orbit m_localArcball;
+  tsd::manipulators::Orbit *m_arcball{nullptr};
+  tsd::manipulators::UpdateToken m_cameraToken{0};
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
 
