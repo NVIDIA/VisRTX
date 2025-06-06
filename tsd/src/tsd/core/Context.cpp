@@ -524,11 +524,6 @@ void Context::removeUnusedObjects()
     });
   };
 
-  // Invoke above function on all layers//
-
-  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++)
-    countLayerObjReferenceIndices(*itr->second);
-
   // Function to count object references in object parameters //
 
   auto countParameterReferences = [&](auto &array) {
@@ -550,18 +545,7 @@ void Context::removeUnusedObjects()
     });
   };
 
-  // Invoke above function on all object arrays //
-
-  countParameterReferences(m_db.array);
-  countParameterReferences(m_db.surface);
-  countParameterReferences(m_db.geometry);
-  countParameterReferences(m_db.material);
-  countParameterReferences(m_db.sampler);
-  countParameterReferences(m_db.volume);
-  countParameterReferences(m_db.field);
-  countParameterReferences(m_db.light);
-
-  // Remove unused objects from object arrays //
+  // Function to remove unused objects from object arrays //
 
   auto removeUnused = [&](auto &array) {
     foreach_item_ref(array, [&](auto ref) {
@@ -570,19 +554,48 @@ void Context::removeUnusedObjects()
       auto objType = ref->type();
       if (anari::isArray(objType))
         objType = ANARI_ARRAY;
-      if (usages[objType][ref.index()] == 0)
+      if (usages[objType][ref.index()] <= 0) {
+        // Decrement reference counts for this object's object parameters
+        for (size_t i = 0; i < ref->numParameters(); i++) {
+          auto &p = ref->parameterAt(i);
+          const auto &v = p.value();
+          if (!v.holdsObject())
+            continue;
+          auto objType = v.type();
+          if (anari::isArray(objType))
+            objType = ANARI_ARRAY;
+          auto idx = v.getAsObjectIndex();
+          if (idx != INVALID_INDEX)
+            usages[objType][idx]--;
+        }
+
         removeObject(*ref);
+      }
     });
   };
 
-  removeUnused(m_db.array);
+  // Invoke above functions on all object arrays, top-down //
+
+  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++)
+    countLayerObjReferenceIndices(*itr->second);
+
+  countParameterReferences(m_db.surface);
+  countParameterReferences(m_db.volume);
+  countParameterReferences(m_db.light);
+  countParameterReferences(m_db.geometry);
+  countParameterReferences(m_db.material);
+  countParameterReferences(m_db.field);
+  countParameterReferences(m_db.sampler);
+  countParameterReferences(m_db.array);
+
   removeUnused(m_db.surface);
+  removeUnused(m_db.volume);
+  removeUnused(m_db.light);
   removeUnused(m_db.geometry);
   removeUnused(m_db.material);
-  removeUnused(m_db.sampler);
-  removeUnused(m_db.volume);
   removeUnused(m_db.field);
-  removeUnused(m_db.light);
+  removeUnused(m_db.sampler);
+  removeUnused(m_db.array);
 }
 
 void Context::removeAllSecondaryLayers()
