@@ -56,6 +56,7 @@ class Application : public TSDApplication
     // Populate scene data //
 
     auto colorArray = core->tsd.ctx.createArray(ANARI_FLOAT32_VEC4, 256);
+    colorArray->setData(tsd::makeDefaultColorMap(colorArray->size()).data());
 
     auto field = ctx.createObject<tsd::SpatialField>(
         tsd::tokens::spatial_field::structuredRegular);
