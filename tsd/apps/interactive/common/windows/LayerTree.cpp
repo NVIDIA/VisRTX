@@ -178,13 +178,12 @@ void LayerTree::buildUI_tree()
 
       if (ImGui::IsItemHovered()) {
         m_hoveredNode = node.index();
-        if (anari::isObject(node->value.type())) {
-          ImGui::BeginTooltip();
-          ImGui::Text("%s[%zu]",
+        if (node->isObject()) {
+          ImGui::SetTooltip("object: %s[%zu]",
               anari::toString(node->value.type()),
               node->value.getAsObjectIndex());
-          ImGui::EndTooltip();
-        }
+        } else if (node->isTransform())
+          ImGui::SetTooltip("transform: ANARI_FLOAT32_MAT4");
       }
 
       if (ImGui::IsItemClicked() && m_menuNode == tsd::INVALID_INDEX)
