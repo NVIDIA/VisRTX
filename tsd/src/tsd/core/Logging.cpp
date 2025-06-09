@@ -35,7 +35,7 @@ static void logMessage(LogLevel level, const char *fmt, va_list &args)
 
     g_timer.end();
     g_loggingCallback(
-        level, fmt::format("[{:.{}f}s]{}\n", g_timer.seconds(), 3, message));
+        level, fmt::format("[{:.{}f}s] {}\n", g_timer.seconds(), 3, message));
   }
 }
 

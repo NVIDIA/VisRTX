@@ -118,6 +118,7 @@ struct AppCore
   void clearSelected();
 
   void addCurrentViewToCameraPoses(const char *name = "<view>");
+  void updateExistingCameraPoseFromView(CameraPose &p);
   void setCameraPose(const CameraPose &pose);
 
   // Not copyable or moveable //

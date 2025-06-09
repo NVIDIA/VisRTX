@@ -342,6 +342,17 @@ void AppCore::addCurrentViewToCameraPoses(const char *name)
   view.poses.push_back(std::move(pose));
 }
 
+void AppCore::updateExistingCameraPoseFromView(CameraPose &p)
+{
+  auto azel = view.manipulator.azel();
+  auto dist = view.manipulator.distance();
+  tsd::math::float3 azeldist(azel.x, azel.y, dist);
+
+  p.lookat = view.manipulator.at();
+  p.azeldist = azeldist;
+  p.upAxis = static_cast<int>(view.manipulator.axis());
+}
+
 void AppCore::setCameraPose(const CameraPose &pose)
 {
   view.manipulator.setConfig(
