@@ -507,6 +507,11 @@ void Context::removeUnusedObjects()
   usages[ANARI_SPATIAL_FIELD].resize(m_db.field.capacity(), 0);
   usages[ANARI_LIGHT].resize(m_db.light.capacity(), 0);
 
+  // Always keep around the default material //
+
+  if (!usages[ANARI_MATERIAL].empty())
+    usages[ANARI_MATERIAL][0] = 1;
+
   // Function to count object references in layers //
 
   auto countLayerObjReferenceIndices = [&](Layer &layer) {
