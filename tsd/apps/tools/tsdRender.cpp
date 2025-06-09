@@ -66,6 +66,42 @@ static void loadANARIDevice()
   printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
 
+static void initTSDDataTree()
+{
+  printf("Initializing TSD data tree...");
+  fflush(stdout);
+
+  g_timer.start();
+  g_stateFile = std::make_unique<tsd::serialization::DataTree>();
+  g_timer.end();
+
+  printf("done (%.2f ms)\n", g_timer.milliseconds());
+}
+
+static void initTSDContext()
+{
+  printf("Initializing TSD context...");
+  fflush(stdout);
+
+  g_timer.start();
+  g_ctx = std::make_unique<tsd::Context>();
+  g_timer.end();
+
+  printf("done (%.2f ms)\n", g_timer.milliseconds());
+}
+
+static void initTSDRenderIndex()
+{
+  printf("Initializing TSD render index...");
+  fflush(stdout);
+
+  g_timer.start();
+  g_renderIndex = std::make_unique<tsd::RenderIndexAllLayers>(g_device);
+  g_timer.end();
+
+  printf("done (%.2f ms)\n", g_timer.milliseconds());
+}
+
 static void loadState(const char *filename)
 {
   printf("Loading state from '%s'...", filename);
@@ -108,22 +144,35 @@ static void populateRenderIndex()
 
 static void setupCameraManipulator()
 {
-  printf("Setting up camera from world bounds...");
+  printf("Setting up camera...");
   fflush(stdout);
 
   g_timer.start();
-  tsd::math::float3 bounds[2] = {{-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}};
-  anariGetProperty(g_device,
-      g_renderIndex->world(),
-      "bounds",
-      ANARI_FLOAT32_BOX3,
-      &bounds[0],
-      sizeof(bounds),
-      ANARI_WAIT);
+  auto &root = g_stateFile->root();
+  if (auto *c = root.child("cameraPoses"); c != nullptr && !c->isLeaf()) {
+    tsd::manipulators::CameraPose pose;
+    tsd::nodeToCameraPose(*c->child(0), pose);
+    printf("using camera pose '%s'...", pose.name.c_str());
+    fflush(stdout);
+    g_manipulator.setConfig(pose);
+  } else {
+    printf("from world bounds...");
+    fflush(stdout);
 
-  auto center = 0.5f * (bounds[0] + bounds[1]);
-  auto diag = bounds[1] - bounds[0];
-  g_manipulator.setConfig(center, 0.5f * tsd::math::length(diag), {0.f, 20.f});
+    tsd::math::float3 bounds[2] = {{-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}};
+    anariGetProperty(g_device,
+        g_renderIndex->world(),
+        "bounds",
+        ANARI_FLOAT32_BOX3,
+        &bounds[0],
+        sizeof(bounds),
+        ANARI_WAIT);
+
+    auto center = 0.5f * (bounds[0] + bounds[1]);
+    auto diag = bounds[1] - bounds[0];
+    g_manipulator.setConfig(
+        center, 0.5f * tsd::math::length(diag), {0.f, 20.f});
+  }
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -148,7 +197,7 @@ static void setupRenderPipeline()
   anari::commitParameters(g_device, camera);
 
   auto renderer = anari::newObject<anari::Renderer>(g_device, "default");
-  anari::setParameter(g_device, renderer, "ambientIntensity", 0.25f);
+  anari::setParameter(g_device, renderer, "ambientRadiance", 0.25f);
   anari::commitParameters(g_device, renderer);
 
   auto *arp = g_renderPipeline->emplace_back<tsd::AnariRenderPass>(g_device);
@@ -166,11 +215,12 @@ static void setupRenderPipeline()
 
 static void renderFrame()
 {
-  printf("Rendering frame...");
+  printf("Rendering frame (64 spp)...");
   fflush(stdout);
 
   g_timer.start();
-  g_renderPipeline->render();
+  for (int i = 0; i < 64; i++)
+    g_renderPipeline->render();
   stbi_flip_vertically_on_write(1);
   stbi_write_png("tsdRender.png",
       g_imageSize.x,
@@ -212,11 +262,9 @@ int main(int argc, const char *argv[])
   }
 
   loadANARIDevice();
-
-  g_stateFile = std::make_unique<tsd::serialization::DataTree>();
-  g_ctx = std::make_unique<tsd::Context>();
-  g_renderIndex = std::make_unique<tsd::RenderIndexAllLayers>(g_device);
-
+  initTSDDataTree();
+  initTSDContext();
+  initTSDRenderIndex();
   loadState(argv[1]);
   populateTSDContext();
   populateRenderIndex();

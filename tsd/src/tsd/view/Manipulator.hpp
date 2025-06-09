@@ -37,6 +37,7 @@ class Orbit
       float dist,
       anari::math::float2 azel = anari::math::float2(0.f));
 
+  void setConfig(const CameraPose &p);
   void setConfig(anari::math::float3 center,
       float dist,
       anari::math::float2 azel = anari::math::float2(0.f));
@@ -100,6 +101,12 @@ inline Orbit::Orbit(
     anari::math::float3 at, float dist, anari::math::float2 azel)
 {
   setConfig(at, dist, azel);
+}
+
+inline void Orbit::setConfig(const CameraPose &p)
+{
+  setConfig(p.lookat, p.azeldist.z, {p.azeldist.x, p.azeldist.y});
+  setAxis(static_cast<tsd::manipulators::OrbitAxis>(p.upAxis));
 }
 
 inline void Orbit::setConfig(
