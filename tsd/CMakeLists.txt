@@ -48,7 +48,7 @@ endif()
 
 ## Establish project ##
 
-project(tsd LANGUAGES CXX)
+project(tsd LANGUAGES C CXX)
 
 ## Major dependencies ##
 
