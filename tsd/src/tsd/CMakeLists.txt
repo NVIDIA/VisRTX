@@ -73,7 +73,8 @@ PUBLIC
 PRIVATE
   $<BUILD_INTERFACE:tsd_mikktspace>
   $<BUILD_INTERFACE:tsd_nanovdb>
-  $<BUILD_INTERFACE:tsd_stb>
+  $<BUILD_INTERFACE:stb_image>
+  $<BUILD_INTERFACE:tsd_tinyexr>
   $<BUILD_INTERFACE:tsd_tiny_obj_loader>
   $<BUILD_INTERFACE:tsd_tinyply>
 )

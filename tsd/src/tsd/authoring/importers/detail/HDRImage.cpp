@@ -5,10 +5,10 @@
 #include <algorithm>
 #include <cstring>
 // stb
-#include "tsd_stb/stb_image.h"
-#include "tsd_stb/stb_image_write.h"
+#include "stb_image.h"
+#include "stb_image_write.h"
 #ifndef _WIN32
-#include "tsd_tinyexr/tinyexr.h"
+#include "tinyexr.h"
 #endif
 // tsd
 #include "tsd/core/Logging.hpp"

@@ -6,7 +6,7 @@
 // std
 #include <cstdio>
 // stb_image
-#include "tsd_stb/stb_image_write.h"
+#include "stb_image_write.h"
 
 using float3 = anari::math::float3;
 using float4 = anari::math::float4;

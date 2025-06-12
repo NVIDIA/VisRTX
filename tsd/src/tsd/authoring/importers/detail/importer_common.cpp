@@ -11,7 +11,7 @@
 // stb_image
 #include "tsd/core/Token.hpp"
 #include "tsd/objects/Sampler.hpp"
-#include "tsd_stb/stb_image.h"
+#include "stb_image.h"
 // std
 #include <atomic>
 #include <cstdio>
