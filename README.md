@@ -199,6 +199,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_SAMPLER_IMAGE3D`
 - `KHR_SAMPLER_PRIMITIVE`
 - `KHR_SAMPLER_TRANSFORM`
+- `KHR_SPATIAL_FIELD_NANOVDB`
 - `KHR_SPATIAL_FIELD_STRUCTURED_REGULAR`
 - `KHR_VOLUME_TRANSFER_FUNCTION1D`
 - `EXT_SAMPLER_COMPRESSED_IMAGE2D`
@@ -207,9 +208,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `NV_ARRAY_CUDA`
 - `NV_FRAME_BUFFERS_CUDA`
 - `VISRTX_INSTANCE_ATTRIBUTES`
-- `VISRTX_SPATIAL_FIELD_NANOVDB`
 - `VISRTX_TRIANGLE_BACK_FACE_CULLING`
-- `VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES`
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!
