@@ -334,7 +334,7 @@ void updateGeometryTangent(Triangle *triangle)
   } else {
     auto indicesPtr = nullptr;
     normals = normalsFV ? normalsFV : normals;
-    uvs = uvsFV ? uvsFV : normals;
+    uvs = uvsFV ? uvsFV : uvs;
 
     auto normalsPtr = normals->dataAs<const glm::vec3>(AddressSpace::GPU);
 
