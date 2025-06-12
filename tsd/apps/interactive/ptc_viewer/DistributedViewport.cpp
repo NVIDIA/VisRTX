@@ -5,7 +5,7 @@
 // std
 #include <cstring>
 // stb_image
-#include "tsd_stb/stb_image_write.h"
+#include "stb_image_write.h"
 // tsd
 #include "tsd_ui.h"
 

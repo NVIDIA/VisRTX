@@ -22,7 +22,7 @@ project_sources(PRIVATE
 project_link_libraries(
 PUBLIC
   tsd
-  tsd_stb
+  stb_image
   tsd_tinyexr
   render_pipeline
 PRIVATE

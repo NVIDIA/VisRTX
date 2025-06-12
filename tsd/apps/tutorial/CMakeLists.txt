@@ -4,7 +4,7 @@
 macro(define_tutorial TUTORIAL_NAME)
   project(${TUTORIAL_NAME})
   project_add_executable(${TUTORIAL_NAME}.cpp)
-  project_link_libraries(tsd tsd_stb tsd_flip)
+  project_link_libraries(tsd stb_image tsd_flip stb_image)
 endmacro()
 
 define_tutorial(tsdTutorialDataTreeDemo)

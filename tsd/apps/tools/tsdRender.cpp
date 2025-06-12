@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <memory>
 // stb_image
-#include "tsd_stb/stb_image_write.h"
+#include "stb_image_write.h"
 
 // Application state //////////////////////////////////////////////////////////
 

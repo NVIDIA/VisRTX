@@ -6,7 +6,7 @@
 // std
 #include <cstdio>
 // stb_image
-#include "tsd_stb/stb_image_write.h"
+#include "stb_image_write.h"
 
 static std::string g_libraryName = "environment";
 static std::string g_filename;
