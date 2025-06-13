@@ -19,8 +19,6 @@ Viewport::Viewport(AppCore *core, tsd::manipulators::Orbit *m, const char *name)
   setManipulator(m);
   m_overlayWindowName = "overlay_";
   m_overlayWindowName += name;
-  m_coreMenuName = "vpContextMenu_";
-  m_coreMenuName += name;
   setLibrary("");
 }
 
@@ -64,9 +62,7 @@ void Viewport::buildUI()
 
   bool didPick = ui_picking();
 
-  if (!m_coreMenuVisible)
-    ui_handleInput();
-
+  ui_handleInput();
   ui_menubar();
 
   if (m_anariPass && !didPick)

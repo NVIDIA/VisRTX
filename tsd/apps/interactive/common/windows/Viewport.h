@@ -69,7 +69,6 @@ struct Viewport : public Window
   tsd::math::float2 m_previousMouse{-1.f, -1.f};
   bool m_mouseRotating{false};
   bool m_manipulating{false};
-  bool m_coreMenuVisible{false};
   bool m_frameCancelled{false};
   bool m_saveNextFrame{false};
   bool m_echoCameraConfig{false};
@@ -142,7 +141,6 @@ struct Viewport : public Window
   float m_maxFL{-std::numeric_limits<float>::max()};
 
   std::string m_overlayWindowName;
-  std::string m_coreMenuName;
 };
 
 } // namespace tsd_viewer
