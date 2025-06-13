@@ -40,6 +40,7 @@ struct Viewport : public Window
   void loadANARIRendererParameters(anari::Device d);
   void updateAllRendererParameters(anari::Device d);
 
+  void setupRenderPipeline();
   void teardownDevice();
   void reshape(tsd::math::int2 newWindowSize);
   void pick(tsd::math::int2 location, bool selectObject);
@@ -50,10 +51,12 @@ struct Viewport : public Window
   void updateImage();
 
   void echoCameraConfig();
+  void ui_menubar();
   void ui_handleInput();
   bool ui_picking();
-  void ui_contextMenu();
   void ui_overlay();
+
+  int windowFlags() const override; // anari_viewer::Window
 
   // Data /////////////////////////////////////////////////////////////////////
 

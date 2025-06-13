@@ -13,10 +13,6 @@
 
 namespace tsd_viewer {
 
-constexpr float inf = std::numeric_limits<float>::infinity();
-
-// Viewport definitions ///////////////////////////////////////////////////////
-
 Viewport::Viewport(AppCore *core, tsd::manipulators::Orbit *m, const char *name)
     : Window(core, name)
 {
@@ -38,61 +34,8 @@ Viewport::~Viewport()
 void Viewport::buildUI()
 {
   bool deviceReady = m_device != nullptr;
-  if (deviceReady && !m_deviceReadyToUse) {
-    tsd::logStatus("[viewport] initialized scene for '%s' device in %.2fs",
-        m_libName.c_str(),
-        m_timeToLoadDevice);
-    m_anariPass = m_pipeline.emplace_back<tsd::AnariRenderPass>(m_device);
-    m_pickPass = m_pipeline.emplace_back<tsd::PickPass>();
-    m_pickPass->setEnabled(false);
-    m_pickPass->setPickOperation([&](tsd::RenderPass::Buffers &b) {
-      // Get depth //
-
-      auto [width, height] = m_pickPass->getDimensions();
-
-      auto l = linalg::clamp(m_pickCoord,
-          tsd::math::int2(0, 0),
-          tsd::math::int2(width - 1, height - 1));
-      l.x = width - l.x;
-      l.y = height - l.y;
-      const auto i = l.y * width + l.x;
-
-      m_pickedDepth = b.depth ? b.depth[i] : 1e30f;
-
-      if (!m_selectObjectNextPick) {
-        m_pickPass->setEnabled(false);
-        return;
-      }
-
-      // Do object selection //
-
-      uint32_t id = b.objectId ? b.objectId[i] : ~0u;
-      if (id != ~0u) {
-        tsd::logStatus("[viewport] picked object '%u' @ (%i, %i) | z: %f",
-            id,
-            l.x,
-            l.y,
-            m_pickedDepth);
-      }
-
-      anari::DataType objectType = ANARI_SURFACE;
-      if (id != ~0u && id & 0x80000000u) {
-        objectType = ANARI_VOLUME;
-        id &= 0x7FFFFFFF;
-      }
-
-      m_core->setSelectedObject(
-          id == ~0u ? nullptr : m_core->tsd.ctx.getObject(objectType, id));
-
-      m_pickPass->setEnabled(false);
-    });
-    m_visualizeDepthPass = m_pipeline.emplace_back<tsd::VisualizeDepthPass>();
-    m_visualizeDepthPass->setEnabled(false);
-    m_outlinePass = m_pipeline.emplace_back<tsd::OutlineRenderPass>();
-    m_outputPass = m_pipeline.emplace_back<tsd::CopyToSDLTexturePass>(
-        m_core->application->sdlRenderer());
-    reshape(m_viewportSize);
-  }
+  if (deviceReady && !m_deviceReadyToUse)
+    setupRenderPipeline();
 
   m_deviceReadyToUse = deviceReady;
 
@@ -120,10 +63,11 @@ void Viewport::buildUI()
   ImGui::EndDisabled();
 
   bool didPick = ui_picking();
-  ui_contextMenu();
 
   if (!m_coreMenuVisible)
     ui_handleInput();
+
+  ui_menubar();
 
   if (m_anariPass && !didPick)
     m_anariPass->setEnableIDs(m_core->objectIsSelected());
@@ -235,7 +179,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       if (firstFrame && m_core->commandLine.loadedFromStateFile)
         firstFrame = false;
 
-      if (firstFrame || m_arcball->distance() == inf) {
+      if (firstFrame || m_arcball->distance() == tsd::math::inf) {
         resetView(true);
         if (m_core->view.poses.empty()) {
           tsd::logStatus("[viewport] adding 'default' camera pose");
@@ -394,6 +338,63 @@ void Viewport::updateAllRendererParameters(anari::Device d)
     ro.updateAllANARIParameters(d, ar);
     anari::commitParameters(d, ar);
   }
+}
+
+void Viewport::setupRenderPipeline()
+{
+  tsd::logStatus("[viewport] initialized scene for '%s' device in %.2fs",
+      m_libName.c_str(),
+      m_timeToLoadDevice);
+  m_anariPass = m_pipeline.emplace_back<tsd::AnariRenderPass>(m_device);
+  m_pickPass = m_pipeline.emplace_back<tsd::PickPass>();
+  m_pickPass->setEnabled(false);
+  m_pickPass->setPickOperation([&](tsd::RenderPass::Buffers &b) {
+    // Get depth //
+
+    auto [width, height] = m_pickPass->getDimensions();
+
+    auto l = linalg::clamp(m_pickCoord,
+        tsd::math::int2(0, 0),
+        tsd::math::int2(width - 1, height - 1));
+    l.x = width - l.x;
+    l.y = height - l.y;
+    const auto i = l.y * width + l.x;
+
+    m_pickedDepth = b.depth ? b.depth[i] : 1e30f;
+
+    if (!m_selectObjectNextPick) {
+      m_pickPass->setEnabled(false);
+      return;
+    }
+
+    // Do object selection //
+
+    uint32_t id = b.objectId ? b.objectId[i] : ~0u;
+    if (id != ~0u) {
+      tsd::logStatus("[viewport] picked object '%u' @ (%i, %i) | z: %f",
+          id,
+          l.x,
+          l.y,
+          m_pickedDepth);
+    }
+
+    anari::DataType objectType = ANARI_SURFACE;
+    if (id != ~0u && id & 0x80000000u) {
+      objectType = ANARI_VOLUME;
+      id &= 0x7FFFFFFF;
+    }
+
+    m_core->setSelectedObject(
+        id == ~0u ? nullptr : m_core->tsd.ctx.getObject(objectType, id));
+
+    m_pickPass->setEnabled(false);
+  });
+  m_visualizeDepthPass = m_pipeline.emplace_back<tsd::VisualizeDepthPass>();
+  m_visualizeDepthPass->setEnabled(false);
+  m_outlinePass = m_pipeline.emplace_back<tsd::OutlineRenderPass>();
+  m_outputPass = m_pipeline.emplace_back<tsd::CopyToSDLTexturePass>(
+      m_core->application->sdlRenderer());
+  reshape(m_viewportSize);
 }
 
 void Viewport::teardownDevice()
@@ -569,9 +570,231 @@ void Viewport::echoCameraConfig()
   const auto u = m_arcball->up();
 
   tsd::logStatus("Camera:");
-  tsd::logStatus("  p: %f, %f, %f", p.x, p.y, p.z);
-  tsd::logStatus("  d: %f, %f, %f", d.x, d.y, d.z);
-  tsd::logStatus("  u: %f, %f, %f", u.x, u.y, u.z);
+  tsd::logStatus("  pos: %f, %f, %f", p.x, p.y, p.z);
+  tsd::logStatus("  dir: %f, %f, %f", d.x, d.y, d.z);
+  tsd::logStatus("   up: %f, %f, %f", u.x, u.y, u.z);
+}
+
+void Viewport::ui_menubar()
+{
+  if (ImGui::BeginMenuBar()) {
+    // Device //
+
+    if (ImGui::BeginMenu("Device")) {
+      for (auto &libName : m_core->commandLine.libraryList) {
+        const bool isThisLibrary = m_libName == libName;
+        if (ImGui::RadioButton(libName.c_str(), isThisLibrary))
+          setLibrary(libName, false);
+      }
+      ImGui::EndMenu();
+    }
+
+    // Renderer //
+
+    if (ImGui::BeginMenu("Renderer")) {
+      if (m_rendererObjects.size() > 1 && ImGui::BeginMenu("subtype")) {
+        for (int i = 0; i < m_rendererObjects.size(); i++) {
+          const char *rName = m_rendererObjects[i].name().c_str();
+          if (ImGui::RadioButton(rName, &m_currentRenderer, i))
+            updateFrame();
+        }
+        ImGui::EndMenu();
+      }
+
+      if (!m_rendererObjects.empty() && ImGui::BeginMenu("parameters")) {
+        tsd::ui::buildUI_object(
+            m_rendererObjects[m_currentRenderer], m_core->tsd.ctx, false);
+        ImGui::EndMenu();
+      }
+
+      if (ImGui::BeginMenu("reset defaults?")) {
+        if (ImGui::MenuItem("yes")) {
+          loadANARIRendererParameters(m_device);
+          updateAllRendererParameters(m_device);
+          updateFrame();
+        }
+        ImGui::EndMenu();
+      }
+      ImGui::EndMenu();
+    }
+
+    // Camera //
+
+    if (ImGui::BeginMenu("Camera")) {
+      if (ImGui::BeginMenu("type")) {
+        bool changeType = false;
+        if (ImGui::RadioButton(
+                "perspective", m_currentCamera == m_perspCamera)) {
+          m_currentCamera = m_perspCamera;
+          changeType = true;
+        }
+
+        ImGui::BeginDisabled(!m_orthoCamera);
+        if (ImGui::RadioButton("orthographic",
+                m_orthoCamera && m_currentCamera == m_orthoCamera)) {
+          m_currentCamera = m_orthoCamera;
+          changeType = true;
+        }
+        ImGui::EndDisabled();
+
+        ImGui::BeginDisabled(!m_omniCamera);
+        if (ImGui::RadioButton("omnidirectional",
+                m_omniCamera && m_currentCamera == m_omniCamera)) {
+          m_currentCamera = m_omniCamera;
+          changeType = true;
+        }
+        ImGui::EndDisabled();
+
+        if (changeType)
+          updateFrame();
+
+        ImGui::EndMenu();
+      }
+
+      ImGui::BeginDisabled(m_currentCamera != m_perspCamera);
+
+      if (ImGui::SliderFloat("fov", &m_fov, 0.1f, 180.f))
+        updateCamera(true);
+
+      if (ImGui::BeginMenu("depth of field")) {
+        if (ImGui::DragFloat("aperture", &m_apertureRadius, 0.01f, 0.f, 1.f))
+          updateCamera(true);
+
+        if (ImGui::DragFloat(
+                "focus distance", &m_focusDistance, 0.1f, 0.f, 1e20f))
+          updateCamera(true);
+        ImGui::EndMenu();
+      }
+
+      ImGui::EndDisabled();
+
+      if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
+        m_arcball->setAxis(
+            static_cast<tsd::manipulators::OrbitAxis>(m_arcballUp));
+        resetView();
+      }
+
+      if (ImGui::BeginMenu("reset view")) {
+        if (ImGui::MenuItem("center"))
+          centerView();
+        if (ImGui::MenuItem("dist"))
+          resetView(false);
+        if (ImGui::MenuItem("angle + dist"))
+          resetView(true);
+        ImGui::EndMenu();
+      }
+
+      if (ImGui::Checkbox("echo config", &m_echoCameraConfig)
+          && m_echoCameraConfig)
+        echoCameraConfig();
+
+      ImGui::EndMenu();
+    }
+
+    // Viewport //
+
+    if (ImGui::BeginMenu("Viewport")) {
+      if (ImGui::BeginMenu("format")) {
+        const anari::DataType format = m_format;
+
+        if (ImGui::RadioButton(
+                "UFIXED8_RGBA_SRGB", m_format == ANARI_UFIXED8_RGBA_SRGB))
+          m_format = ANARI_UFIXED8_RGBA_SRGB;
+        if (ImGui::RadioButton("UFIXED8_VEC4", m_format == ANARI_UFIXED8_VEC4))
+          m_format = ANARI_UFIXED8_VEC4;
+        if (ImGui::RadioButton("FLOAT32_VEC4", m_format == ANARI_FLOAT32_VEC4))
+          m_format = ANARI_FLOAT32_VEC4;
+
+        if (format != m_format)
+          m_anariPass->setColorFormat(m_format);
+
+        ImGui::EndMenu();
+      }
+
+      ImGui::Separator();
+
+      if (ImGui::BeginMenu("render resolution")) {
+        const float current = m_resolutionScale;
+        if (ImGui::RadioButton("100%", current == 1.f))
+          m_resolutionScale = 1.f;
+        if (ImGui::RadioButton("75%", current == 0.75f))
+          m_resolutionScale = 0.75f;
+        if (ImGui::RadioButton("50%", current == 0.5f))
+          m_resolutionScale = 0.5f;
+        if (ImGui::RadioButton("25%", current == 0.25f))
+          m_resolutionScale = 0.25f;
+        if (ImGui::RadioButton("12.5%", current == 0.125f))
+          m_resolutionScale = 0.125f;
+
+        if (current != m_resolutionScale)
+          reshape(m_viewportSize);
+        ImGui::EndMenu();
+      }
+
+      ImGui::Separator();
+
+      if (ImGui::Checkbox("visualize depth", &m_visualizeDepth))
+        m_visualizeDepthPass->setEnabled(m_visualizeDepth);
+
+      ImGui::BeginDisabled(!m_visualizeDepth);
+      if (ImGui::DragFloat("maximum", &m_depthVisualMaximum, 1.f, 1e-3f, 1e20f))
+        m_visualizeDepthPass->setMaxDepth(m_depthVisualMaximum);
+      ImGui::EndDisabled();
+
+      ImGui::Separator();
+
+      ImGui::BeginDisabled(m_showOnlySelected);
+      ImGui::Checkbox("highlight selection", &m_highlightSelection);
+      ImGui::EndDisabled();
+
+      if (ImGui::Checkbox("only show selection", &m_showOnlySelected))
+        setSelectionVisibilityFilterEnabled(m_showOnlySelected);
+
+      ImGui::Separator();
+
+      ImGui::Checkbox("show stats", &m_showOverlay);
+      if (ImGui::MenuItem("reset stats")) {
+        m_minFL = m_latestFL;
+        m_maxFL = m_latestFL;
+      }
+
+      ImGui::Separator();
+
+      if (ImGui::MenuItem("take screenshot"))
+        m_saveNextFrame = true;
+
+      ImGui::EndMenu();
+    }
+
+    // World //
+
+    if (ImGui::BeginMenu("World")) {
+      if (ImGui::MenuItem("print bounds")) {
+        tsd::math::float3 bounds[2];
+
+        anariGetProperty(m_device,
+            m_rIdx->world(),
+            "bounds",
+            ANARI_FLOAT32_BOX3,
+            &bounds[0],
+            sizeof(bounds),
+            ANARI_WAIT);
+
+        tsd::logStatus(
+            "[viewport] current world bounds {%f, %f, %f} x {%f, %f, %f}",
+            bounds[0].x,
+            bounds[0].y,
+            bounds[0].z,
+            bounds[1].x,
+            bounds[1].y,
+            bounds[1].z);
+      }
+
+      ImGui::EndMenu();
+    }
+
+    ImGui::EndMenuBar();
+  }
 }
 
 void Viewport::ui_handleInput()
@@ -580,9 +803,6 @@ void Viewport::ui_handleInput()
     return;
 
   ImGuiIO &io = ImGui::GetIO();
-
-  if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter))
-    m_core->clearSelected();
 
   const bool dolly = ImGui::IsMouseDown(ImGuiMouseButton_Right)
       || (ImGui::IsMouseDown(ImGuiMouseButton_Left)
@@ -718,270 +938,12 @@ bool Viewport::ui_picking()
   return didPick;
 }
 
-void Viewport::ui_contextMenu()
-{
-  constexpr float INDENT_AMOUNT = 25.f;
-
-  const ImGuiIO &io = ImGui::GetIO();
-
-  const bool openMenu = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)
-      || ImGui::IsKeyDown(ImGuiKey_Menu);
-  if (openMenu && ImGui::IsWindowHovered()) {
-    m_coreMenuVisible = true;
-    ImGui::OpenPopup(m_coreMenuName.c_str());
-  }
-
-  if (ImGui::BeginPopup(m_coreMenuName.c_str())) {
-    // Device //
-    ImGui::BeginDisabled(!m_core->tsd.sceneLoadComplete);
-
-    ImGui::Text("Device:");
-    ImGui::Indent(INDENT_AMOUNT);
-
-    if (ImGui::BeginMenu("Device")) {
-      for (auto &libName : m_core->commandLine.libraryList) {
-        const bool isThisLibrary = m_libName == libName;
-        if (ImGui::RadioButton(libName.c_str(), isThisLibrary))
-          setLibrary(libName, false);
-      }
-      ImGui::EndMenu();
-    }
-    ImGui::Unindent(INDENT_AMOUNT);
-
-    ImGui::EndDisabled();
-
-    if (m_device) {
-      ImGui::Separator();
-
-      // Renderer //
-
-      if (!m_rendererObjects.empty()) {
-        ImGui::Text("Renderer:");
-
-        ImGui::Indent(INDENT_AMOUNT);
-
-        if (m_rendererObjects.size() > 1 && ImGui::BeginMenu("subtype")) {
-          for (int i = 0; i < m_rendererObjects.size(); i++) {
-            const char *rName = m_rendererObjects[i].name().c_str();
-            if (ImGui::RadioButton(rName, &m_currentRenderer, i))
-              updateFrame();
-          }
-          ImGui::EndMenu();
-        }
-
-        if (!m_rendererObjects.empty() && ImGui::BeginMenu("parameters")) {
-          tsd::ui::buildUI_object(
-              m_rendererObjects[m_currentRenderer], m_core->tsd.ctx, false);
-          ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("reset defaults?")) {
-          if (ImGui::MenuItem("yes")) {
-            loadANARIRendererParameters(m_device);
-            updateAllRendererParameters(m_device);
-            updateFrame();
-          }
-          ImGui::EndMenu();
-        }
-
-        ImGui::Unindent(INDENT_AMOUNT);
-        ImGui::Separator();
-      }
-
-      // Camera //
-
-      ImGui::Text("Camera:");
-      ImGui::Indent(INDENT_AMOUNT);
-
-      if (ImGui::BeginMenu("type")) {
-        bool changeType = false;
-        if (ImGui::RadioButton(
-                "perspective", m_currentCamera == m_perspCamera)) {
-          m_currentCamera = m_perspCamera;
-          changeType = true;
-        }
-
-        ImGui::BeginDisabled(!m_orthoCamera);
-        if (ImGui::RadioButton("orthographic",
-                m_orthoCamera && m_currentCamera == m_orthoCamera)) {
-          m_currentCamera = m_orthoCamera;
-          changeType = true;
-        }
-        ImGui::EndDisabled();
-
-        ImGui::BeginDisabled(!m_omniCamera);
-        if (ImGui::RadioButton("omnidirectional",
-                m_omniCamera && m_currentCamera == m_omniCamera)) {
-          m_currentCamera = m_omniCamera;
-          changeType = true;
-        }
-        ImGui::EndDisabled();
-
-        if (changeType)
-          updateFrame();
-
-        ImGui::EndMenu();
-      }
-
-      ImGui::BeginDisabled(m_currentCamera != m_perspCamera);
-
-      if (ImGui::SliderFloat("fov", &m_fov, 0.1f, 180.f))
-        updateCamera(true);
-
-      if (ImGui::BeginMenu("DoF")) {
-        if (ImGui::DragFloat("aperture", &m_apertureRadius, 0.01f, 0.f, 1.f))
-          updateCamera(true);
-
-        if (ImGui::DragFloat(
-                "focus distance", &m_focusDistance, 0.1f, 0.f, 1e20f))
-          updateCamera(true);
-        ImGui::EndMenu();
-      }
-
-      ImGui::EndDisabled();
-
-      if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
-        m_arcball->setAxis(
-            static_cast<tsd::manipulators::OrbitAxis>(m_arcballUp));
-        resetView();
-      }
-
-      if (ImGui::BeginMenu("reset view")) {
-        if (ImGui::MenuItem("center"))
-          centerView();
-        if (ImGui::MenuItem("dist"))
-          resetView(false);
-        if (ImGui::MenuItem("angle + dist"))
-          resetView(true);
-        ImGui::EndMenu();
-      }
-
-      if (ImGui::Checkbox("echo config", &m_echoCameraConfig)
-          && m_echoCameraConfig)
-        echoCameraConfig();
-
-      ImGui::Unindent(INDENT_AMOUNT);
-      ImGui::Separator();
-
-      // Viewport //
-
-      ImGui::Text("Viewport:");
-      ImGui::Indent(INDENT_AMOUNT);
-
-      if (ImGui::BeginMenu("format")) {
-        const anari::DataType format = m_format;
-
-        if (ImGui::RadioButton(
-                "UFIXED8_RGBA_SRGB", m_format == ANARI_UFIXED8_RGBA_SRGB))
-          m_format = ANARI_UFIXED8_RGBA_SRGB;
-        if (ImGui::RadioButton("UFIXED8_VEC4", m_format == ANARI_UFIXED8_VEC4))
-          m_format = ANARI_UFIXED8_VEC4;
-        if (ImGui::RadioButton("FLOAT32_VEC4", m_format == ANARI_FLOAT32_VEC4))
-          m_format = ANARI_FLOAT32_VEC4;
-
-        if (format != m_format)
-          m_anariPass->setColorFormat(m_format);
-
-        ImGui::EndMenu();
-      }
-
-      ImGui::Separator();
-
-      if (ImGui::BeginMenu("render resolution")) {
-        const float current = m_resolutionScale;
-        if (ImGui::RadioButton("100%", current == 1.f))
-          m_resolutionScale = 1.f;
-        if (ImGui::RadioButton("75%", current == 0.75f))
-          m_resolutionScale = 0.75f;
-        if (ImGui::RadioButton("50%", current == 0.5f))
-          m_resolutionScale = 0.5f;
-        if (ImGui::RadioButton("25%", current == 0.25f))
-          m_resolutionScale = 0.25f;
-        if (ImGui::RadioButton("12.5%", current == 0.125f))
-          m_resolutionScale = 0.125f;
-
-        if (current != m_resolutionScale)
-          reshape(m_viewportSize);
-        ImGui::EndMenu();
-      }
-
-      ImGui::Separator();
-
-      if (ImGui::Checkbox("visualize depth", &m_visualizeDepth))
-        m_visualizeDepthPass->setEnabled(m_visualizeDepth);
-
-      ImGui::BeginDisabled(!m_visualizeDepth);
-      if (ImGui::DragFloat("maximum", &m_depthVisualMaximum, 1.f, 1e-3f, 1e20f))
-        m_visualizeDepthPass->setMaxDepth(m_depthVisualMaximum);
-      ImGui::EndDisabled();
-
-      ImGui::Separator();
-
-      ImGui::BeginDisabled(m_showOnlySelected);
-      ImGui::Checkbox("highlight selection", &m_highlightSelection);
-      ImGui::EndDisabled();
-
-      if (ImGui::Checkbox("only show selection", &m_showOnlySelected))
-        setSelectionVisibilityFilterEnabled(m_showOnlySelected);
-
-      ImGui::Separator();
-
-      ImGui::Checkbox("show stats", &m_showOverlay);
-      if (ImGui::MenuItem("reset stats")) {
-        m_minFL = m_latestFL;
-        m_maxFL = m_latestFL;
-      }
-
-      ImGui::Separator();
-
-      if (ImGui::MenuItem("take screenshot"))
-        m_saveNextFrame = true;
-
-      ImGui::Unindent(INDENT_AMOUNT);
-      ImGui::Separator();
-
-      // World //
-
-      ImGui::Text("World:");
-      ImGui::Indent(INDENT_AMOUNT);
-
-      if (ImGui::MenuItem("print bounds")) {
-        tsd::math::float3 bounds[2];
-
-        anariGetProperty(m_device,
-            m_rIdx->world(),
-            "bounds",
-            ANARI_FLOAT32_BOX3,
-            &bounds[0],
-            sizeof(bounds),
-            ANARI_WAIT);
-
-        tsd::logStatus(
-            "[viewport] current world bounds {%f, %f, %f} x {%f, %f, %f}\n",
-            bounds[0].x,
-            bounds[0].y,
-            bounds[0].z,
-            bounds[1].x,
-            bounds[1].y,
-            bounds[1].z);
-      }
-
-      ImGui::Unindent(INDENT_AMOUNT);
-    }
-
-    if (!ImGui::IsPopupOpen(m_coreMenuName.c_str()))
-      m_coreMenuVisible = false;
-
-    ImGui::EndPopup();
-  }
-}
-
 void Viewport::ui_overlay()
 {
   ImGuiIO &io = ImGui::GetIO();
   ImVec2 windowPos = ImGui::GetWindowPos();
   windowPos.x += 10;
-  windowPos.y += 35 * io.FontGlobalScale;
+  windowPos.y += 63 * io.FontGlobalScale;
 
   ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration
       | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_AlwaysAutoResize
@@ -1028,6 +990,11 @@ void Viewport::ui_overlay()
 
     ImGui::End();
   }
+}
+
+int Viewport::windowFlags() const
+{
+  return ImGuiWindowFlags_MenuBar;
 }
 
 void Viewport::RendererUpdateDelegate::signalParameterUpdated(
