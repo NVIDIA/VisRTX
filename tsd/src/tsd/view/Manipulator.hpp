@@ -16,6 +16,7 @@ struct CameraPose
   std::string name;
   tsd::float3 lookat{0.f};
   tsd::float3 azeldist{0.f};
+  float fixedDist{tsd::math::inf};
   int upAxis{0};
 };
 
@@ -33,9 +34,6 @@ class Orbit
 {
  public:
   Orbit() = default;
-  Orbit(anari::math::float3 at,
-      float dist,
-      anari::math::float2 azel = anari::math::float2(0.f));
 
   void setConfig(const CameraPose &p);
   void setConfig(anari::math::float3 center,
@@ -43,6 +41,7 @@ class Orbit
       anari::math::float2 azel = anari::math::float2(0.f));
   void setCenter(anari::math::float3 center);
   void setDistance(float dist);
+  void setFixedDistance(float dist);
   void setAzel(anari::math::float2 azel);
 
   void startNewRotation();
@@ -64,8 +63,9 @@ class Orbit
   anari::math::float3 up() const;
 
   float distance() const;
+  float fixedDistance() const;
 
-  anari::math::float3 eye_FixedDistance() const; // using original distance
+  anari::math::float3 eye_FixedDistance() const;
 
  protected:
   void update();
@@ -81,7 +81,7 @@ class Orbit
   anari::math::float2 m_azel{0.f};
 
   float m_distance{1.f};
-  float m_originalDistance{1.f};
+  float m_fixedDistance{tsd::math::inf};
   float m_speed{0.25f};
 
   bool m_invertRotation{false};
@@ -97,12 +97,6 @@ class Orbit
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-inline Orbit::Orbit(
-    anari::math::float3 at, float dist, anari::math::float2 azel)
-{
-  setConfig(at, dist, azel);
-}
-
 inline void Orbit::setConfig(const CameraPose &p)
 {
   setConfig(p.lookat, p.azeldist.z, {p.azeldist.x, p.azeldist.y});
@@ -116,7 +110,8 @@ inline void Orbit::setConfig(
   m_distance = dist;
   m_azel = azel;
   m_speed = dist;
-  m_originalDistance = dist;
+  if (m_fixedDistance == tsd::math::inf)
+    m_fixedDistance = dist;
   update();
 }
 
@@ -128,6 +123,11 @@ inline void Orbit::setCenter(anari::math::float3 center)
 inline void Orbit::setDistance(float dist)
 {
   setConfig(m_at, dist, m_azel);
+}
+
+inline void Orbit::setFixedDistance(float dist)
+{
+  m_fixedDistance = dist;
 }
 
 inline void Orbit::setAzel(anari::math::float2 azel)
@@ -231,6 +231,11 @@ inline float Orbit::distance() const
   return m_distance;
 }
 
+inline float Orbit::fixedDistance() const
+{
+  return m_fixedDistance;
+}
+
 inline anari::math::float3 Orbit::eye_FixedDistance() const
 {
   return m_eyeFixedDistance;
@@ -263,7 +268,7 @@ inline void Orbit::update()
   m_up = linalg::normalize(cameraUp);
   m_right = linalg::normalize(cameraRight);
 
-  m_eyeFixedDistance = (toLocalOrbit * m_originalDistance) + m_at;
+  m_eyeFixedDistance = (toLocalOrbit * m_fixedDistance) + m_at;
 
   m_token++;
 }

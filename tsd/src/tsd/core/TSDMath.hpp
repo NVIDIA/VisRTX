@@ -8,6 +8,8 @@
 #include <anari/anari_cpp.hpp>
 // helium
 #include <helium/helium_math.h>
+// std
+#include <limits>
 
 namespace tsd {
 namespace math {
@@ -16,6 +18,7 @@ using namespace anari::math;
 using namespace helium::math;
 
 static constexpr mat4 IDENTITY_MAT4 = identity;
+static constexpr float inf = std::numeric_limits<float>::infinity();
 
 static constexpr tsd::math::float3 to_float3(const tsd::math::float4 &v)
 {

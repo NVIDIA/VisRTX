@@ -79,6 +79,7 @@ void cameraPoseToNode(
   node["name"] = p.name;
   node["lookat"] = p.lookat;
   node["azeldist"] = p.azeldist;
+  node["fixedDist"] = p.fixedDist;
   node["upAxis"] = p.upAxis;
 }
 
@@ -207,6 +208,7 @@ void nodeToCameraPose(
   node["name"].getValue(ANARI_STRING, &pose.name);
   node["lookat"].getValue(ANARI_FLOAT32_VEC3, &pose.lookat);
   node["azeldist"].getValue(ANARI_FLOAT32_VEC3, &pose.azeldist);
+  node["fixedDist"].getValue(ANARI_FLOAT32, &pose.fixedDist);
   node["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
 }
 

@@ -1008,14 +1008,22 @@ void Viewport::ui_overlay()
       auto at = m_arcball->at();
       auto azel = m_arcball->azel();
       auto dist = m_arcball->distance();
+      auto fixedDist = m_arcball->fixedDistance();
 
       bool update = ImGui::SliderFloat("az", &azel.x, 0.f, 360.f);
       update |= ImGui::SliderFloat("el", &azel.y, 0.f, 360.f);
       update |= ImGui::DragFloat("dist", &dist);
       update |= ImGui::DragFloat3("at", &at.x);
+      ImGui::BeginDisabled(m_currentCamera != m_orthoCamera);
+      update |= ImGui::DragFloat("near", &fixedDist);
+      if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("near plane distance for orthographic camera");
+      ImGui::EndDisabled();
 
-      if (update)
+      if (update) {
         m_arcball->setConfig(at, dist, azel);
+        m_arcball->setFixedDistance(fixedDist);
+      }
     }
 
     ImGui::End();
