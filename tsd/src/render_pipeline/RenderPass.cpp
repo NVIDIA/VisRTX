@@ -27,7 +27,7 @@ namespace tsd {
 void convertFloatColorBuffer(const float *v, uint8_t *out, size_t totalSize)
 {
   detail::parallel_transform(v, v + totalSize, out, [] DEVICE_FCN(float v) {
-    return uint8_t(v * 255);
+    return uint8_t(std::clamp(v, 0.f, 1.f) * 255);
   });
 }
 
