@@ -359,29 +359,70 @@ void Viewport::setupRenderPipeline()
     m_pickedDepth = b.depth ? b.depth[i] : 1e30f;
 
     if (!m_selectObjectNextPick) {
-      m_pickPass->setEnabled(false);
-      return;
+      // Do object selection //
+      auto mPos = ImGui::GetMousePos();
+      auto wMin = ImGui::GetItemRectMin();
+      auto pixel = m_pickCoord;
+      pixel.x = int(mPos[0] - wMin[0]);
+      pixel.y = m_viewportSize.y - int(mPos[1] - wMin[1]);
+
+      const float aspect = m_viewportSize.x / float(m_viewportSize.y);
+      anari::math::float2 imgPlaneSize;
+      imgPlaneSize.y = 2.f * tanf(0.5f * anari::radians(m_fov));
+      imgPlaneSize.x = imgPlaneSize.y * aspect;
+
+      const auto d = m_arcball->dir();
+      const auto u = m_arcball->up();
+
+      const auto dir_du =
+          anari::math::normalize(anari::math::cross(d, u)) * imgPlaneSize.x;
+      const auto dir_dv = anari::math::normalize(anari::math::cross(dir_du, d))
+          * imgPlaneSize.y;
+      const auto dir_00 = d - .5f * dir_du - .5f * dir_dv;
+
+      const auto screen = anari::math::float2(
+          1.f / m_viewportSize.x * pixel.x, (1.f / m_viewportSize.y * pixel.y));
+
+      const auto dir = anari::math::normalize(
+          dir_00 + screen.x * dir_du + screen.y * dir_dv);
+
+      const auto p = m_arcball->eye();
+      const auto c = p + m_pickedDepth * dir;
+
+      tsd::logStatus(
+          "[viewport] pick [%i, %i] {%f, %f} depth %f / %f| {%f, %f, %f}",
+          int(pixel.x),
+          int(pixel.y),
+          screen.x,
+          screen.y,
+          m_pickedDepth,
+          m_arcball->distance(),
+          c.x,
+          c.y,
+          c.z);
+
+      m_arcball->setCenter(c);
+    } else {
+      // Do object selection //
+
+      uint32_t id = b.objectId ? b.objectId[i] : ~0u;
+      if (id != ~0u) {
+        tsd::logStatus("[viewport] picked object '%u' @ (%i, %i) | z: %f",
+            id,
+            l.x,
+            l.y,
+            m_pickedDepth);
+      }
+
+      anari::DataType objectType = ANARI_SURFACE;
+      if (id != ~0u && id & 0x80000000u) {
+        objectType = ANARI_VOLUME;
+        id &= 0x7FFFFFFF;
+      }
+
+      m_core->setSelectedObject(
+          id == ~0u ? nullptr : m_core->tsd.ctx.getObject(objectType, id));
     }
-
-    // Do object selection //
-
-    uint32_t id = b.objectId ? b.objectId[i] : ~0u;
-    if (id != ~0u) {
-      tsd::logStatus("[viewport] picked object '%u' @ (%i, %i) | z: %f",
-          id,
-          l.x,
-          l.y,
-          m_pickedDepth);
-    }
-
-    anari::DataType objectType = ANARI_SURFACE;
-    if (id != ~0u && id & 0x80000000u) {
-      objectType = ANARI_VOLUME;
-      id &= 0x7FFFFFFF;
-    }
-
-    m_core->setSelectedObject(
-        id == ~0u ? nullptr : m_core->tsd.ctx.getObject(objectType, id));
 
     m_pickPass->setEnabled(false);
   });
@@ -795,7 +836,7 @@ void Viewport::ui_menubar()
 
 void Viewport::ui_handleInput()
 {
-  if (!m_deviceReadyToUse)
+  if (!m_deviceReadyToUse || !ImGui::IsWindowFocused())
     return;
 
   ImGuiIO &io = ImGui::GetIO();
@@ -858,8 +899,6 @@ bool Viewport::ui_picking()
 {
   const ImGuiIO &io = ImGui::GetIO();
 
-  bool didPick = false;
-
   // Pick view center //
 
   const bool shouldPickCenter = m_currentCamera == m_perspCamera
@@ -872,55 +911,14 @@ bool Viewport::ui_picking()
         tsd::math::float2(
             m_viewportSize.x - (mPos[0] - wMin[0]), mPos[1] - wMin[1])
         * m_resolutionScale);
-
     pick(pixel, false);
-
-    pixel.x = int(mPos[0] - wMin[0]);
-    pixel.y = m_viewportSize.y - int(mPos[1] - wMin[1]);
-
-    const float aspect = m_viewportSize.x / float(m_viewportSize.y);
-    anari::math::float2 imgPlaneSize;
-    imgPlaneSize.y = 2.f * tanf(0.5f * anari::radians(m_fov));
-    imgPlaneSize.x = imgPlaneSize.y * aspect;
-
-    const auto d = m_arcball->dir();
-    const auto u = m_arcball->up();
-
-    const auto dir_du =
-        anari::math::normalize(anari::math::cross(d, u)) * imgPlaneSize.x;
-    const auto dir_dv =
-        anari::math::normalize(anari::math::cross(dir_du, d)) * imgPlaneSize.y;
-    const auto dir_00 = d - .5f * dir_du - .5f * dir_dv;
-
-    const auto screen = anari::math::float2(
-        1.f / m_viewportSize.x * pixel.x, (1.f / m_viewportSize.y * pixel.y));
-
-    const auto dir =
-        anari::math::normalize(dir_00 + screen.x * dir_du + screen.y * dir_dv);
-
-    const auto p = m_arcball->eye();
-    const auto c = p + m_pickedDepth * dir;
-
-    tsd::logStatus(
-        "[viewport] pick [%i, %i] {%f, %f} depth %f / %f| {%f, %f, %f}",
-        int(pixel.x),
-        int(pixel.y),
-        screen.x,
-        screen.y,
-        m_pickedDepth,
-        m_arcball->distance(),
-        c.x,
-        c.y,
-        c.z);
-
-    m_arcball->setCenter(c);
-    didPick = true;
+    return true;
   }
 
   // Pick object //
 
   const bool shouldPickObject =
-      ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !shouldPickCenter;
+      ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
   if (shouldPickObject && ImGui::IsWindowHovered()) {
     auto mPos = ImGui::GetMousePos();
     auto wMin = ImGui::GetItemRectMin();
@@ -928,10 +926,10 @@ bool Viewport::ui_picking()
                      m_viewportSize.x - (mPos[0] - wMin[0]), mPos[1] - wMin[1])
         * m_resolutionScale;
     pick(tsd::math::int2(pixel), true);
-    didPick = true;
+    return true;
   }
 
-  return didPick;
+  return false;
 }
 
 void Viewport::ui_overlay()
