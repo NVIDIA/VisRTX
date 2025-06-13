@@ -614,6 +614,8 @@ void Viewport::echoCameraConfig()
 
 void Viewport::ui_menubar()
 {
+  constexpr float INDENT_AMOUNT = 20.f;
+
   if (ImGui::BeginMenuBar()) {
     // Device //
 
@@ -629,28 +631,41 @@ void Viewport::ui_menubar()
     // Renderer //
 
     if (ImGui::BeginMenu("Renderer")) {
-      if (m_rendererObjects.size() > 1 && ImGui::BeginMenu("subtype")) {
+      if (m_rendererObjects.size() > 1) {
+        ImGui::Text("Subtype:");
+        ImGui::Indent(INDENT_AMOUNT);
         for (int i = 0; i < m_rendererObjects.size(); i++) {
           const char *rName = m_rendererObjects[i].name().c_str();
           if (ImGui::RadioButton(rName, &m_currentRenderer, i))
             updateFrame();
         }
-        ImGui::EndMenu();
+        ImGui::Unindent(INDENT_AMOUNT);
       }
 
-      if (!m_rendererObjects.empty() && ImGui::BeginMenu("parameters")) {
+      ImGui::Separator();
+
+      if (!m_rendererObjects.empty()) {
+        ImGui::Text("Parameters:");
+        ImGui::Indent(INDENT_AMOUNT);
+
         tsd::ui::buildUI_object(
             m_rendererObjects[m_currentRenderer], m_core->tsd.ctx, false);
-        ImGui::EndMenu();
-      }
 
-      if (ImGui::BeginMenu("reset defaults?")) {
-        if (ImGui::MenuItem("yes")) {
-          loadANARIRendererParameters(m_device);
-          updateAllRendererParameters(m_device);
-          updateFrame();
+        ImGui::Unindent(INDENT_AMOUNT);
+        ImGui::Separator();
+        ImGui::Separator();
+        ImGui::Indent(INDENT_AMOUNT);
+
+        if (ImGui::BeginMenu("reset to defaults?")) {
+          if (ImGui::MenuItem("yes")) {
+            loadANARIRendererParameters(m_device);
+            updateAllRendererParameters(m_device);
+            updateFrame();
+          }
+          ImGui::EndMenu();
         }
-        ImGui::EndMenu();
+
+        ImGui::Unindent(INDENT_AMOUNT);
       }
       ImGui::EndMenu();
     }
@@ -658,7 +673,10 @@ void Viewport::ui_menubar()
     // Camera //
 
     if (ImGui::BeginMenu("Camera")) {
-      if (ImGui::BeginMenu("type")) {
+      {
+        ImGui::Text("Subtype:");
+        ImGui::Indent(INDENT_AMOUNT);
+
         bool changeType = false;
         if (ImGui::RadioButton(
                 "perspective", m_currentCamera == m_perspCamera)) {
@@ -685,25 +703,32 @@ void Viewport::ui_menubar()
         if (changeType)
           updateFrame();
 
-        ImGui::EndMenu();
+        ImGui::Unindent(INDENT_AMOUNT);
       }
 
+      ImGui::Separator();
       ImGui::BeginDisabled(m_currentCamera != m_perspCamera);
 
       if (ImGui::SliderFloat("fov", &m_fov, 0.1f, 180.f))
         updateCamera(true);
 
-      if (ImGui::BeginMenu("depth of field")) {
+      ImGui::Separator();
+
+      {
+        ImGui::Text("Depth of Field:");
+        ImGui::Indent(INDENT_AMOUNT);
         if (ImGui::DragFloat("aperture", &m_apertureRadius, 0.01f, 0.f, 1.f))
           updateCamera(true);
 
         if (ImGui::DragFloat(
                 "focus distance", &m_focusDistance, 0.1f, 0.f, 1e20f))
           updateCamera(true);
-        ImGui::EndMenu();
+
+        ImGui::Unindent(INDENT_AMOUNT);
       }
 
       ImGui::EndDisabled();
+      ImGui::Separator();
 
       if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
         m_arcball->setAxis(
@@ -731,9 +756,10 @@ void Viewport::ui_menubar()
     // Viewport //
 
     if (ImGui::BeginMenu("Viewport")) {
-      if (ImGui::BeginMenu("format")) {
+      {
+        ImGui::Text("Format:");
+        ImGui::Indent(INDENT_AMOUNT);
         const anari::DataType format = m_format;
-
         if (ImGui::RadioButton(
                 "UFIXED8_RGBA_SRGB", m_format == ANARI_UFIXED8_RGBA_SRGB))
           m_format = ANARI_UFIXED8_RGBA_SRGB;
@@ -744,13 +770,15 @@ void Viewport::ui_menubar()
 
         if (format != m_format)
           m_anariPass->setColorFormat(m_format);
-
-        ImGui::EndMenu();
+        ImGui::Unindent(INDENT_AMOUNT);
       }
 
       ImGui::Separator();
 
-      if (ImGui::BeginMenu("render resolution")) {
+      {
+        ImGui::Text("Render Resolution:");
+        ImGui::Indent(INDENT_AMOUNT);
+
         const float current = m_resolutionScale;
         if (ImGui::RadioButton("100%", current == 1.f))
           m_resolutionScale = 1.f;
@@ -765,7 +793,8 @@ void Viewport::ui_menubar()
 
         if (current != m_resolutionScale)
           reshape(m_viewportSize);
-        ImGui::EndMenu();
+
+        ImGui::Unindent(INDENT_AMOUNT);
       }
 
       ImGui::Separator();
@@ -781,15 +810,15 @@ void Viewport::ui_menubar()
       ImGui::Separator();
 
       ImGui::BeginDisabled(m_showOnlySelected);
-      ImGui::Checkbox("highlight selection", &m_highlightSelection);
+      ImGui::Checkbox("highlight selected", &m_highlightSelection);
       ImGui::EndDisabled();
 
-      if (ImGui::Checkbox("only show selection", &m_showOnlySelected))
+      if (ImGui::Checkbox("only show selected", &m_showOnlySelected))
         setSelectionVisibilityFilterEnabled(m_showOnlySelected);
 
       ImGui::Separator();
 
-      ImGui::Checkbox("show stats", &m_showOverlay);
+      ImGui::Checkbox("show info overlay", &m_showOverlay);
       if (ImGui::MenuItem("reset stats")) {
         m_minFL = m_latestFL;
         m_maxFL = m_latestFL;
@@ -959,7 +988,7 @@ void Viewport::ui_overlay()
 
     ImGui::Separator();
 
-    ImGui::Checkbox("camera info", &m_showCameraInfo);
+    ImGui::Checkbox("camera setup", &m_showCameraInfo);
     if (m_showCameraInfo) {
       auto at = m_arcball->at();
       auto azel = m_arcball->azel();
