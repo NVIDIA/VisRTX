@@ -58,6 +58,7 @@ anari_viewer::WindowArray TSDApplication::setupWindows()
     ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
 
   m_appSettingsDialog = std::make_unique<AppSettingsDialog>(appCore());
+  m_taskModal = std::make_unique<BlockingTaskModal>(appCore());
   m_fileDialog = std::make_unique<ImportFileDialog>(appCore());
 
   m_core.windows.importDialog = m_fileDialog.get();
@@ -190,6 +191,11 @@ void TSDApplication::uiFrameStart()
     bool modalActive = false;
     if (m_appSettingsDialog->visible()) {
       m_appSettingsDialog->renderUI();
+      modalActive = true;
+    }
+
+    if (m_taskModal->visible()) {
+      m_taskModal->renderUI();
       modalActive = true;
     }
 

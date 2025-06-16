@@ -5,6 +5,7 @@ project(tsd_viewer_common)
 project_add_library(OBJECT)
 project_sources(PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/modals/AppSettingsDialog.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/modals/BlockingTaskModal.cpp
   ${CMAKE_CURRENT_LIST_DIR}/modals/ImportFileDialog.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/CameraPoses.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/DatabaseEditor.cpp

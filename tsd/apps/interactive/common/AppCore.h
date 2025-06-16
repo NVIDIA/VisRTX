@@ -12,6 +12,8 @@
 // anari_viewer
 #include "anari_viewer/Application.h"
 
+#include "TaskQueue.h"
+
 namespace tsd_viewer {
 
 struct ImportFileDialog;
@@ -82,7 +84,6 @@ struct AppCore
   struct CameraState
   {
     std::vector<CameraPose> poses;
-    std::string defaultPose;
     tsd::manipulators::Orbit manipulator;
   } view;
 
@@ -91,6 +92,11 @@ struct AppCore
     ImportFileDialog *importDialog{nullptr};
     float fontScale{1.f};
   } windows;
+
+  struct Tasking
+  {
+    tasking::TaskQueue queue{10};
+  } jobs;
 
   anari_viewer::Application *application{nullptr};
 
@@ -106,16 +112,22 @@ struct AppCore
 
   void getFilenameFromDialog(std::string &filenameOut, bool save = false);
 
+  // ANARI device management //
+
   anari::Device loadDevice(const std::string &libName);
   const anari::Extensions *loadDeviceExtensions(const std::string &libName);
   tsd::RenderIndex *acquireRenderIndex(anari::Device device);
   void releaseRenderIndex(anari::Device device);
   void releaseAllDevices();
 
+  // Selection //
+
   void setSelectedObject(tsd::Object *o);
   void setSelectedNode(tsd::LayerNode &n);
   bool objectIsSelected() const;
   void clearSelected();
+
+  // Camera poses //
 
   void addCurrentViewToCameraPoses(const char *name = "<view>");
   void updateExistingCameraPoseFromView(CameraPose &p);

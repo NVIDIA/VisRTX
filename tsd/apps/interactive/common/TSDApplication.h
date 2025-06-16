@@ -5,6 +5,7 @@
 
 #include "AppCore.h"
 #include "modals/AppSettingsDialog.h"
+#include "modals/BlockingTaskModal.h"
 #include "modals/ImportFileDialog.h"
 // tsd
 #include "tsd/TSD.hpp"
@@ -28,11 +29,11 @@ class TSDApplication : public anari_viewer::Application
   virtual void teardown() override;
 
   // Not movable or copyable //
-
   TSDApplication(const TSDApplication &) = delete;
   TSDApplication &operator=(const TSDApplication &) = delete;
   TSDApplication(TSDApplication &&) = delete;
   TSDApplication &operator=(TSDApplication &&) = delete;
+  /////////////////////////////
 
  protected:
   void saveApplicationState(const char *filename = "state.tsd");
@@ -49,8 +50,9 @@ class TSDApplication : public anari_viewer::Application
   // Data //
 
   std::vector<Window *> m_windows;
-  std::unique_ptr<tsd_viewer::AppSettingsDialog> m_appSettingsDialog;
-  std::unique_ptr<tsd_viewer::ImportFileDialog> m_fileDialog;
+  std::unique_ptr<AppSettingsDialog> m_appSettingsDialog;
+  std::unique_ptr<BlockingTaskModal> m_taskModal;
+  std::unique_ptr<ImportFileDialog> m_fileDialog;
 
   tsd::serialization::DataTree m_settings;
 
@@ -58,6 +60,7 @@ class TSDApplication : public anari_viewer::Application
   void updateWindowTitle();
 
   // Data //
+
   AppCore m_core;
 
   std::string m_applicationName = "TSD";
