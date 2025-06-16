@@ -1,3 +1,6 @@
+// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause
+
 #pragma once
 
 #include "ArgumentBlockDescriptor.h"
@@ -38,7 +41,14 @@ class ArgumentBlockInstance
     return m_argumentBlockDescriptor.m_arguments;
   }
 
-  void setValue(std::string_view name, bool value);  
+  bool hasArgument(std::string_view name) const
+  {
+    return m_argumentBlockDescriptor.m_nameToArgbBlockOffset.count(
+               std::string(name))
+        > 0;
+  }
+
+  void setValue(std::string_view name, bool value);
   void setValue(std::string_view name, int value);
   void setValue(std::string_view name, const int (&value)[2]);
   void setValue(std::string_view name, const int (&value)[3]);
@@ -82,8 +92,10 @@ class ArgumentBlockInstance
   Core *m_core = {};
 
   // Some helper functions for setValue
-  template<typename T> void _setValue(std::string_view name, T value);
-  template<typename T, std::size_t S> void _setValue(std::string_view name, const T (&value)[S]);
+  template <typename T>
+  void _setValue(std::string_view name, T value);
+  template <typename T, std::size_t S>
+  void _setValue(std::string_view name, const T (&value)[S]);
 };
 
 } // namespace visrtx::libmdl

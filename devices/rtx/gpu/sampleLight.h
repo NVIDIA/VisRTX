@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <limits>
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
@@ -52,9 +53,10 @@ VISRTX_DEVICE LightSample sampleDirectionalLight(
 {
   LightSample ls;
   ls.dir = xfmVec(xfm, -ld.distant.direction);
-  ls.dist = (std::numeric_limits<float>::max)();
+  ls.dist = std::numeric_limits<float>::infinity();
   ls.radiance = ld.color * ld.distant.irradiance;
   ls.pdf = 1.f;
+
   return ls;
 }
 
@@ -74,9 +76,8 @@ VISRTX_DEVICE LightSample sampleSpotLight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit)
 {
   LightSample ls;
-  ls.dir = xfmPoint(xfm, ld.spot.position) - hit.hitpoint;
+  ls.dir = glm::normalize(xfmPoint(xfm, ld.spot.position) - hit.hitpoint);
   ls.dist = length(ls.dir);
-  ls.dir = glm::normalize(ls.dir);
   float spot = dot(normalize(ld.spot.direction), -ls.dir);
   if (spot < ld.spot.cosOuterAngle)
     spot = 0.f;
@@ -96,10 +97,10 @@ VISRTX_DEVICE LightSample sampleHDRILight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit, RandState &rs)
 {
   LightSample ls;
-  ls.dir = xfmVec(xfm, randomDir(rs));
+  ls.dir = xfmVec(xfm, sampleHemisphere(rs, hit.Ns));
   ls.dist = 1e20f;
   ls.radiance = sampleHDRI(ld, ls.dir);
-  ls.pdf = 0.f;
+  ls.pdf = 1.0f;
   return ls;
 }
 

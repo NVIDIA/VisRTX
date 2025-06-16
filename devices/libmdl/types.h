@@ -1,3 +1,6 @@
+// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause
+
 #pragma once
 
 #include <cstdint>
@@ -7,7 +10,6 @@ namespace visrtx::libmdl {
 
 enum class ColorSpace
 {
-  Auto,
   Linear,
   sRGB,
 };

@@ -1,3 +1,6 @@
+// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include "ArgumentBlockDescriptor.h"
 
 #include "Core.h"
@@ -18,7 +21,6 @@
 #include <cstdio>
 #include <unordered_map>
 #include <vector>
-
 
 namespace visrtx::libmdl {
 
@@ -137,13 +139,18 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
       m_arguments.push_back({name, ArgumentType::Texture});
       break;
     }
+    case mi::neuraylib::IValue::VK_ENUM: {
+      m_arguments.push_back({name, ArgumentType::Int});
+      break;
+    }
     default:
       continue;
     }
 
     mi::neuraylib::IValue::Kind kind2;
     mi::Size param_size;
-    mi::Size offset = m_argumentBlockLayout->get_layout(kind2, param_size, m_argumentBlockLayout->get_nested_state(i));
+    mi::Size offset = m_argumentBlockLayout->get_layout(
+        kind2, param_size, m_argumentBlockLayout->get_nested_state(i));
     m_nameToArgbBlockOffset[name] = offset;
   }
 }

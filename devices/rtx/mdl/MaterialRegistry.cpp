@@ -1,3 +1,34 @@
+/*
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include "MaterialRegistry.h"
 
 #include "ptx.h"
@@ -6,6 +37,7 @@
 #include "libmdl/ArgumentBlockInstance.h"
 #include "libmdl/TimeStamp.h"
 #include "libmdl/ptx.h"
+#include "scene/surface/material/PhysicallyBasedMDL.h"
 
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>
@@ -18,6 +50,7 @@
 #include <mi/neuraylib/itexture.h>
 #include <mi/neuraylib/version.h>
 
+#include <fstream>
 #include <glm/fwd.hpp>
 
 #include <nonstd/scope.hpp>
@@ -42,10 +75,14 @@ MaterialRegistry::MaterialRegistry(libmdl::Core *core)
       m_scope(m_core->createScope("VisRTXMaterialResgistryScope"s
           + std::to_string(std::uintptr_t(this))))
 {
-  std::string_view defaultModule =
-#include "mdl/visrtx_default.mdl.inc"
+  const auto defaultModule =
+#include "mdl/default.mdl.inc"
       ;
-  m_core->addBuiltinModule("visrtx::default", defaultModule);
+  m_core->addBuiltinModule("::visrtx::default", defaultModule);
+  const auto physicallyBasedMDL =
+#include "mdl/physically_based.mdl.inc"
+      ;
+  m_core->addBuiltinModule("::vistrx::physically_based", physicallyBasedMDL);
 }
 
 MaterialRegistry::~MaterialRegistry()
@@ -124,42 +161,34 @@ MaterialRegistry::acquireMaterial(
   std::vector<libmdl::TextureDescriptor> textureDescs;
 
   for (auto i = 1ul; i < targetCode->get_texture_count(); ++i) {
-    libmdl::TextureDescriptor textureDesc{
-      i - 1,
-        targetCode->get_texture(i)};
+    libmdl::TextureDescriptor textureDesc{i - 1, targetCode->get_texture(i)};
 
     switch (targetCode->get_texture_shape(i)) {
     case mi::neuraylib::ITarget_code::Texture_shape_2d: {
-      textureDesc.shape =
-          libmdl::Shape::TwoD;
+      textureDesc.shape = libmdl::Shape::TwoD;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_3d: {
-      textureDesc.shape =
-          libmdl::Shape::ThreeD;
+      textureDesc.shape = libmdl::Shape::ThreeD;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_cube: {
-      textureDesc.shape =
-          libmdl::Shape::Cube;
+      textureDesc.shape = libmdl::Shape::Cube;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_bsdf_data: {
-      textureDesc.shape =
-          libmdl::Shape::BsdfData;
+      textureDesc.shape = libmdl::Shape::BsdfData;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_ptex: {
       m_core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
           "Ptex textures are not supported by VisRTX");
-      textureDesc.shape =
-          libmdl::Shape::Unknown;
+      textureDesc.shape = libmdl::Shape::Unknown;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_invalid:
     default: {
-      textureDesc.shape =
-          libmdl::Shape::Unknown;
+      textureDesc.shape = libmdl::Shape::Unknown;
       break;
     }
     }
@@ -167,9 +196,10 @@ MaterialRegistry::acquireMaterial(
     if (targetCode->get_texture_shape(i)
         == mi::neuraylib::ITarget_code::Texture_shape_bsdf_data) {
       mi::Size x, y, z;
-      const char* pixelFormat = {};
+      const char *pixelFormat = {};
 #if MI_NEURAYLIB_API_VERSION >= 56
-      textureDesc.bsdf.data = targetCode->get_texture_df_data(i, x, y, z, pixelFormat);
+      textureDesc.bsdf.data =
+          targetCode->get_texture_df_data(i, x, y, z, pixelFormat);
 #else
       textureDesc.bsdf.data = targetCode->get_texture_df_data(i, x, y, z);
 #endif
@@ -182,8 +212,16 @@ MaterialRegistry::acquireMaterial(
           fmt::format("bsdf_data_{}", fmt::ptr(textureDesc.bsdf.data));
     } else {
       auto moduleOwner = targetCode->get_texture_owner_module(i);
-      textureDesc.url =
-          m_core->resolveResource(targetCode->get_texture_url(i), moduleOwner);
+      auto url = std::string(targetCode->get_texture_url(i));
+      // url = m_core->resolveResource(url.c_str(), moduleOwner);
+      if (url.empty()) {
+        m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+            "Failed to resolve texture resource {} for material {}",
+            targetCode->get_texture_url(i),
+            fullMaterialName);
+        textureDesc.url = {};
+      } else
+        textureDesc.url = url;
 
       switch (targetCode->get_texture_gamma(i)) {
       case mi::neuraylib::ITarget_code::GM_GAMMA_DEFAULT:

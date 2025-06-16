@@ -93,6 +93,7 @@ find_package(CUDAToolkit 12 REQUIRED)
 find_package(OptiX REQUIRED)
 if(VISRTX_ENABLE_MDL_SUPPORT)
   find_package(MDL_SDK REQUIRED)
+  option(VISRTX_USE_MDL_FOR_PHYSICALLY_BASED "Use MDL for physically based materials" OFF)
 endif()
 
 include(EmbedPTX)
@@ -194,11 +195,20 @@ set(SOURCES
     mdl/ptx.cpp
     mdl/MaterialRegistry.cpp
     mdl/SamplerRegistry.cpp
-    mdl/visrtx_default.mdl.inc
+    mdl/default.mdl.inc
+    mdl/physically_based.mdl.inc
     scene/surface/material/MDL.cpp
+    scene/surface/material/PhysicallyBasedMDL.cpp
   >
 
 )
+
+if(VISRTX_ENABLE_MDL_SUPPORT)
+  set_source_files_properties(
+    scene/surface/material/Material.cpp
+    PROPERTIES COMPILE_DEFINITIONS $<$<BOOL:${VISRTX_USE_MDL_FOR_PHYSICALLY_BASED}>:USE_MDL_FOR_PHYSICALLY_BASED>
+  )
+endif()
 
 project_sources(PRIVATE ${SOURCES})
 set(CUDA_SOURCES ${SOURCES})

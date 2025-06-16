@@ -358,9 +358,9 @@ struct MaterialGPUData
     const char *argBlock;
     uint32_t implementationIndex;
     uint32_t numSamplers;
-    DeviceObjectIndex
-        samplers[32]; // Should be sized according to MDL's execution context
-                      // configuration. See MDLCompiler.cpp.
+    // Should be sized according to MDL's execution context
+    // configuration. See MDLCompiler.cpp.
+    DeviceObjectIndex samplers[32];
   };
 
   MaterialType materialType;
@@ -623,6 +623,7 @@ struct RendererGPUData
   RendererBackgroundGPUData background;
   glm::vec3 ambientColor;
   int numIterations;
+  int maxRayDepth;
   float ambientIntensity;
   float inverseVolumeSamplingRate;
   float occlusionDistance;

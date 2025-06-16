@@ -1,0 +1,566 @@
+/*
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+R"mdl(
+
+mdl 1.8;
+
+import ::anno::*;
+import ::base::*;
+import ::df::*;
+import ::math::*;
+import ::state::*;
+import ::tex::*;
+import ::scene::*;
+import ::limits::*;
+
+export struct ColorInput
+{
+    varying color value = color(1.0f);
+    uniform texture_2d texture = texture_2d();
+    uniform int textureSpace = 0;
+};
+
+export ColorInput LookUpColorInput(
+    varying color value = color(1.0f),
+    uniform texture_2d texture = texture_2d(),
+    uniform int textureSpace = 0
+) {
+    return ColorInput(
+        value: value,
+        texture: texture,
+        textureSpace: textureSpace
+    );
+}
+
+export struct FloatInput
+{
+    varying float value = 1.0f;
+    uniform texture_2d texture = texture_2d();
+    uniform int textureSpace = 0;
+};
+
+export FloatInput LookUpFloatInput(
+    varying float value = 1.0f,
+    uniform texture_2d texture = texture_2d(),
+    uniform int textureSpace = 0
+) {
+    return FloatInput(
+        value: value,
+        texture: texture,
+        textureSpace: textureSpace
+    );
+}
+
+export struct Float2Input
+{
+    varying float2 value = float2(1.0f);
+    uniform texture_2d texture = texture_2d();
+    uniform int textureSpace = 0;
+    // uniform string attributeName;
+};
+
+export Float2Input LookUpFloat2Input(
+    varying float2 value = float2(1.0f),
+    uniform texture_2d texture = texture_2d(),
+    uniform int textureSpace = 0
+) {
+    return Float2Input(
+        value: value,
+        texture: texture,
+        textureSpace: textureSpace
+    );
+}
+
+
+export struct Float3Input
+{
+    varying float3 value = float3(1.0f);
+    uniform texture_2d texture = texture_2d();
+    uniform int textureSpace = 0;
+    // uniform string attributeName;
+};
+
+export Float3Input LookUpFloat3Input(
+    varying float3 value = float3(1.0f),
+    uniform texture_2d texture = texture_2d(),
+    uniform int textureSpace = 0
+) {
+    return Float3Input(
+        value: value,
+        texture: texture,
+        textureSpace: textureSpace
+    );
+}
+
+export struct Float4Input
+{
+    varying float4 value = float4(1.0f);
+    uniform texture_2d texture = texture_2d();
+    uniform int textureSpace = 0;
+    // uniform string attributeName;
+};
+
+export Float4Input LookUpFloat4Input(
+    varying float4 value = float4(1.0f),
+    uniform texture_2d texture = texture_2d(),
+    uniform int textureSpace = 0
+) {
+    return Float4Input(
+        value: value,
+        texture: texture,
+        textureSpace: textureSpace
+    );
+}
+
+export enum AlphaMode
+{
+    AlphaMode_Opaque = 0,
+    AlphaMode_Blend = 1,
+    AlphaMode_Mask = 2,
+};
+
+struct BaseColorWithAlpha
+{
+    color value = color(1.0f, 1.0f, 1.0f);
+    float alpha = 1.0f;
+};
+
+BaseColorWithAlpha ResolveBaseColorInput(ColorInput input)
+{
+    if (tex::texture_isvalid(input.texture)) {
+        int textureSpace = input.textureSpace;
+        float4 lookup = tex::lookup_float4(
+            tex: input.texture,
+            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
+        );
+        return BaseColorWithAlpha(
+            value: color(lookup.x, lookup.y, lookup.z),
+            alpha: lookup.w
+        );
+    }
+    return BaseColorWithAlpha(
+        value: input.value,
+        alpha: 1.0f
+    );
+}
+
+color ResolveColorInput(ColorInput input)
+{
+    if (tex::texture_isvalid(input.texture)) {
+        int textureSpace = input.textureSpace;
+        return tex::lookup_color(
+            tex: input.texture,
+            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
+        );
+    }
+    return input.value;
+}
+
+
+float ResolveFloatInput(FloatInput input)
+{
+    if (tex::texture_isvalid(input.texture)) {
+        int textureSpace = input.textureSpace;
+        return tex::lookup_float(
+            tex: input.texture,
+            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
+        );
+    }
+    return input.value;
+}
+
+float2 ResolveFloat2Input(Float2Input input)
+{
+    if (tex::texture_isvalid(input.texture)) {
+        int textureSpace = input.textureSpace;
+        return tex::lookup_float2(
+            tex: input.texture,
+            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
+        );
+    }
+    return input.value;
+}
+
+float3 ResolveFloat3Input(Float3Input input)
+{
+    if (tex::texture_isvalid(input.texture)) {
+        int textureSpace = input.textureSpace;
+        return tex::lookup_float3(
+            tex: input.texture,
+            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
+        );
+    }
+    return input.value;
+}
+
+float4 ResolveFloat4Input(Float4Input input)
+{
+    if (tex::texture_isvalid(input.texture)) {
+        int textureSpace = input.textureSpace;
+        return tex::lookup_float4(
+            tex: input.texture,
+            coord: float2(state::texture_coordinate(textureSpace).x, state::texture_coordinate(textureSpace).y)
+        );
+    }
+    return input.value;
+}
+
+float ResolveAlphaInput(AlphaMode alphaMode, float alphaCutoff, float alpha)
+{
+    switch (alphaMode) {
+        case AlphaMode_Opaque: return 1.0f;
+        case AlphaMode_Blend: return alpha;
+        case AlphaMode_Mask: return float(alpha > alphaCutoff);
+    }
+}
+
+float3 ResolveNormalInput(Float3Input normalInput)
+{
+    if (!::tex::texture_isvalid(normalInput.texture))
+        return normalInput.value;
+
+    return base::tangent_space_normal_texture(
+        texture: normalInput.texture,
+        uvw: base::texture_coordinate_info(
+                position: state::texture_coordinate(normalInput.textureSpace),
+                tangent_u: state::texture_tangent_u(normalInput.textureSpace),
+                tangent_v: state::texture_tangent_v(normalInput.textureSpace),
+        ));
+}
+
+export material physically_based_material(
+    // Base layer
+    ColorInput baseColor = LookUpColorInput(value: color(1.0f))
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Base Color"),
+        anno::description("base color")
+    ]],
+    FloatInput opacity = LookUpFloatInput(value: 1.0f)
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Opacity"),
+        anno::description("opacity")
+    ]],
+    FloatInput metallic = LookUpFloatInput(value: 1.0f)
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Metallic"),
+        anno::description("metallic")
+    ]],
+    FloatInput roughness = LookUpFloatInput(value: 1.0f)
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Roughness"),
+        anno::description("roughness")
+    ]],
+    Float3Input normal = LookUpFloat3Input(value: state::normal())
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Normal Map"),
+        anno::description("normal map")
+    ]],
+    ColorInput emissive = LookUpColorInput(value: color(0.0f))
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Emissive Color"),
+        anno::description("emissive color")
+    ]],
+    ColorInput occlusion = LookUpColorInput(value: color(1.0f))
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Occlusion Map"),
+        anno::description("occlusion map")
+    ]],
+    AlphaMode alphaMode = AlphaMode_Blend
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Alpha Mode"),
+        anno::description("control cut-out transparency")
+    ]],
+    float alphaCutoff = 0.5f
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Alpha Cutoff"),
+        anno::description("threshold when alphaMode is mask")
+    ]],
+    FloatInput specular = LookUpFloatInput(value: 0.0f)
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Specular"),
+        anno::description("strength of the specular reflection")
+    ]],
+    ColorInput specularColor = LookUpColorInput(value: color(1.0f))
+    [[
+        anno::in_group("Base Layer"),
+        anno::display_name("Specular Color"),
+        anno::description("color of the specular reflection at normal incidence")
+    ]],
+    // Clearcoat layer
+    FloatInput clearcoat = LookUpFloatInput(value: 0.0f)
+    [[
+        anno::in_group("Clearcoat Layer"),
+        anno::display_name("Clearcoat"),
+        anno::description("strength of the clearcoat layer")
+    ]],
+    FloatInput clearcoatRoughness = LookUpFloatInput(value: 0.0f)
+    [[
+        anno::in_group("Clearcoat Layer"),
+        anno::display_name("Clearcoat Roughness"),
+        anno::description("roughness of the clearcoat layer")
+    ]],
+    Float3Input clearcoatNormal = LookUpFloat3Input(value: state::normal())
+    [[
+        anno::in_group("Clearcoat Layer"),
+        anno::display_name("Clearcoat Normal Map"),
+        anno::description("normal map for the clearcoat layer")
+    ]],
+    // Transmission
+    FloatInput transmission = LookUpFloatInput(value: 0.0f)
+    [[
+        anno::in_group("Transmission"),
+        anno::display_name("Transmission"),
+        anno::description("strength of the transmission")
+    ]],
+    float ior = 1.5f
+    [[
+        anno::in_group("Transmission"),
+        anno::display_name("Index of Refraction"),
+        anno::description("index of refraction")
+    ]],
+    FloatInput thickness = LookUpFloatInput(value: 0.0f)
+    [[
+        anno::in_group("Transmission"),
+        anno::display_name("Thickness"),
+        anno::description("thickness of the volume beneath the surface (with 0 the material is thin-walled)")
+    ]],
+    float attenuationDistance = 1.0e+30f
+    [[
+        anno::in_group("Transmission"),
+        anno::display_name("Attenuation Distance"),
+        anno::description("average distance that light travels in the medium before interacting with a particle")
+    ]],
+    color attenuationColor = color(1.0f, 1.0f, 1.0f)
+    [[
+        anno::in_group("Transmission"),
+        anno::display_name("Attenuation Color"),
+        anno::description("color that white light turns into due to absorption when reaching the attenuation distance")
+    ]],
+    // Sheen
+    ColorInput sheenColor = LookUpColorInput(value: color(0.0f))
+    [[
+        anno::in_group("Sheen Layer"),
+        anno::display_name("Sheen Color"),
+        anno::description("sheen color")
+    ]],
+    FloatInput sheenRoughness = LookUpFloatInput(value: 0.0f)
+    [[
+        anno::in_group("Sheen Layer"),
+        anno::display_name("Sheen Roughness"),
+        anno::description("sheen roughness")
+    ]],
+    // Thin film
+    FloatInput iridescence = LookUpFloatInput(value: 0.0f)
+    [[
+        anno::in_group("Thin film Layer"),
+        anno::display_name("Idirescence"),
+        anno::description("strength of the thin-film layer")
+    ]],
+    float iridescenceIor = 1.3f
+    [[
+        anno::in_group("Thin film Layer"),
+        anno::display_name("Iridescence Index of Refraction"),
+        anno::description("index of refraction of the thin-film layer")
+    ]],
+    FloatInput iridescenceThickness = LookUpFloatInput(value: 0.0f)
+    [[
+        anno::in_group("Thin film Layer"),
+        anno::display_name("Iridescence Thickness"),
+        anno::description("thickness of the thin-film layer")
+    ]]
+) [[
+    anno::author("NVIDIA Corporation"),
+    anno::display_name("ANARI PhysicallyBased Material"),
+    anno::description("ANARI PhysicallyBased Material")
+]] = let {
+    // Extract inputs
+    BaseColorWithAlpha resolvedBaseColor = ResolveBaseColorInput(baseColor);
+    float resolvedOpacity = ResolveFloatInput(opacity);
+    color tint = resolvedBaseColor.value;
+    float alpha = ResolveAlphaInput(alphaMode, alphaCutoff, resolvedOpacity * resolvedBaseColor.alpha);
+
+    float3 resolvedNormal = ResolveNormalInput(normal);
+
+    float resolvedSpecular = ResolveFloatInput(specular);
+    color resolvedSpecularColor = ResolveColorInput(specularColor);
+
+    color resolvedOcclusion = ResolveColorInput(occlusion);
+
+    float resolvedRoughness = ResolveFloatInput(roughness);
+    float resolvedMetallic = ResolveFloatInput(metallic);
+
+    color resolvedEmissive = ResolveColorInput(emissive);
+
+    float resolvedTransmission = ResolveFloatInput(transmission);
+
+    float resolvedIridescence = ResolveFloatInput(iridescence);
+    float resolvedIridescenceThickness = ResolveFloatInput(iridescenceThickness);
+
+    color resolvedSheenColor = ResolveColorInput(sheenColor);
+    float resolvedSheenRoughness = ResolveFloatInput(sheenRoughness);
+
+    float resolvedClearcoat = ResolveFloatInput(clearcoat);
+    float resolvedClearcoatRoughness = ResolveFloatInput(clearcoatRoughness);
+    float3 resolvedClearcoatNormal = ResolveNormalInput(clearcoatNormal);
+
+    float resolvedThickness = ResolveFloatInput(thickness);
+    float resolvedAttenuationDistance = attenuationDistance;
+    color resolvedAttenuationColor = attenuationColor;
+
+
+    // compute final roughness by squaring the "roughness" parameter
+    float roughness2 = resolvedRoughness * resolvedRoughness;
+
+    // reduce the reflectivity at grazing angles to avoid "dark edges"
+    // for high roughness due to the layering
+    float grazing_refl = math::max((1.0 - roughness2), 0.0);
+
+    // fresnel term based on ior
+    float f0 = math::pow((ior - 1.0)/(ior + 1.0), 2.0);
+
+    // for the dielectric component we layer the glossy component on top of the diffuse one,
+    // the glossy layer has no color tint
+    bsdf dielectric_component = df::color_custom_curve_layer(
+        weight: color(1.0), // roughness is used to weight between diffuse and glossy
+        normal_reflectivity: math::min(f0 * resolvedSpecularColor, color(1.0)) * resolvedSpecular,
+        grazing_reflectivity: color(grazing_refl * resolvedSpecular),
+        layer: df::microfacet_ggx_vcavities_bsdf(
+            roughness_u: roughness2),
+        base: df::weighted_layer(
+            weight: resolvedTransmission,
+            base: df::diffuse_reflection_bsdf(tint: tint * resolvedOcclusion),
+            layer: df::microfacet_ggx_vcavities_bsdf(
+                roughness_u: roughness2,
+                tint: tint * resolvedOcclusion,
+                mode: df::scatter_transmit)),
+        normal: resolvedNormal
+    );
+
+    // apply iridescence and make the strength adjustable using a weighted layer
+    bsdf dielectric_component_with_thin_film = df::weighted_layer(
+        weight: resolvedIridescence,
+        base: dielectric_component,
+        layer: df::thin_film(
+            thickness: resolvedIridescenceThickness,
+            ior: color(iridescenceIor),
+            base: dielectric_component
+        )
+    );
+
+    // the metallic component doesn't have a diffuse component,
+    // its only glossy base_color is applied to tint it
+    bsdf metallic_component = df::microfacet_ggx_vcavities_bsdf(
+        tint: tint * resolvedOcclusion,
+        roughness_u: roughness2);
+
+    // apply iridescence and make the strength adjustable using a weighted layer
+    // according to KHR_materials_iridescence spec: using dielectric thin film fresnel for metals, too
+    color base_color_sqrt = math::min(math::sqrt(math::saturate(tint * resolvedOcclusion)), color(0.99f));
+    color dielectric_ior = (color(1.0f) + base_color_sqrt) / (color(1.0f) - base_color_sqrt);
+    bsdf metallic_component_with_thin_film = df::weighted_layer(
+        weight: resolvedIridescence,
+        base: metallic_component,
+        layer: df::thin_film(
+            thickness: resolvedIridescenceThickness,
+            ior: color(iridescenceIor),
+            base: df::fresnel_factor(
+                ior: dielectric_ior,
+                extinction_coefficient: color(0.0f),
+                base: df::microfacet_ggx_vcavities_bsdf(roughness_u: roughness2))
+        )
+    );
+
+    // apply sheen to the dielectric component
+    // add the sheen_color as weight in an outer layer to be able to blend and disable on default
+    // otherwise, sheen would be applied and tinted black
+    bsdf dielectric_sheen_component = df::color_weighted_layer(
+        weight: resolvedSheenColor,
+        layer: df::sheen_bsdf(
+            roughness: resolvedSheenRoughness * resolvedSheenRoughness,
+            tint:  color(1.0),
+            multiscatter_tint: color(1.0),
+            multiscatter: dielectric_component // don't apply thin_film
+        ),
+        base: dielectric_component_with_thin_film);
+
+    // final BSDF is a linear blend between dielectric and metallic component
+    bsdf dielectric_metal_mix = df::weighted_layer(
+        weight: resolvedMetallic,
+        base: dielectric_sheen_component,
+        layer: metallic_component_with_thin_film,
+        normal: resolvedNormal);
+
+    float grazing_refl_coat = math::max((1.0 - resolvedClearcoatRoughness), 0.0);
+
+    bsdf clearcoated = df::custom_curve_layer(
+        weight: resolvedClearcoat,
+        normal_reflectivity: 0.04,
+        grazing_reflectivity: grazing_refl_coat,
+        layer: df::microfacet_ggx_vcavities_bsdf(
+            mode: df::scatter_reflect,
+            roughness_u: resolvedClearcoatRoughness * resolvedClearcoatRoughness,
+            tint: color(1.0)),
+        base: df::weighted_layer(
+            weight: 1.0,
+            layer: dielectric_metal_mix,
+            normal: resolvedNormal),
+        normal: resolvedClearcoatNormal);
+
+} in material(
+    surface: material_surface(
+        scattering: clearcoated,
+        emission:  material_emission (
+            emission: df::diffuse_edf(),
+            intensity: resolvedEmissive * ::math::PI
+        )
+    ),
+    volume: material_volume(
+        absorption_coefficient: 
+            resolvedThickness == 0.0f ? color(0.0f) : -math::log(resolvedAttenuationColor) / resolvedAttenuationDistance,
+    ),
+    ior: color(ior),
+    geometry: material_geometry(
+        cutout_opacity: alpha,
+    )
+);
+
+)mdl"

@@ -80,6 +80,7 @@ struct Renderer : public Object
  protected:
   vec4 m_bgColor{0.f, 0.f, 0.f, 1.f};
   int m_spp{1};
+  int m_maxRayDepth{0};
   vec3 m_ambientColor{1.f};
   float m_ambientIntensity{0.f};
   float m_occlusionDistance{1e20f};

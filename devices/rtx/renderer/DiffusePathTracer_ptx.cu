@@ -31,10 +31,10 @@
 
 #define VISRTX_DEBUGGING 0
 
-#include "gpu/evalMaterial.h"
+#include "gpu/evalShading.h"
 #include "gpu/gpu_debug.h"
+#include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
-
 namespace visrtx {
 
 enum class RayType
@@ -63,11 +63,13 @@ VISRTX_GLOBAL void __anyhit__()
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
 
-  const auto &fd = frameData;
   const auto &md = *hit.material;
-  const auto &materialValues = getMaterialValues(fd, md, hit);
 
-  float opacity = materialValues.opacity;
+  MaterialShadingState shadingState;
+  materialInitShading(&shadingState, frameData, md, hit);
+  auto materialOpacity = materialEvaluateOpacity(shadingState);
+
+  float opacity = materialOpacity;
   if (opacity < 0.99f && curand_uniform(&ray::screenSample().rs) > opacity)
     optixIgnoreIntersection();
 }
@@ -146,9 +148,9 @@ VISRTX_GLOBAL void __raygen__()
       if (!volumeHit) {
         pos = hit.hitpoint + (hit.epsilon * hit.Ng);
         const auto &material = *hit.material;
-        const auto &materialValues =
-            getMaterialValues(frameData, material, hit);
-        albedo = vec3(materialValues.baseColor);
+        MaterialShadingState shadingState;
+        materialInitShading(&shadingState, frameData, material, hit);
+        albedo = materialEvaluateTint(shadingState);
       } else {
         pos = ray.org + volumeDepth * ray.dir;
         albedo = volumeColor;
