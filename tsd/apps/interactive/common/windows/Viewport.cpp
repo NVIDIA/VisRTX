@@ -628,6 +628,8 @@ void Viewport::ui_menubar()
       ImGui::EndMenu();
     }
 
+    ImGui::BeginDisabled(!m_device);
+
     // Renderer //
 
     if (ImGui::BeginMenu("Renderer")) {
@@ -858,6 +860,8 @@ void Viewport::ui_menubar()
 
       ImGui::EndMenu();
     }
+
+    ImGui::EndDisabled();
 
     ImGui::EndMenuBar();
   }
