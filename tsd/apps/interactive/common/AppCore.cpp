@@ -327,11 +327,15 @@ void AppCore::clearSelected()
   }
 }
 
-void AppCore::addCurrentViewToCameraPoses(const char *name)
+void AppCore::addCurrentViewToCameraPoses(const char *_name)
 {
   auto azel = view.manipulator.azel();
   auto dist = view.manipulator.distance();
   tsd::math::float3 azeldist(azel.x, azel.y, dist);
+
+  std::string name = _name;
+  if (name.empty())
+    name = "<view" + std::to_string(view.poses.size()) + ">";
 
   CameraPose pose;
   pose.name = name;

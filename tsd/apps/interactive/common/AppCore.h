@@ -129,7 +129,7 @@ struct AppCore
 
   // Camera poses //
 
-  void addCurrentViewToCameraPoses(const char *name = "<view>");
+  void addCurrentViewToCameraPoses(const char *name = "");
   void updateExistingCameraPoseFromView(CameraPose &p);
   void setCameraPose(const CameraPose &pose);
 
