@@ -360,6 +360,10 @@ void save_Context(Context &ctx, serialization::DataNode &root)
     if (objArray.empty())
       return;
 
+    tsd::logStatus("    ...serializing %zu %s objects",
+        size_t(objArray.size()),
+        arrayName);
+
     auto &childNode = objArrayRoot[arrayName];
     foreach_item_const(objArray, [&](const auto *obj) {
       if (!obj)

@@ -231,12 +231,9 @@ void TSDApplication::saveApplicationState(const char *_filename)
   auto doSave = [&, filename = f_str]() {
     tsd::logStatus("clearing old settings tree...");
 
+    auto &core = *appCore();
     auto &root = m_settings.root();
     root.reset();
-
-    tsd::logStatus("serializing application state + context...");
-
-    auto &core = *appCore();
 
     // Window state
     auto &windows = root["windows"];
@@ -244,6 +241,7 @@ void TSDApplication::saveApplicationState(const char *_filename)
       w->saveSettings(root["windows"][w->name()]);
 
     // ImGui window layout
+    tsd::logStatus("serializing UI state...");
     root["layout"] = ImGui::SaveIniSettingsToMemory();
 
     // General application settings
@@ -258,10 +256,12 @@ void TSDApplication::saveApplicationState(const char *_filename)
       tsd::cameraPoseToNode(p, cameraPoses.append());
 
     // Serialize TSD context
+    tsd::logStatus("serializing TSD context...");
     root["context"].reset();
     tsd::save_Context(core.tsd.ctx, root["context"]);
 
     // Save to file
+    tsd::logStatus("writing state file '%s'...", filename.c_str());
     m_settings.save(filename.c_str());
 
     // Clear out context tree
