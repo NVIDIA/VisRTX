@@ -5,6 +5,8 @@
 
 #include "../AppCore.h"
 #include "Modal.h"
+// tsd
+#include "tsd/core/Timer.hpp"
 
 namespace tsd_viewer {
 
@@ -22,6 +24,7 @@ struct BlockingTaskModal : public Modal
   AppCore *m_core{nullptr};
   tasking::Future m_future;
   std::string m_text;
+  tsd::Timer m_timer;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
@@ -29,6 +32,7 @@ struct BlockingTaskModal : public Modal
 template <class F>
 inline void BlockingTaskModal::activate(F &&f, const char *text)
 {
+  m_timer.start();
   m_future = m_core->jobs.queue.enqueue(std::move(f));
   m_text = text;
   this->show();

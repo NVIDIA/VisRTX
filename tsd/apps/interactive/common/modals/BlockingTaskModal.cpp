@@ -18,6 +18,10 @@ void BlockingTaskModal::buildUI()
 
   ImGui::ProgressBar(
       -1.0f * (float)ImGui::GetTime(), ImVec2(0.0f, 0.0f), m_text.c_str());
+
+  m_timer.end();
+  ImGui::NewLine();
+  ImGui::TextDisabled("elapsed time: %.2fs", m_timer.seconds());
 }
 
 } // namespace tsd_viewer

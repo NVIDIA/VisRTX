@@ -225,47 +225,52 @@ void TSDApplication::teardown()
   anari_viewer::ui::shutdown();
 }
 
-void TSDApplication::saveApplicationState(const char *filename)
+void TSDApplication::saveApplicationState(const char *_filename)
 {
-  tsd::logStatus("clearing old settings tree...");
+  std::string f_str = _filename;
+  auto doSave = [&, filename = f_str]() {
+    tsd::logStatus("clearing old settings tree...");
 
-  auto &root = m_settings.root();
-  root.reset();
+    auto &root = m_settings.root();
+    root.reset();
 
-  tsd::logStatus("serializing application state + context...");
+    tsd::logStatus("serializing application state + context...");
 
-  auto &core = *appCore();
+    auto &core = *appCore();
 
-  // Window state
-  auto &windows = root["windows"];
-  for (auto *w : m_windows)
-    w->saveSettings(root["windows"][w->name()]);
+    // Window state
+    auto &windows = root["windows"];
+    for (auto *w : m_windows)
+      w->saveSettings(root["windows"][w->name()]);
 
-  // ImGui window layout
-  root["layout"] = ImGui::SaveIniSettingsToMemory();
+    // ImGui window layout
+    root["layout"] = ImGui::SaveIniSettingsToMemory();
 
-  // General application settings
-  auto &settings = root["settings"];
-  settings["logVerbose"] = core.logging.verbose;
-  settings["logEchoOutput"] = core.logging.echoOutput;
-  settings["fontScale"] = core.windows.fontScale;
+    // General application settings
+    auto &settings = root["settings"];
+    settings["logVerbose"] = core.logging.verbose;
+    settings["logEchoOutput"] = core.logging.echoOutput;
+    settings["fontScale"] = core.windows.fontScale;
 
-  // Camera poses
-  auto &cameraPoses = root["cameraPoses"];
-  for (auto &p : core.view.poses)
-    tsd::cameraPoseToNode(p, cameraPoses.append());
+    // Camera poses
+    auto &cameraPoses = root["cameraPoses"];
+    for (auto &p : core.view.poses)
+      tsd::cameraPoseToNode(p, cameraPoses.append());
 
-  // Serialize TSD context
-  root["context"].reset();
-  tsd::save_Context(core.tsd.ctx, root["context"]);
+    // Serialize TSD context
+    root["context"].reset();
+    tsd::save_Context(core.tsd.ctx, root["context"]);
 
-  // Save to file
-  m_settings.save(filename);
+    // Save to file
+    m_settings.save(filename.c_str());
 
-  // Clear out context tree
-  root["context"].reset();
+    // Clear out context tree
+    root["context"].reset();
 
-  tsd::logStatus("...state saved to '%s'", filename);
+    tsd::logStatus("...state saved to '%s'", filename.c_str());
+  };
+
+  m_taskModal->activate(doSave, "Please Wait: Saving Session...");
 }
 
 void TSDApplication::loadApplicationState(const char *filename)
