@@ -16,6 +16,7 @@
 
 namespace tsd_viewer {
 
+struct BlockingTaskModal;
 struct ImportFileDialog;
 
 using CameraPose = tsd::manipulators::CameraPose;
@@ -89,6 +90,7 @@ struct AppCore
 
   struct Windows
   {
+    BlockingTaskModal *taskModal{nullptr};
     ImportFileDialog *importDialog{nullptr};
     float fontScale{1.f};
   } windows;

@@ -61,6 +61,7 @@ anari_viewer::WindowArray TSDApplication::setupWindows()
   m_taskModal = std::make_unique<BlockingTaskModal>(appCore());
   m_fileDialog = std::make_unique<ImportFileDialog>(appCore());
 
+  m_core.windows.taskModal = m_taskModal.get();
   m_core.windows.importDialog = m_fileDialog.get();
 
   m_applicationName = SDL_GetWindowTitle(sdlWindow());

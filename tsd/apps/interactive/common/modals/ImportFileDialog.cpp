@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ImportFileDialog.h"
+#include "BlockingTaskModal.h"
 // SDL
 #include <SDL3/SDL_dialog.h>
 
@@ -74,43 +75,52 @@ void ImportFileDialog::buildUI()
   ImGui::SameLine();
 
   if (ImGui::Button("import")) {
-    auto &ctx = m_core->tsd.ctx;
-    auto *layer = m_core->tsd.ctx.defaultLayer();
-    auto importRoot = m_core->tsd.selectedNode;
-    if (!importRoot)
-      importRoot = layer->root();
-
-    auto selectedFileType =
-        static_cast<tsd_viewer::ImporterType>(m_selectedFileType);
-    if (selectedFileType == ImporterType::PLY)
-      tsd::import_PLY(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::OBJ)
-      tsd::import_OBJ(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::USD)
-      tsd::import_USD(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::ASSIMP)
-      tsd::import_ASSIMP(ctx, m_filename.c_str(), importRoot, false);
-    else if (selectedFileType == ImporterType::ASSIMP_FLAT)
-      tsd::import_ASSIMP(ctx, m_filename.c_str(), importRoot, true);
-    else if (selectedFileType == ImporterType::DLAF)
-      tsd::import_DLAF(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::NBODY)
-      tsd::import_NBODY(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::HDRI)
-      tsd::import_HDRI(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::SWC)
-      tsd::import_SWC(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::PDB)
-      tsd::import_PDB(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::XYZDP)
-      tsd::import_XYZDP(ctx, m_filename.c_str());
-    else if (selectedFileType == ImporterType::HSMESH)
-      tsd::import_HSMESH(ctx, m_filename.c_str(), importRoot);
-    else if (selectedFileType == ImporterType::VOLUME)
-      tsd::import_volume(ctx, m_filename.c_str());
-    ctx.signalLayerChange(layer);
-
     this->hide();
+
+    auto doLoad = [&]() {
+      auto &ctx = m_core->tsd.ctx;
+      auto *layer = m_core->tsd.ctx.defaultLayer();
+      auto importRoot = m_core->tsd.selectedNode;
+      if (!importRoot)
+        importRoot = layer->root();
+
+      auto selectedFileType =
+          static_cast<tsd_viewer::ImporterType>(m_selectedFileType);
+      if (selectedFileType == ImporterType::PLY)
+        tsd::import_PLY(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::OBJ)
+        tsd::import_OBJ(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::USD)
+        tsd::import_USD(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::ASSIMP)
+        tsd::import_ASSIMP(ctx, m_filename.c_str(), importRoot, false);
+      else if (selectedFileType == ImporterType::ASSIMP_FLAT)
+        tsd::import_ASSIMP(ctx, m_filename.c_str(), importRoot, true);
+      else if (selectedFileType == ImporterType::DLAF)
+        tsd::import_DLAF(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::NBODY)
+        tsd::import_NBODY(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::HDRI)
+        tsd::import_HDRI(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::SWC)
+        tsd::import_SWC(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::PDB)
+        tsd::import_PDB(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::XYZDP)
+        tsd::import_XYZDP(ctx, m_filename.c_str());
+      else if (selectedFileType == ImporterType::HSMESH)
+        tsd::import_HSMESH(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::VOLUME)
+        tsd::import_volume(ctx, m_filename.c_str());
+      ctx.signalLayerChange(layer);
+    };
+
+    if (!m_core->windows.taskModal)
+      doLoad();
+    else {
+      m_core->windows.taskModal->activate(
+          doLoad, "Please Wait: Importing Data...");
+    }
   }
 }
 
