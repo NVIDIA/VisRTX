@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,7 @@
 #include "optix_visrtx.h"
 
 #include "libmdl/ArgumentBlockInstance.h"
+#include "scene/surface/material/sampler/Sampler.h"
 
 #include <optional>
 #include <unordered_map>
@@ -68,9 +69,18 @@ struct MDL : public Material
 
   std::string m_source;
   std::string m_sourceType;
-  std::unordered_map<std::string, int> m_inputToSamplerIndex;
-  std::vector<Sampler *> m_samplers;
-  std::vector<bool> m_samplerIsFromRegistry;
+  struct SamplerDesc
+  {
+    Sampler *sampler;
+    std::string name;
+    bool isFromRegistry;
+    bool operator==(const SamplerDesc &other) const
+    {
+      return sampler == other.sampler && name == other.name
+          && isFromRegistry == other.isFromRegistry;
+    }
+  };
+  std::vector<SamplerDesc> m_samplers;
 
   libmdl::Uuid m_uuid{};
   mdl::MaterialRegistry::ImplementationIndex m_implementationIndex{};

@@ -1,8 +1,10 @@
+// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause
+
 #pragma once
 
 #include "Core.h"
 #include "types.h"
-
 
 #include <mi/base/handle.h>
 #include <mi/neuraylib/argument_editor.h>

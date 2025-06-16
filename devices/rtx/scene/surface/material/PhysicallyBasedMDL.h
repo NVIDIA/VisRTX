@@ -31,12 +31,18 @@
 
 #pragma once
 
-#include "gpu/cameraCreateRay.h"
-#include "gpu/computeAO.h"
-#include "gpu/createScreenSample.h"
-#include "gpu/evalMaterialParameters.h"
-#include "gpu/intersectRay.h"
-#include "gpu/populateHit.h"
-#include "gpu/sampleLight.h"
-#include "gpu/sampleSpatialField.h"
-#include "gpu/volumeIntegration.h"
+#include "MDL.h"
+
+namespace visrtx {
+
+struct PhysicallyBasedMDL : public MDL
+{
+  PhysicallyBasedMDL(DeviceGlobalState *d);
+
+  void commitParameters() override;
+
+ private:
+  void translateAndRemoveParameter(std::string_view paramName);
+};
+
+} // namespace visrtx

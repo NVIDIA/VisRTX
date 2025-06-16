@@ -206,13 +206,14 @@ VISRTX_DEVICE vec3 randomDir(RandState &rs, const vec3 &normal)
   return dot(dir, normal) > 0.f ? dir : -dir;
 }
 
-VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3& normal)
+VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3 &normal)
 {
   // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
   auto sign = normal.z >= 0.0f ? 1.0f : -1.0f;
   auto a = -1.0f / (sign + normal.z);
   auto b = normal.x * normal.y * a;
-  auto u = vec3(1.0f + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
+  auto u =
+      vec3(1.0f + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
   auto v = vec3(b, sign + normal.y * normal.y * a, -normal.y);
 
   return mat3(u, v, normal);
@@ -221,10 +222,10 @@ VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3& normal)
 VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
 {
   auto z = curand_uniform(&rs);
-  auto r = sqrtf(1.f - sqrt(z)); 
+  auto r = sqrtf(1.f - sqrt(z));
   auto phi = 2.0f * float(M_PI) * curand_uniform(&rs);
 
-  auto sample =  vec3(r * cos(phi), r * sin(phi), z);
+  auto sample = vec3(r * cos(phi), r * sin(phi), z);
 
   return computeOrthonormalBasis(normal) * sample;
 }
@@ -236,7 +237,8 @@ VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
   const float sint = sqrtf(fmaxf(0.f, 1.f - cost * cost));
   const float phi = 2.f * float(M_PI) * curand_uniform(&rs);
 
-  return computeOrthonormalBasis(normal) * vec3(sint * cosf(phi) , sint * sinf(phi), -cost);
+  return computeOrthonormalBasis(normal)
+      * vec3(sint * cosf(phi), sint * sinf(phi), -cost);
 }
 
 #define ulpEpsilon 0x1.fp-21
@@ -315,22 +317,26 @@ VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
 namespace detail {
 
 VISRTX_DEVICE
-vec3 tonemap(vec3 v) {
+vec3 tonemap(vec3 v)
+{
   return v / (1.0f + max(0.0f, compMax(v)));
 }
 
 VISRTX_DEVICE
-vec3 inverseTonemap(vec3 v) {
-  return v / max(1e-8f, 1.f - compMax(v));
+vec3 inverseTonemap(vec3 v)
+{
+  return v / max(1e-12f, 1.f - compMax(v));
 }
 
 VISRTX_DEVICE
-vec4 tonemap(vec4 v) {
+vec4 tonemap(vec4 v)
+{
   return vec4(tonemap(vec3(v)), v.w);
 }
 
 VISRTX_DEVICE
-vec4 inverseTonemap(vec4 v) {
+vec4 inverseTonemap(vec4 v)
+{
   return vec4(inverseTonemap(vec3(v)), v.w);
 }
 
@@ -365,7 +371,8 @@ VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
     const uint32_t idx,
     const int frameIDOffset)
 {
-  const auto c = detail::inverseTonemap(color / float(fb.frameID + frameIDOffset + 1));
+  const auto c =
+      detail::inverseTonemap(color / float(fb.frameID + frameIDOffset + 1));
   if (fb.format == FrameFormat::SRGB) {
     fb.buffers.outColorUint[idx] =
         glm::packUnorm4x8(glm::convertLinearToSRGB(c));
@@ -398,7 +405,8 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
 
   const auto frameID = fb.frameID + frameIDOffset;
 
-  detail::accumValue(fb.buffers.colorAccumulation, idx, frameID, detail::tonemap(color));
+  detail::accumValue(
+      fb.buffers.colorAccumulation, idx, frameID, detail::tonemap(color));
   detail::accumValue(fb.buffers.albedo, idx, frameID, albedo);
   detail::accumValue(fb.buffers.normal, idx, frameID, normal);
 

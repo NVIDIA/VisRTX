@@ -37,6 +37,7 @@
 #include "UnknownMaterial.h"
 #ifdef USE_MDL
 #include "MDL.h"
+#include "PhysicallyBasedMDL.h"
 #endif // defined(USE_MDL)
 
 #include <string>
@@ -57,7 +58,11 @@ Material *Material::createInstance(
   if (subtype == "matte" || subtype == "transparentMatte")
     return new Matte(d);
   else if (subtype == "pbr" || subtype == "physicallyBased")
+#if defined(USE_MDL) && defined(USE_MDL_FOR_PHYSICALLY_BASED)
+    return new PhysicallyBasedMDL(d);
+#else
     return new PBR(d);
+#endif
 #ifdef USE_MDL
   else if (subtype == "mdl" && d->mdl)
     return new MDL(d);

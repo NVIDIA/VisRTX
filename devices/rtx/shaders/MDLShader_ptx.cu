@@ -1,19 +1,57 @@
-#include "MDLTexture.cuh"
+/*
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
 
-#include "gpu/evalMaterial.h"
+#include "MDLShader.cuh"
+#include "gpu/evalMaterialParameters.h"
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
 
 #include <anari/anari_cpp/ext/linalg.h>
+#include <curand.h>
 #include <mi/neuraylib/target_code_types.h>
 #include <optix_device.h>
+#include <glm/ext/matrix_float2x4.hpp>
+#include <glm/ext/vector_float4.hpp>
+
+using namespace visrtx;
 
 // No derivatives yet
-using MaterialExprFunc = mi::neuraylib::Material_expr_function;
 using BsdfInitFunc = mi::neuraylib::Bsdf_init_function;
 using BsdfSampleFunc = mi::neuraylib::Bsdf_sample_function;
 using BsdfEvaluateFunc = mi::neuraylib::Bsdf_evaluate_function;
 using BsdfPdfFunc = mi::neuraylib::Bsdf_pdf_function;
+
+//
+using TintExprFunc = mi::neuraylib::Material_function<vec3>::Type;
+using OpacityExprFunc = mi::neuraylib::Material_function<float>::Type;
 
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
 using ResourceData = mi::neuraylib::Resource_data;
@@ -26,108 +64,164 @@ using BsdfPdfData = mi::neuraylib::Bsdf_pdf_data;
 using BsdfIsThinWalled = bool(
     const ShadingStateMaterial *, const ResourceData *, const char *);
 
-VISRTX_CALLABLE BsdfInitFunc mdlBsdf_init;
+VISRTX_CALLABLE BsdfInitFunc mdlInit;
 VISRTX_CALLABLE BsdfSampleFunc mdlBsdf_sample;
 VISRTX_CALLABLE BsdfEvaluateFunc mdlBsdf_evaluate;
 VISRTX_CALLABLE BsdfPdfFunc mdlBsdf_pdf;
 VISRTX_CALLABLE BsdfIsThinWalled mdl_isThinWalled;
 
-namespace visrtx {
+VISRTX_CALLABLE TintExprFunc mdlTint;
+VISRTX_CALLABLE OpacityExprFunc mdlOpacity;
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
-VISRTX_CALLABLE
-vec4 __direct_callable__evalSurfaceMaterial(const FrameGPUData *fd,
-    const ScreenSample *ss,
-    const MaterialGPUData::MDL *md,
-    const Ray *ray,
+VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
+    const FrameGPUData *fd,
     const SurfaceHit *hit,
-    const LightSample *ls)
+    const MaterialGPUData::MDL *md)
 {
-  // Create MDL state
-  ShadingStateMaterial state;
   auto position = hit->hitpoint;
   auto Ns = hit->Ns;
   auto Ng = hit->Ng;
+  auto tU = hit->tU;
+  auto tV = hit->tV;
 
-  auto objectToWorld =
-      bit_cast<const std::array<::float4, 3>>(hit->objectToWorld);
-  auto worldToObject =
-      bit_cast<const std::array<::float4, 3>>(hit->worldToObject);
+  shadingState->objectToWorld = hit->objectToWorld;
+  shadingState->worldToObject = hit->worldToObject;
+
   // The number of texture spaces we support. Matching the number of attributes
   // ANARI exposes (4)
-  auto textureResults = std::array<::float4,
-      32>{}; // The maximum number of samplers we support. See MDLCompiler.cpp
-             // numTextureSpaces and numTextureResults.
-  auto textureCoords = std::array{
-      make_float3(readAttributeValue(0, *hit)),
-      make_float3(readAttributeValue(1, *hit)),
-      make_float3(readAttributeValue(2, *hit)),
-      make_float3(readAttributeValue(3, *hit)),
-  };
-  auto textureTangentsU = std::array{
-      ::float3{1.0f, 0.0f, 0.0f},
-      ::float3{1.0f, 0.0f, 0.0f},
-      ::float3{1.0f, 0.0f, 0.0f},
-      ::float3{1.0f, 0.0f, 0.0f},
-  };
-  auto textureTangentsV = std::array{
-      ::float3{0.0f, 0.0f, 1.0f},
-      ::float3{0.0f, 0.0f, 1.0f},
-      ::float3{0.0f, 0.0f, 1.0f},
-      ::float3{0.0f, 0.0f, 1.0f},
-  };
+  shadingState->textureCoords[0] = readAttributeValue(0, *hit);
+  shadingState->textureCoords[1] = readAttributeValue(1, *hit);
+  shadingState->textureCoords[2] = readAttributeValue(2, *hit);
+  shadingState->textureCoords[3] = readAttributeValue(3, *hit);
 
-  state.animation_time = 0.0f;
-  state.geom_normal = make_float3(Ng);
-  state.normal = make_float3(Ns);
-  state.position = make_float3(position);
-  state.meters_per_scene_unit = 1.0f;
-  state.object_id = hit->objID;
-  state.object_to_world = data(objectToWorld);
-  state.world_to_object = data(worldToObject);
-  state.ro_data_segment = nullptr;
-  state.text_coords = data(textureCoords);
-  state.text_results = data(textureResults);
-  state.tangent_u = data(textureTangentsU);
-  state.tangent_v = data(textureTangentsV);
+  // Take some shortcut for now and use the same tangent space for all texture
+  // spaces.
+  shadingState->textureTangentsU[0] = tU;
+  shadingState->textureTangentsU[1] = tU;
+  shadingState->textureTangentsU[2] = tU;
+  shadingState->textureTangentsU[3] = tU;
+
+  shadingState->textureTangentsV[0] = tV;
+  shadingState->textureTangentsV[1] = tV;
+  shadingState->textureTangentsV[2] = tV;
+  shadingState->textureTangentsV[3] = tV;
+
+  shadingState->state.animation_time = 0.0f;
+  shadingState->state.geom_normal = bit_cast<float3>(Ng);
+  shadingState->state.normal = bit_cast<float3>(Ns);
+  shadingState->state.position = bit_cast<float3>(position);
+  shadingState->state.meters_per_scene_unit = 1.0f;
+  shadingState->state.object_id = hit->objID;
+  shadingState->state.object_to_world =
+      reinterpret_cast<const float4 *>(&shadingState->objectToWorld);
+  shadingState->state.world_to_object =
+      reinterpret_cast<const float4 *>(&shadingState->worldToObject);
+  shadingState->state.ro_data_segment = nullptr;
+  shadingState->state.text_coords =
+      reinterpret_cast<const float3 *>(shadingState->textureCoords);
+  shadingState->state.text_results =
+      reinterpret_cast<float4 *>(shadingState->textureResults);
+  shadingState->state.tangent_u =
+      reinterpret_cast<const float3 *>(shadingState->textureTangentsU);
+  shadingState->state.tangent_v =
+      reinterpret_cast<const float3 *>(shadingState->textureTangentsV);
 
   // Resources shared by all mdl calls.
-  TextureHandler texHandler{};
-  texHandler.fd = fd;
-  texHandler.ss = ss;
-  memcpy(texHandler.samplers, md->samplers, sizeof(md->samplers));
-  texHandler.numSamplers = md->numSamplers;
-
-  ResourceData resData = {nullptr, &texHandler};
+  shadingState->textureHandler.fd = fd;
+  // shadingState->textureHandler.ss = ss;
+  memcpy(shadingState->textureHandler.samplers,
+      md->samplers,
+      sizeof(md->samplers));
+  shadingState->textureHandler.numSamplers = md->numSamplers;
+  shadingState->resData = {nullptr, &shadingState->textureHandler};
 
   // Argument block
-  auto argblock = md->argBlock;
+  shadingState->argBlock = md->argBlock;
 
   // Init
-  mdlBsdf_init(&state, &resData, argblock); // Should be factored out
+  mdlInit(&shadingState->state,
+      &shadingState->resData,
+      shadingState->argBlock); // Should be factored out
+}
 
+// Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
+VISRTX_CALLABLE
+vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
+    const SurfaceHit *hit,
+    const LightSample *lightSample,
+    const vec3 *outgoingDir)
+{
   // Eval
-  BsdfEvaluateData eval_data = {};
-  const float cos_theta = dot(-ray->dir, normalize(Ns));
+  const float cos_theta =
+      dot(*outgoingDir, normalize(make_vec3(shadingState->state.normal)));
   if (cos_theta > 0.0f) {
-    eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
+    BsdfEvaluateData eval_data = {};
+    // FIXME: Handle being inside vs outside.
+    eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f),
     eval_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+    eval_data.k1 = make_float3(normalize(*outgoingDir)),
+    eval_data.k2 = make_float3(normalize(lightSample->dir)),
 
-    eval_data.k1 = make_float3(-ray->dir);
-    eval_data.k2 = make_float3(normalize(ls->dir));
-    eval_data.bsdf_diffuse = make_float3(0.0f, 0.0f, 0.0f);
-    eval_data.bsdf_glossy = make_float3(0.0f, 0.0f, 0.0f);
+    mdlBsdf_evaluate(&eval_data,
+        &shadingState->state,
+        &shadingState->resData,
+        shadingState->argBlock);
 
-    mdlBsdf_evaluate(&eval_data, &state, &resData, argblock);
-
-    auto radiance_over_pdf = ls->radiance / ls->pdf;
+    auto radiance_over_pdf = lightSample->radiance / lightSample->pdf;
     auto contrib = radiance_over_pdf
         * (make_vec3(eval_data.bsdf_diffuse)
             + make_vec3(eval_data.bsdf_glossy));
-    return vec4(contrib, 1.0f);
+
+    return contrib;
   }
 
-  return vec4(0.0f, 0.0f, 0.0f, 1.0f);
+  return vec3(0.0f, 0.0f, 0.0f);
 }
 
-} // namespace visrtx
+// Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
+VISRTX_CALLABLE
+mat2x4 __direct_callable__nextRay(
+    const MDLShadingState *shadingState, const Ray *ray, const ScreenSample *ss)
+{
+  // Sample
+  BsdfSampleData sample_data = {};
+  sample_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
+  sample_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+  sample_data.k1 = make_float3(-ray->dir);
+  sample_data.xi = make_float4(curand_uniform(&ss->rs),
+      curand_uniform(&ss->rs),
+      curand_uniform(&ss->rs),
+      curand_uniform(&ss->rs));
+
+  mdlBsdf_sample(&sample_data,
+      &shadingState->state,
+      &shadingState->resData,
+      shadingState->argBlock);
+
+  if (sample_data.event_type & mi::neuraylib::BSDF_EVENT_REFLECTION) {
+    return mat2x4(
+        vec4(sample_data.k2.x, sample_data.k2.y, sample_data.k2.z, 0.0f),
+        vec4(sample_data.bsdf_over_pdf.x,
+            sample_data.bsdf_over_pdf.y,
+            sample_data.bsdf_over_pdf.z,
+            1.0f));
+  } else {
+    return mat2x4(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec4(0.0f, 0.0f, 0.0f, 1.0f));
+  }
+}
+
+// Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateTint(const MDLShadingState *shadingState)
+{
+  return mdlTint(
+      &shadingState->state, &shadingState->resData, shadingState->argBlock);
+}
+
+VISRTX_CALLABLE
+float __direct_callable__evaluateOpacity(const MDLShadingState *shadingState)
+{
+  return mdlOpacity(
+      &shadingState->state, &shadingState->resData, shadingState->argBlock);
+}

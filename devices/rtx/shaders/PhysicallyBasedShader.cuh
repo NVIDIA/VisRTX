@@ -2,31 +2,26 @@
 
 #include "gpu/gpu_objects.h"
 #include "gpu/sampleLight.h"
-#include "gpu/shading_api.h"
+#include "gpu/shadingState.h"
 
 #include <optix.h>
-#include <cstdint>
 
 namespace visrtx {
 
-VISRTX_DEVICE vec4 shadePhysicallyBasedSurface(const FrameGPUData &fd,
-    const MaterialGPUData::PhysicallyBased &md,
-    const Ray &ray,
+VISRTX_DEVICE vec3 physicallyBasedShadeSurface(
+    const PhysicallyBasedShadingState &shadingState,
     const SurfaceHit &hit,
-    const LightSample &ls)
+    const LightSample &lightSample,
+    const vec3 &outgoingDir)
 {
-  auto viewDir = -ray.dir;
-
   // Call signature must match the actual implementation in
   // PhysicallyBasedShader_ptx.cu
-  return optixDirectCall<vec4>(
+  return optixDirectCall<vec3>(
       static_cast<unsigned int>(MaterialType::PHYSICALLYBASED),
-      &fd,
-      &md,
+      &shadingState,
       &hit,
-      &viewDir,
-      &ls.dir,
-      &ls.radiance);
+      &lightSample,
+      &outgoingDir);
 }
 
 } // namespace visrtx
