@@ -42,34 +42,37 @@ void import_OBJ(Context &ctx,
     return;
   }
 
-  auto obj_root =
-      ctx.insertChildNode(location ? location : ctx.defaultLayer()->root(), file.c_str());
+  auto obj_root = ctx.insertChildNode(
+      location ? location : ctx.defaultLayer()->root(), file.c_str());
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
 
   std::vector<MaterialRef> materials;
+  materials.resize(objdata.materials.size());
 
   TextureCache cache;
 
-  for (auto &mat : objdata.materials) {
-    auto m = ctx.createObject<Material>(tokens::material::matte);
+  auto getMaterial = [&](size_t i) -> MaterialRef {
+    auto &m = materials[i];
+    if (!m) {
+      auto &mat = objdata.materials[i];
 
-    m->setParameter("color"_t, ANARI_FLOAT32_VEC3, mat.diffuse);
-    m->setParameter("opacity"_t, mat.dissolve);
-    m->setName(mat.name.c_str());
+      m = ctx.createObject<Material>(tokens::material::matte);
+      m->setParameter("color"_t, ANARI_FLOAT32_VEC3, mat.diffuse);
+      m->setParameter("opacity"_t, mat.dissolve);
+      m->setName(mat.name.c_str());
 
-    if (!mat.diffuse_texname.empty()) {
-      auto tex = importTexture(ctx, basePath + mat.diffuse_texname, cache);
-      if (tex)
-        m->setParameterObject("color"_t, *tex);
+      if (!mat.diffuse_texname.empty()) {
+        auto tex = importTexture(ctx, basePath + mat.diffuse_texname, cache);
+        if (tex)
+          m->setParameterObject("color"_t, *tex);
+      }
     }
 
-    // TODO other textures
-
-    materials.push_back(m);
-  }
+    return m;
+  };
 
   /////////////////////////////////////////////////////////////////////////////
 
@@ -162,7 +165,7 @@ void import_OBJ(Context &ctx,
 
     const int matID = shape.mesh.material_ids[0];
     const bool useDefault = useDefaultMaterial || matID < 0;
-    auto mat = useDefault ? ctx.defaultMaterial() : materials[size_t(matID)];
+    auto mat = useDefault ? ctx.defaultMaterial() : getMaterial(size_t(matID));
 
     auto surface = ctx.createSurface(name.c_str(), mesh, mat);
     ctx.insertChildObjectNode(obj_root, surface);
