@@ -1,0 +1,88 @@
+// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause
+
+mdl 1.8;
+
+import ::anno::*;
+import ::base::*;
+import ::df::*;
+import ::state::*;
+import ::tex::*;
+import ::math::*;
+
+export material uv(
+  int texture_space = 0
+  [[
+    ::anno::hard_range(0, 4)
+  ]]
+) = let {
+  float3 texCoord3 = state::texture_coordinate(texture_space);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : color(texCoord3));
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material tangent_u(  int texture_space = 0
+  [[
+    ::anno::hard_range(0, 4)
+  ]]
+) = let {
+  float3 tangentCoord3 = state::texture_tangent_u(texture_space);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : color(tangentCoord3));
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material tangent_v(
+    int texture_space = 0
+  [[
+    ::anno::hard_range(0, 4)
+  ]]
+
+) = let {
+  float3 tangentCoord3 = state::texture_tangent_v(texture_space);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : color(tangentCoord3));
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material shading_normal(
+  uniform texture_2d normal = texture_2d(),
+  int texture_space = 0
+  [[
+    ::anno::hard_range(0, 4)
+  ]]
+) = let {
+  float3 n = base::tangent_space_normal_texture(
+        texture: normal,
+        uvw: base::texture_coordinate_info(
+          position:	state::texture_coordinate(texture_space),
+          tangent_u: state::texture_tangent_u(texture_space),
+          tangent_v: state::texture_tangent_v(texture_space)
+        )
+    );
+  
+  material mat = material(surface : material_surface(
+    scattering : df::diffuse_reflection_bsdf(tint : color(n + 1.0f / 2.0f))
+  ));
+} in mat;
+
+export material show_texture(
+  uniform texture_2d debug_texture = texture_2d(),
+  int texture_space = 0
+  [[
+    ::anno::hard_range(0, 4)
+  ]]
+) = let {
+  float3 texCoord3 = state::texture_coordinate(texture_space);
+  float2 texCoord2 = float2(texCoord3.x, texCoord3.y);
+
+  color c = tex::lookup_color(debug_texture, texCoord2);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : c);
+
+  material mat = material(surface : material_surface(scattering : scattering));
+} in mat;

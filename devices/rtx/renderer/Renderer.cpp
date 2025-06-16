@@ -41,9 +41,7 @@
 #include "Test.h"
 #include "UnknownRenderer.h"
 
-// Materials
-#ifdef USE_MDL
-#endif // defined(USE_MDL)
+#include "gpu/shadingState.h"
 
 // std
 #include <optix_types.h>
@@ -155,6 +153,7 @@ void Renderer::commitParameters()
   m_backgroundImage = getParamObject<Array2D>("background");
   m_bgColor = getParam<vec4>("background", vec4(vec3(0.f), 1.f));
   m_spp = getParam<int>("pixelSamples", 1);
+  m_maxRayDepth = getParam<int>("maxRayDepth", 5);
   m_ambientColor = getParam<vec3>("ambientColor", vec3(1.f));
   m_ambientIntensity =
       getParam<float>("ambientRadiance", m_defaultAmbientRadiance);
@@ -203,6 +202,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
   fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
   fd.renderer.numIterations = std::max(m_spp, 1);
+  fd.renderer.maxRayDepth = m_maxRayDepth;
 }
 
 OptixPipeline Renderer::pipeline()
@@ -449,6 +449,12 @@ void Renderer::initOptixPipeline()
     // MDLs
 #ifdef USE_MDL
     for (const auto &ptxBlob : state.mdl->materialRegistry.getPtxBlobs()) {
+      if (ptxBlob.empty()) {
+        for (auto i = 0; i < int(SurfaceShaderEntryPoints::Count); i++) {
+          callableDescs.push_back({});
+        }
+        continue;
+      }
       OptixModule module;
       OptixModuleCompileOptions moduleCompileOptions = {};
       moduleCompileOptions.maxRegisterCount =
@@ -479,8 +485,23 @@ void Renderer::initOptixPipeline()
       OptixProgramGroupDesc callableDesc = {};
       callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
       callableDesc.callables.moduleDC = module;
+
+      callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
+      callableDescs.push_back(callableDesc);
+
+      callableDesc.callables.entryFunctionNameDC = "__direct_callable__nextRay";
+      callableDescs.push_back(callableDesc);
+
       callableDesc.callables.entryFunctionNameDC =
-          "__direct_callable__evalSurfaceMaterial";
+          "__direct_callable__evaluateTint";
+      callableDescs.push_back(callableDesc);
+
+      callableDesc.callables.entryFunctionNameDC =
+          "__direct_callable__evaluateOpacity";
+      callableDescs.push_back(callableDesc);
+
+      callableDesc.callables.entryFunctionNameDC =
+          "__direct_callable__shadeSurface";
       callableDescs.push_back(callableDesc);
     }
 

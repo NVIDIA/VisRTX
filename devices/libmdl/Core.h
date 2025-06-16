@@ -1,5 +1,5 @@
-// Copyright 2024 The Khronos Group
-// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause
 
 #pragma once
 
@@ -72,11 +72,12 @@ class Core
 #ifdef __CUDACC__
   template <typename... T>
   void logMessage(
-      mi::base::Message_severity severity, const char* format, T... fmtargs);
+      mi::base::Message_severity severity, const char *format, T... fmtargs);
 #else
   template <typename... T>
-  void logMessage(
-      mi::base::Message_severity severity, fmt::format_string<T...> format, T&&... fmtargs)
+  void logMessage(mi::base::Message_severity severity,
+      fmt::format_string<T...> format,
+      T &&...fmtargs)
   {
     if (m_logger.is_valid_interface()) {
       m_logger->message(severity,
@@ -109,12 +110,16 @@ class Core
   mi::neuraylib::ICompiled_material *getCompiledMaterial(
       const mi::neuraylib::IFunction_definition *,
       bool classCompilation = true);
+  mi::neuraylib::ICompiled_material *getDistilledToDiffuseMaterial(
+      const mi::neuraylib::ICompiled_material *compiledMaterial);
+
   const mi::neuraylib::ITarget_code *getPtxTargetCode(
       const mi::neuraylib::ICompiled_material *compiledMaterial,
       mi::neuraylib::ITransaction *transaction);
 
-  const char *resolveResource(
-      const char *resourcePath, const char *owner = nullptr);
+  std::string resolveResource(
+      std::string_view resourceId, std::string_view ownerId = {});
+  std::string resolveModule(std::string_view moduleId);
 
  private:
   Core(mi::neuraylib::INeuray *neuray, mi::base::ILogger *logger);

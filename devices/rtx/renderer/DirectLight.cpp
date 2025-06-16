@@ -37,7 +37,8 @@ namespace visrtx {
 
 static const std::vector<HitgroupFunctionNames> g_directLightHitNames = {
     {"__closesthit__primary", "__anyhit__primary"},
-    {"__closesthit__shadow", "__anyhit__shadow"}};
+    {"__closesthit__shadow", "__anyhit__shadow"},
+    {"__closesthit__bounce", "__anyhit__bounce"}};
 
 static const std::vector<std::string> g_directLightMissNames = {
     "__miss__", "__miss__"};

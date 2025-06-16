@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,11 +31,10 @@
 
 #include "MDL.h"
 
-#include "fmt/base.h"
 #include "gpu/gpu_objects.h"
 #include "libmdl/ArgumentBlockInstance.h"
-#include "nonstd/scope.hpp"
 #include "optix_visrtx.h"
+#include "sampler/Sampler.h"
 #include "scene/surface/material/Material.h"
 
 #include "libmdl/ArgumentBlockDescriptor.h"
@@ -45,14 +44,18 @@
 #include <anari/frontend/anari_enums.h>
 
 #include <anari/frontend/type_utility.h>
+#include <helium/utility/IntrusivePtr.h>
 #include <mi/base/handle.h>
 #include <mi/neuraylib/ivalue.h>
 
+#include <cstdio>
+#include <iterator>
 #include <nonstd/scope.hpp>
 
 #include <fmt/core.h>
 
 #include <algorithm>
+#include <set>
 #include <string>
 #include <string_view>
 
@@ -69,17 +72,16 @@ MDL::~MDL()
 
 void MDL::clearSamplers()
 {
-  auto& samplerRegistry = deviceState()->mdl->samplerRegistry;
-  for (auto i = 0; i < m_samplers.size(); ++i) {
-    if (m_samplerIsFromRegistry[i]) {
-      samplerRegistry.releaseSampler(m_samplers[i]);
+  auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
+  for (auto &samplerDesc : m_samplers) {
+    if (samplerDesc.isFromRegistry) {
+      samplerRegistry.releaseSampler(samplerDesc.sampler);
     } else {
-      m_samplers[i]->refDec();
+      samplerDesc.sampler->refDec(helium::INTERNAL);
     }
   }
 
   m_samplers.clear();
-  m_samplerIsFromRegistry.clear();
 }
 
 void MDL::commitParameters()
@@ -108,19 +110,18 @@ void MDL::syncSource()
   auto uuid = libmdl::Uuid{};
   auto argumentBlockDescriptor = libmdl::ArgumentBlockDescriptor{};
 
-  auto& materialRegistry = deviceState()->mdl->materialRegistry;
-  auto& samplerRegistry = deviceState()->mdl->samplerRegistry;
+  auto &materialRegistry = deviceState()->mdl->materialRegistry;
+  auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
 
   // Handle source changes separately as it probably implies a full material
   // change.
   if (source != m_source || sourceType != m_sourceType) {
     // Equivalent using the material registry instead of the material manager
     if (sourceType == "module") {
-      auto &&[moduleName, materialName] = libmdl::parseCmdArgumentMaterialName(
-          source, &deviceState()->mdl->core);
+      auto &&[moduleName, materialName] =
+          libmdl::parseMaterialSourceName(source, &deviceState()->mdl->core);
       std::tie(uuid, argumentBlockDescriptor) =
-          materialRegistry.acquireMaterial(
-              moduleName, materialName);
+          materialRegistry.acquireMaterial(moduleName, materialName);
       if (uuid == libmdl::Uuid{}) {
         reportMessage(ANARI_SEVERITY_ERROR,
             "Failed to acquire material %s, falling back to %s",
@@ -146,20 +147,20 @@ void MDL::syncSource()
       if (m_uuid != libmdl::Uuid{}) {
         materialRegistry.releaseMaterial(m_uuid);
       }
-      m_argumentBlockInstance = materialRegistry.createArgumentBlock(argumentBlockDescriptor);
+      m_argumentBlockInstance =
+          materialRegistry.createArgumentBlock(argumentBlockDescriptor);
       m_uuid = uuid;
 
       clearSamplers();
 
-      for (auto textureDesc: argumentBlockDescriptor.m_defaultAndBodyTextureDescriptors) {
+      for (auto textureDesc :
+          argumentBlockDescriptor.m_defaultAndBodyTextureDescriptors) {
         auto sampler = samplerRegistry.acquireSampler(textureDesc);
         auto index = textureDesc.knownIndex;
         if (m_samplers.size() <= index) {
           m_samplers.resize(index + 1);
-          m_samplerIsFromRegistry.resize(index + 1);
         }
-        m_samplers[textureDesc.knownIndex] = sampler;
-        m_samplerIsFromRegistry[textureDesc.knownIndex] = true;
+        m_samplers[textureDesc.knownIndex] = {sampler, textureDesc.url, true};
       }
     }
 
@@ -172,6 +173,21 @@ void MDL::syncParameters()
 {
   if (m_argumentBlockInstance.has_value()) {
     auto &argumentBlockInstance = *m_argumentBlockInstance;
+    for (auto param = params_begin(); param != params_end(); ++param) {
+      const auto &name = param->first;
+      if (name == "source"sv || name == "sourceType"sv) {
+        // Skip these two parameters, they are not part of the argument block
+        continue;
+      }
+
+      if (argumentBlockInstance.hasArgument(name) == 0) {
+        reportMessage(ANARI_SEVERITY_WARNING,
+            "%s is not a valid parameter for an MDL material %s",
+            name.c_str(),
+            m_source.c_str());
+      }
+    }
+
     for (auto &&[name, type] : argumentBlockInstance.enumerateArguments()) {
       auto sourceParamAny = getParamDirect(name);
 
@@ -205,7 +221,8 @@ void MDL::syncParameters()
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Float4: {
         if (sourceParamAny.type() == ANARI_FLOAT32_VEC4) {
           auto value = sourceParamAny.get<glm::vec4>();
-          argumentBlockInstance.setValue(name, {value.x, value.y, value.z, value.w});
+          argumentBlockInstance.setValue(
+              name, {value.x, value.y, value.z, value.w});
         }
         break;
       }
@@ -232,7 +249,8 @@ void MDL::syncParameters()
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Int4: {
         if (sourceParamAny.type() == ANARI_INT32_VEC4) {
           auto value = sourceParamAny.get<glm::ivec4>();
-          argumentBlockInstance.setValue(name, {value.x, value.y, value.z, value.w});
+          argumentBlockInstance.setValue(
+              name, {value.x, value.y, value.z, value.w});
         }
         break;
       }
@@ -245,55 +263,75 @@ void MDL::syncParameters()
         break;
       }
       case libmdl::ArgumentBlockDescriptor::ArgumentType::Texture: {
-        Sampler* sampler = nullptr;
-        auto& samplerRegistry = deviceState()->mdl->samplerRegistry;
+        Sampler *sampler = nullptr;
+        auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
+
+        if (!sourceParamAny.valid()) {
+          if (auto it = find_if(begin(m_samplers),
+                  end(m_samplers),
+                  [name = name](auto &p) { return p.name == name; });
+              it != end(m_samplers)) {
+            // We have a sampler for this parameter, but it is not set.
+            // Set it to 0, which means no sampler.
+            if (it->isFromRegistry) {
+              samplerRegistry.releaseSampler(it->sampler);
+            } else {
+              it->sampler->refDec(helium::INTERNAL);
+            }
+            *it = {};
+          }
+
+          // Return the sampler to an undefined state in the argument block.
+          argumentBlockInstance.setValue(name, 0);
+          continue;
+        }
+
+        bool samplerIsFromRegistry = false;
 
         switch (sourceParamAny.type()) {
         case ANARI_STRING: {
-          auto colorspaceStr = getParamString(name + ".colorspace", "auto");
-          if (colorspaceStr != "auto" && colorspaceStr != "raw" && colorspaceStr != "sRGB") {
+          auto colorspaceStr = getParamString(name + ".colorspace", "srgb");
+          auto colorspace = libmdl::ColorSpace::sRGB;
+          if (colorspaceStr != "raw" && colorspaceStr != "srgb") {
             reportMessage(ANARI_SEVERITY_WARNING,
-                "Unknown colorspace type {} for {}. Falling back to auto",
-                colorspaceStr,  name);
-            colorspaceStr = "auto"s;
+                "Unknown colorspace type %s for %s. Falling back to srgb",
+                colorspaceStr,
+                name);
+            colorspaceStr = "srgb"s;
           }
-          auto colorspace = libmdl::ColorSpace::Auto;
           if (colorspaceStr == "raw"sv) {
             colorspace = libmdl::ColorSpace::Linear;
           } else if (colorspaceStr == "srgb"sv) {
             colorspace = libmdl::ColorSpace::sRGB;
           }
 
-          sampler = samplerRegistry.acquireSampler(sourceParamAny.getString(), colorspace);
+          sampler = samplerRegistry.acquireSampler(
+              sourceParamAny.getString(), colorspace);
+          samplerIsFromRegistry = true;
           break;
         }
         case ANARI_SAMPLER: {
           sampler = sourceParamAny.getObject<Sampler>();
+          // We need to hold a reference to the sampler
+          if (sampler)
+            sampler->refInc(helium::INTERNAL);
           break;
         }
         }
 
         if (sampler) {
-          int index;
-          if (auto it = m_inputToSamplerIndex.find(name); it != end(m_inputToSamplerIndex)) {
-            // We already have a sampler. Release it.
-            index = it->second;
-            assert(!m_samplerIsFromRegistry[index]); // We should not end up release body resources.
-            samplerRegistry.releaseSampler(m_samplers[index]);
-            m_samplers[index] = sampler;
+          // Find a valid slot for out sampler.
+          auto it =
+              std::find(begin(m_samplers), end(m_samplers), SamplerDesc{});
+          if (it == end(m_samplers)) {
+            it = m_samplers.insert(it, {sampler, name, samplerIsFromRegistry});
           } else {
-            // We don't have a sampler
-            if (auto it = std::find(begin(m_samplers), end(m_samplers), sampler);
-                it != end(m_samplers)) {
-              index = std::distance(begin(m_samplers), it);
-            } else {
-              index = m_samplers.size();
-              m_samplers.push_back(sampler);
-              m_samplerIsFromRegistry.push_back(false);
-            }
+            *it = {sampler, name, samplerIsFromRegistry};
           }
 
-          argumentBlockInstance.setValue(name, index + 1); // MDL starts counting at 1, 0 being invalid.
+          int index = distance(std::begin(m_samplers), it);
+          argumentBlockInstance.setValue(
+              name, index + 1); // MDL starts counting at 1, 0 being invalid.
         }
         break;
       }
@@ -329,7 +367,9 @@ MaterialGPUData MDL::gpuData() const
     std::transform(cbegin(m_samplers),
         cend(m_samplers),
         std::begin(retval.mdl.samplers),
-        [](const auto &v) { return v ? v->index() : DeviceObjectIndex(~0); });
+        [](const auto &v) {
+          return v.sampler ? v.sampler->index() : DeviceObjectIndex(~0);
+        });
 
     if (const auto &argBlockData =
             m_argumentBlockInstance->getArgumentBlockData();

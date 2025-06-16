@@ -1,3 +1,34 @@
+/*
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include "ComputeTangent.h"
 #include "array/Array.h"
 #include "scene/surface/geometry/Triangle.h"
@@ -33,8 +64,7 @@ __device__ void __computeTangentAndBitangent(
     glm::vec3 p2,
     glm::vec2 uv0, // Input texture coordinates
     glm::vec2 uv1,
-    glm::vec2 uv2
-)
+    glm::vec2 uv2)
 {
   // Compute edges of the triangle
   glm::vec3 e1 = p1 - p0;
@@ -262,7 +292,7 @@ void updateGeometryTangent(Triangle *triangle)
         }
       } else {
         if (uvs->elementType() == ANARI_FLOAT32_VEC2) {
-          // Vertex indexed, indexed normals and indexed vec2 UVs.
+          // Vertex indexed,  face varying normals and indexed vec2 UVs.
           auto uvsPtr = uvs->dataAs<const glm::vec2>(AddressSpace::GPU);
           __computeTangents<true, false, true>(tangents,
               bitangents,
@@ -272,7 +302,7 @@ void updateGeometryTangent(Triangle *triangle)
               uvsPtr,
               trianglesCount);
         } else {
-          // Vertex indexed, indexed normals and indexed vec3 UVs.
+          // Vertex indexed,  face varying normals and indexed vec3 UVs.
           auto uvsPtr = uvs->dataAs<const glm::vec3>(AddressSpace::GPU);
           __computeTangents<true, false, true>(tangents,
               bitangents,
@@ -288,7 +318,7 @@ void updateGeometryTangent(Triangle *triangle)
       if (uvsFV) {
         if (uvsFV->elementType() == ANARI_FLOAT32_VEC2) {
           auto uvsPtr = uvsFV->dataAs<const glm::vec2>(AddressSpace::GPU);
-          // Vertex indexed, face varying normals and face varyings vec2 UVs.
+          // Vertex indexed, index normals and face varyings vec2 UVs.
           __computeTangents<true, true, false>(tangents,
               bitangents,
               indicesPtr,
@@ -298,7 +328,7 @@ void updateGeometryTangent(Triangle *triangle)
               trianglesCount);
         } else {
           auto uvsPtr = uvsFV->dataAs<const glm::vec3>(AddressSpace::GPU);
-          // Vertex indexed, face varying normals and face varyings vec3 UVs.
+          // Vertex indexed, indexed normals and face varyings vec3 UVs.
           __computeTangents<true, true, false>(tangents,
               bitangents,
               indicesPtr,
@@ -339,7 +369,7 @@ void updateGeometryTangent(Triangle *triangle)
     auto normalsPtr = normals->dataAs<const glm::vec3>(AddressSpace::GPU);
 
     if (uvs->elementType() == ANARI_FLOAT32_VEC2) {
-      // Vertex indexed, face varying normals and face varyings vec2 UVs.
+      // Non indexed vertices, face varying normals and face varyings vec2 UVs.
       auto uvsPtr = uvs->dataAs<const glm::vec2>(AddressSpace::GPU);
       __computeTangents<false, false, false>(tangents,
           bitangents,
@@ -349,7 +379,7 @@ void updateGeometryTangent(Triangle *triangle)
           uvsPtr,
           trianglesCount);
     } else {
-      // Vertex indexed, face varying normals and face varyings vec3 UVs.
+      // Non indexed vertices, face varying normals and face varyings vec3 UVs.
       auto uvsPtr = uvs->dataAs<const glm::vec3>(AddressSpace::GPU);
       __computeTangents<false, false, false>(tangents,
           bitangents,

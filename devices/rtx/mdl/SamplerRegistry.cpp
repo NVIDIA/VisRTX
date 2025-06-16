@@ -1,3 +1,34 @@
+/*
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice,
+ * this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * this list of conditions and the following disclaimer in the documentation
+ * and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
 #include "SamplerRegistry.h"
 
 #include "array/Array2D.h"
@@ -9,6 +40,7 @@
 #include "scene/surface/material/sampler/Image3D.h"
 
 #include <anari/frontend/anari_enums.h>
+#include <helium/utility/IntrusivePtr.h>
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>
 #include <mi/neuraylib/icanvas.h>
@@ -51,7 +83,8 @@ SamplerRegistry::~SamplerRegistry()
   }
 }
 
-Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::ColorSpace colorSpace)
+Sampler *SamplerRegistry::loadFromDDS(
+    const std::string_view &filePath, libmdl::ColorSpace colorSpace)
 {
   std::ifstream ifs(std::string(filePath), std::ios::in | std::ios::binary);
   if (!ifs.is_open()) {
@@ -94,17 +127,29 @@ Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::
   switch (dxgiFormat) {
   case dds::DXGI_FORMAT_BC1_UNORM: {
     // BC1: RGB/RGBA, 1bit alpha
-    compressedFormat = alpha ? "BC1_RGBA" : "BC1_RGB";
+    if (colorSpace == libmdl::ColorSpace::sRGB) {
+      compressedFormat = alpha ? "BC1_RGBA_SRGB" : "BC1_RGB_SRGB";
+    } else {
+      compressedFormat = alpha ? "BC1_RGBA" : "BC1_RGB";
+    }
     break;
   }
   case dds::DXGI_FORMAT_BC1_UNORM_SRGB: {
     // BC1: RGB/RGBA, 1bit alpha
-    compressedFormat = alpha ? "BC1_RGBA_SRGB" : "BC1_RGB_SRGB";
+    if (colorSpace == libmdl::ColorSpace::sRGB) {
+      compressedFormat = alpha ? "BC1_RGBA_SRGB" : "BC1_RGB_SRGB";
+    } else {
+      compressedFormat = alpha ? "BC1_RGBA" : "BC1_RGB";
+    }
     break;
   }
   case dds::DXGI_FORMAT_BC2_UNORM: {
     // BC2: RGB/RGBA, 4bit alpha
-    compressedFormat = "BC2";
+    if (colorSpace == libmdl::ColorSpace::sRGB) {
+      compressedFormat = "BC2_SRGB";
+    } else {
+      compressedFormat = "BC2";
+    }
     break;
   }
   case dds::DXGI_FORMAT_BC2_UNORM_SRGB: {
@@ -114,7 +159,11 @@ Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::
   }
   case dds::DXGI_FORMAT_BC3_UNORM: {
     // BC3: RGB/RGBA, 8bit alpha
-    compressedFormat = "BC3";
+    if (colorSpace == libmdl::ColorSpace::sRGB) {
+      compressedFormat = "BC3_SRGB";
+    } else {
+      compressedFormat = "BC3";
+    }
     break;
   }
   case dds::DXGI_FORMAT_BC3_UNORM_SRGB: {
@@ -154,7 +203,11 @@ Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::
   }
   case dds::DXGI_FORMAT_BC7_UNORM: {
     // BC7: RGB/RGBA
-    compressedFormat = "BC7";
+    if (colorSpace == libmdl::ColorSpace::sRGB) {
+      compressedFormat = "BC7_SRGB";
+    } else {
+      compressedFormat = "BC7";
+    }
     break;
   }
   case dds::DXGI_FORMAT_BC7_UNORM_SRGB: {
@@ -228,12 +281,11 @@ Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::
       // Ideally, we what to flip the content of the image so actual transforms
       // can be applied to the samplers. Not achievable for all cases, so
       // we use that as a fallback.
-      image2d->setParam("inTransform",glm::mat4(
-      {1.0f, 0.0, 0.0f, 0.0f},
-      {0.0f, -1.0f, 0.0f, 0.0f},
-      {0.0f, 0.0f, 1.0f, 0.0f},
-      {0.0f, 0.0f, 0.0f, 1.0f}
-      ));
+      image2d->setParam("inTransform",
+          glm::mat4({1.0f, 0.0, 0.0f, 0.0f},
+              {0.0f, -1.0f, 0.0f, 0.0f},
+              {0.0f, 0.0f, 1.0f, 0.0f},
+              {0.0f, 0.0f, 0.0f, 1.0f}));
       image2d->setParam("inOffset", glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
     }
     image2d->commitParameters();
@@ -241,7 +293,8 @@ Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::
     array1d->refDec();
     tex = image2d;
   } else if (format) {
-    std::vector<std::byte> imageContent(dds->header.width * dds->header.height * 4);
+    std::vector<std::byte> imageContent(
+        dds->header.width * dds->header.height * 4);
     auto wasFlipped = dds::vflipImage(dds, data(imageContent));
 
     anari::DataType texelType = ANARI_UNKNOWN;
@@ -265,20 +318,18 @@ Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::
     image2d->setParam("image", array2d);
     if (!wasFlipped) {
       // Ideally, we what to flip the content of the image so actual transforms
-      // can be applied to the samplers. Not implemented/achievable for all cases, so
-      // we use that as a fallback.
-      image2d->setParam("inTransform",glm::mat4(
-      {1.0f, 0.0, 0.0f, 0.0f},
-      {0.0f, -1.0f, 0.0f, 0.0f},
-      {0.0f, 0.0f, 1.0f, 0.0f},
-      {0.0f, 0.0f, 0.0f, 1.0f}
-      ));
+      // can be applied to the samplers. Not implemented/achievable for all
+      // cases, so we use that as a fallback.
+      image2d->setParam("inTransform",
+          glm::mat4({1.0f, 0.0, 0.0f, 0.0f},
+              {0.0f, -1.0f, 0.0f, 0.0f},
+              {0.0f, 0.0f, 1.0f, 0.0f},
+              {0.0f, 0.0f, 0.0f, 1.0f}));
       image2d->setParam("inOffset", glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
     }
     image2d->commitParameters();
     image2d->finalize();
-    image2d->upload();
-    array2d->refDec();
+    array2d->refDec(helium::PUBLIC);
     tex = image2d;
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
@@ -289,7 +340,8 @@ Sampler *SamplerRegistry::loadFromDDS(const std::string_view &filePath, libmdl::
   return tex;
 }
 
-Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl::ColorSpace colorSpace)
+Sampler *SamplerRegistry::loadFromImage(
+    const std::string_view &filePath, libmdl::ColorSpace colorSpace)
 {
   auto filePathS = std::string(filePath);
   stbi_set_flip_vertically_on_load(1);
@@ -297,50 +349,11 @@ Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl
 
   int width, height, n;
   void *data = nullptr;
-  if (isHdr) {
-    data = stbi_loadf(filePathS.c_str(), &width, &height, &n, 0);
 
-    // Data is hdr and then floats assumed to be in linear colorspace.
-    switch (colorSpace) {
-      case libmdl::ColorSpace::Auto:
-        break;
-      case libmdl::ColorSpace::Linear:
-        break;
-      case libmdl::ColorSpace::sRGB:
-        // Convert to sRGB
-        {
-          auto *dataF = static_cast<float *>(data);
-          int nbutalpha = (n % 2) ? n : n - 1; // Consider it has an alpha channel if 2 or 4 components.
-          for (int i = 0; i < width * height; ++i) {
-            for (int c = 0; c < nbutalpha; ++c) {
-              dataF[i * n + c] = powf(dataF[i * n + c], 2.2f);
-            }
-          }
-        }
-        break;
-    }
-  } else {
-    data = stbi_load(filePathS.c_str(), &width, &height, &n, 0);
-    // Data is ldr and then assumed to be in sRGB colorspace.
-    switch (colorSpace) {
-      case libmdl::ColorSpace::Linear:
-        // Convert to linear
-        {
-          auto *dataU8 = static_cast<unsigned char *>(data);
-          int nbutalpha = (n % 2) ? n : n - 1; // Consider it has an alpha channel if 2 or 4 components.
-          for (int i = 0; i < width * height; ++i) {
-            for (int c = 0; c < nbutalpha; ++c) {
-              dataU8[i * n + c] = static_cast<unsigned char>(powf(dataU8[i * n + c] / 255.0f, 1.0f / 2.2f) * 255.0f);
-            }
-          }
-        }
-        break;
-      case libmdl::ColorSpace::Auto:
-      case libmdl::ColorSpace::sRGB:
-        break;
-    }
-
-  }
+  data = isHdr ? static_cast<void *>(
+                     stbi_loadf(filePathS.c_str(), &width, &height, &n, 0))
+               : static_cast<void *>(
+                     stbi_load(filePathS.c_str(), &width, &height, &n, 0));
 
   if (!data || n < 1) {
     m_core->logMessage(mi::base::details::MESSAGE_SEVERITY_WARNING,
@@ -349,13 +362,25 @@ Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl
     return {};
   }
 
-  int texelType = isHdr ? ANARI_FLOAT32_VEC4 : ANARI_UFIXED8_VEC4;
+  int texelType = isHdr
+      ? ANARI_FLOAT32_VEC4
+      : (colorSpace == libmdl::ColorSpace::Linear ? ANARI_UFIXED8_VEC4
+                                                  : ANARI_UFIXED8_RGBA_SRGB);
   if (n == 3)
-    texelType = isHdr ? ANARI_FLOAT32_VEC3 : ANARI_UFIXED8_VEC3;
+    texelType = isHdr
+        ? ANARI_FLOAT32_VEC3
+        : (colorSpace == libmdl::ColorSpace::Linear ? ANARI_UFIXED8_VEC3
+                                                    : ANARI_UFIXED8_RGB_SRGB);
   else if (n == 2)
-    texelType = isHdr ? ANARI_FLOAT32_VEC2 : ANARI_UFIXED8_VEC2;
+    texelType = isHdr
+        ? ANARI_FLOAT32_VEC2
+        : (colorSpace == libmdl::ColorSpace::Linear ? ANARI_UFIXED8_VEC2
+                                                    : ANARI_UFIXED8_RA_SRGB);
   else if (n == 1)
-    texelType = isHdr ? ANARI_FLOAT32 : ANARI_UFIXED8;
+    texelType = isHdr
+        ? ANARI_FLOAT32
+        : (colorSpace == libmdl::ColorSpace::Linear ? ANARI_UFIXED8
+                                                    : ANARI_UFIXED8_R_SRGB);
 
   Array2DMemoryDescriptor desc = {
       {
@@ -376,12 +401,13 @@ Sampler *SamplerRegistry::loadFromImage(const std::string_view &filePath, libmdl
   image2d->setParam("image", array2d);
   image2d->commitParameters();
   image2d->finalize();
-  array2d->refDec();
+  array2d->refDec(helium::PUBLIC);
 
   return image2d;
 }
 
-Sampler *SamplerRegistry::loadFromFile(const std::string_view &filePath, libmdl::ColorSpace colorSpace)
+Sampler *SamplerRegistry::loadFromFile(
+    const std::string_view &filePath, libmdl::ColorSpace colorSpace)
 {
   if (size(filePath) > 4 && filePath.substr(size(filePath) - 4) == ".dds") {
     return loadFromDDS(filePath, colorSpace);
@@ -448,8 +474,8 @@ Sampler *SamplerRegistry::loadFromTextureDesc(
     auto image3d = new Image3D(m_deviceState);
     image3d->setParam("image", array3d);
     image3d->commitParameters();
-    image3d->upload();
-    array3d->refDec();
+    image3d->finalize();
+    array3d->refDec(helium::PUBLIC);
 
     return image3d;
   }
@@ -457,7 +483,8 @@ Sampler *SamplerRegistry::loadFromTextureDesc(
   return {};
 }
 
-Sampler *SamplerRegistry::acquireSampler(const std::string& filePath, libmdl::ColorSpace colorSpace)
+Sampler *SamplerRegistry::acquireSampler(
+    const std::string &filePath, libmdl::ColorSpace colorSpace)
 {
   if (auto it = m_dbToSampler.find(filePath); it != end(m_dbToSampler)) {
     it->second->refInc();
@@ -467,6 +494,8 @@ Sampler *SamplerRegistry::acquireSampler(const std::string& filePath, libmdl::Co
   auto sampler = loadFromFile(filePath, colorSpace);
   if (sampler) {
     sampler->refInc();
+    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
+                                     // we don't rely on.
     m_dbToSampler.insert({filePath, sampler});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -488,6 +517,8 @@ Sampler *SamplerRegistry::acquireSampler(
   auto sampler = loadFromTextureDesc(textureDesc);
   if (sampler) {
     sampler->refInc();
+    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
+                                     // we don't rely on.
     m_dbToSampler.insert({textureDesc.url, sampler});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -504,9 +535,11 @@ bool SamplerRegistry::releaseSampler(const Sampler *sampler)
           std::end(m_dbToSampler),
           [sampler](const auto &p) { return p.second == sampler; });
       it != std::end(m_dbToSampler)) {
+    auto useCount = it->second->useCount(helium::INTERNAL);
     it->second->refDec();
-    if (it->second->useCount() == 1) {
-      it->second->refDec();
+    if (useCount == 1) {
+      // Our counter dropped to 1 pre-refDec, no one else is using the
+      // sampler.
       m_dbToSampler.erase(it);
       return true;
     }

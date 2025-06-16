@@ -29,19 +29,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
 
 using namespace visrtx;
 
 // Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
-VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
-    const FrameGPUData *fd,
-    const MaterialGPUData::Matte *md,
+VISRTX_CALLABLE vec3 __direct_callable__evalSurfaceMaterial(
+    const MatteShadingState *shadingState,
     const SurfaceHit *hit,
-    const vec3 * /*viewDir*/,
-    const vec3 * /*lightDir*/,
-    const vec3 *lightIntensity)
+    const LightSample *lightSample,
+    const vec3 *outgoingDir)
 {
-  const auto matValues = getMaterialValues(*fd, *md, *hit);
-  return {matValues.baseColor * (*lightIntensity), matValues.opacity};
+  return shadingState->baseColor * lightSample->radiance;
 }

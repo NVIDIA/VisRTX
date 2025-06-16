@@ -34,9 +34,6 @@
 #include "gpu_objects.h"
 #include "gpu_util.h"
 #include "sampleLight.h"
-#include "shaders/MDLShader.cuh"
-#include "shaders/MatteShader.cuh"
-#include "shaders/PhysicallyBasedShader.cuh"
 
 #include "utility/AnariTypeHelpers.h"
 
@@ -417,6 +414,7 @@ VISRTX_DEVICE float adjustedMaterialOpacity(
   return adjustedMaterialOpacity(opacityIn, md.alphaMode, md.cutoff);
 }
 
+// FIXME: THis should be removed in favor of evalShading calls.
 VISRTX_DEVICE float adjustedMaterialOpacity(
     float opacityIn, const MaterialGPUData &md)
 {
@@ -434,84 +432,8 @@ VISRTX_DEVICE float adjustedMaterialOpacity(
   }
 }
 
-VISRTX_DEVICE MaterialValues getMaterialValues(const FrameGPUData &fd,
-    const MaterialGPUData::Matte &md,
-    const SurfaceHit &hit)
-{
-  vec4 color = getMaterialParameter(fd, md.color, hit);
-  float opacity = getMaterialParameter(fd, md.opacity, hit).x;
-
-  return {
-      MaterialType::MATTE,
-      vec3(color),
-      adjustedMaterialOpacity(color.w * opacity, md),
-      0.0f,
-      0.5f,
-      1.0f,
-  };
-}
-
-VISRTX_DEVICE MaterialValues getMaterialValues(const FrameGPUData &fd,
-    const MaterialGPUData::PhysicallyBased &md,
-    const SurfaceHit &hit)
-{
-  vec4 color = getMaterialParameter(fd, md.baseColor, hit);
-  float opacity = getMaterialParameter(fd, md.opacity, hit).x;
-
-  return {
-      MaterialType::PHYSICALLYBASED,
-      vec3(color),
-      adjustedMaterialOpacity(color.w * opacity, md),
-      getMaterialParameter(fd, md.metallic, hit).x,
-      getMaterialParameter(fd, md.roughness, hit).x,
-      md.ior,
-  };
-}
-
-VISRTX_DEVICE MaterialValues getMaterialValues(
-    const FrameGPUData &fd, const MaterialGPUData &md, const SurfaceHit &hit)
-{
-  switch (md.materialType) {
-  case MaterialType::MATTE:
-    return getMaterialValues(fd, md.matte, hit);
-  case MaterialType::PHYSICALLYBASED:
-    return getMaterialValues(fd, md.physicallyBased, hit);
-  default:
-    return {
-        MaterialType::MATTE,
-        vec3(0.8f, 0.8f, 0.8f),
-        1.0f,
-        0.0f,
-        0.5f,
-        1.0f,
-    };
-  }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
-VISRTX_DEVICE vec4 evalMaterial(const FrameGPUData &fd,
-    const ScreenSample &ss,
-    const MaterialGPUData &md,
-    const SurfaceHit &hit,
-    const Ray &ray,
-    const LightSample &ls)
-{
-  switch (md.materialType) {
-  case MaterialType::MATTE: {
-    return shadeMatteSurface(fd, md.matte, ray, hit, ls);
-  }
-  case MaterialType::PHYSICALLYBASED: {
-    return shadePhysicallyBasedSurface(fd, md.physicallyBased, ray, hit, ls);
-  }
-  case MaterialType::MDL: {
-    return shadeMDLSurface(fd, ss, md.mdl, ray, hit, ls);
-  }
-  default:
-    return vec4(0.8f, 0.8f, 0.8f, 1.0f);
-  }
-}
 
 } // namespace visrtx
