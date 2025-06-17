@@ -494,8 +494,7 @@ Sampler *SamplerRegistry::acquireSampler(
   auto sampler = loadFromFile(filePath, colorSpace);
   if (sampler) {
     sampler->refInc();
-    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
-                                     // we don't rely on.
+    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that we don't rely on.
     m_dbToSampler.insert({filePath, sampler});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -517,8 +516,7 @@ Sampler *SamplerRegistry::acquireSampler(
   auto sampler = loadFromTextureDesc(textureDesc);
   if (sampler) {
     sampler->refInc();
-    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
-                                     // we don't rely on.
+    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that we don't rely on.
     m_dbToSampler.insert({textureDesc.url, sampler});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -535,6 +533,7 @@ bool SamplerRegistry::releaseSampler(const Sampler *sampler)
           std::end(m_dbToSampler),
           [sampler](const auto &p) { return p.second == sampler; });
       it != std::end(m_dbToSampler)) {
+    
     auto useCount = it->second->useCount(helium::INTERNAL);
     it->second->refDec();
     if (useCount == 1) {

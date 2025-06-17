@@ -55,10 +55,10 @@ VISRTX_CALLABLE vec3 __direct_callable__evalSurfaceMaterial(
   const float LdotH = dot(lightSample->dir, H);
 
   // Fresnel
-  const vec3 f0 = glm::mix(
-      vec3(pow2((1.f - shadingState->ior) / (1.f + shadingState->ior))),
-      shadingState->baseColor,
-      shadingState->metallic);
+  const vec3 f0 =
+      glm::mix(vec3(pow2((1.f - shadingState->ior) / (1.f + shadingState->ior))),
+          shadingState->baseColor,
+          shadingState->metallic);
   const vec3 F = f0 + (vec3(1.f) - f0) * pow5(1.f - fabsf(VdotH));
 
   // Metallic materials don't reflect diffusely:
