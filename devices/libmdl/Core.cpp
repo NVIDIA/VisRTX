@@ -282,31 +282,26 @@ const mi::neuraylib::IModule *Core::loadModule(
   auto impexpApi = make_handle(
       m_neuray->get_api_component<mi::neuraylib::IMdl_impexp_api>());
 
-  // First try and resolve the module name as is.
-  auto moduleName = resolveModule(moduleOrFileName);
+  auto moduleName = std::string(moduleOrFileName);
 
-  if (moduleName.empty()) {
-    moduleName = std::string(moduleOrFileName);
-
-    // If that fails, try and resolve it as a file name.
-    // First considering  the module name from the MDL file name.
-    if (auto name =
-            make_handle(impexpApi->get_mdl_module_name(moduleName.c_str()));
-        name.is_valid_interface()) {
+  // If that fails, try and resolve it as a file name.
+  // First considering  the module name from the MDL file name.
+  if (auto name = make_handle(impexpApi->get_mdl_module_name(moduleName.c_str()));
+      name.is_valid_interface()) {
       moduleName = name->get_c_str();
-    } else {
-      // Check if this is a single MDL name, such as OmniPBR.mdl and
-      // resolve it to its equivalent module name, such as ::OmniPBR.
-      if (auto len = moduleName.length(); len > 4) {
-        auto extension = moduleName.substr(len - 4);
-        if (moduleName.find('/') == std::string::npos && extension == ".mdl") {
-          moduleName = "::"s + moduleName.substr(0, len - 4);
-        }
-      } else {
-        moduleName.clear();
+  } else {
+    // Check if this is a single MDL name, such as OmniPBR.mdl and
+    // resolve it to its equivalent module name, such as ::OmniPBR.
+    if (auto len = moduleName.length(); len > 4) {
+      auto extension = moduleName.substr(len - 4);
+      if (moduleName.find('/') == std::string::npos && extension == ".mdl") {
+        moduleName = "::"s + moduleName.substr(0, len - 4);
       }
+    } else {
+      moduleName.clear();
     }
   }
+
 
   if (moduleName.empty()) {
     logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
