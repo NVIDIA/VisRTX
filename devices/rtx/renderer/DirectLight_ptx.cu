@@ -129,9 +129,9 @@ VISRTX_DEVICE vec4 shadeSurface(
         continue;
 
       const Ray shadowRay = {
-          .org = shadePoint,
-          .dir = lightSample.dir,
-          .t = {0.0f, lightSample.dist},
+          shadePoint,
+          lightSample.dir,
+          {0.0f, lightSample.dist},
       };
 
       const float surface_o =
@@ -168,8 +168,8 @@ VISRTX_DEVICE vec4 shadeSurface(
         break;
 
       bounceRay = {
-          .org = shadePoint,
-          .dir = normalize(vec3(nextRay.direction)),
+          shadePoint,
+          normalize(vec3(nextRay.direction)),
       };
 
       SurfaceHit bounceHit;
@@ -195,9 +195,10 @@ VISRTX_DEVICE vec4 shadeSurface(
         } else {
           // Otherwise fallback to some simple background probing.
           lightSample = {
-              .radiance = getBackground(frameData, ss.pixel, bounceRay.dir),
-              .dist = 1.0f,
-              .pdf = 1.0f,
+              getBackground(frameData, ss.pixel, bounceRay.dir),
+              bounceRay.dir,
+              1.0f,
+              1.0f,
           };
         }
         materialInitShading(

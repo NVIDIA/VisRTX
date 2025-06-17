@@ -64,7 +64,8 @@ __device__ void __computeTangentAndBitangent(
     glm::vec3 p2,
     glm::vec2 uv0, // Input texture coordinates
     glm::vec2 uv1,
-    glm::vec2 uv2)
+    glm::vec2 uv2
+)
 {
   // Compute edges of the triangle
   glm::vec3 e1 = p1 - p0;

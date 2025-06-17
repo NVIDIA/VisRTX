@@ -39,7 +39,8 @@
 
 namespace visrtx {
 
-VISRTX_DEVICE vec3 matteShadeSurface(const MatteShadingState &shadingState,
+VISRTX_DEVICE vec3 matteShadeSurface(
+    const MatteShadingState &shadingState,
     const SurfaceHit &hit,
     const LightSample &lightSample,
     const vec3 &outgoingDir)

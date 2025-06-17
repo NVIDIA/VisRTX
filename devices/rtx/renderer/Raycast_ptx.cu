@@ -124,8 +124,7 @@ VISRTX_GLOBAL void __raygen__()
       const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns))
           * rendererParams.ambientColor;
       MaterialShadingState shadingState;
-      materialInitShading(
-          &shadingState, frameData, *surfaceHit.material, surfaceHit);
+      materialInitShading(&shadingState, frameData, *surfaceHit.material, surfaceHit);
       auto materialBaseColor = materialEvaluateTint(shadingState);
       auto materialOpacity = materialEvaluateOpacity(shadingState);
 

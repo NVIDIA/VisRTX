@@ -41,84 +41,65 @@ ArgumentBlockInstance::ArgumentBlockInstance(
               ? argumentBlockDescriptor.m_argumentBlock->clone()
               : nullptr),
       m_core(core)
-{}
+{
+}
 
-template <typename T>
+template<typename T>
 auto ArgumentBlockInstance::_setValue(std::string_view name, T value) -> void
 {
   assert(m_argumentBlock.is_valid_interface() && m_argumentBlock->get_data());
-  auto it =
-      m_argumentBlockDescriptor.m_nameToArgbBlockOffset.find(std::string(name));
-  if (it == cend(m_argumentBlockDescriptor.m_nameToArgbBlockOffset))
-    return;
+  auto it = m_argumentBlockDescriptor.m_nameToArgbBlockOffset.find(std::string(name));
+  if (it == cend(m_argumentBlockDescriptor.m_nameToArgbBlockOffset)) return;
 
-  auto data = reinterpret_cast<T *>(m_argumentBlock->get_data() + it->second);
+  auto data = reinterpret_cast<T*>(m_argumentBlock->get_data() + it->second);
   *data = value;
 }
 
-template <typename T, std::size_t S>
-auto ArgumentBlockInstance::_setValue(
-    std::string_view name, const T (&value)[S]) -> void
+template<typename T, std::size_t S>
+auto ArgumentBlockInstance::_setValue(std::string_view name, const T (&value)[S]) -> void
 {
   assert(m_argumentBlock.is_valid_interface() && m_argumentBlock->get_data());
-  auto it =
-      m_argumentBlockDescriptor.m_nameToArgbBlockOffset.find(std::string(name));
-  if (it == cend(m_argumentBlockDescriptor.m_nameToArgbBlockOffset))
-    return;
+  auto it = m_argumentBlockDescriptor.m_nameToArgbBlockOffset.find(std::string(name));
+  if (it == cend(m_argumentBlockDescriptor.m_nameToArgbBlockOffset)) return;
 
-  auto data = reinterpret_cast<T *>(m_argumentBlock->get_data() + it->second);
+  auto data = reinterpret_cast<T*>(m_argumentBlock->get_data() + it->second);
   for (auto i = 0; i < S; ++i)
     data[i] = value[i];
 }
 
-auto ArgumentBlockInstance::setValue(std::string_view name, bool value) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, bool value) -> void {
   _setValue(name, value);
 }
 
-auto ArgumentBlockInstance::setValue(std::string_view name, int value) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, int value) -> void {
   _setValue(name, value);
 }
 
-auto ArgumentBlockInstance::setValue(
-    std::string_view name, const int (&value)[2]) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, const int (&value)[2]) -> void {
   _setValue(name, value);
 }
 
-auto ArgumentBlockInstance::setValue(
-    std::string_view name, const int (&value)[3]) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, const int (&value)[3]) -> void {
   _setValue(name, value);
 }
 
-auto ArgumentBlockInstance::setValue(
-    std::string_view name, const int (&value)[4]) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, const int (&value)[4]) -> void {
   _setValue(name, value);
 }
 
-auto ArgumentBlockInstance::setValue(std::string_view name, float value) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, float value) -> void {
   _setValue(name, value);
 }
 
-auto ArgumentBlockInstance::setValue(
-    std::string_view name, const float (&value)[2]) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, const float (&value)[2]) -> void {
   _setValue(name, value);
 }
 
-auto ArgumentBlockInstance::setValue(
-    std::string_view name, const float (&value)[3]) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, const float (&value)[3]) -> void {
   _setValue(name, value);
 }
 
-auto ArgumentBlockInstance::setValue(
-    std::string_view name, const float (&value)[4]) -> void
-{
+auto ArgumentBlockInstance::setValue(std::string_view name, const float (&value)[4]) -> void {
   _setValue(name, value);
 }
 
@@ -129,7 +110,7 @@ nonstd::span<const std::byte> ArgumentBlockInstance::getArgumentBlockData()
     return {reinterpret_cast<const std::byte *>(m_argumentBlock->get_data()),
         m_argumentBlock->get_size()};
   } else {
-    return {static_cast<const std::byte *>(nullptr), 0};
+    return {static_cast<const std::byte*>(nullptr), 0};
   }
 }
 
