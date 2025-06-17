@@ -68,6 +68,9 @@
 
 using namespace std::string_literals;
 
+extern "C" const char VISRTX_DEFAULT_MDL[];
+extern "C" const char VISRTX_PHYSICALLY_BASED_MDL[];
+
 namespace visrtx::mdl {
 
 MaterialRegistry::MaterialRegistry(libmdl::Core *core)
@@ -75,14 +78,9 @@ MaterialRegistry::MaterialRegistry(libmdl::Core *core)
       m_scope(m_core->createScope("VisRTXMaterialResgistryScope"s
           + std::to_string(std::uintptr_t(this))))
 {
-  const auto defaultModule =
-#include "mdl/default.mdl.inc"
-      ;
-  m_core->addBuiltinModule("::visrtx::default", defaultModule);
-  const auto physicallyBasedMDL =
-#include "mdl/physically_based.mdl.inc"
-      ;
-  m_core->addBuiltinModule("::vistrx::physically_based", physicallyBasedMDL);
+  m_core->addBuiltinModule("::visrtx::default", VISRTX_DEFAULT_MDL);
+  m_core->addBuiltinModule(
+      "::visrtx::physically_based", VISRTX_PHYSICALLY_BASED_MDL);
 }
 
 MaterialRegistry::~MaterialRegistry()

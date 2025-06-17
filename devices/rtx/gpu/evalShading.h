@@ -54,8 +54,8 @@ VISRTX_DEVICE void materialInitShading(MaterialShadingState *shadingState,
 
     shadingState->matte = {
         vec3(color),
-        adjustedMaterialOpacity(
-            color.w * opacity, md.matte.alphaMode, md.matte.cutoff),
+        adjustedMaterialOpacity(color.w * opacity, md.matte.alphaMode,
+            md.matte.cutoff),
     };
     break;
   }
@@ -65,8 +65,7 @@ VISRTX_DEVICE void materialInitShading(MaterialShadingState *shadingState,
 
     shadingState->physicallyBased = {
         vec3(color),
-        adjustedMaterialOpacity(color.w * opacity,
-            md.physicallyBased.alphaMode,
+        adjustedMaterialOpacity(color.w * opacity, md.physicallyBased.alphaMode,
             md.physicallyBased.cutoff),
         getMaterialParameter(fd, md.physicallyBased.metallic, hit).x,
         getMaterialParameter(fd, md.physicallyBased.roughness, hit).x,
