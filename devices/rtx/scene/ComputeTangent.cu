@@ -366,8 +366,10 @@ void updateGeometryTangent(Triangle *triangle)
 
   auto desc = Array1DMemoryDescriptor{
       {
-          .appMemory = tangents,
-          .elementType = ANARI_FLOAT32_VEC4,
+          tangents,
+          {}, // deleter
+          {}, // deleterPtr
+          ANARI_FLOAT32_VEC4,
       },
       tangentsCount,
   };

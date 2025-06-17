@@ -222,7 +222,7 @@ VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
 {
   auto z = curand_uniform(&rs);
   auto r = sqrtf(1.f - sqrt(z)); 
-  auto phi = 2.0f * M_PIf * curand_uniform(&rs);
+  auto phi = 2.0f * float(M_PI) * curand_uniform(&rs);
 
   auto sample =  vec3(r * cos(phi), r * sin(phi), z);
 
