@@ -1,12 +1,6 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include <assimp/defs.h>
-#include <assimp/material.h>
-#include <assimp/types.h>
-#include "tsd/core/TSDMath.hpp"
-#include "tsd/objects/Material.hpp"
-#include "tsd/objects/Sampler.hpp"
 #ifndef TSD_USE_ASSIMP
 #define TSD_USE_ASSIMP 1
 #endif
