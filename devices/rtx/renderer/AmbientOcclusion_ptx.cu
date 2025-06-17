@@ -163,8 +163,7 @@ VISRTX_GLOBAL void __raygen__()
         const auto lighting = aoFactor * rendererParams.ambientIntensity
             * rendererParams.ambientColor;
         MaterialShadingState shadingState;
-        materialInitShading(
-            &shadingState, frameData, *surfaceHit.material, surfaceHit);
+        materialInitShading(&shadingState, frameData, *surfaceHit.material, surfaceHit);
         auto materialBaseColor = materialEvaluateTint(shadingState);
         auto materialOpacity = materialEvaluateOpacity(shadingState);
 

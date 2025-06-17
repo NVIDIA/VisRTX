@@ -10,9 +10,9 @@ namespace visrtx {
 
 VISRTX_DEVICE vec3 physicallyBasedShadeSurface(
     const PhysicallyBasedShadingState &shadingState,
-    const SurfaceHit &hit,
-    const LightSample &lightSample,
-    const vec3 &outgoingDir)
+    const SurfaceHit& hit,
+    const LightSample& lightSample,
+    const vec3& outgoingDir)
 {
   // Call signature must match the actual implementation in
   // PhysicallyBasedShader_ptx.cu

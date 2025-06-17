@@ -39,7 +39,7 @@ VISRTX_CALLABLE vec3 __direct_callable__evalSurfaceMaterial(
     const MatteShadingState *shadingState,
     const SurfaceHit *hit,
     const LightSample *lightSample,
-    const vec3 *outgoingDir)
+    const vec3* outgoingDir)
 {
   return shadingState->baseColor * lightSample->radiance;
 }

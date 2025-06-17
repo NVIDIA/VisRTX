@@ -49,7 +49,7 @@ using BsdfSampleFunc = mi::neuraylib::Bsdf_sample_function;
 using BsdfEvaluateFunc = mi::neuraylib::Bsdf_evaluate_function;
 using BsdfPdfFunc = mi::neuraylib::Bsdf_pdf_function;
 
-//
+// 
 using TintExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using OpacityExprFunc = mi::neuraylib::Material_function<float>::Type;
 
@@ -150,12 +150,12 @@ VISRTX_CALLABLE
 vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
     const SurfaceHit *hit,
     const LightSample *lightSample,
-    const vec3 *outgoingDir)
+    const vec3* outgoingDir)
 {
   // Eval
-  const float cos_theta =
-      dot(*outgoingDir, normalize(make_vec3(shadingState->state.normal)));
-  if (cos_theta > 0.0f) {
+  const float cos_theta = dot(*outgoingDir, normalize(make_vec3(shadingState->state.normal)));
+  if (cos_theta > 0.0f)
+  {
     BsdfEvaluateData eval_data = {};
     // FIXME: Handle being inside vs outside.
     eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f),
@@ -163,15 +163,10 @@ vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
     eval_data.k1 = make_float3(normalize(*outgoingDir)),
     eval_data.k2 = make_float3(normalize(lightSample->dir)),
 
-    mdlBsdf_evaluate(&eval_data,
-        &shadingState->state,
-        &shadingState->resData,
-        shadingState->argBlock);
+    mdlBsdf_evaluate(&eval_data, &shadingState->state, &shadingState->resData, shadingState->argBlock);
 
     auto radiance_over_pdf = lightSample->radiance / lightSample->pdf;
-    auto contrib = radiance_over_pdf
-        * (make_vec3(eval_data.bsdf_diffuse)
-            + make_vec3(eval_data.bsdf_glossy));
+    auto contrib = radiance_over_pdf * (make_vec3(eval_data.bsdf_diffuse) + make_vec3(eval_data.bsdf_glossy));
 
     return contrib;
   }
@@ -211,17 +206,20 @@ mat2x4 __direct_callable__nextRay(
   }
 }
 
+
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
 VISRTX_CALLABLE
 vec3 __direct_callable__evaluateTint(const MDLShadingState *shadingState)
 {
-  return mdlTint(
-      &shadingState->state, &shadingState->resData, shadingState->argBlock);
+    return mdlTint(&shadingState->state,
+      &shadingState->resData,
+      shadingState->argBlock);
 }
 
 VISRTX_CALLABLE
 float __direct_callable__evaluateOpacity(const MDLShadingState *shadingState)
 {
-  return mdlOpacity(
-      &shadingState->state, &shadingState->resData, shadingState->argBlock);
+  return mdlOpacity(&shadingState->state,
+      &shadingState->resData,
+      shadingState->argBlock);
 }

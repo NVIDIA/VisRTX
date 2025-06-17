@@ -56,8 +56,7 @@ VISRTX_DEVICE bool mdlInitShading(MDLShadingState *shadingState,
   shadingState->callableBaseIndex = static_cast<unsigned int>(MaterialType::MDL)
       + md.implementationIndex * int(SurfaceShaderEntryPoints::Count);
   // Call must match the implementation in MDLShader_ptx.cu
-  optixDirectCall<void>(shadingState->callableBaseIndex
-          + int(SurfaceShaderEntryPoints::Initialize),
+  optixDirectCall<void>(shadingState->callableBaseIndex + int(SurfaceShaderEntryPoints::Initialize),
       shadingState,
       &fd,
       &hit,
@@ -69,7 +68,7 @@ VISRTX_DEVICE bool mdlInitShading(MDLShadingState *shadingState,
 VISRTX_DEVICE vec3 mdlShadeSurface(const MDLShadingState &shadingState,
     const SurfaceHit &hit,
     const LightSample &ls,
-    const vec3 &outgoingDir)
+    const vec3& outgoingDir)
 {
   // Call signature must match the actual implementation in MDLShader_ptx.cu
 
@@ -82,28 +81,32 @@ VISRTX_DEVICE vec3 mdlShadeSurface(const MDLShadingState &shadingState,
 }
 
 VISRTX_DEVICE NextRay mdlNextRay(
-    const MDLShadingState &shadingState, const Ray &ray, const ScreenSample &ss)
+    const MDLShadingState& shadingState, const Ray &ray, const ScreenSample &ss)
 {
   // Call signature must match the actual implementation in MDLShader_ptx.cu
-  return optixDirectCall<NextRay>(shadingState.callableBaseIndex
-          + int(SurfaceShaderEntryPoints::EvaluateNextRay),
+  return optixDirectCall<NextRay>(
+      shadingState.callableBaseIndex + int(SurfaceShaderEntryPoints::EvaluateNextRay),
       &shadingState,
       &ray,
       &ss);
 }
 
-VISRTX_DEVICE vec3 mdlEvaluateTint(const MDLShadingState &shadingState)
+VISRTX_DEVICE vec3 mdlEvaluateTint(
+  const MDLShadingState& shadingState)
 {
-  return optixDirectCall<vec3>(shadingState.callableBaseIndex
-          + int(SurfaceShaderEntryPoints::EvaluateTint),
-      &shadingState);
+  return optixDirectCall<vec3>(
+    shadingState.callableBaseIndex + int(SurfaceShaderEntryPoints::EvaluateTint),
+      &shadingState
+  );
 }
 
-VISRTX_DEVICE float mdlEvaluateOpacity(const MDLShadingState &shadingState)
+VISRTX_DEVICE float mdlEvaluateOpacity(
+  const MDLShadingState& shadingState)
 {
-  return optixDirectCall<float>(shadingState.callableBaseIndex
-          + int(SurfaceShaderEntryPoints::EvaluateOpacity),
-      &shadingState);
+  return optixDirectCall<float>(
+    shadingState.callableBaseIndex + int(SurfaceShaderEntryPoints::EvaluateOpacity),
+      &shadingState
+  );
 }
 
 } // namespace visrtx
