@@ -402,36 +402,6 @@ VISRTX_DEVICE float adjustedMaterialOpacity(
   }
 }
 
-VISRTX_DEVICE float adjustedMaterialOpacity(
-    float opacityIn, const MaterialGPUData::Matte &md)
-{
-  return adjustedMaterialOpacity(opacityIn, md.alphaMode, md.cutoff);
-}
-
-VISRTX_DEVICE float adjustedMaterialOpacity(
-    float opacityIn, const MaterialGPUData::PhysicallyBased &md)
-{
-  return adjustedMaterialOpacity(opacityIn, md.alphaMode, md.cutoff);
-}
-
-// FIXME: THis should be removed in favor of evalShading calls.
-VISRTX_DEVICE float adjustedMaterialOpacity(
-    float opacityIn, const MaterialGPUData &md)
-{
-  switch (md.materialType) {
-  case MaterialType::MATTE: {
-    return adjustedMaterialOpacity(opacityIn, md.matte);
-    break;
-  }
-  case MaterialType::PHYSICALLYBASED: {
-    return adjustedMaterialOpacity(opacityIn, md.physicallyBased);
-    break;
-  }
-  default:
-    return 1.0f;
-  }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
