@@ -55,7 +55,7 @@ endif()
 
 ## Establish project ##
 
-project(VisRTX VERSION 0.12.0 LANGUAGES C CXX)
+project(VisRTX VERSION 0.13.0 LANGUAGES C CXX)
 
 enable_testing()
 
