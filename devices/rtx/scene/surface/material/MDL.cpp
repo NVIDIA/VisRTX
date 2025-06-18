@@ -73,7 +73,7 @@ MDL::~MDL()
 void MDL::clearSamplers()
 {
   auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
-  for (auto& samplerDesc : m_samplers) {
+  for (auto &samplerDesc : m_samplers) {
     if (samplerDesc.isFromRegistry) {
       samplerRegistry.releaseSampler(samplerDesc.sampler);
     } else {
@@ -160,7 +160,7 @@ void MDL::syncSource()
         if (m_samplers.size() <= index) {
           m_samplers.resize(index + 1);
         }
-        m_samplers[textureDesc.knownIndex] = { sampler, textureDesc.url, true };
+        m_samplers[textureDesc.knownIndex] = {sampler, textureDesc.url, true};
       }
     }
 
@@ -267,9 +267,10 @@ void MDL::syncParameters()
         auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
 
         if (!sourceParamAny.valid()) {
-          if (auto it = find_if(begin(m_samplers), end(m_samplers), [name=name](auto& p) { return p.name == name; } );
-              it != end(m_samplers))
-          {
+          if (auto it = find_if(begin(m_samplers),
+                  end(m_samplers),
+                  [name = name](auto &p) { return p.name == name; });
+              it != end(m_samplers)) {
             // We have a sampler for this parameter, but it is not set.
             // Set it to 0, which means no sampler.
             if (it->isFromRegistry) {
@@ -312,14 +313,16 @@ void MDL::syncParameters()
         case ANARI_SAMPLER: {
           sampler = sourceParamAny.getObject<Sampler>();
           // We need to hold a reference to the sampler
-          if (sampler) sampler->refInc(helium::INTERNAL);
+          if (sampler)
+            sampler->refInc(helium::INTERNAL);
           break;
         }
         }
 
         if (sampler) {
           // Find a valid slot for out sampler.
-          auto it = std::find(begin(m_samplers), end(m_samplers), SamplerDesc{});
+          auto it =
+              std::find(begin(m_samplers), end(m_samplers), SamplerDesc{});
           if (it == end(m_samplers)) {
             it = m_samplers.insert(it, {sampler, name, samplerIsFromRegistry});
           } else {
@@ -345,26 +348,29 @@ void MDL::syncParameters()
 
 void MDL::syncImplementationIndex()
 {
-  m_implementationIndex =
-      deviceState()->mdl->materialRegistry.getMaterialImplementationIndex(
+  m_implementationIndex = static_cast<unsigned int>(MaterialType::MDL)
+      + deviceState()->mdl->materialRegistry.getMaterialImplementationIndex(
           m_uuid);
 }
 
 MaterialGPUData MDL::gpuData() const
 {
   MaterialGPUData retval = {};
-  retval.materialType = MaterialType::MDL;
-  retval.mdl.implementationIndex = m_implementationIndex;
+
+  retval.implementationIndex = m_implementationIndex;
+
   if (m_argumentBlockInstance.has_value()) {
-    retval.mdl.numSamplers =
-        std::min(std::size(retval.mdl.samplers), size(m_samplers));
-    std::fill(std::begin(retval.mdl.samplers),
-        std::end(retval.mdl.samplers),
+    retval.materialData.mdl.numSamplers =
+        std::min(std::size(retval.materialData.mdl.samplers), size(m_samplers));
+    std::fill(std::begin(retval.materialData.mdl.samplers),
+        std::end(retval.materialData.mdl.samplers),
         DeviceObjectIndex(~0));
     std::transform(cbegin(m_samplers),
         cend(m_samplers),
-        std::begin(retval.mdl.samplers),
-        [](const auto &v) { return v.sampler ? v.sampler->index() : DeviceObjectIndex(~0); });
+        std::begin(retval.materialData.mdl.samplers),
+        [](const auto &v) {
+          return v.sampler ? v.sampler->index() : DeviceObjectIndex(~0);
+        });
 
     if (const auto &argBlockData =
             m_argumentBlockInstance->getArgumentBlockData();
@@ -373,7 +379,7 @@ MaterialGPUData MDL::gpuData() const
     } else {
       m_argBlockBuffer.reset();
     }
-    retval.mdl.argBlock = m_argBlockBuffer.bytes()
+    retval.materialData.mdl.argBlock = m_argBlockBuffer.bytes()
         ? m_argBlockBuffer.ptrAs<const char>()
         : nullptr;
   }

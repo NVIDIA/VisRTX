@@ -32,7 +32,6 @@
 #include "PBR.h"
 #include "gpu/gpu_objects.h"
 
-
 namespace visrtx {
 
 PBR::PBR(DeviceGlobalState *d) : Material(d) {}
@@ -67,26 +66,29 @@ MaterialGPUData PBR::gpuData() const
 {
   MaterialGPUData retval;
 
-  retval.materialType = MaterialType::PHYSICALLYBASED;
+  retval.implementationIndex =
+      static_cast<unsigned int>(MaterialType::PHYSICALLYBASED);
 
-  populateMaterialParameter(
-      retval.physicallyBased.baseColor, m_color, m_colorSampler, m_colorAttribute);
-  populateMaterialParameter(retval.physicallyBased.opacity,
+  populateMaterialParameter(retval.materialData.physicallyBased.baseColor,
+      m_color,
+      m_colorSampler,
+      m_colorAttribute);
+  populateMaterialParameter(retval.materialData.physicallyBased.opacity,
       m_opacity,
       m_opacitySampler,
       m_opacityAttribute);
-  populateMaterialParameter(retval.physicallyBased.metallic,
+  populateMaterialParameter(retval.materialData.physicallyBased.metallic,
       m_metallic,
       m_metallicSampler,
       m_metallicAttribute);
-  populateMaterialParameter(retval.physicallyBased.roughness,
+  populateMaterialParameter(retval.materialData.physicallyBased.roughness,
       m_roughness,
       m_roughnessSampler,
       m_roughnessAttribute);
 
-  retval.physicallyBased.ior = m_ior;
-  retval.physicallyBased.cutoff = m_cutoff;
-  retval.physicallyBased.alphaMode = m_mode;
+  retval.materialData.physicallyBased.ior = m_ior;
+  retval.materialData.physicallyBased.cutoff = m_cutoff;
+  retval.materialData.physicallyBased.alphaMode = m_mode;
 
   return retval;
 }
