@@ -34,12 +34,45 @@
 
 using namespace visrtx;
 
+VISRTX_CALLABLE void __direct_callable__init(MatteShadingState *shadingState,
+    const FrameGPUData *fd,
+    const SurfaceHit *hit,
+    const MaterialGPUData::Matte *md)
+{
+  vec4 color = getMaterialParameter(*fd, md->color, *hit);
+  float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
+
+  shadingState->baseColor = vec3(color);
+  shadingState->opacity =
+      adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
+}
+
+VISRTX_CALLABLE NextRay __direct_callable__nextRay(
+    const MatteShadingState *shadingState,
+    const Ray *ray,
+    const ScreenSample *ss)
+{
+  return NextRay{vec4(0.0f, 0.0f, 0.0f, 0.0f), vec4(0.0f, 0.0f, 0.0f, 0.0f)};
+}
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateTint(const MatteShadingState *shadingState)
+{
+  return shadingState->baseColor;
+}
+
+VISRTX_CALLABLE
+float __direct_callable__evaluateOpacity(const MatteShadingState *shadingState)
+{
+  return shadingState->opacity;
+}
+
 // Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
-VISRTX_CALLABLE vec3 __direct_callable__evalSurfaceMaterial(
+VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     const MatteShadingState *shadingState,
     const SurfaceHit *hit,
     const LightSample *lightSample,
-    const vec3* outgoingDir)
+    const vec3 *outgoingDir)
 {
   return shadingState->baseColor * lightSample->radiance;
 }

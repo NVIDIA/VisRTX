@@ -106,24 +106,25 @@ struct MDLShadingState
   glm::vec3 textureTangentsV[4];
 
   const char *argBlock;
-
-  unsigned int callableBaseIndex;
 };
 
 struct MaterialShadingState
 {
-  MaterialType materialType;
+  unsigned int callableBaseIndex;
+  ;
+
   union
   {
     MatteShadingState matte;
     PhysicallyBasedShadingState physicallyBased;
     MDLShadingState mdl;
-  };
-  VISRTX_DEVICE MaterialShadingState() : materialType(MaterialType::UNKNOWN)
+  } data;
+
+  VISRTX_DEVICE MaterialShadingState() : callableBaseIndex(~0)
   {
-    matte = {};
-    physicallyBased = {};
-    mdl = {};
+    data.matte = {};
+    data.physicallyBased = {};
+    data.mdl = {};
   }
 };
 

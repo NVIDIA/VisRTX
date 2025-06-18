@@ -31,108 +31,68 @@
 
 #pragma once
 
+#include <optix_device.h>
 #include "evalMaterialParameters.h"
 #include "gpu/gpu_objects.h"
 #include "shadingState.h"
 
-#include "shaders/MDLShader.cuh"
-#include "shaders/MatteShader.cuh"
-#include "shaders/PhysicallyBasedShader.cuh"
-
 namespace visrtx {
 
-VISRTX_DEVICE void materialInitShading(MaterialShadingState *shadingState,
+VISRTX_DEVICE bool materialInitShading(MaterialShadingState *shadingState,
     const FrameGPUData &fd,
     const MaterialGPUData &md,
     const SurfaceHit &hit)
 {
-  shadingState->materialType = md.materialType;
-  switch (md.materialType) {
-  case MaterialType::MATTE: {
-    vec4 color = getMaterialParameter(fd, md.matte.color, hit);
-    float opacity = getMaterialParameter(fd, md.matte.opacity, hit).x;
+  if (md.implementationIndex == ~DeviceObjectIndex(0)) {
+    shadingState->callableBaseIndex = ~0;
+    return false;
+  }
 
-    shadingState->matte = {
-        vec3(color),
-        adjustedMaterialOpacity(color.w * opacity, md.matte.alphaMode,
-            md.matte.cutoff),
-    };
-    break;
-  }
-  case MaterialType::PHYSICALLYBASED: {
-    vec4 color = getMaterialParameter(fd, md.physicallyBased.baseColor, hit);
-    float opacity = getMaterialParameter(fd, md.physicallyBased.opacity, hit).x;
+  shadingState->callableBaseIndex =
+      md.implementationIndex * int(SurfaceShaderEntryPoints::Count);
 
-    shadingState->physicallyBased = {
-        vec3(color),
-        adjustedMaterialOpacity(color.w * opacity, md.physicallyBased.alphaMode,
-            md.physicallyBased.cutoff),
-        getMaterialParameter(fd, md.physicallyBased.metallic, hit).x,
-        getMaterialParameter(fd, md.physicallyBased.roughness, hit).x,
-        md.physicallyBased.ior,
-    };
-    break;
-  }
-  case MaterialType::MDL: {
-    mdlInitShading(&shadingState->mdl, fd, hit, md.mdl);
-    break;
-  }
-  default: {
-    break;
-  }
-  }
+  return optixDirectCall<bool>(shadingState->callableBaseIndex,
+      &shadingState->data,
+      &fd,
+      &hit,
+      &md.materialData);
 }
 
 VISRTX_DEVICE vec3 materialEvaluateTint(
     const MaterialShadingState &shadingState)
 {
-  switch (shadingState.materialType) {
-  case MaterialType::MATTE: {
-    return shadingState.matte.baseColor;
-  }
-  case MaterialType::PHYSICALLYBASED: {
-    return shadingState.physicallyBased.baseColor;
-  }
-  case MaterialType::MDL: {
-    return mdlEvaluateTint(shadingState.mdl);
-  }
-  default: {
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
     return vec3(0.8f, 0.8f, 0.8f); // Default tint color
-  }
-  }
+
+  return optixDirectCall<vec3>(shadingState.callableBaseIndex
+          + int(SurfaceShaderEntryPoints::EvaluateTint),
+      &shadingState.data);
 }
 
 VISRTX_DEVICE float materialEvaluateOpacity(
     const MaterialShadingState &shadingState)
 {
-  switch (shadingState.materialType) {
-  case MaterialType::MATTE: {
-    return shadingState.matte.opacity;
-  }
-  case MaterialType::PHYSICALLYBASED: {
-    return shadingState.physicallyBased.opacity;
-  }
-  case MaterialType::MDL: {
-    return mdlEvaluateOpacity(shadingState.mdl);
-  }
-  default: {
-    return 1.0f;
-  }
-  }
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
+    return 1.0f; // Default opacity
+
+  return optixDirectCall<float>(shadingState.callableBaseIndex
+          + int(SurfaceShaderEntryPoints::EvaluateOpacity),
+      &shadingState.data);
 }
 
 VISRTX_DEVICE NextRay materialNextRay(const MaterialShadingState &shadingState,
     const ScreenSample &ss,
     const Ray &ray)
 {
-  switch (shadingState.materialType) {
-  case MaterialType::MDL: {
-    return mdlNextRay(shadingState.mdl, ray, ss);
-  }
-  default: {
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
     return NextRay{vec4(0.0f), vec4(0.0f)};
-  }
-  }
+  ; // No next ray by defaut
+
+  return optixDirectCall<NextRay>(shadingState.callableBaseIndex
+          + int(SurfaceShaderEntryPoints::EvaluateNextRay),
+      &shadingState.data,
+      &ray,
+      &ss);
 }
 
 VISRTX_DEVICE vec3 materialShadeSurface(
@@ -141,21 +101,15 @@ VISRTX_DEVICE vec3 materialShadeSurface(
     const LightSample &lightSample,
     const vec3 &outgoingDir)
 {
-  switch (shadingState.materialType) {
-  case MaterialType::MATTE: {
-    return matteShadeSurface(shadingState.matte, hit, lightSample, outgoingDir);
-  }
-  case MaterialType::PHYSICALLYBASED: {
-    return physicallyBasedShadeSurface(
-        shadingState.physicallyBased, hit, lightSample, outgoingDir);
-  }
-  case MaterialType::MDL: {
-    return mdlShadeSurface(shadingState.mdl, hit, lightSample, outgoingDir);
-  }
-  default: {
-    return vec3(0.0f, 0.0f, 0.0f);
-  }
-  }
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
+    return vec3(0.0f, 0.0f, 0.0f); // No shading by default
+
+  return optixDirectCall<vec3>(
+      shadingState.callableBaseIndex + int(SurfaceShaderEntryPoints::Shade),
+      &shadingState.data,
+      &hit,
+      &lightSample,
+      &outgoingDir);
 }
 
 } // namespace visrtx

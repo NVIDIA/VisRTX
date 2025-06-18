@@ -356,39 +356,22 @@ struct MaterialGPUData
   struct MDL
   {
     const char *argBlock;
-    uint32_t implementationIndex;
     uint32_t numSamplers;
     // Should be sized according to MDL's execution context
     // configuration. See MDLCompiler.cpp.
     DeviceObjectIndex samplers[32];
   };
 
-  MaterialType materialType;
+  uint32_t implementationIndex;
 
-  union
+  union MaterialData
   {
     Matte matte;
     PhysicallyBased physicallyBased;
     MDL mdl;
-  };
+  } materialData;
 
-  MaterialGPUData()
-  {
-    materialType = MaterialType::UNKNOWN;
-    matte = {};
-    physicallyBased = {};
-    mdl = {};
-  }
-};
-
-struct MaterialValues
-{
-  MaterialType materialType;
-  vec3 baseColor;
-  float opacity;
-  float metallic;
-  float roughness;
-  float ior;
+  MaterialGPUData() : implementationIndex(~0), materialData({}) {}
 };
 
 // Surface //
