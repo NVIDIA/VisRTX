@@ -47,12 +47,10 @@ std::tuple<std::string, std::string> parseCmdArgumentMaterialName(
         && potential_path.substr(potential_path.length() - 5) == ".mdle") {
       if (potential_material_name != "main") {
         core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-            fmt::format(
-                "Material and module name cannot be extracted from "
+                       "Material and module name cannot be extracted from "
                 "'{}'.\nThe module was detected as MDLE but the selected material is "
                 "different from 'main'",
-                argument)
-                .c_str());
+                argument);
         return {};
       }
       outModuleName = potential_path;
@@ -63,11 +61,9 @@ std::tuple<std::string, std::string> parseCmdArgumentMaterialName(
 
   if (!starts_with_colons) {
     core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-        fmt::format(
             "The provided argument '{}' is not an absolute fully-qualified"
             " material name, a leading '::' has been added.",
-            argument)
-            .c_str());
+            argument);
     outModuleName = "::";
   }
 

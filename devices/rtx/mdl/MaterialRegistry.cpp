@@ -121,44 +121,45 @@ MaterialRegistry::acquireMaterial(
   auto uuid = compiledMaterial->get_hash();
   auto targetCode = make_handle(
       m_core->getPtxTargetCode(compiledMaterial.get(), transaction.get()));
-  std::vector<libmdl::ArgumentBlockDescriptor::TextureDescriptor> textureDescs;
+  std::vector<libmdl::TextureDescriptor> textureDescs;
 
   for (auto i = 1ul; i < targetCode->get_texture_count(); ++i) {
-    libmdl::ArgumentBlockDescriptor::TextureDescriptor textureDesc{
+    libmdl::TextureDescriptor textureDesc{
+      i - 1,
         targetCode->get_texture(i)};
 
     switch (targetCode->get_texture_shape(i)) {
     case mi::neuraylib::ITarget_code::Texture_shape_2d: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::TwoD;
+          libmdl::Shape::TwoD;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_3d: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::ThreeD;
+          libmdl::Shape::ThreeD;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_cube: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::Cube;
+          libmdl::Shape::Cube;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_bsdf_data: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::BsdfData;
+          libmdl::Shape::BsdfData;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_ptex: {
       m_core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
           "Ptex textures are not supported by VisRTX");
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::Unknown;
+          libmdl::Shape::Unknown;
       break;
     }
     case mi::neuraylib::ITarget_code::Texture_shape_invalid:
     default: {
       textureDesc.shape =
-          libmdl::ArgumentBlockDescriptor::TextureDescriptor::Shape::Unknown;
+          libmdl::Shape::Unknown;
       break;
     }
     }
@@ -176,10 +177,9 @@ MaterialRegistry::acquireMaterial(
       textureDesc.bsdf.dims[1] = y;
       textureDesc.bsdf.dims[2] = z;
       textureDesc.bsdf.pixelFormat = pixelFormat;
-      textureDesc.colorSpace = libmdl::ArgumentBlockDescriptor::
-          TextureDescriptor::ColorSpace::Linear;
+      textureDesc.colorSpace = libmdl::ColorSpace::Linear;
       textureDesc.url =
-          fmt::format("bsdf_data_{:0x}", fmt::ptr(textureDesc.bsdf.data));
+          fmt::format("bsdf_data_{}", fmt::ptr(textureDesc.bsdf.data));
     } else {
       auto moduleOwner = targetCode->get_texture_owner_module(i);
       textureDesc.url =
@@ -189,13 +189,11 @@ MaterialRegistry::acquireMaterial(
       case mi::neuraylib::ITarget_code::GM_GAMMA_DEFAULT:
       case mi::neuraylib::ITarget_code::GM_GAMMA_LINEAR:
       case mi::neuraylib::ITarget_code::GM_GAMMA_UNKNOWN: {
-        textureDesc.colorSpace = libmdl::ArgumentBlockDescriptor::
-            TextureDescriptor::ColorSpace::Linear;
+        textureDesc.colorSpace = libmdl::ColorSpace::Linear;
         break;
       }
       case mi::neuraylib::ITarget_code::GM_GAMMA_SRGB: {
-        textureDesc.colorSpace = libmdl::ArgumentBlockDescriptor::
-            TextureDescriptor::ColorSpace::sRGB;
+        textureDesc.colorSpace = libmdl::ColorSpace::sRGB;
         break;
       }
       case mi::neuraylib::ITarget_code::GM_FORCE_32_BIT: {
@@ -215,7 +213,7 @@ MaterialRegistry::acquireMaterial(
 
   // Reuse an existing targetCode and its matching ptx generated code if we
   // already have it.
-  if (auto it = m_uuidToIndex.find(uuid); it != cend(m_uuidToIndex)) {
+  if (auto it = m_uuidToIndex.find(uuid); it != std::cend(m_uuidToIndex)) {
     ++m_targetCodes[it->second].refCount;
     return {uuid, argBlockDesc};
   }
@@ -232,15 +230,18 @@ MaterialRegistry::acquireMaterial(
   });
 
   // Find an empty slot if possible
-  auto targetIt = std::find_if(begin(m_targetCodes),
-      end(m_targetCodes),
+  auto targetIt = std::find_if(std::begin(m_targetCodes),
+      std::end(m_targetCodes),
       [](const auto &v) { return v.refCount == 0; });
 
-  if (targetIt == end(m_targetCodes)) {
-    targetIt = m_targetCodes.insert(end(m_targetCodes), {ptxBlob, 1});
+  if (targetIt == std::end(m_targetCodes)) {
+    targetIt = m_targetCodes.insert(std::end(m_targetCodes), {ptxBlob, 1});
+  } else {
+    targetIt->ptxBlob = ptxBlob;
+    targetIt->refCount = 1;
   }
 
-  auto targetIndex = std::distance(begin(m_targetCodes), targetIt);
+  auto targetIndex = std::distance(std::begin(m_targetCodes), targetIt);
 
   m_uuidToIndex.insert({uuid, targetIndex});
   m_materialNameToUuid.insert(
@@ -273,7 +274,7 @@ MaterialRegistry::createArgumentBlock(
 
 void MaterialRegistry::releaseMaterial(const Uuid &uuid)
 {
-  if (auto it = m_uuidToIndex.find(uuid); it != end(m_uuidToIndex)) {
+  if (auto it = m_uuidToIndex.find(uuid); it != std::end(m_uuidToIndex)) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_DEBUG,
         "Releasing material with uuid {:04x}-{:04x}-{:04x}-{:04x}",
         uuid.m_id1,

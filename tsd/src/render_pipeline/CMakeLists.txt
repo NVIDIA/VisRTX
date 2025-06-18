@@ -13,7 +13,7 @@ if (TSD_USE_CUDA)
   set_source_files_properties(
     RenderPass.cpp
     PROPERTIES
-      COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
+      COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"
       LANGUAGE CUDA
   )
   project_compile_definitions(PRIVATE ENABLE_CUDA)
@@ -23,10 +23,11 @@ elseif(TSD_USE_TBB)
   project_compile_definitions(PRIVATE ENABLE_TBB)
 endif()
 
-if (TSD_USE_OPENGL)
-  find_package(glfw3 REQUIRED)
-  find_package(OpenGL REQUIRED)
-  project_link_libraries(PUBLIC tsd glfw OpenGL::GL)
-  project_compile_definitions(PUBLIC ENABLE_OPENGL)
+if (TSD_USE_SDL3)
+  if (NOT TARGET SDL3::SDL3)
+    find_package(SDL3 REQUIRED)
+  endif()
+  project_link_libraries(PUBLIC tsd SDL3::SDL3)
+  project_compile_definitions(PUBLIC ENABLE_SDL)
 endif()
 

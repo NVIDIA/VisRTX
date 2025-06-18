@@ -2,35 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "Log.h"
+#include "../AppCore.h"
 // std
 #include <cstdio>
+// fmt
+#include <fmt/format.h>
 
 namespace tsd_viewer {
 
-// Helper functions ///////////////////////////////////////////////////////////
-
-static void printMessage(
-    tsd::LogLevel level, const char *fmt, va_list &args, bool workOnCopy)
-{
-  ImGuiTextBuffer buf;
-  if (workOnCopy) {
-    va_list args_copy;
-    va_copy(args_copy, args);
-    buf.appendfv(fmt, args_copy);
-    va_end(args_copy);
-  } else {
-    buf.appendfv(fmt, args);
-  }
-  std::string msg(buf.begin(), buf.begin() + buf.size());
-  printf("%s\n", msg.c_str());
-}
-
-// Log definitions ////////////////////////////////////////////////////////////
-
-Log::Log(AppCore *ctx, bool installAsLoggingTarget)
-    : anari_viewer::windows::Window("Log", true),
-      m_core(ctx),
-      m_isLoggingTarget(installAsLoggingTarget)
+Log::Log(AppCore *core, bool installAsLoggingTarget)
+    : Window(core, "Log"), m_isLoggingTarget(installAsLoggingTarget)
 {
   this->clear();
 
@@ -44,20 +25,16 @@ Log::Log(AppCore *ctx, bool installAsLoggingTarget)
 
   if (installAsLoggingTarget) {
     tsd::setLoggingCallback(
-        [window = this](tsd::LogLevel level,
-            const char *fmt,
-            va_list &args) { window->addText(level, fmt, args); });
+        [window = this](tsd::LogLevel level, std::string msg) {
+          window->addText(level, msg);
+        });
   }
 }
 
 Log::~Log()
 {
-  if (m_isLoggingTarget) {
-    tsd::setLoggingCallback(
-        [](tsd::LogLevel level, const char *fmt, va_list &args) {
-          printMessage(level, fmt, args, false);
-        });
-  }
+  if (m_isLoggingTarget)
+    tsd::setLogToStdout();
 }
 
 void Log::buildUI()
@@ -96,7 +73,7 @@ void Log::buildUI()
     clipper.Begin(m_lineOffsets.Size);
     while (clipper.Step()) {
       for (int line_no = clipper.DisplayStart; line_no < clipper.DisplayEnd;
-           line_no++)
+          line_no++)
         showLine(line_no, false);
     }
     clipper.End();
@@ -109,16 +86,15 @@ void Log::buildUI()
   ImGui::EndChild();
 }
 
-void Log::addText(tsd::LogLevel level, const char *fmt, va_list &args)
+void Log::addText(tsd::LogLevel level, const std::string &msg)
 {
   m_colorIDs.push_back(static_cast<int>(level));
 
   if (m_core && m_core->logging.echoOutput)
-    printMessage(level, fmt, args, true);
+    fmt::print(stdout, "{}\n", msg);
 
   auto old_size = m_buf.size();
-  m_buf.appendfv(fmt, args);
-  m_buf.append("\n");
+  m_buf.append(msg.c_str());
 
   for (int new_size = m_buf.size(); old_size < new_size; old_size++) {
     if (m_buf[old_size] == '\n') {

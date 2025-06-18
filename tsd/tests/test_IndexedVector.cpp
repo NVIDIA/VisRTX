@@ -63,7 +63,19 @@ SCENARIO("IndexedVector interface tests", "[IndexedVector]")
 
       WHEN("The added value is erased")
       {
-        iv.erase(ref.index());
+        auto idx = ref.index();
+        bool erased = iv.erase(idx);
+
+        THEN("Erasing the value should return true")
+        {
+          REQUIRE(erased);
+        }
+
+        THEN("Erasing the same index again should return false")
+        {
+          erased = iv.erase(idx);
+          REQUIRE(!erased);
+        }
 
         THEN("The map should be empty")
         {

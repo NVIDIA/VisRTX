@@ -1,6 +1,8 @@
 #pragma once
 
-#include "libmdl/Core.h"
+#include "Core.h"
+#include "types.h"
+
 
 #include <mi/base/handle.h>
 #include <mi/neuraylib/argument_editor.h>
@@ -39,35 +41,6 @@ struct ArgumentBlockDescriptor
     ArgumentType type;
   };
 
-  struct TextureDescriptor
-  {
-    enum class ColorSpace
-    {
-      Linear,
-      sRGB,
-    };
-
-    enum class Shape
-    {
-      Unknown,
-      TwoD,
-      ThreeD,
-      Cube,
-      PTex,
-      BsdfData,
-    };
-
-    std::string url;
-    ColorSpace colorSpace{ColorSpace::sRGB};
-    Shape shape{Shape::TwoD};
-    struct
-    {
-      const float *data = {};
-      std::uint64_t dims[3] = {};
-      const char* pixelFormat = {};
-    } bsdf;
-  };
-
   ArgumentBlockDescriptor() = default;
 
   ArgumentBlockDescriptor(libmdl::Core *core,
@@ -83,8 +56,7 @@ struct ArgumentBlockDescriptor
 
   std::vector<Argument> m_arguments;
   std::vector<TextureDescriptor> m_defaultAndBodyTextureDescriptors;
-  std::unordered_map<std::string, mi::neuraylib::Target_value_layout_state>
-      m_nameToLayout;
+  std::unordered_map<std::string, std::size_t> m_nameToArgbBlockOffset;
 };
 
 } // namespace visrtx::libmdl

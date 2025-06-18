@@ -7,11 +7,13 @@
 // imgui
 #include "imgui.h"
 
+#include "../AppCore.h"
+
 namespace tsd_viewer {
 
 struct Modal
 {
-  Modal(const char *name);
+  Modal(AppCore *core, const char *name);
   virtual ~Modal() = default;
 
   void renderUI();
@@ -25,6 +27,8 @@ struct Modal
  protected:
   virtual void buildUI() = 0;
 
+  AppCore *m_core{nullptr};
+
  private:
   std::string m_name;
   bool m_visible{false};
@@ -32,7 +36,9 @@ struct Modal
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-inline Modal::Modal(const char *name) : m_name(name) {}
+inline Modal::Modal(AppCore *core, const char *name)
+    : m_core(core), m_name(name)
+{}
 
 inline void Modal::renderUI()
 {

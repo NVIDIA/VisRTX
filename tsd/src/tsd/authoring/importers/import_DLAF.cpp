@@ -59,22 +59,8 @@ void import_DLAF(Context &ctx,
       : ctx.createObject<Material>(tokens::material::matte);
 
   if (!useDefaultMaterial) {
-    auto samplerImageArray = ctx.createArray(ANARI_FLOAT32_VEC4, 3);
-    auto *colorMapPtr = samplerImageArray->mapAs<math::float4>();
-    colorMapPtr[0] = math::float4(0.f, 0.f, 1.f, 1.f);
-    colorMapPtr[1] = math::float4(0.f, 1.f, 0.f, 1.f);
-    colorMapPtr[2] = math::float4(1.f, 0.f, 0.f, 1.f);
-    samplerImageArray->unmap();
-
-    auto sampler = ctx.createObject<Sampler>(tokens::sampler::image1D);
-    sampler->setParameter("inAttribute"_t, "attribute0");
-    sampler->setParameter(
-        "inTransform"_t, makeColorMapTransform(0.f, scene.maxDistance));
-    sampler->setParameter("filter"_t, "linear");
-    sampler->setParameter("wrapMode"_t, "mirrorRepeat");
-    sampler->setParameterObject("image"_t, *samplerImageArray);
-
-    mat->setParameterObject("color"_t, *sampler);
+    mat->setParameterObject(
+        "color", *makeDefaultColorMapSampler(ctx, {0.f, scene.maxDistance}));
   }
 
   int64_t numRemainingPoints = scene.distances.size();

@@ -97,40 +97,6 @@ GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary `color` and `depth` channels.
 
-#### "ANARI_VISRTX_INSTANCE_ATTRIBUTES" (experimental)
-
-This extension indicates that all attributes can be set as a single
-`ANARI_FLOAT32_VEC4` value on the instance, which overrides any values on the
-geometries within the instanced group.
-
-#### "ANARI_VISRTX_SPATIAL_FIELD_NANOVDB" (experimental)
-
-This extension adds the ability to render
-[NanoVDB](https://developer.nvidia.com/nanovdb) spatial fields. This subtype
-takes a single array parameter called `data`, where the array is of type `UINT8`
-containing the raw bytes containing of the grid data. Currently `float`,
-`nanovdb::Fp4/8/16/N` grids are supported.
-
-#### "ANARI_VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES" (experimental)
-
-This extension indicates that additional attribute mappings are available for
-the `triangle` geometry subtype. Specifically, the following face-unique vertex
-attribute arrays can be specified:
-
-- `faceVarying.normal`
-- `faceVarying.color`
-- `faceVarying.attribute0`
-- `faceVarying.attribute1`
-- `faceVarying.attribute2`
-- `faceVarying.attribute3`
-
-Each `faceVarying` attribute array is indexed by 3 * `primID` + `{0, 1, 2}`,
-giving each triangle primitive a unique set of 3 vertex attributes. This follows
-the USD definition of "face-varying" interpolated primvars.
-
-If a `faceVarying` attribute array is present, it takes precedence over `vertex`
-and `primitive` attribute arrays when they are also present.
-
 ## Additional ANARI Parameter and Property Extensions
 
 The following section describes what additional parameters and properties can be
@@ -199,6 +165,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `KHR_SAMPLER_IMAGE3D`
 - `KHR_SAMPLER_PRIMITIVE`
 - `KHR_SAMPLER_TRANSFORM`
+- `KHR_SPATIAL_FIELD_NANOVDB`
 - `KHR_SPATIAL_FIELD_STRUCTURED_REGULAR`
 - `KHR_VOLUME_TRANSFER_FUNCTION1D`
 - `EXT_SAMPLER_COMPRESSED_IMAGE2D`
@@ -206,10 +173,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `EXT_SAMPLER_COMPRESSED_FORMAT_BC45`
 - `NV_ARRAY_CUDA`
 - `NV_FRAME_BUFFERS_CUDA`
-- `VISRTX_INSTANCE_ATTRIBUTES`
-- `VISRTX_SPATIAL_FIELD_NANOVDB`
 - `VISRTX_TRIANGLE_BACK_FACE_CULLING`
-- `VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES`
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!

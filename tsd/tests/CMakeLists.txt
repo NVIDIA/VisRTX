@@ -8,6 +8,7 @@ endif()
 project(tsdTests LANGUAGES CXX)
 project_add_executable(
   test_Array.cpp
+  test_DataTree.cpp
   test_FlatMap.cpp
   test_Forest.cpp
   test_Geometry.cpp
@@ -21,6 +22,7 @@ project_add_executable(
 project_link_libraries(PRIVATE tsd tsd_catch2)
 
 add_test(NAME tsd::Array         COMMAND ${PROJECT_NAME} "[Array]"        )
+add_test(NAME tsd::DataTree      COMMAND ${PROJECT_NAME} "[DataTree]"     )
 add_test(NAME tsd::FlatMap       COMMAND ${PROJECT_NAME} "[FlatMap]"      )
 add_test(NAME tsd::Forest        COMMAND ${PROJECT_NAME} "[Forest]"       )
 add_test(NAME tsd::Geometry      COMMAND ${PROJECT_NAME} "[Geometry]"     )

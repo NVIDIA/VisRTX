@@ -15,6 +15,9 @@
 // cuda
 #include <cuda_gl_interop.h>
 #include <cuda_runtime_api.h>
+#ifdef ENABLE_SDL
+#include <SDL3/SDL_opengl.h>
+#endif
 #endif
 
 namespace tsd {
@@ -24,7 +27,7 @@ namespace tsd {
 void convertFloatColorBuffer(const float *v, uint8_t *out, size_t totalSize)
 {
   detail::parallel_transform(v, v + totalSize, out, [] DEVICE_FCN(float v) {
-    return uint8_t(v * 255);
+    return uint8_t(std::clamp(v, 0.f, 1.f) * 255);
   });
 }
 
@@ -158,7 +161,6 @@ AnariRenderPass::AnariRenderPass(anari::Device d) : m_device(d)
   m_frame = anari::newObject<anari::Frame>(d);
   anari::setParameter(d, m_frame, "channel.color", ANARI_UFIXED8_RGBA_SRGB);
   anari::setParameter(d, m_frame, "channel.depth", ANARI_FLOAT32);
-  anari::setParameter(d, m_frame, "channel.objectId", ANARI_UINT32);
   anari::setParameter(d, m_frame, "accumulation", true);
 
   m_deviceSupportsCUDAFrames = supportsCUDAFbData(d);
@@ -216,6 +218,39 @@ void AnariRenderPass::setColorFormat(anari::DataType t)
   anari::commitParameters(m_device, m_frame);
 }
 
+void AnariRenderPass::setEnableIDs(bool on)
+{
+  if (on == m_enableIDs)
+    return;
+
+  m_enableIDs = on;
+
+  if (on) {
+    tsd::logInfo("[render_pipeline] enabling objectId frame channel");
+
+    anari::discard(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+
+    anari::setParameter(m_device, m_frame, "channel.objectId", ANARI_UINT32);
+    anari::commitParameters(m_device, m_frame);
+
+    anari::render(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+  } else {
+    tsd::logInfo("[render_pipeline] disabling objectId frame channel");
+    anari::unsetParameter(m_device, m_frame, "channel.objectId");
+
+    auto size = getDimensions();
+    const size_t totalSize = size_t(size.x) * size_t(size.y);
+#if ENABLE_CUDA
+    thrust::fill(m_buffers.objectId, m_buffers.objectId + totalSize, ~0u);
+#else
+    std::fill(m_buffers.objectId, m_buffers.objectId + totalSize, ~0u);
+#endif
+    anari::commitParameters(m_device, m_frame);
+  }
+}
+
 anari::Frame AnariRenderPass::getFrame() const
 {
   return m_frame;
@@ -251,6 +286,7 @@ void AnariRenderPass::render(Buffers &b, int stageId)
 {
   if (m_firstFrame) {
     anari::render(m_device, m_frame);
+    anari::wait(m_device, m_frame);
     m_firstFrame = false;
   }
 
@@ -273,7 +309,6 @@ void AnariRenderPass::copyFrameData()
 
   auto color = anari::map<void>(m_device, m_frame, colorChannel);
   auto depth = anari::map<float>(m_device, m_frame, depthChannel);
-  auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
 
   const tsd::uint2 size(getDimensions());
   const size_t totalSize = size.x * size.y;
@@ -285,13 +320,17 @@ void AnariRenderPass::copyFrameData()
       detail::copy(m_buffers.color, (uint32_t *)color.data, totalSize);
 
     detail::copy(m_buffers.depth, depth.data, totalSize);
-    if (objectId.data)
-      detail::copy(m_buffers.objectId, objectId.data, totalSize);
+    if (m_enableIDs) {
+      auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
+      if (objectId.data)
+        detail::copy(m_buffers.objectId, objectId.data, totalSize);
+    }
   }
 
   anari::unmap(m_device, m_frame, colorChannel);
   anari::unmap(m_device, m_frame, depthChannel);
-  anari::unmap(m_device, m_frame, idChannel);
+  if (m_enableIDs)
+    anari::unmap(m_device, m_frame, idChannel);
 }
 
 void AnariRenderPass::composite(Buffers &b, int stageId)
@@ -314,6 +353,25 @@ void AnariRenderPass::cleanup()
   detail::free(m_buffers.color);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PickPass ///////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+PickPass::PickPass() = default;
+
+PickPass::~PickPass() = default;
+
+void PickPass::setPickOperation(PickOpFunc &&f)
+{
+  m_op = std::move(f);
+}
+
+void PickPass::render(Buffers &b, int /*stageId*/)
+{
+  if (m_op)
+    m_op(b);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -358,47 +416,45 @@ void OutlineRenderPass::render(Buffers &b, int stageId)
   computeOutline(b, m_outlineId, getDimensions());
 }
 
-#ifdef ENABLE_OPENGL
+#ifdef ENABLE_SDL
 ///////////////////////////////////////////////////////////////////////////////
-// CopyToGLImagePass //////////////////////////////////////////////////////////
+// CopyToSDLTexturePass ///////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-struct CopyToGLImagePass::CopyToGLImagePassImpl
+struct CopyToSDLTexturePass::CopyToSDLTexturePassImpl
 {
-  GLuint texture{0};
+  SDL_Renderer *renderer{nullptr};
+  SDL_Texture *texture{nullptr};
   bool glInteropAvailable{false};
 #ifdef ENABLE_CUDA
   cudaGraphicsResource_t graphicsResource{nullptr};
 #endif
 };
 
-CopyToGLImagePass::CopyToGLImagePass()
+CopyToSDLTexturePass::CopyToSDLTexturePass(SDL_Renderer *renderer)
 {
-  m_impl = new CopyToGLImagePassImpl;
-  glGenTextures(1, &m_impl->texture);
-  glBindTexture(GL_TEXTURE_2D, m_impl->texture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  m_impl = new CopyToSDLTexturePassImpl;
+  m_impl->renderer = renderer;
   m_impl->glInteropAvailable = checkGLInterop();
 }
 
-CopyToGLImagePass::~CopyToGLImagePass()
+CopyToSDLTexturePass::~CopyToSDLTexturePass()
 {
 #ifdef ENABLE_CUDA
   if (m_impl->graphicsResource)
     cudaGraphicsUnregisterResource(m_impl->graphicsResource);
 #endif
-  glDeleteTextures(1, &m_impl->texture);
+  SDL_DestroyTexture(m_impl->texture);
   delete m_impl;
   m_impl = nullptr;
 }
 
-GLuint CopyToGLImagePass::getGLTexture() const
+SDL_Texture *CopyToSDLTexturePass::getTexture() const
 {
   return m_impl->texture;
 }
 
-bool CopyToGLImagePass::checkGLInterop()
+bool CopyToSDLTexturePass::checkGLInterop() const
 {
 #ifdef ENABLE_CUDA
   unsigned int numDevices = 0;
@@ -427,11 +483,12 @@ bool CopyToGLImagePass::checkGLInterop()
   return false;
 }
 
-void CopyToGLImagePass::render(Buffers &b, int /*stageId*/)
+void CopyToSDLTexturePass::render(Buffers &b, int /*stageId*/)
 {
   const auto size = getDimensions();
+
 #ifdef ENABLE_CUDA
-  if (m_impl->glInteropAvailable) {
+  if (m_impl->glInteropAvailable && m_impl->graphicsResource) {
     cudaGraphicsMapResources(1, &m_impl->graphicsResource);
     cudaArray_t array;
     cudaGraphicsSubResourceGetMappedArray(
@@ -440,53 +497,53 @@ void CopyToGLImagePass::render(Buffers &b, int /*stageId*/)
         0,
         0,
         b.color,
-        size.x * 4,
-        size.x * 4,
+        size.x * sizeof(b.color[0]),
+        size.x * sizeof(b.color[0]),
         size.y,
         cudaMemcpyDeviceToDevice);
     cudaGraphicsUnmapResources(1, &m_impl->graphicsResource);
   } else {
 #endif
-    glBindTexture(GL_TEXTURE_2D, m_impl->texture);
-    glTexSubImage2D(GL_TEXTURE_2D,
-        0,
-        0,
-        0,
-        size.x,
-        size.y,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        b.color);
+    SDL_UpdateTexture(m_impl->texture,
+        nullptr,
+        b.color,
+        getDimensions().x * sizeof(b.color[0]));
 #ifdef ENABLE_CUDA
   }
 #endif
 }
 
-void CopyToGLImagePass::updateSize()
+void CopyToSDLTexturePass::updateSize()
 {
 #ifdef ENABLE_CUDA
-  if (m_impl->graphicsResource)
+  if (m_impl->graphicsResource) {
     cudaGraphicsUnregisterResource(m_impl->graphicsResource);
+    m_impl->graphicsResource = nullptr;
+  }
 #endif
 
+  if (m_impl->texture)
+    SDL_DestroyTexture(m_impl->texture);
   auto newSize = getDimensions();
-  glViewport(0, 0, newSize.x, newSize.y);
-  glBindTexture(GL_TEXTURE_2D, m_impl->texture);
-  glTexImage2D(GL_TEXTURE_2D,
-      0,
-      GL_RGBA8,
+  m_impl->texture = SDL_CreateTexture(m_impl->renderer,
+      SDL_PIXELFORMAT_RGBA32,
+      SDL_TEXTUREACCESS_STREAMING,
       newSize.x,
-      newSize.y,
-      0,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      0);
+      newSize.y);
 
 #ifdef ENABLE_CUDA
-  cudaGraphicsGLRegisterImage(&m_impl->graphicsResource,
-      m_impl->texture,
-      GL_TEXTURE_2D,
-      cudaGraphicsRegisterFlagsWriteDiscard);
+  SDL_PropertiesID propID = SDL_GetTextureProperties(m_impl->texture);
+  Sint64 texID =
+      SDL_GetNumberProperty(propID, SDL_PROP_TEXTURE_OPENGL_TEXTURE_NUMBER, -1);
+
+  if (texID > 0) {
+    cudaGraphicsGLRegisterImage(&m_impl->graphicsResource,
+        static_cast<GLuint>(texID),
+        GL_TEXTURE_2D,
+        cudaGraphicsRegisterFlagsWriteDiscard);
+  } else {
+    tsd::logWarning("[render_pipeline] could not get SDL texture number!");
+  }
 #endif
 }
 #endif

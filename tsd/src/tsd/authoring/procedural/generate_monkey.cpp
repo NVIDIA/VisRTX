@@ -15,20 +15,20 @@ void generate_monkey(Context &ctx, LayerNodeRef location)
   monkey->setName("monkey_geometry");
 
   auto positionArray = ctx.createArray(
-      ANARI_FLOAT32_VEC3, obj2header::vertex_position.size() / 3);
-  positionArray->setData(obj2header::vertex_position.data());
+      ANARI_FLOAT32_VEC3, std::size(obj2header::vertex_position) / 3);
+  positionArray->setData(std::data(obj2header::vertex_position));
 
-  auto normalArray =
-      ctx.createArray(ANARI_FLOAT32_VEC3, obj2header::vertex_normal.size() / 3);
-  normalArray->setData(obj2header::vertex_normal.data());
+  auto normalArray = ctx.createArray(
+      ANARI_FLOAT32_VEC3, std::size(obj2header::vertex_normal) / 3);
+  normalArray->setData(std::data(obj2header::vertex_normal));
 
   auto uvArray =
-      ctx.createArray(ANARI_FLOAT32_VEC2, obj2header::vertex_uv.size() / 2);
-  uvArray->setData(obj2header::vertex_uv.data());
+      ctx.createArray(ANARI_FLOAT32_VEC2, std::size(obj2header::vertex_uv) / 2);
+  uvArray->setData(std::data(obj2header::vertex_uv));
 
   auto indexArray = ctx.createArray(
-      ANARI_UINT32_VEC3, obj2header::primitive_index.size() / 3);
-  indexArray->setData(obj2header::primitive_index.data());
+      ANARI_UINT32_VEC3, std::size(obj2header::primitive_index) / 3);
+  indexArray->setData(std::data(obj2header::primitive_index));
 
   monkey->setParameterObject("vertex.position"_t, *positionArray);
 #if 0 // NOTE: these appear to be wrong

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/authoring/procedural.hpp"
+#include "tsd/core/ColorMapUtil.hpp"
 // std
 #include <algorithm>
 #include <random>
@@ -45,27 +46,11 @@ VolumeRef generate_noiseVolume(Context &ctx,
   volume->setName("noise_volume");
 
   if (!colorArray) {
-    colorArray = ctx.createArray(ANARI_FLOAT32_VEC3, 3);
-    opacityArray = ctx.createArray(ANARI_FLOAT32, 2);
-
-    std::vector<float3> colors;
-    std::vector<float> opacities;
-
-    colors.emplace_back(0.f, 0.f, 1.f);
-    colors.emplace_back(0.f, 1.f, 0.f);
-    colors.emplace_back(1.f, 0.f, 0.f);
-
-    opacities.emplace_back(0.f);
-    opacities.emplace_back(1.f);
-
-    colorArray->setData(colors.data());
-    opacityArray->setData(opacities.data());
-  } else {
-    volume->setParameterObject("color"_t, *colorArray);
-    if (opacityArray)
-      volume->setParameterObject("opacity"_t, *opacityArray);
+    colorArray = ctx.createArray(ANARI_FLOAT32_VEC4, 256);
+    colorArray->setData(makeDefaultColorMap(colorArray->size()).data());
   }
 
+  volume->setParameterObject("color"_t, *colorArray);
   volume->setParameterObject("value"_t, *field);
 
   return volume;

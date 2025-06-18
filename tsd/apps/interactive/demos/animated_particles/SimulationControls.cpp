@@ -19,7 +19,7 @@
 namespace tsd_viewer {
 
 SimulationControls::SimulationControls(AppCore *core, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(core)
+    : anari_viewer::windows::Window(core->application, name, true), m_core(core)
 {}
 
 void SimulationControls::buildUI()
@@ -205,7 +205,7 @@ void SimulationControls::resetSimulation()
 void SimulationControls::updateColorMapScale()
 {
   m_particleColorSampler->setParameter("inTransform",
-      tsd::makeColorMapTransform(
+      tsd::math::makeValueRangeTransform(
           0.f, m_params.maxDistance / m_colorMapScaleFactor));
 }
 

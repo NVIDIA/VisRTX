@@ -30,6 +30,7 @@
  */
 
 #include "World.h"
+
 #include <helium/utility/IntrusivePtr.h>
 #include <helium/utility/TimeStamp.h>
 // ptx
@@ -40,6 +41,8 @@
 #include "utility/AnariTypeHelpers.h"
 
 #ifdef USE_MDL
+
+#include "ComputeTangent.h"
 #include "scene/surface/material/MDL.h"
 #endif // defined(USE_MDL)
 
@@ -82,7 +85,10 @@ World::World(DeviceGlobalState *d)
 {
   m_zeroGroup = new Group(d);
   m_zeroInstance = new Instance(d);
+
   m_zeroInstance->setParamDirect("group", m_zeroGroup.ptr);
+  m_zeroInstance->commitParameters();
+  m_zeroInstance->finalize();
 
   // never any public ref to these objects
   m_zeroGroup->refDec(helium::RefType::PUBLIC);
@@ -118,8 +124,9 @@ void World::commitParameters()
 
 void World::finalize()
 {
-  m_addZeroInstance = m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData;
-  if (m_addZeroInstance)
+  const bool addZeroInstance =
+      m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData;
+  if (addZeroInstance)
     reportMessage(ANARI_SEVERITY_DEBUG, "visrtx::World will add zero instance");
 
   if (m_zeroSurfaceData) {
@@ -149,20 +156,21 @@ void World::finalize()
   m_zeroInstance->setParam("id", getParam<uint32_t>("id", ~0u));
 
   m_zeroGroup->commitParameters();
-  m_zeroInstance->commitParameters();
   m_zeroGroup->finalize();
-  m_zeroInstance->finalize();
 
-  m_instances.reset();
+  m_instances.clear();
 
   if (m_instanceData) {
-    m_instanceData->removeAppendedHandles();
-    if (m_addZeroInstance)
-      m_instanceData->appendHandle(m_zeroInstance.ptr);
-    m_instances = make_Span((Instance **)m_instanceData->handlesBegin(),
-        m_instanceData->totalSize());
-  } else if (m_addZeroInstance)
-    m_instances = make_Span(&m_zeroInstance.ptr, 1);
+    std::for_each(m_instanceData->handlesBegin(),
+        m_instanceData->handlesEnd(),
+        [&](auto *o) {
+          if (o && o->isValid())
+            m_instances.push_back((Instance *)o);
+        });
+  }
+
+  if (addZeroInstance)
+    m_instances.push_back(m_zeroInstance.ptr);
 
   m_objectUpdates.lastTLASBuild = 0;
   m_objectUpdates.lastBLASCheck = 0;
@@ -238,7 +246,7 @@ void World::rebuildWorld()
   }
 
 #ifdef USE_MDL
-  buildMDLMaterialGPUData();
+  buildTangentVectors();
 #endif // defined(USE_MDL)
 }
 
@@ -467,30 +475,19 @@ void World::buildInstanceLightGPUData()
     if (m_hdri == -1)
       m_hdri = group->firstHDRI();
 
-    for (size_t t = 0; t < inst->numTransforms(); t++) {
-      if (!inst->xfmIsIdentity(t) && lgi.size() != 0) {
-        inst->reportMessage(
-            ANARI_SEVERITY_WARNING, "light transformations not implemented");
-      }
-      li[instID++] = {lgi.data(), lgi.size()};
-    }
+    for (size_t t = 0; t < inst->numTransforms(); t++)
+      li[instID++] = {lgi.data(), lgi.size(), mat4(inst->xfm(t))};
   });
 
   m_instanceLightGPUData.upload();
 }
 
 #ifdef USE_MDL
-void World::buildMDLMaterialGPUData()
+
+// We only do that for MDL for now, other materials don't use tangent vectors
+void World::buildTangentVectors()
 {
-  auto state = static_cast<DeviceGlobalState *>(deviceState());
-
-  if (state->objectUpdates.lastMDLObjectChange
-      < m_objectUpdates.lastMDLObjectCheck)
-    return;
-
-  std::vector<MDL *> mdls;
-
-  for (const auto &instance : m_instances) {
+  for (auto &instance : m_instances) {
     const auto group = instance->group();
     if (const auto surfaceObjects =
             group->getParamObject<ObjectArray>("surface")) {
@@ -499,29 +496,30 @@ void World::buildMDLMaterialGPUData()
           surfaceObjects->totalSize());
 
       for (auto surface : surfaces) {
-        if (auto material = dynamic_cast<MDL *>(surface->material())) {
-          if (material->lastCommitted() >= m_objectUpdates.lastMDLObjectCheck) {
-            mdls.push_back(material);
-          }
+        auto material = dynamic_cast<MDL *>(surface->material());
+        if (!material)
+          continue;
+
+        if (auto triangle = dynamic_cast<Triangle *>(surface->geometry())) {
+          // FIXME: This should be check if those objects are internally referenced
+          // or they are provided by the user. The former would still need to trigger an update.
+          if (triangle->getParamObject<Array1D>("vertex.tangent")
+              || triangle->getParamObject<Array1D>("faceVarying.tangent"))
+            continue; // We already have user provided input.
+
+          if (material->lastCommitted() < m_objectUpdates.lastMDLObjectCheck
+              && triangle->lastCommitted() < m_objectUpdates.lastMDLObjectCheck)
+            continue; // No need to build tangents if the material or geometry
+                      // hasn't changed.
+          updateGeometryTangent(triangle);
         }
       }
     }
   }
 
-  std::sort(begin(mdls), end(mdls));
-  mdls.erase(std::unique(begin(mdls), end(mdls)), end(mdls));
-
-  for (auto mdl : mdls) {
-    mdl->syncSource();
-    mdl->syncImplementationIndex();
-    mdl->syncParameters();
-    mdl->updateSamplers();
-    mdl->upload();
-  };
-
-  state->rendererModules.lastMDLMaterialChange =
-      m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
+  m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
 }
+
 #endif // defined(USE_MDL)
 
 } // namespace visrtx

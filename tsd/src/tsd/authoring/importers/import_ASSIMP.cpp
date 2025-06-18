@@ -70,20 +70,24 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Context &ctx,
 
     auto vertexNormalArray = ctx.createArray(
         ANARI_FLOAT32_VEC3, mesh->HasNormals() ? numVertices : 0);
-    auto outNormals = vertexNormalArray->mapAs<float3>();
+    float3 *outNormals =
+        vertexNormalArray ? vertexNormalArray->mapAs<float3>() : nullptr;
 
     auto vertexTexCoordArray = ctx.createArray(ANARI_FLOAT32_VEC3,
         mesh->HasTextureCoords(0 /*texcord set*/) ? numVertices : 0);
-    auto outTexCoords = vertexTexCoordArray->mapAs<float3>();
+    float3 *outTexCoords =
+        vertexTexCoordArray ? vertexTexCoordArray->mapAs<float3>() : nullptr;
 
     auto vertexTangentArray = ctx.createArray(
         ANARI_FLOAT32_VEC4, mesh->HasTangentsAndBitangents() ? numVertices : 0);
-    auto outTangents = vertexTangentArray->mapAs<float4>();
+    float4 *outTangents =
+        vertexTangentArray ? vertexTangentArray->mapAs<float4>() : nullptr;
 
     // TODO: test for AI_MAX_NUMBER_OF_COLOR_SETS, import all..
     auto vertexColorArray =
         ctx.createArray(ANARI_FLOAT32_VEC4, mesh->mColors[0] ? numVertices : 0);
-    auto *outColors = vertexColorArray->mapAs<float4>();
+    float4 *outColors =
+        vertexColorArray ? vertexColorArray->mapAs<float4>() : nullptr;
 
     for (unsigned j = 0; j < mesh->mNumVertices; ++j) {
       aiVector3D v = mesh->mVertices[j];
@@ -180,6 +184,24 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Context &ctx,
       tsdMesh->setParameterObject("vertex.color"_t, *vertexColorArray);
     }
 
+    // Calculate tangents if not supplied by mesh
+    if (!outTangents) {
+      auto vertexTangentArray =
+          ctx.createArray(ANARI_FLOAT32_VEC4, numVertices);
+      auto outTangents = vertexTangentArray->mapAs<float4>();
+
+      calcTangentsForTriangleMesh(outIndices,
+          outVertices,
+          outNormals,
+          outTexCoords,
+          outTangents,
+          numIndices,
+          numVertices);
+
+      vertexTangentArray->unmap();
+      tsdMesh->setParameterObject("vertex.tangent"_t, *vertexTangentArray);
+    }
+
     tsdMesh->setName((std::string(mesh->mName.C_Str()) + "_geometry").c_str());
 
     unsigned matID = mesh->mMaterialIndex;
@@ -208,19 +230,25 @@ static std::vector<MaterialRef> importASSIMPMaterials(
     MaterialRef m;
 
     if (matType == aiShadingMode_PBR_BRDF) {
-      aiColor3D baseColor;
-      ai_real metallic, roughness;
+      aiColor3D baseColor, sheenColor;
+      ai_real metallic, roughness, sheenRoughness;
       aiString baseColorTexture, metallicTexture, roughnessTexture,
-          metallicRoughnessTexture, normalTexture;
+          metallicRoughnessTexture, sheenColorTexture, sheenRoughnessTexture,
+          normalTexture;
 
       assimpMat->Get(AI_MATKEY_BASE_COLOR, baseColor);
       assimpMat->Get(AI_MATKEY_METALLIC_FACTOR, metallic);
       assimpMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness);
+      assimpMat->Get(AI_MATKEY_SHEEN_COLOR_FACTOR, sheenColor);
+      assimpMat->Get(AI_MATKEY_SHEEN_ROUGHNESS_FACTOR, sheenRoughness);
 
       assimpMat->GetTexture(AI_MATKEY_BASE_COLOR_TEXTURE, &baseColorTexture);
       assimpMat->GetTexture(AI_MATKEY_METALLIC_TEXTURE, &metallicTexture);
       assimpMat->GetTexture(AI_MATKEY_ROUGHNESS_TEXTURE, &roughnessTexture);
       assimpMat->GetTexture(AI_MATKEY_ROUGHNESS_TEXTURE, &roughnessTexture);
+      assimpMat->GetTexture(AI_MATKEY_SHEEN_COLOR_TEXTURE, &sheenColorTexture);
+      assimpMat->GetTexture(
+          AI_MATKEY_SHEEN_ROUGHNESS_TEXTURE, &sheenRoughnessTexture);
       // glTF has a combined metallic/roughness texture
       assimpMat->GetTexture(aiTextureType_UNKNOWN,
           0,
@@ -255,6 +283,8 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       m->setParameter("baseColor"_t, ANARI_FLOAT32_VEC3, &baseColor);
       m->setParameter("metallic"_t, ANARI_FLOAT32, &metallic);
       m->setParameter("roughness"_t, ANARI_FLOAT32, &roughness);
+      m->setParameter("sheenColor"_t, ANARI_FLOAT32_VEC3, &sheenColor);
+      m->setParameter("sheenRoughness"_t, ANARI_FLOAT32, &sheenRoughness);
 
       auto isEmbedded = [](const char *name) { return name[0] == '*'; };
 
@@ -276,6 +306,8 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       loadTexture("baseColor", baseColorTexture);
       loadTexture("metallic", metallicTexture);
       loadTexture("roughness", roughnessTexture);
+      loadTexture("sheenColor", sheenColorTexture);
+      loadTexture("sheenRoughness", sheenRoughnessTexture);
       loadTexture("normal", normalTexture);
 
       if (metallicRoughnessTexture.length != 0) {
@@ -321,12 +353,63 @@ static std::vector<LightRef> importASSIMPLights(
 
   for (unsigned i = 0; i < scene->mNumLights; ++i) {
     aiLight *assimpLight = scene->mLights[i];
-    // TODO:
+    LightRef lightRef;
+
+    float intensity =
+        assimpLight->mColorDiffuse.r > assimpLight->mColorDiffuse.b
+        ? assimpLight->mColorDiffuse.r > assimpLight->mColorDiffuse.g
+            ? assimpLight->mColorDiffuse.r
+            : assimpLight->mColorDiffuse.g
+        : assimpLight->mColorDiffuse.b;
+
+    if (intensity == 0.f)
+      intensity = 1.f;
+
+    tsd::float3 color(assimpLight->mColorDiffuse.r / intensity,
+        assimpLight->mColorDiffuse.g / intensity,
+        assimpLight->mColorDiffuse.b / intensity);
+
     switch (assimpLight->mType) {
+    case aiLightSource_DIRECTIONAL:
+      lightRef = ctx.createObject<Light>(tokens::light::directional);
+      lightRef->setParameter("direction",
+          tsd::float3(assimpLight->mDirection.x,
+              assimpLight->mDirection.y,
+              assimpLight->mDirection.z));
+      lightRef->setParameter("intensity", intensity);
+      break;
     case aiLightSource_POINT:
+      lightRef = ctx.createObject<Light>(tokens::light::point);
+      lightRef->setParameter("position",
+          tsd::float3(assimpLight->mPosition.x,
+              assimpLight->mPosition.y,
+              assimpLight->mPosition.z));
+      lightRef->setParameter("intensity", intensity);
+      break;
+    case aiLightSource_SPOT:
+      lightRef = ctx.createObject<Light>(tokens::light::spot);
+      lightRef->setParameter("position",
+          tsd::float3(assimpLight->mPosition.x,
+              assimpLight->mPosition.y,
+              assimpLight->mPosition.z));
+      lightRef->setParameter("direction",
+          tsd::float3(assimpLight->mDirection.x,
+              assimpLight->mDirection.y,
+              assimpLight->mDirection.z));
+      lightRef->setParameter("openingAngle", assimpLight->mAngleOuterCone);
+      lightRef->setParameter("falloffAngle",
+          (assimpLight->mAngleOuterCone - assimpLight->mAngleInnerCone) / 2.f);
+      lightRef->setParameter("intensity", intensity);
       break;
     default:
       break;
+    }
+
+    if (lightRef) {
+      lightRef->setParameter("color", color);
+      aiString name = assimpLight->mName;
+      lightRef->setName(name.C_Str());
+      lights.push_back(lightRef);
     }
   }
 
@@ -336,6 +419,7 @@ static std::vector<LightRef> importASSIMPLights(
 static void populateASSIMPLayer(Context &ctx,
     LayerNodeRef tsdLayerRef,
     const std::vector<SurfaceRef> &surfaces,
+    const std::vector<LightRef> &lights,
     const aiNode *node)
 {
   static_assert(
@@ -351,8 +435,20 @@ static void populateASSIMPLayer(Context &ctx,
         {utility::Any(ANARI_SURFACE, mesh.index()), mesh->name().c_str()});
   }
 
+  // https://github.com/assimp/assimp/issues/1168#issuecomment-278673292
+  // We won't find the light directly on the node, but matching names
+  // indicate we're supposed to associate the light with the transform
+  std::string name(node->mName.C_Str());
+  auto it = std::find_if(lights.begin(),
+      lights.end(),
+      [name](const LightRef &lightRef) { return lightRef->name() == name; });
+
+  if (it != lights.end()) {
+    tr->insert_first_child(tsd::utility::Any(ANARI_LIGHT, (*it)->index()));
+  }
+
   for (unsigned int i = 0; i < node->mNumChildren; i++)
-    populateASSIMPLayer(ctx, tr, surfaces, node->mChildren[i]);
+    populateASSIMPLayer(ctx, tr, surfaces, lights, node->mChildren[i]);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -384,6 +480,7 @@ void import_ASSIMP(
   populateASSIMPLayer(ctx,
       location ? location : ctx.defaultLayer()->root(),
       meshes,
+      lights,
       scene->mRootNode);
 }
 #else

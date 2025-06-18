@@ -31,7 +31,9 @@
 
 #pragma once
 
+#include <glm/ext/quaternion_trigonometric.hpp>
 #include <glm/fwd.hpp>
+#include <glm/geometric.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include "gpu/curveHelpers.h"
 #include "gpu/gpu_objects.h"
@@ -195,7 +197,7 @@ VISRTX_DEVICE const VolumeGPUData &volumeData(const FrameGPUData &frameData)
   return frameData.registry.volumes[idx];
 }
 
-VISRTX_DEVICE void computeNormal(
+VISRTX_DEVICE void computeTangentSpace(
     const GeometryGPUData &ggd, uint32_t primID, SurfaceHit &hit)
 {
   const vec3 b = ray::uvw(ggd.type);
@@ -209,28 +211,56 @@ VISRTX_DEVICE void computeNormal(
     const vec3 v0 = ggd.tri.vertices[idx.x];
     const vec3 v1 = ggd.tri.vertices[idx.y];
     const vec3 v2 = ggd.tri.vertices[idx.z];
-    hit.Ng = cross(v1 - v0, v2 - v0);
+
+    hit.Ng = normalize(cross(v1 - v0, v2 - v0));
+    hit.tU = vec3(1.0f, 0.0f, 0.0f);
+    hit.tV = vec3(0.0f, 0.0f, 1.0f);
+
     if (!optixIsFrontFaceHit())
       hit.Ng = -hit.Ng;
 
-    if (ggd.tri.vertexNormals != nullptr) {
-      const vec3 n0 = ggd.tri.vertexNormals[idx.x];
-      const vec3 n1 = ggd.tri.vertexNormals[idx.y];
-      const vec3 n2 = ggd.tri.vertexNormals[idx.z];
-      hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
-      if (dot(hit.Ng, hit.Ns) < 0.f)
-        hit.Ns = -hit.Ns;
-    } else if (ggd.tri.vertexNormalsFV != nullptr) {
+    if (ggd.tri.vertexNormalsFV != nullptr) {
       const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
 
       const vec3 n0 = ggd.tri.vertexNormalsFV[idx.x];
       const vec3 n1 = ggd.tri.vertexNormalsFV[idx.y];
       const vec3 n2 = ggd.tri.vertexNormalsFV[idx.z];
       hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
-      if (dot(hit.Ng, hit.Ns) < 0.f)
-        hit.Ns = -hit.Ns;
+    } else if (ggd.tri.vertexNormals != nullptr) {
+      const vec3 n0 = ggd.tri.vertexNormals[idx.x];
+      const vec3 n1 = ggd.tri.vertexNormals[idx.y];
+      const vec3 n2 = ggd.tri.vertexNormals[idx.z];
+      hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
     } else
       hit.Ns = hit.Ng;
+
+    hit.Ns = normalize(hit.Ns);
+
+    if (ggd.tri.vertexTangentsFV != nullptr) {
+      const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
+
+      const vec3 t0 = ggd.tri.vertexTangentsFV[idx.x];
+      const vec3 t1 = ggd.tri.vertexTangentsFV[idx.y];
+      const vec3 t2 = ggd.tri.vertexTangentsFV[idx.z];
+      const float handedness = ggd.tri.vertexTangentsFV[idx.x].w;
+      hit.tU = normalize(b.x * vec3(t0) + b.y * vec3(t1) + b.z * vec3(t2));
+      hit.tV = handedness * normalize(cross(hit.Ns, hit.tU));
+    } else if (ggd.tri.vertexTangents != nullptr) {
+      const vec3 t0 = ggd.tri.vertexTangents[idx.x];
+      const vec3 t1 = ggd.tri.vertexTangents[idx.y];
+      const vec3 t2 = ggd.tri.vertexTangents[idx.z];
+      const float handedness = ggd.tri.vertexTangents[idx.x].w;
+
+      hit.tU = normalize(b.x * t0 + b.y * t1 + b.z * t2);
+      hit.tV = handedness * normalize(cross(hit.Ns, hit.tU));
+    }
+
+    if (dot(hit.Ng, hit.Ns) < 0.f) {
+      hit.Ns = -hit.Ns;
+      hit.tU = -hit.tU;
+      hit.tV = -hit.tV;
+    }
+
 
     break;
   }
@@ -280,6 +310,11 @@ VISRTX_DEVICE void computeNormal(
       optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ng)));
   hit.Ns = normalize(make_vec3(
       optixTransformNormalFromObjectToWorldSpace((::float3 &)hit.Ns)));
+
+  hit.tU = normalize(make_vec3(
+      optixTransformVectorFromObjectToWorldSpace((::float3 &)hit.tU)));
+  hit.tV = normalize(make_vec3(
+      optixTransformVectorFromObjectToWorldSpace((::float3 &)hit.tV)));
 }
 
 VISRTX_DEVICE void cullbackFaces()
@@ -317,11 +352,11 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   hit.objID = sd.id;
   hit.instID = isd.id;
   hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
-  ray::computeNormal(gd, ray::primID(), hit);
+  ray::computeTangentSpace(gd, ray::primID(), hit);
 
   const auto &handle = optixGetTransformListHandle(0);
-  const float4 *tW = optixGetInstanceTransformFromHandle(handle);
-  const float4 *tO = optixGetInstanceInverseTransformFromHandle(handle);
+  const ::float4 *tW = optixGetInstanceTransformFromHandle(handle);
+  const ::float4 *tO = optixGetInstanceInverseTransformFromHandle(handle);
 
   hit.objectToWorld[0] = bit_cast<vec4>(tW[0]);
   hit.objectToWorld[1] = bit_cast<vec4>(tW[1]);

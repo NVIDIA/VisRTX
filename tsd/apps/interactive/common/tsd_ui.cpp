@@ -45,6 +45,11 @@ static void buildUI_parameter_contextMenu(Context &ctx, Object *o, Parameter *p)
 
     if (ImGui::BeginMenu("set type")) {
       if (ImGui::BeginMenu("uniform")) {
+        if (ImGui::MenuItem("direction")) {
+          p->setValue(tsd::float2(0.f));
+          p->setUsage(ParameterUsageHint::DIRECTION);
+        }
+
         if (ImGui::BeginMenu("color")) {
           if (ImGui::MenuItem("float3") && p) {
             p->setValue(tsd::float3(1));

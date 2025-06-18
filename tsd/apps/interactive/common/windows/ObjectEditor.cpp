@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ObjectEditor.h"
-#include "tsd_ui.h"
+#include "../AppCore.h"
+#include "../tsd_ui.h"
 
 namespace math = tsd::math;
 
 namespace tsd_viewer {
 
-ObjectEditor::ObjectEditor(AppCore *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(state)
+ObjectEditor::ObjectEditor(AppCore *core, const char *name) : Window(core, name)
 {}
 
 void ObjectEditor::buildUI()
@@ -88,7 +88,8 @@ void ObjectEditor::buildUI()
         selectedNode->value = math::mul(math::translation_matrix(tl),
             math::mul(rot, math::scaling_matrix(sc)));
         selectedNode->valueCache["SRT"] = srt;
-        ctx->signalLayerChange();
+        auto *layer = selectedNode.container();
+        ctx->signalLayerChange(layer);
       }
     } else if (!selectedNode->isEmpty()) {
       ImGui::Text(

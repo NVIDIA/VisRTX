@@ -84,7 +84,7 @@ __global__ void computeMaxOpacitiesGPU(float *maxOpacities,
   float maxOpacity = 0.f;
   for (int i = lo; i <= hi; ++i) {
     float tc = (i + .5f) / numColors;
-    maxOpacity = fmaxf(maxOpacity, tex1D<float4>(colorMap, tc).w);
+    maxOpacity = fmaxf(maxOpacity, tex1D<::float4>(colorMap, tc).w);
   }
   maxOpacities[threadID] = maxOpacity;
 }
@@ -99,17 +99,17 @@ __global__ void buildGridGPU(box1 *valueRanges,
 
   size_t threadID = blockIdx.x * size_t(blockDim.x) + threadIdx.x;
 
-  size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
+  size_t numVoxels = size_t(dims.x) * dims.y * dims.z;
 
   if (threadID >= numVoxels)
     return;
 
-  ivec3 voxelID(threadID % (dims.x - 1),
-      threadID / (dims.x - 1) % (dims.y - 1),
-      threadID / ((dims.x - 1) * (dims.y - 1)));
+  ivec3 voxelID(threadID % dims.x,
+      threadID / dims.x % dims.y,
+      threadID / (dims.x * dims.y));
 
   vec3 worldExtend = size(worldBounds);
-  vec3 voxelExtend = worldExtend / vec3(dims - 1);
+  vec3 voxelExtend = worldExtend / vec3(dims);
   box3 voxelBounds(worldBounds.lower + vec3(voxelID) * voxelExtend,
       worldBounds.lower + vec3(voxelID) * voxelExtend + voxelExtend);
 
@@ -169,7 +169,7 @@ void UniformGrid::init(ivec3 dims, box3 worldBounds)
 
 void UniformGrid::buildGrid(const SpatialFieldGPUData &sfgd)
 {
-  size_t numVoxels = (m_dims.x - 1) * size_t(m_dims.y - 1) * (m_dims.z - 1);
+  size_t numVoxels = size_t(m_dims.x) * m_dims.y * m_dims.z;
   size_t numThreads = 1024;
 
   // We ned to get the spatialfield gpu data upload, but we don't get

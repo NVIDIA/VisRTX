@@ -10,8 +10,8 @@
 // anari
 #include <anari/anari_cpp.hpp>
 
-#ifdef ENABLE_OPENGL
-#include <GLFW/glfw3.h>
+#ifdef ENABLE_SDL
+#include <SDL3/SDL.h>
 #endif
 
 namespace tsd {
@@ -57,6 +57,7 @@ struct AnariRenderPass : public RenderPass
   void setRenderer(anari::Renderer r);
   void setWorld(anari::World w);
   void setColorFormat(anari::DataType t);
+  void setEnableIDs(bool on);
 
   anari::Frame getFrame() const;
 
@@ -71,12 +72,28 @@ struct AnariRenderPass : public RenderPass
 
   bool m_firstFrame{true};
   bool m_deviceSupportsCUDAFrames{false};
+  bool m_enableIDs{false};
 
   anari::Device m_device{nullptr};
   anari::Camera m_camera{nullptr};
   anari::Renderer m_renderer{nullptr};
   anari::World m_world{nullptr};
   anari::Frame m_frame{nullptr};
+};
+
+struct PickPass : public RenderPass
+{
+  using PickOpFunc = std::function<void(RenderPass::Buffers &b)>;
+
+  PickPass();
+  ~PickPass() override;
+
+  void setPickOperation(PickOpFunc &&f);
+
+ private:
+  void render(Buffers &b, int stageId) override;
+
+  PickOpFunc m_op;
 };
 
 struct VisualizeDepthPass : public RenderPass
@@ -105,21 +122,21 @@ struct OutlineRenderPass : public RenderPass
   uint32_t m_outlineId{~0u};
 };
 
-#ifdef ENABLE_OPENGL
-struct CopyToGLImagePass : public RenderPass
+#ifdef ENABLE_SDL
+struct CopyToSDLTexturePass : public RenderPass
 {
-  CopyToGLImagePass();
-  ~CopyToGLImagePass() override;
+  CopyToSDLTexturePass(SDL_Renderer *renderer);
+  ~CopyToSDLTexturePass() override;
 
-  GLuint getGLTexture() const;
+  SDL_Texture *getTexture() const;
 
  private:
-  bool checkGLInterop();
+  bool checkGLInterop() const;
   void render(Buffers &b, int stageId) override;
   void updateSize() override;
 
-  struct CopyToGLImagePassImpl;
-  CopyToGLImagePassImpl *m_impl{nullptr};
+  struct CopyToSDLTexturePassImpl;
+  CopyToSDLTexturePassImpl *m_impl{nullptr};
 };
 #endif
 

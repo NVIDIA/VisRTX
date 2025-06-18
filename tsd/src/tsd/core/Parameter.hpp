@@ -19,7 +19,8 @@ enum ParameterUsageHint
   NONE = 0,
   COLOR = (1 << 0),
   DIRECTION = (1 << 1),
-  FILE = (1 << 2)
+  FILE = (1 << 2),
+  VALUE_RANGE_TRANSFORM = (1 << 3)
 };
 
 struct Parameter;

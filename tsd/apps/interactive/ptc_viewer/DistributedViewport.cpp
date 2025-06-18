@@ -5,52 +5,34 @@
 // std
 #include <cstring>
 // stb_image
-#include "tsd_stb/stb_image_write.h"
+#include "stb_image_write.h"
 // tsd
 #include "tsd_ui.h"
 
 namespace tsd_viewer {
 
-DistributedViewport::DistributedViewport(AppCore *ctx,
+DistributedViewport::DistributedViewport(AppCore *core,
     RemoteAppStateWindow *win,
     const char *rendererSubtype,
     const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(ctx), m_win(win)
+    : Window(core, name), m_win(win)
 {
   stbi_flip_vertically_on_write(1);
-
   m_rendererSubtype = rendererSubtype;
   m_rendererObject = tsd::Object(ANARI_RENDERER, m_rendererSubtype.c_str());
-
   setManipulator(nullptr);
-
   m_overlayWindowName = "overlay_";
   m_overlayWindowName += name;
-
   m_coreMenuName = "vpContextMenu_";
   m_coreMenuName += name;
-
-  // GL //
-
-  glGenTextures(1, &m_framebufferTexture);
-  glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexImage2D(GL_TEXTURE_2D,
-      0,
-      GL_RGBA8,
-      m_viewportSize.x,
-      m_viewportSize.y,
-      0,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      0);
 }
 
 DistributedViewport::~DistributedViewport()
 {
   m_win->fence();
   teardownDevice();
+  if (m_framebufferTexture)
+    SDL_DestroyTexture(m_framebufferTexture);
 }
 
 void DistributedViewport::buildUI()
@@ -83,7 +65,7 @@ void DistributedViewport::buildUI()
     ui_handleInput();
 }
 
-void DistributedViewport::setManipulator(manipulators::Orbit *m)
+void DistributedViewport::setManipulator(tsd::manipulators::Orbit *m)
 {
   m_arcball = m ? m : &m_localArcball;
 }
@@ -188,18 +170,14 @@ void DistributedViewport::reshape(tsd::math::int2 newSize)
   m_renderSize =
       tsd::math::int2(tsd::math::float2(m_viewportSize) * m_resolutionScale);
 
-  glViewport(0, 0, newSize.x, newSize.y);
+  if (m_framebufferTexture)
+    SDL_DestroyTexture(m_framebufferTexture);
 
-  glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
-  glTexImage2D(GL_TEXTURE_2D,
-      0,
-      GL_RGBA8,
-      m_renderSize.x,
-      m_renderSize.y,
-      0,
-      GL_RGBA,
-      GL_UNSIGNED_BYTE,
-      0);
+  m_framebufferTexture = SDL_CreateTexture(m_core->application->sdlRenderer(),
+      SDL_PIXELFORMAT_RGBA32,
+      SDL_TEXTUREACCESS_STREAMING,
+      newSize.x,
+      newSize.y);
 
   updateFrame();
   updateCamera(true);
@@ -264,16 +242,10 @@ void DistributedViewport::updateImage()
   auto fb = anari::map<uint32_t>(m_device, m_frame, "channel.color");
 
   if (fb.data) {
-    glBindTexture(GL_TEXTURE_2D, m_framebufferTexture);
-    glTexSubImage2D(GL_TEXTURE_2D,
-        0,
-        0,
-        0,
-        fb.width,
-        fb.height,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        fb.data);
+    SDL_UpdateTexture(m_framebufferTexture,
+        nullptr,
+        fb.data,
+        fb.width * anari::sizeOf(ANARI_UFIXED8_RGBA_SRGB));
   } else {
     printf("mapped bad frame: %p | %i x %i\n", fb.data, fb.width, fb.height);
   }
@@ -289,7 +261,7 @@ void DistributedViewport::updateImage()
 
   anari::unmap(m_device, m_frame, "channel.color");
 
-  ImGui::Image((void *)(intptr_t)m_framebufferTexture,
+  ImGui::Image((ImTextureID)m_framebufferTexture,
       ImGui::GetContentRegionAvail(),
       ImVec2(0, 1),
       ImVec2(1, 0));
@@ -301,10 +273,10 @@ void DistributedViewport::ui_handleInput()
 
   const bool dolly = ImGui::IsMouseDown(ImGuiMouseButton_Right)
       || (ImGui::IsMouseDown(ImGuiMouseButton_Left)
-          && io.KeysDown[GLFW_KEY_LEFT_SHIFT]);
+          && ImGui::IsKeyDown(ImGuiKey_LeftShift));
   const bool pan = ImGui::IsMouseDown(ImGuiMouseButton_Middle)
       || (ImGui::IsMouseDown(ImGuiMouseButton_Left)
-          && io.KeysDown[GLFW_KEY_LEFT_ALT]);
+          && ImGui::IsKeyDown(ImGuiKey_LeftAlt));
   const bool orbit = ImGui::IsMouseDown(ImGuiMouseButton_Left);
 
   const bool anyMovement = dolly || pan || orbit;
@@ -359,7 +331,7 @@ void DistributedViewport::ui_contextMenu()
 
   ImGuiIO &io = ImGui::GetIO();
   const bool rightClicked = ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Right)
-      || io.KeysDown[GLFW_KEY_MENU];
+      || ImGui::IsKeyDown(ImGuiKey_Menu);
 
   if (rightClicked && ImGui::IsWindowHovered()) {
     m_coreMenuVisible = true;
@@ -394,7 +366,8 @@ void DistributedViewport::ui_contextMenu()
     }
 
     if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
-      m_arcball->setAxis(static_cast<manipulators::OrbitAxis>(m_arcballUp));
+      m_arcball->setAxis(
+          static_cast<tsd::manipulators::OrbitAxis>(m_arcballUp));
       resetView();
     }
 

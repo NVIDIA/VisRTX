@@ -9,10 +9,17 @@
 #include <map>
 #include <memory>
 #include <string>
+// anari_viewer
+#include "anari_viewer/Application.h"
+
+#include "TaskQueue.h"
 
 namespace tsd_viewer {
 
+struct BlockingTaskModal;
 struct ImportFileDialog;
+
+using CameraPose = tsd::manipulators::CameraPose;
 
 enum class ImporterType
 {
@@ -22,12 +29,15 @@ enum class ImporterType
   NBODY,
   PLY,
   OBJ,
+  USD,
   HDRI,
   VOLUME,
-  TSD,
   SWC,
   PDB,
   XYZDP,
+  HSMESH,
+  TSD,
+  TSD_CONDUIT,
   NONE
 };
 
@@ -36,13 +46,13 @@ struct AppCore
   struct CommandLineOptions
   {
     bool useDefaultLayout{true};
-    bool enableDebug{false};
     bool loadingContext{false};
-    anari::Library debug{nullptr};
-    std::string traceDir;
+    bool preloadDevices{false};
+    bool loadedFromStateFile{false};
     std::vector<std::pair<ImporterType, std::string>> filenames;
     ImporterType importerType{ImporterType::NONE};
     std::vector<std::string> libraryList;
+    std::string secondaryViewportLibrary;
   } commandLine;
 
   struct TSDState
@@ -72,20 +82,39 @@ struct AppCore
     bool echoOutput{false};
   } logging;
 
+  struct CameraState
+  {
+    std::vector<CameraPose> poses;
+    tsd::manipulators::Orbit manipulator;
+  } view;
+
   struct Windows
   {
+    BlockingTaskModal *taskModal{nullptr};
     ImportFileDialog *importDialog{nullptr};
+    float fontScale{1.f};
   } windows;
 
+  struct Tasking
+  {
+    tasking::TaskQueue queue{10};
+  } jobs;
+
+  anari_viewer::Application *application{nullptr};
+
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
 
-  AppCore();
+  AppCore(anari_viewer::Application *app);
   ~AppCore();
 
   void parseCommandLine(int argc, const char **argv);
   void setupSceneFromCommandLine(bool hdriOnly = false);
+
+  void getFilenameFromDialog(std::string &filenameOut, bool save = false);
+
+  // ANARI device management //
 
   anari::Device loadDevice(const std::string &libName);
   const anari::Extensions *loadDeviceExtensions(const std::string &libName);
@@ -93,9 +122,18 @@ struct AppCore
   void releaseRenderIndex(anari::Device device);
   void releaseAllDevices();
 
+  // Selection //
+
   void setSelectedObject(tsd::Object *o);
   void setSelectedNode(tsd::LayerNode &n);
+  bool objectIsSelected() const;
   void clearSelected();
+
+  // Camera poses //
+
+  void addCurrentViewToCameraPoses(const char *name = "");
+  void updateExistingCameraPoseFromView(CameraPose &p);
+  void setCameraPose(const CameraPose &pose);
 
   // Not copyable or moveable //
   AppCore(const AppCore &) = delete;

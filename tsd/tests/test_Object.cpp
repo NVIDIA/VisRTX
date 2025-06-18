@@ -36,12 +36,10 @@ SCENARIO("tsd::Object interface", "[Object]")
       REQUIRE(obj.numParameters() == 0);
     }
 
-#if 0
-    THEN("The object has no arrays")
+    THEN("The object has no metadata")
     {
-      REQUIRE(obj.numArrays() == 0);
+      REQUIRE(obj.numMetadata() == 0);
     }
-#endif
 
     WHEN("The object is given a parameter")
     {
@@ -81,6 +79,59 @@ SCENARIO("tsd::Object interface", "[Object]")
       {
         obj.removeParameter("test");
         REQUIRE(obj.numParameters() == 0);
+      }
+    }
+
+    WHEN("An object metadata value is set")
+    {
+      obj.setMetadataValue("test_float", 5.f);
+
+      THEN("The object now has 1 metadata on it")
+      {
+        REQUIRE(obj.numMetadata() == 1);
+      }
+
+      THEN("The set metadata name is correct")
+      {
+        REQUIRE(obj.getMetadataName(0) == std::string("test_float"));
+      }
+
+      THEN("The set metadata value is correct")
+      {
+        REQUIRE(obj.getMetadataValue("test_float").getAs<float>() == 5.f);
+      }
+    }
+
+    WHEN("An object metadata array is set")
+    {
+      int arr[3] = {1, 2, 3};
+      obj.setMetadataArray("test_array", ANARI_INT32, arr, 3);
+
+      THEN("The object now has 1 metadata on it")
+      {
+        REQUIRE(obj.numMetadata() == 1);
+      }
+
+      THEN("The set metadata name is correct")
+      {
+        REQUIRE(obj.getMetadataName(0) == std::string("test_array"));
+      }
+
+      THEN("The set metadata array is correct")
+      {
+        const int *arr2 = nullptr;
+        size_t size;
+        anari::DataType type = ANARI_UNKNOWN;
+
+        obj.getMetadataArray(
+            "test_array", &type, (const void **)&arr2, &size);
+
+        REQUIRE(type == ANARI_INT32);
+        REQUIRE(size == 3);
+        REQUIRE(arr2 != nullptr);
+        REQUIRE(arr2[0] == 1);
+        REQUIRE(arr2[1] == 2);
+        REQUIRE(arr2[2] == 3);
       }
     }
   }

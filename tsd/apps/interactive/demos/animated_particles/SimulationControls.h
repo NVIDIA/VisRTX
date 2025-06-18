@@ -16,7 +16,7 @@ namespace tsd_viewer {
 
 struct SimulationControls : public anari_viewer::windows::Window
 {
-  SimulationControls(AppCore *state, const char *name = "Simulation Controls");
+  SimulationControls(AppCore *core, const char *name = "Simulation Controls");
 
   void buildUI() override;
   void setGeometry(tsd::GeometryRef particles,

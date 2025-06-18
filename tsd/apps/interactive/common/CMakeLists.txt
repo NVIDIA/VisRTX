@@ -1,31 +1,31 @@
 ## Copyright 2024-2025 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
-find_package(glfw3 REQUIRED)
-
 project(tsd_viewer_common)
 project_add_library(OBJECT)
 project_sources(PRIVATE
-  ${CMAKE_CURRENT_LIST_DIR}/modals/AppSettings.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/modals/AppSettingsDialog.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/modals/BlockingTaskModal.cpp
   ${CMAKE_CURRENT_LIST_DIR}/modals/ImportFileDialog.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/windows/CameraPoses.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/windows/DatabaseEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/IsosurfaceEditor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/windows/LayerTree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/Log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/ObjectEditor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/windows/ObjectTree.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/TransferFunctionEditor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/windows/Viewport.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/windows/Window.cpp
   ${CMAKE_CURRENT_LIST_DIR}/AppCore.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/BaseApplication.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/Manipulator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/TSDApplication.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tsd_ui.cpp
 )
 project_link_libraries(
 PUBLIC
   tsd
-  tsd_stb
+  stb_image
   tsd_tinyexr
   render_pipeline
-  glfw
 PRIVATE
   anari::anari_viewer
 )

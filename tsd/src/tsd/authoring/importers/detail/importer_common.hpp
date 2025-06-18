@@ -20,4 +20,14 @@ using TextureCache = std::unordered_map<std::string, SamplerRef>;
 SamplerRef importTexture(
     Context &ctx, std::string filepath, TextureCache &cache);
 
+SamplerRef makeDefaultColorMapSampler(Context &ctx, const float2 &range);
+
+bool calcTangentsForTriangleMesh(const uint3 *indices,
+    const float3 *vertexPositions,
+    const float3 *vertexNormals,
+    const float3 *texCoords,
+    float4 *tangents,
+    size_t numIndices,
+    size_t numVertices);
+
 } // namespace tsd

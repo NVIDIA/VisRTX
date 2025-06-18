@@ -18,10 +18,12 @@ PRIVATE
   authoring/importers/import_DLAF.cpp
   authoring/importers/import_FLASH.cpp
   authoring/importers/import_HDRI.cpp
+  authoring/importers/import_HSMESH.cpp
   authoring/importers/import_MHD.cpp
   authoring/importers/import_NBODY.cpp
   authoring/importers/import_NVDB.cpp
   authoring/importers/import_OBJ.cpp
+  authoring/importers/import_USD.cpp
   authoring/importers/import_PDB.cpp
   authoring/importers/import_PLY.cpp
   authoring/importers/import_RAW.cpp
@@ -36,7 +38,8 @@ PRIVATE
   authoring/procedural/generate_noiseVolume.cpp
   authoring/procedural/generate_randomSpheres.cpp
   authoring/procedural/generate_rtow.cpp
-  authoring/serialization/serialization.cpp
+  authoring/serialization/serialization_conduit.cpp
+  authoring/serialization/serialization_datatree.cpp
   core/AnariObjectCache.cpp
   core/Context.cpp
   core/Layer.cpp
@@ -55,7 +58,7 @@ PRIVATE
   objects/Volume.cpp
   rendering/RenderIndex.cpp
   rendering/RenderIndexFlatRegistry.cpp
-  rendering/RenderIndexTreeHierarchy.cpp
+  rendering/RenderIndexAllLayers.cpp
 )
 
 project_include_directories(
@@ -66,9 +69,12 @@ PUBLIC
 project_link_libraries(
 PUBLIC
   anari::helium
+  fmt::fmt
 PRIVATE
+  $<BUILD_INTERFACE:tsd_mikktspace>
   $<BUILD_INTERFACE:tsd_nanovdb>
-  $<BUILD_INTERFACE:tsd_stb>
+  $<BUILD_INTERFACE:stb_image>
+  $<BUILD_INTERFACE:tsd_tinyexr>
   $<BUILD_INTERFACE:tsd_tiny_obj_loader>
   $<BUILD_INTERFACE:tsd_tinyply>
 )
@@ -97,7 +103,7 @@ if (TSD_USE_CUDA)
     algorithms/detail/computeScalarRange_float64.cpp
     objects/SpatialField.cpp
     PROPERTIES
-      COMPILE_FLAGS "--extended-lambda --expt-relaxed-constexpr"
+      COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"
       LANGUAGE CUDA
   )
 else()
@@ -106,12 +112,12 @@ endif()
 
 if (TSD_ENABLE_SERIALIZATION)
   project_link_libraries(PRIVATE tsd_conduit)
-  set_source_files_properties(authoring/serialization/serialization.cpp
+  set_source_files_properties(authoring/serialization/serialization_conduit.cpp
     PROPERTIES
       COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=1
   )
 else()
-  set_source_files_properties(authoring/serialization/serialization.cpp
+  set_source_files_properties(authoring/serialization/serialization_conduit.cpp
     PROPERTIES
       COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=0
   )
@@ -132,3 +138,21 @@ if (TSD_USE_ASSIMP)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_ASSIMP=0)
 endif()
+
+if (TSD_USE_USD)
+  find_package(OpenGL)
+  find_package(X11)
+  find_package(pxr REQUIRED usd usdGeom tf gf usdShade usdLux)
+  project_compile_definitions(PRIVATE -DTSD_USE_USD=1)
+  project_link_libraries(PRIVATE ${PXR_LIBRARIES})
+else()
+  project_compile_definitions(PRIVATE -DTSD_USE_USD=0)
+endif()
+
+# Print include directories for debugging
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+message(STATUS "[src/tsd] Include dirs = ${dirs}")
+
+find_package(Python3 COMPONENTS Development REQUIRED)
+include_directories(${Python3_INCLUDE_DIRS})
+link_directories(${Python3_LIBRARY_DIRS})

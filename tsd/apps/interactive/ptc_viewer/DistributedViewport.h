@@ -4,9 +4,8 @@
 #pragma once
 
 #include "anari_viewer/ui_anari.h"
-#include "anari_viewer/windows/Window.h"
-// glfw
-#include <GLFW/glfw3.h>
+// SDL
+#include <SDL3/SDL.h>
 // anari
 #include <anari/anari_cpp/ext/linalg.h>
 #include <anari/anari_cpp.hpp>
@@ -16,14 +15,15 @@
 // tsd
 #include "tsd/core/Object.hpp"
 #include "tsd/core/UpdateDelegate.hpp"
+#include "tsd/view/Manipulator.hpp"
 
 #include "AppCore.h"
 #include "ViewState.h"
-#include "Manipulator.h"
+#include "windows/Window.h"
 
 namespace tsd_viewer {
 
-struct DistributedViewport : public anari_viewer::windows::Window
+struct DistributedViewport : public Window
 {
   DistributedViewport(AppCore *state,
       RemoteAppStateWindow *win,
@@ -34,11 +34,8 @@ struct DistributedViewport : public anari_viewer::windows::Window
   void buildUI() override;
 
   void setWorld(anari::World world = nullptr, bool resetCameraView = true);
-
-  void setManipulator(manipulators::Orbit *m);
-
+  void setManipulator(tsd::manipulators::Orbit *m);
   void resetView(bool resetAzEl = true);
-
   void setDevice(anari::Device d);
 
  private:
@@ -57,7 +54,6 @@ struct DistributedViewport : public anari_viewer::windows::Window
 
   // Data /////////////////////////////////////////////////////////////////////
 
-  AppCore *m_core{nullptr};
   RemoteAppStateWindow *m_win{nullptr};
 
   tsd::math::float2 m_previousMouse{-1.f, -1.f};
@@ -97,15 +93,15 @@ struct DistributedViewport : public anari_viewer::windows::Window
   // camera manipulator
 
   int m_arcballUp{1};
-  manipulators::Orbit m_localArcball;
-  manipulators::Orbit *m_arcball{nullptr};
-  manipulators::UpdateToken m_cameraToken{0};
+  tsd::manipulators::Orbit m_localArcball;
+  tsd::manipulators::Orbit *m_arcball{nullptr};
+  tsd::manipulators::UpdateToken m_cameraToken{0};
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
 
-  // OpenGL + display
+  // display
 
-  GLuint m_framebufferTexture{0};
+  SDL_Texture *m_framebufferTexture{nullptr};
   tsd::math::int2 m_viewportSize{1920, 1080};
 #if 1
   tsd::math::int2 m_renderSize{1920, 1080};

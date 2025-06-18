@@ -24,6 +24,15 @@ Volume::Volume(Token stype) : Object(ANARI_VOLUME, stype)
     addParameter("valueRange")
         .setValue({ANARI_FLOAT32_BOX1, &defaultValueRange})
         .setDescription("transfer function value range");
+
+    float2 defaultOpacityControlPoints[2]{
+        float2(0.f),
+        float2(1.f),
+    };
+    setMetadataArray("opacityControlPoints",
+        ANARI_FLOAT32_VEC2,
+        defaultOpacityControlPoints,
+        2);
   }
 }
 

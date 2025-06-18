@@ -31,19 +31,45 @@
 
 #pragma once
 
-#include "gpu/gpu_decl.h"
+#include "gpu_decl.h"
 
-#include <glm/ext.hpp>
-#include <glm/glm.hpp>
-#include <glm/gtx/component_wise.hpp>
+// glm
+#include <glm/ext/matrix_float3x3.hpp>
+#include <glm/ext/matrix_float3x4.hpp>
+#include <glm/ext/vector_float2.hpp>
+#include <glm/ext/vector_float3.hpp>
+#include <glm/fwd.hpp>
 // std
 #include <limits>
-// cuda
-#include <cuda_runtime.h>
 
 namespace visrtx {
 
-using namespace glm;
+using glm::fquat;
+using glm::ivec1;
+using glm::ivec2;
+using glm::ivec3;
+using glm::ivec4;
+using glm::mat2;
+using glm::mat2x2;
+using glm::mat2x3;
+using glm::mat2x4;
+using glm::mat3;
+using glm::mat3x2;
+using glm::mat3x3;
+using glm::mat3x4;
+using glm::mat4;
+using glm::mat4x2;
+using glm::mat4x3;
+using glm::mat4x4;
+using glm::quat;
+using glm::uvec1;
+using glm::uvec2;
+using glm::uvec3;
+using glm::uvec4;
+using glm::vec1;
+using glm::vec2;
+using glm::vec3;
+using glm::vec4;
 
 template <typename T>
 struct range_t
@@ -99,6 +125,7 @@ struct SurfaceHit
   vec3 Ng;
   vec3 Ns;
   vec3 uvw;
+  vec3 tU, tV;
   uint32_t primID{~0u};
   uint32_t objID{~0u};
   uint32_t instID{~0u};
@@ -146,6 +173,7 @@ template <typename T>
 VISRTX_HOST_DEVICE typename range_t<T>::element_t clamp(
     const typename range_t<T>::element_t &t, const range_t<T> &r)
 {
+  using glm::min, glm::max;
   return max(r.lower, min(t, r.upper));
 }
 
@@ -259,6 +287,16 @@ VISRTX_HOST_DEVICE vec2 uniformSampleDisk(float radius, const vec2 &s)
   const float r = sqrtf(s.x) * radius;
   const float phi = 2.f * float(M_PI) * s.y;
   return vec2{r * cosf(phi), r * sinf(phi)};
+}
+
+VISRTX_HOST_DEVICE vec3 xfmVec(const mat4 &m, const vec3 &p)
+{
+  return mat3(m) * p;
+}
+
+VISRTX_HOST_DEVICE vec3 xfmPoint(const mat4 &m, const vec3 &p)
+{
+  return m * vec4(p, 1.0f);
 }
 
 } // namespace visrtx

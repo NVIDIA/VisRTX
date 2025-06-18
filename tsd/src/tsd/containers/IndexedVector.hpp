@@ -40,12 +40,12 @@ struct IndexedVector
   IndexedVectorRef<T> insert(T &&v);
   template <typename... Args>
   IndexedVectorRef<T> emplace(Args &&...args);
-  void erase(size_t i);
+  bool erase(size_t i);
 
   void clear();
   void reserve(size_t size);
 
-  void defragment();
+  bool defragment();
 
   template <typename U>
   void sync_slots(const IndexedVector<U> &o);
@@ -102,6 +102,13 @@ template <typename T>
 bool operator!=(const IndexedVectorRef<T> &a, const IndexedVectorRef<T> &b);
 
 template <typename T, typename FCN_T>
+inline void foreach_item_ref(IndexedVector<T> &iv, FCN_T &&fcn)
+{
+  for (size_t i = 0; i < iv.capacity(); i++)
+    fcn(iv.at(i));
+}
+
+template <typename T, typename FCN_T>
 inline void foreach_item(IndexedVector<T> &iv, FCN_T &&fcn)
 {
   for (size_t i = 0; i < iv.capacity(); i++)
@@ -113,6 +120,16 @@ inline void foreach_item_const(const IndexedVector<T> &iv, FCN_T &&fcn)
 {
   for (size_t i = 0; i < iv.capacity(); i++)
     fcn(iv.slot_empty(i) ? nullptr : &iv[i]);
+}
+
+template <typename T, typename FCN_T>
+inline IndexedVectorRef<T> find_item_if(const IndexedVector<T> &iv, FCN_T &&fcn)
+{
+  for (size_t i = 0; i < iv.capacity(); i++) {
+    if(fcn(iv.slot_empty(i) ? nullptr : &iv[i]))
+      return iv.at(i);
+  }
+  return {};
 }
 
 // Inlined definitions ////////////////////////////////////////////////////////
@@ -165,7 +182,7 @@ inline bool IndexedVector<T>::slot_empty(size_t i) const
 template <typename T>
 inline float IndexedVector<T>::density() const
 {
-  return 1.f - float(m_freeIndices.size()) / capacity();
+  return capacity() == 0 ? 1.f : 1.f - float(m_freeIndices.size()) / capacity();
 }
 
 template <typename T>
@@ -192,11 +209,16 @@ IndexedVectorRef<T> IndexedVector<T>::emplace(Args &&...args)
 }
 
 template <typename T>
-inline void IndexedVector<T>::erase(size_t i)
+inline bool IndexedVector<T>::erase(size_t i)
 {
+  if (slot_empty(i))
+    return false;
+
   m_values[i] = {};
   m_slots[i] = false;
   m_freeIndices.push(i);
+
+  return true;
 }
 
 template <typename T>
@@ -215,8 +237,11 @@ inline void IndexedVector<T>::reserve(size_t size)
 }
 
 template <typename T>
-inline void IndexedVector<T>::defragment()
+inline bool IndexedVector<T>::defragment()
 {
+  if (density() == 1.f)
+    return false;
+
   auto p =
       std::stable_partition(m_values.begin(), m_values.end(), [&](auto &v) {
         size_t i = std::distance(&m_values[0], &v);
@@ -227,6 +252,8 @@ inline void IndexedVector<T>::defragment()
   std::fill(m_slots.begin(), m_slots.end(), true);
   while (!m_freeIndices.empty())
     m_freeIndices.pop();
+
+  return true;
 }
 
 template <typename T>

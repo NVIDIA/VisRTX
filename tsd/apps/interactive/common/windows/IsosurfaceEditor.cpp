@@ -6,10 +6,12 @@
 // std
 #include <algorithm>
 
+#include "../AppCore.h"
+
 namespace tsd_viewer {
 
-IsosurfaceEditor::IsosurfaceEditor(AppCore *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(state)
+IsosurfaceEditor::IsosurfaceEditor(AppCore *core, const char *name)
+    : Window(core, name)
 {}
 
 void IsosurfaceEditor::buildUI()
@@ -92,6 +94,7 @@ void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
 {
   tsd::Object *selectedObject = m_core->tsd.selectedObject;
   auto &ctx = m_core->tsd.ctx;
+  auto *layer = ctx.defaultLayer();
 
   auto isovalue = ctx.createArray(ANARI_FLOAT32, 1);
 
@@ -105,11 +108,11 @@ void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
 
   auto s = ctx.createSurface("isosurface", g, ctx.defaultMaterial());
 
-  auto n = ctx.defaultLayer()->insert_last_child(
-      ctx.defaultLayer()->root(), tsd::utility::Any(ANARI_SURFACE, s.index()));
+  auto n = layer->insert_last_child(
+      layer->root(), tsd::utility::Any(ANARI_SURFACE, s.index()));
 
   m_core->setSelectedNode(*n);
-  ctx.signalLayerChange();
+  ctx.signalLayerChange(layer);
 }
 
 } // namespace tsd_viewer

@@ -102,7 +102,7 @@ VISRTX_DEVICE vec4 shadeSurface(
       continue;
 
     for (size_t l = 0; l < inst->numLights; l++) {
-      auto ls = sampleLight(ss, hit, inst->indices[l]);
+      auto ls = sampleLight(ss, hit, inst->indices[l], inst->xfm);
       if (ls.pdf == 0.f)
         continue;
       Ray r;

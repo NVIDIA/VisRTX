@@ -63,8 +63,6 @@ ObjectArray::ObjectArray(
 ObjectArray::~ObjectArray()
 {
   std::for_each(m_appHandles.begin(), m_appHandles.end(), refDecObject);
-  std::for_each(
-      m_appendedHandles.begin(), m_appendedHandles.end(), refDecObject);
 }
 
 void ObjectArray::commitParameters()
@@ -102,7 +100,7 @@ void ObjectArray::unmap()
 
 size_t ObjectArray::totalSize() const
 {
-  return size() + m_appendedHandles.size();
+  return size();
 }
 
 size_t ObjectArray::size() const
@@ -142,29 +140,12 @@ void ObjectArray::uploadArrayData() const
   markDataUploaded();
 }
 
-void ObjectArray::appendHandle(Object *o)
-{
-  if (!o)
-    return;
-  o->refInc(helium::RefType::INTERNAL);
-  m_appendedHandles.push_back(o);
-  updateInternalHandleArrays();
-}
-
-void ObjectArray::removeAppendedHandles()
-{
-  m_liveHandles.resize(size());
-  for (auto o : m_appendedHandles)
-    o->refDec(helium::RefType::INTERNAL);
-  m_appendedHandles.clear();
-}
-
 void ObjectArray::updateInternalHandleArrays() const
 {
   m_liveHandles.resize(totalSize());
 
   if (data()) {
-    auto **srcAllBegin = (Object * *const)data();
+    auto **srcAllBegin = (Object **)data();
     auto **srcAllEnd = srcAllBegin + totalCapacity();
     std::for_each(srcAllBegin, srcAllEnd, refIncObject);
     std::for_each(m_appHandles.begin(), m_appHandles.end(), refDecObject);
@@ -174,10 +155,6 @@ void ObjectArray::updateInternalHandleArrays() const
     auto **srcRegionEnd = srcRegionBegin + size();
     std::copy(srcRegionBegin, srcRegionEnd, m_liveHandles.data());
   }
-
-  std::copy(m_appendedHandles.begin(),
-      m_appendedHandles.end(),
-      m_liveHandles.begin() + size());
 }
 
 } // namespace visrtx

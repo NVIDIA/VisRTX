@@ -109,6 +109,9 @@ struct Array : public UploadableArray
   size_t m_arrayRefCountUint8{0};
 
  private:
+  void on_NoInternalReferences() override;
+  void on_NoPublicReferences() override;
+
   struct AnariArrayData
   {
     struct Shared

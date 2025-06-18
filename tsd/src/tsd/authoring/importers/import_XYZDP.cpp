@@ -81,15 +81,7 @@ void import_XYZDP(Context &ctx, const char *filepath, LayerNodeRef location)
   auto dRange = algorithm::computeScalarRange(*dArray);
   logInfo("[import_XYZ] ...range(d)  : %f, %f", dRange.x, dRange.y);
 
-  auto sampler = ctx.createObject<Sampler>(tokens::sampler::image1D);
-  sampler->setParameter("inAttribute"_t, "attribute0");
-  sampler->setParameter(
-      "inTransform"_t, makeColorMapTransform(phiRange.x, phiRange.y));
-  sampler->setParameter("filter"_t, "linear");
-  sampler->setParameter("wrapMode"_t, "mirrorRepeat");
-  sampler->setParameterObject("image"_t, *samplerImageArray);
-
-  mat->setParameterObject("color"_t, *sampler);
+  mat->setParameterObject("color", *makeDefaultColorMapSampler(ctx, phiRange));
 
   // surface
 

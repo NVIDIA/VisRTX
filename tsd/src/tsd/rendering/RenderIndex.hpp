@@ -34,10 +34,13 @@ struct RenderIndex : public BaseUpdateDelegate
   void signalParameterRemoved(const Object *o, const Parameter *p) override;
   void signalArrayMapped(const Array *a) override;
   void signalArrayUnmapped(const Array *a) override;
-  void signalLayerChanged() override;
+  void signalLayerAdded(const Layer *l) override;
+  void signalLayerUpdated(const Layer *l) override;
+  void signalLayerRemoved(const Layer *l) override;
   void signalObjectFilteringChanged() override;
   void signalObjectRemoved(const Object *o) override;
   void signalRemoveAllObjects() override;
+  void signalInvalidateCachedObjects() override;
 
  protected:
   virtual void updateWorld() = 0;

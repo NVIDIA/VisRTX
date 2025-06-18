@@ -7,14 +7,16 @@
 // std
 #include <random>
 
+#include "AppCore.h"
+
 namespace tsd_viewer {
 
 using namespace tsd::literals;
 
 // InstancingControls definitions /////////////////////////////////////////////
 
-InstancingControls::InstancingControls(AppCore *state, const char *name)
-    : anari_viewer::windows::Window(name, true), m_core(state)
+InstancingControls::InstancingControls(AppCore *core, const char *name)
+    : Window(core, name)
 {
   createScene();
 }
@@ -46,6 +48,7 @@ void InstancingControls::buildUI()
 void InstancingControls::createScene()
 {
   auto &ctx = m_core->tsd.ctx;
+  auto *layer = ctx.defaultLayer();
 
   // Clear out previous scene //
 
@@ -71,12 +74,12 @@ void InstancingControls::createScene()
   light->setParameter("direction", tsd::float2(0.f, 240.f));
   m_light = light.data();
 
-  ctx.defaultLayer()->root()->insert_first_child(
+  layer->root()->insert_first_child(
       tsd::utility::Any(ANARI_LIGHT, light.index()));
 
   // Finally update instancing in RenderIndexes //
 
-  ctx.signalLayerChange();
+  ctx.signalLayerChange(layer);
 }
 
 void InstancingControls::generateSpheres()

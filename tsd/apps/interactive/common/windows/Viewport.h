@@ -3,13 +3,9 @@
 
 #pragma once
 
+#include "Window.h"
+
 #include "anari_viewer/ui_anari.h"
-#include "anari_viewer/windows/Window.h"
-// glfw
-#include <GLFW/glfw3.h>
-// anari
-#include <anari/anari_cpp/ext/linalg.h>
-#include <anari/anari_cpp.hpp>
 // std
 #include <array>
 #include <future>
@@ -17,26 +13,34 @@
 // tsd
 #include "tsd/core/Object.hpp"
 #include "tsd/core/UpdateDelegate.hpp"
+#include "tsd/rendering/RenderIndex.hpp"
+#include "tsd/view/Manipulator.hpp"
 // render_pipeline
 #include "render_pipeline/RenderPipeline.h"
 
-#include "../AppCore.h"
-#include "../Manipulator.h"
-
 namespace tsd_viewer {
 
-struct Viewport : public anari_viewer::windows::Window
+struct Viewport : public Window
 {
-  Viewport(
-      AppCore *state, manipulators::Orbit *m, const char *name = "Viewport");
+  Viewport(AppCore *state,
+      tsd::manipulators::Orbit *m,
+      const char *name = "Viewport");
   ~Viewport();
 
   void buildUI() override;
-  void setManipulator(manipulators::Orbit *m);
+  void setManipulator(tsd::manipulators::Orbit *m);
   void resetView(bool resetAzEl = true);
+  void centerView();
   void setLibrary(const std::string &libName, bool doAsync = true);
 
  private:
+  void saveSettings(tsd::serialization::DataNode &thisWindowRoot) override;
+  void loadSettings(tsd::serialization::DataNode &thisWindowRoot) override;
+
+  void loadANARIRendererParameters(anari::Device d);
+  void updateAllRendererParameters(anari::Device d);
+
+  void setupRenderPipeline();
   void teardownDevice();
   void reshape(tsd::math::int2 newWindowSize);
   void pick(tsd::math::int2 location, bool selectObject);
@@ -47,25 +51,24 @@ struct Viewport : public anari_viewer::windows::Window
   void updateImage();
 
   void echoCameraConfig();
+  void ui_menubar();
   void ui_handleInput();
-  void ui_picking();
-  void ui_contextMenu();
+  bool ui_picking();
   void ui_overlay();
+
+  int windowFlags() const override; // anari_viewer::Window
 
   // Data /////////////////////////////////////////////////////////////////////
 
   float m_timeToLoadDevice{0.f};
   std::future<void> m_initFuture;
   bool m_deviceReadyToUse{false};
-  AppCore *m_core{nullptr};
   std::string m_libName;
   tsd::RenderIndex *m_rIdx{nullptr};
 
   tsd::math::float2 m_previousMouse{-1.f, -1.f};
-  float m_pickedDepth{0.f};
   bool m_mouseRotating{false};
   bool m_manipulating{false};
-  bool m_coreMenuVisible{false};
   bool m_frameCancelled{false};
   bool m_saveNextFrame{false};
   bool m_echoCameraConfig{false};
@@ -81,6 +84,12 @@ struct Viewport : public anari_viewer::windows::Window
 
   float m_fov{40.f};
 
+  // Picking state //
+
+  bool m_selectObjectNextPick{false};
+  tsd::math::int2 m_pickCoord{0, 0};
+  float m_pickedDepth{0.f};
+
   // ANARI objects //
 
   anari::DataType m_format{ANARI_UFIXED8_RGBA_SRGB};
@@ -92,7 +101,6 @@ struct Viewport : public anari_viewer::windows::Window
   anari::Camera m_orthoCamera{nullptr};
   anari::Camera m_omniCamera{nullptr};
 
-  std::vector<std::string> m_rendererNames;
   std::vector<anari::Renderer> m_renderers;
   std::vector<tsd::Object> m_rendererObjects;
   int m_currentRenderer{0};
@@ -108,19 +116,20 @@ struct Viewport : public anari_viewer::windows::Window
   // camera manipulator
 
   int m_arcballUp{1};
-  manipulators::Orbit m_localArcball;
-  manipulators::Orbit *m_arcball{nullptr};
-  manipulators::UpdateToken m_cameraToken{0};
+  tsd::manipulators::Orbit m_localArcball;
+  tsd::manipulators::Orbit *m_arcball{nullptr};
+  tsd::manipulators::UpdateToken m_cameraToken{0};
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
 
-  // OpenGL + display
+  // display
 
   tsd::RenderPipeline m_pipeline;
   tsd::AnariRenderPass *m_anariPass{nullptr};
+  tsd::PickPass *m_pickPass{nullptr};
   tsd::VisualizeDepthPass *m_visualizeDepthPass{nullptr};
   tsd::OutlineRenderPass *m_outlinePass{nullptr};
-  tsd::CopyToGLImagePass *m_outputPass{nullptr};
+  tsd::CopyToSDLTexturePass *m_outputPass{nullptr};
 
   tsd::math::int2 m_viewportSize{0, 0};
   tsd::math::int2 m_renderSize{0, 0};
@@ -132,7 +141,6 @@ struct Viewport : public anari_viewer::windows::Window
   float m_maxFL{-std::numeric_limits<float>::max()};
 
   std::string m_overlayWindowName;
-  std::string m_coreMenuName;
 };
 
 } // namespace tsd_viewer

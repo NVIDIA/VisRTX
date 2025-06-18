@@ -29,6 +29,7 @@ Object::Object(Object &&o)
   m_context = std::move(o.m_context);
   m_index = std::move(o.m_index);
   m_updateDelegate = std::move(o.m_updateDelegate);
+  m_metadata = std::move(o.m_metadata);
   for (auto &p : m_parameters)
     p.second.setObserver(this);
 }
@@ -42,6 +43,7 @@ Object &Object::operator=(Object &&o)
   m_context = std::move(o.m_context);
   m_index = std::move(o.m_index);
   m_updateDelegate = std::move(o.m_updateDelegate);
+  m_metadata = std::move(o.m_metadata);
   for (auto &p : m_parameters)
     p.second.setObserver(this);
   return *this;
@@ -77,33 +79,100 @@ void Object::setName(const char *n)
   m_name = n;
 }
 
+Any Object::getMetadataValue(const std::string &name) const
+{
+  if (!m_metadata)
+    return {};
+  else if (const auto *c = m_metadata->root().child(name); c != nullptr)
+    return c->getValue();
+  else
+    return {};
+}
+
+void Object::getMetadataArray(const std::string &name,
+    anari::DataType *type,
+    const void **ptr,
+    size_t *size) const
+{
+  *type = ANARI_UNKNOWN;
+  *ptr = nullptr;
+  *size = 0;
+  if (!m_metadata)
+    return;
+  if (const auto *c = m_metadata->root().child(name); c != nullptr)
+    c->getValueAsArray(type, ptr, size);
+}
+
+void Object::setMetadataValue(const std::string &name, Any v)
+{
+  initMetadata();
+  m_metadata->root().append(name) = v;
+}
+
+void Object::setMetadataArray(const std::string &name,
+    anari::DataType type,
+    const void *v,
+    size_t numElements)
+{
+  initMetadata();
+  m_metadata->root().append(name).setValueAsArray(type, v, numElements);
+}
+
+void Object::removeMetadata(const std::string &name)
+{
+  if (!m_metadata)
+    return;
+  m_metadata->root().remove(name);
+}
+
+size_t Object::numMetadata() const
+{
+  if (!m_metadata)
+    return 0;
+  return m_metadata->root().numChildren();
+}
+
+const char *Object::getMetadataName(size_t i) const
+{
+  if (!m_metadata)
+    return "";
+  if (const auto *c = m_metadata->root().child(i); c != nullptr)
+    return c->name().c_str();
+  else
+    return "";
+}
+
 Parameter &Object::addParameter(Token name)
 {
   m_parameters.set(name, Parameter(this, name.c_str()));
   return *parameter(name);
 }
 
-void Object::setParameter(Token name, ANARIDataType type, const void *v)
+Parameter *Object::setParameter(Token name, ANARIDataType type, const void *v)
 {
   if (anari::isObject(type))
-    return;
+    return nullptr;
 
   auto *p = parameter(name);
   if (p)
     p->setValue({type, v});
   else {
-    auto &np = addParameter(name);
-    np.setValue({type, v});
+    p = &(addParameter(name));
+    p->setValue({type, v});
   }
+  return p;
 }
 
-void Object::setParameterObject(Token name, const Object &obj)
+Parameter *Object::setParameterObject(Token name, const Object &obj)
 {
   auto *p = parameter(name);
   if (p)
     p->setValue({obj.type(), obj.index()});
-  else
-    addParameter(name).setValue({obj.type(), obj.index()});
+  else {
+    p = &(addParameter(name));
+    p->setValue({obj.type(), obj.index()});
+  }
+  return p;
 }
 
 Parameter *Object::parameter(Token name)
@@ -173,15 +242,11 @@ void Object::updateANARIParameter(anari::Device d,
   } else if (!p.value().holdsObject()) {
     if (p.value().type() == ANARI_FLOAT32_VEC2
         && p.usage() & ParameterUsageHint::DIRECTION) {
-      const auto azel = p.value().get<float2>();
-      const float az = math::radians(azel.x);
-      const float el = math::radians(azel.y);
-      anari::setParameter(d,
-          o,
-          n,
-          float3(std::sin(az) * std::cos(el),
-              std::sin(el),
-              std::cos(az) * std::cos(el)));
+      anari::setParameter(d, o, n, math::azelToDir(p.value().get<float2>()));
+    } else if (p.value().type() == ANARI_FLOAT32_VEC2
+        && p.usage() & ParameterUsageHint::VALUE_RANGE_TRANSFORM) {
+      anari::setParameter(
+          d, o, n, math::makeValueRangeTransform(p.value().get<float2>()));
     } else {
       anari::setParameter(d, o, n, p.value().type(), p.value().data());
     }
@@ -217,6 +282,12 @@ void Object::removeParameter(const Parameter *p)
 BaseUpdateDelegate *Object::updateDelegate() const
 {
   return m_updateDelegate;
+}
+
+void Object::initMetadata() const
+{
+  if (!m_metadata)
+    m_metadata = std::make_unique<serialization::DataTree>();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

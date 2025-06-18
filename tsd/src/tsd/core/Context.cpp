@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/Context.hpp"
+#include "tsd/core/Logging.hpp"
 // std
 #include <sstream>
 
@@ -25,14 +26,8 @@ std::string objectDBInfo(const ObjectDatabase &db)
 
 Context::Context()
 {
-  // create default layer -- root must be a matrix
-  m_layers["default"].reset(
-      new Layer({tsd::mat4(tsd::math::identity), "root"}));
-  m_defaultLayer = m_layers.at_index(0).second.get();
-
-  // create default material
-  auto defaultMat = createObject<Material>(tokens::material::matte);
-  defaultMat->setName("default_material");
+  addLayer("default");
+  createObject<Material>(tokens::material::matte)->setName("default_material");
 }
 
 MaterialRef Context::defaultMaterial() const
@@ -42,7 +37,7 @@ MaterialRef Context::defaultMaterial() const
 
 Layer *Context::defaultLayer() const
 {
-  return m_defaultLayer;
+  return layer(0);
 }
 
 ArrayRef Context::createArray(
@@ -202,6 +197,7 @@ void Context::removeAllObjects()
   if (m_updateDelegate)
     m_updateDelegate->signalRemoveAllObjects();
 
+  removeAllSecondaryLayers();
   defaultLayer()->root()->erase_subtree();
 
   m_db.array.clear();
@@ -245,9 +241,51 @@ const ObjectDatabase &Context::objectDB() const
   return m_db;
 }
 
+const LayerMap &Context::layers() const
+{
+  return m_layers;
+}
+
+Layer *Context::layer(size_t i) const
+{
+  return m_layers.at_index(i).second.get();
+}
+
+Layer *Context::addLayer(Token name)
+{
+  auto &l = m_layers[name];
+  if (!l)
+    l.reset(new Layer({tsd::mat4(tsd::math::identity), "root"}));
+  if (m_updateDelegate)
+    m_updateDelegate->signalLayerAdded(l.get());
+  return l.get();
+}
+
+void Context::removeLayer(Token name)
+{
+  if (!m_layers.contains(name))
+    return;
+  if (m_updateDelegate)
+    m_updateDelegate->signalLayerRemoved(m_layers[name].get());
+  m_layers.erase(name);
+}
+
+void Context::removeLayer(const Layer *layer)
+{
+  for (size_t i = 0; i < m_layers.size(); i++) {
+    if (m_layers.at_index(i).second.get() == layer) {
+      if (m_updateDelegate)
+        m_updateDelegate->signalLayerRemoved(m_layers.at_index(i).second.get());
+      m_layers.erase(i);
+      return;
+    }
+  }
+}
+
 LayerNodeRef Context::insertChildNode(LayerNodeRef parent, const char *name)
 {
-  auto inst = defaultLayer()->insert_last_child(parent, tsd::utility::Any{});
+  auto *layer = parent->container();
+  auto inst = layer->insert_last_child(parent, tsd::utility::Any{});
   (*inst)->name = name;
   return inst;
 }
@@ -255,9 +293,10 @@ LayerNodeRef Context::insertChildNode(LayerNodeRef parent, const char *name)
 LayerNodeRef Context::insertChildTransformNode(
     LayerNodeRef parent, mat4 xfm, const char *name)
 {
-  auto inst = defaultLayer()->insert_last_child(parent, tsd::utility::Any{xfm});
+  auto *layer = parent->container();
+  auto inst = layer->insert_last_child(parent, tsd::utility::Any{xfm});
   (*inst)->name = name;
-  signalLayerChange();
+  signalLayerChange(parent->container());
   return inst;
 }
 
@@ -266,7 +305,7 @@ LayerNodeRef Context::insertChildObjectNode(
 {
   auto inst = parent->insert_last_child(tsd::utility::Any{type, idx});
   (*inst)->name = name;
-  signalLayerChange();
+  signalLayerChange(parent->container());
   return inst;
 }
 
@@ -276,12 +315,14 @@ void Context::removeInstancedObject(
   if (obj->isRoot())
     return;
 
+  auto *layer = obj->container();
+
   if (deleteReferencedObjects) {
     std::vector<LayerNodeRef> objects;
 
-    defaultLayer()->traverse(obj, [&](auto &node, int level) {
+    layer->traverse(obj, [&](auto &node, int level) {
       if (node.isLeaf())
-        objects.push_back(defaultLayer()->at(node.index()));
+        objects.push_back(layer->at(node.index()));
       return true;
     });
 
@@ -289,14 +330,287 @@ void Context::removeInstancedObject(
       removeObject(o->value().value);
   }
 
-  defaultLayer()->erase(obj);
-  signalLayerChange();
+  layer->erase(obj);
+  signalLayerChange(layer);
 }
 
-void Context::signalLayerChange()
+void Context::signalLayerChange(const Layer *l)
 {
   if (m_updateDelegate)
-    m_updateDelegate->signalLayerChanged();
+    m_updateDelegate->signalLayerUpdated(l);
+}
+
+void Context::defragmentObjectStorage()
+{
+  FlatMap<anari::DataType, bool> defragmentations;
+
+  // Defragment object storage and stash whether something happened //
+
+  bool defrag = false;
+
+  defrag |= defragmentations[ANARI_ARRAY] = m_db.array.defragment();
+  defrag |= defragmentations[ANARI_SURFACE] = m_db.surface.defragment();
+  defrag |= defragmentations[ANARI_GEOMETRY] = m_db.geometry.defragment();
+  defrag |= defragmentations[ANARI_MATERIAL] = m_db.material.defragment();
+  defrag |= defragmentations[ANARI_SAMPLER] = m_db.sampler.defragment();
+  defrag |= defragmentations[ANARI_VOLUME] = m_db.volume.defragment();
+  defrag |= defragmentations[ANARI_SPATIAL_FIELD] = m_db.field.defragment();
+  defrag |= defragmentations[ANARI_LIGHT] = m_db.light.defragment();
+
+  if (!defrag) {
+    tsd::logStatus("No defragmentation needed");
+    return;
+  } else {
+    tsd::logStatus("Defragmenting context arrays:");
+    for (const auto &pair : defragmentations) {
+      if (pair.second)
+        tsd::logStatus("    --> %s", anari::toString(pair.first));
+    }
+  }
+
+  // Function to find the object holding an index and returning the new index //
+
+  auto getUpdatedIndex = [&](anari::DataType objType, size_t idx) -> size_t {
+    auto findIdx = [](const auto &a, size_t i) {
+      auto ref = find_item_if(a, [&](auto *o) { return o->index() == i; });
+      return ref ? ref.index() : INVALID_INDEX;
+    };
+
+    size_t newObjIndex = INVALID_INDEX;
+    switch (objType) {
+    case ANARI_SURFACE:
+      return findIdx(m_db.surface, idx);
+    case ANARI_GEOMETRY:
+      return findIdx(m_db.geometry, idx);
+    case ANARI_MATERIAL:
+      return findIdx(m_db.material, idx);
+    case ANARI_SAMPLER:
+      return findIdx(m_db.sampler, idx);
+    case ANARI_VOLUME:
+      return findIdx(m_db.volume, idx);
+    case ANARI_SPATIAL_FIELD:
+      return findIdx(m_db.field, idx);
+    case ANARI_LIGHT:
+      return findIdx(m_db.light, idx);
+    case ANARI_ARRAY:
+    case ANARI_ARRAY1D:
+    case ANARI_ARRAY2D:
+    case ANARI_ARRAY3D:
+      return findIdx(m_db.array, idx);
+    default:
+      break; // no-op
+    }
+
+    return INVALID_INDEX;
+  };
+
+  // Function to update indices to objects in layer nodes //
+
+  std::vector<LayerNode *> toErase;
+  auto updateLayerObjReferenceIndices = [&](Layer &layer) {
+    layer.traverse(layer.root(), [&](LayerNode &node, int /*level*/) {
+      if (!node->isObject())
+        return true;
+      auto objType = node->value.type();
+      if (!defragmentations[objType])
+        return true;
+
+      size_t newIdx = getUpdatedIndex(objType, node->value.getAsObjectIndex());
+      if (newIdx != INVALID_INDEX)
+        node->value = Any(objType, newIdx);
+      else
+        toErase.push_back(&node);
+
+      return true;
+    });
+  };
+
+  // Invoke above function on all layers//
+
+  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++)
+    updateLayerObjReferenceIndices(*itr->second);
+
+  for (auto *ln : toErase)
+    ln->erase_self();
+  toErase.clear();
+
+  // Function to update indices to objects on object parameters //
+
+  auto updateParameterReferences = [&](auto &array) {
+    foreach_item(array, [&](Object *o) {
+      if (!o)
+        return;
+      for (size_t i = 0; i < o->numParameters(); i++) {
+        auto &p = o->parameterAt(i);
+        const auto &v = p.value();
+        if (!v.holdsObject())
+          continue;
+        auto objType = v.type();
+        if (!defragmentations[objType])
+          continue;
+
+        auto newIdx = getUpdatedIndex(objType, v.getAsObjectIndex());
+        p.setValue(newIdx != INVALID_INDEX ? Any(objType, newIdx) : Any());
+      }
+    });
+  };
+
+  // Invoke above function on all object arrays //
+
+  updateParameterReferences(m_db.array);
+  updateParameterReferences(m_db.surface);
+  updateParameterReferences(m_db.geometry);
+  updateParameterReferences(m_db.material);
+  updateParameterReferences(m_db.sampler);
+  updateParameterReferences(m_db.volume);
+  updateParameterReferences(m_db.field);
+  updateParameterReferences(m_db.light);
+
+  // Function to update all self-held index values to the new actual index //
+
+  auto updateObjectHeldIndex = [&](auto &array) {
+    foreach_item_ref(array, [&](auto ref) {
+      if (!ref)
+        return;
+      ref->m_index = ref.index();
+    });
+  };
+
+  // Invoke above function on all object arrays //
+
+  updateObjectHeldIndex(m_db.array);
+  updateObjectHeldIndex(m_db.surface);
+  updateObjectHeldIndex(m_db.geometry);
+  updateObjectHeldIndex(m_db.material);
+  updateObjectHeldIndex(m_db.sampler);
+  updateObjectHeldIndex(m_db.volume);
+  updateObjectHeldIndex(m_db.field);
+  updateObjectHeldIndex(m_db.light);
+
+  // Signal updates to any delegates //
+  if (m_updateDelegate)
+    m_updateDelegate->signalInvalidateCachedObjects();
+}
+
+void Context::removeUnusedObjects()
+{
+  tsd::logStatus("Removing unused context objects");
+
+  FlatMap<anari::DataType, std::vector<int>> usages;
+
+  usages[ANARI_ARRAY].resize(m_db.array.capacity(), 0);
+  usages[ANARI_SURFACE].resize(m_db.surface.capacity(), 0);
+  usages[ANARI_GEOMETRY].resize(m_db.geometry.capacity(), 0);
+  usages[ANARI_MATERIAL].resize(m_db.material.capacity(), 0);
+  usages[ANARI_SAMPLER].resize(m_db.sampler.capacity(), 0);
+  usages[ANARI_VOLUME].resize(m_db.volume.capacity(), 0);
+  usages[ANARI_SPATIAL_FIELD].resize(m_db.field.capacity(), 0);
+  usages[ANARI_LIGHT].resize(m_db.light.capacity(), 0);
+
+  // Always keep around the default material //
+
+  if (!usages[ANARI_MATERIAL].empty())
+    usages[ANARI_MATERIAL][0] = 1;
+
+  // Function to count object references in layers //
+
+  auto countLayerObjReferenceIndices = [&](Layer &layer) {
+    layer.traverse(layer.root(), [&](LayerNode &node, int /*level*/) {
+      if (node->isObject()) {
+        auto objType = node->value.type();
+        if (anari::isArray(objType))
+          objType = ANARI_ARRAY;
+        auto idx = node->value.getAsObjectIndex();
+        if (idx != INVALID_INDEX)
+          usages[objType][idx]++;
+      }
+
+      return true;
+    });
+  };
+
+  // Function to count object references in object parameters //
+
+  auto countParameterReferences = [&](auto &array) {
+    foreach_item(array, [&](Object *o) {
+      if (!o)
+        return;
+      for (size_t i = 0; i < o->numParameters(); i++) {
+        auto &p = o->parameterAt(i);
+        const auto &v = p.value();
+        if (!v.holdsObject())
+          continue;
+        auto objType = v.type();
+        if (anari::isArray(objType))
+          objType = ANARI_ARRAY;
+        auto idx = v.getAsObjectIndex();
+        if (idx != INVALID_INDEX)
+          usages[objType][idx]++;
+      }
+    });
+  };
+
+  // Function to remove unused objects from object arrays //
+
+  auto removeUnused = [&](auto &array) {
+    foreach_item_ref(array, [&](auto ref) {
+      if (!ref)
+        return;
+      auto objType = ref->type();
+      if (anari::isArray(objType))
+        objType = ANARI_ARRAY;
+      if (usages[objType][ref.index()] <= 0) {
+        // Decrement reference counts for this object's object parameters
+        for (size_t i = 0; i < ref->numParameters(); i++) {
+          auto &p = ref->parameterAt(i);
+          const auto &v = p.value();
+          if (!v.holdsObject())
+            continue;
+          auto objType = v.type();
+          if (anari::isArray(objType))
+            objType = ANARI_ARRAY;
+          auto idx = v.getAsObjectIndex();
+          if (idx != INVALID_INDEX)
+            usages[objType][idx]--;
+        }
+
+        removeObject(*ref);
+      }
+    });
+  };
+
+  // Invoke above functions on all object arrays, top-down //
+
+  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++)
+    countLayerObjReferenceIndices(*itr->second);
+
+  countParameterReferences(m_db.surface);
+  countParameterReferences(m_db.volume);
+  countParameterReferences(m_db.light);
+  countParameterReferences(m_db.geometry);
+  countParameterReferences(m_db.material);
+  countParameterReferences(m_db.field);
+  countParameterReferences(m_db.sampler);
+  countParameterReferences(m_db.array);
+
+  removeUnused(m_db.surface);
+  removeUnused(m_db.volume);
+  removeUnused(m_db.light);
+  removeUnused(m_db.geometry);
+  removeUnused(m_db.material);
+  removeUnused(m_db.field);
+  removeUnused(m_db.sampler);
+  removeUnused(m_db.array);
+}
+
+void Context::removeAllSecondaryLayers()
+{
+  for (auto itr = m_layers.begin() + 1; itr != m_layers.end(); itr++) {
+    if (m_updateDelegate)
+      m_updateDelegate->signalLayerRemoved(itr->second.get());
+  }
+
+  m_layers.shrink(1);
 }
 
 ArrayRef Context::createArrayImpl(anari::DataType type,
@@ -305,6 +619,11 @@ ArrayRef Context::createArrayImpl(anari::DataType type,
     size_t items2,
     Array::MemoryKind kind)
 {
+  if (items0 + items1 + items2 == 0) {
+    tsd::logWarning("Not creating an array with zero elements");
+    return {};
+  }
+
   ArrayRef retval;
 
   if (items2 != 0)

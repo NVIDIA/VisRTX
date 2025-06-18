@@ -72,11 +72,11 @@ class Core
 #ifdef __CUDACC__
   template <typename... T>
   void logMessage(
-      mi::base::Message_severity severity, const char format[], T... fmtargs);
+      mi::base::Message_severity severity, const char* format, T... fmtargs);
 #else
   template <typename... T>
   void logMessage(
-      mi::base::Message_severity severity, const char format[], T... fmtargs)
+      mi::base::Message_severity severity, fmt::format_string<T...> format, T&&... fmtargs)
   {
     if (m_logger.is_valid_interface()) {
       m_logger->message(severity,

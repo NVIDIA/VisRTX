@@ -47,6 +47,9 @@ std::string objectDBInfo(const ObjectDatabase &db);
 // Main TSD Context ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+using LayerPtr = std::shared_ptr<Layer>;
+using LayerMap = FlatMap<Token, LayerPtr>;
+
 struct Context
 {
   Context();
@@ -96,6 +99,14 @@ struct Context
   // Instanced objects (surfaces, volumes, and lights) //
   ///////////////////////////////////////////////////////
 
+  // Layers //
+
+  const LayerMap &layers() const;
+  Layer *layer(size_t i) const;
+  Layer *addLayer(Token name);
+  void removeLayer(Token name);
+  void removeLayer(const Layer *layer);
+
   // Insert nodes //
 
   LayerNodeRef insertChildNode(LayerNodeRef parent, const char *name = "");
@@ -124,11 +135,22 @@ struct Context
 
   // Indicate changes occurred //
 
-  void signalLayerChange();
+  void signalLayerChange(const Layer *l);
+
+  ////////////////////////
+  // Cleanup operations //
+  ////////////////////////
+
+  void defragmentObjectStorage();
+  void removeUnusedObjects();
 
  private:
-  friend void save_Context(Context &ctx, const char *filename);
-  friend void import_Context(Context &ctx, const char *filename);
+  void removeAllSecondaryLayers();
+
+  friend void save_Context(Context &ctx, serialization::DataNode &root);
+  friend void load_Context(Context &ctx, serialization::DataNode &root);
+  friend void save_Context_Conduit(Context &ctx, const char *filename);
+  friend void load_Context_Conduit(Context &ctx, const char *filename);
 
   template <typename OBJ_T>
   IndexedVectorRef<OBJ_T> createObjectImpl(
@@ -144,8 +166,7 @@ struct Context
 
   ObjectDatabase m_db;
   BaseUpdateDelegate *m_updateDelegate{nullptr};
-  FlatMap<std::string, std::unique_ptr<Layer>> m_layers;
-  Layer *m_defaultLayer{nullptr};
+  LayerMap m_layers;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

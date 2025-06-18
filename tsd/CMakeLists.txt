@@ -5,7 +5,10 @@ cmake_minimum_required(VERSION 3.21)
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_LIST_DIR)
   message(STATUS "CMake version: ${CMAKE_VERSION}")
-  set(ANARI_REQUIRED_VERSION 0.11.0)
+  set(ANARI_REQUIRED_VERSION 0.14.0)
+  set(TSD_STANDALONE_BUILD 1)
+else()
+  set(TSD_STANDALONE_BUILD 0)
 endif()
 
 ## CMake setup ##
@@ -33,8 +36,9 @@ option(BUILD_INTERACTIVE_APPS "Build interactive applications" ON)
 option(TSD_ENABLE_SERIALIZATION "Use conduit to serialize contexts" OFF)
 option(TSD_USE_HDF5 "Support loading AMR grids from HDF5" OFF)
 option(TSD_USE_ASSIMP "Support loading geometry with libassimp" OFF)
-option(TSD_USE_OPENGL "Use OpenGL interop in render pipeline" ON)
+option(TSD_USE_SDL3 "Use SDL3 interop in render pipeline" ON)
 option(TSD_USE_TBB "Use TBB code paths where relevant" ON)
+option(TSD_USE_USD "Use OpenUSD where relevant" OFF)
 
 if (APPLE)
   set(TSD_USE_CUDA OFF)
@@ -44,7 +48,7 @@ endif()
 
 ## Establish project ##
 
-project(tsd LANGUAGES CXX)
+project(tsd LANGUAGES C CXX)
 
 ## Major dependencies ##
 
@@ -72,3 +76,10 @@ add_subdirectory(apps)
 add_subdirectory(external)
 add_subdirectory(src)
 add_subdirectory(tests)
+
+## Cleanup CMake variables ##
+
+include(cmake/mark_cache_variables_as_advanced.cmake)
+
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+message(STATUS "Include dirs = ${dirs}")

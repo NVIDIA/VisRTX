@@ -293,4 +293,16 @@ void Array::evictGPU()
   markDataModified();
 }
 
+void Array::on_NoInternalReferences()
+{
+  reportMessage(ANARI_SEVERITY_DEBUG,
+      "evicting GPU memory for array with no internal references");
+  evictGPU();
+}
+
+void Array::on_NoPublicReferences()
+{
+  privatize();
+}
+
 } // namespace visrtx

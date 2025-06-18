@@ -1,5 +1,8 @@
 #include "ArgumentBlockDescriptor.h"
 
+#include "Core.h"
+#include "types.h"
+
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>
 #include <mi/base/interface_implement.h>
@@ -15,7 +18,7 @@
 #include <cstdio>
 #include <unordered_map>
 #include <vector>
-#include "libmdl/Core.h"
+
 
 namespace visrtx::libmdl {
 
@@ -71,7 +74,7 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
         }
         default: {
           core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-              "Unsupport vector type {},  ignoring",
+              "Unsupport vector type {}, ignoring",
               int(element_type->get_kind()));
           break;
         }
@@ -90,7 +93,7 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
         }
         default: {
           core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-              "Unsupport vector type {},  ignoring",
+              "Unsupport vector type {}, ignoring",
               int(element_type->get_kind()));
           break;
         }
@@ -109,7 +112,7 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
         }
         default: {
           core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-              "Unsupport vector type {},  ignoring",
+              "Unsupport vector type {}, ignoring",
               int(element_type->get_kind()));
           break;
         }
@@ -137,7 +140,11 @@ ArgumentBlockDescriptor::ArgumentBlockDescriptor(libmdl::Core *core,
     default:
       continue;
     }
-    m_nameToLayout[name] = m_argumentBlockLayout->get_nested_state(i);
+
+    mi::neuraylib::IValue::Kind kind2;
+    mi::Size param_size;
+    mi::Size offset = m_argumentBlockLayout->get_layout(kind2, param_size, m_argumentBlockLayout->get_nested_state(i));
+    m_nameToArgbBlockOffset[name] = offset;
   }
 }
 

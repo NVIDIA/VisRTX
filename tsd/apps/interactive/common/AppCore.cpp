@@ -5,6 +5,8 @@
 
 #include "AppCore.h"
 #include "windows/Log.h"
+// SDL
+#include <SDL3/SDL_dialog.h>
 
 namespace tsd_viewer {
 
@@ -68,9 +70,9 @@ static std::vector<std::string> parseLibraryList()
   return libList;
 }
 
-// AppCore definitions /////////////////////////////////////////////////////
+// AppCore definitions ////////////////////////////////////////////////////////
 
-AppCore::AppCore()
+AppCore::AppCore(anari_viewer::Application *app) : application(app)
 {
   tsd.ctx.setUpdateDelegate(&anari.delegate);
 }
@@ -97,12 +99,15 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       this->logging.echoOutput = true;
     else if (arg == "--noDefaultLayout")
       this->commandLine.useDefaultLayout = false;
-    else if (arg == "--debug" || arg == "-g")
-      this->commandLine.enableDebug = true;
-    else if (arg == "--trace" || arg == "-t")
-      this->commandLine.traceDir = argv[++i];
+    else if (arg == "-pd" || arg == "--preloadDevices")
+      this->commandLine.preloadDevices = true;
+    else if (arg == "--secondaryView" || arg == "-sv")
+      this->commandLine.secondaryViewportLibrary = argv[++i];
     else if (arg == "-tsd") {
       importerType = ImporterType::TSD;
+      this->commandLine.loadingContext = true;
+    } else if (arg == "-tsdc") {
+      importerType = ImporterType::TSD_CONDUIT;
       this->commandLine.loadingContext = true;
     } else if (arg == "-hdri")
       importerType = ImporterType::HDRI;
@@ -112,6 +117,8 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::NBODY;
     else if (arg == "-obj")
       importerType = ImporterType::OBJ;
+    else if (arg == "-usd")
+      importerType = ImporterType::USD;
     else if (arg == "-assimp")
       importerType = ImporterType::ASSIMP;
     else if (arg == "-assimp_flat")
@@ -126,7 +133,9 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::PDB;
     else if (arg == "-xyzdp")
       importerType = ImporterType::XYZDP;
-    else if (importerType != ImporterType::NONE)
+    else if (arg == "-hsmesh")
+      importerType = ImporterType::HSMESH;
+    else
       this->commandLine.filenames.push_back({importerType, arg});
   }
 }
@@ -150,11 +159,15 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
       tsd::logStatus("...loading file '%s'", f.second.c_str());
       auto root = tsd.ctx.defaultLayer()->root();
       if (f.first == ImporterType::TSD)
-        tsd::import_Context(tsd.ctx, f.second.c_str());
+        tsd::load_Context(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::TSD_CONDUIT)
+        tsd::load_Context_Conduit(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::PLY)
         tsd::import_PLY(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::OBJ)
         tsd::import_OBJ(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::USD)
+        tsd::import_USD(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::ASSIMP)
         tsd::import_ASSIMP(tsd.ctx, f.second.c_str(), root, false);
       else if (f.first == ImporterType::ASSIMP_FLAT)
@@ -171,11 +184,43 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_PDB(tsd.ctx, f.second.c_str(), root);
       else if (f.first == ImporterType::XYZDP)
         tsd::import_XYZDP(tsd.ctx, f.second.c_str());
-#if 0
+      else if (f.first == ImporterType::HSMESH)
+        tsd::import_HSMESH(tsd.ctx, f.second.c_str(), root);
       else if (f.first == ImporterType::VOLUME)
         tsd::import_volume(tsd.ctx, f.second.c_str());
-#endif
     }
+  }
+}
+
+void AppCore::getFilenameFromDialog(std::string &filenameOut, bool save)
+{
+  auto fileDialogCb =
+      [](void *userdata, const char *const *filelist, int filter) {
+        std::string &out = *(std::string *)userdata;
+        if (!filelist) {
+          tsd::logError("SDL DIALOG ERROR: %s\n", SDL_GetError());
+          return;
+        }
+
+        if (*filelist)
+          out = *filelist;
+      };
+
+  if (save) {
+    SDL_ShowSaveFileDialog(fileDialogCb,
+        &filenameOut,
+        application->sdlWindow(),
+        nullptr,
+        0,
+        nullptr);
+  } else {
+    SDL_ShowOpenFileDialog(fileDialogCb,
+        &filenameOut,
+        application->sdlWindow(),
+        nullptr,
+        0,
+        nullptr,
+        false);
   }
 }
 
@@ -194,9 +239,6 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
   if (!library)
     return nullptr;
 
-  if (!this->commandLine.debug && this->commandLine.enableDebug)
-    this->commandLine.debug = anari::loadLibrary("debug", statusFunc, this);
-
   dev = anari::newDevice(library, "default");
 
   this->anari.loadedDeviceExtensions[libraryName] =
@@ -204,27 +246,7 @@ anari::Device AppCore::loadDevice(const std::string &libraryName)
 
   anari::unloadLibrary(library);
 
-  if (this->commandLine.enableDebug)
-    anari::setParameter(dev, dev, "glDebug", true);
-
-#ifdef USE_GLES2
-  anari::setParameter(dev, dev, "glAPI", "OpenGL_ES");
-#else
   anari::setParameter(dev, dev, "glAPI", "OpenGL");
-#endif
-
-  if (this->commandLine.debug) {
-    anari::Device dbg = anari::newDevice(this->commandLine.debug, "debug");
-    anari::setParameter(dbg, dbg, "wrappedDevice", dev);
-    if (!this->commandLine.traceDir.empty()) {
-      anari::setParameter(dbg, dbg, "traceDir", this->commandLine.traceDir);
-      anari::setParameter(dbg, dbg, "traceMode", "code");
-    }
-    anari::commitParameters(dbg, dbg);
-    anari::release(dev, dev);
-    dev = dbg;
-  }
-
   anari::commitParameters(dev, dev);
 
   this->anari.loadedDevices[libraryName] = dev;
@@ -248,7 +270,7 @@ tsd::RenderIndex *AppCore::acquireRenderIndex(anari::Device d)
   auto &liveIdx = this->anari.rIdxs[d];
   if (liveIdx.refCount == 0) {
 #if 1
-    liveIdx.idx = anari.delegate.emplace<tsd::RenderIndexTreeHierarchy>(d);
+    liveIdx.idx = anari.delegate.emplace<tsd::RenderIndexAllLayers>(d);
 #else
     liveIdx.idx = anari.delegate.emplace<tsd::RenderIndexFlatRegistry>(d);
 #endif
@@ -287,16 +309,60 @@ void AppCore::setSelectedObject(tsd::Object *o)
 void AppCore::setSelectedNode(tsd::LayerNode &n)
 {
   setSelectedObject(tsd.ctx.getObject(n->value));
-  tsd.selectedNode = tsd.ctx.defaultLayer()->at(n.index());
+  auto *layer = n.container();
+  tsd.selectedNode = layer->at(n.index());
+}
+
+bool AppCore::objectIsSelected() const
+{
+  return tsd.selectedObject != nullptr;
 }
 
 void AppCore::clearSelected()
 {
-  if (tsd.selectedObject != nullptr) {
+  if (tsd.selectedObject != nullptr || tsd.selectedNode) {
     tsd.selectedObject = nullptr;
     tsd.selectedNode = {};
     anari.delegate.signalObjectFilteringChanged();
   }
+}
+
+void AppCore::addCurrentViewToCameraPoses(const char *_name)
+{
+  auto azel = view.manipulator.azel();
+  auto dist = view.manipulator.distance();
+  tsd::math::float3 azeldist(azel.x, azel.y, dist);
+
+  std::string name = _name;
+  if (name.empty())
+    name = "<view" + std::to_string(view.poses.size()) + ">";
+
+  CameraPose pose;
+  pose.name = name;
+  pose.lookat = view.manipulator.at();
+  pose.azeldist = azeldist;
+  pose.upAxis = static_cast<int>(view.manipulator.axis());
+
+  view.poses.push_back(std::move(pose));
+}
+
+void AppCore::updateExistingCameraPoseFromView(CameraPose &p)
+{
+  auto azel = view.manipulator.azel();
+  auto dist = view.manipulator.distance();
+  tsd::math::float3 azeldist(azel.x, azel.y, dist);
+
+  p.lookat = view.manipulator.at();
+  p.azeldist = azeldist;
+  p.upAxis = static_cast<int>(view.manipulator.axis());
+}
+
+void AppCore::setCameraPose(const CameraPose &pose)
+{
+  view.manipulator.setConfig(
+      pose.lookat, pose.azeldist.z, {pose.azeldist.x, pose.azeldist.y});
+  view.manipulator.setAxis(
+      static_cast<tsd::manipulators::OrbitAxis>(pose.upAxis));
 }
 
 } // namespace tsd_viewer

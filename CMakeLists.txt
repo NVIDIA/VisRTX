@@ -31,16 +31,13 @@ cmake_minimum_required(VERSION 3.17)
 
 message(STATUS "CMake version: ${CMAKE_VERSION}")
 
+set(CMAKE_BUILD_TYPE_INIT "Release")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-set(CMAKE_BUILD_TYPE_INIT "Release")
-
 set(CMAKE_INSTALL_RPATH "$ORIGIN")
 set(CMAKE_INSTALL_MESSAGE LAZY)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
@@ -56,16 +53,15 @@ if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   endif()
 endif()
 
-project(VisRTX VERSION 0.11.0 LANGUAGES C CXX)
+## Establish project ##
+
+project(VisRTX VERSION 0.12.0 LANGUAGES C CXX)
+
+enable_testing()
 
 include(GNUInstallDirs)
 
-option(
-  VISRTX_SET_SOVERSION
-  "(Unix) Set the library SOVERSION propert and create namelinks?"
-  OFF
-)
-mark_as_advanced(VISRTX_SET_SOVERSION)
+## Options ####################################################################
 
 option(VISRTX_BUILD_TSD "Build TSD sample applications" OFF)
 mark_as_advanced(VISRTX_BUILD_TSD)
@@ -76,34 +72,27 @@ option(
   OFF
 )
 
-if (VISRTX_SET_SOVERSION)
-  set(VISRTX_CMAKE_INSTALL_DESTINATION
-    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}-${PROJECT_VERSION}
-  )
-else()
-  set(VISRTX_CMAKE_INSTALL_DESTINATION
-    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
-  )
-endif()
-
 ## Dependencies ###############################################################
 
 # ANARI-SDK
-set(ANARI_REQUIRED_VERSION 0.13.1)
+set(ANARI_REQUIRED_VERSION 0.14.0)
 find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
-# CUDA
-find_package(CUDAToolkit 12)
-
-# OpenGL
-find_package(OpenGL)
-
-# glm (locally included)
-set(glm_DIR ${CMAKE_CURRENT_LIST_DIR}/external/glm/lib/cmake/glm)
-find_package(glm REQUIRED)
+# glm
+find_package(glm QUIET)
+if (TARGET glm::glm)
+  message(STATUS "Found glm: (external) ${glm_DIR}")
+else()
+  # Use locally provided version of glm
+  set(glm_DIR ${CMAKE_CURRENT_LIST_DIR}/external/glm/lib/cmake/glm)
+  find_package(glm REQUIRED)
+  message(STATUS "Found glm: (internal) ${glm_DIR}")
+endif()
 mark_as_advanced(glm_DIR)
+
 add_library(glm_visrtx INTERFACE IMPORTED)
 target_link_libraries(glm_visrtx INTERFACE glm::glm)
+target_compile_definitions(glm_visrtx INTERFACE GLM_ENABLE_EXPERIMENTAL)
 if(WIN32)
   target_compile_definitions(glm_visrtx INTERFACE _USE_MATH_DEFINES NOMINMAX)
 endif()
@@ -113,10 +102,17 @@ add_subdirectory(external)
 
 ## Build targets ##############################################################
 
-enable_testing()
+option(VISRTX_BUILD_RTX_DEVICE "Build CUDA/OptiX device" ON)
+option(VISRTX_BUILD_GL_DEVICE "Build OpenGL device" ON)
+
+set(VISRTX_CMAKE_INSTALL_DESTINATION
+  ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
 
 add_subdirectory(devices)
-add_subdirectory(examples)
+if (VISRTX_BUILD_RTX_DEVICE)
+  add_subdirectory(examples)
+endif()
 add_subdirectory(tests)
 add_subdirectory(shaders)
 if (VISRTX_BUILD_TSD)

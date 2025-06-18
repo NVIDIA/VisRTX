@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/containers/DataTree.hpp"
 #include "tsd/containers/FlatMap.hpp"
 #include "tsd/containers/IndexedVector.hpp"
 #include "tsd/core/AnariObjectCache.hpp"
@@ -12,6 +13,7 @@
 #include "tsd/core/UpdateDelegate.hpp"
 // std
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <type_traits>
 
@@ -62,14 +64,30 @@ struct Object : public ParameterObserver
   const std::string &name() const;
   void setName(const char *n);
 
+  Any getMetadataValue(const std::string &name) const;
+  void getMetadataArray(const std::string &name,
+      anari::DataType *type,
+      const void **ptr,
+      size_t *size) const;
+
+  void setMetadataValue(const std::string &name, Any v);
+  void setMetadataArray(const std::string &name,
+      anari::DataType type,
+      const void *v,
+      size_t numElements);
+  void removeMetadata(const std::string &name);
+
+  size_t numMetadata() const;
+  const char *getMetadataName(size_t i) const;
+
   //// Parameters ////
 
   // Token-based access
   Parameter &addParameter(Token name);
   template <typename T>
-  void setParameter(Token name, T value);
-  void setParameter(Token name, ANARIDataType type, const void *v);
-  void setParameterObject(Token name, const Object &obj);
+  Parameter *setParameter(Token name, T value);
+  Parameter *setParameter(Token name, ANARIDataType type, const void *v);
+  Parameter *setParameterObject(Token name, const Object &obj);
 
   Parameter *parameter(Token name);
   template <typename T>
@@ -111,6 +129,8 @@ struct Object : public ParameterObserver
  private:
   friend struct Context;
 
+  void initMetadata() const;
+
   Context *m_context{nullptr};
   ParameterMap m_parameters;
   anari::DataType m_type{ANARI_UNKNOWN};
@@ -119,6 +139,7 @@ struct Object : public ParameterObserver
   std::string m_description;
   size_t m_index{0};
   BaseUpdateDelegate *m_updateDelegate{nullptr};
+  mutable std::unique_ptr<serialization::DataTree> m_metadata;
 };
 
 void print(const Object &obj, std::ostream &out = std::cout);
@@ -134,13 +155,14 @@ constexpr bool isObject()
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>
-inline void Object::setParameter(Token name, T value)
+inline Parameter *Object::setParameter(Token name, T value)
 {
   auto *p = m_parameters.at(name);
   if (p)
     p->setValue(value);
   else
-    addParameter(name).setValue(value);
+    p = &(addParameter(name).setValue(value));
+  return p;
 }
 
 template <typename T>

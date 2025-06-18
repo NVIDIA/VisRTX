@@ -1,6 +1,7 @@
 #pragma once
 
-#include "libmdl/Core.h"
+#include <libmdl/Core.h>
+#include <libmdl/ArgumentBlockDescriptor.h>
 
 #include <anari/anari_cpp.hpp>
 
@@ -22,9 +23,9 @@ class SamplerRegistry
   SamplerRegistry(libmdl::Core *core, DeviceGlobalState *deviceState);
   ~SamplerRegistry();
 
-  // Material code
-  Sampler *acquireSampler(
-      const std::string &textureDesc, mi::neuraylib::ITransaction *transaction);
+  Sampler *acquireSampler(const std::string &filePath, libmdl::ColorSpace colorSpace = libmdl::ColorSpace::Auto);
+  Sampler *acquireSampler(const libmdl::TextureDescriptor &textureDesc);
+
   bool releaseSampler(const Sampler *);
 
  private:
@@ -33,8 +34,11 @@ class SamplerRegistry
 
   std::unordered_map<std::string, Sampler *> m_dbToSampler;
 
-  Sampler *createSamplerFromDb(const std::string &textureDbName,
-      mi::neuraylib::ITransaction *transaction);
+  Sampler* loadFromFile(const std::string_view& filePath, libmdl::ColorSpace colorSpace = libmdl::ColorSpace::Auto);
+
+  Sampler* loadFromDDS(const std::string_view& filePath, libmdl::ColorSpace colorSpace = libmdl::ColorSpace::Auto);
+  Sampler* loadFromImage(const std::string_view& filePath, libmdl::ColorSpace colorSpace = libmdl::ColorSpace::Auto);
+  Sampler* loadFromTextureDesc(const libmdl::TextureDescriptor &textureDesc);
 };
 
 } // namespace visrtx::mdl

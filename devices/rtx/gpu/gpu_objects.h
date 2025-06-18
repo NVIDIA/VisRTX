@@ -40,6 +40,7 @@
 // anari
 #include <anari/anari_cpp.hpp>
 #include <glm/ext/matrix_float3x4.hpp>
+#include <glm/ext/vector_uint2.hpp>
 // nanovdb
 #include <nanovdb/NanoVDB.h>
 
@@ -127,6 +128,8 @@ struct TriangleGeometryData
   AttributeDataSet vertexAttrFV;
   const vec3 *vertexNormals;
   const vec3 *vertexNormalsFV;
+  const vec4 *vertexTangents;
+  const vec4 *vertexTangentsFV;
   bool cullBackfaces;
 };
 
@@ -523,6 +526,7 @@ struct InstanceLightGPUData
 {
   const DeviceObjectIndex *indices;
   size_t numLights;
+  mat4 xfm;
 };
 
 // World //

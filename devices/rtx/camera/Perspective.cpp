@@ -31,6 +31,8 @@
 
 #include "Perspective.h"
 
+#include <glm/trigonometric.hpp>
+
 namespace visrtx {
 
 Perspective::Perspective(DeviceGlobalState *s) : Camera(s) {}

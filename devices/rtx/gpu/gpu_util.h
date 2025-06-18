@@ -31,18 +31,74 @@
 
 #pragma once
 
-#include "gpu/cameraCreateRay.h"
-#include "gpu/gpu_objects.h"
+#include "cameraCreateRay.h"
+#include "gpu_objects.h"
 // optix
 #include <optix_device.h>
 // std
 #include <cstdint>
+// glm
+#include <glm/gtc/color_space.hpp>
+#include <glm/gtx/component_wise.hpp>
+#include <glm/packing.hpp>
+// cuda
+#include <vector_types.h>
 
 #ifndef __CUDACC__
 #error "gpu_util.h can only be included in device code"
 #endif
 
 namespace visrtx {
+
+//
+template <typename T_OUT, typename T_IN>
+VISRTX_DEVICE T_OUT bit_cast(T_IN v)
+{
+  static_assert(sizeof(T_OUT) <= sizeof(T_IN),
+      "bit_cast<> should only be used to cast to types equal "
+      "or smaller than the input value");
+  return *reinterpret_cast<T_OUT *>(&v);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Conversion functions
+///////////////////////////////////////////////////////////////////////////////
+
+// Make sure to bring global make_float* so we can access there global set of
+// overload despite the definitions below
+using ::make_float1, ::make_float2, ::make_float3, ::make_float4;
+using ::make_int1, ::make_int2, ::make_int3, ::make_int4;
+using ::make_uint1, ::make_uint2, ::make_uint3, ::make_uint4;
+
+// clang-format off
+
+VISRTX_DEVICE glm::vec1 make_vec1(const float1& v) { return bit_cast<glm::vec1>(v); }
+VISRTX_DEVICE glm::vec2 make_vec2(const float2& v) { return bit_cast<glm::vec2>(v); }
+VISRTX_DEVICE glm::vec3 make_vec3(const float3& v) { return bit_cast<glm::vec3>(v); }
+VISRTX_DEVICE glm::vec4 make_vec4(const float4& v) { return bit_cast<glm::vec4>(v); }
+VISRTX_DEVICE glm::ivec1 make_ivec1(const int1& v) { return bit_cast<glm::ivec1>(v); }
+VISRTX_DEVICE glm::ivec2 make_ivec2(const int2& v) { return bit_cast<glm::ivec2>(v); }
+VISRTX_DEVICE glm::ivec3 make_ivec3(const int3& v) { return bit_cast<glm::ivec3>(v); }
+VISRTX_DEVICE glm::ivec4 make_ivec4(const int4& v) { return bit_cast<glm::ivec4>(v); }
+VISRTX_DEVICE glm::uvec1 make_uvec2(const uint1& v) { return bit_cast<glm::uvec1>(v); }
+VISRTX_DEVICE glm::uvec2 make_uvec2(const uint2& v) { return bit_cast<glm::uvec2>(v); }
+VISRTX_DEVICE glm::uvec3 make_uvec3(const uint3& v) { return bit_cast<glm::uvec3>(v); }
+VISRTX_DEVICE glm::uvec4 make_uvec4(const uint4& v) { return bit_cast<glm::uvec4>(v); }
+
+VISRTX_DEVICE float1 make_float1(const glm::vec2& v) { return bit_cast<float1>(v); }
+VISRTX_DEVICE float2 make_float2(const glm::vec2& v) { return bit_cast<float2>(v); }
+VISRTX_DEVICE float3 make_float3(const glm::vec3& v) { return bit_cast<float3>(v); }
+VISRTX_DEVICE float4 make_float4(const glm::vec4& v) { return bit_cast<float4>(v); }
+VISRTX_DEVICE int1 make_int1(const glm::ivec1& v) { return bit_cast<int1>(v); }
+VISRTX_DEVICE int2 make_int2(const glm::ivec2& v) { return bit_cast<int2>(v); }
+VISRTX_DEVICE int3 make_int3(const glm::ivec3& v) { return bit_cast<int3>(v); }
+VISRTX_DEVICE int4 make_int4(const glm::ivec4& v) { return bit_cast<int4>(v); }
+VISRTX_DEVICE uint1 make_uint1(const glm::uvec1& v) { return bit_cast<uint1>(v); }
+VISRTX_DEVICE uint2 make_uint2(const glm::uvec2& v) { return bit_cast<uint2>(v); }
+VISRTX_DEVICE uint3 make_uint3(const glm::uvec3& v) { return bit_cast<uint3>(v); }
+VISRTX_DEVICE uint4 make_uint4(const glm::uvec4& v) { return bit_cast<uint4>(v); }
+
+// clang-format on
 
 ///////////////////////////////////////////////////////////////////////////////
 // Utility functions //////////////////////////////////////////////////////////
@@ -68,25 +124,6 @@ VISRTX_DEVICE float atomicMaxf(float *address, float val)
       break;
   }
   return __int_as_float(ret);
-}
-
-template <typename T_OUT, typename T_IN>
-VISRTX_DEVICE T_OUT bit_cast(T_IN v)
-{
-  static_assert(sizeof(T_OUT) <= sizeof(T_IN),
-      "bit_cast<> should only be used to cast to types equal "
-      "or smaller than the input value");
-  return *reinterpret_cast<T_OUT *>(&v);
-}
-
-VISRTX_DEVICE vec3 make_vec3(const ::float3 &v)
-{
-  return vec3(v.x, v.y, v.z);
-}
-
-VISRTX_DEVICE vec4 make_vec4(const ::float4 &v)
-{
-  return vec4(v.x, v.y, v.z, v.w);
 }
 
 template <typename T>
@@ -169,18 +206,37 @@ VISRTX_DEVICE vec3 randomDir(RandState &rs, const vec3 &normal)
   return dot(dir, normal) > 0.f ? dir : -dir;
 }
 
+VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3& normal)
+{
+  // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+  auto sign = normal.z >= 0.0f ? 1.0f : -1.0f;
+  auto a = -1.0f / (sign + normal.z);
+  auto b = normal.x * normal.y * a;
+  auto u = vec3(1.0f + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
+  auto v = vec3(b, sign + normal.y * normal.y * a, -normal.y);
+
+  return mat3(u, v, normal);
+}
+
+VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
+{
+  auto z = curand_uniform(&rs);
+  auto r = sqrtf(1.f - sqrt(z)); 
+  auto phi = 2.0f * float(M_PI) * curand_uniform(&rs);
+
+  auto sample =  vec3(r * cos(phi), r * sin(phi), z);
+
+  return computeOrthonormalBasis(normal) * sample;
+}
+
 VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
 {
   // sample unit sphere
   const float cost = 1.f - 2.f * curand_uniform(&rs);
   const float sint = sqrtf(fmaxf(0.f, 1.f - cost * cost));
   const float phi = 2.f * float(M_PI) * curand_uniform(&rs);
-  // make ortho basis and transform to ray-centric coordinates:
-  const vec3 w = normal;
-  const vec3 v = fabsf(w.x) > fabsf(w.y) ? normalize(vec3(-w.z, 0.f, w.x))
-                                         : normalize(vec3(0.f, w.z, -w.y));
-  const vec3 u = cross(v, w);
-  return normalize(sint * cosf(phi) * u + sint * sinf(phi) * v + cost * -w);
+
+  return computeOrthonormalBasis(normal) * vec3(sint * cosf(phi) , sint * sinf(phi), -cost);
 }
 
 #define ulpEpsilon 0x1.fp-21
@@ -258,6 +314,26 @@ VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
 
 namespace detail {
 
+VISRTX_DEVICE
+vec3 tonemap(vec3 v) {
+  return v / (1.0f + max(0.0f, compMax(v)));
+}
+
+VISRTX_DEVICE
+vec3 inverseTonemap(vec3 v) {
+  return v / max(1e-8f, 1.f - compMax(v));
+}
+
+VISRTX_DEVICE
+vec4 tonemap(vec4 v) {
+  return vec4(tonemap(vec3(v)), v.w);
+}
+
+VISRTX_DEVICE
+vec4 inverseTonemap(vec4 v) {
+  return vec4(inverseTonemap(vec3(v)), v.w);
+}
+
 template <typename T>
 VISRTX_DEVICE void accumValue(T *arr, size_t idx, size_t fid, const T &v)
 {
@@ -289,7 +365,7 @@ VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
     const uint32_t idx,
     const int frameIDOffset)
 {
-  const auto c = color / float(fb.frameID + frameIDOffset + 1);
+  const auto c = detail::inverseTonemap(color / float(fb.frameID + frameIDOffset + 1));
   if (fb.format == FrameFormat::SRGB) {
     fb.buffers.outColorUint[idx] =
         glm::packUnorm4x8(glm::convertLinearToSRGB(c));
@@ -322,7 +398,7 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
 
   const auto frameID = fb.frameID + frameIDOffset;
 
-  detail::accumValue(fb.buffers.colorAccumulation, idx, frameID, color);
+  detail::accumValue(fb.buffers.colorAccumulation, idx, frameID, detail::tonemap(color));
   detail::accumValue(fb.buffers.albedo, idx, frameID, albedo);
   detail::accumValue(fb.buffers.normal, idx, frameID, normal);
 
