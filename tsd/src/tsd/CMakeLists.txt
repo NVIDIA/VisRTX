@@ -59,6 +59,10 @@ PRIVATE
   rendering/RenderIndex.cpp
   rendering/RenderIndexFlatRegistry.cpp
   rendering/RenderIndexAllLayers.cpp
+
+  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:
+  authoring/importers/import_PYTORCH.cpp
+  >
 )
 
 project_include_directories(
@@ -77,6 +81,12 @@ PRIVATE
   $<BUILD_INTERFACE:tsd_tinyexr>
   $<BUILD_INTERFACE:tsd_tiny_obj_loader>
   $<BUILD_INTERFACE:tsd_tinyply>
+  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:torch>
+)
+
+project_compile_definitions(
+PUBLIC
+  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:USE_NEURAL_GRAPHICS_PRIMITIVES>
 )
 
 if (WIN32)
