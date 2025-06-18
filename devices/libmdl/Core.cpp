@@ -241,40 +241,38 @@ void Core::addBuiltinModule(
   nonstd::scope_exit finalizeTransaction(
       [transaction]() { transaction->commit(); });
 
-  auto result = impexpApi->load_module_from_string(transaction.get(),
-      std::string(moduleName).c_str(),
-      std::string(moduleSource).c_str(),
-      executionContext.get());
+  auto result = impexpApi->load_module_from_string(
+    transaction.get(),
+    std::string(moduleName).c_str(),
+    std::string(moduleSource).c_str(),
+    executionContext.get()
+  );
 
   switch (result) {
-  case 0: {
-    logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-        "Added builtin module {} from source",
-        moduleName);
-    break;
-  }
-  case 1: {
-    logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-        "Builtin module {} already exists",
-        moduleName);
-    break;
-  }
-  case -1:
-    logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-        "Invalid name {} or module source for builtin",
-        moduleName);
-    break;
-  case -2:
-    logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-        "Ignoring builtin {} would shadow a file based definition",
-        moduleName);
-    break;
-  default:
-    logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-        "Unknown error while adding builtin module {}",
-        moduleName);
-    logExecutionContextMessages(executionContext.get());
-    break;
+    case 0: {
+      logMessage(mi::base::MESSAGE_SEVERITY_INFO,
+          "Added builtin module {} from source", moduleName);
+      break;
+    }
+    case 1: {
+      logMessage(mi::base::MESSAGE_SEVERITY_INFO,
+          "Builtin module {} already exists",
+          moduleName);
+      break;
+    }
+    case -1:
+      logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+          "Invalid name {} or module source for builtin", moduleName);
+      break;
+    case -2:
+      logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
+          "Ignoring builtin {} would shadow a file based definition", moduleName);
+      break;
+    default:
+      logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+          "Unknown error while adding builtin module {}", moduleName);
+      logExecutionContextMessages(executionContext.get());
+      break;
   }
 }
 
@@ -288,10 +286,9 @@ const mi::neuraylib::IModule *Core::loadModule(
 
   // If that fails, try and resolve it as a file name.
   // First considering  the module name from the MDL file name.
-  if (auto name =
-          make_handle(impexpApi->get_mdl_module_name(moduleName.c_str()));
+  if (auto name = make_handle(impexpApi->get_mdl_module_name(moduleName.c_str()));
       name.is_valid_interface()) {
-    moduleName = name->get_c_str();
+      moduleName = name->get_c_str();
   } else {
     // Check if this is a single MDL name, such as OmniPBR.mdl and
     // resolve it to its equivalent module name, such as ::OmniPBR.
@@ -304,6 +301,7 @@ const mi::neuraylib::IModule *Core::loadModule(
       moduleName.clear();
     }
   }
+
 
   if (moduleName.empty()) {
     logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -589,8 +587,7 @@ auto Core::resolveModule(std::string_view moduleId) -> std::string
     return resolvedModule->get_module_name();
   } else {
     logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-        "Failed to resolve module `{}` using entityResolver\n",
-        moduleId);
+        "Failed to resolve module `{}` using entityResolver\n", moduleId);
   }
 
   return {};

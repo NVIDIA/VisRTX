@@ -79,8 +79,7 @@ MaterialRegistry::MaterialRegistry(libmdl::Core *core)
           + std::to_string(std::uintptr_t(this))))
 {
   m_core->addBuiltinModule("::visrtx::default", VISRTX_DEFAULT_MDL);
-  m_core->addBuiltinModule(
-      "::visrtx::physically_based", VISRTX_PHYSICALLY_BASED_MDL);
+  m_core->addBuiltinModule("::visrtx::physically_based", VISRTX_PHYSICALLY_BASED_MDL);
 }
 
 MaterialRegistry::~MaterialRegistry()

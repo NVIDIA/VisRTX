@@ -35,13 +35,51 @@
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
-#include "shaders/PhysicallyBasedShader.h"
 
 using namespace visrtx;
 
+VISRTX_CALLABLE void __direct_callable__init(
+    PhysicallyBasedShadingState *shadingState,
+    const FrameGPUData *fd,
+    const SurfaceHit *hit,
+    const MaterialGPUData::PhysicallyBased *md)
+{
+  vec4 color = getMaterialParameter(*fd, md->baseColor, *hit);
+  float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
+
+  shadingState->baseColor = vec3(color);
+  shadingState->opacity =
+      adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
+  shadingState->ior = md->ior;
+  shadingState->metallic = getMaterialParameter(*fd, md->metallic, *hit).x;
+  shadingState->roughness = getMaterialParameter(*fd, md->roughness, *hit).x;
+}
+
+VISRTX_CALLABLE NextRay __direct_callable__nextRay(
+    const PhysicallyBasedShadingState *shadingState,
+    const Ray *ray,
+    const ScreenSample *ss)
+{
+  return NextRay{vec4(0.0f, 0.0f, 0.0f, 0.0f), vec4(0.0f, 0.0f, 0.0f, 0.0f)};
+}
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateTint(
+    const PhysicallyBasedShadingState *shadingState)
+{
+  return shadingState->baseColor;
+}
+
+VISRTX_CALLABLE
+float __direct_callable__evaluateOpacity(
+    const PhysicallyBasedShadingState *shadingState)
+{
+  return shadingState->opacity;
+}
+
 // Signature must match the call inside shaderPhysicallyBasedSurface in
 // PhysicallyBasedShader.cuh.
-VISRTX_CALLABLE vec3 __direct_callable__evalSurfaceMaterial(
+VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     const PhysicallyBasedShadingState *shadingState,
     const SurfaceHit *hit,
     const LightSample *lightSample,
@@ -55,10 +93,10 @@ VISRTX_CALLABLE vec3 __direct_callable__evalSurfaceMaterial(
   const float LdotH = dot(lightSample->dir, H);
 
   // Fresnel
-  const vec3 f0 =
-      glm::mix(vec3(pow2((1.f - shadingState->ior) / (1.f + shadingState->ior))),
-          shadingState->baseColor,
-          shadingState->metallic);
+  const vec3 f0 = glm::mix(
+      vec3(pow2((1.f - shadingState->ior) / (1.f + shadingState->ior))),
+      shadingState->baseColor,
+      shadingState->metallic);
   const vec3 F = f0 + (vec3(1.f) - f0) * pow5(1.f - fabsf(VdotH));
 
   // Metallic materials don't reflect diffusely:

@@ -32,7 +32,6 @@
 #include "gpu/evalShading.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
-#include "scene/surface/material/Material.h"
 
 namespace visrtx {
 

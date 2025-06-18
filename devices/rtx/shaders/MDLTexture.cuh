@@ -31,10 +31,8 @@
 
 #pragma once
 
-#include "MDLShader.cuh"
-
 #include "gpu/gpu_decl.h"
-#include "gpu/gpu_objects.h"
+#include "gpu/shadingState.h"
 
 #include <mi/base/types.h>
 #include <mi/neuraylib/target_code_types.h>
