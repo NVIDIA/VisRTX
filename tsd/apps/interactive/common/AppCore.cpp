@@ -135,6 +135,10 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::XYZDP;
     else if (arg == "-hsmesh")
       importerType = ImporterType::HSMESH;
+#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+    else if (arg == "-pytorch")
+      importerType = ImporterType::NEURAL;
+#endif
     else
       this->commandLine.filenames.push_back({importerType, arg});
   }
@@ -188,6 +192,10 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_HSMESH(tsd.ctx, f.second.c_str(), root);
       else if (f.first == ImporterType::VOLUME)
         tsd::import_volume(tsd.ctx, f.second.c_str());
+#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+      else if (f.first == ImporterType::NEURAL)
+        tsd::import_PYTORCH(tsd.ctx, f.second.c_str(), root);
+#endif
     }
   }
 }

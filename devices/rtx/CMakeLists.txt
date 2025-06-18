@@ -45,7 +45,9 @@ set(VISRTX_CUDA_COMPILE_OPTIONS
   "-Wno-deprecated-gpu-targets"
   # Debug info support
   "$<$<CONFIG:DEBUG>:-O0;-lineinfo>" # -G would be nice for debug, but does not work with glm...
-  "$<$<CONFIG:RELWITHDEBINFO>:-lineinfo>")
+  "$<$<CONFIG:RELWITHDEBINFO>:-lineinfo>"
+  # Neural Graphics Primitives support
+  "$<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:-DUSE_NEURAL_GRAPHICS_PRIMITIVES>")
 
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -186,6 +188,10 @@ set(SOURCES
     mdl/visrtx_default.mdl.inc
     scene/surface/material/MDL.cpp
   >
+
+  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:
+    scene/surface/geometry/Neural.cpp
+  >
 )
 
 project_sources(PRIVATE ${SOURCES})
@@ -241,6 +247,7 @@ PRIVATE
   VISRTX_VERSION_PATCH=${PROJECT_VERSION_PATCH}
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:USE_NVTX>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:USE_MDL>
+  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:USE_NEURAL_GRAPHICS_PRIMITIVES>
 )
 
 if(NOT WIN32)

@@ -109,7 +109,20 @@ set(VISRTX_CMAKE_INSTALL_DESTINATION
   ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
 )
 
+# Set USE_NEURAL_GRAPHICS_PRIMITIVES for OptiX 9.0
+# Must be set after devices subdirectory (where OPTIX_FETCH_VERSION is defined)
+# but before tsd subdirectory (which uses this variable)
+if(DEFINED OPTIX_FETCH_VERSION AND ${OPTIX_FETCH_VERSION} STREQUAL "9.0")
+  find_package(Torch REQUIRED)
+  set(USE_NEURAL_GRAPHICS_PRIMITIVES ON)
+  message(STATUS "Neural Graphics Primitives enabled")
+else()
+  set(USE_NEURAL_GRAPHICS_PRIMITIVES OFF)
+  message(STATUS "Neural Graphics Primitives disabled")
+endif()
+
 add_subdirectory(devices)
+
 if (VISRTX_BUILD_RTX_DEVICE)
   add_subdirectory(examples)
 endif()
@@ -157,3 +170,4 @@ if (TARGET visrtxCompileShaders AND VISRTX_PRECOMPILE_SHADERS)
     "execute_process(COMMAND ${CMAKE_BINARY_DIR}/visrtxCompileShaders)"
   )
 endif()
+

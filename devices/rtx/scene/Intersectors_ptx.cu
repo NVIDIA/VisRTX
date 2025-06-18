@@ -33,6 +33,9 @@
 #include "gpu/shading_api.h"
 // glm
 #include <glm/gtx/norm.hpp>
+#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+#include <cuda_fp16.h>
+#endif
 
 namespace visrtx {
 
@@ -268,6 +271,101 @@ VISRTX_DEVICE void intersectVolume()
   }
 }
 
+#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+VISRTX_DEVICE bool rayBoxIntersection(
+    const vec3 &ro, const vec3 &rd, const box3 &bounds, float &t0, float &t1)
+{
+  const vec3 mins = (bounds.lower - ro) * (1.f / rd);
+  const vec3 maxs = (bounds.upper - ro) * (1.f / rd);
+  const vec3 nears = min(mins, maxs);
+  const vec3 fars = max(mins, maxs);
+  t0 = max(nears.x, max(nears.y, nears.z));
+  t1 = min(fars.x, min(fars.y, fars.z));
+  return t0 < t1;
+}
+
+VISRTX_DEVICE __half relu(__half x)
+{
+  return __hmax(__float2half(0.0f), x);
+}
+
+VISRTX_DEVICE float __optix_enabled__forwardSDF(
+    const NeuralGeometryData &data, const vec3 &p)
+{
+  __half input[3] = {__float2half(p.x), __float2half(p.y), __float2half(p.z)};
+  __half h1[NEURAL_LAYER_SIZE], h2[NEURAL_LAYER_SIZE];
+
+  // First layer computation
+  for (uint32_t i = 0; i < NEURAL_LAYER_SIZE; ++i) {
+    __half acc = data.biases[0][i];
+    for (uint32_t j = 0; j < 3; ++j) {
+      acc = __hadd(acc, __hmul(data.weights[0][i * 3 + j], input[j]));
+    }
+    h1[i] = relu(acc);
+  }
+
+  // Hidden layers computation
+  __half *hb = h1;
+  __half *ha = h2;
+
+  for (uint32_t layer = 1; layer < data.nb_layers - 1; ++layer) {
+    for (uint32_t i = 0; i < NEURAL_LAYER_SIZE; ++i) {
+      __half acc = data.biases[layer][i];
+      for (uint32_t j = 0; j < NEURAL_LAYER_SIZE; ++j) {
+        acc = __hadd(
+            acc, __hmul(data.weights[layer][i * NEURAL_LAYER_SIZE + j], hb[j]));
+      }
+      ha[i] = relu(acc);
+    }
+
+    // Swap buffers
+    __half *tmp = hb;
+    hb = ha;
+    ha = tmp;
+  }
+
+  // Output layer computation
+  uint32_t layer = data.nb_layers - 1;
+  __half output = data.biases[layer][0];
+  for (uint32_t j = 0; j < NEURAL_LAYER_SIZE; ++j) {
+    output = __hadd(output, __hmul(data.weights[layer][j], hb[j]));
+  }
+
+  return __half2float(output);
+}
+
+VISRTX_DEVICE void intersectNeural(const GeometryGPUData &geometryData)
+{
+  const auto &neuralData = geometryData.neural;
+  const box3 bounds = neuralData.bounds;
+  const vec3 &ro = ray::localOrigin();
+  const vec3 &rd = ray::localDirection();
+  float t0, t1;
+  const bool intersection = rayBoxIntersection(ro, rd, bounds, t0, t1);
+  const float threshold = neuralData.threshold;
+  if (t0 > 0.f && t1 > 0.f && intersection) {
+    float t = t0;
+    while (t < t1) {
+      const vec3 p = ro + t * rd;
+      const float d = __optix_enabled__forwardSDF(neuralData, p);
+      if (glm::abs(d) < threshold) {
+        // Compute gradient in a single pass
+        const float dxp = __optix_enabled__forwardSDF(
+            neuralData, p + vec3(threshold, 0.f, 0.f));
+        const float dyp = __optix_enabled__forwardSDF(
+            neuralData, p + vec3(0.f, threshold, 0.f));
+        const float dzp = __optix_enabled__forwardSDF(
+            neuralData, p + vec3(0.f, 0.f, threshold));
+        const vec3 normal = glm::normalize(vec3(dxp - d, dyp - d, dzp - d));
+        reportIntersection(t, vec3(0.f, 1.f, 0.f), 0.f);
+        break;
+      }
+      t += d;
+    }
+  }
+}
+#endif
+
 // Generic geometry dispatch //////////////////////////////////////////////////
 
 VISRTX_DEVICE void intersectGeometry()
@@ -287,6 +385,11 @@ VISRTX_DEVICE void intersectGeometry()
   case GeometryType::CONE:
     intersectCone(geometryData);
     break;
+#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+  case GeometryType::NEURAL:
+    intersectNeural(geometryData);
+    break;
+#endif
   }
 }
 
