@@ -1,3 +1,6 @@
+// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause
+
 mdl 1.8;
 
 import ::anno::*;
@@ -12,6 +15,24 @@ export material test_uv() = let
   float3 texCoord3 = state::texture_coordinate(0);
 
   bsdf scattering = df::diffuse_reflection_bsdf(tint : color(texCoord3));
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material test_tangent_u() = let
+{
+  float3 tangentCoord3 = state::texture_tangent_u(0);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : color(tangentCoord3));
+  material mat = material(surface : material_surface(scattering : scattering));
+}
+in mat;
+
+export material test_tangent_v() = let
+{
+  float3 tangentCoord3 = state::texture_tangent_v(0);
+
+  bsdf scattering = df::diffuse_reflection_bsdf(tint : color(tangentCoord3));
   material mat = material(surface : material_surface(scattering : scattering));
 }
 in mat;

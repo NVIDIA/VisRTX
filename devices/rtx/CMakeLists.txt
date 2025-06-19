@@ -80,6 +80,7 @@ find_package(CUDAToolkit 12 REQUIRED)
 find_package(OptiX REQUIRED)
 if(VISRTX_ENABLE_MDL_SUPPORT)
   find_package(MDL_SDK REQUIRED)
+  option(VISRTX_USE_MDL_FOR_PHYSICALLY_BASED "Use MDL for physically based materials" OFF)
 endif()
 
 include(EmbedPTX)
@@ -88,6 +89,18 @@ option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
 
 ## Build library target ##
+
+function(embed_resource resource_file_name source_file_name variable_name)
+    file(READ ${resource_file_name} hex_content HEX)
+    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " content ${hex_content})
+    set(array_definition "extern \"C\" const char ${variable_name}[] = {${content}0x00};")
+    file(WRITE "${source_file_name}" "${array_definition}")
+endfunction()
+
+if(VISRTX_ENABLE_MDL_SUPPORT)
+    embed_resource(${CMAKE_SOURCE_DIR}/shaders/visrtx/default.mdl "${CMAKE_CURRENT_BINARY_DIR}/mdl/default.mdl.cpp" "VISRTX_DEFAULT_MDL")
+    embed_resource(${CMAKE_SOURCE_DIR}/shaders/visrtx/physically_based.mdl "${CMAKE_CURRENT_BINARY_DIR}/mdl/physically_based.mdl.cpp" "VISRTX_PHYSICALLY_BASED_MDL")
+endif()
 
 project_add_library(SHARED)
 
@@ -183,10 +196,19 @@ set(SOURCES
     mdl/ptx.cpp
     mdl/MaterialRegistry.cpp
     mdl/SamplerRegistry.cpp
-    mdl/visrtx_default.mdl.inc
     scene/surface/material/MDL.cpp
+    scene/surface/material/PhysicallyBasedMDL.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/mdl/default.mdl.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/mdl/physically_based.mdl.cpp
   >
 )
+
+if(VISRTX_ENABLE_MDL_SUPPORT)
+  set_source_files_properties(
+    scene/surface/material/Material.cpp
+    PROPERTIES COMPILE_DEFINITIONS $<$<BOOL:${VISRTX_USE_MDL_FOR_PHYSICALLY_BASED}>:USE_MDL_FOR_PHYSICALLY_BASED>
+  )
+endif()
 
 project_sources(PRIVATE ${SOURCES})
 set(CUDA_SOURCES ${SOURCES})

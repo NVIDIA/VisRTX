@@ -34,7 +34,7 @@
 #include "gpu/cameraCreateRay.h"
 #include "gpu/computeAO.h"
 #include "gpu/createScreenSample.h"
-#include "gpu/evalMaterial.h"
+#include "gpu/evalMaterialParameters.h"
 #include "gpu/intersectRay.h"
 #include "gpu/populateHit.h"
 #include "gpu/sampleLight.h"
