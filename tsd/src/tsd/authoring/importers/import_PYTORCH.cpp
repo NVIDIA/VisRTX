@@ -141,7 +141,8 @@ void import_PYTORCH(Context &ctx, const char *filename, LayerNodeRef location)
     ModelData data = loadModel(filename);
 
     // Material properties
-    auto m = ctx.createObject<Material>(tokens::material::physicallyBased);
+    auto material =
+        ctx.createObject<Material>(tokens::material::physicallyBased);
 
     // Randomly generate base color, metallic, and roughness values
     float3 baseColor(1.f, 1.f, 1.f);
@@ -150,9 +151,9 @@ void import_PYTORCH(Context &ctx, const char *filename, LayerNodeRef location)
     const float roughness = DEFAULT_ROUGHNESS;
 
     // Set the material properties
-    m->setParameter("baseColor"_t, ANARI_FLOAT32_VEC3, &baseColor);
-    m->setParameter("metallic"_t, ANARI_FLOAT32, &metallic);
-    m->setParameter("roughness"_t, ANARI_FLOAT32, &roughness);
+    material->setParameter("baseColor"_t, ANARI_FLOAT32_VEC3, &baseColor);
+    material->setParameter("metallic"_t, ANARI_FLOAT32, &metallic);
+    material->setParameter("roughness"_t, ANARI_FLOAT32, &roughness);
 
     const auto ingpLocation = ctx.defaultLayer()->insert_first_child(
         location, tsd::utility::Any(ANARI_GEOMETRY, 1));
@@ -191,7 +192,7 @@ void import_PYTORCH(Context &ctx, const char *filename, LayerNodeRef location)
       layer_idx++;
     }
 
-    auto surface = ctx.createSurface(name.c_str(), neural, m);
+    auto surface = ctx.createSurface(name.c_str(), neural, material);
 
     // Insert surface as child of transform
     ctx.insertChildObjectNode(xformNode, surface);

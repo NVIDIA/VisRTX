@@ -34,6 +34,8 @@
 // glm
 #include <glm/gtx/norm.hpp>
 #ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+#include <optix_types.h>
+
 #include <cuda_fp16.h>
 #endif
 
@@ -292,46 +294,74 @@ VISRTX_DEVICE __half relu(__half x)
 VISRTX_DEVICE float __optix_enabled__forwardSDF(
     const NeuralGeometryData &data, const vec3 &p)
 {
+  // Convert input to half precision
   __half input[3] = {__float2half(p.x), __float2half(p.y), __float2half(p.z)};
-  __half h1[NEURAL_LAYER_SIZE], h2[NEURAL_LAYER_SIZE];
+
+  // Create OptixCoopVec for hidden layers
+  using OCV = OptixCoopVec<__half, NEURAL_LAYER_SIZE>;
+  using OCV_OUT = OptixCoopVec<__half, 1>; // For output layer
+  OCV h1, h2;
 
   // First layer computation
+  uint32_t layer = 0;
   for (uint32_t i = 0; i < NEURAL_LAYER_SIZE; ++i) {
-    __half acc = data.biases[0][i];
+    __half acc = data.biases[layer][i];
     for (uint32_t j = 0; j < 3; ++j) {
-      acc = __hadd(acc, __hmul(data.weights[0][i * 3 + j], input[j]));
+      acc = __hadd(acc, __hmul(data.weights[layer][i * 3 + j], input[j]));
     }
     h1[i] = relu(acc);
   }
 
-  // Hidden layers computation
-  __half *hb = h1;
-  __half *ha = h2;
+  // Hidden layers computation using optixCoopVecMatMul
+  OCV *hb = &h1;
+  OCV *ha = &h2;
 
   for (uint32_t layer = 1; layer < data.nb_layers - 1; ++layer) {
+    // Use optixCoopVecMatMul for matrix multiplication
+    *ha = optixCoopVecMatMul<OCV, // VecTOut
+        OCV, // VecTIn
+        OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16, // inputInterpretation
+        OPTIX_COOP_VEC_MATRIX_LAYOUT_ROW_MAJOR, // matrixLayout
+        false, // transpose
+        NEURAL_LAYER_SIZE, // N
+        NEURAL_LAYER_SIZE, // K
+        OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16, // matrixElementType
+        OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16>(*hb, // biasElementType
+        (CUdeviceptr)data.weights[layer],
+        0,
+        (CUdeviceptr)data.biases[layer],
+        0,
+        NEURAL_LAYER_SIZE * sizeof(__half));
+
+    // Apply ReLU activation to the output buffer
     for (uint32_t i = 0; i < NEURAL_LAYER_SIZE; ++i) {
-      __half acc = data.biases[layer][i];
-      for (uint32_t j = 0; j < NEURAL_LAYER_SIZE; ++j) {
-        acc = __hadd(
-            acc, __hmul(data.weights[layer][i * NEURAL_LAYER_SIZE + j], hb[j]));
-      }
-      ha[i] = relu(acc);
+      (*ha)[i] = relu((*ha)[i]);
     }
 
     // Swap buffers
-    __half *tmp = hb;
+    OCV *tmp = hb;
     hb = ha;
     ha = tmp;
   }
 
-  // Output layer computation
-  uint32_t layer = data.nb_layers - 1;
-  __half output = data.biases[layer][0];
-  for (uint32_t j = 0; j < NEURAL_LAYER_SIZE; ++j) {
-    output = __hadd(output, __hmul(data.weights[layer][j], hb[j]));
-  }
+  // Output layer computation using optixCoopVecMatMul
+  layer = data.nb_layers - 1;
+  OCV_OUT output_vec = optixCoopVecMatMul<OCV_OUT, // VecTOut
+      OCV, // VecTIn
+      OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16, // inputInterpretation
+      OPTIX_COOP_VEC_MATRIX_LAYOUT_ROW_MAJOR, // matrixLayout
+      false, // transpose
+      1, // N
+      NEURAL_LAYER_SIZE, // K
+      OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16, // matrixElementType
+      OPTIX_COOP_VEC_ELEM_TYPE_FLOAT16>(*hb, // biasElementType
+      (CUdeviceptr)data.weights[layer],
+      0,
+      (CUdeviceptr)data.biases[layer],
+      0,
+      NEURAL_LAYER_SIZE * sizeof(__half));
 
-  return __half2float(output);
+  return __half2float(output_vec[0]);
 }
 
 VISRTX_DEVICE void intersectNeural(const GeometryGPUData &geometryData)
@@ -343,7 +373,7 @@ VISRTX_DEVICE void intersectNeural(const GeometryGPUData &geometryData)
   float t0, t1;
   const bool intersection = rayBoxIntersection(ro, rd, bounds, t0, t1);
   const float threshold = neuralData.threshold;
-  if (t0 > 0.f && t1 > 0.f && intersection) {
+  if (intersection) {
     float t = t0;
     while (t < t1) {
       const vec3 p = ro + t * rd;
@@ -357,7 +387,7 @@ VISRTX_DEVICE void intersectNeural(const GeometryGPUData &geometryData)
         const float dzp = __optix_enabled__forwardSDF(
             neuralData, p + vec3(0.f, 0.f, threshold));
         const vec3 normal = glm::normalize(vec3(dxp - d, dyp - d, dzp - d));
-        reportIntersection(t, vec3(0.f, 1.f, 0.f), 0.f);
+        reportIntersection(t, normal, 0.f);
         break;
       }
       t += d;
