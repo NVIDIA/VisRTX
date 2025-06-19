@@ -61,7 +61,7 @@ PRIVATE
   rendering/RenderIndexAllLayers.cpp
 
   $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:
-  authoring/importers/import_PYTORCH.cpp
+  authoring/importers/import_PT.cpp
   >
 )
 
