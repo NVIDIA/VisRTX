@@ -135,27 +135,21 @@ ModelData loadModel(const char *filename)
   return data;
 }
 
-void import_PYTORCH(Context &ctx, const char *filename, LayerNodeRef location)
+void import_PT(Context &ctx, const char *filename, LayerNodeRef location)
 {
   try {
     ModelData data = loadModel(filename);
 
-    // Material properties
     auto material =
         ctx.createObject<Material>(tokens::material::physicallyBased);
-
-    // Randomly generate base color, metallic, and roughness values
     float3 baseColor(1.f, 1.f, 1.f);
-
     const float metallic = DEFAULT_METALLIC;
     const float roughness = DEFAULT_ROUGHNESS;
-
-    // Set the material properties
     material->setParameter("baseColor"_t, ANARI_FLOAT32_VEC3, &baseColor);
     material->setParameter("metallic"_t, ANARI_FLOAT32, &metallic);
     material->setParameter("roughness"_t, ANARI_FLOAT32, &roughness);
 
-    const auto ingpLocation = ctx.defaultLayer()->insert_first_child(
+    const auto neuralLocation = ctx.defaultLayer()->insert_first_child(
         location, tsd::utility::Any(ANARI_GEOMETRY, 1));
 
     const std::string basename =
@@ -163,17 +157,17 @@ void import_PYTORCH(Context &ctx, const char *filename, LayerNodeRef location)
 
     // Create transform as parent of neural object
     const auto xformNode = ctx.insertChildTransformNode(
-        ingpLocation, tsd::mat4(tsd::math::identity), basename.c_str());
+        neuralLocation, tsd::mat4(tsd::math::identity), basename.c_str());
 
     auto neural = ctx.createObject<Geometry>(tokens::geometry::neural);
     const std::string name = "neural_geometry_t";
     neural->setName(name.c_str());
 
-    // Add number of layers parameter
+    // Add number of layers and threshold parameters
     neural->setParameter("n_layers", ANARI_UINT32, &data.n_layers);
     neural->setParameter("threshold", ANARI_FLOAT32, &data.threshold);
 
-    // Add mesh bounds parameters
+    // Add bounds parameters
     neural->setParameter("aabb_min", ANARI_FLOAT32_VEC3, &data.aabb_min);
     neural->setParameter("aabb_max", ANARI_FLOAT32_VEC3, &data.aabb_max);
 
@@ -182,17 +176,17 @@ void import_PYTORCH(Context &ctx, const char *filename, LayerNodeRef location)
     for (const auto &array : data.layerArrays) {
       std::string param_name = "layer_" + std::to_string(layer_idx);
       // Convert float32 to float16
-      std::vector<uint16_t> float16_data(array.size());
+      std::vector<uint16_t> dataAsFloat16(array.size());
       for (size_t i = 0; i < array.size(); i++) {
-        float16_data[i] = _cvtss_sh(array[i], 0); // Convert float32 to float16
+        dataAsFloat16[i] = _cvtss_sh(array[i], 0);
       }
       auto layerArray = ctx.createArray(ANARI_UINT16, array.size());
-      layerArray->setData(float16_data.data());
+      layerArray->setData(dataAsFloat16.data());
       neural->setParameterObject(param_name.c_str(), *layerArray);
       layer_idx++;
     }
 
-    auto surface = ctx.createSurface(name.c_str(), neural, material);
+    const auto surface = ctx.createSurface(name.c_str(), neural, material);
 
     // Insert surface as child of transform
     ctx.insertChildObjectNode(xformNode, surface);
