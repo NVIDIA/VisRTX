@@ -373,7 +373,7 @@ VISRTX_DEVICE void intersectNeural(const GeometryGPUData &geometryData)
   float t0, t1;
   const bool intersection = rayBoxIntersection(ro, rd, bounds, t0, t1);
   const float threshold = neuralData.threshold;
-  if (intersection) {
+  if (t0 > 0.f && t1 > 0.f && intersection) {
     float t = t0;
     while (t < t1) {
       const vec3 p = ro + t * rd;
