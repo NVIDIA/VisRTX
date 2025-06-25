@@ -814,10 +814,10 @@ Object<Array3D>::Object(ANARIDevice d,
       numItems2(numItems2),
       numItems3(numItems3)
 {
-  if (appMemory == nullptr) {
+  if (this->appMemory == nullptr) {
     size_t byte_size =
         anari::sizeOf(elementType) * numItems1 * numItems2 * numItems3;
-    appMemory = std::malloc(byte_size);
+    this->appMemory = std::malloc(byte_size);
     deleter = managed_deleter;
   }
 }
@@ -850,9 +850,9 @@ void *Object<Array3D>::map()
 void array3d_unmap_to_buffer(ObjectRef<Array3D> arrayObj)
 {
   auto &gl = arrayObj->thisDevice->gl;
-  gl.BindTexture(GL_TEXTURE_2D, arrayObj->texture);
+  gl.BindTexture(GL_TEXTURE_3D, arrayObj->texture);
   gl.BindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-  gl.TexSubImage3D(GL_TEXTURE_2D,
+  gl.TexSubImage3D(GL_TEXTURE_3D,
       0,
       0,
       0,
