@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/AnariObjectCache.hpp"
-#include "tsd/core/Object.hpp"
+#include "tsd/core/Context.hpp"
 #include "tsd/core/Logging.hpp"
 
 namespace tsd {
@@ -13,14 +13,9 @@ static bool supportsCUDAArrays(anari::Device d)
 {
   bool supportsCUDA = false;
   auto list = (const char *const *)anariGetObjectInfo(
-    d,
-    ANARI_DEVICE,
-    "default",
-    "extension",
-    ANARI_STRING_LIST
-  );
+      d, ANARI_DEVICE, "default", "extension", ANARI_STRING_LIST);
 
-  for(const char *const *i = list; *i != nullptr; ++i) {
+  for (const char *const *i = list; *i != nullptr; ++i) {
     if (std::string(*i) == "ANARI_NV_ARRAY_CUDA") {
       supportsCUDA = true;
       break;
@@ -32,12 +27,13 @@ static bool supportsCUDAArrays(anari::Device d)
 
 // AnariObjectCache definitions ///////////////////////////////////////////////
 
-AnariObjectCache::AnariObjectCache(anari::Device d) : device(d)
+AnariObjectCache::AnariObjectCache(Context *ctx, anari::Device d)
+    : device(d), m_ctx(ctx)
 {
   anari::retain(device, device);
   m_supportsCUDA = supportsCUDAArrays(d);
   tsd::logStatus("[ANARI object cache] device %s CUDA arrays",
-    m_supportsCUDA ? "supports" : "does NOT support");
+      m_supportsCUDA ? "supports" : "does NOT support");
 }
 
 AnariObjectCache::~AnariObjectCache()
@@ -46,48 +42,30 @@ AnariObjectCache::~AnariObjectCache()
   anari::release(device, device);
 }
 
-anari::Object AnariObjectCache::getHandle(anari::DataType type, size_t i) const
+anari::Object AnariObjectCache::getHandle(anari::DataType type, size_t i)
 {
-  anari::Object obj = nullptr;
-
-  switch (type) {
-  case ANARI_SURFACE:
-    obj = surface.at(i).value_or(nullptr);
-    break;
-  case ANARI_GEOMETRY:
-    obj = geometry.at(i).value_or(nullptr);
-    break;
-  case ANARI_MATERIAL:
-    obj = material.at(i).value_or(nullptr);
-    break;
-  case ANARI_SAMPLER:
-    obj = sampler.at(i).value_or(nullptr);
-    break;
-  case ANARI_VOLUME:
-    obj = volume.at(i).value_or(nullptr);
-    break;
-  case ANARI_SPATIAL_FIELD:
-    obj = field.at(i).value_or(nullptr);
-    break;
-  case ANARI_LIGHT:
-    obj = light.at(i).value_or(nullptr);
-    break;
-  case ANARI_ARRAY:
-  case ANARI_ARRAY1D:
-  case ANARI_ARRAY2D:
-  case ANARI_ARRAY3D:
-    obj = array.at(i).value_or(nullptr);
-    break;
-  default:
-    break; // no-op
-  }
-
-  return obj;
+  return getHandle(m_ctx->getObject(type, i));
 }
 
-anari::Object AnariObjectCache::getHandle(const Object *o) const
+anari::Object AnariObjectCache::getHandle(const Object *obj)
 {
-  return getHandle(o->type(), o->index());
+  if (!obj)
+    return nullptr;
+  auto type = obj->type();
+  auto idx = obj->index();
+  auto o = readHandle(type, idx);
+  if (!o) {
+    auto d = device;
+    o = obj->makeANARIObject(d);
+    obj->updateAllANARIParameters(d, o, this);
+    if (type == ANARI_SURFACE)
+      anari::setParameter(d, o, "id", uint32_t(idx));
+    else if (type == ANARI_VOLUME)
+      anari::setParameter(d, o, "id", uint32_t(idx) | 0x80000000u);
+    anari::commitParameters(d, o);
+    this->replaceHandle(o, type, idx);
+  }
+  return o;
 }
 
 void AnariObjectCache::removeHandle(anari::DataType type, size_t index)
@@ -156,6 +134,81 @@ void AnariObjectCache::clear()
 bool AnariObjectCache::supportsCUDA() const
 {
   return m_supportsCUDA;
+}
+
+void AnariObjectCache::replaceHandle(
+    anari::Object o, anari::DataType type, size_t i)
+{
+  switch (type) {
+  case ANARI_SURFACE:
+    surface[i] = (anari::Surface)o;
+    break;
+  case ANARI_GEOMETRY:
+    geometry[i] = (anari::Geometry)o;
+    break;
+  case ANARI_MATERIAL:
+    material[i] = (anari::Material)o;
+    break;
+  case ANARI_SAMPLER:
+    sampler[i] = (anari::Sampler)o;
+    break;
+  case ANARI_VOLUME:
+    volume[i] = (anari::Volume)o;
+    break;
+  case ANARI_SPATIAL_FIELD:
+    field[i] = (anari::SpatialField)o;
+    break;
+  case ANARI_LIGHT:
+    light[i] = (anari::Light)o;
+    break;
+  case ANARI_ARRAY:
+  case ANARI_ARRAY1D:
+  case ANARI_ARRAY2D:
+  case ANARI_ARRAY3D:
+    array[i] = (anari::Array)o;
+    break;
+  default:
+    break; // no-op
+  }
+}
+
+anari::Object AnariObjectCache::readHandle(anari::DataType type, size_t i) const
+{
+  anari::Object obj = nullptr;
+
+  switch (type) {
+  case ANARI_SURFACE:
+    obj = surface.at(i).value_or(nullptr);
+    break;
+  case ANARI_GEOMETRY:
+    obj = geometry.at(i).value_or(nullptr);
+    break;
+  case ANARI_MATERIAL:
+    obj = material.at(i).value_or(nullptr);
+    break;
+  case ANARI_SAMPLER:
+    obj = sampler.at(i).value_or(nullptr);
+    break;
+  case ANARI_VOLUME:
+    obj = volume.at(i).value_or(nullptr);
+    break;
+  case ANARI_SPATIAL_FIELD:
+    obj = field.at(i).value_or(nullptr);
+    break;
+  case ANARI_LIGHT:
+    obj = light.at(i).value_or(nullptr);
+    break;
+  case ANARI_ARRAY:
+  case ANARI_ARRAY1D:
+  case ANARI_ARRAY2D:
+  case ANARI_ARRAY3D:
+    obj = array.at(i).value_or(nullptr);
+    break;
+  default:
+    break; // no-op
+  }
+
+  return obj;
 }
 
 } // namespace tsd

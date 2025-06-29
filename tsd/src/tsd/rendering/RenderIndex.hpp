@@ -11,11 +11,13 @@
 
 namespace tsd {
 
+struct RenderToAnariObjectsVisitor;
+
 using RenderIndexFilterFcn = std::function<bool(const Object *)>;
 
 struct RenderIndex : public BaseUpdateDelegate
 {
-  RenderIndex(anari::Device d);
+  RenderIndex(Context *ctx, anari::Device d);
   virtual ~RenderIndex();
 
   anari::Device device() const;
@@ -23,7 +25,7 @@ struct RenderIndex : public BaseUpdateDelegate
 
   void logCacheInfo() const;
 
-  void populate(Context &ctx, bool setAsUpdateDelegate = true);
+  void populate(bool setAsUpdateDelegate = true);
 
   virtual void setFilterFunction(RenderIndexFilterFcn f);
 
@@ -50,8 +52,10 @@ struct RenderIndex : public BaseUpdateDelegate
 
   anari::World m_world{nullptr};
 
-private:
-  void updateObjectArrayData(const Array *a) const;
+ private:
+  void updateObjectArrayData(const Array *a);
+
+  friend struct RenderToAnariObjectsVisitor;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////

@@ -71,11 +71,11 @@ int main()
 
   tsd::MultiUpdateDelegate ud;
 
-  auto *rIdx1 = ud.emplace<tsd::RenderIndexFlatRegistry>(device);
-  auto *rIdx2 = ud.emplace<tsd::RenderIndexFlatRegistry>(device);
+  auto *rIdx1 = ud.emplace<tsd::RenderIndexFlatRegistry>(&ctx, device);
+  auto *rIdx2 = ud.emplace<tsd::RenderIndexFlatRegistry>(&ctx, device);
 
-  rIdx1->populate(ctx, false);
-  rIdx2->populate(ctx, false);
+  rIdx1->populate(false);
+  rIdx2->populate(false);
 
   ctx.setUpdateDelegate(&ud);
 

@@ -13,7 +13,7 @@ using InstanceCache = FlatMap<const Layer *, std::vector<anari::Instance>>;
 
 struct RenderIndexAllLayers : public RenderIndex
 {
-  RenderIndexAllLayers(anari::Device d);
+  RenderIndexAllLayers(Context *ctx, anari::Device d);
   ~RenderIndexAllLayers() override;
 
   void setFilterFunction(RenderIndexFilterFcn f) override;

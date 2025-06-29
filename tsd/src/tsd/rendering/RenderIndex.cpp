@@ -6,7 +6,8 @@
 
 namespace tsd {
 
-RenderIndex::RenderIndex(anari::Device d) : m_cache(d)
+RenderIndex::RenderIndex(Context *ctx, anari::Device d)
+    : m_cache(ctx, d), m_ctx(ctx)
 {
   anari::retain(d, d);
   m_world = anari::newObject<anari::World>(d);
@@ -44,16 +45,16 @@ void RenderIndex::logCacheInfo() const
   logStatus("      arrays: %zu", m_cache.array.size());
 }
 
-void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
+void RenderIndex::populate(bool setAsUpdateDelegate)
 {
   m_cache.clear();
 
   auto d = device();
   auto w = world();
-  m_ctx = &ctx;
-
+  auto &ctx = *m_ctx;
   const auto &db = ctx.objectDB();
 
+#if 0
   // Setup individual leaf object handles, create first then set params //
 
   auto createANARICacheArrays =
@@ -75,9 +76,27 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
     });
     handleArray.sync_slots(objArray);
   };
+#else
+  auto createANARICacheArrays =
+      [&](const auto &objArray, auto &handleArray, bool supportsCUDA) {
+        foreach_item_const(
+            objArray, [&](auto *obj) { handleArray.insert(nullptr); });
+        handleArray.sync_slots(objArray);
+      };
 
-  // NOTE: These needs to go from bottom to top of the ANARI hierarchy!
+  auto createANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
+    foreach_item_const(
+        objArray, [&](auto *obj) { handleArray.insert(nullptr); });
+    handleArray.sync_slots(objArray);
+  };
+#endif
+
+// NOTE: These needs to go from bottom to top of the ANARI hierarchy!
+#if 0
   createANARICacheArrays(db.array, m_cache.array, m_cache.supportsCUDA());
+#else
+  createANARICacheObjects(db.array, m_cache.array);
+#endif
   createANARICacheObjects(db.sampler, m_cache.sampler);
   createANARICacheObjects(db.material, m_cache.material);
   createANARICacheObjects(db.geometry, m_cache.geometry);
@@ -86,6 +105,7 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
   createANARICacheObjects(db.volume, m_cache.volume);
   createANARICacheObjects(db.light, m_cache.light);
 
+#if 0
   auto setupANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
     foreach_item_const(objArray, [&](auto *obj) {
       if (!obj)
@@ -113,6 +133,7 @@ void RenderIndex::populate(Context &ctx, bool setAsUpdateDelegate)
 
   // NOTE: ensure that object arrays are properly populated
   foreach_item_const(db.array, [&](auto *a) { updateObjectArrayData(a); });
+#endif
 
   if (setAsUpdateDelegate)
     ctx.setUpdateDelegate(this);
@@ -246,11 +267,11 @@ void RenderIndex::signalRemoveAllObjects()
 void RenderIndex::signalInvalidateCachedObjects()
 {
   signalRemoveAllObjects();
-  populate(*m_ctx, false); // always 'false' as this may already be the delegate
+  populate(false); // always 'false' as this may already be the delegate
   updateWorld();
 }
 
-void RenderIndex::updateObjectArrayData(const Array *a) const
+void RenderIndex::updateObjectArrayData(const Array *a)
 {
   auto elementType = a->elementType();
   if (!a || !anari::isObject(elementType) || a->isEmpty())
@@ -260,7 +281,8 @@ void RenderIndex::updateObjectArrayData(const Array *a) const
     auto *src = (const size_t *)a->data();
     auto *dst = (anari::Object *)anariMapArray(device(), arr);
     std::transform(src, src + a->size(), dst, [&](size_t idx) {
-      auto handle = m_cache.getHandle(elementType, idx);
+      auto *obj = m_ctx->getObject(elementType, idx);
+      auto handle = m_cache.getHandle(obj);
       if (handle == nullptr)
         logWarning("[RenderIndex] object array encountered null handle");
       return handle;

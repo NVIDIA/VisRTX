@@ -6,7 +6,6 @@
 #include "tsd/containers/DataTree.hpp"
 #include "tsd/containers/FlatMap.hpp"
 #include "tsd/containers/IndexedVector.hpp"
-#include "tsd/core/AnariObjectCache.hpp"
 #include "tsd/core/Parameter.hpp"
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/core/Token.hpp"
@@ -21,6 +20,7 @@ namespace tsd {
 
 using namespace literals;
 struct Context;
+struct AnariObjectCache;
 
 // Token declarations /////////////////////////////////////////////////////////
 

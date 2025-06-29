@@ -81,21 +81,22 @@ inline bool RenderToAnariObjectsVisitor::preChildren(LayerNode &n, int level)
 
   const bool included = isIncludedAfterFiltering(n);
 
-  switch (n->value.type()) {
+  auto type = n->value.type();
+  switch (type) {
   case ANARI_SURFACE: {
     size_t i = n->value.getAsObjectIndex();
-    if (auto h = m_cache->surface[i]; h != nullptr && included)
-      current.surfaces.push_back(h);
+    if (auto h = m_cache->getHandle(type, i); h != nullptr && included)
+      current.surfaces.push_back((anari::Surface)h);
   } break;
   case ANARI_VOLUME: {
     size_t i = n->value.getAsObjectIndex();
-    if (auto h = m_cache->volume[i]; h != nullptr && included)
-      current.volumes.push_back(h);
+    if (auto h = m_cache->getHandle(type, i); h != nullptr && included)
+      current.volumes.push_back((anari::Volume)h);
   } break;
   case ANARI_LIGHT: {
     size_t i = n->value.getAsObjectIndex();
-    if (auto h = m_cache->light[i]; h != nullptr)
-      current.lights.push_back(h);
+    if (auto h = m_cache->getHandle(type, i); h != nullptr)
+      current.lights.push_back((anari::Light)h);
   } break;
   case ANARI_FLOAT32_MAT4:
     m_xfms.push(tsd::math::mul(m_xfms.top(), n->value.get<tsd::mat4>()));
@@ -250,7 +251,9 @@ inline void RenderToAnariObjectsVisitor::createInstanceFromTop()
 
 // RenderIndexAllLayers definitions ///////////////////////////////////////////
 
-RenderIndexAllLayers::RenderIndexAllLayers(anari::Device d) : RenderIndex(d) {}
+RenderIndexAllLayers::RenderIndexAllLayers(Context *ctx, anari::Device d)
+    : RenderIndex(ctx, d)
+{}
 
 RenderIndexAllLayers::~RenderIndexAllLayers()
 {

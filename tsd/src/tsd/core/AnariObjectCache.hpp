@@ -10,13 +10,14 @@
 namespace tsd {
 
 struct Object;
+struct Context;
 
 struct AnariObjectCache
 {
-  AnariObjectCache(anari::Device d);
+  AnariObjectCache(Context *ctx, anari::Device d);
   ~AnariObjectCache();
-  anari::Object getHandle(anari::DataType type, size_t index) const;
-  anari::Object getHandle(const Object *o) const;
+  anari::Object getHandle(anari::DataType type, size_t index);
+  anari::Object getHandle(const Object *o);
   void removeHandle(anari::DataType type, size_t index);
   void removeHandle(const Object *o);
   void clear();
@@ -34,6 +35,10 @@ struct AnariObjectCache
   anari::Device device{nullptr};
 
 private:
+  void replaceHandle(anari::Object o, anari::DataType type, size_t i);
+  anari::Object readHandle(anari::DataType type, size_t i) const;
+
+  Context *m_ctx{nullptr};
   bool m_supportsCUDA{false};
 };
 

@@ -80,8 +80,8 @@ int main(int argc, char *argv[])
 
   // Setup render index //
 
-  tsd::RenderIndexFlatRegistry rIdx(device);
-  rIdx.populate(ctx);
+  tsd::RenderIndexFlatRegistry rIdx(&ctx, device);
+  rIdx.populate();
 
   // Create camera //
 
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
   //const float3 eye = {75.0f, -600.0, 150.0f};
   // McDo scene
   const float3 eye = {0.5f, 0.0f, 10.0f};
-  
+
   const float3 dir = {0.0f, 0.0f, -1.0f};
   const float3 up = {0.0f, 0.0f, 1.0f};
 

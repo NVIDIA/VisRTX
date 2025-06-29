@@ -9,7 +9,7 @@ namespace tsd {
 
 struct RenderIndexFlatRegistry : public RenderIndex
 {
-  RenderIndexFlatRegistry(anari::Device d);
+  RenderIndexFlatRegistry(Context *ctx, anari::Device d);
   ~RenderIndexFlatRegistry() override;
 
  private:

@@ -270,11 +270,13 @@ tsd::RenderIndex *AppCore::acquireRenderIndex(anari::Device d)
   auto &liveIdx = this->anari.rIdxs[d];
   if (liveIdx.refCount == 0) {
 #if 1
-    liveIdx.idx = anari.delegate.emplace<tsd::RenderIndexAllLayers>(d);
+    liveIdx.idx =
+        anari.delegate.emplace<tsd::RenderIndexAllLayers>(&this->tsd.ctx, d);
 #else
-    liveIdx.idx = anari.delegate.emplace<tsd::RenderIndexFlatRegistry>(d);
+    liveIdx.idx =
+        anari.delegate.emplace<tsd::RenderIndexFlatRegistry>(&this->tsd.ctx, d);
 #endif
-    liveIdx.idx->populate(this->tsd.ctx, false);
+    liveIdx.idx->populate(false);
   }
   liveIdx.refCount++;
   return liveIdx.idx;
