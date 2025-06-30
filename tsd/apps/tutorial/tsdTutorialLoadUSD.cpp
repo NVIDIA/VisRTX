@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 
   // Setup render index //
 
-  tsd::RenderIndexFlatRegistry rIdx(&ctx, device);
+  tsd::RenderIndexFlatRegistry rIdx(ctx, device);
   rIdx.populate();
 
   // Create camera //

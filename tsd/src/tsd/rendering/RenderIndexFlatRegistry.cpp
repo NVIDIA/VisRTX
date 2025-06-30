@@ -5,7 +5,7 @@
 
 namespace tsd {
 
-RenderIndexFlatRegistry::RenderIndexFlatRegistry(Context *ctx, anari::Device d)
+RenderIndexFlatRegistry::RenderIndexFlatRegistry(Context &ctx, anari::Device d)
     : RenderIndex(ctx, d)
 {}
 

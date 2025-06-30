@@ -14,7 +14,7 @@ struct Context;
 
 struct AnariObjectCache
 {
-  AnariObjectCache(Context *ctx, anari::Device d);
+  AnariObjectCache(Context &ctx, anari::Device d);
   ~AnariObjectCache();
   anari::Object getHandle(anari::DataType type, size_t index);
   anari::Object getHandle(const Object *o);

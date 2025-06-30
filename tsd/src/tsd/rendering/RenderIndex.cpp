@@ -6,8 +6,8 @@
 
 namespace tsd {
 
-RenderIndex::RenderIndex(Context *ctx, anari::Device d)
-    : m_cache(ctx, d), m_ctx(ctx)
+RenderIndex::RenderIndex(Context &ctx, anari::Device d)
+    : m_cache(ctx, d), m_ctx(&ctx)
 {
   anari::retain(d, d);
   m_world = anari::newObject<anari::World>(d);
@@ -51,52 +51,15 @@ void RenderIndex::populate(bool setAsUpdateDelegate)
 
   auto d = device();
   auto w = world();
-  auto &ctx = *m_ctx;
-  const auto &db = ctx.objectDB();
-
-#if 0
-  // Setup individual leaf object handles, create first then set params //
-
-  auto createANARICacheArrays =
-      [&](const auto &objArray, auto &handleArray, bool supportsCUDA) {
-        foreach_item_const(objArray, [&](auto *obj) {
-          if (!obj || (!supportsCUDA && obj->kind() == Array::MemoryKind::CUDA))
-            handleArray.insert(nullptr);
-          else
-            handleArray.insert((anari::Array)obj->makeANARIObject(d));
-        });
-        handleArray.sync_slots(objArray);
-      };
-
-  auto createANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
-    foreach_item_const(objArray, [&](auto *obj) {
-      using handle_t = typename std::remove_reference<
-          decltype(handleArray)>::type::element_t;
-      handleArray.insert((handle_t)(obj ? obj->makeANARIObject(d) : nullptr));
-    });
-    handleArray.sync_slots(objArray);
-  };
-#else
-  auto createANARICacheArrays =
-      [&](const auto &objArray, auto &handleArray, bool supportsCUDA) {
-        foreach_item_const(
-            objArray, [&](auto *obj) { handleArray.insert(nullptr); });
-        handleArray.sync_slots(objArray);
-      };
+  const auto &db = m_ctx->objectDB();
 
   auto createANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
     foreach_item_const(
         objArray, [&](auto *obj) { handleArray.insert(nullptr); });
     handleArray.sync_slots(objArray);
   };
-#endif
 
-// NOTE: These needs to go from bottom to top of the ANARI hierarchy!
-#if 0
-  createANARICacheArrays(db.array, m_cache.array, m_cache.supportsCUDA());
-#else
   createANARICacheObjects(db.array, m_cache.array);
-#endif
   createANARICacheObjects(db.sampler, m_cache.sampler);
   createANARICacheObjects(db.material, m_cache.material);
   createANARICacheObjects(db.geometry, m_cache.geometry);
@@ -105,38 +68,8 @@ void RenderIndex::populate(bool setAsUpdateDelegate)
   createANARICacheObjects(db.volume, m_cache.volume);
   createANARICacheObjects(db.light, m_cache.light);
 
-#if 0
-  auto setupANARICacheObjects = [&](const auto &objArray, auto &handleArray) {
-    foreach_item_const(objArray, [&](auto *obj) {
-      if (!obj)
-        return;
-      if (auto o = handleArray[obj->index()]; o != nullptr) {
-        obj->updateAllANARIParameters(d, o, &m_cache);
-        if (obj->type() == ANARI_SURFACE)
-          anari::setParameter(d, o, "id", uint32_t(obj->index()));
-        else if (obj->type() == ANARI_VOLUME)
-          anari::setParameter(d, o, "id", uint32_t(obj->index()) | 0x80000000u);
-        anari::commitParameters(d, o);
-      }
-    });
-  };
-
-  // NOTE: These needs to go from bottom to top of the ANARI hierarchy!
-  setupANARICacheObjects(db.array, m_cache.array);
-  setupANARICacheObjects(db.sampler, m_cache.sampler);
-  setupANARICacheObjects(db.material, m_cache.material);
-  setupANARICacheObjects(db.geometry, m_cache.geometry);
-  setupANARICacheObjects(db.surface, m_cache.surface);
-  setupANARICacheObjects(db.field, m_cache.field);
-  setupANARICacheObjects(db.volume, m_cache.volume);
-  setupANARICacheObjects(db.light, m_cache.light);
-
-  // NOTE: ensure that object arrays are properly populated
-  foreach_item_const(db.array, [&](auto *a) { updateObjectArrayData(a); });
-#endif
-
   if (setAsUpdateDelegate)
-    ctx.setUpdateDelegate(this);
+    m_ctx->setUpdateDelegate(this);
 
   updateWorld();
 }

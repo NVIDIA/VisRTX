@@ -27,8 +27,8 @@ static bool supportsCUDAArrays(anari::Device d)
 
 // AnariObjectCache definitions ///////////////////////////////////////////////
 
-AnariObjectCache::AnariObjectCache(Context *ctx, anari::Device d)
-    : device(d), m_ctx(ctx)
+AnariObjectCache::AnariObjectCache(Context &ctx, anari::Device d)
+    : device(d), m_ctx(&ctx)
 {
   anari::retain(device, device);
   m_supportsCUDA = supportsCUDAArrays(d);

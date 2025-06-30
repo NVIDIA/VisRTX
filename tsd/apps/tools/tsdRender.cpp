@@ -97,7 +97,7 @@ static void initTSDRenderIndex()
 
   g_timer.start();
   g_renderIndex =
-      std::make_unique<tsd::RenderIndexAllLayers>(g_ctx.get(), g_device);
+      std::make_unique<tsd::RenderIndexAllLayers>(*g_ctx, g_device);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());

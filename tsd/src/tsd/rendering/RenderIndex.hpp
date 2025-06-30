@@ -17,7 +17,7 @@ using RenderIndexFilterFcn = std::function<bool(const Object *)>;
 
 struct RenderIndex : public BaseUpdateDelegate
 {
-  RenderIndex(Context *ctx, anari::Device d);
+  RenderIndex(Context &ctx, anari::Device d);
   virtual ~RenderIndex();
 
   anari::Device device() const;
