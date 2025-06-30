@@ -252,10 +252,8 @@ void LayerTree::buildUI_buildObjectContextMenu()
 
       ImGui::Separator();
 
-      if (ImGui::MenuItem("imported file")) {
+      if (ImGui::MenuItem("imported file"))
         m_core->windows.importDialog->show();
-        clearSelectedNode = true;
-      }
 
       ImGui::Separator();
 
