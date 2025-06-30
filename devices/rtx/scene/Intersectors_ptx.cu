@@ -33,7 +33,7 @@
 #include "gpu/shading_api.h"
 // glm
 #include <glm/gtx/norm.hpp>
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+#ifdef VISRTX_USE_NEURAL
 #include <optix_types.h>
 
 #include <cuda_fp16.h>
@@ -273,7 +273,7 @@ VISRTX_DEVICE void intersectVolume()
   }
 }
 
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+#ifdef VISRTX_USE_NEURAL
 VISRTX_DEVICE bool rayBoxIntersection(
     const vec3 &ro, const vec3 &rd, const box3 &bounds, float &t0, float &t1)
 {
@@ -415,7 +415,7 @@ VISRTX_DEVICE void intersectGeometry()
   case GeometryType::CONE:
     intersectCone(geometryData);
     break;
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+#ifdef VISRTX_USE_NEURAL
   case GeometryType::NEURAL:
     intersectNeural(geometryData);
     break;

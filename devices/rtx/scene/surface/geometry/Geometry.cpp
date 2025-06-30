@@ -37,9 +37,7 @@
 #include "Quad.h"
 #include "Sphere.h"
 #include "Triangle.h"
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
 #include "Neural.h"
-#endif
 #include "UnknownGeometry.h"
 // std
 #include <cstring>
@@ -96,10 +94,8 @@ Geometry *Geometry::createInstance(
     return new Cone(d);
   else if (subtype == "curve")
     return new Curve(d);
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
   else if (subtype == "neural")
     return new Neural(d);
-#endif
   else
     return new UnknownGeometry(subtype, d);
 }

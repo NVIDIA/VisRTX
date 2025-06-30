@@ -26,6 +26,7 @@ PRIVATE
   authoring/importers/import_USD.cpp
   authoring/importers/import_PDB.cpp
   authoring/importers/import_PLY.cpp
+  authoring/importers/import_PT.cpp
   authoring/importers/import_RAW.cpp
   authoring/importers/import_SWC.cpp
   authoring/importers/import_volume.cpp
@@ -59,10 +60,6 @@ PRIVATE
   rendering/RenderIndex.cpp
   rendering/RenderIndexFlatRegistry.cpp
   rendering/RenderIndexAllLayers.cpp
-
-  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:
-  authoring/importers/import_PT.cpp
-  >
 )
 
 project_include_directories(
@@ -81,12 +78,6 @@ PRIVATE
   $<BUILD_INTERFACE:tsd_tinyexr>
   $<BUILD_INTERFACE:tsd_tiny_obj_loader>
   $<BUILD_INTERFACE:tsd_tinyply>
-  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:torch>
-)
-
-project_compile_definitions(
-PUBLIC
-  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:USE_NEURAL_GRAPHICS_PRIMITIVES>
 )
 
 if (WIN32)
@@ -99,6 +90,27 @@ if (MSVC)
   set_source_files_properties(
     authoring/procedural/generate_material_orb.cpp
     PROPERTIES COMPILE_FLAGS /bigobj)
+endif()
+
+
+# Set TSD_USE_TORCH for OptiX 9.0
+# Must be set after devices subdirectory (where OPTIX_FETCH_VERSION is defined)
+# but before tsd subdirectory (which uses this variable)
+if(DEFINED OPTIX_FETCH_VERSION AND "${OPTIX_FETCH_VERSION}" STREQUAL "9.0")
+  find_package(Torch REQUIRED)
+  if (MSVC)
+    set_source_files_properties(
+      authoring/importers/import_PT.cpp
+      PROPERTIES COMPILE_OPTIONS "/arch:AVX"
+    )
+  else()
+    set_source_files_properties(
+      authoring/importers/import_PT.cpp
+      PROPERTIES COMPILE_OPTIONS "-mf16c"
+    )
+  endif()
+  project_link_libraries(PRIVATE ${TORCH_LIBRARIES})
+  project_compile_definitions(PUBLIC TSD_USE_TORCH)
 endif()
 
 if (TSD_USE_CUDA)
