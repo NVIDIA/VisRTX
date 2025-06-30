@@ -45,7 +45,7 @@
       "khr_volume_transfer_function1d",
       "nv_array_cuda",
       "nv_frame_buffers_cuda",
-      $<$<BOOL:$<TARGET_EXISTS:MDL_SDK::MDL_SDK>>:"visrtx_material_mdl",>
+      
       "visrtx_triangle_back_face_culling"
     ]
   },

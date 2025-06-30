@@ -35,6 +35,10 @@ class TransferFunctionEditor : public Window
   void setMap(int which = 0);
   void setObjectPtrsFromSelectedObject();
   void loadDefaultMaps();
+  void loadColormapFrom1dt(
+      const std::string &filepath, const std::string &name);
+  void loadColormapFromParaview(
+      const std::string &filepath, const std::string &name);
   void updateVolume();
   void updateTfnPaletteTexture();
   void resizeTfnPaletteTexture(size_t width);
@@ -61,6 +65,9 @@ class TransferFunctionEditor : public Window
   // texture for displaying transfer function color palette
   SDL_Texture *m_tfnPaletteTexture{nullptr};
   size_t m_tfnPaletteWidth{0};
+
+  // New member for storing the filename of the currently loaded colormap
+  std::string m_currentColormapFilename;
 };
 
 } // namespace tsd_viewer

@@ -261,7 +261,6 @@ VISRTX_DEVICE void computeTangentSpace(
       hit.tV = -hit.tV;
     }
 
-
     break;
   }
   case GeometryType::QUAD: {
@@ -280,6 +279,9 @@ VISRTX_DEVICE void computeTangentSpace(
   }
   case GeometryType::SPHERE:
   case GeometryType::CONE:
+#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
+  case GeometryType::NEURAL:
+#endif
   case GeometryType::CYLINDER: {
     hit.Ng = hit.Ns = vec3(bit_cast<float>(optixGetAttribute_1()),
         bit_cast<float>(optixGetAttribute_2()),
