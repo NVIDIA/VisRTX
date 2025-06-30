@@ -63,10 +63,6 @@ if (TSD_USE_CUDA)
   find_package(CUDAToolkit REQUIRED)
 endif()
 
-if (USE_NEURAL_GRAPHICS_PRIMITIVES)
-  add_compile_options(-mf16c)
-endif()
-
 ## Testing Setup ##
 
 include(CTest)

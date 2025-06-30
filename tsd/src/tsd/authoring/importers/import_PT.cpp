@@ -34,6 +34,7 @@
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 #include "tsd/core/Logging.hpp"
 
+#if TSD_USE_TORCH
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -196,3 +197,11 @@ void import_PT(Context &ctx, const char *filename, LayerNodeRef location)
   }
 }
 } // namespace tsd
+#else
+namespace tsd {
+void import_PT(Context &ctx, const char *filename, LayerNodeRef location)
+{
+  logError("[import_PT] PyTorch not enabled in TSD build.");
+}
+} // namespace tsd
+#endif

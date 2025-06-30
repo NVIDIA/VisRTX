@@ -38,9 +38,7 @@ enum class ImporterType
   HSMESH,
   TSD,
   TSD_CONDUIT,
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
   NEURAL,
-#endif
   NONE
 };
 

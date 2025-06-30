@@ -37,6 +37,9 @@ endif()
 
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 
+option(VISRTX_ENABLE_NEURAL "Enable Neural Graphics Primitives" OFF)
+mark_as_advanced(VISRTX_ENABLE_NEURAL)
+
 set(VISRTX_CUDA_COMPILE_OPTIONS
   "--expt-relaxed-constexpr" "--extended-lambda" # Lambdas from device code
   # Silence the spamming of glm warning about `__host__ annotation is ignored on a function("vec") that is explicitly defaulted on its first declaration`
@@ -47,7 +50,7 @@ set(VISRTX_CUDA_COMPILE_OPTIONS
   "$<$<CONFIG:DEBUG>:-O0;-lineinfo>" # -G would be nice for debug, but does not work with glm...
   "$<$<CONFIG:RELWITHDEBINFO>:-lineinfo>"
   # Neural Graphics Primitives support
-  "$<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:-DUSE_NEURAL_GRAPHICS_PRIMITIVES>"
+  "$<$<BOOL:${VISRTX_ENABLE_NEURAL}>:-DVISRTX_USE_NEURAL>"
   )
 
 set(CMAKE_CUDA_STANDARD 17)
@@ -146,6 +149,7 @@ set(SOURCES
   scene/surface/geometry/Curve.cpp
   scene/surface/geometry/Cylinder.cpp
   scene/surface/geometry/Geometry.cpp
+  scene/surface/geometry/Neural.cpp
   scene/surface/geometry/Quad.cpp
   scene/surface/geometry/Sphere.cu
   scene/surface/geometry/Triangle.cpp
@@ -190,9 +194,6 @@ set(SOURCES
     scene/surface/material/MDL.cpp
   >
 
-  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:
-    scene/surface/geometry/Neural.cpp
-  >
 )
 
 project_sources(PRIVATE ${SOURCES})
@@ -248,7 +249,7 @@ PRIVATE
   VISRTX_VERSION_PATCH=${PROJECT_VERSION_PATCH}
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:USE_NVTX>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:USE_MDL>
-  $<$<BOOL:${USE_NEURAL_GRAPHICS_PRIMITIVES}>:USE_NEURAL_GRAPHICS_PRIMITIVES>
+  $<$<BOOL:${VISRTX_USE_NEURAL}>:VISRTX_USE_NEURAL>
 )
 
 if(NOT WIN32)
@@ -302,7 +303,11 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
 
   set_target_properties(${INPUT_TARGET} PROPERTIES
     CUDA_PTX_COMPILATION ON
-    CUDA_ARCHITECTURES OFF
+    if(VISRTX_ENABLE_NEURAL)
+      CUDA_ARCHITECTURES "89" # Only architectures with full support for fp16
+    else()
+      CUDA_ARCHITECTURES OFF
+    endif()
   )
 
   EmbedPTX(

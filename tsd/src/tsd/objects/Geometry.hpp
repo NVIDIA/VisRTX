@@ -30,9 +30,7 @@ extern const Token isosurface;
 extern const Token quad;
 extern const Token sphere;
 extern const Token triangle;
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
 extern const Token neural;
-#endif
 } // namespace tokens::geometry
 
 } // namespace tsd

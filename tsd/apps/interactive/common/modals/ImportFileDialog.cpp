@@ -112,10 +112,8 @@ void ImportFileDialog::buildUI()
         tsd::import_HSMESH(ctx, m_filename.c_str(), importRoot);
       else if (selectedFileType == ImporterType::VOLUME)
         tsd::import_volume(ctx, m_filename.c_str());
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
       else if (selectedFileType == ImporterType::NEURAL)
         tsd::import_PT(ctx, m_filename.c_str(), importRoot);
-#endif
       ctx.signalLayerChange(layer);
     };
 

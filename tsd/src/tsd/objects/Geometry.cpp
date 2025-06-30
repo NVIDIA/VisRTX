@@ -21,9 +21,7 @@ const Token isosurface = "isosurface";
 const Token quad = "quad";
 const Token sphere = "sphere";
 const Token triangle = "triangle";
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
 const Token neural = "neural";
-#endif
 
 } // namespace tokens::geometry
 

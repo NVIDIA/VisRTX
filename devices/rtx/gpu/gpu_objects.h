@@ -44,10 +44,8 @@
 // nanovdb
 #include <nanovdb/NanoVDB.h>
 
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
 // cuda half precision
 #include <cuda_fp16.h>
-#endif
 
 #define DECLARE_FRAME_DATA(n)                                                  \
   extern "C" {                                                                 \
@@ -112,9 +110,7 @@ enum class GeometryType
   CURVE,
   CONE,
   SPHERE,
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
   NEURAL,
-#endif
   UNKNOWN
 };
 
@@ -185,7 +181,6 @@ struct SphereGeometryData
   float radius;
 };
 
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
 const uint32_t NEURAL_NB_MAX_LAYERS = 5;
 const uint32_t NEURAL_LAYER_SIZE = 128;
 struct NeuralGeometryData
@@ -197,7 +192,6 @@ struct NeuralGeometryData
   box3 bounds;
   float threshold{0.1f};
 };
-#endif
 
 struct GeometryGPUData
 {
@@ -213,9 +207,7 @@ struct GeometryGPUData
     CurveGeometryData curve;
     ConeGeometryData cone;
     SphereGeometryData sphere;
-#ifdef USE_NEURAL_GRAPHICS_PRIMITIVES
     NeuralGeometryData neural;
-#endif
   };
 };
 
