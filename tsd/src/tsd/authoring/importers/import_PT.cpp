@@ -29,18 +29,17 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <immintrin.h> // For _cvtss_sh
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
 #include "tsd/core/Logging.hpp"
 
 #if TSD_USE_TORCH
+#include <immintrin.h> // For _cvtss_sh
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
-
 // Torch
 #include <torch/script.h>
 #include <torch/serialize.h>
