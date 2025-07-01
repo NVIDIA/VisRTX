@@ -40,6 +40,7 @@ option(TSD_USE_SDL3 "Use SDL3 interop in render pipeline" ON)
 option(TSD_USE_TBB "Use TBB code paths where relevant" ON)
 option(TSD_USE_USD "Use OpenUSD where relevant" OFF)
 option(TSD_USE_TORCH "Use PyTorch for importing neural geometries" OFF)
+option(TSD_USE_VTK "Use VTK for importing VTK file formats" OFF)
 
 if (APPLE)
   set(TSD_USE_CUDA OFF)

@@ -31,6 +31,7 @@ PRIVATE
   authoring/importers/import_SWC.cpp
   authoring/importers/import_volume.cpp
   authoring/importers/import_XYZDP.cpp
+  authoring/importers/import_VTU.cpp
   authoring/procedural/generate_cylinders.cpp
   authoring/procedural/generate_hdri_dome.cpp
   authoring/procedural/generate_hdri_test_image.cpp
@@ -108,7 +109,9 @@ if(TSD_USE_TORCH)
     )
   endif()
   project_link_libraries(PRIVATE ${TORCH_LIBRARIES})
-  project_compile_definitions(PUBLIC TSD_USE_TORCH)
+  project_compile_definitions(PUBLIC TSD_USE_TORCH=1)
+else()
+  project_compile_definitions(PUBLIC TSD_USE_TORCH=0)
 endif()
 
 if (TSD_USE_CUDA)
@@ -169,10 +172,11 @@ else()
   project_compile_definitions(PRIVATE -DTSD_USE_USD=0)
 endif()
 
-# Print include directories for debugging
-get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
-message(STATUS "[src/tsd] Include dirs = ${dirs}")
-
-find_package(Python3 COMPONENTS Development REQUIRED)
-include_directories(${Python3_INCLUDE_DIRS})
-link_directories(${Python3_LIBRARY_DIRS})
+if (TSD_USE_VTK)
+  find_package(VTK REQUIRED)
+  include(${VTK_USE_FILE})
+  project_link_libraries(PRIVATE ${VTK_LIBRARIES})
+  project_compile_definitions(PRIVATE -DTSD_USE_VTK=1)
+else()
+  project_compile_definitions(PRIVATE -DTSD_USE_VTK=0)
+endif()

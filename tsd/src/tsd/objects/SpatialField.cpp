@@ -81,8 +81,13 @@ tsd::float2 SpatialField::computeValueRange()
   if (subtype() == tokens::spatial_field::structuredRegular) {
     if (auto range = getDataRangeFromParameter(parameter("data")); range)
       retval = *range;
+  } else if (subtype() == tokens::spatial_field::unstructured) {
+    if (auto r = getDataRangeFromParameter(parameter("vertex.data")); r)
+      retval = *r;
+    else if (auto r = getDataRangeFromParameter(parameter("cell.data")); r)
+      retval = *r;
   } else if (subtype() == tokens::spatial_field::nanovdb) {
-    if (auto range = parameter("range"))
+    if (auto *range = parameter("range"); range)
       retval = range->value().get<tsd::float2>();
   } else if (subtype() == tokens::spatial_field::amr) {
     if (auto range = getDataRangeFromParameter(parameter("block.data")); range)
@@ -100,6 +105,7 @@ tsd::float2 SpatialField::computeValueRange()
 namespace tokens::spatial_field {
 
 const Token structuredRegular = "structuredRegular";
+const Token unstructured = "unstructured";
 const Token amr = "amr";
 const Token nanovdb = "nanovdb";
 
