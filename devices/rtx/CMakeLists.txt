@@ -31,14 +31,17 @@ include(GenerateExportHeader)
 
 ## Establish project ##
 
-if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES native)
-endif()
-
 project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
+
+## RTX device options ##
 
 option(VISRTX_ENABLE_NEURAL "Enable Neural Graphics Primitives" OFF)
 mark_as_advanced(VISRTX_ENABLE_NEURAL)
+
+option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
+mark_as_advanced(VISRTX_ENABLE_NVTX)
+
+## Compilation setup ##
 
 set(VISRTX_CUDA_COMPILE_OPTIONS
   "--expt-relaxed-constexpr" "--extended-lambda" # Lambdas from device code
@@ -80,6 +83,12 @@ endif()
 anari_sdk_fetch_project(NAME optix_headers URL ${OPTIX_URL})
 list(APPEND CMAKE_PREFIX_PATH ${optix_headers_LOCATION})
 
+## Validate Neural Graphics Primitives support ##
+
+if(VISRTX_ENABLE_NEURAL AND NOT ${OPTIX_FETCH_VERSION} STREQUAL "9.0")
+  message(FATAL_ERROR "OptiX 9.0+ must be used to enable Neural Graphics Primitives support in VisRTX")
+endif()
+
 ## Find dependencies ##
 
 find_package(CUDAToolkit 12 REQUIRED)
@@ -89,9 +98,6 @@ if(VISRTX_ENABLE_MDL_SUPPORT)
 endif()
 
 include(EmbedPTX)
-
-option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
-mark_as_advanced(VISRTX_ENABLE_NVTX)
 
 ## Build library target ##
 
@@ -267,7 +273,13 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   set(options)
   set(oneValueArgs)
   set(multiValueArgs ENTRIES)
-  cmake_parse_arguments(GEN_EMBEDDED_PTX "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+  cmake_parse_arguments(
+    GEN_EMBEDDED_PTX
+    "${options}"
+    "${oneValueArgs}"
+    "${multiValueArgs}"
+    ${ARGN}
+  )
 
   set(INPUT_TARGET ${BASE_NAME}_ptx)
 

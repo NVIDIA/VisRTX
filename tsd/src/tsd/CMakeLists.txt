@@ -94,9 +94,7 @@ endif()
 
 
 # Set TSD_USE_TORCH for OptiX 9.0
-# Must be set after devices subdirectory (where OPTIX_FETCH_VERSION is defined)
-# but before tsd subdirectory (which uses this variable)
-if(DEFINED OPTIX_FETCH_VERSION AND "${OPTIX_FETCH_VERSION}" STREQUAL "9.0")
+if(TSD_USE_TORCH)
   find_package(Torch REQUIRED)
   if (MSVC)
     set_source_files_properties(
