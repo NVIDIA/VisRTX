@@ -39,6 +39,10 @@ class TransferFunctionEditor : public Window
       const std::string &filepath, const std::string &name);
   void loadColormapFromParaview(
       const std::string &filepath, const std::string &name);
+  void saveColormapTo1dt(const std::string &filepath);
+  void saveColormapToParaview(const std::string &filepath);
+  void getTransferFunctionFilenameFromDialog(
+      std::string &filenameOut, bool save = false);
   void updateVolume();
   void updateTfnPaletteTexture();
   void resizeTfnPaletteTexture(size_t width);
@@ -68,6 +72,7 @@ class TransferFunctionEditor : public Window
 
   // New member for storing the filename of the currently loaded colormap
   std::string m_currentColormapFilename;
+  std::string m_saveColormapFilename;
 };
 
 } // namespace tsd_viewer
