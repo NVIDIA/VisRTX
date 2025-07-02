@@ -87,50 +87,6 @@ void TransferFunctionEditor::buildUI_selectColorMap()
   int newMap = m_currentMap;
   if (ImGui::Combo("color map", &newMap, names.data(), names.size()))
     setMap(newMap);
-
-  // Add Load File button
-  ImGui::SameLine();
-  if (ImGui::Button("Load")) {
-    m_currentColormapFilename.clear();
-    m_core->getFilenameFromDialog(m_currentColormapFilename);
-  }
-    
-  if (!m_currentColormapFilename.empty()) { 
-    // Extract filename without path for display name
-    size_t lastSlash = m_currentColormapFilename.find_last_of("/\\");
-    std::string displayName = (lastSlash != std::string::npos) 
-        ? m_currentColormapFilename.substr(lastSlash + 1) 
-        : m_currentColormapFilename;
-    
-    // Detect file type and load accordingly
-    bool loaded = false;
-    if (displayName.size() > 4 && displayName.substr(displayName.size() - 4) == ".1dt") {
-      // Remove .1dt extension for display name
-      displayName = displayName.substr(0, displayName.size() - 4);
-      loadColormapFrom1dt(m_currentColormapFilename, displayName);
-      loaded = true;
-    } else if (displayName.size() > 5 && displayName.substr(displayName.size() - 5) == ".json") {
-      // Remove .json extension for display name
-      displayName = displayName.substr(0, displayName.size() - 5);
-      loadColormapFromParaview(m_currentColormapFilename, displayName);
-      loaded = true;
-    } 
-    
-    // Set the newly loaded colormap as active and update volume immediately
-    if (loaded && !m_tfnsNames.empty()) {
-      int newMapIndex = m_tfnsNames.size() - 1;
-      setMap(newMapIndex);
-      
-      // Force immediate update of the volume with the new colormap
-      if (m_volume) {
-        m_currentMap = newMapIndex;
-        m_tfnColorPoints = &(m_tfnsColorPoints[m_currentMap]);
-        updateVolume();
-        updateTfnPaletteTexture();
-      }
-    }
-    m_currentColormapFilename.clear();
-  }
 }
 
 void TransferFunctionEditor::buildUI_drawEditor()
@@ -270,6 +226,81 @@ void TransferFunctionEditor::buildUI_valueRange()
     }
   }
 
+  ImGui::SameLine();
+  if (ImGui::Button("Load")) {
+    m_currentColormapFilename.clear();
+    getTransferFunctionFilenameFromDialog(m_currentColormapFilename);
+  }
+
+  ImGui::SameLine();
+  if (ImGui::Button("Save")) {
+    m_saveColormapFilename.clear();
+    getTransferFunctionFilenameFromDialog(m_saveColormapFilename, true);
+  }
+
+  if (!m_currentColormapFilename.empty()) {
+    // Extract filename without path for display name
+    size_t lastSlash = m_currentColormapFilename.find_last_of("/\\");
+    std::string displayName = (lastSlash != std::string::npos)
+        ? m_currentColormapFilename.substr(lastSlash + 1)
+        : m_currentColormapFilename;
+
+    // Detect file type and load accordingly
+    bool loaded = false;
+    if (displayName.size() > 4
+        && displayName.substr(displayName.size() - 4) == ".1dt") {
+      // Remove .1dt extension for display name
+      displayName = displayName.substr(0, displayName.size() - 4);
+      loadColormapFrom1dt(m_currentColormapFilename, displayName);
+      loaded = true;
+    } else if (displayName.size() > 5
+        && displayName.substr(displayName.size() - 5) == ".json") {
+      // Remove .json extension for display name
+      displayName = displayName.substr(0, displayName.size() - 5);
+      loadColormapFromParaview(m_currentColormapFilename, displayName);
+      loaded = true;
+    }
+
+    // Set the loaded colormap as active and update volume immediately
+    if (loaded && !m_tfnsNames.empty()) {
+      // Find the index of the loaded colormap (might not be the last one if it
+      // replaced an existing one)
+      int loadedMapIndex = -1;
+      for (size_t i = 0; i < m_tfnsNames.size(); ++i) {
+        if (m_tfnsNames[i] == displayName) {
+          loadedMapIndex = static_cast<int>(i);
+          break;
+        }
+      }
+
+      if (loadedMapIndex >= 0) {
+        setMap(loadedMapIndex);
+
+        // Force immediate update of the volume with the new colormap
+        if (m_volume) {
+          m_currentMap = loadedMapIndex;
+          m_tfnColorPoints = &(m_tfnsColorPoints[m_currentMap]);
+          updateVolume();
+          updateTfnPaletteTexture();
+        }
+      }
+    }
+    m_currentColormapFilename.clear();
+  }
+
+  if (!m_saveColormapFilename.empty()) {
+    // Detect file extension and save accordingly
+    if (m_saveColormapFilename.size() > 5
+        && m_saveColormapFilename.substr(m_saveColormapFilename.size() - 5)
+            == ".json") {
+      saveColormapToParaview(m_saveColormapFilename);
+    } else {
+      // Default to .1dt format
+      saveColormapTo1dt(m_saveColormapFilename);
+    }
+    m_saveColormapFilename.clear();
+  }
+
   ImGui::EndDisabled();
 }
 
@@ -287,10 +318,11 @@ std::vector<tsd::float4> TransferFunctionEditor::getSampledColorsAndOpacities(
     if (interpolateColor)
       color = tsd::detail::interpolateColor(*m_tfnColorPoints, i * dx);
     else {
-      auto co = (*m_tfnColorPoints)[i];
+      const auto co = (*m_tfnColorPoints)[i];
       color = tsd::float3(co.x, co.y, co.z);
     }
-    auto opacity = tsd::detail::interpolateOpacity(m_tfnOpacityPoints, i * dx);
+    const auto opacity =
+        tsd::detail::interpolateOpacity(m_tfnOpacityPoints, i * dx);
     sampledColorsAndOpacities.push_back(tsd::float4(color, opacity));
   }
 
@@ -485,56 +517,90 @@ void TransferFunctionEditor::loadColormapFrom1dt(
 
   std::string line;
   std::vector<tsd::ColorPoint> colors;
+  std::vector<tsd::OpacityPoint> opacityPoints;
 
-  // Read the first line to get the number of entries
-  if (!std::getline(file, line)) {
-    tsd::logError(
-        "[tfn_editor] Failed to read number of entries from 1dt file");
-    file.close();
-    return;
-  }
-
-  int numEntries = 0;
-  try {
-    numEntries = std::stoi(line);
-  } catch (const std::exception &e) {
-    tsd::logError(("[tfn_editor] Invalid number of entries in 1dt file: "
-        + std::string(e.what()))
-            .c_str());
-    file.close();
-    return;
-  }
-
-  if (numEntries <= 0) {
-    tsd::logError(("[tfn_editor] Invalid number of entries in 1dt file: "
-        + std::to_string(numEntries))
-            .c_str());
-    file.close();
-    return;
-  }
-
-  colors.reserve(numEntries);
-
-  // Read each color entry
+  // Read all lines and try to parse as r g b a values
+  // The 1dt format is simply one color per line without a count header
   int entryIndex = 0;
-  while (std::getline(file, line) && entryIndex < numEntries) {
+  while (std::getline(file, line)) {
+    // Skip empty lines and comments
+    if (line.empty() || line[0] == '#') {
+      continue;
+    }
+
     std::istringstream iss(line);
     float r, g, b, a;
 
     if (!(iss >> r >> g >> b >> a)) {
       tsd::logError(("[tfn_editor] Failed to parse color entry at line "
-          + std::to_string(entryIndex + 2))
+          + std::to_string(entryIndex + 1))
               .c_str());
       continue;
     }
 
-    // Calculate normalized position (0.0 to 1.0) based on entry index
-    float position =
-        static_cast<float>(entryIndex) / static_cast<float>(numEntries - 1);
-
     // Store as ColorPoint: (position, r, g, b)
-    colors.emplace_back(position, r, g, b);
+    // Calculate normalized position (0.0 to 1.0) based on entry index
+    colors.emplace_back(
+        0.0f, r, g, b); // We'll fix positions after reading all entries
+
+    // Store alpha as OpacityPoint: (position, alpha)
+    opacityPoints.emplace_back(
+        0.0f, a); // We'll fix positions after reading all entries
+
     entryIndex++;
+  }
+
+  // Smart positioning: detect significant opacity changes to create meaningful
+  // control points
+  if (colors.size() > 1) {
+    // First pass: evenly distribute positions
+    for (size_t i = 0; i < colors.size(); ++i) {
+      float position =
+          static_cast<float>(i) / static_cast<float>(colors.size() - 1);
+      colors[i].x = position;
+      opacityPoints[i].x = position;
+    }
+
+    // Second pass: reduce control points by removing redundant ones
+    // Keep points where opacity changes significantly (>5% change)
+    const float minOpacityChange = 0.05f;
+    std::vector<tsd::OpacityPoint> smartOpacityPoints;
+
+    if (!opacityPoints.empty()) {
+      smartOpacityPoints.push_back(opacityPoints[0]); // Always keep first point
+
+      for (size_t i = 1; i < opacityPoints.size() - 1; ++i) {
+        float prevOpacity = opacityPoints[i - 1].y;
+        float currOpacity = opacityPoints[i].y;
+        float nextOpacity = opacityPoints[i + 1].y;
+
+        // Keep point if it's a local min/max or has significant change
+        bool isLocalMinMax =
+            (currOpacity > prevOpacity && currOpacity > nextOpacity)
+            || (currOpacity < prevOpacity && currOpacity < nextOpacity);
+        bool hasSignificantChange =
+            std::abs(currOpacity - prevOpacity) > minOpacityChange;
+
+        if (isLocalMinMax || hasSignificantChange) {
+          smartOpacityPoints.push_back(opacityPoints[i]);
+        }
+      }
+
+      smartOpacityPoints.push_back(
+          opacityPoints.back()); // Always keep last point
+
+      // Only use smart points if we reduced the count significantly
+      if (smartOpacityPoints.size() < opacityPoints.size() * 0.8f) {
+        opacityPoints = smartOpacityPoints;
+        tsd::logStatus(("[tfn_editor] Reduced opacity control points from "
+            + std::to_string(colors.size()) + " to "
+            + std::to_string(opacityPoints.size()) + " points")
+                .c_str());
+      }
+    }
+  } else if (colors.size() == 1) {
+    colors[0].x = 0.5f; // Single color at middle position
+    opacityPoints[0].x = 0.5f;
   }
 
   file.close();
@@ -544,9 +610,43 @@ void TransferFunctionEditor::loadColormapFrom1dt(
     return;
   }
 
-  // Add the loaded colormap to the available options
-  m_tfnsColorPoints.push_back(colors);
-  m_tfnsNames.push_back(name);
+  // Check if colormap with this name already exists and replace it
+  int existingIndex = -1;
+  for (size_t i = 0; i < m_tfnsNames.size(); ++i) {
+    if (m_tfnsNames[i] == name) {
+      existingIndex = static_cast<int>(i);
+      break;
+    }
+  }
+
+  int newMapIndex;
+  if (existingIndex >= 0) {
+    // Replace existing colormap
+    m_tfnsColorPoints[existingIndex] = colors;
+    newMapIndex = existingIndex;
+    tsd::logStatus(
+        ("[tfn_editor] Replaced existing colormap '" + name + "'").c_str());
+  } else {
+    // Add new colormap
+    m_tfnsColorPoints.push_back(colors);
+    m_tfnsNames.push_back(name);
+    newMapIndex = m_tfnsColorPoints.size() - 1;
+  }
+
+  // Update opacity control points with alpha values from the file
+  if (!opacityPoints.empty()) {
+    m_tfnOpacityPoints = opacityPoints;
+
+    // Set the loaded colormap as active
+    m_currentMap = newMapIndex;
+    m_nextMap = newMapIndex;
+    m_tfnColorPoints = &(m_tfnsColorPoints[newMapIndex]);
+
+    if (m_volume) {
+      updateVolume();
+      updateTfnPaletteTexture();
+    }
+  }
 
   tsd::logStatus(
       ("[tfn_editor] Successfully loaded colormap '" + name + "' from "
@@ -557,10 +657,12 @@ void TransferFunctionEditor::loadColormapFrom1dt(
 void TransferFunctionEditor::loadColormapFromParaview(
     const std::string &filepath, const std::string &name)
 {
+  const size_t colorDepth = 4;
   std::ifstream file(filepath);
   if (!file.is_open()) {
     tsd::logError(
-        ("[tfn_editor] Failed to open Paraview JSON file: " + filepath).c_str());
+        ("[tfn_editor] Failed to open Paraview JSON file: " + filepath)
+            .c_str());
     return;
   }
 
@@ -568,9 +670,9 @@ void TransferFunctionEditor::loadColormapFromParaview(
   std::stringstream buffer;
   buffer << file.rdbuf();
   file.close();
-  
+
   std::string jsonContent = buffer.str();
-  
+
   // Basic JSON parsing for Paraview colormap format
   // Look for "RGBPoints" array
   size_t rgbPointsPos = jsonContent.find("\"RGBPoints\"");
@@ -579,10 +681,15 @@ void TransferFunctionEditor::loadColormapFromParaview(
     return;
   }
 
+  // Also look for "Points" array which might contain alpha values
+  size_t pointsPos = jsonContent.find("\"Points\"");
+  bool hasAlphaPoints = (pointsPos != std::string::npos);
+
   // Find the opening bracket of the RGBPoints array
   size_t arrayStart = jsonContent.find("[", rgbPointsPos);
   if (arrayStart == std::string::npos) {
-    tsd::logError("[tfn_editor] Invalid RGBPoints array format in Paraview JSON file");
+    tsd::logError(
+        "[tfn_editor] Invalid RGBPoints array format in Paraview JSON file");
     return;
   }
 
@@ -590,7 +697,8 @@ void TransferFunctionEditor::loadColormapFromParaview(
   int bracketCount = 0;
   size_t arrayEnd = arrayStart;
   for (size_t i = arrayStart; i < jsonContent.length(); ++i) {
-    if (jsonContent[i] == '[') bracketCount++;
+    if (jsonContent[i] == '[')
+      bracketCount++;
     else if (jsonContent[i] == ']') {
       bracketCount--;
       if (bracketCount == 0) {
@@ -599,25 +707,27 @@ void TransferFunctionEditor::loadColormapFromParaview(
       }
     }
   }
-  
+
   if (arrayEnd == arrayStart) {
-    tsd::logError("[tfn_editor] Could not find end of RGBPoints array in Paraview JSON file");
+    tsd::logError(
+        "[tfn_editor] Could not find end of RGBPoints array in Paraview JSON file");
     return;
   }
 
   // Extract the array content
-  std::string arrayContent = jsonContent.substr(arrayStart + 1, arrayEnd - arrayStart - 1);
-  
+  std::string arrayContent =
+      jsonContent.substr(arrayStart + 1, arrayEnd - arrayStart - 1);
+
   // Parse the numbers from the array
   std::vector<float> values;
   std::stringstream ss(arrayContent);
   std::string token;
-  
+
   while (std::getline(ss, token, ',')) {
     // Remove whitespace and newlines
     token.erase(0, token.find_first_not_of(" \t\n\r"));
     token.erase(token.find_last_not_of(" \t\n\r") + 1);
-    
+
     if (!token.empty()) {
       try {
         float val = std::stof(token);
@@ -629,48 +739,91 @@ void TransferFunctionEditor::loadColormapFromParaview(
     }
   }
 
-  // RGBPoints should have groups of 4 values: [value, r, g, b, value, r, g, b, ...]
-  if (values.size() % 4 != 0) {
-    tsd::logError("[tfn_editor] Invalid RGBPoints format - values should be in groups of 4");
+  // RGBPoints should have groups of 4 values: [value, r, g, b, value, r, g, b,
+  // ...]
+  if (values.size() % colorDepth != 0) {
+    tsd::logError("[tfn_editor] Invalid RGBPoints format");
     return;
   }
 
   if (values.empty()) {
-    tsd::logError("[tfn_editor] No valid color entries found in Paraview JSON file");
+    tsd::logError(
+        "[tfn_editor] No valid color entries found in Paraview JSON file");
     return;
   }
 
   std::vector<tsd::ColorPoint> colors;
-  colors.reserve(values.size() / 4);
+  colors.reserve(values.size() / colorDepth);
+  std::vector<tsd::OpacityPoint> opacityPoints;
+  opacityPoints.reserve(values.size() / colorDepth);
 
   // Find min/max data values for normalization
   float minVal = values[0];
   float maxVal = values[0];
-  for (size_t i = 0; i < values.size(); i += 4) {
+  for (size_t i = 0; i < values.size(); i += colorDepth) {
     minVal = std::min(minVal, values[i]);
     maxVal = std::max(maxVal, values[i]);
   }
-  
+
   float range = maxVal - minVal;
-  if (range == 0.0f) range = 1.0f; // Avoid division by zero
+  if (range == 0.0f)
+    range = 1.0f; // Avoid division by zero
 
   // Convert to ColorPoint format
-  for (size_t i = 0; i < values.size(); i += 4) {
+  const auto dx = 1.0f / (values.size() - colorDepth);
+  for (size_t i = 0; i < values.size(); i += colorDepth) {
     float dataValue = values[i];
     float r = values[i + 1];
-    float g = values[i + 2];  
+    float g = values[i + 2];
     float b = values[i + 3];
-    
+
     // Normalize data value to [0, 1] range
     float normalizedValue = (dataValue - minVal) / range;
-    
+
     // Store as ColorPoint: (position, r, g, b)
     colors.emplace_back(normalizedValue, r, g, b);
+
+    // For Paraview files, assume full opacity (alpha = 1.0)
+    opacityPoints.emplace_back(dx * i, normalizedValue);
   }
 
-  // Add the loaded colormap to the available options
-  m_tfnsColorPoints.push_back(colors);
-  m_tfnsNames.push_back(name);
+  // Check if colormap with this name already exists and replace it
+  int existingIndex = -1;
+  for (size_t i = 0; i < m_tfnsNames.size(); ++i) {
+    if (m_tfnsNames[i] == name) {
+      existingIndex = static_cast<int>(i);
+      break;
+    }
+  }
+
+  int newMapIndex;
+  if (existingIndex >= 0) {
+    // Replace existing colormap
+    m_tfnsColorPoints[existingIndex] = colors;
+    newMapIndex = existingIndex;
+    tsd::logStatus(
+        ("[tfn_editor] Replaced existing colormap '" + name + "'").c_str());
+  } else {
+    // Add new colormap
+    m_tfnsColorPoints.push_back(colors);
+    m_tfnsNames.push_back(name);
+    newMapIndex = m_tfnsColorPoints.size() - 1;
+  }
+
+  // Update opacity control points (set to full opacity for Paraview colormaps)
+  if (!opacityPoints.empty()) {
+    m_tfnOpacityPoints = opacityPoints;
+
+    // Set the loaded colormap as active
+    m_currentMap = newMapIndex;
+    m_nextMap = newMapIndex;
+    m_tfnColorPoints = &(m_tfnsColorPoints[newMapIndex]);
+
+    if (m_volume) {
+      updateVolume();
+      updateTfnPaletteTexture();
+    }
+  }
 
   tsd::logStatus(
       ("[tfn_editor] Successfully loaded Paraview colormap '" + name + "' from "
@@ -727,6 +880,199 @@ void TransferFunctionEditor::resizeTfnPaletteTexture(size_t width)
       int(width),
       1);
   m_tfnPaletteWidth = width;
+}
+
+void TransferFunctionEditor::saveColormapTo1dt(const std::string &filepath)
+{
+  if (!m_volume) {
+    tsd::logError("[tfn_editor] No volume selected, cannot save colormap");
+    return;
+  }
+
+  // Get the current colormap data
+  auto colorsAndOpacities = getSampledColorsAndOpacities(256);
+
+  if (colorsAndOpacities.empty()) {
+    tsd::logError("[tfn_editor] No colormap data to save");
+    return;
+  }
+
+  std::ofstream file(filepath);
+  if (!file.is_open()) {
+    tsd::logError(
+        ("[tfn_editor] Failed to open file for writing: " + filepath).c_str());
+    return;
+  }
+
+  // Write colors with interpolated opacity at control point positions
+  // This preserves the sparse nature of opacity control points
+  for (const auto &opacityPoint : m_tfnOpacityPoints) {
+    float position = opacityPoint.x;
+    float opacity = opacityPoint.y;
+
+    // Get color at this position
+    tsd::float3 color(0.f);
+    if (m_currentMap == 0) {
+      // Direct color mapping
+      if (!m_tfnColorPoints->empty()) {
+        // Find closest color point or interpolate
+        if (position <= m_tfnColorPoints->front().x) {
+          auto &cp = m_tfnColorPoints->front();
+          color = tsd::float3(cp.y, cp.z, cp.w);
+        } else if (position >= m_tfnColorPoints->back().x) {
+          auto &cp = m_tfnColorPoints->back();
+          color = tsd::float3(cp.y, cp.z, cp.w);
+        } else {
+          color = tsd::detail::interpolateColor(*m_tfnColorPoints, position);
+        }
+      }
+    } else {
+      // Interpolated color mapping
+      color = tsd::detail::interpolateColor(*m_tfnColorPoints, position);
+    }
+
+    file << color.x << " " << color.y << " " << color.z << " " << opacity
+         << std::endl;
+  }
+
+  file.close();
+
+  tsd::logStatus(("[tfn_editor] Successfully saved colormap to " + filepath
+      + " (" + std::to_string(colorsAndOpacities.size()) + " colors)")
+          .c_str());
+}
+
+void TransferFunctionEditor::saveColormapToParaview(const std::string &filepath)
+{
+  if (!m_volume) {
+    tsd::logError("[tfn_editor] No volume selected, cannot save colormap");
+    return;
+  }
+
+  if (m_tfnOpacityPoints.empty()) {
+    tsd::logError("[tfn_editor] No opacity control points to save");
+    return;
+  }
+
+  std::ofstream file(filepath);
+  if (!file.is_open()) {
+    tsd::logError(
+        ("[tfn_editor] Failed to open file for writing: " + filepath).c_str());
+    return;
+  }
+
+  // Extract basename from filepath for the colormap name
+  size_t lastSlash = filepath.find_last_of("/\\");
+  std::string basename = (lastSlash != std::string::npos)
+      ? filepath.substr(lastSlash + 1)
+      : filepath;
+
+  // Remove .json extension if present
+  if (basename.size() > 5 && basename.substr(basename.size() - 5) == ".json") {
+    basename = basename.substr(0, basename.size() - 5);
+  }
+
+  // Write Paraview JSON format (array containing one colormap object)
+  file << "[\n";
+  file << "\t{\n";
+  file << "\t\t\"ColorSpace\" : \"RGB\",\n";
+  file << "\t\t\"Creator\" : \"VisRTX\",\n";
+  file << "\t\t\"DefaultMap\" : false,\n";
+  file << "\t\t\"Name\" : \"" << basename << "\",\n";
+  file << "\t\t\"NanColor\" : \n";
+  file << "\t\t[\n";
+  file << "\t\t\t0.0,\n";
+  file << "\t\t\t0.0,\n";
+  file << "\t\t\t0.0\n";
+  file << "\t\t],\n";
+  file << "\t\t\"RGBPoints\" : \n";
+  file << "\t\t[\n";
+
+  // Save colors and alpha values at opacity control point positions
+  for (size_t i = 0; i < m_tfnOpacityPoints.size(); ++i) {
+    const auto &opacityPoint = m_tfnOpacityPoints[i];
+    float position = opacityPoint.x;
+    float opacity = opacityPoint.y;
+
+    // Get color at this opacity control point position
+    tsd::float3 color(0.f);
+    if (m_currentMap == 0) {
+      // Direct color mapping
+      if (!m_tfnColorPoints->empty()) {
+        // Find closest color point or interpolate
+        if (position <= m_tfnColorPoints->front().x) {
+          auto &cp = m_tfnColorPoints->front();
+          color = tsd::float3(cp.y, cp.z, cp.w);
+        } else if (position >= m_tfnColorPoints->back().x) {
+          auto &cp = m_tfnColorPoints->back();
+          color = tsd::float3(cp.y, cp.z, cp.w);
+        } else {
+          color = tsd::detail::interpolateColor(*m_tfnColorPoints, position);
+        }
+      }
+    } else {
+      // Interpolated color mapping
+      color = tsd::detail::interpolateColor(*m_tfnColorPoints, position);
+    }
+
+    file << "\t\t\t" << opacity << ",\n";
+    file << "\t\t\t" << color.x << ",\n";
+    file << "\t\t\t" << color.y << ",\n";
+    file << "\t\t\t" << color.z << ",\n";
+
+    if (i < m_tfnOpacityPoints.size() - 1) {
+      file << ",";
+    }
+    file << "\n";
+  }
+
+  file << "\t\t]\n";
+  file << "\t}\n";
+  file << "]\n";
+
+  file.close();
+
+  tsd::logStatus(
+      ("[tfn_editor] Successfully saved Paraview colormap to " + filepath + " ("
+          + std::to_string(m_tfnOpacityPoints.size()) + " control points)")
+          .c_str());
+}
+
+void TransferFunctionEditor::getTransferFunctionFilenameFromDialog(
+    std::string &filenameOut, bool save)
+{
+  auto fileDialogCb =
+      [](void *userdata, const char *const *filelist, int filter) {
+        std::string &out = *(std::string *)userdata;
+        if (!filelist) {
+          tsd::logError("SDL DIALOG ERROR: %s\n", SDL_GetError());
+          return;
+        }
+
+        if (*filelist)
+          out = *filelist;
+      };
+
+  // Define file filters for transfer function formats
+  SDL_DialogFileFilter filters[] = {
+      {"JSON files", "json"}, {"1dt files", "1dt"}};
+
+  if (save) {
+    SDL_ShowSaveFileDialog(fileDialogCb,
+        &filenameOut,
+        m_core->application->sdlWindow(),
+        filters,
+        2,
+        nullptr);
+  } else {
+    SDL_ShowOpenFileDialog(fileDialogCb,
+        &filenameOut,
+        m_core->application->sdlWindow(),
+        filters,
+        2,
+        nullptr,
+        false);
+  }
 }
 
 } // namespace tsd_viewer
