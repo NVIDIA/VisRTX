@@ -53,8 +53,6 @@ struct RenderIndex : public BaseUpdateDelegate
   anari::World m_world{nullptr};
 
  private:
-  void updateObjectArrayData(const Array *a);
-
   friend struct RenderToAnariObjectsVisitor;
 };
 

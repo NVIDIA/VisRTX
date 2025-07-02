@@ -9,6 +9,7 @@
 
 namespace tsd {
 
+struct Array;
 struct Object;
 struct Context;
 
@@ -22,6 +23,7 @@ struct AnariObjectCache
   void removeHandle(const Object *o);
   void clear();
   bool supportsCUDA() const;
+  void updateObjectArrayData(const Array *a); // for arrays-of-arrays
 
   IndexedVector<anari::Surface> surface;
   IndexedVector<anari::Geometry> geometry;
@@ -34,7 +36,7 @@ struct AnariObjectCache
 
   anari::Device device{nullptr};
 
-private:
+ private:
   void replaceHandle(anari::Object o, anari::DataType type, size_t i);
   anari::Object readHandle(anari::DataType type, size_t i) const;
 

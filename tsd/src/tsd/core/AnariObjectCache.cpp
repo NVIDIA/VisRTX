@@ -64,6 +64,8 @@ anari::Object AnariObjectCache::getHandle(const Object *obj)
       anari::setParameter(d, o, "id", uint32_t(idx) | 0x80000000u);
     anari::commitParameters(d, o);
     this->replaceHandle(o, type, idx);
+    if (anari::isArray(type))
+      updateObjectArrayData((const Array *)obj);
   }
   return o;
 }
@@ -134,6 +136,26 @@ void AnariObjectCache::clear()
 bool AnariObjectCache::supportsCUDA() const
 {
   return m_supportsCUDA;
+}
+
+void AnariObjectCache::updateObjectArrayData(const Array *a)
+{
+  auto elementType = a->elementType();
+  if (!a || !anari::isObject(elementType) || a->isEmpty())
+    return;
+
+  if (auto arr = (anari::Array)this->getHandle(a); arr != nullptr) {
+    auto *src = (const size_t *)a->data();
+    auto *dst = (anari::Object *)anariMapArray(device, arr);
+    std::transform(src, src + a->size(), dst, [&](size_t idx) {
+      auto *obj = m_ctx->getObject(elementType, idx);
+      auto handle = this->getHandle(obj);
+      if (handle == nullptr)
+        logWarning("[RenderIndex] object array encountered null handle");
+      return handle;
+    });
+    anariUnmapArray(device, arr);
+  }
 }
 
 void AnariObjectCache::replaceHandle(

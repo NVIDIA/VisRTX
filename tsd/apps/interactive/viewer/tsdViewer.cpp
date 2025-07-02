@@ -93,8 +93,6 @@ class Application : public TSDApplication
 
 #if 1
     m_taskModal->activate(populateScene, "Please Wait: Loading Scene...");
-#elif 1
-    m_sceneLoadFuture = std::async(populateScene);
 #else
     populateScene();
 #endif

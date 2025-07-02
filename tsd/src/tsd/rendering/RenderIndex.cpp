@@ -157,7 +157,7 @@ void RenderIndex::signalArrayMapped(const Array *a)
 void RenderIndex::signalArrayUnmapped(const Array *a)
 {
   if (anari::isObject(a->elementType()))
-    updateObjectArrayData(a);
+    m_cache.updateObjectArrayData(a);
   else if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr)
     anariUnmapArray(device(), (anari::Array)arr);
 }
@@ -202,26 +202,6 @@ void RenderIndex::signalInvalidateCachedObjects()
   signalRemoveAllObjects();
   populate(false); // always 'false' as this may already be the delegate
   updateWorld();
-}
-
-void RenderIndex::updateObjectArrayData(const Array *a)
-{
-  auto elementType = a->elementType();
-  if (!a || !anari::isObject(elementType) || a->isEmpty())
-    return;
-
-  if (auto arr = (anari::Array)m_cache.getHandle(a); arr != nullptr) {
-    auto *src = (const size_t *)a->data();
-    auto *dst = (anari::Object *)anariMapArray(device(), arr);
-    std::transform(src, src + a->size(), dst, [&](size_t idx) {
-      auto *obj = m_ctx->getObject(elementType, idx);
-      auto handle = m_cache.getHandle(obj);
-      if (handle == nullptr)
-        logWarning("[RenderIndex] object array encountered null handle");
-      return handle;
-    });
-    anariUnmapArray(device(), arr);
-  }
 }
 
 } // namespace tsd
