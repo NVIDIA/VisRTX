@@ -120,8 +120,11 @@ Array::Array(ANARIDataType arrayType,
 
 Array::~Array() = default;
 
-bool Array::getProperty(
-    const std::string_view &name, ANARIDataType type, void *ptr, uint32_t flags)
+bool Array::getProperty(const std::string_view &name,
+    ANARIDataType type,
+    void *ptr,
+    uint64_t size,
+    uint32_t flags)
 {
   return false;
 }

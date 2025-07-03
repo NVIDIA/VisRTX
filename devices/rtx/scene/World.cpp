@@ -97,8 +97,11 @@ World::World(DeviceGlobalState *d)
 
 World::~World() = default;
 
-bool World::getProperty(
-    const std::string_view &name, ANARIDataType type, void *ptr, uint32_t flags)
+bool World::getProperty(const std::string_view &name,
+    ANARIDataType type,
+    void *ptr,
+    uint64_t size,
+    uint32_t flags)
 {
   if (name == "bounds" && type == ANARI_FLOAT32_BOX3) {
     if (flags & ANARI_WAIT) {
@@ -111,7 +114,7 @@ bool World::getProperty(
     return true;
   }
 
-  return Object::getProperty(name, type, ptr, flags);
+  return Object::getProperty(name, type, ptr, size, flags);
 }
 
 void World::commitParameters()
@@ -501,8 +504,9 @@ void World::buildTangentVectors()
           continue;
 
         if (auto triangle = dynamic_cast<Triangle *>(surface->geometry())) {
-          // FIXME: This should be check if those objects are internally referenced
-          // or they are provided by the user. The former would still need to trigger an update.
+          // FIXME: This should be check if those objects are internally
+          // referenced or they are provided by the user. The former would still
+          // need to trigger an update.
           if (triangle->getParamObject<Array1D>("vertex.tangent")
               || triangle->getParamObject<Array1D>("faceVarying.tangent"))
             continue; // We already have user provided input.

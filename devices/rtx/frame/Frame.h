@@ -56,6 +56,7 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   bool getProperty(const std::string_view &name,
       ANARIDataType type,
       void *ptr,
+      uint64_t size,
       uint32_t flags) override;
 
   void commitParameters() override;
