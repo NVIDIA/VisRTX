@@ -28,61 +28,21 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-
+ 
 #pragma once
 
-#include "Material.h"
-#include "gpu/gpu_objects.h"
-#include "mdl/MaterialRegistry.h"
-#include "optix_visrtx.h"
-
-#include "libmdl/ArgumentBlockInstance.h"
-#include "scene/surface/material/sampler/Sampler.h"
-
-#include <optional>
-#include <unordered_map>
+#include "MDL.h"
 
 namespace visrtx {
 
-struct MDL : public Material
+struct PhysicallyBasedMDL : public MDL
 {
-  MDL(DeviceGlobalState *d);
-  ~MDL() override;
+  PhysicallyBasedMDL(DeviceGlobalState *d);
 
   void commitParameters() override;
-  void finalize() override;
-  void markFinalized() override;
-
-  // Handle source changes
-  void syncSource();
-  // Update actual implementation index to use for the material.
-  void syncImplementationIndex();
-  // Handle argument block update
-  void syncParameters();
 
  private:
-  MaterialGPUData gpuData() const override;
-
-  void clearSamplers();
-
-  mutable DeviceBuffer m_argBlockBuffer;
-
-  std::string m_source;
-  std::string m_sourceType;
-  struct SamplerDesc {
-    Sampler* sampler;
-    std::string name;
-    bool isFromRegistry;
-    bool operator==(const SamplerDesc &other) const {
-      return sampler == other.sampler && name == other.name &&
-             isFromRegistry == other.isFromRegistry;
-    }
-  };
-  std::vector<SamplerDesc> m_samplers;
-
-  libmdl::Uuid m_uuid{};
-  mdl::MaterialRegistry::ImplementationIndex m_implementationIndex{};
-  std::optional<libmdl::ArgumentBlockInstance> m_argumentBlockInstance;
+  void translateAndRemoveParameter(std::string_view paramName);
 };
 
 } // namespace visrtx
