@@ -77,15 +77,20 @@ SpatialFieldRef import_VTU(Context &ctx, const char *filepath)
 
   // --- Write cell indices (flattened connectivity) ---
   std::vector<uint32_t> connectivity;
+  std::vector<uint32_t> cellIndex;
   for (vtkIdType i = 0; i < numCells; ++i) {
     vtkCell *cell = grid->GetCell(i);
     int n = cell->GetNumberOfPoints();
+    cellIndex.push_back(static_cast<uint32_t>(connectivity.size()));
     for (int j = 0; j < n; ++j)
       connectivity.push_back(static_cast<uint32_t>(cell->GetPointId(j)));
   }
   auto indexArray = ctx.createArray(ANARI_UINT32, connectivity.size());
   indexArray->setData(connectivity.data());
   field->setParameterObject("index", *indexArray);
+  auto cellIndexArray = ctx.createArray(ANARI_UINT32, cellIndex.size());
+  cellIndexArray->setData(cellIndex.data());
+  field->setParameterObject("cell.index", *cellIndexArray);
 
   // --- Write cell types ---
   auto cellTypesArray = ctx.createArray(ANARI_UINT8, numCells);
