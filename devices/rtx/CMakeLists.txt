@@ -311,13 +311,15 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     ${MDL_SDK_INCLUDE_DIRS}
   )
 
+  if(VISRTX_ENABLE_NEURAL)
+    set(CUDA_ARCHS 89-virtual)
+  else()
+    set(CUDA_ARCHS 52-virtual)
+  endif()
+
   set_target_properties(${INPUT_TARGET} PROPERTIES
     CUDA_PTX_COMPILATION ON
-    if(VISRTX_ENABLE_NEURAL)
-      CUDA_ARCHITECTURES "89-virtual" # Only architectures with full support for fp16
-    else()
-      CUDA_ARCHITECTURES "52-virtual"
-    endif()
+    CUDA_ARCHITECTURES ${CUDA_ARCHS}
   )
 
   EmbedPTX(
