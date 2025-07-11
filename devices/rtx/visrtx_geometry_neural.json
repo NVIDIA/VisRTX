@@ -1,0 +1,23 @@
+{
+    "info" : {
+        "name" : "VISRTX_GEOMETRY_NEURAL",
+        "type" : "extension",
+        "dependencies" : []
+    },
+
+    "objects" : [
+        {
+            "type" : "ANARI_GEOMETRY",
+            "name" : "neural",
+            "description" : "neural geometry object",
+            "parameters" : [
+                {
+                    "name": "sourceType",
+                    "types": ["ANARI_UINT32"],
+                    "tags": [],
+                    "description": "number of neural layers"
+                }
+            ]
+        }
+    ]
+}
