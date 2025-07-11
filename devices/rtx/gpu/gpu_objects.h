@@ -192,7 +192,8 @@ struct NeuralGeometryData
   __half *weights[NEURAL_NB_MAX_LAYERS]; // Array of weight matrices
   __half *biases[NEURAL_NB_MAX_LAYERS]; // Array of bias vectors
   uint32_t nb_layers;
-  box3 bounds;
+  vec3 boundMin;
+  vec3 boundMax;
   float threshold;
 };
 #endif

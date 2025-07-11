@@ -367,7 +367,7 @@ VISRTX_DEVICE float __optix_enabled__forwardSDF(
 VISRTX_DEVICE void intersectNeural(const GeometryGPUData &geometryData)
 {
   const auto &neuralData = geometryData.neural;
-  const box3 bounds = neuralData.bounds;
+  const box3 bounds = { neuralData.boundMin, neuralData.boundMax };
   const vec3 &ro = ray::localOrigin();
   const vec3 &rd = ray::localDirection();
   float t0, t1;
