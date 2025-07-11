@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/evalShading.h"
+#include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -65,8 +67,6 @@ VISRTX_GLOBAL void __raygen__()
   auto ray = makePrimaryRay(ss, true /*pixel centered*/);
   float tmax = ray.t.upper;
 
-  SurfaceHit surfaceHit;
-  VolumeHit volumeHit;
   vec3 outputColor(0.f);
   vec3 outputNormal = ray.dir;
   float outputOpacity = 0.f;
@@ -77,6 +77,7 @@ VISRTX_GLOBAL void __raygen__()
   bool firstHit = true;
 
   while (outputOpacity < 0.99f) {
+    SurfaceHit surfaceHit;
     ray.t.upper = tmax;
     surfaceHit.foundHit = false;
     intersectSurface(ss,
@@ -119,15 +120,16 @@ VISRTX_GLOBAL void __raygen__()
         firstHit = false;
       }
 
+      MaterialShadingState shadingState;
+      materialInitShading(
+          &shadingState, frameData, *surfaceHit.material, surfaceHit);
+      auto materialBaseColor = materialEvaluateTint(shadingState);
+      auto materialOpacity = materialEvaluateOpacity(shadingState);
+
       const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns))
           * rendererParams.ambientColor;
-      const auto matValues =
-          getMaterialValues(frameData, *surfaceHit.material, surfaceHit);
-      const auto matResult =
-          vec4(matValues.baseColor * lighting, matValues.opacity);
-
-      accumulateValue(color, vec3(matResult), opacity);
-      accumulateValue(opacity, matResult.w, opacity);
+      accumulateValue(color, materialBaseColor * lighting, opacity);
+      accumulateValue(opacity, materialOpacity, opacity);
 
       color *= opacity;
       accumulateValue(outputColor, color, outputOpacity);

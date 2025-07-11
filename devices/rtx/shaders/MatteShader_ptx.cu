@@ -29,19 +29,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
 
 using namespace visrtx;
 
-// Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
-VISRTX_CALLABLE vec4 __direct_callable__evalSurfaceMaterial(
+VISRTX_CALLABLE void __direct_callable__init(MatteShadingState *shadingState,
     const FrameGPUData *fd,
-    const MaterialGPUData::Matte *md,
     const SurfaceHit *hit,
-    const vec3 * /*viewDir*/,
-    const vec3 * /*lightDir*/,
-    const vec3 *lightIntensity)
+    const MaterialGPUData::Matte *md)
 {
-  const auto matValues = getMaterialValues(*fd, *md, *hit);
-  return {matValues.baseColor * (*lightIntensity), matValues.opacity};
+  vec4 color = getMaterialParameter(*fd, md->color, *hit);
+  float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
+
+  shadingState->baseColor = vec3(color);
+  shadingState->opacity =
+      adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
+}
+
+VISRTX_CALLABLE NextRay __direct_callable__nextRay(
+    const MatteShadingState *shadingState,
+    const Ray *ray,
+    const ScreenSample *ss)
+{
+  return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
+}
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateTint(const MatteShadingState *shadingState)
+{
+  return shadingState->baseColor;
+}
+
+VISRTX_CALLABLE
+float __direct_callable__evaluateOpacity(const MatteShadingState *shadingState)
+{
+  return shadingState->opacity;
+}
+
+// Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
+VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
+    const MatteShadingState *shadingState,
+    const SurfaceHit *hit,
+    const LightSample *lightSample,
+    const vec3 *outgoingDir)
+{
+  return shadingState->baseColor * lightSample->radiance;
 }

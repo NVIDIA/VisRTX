@@ -16,9 +16,11 @@ std::string fileOf(const std::string &filepath);
 std::string extensionOf(const std::string &filepath);
 std::vector<std::string> splitString(const std::string &s, char delim);
 
-using TextureCache = std::unordered_map<std::string, SamplerRef>;
-SamplerRef importTexture(
-    Context &ctx, std::string filepath, TextureCache &cache);
+using TextureCache = std::unordered_map<std::string, ArrayRef>;
+SamplerRef importTexture(Context &ctx,
+    std::string filepath,
+    TextureCache &cache,
+    bool isLinear = false);
 
 SamplerRef makeDefaultColorMapSampler(Context &ctx, const float2 &range);
 

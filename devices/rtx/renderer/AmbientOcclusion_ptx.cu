@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/evalShading.h"
+#include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -55,10 +57,11 @@ VISRTX_GLOBAL void __anyhit__ao()
 
   const auto &fd = frameData;
   const auto &md = *hit.material;
-  const auto &materialValues = getMaterialValues(fd, md, hit);
+  MaterialShadingState shadingState;
+  materialInitShading(&shadingState, fd, md, hit);
 
   auto &o = ray::rayData<float>();
-  accumulateValue(o, materialValues.opacity, o);
+  accumulateValue(o, materialEvaluateOpacity(shadingState), o);
   if (o >= 0.99f)
     optixTerminateRay();
   else
@@ -156,15 +159,16 @@ VISRTX_GLOBAL void __raygen__()
                   aoParams.aoSamples)
             : 1.f;
 
+        MaterialShadingState shadingState;
+        materialInitShading(
+            &shadingState, frameData, *surfaceHit.material, surfaceHit);
+        auto materialBaseColor = materialEvaluateTint(shadingState);
+        auto materialOpacity = materialEvaluateOpacity(shadingState);
+
         const auto lighting = aoFactor * rendererParams.ambientIntensity
             * rendererParams.ambientColor;
-        const auto matValues =
-            getMaterialValues(frameData, *surfaceHit.material, surfaceHit);
-        const auto matResult =
-            vec4(matValues.baseColor * lighting, matValues.opacity);
-
-        accumulateValue(color, vec3(matResult), opacity);
-        accumulateValue(opacity, matResult.w, opacity);
+        accumulateValue(color, materialBaseColor * lighting, opacity);
+        accumulateValue(opacity, materialOpacity, opacity);
 
         color *= opacity;
         accumulateValue(outputColor, color, outputOpacity);

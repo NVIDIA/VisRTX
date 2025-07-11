@@ -356,39 +356,22 @@ struct MaterialGPUData
   struct MDL
   {
     const char *argBlock;
-    uint32_t implementationIndex;
     uint32_t numSamplers;
-    DeviceObjectIndex
-        samplers[32]; // Should be sized according to MDL's execution context
-                      // configuration. See MDLCompiler.cpp.
+    // Should be sized according to MDL's execution context
+    // configuration. See MDLCompiler.cpp.
+    DeviceObjectIndex samplers[32];
   };
 
-  MaterialType materialType;
+  uint32_t implementationIndex{~0u};
 
-  union
+  union MaterialData
   {
     Matte matte;
     PhysicallyBased physicallyBased;
     MDL mdl;
-  };
+  } materialData = {};
 
-  MaterialGPUData()
-  {
-    materialType = MaterialType::UNKNOWN;
-    matte = {};
-    physicallyBased = {};
-    mdl = {};
-  }
-};
-
-struct MaterialValues
-{
-  MaterialType materialType;
-  vec3 baseColor;
-  float opacity;
-  float metallic;
-  float roughness;
-  float ior;
+  MaterialGPUData() = default;
 };
 
 // Surface //
@@ -457,7 +440,7 @@ struct TF1DVolumeGPUData
   DeviceObjectIndex field;
   cudaTextureObject_t tfTex{};
   box1 valueRange;
-  float unitDistance;
+  float oneOverUnitDistance;
   vec3 uniformColor;
   float uniformOpacity;
 };
@@ -623,6 +606,7 @@ struct RendererGPUData
   RendererBackgroundGPUData background;
   glm::vec3 ambientColor;
   int numIterations;
+  int maxRayDepth;
   float ambientIntensity;
   float inverseVolumeSamplingRate;
   float occlusionDistance;
