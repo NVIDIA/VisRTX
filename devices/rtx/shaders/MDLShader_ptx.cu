@@ -200,14 +200,12 @@ NextRay __direct_callable__nextRay(
       shadingState->argBlock);
 
   if (sample_data.event_type & mi::neuraylib::BSDF_EVENT_REFLECTION) {
-    return NextRay{
-        vec4(sample_data.k2.x, sample_data.k2.y, sample_data.k2.z, 0.0f),
-        vec4(sample_data.bsdf_over_pdf.x,
+    return NextRay{vec3(sample_data.k2.x, sample_data.k2.y, sample_data.k2.z),
+        vec3(sample_data.bsdf_over_pdf.x,
             sample_data.bsdf_over_pdf.y,
-            sample_data.bsdf_over_pdf.z,
-            1.0f)};
+            sample_data.bsdf_over_pdf.z)};
   } else {
-    return NextRay{vec4(0.0f, 0.0f, 0.0f, 1.0f), vec4(0.0f, 0.0f, 0.0f, 1.0f)};
+    return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
   }
 }
 

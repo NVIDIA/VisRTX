@@ -60,7 +60,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const Ray *ray,
     const ScreenSample *ss)
 {
-  return NextRay{vec4(0.0f, 0.0f, 0.0f, 0.0f), vec4(0.0f, 0.0f, 0.0f, 0.0f)};
+  return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
 }
 
 VISRTX_CALLABLE

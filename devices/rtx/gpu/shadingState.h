@@ -53,8 +53,8 @@ enum class SurfaceShaderEntryPoints
 // Describes the next ray to be traced, as a result of the EvaluateNextRay call
 struct NextRay
 {
-  vec4 direction;
-  vec4 contributionWeight;
+  vec3 direction;
+  vec3 contributionWeight;
 };
 
 // Matte
@@ -74,6 +74,7 @@ struct PhysicallyBasedShadingState
   float ior;
 };
 
+#ifdef USE_MDL
 // See
 // https://raytracing-docs.nvidia.com/mdl/api/mi_neuray_example_execution_native.html
 //  and
@@ -107,25 +108,23 @@ struct MDLShadingState
 
   const char *argBlock;
 };
+#endif
 
 struct MaterialShadingState
 {
-  unsigned int callableBaseIndex;
+  unsigned int callableBaseIndex{~0u};
   ;
 
   union
   {
     MatteShadingState matte;
     PhysicallyBasedShadingState physicallyBased;
+#ifdef USE_MDL
     MDLShadingState mdl;
+#endif
   } data;
 
-  VISRTX_DEVICE MaterialShadingState() : callableBaseIndex(~0)
-  {
-    data.matte = {};
-    data.physicallyBased = {};
-    data.mdl = {};
-  }
+  VISRTX_DEVICE MaterialShadingState() = default;
 };
 
 // #endif

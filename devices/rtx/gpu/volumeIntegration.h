@@ -79,6 +79,7 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
   Sampler sampler(field);
 
   const float stepSize = volume.stepSize * invSamplingRate;
+  const float exponent = stepSize * svv.oneOverUnitDistance;
   interval.lower += stepSize * curand_uniform(&ss.rs); // jitter
 
   float transmittance = 1.f;
@@ -88,8 +89,7 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
     const float s = sampler(p);
     if (!glm::isnan(s)) {
       const vec4 co = detail::classifySample(volume, s);
-      const float stepTransmittance =
-          glm::pow(1.f - co.w, stepSize / svv.unitDistance);
+      const float stepTransmittance = glm::pow(1.f - co.w, exponent);
 
       if (color)
         *color += transmittance * (1.f - stepTransmittance) * vec3(co);
