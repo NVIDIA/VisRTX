@@ -32,8 +32,8 @@
 #pragma once
 
 #include <optix_device.h>
-#include "evalMaterialParameters.h"
 #include "gpu/gpu_objects.h"
+#include "gpu/sampleLight.h"
 #include "shadingState.h"
 
 namespace visrtx {

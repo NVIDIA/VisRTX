@@ -222,7 +222,7 @@ VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3 &normal)
 VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
 {
   auto z = curand_uniform(&rs);
-  auto r = sqrtf(1.f - sqrt(z)); 
+  auto r = sqrtf(1.f - sqrt(z));
   auto phi = 2.0f * float(M_PI) * curand_uniform(&rs);
 
   auto sample = vec3(r * cos(phi), r * sin(phi), z);
@@ -341,29 +341,26 @@ vec4 inverseTonemap(vec4 v)
 }
 
 template <typename T>
-VISRTX_DEVICE void accumValue(T *arr, size_t idx, size_t fid, const T &v)
+VISRTX_DEVICE void accumValue(T *arr, size_t idx, const T &v)
 {
   if (!arr)
     return;
 
-  if (fid == 0)
-    arr[idx] = v;
-  else
-    arr[idx] += v;
+  arr[idx] += v;
 }
 
 VISRTX_DEVICE bool accumDepth(
-    float *arr, size_t idx, size_t fid, const float &v)
+    float *arr, size_t idx, const float &v)
 {
   if (!arr)
     return true; // no previous depth to compare with
 
-  const bool closerSample = fid == 0 || v < arr[idx];
-
-  if (closerSample)
+  if (v < arr[idx]) {
     arr[idx] = v;
-
-  return closerSample;
+    return true;
+  } else {
+    return false;
+  }
 }
 
 VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
@@ -406,11 +403,11 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
   const auto frameID = fb.frameID + frameIDOffset;
 
   detail::accumValue(
-      fb.buffers.colorAccumulation, idx, frameID, detail::tonemap(color));
-  detail::accumValue(fb.buffers.albedo, idx, frameID, albedo);
-  detail::accumValue(fb.buffers.normal, idx, frameID, normal);
+      fb.buffers.colorAccumulation, idx, detail::tonemap(color));
+  detail::accumValue(fb.buffers.albedo, idx, albedo);
+  detail::accumValue(fb.buffers.normal, idx, normal);
 
-  if (detail::accumDepth(fb.buffers.depth, idx, frameID, depth)) {
+  if (detail::accumDepth(fb.buffers.depth, idx, depth)) {
     if (fb.buffers.primID)
       fb.buffers.primID[idx] = primID;
     if (fb.buffers.objID)

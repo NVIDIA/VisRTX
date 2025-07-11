@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <random>
 // thrust
+#include <cuda_runtime_api.h>
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h>
 #include <thrust/transform.h>
@@ -593,6 +594,58 @@ void Frame::newFrame()
     hd.fb.frameID = 0;
     hd.fb.checkerboardID = checkerboarding() ? 0 : -1;
     m_nextFrameReset = false;
+
+    // Reset buffers if needed
+    const bool channelPrimID = m_primIDType == ANARI_UINT32;
+    const bool channelObjID = m_objIDType == ANARI_UINT32;
+    const bool channelInstID = m_instIDType == ANARI_UINT32;
+    const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
+    const bool channelNormal = m_normalType == ANARI_FLOAT32;
+
+    const bool channelDepth = m_depthType == ANARI_FLOAT32 || channelPrimID
+        || channelObjID || channelInstID;
+
+    // Always clear the color accumulation buffer
+    thrust::fill_n(thrust::device_pointer_cast(m_accumColor.ptrAs<vec4>()),
+        numPixels(),
+        vec4(0.0f));
+
+    // Conditionally initialize other buffers
+    if (channelDepth) {
+      thrust::fill_n(thrust::device_pointer_cast(m_depthBuffer.dataDevice()),
+          numPixels(),
+          std::numeric_limits<float>::max());
+    }
+
+    if (channelPrimID) {
+      thrust::fill_n(thrust::device_pointer_cast(m_primIDBuffer.dataDevice()),
+          numPixels(),
+          uint32_t(0));
+    }
+
+    if (channelObjID) {
+      thrust::fill_n(thrust::device_pointer_cast(m_objIDBuffer.dataDevice()),
+          numPixels(),
+          uint32_t(0));
+    }
+
+    if (channelInstID) {
+      thrust::fill_n(thrust::device_pointer_cast(m_instIDBuffer.dataDevice()),
+          numPixels(),
+          uint32_t(0));
+    }
+
+    if (channelAlbedo) {
+      thrust::fill_n(thrust::device_pointer_cast(m_accumAlbedo.ptrAs<vec3>()),
+          numPixels(),
+          vec3(0.0f));
+    }
+
+    if (channelNormal) {
+      thrust::fill_n(thrust::device_pointer_cast(m_accumNormal.ptrAs<vec3>()),
+          numPixels(),
+          vec3(0.0f));
+    }
   } else {
     if (checkerboarding())
       hd.fb.frameID += int(hd.fb.checkerboardID == 3);
