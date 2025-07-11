@@ -181,16 +181,15 @@ struct SphereGeometryData
   float radius;
 };
 
-const uint32_t NEURAL_NB_MAX_LAYERS = 5;
-const uint32_t NEURAL_LAYER_SIZE = 128;
+constexpr uint32_t NEURAL_NB_MAX_LAYERS = 5;
+constexpr uint32_t NEURAL_LAYER_SIZE = 128;
 struct NeuralGeometryData
 {
   __half *weights[NEURAL_NB_MAX_LAYERS]; // Array of weight matrices
   __half *biases[NEURAL_NB_MAX_LAYERS]; // Array of bias vectors
-  uint32_t nb_layers{NEURAL_NB_MAX_LAYERS};
-  uint32_t layer_size{NEURAL_LAYER_SIZE};
+  uint32_t nb_layers;
   box3 bounds;
-  float threshold{0.1f};
+  float threshold;
 };
 
 struct GeometryGPUData
