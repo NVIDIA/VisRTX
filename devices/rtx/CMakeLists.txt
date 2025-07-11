@@ -153,7 +153,7 @@ set(SOURCES
   scene/surface/geometry/Curve.cpp
   scene/surface/geometry/Cylinder.cpp
   scene/surface/geometry/Geometry.cpp
-  scene/surface/geometry/Neural.cpp
+  $<$<BOOL:${VISRTX_ENABLE_NEURAL}>:scene/surface/geometry/Neural.cpp>
   scene/surface/geometry/Quad.cpp
   scene/surface/geometry/Sphere.cu
   scene/surface/geometry/Triangle.cpp
@@ -253,7 +253,7 @@ PRIVATE
   VISRTX_VERSION_PATCH=${PROJECT_VERSION_PATCH}
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:USE_NVTX>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:USE_MDL>
-  $<$<BOOL:${VISRTX_USE_NEURAL}>:VISRTX_USE_NEURAL>
+  $<$<BOOL:${VISRTX_ENABLE_NEURAL}>:VISRTX_USE_NEURAL>
 )
 
 if(NOT WIN32)
@@ -314,9 +314,9 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   set_target_properties(${INPUT_TARGET} PROPERTIES
     CUDA_PTX_COMPILATION ON
     if(VISRTX_ENABLE_NEURAL)
-      CUDA_ARCHITECTURES "89" # Only architectures with full support for fp16
+      CUDA_ARCHITECTURES "89-virtual" # Only architectures with full support for fp16
     else()
-      CUDA_ARCHITECTURES OFF
+      CUDA_ARCHITECTURES "52-virtual"
     endif()
   )
 
