@@ -63,11 +63,8 @@ GeometryGPUData Neural::gpuData() const
   neural.nb_layers = m_layers.size() / 2;
 
   // Read bounds from parameters
-  vec3 aabb_min = getParam<glm::vec3>("aabb_min", glm::vec3(-1.f));
-  vec3 aabb_max = getParam<glm::vec3>("aabb_max", glm::vec3(1.f));
-  m_aabb.lower = aabb_min;
-  m_aabb.upper = aabb_max;
-  neural.bounds = m_aabb;
+  neural.boundMin = getParam<glm::vec3>("aabb_min", glm::vec3(-1.f));
+  neural.boundMax = getParam<glm::vec3>("aabb_max", glm::vec3(1.f));
 
   neural.threshold = getParam<float>("threshold", 0.1f);
 
