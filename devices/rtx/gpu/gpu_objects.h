@@ -362,16 +362,16 @@ struct MaterialGPUData
     DeviceObjectIndex samplers[32];
   };
 
-  uint32_t implementationIndex;
+  uint32_t implementationIndex{~0u};
 
   union MaterialData
   {
     Matte matte;
     PhysicallyBased physicallyBased;
     MDL mdl;
-  } materialData;
+  } materialData = {};
 
-  MaterialGPUData() : implementationIndex(~0), materialData({}) {}
+  MaterialGPUData() = default;
 };
 
 // Surface //
@@ -440,7 +440,7 @@ struct TF1DVolumeGPUData
   DeviceObjectIndex field;
   cudaTextureObject_t tfTex{};
   box1 valueRange;
-  float unitDistance;
+  float oneOverUnitDistance;
   vec3 uniformColor;
   float uniformOpacity;
 };

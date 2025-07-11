@@ -67,8 +67,6 @@ VISRTX_GLOBAL void __raygen__()
   auto ray = makePrimaryRay(ss, true /*pixel centered*/);
   float tmax = ray.t.upper;
 
-  SurfaceHit surfaceHit;
-  VolumeHit volumeHit;
   vec3 outputColor(0.f);
   vec3 outputNormal = ray.dir;
   float outputOpacity = 0.f;
@@ -79,6 +77,7 @@ VISRTX_GLOBAL void __raygen__()
   bool firstHit = true;
 
   while (outputOpacity < 0.99f) {
+    SurfaceHit surfaceHit;
     ray.t.upper = tmax;
     surfaceHit.foundHit = false;
     intersectSurface(ss,
@@ -121,13 +120,14 @@ VISRTX_GLOBAL void __raygen__()
         firstHit = false;
       }
 
-      const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns))
-          * rendererParams.ambientColor;
       MaterialShadingState shadingState;
-      materialInitShading(&shadingState, frameData, *surfaceHit.material, surfaceHit);
+      materialInitShading(
+          &shadingState, frameData, *surfaceHit.material, surfaceHit);
       auto materialBaseColor = materialEvaluateTint(shadingState);
       auto materialOpacity = materialEvaluateOpacity(shadingState);
 
+      const auto lighting = glm::abs(glm::dot(ray.dir, surfaceHit.Ns))
+          * rendererParams.ambientColor;
       accumulateValue(color, materialBaseColor * lighting, opacity);
       accumulateValue(opacity, materialOpacity, opacity);
 

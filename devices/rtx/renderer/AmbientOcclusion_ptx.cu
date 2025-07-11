@@ -159,13 +159,14 @@ VISRTX_GLOBAL void __raygen__()
                   aoParams.aoSamples)
             : 1.f;
 
-        const auto lighting = aoFactor * rendererParams.ambientIntensity
-            * rendererParams.ambientColor;
         MaterialShadingState shadingState;
-        materialInitShading(&shadingState, frameData, *surfaceHit.material, surfaceHit);
+        materialInitShading(
+            &shadingState, frameData, *surfaceHit.material, surfaceHit);
         auto materialBaseColor = materialEvaluateTint(shadingState);
         auto materialOpacity = materialEvaluateOpacity(shadingState);
 
+        const auto lighting = aoFactor * rendererParams.ambientIntensity
+            * rendererParams.ambientColor;
         accumulateValue(color, materialBaseColor * lighting, opacity);
         accumulateValue(opacity, materialOpacity, opacity);
 
