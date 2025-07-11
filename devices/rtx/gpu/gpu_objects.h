@@ -45,7 +45,9 @@
 #include <nanovdb/NanoVDB.h>
 
 // cuda half precision
+#ifdef VISRTX_USE_NEURAL
 #include <cuda_fp16.h>
+#endif
 
 #define DECLARE_FRAME_DATA(n)                                                  \
   extern "C" {                                                                 \
@@ -181,6 +183,8 @@ struct SphereGeometryData
   float radius;
 };
 
+#ifdef VISRTX_USE_NEURAL
+
 constexpr uint32_t NEURAL_NB_MAX_LAYERS = 5;
 constexpr uint32_t NEURAL_LAYER_SIZE = 128;
 struct NeuralGeometryData
@@ -191,6 +195,7 @@ struct NeuralGeometryData
   box3 bounds;
   float threshold;
 };
+#endif
 
 struct GeometryGPUData
 {
@@ -206,7 +211,9 @@ struct GeometryGPUData
     CurveGeometryData curve;
     ConeGeometryData cone;
     SphereGeometryData sphere;
+#ifdef VISRTX_USE_NEURAL
     NeuralGeometryData neural;
+#endif
   };
 };
 

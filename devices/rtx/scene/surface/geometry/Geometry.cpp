@@ -37,7 +37,10 @@
 #include "Quad.h"
 #include "Sphere.h"
 #include "Triangle.h"
+
+#ifdef VISRTX_USE_NEURAL
 #include "Neural.h"
+#endif
 #include "UnknownGeometry.h"
 // std
 #include <cstring>
@@ -94,8 +97,10 @@ Geometry *Geometry::createInstance(
     return new Cone(d);
   else if (subtype == "curve")
     return new Curve(d);
+#ifdef VISRTX_USE_NEURAL
   else if (subtype == "neural")
     return new Neural(d);
+#endif
   else
     return new UnknownGeometry(subtype, d);
 }
