@@ -36,8 +36,6 @@ project(anari_library_visrtx VERSION ${PROJECT_VERSION} LANGUAGES CXX CUDA)
 ## RTX device options ##
 
 option(VISRTX_ENABLE_NEURAL "Enable Neural Graphics Primitives" OFF)
-mark_as_advanced(VISRTX_ENABLE_NEURAL)
-
 option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
 
