@@ -53,19 +53,16 @@ either it is installed to the same location as the ANARI-SDK or
 
 ### Provided Examples
 
-VisRTX comes with a simple, single-file tutorial application that show how to
-use VisRTX through the ANARI API. It is always enabled as it only requires the
-ANARI SDK and compiles very quickly.
+VisRTX comes with a simple, [single-file tutorial](examples/simple) that shows
+how to use VisRTX through the ANARI API. It is always enabled as it only
+requires the ANARI SDK and compiles very quickly.
 
-VisRTX also comes with an optional interactive example application that gives
-application developers a sense of what VisRTX has to offer. To enable the
-interactive example, simply turn on the `VISRTX_BUILD_INTERACTIVE_EXAMPLE`
-option in your local CMake build.  This can be done with adding
-`-DVISRTX_BUILD_INTERACTIVE_EXAMPLE=ON` to the CMake command above, or done with
-either of the interactive CMake programs (`ccmake` or `cmake-gui`).
-
-The interactive example requires [GLFW](https://www.glfw.org/) as an additional
-dependency.
+There is also an interactive collection of applications which provide easy ways
+to load and interact with ANARI scenes for the sake of exploring ANARI's
+capabilities, which is located in the [tsd/](tsd/) subdirectory. It is buildable
+as a stand alone project, or can be enabled when building VisRTX using the
+`VISRTX_BUILD_TSD` CMake option. For more details on TSD, please refer to its
+[README](tsd/README.md) document.
 
 # Feature Overview
 
