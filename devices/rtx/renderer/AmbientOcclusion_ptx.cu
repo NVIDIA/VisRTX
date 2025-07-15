@@ -214,7 +214,8 @@ VISRTX_GLOBAL void __raygen__()
         outputNormal,
         primID,
         objID,
-        instID);
+        instID,
+        i);
   }
 }
 
