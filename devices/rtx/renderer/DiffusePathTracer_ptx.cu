@@ -31,10 +31,10 @@
 
 #define VISRTX_DEBUGGING 0
 
-#include "gpu/gpu_debug.h"
-#include "gpu/shading_api.h"
 #include "gpu/evalShading.h"
+#include "gpu/gpu_debug.h"
 #include "gpu/shadingState.h"
+#include "gpu/shading_api.h"
 namespace visrtx {
 
 enum class RayType
@@ -209,7 +209,8 @@ VISRTX_GLOBAL void __raygen__()
         outNormal,
         primID,
         objID,
-        instID);
+        instID,
+        i);
   }
 }
 
