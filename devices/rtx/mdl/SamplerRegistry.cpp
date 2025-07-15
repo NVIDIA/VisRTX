@@ -277,6 +277,7 @@ Sampler *SamplerRegistry::loadFromDDS(
     image2d->setParam("image", array1d);
     image2d->setParam("format", std::string(compressedFormat));
     image2d->setParam("size", U64Vec2(dds->header.width, dds->header.height));
+    array1d->refDec(helium::PUBLIC);
     if (!wasFlipped) {
       // Ideally, we what to flip the content of the image so actual transforms
       // can be applied to the samplers. Not achievable for all cases, so
@@ -290,7 +291,6 @@ Sampler *SamplerRegistry::loadFromDDS(
     }
     image2d->commitParameters();
     image2d->finalize();
-    array1d->refDec();
     tex = image2d;
   } else if (format) {
     std::vector<std::byte> imageContent(
@@ -316,6 +316,7 @@ Sampler *SamplerRegistry::loadFromDDS(
     array2d->uploadArrayData();
     auto image2d = new Image2D(m_deviceState);
     image2d->setParam("image", array2d);
+    array2d->refDec(helium::PUBLIC);
     if (!wasFlipped) {
       // Ideally, we what to flip the content of the image so actual transforms
       // can be applied to the samplers. Not implemented/achievable for all
@@ -329,7 +330,6 @@ Sampler *SamplerRegistry::loadFromDDS(
     }
     image2d->commitParameters();
     image2d->finalize();
-    array2d->refDec(helium::PUBLIC);
     tex = image2d;
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
@@ -494,7 +494,8 @@ Sampler *SamplerRegistry::acquireSampler(
   auto sampler = loadFromFile(filePath, colorSpace);
   if (sampler) {
     sampler->refInc();
-    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that we don't rely on.
+    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
+                                     // we don't rely on.
     m_dbToSampler.insert({filePath, sampler});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -516,7 +517,8 @@ Sampler *SamplerRegistry::acquireSampler(
   auto sampler = loadFromTextureDesc(textureDesc);
   if (sampler) {
     sampler->refInc();
-    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that we don't rely on.
+    sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
+                                     // we don't rely on.
     m_dbToSampler.insert({textureDesc.url, sampler});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -533,7 +535,6 @@ bool SamplerRegistry::releaseSampler(const Sampler *sampler)
           std::end(m_dbToSampler),
           [sampler](const auto &p) { return p.second == sampler; });
       it != std::end(m_dbToSampler)) {
-    
     auto useCount = it->second->useCount(helium::INTERNAL);
     it->second->refDec();
     if (useCount == 1) {
