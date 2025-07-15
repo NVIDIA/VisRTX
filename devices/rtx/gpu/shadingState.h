@@ -34,7 +34,9 @@
 #include "gpu_decl.h"
 #include "gpu_objects.h"
 
+#ifdef USE_MDL
 #include <mi/neuraylib/target_code_types.h>
+#endif
 
 namespace visrtx {
 
