@@ -79,7 +79,8 @@ MaterialRegistry::MaterialRegistry(libmdl::Core *core)
           + std::to_string(std::uintptr_t(this))))
 {
   m_core->addBuiltinModule("::visrtx::default", VISRTX_DEFAULT_MDL);
-  m_core->addBuiltinModule("::visrtx::physically_based", VISRTX_PHYSICALLY_BASED_MDL);
+  m_core->addBuiltinModule(
+      "::visrtx::physically_based", VISRTX_PHYSICALLY_BASED_MDL);
 }
 
 MaterialRegistry::~MaterialRegistry()
@@ -193,7 +194,7 @@ MaterialRegistry::acquireMaterial(
     if (targetCode->get_texture_shape(i)
         == mi::neuraylib::ITarget_code::Texture_shape_bsdf_data) {
       mi::Size x, y, z;
-      const char *pixelFormat = {};
+      const char *pixelFormat = "Float32";
 #if MI_NEURAYLIB_API_VERSION >= 56
       textureDesc.bsdf.data =
           targetCode->get_texture_df_data(i, x, y, z, pixelFormat);
