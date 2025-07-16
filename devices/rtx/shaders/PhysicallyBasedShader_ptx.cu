@@ -49,6 +49,7 @@ VISRTX_CALLABLE void __direct_callable__init(
   float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
 
   shadingState->baseColor = vec3(color);
+  shadingState->normal = hit->Ns;
   shadingState->opacity =
       adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
   shadingState->ior = md->ior;
@@ -61,7 +62,25 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const Ray *ray,
     RandState *rs)
 {
-  return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
+  // Perfect relection ray
+  auto reflectedVector = ray->dir - 2.0f * dot(ray->dir, shadingState->normal) * shadingState->normal;
+
+  // Open cone, along the perfect reflection ray, with a metallic and roughness-dependent angle
+  const float roughness = shadingState->roughness;
+  const float metalness = shadingState->metallic;
+  const float roughnessSqr = roughness * roughness;
+  const float cosThetaMax = 1.0f - roughnessSqr;
+
+  auto nextRay = computeOrthonormalBasis(normalize(reflectedVector)) *
+    uniformSampleCone(cosThetaMax, vec3(
+        curand_uniform(rs),
+        curand_uniform(rs),
+        curand_uniform(rs)));
+
+
+  auto nextSampleWeight = shadingState->baseColor * metalness;
+
+  return NextRay{nextRay, nextSampleWeight};
 }
 
 VISRTX_CALLABLE

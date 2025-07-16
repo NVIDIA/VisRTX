@@ -289,6 +289,26 @@ VISRTX_HOST_DEVICE vec2 uniformSampleDisk(float radius, const vec2 &s)
   return vec2{r * cosf(phi), r * sinf(phi)};
 }
 
+VISRTX_HOST_DEVICE vec3 uniformSampleCone(
+    float cosThetaMax,  // cosine of cone opening angle
+    vec3 s) // rand uniforms in [0,1)
+{
+    // Sample direction in cone
+    float phi = 2.0f * M_PI * s.x;
+    float cosTheta = (1.0f - s.y) + s.y * cosThetaMax;
+    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+
+    // Sample distance with cube-root for uniform volume
+    float d = powf(s.z, 1.0f/3.0f);
+
+    return vec3(
+        d * sinTheta * cosf(phi),
+        d * sinTheta * sinf(phi),
+        d * cosTheta
+    );
+}
+
+
 VISRTX_HOST_DEVICE vec3 xfmVec(const mat4 &m, const vec3 &p)
 {
   return mat3(m) * p;

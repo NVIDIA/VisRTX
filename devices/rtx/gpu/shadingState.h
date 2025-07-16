@@ -70,6 +70,7 @@ struct MatteShadingState
 struct PhysicallyBasedShadingState
 {
   vec3 baseColor;
+  vec3 normal;
   float opacity;
   float metallic;
   float roughness;
