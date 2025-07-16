@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/gpu_objects.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
 
@@ -50,7 +51,7 @@ VISRTX_CALLABLE void __direct_callable__init(MatteShadingState *shadingState,
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const MatteShadingState *shadingState,
     const Ray *ray,
-    const ScreenSample *ss)
+    RandState *rs)
 {
   return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
 }
