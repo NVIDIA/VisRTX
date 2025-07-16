@@ -27,7 +27,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+include(${CMAKE_CURRENT_LIST_DIR}/appendSearchPaths.cmake)
 
 function(EmbedPTX)
   set(oneArgs OUTPUT_HEADER_FILE INPUT_TARGET)
@@ -49,7 +49,9 @@ function(EmbedPTX)
 
   ## Find EmbedPTXRun CMake script ##
 
-  set(CMAKE_PREFIX_PATH ${CMAKE_MODULE_PATH})
+  list(PREPEND CMAKE_PREFIX_PATH ${CMAKE_MODULE_PATH})
+  list(PREPEND CMAKE_FIND_ROOT_PATH ${CMAKE_MODULE_PATH})
+  appendSearchPaths(${CMAKE_MODULE_PATH})
   find_file(EMBED_PTX_RUN EmbedPTXRun.cmake)
   mark_as_advanced(EMBED_PTX_RUN)
   if(NOT EMBED_PTX_RUN)

@@ -60,6 +60,7 @@ project(VisRTX VERSION 0.13.0 LANGUAGES C CXX)
 enable_testing()
 
 include(GNUInstallDirs)
+include(appendSearchPaths)
 
 ## Options ####################################################################
 

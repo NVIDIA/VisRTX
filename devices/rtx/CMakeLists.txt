@@ -81,7 +81,7 @@ else()
 endif()
 
 anari_sdk_fetch_project(NAME optix_headers URL ${OPTIX_URL})
-list(PREPEND CMAKE_PREFIX_PATH ${optix_headers_LOCATION})
+appendSearchPaths(${optix_headers_LOCATION})
 
 ## Validate Neural Graphics Primitives support ##
 
