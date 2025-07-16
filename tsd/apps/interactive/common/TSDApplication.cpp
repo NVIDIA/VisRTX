@@ -105,16 +105,28 @@ void TSDApplication::uiFrameStart()
       if (ImGui::MenuItem("Load"))
         m_core.getFilenameFromDialog(m_filenameToLoadNextFrame);
 
+      if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Load session from a .tsd file");
+
       ImGui::Separator();
 
       if (ImGui::MenuItem("Save", "CTRL+S"))
         doSave();
 
+      if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Save session to a .tsd file");
+
       if (ImGui::MenuItem("Save As...", "CTRL+SHIFT+S"))
         m_core.getFilenameFromDialog(m_filenameToSaveNextFrame, true);
 
+      if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Save session to a chosen file name");
+
       if (ImGui::MenuItem("Quick Save", "CTRL+ALT+S"))
         doSave("state.tsd");
+
+      if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Save sesson to 'state.tsd' in the local directory");
 
       ImGui::Separator();
 

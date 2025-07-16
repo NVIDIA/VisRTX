@@ -614,8 +614,6 @@ void Viewport::echoCameraConfig()
 
 void Viewport::ui_menubar()
 {
-  constexpr float INDENT_AMOUNT = 20.f;
-
   if (ImGui::BeginMenuBar()) {
     // Device //
 
@@ -708,13 +706,21 @@ void Viewport::ui_menubar()
         ImGui::Unindent(INDENT_AMOUNT);
       }
 
+      if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
+        m_arcball->setAxis(
+            static_cast<tsd::manipulators::OrbitAxis>(m_arcballUp));
+        resetView();
+      }
+
       ImGui::Separator();
+
       ImGui::BeginDisabled(m_currentCamera != m_perspCamera);
 
+      ImGui::Text("Perspective Parameters:");
+
+      ImGui::Indent(INDENT_AMOUNT);
       if (ImGui::SliderFloat("fov", &m_fov, 0.1f, 180.f))
         updateCamera(true);
-
-      ImGui::Separator();
 
       {
         ImGui::Text("Depth of Field:");
@@ -728,25 +734,22 @@ void Viewport::ui_menubar()
 
         ImGui::Unindent(INDENT_AMOUNT);
       }
-
+      ImGui::Unindent(INDENT_AMOUNT);
       ImGui::EndDisabled();
+
       ImGui::Separator();
 
-      if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
-        m_arcball->setAxis(
-            static_cast<tsd::manipulators::OrbitAxis>(m_arcballUp));
-        resetView();
-      }
+      ImGui::Text("Reset View:");
+      ImGui::Indent(INDENT_AMOUNT);
+      if (ImGui::MenuItem("center"))
+        centerView();
+      if (ImGui::MenuItem("dist"))
+        resetView(false);
+      if (ImGui::MenuItem("angle + dist + center"))
+        resetView(true);
+      ImGui::Unindent(INDENT_AMOUNT);
 
-      if (ImGui::BeginMenu("reset view")) {
-        if (ImGui::MenuItem("center"))
-          centerView();
-        if (ImGui::MenuItem("dist"))
-          resetView(false);
-        if (ImGui::MenuItem("angle + dist"))
-          resetView(true);
-        ImGui::EndMenu();
-      }
+      ImGui::Separator();
 
       if (ImGui::Checkbox("echo config", &m_echoCameraConfig)
           && m_echoCameraConfig)

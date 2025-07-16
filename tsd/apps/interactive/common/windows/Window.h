@@ -12,6 +12,8 @@ namespace tsd_viewer {
 
 struct AppCore;
 
+constexpr float INDENT_AMOUNT = 20.f;
+
 struct Window : public anari_viewer::windows::Window
 {
   Window(AppCore *core, const char *name = "Window");
