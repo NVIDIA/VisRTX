@@ -408,8 +408,6 @@ void updateGeometryTangent(Triangle *triangle)
   tangentsArray->commitParameters();
   tangentsArray->finalize();
 
-  tangentsArray->refInc();
-
   if (indices)
     triangle->setParam("faceVarying.tangent", tangentsArray);
   else
@@ -417,7 +415,7 @@ void updateGeometryTangent(Triangle *triangle)
   triangle->commitParameters();
   triangle->finalize();
 
-  tangentsArray->refDec();
+  tangentsArray->refDec(helium::PUBLIC);
 }
 
 } // namespace visrtx
