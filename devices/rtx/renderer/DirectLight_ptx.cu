@@ -159,7 +159,7 @@ VISRTX_DEVICE vec4 shadeSurface(
   Ray bounceRay = ray;
 
   for (int depth = 0; depth < frameData.renderer.maxRayDepth; ++depth) {
-    NextRay nextRay = materialNextRay(shadingState, ss, bounceRay);
+    NextRay nextRay = materialNextRay(shadingState, bounceRay, ss.rs);
 
     if (glm::all(glm::greaterThan(
             glm::abs(vec3(nextRay.direction)), glm::vec3(1.0e-8f)))) {

@@ -81,18 +81,16 @@ VISRTX_DEVICE float materialEvaluateOpacity(
 }
 
 VISRTX_DEVICE NextRay materialNextRay(const MaterialShadingState &shadingState,
-    const ScreenSample &ss,
-    const Ray &ray)
+    const Ray &ray, RandState& rs)
 {
-  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0)) // No next ray by defaut
     return NextRay{vec4(0.0f), vec4(0.0f)};
-  ; // No next ray by defaut
 
   return optixDirectCall<NextRay>(shadingState.callableBaseIndex
           + int(SurfaceShaderEntryPoints::EvaluateNextRay),
       &shadingState.data,
       &ray,
-      &ss);
+      &rs);
 }
 
 VISRTX_DEVICE vec3 materialShadeSurface(

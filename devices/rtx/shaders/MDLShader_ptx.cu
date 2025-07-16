@@ -182,17 +182,17 @@ vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
 VISRTX_CALLABLE
 NextRay __direct_callable__nextRay(
-    const MDLShadingState *shadingState, const Ray *ray, const ScreenSample *ss)
+    const MDLShadingState *shadingState, const Ray *ray, RandState *rs)
 {
   // Sample
   BsdfSampleData sample_data = {};
   sample_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
   sample_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
   sample_data.k1 = make_float3(-ray->dir);
-  sample_data.xi = make_float4(curand_uniform(&ss->rs),
-      curand_uniform(&ss->rs),
-      curand_uniform(&ss->rs),
-      curand_uniform(&ss->rs));
+  sample_data.xi = make_float4(curand_uniform(rs),
+      curand_uniform(rs),
+      curand_uniform(rs),
+      curand_uniform(rs));
 
   mdlBsdf_sample(&sample_data,
       &shadingState->state,

@@ -30,6 +30,7 @@
  */
 
 #include "gpu/gpu_decl.h"
+#include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/intersectRay.h"
 #include "gpu/sampleLight.h"
@@ -58,7 +59,7 @@ VISRTX_CALLABLE void __direct_callable__init(
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const PhysicallyBasedShadingState *shadingState,
     const Ray *ray,
-    const ScreenSample *ss)
+    RandState *rs)
 {
   return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
 }
