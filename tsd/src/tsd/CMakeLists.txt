@@ -16,6 +16,7 @@ PRIVATE
   authoring/importers/detail/importer_common.cpp
   authoring/importers/import_ASSIMP.cpp
   authoring/importers/import_DLAF.cpp
+  authoring/importers/import_E57XYZ.cpp
   authoring/importers/import_FLASH.cpp
   authoring/importers/import_HDRI.cpp
   authoring/importers/import_HSMESH.cpp

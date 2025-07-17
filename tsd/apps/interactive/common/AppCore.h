@@ -26,6 +26,7 @@ enum class ImporterType
   ASSIMP = 0,
   ASSIMP_FLAT,
   DLAF,
+  E57XYZ,
   NBODY,
   PLY,
   OBJ,

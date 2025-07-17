@@ -24,6 +24,7 @@ void ImportFileDialog::buildUI()
   const char *importers[] = {"ASSIMP",
       "ASSIMP_FLAT",
       "DLAF",
+      "E57XYZ",
       "NBODY",
       "PLY",
       "OBJ",
@@ -98,6 +99,8 @@ void ImportFileDialog::buildUI()
         tsd::import_ASSIMP(ctx, m_filename.c_str(), importRoot, true);
       else if (selectedFileType == ImporterType::DLAF)
         tsd::import_DLAF(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == ImporterType::E57XYZ)
+        tsd::import_E57XYZ(ctx, m_filename.c_str());
       else if (selectedFileType == ImporterType::NBODY)
         tsd::import_NBODY(ctx, m_filename.c_str(), importRoot);
       else if (selectedFileType == ImporterType::HDRI)

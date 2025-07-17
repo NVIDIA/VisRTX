@@ -113,6 +113,8 @@ void AppCore::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::HDRI;
     else if (arg == "-dlaf")
       importerType = ImporterType::DLAF;
+    else if (arg == "-e57xyz")
+      importerType = ImporterType::E57XYZ;
     else if (arg == "-nbody")
       importerType = ImporterType::NBODY;
     else if (arg == "-obj")
@@ -176,6 +178,8 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
         tsd::import_ASSIMP(tsd.ctx, f.second.c_str(), root, true);
       else if (f.first == ImporterType::DLAF)
         tsd::import_DLAF(tsd.ctx, f.second.c_str());
+      else if (f.first == ImporterType::E57XYZ)
+        tsd::import_E57XYZ(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::NBODY)
         tsd::import_NBODY(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::HDRI)
