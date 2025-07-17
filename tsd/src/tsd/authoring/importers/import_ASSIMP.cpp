@@ -248,11 +248,12 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString baseColorTexture;
           assimpMat->GetTexture(AI_MATKEY_BASE_COLOR_TEXTURE, &baseColorTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(baseColorTexture);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_BASE_COLOR, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("baseColor"_t, *sampler);
+        if (auto sampler = loadTexture(baseColorTexture); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_BASE_COLOR, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("baseColor"_t, *sampler);
+        }
       } else if (aiColor3D baseColor;
           assimpMat->Get(AI_MATKEY_BASE_COLOR, baseColor) == AI_SUCCESS) {
         m->setParameter("baseColor"_t, ANARI_FLOAT32_VEC3, &baseColor);
@@ -262,14 +263,15 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString metallicTexture;
           assimpMat->GetTexture(AI_MATKEY_METALLIC_TEXTURE, &metallicTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(metallicTexture, true);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_METALNESS, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        // - Metallic is blue
-        sampler->setParameter("outTransform"_t,
-            mat4({0, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 1}));
-        m->setParameterObject("metallic"_t, *sampler);
+        if (auto sampler = loadTexture(metallicTexture, true); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_METALNESS, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          // - Metallic is blue
+          sampler->setParameter("outTransform"_t,
+              mat4({0, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 1}));
+          m->setParameterObject("metallic"_t, *sampler);
+        }
       } else if (ai_real metallicFactor;
           assimpMat->Get(AI_MATKEY_METALLIC_FACTOR, metallicFactor)
           == AI_SUCCESS) {
@@ -279,15 +281,16 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString roughnessTexture;
           assimpMat->GetTexture(AI_MATKEY_ROUGHNESS_TEXTURE, &roughnessTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(roughnessTexture, true);
-        // Map red to red/blue as expected by our gltf pbr implementation
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE_ROUGHNESS, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        // - Roughness is green
-        sampler->setParameter("outTransform"_t,
-            mat4({0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 1}));
-        m->setParameterObject("roughness"_t, *sampler);
+        if (auto sampler = loadTexture(roughnessTexture, true); sampler) {
+          // Map red to red/blue as expected by our gltf pbr implementation
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          // - Roughness is green
+          sampler->setParameter("outTransform"_t,
+              mat4({0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 1}));
+          m->setParameterObject("roughness"_t, *sampler);
+        }
       } else if (ai_real roughnessFactor;
           assimpMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughnessFactor)
           == AI_SUCCESS) {
@@ -311,11 +314,12 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_SHEEN_COLOR_TEXTURE, &sheenColorTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(sheenColorTexture);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_SHEEN, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("sheenColor.texture"_t, *sampler);
+        if (auto sampler = loadTexture(sheenColorTexture); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_SHEEN, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("sheenColor.texture"_t, *sampler);
+        }
       } else if (aiColor3D sheenColor;
           assimpMat->Get(AI_MATKEY_SHEEN_COLOR_FACTOR, sheenColor)
           == AI_SUCCESS) {
@@ -326,11 +330,12 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_SHEEN_ROUGHNESS_TEXTURE, &sheenRoughnessTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(sheenRoughnessTexture, true);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_SHEEN, 1));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("sheenRoughness.texture"_t, *sampler);
+        if (auto sampler = loadTexture(sheenRoughnessTexture, true); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_SHEEN, 1));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("sheenRoughness.texture"_t, *sampler);
+        }
       } else if (ai_real sheenRoughnessFactor;
           assimpMat->Get(AI_MATKEY_SHEEN_ROUGHNESS_FACTOR, sheenRoughnessFactor)
           == AI_SUCCESS) {
@@ -342,11 +347,12 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       if (aiString clearcoatTexture;
           assimpMat->GetTexture(AI_MATKEY_CLEARCOAT_TEXTURE, &clearcoatTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(clearcoatTexture, true);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("clearcoat.texture"_t, *sampler);
+        if (auto sampler = loadTexture(clearcoatTexture, true); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("clearcoat.texture"_t, *sampler);
+        }
       } else if (ai_real clearcoatFactor;
           assimpMat->Get(AI_MATKEY_CLEARCOAT_FACTOR, clearcoatFactor)
           == AI_SUCCESS) {
@@ -357,11 +363,13 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_CLEARCOAT_ROUGHNESS_TEXTURE, &clearcoatRoughnessTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(clearcoatRoughnessTexture, true);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 1));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("clearcoatRoughness.texture"_t, *sampler);
+        if (auto sampler = loadTexture(clearcoatRoughnessTexture, true);
+            sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 1));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("clearcoatRoughness.texture"_t, *sampler);
+        }
       } else if (ai_real clearcoatRoughnessFactor;
           assimpMat->Get(
               AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR, clearcoatRoughnessFactor)
@@ -375,22 +383,24 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_CLEARCOAT_NORMAL_TEXTURE, &clearcoatNormalTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(clearcoatNormalTexture, true);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 2));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("clearcoatNormal"_t, *sampler);
+        if (auto sampler = loadTexture(clearcoatNormalTexture, true); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_CLEARCOAT, 2));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("clearcoatNormal"_t, *sampler);
+        }
       }
 
       // Emssive handling
       if (aiString emissiveTexture;
           assimpMat->GetTexture(aiTextureType_EMISSIVE, 0, &emissiveTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(emissiveTexture);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_EMISSIVE, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("emissive"_t, *sampler);
+        if (auto sampler = loadTexture(emissiveTexture); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_EMISSIVE, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("emissive"_t, *sampler);
+        }
       } else if (aiColor3D emissiveColor;
           assimpMat->Get(AI_MATKEY_COLOR_EMISSIVE, emissiveColor)
           == AI_SUCCESS) {
@@ -408,22 +418,24 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               aiTextureType_AMBIENT_OCCLUSION, 0, &occlusionTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(occlusionTexture, true);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_AMBIENT_OCCLUSION, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("occlusion"_t, *sampler);
+        if (auto sampler = loadTexture(occlusionTexture, true); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_AMBIENT_OCCLUSION, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("occlusion"_t, *sampler);
+        }
       }
 
       // Normal handling
       if (aiString normalTexture;
           assimpMat->GetTexture(aiTextureType_NORMALS, 0, &normalTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(normalTexture, true);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_NORMALS, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("normal"_t, *sampler);
+        if (auto sampler = loadTexture(normalTexture, true); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_NORMALS, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("normal"_t, *sampler);
+        }
       }
 
       // transmission handling
@@ -436,11 +448,12 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           assimpMat->GetTexture(
               AI_MATKEY_TRANSMISSION_TEXTURE, &transmissionTexture)
           == AI_SUCCESS) {
-        auto sampler = loadTexture(transmissionTexture, true);
-        auto tx = getTextureUVTransform(
-            AI_MATKEY_UVTRANSFORM(aiTextureType_TRANSMISSION, 0));
-        sampler->setParameter("inTransform"_t, ANARI_FLOAT32_MAT4, &tx);
-        m->setParameterObject("transmission"_t, *sampler);
+        if (auto sampler = loadTexture(transmissionTexture, true); sampler) {
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_TRANSMISSION, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          m->setParameterObject("transmission"_t, *sampler);
+        }
       }
     } else { // GL-like dflt. material
       aiColor3D col;
