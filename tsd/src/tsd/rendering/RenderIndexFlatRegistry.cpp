@@ -11,10 +11,28 @@ RenderIndexFlatRegistry::RenderIndexFlatRegistry(Context &ctx, anari::Device d)
 
 RenderIndexFlatRegistry::~RenderIndexFlatRegistry() = default;
 
+void RenderIndexFlatRegistry::signalObjectAdded(const Object *obj)
+{
+  if (!obj)
+    return;
+  RenderIndex::signalObjectAdded(obj);
+  updateWorld();
+}
+
 void RenderIndexFlatRegistry::updateWorld()
 {
   auto d = device();
   auto w = world();
+
+  auto syncAllHandles = [&](const auto &objArray) {
+    foreach_item_const(
+        objArray, [&](auto *obj) { m_cache.getHandle(obj, true); });
+  };
+
+  const auto &db = m_ctx->objectDB();
+  syncAllHandles(db.surface);
+  syncAllHandles(db.volume);
+  syncAllHandles(db.light);
 
   setIndexedArrayObjectsAsAnariObjectArray(d, w, "surface", m_cache.surface);
   setIndexedArrayObjectsAsAnariObjectArray(d, w, "volume", m_cache.volume);

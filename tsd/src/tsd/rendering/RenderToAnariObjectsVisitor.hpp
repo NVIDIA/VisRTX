@@ -76,17 +76,17 @@ inline bool RenderToAnariObjectsVisitor::preChildren(LayerNode &n, int level)
   switch (type) {
   case ANARI_SURFACE: {
     size_t i = n->value.getAsObjectIndex();
-    if (auto h = m_cache->getHandle(type, i); h != nullptr && included)
+    if (auto h = m_cache->getHandle(type, i, true); h != nullptr && included)
       current.surfaces.push_back((anari::Surface)h);
   } break;
   case ANARI_VOLUME: {
     size_t i = n->value.getAsObjectIndex();
-    if (auto h = m_cache->getHandle(type, i); h != nullptr && included)
+    if (auto h = m_cache->getHandle(type, i, true); h != nullptr && included)
       current.volumes.push_back((anari::Volume)h);
   } break;
   case ANARI_LIGHT: {
     size_t i = n->value.getAsObjectIndex();
-    if (auto h = m_cache->getHandle(type, i); h != nullptr)
+    if (auto h = m_cache->getHandle(type, i, true); h != nullptr)
       current.lights.push_back((anari::Light)h);
   } break;
   case ANARI_FLOAT32_MAT4:
@@ -139,7 +139,7 @@ inline void RenderToAnariObjectsVisitor::postChildren(LayerNode &n, int level)
           continue;
         auto objType = p.second.type();
         auto objHandle =
-            m_cache->getHandle(objType, p.second.getAsObjectIndex());
+            m_cache->getHandle(objType, p.second.getAsObjectIndex(), true);
         anari::setParameter(
             m_device, inst, p.first.c_str(), objType, &objHandle);
       }

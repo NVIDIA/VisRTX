@@ -235,7 +235,8 @@ void Object::updateANARIParameter(anari::Device d,
     anari::unsetParameter(d, o, n);
   } else if (cache && p.value().holdsObject()) {
     auto objType = p.value().type();
-    auto objHandle = cache->getHandle(objType, p.value().getAsObjectIndex());
+    auto objHandle =
+        cache->getHandle(objType, p.value().getAsObjectIndex(), true);
     if (objHandle)
       anari::setParameter(d, o, n, objType, &objHandle);
     else

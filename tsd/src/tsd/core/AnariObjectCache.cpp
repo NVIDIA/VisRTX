@@ -42,19 +42,21 @@ AnariObjectCache::~AnariObjectCache()
   anari::release(device, device);
 }
 
-anari::Object AnariObjectCache::getHandle(anari::DataType type, size_t i)
+anari::Object AnariObjectCache::getHandle(
+    anari::DataType type, size_t i, bool createIfNotPresent)
 {
-  return getHandle(m_ctx->getObject(type, i));
+  return getHandle(m_ctx->getObject(type, i), createIfNotPresent);
 }
 
-anari::Object AnariObjectCache::getHandle(const Object *obj)
+anari::Object AnariObjectCache::getHandle(
+    const Object *obj, bool createIfNotPresent)
 {
   if (!obj)
     return nullptr;
   auto type = obj->type();
   auto idx = obj->index();
   auto o = readHandle(type, idx);
-  if (!o) {
+  if (!o && createIfNotPresent) {
     auto d = device;
     o = obj->makeANARIObject(d);
     obj->updateAllANARIParameters(d, o, this);
@@ -70,9 +72,44 @@ anari::Object AnariObjectCache::getHandle(const Object *obj)
   return o;
 }
 
+void AnariObjectCache::insertEmptyHandle(anari::DataType type)
+{
+  switch (type) {
+  case ANARI_SURFACE:
+    surface.insert(nullptr);
+    break;
+  case ANARI_GEOMETRY:
+    geometry.insert(nullptr);
+    break;
+  case ANARI_MATERIAL:
+    material.insert(nullptr);
+    break;
+  case ANARI_SAMPLER:
+    sampler.insert(nullptr);
+    break;
+  case ANARI_VOLUME:
+    volume.insert(nullptr);
+    break;
+  case ANARI_SPATIAL_FIELD:
+    field.insert(nullptr);
+    break;
+  case ANARI_LIGHT:
+    light.insert(nullptr);
+    break;
+  case ANARI_ARRAY:
+  case ANARI_ARRAY1D:
+  case ANARI_ARRAY2D:
+  case ANARI_ARRAY3D:
+    array.insert(nullptr);
+    break;
+  default:
+    break; // no-op
+  }
+}
+
 void AnariObjectCache::removeHandle(anari::DataType type, size_t index)
 {
-  auto handle = getHandle(type, index);
+  auto handle = getHandle(type, index, false);
   anari::release(device, handle);
 
   switch (type) {
@@ -144,12 +181,12 @@ void AnariObjectCache::updateObjectArrayData(const Array *a)
   if (!a || !anari::isObject(elementType) || a->isEmpty())
     return;
 
-  if (auto arr = (anari::Array)this->getHandle(a); arr != nullptr) {
+  if (auto arr = (anari::Array)this->getHandle(a, false); arr != nullptr) {
     auto *src = (const size_t *)a->data();
     auto *dst = (anari::Object *)anariMapArray(device, arr);
     std::transform(src, src + a->size(), dst, [&](size_t idx) {
       auto *obj = m_ctx->getObject(elementType, idx);
-      auto handle = this->getHandle(obj);
+      auto handle = this->getHandle(obj, true);
       if (handle == nullptr)
         logWarning("[RenderIndex] object array encountered null handle");
       return handle;

@@ -17,8 +17,10 @@ struct AnariObjectCache
 {
   AnariObjectCache(Context &ctx, anari::Device d);
   ~AnariObjectCache();
-  anari::Object getHandle(anari::DataType type, size_t index);
-  anari::Object getHandle(const Object *o);
+  anari::Object getHandle(
+      anari::DataType type, size_t index, bool createIfNotPresent);
+  anari::Object getHandle(const Object *o, bool createIfNotPresent);
+  void insertEmptyHandle(anari::DataType type);
   void removeHandle(anari::DataType type, size_t index);
   void removeHandle(const Object *o);
   void clear();

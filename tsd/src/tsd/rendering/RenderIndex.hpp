@@ -76,7 +76,7 @@ inline void setIndexedArrayObjectsAsAnariObjectArray(
 
   size_t i = 0, j = 0;
   for (; i < iv.capacity(); i++) {
-    if (auto obj = iv[i]; obj != nullptr)
+    if (auto obj = iv[i]; !iv.slot_empty(i) && obj != nullptr)
       handles[j++] = obj;
   }
 
