@@ -29,10 +29,10 @@ void import_E57XYZ(Context &ctx, const char *filepath, LayerNodeRef location)
   logInfo(
       "[import_e57xyz] loading %zu points from %s", numParticles, file.c_str());
 
-  std::vector<float> positions(numParticles * 3);
-  std::vector<float> colors(numParticles * 3);
-  r = std::fread(positions.data(), sizeof(float), numParticles * 3, fp);
-  r = std::fread(colors.data(), sizeof(float), numParticles * 3, fp);
+  std::vector<float3> positions(numParticles);
+  std::vector<float3> colors(numParticles);
+  r = std::fread(positions.data(), sizeof(float3), numParticles, fp);
+  r = std::fread(colors.data(), sizeof(float3), numParticles, fp);
   std::fclose(fp);
 
   // create TSD objects //
