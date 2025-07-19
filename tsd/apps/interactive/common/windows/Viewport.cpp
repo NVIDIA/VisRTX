@@ -222,6 +222,7 @@ void Viewport::saveSettings(tsd::serialization::DataNode &root)
   root["depthVisualMaximum"] = m_depthVisualMaximum;
   root["fov"] = m_fov;
   root["resolutionScale"] = m_resolutionScale;
+  root["showAxes"] = m_showAxes;
 
   root["anariLibrary"] = m_libName;
 
@@ -259,6 +260,7 @@ void Viewport::loadSettings(tsd::serialization::DataNode &root)
   root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
   root["fov"].getValue(ANARI_FLOAT32, &m_fov);
   root["resolutionScale"].getValue(ANARI_FLOAT32, &m_resolutionScale);
+  root["showAxes"].getValue(ANARI_BOOL, &m_showAxes);
 
   // Camera //
 
@@ -341,7 +343,7 @@ void Viewport::setupRenderPipeline()
   tsd::logStatus("[viewport] initialized scene for '%s' device in %.2fs",
       m_libName.c_str(),
       m_timeToLoadDevice);
-  m_anariPass = m_pipeline.emplace_back<tsd::AnariRenderPass>(m_device);
+  m_anariPass = m_pipeline.emplace_back<tsd::AnariSceneRenderPass>(m_device);
   m_pickPass = m_pipeline.emplace_back<tsd::PickPass>();
   m_pickPass->setEnabled(false);
   m_pickPass->setPickOperation([&](tsd::RenderPass::Buffers &b) {
@@ -429,6 +431,8 @@ void Viewport::setupRenderPipeline()
   m_visualizeDepthPass = m_pipeline.emplace_back<tsd::VisualizeDepthPass>();
   m_visualizeDepthPass->setEnabled(false);
   m_outlinePass = m_pipeline.emplace_back<tsd::OutlineRenderPass>();
+  m_axesPass = m_pipeline.emplace_back<tsd::AnariAxesRenderPass>(m_device);
+  m_axesPass->setEnabled(m_showAxes);
   m_outputPass = m_pipeline.emplace_back<tsd::CopyToSDLTexturePass>(
       m_core->application->sdlRenderer());
   reshape(m_viewportSize);
@@ -562,6 +566,8 @@ void Viewport::updateCamera(bool force)
 
   if (m_echoCameraConfig)
     echoCameraConfig();
+
+  m_axesPass->setView(m_arcball->dir(), m_arcball->up());
 }
 
 void Viewport::updateImage()
@@ -820,6 +826,11 @@ void Viewport::ui_menubar()
 
       if (ImGui::Checkbox("only show selected", &m_showOnlySelected))
         setSelectionVisibilityFilterEnabled(m_showOnlySelected);
+
+      ImGui::Separator();
+
+      if (ImGui::Checkbox("show axes", &m_showAxes))
+        m_axesPass->setEnabled(m_showAxes);
 
       ImGui::Separator();
 

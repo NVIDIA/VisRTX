@@ -4,6 +4,14 @@
 #pragma once
 
 #include "RenderPass.h"
+#include "passes/AnariAxesRenderPass.h"
+#include "passes/AnariSceneRenderPass.h"
+#if ENABLE_SDL
+#include "passes/CopyToSDLTexturePass.h"
+#endif
+#include "passes/OutlineRenderPass.h"
+#include "passes/PickPass.h"
+#include "passes/VisualizeDepthPass.h"
 // std
 #include <memory>
 

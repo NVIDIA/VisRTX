@@ -107,7 +107,7 @@ int main()
 
   tsd::RenderPipeline rpipe(imageSize.x, imageSize.y);
 
-  auto *arp = rpipe.emplace_back<tsd::AnariRenderPass>(device);
+  auto *arp = rpipe.emplace_back<tsd::AnariSceneRenderPass>(device);
   arp->setWorld(rIdx.world());
   arp->setRenderer(renderer);
   arp->setCamera(camera);

@@ -80,6 +80,7 @@ struct Viewport : public Window
   int m_frameSamples{0};
 
   bool m_visualizeDepth{false};
+  bool m_showAxes{true};
   float m_depthVisualMaximum{1.f};
 
   float m_fov{40.f};
@@ -125,10 +126,11 @@ struct Viewport : public Window
   // display
 
   tsd::RenderPipeline m_pipeline;
-  tsd::AnariRenderPass *m_anariPass{nullptr};
+  tsd::AnariSceneRenderPass *m_anariPass{nullptr};
   tsd::PickPass *m_pickPass{nullptr};
   tsd::VisualizeDepthPass *m_visualizeDepthPass{nullptr};
   tsd::OutlineRenderPass *m_outlinePass{nullptr};
+  tsd::AnariAxesRenderPass *m_axesPass{nullptr};
   tsd::CopyToSDLTexturePass *m_outputPass{nullptr};
 
   tsd::math::int2 m_viewportSize{0, 0};
