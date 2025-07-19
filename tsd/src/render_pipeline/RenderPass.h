@@ -3,16 +3,7 @@
 
 #pragma once
 
-// tsd
 #include "tsd/core/TSDMath.hpp"
-// std
-#include <vector>
-// anari
-#include <anari/anari_cpp.hpp>
-
-#ifdef ENABLE_SDL
-#include <SDL3/SDL.h>
-#endif
 
 namespace tsd {
 
@@ -45,100 +36,6 @@ struct RenderPass
 
   friend struct RenderPipeline;
 };
-
-// RenderPass subtypes ////////////////////////////////////////////////////////
-
-struct AnariRenderPass : public RenderPass
-{
-  AnariRenderPass(anari::Device d);
-  ~AnariRenderPass() override;
-
-  void setCamera(anari::Camera c);
-  void setRenderer(anari::Renderer r);
-  void setWorld(anari::World w);
-  void setColorFormat(anari::DataType t);
-  void setEnableIDs(bool on);
-
-  anari::Frame getFrame() const;
-
- private:
-  void updateSize() override;
-  void render(Buffers &b, int stageId) override;
-  void copyFrameData();
-  void composite(Buffers &b, int stageId);
-  void cleanup();
-
-  Buffers m_buffers;
-
-  bool m_firstFrame{true};
-  bool m_deviceSupportsCUDAFrames{false};
-  bool m_enableIDs{false};
-
-  anari::Device m_device{nullptr};
-  anari::Camera m_camera{nullptr};
-  anari::Renderer m_renderer{nullptr};
-  anari::World m_world{nullptr};
-  anari::Frame m_frame{nullptr};
-};
-
-struct PickPass : public RenderPass
-{
-  using PickOpFunc = std::function<void(RenderPass::Buffers &b)>;
-
-  PickPass();
-  ~PickPass() override;
-
-  void setPickOperation(PickOpFunc &&f);
-
- private:
-  void render(Buffers &b, int stageId) override;
-
-  PickOpFunc m_op;
-};
-
-struct VisualizeDepthPass : public RenderPass
-{
-  VisualizeDepthPass();
-  ~VisualizeDepthPass() override;
-
-  void setMaxDepth(float d);
-
- private:
-  void render(Buffers &b, int stageId) override;
-
-  float m_maxDepth{1.f};
-};
-
-struct OutlineRenderPass : public RenderPass
-{
-  OutlineRenderPass();
-  ~OutlineRenderPass() override;
-
-  void setOutlineId(uint32_t id);
-
- private:
-  void render(Buffers &b, int stageId) override;
-
-  uint32_t m_outlineId{~0u};
-};
-
-#ifdef ENABLE_SDL
-struct CopyToSDLTexturePass : public RenderPass
-{
-  CopyToSDLTexturePass(SDL_Renderer *renderer);
-  ~CopyToSDLTexturePass() override;
-
-  SDL_Texture *getTexture() const;
-
- private:
-  bool checkGLInterop() const;
-  void render(Buffers &b, int stageId) override;
-  void updateSize() override;
-
-  struct CopyToSDLTexturePassImpl;
-  CopyToSDLTexturePassImpl *m_impl{nullptr};
-};
-#endif
 
 // Utility functions //////////////////////////////////////////////////////////
 

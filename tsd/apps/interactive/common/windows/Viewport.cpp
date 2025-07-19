@@ -341,7 +341,7 @@ void Viewport::setupRenderPipeline()
   tsd::logStatus("[viewport] initialized scene for '%s' device in %.2fs",
       m_libName.c_str(),
       m_timeToLoadDevice);
-  m_anariPass = m_pipeline.emplace_back<tsd::AnariRenderPass>(m_device);
+  m_anariPass = m_pipeline.emplace_back<tsd::AnariSceneRenderPass>(m_device);
   m_pickPass = m_pipeline.emplace_back<tsd::PickPass>();
   m_pickPass->setEnabled(false);
   m_pickPass->setPickOperation([&](tsd::RenderPass::Buffers &b) {

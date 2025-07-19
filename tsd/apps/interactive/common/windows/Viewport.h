@@ -125,7 +125,7 @@ struct Viewport : public Window
   // display
 
   tsd::RenderPipeline m_pipeline;
-  tsd::AnariRenderPass *m_anariPass{nullptr};
+  tsd::AnariSceneRenderPass *m_anariPass{nullptr};
   tsd::PickPass *m_pickPass{nullptr};
   tsd::VisualizeDepthPass *m_visualizeDepthPass{nullptr};
   tsd::OutlineRenderPass *m_outlinePass{nullptr};
