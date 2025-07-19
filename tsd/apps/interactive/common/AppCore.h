@@ -95,6 +95,7 @@ struct AppCore
     BlockingTaskModal *taskModal{nullptr};
     ImportFileDialog *importDialog{nullptr};
     float fontScale{1.f};
+    float uiRounding{9.f};
   } windows;
 
   struct Tasking

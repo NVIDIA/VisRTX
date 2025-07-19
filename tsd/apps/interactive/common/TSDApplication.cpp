@@ -47,7 +47,6 @@ anari_viewer::WindowArray TSDApplication::setupWindows()
   anari_viewer::ui::init();
 
   ImGuiIO &io = ImGui::GetIO();
-  io.FontGlobalScale = 1.f;
   io.IniFilename = nullptr;
   auto *font = io.Fonts->AddFontFromMemoryCompressedTTF(
       tsd_font_compressed_data, tsd_font_compressed_size, 20.f);
@@ -66,6 +65,8 @@ anari_viewer::WindowArray TSDApplication::setupWindows()
 
   m_applicationName = SDL_GetWindowTitle(sdlWindow());
   updateWindowTitle();
+
+  m_appSettingsDialog->applySettings();
 
   SDL_SetRenderVSync(sdlRenderer(), 1);
 
@@ -262,6 +263,7 @@ void TSDApplication::saveApplicationState(const char *_filename)
     settings["logVerbose"] = core.logging.verbose;
     settings["logEchoOutput"] = core.logging.echoOutput;
     settings["fontScale"] = core.windows.fontScale;
+    settings["uiRounding"] = core.windows.uiRounding;
 
     // Camera poses
     auto &cameraPoses = root["cameraPoses"];
@@ -309,6 +311,7 @@ void TSDApplication::loadApplicationState(const char *filename)
     settings["logVerbose"].getValue(ANARI_BOOL, &core.logging.verbose);
     settings["logEchoOutput"].getValue(ANARI_BOOL, &core.logging.echoOutput);
     settings["fontScale"].getValue(ANARI_FLOAT32, &core.windows.fontScale);
+    settings["uiRounding"].getValue(ANARI_FLOAT32, &core.windows.uiRounding);
   }
 
   core.view.poses.clear();
