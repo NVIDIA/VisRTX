@@ -158,10 +158,10 @@ vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
   if (cos_theta > 0.0f) {
     BsdfEvaluateData eval_data = {};
     // FIXME: Handle being inside vs outside.
-    eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f),
+    eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
     eval_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
-    eval_data.k1 = make_float3(normalize(*outgoingDir)),
-    eval_data.k2 = make_float3(normalize(lightSample->dir)),
+    eval_data.k1 = make_float3(normalize(*outgoingDir));
+    eval_data.k2 = make_float3(normalize(lightSample->dir));
 
     mdlBsdf_evaluate(&eval_data,
         &shadingState->state,

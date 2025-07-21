@@ -39,6 +39,10 @@ option(VISRTX_ENABLE_NEURAL "Enable Neural Graphics Primitives" OFF)
 option(VISRTX_ENABLE_NVTX "Enable NVTX profiling instrumentation" OFF)
 mark_as_advanced(VISRTX_ENABLE_NVTX)
 
+# Enable possibly costly debug support
+option(VISRTX_ENABLE_HDRI_SAMPLING_DEBUG "Enable HDRI sampling debug support" OFF)
+mark_as_advanced(VISRTX_ENABLE_HDRI_SAMPLING_DEBUG)
+
 ## Compilation setup ##
 
 set(VISRTX_CUDA_COMPILE_OPTIONS
@@ -54,6 +58,7 @@ set(VISRTX_CUDA_COMPILE_OPTIONS
   "$<$<BOOL:${VISRTX_ENABLE_NEURAL}>:-DVISRTX_USE_NEURAL>"
   # MDL support
   "$<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:-DUSE_MDL>"
+  "$<$<BOOL:${VISRTX_ENABLE_HDRI_SAMPLING_DEBUG}>:-DVISRTX_ENABLE_HDRI_SAMPLING_DEBUG>"
 )
 
 set(CMAKE_CUDA_STANDARD 17)
@@ -156,7 +161,7 @@ set(SOURCES
   scene/ComputeTangent.cu
 
   scene/light/Directional.cpp
-  scene/light/HDRI.cpp
+  scene/light/HDRI.cu
   scene/light/Light.cpp
   scene/light/Point.cpp
   scene/light/Spot.cpp
@@ -279,6 +284,7 @@ PRIVATE
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:USE_NVTX>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:USE_MDL>
   $<$<BOOL:${VISRTX_ENABLE_NEURAL}>:VISRTX_USE_NEURAL>
+  $<$<BOOL:${VISRTX_ENABLE_HDRI_SAMPLING_DEBUG}>:VISRTX_ENABLE_HDRI_SAMPLING_DEBUG>
 )
 
 if(NOT WIN32)

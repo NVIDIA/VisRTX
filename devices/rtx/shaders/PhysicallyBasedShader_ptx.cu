@@ -145,5 +145,5 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
   const float denom = 4.f * fabsf(NdotV) * fabsf(NdotL);
   const vec3 specularBRDF = denom != 0.f ? (F * D * G) / denom : vec3(0.f);
 
-  return (diffuseBRDF + specularBRDF) * lightSample->radiance;
+  return (diffuseBRDF + specularBRDF) * lightSample->radiance / lightSample->pdf;
 }

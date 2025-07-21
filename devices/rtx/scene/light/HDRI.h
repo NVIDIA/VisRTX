@@ -32,6 +32,7 @@
 #pragma once
 
 #include "Light.h"
+#include "array/Array.h"
 #include "array/Array2D.h"
 #include "utility/CudaImageTexture.h"
 
@@ -57,8 +58,22 @@ struct HDRI : public Light
   vec3 m_direction{1.f, 0.f, 0.f};
   float m_scale{1.f};
   bool m_visible{true};
+  uvec2 m_size{0, 0};
   helium::ChangeObserverPtr<Array2D> m_radiance;
   cudaTextureObject_t m_radianceTex{};
+  DeviceBuffer m_marginalCDF;
+  DeviceBuffer m_conditionalCDF;
+  float m_pdfWeight{0.f};
+#ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG
+  uint32_t *m_samples{nullptr};
+#endif
+
+  // Importance sampling support
+  float generateCDFTables(const glm::vec3 *envMap,
+      int width,
+      int height,
+      DeviceBuffer *marginalCdf,
+      DeviceBuffer *conditionalCdf);
 };
 
 } // namespace visrtx

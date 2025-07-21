@@ -492,9 +492,16 @@ struct SpotLightGPUData
 struct HDRILightGPUData
 {
   mat3 xfm;
+  uvec2 size;
   cudaTextureObject_t radiance;
+  const float *marginalCDF;
+  const float *conditionalCDF;
   float scale;
   bool visible;
+  float pdfWeight;
+#ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG
+  uint32_t *samples; // pixelmap of sample counts
+#endif
 };
 
 struct LightGPUData
