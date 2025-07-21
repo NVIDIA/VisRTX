@@ -53,6 +53,8 @@ struct DeviceBuffer
   template <typename T>
   void download(T *dst, size_t numElements = 1, size_t byteOffsetStart = 0);
 
+  HostMemoryAllocation hostCopy() const { return m_mem; }
+
   template <typename T>
   T *ptrAs() const;
   void *ptr() const;
