@@ -246,20 +246,27 @@ VISRTX_HOST_DEVICE float pow5(float f)
   return f * f * f * f * f;
 }
 
-VISRTX_HOST_DEVICE float pbrt_clampf(float f, float lo, float hi)
+VISRTX_HOST_DEVICE float clampf(float f, float lo, float hi)
 {
   return glm::max(lo, glm::min(hi, f));
 }
 
-VISRTX_HOST_DEVICE float pbrtSphericalTheta(const vec3 &v)
+VISRTX_HOST_DEVICE vec2 sphericalCoordsFromDirection(vec3 dir)
 {
-  return acosf(pbrt_clampf(v.z, -1.f, 1.f));
+  float theta = acosf(glm::clamp(dir.z, -1.0f, 1.0f));
+  float p = atan2f(dir.y, dir.x);
+  float phi = p < 0.f ? p + 2.f * float(M_PI) : p;
+
+  return vec2(theta, phi);
 }
 
-VISRTX_HOST_DEVICE float pbrtSphericalPhi(const vec3 &v)
+VISRTX_HOST_DEVICE vec3 sphericalCoordsToDirection(vec2 thetaPhi)
 {
-  const float p = atan2f(v.y, v.x);
-  return p < 0.f ? p + (2.f * float(M_PI)) : p;
+  const float sinTheta = sinf(thetaPhi.x);
+
+  return vec3(sinTheta * cosf(thetaPhi.y),
+      sinTheta * sinf(thetaPhi.y),
+      cosf(thetaPhi.x));
 }
 
 template <typename T>
@@ -290,24 +297,19 @@ VISRTX_HOST_DEVICE vec2 uniformSampleDisk(float radius, const vec2 &s)
 }
 
 VISRTX_HOST_DEVICE vec3 uniformSampleCone(
-    float cosThetaMax,  // cosine of cone opening angle
+    float cosThetaMax, // cosine of cone opening angle
     vec3 s) // rand uniforms in [0,1)
 {
-    // Sample direction in cone
-    float phi = 2.0f * M_PI * s.x;
-    float cosTheta = (1.0f - s.y) + s.y * cosThetaMax;
-    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+  // Sample direction in cone
+  float phi = 2.0f * M_PI * s.x;
+  float cosTheta = (1.0f - s.y) + s.y * cosThetaMax;
+  float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
 
-    // Sample distance with cube-root for uniform volume
-    float d = powf(s.z, 1.0f/3.0f);
+  // Sample distance with cube-root for uniform volume
+  float d = powf(s.z, 1.0f / 3.0f);
 
-    return vec3(
-        d * sinTheta * cosf(phi),
-        d * sinTheta * sinf(phi),
-        d * cosTheta
-    );
+  return vec3(d * sinTheta * cosf(phi), d * sinTheta * sinf(phi), d * cosTheta);
 }
-
 
 VISRTX_HOST_DEVICE vec3 xfmVec(const mat4 &m, const vec3 &p)
 {

@@ -32,6 +32,7 @@
 #pragma once
 
 #include "cameraCreateRay.h"
+#include "gpu/gpu_debug.h"
 #include "gpu_objects.h"
 // optix
 #include <optix_device.h>
@@ -266,6 +267,11 @@ VISRTX_DEVICE bool isMiddelPixel(
   return pixel.x == (fb.size.x / 2) && pixel.y == (fb.size.y / 2);
 }
 
+VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec2 &uv)
+{
+  return vec3(make_vec4(tex2D<::float4>(ld.hdri.radiance, uv.x, uv.y)));
+}
+
 VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
 {
   if (ld.type != LightType::HDRI)
@@ -274,13 +280,11 @@ VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
   constexpr float invPi = 1.f / float(M_PI);
   constexpr float inv2Pi = 1.f / (2.f * float(M_PI));
   const vec3 d = ld.hdri.xfm * rayDir;
-  const float theta = pbrtSphericalTheta(d);
-  const float phi = pbrtSphericalPhi(d);
-  const float u = phi * inv2Pi;
-  const float v = theta * invPi;
+  const vec2 thetaPhi = sphericalCoordsFromDirection(d);
+  const float u = thetaPhi.y * inv2Pi;
+  const float v = thetaPhi.x * invPi;
 
-  return vec3(make_vec4(tex2D<::float4>(ld.hdri.radiance, u, v)))
-      * ld.hdri.scale;
+  return vec3(make_vec4(tex2D<::float4>(ld.hdri.radiance, u, v)));
 }
 
 VISRTX_DEVICE vec4 getBackgroundImage(
@@ -349,8 +353,7 @@ VISRTX_DEVICE void accumValue(T *arr, size_t idx, const T &v)
   arr[idx] += v;
 }
 
-VISRTX_DEVICE bool accumDepth(
-    float *arr, size_t idx, const float &v)
+VISRTX_DEVICE bool accumDepth(float *arr, size_t idx, const float &v)
 {
   if (!arr)
     return true; // no previous depth to compare with
@@ -361,6 +364,12 @@ VISRTX_DEVICE bool accumDepth(
   } else {
     return false;
   }
+}
+
+VISRTX_DEVICE uint32_t pixelIndex(
+    const FramebufferGPUData &fb, const uvec2 &pixel)
+{
+  return pixel.x + pixel.y * fb.size.x;
 }
 
 VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
@@ -377,12 +386,6 @@ VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
     fb.buffers.outColorUint[idx] = glm::packUnorm4x8(c);
   else
     fb.buffers.outColorVec4[idx] = c;
-}
-
-VISRTX_DEVICE uint32_t pixelIndex(
-    const FramebufferGPUData &fb, const uvec2 &pixel)
-{
-  return pixel.x + pixel.y * fb.size.x;
 }
 
 } // namespace detail
@@ -402,8 +405,7 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
 
   const auto frameID = fb.frameID + frameIDOffset;
 
-  detail::accumValue(
-      fb.buffers.colorAccumulation, idx, detail::tonemap(color));
+  detail::accumValue(fb.buffers.colorAccumulation, idx, detail::tonemap(color));
   detail::accumValue(fb.buffers.albedo, idx, albedo);
   detail::accumValue(fb.buffers.normal, idx, normal);
 

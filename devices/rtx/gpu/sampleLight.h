@@ -31,10 +31,19 @@
 
 #pragma once
 
+#include <curand_uniform.h>
+#include <device_atomic_functions.h>
+#include <algorithm>
 #include <cmath>
+#include <glm/ext/matrix_float3x3.hpp>
+#include <glm/ext/vector_float3.hpp>
 #include <limits>
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
+
+#include <glm/gtx/color_space.hpp>
+
+#include <cub/thread/thread_search.cuh>
 
 namespace visrtx {
 
@@ -93,14 +102,49 @@ VISRTX_DEVICE LightSample sampleSpotLight(
   return ls;
 }
 
+VISRTX_DEVICE int inverseSampleCDF(const float *cdf, int size, float u)
+{
+  return cub::LowerBound(cdf, size, u);
+}
+
 VISRTX_DEVICE LightSample sampleHDRILight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit, RandState &rs)
 {
+  // Row and column sampling
+  auto y = inverseSampleCDF(
+      ld.hdri.marginalCDF, ld.hdri.size.y, curand_uniform(&rs));
+  auto x = inverseSampleCDF(ld.hdri.conditionalCDF + y * ld.hdri.size.x,
+      ld.hdri.size.x,
+      curand_uniform(&rs));
+
+  auto xy = glm::uvec2(x, y);
+
+#ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG
+  if (ld.hdri.samples) {
+    atomicInc(ld.hdri.samples + y * ld.hdri.size.x + x, ~0u);
+  }
+#endif
+  auto uv =
+      glm::clamp((glm::vec2(xy) + 0.5f) / glm::vec2(ld.hdri.size), 0.f, 1.f);
+
+  // And spherical coordinates
+  auto thetaPhi = float(M_PI) * glm::vec2(uv.y, 2.0f * (uv.x));
+
+  // Get world direction
+
+  // Compute PDF
+  auto radiance = sampleHDRI(ld, uv);
+  float pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * ld.hdri.pdfWeight;
+
   LightSample ls;
-  ls.dir = xfmVec(xfm, sampleHemisphere(rs, hit.Ns));
+  // ld.hdri.xfm is computed in HDRI.cpp and is made so it is an orthognal
+  // matrix. So transposing is actually the same as inverting. Use RHS
+  // mutlipliaction so we don't have to transpose the matrix.
+  ls.dir = sphericalCoordsToDirection(thetaPhi) * ld.hdri.xfm;
   ls.dist = 1e20f;
-  ls.radiance = sampleHDRI(ld, ls.dir);
-  ls.pdf = 1.0f;
+  ls.radiance = radiance * ld.hdri.scale;
+  ls.pdf = pdf;
+
   return ls;
 }
 
