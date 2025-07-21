@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "../RenderPass.h"
+#include "RenderPass.h"
 // anari
 #include <anari/anari_cpp.hpp>
 

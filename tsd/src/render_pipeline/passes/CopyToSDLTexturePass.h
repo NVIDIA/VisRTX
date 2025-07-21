@@ -3,7 +3,12 @@
 
 #pragma once
 
-#include "../RenderPass.h"
+#ifndef ENABLE_SDL
+#define ENABLE_SDL 1
+#endif
+
+#if ENABLE_SDL
+#include "RenderPass.h"
 // SDL3
 #include <SDL3/SDL.h>
 
@@ -26,3 +31,4 @@ struct CopyToSDLTexturePass : public RenderPass
 };
 
 } // namespace tsd
+#endif

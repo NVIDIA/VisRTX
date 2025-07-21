@@ -5,13 +5,13 @@ project(render_pipeline LANGUAGES CXX)
 
 project_add_library(STATIC)
 project_sources(PRIVATE
-  RenderPass.cpp
   RenderPipeline.cpp
   passes/AnariAxesRenderPass.cpp
   passes/AnariSceneRenderPass.cpp
   passes/CopyToSDLTexturePass.cpp
   passes/OutlineRenderPass.cpp
   passes/PickPass.cpp
+  passes/RenderPass.cpp
   passes/VisualizeDepthPass.cpp
 )
 project_include_directories(PUBLIC ${CMAKE_CURRENT_LIST_DIR}/..)
@@ -20,10 +20,10 @@ project_link_libraries(PUBLIC tsd)
 if (TSD_USE_CUDA)
   project_link_libraries(PRIVATE CUDA::cudart)
   set_source_files_properties(
-    RenderPass.cpp
     passes/AnariAxesRenderPass.cpp
     passes/AnariSceneRenderPass.cpp
     passes/OutlineRenderPass.cpp
+    passes/RenderPass.cpp
     passes/VisualizeDepthPass.cpp
     PROPERTIES
       COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"

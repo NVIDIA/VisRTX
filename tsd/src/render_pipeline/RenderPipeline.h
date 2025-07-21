@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "RenderPass.h"
 #include "passes/AnariAxesRenderPass.h"
 #include "passes/AnariSceneRenderPass.h"
 #if ENABLE_SDL

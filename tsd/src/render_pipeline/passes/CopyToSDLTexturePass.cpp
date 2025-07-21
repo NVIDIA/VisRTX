@@ -1,6 +1,8 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#if ENABLE_SDL
+
 #include "CopyToSDLTexturePass.h"
 #include "tsd/core/Logging.hpp"
 
@@ -140,3 +142,5 @@ void CopyToSDLTexturePass::updateSize()
 }
 
 } // namespace tsd
+
+#endif
