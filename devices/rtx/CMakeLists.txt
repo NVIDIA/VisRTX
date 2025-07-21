@@ -203,6 +203,7 @@ set(SOURCES
   utility/DeferredArrayUploadBuffer.cpp
   utility/instrument.cpp
   utility/MemoryAllocation.cpp
+  utility/PPM.cpp
 
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:
     mdl/Logger.cpp
