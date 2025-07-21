@@ -137,9 +137,9 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   float pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * ld.hdri.pdfWeight;
 
   LightSample ls;
-  // ld.hdri.xfm is computed in HDRI.cpp and is made so it is an orthognal
+  // ld.hdri.xfm is computed in HDRI.cpp and is made so it is an orthogonal
   // matrix. So transposing is actually the same as inverting. Use RHS
-  // mutlipliaction so we don't have to transpose the matrix.
+  // multiplication so we don't have to transpose the matrix.
   ls.dir = sphericalCoordsToDirection(thetaPhi) * ld.hdri.xfm;
   ls.dist = 1e20f;
   ls.radiance = radiance * ld.hdri.scale;
