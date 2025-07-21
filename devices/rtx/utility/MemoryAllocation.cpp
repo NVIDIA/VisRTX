@@ -100,6 +100,10 @@ HostMemoryAllocation &HostMemoryAllocation::operator=(
   return *this;
 }
 
+HostMemoryAllocation::HostMemoryAllocation(const CudaMemoryAllocation &o) {
+  (*this) = o;
+}
+
 void HostMemoryAllocation::privatize()
 {
   if (!isValid() || isOwner())
@@ -213,6 +217,10 @@ CudaMemoryAllocation &CudaMemoryAllocation::operator=(
   }
   cudaMemcpy(ptr(), o.ptr(), bytes(), cudaMemcpyHostToDevice);
   return *this;
+}
+
+CudaMemoryAllocation::CudaMemoryAllocation(const HostMemoryAllocation &o) {
+  (*this) = o;
 }
 
 void CudaMemoryAllocation::privatize()

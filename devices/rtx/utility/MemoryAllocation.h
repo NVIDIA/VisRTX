@@ -57,6 +57,7 @@ struct HostMemoryAllocation
   operator bool() const;
 
   HostMemoryAllocation &operator=(const CudaMemoryAllocation &o);
+  HostMemoryAllocation(const CudaMemoryAllocation &o);
 
   void privatize(); // if !isOwner(), then make internal copy
 
@@ -96,6 +97,7 @@ struct CudaMemoryAllocation
   operator bool() const;
 
   CudaMemoryAllocation &operator=(const HostMemoryAllocation &o);
+  CudaMemoryAllocation(const HostMemoryAllocation &o);
 
   void privatize(); // if !isOwner(), then make internal copy
 
