@@ -317,7 +317,6 @@ float HDRI::generateCDFTables(const glm::vec3* envMap, int width, int height,
 
     // Compute pdfWeight
     float totalLuminance = thrust::device_pointer_cast(marginalCdf->ptrAs<const float>())[height - 1];
-    // float weight =  totalLuminance /  (4.0f * float(M_PI) * width * height);
     float weight =  totalLuminance /  (2.0f * float(M_PI) * float(M_PI) * width * height);
 
     // Normalize both tables
