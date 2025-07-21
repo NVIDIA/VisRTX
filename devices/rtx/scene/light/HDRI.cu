@@ -229,7 +229,7 @@ void computeWeightedLuminance(const glm::vec3* envMap, float* luminance, int wid
                         auto rowLuminancePtr = luminanceBegin + y * width;
                         for (auto i = 0; i < width; i++) {
                             glm::vec3 rgb = rowEnvMapPtr[i];
-                            rowLuminancePtr[i] = sinTheta * dot(rgb, {0.2126f, 0.7152f, 0.0722f});// * glm::luminosity(rgb);
+                            rowLuminancePtr[i] = sinTheta * dot(rgb, {0.2126f, 0.7152f, 0.0722f});
                         }
                     });
 
