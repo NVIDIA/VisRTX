@@ -29,6 +29,8 @@ VolumeRef import_volume(Context &ctx,
     field = import_MHD(ctx, filepath);
   else if (ext == ".vtu")
     field = import_VTU(ctx, filepath);
+  else if (ext == ".vti")
+    field = import_VTI(ctx, filepath);
   else {
     logError("[import_volume] no loader for file type '%s'", ext.c_str());
     return {};

@@ -31,8 +31,9 @@ PRIVATE
   authoring/importers/import_RAW.cpp
   authoring/importers/import_SWC.cpp
   authoring/importers/import_volume.cpp
-  authoring/importers/import_XYZDP.cpp
+  authoring/importers/import_VTI.cpp
   authoring/importers/import_VTU.cpp
+  authoring/importers/import_XYZDP.cpp
   authoring/procedural/generate_cylinders.cpp
   authoring/procedural/generate_hdri_dome.cpp
   authoring/procedural/generate_hdri_test_image.cpp
@@ -175,7 +176,6 @@ endif()
 
 if (TSD_USE_VTK)
   find_package(VTK REQUIRED)
-  include(${VTK_USE_FILE})
   project_link_libraries(PRIVATE ${VTK_LIBRARIES})
   project_compile_definitions(PRIVATE -DTSD_USE_VTK=1)
 else()

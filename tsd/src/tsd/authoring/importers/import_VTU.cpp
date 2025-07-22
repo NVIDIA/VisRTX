@@ -26,7 +26,8 @@
 namespace tsd {
 
 #if TSD_USE_VTK
-ArrayRef makeFloatArray(Context &ctx, vtkDataArray *array, vtkIdType count)
+static ArrayRef makeFloatArray1D(
+    Context &ctx, vtkDataArray *array, vtkIdType count)
 {
   int numComponents = array->GetNumberOfComponents();
   if (numComponents > 1) {
@@ -105,7 +106,7 @@ SpatialFieldRef import_VTU(Context &ctx, const char *filepath)
   uint32_t numPointArrays = pointData->GetNumberOfArrays();
   for (uint32_t i = 0; i < std::min(1u, numPointArrays); ++i) {
     vtkDataArray *array = pointData->GetArray(i);
-    auto a = makeFloatArray(ctx, array, numPoints);
+    auto a = makeFloatArray1D(ctx, array, numPoints);
     field->setParameterObject("vertex.data", *a);
   }
 
@@ -114,7 +115,7 @@ SpatialFieldRef import_VTU(Context &ctx, const char *filepath)
   uint32_t numCellArrays = cellData->GetNumberOfArrays();
   for (uint32_t i = 0; i < std::min(1u, numCellArrays); ++i) {
     vtkDataArray *array = cellData->GetArray(i);
-    auto a = makeFloatArray(ctx, array, numPoints);
+    auto a = makeFloatArray1D(ctx, array, numPoints);
     field->setParameterObject("cell.data", *a);
   }
 
