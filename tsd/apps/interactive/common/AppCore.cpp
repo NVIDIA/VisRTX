@@ -345,7 +345,7 @@ void AppCore::addCurrentViewToCameraPoses(const char *_name)
 
   std::string name = _name;
   if (name.empty())
-    name = "<view" + std::to_string(view.poses.size()) + ">";
+    name = "user_view" + std::to_string(view.poses.size());
 
   CameraPose pose;
   pose.name = name;
@@ -354,6 +354,40 @@ void AppCore::addCurrentViewToCameraPoses(const char *_name)
   pose.upAxis = static_cast<int>(view.manipulator.axis());
 
   view.poses.push_back(std::move(pose));
+}
+
+void AppCore::addTurntableCameraPoses(const tsd::float3 &azs,
+    const tsd::float3 &els,
+    const tsd::float3 &center,
+    float dist,
+    const char *_name)
+{
+  if (azs.z <= 0.f || els.z <= 0.f) {
+    tsd::logError("invalid turntable azimuth/elevation step size");
+    return;
+  }
+
+  std::string baseName = _name;
+  if (baseName.empty())
+    baseName = "turntable_view";
+
+  int i = 0, j = 0;
+  for (float el = els.x; el <= els.y; el += els.z, j++) {
+    for (float az = azs.x; az <= azs.y; az += azs.z, i++) {
+      CameraPose pose;
+      pose.name = baseName + "_" + std::to_string(i) + "_" + std::to_string(j);
+      pose.lookat = center;
+      pose.azeldist = {az, el, dist};
+      pose.upAxis = static_cast<int>(view.manipulator.axis());
+      view.poses.push_back(std::move(pose));
+#if 0
+      printf("added turntable pose '%s' at azimuth %.2f, elevation %.2f\n",
+          view.poses.back().name.c_str(),
+          az,
+          el);
+#endif
+    }
+  }
 }
 
 void AppCore::updateExistingCameraPoseFromView(CameraPose &p)
@@ -373,6 +407,11 @@ void AppCore::setCameraPose(const CameraPose &pose)
       pose.lookat, pose.azeldist.z, {pose.azeldist.x, pose.azeldist.y});
   view.manipulator.setAxis(
       static_cast<tsd::manipulators::OrbitAxis>(pose.upAxis));
+}
+
+void AppCore::removeAllPoses()
+{
+  view.poses.clear();
 }
 
 } // namespace tsd_viewer

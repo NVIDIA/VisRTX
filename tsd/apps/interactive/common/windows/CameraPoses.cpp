@@ -13,8 +13,24 @@ CameraPoses::CameraPoses(AppCore *core, const char *name) : Window(core, name)
 
 void CameraPoses::buildUI()
 {
-  if (ImGui::Button("add new"))
+  ImGui::Text("Add:");
+  ImGui::SameLine();
+
+  if (ImGui::Button("current view"))
     m_core->addCurrentViewToCameraPoses();
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("insert new view using the current camera view");
+
+  ImGui::SameLine();
+  if (ImGui::Button("turntable views"))
+    ImGui::OpenPopup("CameraPoses_turntablePopupMenu");
+
+  ImGui::SameLine();
+  ImGui::Text(" | ");
+  ImGui::SameLine();
+
+  if (ImGui::Button("clear"))
+    ImGui::OpenPopup("CameraPoses_confirmPopupMenu");
 
   ImGui::Separator();
 
@@ -24,7 +40,7 @@ void CameraPoses::buildUI()
   const ImGuiTableFlags flags = ImGuiTableFlags_RowBg
       | ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_BordersInnerV;
 
-  if (ImGui::BeginTable("parameters", 4, flags)) {
+  if (ImGui::BeginTable("camera poses", 4, flags)) {
     for (auto &p : m_core->view.poses) {
       ImGui::PushID(&p);
 
@@ -60,37 +76,47 @@ void CameraPoses::buildUI()
     ImGui::EndTable();
   }
 
-#if 0
-  for (auto &p : m_core->view.poses) {
-    ImGui::PushID(&p);
-    ImGui::SetNextItemWidth(400.f);
-    ImGui::InputText("|", &p.name);
-    ImGui::SameLine();
-    if (ImGui::Button("0"))
-      m_core->setCameraPose(p);
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("set as current view");
-    ImGui::SameLine();
-    ImGui::Text("|");
-    ImGui::SameLine();
-    if (ImGui::Button("+"))
-      m_core->setCameraPose(p);
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("update this pose from view");
-    ImGui::SameLine();
-    ImGui::Text("|");
-    ImGui::SameLine();
-    if (ImGui::Button("x"))
-      toRemove = i;
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("delete this pose");
-    ImGui::PopID();
-    i++;
-  }
-#endif
-
   if (toRemove >= 0)
     m_core->view.poses.erase(m_core->view.poses.begin() + toRemove);
+
+  buildUI_turntablePopupMenu();
+  buildUI_confirmPopupMenu();
+}
+
+void CameraPoses::buildUI_turntablePopupMenu()
+{
+  if (ImGui::BeginPopup("CameraPoses_turntablePopupMenu")) {
+    ImGui::InputFloat3("azimuths", &m_turntableAzimuths.x, "%.3f");
+    ImGui::InputFloat3("elevations", &m_turntableElevations.x, "%.3f");
+    ImGui::InputFloat3("center", &m_turntableCenter.x, "%.3f");
+    ImGui::InputFloat("distance", &m_turntableDistance, 0.01f, 0.1f, "%.3f");
+    if (ImGui::Button("ok")) {
+      m_core->addTurntableCameraPoses(m_turntableAzimuths,
+          m_turntableElevations,
+          m_turntableCenter,
+          m_turntableDistance);
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("cancel"))
+      ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
+}
+
+void CameraPoses::buildUI_confirmPopupMenu()
+{
+  if (ImGui::BeginPopup("CameraPoses_confirmPopupMenu")) {
+    ImGui::Text("are you sure?");
+    if (ImGui::Button("ok")) {
+      m_core->removeAllPoses();
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("cancel"))
+      ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
 }
 
 } // namespace tsd_viewer

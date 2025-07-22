@@ -135,8 +135,14 @@ struct AppCore
   // Camera poses //
 
   void addCurrentViewToCameraPoses(const char *name = "");
+  void addTurntableCameraPoses(const tsd::float3 &azimuths, // begin, end, step
+      const tsd::float3 &elevations, // begin, end, step
+      const tsd::float3 &center,
+      float distance,
+      const char *name = "");
   void updateExistingCameraPoseFromView(CameraPose &p);
   void setCameraPose(const CameraPose &pose);
+  void removeAllPoses();
 
   // Not copyable or moveable //
   AppCore(const AppCore &) = delete;
