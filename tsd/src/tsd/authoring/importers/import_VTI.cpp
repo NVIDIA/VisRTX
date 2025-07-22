@@ -24,22 +24,39 @@
 namespace tsd {
 
 #if TSD_USE_VTK
+static anari::DataType vtkTypeToANARIType(int vtkType)
+{
+  switch (vtkType) {
+  case VTK_FLOAT:
+    return ANARI_FLOAT32;
+  case VTK_DOUBLE:
+    return ANARI_FLOAT64;
+  case VTK_CHAR:
+    return ANARI_FIXED8;
+  case VTK_SHORT:
+    return ANARI_FIXED16;
+  case VTK_INT:
+    return ANARI_FIXED32;
+  case VTK_UNSIGNED_CHAR:
+    return ANARI_UFIXED8;
+  case VTK_UNSIGNED_SHORT:
+    return ANARI_UFIXED16;
+  case VTK_UNSIGNED_INT:
+    return ANARI_UFIXED32;
+  default:
+    logError("[import_VTI] unsupported vtk type %d", vtkType);
+    return ANARI_UNKNOWN;
+  }
+}
+
 static ArrayRef makeArray3D(
     Context &ctx, vtkDataArray *array, vtkIdType w, vtkIdType h, vtkIdType d)
 {
-  int numComponents = array->GetNumberOfComponents();
-  if (numComponents > 1) {
-    logWarning(
-        "[import_VTU] only single-component arrays are supported, "
-        "array '%s' has %d components -- only using first component",
-        array->GetName(),
-        numComponents);
-  }
-  auto arr = ctx.createArray(ANARI_FLOAT32, w, h, d);
-  auto *buffer = arr->mapAs<float>();
-  for (vtkIdType i = 0; i < (w * h * d); ++i)
-    buffer[i] = static_cast<float>(array->GetComponent(i, 0));
-  arr->unmap();
+  void *ptr = array->GetVoidPointer(0);
+  int vtkType = array->GetDataType();
+
+  auto arr = ctx.createArray(vtkTypeToANARIType(vtkType), w, h, d);
+  arr->setData(ptr);
   return arr;
 }
 
@@ -67,18 +84,28 @@ SpatialFieldRef import_VTI(Context &ctx, const char *filepath)
   auto field =
       ctx.createObject<SpatialField>(tokens::spatial_field::structuredRegular);
   field->setName(fileOf(filepath).c_str());
-
-  // --- Write point data arrays ---
-  vtkPointData *pointData = grid->GetPointData();
-  uint32_t numPointArrays = pointData->GetNumberOfArrays();
-  for (uint32_t i = 0; i < std::min(1u, numPointArrays); ++i) {
-    vtkDataArray *array = pointData->GetArray(i);
-    auto a = makeArray3D(ctx, array, dims[0], dims[1], dims[2]);
-    field->setParameterObject("data", *a);
-  }
-
   field->setParameter("origin", float3(origin[0], origin[1], origin[2]));
   field->setParameter("spacing", float3(spacing[0], spacing[1], spacing[2]));
+
+  // --- Write point data array ---
+  vtkPointData *pointData = grid->GetPointData();
+  for (uint32_t i = 0; i < pointData->GetNumberOfArrays(); ++i) {
+    vtkDataArray *array = pointData->GetArray(i);
+
+    int numComponents = array->GetNumberOfComponents();
+    if (numComponents > 1) {
+      logWarning(
+          "[import_VTI] only single-component arrays are supported, "
+          "array '%s' has %d components -- only using first component",
+          array->GetName(),
+          numComponents);
+      continue;
+    }
+
+    auto a = makeArray3D(ctx, array, dims[0], dims[1], dims[2]);
+    field->setParameterObject("data", *a);
+    break;
+  }
 
   return field;
 }
