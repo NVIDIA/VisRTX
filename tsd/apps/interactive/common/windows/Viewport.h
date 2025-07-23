@@ -23,12 +23,12 @@ namespace tsd_viewer {
 struct Viewport : public Window
 {
   Viewport(AppCore *state,
-      tsd::manipulators::Orbit *m,
+      tsd::manipulators::Manipulator *m,
       const char *name = "Viewport");
   ~Viewport();
 
   void buildUI() override;
-  void setManipulator(tsd::manipulators::Orbit *m);
+  void setManipulator(tsd::manipulators::Manipulator *m);
   void resetView(bool resetAzEl = true);
   void centerView();
   void setLibrary(const std::string &libName, bool doAsync = true);
@@ -117,8 +117,8 @@ struct Viewport : public Window
   // camera manipulator
 
   int m_arcballUp{1};
-  tsd::manipulators::Orbit m_localArcball;
-  tsd::manipulators::Orbit *m_arcball{nullptr};
+  tsd::manipulators::Manipulator m_localArcball;
+  tsd::manipulators::Manipulator *m_arcball{nullptr};
   tsd::manipulators::UpdateToken m_cameraToken{0};
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};

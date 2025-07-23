@@ -63,6 +63,7 @@ PRIVATE
   rendering/RenderIndex.cpp
   rendering/RenderIndexFlatRegistry.cpp
   rendering/RenderIndexAllLayers.cpp
+  view/ManipulatorToAnari.cpp
 )
 
 project_include_directories(

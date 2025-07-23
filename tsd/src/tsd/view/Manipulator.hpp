@@ -20,7 +20,7 @@ struct CameraPose
   int upAxis{0};
 };
 
-enum class OrbitAxis
+enum class UpAxis
 {
   POS_X,
   POS_Y,
@@ -30,10 +30,10 @@ enum class OrbitAxis
   NEG_Z
 };
 
-class Orbit
+class Manipulator
 {
  public:
-  Orbit() = default;
+  Manipulator() = default;
 
   void setConfig(const CameraPose &p);
   void setConfig(anari::math::float3 center,
@@ -52,8 +52,8 @@ class Orbit
   void zoom(float delta);
   void pan(anari::math::float2 delta);
 
-  void setAxis(OrbitAxis axis);
-  OrbitAxis axis() const;
+  void setAxis(UpAxis axis);
+  UpAxis axis() const;
 
   anari::math::float2 azel() const;
 
@@ -70,8 +70,8 @@ class Orbit
  protected:
   void update();
 
-  OrbitAxis negateAxis(OrbitAxis current) const;
-  anari::math::float3 azelToDirection(float az, float el, OrbitAxis axis) const;
+  UpAxis negateAxis(UpAxis current) const;
+  anari::math::float3 azelToDirection(float az, float el, UpAxis axis) const;
 
   // Data //
 
@@ -92,18 +92,18 @@ class Orbit
   anari::math::float3 m_up;
   anari::math::float3 m_right;
 
-  OrbitAxis m_axis{OrbitAxis::POS_Y};
+  UpAxis m_axis{UpAxis::POS_Y};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-inline void Orbit::setConfig(const CameraPose &p)
+inline void Manipulator::setConfig(const CameraPose &p)
 {
   setConfig(p.lookat, p.azeldist.z, {p.azeldist.x, p.azeldist.y});
-  setAxis(static_cast<tsd::manipulators::OrbitAxis>(p.upAxis));
+  setAxis(static_cast<tsd::manipulators::UpAxis>(p.upAxis));
 }
 
-inline void Orbit::setConfig(
+inline void Manipulator::setConfig(
     anari::math::float3 center, float dist, anari::math::float2 azel)
 {
   m_at = center;
@@ -115,32 +115,32 @@ inline void Orbit::setConfig(
   update();
 }
 
-inline void Orbit::setCenter(anari::math::float3 center)
+inline void Manipulator::setCenter(anari::math::float3 center)
 {
   setConfig(center, m_distance, m_azel);
 }
 
-inline void Orbit::setDistance(float dist)
+inline void Manipulator::setDistance(float dist)
 {
   setConfig(m_at, dist, m_azel);
 }
 
-inline void Orbit::setFixedDistance(float dist)
+inline void Manipulator::setFixedDistance(float dist)
 {
   m_fixedDistance = dist;
 }
 
-inline void Orbit::setAzel(anari::math::float2 azel)
+inline void Manipulator::setAzel(anari::math::float2 azel)
 {
   setConfig(m_at, m_distance, azel);
 }
 
-inline void Orbit::startNewRotation()
+inline void Manipulator::startNewRotation()
 {
   m_invertRotation = m_azel.y > 90.f && m_azel.y < 270.f;
 }
 
-inline bool Orbit::hasChanged(UpdateToken &t) const
+inline bool Manipulator::hasChanged(UpdateToken &t) const
 {
   if (t < m_token) {
     t = m_token;
@@ -149,11 +149,11 @@ inline bool Orbit::hasChanged(UpdateToken &t) const
     return false;
 }
 
-inline void Orbit::rotate(anari::math::float2 delta)
+inline void Manipulator::rotate(anari::math::float2 delta)
 {
   delta *= 100;
-  if (m_axis == OrbitAxis::POS_Z || m_axis == OrbitAxis::NEG_X
-      || m_axis == OrbitAxis::NEG_Y)
+  if (m_axis == UpAxis::POS_Z || m_axis == UpAxis::NEG_X
+      || m_axis == UpAxis::NEG_Y)
     delta.x = -delta.x;
   delta.x = m_invertRotation ? -delta.x : delta.x;
   delta.y = m_distance < 0.f ? -delta.y : delta.y;
@@ -172,13 +172,13 @@ inline void Orbit::rotate(anari::math::float2 delta)
   update();
 }
 
-inline void Orbit::zoom(float delta)
+inline void Manipulator::zoom(float delta)
 {
   m_distance -= m_speed * delta;
   update();
 }
 
-inline void Orbit::pan(anari::math::float2 delta)
+inline void Manipulator::pan(anari::math::float2 delta)
 {
   delta *= m_speed;
 
@@ -190,126 +190,126 @@ inline void Orbit::pan(anari::math::float2 delta)
   update();
 }
 
-inline void Orbit::setAxis(OrbitAxis axis)
+inline void Manipulator::setAxis(UpAxis axis)
 {
   m_axis = axis;
   update();
 }
 
-inline OrbitAxis Orbit::axis() const
+inline UpAxis Manipulator::axis() const
 {
   return m_axis;
 }
 
-inline anari::math::float2 Orbit::azel() const
+inline anari::math::float2 Manipulator::azel() const
 {
   return m_azel;
 }
 
-inline anari::math::float3 Orbit::eye() const
+inline anari::math::float3 Manipulator::eye() const
 {
   return m_eye;
 }
 
-inline anari::math::float3 Orbit::at() const
+inline anari::math::float3 Manipulator::at() const
 {
   return m_at;
 }
 
-inline anari::math::float3 Orbit::dir() const
+inline anari::math::float3 Manipulator::dir() const
 {
   return linalg::normalize(at() - eye());
 }
 
-inline anari::math::float3 Orbit::up() const
+inline anari::math::float3 Manipulator::up() const
 {
   return m_up;
 }
 
-inline float Orbit::distance() const
+inline float Manipulator::distance() const
 {
   return m_distance;
 }
 
-inline float Orbit::fixedDistance() const
+inline float Manipulator::fixedDistance() const
 {
   return m_fixedDistance;
 }
 
-inline anari::math::float3 Orbit::eye_FixedDistance() const
+inline anari::math::float3 Manipulator::eye_FixedDistance() const
 {
   return m_eyeFixedDistance;
 }
 
-inline void Orbit::update()
+inline void Manipulator::update()
 {
   const float distance = std::abs(m_distance);
 
-  const OrbitAxis axis = m_distance < 0.f ? negateAxis(m_axis) : m_axis;
+  const UpAxis axis = m_distance < 0.f ? negateAxis(m_axis) : m_axis;
 
   const float azimuth = tsd::math::radians(-m_azel.x);
   const float elevation = tsd::math::radians(-m_azel.y);
 
-  const anari::math::float3 toLocalOrbit =
+  const anari::math::float3 toLocalManipulator =
       azelToDirection(azimuth, elevation, axis);
 
-  const anari::math::float3 localOrbitPos = toLocalOrbit * distance;
-  const anari::math::float3 fromLocalOrbit = -localOrbitPos;
+  const anari::math::float3 localManipulatorPos = toLocalManipulator * distance;
+  const anari::math::float3 fromLocalManipulator = -localManipulatorPos;
 
   const anari::math::float3 alteredElevation =
       azelToDirection(azimuth, elevation + 3, m_axis);
 
   const anari::math::float3 cameraRight =
-      linalg::cross(toLocalOrbit, alteredElevation);
+      linalg::cross(toLocalManipulator, alteredElevation);
   const anari::math::float3 cameraUp =
-      linalg::cross(cameraRight, fromLocalOrbit);
+      linalg::cross(cameraRight, fromLocalManipulator);
 
-  m_eye = localOrbitPos + m_at;
+  m_eye = localManipulatorPos + m_at;
   m_up = linalg::normalize(cameraUp);
   m_right = linalg::normalize(cameraRight);
 
-  m_eyeFixedDistance = (toLocalOrbit * m_fixedDistance) + m_at;
+  m_eyeFixedDistance = (toLocalManipulator * m_fixedDistance) + m_at;
 
   m_token++;
 }
 
-inline OrbitAxis Orbit::negateAxis(OrbitAxis current) const
+inline UpAxis Manipulator::negateAxis(UpAxis current) const
 {
   switch (current) {
-  case OrbitAxis::POS_X:
-    return OrbitAxis::NEG_X;
-  case OrbitAxis::POS_Y:
-    return OrbitAxis::NEG_Y;
-  case OrbitAxis::POS_Z:
-    return OrbitAxis::NEG_Z;
-  case OrbitAxis::NEG_X:
-    return OrbitAxis::POS_X;
-  case OrbitAxis::NEG_Y:
-    return OrbitAxis::POS_Y;
-  case OrbitAxis::NEG_Z:
-    return OrbitAxis::POS_Z;
+  case UpAxis::POS_X:
+    return UpAxis::NEG_X;
+  case UpAxis::POS_Y:
+    return UpAxis::NEG_Y;
+  case UpAxis::POS_Z:
+    return UpAxis::NEG_Z;
+  case UpAxis::NEG_X:
+    return UpAxis::POS_X;
+  case UpAxis::NEG_Y:
+    return UpAxis::POS_Y;
+  case UpAxis::NEG_Z:
+    return UpAxis::POS_Z;
   }
   return {};
 }
 
-inline anari::math::float3 Orbit::azelToDirection(
-    float az, float el, OrbitAxis axis) const
+inline anari::math::float3 Manipulator::azelToDirection(
+    float az, float el, UpAxis axis) const
 {
   const float x = std::sin(az) * std::cos(el);
   const float y = std::cos(az) * std::cos(el);
   const float z = std::sin(el);
   switch (axis) {
-  case OrbitAxis::POS_X:
+  case UpAxis::POS_X:
     return -normalize(anari::math::float3(z, y, x));
-  case OrbitAxis::POS_Y:
+  case UpAxis::POS_Y:
     return -normalize(anari::math::float3(x, z, y));
-  case OrbitAxis::POS_Z:
+  case UpAxis::POS_Z:
     return -normalize(anari::math::float3(x, y, z));
-  case OrbitAxis::NEG_X:
+  case UpAxis::NEG_X:
     return normalize(anari::math::float3(z, y, x));
-  case OrbitAxis::NEG_Y:
+  case UpAxis::NEG_Y:
     return normalize(anari::math::float3(x, z, y));
-  case OrbitAxis::NEG_Z:
+  case UpAxis::NEG_Z:
     return normalize(anari::math::float3(x, y, z));
   }
   return {};

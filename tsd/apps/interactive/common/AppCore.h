@@ -87,8 +87,19 @@ struct AppCore
   struct CameraState
   {
     std::vector<CameraPose> poses;
-    tsd::manipulators::Orbit manipulator;
+    tsd::manipulators::Manipulator manipulator;
   } view;
+
+  struct OfflineRenderSequenceConfig
+  {
+    struct FrameSettings
+    {
+      uint32_t width{1024};
+      uint32_t height{768};
+      anari::DataType colorFormat{ANARI_UFIXED8_RGBA_SRGB};
+      uint32_t samples{128};
+    } frame;
+  } offline;
 
   struct Windows
   {

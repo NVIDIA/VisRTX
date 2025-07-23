@@ -371,8 +371,9 @@ void AppCore::addTurntableCameraPoses(const tsd::float3 &azs,
   if (baseName.empty())
     baseName = "turntable_view";
 
-  int i = 0, j = 0;
+  int j = 0;
   for (float el = els.x; el <= els.y; el += els.z, j++) {
+    int i = 0;
     for (float az = azs.x; az <= azs.y; az += azs.z, i++) {
       CameraPose pose;
       pose.name = baseName + "_" + std::to_string(i) + "_" + std::to_string(j);
@@ -405,8 +406,7 @@ void AppCore::setCameraPose(const CameraPose &pose)
 {
   view.manipulator.setConfig(
       pose.lookat, pose.azeldist.z, {pose.azeldist.x, pose.azeldist.y});
-  view.manipulator.setAxis(
-      static_cast<tsd::manipulators::OrbitAxis>(pose.upAxis));
+  view.manipulator.setAxis(static_cast<tsd::manipulators::UpAxis>(pose.upAxis));
 }
 
 void AppCore::removeAllPoses()

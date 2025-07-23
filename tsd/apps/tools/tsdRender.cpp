@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdio>
 #include <memory>
+#include <vector>
 // stb_image
 #include "stb_image_write.h"
 
@@ -18,12 +19,20 @@ static std::unique_ptr<tsd::serialization::DataTree> g_stateFile;
 static std::unique_ptr<tsd::Context> g_ctx;
 static std::unique_ptr<tsd::RenderIndexAllLayers> g_renderIndex;
 static std::unique_ptr<tsd::RenderPipeline> g_renderPipeline;
-static tsd::uint2 g_imageSize = {1200, 800};
 static tsd::Timer g_timer;
-static tsd::manipulators::Orbit g_manipulator;
+static tsd::manipulators::Manipulator g_manipulator;
+static std::vector<tsd::manipulators::CameraPose> g_cameraPoses;
+
+struct FrameConfig
+{
+  tsd::math::uint2 size{1024, 768};
+  anari::DataType format{ANARI_UFIXED8_RGBA_SRGB};
+  uint32_t samples{128};
+} g_frameConfig;
 
 static anari::Library g_library{nullptr};
 static anari::Device g_device{nullptr};
+static anari::Camera g_camera{nullptr};
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -150,11 +159,13 @@ static void setupCameraManipulator()
   g_timer.start();
   auto &root = g_stateFile->root();
   if (auto *c = root.child("cameraPoses"); c != nullptr && !c->isLeaf()) {
-    tsd::manipulators::CameraPose pose;
-    tsd::nodeToCameraPose(*c->child(0), pose);
-    printf("using camera pose '%s'...", pose.name.c_str());
+    c->foreach_child([&](tsd::serialization::DataNode &n) {
+      tsd::manipulators::CameraPose pose;
+      tsd::nodeToCameraPose(n, pose);
+      g_cameraPoses.push_back(std::move(pose));
+    });
+    printf("using %zu camera poses from file...", g_cameraPoses.size());
     fflush(stdout);
-    g_manipulator.setConfig(pose);
   } else {
     printf("from world bounds...");
     fflush(stdout);
@@ -170,8 +181,14 @@ static void setupCameraManipulator()
 
     auto center = 0.5f * (bounds[0] + bounds[1]);
     auto diag = bounds[1] - bounds[0];
-    g_manipulator.setConfig(
-        center, 0.5f * tsd::math::length(diag), {0.f, 20.f});
+
+    tsd::manipulators::CameraPose pose;
+    pose.fixedDist = 2.f * tsd::math::length(diag);
+    pose.lookat = center;
+    pose.azeldist = {0.f, 20.f, pose.fixedDist};
+    pose.upAxis = static_cast<int>(tsd::manipulators::UpAxis::POS_Y);
+
+    g_cameraPoses.push_back(std::move(pose));
   }
   g_timer.end();
 
@@ -184,17 +201,16 @@ static void setupRenderPipeline()
   fflush(stdout);
 
   g_timer.start();
-  g_renderPipeline =
-      std::make_unique<tsd::RenderPipeline>(g_imageSize.x, g_imageSize.y);
+  g_renderPipeline = std::make_unique<tsd::RenderPipeline>(
+      g_frameConfig.size.x, g_frameConfig.size.y);
 
-  auto camera = anari::newObject<anari::Camera>(g_device, "perspective");
-  anari::setParameter(g_device, camera, "position", g_manipulator.eye());
-  anari::setParameter(g_device, camera, "direction", g_manipulator.dir());
-  anari::setParameter(g_device, camera, "up", g_manipulator.up());
-  anari::setParameter(
-      g_device, camera, "aspect", g_imageSize.x / float(g_imageSize.y));
-  anari::setParameter(g_device, camera, "fovy", anari::radians(40.f));
-  anari::commitParameters(g_device, camera);
+  g_camera = anari::newObject<anari::Camera>(g_device, "perspective");
+  anari::setParameter(g_device,
+      g_camera,
+      "aspect",
+      g_frameConfig.size.x / float(g_frameConfig.size.y));
+  anari::setParameter(g_device, g_camera, "fovy", anari::radians(40.f));
+  anari::commitParameters(g_device, g_camera);
 
   auto renderer = anari::newObject<anari::Renderer>(g_device, "default");
   anari::setParameter(g_device, renderer, "ambientRadiance", 0.25f);
@@ -204,9 +220,8 @@ static void setupRenderPipeline()
       g_renderPipeline->emplace_back<tsd::AnariSceneRenderPass>(g_device);
   arp->setWorld(g_renderIndex->world());
   arp->setRenderer(renderer);
-  arp->setCamera(camera);
+  arp->setCamera(g_camera);
 
-  anari::release(g_device, camera);
   anari::release(g_device, renderer);
 
   g_timer.end();
@@ -214,24 +229,50 @@ static void setupRenderPipeline()
   printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
 
-static void renderFrame()
+static void renderFrames()
 {
-  printf("Rendering frame (64 spp)...");
+  printf("Rendering frames (%u spp)...\n", g_frameConfig.samples);
   fflush(stdout);
 
   g_timer.start();
-  for (int i = 0; i < 64; i++)
-    g_renderPipeline->render();
+
   stbi_flip_vertically_on_write(1);
-  stbi_write_png("tsdRender.png",
-      g_imageSize.x,
-      g_imageSize.y,
-      4,
-      g_renderPipeline->getColorBuffer(),
-      4 * g_imageSize.x);
+
+  for (size_t i = 0; i < g_cameraPoses.size(); i++) {
+    const auto &pose = g_cameraPoses[i];
+
+    g_manipulator.setConfig(pose);
+    tsd::manipulators::updateCameraParametersPerspective(
+        g_device, g_camera, g_manipulator);
+    anari::commitParameters(g_device, g_camera);
+
+    printf("...frame %zu...\n", i);
+    fflush(stdout);
+
+    for (int i = 0; i < g_frameConfig.samples; i++)
+      g_renderPipeline->render();
+
+    std::string filename = "tsdRender_";
+    if (i < 10)
+      filename += "000" + std::to_string(i) + ".png";
+    else if (i < 100)
+      filename += "00" + std::to_string(i) + ".png";
+    else if (i < 1000)
+      filename += "0" + std::to_string(i) + ".png";
+    else
+      filename += std::to_string(i) + ".png";
+
+    stbi_write_png(filename.c_str(),
+        g_frameConfig.size.x,
+        g_frameConfig.size.y,
+        4,
+        g_renderPipeline->getColorBuffer(),
+        4 * g_frameConfig.size.x);
+  }
+
   g_timer.end();
 
-  printf("done (%.2f ms)\n", g_timer.milliseconds());
+  printf("...done (%.2f ms)\n", g_timer.milliseconds());
 }
 
 static void cleanup()
@@ -244,6 +285,7 @@ static void cleanup()
   g_renderIndex.reset();
   g_ctx.reset();
   g_stateFile.reset();
+  anari::release(g_device, g_camera);
   anari::release(g_device, g_device);
   anari::unloadLibrary(g_library);
   g_timer.end();
@@ -271,7 +313,7 @@ int main(int argc, const char *argv[])
   populateRenderIndex();
   setupCameraManipulator();
   setupRenderPipeline();
-  renderFrame();
+  renderFrames();
   cleanup();
 
   return 0;

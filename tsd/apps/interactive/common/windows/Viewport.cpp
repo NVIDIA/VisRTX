@@ -10,10 +10,12 @@
 #include <limits>
 // tsd
 #include "../tsd_ui.h"
+#include "tsd/view/ManipulatorToAnari.hpp"
 
 namespace tsd_viewer {
 
-Viewport::Viewport(AppCore *core, tsd::manipulators::Orbit *m, const char *name)
+Viewport::Viewport(
+    AppCore *core, tsd::manipulators::Manipulator *m, const char *name)
     : Window(core, name)
 {
   setManipulator(m);
@@ -69,7 +71,7 @@ void Viewport::buildUI()
     m_anariPass->setEnableIDs(m_core->objectIsSelected());
 }
 
-void Viewport::setManipulator(tsd::manipulators::Orbit *m)
+void Viewport::setManipulator(tsd::manipulators::Manipulator *m)
 {
   m_arcball = m ? m : &m_localArcball;
 }
@@ -276,7 +278,7 @@ void Viewport::loadSettings(tsd::serialization::DataNode &root)
     camera["azel"].getValue(ANARI_FLOAT32_VEC2, &azel);
     camera["up"].getValue(ANARI_INT32, &axis);
 
-    m_arcball->setAxis(tsd::manipulators::OrbitAxis(axis));
+    m_arcball->setAxis(tsd::manipulators::UpAxis(axis));
     m_arcball->setConfig(at, distance, azel);
   }
 
@@ -524,9 +526,8 @@ void Viewport::updateCamera(bool force)
 
   // perspective camera //
 
-  anari::setParameter(m_device, m_perspCamera, "position", m_arcball->eye());
-  anari::setParameter(m_device, m_perspCamera, "direction", m_arcball->dir());
-  anari::setParameter(m_device, m_perspCamera, "up", m_arcball->up());
+  tsd::manipulators::updateCameraParametersPerspective(
+      m_device, m_perspCamera, *m_arcball);
   anari::setParameter(m_device,
       m_perspCamera,
       "aspect",
@@ -542,12 +543,8 @@ void Viewport::updateCamera(bool force)
   // orthographic camera //
 
   if (m_orthoCamera) {
-    anari::setParameter(
-        m_device, m_orthoCamera, "position", m_arcball->eye_FixedDistance());
-    anari::setParameter(m_device, m_orthoCamera, "direction", m_arcball->dir());
-    anari::setParameter(m_device, m_orthoCamera, "up", m_arcball->up());
-    anari::setParameter(
-        m_device, m_orthoCamera, "height", m_arcball->distance() * 0.75f);
+    tsd::manipulators::updateCameraParametersOrthographic(
+        m_device, m_orthoCamera, *m_arcball);
     anari::setParameter(m_device,
         m_orthoCamera,
         "aspect",
@@ -558,9 +555,10 @@ void Viewport::updateCamera(bool force)
   // omnidirectional camera //
 
   if (m_omniCamera) {
-    anari::setParameter(m_device, m_omniCamera, "position", m_arcball->eye());
-    anari::setParameter(m_device, m_omniCamera, "direction", m_arcball->dir());
-    anari::setParameter(m_device, m_omniCamera, "up", m_arcball->up());
+    tsd::manipulators::updateCameraParametersPerspective( // also works for omni
+        m_device,
+        m_omniCamera,
+        *m_arcball);
     anari::commitParameters(m_device, m_omniCamera);
   }
 
@@ -713,8 +711,7 @@ void Viewport::ui_menubar()
       }
 
       if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
-        m_arcball->setAxis(
-            static_cast<tsd::manipulators::OrbitAxis>(m_arcballUp));
+        m_arcball->setAxis(static_cast<tsd::manipulators::UpAxis>(m_arcballUp));
         resetView();
       }
 

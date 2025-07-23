@@ -87,9 +87,21 @@ void CameraPoses::buildUI_turntablePopupMenu()
 {
   if (ImGui::BeginPopup("CameraPoses_turntablePopupMenu")) {
     ImGui::InputFloat3("azimuths", &m_turntableAzimuths.x, "%.3f");
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("{min, max, step size}");
+
     ImGui::InputFloat3("elevations", &m_turntableElevations.x, "%.3f");
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("{min, max, step size}");
+
     ImGui::InputFloat3("center", &m_turntableCenter.x, "%.3f");
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("view center");
+
     ImGui::InputFloat("distance", &m_turntableDistance, 0.01f, 0.1f, "%.3f");
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("view distance from center");
+
     if (ImGui::Button("ok")) {
       m_core->addTurntableCameraPoses(m_turntableAzimuths,
           m_turntableElevations,
@@ -108,7 +120,7 @@ void CameraPoses::buildUI_confirmPopupMenu()
 {
   if (ImGui::BeginPopup("CameraPoses_confirmPopupMenu")) {
     ImGui::Text("are you sure?");
-    if (ImGui::Button("ok")) {
+    if (ImGui::Button("yes")) {
       m_core->removeAllPoses();
       ImGui::CloseCurrentPopup();
     }

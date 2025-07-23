@@ -15,3 +15,4 @@
 #include "rendering/RenderIndexAllLayers.hpp"
 
 #include "view/Manipulator.hpp"
+#include "view/ManipulatorToAnari.hpp"
