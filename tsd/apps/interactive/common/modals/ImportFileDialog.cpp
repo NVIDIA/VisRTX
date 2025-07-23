@@ -34,9 +34,10 @@ void ImportFileDialog::buildUI()
       "SWC",
       "PDB",
       "XYZDP",
-      "HSMESH"};
+      "HSMESH",
+      "NEURAL"};
 
-  ImGui::Combo("importer type", &m_selectedFileType, importers, 13);
+  ImGui::Combo("importer type", &m_selectedFileType, importers, 15);
 
   static std::string outPath;
   if (ImGui::Button("...")) {

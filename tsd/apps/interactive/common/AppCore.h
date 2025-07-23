@@ -37,9 +37,9 @@ enum class ImporterType
   PDB,
   XYZDP,
   HSMESH,
+  NEURAL,
   TSD,
   TSD_CONDUIT,
-  NEURAL,
   NONE
 };
 

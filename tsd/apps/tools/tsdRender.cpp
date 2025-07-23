@@ -96,8 +96,7 @@ static void initTSDRenderIndex()
   fflush(stdout);
 
   g_timer.start();
-  g_renderIndex =
-      std::make_unique<tsd::RenderIndexAllLayers>(*g_ctx, g_device);
+  g_renderIndex = std::make_unique<tsd::RenderIndexAllLayers>(*g_ctx, g_device);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -201,7 +200,8 @@ static void setupRenderPipeline()
   anari::setParameter(g_device, renderer, "ambientRadiance", 0.25f);
   anari::commitParameters(g_device, renderer);
 
-  auto *arp = g_renderPipeline->emplace_back<tsd::AnariSceneRenderPass>(g_device);
+  auto *arp =
+      g_renderPipeline->emplace_back<tsd::AnariSceneRenderPass>(g_device);
   arp->setWorld(g_renderIndex->world());
   arp->setRenderer(renderer);
   arp->setCamera(camera);
