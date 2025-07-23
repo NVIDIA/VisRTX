@@ -3,6 +3,7 @@
 
 #include "tsd/authoring/importers.hpp"
 #include "tsd/authoring/importers/detail/importer_common.hpp"
+#include "tsd/core/Logging.hpp"
 // tinyply
 #define TINYPLY_IMPLEMENTATION
 #include "tinyply.h"
@@ -33,6 +34,7 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
     PlyFile file;
     file.parse_header(*file_stream);
 
+#if 0
     std::cout << "\t[ply_header] Type: "
               << (file.is_binary_file() ? "binary" : "ascii") << std::endl;
     for (const auto &c : file.get_comments())
@@ -53,6 +55,7 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
         std::cout << std::endl;
       }
     }
+#endif
 
     // Because most people have their own mesh types, tinyply treats parsed data
     // as structured/typed byte buffers. See examples below on how to marry your
@@ -67,21 +70,21 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
       vertices =
           file.request_properties_from_element("vertex", {"x", "y", "z"});
     } catch (const std::exception &e) {
-      std::cerr << "tinyply exception: " << e.what() << std::endl;
+      logError("[import_PLY] tinyply exception: %s", e.what());
     }
 
     try {
       normals =
           file.request_properties_from_element("vertex", {"nx", "ny", "nz"});
     } catch (const std::exception &e) {
-      std::cerr << "tinyply exception: " << e.what() << std::endl;
+      logError("[import_PLY] tinyply exception: %s", e.what());
     }
 
     try {
       colors = file.request_properties_from_element(
           "vertex", {"red", "green", "blue", "alpha"});
     } catch (const std::exception &e) {
-      std::cerr << "tinyply exception: " << e.what() << std::endl;
+      logError("[import_PLY] tinyply exception: %s", e.what());
     }
 
     if (!colors) {
@@ -89,14 +92,14 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
         colors = file.request_properties_from_element(
             "vertex", {"r", "g", "b", "a"});
       } catch (const std::exception &e) {
-        std::cerr << "tinyply exception: " << e.what() << std::endl;
+        logError("[import_PLY] tinyply exception: %s", e.what());
       }
     }
 
     try {
       texcoords = file.request_properties_from_element("vertex", {"u", "v"});
     } catch (const std::exception &e) {
-      std::cerr << "tinyply exception: " << e.what() << std::endl;
+      logError("[import_PLY] tinyply exception: %s", e.what());
     }
 
     // Providing a list size hint (the last argument) is a 2x performance
@@ -105,7 +108,7 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
       faces =
           file.request_properties_from_element("face", {"vertex_indices"}, 3);
     } catch (const std::exception &e) {
-      std::cerr << "tinyply exception: " << e.what() << std::endl;
+      logError("[import_PLY] tinyply exception: %s", e.what());
     }
 
     // Tristrips must always be read with a 0 list size hint (unless you know
@@ -115,34 +118,33 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
       tripstrip = file.request_properties_from_element(
           "tristrips", {"vertex_indices"}, 0);
     } catch (const std::exception &e) {
-      std::cerr << "tinyply exception: " << e.what() << std::endl;
+      logError("[import_PLY] tinyply exception: %s", e.what());
     }
 
     file.read(*file_stream);
 
-    if (vertices)
-      std::cout << "\tRead " << vertices->count << " total vertices "
-                << std::endl;
-    if (normals)
-      std::cout << "\tRead " << normals->count << " total vertex normals "
-                << std::endl;
-    if (colors)
-      std::cout << "\tRead " << colors->count << " total vertex colors "
-                << std::endl;
-    if (texcoords)
-      std::cout << "\tRead " << texcoords->count << " total vertex texcoords "
-                << std::endl;
-    if (faces)
-      std::cout << "\tRead " << faces->count << " total faces (triangles) "
-                << std::endl;
-    if (tripstrip)
-      std::cout << "\tRead "
-                << (tripstrip->buffer.size_bytes()
-                       / tinyply::PropertyTable[tripstrip->t].stride)
-                << " total indicies (tristrip) " << std::endl;
+    logInfo("[import_PLY] imported data info:");
 
-    if (!vertices || vertices->t == tinyply::Type::FLOAT64)
+    if (vertices)
+      logInfo("    read %zu total vertices", vertices->count);
+    if (normals)
+      logInfo("    read %zu total normals", normals->count);
+    if (colors)
+      logInfo("    read %zu total colors", colors->count);
+    if (texcoords)
+      logInfo("    read %zu total texcoords", texcoords->count);
+    if (faces)
+      logInfo("    read %zu total faces (triangles)", faces->count);
+    if (tripstrip)
+      logInfo("    read %zu total indices (tristrip)",
+          (tripstrip->buffer.size_bytes()
+              / tinyply::PropertyTable[tripstrip->t].stride));
+
+    if (!vertices || vertices->t == tinyply::Type::FLOAT64) {
+      logWarning(
+          "[import_PLY] float64 vertices not supported, import not successful");
       return;
+    }
 
     ///////////////////////////////////////////////////////////////////////////
 
@@ -206,7 +208,7 @@ void import_PLY(Context &ctx, const char *filename, LayerNodeRef location)
     ply_root->insert_last_child(utility::Any(ANARI_SURFACE, surface.index()));
 
   } catch (const std::exception &e) {
-    std::cerr << "Caught tinyply exception: " << e.what() << std::endl;
+    logError("[import_PLY] caught tinyply exception: %s", e.what());
   }
 }
 
