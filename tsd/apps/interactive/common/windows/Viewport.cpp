@@ -311,18 +311,9 @@ void Viewport::loadANARIRendererParameters(anari::Device d)
     anari::release(d, r);
   m_renderers.clear();
 
-  const char **r_subtypes = anariGetObjectSubtypes(d, ANARI_RENDERER);
-
-  std::vector<std::string> rendererNames;
-  if (r_subtypes != nullptr) {
-    for (int i = 0; r_subtypes[i] != nullptr; i++)
-      rendererNames.push_back(r_subtypes[i]);
-  } else
-    rendererNames.emplace_back("default");
-
-  for (auto &name : rendererNames) {
+  for (auto &name : tsd::getANARIObjectSubtypes(d, ANARI_RENDERER)) {
     auto ar = anari::newObject<anari::Renderer>(d, name.c_str());
-    auto o = tsd::ui::parseANARIObject(d, ANARI_RENDERER, name.c_str());
+    auto o = tsd::parseANARIObjectInfo(d, ANARI_RENDERER, name.c_str());
     o.setName(name.c_str());
     o.setUpdateDelegate(&m_rud);
     m_rendererObjects.push_back(std::move(o));

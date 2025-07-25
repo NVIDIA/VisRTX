@@ -309,6 +309,29 @@ void AppCore::releaseAllDevices()
   anari.loadedDevices.clear();
 }
 
+void AppCore::setOfflineRenderingLibrary(const std::string &libName)
+{
+  auto d = this->loadDevice(libName);
+  if (!d) {
+    tsd::logError(
+        "[AppCore] Failed to load ANARI device for offline rendering: %s",
+        libName.c_str());
+    return;
+  }
+
+  this->offline.renderer.rendererObjects.clear();
+  this->offline.renderer.activeRenderer = 0;
+  this->offline.renderer.libraryName = libName;
+
+  for (auto &name : tsd::getANARIObjectSubtypes(d, ANARI_RENDERER)) {
+    auto o = tsd::parseANARIObjectInfo(d, ANARI_RENDERER, name.c_str());
+    o.setName(name.c_str());
+    this->offline.renderer.rendererObjects.push_back(std::move(o));
+  }
+
+  anari::release(d, d);
+}
+
 void AppCore::setSelectedObject(tsd::Object *o)
 {
   tsd.selectedNode = {};
@@ -412,6 +435,49 @@ void AppCore::setCameraPose(const CameraPose &pose)
 void AppCore::removeAllPoses()
 {
   view.poses.clear();
+}
+
+void AppCore::OfflineRenderSequenceConfig::saveSettings(
+    tsd::serialization::DataNode &root)
+{
+  root.reset(); // clear all previous values, if they exist
+
+  auto &frameRoot = root["frame"];
+  frameRoot["width"] = frame.width;
+  frameRoot["height"] = frame.height;
+  frameRoot["colorFormat"] = frame.colorFormat;
+  frameRoot["samples"] = frame.samples;
+
+  auto &rendererRoot = root["renderer"];
+  rendererRoot["activeRenderer"] = renderer.activeRenderer;
+  rendererRoot["libraryName"] = renderer.libraryName;
+
+  auto &rendererObjectsRoot = rendererRoot["rendererObjects"];
+  for (auto &ro : renderer.rendererObjects)
+    objectToNode(ro, rendererObjectsRoot[ro.name()]);
+}
+
+void AppCore::OfflineRenderSequenceConfig::loadSettings(
+    tsd::serialization::DataNode &root)
+{
+  auto &frameRoot = root["frame"];
+  frameRoot["width"].getValue(ANARI_UINT32, &frame.width);
+  frameRoot["width"].getValue(ANARI_UINT32, &frame.height);
+  frameRoot["colorFormat"].getValue(ANARI_DATA_TYPE, &frame.colorFormat);
+  frameRoot["samples"].getValue(ANARI_UINT32, &frame.samples);
+
+  auto &rendererRoot = root["renderer"];
+  rendererRoot["activeRenderer"].getValue(
+      ANARI_INT32, &renderer.activeRenderer);
+  rendererRoot["libraryName"].getValue(ANARI_STRING, &renderer.libraryName);
+
+  auto &rendererObjectsRoot = rendererRoot["rendererObjects"];
+  renderer.rendererObjects.clear();
+  rendererObjectsRoot.foreach_child([&](auto &node) {
+    tsd::Object ro(ANARI_RENDERER, node.name().c_str());
+    nodeToObject(node, ro);
+    renderer.rendererObjects.push_back(std::move(ro));
+  });
 }
 
 } // namespace tsd_viewer

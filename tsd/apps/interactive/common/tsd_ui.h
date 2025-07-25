@@ -7,6 +7,7 @@
 #include "tsd/TSD.hpp"
 // ui
 #include <imgui.h>
+#include <misc/cpp/imgui_stdlib.h>
 
 namespace tsd::ui {
 
@@ -19,9 +20,5 @@ void buildUI_object(tsd::Object &o,
 void buildUI_parameter(
     tsd::Object &o, tsd::Parameter &p, tsd::Context &ctx, bool asTable = false);
 size_t buildUI_objects_menulist(const Context &ctx, anari::DataType type);
-
-void addDefaultRendererParameters(Object &o);
-Object parseANARIObject(
-    anari::Device d, ANARIDataType type, const char *subtype);
 
 } // namespace tsd::ui

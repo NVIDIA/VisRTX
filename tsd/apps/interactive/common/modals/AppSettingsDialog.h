@@ -14,6 +14,10 @@ struct AppSettingsDialog : public Modal
 
   void buildUI() override;
   void applySettings();
+
+  private:
+  void buildUI_applicationSettings();
+  void buildUI_offlineRenderSettings();
 };
 
 } // namespace tsd_viewer

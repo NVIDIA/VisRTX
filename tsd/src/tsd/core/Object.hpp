@@ -152,6 +152,14 @@ constexpr bool isObject()
   return std::is_same<Object, T>::value || std::is_base_of<Object, T>::value;
 }
 
+// ANARI object info parsing //////////////////////////////////////////////////
+
+std::vector<std::string> getANARIObjectSubtypes(
+    anari::Device d, anari::DataType type);
+
+Object parseANARIObjectInfo(
+    anari::Device d, ANARIDataType type, const char *subtype);
+
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>

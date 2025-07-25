@@ -2,27 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd_ui.h"
-// imgui
-#include <misc/cpp/imgui_stdlib.h>
 
 namespace tsd::ui {
 
 static std::string s_newParameterName;
 
 // Helper functions ///////////////////////////////////////////////////////////
-
-static Any parseValue(ANARIDataType type, const void *mem)
-{
-  if (type == ANARI_STRING)
-    return Any(ANARI_STRING, "");
-  else if (anari::isObject(type)) {
-    ANARIObject nullHandle = ANARI_INVALID_HANDLE;
-    return Any(type, &nullHandle);
-  } else if (mem)
-    return Any(type, mem);
-  else
-    return {};
-}
 
 static bool UI_stringList_callback(void *p, int index, const char **out_text)
 {
@@ -501,97 +486,6 @@ size_t buildUI_objects_menulist(const Context &ctx, anari::DataType type)
       retval = i;
 
     ImGui::PopID();
-  }
-
-  return retval;
-}
-
-void addDefaultRendererParameters(Object &o)
-{
-  o.addParameter("background")
-      .setValue(float4(0.05f, 0.05f, 0.05f, 1.f))
-      .setDescription("background color")
-      .setUsage(ParameterUsageHint::COLOR);
-  o.addParameter("ambientRadiance")
-      .setValue(0.25f)
-      .setDescription("intensity of ambient light")
-      .setMin(0.f);
-  o.addParameter("ambientColor")
-      .setValue(float3(1.f))
-      .setDescription("color of ambient light")
-      .setUsage(ParameterUsageHint::COLOR);
-}
-
-Object parseANARIObject(
-    anari::Device d, ANARIDataType objectType, const char *subtype)
-{
-  Object retval(objectType, subtype);
-
-  if (objectType == ANARI_RENDERER)
-    addDefaultRendererParameters(retval);
-
-  auto *parameter = (const ANARIParameter *)anariGetObjectInfo(
-      d, objectType, subtype, "parameter", ANARI_PARAMETER_LIST);
-
-  for (; parameter && parameter->name != nullptr; parameter++) {
-    tsd::Token name(parameter->name);
-    if (retval.parameter(name))
-      continue;
-
-    auto *description = (const char *)anariGetParameterInfo(d,
-        objectType,
-        subtype,
-        parameter->name,
-        parameter->type,
-        "description",
-        ANARI_STRING);
-
-    const void *defaultValue = anariGetParameterInfo(d,
-        objectType,
-        subtype,
-        parameter->name,
-        parameter->type,
-        "default",
-        parameter->type);
-
-    const void *minValue = anariGetParameterInfo(d,
-        objectType,
-        subtype,
-        parameter->name,
-        parameter->type,
-        "minimum",
-        parameter->type);
-
-    const void *maxValue = anariGetParameterInfo(d,
-        objectType,
-        subtype,
-        parameter->name,
-        parameter->type,
-        "maximum",
-        parameter->type);
-
-    const auto **stringValues = (const char **)anariGetParameterInfo(d,
-        objectType,
-        subtype,
-        parameter->name,
-        parameter->type,
-        "value",
-        ANARI_STRING_LIST);
-
-    auto &p = retval.addParameter(name);
-    p.setValue(Any(parameter->type, nullptr));
-    p.setDescription(description ? description : "");
-    p.setValue(parseValue(parameter->type, defaultValue));
-    if (minValue)
-      p.setMin(parseValue(parameter->type, minValue));
-    if (maxValue)
-      p.setMax(parseValue(parameter->type, maxValue));
-
-    std::vector<std::string> svs;
-    for (; stringValues && *stringValues; stringValues++)
-      svs.push_back(*stringValues);
-    if (!svs.empty())
-      p.setStringValues(svs);
   }
 
   return retval;

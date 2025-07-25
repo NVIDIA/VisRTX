@@ -99,6 +99,16 @@ struct AppCore
       anari::DataType colorFormat{ANARI_UFIXED8_RGBA_SRGB};
       uint32_t samples{128};
     } frame;
+
+    struct RenderSettings
+    {
+      std::vector<tsd::Object> rendererObjects;
+      int activeRenderer{-1};
+      std::string libraryName;
+    } renderer;
+
+    void saveSettings(tsd::serialization::DataNode &root);
+    void loadSettings(tsd::serialization::DataNode &root);
   } offline;
 
   struct Windows
@@ -135,6 +145,8 @@ struct AppCore
   tsd::RenderIndex *acquireRenderIndex(anari::Device device);
   void releaseRenderIndex(anari::Device device);
   void releaseAllDevices();
+
+  void setOfflineRenderingLibrary(const std::string &libName);
 
   // Selection //
 

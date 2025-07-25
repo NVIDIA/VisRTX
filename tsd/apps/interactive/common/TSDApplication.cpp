@@ -258,6 +258,10 @@ void TSDApplication::saveApplicationState(const char *_filename)
     tsd::logStatus("serializing UI state...");
     root["layout"] = ImGui::SaveIniSettingsToMemory();
 
+    // Offline rendering settings
+    auto &offlineSettings = root["offlineRendering"];
+    core.offline.saveSettings(offlineSettings);
+
     // General application settings
     auto &settings = root["settings"];
     settings["logVerbose"] = core.logging.verbose;
@@ -304,6 +308,10 @@ void TSDApplication::loadApplicationState(const char *filename)
   // ImGui window layout
   if (auto *c = root.child("layout"); c != nullptr)
     ImGui::LoadIniSettingsFromMemory(c->getValueAs<std::string>().c_str());
+
+  // Offline rendering settings
+  auto &offlineSettings = root["offlineRendering"];
+  core.offline.loadSettings(offlineSettings);
 
   // General application settings
   if (auto *c = root.child("settings"); c != nullptr) {

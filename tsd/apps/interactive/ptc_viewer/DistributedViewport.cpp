@@ -127,7 +127,7 @@ void DistributedViewport::setDevice(anari::Device d)
 
   {
     auto &o = m_rendererObject;
-    tsd::ui::addDefaultRendererParameters(o);
+    o = tsd::parseANARIObjectInfo(d, ANARI_RENDERER, "default");
     o.setName("renderer");
     o.setUpdateDelegate(&m_rud);
     o.updateAllANARIParameters(d, m_renderer);
@@ -366,8 +366,7 @@ void DistributedViewport::ui_contextMenu()
     }
 
     if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
-      m_arcball->setAxis(
-          static_cast<tsd::manipulators::UpAxis>(m_arcballUp));
+      m_arcball->setAxis(static_cast<tsd::manipulators::UpAxis>(m_arcballUp));
       resetView();
     }
 

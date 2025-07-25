@@ -15,4 +15,4 @@ project_link_libraries(tsd)
 
 project(tsdRender)
 project_add_executable(tsdRender.cpp)
-project_link_libraries(tsd stb_image render_pipeline stb_image)
+project_link_libraries(tsd tsd_viewer_common)

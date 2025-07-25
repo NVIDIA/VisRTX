@@ -2,25 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "AppSettingsDialog.h"
+// tsd_ui
+#include "../tsd_ui.h"
 
 namespace tsd_viewer {
 
 AppSettingsDialog::AppSettingsDialog(AppCore *core) : Modal(core, "AppSettings")
-{}
+{
+  if (core->offline.renderer.activeRenderer < 0)
+    core->setOfflineRenderingLibrary(core->commandLine.libraryList[0]);
+}
 
 void AppSettingsDialog::buildUI()
 {
-  bool doUpdate = false;
-
-  doUpdate |= ImGui::DragFloat(
-      "font size", &m_core->windows.fontScale, 0.01f, 0.5f, 4.f);
-
-  doUpdate |= ImGui::DragFloat(
-      "rounding", &m_core->windows.uiRounding, 0.01f, 0.f, 12.f);
-
-  if (doUpdate)
-    applySettings();
-
+  buildUI_applicationSettings();
+  ImGui::NewLine();
+  ImGui::Separator();
+  buildUI_offlineRenderSettings();
+  ImGui::Separator();
   ImGui::NewLine();
 
   if (ImGui::Button("close") || ImGui::IsKeyDown(ImGuiKey_Escape))
@@ -39,6 +38,91 @@ void AppSettingsDialog::applySettings()
   style.ScrollbarRounding = m_core->windows.uiRounding;
   style.GrabRounding = m_core->windows.uiRounding;
   style.PopupRounding = m_core->windows.uiRounding;
+}
+
+void AppSettingsDialog::buildUI_applicationSettings()
+{
+  ImGui::Text("Application Settings:");
+  ImGui::Indent(tsd::ui::INDENT_AMOUNT);
+
+  bool doUpdate = false;
+
+  doUpdate |= ImGui::DragFloat(
+      "font size", &m_core->windows.fontScale, 0.01f, 0.5f, 4.f);
+
+  doUpdate |= ImGui::DragFloat(
+      "rounding", &m_core->windows.uiRounding, 0.01f, 0.f, 12.f);
+
+  if (doUpdate)
+    applySettings();
+
+  ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
+}
+
+void AppSettingsDialog::buildUI_offlineRenderSettings()
+{
+  ImGui::Text("Offline Render Settings (tsdRender):");
+  ImGui::Indent(tsd::ui::INDENT_AMOUNT);
+
+  ImGui::Text("Frame:");
+  ImGui::DragInt("##width", (int *)&m_core->offline.frame.width, 1, 10, 10000);
+  ImGui::SameLine();
+  ImGui::Text("x");
+  ImGui::SameLine();
+  ImGui::DragInt(
+      "##height", (int *)&m_core->offline.frame.height, 1, 10, 10000);
+  ImGui::SameLine();
+  ImGui::Text("size");
+
+  ImGui::DragInt("samples",
+      (int *)&m_core->offline.frame.samples,
+      1,
+      1,
+      std::numeric_limits<int>::max());
+
+  ImGui::Separator();
+  ImGui::Text("Renderer:");
+
+  if (ImGui::InputText("##ANARI library",
+          &m_core->offline.renderer.libraryName,
+          ImGuiInputTextFlags_EnterReturnsTrue)) {
+    m_core->setOfflineRenderingLibrary(m_core->offline.renderer.libraryName);
+  }
+
+  ImGui::SameLine();
+  if (ImGui::BeginCombo("##library_combo", "", ImGuiComboFlags_NoPreview)) {
+    for (size_t n = 0; n < m_core->commandLine.libraryList.size(); n++) {
+      if (ImGui::Selectable(m_core->commandLine.libraryList[n].c_str(), false))
+        m_core->setOfflineRenderingLibrary(m_core->commandLine.libraryList[n]);
+    }
+    ImGui::EndCombo();
+  }
+
+  ImGui::SameLine();
+  ImGui::Text("ANARI library");
+
+  auto comboGetRendererSubtype = [](void *data, int n) -> const char * {
+    auto &renderers = *(std::vector<tsd::Object> *)data;
+    return renderers[n].name().c_str();
+  };
+
+  ImGui::Combo("renderer",
+      &m_core->offline.renderer.activeRenderer,
+      comboGetRendererSubtype,
+      &m_core->offline.renderer.rendererObjects,
+      m_core->offline.renderer.rendererObjects.size());
+
+  {
+    ImGui::Indent(tsd::ui::INDENT_AMOUNT);
+    auto &activeRenderer = m_core->offline.renderer.activeRenderer;
+    tsd::ui::buildUI_object(
+        m_core->offline.renderer.rendererObjects[activeRenderer],
+        m_core->tsd.ctx,
+        false);
+    ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
+  }
+
+  ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
 }
 
 } // namespace tsd_viewer
