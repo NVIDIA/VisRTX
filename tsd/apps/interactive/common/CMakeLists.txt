@@ -29,6 +29,7 @@ PUBLIC
 PRIVATE
   anari::anari_viewer
 )
+project_include_directories(PUBLIC ${CMAKE_CURRENT_LIST_DIR})
 
 ##
 ## Gather anari::anari_viewer include paths for apps to have when needed
