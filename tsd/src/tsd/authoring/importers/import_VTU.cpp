@@ -115,7 +115,7 @@ SpatialFieldRef import_VTU(Context &ctx, const char *filepath)
   uint32_t numCellArrays = cellData->GetNumberOfArrays();
   for (uint32_t i = 0; i < std::min(1u, numCellArrays); ++i) {
     vtkDataArray *array = cellData->GetArray(i);
-    auto a = makeFloatArray1D(ctx, array, numPoints);
+    auto a = makeFloatArray1D(ctx, array, numCells);
     field->setParameterObject("cell.data", *a);
   }
 
