@@ -106,9 +106,6 @@ void AppCore::parseCommandLine(int argc, const char **argv)
     else if (arg == "-tsd") {
       importerType = ImporterType::TSD;
       this->commandLine.loadingContext = true;
-    } else if (arg == "-tsdc") {
-      importerType = ImporterType::TSD_CONDUIT;
-      this->commandLine.loadingContext = true;
     } else if (arg == "-hdri")
       importerType = ImporterType::HDRI;
     else if (arg == "-dlaf")
@@ -164,8 +161,6 @@ void AppCore::setupSceneFromCommandLine(bool hdriOnly)
       auto root = tsd.ctx.defaultLayer()->root();
       if (f.first == ImporterType::TSD)
         tsd::load_Context(tsd.ctx, f.second.c_str());
-      else if (f.first == ImporterType::TSD_CONDUIT)
-        tsd::load_Context_Conduit(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::PLY)
         tsd::import_PLY(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::OBJ)

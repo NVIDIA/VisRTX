@@ -39,7 +39,6 @@ enum class ImporterType
   HSMESH,
   NEURAL,
   TSD,
-  TSD_CONDUIT,
   NONE
 };
 

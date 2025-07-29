@@ -2,7 +2,6 @@
 ## SPDX-License-Identifier: Apache-2.0
 
 add_subdirectory(tsd_catch)
-add_subdirectory(tsd_conduit)
 add_subdirectory(tsd_flip)
 add_subdirectory(tsd_mikktspace)
 add_subdirectory(tsd_nanovdb)

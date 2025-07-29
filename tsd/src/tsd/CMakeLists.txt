@@ -42,7 +42,6 @@ PRIVATE
   authoring/procedural/generate_noiseVolume.cpp
   authoring/procedural/generate_randomSpheres.cpp
   authoring/procedural/generate_rtow.cpp
-  authoring/serialization/serialization_conduit.cpp
   authoring/serialization/serialization_datatree.cpp
   core/AnariObjectCache.cpp
   core/Context.cpp
@@ -134,19 +133,6 @@ if (TSD_USE_CUDA)
   )
 else()
   project_compile_definitions(PUBLIC -DTSD_USE_CUDA=0)
-endif()
-
-if (TSD_ENABLE_SERIALIZATION)
-  project_link_libraries(PRIVATE tsd_conduit)
-  set_source_files_properties(authoring/serialization/serialization_conduit.cpp
-    PROPERTIES
-      COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=1
-  )
-else()
-  set_source_files_properties(authoring/serialization/serialization_conduit.cpp
-    PROPERTIES
-      COMPILE_DEFINITIONS TSD_ENABLE_SERIALIZATION=0
-  )
 endif()
 
 if (TSD_USE_HDF5)
