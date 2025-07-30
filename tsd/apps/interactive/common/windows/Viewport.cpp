@@ -424,7 +424,8 @@ void Viewport::setupRenderPipeline()
   m_visualizeDepthPass = m_pipeline.emplace_back<tsd::VisualizeDepthPass>();
   m_visualizeDepthPass->setEnabled(false);
   m_outlinePass = m_pipeline.emplace_back<tsd::OutlineRenderPass>();
-  m_axesPass = m_pipeline.emplace_back<tsd::AnariAxesRenderPass>(m_device);
+  m_axesPass =
+      m_pipeline.emplace_back<tsd::AnariAxesRenderPass>(m_device, m_extensions);
   m_axesPass->setEnabled(m_showAxes);
   m_outputPass = m_pipeline.emplace_back<tsd::CopyToSDLTexturePass>(
       m_core->application->sdlRenderer());

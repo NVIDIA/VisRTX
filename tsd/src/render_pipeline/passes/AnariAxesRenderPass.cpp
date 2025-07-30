@@ -3,16 +3,15 @@
 
 #include "AnariAxesRenderPass.h"
 // std
-#include <algorithm>
 #include <cstring>
-#include <limits>
-
-#include "detail/parallel_for.h"
-#include "detail/parallel_transform.h"
+// tsd
+#include "tsd/core/Logging.hpp"
 
 namespace tsd {
 
-AnariAxesRenderPass::AnariAxesRenderPass(anari::Device d) : m_device(d)
+AnariAxesRenderPass::AnariAxesRenderPass(
+    anari::Device d, const anari::Extensions &e)
+    : m_device(d)
 {
   anari::retain(d, d);
   m_frame = anari::newObject<anari::Frame>(d);
@@ -27,10 +26,16 @@ AnariAxesRenderPass::AnariAxesRenderPass(anari::Device d) : m_device(d)
   anari::setParameter(d, m_frame, "renderer", renderer);
   anari::release(d, renderer);
 
-  m_camera = anari::newObject<anari::Camera>(d, "orthographic");
-  if (!m_camera)
+  if (e.ANARI_KHR_CAMERA_ORTHOGRAPHIC) {
+    m_camera = anari::newObject<anari::Camera>(d, "orthographic");
+    anari::setParameter(d, m_camera, "height", 2.5f);
+  } else {
+    tsd::logWarning(
+        "[AnariAxesRenderPass] 'orthographic' camera not available,"
+        " using 'perspective'");
     m_camera = anari::newObject<anari::Camera>(d, "perspective");
-  anari::setParameter(d, m_camera, "height", 2.5f);
+    anari::setParameter(d, m_camera, "fovy", tsd::math::radians(5.f));
+  }
   anari::commitParameters(d, m_camera);
   anari::setParameter(d, m_frame, "camera", m_camera);
 
@@ -52,7 +57,7 @@ AnariAxesRenderPass::~AnariAxesRenderPass()
 void AnariAxesRenderPass::setView(const tsd::float3 &dir, const tsd::float3 &up)
 {
   anari::setParameter(m_device, m_camera, "direction", dir);
-  anari::setParameter(m_device, m_camera, "position", -dir * 10.f);
+  anari::setParameter(m_device, m_camera, "position", -dir * 30.f);
   anari::setParameter(m_device, m_camera, "up", up);
   anari::commitParameters(m_device, m_camera);
 }

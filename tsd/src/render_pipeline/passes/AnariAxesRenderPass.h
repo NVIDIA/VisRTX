@@ -11,7 +11,7 @@ namespace tsd {
 
 struct AnariAxesRenderPass : public RenderPass
 {
-  AnariAxesRenderPass(anari::Device d);
+  AnariAxesRenderPass(anari::Device d, const anari::Extensions &e);
   ~AnariAxesRenderPass() override;
 
   void setView(const tsd::float3 &dir, const tsd::float3 &up);
