@@ -209,11 +209,11 @@ static void setupCameraManipulator()
 
 static void setupRenderPipeline()
 {
-  printf("Setting up render pipeline...");
-  fflush(stdout);
-
   const auto frameWidth = g_core->offline.frame.width;
   const auto frameHeight = g_core->offline.frame.height;
+
+  printf("Setting up render pipeline (%u x %u)...", frameWidth, frameHeight);
+  fflush(stdout);
 
   g_timer.start();
   g_renderPipeline =
@@ -221,7 +221,7 @@ static void setupRenderPipeline()
 
   g_camera = anari::newObject<anari::Camera>(g_device, "perspective");
   anari::setParameter(
-      g_device, g_camera, "aspect", frameWidth / float(frameWidth));
+      g_device, g_camera, "aspect", frameWidth / float(frameHeight));
   anari::setParameter(g_device, g_camera, "fovy", anari::radians(40.f));
   anari::commitParameters(g_device, g_camera);
 

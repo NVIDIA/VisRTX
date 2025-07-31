@@ -457,7 +457,7 @@ void AppCore::OfflineRenderSequenceConfig::loadSettings(
 {
   auto &frameRoot = root["frame"];
   frameRoot["width"].getValue(ANARI_UINT32, &frame.width);
-  frameRoot["width"].getValue(ANARI_UINT32, &frame.height);
+  frameRoot["height"].getValue(ANARI_UINT32, &frame.height);
   frameRoot["colorFormat"].getValue(ANARI_DATA_TYPE, &frame.colorFormat);
   frameRoot["samples"].getValue(ANARI_UINT32, &frame.samples);
 
