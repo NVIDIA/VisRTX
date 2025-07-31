@@ -60,11 +60,13 @@ static void loadANARIDevice()
 #endif
   };
 
-  printf("Loading ANARI device from 'environment' library...");
+  auto library = g_core->offline.renderer.libraryName;
+
+  printf("Loading ANARI device from '%s' library...", library.c_str());
   fflush(stdout);
 
   g_timer.start();
-  g_library = anari::loadLibrary("environment", statusFunc);
+  g_library = anari::loadLibrary(library.c_str(), statusFunc);
   g_device = anari::newDevice(g_library, "default");
   g_timer.end();
 
@@ -323,12 +325,12 @@ int main(int argc, const char *argv[])
 
   g_core = std::make_unique<tsd_viewer::AppCore>(nullptr);
 
-  loadANARIDevice();
   initTSDDataTree();
   initTSDContext();
-  initTSDRenderIndex();
   loadState(argv[1]);
   loadSettings();
+  loadANARIDevice();
+  initTSDRenderIndex();
   populateTSDContext();
   populateRenderIndex();
   setupCameraManipulator();
