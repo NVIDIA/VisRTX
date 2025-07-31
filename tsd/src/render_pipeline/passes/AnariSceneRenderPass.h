@@ -20,6 +20,9 @@ struct AnariSceneRenderPass : public RenderPass
   void setColorFormat(anari::DataType t);
   void setEnableIDs(bool on);
 
+  // default' true', if 'false', then anari::wait() on each pass
+  void setRunAsync(bool on);
+
   anari::Frame getFrame() const;
 
  private:
@@ -34,6 +37,7 @@ struct AnariSceneRenderPass : public RenderPass
   bool m_firstFrame{true};
   bool m_deviceSupportsCUDAFrames{false};
   bool m_enableIDs{false};
+  bool m_runAsync{true};
 
   anari::Device m_device{nullptr};
   anari::Camera m_camera{nullptr};

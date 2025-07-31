@@ -217,7 +217,7 @@ static void setupRenderPipeline()
 
   g_timer.start();
   g_renderPipeline =
-      std::make_unique<tsd::RenderPipeline>(frameWidth, frameWidth);
+      std::make_unique<tsd::RenderPipeline>(frameWidth, frameHeight);
 
   g_camera = anari::newObject<anari::Camera>(g_device, "perspective");
   anari::setParameter(
@@ -236,6 +236,7 @@ static void setupRenderPipeline()
   arp->setWorld(g_renderIndex->world());
   arp->setRenderer(r);
   arp->setCamera(g_camera);
+  arp->setRunAsync(false);
 
   anari::release(g_device, r);
 

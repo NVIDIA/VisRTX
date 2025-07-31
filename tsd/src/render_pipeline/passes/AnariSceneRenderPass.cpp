@@ -168,6 +168,11 @@ void AnariSceneRenderPass::setEnableIDs(bool on)
   }
 }
 
+void AnariSceneRenderPass::setRunAsync(bool on)
+{
+  m_runAsync = on;
+}
+
 anari::Frame AnariSceneRenderPass::getFrame() const
 {
   return m_frame;
@@ -201,8 +206,10 @@ void AnariSceneRenderPass::updateSize()
 
 void AnariSceneRenderPass::render(Buffers &b, int stageId)
 {
-  if (m_firstFrame) {
+  if (m_firstFrame)
     anari::render(m_device, m_frame);
+
+  if (m_firstFrame || !m_runAsync) {
     anari::wait(m_device, m_frame);
     m_firstFrame = false;
   }
