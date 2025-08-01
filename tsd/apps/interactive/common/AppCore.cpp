@@ -443,6 +443,10 @@ void AppCore::OfflineRenderSequenceConfig::saveSettings(
   frameRoot["colorFormat"] = frame.colorFormat;
   frameRoot["samples"] = frame.samples;
 
+  auto &cameraRoot = root["camera"];
+  cameraRoot["apertureRadius"] = camera.apertureRadius;
+  cameraRoot["focusDistance"] = camera.focusDistance;
+
   auto &rendererRoot = root["renderer"];
   rendererRoot["activeRenderer"] = renderer.activeRenderer;
   rendererRoot["libraryName"] = renderer.libraryName;
@@ -460,6 +464,10 @@ void AppCore::OfflineRenderSequenceConfig::loadSettings(
   frameRoot["height"].getValue(ANARI_UINT32, &frame.height);
   frameRoot["colorFormat"].getValue(ANARI_DATA_TYPE, &frame.colorFormat);
   frameRoot["samples"].getValue(ANARI_UINT32, &frame.samples);
+
+  auto &cameraRoot = root["camera"];
+  cameraRoot["apertureRadius"].getValue(ANARI_FLOAT32, &camera.apertureRadius);
+  cameraRoot["focusDistance"].getValue(ANARI_FLOAT32, &camera.focusDistance);
 
   auto &rendererRoot = root["renderer"];
   rendererRoot["activeRenderer"].getValue(

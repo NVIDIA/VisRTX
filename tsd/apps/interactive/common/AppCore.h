@@ -99,6 +99,12 @@ struct AppCore
       uint32_t samples{128};
     } frame;
 
+    struct CameraSettings
+    {
+      float apertureRadius{0.f};
+      float focusDistance{1.f};
+    } camera;
+
     struct RenderSettings
     {
       std::vector<tsd::Object> rendererObjects;

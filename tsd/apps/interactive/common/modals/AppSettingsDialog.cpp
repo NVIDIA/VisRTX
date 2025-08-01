@@ -64,6 +64,8 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   ImGui::Text("Offline Render Settings (tsdRender):");
   ImGui::Indent(tsd::ui::INDENT_AMOUNT);
 
+  // Frame //
+
   ImGui::Text("Frame:");
   ImGui::DragInt("##width", (int *)&m_core->offline.frame.width, 1, 10, 10000);
   ImGui::SameLine();
@@ -79,6 +81,23 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
       1,
       1,
       std::numeric_limits<int>::max());
+
+  // Depth of Field //
+
+  ImGui::Separator();
+  ImGui::Text("Depth-of-Field:");
+  ImGui::DragFloat("apertureRadius",
+      &m_core->offline.camera.apertureRadius,
+      1,
+      0.f,
+      std::numeric_limits<float>::max());
+  ImGui::DragFloat("focusDistance",
+      &m_core->offline.camera.focusDistance,
+      1,
+      0.f,
+      std::numeric_limits<float>::max());
+
+  // Renderer //
 
   ImGui::Separator();
   ImGui::Text("Renderer:");

@@ -223,6 +223,14 @@ static void setupRenderPipeline()
   anari::setParameter(
       g_device, g_camera, "aspect", frameWidth / float(frameHeight));
   anari::setParameter(g_device, g_camera, "fovy", anari::radians(40.f));
+  anari::setParameter(g_device,
+      g_camera,
+      "apertureRadius",
+      g_core->offline.camera.apertureRadius);
+  anari::setParameter(g_device,
+      g_camera,
+      "focusDistance",
+      g_core->offline.camera.focusDistance);
   anari::commitParameters(g_device, g_camera);
 
   auto activeRenderer = g_core->offline.renderer.activeRenderer;
