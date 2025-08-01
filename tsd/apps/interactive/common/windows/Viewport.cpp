@@ -235,6 +235,8 @@ void Viewport::saveSettings(tsd::serialization::DataNode &root)
   camera["distance"] = m_arcball->distance();
   camera["azel"] = m_arcball->azel();
   camera["up"] = int(m_arcball->axis());
+  camera["apertureRadius"] = m_apertureRadius;
+  camera["focusDistance"] = m_focusDistance;
 
   // Renderer settings //
 
@@ -277,6 +279,9 @@ void Viewport::loadSettings(tsd::serialization::DataNode &root)
     camera["distance"].getValue(ANARI_FLOAT32, &distance);
     camera["azel"].getValue(ANARI_FLOAT32_VEC2, &azel);
     camera["up"].getValue(ANARI_INT32, &axis);
+
+    camera["apertureRadius"].getValue(ANARI_FLOAT32, &m_apertureRadius);
+    camera["focusDistance"].getValue(ANARI_FLOAT32, &m_focusDistance);
 
     m_arcball->setAxis(tsd::manipulators::UpAxis(axis));
     m_arcball->setConfig(at, distance, azel);

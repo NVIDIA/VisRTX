@@ -84,7 +84,7 @@ void IsosurfaceEditor::buildUI()
 
   if (ImGui::Button("+")) {
     auto newArr = ctx.createArray(ANARI_FLOAT32, arr->size() + 1);
-    newArr->setData(isovalues, arr->size());
+    newArr->setData(isovalues, arr->size(), 0);
     selectedIsosurface->setParameterObject("isovalue", *newArr);
     ctx.removeObject(*arr);
   }
