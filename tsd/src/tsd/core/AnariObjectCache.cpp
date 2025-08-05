@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/AnariObjectCache.hpp"
-#include "tsd/core/Context.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/scene/Context.hpp"
 
-namespace tsd {
+namespace tsd::core {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ AnariObjectCache::AnariObjectCache(Context &ctx, anari::Device d)
 {
   anari::retain(device, device);
   m_supportsCUDA = supportsCUDAArrays(d);
-  tsd::logStatus("[ANARI object cache] device %s CUDA arrays",
+  tsd::core::logStatus("[ANARI object cache] device %s CUDA arrays",
       m_supportsCUDA ? "supports" : "does NOT support");
 }
 
@@ -270,4 +270,4 @@ anari::Object AnariObjectCache::readHandle(anari::DataType type, size_t i) const
   return obj;
 }
 
-} // namespace tsd
+} // namespace tsd::core

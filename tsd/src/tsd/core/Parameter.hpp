@@ -10,9 +10,9 @@
 #include <string_view>
 #include <vector>
 
-namespace tsd {
+namespace tsd::core {
 
-using Any = tsd::utility::Any;
+using Any = tsd::core::Any;
 
 enum ParameterUsageHint
 {
@@ -115,4 +115,4 @@ inline void Parameter::operator=(T newValue)
   setValue(newValue);
 }
 
-} // namespace tsd
+} // namespace tsd::core

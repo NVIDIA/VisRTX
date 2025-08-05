@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "tsd/containers/IndexedVector.hpp"
+#include "tsd/core/IndexedVector.hpp"
 // anari
 #include <anari/anari_cpp.hpp>
 
-namespace tsd {
+namespace tsd::core {
 
 struct Array;
 struct Object;
@@ -46,4 +46,4 @@ struct AnariObjectCache
   bool m_supportsCUDA{false};
 };
 
-} // namespace tsd
+} // namespace tsd::core

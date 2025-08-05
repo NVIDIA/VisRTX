@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-namespace tsd {
+namespace tsd::core {
 
 struct Token
 {
@@ -38,4 +38,4 @@ namespace literals {
 Token operator""_t(const char *, size_t);
 
 } // namespace literals
-} // namespace tsd
+} // namespace tsd::core

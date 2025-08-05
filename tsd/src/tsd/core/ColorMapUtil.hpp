@@ -7,7 +7,7 @@
 // std
 #include <vector>
 
-namespace tsd {
+namespace tsd::core {
 
 using ColorPoint = float4;
 using OpacityPoint = float2;
@@ -23,25 +23,25 @@ std::vector<T> resampleArray(const std::vector<T> &input, size_t newSize);
 
 namespace detail {
 
-inline tsd::float3 interpolateColor(
+inline tsd::math::float3 interpolateColor(
     const std::vector<ColorPoint> &controlPoints, float x)
 {
   auto first = controlPoints.front();
   if (x <= first.x)
-    return tsd::float3(first.y, first.z, first.w);
+    return tsd::math::float3(first.y, first.z, first.w);
 
   for (uint32_t i = 1; i < controlPoints.size(); i++) {
     auto current = controlPoints[i];
     auto previous = controlPoints[i - 1];
     if (x <= current.x) {
       const float t = (x - previous.x) / (current.x - previous.x);
-      return (1.0f - t) * tsd::float3(previous.y, previous.z, previous.w)
-          + t * tsd::float3(current.y, current.z, current.w);
+      return (1.0f - t) * tsd::math::float3(previous.y, previous.z, previous.w)
+          + t * tsd::math::float3(current.y, current.z, current.w);
     }
   }
 
   auto last = controlPoints.back();
-  return tsd::float3(last.x, last.y, last.z);
+  return tsd::math::float3(last.x, last.y, last.z);
 }
 
 inline float interpolateOpacity(
@@ -94,4 +94,4 @@ inline std::vector<T> resampleArray(const std::vector<T> &input, size_t newSize)
   return output;
 }
 
-} // namespace tsd
+} // namespace tsd::core

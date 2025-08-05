@@ -3,6 +3,7 @@
 
 #pragma once
 
+#if 0
 #include "core/Context.hpp"
 #include "core/Logging.hpp"
 #include "core/Timer.hpp"
@@ -16,3 +17,4 @@
 
 #include "view/Manipulator.hpp"
 #include "view/ManipulatorToAnari.hpp"
+#endif

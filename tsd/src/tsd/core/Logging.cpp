@@ -12,10 +12,10 @@
 // fmt
 #include <fmt/format.h>
 
-namespace tsd {
+namespace tsd::core {
 
 static LoggingCallback g_loggingCallback;
-static tsd::Timer g_timer;
+static tsd::core::Timer g_timer;
 static int g_initTimer = []() { return g_timer.start(), 1; }();
 
 static void logMessage(LogLevel level, const char *fmt, va_list &args)
@@ -106,4 +106,4 @@ void setNoLogging()
   g_loggingCallback = {};
 }
 
-} // namespace tsd
+} // namespace tsd::core
