@@ -8,7 +8,7 @@
 #include <functional>
 #include <string>
 
-namespace tsd {
+namespace tsd::core {
 
 void logStatus(const char *fmt, ...);
 void logError(const char *fmt, ...);
@@ -34,4 +34,4 @@ void setLoggingCallback(LoggingCallback cb);
 void setLogToStdout();
 void setNoLogging();
 
-} // namespace tsd
+} // namespace tsd::core

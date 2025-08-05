@@ -4,15 +4,15 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/containers/IndexedVector.hpp"
+#include "tsd/core/IndexedVector.hpp"
 // std
 #include <string>
 
-SCENARIO("IndexedVector interface tests", "[IndexedVector]")
+SCENARIO("tsd::core::IndexedVector interface tests", "[IndexedVector]")
 {
   GIVEN("A default constructed IndexedVector")
   {
-    tsd::IndexedVector<std::string> iv;
+    tsd::core::IndexedVector<std::string> iv;
 
     THEN("The map should be empty")
     {
@@ -98,11 +98,11 @@ SCENARIO("IndexedVector interface tests", "[IndexedVector]")
   }
 }
 
-SCENARIO("IndexedVector defragmentation", "[IndexedVector]")
+SCENARIO("tsd::core::IndexedVector defragmentation", "[IndexedVector]")
 {
   GIVEN("An IndexedVector with 5 values")
   {
-    tsd::IndexedVector<int> iv;
+    tsd::core::IndexedVector<int> iv;
     for (int i = 0; i < 5; i++)
       iv.emplace(i);
 

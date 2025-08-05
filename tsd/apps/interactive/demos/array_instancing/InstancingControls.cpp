@@ -2,21 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "InstancingControls.h"
-// tsd_viewer
-#include "tsd_ui.h"
+// tsd_ui_imgui
+#include <tsd/ui/imgui/tsd_ui_imgui.h>
+// tsd_io
+#include <tsd/io/procedural.hpp>
 // std
 #include <random>
 
-#include "AppCore.h"
+namespace tsd::demo {
 
-namespace tsd_viewer {
-
-using namespace tsd::literals;
-
-// InstancingControls definitions /////////////////////////////////////////////
-
-InstancingControls::InstancingControls(AppCore *core, const char *name)
-    : Window(core, name)
+InstancingControls::InstancingControls(
+    tsd::ui::imgui::Application *app, const char *name)
+    : Window(app, name)
 {
   createScene();
 }
@@ -24,7 +21,7 @@ InstancingControls::InstancingControls(AppCore *core, const char *name)
 void InstancingControls::buildUI()
 {
   if (ImGui::Button("clear scene"))
-    m_core->tsd.ctx.removeAllObjects();
+    appCore()->tsd.ctx.removeAllObjects();
 
   ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
   if (ImGui::CollapsingHeader("Instancing")) {
@@ -41,13 +38,13 @@ void InstancingControls::buildUI()
 
   ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
   if (ImGui::CollapsingHeader("Lighting")) {
-    tsd::ui::buildUI_object(*m_light, m_core->tsd.ctx, true);
+    tsd::ui::buildUI_object(*m_light, appCore()->tsd.ctx, true);
   }
 }
 
 void InstancingControls::createScene()
 {
-  auto &ctx = m_core->tsd.ctx;
+  auto &ctx = appCore()->tsd.ctx;
   auto *layer = ctx.defaultLayer();
 
   // Clear out previous scene //
@@ -56,9 +53,10 @@ void InstancingControls::createScene()
 
   // Default (global) material //
 
-  auto mat = ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
+  auto mat =
+      ctx.createObject<tsd::core::Material>(tsd::core::tokens::material::matte);
   mat->setName("default_material");
-  mat->setParameter(tsd::Token("color"), "color");
+  mat->setParameter("color", "color");
 
   // Generate geometry //
 
@@ -69,13 +67,13 @@ void InstancingControls::createScene()
 
   // Add light //
 
-  auto light = ctx.createObject<tsd::Light>(tsd::tokens::light::directional);
+  auto light =
+      ctx.createObject<tsd::core::Light>(tsd::core::tokens::light::directional);
   light->setName("mainLight");
-  light->setParameter("direction", tsd::float2(0.f, 240.f));
+  light->setParameter("direction", tsd::math::float2(0.f, 240.f));
   m_light = light.data();
 
-  layer->root()->insert_first_child(
-      tsd::utility::Any(ANARI_LIGHT, light.index()));
+  layer->root()->insert_first_child(tsd::core::Any(ANARI_LIGHT, light.index()));
 
   // Finally update instancing in RenderIndexes //
 
@@ -84,14 +82,15 @@ void InstancingControls::createScene()
 
 void InstancingControls::generateSpheres()
 {
-  auto &ctx = m_core->tsd.ctx;
+  auto &ctx = appCore()->tsd.ctx;
 
   // Generate geometry //
 
-  auto spheres = ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
+  auto spheres = ctx.createObject<tsd::core::Geometry>(
+      tsd::core::tokens::geometry::sphere);
 
   spheres->setName("random_spheres_geometry");
-  spheres->setParameter("radius"_t, m_particleRadius);
+  spheres->setParameter("radius", m_particleRadius);
 
   std::mt19937 rng;
   rng.seed(1);
@@ -105,13 +104,14 @@ void InstancingControls::generateSpheres()
   const uint32_t numSpheres = m_numInstances;
   auto positionArray = ctx.createArray(ANARI_FLOAT32_VEC3, numSpheres);
 
-  auto *positions = positionArray->mapAs<tsd::float3>();
+  auto *positions = positionArray->mapAs<tsd::math::float3>();
   for (uint32_t i = 0; i < numSpheres; i++)
-    positions[i] = tsd::float3(vert_dist(rng), vert_dist(rng), vert_dist(rng));
+    positions[i] =
+        tsd::math::float3(vert_dist(rng), vert_dist(rng), vert_dist(rng));
   positionArray->unmap();
 
-  spheres->setParameterObject("vertex.position"_t, *positionArray);
-  spheres->setParameter("color"_t, tsd::float4(1.f, 0.f, 0.f, 1.f));
+  spheres->setParameterObject("vertex.position", *positionArray);
+  spheres->setParameter("color", tsd::math::float4(1.f, 0.f, 0.f, 1.f));
 
   // Populate material with sampler for colormapping //
 
@@ -119,12 +119,12 @@ void InstancingControls::generateSpheres()
       ctx.createSurface("random_spheres", spheres, ctx.defaultMaterial());
 
   ctx.defaultLayer()->root()->insert_last_child(
-      tsd::utility::Any(ANARI_SURFACE, surface.index()));
+      tsd::core::Any(ANARI_SURFACE, surface.index()));
 }
 
 void InstancingControls::generateInstances()
 {
-  auto &ctx = m_core->tsd.ctx;
+  auto &ctx = appCore()->tsd.ctx;
 
   // Setup transforms //
 
@@ -132,7 +132,7 @@ void InstancingControls::generateInstances()
   auto xfmArray = ctx.createArray(ANARI_FLOAT32_MAT4, numXfms);
 
   auto xfmArrayNode = ctx.defaultLayer()->root()->insert_last_child(
-      tsd::utility::Any(ANARI_ARRAY1D, xfmArray.index()));
+      tsd::core::Any(ANARI_ARRAY1D, xfmArray.index()));
 
   std::mt19937 rng;
   rng.seed(0);
@@ -143,10 +143,10 @@ void InstancingControls::generateInstances()
   std::uniform_real_distribution<float> pos_dist(
       -m_spacing / 2.f, m_spacing / 2.f);
 #endif
-  auto *xfms = xfmArray->mapAs<tsd::mat4>();
+  auto *xfms = xfmArray->mapAs<tsd::math::mat4>();
   std::for_each(xfms, xfms + numXfms, [&](auto &xfm) {
     xfm = anari::math::translation_matrix(
-        tsd::float3(pos_dist(rng), pos_dist(rng), pos_dist(rng)));
+        tsd::math::float3(pos_dist(rng), pos_dist(rng), pos_dist(rng)));
   });
   xfmArray->unmap();
 
@@ -155,18 +155,18 @@ void InstancingControls::generateInstances()
   auto attrArray = ctx.createArray(ANARI_FLOAT32_VEC3, numXfms);
 
   std::uniform_real_distribution<float> col_dist(0.1f, 0.9f);
-  auto *attrs = attrArray->mapAs<tsd::float3>();
+  auto *attrs = attrArray->mapAs<tsd::math::float3>();
   std::for_each(attrs, attrs + numXfms, [&](auto &attr) {
-    attr = tsd::float3(col_dist(rng), col_dist(rng), col_dist(rng));
+    attr = tsd::math::float3(col_dist(rng), col_dist(rng), col_dist(rng));
   });
   attrArray->unmap();
 
   (*xfmArrayNode)->customParameters["color"] =
-      tsd::utility::Any(ANARI_ARRAY1D, attrArray.index());
+      tsd::core::Any(ANARI_ARRAY1D, attrArray.index());
 
   // Generate mesh //
 
-  tsd::generate_monkey(ctx, xfmArrayNode);
+  tsd::io::generate_monkey(ctx, xfmArrayNode);
 }
 
-} // namespace tsd_viewer
+} // namespace tsd::demo

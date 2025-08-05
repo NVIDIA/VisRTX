@@ -5,15 +5,15 @@
 #include "catch.hpp"
 // tsd
 #define TSD_DATA_TREE_TEST_MODE
-#include "tsd/containers/DataTree.hpp"
+#include "tsd/core/DataTree.hpp"
 // std
 #include <algorithm>
 
-SCENARIO("tsd::serialization::DataTree interface", "[DataTree]")
+SCENARIO("tsd::core::DataTree interface", "[DataTree]")
 {
   GIVEN("A normally constructed DataTree")
   {
-    tsd::serialization::DataTree tree;
+    tsd::core::DataTree tree;
     auto &root = tree.root();
 
     THEN("The root node is called 'root'")

@@ -4,15 +4,15 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/containers/FlatMap.hpp"
+#include "tsd/core/FlatMap.hpp"
 // std
 #include <string>
 
-SCENARIO("FlatMap interface tests", "[FlatMap]")
+SCENARIO("tsd::core::FlatMap interface tests", "[FlatMap]")
 {
   GIVEN("A default constructed FlatMap<>")
   {
-    tsd::FlatMap<std::string, int> fm;
+    tsd::core::FlatMap<std::string, int> fm;
 
     THEN("The map should be empty")
     {

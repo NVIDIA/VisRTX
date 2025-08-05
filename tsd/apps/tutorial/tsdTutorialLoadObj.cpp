@@ -1,8 +1,12 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// tsd
-#include "tsd/TSD.hpp"
+// tsd_core
+#include <tsd/core/scene/Context.hpp>
+// tsd_io
+#include <tsd/io/importers.hpp>
+// tsd_rendering
+#include <tsd/rendering/index/RenderIndexFlatRegistry.hpp>
 // std
 #include <cstdio>
 // stb_image
@@ -11,11 +15,9 @@
 static std::string g_libraryName = "environment";
 static std::string g_filename;
 
-using float3 = anari::math::float3;
-using float4 = anari::math::float4;
-using uint2 = anari::math::uint2;
-
-using namespace tsd::literals;
+using float3 = tsd::math::float3;
+using float4 = tsd::math::float4;
+using uint2 = tsd::math::uint2;
 
 static void statusFunc(const void *,
     ANARIDevice,
@@ -67,11 +69,11 @@ int main(int argc, char *argv[])
 
   // Create context //
 
-  tsd::Context ctx;
+  tsd::core::Context ctx;
 
   // Populate spheres //
 
-  tsd::import_OBJ(ctx, g_filename.c_str());
+  tsd::io::import_OBJ(ctx, g_filename.c_str());
 
   // Setup ANARI device //
 
@@ -80,7 +82,7 @@ int main(int argc, char *argv[])
 
   // Setup render index //
 
-  tsd::RenderIndexFlatRegistry rIdx(ctx, device);
+  tsd::rendering::RenderIndexFlatRegistry rIdx(ctx, device);
   rIdx.populate();
 
   // Create camera //

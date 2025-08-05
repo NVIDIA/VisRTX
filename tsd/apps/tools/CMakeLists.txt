@@ -3,14 +3,19 @@
 
 project(obj2header)
 project_add_executable(obj2header.cpp)
-project_link_libraries(tsd tsd_tiny_obj_loader)
+project_link_libraries(tsd_core tsd_io tsd_ext_tinyobjloader)
 
 project(printTSD)
 project_add_executable(printTSD.cpp)
-project_link_libraries(tsd)
+project_link_libraries(tsd_core)
 
-if (BUILD_INTERACTIVE_APPS)
-  project(tsdRender)
-  project_add_executable(tsdRender.cpp)
-  project_link_libraries(tsd stb_image tsd_viewer_common)
-endif()
+project(tsdRender)
+project_add_executable(tsdRender.cpp)
+project_link_libraries(
+  tsd_app
+  tsd_core
+  tsd_io
+  tsd_rendering
+  tsd_ext_tinyexr_impl
+  stb_image
+)

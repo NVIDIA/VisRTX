@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd
-#include <tsd/containers/DataTree.hpp>
+#include <tsd/core/DataTree.hpp>
 // std
 #include <iostream>
 
 int main()
 {
   {
-    tsd::serialization::DataTree tree;
+    tsd::core::DataTree tree;
 
     auto &root = tree.root();
     root["test"] = 500;
@@ -43,7 +43,7 @@ int main()
   }
 
   {
-    tsd::serialization::DataTree tree;
+    tsd::core::DataTree tree;
     printf("loading fresh tree from 'test_tree.tsdx'\n");
     tree.load("test_tree.tsdx");
 

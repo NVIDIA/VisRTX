@@ -15,7 +15,7 @@
 
 #define GPU_FCN __host__ __device__
 
-namespace tsd {
+namespace tsd::demo {
 
 void particlesComputeTimestep(int numParticles,
     tsd::math::float3 *positions_ /* GPU */,
@@ -61,4 +61,4 @@ void particlesComputeTimestep(int numParticles,
       });
 }
 
-} // namespace tsd
+} // namespace tsd::demo

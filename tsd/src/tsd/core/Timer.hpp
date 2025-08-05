@@ -5,7 +5,7 @@
 
 #include <chrono>
 
-namespace tsd {
+namespace tsd::core {
 
 struct Timer
 {

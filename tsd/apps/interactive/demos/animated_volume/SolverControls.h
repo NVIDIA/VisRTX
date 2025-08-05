@@ -3,23 +3,25 @@
 
 #pragma once
 
-#include "windows/Window.h"
-// tsd
-#include "tsd/objects/Array.hpp"
-#include "tsd/objects/SpatialField.hpp"
+// tsd_ui_imgui
+#include <tsd/ui/imgui/windows/Window.h>
+// tsd_core
+#include <tsd/core/scene/objects/Array.hpp>
+#include <tsd/core/scene/objects/SpatialField.hpp>
 // std
 #include <functional>
 
-namespace tsd_viewer {
+namespace tsd::demo {
 
 using JacobiUpdateCallback = std::function<void()>;
 
-struct SolverControls : public Window
+struct SolverControls : public tsd::ui::imgui::Window
 {
-  SolverControls(AppCore *core, const char *name = "Solver Controls");
+  SolverControls(
+      tsd::ui::imgui::Application *app, const char *name = "Solver Controls");
 
   void buildUI() override;
-  void setField(tsd::SpatialFieldRef f);
+  void setField(tsd::core::SpatialFieldRef f);
   void setUpdateCallback(JacobiUpdateCallback cb);
 
  private:
@@ -28,12 +30,12 @@ struct SolverControls : public Window
   void iterateSolver();
   void exportRAW();
 
-  tsd::SpatialFieldRef m_field;
-  tsd::ArrayRef m_dataHost;
-  tsd::ArrayRef m_dataCUDA_1;
-  tsd::ArrayRef m_dataCUDA_2;
+  tsd::core::SpatialFieldRef m_field;
+  tsd::core::ArrayRef m_dataHost;
+  tsd::core::ArrayRef m_dataCUDA_1;
+  tsd::core::ArrayRef m_dataCUDA_2;
   int m_iterationsPerCycle{2};
-  tsd::int3 m_dims{256, 256, 256};
+  tsd::math::int3 m_dims{256, 256, 256};
   int m_totalIterations{0};
   JacobiUpdateCallback m_cb;
   bool m_playing{false};
@@ -41,4 +43,4 @@ struct SolverControls : public Window
   bool m_updateTF{true};
 };
 
-} // namespace tsd_viewer
+} // namespace tsd::demo

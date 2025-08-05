@@ -4,9 +4,9 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/objects/Geometry.hpp"
+#include "tsd/core/scene/objects/Geometry.hpp"
 
-using tsd::Geometry;
+using tsd::core::Geometry;
 
 SCENARIO("tsd::Geometry interface", "[Geometry]")
 {

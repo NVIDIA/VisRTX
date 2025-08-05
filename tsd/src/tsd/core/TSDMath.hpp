@@ -12,6 +12,7 @@
 #include <limits>
 
 namespace tsd {
+namespace core {
 namespace math {
 
 using namespace anari::math;
@@ -20,9 +21,10 @@ using namespace helium::math;
 static constexpr mat4 IDENTITY_MAT4 = identity;
 static constexpr float inf = std::numeric_limits<float>::infinity();
 
-static constexpr tsd::math::float3 to_float3(const tsd::math::float4 &v)
+static constexpr tsd::core::math::float3 to_float3(
+    const tsd::core::math::float4 &v)
 {
-  return tsd::math::float3(v.x, v.y, v.z);
+  return tsd::core::math::float3(v.x, v.y, v.z);
 };
 
 template <typename T>
@@ -36,17 +38,17 @@ static constexpr float radians(float degrees)
   return degrees * M_PI / 180.f;
 };
 
-static constexpr tsd::math::float3 azelToDir(tsd::math::float2 azel)
+static constexpr tsd::core::math::float3 azelToDir(tsd::core::math::float2 azel)
 {
   const float az = radians(azel.x);
   const float el = radians(azel.y);
-  return tsd::math::float3(
+  return tsd::core::math::float3(
       std::sin(az) * std::cos(el), std::sin(el), std::cos(az) * std::cos(el));
 }
 
-static constexpr tsd::math::float3 radians(tsd::math::float3 v)
+static constexpr tsd::core::math::float3 radians(tsd::core::math::float3 v)
 {
-  return tsd::math::float3(radians(v.x), radians(v.y), radians(v.z));
+  return tsd::core::math::float3(radians(v.x), radians(v.y), radians(v.z));
 };
 
 static constexpr float degrees(float radians)
@@ -54,29 +56,30 @@ static constexpr float degrees(float radians)
   return radians * 180.f / float(M_PI);
 };
 
-static constexpr tsd::math::float3 degrees(tsd::math::float3 v)
+static constexpr tsd::core::math::float3 degrees(tsd::core::math::float3 v)
 {
-  return tsd::math::float3(degrees(v.x), degrees(v.y), degrees(v.z));
+  return tsd::core::math::float3(degrees(v.x), degrees(v.y), degrees(v.z));
 };
 
-inline tsd::math::mat4 makeValueRangeTransform(float lower, float upper)
+inline tsd::core::math::mat4 makeValueRangeTransform(float lower, float upper)
 {
-  const auto scale =
-      tsd::math::scaling_matrix(tsd::math::float3(1.f / (upper - lower)));
-  const auto translation =
-      tsd::math::translation_matrix(tsd::math::float3(-lower, 0, 0));
-  return tsd::math::mul(scale, translation);
+  const auto scale = tsd::core::math::scaling_matrix(
+      tsd::core::math::float3(1.f / (upper - lower)));
+  const auto translation = tsd::core::math::translation_matrix(
+      tsd::core::math::float3(-lower, 0, 0));
+  return tsd::core::math::mul(scale, translation);
 }
 
-inline tsd::math::mat4 makeValueRangeTransform(const tsd::math::float2 &range)
+inline tsd::core::math::mat4 makeValueRangeTransform(
+    const tsd::core::math::float2 &range)
 {
   return makeValueRangeTransform(range.x, range.y);
 }
 
-inline void decomposeMatrix(const tsd::math::mat4 &m,
-    tsd::math::float3 &scale,
-    tsd::math::mat4 &rotation,
-    tsd::math::float3 &translation)
+inline void decomposeMatrix(const tsd::core::math::mat4 &m,
+    tsd::core::math::float3 &scale,
+    tsd::core::math::mat4 &rotation,
+    tsd::core::math::float3 &translation)
 {
   // Step 1: Extract translation from the 4th column of the matrix
   translation = to_float3(m[3]);
@@ -86,9 +89,9 @@ inline void decomposeMatrix(const tsd::math::mat4 &m,
   auto basisY = to_float3(m[1]); // Second column (Y-axis basis vector)
   auto basisZ = to_float3(m[2]); // Third column (Z-axis basis vector)
 
-  scale.x = tsd::math::length(basisX);
-  scale.y = tsd::math::length(basisY);
-  scale.z = tsd::math::length(basisZ);
+  scale.x = tsd::core::math::length(basisX);
+  scale.y = tsd::core::math::length(basisY);
+  scale.z = tsd::core::math::length(basisZ);
 
   // Step 3: Remove scale from the basis vectors to get pure rotation
   auto rotationMatrix = m; // Copy the full 4x4 matrix
@@ -100,11 +103,11 @@ inline void decomposeMatrix(const tsd::math::mat4 &m,
     rotationMatrix[2] /= scale.z; // Normalize Z-axis
 
   // Keep the 4th column as (0, 0, 0, 1) for the rotation matrix
-  rotationMatrix[3] = tsd::math::float4(0.0f, 0.0f, 0.0f, 1.0f);
+  rotationMatrix[3] = tsd::core::math::float4(0.0f, 0.0f, 0.0f, 1.0f);
   rotation = rotationMatrix; // Assign normalized rotation matrix
 }
 
-inline tsd::math::float3 matrixToAzElRoll(const tsd::math::mat4 &r)
+inline tsd::core::math::float3 matrixToAzElRoll(const tsd::core::math::mat4 &r)
 {
   const float r00 = r[0][0], r01 = r[0][1], r02 = r[0][2];
   const float r10 = r[1][0], r11 = r[1][1], r12 = r[1][2];
@@ -121,5 +124,9 @@ inline tsd::math::float3 matrixToAzElRoll(const tsd::math::mat4 &r)
 
 using namespace linalg::aliases;
 using mat4 = float4x4;
+
+} // namespace core
+
+namespace math = core::math;
 
 } // namespace tsd

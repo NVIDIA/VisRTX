@@ -3,4 +3,4 @@
 
 project(tsdViewer)
 project_add_executable(tsdViewer.cpp)
-project_link_libraries(PUBLIC tsd_viewer_common)
+project_link_libraries(PUBLIC tsd_ui_imgui)

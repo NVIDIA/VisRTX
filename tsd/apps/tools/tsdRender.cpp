@@ -1,30 +1,35 @@
 // Copyright 2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// tsd
-#include "tsd/TSD.hpp"
-// render pipeline
-#include "render_pipeline/RenderPipeline.h"
+// tsd_core
+#include <tsd/core/Timer.hpp>
+#include <tsd/core/scene/Context.hpp>
+// tsd_rendering
+#include <tsd/rendering/pipeline/RenderPipeline.h>
+#include <tsd/rendering/index/RenderIndexAllLayers.hpp>
+#include <tsd/rendering/view/ManipulatorToAnari.hpp>
+// tsd_app
+#include <tsd/app/Core.h>
+// tsd_io
+#include <tsd/io/serialization.hpp>
+// stb_image
+#include "stb_image_write.h"
 // std
 #include <chrono>
 #include <cstdio>
 #include <memory>
 #include <vector>
-// stb_image
-#include "stb_image_write.h"
-
-#include "AppCore.h"
 
 // Application state //////////////////////////////////////////////////////////
 
-static std::unique_ptr<tsd::serialization::DataTree> g_stateFile;
-static std::unique_ptr<tsd::Context> g_ctx;
-static std::unique_ptr<tsd::RenderIndexAllLayers> g_renderIndex;
-static std::unique_ptr<tsd::RenderPipeline> g_renderPipeline;
-static tsd::Timer g_timer;
-static tsd::manipulators::Manipulator g_manipulator;
-static std::vector<tsd::manipulators::CameraPose> g_cameraPoses;
-static std::unique_ptr<tsd_viewer::AppCore> g_core;
+static std::unique_ptr<tsd::core::DataTree> g_stateFile;
+static std::unique_ptr<tsd::core::Context> g_ctx;
+static std::unique_ptr<tsd::rendering::RenderIndexAllLayers> g_renderIndex;
+static std::unique_ptr<tsd::rendering::RenderPipeline> g_renderPipeline;
+static tsd::core::Timer g_timer;
+static tsd::rendering::Manipulator g_manipulator;
+static std::vector<tsd::rendering::CameraPose> g_cameraPoses;
+static std::unique_ptr<tsd::app::Core> g_core;
 
 static anari::Library g_library{nullptr};
 static anari::Device g_device{nullptr};
@@ -79,7 +84,7 @@ static void initTSDDataTree()
   fflush(stdout);
 
   g_timer.start();
-  g_stateFile = std::make_unique<tsd::serialization::DataTree>();
+  g_stateFile = std::make_unique<tsd::core::DataTree>();
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -91,7 +96,7 @@ static void initTSDContext()
   fflush(stdout);
 
   g_timer.start();
-  g_ctx = std::make_unique<tsd::Context>();
+  g_ctx = std::make_unique<tsd::core::Context>();
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -103,7 +108,8 @@ static void initTSDRenderIndex()
   fflush(stdout);
 
   g_timer.start();
-  g_renderIndex = std::make_unique<tsd::RenderIndexAllLayers>(*g_ctx, g_device);
+  g_renderIndex =
+      std::make_unique<tsd::rendering::RenderIndexAllLayers>(*g_ctx, g_device);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -143,9 +149,9 @@ static void populateTSDContext()
   g_timer.start();
   auto &root = g_stateFile->root();
   if (auto *c = root.child("context"); c != nullptr)
-    tsd::load_Context(*g_ctx, *c);
+    tsd::io::load_Context(*g_ctx, *c);
   else
-    tsd::load_Context(*g_ctx, root);
+    tsd::io::load_Context(*g_ctx, root);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -171,9 +177,9 @@ static void setupCameraManipulator()
   g_timer.start();
   auto &root = g_stateFile->root();
   if (auto *c = root.child("cameraPoses"); c != nullptr && !c->isLeaf()) {
-    c->foreach_child([&](tsd::serialization::DataNode &n) {
-      tsd::manipulators::CameraPose pose;
-      tsd::nodeToCameraPose(n, pose);
+    c->foreach_child([&](tsd::core::DataNode &n) {
+      tsd::rendering::CameraPose pose;
+      tsd::io::nodeToCameraPose(n, pose);
       g_cameraPoses.push_back(std::move(pose));
     });
     printf("using %zu camera poses from file...", g_cameraPoses.size());
@@ -194,11 +200,11 @@ static void setupCameraManipulator()
     auto center = 0.5f * (bounds[0] + bounds[1]);
     auto diag = bounds[1] - bounds[0];
 
-    tsd::manipulators::CameraPose pose;
+    tsd::rendering::CameraPose pose;
     pose.fixedDist = 2.f * tsd::math::length(diag);
     pose.lookat = center;
     pose.azeldist = {0.f, 20.f, pose.fixedDist};
-    pose.upAxis = static_cast<int>(tsd::manipulators::UpAxis::POS_Y);
+    pose.upAxis = static_cast<int>(tsd::rendering::UpAxis::POS_Y);
 
     g_cameraPoses.push_back(std::move(pose));
   }
@@ -217,7 +223,7 @@ static void setupRenderPipeline()
 
   g_timer.start();
   g_renderPipeline =
-      std::make_unique<tsd::RenderPipeline>(frameWidth, frameHeight);
+      std::make_unique<tsd::rendering::RenderPipeline>(frameWidth, frameHeight);
 
   g_camera = anari::newObject<anari::Camera>(g_device, "perspective");
   anari::setParameter(
@@ -240,7 +246,8 @@ static void setupRenderPipeline()
   anari::commitParameters(g_device, r);
 
   auto *arp =
-      g_renderPipeline->emplace_back<tsd::AnariSceneRenderPass>(g_device);
+      g_renderPipeline->emplace_back<tsd::rendering::AnariSceneRenderPass>(
+          g_device);
   arp->setWorld(g_renderIndex->world());
   arp->setRenderer(r);
   arp->setCamera(g_camera);
@@ -270,7 +277,7 @@ static void renderFrames()
     const auto &pose = g_cameraPoses[i];
 
     g_manipulator.setConfig(pose);
-    tsd::manipulators::updateCameraParametersPerspective(
+    tsd::rendering::updateCameraParametersPerspective(
         g_device, g_camera, g_manipulator);
     anari::commitParameters(g_device, g_camera);
 
@@ -332,7 +339,7 @@ int main(int argc, const char *argv[])
     return 1;
   }
 
-  g_core = std::make_unique<tsd_viewer::AppCore>(nullptr);
+  g_core = std::make_unique<tsd::app::Core>();
 
   initTSDDataTree();
   initTSDContext();

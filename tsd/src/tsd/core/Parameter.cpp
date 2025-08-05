@@ -3,7 +3,7 @@
 
 #include "tsd/core/Parameter.hpp"
 
-namespace tsd {
+namespace tsd::core {
 
 Parameter::Parameter(ParameterObserver *object, Token name)
     : m_observer(object), m_name(name)
@@ -127,4 +127,4 @@ void Parameter::setObserver(ParameterObserver *o)
   m_observer = o;
 }
 
-} // namespace tsd
+} // namespace tsd::core

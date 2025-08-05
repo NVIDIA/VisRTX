@@ -1,14 +1,18 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "TSDApplication.h"
-#include "windows/Log.h"
-#include "windows/ObjectEditor.h"
-#include "windows/Viewport.h"
+// tsd_ui_imgui
+#include <tsd/ui/imgui/Application.h>
+#include <tsd/ui/imgui/windows/Log.h>
+#include <tsd/ui/imgui/windows/ObjectEditor.h>
+#include <tsd/ui/imgui/windows/Viewport.h>
 
 #include "InstancingControls.h"
 
-namespace tsd_viewer {
+namespace tsd::demo {
+
+using TSDApplication = tsd::ui::imgui::Application;
+namespace tsd_ui = tsd::ui::imgui;
 
 class Application : public TSDApplication
 {
@@ -24,12 +28,12 @@ class Application : public TSDApplication
     auto *manipulator = &core->view.manipulator;
     core->tsd.sceneLoadComplete = true;
 
-    auto *log = new Log(core);
-    auto *viewport = new Viewport(core, manipulator, "Viewport");
-    auto *viewport2 = new Viewport(core, manipulator, "Secondary View");
+    auto *log = new tsd_ui::Log(this);
+    auto *viewport = new tsd_ui::Viewport(this, manipulator, "Viewport");
+    auto *viewport2 = new tsd_ui::Viewport(this, manipulator, "Secondary View");
     viewport2->hide();
-    auto *icontrols = new InstancingControls(core, "Scene Controls");
-    auto *oeditor = new ObjectEditor(core);
+    auto *icontrols = new tsd::demo::InstancingControls(this, "Scene Controls");
+    auto *oeditor = new tsd_ui::ObjectEditor(this);
 
     windows.emplace_back(viewport);
     windows.emplace_back(viewport2);
@@ -40,8 +44,9 @@ class Application : public TSDApplication
     setWindowArray(windows);
 
     viewport->setLibrary(core->commandLine.libraryList[0], false);
-    manipulator->setConfig(
-        tsd::float3(2.743f, 4.747f, 0.944f), 90.f, tsd::float2(180.f, 0.f));
+    manipulator->setConfig(tsd::math::float3(2.743f, 4.747f, 0.944f),
+        90.f,
+        tsd::math::float2(180.f, 0.f));
 
     return windows;
   }
@@ -139,7 +144,7 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
   }
 };
 
-} // namespace tsd_viewer
+} // namespace tsd::demo
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -148,7 +153,7 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
 int main(int argc, const char *argv[])
 {
   {
-    tsd_viewer::Application app;
+    tsd::demo::Application app;
     app.run(1920, 1080, "TSD Demo | Array Instancing");
   }
 

@@ -1,8 +1,8 @@
 // Copyright 2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// tsd
-#include "tsd/containers/DataTree.hpp"
+// tsd_core
+#include <tsd/core/DataTree.hpp>
 
 int main(int argc, const char *argv[])
 {
@@ -11,7 +11,7 @@ int main(int argc, const char *argv[])
     return 1;
   }
 
-  tsd::serialization::DataTree tree;
+  tsd::core::DataTree tree;
   tree.load(argv[1]);
   tree.print();
 

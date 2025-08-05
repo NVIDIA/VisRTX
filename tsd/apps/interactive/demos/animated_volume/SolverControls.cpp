@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "SolverControls.h"
-// tsd_viewer
-#include "tsd_ui.h"
-// tsd
-#include "tsd/core/Logging.hpp"
+// tsd_ui_imgui
+#include <tsd/ui/imgui/Application.h>
+// tsd_core
+#include <tsd/core/Logging.hpp>
 // std
 #include <chrono>
 #include <cstdio>
@@ -17,12 +17,11 @@
 
 #include "jacobi3D.h"
 
-#include "AppCore.h"
+namespace tsd::demo {
 
-namespace tsd_viewer {
-
-SolverControls::SolverControls(AppCore *core, const char *name)
-    : Window(core, name)
+SolverControls::SolverControls(
+    tsd::ui::imgui::Application *app, const char *name)
+    : tsd::ui::imgui::Window(app, name)
 {}
 
 void SolverControls::buildUI()
@@ -78,7 +77,7 @@ void SolverControls::buildUI()
     exportRAW();
 }
 
-void SolverControls::setField(tsd::SpatialFieldRef f)
+void SolverControls::setField(tsd::core::SpatialFieldRef f)
 {
   m_field = f;
   resetSolver();
@@ -92,11 +91,11 @@ void SolverControls::setUpdateCallback(JacobiUpdateCallback cb)
 void SolverControls::remakeDataArray()
 {
   if (!m_field) {
-    tsd::logWarning("[jacobi solver] no spatial field set");
+    tsd::core::logWarning("[jacobi solver] no spatial field set");
     return;
   }
 
-  auto &ctx = m_core->tsd.ctx;
+  auto &ctx = appCore()->tsd.ctx;
   if (m_dataHost)
     ctx.removeObject(*m_dataHost);
   if (m_dataCUDA_1)
@@ -116,7 +115,7 @@ void SolverControls::remakeDataArray()
   } else {
     m_dataHost = ctx.createArray(ANARI_FLOAT32, m_dims.x, m_dims.y, m_dims.z);
   }
-  m_field->setParameter("spacing", 2.f / tsd::float3(m_dims.x));
+  m_field->setParameter("spacing", 2.f / tsd::math::float3(m_dims.x));
 }
 
 void SolverControls::resetSolver()
@@ -124,11 +123,11 @@ void SolverControls::resetSolver()
   m_playing = false;
 
   if (!m_field) {
-    tsd::logWarning("[jacobi solver] no spatial field set");
+    tsd::core::logWarning("[jacobi solver] no spatial field set");
     return;
   }
 
-  tsd::logStatus("[jacobi solver] resetting solver data");
+  tsd::core::logStatus("[jacobi solver] resetting solver data");
 
   remakeDataArray();
 
@@ -181,11 +180,11 @@ void SolverControls::resetSolver()
 void SolverControls::iterateSolver()
 {
   if (!m_field) {
-    tsd::logWarning("[jacobi solver] no spatial field set");
+    tsd::core::logWarning("[jacobi solver] no spatial field set");
     return;
   }
 
-  tsd::logStatus(
+  tsd::core::logStatus(
       "[jacobi solver] running %i iterations...", m_iterationsPerCycle);
 
   auto start = std::chrono::steady_clock::now();
@@ -198,7 +197,7 @@ void SolverControls::iterateSolver()
     auto *d_grid_2 = m_dataCUDA_2->mapAs<float>();
     if (m_totalIterations % 2)
       std::swap(d_grid_1, d_grid_2);
-    tsd::jacobi3D(nx, ny, nz, d_grid_1, d_grid_2, m_iterationsPerCycle);
+    tsd::demo::jacobi3D(nx, ny, nz, d_grid_1, d_grid_2, m_iterationsPerCycle);
     m_dataCUDA_1->unmap();
     m_dataCUDA_2->unmap();
     if (m_iterationsPerCycle % 2) {
@@ -207,7 +206,7 @@ void SolverControls::iterateSolver()
     }
   } else {
     auto *h_grid = m_dataHost->mapAs<float>();
-    tsd::jacobi3D(nx, ny, nz, h_grid, m_iterationsPerCycle);
+    tsd::demo::jacobi3D(nx, ny, nz, h_grid, m_iterationsPerCycle);
     m_dataHost->unmap();
   }
 
@@ -216,7 +215,7 @@ void SolverControls::iterateSolver()
   auto end = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration<float>(end - start).count() * 1000;
 
-  tsd::logStatus("[jacobi solver] ...solver done (%i|%.2fms)",
+  tsd::core::logStatus("[jacobi solver] ...solver done (%i|%.2fms)",
       m_totalIterations,
       duration);
 
@@ -228,7 +227,7 @@ void SolverControls::iterateSolver()
   end = std::chrono::steady_clock::now();
   duration = std::chrono::duration<float>(end - start).count() * 1000;
 
-  tsd::logStatus("[jacobi solver] ...TSD update  (%i|%.2fms)",
+  tsd::core::logStatus("[jacobi solver] ...TSD update  (%i|%.2fms)",
       m_totalIterations,
       duration);
 }
@@ -263,7 +262,7 @@ void SolverControls::exportRAW()
       m_dataHost->dataAs<float>(), sizeof(float), m_dataHost->size(), fp);
   std::fclose(fp);
 
-  tsd::logStatus("[jacobi solver] exported data to %s", filename.c_str());
+  tsd::core::logStatus("[jacobi solver] exported data to %s", filename.c_str());
 }
 
-} // namespace tsd_viewer
+} // namespace tsd::demo

@@ -4,13 +4,13 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/containers/Forest.hpp"
+#include "tsd/core/Forest.hpp"
 
-SCENARIO("tsd::utilty::Forest<> interface", "[Forest]")
+SCENARIO("tsd::core::Forest<> interface", "[Forest]")
 {
   GIVEN("A normally constructed Forest")
   {
-    tsd::utility::Forest<int> f{-1};
+    tsd::core::Forest<int> f{-1};
 
     THEN("The Forest is empty")
     {

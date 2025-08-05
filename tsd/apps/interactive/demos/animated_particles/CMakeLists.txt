@@ -14,7 +14,7 @@ project_add_executable(
   SimulationControls.cpp
   tsdDemoAnimatedParticles.cpp
 )
-project_link_libraries(tsd_viewer_common glm::glm)
+project_link_libraries(tsd_ui_imgui glm::glm)
 set_source_files_properties(
   particle_system.cu
   PROPERTIES

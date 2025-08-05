@@ -12,7 +12,7 @@
 
 #define GPU_FCN __host__ __device__
 
-namespace tsd {
+namespace tsd::demo {
 
 struct GridIndexer
 {
@@ -106,4 +106,4 @@ void jacobi3D(int nx, int ny, int nz, float *h_grid, int iterations)
   thrust::copy(d_grid_v.data(), d_grid_v.data() + grid_size, h_grid);
 }
 
-} // namespace tsd
+} // namespace tsd::demo

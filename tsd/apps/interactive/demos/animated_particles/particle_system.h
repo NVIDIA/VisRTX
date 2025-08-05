@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "tsd/core/TSDMath.hpp"
+#include <tsd/core/TSDMath.hpp>
 
-namespace tsd {
+namespace tsd::demo {
 
 struct ParticleSystemParameters
 {
@@ -24,4 +24,4 @@ void particlesComputeTimestep(int numParticles,
     const tsd::math::float3 &bhPosition2,
     const ParticleSystemParameters &params);
 
-} // namespace tsd
+} // namespace tsd::demo

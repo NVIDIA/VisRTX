@@ -1,8 +1,8 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// tsd
-#include "tsd/authoring/importers/detail/importer_common.hpp"
+// tsd_io
+#include <tsd/io/importers/detail/importer_common.hpp>
 // tiny_obj_loader
 #include "tiny_obj_loader.h"
 // std
@@ -32,8 +32,8 @@ int main(int argc, const char *argv[])
 
   std::string warn;
   std::string err;
-  std::string basePath = tsd::pathOf(inputFile);
-  std::string file = tsd::fileOf(inputFile);
+  std::string basePath = tsd::io::pathOf(inputFile);
+  std::string file = tsd::io::fileOf(inputFile);
 
   auto retval = tinyobj::LoadObj(&objdata.attrib,
       &objdata.shapes,

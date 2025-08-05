@@ -3,7 +3,7 @@
 
 #pragma once
 
-namespace tsd {
+namespace tsd::demo {
 
 // Use existing GPU grids
 void jacobi3D(
@@ -12,4 +12,4 @@ void jacobi3D(
 // Use host grid
 void jacobi3D(int nx, int ny, int nz, float *h_grid, int iterations);
 
-} // namespace tsd
+} // namespace tsd::demo

@@ -3,4 +3,4 @@
 
 project(tsdDemoArrayInstancing)
 project_add_executable(InstancingControls.cpp tsdDemoArrayInstancing.cpp)
-project_link_libraries(tsd_viewer_common)
+project_link_libraries(tsd_ui_imgui)

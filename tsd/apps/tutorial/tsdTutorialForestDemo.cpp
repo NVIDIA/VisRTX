@@ -1,13 +1,13 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// tsd
-#include <tsd/containers/Forest.hpp>
+// tsd_core
+#include <tsd/core/Forest.hpp>
 // std
 #include <iostream>
 
 template <typename T>
-void print(tsd::utility::Forest<T> &f)
+void print(tsd::core::Forest<T> &f)
 {
   std::cout << "----Forest----\n";
   f.traverse(f.root(), [](auto &node, int level) {
@@ -21,7 +21,7 @@ void print(tsd::utility::Forest<T> &f)
 
 int main()
 {
-  tsd::utility::Forest<int> f(0);
+  tsd::core::Forest<int> f(0);
   f.insert_last_child(f.root(), 1);
 
   auto l1r = f.insert_last_child(f.root(), 2);
@@ -36,7 +36,7 @@ int main()
 
   print(f);
 
-  auto s = tsd::utility::find_first_child(l1r, [](auto &v) { return v == 4; });
+  auto s = tsd::core::find_first_child(l1r, [](auto &v) { return v == 4; });
   std::cout << "looking for '4' under '2', found " << **s << std::endl;
 
   std::cout << "erasing '5'" << std::endl;
@@ -45,11 +45,11 @@ int main()
   print(f);
 
   int sum = 0;
-  tsd::utility::foreach_child(f.root(), [&](int &v) { sum += v; });
+  tsd::core::foreach_child(f.root(), [&](int &v) { sum += v; });
   std::cout << "sum of root node's children: " << sum << std::endl;
 
   sum = f.root()->value();
-  tsd::utility::forall_children(f.root(), [&](int &v) { sum += v; });
+  tsd::core::forall_children(f.root(), [&](int &v) { sum += v; });
   std::cout << "sum of entire tree: " << sum << std::endl;
 
   return 0;

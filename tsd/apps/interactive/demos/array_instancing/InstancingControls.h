@@ -3,15 +3,17 @@
 
 #pragma once
 
-#include "windows/Window.h"
-// tsd
-#include "tsd/core/Object.hpp"
+// tsd_ui_imgui
+#include <tsd/ui/imgui/windows/Window.h>
+// tsd_core
+#include <tsd/core/scene/Object.hpp>
 
-namespace tsd_viewer {
+namespace tsd::demo {
 
-struct InstancingControls : public Window
+struct InstancingControls : public tsd::ui::imgui::Window
 {
-  InstancingControls(AppCore *core, const char *name = "Instancing Controls");
+  InstancingControls(tsd::ui::imgui::Application *app,
+      const char *name = "Instancing Controls");
 
   void buildUI() override;
 
@@ -27,7 +29,7 @@ struct InstancingControls : public Window
   float m_particleRadius{0.5f};
   bool m_addSpheres{true};
   bool m_addInstances{true};
-  tsd::Object *m_light{nullptr};
+  tsd::core::Object *m_light{nullptr};
 };
 
-} // namespace tsd_viewer
+} // namespace tsd::demo

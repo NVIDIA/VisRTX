@@ -11,7 +11,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace tsd::utility {
+namespace tsd::core {
 
 struct Any
 {
@@ -309,4 +309,4 @@ inline void Any::resizeString(size_t size)
   m_string.resize(size);
 }
 
-} // namespace tsd::utility
+} // namespace tsd::core

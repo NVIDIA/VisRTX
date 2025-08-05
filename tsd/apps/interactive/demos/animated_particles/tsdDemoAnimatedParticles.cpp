@@ -1,20 +1,24 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "TSDApplication.h"
-#include "windows/IsosurfaceEditor.h"
-#include "windows/Log.h"
-#include "windows/ObjectEditor.h"
-#include "windows/LayerTree.h"
-#include "windows/TransferFunctionEditor.h"
-#include "windows/Viewport.h"
+// tsd_ui_imgui
+#include <tsd/ui/imgui/Application.h>
+#include <tsd/ui/imgui/windows/IsosurfaceEditor.h>
+#include <tsd/ui/imgui/windows/LayerTree.h>
+#include <tsd/ui/imgui/windows/Log.h>
+#include <tsd/ui/imgui/windows/ObjectEditor.h>
+#include <tsd/ui/imgui/windows/TransferFunctionEditor.h>
+#include <tsd/ui/imgui/windows/Viewport.h>
 // std
 #include <algorithm>
 #include <vector>
 
 #include "SimulationControls.h"
 
-namespace tsd_viewer {
+namespace tsd::demo {
+
+using TSDApplication = tsd::ui::imgui::Application;
+namespace tsd_ui = tsd::ui::imgui;
 
 class Application : public TSDApplication
 {
@@ -30,13 +34,13 @@ class Application : public TSDApplication
     auto &ctx = core->tsd.ctx;
     auto *manipulator = &core->view.manipulator;
 
-    auto *log = new Log(core);
-    auto *viewport = new Viewport(core, manipulator, "Viewport");
-    auto *viewport2 = new Viewport(core, manipulator, "Secondary View");
+    auto *log = new tsd_ui::Log(this);
+    auto *viewport = new tsd_ui::Viewport(this, manipulator, "Viewport");
+    auto *viewport2 = new tsd_ui::Viewport(this, manipulator, "Secondary View");
     viewport2->hide();
-    auto *oeditor = new ObjectEditor(core);
-    auto *otree = new LayerTree(core);
-    auto *solver = new SimulationControls(core);
+    auto *oeditor = new tsd_ui::ObjectEditor(this);
+    auto *otree = new tsd_ui::LayerTree(this);
+    auto *solver = new tsd::demo::SimulationControls(this);
 
     windows.emplace_back(viewport);
     windows.emplace_back(viewport2);
@@ -53,27 +57,27 @@ class Application : public TSDApplication
 
     // Geometry
 
-    auto particles =
-        ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
+    auto particles = ctx.createObject<tsd::core::Geometry>(
+        tsd::core::tokens::geometry::sphere);
     particles->setName("particle_geometry");
     particles->setParameter("radius", 0.01f);
 
-    auto blackHoles =
-        ctx.createObject<tsd::Geometry>(tsd::tokens::geometry::sphere);
+    auto blackHoles = ctx.createObject<tsd::core::Geometry>(
+        tsd::core::tokens::geometry::sphere);
     blackHoles->setName("blackHole_geometry");
     blackHoles->setParameter("radius", 0.1f);
 
     // Colormap sampler
 
     auto samplerImageArray = ctx.createArray(ANARI_FLOAT32_VEC4, 3);
-    auto *colorMapPtr = samplerImageArray->mapAs<tsd::float4>();
-    colorMapPtr[0] = tsd::float4(0.f, 0.f, 1.f, 1.f);
-    colorMapPtr[1] = tsd::float4(0.f, 1.f, 0.f, 1.f);
-    colorMapPtr[2] = tsd::float4(1.f, 0.f, 0.f, 1.f);
+    auto *colorMapPtr = samplerImageArray->mapAs<tsd::math::float4>();
+    colorMapPtr[0] = tsd::math::float4(0.f, 0.f, 1.f, 1.f);
+    colorMapPtr[1] = tsd::math::float4(0.f, 1.f, 0.f, 1.f);
+    colorMapPtr[2] = tsd::math::float4(1.f, 0.f, 0.f, 1.f);
     samplerImageArray->unmap();
 
-    auto sampler =
-        ctx.createObject<tsd::Sampler>(tsd::tokens::sampler::image1D);
+    auto sampler = ctx.createObject<tsd::core::Sampler>(
+        tsd::core::tokens::sampler::image1D);
     sampler->setParameter("inAttribute", "attribute0");
     sampler->setParameter("filter", "linear");
     sampler->setParameter("wrapMode", "mirrorRepeat");
@@ -83,32 +87,33 @@ class Application : public TSDApplication
 
     // Materials
 
-    auto particleMat =
-        ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
+    auto particleMat = ctx.createObject<tsd::core::Material>(
+        tsd::core::tokens::material::matte);
     particleMat->setParameterObject("color", *sampler);
 
-    auto bhMat = ctx.createObject<tsd::Material>(tsd::tokens::material::matte);
-    bhMat->setParameter("color", tsd::float3(0.f));
+    auto bhMat = ctx.createObject<tsd::core::Material>(
+        tsd::core::tokens::material::matte);
+    bhMat->setParameter("color", tsd::math::float3(0.f));
 
     // Surfaces
 
-    auto surface = ctx.createObject<tsd::Surface>();
+    auto surface = ctx.createObject<tsd::core::Surface>();
     surface->setName("particle_surface");
     surface->setParameterObject("geometry", *particles);
     surface->setParameterObject("material", *particleMat);
     ctx.defaultLayer()->root()->insert_first_child(
-        tsd::utility::Any(ANARI_SURFACE, surface.index()));
+        tsd::core::Any(ANARI_SURFACE, surface.index()));
 
-    surface = ctx.createObject<tsd::Surface>();
+    surface = ctx.createObject<tsd::core::Surface>();
     surface->setName("bh_surface");
     surface->setParameterObject("geometry", *blackHoles);
     surface->setParameterObject("material", *bhMat);
     ctx.defaultLayer()->root()->insert_first_child(
-        tsd::utility::Any(ANARI_SURFACE, surface.index()));
+        tsd::core::Any(ANARI_SURFACE, surface.index()));
 
     // Setup app //
 
-    tsd::logStatus("%s", tsd::objectDBInfo(ctx.objectDB()).c_str());
+    tsd::core::logStatus("%s", tsd::core::objectDBInfo(ctx.objectDB()).c_str());
     core->tsd.sceneLoadComplete = true;
 
     viewport->setLibrary(core->commandLine.libraryList[0], false);
@@ -188,7 +193,7 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
   }
 };
 
-} // namespace tsd_viewer
+} // namespace tsd::demo
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -197,7 +202,7 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
 int main(int argc, const char *argv[])
 {
   {
-    tsd_viewer::Application app(argc, argv);
+    tsd::demo::Application app(argc, argv);
     app.run(1920, 1080, "TSD Demo | Animated Particles");
   }
 

@@ -81,6 +81,3 @@ add_subdirectory(tests)
 ## Cleanup CMake variables ##
 
 include(cmake/mark_cache_variables_as_advanced.cmake)
-
-get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
-message(STATUS "Include dirs = ${dirs}")

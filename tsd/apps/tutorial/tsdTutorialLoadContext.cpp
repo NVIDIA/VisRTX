@@ -1,8 +1,10 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// tsd
-#include "tsd/TSD.hpp"
+// tsd_core
+#include <tsd/core/scene/Context.hpp>
+// tsd_io
+#include <tsd/io/serialization.hpp>
 // std
 #include <cstdio>
 
@@ -13,15 +15,15 @@ int main(int argc, const char *argv[])
     return 0;
   }
 
-  tsd::Context ctx;
-  tsd::load_Context(ctx, argv[1]);
+  tsd::core::Context ctx;
+  tsd::io::load_Context(ctx, argv[1]);
   printf("-------------------TSD Context Info---------------------\n\n");
-  printf("%s\n", objectDBInfo(ctx.objectDB()).c_str());
+  printf("%s\n", tsd::core::objectDBInfo(ctx.objectDB()).c_str());
 
   printf("----------------------TSD Tree--------------------------\n\n");
 
   auto onNodeEntry = [&](auto &node, int level) {
-    tsd::Object *obj = ctx.getObject(node->value);
+    tsd::core::Object *obj = ctx.getObject(node->value);
 
     const char *typeText = "[-]";
     switch (node->value.type()) {

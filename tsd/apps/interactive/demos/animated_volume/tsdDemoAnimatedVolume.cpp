@@ -1,20 +1,24 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "TSDApplication.h"
-#include "windows/IsosurfaceEditor.h"
-#include "windows/LayerTree.h"
-#include "windows/Log.h"
-#include "windows/ObjectEditor.h"
-#include "windows/TransferFunctionEditor.h"
-#include "windows/Viewport.h"
+// tsd_ui_imgui
+#include <tsd/ui/imgui/Application.h>
+#include <tsd/ui/imgui/windows/IsosurfaceEditor.h>
+#include <tsd/ui/imgui/windows/LayerTree.h>
+#include <tsd/ui/imgui/windows/Log.h>
+#include <tsd/ui/imgui/windows/ObjectEditor.h>
+#include <tsd/ui/imgui/windows/TransferFunctionEditor.h>
+#include <tsd/ui/imgui/windows/Viewport.h>
 // std
 #include <algorithm>
 #include <vector>
 
 #include "SolverControls.h"
 
-namespace tsd_viewer {
+namespace tsd::demo {
+
+using TSDApplication = tsd::ui::imgui::Application;
+namespace tsd_ui = tsd::ui::imgui;
 
 class Application : public TSDApplication
 {
@@ -30,15 +34,15 @@ class Application : public TSDApplication
     auto &ctx = core->tsd.ctx;
     auto *manipulator = &core->view.manipulator;
 
-    auto *log = new Log(core);
-    auto *viewport = new Viewport(core, manipulator, "Viewport");
-    auto *viewport2 = new Viewport(core, manipulator, "Secondary View");
+    auto *log = new tsd_ui::Log(this);
+    auto *viewport = new tsd_ui::Viewport(this, manipulator, "Viewport");
+    auto *viewport2 = new tsd_ui::Viewport(this, manipulator, "Secondary View");
     viewport2->hide();
-    auto *oeditor = new ObjectEditor(core);
-    auto *otree = new LayerTree(core);
-    auto *tfeditor = new TransferFunctionEditor(core);
-    auto *isoeditor = new IsosurfaceEditor(core);
-    auto *solver = new SolverControls(core);
+    auto *oeditor = new tsd_ui::ObjectEditor(this);
+    auto *otree = new tsd_ui::LayerTree(this);
+    auto *tfeditor = new tsd_ui::TransferFunctionEditor(this);
+    auto *isoeditor = new tsd_ui::IsosurfaceEditor(this);
+    auto *solver = new tsd::demo::SolverControls(this);
 
     windows.emplace_back(viewport);
     windows.emplace_back(viewport2);
@@ -56,18 +60,19 @@ class Application : public TSDApplication
     // Populate scene data //
 
     auto colorArray = core->tsd.ctx.createArray(ANARI_FLOAT32_VEC4, 256);
-    colorArray->setData(tsd::makeDefaultColorMap(colorArray->size()).data());
+    colorArray->setData(
+        tsd::core::makeDefaultColorMap(colorArray->size()).data());
 
-    auto field = ctx.createObject<tsd::SpatialField>(
-        tsd::tokens::spatial_field::structuredRegular);
+    auto field = ctx.createObject<tsd::core::SpatialField>(
+        tsd::core::tokens::spatial_field::structuredRegular);
     field->setName("jacobi_field");
     solver->setField(field);
 
-    auto volume =
-        ctx.createObject<tsd::Volume>(tsd::tokens::volume::transferFunction1D);
+    auto volume = ctx.createObject<tsd::core::Volume>(
+        tsd::core::tokens::volume::transferFunction1D);
     volume->setName("jacobi_volume");
 
-    tsd::float2 valueRange{0.f, 1.f};
+    tsd::math::float2 valueRange{0.f, 1.f};
     if (field)
       valueRange = field->computeValueRange();
     volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
@@ -75,13 +80,13 @@ class Application : public TSDApplication
     volume->setParameterObject("color", *colorArray);
 
     ctx.defaultLayer()->root()->insert_first_child(
-        tsd::utility::Any(ANARI_VOLUME, volume.index()));
+        tsd::core::Any(ANARI_VOLUME, volume.index()));
 
     // Setup app //
 
     core->tsd.selectedObject = volume.data();
 
-    tsd::logStatus("%s", tsd::objectDBInfo(ctx.objectDB()).c_str());
+    tsd::core::logStatus("%s", tsd::core::objectDBInfo(ctx.objectDB()).c_str());
     core->tsd.sceneLoadComplete = true;
 
     viewport->setLibrary(core->commandLine.libraryList[0], false);
@@ -242,7 +247,7 @@ DockSpace         ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=
   }
 };
 
-} // namespace tsd_viewer
+} // namespace tsd::demo
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -251,7 +256,7 @@ DockSpace         ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=
 int main(int argc, const char *argv[])
 {
   {
-    tsd_viewer::Application app(argc, argv);
+    tsd::demo::Application app(argc, argv);
     app.run(1920, 1080, "TSD Demo | Animated Volume");
   }
 

@@ -3,46 +3,47 @@
 
 #pragma once
 
-#include "AppCore.h"
-// anari_viewer
-#include "anari_viewer/windows/Window.h"
+// tsd_app
+#include <tsd/app/Core.h>
+// tsd_ui_imgui
+#include <tsd/ui/imgui/windows/Window.h>
 // std
 #include <functional>
 #include <utility>
 
 #include "particle_system.h"
 
-namespace tsd_viewer {
+namespace tsd::demo {
 
-struct SimulationControls : public anari_viewer::windows::Window
+struct SimulationControls : public tsd::ui::imgui::Window
 {
-  SimulationControls(AppCore *core, const char *name = "Simulation Controls");
+  SimulationControls(tsd::ui::imgui::Application *app,
+      const char *name = "Simulation Controls");
 
   void buildUI() override;
-  void setGeometry(tsd::GeometryRef particles,
-      tsd::GeometryRef blackHoles,
-      tsd::SamplerRef particleColorSampler);
+  void setGeometry(tsd::core::GeometryRef particles,
+      tsd::core::GeometryRef blackHoles,
+      tsd::core::SamplerRef particleColorSampler);
 
  private:
   void remakeDataArrays();
   void resetSimulation();
   void updateColorMapScale();
-  std::pair<tsd::float3, tsd::float3> updateBhPoints();
+  std::pair<tsd::math::float3, tsd::math::float3> updateBhPoints();
   void iterateSimulation();
 
-  AppCore *m_core{nullptr};
-  tsd::GeometryRef m_particleGeom;
-  tsd::GeometryRef m_bhGeom;
-  tsd::SamplerRef m_particleColorSampler;
-  tsd::ArrayRef m_dataPoints;
-  tsd::ArrayRef m_dataPointsCUDA;
-  tsd::ArrayRef m_dataDistances;
-  tsd::ArrayRef m_dataDistancesCUDA;
-  tsd::ArrayRef m_dataVelocities;
-  tsd::ArrayRef m_dataVelocitiesCUDA;
-  tsd::ArrayRef m_dataBhPoints;
+  tsd::core::GeometryRef m_particleGeom;
+  tsd::core::GeometryRef m_bhGeom;
+  tsd::core::SamplerRef m_particleColorSampler;
+  tsd::core::ArrayRef m_dataPoints;
+  tsd::core::ArrayRef m_dataPointsCUDA;
+  tsd::core::ArrayRef m_dataDistances;
+  tsd::core::ArrayRef m_dataDistancesCUDA;
+  tsd::core::ArrayRef m_dataVelocities;
+  tsd::core::ArrayRef m_dataVelocitiesCUDA;
+  tsd::core::ArrayRef m_dataBhPoints;
   int m_particlesPerSide{100};
-  tsd::ParticleSystemParameters m_params;
+  tsd::demo::ParticleSystemParameters m_params;
   float m_angle{0.f};
   float m_rotationSpeed{35.f};
   float m_colorMapScaleFactor{3.f};
@@ -51,4 +52,4 @@ struct SimulationControls : public anari_viewer::windows::Window
   bool m_randomizeInitialVelocities{true};
 };
 
-} // namespace tsd_viewer
+} // namespace tsd::demo

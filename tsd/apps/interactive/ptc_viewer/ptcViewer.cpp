@@ -1,28 +1,26 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AppCore.h"
-#include "DistributedViewport.h"
-#include "ViewState.h"
-#include "windows/Log.h"
-// anari_viewer
-#include "anari_viewer/Application.h"
-// tsd
-#include "tsd/TSD.hpp"
-#include "tsd_ui.h"
+// tsd_app
+#include <tsd/app/Core.h>
+// tsd_ui_imgui
+#include <tsd/ui/imgui/windows/Log.h>
+// tsd_io
+#include <tsd/io/importers.hpp>
+#include <tsd/io/procedural.hpp>
 // std
 #include <iostream>
 #include <random>
 #include <vector>
 
-using namespace tsd_viewer;
+#include "DistributedViewport.h"
+#include "ViewState.h"
 
-using namespace tsd::literals;
 using float2 = tsd::math::float2;
 using float3 = tsd::math::float3;
 using float4 = tsd::math::float4;
 
-using tsd_viewer::ImporterType;
+using tsd::app::ImporterType;
 
 int g_rank = -1;
 
@@ -31,46 +29,18 @@ static std::string g_libraryName = "ptc";
 static std::string g_rendererName = "default";
 static std::vector<std::string> g_filenames;
 static ImporterType g_importerType = ImporterType::NONE;
-static tsd_viewer::AppCore *g_core = nullptr;
+static tsd::app::Core *g_core = nullptr;
 static int g_numRanks = -1;
 static RemoteAppStateWindow *g_win = nullptr;
-static tsd::RenderIndex *g_rIdx = nullptr;
+static tsd::rendering::RenderIndex *g_rIdx = nullptr;
 static anari::Device g_device = nullptr;
 
-static const char *g_defaultLayout =
-    R"layout(
-[Window][MainDockSpace]
-Pos=0,25
-Size=1600,874
-Collapsed=0
+using TSDApplication = tsd::ui::imgui::Application;
+namespace tsd_ui = tsd::ui::imgui;
 
-[Window][Viewport]
-Pos=0,25
-Size=1600,642
-Collapsed=0
-DockId=0x00000001,0
+namespace tsd::ptc {
 
-[Window][Log]
-Pos=0,669
-Size=1600,230
-Collapsed=0
-DockId=0x00000002,0
-
-[Window][Debug##Default]
-Pos=60,60
-Size=400,400
-Collapsed=0
-
-[Docking][Data]
-DockSpace   ID=0x782A6D6B Pos=0,25 Size=1600,874 CentralNode=1
-DockSpace   ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,25 Size=1600,874 Split=Y Selected=0xC450F867
-  DockNode  ID=0x00000001 Parent=0x80F5B4C5 SizeRef=1600,642 CentralNode=1 Selected=0xC450F867
-  DockNode  ID=0x00000002 Parent=0x80F5B4C5 SizeRef=1600,230 Selected=0x139FDA3F
-)layout";
-
-namespace ptc_demo_viewer {
-
-static void statusFunc(const void *_AppCore,
+static void statusFunc(const void *_ctx,
     ANARIDevice device,
     ANARIObject source,
     ANARIDataType sourceType,
@@ -78,7 +48,7 @@ static void statusFunc(const void *_AppCore,
     ANARIStatusCode code,
     const char *message)
 {
-  const auto *ctx = (const AppCore *)_AppCore;
+  const auto *ctx = (const tsd::app::Core *)_ctx;
   if (g_rank != 0) {
     printf("[WORKER][%i][A] %s\n", g_rank, message);
     fflush(stdout);
@@ -91,20 +61,20 @@ static void statusFunc(const void *_AppCore,
     fprintf(stderr, "[ANARI][FATAL][%p] %s", source, message);
     std::exit(1);
   } else if (severity == ANARI_SEVERITY_ERROR)
-    tsd::logError("[ANARI][ERROR] %s", source, message);
+    tsd::core::logError("[ANARI][ERROR] %s", source, message);
   else if (severity == ANARI_SEVERITY_WARNING)
-    tsd::logWarning("[ANARI][WARN ][%p] %s", source, message);
+    tsd::core::logWarning("[ANARI][WARN ][%p] %s", source, message);
   else if (verbose && severity == ANARI_SEVERITY_PERFORMANCE_WARNING)
-    tsd::logPerfWarning("[ANARI][PERF ][%p] %s", source, message);
+    tsd::core::logPerfWarning("[ANARI][PERF ][%p] %s", source, message);
   else if (verbose && severity == ANARI_SEVERITY_INFO)
-    tsd::logInfo("[ANARI][INFO ][%p] %s", source, message);
+    tsd::core::logInfo("[ANARI][INFO ][%p] %s", source, message);
   else if (verbose && severity == ANARI_SEVERITY_DEBUG)
-    tsd::logDebug("[ANARI][DEBUG][%p] %s", source, message);
+    tsd::core::logDebug("[ANARI][DEBUG][%p] %s", source, message);
 }
 
 static void initializeANARI()
 {
-  g_device = g_core->loadDevice(g_libraryName);
+  g_device = g_core->anari.loadDevice(g_libraryName);
 }
 
 static void teardownANARI()
@@ -124,12 +94,12 @@ static void setupScene()
   std::normal_distribution<float> dist(0.2f, 0.8f);
 
   auto mat = g_core->tsd.ctx.defaultMaterial();
-  mat->setParameter("color"_t, float3(dist(rng), dist(rng), dist(rng)));
+  mat->setParameter("color", float3(dist(rng), dist(rng), dist(rng)));
 
   // Load actual scene //
 
   if (g_importerType == ImporterType::NONE)
-    tsd::generate_randomSpheres(g_core->tsd.ctx);
+    tsd::io::generate_randomSpheres(g_core->tsd.ctx);
   else {
     for (size_t i = 0; i < g_filenames.size(); i++) {
       if (g_numRanks > 0 && (i % g_numRanks != g_rank))
@@ -137,34 +107,34 @@ static void setupScene()
       auto root = g_core->tsd.ctx.defaultLayer()->root();
       const auto &f = g_filenames[i];
       if (g_importerType == ImporterType::PLY)
-        tsd::import_PLY(g_core->tsd.ctx, f.c_str());
+        tsd::io::import_PLY(g_core->tsd.ctx, f.c_str());
       else if (g_importerType == ImporterType::OBJ)
-        tsd::import_OBJ(g_core->tsd.ctx, f.c_str(), root, true);
+        tsd::io::import_OBJ(g_core->tsd.ctx, f.c_str(), root, true);
       else if (g_importerType == ImporterType::USD)
-        tsd::import_USD(g_core->tsd.ctx, f.c_str(), root, true);
+        tsd::io::import_USD(g_core->tsd.ctx, f.c_str(), root, true);
       else if (g_importerType == ImporterType::ASSIMP)
-        tsd::import_ASSIMP(g_core->tsd.ctx, f.c_str(), root);
+        tsd::io::import_ASSIMP(g_core->tsd.ctx, f.c_str(), root);
       else if (g_importerType == ImporterType::DLAF)
-        tsd::import_DLAF(g_core->tsd.ctx, f.c_str(), root, true);
+        tsd::io::import_DLAF(g_core->tsd.ctx, f.c_str(), root, true);
       else if (g_importerType == ImporterType::NBODY)
-        tsd::import_NBODY(g_core->tsd.ctx, f.c_str());
+        tsd::io::import_NBODY(g_core->tsd.ctx, f.c_str());
     }
   }
 
   printf("[%i] %s\n",
       g_rank,
-      tsd::objectDBInfo(g_core->tsd.ctx.objectDB()).c_str());
+      tsd::core::objectDBInfo(g_core->tsd.ctx.objectDB()).c_str());
 
   // Create render index to map to a concrete ANARI objects //
 
-  g_rIdx = g_core->acquireRenderIndex(g_device);
+  g_rIdx = g_core->anari.acquireRenderIndex(g_core->tsd.ctx, g_device);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // Application definition /////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-class Application : public anari_viewer::Application
+class Application : public TSDApplication
 {
  public:
   Application() = default;
@@ -172,26 +142,13 @@ class Application : public anari_viewer::Application
 
   anari_viewer::WindowArray setupWindows() override
   {
-    anari_viewer::ui::init();
-
-    // ImGui //
-
-    ImGuiIO &io = ImGui::GetIO();
-    io.FontGlobalScale = 1.5f;
-    io.IniFilename = nullptr;
-
-    if (g_useDefaultLayout)
-      ImGui::LoadIniSettingsFromMemory(g_defaultLayout);
-
-    // ANARI //
-
-    auto *log = new Log(g_core);
+    auto *log = new tsd::ui::imgui::Log(this, g_core);
 
     if (!g_core->logging.verbose)
-      tsd::logStatus("app window running on rank '%i'", g_rank);
+      tsd::core::logStatus("app window running on rank '%i'", g_rank);
 
-    auto *viewport = new DistributedViewport(
-        g_core, g_win, g_rendererName.c_str(), "Viewport");
+    auto *viewport = new tsd::ptc::DistributedViewport(
+        this, g_win, g_rendererName.c_str(), "Viewport");
 
     g_win->fence();
     initializeANARI();
@@ -199,7 +156,7 @@ class Application : public anari_viewer::Application
     g_win->fence();
 
     setupScene();
-    viewport->setManipulator(&m_manipulator);
+    viewport->setManipulator(&g_core->view.manipulator);
     viewport->setWorld(g_rIdx->world(), false);
     viewport->resetView();
 
@@ -230,11 +187,40 @@ class Application : public anari_viewer::Application
   {
     g_win->ptr()->running = false;
     g_win->fence();
-    anari_viewer::ui::shutdown();
+    TSDApplication::teardown();
   }
 
- private:
-  tsd::manipulators::Manipulator m_manipulator;
+  const char *getDefaultLayout() const override
+  {
+    return R"layout(
+[Window][MainDockSpace]
+Pos=0,19
+Size=1600,881
+Collapsed=0
+
+[Window][Viewport]
+Pos=0,19
+Size=1600,638
+Collapsed=0
+DockId=0x00000003,0
+
+[Window][Debug##Default]
+Pos=60,60
+Size=400,400
+Collapsed=0
+
+[Window][Log]
+Pos=0,659
+Size=1600,241
+Collapsed=0
+DockId=0x00000004,0
+
+[Docking][Data]
+DockSpace   ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,19 Size=1600,881 Split=Y
+  DockNode  ID=0x00000003 Parent=0x80F5B4C5 SizeRef=1600,638 CentralNode=1 Selected=0xC450F867
+  DockNode  ID=0x00000004 Parent=0x80F5B4C5 SizeRef=1600,241 Selected=0x139FDA3F
+)layout";
+  }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -246,7 +232,7 @@ static void printUsage()
   if (g_rank != 0)
     return;
 
-  std::cout << "./ptc_demo_viewer [{--help|-h}]\n"
+  std::cout << "./tsd::ptc [{--help|-h}]\n"
             << "   [{--verbose|-v}]\n"
             << "   [{--library|-l} <ANARI library>]\n"
             << "   [{--renderer|-r} <subtype>]\n"
@@ -338,13 +324,13 @@ static void runWorker()
 
   g_win->fence();
 
-  ptc_demo_viewer::initializeANARI();
+  tsd::ptc::initializeANARI();
   auto d = g_device;
   auto f = anari::newObject<anari::Frame>(d);
 
   g_win->fence();
 
-  ptc_demo_viewer::setupScene();
+  tsd::ptc::setupScene();
 
   auto w = g_rIdx->world();
   auto c = anari::newObject<anari::Camera>(d, "perspective");
@@ -399,7 +385,7 @@ static void runWorker()
   rank_printf("WORKER RENDER LOOP DONE\n");
 }
 
-} // namespace ptc_demo_viewer
+} // namespace tsd::ptc
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -412,8 +398,15 @@ int main(int argc, const char *argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &g_numRanks);
 
   {
-    auto core = std::make_unique<tsd_viewer::AppCore>(nullptr);
-    g_core = core.get();
+    std::unique_ptr<TSDApplication> app;
+    std::unique_ptr<tsd::app::Core> core;
+    if (g_rank == 0) {
+      app = std::make_unique<tsd::ptc::Application>();
+      g_core = app->appCore();
+    } else {
+      core = std::make_unique<tsd::app::Core>();
+      g_core = core.get();
+    }
 
     auto win = std::make_unique<RemoteAppStateWindow>();
     g_win = win.get();
@@ -421,19 +414,16 @@ int main(int argc, const char *argv[])
     if (g_win->size() != 0)
       *g_win->ptr() = RemoteAppState();
 
-    ptc_demo_viewer::parseCommandLine(argc, argv);
+    tsd::ptc::parseCommandLine(argc, argv);
 
-    if (g_rank == 0) {
-      ptc_demo_viewer::Application app;
-      core->application = &app;
-      app.run(1600, 900, "Distributed TSD Viewer");
-    } else {
-      ptc_demo_viewer::runWorker();
-    }
+    if (g_rank == 0)
+      app->run(1600, 900, "Distributed TSD Viewer");
+    else
+      tsd::ptc::runWorker();
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    ptc_demo_viewer::teardownANARI();
+    tsd::ptc::teardownANARI();
     g_core = nullptr;
   }
 

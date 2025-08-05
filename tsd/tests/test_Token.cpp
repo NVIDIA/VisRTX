@@ -6,11 +6,11 @@
 // tsd
 #include "tsd/core/Token.hpp"
 
-SCENARIO("tsd::Token interface", "[Token]")
+SCENARIO("tsd::core::Token interface", "[Token]")
 {
   GIVEN("A default constructed Token")
   {
-    auto token = tsd::Token();
+    auto token = tsd::core::Token();
 
     THEN("The Token value is null")
     {
@@ -19,14 +19,14 @@ SCENARIO("tsd::Token interface", "[Token]")
 
     THEN("A second default constructed Token will have the same value")
     {
-      auto token2 = tsd::Token();
+      auto token2 = tsd::core::Token();
       REQUIRE(token == token2);
     }
   }
 
   GIVEN("A constructed Token from a given string")
   {
-    auto token = tsd::Token("test1");
+    auto token = tsd::core::Token("test1");
 
     THEN("The Token value is not null")
     {
@@ -35,7 +35,7 @@ SCENARIO("tsd::Token interface", "[Token]")
 
     THEN("A second token constructed with the same string has the same value")
     {
-      auto token2 = tsd::Token("test1");
+      auto token2 = tsd::core::Token("test1");
       REQUIRE(token == token2);
     }
 
@@ -43,7 +43,7 @@ SCENARIO("tsd::Token interface", "[Token]")
         "A second token constructed with a different string has the same "
         "value")
     {
-      auto token2 = tsd::Token("test2");
+      auto token2 = tsd::core::Token("test2");
       REQUIRE(token != token2);
     }
   }

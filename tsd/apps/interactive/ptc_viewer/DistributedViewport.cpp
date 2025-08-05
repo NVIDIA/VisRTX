@@ -6,20 +6,23 @@
 #include <cstring>
 // stb_image
 #include "stb_image_write.h"
-// tsd
-#include "tsd_ui.h"
+// tsd_core
+#include <tsd/core/Logging.hpp>
+// tsd_ui_imgui
+#include <tsd/ui/imgui/tsd_ui_imgui.h>
 
-namespace tsd_viewer {
+namespace tsd::ptc {
 
-DistributedViewport::DistributedViewport(AppCore *core,
+DistributedViewport::DistributedViewport(tsd::ui::imgui::Application *app,
     RemoteAppStateWindow *win,
     const char *rendererSubtype,
     const char *name)
-    : Window(core, name), m_win(win)
+    : Window(app, name), m_win(win)
 {
   stbi_flip_vertically_on_write(1);
   m_rendererSubtype = rendererSubtype;
-  m_rendererObject = tsd::Object(ANARI_RENDERER, m_rendererSubtype.c_str());
+  m_rendererObject =
+      tsd::core::Object(ANARI_RENDERER, m_rendererSubtype.c_str());
   setManipulator(nullptr);
   m_overlayWindowName = "overlay_";
   m_overlayWindowName += name;
@@ -65,7 +68,7 @@ void DistributedViewport::buildUI()
     ui_handleInput();
 }
 
-void DistributedViewport::setManipulator(tsd::manipulators::Manipulator *m)
+void DistributedViewport::setManipulator(tsd::rendering::Manipulator *m)
 {
   m_arcball = m ? m : &m_localArcball;
 }
@@ -101,7 +104,7 @@ void DistributedViewport::resetView(bool resetAzEl)
           &bounds[0],
           sizeof(bounds),
           ANARI_WAIT)) {
-    tsd::logWarning("No bounds returned by the ANARIWorld!");
+    tsd::core::logWarning("No bounds returned by the ANARIWorld!");
   }
 
   auto center = 0.5f * (bounds[0] + bounds[1]);
@@ -127,7 +130,7 @@ void DistributedViewport::setDevice(anari::Device d)
 
   {
     auto &o = m_rendererObject;
-    o = tsd::parseANARIObjectInfo(d, ANARI_RENDERER, "default");
+    o = tsd::core::parseANARIObjectInfo(d, ANARI_RENDERER, "default");
     o.setName("renderer");
     o.setUpdateDelegate(&m_rud);
     o.updateAllANARIParameters(d, m_renderer);
@@ -173,7 +176,7 @@ void DistributedViewport::reshape(tsd::math::int2 newSize)
   if (m_framebufferTexture)
     SDL_DestroyTexture(m_framebufferTexture);
 
-  m_framebufferTexture = SDL_CreateTexture(m_core->application->sdlRenderer(),
+  m_framebufferTexture = SDL_CreateTexture(m_app->sdlRenderer(),
       SDL_PIXELFORMAT_RGBA32,
       SDL_TEXTUREACCESS_STREAMING,
       newSize.x,
@@ -214,7 +217,7 @@ void DistributedViewport::updateCamera(bool force)
   c.direction = m_arcball->dir();
   c.up = m_arcball->up();
   c.aspect = m_viewportSize.x / float(m_viewportSize.y);
-  c.fovy = radians(m_fov);
+  c.fovy = tsd::math::radians(m_fov);
   c.apertureRadius = m_apertureRadius;
   c.focusDistance = m_focusDistance;
   c.version++;
@@ -342,7 +345,7 @@ void DistributedViewport::ui_contextMenu()
     ImGui::Text("Renderer:");
     ImGui::Indent(INDENT_AMOUNT);
     if (ImGui::BeginMenu("parameters")) {
-      tsd::ui::buildUI_object(m_rendererObject, m_core->tsd.ctx, false);
+      tsd::ui::buildUI_object(m_rendererObject, appCore()->tsd.ctx, false);
       ImGui::EndMenu();
     }
 
@@ -366,7 +369,7 @@ void DistributedViewport::ui_contextMenu()
     }
 
     if (ImGui::Combo("up", &m_arcballUp, "+x\0+y\0+z\0-x\0-y\0-z\0\0")) {
-      m_arcball->setAxis(static_cast<tsd::manipulators::UpAxis>(m_arcballUp));
+      m_arcball->setAxis(static_cast<tsd::rendering::UpAxis>(m_arcballUp));
       resetView();
     }
 
@@ -486,11 +489,11 @@ void DistributedViewport::ui_overlay()
 }
 
 void DistributedViewport::RendererUpdateDelegate::signalParameterUpdated(
-    const tsd::Object *o, const tsd::Parameter *p)
+    const tsd::core::Object *o, const tsd::core::Parameter *p)
 {
   o->updateANARIParameter(d, r, *p, p->name().c_str());
   anari::commitParameters(d, r);
   (*version)++;
 }
 
-} // namespace tsd_viewer
+} // namespace tsd::ptc

@@ -6,26 +6,27 @@
 #include "anari_viewer/ui_anari.h"
 // SDL
 #include <SDL3/SDL.h>
-// anari
-#include <anari/anari_cpp/ext/linalg.h>
-#include <anari/anari_cpp.hpp>
 // std
 #include <array>
 #include <limits>
-// tsd
-#include "tsd/core/Object.hpp"
-#include "tsd/core/UpdateDelegate.hpp"
-#include "tsd/view/Manipulator.hpp"
+// tsd_core
+#include <tsd/core/scene/Object.hpp>
+#include <tsd/core/scene/UpdateDelegate.hpp>
+// tsd_app
+#include <tsd/app/Core.h>
+// tsd_rendering
+#include <tsd/rendering/view/Manipulator.hpp>
+// tsd_ui_imgui
+#include <tsd/ui/imgui/Application.h>
+#include <tsd/ui/imgui/windows/Window.h>
 
-#include "AppCore.h"
 #include "ViewState.h"
-#include "windows/Window.h"
 
-namespace tsd_viewer {
+namespace tsd::ptc {
 
-struct DistributedViewport : public Window
+struct DistributedViewport : public tsd::ui::imgui::Window
 {
-  DistributedViewport(AppCore *state,
+  DistributedViewport(tsd::ui::imgui::Application *app,
       RemoteAppStateWindow *win,
       const char *rendererSubtype,
       const char *name = "Viewport");
@@ -34,7 +35,7 @@ struct DistributedViewport : public Window
   void buildUI() override;
 
   void setWorld(anari::World world = nullptr, bool resetCameraView = true);
-  void setManipulator(tsd::manipulators::Manipulator *m);
+  void setManipulator(tsd::rendering::Manipulator *m);
   void resetView(bool resetAzEl = true);
   void setDevice(anari::Device d);
 
@@ -79,12 +80,12 @@ struct DistributedViewport : public Window
   anari::Camera m_camera{nullptr};
   anari::Renderer m_renderer{nullptr};
 
-  tsd::Object m_rendererObject{ANARI_RENDERER, "default"};
+  tsd::core::Object m_rendererObject{ANARI_RENDERER, "default"};
 
-  struct RendererUpdateDelegate : public tsd::EmptyUpdateDelegate
+  struct RendererUpdateDelegate : public tsd::core::EmptyUpdateDelegate
   {
     void signalParameterUpdated(
-        const tsd::Object *o, const tsd::Parameter *p) override;
+        const tsd::core::Object *o, const tsd::core::Parameter *p) override;
     anari::Device d{nullptr};
     anari::Renderer r{nullptr};
     size_t *version{nullptr};
@@ -93,9 +94,9 @@ struct DistributedViewport : public Window
   // camera manipulator
 
   int m_arcballUp{1};
-  tsd::manipulators::Manipulator m_localArcball;
-  tsd::manipulators::Manipulator *m_arcball{nullptr};
-  tsd::manipulators::UpdateToken m_cameraToken{0};
+  tsd::rendering::Manipulator m_localArcball;
+  tsd::rendering::Manipulator *m_arcball{nullptr};
+  tsd::rendering::UpdateToken m_cameraToken{0};
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
 
@@ -119,4 +120,4 @@ struct DistributedViewport : public Window
   std::string m_coreMenuName;
 };
 
-} // namespace tsd_viewer
+} // namespace tsd::ptc

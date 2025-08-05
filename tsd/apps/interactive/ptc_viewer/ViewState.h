@@ -3,8 +3,8 @@
 
 #pragma once
 
-// tsd
-#include "tsd/TSD.hpp"
+// tsd_core
+#include <tsd/core/TSDMath.hpp>
 // wormhole
 #include "wormhole/RMAWindow.hpp"
 // std
@@ -24,17 +24,12 @@ inline void rank_printf(const char *fmt, Args &&...args)
 #endif
 }
 
-inline float radians(float degrees)
-{
-  return degrees * M_PI / 180.f;
-}
-
 struct CameraState
 {
   tsd::math::float3 position{0.f, 0.f, 0.f};
   tsd::math::float3 direction{1.f, 0.f, 0.f};
   tsd::math::float3 up{0.f, 1.f, 0.f};
-  float fovy{radians(60.f)};
+  float fovy{tsd::math::radians(60.f)};
   float aspect{1.f};
   float apertureRadius{0.f};
   float focusDistance{1.f};

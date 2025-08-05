@@ -1,23 +1,24 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-// tsd
-#include "tsd/TSD.hpp"
-// std
-#include <algorithm>
-#include <chrono>
-#include <cstdio>
-#include <vector>
+// tsd_core
+#include <tsd/core/scene/Context.hpp>
+// tsd_io
+#include <tsd/io/procedural.hpp>
+// tsd_rendering
+#include <tsd/rendering/index/RenderIndexFlatRegistry.hpp>
 // stb_image
 #include "stb_image_write.h"
 // FLIP
 #include <FLIP.h>
+// std
+#include <chrono>
+#include <cstdio>
+#include <vector>
 
-using float3 = anari::math::float3;
-using float4 = anari::math::float4;
-using uint2 = anari::math::uint2;
-
-using namespace tsd::literals;
+using float3 = tsd::math::float3;
+using float4 = tsd::math::float4;
+using uint2 = tsd::math::uint2;
 
 static void statusFunc(const void *,
     ANARIDevice,
@@ -68,18 +69,19 @@ int main()
 {
   // Create context //
 
-  tsd::Context ctx;
+  tsd::core::Context ctx;
 
   // Populate spheres //
 
-  tsd::generate_randomSpheres(ctx);
+  tsd::io::generate_randomSpheres(ctx);
 
-  auto light = ctx.createObject<tsd::Light>("directional");
+  auto light =
+      ctx.createObject<tsd::core::Light>(tsd::core::tokens::light::directional);
   light->setName("mainLight");
-  light->setParameter("direction"_t, float3(-1.f, 0.f, 0.f));
-  light->setParameter("irradiance"_t, 1.f);
+  light->setParameter("direction", float3(-1.f, 0.f, 0.f));
+  light->setParameter("irradiance", 1.f);
 
-  printf("%s\n", tsd::objectDBInfo(ctx.objectDB()).c_str());
+  printf("%s\n", tsd::core::objectDBInfo(ctx.objectDB()).c_str());
 
   // Setup ANARI device //
 
@@ -88,7 +90,7 @@ int main()
 
   // Setup render index //
 
-  tsd::RenderIndexFlatRegistry rIdx(ctx, device);
+  tsd::rendering::RenderIndexFlatRegistry rIdx(ctx, device);
   rIdx.populate();
 
   // Create camera //

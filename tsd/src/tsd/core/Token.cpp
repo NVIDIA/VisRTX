@@ -6,7 +6,7 @@
 #include <memory>
 #include <unordered_set>
 
-namespace tsd {
+namespace tsd::core {
 
 static std::unique_ptr<std::unordered_set<std::string>> g_tokenRegistry;
 
@@ -62,4 +62,4 @@ Token operator""_t(const char *str, size_t)
 }
 
 } // namespace literals
-} // namespace tsd
+} // namespace tsd::core

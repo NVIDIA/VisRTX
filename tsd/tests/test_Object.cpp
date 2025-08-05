@@ -4,13 +4,13 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/core/Object.hpp"
+#include "tsd/core/scene/Object.hpp"
 
 namespace {
 
-struct MockObject : public tsd::Object
+struct MockObject : public tsd::core::Object
 {
-  void parameterChanged(const tsd::Parameter *) override
+  void parameterChanged(const tsd::core::Parameter *) override
   {
     notified = true;
   }
