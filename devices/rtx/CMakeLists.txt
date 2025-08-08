@@ -110,7 +110,7 @@ include(EmbedPTX)
 function(embed_resource resource_file_name source_file_name variable_name)
     file(READ ${resource_file_name} hex_content HEX)
     string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " content ${hex_content})
-    set(array_definition "extern \"C\" const char ${variable_name}[] = {${content}0x00};")
+    set(array_definition "extern \"C\" const unsigned char ${variable_name}[] = {${content}0x00};")
     file(WRITE "${source_file_name}" "${array_definition}")
 endfunction()
 
