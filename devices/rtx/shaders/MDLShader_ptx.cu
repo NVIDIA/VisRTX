@@ -155,7 +155,8 @@ vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
   // Eval
   const float cos_theta =
       dot(*outgoingDir, normalize(make_vec3(shadingState->state.normal)));
-  if (cos_theta > 0.0f) {
+  if (cos_theta > 0.0f) 
+  {
     BsdfEvaluateData eval_data = {};
     // FIXME: Handle being inside vs outside.
     eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);

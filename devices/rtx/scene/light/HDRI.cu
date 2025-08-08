@@ -39,48 +39,44 @@
 
 #include <anari/anari_cpp/Traits.h>
 #include <anari/frontend/anari_enums.h>
-#include <cub/thread/thread_operators.cuh>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
 #include <sys/types.h>
 #include <texture_types.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/device_ptr.h>
 #include <thrust/fill.h>
+#include <thrust/iterator/counting_iterator.h>
 #include <thrust/scan.h>
 #include <thrust/transform.h>
 #include <vector_types.h>
 #include <cstdint>
+#include <cub/thread/thread_operators.cuh>
 #include <fstream>
 #include <glm/matrix.hpp>
 #include <string>
 
-
-
+#include <cuda_runtime.h>
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/reduce.h>
-#include <cuda_runtime.h>
 #include <algorithm>
 #include <cstdio>
 #include <cub/thread/thread_operators.cuh>
 #include <glm/ext/vector_float3.hpp>
 #include <glm/gtc/color_space.hpp>
+#include <glm/gtx/color_space.hpp>
 #include <iostream>
 #include <iterator>
 #include <vector>
-#include <glm/gtx/color_space.hpp>
 #include "utility/DeviceBuffer.h"
 
-
 namespace anari {
-  ANARI_TYPEFOR_SPECIALIZATION(float3, ANARI_FLOAT32_VEC3);
+ANARI_TYPEFOR_SPECIALIZATION(float3, ANARI_FLOAT32_VEC3);
 }
 
 namespace visrtx {
-
 
 HDRI::HDRI(DeviceGlobalState *d) : Light(d), m_radiance(this) {}
 
@@ -117,15 +113,14 @@ void HDRI::finalize()
   else
     cuArray = m_radiance->acquireCUDAArrayUint8();
 
-  m_size = { m_radiance->size(0), m_radiance->size(1) };
+  m_size = {m_radiance->size(0), m_radiance->size(1)};
 
   m_pdfWeight =
-    generateCDFTables(m_radiance->dataAs<glm::vec3>(AddressSpace::GPU),
-      m_radiance->size(0),
-      m_radiance->size(1),
-      &m_marginalCDF,
-      &m_conditionalCDF);
-
+      generateCDFTables(m_radiance->dataAs<glm::vec3>(AddressSpace::GPU),
+          m_radiance->size(0),
+          m_radiance->size(1),
+          &m_marginalCDF,
+          &m_conditionalCDF);
 
   m_radianceTex =
       makeCudaTextureObject(cuArray, !isFp, "linear", "repeat", "clampToEdge");
@@ -167,7 +162,7 @@ LightGPUData HDRI::gpuData() const
   retval.hdri.conditionalCDF = m_conditionalCDF.ptrAs<const float>();
   retval.hdri.pdfWeight = m_pdfWeight;
 #ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG
-  retval.hdri.samples = m_samples;  
+  retval.hdri.samples = m_samples;
 #endif
   return retval;
 }
@@ -186,10 +181,14 @@ void HDRI::cleanup()
   if (m_samples) {
     fprintf(stderr, "Writing HDRI sampling debug data to file...\n");
     std::vector<unsigned int> sampleData(m_size.x * m_size.y);
-    cudaMemcpy(sampleData.data(), m_samples, m_size.x * m_size.y * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(sampleData.data(),
+        m_samples,
+        m_size.x * m_size.y * sizeof(unsigned int),
+        cudaMemcpyDeviceToHost);
 
     static unsigned int counter = 0;
-    auto filename = std::string("hdri_samples_") + std::to_string(counter++) + ".pfm";
+    auto filename =
+        std::string("hdri_samples_") + std::to_string(counter++) + ".pfm";
 
     std::vector<float> sampleDataF(m_size.x * m_size.y);
     std::copy(sampleData.begin(), sampleData.end(), sampleDataF.begin());
@@ -198,7 +197,8 @@ void HDRI::cleanup()
     std::ofstream out(filename, std::ios::out | std::ios::binary);
     if (out.is_open()) {
       out << "Pf\n" << m_size.x << " " << m_size.y << "\n" << maxSample << "\n";
-      out.write(reinterpret_cast<const char*>(sampleDataF.data()), m_size.x * m_size.y * sizeof(float));
+      out.write(reinterpret_cast<const char *>(sampleDataF.data()),
+          m_size.x * m_size.y * sizeof(float));
       out.close();
     } else {
       fprintf(stderr, "Failed to open file for writing HDRI samples.\n");
@@ -210,121 +210,145 @@ void HDRI::cleanup()
 #endif
 }
 
-
 namespace {
 // Importance sampling helper functions
 
-void computeWeightedLuminance(const glm::vec3* envMap, float* luminance, int width, int height) {
-    auto envMapBegin = thrust::device_pointer_cast(envMap);
-    auto envMapEnd = thrust::device_pointer_cast(envMap + width * height);
-    auto luminanceBegin = thrust::device_pointer_cast(luminance);
+void computeWeightedLuminance(
+    const glm::vec3 *envMap, float *luminance, int width, int height)
+{
+  auto envMapBegin = thrust::device_pointer_cast(envMap);
+  auto envMapEnd = thrust::device_pointer_cast(envMap + width * height);
+  auto luminanceBegin = thrust::device_pointer_cast(luminance);
 
-    thrust::for_each_n(thrust::make_counting_iterator(0),
-                    height,
-                    [=] __device__ (int y) {
-                        // Scale distribution by the sine to get the sampling uniform. (Avoid sampling more values near the poles.)
-                        // See Physically Based Rendering v2, chapter 14.6.5 on Infinite Area Lights, page 728.
-                        auto sinTheta = sinf(float(M_PI) * (y + 0.5f) / height);
-                        auto rowEnvMapPtr = envMapBegin + y * width;
-                        auto rowLuminancePtr = luminanceBegin + y * width;
-                        for (auto i = 0; i < width; i++) {
-                            glm::vec3 rgb = rowEnvMapPtr[i];
-                            rowLuminancePtr[i] = sinTheta * dot(rgb, {0.2126f, 0.7152f, 0.0722f});
-                        }
-                    });
-
+  thrust::for_each_n(
+      thrust::make_counting_iterator(0), height, [=] __device__(int y) {
+        // Scale distribution by the sine to get the sampling uniform. (Avoid
+        // sampling more values near the poles.) See Physically Based Rendering
+        // v2, chapter 14.6.5 on Infinite Area Lights, page 728.
+        auto sinTheta = sinf(float(M_PI) * (y + 0.5f) / height);
+        auto rowEnvMapPtr = envMapBegin + y * width;
+        auto rowLuminancePtr = luminanceBegin + y * width;
+        for (auto i = 0; i < width; i++) {
+          glm::vec3 rgb = rowEnvMapPtr[i];
+          rowLuminancePtr[i] = sinTheta * dot(rgb, {0.2126f, 0.7152f, 0.0722f});
+        }
+      });
 }
 
-void computeRowSums(const float* luminance, float* rowSums, int width, int height) {
-    thrust::device_ptr<const float> luminancePtr(luminance);
-    thrust::device_ptr<float> rowSums_ptr(rowSums);
+void computeRowSums(
+    const float *luminance, float *rowSums, int width, int height)
+{
+  thrust::device_ptr<const float> luminancePtr(luminance);
+  thrust::device_ptr<float> rowSums_ptr(rowSums);
 
-    thrust::for_each_n(thrust::make_counting_iterator(0),
-                       height,
-                       [=] __device__ (int y) {
-
+  thrust::for_each_n(
+      thrust::make_counting_iterator(0), height, [=] __device__(int y) {
         auto rowLuminancePtr = luminancePtr + y * width;
         float sum = 0.0f;
         for (int x = 0; x < width; ++x) {
-            sum += rowLuminancePtr[x];
+          sum += rowLuminancePtr[x];
         }
         rowSums_ptr[y] = sum;
-    });
+      });
 }
 
-void computeMarginalCDF(const float* rowSums, float* marginalCdf, int height) {
-    using thrust::device_pointer_cast;
-    auto rowSumsBegin = device_pointer_cast(rowSums);
-    auto rowSumsEnd = device_pointer_cast(rowSums + height);
-    thrust::inclusive_scan(rowSumsBegin, rowSumsEnd, device_pointer_cast(marginalCdf));
+void computeMarginalCDF(const float *rowSums, float *marginalCdf, int height)
+{
+  using thrust::device_pointer_cast;
+  auto rowSumsBegin = device_pointer_cast(rowSums);
+  auto rowSumsEnd = device_pointer_cast(rowSums + height);
+  thrust::inclusive_scan(
+      rowSumsBegin, rowSumsEnd, device_pointer_cast(marginalCdf));
 }
 
-void computeConditionalCDFs(const float* luminance, float* conditionalCdf, int width, int height) {
-    using thrust::device_pointer_cast;
-    for (int y = 0; y < height; ++y) {
-        auto luminanceRow = device_pointer_cast(luminance + y * width);
-        auto conditionalCdfRow = device_pointer_cast(conditionalCdf + y * width);
-        thrust::inclusive_scan(luminanceRow, luminanceRow + width, conditionalCdfRow);
-    }
+void computeConditionalCDFs(
+    const float *luminance, float *conditionalCdf, int width, int height)
+{
+  using thrust::device_pointer_cast;
+  for (int y = 0; y < height; ++y) {
+    auto luminanceRow = device_pointer_cast(luminance + y * width);
+    auto conditionalCdfRow = device_pointer_cast(conditionalCdf + y * width);
+    thrust::inclusive_scan(
+        luminanceRow, luminanceRow + width, conditionalCdfRow);
+  }
 }
 
-void normalizeMarginalCDF(float* d_marginal_cdf, int height) {
-    thrust::device_ptr<float> marginal_cdf_ptr(d_marginal_cdf);
-    float total = marginal_cdf_ptr[height - 1];
+void normalizeMarginalCDF(float *marginalCdf, int height)
+{
+  using thrust::device_pointer_cast;
+  auto cdf= device_pointer_cast(marginalCdf);
+  thrust::transform(cdf,
+      cdf + height,
+      cdf,
+      [total = cdf[height - 1]] __device__(float x) { return x / total; });
+}
+
+void normalizeConditionalCDFs(float *d_conditional_cdf, int width, int height)
+{
+  using thrust::device_pointer_cast;
+
+  for (int y = 0; y < height; ++y) {
+    auto cdfRow = device_pointer_cast(d_conditional_cdf + y * width);
     thrust::transform(
-        marginal_cdf_ptr, marginal_cdf_ptr + height,
-        marginal_cdf_ptr,
-        [total] __device__ (float x) { return x / total; }
-    );
-}
-
-void normalizeConditionalCDFs(float* d_conditional_cdf, int width, int height) {
-    for (int y = 0; y < height; ++y) {
-        thrust::device_ptr<float> cdf_row(d_conditional_cdf + y * width);
-        float row_total = cdf_row[width - 1];
-        thrust::transform(
-            cdf_row, cdf_row + width,
-            cdf_row,
-            [row_total] __device__ (float x) { return x / row_total; }
-        );
-    }
+        cdfRow, cdfRow + width, cdfRow, [total = cdfRow[width - 1]] __device__(float x) {
+          return x / total;
+        });
+  }
 }
 
 } // namespace
 
-float HDRI::generateCDFTables(const glm::vec3* envMap, int width, int height,
-                        DeviceBuffer* marginalCdf, DeviceBuffer* conditionalCdf) {
-    DeviceBuffer luminance;
-    DeviceBuffer rowSums;
-    
-    luminance.reserve(width * height * sizeof(float));
-    rowSums.reserve(height * sizeof(float));
-    marginalCdf->reserve(height * sizeof(float));
-    conditionalCdf->reserve(width * height * sizeof(float));
+float HDRI::generateCDFTables(const glm::vec3 *envMap,
+    int width,
+    int height,
+    DeviceBuffer *marginalCdf,
+    DeviceBuffer *conditionalCdf)
+{
+  DeviceBuffer luminance;
+  DeviceBuffer rowSums;
 
-    computeWeightedLuminance(envMap, luminance.ptrAs<float>(), width, height);
-    computeRowSums(luminance.ptrAs<const float>(), rowSums.ptrAs<float>(), width, height);
-    computeMarginalCDF(rowSums.ptrAs<const float>(), marginalCdf->ptrAs<float>(), height);
-    computeConditionalCDFs(luminance.ptrAs<const float>(), conditionalCdf->ptrAs<float>(), width, height);
+  luminance.reserve(width * height * sizeof(float));
+  rowSums.reserve(height * sizeof(float));
+  marginalCdf->reserve(height * sizeof(float));
+  conditionalCdf->reserve(width * height * sizeof(float));
 
-    
+  computeWeightedLuminance(envMap, luminance.ptrAs<float>(), width, height);
+  computeRowSums(
+      luminance.ptrAs<const float>(), rowSums.ptrAs<float>(), width, height);
+  computeMarginalCDF(
+      rowSums.ptrAs<const float>(), marginalCdf->ptrAs<float>(), height);
+  computeConditionalCDFs(luminance.ptrAs<const float>(),
+      conditionalCdf->ptrAs<float>(),
+      width,
+      height);
+
 #ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG
-    saveToPfm("luminance.pfm", luminance.ptrAs<const float>(), width, height);
-    saveToPfm("row_sums.pfm", rowSums.ptrAs<const float>(), height, 1);
-    saveToPfm("marginal_cdf.pfm", marginalCdf->ptrAs<const float>(), height, 1);
-    saveToPfm("conditional_cdf.pfm", conditionalCdf->ptrAs<const float>(), width, height);
+  saveToPfm("luminance.pfm", luminance.ptrAs<const float>(), width, height);
+  saveToPfm("row_sums.pfm", rowSums.ptrAs<const float>(), height, 1);
+  saveToPfm("marginal_cdf.pfm", marginalCdf->ptrAs<const float>(), height, 1);
+  saveToPfm("conditional_cdf.pfm",
+      conditionalCdf->ptrAs<const float>(),
+      width,
+      height);
 #endif
 
-    // Compute pdfWeight
-    float totalLuminance = thrust::device_pointer_cast(marginalCdf->ptrAs<const float>())[height - 1];
-    float weight =  totalLuminance /  (2.0f * float(M_PI) * float(M_PI) * width * height);
+  // Compute pdfWeight
+  using thrust::device_pointer_cast;
+  // Not the best, but accumulation operations of cdfs accumulate error.
+  // Lets recompute the total luminance from the luminance array
+  // to avoid this.
+  auto totalLuminance = reduce(
+      device_pointer_cast(luminance.ptrAs<const float>()),
+          device_pointer_cast(luminance.ptrAs<const float>()) + width * height);
 
-    // Normalize both tables
-    normalizeMarginalCDF(marginalCdf->ptrAs<float>(), height);
-    normalizeConditionalCDFs(conditionalCdf->ptrAs<float>(), width, height);
+  float angularArea = 4.0f * float(M_PI) / (width * height);
+  float weight = 1.0f / (totalLuminance * angularArea);
 
-    return weight;
+  // Normalize both tables
+  normalizeMarginalCDF(marginalCdf->ptrAs<float>(), height);
+  normalizeConditionalCDFs(conditionalCdf->ptrAs<float>(), width, height);
+
+  return weight;
 }
-
 
 } // namespace visrtx

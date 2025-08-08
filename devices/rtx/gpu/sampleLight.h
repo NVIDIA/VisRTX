@@ -108,6 +108,27 @@ VISRTX_DEVICE int inverseSampleCDF(const float *cdf, int size, float u)
 }
 
 VISRTX_DEVICE LightSample sampleHDRILight(
+    const LightGPUData &ld, const mat4 &xfm, const vec3 &dir)
+{
+  // Compute the UV coordinates from the direction
+  auto thetaPhi = sphericalCoordsFromDirection(ld.hdri.xfm * dir);
+  auto uv = glm::vec2(thetaPhi.y, thetaPhi.x)
+      / glm::vec2(float(M_PI) * 2.0f, float(M_PI));
+
+  auto radiance = sampleHDRI(ld, uv);
+  auto pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * sinf(thetaPhi.x) * ld.hdri.pdfWeight;
+
+  // Sample the HDRI texture
+  LightSample ls;
+  ls.dir = xfmVec(xfm, dir);
+  ls.dist = std::numeric_limits<float>::infinity();
+  ls.radiance = radiance * ld.hdri.scale;
+  ls.pdf = pdf;
+
+  return ls;
+}
+
+VISRTX_DEVICE LightSample sampleHDRILight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit, RandState &rs)
 {
   // Row and column sampling
@@ -134,7 +155,7 @@ VISRTX_DEVICE LightSample sampleHDRILight(
 
   // Compute PDF
   auto radiance = sampleHDRI(ld, uv);
-  float pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * ld.hdri.pdfWeight;
+  auto pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * sinf(thetaPhi.x) * ld.hdri.pdfWeight;
 
   LightSample ls;
   // ld.hdri.xfm is computed in HDRI.cpp and is made so it is an orthogonal

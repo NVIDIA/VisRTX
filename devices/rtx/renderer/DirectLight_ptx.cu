@@ -33,6 +33,7 @@
 #include <cmath>
 #include <glm/common.hpp>
 #include <glm/ext/vector_float4.hpp>
+#include <glm/geometric.hpp>
 #include <glm/vector_relational.hpp>
 #include "gpu/evalShading.h"
 #include "gpu/gpu_math.h"
@@ -78,10 +79,7 @@ VISRTX_DEVICE vec4 shadeSurface(
 
   auto &world = frameData.world;
 
-  vec3 shadePoint = hit.hitpoint + (hit.epsilon * hit.Ns);
-
   // Compute ambient light contribution //
-
   const float aoFactor = directLightParams.aoSamples > 0
       ? computeAO(ss,
             ray,
@@ -129,7 +127,7 @@ VISRTX_DEVICE vec4 shadeSurface(
         continue;
 
       const Ray shadowRay = {
-          shadePoint,
+          hit.hitpoint + (hit.epsilon * hit.Ns),
           lightSample.dir,
           {0.0f, lightSample.dist},
       };
@@ -138,6 +136,9 @@ VISRTX_DEVICE vec4 shadeSurface(
           1.f - surfaceAttenuation(ss, shadowRay, RayType::SHADOW);
       const float volume_o = 1.f - volumeAttenuation(ss, shadowRay);
       const float attenuation = surface_o * volume_o;
+
+      if (attenuation <= 1.0e-12f)
+        continue;
 
       const vec3 thisLightContrib =
           materialShadeSurface(shadingState, hit, lightSample, -ray.dir);
@@ -157,67 +158,82 @@ VISRTX_DEVICE vec4 shadeSurface(
   vec3 nextRayContribWeight = vec3(1.f);
 
   Ray bounceRay = ray;
+  SurfaceHit bounceHit = hit;
 
   for (int depth = 0; depth < frameData.renderer.maxRayDepth; ++depth) {
     NextRay nextRay = materialNextRay(shadingState, bounceRay, ss.rs);
 
-    if (glm::all(glm::greaterThan(
-            glm::abs(vec3(nextRay.direction)), glm::vec3(1.0e-8f)))) {
-      nextRayContribWeight *= vec3(nextRay.contributionWeight);
-      if (glm::all(glm::lessThan(nextRayContribWeight, glm::vec3(1.0e-12f))))
-        break;
+    if (glm::all(glm::lessThan(
+            glm::abs(vec3(nextRay.direction)), glm::vec3(1.0e-8f))))
+      break;
 
-      bounceRay = {
-          shadePoint,
-          normalize(vec3(nextRay.direction)),
-      };
+    nextRayContribWeight *= vec3(nextRay.contributionWeight);
+    if (glm::all(glm::lessThan(nextRayContribWeight, glm::vec3(1.0e-8f))))
+      break;
 
-      SurfaceHit bounceHit;
-      bounceHit.foundHit = false;
+    bounceRay = {
+        bounceHit.hitpoint
+            + bounceHit.Ng
+                * std::copysignf(
+                    bounceHit.epsilon, dot(bounceHit.Ns, nextRay.direction)),
+        normalize(vec3(nextRay.direction)),
+    };
 
-      intersectSurface(ss, bounceRay, RayType::BOUNCE, &bounceHit);
+    bounceHit.foundHit = false;
+    intersectSurface(ss, bounceRay, RayType::BOUNCE, &bounceHit);
 
-      // We hit something. Gather its contribution.
-      if (bounceHit.foundHit) {
-        shadePoint = bounceHit.hitpoint + (bounceHit.epsilon * bounceHit.Ns);
+    // We hit something. Gather its contribution.
+    if (bounceHit.foundHit) {
+      // This HDRI search is not ideal. It does not account for light instance
+      // transformations and should be reworked later on.
+      auto hdri = (frameData.world.hdri != -1)
+          ? &frameData.registry.lights[frameData.world.hdri]
+          : nullptr;
 
-        // This HDRI search is not ideal. It does not account for light instance
-        // transformations and should be reworked later on.
-        auto hdri = (frameData.world.hdri != -1)
-            ? &frameData.registry.lights[frameData.world.hdri]
-            : nullptr;
-
-        LightSample lightSample;
-        // If we have an active HDRI, sample it.
-        if (hdri && hdri->hdri.visible) {
-          lightSample = detail::sampleHDRILight(
-              *hdri, glm::identity<mat4>(), bounceHit, ss.rs);
-        } else {
-          // Otherwise fallback to some simple background probing.
-          lightSample = {
-              getBackground(frameData, ss.pixel, bounceRay.dir),
-              bounceRay.dir,
-              1.0f,
-              1.0f,
-          };
-        }
-        materialInitShading(
-            &shadingState, frameData, *bounceHit.material, bounceHit);
-        nextRayContrib = materialShadeSurface(
-            shadingState, bounceHit, lightSample, -bounceRay.dir);
-
-        if (glm::any(glm::isnan(nextRayContrib))) {
-          break;
-        }
-        contrib += nextRayContrib * nextRayContribWeight;
+      LightSample lightSample;
+      // If we have an active HDRI, sample it.
+      if (hdri && hdri->hdri.visible) {
+        lightSample = detail::sampleHDRILight(
+            *hdri, glm::identity<mat4>(), bounceHit, ss.rs);
       } else {
-        // No hit, get background contribution.
-        nextRayContrib = getBackground(frameData, ss.pixel, bounceRay.dir);
-        contrib += nextRayContrib * nextRayContribWeight;
+        // Otherwise fallback to some simple background probing.
+        lightSample = {
+            rendererParams.ambientColor * rendererParams.ambientIntensity,
+            bounceHit.Ns,
+            std::numeric_limits<float>::max(),
+            1.0f / (4.0f * float(M_PI)),
+        };
+      }
+      materialInitShading(
+          &shadingState, frameData, *bounceHit.material, bounceHit);
+      nextRayContrib = materialShadeSurface(
+          shadingState, bounceHit, lightSample, bounceRay.dir);
+
+      if (glm::any(glm::isnan(nextRayContrib))) {
         break;
       }
-    } else // No next ray, stop the accumulation.
+      contrib += nextRayContrib * nextRayContribWeight;
+    } else {
+      // This HDRI search is not ideal. It does not account for light instance
+      // transformations and should be reworked later on.
+      auto hdri = (frameData.world.hdri != -1)
+          ? &frameData.registry.lights[frameData.world.hdri]
+          : nullptr;
+      // No hit, get background contribution.
+      vec3 radiance;
+      // If we have an active HDRI, sample it.
+      if (hdri && hdri->hdri.visible) {
+        radiance =
+            detail::sampleHDRILight(*hdri, glm::identity<mat4>(), bounceRay.dir)
+                .radiance;
+      } else {
+        radiance =
+            rendererParams.ambientColor * rendererParams.ambientIntensity;
+      }
+      nextRayContrib = radiance;
+      contrib += nextRayContrib * nextRayContribWeight;
       break;
+    }
   }
 
   return vec4(contrib, opacity);
