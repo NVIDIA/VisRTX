@@ -215,7 +215,7 @@ float3 ResolveNormalInput(Float3Input normalInput)
     if (!::tex::texture_isvalid(normalInput.texture))
         return normalInput.value;
 
-    return base::tangent_space_normal_texture(
+    return ::base::tangent_space_normal_texture(
         texture: normalInput.texture,
         uvw: base::texture_coordinate_info(
                 position: state::texture_coordinate(normalInput.textureSpace),
@@ -382,9 +382,6 @@ export material physically_based_material(
     // Extract inputs
     BaseColorWithAlpha resolvedBaseColor = ResolveBaseColorInput(baseColor);
     float resolvedOpacity = ResolveFloatInput(opacity);
-    color tint = resolvedBaseColor.value;
-    float alpha = ResolveAlphaInput(alphaMode, alphaCutoff, resolvedOpacity * resolvedBaseColor.alpha);
-
     float3 resolvedNormal = ResolveNormalInput(normal);
 
     float resolvedSpecular = ResolveFloatInput(specular);
@@ -414,107 +411,49 @@ export material physically_based_material(
     color resolvedAttenuationColor = attenuationColor;
 
 
-    // compute final roughness by squaring the "roughness" parameter
-    float roughness2 = resolvedRoughness * resolvedRoughness;
+    color baseColor = resolvedBaseColor.value * resolvedOcclusion;
+    float opacity = ResolveAlphaInput(alphaMode, alphaCutoff, resolvedOpacity * resolvedBaseColor.alpha);
 
-    // reduce the reflectivity at grazing angles to avoid "dark edges"
-    // for high roughness due to the layering
-    float grazing_refl = math::max((1.0 - roughness2), 0.0);
+    // Clamp roughness for numerical stability
+    float alpha = ::math::saturate(resolvedRoughness * resolvedRoughness);
 
-    // fresnel term based on ior
-    float f0 = math::pow((ior - 1.0)/(ior + 1.0), 2.0);
+    // For dielectrics, F0 is always 0.04, for metals we use baseColor
+    color F0 = ::math::lerp(color(0.04), baseColor, resolvedMetallic);
 
-    // for the dielectric component we layer the glossy component on top of the diffuse one,
-    // the glossy layer has no color tint
-    bsdf dielectric_component = df::color_custom_curve_layer(
-        weight: color(1.0), // roughness is used to weight between diffuse and glossy
-        normal_reflectivity: math::min(f0 * resolvedSpecularColor, color(1.0)) * resolvedSpecular,
-        grazing_reflectivity: color(grazing_refl * resolvedSpecular),
-        layer: df::microfacet_ggx_vcavities_bsdf(
-            roughness_u: roughness2),
-        base: df::weighted_layer(
-            weight: resolvedTransmission,
-            base: df::diffuse_reflection_bsdf(tint: tint * resolvedOcclusion),
-            layer: df::microfacet_ggx_vcavities_bsdf(
-                roughness_u: roughness2,
-                tint: tint * resolvedOcclusion,
-                mode: df::scatter_transmit)),
-        normal: resolvedNormal
+    // Specular reflection via GGX
+    bsdf specularBsdf = ::df::microfacet_ggx_smith_bsdf(
+        tint: color(1.0),
+        roughness_u: alpha,
     );
 
-    // apply iridescence and make the strength adjustable using a weighted layer
-    bsdf dielectric_component_with_thin_film = df::weighted_layer(
-        weight: resolvedIridescence,
-        base: dielectric_component,
-        layer: df::thin_film(
-            thickness: resolvedIridescenceThickness,
-            ior: color(iridescenceIor),
-            base: dielectric_component
-        )
+    // Diffuse reflection
+    bsdf diffuseBsdf = ::df::diffuse_reflection_bsdf(
+        tint: baseColor,
     );
 
-    // the metallic component doesn't have a diffuse component,
-    // its only glossy base_color is applied to tint it
-    bsdf metallic_component = df::microfacet_ggx_vcavities_bsdf(
-        tint: tint * resolvedOcclusion,
-        roughness_u: roughness2);
-
-    // apply iridescence and make the strength adjustable using a weighted layer
-    // according to KHR_materials_iridescence spec: using dielectric thin film fresnel for metals, too
-    color base_color_sqrt = math::min(math::sqrt(math::saturate(tint * resolvedOcclusion)), color(0.99f));
-    color dielectric_ior = (color(1.0f) + base_color_sqrt) / (color(1.0f) - base_color_sqrt);
-    bsdf metallic_component_with_thin_film = df::weighted_layer(
-        weight: resolvedIridescence,
-        base: metallic_component,
-        layer: df::thin_film(
-            thickness: resolvedIridescenceThickness,
-            ior: color(iridescenceIor),
-            base: df::fresnel_factor(
-                ior: dielectric_ior,
-                extinction_coefficient: color(0.0f),
-                base: df::microfacet_ggx_vcavities_bsdf(roughness_u: roughness2))
-        )
+    // That gives our dielectric component
+    bsdf dielectric = ::df::fresnel_layer(
+        ior: ior,
+        base: diffuseBsdf,
+        layer: specularBsdf,
     );
 
-    // apply sheen to the dielectric component
-    // add the sheen_color as weight in an outer layer to be able to blend and disable on default
-    // otherwise, sheen would be applied and tinted black
-    bsdf dielectric_sheen_component = df::color_weighted_layer(
-        weight: resolvedSheenColor,
-        layer: df::sheen_bsdf(
-            roughness: resolvedSheenRoughness * resolvedSheenRoughness,
-            tint:  color(1.0),
-            multiscatter_tint: color(1.0),
-            multiscatter: dielectric_component // don't apply thin_film
-        ),
-        base: dielectric_component_with_thin_film);
+    // Onto the metallic layer
+    bsdf metallic = ::df::microfacet_ggx_smith_bsdf(
+        tint: F0,
+        roughness_u: alpha,
+    );
 
-    // final BSDF is a linear blend between dielectric and metallic component
-    bsdf dielectric_metal_mix = df::weighted_layer(
+    // Blend it with the dielectric layer based on metallic
+    bsdf metallicRoughnessBsdf = ::df::weighted_layer(
         weight: resolvedMetallic,
-        base: dielectric_sheen_component,
-        layer: metallic_component_with_thin_film,
-        normal: resolvedNormal);
-
-    float grazing_refl_coat = math::max((1.0 - resolvedClearcoatRoughness), 0.0);
-
-    bsdf clearcoated = df::custom_curve_layer(
-        weight: resolvedClearcoat,
-        normal_reflectivity: 0.04,
-        grazing_reflectivity: grazing_refl_coat,
-        layer: df::microfacet_ggx_vcavities_bsdf(
-            mode: df::scatter_reflect,
-            roughness_u: resolvedClearcoatRoughness * resolvedClearcoatRoughness,
-            tint: color(1.0)),
-        base: df::weighted_layer(
-            weight: 1.0,
-            layer: dielectric_metal_mix,
-            normal: resolvedNormal),
-        normal: resolvedClearcoatNormal);
+        base: dielectric,
+        layer: metallic,
+    );
 
 } in material(
     surface: material_surface(
-        scattering: clearcoated,
+        scattering: metallicRoughnessBsdf,
         emission:  material_emission (
             emission: df::diffuse_edf(),
             intensity: resolvedEmissive * ::math::PI
@@ -526,6 +465,7 @@ export material physically_based_material(
     ),
     ior: color(ior),
     geometry: material_geometry(
-        cutout_opacity: alpha,
+        normal: resolvedNormal,
+        cutout_opacity: opacity,
     )
 );
