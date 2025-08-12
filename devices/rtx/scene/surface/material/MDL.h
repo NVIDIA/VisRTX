@@ -51,7 +51,6 @@ struct MDL : public Material
 
   void commitParameters() override;
   void finalize() override;
-  void markFinalized() override;
 
   // Handle source changes
   void syncSource();

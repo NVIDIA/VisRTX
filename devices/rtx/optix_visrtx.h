@@ -197,9 +197,6 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   {
     helium::TimeStamp lastBLASChange{0};
     helium::TimeStamp lastTLASChange{0};
-#ifdef USE_MDL
-    helium::TimeStamp lastMDLObjectChange{0};
-#endif // defined(USE_MDL)
   } objectUpdates;
 
   DeferredArrayUploadBuffer uploadBuffer;

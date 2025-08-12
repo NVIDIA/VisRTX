@@ -97,12 +97,6 @@ void MDL::finalize()
   upload();
 }
 
-void MDL::markFinalized()
-{
-  Material::markFinalized();
-  deviceState()->objectUpdates.lastMDLObjectChange = helium::newTimeStamp();
-}
-
 void MDL::syncSource()
 {
   auto sourceType = getParamString("sourceType", "module");
