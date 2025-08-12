@@ -72,6 +72,7 @@ struct Viewport : public Window
   bool m_frameCancelled{false};
   bool m_saveNextFrame{false};
   bool m_echoCameraConfig{false};
+  int m_screenshotIndex{0};
 
   bool m_showOverlay{true};
   bool m_showCameraInfo{false};

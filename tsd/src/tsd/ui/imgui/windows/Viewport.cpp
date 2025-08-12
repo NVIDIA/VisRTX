@@ -15,7 +15,13 @@
 // std
 #include <chrono>
 #include <cstring>
+#include <filesystem>
+#include <iomanip>
 #include <limits>
+#include <sstream>
+// stb
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 namespace tsd::ui::imgui {
 
@@ -610,6 +616,53 @@ void Viewport::updateImage()
   m_latestAnariFL = duration * 1000;
   m_minFL = std::min(m_minFL, m_latestAnariFL);
   m_maxFL = std::max(m_maxFL, m_latestAnariFL);
+
+  // Handle screenshot saving
+  if (m_saveNextFrame) {
+    // Wait for the frame to be ready
+    anari::wait(m_device, frame);
+
+    // Map the color channel to get the frame buffer data
+    auto fb = anari::map<uint32_t>(m_device, frame, "channel.color");
+
+    if (fb.data) {
+      // Generate timestamped filename
+      auto now = std::chrono::system_clock::now();
+      auto time_t = std::chrono::system_clock::to_time_t(now);
+      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    now.time_since_epoch())
+          % 1000;
+
+      std::stringstream ss;
+      ss << "screenshot_"
+         << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S") << "_"
+         << std::setfill('0') << std::setw(3) << ms.count() << ".png";
+
+      // Ensure the screenshot is saved in the current working directory
+      std::filesystem::path workingDir = std::filesystem::current_path();
+      std::filesystem::path filename = workingDir / ss.str();
+
+      // Use STB's built-in vertical flip functionality for simplicity
+      stbi_flip_vertically_on_write(1);
+
+      // Save the screenshot with full alpha channel preservation
+      stbi_write_png(
+          filename.c_str(), fb.width, fb.height, 4, fb.data, 4 * fb.width);
+
+      // Reset the flip setting to avoid affecting other code
+      stbi_flip_vertically_on_write(0);
+
+      tsd::core::logStatus(
+          "Screenshot saved to '%s'", filename.string().c_str());
+    } else {
+      tsd::core::logWarning("Failed to map frame buffer for screenshot");
+    }
+
+    // Unmap the frame buffer
+    anari::unmap(m_device, frame, "channel.color");
+
+    m_saveNextFrame = false;
+  }
 }
 
 void Viewport::echoCameraConfig()
