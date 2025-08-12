@@ -45,18 +45,21 @@ VISRTX_DEVICE float computeAO(ScreenSample &ss,
 {
   float weights = 0.0f;
   float hits = 0.0f;
+  Ray aoRay;
+  aoRay.org = currentHit.hitpoint + currentHit.Ns * currentHit.epsilon;
+  aoRay.t.lower = currentHit.epsilon;
+  aoRay.t.upper = dist;
+
   for (int i = 0; i < numSamples; i++) {
-    Ray aoRay;
-    aoRay.org = currentHit.hitpoint + (currentHit.epsilon * currentHit.Ng);
     aoRay.dir = randomDir(ss.rs, currentHit.Ns);
-    aoRay.t.upper = dist;
-    const float weight = max(0.f, dot(aoRay.dir, currentHit.Ns));
-    weights += weight;
-    if (weight != 0.f)
+    float weight = max(0.f, dot(aoRay.dir, currentHit.Ns));
+    if (weight > 1e-8f) {
+      weights += weight;
       hits += weight * surfaceAttenuation(ss, aoRay, rayType);
+    }
   }
 
-  return weights > 0.f ? 1.f - hits / weights : 0.f;
+  return weights > 0.f ? (1.f - hits / weights) : 0.f;
 }
 
 } // namespace visrtx

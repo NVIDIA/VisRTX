@@ -127,13 +127,13 @@ VISRTX_DEVICE vec4 shadeSurface(
         continue;
 
       const Ray shadowRay = {
-          hit.hitpoint + (hit.epsilon * hit.Ns),
+          hit.hitpoint + hit.Ng * hit.epsilon,
           lightSample.dir,
-          {0.0f, lightSample.dist},
+          {hit.epsilon, lightSample.dist},
       };
 
       const float surface_o =
-          1.f - surfaceAttenuation(ss, shadowRay, RayType::SHADOW);
+        1.f - surfaceAttenuation(ss, shadowRay, RayType::SHADOW);
       const float volume_o = 1.f - volumeAttenuation(ss, shadowRay);
       const float attenuation = surface_o * volume_o;
 
@@ -254,11 +254,8 @@ VISRTX_GLOBAL void __anyhit__shadow()
     SurfaceHit hit;
     ray::populateSurfaceHit(hit);
 
-    const auto &fd = frameData;
-    const auto &md = *hit.material;
-
     MaterialShadingState shadingState;
-    materialInitShading(&shadingState, fd, md, hit);
+    materialInitShading(&shadingState, frameData, *hit.material, hit);
     auto opacity = materialEvaluateOpacity(shadingState);
 
     auto &o = ray::rayData<float>();
