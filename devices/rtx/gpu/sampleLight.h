@@ -145,8 +145,9 @@ VISRTX_DEVICE LightSample sampleHDRILight(
     atomicInc(ld.hdri.samples + y * ld.hdri.size.x + x, ~0u);
   }
 #endif
+  auto jitter = glm::vec2(curand_uniform(&rs), curand_uniform(&rs));
   auto uv =
-      glm::clamp((glm::vec2(xy) + 0.5f) / glm::vec2(ld.hdri.size), 0.f, 1.f);
+      glm::clamp((glm::vec2(xy) + jitter) / glm::vec2(ld.hdri.size), 0.f, 1.f);
 
   // And spherical coordinates
   auto thetaPhi = float(M_PI) * glm::vec2(uv.y, 2.0f * (uv.x));
