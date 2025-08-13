@@ -443,6 +443,14 @@ export material physically_based_material(
         layer: specularBsdf,
     );
 
+    // Sheen
+    bsdf dielectricSheenBsdf = ::df::sheen_bsdf(
+        tint: resolvedSheenColor,
+        roughness: resolvedSheenRoughness * resolvedSheenRoughness,
+        multiscatter_tint: color(1.0),
+        multiscatter: dielectric,
+    );
+
     // Onto the metallic layer
     bsdf metallic = ::df::microfacet_ggx_smith_bsdf(
         tint: F0,
@@ -452,10 +460,9 @@ export material physically_based_material(
     // Blend it with the dielectric layer based on metallic
     bsdf metallicRoughnessBsdf = ::df::weighted_layer(
         weight: resolvedMetallic,
-        base: dielectric,
+        base: dielectricSheenBsdf,
         layer: metallic,
     );
-
 } in material(
     surface: material_surface(
         scattering: metallicRoughnessBsdf,
