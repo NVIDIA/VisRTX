@@ -485,9 +485,21 @@ export material physically_based_material(
         base: dielectricSheenBsdf,
         layer: metallicIridescenceBsdf,
     );
+
+    // Clear coat layer
+    bsdf metallicRoughnessClearcoatBsdf = ::df::custom_curve_layer(
+        weight: resolvedClearcoat,
+        normal_reflectivity: 0.04,
+        normal: resolvedClearcoatNormal,
+        layer: ::df::microfacet_ggx_vcavities_bsdf(
+            mode: ::df::scatter_reflect,
+            roughness_u: resolvedClearcoatRoughness * resolvedClearcoatRoughness,
+        ),
+        base: metallicRoughnessBsdf,        
+    );
 } in material(
     surface: material_surface(
-        scattering: metallicRoughnessBsdf,
+        scattering: metallicRoughnessClearcoatBsdf,
         emission:  material_emission (
             emission: df::diffuse_edf(),
             intensity: resolvedEmissive * ::math::PI
