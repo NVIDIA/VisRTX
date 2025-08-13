@@ -426,9 +426,13 @@ export material physically_based_material(
         roughness_u: alpha,
     );
 
-    // Diffuse reflection
-    bsdf diffuseBsdf = ::df::diffuse_reflection_bsdf(
-        tint: baseColor,
+    // Diffuse reflection with transmission support
+    bsdf diffuseBsdf = ::df::weighted_layer(
+        weight: resolvedTransmission,
+        base: ::df::diffuse_reflection_bsdf(
+            tint: baseColor,
+        ),
+        layer: ::df::microfacet_ggx_vcavities_bsdf(roughness_u: alpha, tint: baseColor, mode: df::scatter_transmit),
     );
 
     // That gives our dielectric component
