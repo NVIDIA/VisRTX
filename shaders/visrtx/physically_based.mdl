@@ -422,7 +422,7 @@ export material physically_based_material(
 
     // Specular reflection via GGX
     bsdf specularBsdf = ::df::microfacet_ggx_smith_bsdf(
-        tint: color(1.0),
+        tint: resolvedSpecularColor,
         roughness_u: alpha,
     );
 
@@ -437,6 +437,7 @@ export material physically_based_material(
 
     // That gives our dielectric component
     bsdf dielectric = ::df::fresnel_layer(
+        weight: resolvedSpecular,
         ior: ior,
         base: diffuseBsdf,
         layer: specularBsdf,
