@@ -436,11 +436,22 @@ export material physically_based_material(
     );
 
     // That gives our dielectric component
-    bsdf dielectric = ::df::fresnel_layer(
+    bsdf dielectricBsdf = ::df::fresnel_layer(
         weight: resolvedSpecular,
         ior: ior,
         base: diffuseBsdf,
         layer: specularBsdf,
+    );
+
+    // Iridescence on the dielectric layer
+    bsdf dielectricIridescenceBsdf = ::df::weighted_layer(
+        weight: resolvedIridescence,
+        base: dielectricBsdf,
+        layer: ::df::thin_film(
+            thickness: resolvedIridescenceThickness,
+            ior: color(iridescenceIor),
+            base: dielectricBsdf,
+        ),
     );
 
     // Sheen
@@ -448,20 +459,31 @@ export material physically_based_material(
         tint: resolvedSheenColor,
         roughness: resolvedSheenRoughness * resolvedSheenRoughness,
         multiscatter_tint: color(1.0),
-        multiscatter: dielectric,
+        multiscatter: dielectricIridescenceBsdf,
     );
 
     // Onto the metallic layer
-    bsdf metallic = ::df::microfacet_ggx_smith_bsdf(
+    bsdf metallicBsdf = ::df::microfacet_ggx_smith_bsdf(
         tint: F0,
         roughness_u: alpha,
+    );
+
+    // Iridescence on the metallic layer
+    bsdf metallicIridescenceBsdf = ::df::weighted_layer(
+        weight: resolvedIridescence,
+        base: metallicBsdf,
+        layer: ::df::thin_film(
+            thickness: resolvedIridescenceThickness,
+            ior: color(iridescenceIor),
+            base: metallicBsdf,
+        ),
     );
 
     // Blend it with the dielectric layer based on metallic
     bsdf metallicRoughnessBsdf = ::df::weighted_layer(
         weight: resolvedMetallic,
         base: dielectricSheenBsdf,
-        layer: metallic,
+        layer: metallicIridescenceBsdf,
     );
 } in material(
     surface: material_surface(
