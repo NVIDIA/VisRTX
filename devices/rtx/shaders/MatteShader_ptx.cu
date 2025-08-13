@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
@@ -66,6 +67,12 @@ VISRTX_CALLABLE
 float __direct_callable__evaluateOpacity(const MatteShadingState *shadingState)
 {
   return shadingState->opacity;
+}
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateEmission(const MatteShadingState *shadingState, const vec3* outgoingDir)
+{
+  return vec3(0.0f, 0.0f, 0.0f);
 }
 
 // Signature must match the call inside shaderMatteSurface in MatteShader.cuh.

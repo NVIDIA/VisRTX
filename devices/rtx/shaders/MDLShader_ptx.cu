@@ -49,9 +49,12 @@ using BsdfSampleFunc = mi::neuraylib::Bsdf_sample_function;
 using BsdfEvaluateFunc = mi::neuraylib::Bsdf_evaluate_function;
 using BsdfPdfFunc = mi::neuraylib::Bsdf_pdf_function;
 
+using EdfEvaluateFunc = mi::neuraylib::Edf_evaluate_function;
+
 //
 using TintExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using OpacityExprFunc = mi::neuraylib::Material_function<float>::Type;
+using EmissionIntensityExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
 using ResourceData = mi::neuraylib::Resource_data;
@@ -72,6 +75,8 @@ VISRTX_CALLABLE BsdfIsThinWalled mdl_isThinWalled;
 
 VISRTX_CALLABLE TintExprFunc mdlTint;
 VISRTX_CALLABLE OpacityExprFunc mdlOpacity;
+VISRTX_CALLABLE EdfEvaluateFunc mdlEmission_evaluate;
+VISRTX_CALLABLE EmissionIntensityExprFunc mdlEmissionIntensity;
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
 VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
@@ -223,4 +228,21 @@ float __direct_callable__evaluateOpacity(const MDLShadingState *shadingState)
 {
   return mdlOpacity(
       &shadingState->state, &shadingState->resData, shadingState->argBlock);
+}
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateEmission(
+    const MDLShadingState *shadingState, const vec3* outgoingDir)
+{
+    mi::neuraylib::Edf_evaluate_data<mi::neuraylib::DF_HSM_NONE> evalData = {};
+    evalData.k1 = make_float3(*outgoingDir);
+
+    mdlEmission_evaluate(&evalData,
+        &shadingState->state,
+        &shadingState->resData,
+        shadingState->argBlock);
+
+    vec3 intensity = mdlEmissionIntensity(&shadingState->state, &shadingState->resData, shadingState->argBlock);
+
+    return (evalData.pdf > 1e-12f) ? make_vec3(evalData.edf) * evalData.cos * intensity / evalData.pdf : vec3(0.0f);
 }

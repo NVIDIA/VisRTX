@@ -80,6 +80,17 @@ VISRTX_DEVICE float materialEvaluateOpacity(
       &shadingState.data);
 }
 
+VISRTX_DEVICE vec3 materialEvaluateEmission(
+    const MaterialShadingState &shadingState, const vec3& outgoingDir)
+{
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
+    return vec3(0.0f, 0.0f, 0.0f); // Default emission color
+
+  return optixDirectCall<vec3>(shadingState.callableBaseIndex
+          + int(SurfaceShaderEntryPoints::EvaluateEmission),
+      &shadingState.data, &outgoingDir);
+}
+
 VISRTX_DEVICE NextRay materialNextRay(const MaterialShadingState &shadingState,
     const Ray &ray, RandState& rs)
 {

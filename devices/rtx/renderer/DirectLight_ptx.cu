@@ -89,11 +89,10 @@ VISRTX_DEVICE vec4 shadeSurface(
             directLightParams.aoSamples)
       : 1.f;
 
-  vec3 contrib = vec3(0.0f);
-
   MaterialShadingState shadingState;
   materialInitShading(&shadingState, frameData, *hit.material, hit);
 
+  vec3 contrib = materialEvaluateEmission(shadingState, -ray.dir);
   float opacity = materialEvaluateOpacity(shadingState);
 
   // Handle ambient light contribution
@@ -109,7 +108,7 @@ VISRTX_DEVICE vec4 shadeSurface(
     };
     contrib = materialShadeSurface(shadingState, hit, ls, -ray.dir);
 #else
-    contrib = rendererParams.ambientColor * rendererParams.ambientIntensity
+    contrib += rendererParams.ambientColor * rendererParams.ambientIntensity
         * materialEvaluateTint(shadingState);
 #endif
   }
