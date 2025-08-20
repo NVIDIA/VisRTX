@@ -380,14 +380,16 @@ export material physically_based_material(
     anno::description("ANARI PhysicallyBased Material")
 ]] = let {
     // Extract inputs
-    BaseColorWithAlpha resolvedBaseColor = ResolveBaseColorInput(baseColor);
-    float resolvedOpacity = ResolveFloatInput(opacity);
+    BaseColorWithAlpha resolvedBaseColorWithAlpha = ResolveBaseColorInput(baseColor);
+    color resolvedOcclusion = ResolveColorInput(occlusion);
+
+    color resolvedBaseColor = resolvedBaseColorWithAlpha.value * resolvedOcclusion;
+    float resolvedOpacity = ResolveAlphaInput(alphaMode, alphaCutoff, ResolveFloatInput(opacity) * resolvedBaseColorWithAlpha.alpha);
+
     float3 resolvedNormal = ResolveNormalInput(normal);
 
     float resolvedSpecular = ResolveFloatInput(specular);
     color resolvedSpecularColor = ResolveColorInput(specularColor);
-
-    color resolvedOcclusion = ResolveColorInput(occlusion);
 
     float resolvedRoughness = ResolveFloatInput(roughness);
     float resolvedMetallic = ResolveFloatInput(metallic);
@@ -410,15 +412,11 @@ export material physically_based_material(
     float resolvedAttenuationDistance = attenuationDistance;
     color resolvedAttenuationColor = attenuationColor;
 
-
-    color baseColor = resolvedBaseColor.value * resolvedOcclusion;
-    float opacity = ResolveAlphaInput(alphaMode, alphaCutoff, resolvedOpacity * resolvedBaseColor.alpha);
-
     // Clamp roughness for numerical stability
     float alpha = ::math::saturate(resolvedRoughness * resolvedRoughness);
 
     // For dielectrics, F0 is always 0.04, for metals we use baseColor
-    color F0 = ::math::lerp(color(0.04), baseColor, resolvedMetallic);
+    color F0 = ::math::lerp(color(0.04), resolvedBaseColor, resolvedMetallic);
 
     // Specular reflection via GGX
     bsdf specularBsdf = ::df::microfacet_ggx_smith_bsdf(
@@ -430,9 +428,9 @@ export material physically_based_material(
     bsdf diffuseBsdf = ::df::weighted_layer(
         weight: resolvedTransmission,
         base: ::df::diffuse_reflection_bsdf(
-            tint: baseColor,
+            tint: resolvedBaseColor,
         ),
-        layer: ::df::microfacet_ggx_vcavities_bsdf(roughness_u: alpha, tint: baseColor, mode: df::scatter_transmit),
+        layer: ::df::microfacet_ggx_vcavities_bsdf(roughness_u: alpha, tint: resolvedBaseColor, mode: df::scatter_transmit),
     );
 
     // That gives our dielectric component
@@ -512,6 +510,6 @@ export material physically_based_material(
     ior: color(ior),
     geometry: material_geometry(
         normal: resolvedNormal,
-        cutout_opacity: opacity,
+        cutout_opacity: resolvedOpacity,
     )
 );
