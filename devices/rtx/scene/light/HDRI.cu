@@ -88,7 +88,15 @@ HDRI::~HDRI()
 void HDRI::commitParameters()
 {
   Light::commitParameters();
-  m_radiance = getParamObject<Array2D>("radiance");
+  m_radiance = nullptr;
+  if (auto radiance = getParamObject<Array2D>("radiance")) {
+    if (radiance->elementType() == ANARI_FLOAT32_VEC3) {
+      m_radiance = getParamObject<Array2D>("radiance");
+    } else {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "invalid element type %s for 'radiance' on HDRI light", anari::toString(radiance->elementType()));
+    }
+  }
 }
 
 void HDRI::finalize()
