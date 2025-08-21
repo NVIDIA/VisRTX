@@ -351,6 +351,7 @@ struct MaterialGPUData
     MaterialParameter metallic;
     MaterialParameter roughness;
     DeviceObjectIndex normalSampler;
+    MaterialParameter emissive;
     float ior;
   };
 

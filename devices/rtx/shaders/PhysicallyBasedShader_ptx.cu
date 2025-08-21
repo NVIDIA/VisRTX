@@ -73,6 +73,9 @@ VISRTX_CALLABLE void __direct_callable__init(
   shadingState->ior = md->ior;
   shadingState->metallic = getMaterialParameter(*fd, md->metallic, *hit).x;
   shadingState->roughness = getMaterialParameter(*fd, md->roughness, *hit).x;
+
+  // Emission mapping
+  shadingState->emission = vec3(getMaterialParameter(*fd, md->emissive, *hit));
 }
 
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
@@ -119,8 +122,7 @@ VISRTX_CALLABLE
 vec3 __direct_callable__evaluateEmission(
     const PhysicallyBasedShadingState *shadingState,const vec3* outgoingDir)
 {
-  // Emission is not implemented yet.
-  return vec3(0.0f, 0.0f, 0.0f);
+  return shadingState->emission;
 }
 
 

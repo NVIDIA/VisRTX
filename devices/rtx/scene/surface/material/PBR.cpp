@@ -58,6 +58,12 @@ void PBR::commitParameters()
 
   m_normalSampler = getParamObject<Sampler>("normal");
 
+  m_emissive = vec4(0.f, 0.f, 0.f, 0.f);
+  getParam("emissive", ANARI_FLOAT32_VEC4, &m_emissive);
+  getParam("emissive", ANARI_FLOAT32_VEC3, &m_emissive);
+  m_emissiveSampler = getParamObject<Sampler>("emissive");
+  m_emissiveAttribute = getParamString("emissive", "");
+
   m_ior = getParam<float>("ior", 1.5f);
 
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
@@ -89,6 +95,10 @@ MaterialGPUData PBR::gpuData() const
       m_roughnessAttribute);
   retval.materialData.physicallyBased.normalSampler =
       m_normalSampler ? m_normalSampler->index() : ~DeviceObjectIndex{0};
+  populateMaterialParameter(retval.materialData.physicallyBased.emissive,
+      m_emissive,
+      m_emissiveSampler,
+      m_emissiveAttribute);
 
   retval.materialData.physicallyBased.ior = m_ior;
   retval.materialData.physicallyBased.cutoff = m_cutoff;

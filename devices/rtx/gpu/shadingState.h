@@ -76,6 +76,7 @@ struct PhysicallyBasedShadingState
   float metallic;
   float roughness;
   float ior;
+  vec3 emission;
 };
 
 #ifdef USE_MDL
