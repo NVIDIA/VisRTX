@@ -350,6 +350,7 @@ struct MaterialGPUData
     AlphaMode alphaMode;
     MaterialParameter metallic;
     MaterialParameter roughness;
+    DeviceObjectIndex normalSampler;
     float ior;
   };
 

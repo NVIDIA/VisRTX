@@ -213,8 +213,9 @@ VISRTX_DEVICE void computeTangentSpace(
     const vec3 v2 = ggd.tri.vertices[idx.z];
 
     hit.Ng = normalize(cross(v1 - v0, v2 - v0));
-    hit.tU = vec3(1.0f, 0.0f, 0.0f);
-    hit.tV = vec3(0.0f, 0.0f, 1.0f);
+    auto tangentSpace = computeOrthonormalBasis(hit.Ng);
+    hit.tU = tangentSpace[0];
+    hit.tV = tangentSpace[1];
 
     if (!optixIsFrontFaceHit())
       hit.Ng = -hit.Ng;

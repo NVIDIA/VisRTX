@@ -64,6 +64,8 @@ struct PBR : public Material
   helium::IntrusivePtr<Sampler> m_roughnessSampler;
   std::string m_roughnessAttribute;
 
+  helium::IntrusivePtr<Sampler> m_normalSampler;
+
   float m_ior{1.5f};
 };
 

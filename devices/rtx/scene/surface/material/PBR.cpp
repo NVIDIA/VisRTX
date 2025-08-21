@@ -56,6 +56,8 @@ void PBR::commitParameters()
   m_roughnessSampler = getParamObject<Sampler>("roughness");
   m_roughnessAttribute = getParamString("roughness", "");
 
+  m_normalSampler = getParamObject<Sampler>("normal");
+
   m_ior = getParam<float>("ior", 1.5f);
 
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
@@ -85,6 +87,8 @@ MaterialGPUData PBR::gpuData() const
       m_roughness,
       m_roughnessSampler,
       m_roughnessAttribute);
+  retval.materialData.physicallyBased.normalSampler =
+      m_normalSampler ? m_normalSampler->index() : ~DeviceObjectIndex{0};
 
   retval.materialData.physicallyBased.ior = m_ior;
   retval.materialData.physicallyBased.cutoff = m_cutoff;

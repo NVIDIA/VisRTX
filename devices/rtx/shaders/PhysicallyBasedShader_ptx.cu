@@ -47,9 +47,27 @@ VISRTX_CALLABLE void __direct_callable__init(
 {
   vec4 color = getMaterialParameter(*fd, md->baseColor, *hit);
   float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
-
   shadingState->baseColor = vec3(color);
-  shadingState->normal = hit->Ns;
+  
+  vec3 normal = hit->Ns;
+
+  if (md->normalSampler != ~visrtx::DeviceObjectIndex{0}) {
+    // Normal mapping computation.
+    auto normalMapValue = normalize(evaluateSampler(*fd, md->normalSampler, *hit) * 2.0f - 1.0f);
+    vec3 T = normalize(hit->tU);
+    vec3 B = normalize(hit->tV);
+    
+    // Ensure orthogonality (Gram-Schmidt process)
+    T = normalize(T - dot(T, normal) * normal);
+    B = normalize(B - dot(B, normal) * normal - dot(B, T) * T);
+    
+    // Transform normal from tangent space to world space
+    normal = normalize(T * normalMapValue.x +
+                      B * normalMapValue.y +
+                      normal * normalMapValue.z);
+  }
+  
+  shadingState->normal = normal;
   shadingState->opacity =
       adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
   shadingState->ior = md->ior;
@@ -115,9 +133,9 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     const vec3 *outgoingDir)
 {
   const vec3 H = normalize(lightSample->dir + *outgoingDir);
-  const float NdotH = dot(hit->Ns, H);
-  const float NdotL = dot(hit->Ns, lightSample->dir);
-  const float NdotV = dot(hit->Ns, *outgoingDir);
+  const float NdotH = dot(shadingState->normal, H);
+  const float NdotL = dot(shadingState->normal, lightSample->dir);
+  const float NdotV = dot(shadingState->normal, *outgoingDir);
   const float VdotH = dot(*outgoingDir, H);
   const float LdotH = dot(lightSample->dir, H);
 
