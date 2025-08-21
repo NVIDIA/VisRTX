@@ -640,7 +640,7 @@ void Viewport::updateImage()
 
       // Save the screenshot with full alpha channel preservation
       stbi_write_png(
-          filename.c_str(), fb.width, fb.height, 4, fb.data, 4 * fb.width);
+          filename.string().c_str(), fb.width, fb.height, 4, fb.data, 4 * fb.width);
 
       // Reset the flip setting to avoid affecting other code
       stbi_flip_vertically_on_write(0);

@@ -12,7 +12,7 @@
 
 namespace tsd::ui::imgui {
 
-struct Application;
+class Application;
 
 constexpr float INDENT_AMOUNT = 20.f;
 
