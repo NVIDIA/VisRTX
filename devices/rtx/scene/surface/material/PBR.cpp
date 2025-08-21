@@ -64,6 +64,10 @@ void PBR::commitParameters()
   m_emissiveSampler = getParamObject<Sampler>("emissive");
   m_emissiveAttribute = getParamString("emissive", "");
 
+  m_transmission = getParam<float>("transmission", 0.f);
+  m_transmissionSampler = getParamObject<Sampler>("transmission");
+  m_transmissionAttribute = getParamString("transmission", "");
+
   m_ior = getParam<float>("ior", 1.5f);
 
   m_cutoff = getParam<float>("alphaCutoff", 0.5f);
@@ -99,6 +103,10 @@ MaterialGPUData PBR::gpuData() const
       m_emissive,
       m_emissiveSampler,
       m_emissiveAttribute);
+  populateMaterialParameter(retval.materialData.physicallyBased.transmission,
+      m_transmission,
+      m_transmissionSampler,
+      m_transmissionAttribute);
 
   retval.materialData.physicallyBased.ior = m_ior;
   retval.materialData.physicallyBased.cutoff = m_cutoff;

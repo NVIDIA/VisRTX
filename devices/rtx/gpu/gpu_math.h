@@ -120,6 +120,8 @@ struct VolumeGPUData;
 struct SurfaceHit
 {
   bool foundHit;
+  bool isFrontFace;
+
   float t;
   vec3 hitpoint;
   vec3 Ng;

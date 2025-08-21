@@ -179,6 +179,7 @@ VISRTX_DEVICE vec4 shadeSurface(
     };
 
     bounceHit.foundHit = false;
+    bounceHit.isFrontFace = true;
     intersectSurface(ss, bounceRay, RayType::BOUNCE, &bounceHit);
 
     // We hit something. Gather its contribution.

@@ -141,6 +141,9 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->textureHandler.numSamplers = md->numSamplers;
   shadingState->resData = {nullptr, &shadingState->textureHandler};
 
+  // Front facing for transmission
+  shadingState->isFrontFace = hit->isFrontFace;
+
   // Argument block
   shadingState->argBlock = md->argBlock;
 
@@ -163,9 +166,13 @@ vec3 __direct_callable__shadeSurface(const MDLShadingState *shadingState,
   if (cos_theta > 0.0f) 
   {
     BsdfEvaluateData eval_data = {};
-    // FIXME: Handle being inside vs outside.
-    eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
-    eval_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+    if (shadingState->isFrontFace) {
+      eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
+      eval_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+    } else {
+      eval_data.ior1.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+      eval_data.ior2 = make_float3(1.0f, 1.0f, 1.0f);
+    }
     eval_data.k1 = make_float3(normalize(*outgoingDir));
     eval_data.k2 = make_float3(normalize(lightSample->dir));
 
@@ -192,8 +199,13 @@ NextRay __direct_callable__nextRay(
 {
   // Sample
   BsdfSampleData sample_data = {};
-  sample_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
-  sample_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+  if (shadingState->isFrontFace) {
+    sample_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
+    sample_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+  } else {
+    sample_data.ior1.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+    sample_data.ior2 = make_float3(1.0f, 1.0f, 1.0f);
+  }
   sample_data.k1 = make_float3(-ray->dir);
   sample_data.xi = make_float4(curand_uniform(rs),
       curand_uniform(rs),
@@ -205,14 +217,10 @@ NextRay __direct_callable__nextRay(
       &shadingState->resData,
       shadingState->argBlock);
 
-  if (sample_data.event_type & mi::neuraylib::BSDF_EVENT_REFLECTION) {
-    return NextRay{vec3(sample_data.k2.x, sample_data.k2.y, sample_data.k2.z),
-        vec3(sample_data.bsdf_over_pdf.x,
-            sample_data.bsdf_over_pdf.y,
-            sample_data.bsdf_over_pdf.z)};
-  } else {
-    return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
-  }
+  return NextRay{vec3(sample_data.k2.x, sample_data.k2.y, sample_data.k2.z),
+      vec3(sample_data.bsdf_over_pdf.x,
+          sample_data.bsdf_over_pdf.y,
+          sample_data.bsdf_over_pdf.z)};
 }
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.

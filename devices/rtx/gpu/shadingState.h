@@ -75,6 +75,7 @@ struct PhysicallyBasedShadingState
   float opacity;
   float metallic;
   float roughness;
+  float transmission;
   float ior;
   vec3 emission;
 };
@@ -110,6 +111,8 @@ struct MDLShadingState
   glm::vec3 textureCoords[4];
   glm::vec3 textureTangentsU[4];
   glm::vec3 textureTangentsV[4];
+
+  bool isFrontFace;
 
   const char *argBlock;
 };

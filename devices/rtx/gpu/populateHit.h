@@ -320,7 +320,7 @@ VISRTX_DEVICE void computeTangentSpace(
 
 VISRTX_DEVICE void cullbackFaces()
 {
-  if (optixIsTriangleFrontFaceHit())
+  if (optixIsFrontFaceHit())
     return;
   auto &ss = ray::screenSample();
   auto &fd = *ss.frameData;
@@ -343,6 +343,7 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   const auto &isd = getSurfaceInstanceData(fd, ray::instID());
 
   hit.foundHit = true;
+  hit.isFrontFace = optixIsFrontFaceHit();
   hit.instance = &isd;
   hit.geometry = &gd;
   hit.material = &md;

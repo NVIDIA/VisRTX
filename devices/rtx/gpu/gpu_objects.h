@@ -352,6 +352,8 @@ struct MaterialGPUData
     MaterialParameter roughness;
     DeviceObjectIndex normalSampler;
     MaterialParameter emissive;
+    MaterialParameter transmission;
+
     float ior;
   };
 

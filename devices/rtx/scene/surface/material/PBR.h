@@ -70,6 +70,10 @@ struct PBR : public Material
   helium::IntrusivePtr<Sampler> m_emissiveSampler;
   std::string m_emissiveAttribute;
 
+  float m_transmission{0.f};
+  helium::IntrusivePtr<Sampler> m_transmissionSampler;
+  std::string m_transmissionAttribute;
+
   float m_ior{1.5f};
 };
 
