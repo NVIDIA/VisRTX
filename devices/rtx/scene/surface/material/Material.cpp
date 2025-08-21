@@ -59,7 +59,10 @@ Material *Material::createInstance(
     return new Matte(d);
   else if (subtype == "pbr" || subtype == "physicallyBased")
 #if defined(USE_MDL) && defined(USE_MDL_FOR_PHYSICALLY_BASED)
-    return new PhysicallyBasedMDL(d);
+    if (d->mdl)
+      return new PhysicallyBasedMDL(d);
+    else
+      return new PBR(d);
 #else
     return new PBR(d);
 #endif

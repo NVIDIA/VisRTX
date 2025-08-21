@@ -211,9 +211,9 @@ OptixPipeline Renderer::pipeline()
 #ifndef USE_MDL
   if (!m_pipeline)
 #else
-  if (!m_pipeline
-      || deviceState()->mdl->materialRegistry.getLastUpdateTime()
-          > m_lastMDLMaterialLibraryUpdateCheck)
+  if (!m_pipeline ||
+      (deviceState()->mdl && (deviceState()->mdl->materialRegistry.getLastUpdateTime()
+          > m_lastMDLMaterialLibraryUpdateCheck)))
 #endif
     initOptixPipeline();
 
@@ -225,9 +225,9 @@ const OptixShaderBindingTable *Renderer::sbt()
 #ifndef USE_MDL
   if (!m_pipeline)
 #else
-  if (!m_pipeline
-      || deviceState()->mdl->materialRegistry.getLastUpdateTime()
-          > m_lastMDLMaterialLibraryUpdateCheck)
+  if (!m_pipeline ||
+      (deviceState()->mdl && (deviceState()->mdl->materialRegistry.getLastUpdateTime()
+          > m_lastMDLMaterialLibraryUpdateCheck)))
 #endif
 
     initOptixPipeline();
@@ -558,69 +558,72 @@ void Renderer::initOptixPipeline()
 
     // MDLs
 #ifdef USE_MDL
-    for (const auto &ptxBlob : state.mdl->materialRegistry.getPtxBlobs()) {
-      if (ptxBlob.empty()) {
-        for (auto i = 0; i < int(SurfaceShaderEntryPoints::Count); i++) {
-          callableDescs.push_back({});
+    if (state.mdl) {
+      for (const auto &ptxBlob : state.mdl->materialRegistry.getPtxBlobs()) {
+        if (ptxBlob.empty()) {
+          for (auto i = 0; i < int(SurfaceShaderEntryPoints::Count); i++) {
+            callableDescs.push_back({});
+          }
+          continue;
         }
-        continue;
-      }
-      OptixModule module;
-      OptixModuleCompileOptions moduleCompileOptions = {};
-      moduleCompileOptions.maxRegisterCount =
-          OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
+        OptixModule module;
+        OptixModuleCompileOptions moduleCompileOptions = {};
+        moduleCompileOptions.maxRegisterCount =
+            OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 #ifdef NDEBUG
-      moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-      moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
+        moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+        moduleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_DEFAULT;
 #else
-      moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
-      moduleCompileOptions.debugLevel =
-          OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL; // Could be FULL is -G can be
-                                             // enabled at compile time
+        moduleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+        moduleCompileOptions.debugLevel =
+            OPTIX_COMPILE_DEBUG_LEVEL_MINIMAL; // Could be FULL is -G can be
+                                               // enabled at compile time
 #endif
-      moduleCompileOptions.numPayloadTypes = 0;
-      moduleCompileOptions.payloadTypes = 0;
+        moduleCompileOptions.numPayloadTypes = 0;
+        moduleCompileOptions.payloadTypes = 0;
 
-      auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
+        auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
-      OPTIX_CHECK(optixModuleCreate(state.optixContext,
-          &moduleCompileOptions,
-          &pipelineCompileOptions,
-          std::data(ptxBlob),
-          std::size(ptxBlob),
-          log,
-          &sizeof_log,
-          &module));
+        OPTIX_CHECK(optixModuleCreate(state.optixContext,
+            &moduleCompileOptions,
+            &pipelineCompileOptions,
+            std::data(ptxBlob),
+            std::size(ptxBlob),
+            log,
+            &sizeof_log,
+            &module));
 
-      OptixProgramGroupDesc callableDesc = {};
-      callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-      callableDesc.callables.moduleDC = module;
+        OptixProgramGroupDesc callableDesc = {};
+        callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+        callableDesc.callables.moduleDC = module;
 
-      callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
-      callableDescs.push_back(callableDesc);
+        callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
+        callableDescs.push_back(callableDesc);
 
-      callableDesc.callables.entryFunctionNameDC = "__direct_callable__nextRay";
-      callableDescs.push_back(callableDesc);
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__nextRay";
+        callableDescs.push_back(callableDesc);
 
-      callableDesc.callables.entryFunctionNameDC =
-          "__direct_callable__evaluateTint";
-      callableDescs.push_back(callableDesc);
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateTint";
+        callableDescs.push_back(callableDesc);
 
-      callableDesc.callables.entryFunctionNameDC =
-          "__direct_callable__evaluateOpacity";
-      callableDescs.push_back(callableDesc);
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateOpacity";
+        callableDescs.push_back(callableDesc);
 
-      callableDesc.callables.entryFunctionNameDC =
-          "__direct_callable__evaluateEmission";
-      callableDescs.push_back(callableDesc);
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateEmission";
+        callableDescs.push_back(callableDesc);
 
-      callableDesc.callables.entryFunctionNameDC =
-          "__direct_callable__shadeSurface";
-      callableDescs.push_back(callableDesc);
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__shadeSurface";
+        callableDescs.push_back(callableDesc);
+      }
+
+      m_lastMDLMaterialLibraryUpdateCheck =
+          deviceState()->mdl->materialRegistry.getLastUpdateTime();
     }
-
-    m_lastMDLMaterialLibraryUpdateCheck =
-        deviceState()->mdl->materialRegistry.getLastUpdateTime();
 #endif // defined(USE_MDL)
 
     //
