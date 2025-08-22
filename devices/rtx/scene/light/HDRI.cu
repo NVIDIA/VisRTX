@@ -284,7 +284,7 @@ void computeConditionalCDFs(
 void normalizeMarginalCDF(float *marginalCdf, int height)
 {
   using thrust::device_pointer_cast;
-  auto cdf= device_pointer_cast(marginalCdf);
+  auto cdf = device_pointer_cast(marginalCdf);
   thrust::transform(cdf,
       cdf + height,
       cdf,
