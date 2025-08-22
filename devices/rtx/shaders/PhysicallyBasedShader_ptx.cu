@@ -183,8 +183,12 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
 
   const float denom = 4.f * fabsf(NdotV) * fabsf(NdotL);
   const vec3 specularBRDF =
-      denom != 0.f ? (F * D * G) / denom * NdotL : vec3(0.f);
+      denom != 0.f ? (F * D * G) / denom : vec3(0.f);
 
+  // Transmission is applied only to the diffuse BRDF. This is intentional:
+  // In this model, transmission reduces the diffuse reflection, while specular
+  // reflection (surface reflection) is not affected by transmission, as it represents
+  // light reflected at the surface rather than transmitted through the material.
   return (diffuseBRDF * (1.0f - shadingState->transmission) + specularBRDF)
       * NdotL * lightSample->radiance / lightSample->pdf;
 }
