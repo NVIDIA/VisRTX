@@ -48,25 +48,25 @@ VISRTX_CALLABLE void __direct_callable__init(
   vec4 color = getMaterialParameter(*fd, md->baseColor, *hit);
   float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
   shadingState->baseColor = vec3(color);
-  
+
   vec3 normal = hit->Ns;
 
   if (md->normalSampler != ~visrtx::DeviceObjectIndex{0}) {
     // Normal mapping computation.
-    auto normalMapValue = normalize(evaluateSampler(*fd, md->normalSampler, *hit) * 2.0f - 1.0f);
+    auto normalMapValue =
+        normalize(evaluateSampler(*fd, md->normalSampler, *hit) * 2.0f - 1.0f);
     vec3 T = normalize(hit->tU);
     vec3 B = normalize(hit->tV);
-    
+
     // Ensure orthogonality (Gram-Schmidt process)
     T = normalize(T - dot(T, normal) * normal);
     B = normalize(B - dot(B, normal) * normal - dot(B, T) * T);
-    
+
     // Transform normal from tangent space to world space
-    normal = normalize(T * normalMapValue.x +
-                      B * normalMapValue.y +
-                      normal * normalMapValue.z);
+    normal = normalize(T * normalMapValue.x + B * normalMapValue.y
+        + normal * normalMapValue.z);
   }
-  
+
   shadingState->normal = normal;
   shadingState->opacity =
       adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
@@ -78,7 +78,8 @@ VISRTX_CALLABLE void __direct_callable__init(
   shadingState->emission = vec3(getMaterialParameter(*fd, md->emissive, *hit));
 
   // Transmission
-  shadingState->transmission = getMaterialParameter(*fd, md->transmission, *hit).x;
+  shadingState->transmission =
+      getMaterialParameter(*fd, md->transmission, *hit).x;
 }
 
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
@@ -86,7 +87,8 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const Ray *ray,
     RandState *rs)
 {
-  // Open cone, along the perfect reflection ray, with a metallic and roughness-dependent angle
+  // Open cone, along the perfect reflection ray, with a metallic and
+  // roughness-dependent angle
   const float roughness = shadingState->roughness;
   const float metalness = shadingState->metallic;
   const float roughnessSqr = roughness * roughness;
@@ -95,18 +97,16 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
 
   bool isReflected = curand_uniform(rs) > transmission;
   auto nextVector = isReflected
-    ? glm::reflect(ray->dir, shadingState->normal)
-    : glm::refract(ray->dir, shadingState->normal, shadingState->ior);
+      ? glm::reflect(ray->dir, shadingState->normal)
+      : glm::refract(ray->dir, shadingState->normal, shadingState->ior);
 
-  auto nextRay = computeOrthonormalBasis(normalize(nextVector)) *
-    uniformSampleCone(cosThetaMax, vec3(
-        curand_uniform(rs),
-        curand_uniform(rs),
-        curand_uniform(rs)));
+  auto nextRay = computeOrthonormalBasis(normalize(nextVector))
+      * uniformSampleCone(cosThetaMax,
+          vec3(curand_uniform(rs), curand_uniform(rs), curand_uniform(rs)));
 
   auto nextSampleWeight = isReflected
-    ? shadingState->baseColor * metalness * (1.0f - transmission)
-    : shadingState->baseColor * transmission;
+      ? shadingState->baseColor * metalness * (1.0f - transmission)
+      : shadingState->baseColor * transmission;
 
   return NextRay{nextRay, nextSampleWeight};
 }
@@ -127,11 +127,10 @@ float __direct_callable__evaluateOpacity(
 
 VISRTX_CALLABLE
 vec3 __direct_callable__evaluateEmission(
-    const PhysicallyBasedShadingState *shadingState,const vec3* outgoingDir)
+    const PhysicallyBasedShadingState *shadingState, const vec3 *outgoingDir)
 {
   return shadingState->emission;
 }
-
 
 // Signature must match the call inside shaderPhysicallyBasedSurface in
 // PhysicallyBasedShader.cuh.
@@ -141,9 +140,13 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     const LightSample *lightSample,
     const vec3 *outgoingDir)
 {
+  const float NdotL = dot(shadingState->normal, lightSample->dir);
+  if (NdotL <= 0.0f)
+    return vec3(0.0f, 0.0f, 0.0f);
+
   const vec3 H = normalize(lightSample->dir + *outgoingDir);
   const float NdotH = dot(shadingState->normal, H);
-  const float NdotL = dot(shadingState->normal, lightSample->dir);
+
   const float NdotV = dot(shadingState->normal, *outgoingDir);
   const float VdotH = dot(*outgoingDir, H);
   const float LdotH = dot(lightSample->dir, H);
@@ -179,7 +182,9 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
               + sqrtf(alpha * alpha + (1.f - alpha * alpha) * NdotV * NdotV)));
 
   const float denom = 4.f * fabsf(NdotV) * fabsf(NdotL);
-  const vec3 specularBRDF = denom != 0.f ? (F * D * G) / denom : vec3(0.f);
+  const vec3 specularBRDF =
+      denom != 0.f ? (F * D * G) / denom * NdotL : vec3(0.f);
 
-  return (diffuseBRDF * (1.0f - shadingState->transmission) + specularBRDF) * lightSample->radiance / lightSample->pdf;
+  return (diffuseBRDF * (1.0f - shadingState->transmission) + specularBRDF)
+      * NdotL * lightSample->radiance / lightSample->pdf;
 }
