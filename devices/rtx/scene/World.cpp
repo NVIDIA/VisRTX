@@ -247,10 +247,6 @@ void World::rebuildWorld()
 
     m_objectUpdates.lastTLASBuild = helium::newTimeStamp();
   }
-
-#ifdef USE_MDL
-  buildTangentVectors();
-#endif // defined(USE_MDL)
 }
 
 void World::populateOptixInstances()
@@ -484,47 +480,6 @@ void World::buildInstanceLightGPUData()
 
   m_instanceLightGPUData.upload();
 }
-
-#ifdef USE_MDL
-
-// We only do that for MDL for now, other materials don't use tangent vectors
-void World::buildTangentVectors()
-{
-  for (auto &instance : m_instances) {
-    const auto group = instance->group();
-    if (const auto surfaceObjects =
-            group->getParamObject<ObjectArray>("surface")) {
-      const auto surfaces = make_Span(
-          reinterpret_cast<Surface **>(surfaceObjects->handlesBegin()),
-          surfaceObjects->totalSize());
-
-      for (auto surface : surfaces) {
-        auto material = dynamic_cast<MDL *>(surface->material());
-        if (!material)
-          continue;
-
-        if (auto triangle = dynamic_cast<Triangle *>(surface->geometry())) {
-          // FIXME: This should be check if those objects are internally
-          // referenced or they are provided by the user. The former would still
-          // need to trigger an update.
-          if (triangle->getParamObject<Array1D>("vertex.tangent")
-              || triangle->getParamObject<Array1D>("faceVarying.tangent"))
-            continue; // We already have user provided input.
-
-          if (material->lastCommitted() < m_objectUpdates.lastMDLObjectCheck
-              && triangle->lastCommitted() < m_objectUpdates.lastMDLObjectCheck)
-            continue; // No need to build tangents if the material or geometry
-                      // hasn't changed.
-          updateGeometryTangent(triangle);
-        }
-      }
-    }
-  }
-
-  m_objectUpdates.lastMDLObjectCheck = helium::newTimeStamp();
-}
-
-#endif // defined(USE_MDL)
 
 } // namespace visrtx
 

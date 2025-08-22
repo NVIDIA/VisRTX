@@ -31,6 +31,8 @@
 
 #include "Triangle.h"
 
+#include "scene/ComputeTangent.h"
+
 namespace visrtx {
 
 Triangle::Triangle(DeviceGlobalState *d)
@@ -98,6 +100,10 @@ void Triangle::finalize()
         "the number of triangles in 'primitive.index' (%zu) vs. (%zu)",
         m_vertexTangentFV->size(),
         m_index->size());
+  }
+
+  if (!m_vertexTangent && !m_vertexTangentFV) {
+    updateGeometryTangent(this);
   }
 
   reportMessage(ANARI_SEVERITY_DEBUG,
