@@ -13,6 +13,7 @@ PRIVATE
   importers/import_DLAF.cpp
   importers/import_E57XYZ.cpp
   importers/import_FLASH.cpp
+  importers/import_GLTF.cpp
   importers/import_HDRI.cpp
   importers/import_HSMESH.cpp
   importers/import_MHD.cpp
@@ -54,6 +55,7 @@ PRIVATE
   $<BUILD_INTERFACE:tsd_ext_tinyexr>
   $<BUILD_INTERFACE:tsd_ext_tinyobjloader>
   $<BUILD_INTERFACE:tsd_ext_tinyply>
+  $<BUILD_INTERFACE:tsd_ext_tinygltf>
   $<BUILD_INTERFACE:stb_image>
 )
 

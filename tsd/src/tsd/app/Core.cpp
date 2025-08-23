@@ -144,6 +144,8 @@ void Core::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::HSMESH;
     else if (arg == "-pt")
       importerType = ImporterType::NEURAL;
+    else if (arg == "-gltf")
+      importerType = ImporterType::GLTF;
     else
       this->commandLine.filenames.push_back({importerType, arg});
   }
@@ -199,6 +201,11 @@ void Core::setupSceneFromCommandLine(bool hdriOnly)
         tsd::io::import_volume(tsd.ctx, f.second.c_str());
       else if (f.first == ImporterType::NEURAL)
         tsd::io::import_PT(tsd.ctx, f.second.c_str(), root);
+      else if (f.first == ImporterType::GLTF)
+        tsd::io::import_GLTF(tsd.ctx, f.second.c_str(), root);
+      else
+        tsd::core::logWarning("...skipping unknown file type for '%s'",
+            f.second.c_str());
     }
   }
 }

@@ -38,9 +38,12 @@ void ImportFileDialog::buildUI()
       "PDB",
       "XYZDP",
       "HSMESH",
-      "NEURAL"};
+      "NEURAL",
+      "GLTF",
+      };
 
-  ImGui::Combo("importer type", &m_selectedFileType, importers, 15);
+  ImGui::Combo("importer type", &m_selectedFileType, importers, 
+      std::size(importers));
 
   static std::string outPath;
   if (ImGui::Button("...")) {
@@ -122,6 +125,8 @@ void ImportFileDialog::buildUI()
         tsd::io::import_volume(ctx, m_filename.c_str());
       else if (selectedFileType == app::ImporterType::NEURAL)
         tsd::io::import_PT(ctx, m_filename.c_str(), importRoot);
+      else if (selectedFileType == app::ImporterType::GLTF)
+        tsd::io::import_GLTF(ctx, m_filename.c_str(), importRoot);
       ctx.signalLayerChange(layer);
     };
 

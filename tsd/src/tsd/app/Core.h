@@ -48,6 +48,7 @@ enum class ImporterType
   HSMESH,
   NEURAL,
   TSD,
+  GLTF,
   NONE
 };
 

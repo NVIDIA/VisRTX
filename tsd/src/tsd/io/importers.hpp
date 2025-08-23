@@ -14,6 +14,7 @@ using namespace tsd::core;
 void import_ASSIMP(Context &ctx, const char *filename, LayerNodeRef location = {}, bool flatten = false);
 void import_DLAF(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
 void import_E57XYZ(Context &ctx, const char *filename, LayerNodeRef location = {});
+void import_GLTF(Context &ctx, const char *filename, LayerNodeRef location = {});
 void import_HDRI(Context &ctx, const char *filename, LayerNodeRef location = {});
 void import_HSMESH(Context &ctx, const char *filename, LayerNodeRef location = {});
 void import_NBODY(Context &ctx, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
