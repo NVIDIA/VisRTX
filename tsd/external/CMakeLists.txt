@@ -8,6 +8,7 @@ add_subdirectory(tsd_nanovdb)
 add_subdirectory(tsd_tiny_obj_loader)
 add_subdirectory(tsd_tinyply)
 add_subdirectory(tsd_tinyexr)
+add_subdirectory(tsd_tinygltf)
 
 if (TSD_STANDALONE_BUILD)
   add_subdirectory(../../external/fmtlib ${CMAKE_CURRENT_BINARY_DIR}/tsd_fmt)
