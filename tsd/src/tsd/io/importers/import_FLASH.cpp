@@ -38,10 +38,13 @@ struct BlockData
 };
 struct AMRField
 {
-  std::vector<float> cellWidth;
+  std::vector<int> refinementRatio;
   std::vector<int> blockLevel;
   std::vector<BlockBounds> blockBounds;
+  // deprecated: data per block
   std::vector<BlockData> blockData;
+  // new: data as one contiguous array
+  std::vector<float> data;
   struct
   {
     float x, y;
@@ -276,7 +279,7 @@ inline AMRField toAMRField(const grid_t &grid, const variable_t &var)
 
   // --- cellWidth
   for (int l = 0; l <= max_level; ++l) {
-    result.cellWidth.push_back(1 << l);
+    result.refinementRatio.push_back(2);
   }
 
   len[0] /= var.nxb;
@@ -332,13 +335,17 @@ inline AMRField toAMRField(const grid_t &grid, const variable_t &var)
           float valf(val);
           min_scalar = fminf(min_scalar, valf);
           max_scalar = fmaxf(max_scalar, valf);
+          // per-block data (deprecated):
           data.values.push_back((float)val);
+          // as contiguous array (new):
+          result.data.push_back((float)val);
         }
       }
     }
 
     result.blockLevel.push_back(level);
     result.blockBounds.push_back(bounds);
+    // set per-block data (deprecated):
     result.blockData.push_back(data);
     result.voxelRange = {min_scalar, max_scalar};
   }
@@ -423,15 +430,16 @@ SpatialFieldRef import_FLASH(Context &ctx, const char *filepath)
   auto field = ctx.createObject<SpatialField>(tokens::spatial_field::amr);
   field->setName(file.c_str());
 
-  AMRField data = reader.getField(0);
+  AMRField amrField = reader.getField(0);
 
   logStatus("[import_FLASH] converting to TSD objects...");
 
-  auto blockData = ctx.createArray(ANARI_ARRAY3D, data.blockData.size());
+  // set data per block (deprecated):
+  auto blockData = ctx.createArray(ANARI_ARRAY3D, amrField.blockData.size());
   {
     auto *dst = (size_t *)blockData->map();
     std::transform(
-        data.blockData.begin(), data.blockData.end(), dst, [&](const auto &bd) {
+        amrField.blockData.begin(), amrField.blockData.end(), dst, [&](const auto &bd) {
           auto block = ctx.createArray(
               ANARI_FLOAT32, bd.dims[0], bd.dims[1], bd.dims[2]);
           block->setData(bd.values);
@@ -439,20 +447,27 @@ SpatialFieldRef import_FLASH(Context &ctx, const char *filepath)
         });
     blockData->unmap();
   }
+  // set data as contiguous array (not supported by all devices yet):
+  auto data = ctx.createArray(ANARI_FLOAT32, amrField.data.size());
+  data->setData(amrField.data.data());
 
-  auto cellWidth = ctx.createArray(ANARI_FLOAT32, data.cellWidth.size());
-  cellWidth->setData(data.cellWidth);
+  auto refinementRatio
+    = ctx.createArray(ANARI_UINT32, amrField.refinementRatio.size());
+  refinementRatio->setData(amrField.refinementRatio);
 
-  auto blockBounds = ctx.createArray(ANARI_INT32_BOX3, data.blockBounds.size());
-  blockBounds->setData(data.blockBounds.data());
+  auto blockBounds = ctx.createArray(ANARI_INT32_BOX3, amrField.blockBounds.size());
+  blockBounds->setData(amrField.blockBounds.data());
 
-  auto blockLevel = ctx.createArray(ANARI_INT32, data.blockLevel.size());
-  blockLevel->setData(data.blockLevel);
+  auto blockLevel = ctx.createArray(ANARI_INT32, amrField.blockLevel.size());
+  blockLevel->setData(amrField.blockLevel);
 
-  field->setParameterObject("cellWidth", *cellWidth);
+  field->setParameterObject("refinementRatio", *refinementRatio);
   field->setParameterObject("block.bounds", *blockBounds);
   field->setParameterObject("block.level", *blockLevel);
+  // deprecated data representation:
   field->setParameterObject("block.data", *blockData);
+  // new data representation (devices are free to support either):
+  field->setParameterObject("data", *data);
 
   logStatus("[import_FLASH] ...done!");
 

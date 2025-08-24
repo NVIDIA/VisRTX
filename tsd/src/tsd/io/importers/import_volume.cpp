@@ -23,7 +23,7 @@ VolumeRef import_volume(Context &ctx,
   auto ext = extensionOf(filepath);
   if (ext == ".raw")
     field = import_RAW(ctx, filepath);
-  else if (ext == ".flash")
+  else if (ext == ".flash" || ext == ".hdf5")
     field = import_FLASH(ctx, filepath);
   else if (ext == ".nvdb")
     field = import_NVDB(ctx, filepath);
