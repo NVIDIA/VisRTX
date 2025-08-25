@@ -97,7 +97,7 @@ __device__ void __computeTangentAndBitangent(
       // Compute the determinant
       float invdet = 1.0f / cross;
       *tangent = (t.y * e1 - s.y * e2) * invdet;
-      *bitangent = (s.x * e2 - t.x * e1) * invdet;
+      *bitangent = (t.x * e1 - s.x * e2) * invdet;
     }
   }
 }

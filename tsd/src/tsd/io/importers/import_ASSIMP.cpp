@@ -594,7 +594,7 @@ void import_ASSIMP(
 
   Assimp::Importer importer;
 
-  auto importFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices;
+  auto importFlags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_FlipUVs;
   if (flatten)
     importFlags |= aiProcess_PreTransformVertices;
 

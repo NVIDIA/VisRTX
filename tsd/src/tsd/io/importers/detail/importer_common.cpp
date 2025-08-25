@@ -235,7 +235,6 @@ SamplerRef importStbTexture(
   auto dataArray = cache[filepath];
   if (!dataArray.valid()) {
     int width, height, n;
-    stbi_set_flip_vertically_on_load(1);
     if (isLinear) {
       stbi_ldr_to_hdr_scale(1.0f);
       stbi_ldr_to_hdr_gamma(1.0f);
@@ -417,7 +416,7 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
 
     assert(mesh->texCoords);
     unsigned vID = index[vertID];
-    oc = {mesh->texCoords[vID].x, mesh->texCoords[vID].y};
+    oc = {mesh->texCoords[vID].x, 1.0f - mesh->texCoords[vID].y};
   };
 
   // callback to assign output tangents
