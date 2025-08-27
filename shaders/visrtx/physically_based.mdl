@@ -262,7 +262,7 @@ export material physically_based_material(
         anno::display_name("Emissive Color"),
         anno::description("emissive color")
     ]],
-    ColorInput occlusion = LookUpColorInput(value: color(1.0f))
+    FloatInput occlusion = LookUpFloatInput(value: 1.0f)
     [[
         anno::in_group("Base Layer"),
         anno::display_name("Occlusion Map"),
@@ -381,7 +381,7 @@ export material physically_based_material(
 ]] = let {
     // Extract inputs
     BaseColorWithAlpha resolvedBaseColorWithAlpha = ResolveBaseColorInput(baseColor);
-    color resolvedOcclusion = ResolveColorInput(occlusion);
+    float resolvedOcclusion = ResolveFloatInput(occlusion);
 
     color resolvedBaseColor = resolvedBaseColorWithAlpha.value * resolvedOcclusion;
     float resolvedOpacity = ResolveAlphaInput(alphaMode, alphaCutoff, ResolveFloatInput(opacity) * resolvedBaseColorWithAlpha.alpha);
