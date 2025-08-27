@@ -108,19 +108,37 @@ include(EmbedPTX)
 ## Build library target ##
 
 function(embed_resource resource_file_name source_file_name variable_name)
-    file(READ ${resource_file_name} hex_content HEX)
-    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " content ${hex_content})
-    set(array_definition "extern \"C\" const unsigned char ${variable_name}[] = {${content}0x00};")
-    file(WRITE "${source_file_name}.tmp" "${array_definition}")
-    file(COPY_FILE "${source_file_name}.tmp" "${source_file_name}" ONLY_IF_DIFFERENT INPUT_MAY_BE_RECENT)
+  # Generate a unique target name based on the variable name
+  set(target_name "embed_${variable_name}")
+  
+  # Create a custom command to generate the C++ source file
+  add_custom_command(
+    OUTPUT ${source_file_name}
+    COMMAND ${CMAKE_COMMAND}
+      -DRESOURCE_FILE=${resource_file_name}
+      -DSOURCE_FILE=${source_file_name}
+      -DVARIABLE_NAME=${variable_name}
+      -P ${CMAKE_CURRENT_LIST_DIR}/cmake/embed_resource.cmake
+    DEPENDS ${resource_file_name}
+    COMMENT "Embedding ${resource_file_name} into ${source_file_name}"
+    VERBATIM
+  )
+  
+  # Create a custom target to ensure the file is generated
+  add_custom_target(${target_name}
+    DEPENDS ${source_file_name}
+  )
+  
+  # Make the main target depend on this custom target
+  add_dependencies(${PROJECT_NAME} ${target_name})
 endfunction()
+
+project_add_library(SHARED)
 
 if(VISRTX_ENABLE_MDL_SUPPORT)
     embed_resource(${CMAKE_SOURCE_DIR}/shaders/visrtx/default.mdl "${CMAKE_CURRENT_BINARY_DIR}/mdl/default.mdl.cpp" "VISRTX_DEFAULT_MDL")
     embed_resource(${CMAKE_SOURCE_DIR}/shaders/visrtx/physically_based.mdl "${CMAKE_CURRENT_BINARY_DIR}/mdl/physically_based.mdl.cpp" "VISRTX_PHYSICALLY_BASED_MDL")
 endif()
-
-project_add_library(SHARED)
 
 set(SOURCES
   Object.cpp
