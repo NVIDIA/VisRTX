@@ -76,7 +76,7 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Context &ctx,
     float3 *outNormals =
         vertexNormalArray ? vertexNormalArray->mapAs<float3>() : nullptr;
 
-    auto vertexTexCoordArray = ctx.createArray(ANARI_FLOAT32_VEC3,
+    auto vertexTexCoordArray = ctx.createArray(ANARI_FLOAT32_VEC2,
         mesh->HasTextureCoords(0 /*texcord set*/) ? numVertices : 0);
     float2 *outTexCoords =
         vertexTexCoordArray ? vertexTexCoordArray->mapAs<float2>() : nullptr;

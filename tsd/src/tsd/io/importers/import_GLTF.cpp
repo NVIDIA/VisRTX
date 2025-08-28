@@ -780,7 +780,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
       }
     } else {
       // Default values
-      material->setParameter("iridescence"_t, float3(0.0f, 0.0f, 0.0f));
+      material->setParameter("iridescence"_t, 0.0f);
       material->setParameter("iridescenceIor"_t, 1.3f);
       material->setParameter("iridescenceThickness"_t, 0.0f);
     }
