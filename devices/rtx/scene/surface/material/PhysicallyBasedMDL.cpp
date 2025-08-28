@@ -76,6 +76,8 @@ void PhysicallyBasedMDL::commitParameters()
 {
   // FIXME: Attributes are not supported in PhysicallyBasedMDL nor MDL
 
+  // Translate all supported parameters to their matching .value or .texture if they are
+  // variant inputs.
   translateAndRemoveParameter("opacity"sv);
   translateAndRemoveParameter("baseColor"sv);
   translateAndRemoveParameter("metallic"sv);
@@ -94,6 +96,15 @@ void PhysicallyBasedMDL::commitParameters()
   translateAndRemoveParameter("sheenRoughness"sv);
   translateAndRemoveParameter("iridescence"sv);
   translateAndRemoveParameter("iridescenceThickness"sv);
+
+  // Purposefully exclude the following from the above translation, as they are
+  // raw parameters and are already set correctly.
+  // alphaMode: enum
+  // alphaCutoff: float
+  // ior: float
+  // attenuationDistance: float
+  // attenuationColor: color
+  // iridescenceIor: float
 
   // Translate alphaMode to its matching integer value
   if (auto alphaModeAny = getParamDirect("alphaMode");

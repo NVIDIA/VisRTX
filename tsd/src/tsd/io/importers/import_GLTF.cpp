@@ -28,7 +28,8 @@ using namespace tsd::core;
 using namespace tsd::math;
 
 template <typename T>
-static T GetValueOrDefault(const tinygltf::Value &value, const T &defaultValue, const char* name)
+static T GetValueOrDefault(
+    const tinygltf::Value &value, const T &defaultValue, const char *name)
 {
   if (value.IsObject() && value.Has(name)) {
     auto subValue = value.Get(name);
@@ -40,20 +41,18 @@ static T GetValueOrDefault(const tinygltf::Value &value, const T &defaultValue, 
         return subValue.GetNumberAsInt();
     } else if constexpr (std::is_same_v<T, float3>) {
       if (subValue.IsArray() && subValue.ArrayLen() >= 3)
-        return float3(
-            subValue.Get(0).GetNumberAsDouble(),
+        return float3(subValue.Get(0).GetNumberAsDouble(),
             subValue.Get(1).GetNumberAsDouble(),
             subValue.Get(2).GetNumberAsDouble());
     } else if constexpr (std::is_same_v<T, float4>) {
       if (subValue.IsArray() && subValue.ArrayLen() >= 4)
-        return float4(
-            subValue.Get(0).GetNumberAsDouble(),
+        return float4(subValue.Get(0).GetNumberAsDouble(),
             subValue.Get(1).GetNumberAsDouble(),
             subValue.Get(2).GetNumberAsDouble(),
-            subValue.Get(3).GetNumberAsDouble()
-        );
+            subValue.Get(3).GetNumberAsDouble());
     } else {
-      // Note: If the type below fails to build for some types, specific constexpr entries need to be added to handle those.
+      // Note: If the type below fails to build for some types, specific
+      // constexpr entries need to be added to handle those.
       static auto REF_VALUE = tinygltf::Value(T{});
       if (subValue.Type() == REF_VALUE.Type())
         return subValue.template Get<T>();
@@ -63,14 +62,19 @@ static T GetValueOrDefault(const tinygltf::Value &value, const T &defaultValue, 
   return defaultValue;
 }
 
-
 template <typename T, typename... NAMES>
-static T GetValueOrDefault(const tinygltf::Value &value, const T &defaultValue, const char* name, const NAMES&... names)
+static T GetValueOrDefault(const tinygltf::Value &value,
+    const T &defaultValue,
+    const char *name,
+    const NAMES &...names)
 {
-  static_assert((std::is_same_v<std::remove_cv_t<std::decay_t<NAMES>>, char*> && ...), "All names must be C strings");
+  static_assert(
+      (std::is_same_v<std::remove_cv_t<std::decay_t<NAMES>>, char *> && ...),
+      "All names must be C strings");
   if (value.IsObject() && value.Has(name)) {
     auto subValue = value.Get(name);
-    return GetValueOrDefault<T>(subValue, defaultValue, std::forward<const NAMES&>(names)...);
+    return GetValueOrDefault<T>(
+        subValue, defaultValue, std::forward<const NAMES &>(names)...);
   }
 
   return defaultValue;
@@ -292,15 +296,15 @@ static std::vector<MaterialRef> importGLTFMaterials(
             "baseColor")) {
       // Make this an opaque color. Opacity is handled below.
       sampler->setParameter("outTransform"_t,
-          mat4(
-          {baseColorFactor.x, 0, 0, 0},
+          mat4({baseColorFactor.x, 0, 0, 0},
               {0, baseColorFactor.y, 0, 0},
               {0, 0, baseColorFactor.z, 0},
               {0, 0, 0, 0}));
       sampler->setParameter("outOffset"_t, float4(0, 0, 0, 1));
       material->setParameterObject("baseColor"_t, *sampler);
     } else {
-      material->setParameter("baseColor"_t, float3(baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]));
+      material->setParameter("baseColor"_t,
+          float3(baseColorFactor[0], baseColorFactor[1], baseColorFactor[2]));
     }
 
     if (auto sampler = importGLTFTexture(ctx,
@@ -370,10 +374,10 @@ static std::vector<MaterialRef> importGLTFMaterials(
             "normal")) {
       float normalScale = gltfMaterial.normalTexture.scale;
       sampler->setParameter("outTransform"_t,
-            mat4({normalScale, 0, 0, 0},
-                {0, normalScale, 0, 0},
-                {0, 0, 1, 0}, // Don't scale Z (blue) channel
-                {0, 0, 0, 1}));
+          mat4({normalScale, 0, 0, 0},
+              {0, normalScale, 0, 0},
+              {0, 0, 1, 0}, // Don't scale Z (blue) channel
+              {0, 0, 0, 1}));
       material->setParameterObject("normal"_t, *sampler);
     }
 
@@ -398,7 +402,8 @@ static std::vector<MaterialRef> importGLTFMaterials(
         emissiveStrengthIt != gltfMaterial.extensions.end()) {
       const auto &emissiveStrengthExt = emissiveStrengthIt->second;
 
-      emissiveFactor *= GetValueOrDefault(emissiveStrengthExt, 1.0f, "emissiveStrength");
+      emissiveFactor *=
+          GetValueOrDefault(emissiveStrengthExt, 1.0f, "emissiveStrength");
     }
 
     if (auto sampler = importGLTFTexture(ctx,
@@ -439,11 +444,12 @@ static std::vector<MaterialRef> importGLTFMaterials(
       const auto &transmissionExt = transmissionIt->second;
 
       // Transmission factor
-      float transmissionFactor = GetValueOrDefault(transmissionExt, 0.0f, "transmissionFactor");
+      float transmissionFactor =
+          GetValueOrDefault(transmissionExt, 0.0f, "transmissionFactor");
 
       // Transmission texture
-      auto transmissionTextureIndex =
-          GetValueOrDefault(transmissionExt, -1, "transmissionTexture", "index");
+      auto transmissionTextureIndex = GetValueOrDefault(
+          transmissionExt, -1, "transmissionTexture", "index");
       if (auto sampler = importGLTFTexture(ctx,
               model,
               transmissionTextureIndex,
@@ -468,9 +474,9 @@ static std::vector<MaterialRef> importGLTFMaterials(
     // KHR_materials_ior extension
     if (auto iorIt = gltfMaterial.extensions.find("KHR_materials_ior");
         iorIt != gltfMaterial.extensions.end()) {
-        const auto &iorExt = iorIt->second;
-        float ior = GetValueOrDefault(iorExt, 1.5f, "ior");
-        material->setParameter("ior"_t, ior);
+      const auto &iorExt = iorIt->second;
+      float ior = GetValueOrDefault(iorExt, 1.5f, "ior");
+      material->setParameter("ior"_t, ior);
     } else {
       // Default values
       material->setParameter("ior"_t, 1.5f);
@@ -482,10 +488,12 @@ static std::vector<MaterialRef> importGLTFMaterials(
       const auto &volumeExt = volumeIt->second;
 
       // Thickness factor
-      float thicknessFactor = GetValueOrDefault(volumeExt, 0.0f, "thicknessFactor");
+      float thicknessFactor =
+          GetValueOrDefault(volumeExt, 0.0f, "thicknessFactor");
 
       // Thickness texture
-      auto thicknessTextureIndex = GetValueOrDefault(volumeExt, -1, "thicknessTexture", "index");
+      auto thicknessTextureIndex =
+          GetValueOrDefault(volumeExt, -1, "thicknessTexture", "index");
       if (auto sampler = importGLTFTexture(ctx,
               model,
               thicknessTextureIndex,
@@ -504,16 +512,19 @@ static std::vector<MaterialRef> importGLTFMaterials(
       }
 
       // Attenuation distance
-      float attenuationDistance = GetValueOrDefault(volumeExt, 0.0f, "attenuationDistance");
+      float attenuationDistance =
+          GetValueOrDefault(volumeExt, 0.0f, "attenuationDistance");
       material->setParameter("attenuationDistance"_t, attenuationDistance);
 
       // Attenuation color
-      float3 attenuationColor = GetValueOrDefault(volumeExt, float3(1.0f, 1.0f, 1.0f), "attenuationColor");
+      float3 attenuationColor = GetValueOrDefault(
+          volumeExt, float3(1.0f, 1.0f, 1.0f), "attenuationColor");
       material->setParameter("attenuationColor"_t, attenuationColor);
     } else {
       // Default values
       material->setParameter("thickness"_t, 0.0f);
-      material->setParameter("attenuationDistance"_t, std::numeric_limits<float>::max());
+      material->setParameter(
+          "attenuationDistance"_t, std::numeric_limits<float>::max());
       material->setParameter("attenuationColor"_t, float3(1.0f, 1.0f, 1.0f));
     }
 
@@ -524,10 +535,12 @@ static std::vector<MaterialRef> importGLTFMaterials(
       const auto &clearcoatExt = clearcoatIt->second;
 
       // Clearcoat factor
-      float clearcoatFactor = GetValueOrDefault(clearcoatExt, 0.0f, "clearcoatFactor");
-      
+      float clearcoatFactor =
+          GetValueOrDefault(clearcoatExt, 0.0f, "clearcoatFactor");
+
       // Clearcoat texture
-      auto clearcoatTextureIndex = GetValueOrDefault(clearcoatExt, -1, "clearcoatTexture", "index");
+      auto clearcoatTextureIndex =
+          GetValueOrDefault(clearcoatExt, -1, "clearcoatTexture", "index");
       if (auto sampler = importGLTFTexture(ctx,
               model,
               clearcoatTextureIndex,
@@ -546,10 +559,12 @@ static std::vector<MaterialRef> importGLTFMaterials(
       }
 
       // Clearcoat roughness factor
-      float clearcoatRoughnessFactor = GetValueOrDefault(clearcoatExt, 0.0f, "clearcoatRoughnessFactor");
+      float clearcoatRoughnessFactor =
+          GetValueOrDefault(clearcoatExt, 0.0f, "clearcoatRoughnessFactor");
 
       // Clearcoat roughness texture
-      auto clearcoatRoughnessTextureIndex = GetValueOrDefault(clearcoatExt, -1, "clearcoatRoughnessTexture", "index");
+      auto clearcoatRoughnessTextureIndex = GetValueOrDefault(
+          clearcoatExt, -1, "clearcoatRoughnessTexture", "index");
       if (auto sampler = importGLTFTexture(ctx,
               model,
               clearcoatRoughnessTextureIndex,
@@ -569,7 +584,8 @@ static std::vector<MaterialRef> importGLTFMaterials(
       }
 
       // Clearcoat normal texture
-      auto clearcoatNormalTextureIndex = GetValueOrDefault(clearcoatExt, -1, "clearcoatNormalTexture", "index");
+      auto clearcoatNormalTextureIndex = GetValueOrDefault(
+          clearcoatExt, -1, "clearcoatNormalTexture", "index");
       if (auto sampler = importGLTFTexture(ctx,
               model,
               clearcoatNormalTextureIndex,
@@ -592,14 +608,13 @@ static std::vector<MaterialRef> importGLTFMaterials(
         specularIt != gltfMaterial.extensions.end()) {
       const auto &specularExt = specularIt->second;
 
-      float specularFactor = GetValueOrDefault(specularExt, 1.0f, "specularFactor");
+      float specularFactor =
+          GetValueOrDefault(specularExt, 1.0f, "specularFactor");
 
-      auto specularTextureIndex = GetValueOrDefault(specularExt, -1, "specularTexture", "index");
-      if (auto sampler = importGLTFTexture(ctx,
-              model,
-              specularTextureIndex,
-              cache,
-              true)) {
+      auto specularTextureIndex =
+          GetValueOrDefault(specularExt, -1, "specularTexture", "index");
+      if (auto sampler = importGLTFTexture(
+              ctx, model, specularTextureIndex, cache, true)) {
         sampler->setParameter("outTransform"_t,
             mat4({0, 0, 0, 0},
                 {0, 0, 0, 0},
@@ -613,7 +628,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
 
       // Handle specular color (factor and texture)
       float3 specularColorFactor = GetValueOrDefault(
-         specularExt, float3(1.0f, 1.0f, 1.0f), "specularColorFactor");
+          specularExt, float3(1.0f, 1.0f, 1.0f), "specularColorFactor");
 
       auto specularColorTextureIndex =
           GetValueOrDefault(specularExt, -1, "specularColorTexture", "index");
@@ -646,10 +661,12 @@ static std::vector<MaterialRef> importGLTFMaterials(
       const auto &sheenExt = sheenIt->second;
 
       // Sheen color factor
-      float3 sheenColorFactor = GetValueOrDefault(sheenExt, float3(0.0f, 0.0f, 0.0f), "sheenColorFactor");
+      float3 sheenColorFactor = GetValueOrDefault(
+          sheenExt, float3(0.0f, 0.0f, 0.0f), "sheenColorFactor");
 
       // Sheen color texture
-      auto sheenColorTextureIndex = GetValueOrDefault(sheenExt, -1, "sheenColorTexture", "index");
+      auto sheenColorTextureIndex =
+          GetValueOrDefault(sheenExt, -1, "sheenColorTexture", "index");
       if (auto sampler = importGLTFTexture(ctx,
               model,
               sheenColorTextureIndex,
@@ -668,7 +685,8 @@ static std::vector<MaterialRef> importGLTFMaterials(
       }
 
       // Sheen roughness factor
-      float sheenRoughnessFactor = GetValueOrDefault(sheenExt, 0.f, "sheenRoughnessFactor");
+      float sheenRoughnessFactor =
+          GetValueOrDefault(sheenExt, 0.f, "sheenRoughnessFactor");
 
       // Sheen roughness texture
       auto sheenRoughnessTextureIndex =
@@ -702,10 +720,12 @@ static std::vector<MaterialRef> importGLTFMaterials(
       const auto &iridescenceExt = iridescenceIt->second;
 
       // Iridescence factor
-      float iridescenceFactor = GetValueOrDefault(iridescenceExt, 0.0f, "iridescenceFactor");
+      float iridescenceFactor =
+          GetValueOrDefault(iridescenceExt, 0.0f, "iridescenceFactor");
 
       // Iridescence texture
-      auto iridescenceTextureIndex = GetValueOrDefault(iridescenceExt, -1, "iridescenceTexture", "index");
+      auto iridescenceTextureIndex =
+          GetValueOrDefault(iridescenceExt, -1, "iridescenceTexture", "index");
       if (auto sampler = importGLTFTexture(ctx,
               model,
               iridescenceTextureIndex,
@@ -724,17 +744,21 @@ static std::vector<MaterialRef> importGLTFMaterials(
       }
 
       // Iridescence IOR
-      float iridescenceIor = GetValueOrDefault(iridescenceExt, 0.0f, "iridescenceIor");
+      float iridescenceIor =
+          GetValueOrDefault(iridescenceExt, 0.0f, "iridescenceIor");
       material->setParameter("iridescenceIor"_t, iridescenceIor);
 
       // Iridescence thickness minimum
-      float iridescenceThicknessMinimum = GetValueOrDefault(iridescenceExt, 100.0f, "iridescenceThicknessMinimum");
+      float iridescenceThicknessMinimum = GetValueOrDefault(
+          iridescenceExt, 100.0f, "iridescenceThicknessMinimum");
 
       // Iridescence thickness maximum
-      float iridescenceThicknessMaximum = GetValueOrDefault(iridescenceExt, 400.0f, "iridescenceThicknessMaximum");
+      float iridescenceThicknessMaximum = GetValueOrDefault(
+          iridescenceExt, 400.0f, "iridescenceThicknessMaximum");
 
       // Iridescence thickness texture
-      auto iridescenceThicknessTextureIndex = GetValueOrDefault(iridescenceExt, -1, "iridescenceThicknessTexture", "index");
+      auto iridescenceThicknessTextureIndex = GetValueOrDefault(
+          iridescenceExt, -1, "iridescenceThicknessTexture", "index");
       if (auto sampler = importGLTFTexture(ctx,
               model,
               iridescenceThicknessTextureIndex,
@@ -801,7 +825,8 @@ static void copyStridedData(
     // Calculate the size of one element based on accessor type and
     // component type
     size_t elementSize = tinygltf::GetNumComponentsInType(accessor.type);
-    size_t componentSize = tinygltf::GetComponentSizeInBytes(accessor.componentType);
+    size_t componentSize =
+        tinygltf::GetComponentSizeInBytes(accessor.componentType);
 
     size_t bytesPerElement = elementSize * componentSize;
 
@@ -998,16 +1023,123 @@ static std::vector<SurfaceRef> importGLTFMeshes(Context &ctx,
         }
       }
 
-      // Calculate tangents if not provided
-      if (tangentIt == primitive.attributes.end()
-          && normalIt != primitive.attributes.end()
-          && texCoordIt != primitive.attributes.end()) {
-        // For now, skip tangent calculation. It should be using the same CalculateTangents function as the ASSIMP importer.
-      }
-
       std::string geometryName = mesh.name + "_primitive_"
           + std::to_string(&primitive - &mesh.primitives[0]);
       geometry->setName(geometryName.c_str());
+
+      // Calculate tangents if they weren't provided and we have the necessary
+      // data
+      if (tangentIt == primitive.attributes.end()) {
+        // Check if we have all the required data for tangent calculation
+        auto posIt = primitive.attributes.find("POSITION");
+        auto normalIt = primitive.attributes.find("NORMAL");
+        auto texCoordIt = primitive.attributes.find("TEXCOORD_0");
+
+        if (posIt != primitive.attributes.end()
+            && normalIt != primitive.attributes.end()
+            && texCoordIt != primitive.attributes.end()) {
+          // Get the accessors
+          const auto &posAccessor = model.accessors[posIt->second];
+          const auto &normalAccessor = model.accessors[normalIt->second];
+          const auto &texCoordAccessor = model.accessors[texCoordIt->second];
+
+          // Verify we have the right data types
+          if (posAccessor.type == TINYGLTF_TYPE_VEC3
+              && posAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT
+              && normalAccessor.type == TINYGLTF_TYPE_VEC3
+              && normalAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT
+              && texCoordAccessor.type == TINYGLTF_TYPE_VEC2
+              && texCoordAccessor.componentType
+                  == TINYGLTF_COMPONENT_TYPE_FLOAT) {
+            // Get the data
+            const float3 *positions =
+                getAccessorData<float3>(model, posIt->second);
+            const float3 *normals =
+                getAccessorData<float3>(model, normalIt->second);
+            const float2 *texCoords =
+                getAccessorData<float2>(model, texCoordIt->second);
+
+            // Get or generate indices
+            std::vector<uint3> indices;
+            if (primitive.indices >= 0) {
+              // Indexed geometry
+              const auto &indexAccessor = model.accessors[primitive.indices];
+              if (indexAccessor.componentType
+                  == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+                const uint16_t *indexData =
+                    getAccessorData<uint16_t>(model, primitive.indices);
+                indices.reserve(indexAccessor.count / 3);
+                for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
+                  indices.push_back(uint3(indexData[i * 3],
+                      indexData[i * 3 + 1],
+                      indexData[i * 3 + 2]));
+                }
+              } else if (indexAccessor.componentType
+                  == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+                const uint32_t *indexData =
+                    getAccessorData<uint32_t>(model, primitive.indices);
+                indices.reserve(indexAccessor.count / 3);
+                for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
+                  indices.push_back(uint3(indexData[i * 3],
+                      indexData[i * 3 + 1],
+                      indexData[i * 3 + 2]));
+                }
+              }
+            } else {
+              // Non-indexed geometry (triangle soup) - generate sequential
+              // indices. calcTangentsForTriangleMesh should be adapted to not
+              // need that. Let's save that change for later.
+              size_t numTriangles = posAccessor.count / 3;
+              indices.reserve(numTriangles);
+              for (size_t i = 0; i < numTriangles; ++i) {
+                indices.push_back(uint3(i * 3, i * 3 + 1, i * 3 + 2));
+              }
+            }
+
+            if (!indices.empty()) {
+              // Create tangent array and compute tangents
+              auto vertexTangentArray =
+                  ctx.createArray(ANARI_FLOAT32_VEC4, posAccessor.count);
+              auto *tangents = vertexTangentArray->mapAs<float4>();
+
+              bool success = calcTangentsForTriangleMesh(indices.data(),
+                  positions,
+                  normals,
+                  texCoords,
+                  tangents,
+                  indices.size(),
+                  posAccessor.count);
+
+              vertexTangentArray->unmap();
+
+              if (success) {
+                geometry->setParameterObject(
+                    "vertex.tangent"_t, *vertexTangentArray);
+                logInfo(
+                    "[import_GLTF] Computed tangents for geometry '%s' with %zu vertices and %zu triangles",
+                    geometryName.c_str(),
+                    posAccessor.count,
+                    indices.size());
+              } else {
+                logWarning(
+                    "[import_GLTF] Failed to compute tangents for geometry '%s'",
+                    geometryName.c_str());
+              }
+            }
+          } else {
+            logDebug(
+                "[import_GLTF] Skipping tangent computation for geometry '%s': incompatible data types",
+                geometryName.c_str());
+          }
+        } else {
+          logDebug(
+              "[import_GLTF] Skipping tangent computation for geometry '%s': missing required attributes (position=%s, normal=%s, texcoord=%s)",
+              geometryName.c_str(),
+              (posIt != primitive.attributes.end()) ? "yes" : "no",
+              (normalIt != primitive.attributes.end()) ? "yes" : "no",
+              (texCoordIt != primitive.attributes.end()) ? "yes" : "no");
+        }
+      }
 
       // Create surface with material
       MaterialRef material;
@@ -1149,8 +1281,10 @@ static void populateGLTFLayer(Context &ctx,
 
     if (node.rotation.size() == 4) {
       // Quaternion to matrix conversion
-      rotation = rotation_matrix(
-        float4(node.rotation[0], node.rotation[1], node.rotation[2], node.rotation[3]));
+      rotation = rotation_matrix(float4(node.rotation[0],
+          node.rotation[1],
+          node.rotation[2],
+          node.rotation[3]));
     }
 
     if (node.scale.size() == 3) {

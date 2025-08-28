@@ -359,7 +359,7 @@ export material physically_based_material(
     FloatInput iridescence = LookUpFloatInput(value: 0.0f)
     [[
         anno::in_group("Thin film Layer"),
-        anno::display_name("Idirescence"),
+        anno::display_name("Iridescence"),
         anno::description("strength of the thin-film layer")
     ]],
     float iridescenceIor = 1.3f
@@ -391,6 +391,8 @@ export material physically_based_material(
     float resolvedSpecular = ResolveFloatInput(specular);
     color resolvedSpecularColor = ResolveColorInput(specularColor);
 
+    float resolvedIor = ior;
+
     float resolvedRoughness = ResolveFloatInput(roughness);
     float resolvedMetallic = ResolveFloatInput(metallic);
 
@@ -400,6 +402,7 @@ export material physically_based_material(
 
     float resolvedIridescence = ResolveFloatInput(iridescence);
     float resolvedIridescenceThickness = ResolveFloatInput(iridescenceThickness);
+    float resolvedIridescenceIor = iridescenceIor;
 
     color resolvedSheenColor = ResolveColorInput(sheenColor);
     float resolvedSheenRoughness = ResolveFloatInput(sheenRoughness);
@@ -436,20 +439,21 @@ export material physically_based_material(
     // That gives our dielectric component
     bsdf dielectricBsdf = ::df::fresnel_layer(
         weight: resolvedSpecular,
-        ior: ior,
+        ior: resolvedIor,
         base: diffuseBsdf,
         layer: specularBsdf,
     );
 
     // Iridescence on the dielectric layer
+    bsdf iridescenceBsdf = ::df::thin_film(
+            thickness: resolvedIridescenceThickness,
+            ior: color(resolvedIridescenceIor),
+            base: dielectricBsdf,
+        );
     bsdf dielectricIridescenceBsdf = ::df::weighted_layer(
         weight: resolvedIridescence,
         base: dielectricBsdf,
-        layer: ::df::thin_film(
-            thickness: resolvedIridescenceThickness,
-            ior: color(iridescenceIor),
-            base: dielectricBsdf,
-        ),
+        layer: iridescenceBsdf,
     );
 
     // Sheen
