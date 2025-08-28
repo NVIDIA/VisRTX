@@ -12,8 +12,6 @@
 
 #include <cmath>
 #include <cstdio>
-#include <glm/fwd.hpp>
-#include <glm/gtc/quaternion.hpp>
 #include <limits>
 #include <string>
 #include <type_traits>
