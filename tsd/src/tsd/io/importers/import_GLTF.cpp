@@ -775,6 +775,8 @@ static std::vector<MaterialRef> importGLTFMaterials(
         sampler->setParameter("outOffset"_t,
             float4(iridescenceThicknessMinimum, 0.0f, 0.0f, 0.0f));
         material->setParameterObject("iridescenceThickness"_t, *sampler);
+      } else {
+        material->setParameter("iridescenceThickness"_t, iridescenceThicknessMaximum - iridescenceThicknessMinimum);
       }
     } else {
       // Default values
