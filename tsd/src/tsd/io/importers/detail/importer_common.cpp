@@ -323,7 +323,7 @@ SamplerRef makeDefaultColorMapSampler(Context &ctx, const float2 &range)
 bool calcTangentsForTriangleMesh(const uint3 *indices,
     const float3 *vertexPositions,
     const float3 *vertexNormals,
-    const float3 *texCoords,
+    const float2 *texCoords,
     float4 *tangents,
     size_t numIndices,
     size_t numVertices)
@@ -339,7 +339,7 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
     const uint3 *indices;
     const float3 *vertexPositions;
     const float3 *vertexNormals;
-    const float3 *texCoords;
+    const float2 *texCoords;
     float4 *tangents;
     size_t numIndices;
     size_t numVertices;

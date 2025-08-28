@@ -78,8 +78,8 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Context &ctx,
 
     auto vertexTexCoordArray = ctx.createArray(ANARI_FLOAT32_VEC3,
         mesh->HasTextureCoords(0 /*texcord set*/) ? numVertices : 0);
-    float3 *outTexCoords =
-        vertexTexCoordArray ? vertexTexCoordArray->mapAs<float3>() : nullptr;
+    float2 *outTexCoords =
+        vertexTexCoordArray ? vertexTexCoordArray->mapAs<float2>() : nullptr;
 
     auto vertexTangentArray = ctx.createArray(
         ANARI_FLOAT32_VEC4, mesh->HasTangentsAndBitangents() ? numVertices : 0);
@@ -104,7 +104,7 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Context &ctx,
       // TODO: import tc sets > 0 accordingly..
       if (mesh->HasTextureCoords(0) && outTexCoords) {
         aiVector3D tc = mesh->mTextureCoords[0][j];
-        outTexCoords[j] = float3(tc.x, tc.y, tc.z);
+        outTexCoords[j] = float2(tc.x, tc.y);
       }
 
       if (mesh->HasTangentsAndBitangents() && mesh->HasNormals()

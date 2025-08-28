@@ -28,7 +28,7 @@ tsd::core::SamplerRef makeDefaultColorMapSampler(
 bool calcTangentsForTriangleMesh(const tsd::math::uint3 *indices,
     const tsd::math::float3 *vertexPositions,
     const tsd::math::float3 *vertexNormals,
-    const tsd::math::float3 *texCoords,
+    const tsd::math::float2 *texCoords,
     tsd::math::float4 *tangents,
     size_t numIndices,
     size_t numVertices);
