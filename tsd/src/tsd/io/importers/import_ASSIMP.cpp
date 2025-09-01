@@ -299,11 +299,54 @@ static std::vector<MaterialRef> importASSIMPMaterials(
         m->setParameter("roughness"_t, ANARI_FLOAT32, &roughnessFactor);
       }
 
+#ifdef AI_MATKEY_ANISOTROPY_TEXTURE
+      // anisotropic texture added with assimp 6.0
+      if (aiString anisotropyTexture;
+          assimpMat->GetTexture(AI_MATKEY_ANISOTROPY_TEXTURE, &anisotropyTexture)
+          == AI_SUCCESS) {
+        if (auto sampler = loadTexture(anisotropyTexture, true); sampler) {
+          // Map red to red/green/blue as expected by our gltf pbr implementation
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_ANISOTROPY, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          // - Tangent/bitangent Direction is red/green
+          //   and remap from [0:1] to [-1:1]
+          sampler->setParameter("outTransform"_t,
+              mat4({2, 0, 0, 0}, {0, 2, 0, 0}, {0, 0, 0, 0}, {-1, -1, 0, 1}));
+          m->setParameterObject("anisotropyDirection"_t, *sampler);
+        }
+        if (auto sampler = loadTexture(anisotropyTexture, true); sampler) {
+          // Map red to red/green/blue as expected by our gltf pbr implementation
+          auto tx = getTextureUVTransform(
+              AI_MATKEY_UVTRANSFORM(aiTextureType_ANISOTROPY, 0));
+          sampler->setParameter("inTransform"_t, tx);
+          // - Strength is blue
+          sampler->setParameter("outTransform"_t,
+              mat4({0, 0, 0, 0}, {0, 0, 0, 0}, {1, 0, 0, 0}, {0, 0, 0, 1}));
+          m->setParameterObject("anisotropyStrength"_t, *sampler);
+        }
+      } else
+#endif
+      if (ai_real anisotropyFactor;
+          assimpMat->Get(AI_MATKEY_ANISOTROPY_FACTOR, anisotropyFactor)
+          == AI_SUCCESS) {
+        m->setParameter("anisotropyStrength"_t, ANARI_FLOAT32, &anisotropyFactor);
+      }
+
+#ifdef AI_MATKEY_ANISOTROPY_ROTATION
+      // anisotropic rotation added with assimp 6.0
+      if (ai_real anisotropyRotation;
+          assimpMat->Get(AI_MATKEY_ANISOTROPY_ROTATION, anisotropyRotation)
+          == AI_SUCCESS) {
+        m->setParameter("anisotropyRotation"_t, ANARI_FLOAT32, &anisotropyRotation);
+      }
+#endif
+
       // Specular workflow
       if (aiColor3D specularColor;
           assimpMat->Get(AI_MATKEY_COLOR_SPECULAR, specularColor)
           == AI_SUCCESS) {
-        m->setParameter("specularcColor"_t, ANARI_FLOAT32_VEC3, &specularColor);
+        m->setParameter("specularColor"_t, ANARI_FLOAT32_VEC3, &specularColor);
       }
       if (ai_real specularFactor;
           assimpMat->Get(AI_MATKEY_SPECULAR_FACTOR, specularFactor)

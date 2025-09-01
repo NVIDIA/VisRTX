@@ -52,6 +52,20 @@ Material::Material(Token subtype) : Object(ANARI_MATERIAL, subtype)
         .setDescription("roughness")
         .setMin(0.f)
         .setMax(1.f);
+    addParameter("anisotropyStrength")
+        .setValue(0.f)
+        .setDescription("anisotropy strength in [0:1]")
+        .setMin(0.f)
+        .setMax(1.f);
+    addParameter("anisotropyDirection")
+        .setValue(float2(1.f, 0.f))
+        .setDescription("direction in tangent and bitangent space, in [-1:1]^2");
+    addParameter("anisotropyRotation")
+        .setValue(0.f)
+        .setDescription("anisotropy rotation (in radians)")
+        .setMin(0.f)
+        //.setMax(M_PI*2.f); /* not sure why, but this leads to crashes.... */
+        .setMax(1.f);
     addParameter("emissive")
         .setValue(float3(0.f, 0.f, 0.f))
         .setDescription("strength of emissiveness")
