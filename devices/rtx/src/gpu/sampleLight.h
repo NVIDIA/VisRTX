@@ -47,12 +47,13 @@
 
 namespace visrtx {
 
+// Light sampling result containing direction, distance, radiance and PDF
 struct LightSample
 {
-  vec3 radiance;
-  vec3 dir;
-  float dist;
-  float pdf;
+  vec3 radiance;  // Emitted radiance in direction of hit point (W⋅sr⁻¹⋅m⁻²)
+  vec3 dir;       // Unit direction vector from hit point to light sample
+  float dist;     // Distance from hit point to light sample
+  float pdf;      // Probability density function value for this sample
 };
 
 namespace detail {
@@ -61,9 +62,14 @@ VISRTX_DEVICE LightSample sampleDirectionalLight(
     const LightGPUData &ld, const mat4 &xfm)
 {
   LightSample ls;
+  // Transform light direction to world space and negate to get direction TO light
+  // (ld.distant.direction points FROM the light source)
   ls.dir = xfmVec(xfm, -ld.distant.direction);
   ls.dist = std::numeric_limits<float>::infinity();
+  // For directional lights, irradiance is the amount of light per unit area
+  // arriving at the surface (W/m²)
   ls.radiance = ld.color * ld.distant.irradiance;
+  // Delta function: directional light has no spatial extent, so PDF = 1
   ls.pdf = 1.f;
 
   return ls;
@@ -73,11 +79,67 @@ VISRTX_DEVICE LightSample samplePointLight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit)
 {
   LightSample ls;
+  // Calculate vector from hit point to light position
   ls.dir = xfmPoint(xfm, ld.point.position) - hit.hitpoint;
   ls.dist = length(ls.dir);
-  ls.dir = glm::normalize(ls.dir);
-  ls.radiance = ld.color * ld.point.intensity * (1.f / pow2(ls.dist));
+  ls.dir /= ls.dist;
+  // Apply inverse square law: intensity falls off as 1/r²
+  // This converts intensity (W/sr) to radiance at the hit point
+  ls.radiance = ld.color * ld.point.intensity / pow2(ls.dist);
+  // Delta function: point light has no spatial extent, so PDF = 1
   ls.pdf = 1.f;
+
+  return ls;
+}
+
+VISRTX_DEVICE LightSample sampleSphereLight(
+    const LightGPUData &ld, const mat4 &xfm, const Hit &hit, RandState &rs)
+{
+  LightSample ls;
+  auto u1 = curand_uniform(&rs);
+  auto u2 = curand_uniform(&rs);
+  
+  // Uniform sampling on unit sphere using Marsaglia's method
+  // u1 maps to z-coordinate: z ∈ [-1, 1]
+  auto z = 1.f - 2.f * u1;
+  // r is the radius in the xy-plane for this z-level
+  auto r = sqrtf(std::max(0.f, 1.f - z * z));
+  // u2 maps to azimuthal angle: φ ∈ [0, 2π]
+  auto phi = 2.f * float(M_PI) * u2;
+  auto x = r * cosf(phi);
+  auto y = r * sinf(phi);
+  
+  // Scale by sphere radius to get point on sphere surface
+  auto p = vec3(x, y, z) * ld.sphere.radius;
+  auto worldSamplePos = xfmPoint(xfm, ld.sphere.position + p);
+  ls.dir = worldSamplePos - hit.hitpoint;
+  ls.dist = length(ls.dir);
+  ls.dir /= ls.dist;
+  
+  // Sphere emits uniformly in all directions (Lambertian)
+  ls.radiance = ld.color * ld.sphere.intensity;
+  
+  // Convert area PDF to solid angle PDF for proper Monte Carlo integration
+  // Area PDF = 1 / (4πr²), but we need solid angle PDF
+  // Conversion: pdf_solid_angle = pdf_area * distance² / |cos θ|
+  // For sphere: cos θ = dot(surface_normal, -light_direction)
+  // Surface normal at sampled point: direction from sphere center to sample point
+  auto worldSphereCenter = xfmPoint(xfm, ld.sphere.position);
+  auto surfaceNormal = normalize(worldSamplePos - worldSphereCenter);
+  auto cosTheta = dot(surfaceNormal, -ls.dir);
+  
+  if (cosTheta > 0.0f) {
+    // Note: For non-uniform scaling transforms, the area calculation would need
+    // to account for the transform's effect on surface area (determinant of jacobian)
+    // Currently assumes uniform scaling or no scaling of the light geometry
+    float areaPdf = 1.f / (4.f * float(M_PI) * ld.sphere.radius * ld.sphere.radius);
+    ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
+  } else {
+    // Back-facing surface element contributes no light
+    ls.radiance = vec3(0.0f);
+    ls.pdf = 0.0f;
+  }
+
   return ls;
 }
 
@@ -162,7 +224,7 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   // ld.hdri.xfm is computed in HDRI.cpp and is made so it is an orthogonal
   // matrix. So transposing is actually the same as inverting. Use RHS
   // multiplication so we don't have to transpose the matrix.
-  ls.dir = sphericalCoordsToDirection(thetaPhi) * ld.hdri.xfm;
+  ls.dir = xfmVec(xfm, sphericalCoordsToDirection(thetaPhi) * ld.hdri.xfm);
   ls.dist = 1e20f;
   ls.radiance = radiance * ld.hdri.scale;
   ls.pdf = pdf;
@@ -182,6 +244,8 @@ VISRTX_DEVICE LightSample sampleLight(
     return detail::sampleDirectionalLight(ld, xfm);
   case LightType::POINT:
     return detail::samplePointLight(ld, xfm, hit);
+  case LightType::SPHERE:
+    return detail::sampleSphereLight(ld, xfm, hit, ss.rs);
   case LightType::SPOT:
     return detail::sampleSpotLight(ld, xfm, hit);
   case LightType::HDRI:

@@ -45,6 +45,7 @@ struct Point : public Light
   LightGPUData gpuData() const override;
 
   vec3 m_position{0.f, 0.f, 0.f};
+  float m_radius{0.f};
   float m_intensity{1.f};
 };
 

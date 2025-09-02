@@ -46,6 +46,11 @@ Light::Light(Token subtype) : Object(ANARI_LIGHT, subtype)
     addParameter("position")
         .setValue(float3(0.f, 0.f, 0.f))
         .setDescription("the position of the point light");
+    addParameter("radius")
+        .setValue(0.f)
+        .setDescription(
+            "the radius of the sphere that emits light, in case of an arealight.")
+        .setMin(0.f);
     addParameter("intensity")
         .setValue(1.f)
         .setDescription(
