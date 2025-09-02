@@ -232,10 +232,12 @@ MaterialRegistry::acquireMaterial(
       textureDesc.colorSpace = libmdl::ColorSpace::sRGB;
       break;
     }
+#if MI_NEURAYLIB_API_VERSION < 57
     case mi::neuraylib::ITarget_code::GM_FORCE_32_BIT: {
       assert(false);
       break;
     }
+#endif
     }
 
     textureDescs.push_back(textureDesc);
