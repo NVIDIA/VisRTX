@@ -151,8 +151,9 @@ set(SOURCES
   scene/World.cpp
   scene/ComputeTangent.cu
 
+  scene/light/sampling/CDF.cu
   scene/light/Directional.cpp
-  scene/light/HDRI.cu
+  scene/light/HDRI.cpp
   scene/light/Light.cpp
   scene/light/Point.cpp
   scene/light/Rect.cpp

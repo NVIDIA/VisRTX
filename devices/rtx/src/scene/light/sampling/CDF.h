@@ -31,48 +31,24 @@
 
 #pragma once
 
-#include "Light.h"
-
-#include "array/Array2D.h"
+#include "utility/DeviceBuffer.h"
 
 #include <glm/ext/vector_float3.hpp>
-#include <glm/ext/vector_uint2.hpp>
-
-#include <texture_types.h>
-
-#include <cstdint>
 
 namespace visrtx {
 
-struct HDRI : public Light
-{
-  HDRI(DeviceGlobalState *d);
-  ~HDRI() override;
+// Importance sampling support
+float generateCDFTables(const glm::vec3 *luminance,
+      int width,
+      int height,
+      DeviceBuffer *marginalCdf,
+      DeviceBuffer *conditionalCdf);
 
-  void commitParameters() override;
-  void finalize() override;
-  bool isValid() const override;
-  bool isHDRI() const override;
-
- private:
-  LightGPUData gpuData() const override;
-  void cleanup();
-
-  // Data //
-
-  vec3 m_up{0.f, 0.f, 1.f};
-  vec3 m_direction{1.f, 0.f, 0.f};
-  float m_scale{1.f};
-  bool m_visible{true};
-  uvec2 m_size{0, 0};
-  helium::ChangeObserverPtr<Array2D> m_radiance;
-  cudaTextureObject_t m_radianceTex{};
-  DeviceBuffer m_marginalCDF;
-  DeviceBuffer m_conditionalCDF;
-  float m_pdfWeight{0.f};
-#ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG
-  uint32_t *m_samples{nullptr};
-#endif
-};
+// Importance sampling support
+float generateCDFTables(const float *luminance,
+      int width,
+      int height,
+      DeviceBuffer *marginalCdf,
+      DeviceBuffer *conditionalCdf);
 
 } // namespace visrtx
