@@ -194,8 +194,9 @@ VISRTX_DEVICE LightSample sampleSpotLight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit)
 {
   LightSample ls;
-  ls.dir = glm::normalize(xfmPoint(xfm, ld.spot.position) - hit.hitpoint);
+  ls.dir = xfmPoint(xfm, ld.spot.position) - hit.hitpoint;
   ls.dist = length(ls.dir);
+  ls.dir /= ls.dist;
   float spot = dot(normalize(ld.spot.direction), -ls.dir);
   if (spot < ld.spot.cosOuterAngle)
     spot = 0.f;
@@ -206,8 +207,8 @@ VISRTX_DEVICE LightSample sampleSpotLight(
         / (ld.spot.cosInnerAngle - ld.spot.cosOuterAngle);
     spot = spot * spot * (3.f - 2.f * spot);
   }
-  ls.radiance = ld.color * ld.spot.intensity * spot;
-  ls.pdf = 1.f;
+  ls.radiance = ld.color * ld.spot.intensity * spot / pow2(ls.dist);
+  ls.pdf = spot > 0.0f ? 1.f : 0.0f;
   return ls;
 }
 
