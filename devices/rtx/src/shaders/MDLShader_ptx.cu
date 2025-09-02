@@ -137,8 +137,8 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
       reinterpret_cast<const float3 *>(shadingState->textureTangentsV);
 
   // Resources shared by all mdl calls.
+  shadingState->textureHandler.vtable = nullptr;
   shadingState->textureHandler.fd = fd;
-  // shadingState->textureHandler.ss = ss;
   memcpy(shadingState->textureHandler.samplers,
       md->samplers,
       sizeof(md->samplers));
@@ -154,7 +154,7 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   // Init
   mdlInit(&shadingState->state,
       &shadingState->resData,
-      shadingState->argBlock); // Should be factored out
+      shadingState->argBlock);
 }
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.

@@ -88,7 +88,6 @@ struct PhysicallyBasedShadingState
 struct TextureHandler : mi::neuraylib::Texture_handler_base
 {
   const visrtx::FrameGPUData *fd;
-  // const visrtx::ScreenSample *ss;
   visrtx::DeviceObjectIndex samplers[32];
   unsigned int numSamplers;
 };
@@ -96,11 +95,13 @@ struct TextureHandler : mi::neuraylib::Texture_handler_base
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
 using ResourceData = mi::neuraylib::Resource_data;
 
-struct MDLShadingState
+struct alignas(8)  MDLShadingState
 {
+  const char * argBlock;
+
   ShadingStateMaterial state;
   TextureHandler textureHandler;
-  __align__(16) ResourceData resData;
+  ResourceData resData;
 
   glm::mat3x4 objectToWorld;
   glm::mat3x4 worldToObject;
@@ -113,15 +114,12 @@ struct MDLShadingState
   glm::vec3 textureTangentsV[4];
 
   bool isFrontFace;
-
-  const char *argBlock;
 };
 #endif
 
 struct MaterialShadingState
 {
   unsigned int callableBaseIndex{~0u};
-  ;
 
   union
   {
