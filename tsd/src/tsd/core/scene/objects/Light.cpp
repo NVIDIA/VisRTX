@@ -73,6 +73,10 @@ Light::Light(Token subtype) : Object(ANARI_LIGHT, subtype)
             "overall amount of light emitted "
             "in a direction, in W/sr")
         .setMin(0.f);
+    addParameter("side")
+        .setValue("front")
+        .setDescription("which side of the rectangle emits light")
+        .setStringValues({"front", "back", "both"});
   } else if (subtype == tokens::light::spot) {
     addParameter("position")
         .setValue(float3(0.f, 0.f, 0.f))

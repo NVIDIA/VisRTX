@@ -155,6 +155,7 @@ set(SOURCES
   scene/light/HDRI.cu
   scene/light/Light.cpp
   scene/light/Point.cpp
+  scene/light/Rect.cpp
   scene/light/Spot.cpp
   scene/light/UnknownLight.cpp
 

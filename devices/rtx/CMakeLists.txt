@@ -106,5 +106,6 @@ add_subdirectory(shaders)
 if(VISRTX_ENABLE_MDL_SUPPORT)
   add_subdirectory(libmdl)
 endif()
+
 add_subdirectory(src)
 add_subdirectory(apps)

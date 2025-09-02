@@ -143,6 +143,53 @@ VISRTX_DEVICE LightSample sampleSphereLight(
   return ls;
 }
 
+VISRTX_DEVICE LightSample sampleRectLight(
+    const LightGPUData &ld, const mat4 &xfm, const Hit &hit, RandState &rs)
+{
+  LightSample ls;
+  auto uv = vec2(curand_uniform(&rs), curand_uniform(&rs));
+
+  // Uniform sampling on rectangle: uv ∈ [0,1]² maps to rectangle
+  auto rectangleSample = ld.rect.edge1 * uv.x + ld.rect.edge2 * uv.y;
+  auto worldPos = xfmPoint(xfm, ld.rect.position + rectangleSample);
+  ls.dir = worldPos - hit.hitpoint;
+  ls.dist = length(ls.dir);
+  ls.dir /= ls.dist;
+
+  // Calculate rectangle normal and area from cross product
+  auto normal = cross(ld.rect.edge1, ld.rect.edge2);
+  auto area = length(normal);
+  normal = normalize(xfmVec(xfm, normal));
+
+  // Apply Lambert's cosine law: radiance ∝ cos(θ) where θ is angle to normal
+  auto cosTheta = dot(normal, -ls.dir);
+  
+  // Handle front/back face emission based on light configuration
+  if (ld.rect.side.back) {
+    if (ld.rect.side.front)
+      cosTheta = fabsf(cosTheta);  // Both sides: always positive
+    else
+      cosTheta = -cosTheta;        // Back only: flip to back face
+  }
+  // Front only: use cosTheta as-is (positive for front face)
+
+  if (cosTheta > 0.0f) {
+    // Lambertian emission: radiance scaled by cosine factor
+    ls.radiance = ld.color * ld.rect.intensity * cosTheta;
+    
+    // Convert area PDF to solid angle PDF for proper Monte Carlo integration
+    // Area PDF = 1 / area, Solid angle PDF = area_pdf * distance² / |cos θ|
+    float areaPdf = 1.0f / area;
+    ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
+  } else {
+    // No emission toward surfaces facing away from the light
+    ls.radiance = vec3(0.0f);
+    ls.pdf = 0.0f;
+  }
+
+  return ls;
+}
+
 VISRTX_DEVICE LightSample sampleSpotLight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit)
 {
@@ -246,6 +293,8 @@ VISRTX_DEVICE LightSample sampleLight(
     return detail::samplePointLight(ld, xfm, hit);
   case LightType::SPHERE:
     return detail::sampleSphereLight(ld, xfm, hit, ss.rs);
+  case LightType::RECT:
+    return detail::sampleRectLight(ld, xfm, hit, ss.rs);
   case LightType::SPOT:
     return detail::sampleSpotLight(ld, xfm, hit);
   case LightType::HDRI:

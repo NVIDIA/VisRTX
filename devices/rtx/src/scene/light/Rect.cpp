@@ -29,56 +29,48 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Light.h"
-// specific types
-#include "Directional.h"
-#include "HDRI.h"
-#include "Point.h"
 #include "Rect.h"
-#include "Spot.h"
-#include "UnknownLight.h"
 
 namespace visrtx {
 
-Light::Light(DeviceGlobalState *s)
-    : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
+Rect::Rect(DeviceGlobalState *d) : Light(d) {}
+
+void Rect::commitParameters()
 {
-  setRegistry(s->registry.lights);
+  Light::commitParameters();
+  m_position = getParam<vec3>("position", vec3(0.f, 0.f, 0.f));
+  m_edge1 = getParam<vec3>("edge1", vec3(1.f, 0.f, 0.f));
+  m_edge2 = getParam<vec3>("edge2", vec3(0.f, 1.f, 0.f));
+  m_intensity = std::max(
+      getParam<float>("intensity", getParam<float>("power", 1.f)), 0.f);
+
+  auto side = getParamString("side", "front");
+  if (side == "front")
+    m_side = Side::FRONT;
+  else if (side == "back")
+    m_side = Side::BACK;
+  else if (side == "both")
+    m_side = Side::BOTH;
+  else {
+    reportMessage(ANARI_SEVERITY_WARNING, "Invalid 'side' parameter on rect light");
+    m_side = Side::FRONT;
+  }
 }
 
-void Light::commitParameters()
+LightGPUData Rect::gpuData() const
 {
-  m_color = getParam<vec3>("color", vec3(1.f));
-}
+  auto retval = Light::gpuData();
+  retval.type = LightType::RECT;
+  retval.rect.position = m_position;
+  retval.rect.edge1 = m_edge1;
+  retval.rect.edge2 = m_edge2;
+  retval.rect.intensity = m_intensity;
+  retval.rect.side.back = (m_side == Side::BACK || m_side == Side::BOTH) ? 1 : 0;
+  retval.rect.side.front = (m_side == Side::FRONT || m_side == Side::BOTH) ? 1 : 0;
+  auto area = length(cross(m_edge1, m_edge2));
+  retval.rect.oneOverArea = area > 0.f ? 1.f / area : 1.f;
 
-LightGPUData Light::gpuData() const
-{
-  LightGPUData retval;
-  retval.color = m_color;
   return retval;
 }
 
-Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
-{
-  if (subtype == "directional")
-    return new Directional(d);
-  else if (subtype == "hdri")
-    return new HDRI(d);
-  else if (subtype == "point")
-    return new Point(d);
-  else if (subtype == "quad")
-    return new Rect(d);
-  else if (subtype == "spot")
-    return new Spot(d);
-  else
-    return new UnknownLight(subtype, d);
-}
-
-bool Light::isHDRI() const
-{
-  return false;
-}
-
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Light *);

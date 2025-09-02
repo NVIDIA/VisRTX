@@ -475,6 +475,7 @@ enum class LightType
   DIRECTIONAL,
   POINT,
   SPHERE,
+  RECT,
   SPOT,
   HDRI,
   UNKNOWN
@@ -497,6 +498,19 @@ struct SphereLightGPUData
   vec3 position;
   float intensity;
   float radius;
+  float oneOverArea;
+};
+
+struct RectLightGPUData
+{
+  vec3 position;
+  vec3 edge1;
+  vec3 edge2;
+  float intensity;
+  struct {
+    unsigned int front: 1;
+    unsigned int back: 1;
+  } side;
   float oneOverArea;
 };
 
@@ -533,6 +547,7 @@ struct LightGPUData
     DirectionalLightGPUData distant;
     PointLightGPUData point;
     SphereLightGPUData sphere;
+    RectLightGPUData rect;
     SpotLightGPUData spot;
     HDRILightGPUData hdri;
   };
