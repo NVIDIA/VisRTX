@@ -133,6 +133,11 @@ static void buildUI_parameter_contextMenu(
                   tsd::core::tokens::material::physicallyBased);
             }
 
+            if (ImGui::MenuItem("mdl")) {
+              m = scene.createObject<tsd::core::Material>(
+                  tsd::core::tokens::material::mdl);
+            }
+
             if (m)
               p->setValue({m->type(), m->index()});
             ImGui::EndMenu(); // "material"
@@ -509,8 +514,11 @@ void buildUI_parameter(tsd::core::Object &o,
         p.setStringSelection(ss);
       }
     } else {
-      if (useTable)
-        ImGui::Text("\"%s\"", pVal.getString().c_str());
+      if (useTable) {
+        auto val = pVal.getString();
+        update |= ImGui::InputText("\"%s\"", &val, ImGuiInputTextFlags_EnterReturnsTrue);
+        pVal = val.c_str();
+      }
       else
         ImGui::BulletText("%s | '%s'", name, pVal.getString().c_str());
     }

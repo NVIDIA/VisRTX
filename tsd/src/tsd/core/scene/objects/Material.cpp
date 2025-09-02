@@ -140,6 +140,10 @@ Material::Material(Token subtype) : Object(ANARI_MATERIAL, subtype)
         .setValue(0.f)
         .setDescription("thickness of the thin-film layer")
         .setMin(0.f);
+  } else if (subtype == tokens::material::mdl) {
+    addParameter("source")
+        .setValue("::visrtx::default::diffuseWhite")
+        .setDescription("MDL module name");
   }
 }
 
@@ -158,6 +162,7 @@ namespace tokens::material {
 
 Token const matte = "matte";
 Token const physicallyBased = "physicallyBased";
+Token const mdl = "mdl";
 
 } // namespace tokens::material
 
