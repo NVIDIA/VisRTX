@@ -317,6 +317,12 @@ void LayerTree::buildUI_objectSceneMenu()
             clearSelectedNode = true;
           }
 
+          if (ImGui::MenuItem("ring")) {
+            scene.insertNewChildObjectNode<tsd::core::Light>(
+                menuNode, tsd::core::tokens::light::ring, "ring light");
+            clearSelectedNode = true;
+          }
+
           if (ImGui::BeginMenu("hdri")) {
             if (ImGui::MenuItem("simple dome")) {
               tsd::io::generate_hdri_dome(scene, menuNode);

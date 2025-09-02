@@ -157,6 +157,7 @@ set(SOURCES
   scene/light/Light.cpp
   scene/light/Point.cpp
   scene/light/Rect.cpp
+  scene/light/Ring.cpp
   scene/light/Spot.cpp
   scene/light/UnknownLight.cpp
 

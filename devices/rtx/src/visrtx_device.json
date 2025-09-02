@@ -30,6 +30,7 @@
       "khr_light_hdri",
       "khr_light_point",
       "khr_light_quad",
+      "khr_light_ring",
       "khr_light_spot",
       "khr_material_matte",
       "khr_material_physically_based",

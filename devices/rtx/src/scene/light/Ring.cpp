@@ -29,59 +29,54 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Light.h"
-// specific types
-#include "Directional.h"
-#include "HDRI.h"
-#include "Point.h"
-#include "Rect.h"
 #include "Ring.h"
-#include "Spot.h"
-#include "UnknownLight.h"
 
 namespace visrtx {
 
-Light::Light(DeviceGlobalState *s)
-    : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
+Ring::Ring(DeviceGlobalState *d) : Light(d) {}
+
+void Ring::commitParameters()
 {
-  setRegistry(s->registry.lights);
+  Light::commitParameters();
+  m_position = getParam<vec3>("position", vec3(0.f, 0.f, 0.f));
+  m_direction = getParam<vec3>("direction", vec3(0.f, 0.f, -1.f));
+  m_openingAngle = getParam<float>("openingAngle", M_PI);
+  m_falloffAngle = getParam<float>("falloffAngle", 0.1f);
+  m_radius = std::max(getParam<float>("radius", 0.f), 0.f);
+  m_innerRadius = std::max(getParam<float>("innerRadius", 0.f), 0.f);
+  m_intensity = std::clamp(getParam<float>("intensity", 1.f),
+      0.f,
+      std::numeric_limits<float>::max());
+
+  // Validate parameters
+  if (m_innerRadius >= m_radius && m_radius > 0.f) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "innerRadius must be smaller than radius");
+    m_innerRadius = std::max(0.f, m_radius - 0.01f); // Ensure valid ring
+  }
+
+  float innerAngle = m_openingAngle - 2.f * m_falloffAngle;
+  if (innerAngle < 0.f) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "falloffAngle should be smaller than half of openingAngle");
+  }
 }
 
-void Light::commitParameters()
+LightGPUData Ring::gpuData() const
 {
-  m_color = getParam<vec3>("color", vec3(1.f));
-}
+  float innerAngle = m_openingAngle - 2.f * m_falloffAngle;
 
-LightGPUData Light::gpuData() const
-{
-  LightGPUData retval;
-  retval.color = m_color;
+  auto retval = Light::gpuData();
+  retval.type = LightType::RING;
+  retval.ring.position = m_position;
+  retval.ring.direction = m_direction;
+  retval.ring.cosOuterAngle = cosf(m_openingAngle);
+  retval.ring.cosInnerAngle = cosf(innerAngle);
+  retval.ring.radius = m_radius;
+  retval.ring.innerRadius = m_innerRadius;
+  retval.ring.intensity = m_intensity;
+  retval.ring.oneOverArea = m_radius > m_innerRadius ? 1.0f / (M_PI * (m_radius * m_radius - m_innerRadius * m_innerRadius)) : 1.0f;
   return retval;
 }
 
-Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
-{
-  if (subtype == "directional")
-    return new Directional(d);
-  else if (subtype == "hdri")
-    return new HDRI(d);
-  else if (subtype == "point")
-    return new Point(d);
-  else if (subtype == "quad")
-    return new Rect(d);
-  else if (subtype == "ring")
-    return new Ring(d);
-  else if (subtype == "spot")
-    return new Spot(d);
-  else
-    return new UnknownLight(subtype, d);
-}
-
-bool Light::isHDRI() const
-{
-  return false;
-}
-
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Light *);

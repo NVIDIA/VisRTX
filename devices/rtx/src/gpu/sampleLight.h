@@ -31,19 +31,26 @@
 
 #pragma once
 
-#include <curand_uniform.h>
-#include <device_atomic_functions.h>
-#include <algorithm>
-#include <cmath>
-#include <glm/ext/matrix_float3x3.hpp>
-#include <glm/ext/vector_float3.hpp>
-#include <limits>
+#include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
 
+// glm
+#include <glm/ext/matrix_float3x3.hpp>
+#include <glm/ext/vector_float3.hpp>
 #include <glm/gtx/color_space.hpp>
 
+// cuda
+#include <curand_uniform.h>
+#include <device_atomic_functions.h>
+
+// cccl
 #include <cub/thread/thread_search.cuh>
+
+// std
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace visrtx {
 
@@ -190,6 +197,75 @@ VISRTX_DEVICE LightSample sampleRectLight(
   return ls;
 }
 
+VISRTX_DEVICE LightSample sampleRingLight(
+    const LightGPUData &ld, const mat4 &xfm, const Hit &hit, RandState &rs)
+{
+  LightSample ls;
+  auto u1 = curand_uniform(&rs);
+  auto u2 = curand_uniform(&rs);
+  
+  // Sample angle uniformly around the ring: φ ∈ [0, 2π]
+  auto phi = 2.0f * M_PI * u1;
+  
+  // Sample radial position uniformly by area between inner and outer radius
+  // For uniform area sampling: r² = u₂(R² - r²) + r² where R=outer, r=inner
+  auto outerRadius = ld.ring.radius;
+  auto innerRadius = ld.ring.innerRadius;
+  auto r = sqrtf(u2 * (outerRadius * outerRadius - innerRadius * innerRadius) + innerRadius * innerRadius);
+
+  // Create orthonormal basis with ring direction as normal
+  auto direction = normalize(ld.ring.direction);
+  auto basis = computeOrthonormalBasis(direction);
+    
+  // Convert polar coordinates (r, φ) to Cartesian in ring's local frame
+  auto localX = r * cosf(phi);
+  auto localY = r * sinf(phi);
+  auto samplePos = basis[0] * localX + basis[1] * localY;
+  
+  // Calculate direction and distance to light sample point
+  ls.dir = xfmPoint(xfm, ld.ring.position + samplePos) - hit.hitpoint;
+  ls.dist = length(ls.dir);
+  ls.dir /= ls.dist;
+  
+  auto worldDirection = xfmVec(xfm, direction);
+  
+  // Calculate spotlight-like cone attenuation
+  float spot;
+  auto cosTheta = dot(worldDirection, -ls.dir);
+  if (cosTheta < ld.ring.cosOuterAngle) {
+    // Outside cone: no illumination
+    spot = 0.0f;
+  } else if (cosTheta > ld.ring.cosInnerAngle) {
+    spot = 1.0f;
+  } else {
+    // Falloff region: smooth interpolation using smoothstep function
+    // smoothstep(t) = 3t² - 2t³ provides C¹ continuity
+    spot = (cosTheta - ld.ring.cosOuterAngle) / (ld.ring.cosInnerAngle - ld.ring.cosOuterAngle);
+    spot = spot * spot * (3.0f - 2.0f * spot);
+  }
+  
+  if (spot > 0.0f) {
+    if (cosTheta > 0.0f) {
+      // Apply both spot attenuation and Lambert's cosine law
+      ls.radiance = ld.color * ld.ring.intensity * spot * cosTheta;
+      
+      // Convert area PDF to solid angle PDF for proper Monte Carlo integration
+      // Ring area = π(R² - r²), so area PDF = 1 / ring_area
+      // Solid angle PDF = area_pdf * distance² / |cos θ|
+      float areaPdf = ld.ring.oneOverArea;  // This is 1 / ring_area
+      ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
+    } else {
+      ls.radiance = vec3(0.0f);
+      ls.pdf = 0.0f;
+    }
+  } else {
+    ls.radiance = vec3(0.0f);
+    ls.pdf = 0.0f;
+  }
+  
+  return ls;
+}
+
 VISRTX_DEVICE LightSample sampleSpotLight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit)
 {
@@ -298,6 +374,8 @@ VISRTX_DEVICE LightSample sampleLight(
     return detail::sampleRectLight(ld, xfm, hit, ss.rs);
   case LightType::SPOT:
     return detail::sampleSpotLight(ld, xfm, hit);
+  case LightType::RING:
+    return detail::sampleRingLight(ld, xfm, hit, ss.rs);
   case LightType::HDRI:
     return detail::sampleHDRILight(ld, xfm, hit, ss.rs);
   default:

@@ -29,59 +29,28 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#pragma once
+
 #include "Light.h"
-// specific types
-#include "Directional.h"
-#include "HDRI.h"
-#include "Point.h"
-#include "Rect.h"
-#include "Ring.h"
-#include "Spot.h"
-#include "UnknownLight.h"
 
 namespace visrtx {
 
-Light::Light(DeviceGlobalState *s)
-    : RegisteredObject<LightGPUData>(ANARI_LIGHT, s)
+struct Ring : public Light
 {
-  setRegistry(s->registry.lights);
-}
+  Ring(DeviceGlobalState *d);
 
-void Light::commitParameters()
-{
-  m_color = getParam<vec3>("color", vec3(1.f));
-}
+  void commitParameters() override;
 
-LightGPUData Light::gpuData() const
-{
-  LightGPUData retval;
-  retval.color = m_color;
-  return retval;
-}
+ private:
+  LightGPUData gpuData() const override;
 
-Light *Light::createInstance(std::string_view subtype, DeviceGlobalState *d)
-{
-  if (subtype == "directional")
-    return new Directional(d);
-  else if (subtype == "hdri")
-    return new HDRI(d);
-  else if (subtype == "point")
-    return new Point(d);
-  else if (subtype == "quad")
-    return new Rect(d);
-  else if (subtype == "ring")
-    return new Ring(d);
-  else if (subtype == "spot")
-    return new Spot(d);
-  else
-    return new UnknownLight(subtype, d);
-}
-
-bool Light::isHDRI() const
-{
-  return false;
-}
+  vec3 m_position = vec3(0.f, 0.f, 0.f);
+  vec3 m_direction = vec3(0.f, 0.f, -1.f);
+  float m_openingAngle = M_PI;
+  float m_falloffAngle = 0.1f;
+  float m_radius = 0.f;
+  float m_innerRadius = 0.f;
+  float m_intensity = 1.f;
+};
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::Light *);
