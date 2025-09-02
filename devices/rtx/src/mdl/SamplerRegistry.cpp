@@ -256,10 +256,9 @@ Sampler *SamplerRegistry::loadFromDDS(
           filePath);
     }
 
-    std::vector<std::byte> imageContent(linearSize);
     Array1DMemoryDescriptor desc = {
         {
-            data(imageContent),
+            dds::getDataPointer(dds),
             nullptr,
             nullptr,
             ANARI_UINT8,
@@ -281,14 +280,11 @@ Sampler *SamplerRegistry::loadFromDDS(
     image2d->finalize();
     tex = image2d;
   } else if (format) {
-    std::vector<std::byte> imageContent(
-        dds->header.width * dds->header.height * 4);
-
     anari::DataType texelType = ANARI_UNKNOWN;
 
     Array2DMemoryDescriptor desc = {
         {
-            data(imageContent),
+            dds::getDataPointer(dds),
             nullptr,
             nullptr,
             ANARI_UFIXED8_VEC4,

@@ -216,11 +216,8 @@ SamplerRef importDdsTexture(
             filepath.c_str());
       }
 
-      std::vector<std::byte> imageContent(linearSize);
-      dds::vflipImage(dds, data(imageContent));
-
       dataArray = scene.createArray(ANARI_INT8, linearSize);
-      dataArray->setData(data(imageContent));
+      dataArray->setData(dds::getDataPointer(dds));
       dataArray->setMetadataValue("compressedFormat", compressedFormat.value());
       dataArray->setMetadataValue(
           "imageSize", U64Vec2(dds->header.width, dds->header.height));
