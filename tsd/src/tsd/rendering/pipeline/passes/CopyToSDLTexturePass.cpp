@@ -58,6 +58,7 @@ bool CopyToSDLTexturePass::checkGLInterop() const
       cudaGLGetDevices(&numDevices, cudaDevices, 8, cudaGLDeviceListAll);
   if (err != cudaSuccess) {
     tsd::core::logWarning("[RenderPipeline] failed to get CUDA GL devices");
+    cudaGetLastError(); // Clear the error so it is not captured by subsequent calls.
     return false;
   }
 
@@ -128,18 +129,20 @@ void CopyToSDLTexturePass::updateSize()
       newSize.y);
 
 #ifdef ENABLE_CUDA
-  SDL_PropertiesID propID = SDL_GetTextureProperties(m_impl->texture);
-  Sint64 texID =
-      SDL_GetNumberProperty(propID, SDL_PROP_TEXTURE_OPENGL_TEXTURE_NUMBER, -1);
+  if (m_impl->glInteropAvailable) {
+    SDL_PropertiesID propID = SDL_GetTextureProperties(m_impl->texture);
+    Sint64 texID =
+        SDL_GetNumberProperty(propID, SDL_PROP_TEXTURE_OPENGL_TEXTURE_NUMBER, -1);
 
-  if (texID > 0) {
-    cudaGraphicsGLRegisterImage(&m_impl->graphicsResource,
-        static_cast<GLuint>(texID),
-        GL_TEXTURE_2D,
-        cudaGraphicsRegisterFlagsWriteDiscard);
-  } else {
-    tsd::core::logWarning(
-        "[RenderPipeline] could not get SDL texture number!");
+    if (texID > 0) {
+      cudaGraphicsGLRegisterImage(&m_impl->graphicsResource,
+          static_cast<GLuint>(texID),
+          GL_TEXTURE_2D,
+          cudaGraphicsRegisterFlagsWriteDiscard);
+    } else {
+      tsd::core::logWarning(
+          "[RenderPipeline] could not get SDL texture number!");
+    }
   }
 #endif
 }
