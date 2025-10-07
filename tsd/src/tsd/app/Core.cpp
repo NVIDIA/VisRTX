@@ -154,6 +154,8 @@ void Core::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::GLTF;
     else if (arg == "-axyz")
       importerType = ImporterType::AXYZ;
+    else if (arg == "-trk")
+      importerType = ImporterType::TRK;
     else {
       if (importerType != ImporterType::NONE)
         this->commandLine.filenames.push_back({importerType, arg});
@@ -210,6 +212,8 @@ void Core::setupSceneFromCommandLine(bool hdriOnly)
         tsd::io::import_SWC(tsd.scene, f.second.c_str());
       else if (f.first == ImporterType::PDB)
         tsd::io::import_PDB(tsd.scene, f.second.c_str(), root);
+      else if (f.first == ImporterType::TRK)
+        tsd::io::import_TRK(tsd.scene, f.second.c_str(), root);
       else if (f.first == ImporterType::XYZDP)
         tsd::io::import_XYZDP(tsd.scene, f.second.c_str());
       else if (f.first == ImporterType::HSMESH)

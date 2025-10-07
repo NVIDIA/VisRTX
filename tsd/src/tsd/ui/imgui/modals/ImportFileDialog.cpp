@@ -36,6 +36,7 @@ void ImportFileDialog::buildUI()
       "VOLUME",
       "SWC",
       "PDB",
+      "TRK",
       "XYZDP",
       "HSMESH",
       "NEURAL",
@@ -116,6 +117,8 @@ void ImportFileDialog::buildUI()
         tsd::io::import_SWC(scene, m_filename.c_str(), importRoot);
       else if (selectedFileType == app::ImporterType::PDB)
         tsd::io::import_PDB(scene, m_filename.c_str(), importRoot);
+      else if (selectedFileType == app::ImporterType::TRK)
+        tsd::io::import_TRK(scene, m_filename.c_str(), importRoot);
       else if (selectedFileType == app::ImporterType::XYZDP)
         tsd::io::import_XYZDP(scene, m_filename.c_str());
       else if (selectedFileType == app::ImporterType::HSMESH)

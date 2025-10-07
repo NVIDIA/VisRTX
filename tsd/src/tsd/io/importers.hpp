@@ -24,6 +24,7 @@ void import_USD(Scene &scene, const char *filename, LayerNodeRef location = {}, 
 void import_PLY(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_PDB(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_SWC(Scene &scene, const char *filename, LayerNodeRef location = {});
+void import_TRK(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_XYZDP(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_PT(Scene &scene, const char *filename, LayerNodeRef location = {});
 SpatialFieldRef import_RAW(Scene &scene, const char *filename);

@@ -40,6 +40,7 @@ enum class ImporterType
   VOLUME,
   SWC,
   PDB,
+  TRK,
   XYZDP,
   HSMESH,
   NEURAL,
