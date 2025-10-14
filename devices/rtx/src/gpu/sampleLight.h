@@ -236,6 +236,7 @@ VISRTX_DEVICE LightSample sampleRingLight(
     // Outside cone: no illumination
     spot = 0.0f;
   } else if (cosTheta > ld.ring.cosInnerAngle) {
+    // Inside inner cone: full illumination
     spot = 1.0f;
   } else {
     // Falloff region: smooth interpolation using smoothstep function
@@ -270,44 +271,59 @@ VISRTX_DEVICE LightSample sampleSpotLight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit)
 {
   LightSample ls;
+  // Calculate direction from light to hit point
   ls.dir = xfmPoint(xfm, ld.spot.position) - hit.hitpoint;
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
+  
+  // Calculate angle between light direction and direction to hit point
+  // spot = cos(angle_between_directions)
   float spot = dot(normalize(ld.spot.direction), -ls.dir);
+  
+  // Apply spotlight cone attenuation with smooth falloff
   if (spot < ld.spot.cosOuterAngle)
-    spot = 0.f;
+    spot = 0.f;  // Outside cone: no illumination
   else if (spot > ld.spot.cosInnerAngle)
-    spot = 1.f;
+    spot = 1.f;  // Inside inner cone: full illumination
   else {
+    // Falloff region: smooth interpolation using smoothstep
     spot = (spot - ld.spot.cosOuterAngle)
         / (ld.spot.cosInnerAngle - ld.spot.cosOuterAngle);
-    spot = spot * spot * (3.f - 2.f * spot);
+    spot = spot * spot * (3.f - 2.f * spot);  // smoothstep function
   }
+  
+  // Apply inverse square law with spotlight attenuation
   ls.radiance = ld.color * ld.spot.intensity * spot / pow2(ls.dist);
+  // Delta function for point light source
   ls.pdf = spot > 0.0f ? 1.f : 0.0f;
   return ls;
 }
 
 VISRTX_DEVICE int inverseSampleCDF(const float *cdf, int size, float u)
 {
+  // Binary search to find the largest index i such that cdf[i] <= u
+  // This implements inverse transform sampling for discrete distributions
   return cub::LowerBound(cdf, size, u);
 }
 
 VISRTX_DEVICE LightSample sampleHDRILight(
     const LightGPUData &ld, const mat4 &xfm, const vec3 &dir)
 {
-  // Compute the UV coordinates from the direction
+  // Convert direction to spherical coordinates for environment map lookup
   auto thetaPhi = sphericalCoordsFromDirection(ld.hdri.xfm * dir);
+  // Map spherical coordinates to UV texture coordinates
+  // θ ∈ [0,π] → v ∈ [0,1], φ ∈ [0,2π] → u ∈ [0,1]
   auto uv = glm::vec2(thetaPhi.y, thetaPhi.x)
       / glm::vec2(float(M_PI) * 2.0f, float(M_PI));
 
   auto radiance = sampleHDRI(ld, uv);
+  // Calculate PDF using luminance (ITU-R BT.709 weights) and jacobian
+  // sin(θ) term accounts for the jacobian of spherical→rectangular mapping
   auto pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * sinf(thetaPhi.x) * ld.hdri.pdfWeight;
 
-  // Sample the HDRI texture
   LightSample ls;
   ls.dir = xfmVec(xfm, dir);
-  ls.dist = std::numeric_limits<float>::infinity();
+  ls.dist = std::numeric_limits<float>::infinity();  // Environment is at infinity
   ls.radiance = radiance * ld.hdri.scale;
   ls.pdf = pdf;
 
@@ -317,7 +333,8 @@ VISRTX_DEVICE LightSample sampleHDRILight(
 VISRTX_DEVICE LightSample sampleHDRILight(
     const LightGPUData &ld, const mat4 &xfm, const Hit &hit, RandState &rs)
 {
-  // Row and column sampling
+  // Importance sampling using hierarchical (marginal/conditional) CDF approach
+  // First sample row (y) using marginal CDF, then column (x) using conditional CDF
   auto y = inverseSampleCDF(
       ld.hdri.marginalCDF, ld.hdri.size.y, curand_uniform(&rs));
   auto x = inverseSampleCDF(ld.hdri.conditionalCDF + y * ld.hdri.size.x,
@@ -331,25 +348,25 @@ VISRTX_DEVICE LightSample sampleHDRILight(
     atomicInc(ld.hdri.samples + y * ld.hdri.size.x + x, ~0u);
   }
 #endif
+  // Add sub-pixel jitter to avoid aliasing
   auto jitter = glm::vec2(curand_uniform(&rs), curand_uniform(&rs));
   auto uv =
       glm::clamp((glm::vec2(xy) + jitter) / glm::vec2(ld.hdri.size), 0.f, 1.f);
 
-  // And spherical coordinates
+  // Convert UV coordinates to spherical coordinates
+  // uv.y ∈ [0,1] → θ ∈ [0,π], uv.x ∈ [0,1] → φ ∈ [0,2π]
   auto thetaPhi = float(M_PI) * glm::vec2(uv.y, 2.0f * (uv.x));
 
-  // Get world direction
-
-  // Compute PDF
+  // Calculate PDF using luminance and jacobian of spherical mapping
   auto radiance = sampleHDRI(ld, uv);
   auto pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * sinf(thetaPhi.x) * ld.hdri.pdfWeight;
 
   LightSample ls;
-  // ld.hdri.xfm is computed in HDRI.cpp and is made so it is an orthogonal
-  // matrix. So transposing is actually the same as inverting. Use RHS
-  // multiplication so we don't have to transpose the matrix.
+  // Transform spherical direction to world space
+  // ld.hdri.xfm is orthogonal, so we can use right-hand multiplication
+  // instead of explicitly transposing/inverting the matrix
   ls.dir = xfmVec(xfm, sphericalCoordsToDirection(thetaPhi) * ld.hdri.xfm);
-  ls.dist = 1e20f;
+  ls.dist = 1e20f;  // Environment is effectively at infinity
   ls.radiance = radiance * ld.hdri.scale;
   ls.pdf = pdf;
 
