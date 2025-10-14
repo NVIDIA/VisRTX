@@ -220,14 +220,14 @@ void updateGeometryTangent(Triangle *triangle)
   auto uvsFV = triangle->getParamObject<Array1D>("faceVarying.attribute0");
 
   if (!positions || (!normals && !normalsFV)) {
-    triangle->reportMessage(ANARI_SEVERITY_WARNING,
+    triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Triangle %p has no position or normals, cannot compute tangents",
         triangle);
     return;
   }
 
   if (!uvs && !uvsFV) {
-    triangle->reportMessage(ANARI_SEVERITY_WARNING,
+    triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Triangle %p has no texture coordinates, cannot compute tangents",
         triangle);
     return;
@@ -235,7 +235,7 @@ void updateGeometryTangent(Triangle *triangle)
 
   if (uvsFV && uvsFV->elementType() != ANARI_FLOAT32_VEC2
       && uvsFV->elementType() != ANARI_FLOAT32_VEC3) {
-    triangle->reportMessage(ANARI_SEVERITY_WARNING,
+    triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Can only compute tangents for face varying UVs of type ANARI_FLOAT32_VEC2 or ANARI_FLOAT32_VEC3",
         triangle);
     return;
@@ -243,7 +243,7 @@ void updateGeometryTangent(Triangle *triangle)
 
   if (uvs && uvs->elementType() != ANARI_FLOAT32_VEC2
       && uvs->elementType() != ANARI_FLOAT32_VEC3) {
-    triangle->reportMessage(ANARI_SEVERITY_WARNING,
+    triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Can only compute tangents for vertex UVs of type ANARI_FLOAT32_VEC2 or ANARI_FLOAT32_VEC3",
         triangle);
     return;
