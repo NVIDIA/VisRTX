@@ -71,11 +71,13 @@ void Viewport::buildUI()
 
   ImGui::EndDisabled();
 
-  // Make is so that right-click gets the window focused.
-  // This enables right-click-drag to work right away even if the window is not
+  // Make is so that middle and right-clicks get the window focused.
+  // This enables middle/right-click-drag to work right away even if the window is not
   // focused same as left-click-drag works without requiring a prior
   // left-click-focus.
-  if (ImGui::IsWindowHovered() && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+  if (ImGui::IsWindowHovered() && (
+      ImGui::IsMouseDown(ImGuiMouseButton_Right) ||
+      ImGui::IsMouseDown(ImGuiMouseButton_Middle))) {
     ImGui::SetWindowFocus();
   }
 
