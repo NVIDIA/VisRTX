@@ -5,8 +5,8 @@ project(obj2header)
 project_add_executable(obj2header.cpp)
 project_link_libraries(tsd_core tsd_io tsd_ext_tinyobjloader)
 
-project(printTSD)
-project_add_executable(printTSD.cpp)
+project(tsdPrint)
+project_add_executable(tsdPrint.cpp)
 project_link_libraries(tsd_core)
 
 project(tsdRender)
