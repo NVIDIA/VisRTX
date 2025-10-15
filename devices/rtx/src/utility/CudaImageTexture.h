@@ -69,7 +69,6 @@ void makeCudaCompressedTextureArray(cudaArray_t &cuArray,
     const Array &array,
     const cudaChannelFormatKind channelFormatKind);
 
-
 cudaTextureObject_t makeCudaTextureObject1D(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
     const std::string &filter,
@@ -90,7 +89,6 @@ cudaTextureObject_t makeCudaTextureObject3D(cudaArray_t cuArray,
     const std::string &wrap2 = "clampToEdge",
     const std::string &wrap3 = "clampToEdge",
     const vec4 &borderColor = vec4(0.f));
-
 
 cudaTextureObject_t makeCudaTexelObject1D(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
@@ -113,7 +111,6 @@ cudaTextureObject_t makeCudaTexelObject3D(cudaArray_t cuArray,
     const std::string &wrap3 = "clampToEdge",
     const vec4 &borderColor = vec4(0.f));
 
-
 cudaTextureObject_t makeCudaCompressedTextureObject1D(cudaArray_t cuArray,
     cudaChannelFormatKind channelFormatKind,
     const std::string &filter,
@@ -135,11 +132,10 @@ cudaTextureObject_t makeCudaCompressedTextureObject3D(cudaArray_t cuArray,
     const std::string &wrap3 = "clampToEdge",
     const vec4 &borderColor = vec4(0.f));
 
-
 cudaTextureObject_t makeCudaCompressedTexelObject1D(cudaArray_t cuArray,
     cudaChannelFormatKind channelFormatKind,
     const std::string &filter,
-    const std::string &wrap  = "clampToEdge",
+    const std::string &wrap = "clampToEdge",
     const vec4 &borderColor = vec4(0.f));
 
 cudaTextureObject_t makeCudaCompressedTexelObject2D(cudaArray_t cuArray,
