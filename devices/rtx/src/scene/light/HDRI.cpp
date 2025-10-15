@@ -111,7 +111,7 @@ void HDRI::finalize()
           &m_conditionalCDF);
 
   m_radianceTex =
-      makeCudaTextureObject(cuArray, !isFp, "linear", "repeat", "clampToEdge");
+      makeCudaTextureObject2D(cuArray, !isFp, "linear", "repeat", "clampToEdge");
 
 #ifdef VISRTX_ENABLE_HDRI_SAMPLING_DEBUG
   cudaMalloc(&m_samples, m_size.x * m_size.y * sizeof(unsigned int));

@@ -75,9 +75,8 @@ void Image2D::finalize()
   } else {
     cuArray = m_image->acquireCUDAArrayUint8();
   }
-  m_texture = makeCudaTextureObject(cuArray, !isFp, m_filter, m_wrap1, m_wrap2);
-  m_texels = makeCudaTextureObject(
-      cuArray, !isFp, "nearest", m_wrap1, m_wrap2, "clampToEdge", false);
+  m_texture = makeCudaTextureObject2D(cuArray, !isFp, m_filter, m_wrap1, m_wrap2, m_borderColor);
+  m_texels = makeCudaTexelObject2D(cuArray, !isFp, "nearest", m_wrap1, m_wrap2, m_borderColor);
 
   upload();
 }

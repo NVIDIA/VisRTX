@@ -174,7 +174,7 @@ void Renderer::finalize()
   cleanup();
   if (m_backgroundImage) {
     auto cuArray = m_backgroundImage->acquireCUDAArrayUint8();
-    m_backgroundTexture = makeCudaTextureObject(cuArray, true, "linear");
+    m_backgroundTexture = makeCudaTextureObject2D(cuArray, true, "linear");
   }
 }
 

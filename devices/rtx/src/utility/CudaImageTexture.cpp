@@ -132,6 +132,8 @@ cudaTextureAddressMode stringToAddressMode(const std::string &str)
     return cudaAddressModeWrap;
   else if (str == "mirrorRepeat")
     return cudaAddressModeMirror;
+  else if (str == "clampToBorder")
+    return cudaAddressModeBorder;
   else
     return cudaAddressModeClamp;
 }
@@ -321,7 +323,8 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     const std::string &wrap1,
     const std::string &wrap2,
     const std::string &wrap3,
-    bool normalizedCoords)
+    bool normalizedCoords,
+    const vec4 &borderColor)
 {
   cudaResourceDesc resDesc;
   memset(&resDesc, 0, sizeof(resDesc));
@@ -338,6 +341,10 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
   texDesc.readMode = readModeNormalizedFloat ? cudaReadModeNormalizedFloat
                                              : cudaReadModeElementType;
   texDesc.normalizedCoords = normalizedCoords;
+  texDesc.borderColor[0] = borderColor.x;
+  texDesc.borderColor[1] = borderColor.y;
+  texDesc.borderColor[2] = borderColor.z;
+  texDesc.borderColor[3] = borderColor.w;
 
   cudaTextureObject_t retval = {};
   cudaCreateTextureObject(&retval, &resDesc, &texDesc, nullptr);
@@ -494,7 +501,8 @@ cudaTextureObject_t makeCudaCompressedTextureObject(cudaArray_t cuArray,
     const std::string &wrap2,
     const std::string &wrap3,
     bool normalizedCoords,
-    const cudaChannelFormatKind channelFormatKind)
+    const cudaChannelFormatKind channelFormatKind,
+    const vec4 &borderColor)
 {
   cudaResourceDesc resDesc{};
   resDesc.resType = cudaResourceTypeArray;
@@ -507,6 +515,11 @@ cudaTextureObject_t makeCudaCompressedTextureObject(cudaArray_t cuArray,
   texDesc.filterMode =
       filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
   texDesc.normalizedCoords = normalizedCoords;
+
+  texDesc.borderColor[0] = borderColor.x;
+  texDesc.borderColor[1] = borderColor.y;
+  texDesc.borderColor[2] = borderColor.z;
+  texDesc.borderColor[3] = borderColor.w;
 
   // Only explicit float type are to be read as element type. Others need to be
   // read as normalized floats.
@@ -533,5 +546,126 @@ cudaTextureObject_t makeCudaCompressedTextureObject(cudaArray_t cuArray,
 
   return retval;
 }
+
+cudaTextureObject_t makeCudaTextureObject1D(cudaArray_t cuArray,
+    bool readModeNormalizedFloat,
+    const std::string &filter,
+    const std::string &wrap,
+    const vec4 &borderColor)
+{
+  return makeCudaTextureObject(
+      cuArray, readModeNormalizedFloat, filter, wrap, wrap, wrap, true, borderColor);
+}
+
+cudaTextureObject_t makeCudaTextureObject2D(cudaArray_t cuArray,
+    bool readModeNormalizedFloat,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const vec4 &borderColor)
+{
+  return makeCudaTextureObject(
+      cuArray, readModeNormalizedFloat, filter, wrap1, wrap2, wrap2, true, borderColor);
+}
+
+cudaTextureObject_t makeCudaTextureObject3D(cudaArray_t cuArray,
+    bool readModeNormalizedFloat,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const std::string &wrap3,
+    const vec4 &borderColor)
+{
+  return makeCudaTextureObject(
+      cuArray, readModeNormalizedFloat, filter, wrap1, wrap2, wrap3, true, borderColor);
+}
+
+cudaTextureObject_t makeCudaTexelObject1D(cudaArray_t cuArray,
+    bool readModeNormalizedFloat,
+    const std::string &filter,
+    const std::string &wrap,
+    const vec4 &borderColor)
+{
+  return makeCudaTextureObject(
+      cuArray, readModeNormalizedFloat, filter, wrap, wrap, wrap, false, borderColor);
+}
+
+cudaTextureObject_t makeCudaTexelObject2D(cudaArray_t cuArray,
+    bool readModeNormalizedFloat,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const vec4 &borderColor)
+{
+  return makeCudaTextureObject(
+      cuArray, readModeNormalizedFloat, filter, wrap1, wrap2, wrap2, false, borderColor);
+}
+
+cudaTextureObject_t makeCudaTexelObject3D(cudaArray_t cuArray,
+    bool readModeNormalizedFloat,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const std::string &wrap3,
+    const vec4 &borderColor)
+{
+  return makeCudaTextureObject(
+      cuArray, readModeNormalizedFloat, filter, wrap1, wrap2, wrap3, false, borderColor);
+}
+
+cudaTextureObject_t makeCudaCompressedTextureObject1D(cudaArray_t cuArray,
+    cudaChannelFormatKind channelFormatKind,
+    const std::string &filter,
+    const std::string &wrap,
+    const vec4 &borderColor) {
+  return makeCudaCompressedTextureObject(cuArray, filter, wrap, wrap, wrap, true, channelFormatKind, borderColor);
+}
+
+cudaTextureObject_t makeCudaCompressedTextureObject2D(cudaArray_t cuArray,
+    cudaChannelFormatKind channelFormatKind,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const vec4 &borderColor){
+  return makeCudaCompressedTextureObject(cuArray, filter, wrap1, wrap2, wrap2, true, channelFormatKind, borderColor);
+}
+
+cudaTextureObject_t makeCudaCompressedTextureObject3D(cudaArray_t cuArray,
+    cudaChannelFormatKind channelFormatKind,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const std::string &wrap3,
+    const vec4 &borderColor) {
+return makeCudaCompressedTextureObject(cuArray, filter, wrap1, wrap2, wrap3, true, channelFormatKind, borderColor);
+}
+
+
+cudaTextureObject_t makeCudaCompressedTexelObject1D(cudaArray_t cuArray,
+    cudaChannelFormatKind channelFormatKind,
+    const std::string &filter,
+    const std::string &wrap,
+    const vec4 &borderColor) {
+  return makeCudaCompressedTextureObject(cuArray, filter, wrap, wrap, wrap, false, channelFormatKind, borderColor);
+}
+
+cudaTextureObject_t makeCudaCompressedTexelObject2D(cudaArray_t cuArray,
+    cudaChannelFormatKind channelFormatKind,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const vec4 &borderColor) {
+  return makeCudaCompressedTextureObject(cuArray, filter, wrap1, wrap2, wrap2, false, channelFormatKind, borderColor);
+    }
+
+cudaTextureObject_t makeCudaCompressedTexelObject3D(cudaArray_t cuArray,
+    cudaChannelFormatKind channelFormatKind,
+    const std::string &filter,
+    const std::string &wrap1,
+    const std::string &wrap2,
+    const std::string &wrap3,
+    const vec4 &borderColor) {
+  return makeCudaCompressedTextureObject(cuArray, filter, wrap1, wrap2, wrap3, false, channelFormatKind, borderColor);
+    }
 
 } // namespace visrtx

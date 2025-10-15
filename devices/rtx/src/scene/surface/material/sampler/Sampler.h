@@ -54,6 +54,7 @@ struct Sampler : public RegisteredObject<SamplerGPUData>
   vec4 m_inOffset;
   mat4 m_outTransform;
   vec4 m_outOffset;
+  vec4 m_borderColor;
 };
 
 MaterialAttribute attributeFromString(const std::string &str);

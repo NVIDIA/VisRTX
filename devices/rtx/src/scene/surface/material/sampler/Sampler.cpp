@@ -72,6 +72,7 @@ void Sampler::commitParameters()
   m_inOffset = getParam<vec4>("inOffset", vec4(0.f));
   m_outTransform = getParam<mat4>("outTransform", mat4(1.f));
   m_outOffset = getParam<vec4>("outOffset", vec4(0.f));
+  m_borderColor = getParam<vec4>("borderColor", vec4(0.f));
 }
 
 SamplerGPUData Sampler::gpuData() const

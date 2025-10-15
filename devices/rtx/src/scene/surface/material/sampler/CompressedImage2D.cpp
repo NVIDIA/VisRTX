@@ -123,20 +123,18 @@ void CompressedImage2D::finalize()
   makeCudaCompressedTextureArray(
       m_cuArray, m_size, *m_image.get(), channelFormatKind);
 
-  m_texture = makeCudaCompressedTextureObject(m_cuArray,
+  m_texture = makeCudaCompressedTextureObject2D(m_cuArray,
+    channelFormatKind,
       m_filter,
       m_wrap1,
       m_wrap2,
-      "clampToEdge",
-      true,
-      channelFormatKind);
-  m_texels = makeCudaCompressedTextureObject(m_cuArray,
+      m_borderColor);
+  m_texels = makeCudaCompressedTexelObject2D(m_cuArray,
+    channelFormatKind,
       "nearest",
       m_wrap1,
       m_wrap2,
-      "clampToEdge",
-      false,
-      channelFormatKind);
+      m_borderColor);
 
   upload();
 }
