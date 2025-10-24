@@ -377,15 +377,13 @@ VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
     const uint32_t idx,
     const int frameIDOffset)
 {
-  const auto c =
-      detail::inverseTonemap(color / float(fb.frameID + frameIDOffset + 1));
   if (fb.format == FrameFormat::SRGB) {
     fb.buffers.outColorUint[idx] =
-        glm::packUnorm4x8(glm::convertLinearToSRGB(c));
+        glm::packUnorm4x8(glm::convertLinearToSRGB(color));
   } else if (fb.format == FrameFormat::UINT)
-    fb.buffers.outColorUint[idx] = glm::packUnorm4x8(c);
+    fb.buffers.outColorUint[idx] = glm::packUnorm4x8(color);
   else
-    fb.buffers.outColorVec4[idx] = c;
+    fb.buffers.outColorVec4[idx] = color;
 }
 
 } // namespace detail
@@ -419,25 +417,27 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
   }
 
   const auto accumColor = fb.buffers.colorAccumulation[idx];
-  detail::writeOutputColor(fb, accumColor, idx, frameIDOffset);
+  const auto outputColor = detail::inverseTonemap(accumColor / float(fb.frameID + frameIDOffset + 1));
+
+  detail::writeOutputColor(fb, outputColor, idx, frameIDOffset);
 
   if (fb.checkerboardID == 0 && frameID == 0) {
     auto adjPix = uvec2(pixel.x + 1, pixel.y + 0);
     if (!pixelOutOfFrame(adjPix, fb)) {
       detail::writeOutputColor(
-          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+          fb, outputColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
     }
 
     adjPix = uvec2(pixel.x + 0, pixel.y + 1);
     if (!pixelOutOfFrame(adjPix, fb)) {
       detail::writeOutputColor(
-          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+          fb, outputColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
     }
 
     adjPix = uvec2(pixel.x + 1, pixel.y + 1);
     if (!pixelOutOfFrame(adjPix, fb)) {
       detail::writeOutputColor(
-          fb, accumColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+          fb, outputColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
     }
   }
 }
