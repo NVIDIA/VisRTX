@@ -73,6 +73,13 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "tonemap",
+          "types": ["ANARI_BOOL"],
+          "tags": [],
+          "default": true,
+          "description": "enable internal tonemapping during sample accumulation"
+        },
+        {
           "name": "cullTriangleBackfaces",
           "types": ["ANARI_BOOL"],
           "tags": [],
@@ -158,6 +165,13 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "tonemap",
+          "types": ["ANARI_BOOL"],
+          "tags": [],
+          "default": true,
+          "description": "enable internal tonemapping during sample accumulation"
+        },
+        {
           "name": "cullTriangleBackfaces",
           "types": ["ANARI_BOOL"],
           "tags": [],
@@ -226,6 +240,13 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "tonemap",
+          "types": ["ANARI_BOOL"],
+          "tags": [],
+          "default": true,
+          "description": "enable internal tonemapping during sample accumulation"
+        },
+        {
           "name": "cullTriangleBackfaces",
           "types": ["ANARI_BOOL"],
           "tags": [],
@@ -259,6 +280,13 @@
           "tags": [],
           "default": false,
           "description": "enable triangle back face culling"
+        },
+        {
+          "name": "tonemap",
+          "types": ["ANARI_BOOL"],
+          "tags": [],
+          "default": true,
+          "description": "enable internal tonemapping during sample accumulation"
         },
         {
           "name": "volumeSamplingRate",

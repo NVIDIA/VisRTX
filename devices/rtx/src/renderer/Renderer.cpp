@@ -161,6 +161,7 @@ void Renderer::commitParameters()
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
   m_checkerboard = getParam<bool>("checkerboarding", false);
   m_denoise = getParam<bool>("denoise", false);
+  m_tonemap = getParam<bool>("tonemap", true); // enable internal tonemapping during sample accumulation
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
@@ -201,6 +202,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.ambientIntensity = m_ambientIntensity;
   fd.renderer.occlusionDistance = m_occlusionDistance;
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
+  fd.renderer.tonemap = m_tonemap;
   fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
   fd.renderer.numIterations = std::max(m_spp, 1);
   fd.renderer.maxRayDepth = m_maxRayDepth;
@@ -772,6 +774,11 @@ void Renderer::cleanup()
       m_backgroundImage->releaseCUDAArrayUint8();
     }
   }
+}
+
+bool Renderer::tonemap() const
+{
+  return m_tonemap;
 }
 
 } // namespace visrtx

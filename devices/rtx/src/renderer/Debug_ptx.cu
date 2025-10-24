@@ -246,7 +246,7 @@ VISRTX_GLOBAL void __raygen__()
     instID = vrd.instance->id;
   }
 
-  accumResults(frameData.fb,
+  accumResults(frameData,
       ss.pixel,
       vec4(color, 1.f),
       depth,

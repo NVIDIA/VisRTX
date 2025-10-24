@@ -201,7 +201,7 @@ VISRTX_GLOBAL void __raygen__()
       color = vec3(1) - color;
     if (debug())
       printf("========== END: FrameID %i ==========\n", frameData.fb.frameID);
-    accumResults(frameData.fb,
+    accumResults(frameData,
         ss.pixel,
         vec4(color, 1.f),
         outDepth,

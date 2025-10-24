@@ -668,6 +668,7 @@ struct RendererGPUData
   float inverseVolumeSamplingRate;
   float occlusionDistance;
   bool cullTriangleBF;
+  bool tonemap; // enable internal tonemapping during sample accumulation
 };
 
 // Frame //

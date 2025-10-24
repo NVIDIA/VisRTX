@@ -388,7 +388,8 @@ VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
 
 } // namespace detail
 
-VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
+
+VISRTX_DEVICE void accumResults(const FrameGPUData &frame,
     const uvec2 &pixel,
     const vec4 &color,
     float depth,
@@ -399,11 +400,15 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
     uint32_t instID,
     const int frameIDOffset = 0)
 {
+  const auto &fb = frame.fb;
   const uint32_t idx = detail::pixelIndex(fb, pixel);
-
   const auto frameID = fb.frameID + frameIDOffset;
 
-  detail::accumValue(fb.buffers.colorAccumulation, idx, detail::tonemap(color));
+  // Conditionally apply tonemapping during accumulation
+  if (frame.renderer.tonemap)
+    detail::accumValue(fb.buffers.colorAccumulation, idx, detail::tonemap(color));
+  else
+    detail::accumValue(fb.buffers.colorAccumulation, idx, color);
   detail::accumValue(fb.buffers.albedo, idx, albedo);
   detail::accumValue(fb.buffers.normal, idx, normal);
 
@@ -417,7 +422,10 @@ VISRTX_DEVICE void accumResults(const FramebufferGPUData &fb,
   }
 
   const auto accumColor = fb.buffers.colorAccumulation[idx];
-  const auto outputColor = detail::inverseTonemap(accumColor / float(fb.frameID + frameIDOffset + 1));
+  // Conditionally apply inverse tonemapping on output
+  const auto outputColor = frame.renderer.tonemap
+      ? detail::inverseTonemap(accumColor / float(fb.frameID + frameIDOffset + 1))
+      : (accumColor / float(fb.frameID + frameIDOffset + 1));
 
   detail::writeOutputColor(fb, outputColor, idx, frameIDOffset);
 

@@ -57,7 +57,7 @@ VISRTX_GLOBAL void __raygen__()
     return;
   auto ray = makePrimaryRay(ss);
 
-  accumResults(frameData.fb,
+  accumResults(frameData,
       ss.pixel,
       vec4(ray.dir, 1.f),
       1.f,

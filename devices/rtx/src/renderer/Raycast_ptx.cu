@@ -167,7 +167,7 @@ VISRTX_GLOBAL void __raygen__()
     }
   }
 
-  accumResults(frameData.fb,
+  accumResults(frameData,
       ss.pixel,
       vec4(outputColor, outputOpacity),
       depth,
