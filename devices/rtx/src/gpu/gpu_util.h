@@ -423,9 +423,11 @@ VISRTX_DEVICE void accumResults(const FrameGPUData &frame,
 
   const auto accumColor = fb.buffers.colorAccumulation[idx];
   // Conditionally apply inverse tonemapping on output
+  const float frameDivisor = float(fb.frameID + frameIDOffset + 1);
+  const auto normalizedColor = accumColor / frameDivisor;
   const auto outputColor = frame.renderer.tonemap
-      ? detail::inverseTonemap(accumColor / float(fb.frameID + frameIDOffset + 1))
-      : (accumColor / float(fb.frameID + frameIDOffset + 1));
+      ? detail::inverseTonemap(normalizedColor)
+      : normalizedColor;
 
   detail::writeOutputColor(fb, outputColor, idx, frameIDOffset);
 
