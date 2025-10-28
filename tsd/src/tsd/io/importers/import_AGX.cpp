@@ -29,6 +29,10 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
   }
 
   AGXReader r = agxNewReader(filepath);
+  if (!r) {
+    logError("[import_AGX] failed to open file '%s'", filepath);
+    return;
+  }
 
   //// Parse header ////
 
@@ -38,6 +42,9 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
     agxReleaseReader(r);
     return;
   }
+
+  logInfo("[import_AGX] file version=%u, objectType=%s, timeSteps=%u, constants=%u",
+      hdr.version, anari::toString(hdr.objectType), hdr.timeSteps, hdr.constantParamCount);
 
   //// Validate usable file contents ////
 
@@ -65,6 +72,11 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
   // geometry
 
   auto geom = scene.createObject<tsd::core::Geometry>(subtype);
+  if (!geom) {
+    logError("[import_AGX] failed to create geometry of type '%s'", subtype);
+    agxReleaseReader(r);
+    return;
+  }
 
   geom->setName(("agx_geometry_" + file).c_str());
 
@@ -72,6 +84,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
 
   agxReaderResetConstants(r);
   AGXParamView pv{};
+  int constantsRead = 0;
   while (true) {
     int rc = agxReaderNextConstant(r, &pv);
     if (rc < 0) {
@@ -82,14 +95,23 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
     if (rc == 0)
       break;
 
+    std::string paramName(pv.name, pv.nameLength);
+    logInfo("[import_AGX] constant param: %s, isArray=%d", paramName.c_str(), pv.isArray);
+
     if (pv.isArray) {
       auto arr = scene.createArray(pv.elementType, pv.elementCount);
+      if (!arr) {
+        logError("[import_AGX] failed to create array for parameter '%s'", paramName.c_str());
+        continue;
+      }
       arr->setData(pv.data);
-      geom->setParameterObject(pv.name, *arr);
+      geom->setParameterObject(paramName.c_str(), *arr);
     } else {
-      geom->setParameter(pv.name, anari::DataType(pv.type), pv.data);
+      geom->setParameter(paramName.c_str(), anari::DataType(pv.type), pv.data);
     }
+    constantsRead++;
   }
+  logInfo("[import_AGX] read %d constant parameters", constantsRead);
 
   // geometry time steps
 
@@ -111,22 +133,35 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
       if (rc == 0)
         break;
 
+      std::string tsParamName(pv.name, pv.nameLength);
+      logInfo("[import_AGX] timestep param: %s, isArray=%d, elementCount=%lu", 
+              tsParamName.c_str(), pv.isArray, (unsigned long)pv.elementCount);
+
       // TODO: support non-array animations
       if (firstStep && pv.isArray) {
-        timeStepNames.push_back(Token(pv.name));
+        timeStepNames.push_back(Token(tsParamName.c_str()));
         timeSteps.emplace_back();
       }
 
       if (pv.isArray) {
+        if (paramIdx >= (int)timeSteps.size()) {
+          logError("[import_AGX] paramIdx %d out of bounds (size %zu)", paramIdx, timeSteps.size());
+          break;
+        }
         auto arr = scene.createArray(pv.elementType, pv.elementCount);
+        if (!arr) {
+          logError("[import_AGX] failed to create array for timestep parameter '%s'", tsParamName.c_str());
+          paramIdx++;
+          continue;
+        }
         arr->setData(pv.data);
         timeSteps[paramIdx++].push_back(arr);
         if (firstStep)
-          geom->setParameterObject(pv.name, *arr);
+          geom->setParameterObject(tsParamName.c_str(), *arr);
       } else {
         logWarning(
             "[import_AGX] ignoring non-array parameter '%s' in time step",
-            pv.name);
+            tsParamName.c_str());
       }
     }
     firstStep = false;
@@ -136,19 +171,34 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
 
   auto mat = scene.createObject<tsd::core::Material>(
       tsd::core::tokens::material::matte);
+  if (!mat) {
+    logError("[import_AGX] failed to create material");
+    agxReleaseReader(r);
+    return;
+  }
   mat->setName("agx_material");
   mat->setParameter("color", tsd::math::float3(0.8f, 0.8f, 0.8f));
 
   // surface
 
   auto surface = scene.createSurface("agx_surface", geom, mat);
+  if (!surface) {
+    logError("[import_AGX] failed to create surface");
+    agxReleaseReader(r);
+    return;
+  }
   scene.insertChildObjectNode(agx_root, surface);
 
   // animation
 
   if (!timeSteps.empty()) {
     auto *anim = scene.addAnimation(file.c_str());
-    anim->setAsTimeSteps(*geom, timeStepNames, timeSteps);
+    if (anim) {
+      anim->setAsTimeSteps(*geom, timeStepNames, timeSteps);
+      logInfo("[import_AGX] animation created successfully");
+    } else {
+      logError("[import_AGX] failed to create animation");
+    }
   }
 
   //// Cleanup ////
