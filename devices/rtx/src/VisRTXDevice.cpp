@@ -46,9 +46,9 @@
 #include "frame/Frame.h"
 #include "optix_visrtx.h"
 #include "renderer/Renderer.h"
-#include "scene/World.h"
-#include "scene/surface/material/sampler/Sampler.h"
-#include "scene/volume/spatial_field/SpatialField.h"
+#include "world/World.h"
+#include "sampler/Sampler.h"
+#include "spatial_field/SpatialField.h"
 
 // PTX //
 
@@ -61,8 +61,8 @@
 #include "renderer/Test.h"
 
 // materials
-#include "shaders/MatteShader.h"
-#include "shaders/PhysicallyBasedShader.h"
+#include "material/shaders/MatteShader.h"
+#include "material/shaders/PhysicallyBasedShader.h"
 
 // MDL
 #ifdef USE_MDL

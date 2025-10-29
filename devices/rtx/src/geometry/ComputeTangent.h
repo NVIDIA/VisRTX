@@ -31,42 +31,32 @@
 
 #pragma once
 
-#include "array/Array1D.h"
-#include "scene/volume/Volume.h"
-#include "scene/volume/spatial_field/SpatialField.h"
+#include "geometry/Triangle.h"
+// anari
+#include <anari/anari_cpp.hpp>
+// glm
+#include <glm/fwd.hpp>
 
 namespace visrtx {
 
-struct TransferFunction1D : public Volume
-{
-  TransferFunction1D(DeviceGlobalState *d);
-  ~TransferFunction1D();
+void computeVertexNormals(glm::vec3 *normals, // Output vertex normals
+    const glm::vec3 *positions, // Input vertex positions
+    const glm::uvec3 *indices, // Input triangle indices
+    unsigned int numTriangles, // Number of triangles
+    unsigned int numNormals // Number of normals
+);
 
-  void commitParameters() override;
-  void finalize() override;
-  bool isValid() const override;
+template <typename TexCoord>
+void computeVertexTangents(
+    glm::vec4 *tangents, // Output tangent vectors with handedness (w component)
+    const glm::vec3 *positions, // Input vertex positions
+    const glm::vec3 *normals, // Input vertex normals
+    const TexCoord *texCoords, // Input texture coordinates
+    const glm::uvec3 *indices, // Input triangle indices
+    unsigned int numTriangles, // Number of triangles
+    unsigned int numNormals // Number of normals
+);
 
- private:
-  VolumeGPUData gpuData() const override;
-  void discritizeTFData();
-  void createTFTexture();
-  void cleanup();
-
-  helium::ChangeObserverPtr<Array1D> m_color;
-  helium::ChangeObserverPtr<Array1D> m_opacity;
-
-  box1 m_valueRange{0.f, 1.f};
-  float m_unitDistance{1.f};
-  vec4 m_uniformColor{1.f};
-  float m_uniformOpacity{1.f};
-
-  helium::ChangeObserverPtr<SpatialField> m_field;
-
-  std::vector<vec4> m_tf;
-  int m_tfDim{256};
-
-  cudaArray_t m_cudaArray{};
-  cudaTextureObject_t m_textureObject{};
-};
+void updateGeometryTangent(Triangle *triangle);
 
 } // namespace visrtx

@@ -41,9 +41,8 @@
 #include "utility/AnariTypeHelpers.h"
 
 #ifdef USE_MDL
-
-#include "ComputeTangent.h"
-#include "scene/surface/material/MDL.h"
+#include "geometry/ComputeTangent.h"
+#include "material/MDL.h"
 #endif // defined(USE_MDL)
 
 namespace visrtx {

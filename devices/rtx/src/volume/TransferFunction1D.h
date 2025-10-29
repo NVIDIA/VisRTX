@@ -31,29 +31,42 @@
 
 #pragma once
 
-#include "../space_skipping/UniformGrid.h"
-#include "RegisteredObject.h"
+#include "array/Array1D.h"
+#include "volume/Volume.h"
+#include "spatial_field/SpatialField.h"
 
 namespace visrtx {
 
-struct SpatialField : public RegisteredObject<SpatialFieldGPUData>
+struct TransferFunction1D : public Volume
 {
-  SpatialField(DeviceGlobalState *d);
-  ~SpatialField() = default;
+  TransferFunction1D(DeviceGlobalState *d);
+  ~TransferFunction1D();
 
-  virtual box3 bounds() const = 0;
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
-  virtual float stepSize() const = 0;
+ private:
+  VolumeGPUData gpuData() const override;
+  void discritizeTFData();
+  void createTFTexture();
+  void cleanup();
 
-  void markFinalized() override;
+  helium::ChangeObserverPtr<Array1D> m_color;
+  helium::ChangeObserverPtr<Array1D> m_opacity;
 
-  static SpatialField *createInstance(
-      std::string_view subtype, DeviceGlobalState *d);
+  box1 m_valueRange{0.f, 1.f};
+  float m_unitDistance{1.f};
+  vec4 m_uniformColor{1.f};
+  float m_uniformOpacity{1.f};
 
-  UniformGrid m_uniformGrid;
+  helium::ChangeObserverPtr<SpatialField> m_field;
+
+  std::vector<vec4> m_tf;
+  int m_tfDim{256};
+
+  cudaArray_t m_cudaArray{};
+  cudaTextureObject_t m_textureObject{};
 };
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(
-    visrtx::SpatialField *, ANARI_SPATIAL_FIELD);

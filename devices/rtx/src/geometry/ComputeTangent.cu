@@ -31,7 +31,7 @@
 
 #include "ComputeTangent.h"
 #include "array/Array.h"
-#include "scene/surface/geometry/Triangle.h"
+#include "geometry/Triangle.h"
 
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>

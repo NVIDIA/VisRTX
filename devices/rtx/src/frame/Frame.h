@@ -35,7 +35,7 @@
 #include "camera/Camera.h"
 #include "gpu/gpu_objects.h"
 #include "renderer/Renderer.h"
-#include "scene/World.h"
+#include "world/World.h"
 #include "utility/DeviceObject.h"
 // helium
 #include "helium/BaseFrame.h"

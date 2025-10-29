@@ -31,36 +31,43 @@
 
 #pragma once
 
-#include "array/Array3D.h"
-#include "scene/volume/spatial_field/SpatialField.h"
+#include "geometry/Geometry.h"
+#include "material/Material.h"
 
 namespace visrtx {
 
-struct StructuredRegularField : public SpatialField
+struct Surface : public RegisteredObject<SurfaceGPUData>
 {
-  StructuredRegularField(DeviceGlobalState *d);
-  ~StructuredRegularField();
+  Surface(DeviceGlobalState *d);
 
   void commitParameters() override;
   void finalize() override;
+  void markFinalized() override;
   bool isValid() const override;
 
-  box3 bounds() const override;
-  float stepSize() const override;
+  Geometry *geometry();
+  const Geometry *geometry() const;
+  Material *material();
+  const Material *material() const;
+
+  bool isVisible() const;
+
+  OptixBuildInput buildInput() const;
 
  private:
-  SpatialFieldGPUData gpuData() const override;
-  void cleanup();
+  bool geometryIsValid() const;
+  bool materialIsValid() const;
+  SurfaceGPUData gpuData() const override;
 
-  void buildGrid();
+  helium::IntrusivePtr<Geometry> m_geometry;
+  helium::IntrusivePtr<Material> m_material;
 
-  vec3 m_origin;
-  vec3 m_spacing;
-  std::string m_filter;
-  helium::ChangeObserverPtr<Array3D> m_data;
+  OptixBuildInput m_buildInput{};
 
-  cudaArray_t m_cudaArray{};
-  cudaTextureObject_t m_textureObject{};
+  uint32_t m_id{~0u};
+  bool m_visible{true};
 };
 
 } // namespace visrtx
+
+VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Surface *, ANARI_SURFACE);

@@ -30,7 +30,7 @@
  */
 
 #include "StructuredRegularField.h"
-#include "../../../utility/AnariTypeHelpers.h"
+#include "utility/AnariTypeHelpers.h"
 // std
 #include <algorithm>
 #include <limits>

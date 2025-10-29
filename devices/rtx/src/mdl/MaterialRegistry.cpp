@@ -37,7 +37,7 @@
 #include "libmdl/ArgumentBlockInstance.h"
 #include "libmdl/TimeStamp.h"
 #include "libmdl/ptx.h"
-#include "scene/surface/material/PhysicallyBasedMDL.h"
+#include "material/PhysicallyBasedMDL.h"
 
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>

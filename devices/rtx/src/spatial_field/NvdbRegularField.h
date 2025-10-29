@@ -32,7 +32,7 @@
 #pragma once
 
 #include "array/Array1D.h"
-#include "scene/volume/spatial_field/SpatialField.h"
+#include "spatial_field/SpatialField.h"
 #include "utility/DeviceBuffer.h"
 
 #include <nanovdb/NanoVDB.h>

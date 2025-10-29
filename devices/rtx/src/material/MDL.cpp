@@ -35,11 +35,11 @@
 #include "libmdl/ArgumentBlockInstance.h"
 #include "optix_visrtx.h"
 #include "sampler/Sampler.h"
-#include "scene/surface/material/Material.h"
+#include "material/Material.h"
 
 #include "libmdl/ArgumentBlockDescriptor.h"
 #include "libmdl/helpers.h"
-#include "scene/surface/material/sampler/Sampler.h"
+#include "sampler/Sampler.h"
 
 #include <anari/frontend/anari_enums.h>
 

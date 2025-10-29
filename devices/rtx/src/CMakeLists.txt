@@ -134,6 +134,34 @@ set(SOURCES
   frame/Denoiser.cu
   frame/Frame.cu
 
+  geometry/ComputeTangent.cu
+  geometry/Cone.cpp
+  geometry/Curve.cpp
+  geometry/Cylinder.cpp
+  geometry/Geometry.cpp
+  $<$<BOOL:${VISRTX_ENABLE_NEURAL}>:geometry/Neural.cpp>
+  geometry/Quad.cpp
+  geometry/Sphere.cu
+  geometry/Triangle.cpp
+  geometry/UnknownGeometry.cpp
+
+  light/sampling/CDF.cu
+  light/Directional.cpp
+  light/HDRI.cpp
+  light/Light.cpp
+  light/Point.cpp
+  light/Rect.cpp
+  light/Ring.cpp
+  light/Spot.cpp
+  light/UnknownLight.cpp
+
+  material/Material.cpp
+  material/Matte.cpp
+  material/PBR.cpp
+  material/UnknownMaterial.cpp
+  material/shaders/MatteShader.cpp
+  material/shaders/PhysicallyBasedShader.cpp
+
   renderer/AmbientOcclusion.cpp
   renderer/Debug.cpp
   renderer/DiffusePathTracer.cpp
@@ -143,60 +171,22 @@ set(SOURCES
   renderer/Test.cpp
   renderer/UnknownRenderer.cpp
 
-  shaders/MatteShader.cpp
-  shaders/PhysicallyBasedShader.cpp
+  sampler/CompressedImage2D.cpp
+  sampler/Image1D.cpp
+  sampler/Image2D.cpp
+  sampler/Image3D.cpp
+  sampler/PrimitiveSampler.cpp
+  sampler/Sampler.cpp
+  sampler/TransformSampler.cpp
+  sampler/UnknownSampler.cpp
 
-  scene/Group.cpp
-  scene/Instance.cpp
-  scene/World.cpp
-  scene/ComputeTangent.cu
+  spatial_field/SpatialField.cpp
+  spatial_field/NvdbRegularField.cpp
+  spatial_field/StructuredRegularField.cpp
+  spatial_field/UnknownSpatialField.cpp
+  spatial_field/space_skipping/UniformGrid.cu
 
-  scene/light/sampling/CDF.cu
-  scene/light/Directional.cpp
-  scene/light/HDRI.cpp
-  scene/light/Light.cpp
-  scene/light/Point.cpp
-  scene/light/Rect.cpp
-  scene/light/Ring.cpp
-  scene/light/Spot.cpp
-  scene/light/UnknownLight.cpp
-
-  scene/surface/Surface.cpp
-
-  scene/surface/geometry/Cone.cpp
-  scene/surface/geometry/Curve.cpp
-  scene/surface/geometry/Cylinder.cpp
-  scene/surface/geometry/Geometry.cpp
-  $<$<BOOL:${VISRTX_ENABLE_NEURAL}>:scene/surface/geometry/Neural.cpp>
-  scene/surface/geometry/Quad.cpp
-  scene/surface/geometry/Sphere.cu
-  scene/surface/geometry/Triangle.cpp
-  scene/surface/geometry/UnknownGeometry.cpp
-
-  scene/surface/material/Material.cpp
-  scene/surface/material/Matte.cpp
-  scene/surface/material/PBR.cpp
-  scene/surface/material/UnknownMaterial.cpp
-
-  scene/surface/material/sampler/CompressedImage2D.cpp
-  scene/surface/material/sampler/Image1D.cpp
-  scene/surface/material/sampler/Image2D.cpp
-  scene/surface/material/sampler/Image3D.cpp
-  scene/surface/material/sampler/PrimitiveSampler.cpp
-  scene/surface/material/sampler/Sampler.cpp
-  scene/surface/material/sampler/TransformSampler.cpp
-  scene/surface/material/sampler/UnknownSampler.cpp
-
-  scene/volume/TransferFunction1D.cpp
-  scene/volume/UnknownVolume.cpp
-  scene/volume/Volume.cpp
-
-  scene/volume/space_skipping/UniformGrid.cu
-
-  scene/volume/spatial_field/SpatialField.cpp
-  scene/volume/spatial_field/NvdbRegularField.cpp
-  scene/volume/spatial_field/StructuredRegularField.cpp
-  scene/volume/spatial_field/UnknownSpatialField.cpp
+  surface/Surface.cpp
 
   utility/CudaImageTexture.cpp
   utility/DeferredArrayUploadBuffer.cpp
@@ -204,22 +194,29 @@ set(SOURCES
   utility/MemoryAllocation.cpp
   utility/PPM.cpp
 
+  volume/TransferFunction1D.cpp
+  volume/UnknownVolume.cpp
+  volume/Volume.cpp
+
+  world/Group.cpp
+  world/Instance.cpp
+  world/World.cpp
+
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:
     mdl/Logger.cpp
     mdl/ptx.cpp
     mdl/MaterialRegistry.cpp
     mdl/SamplerRegistry.cpp
-    scene/surface/material/MDL.cpp
-    scene/surface/material/PhysicallyBasedMDL.cpp
+    material/MDL.cpp
+    material/PhysicallyBasedMDL.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/mdl/default.mdl.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/mdl/physically_based.mdl.cpp
   >
-
 )
 
 if(VISRTX_ENABLE_MDL_SUPPORT)
   set_source_files_properties(
-    scene/surface/material/Material.cpp
+    material/Material.cpp
     PROPERTIES COMPILE_DEFINITIONS $<$<BOOL:${VISRTX_USE_MDL_FOR_PHYSICALLY_BASED}>:USE_MDL_FOR_PHYSICALLY_BASED>
   )
 endif()
@@ -361,12 +358,12 @@ GenerateEmbeddedPTX(renderer DiffusePathTracer)
 GenerateEmbeddedPTX(renderer DirectLight)
 GenerateEmbeddedPTX(renderer Raycast)
 GenerateEmbeddedPTX(renderer Test)
-GenerateEmbeddedPTX(scene Intersectors)
-GenerateEmbeddedPTX(shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)
-GenerateEmbeddedPTX(shaders PhysicallyBasedShader ENTRIES __direct__callable__evalSurfaceMaterial)
+GenerateEmbeddedPTX(geometry Intersectors)
+GenerateEmbeddedPTX(material/shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)
+GenerateEmbeddedPTX(material/shaders PhysicallyBasedShader ENTRIES __direct__callable__evalSurfaceMaterial)
 if(VISRTX_ENABLE_MDL_SUPPORT)
-  GenerateEmbeddedPTX(shaders MDLShader ENTRIES __direct__callable__evalSurfaceMaterial)
-  GenerateEmbeddedPTX(shaders MDLTexture)
+  GenerateEmbeddedPTX(material/shaders MDLShader ENTRIES __direct__callable__evalSurfaceMaterial)
+  GenerateEmbeddedPTX(material/shaders MDLTexture)
 endif()
 
 

@@ -35,9 +35,9 @@
 #include "array/Array3D.h"
 #include "libmdl/ArgumentBlockDescriptor.h"
 #include "optix_visrtx.h"
-#include "scene/surface/material/sampler/CompressedImage2D.h"
-#include "scene/surface/material/sampler/Image2D.h"
-#include "scene/surface/material/sampler/Image3D.h"
+#include "sampler/CompressedImage2D.h"
+#include "sampler/Image2D.h"
+#include "sampler/Image3D.h"
 
 #include <anari/frontend/anari_enums.h>
 #include <helium/utility/IntrusivePtr.h>

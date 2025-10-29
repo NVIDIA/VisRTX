@@ -37,7 +37,7 @@
 #include "optix_visrtx.h"
 
 #include "libmdl/ArgumentBlockInstance.h"
-#include "scene/surface/material/sampler/Sampler.h"
+#include "sampler/Sampler.h"
 
 #include <optional>
 #include <unordered_map>

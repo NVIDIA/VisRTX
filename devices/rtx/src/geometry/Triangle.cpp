@@ -31,7 +31,7 @@
 
 #include "Triangle.h"
 
-#include "scene/ComputeTangent.h"
+#include "geometry/ComputeTangent.h"
 
 namespace visrtx {
 

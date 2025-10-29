@@ -31,43 +31,29 @@
 
 #pragma once
 
-#include "scene/surface/geometry/Geometry.h"
-#include "scene/surface/material/Material.h"
+#include "space_skipping/UniformGrid.h"
+#include "RegisteredObject.h"
 
 namespace visrtx {
 
-struct Surface : public RegisteredObject<SurfaceGPUData>
+struct SpatialField : public RegisteredObject<SpatialFieldGPUData>
 {
-  Surface(DeviceGlobalState *d);
+  SpatialField(DeviceGlobalState *d);
+  ~SpatialField() = default;
 
-  void commitParameters() override;
-  void finalize() override;
+  virtual box3 bounds() const = 0;
+
+  virtual float stepSize() const = 0;
+
   void markFinalized() override;
-  bool isValid() const override;
 
-  Geometry *geometry();
-  const Geometry *geometry() const;
-  Material *material();
-  const Material *material() const;
+  static SpatialField *createInstance(
+      std::string_view subtype, DeviceGlobalState *d);
 
-  bool isVisible() const;
-
-  OptixBuildInput buildInput() const;
-
- private:
-  bool geometryIsValid() const;
-  bool materialIsValid() const;
-  SurfaceGPUData gpuData() const override;
-
-  helium::IntrusivePtr<Geometry> m_geometry;
-  helium::IntrusivePtr<Material> m_material;
-
-  OptixBuildInput m_buildInput{};
-
-  uint32_t m_id{~0u};
-  bool m_visible{true};
+  UniformGrid m_uniformGrid;
 };
 
 } // namespace visrtx
 
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Surface *, ANARI_SURFACE);
+VISRTX_ANARI_TYPEFOR_SPECIALIZATION(
+    visrtx::SpatialField *, ANARI_SPATIAL_FIELD);

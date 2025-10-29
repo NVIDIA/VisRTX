@@ -31,31 +31,36 @@
 
 #pragma once
 
-#include <scene/surface/geometry/Triangle.h>
-
-#include <anari/anari_cpp.hpp>
-#include <glm/fwd.hpp>
+#include "array/Array3D.h"
+#include "spatial_field/SpatialField.h"
 
 namespace visrtx {
 
-void computeVertexNormals(glm::vec3 *normals, // Output vertex normals
-    const glm::vec3 *positions, // Input vertex positions
-    const glm::uvec3 *indices, // Input triangle indices
-    unsigned int numTriangles, // Number of triangles
-    unsigned int numNormals // Number of normals
-);
+struct StructuredRegularField : public SpatialField
+{
+  StructuredRegularField(DeviceGlobalState *d);
+  ~StructuredRegularField();
 
-template <typename TexCoord>
-void computeVertexTangents(
-    glm::vec4 *tangents, // Output tangent vectors with handedness (w component)
-    const glm::vec3 *positions, // Input vertex positions
-    const glm::vec3 *normals, // Input vertex normals
-    const TexCoord *texCoords, // Input texture coordinates
-    const glm::uvec3 *indices, // Input triangle indices
-    unsigned int numTriangles, // Number of triangles
-    unsigned int numNormals // Number of normals
-);
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
-void updateGeometryTangent(Triangle *triangle);
+  box3 bounds() const override;
+  float stepSize() const override;
+
+ private:
+  SpatialFieldGPUData gpuData() const override;
+  void cleanup();
+
+  void buildGrid();
+
+  vec3 m_origin;
+  vec3 m_spacing;
+  std::string m_filter;
+  helium::ChangeObserverPtr<Array3D> m_data;
+
+  cudaArray_t m_cudaArray{};
+  cudaTextureObject_t m_textureObject{};
+};
 
 } // namespace visrtx
