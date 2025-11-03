@@ -439,6 +439,11 @@ void LayerTree::buildUI_objectSceneMenu()
           clearSelectedNode = true;
         }
 
+        if (ImGui::MenuItem("sphere set volume")) {
+          tsd::io::generate_sphereSetVolume(scene, menuNode);
+          clearSelectedNode = true;
+        }
+
         ImGui::EndMenu();
       }
 
