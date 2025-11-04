@@ -1,18 +1,55 @@
 name: Build VisRTX
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - "pull-request/[0-9]+"
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [linux, windows]
-    runs-on: ${{ matrix.os }}-amd64-cpu4
+        config: [release]
+        include:
+          - runs-on: ubuntu-22.04
+            os: linux
+            generator: Ninja
+          - runs-on: windows-2022
+            os: windows
+            generator: Visual Studio 17 2022
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Dump runner info
-        run: |          
-          which nvcc
+        uses: actions/checkout@v5
+      - name: Setup CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.29
+        with:
+          cuda: '12.4.1'
+          method: 'network'
+          sub-packages: ${{ matrix.os == 'linux' && '["nvcc", "cudart", "nvml-dev", "thrust"]' || '[]' }}
+          non-cuda-sub-packages: ${{ matrix.os == 'linux' && '["libcurand", "libcurand-dev"]' || '[]' }}
+      - name: Configure dependencies
+        run: >
+          cmake -LA -G "${{ matrix.generator }}" -B ${{github.workspace}}/deps_build
+          -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+          -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/deps
+          ${{github.workspace}}/devices/rtx/cmake/build_deps
+      - name: Install dependencies
+        run: >
+          cmake --build ${{ github.workspace }}/deps_build --config ${{ matrix.config }}
+      - name: Configure VisRTX
+        run: >
+          cmake -LA -G "${{ matrix.generator }}" -B ${{github.workspace}}/build
+          -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+          -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
+          -DVISRTX_BUILD_RTX_DEVICE=ON
+          -DVISRTX_PRECOMPILE_SHADERS=OFF
+          -DVISRTX_BUILD_GL_DEVICE=OFF
+          -DVISRTX_BUILD_TSD=OFF
+      - name: Install VisRTX
+        run: >
+          cmake --build build --config ${{ matrix.config }} --target install
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: visrtx-build-${{ matrix.runs-on }}
+          path: install
