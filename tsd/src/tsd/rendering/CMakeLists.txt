@@ -20,6 +20,7 @@ PRIVATE
   pipeline/passes/RenderPass.cpp
   pipeline/passes/VisualizeDepthPass.cpp
   pipeline/RenderPipeline.cpp
+  view/CameraUpdateDelegate.cpp
   view/ManipulatorToAnari.cpp
 )
 

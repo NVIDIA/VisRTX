@@ -14,7 +14,7 @@ struct Camera : public Object
   DECLARE_OBJECT_DEFAULT_LIFETIME(Camera);
 
   Camera(Token subtype = tokens::unknown);
-  virtual ~Camera() = default;
+  virtual ~Camera() override = default;
 
   IndexedVectorRef<Camera> self() const;
 

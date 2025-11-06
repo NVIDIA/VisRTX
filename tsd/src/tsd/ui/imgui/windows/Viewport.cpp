@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "Viewport.h"
-#include "Log.h"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 // tsd_core
 #include "tsd/core/scene/objects/Camera.hpp"
+#include "tsd/core/Logging.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/ManipulatorToAnari.hpp"
 // tsd_io
 #include "tsd/io/serialization.hpp"
+
 // std
 #include <chrono>
 #include <cstring>
@@ -19,6 +20,10 @@
 #include <iomanip>
 #include <limits>
 #include <sstream>
+#include <string>
+#include <memory>
+#include <utility>
+
 // stb
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -574,57 +579,72 @@ void Viewport::updateCamera(bool force)
   if (!m_anariPass)
     return;
 
-  // If using database camera, apply its parameters instead of manipulator
-  if (m_selectedCamera) {
-    applyCameraParameters(m_selectedCamera.data());
-    return; // Skip manipulator logic
+  // Check if camera changed, might it be database camera or manipulator one.
+  bool isDbCamera = m_selectedCamera && m_cameraDelegate;
+
+  // Before proceeding, check if the camera still does exist
+  if (isDbCamera && !m_selectedCamera->self()) {
+    tsd::core::logWarning(
+        "[viewport] selected camera no longer exists, reverting to manipulator camera");
+    clearDatabaseCamera();
+    isDbCamera = false;
   }
 
-  if ((!force && !m_arcball->hasChanged(m_cameraToken)))
-    return;
+  if (!force
+      && !(isDbCamera ? m_cameraDelegate->hasChanged(m_cameraToken) : m_arcball->hasChanged(m_cameraToken)))
+        return;
 
-  // perspective camera //
-
-  tsd::rendering::updateCameraParametersPerspective(
-      m_device, m_perspCamera, *m_arcball);
-  anari::setParameter(m_device,
-      m_perspCamera,
-      "aspect",
-      m_viewportSize.x / float(m_viewportSize.y));
-  anari::setParameter(
-      m_device, m_perspCamera, "apertureRadius", m_apertureRadius);
-  anari::setParameter(
-      m_device, m_perspCamera, "focusDistance", m_focusDistance);
-
-  anari::setParameter(m_device, m_perspCamera, "fovy", anari::radians(m_fov));
-  anari::commitParameters(m_device, m_perspCamera);
-
-  // orthographic camera //
-
-  if (m_orthoCamera) {
-    tsd::rendering::updateCameraParametersOrthographic(
-        m_device, m_orthoCamera, *m_arcball);
+  // Get compass information
+  tsd::math::float3 axesDir;
+  tsd::math::float3 axesUp;
+  if (isDbCamera) {
+    applyCameraParameters(&*m_selectedCamera);
+    axesDir = m_selectedCamera->parameterValueAs<tsd::math::float3>("direction").value_or(tsd::math::float3(0.0f, 0.0f, -1.0f));
+    axesUp = m_selectedCamera->parameterValueAs<tsd::math::float3>("up").value_or(tsd::math::float3(0.0f, 1.0f, 0.0f));
+  } else {
+    // perspective camera //
+    tsd::rendering::updateCameraParametersPerspective(
+        m_device, m_perspCamera, *m_arcball);
     anari::setParameter(m_device,
-        m_orthoCamera,
+        m_perspCamera,
         "aspect",
         m_viewportSize.x / float(m_viewportSize.y));
-    anari::commitParameters(m_device, m_orthoCamera);
+    anari::setParameter(
+        m_device, m_perspCamera, "apertureRadius", m_apertureRadius);
+    anari::setParameter(
+        m_device, m_perspCamera, "focusDistance", m_focusDistance);
+
+    anari::setParameter(m_device, m_perspCamera, "fovy", anari::radians(m_fov));
+    anari::commitParameters(m_device, m_perspCamera);
+
+    // orthographic camera //
+
+    if (m_orthoCamera) {
+      tsd::rendering::updateCameraParametersOrthographic(
+          m_device, m_orthoCamera, *m_arcball);
+      anari::setParameter(m_device,
+          m_orthoCamera,
+          "aspect",
+          m_viewportSize.x / float(m_viewportSize.y));
+      anari::commitParameters(m_device, m_orthoCamera);
+    }
+
+    // omnidirectional camera //
+
+    if (m_omniCamera) {
+      tsd::rendering::updateCameraParametersPerspective( // also works for omni
+          m_device,
+          m_omniCamera,
+          *m_arcball);
+      anari::commitParameters(m_device, m_omniCamera);
+    }
+    if (m_echoCameraConfig)
+      echoCameraConfig();
+    axesUp = m_arcball->up();
+    axesDir = m_arcball->dir();
   }
 
-  // omnidirectional camera //
-
-  if (m_omniCamera) {
-    tsd::rendering::updateCameraParametersPerspective( // also works for omni
-        m_device,
-        m_omniCamera,
-        *m_arcball);
-    anari::commitParameters(m_device, m_omniCamera);
-  }
-
-  if (m_echoCameraConfig)
-    echoCameraConfig();
-
-  m_axesPass->setView(m_arcball->dir(), m_arcball->up());
+  m_axesPass->setView(axesDir, axesUp);
 }
 
 void Viewport::updateImage()
@@ -721,22 +741,39 @@ void Viewport::applyCameraParameters(tsd::core::Camera *cam)
 
   auto d = m_device;
   auto c = m_currentCamera; // ANARI camera
-  cam->updateAllANARIParameters(d, m_currentCamera);
-
+  // Let's make sure we recompute the camera aspect ratio before
+  // handing off the parameters to the ANARI camera.
+  // Note that we don't want this to be accounted as a user change
+  // as it is only about automatic viewport adaptation.
+  // Not doing so creates an infinite invalidate->restart accumulation
+  // loop.
+  m_cameraDelegate->pushIgnoreChangeScope();
   if (cam->subtype() == tsd::core::tokens::camera::perspective ||
      cam->subtype() == tsd::core::tokens::camera::orthographic) {
     // Let's not check for cam->parameter("aspect")
     // and always recompute an aspect ratio based on viewport size.
     float aspect = m_viewportSize.x / float(m_viewportSize.y);
-    anari::setParameter(d, c, "aspect", aspect);
+    cam->setParameter("aspect", aspect);
   }
-
+  m_cameraDelegate->popIgnoreChangeScope();
+  cam->updateAllANARIParameters(d, m_currentCamera);
   anari::commitParameters(d, c);
 }
 
 void Viewport::setDatabaseCamera(tsd::core::CameraRef cam)
 {
+  // Detach previous delegate if any
+  if (m_cameraDelegate)
+    m_cameraDelegate->detach();
+  m_cameraDelegate.reset();
+
   m_selectedCamera = cam;
+  m_cameraToken = 0;
+  // Wire new delegate
+  if (m_selectedCamera) {
+    m_cameraDelegate = std::make_unique<tsd::core::CameraUpdateDelegate>(
+      m_selectedCamera.data());
+  }
   updateCamera(true);
   tsd::core::logStatus("Viewport using database camera '%s'", 
                        cam->name().c_str());
@@ -744,7 +781,12 @@ void Viewport::setDatabaseCamera(tsd::core::CameraRef cam)
 
 void Viewport::clearDatabaseCamera()
 {
+  // Detach delegate if any
+  if (m_cameraDelegate)
+    m_cameraDelegate->detach();
+  m_cameraDelegate.reset();
   m_selectedCamera = {};
+  m_cameraToken = 0;
   updateCamera(true);
   tsd::core::logStatus("Viewport using manipulator");
 }

@@ -15,11 +15,15 @@
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"
 #include "tsd/rendering/view/Manipulator.hpp"
+#include "tsd/rendering/view/CameraUpdateDelegate.hpp"
 // std
 #include <array>
 #include <functional>
 #include <future>
 #include <limits>
+#include <memory>
+#include <vector>
+#include <string>
 
 namespace tsd::ui::imgui {
 
@@ -139,8 +143,10 @@ struct Viewport : public Window
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
 
+
   // Database camera state
   tsd::core::CameraRef m_selectedCamera;
+  std::unique_ptr<tsd::core::CameraUpdateDelegate> m_cameraDelegate;
 
   // display
 
