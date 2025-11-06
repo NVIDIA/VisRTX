@@ -9,6 +9,8 @@
 // tsd_core
 #include "tsd/core/scene/Object.hpp"
 #include "tsd/core/scene/UpdateDelegate.hpp"
+#include "tsd/core/scene/objects/Camera.hpp"
+
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"
@@ -39,6 +41,10 @@ struct Viewport : public Window
   void setExternalInstances(
       const anari::Instance *instances = nullptr, size_t count = 0);
 
+  void setDatabaseCamera(tsd::core::CameraRef cam);
+  void clearDatabaseCamera();
+  void createCameraFromCurrentView();
+
  private:
   void saveSettings(tsd::core::DataNode &thisWindowRoot) override;
   void loadSettings(tsd::core::DataNode &thisWindowRoot) override;
@@ -55,6 +61,8 @@ struct Viewport : public Window
   void updateFrame();
   void updateCamera(bool force = false);
   void updateImage();
+
+  void applyCameraParameters(tsd::core::Camera *cam);
 
   void echoCameraConfig();
   void ui_menubar();
@@ -130,6 +138,9 @@ struct Viewport : public Window
   tsd::rendering::UpdateToken m_cameraToken{0};
   float m_apertureRadius{0.f};
   float m_focusDistance{1.f};
+
+  // Database camera state
+  tsd::core::CameraRef m_selectedCamera;
 
   // display
 

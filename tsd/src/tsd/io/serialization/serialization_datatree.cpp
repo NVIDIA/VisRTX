@@ -276,6 +276,9 @@ static void nodeToNewObject(Scene &scene, core::DataNode &node)
   case ANARI_LIGHT:
     obj = scene.createObject<Light>(subtype).data();
     break;
+  case ANARI_CAMERA:
+    obj = scene.createObject<Camera>(subtype).data();
+    break;
   default:
     break;
   }
@@ -410,6 +413,7 @@ void save_Scene(Scene &scene, core::DataNode &root)
   objectArrayToNode(objectDB, scene.m_db.field, "spatialfield");
   objectArrayToNode(objectDB, scene.m_db.volume, "volume");
   objectArrayToNode(objectDB, scene.m_db.light, "light");
+  objectArrayToNode(objectDB, scene.m_db.camera, "camera");
   objectArrayToNode(objectDB, scene.m_db.array, "array");
 }
 
@@ -456,6 +460,7 @@ void load_Scene(Scene &scene, core::DataNode &root)
   nodeToObjectArray(objectDB, scene, "spatialfield");
   nodeToObjectArray(objectDB, scene, "volume");
   nodeToObjectArray(objectDB, scene, "light");
+  nodeToObjectArray(objectDB, scene, "camera");
 
   // Layers
 

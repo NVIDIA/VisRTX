@@ -21,6 +21,7 @@ PRIVATE
   scene/Scene.cpp
   scene/UpdateDelegate.cpp
   scene/objects/Array.cpp
+  scene/objects/Camera.cpp
   scene/objects/Geometry.cpp
   scene/objects/Light.cpp
   scene/objects/Material.cpp

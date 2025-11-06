@@ -19,7 +19,8 @@ std::string objectDBInfo(const ObjectDatabase &db)
   ss << "    samplers: " << db.sampler.size() << '\n';
   ss << "     volumes: " << db.volume.size() << '\n';
   ss << "      fields: " << db.field.size() << '\n';
-  ss << "      lights: " << db.light.size();
+  ss << "      lights: " << db.light.size() << '\n';
+  ss << "     cameras: " << db.camera.size();
   return ss.str();
 }
 
@@ -63,6 +64,7 @@ Scene::~Scene()
   reportObjectUsages(m_db.sampler);
   reportObjectUsages(m_db.field);
   reportObjectUsages(m_db.array);
+  reportObjectUsages(m_db.camera);
 }
 
 MaterialRef Scene::defaultMaterial() const
@@ -129,6 +131,9 @@ Object *Scene::getObject(ANARIDataType type, size_t i) const
   case ANARI_LIGHT:
     obj = m_db.light.at(i).data();
     break;
+  case ANARI_CAMERA:
+    obj = m_db.camera.at(i).data();
+    break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
@@ -167,6 +172,9 @@ size_t Scene::numberOfObjects(anari::DataType type) const
     break;
   case ANARI_LIGHT:
     numObjects = m_db.light.capacity();
+    break;
+  case ANARI_CAMERA:
+    numObjects = m_db.camera.capacity();
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
@@ -222,6 +230,9 @@ void Scene::removeObject(const Object *_o)
   case ANARI_LIGHT:
     m_db.light.erase(index);
     break;
+  case ANARI_CAMERA:
+    m_db.camera.erase(index);
+    break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
@@ -248,6 +259,7 @@ void Scene::removeAllObjects()
   m_db.volume.clear();
   m_db.field.clear();
   m_db.light.clear();
+  m_db.camera.clear();
 }
 
 BaseUpdateDelegate *Scene::updateDelegate() const
@@ -274,6 +286,7 @@ void Scene::setUpdateDelegate(BaseUpdateDelegate *ud)
   setDelegateOnObjects(m_db.sampler);
   setDelegateOnObjects(m_db.volume);
   setDelegateOnObjects(m_db.field);
+  setDelegateOnObjects(m_db.camera);
 }
 
 const ObjectDatabase &Scene::objectDB() const
@@ -579,6 +592,7 @@ void Scene::defragmentObjectStorage()
   defrag |= defragmentations[ANARI_VOLUME] = m_db.volume.defragment();
   defrag |= defragmentations[ANARI_SPATIAL_FIELD] = m_db.field.defragment();
   defrag |= defragmentations[ANARI_LIGHT] = m_db.light.defragment();
+  defrag |= defragmentations[ANARI_CAMERA] = m_db.camera.defragment();
 
   if (!defrag) {
     tsd::core::logStatus("No defragmentation needed");
@@ -615,6 +629,8 @@ void Scene::defragmentObjectStorage()
       return findIdx(m_db.field, idx);
     case ANARI_LIGHT:
       return findIdx(m_db.light, idx);
+    case ANARI_CAMERA:
+      return findIdx(m_db.camera, idx);
     case ANARI_ARRAY:
     case ANARI_ARRAY1D:
     case ANARI_ARRAY2D:

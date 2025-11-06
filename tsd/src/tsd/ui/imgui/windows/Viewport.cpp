@@ -6,6 +6,8 @@
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
+// tsd_core
+#include "tsd/core/scene/objects/Camera.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/ManipulatorToAnari.hpp"
 // tsd_io
@@ -272,6 +274,12 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   camera["apertureRadius"] = m_apertureRadius;
   camera["focusDistance"] = m_focusDistance;
 
+  // Database Camera //
+
+  if (m_selectedCamera) {
+    root["selectedCamera"] = static_cast<uint64_t>(m_selectedCamera.index());
+  }
+
   // Renderer settings //
 
   auto &renderers = root["renderers"];
@@ -319,6 +327,14 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
 
     m_arcball->setAxis(tsd::rendering::UpAxis(axis));
     m_arcball->setConfig(at, distance, azel);
+  }
+
+  // Database Camera //
+
+  if (auto *c = root.child("selectedCamera"); c) {
+    uint64_t idx = 0;
+    c->getValue(ANARI_UINT64, &idx);
+    m_selectedCamera = appCore()->tsd.scene.getObject<tsd::core::Camera>(idx);
   }
 
   // Setup library //
@@ -558,6 +574,12 @@ void Viewport::updateCamera(bool force)
   if (!m_anariPass)
     return;
 
+  // If using database camera, apply its parameters instead of manipulator
+  if (m_selectedCamera) {
+    applyCameraParameters(m_selectedCamera.data());
+    return; // Skip manipulator logic
+  }
+
   if ((!force && !m_arcball->hasChanged(m_cameraToken)))
     return;
 
@@ -690,6 +712,102 @@ void Viewport::updateImage()
 
     m_saveNextFrame = false;
   }
+}
+
+void Viewport::applyCameraParameters(tsd::core::Camera *cam)
+{
+  if (!cam || !m_device || !m_currentCamera)
+    return;
+
+  auto d = m_device;
+  auto c = m_currentCamera; // ANARI camera
+  cam->updateAllANARIParameters(d, m_currentCamera);
+
+  if (cam->subtype() == tsd::core::tokens::camera::perspective ||
+     cam->subtype() == tsd::core::tokens::camera::orthographic) {
+    // Let's not check for cam->parameter("aspect")
+    // and always recompute an aspect ratio based on viewport size.
+    float aspect = m_viewportSize.x / float(m_viewportSize.y);
+    anari::setParameter(d, c, "aspect", aspect);
+  }
+
+  anari::commitParameters(d, c);
+}
+
+void Viewport::setDatabaseCamera(tsd::core::CameraRef cam)
+{
+  m_selectedCamera = cam;
+  updateCamera(true);
+  tsd::core::logStatus("Viewport using database camera '%s'", 
+                       cam->name().c_str());
+}
+
+void Viewport::clearDatabaseCamera()
+{
+  m_selectedCamera = {};
+  updateCamera(true);
+  tsd::core::logStatus("Viewport using manipulator");
+}
+
+void Viewport::createCameraFromCurrentView()
+{
+  auto &scene = appCore()->tsd.scene;
+
+  tsd::core::CameraRef cam;
+
+  if (m_selectedCamera) {
+    // If a database camera is selected, copy it
+    auto sourceCam = m_selectedCamera;
+    
+    // Create new camera with same subtype
+    cam = scene.createObject<tsd::core::Camera>(sourceCam->subtype());
+    
+    // Copy all parameters
+    for (size_t i = 0; i < sourceCam->numParameters(); i++) {
+      const auto &srcParam = sourceCam->parameterAt(i);
+      const char *paramName = sourceCam->parameterNameAt(i);
+      cam->parameter(paramName)->setValue(srcParam.value());
+    }
+  } else {
+    // No database camera selected, create from manipulator state
+    
+    // Determine camera type from current ANARI camera
+    tsd::core::Token subtype = tsd::core::tokens::camera::perspective;
+    if (m_currentCamera == m_orthoCamera)
+      subtype = tsd::core::tokens::camera::orthographic;
+    else if (m_currentCamera == m_omniCamera)
+      subtype = tsd::core::tokens::camera::omnidirectional;
+
+    // Create camera object
+    cam = scene.createObject<tsd::core::Camera>(subtype);
+
+    // Set parameters from manipulator
+    auto eye = m_arcball->eye();
+    auto dir = tsd::math::normalize(m_arcball->at() - eye);
+    auto up = m_arcball->up();
+
+    cam->parameter("position")->setValue(eye);
+    cam->parameter("direction")->setValue(dir);
+    cam->parameter("up")->setValue(up);
+
+    // Set type-specific params
+    if (subtype == tsd::core::tokens::camera::perspective) {
+      cam->parameter("fovy")->setValue(tsd::math::radians(m_fov));
+      cam->parameter("apertureRadius")->setValue(m_apertureRadius);
+      cam->parameter("focusDistance")->setValue(m_focusDistance);
+    } else if (subtype == tsd::core::tokens::camera::orthographic) {
+      // Nothing to set here
+    }
+  }
+
+  // Set name
+  std::string name = "ViewCamera_" + std::to_string(cam.index());
+  cam->setName(name.c_str());
+
+  // Auto-select it
+  setDatabaseCamera(cam);
+
+  tsd::core::logStatus("Created camera '%s' from current view", name.c_str());
 }
 
 void Viewport::echoCameraConfig()
@@ -851,6 +969,48 @@ void Viewport::ui_menubar()
           && m_echoCameraConfig)
         echoCameraConfig();
 
+      ImGui::Separator();
+
+      // Database Camera Selection
+      ImGui::Text("Database Camera:");
+      ImGui::Indent(INDENT_AMOUNT);
+
+      // Build camera list
+      std::vector<std::string> cameraNames = {"<Manipulator>"};
+      std::vector<tsd::core::CameraRef> cameraRefs = {{}};
+      int currentSelection = 0;
+
+      const auto &cameraDB = appCore()->tsd.scene.objectDB().camera;
+      tsd::core::foreach_item_const(cameraDB, [&](const auto *cam) {
+        if (cam) {
+          cameraNames.push_back(cam->name());
+          cameraRefs.push_back(cam->self());
+          if (m_selectedCamera == cam->self()) {
+            currentSelection = static_cast<int>(cameraNames.size() - 1);
+          }
+        }
+      });
+
+      if (ImGui::Combo("Select", &currentSelection,
+          [](void* data, int idx, const char** out) {
+            auto* names = (std::vector<std::string>*)data;
+            *out = (*names)[idx].c_str();
+            return true;
+          }, &cameraNames, static_cast<int>(cameraNames.size()))) {
+
+        if (currentSelection == 0) {
+          clearDatabaseCamera();
+        } else {
+          setDatabaseCamera(cameraRefs[currentSelection]);
+        }
+      }
+
+      if (ImGui::Button("Create from Current View")) {
+        createCameraFromCurrentView();
+      }
+
+      ImGui::Unindent(INDENT_AMOUNT);
+
       ImGui::EndMenu();
     }
 
@@ -976,6 +1136,10 @@ void Viewport::ui_handleInput()
   if (!m_deviceReadyToUse || !ImGui::IsWindowFocused())
     return;
 
+  // Block arcball input when a database camera is selected
+  if (m_selectedCamera)
+    return;
+
   ImGuiIO &io = ImGui::GetIO();
 
   const bool dolly = ImGui::IsMouseDown(ImGuiMouseButton_Right)
@@ -1085,6 +1249,15 @@ void Viewport::ui_overlay()
 
   if (ImGui::Begin(m_overlayWindowName.c_str(), nullptr, window_flags)) {
     ImGui::Text("  device: %s", m_libName.c_str());
+    
+    // Camera indicator
+    if (m_selectedCamera) {
+      ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), 
+                         "  camera: %s", m_selectedCamera->name().c_str());
+    } else {
+      ImGui::Text("  camera: <Manipulator>");
+    }
+    
     ImGui::Text("Viewport: %i x %i", m_viewportSize.x, m_viewportSize.y);
     ImGui::Text("  render: %i x %i", m_renderSize.x, m_renderSize.y);
     ImGui::Text(" samples: %i", m_frameSamples);

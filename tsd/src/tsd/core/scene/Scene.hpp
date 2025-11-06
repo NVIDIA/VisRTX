@@ -6,6 +6,7 @@
 #include "tsd/core/scene/Animation.hpp"
 #include "tsd/core/scene/Layer.hpp"
 #include "tsd/core/scene/objects/Array.hpp"
+#include "tsd/core/scene/objects/Camera.hpp"
 #include "tsd/core/scene/objects/Geometry.hpp"
 #include "tsd/core/scene/objects/Light.hpp"
 #include "tsd/core/scene/objects/Material.hpp"
@@ -41,6 +42,7 @@ struct ObjectDatabase
   IndexedVector<Volume> volume;
   IndexedVector<SpatialField> field;
   IndexedVector<Light> light;
+  IndexedVector<Camera> camera;
 
   // Not copyable or moveable //
   ObjectDatabase() = default;
@@ -289,6 +291,12 @@ inline LightRef Scene::createObject(Token subtype)
   return createObjectImpl(m_db.light, subtype);
 }
 
+template <>
+inline CameraRef Scene::createObject(Token subtype)
+{
+  return createObjectImpl(m_db.camera, subtype);
+}
+
 template <typename T>
 inline IndexedVectorRef<T> Scene::getObject(size_t i) const
 {
@@ -337,6 +345,12 @@ template <>
 inline LightRef Scene::getObject(size_t i) const
 {
   return m_db.light.at(i);
+}
+
+template <>
+inline CameraRef Scene::getObject(size_t i) const
+{
+  return m_db.camera.at(i);
 }
 
 template <typename OBJ_T>
