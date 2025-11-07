@@ -14,12 +14,12 @@ CameraUpdateDelegate::CameraUpdateDelegate(Camera *camera)
   : m_camera(camera) {
   m_token = 1;
   if (m_camera)
-    dynamic_cast<Object*>(m_camera)->setUpdateDelegate(this);
+    m_camera->setUpdateDelegate(this);
 }
 
 CameraUpdateDelegate::~CameraUpdateDelegate() {
   if (m_camera)
-    dynamic_cast<Object*>(m_camera)->setUpdateDelegate(nullptr);
+    m_camera->setUpdateDelegate(nullptr);
 }
 
 void CameraUpdateDelegate::signalParameterUpdated(const Object *o, const Parameter *p) {
@@ -36,7 +36,7 @@ bool CameraUpdateDelegate::hasChanged(UpdateToken &t) const {
 
 void CameraUpdateDelegate::detach() {
   if (m_camera)
-    dynamic_cast<Object*>(m_camera)->setUpdateDelegate(nullptr);
+    m_camera->setUpdateDelegate(nullptr);
   m_camera = nullptr;
 }
 
