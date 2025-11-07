@@ -1006,8 +1006,7 @@ void import_USD(Scene &scene,
     tsd::core::logStatus("[import_USD] No default prim set.\n");
   }
   size_t primCount = 0;
-  for (auto it = stage->Traverse().begin(); it != stage->Traverse().end(); ++it)
-    ++primCount;
+  for (auto _ : stage->Traverse()) ++primCount;
   tsd::core::logStatus(
       "[import_USD] Number of prims in stage: %zu\n", primCount);
   float3 sceneMin(std::numeric_limits<float>::max());

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/core/Any.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/scene/AnyObjectUsePtr.hpp"
 #include "tsd/core/scene/ObjectUsePtr.hpp"
@@ -15,6 +16,7 @@ namespace tsd::core {
 
 struct Scene;
 using TimeStepArrays = std::vector<ObjectUsePtr<Array>>;
+using TimeStepValues = std::vector<Any>;
 
 struct Animation
 {
@@ -26,8 +28,14 @@ struct Animation
   const std::string &name() const;
   const std::string &info() const;
 
+  void setAsTimeSteps(Object &obj, Token parameter, const TimeStepValues &steps);
+
   void setAsTimeSteps(
       Object &obj, Token parameter, const TimeStepArrays &steps);
+
+  void setAsTimeSteps(Object &obj,
+      const std::vector<Token> &parameters,
+      const std::vector<TimeStepValues> &steps);
 
   void setAsTimeSteps(Object &obj,
       const std::vector<Token> &parameters,
@@ -51,7 +59,8 @@ struct Animation
   {
     AnyObjectUsePtr object;
     std::vector<Token> parameterName;
-    std::vector<TimeStepArrays> steps;
+    std::vector<TimeStepArrays> stepsArrays;
+    std::vector<TimeStepValues> stepsValues;
     size_t currentStep{TSD_INVALID_INDEX};
   } m_timesteps;
 };

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/scene/Animation.hpp"
+
+// tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/scene/Scene.hpp"
 // std
@@ -32,12 +34,41 @@ const std::string &Animation::info() const
 }
 
 void Animation::setAsTimeSteps(
+    Object &obj, Token parameter, const TimeStepValues &steps)
+{
+  m_timesteps.object = obj;
+  m_timesteps.parameterName = {parameter};
+  m_timesteps.stepsValues = {steps};
+  m_timesteps.stepsArrays.clear();
+  m_info = "current timestep: 0/" + std::to_string(steps.size() - 1);
+}
+
+void Animation::setAsTimeSteps(
     Object &obj, Token parameter, const TimeStepArrays &steps)
 {
   m_timesteps.object = obj;
   m_timesteps.parameterName = {parameter};
-  m_timesteps.steps = {steps};
+  m_timesteps.stepsArrays = {steps};
+  m_timesteps.stepsValues.clear();
   m_info = "current timestep: 0/" + std::to_string(steps.size() - 1);
+}
+
+void Animation::setAsTimeSteps(Object &obj,
+    const std::vector<Token> &parameters,
+    const std::vector<TimeStepValues> &steps)
+{
+  if (parameters.size() != steps.size()) {
+    logError(
+        "[AnimatedTimeSeries::setAsTimeSteps()] parameter/steps size mismatch");
+    return;
+  }
+
+  m_timesteps.object = obj;
+  m_timesteps.parameterName = parameters;
+  m_timesteps.stepsValues = steps;
+  m_timesteps.stepsArrays.clear();
+  m_info = "current timestep: 0/"
+      + std::to_string(steps.empty() ? 0 : steps[0].size() - 1);
 }
 
 void Animation::setAsTimeSteps(Object &obj,
@@ -52,7 +83,8 @@ void Animation::setAsTimeSteps(Object &obj,
 
   m_timesteps.object = obj;
   m_timesteps.parameterName = parameters;
-  m_timesteps.steps = steps;
+  m_timesteps.stepsValues.clear();
+  m_timesteps.stepsArrays = steps;
   m_info = "current timestep: 0/"
       + std::to_string(steps.empty() ? 0 : steps[0].size() - 1);
 }
@@ -61,24 +93,37 @@ void Animation::update(float time)
 {
   auto &ts = m_timesteps;
 
-  if (ts.steps.empty() || !ts.object || ts.parameterName.empty()) {
+  if ((ts.stepsValues.empty() && ts.stepsArrays.empty()) || !ts.object || ts.parameterName.empty()) {
     logWarning(
         "[AnimatedTimeSeries::update()] incomplete animation object '%s'",
         name().c_str());
     return;
   }
 
-  for (size_t i = 0; i < ts.steps.size(); i++) {
-    auto &steps = ts.steps[i];
-    auto &parameterName = ts.parameterName[i];
+  auto updateTimeStep = [&](size_t numSteps, auto getContainer, auto setValue) {
+    for (size_t i = 0; i < numSteps; i++) {
+      const auto& container = getContainer(i);
+      const float scaledTime = std::clamp(time, 0.f, 1.f) * (container.size() - 1);
+      const size_t idx = static_cast<size_t>(std::ceil(scaledTime));
+      if (idx == ts.currentStep)
+        continue;
 
-    const float scaledTime = std::clamp(time, 0.f, 1.f) * (steps.size() - 1);
-    const size_t idx = static_cast<size_t>(std::ceil(scaledTime));
-    if (idx != ts.currentStep) {
-      ts.object->setParameterObject(parameterName, *steps[idx]);
+      auto &parameterName = ts.parameterName[i];
+      
+      setValue(parameterName, container[idx]);
       m_info = "current timestep: " + std::to_string(idx) + "/"
-          + std::to_string(steps.size() - 1);
+          + std::to_string(container.size() - 1);
     }
+  };
+
+  if (!ts.stepsValues.empty()) {
+    updateTimeStep(ts.stepsValues.size(),
+        [&](size_t i) -> const auto& { return ts.stepsValues[i]; },
+        [&](Token param, const auto& value) { ts.object->setParameter(param, value); });
+  } else if (!ts.stepsArrays.empty()) {
+    updateTimeStep(ts.stepsArrays.size(),
+        [&](size_t i) -> const auto& { return ts.stepsArrays[i]; },
+        [&](Token param, const auto& value) { ts.object->setParameterObject(param, *value); });
   }
 }
 
@@ -101,29 +146,43 @@ void Animation::serialize(DataNode &node) const
   // Write animation sets
 
   auto &animationSets = timeseries["animationSets"];
-  for (size_t i = 0; i < ts.steps.size(); i++) {
-    auto &setNode = animationSets.append();
-    setNode["parameterName"] = ts.parameterName[i].str();
+  if (!ts.stepsArrays.empty()) {
+    for (size_t i = 0; i < ts.stepsArrays.size(); i++) {
+      auto &setNode = animationSets.append();
+      setNode["parameterName"] = ts.parameterName[i].str();
 
-    std::vector<size_t> setArrayIndices;
-    setArrayIndices.reserve(ts.steps[i].size());
-    for (auto &s : ts.steps[i])
-      setArrayIndices.push_back(s->index());
+      std::vector<size_t> setArrayIndices;
+      setArrayIndices.reserve(ts.stepsArrays[i].size());
 
-    setNode["steps"].setValueAsArray(setArrayIndices);
+      for (auto &s : ts.stepsArrays[i])
+        setArrayIndices.push_back(s->index());
+      setNode["steps"].setValueAsArray(setArrayIndices);
+    }
+  } else if (!ts.stepsValues.empty()) {
+    logWarning("Serializing animation of Any is not yet supported\n");
   }
 }
 
 void Animation::deserialize(DataNode &node)
 {
   auto getTimeStepArrays = [this](DataNode &setNode) {
-    size_t *indices = nullptr;
     size_t numSteps = 0;
-    setNode["steps"].getValueAsArray<size_t>(&indices, &numSteps);
-    TimeStepArrays steps;
-    for (size_t i = 0; i < numSteps; i++)
-      steps.emplace_back(m_scene->getObject<Array>(indices[i]));
-    return steps;
+    void *data = nullptr;
+    ANARIDataType type;
+    setNode["steps"].getValueAsArray(&type, &data, &numSteps);
+
+    TimeStepArrays stepsArrays;
+
+    if (type == anari::ANARITypeFor<size_t>::value) {
+      auto indices = static_cast<size_t *>(data);
+      for (size_t i = 0; i < numSteps; i++) {
+        stepsArrays.emplace_back(m_scene->getObject<Array>(indices[i]));
+      }
+    } else {
+      logWarning("Deserializing animation of Any is not yet supported\n");
+    }
+
+    return stepsArrays;
   };
 
   //////////////////
@@ -139,6 +198,7 @@ void Animation::deserialize(DataNode &node)
     if (auto *sets = tsNode.child("animationSets"); sets != nullptr) {
       std::vector<Token> parameterNames;
       std::vector<TimeStepArrays> allSteps;
+
       sets->foreach_child([&](DataNode &setNode) {
         auto parameterName =
             Token(setNode["parameterName"].getValueAs<std::string>().c_str());
