@@ -21,6 +21,7 @@
 #include <pxr/usd/usdGeom/cylinder.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/points.h>
+#include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdGeom/scope.h>
 #include <pxr/usd/usdGeom/sphere.h>
 #include <pxr/usd/usdGeom/xform.h>
@@ -379,27 +380,59 @@ static void import_usd_mesh(Scene &scene,
   pxr::VtArray<pxr::GfVec3f> normals;
   mesh.GetNormalsAttr().Get(&normals);
 
-  logStatus("[import_USD] Mesh '%s': %zu points, %zu faces, %zu normals\n",
+  // Try to get UV coordinates from primvars
+  pxr::UsdGeomPrimvarsAPI primvarsAPI(prim);
+  pxr::VtArray<pxr::GfVec2f> uvs;
+  pxr::TfToken uvInterpolation;
+  bool hasUVs = false;
+  
+  // Try common UV primvar names
+  const char* uvPrimvarNames[] = {"st", "uv", "UVMap"};
+  for (const char* uvName : uvPrimvarNames) {
+    pxr::UsdGeomPrimvar uvPrimvar = primvarsAPI.GetPrimvar(pxr::TfToken(uvName));
+    if (uvPrimvar && uvPrimvar.HasValue()) {
+      if (uvPrimvar.Get(&uvs)) {
+        uvInterpolation = uvPrimvar.GetInterpolation();
+        hasUVs = true;
+        logStatus("[import_USD] Mesh '%s': Found UV primvar '%s' with %zu values, interpolation: %s\n",
+            prim.GetName().GetString().c_str(),
+            uvName,
+            uvs.size(),
+            uvInterpolation.GetText());
+        break;
+      }
+    }
+  }
+
+  logStatus("[import_USD] Mesh '%s': %zu points, %zu faces, %zu normals, %zu UVs\n",
       prim.GetName().GetString().c_str(),
       points.size(),
       faceVertexCounts.size(),
-      normals.size());
+      normals.size(),
+      uvs.size());
 
   std::vector<float3> outVertices;
   std::vector<float3> outNormals;
+  std::vector<float2> outUVs;
   size_t index = 0;
+  size_t uvIndex = 0;
+  
   for (size_t face = 0; face < faceVertexCounts.size(); ++face) {
     int vertsInFace = faceVertexCounts[face];
     for (int v = 2; v < vertsInFace; ++v) {
       int idx0 = faceVertexIndices[index];
       int idx1 = faceVertexIndices[index + v - 1];
       int idx2 = faceVertexIndices[index + v];
+      
+      // Vertices
       outVertices.push_back(
           float3(points[idx0][0], points[idx0][1], points[idx0][2]));
       outVertices.push_back(
           float3(points[idx1][0], points[idx1][1], points[idx1][2]));
       outVertices.push_back(
           float3(points[idx2][0], points[idx2][1], points[idx2][2]));
+      
+      // Normals
       if (normals.size() == points.size()) {
         outNormals.push_back(
             float3(normals[idx0][0], normals[idx0][1], normals[idx0][2]));
@@ -408,8 +441,40 @@ static void import_usd_mesh(Scene &scene,
         outNormals.push_back(
             float3(normals[idx2][0], normals[idx2][1], normals[idx2][2]));
       }
+      
+      // UVs - handle different interpolation modes
+      if (hasUVs && !uvs.empty()) {
+        if (uvInterpolation == pxr::UsdGeomTokens->faceVarying) {
+          // FaceVarying: one UV per face-vertex (most common)
+          if (uvIndex + v < uvs.size()) {
+            outUVs.push_back(math::float2(uvs[uvIndex][0], uvs[uvIndex][1]));
+            outUVs.push_back(math::float2(uvs[uvIndex + v - 1][0], uvs[uvIndex + v - 1][1]));
+            outUVs.push_back(math::float2(uvs[uvIndex + v][0], uvs[uvIndex + v][1]));
+          }
+        } else if (uvInterpolation == pxr::UsdGeomTokens->vertex) {
+          // Vertex: one UV per vertex (indexed like positions)
+          if (idx0 < (int)uvs.size() && idx1 < (int)uvs.size() && idx2 < (int)uvs.size()) {
+            outUVs.push_back(math::float2(uvs[idx0][0], uvs[idx0][1]));
+            outUVs.push_back(math::float2(uvs[idx1][0], uvs[idx1][1]));
+            outUVs.push_back(math::float2(uvs[idx2][0], uvs[idx2][1]));
+          }
+        } else if (uvInterpolation == pxr::UsdGeomTokens->uniform) {
+          // Uniform: one UV per face
+          if (face < uvs.size()) {
+            math::float2 faceUV(uvs[face][0], uvs[face][1]);
+            outUVs.push_back(faceUV);
+            outUVs.push_back(faceUV);
+            outUVs.push_back(faceUV);
+          }
+        }
+      }
     }
+    
+    // Advance indices
     index += vertsInFace;
+    if (hasUVs && uvInterpolation == pxr::UsdGeomTokens->faceVarying) {
+      uvIndex += vertsInFace;
+    }
   }
 
   auto meshObj = scene.createObject<Geometry>(tokens::geometry::triangle);
@@ -417,11 +482,22 @@ static void import_usd_mesh(Scene &scene,
       scene.createArray(ANARI_FLOAT32_VEC3, outVertices.size());
   vertexPositionArray->setData(outVertices.data(), outVertices.size());
   meshObj->setParameterObject("vertex.position", *vertexPositionArray);
+  
   if (!outNormals.empty()) {
     auto normalsArray = scene.createArray(ANARI_FLOAT32_VEC3, outNormals.size());
     normalsArray->setData(outNormals.data(), outNormals.size());
     meshObj->setParameterObject("vertex.normal", *normalsArray);
   }
+  
+  if (!outUVs.empty()) {
+    auto uvArray = scene.createArray(ANARI_FLOAT32_VEC2, outUVs.size());
+    uvArray->setData(outUVs.data(), outUVs.size());
+    meshObj->setParameterObject("vertex.attribute0", *uvArray);
+    logStatus("[import_USD] Mesh '%s': Set %zu UV coordinates on vertex.attribute0\n",
+        prim.GetName().GetString().c_str(),
+        outUVs.size());
+  }
+  
   std::string primName = prim.GetName().GetString();
   if (primName.empty())
     primName = "<unnamed_mesh>";
