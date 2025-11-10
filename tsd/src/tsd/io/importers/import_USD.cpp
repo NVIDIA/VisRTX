@@ -8,8 +8,10 @@
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TSDMath.hpp"
+#include "tsd/core/scene/objects/Array.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/io/importers/detail/HDRImage.h"
 #if TSD_USE_USD
 // usd
 #include <pxr/base/gf/vec2f.h>
@@ -920,11 +922,27 @@ static void import_usd_dome_light(Scene &scene,
         // Try to resolve relative to basePath
         resolvedPath = basePath + texFile;
       }
-      // Try to import the texture as a sampler
-      static TextureCache domeCache;
-      auto sampler = importTexture(scene, resolvedPath, domeCache);
-      if (sampler)
-        light->setParameterObject("image", *sampler);
+
+      ArrayRef radiance = {};
+      if (resolvedPath.find(".exr") != std::string::npos || resolvedPath.find(".hdr") != std::string::npos) {
+        HDRImage img;
+        if (img.import(resolvedPath)) {
+          std::vector<float3> rgb(img.width * img.height);
+
+          if (img.numComponents == 3) {
+            memcpy(rgb.data(), img.pixel.data(), sizeof(rgb[0]) * rgb.size());
+          } else if (img.numComponents == 4) {
+            for (size_t i = 0; i < img.pixel.size(); i += 4) {
+              rgb[i / 4] = float3(img.pixel[i], img.pixel[i + 1], img.pixel[i + 2]);
+            }
+          }
+
+          radiance = scene.createArray(ANARI_FLOAT32_VEC3, img.width, img.height);
+          radiance->setData(rgb.data());
+        }
+      }
+      if (radiance)
+        light->setParameterObject("radiance", *radiance);
       else
         tsd::core::logStatus(
             "[import_USD] Warning: Failed to load dome light texture: %s\n",
