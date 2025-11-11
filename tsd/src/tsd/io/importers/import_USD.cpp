@@ -123,7 +123,7 @@ static MaterialRef import_usd_preview_surface_material(Scene &scene,
   setShaderInputIfPresent(mat, surfaceShader, "ior", "ior", 0.0f);
 
   // Set name
-  std::string matName = usdMat.GetPrim().GetName().GetString();
+  std::string matName = usdMat.GetPrim().GetPath().GetString();
   if (matName.empty())
     matName = "USDPreviewSurface";
   mat->setName(matName.c_str());
@@ -500,7 +500,7 @@ static void import_usd_mesh(Scene &scene,
         outUVs.size());
   }
   
-  std::string primName = prim.GetName().GetString();
+  std::string primName = prim.GetPath().GetString();
   if (primName.empty())
     primName = "<unnamed_mesh>";
   meshObj->setName(primName.c_str());
@@ -549,7 +549,7 @@ static void import_usd_points(Scene &scene,
   radArray->setData(outRadii.data(), outRadii.size());
   geom->setParameterObject("vertex.position", *posArray);
   geom->setParameterObject("vertex.radius", *radArray);
-  std::string primName = prim.GetName().GetString();
+  std::string primName = prim.GetPath().GetString();
   if (primName.empty())
     primName = "<unnamed_points>";
   geom->setName(primName.c_str());
@@ -590,7 +590,7 @@ static void import_usd_sphere(Scene &scene,
   radArray->setData(&r, 1);
   geom->setParameterObject("vertex.position", *posArray);
   geom->setParameterObject("vertex.radius", *radArray);
-  std::string primName = prim.GetName().GetString();
+  std::string primName = prim.GetPath().GetString();
   if (primName.empty())
     primName = "<unnamed_sphere>";
   geom->setName(primName.c_str());
@@ -638,7 +638,7 @@ static void import_usd_cone(Scene &scene,
   radArray->setData(radii.data(), 2);
   geom->setParameterObject("vertex.position", *posArray);
   geom->setParameterObject("vertex.radius", *radArray);
-  std::string primName = prim.GetName().GetString();
+  std::string primName = prim.GetPath().GetString();
   if (primName.empty())
     primName = "<unnamed_cone>";
   geom->setName(primName.c_str());
@@ -687,7 +687,7 @@ static void import_usd_cylinder(Scene &scene,
   radArray->setData(radii.data(), 2);
   geom->setParameterObject("vertex.position", *posArray);
   geom->setParameterObject("vertex.radius", *radArray);
-  std::string primName = prim.GetName().GetString();
+  std::string primName = prim.GetPath().GetString();
   if (primName.empty())
     primName = "<unnamed_cylinder>";
   geom->setName(primName.c_str());
@@ -712,7 +712,7 @@ static void import_usd_volume(Scene &scene,
 {
   pxr::UsdVolVolume volumePrim(prim);
 
-  std::string primName = prim.GetName().GetString();
+  std::string primName = prim.GetPath().GetString();
   if (primName.empty())
     primName = "<unnamed_volume>";
 
