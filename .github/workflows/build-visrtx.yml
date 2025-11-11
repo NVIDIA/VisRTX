@@ -7,7 +7,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [linux, windows]
-        config: [release]
+        cudaversion: ['12.4.1', '13.0.2']
+        config: [release, debug]
         include:
           - runs-on: ubuntu-22.04
             os: linux
@@ -22,7 +23,7 @@ jobs:
       - name: Setup CUDA Toolkit
         uses: Jimver/cuda-toolkit@v0.2.29
         with:
-          cuda: '12.4.1'
+          cuda: ${{ matrix.cudaversion }}
           method: 'network'
           sub-packages: ${{ matrix.os == 'linux' && '["nvcc", "cudart", "nvml-dev", "thrust"]' || '[]' }}
           non-cuda-sub-packages: ${{ matrix.os == 'linux' && '["libcurand", "libcurand-dev"]' || '[]' }}
@@ -51,5 +52,5 @@ jobs:
       - name: Archive build artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: visrtx-build-${{ matrix.runs-on }}
+          name: visrtx-build-${{ matrix.runs-on }}-${{ matrix.cudaversion }}-${{ matrix.config }}
           path: install
