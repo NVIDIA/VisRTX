@@ -52,6 +52,9 @@ endif()
 if (TSD_USE_CUDA)
   project_compile_definitions(PUBLIC -DTSD_USE_CUDA=1)
   project_link_libraries(PUBLIC CUDA::cudart)
+  if(TARGET CCCL::CCCL)
+    project_link_libraries(PUBLIC CCCL::CCCL)
+  endif()
   set_source_files_properties(
     algorithms/detail/computeScalarRange_fixed8.cpp
     algorithms/detail/computeScalarRange_fixed16.cpp
