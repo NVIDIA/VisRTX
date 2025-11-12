@@ -16,6 +16,7 @@
 // usd
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3f.h>
+#include <pxr/base/gf/matrix4f.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usd/stage.h>
@@ -929,16 +930,37 @@ static void import_usd_disk_light(
 static void import_usd_dome_light(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
-    const std::string &basePath)
+    const std::string &basePath,
+    const pxr::GfMatrix4d &usdXform)
 {
   pxr::UsdLuxDomeLight usdLight(prim);
   auto light = scene.createObject<Light>(tokens::light::hdri);
+  light->setName(prim.GetName().GetText());
   float intensity = 1.0f;
   usdLight.GetIntensityAttr().Get(&intensity);
   pxr::GfVec3f color(1.0f);
   usdLight.GetColorAttr().Get(&color);
   light->setParameter("color", float3(color[0], color[1], color[2]));
   light->setParameter("scale", intensity);
+  
+  // Extract direction and up vectors from transformation matrix
+  // ANARI defaults: direction=(1,0,0), up=(0,0,1)
+  // USD dome lights use Z-up by default, matching ANARI
+  auto xfm = pxr::GfMatrix4d((double[4][4]){
+    {0.0, 1.0, 0.0, 0.0},
+    {0.0, 0.0, 1.0, 0.0},
+    {1.0, 0.0, 0.0, 0.0},
+    {0.0, 0.0, 0.0, 1.0}
+  });
+  xfm *= usdXform;
+  pxr::GfVec3d dirVec = xfm.TransformDir(pxr::GfVec3d(0, 0, -1));
+  pxr::GfVec3d upVec = xfm.TransformDir(pxr::GfVec3d(0, 1, 0));
+  
+  float3 direction(dirVec[0], dirVec[1], dirVec[2]);
+  float3 up(upVec[0], upVec[1], upVec[2]);
+  
+  light->setParameter("direction", direction);
+  light->setParameter("up", up);
   // Load and set environment texture from usdLight.GetTextureFileAttr()
   pxr::SdfAssetPath textureAsset;
   if (usdLight.GetTextureFileAttr().Get(&textureAsset)) {
@@ -1048,6 +1070,7 @@ static void import_usd_prim_recursive(Scene &scene,
   bool isLight = prim.IsA<pxr::UsdLuxDistantLight>()
       || prim.IsA<pxr::UsdLuxRectLight>() || prim.IsA<pxr::UsdLuxSphereLight>()
       || prim.IsA<pxr::UsdLuxDiskLight>() || prim.IsA<pxr::UsdLuxDomeLight>();
+  bool isDomeLight = prim.IsA<pxr::UsdLuxDomeLight>();
   bool isXform = prim.IsA<pxr::UsdGeomXform>() || prim.IsA<pxr::UsdGeomScope>();
 
   // Count children
@@ -1057,10 +1080,14 @@ static void import_usd_prim_recursive(Scene &scene,
 
   // Only create a transform node if:
   // - The local transform is not identity
-  // - The prim is geometry, light, or volume
+  // - The prim is geometry, light (not dome), or volume
+  //   For the domelight, the rational is the domelight can encode the transformation in
+  //     its orientation axes and at least VisRTX and Barney do not correctly support 
+  //     transforming the HDRI lights.
   // - The prim resets the xform stack
   bool createNode = !is_identity(usdLocalXform) || isGeometry || isLight
       || isVolume || resetsXformStack;
+  createNode = createNode && !isDomeLight;
 
   tsd::math::mat4 tsdXform = to_tsd_mat4(usdLocalXform);
   std::string primName = prim.GetName().GetString();
@@ -1094,7 +1121,7 @@ static void import_usd_prim_recursive(Scene &scene,
   } else if (prim.IsA<pxr::UsdLuxDiskLight>()) {
     import_usd_disk_light(scene, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxDomeLight>()) {
-    import_usd_dome_light(scene, prim, thisNode, basePath);
+    import_usd_dome_light(scene, prim, thisNode, basePath, thisWorldXform);
   } else if (prim.IsA<pxr::UsdVolVolume>()) {
     import_usd_volume(scene, prim, thisNode, thisWorldXform, sceneMin, sceneMax);
   }
