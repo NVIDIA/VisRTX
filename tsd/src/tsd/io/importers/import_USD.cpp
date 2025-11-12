@@ -467,29 +467,33 @@ static void import_usd_mesh(Scene &scene,
             int uvIdx1 = uvIndices[uvIndex + v - 1];
             int uvIdx2 = uvIndices[uvIndex + v];
             if (uvIdx0 < (int)uvs.size() && uvIdx1 < (int)uvs.size() && uvIdx2 < (int)uvs.size()) {
-              outUVs.push_back(math::float2(uvs[uvIdx0][0], uvs[uvIdx0][1]));
-              outUVs.push_back(math::float2(uvs[uvIdx1][0], uvs[uvIdx1][1]));
-              outUVs.push_back(math::float2(uvs[uvIdx2][0], uvs[uvIdx2][1]));
+              // Flip V coordinate: USD has V=0 at bottom, ANARI has V=0 at top
+              outUVs.push_back(math::float2(uvs[uvIdx0][0], 1.0f - uvs[uvIdx0][1]));
+              outUVs.push_back(math::float2(uvs[uvIdx1][0], 1.0f - uvs[uvIdx1][1]));
+              outUVs.push_back(math::float2(uvs[uvIdx2][0], 1.0f - uvs[uvIdx2][1]));
             }
           }
         } else if (uvInterpolation == pxr::UsdGeomTokens->faceVarying) {
           // FaceVarying: one UV per face-vertex (most common)
           if (uvIndex + v < uvs.size()) {
-            outUVs.push_back(math::float2(uvs[uvIndex][0], uvs[uvIndex][1]));
-            outUVs.push_back(math::float2(uvs[uvIndex + v - 1][0], uvs[uvIndex + v - 1][1]));
-            outUVs.push_back(math::float2(uvs[uvIndex + v][0], uvs[uvIndex + v][1]));
+            // Flip V coordinate: USD has V=0 at bottom, ANARI has V=0 at top
+            outUVs.push_back(math::float2(uvs[uvIndex][0], 1.0f - uvs[uvIndex][1]));
+            outUVs.push_back(math::float2(uvs[uvIndex + v - 1][0], 1.0f - uvs[uvIndex + v - 1][1]));
+            outUVs.push_back(math::float2(uvs[uvIndex + v][0], 1.0f - uvs[uvIndex + v][1]));
           }
         } else if (uvInterpolation == pxr::UsdGeomTokens->vertex) {
           // Vertex: one UV per vertex (indexed like positions)
           if (idx0 < (int)uvs.size() && idx1 < (int)uvs.size() && idx2 < (int)uvs.size()) {
-            outUVs.push_back(math::float2(uvs[idx0][0], uvs[idx0][1]));
-            outUVs.push_back(math::float2(uvs[idx1][0], uvs[idx1][1]));
-            outUVs.push_back(math::float2(uvs[idx2][0], uvs[idx2][1]));
+            // Flip V coordinate: USD has V=0 at bottom, ANARI has V=0 at top
+            outUVs.push_back(math::float2(uvs[idx0][0], 1.0f - uvs[idx0][1]));
+            outUVs.push_back(math::float2(uvs[idx1][0], 1.0f - uvs[idx1][1]));
+            outUVs.push_back(math::float2(uvs[idx2][0], 1.0f - uvs[idx2][1]));
           }
         } else if (uvInterpolation == pxr::UsdGeomTokens->uniform) {
           // Uniform: one UV per face
           if (face < uvs.size()) {
-            math::float2 faceUV(uvs[face][0], uvs[face][1]);
+            // Flip V coordinate: USD has V=0 at bottom, ANARI has V=0 at top
+            math::float2 faceUV(uvs[face][0], 1.0f - uvs[face][1]);
             outUVs.push_back(faceUV);
             outUVs.push_back(faceUV);
             outUVs.push_back(faceUV);
