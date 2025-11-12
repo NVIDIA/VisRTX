@@ -989,6 +989,20 @@ static void import_usd_dome_light(Scene &scene,
             }
           }
 
+          // Apply exposure adjustment if present
+          float exposure = 0.0f;
+          if (usdLight.GetExposureAttr().Get(&exposure)) {
+            // Convert exposure to linear scale: multiplier = 2^exposure
+            float exposureScale = std::pow(2.0f, exposure);
+            for (auto& color : rgb) {
+              color *= exposureScale;
+            }
+            tsd::core::logStatus(
+                "[import_USD] Applied dome light exposure: %f (scale: %f)\n",
+                exposure,
+                exposureScale);
+          }
+
           radiance = scene.createArray(ANARI_FLOAT32_VEC3, img.width, img.height);
           radiance->setData(rgb.data());
         }
