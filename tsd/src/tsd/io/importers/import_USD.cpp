@@ -1035,7 +1035,7 @@ static void import_usd_dome_light(Scene &scene,
 
             float3 tempColor = kelvinToRGB(colorTemp);
             for (auto& color : rgb) {
-              color *= float3(tempColor.x,tempColor.y, tempColor.z);
+              color *= float3(tempColor.x, tempColor.y, tempColor.z);
             }
             tsd::core::logStatus(
                 "[import_USD] Applied dome light color temperature: %f K (%f %f %f)\n",
@@ -1151,7 +1151,7 @@ static void import_usd_prim_recursive(Scene &scene,
   // Only create a transform node if:
   // - The local transform is not identity
   // - The prim is geometry, light (not dome), or volume
-  //   For the domelight, the rational is the domelight can encode the transformation in
+  //   For the domelight, the rationale is the domelight can encode the transformation in
   //     its orientation axes and at least VisRTX and Barney do not correctly support 
   //     transforming the HDRI lights.
   // - The prim resets the xform stack
