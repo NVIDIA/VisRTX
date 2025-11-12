@@ -228,7 +228,7 @@ SamplerRef importDdsTexture(
   }
 
   auto compressedFormat =
-      dataArray->getMetadataValue("compressedFormat").get<std::string>();
+      dataArray->getMetadataValue("compressedFormat").getString();
 
   auto tex = scene.createObject<Sampler>(tokens::sampler::compressedImage2D);
   tex->setParameterObject("image"_t, *dataArray);
