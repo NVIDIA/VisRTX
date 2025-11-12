@@ -385,8 +385,10 @@ static void import_usd_mesh(Scene &scene,
   // Try to get UV coordinates from primvars
   pxr::UsdGeomPrimvarsAPI primvarsAPI(prim);
   pxr::VtArray<pxr::GfVec2f> uvs;
+  pxr::VtArray<int> uvIndices;
   pxr::TfToken uvInterpolation;
   bool hasUVs = false;
+  bool hasUVIndices = false;
   
   // Try common UV primvar names
   const char* uvPrimvarNames[] = {"st", "uv", "UVMap"};
@@ -396,11 +398,22 @@ static void import_usd_mesh(Scene &scene,
       if (uvPrimvar.Get(&uvs)) {
         uvInterpolation = uvPrimvar.GetInterpolation();
         hasUVs = true;
-        logStatus("[import_USD] Mesh '%s': Found UV primvar '%s' with %zu values, interpolation: %s\n",
-            prim.GetName().GetString().c_str(),
-            uvName,
-            uvs.size(),
-            uvInterpolation.GetText());
+        // Check if this primvar has indices
+        if (uvPrimvar.GetIndices(&uvIndices) && !uvIndices.empty()) {
+          hasUVIndices = true;
+          logStatus("[import_USD] Mesh '%s': Found UV primvar '%s' with %zu values, %zu indices, interpolation: %s\n",
+              prim.GetName().GetString().c_str(),
+              uvName,
+              uvs.size(),
+              uvIndices.size(),
+              uvInterpolation.GetText());
+        } else {
+          logStatus("[import_USD] Mesh '%s': Found UV primvar '%s' with %zu values, interpolation: %s\n",
+              prim.GetName().GetString().c_str(),
+              uvName,
+              uvs.size(),
+              uvInterpolation.GetText());
+        }
         break;
       }
     }
@@ -446,7 +459,20 @@ static void import_usd_mesh(Scene &scene,
       
       // UVs - handle different interpolation modes
       if (hasUVs && !uvs.empty()) {
-        if (uvInterpolation == pxr::UsdGeomTokens->faceVarying) {
+        if (hasUVIndices) {
+          // Indexed UVs: use the indices array to look up UV values
+          // The indices correspond to face-vertex ordering
+          if (uvIndex + v < uvIndices.size()) {
+            int uvIdx0 = uvIndices[uvIndex];
+            int uvIdx1 = uvIndices[uvIndex + v - 1];
+            int uvIdx2 = uvIndices[uvIndex + v];
+            if (uvIdx0 < (int)uvs.size() && uvIdx1 < (int)uvs.size() && uvIdx2 < (int)uvs.size()) {
+              outUVs.push_back(math::float2(uvs[uvIdx0][0], uvs[uvIdx0][1]));
+              outUVs.push_back(math::float2(uvs[uvIdx1][0], uvs[uvIdx1][1]));
+              outUVs.push_back(math::float2(uvs[uvIdx2][0], uvs[uvIdx2][1]));
+            }
+          }
+        } else if (uvInterpolation == pxr::UsdGeomTokens->faceVarying) {
           // FaceVarying: one UV per face-vertex (most common)
           if (uvIndex + v < uvs.size()) {
             outUVs.push_back(math::float2(uvs[uvIndex][0], uvs[uvIndex][1]));
@@ -474,7 +500,7 @@ static void import_usd_mesh(Scene &scene,
     
     // Advance indices
     index += vertsInFace;
-    if (hasUVs && uvInterpolation == pxr::UsdGeomTokens->faceVarying) {
+    if (hasUVs && (hasUVIndices || uvInterpolation == pxr::UsdGeomTokens->faceVarying)) {
       uvIndex += vertsInFace;
     }
   }
