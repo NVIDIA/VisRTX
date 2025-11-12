@@ -43,7 +43,8 @@ project(visrtx_device VERSION 0.13.0 LANGUAGES CXX CUDA)
 
 include(GenerateExportHeader)
 
-list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
 include(appendSearchPaths)
 include(EmbedPTX)
 
