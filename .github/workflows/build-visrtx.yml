@@ -38,7 +38,7 @@ jobs:
           cmake --build ${{ github.workspace }}/deps_build --config ${{ matrix.config }}
       - name: Configure VisRTX
         run: >
-          cmake -LA -G "${{ matrix.generator }}" -B ${{github.workspace}}/build
+          cmake -LA -G "${{ matrix.generator }}" -B ${{github.workspace}}/build-visrtx
           -DCMAKE_BUILD_TYPE=${{ matrix.config }}
           -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
           -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
@@ -48,7 +48,25 @@ jobs:
           -DVISRTX_BUILD_TSD=OFF
       - name: Install VisRTX
         run: >
-          cmake --build build --config ${{ matrix.config }} --target install
+          cmake --build ${{ github.workspace }}/build-visrtx --config ${{ matrix.config }} --target install
+      - name: Configure TSD CMake
+        run: >
+          cmake -LA -B ${{github.workspace}}/build-tsd
+          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
+          -DCMAKE_BUILD_TYPE=${{ matrix.config }}
+          -DTSD_BUILD_APPS=ON
+          -DTSD_BUILD_INTERACTIVE_APPS=OFF
+          -DTSD_BUILD_UI_LIBRARY=OFF
+          -DTSD_USE_ASSIMP=OFF
+          -DTSD_USE_CUDA=ON
+          -DTSD_USE_HDF5=OFF
+          -DTSD_USE_SDL3=OFF
+          -DTSD_USE_TBB=OFF
+          -DTSD_USE_USD=OFF
+          -DTSD_ENABLE_SERIALIZATION=OFF
+          ${{ github.workspace }}/tsd
+      - name: Build TSD
+        run: cmake --build ${{ github.workspace }}/build-tsd --config ${{ matrix.config }}
       - name: Archive build artifacts
         uses: actions/upload-artifact@v5
         with:
