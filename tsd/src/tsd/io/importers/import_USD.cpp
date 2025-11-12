@@ -989,6 +989,62 @@ static void import_usd_dome_light(Scene &scene,
             }
           }
 
+          // Handle color temperature if present
+          float colorTemp = 0.0f;
+          if (usdLight.GetColorTemperatureAttr().Get(&colorTemp) && colorTemp > 0.0f) {
+            // Convert color temperature to RGB multiplier
+            // Using approximation from Planckian locus
+            auto kelvinToRGB = [](float kelvin) -> float3 {
+              // https://tannerhelland.com/2012/09/18/convert-temperature-rgb-algorithm-code.html
+              float temp = kelvin / 100.0f;
+              float red, green, blue;
+              
+              // Calculate red
+              if (temp <= 66.0f) {
+                red = 1.0f;
+              } else {
+                red = temp - 60.0f;
+                red = 329.698727446f * std::pow(red, -0.1332047592f);
+                red = std::clamp(red / 255.0f, 0.0f, 1.0f);
+              }
+              
+              // Calculate green
+              if (temp <= 66.0f) {
+                green = temp;
+                green = 99.4708025861f * std::log(green) - 161.1195681661f;
+                green = std::clamp(green / 255.0f, 0.0f, 1.0f);
+              } else {
+                green = temp - 60.0f;
+                green = 288.1221695283f * std::pow(green, -0.0755148492f);
+                green = std::clamp(green / 255.0f, 0.0f, 1.0f);
+              }
+              
+              // Calculate blue
+              if (temp >= 66.0f) {
+                blue = 1.0f;
+              } else if (temp <= 19.0f) {
+                blue = 0.0f;
+              } else {
+                blue = temp - 10.0f;
+                blue = 138.5177312231f * std::log(blue) - 305.0447927307f;
+                blue = std::clamp(blue / 255.0f, 0.0f, 1.0f);
+              }
+              
+              return float3(red, green, blue);
+            };
+
+            float3 tempColor = kelvinToRGB(colorTemp);
+            for (auto& color : rgb) {
+              color *= float3(tempColor.x,tempColor.y, tempColor.z);
+            }
+            tsd::core::logStatus(
+                "[import_USD] Applied dome light color temperature: %f K (%f %f %f)\n",
+                colorTemp,
+                tempColor.x,
+                tempColor.y,
+                tempColor.z);
+          }
+
           // Apply exposure adjustment if present
           float exposure = 0.0f;
           if (usdLight.GetExposureAttr().Get(&exposure)) {
