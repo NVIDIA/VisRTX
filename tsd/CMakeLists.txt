@@ -81,7 +81,6 @@ if (TSD_USE_CUDA)
   find_package(CUDAToolkit REQUIRED)
   if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "13.0")
     find_package(CCCL CONFIG REQUIRED HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
-    find_package(CCCL REQUIRED)
   endif()
 endif()
 
