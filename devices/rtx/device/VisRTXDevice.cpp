@@ -57,8 +57,8 @@
 // renderers
 #include "renderer/AmbientOcclusion.h"
 #include "renderer/Debug.h"
-#include "renderer/DiffusePathTracer.h"
 #include "renderer/DirectLight.h"
+#include "renderer/PathTracer.h"
 #include "renderer/Raycast.h"
 #include "renderer/Test.h"
 
@@ -428,7 +428,7 @@ VisRTXDevice::~VisRTXDevice()
   optixModuleDestroy(state.rendererModules.debug);
   optixModuleDestroy(state.rendererModules.raycast);
   optixModuleDestroy(state.rendererModules.ambientOcclusion);
-  optixModuleDestroy(state.rendererModules.diffusePathTracer);
+  optixModuleDestroy(state.rendererModules.pathTracer);
   optixModuleDestroy(state.rendererModules.directLight);
 #ifdef USE_MDL
   optixModuleDestroy(state.rendererModules.mdl);
@@ -767,9 +767,9 @@ DeviceInitStatus VisRTXDevice::initOptix()
       init_module(&state.rendererModules.ambientOcclusion,
           AmbientOcclusion::ptx(),
           "'ao' renderer"),
-      init_module(&state.rendererModules.diffusePathTracer,
-          DiffusePathTracer::ptx(),
-          "'dpt' renderer"),
+      init_module(&state.rendererModules.pathTracer,
+          PathTracer::ptx(),
+          "'pathTracer' renderer"),
       init_module(&state.rendererModules.directLight,
           DirectLight::ptx(),
           "'default' renderer"),

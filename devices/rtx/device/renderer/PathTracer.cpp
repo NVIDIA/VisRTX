@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,42 +29,42 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "DiffusePathTracer.h"
+#include "PathTracer.h"
 // ptx
-#include "DiffusePathTracer_ptx.h"
+#include "PathTracer_ptx.h"
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_dptHitNames = {
+static const std::vector<HitgroupFunctionNames> g_ptHitNames = {
     {"__closesthit__", "__anyhit__"}};
 
-DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
+PathTracer::PathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
-void DiffusePathTracer::commitParameters()
+void PathTracer::commitParameters()
 {
   Renderer::commitParameters();
   m_maxDepth = std::clamp(getParam<int>("maxDepth", 5), 1, 256);
 }
 
-void DiffusePathTracer::populateFrameData(FrameGPUData &fd) const
+void PathTracer::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
-  fd.renderer.params.dpt.maxDepth = m_maxDepth;
+  fd.renderer.params.pathTracer.maxDepth = m_maxDepth;
 }
 
-OptixModule DiffusePathTracer::optixModule() const
+OptixModule PathTracer::optixModule() const
 {
-  return deviceState()->rendererModules.diffusePathTracer;
+  return deviceState()->rendererModules.pathTracer;
 }
 
-Span<HitgroupFunctionNames> DiffusePathTracer::hitgroupSbtNames() const
+Span<HitgroupFunctionNames> PathTracer::hitgroupSbtNames() const
 {
-  return make_Span(g_dptHitNames.data(), g_dptHitNames.size());
+  return make_Span(g_ptHitNames.data(), g_ptHitNames.size());
 }
 
-ptx_blob DiffusePathTracer::ptx()
+ptx_blob PathTracer::ptx()
 {
-  return {DiffusePathTracer_ptx, sizeof(DiffusePathTracer_ptx)};
+  return {PathTracer_ptx, sizeof(PathTracer_ptx)};
 }
 
 } // namespace visrtx

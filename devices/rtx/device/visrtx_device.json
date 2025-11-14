@@ -277,7 +277,7 @@
     },
     {
       "type": "ANARI_RENDERER",
-      "name": "dpt",
+      "name": "pathTracer",
       "parameters": [
         {
           "name": "sampleLimit",
