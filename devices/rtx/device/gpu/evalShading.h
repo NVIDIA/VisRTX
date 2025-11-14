@@ -102,6 +102,17 @@ VISRTX_DEVICE vec3 materialEvaluateTransmission(
       &shadingState.data);
 }
 
+VISRTX_DEVICE vec3 materialEvaluateNormal(
+    const MaterialShadingState &shadingState)
+{
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
+    return vec3(0.8f, 0.8f, 0.8f); // Default tint color
+
+  return optixDirectCall<vec3>(shadingState.callableBaseIndex
+          + int(SurfaceShaderEntryPoints::EvaluateNormal),
+      &shadingState.data);
+}
+
 VISRTX_DEVICE NextRay materialNextRay(const MaterialShadingState &shadingState,
     const Ray &ray, RandState& rs)
 {

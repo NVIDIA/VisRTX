@@ -269,3 +269,10 @@ vec3 __direct_callable__evaluateTransmission(const MDLShadingState *shadingState
   return mdlTransmission(
       &shadingState->state, &shadingState->resData, shadingState->argBlock);
 }
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateNormal(
+    const MDLShadingState *shadingState)
+{
+  return make_vec3(shadingState->state.normal);
+}

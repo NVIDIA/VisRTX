@@ -110,7 +110,7 @@ class Core
   mi::neuraylib::ICompiled_material *getCompiledMaterial(
       const mi::neuraylib::IFunction_definition *,
       bool classCompilation = true);
-  mi::neuraylib::ICompiled_material *getDistilledToDiffuseMaterial(
+  mi::neuraylib::ICompiled_material *getDistilledToTransmissivePBR(
       const mi::neuraylib::ICompiled_material *compiledMaterial);
 
   const mi::neuraylib::ITarget_code *getPtxTargetCode(

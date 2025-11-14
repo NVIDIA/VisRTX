@@ -81,6 +81,12 @@ vec3 __direct_callable__evaluateTransmission(const MatteShadingState *shadingSta
   return vec3(0.0f);
 }
 
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateNormal(const MatteShadingState *shadingState)
+{
+  return shadingState->normal;
+}
+
 // Signature must match the call inside shaderMatteSurface in MatteShader.cuh.
 VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     const MatteShadingState *shadingState,

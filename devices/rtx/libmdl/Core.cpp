@@ -12,6 +12,7 @@
 #include <mi/base/types.h>
 #include <mi/neuraylib/factory.h>
 #include <mi/neuraylib/iarray.h>
+#include <mi/neuraylib/icompiled_material.h>
 #include <mi/neuraylib/idatabase.h>
 #include <mi/neuraylib/ifunction_definition.h>
 #include <mi/neuraylib/ilogging_configuration.h>
@@ -36,6 +37,7 @@
 #include <mi/neuraylib/itype.h>
 #include <mi/neuraylib/ivalue.h>
 #include <mi/neuraylib/iversion.h>
+
 #include <string>
 
 #ifdef MI_PLATFORM_WINDOWS
@@ -386,14 +388,14 @@ mi::neuraylib::ICompiled_material *Core::getCompiledMaterial(
   return compiledMaterial;
 }
 
-mi::neuraylib::ICompiled_material *Core::getDistilledToDiffuseMaterial(
+mi::neuraylib::ICompiled_material *Core::getDistilledToTransmissivePBR(
     const mi::neuraylib::ICompiled_material *compiledMaterial)
 {
   auto distiller_api = make_handle(
       m_neuray->get_api_component<mi::neuraylib::IMdl_distiller_api>());
   mi::Sint32 result = 0;
   auto distilledMaterial = distiller_api->distill_material(
-      compiledMaterial, "diffuse", nullptr, &result);
+      compiledMaterial, "transmissive_pbr", nullptr, &result);
   if (result != 0) {
     logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Failed to distill material: %i\n",
@@ -414,6 +416,9 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
       backendApi->get_backend(mi::neuraylib::IMdl_backend_api::MB_CUDA_PTX));
   auto executionContext =
       make_handle(m_mdlFactory->clone(m_executionContext.get()));
+
+  auto distilledMaterial =
+      make_handle(getDistilledToTransmissivePBR(compiledMaterial));
 
   // ANARI attributes 0 to 3
   const int numTextureSpaces = 4;
@@ -447,40 +452,64 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
       {"surface.emission.mode", "mdlEmissionMode"},
   };
 
-  static mi::neuraylib::Target_function_description diffuseMaterialFunctions[] =
-      {
-          // Special case for tint. We want to be able to only evluate the base
-          // color for simpler light interaction.
-          {"surface.scattering.tint", "mdlTint"},
-          {"geometry.cutout_opacity", "mdlOpacity"},
+  // Special case for tint, transmission and opacity.
+  // For some renderers, we want to be able to access these directly to
+  // compute some simplified light propagation.
+  // run something like:
+  //     mdl_distiller_cli -class -tmm -m transmissive_pbr -o - -p
+  //     /path/to/materials/folder ::My::Material
+  // to get a description of a transmissive pbr material.
+  static mi::neuraylib::Target_function_description
+      distilledTransmissivePBRMaterialFunctions[][3] = {
+          // Generic version for transmissive_pbr
+          {
+              {"surface.scattering.base.layer.tint", "mdlTint"},
+              {"volume.scattering_coefficient", "mdlTransmission"},
+              {"geometry.cutout_opacity", "mdlOpacity"},
+          },
+
+          // Simplified version where tint is rooted directly under scattering.
+          {
+              {"surface.scattering.layer.tint", "mdlTint"},
+              {"volume.scattering_coefficient", "mdlTransmission"},
+              {"geometry.cutout_opacity", "mdlOpacity"},
+          },
+          // Simplified version where tint is rooted directly under scattering.
+          {
+              {"surface.scattering.tint", "mdlTint"},
+              {"volume.scattering_coefficient", "mdlTransmission"},
+              {"geometry.cutout_opacity", "mdlOpacity"},
+          }
+
       };
 
   // Generate target code for the compiled material
-  auto linkUnit = make_handle(
-      ptxBackend->create_link_unit(transaction, executionContext.get()));
-  linkUnit->add_material(compiledMaterial,
-      std::data(materialFunctions),
-      std::size(materialFunctions),
-      executionContext.get());
+  for (auto &distilledMaterialFunctions :
+      distilledTransmissivePBRMaterialFunctions) {
+    auto linkUnit = make_handle(
+        ptxBackend->create_link_unit(transaction, executionContext.get()));
+    linkUnit->add_material(compiledMaterial,
+        std::data(materialFunctions),
+        std::size(materialFunctions),
+        executionContext.get());
 
-  auto distilledToDiffuseMaterial =
-      make_handle(getDistilledToDiffuseMaterial(compiledMaterial));
+    linkUnit->add_material(distilledMaterial.get(),
+        std::data(distilledMaterialFunctions),
+        std::size(distilledMaterialFunctions),
+        executionContext.get());
 
-  linkUnit->add_material(distilledToDiffuseMaterial.get(),
-      std::data(diffuseMaterialFunctions),
-      std::size(diffuseMaterialFunctions),
-      executionContext.get());
+    if (!logExecutionContextMessages(executionContext.get()))
+      continue;
 
-  if (!logExecutionContextMessages(executionContext.get()))
-    return {};
+    auto targetCode =
+        ptxBackend->translate_link_unit(linkUnit.get(), executionContext.get());
+    if (!logExecutionContextMessages(executionContext.get()))
+      continue;
 
-  auto targetCode =
-      ptxBackend->translate_link_unit(linkUnit.get(), executionContext.get());
-  if (!logExecutionContextMessages(executionContext.get())) {
-    return {};
+    return targetCode;
   }
 
-  return targetCode;
+  return {};
 }
 
 bool Core::logExecutionContextMessages(
