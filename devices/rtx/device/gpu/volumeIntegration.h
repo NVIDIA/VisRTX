@@ -44,6 +44,7 @@
 
 // optix
 #include <optix_device.h>
+#include <limits>
 
 namespace visrtx {
 
@@ -55,22 +56,20 @@ VISRTX_DEVICE const SpatialFieldGPUData &getSpatialFieldData(
 }
 
 VISRTX_DEVICE void volumeSamplerInit(
-    VolumeSamplingState *samplerState,
-    const SpatialFieldGPUData &field)
+    VolumeSamplingState *samplerState, const SpatialFieldGPUData &field)
 {
-  optixDirectCall<void>(
-      uint32_t(field.samplerCallableIndex) + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Init),
+  optixDirectCall<void>(uint32_t(field.samplerCallableIndex)
+          + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Init),
       samplerState,
       &field);
 }
 
-VISRTX_DEVICE float volumeSamplerSample(
-    const VolumeSamplingState *samplerState,
+VISRTX_DEVICE float volumeSamplerSample(const VolumeSamplingState *samplerState,
     const SpatialFieldGPUData &field,
     const vec3 &position)
 {
-  return optixDirectCall<float>(
-      uint32_t(field.samplerCallableIndex) + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Sample),
+  return optixDirectCall<float>(uint32_t(field.samplerCallableIndex)
+          + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Sample),
       samplerState,
       &position);
 }
@@ -95,7 +94,7 @@ VISRTX_DEVICE vec4 classifySample(const VolumeGPUData &v, float s)
   return retval;
 }
 
-VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
+VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
     box1 interval,
     vec3 *color,
@@ -114,34 +113,41 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
 
   const float stepSize = volume.stepSize * invSamplingRate;
   const float exponent = stepSize * svv.oneOverUnitDistance;
+
   // Apply jitter to starting position to reduce banding artifacts
   // Still making sure we stay inside the volume
+  interval.lower +=
+      curand_uniform(&ss.rs) * min(stepSize, interval.upper - interval.lower);
 
-  if (auto offset = curand_uniform(&ss.rs) * stepSize;
-      interval.lower + offset < interval.upper)
-    interval.lower += offset;
-  else
-    interval.lower +=
-        curand_uniform(&ss.rs) * (interval.upper - interval.lower);
+  // Track the depth of the first color contribution
+  float depth = std::numeric_limits<float>::max();
 
-  constexpr float OPACITY_THRESHOLD = 0.99f;
-
-  while (opacity < OPACITY_THRESHOLD && size(interval) >= 0.f) {
+  // Accumulate until full opacity
+  constexpr float MAX_OPACITY_THRESHOLD = 0.99f;
+  while (opacity < MAX_OPACITY_THRESHOLD && size(interval) >= 0.f) {
     const vec3 p = hit.localRay.org + hit.localRay.dir * interval.lower;
 
     const float s = volumeSamplerSample(&samplerState, field, p);
     if (!glm::isnan(s)) {
       const vec4 co = detail::classifySample(volume, s);
 
-      const float stepOpacity = 1.0f - glm::pow(1.0f - co.w, exponent);
-      const float transmittance = (1.0f - opacity);
-      if (color)
-        *color += transmittance * stepOpacity * vec3(co);
-      opacity += transmittance * stepOpacity;
+      const float stepAlpha = 1.0f - glm::pow(1.0f - co.w, exponent);
+      if (stepAlpha > 0.0f) {
+        // Record depth at first non-zero contribution
+        if (depth == std::numeric_limits<float>::max()) {
+          depth = interval.lower;
+        }
+        const float weight = (1.0f - opacity);
+        if (color)
+          *color += weight * stepAlpha * vec3(co);
+        opacity += weight * stepAlpha;
+      }
     }
 
     interval.lower += stepSize;
   }
+
+  return depth;
 }
 
 VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
@@ -156,19 +162,14 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
   auto &svv = volume.data.tf1d;
   auto &field = getSpatialFieldData(*ss.frameData, svv.field);
   /////////////////////////////////////////////////////////////////////////////
-  const float stepSize = volume.stepSize;
-  box1 interval = hit.localRay.t;
-  const float depth = interval.lower;
-  interval.lower += stepSize * curand_uniform(&ss.rs); // jitter
 
-  _rayMarchVolume(ss, hit, interval, color, opacity, invSamplingRate);
-
-  return depth;
+  return _rayMarchVolume(
+      ss, hit, hit.localRay.t, color, opacity, invSamplingRate);
 }
 
 VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
     const VolumeHit &hit,
-    vec3 *albedo,
+    vec3 &albedo,
     float &extinction,
     float &tr)
 {
@@ -182,9 +183,8 @@ VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
   VolumeSamplingState samplerState;
   volumeSamplerInit(&samplerState, field);
 
-  const float stepSize = volume.stepSize;
   float t_out = hit.localRay.t.upper;
-  tr = 1.f;
+  tr = 1.f; // Transmittance: 1.0 = no interaction, 0.0 = scattered
 
   Ray objRay = hit.localRay;
   objRay.org += hit.localRay.dir * hit.localRay.t.lower;
@@ -195,53 +195,50 @@ VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
     const float majorant = field.grid.maxOpacities[leafID];
     float t = t0;
 
-    while (1) {
-      if (majorant <= 0.f)
-        break;
+    constexpr float EPSILON = 1e-7f;
+    if (majorant <= EPSILON)
+      return true; // Skip empty voxels
 
-      t -= logf(1.f - curand_uniform(&ss.rs)) / majorant * stepSize;
+    while (t < t1) {
+      t += -logf(1.f - curand_uniform(&ss.rs))
+          / (majorant * svv.oneOverUnitDistance);
 
       if (t >= t1)
-        break;
+        break; // We've left this voxel
 
-      const vec3 p =
-          hit.localRay.org + hit.localRay.dir * (t + hit.localRay.t.lower);
+      // Evaluate actual extinction at the tentative collision point
+      const vec3 p = objRay.org + objRay.dir * t;
       const float s = volumeSamplerSample(&samplerState, field, p);
+
       if (!glm::isnan(s)) {
         const vec4 co = detail::classifySample(volume, s);
-        *albedo = vec3(co);
-        extinction = co.w;
+        const float actualExtinction = co.w * svv.oneOverUnitDistance;
+
         float u = curand_uniform(&ss.rs);
-        if (extinction >= u * majorant) {
+        if (actualExtinction >= u * majorant) {
+          // Real collision - ray scattered
+          albedo = vec3(co);
+          extinction = actualExtinction;
           tr = 0.f;
-          t_out = t;
-          return false; // stop traversal
+          t_out =
+              t + hit.localRay.t.lower; // Convert back to original ray space
+          return false; // Stop DDA traversal
         }
+        // Null collision - continue tracking
       }
     }
 
-    return true; // cont. traversal to the next spat. partition
+    return true; // Continue DDA traversal to next voxel
   };
 
-  if (debug()) {
-    printf("DDA with ray org: (%f,%f,%f), dir: (%f,%f,%f), [t0,t1]: %f,%f\n",
-        objRay.org.x,
-        objRay.org.y,
-        objRay.org.z,
-        objRay.dir.x,
-        objRay.dir.y,
-        objRay.dir.z,
-        hit.localRay.t.lower,
-        hit.localRay.t.upper);
-  }
-
   dda3(objRay, field.grid.dims, field.grid.worldBounds, woodcockFunc);
-  return t_out + hit.localRay.t.lower;
+  // If no scattering occurred, return the exit point
+  return (tr > 0.5f) ? hit.localRay.t.upper : t_out;
 }
 
 VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
     const VolumeHit &hit,
-    vec3 *albedo,
+    vec3 &albedo,
     float &extinction,
     float &tr)
 {
@@ -253,11 +250,18 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
   /////////////////////////////////////////////////////////////////////////////
 
   return _sampleDistance(ss, hit, albedo, extinction, tr);
-
-  return hit.localRay.t.upper;
 }
 
 } // namespace detail
+
+VISRTX_DEVICE float sampleDistanceVolume(ScreenSample &ss,
+    const VolumeHit &hit,
+    vec3 &albedo,
+    float &extinction,
+    float &tr)
+{
+  return detail::sampleDistance(ss, hit, albedo, extinction, tr);
+}
 
 VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
@@ -289,33 +293,29 @@ VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
 {
   VolumeHit hit;
   ray.t.upper = tfar;
-  float depth = tfar;
+  float depth = std::numeric_limits<float>::max();
 
   constexpr float OPACITY_THRESHOLD = 0.99f;
-
-  objID = ~0;
-  instID = ~0;
-  opacity = 0.0f;
 
   do {
     hit.foundHit = false;
     intersectVolume(ss, ray, type, &hit);
     if (!hit.foundHit)
       break;
-    if (objID == ~0) {
-      objID = hit.volume->id;
-      instID = hit.instance->id;
-    }
-
-    // Track closest intersection depth
-    depth = min(depth, hit.localRay.t.lower);
 
     // Save where this volume ends, so
-    // float tmax = hit.localRay.t.upper;
     hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
 
     // Ray march through this volume segment
-    detail::rayMarchVolume(ss, hit, &color, opacity, invSamplingRate);
+    float thisDepth =
+        detail::rayMarchVolume(ss, hit, &color, opacity, invSamplingRate);
+
+    // Track closest intersection depth
+    if (thisDepth < depth) {
+      depth = thisDepth;
+      objID = hit.volume->id;
+      instID = hit.instance->id;
+    }
 
     if (ray.t.lower < hit.localRay.t.upper)
       ray.t.lower = hit.localRay.t.upper;
@@ -351,7 +351,7 @@ VISRTX_DEVICE float sampleDistanceAllVolumes(ScreenSample &ss,
     hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
     vec3 alb(0.f);
     float ext = 0.f, tr = 0.f;
-    float d = detail::sampleDistance(ss, hit, &alb, ext, tr);
+    float d = detail::sampleDistance(ss, hit, alb, ext, tr);
     if (d < depth) {
       depth = d;
       albedo = alb;
