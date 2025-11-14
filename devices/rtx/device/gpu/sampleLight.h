@@ -276,9 +276,12 @@ VISRTX_DEVICE LightSample sampleSpotLight(
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
   
+  // Transform spot light direction to world space
+  auto worldDirection = normalize(xfmVec(xfm, ld.spot.direction));
+  
   // Calculate angle between light direction and direction to hit point
   // spot = cos(angle_between_directions)
-  float spot = dot(normalize(ld.spot.direction), -ls.dir);
+  float spot = dot(worldDirection, -ls.dir);
   
   // Apply spotlight cone attenuation with smooth falloff
   if (spot < ld.spot.cosOuterAngle)
