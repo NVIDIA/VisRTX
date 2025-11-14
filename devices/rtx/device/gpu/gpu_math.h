@@ -119,35 +119,36 @@ struct VolumeGPUData;
 
 struct SurfaceHit
 {
-  bool foundHit;
-  bool isFrontFace;
+  mat3x4 worldToObject;
+  mat3x4 objectToWorld;
 
-  float t;
   vec3 hitpoint;
+  float t;
   vec3 Ng;
-  vec3 Ns;
-  vec3 uvw;
-  vec3 tU, tV;
   uint32_t primID{~0u};
+  vec3 Ns;
   uint32_t objID{~0u};
+  vec3 uvw;
   uint32_t instID{~0u};
+  vec3 tU;
   float epsilon;
+  vec3 tV;
+  bool isFrontFace;
+  bool foundHit;
+
   const InstanceSurfaceGPUData *instance{nullptr};
   const GeometryGPUData *geometry{nullptr};
   const MaterialGPUData *material{nullptr};
-
-  mat3x4 worldToObject;
-  mat3x4 objectToWorld;
 };
 
 struct VolumeHit
 {
-  bool foundHit;
   Ray localRay;
-  uint32_t lastVolID{~0u};
-  uint32_t lastInstID{~0u};
   const VolumeGPUData *volume{nullptr};
   const InstanceVolumeGPUData *instance{nullptr};
+  uint32_t lastVolID{~0u};
+  uint32_t lastInstID{~0u};
+  bool foundHit;
 };
 
 using Hit = SurfaceHit;
