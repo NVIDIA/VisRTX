@@ -30,6 +30,7 @@
  */
 
 #include "gpu/evalShading.h"
+#include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
 
@@ -172,15 +173,14 @@ VISRTX_GLOBAL void __raygen__()
     }
   }
 
-  accumResults(frameData,
+  setPixelIds(frameData.fb, ss.pixel, depth, primID, objID, instID);
+
+  accumPixelSample(frameData,
       ss.pixel,
       vec4(outputColor, outputOpacity),
       depth,
       outputColor,
-      outputNormal,
-      primID,
-      objID,
-      instID);
+      outputNormal);
 }
 
 } // namespace visrtx

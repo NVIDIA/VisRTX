@@ -374,8 +374,7 @@ VISRTX_DEVICE uint32_t pixelIndex(
 
 VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
     const vec4 &color,
-    const uint32_t idx,
-    const int frameIDOffset)
+    const uint32_t idx)
 {
   if (fb.format == FrameFormat::SRGB) {
     fb.buffers.outColorUint[idx] =
@@ -388,16 +387,48 @@ VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
 
 } // namespace detail
 
+VISRTX_DEVICE void setPixelIds(const FramebufferGPUData &fb,
+    const uvec2 &pixel,
+    uint32_t primID,
+    uint32_t objID,
+    uint32_t instID)
+{
+  const uint32_t idx = detail::pixelIndex(fb, pixel);
 
-VISRTX_DEVICE void accumResults(const FrameGPUData &frame,
+  if (fb.buffers.primID)
+    fb.buffers.primID[idx] = primID;
+  if (fb.buffers.objID)
+    fb.buffers.objID[idx] = objID;
+  if (fb.buffers.instID)
+    fb.buffers.instID[idx] = instID;
+}
+
+VISRTX_DEVICE void setPixelIds(const FramebufferGPUData &fb,
+    const uvec2 &pixel,
+    const float depth,
+    uint32_t primID,
+    uint32_t objID,
+    uint32_t instID)
+{
+  const uint32_t idx = detail::pixelIndex(fb, pixel);
+
+    if (detail::accumDepth(fb.buffers.depth, idx, depth)) {
+
+  if (fb.buffers.primID)
+    fb.buffers.primID[idx] = primID;
+  if (fb.buffers.objID)
+    fb.buffers.objID[idx] = objID;
+  if (fb.buffers.instID)
+    fb.buffers.instID[idx] = instID;
+    }
+}
+
+VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
     const uvec2 &pixel,
     const vec4 &color,
     float depth,
     const vec3 &albedo,
     const vec3 &normal,
-    uint32_t primID,
-    uint32_t objID,
-    uint32_t instID,
     const int frameIDOffset = 0)
 {
   const auto &fb = frame.fb;
@@ -412,15 +443,6 @@ VISRTX_DEVICE void accumResults(const FrameGPUData &frame,
   detail::accumValue(fb.buffers.albedo, idx, albedo);
   detail::accumValue(fb.buffers.normal, idx, normal);
 
-  if (detail::accumDepth(fb.buffers.depth, idx, depth)) {
-    if (fb.buffers.primID)
-      fb.buffers.primID[idx] = primID;
-    if (fb.buffers.objID)
-      fb.buffers.objID[idx] = objID;
-    if (fb.buffers.instID)
-      fb.buffers.instID[idx] = instID;
-  }
-
   const auto accumColor = fb.buffers.colorAccumulation[idx];
   // Conditionally apply inverse tonemapping on output
   const float frameDivisor = float(fb.frameID + frameIDOffset + 1);
@@ -429,25 +451,25 @@ VISRTX_DEVICE void accumResults(const FrameGPUData &frame,
       ? detail::inverseTonemap(normalizedColor)
       : normalizedColor;
 
-  detail::writeOutputColor(fb, outputColor, idx, frameIDOffset);
+  detail::writeOutputColor(fb, outputColor, idx);
 
   if (fb.checkerboardID == 0 && frameID == 0) {
     auto adjPix = uvec2(pixel.x + 1, pixel.y + 0);
     if (!pixelOutOfFrame(adjPix, fb)) {
       detail::writeOutputColor(
-          fb, outputColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+          fb, outputColor, detail::pixelIndex(fb, adjPix));
     }
 
     adjPix = uvec2(pixel.x + 0, pixel.y + 1);
     if (!pixelOutOfFrame(adjPix, fb)) {
       detail::writeOutputColor(
-          fb, outputColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+          fb, outputColor, detail::pixelIndex(fb, adjPix));
     }
 
     adjPix = uvec2(pixel.x + 1, pixel.y + 1);
     if (!pixelOutOfFrame(adjPix, fb)) {
       detail::writeOutputColor(
-          fb, outputColor, detail::pixelIndex(fb, adjPix), frameIDOffset);
+          fb, outputColor, detail::pixelIndex(fb, adjPix));
     }
   }
 }

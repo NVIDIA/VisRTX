@@ -30,6 +30,7 @@
  */
 
 #include "DebugMethod.h"
+#include "gpu/intersectRay.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -253,15 +254,14 @@ VISRTX_GLOBAL void __raygen__()
     instID = vrd.instance->id;
   }
 
-  accumResults(frameData,
+  setPixelIds(frameData.fb, ss.pixel, depth, primID, objID, instID);
+
+  accumPixelSample(frameData,
       ss.pixel,
       vec4(color, 1.f),
       depth,
       color,
-      normal,
-      primID,
-      objID,
-      instID);
+      normal);
 }
 
 } // namespace visrtx
