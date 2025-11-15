@@ -36,12 +36,13 @@
 namespace visrtx {
 
 static const std::vector<HitgroupFunctionNames> g_directLightHitNames = {
-    {"__closesthit__primary", "__anyhit__primary"},
+    {"__closesthit__shading", "__anyhit__shading"},
     {"__closesthit__shadow", "__anyhit__shadow"},
-    {"__closesthit__bounce", "__anyhit__bounce"}};
+};
 
 static const std::vector<std::string> g_directLightMissNames = {
-    "__miss__", "__miss__", "__miss__"};
+    "__miss__shading", "__miss__shadow"
+};
 
 DirectLight::DirectLight(DeviceGlobalState *s) : Renderer(s, 0.f) {}
 

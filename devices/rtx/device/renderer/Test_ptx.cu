@@ -59,12 +59,7 @@ VISRTX_GLOBAL void __raygen__()
 
   setPixelIds(frameData.fb, ss.pixel, 1.0f, ~0u, ~0u, ~0u);
 
-  accumPixelSample(frameData,
-      ss.pixel,
-      vec4(ray.dir, 1.f),
-      1.f,
-      ray.dir,
-      -ray.dir);
+  accumPixelSample(frameData, ss.pixel, vec4(ray.dir, 1.f), ray.dir, -ray.dir);
 }
 
 } // namespace visrtx

@@ -567,14 +567,13 @@ void *Frame::mapAlbedoBuffer(bool gpu)
 void *Frame::mapNormalBuffer(bool gpu)
 {
   auto &state = *deviceState();
-  const float invFrameID = m_invFrameID;
   auto begin = thrust::device_pointer_cast<vec3>((vec3 *)m_accumNormal.ptr());
   auto end = begin + numPixels();
   thrust::transform(thrust::cuda::par.on(state.stream),
       begin,
       end,
       thrust::device_pointer_cast<vec3>(m_normalBuffer.dataDevice()),
-      [=] __device__(const vec3 &in) { return in * invFrameID; });
+      [=] __device__(const vec3 &in) { return normalize(in); });
   if (gpu)
     return m_normalBuffer.dataDevice();
   else {

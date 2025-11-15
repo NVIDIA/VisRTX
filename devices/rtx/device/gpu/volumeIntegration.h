@@ -123,6 +123,7 @@ VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
   float depth = std::numeric_limits<float>::max();
 
   // Accumulate until full opacity
+  constexpr float MIN_OPACITY_THRESHOLD = 1e-2f;
   constexpr float MAX_OPACITY_THRESHOLD = 0.99f;
   while (opacity < MAX_OPACITY_THRESHOLD && size(interval) >= 0.f) {
     const vec3 p = hit.localRay.org + hit.localRay.dir * interval.lower;
@@ -133,14 +134,15 @@ VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
 
       const float stepAlpha = 1.0f - glm::pow(1.0f - co.w, exponent);
       if (stepAlpha > 0.0f) {
-        // Record depth at first non-zero contribution
-        if (depth == std::numeric_limits<float>::max()) {
-          depth = interval.lower;
-        }
         const float weight = (1.0f - opacity);
         if (color)
           *color += weight * stepAlpha * vec3(co);
         opacity += weight * stepAlpha;
+
+        if (opacity > MIN_OPACITY_THRESHOLD
+            && depth == std::numeric_limits<float>::max()) {
+          depth = interval.lower;
+        }
       }
     }
 

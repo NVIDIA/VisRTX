@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,34 +31,22 @@
 
 #pragma once
 
-#include "gpu/intersectRay.h"
+// Common constants and types used across multiple renderers
 
 namespace visrtx {
 
-VISRTX_DEVICE float computeAO(ScreenSample &ss,
-    const Ray &primaryRay,
-    const Hit &currentHit,
-    float dist,
-    int numSamples,
-    float (*surfaceAttenuation)(ScreenSample &, const Ray&))
+// Threshold for considering a surface fully opaque
+constexpr float OPACITY_THRESHOLD = 0.99f;
+
+// Minimum contribution weight to continue tracing
+constexpr float MIN_CONTRIBUTION_EPSILON = 1.0e-8f;
+
+// Standard ray types used across all renderers
+// All renderers should use these standard types for consistency
+enum class RayType
 {
-  float weights = 0.0f;
-  float hits = 0.0f;
-  Ray aoRay;
-  aoRay.org = currentHit.hitpoint + currentHit.Ns * currentHit.epsilon;
-  aoRay.t.lower = currentHit.epsilon;
-  aoRay.t.upper = dist;
-
-  for (int i = 0; i < numSamples; i++) {
-    aoRay.dir = randomDir(ss.rs, currentHit.Ns);
-    float weight = max(0.f, dot(aoRay.dir, currentHit.Ns));
-    if (weight > 1e-8f) {
-      weights += weight;
-      hits += weight * surfaceAttenuation(ss, aoRay);
-    }
-  }
-
-  return weights > 0.f ? (1.f - hits / weights) : 0.f;
-}
+  PRIMARY = 0, // Primary/shading rays
+  SHADOW = 1, // Shadow/occlusion rays (used for light visibility, AO, etc.)
+};
 
 } // namespace visrtx

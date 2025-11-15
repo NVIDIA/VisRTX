@@ -204,13 +204,8 @@ VISRTX_GLOBAL void __raygen__()
       printf("========== END: FrameID %i ==========\n", frameData.fb.frameID);
     setPixelIds(frameData.fb, ss.pixel, outDepth, primID, objID, instID);
 
-    accumPixelSample(frameData,
-        ss.pixel,
-        vec4(color, 1.f),
-        outDepth,
-        outColor,
-        outNormal,
-        i);
+    accumPixelSample(
+        frameData, ss.pixel, vec4(color, 1.f), outColor, outNormal, i);
   }
 }
 

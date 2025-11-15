@@ -256,12 +256,7 @@ VISRTX_GLOBAL void __raygen__()
 
   setPixelIds(frameData.fb, ss.pixel, depth, primID, objID, instID);
 
-  accumPixelSample(frameData,
-      ss.pixel,
-      vec4(color, 1.f),
-      depth,
-      color,
-      normal);
+  accumPixelSample(frameData, ss.pixel, vec4(color, 1.f), color, normal);
 }
 
 } // namespace visrtx

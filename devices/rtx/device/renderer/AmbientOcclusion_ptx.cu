@@ -29,29 +29,27 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <limits>
 #include "gpu/evalShading.h"
+#include "gpu/gpu_decl.h"
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
+#include "gpu/renderer/common.h"
+#include "gpu/renderer/raygen_helpers.h"
 
 namespace visrtx {
-
-enum class RayType
-{
-  PRIMARY = 0,
-  AO = 1
-};
 
 DECLARE_FRAME_DATA(frameData)
 
 // OptiX programs /////////////////////////////////////////////////////////////
 
-VISRTX_GLOBAL void __closesthit__ao()
+VISRTX_GLOBAL void __closesthit__shadow()
 {
   // no-op
 }
 
-VISRTX_GLOBAL void __anyhit__ao()
+VISRTX_GLOBAL void __anyhit__shadow()
 {
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
@@ -63,7 +61,7 @@ VISRTX_GLOBAL void __anyhit__ao()
 
   auto &o = ray::rayData<float>();
   accumulateValue(o, materialEvaluateOpacity(shadingState), o);
-  if (o >= 0.99f)
+  if (o >= OPACITY_THRESHOLD)
     optixTerminateRay();
   else
     optixIgnoreIntersection();
@@ -84,144 +82,44 @@ VISRTX_GLOBAL void __miss__()
   // no-op
 }
 
+// AmbientOcclusion shading policy for templated rendering loop /////////////
+
+struct AmbientOcclusionShadingPolicy
+{
+  static VISRTX_DEVICE vec4 shadeSurface(const MaterialShadingState &shadingState,
+      ScreenSample &ss,
+      const Ray &ray,
+      const SurfaceHit &hit)
+  {
+    const auto &rendererParams = frameData.renderer;
+    const auto &aoParams = rendererParams.params.ao;
+
+    const float aoFactor = aoParams.aoSamples > 0
+        ? computeAO(ss,
+              ray,
+              hit,
+              rendererParams.occlusionDistance,
+              aoParams.aoSamples,
+              &surfaceAttenuation)
+        : 1.f;
+
+    auto materialBaseColor = materialEvaluateTint(shadingState);
+    auto materialOpacity = materialEvaluateOpacity(shadingState);
+
+    const auto lighting =
+        aoFactor * rendererParams.ambientIntensity * rendererParams.ambientColor;
+
+    return vec4(materialBaseColor * lighting, materialOpacity);
+  }
+};
+
 VISRTX_GLOBAL void __raygen__()
 {
-  auto &rendererParams = frameData.renderer;
-  auto &aoParams = rendererParams.params.ao;
-
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
 
-  for (int i = 0; i < frameData.renderer.numIterations; i++) {
-    auto ray = makePrimaryRay(ss);
-    float tmax = ray.t.upper;
-
-    SurfaceHit surfaceHit;
-    VolumeHit volumeHit;
-    vec3 outputColor(0.f);
-    vec3 outputNormal = ray.dir;
-    float outputOpacity = 0.f;
-    float depth = 1e30f;
-    uint32_t primID = ~0u;
-    uint32_t objID = ~0u;
-    uint32_t instID = ~0u;
-    bool firstHit = true;
-
-    while (outputOpacity < 0.99f) {
-      ray.t.upper = tmax;
-      surfaceHit.foundHit = false;
-      intersectSurface(ss,
-          ray,
-          RayType::PRIMARY,
-          &surfaceHit,
-          primaryRayOptiXFlags(rendererParams));
-
-      vec3 color(0.f);
-      float opacity = 0.f;
-
-      if (surfaceHit.foundHit) {
-        uint32_t vObjID = ~0u;
-        uint32_t vInstID = ~0u;
-        const float vDepth = rayMarchAllVolumes(ss,
-            ray,
-            RayType::PRIMARY,
-            surfaceHit.t,
-            rendererParams.inverseVolumeSamplingRate,
-            color,
-            opacity,
-            vObjID,
-            vInstID);
-
-        if (firstHit) {
-          const bool volumeFirst = vDepth < surfaceHit.t;
-          if (volumeFirst) {
-            outputNormal = -ray.dir;
-            depth = vDepth;
-            primID = 0;
-            objID = vObjID;
-            instID = vInstID;
-          } else {
-            outputNormal = surfaceHit.Ns;
-            depth = surfaceHit.t;
-            primID = computeGeometryPrimId(surfaceHit);
-            objID = surfaceHit.objID;
-            instID = surfaceHit.instID;
-          }
-          firstHit = false;
-        }
-
-        const float aoFactor = aoParams.aoSamples > 0
-            ? computeAO(ss,
-                  ray,
-                  RayType::AO,
-                  surfaceHit,
-                  rendererParams.occlusionDistance,
-                  aoParams.aoSamples)
-            : 1.f;
-
-        MaterialShadingState shadingState;
-        materialInitShading(
-            &shadingState, frameData, *surfaceHit.material, surfaceHit);
-        auto materialBaseColor = materialEvaluateTint(shadingState);
-        auto materialOpacity = materialEvaluateOpacity(shadingState);
-
-        const auto lighting = aoFactor * rendererParams.ambientIntensity
-            * rendererParams.ambientColor;
-        accumulateValue(color, materialBaseColor * lighting, opacity);
-        accumulateValue(opacity, materialOpacity, opacity);
-
-        color *= opacity;
-        accumulateValue(outputColor, color, outputOpacity);
-        accumulateValue(outputOpacity, opacity, outputOpacity);
-
-        ray.t.lower = surfaceHit.t + surfaceHit.epsilon;
-      } else {
-        uint32_t vObjID = ~0u;
-        uint32_t vInstID = ~0u;
-        const float volumeDepth = rayMarchAllVolumes(ss,
-            ray,
-            RayType::PRIMARY,
-            ray.t.upper,
-            rendererParams.inverseVolumeSamplingRate,
-            color,
-            opacity,
-            vObjID,
-            vInstID);
-
-        if (firstHit) {
-          if (opacity > 0.f) {
-            outputNormal = -ray.dir;
-          }
-          depth = min(depth, volumeDepth);
-          primID = 0;
-          objID = vObjID;
-          instID = vInstID;
-        }
-
-        color *= opacity;
-
-        const auto bg = getBackground(frameData, ss.screen, ray.dir);
-        const bool premultiplyBg = rendererParams.premultiplyBackground;
-        accumulateValue(
-            color, premultiplyBg ? vec3(bg) * bg.a : vec3(bg), opacity);
-        accumulateValue(opacity, bg.a, opacity);
-        accumulateValue(outputColor, color, outputOpacity);
-        accumulateValue(outputOpacity, opacity, outputOpacity);
-        break;
-      }
-    }
-
-    setPixelIds(frameData.fb, ss.pixel, depth, primID, objID, instID);
-
-    accumPixelSample(frameData,
-        ss.pixel,
-        vec4(outputColor, outputOpacity),
-        depth,
-        outputColor,
-        outputNormal,
-        i);
-  }
+  renderPixel<AmbientOcclusionShadingPolicy>(frameData, ss);
 }
 
 } // namespace visrtx

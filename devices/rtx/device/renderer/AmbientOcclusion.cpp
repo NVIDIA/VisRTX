@@ -37,7 +37,7 @@ namespace visrtx {
 
 static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
     {"__closesthit__primary", "__anyhit__primary"},
-    {"__closesthit__ao", "__anyhit__ao"}};
+    {"__closesthit__shadow", "__anyhit__shadow"}};
 
 static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
 

@@ -133,6 +133,12 @@ VISRTX_DEVICE void accumulateValue(T &a, const T &b, float interp)
   a += b * (1.f - interp);
 }
 
+template <typename T>
+VISRTX_DEVICE void accumulateNormal(T &a, const T &b, float interp)
+{
+  accumulateValue(a, b, interp);
+}
+
 namespace detail {
 
 VISRTX_DEVICE void packPointer(void *ptr, uint32_t &i0, uint32_t &i1)
@@ -372,9 +378,8 @@ VISRTX_DEVICE uint32_t pixelIndex(
   return pixel.x + pixel.y * fb.size.x;
 }
 
-VISRTX_DEVICE void writeOutputColor(const FramebufferGPUData &fb,
-    const vec4 &color,
-    const uint32_t idx)
+VISRTX_DEVICE void writeOutputColor(
+    const FramebufferGPUData &fb, const vec4 &color, const uint32_t idx)
 {
   if (fb.format == FrameFormat::SRGB) {
     fb.buffers.outColorUint[idx] =
@@ -411,22 +416,19 @@ VISRTX_DEVICE void setPixelIds(const FramebufferGPUData &fb,
     uint32_t instID)
 {
   const uint32_t idx = detail::pixelIndex(fb, pixel);
-
-    if (detail::accumDepth(fb.buffers.depth, idx, depth)) {
-
-  if (fb.buffers.primID)
-    fb.buffers.primID[idx] = primID;
-  if (fb.buffers.objID)
-    fb.buffers.objID[idx] = objID;
-  if (fb.buffers.instID)
-    fb.buffers.instID[idx] = instID;
-    }
+  if (detail::accumDepth(fb.buffers.depth, idx, depth)) {
+    if (fb.buffers.primID)
+      fb.buffers.primID[idx] = primID;
+    if (fb.buffers.objID)
+      fb.buffers.objID[idx] = objID;
+    if (fb.buffers.instID)
+      fb.buffers.instID[idx] = instID;
+  }
 }
 
 VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
     const uvec2 &pixel,
     const vec4 &color,
-    float depth,
     const vec3 &albedo,
     const vec3 &normal,
     const int frameIDOffset = 0)
@@ -437,7 +439,8 @@ VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
 
   // Conditionally apply tonemapping during accumulation
   if (frame.renderer.tonemap)
-    detail::accumValue(fb.buffers.colorAccumulation, idx, detail::tonemap(color));
+    detail::accumValue(
+        fb.buffers.colorAccumulation, idx, detail::tonemap(color));
   else
     detail::accumValue(fb.buffers.colorAccumulation, idx, color);
   detail::accumValue(fb.buffers.albedo, idx, albedo);
@@ -456,20 +459,17 @@ VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
   if (fb.checkerboardID == 0 && frameID == 0) {
     auto adjPix = uvec2(pixel.x + 1, pixel.y + 0);
     if (!pixelOutOfFrame(adjPix, fb)) {
-      detail::writeOutputColor(
-          fb, outputColor, detail::pixelIndex(fb, adjPix));
+      detail::writeOutputColor(fb, outputColor, detail::pixelIndex(fb, adjPix));
     }
 
     adjPix = uvec2(pixel.x + 0, pixel.y + 1);
     if (!pixelOutOfFrame(adjPix, fb)) {
-      detail::writeOutputColor(
-          fb, outputColor, detail::pixelIndex(fb, adjPix));
+      detail::writeOutputColor(fb, outputColor, detail::pixelIndex(fb, adjPix));
     }
 
     adjPix = uvec2(pixel.x + 1, pixel.y + 1);
     if (!pixelOutOfFrame(adjPix, fb)) {
-      detail::writeOutputColor(
-          fb, outputColor, detail::pixelIndex(fb, adjPix));
+      detail::writeOutputColor(fb, outputColor, detail::pixelIndex(fb, adjPix));
     }
   }
 }

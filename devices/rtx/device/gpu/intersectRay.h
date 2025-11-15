@@ -102,12 +102,4 @@ VISRTX_DEVICE void intersectVolume(ScreenSample &ss,
   detail::launchRay(ss, r, rayType, false, dataPtr, optixFlags);
 }
 
-template <typename T>
-VISRTX_DEVICE float surfaceAttenuation(ScreenSample &ss, Ray r, T rayType)
-{
-  float a = 0.f;
-  intersectSurface(ss, r, rayType, &a, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
-  return a;
-}
-
 } // namespace visrtx
