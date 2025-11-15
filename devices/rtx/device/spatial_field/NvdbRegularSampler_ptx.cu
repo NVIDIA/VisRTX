@@ -91,7 +91,9 @@ VISRTX_DEVICE void initNvdbSampler(
 
 template <typename ValueType>
 VISRTX_DEVICE float sampleNvdb(
-    const NvdbRegularSamplerState<ValueType> &state, const vec3 *location)
+    const NvdbRegularSamplerState<ValueType> &state,
+    const vec3 *location,
+    vec3 *gradient)
 {
   const auto indexPos0 = state.grid->worldToIndexF(
       nanovdb::Vec3f(location->x, location->y, location->z));
@@ -101,9 +103,51 @@ VISRTX_DEVICE float sampleNvdb(
 
   const auto clamped = clamp(indexPos, state.indexMin, state.indexMax);
 
-  if (state.filter == SpatialFieldFilter::Nearest)
-    return state.nearestSampler(clamped);
-  return state.linearSampler(clamped);
+  if (state.filter == SpatialFieldFilter::Nearest) {
+    const float value = state.nearestSampler(clamped);
+    if (gradient) {
+      // Central differences at ±1 voxel in index space
+      const auto voxelSize = state.grid->voxelSize();
+      const float sxp = state.nearestSampler(clamp(
+          indexPos + nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
+      const float sxn = state.nearestSampler(clamp(
+          indexPos - nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
+      const float syp = state.nearestSampler(clamp(
+          indexPos + nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
+      const float syn = state.nearestSampler(clamp(
+          indexPos - nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
+      const float szp = state.nearestSampler(clamp(
+          indexPos + nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
+      const float szn = state.nearestSampler(clamp(
+          indexPos - nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
+      // Convert from index space to object space
+      *gradient = vec3((sxp - sxn) * state.scale[0] / (2.f * voxelSize[0]),
+          (syp - syn) * state.scale[1] / (2.f * voxelSize[1]),
+          (szp - szn) * state.scale[2] / (2.f * voxelSize[2]));
+    }
+    return value;
+  }
+
+  const float value = state.linearSampler(clamped);
+  if (gradient) {
+    const float sxp = state.linearSampler(clamp(
+        indexPos + nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
+    const float sxn = state.linearSampler(clamp(
+        indexPos - nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
+    const float syp = state.linearSampler(clamp(
+        indexPos + nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
+    const float syn = state.linearSampler(clamp(
+        indexPos - nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
+    const float szp = state.linearSampler(clamp(
+        indexPos + nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
+    const float szn = state.linearSampler(clamp(
+        indexPos - nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
+    const auto voxelSize = state.grid->voxelSize();
+    *gradient = vec3((sxp - sxn) * state.scale[0] / (2.f * voxelSize[0]),
+        (syp - syn) * state.scale[1] / (2.f * voxelSize[1]),
+        (szp - szn) * state.scale[2] / (2.f * voxelSize[2]));
+  }
+  return value;
 }
 
 // Fp4 sampler
@@ -114,9 +158,10 @@ VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp4(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFp4(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdb(samplerState->nvdbFp4, location);
+  return sampleNvdb(samplerState->nvdbFp4, location, gradient);
 }
 
 // Fp8 sampler
@@ -127,9 +172,10 @@ VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp8(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFp8(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdb(samplerState->nvdbFp8, location);
+  return sampleNvdb(samplerState->nvdbFp8, location, gradient);
 }
 
 // Fp16 sampler
@@ -140,9 +186,10 @@ VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp16(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFp16(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdb(samplerState->nvdbFp16, location);
+  return sampleNvdb(samplerState->nvdbFp16, location, gradient);
 }
 
 // FpN sampler
@@ -153,9 +200,10 @@ VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFpN(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFpN(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdb(samplerState->nvdbFpN, location);
+  return sampleNvdb(samplerState->nvdbFpN, location, gradient);
 }
 
 // Float sampler
@@ -166,7 +214,8 @@ VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFloat(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFloat(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdb(samplerState->nvdbFloat, location);
+  return sampleNvdb(samplerState->nvdbFloat, location, gradient);
 }

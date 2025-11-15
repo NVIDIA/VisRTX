@@ -149,6 +149,7 @@ struct StructuredRectilinearSamplerState
   cudaTextureObject_t axisLUT[3];
   vec3 axisBoundsMin;
   vec3 axisBoundsMax;
+  vec3 invAvgVoxelSpacing;
 };
 
 // NanoVDB Sampler States
@@ -198,6 +199,7 @@ struct NvdbRectilinearSamplerState
   nanovdb::Vec3f indexMin;
   nanovdb::Vec3f indexMax;
   cudaTextureObject_t axisLUT[3];
+  nanovdb::Vec3f invAvgVoxelSize;
   SpatialFieldFilter filter;
 };
 

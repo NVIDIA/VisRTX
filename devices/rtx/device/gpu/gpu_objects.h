@@ -451,6 +451,7 @@ struct NVdbRectilinearData
   bool cellCentered;
   SpatialFieldFilter filter;
   cudaTextureObject_t axisLUT[3];
+  vec3 invAvgVoxelSize;
 
   NVdbRectilinearData() = default;
 };

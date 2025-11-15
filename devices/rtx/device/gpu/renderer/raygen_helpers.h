@@ -116,6 +116,7 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
 
       // Ray march volumes up to this surface hit
       vec3 volumeColor(0.f);
+      vec3 volumeNormal(0.f);
       float volumeOpacity = 0.f;
       uint32_t volObjID = ~0u;
       uint32_t volInstID = ~0u;
@@ -128,14 +129,21 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
           volumeColor,
           volumeOpacity,
           volObjID,
-          volInstID);
+          volInstID,
+          &volumeNormal);
 
       // Accumulate volume contribution if any
       bool volumeHit = volumeDepth < hitDist;
+      constexpr float MIN_NORMAL_LENGTH = 1e-6f;
+      const vec3 FALLBACK_NORMAL(0.f, 0.f, 0.f);
       if (volumeHit) {
+        const float volumeNormalLength = glm::length(volumeNormal);
+        const vec3 outputVolumeNormal = volumeNormalLength > MIN_NORMAL_LENGTH
+            ? volumeNormal * (1.f / volumeNormalLength)
+            : FALLBACK_NORMAL;
         accumulateValue(outputColor, volumeColor, outputOpacity);
         accumulateValue(outputAlbedo, volumeColor, outputOpacity);
-        accumulateNormal(outputNormal, -ray.dir, outputOpacity);
+        accumulateNormal(outputNormal, outputVolumeNormal, outputOpacity);
         accumulateValue(outputOpacity, volumeOpacity, outputOpacity);
 
         depth = volumeDepth;
@@ -160,8 +168,13 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
         accumulateValue(outputAlbedo,
             materialEvaluateTint(shadingState) * surfaceColor.a,
             outputOpacity);
-        accumulateNormal(
-            outputNormal, materialEvaluateNormal(shadingState), outputOpacity);
+        const vec3 materialNormal = materialEvaluateNormal(shadingState);
+        const float materialNormalLength = glm::length(materialNormal);
+        const vec3 outputMaterialNormal =
+            materialNormalLength > MIN_NORMAL_LENGTH
+            ? materialNormal * (1.f / materialNormalLength)
+            : FALLBACK_NORMAL;
+        accumulateNormal(outputNormal, outputMaterialNormal, outputOpacity);
         accumulateValue(outputOpacity, surfaceColor.a, outputOpacity);
 
         // Track first hit from surface

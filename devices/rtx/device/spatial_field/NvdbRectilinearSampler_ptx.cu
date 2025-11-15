@@ -93,10 +93,13 @@ VISRTX_DEVICE void initNvdbRectilinearSampler(
   state.axisLUT[0] = field->data.nvdbRectilinear.axisLUT[0];
   state.axisLUT[1] = field->data.nvdbRectilinear.axisLUT[1];
   state.axisLUT[2] = field->data.nvdbRectilinear.axisLUT[2];
+
+  const auto &iavs = field->data.nvdbRectilinear.invAvgVoxelSize;
+  state.invAvgVoxelSize = nanovdb::Vec3f(iavs.x, iavs.y, iavs.z);
 }
 
 template <typename ValueType>
-VISRTX_DEVICE float sampleNvdbRectilinear(
+VISRTX_DEVICE nanovdb::Vec3f worldToIndexRectilinear(
     const NvdbRectilinearSamplerState<ValueType> &state, const vec3 *location)
 {
   const auto indexPos0 = state.grid->worldToIndexF(
@@ -112,12 +115,48 @@ VISRTX_DEVICE float sampleNvdbRectilinear(
           tex1D<float>(state.axisLUT[2], normalizedPos[2]));
 
   // Back to index space
-  const auto indexPos = normalizedPosRect * state.scaleUp + state.offsetUp;
+  return normalizedPosRect * state.scaleUp + state.offsetUp;
+}
 
+template <typename ValueType>
+VISRTX_DEVICE float sampleAtIndex(
+    const NvdbRectilinearSamplerState<ValueType> &state,
+    const nanovdb::Vec3f &indexPos)
+{
   const auto clamped = clamp(indexPos, state.indexMin, state.indexMax);
   if (state.filter == SpatialFieldFilter::Nearest)
     return state.nearestSampler(clamped);
   return state.linearSampler(clamped);
+}
+
+template <typename ValueType>
+VISRTX_DEVICE float sampleNvdbRectilinearWithGradient(
+    const NvdbRectilinearSamplerState<ValueType> &state,
+    const vec3 *location,
+    vec3 *gradient)
+{
+  // World-to-index coordinate transform
+  const auto indexPos = worldToIndexRectilinear(state, location);
+  const float value = sampleAtIndex(state, indexPos);
+
+  if (gradient) {
+    // Neighbor-voxel central differences at ±1 in index space
+    const float sxp = sampleAtIndex(state, indexPos + nanovdb::Vec3f(1, 0, 0));
+    const float sxn = sampleAtIndex(state, indexPos - nanovdb::Vec3f(1, 0, 0));
+    const float syp = sampleAtIndex(state, indexPos + nanovdb::Vec3f(0, 1, 0));
+    const float syn = sampleAtIndex(state, indexPos - nanovdb::Vec3f(0, 1, 0));
+    const float szp = sampleAtIndex(state, indexPos + nanovdb::Vec3f(0, 0, 1));
+    const float szn = sampleAtIndex(state, indexPos - nanovdb::Vec3f(0, 0, 1));
+
+    // Gradient in object space: scale by invAvgVoxelSize
+    *gradient = vec3(sxp - sxn, syp - syn, szp - szn)
+        * vec3(state.invAvgVoxelSize[0],
+            state.invAvgVoxelSize[1],
+            state.invAvgVoxelSize[2])
+        * 0.5f;
+  }
+
+  return value;
 }
 
 // Fp4 rectilinear sampler
@@ -128,9 +167,12 @@ VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFp4(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp4(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState,
+    const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdbRectilinear(samplerState->nvdbRectilinearFp4, location);
+  return sampleNvdbRectilinearWithGradient(
+      samplerState->nvdbRectilinearFp4, location, gradient);
 }
 
 // Fp8 rectilinear sampler
@@ -141,9 +183,12 @@ VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFp8(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp8(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState,
+    const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdbRectilinear(samplerState->nvdbRectilinearFp8, location);
+  return sampleNvdbRectilinearWithGradient(
+      samplerState->nvdbRectilinearFp8, location, gradient);
 }
 
 // Fp16 rectilinear sampler
@@ -154,9 +199,12 @@ VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFp16(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp16(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState,
+    const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdbRectilinear(samplerState->nvdbRectilinearFp16, location);
+  return sampleNvdbRectilinearWithGradient(
+      samplerState->nvdbRectilinearFp16, location, gradient);
 }
 
 // FpN rectilinear sampler
@@ -167,9 +215,12 @@ VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFpN(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFpN(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState,
+    const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdbRectilinear(samplerState->nvdbRectilinearFpN, location);
+  return sampleNvdbRectilinearWithGradient(
+      samplerState->nvdbRectilinearFpN, location, gradient);
 }
 
 // Float rectilinear sampler
@@ -180,7 +231,10 @@ VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFloat(
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFloat(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState,
+    const vec3 *location,
+    vec3 *gradient)
 {
-  return sampleNvdbRectilinear(samplerState->nvdbRectilinearFloat, location);
+  return sampleNvdbRectilinearWithGradient(
+      samplerState->nvdbRectilinearFloat, location, gradient);
 }

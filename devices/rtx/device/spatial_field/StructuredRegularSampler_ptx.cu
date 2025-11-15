@@ -36,22 +36,47 @@
 using namespace visrtx;
 
 VISRTX_CALLABLE void __direct_callable__initStructuredRegularSampler(
-    VolumeSamplingState *samplerState,
-    const SpatialFieldGPUData *field)
+    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
 {
   samplerState->structuredRegular.texObj = field->data.structuredRegular.texObj;
   samplerState->structuredRegular.origin = field->data.structuredRegular.origin;
-  samplerState->structuredRegular.invDims = field->data.structuredRegular.invDims;
-  samplerState->structuredRegular.invSpacing = field->data.structuredRegular.invSpacing;
-  samplerState->structuredRegular.offset = vec3(field->data.structuredRegular.cellCentered ? 0.0f : 0.5f);
+  samplerState->structuredRegular.invDims =
+      field->data.structuredRegular.invDims;
+  samplerState->structuredRegular.invSpacing =
+      field->data.structuredRegular.invSpacing;
+  samplerState->structuredRegular.offset =
+      vec3(field->data.structuredRegular.cellCentered ? 0.0f : 0.5f);
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleStructuredRegular(
     const VolumeSamplingState *samplerState,
-    const vec3 *location)
+    const vec3 *location,
+    vec3 *gradient)
 {
   const auto &state = samplerState->structuredRegular;
   const auto texelCoords = (*location - state.origin) * state.invSpacing;
   const auto coords = texelCoords + state.offset;
-  return tex3D<float>(state.texObj, coords.x, coords.y, coords.z);
+  const float value = tex3D<float>(state.texObj, coords.x, coords.y, coords.z);
+
+  if (gradient) {
+    // Neighbor-voxel central differences at ±1 texel offset
+    const auto px = coords + vec3(1, 0, 0);
+    const auto nx = coords - vec3(1, 0, 0);
+    const auto py = coords + vec3(0, 1, 0);
+    const auto ny = coords - vec3(0, 1, 0);
+    const auto pz = coords + vec3(0, 0, 1);
+    const auto nz = coords - vec3(0, 0, 1);
+
+    const float sxp = tex3D<float>(state.texObj, px.x, px.y, px.z);
+    const float sxn = tex3D<float>(state.texObj, nx.x, nx.y, nx.z);
+    const float syp = tex3D<float>(state.texObj, py.x, py.y, py.z);
+    const float syn = tex3D<float>(state.texObj, ny.x, ny.y, ny.z);
+    const float szp = tex3D<float>(state.texObj, pz.x, pz.y, pz.z);
+    const float szn = tex3D<float>(state.texObj, nz.x, nz.y, nz.z);
+
+    // Gradient in object space: scale by invSpacing (texels → object units)
+    *gradient = vec3(sxp - sxn, syp - syn, szp - szn) * state.invSpacing * 0.5f;
+  }
+
+  return value;
 }

@@ -71,7 +71,21 @@ VISRTX_DEVICE float volumeSamplerSample(const VolumeSamplingState *samplerState,
   return optixDirectCall<float>(uint32_t(field.samplerCallableIndex)
           + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Sample),
       samplerState,
-      &position);
+      &position,
+      (vec3 *)nullptr);
+}
+
+VISRTX_DEVICE float volumeSamplerSampleWithGradient(
+    const VolumeSamplingState *samplerState,
+    const SpatialFieldGPUData &field,
+    const vec3 &position,
+    vec3 *gradient)
+{
+  return optixDirectCall<float>(uint32_t(field.samplerCallableIndex)
+          + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Sample),
+      samplerState,
+      &position,
+      gradient);
 }
 
 namespace detail {
@@ -98,6 +112,7 @@ VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
     box1 interval,
     vec3 *color,
+    vec3 *normal,
     float &opacity,
     float invSamplingRate)
 {
@@ -140,13 +155,32 @@ VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
         opacity += weight * stepAlpha;
 
         if (opacity > MIN_OPACITY_THRESHOLD
-            && depth == std::numeric_limits<float>::max()) {
+            && depth == std::numeric_limits<float>::max())
           depth = interval.lower;
-        }
       }
     }
 
     interval.lower += stepSize;
+  }
+
+  if (normal) {
+    *normal = vec3(0.f);
+    if (depth < std::numeric_limits<float>::max()) {
+      const vec3 p = hit.localRay.org + hit.localRay.dir * depth;
+      vec3 localGradient(0.f);
+      volumeSamplerSampleWithGradient(
+          &samplerState, field, p, &localGradient);
+      constexpr float MIN_GRADIENT_LENGTH_SQ = 1e-12f;
+      if (glm::dot(localGradient, localGradient) > MIN_GRADIENT_LENGTH_SQ) {
+        // Convert local-space volume gradient to world-space normal direction.
+        const mat3 normalXfm = glm::transpose(mat3(hit.worldToObject));
+        const vec3 worldNormal = normalXfm * (-localGradient);
+        const float worldNormalLength = glm::length(worldNormal);
+        constexpr float MIN_WORLD_NORMAL_LENGTH = 1e-6f;
+        if (worldNormalLength > MIN_WORLD_NORMAL_LENGTH)
+          *normal = worldNormal * (1.f / worldNormalLength);
+      }
+    }
   }
 
   return depth;
@@ -155,6 +189,7 @@ VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
 VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
     vec3 *color,
+    vec3 *normal,
     float &opacity,
     float invSamplingRate)
 {
@@ -166,7 +201,7 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
   /////////////////////////////////////////////////////////////////////////////
 
   return _rayMarchVolume(
-      ss, hit, hit.localRay.t, color, opacity, invSamplingRate);
+      ss, hit, hit.localRay.t, color, normal, opacity, invSamplingRate);
 }
 
 VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
@@ -270,7 +305,8 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
     float &opacity,
     float invSamplingRate)
 {
-  return detail::rayMarchVolume(ss, hit, nullptr, opacity, invSamplingRate);
+  return detail::rayMarchVolume(
+      ss, hit, nullptr, nullptr, opacity, invSamplingRate);
 }
 
 VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
@@ -279,7 +315,8 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
     float &opacity,
     float invSamplingRate)
 {
-  return detail::rayMarchVolume(ss, hit, &color, opacity, invSamplingRate);
+  return detail::rayMarchVolume(
+      ss, hit, &color, nullptr, opacity, invSamplingRate);
 }
 
 template <typename RAY_TYPE>
@@ -291,11 +328,14 @@ VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
     vec3 &color,
     float &opacity,
     uint32_t &objID,
-    uint32_t &instID)
+    uint32_t &instID,
+    vec3 *normal = nullptr)
 {
   VolumeHit hit;
   ray.t.upper = tfar;
   float depth = std::numeric_limits<float>::max();
+  if (normal)
+    *normal = vec3(0.f);
 
   constexpr float OPACITY_THRESHOLD = 0.99f;
 
@@ -309,14 +349,21 @@ VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
     hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
 
     // Ray march through this volume segment
-    float thisDepth =
-        detail::rayMarchVolume(ss, hit, &color, opacity, invSamplingRate);
+    vec3 thisNormal(0.f);
+    float thisDepth = detail::rayMarchVolume(ss,
+        hit,
+        &color,
+        normal ? &thisNormal : nullptr,
+        opacity,
+        invSamplingRate);
 
     // Track closest intersection depth
     if (thisDepth < depth) {
       depth = thisDepth;
       objID = hit.volume->id;
       instID = hit.instance->id;
+      if (normal)
+        *normal = thisNormal;
     }
 
     if (ray.t.lower < hit.localRay.t.upper)

@@ -402,6 +402,18 @@ VISRTX_DEVICE void populateVolumeHit(VolumeHit &hit)
   hit.localRay.dir = ray::volume_local_direction();
   hit.localRay.t.lower = ray::t();
   hit.localRay.t.upper = ray::volume_out_t();
+
+  const auto &handle = optixGetTransformListHandle(0);
+  const ::float4 *tW = optixGetInstanceTransformFromHandle(handle);
+  const ::float4 *tO = optixGetInstanceInverseTransformFromHandle(handle);
+
+  hit.objectToWorld[0] = bit_cast<vec4>(tW[0]);
+  hit.objectToWorld[1] = bit_cast<vec4>(tW[1]);
+  hit.objectToWorld[2] = bit_cast<vec4>(tW[2]);
+
+  hit.worldToObject[0] = bit_cast<vec4>(tO[0]);
+  hit.worldToObject[1] = bit_cast<vec4>(tO[1]);
+  hit.worldToObject[2] = bit_cast<vec4>(tO[2]);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

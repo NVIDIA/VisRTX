@@ -143,6 +143,9 @@ struct SurfaceHit
 
 struct VolumeHit
 {
+  mat3x4 worldToObject;
+  mat3x4 objectToWorld;
+
   const VolumeGPUData *volume{nullptr};
   const InstanceVolumeGPUData *instance{nullptr};
   Ray localRay;

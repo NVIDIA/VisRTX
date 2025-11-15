@@ -60,6 +60,7 @@ struct NvdbRectilinearField : public SpatialField
 
   box3 m_bounds;
   vec3 m_voxelSize;
+  vec3 m_invAvgVoxelSize;
   std::string m_filter;
   bool m_cellCentered{true};
   box3 m_roi{box3(vec3(std::numeric_limits<float>::lowest()),

@@ -164,6 +164,22 @@ void NvdbRectilinearField::finalize()
     }
   }
 
+  // Compute invAvgVoxelSize from axis extents and grid dims
+  {
+    const auto gridDims = m_gridMetadata->indexBBox().dim();
+    std::array<helium::ChangeObserverPtr<Array1D> *, 3> axes = {
+        &m_axisArrayX, &m_axisArrayY, &m_axisArrayZ};
+    for (int axis = 0; axis < 3; ++axis) {
+      const auto *axisData = static_cast<const float *>(
+          (*axes[axis])->data(AddressSpace::HOST));
+      size_t n = (*axes[axis])->size();
+      float extent = axisData[n - 1] - axisData[0];
+      m_invAvgVoxelSize[axis] = m_cellCentered
+          ? static_cast<float>(gridDims[axis]) / extent
+          : static_cast<float>(gridDims[axis] - 1) / extent;
+    }
+  }
+
   buildGrid();
   upload();
 }
@@ -253,6 +269,7 @@ SpatialFieldGPUData NvdbRectilinearField::gpuData() const
   sf.data.nvdbRectilinear.axisLUT[0] = m_axisLutTextures[0];
   sf.data.nvdbRectilinear.axisLUT[1] = m_axisLutTextures[1];
   sf.data.nvdbRectilinear.axisLUT[2] = m_axisLutTextures[2];
+  sf.data.nvdbRectilinear.invAvgVoxelSize = m_invAvgVoxelSize;
 
   sf.grid = m_uniformGrid.gpuData();
 

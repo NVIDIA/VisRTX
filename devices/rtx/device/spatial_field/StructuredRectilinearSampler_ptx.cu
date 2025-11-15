@@ -38,42 +38,63 @@ namespace visrtx {
 VISRTX_CALLABLE void __direct_callable__initStructuredRectilinearSampler(
     VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
 {
-  samplerState->structuredRectilinear.texObj =
-      field->data.structuredRectilinear.texObj;
-  samplerState->structuredRectilinear.dims =
-      field->data.structuredRectilinear.dims - vec3(1);
-  samplerState->structuredRectilinear.offset =
-      vec3(field->data.structuredRectilinear.cellCentered ? 0.0f : 0.5f);
-  samplerState->structuredRectilinear.axisLUT[0] =
-      field->data.structuredRectilinear.axisLUT[0];
-  samplerState->structuredRectilinear.axisLUT[1] =
-      field->data.structuredRectilinear.axisLUT[1];
-  samplerState->structuredRectilinear.axisLUT[2] =
-      field->data.structuredRectilinear.axisLUT[2];
-  samplerState->structuredRectilinear.axisBoundsMin =
-      field->data.structuredRectilinear.axisBoundsMin;
-  samplerState->structuredRectilinear.axisBoundsMax =
-      field->data.structuredRectilinear.axisBoundsMax;
+  auto &state = samplerState->structuredRectilinear;
+  const auto &data = field->data.structuredRectilinear;
+
+  state.texObj = data.texObj;
+  state.dims = data.dims - vec3(1);
+  state.offset = vec3(data.cellCentered ? 0.0f : 0.5f);
+  state.axisLUT[0] = data.axisLUT[0];
+  state.axisLUT[1] = data.axisLUT[1];
+  state.axisLUT[2] = data.axisLUT[2];
+  state.axisBoundsMin = data.axisBoundsMin;
+  state.axisBoundsMax = data.axisBoundsMax;
+
+  const vec3 extent = data.axisBoundsMax - data.axisBoundsMin;
+  state.invAvgVoxelSpacing =
+      data.cellCentered ? (state.dims + vec3(1)) / extent : state.dims / extent;
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleStructuredRectilinear(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState,
+    const vec3 *location,
+    vec3 *gradient)
 {
   const auto &state = samplerState->structuredRectilinear;
 
-  // Normalize object space to [0, 1] and apply rectilinear mapping
+  // World-to-texel coordinate transform
   vec3 normalizedPos = (*location - state.axisBoundsMin)
       / (state.axisBoundsMax - state.axisBoundsMin);
-
   normalizedPos = vec3(tex1D<float>(state.axisLUT[0], normalizedPos.x),
       tex1D<float>(state.axisLUT[1], normalizedPos.y),
       tex1D<float>(state.axisLUT[2], normalizedPos.z));
+  const auto sampleCoord = normalizedPos * state.dims + state.offset;
 
-  // Sample texture with transformed coordinates
-  auto sampleCoord = normalizedPos * state.dims + state.offset;
+  const float value =
+      tex3D<float>(state.texObj, sampleCoord.x, sampleCoord.y, sampleCoord.z);
 
-  return tex3D<float>(
-      state.texObj, sampleCoord.x, sampleCoord.y, sampleCoord.z);
+  if (gradient) {
+    // Neighbor-voxel central differences at ±1 texel offset
+    const auto px = sampleCoord + vec3(1, 0, 0);
+    const auto nx = sampleCoord - vec3(1, 0, 0);
+    const auto py = sampleCoord + vec3(0, 1, 0);
+    const auto ny = sampleCoord - vec3(0, 1, 0);
+    const auto pz = sampleCoord + vec3(0, 0, 1);
+    const auto nz = sampleCoord - vec3(0, 0, 1);
+
+    const float sxp = tex3D<float>(state.texObj, px.x, px.y, px.z);
+    const float sxn = tex3D<float>(state.texObj, nx.x, nx.y, nx.z);
+    const float syp = tex3D<float>(state.texObj, py.x, py.y, py.z);
+    const float syn = tex3D<float>(state.texObj, ny.x, ny.y, ny.z);
+    const float szp = tex3D<float>(state.texObj, pz.x, pz.y, pz.z);
+    const float szn = tex3D<float>(state.texObj, nz.x, nz.y, nz.z);
+
+    // Gradient in object space: scale by invAvgVoxelSpacing
+    *gradient =
+        vec3(sxp - sxn, syp - syn, szp - szn) * state.invAvgVoxelSpacing * 0.5f;
+  }
+
+  return value;
 }
 
 } // namespace visrtx
