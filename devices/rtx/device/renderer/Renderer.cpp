@@ -442,125 +442,50 @@ void Renderer::initOptixPipeline()
         int(SurfaceShaderEntryPoints::Count);
     std::vector<OptixProgramGroupDesc> callableDescs(
         2 * int(SurfaceShaderEntryPoints::Count));
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::Initialize)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::Initialize)]
-        .callables.moduleDC = deviceState()->materialShaders.matte;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::Initialize)]
-        .callables.entryFunctionNameDC = "__direct_callable__init";
 
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateNextRay)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateNextRay)]
-        .callables.moduleDC = deviceState()->materialShaders.matte;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateNextRay)]
-        .callables.entryFunctionNameDC = "__direct_callable__nextRay";
+    OptixProgramGroupDesc callableDesc = {};
+    callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+    callableDesc.callables.moduleDC = deviceState()->materialShaders.matte;
 
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateTint)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateTint)]
-        .callables.moduleDC = deviceState()->materialShaders.matte;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateTint)]
-        .callables.entryFunctionNameDC = "__direct_callable__evaluateTint";
+    // Matte
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::Initialize)] = callableDesc;
 
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateOpacity)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateOpacity)]
-        .callables.moduleDC = deviceState()->materialShaders.matte;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateOpacity)]
-        .callables.entryFunctionNameDC = "__direct_callable__evaluateOpacity";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__nextRay";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::EvaluateNextRay)] = callableDesc;
 
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateEmission)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateEmission)]
-        .callables.moduleDC = deviceState()->materialShaders.matte;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateEmission)]
-        .callables.entryFunctionNameDC = "__direct_callable__evaluateEmission";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateTint";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::EvaluateTint)] = callableDesc;
 
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::Shade)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::Shade)]
-        .callables.moduleDC = deviceState()->materialShaders.matte;
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET
-        + int(SurfaceShaderEntryPoints::Shade)]
-        .callables.entryFunctionNameDC = "__direct_callable__shadeSurface";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateOpacity";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::EvaluateOpacity)] = callableDesc;
 
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::Initialize)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::Initialize)]
-        .callables.moduleDC = deviceState()->materialShaders.physicallyBased;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::Initialize)]
-        .callables.entryFunctionNameDC = "__direct_callable__init";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateEmission";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
 
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateNextRay)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateNextRay)]
-        .callables.moduleDC = deviceState()->materialShaders.physicallyBased;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateNextRay)]
-        .callables.entryFunctionNameDC = "__direct_callable__nextRay";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__shadeSurface";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
 
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateTint)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateTint)]
-        .callables.moduleDC = deviceState()->materialShaders.physicallyBased;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateTint)]
-        .callables.entryFunctionNameDC = "__direct_callable__evaluateTint";
+    // Physically Based
+    callableDesc.callables.moduleDC = deviceState()->materialShaders.physicallyBased;
 
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateOpacity)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateOpacity)]
-        .callables.moduleDC = deviceState()->materialShaders.physicallyBased;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateOpacity)]
-        .callables.entryFunctionNameDC = "__direct_callable__evaluateOpacity";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::Initialize)] = callableDesc;
 
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateEmission)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateEmission)]
-        .callables.moduleDC = deviceState()->materialShaders.physicallyBased;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::EvaluateEmission)]
-        .callables.entryFunctionNameDC = "__direct_callable__evaluateEmission";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__nextRay";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::EvaluateNextRay)] = callableDesc;
 
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::Shade)]
-        .kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::Shade)]
-        .callables.moduleDC = deviceState()->materialShaders.physicallyBased;
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
-        + int(SurfaceShaderEntryPoints::Shade)]
-        .callables.entryFunctionNameDC = "__direct_callable__shadeSurface";
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateTint";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::EvaluateTint)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateOpacity";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::EvaluateOpacity)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateEmission";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC = "__direct_callable__shadeSurface";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
 
     // MDLs
 #ifdef USE_MDL
@@ -602,29 +527,32 @@ void Renderer::initOptixPipeline()
         OptixProgramGroupDesc callableDesc = {};
         callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
         callableDesc.callables.moduleDC = module;
+        auto mdlBaseOffset = callableDescs.size();
+        callableDescs.resize(
+            mdlBaseOffset + int(SurfaceShaderEntryPoints::Count));
 
         callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
-        callableDescs.push_back(callableDesc);
+        callableDescs[mdlBaseOffset + int(SurfaceShaderEntryPoints::Initialize)] = callableDesc;
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__nextRay";
-        callableDescs.push_back(callableDesc);
+        callableDescs[mdlBaseOffset + int(SurfaceShaderEntryPoints::EvaluateNextRay)] = callableDesc;
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__evaluateTint";
-        callableDescs.push_back(callableDesc);
+        callableDescs[mdlBaseOffset + int(SurfaceShaderEntryPoints::EvaluateTint)] = callableDesc;
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__evaluateOpacity";
-        callableDescs.push_back(callableDesc);
+        callableDescs[mdlBaseOffset + int(SurfaceShaderEntryPoints::EvaluateOpacity)] = callableDesc;
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__evaluateEmission";
-        callableDescs.push_back(callableDesc);
+        callableDescs[mdlBaseOffset + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__shadeSurface";
-        callableDescs.push_back(callableDesc);
+        callableDescs[mdlBaseOffset + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
       }
 
       m_lastMDLMaterialLibraryUpdateCheck =
