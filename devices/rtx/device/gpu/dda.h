@@ -43,9 +43,12 @@ typedef ivec3 GridIterationState;
 template <typename Func>
 VISRTX_DEVICE void dda3(Ray ray, ivec3 gridDims, box3 modelBounds, Func func)
 {
-  const vec3 rcp_dir(ray.dir.x != 0.f ? 1.f / ray.dir.x : 0.f,
-      ray.dir.y != 0.f ? 1.f / ray.dir.y : 0.f,
-      ray.dir.z != 0.f ? 1.f / ray.dir.z : 0.f);
+  // Use a large value for infinity
+  const float inf = 1e30f;
+  const vec3 rcp_dir(
+    ray.dir.x != 0.f ? 1.f / ray.dir.x : 0.f,
+    ray.dir.y != 0.f ? 1.f / ray.dir.y : 0.f,
+    ray.dir.z != 0.f ? 1.f / ray.dir.z : 0.f);
 
   const vec3 lo = (modelBounds.lower - ray.org) * rcp_dir;
   const vec3 hi = (modelBounds.upper - ray.org) * rcp_dir;
@@ -56,33 +59,36 @@ VISRTX_DEVICE void dda3(Ray ray, ivec3 gridDims, box3 modelBounds, Func func)
   ivec3 cellID = projectOnGrid(ray.org, gridDims, modelBounds);
 
   // Distance in world space to get from cell to cell
-  const vec3 dist((tfar - tnear) / vec3(gridDims));
+  const vec3 dist(
+    ray.dir.x != 0.f ? (tfar.x - tnear.x) / float(gridDims.x) : inf,
+    ray.dir.y != 0.f ? (tfar.y - tnear.y) / float(gridDims.y) : inf,
+    ray.dir.z != 0.f ? (tfar.z - tnear.z) / float(gridDims.z) : inf);
 
-  // Cell increment
-  const ivec3 step = {ray.dir.x > 0.f ? 1 : -1,
-      ray.dir.y > 0.f ? 1 : -1,
-      ray.dir.z > 0.f ? 1 : -1};
+  // Cell increment: if direction is zero, never step in that axis
+  const ivec3 step = {
+    ray.dir.x > 0.f ? 1 : (ray.dir.x < 0.f ? -1 : 0),
+    ray.dir.y > 0.f ? 1 : (ray.dir.y < 0.f ? -1 : 0),
+    ray.dir.z > 0.f ? 1 : (ray.dir.z < 0.f ? -1 : 0)};
 
-  // Stop when we reach grid borders
-  const ivec3 stop = {ray.dir.x > 0.f ? gridDims.x : -1,
-      ray.dir.y > 0.f ? gridDims.y : -1,
-      ray.dir.z > 0.f ? gridDims.z : -1};
+  // Stop when we reach grid borders; if direction is zero, never stop in that axis
+  const ivec3 stop = {
+    ray.dir.x > 0.f ? gridDims.x : (ray.dir.x < 0.f ? -1 : cellID.x),
+    ray.dir.y > 0.f ? gridDims.y : (ray.dir.y < 0.f ? -1 : cellID.y),
+    ray.dir.z > 0.f ? gridDims.z : (ray.dir.z < 0.f ? -1 : cellID.z)};
 
-  // Increment in world space
-  vec3 tnext = {ray.dir.x > 0.f
-          ? tnear.x + float(cellID.x + 1) * dist.x
-          : tnear.x + float(gridDims.x - cellID.x) * dist.x,
-      ray.dir.y > 0.f ? tnear.y + float(cellID.y + 1) * dist.y
-                      : tnear.y + float(gridDims.y - cellID.y) * dist.y,
-      ray.dir.z > 0.f ? tnear.z + float(cellID.z + 1) * dist.z
-                      : tnear.z + float(gridDims.z - cellID.z) * dist.z};
+  // Increment in world space; if direction is zero, set tnext to +inf so it never wins
+  vec3 tnext = {
+    ray.dir.x > 0.f ? tnear.x + float(cellID.x + 1) * dist.x :
+      (ray.dir.x < 0.f ? tnear.x + float(gridDims.x - cellID.x) * dist.x : inf),
+    ray.dir.y > 0.f ? tnear.y + float(cellID.y + 1) * dist.y :
+      (ray.dir.y < 0.f ? tnear.y + float(gridDims.y - cellID.y) * dist.y : inf),
+    ray.dir.z > 0.f ? tnear.z + float(cellID.z + 1) * dist.z :
+      (ray.dir.z < 0.f ? tnear.z + float(gridDims.z - cellID.z) * dist.z : inf)};
 
   float t0 = max(ray.t.lower, 0.f);
 
   while (1) { // loop over grid cells
     const float t1 = min(compMin(tnext), ray.t.upper);
-    // if (debug()) printf("DDA cell: (%i,%i,%i), ival: [%f,%f]\n",
-    //                     cellID.x,cellID.y,cellID.z,t0,t1);
     if (!func(linearIndex(cellID, gridDims), t0, t1))
       return;
 
