@@ -38,7 +38,7 @@ namespace visrtx {
 static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
     {"__closesthit__primary", "__anyhit__primary"}};
 
-static const std::vector<std::string> g_aoMissNames = {"__miss__"};
+static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
 
 Raycast::Raycast(DeviceGlobalState *s) : Renderer(s) {}
 

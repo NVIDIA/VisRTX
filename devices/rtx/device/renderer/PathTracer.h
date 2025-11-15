@@ -42,6 +42,7 @@ struct PathTracer : public Renderer
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
   Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
+  Span<std::string> missSbtNames() const override;
 
   static ptx_blob ptx();
 

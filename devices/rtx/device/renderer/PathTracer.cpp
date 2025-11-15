@@ -38,6 +38,9 @@ namespace visrtx {
 static const std::vector<HitgroupFunctionNames> g_ptHitNames = {
     {"__closesthit__", "__anyhit__"}};
 
+static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
+
+
 PathTracer::PathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
 void PathTracer::commitParameters()
@@ -60,6 +63,11 @@ OptixModule PathTracer::optixModule() const
 Span<HitgroupFunctionNames> PathTracer::hitgroupSbtNames() const
 {
   return make_Span(g_ptHitNames.data(), g_ptHitNames.size());
+}
+
+Span<std::string> PathTracer::missSbtNames() const
+{
+  return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
 }
 
 ptx_blob PathTracer::ptx()

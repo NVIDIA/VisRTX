@@ -325,21 +325,26 @@ void Renderer::initOptixPipeline()
   // Miss program //
 
   {
-    m_missPGs.resize(1);
-    OptixProgramGroupOptions pgOptions = {};
-    OptixProgramGroupDesc pgDesc = {};
-    pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-    pgDesc.miss.module = shadingModule;
-    pgDesc.miss.entryFunctionName = "__miss__";
+    const auto missNames = missSbtNames();
+    m_missPGs.resize(missNames.size());
 
-    sizeof_log = sizeof(log);
-    OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
-        &pgDesc,
-        1,
-        &pgOptions,
-        log,
-        &sizeof_log,
-        &m_missPGs[0]));
+    int i = 0;
+    for (const auto &missName : missNames) {
+      OptixProgramGroupOptions pgOptions = {};
+      OptixProgramGroupDesc pgDesc = {};
+      pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+      pgDesc.miss.module = shadingModule;
+      pgDesc.miss.entryFunctionName = missName.c_str();
+
+      sizeof_log = sizeof(log);
+      OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+          &pgDesc,
+          1,
+          &pgOptions,
+          log,
+          &sizeof_log,
+          &m_missPGs[i++]));
+    }
 
     if (sizeof_log > 1)
       reportMessage(ANARI_SEVERITY_DEBUG, "PG Miss Log:\n%s", log);
