@@ -154,9 +154,7 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->argBlock = md->argBlock;
 
   // Init
-  mdlInit(&shadingState->state,
-      &shadingState->resData,
-      shadingState->argBlock);
+  mdlInit(&shadingState->state, &shadingState->resData, shadingState->argBlock);
 }
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
@@ -202,6 +200,13 @@ VISRTX_CALLABLE
 NextRay __direct_callable__nextRay(
     const MDLShadingState *shadingState, const Ray *ray, RandState *rs)
 {
+  // Before anything, check for opacity. If below, than we just pass through
+  if (curand_uniform(rs) > mdlOpacity(&shadingState->state,
+          &shadingState->resData,
+          shadingState->argBlock)) {
+    return NextRay{ray->dir, vec3(1.0f)};
+  }
+
   // Sample
   BsdfSampleData sample_data = {};
   if (shadingState->isFrontFace) {
@@ -264,15 +269,15 @@ vec3 __direct_callable__evaluateEmission(
 }
 
 VISRTX_CALLABLE
-vec3 __direct_callable__evaluateTransmission(const MDLShadingState *shadingState)
+vec3 __direct_callable__evaluateTransmission(
+    const MDLShadingState *shadingState)
 {
   return mdlTransmission(
       &shadingState->state, &shadingState->resData, shadingState->argBlock);
 }
 
 VISRTX_CALLABLE
-vec3 __direct_callable__evaluateNormal(
-    const MDLShadingState *shadingState)
+vec3 __direct_callable__evaluateNormal(const MDLShadingState *shadingState)
 {
   return make_vec3(shadingState->state.normal);
 }

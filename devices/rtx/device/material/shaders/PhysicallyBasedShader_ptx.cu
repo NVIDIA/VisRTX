@@ -32,7 +32,6 @@
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
-#include "gpu/intersectRay.h"
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
@@ -80,35 +79,6 @@ VISRTX_CALLABLE void __direct_callable__init(
   // Transmission
   shadingState->transmission =
       getMaterialParameter(*fd, md->transmission, *hit).x;
-}
-
-VISRTX_CALLABLE NextRay __direct_callable__nextRay(
-    const PhysicallyBasedShadingState *shadingState,
-    const Ray *ray,
-    RandState *rs)
-{
-  // Open cone, along the perfect reflection ray, with a metallic and
-  // roughness-dependent angle
-  const float roughness = shadingState->roughness;
-  const float metalness = shadingState->metallic;
-  const float roughnessSqr = roughness * roughness;
-  const float cosThetaMax = 1.0f - (roughnessSqr * roughnessSqr);
-  const float transmission = shadingState->transmission;
-
-  bool isReflected = curand_uniform(rs) > transmission;
-  auto nextVector = isReflected
-      ? glm::reflect(ray->dir, shadingState->normal)
-      : glm::refract(ray->dir, shadingState->normal, shadingState->ior);
-
-  auto nextRay = computeOrthonormalBasis(normalize(nextVector))
-      * uniformSampleCone(cosThetaMax,
-          vec3(curand_uniform(rs), curand_uniform(rs), curand_uniform(rs)));
-
-  auto nextSampleWeight = isReflected
-      ? shadingState->baseColor * metalness * (1.0f - transmission)
-      : shadingState->baseColor * transmission;
-
-  return NextRay{nextRay, nextSampleWeight};
 }
 
 VISRTX_CALLABLE
@@ -205,4 +175,39 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
   // light reflected at the surface rather than transmitted through the material.
   return (diffuseBRDF * (1.0f - shadingState->transmission) + specularBRDF)
       * NdotL * lightSample->radiance / lightSample->pdf;
+}
+
+VISRTX_CALLABLE NextRay __direct_callable__nextRay(
+    const PhysicallyBasedShadingState *shadingState,
+    const Ray *ray,
+    RandState *rs)
+{
+  // Before anything, check for opacity. If below, than we just pass through
+  if (curand_uniform(rs) > shadingState->opacity)
+  {
+    return NextRay{ray->dir, vec3(1.0f)};
+  }
+
+  // Open cone, along the perfect reflection ray, with a metallic and
+  // roughness-dependent angle
+  const float roughness = shadingState->roughness;
+  const float metalness = shadingState->metallic;
+  const float roughnessSqr = roughness * roughness;
+  const float cosThetaMax = 1.0f - (roughnessSqr * roughnessSqr);
+  const float transmission = shadingState->transmission;
+
+  bool isReflected = curand_uniform(rs) > transmission;
+  auto nextVector = isReflected
+        ? glm::reflect(ray->dir, shadingState->normal)
+          : glm::refract(ray->dir, shadingState->normal, shadingState->ior);
+
+  auto nextRay = computeOrthonormalBasis(normalize(nextVector))
+        * uniformSampleCone(cosThetaMax,
+            vec3(curand_uniform(rs), curand_uniform(rs), curand_uniform(rs)));
+
+  auto nextSampleWeight = isReflected
+    ? shadingState->baseColor * metalness * (1.0f - transmission)
+    : shadingState->baseColor * transmission;
+
+  return NextRay{nextRay, nextSampleWeight};
 }
