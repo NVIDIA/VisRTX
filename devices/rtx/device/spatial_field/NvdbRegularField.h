@@ -31,8 +31,9 @@
 
 #pragma once
 
-#include "array/Array1D.h"
 #include "spatial_field/SpatialField.h"
+
+#include "array/Array1D.h"
 #include "utility/DeviceBuffer.h"
 
 #include <nanovdb/NanoVDB.h>

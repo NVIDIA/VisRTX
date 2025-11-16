@@ -31,16 +31,11 @@
 
 #include "NvdbRegularField.h"
 
-#include "array/Array1D.h"
-#include "utility/DeviceBuffer.h"
-
+// anari
 #include <anari/frontend/anari_enums.h>
 
 // nanovdb
-#include <nanovdb/GridHandle.h>
-#include <nanovdb/HostBuffer.h>
 #include <nanovdb/NanoVDB.h>
-#include <nanovdb/math/Math.h>
 
 // glm
 #include <glm/ext/vector_float3.hpp>
@@ -84,23 +79,25 @@ void NvdbRegularField::finalize()
     return;
   }
 
-  // Data might not be aligned, make sure we get something that works for
-  // nanovdb.
-  auto hostbuffer = nanovdb::HostBuffer::create(m_data->size());
-  std::memcpy(
-      hostbuffer.data(), m_data->data(AddressSpace::HOST), m_data->size());
+  const void *dataPtr = m_data->data(AddressSpace::HOST);
+  const auto *gridData = static_cast<const nanovdb::GridData *>(dataPtr);
 
-  auto gridHandle = nanovdb::GridHandle<>(std::move(hostbuffer));
-  m_gridMetadata = *gridHandle.gridMetaData();
+  if (!gridData->isValid()) {
+    reportMessage(
+        ANARI_SEVERITY_WARNING, "invalid NanoVDB grid data in spatial field");
+    return;
+  }
 
-  m_deviceBuffer.upload(
-      static_cast<const std::byte *>(gridHandle.data()), gridHandle.size());
+  m_gridMetadata = nanovdb::GridMetaData(gridData);
 
-  if (gridHandle.gridCount() != 1) {
+  if (m_gridMetadata->gridCount() != 1) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "VisRTX NanoVDB support's a single grid per file");
     return;
   }
+
+  m_deviceBuffer.upload(
+      static_cast<const std::byte *>(dataPtr), m_data->size());
 
   auto boundsMin = m_gridMetadata->worldBBox().min();
   auto boundsMax = m_gridMetadata->worldBBox().max();
