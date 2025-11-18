@@ -132,6 +132,13 @@ vec3 __direct_callable__evaluateEmission(
   return shadingState->emission;
 }
 
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateTransmission(
+    const PhysicallyBasedShadingState *shadingState)
+{
+  return shadingState->baseColor * shadingState->transmission * 0.85f;
+}
+
 // Signature must match the call inside shaderPhysicallyBasedSurface in
 // PhysicallyBasedShader.cuh.
 VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(

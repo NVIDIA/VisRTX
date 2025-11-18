@@ -54,6 +54,7 @@ using EdfEvaluateFunc = mi::neuraylib::Edf_evaluate_function;
 //
 using TintExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using OpacityExprFunc = mi::neuraylib::Material_function<float>::Type;
+using TransmissionExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using EmissionIntensityExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
@@ -75,6 +76,7 @@ VISRTX_CALLABLE BsdfIsThinWalled mdl_isThinWalled;
 
 VISRTX_CALLABLE TintExprFunc mdlTint;
 VISRTX_CALLABLE OpacityExprFunc mdlOpacity;
+VISRTX_CALLABLE TransmissionExprFunc mdlTransmission;
 VISRTX_CALLABLE EdfEvaluateFunc mdlEmission_evaluate;
 VISRTX_CALLABLE EmissionIntensityExprFunc mdlEmissionIntensity;
 
@@ -259,4 +261,11 @@ vec3 __direct_callable__evaluateEmission(
   return (evalData.pdf > 1e-12f)
       ? make_vec3(evalData.edf) * evalData.cos * intensity / evalData.pdf
       : vec3(0.0f);
+}
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateTransmission(const MDLShadingState *shadingState)
+{
+  return mdlTransmission(
+      &shadingState->state, &shadingState->resData, shadingState->argBlock);
 }

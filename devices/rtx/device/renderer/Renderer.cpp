@@ -489,6 +489,11 @@ void Renderer::initOptixPipeline()
         + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateTransmission";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateTransmission)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC =
         "__direct_callable__shadeSurface";
     callableDescs[SBT_CALLABLE_MATTE_OFFSET
         + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
@@ -520,6 +525,11 @@ void Renderer::initOptixPipeline()
     callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
         + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
 
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateTransmission";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateTransmission)] = callableDesc;
+    
     callableDesc.callables.entryFunctionNameDC =
         "__direct_callable__shadeSurface";
     callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
@@ -742,6 +752,10 @@ void Renderer::initOptixPipeline()
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__evaluateEmission";
+        callableDescs.push_back(callableDesc);
+
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateTransmission";
         callableDescs.push_back(callableDesc);
 
         callableDesc.callables.entryFunctionNameDC =
