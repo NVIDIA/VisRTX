@@ -36,6 +36,7 @@ void ImportFileDialog::buildUI()
       "OBJ",
       "PDB",
       "PLY",
+      "POINTSBIN_MULTIFILE",
       "PT (neural)",
       "SMESH",
       "SMESH_ANIMATION",
@@ -44,6 +45,7 @@ void ImportFileDialog::buildUI()
       "USD",
       "XYZDP",
       "VOLUME",
+      "TSD",
   };
 
   ImGui::Combo(
