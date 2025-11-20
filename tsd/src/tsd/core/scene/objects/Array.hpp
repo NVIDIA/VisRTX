@@ -52,6 +52,8 @@ struct Array : public Object
   template <typename T>
   const T *dataAs() const;
 
+  const void *elementAt(size_t i) const;
+
   template <typename T>
   void setData(const T *data, size_t size, size_t startOffset = 0);
   template <typename T>

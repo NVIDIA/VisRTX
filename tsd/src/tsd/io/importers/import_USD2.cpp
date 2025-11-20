@@ -1,6 +1,10 @@
 // Copyright 2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef TSD_USE_USD
+#define TSD_USE_USD 1
+#endif
+
 // USD helpers
 #include "tsd/io/importers/detail/usd/OmniPbrMaterial.h"
 
@@ -39,7 +43,7 @@ using namespace tsd::core;
 
 using namespace pxr;
 
-bool isTimeStepValuesAnimated(const TimeStepValues &values)
+bool isTimeStepValuesAnimated(const std::vector<Any> &values)
 {
   if (values.size() < 2) {
     return false;
@@ -122,10 +126,10 @@ static void importUsdGeomCamera(Scene &scene, const pxr::UsdPrim &prim)
   }
 
   // Assume that the prim is time sampled
-  TimeStepValues positions;
-  TimeStepValues directions;
-  TimeStepValues ups;
-  TimeStepValues fovs;
+  std::vector<Any> positions;
+  std::vector<Any> directions;
+  std::vector<Any> ups;
+  std::vector<Any> fovs;
 
   for (auto tc = startTc; tc <= endTc; ++tc) {
     xformCache.SetTime(tc);
@@ -182,7 +186,7 @@ static void importUsdGeomCamera(Scene &scene, const pxr::UsdPrim &prim)
 
   auto cameraAnimation = scene.addAnimation(primName.c_str());
   std::vector<Token> animatedParams;
-  std::vector<TimeStepValues> animatedValues;
+  std::vector<std::vector<Any>> animatedValues;
 
   if (isPositionsAnimated) {
     animatedParams.push_back("position"_t);
@@ -201,7 +205,27 @@ static void importUsdGeomCamera(Scene &scene, const pxr::UsdPrim &prim)
     animatedValues.push_back(fovs);
   }
 
-  cameraAnimation->setAsTimeSteps(*camera, animatedParams, animatedValues);
+  std::vector<TimeStepValues> finalValueArrays;
+  for (size_t i = 0; i < animatedValues.size(); i++) {
+    auto &values = animatedValues[i];
+    auto &paramName = animatedParams[i];
+
+    auto type = values[0].type();
+    auto arr = scene.createArray(values[0].type(), values.size());
+    arr->setName((std::string("animated_") + paramName.c_str()).c_str());
+
+    auto *ptr = (uint8_t *)arr->map();
+    for (size_t j = 0; j < values.size(); j++) {
+      auto &v = values[j];
+      auto *dst = ptr + (j * anari::sizeOf(type));
+      std::memcpy(dst, v.data(), anari::sizeOf(type));
+    }
+    arr->unmap();
+
+    finalValueArrays.push_back(arr);
+  }
+
+  cameraAnimation->setAsTimeSteps(*camera, animatedParams, finalValueArrays);
 
   logStatus("[import_USD] Created camera '%s'\n", primName.c_str());
 }

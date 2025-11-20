@@ -11,6 +11,20 @@
 
 namespace tsd::core {
 
+// Helper functions ///////////////////////////////////////////////////////////
+
+static size_t calculateIndexForTime(
+    float time, size_t numSteps, bool cellCentered)
+{
+  time = std::clamp(time, 0.f, 1.f);
+  if (cellCentered)
+    return std::min(static_cast<size_t>(time * numSteps), numSteps - 1);
+  else
+    return static_cast<size_t>(time * (numSteps - 1));
+}
+
+// Animation definitions //////////////////////////////////////////////////////
+
 Animation::Animation(Scene *s, const char *name) : m_scene(s), m_name(name) {}
 
 Scene *Animation::scene() const
@@ -36,21 +50,15 @@ const std::string &Animation::info() const
 void Animation::setAsTimeSteps(
     Object &obj, Token parameter, const TimeStepValues &steps)
 {
-  m_timesteps.object = obj;
-  m_timesteps.parameterName = {parameter};
-  m_timesteps.stepsValues = {steps};
-  m_timesteps.stepsArrays.clear();
-  m_info = "current timestep: 0/" + std::to_string(steps.size() - 1);
+  setAsTimeSteps(
+      obj, std::vector<Token>{parameter}, std::vector<TimeStepValues>{steps});
 }
 
 void Animation::setAsTimeSteps(
     Object &obj, Token parameter, const TimeStepArrays &steps)
 {
-  m_timesteps.object = obj;
-  m_timesteps.parameterName = {parameter};
-  m_timesteps.stepsArrays = {steps};
-  m_timesteps.stepsValues.clear();
-  m_info = "current timestep: 0/" + std::to_string(steps.size() - 1);
+  setAsTimeSteps(
+      obj, std::vector<Token>{parameter}, std::vector<TimeStepArrays>{steps});
 }
 
 void Animation::setAsTimeSteps(Object &obj,
@@ -67,8 +75,7 @@ void Animation::setAsTimeSteps(Object &obj,
   m_timesteps.parameterName = parameters;
   m_timesteps.stepsValues = steps;
   m_timesteps.stepsArrays.clear();
-  m_info = "current timestep: 0/"
-      + std::to_string(steps.empty() ? 0 : steps[0].size() - 1);
+  updateInfoString(0.f, false);
 }
 
 void Animation::setAsTimeSteps(Object &obj,
@@ -85,45 +92,37 @@ void Animation::setAsTimeSteps(Object &obj,
   m_timesteps.parameterName = parameters;
   m_timesteps.stepsValues.clear();
   m_timesteps.stepsArrays = steps;
-  m_info = "current timestep: 0/"
-      + std::to_string(steps.empty() ? 0 : steps[0].size() - 1);
+  updateInfoString(0.f, true);
 }
 
 void Animation::update(float time)
 {
   auto &ts = m_timesteps;
 
-  if ((ts.stepsValues.empty() && ts.stepsArrays.empty()) || !ts.object || ts.parameterName.empty()) {
+  if ((ts.stepsValues.empty() && ts.stepsArrays.empty()) || !ts.object
+      || ts.parameterName.empty()) {
     logWarning(
         "[AnimatedTimeSeries::update()] incomplete animation object '%s'",
         name().c_str());
     return;
   }
 
-  auto updateTimeStep = [&](size_t numSteps, auto getContainer, auto setValue) {
-    for (size_t i = 0; i < numSteps; i++) {
-      const auto& container = getContainer(i);
-      const float scaledTime = std::clamp(time, 0.f, 1.f) * (container.size() - 1);
-      const size_t idx = static_cast<size_t>(std::ceil(scaledTime));
-      if (idx == ts.currentStep)
-        continue;
-
-      auto &parameterName = ts.parameterName[i];
-      
-      setValue(parameterName, container[idx]);
-      m_info = "current timestep: " + std::to_string(idx) + "/"
-          + std::to_string(container.size() - 1);
-    }
-  };
-
   if (!ts.stepsValues.empty()) {
-    updateTimeStep(ts.stepsValues.size(),
-        [&](size_t i) -> const auto& { return ts.stepsValues[i]; },
-        [&](Token param, const auto& value) { ts.object->setParameter(param, value); });
+    // TODO(jda): (linearly) interpolate between time steps for values?
+    for (size_t i = 0; i < ts.stepsValues.size(); i++) {
+      const auto &a = *ts.stepsValues[i];
+      const size_t idx = calculateIndexForTime(time, a.size(), false);
+      ts.object->setParameter(
+          ts.parameterName[i], a.elementType(), a.elementAt(idx));
+    }
+    updateInfoString(time, false);
   } else if (!ts.stepsArrays.empty()) {
-    updateTimeStep(ts.stepsArrays.size(),
-        [&](size_t i) -> const auto& { return ts.stepsArrays[i]; },
-        [&](Token param, const auto& value) { ts.object->setParameterObject(param, *value); });
+    for (size_t i = 0; i < ts.stepsArrays.size(); i++) {
+      const auto &c = ts.stepsArrays[i];
+      const size_t idx = calculateIndexForTime(time, c.size(), true);
+      ts.object->setParameterObject(ts.parameterName[i], *c[idx]);
+    }
+    updateInfoString(time, true);
   }
 }
 
@@ -135,15 +134,15 @@ void Animation::serialize(DataNode &node) const
 
   auto &ts = m_timesteps;
 
-  // Write node values
+  // Write node values //
 
   auto &timeseries = node["timeseries"];
   timeseries["object"] = ts.object
       ? tsd::core::Any(ts.object->type(), ts.object->index())
       : tsd::core::Any();
-  timeseries["currentStep"] = ts.currentStep;
+  timeseries["kind"] = ts.stepsArrays.empty() ? "values" : "arrays";
 
-  // Write animation sets
+  // Write animation sets //
 
   auto &animationSets = timeseries["animationSets"];
   if (!ts.stepsArrays.empty()) {
@@ -159,7 +158,11 @@ void Animation::serialize(DataNode &node) const
       setNode["steps"].setValueAsArray(setArrayIndices);
     }
   } else if (!ts.stepsValues.empty()) {
-    logWarning("Serializing animation of Any is not yet supported\n");
+    for (size_t i = 0; i < ts.stepsValues.size(); i++) {
+      auto &setNode = animationSets.append();
+      setNode["parameterName"] = ts.parameterName[i].str();
+      setNode["steps"].setValue(ts.stepsValues[i]->index());
+    }
   }
 }
 
@@ -168,18 +171,20 @@ void Animation::deserialize(DataNode &node)
   auto getTimeStepArrays = [this](DataNode &setNode) {
     size_t numSteps = 0;
     void *data = nullptr;
-    ANARIDataType type;
-    setNode["steps"].getValueAsArray(&type, &data, &numSteps);
+    ANARIDataType type = ANARI_UNKNOWN;
+
+    auto &stepsNode = setNode["steps"];
+    stepsNode.getValueAsArray(&type, &data, &numSteps);
 
     TimeStepArrays stepsArrays;
 
     if (type == anari::ANARITypeFor<size_t>::value) {
       auto indices = static_cast<size_t *>(data);
-      for (size_t i = 0; i < numSteps; i++) {
+      for (size_t i = 0; i < numSteps; i++)
         stepsArrays.emplace_back(m_scene->getObject<Array>(indices[i]));
-      }
     } else {
-      logWarning("Deserializing animation of Any is not yet supported\n");
+      logError(
+          "[Animation::deserialize()] invalid data type for timestep arrays");
     }
 
     return stepsArrays;
@@ -193,28 +198,59 @@ void Animation::deserialize(DataNode &node)
     auto &ts = m_timesteps;
     auto &tsNode = *c;
 
+    auto *kindNode = node.child("timeseries")->child("kind");
+    bool isArrayBased =
+        !kindNode || kindNode->getValueAs<std::string>() == "arrays";
+
     auto object = m_scene->getObject(tsNode["object"].getValue());
 
     if (auto *sets = tsNode.child("animationSets"); sets != nullptr) {
       std::vector<Token> parameterNames;
       std::vector<TimeStepArrays> allSteps;
+      std::vector<TimeStepValues> allValueSteps;
 
       sets->foreach_child([&](DataNode &setNode) {
         auto parameterName =
             Token(setNode["parameterName"].getValueAs<std::string>().c_str());
-        auto steps = getTimeStepArrays(setNode);
         parameterNames.push_back(parameterName);
-        allSteps.push_back(steps);
+        if (isArrayBased)
+          allSteps.push_back(getTimeStepArrays(setNode));
+        else {
+          size_t stepIdx = setNode["steps"].getValueAs<size_t>();
+          auto arr = m_scene->getObject<Array>(stepIdx);
+          if (arr)
+            allValueSteps.push_back(arr);
+          else {
+            logError(
+                "[Animation::deserialize()] invalid array index %zu", stepIdx);
+          }
+        }
       });
-      setAsTimeSteps(*object, parameterNames, allSteps);
-    } else {
-      auto parameterName =
-          Token(tsNode["parameterName"].getValueAs<std::string>().c_str());
-      auto steps = getTimeStepArrays(tsNode);
-      setAsTimeSteps(*object, Token(parameterName.c_str()), steps);
-    }
 
-    ts.currentStep = tsNode["currentStep"].getValueAs<size_t>();
+      if (isArrayBased)
+        setAsTimeSteps(*object, parameterNames, allSteps);
+      else
+        setAsTimeSteps(*object, parameterNames, allValueSteps);
+    }
+  }
+}
+
+void Animation::updateInfoString(float time, bool cellCentered)
+{
+  auto &ts = m_timesteps;
+  auto doUpdate = [&](size_t numSteps) {
+    const size_t idx = calculateIndexForTime(time, numSteps, cellCentered);
+    m_info = "current timestep: " + std::to_string(idx) + "/"
+        + std::to_string(numSteps - 1);
+  };
+
+  if (!ts.stepsValues.empty() && ts.stepsValues[0]) {
+    const auto &a = *ts.stepsValues[0];
+    doUpdate(a.size());
+  } else if (!ts.stepsArrays.empty() && !ts.stepsArrays[0].empty()) {
+    doUpdate(ts.stepsArrays[0].size());
+  } else {
+    m_info = "<incomplete animation>";
   }
 }
 
