@@ -1208,6 +1208,39 @@ void Viewport::ui_handleInput()
   if (!m_deviceReadyToUse)
     return;
 
+  // Handle gizmo keyboard shortcuts. Handle those before checking for
+  // window focus so they can act globally.
+  // When a new manipulator mode is selected, we default to world mode.
+  // Otherwise, toggle between local and global modes.
+  if (ImGui::IsKeyPressed(ImGuiKey_Q, false)) {
+    m_enableGizmo = false;
+  } else if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
+    if (m_enableGizmo && m_gizmoOperation == ImGuizmo::TRANSLATE) {
+      m_gizmoMode = (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+    } else {
+      m_enableGizmo = true;
+      m_gizmoOperation = ImGuizmo::TRANSLATE;
+      m_gizmoMode = ImGuizmo::WORLD;
+    }
+  } else if (ImGui::IsKeyPressed(ImGuiKey_E, false)) {
+    if (m_enableGizmo && m_gizmoOperation == ImGuizmo::SCALE) {
+      m_gizmoMode = (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+    } else {
+      m_enableGizmo = true;
+      m_gizmoOperation = ImGuizmo::SCALE;
+      m_gizmoMode = ImGuizmo::WORLD;
+    }
+  } else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+    if (m_enableGizmo && m_gizmoOperation == ImGuizmo::ROTATE) {
+      m_gizmoMode = (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+    } else {
+      m_enableGizmo = true;
+      m_gizmoOperation = ImGuizmo::ROTATE;
+      m_gizmoMode = ImGuizmo::WORLD;
+    }
+  }
+
+
   // Do not bother with events if the window is not hovered
   // or no interation is ongoing.
   // We'll use that hovering status to check for starting an
