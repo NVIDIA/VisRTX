@@ -3,6 +3,7 @@
 
 #include "Viewport.h"
 // tsd_ui_imgui
+#include "imgui.h"
 #include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 // tsd_core
@@ -77,16 +78,6 @@ void Viewport::buildUI()
     ui_overlay();
 
   ImGui::EndDisabled();
-
-  // Make is so that middle and right-clicks get the window focused.
-  // This enables middle/right-click-drag to work right away even if the window
-  // is not focused same as left-click-drag works without requiring a prior
-  // left-click-focus.
-  if (ImGui::IsWindowHovered()
-      && (ImGui::IsMouseDown(ImGuiMouseButton_Right)
-          || ImGui::IsMouseDown(ImGuiMouseButton_Middle))) {
-    ImGui::SetWindowFocus();
-  }
 
   // Render transform manipulators
   ui_gizmo();
@@ -1213,7 +1204,15 @@ void Viewport::ui_menubar()
 
 void Viewport::ui_handleInput()
 {
-  if (!m_deviceReadyToUse || !ImGui::IsWindowFocused())
+  // No device
+  if (!m_deviceReadyToUse)
+    return;
+
+  // Do not bother with events if the window is not hovered
+  // or no interation is ongoing.
+  // We'll use that hovering status to check for starting an
+  // event below.
+  if (!ImGui::IsWindowHovered() && !m_manipulating)
     return;
 
   // Block arcball input when a database camera is selected
@@ -1231,12 +1230,13 @@ void Viewport::ui_handleInput()
   const bool orbit = ImGui::IsMouseDown(ImGuiMouseButton_Left);
 
   const bool anyMovement = dolly || pan || orbit;
-
   if (!anyMovement) {
     m_manipulating = false;
     m_previousMouse = tsd::math::float2(-1);
-  } else if (ImGui::IsItemHovered() && !m_manipulating)
+  } else if (ImGui::IsItemHovered() && !m_manipulating) {
     m_manipulating = true;
+    ImGui::SetWindowFocus(); // ensure we keep focus while manipulating
+  }
 
   if (m_mouseRotating && !orbit)
     m_mouseRotating = false;
