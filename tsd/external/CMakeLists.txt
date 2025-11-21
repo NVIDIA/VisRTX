@@ -4,7 +4,6 @@
 add_subdirectory(tsd_agx)
 add_subdirectory(tsd_catch)
 add_subdirectory(tsd_flip)
-add_subdirectory(tsd_imguizmo)
 add_subdirectory(tsd_imnodes)
 add_subdirectory(tsd_mikktspace)
 add_subdirectory(tsd_nanovdb)
@@ -12,6 +11,10 @@ add_subdirectory(tsd_tinyexr)
 add_subdirectory(tsd_tinygltf)
 add_subdirectory(tsd_tinyobjloader)
 add_subdirectory(tsd_tinyply)
+
+if(TSD_BUILD_UI_LIBRARY)
+  add_subdirectory(tsd_imguizmo)
+endif()
 
 if (NOT TARGET fmt::fmt)
   add_subdirectory(
