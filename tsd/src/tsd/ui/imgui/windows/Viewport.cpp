@@ -1041,8 +1041,8 @@ void Viewport::ui_menubar()
 
     // Gizmo //
 
-    if (ImGui::BeginMenu("Gizmo")) {
-      ImGui::Checkbox("Enable Gizmo", &m_enableGizmo);
+    if (ImGui::BeginMenu("Transform Manipulator")) {
+      ImGui::Checkbox("Enable Manipulator", &m_enableGizmo);
 
       ImGui::Separator();
       ImGui::Text("Operation:");
