@@ -4,6 +4,7 @@
 add_subdirectory(tsd_agx)
 add_subdirectory(tsd_catch)
 add_subdirectory(tsd_flip)
+add_subdirectory(tsd_imguizmo)
 add_subdirectory(tsd_imnodes)
 add_subdirectory(tsd_mikktspace)
 add_subdirectory(tsd_nanovdb)
