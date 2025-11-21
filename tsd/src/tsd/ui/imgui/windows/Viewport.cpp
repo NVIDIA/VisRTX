@@ -79,17 +79,12 @@ void Viewport::buildUI()
 
   ImGui::EndDisabled();
 
-  // Render transform manipulators
   ui_gizmo();
-
-  // Block arcball input and picking when ImGuizmo is being used
-  if (ImGuizmo::IsUsing())
-    return;
-
-  bool didPick = ui_picking();
 
   ui_handleInput();
   ui_menubar();
+
+  bool didPick = ui_picking();
 
   if (m_anariPass && !didPick)
     m_anariPass->setEnableIDs(appCore()->objectIsSelected());
@@ -1212,7 +1207,7 @@ void Viewport::ui_handleInput()
   // window focus so they can act globally.
   // When a new manipulator mode is selected, we default to world mode.
   // Otherwise, toggle between local and global modes.
-  if (ImGui::IsKeyPressed(ImGuiKey_Q, false)) {
+  if (ImGui::IsKeyPressed(ImGuiKey_Q, false) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
     m_enableGizmo = false;
   } else if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
     if (m_enableGizmo && m_gizmoOperation == ImGuizmo::TRANSLATE) {
@@ -1239,6 +1234,14 @@ void Viewport::ui_handleInput()
       m_gizmoMode = ImGuizmo::WORLD;
     }
   }
+
+  // Enforce global Gizmo state so that it actually stops tracking
+  // interactions when disabled.
+  ImGuizmo::Enable(m_enableGizmo);
+
+  // Block arcball input and picking when ImGuizmo is being used
+  if (ImGuizmo::IsUsing())
+    return;
 
   // Do not bother with events if the window is not hovered
   // or no interaction is ongoing.
