@@ -1240,9 +1240,8 @@ void Viewport::ui_handleInput()
     }
   }
 
-
   // Do not bother with events if the window is not hovered
-  // or no interation is ongoing.
+  // or no interaction is ongoing.
   // We'll use that hovering status to check for starting an
   // event below.
   if (!ImGui::IsWindowHovered() && !m_manipulating)
@@ -1435,13 +1434,12 @@ void Viewport::ui_gizmo()
   ImGuizmo::SetOrthographic(m_currentCamera == m_orthoCamera);
   ImGuizmo::BeginFrame();
 
-  // Setup Imguizmo with window and relative viewport information
+  // Setup ImGuizmo with window and relative viewport information
   ImVec2 viewportPos = ImGui::GetCursorScreenPos();
   ImVec2 viewportSize = ImGui::GetContentRegionAvail();
   ImVec2 imageMin = ImGui::GetItemRectMin();
   ImVec2 imageMax = ImGui::GetItemRectMax();
   ImVec2 imageSize(imageMax.x - imageMin.x, imageMax.y - imageMin.y);
-  
   ImGuizmo::SetRect(imageMin.x, imageMin.y, imageSize.x, imageSize.y);
 
   // Build view matrix and projection matrices from manipulator
