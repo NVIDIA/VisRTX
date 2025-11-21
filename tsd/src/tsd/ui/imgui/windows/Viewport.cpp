@@ -88,6 +88,13 @@ void Viewport::buildUI()
     ImGui::SetWindowFocus();
   }
 
+  // Render transform manipulators
+  ui_gizmo();
+
+  // Block arcball input and picking when ImGuizmo is being used
+  if (ImGuizmo::IsUsing())
+    return;
+
   bool didPick = ui_picking();
 
   ui_handleInput();
@@ -267,6 +274,12 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["resolutionScale"] = m_resolutionScale;
   root["showAxes"] = m_showAxes;
 
+  // Gizmo settings //
+
+  root["enableGizmo"] = m_enableGizmo;
+  root["gizmoOperation"] = static_cast<int>(m_gizmoOperation);
+  root["gizmoMode"] = static_cast<int>(m_gizmoMode);
+
   root["anariLibrary"] = m_libName;
 
   // Camera //
@@ -312,6 +325,16 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   root["fov"].getValue(ANARI_FLOAT32, &m_fov);
   root["resolutionScale"].getValue(ANARI_FLOAT32, &m_resolutionScale);
   root["showAxes"].getValue(ANARI_BOOL, &m_showAxes);
+
+  // Gizmo settings //
+
+  root["enableGizmo"].getValue(ANARI_BOOL, &m_enableGizmo);
+  int gizmoOp = static_cast<int>(m_gizmoOperation);
+  root["gizmoOperation"].getValue(ANARI_INT32, &gizmoOp);
+  m_gizmoOperation = static_cast<ImGuizmo::OPERATION>(gizmoOp);
+  int gizmoMode = static_cast<int>(m_gizmoMode);
+  root["gizmoMode"].getValue(ANARI_INT32, &gizmoMode);
+  m_gizmoMode = static_cast<ImGuizmo::MODE>(gizmoMode);
 
   // Camera //
 
@@ -1025,6 +1048,34 @@ void Viewport::ui_menubar()
       ImGui::EndMenu();
     }
 
+    // Gizmo //
+
+    if (ImGui::BeginMenu("Gizmo")) {
+      ImGui::Checkbox("Enable Gizmo", &m_enableGizmo);
+
+      ImGui::Separator();
+      ImGui::Text("Operation:");
+      ImGui::Indent(INDENT_AMOUNT);
+      if (ImGui::RadioButton("Translate", m_gizmoOperation == ImGuizmo::TRANSLATE))
+        m_gizmoOperation = ImGuizmo::TRANSLATE;
+      if (ImGui::RadioButton("Rotate", m_gizmoOperation == ImGuizmo::ROTATE))
+        m_gizmoOperation = ImGuizmo::ROTATE;
+      if (ImGui::RadioButton("Scale", m_gizmoOperation == ImGuizmo::SCALE))
+        m_gizmoOperation = ImGuizmo::SCALE;
+      ImGui::Unindent(INDENT_AMOUNT);
+
+      ImGui::Separator();
+      ImGui::Text("Mode:");
+      ImGui::Indent(INDENT_AMOUNT);
+      if (ImGui::RadioButton("Local", m_gizmoMode == ImGuizmo::LOCAL))
+        m_gizmoMode = ImGuizmo::LOCAL;
+      if (ImGui::RadioButton("World", m_gizmoMode == ImGuizmo::WORLD))
+        m_gizmoMode = ImGuizmo::WORLD;
+      ImGui::Unindent(INDENT_AMOUNT);
+
+      ImGui::EndMenu();
+    }
+
     // Viewport //
 
     if (ImGui::BeginMenu("Viewport")) {
@@ -1323,6 +1374,72 @@ void Viewport::ui_overlay()
     }
 
     ImGui::End();
+  }
+}
+
+bool Viewport::canShowGizmo() const
+{
+  if (!m_enableGizmo || !m_deviceReadyToUse)
+    return false;
+
+  // Check if we have a selected node with a transform
+  if (appCore()->tsd.selectedNode) {
+    auto &node = *appCore()->tsd.selectedNode;
+    return node->isTransform();
+  }
+
+  return false;
+}
+
+void Viewport::ui_gizmo()
+{
+  if (!canShowGizmo())
+    return;
+
+  auto &selectedNode = *appCore()->tsd.selectedNode;
+  auto transform = selectedNode->getTransform();
+
+  ImGuizmo::SetOrthographic(m_currentCamera == m_orthoCamera);
+  ImGuizmo::BeginFrame();
+
+  // Setup Imguizmo with window and relative viewport information
+  ImVec2 viewportPos = ImGui::GetCursorScreenPos();
+  ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+  ImVec2 imageMin = ImGui::GetItemRectMin();
+  ImVec2 imageMax = ImGui::GetItemRectMax();
+  ImVec2 imageSize(imageMax.x - imageMin.x, imageMax.y - imageMin.y);
+  
+  ImGuizmo::SetRect(imageMin.x, imageMin.y, imageSize.x, imageSize.y);
+
+  // Build view matrix and projection matrices from manipulator
+  // Not sure if we can get those more directly...
+  const auto eye = m_arcball->eye();
+  const auto at = m_arcball->at();
+  const auto up = m_arcball->up();
+  const auto view = linalg::lookat_matrix(eye, at, up);
+
+  const float aspect = m_viewportSize.x / float(m_viewportSize.y);
+  const float fovRadians = tsd::math::radians(m_fov);
+  tsd::math::mat4 proj;
+
+  if (m_currentCamera == m_orthoCamera) {
+    const float height = m_arcball->distance();
+    const float width = height * aspect;
+    proj = linalg::frustum_matrix(-width, width, -height, height, 0.1f, 1000.0f);
+  } else {
+    proj = linalg::perspective_matrix(fovRadians, aspect, 0.1f, 1000.0f);
+  }
+
+  // Draw and manipulate the gizmo
+  ImGuizmo::SetDrawlist();
+  if (ImGuizmo::Manipulate(&view[0].x,
+          &proj[0].x,
+          m_gizmoOperation,
+          m_gizmoMode,
+          &transform[0].x)) {
+
+    selectedNode->setAsTransform(transform);
+    appCore()->tsd.scene.signalLayerChange(selectedNode.container());
   }
 }
 

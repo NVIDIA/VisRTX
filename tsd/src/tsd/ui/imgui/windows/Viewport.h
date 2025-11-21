@@ -6,6 +6,7 @@
 #include "Window.h"
 
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
+
 // tsd_core
 #include "tsd/core/scene/Object.hpp"
 #include "tsd/core/scene/UpdateDelegate.hpp"
@@ -16,6 +17,10 @@
 #include "tsd/rendering/pipeline/RenderPipeline.h"
 #include "tsd/rendering/view/Manipulator.hpp"
 #include "tsd/rendering/view/CameraUpdateDelegate.hpp"
+
+// ImGuizmo
+#include <ImGuizmo.h>
+
 // std
 #include <array>
 #include <functional>
@@ -73,6 +78,8 @@ struct Viewport : public Window
   void ui_handleInput();
   bool ui_picking();
   void ui_overlay();
+  void ui_gizmo();
+  bool canShowGizmo() const;
 
   int windowFlags() const override; // anari_viewer::Window
 
@@ -102,6 +109,12 @@ struct Viewport : public Window
   float m_depthVisualMaximum{1.f};
 
   float m_fov{40.f};
+
+  // Gizmo state //
+
+  bool m_enableGizmo{true};
+  ImGuizmo::OPERATION m_gizmoOperation{ImGuizmo::TRANSLATE};
+  ImGuizmo::MODE m_gizmoMode{ImGuizmo::WORLD};
 
   // Picking state //
 
