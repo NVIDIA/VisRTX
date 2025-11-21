@@ -1,6 +1,9 @@
 name: Build VisRTX
 on:
   push:
+    branches: [ next_release ]
+  pull_request:
+    branches: [ main, next_release ]
 jobs:
   build:
     strategy:
@@ -49,7 +52,12 @@ jobs:
       - name: Install VisRTX
         run: >
           cmake --build ${{ github.workspace }}/build-visrtx --config ${{ matrix.config }} --target install --parallel
-      - name: Configure TSD CMake
+      - name: Archive VisRTX build artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: visrtx-build-${{ matrix.runs-on }}-${{ matrix.cudaversion }}-${{ matrix.config }}
+          path: install
+      - name: Configure TSD CMake (CUDA)
         run: >
           cmake -LA -B ${{github.workspace}}/build-tsd
           -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
@@ -65,10 +73,5 @@ jobs:
           -DTSD_USE_USD=OFF
           -DTSD_ENABLE_SERIALIZATION=OFF
           ${{ github.workspace }}/tsd
-      - name: Build TSD
+      - name: Build TSD (CUDA)
         run: cmake --build ${{ github.workspace }}/build-tsd --config ${{ matrix.config }} --parallel
-      - name: Archive build artifacts
-        uses: actions/upload-artifact@v5
-        with:
-          name: visrtx-build-${{ matrix.runs-on }}-${{ matrix.cudaversion }}-${{ matrix.config }}
-          path: install
