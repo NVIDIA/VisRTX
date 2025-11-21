@@ -1042,7 +1042,8 @@ void Viewport::ui_menubar()
       ImGui::Separator();
       ImGui::Text("Operation:");
       ImGui::Indent(INDENT_AMOUNT);
-      if (ImGui::RadioButton("Translate", m_gizmoOperation == ImGuizmo::TRANSLATE))
+      if (ImGui::RadioButton(
+              "Translate", m_gizmoOperation == ImGuizmo::TRANSLATE))
         m_gizmoOperation = ImGuizmo::TRANSLATE;
       if (ImGui::RadioButton("Rotate", m_gizmoOperation == ImGuizmo::ROTATE))
         m_gizmoOperation = ImGuizmo::ROTATE;
@@ -1207,11 +1208,13 @@ void Viewport::ui_handleInput()
   // window focus so they can act globally.
   // When a new manipulator mode is selected, we default to world mode.
   // Otherwise, toggle between local and global modes.
-  if (ImGui::IsKeyPressed(ImGuiKey_Q, false) || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+  if (ImGui::IsKeyPressed(ImGuiKey_Q, false)
+      || ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
     m_enableGizmo = false;
   } else if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
     if (m_enableGizmo && m_gizmoOperation == ImGuizmo::TRANSLATE) {
-      m_gizmoMode = (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+      m_gizmoMode =
+          (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
     } else {
       m_enableGizmo = true;
       m_gizmoOperation = ImGuizmo::TRANSLATE;
@@ -1219,7 +1222,8 @@ void Viewport::ui_handleInput()
     }
   } else if (ImGui::IsKeyPressed(ImGuiKey_E, false)) {
     if (m_enableGizmo && m_gizmoOperation == ImGuizmo::SCALE) {
-      m_gizmoMode = (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+      m_gizmoMode =
+          (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
     } else {
       m_enableGizmo = true;
       m_gizmoOperation = ImGuizmo::SCALE;
@@ -1227,7 +1231,8 @@ void Viewport::ui_handleInput()
     }
   } else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
     if (m_enableGizmo && m_gizmoOperation == ImGuizmo::ROTATE) {
-      m_gizmoMode = (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+      m_gizmoMode =
+          (m_gizmoMode == ImGuizmo::WORLD) ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
     } else {
       m_enableGizmo = true;
       m_gizmoOperation = ImGuizmo::ROTATE;
@@ -1459,7 +1464,8 @@ void Viewport::ui_gizmo()
   if (m_currentCamera == m_orthoCamera) {
     const float height = m_arcball->distance();
     const float width = height * aspect;
-    proj = linalg::frustum_matrix(-width, width, -height, height, 0.1f, 1000.0f);
+    proj =
+        linalg::frustum_matrix(-width, width, -height, height, 0.1f, 1000.0f);
   } else {
     proj = linalg::perspective_matrix(fovRadians, aspect, 0.1f, 1000.0f);
   }
@@ -1471,7 +1477,6 @@ void Viewport::ui_gizmo()
           m_gizmoOperation,
           m_gizmoMode,
           &transform[0].x)) {
-
     selectedNode->setAsTransform(transform);
     appCore()->tsd.scene.signalLayerChange(selectedNode.container());
   }
