@@ -112,7 +112,7 @@ struct Viewport : public Window
 
   // Gizmo state //
 
-  bool m_enableGizmo{true};
+  bool m_enableGizmo{false};
   ImGuizmo::OPERATION m_gizmoOperation{ImGuizmo::TRANSLATE};
   ImGuizmo::MODE m_gizmoMode{ImGuizmo::WORLD};
 
