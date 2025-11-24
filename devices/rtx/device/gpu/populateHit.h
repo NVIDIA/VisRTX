@@ -213,9 +213,6 @@ VISRTX_DEVICE void computeTangentSpace(
     const vec3 v2 = ggd.tri.vertices[idx.z];
 
     hit.Ng = normalize(cross(v1 - v0, v2 - v0));
-    auto tangentSpace = computeOrthonormalBasis(hit.Ng);
-    hit.tU = tangentSpace[0];
-    hit.tV = tangentSpace[1];
 
     if (!optixIsFrontFaceHit())
       hit.Ng = -hit.Ng;
@@ -254,6 +251,10 @@ VISRTX_DEVICE void computeTangentSpace(
 
       hit.tU = normalize(b.x * t0 + b.y * t1 + b.z * t2);
       hit.tV = handedness * normalize(cross(hit.Ns, hit.tU));
+    } else {
+      auto tangentSpace = computeOrthonormalBasis(hit.Ng);
+      hit.tU = tangentSpace[0];
+      hit.tV = tangentSpace[1];
     }
 
     if (dot(hit.Ng, hit.Ns) < 0.f) {
@@ -276,6 +277,10 @@ VISRTX_DEVICE void computeTangentSpace(
     if (!optixIsFrontFaceHit())
       hit.Ng = -hit.Ng;
     hit.Ns = hit.Ng;
+
+    auto tangentSpace = computeOrthonormalBasis(hit.Ng);
+    hit.tU = tangentSpace[0];
+    hit.tV = tangentSpace[1];
     break;
   }
   case GeometryType::SPHERE:
@@ -285,6 +290,9 @@ VISRTX_DEVICE void computeTangentSpace(
     hit.Ng = hit.Ns = vec3(bit_cast<float>(optixGetAttribute_1()),
         bit_cast<float>(optixGetAttribute_2()),
         bit_cast<float>(optixGetAttribute_3()));
+    auto tangentSpace = computeOrthonormalBasis(hit.Ng);
+    hit.tU = tangentSpace[0];
+    hit.tV = tangentSpace[1];
     break;
   }
   case GeometryType::CURVE: {
@@ -301,6 +309,9 @@ VISRTX_DEVICE void computeTangentSpace(
     auto u = optixGetCurveParameter();
     hit.Ng = hit.Ns =
         curveSurfaceNormal(interpolator, u, vec3(hp.x, hp.y, hp.z));
+    auto tangentSpace = computeOrthonormalBasis(hit.Ng);
+    hit.tU = tangentSpace[0];
+    hit.tV = tangentSpace[1];
     break;
   }
   default:
