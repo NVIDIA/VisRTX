@@ -31,6 +31,7 @@ PRIVATE
   importers/import_POINTSBIN.cpp
   importers/import_PT.cpp
   importers/import_RAW.cpp
+  importers/import_SILO.cpp
   importers/import_SMESH.cpp
   importers/import_SWC.cpp
   importers/import_TRK.cpp
@@ -124,4 +125,32 @@ if (TSD_USE_VTK)
   project_compile_definitions(PRIVATE -DTSD_USE_VTK=1)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_VTK=0)
+endif()
+
+if (TSD_USE_SILO)
+  find_package(PkgConfig QUIET)
+  if (PKG_CONFIG_FOUND)
+    pkg_check_modules(SILO QUIET silo siloh5)
+  endif()
+  if (NOT SILO_FOUND)
+    # Try to find Silo manually
+    find_path(SILO_INCLUDE_DIR silo.h)
+    find_library(SILO_LIBRARY NAMES siloh5 silo)
+    if (SILO_INCLUDE_DIR AND SILO_LIBRARY)
+      set(SILO_FOUND TRUE)
+      set(SILO_INCLUDE_DIRS ${SILO_INCLUDE_DIR})
+      set(SILO_LIBRARIES ${SILO_LIBRARY})
+    endif()
+  endif()
+  if (SILO_FOUND)
+    project_compile_definitions(PRIVATE -DTSD_USE_SILO=1)
+    project_include_directories(PRIVATE ${SILO_INCLUDE_DIRS})
+    project_link_libraries(PRIVATE ${SILO_LIBRARIES})
+    message(STATUS "Found Silo: ${SILO_LIBRARIES}")
+  else()
+    message(WARNING "Silo requested but not found")
+    project_compile_definitions(PRIVATE -DTSD_USE_SILO=0)
+  endif()
+else()
+  project_compile_definitions(PRIVATE -DTSD_USE_SILO=0)
 endif()

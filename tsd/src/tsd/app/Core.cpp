@@ -159,6 +159,8 @@ void Core::parseCommandLine(int argc, const char **argv)
       importerType = ImporterType::POINTSBIN_MULTIFILE;
     } else if (arg == "-pt")
       importerType = ImporterType::PT;
+    else if (arg == "-silo")
+      importerType = ImporterType::SILO;
     else if (arg == "-smesh")
       importerType = ImporterType::SMESH;
     else if (arg == "-smesh_animation")
@@ -289,6 +291,8 @@ void Core::importFile(const ImportFile &f, tsd::core::LayerNodeRef root)
     tsd::io::import_POINTSBIN(tsd.scene, {file.c_str()}, root);
   else if (f.first == ImporterType::PT)
     tsd::io::import_PT(tsd.scene, file.c_str(), root);
+  else if (f.first == ImporterType::SILO)
+    tsd::io::import_SILO(tsd.scene, file.c_str(), root);
   else if (f.first == ImporterType::SMESH)
     tsd::io::import_SMESH(tsd.scene, file.c_str(), root, false);
   else if (f.first == ImporterType::SMESH_ANIMATION)

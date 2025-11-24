@@ -25,6 +25,7 @@ void import_PDB(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_PLY(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_POINTSBIN(Scene &scene, const std::vector<std::string> &filepaths, LayerNodeRef location = {});
 void import_PT(Scene &scene, const char *filename, LayerNodeRef location = {});
+void import_SILO(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_SMESH(Scene &scene, const char *filename, LayerNodeRef location = {}, bool isAnimation = false);
 void import_SWC(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_TRK(Scene &scene, const char *filename, LayerNodeRef location = {});

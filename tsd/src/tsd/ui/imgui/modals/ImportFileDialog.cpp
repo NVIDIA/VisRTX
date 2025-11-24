@@ -38,6 +38,7 @@ void ImportFileDialog::buildUI()
       "PLY",
       "POINTSBIN_MULTIFILE",
       "PT (neural)",
+      "SILO",
       "SMESH",
       "SMESH_ANIMATION",
       "SWC",

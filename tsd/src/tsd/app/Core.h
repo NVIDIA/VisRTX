@@ -46,6 +46,7 @@ enum class ImporterType
   PLY,
   POINTSBIN_MULTIFILE,
   PT,
+  SILO,
   SMESH,
   SMESH_ANIMATION, // time series version
   SWC,
