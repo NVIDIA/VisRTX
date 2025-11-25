@@ -9,6 +9,11 @@
 #if TSD_USE_SILO
 #include <silo.h>
 #include <filesystem>
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 #endif
 
 namespace tsd::io {
@@ -40,6 +45,266 @@ static anari::DataType siloTypeToANARIType(int siloType)
   default:
     logWarning("[import_SILO] unknown Silo data type %d, using float", siloType);
     return ANARI_FLOAT32;
+  }
+}
+
+// ============================================================================
+// Derived field computation functions
+// ============================================================================
+
+// Compute gradient in X direction (one-sided differences at boundaries)
+static void computeGradX(const std::vector<float>& u, std::vector<float>& uGrad, 
+                         int nx, int ny, int nz, float dx)
+{
+  if (std::abs(dx) < 1e-10f) {
+    std::fill(uGrad.begin(), uGrad.end(), 0.0f);
+    return;
+  }
+  
+  for (int z = 0; z < nz; ++z) {
+    size_t off = z * nx * ny;
+    for (int row = 0; row < ny; ++row) {
+      // One-sided forward difference at lower boundary
+      if (nx > 1)
+        uGrad[off + row*nx] = (u[off + row*nx + 1] - u[off + row*nx]) / dx;
+      // One-sided backward difference at upper boundary
+      if (nx > 1)
+        uGrad[off + row*nx + nx - 1] = (u[off + row*nx + nx - 1] - u[off + row*nx + nx - 2]) / dx;
+      // Interior points (central difference)
+      for (int col = 1; col < nx - 1; ++col) {
+        uGrad[off + row*nx + col] = 0.5f * (u[off + row*nx + col + 1] - u[off + row*nx + col - 1]) / dx;
+      }
+    }
+  }
+}
+
+// Compute gradient in Y direction (one-sided differences at boundaries)
+static void computeGradY(const std::vector<float>& v, std::vector<float>& vGrad,
+                         int nx, int ny, int nz, float dy)
+{
+  if (std::abs(dy) < 1e-10f) {
+    std::fill(vGrad.begin(), vGrad.end(), 0.0f);
+    return;
+  }
+  
+  for (int z = 0; z < nz; ++z) {
+    size_t off = z * nx * ny;
+    for (int col = 0; col < nx; ++col) {
+      // One-sided forward difference at lower boundary
+      if (ny > 1)
+        vGrad[0*nx + col + off] = (v[1*nx + col + off] - v[0*nx + col + off]) / dy;
+      // One-sided backward difference at upper boundary
+      if (ny > 1)
+        vGrad[(ny-1)*nx + col + off] = (v[(ny-1)*nx + col + off] - v[(ny-2)*nx + col + off]) / dy;
+      // Interior points (central difference)
+      for (int row = 1; row < ny - 1; ++row) {
+        vGrad[row*nx + col + off] = 0.5f * (v[(row+1)*nx + col + off] - v[(row-1)*nx + col + off]) / dy;
+      }
+    }
+  }
+}
+
+// Compute gradient in Z direction (non-uniform spacing)
+// Note: w is zone-centered data (nz zones), z is node positions (nz+1 nodes)
+// For zone i, we use the spacing between surrounding nodes
+static void computeGradZ(const std::vector<float>& w, std::vector<float>& wGrad,
+                         int nx, int ny, int nz, const std::vector<float>& z)
+{
+  size_t off = nx * ny;
+  for (int row = 0; row < ny; ++row) {
+    for (int col = 0; col < nx; ++col) {
+      // Boundaries (forward/backward difference)
+      // Last zone
+      if (nz > 1) {
+        float dz = (z[nz] - z[nz-1]);
+        if (std::abs(dz) > 1e-10f)
+          wGrad[(nz-1)*off + row*nx + col] = (w[(nz-1)*off + row*nx + col] - w[(nz-2)*off + row*nx + col]) / dz;
+        else
+          wGrad[(nz-1)*off + row*nx + col] = 0.0f;
+      }
+      
+      // First zone
+      if (nz > 1) {
+        float dz = (z[1] - z[0]);
+        if (std::abs(dz) > 1e-10f)
+          wGrad[0*off + row*nx + col] = (w[1*off + row*nx + col] - w[0*off + row*nx + col]) / dz;
+        else
+          wGrad[0*off + row*nx + col] = 0.0f;
+      }
+      
+      // Interior points (central difference)
+      for (int zi = 1; zi < nz - 1; ++zi) {
+        float dz = (z[zi+1] - z[zi-1]);
+        if (std::abs(dz) > 1e-10f)
+          wGrad[zi*off + row*nx + col] = 0.5f * (w[(zi+1)*off + row*nx + col] - w[(zi-1)*off + row*nx + col]) / dz;
+        else
+          wGrad[zi*off + row*nx + col] = 0.0f;
+      }
+    }
+  }
+}
+
+// Compute all 9 velocity gradients
+static void computeVelocityGradients(
+  const std::vector<float>& vel1, const std::vector<float>& vel2, const std::vector<float>& vel3,
+  int nx, int ny, int nz, float dx, float dy, const std::vector<float>& z,
+  std::vector<float>& dux, std::vector<float>& duy, std::vector<float>& duz,
+  std::vector<float>& dvx, std::vector<float>& dvy, std::vector<float>& dvz,
+  std::vector<float>& dwx, std::vector<float>& dwy, std::vector<float>& dwz)
+{
+  computeGradX(vel1, dux, nx, ny, nz, dx);
+  computeGradX(vel2, dvx, nx, ny, nz, dx);
+  computeGradX(vel3, dwx, nx, ny, nz, dx);
+  
+  computeGradY(vel1, duy, nx, ny, nz, dy);
+  computeGradY(vel2, dvy, nx, ny, nz, dy);
+  computeGradY(vel3, dwy, nx, ny, nz, dy);
+  
+  computeGradZ(vel1, duz, nx, ny, nz, z);
+  computeGradZ(vel2, dvz, nx, ny, nz, z);
+  computeGradZ(vel3, dwz, nx, ny, nz, z);
+}
+
+// Compute lambda2 criterion from velocity gradients
+static void computeLambda2(const std::vector<float>& dux, const std::vector<float>& duy, const std::vector<float>& duz,
+                           const std::vector<float>& dvx, const std::vector<float>& dvy, const std::vector<float>& dvz,
+                           const std::vector<float>& dwx, const std::vector<float>& dwy, const std::vector<float>& dwz,
+                           std::vector<float>& result)
+{
+  size_t len = dux.size();
+  for (size_t i = 0; i < len; ++i) {
+    // Strain rate tensor S = 0.5*(J + J^T)
+    float s11 = dux[i];
+    float s12 = 0.5f * (duy[i] + dvx[i]);
+    float s13 = 0.5f * (duz[i] + dwx[i]);
+    float s22 = dvy[i];
+    float s23 = 0.5f * (dvz[i] + dwy[i]);
+    float s33 = dwz[i];
+    
+    // Antisymmetric part Omega = 0.5*(J - J^T)
+    float o12 = 0.5f * (duy[i] - dvx[i]);
+    float o13 = 0.5f * (duz[i] - dwx[i]);
+    float o23 = 0.5f * (dvz[i] - dwy[i]);
+    
+    // S^2 + Omega^2
+    float m11 = s11*s11 + s12*s12 + s13*s13 - o12*o12 - o13*o13;
+    float m12 = s11*s12 + s12*s22 + s13*s23 + o12*(s11 - s22) + o13*o23;
+    float m13 = s11*s13 + s12*s23 + s13*s33 + o13*(s11 - s33) - o12*o23;
+    float m22 = s12*s12 + s22*s22 + s23*s23 - o12*o12 - o23*o23;
+    float m23 = s12*s13 + s22*s23 + s23*s33 + o23*(s22 - s33) + o12*o13;
+    float m33 = s13*s13 + s23*s23 + s33*s33 - o13*o13 - o23*o23;
+    
+    // Compute eigenvalues of 3x3 symmetric matrix
+    float p1 = m12*m12 + m13*m13 + m23*m23;
+    float q = (m11 + m22 + m33) / 3.0f;
+    float p2 = (m11 - q)*(m11 - q) + (m22 - q)*(m22 - q) + (m33 - q)*(m33 - q) + 2.0f*p1;
+    float p = std::sqrt(p2 / 6.0f);
+    
+    // Handle degenerate cases
+    if (p < 1e-10f) {
+      result[i] = 0.0f;
+      continue;
+    }
+    
+    float b11 = (m11 - q) / p;
+    float b12 = m12 / p;
+    float b13 = m13 / p;
+    float b22 = (m22 - q) / p;
+    float b23 = m23 / p;
+    float b33 = (m33 - q) / p;
+    
+    float r = (b11*(b22*b33 - b23*b23) - b12*(b12*b33 - b23*b13) + b13*(b12*b23 - b22*b13)) / 2.0f;
+    r = std::max(-1.0f, std::min(1.0f, r));
+    
+    float phi = std::acos(r) / 3.0f;
+    float eig1 = q + 2.0f*p*std::cos(phi);
+    float eig3 = q + 2.0f*p*std::cos(phi + (2.0f*M_PI/3.0f));
+    float eig2 = 3.0f*q - eig1 - eig3; // middle eigenvalue
+    
+    result[i] = -std::min(eig2, 0.0f);
+  }
+}
+
+// Compute velocity magnitude from three velocity components
+static void computeVelocityMagnitude(const std::vector<float>& vel1,
+                                     const std::vector<float>& vel2,
+                                     const std::vector<float>& vel3,
+                                     std::vector<float>& result)
+{
+  size_t len = vel1.size();
+  for (size_t i = 0; i < len; ++i) {
+    result[i] = std::sqrt(vel1[i]*vel1[i] + vel2[i]*vel2[i] + vel3[i]*vel3[i]);
+  }
+}
+
+// Compute vorticity magnitude from velocity gradients
+// Vorticity ω = curl(v) = (dwdy - dvdz, dudz - dwdx, dvdx - dudy)
+// Returns |ω|
+static void computeVorticity(const std::vector<float>& dux, const std::vector<float>& duy, const std::vector<float>& duz,
+                             const std::vector<float>& dvx, const std::vector<float>& dvy, const std::vector<float>& dvz,
+                             const std::vector<float>& dwx, const std::vector<float>& dwy, const std::vector<float>& dwz,
+                             std::vector<float>& result)
+{
+  size_t len = dux.size();
+  for (size_t i = 0; i < len; ++i) {
+    float wx = dwy[i] - dvz[i];  // ∂w/∂y - ∂v/∂z
+    float wy = duz[i] - dwx[i];  // ∂u/∂z - ∂w/∂x
+    float wz = dvx[i] - duy[i];  // ∂v/∂x - ∂u/∂y
+    result[i] = std::sqrt(wx*wx + wy*wy + wz*wz);
+  }
+}
+
+// Compute Q-criterion from velocity gradients
+// Q = 0.5 * (||Ω||² - ||S||²)
+// where S is strain rate tensor and Ω is vorticity tensor
+static void computeQCriterion(const std::vector<float>& dux, const std::vector<float>& duy, const std::vector<float>& duz,
+                               const std::vector<float>& dvx, const std::vector<float>& dvy, const std::vector<float>& dvz,
+                               const std::vector<float>& dwx, const std::vector<float>& dwy, const std::vector<float>& dwz,
+                               std::vector<float>& result)
+{
+  size_t len = dux.size();
+  for (size_t i = 0; i < len; ++i) {
+    // Strain rate tensor S = 0.5*(J + J^T)
+    float s11 = dux[i];
+    float s12 = 0.5f * (duy[i] + dvx[i]);
+    float s13 = 0.5f * (duz[i] + dwx[i]);
+    float s22 = dvy[i];
+    float s23 = 0.5f * (dvz[i] + dwy[i]);
+    float s33 = dwz[i];
+    
+    // Vorticity tensor Ω = 0.5*(J - J^T)
+    float o12 = 0.5f * (duy[i] - dvx[i]);
+    float o13 = 0.5f * (duz[i] - dwx[i]);
+    float o23 = 0.5f * (dvz[i] - dwy[i]);
+    
+    // ||S||² (Frobenius norm squared)
+    float s_norm_sq = s11*s11 + s22*s22 + s33*s33 + 2.0f*(s12*s12 + s13*s13 + s23*s23);
+    
+    // ||Ω||² (Frobenius norm squared)
+    float o_norm_sq = 2.0f*(o12*o12 + o13*o13 + o23*o23);
+    
+    // Q = 0.5 * (||Ω||² - ||S||²)
+    result[i] = 0.5f * (o_norm_sq - s_norm_sq);
+  }
+}
+
+// Compute helicity from velocity and vorticity
+// Helicity H = v · ω = v · (∇ × v)
+static void computeHelicity(const std::vector<float>& vel1, const std::vector<float>& vel2, const std::vector<float>& vel3,
+                            const std::vector<float>& dux, const std::vector<float>& duy, const std::vector<float>& duz,
+                            const std::vector<float>& dvx, const std::vector<float>& dvy, const std::vector<float>& dvz,
+                            const std::vector<float>& dwx, const std::vector<float>& dwy, const std::vector<float>& dwz,
+                            std::vector<float>& result)
+{
+  size_t len = vel1.size();
+  for (size_t i = 0; i < len; ++i) {
+    // Vorticity components: ω = ∇ × v
+    float wx = dwy[i] - dvz[i];  // ∂w/∂y - ∂v/∂z
+    float wy = duz[i] - dwx[i];  // ∂u/∂z - ∂w/∂x
+    float wz = dvx[i] - duy[i];  // ∂v/∂x - ∂u/∂y
+    
+    // Helicity: H = v · ω
+    result[i] = vel1[i]*wx + vel2[i]*wy + vel3[i]*wz;
   }
 }
 
@@ -401,6 +666,18 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
     file = file.substr(0, colonPos);
   }
 
+  // Check if this is a derived field request
+  bool isDerivedField = false;
+  std::string derivedFieldType;
+  if (varName == "vel_mag" || varName == "lambda2" || 
+      varName == "hel" || varName == "w" || varName == "qcrit") {
+    isDerivedField = true;
+    derivedFieldType = varName;
+    logStatus("[import_SILO] derived field requested: %s", derivedFieldType.c_str());
+    // Clear varName so we can handle the base velocity variables
+    varName.clear();
+  }
+
   // Open Silo file
   DBfile *dbfile = DBOpen(file.c_str(), DB_UNKNOWN, DB_READ);
   if (!dbfile) {
@@ -424,7 +701,34 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
 
     // Find the multivar to use
     const char *multivarName = nullptr;
-    if (!varName.empty() && toc->nmultivar > 0) {
+    DBmultivar *mv_vel1 = nullptr, *mv_vel2 = nullptr, *mv_vel3 = nullptr;
+    
+    if (isDerivedField) {
+      // For derived fields, find vel1, vel2, vel3 multivars
+      for (int i = 0; i < toc->nmultivar; i++) {
+        std::string mvName = toc->multivar_names[i];
+        if (mvName == "vel1") {
+          mv_vel1 = DBGetMultivar(dbfile, "vel1");
+          multivarName = "vel1"; // Use vel1 as reference for structure
+        } else if (mvName == "vel2") {
+          mv_vel2 = DBGetMultivar(dbfile, "vel2");
+        } else if (mvName == "vel3") {
+          mv_vel3 = DBGetMultivar(dbfile, "vel3");
+        }
+      }
+      
+      if (!mv_vel1 || !mv_vel2 || !mv_vel3) {
+        logError("[import_SILO] derived field '%s' requires vel1, vel2, vel3 multivars",
+            derivedFieldType.c_str());
+        if (mv_vel1) DBFreeMultivar(mv_vel1);
+        if (mv_vel2) DBFreeMultivar(mv_vel2);
+        if (mv_vel3) DBFreeMultivar(mv_vel3);
+        DBClose(dbfile);
+        return;
+      }
+      
+      logStatus("[import_SILO] found velocity components for derived field");
+    } else if (!varName.empty() && toc->nmultivar > 0) {
       // Search for the requested multivar
       for (int i = 0; i < toc->nmultivar; i++) {
         if (varName == toc->multivar_names[i]) {
@@ -444,11 +748,17 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
       return;
     }
 
-    DBmultivar *mv = DBGetMultivar(dbfile, multivarName);
-    if (!mv) {
-      logError("[import_SILO] failed to read multivar '%s'", multivarName);
-      DBClose(dbfile);
-      return;
+    DBmultivar *mv = nullptr;
+    if (!isDerivedField) {
+      mv = DBGetMultivar(dbfile, multivarName);
+      if (!mv) {
+        logError("[import_SILO] failed to read multivar '%s'", multivarName);
+        DBClose(dbfile);
+        return;
+      }
+    } else {
+      // For derived fields, use vel1 as the reference structure
+      mv = mv_vel1;
     }
 
     // Create one transform node for the unified volume
@@ -474,6 +784,7 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
     float3 globalMax(std::numeric_limits<float>::lowest());
     float2 globalValueRange(std::numeric_limits<float>::max(),
         std::numeric_limits<float>::lowest());
+    // Derived fields are always computed as float32
     anari::DataType globalDataType = ANARI_FLOAT32;
     bool firstBlock = true;
 
@@ -562,7 +873,9 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
                   globalSpacing.z = z[1] - z[0];
                 }
               }
-              globalDataType = siloTypeToANARIType(qv->datatype);
+              if (!isDerivedField) {
+                globalDataType = siloTypeToANARIType(qv->datatype);
+              }
               firstBlock = false;
             }
             
@@ -632,7 +945,13 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
 
     if (blocks.empty()) {
       logError("[import_SILO] no valid blocks found");
-      DBFreeMultivar(mv);
+      if (isDerivedField) {
+        if (mv_vel1) DBFreeMultivar(mv_vel1);
+        if (mv_vel2) DBFreeMultivar(mv_vel2);
+        if (mv_vel3) DBFreeMultivar(mv_vel3);
+      } else {
+        DBFreeMultivar(mv);
+      }
       DBClose(dbfile);
       return;
     }
@@ -675,13 +994,45 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
       }
 
       if (info.varType == DB_QUADVAR) {
-        DBquadvar *qv = DBGetQuadvar(blockDbfile, info.varName.c_str());
+        // Load velocity components (either single var or vel1/vel2/vel3 for derived fields)
+        DBquadvar *qv_vel1 = nullptr, *qv_vel2 = nullptr, *qv_vel3 = nullptr;
         DBquadmesh *qm = nullptr;
         
-        if (qv && qv->meshname) {
-          qm = DBGetQuadmesh(blockDbfile, qv->meshname);
+        if (isDerivedField) {
+          // Load all three velocity components
+          qv_vel1 = DBGetQuadvar(blockDbfile, info.varName.c_str()); // vel1
+          if (qv_vel1 && qv_vel1->meshname) {
+            qm = DBGetQuadmesh(blockDbfile, qv_vel1->meshname);
+            // Find corresponding vel2 and vel3 blocks
+            std::string vel2Name = info.varName;
+            std::string vel3Name = info.varName;
+            size_t pos = vel2Name.find("vel1");
+            if (pos != std::string::npos) {
+              vel2Name.replace(pos, 4, "vel2");
+              vel3Name.replace(pos, 4, "vel3");
+              qv_vel2 = DBGetQuadvar(blockDbfile, vel2Name.c_str());
+              qv_vel3 = DBGetQuadvar(blockDbfile, vel3Name.c_str());
+            }
+          }
           
-          if (qm) {
+          if (!qv_vel1 || !qv_vel2 || !qv_vel3 || !qm) {
+            logWarning("[import_SILO] failed to load velocity components for block %zu", blockIdx);
+            if (qv_vel1) DBFreeQuadvar(qv_vel1);
+            if (qv_vel2) DBFreeQuadvar(qv_vel2);
+            if (qv_vel3) DBFreeQuadvar(qv_vel3);
+            if (qm) DBFreeQuadmesh(qm);
+            if (blockDbfile != dbfile) DBClose(blockDbfile);
+            continue;
+          }
+        } else {
+          // Load single variable
+          qv_vel1 = DBGetQuadvar(blockDbfile, info.varName.c_str());
+          if (qv_vel1 && qv_vel1->meshname) {
+            qm = DBGetQuadmesh(blockDbfile, qv_vel1->meshname);
+          }
+        }
+        
+        if (qv_vel1 && qm) {
             // Calculate this block's position in the global grid
             float3 offset = info.origin - globalMin;
             int3 globalOffset(
@@ -709,25 +1060,171 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
             int3 blockTotalDims(qm->dims[0] - 1, qm->dims[1] - 1, qm->dims[2] - 1);
             size_t elementSize = anari::sizeOf(globalDataType);
             
-            // Copy only real zones from this block into the global grid
+            // Prepare data for derived field computation if needed
+            std::vector<float> blockData;
+            if (isDerivedField) {
+              size_t blockElements = (realZoneLast.x - realZoneFirst.x + 1) *
+                                     (realZoneLast.y - realZoneFirst.y + 1) *
+                                     (realZoneLast.z - realZoneFirst.z + 1);
+              blockData.resize(blockElements);
+              
+              // Load velocity data for all derived fields
+              // Check the actual data size from the quadvar
+              size_t actualDataSize = qv_vel1->nels;
+              std::vector<float> vel1Data(actualDataSize);
+              std::vector<float> vel2Data(actualDataSize);
+              std::vector<float> vel3Data(actualDataSize);
+              
+              // Copy full block data
+              for (size_t ii = 0; ii < actualDataSize; ++ii) {
+                if (qv_vel1->datatype == DB_FLOAT) {
+                  vel1Data[ii] = ((float *)qv_vel1->vals[0])[ii];
+                  vel2Data[ii] = ((float *)qv_vel2->vals[0])[ii];
+                  vel3Data[ii] = ((float *)qv_vel3->vals[0])[ii];
+                } else if (qv_vel1->datatype == DB_DOUBLE) {
+                  vel1Data[ii] = ((double *)qv_vel1->vals[0])[ii];
+                  vel2Data[ii] = ((double *)qv_vel2->vals[0])[ii];
+                  vel3Data[ii] = ((double *)qv_vel3->vals[0])[ii];
+                }
+              }
+              
+              logStatus("[import_SILO] block %zu: loaded velocity data, size=%zu, expected=%d",
+                  blockIdx, actualDataSize, blockTotalDims.x * blockTotalDims.y * blockTotalDims.z);
+              
+              if (derivedFieldType == "vel_mag") {
+                // Compute velocity magnitude for real zones only
+                size_t idx = 0;
+                for (int k = realZoneFirst.z; k <= realZoneLast.z; k++) {
+                  for (int j = realZoneFirst.y; j <= realZoneLast.y; j++) {
+                    for (int i = realZoneFirst.x; i <= realZoneLast.x; i++) {
+                      int srcIdx = k * blockTotalDims.y * blockTotalDims.x + 
+                                   j * blockTotalDims.x + i;
+                      float v1 = vel1Data[srcIdx];
+                      float v2 = vel2Data[srcIdx];
+                      float v3 = vel3Data[srcIdx];
+                      blockData[idx++] = std::sqrt(v1*v1 + v2*v2 + v3*v3);
+                    }
+                  }
+                }
+              } else if (derivedFieldType == "lambda2" || derivedFieldType == "w" || 
+                         derivedFieldType == "qcrit" || derivedFieldType == "hel") {
+                // These derived fields all require velocity gradients
+                
+                // Verify data size matches expectations
+                size_t expectedSize = blockTotalDims.x * blockTotalDims.y * blockTotalDims.z;
+                if (actualDataSize != expectedSize) {
+                  logWarning("[import_SILO] block %zu: data size mismatch %zu != %zu",
+                      blockIdx, actualDataSize, expectedSize);
+                  // Skip this block
+                  DBFreeQuadmesh(qm);
+                  if (qv_vel1) DBFreeQuadvar(qv_vel1);
+                  if (qv_vel2) DBFreeQuadvar(qv_vel2);
+                  if (qv_vel3) DBFreeQuadvar(qv_vel3);
+                  if (blockDbfile != dbfile) DBClose(blockDbfile);
+                  continue;
+                }
+                
+                // Compute velocity gradients
+                std::vector<float> dux(vel1Data.size()), duy(vel1Data.size()), duz(vel1Data.size());
+                std::vector<float> dvx(vel1Data.size()), dvy(vel1Data.size()), dvz(vel1Data.size());
+                std::vector<float> dwx(vel1Data.size()), dwy(vel1Data.size()), dwz(vel1Data.size());
+                
+                // Extract Z coordinates for non-uniform spacing
+                std::vector<float> zCoords(qm->dims[2]);
+                for (int zi = 0; zi < qm->dims[2]; ++zi) {
+                  if (qm->datatype == DB_FLOAT)
+                    zCoords[zi] = ((float *)qm->coords[2])[zi];
+                  else if (qm->datatype == DB_DOUBLE)
+                    zCoords[zi] = ((double *)qm->coords[2])[zi];
+                }
+                
+                computeVelocityGradients(vel1Data, vel2Data, vel3Data,
+                    blockTotalDims.x, blockTotalDims.y, blockTotalDims.z,
+                    globalSpacing.x, globalSpacing.y, zCoords,
+                    dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz);
+                
+                // Debug: check gradient magnitudes
+                float maxGrad = 0.0f;
+                for (size_t ii = 0; ii < dux.size(); ++ii) {
+                  maxGrad = std::max(maxGrad, std::abs(dux[ii]));
+                  maxGrad = std::max(maxGrad, std::abs(duy[ii]));
+                  maxGrad = std::max(maxGrad, std::abs(duz[ii]));
+                }
+                logStatus("[import_SILO] block %zu: max velocity gradient = %.6e, spacing=(%.3e,%.3e)", 
+                    blockIdx, maxGrad, globalSpacing.x, globalSpacing.y);
+                
+                // Compute the requested derived field
+                std::vector<float> derivedFull(vel1Data.size());
+                
+                if (derivedFieldType == "lambda2") {
+                  computeLambda2(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz, derivedFull);
+                } else if (derivedFieldType == "w") {
+                  computeVorticity(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz, derivedFull);
+                } else if (derivedFieldType == "qcrit") {
+                  computeQCriterion(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz, derivedFull);
+                } else if (derivedFieldType == "hel") {
+                  computeHelicity(vel1Data, vel2Data, vel3Data,
+                                  dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz, derivedFull);
+                }
+                
+                // Debug: check for NaN or constant values
+                float minVal = derivedFull[0], maxVal = derivedFull[0];
+                int nanCount = 0;
+                for (size_t ii = 0; ii < derivedFull.size(); ++ii) {
+                  if (std::isnan(derivedFull[ii]) || std::isinf(derivedFull[ii])) {
+                    nanCount++;
+                    derivedFull[ii] = 0.0f; // Replace NaN/Inf with 0
+                  } else {
+                    minVal = std::min(minVal, derivedFull[ii]);
+                    maxVal = std::max(maxVal, derivedFull[ii]);
+                  }
+                }
+                if (nanCount > 0) {
+                  logWarning("[import_SILO] block %zu: %s had %d NaN/Inf values",
+                      blockIdx, derivedFieldType.c_str(), nanCount);
+                }
+                logStatus("[import_SILO] block %zu: %s computed, range in full block: %.6e to %.6e",
+                    blockIdx, derivedFieldType.c_str(), minVal, maxVal);
+                
+                // Extract only real zones
+                size_t idx = 0;
+                for (int k = realZoneFirst.z; k <= realZoneLast.z; k++) {
+                  for (int j = realZoneFirst.y; j <= realZoneLast.y; j++) {
+                    for (int i = realZoneFirst.x; i <= realZoneLast.x; i++) {
+                      int srcIdx = k * blockTotalDims.y * blockTotalDims.x + 
+                                   j * blockTotalDims.x + i;
+                      blockData[idx++] = derivedFull[srcIdx];
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Copy data to unified grid
+            size_t dstIdx = 0;
             for (int k = realZoneFirst.z; k <= realZoneLast.z; k++) {
               for (int j = realZoneFirst.y; j <= realZoneLast.y; j++) {
                 for (int i = realZoneFirst.x; i <= realZoneLast.x; i++) {
-                  // Source index in block's local array
-                  int srcIdx = k * blockTotalDims.y * blockTotalDims.x + 
-                               j * blockTotalDims.x + i;
-                  
                   // Destination index in global array
                   int gi = globalOffset.x + (i - realZoneFirst.x);
                   int gj = globalOffset.y + (j - realZoneFirst.y);
                   int gk = globalOffset.z + (k - realZoneFirst.z);
-                  int dstIdx = gk * globalDims.y * globalDims.x + 
-                               gj * globalDims.x + gi;
+                  int globalIdx = gk * globalDims.y * globalDims.x + 
+                                  gj * globalDims.x + gi;
                   
-                  std::memcpy(
-                      (char *)unifiedData + dstIdx * elementSize,
-                      (char *)qv->vals[0] + srcIdx * elementSize,
-                      elementSize);
+                  if (isDerivedField) {
+                    // Copy from computed derived field
+                    ((float *)unifiedData)[globalIdx] = blockData[dstIdx];
+                  } else {
+                    // Copy directly from source variable
+                    int srcIdx = k * blockTotalDims.y * blockTotalDims.x + 
+                                 j * blockTotalDims.x + i;
+                    std::memcpy(
+                        (char *)unifiedData + globalIdx * elementSize,
+                        (char *)qv_vel1->vals[0] + srcIdx * elementSize,
+                        elementSize);
+                  }
+                  dstIdx++;
                 }
               }
             }
@@ -736,24 +1233,28 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
             float2 localRange(std::numeric_limits<float>::max(),
                 std::numeric_limits<float>::lowest());
             
-            // Scan the block's data for min/max
-            size_t blockElements = (realZoneLast.x - realZoneFirst.x + 1) *
-                                   (realZoneLast.y - realZoneFirst.y + 1) *
-                                   (realZoneLast.z - realZoneFirst.z + 1);
-            
-            for (int k = realZoneFirst.z; k <= realZoneLast.z; k++) {
-              for (int j = realZoneFirst.y; j <= realZoneLast.y; j++) {
-                for (int i = realZoneFirst.x; i <= realZoneLast.x; i++) {
-                  int srcIdx = k * blockTotalDims.y * blockTotalDims.x + 
-                               j * blockTotalDims.x + i;
-                  float val = 0.f;
-                  if (qv->datatype == DB_FLOAT)
-                    val = ((float *)qv->vals[0])[srcIdx];
-                  else if (qv->datatype == DB_DOUBLE)
-                    val = ((double *)qv->vals[0])[srcIdx];
-                  
-                  localRange.x = std::min(localRange.x, val);
-                  localRange.y = std::max(localRange.y, val);
+            if (isDerivedField) {
+              // Range from computed derived field
+              for (size_t ii = 0; ii < blockData.size(); ++ii) {
+                localRange.x = std::min(localRange.x, blockData[ii]);
+                localRange.y = std::max(localRange.y, blockData[ii]);
+              }
+            } else {
+              // Range from source variable
+              for (int k = realZoneFirst.z; k <= realZoneLast.z; k++) {
+                for (int j = realZoneFirst.y; j <= realZoneLast.y; j++) {
+                  for (int i = realZoneFirst.x; i <= realZoneLast.x; i++) {
+                    int srcIdx = k * blockTotalDims.y * blockTotalDims.x + 
+                                 j * blockTotalDims.x + i;
+                    float val = 0.f;
+                    if (qv_vel1->datatype == DB_FLOAT)
+                      val = ((float *)qv_vel1->vals[0])[srcIdx];
+                    else if (qv_vel1->datatype == DB_DOUBLE)
+                      val = ((double *)qv_vel1->vals[0])[srcIdx];
+                    
+                    localRange.x = std::min(localRange.x, val);
+                    localRange.y = std::max(localRange.y, val);
+                  }
                 }
               }
             }
@@ -768,8 +1269,11 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
                 localRange.x, localRange.y);
             
             DBFreeQuadmesh(qm);
-          }
-          DBFreeQuadvar(qv);
+          
+          // Free velocity variables
+          if (qv_vel1) DBFreeQuadvar(qv_vel1);
+          if (qv_vel2) DBFreeQuadvar(qv_vel2);
+          if (qv_vel3) DBFreeQuadvar(qv_vel3);
         }
       }
 
@@ -779,11 +1283,20 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
     }
 
     unifiedDataArray->unmap();
-    DBFreeMultivar(mv);
+    
+    // Free multivars
+    if (isDerivedField) {
+      if (mv_vel1) DBFreeMultivar(mv_vel1);
+      if (mv_vel2) DBFreeMultivar(mv_vel2);
+      if (mv_vel3) DBFreeMultivar(mv_vel3);
+    } else {
+      DBFreeMultivar(mv);
+    }
 
     // Create unified spatial field
     auto field = scene.createObject<SpatialField>(tokens::spatial_field::structuredRegular);
-    field->setName(multivarName);
+    std::string fieldName = isDerivedField ? derivedFieldType : std::string(multivarName);
+    field->setName(fieldName.c_str());
     field->setParameter("origin", globalMin);
     field->setParameter("spacing", globalSpacing);
     field->setParameterObject("data", *unifiedDataArray);
@@ -794,7 +1307,7 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
 
     auto [inst, volume] = scene.insertNewChildObjectNode<Volume>(
         tx, tokens::volume::transferFunction1D);
-    volume->setName(multivarName);
+    volume->setName(fieldName.c_str());
     volume->setParameterObject("value", *field);
     volume->setParameterObject("color", *colorArray);
     volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &globalValueRange);
