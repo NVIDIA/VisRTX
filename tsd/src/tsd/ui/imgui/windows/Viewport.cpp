@@ -1422,8 +1422,20 @@ void Viewport::ui_gizmo()
   if (!canShowGizmo())
     return;
 
-  auto &selectedNode = *appCore()->tsd.selectedNode;
-  auto transform = selectedNode->getTransform();
+  auto computeWorldTransform = [](tsd::core::LayerNodeRef node) -> math::mat4 {
+    auto world = math::IDENTITY_MAT4;
+    for (; node; node = node->parent())
+      world = mul((*node)->getTransform(), world);
+
+    return world;
+  };
+  
+  auto selectedNodeRef = appCore()->tsd.selectedNode;
+  auto parentNodeRef = selectedNodeRef->parent();
+
+  auto localTransform = (*selectedNodeRef)->getTransform();
+  auto parentWorldTransform = computeWorldTransform(parentNodeRef);
+  auto worldTransform = mul(parentWorldTransform, localTransform);
 
   ImGuizmo::SetOrthographic(m_currentCamera == m_orthoCamera);
   ImGuizmo::BeginFrame();
@@ -1444,8 +1456,8 @@ void Viewport::ui_gizmo()
   const auto view = linalg::lookat_matrix(eye, at, up);
 
   const float aspect = m_viewportSize.x / float(m_viewportSize.y);
-  const float fovRadians = tsd::math::radians(m_fov);
-  tsd::math::mat4 proj;
+  const float fovRadians = math::radians(m_fov);
+  math::mat4 proj;
 
   if (m_currentCamera == m_orthoCamera) {
     const float height = m_arcball->distance();
@@ -1458,13 +1470,19 @@ void Viewport::ui_gizmo()
 
   // Draw and manipulate the gizmo
   ImGuizmo::SetDrawlist();
+  auto deltaMatrix = math::IDENTITY_MAT4;
   if (ImGuizmo::Manipulate(&view[0].x,
           &proj[0].x,
           m_gizmoOperation,
           m_gizmoMode,
-          &transform[0].x)) {
-    selectedNode->setAsTransform(transform);
-    appCore()->tsd.scene.signalLayerChange(selectedNode.container());
+          &worldTransform[0].x,
+          &deltaMatrix[0].x)) {
+    
+    auto invParent = linalg::inverse(parentWorldTransform);
+    localTransform = mul(invParent, mul(deltaMatrix, worldTransform));
+    
+    (*selectedNodeRef)->setAsTransform(localTransform);
+    appCore()->tsd.scene.signalLayerChange(selectedNodeRef->container());
   }
 }
 
