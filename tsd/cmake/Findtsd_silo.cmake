@@ -27,11 +27,35 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-if (TARGET tsd::fmt)
+if (TARGET tsd::silo)
   return()
 endif()
 
-add_subdirectory(
-  ${CMAKE_CURRENT_LIST_DIR}/../../devices/rtx/external/fmt
-  tsd_fmt
-)
+find_package(PkgConfig QUIET)
+if (PKG_CONFIG_FOUND)
+  pkg_check_modules(SILO QUIET silo siloh5)
+endif()
+
+if (NOT SILO_FOUND)
+  # Try to find Silo manually
+  find_path(SILO_INCLUDE_DIR silo.h)
+  find_library(SILO_LIBRARY NAMES siloh5 silo)
+  if (SILO_INCLUDE_DIR AND SILO_LIBRARY)
+    set(SILO_FOUND TRUE)
+    set(SILO_INCLUDE_DIRS ${SILO_INCLUDE_DIR})
+    set(SILO_LIBRARIES ${SILO_LIBRARY})
+  endif()
+endif()
+
+if (SILO_FOUND)
+  add_library(tsd::silo INTERFACE IMPORTED)
+  target_include_directories(tsd::silo INTERFACE ${SILO_INCLUDE_DIRS})
+  target_link_libraries(tsd::silo INTERFACE ${SILO_LIBRARIES})
+  message(STATUS "Found Silo: ${SILO_LIBRARIES}")
+else()
+  if(tsd_silo_FIND_REQUIRED)
+    message(FATAL_ERROR "Silo not found")
+  else()
+    message(WARNING "Silo requested but not found")
+  endif()
+endif()
