@@ -80,11 +80,10 @@ void Viewport::buildUI()
   ImGui::EndDisabled();
 
   ui_gizmo();
-
   ui_handleInput();
+  bool didPick = ui_picking(); // Needs to happen before ui_menubar
   ui_menubar();
 
-  bool didPick = ui_picking();
 
   if (m_anariPass && !didPick)
     m_anariPass->setEnableIDs(appCore()->objectIsSelected());
