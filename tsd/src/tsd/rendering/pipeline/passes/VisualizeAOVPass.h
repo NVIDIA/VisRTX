@@ -21,12 +21,13 @@ struct VisualizeAOVPass : public RenderPass
   ~VisualizeAOVPass() override;
 
   void setAOVType(AOVType type);
-  void setMaxDepth(float d);
+  void setDepthRange(float minDepth, float maxDepth);
 
  private:
   void render(RenderBuffers &b, int stageId) override;
 
   AOVType m_aovType{AOVType::NONE};
+  float m_minDepth{0.f};
   float m_maxDepth{1.f};
 };
 

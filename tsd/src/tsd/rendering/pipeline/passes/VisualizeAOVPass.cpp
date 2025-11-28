@@ -11,12 +11,13 @@ namespace tsd::rendering {
 
 // Thrust kernels /////////////////////////////////////////////////////////////
 
-void computeDepthImage(RenderBuffers &b, float maxDepth, tsd::math::uint2 size)
+void computeDepthImage(RenderBuffers &b, float minDepth, float maxDepth, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
         const float depth = b.depth[i];
-        const float v = std::clamp(depth / maxDepth, 0.f, 1.f);
+        const float range = maxDepth - minDepth;
+        const float v = range > 0.f ? std::clamp((depth - minDepth) / range, 0.f, 1.f) : 0.f;
         b.color[i] = helium::cvt_color_to_uint32({tsd::math::float3(v), 1.f});
       });
 }
@@ -53,9 +54,10 @@ void VisualizeAOVPass::setAOVType(AOVType type)
   setEnabled(type != AOVType::NONE);
 }
 
-void VisualizeAOVPass::setMaxDepth(float d)
+void VisualizeAOVPass::setDepthRange(float minDepth, float maxDepth)
 {
-  m_maxDepth = d;
+  m_minDepth = minDepth;
+  m_maxDepth = maxDepth;
 }
 
 void VisualizeAOVPass::render(RenderBuffers &b, int stageId)
@@ -67,7 +69,7 @@ void VisualizeAOVPass::render(RenderBuffers &b, int stageId)
 
   switch (m_aovType) {
   case AOVType::DEPTH:
-    computeDepthImage(b, m_maxDepth, size);
+    computeDepthImage(b, m_minDepth, m_maxDepth, size);
     break;
   case AOVType::ALBEDO:
     computeAlbedoImage(b, size);

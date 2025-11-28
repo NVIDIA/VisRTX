@@ -106,6 +106,7 @@ struct Viewport : public Window
 
   tsd::rendering::AOVType m_visualizeAOV{tsd::rendering::AOVType::NONE};
   bool m_showAxes{true};
+  float m_depthVisualMinimum{0.f};
   float m_depthVisualMaximum{1.f};
 
   float m_fov{40.f};

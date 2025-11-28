@@ -255,6 +255,7 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["highlightSelection"] = m_highlightSelection;
   root["showOnlySelected"] = m_showOnlySelected;
   root["visualizeAOV"] = static_cast<int>(m_visualizeAOV);
+  root["depthVisualMinimum"] = m_depthVisualMinimum;
   root["depthVisualMaximum"] = m_depthVisualMaximum;
   root["fov"] = m_fov;
   root["resolutionScale"] = m_resolutionScale;
@@ -310,6 +311,7 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   int aovType = static_cast<int>(m_visualizeAOV);
   root["visualizeAOV"].getValue(ANARI_INT32, &aovType);
   m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aovType);
+  root["depthVisualMinimum"].getValue(ANARI_FLOAT32, &m_depthVisualMinimum);
   root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
   root["fov"].getValue(ANARI_FLOAT32, &m_fov);
   root["resolutionScale"].getValue(ANARI_FLOAT32, &m_resolutionScale);
@@ -1110,8 +1112,11 @@ void Viewport::ui_menubar()
       }
 
       ImGui::BeginDisabled(m_visualizeAOV != tsd::rendering::AOVType::DEPTH);
-      if (ImGui::DragFloat("depth maximum", &m_depthVisualMaximum, 1.f, 1e-3f, 1e20f))
-        m_visualizeAOVPass->setMaxDepth(m_depthVisualMaximum);
+      bool depthRangeChanged = false;
+      depthRangeChanged |= ImGui::DragFloat("depth minimum", &m_depthVisualMinimum, 0.1f, 0.f, m_depthVisualMaximum);
+      depthRangeChanged |= ImGui::DragFloat("depth maximum", &m_depthVisualMaximum, 0.1f, m_depthVisualMinimum, 1e20f);
+      if (depthRangeChanged)
+        m_visualizeAOVPass->setDepthRange(m_depthVisualMinimum, m_depthVisualMaximum);
       ImGui::EndDisabled();
 
       ImGui::Separator();
