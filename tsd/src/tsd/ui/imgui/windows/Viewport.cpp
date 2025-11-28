@@ -254,6 +254,7 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["showOnlySelected"] = m_showOnlySelected;
   root["highlightSelection"] = m_highlightSelection;
   root["showOnlySelected"] = m_showOnlySelected;
+  root["visualizeAOV"] = static_cast<int>(m_visualizeAOV);
   root["depthVisualMaximum"] = m_depthVisualMaximum;
   root["fov"] = m_fov;
   root["resolutionScale"] = m_resolutionScale;
@@ -306,6 +307,9 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   root["showOnlySelected"].getValue(ANARI_BOOL, &m_showOnlySelected);
   root["highlightSelection"].getValue(ANARI_BOOL, &m_highlightSelection);
   root["showOnlySelected"].getValue(ANARI_BOOL, &m_showOnlySelected);
+  int aovType = static_cast<int>(m_visualizeAOV);
+  root["visualizeAOV"].getValue(ANARI_INT32, &aovType);
+  m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aovType);
   root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
   root["fov"].getValue(ANARI_FLOAT32, &m_fov);
   root["resolutionScale"].getValue(ANARI_FLOAT32, &m_resolutionScale);
@@ -500,9 +504,9 @@ void Viewport::setupRenderPipeline()
     m_pickPass->setEnabled(false);
   });
 
-  m_visualizeDepthPass =
-      m_pipeline.emplace_back<tsd::rendering::VisualizeDepthPass>();
-  m_visualizeDepthPass->setEnabled(false);
+  m_visualizeAOVPass =
+      m_pipeline.emplace_back<tsd::rendering::VisualizeAOVPass>();
+  m_visualizeAOVPass->setEnabled(false);
 
   m_outlinePass = m_pipeline.emplace_back<tsd::rendering::OutlineRenderPass>();
 
@@ -1095,12 +1099,19 @@ void Viewport::ui_menubar()
 
       ImGui::Separator();
 
-      if (ImGui::Checkbox("visualize depth", &m_visualizeDepth))
-        m_visualizeDepthPass->setEnabled(m_visualizeDepth);
+      const char *aovItems[] = {"default", "depth", "albedo", "normal"};
+      if (int aov = int(m_visualizeAOV); ImGui::Combo("visualize AOV", &aov, aovItems, IM_ARRAYSIZE(aovItems))) {
+        if (aov != int(m_visualizeAOV)) {
+          m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aov);
+          m_visualizeAOVPass->setAOVType(m_visualizeAOV);
+          m_anariPass->setEnableAlbedo(m_visualizeAOV == tsd::rendering::AOVType::ALBEDO);
+          m_anariPass->setEnableNormals(m_visualizeAOV == tsd::rendering::AOVType::NORMAL);
+        }
+      }
 
-      ImGui::BeginDisabled(!m_visualizeDepth);
-      if (ImGui::DragFloat("maximum", &m_depthVisualMaximum, 1.f, 1e-3f, 1e20f))
-        m_visualizeDepthPass->setMaxDepth(m_depthVisualMaximum);
+      ImGui::BeginDisabled(m_visualizeAOV != tsd::rendering::AOVType::DEPTH);
+      if (ImGui::DragFloat("depth maximum", &m_depthVisualMaximum, 1.f, 1e-3f, 1e20f))
+        m_visualizeAOVPass->setMaxDepth(m_depthVisualMaximum);
       ImGui::EndDisabled();
 
       ImGui::Separator();

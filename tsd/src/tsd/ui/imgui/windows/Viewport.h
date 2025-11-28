@@ -104,7 +104,7 @@ struct Viewport : public Window
   bool m_showOnlySelected{false};
   int m_frameSamples{0};
 
-  bool m_visualizeDepth{false};
+  tsd::rendering::AOVType m_visualizeAOV{tsd::rendering::AOVType::NONE};
   bool m_showAxes{true};
   float m_depthVisualMaximum{1.f};
 
@@ -165,7 +165,7 @@ struct Viewport : public Window
   tsd::rendering::RenderPipeline m_pipeline;
   tsd::rendering::AnariSceneRenderPass *m_anariPass{nullptr};
   tsd::rendering::PickPass *m_pickPass{nullptr};
-  tsd::rendering::VisualizeDepthPass *m_visualizeDepthPass{nullptr};
+  tsd::rendering::VisualizeAOVPass *m_visualizeAOVPass{nullptr};
   tsd::rendering::OutlineRenderPass *m_outlinePass{nullptr};
   tsd::rendering::AnariAxesRenderPass *m_axesPass{nullptr};
   tsd::rendering::CopyToSDLTexturePass *m_outputPass{nullptr};

@@ -40,6 +40,8 @@ void RenderPipeline::setDimensions(uint32_t width, uint32_t height)
   m_buffers.color = detail::allocate<uint32_t>(totalSize);
   m_buffers.depth = detail::allocate<float>(totalSize);
   m_buffers.objectId = detail::allocate<uint32_t>(totalSize);
+  m_buffers.albedo = detail::allocate<tsd::math::float3>(totalSize);
+  m_buffers.normal = detail::allocate<tsd::math::float3>(totalSize);
   for (auto &p : m_passes)
     p->setDimensions(width, height);
 }
@@ -91,6 +93,8 @@ void RenderPipeline::cleanup()
   detail::free(m_buffers.color);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
+  detail::free(m_buffers.albedo);
+  detail::free(m_buffers.normal);
 }
 
 } // namespace tsd::rendering

@@ -13,7 +13,7 @@
 #include "passes/OutlineRenderPass.h"
 #include "passes/PickPass.h"
 #include "passes/SaveToFilePass.h"
-#include "passes/VisualizeDepthPass.h"
+#include "passes/VisualizeAOVPass.h"
 // std
 #include <memory>
 

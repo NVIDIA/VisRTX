@@ -7,16 +7,26 @@
 
 namespace tsd::rendering {
 
-struct VisualizeDepthPass : public RenderPass
+enum class AOVType
 {
-  VisualizeDepthPass();
-  ~VisualizeDepthPass() override;
+  NONE,
+  DEPTH,
+  ALBEDO,
+  NORMAL
+};
 
+struct VisualizeAOVPass : public RenderPass
+{
+  VisualizeAOVPass();
+  ~VisualizeAOVPass() override;
+
+  void setAOVType(AOVType type);
   void setMaxDepth(float d);
 
  private:
   void render(RenderBuffers &b, int stageId) override;
 
+  AOVType m_aovType{AOVType::NONE};
   float m_maxDepth{1.f};
 };
 

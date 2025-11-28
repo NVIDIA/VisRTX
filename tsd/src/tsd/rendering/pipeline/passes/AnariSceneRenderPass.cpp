@@ -156,6 +156,56 @@ void AnariSceneRenderPass::setEnableIDs(bool on)
   }
 }
 
+void AnariSceneRenderPass::setEnableAlbedo(bool on)
+{
+  if (on == m_enableAlbedo)
+    return;
+
+  m_enableAlbedo = on;
+
+  if (on) {
+    tsd::core::logInfo("[RenderPipeline] enabling albedo frame channel");
+
+    anari::discard(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+
+    anari::setParameter(m_device, m_frame, "channel.albedo", ANARI_FLOAT32_VEC3);
+    anari::commitParameters(m_device, m_frame);
+
+    anari::render(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+  } else {
+    tsd::core::logInfo("[RenderPipeline] disabling albedo frame channel");
+    anari::unsetParameter(m_device, m_frame, "channel.albedo");
+    anari::commitParameters(m_device, m_frame);
+  }
+}
+
+void AnariSceneRenderPass::setEnableNormals(bool on)
+{
+  if (on == m_enableNormals)
+    return;
+
+  m_enableNormals = on;
+
+  if (on) {
+    tsd::core::logInfo("[RenderPipeline] enabling normal frame channel");
+
+    anari::discard(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+
+    anari::setParameter(m_device, m_frame, "channel.normal", ANARI_FLOAT32_VEC3);
+    anari::commitParameters(m_device, m_frame);
+
+    anari::render(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+  } else {
+    tsd::core::logInfo("[RenderPipeline] disabling normal frame channel");
+    anari::unsetParameter(m_device, m_frame, "channel.normal");
+    anari::commitParameters(m_device, m_frame);
+  }
+}
+
 void AnariSceneRenderPass::setRunAsync(bool on)
 {
   m_runAsync = on;
@@ -187,11 +237,8 @@ void AnariSceneRenderPass::updateSize()
   m_buffers.color = detail::allocate<uint32_t>(totalSize);
   m_buffers.depth = detail::allocate<float>(totalSize);
   m_buffers.objectId = detail::allocate<uint32_t>(totalSize);
-  std::fill(m_buffers.color, m_buffers.color + totalSize, 0u);
-  std::fill(m_buffers.depth,
-      m_buffers.depth + totalSize,
-      std::numeric_limits<float>::infinity());
-  std::fill(m_buffers.objectId, m_buffers.objectId + totalSize, ~0u);
+  m_buffers.albedo = detail::allocate<tsd::math::float3>(totalSize);
+  m_buffers.normal = detail::allocate<tsd::math::float3>(totalSize);
 }
 
 void AnariSceneRenderPass::render(RenderBuffers &b, int stageId)
@@ -222,6 +269,10 @@ void AnariSceneRenderPass::copyFrameData()
       m_deviceSupportsCUDAFrames ? "channel.depthCUDA" : "channel.depth";
   const char *idChannel =
       m_deviceSupportsCUDAFrames ? "channel.objectIdCUDA" : "channel.objectId";
+  const char *albedoChannel =
+      m_deviceSupportsCUDAFrames ? "channel.albedoCUDA" : "channel.albedo";
+  const char *normalChannel =
+      m_deviceSupportsCUDAFrames ? "channel.normalCUDA" : "channel.normal";
 
   auto color = anari::map<void>(m_device, m_frame, colorChannel);
   auto depth = anari::map<float>(m_device, m_frame, depthChannel);
@@ -243,12 +294,26 @@ void AnariSceneRenderPass::copyFrameData()
       if (objectId.data)
         detail::copy(m_buffers.objectId, objectId.data, totalSize);
     }
+    if (m_enableAlbedo) {
+      auto albedo = anari::map<tsd::math::float3>(m_device, m_frame, albedoChannel);
+      if (albedo.data)
+        detail::copy(m_buffers.albedo, albedo.data, totalSize);
+    }
+    if (m_enableNormals) {
+      auto normal = anari::map<tsd::math::float3>(m_device, m_frame, normalChannel);
+      if (normal.data)
+        detail::copy(m_buffers.normal, normal.data, totalSize);
+    }
   }
 
   anari::unmap(m_device, m_frame, colorChannel);
   anari::unmap(m_device, m_frame, depthChannel);
   if (m_enableIDs)
     anari::unmap(m_device, m_frame, idChannel);
+  if (m_enableAlbedo)
+    anari::unmap(m_device, m_frame, albedoChannel);
+  if (m_enableNormals)
+    anari::unmap(m_device, m_frame, normalChannel);
 }
 
 void AnariSceneRenderPass::composite(RenderBuffers &b, int stageId)
@@ -261,6 +326,10 @@ void AnariSceneRenderPass::composite(RenderBuffers &b, int stageId)
     detail::copy(b.color, m_buffers.color, totalSize);
     detail::copy(b.depth, m_buffers.depth, totalSize);
     detail::copy(b.objectId, m_buffers.objectId, totalSize);
+    if (m_enableAlbedo)
+      detail::copy(b.albedo, m_buffers.albedo, totalSize);
+    if (m_enableNormals)
+      detail::copy(b.normal, m_buffers.normal, totalSize);
   } else {
     compositeFrame(b, m_buffers, size, firstPass);
   }
@@ -271,6 +340,8 @@ void AnariSceneRenderPass::cleanup()
   detail::free(m_buffers.color);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
+  detail::free(m_buffers.albedo);
+  detail::free(m_buffers.normal);
 }
 
 } // namespace tsd::rendering

@@ -113,8 +113,9 @@ void Frame::finalize()
   const bool channelPrimID = m_primIDType == ANARI_UINT32;
   const bool channelObjID = m_objIDType == ANARI_UINT32;
   const bool channelInstID = m_instIDType == ANARI_UINT32;
-  const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
-  const bool channelNormal = m_normalType == ANARI_FLOAT32;
+  const bool channelAlbedo = m_albedoType == ANARI_FLOAT32_VEC3;
+  const bool channelNormal = m_normalType == ANARI_FLOAT32_VEC3;
+
 
   const bool channelDepth = m_depthType == ANARI_FLOAT32 || channelPrimID
       || channelObjID || channelInstID;
@@ -323,8 +324,8 @@ void *Frame::map(std::string_view channel,
   const bool channelPrimID = m_primIDType == ANARI_UINT32;
   const bool channelObjID = m_objIDType == ANARI_UINT32;
   const bool channelInstID = m_instIDType == ANARI_UINT32;
-  const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
-  const bool channelNormal = m_normalType == ANARI_FLOAT32;
+  const bool channelAlbedo = m_albedoType == ANARI_FLOAT32_VEC3;
+  const bool channelNormal = m_normalType == ANARI_FLOAT32_VEC3;
 
   if (channel == "channel.colorCUDA") {
     type = m_colorType;
@@ -599,8 +600,8 @@ void Frame::newFrame()
     const bool channelPrimID = m_primIDType == ANARI_UINT32;
     const bool channelObjID = m_objIDType == ANARI_UINT32;
     const bool channelInstID = m_instIDType == ANARI_UINT32;
-    const bool channelAlbedo = m_albedoType == ANARI_FLOAT32;
-    const bool channelNormal = m_normalType == ANARI_FLOAT32;
+    const bool channelAlbedo = m_albedoType == ANARI_FLOAT32_VEC3;
+    const bool channelNormal = m_normalType == ANARI_FLOAT32_VEC3;
 
     const bool channelDepth = m_depthType == ANARI_FLOAT32 || channelPrimID
         || channelObjID || channelInstID;

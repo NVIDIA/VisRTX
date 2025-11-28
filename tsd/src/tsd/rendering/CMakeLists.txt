@@ -19,7 +19,7 @@ PRIVATE
   pipeline/passes/PickPass.cpp
   pipeline/passes/RenderPass.cpp
   pipeline/passes/SaveToFilePass.cpp
-  pipeline/passes/VisualizeDepthPass.cpp
+  pipeline/passes/VisualizeAOVPass.cpp
   pipeline/RenderPipeline.cpp
   view/CameraUpdateDelegate.cpp
   view/ManipulatorToAnari.cpp
@@ -40,7 +40,7 @@ if (TSD_USE_CUDA)
     pipeline/passes/AnariSceneRenderPass.cpp
     pipeline/passes/OutlineRenderPass.cpp
     pipeline/passes/RenderPass.cpp
-    pipeline/passes/VisualizeDepthPass.cpp
+    pipeline/passes/VisualizeAOVPass.cpp
     PROPERTIES
       COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"
       LANGUAGE CUDA
