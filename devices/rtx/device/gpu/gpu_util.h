@@ -284,7 +284,7 @@ VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
   const float u = thetaPhi.y * inv2Pi;
   const float v = thetaPhi.x * invPi;
 
-  return sampleHDRI(ld, vec2(u, v));
+  return sampleHDRI(ld, vec2(u, v)) * ld.hdri.scale;
 }
 
 VISRTX_DEVICE vec4 getBackgroundImage(
