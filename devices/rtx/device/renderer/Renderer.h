@@ -72,6 +72,8 @@ struct Renderer : public Object
   int spp() const;
   bool checkerboarding() const;
   bool denoise() const;
+  bool denoiseUsingAlbedo() const;
+  bool denoiseUsingNormal() const;
   bool tonemap() const;
   int sampleLimit() const;
 
@@ -87,6 +89,8 @@ struct Renderer : public Object
   float m_occlusionDistance{1e20f};
   bool m_checkerboard{false};
   bool m_denoise{false};
+  bool m_denoiseAlbedo{false};
+  bool m_denoiseNormal{false};
   bool m_tonemap{true}; // enable internal tonemapping during sample accumulation
   int m_sampleLimit{0};
   bool m_cullTriangleBF{false};

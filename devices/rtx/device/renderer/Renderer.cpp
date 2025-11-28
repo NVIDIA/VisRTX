@@ -162,6 +162,8 @@ void Renderer::commitParameters()
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
   m_checkerboard = getParam<bool>("checkerboarding", false);
   m_denoise = getParam<bool>("denoise", false);
+  m_denoiseAlbedo = getParam<bool>("denoiseAlbedo", false);
+  m_denoiseNormal = getParam<bool>("denoiseNormal", false);
   m_tonemap = getParam<bool>("tonemap", true);
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
@@ -255,6 +257,16 @@ bool Renderer::checkerboarding() const
 bool Renderer::denoise() const
 {
   return m_denoise;
+}
+
+bool Renderer::denoiseUsingAlbedo() const
+{
+  return m_denoiseAlbedo;
+}
+
+bool Renderer::denoiseUsingNormal() const
+{
+  return m_denoiseNormal;
 }
 
 int Renderer::sampleLimit() const

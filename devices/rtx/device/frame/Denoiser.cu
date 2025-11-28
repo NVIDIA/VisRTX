@@ -31,6 +31,7 @@
 
 #include "Denoiser.h"
 #include "gpu/gpu_util.h"
+#include "utility/DeviceBuffer.h"
 #include "utility/instrument.h"
 // thrust
 #include <thrust/device_ptr.h>
@@ -48,10 +49,13 @@ Denoiser::~Denoiser()
     OPTIX_CHECK(optixDenoiserDestroy(m_denoiser));
 }
 
-void Denoiser::setup(
-    uvec2 size, HostDeviceArray<uint8_t> &pixelBuffer, ANARIDataType format)
+void Denoiser::setup(uvec2 size,
+    HostDeviceArray<uint8_t> &pixelBuffer,
+    ANARIDataType format,
+    DeviceBuffer &accumAlbedo,
+    DeviceBuffer &accumNormal)
 {
-  init();
+  init(accumAlbedo, accumNormal);
   auto &state = *deviceState();
 
   m_pixelBuffer = &pixelBuffer;
@@ -86,6 +90,20 @@ void Denoiser::setup(
   m_layer.input.rowStrideInBytes = 4 * sizeof(float) * size.x;
   m_layer.input.format = OPTIX_PIXEL_FORMAT_FLOAT4;
   std::memcpy(&m_layer.output, &m_layer.input, sizeof(m_layer.output));
+
+  m_guideLayer.albedo.data = (CUdeviceptr)accumAlbedo.ptr();
+  m_guideLayer.albedo.width = size.x;
+  m_guideLayer.albedo.height = size.y;
+  m_guideLayer.albedo.pixelStrideInBytes = 3 * sizeof(float);
+  m_guideLayer.albedo.rowStrideInBytes = 3 * sizeof(float) * size.x;
+  m_guideLayer.albedo.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+
+  m_guideLayer.normal.data = (CUdeviceptr)accumNormal.ptr();
+  m_guideLayer.normal.width = size.x;
+  m_guideLayer.normal.height = size.y;
+  m_guideLayer.normal.pixelStrideInBytes = 3 * sizeof(float);
+  m_guideLayer.normal.rowStrideInBytes = 3 * sizeof(float) * size.x;
+  m_guideLayer.normal.format = OPTIX_PIXEL_FORMAT_FLOAT3;
 }
 
 void Denoiser::cleanup()
@@ -155,19 +173,28 @@ void *Denoiser::mapGPUColorBuffer()
                                         : (void *)m_uintPixels.dataDevice();
 }
 
-void Denoiser::init()
+void Denoiser::init(
+    const DeviceBuffer &accumAlbedo, const DeviceBuffer &accumNormal)
 {
-  if (m_denoiser)
-    return;
+  const bool useAlbedo = accumAlbedo.ptr() != nullptr;
+  const bool useNormal = accumNormal.ptr() != nullptr;
+
+  if (m_denoiser
+      && (m_usingAlbedo != useAlbedo || m_usingNormal != useNormal)) {
+    OPTIX_CHECK(optixDenoiserDestroy(m_denoiser));
+    m_denoiser = {};
+  }
 
   auto &state = *deviceState();
+  m_usingAlbedo = useAlbedo;
+  m_usingNormal = useNormal;
 
   OptixDenoiserOptions options = {};
-  options.guideAlbedo = 0;
-  options.guideNormal = 0;
+  options.guideAlbedo = m_usingAlbedo;
+  options.guideNormal = m_usingNormal;
 
   OPTIX_CHECK(optixDenoiserCreate(state.optixContext,
-      OPTIX_DENOISER_MODEL_KIND_LDR,
+      OPTIX_DENOISER_MODEL_KIND_AOV,
       &options,
       &m_denoiser));
 }

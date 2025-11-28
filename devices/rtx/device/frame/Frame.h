@@ -93,6 +93,8 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   float m_invFrameID{1.f};
   int m_perPixelBytes{1};
   bool m_denoise{false};
+  bool m_denoiseUsingAlbedo{false};
+  bool m_denoiseUsingNormal{false};
   bool m_nextFrameReset{true};
   bool m_frameMappedOnce{false}; // NOTE(jda) - for instrumented events
 
