@@ -5,6 +5,7 @@
 
 #include "modals/AppSettingsDialog.h"
 #include "modals/BlockingTaskModal.h"
+#include "modals/ExportNanoVDBFileDialog.h"
 #include "modals/OfflineRenderModal.h"
 #include "modals/ImportFileDialog.h"
 // tsd_app
@@ -66,6 +67,7 @@ class Application : public anari_viewer::Application
   std::unique_ptr<BlockingTaskModal> m_taskModal;
   std::unique_ptr<OfflineRenderModal> m_offlineRenderModal;
   std::unique_ptr<ImportFileDialog> m_fileDialog;
+  std::unique_ptr<ExportNanoVDBFileDialog> m_exportNanoVDBFileDialog;
 
   tsd::core::DataTree m_settings;
 

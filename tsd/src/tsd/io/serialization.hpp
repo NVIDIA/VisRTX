@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <limits>
 #include "tsd/core/scene/Scene.hpp"
 #include "tsd/rendering/view/Manipulator.hpp"
 
@@ -24,6 +25,7 @@ void load_Scene(Scene &scene, const char *filename);
 void load_Scene(Scene &scene, core::DataNode &root);
 
 void export_SceneToUSD(Scene &scene, const char *filename);
+void export_StructuredRegularVolumeToVDB(const SpatialField *spatialField, std::string_view outputFilename, bool useUndefinedValue, float undefinedValue);
 
 // clang-format on
 

@@ -90,9 +90,11 @@ anari_viewer::WindowArray Application::setupWindows()
   m_taskModal = std::make_unique<BlockingTaskModal>(this);
   m_offlineRenderModal = std::make_unique<OfflineRenderModal>(this);
   m_fileDialog = std::make_unique<ImportFileDialog>(this);
+  m_exportNanoVDBFileDialog = std::make_unique<ExportNanoVDBFileDialog>(this);
 
   m_core.windows.taskModal = m_taskModal.get();
   m_core.windows.importDialog = m_fileDialog.get();
+  m_core.windows.exportNanoVDBDialog = m_exportNanoVDBFileDialog.get();
 
   m_applicationName = SDL_GetWindowTitle(sdlWindow());
   updateWindowTitle();
@@ -143,7 +145,12 @@ void Application::uiFrameStart()
     modalActive = true;
   }
 
-  // Handle app shortcuts //
+    // Handle app shortcuts //
+    if (m_exportNanoVDBFileDialog->visible()) {
+      m_exportNanoVDBFileDialog->renderUI();
+      modalActive = true;
+    }
+
 
   if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S))
     this->getFilenameFromDialog(m_filenameToSaveNextFrame, true);

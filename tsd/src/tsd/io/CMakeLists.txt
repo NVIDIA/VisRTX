@@ -49,6 +49,7 @@ PRIVATE
   procedural/generate_randomSpheres.cpp
   procedural/generate_rtow.cpp
   procedural/generate_sphereSetVolume.cpp
+  serialization/export_RegularVolumeToNanoVDB.cpp
   serialization/export_SceneToUSD.cpp
   serialization/serialization_datatree.cpp
 )
@@ -72,6 +73,11 @@ PRIVATE
   $<BUILD_INTERFACE:tsd_ext_tinygltf>
   $<BUILD_INTERFACE:stb_image>
 )
+
+# Always use nanovdb
+find_package(tsd_nanovdb MODULE REQUIRED)
+project_link_libraries(PRIVATE tsd::nanovdb)
+
 
 ## Setup optional dependencies ##
 

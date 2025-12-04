@@ -20,6 +20,7 @@
 namespace tsd::ui::imgui {
 struct BlockingTaskModal;
 struct ImportFileDialog;
+struct ExportNanoVDBFileDialog;
 } // namespace tsd::ui::imgui
 
 namespace tsd::app {
@@ -190,6 +191,7 @@ struct Windows
 {
   tsd::ui::imgui::BlockingTaskModal *taskModal{nullptr};
   tsd::ui::imgui::ImportFileDialog *importDialog{nullptr};
+  tsd::ui::imgui::ExportNanoVDBFileDialog *exportNanoVDBDialog{nullptr};
   float fontScale{1.f};
   float uiRounding{9.f};
 };

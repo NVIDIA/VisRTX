@@ -19,3 +19,7 @@ project_link_libraries(
   tsd_ext_tinyexr_impl
   stb_image
 )
+
+project(tsdVolumeToNanoVDB)
+project_add_executable(tsdVolumeToNanoVDB.cpp)
+project_link_libraries(tsd_core tsd_io)
