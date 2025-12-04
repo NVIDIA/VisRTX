@@ -52,6 +52,7 @@ anari::Object Volume::makeANARIObject(anari::Device d) const
 
 namespace tokens::volume {
 
+const Token structuredRegular = "structuredRegular";
 const Token transferFunction1D = "transferFunction1D";
 
 } // namespace tokens::volume

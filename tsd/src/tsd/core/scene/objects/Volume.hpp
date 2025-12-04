@@ -25,6 +25,7 @@ using VolumeRef = ObjectPoolRef<Volume>;
 
 namespace tokens::volume {
 
+extern const Token structuredRegular;
 extern const Token transferFunction1D;
 
 } // namespace tokens::volume
