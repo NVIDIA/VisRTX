@@ -34,6 +34,8 @@ VolumeRef import_volume(Scene &scene,
     field = import_VTU(scene, filepath);
   else if (ext == ".vti")
     field = import_VTI(scene, filepath);
+  else if (ext == ".silo" || ext == ".sil")
+    field = import_SILO(scene, filepath);
   else {
     logError("[import_volume] no loader for file type '%s'", ext.c_str());
     return {};

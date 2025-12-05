@@ -1488,11 +1488,8 @@ static SpatialFieldRef import_SILO_multiMesh(Scene &scene,
 ///////////////////////////////////////////////////////////////////////////////
 
 // Main import function
-void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
+SpatialFieldRef import_SILO(Scene &scene, const char *filepath)
 {
-  if (!location)
-    location = scene.defaultLayer()->root();
-
   // Parse variable name if present (format: file.silo or file.silo:varname)
   std::string file(filepath);
   std::string varName;
@@ -1519,7 +1516,7 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
   DBfile *dbfile = DBOpen(file.c_str(), DB_UNKNOWN, DB_READ);
   if (!dbfile) {
     logError("[import_SILO] failed to open file '%s'", file.c_str());
-    return;
+    return {};
   }
 
   // Get table of contents
@@ -1527,7 +1524,7 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
   if (!toc) {
     logError("[import_SILO] failed to get table of contents");
     DBClose(dbfile);
-    return;
+    return {};
   }
 
   logStatus("[import_SILO] loading '%s'", file.c_str());
@@ -1544,32 +1541,43 @@ void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
 
   DBClose(dbfile);
 
-  if (field) {
-    // Create one transform node for the unified volume
-    auto tx = scene.insertChildTransformNode(location);
+  logStatus("[import_SILO] done!");
+  return field;
+}
 
+void import_SILO(Scene &scene, const char *filename, LayerNodeRef location) {
+  SpatialFieldRef field = import_SILO(scene, filename);
+  if (field) {
+      // Create one transform node for the unified volume
+      auto tx = scene.insertChildTransformNode(location);
+  
     // Create shared color map
-    auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, 256);
-    colorArray->setData(makeDefaultColorMap(colorArray->size()).data());
+      auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, 256);
+      colorArray->setData(makeDefaultColorMap(colorArray->size()).data());
 
     auto valueRange = field->computeValueRange();
 
     auto [inst, volume] = scene.insertNewChildObjectNode<Volume>(
-        tx, tokens::volume::transferFunction1D);
-    volume->setName(fileOf(file).c_str());
-    volume->setParameterObject("value", *field);
-    volume->setParameterObject("color", *colorArray);
-    volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-  }
-
-  logStatus("[import_SILO] done!");
+          tx, tokens::volume::transferFunction1D);
+      volume->setName(fileOf(filename).c_str());
+      volume->setParameterObject("value", *field);
+      volume->setParameterObject("color", *colorArray);
+      volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+    }
 }
+
 
 #else
 
-void import_SILO(Scene &scene, const char *filepath, LayerNodeRef location)
+SpatialFieldRef import_SILO(Scene &scene, const char *filepath)
 {
   logError("[import_SILO] Silo support not enabled in this build");
+
+  return {};
+}
+
+void import_SILO(Scene &scene, const char *filename, LayerNodeRef location) {
+ logError("[import_SILO] Silo support not enabled in this build");
 }
 
 #endif
