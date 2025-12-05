@@ -5,6 +5,7 @@
 
 #include "Core.h"
 // tsd_core
+#include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 // tsd_io
 #include "tsd/io/importers.hpp"
@@ -14,9 +15,6 @@
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexAllLayers.hpp"
 #include "tsd/rendering/index/RenderIndexFlatRegistry.hpp"
-// std
-#include <fstream>
-#include <sstream>
 
 namespace tsd::app {
 
@@ -90,6 +88,20 @@ static std::vector<std::string> parseLibraryList(bool defaultNone)
 Core::Core() : anari(this)
 {
   tsd.scene.setUpdateDelegate(&anari.getUpdateDelegate());
+
+  // Initialize default transfer function
+  for (const auto& c : core::colormap::viridis) {
+    importer.transferFunction.colorPoints.push_back({
+      float(importer.transferFunction.colorPoints.size()) / float(core::colormap::viridis.size() - 1), 
+      c.x, c.y, c.z
+    });
+  }
+  
+  importer.transferFunction.opacityPoints = {
+    {0.0f, 0.0f},
+    {1.0f, 1.0f}
+  };
+  importer.transferFunction.range = {};
 }
 
 Core::~Core()
@@ -180,7 +192,7 @@ void Core::parseCommandLine(int argc, const char **argv)
     else if (arg == "-blank")
       importerType = ImporterType::BLANK;
     else if (arg == "-xf" || arg == "--transferFunction")
-      this->commandLine.transferFunctionFile = argv[++i];
+      importerType = ImporterType::XF;
     else if (arg == "-camera" || arg == "--camera")
       this->commandLine.cameraFile = argv[++i];
     else {
@@ -309,7 +321,10 @@ void Core::importFile(const ImportFile &f, tsd::core::LayerNodeRef root)
   } else if (f.first == ImporterType::XYZDP)
     tsd::io::import_XYZDP(tsd.scene, file.c_str(), root);
   else if (f.first == ImporterType::VOLUME)
-    tsd::io::import_volume(tsd.scene, file.c_str(), root);
+    tsd::io::import_volume(tsd.scene, file.c_str(), importer.transferFunction, root);
+  else if (f.first == ImporterType::XF) {
+    importer.transferFunction = tsd::io::importTransferFunction(file);
+  }
   else if (f.first == ImporterType::BLANK) {
     // no-op
   } else {
@@ -341,64 +356,6 @@ void Core::importAnimations(const std::vector<ImportAnimationFiles> &files,
     else
       tsd::core::logWarning("...skipping unknown animation file importer type");
   }
-}
-
-void Core::applyTransferFunctionToAllVolumes(const std::string &filepath)
-{
-  using namespace tsd::core;
-
-  // Load transfer function file
-  std::ifstream file(filepath);
-  if (!file.is_open()) {
-    logError(
-        "[Core] Failed to open transfer function file: %s", filepath.c_str());
-    return;
-  }
-
-  std::string line;
-  std::vector<tsd::math::float4> colorData;
-
-  // Read all lines and parse as r g b a values
-  while (std::getline(file, line)) {
-    // Skip empty lines and comments
-    if (line.empty() || line[0] == '#')
-      continue;
-
-    std::istringstream iss(line);
-    float r, g, b, a;
-
-    if (!(iss >> r >> g >> b >> a))
-      continue;
-
-    colorData.push_back(tsd::math::float4{r, g, b, a});
-  }
-
-  file.close();
-
-  if (colorData.empty()) {
-    logError("[Core] No valid color entries found in transfer function file");
-    return;
-  }
-
-  logStatus("[Core] Loaded transfer function with %zu color points from %s",
-      colorData.size(),
-      filepath.c_str());
-
-  // Create color array
-  auto colorArray = tsd.scene.createArray(ANARI_FLOAT32_VEC4, colorData.size());
-  colorArray->setData(colorData.data());
-
-  // Find all volumes in the scene and apply the transfer function
-  int volumeCount = 0;
-  for (size_t i = 0; i < tsd.scene.numberOfObjects(ANARI_VOLUME); ++i) {
-    auto vol = tsd.scene.getObject<Volume>(i);
-    if (vol) {
-      vol->setParameterObject("color", *colorArray);
-      volumeCount++;
-    }
-  }
-
-  logStatus("[Core] Applied transfer function to %d volume(s)", volumeCount);
 }
 
 ANARIDeviceManager::ANARIDeviceManager(Core *core) : m_core(core) {}

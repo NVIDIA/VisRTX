@@ -32,8 +32,11 @@
 #endif
 // std
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
+
+using namespace std::string_view_literals;
 
 namespace tsd::io {
 
@@ -91,12 +94,12 @@ static void importUsdGeomCamera(Scene &scene, const pxr::UsdPrim &prim)
   float fStop = gfCamera.GetFStop();
 
   // Set ANARI camera parameters
-  if (cameraType == "perspective") {
+  if (cameraType == "perspective"sv) {
     camera->setParameter("fovy", fovVertical);
     camera->setParameter("aspect", horizontalAperture / verticalAperture);
   }
   // For orthographic camera, set height based on vertical aperture
-  else if (cameraType == "orthographic") {
+  else if (cameraType == "orthographic"sv) {
     camera->setParameter("height", verticalAperture);
     camera->setParameter("aspect", horizontalAperture / verticalAperture);
   }
@@ -232,8 +235,7 @@ static void importUsdGeomCamera(Scene &scene, const pxr::UsdPrim &prim)
 
 void import_USD2(Scene &scene,
     const char *filename,
-    LayerNodeRef location,
-    bool useDefaultMaterial)
+    LayerNodeRef location)
 {
   // Open the USD stage
   pxr::UsdStageRefPtr stage = pxr::UsdStage::Open(filename);

@@ -939,9 +939,9 @@ static void import_usd_volume(Scene &scene,
         opacityControlPoints.data(),
         opacityControlPoints.size());
   } else {
-    // Create a default color map
+    // Use default transfer function if available, otherwise create default
     colorArray = scene.createArray(ANARI_FLOAT32_VEC4, 256);
-    colorArray->setData(makeDefaultColorMap(colorArray->size()).data());
+    colorArray->setData(makeDefaultColorMap(colorArray->size()));
   }
 
   volume->setParameterObject("color", *colorArray);
@@ -1192,7 +1192,7 @@ static void import_usd_prim_recursive(Scene &scene,
     LayerNodeRef parent,
     pxr::UsdGeomXformCache &xformCache,
     const std::string &basePath,
-    const pxr::GfMatrix4d &parentWorldXform = pxr::GfMatrix4d(1.0))
+    const pxr::GfMatrix4d &parentWorldXform)
 {
   // if (prim.IsPrototype()) return;
   if (prim.IsInstance()) {
@@ -1298,8 +1298,7 @@ static void import_usd_prim_recursive(Scene &scene,
 
 void import_USD(Scene &scene,
     const char *filepath,
-    LayerNodeRef location,
-    bool useDefaultMaterial)
+    LayerNodeRef location)
 {
   pxr::UsdStageRefPtr stage = pxr::UsdStage::Open(filepath);
   if (!stage) {
@@ -1330,15 +1329,14 @@ void import_USD(Scene &scene,
   for (pxr::UsdPrim const &prim : stage->Traverse()) {
     // if (prim.IsPrototype()) continue;
     if (prim.GetParent() && prim.GetParent().IsPseudoRoot()) {
-      import_usd_prim_recursive(scene, prim, usd_root, xformCache, basePath);
+      import_usd_prim_recursive(scene, prim, usd_root, xformCache, basePath, pxr::GfMatrix4d(1.0));
     }
   }
 }
 #else
 void import_USD(Scene &scene,
     const char *filepath,
-    LayerNodeRef location,
-    bool useDefaultMaterial)
+    LayerNodeRef location)
 {
   tsd::core::logError("[import_USD] USD not enabled in TSD build.");
 }

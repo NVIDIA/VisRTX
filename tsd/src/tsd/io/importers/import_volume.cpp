@@ -1,6 +1,7 @@
 // Copyright 2024-2025 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include <anari/anari_cpp/ext/linalg.h>
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
@@ -14,9 +15,7 @@ using namespace tsd::core;
 
 VolumeRef import_volume(Scene &scene,
     const char *filepath,
-    LayerNodeRef location,
-    ArrayRef colorArray,
-    ArrayRef opacityArray)
+    LayerNodeRef location)
 {
   SpatialFieldRef field;
 
@@ -47,11 +46,6 @@ VolumeRef import_volume(Scene &scene,
     return {};
   }
 
-  if (!colorArray) {
-    colorArray = scene.createArray(ANARI_FLOAT32_VEC4, 256);
-    colorArray->setData(makeDefaultColorMap(colorArray->size()).data());
-  }
-
   float2 valueRange{0.f, 1.f};
   if (field)
     valueRange = field->computeValueRange();
@@ -63,10 +57,42 @@ VolumeRef import_volume(Scene &scene,
       tx, tokens::volume::transferFunction1D);
   volume->setName(fileOf(filepath).c_str());
   volume->setParameterObject("value", *field);
-  volume->setParameterObject("color", *colorArray);
-  if (opacityArray)
-    volume->setParameterObject("opacity", *opacityArray);
   volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+
+  return volume;
+}
+
+VolumeRef import_volume(Scene &scene,
+    const char *filepath,
+    const TransferFunction& transferFunction,
+    LayerNodeRef location)
+{
+  auto volume = import_volume(scene, filepath, location);
+
+  // Build RGBA colors with evenly-spaced positions
+  std::vector<tsd::math::float4> colormap;
+
+  constexpr const size_t numRGBPoints = 256;
+
+  for (size_t i = 0; i < numRGBPoints; ++i) {
+    float x = (i / float(numRGBPoints - 1));
+
+    auto color = detail::interpolateColor(transferFunction.colorPoints, x);
+    auto opacty = detail::interpolateOpacity(transferFunction.opacityPoints, x);
+    colormap.push_back({color.x, color.y, color.z, opacty});
+  }
+
+  auto colorArray = scene.createArray(
+      ANARI_FLOAT32_VEC4, colormap.size());
+  colorArray->setData(colormap);
+  volume->setParameterObject("color", *colorArray);
+
+  if (transferFunction.range.lower < transferFunction.range.upper)
+    volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &transferFunction.range);
+
+  volume->setMetadataArray("opacityControlPoints", ANARI_FLOAT32_VEC2,
+      transferFunction.opacityPoints.data(),
+      transferFunction.opacityPoints.size());
 
   return volume;
 }

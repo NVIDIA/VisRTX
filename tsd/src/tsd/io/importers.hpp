@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/scene/Scene.hpp"
 
 namespace tsd::io {
@@ -29,8 +30,8 @@ void import_SILO(Scene &scene, const char *filename, LayerNodeRef location);
 void import_SMESH(Scene &scene, const char *filename, LayerNodeRef location = {}, bool isAnimation = false);
 void import_SWC(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_TRK(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_USD(Scene &scene, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
-void import_USD2(Scene &scene, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
+void import_USD(Scene &scene, const char *filename, LayerNodeRef location = {});
+void import_USD2(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_XYZDP(Scene &scene, const char *filename, LayerNodeRef location = {});
 
 SpatialFieldRef import_RAW(Scene &scene, const char *filename);
@@ -44,9 +45,12 @@ SpatialFieldRef import_SILO(Scene &scene, const char *filename);
 
 VolumeRef import_volume(Scene &scene,
     const char *filename,
-    LayerNodeRef location = {},
-    ArrayRef colors = {},
-    ArrayRef opacities = {});
+    LayerNodeRef location = {});
+
+VolumeRef import_volume(Scene &scene,
+    const char *filename,
+    const core::TransferFunction &transferFunction,
+    LayerNodeRef location = {});
 
 // clang-format on
 

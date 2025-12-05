@@ -3,6 +3,7 @@
 
 #pragma once
 
+// tsd_math
 #include "tsd/core/TSDMath.hpp"
 // std
 #include <vector>
@@ -11,6 +12,12 @@ namespace tsd::core {
 
 using ColorPoint = float4;
 using OpacityPoint = float2;
+
+struct TransferFunction {
+  std::vector<ColorPoint> colorPoints;
+  std::vector<OpacityPoint> opacityPoints;
+  math::box1 range = {};
+};
 
 std::vector<math::float4> makeDefaultColorMap(size_t size = 256);
 

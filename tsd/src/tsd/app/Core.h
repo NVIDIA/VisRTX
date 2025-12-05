@@ -5,12 +5,12 @@
 
 // tsd_core
 #include "tsd/core/scene/Scene.hpp"
+#include "tsd/core/ColorMapUtil.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/view/Manipulator.hpp"
 // std
 #include <map>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -57,6 +57,8 @@ enum class ImporterType
   XYZDP,
   VOLUME,
   TSD,
+  XF, // Special case for transfer function files
+      // Not an actual scene importer, but used to set transfer function from CLI
   BLANK, // Must be last import type before 'NONE'
   NONE
 };
@@ -80,7 +82,6 @@ struct CommandLineOptions
   ImporterType importerType{ImporterType::NONE};
   std::vector<std::string> libraryList;
   std::string secondaryViewportLibrary;
-  std::string transferFunctionFile;
   std::string cameraFile;
 };
 
@@ -148,6 +149,10 @@ struct CameraState
   tsd::rendering::Manipulator manipulator;
 };
 
+struct ImporterState {
+  core::TransferFunction transferFunction;
+};
+
 struct OfflineRenderSequenceConfig
 {
   struct FrameSettings
@@ -208,6 +213,7 @@ struct Core
   ANARIDeviceManager anari;
   LogState logging;
   CameraState view;
+  ImporterState importer;
   OfflineRenderSequenceConfig offline;
   Windows windows;
   Tasking jobs;
@@ -226,7 +232,6 @@ struct Core
       const std::vector<ImportFile> &files, tsd::core::LayerNodeRef root = {});
   void importAnimations(const std::vector<ImportAnimationFiles> &files,
       tsd::core::LayerNodeRef root = {});
-  void applyTransferFunctionToAllVolumes(const std::string &filepath);
 
   // Offline rendering //
 

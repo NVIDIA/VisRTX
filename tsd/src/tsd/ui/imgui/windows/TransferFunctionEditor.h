@@ -36,10 +36,9 @@ class TransferFunctionEditor : public Window
   void setMap(int which = 0);
   void setObjectPtrsFromSelectedObject();
   void loadDefaultMaps();
-  void loadColormapFrom1dt(
+  void loadColormap(
       const std::string &filepath, const std::string &name);
-  void loadColormapFromParaview(
-      const std::string &filepath, const std::string &name);
+
   void saveColormapTo1dt(const std::string &filepath);
   void saveColormapToParaview(const std::string &filepath);
   void getTransferFunctionFilenameFromDialog(

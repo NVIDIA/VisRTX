@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tsd/core/scene/Scene.hpp"
+#include "tsd/core/ColorMapUtil.hpp"
 // std
 #include <cstdio>
 #include <string>
@@ -28,6 +29,9 @@ tsd::core::SamplerRef importTexture(tsd::core::Scene &scene,
 
 tsd::core::SamplerRef makeDefaultColorMapSampler(
     tsd::core::Scene &scene, const tsd::math::float2 &range);
+
+// Transfer function import functions
+core::TransferFunction importTransferFunction(const std::string &filepath);
 
 bool calcTangentsForTriangleMesh(const tsd::math::uint3 *indices,
     const tsd::math::float3 *vertexPositions,

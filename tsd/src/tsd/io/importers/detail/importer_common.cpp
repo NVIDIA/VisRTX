@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include <anari/anari_cpp/ext/linalg.h>
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/importers/detail/dds.h"
@@ -11,6 +12,8 @@
 #include "stb_image.h"
 #include "tsd/core/Token.hpp"
 // std
+#include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -458,6 +461,262 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
   context.m_pUserData = &mesh;
 
   return genTangSpaceDefault(&context);
+}
+
+// Transfer function import functions
+
+static core::TransferFunction import1dtTransferFunction(
+    const std::string &filepath)
+{
+  if (std::ifstream file(filepath); !file.is_open()) {
+    logError("[import1dtTransferFunction] Failed to open file: %s",
+        filepath.c_str());
+    return {};
+  } else {
+    std::vector<core::ColorPoint> colors;
+    std::vector<core::OpacityPoint> opacities;
+
+    // Read all RGBA lines
+    for (std::string line; std::getline(file, line);) {
+      // Skip empty lines and comments
+      if (line.empty() || line[0] == '#')
+        continue;
+
+      std::istringstream iss(line);
+      float r, g, b, a;
+
+      if (!(iss >> r >> g >> b >> a)) {
+        logWarning(
+            "[import1dtTransferFunction] Failed to parse line, skipping");
+        continue;
+      }
+
+      const auto idx = static_cast<float>(colors.size());
+      colors.push_back({idx, r, g, b});
+      opacities.push_back({idx, a});
+    }
+
+    if (colors.empty()) {
+      logError(
+          "[import1dtTransferFunction] No valid RGBA entries found in file: %s",
+          filepath.c_str());
+      return {};
+    }
+
+    const float normalizer = 1.0f / static_cast<float>(colors.size() - 1);
+    for (auto &c : colors)
+      c.x *= normalizer;
+    for (auto &o : opacities)
+      o.x *= normalizer;
+
+    return {colors, opacities};
+  }
+}
+
+static core::TransferFunction importParaViewTransferFunction(
+    const std::string &filepath)
+{
+  std::ifstream file(filepath);
+  if (!file.is_open()) {
+    logError("[importParaViewTransferFunction] Failed to open file: %s",
+        filepath.c_str());
+    return {};
+  }
+
+  // Read entire file
+  const std::string jsonContent{(
+      std::istreambuf_iterator<char>(file)),
+      std::istreambuf_iterator<char>()};
+
+  // Parse RGBPoints array
+  if (const auto rgbPointsPos = jsonContent.find("\"RGBPoints\"");
+      rgbPointsPos == std::string::npos) {
+    logError("[importParaViewTransferFunction] No RGBPoints found in file: %s",
+        filepath.c_str());
+    return {};
+  } else if (const auto arrayStart = jsonContent.find("[", rgbPointsPos);
+             arrayStart == std::string::npos) {
+    logError(
+        "[importParaViewTransferFunction] Invalid RGBPoints format in file: %s",
+        filepath.c_str());
+    return {};
+  } else {
+
+    int bracketCount = 0;
+    size_t arrayEnd = arrayStart;
+    for (size_t i = arrayStart; i < jsonContent.length(); ++i) {
+      if (jsonContent[i] == '[')
+        bracketCount++;
+      else if (jsonContent[i] == ']') {
+        bracketCount--;
+        if (bracketCount == 0) {
+          arrayEnd = i;
+          break;
+        }
+      }
+    }
+
+    if (arrayEnd == arrayStart) {
+      logError(
+          "[importParaViewTransferFunction] Could not find end of RGBPoints in file: %s",
+          filepath.c_str());
+      return {};
+    }
+
+    // Parse RGBPoints values
+    const auto arrayContent =
+        jsonContent.substr(arrayStart + 1, arrayEnd - arrayStart - 1);
+    std::vector<float> rgbValues;
+    std::istringstream ss(arrayContent);
+
+    for (std::string token; std::getline(ss, token, ',');) {
+      // Trim whitespace
+      if (const auto first = token.find_first_not_of(" \t\n\r");
+          first != std::string::npos) {
+        const auto last = token.find_last_not_of(" \t\n\r");
+        token = token.substr(first, last - first + 1);
+
+        try {
+          rgbValues.push_back(std::stof(token));
+        } catch (const std::exception &) {
+          logError(
+              "[importParaViewTransferFunction] Invalid RGBPoints value '%s' in file: %s",
+              token.c_str(),
+              filepath.c_str());
+        }
+      }
+    }
+
+    // RGBPoints format: [dataValue, r, g, b, dataValue, r, g, b, ...]
+    if (rgbValues.size() % 4 != 0 || rgbValues.empty()) {
+      logError(
+          "[importParaViewTransferFunction] Invalid RGBPoints data in file: %s",
+          filepath.c_str());
+      return {};
+    }
+
+    // Parse optional Points array for opacity
+    std::vector<float> opacityValues;
+    if (const auto pointsPos = jsonContent.find("\"Points\"");
+        pointsPos != std::string::npos) {
+      if (const auto opacityArrayStart = jsonContent.find("[", pointsPos);
+          opacityArrayStart != std::string::npos) {
+        int opacityBracketCount = 0;
+        size_t opacityArrayEnd = opacityArrayStart;
+        for (size_t i = opacityArrayStart; i < jsonContent.length(); ++i) {
+          if (jsonContent[i] == '[')
+            opacityBracketCount++;
+          else if (jsonContent[i] == ']') {
+            opacityBracketCount--;
+            if (opacityBracketCount == 0) {
+              opacityArrayEnd = i;
+              break;
+            }
+          }
+        }
+
+        if (opacityArrayEnd != opacityArrayStart) {
+          const auto opacityContent = jsonContent.substr(
+              opacityArrayStart + 1, opacityArrayEnd - opacityArrayStart - 1);
+          std::istringstream opacitySS(opacityContent);
+
+          for (std::string opacityToken; std::getline(opacitySS, opacityToken, ',');) {
+            // Trim whitespace
+            if (const auto first = opacityToken.find_first_not_of(" \t\n\r");
+                first != std::string::npos) {
+              const auto last = opacityToken.find_last_not_of(" \t\n\r");
+              opacityToken = opacityToken.substr(first, last - first + 1);
+
+              try {
+                opacityValues.push_back(std::stof(opacityToken));
+              } catch (const std::exception &) {
+                // Skip invalid values
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Points format: [dataValue, alpha, dataValue, alpha, ...]
+    if (!opacityValues.empty()
+        && (opacityValues.size() % 2 != 0 || opacityValues[0] != rgbValues[0]
+            || opacityValues[opacityValues.size() - 2]
+                != rgbValues[rgbValues.size() - 4])) {
+      logError(
+          "[importParaViewTransferFunction] Invalid Points data in file: %s, ignoring opacity",
+          filepath.c_str());
+      // Build a simple opacity ramp
+      opacityValues = {rgbValues[0], 0.0f, rgbValues[rgbValues.size() - 4], 1.0f};
+    }
+
+    std::vector<ColorPoint> colorPoints;
+    const size_t numRGBPoints = rgbValues.size() / 4;
+    colorPoints.reserve(numRGBPoints);
+    for (size_t i = 0; i < numRGBPoints; ++i) {
+      colorPoints.push_back({rgbValues[i * 4],
+          rgbValues[i * 4 + 1],
+          rgbValues[i * 4 + 2],
+          rgbValues[i * 4 + 3]});
+    }
+
+    std::vector<OpacityPoint> opacityPoints;
+    const size_t numOpacityPoints = opacityValues.size() / 2;
+    opacityPoints.reserve(numOpacityPoints);
+    for (size_t i = 0; i < numOpacityPoints; ++i) {
+      opacityPoints.push_back(
+          {opacityValues[i * 2], opacityValues[i * 2 + 1]});
+    }
+
+    const auto valueRange =
+        math::box1(std::min(colorPoints.front().x, opacityPoints.front().x),
+            std::max(colorPoints.back().x, opacityPoints.back().x));
+
+    // Make sure the extreme points are defined for 0 and 1
+    if (valueRange.lower < colorPoints.front().x) {
+      const auto &front = colorPoints.front();
+      colorPoints.insert(
+          colorPoints.begin(), {valueRange.lower, front.y, front.z, front.w});
+    }
+    if (valueRange.upper > colorPoints.back().x) {
+      const auto &back = colorPoints.back();
+      colorPoints.push_back({valueRange.upper, back.y, back.z, back.w});
+    }
+    if (valueRange.lower < opacityPoints.front().x) {
+      opacityPoints.insert(opacityPoints.begin(),
+          {valueRange.lower, opacityPoints.front().y});
+    }
+    if (valueRange.upper > opacityPoints.back().x) {
+      opacityPoints.push_back({valueRange.upper, opacityPoints.back().y});
+    }
+
+    // And normalize to [0, 1]
+    const float normalizer = 1.0f / (valueRange.upper - valueRange.lower);
+    for (auto &c : colorPoints)
+      c.x = (c.x - valueRange.lower) * normalizer;
+    for (auto &o : opacityPoints)
+      o.x = (o.x - valueRange.lower) * normalizer;
+
+    return {colorPoints, opacityPoints, valueRange};
+  }
+}
+
+core::TransferFunction importTransferFunction(const std::string &filepath)
+{
+  auto ext = extensionOf(filepath);
+
+  // Convert extension to lowercase for comparison
+  std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+  if (ext == ".1dt") {
+    return import1dtTransferFunction(filepath);
+  } else if (ext == ".json") {
+    return importParaViewTransferFunction(filepath);
+  }
+
+  logError(
+      "[importTransferFunction] Unsupported file extension: %s", ext.c_str());
+  return {};
 }
 
 } // namespace tsd::io
