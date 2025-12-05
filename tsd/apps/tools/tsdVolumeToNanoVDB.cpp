@@ -143,7 +143,7 @@ int main(int argc, const char *argv[])
     return 1;
   }
 
-  tsd::io::export_StructuredRegularVolumeToVDB(spatialField,
+  tsd::io::export_StructuredRegularVolumeToNanoVDB(spatialField,
       outputFile->c_str(),
       undefinedValue.has_value(),
       undefinedValue.value_or(0.0f),

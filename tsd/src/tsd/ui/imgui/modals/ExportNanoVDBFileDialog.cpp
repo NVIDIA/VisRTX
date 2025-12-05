@@ -8,9 +8,8 @@
 
 // tsd_io
 #include "tsd/io/serialization.hpp"
-#include "tsd/io/serialization.hpp"
 
-//tsd ui
+// tsd ui
 #include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/modals/BlockingTaskModal.h"
 
@@ -62,7 +61,7 @@ void ExportNanoVDBFileDialog::buildUI()
 
   // Undefined value parameters
   ImGui::Checkbox("Enable undefined value", &m_enableUndefinedValue);
-  
+
   if (m_enableUndefinedValue) {
     ImGui::InputFloat("Undefined value", &m_undefinedValue);
   }
@@ -70,14 +69,12 @@ void ExportNanoVDBFileDialog::buildUI()
   ImGui::NewLine();
 
   // Quantization precision
-  const char* precisionItems[] = {
-    "Float32 (no compression)",
-    "Fp4 (~8:1 compression)",
-    "Fp8 (~4:1 compression)",
-    "Fp16 (~2:1 compression, recommended)",
-    "FpN (variable compression)",
-    "Half (IEEE 16-bit)"
-  };
+  const char *precisionItems[] = {"Float32 (no compression)",
+      "Fp4 (~8:1 compression)",
+      "Fp8 (~4:1 compression)",
+      "Fp16 (~2:1 compression, recommended)",
+      "FpN (variable compression)",
+      "Half (IEEE 16-bit)"};
   ImGui::Combo("Precision", &m_precisionIndex, precisionItems, 6);
 
   // Dithering
@@ -98,18 +95,22 @@ void ExportNanoVDBFileDialog::buildUI()
       auto *core = appCore();
       auto selectedObject = core->tsd.selectedObject;
       if (!selectedObject) {
-        core::logError("[ExportVDBFileDialog] No object selected for VDB export.");
+        core::logError(
+            "[ExportVDBFileDialog] No object selected for VDB export.");
         return;
       }
 
-      if (selectedObject->subtype() != core::tokens::volume::transferFunction1D) {
+      if (selectedObject->subtype()
+          != core::tokens::volume::transferFunction1D) {
         core::logError(
             "[ExportVDBFileDialog] Selected object is not a transfer function 1D.");
         return;
       }
       auto spatialFieldObject = selectedObject->parameterValueAsObject("value");
 
-      if (!spatialFieldObject || !spatialFieldObject->subtype() == core::tokens::volume::structuredRegular) {
+      if (!spatialFieldObject
+          || !spatialFieldObject->subtype()
+              == core::tokens::volume::structuredRegular) {
         core::logError(
             "[ExportVDBFileDialog] Selected TransferFunction1D does not reference a structured regular volume.");
         return;
@@ -118,17 +119,31 @@ void ExportNanoVDBFileDialog::buildUI()
       // Convert precision index to enum
       io::VDBPrecision precision;
       switch (m_precisionIndex) {
-        case 0: precision = io::VDBPrecision::Float32; break;
-        case 1: precision = io::VDBPrecision::Fp4; break;
-        case 2: precision = io::VDBPrecision::Fp8; break;
-        case 3: precision = io::VDBPrecision::Fp16; break;
-        case 4: precision = io::VDBPrecision::FpN; break;
-        case 5: precision = io::VDBPrecision::Half; break;
-        default: precision = io::VDBPrecision::Fp16; break;
+      case 0:
+        precision = io::VDBPrecision::Float32;
+        break;
+      case 1:
+        precision = io::VDBPrecision::Fp4;
+        break;
+      case 2:
+        precision = io::VDBPrecision::Fp8;
+        break;
+      case 3:
+        precision = io::VDBPrecision::Fp16;
+        break;
+      case 4:
+        precision = io::VDBPrecision::FpN;
+        break;
+      case 5:
+        precision = io::VDBPrecision::Half;
+        break;
+      default:
+        precision = io::VDBPrecision::Fp16;
+        break;
       }
 
-      io::export_StructuredRegularVolumeToVDB(
-          static_cast<const core::SpatialField*>(spatialFieldObject),
+      io::export_StructuredRegularVolumeToNanoVDB(
+          static_cast<const core::SpatialField *>(spatialFieldObject),
           m_filename.c_str(),
           m_enableUndefinedValue,
           m_undefinedValue,
