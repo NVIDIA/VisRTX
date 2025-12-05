@@ -101,6 +101,13 @@ void setLogToStdout()
   });
 }
 
+void setLogToStderr()
+{
+  setLoggingCallback([](LogLevel level, std::string message) {
+    fmt::print(stderr, "{}", message);
+  });
+}
+
 void setNoLogging()
 {
   g_loggingCallback = {};

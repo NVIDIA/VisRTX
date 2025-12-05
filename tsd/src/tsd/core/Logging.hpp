@@ -32,6 +32,7 @@ using LoggingCallback = std::function<void(LogLevel, std::string)>;
 
 void setLoggingCallback(LoggingCallback cb);
 void setLogToStdout();
+void setLogToStderr();
 void setNoLogging();
 
 } // namespace tsd::core
