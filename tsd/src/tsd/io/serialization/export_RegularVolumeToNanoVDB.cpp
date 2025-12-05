@@ -27,7 +27,9 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
     math::int3 dims,
     std::string_view outputFilename,
     bool useUndefinedValue,
-    float undefinedValue)
+    float undefinedValue,
+    VDBPrecision precision,
+    bool enableDithering)
 {
   tsd::core::logStatus(
       "[export_StructuredRegularVolumeToVDB] Volume dimensions: %u x %u x %u",
@@ -105,23 +107,133 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
     }
   }
 
-  // Convert build grid to NanoVDB grid
-  auto handle = nanovdb::tools::createNanoGrid(
-      *buildGrid, nanovdb::tools::StatsMode::All, nanovdb::CheckMode::Full);
+  // Calculate inactive cell compression (before quantization) and value range
+  auto totalVoxelsCount = static_cast<size_t>(dims.x) * dims.y * dims.z;
+  size_t activeVoxelsCount = 0;
+  float minVal = std::numeric_limits<float>::max();
+  float maxVal = std::numeric_limits<float>::lowest();
 
-  const auto activeVoxelsCount = handle.gridMetaData()->activeVoxelCount();
-  const auto totalVoxelsCount = handle.gridMetaData()->indexBBox().volume();
+  // Count active voxels and compute value range by checking what was set
+  auto acc_check = buildGrid->getAccessor();
+  for (size_t k = 0; k < dims.z; ++k) {
+    for (size_t j = 0; j < dims.y; ++j) {
+      for (size_t i = 0; i < dims.x; ++i) {
+        nanovdb::Coord ijk(
+            static_cast<int>(i), static_cast<int>(j), static_cast<int>(k));
+        if (acc_check.isValueOn(ijk)) {
+          activeVoxelsCount++;
+          float val = acc_check.getValue(ijk);
+          minVal = std::min(minVal, val);
+          maxVal = std::max(maxVal, val);
+        }
+      }
+    }
+  }
+
+  size_t uncompressedSize = sizeof(T) * totalVoxelsCount;
+  size_t uncompressedActiveSize =
+      sizeof(float) * activeVoxelsCount; // Build grid uses float
+  float inactiveCellCompression = activeVoxelsCount > 0
+      ? (1.0f - static_cast<float>(activeVoxelsCount) / totalVoxelsCount)
+      : 0.0f;
 
   tsd::core::logStatus(
-      "[export_StructuredRegularVolumeToVDB] Populated grid: %zu/%zu active voxels",
+      "[export_StructuredRegularVolumeToVDB] Active voxels: %zu/%zu (%.1f%% inactive cell compression)",
       activeVoxelsCount,
-      totalVoxelsCount);
+      totalVoxelsCount,
+      inactiveCellCompression * 100.0f);
+
+  float valueRange = (activeVoxelsCount > 0) ? (maxVal - minVal) : 0.0f;
+
+  // Validate quantization choice
+  if (precision == VDBPrecision::Fp4 && valueRange > 30.0f) {
+    tsd::core::logWarning(
+        "[export_StructuredRegularVolumeToVDB] Fp4 quantization with value range %.2f may introduce significant error (recommended < 30.0)",
+        valueRange);
+  } else if (precision == VDBPrecision::Fp8 && valueRange > 500.0f) {
+    tsd::core::logWarning(
+        "[export_StructuredRegularVolumeToVDB] Fp8 quantization with value range %.2f may introduce significant error (recommended < 500.0)",
+        valueRange);
+  }
+
+  // Convert build grid to NanoVDB grid with quantization
+  nanovdb::GridHandle<> handle;
+
+  switch (precision) {
+  case VDBPrecision::Float32:
+    handle = nanovdb::tools::createNanoGrid(
+        *buildGrid, nanovdb::tools::StatsMode::All, nanovdb::CheckMode::Full);
+    break;
+  case VDBPrecision::Fp4:
+    handle = nanovdb::tools::createNanoGrid<nanovdb::tools::build::Grid<float>,
+        nanovdb::Fp4>(*buildGrid,
+        nanovdb::tools::StatsMode::All,
+        nanovdb::CheckMode::Full,
+        0,
+        enableDithering);
+    break;
+  case VDBPrecision::Fp8:
+    handle = nanovdb::tools::createNanoGrid<nanovdb::tools::build::Grid<float>,
+        nanovdb::Fp8>(*buildGrid,
+        nanovdb::tools::StatsMode::All,
+        nanovdb::CheckMode::Full,
+        0,
+        enableDithering);
+    break;
+  case VDBPrecision::Fp16:
+    handle = nanovdb::tools::createNanoGrid<nanovdb::tools::build::Grid<float>,
+        nanovdb::Fp16>(*buildGrid,
+        nanovdb::tools::StatsMode::All,
+        nanovdb::CheckMode::Full,
+        0,
+        enableDithering);
+    break;
+  case VDBPrecision::FpN:
+    handle = nanovdb::tools::createNanoGrid<nanovdb::tools::build::Grid<float>,
+        nanovdb::FpN>(*buildGrid,
+        nanovdb::tools::StatsMode::All,
+        nanovdb::CheckMode::Full,
+        0,
+        enableDithering,
+        nanovdb::tools::AbsDiff());
+    break;
+  case VDBPrecision::Half:
+    tsd::core::logWarning(
+        "[export_StructuredRegularVolumeToVDB] Half precision not supported in this NanoVDB build, using Fp16 instead");
+    handle = nanovdb::tools::createNanoGrid<nanovdb::tools::build::Grid<float>,
+        nanovdb::Fp16>(*buildGrid,
+        nanovdb::tools::StatsMode::All,
+        nanovdb::CheckMode::Full,
+        0,
+        enableDithering);
+    break;
+  }
 
   if (!handle) {
     tsd::core::logError(
         "[export_StructuredRegularVolumeToVDB] Failed to create NanoVDB grid.");
     return;
   }
+
+  // Calculate quantization compression (after quantization)
+  size_t finalSize = handle.size();
+  float quantizationCompression = uncompressedActiveSize > 0
+      ? (1.0f - static_cast<float>(finalSize) / uncompressedActiveSize)
+      : 0.0f;
+  float totalCompression = uncompressedSize > 0
+      ? (1.0f - static_cast<float>(finalSize) / uncompressedSize)
+      : 0.0f;
+
+  tsd::core::logStatus(
+      "[export_StructuredRegularVolumeToVDB] Quantization compression: %.1f%% (%.2f MB -> %.2f MB)",
+      quantizationCompression * 100.0f,
+      uncompressedActiveSize / (1024.0f * 1024.0f),
+      finalSize / (1024.0f * 1024.0f));
+  tsd::core::logStatus(
+      "[export_StructuredRegularVolumeToVDB] Total compression: %.1f%% (%.2f MB -> %.2f MB)",
+      totalCompression * 100.0f,
+      uncompressedSize / (1024.0f * 1024.0f),
+      finalSize / (1024.0f * 1024.0f));
 
   // Write to file
   try {
@@ -140,7 +252,9 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
 void export_StructuredRegularVolumeToVDB(const SpatialField *spatialField,
     std::string_view outputFilename,
     bool useUndefinedValue,
-    float undefinedValue)
+    float undefinedValue,
+    VDBPrecision precision,
+    bool enableDithering)
 {
   if (spatialField->subtype() != tokens::volume::structuredRegular) {
     tsd::core::logError(
@@ -178,7 +292,9 @@ void export_StructuredRegularVolumeToVDB(const SpatialField *spatialField,
         dims,
         outputFilename,
         useUndefinedValue,
-        undefinedValue);
+        undefinedValue,
+        precision,
+        enableDithering);
     break;
   case ANARI_FIXED8:
     doExportStructuredRegularVolumeToNanoVDB(
@@ -188,7 +304,9 @@ void export_StructuredRegularVolumeToVDB(const SpatialField *spatialField,
         dims,
         outputFilename,
         useUndefinedValue,
-        undefinedValue);
+        undefinedValue,
+        precision,
+        enableDithering);
     break;
   case ANARI_UFIXED16:
     doExportStructuredRegularVolumeToNanoVDB(
@@ -198,7 +316,9 @@ void export_StructuredRegularVolumeToVDB(const SpatialField *spatialField,
         dims,
         outputFilename,
         useUndefinedValue,
-        undefinedValue);
+        undefinedValue,
+        precision,
+        enableDithering);
     break;
   case ANARI_FIXED16:
     doExportStructuredRegularVolumeToNanoVDB(
@@ -208,7 +328,9 @@ void export_StructuredRegularVolumeToVDB(const SpatialField *spatialField,
         dims,
         outputFilename,
         useUndefinedValue,
-        undefinedValue);
+        undefinedValue,
+        precision,
+        enableDithering);
     break;
   case ANARI_FLOAT32:
     doExportStructuredRegularVolumeToNanoVDB(
@@ -218,7 +340,9 @@ void export_StructuredRegularVolumeToVDB(const SpatialField *spatialField,
         dims,
         outputFilename,
         useUndefinedValue,
-        undefinedValue);
+        undefinedValue,
+        precision,
+        enableDithering);
     break;
   case ANARI_FLOAT64:
     doExportStructuredRegularVolumeToNanoVDB(
@@ -228,7 +352,9 @@ void export_StructuredRegularVolumeToVDB(const SpatialField *spatialField,
         dims,
         outputFilename,
         useUndefinedValue,
-        undefinedValue);
+        undefinedValue,
+        precision,
+        enableDithering);
     break;
   default:
     tsd::core::logError(

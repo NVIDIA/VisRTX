@@ -69,6 +69,22 @@ void ExportNanoVDBFileDialog::buildUI()
 
   ImGui::NewLine();
 
+  // Quantization precision
+  const char* precisionItems[] = {
+    "Float32 (no compression)",
+    "Fp4 (~8:1 compression)",
+    "Fp8 (~4:1 compression)",
+    "Fp16 (~2:1 compression, recommended)",
+    "FpN (variable compression)",
+    "Half (IEEE 16-bit)"
+  };
+  ImGui::Combo("Precision", &m_precisionIndex, precisionItems, 6);
+
+  // Dithering
+  ImGui::Checkbox("Enable dithering", &m_enableDithering);
+
+  ImGui::NewLine();
+
   ImGuiIO &io = ImGui::GetIO();
   if (ImGui::Button("cancel") || ImGui::IsKeyDown(ImGuiKey_Escape))
     this->hide();
@@ -99,11 +115,25 @@ void ExportNanoVDBFileDialog::buildUI()
         return;
       }
 
+      // Convert precision index to enum
+      io::VDBPrecision precision;
+      switch (m_precisionIndex) {
+        case 0: precision = io::VDBPrecision::Float32; break;
+        case 1: precision = io::VDBPrecision::Fp4; break;
+        case 2: precision = io::VDBPrecision::Fp8; break;
+        case 3: precision = io::VDBPrecision::Fp16; break;
+        case 4: precision = io::VDBPrecision::FpN; break;
+        case 5: precision = io::VDBPrecision::Half; break;
+        default: precision = io::VDBPrecision::Fp16; break;
+      }
+
       io::export_StructuredRegularVolumeToVDB(
           static_cast<const core::SpatialField*>(spatialFieldObject),
           m_filename.c_str(),
           m_enableUndefinedValue,
-          m_undefinedValue);
+          m_undefinedValue,
+          precision,
+          m_enableDithering);
     };
 
     if (!appCore()->windows.taskModal)
