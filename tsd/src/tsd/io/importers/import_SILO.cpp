@@ -431,24 +431,17 @@ static SpatialFieldRef createFieldFromQuadMesh(Scene &scene,
 
     // Use min_index/max_index to determine real NODE bounds
     // These define the extent of real (non-ghost) nodes
-    if (mesh->min_index && mesh->max_index) {
-      for (int i = 0; i < mesh->ndims && i < 3; i++) {
-        realNodeFirst[i] = mesh->min_index[i];
-        realNodeLast[i] = mesh->max_index[i];
-      }
-      logStatus("[import_SILO] real nodes: [%d:%d, %d:%d, %d:%d]",
-          realNodeFirst.x,
-          realNodeLast.x,
-          realNodeFirst.y,
-          realNodeLast.y,
-          realNodeFirst.z,
-          realNodeLast.z);
-    } else {
-      // No min/max_index, need to scan ghost_zone_labels to find real extents
-      // For now, log a warning
-      logWarning(
-          "[import_SILO] ghost_zone_labels present but no min_index/max_index");
+    for (int i = 0; i < mesh->ndims && i < 3; i++) {
+      realNodeFirst[i] = mesh->min_index[i];
+      realNodeLast[i] = mesh->max_index[i];
     }
+    logStatus("[import_SILO] real nodes: [%d:%d, %d:%d, %d:%d]",
+        realNodeFirst.x,
+        realNodeLast.x,
+        realNodeFirst.y,
+        realNodeLast.y,
+        realNodeFirst.z,
+        realNodeLast.z);
   }
 
   // Get dimensions (only real zones)
@@ -511,55 +504,36 @@ static SpatialFieldRef createFieldFromQuadMesh(Scene &scene,
   float3 origin(0.f);
   float3 spacing(1.f);
 
-  if (mesh->coords[0]) {
-    if (mesh->datatype == DB_FLOAT) {
-      float *x = (float *)mesh->coords[0];
-      // If we have ghost zones, adjust origin to start of real data (at first
-      // real node)
-      int startIdx = hasGhostZones ? realNodeFirst.x : 0;
-      origin.x = x[startIdx];
-      if (mesh->dims[0] > 1)
-        spacing.x = x[1] - x[0];
-    } else if (mesh->datatype == DB_DOUBLE) {
-      double *x = (double *)mesh->coords[0];
-      int startIdx = hasGhostZones ? realNodeFirst.x : 0;
-      origin.x = x[startIdx];
-      if (mesh->dims[0] > 1)
-        spacing.x = x[1] - x[0];
+  // Spacing should be computed from consecutive real coordinates
+  // Our grid might be rectilinear, let's compute some average spacing
+  // that preserves the actual volume extent
+  for (int d = 0; d < 3; d++) {
+    if (mesh->coords[d]) {
+      if (mesh->datatype == DB_FLOAT) {
+        float *c = (float *)mesh->coords[d];
+        origin[d] = c[realNodeFirst[d]];
+        if (mesh->dims[d] > realNodeFirst[d])
+          spacing[d] = (c[realNodeLast[d]] - c[realNodeFirst[d]]) / dims[d];
+      } else if (mesh->datatype == DB_DOUBLE) {
+        double *c = (double *)mesh->coords[d];
+        origin[d] = c[realNodeFirst[d]];
+        if (mesh->dims[d] > realNodeFirst[d])
+          spacing[d] = (c[realNodeLast[d]] - c[realNodeFirst[d]]) / dims[d];
+      }
     }
   }
 
-  if (mesh->coords[1]) {
-    if (mesh->datatype == DB_FLOAT) {
-      float *y = (float *)mesh->coords[1];
-      int startIdx = hasGhostZones ? realNodeFirst.y : 0;
-      origin.y = y[startIdx];
-      if (mesh->dims[1] > 1)
-        spacing.y = y[1] - y[0];
-    } else if (mesh->datatype == DB_DOUBLE) {
-      double *y = (double *)mesh->coords[1];
-      int startIdx = hasGhostZones ? realNodeFirst.y : 0;
-      origin.y = y[startIdx];
-      if (mesh->dims[1] > 1)
-        spacing.y = y[1] - y[0];
-    }
-  }
-
-  if (mesh->ndims > 2 && mesh->coords[2]) {
-    if (mesh->datatype == DB_FLOAT) {
-      float *z = (float *)mesh->coords[2];
-      int startIdx = hasGhostZones ? realNodeFirst.z : 0;
-      origin.z = z[startIdx];
-      if (mesh->dims[2] > 1)
-        spacing.z = z[1] - z[0];
-    } else if (mesh->datatype == DB_DOUBLE) {
-      double *z = (double *)mesh->coords[2];
-      int startIdx = hasGhostZones ? realNodeFirst.z : 0;
-      origin.z = z[startIdx];
-      if (mesh->dims[2] > 1)
-        spacing.z = z[1] - z[0];
-    }
-  }
+  logStatus(
+      "[import_SILO] extent: [%.9f, %.9f, %.9f ; %.9f, %.9f, %.9f] spacing: [%.9f, %.9f, %.9f]",
+      origin.x,
+      origin.y,
+      origin.z,
+      origin.x + spacing.x * dims.x,
+      origin.y + spacing.y * dims.y,
+      origin.z + spacing.z * dims.z,
+      spacing.x,
+      spacing.y,
+      spacing.z);
 
   field->setParameter("origin", origin);
   field->setParameter("spacing", spacing);
@@ -960,33 +934,46 @@ static SpatialFieldRef import_SILO_multiMesh(Scene &scene,
         qm = DBGetQuadmesh(blockDbfile, qv->meshname);
 
         if (qm) {
-          // Get spacing (assume uniform)
+          // Get real node bounds (accounting for ghost zones)
+          int3 realNodeFirst(0, 0, 0);
+          int3 realNodeLast(qm->dims[0] - 1, qm->dims[1] - 1, qm->dims[2] - 1);
+
+          if (qm->ghost_zone_labels) {
+            for (int j = 0; j < qm->ndims && j < 3; j++) {
+              realNodeFirst[j] = qm->min_index[j];
+              realNodeLast[j] = qm->max_index[j];
+            }
+          }
+
+          // Get spacing from the first real block
           if (firstBlock) {
-            if (qm->coords[0] && qm->dims[0] > 1) {
+            // Compute spacing from consecutive real coordinates
+            if (qm->coords[0] && qm->dims[0] > realNodeFirst.x + 1) {
               if (qm->datatype == DB_FLOAT) {
                 float *x = (float *)qm->coords[0];
-                globalSpacing.x = x[1] - x[0];
+                globalSpacing.x = x[realNodeFirst.x + 1] - x[realNodeFirst.x];
               } else if (qm->datatype == DB_DOUBLE) {
                 double *x = (double *)qm->coords[0];
-                globalSpacing.x = x[1] - x[0];
+                globalSpacing.x = x[realNodeFirst.x + 1] - x[realNodeFirst.x];
               }
             }
-            if (qm->coords[1] && qm->dims[1] > 1) {
+            if (qm->coords[1] && qm->dims[1] > realNodeFirst.y + 1) {
               if (qm->datatype == DB_FLOAT) {
                 float *y = (float *)qm->coords[1];
-                globalSpacing.y = y[1] - y[0];
+                globalSpacing.y = y[realNodeFirst.y + 1] - y[realNodeFirst.y];
               } else if (qm->datatype == DB_DOUBLE) {
                 double *y = (double *)qm->coords[1];
-                globalSpacing.y = y[1] - y[0];
+                globalSpacing.y = y[realNodeFirst.y + 1] - y[realNodeFirst.y];
               }
             }
-            if (qm->ndims > 2 && qm->coords[2] && qm->dims[2] > 1) {
+            if (qm->ndims > 2 && qm->coords[2]
+                && qm->dims[2] > realNodeFirst.z + 1) {
               if (qm->datatype == DB_FLOAT) {
                 float *z = (float *)qm->coords[2];
-                globalSpacing.z = z[1] - z[0];
+                globalSpacing.z = z[realNodeFirst.z + 1] - z[realNodeFirst.z];
               } else if (qm->datatype == DB_DOUBLE) {
                 double *z = (double *)qm->coords[2];
-                globalSpacing.z = z[1] - z[0];
+                globalSpacing.z = z[realNodeFirst.z + 1] - z[realNodeFirst.z];
               }
             }
             if (!isDerivedField) {
@@ -995,18 +982,8 @@ static SpatialFieldRef import_SILO_multiMesh(Scene &scene,
             firstBlock = false;
           }
 
-          // Get real node bounds (accounting for ghost zones)
-          int3 realNodeFirst(0, 0, 0);
-          int3 realNodeLast(qm->dims[0] - 1, qm->dims[1] - 1, qm->dims[2] - 1);
-
-          if (qm->ghost_zone_labels && qm->min_index && qm->max_index) {
-            for (int j = 0; j < qm->ndims && j < 3; j++) {
-              realNodeFirst[j] = qm->min_index[j];
-              realNodeLast[j] = qm->max_index[j];
-            }
-          }
-
           // Calculate origin and extents
+          // The origin is at the first real node, use realNodeFirst as index
           float3 blockOrigin(0.f);
           if (qm->coords[0]) {
             if (qm->datatype == DB_FLOAT)
@@ -1545,27 +1522,27 @@ SpatialFieldRef import_SILO(Scene &scene, const char *filepath)
   return field;
 }
 
-void import_SILO(Scene &scene, const char *filename, LayerNodeRef location) {
+void import_SILO(Scene &scene, const char *filename, LayerNodeRef location)
+{
   SpatialFieldRef field = import_SILO(scene, filename);
   if (field) {
-      // Create one transform node for the unified volume
-      auto tx = scene.insertChildTransformNode(location);
-  
+    // Create one transform node for the unified volume
+    auto tx = scene.insertChildTransformNode(location);
+
     // Create shared color map
-      auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, 256);
-      colorArray->setData(makeDefaultColorMap(colorArray->size()).data());
+    auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, 256);
+    colorArray->setData(makeDefaultColorMap(colorArray->size()).data());
 
     auto valueRange = field->computeValueRange();
 
     auto [inst, volume] = scene.insertNewChildObjectNode<Volume>(
-          tx, tokens::volume::transferFunction1D);
-      volume->setName(fileOf(filename).c_str());
-      volume->setParameterObject("value", *field);
-      volume->setParameterObject("color", *colorArray);
-      volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-    }
+        tx, tokens::volume::transferFunction1D);
+    volume->setName(fileOf(filename).c_str());
+    volume->setParameterObject("value", *field);
+    volume->setParameterObject("color", *colorArray);
+    volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+  }
 }
-
 
 #else
 
@@ -1576,8 +1553,9 @@ SpatialFieldRef import_SILO(Scene &scene, const char *filepath)
   return {};
 }
 
-void import_SILO(Scene &scene, const char *filename, LayerNodeRef location) {
- logError("[import_SILO] Silo support not enabled in this build");
+void import_SILO(Scene &scene, const char *filename, LayerNodeRef location)
+{
+  logError("[import_SILO] Silo support not enabled in this build");
 }
 
 #endif
