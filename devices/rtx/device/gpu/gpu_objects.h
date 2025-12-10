@@ -415,7 +415,7 @@ struct StructuredRegularData
 {
   cudaTextureObject_t texObj;
   vec3 origin;
-  vec3 spacing;
+  vec3 invDims;
   vec3 invSpacing;
 };
 

@@ -391,9 +391,6 @@ VISRTX_DEVICE void populateVolumeHit(VolumeHit &hit)
   hit.volume = &ray::volumeData(fd);
   hit.instance = &ivd;
 
-  hit.lastVolID = ray::objID();
-  hit.lastInstID = ray::instID();
-
   const auto ro = optixGetWorldRayOrigin();
   hit.localRay.org = make_vec3(optixTransformPointFromWorldToObjectSpace(ro));
   hit.localRay.dir = ray::volume_local_direction();

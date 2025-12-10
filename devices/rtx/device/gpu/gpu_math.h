@@ -143,11 +143,10 @@ struct SurfaceHit
 
 struct VolumeHit
 {
-  Ray localRay;
   const VolumeGPUData *volume{nullptr};
   const InstanceVolumeGPUData *instance{nullptr};
-  uint32_t lastVolID{~0u};
-  uint32_t lastInstID{~0u};
+  Ray localRay;
+
   bool foundHit;
 };
 

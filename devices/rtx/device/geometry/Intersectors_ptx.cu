@@ -31,6 +31,7 @@
 
 #include "gpu/gpu_math.h"
 #include "gpu/shading_api.h"
+
 // glm
 #include <glm/gtx/norm.hpp>
 #ifdef VISRTX_USE_NEURAL
@@ -245,35 +246,6 @@ VISRTX_DEVICE void intersectCone(const GeometryGPUData &geometryData)
   }
 }
 
-VISRTX_DEVICE void intersectVolume()
-{
-  auto &hit = ray::rayData<VolumeHit>();
-  if (hit.lastVolID == ray::objID() && hit.lastInstID == ray::instID())
-    return;
-
-  const auto &ss = ray::screenSample();
-  const auto &frameData = *ss.frameData;
-  const auto &volumeData = ray::volumeData(frameData);
-
-  const auto &bounds = volumeData.bounds;
-  const vec3 mins =
-      (bounds.lower - ray::localOrigin()) * (1.f / ray::localDirection());
-  const vec3 maxs =
-      (bounds.upper - ray::localOrigin()) * (1.f / ray::localDirection());
-  const vec3 nears = glm::min(mins, maxs);
-  const vec3 fars = glm::max(mins, maxs);
-
-  box1 t(glm::compMax(nears), glm::compMin(fars));
-
-  if (t.lower < t.upper) {
-    const box1 rayt{ray::tmin(), ray::tmax()};
-    t.lower = clamp(t.lower, rayt);
-    t.upper = clamp(t.upper, rayt);
-    reportIntersectionVolume(t);
-  }
-}
-
-#ifdef VISRTX_USE_NEURAL
 VISRTX_DEVICE bool rayBoxIntersection(
     const vec3 &ro, const vec3 &rd, const box3 &bounds, float &t0, float &t1)
 {
@@ -283,8 +255,25 @@ VISRTX_DEVICE bool rayBoxIntersection(
   const vec3 fars = max(mins, maxs);
   t0 = max(nears.x, max(nears.y, nears.z));
   t1 = min(fars.x, min(fars.y, fars.z));
+
   return t0 < t1;
 }
+
+VISRTX_DEVICE void intersectVolume()
+{
+  const auto &ss = ray::screenSample();
+  const auto &frameData = *ss.frameData;
+  const auto &volumeData = ray::volumeData(frameData);
+
+  if (box1 t; rayBoxIntersection(ray::localOrigin(), ray::localDirection(), volumeData.bounds, t.lower, t.upper))  {
+    t.lower = std::max(t.lower, ray::tmin());
+    if (ray::tmin() < t.upper) {
+      reportIntersectionVolume(t);
+    }
+  }
+}
+
+#ifdef VISRTX_USE_NEURAL
 
 VISRTX_DEVICE __half relu(__half x)
 {
