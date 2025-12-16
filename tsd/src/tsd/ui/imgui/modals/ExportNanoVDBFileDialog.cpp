@@ -109,8 +109,8 @@ void ExportNanoVDBFileDialog::buildUI()
       auto spatialFieldObject = selectedObject->parameterValueAsObject("value");
 
       if (!spatialFieldObject
-          || !spatialFieldObject->subtype()
-              == core::tokens::volume::structuredRegular) {
+          || spatialFieldObject->subtype()
+              != core::tokens::volume::structuredRegular) {
         core::logError(
             "[ExportVDBFileDialog] Selected TransferFunction1D does not reference a structured regular volume.");
         return;
@@ -155,7 +155,7 @@ void ExportNanoVDBFileDialog::buildUI()
       doExport();
     else {
       appCore()->windows.taskModal->activate(
-          doExport, "Please Wait: Importing Data...");
+          doExport, "Please Wait: Exporting to NanoVDB...");
     }
   }
 }

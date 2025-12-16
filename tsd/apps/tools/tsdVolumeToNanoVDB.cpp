@@ -63,14 +63,14 @@ int main(int argc, const char *argv[])
 
     if (arg == "--undefined" || arg == "-u") {
       if (i + 1 >= argc) {
-        tsd::core::logError("Option {} requires a value", arg);
+        tsd::core::logError("Option %s requires a value", std::string(arg).c_str());
         printUsage(argv[0]);
         return 1;
       }
       try {
         undefinedValue = std::stof(std::string(argv[++i]));
       } catch (const std::exception &e) {
-        tsd::core::logError("Invalid undefined value: {}", argv[i]);
+        tsd::core::logError("Invalid undefined value: %s", std::string(argv[i] ).c_str());
         printUsage(argv[0]);
         return 1;
       }
@@ -94,7 +94,7 @@ int main(int argc, const char *argv[])
       } else if (precStr == "float32") {
         precision = tsd::io::VDBPrecision::Float32;
       } else {
-        tsd::core::logError("Unknown precision type: %s", precStr);
+        tsd::core::logError("Unknown precision type: %s", std::string(precStr).c_str());
         printUsage(argv[0]);
         return 1;
       }
@@ -106,12 +106,12 @@ int main(int argc, const char *argv[])
       } else if (!outputFile) {
         outputFile = std::string(arg);
       } else {
-        tsd::core::logError("Unexpected positional argument: {}", arg);
+        tsd::core::logError("Unexpected positional argument: %s", std::string(arg).c_str());
         printUsage(argv[0]);
         return 1;
       }
     } else {
-      tsd::core::logError("Unknown option: {}", arg);
+      tsd::core::logError("Unknown option: %s", std::string(arg).c_str());
       printUsage(argv[0]);
       return 1;
     }
@@ -125,7 +125,7 @@ int main(int argc, const char *argv[])
 
   tsd::core::setLogToStdout();
 
-  tsd::core::logStatus("Loading volume from: {}", *inputFile);
+  tsd::core::logStatus("Loading volume from: %s", inputFile->c_str());
 
   tsd::core::Scene scene;
   auto volume = tsd::io::import_volume(scene, inputFile->c_str());

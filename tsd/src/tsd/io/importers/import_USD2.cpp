@@ -395,8 +395,7 @@ void import_USD2(Scene &scene,
 #else
 void import_USD2(Scene &scene,
     const char *filename,
-    LayerNodeRef location,
-    bool useDefaultMaterial)
+    LayerNodeRef location)
 {
   tsd::core::logError("[import_USD2] USD not enabled in TSD build.");
 }
