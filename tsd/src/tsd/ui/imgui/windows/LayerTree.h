@@ -30,6 +30,12 @@ struct LayerTree : public Window
       tsd::core::Layer &layer,
       const tsd::core::LayerNodeRef &anchor,
       const tsd::core::LayerNodeRef &target);
+  
+  std::vector<tsd::core::LayerNodeRef> copyNodesTo(
+      tsd::core::LayerNodeRef targetParent,
+      const std::vector<tsd::core::LayerNodeRef>& sourceNodes,
+      bool cutOperation
+  );
 
   // Data //
 

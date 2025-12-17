@@ -171,6 +171,10 @@ void LayerTree::buildUI_tree()
     // to track if children are also disabled:
     const void *firstDisabledNode = nullptr;
 
+    // Track dropped nodes to defer processing until after tree is built
+    tsd::core::LayerNodeRef dragAndDropTarget = {};
+    std::vector<tsd::core::LayerNodeRef> droppedNodes;
+
     m_needToTreePop.clear();
     m_needToTreePop.resize(layer.capacity(), false);
     auto onNodeEntryBuildUI = [&](auto &node, int level) {
@@ -290,7 +294,8 @@ void LayerTree::buildUI_tree()
         ImGuiIO &io = ImGui::GetIO();
         bool ctrlPressed = io.KeyCtrl;
         bool shiftPressed = io.KeyShift;
-        
+        bool isAlreadySelected = appCore()->isSelected(clickedNode);
+
         if (ctrlPressed) {
           // Toggle selection
           if (appCore()->isSelected(clickedNode)) {
@@ -311,11 +316,72 @@ void LayerTree::buildUI_tree()
             appCore()->addToSelection(clickedNode);
             m_anchorNode = clickedNode;
           }
-        } else {
-          // Replace selection
+        } else if (!isAlreadySelected) {
+          // Normal click on unselected item: replace selection immediately
           appCore()->setSelected(clickedNode);
+          // Update anchor to the clicked node
           m_anchorNode = clickedNode;
         }
+        // If clicking on already selected item without modifiers, defer
+        // selection change to allow drag and drop. Selection will be updated on
+        // mouse release if no drag occurred.
+      }
+
+      // Drag and drop source
+      if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
+        // Get parent-only nodes from the selection
+        auto draggedNodes = appCore()->getParentOnlySelectedNodes();
+
+        // ImGui owns the payload memory
+        ImGui::SetDragDropPayload("LAYER_TREE_NODE",
+            data(draggedNodes),
+            sizeof(tsd::core::LayerNodeRef) * size(draggedNodes));
+
+        // Display drag tooltip - Ctrl key switches between move and copy
+        ImGuiIO &io = ImGui::GetIO();
+        const char *operation = io.KeyCtrl ? "copy:" : "move:";
+        if (size(draggedNodes) == 1) {
+          ImGui::Text("%s %s", operation, (*draggedNodes[0])->name().c_str());
+        } else {
+          ImGui::Text("%s %zu nodes", operation, size(draggedNodes));
+        }
+
+        ImGui::EndDragDropSource();
+      } else {
+        // Handle deferred selection: if mouse is released on a selected item
+        // without dragging
+        if (ImGui::IsItemHovered()
+            && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
+            && m_menuNode == TSD_INVALID_INDEX) {
+          auto clickedNode = layer.at(node.index());
+          ImGuiIO &io = ImGui::GetIO();
+          bool isAlreadySelected = appCore()->isSelected(clickedNode);
+
+          // Only update selection if clicking on already-selected item without
+          // modifiers
+          if (isAlreadySelected && !io.KeyCtrl && !io.KeyShift) {
+            appCore()->setSelected(clickedNode);
+            m_anchorNode = clickedNode;
+          }
+        }
+      }
+
+      // Drag and drop target
+      if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload *payload =
+                ImGui::AcceptDragDropPayload("LAYER_TREE_NODE")) {
+          dragAndDropTarget = layer.at(node.index());
+          if (!dragAndDropTarget.valid())
+            dragAndDropTarget = layer.root();
+
+          auto *nodes = (tsd::core::LayerNodeRef *)payload->Data;
+          size_t count = payload->DataSize / sizeof(tsd::core::LayerNodeRef);
+          droppedNodes.assign(nodes, nodes + count);
+
+          // Actual drop handling is deferred until after tree traversal
+        }
+
+        ImGui::EndDragDropTarget();
       }
 
       if (strongHighlight || lightHighlight)
@@ -337,6 +403,29 @@ void LayerTree::buildUI_tree()
 
     layer.traverse(layer.root(), onNodeEntryBuildUI, onNodeExitTreePop);
     ImGui::EndTable();
+
+    // Drag and drop target on the panel itself. Will drop under the root node.
+    if (ImGui::BeginDragDropTarget()) {
+      if (const ImGuiPayload *payload =
+              ImGui::AcceptDragDropPayload("LAYER_TREE_NODE")) {
+        dragAndDropTarget = layer.root();
+
+        auto *nodes = (tsd::core::LayerNodeRef *)payload->Data;
+        size_t count = payload->DataSize / sizeof(tsd::core::LayerNodeRef);
+        droppedNodes.assign(nodes, nodes + count);
+
+        // Actual drop handling is deferred until after tree traversal
+      }
+      ImGui::EndDragDropTarget();
+    }
+
+    // Defered handling of the drop event
+    if (dragAndDropTarget.valid() && !droppedNodes.empty()) {
+      ImGuiIO &io = ImGui::GetIO();
+      copyNodesTo(dragAndDropTarget, droppedNodes, !io.KeyCtrl);
+
+      appCore()->tsd.scene.signalLayerChange(&layer);
+    }
   }
 }
 
@@ -685,6 +774,45 @@ void LayerTree::buildUI_setActiveLayersSceneMenus()
   } else {
     m_activeLayerMenuTriggered = false;
   }
+}
+
+std::vector<tsd::core::LayerNodeRef> LayerTree::copyNodesTo(
+    tsd::core::LayerNodeRef targetParent,
+    const std::vector<tsd::core::LayerNodeRef> &sourceNodes,
+    bool cutOperation)
+{
+  // Validate source nodes filter stashed nodes
+  std::vector<tsd::core::LayerNodeRef> validNodes;
+  for (const auto &node : sourceNodes) {
+    if (node.valid()) {
+      validNodes.push_back(node);
+    }
+  }
+
+  if (validNodes.empty())
+    return {};
+
+  auto layer = targetParent->container();
+  auto &scene = appCore()->tsd.scene;
+
+  // Copy all valid stashed nodes to target parent
+  std::vector<tsd::core::LayerNodeRef> newNodes;
+  for (const auto &node : validNodes) {
+    auto newNode = layer->copy_subtree(node, targetParent);
+    if (newNode.valid()) {
+      newNodes.push_back(newNode);
+    }
+  }
+
+  if (cutOperation) {
+    for (const auto &node : validNodes) {
+      if (node.valid()) {
+        scene.removeInstancedObject(node);
+      }
+    }
+  }
+
+  return newNodes;
 }
 
 } // namespace tsd::ui::imgui
