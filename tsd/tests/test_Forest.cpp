@@ -134,3 +134,165 @@ SCENARIO("tsd::core::Forest<> interface", "[Forest]")
     }
   }
 }
+
+SCENARIO("tsd::core::Forest<> reparent operations", "[Forest]")
+{
+  GIVEN("A Forest with a hierarchical structure")
+  {
+    tsd::core::Forest<int> f{0}; // root = 0
+    auto child1 = f.insert_last_child(f.root(), 1);
+    auto child2 = f.insert_last_child(f.root(), 2);
+    auto grandchild1 = f.insert_last_child(child1, 11);
+    auto grandchild2 = f.insert_last_child(child1, 12);
+
+    THEN("Initial structure is correct")
+    {
+      REQUIRE(f.size() == 5);
+      REQUIRE(child1->parent() == f.root());
+      REQUIRE(child2->parent() == f.root());
+      REQUIRE(grandchild1->parent() == child1);
+      REQUIRE(grandchild2->parent() == child1);
+    }
+
+    WHEN("A leaf node is reparented")
+    {
+      f.move_subtree(grandchild1, child2);
+
+      THEN("The leaf node has a new parent")
+      {
+        REQUIRE(grandchild1->parent() == child2);
+      }
+
+      THEN("The old parent no longer has this child")
+      {
+        REQUIRE(child1->next() == grandchild2);
+      }
+
+      THEN("The new parent has the child")
+      {
+        REQUIRE(child2->next() == grandchild1);
+      }
+
+      THEN("Forest size is unchanged")
+      {
+        REQUIRE(f.size() == 5);
+      }
+    }
+
+    WHEN("A node with children is reparented")
+    {
+      f.move_subtree(child1, child2);
+
+      THEN("The subtree moves together")
+      {
+        REQUIRE(child1->parent() == child2);
+        REQUIRE(grandchild1->parent() == child1);
+        REQUIRE(grandchild2->parent() == child1);
+      }
+
+      THEN("The new parent has the child")
+      {
+        REQUIRE(child2->next() == child1);
+      }
+
+      THEN("Forest size is unchanged")
+      {
+        REQUIRE(f.size() == 5);
+      }
+    }
+
+    WHEN("Attempting to reparent to a descendant")
+    {
+      f.move_subtree(child1, grandchild1);
+
+      THEN("The operation is prevented (circular dependency)")
+      {
+        REQUIRE(child1->parent() == f.root());
+        REQUIRE(grandchild1->parent() == child1);
+      }
+    }
+
+    WHEN("Attempting to reparent to the same parent")
+    {
+      f.move_subtree(child1, f.root());
+
+      THEN("The operation is a no-op")
+      {
+        REQUIRE(child1->parent() == f.root());
+        REQUIRE(f.size() == 5);
+      }
+    }
+
+    WHEN("Attempting to reparent to itself")
+    {
+      f.move_subtree(child1, child1);
+
+      THEN("The operation is prevented")
+      {
+        REQUIRE(child1->parent() == f.root());
+        REQUIRE(f.size() == 5);
+      }
+    }
+
+    WHEN("Attempting to reparent the root")
+    {
+      f.move_subtree(f.root(), child1);
+
+      THEN("The operation is prevented")
+      {
+        REQUIRE(f.root()->isRoot());
+        REQUIRE(!f.root()->parent());
+      }
+    }
+
+    WHEN("Multiple nodes are reparented in sequence")
+    {
+      f.move_subtree(grandchild1, child2);
+      f.move_subtree(grandchild2, child2);
+
+      THEN("Both nodes have the new parent")
+      {
+        REQUIRE(grandchild1->parent() == child2);
+        REQUIRE(grandchild2->parent() == child2);
+      }
+
+      THEN("The old parent has no children")
+      {
+        REQUIRE(child1->isLeaf());
+      }
+
+      THEN("Forest size is unchanged")
+      {
+        REQUIRE(f.size() == 5);
+      }
+    }
+  }
+
+  GIVEN("Edge case: null node refs")
+  {
+    tsd::core::Forest<int> f{0};
+    auto child = f.insert_last_child(f.root(), 1);
+
+    WHEN("Reparenting with null child")
+    {
+      tsd::core::ForestNodeRef<int> nullNode;
+      f.move_subtree(nullNode, child);
+
+      THEN("The operation is safely ignored")
+      {
+        REQUIRE(f.size() == 2);
+      }
+    }
+
+    WHEN("Reparenting to null parent")
+    {
+      tsd::core::ForestNodeRef<int> nullNode;
+      f.move_subtree(child, nullNode);
+
+      THEN("The operation is safely ignored")
+      {
+        REQUIRE(child->parent() == f.root());
+      }
+    }
+  }
+}

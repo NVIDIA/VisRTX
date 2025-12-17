@@ -136,6 +136,8 @@ struct Forest
 
   void erase(NodeRef n);
   void erase_subtree(NodeRef n);
+  NodeRef copy_subtree(NodeRef source, NodeRef newParent);
+  void move_subtree(NodeRef source, NodeRef newParent);
 
   // Traversal //
 
@@ -462,6 +464,81 @@ inline void Forest<T>::erase_subtree(Forest<T>::NodeRef n)
 
   n->m_children_begin = n;
   n->m_children_end = n;
+}
+
+template <typename T>
+inline typename Forest<T>::NodeRef Forest<T>::copy_subtree(
+    Forest<T>::NodeRef source, Forest<T>::NodeRef newParent)
+{
+  if (!source || !newParent)
+    return NodeRef();
+
+  if (source->isRoot())
+    return NodeRef();
+
+  if (source == newParent) {
+    newParent = newParent->parent();
+  }
+
+  auto newNode = insert_last_child(newParent, T(source->value()));
+
+  if (!source->isLeaf()) {
+    auto child = source->next();
+    while (child && child != source) {
+      copy_subtree(child, newNode);
+      child = child->sibling();
+    }
+  }
+
+  return newNode;
+}
+
+template <typename T>
+inline void Forest<T>::move_subtree(
+    Forest<T>::NodeRef source, Forest<T>::NodeRef newParent)
+{
+  if (!source || !newParent || source == newParent)
+    return;
+
+  if (source->isRoot())
+    return;
+
+  for (auto current = newParent; current; current = current->parent()) {
+    if (current == source)
+      return; // Would create a cycle
+  }
+
+  // If already a child of newParent, no-op
+  if (source->parent() == newParent)
+    return;
+
+  // Detach source from its current parent
+  // Use m_next (sibling) directly, not next() which may return first child
+  auto self = source->self();
+  auto prev = source->prev();
+  auto nextSibling = source->sibling();
+
+  const bool prevIsParent = self == prev->m_children_begin;
+  if (prevIsParent)
+    prev->m_children_begin = nextSibling;
+  else
+    prev->m_next = nextSibling;
+
+  const bool nextIsParent = self == nextSibling->m_children_end;
+  if (nextIsParent)
+    nextSibling->m_children_end = prev;
+  else
+    nextSibling->m_prev = prev;
+
+  // Attach source to newParent as last child
+  source->m_parent = newParent;
+  source->m_prev = newParent->m_children_end;
+  source->m_next = newParent->self();
+  if (newParent->isLeaf())
+    newParent->m_children_begin = source;
+  else
+    newParent->m_children_end->m_next = source;
+  newParent->m_children_end = source;
 }
 
 template <typename T>
