@@ -1512,23 +1512,23 @@ void Viewport::ui_gizmo()
       - eye;
   const float distanceToSelectedObject =
       dot(selectedObjectPos, normalize(at - eye));
-  float near = std::max(0.01f, distanceToSelectedObject * 0.001f);
+
+  float near = std::max(1e-8f, distanceToSelectedObject * 1e-2f);
+  float far = std::max(1e-6f, distanceToSelectedObject * 1e2f);
 
   if (m_currentCamera == m_perspCamera) {
-    // perspective projection matrix n = 1.0f, f = inf
     float oneOverTanFov = 1.0f / tan(fovRadians / 2.0f);
     proj = math::mat4{
-        {oneOverTanFov / aspect, 0.0f, 0.0f, 0.0f},
-        {0.0f, oneOverTanFov, 0.0f, 0.0f},
-        {0.0f, 0.0f, -1.0f, -1.0f},
-        {0.0f, 0.0f, -2.0f * near, 0.0f},
+      {oneOverTanFov / aspect, 0.0f, 0.0f, 0.0f},
+      {0.0f, oneOverTanFov, 0.0f, 0.0f},
+      {0.0f, 0.0f, -(far + near) / (far - near), -1.0f},
+      {0.0f, 0.0f, -2.0f * far * near / (far - near), 0.0f},
     };
   } else if (m_currentCamera == m_orthoCamera) {
     // The 0.75 factor is to match updateCameraParametersOrthographic
     const float height = m_arcball->distance() * 0.75f;
     const float halfHeight = height * 0.5f;
     const float halfWidth = halfHeight * aspect;
-    const float far = 100000.0f; // Cannot be infinite for ortho
     const float left = -halfWidth;
     const float right = halfWidth;
     const float bottom = -halfHeight;
