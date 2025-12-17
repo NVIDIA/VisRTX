@@ -96,8 +96,8 @@ void ImportFileDialog::buildUI()
       auto *core = appCore();
       auto &scene = core->tsd.scene;
       auto *layer = core->tsd.scene.defaultLayer();
-      auto importRoot = core->tsd.selectedNode;
-      if (!importRoot)
+      auto importRoot = core->getSelected();
+      if (!importRoot.valid())
         importRoot = layer->root();
       app::ImportFile file{
           static_cast<app::ImporterType>(m_selectedFileType), m_filename};

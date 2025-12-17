@@ -345,7 +345,8 @@ void TransferFunctionEditor::setMap(int selection)
 void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
 {
   tsd::core::Volume *selectedVolume = nullptr;
-  tsd::core::Object *selectedObject = appCore()->tsd.selectedObject;
+  auto selectedNode = appCore()->getSelected();
+  tsd::core::Object *selectedObject = selectedNode.valid() ? (*selectedNode)->getObject() : nullptr;
 
   if (!selectedVolume) {
     if (selectedObject && selectedObject->type() == ANARI_VOLUME)

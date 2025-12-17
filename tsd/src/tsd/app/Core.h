@@ -89,7 +89,6 @@ struct TSDState
 {
   tsd::core::Scene scene;
   bool sceneLoadComplete{false};
-  tsd::core::Object *selectedObject{nullptr};
   tsd::core::LayerNodeRef selectedNode;
 };
 
@@ -240,9 +239,10 @@ struct Core
 
   // Selection //
 
-  void setSelectedObject(tsd::core::Object *o);
-  void setSelectedNode(tsd::core::LayerNode &n);
-  bool objectIsSelected() const;
+  tsd::core::LayerNodeRef getSelected() const;
+  void setSelected(tsd::core::LayerNodeRef node);
+  void setSelected(const tsd::core::Object *obj);
+  bool isSelected(tsd::core::LayerNodeRef node) const;
   void clearSelected();
 
   // Camera poses //

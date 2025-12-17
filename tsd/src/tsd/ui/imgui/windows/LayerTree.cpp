@@ -151,12 +151,21 @@ void LayerTree::buildUI_tree()
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.3f, 0.3f, 1.f));
       }
 
-      const bool selected = (obj && appCore()->tsd.selectedObject == obj)
-          || (appCore()->tsd.selectedNode
-              && node == *appCore()->tsd.selectedNode);
-      if (selected) {
+      auto selectedNodeRef = appCore()->getSelected();
+      auto currentNodeRef = layer.at(node.index());
+      const bool isSelectedNode = selectedNodeRef.valid() && (currentNodeRef == selectedNodeRef);
+      const bool sameObject = selectedNodeRef.valid() && obj 
+          && (*selectedNodeRef)->getObject() == obj;
+      const bool strongHighlight = isSelectedNode 
+          && (selectedNodeRef->container() == &layer);
+      const bool lightHighlight = !isSelectedNode && sameObject 
+          && (selectedNodeRef->container() == &layer);
+
+      if (strongHighlight) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));
         node_flags |= ImGuiTreeNodeFlags_Selected;
+      } else if (lightHighlight) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 0.75f));
       }
 
       const char *nameText = "<unhandled UI node type>";
@@ -223,9 +232,9 @@ void LayerTree::buildUI_tree()
       }
 
       if (ImGui::IsItemClicked() && m_menuNode == TSD_INVALID_INDEX)
-        appCore()->setSelectedNode(node);
+        appCore()->setSelected(layer.at(node.index()));
 
-      if (selected)
+      if (strongHighlight || lightHighlight)
         ImGui::PopStyleColor(1);
 
       return open;

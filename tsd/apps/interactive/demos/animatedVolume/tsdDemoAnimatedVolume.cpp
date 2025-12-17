@@ -79,12 +79,12 @@ class Application : public TSDApplication
     volume->setParameterObject("value", *field);
     volume->setParameterObject("color", *colorArray);
 
-    scene.defaultLayer()->root()->insert_first_child(
+    auto volumeNode = scene.defaultLayer()->root()->insert_first_child(
         {ANARI_VOLUME, volume.index(), &core->tsd.scene});
 
     // Setup app //
 
-    core->tsd.selectedObject = volume.data();
+    core->setSelected(volumeNode);
 
     tsd::core::logStatus(
         "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());

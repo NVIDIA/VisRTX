@@ -83,7 +83,7 @@ void Viewport::buildUI()
   ui_menubar();
 
   if (m_anariPass && !didPick)
-    m_anariPass->setEnableIDs(appCore()->objectIsSelected());
+    m_anariPass->setEnableIDs(appCore()->getSelected().valid());
 
   if (m_rIdx && (m_rIdx->isFlat() != appCore()->anari.useFlatRenderIndex())) {
     tsd::core::logWarning("instancing setting changed: resetting viewport");
@@ -510,8 +510,8 @@ void Viewport::setupRenderPipeline()
         id &= 0x7FFFFFFF;
       }
 
-      appCore()->setSelectedObject(
-          id == ~0u ? nullptr : appCore()->tsd.scene.getObject(objectType, id));
+      auto *obj = (id == ~0u) ? nullptr : appCore()->tsd.scene.getObject(objectType, id);
+      appCore()->setSelected(obj);
     }
 
     m_pickPass->setEnabled(false);
@@ -596,9 +596,12 @@ void Viewport::setSelectionVisibilityFilterEnabled(bool enabled)
   if (!enabled)
     m_rIdx->setFilterFunction({});
   else {
-    m_rIdx->setFilterFunction([&](const tsd::core::Object *obj) {
-      return !appCore()->tsd.selectedObject
-          || obj == appCore()->tsd.selectedObject;
+    m_rIdx->setFilterFunction([this](const tsd::core::Object *obj) {
+      auto selectedNode = appCore()->getSelected();
+      if (!selectedNode.valid())
+        return true;
+      auto *selectedObject = (*selectedNode)->getObject();
+      return !selectedObject || obj == selectedObject;
     });
   }
 }
@@ -700,8 +703,8 @@ void Viewport::updateImage()
   anari::getProperty(
       m_device, frame, "numSamples", m_frameSamples, ANARI_NO_WAIT);
 
-  const auto &tsd_ctx = appCore()->tsd;
-  const auto *selectedObject = tsd_ctx.selectedObject;
+  auto selectedNode = appCore()->getSelected();
+  const auto *selectedObject = selectedNode.valid() ? (*selectedNode)->getObject() : nullptr;
   const bool doHighlight = !m_showOnlySelected && m_highlightSelection
       && selectedObject
       && (selectedObject->type() == ANARI_SURFACE
@@ -1453,9 +1456,9 @@ bool Viewport::canShowGizmo() const
     return false; // No gizmo with database camera
 
   // Check if we have a selected node with a transform
-  if (appCore()->tsd.selectedNode) {
-    auto &node = *appCore()->tsd.selectedNode;
-    return node->isTransform();
+  auto selectedNode = appCore()->getSelected();
+  if (selectedNode.valid()) {
+    return (*selectedNode)->isTransform();
   }
 
   return false;
@@ -1474,7 +1477,7 @@ void Viewport::ui_gizmo()
     return world;
   };
 
-  auto selectedNodeRef = appCore()->tsd.selectedNode;
+  auto selectedNodeRef = appCore()->getSelected();
   auto parentNodeRef = selectedNodeRef->parent();
 
   auto localTransform = (*selectedNodeRef)->getTransform();

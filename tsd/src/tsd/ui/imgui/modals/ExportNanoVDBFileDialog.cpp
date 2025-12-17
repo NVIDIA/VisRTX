@@ -93,7 +93,8 @@ void ExportNanoVDBFileDialog::buildUI()
 
     auto doExport = [&]() {
       auto *core = appCore();
-      auto selectedObject = core->tsd.selectedObject;
+      auto selectedNode = core->getSelected();
+      auto selectedObject = selectedNode.valid() ? (*selectedNode)->getObject() : nullptr;
       if (!selectedObject) {
         core::logError(
             "[ExportVDBFileDialog] No object selected for VDB export.");

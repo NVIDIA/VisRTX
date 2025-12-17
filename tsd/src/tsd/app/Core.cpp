@@ -499,29 +499,69 @@ void Core::setOfflineRenderingLibrary(const std::string &libName)
   anari::release(d, d);
 }
 
-void Core::setSelectedObject(tsd::core::Object *o)
+tsd::core::LayerNodeRef Core::getSelected() const
 {
-  tsd.selectedNode = {};
-  tsd.selectedObject = o;
+  return tsd.selectedNode;
+}
+
+void Core::setSelected(tsd::core::LayerNodeRef node)
+{
+  tsd.selectedNode = node;
   anari.getUpdateDelegate().signalObjectFilteringChanged();
 }
 
-void Core::setSelectedNode(tsd::core::LayerNode &n)
+void Core::setSelected(const tsd::core::Object *obj)
 {
-  setSelectedObject(n->getObject());
-  auto *layer = n.container();
-  tsd.selectedNode = layer->at(n.index());
+  if (!obj) {
+    clearSelected();
+    return;
+  }
+
+  // Search all layers for first node referencing this object
+  const auto &layers = tsd.scene.layers();
+  for (auto &&[layerTk, state] : layers) {
+    // Layer::traverse is non-const, so we need to cast away constness here
+    // This needs to be fixed at some point in the future
+    auto layer = const_cast<tsd::core::Layer *>(state.ptr.get());
+    tsd::core::LayerNodeRef foundNode;
+    layer->traverse(layer->root(), [&](auto &node, int level) {
+      if (foundNode.valid())
+        return false;
+      if (level > 0) {
+        auto *nodeObj = node->getObject();
+        if (nodeObj == obj) {
+          foundNode = layer->at(node.index());
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (foundNode.valid()) {
+      tsd::core::logStatus(
+          "[selection] Selected object %s[%zu] as node %zu on layer %s",
+          obj->name().c_str(),
+          obj->index(),
+          foundNode.index(),
+          layerTk);
+      setSelected(foundNode);
+      return;
+    }
+  }
+
+  tsd::core::logStatus(
+      "[selection] Object not found in any layer, clearing selection");
+  clearSelected();
 }
 
-bool Core::objectIsSelected() const
+bool Core::isSelected(tsd::core::LayerNodeRef node) const
 {
-  return tsd.selectedObject != nullptr;
+  return tsd.selectedNode == node;
 }
 
 void Core::clearSelected()
 {
-  if (tsd.selectedObject != nullptr || tsd.selectedNode) {
-    tsd.selectedObject = nullptr;
+  if (tsd.selectedNode.valid()) {
     tsd.selectedNode = {};
     anari.getUpdateDelegate().signalObjectFilteringChanged();
   }

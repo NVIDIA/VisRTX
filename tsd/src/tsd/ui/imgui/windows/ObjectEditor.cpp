@@ -15,7 +15,8 @@ ObjectEditor::ObjectEditor(Application *app, const char *name)
 
 void ObjectEditor::buildUI()
 {
-  if (!appCore()->tsd.selectedObject && !appCore()->tsd.selectedNode) {
+  auto selectedNode = appCore()->getSelected();
+  if (!selectedNode.valid()) {
     ImGui::Text("{no object selected}");
     return;
   }
@@ -24,53 +25,48 @@ void ObjectEditor::buildUI()
 
   auto *scene = &appCore()->tsd.scene;
 
-  if (!appCore()->tsd.selectedNode) {
-    tsd::ui::buildUI_object(
-        *appCore()->tsd.selectedObject, appCore()->tsd.scene, true);
-  } else {
-    auto &selectedNode = *appCore()->tsd.selectedNode;
+  auto &node = *selectedNode;
 
-    if (auto *selectedObject = selectedNode->getObject(); selectedObject) {
-      tsd::ui::buildUI_object(*selectedObject, appCore()->tsd.scene, true);
-    } else if (selectedNode->isTransform()) {
-      // Setup transform values //
+  if (auto *selectedObject = node->getObject(); selectedObject) {
+    tsd::ui::buildUI_object(*selectedObject, appCore()->tsd.scene, true);
+  } else if (node->isTransform()) {
+    // Setup transform values //
 
-      auto srt = selectedNode->getTransformSRT();
-      auto &sc = srt[0];
-      auto &azelrot = srt[1];
-      auto &tl = srt[2];
+    auto srt = node->getTransformSRT();
+    auto &sc = srt[0];
+    auto &azelrot = srt[1];
+    auto &tl = srt[2];
 
-      // UI widgets //
+    // UI widgets //
 
-      bool doUpdate = false;
+    bool doUpdate = false;
 
-      ImGui::BeginDisabled(selectedNode->isDefaultValue());
-      if (ImGui::Button("reset")) {
-        selectedNode->setToDefaultValue();
-        doUpdate = true;
-      }
-      ImGui::SameLine();
-      if (ImGui::Button("set default"))
-        selectedNode->setCurrentValueAsDefault();
-      ImGui::EndDisabled();
-
-      doUpdate |= ImGui::DragFloat3("scale", &sc.x);
-      doUpdate |= ImGui::SliderFloat3("rotation", &azelrot.x, 0.f, 360.f);
-      doUpdate |= ImGui::DragFloat3("translation", &tl.x);
-
-      // Handle transform update //
-
-      if (doUpdate) {
-        selectedNode->setAsTransform(srt);
-        auto *layer = selectedNode.container();
-        scene->signalLayerChange(layer);
-      }
-    } else if (!selectedNode->isEmpty()) {
-      ImGui::Text(
-          "{unhandled '%s' node}", anari::toString(selectedNode->type()));
-    } else {
-      ImGui::Text("TODO: empty node");
+    ImGui::BeginDisabled(node->isDefaultValue());
+    if (ImGui::Button("reset")) {
+      node->setToDefaultValue();
+      doUpdate = true;
     }
+    ImGui::SameLine();
+    if (ImGui::Button("set default"))
+      node->setCurrentValueAsDefault();
+    ImGui::EndDisabled();
+
+    doUpdate |= ImGui::DragFloat3("scale", &sc.x);
+    doUpdate |= ImGui::SliderFloat3("rotation", &azelrot.x, 0.f, 360.f);
+    doUpdate |= ImGui::DragFloat3("translation", &tl.x);
+
+    // Handle transform update //
+
+    if (doUpdate) {
+      node->setAsTransform(srt);
+      auto *layer = selectedNode->container();
+      scene->signalLayerChange(layer);
+    }
+  } else if (!node->isEmpty()) {
+    ImGui::Text(
+        "{unhandled '%s' node}", anari::toString(node->type()));
+  } else {
+    ImGui::Text("TODO: empty node");
   }
 
   ImGui::EndDisabled();
