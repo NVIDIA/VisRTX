@@ -87,9 +87,15 @@ struct CommandLineOptions
 
 struct TSDState
 {
+  struct StashedSelection {
+    std::vector<tsd::core::LayerNodeRef> nodes;
+    bool shouldDeleteAfterPaste{false};
+  };
+
   tsd::core::Scene scene;
   bool sceneLoadComplete{false};
   std::vector<tsd::core::LayerNodeRef> selectedNodes;
+  StashedSelection stashedSelection;
 };
 
 struct ANARIDeviceManager
