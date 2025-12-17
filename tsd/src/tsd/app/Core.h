@@ -248,6 +248,9 @@ struct Core
   void removeFromSelection(tsd::core::LayerNodeRef node);
   bool isSelected(tsd::core::LayerNodeRef node) const;
   void clearSelected();
+  
+  // Returns only parent nodes from selection (filters out children of selected nodes)
+  std::vector<tsd::core::LayerNodeRef> getParentOnlySelectedNodes() const;
 
   // Camera poses //
 

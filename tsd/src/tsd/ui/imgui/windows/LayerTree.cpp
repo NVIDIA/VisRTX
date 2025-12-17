@@ -10,8 +10,8 @@
 // tsd_app
 #include "tsd/app/Core.h"
 // tsd_ui_imgui
-#include "tsd/ui/imgui/modals/ImportFileDialog.h"
 #include "tsd/ui/imgui/modals/ExportNanoVDBFileDialog.h"
+#include "tsd/ui/imgui/modals/ImportFileDialog.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 
 namespace tsd::ui::imgui {
@@ -104,6 +104,48 @@ void LayerTree::buildUI_layerHeader()
     m_layerIdx--;
   }
   ImGui::EndDisabled();
+}
+
+std::vector<tsd::core::LayerNodeRef> LayerTree::computeSelectionRange(
+    tsd::core::Layer &layer,
+    const tsd::core::LayerNodeRef &anchor,
+    const tsd::core::LayerNodeRef &target)
+{
+  std::vector<tsd::core::LayerNodeRef> range;
+
+  if (!anchor.valid() || !target.valid()) {
+    return range;
+  }
+
+  bool foundFirst = false;
+  bool foundSecond = false;
+
+  layer.traverse(layer.root(), [&](auto &node, int level) {
+    auto nodeRef = layer.at(node.index());
+
+    // Check if this is either the anchor or target
+    if (nodeRef == anchor || nodeRef == target) {
+      if (!foundFirst) {
+        foundFirst = true;
+        range.push_back(nodeRef);
+      } else {
+        foundSecond = true;
+        range.push_back(nodeRef);
+        return false;
+      }
+    } else if (foundFirst && !foundSecond) {
+      // We're between the two boundaries
+      range.push_back(nodeRef);
+    }
+    
+    return true;
+  });
+
+  if (!foundFirst || !foundSecond) {
+    return std::vector<tsd::core::LayerNodeRef>();
+  }
+
+  return range;
 }
 
 void LayerTree::buildUI_tree()
@@ -242,8 +284,39 @@ void LayerTree::buildUI_tree()
           ImGui::SetTooltip("transform: ANARI_FLOAT32_MAT4");
       }
 
-      if (ImGui::IsItemClicked() && m_menuNode == TSD_INVALID_INDEX)
-        appCore()->setSelected(layer.at(node.index()));
+      if (ImGui::IsItemClicked() && m_menuNode == TSD_INVALID_INDEX) {
+        auto clickedNode = layer.at(node.index());
+
+        ImGuiIO &io = ImGui::GetIO();
+        bool ctrlPressed = io.KeyCtrl;
+        bool shiftPressed = io.KeyShift;
+        
+        if (ctrlPressed) {
+          // Toggle selection
+          if (appCore()->isSelected(clickedNode)) {
+            appCore()->removeFromSelection(clickedNode);
+          } else {
+            appCore()->addToSelection(clickedNode);
+          }
+          m_anchorNode = clickedNode;
+        } else if (shiftPressed) {
+          // Range selection
+          if (m_anchorNode.valid()) {
+            auto rangeNodes =
+                computeSelectionRange(layer, m_anchorNode, clickedNode);
+            if (!rangeNodes.empty()) {
+              appCore()->setSelected(rangeNodes);
+            }
+          } else {
+            appCore()->addToSelection(clickedNode);
+            m_anchorNode = clickedNode;
+          }
+        } else {
+          // Replace selection
+          appCore()->setSelected(clickedNode);
+          m_anchorNode = clickedNode;
+        }
+      }
 
       if (strongHighlight || lightHighlight)
         ImGui::PopStyleColor(1);
@@ -263,7 +336,6 @@ void LayerTree::buildUI_tree()
     };
 
     layer.traverse(layer.root(), onNodeEntryBuildUI, onNodeExitTreePop);
-
     ImGui::EndTable();
   }
 }
@@ -271,13 +343,37 @@ void LayerTree::buildUI_tree()
 void LayerTree::buildUI_activateObjectSceneMenu()
 {
   if (!m_activeLayerMenuTriggered && ImGui::IsWindowHovered()) {
+    // Check for Escape key to clear selection
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+      appCore()->clearSelected();
+    }
+
+    // Check for Delete key to delete selected nodes
+    if (ImGui::IsKeyPressed(ImGuiKey_Delete, false)) {
+      auto &scene = appCore()->tsd.scene;
+      auto parentOnlyNodes = appCore()->getParentOnlySelectedNodes();
+
+      if (!parentOnlyNodes.empty()) {
+        for (const auto &node : parentOnlyNodes) {
+          if (node.valid()) {
+            scene.removeInstancedObject(node);
+          }
+        }
+        appCore()->clearSelected();
+      }
+    }
+
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
       m_menuVisible = true;
       m_menuNode = m_hoveredNode;
       ImGui::OpenPopup("LayerTree_contextMenu_object");
     } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
         && m_hoveredNode == TSD_INVALID_INDEX) {
-      appCore()->clearSelected();
+      ImGuiIO &io = ImGui::GetIO();
+      // Only clear selection on left click if no modifiers are pressed
+      if (!io.KeyCtrl && !io.KeyShift) {
+        appCore()->clearSelected();
+      }
     }
   }
 }
@@ -475,10 +571,14 @@ void LayerTree::buildUI_objectSceneMenu()
     }
 
     if (nodeSelected) {
-      if ((*menuNode)->isObject() && (*menuNode)->getObject()->subtype() == core::tokens::volume::transferFunction1D) {
+      if ((*menuNode)->isObject()
+          && (*menuNode)->getObject()->subtype()
+              == core::tokens::volume::transferFunction1D) {
         auto tf1D = (*menuNode)->getObject();
         auto spatialFieldObject = tf1D->parameterValueAsObject("value");
-        if (spatialFieldObject && spatialFieldObject->subtype() == core::tokens::volume::structuredRegular) {
+        if (spatialFieldObject
+            && spatialFieldObject->subtype()
+                == core::tokens::volume::structuredRegular) {
           ImGui::Separator();
           if (ImGui::MenuItem("export to NanoVDB")) {
             appCore()->windows.exportNanoVDBDialog->show();
@@ -488,7 +588,18 @@ void LayerTree::buildUI_objectSceneMenu()
       ImGui::Separator();
 
       if (ImGui::MenuItem("delete selected")) {
-        if (m_menuNode != TSD_INVALID_INDEX) {
+        auto parentOnlyNodes = appCore()->getParentOnlySelectedNodes();
+
+        if (!parentOnlyNodes.empty()) {
+          for (const auto &node : parentOnlyNodes) {
+            if (node.valid()) {
+              scene.removeInstancedObject(node);
+            }
+          }
+          m_menuNode = TSD_INVALID_INDEX;
+          appCore()->clearSelected();
+        } else if (m_menuNode != TSD_INVALID_INDEX) {
+          // Fallback: delete the menu node if nothing is selected
           scene.removeInstancedObject(layer.at(m_menuNode));
           m_menuNode = TSD_INVALID_INDEX;
           appCore()->clearSelected();

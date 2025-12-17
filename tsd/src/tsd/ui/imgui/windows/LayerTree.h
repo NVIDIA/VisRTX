@@ -26,6 +26,11 @@ struct LayerTree : public Window
   void buildUI_newLayerSceneMenu();
   void buildUI_setActiveLayersSceneMenus();
 
+  std::vector<tsd::core::LayerNodeRef> computeSelectionRange(
+      tsd::core::Layer &layer,
+      const tsd::core::LayerNodeRef &anchor,
+      const tsd::core::LayerNodeRef &target);
+
   // Data //
 
   bool m_enableAddRemove{true};
@@ -36,6 +41,7 @@ struct LayerTree : public Window
   bool m_menuVisible{false};
   std::vector<int> m_needToTreePop;
   int m_layerIdx{0};
+  tsd::core::LayerNodeRef m_anchorNode;
 };
 
 } // namespace tsd::ui::imgui
