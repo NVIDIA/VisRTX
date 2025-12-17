@@ -153,13 +153,24 @@ void LayerTree::buildUI_tree()
 
       auto selectedNodeRef = appCore()->getSelected();
       auto currentNodeRef = layer.at(node.index());
-      const bool isSelectedNode = selectedNodeRef.valid() && (currentNodeRef == selectedNodeRef);
-      const bool sameObject = selectedNodeRef.valid() && obj 
-          && (*selectedNodeRef)->getObject() == obj;
-      const bool strongHighlight = isSelectedNode 
-          && (selectedNodeRef->container() == &layer);
-      const bool lightHighlight = !isSelectedNode && sameObject 
-          && (selectedNodeRef->container() == &layer);
+
+      // Check if this node is in the selection set
+      const bool isSelectedNode = appCore()->isSelected(currentNodeRef);
+
+      // Check if any selected node's object matches this node's object
+      bool sameObject = false;
+      if (obj) {
+        const auto &selectedNodes = appCore()->getSelectedNodes();
+        for (const auto &selected : selectedNodes) {
+          if (selected.valid() && (*selected)->getObject() == obj) {
+            sameObject = true;
+            break;
+          }
+        }
+      }
+
+      const bool strongHighlight = isSelectedNode;
+      const bool lightHighlight = !isSelectedNode && sameObject;
 
       if (strongHighlight) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 0.f, 1.f));

@@ -501,12 +501,26 @@ void Core::setOfflineRenderingLibrary(const std::string &libName)
 
 tsd::core::LayerNodeRef Core::getSelected() const
 {
-  return tsd.selectedNode;
+  return tsd.selectedNodes.empty() ? tsd::core::LayerNodeRef{}
+                                   : tsd.selectedNodes[0];
+}
+
+const std::vector<tsd::core::LayerNodeRef> &Core::getSelectedNodes() const
+{
+  return tsd.selectedNodes;
 }
 
 void Core::setSelected(tsd::core::LayerNodeRef node)
 {
-  tsd.selectedNode = node;
+  tsd.selectedNodes.clear();
+  if (node.valid())
+    tsd.selectedNodes.push_back(node);
+  anari.getUpdateDelegate().signalObjectFilteringChanged();
+}
+
+void Core::setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes)
+{
+  tsd.selectedNodes = nodes;
   anari.getUpdateDelegate().signalObjectFilteringChanged();
 }
 
@@ -554,19 +568,81 @@ void Core::setSelected(const tsd::core::Object *obj)
   clearSelected();
 }
 
-bool Core::isSelected(tsd::core::LayerNodeRef node) const
+void Core::addToSelection(tsd::core::LayerNodeRef node)
 {
-  return tsd.selectedNode == node;
+  if (!node.valid())
+    return;
+
+  for (const auto &selected : tsd.selectedNodes) {
+    if (selected == node)
+      return;
+  }
+
+  tsd.selectedNodes.push_back(node);
+  anari.getUpdateDelegate().signalObjectFilteringChanged();
 }
 
-void Core::clearSelected()
+void Core::removeFromSelection(tsd::core::LayerNodeRef node)
 {
-  if (tsd.selectedNode.valid()) {
-    tsd.selectedNode = {};
+  auto it = std::find(tsd.selectedNodes.begin(), tsd.selectedNodes.end(), node);
+  if (it != tsd.selectedNodes.end()) {
+    tsd.selectedNodes.erase(it);
     anari.getUpdateDelegate().signalObjectFilteringChanged();
   }
 }
 
+bool Core::isSelected(tsd::core::LayerNodeRef node) const
+{
+  return std::find(tsd.selectedNodes.begin(), tsd.selectedNodes.end(), node)
+      != tsd.selectedNodes.end();
+}
+
+void Core::clearSelected()
+{
+  if (!tsd.selectedNodes.empty()) {
+    tsd.selectedNodes.clear();
+    anari.getUpdateDelegate().signalObjectFilteringChanged();
+  }
+}
+std::vector<tsd::core::LayerNodeRef> Core::getParentOnlySelectedNodes() const
+{
+  std::vector<tsd::core::LayerNodeRef> parentOnly;
+
+  for (const auto &node : tsd.selectedNodes) {
+    if (!node.valid())
+      continue;
+
+    bool isChildOfSelected = false;
+
+    // Check if any other selected node is an ancestor of this node
+    for (const auto &potentialParent : tsd.selectedNodes) {
+      if (!potentialParent.valid() || potentialParent == node)
+        continue;
+
+      auto current = node;
+      while (current.valid()) {
+        auto parentRef = current->parent();
+        if (!parentRef.valid())
+          break;
+
+        if (parentRef == potentialParent) {
+          isChildOfSelected = true;
+          break;
+        }
+
+        current = parentRef;
+      }
+
+      if (isChildOfSelected)
+        break;
+    }
+
+    if (!isChildOfSelected)
+      parentOnly.push_back(node);
+  }
+
+  return parentOnly;
+}
 void Core::addCurrentViewToCameraPoses(const char *_name)
 {
   auto azel = view.manipulator.azel();

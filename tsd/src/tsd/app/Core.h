@@ -89,7 +89,7 @@ struct TSDState
 {
   tsd::core::Scene scene;
   bool sceneLoadComplete{false};
-  tsd::core::LayerNodeRef selectedNode;
+  std::vector<tsd::core::LayerNodeRef> selectedNodes;
 };
 
 struct ANARIDeviceManager
@@ -239,9 +239,13 @@ struct Core
 
   // Selection //
 
-  tsd::core::LayerNodeRef getSelected() const;
+  tsd::core::LayerNodeRef getSelected() const; // Returns first selected or invalid
+  const std::vector<tsd::core::LayerNodeRef>& getSelectedNodes() const;
   void setSelected(tsd::core::LayerNodeRef node);
+  void setSelected(const std::vector<tsd::core::LayerNodeRef>& nodes);
   void setSelected(const tsd::core::Object *obj);
+  void addToSelection(tsd::core::LayerNodeRef node);
+  void removeFromSelection(tsd::core::LayerNodeRef node);
   bool isSelected(tsd::core::LayerNodeRef node) const;
   void clearSelected();
 
