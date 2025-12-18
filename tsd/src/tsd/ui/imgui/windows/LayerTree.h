@@ -37,6 +37,13 @@ struct LayerTree : public Window
       bool cutOperation
   );
 
+  bool isValidDropTarget(
+      tsd::core::Layer& layer,
+      tsd::core::LayerNodeRef targetParent,
+      const tsd::core::LayerNodeRef* sourceNodes,
+      size_t count
+  ) const;
+
   // Data //
 
   bool m_enableAddRemove{true};

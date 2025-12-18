@@ -139,6 +139,10 @@ struct Forest
   NodeRef copy_subtree(NodeRef source, NodeRef newParent);
   void move_subtree(NodeRef source, NodeRef newParent);
 
+  // Queries //
+
+  bool isAncestorOf(NodeRef potentialAncestor, NodeRef node) const;
+
   // Traversal //
 
   void traverse(NodeRef start, ForestVisitor<T> &visitor);
@@ -494,6 +498,23 @@ inline typename Forest<T>::NodeRef Forest<T>::copy_subtree(
 }
 
 template <typename T>
+inline bool Forest<T>::isAncestorOf(
+    Forest<T>::NodeRef potentialAncestor, Forest<T>::NodeRef node) const
+{
+  if (!potentialAncestor || !node)
+    return false;
+
+  auto current = node;
+  while (current.valid()) {
+    if (current == potentialAncestor)
+      return true;
+    current = current->parent();
+  }
+
+  return false;
+}
+
+template <typename T>
 inline void Forest<T>::move_subtree(
     Forest<T>::NodeRef source, Forest<T>::NodeRef newParent)
 {
@@ -503,10 +524,8 @@ inline void Forest<T>::move_subtree(
   if (source->isRoot())
     return;
 
-  for (auto current = newParent; current; current = current->parent()) {
-    if (current == source)
-      return; // Would create a cycle
-  }
+  if (isAncestorOf(source, newParent))
+    return;
 
   // If already a child of newParent, no-op
   if (source->parent() == newParent)

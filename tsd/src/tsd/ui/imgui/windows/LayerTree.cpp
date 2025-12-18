@@ -137,7 +137,7 @@ std::vector<tsd::core::LayerNodeRef> LayerTree::computeSelectionRange(
       // We're between the two boundaries
       range.push_back(nodeRef);
     }
-    
+
     return true;
   });
 
@@ -341,7 +341,13 @@ void LayerTree::buildUI_tree()
         ImGuiIO &io = ImGui::GetIO();
         const char *operation = io.KeyCtrl ? "copy:" : "move:";
         if (size(draggedNodes) == 1) {
-          ImGui::Text("%s %s", operation, (*draggedNodes[0])->name().c_str());
+          auto name = (*draggedNodes[0])->name();
+          if (name.empty() && (*draggedNodes[0])->isObject()) {
+            auto obj = (*draggedNodes[0])->getObject();
+            if (obj)
+              name = obj->name();
+          }
+          ImGui::Text("%s %s", operation, name.c_str());
         } else {
           ImGui::Text("%s %zu nodes", operation, size(draggedNodes));
         }
@@ -368,17 +374,31 @@ void LayerTree::buildUI_tree()
 
       // Drag and drop target
       if (ImGui::BeginDragDropTarget()) {
-        if (const ImGuiPayload *payload =
-                ImGui::AcceptDragDropPayload("LAYER_TREE_NODE")) {
-          dragAndDropTarget = layer.at(node.index());
-          if (!dragAndDropTarget.valid())
-            dragAndDropTarget = layer.root();
+        // Peek at the payload to validate before accepting
+        if (const ImGuiPayload *payload = ImGui::GetDragDropPayload()) {
+          if (payload->IsDataType("LAYER_TREE_NODE")) {
+            auto potentialTarget = layer.at(node.index());
+            if (!potentialTarget.valid())
+              potentialTarget = layer.root();
 
-          auto *nodes = (tsd::core::LayerNodeRef *)payload->Data;
-          size_t count = payload->DataSize / sizeof(tsd::core::LayerNodeRef);
-          droppedNodes.assign(nodes, nodes + count);
+            auto *nodes = (tsd::core::LayerNodeRef *)payload->Data;
+            size_t count = payload->DataSize / sizeof(tsd::core::LayerNodeRef);
 
-          // Actual drop handling is deferred until after tree traversal
+            if (isValidDropTarget(layer, potentialTarget, nodes, count)) {
+              // Accept the drop
+              if (ImGui::AcceptDragDropPayload("LAYER_TREE_NODE")) {
+                dragAndDropTarget = potentialTarget;
+                droppedNodes.assign(nodes, nodes + count);
+                // Actual drop handling is deferred until after tree traversal
+              }
+            } else {
+              // Show visual feedback for invalid drop
+              if (ImGui::AcceptDragDropPayload(
+                      "LAYER_TREE_NODE", ImGuiDragDropFlags_AcceptPeekOnly)) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_NotAllowed);
+              }
+            }
+          }
         }
 
         ImGui::EndDragDropTarget();
@@ -489,21 +509,27 @@ void LayerTree::buildUI_activateObjectSceneMenu()
           targetParent = selectedNodes[0];
         }
 
-        auto newNodes = copyNodesTo(
-            targetParent, stashed.nodes, stashed.shouldDeleteAfterPaste);
+        // Validate the paste operation
+        if (isValidDropTarget(layer,
+                targetParent,
+                stashed.nodes.data(),
+                stashed.nodes.size())) {
+          auto newNodes = copyNodesTo(
+              targetParent, stashed.nodes, stashed.shouldDeleteAfterPaste);
 
-        // If cut operation, delete originals after successful copy
-        if (stashed.shouldDeleteAfterPaste) {
-          stashed.nodes.clear();
-          stashed.shouldDeleteAfterPaste = false;
+          // If cut operation, delete originals after successful copy
+          if (stashed.shouldDeleteAfterPaste) {
+            stashed.nodes.clear();
+            stashed.shouldDeleteAfterPaste = false;
+          }
+
+          // Select the newly pasted nodes
+          if (!newNodes.empty()) {
+            appCore()->setSelected(newNodes);
+          }
+
+          scene.signalLayerChange(&layer);
         }
-
-        // Select the newly pasted nodes
-        if (!newNodes.empty()) {
-          appCore()->setSelected(newNodes);
-        }
-
-        scene.signalLayerChange(&layer);
       }
     }
 
@@ -868,6 +894,26 @@ std::vector<tsd::core::LayerNodeRef> LayerTree::copyNodesTo(
   }
 
   return newNodes;
+}
+
+bool LayerTree::isValidDropTarget(tsd::core::Layer &layer,
+    tsd::core::LayerNodeRef targetParent,
+    const tsd::core::LayerNodeRef *sourceNodes,
+    size_t count) const
+{
+  if (!targetParent.valid())
+    return false;
+
+  // Check if targetParent is a descendant of any source node
+  for (size_t i = 0; i < count; i++) {
+    if (!sourceNodes[i].valid())
+      continue;
+
+    if (layer.isAncestorOf(sourceNodes[i], targetParent))
+      return false;
+  }
+
+  return true;
 }
 
 } // namespace tsd::ui::imgui
