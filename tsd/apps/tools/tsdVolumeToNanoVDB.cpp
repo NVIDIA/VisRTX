@@ -57,6 +57,8 @@ int main(int argc, const char *argv[])
   tsd::io::VDBPrecision precision = tsd::io::VDBPrecision::Fp16;
   bool enableDithering = false;
 
+  tsd::core::setLogToStderr();
+
   // Parse command line arguments
   for (int i = 1; i < argc; ++i) {
     const std::string_view arg{argv[i]};
@@ -122,8 +124,6 @@ int main(int argc, const char *argv[])
     printUsage(argv[0]);
     return 1;
   }
-
-  tsd::core::setLogToStdout();
 
   tsd::core::logStatus("Loading volume from: %s", inputFile->c_str());
 
