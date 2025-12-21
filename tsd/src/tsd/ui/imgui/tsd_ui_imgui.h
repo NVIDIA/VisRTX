@@ -17,7 +17,7 @@ void buildUI_object(tsd::core::Object &o,
     tsd::core::Scene &scene,
     bool useTableForParameters = false,
     int level = 0);
-void buildUI_parameter(tsd::core::Object &o,
+bool buildUI_parameter(tsd::core::Object &o,
     tsd::core::Parameter &p,
     tsd::core::Scene &scene,
     bool asTable = false);

@@ -223,7 +223,8 @@ void TransferFunctionEditor::buildUI_drawEditor()
 void TransferFunctionEditor::buildUI_opacityScale()
 {
   auto *param = m_volume->parameter("opacity");
-  tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene);
+  if (!tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene))
+    return;
   
   // Apply to all other volumes
   float opacity = param->value().get<float>();
@@ -235,7 +236,8 @@ void TransferFunctionEditor::buildUI_opacityScale()
 void TransferFunctionEditor::buildUI_unitDistance()
 {
   auto *param = m_volume->parameter("unitDistance");
-  tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene);
+  if (!tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene))
+    return;
   
   // Apply to all other volumes
   float unitDistance = param->value().get<float>();
@@ -248,8 +250,17 @@ void TransferFunctionEditor::buildUI_valueRange()
 {
   ImGui::BeginDisabled(!m_volume);
 
-  tsd::ui::buildUI_parameter(
-      *m_volume, *m_volume->parameter("valueRange"), appCore()->tsd.scene);
+  if (tsd::ui::buildUI_parameter(
+      *m_volume, *m_volume->parameter("valueRange"), appCore()->tsd.scene)) {
+
+    auto range = m_volume->parameterValueAs<tsd::math::box1>("valueRange");
+
+    for (auto *volume : m_otherVolumes) {
+      auto *field =
+          volume->parameterValueAsObject<tsd::core::SpatialField>("value");
+        volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &range);
+      }
+    }
 
   if (ImGui::Button("reset##valueRange") && m_volume) {
     auto *field =
@@ -257,16 +268,12 @@ void TransferFunctionEditor::buildUI_valueRange()
     if (field) {
       auto valueRange = field->computeValueRange();
       m_volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-    }
-    for (auto *volume : m_otherVolumes) {
-      auto *field =
-          volume->parameterValueAsObject<tsd::core::SpatialField>("value");
-      if (field) {
-        auto valueRange = field->computeValueRange();
+      for (auto *volume : m_otherVolumes) {
         volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
       }
     }
   }
+
 
   ImGui::SameLine();
   if (ImGui::Button("Load")) {

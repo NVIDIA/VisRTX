@@ -426,7 +426,7 @@ void buildUI_object(tsd::core::Object &o,
   }
 }
 
-void buildUI_parameter(tsd::core::Object &o,
+bool buildUI_parameter(tsd::core::Object &o,
     tsd::core::Parameter &p,
     tsd::core::Scene &scene,
     bool useTable)
@@ -620,6 +620,8 @@ void buildUI_parameter(tsd::core::Object &o,
       scene, &o, &p); // NOTE: 'p' can be deleted after this
 
   ImGui::PopID();
+
+  return update;
 }
 
 size_t buildUI_objects_menulist(
