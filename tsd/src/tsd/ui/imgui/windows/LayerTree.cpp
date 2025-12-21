@@ -439,7 +439,7 @@ void LayerTree::buildUI_tree()
       ImGui::EndDragDropTarget();
     }
 
-    // Defered handling of the drop event
+    // Deferred handling of the drop event
     if (dragAndDropTarget.valid() && !droppedNodes.empty()) {
       ImGuiIO &io = ImGui::GetIO();
       copyNodesTo(dragAndDropTarget, droppedNodes, !io.KeyCtrl);
