@@ -58,14 +58,21 @@ void TransferFunctionEditor::buildUI()
   if (m_volume && m_nextMap != m_currentMap) {
     m_currentMap = m_nextMap;
     m_tfnColorPoints = &(m_tfnsColorPoints[m_currentMap]);
-    updateVolume();
+    updateColormaps();
     updateTfnPaletteTexture();
   }
 
-  if (m_volume == nullptr) {
+  if (!m_volume) {
     ImGui::Text("{no volume selected}");
     return;
   }
+
+  if (m_otherVolumes.empty()) {
+    ImGui::Text("%s", m_volume->name().c_str());
+  } else {
+    ImGui::Text("%s...", m_volume->name().c_str());
+  }
+  ImGui::Separator();
 
   buildUI_selectColorMap();
   ImGui::Separator();
@@ -173,7 +180,7 @@ void TransferFunctionEditor::buildUI_drawEditor()
       if (ImGui::IsMouseDoubleClicked(1) && ImGui::IsItemHovered()) {
         if (i > 0 && i < m_tfnOpacityPoints.size() - 1) {
           m_tfnOpacityPoints.erase(m_tfnOpacityPoints.begin() + i);
-          updateVolume();
+          updateColormaps();
         }
       } else if (ImGui::IsItemActive()) {
         ImVec2 delta = ImGui::GetIO().MouseDelta;
@@ -186,7 +193,7 @@ void TransferFunctionEditor::buildUI_drawEditor()
               m_tfnOpacityPoints[i - 1].x,
               m_tfnOpacityPoints[i + 1].x);
         }
-        updateVolume();
+        updateColormaps();
       } else if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip(
             "Double right click button to delete point\n"
@@ -209,20 +216,32 @@ void TransferFunctionEditor::buildUI_drawEditor()
     const int idx = find_idx(m_tfnOpacityPoints, x);
     tsd::core::OpacityPoint pt(x, y);
     m_tfnOpacityPoints.insert(m_tfnOpacityPoints.begin() + idx, pt);
-    updateVolume();
+    updateColormaps();
   }
 }
 
 void TransferFunctionEditor::buildUI_opacityScale()
 {
-  tsd::ui::buildUI_parameter(
-      *m_volume, *m_volume->parameter("opacity"), appCore()->tsd.scene);
+  auto *param = m_volume->parameter("opacity");
+  tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene);
+  
+  // Apply to all other volumes
+  float opacity = param->value().get<float>();
+  for (auto *volume : m_otherVolumes) {
+    volume->setParameter("opacity", opacity);
+  }
 }
 
 void TransferFunctionEditor::buildUI_unitDistance()
 {
-  tsd::ui::buildUI_parameter(
-      *m_volume, *m_volume->parameter("unitDistance"), appCore()->tsd.scene);
+  auto *param = m_volume->parameter("unitDistance");
+  tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene);
+  
+  // Apply to all other volumes
+  float unitDistance = param->value().get<float>();
+  for (auto *volume : m_otherVolumes) {
+    volume->setParameter("unitDistance", unitDistance);
+  }
 }
 
 void TransferFunctionEditor::buildUI_valueRange()
@@ -238,6 +257,14 @@ void TransferFunctionEditor::buildUI_valueRange()
     if (field) {
       auto valueRange = field->computeValueRange();
       m_volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+    }
+    for (auto *volume : m_otherVolumes) {
+      auto *field =
+          volume->parameterValueAsObject<tsd::core::SpatialField>("value");
+      if (field) {
+        auto valueRange = field->computeValueRange();
+        volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+      }
     }
   }
 
@@ -295,7 +322,7 @@ void TransferFunctionEditor::buildUI_valueRange()
         if (m_volume) {
           m_currentMap = loadedMapIndex;
           m_tfnColorPoints = &(m_tfnsColorPoints[m_currentMap]);
-          updateVolume();
+          updateColormaps();
           updateTfnPaletteTexture();
         }
       }
@@ -352,27 +379,51 @@ void TransferFunctionEditor::setMap(int selection)
 
 void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
 {
-  tsd::core::Volume *selectedVolume = nullptr;
-  auto selectedNode = appCore()->getSelected();
-  tsd::core::Object *selectedObject = selectedNode.valid() ? (*selectedNode)->getObject() : nullptr;
-
-  if (!selectedVolume) {
-    if (selectedObject && selectedObject->type() == ANARI_VOLUME)
-      selectedVolume = (tsd::core::Volume *)selectedObject;
+  const auto &selectedNodes = appCore()->getSelectedNodes();
+  
+  // Collect all volume pointers from selection
+  std::vector<tsd::core::Volume*> allVolumes;
+  for (const auto &node : selectedNodes) {
+    if (!node.valid())
+      continue;
+    auto *obj = (*node)->getObject();
+    if (obj && obj->type() == ANARI_VOLUME) {
+      allVolumes.push_back((tsd::core::Volume *)obj);
+    }
   }
 
-  if (selectedVolume == nullptr) {
+  // Set reference volume (first one) and clear other volumes
+  if (allVolumes.empty()) {
     m_volume = nullptr;
+    m_otherVolumes.clear();
     m_colorMapArray = nullptr;
     return;
   }
 
-  if (m_volume != selectedVolume) {
+  // Set first volume as reference
+  m_volume = allVolumes[0];
+  
+  // Collect remaining volumes, sort and remove duplicates
+  m_otherVolumes.clear();
+  if (allVolumes.size() > 1) {
+    m_otherVolumes.assign(allVolumes.begin() + 1, allVolumes.end());
+    std::sort(m_otherVolumes.begin(), m_otherVolumes.end());
+    m_otherVolumes.erase(
+        std::unique(m_otherVolumes.begin(), m_otherVolumes.end()),
+        m_otherVolumes.end());
+    // Remove first volume if it appears in other volumes
+    m_otherVolumes.erase(
+        std::remove(m_otherVolumes.begin(), m_otherVolumes.end(), m_volume),
+        m_otherVolumes.end());
+  }
+
+  auto *firstVolume = m_volume;
+  if (m_colorMapArray == nullptr
+      || m_colorMapArray != firstVolume->parameterValueAsObject<tsd::core::Array>("color")) {
     setMap(0);
 
-    m_volume = selectedVolume;
     m_colorMapArray =
-        m_volume->parameterValueAsObject<tsd::core::Array>("color");
+        firstVolume->parameterValueAsObject<tsd::core::Array>("color");
 
     auto &cm = m_tfnsColorPoints[0];
     cm.resize(m_colorMapArray->size());
@@ -384,7 +435,7 @@ void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
     anari::DataType type = ANARI_UNKNOWN;
     const tsd::math::float2 *opacityPoints = nullptr;
     size_t size = 0;
-    m_volume->getMetadataArray(
+    firstVolume->getMetadataArray(
         "opacityControlPoints", &type, (const void **)&opacityPoints, &size);
     if (type == ANARI_FLOAT32_VEC2 && size > 0) {
       tsd::core::logStatus("[tfn_editor] Receiving opacity control points");
@@ -608,7 +659,7 @@ void TransferFunctionEditor::loadColormap(
   m_tfnColorPoints = &(m_tfnsColorPoints[newMapIndex]);
 
   if (m_volume) {
-    updateVolume();
+    updateColormaps();
     updateTfnPaletteTexture();
   }
 
@@ -618,22 +669,46 @@ void TransferFunctionEditor::loadColormap(
           .c_str());
 }
 
-void TransferFunctionEditor::updateVolume()
+void TransferFunctionEditor::updateColormaps()
 {
   if (!m_colorMapArray) {
     tsd::core::logError(
         "[tfn_editor] No color map array, cannot update volume!");
     return;
   }
-  auto co = getSampledColorsAndOpacities(m_colorMapArray->size());
-  auto *colorMap = m_colorMapArray->mapAs<tsd::math::float4>();
-  std::copy(co.begin(), co.end(), colorMap);
-  m_colorMapArray->unmap();
+  
+  // Update reference volume
+  if (m_volume) {
+    auto *colorArray = m_volume->parameterValueAsObject<tsd::core::Array>("color");
+    if (colorArray) {
+      auto co = getSampledColorsAndOpacities(colorArray->size());
+      auto *colorMap = colorArray->mapAs<tsd::math::float4>();
+      std::copy(co.begin(), co.end(), colorMap);
+      colorArray->unmap();
 
-  m_volume->setMetadataArray("opacityControlPoints",
-      ANARI_FLOAT32_VEC2,
-      m_tfnOpacityPoints.data(),
-      m_tfnOpacityPoints.size());
+      m_volume->setMetadataArray("opacityControlPoints",
+          ANARI_FLOAT32_VEC2,
+          m_tfnOpacityPoints.data(),
+          m_tfnOpacityPoints.size());
+    }
+  }
+  
+  // Update other volumes
+  for (auto *volume : m_otherVolumes) {
+    auto *colorArray = volume->parameterValueAsObject<tsd::core::Array>("color");
+    if (!colorArray)
+      continue;
+      
+    auto co = getSampledColorsAndOpacities(colorArray->size());
+    auto *colorMap = colorArray->mapAs<tsd::math::float4>();
+    std::copy(co.begin(), co.end(), colorMap);
+    colorArray->unmap();
+
+    volume->setMetadataArray("opacityControlPoints",
+        ANARI_FLOAT32_VEC2,
+        m_tfnOpacityPoints.data(),
+        m_tfnOpacityPoints.size());
+  }
 }
 
 void TransferFunctionEditor::updateTfnPaletteTexture()

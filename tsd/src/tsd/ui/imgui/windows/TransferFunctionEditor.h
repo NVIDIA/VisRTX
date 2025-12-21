@@ -44,13 +44,14 @@ class TransferFunctionEditor : public Window
   void saveColormapToParaview(const std::string &filepath);
   void getTransferFunctionFilenameFromDialog(
       std::string &filenameOut, bool save = false);
-  void updateVolume();
+  void updateColormaps();
   void updateTfnPaletteTexture();
   void resizeTfnPaletteTexture(size_t width);
 
   // Data //
 
   tsd::core::Volume *m_volume{nullptr};
+  std::vector<tsd::core::Volume*> m_otherVolumes;
   tsd::core::Array *m_colorMapArray{nullptr};
 
   // all available transfer functions
