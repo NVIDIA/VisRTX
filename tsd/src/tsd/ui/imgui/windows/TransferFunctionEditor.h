@@ -28,6 +28,7 @@ class TransferFunctionEditor : public Window
   void buildUI_selectColorMap();
   void buildUI_drawEditor();
   void buildUI_opacityScale();
+  void buildUI_unitDistance();
   void buildUI_valueRange();
 
   std::vector<tsd::math::float4> getSampledColorsAndOpacities(

@@ -73,6 +73,8 @@ void TransferFunctionEditor::buildUI()
   ImGui::Separator();
   buildUI_opacityScale();
   ImGui::Separator();
+  buildUI_unitDistance();
+  ImGui::Separator();
   buildUI_valueRange();
 }
 
@@ -215,6 +217,12 @@ void TransferFunctionEditor::buildUI_opacityScale()
 {
   tsd::ui::buildUI_parameter(
       *m_volume, *m_volume->parameter("opacity"), appCore()->tsd.scene);
+}
+
+void TransferFunctionEditor::buildUI_unitDistance()
+{
+  tsd::ui::buildUI_parameter(
+      *m_volume, *m_volume->parameter("unitDistance"), appCore()->tsd.scene);
 }
 
 void TransferFunctionEditor::buildUI_valueRange()
