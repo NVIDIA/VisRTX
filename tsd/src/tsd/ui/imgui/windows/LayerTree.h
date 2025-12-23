@@ -22,6 +22,7 @@ struct LayerTree : public Window
   void buildUI_layerHeader();
   void buildUI_tree();
   void buildUI_activateObjectSceneMenu();
+  void buildUI_handleSelection();
   void buildUI_objectSceneMenu();
   void buildUI_newLayerSceneMenu();
   void buildUI_setActiveLayersSceneMenus();

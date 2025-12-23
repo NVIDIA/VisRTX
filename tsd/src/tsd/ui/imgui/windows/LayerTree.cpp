@@ -39,6 +39,7 @@ void LayerTree::buildUI()
   buildUI_layerHeader();
   ImGui::Separator();
   buildUI_tree();
+  buildUI_handleSelection();
   buildUI_activateObjectSceneMenu();
   buildUI_objectSceneMenu();
   buildUI_newLayerSceneMenu();
@@ -474,65 +475,6 @@ void LayerTree::buildUI_activateObjectSceneMenu()
       }
     }
 
-    // Check for Ctrl+C to copy selected nodes
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
-      auto parentOnlyNodes = appCore()->getParentOnlySelectedNodes();
-      if (!parentOnlyNodes.empty()) {
-        appCore()->tsd.stashedSelection.nodes = parentOnlyNodes;
-        appCore()->tsd.stashedSelection.shouldDeleteAfterPaste = false;
-      }
-    }
-
-    // Check for Ctrl+X to cut selected nodes
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X, false)) {
-      auto parentOnlyNodes = appCore()->getParentOnlySelectedNodes();
-      if (!parentOnlyNodes.empty()) {
-        appCore()->tsd.stashedSelection.nodes = parentOnlyNodes;
-        appCore()->tsd.stashedSelection.shouldDeleteAfterPaste = true;
-      }
-    }
-
-    // Check for Cmd/Ctrl+V to paste stashed nodes
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V, false)) {
-      auto &scene = appCore()->tsd.scene;
-      auto &stashed = appCore()->tsd.stashedSelection;
-      auto selectedNodes = appCore()->getSelectedNodes();
-
-      if (!stashed.nodes.empty() && scene.numberOfLayers() > 0
-          && selectedNodes.size() <= 1) {
-        auto &layer = *scene.layer(m_layerIdx);
-
-        // Get target parent (use first selected node, or root if nothing
-        // selected)
-        auto targetParent = layer.root();
-        if (!selectedNodes.empty() && selectedNodes[0].valid()) {
-          targetParent = selectedNodes[0];
-        }
-
-        // Validate the paste operation
-        if (isValidDropTarget(layer,
-                targetParent,
-                stashed.nodes.data(),
-                stashed.nodes.size())) {
-          auto newNodes = copyNodesTo(
-              targetParent, stashed.nodes, stashed.shouldDeleteAfterPaste);
-
-          // If cut operation, delete originals after successful copy
-          if (stashed.shouldDeleteAfterPaste) {
-            stashed.nodes.clear();
-            stashed.shouldDeleteAfterPaste = false;
-          }
-
-          // Select the newly pasted nodes
-          if (!newNodes.empty()) {
-            appCore()->setSelected(newNodes);
-          }
-
-          scene.signalLayerChange(&layer);
-        }
-      }
-    }
-
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
       m_menuVisible = true;
       m_menuNode = m_hoveredNode;
@@ -543,6 +485,92 @@ void LayerTree::buildUI_activateObjectSceneMenu()
       // Only clear selection on left click if no modifiers are pressed
       if (!io.KeyCtrl && !io.KeyShift) {
         appCore()->clearSelected();
+      }
+    }
+  }
+}
+
+void LayerTree::buildUI_handleSelection()
+{
+  ImGuiIO &io = ImGui::GetIO();
+
+  // Check for Ctrl+X to cut selected nodes
+  if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X, false)) {
+    auto parentOnlyNodes = appCore()->getParentOnlySelectedNodes();
+    if (!parentOnlyNodes.empty()) {
+      appCore()->tsd.stashedSelection.nodes = parentOnlyNodes;
+      appCore()->tsd.stashedSelection.shouldDeleteAfterPaste = true;
+    }
+  }
+
+  // Check for Ctrl+C to copy selected nodes
+  if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C, false)) {
+    auto parentOnlyNodes = appCore()->getParentOnlySelectedNodes();
+    if (!parentOnlyNodes.empty()) {
+      appCore()->tsd.stashedSelection.nodes = parentOnlyNodes;
+      appCore()->tsd.stashedSelection.shouldDeleteAfterPaste = false;
+    }
+  }
+
+  // Check for Ctrl+V to paste stashed nodes
+  if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V, false)) {
+    auto &scene = appCore()->tsd.scene;
+    auto &stashed = appCore()->tsd.stashedSelection;
+    auto selectedNodes = appCore()->getSelectedNodes();
+
+    if (!stashed.nodes.empty() && scene.numberOfLayers() > 0
+        && selectedNodes.size() <= 1) {
+      auto &layer = *scene.layer(m_layerIdx);
+
+      // Get target parent (use first selected node, or root if nothing
+      // selected)
+      auto targetParent = layer.root();
+      if (!selectedNodes.empty() && selectedNodes[0].valid()) {
+        targetParent = selectedNodes[0];
+      }
+
+      // Validate the paste operation
+      if (isValidDropTarget(layer,
+              targetParent,
+              stashed.nodes.data(),
+              stashed.nodes.size())) {
+        auto newNodes = copyNodesTo(
+            targetParent, stashed.nodes, stashed.shouldDeleteAfterPaste);
+
+        // If cut operation, delete originals after successful copy
+        if (stashed.shouldDeleteAfterPaste) {
+          stashed.nodes.clear();
+          stashed.shouldDeleteAfterPaste = false;
+        }
+
+        // Select the newly pasted nodes
+        if (!newNodes.empty()) {
+          appCore()->setSelected(newNodes);
+        }
+
+        scene.signalLayerChange(&layer);
+      }
+    }
+  }
+
+  // Check for Ctrl+A to select all nodes in the current layer
+  if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_A, false)) {
+    auto &scene = appCore()->tsd.scene;
+    if (scene.numberOfLayers() > 0) {
+      auto &layer = *scene.layer(m_layerIdx);
+      std::vector<tsd::core::LayerNodeRef> allNodes;
+      
+      // Traverse the layer and collect all nodes (except root)
+      layer.traverse(layer.root(), [&](auto &node, int level) {
+        if (level > 0) { // Skip root node (level 0)
+          allNodes.push_back(layer.at(node.index()));
+        }
+        return true;
+      });
+      
+      // Select all collected nodes
+      if (!allNodes.empty()) {
+        appCore()->setSelected(allNodes);
       }
     }
   }
