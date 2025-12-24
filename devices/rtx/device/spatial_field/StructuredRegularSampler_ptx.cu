@@ -29,50 +29,28 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Matte.h"
+#include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
+#include "gpu/shadingState.h"
 
-namespace visrtx {
+using namespace visrtx;
 
-Matte::Matte(DeviceGlobalState *d)
-    : Material(d), m_colorSampler(this), m_opacitySampler(this)
-{}
-
-void Matte::commitParameters()
+VISRTX_CALLABLE void __direct_callable__initStructuredRegularSampler(
+    VolumeSamplingState *samplerState,
+    const SpatialFieldGPUData *field)
 {
-  m_opacity = getParam<float>("opacity", 1.f);
-  m_opacitySampler = getParamObject<Sampler>("opacity");
-  m_opacityAttribute = getParamString("opacity", "");
-
-  m_color = vec4(vec3(0.8f), 1.f);
-  getParam("color", ANARI_FLOAT32_VEC4, &m_color);
-  getParam("color", ANARI_FLOAT32_VEC3, &m_color);
-  m_colorSampler = getParamObject<Sampler>("color");
-  m_colorAttribute = getParamString("color", "");
-
-  m_cutoff = getParam<float>("alphaCutoff", 0.5f);
-  m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
+  samplerState->structuredRegular.texObj = field->data.structuredRegular.texObj;
+  samplerState->structuredRegular.origin = field->data.structuredRegular.origin;
+  samplerState->structuredRegular.invDims = field->data.structuredRegular.invDims;
+  samplerState->structuredRegular.invSpacing = field->data.structuredRegular.invSpacing;
 }
 
-MaterialGPUData Matte::gpuData() const
+VISRTX_CALLABLE float __direct_callable__sampleStructuredRegular(
+    const VolumeSamplingState *samplerState,
+    const vec3 *location)
 {
-  MaterialGPUData retval;
-
-  retval.callableBaseIndex = static_cast<unsigned int>(MaterialType::MATTE);
-
-  populateMaterialParameter(retval.materialData.matte.color,
-      m_color,
-      m_colorSampler.get(),
-      m_colorAttribute);
-  populateMaterialParameter(retval.materialData.matte.opacity,
-      m_opacity,
-      m_opacitySampler.get(),
-      m_opacityAttribute);
-
-  retval.materialData.matte.cutoff = m_cutoff;
-  retval.materialData.matte.alphaMode = m_mode;
-
-  return retval;
+  const auto &state = samplerState->structuredRegular;
+  const auto texelCoords = (*location - state.origin) * state.invSpacing + 0.5f;
+  const auto coords = texelCoords * state.invDims;
+  return tex3D<float>(state.texObj, coords.x, coords.y, coords.z);
 }
-
-} // namespace visrtx

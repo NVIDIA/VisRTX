@@ -34,7 +34,7 @@
 #include "gpu/dda.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/gpu_util.h"
-#include "gpu/sampleSpatialField.h"
+#include "gpu/shadingState.h"
 
 // cuda
 #include <texture_types.h>
@@ -42,7 +42,38 @@
 // nanovdb
 #include <nanovdb/NanoVDB.h>
 
+// optix
+#include <optix_device.h>
+
 namespace visrtx {
+
+// Helpers //
+VISRTX_DEVICE const SpatialFieldGPUData &getSpatialFieldData(
+    const FrameGPUData &frameData, DeviceObjectIndex idx)
+{
+  return frameData.registry.fields[idx];
+}
+
+VISRTX_DEVICE void volumeSamplerInit(
+    VolumeSamplingState *samplerState,
+    const SpatialFieldGPUData &field)
+{
+  optixDirectCall<void>(
+      uint32_t(field.samplerCallableIndex) + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Init),
+      samplerState,
+      &field);
+}
+
+VISRTX_DEVICE float volumeSamplerSample(
+    const VolumeSamplingState *samplerState,
+    const SpatialFieldGPUData &field,
+    const vec3 &position)
+{
+  return optixDirectCall<float>(
+      uint32_t(field.samplerCallableIndex) + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Sample),
+      samplerState,
+      &position);
+}
 
 namespace detail {
 
@@ -64,7 +95,6 @@ VISRTX_DEVICE vec4 classifySample(const VolumeGPUData &v, float s)
   return retval;
 }
 
-template <typename Sampler>
 VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
     box1 interval,
@@ -79,7 +109,8 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
   auto &field = getSpatialFieldData(*ss.frameData, svv.field);
   /////////////////////////////////////////////////////////////////////////////
 
-  Sampler sampler(field);
+  VolumeSamplingState samplerState;
+  volumeSamplerInit(&samplerState, field);
 
   const float stepSize = volume.stepSize * invSamplingRate;
   const float exponent = stepSize * svv.oneOverUnitDistance;
@@ -98,7 +129,7 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
   while (opacity < OPACITY_THRESHOLD && size(interval) >= 0.f) {
     const vec3 p = hit.localRay.org + hit.localRay.dir * interval.lower;
 
-    const float s = sampler(p);
+    const float s = volumeSamplerSample(&samplerState, field, p);
     if (!glm::isnan(s)) {
       const vec4 co = detail::classifySample(volume, s);
 
@@ -130,52 +161,11 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
   const float depth = interval.lower;
   interval.lower += stepSize * curand_uniform(&ss.rs); // jitter
 
-  switch (field.type) {
-  case SpatialFieldType::STRUCTURED_REGULAR: {
-    _rayMarchVolume<SpatialFieldSampler<cudaTextureObject_t>>(
-        ss, hit, interval, color, opacity, invSamplingRate);
-    break;
-  }
-  case SpatialFieldType::NANOVDB_REGULAR: {
-    switch (field.data.nvdbRegular.gridType) {
-    case nanovdb::GridType::Fp4: {
-      _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp4>>(
-          ss, hit, interval, color, opacity, invSamplingRate);
-      break;
-    }
-    case nanovdb::GridType::Fp8: {
-      _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp8>>(
-          ss, hit, interval, color, opacity, invSamplingRate);
-      break;
-    }
-    case nanovdb::GridType::Fp16: {
-      _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::Fp16>>(
-          ss, hit, interval, color, opacity, invSamplingRate);
-      break;
-    }
-    case nanovdb::GridType::FpN: {
-      _rayMarchVolume<NvdbSpatialFieldSampler<nanovdb::FpN>>(
-          ss, hit, interval, color, opacity, invSamplingRate);
-      break;
-    }
-    case nanovdb::GridType::Float: {
-      _rayMarchVolume<NvdbSpatialFieldSampler<float>>(
-          ss, hit, interval, color, opacity, invSamplingRate);
-      break;
-    }
-    default:
-      break;
-    }
-    break;
-  }
-  default:
-    break;
-  }
+  _rayMarchVolume(ss, hit, interval, color, opacity, invSamplingRate);
 
   return depth;
 }
 
-template <typename Sampler>
 VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
     const VolumeHit &hit,
     vec3 *albedo,
@@ -189,7 +179,8 @@ VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
   auto &field = getSpatialFieldData(*ss.frameData, svv.field);
   /////////////////////////////////////////////////////////////////////////////
 
-  Sampler sampler(field);
+  VolumeSamplingState samplerState;
+  volumeSamplerInit(&samplerState, field);
 
   const float stepSize = volume.stepSize;
   float t_out = hit.localRay.t.upper;
@@ -215,7 +206,7 @@ VISRTX_DEVICE float _sampleDistance(ScreenSample &ss,
 
       const vec3 p =
           hit.localRay.org + hit.localRay.dir * (t + hit.localRay.t.lower);
-      const float s = sampler(p);
+      const float s = volumeSamplerSample(&samplerState, field, p);
       if (!glm::isnan(s)) {
         const vec4 co = detail::classifySample(volume, s);
         *albedo = vec3(co);
@@ -261,47 +252,7 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
   auto &field = getSpatialFieldData(*ss.frameData, svv.field);
   /////////////////////////////////////////////////////////////////////////////
 
-  switch (field.type) {
-  case SpatialFieldType::STRUCTURED_REGULAR: {
-    return _sampleDistance<SpatialFieldSampler<cudaTextureObject_t>>(
-        ss, hit, albedo, extinction, tr);
-    break;
-  }
-  case SpatialFieldType::NANOVDB_REGULAR: {
-    switch (field.data.nvdbRegular.gridType) {
-    case nanovdb::GridType::Fp4: {
-      return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp4>>(
-          ss, hit, albedo, extinction, tr);
-      break;
-    }
-    case nanovdb::GridType::Fp8: {
-      return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp8>>(
-          ss, hit, albedo, extinction, tr);
-      break;
-    }
-    case nanovdb::GridType::Fp16: {
-      return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::Fp16>>(
-          ss, hit, albedo, extinction, tr);
-      break;
-    }
-    case nanovdb::GridType::FpN: {
-      return _sampleDistance<NvdbSpatialFieldSampler<nanovdb::FpN>>(
-          ss, hit, albedo, extinction, tr);
-      break;
-    }
-    case nanovdb::GridType::Float: {
-      return _sampleDistance<NvdbSpatialFieldSampler<float>>(
-          ss, hit, albedo, extinction, tr);
-      break;
-    }
-    default:
-      break;
-    }
-    break;
-  }
-  default:
-    break;
-  }
+  return _sampleDistance(ss, hit, albedo, extinction, tr);
 
   return hit.localRay.t.upper;
 }

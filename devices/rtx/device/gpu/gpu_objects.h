@@ -32,6 +32,7 @@
 #pragma once
 
 #include "gpu/gpu_math.h"
+#include "gpu/sbt.h"
 
 // optix
 #include <optix.h>
@@ -373,7 +374,7 @@ struct MaterialGPUData
     DeviceObjectIndex samplers[32];
   };
 
-  uint32_t implementationIndex{~0u};
+  uint32_t callableBaseIndex{~0u};
 
   union MaterialData
   {
@@ -395,13 +396,6 @@ struct SurfaceGPUData
 };
 
 // Spatial Fields //
-
-enum class SpatialFieldType
-{
-  STRUCTURED_REGULAR,
-  NANOVDB_REGULAR,
-  UNKNOWN
-};
 
 struct UniformGridData
 {
@@ -429,7 +423,7 @@ struct NVdbRegularData
 
 struct SpatialFieldGPUData
 {
-  SpatialFieldType type{SpatialFieldType::UNKNOWN};
+  SbtCallableEntryPoints samplerCallableIndex{SbtCallableEntryPoints::Invalid};
   union
   {
     StructuredRegularData structuredRegular;

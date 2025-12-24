@@ -32,26 +32,22 @@
 #pragma once
 
 #include "gpu_decl.h"
+#include "gpu_math.h"
 #include "gpu_objects.h"
 
 #ifdef USE_MDL
 #include <mi/neuraylib/target_code_types.h>
 #endif
 
-namespace visrtx {
+// nanovdb
+#include <nanovdb/NanoVDB.h>
+#include <nanovdb/math/Math.h>
+#include <nanovdb/math/SampleFromVoxels.h>
 
-// Must match the order in which the shaders are pushed to the SBT in
-// Renderer.cpp
-enum class SurfaceShaderEntryPoints
-{
-  Initialize = 0,
-  EvaluateNextRay,
-  EvaluateTint,
-  EvaluateOpacity,
-  EvaluateEmission,
-  Shade,
-  Count
-};
+// cuda
+#include <texture_types.h>
+
+namespace visrtx {
 
 // Describes the next ray to be traced, as a result of the EvaluateNextRay call
 struct NextRay
@@ -131,6 +127,44 @@ struct MaterialShadingState
   } data;
 
   VISRTX_DEVICE MaterialShadingState() = default;
+};
+
+// Structured Regular Sampler State
+struct StructuredRegularSamplerState
+{
+  cudaTextureObject_t texObj;
+  vec3 origin;
+  vec3 invDims;
+  vec3 invSpacing;
+};
+
+// NanoVDB Sampler States
+template <typename T>
+struct NvdbSamplerState
+{
+  using GridType = nanovdb::Grid<nanovdb::NanoTree<T>>;
+  using AccessorType = typename GridType::AccessorType;
+  using SamplerType = nanovdb::math::SampleFromVoxels<AccessorType, 1>;
+
+  const GridType *grid;
+  AccessorType accessor;
+  SamplerType sampler;
+  nanovdb::Vec3f scale;
+};
+
+struct VolumeSamplingState
+{
+  VISRTX_DEVICE VolumeSamplingState() {};
+
+  union
+  {
+    StructuredRegularSamplerState structuredRegular;
+    NvdbSamplerState<nanovdb::Fp4> nvdbFp4;
+    NvdbSamplerState<nanovdb::Fp8> nvdbFp8;
+    NvdbSamplerState<nanovdb::Fp16> nvdbFp16;
+    NvdbSamplerState<nanovdb::FpN> nvdbFpN;
+    NvdbSamplerState<float> nvdbFloat;
+  };
 };
 
 // #endif

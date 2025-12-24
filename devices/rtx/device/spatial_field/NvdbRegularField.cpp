@@ -30,6 +30,8 @@
  */
 
 #include "NvdbRegularField.h"
+#include "gpu/gpu_decl.h"
+#include "gpu/shadingState.h"
 
 // anari
 #include <anari/frontend/anari_enums.h>
@@ -128,11 +130,34 @@ float NvdbRegularField::stepSize() const
 SpatialFieldGPUData NvdbRegularField::gpuData() const
 {
   SpatialFieldGPUData sf;
-  sf.type = SpatialFieldType::NANOVDB_REGULAR;
+  
+  // Map grid type to callable index
+  auto gridType = m_gridMetadata->gridType();
+  switch (gridType) {
+  case nanovdb::GridType::Fp4:
+    sf.samplerCallableIndex = SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp4;
+    break;
+  case nanovdb::GridType::Fp8:
+    sf.samplerCallableIndex = SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp8;
+    break;
+  case nanovdb::GridType::Fp16:
+    sf.samplerCallableIndex = SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp16;
+    break;
+  case nanovdb::GridType::FpN:
+    sf.samplerCallableIndex = SbtCallableEntryPoints::SpatialFieldSamplerNvdbFpN;
+    break;
+  case nanovdb::GridType::Float:
+    sf.samplerCallableIndex = SbtCallableEntryPoints::SpatialFieldSamplerNvdbFloat;
+    break;
+  default:
+    sf.samplerCallableIndex = SbtCallableEntryPoints::Invalid;
+    break;
+  }
+  
   sf.data.nvdbRegular.voxelSize = m_voxelSize;
   sf.data.nvdbRegular.origin = m_bounds.lower;
   sf.data.nvdbRegular.gridData = m_deviceBuffer.ptr();
-  sf.data.nvdbRegular.gridType = m_gridMetadata->gridType();
+  sf.data.nvdbRegular.gridType = gridType;
 
   sf.grid = m_uniformGrid.gpuData();
 

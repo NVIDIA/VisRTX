@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,50 +29,44 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Matte.h"
-#include "gpu/gpu_objects.h"
+#pragma once
+
+#include <cstdint>
 
 namespace visrtx {
 
-Matte::Matte(DeviceGlobalState *d)
-    : Material(d), m_colorSampler(this), m_opacitySampler(this)
-{}
-
-void Matte::commitParameters()
+// Must match the order in which the shaders are pushed to the SBT in
+// Renderer.cpp
+enum class SurfaceShaderEntryPoints
 {
-  m_opacity = getParam<float>("opacity", 1.f);
-  m_opacitySampler = getParamObject<Sampler>("opacity");
-  m_opacityAttribute = getParamString("opacity", "");
+  Initialize = 0,
+  EvaluateNextRay,
+  EvaluateTint,
+  EvaluateOpacity,
+  EvaluateEmission,
+  Shade,
+  Count
+};
 
-  m_color = vec4(vec3(0.8f), 1.f);
-  getParam("color", ANARI_FLOAT32_VEC4, &m_color);
-  getParam("color", ANARI_FLOAT32_VEC3, &m_color);
-  m_colorSampler = getParamObject<Sampler>("color");
-  m_colorAttribute = getParamString("color", "");
-
-  m_cutoff = getParam<float>("alphaCutoff", 0.5f);
-  m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
-}
-
-MaterialGPUData Matte::gpuData() const
+enum class SpatialFieldSamplerEntryPoints
 {
-  MaterialGPUData retval;
+  Init = 0,
+  Sample,
+  Count
+};
 
-  retval.callableBaseIndex = static_cast<unsigned int>(MaterialType::MATTE);
-
-  populateMaterialParameter(retval.materialData.matte.color,
-      m_color,
-      m_colorSampler.get(),
-      m_colorAttribute);
-  populateMaterialParameter(retval.materialData.matte.opacity,
-      m_opacity,
-      m_opacitySampler.get(),
-      m_opacityAttribute);
-
-  retval.materialData.matte.cutoff = m_cutoff;
-  retval.materialData.matte.alphaMode = m_mode;
-
-  return retval;
-}
+enum class SbtCallableEntryPoints : uint32_t
+{
+  Invalid = ~0u,
+  Matte = 0,
+  PBR = Matte + int(SurfaceShaderEntryPoints::Count),
+  SpatialFieldSamplerRegular = PBR + int(SurfaceShaderEntryPoints::Count),
+  SpatialFieldSamplerNvdbFp4 = SpatialFieldSamplerRegular + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFp8 = SpatialFieldSamplerNvdbFp4 + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFp16 = SpatialFieldSamplerNvdbFp8 + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFpN = SpatialFieldSamplerNvdbFp16 + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFloat = SpatialFieldSamplerNvdbFpN + int(SpatialFieldSamplerEntryPoints::Count),
+  Last = SpatialFieldSamplerNvdbFloat + int(SpatialFieldSamplerEntryPoints::Count),
+};
 
 } // namespace visrtx

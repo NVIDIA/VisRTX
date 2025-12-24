@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,50 +29,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "Matte.h"
-#include "gpu/gpu_objects.h"
+#pragma once
+
+#include "optix_visrtx.h"
 
 namespace visrtx {
 
-Matte::Matte(DeviceGlobalState *d)
-    : Material(d), m_colorSampler(this), m_opacitySampler(this)
-{}
-
-void Matte::commitParameters()
+struct StructuredRegularSampler
 {
-  m_opacity = getParam<float>("opacity", 1.f);
-  m_opacitySampler = getParamObject<Sampler>("opacity");
-  m_opacityAttribute = getParamString("opacity", "");
-
-  m_color = vec4(vec3(0.8f), 1.f);
-  getParam("color", ANARI_FLOAT32_VEC4, &m_color);
-  getParam("color", ANARI_FLOAT32_VEC3, &m_color);
-  m_colorSampler = getParamObject<Sampler>("color");
-  m_colorAttribute = getParamString("color", "");
-
-  m_cutoff = getParam<float>("alphaCutoff", 0.5f);
-  m_mode = alphaModeFromString(getParamString("alphaMode", "opaque"));
-}
-
-MaterialGPUData Matte::gpuData() const
-{
-  MaterialGPUData retval;
-
-  retval.callableBaseIndex = static_cast<unsigned int>(MaterialType::MATTE);
-
-  populateMaterialParameter(retval.materialData.matte.color,
-      m_color,
-      m_colorSampler.get(),
-      m_colorAttribute);
-  populateMaterialParameter(retval.materialData.matte.opacity,
-      m_opacity,
-      m_opacitySampler.get(),
-      m_opacityAttribute);
-
-  retval.materialData.matte.cutoff = m_cutoff;
-  retval.materialData.matte.alphaMode = m_mode;
-
-  return retval;
-}
+  static ptx_blob ptx();
+};
 
 } // namespace visrtx

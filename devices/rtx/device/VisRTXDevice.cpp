@@ -66,6 +66,10 @@
 #include "material/shaders/MatteShader.h"
 #include "material/shaders/PhysicallyBasedShader.h"
 
+// spatial field samplers
+#include "spatial_field/StructuredRegularSampler.h"
+#include "spatial_field/NvdbSampler.h"
+
 // MDL
 #ifdef USE_MDL
 #include "libmdl/Core.h"
@@ -776,6 +780,12 @@ DeviceInitStatus VisRTXDevice::initOptix()
       init_module(&state.materialShaders.physicallyBased,
           PhysicallyBasedShader::ptx(),
           "'physicallyBased' shader"),
+      init_module(&state.fieldSamplers.structuredRegular,
+          StructuredRegularSampler::ptx(),
+          "'structuredRegular' field sampler"),
+      init_module(&state.fieldSamplers.nvdb,
+          NvdbSampler::ptx(),
+          "'nvdb' field sampler"),
   };
 
   for (auto &f : compileTasks)

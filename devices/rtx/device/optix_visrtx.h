@@ -193,6 +193,12 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule physicallyBased{nullptr};
   } materialShaders;
 
+  struct SpatialFieldModules
+  {
+    OptixModule structuredRegular{nullptr};
+    OptixModule nvdb{nullptr};
+  } fieldSamplers;
+
   struct ObjectUpdates
   {
     helium::TimeStamp lastBLASChange{0};

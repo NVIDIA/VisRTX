@@ -31,9 +31,10 @@
 
 #include <cuda_runtime_api.h>
 #include "UniformGrid.h"
+#include "UniformGridSamplers.h"
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
-#include "gpu/sampleSpatialField.h"
+#include "gpu/shadingState.h"
 #include "gpu/uniformGrid.h"
 #ifdef __CUDA_ARCH__
 #include "gpu/gpu_util.h"
@@ -179,50 +180,45 @@ void UniformGrid::buildGrid(const SpatialFieldGPUData &sfgd)
   cudaMalloc(&sfgdDevice, sizeof(sfgd));
   cudaMemcpy(sfgdDevice, &sfgd, sizeof(sfgd), cudaMemcpyHostToDevice);
 
-  switch (sfgd.type) {
-  case SpatialFieldType::STRUCTURED_REGULAR: {
+  switch (sfgd.samplerCallableIndex) {
+  case SbtCallableEntryPoints::SpatialFieldSamplerRegular: {
     buildGridGPU<SpatialFieldSampler<cudaTextureObject_t>>
         <<<iDivUp(numVoxels, numThreads), numThreads>>>(
             m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
     break;
   }
-  case SpatialFieldType::NANOVDB_REGULAR: {
-    switch (sfgd.data.nvdbRegular.gridType) {
-    case nanovdb::GridType::Fp4: {
-      buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp4>>
-          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
-              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
-      break;
-    }
-    case nanovdb::GridType::Fp8: {
-      buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp8>>
-          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
-              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
-      break;
-    }
-    case nanovdb::GridType::Fp16: {
-      buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp16>>
-          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
-              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
-      break;
-    }
-    case nanovdb::GridType::FpN: {
-      buildGridGPU<NvdbSpatialFieldSampler<nanovdb::FpN>>
-          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
-              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
-      break;
-    }
-    case nanovdb::GridType::Float: {
-      buildGridGPU<NvdbSpatialFieldSampler<float>>
-          <<<iDivUp(numVoxels, numThreads), numThreads>>>(
-              m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
-      break;
-    }
-    default:
-      break;
-    }
+  case SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp4: {
+    buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp4>>
+        <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+            m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
     break;
   }
+  case SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp8: {
+    buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp8>>
+        <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+            m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+    break;
+  }
+  case SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp16: {
+    buildGridGPU<NvdbSpatialFieldSampler<nanovdb::Fp16>>
+        <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+            m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+    break;
+  }
+  case SbtCallableEntryPoints::SpatialFieldSamplerNvdbFpN: {
+    buildGridGPU<NvdbSpatialFieldSampler<nanovdb::FpN>>
+        <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+            m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+    break;
+  }
+  case SbtCallableEntryPoints::SpatialFieldSamplerNvdbFloat: {
+    buildGridGPU<NvdbSpatialFieldSampler<float>>
+        <<<iDivUp(numVoxels, numThreads), numThreads>>>(
+            m_valueRanges, m_dims, m_worldBounds, sfgdDevice);
+    break;
+  }
+  default:
+    break;
   }
 
   cudaFree(sfgdDevice);

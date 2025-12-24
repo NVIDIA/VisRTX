@@ -183,6 +183,8 @@ set(SOURCES
   spatial_field/NvdbRegularField.cpp
   spatial_field/StructuredRegularField.cpp
   spatial_field/UnknownSpatialField.cpp
+  spatial_field/StructuredRegularSampler.cpp
+  spatial_field/NvdbSampler.cpp
   spatial_field/space_skipping/UniformGrid.cu
 
   surface/Surface.cpp
@@ -360,6 +362,8 @@ GenerateEmbeddedPTX(renderer Test)
 GenerateEmbeddedPTX(geometry Intersectors)
 GenerateEmbeddedPTX(material/shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)
 GenerateEmbeddedPTX(material/shaders PhysicallyBasedShader ENTRIES __direct__callable__evalSurfaceMaterial)
+GenerateEmbeddedPTX(spatial_field StructuredRegularSampler)
+GenerateEmbeddedPTX(spatial_field NvdbSampler)
 if(VISRTX_ENABLE_MDL_SUPPORT)
   GenerateEmbeddedPTX(material/shaders MDLShader ENTRIES __direct__callable__evalSurfaceMaterial)
   GenerateEmbeddedPTX(material/shaders MDLTexture)

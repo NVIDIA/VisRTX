@@ -32,13 +32,14 @@
 #include "MDL.h"
 
 #include "gpu/gpu_objects.h"
+#include "gpu/sbt.h"
+#include "libmdl/ArgumentBlockDescriptor.h"
 #include "libmdl/ArgumentBlockInstance.h"
+#include "libmdl/helpers.h"
+#include "material/Material.h"
+#include "mdl/MaterialRegistry.h"
 #include "optix_visrtx.h"
 #include "sampler/Sampler.h"
-#include "material/Material.h"
-
-#include "libmdl/ArgumentBlockDescriptor.h"
-#include "libmdl/helpers.h"
 #include "sampler/Sampler.h"
 
 #include <anari/frontend/anari_enums.h>
@@ -373,8 +374,7 @@ void MDL::syncParameters()
 
 void MDL::syncImplementationIndex()
 {
-  m_implementationIndex = static_cast<unsigned int>(MaterialType::MDL)
-      + deviceState()->mdl->materialRegistry.getMaterialImplementationIndex(
+  m_implementationIndex = deviceState()->mdl->materialRegistry.getMaterialImplementationIndex(
           m_uuid);
 }
 
@@ -382,7 +382,9 @@ MaterialGPUData MDL::gpuData() const
 {
   MaterialGPUData retval = {};
 
-  retval.implementationIndex = m_implementationIndex;
+  retval.callableBaseIndex = m_implementationIndex == mdl::MaterialRegistry::INVALID_IMPLEMENTATION_INDEX ?
+      ~0u :
+    uint32_t(SbtCallableEntryPoints::Last) + m_implementationIndex * uint32_t(SurfaceShaderEntryPoints::Count);
 
   if (m_argumentBlockInstance.has_value()) {
     retval.materialData.mdl.numSamplers =

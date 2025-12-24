@@ -31,6 +31,7 @@
 
 #include "PBR.h"
 #include "gpu/gpu_objects.h"
+#include "gpu/sbt.h"
 
 namespace visrtx {
 
@@ -87,8 +88,7 @@ MaterialGPUData PBR::gpuData() const
 {
   MaterialGPUData retval;
 
-  retval.implementationIndex =
-      static_cast<unsigned int>(MaterialType::PHYSICALLYBASED);
+  retval.callableBaseIndex = static_cast<uint32_t>(SbtCallableEntryPoints::PBR);
 
   populateMaterialParameter(retval.materialData.physicallyBased.baseColor,
       m_color,

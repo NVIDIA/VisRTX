@@ -30,6 +30,8 @@
  */
 
 #include "StructuredRegularField.h"
+#include "gpu/gpu_decl.h"
+#include "gpu/shadingState.h"
 #include "utility/AnariTypeHelpers.h"
 // std
 #include <algorithm>
@@ -181,7 +183,7 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
 {
   SpatialFieldGPUData sf;
   auto dims = m_data->size();
-  sf.type = SpatialFieldType::STRUCTURED_REGULAR;
+  sf.samplerCallableIndex = SbtCallableEntryPoints::SpatialFieldSamplerRegular;
   sf.data.structuredRegular.texObj = m_textureObject;
   sf.data.structuredRegular.origin = m_origin;
   sf.data.structuredRegular.invDims = 1.0f / vec3(dims.x, dims.y, dims.z);

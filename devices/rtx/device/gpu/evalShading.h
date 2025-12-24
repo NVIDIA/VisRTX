@@ -34,6 +34,7 @@
 #include <optix_device.h>
 #include "gpu/gpu_objects.h"
 #include "gpu/sampleLight.h"
+#include "gpu/sbt.h"
 #include "shadingState.h"
 
 namespace visrtx {
@@ -43,13 +44,12 @@ VISRTX_DEVICE bool materialInitShading(MaterialShadingState *shadingState,
     const MaterialGPUData &md,
     const SurfaceHit &hit)
 {
-  if (md.implementationIndex == ~DeviceObjectIndex(0)) {
+  if (md.callableBaseIndex == ~DeviceObjectIndex(0)) {
     shadingState->callableBaseIndex = ~0;
     return false;
   }
 
-  shadingState->callableBaseIndex =
-      md.implementationIndex * int(SurfaceShaderEntryPoints::Count);
+  shadingState->callableBaseIndex = md.callableBaseIndex;
 
   return optixDirectCall<bool>(shadingState->callableBaseIndex,
       &shadingState->data,

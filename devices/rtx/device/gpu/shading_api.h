@@ -38,5 +38,4 @@
 #include "gpu/intersectRay.h"
 #include "gpu/populateHit.h"
 #include "gpu/sampleLight.h"
-#include "gpu/sampleSpatialField.h"
 #include "gpu/volumeIntegration.h"
