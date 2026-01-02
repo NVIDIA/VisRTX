@@ -43,6 +43,7 @@ VISRTX_CALLABLE void __direct_callable__initStructuredRegularSampler(
   samplerState->structuredRegular.origin = field->data.structuredRegular.origin;
   samplerState->structuredRegular.invDims = field->data.structuredRegular.invDims;
   samplerState->structuredRegular.invSpacing = field->data.structuredRegular.invSpacing;
+  samplerState->structuredRegular.offset = vec3(field->data.structuredRegular.cellCentered ? 0.0f : 0.5f);
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleStructuredRegular(
@@ -50,7 +51,9 @@ VISRTX_CALLABLE float __direct_callable__sampleStructuredRegular(
     const vec3 *location)
 {
   const auto &state = samplerState->structuredRegular;
-  const auto texelCoords = (*location - state.origin) * state.invSpacing + 0.5f;
+  // Node-centered: map to index space [0.5, dims-0.5]
+  // Cell-centered: map to index space [0, dims]
+  const auto texelCoords = (*location - state.origin) * state.invSpacing + state.offset;
   const auto coords = texelCoords * state.invDims;
   return tex3D<float>(state.texObj, coords.x, coords.y, coords.z);
 }

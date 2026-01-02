@@ -93,6 +93,9 @@ void StructuredRegularField::commitParameters()
 {
   m_origin = getParam<vec3>("origin", vec3(0.f));
   m_spacing = getParam<vec3>("spacing", vec3(1.f));
+
+  auto dataCentering = getParamString("dataCentering", "node");
+  m_cellCentered = (dataCentering == "cell");
   m_filter = getParamString("filter", "linear");
   m_data = getParamObject<Array3D>("data");
 }
@@ -170,8 +173,11 @@ box3 StructuredRegularField::bounds() const
   if (!isValid())
     return {box3(vec3(0.f), vec3(1.f))};
   auto dims = m_data->size();
-  return box3(
-      m_origin, m_origin + ((vec3(dims.x, dims.y, dims.z) - 1.f) * m_spacing));
+  // Node-centered: index space [0, dims-1], cell-centered: index space [0, dims]
+  float extentX = m_cellCentered ? float(dims.x) : float(dims.x - 1);
+  float extentY = m_cellCentered ? float(dims.y) : float(dims.y - 1);
+  float extentZ = m_cellCentered ? float(dims.z) : float(dims.z - 1);
+  return box3(m_origin, m_origin + (vec3(extentX, extentY, extentZ) * m_spacing));
 }
 
 float StructuredRegularField::stepSize() const
@@ -188,6 +194,7 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.data.structuredRegular.origin = m_origin;
   sf.data.structuredRegular.invDims = 1.0f / vec3(dims.x, dims.y, dims.z);
   sf.data.structuredRegular.invSpacing = 1.0f / m_spacing;
+  sf.data.structuredRegular.cellCentered = m_cellCentered;
   sf.grid = m_uniformGrid.gpuData();
   return sf;
 }

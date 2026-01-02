@@ -61,6 +61,7 @@ struct NvdbRegularField : public SpatialField
   box3 m_bounds;
   vec3 m_voxelSize;
   std::string m_filter;
+  bool m_cellCentered{true};
   helium::ChangeObserverPtr<Array1D> m_data;
   std::optional<nanovdb::GridMetaData> m_gridMetadata;
   DeviceBuffer m_deviceBuffer;

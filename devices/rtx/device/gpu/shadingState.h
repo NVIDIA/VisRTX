@@ -136,6 +136,7 @@ struct StructuredRegularSamplerState
   vec3 origin;
   vec3 invDims;
   vec3 invSpacing;
+  vec3 offset;
 };
 
 // NanoVDB Sampler States
@@ -150,6 +151,7 @@ struct NvdbSamplerState
   AccessorType accessor;
   SamplerType sampler;
   nanovdb::Vec3f scale;
+  nanovdb::Vec3f offset;
 };
 
 struct VolumeSamplingState

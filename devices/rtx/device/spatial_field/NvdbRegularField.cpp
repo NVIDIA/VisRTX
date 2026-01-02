@@ -60,6 +60,9 @@ void NvdbRegularField::commitParameters()
 {
   m_filter = getParamString("filter", "linear");
   m_data = getParamObject<Array1D>("data");
+
+  auto dataCentering = getParamString("dataCentering", "cell");
+  m_cellCentered = (dataCentering == "cell");
 }
 
 void NvdbRegularField::finalize()
@@ -158,6 +161,7 @@ SpatialFieldGPUData NvdbRegularField::gpuData() const
   sf.data.nvdbRegular.origin = m_bounds.lower;
   sf.data.nvdbRegular.gridData = m_deviceBuffer.ptr();
   sf.data.nvdbRegular.gridType = gridType;
+  sf.data.nvdbRegular.cellCentered = m_cellCentered;
 
   sf.grid = m_uniformGrid.gpuData();
 

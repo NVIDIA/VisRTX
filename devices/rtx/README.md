@@ -75,6 +75,22 @@ GPU pointers returned by `anariMapFrame()` are device pointers intended to be
 kept on the device. Applications which desire to copy data from the device back
 to the host should instead map the ordinary `color` and `depth` channels.
 
+#### VISRTX_SPATIAL_FIELD_DATA_CENTERING
+
+The `dataCentering` parameter controls how spatial field data is interpreted relative to the grid structure. 
+This extension enables fine-grained control over whether data values represent quantities at grid vertices 
+(node-centered) or at the center of grid cells (cell-centered).
+
+**Supported Values:**
+- `"vertex"`: Data is centered at grid vertices (node-centered). Each data value corresponds to a grid point.
+- `"cell"`: Data is centered at cell centers. Each data value corresponds to the center of a voxel/cell.
+
+> [!Note]
+> The spatial extent of a StructuredRegular volume depends on the `dataCentering` parameter. 
+> When set to `"vertex"`, the extent is `[origin, origin + (data.size - 1) × spacing]`.
+> When set to `"cell"`, the extent is `[origin, origin + data.size × spacing]`.
+
+
 ## Additional ANARI Parameter and Property Extensions
 
 The following section describes what additional parameters and properties can be
@@ -152,6 +168,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `NV_ARRAY_CUDA`
 - `NV_FRAME_BUFFERS_CUDA`
 - `VISRTX_TRIANGLE_BACK_FACE_CULLING`
+- `VISRTX_SPATIAL_FIELD_DATA_CENTERING`
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!

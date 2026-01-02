@@ -49,7 +49,8 @@
       "nv_frame_buffers_cuda",
       $<$<BOOL:VISRTX_ENABLE_MDL_SUPPORT>:"visrtx_material_mdl",>
       $<$<BOOL:VISRTX_ENABLE_NEURAL>:"visrtx_geometry_neural",>
-      "visrtx_triangle_back_face_culling"
+      "visrtx_triangle_back_face_culling",
+      "visrtx_spatial_field_data_centering"
     ]
   },
   "objects": [

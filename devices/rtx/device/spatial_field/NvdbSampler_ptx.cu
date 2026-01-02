@@ -37,139 +37,168 @@ using namespace visrtx;
 
 // Fp4 sampler
 VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp4(
-    VolumeSamplingState *samplerState,
-    const SpatialFieldGPUData *field)
+    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
 {
   using GridType = nanovdb::Grid<nanovdb::NanoTree<nanovdb::Fp4>>;
-  const auto *grid = static_cast<const GridType *>(field->data.nvdbRegular.gridData);
-  
+  const auto *grid =
+      static_cast<const GridType *>(field->data.nvdbRegular.gridData);
+
   samplerState->nvdbFp4.grid = grid;
   samplerState->nvdbFp4.accessor = grid->getAccessor();
-  // Use placement new to construct sampler in-place, as we cannot assign because of 
-  // deleted constructor of the nanovdb samplers
-  new (&samplerState->nvdbFp4.sampler) NvdbSamplerState<nanovdb::Fp4>::SamplerType(
-      nanovdb::math::createSampler<1>(samplerState->nvdbFp4.accessor));
-  samplerState->nvdbFp4.scale = 
-      (nanovdb::Vec3f(grid->indexBBox().dim()) - nanovdb::Vec3f(1.0f))
-      / nanovdb::Vec3f(grid->indexBBox().dim());
+  // Use placement new to construct sampler in-place, as we cannot assign
+  // because of deleted constructor of the nanovdb samplers
+  new (&samplerState->nvdbFp4.sampler)
+      NvdbSamplerState<nanovdb::Fp4>::SamplerType(
+          nanovdb::math::createSampler<1>(samplerState->nvdbFp4.accessor));
+
+  const bool cellCentered = field->data.nvdbRegular.cellCentered;
+  const nanovdb::Vec3f dims = nanovdb::Vec3f(grid->indexBBox().dim());
+
+  samplerState->nvdbFp4.offset = nanovdb::Vec3f(cellCentered ? 0.5f : 0.0f);
+  samplerState->nvdbFp4.scale = cellCentered
+      ? nanovdb::Vec3f(1.0f)
+      : (dims - nanovdb::Vec3f(1.0f)) / dims;
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFp4(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location)
 {
   const auto &state = samplerState->nvdbFp4;
-  return state.sampler(state.grid->worldToIndexF(
-      nanovdb::Vec3f(location->x, location->y, location->z)) * state.scale);
+  auto indexPos = state.grid->worldToIndexF(
+      nanovdb::Vec3f(location->x, location->y, location->z));
+  return state.sampler(indexPos * state.scale - state.offset);
 }
 
 // Fp8 sampler
 VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp8(
-    VolumeSamplingState *samplerState,
-    const SpatialFieldGPUData *field)
+    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
 {
   using GridType = nanovdb::Grid<nanovdb::NanoTree<nanovdb::Fp8>>;
-  const auto *grid = static_cast<const GridType *>(field->data.nvdbRegular.gridData);
-  
+  const auto *grid =
+      static_cast<const GridType *>(field->data.nvdbRegular.gridData);
+
   samplerState->nvdbFp8.grid = grid;
   samplerState->nvdbFp8.accessor = grid->getAccessor();
-  // Use placement new to construct sampler in-place, as we cannot assign because of 
-  // deleted constructor of the nanovdb samplers
-  new (&samplerState->nvdbFp8.sampler) NvdbSamplerState<nanovdb::Fp8>::SamplerType(
-      nanovdb::math::createSampler<1>(samplerState->nvdbFp8.accessor));
-  samplerState->nvdbFp8.scale = 
-      (nanovdb::Vec3f(grid->indexBBox().dim()) - nanovdb::Vec3f(1.0f))
-      / nanovdb::Vec3f(grid->indexBBox().dim());
+  // Use placement new to construct sampler in-place, as we cannot assign
+  // because of deleted constructor of the nanovdb samplers
+  new (&samplerState->nvdbFp8.sampler)
+      NvdbSamplerState<nanovdb::Fp8>::SamplerType(
+          nanovdb::math::createSampler<1>(samplerState->nvdbFp8.accessor));
+
+  const bool cellCentered = field->data.nvdbRegular.cellCentered;
+  const nanovdb::Vec3f dims = nanovdb::Vec3f(grid->indexBBox().dim());
+
+  samplerState->nvdbFp8.offset = nanovdb::Vec3f(cellCentered ? 0.5f : 0.0f);
+  samplerState->nvdbFp8.scale = cellCentered
+      ? nanovdb::Vec3f(1.0f)
+      : (dims - nanovdb::Vec3f(1.0f)) / dims;
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFp8(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location)
 {
   const auto &state = samplerState->nvdbFp8;
-  return state.sampler(state.grid->worldToIndexF(
-      nanovdb::Vec3f(location->x, location->y, location->z)) * state.scale);
+  auto indexPos = state.grid->worldToIndexF(
+      nanovdb::Vec3f(location->x, location->y, location->z));
+  return state.sampler(indexPos * state.scale - state.offset);
 }
 
 // Fp16 sampler
 VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp16(
-    VolumeSamplingState *samplerState,
-    const SpatialFieldGPUData *field)
+    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
 {
   using GridType = nanovdb::Grid<nanovdb::NanoTree<nanovdb::Fp16>>;
-  const auto *grid = static_cast<const GridType *>(field->data.nvdbRegular.gridData);
-  
+  const auto *grid =
+      static_cast<const GridType *>(field->data.nvdbRegular.gridData);
+
   samplerState->nvdbFp16.grid = grid;
   samplerState->nvdbFp16.accessor = grid->getAccessor();
-  // Use placement new to construct sampler in-place, as we cannot assign because of 
-  // deleted constructor of the nanovdb samplers
-  new (&samplerState->nvdbFp16.sampler) NvdbSamplerState<nanovdb::Fp16>::SamplerType(
-      nanovdb::math::createSampler<1>(samplerState->nvdbFp16.accessor));
-  samplerState->nvdbFp16.scale = 
-      (nanovdb::Vec3f(grid->indexBBox().dim()) - nanovdb::Vec3f(1.0f))
-      / nanovdb::Vec3f(grid->indexBBox().dim());
+  // Use placement new to construct sampler in-place, as we cannot assign
+  // because of deleted constructor of the nanovdb samplers
+  new (&samplerState->nvdbFp16.sampler)
+      NvdbSamplerState<nanovdb::Fp16>::SamplerType(
+          nanovdb::math::createSampler<1>(samplerState->nvdbFp16.accessor));
+
+  const bool cellCentered = field->data.nvdbRegular.cellCentered;
+  const nanovdb::Vec3f dims = nanovdb::Vec3f(grid->indexBBox().dim());
+
+  samplerState->nvdbFp16.offset = nanovdb::Vec3f(cellCentered ? 0.5f : 0.0f);
+  samplerState->nvdbFp16.scale = cellCentered
+      ? nanovdb::Vec3f(1.0f)
+      : (dims - nanovdb::Vec3f(1.0f)) / dims;
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFp16(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location)
 {
   const auto &state = samplerState->nvdbFp16;
-  return state.sampler(state.grid->worldToIndexF(
-      nanovdb::Vec3f(location->x, location->y, location->z)) * state.scale);
+  auto indexPos = state.grid->worldToIndexF(
+      nanovdb::Vec3f(location->x, location->y, location->z));
+  return state.sampler(indexPos * state.scale - state.offset);
 }
 
 // FpN sampler
 VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFpN(
-    VolumeSamplingState *samplerState,
-    const SpatialFieldGPUData *field)
+    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
 {
   using GridType = nanovdb::Grid<nanovdb::NanoTree<nanovdb::FpN>>;
-  const auto *grid = static_cast<const GridType *>(field->data.nvdbRegular.gridData);
-  
+  const auto *grid =
+      static_cast<const GridType *>(field->data.nvdbRegular.gridData);
+
   samplerState->nvdbFpN.grid = grid;
   samplerState->nvdbFpN.accessor = grid->getAccessor();
-  // Use placement new to construct sampler in-place, as we cannot assign because of 
-  // deleted constructor of the nanovdb samplers
-  new (&samplerState->nvdbFpN.sampler) NvdbSamplerState<nanovdb::FpN>::SamplerType(
-      nanovdb::math::createSampler<1>(samplerState->nvdbFpN.accessor));
-  samplerState->nvdbFpN.scale = 
-      (nanovdb::Vec3f(grid->indexBBox().dim()) - nanovdb::Vec3f(1.0f))
-      / nanovdb::Vec3f(grid->indexBBox().dim());
+  // Use placement new to construct sampler in-place, as we cannot assign
+  // because of deleted constructor of the nanovdb samplers
+  new (&samplerState->nvdbFpN.sampler)
+      NvdbSamplerState<nanovdb::FpN>::SamplerType(
+          nanovdb::math::createSampler<1>(samplerState->nvdbFpN.accessor));
+
+  const bool cellCentered = field->data.nvdbRegular.cellCentered;
+  const nanovdb::Vec3f dims = nanovdb::Vec3f(grid->indexBBox().dim());
+
+  samplerState->nvdbFpN.offset = nanovdb::Vec3f(cellCentered ? 0.5f : 0.0f);
+  samplerState->nvdbFpN.scale = cellCentered
+      ? nanovdb::Vec3f(1.0f)
+      : (dims - nanovdb::Vec3f(1.0f)) / dims;
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFpN(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location)
 {
   const auto &state = samplerState->nvdbFpN;
-  return state.sampler(state.grid->worldToIndexF(
-      nanovdb::Vec3f(location->x, location->y, location->z)) * state.scale);
+  auto indexPos = state.grid->worldToIndexF(
+      nanovdb::Vec3f(location->x, location->y, location->z));
+  return state.sampler(indexPos * state.scale - state.offset);
 }
 
 // Float sampler
 VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFloat(
-    VolumeSamplingState *samplerState,
-    const SpatialFieldGPUData *field)
+    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
 {
   using GridType = nanovdb::Grid<nanovdb::NanoTree<float>>;
-  const auto *grid = static_cast<const GridType *>(field->data.nvdbRegular.gridData);
-  
+  const auto *grid =
+      static_cast<const GridType *>(field->data.nvdbRegular.gridData);
+
   samplerState->nvdbFloat.grid = grid;
   samplerState->nvdbFloat.accessor = grid->getAccessor();
   // Use placement new to construct sampler in-place
   new (&samplerState->nvdbFloat.sampler) NvdbSamplerState<float>::SamplerType(
       nanovdb::math::createSampler<1>(samplerState->nvdbFloat.accessor));
-  samplerState->nvdbFloat.scale = 
-      (nanovdb::Vec3f(grid->indexBBox().dim()) - nanovdb::Vec3f(1.0f))
-      / nanovdb::Vec3f(grid->indexBBox().dim());
+
+  const bool cellCentered = field->data.nvdbRegular.cellCentered;
+  const nanovdb::Vec3f dims = nanovdb::Vec3f(grid->indexBBox().dim());
+
+  samplerState->nvdbFloat.offset = nanovdb::Vec3f(cellCentered ? 0.5f : 0.0f);
+  samplerState->nvdbFloat.scale = cellCentered
+      ? nanovdb::Vec3f(1.0f)
+      : (dims - nanovdb::Vec3f(1.0f)) / dims;
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleNvdbFloat(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location)
+    const VolumeSamplingState *samplerState, const vec3 *location)
 {
   const auto &state = samplerState->nvdbFloat;
-  return state.sampler(state.grid->worldToIndexF(
-      nanovdb::Vec3f(location->x, location->y, location->z)) * state.scale);
+  auto indexPos = state.grid->worldToIndexF(
+      nanovdb::Vec3f(location->x, location->y, location->z));
+  return state.sampler(indexPos * state.scale - state.offset);
 }

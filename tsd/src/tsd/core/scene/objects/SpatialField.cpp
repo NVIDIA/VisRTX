@@ -25,6 +25,11 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
         .setValue("linear")
         .setStringValues({"nearest", "linear"})
         .setStringSelection(1);
+    addParameter("dataCentering")
+        .setValue("node")
+        .setStringValues({"node", "cell"})
+        .setStringSelection(0)
+        .setDescription("whether data values are node-centered or cell-centered");
     addParameter("data")
         .setValue({ANARI_ARRAY3D, INVALID_INDEX})
         .setDescription("vertex-centered voxel data");
@@ -59,6 +64,11 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
         .setDescription("array containing serialzed NanoVDB grid");
     addParameter("filter").setValue("linear").setStringValues(
         {"linear", "nearest"});
+    addParameter("dataCentering")
+        .setValue("cell")
+        .setStringValues({"node", "cell"})
+        .setStringSelection(1)
+        .setDescription("whether data values are node-centered or cell-centered");
   }
 }
 
