@@ -58,6 +58,8 @@ struct StructuredRegularField : public SpatialField
   vec3 m_spacing;
   std::string m_filter;
   bool m_cellCentered{false};
+  box3 m_roi{box3(vec3(std::numeric_limits<float>::lowest()),
+                  vec3(std::numeric_limits<float>::max()))};
   helium::ChangeObserverPtr<Array3D> m_data;
 
   cudaArray_t m_cudaArray{};

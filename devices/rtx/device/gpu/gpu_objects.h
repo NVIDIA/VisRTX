@@ -432,6 +432,7 @@ struct SpatialFieldGPUData
     NVdbRegularData nvdbRegular;
   } data;
   UniformGridData grid;
+  box3 roi;
 };
 
 // Volume //

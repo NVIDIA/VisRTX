@@ -30,15 +30,22 @@
  */
 
 #include "StructuredRegularField.h"
+
 #include "gpu/gpu_decl.h"
 #include "gpu/shadingState.h"
 #include "utility/AnariTypeHelpers.h"
+
+// anari
+#include <anari/anari_cpp/Traits.h>
+#include <anari/frontend/anari_enums.h>
 // std
 #include <algorithm>
 #include <limits>
 #include <vector>
 // glm
 #include <glm/gtx/component_wise.hpp>
+
+VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box3, ANARI_FLOAT32_BOX3);
 
 namespace visrtx {
 
@@ -98,6 +105,11 @@ void StructuredRegularField::commitParameters()
   m_cellCentered = (dataCentering == "cell");
   m_filter = getParamString("filter", "linear");
   m_data = getParamObject<Array3D>("data");
+  
+  // ROI in object space (default: full range)
+  m_roi = getParam<box3>("roi",
+      box3(vec3(std::numeric_limits<float>::lowest()),
+          vec3(std::numeric_limits<float>::max())));
 }
 
 void StructuredRegularField::finalize()
@@ -196,6 +208,10 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.data.structuredRegular.invSpacing = 1.0f / m_spacing;
   sf.data.structuredRegular.cellCentered = m_cellCentered;
   sf.grid = m_uniformGrid.gpuData();
+  
+  sf.roi.lower = m_roi.lower;
+  sf.roi.upper = m_roi.upper;
+  
   return sf;
 }
 

@@ -197,6 +197,12 @@ VISRTX_DEVICE const VolumeGPUData &volumeData(const FrameGPUData &frameData)
   return frameData.registry.volumes[idx];
 }
 
+VISRTX_DEVICE const SpatialFieldGPUData &fieldData(const FrameGPUData &frameData, const VolumeGPUData &volumeData)
+{
+  // Currently only TF1D volume type is supported, so assume this is what we have
+  return frameData.registry.fields[volumeData.data.tf1d.field];
+}
+
 VISRTX_DEVICE void computeTangentSpace(
     const GeometryGPUData &ggd, uint32_t primID, SurfaceHit &hit)
 {

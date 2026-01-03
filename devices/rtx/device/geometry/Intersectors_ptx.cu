@@ -265,10 +265,25 @@ VISRTX_DEVICE void intersectVolume()
   const auto &frameData = *ss.frameData;
   const auto &volumeData = ray::volumeData(frameData);
 
-  if (box1 t; rayBoxIntersection(ray::localOrigin(), ray::localDirection(), volumeData.bounds, t.lower, t.upper))  {
-    t.lower = std::max(t.lower, ray::tmin());
-    if (ray::tmin() < t.upper) {
-      reportIntersectionVolume(t);
+  if (box1 t; rayBoxIntersection(ray::localOrigin(),
+          ray::localDirection(),
+          volumeData.bounds,
+          t.lower,
+          t.upper)) {
+    const auto &fieldData = ray::fieldData(frameData, volumeData);
+
+    if (box1 tRoi; rayBoxIntersection(ray::localOrigin(),
+            ray::localDirection(),
+            fieldData.roi,
+            tRoi.lower,
+            tRoi.upper)) {
+      t.lower = std::max(t.lower, tRoi.lower);
+      t.upper = std::min(t.upper, tRoi.upper);
+
+      t.lower = std::max(t.lower, ray::tmin());
+      if (t.lower < t.upper) {
+        reportIntersectionVolume(t);
+      }
     }
   }
 }
@@ -356,7 +371,7 @@ VISRTX_DEVICE float __optix_enabled__forwardSDF(
 VISRTX_DEVICE void intersectNeural(const GeometryGPUData &geometryData)
 {
   const auto &neuralData = geometryData.neural;
-  const box3 bounds = { neuralData.boundMin, neuralData.boundMax };
+  const box3 bounds = {neuralData.boundMin, neuralData.boundMax};
   const vec3 &ro = ray::localOrigin();
   const vec3 &rd = ray::localDirection();
   float t0, t1;

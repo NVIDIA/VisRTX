@@ -4,10 +4,18 @@
 #include "tsd/core/scene/objects/SpatialField.hpp"
 
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/TSDMath.hpp"
+#include "tsd/core/Parameter.hpp"
 #include "tsd/core/algorithms/computeScalarRange.hpp"
 #include "tsd/core/scene/Scene.hpp"
+// anari
+#include <anari/frontend/anari_enums.h>
 // std
 #include <optional>
+
+namespace anari {
+  ANARI_TYPEFOR_SPECIALIZATION(tsd::math::box3, ANARI_FLOAT32_BOX3);
+}
 
 namespace tsd::core {
 
@@ -33,6 +41,11 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
     addParameter("data")
         .setValue({ANARI_ARRAY3D, INVALID_INDEX})
         .setDescription("vertex-centered voxel data");
+    addParameter("roi")
+        .setDescription("ROI box in object space")
+        .setValue(tsd::math::box3(
+            tsd::math::float3(-INFINITY, -INFINITY, -INFINITY),
+            tsd::math::float3(INFINITY, INFINITY, INFINITY)));
   } else if (stype == tokens::spatial_field::amr) {
     addParameter("gridOrigin")
         .setValue(tsd::math::float3(0.f, 0.f, 0.f))
@@ -69,6 +82,11 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
         .setStringValues({"node", "cell"})
         .setStringSelection(1)
         .setDescription("whether data values are node-centered or cell-centered");
+    addParameter("roi")
+        .setDescription("ROI box in object space")
+        .setValue(tsd::math::box3(
+            tsd::math::float3(-INFINITY, -INFINITY, -INFINITY),
+            tsd::math::float3(INFINITY, INFINITY, INFINITY)));
   }
 }
 

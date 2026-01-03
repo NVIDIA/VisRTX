@@ -31,6 +31,7 @@
 
 #pragma once
 
+#include "gpu/gpu_math.h"
 #include "spatial_field/SpatialField.h"
 
 #include "array/Array1D.h"
@@ -62,6 +63,8 @@ struct NvdbRegularField : public SpatialField
   vec3 m_voxelSize;
   std::string m_filter;
   bool m_cellCentered{true};
+  box3 m_roi{box3(vec3(std::numeric_limits<float>::lowest()),
+                  vec3(std::numeric_limits<float>::max()))};
   helium::ChangeObserverPtr<Array1D> m_data;
   std::optional<nanovdb::GridMetaData> m_gridMetadata;
   DeviceBuffer m_deviceBuffer;
