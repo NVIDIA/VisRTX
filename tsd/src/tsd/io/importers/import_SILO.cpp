@@ -7,8 +7,12 @@
 
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/TSDMath.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+
+// anari
+#include <anari/anari_cpp/Traits.h>
 
 #if TSD_USE_SILO
 // silo
@@ -22,6 +26,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 #endif
+
+namespace anari {
+  ANARI_TYPEFOR_SPECIALIZATION(tsd::math::box3, ANARI_FLOAT32_BOX3);
+} // namespace anari
 
 namespace tsd::io {
 
@@ -419,162 +427,108 @@ static SpatialFieldRef createFieldFromQuadMesh(Scene &scene,
       tokens::spatial_field::structuredRegular);
   field->setName(fieldName.c_str());
 
-  // Check for ghost zones using ghost_zone_labels
-  // Note: min_index/max_index refer to NODE indices, not zone indices!
-  int3 realNodeFirst(0, 0, 0);
-  int3 realNodeLast(mesh->dims[0] - 1, mesh->dims[1] - 1, mesh->dims[2] - 1);
-  bool hasGhostZones = false;
-
-  if (mesh->ghost_zone_labels) {
-    hasGhostZones = true;
-    logStatus("[import_SILO] mesh '%s' has ghost zone labels", meshName);
-
-    // Use min_index/max_index to determine real NODE bounds
-    // These define the extent of real (non-ghost) nodes
-    for (int i = 0; i < mesh->ndims && i < 3; i++) {
-      realNodeFirst[i] = mesh->min_index[i];
-      realNodeLast[i] = mesh->max_index[i];
-    }
-    logStatus("[import_SILO] real nodes: [%d:%d, %d:%d, %d:%d]",
-        realNodeFirst.x,
-        realNodeLast.x,
-        realNodeFirst.y,
-        realNodeLast.y,
-        realNodeFirst.z,
-        realNodeLast.z);
-  }
-
-  // Get dimensions (only real zones)
   // Zones are defined between nodes, so zone count = node_count - 1
-  int3 totalNodeDims(mesh->dims[0], mesh->dims[1], mesh->dims[2]);
-  int3 totalDims(mesh->dims[0] - 1, mesh->dims[1] - 1, mesh->dims[2] - 1);
-  int3 realZoneFirst(0, 0, 0);
-  int3 realZoneLast = totalDims;
-  int3 dims;
-
-  if (hasGhostZones) {
-    // Real zones are between real nodes
-    // If real nodes go from index A to B, real zones go from A to B-1
-    realZoneFirst = realNodeFirst;
-    realZoneLast = int3(std::max(realNodeLast.x - 1, realNodeFirst.x),
-        std::max(realNodeLast.y - 1, realNodeFirst.y),
-        std::max(realNodeLast.z - 1, realNodeFirst.z));
-
-    dims = int3(realZoneLast.x - realZoneFirst.x + 1,
-        realZoneLast.y - realZoneFirst.y + 1,
-        realZoneLast.z - realZoneFirst.z + 1);
-
-    logStatus(
-        "[import_SILO] real zone range:"
-        " [%d:%d, %d:%d, %d:%d] = %d x %d x %d zones",
-        realZoneFirst.x,
-        realZoneLast.x,
-        realZoneFirst.y,
-        realZoneLast.y,
-        realZoneFirst.z,
-        realZoneLast.z,
-        dims.x,
-        dims.y,
-        dims.z);
-  } else {
-    dims = totalDims;
-  }
-
-  if (dims.x < 1)
-    dims.x = 1;
-  if (dims.y < 1)
-    dims.y = 1;
-  if (dims.z < 1)
-    dims.z = 1;
+  int3 nodes(mesh->dims[0], mesh->dims[1], mesh->dims[2]);
+  int3 zones(mesh->dims[0] - 1, mesh->dims[1] - 1, mesh->dims[2] - 1);
 
   logStatus(
       "[import_SILO] total node dims:"
-      " %d x %d x %d, total zone dims: %d x %d x %d, final dims: %d x %d x %d",
-      totalNodeDims.x,
-      totalNodeDims.y,
-      totalNodeDims.z,
-      totalDims.x,
-      totalDims.y,
-      totalDims.z,
-      dims.x,
-      dims.y,
-      dims.z);
+      " %d x %d x %d, total zone dims: %d x %d x %d",
+      nodes.x,
+      nodes.y,
+      nodes.z,
+      zones.x,
+      zones.y,
+      zones.z);
 
-  // Get origin and spacing from coordinates
+  // Check for ghost zones, keeping only phony cells.
+  // Phony is a term coming from the SILO headers.
+  int3 minIndex(mesh->min_index[0], mesh->min_index[1], mesh->min_index[2]);
+  int3 maxIndex(mesh->max_index[0], mesh->max_index[1], mesh->max_index[2]);
+  bool hasGhostZones = minIndex != int3(0)
+      || maxIndex
+          != int3(mesh->dims[0] - 1, mesh->dims[1] - 1, mesh->dims[2] - 1);
+
+  // Check if data is node-centered or cell-centered
+  bool isNodeCentered = (var->centering == DB_NODECENT);
+
+  if (hasGhostZones) {
+    logStatus("[import_SILO] phony %s: [%d:%d, %d:%d, %d:%d]",
+        isNodeCentered ? "nodes" : "cells",
+        minIndex.x,
+        maxIndex.x,
+        minIndex.y,
+        maxIndex.y,
+        minIndex.z,
+        maxIndex.z);
+  }
+
+  // Get origin and spacing from coordinates (use full extent including ghosts)
   float3 origin(0.f);
   float3 spacing(1.f);
+  tsd::math::box3 roi;
 
-  // Spacing should be computed from consecutive real coordinates
-  // Our grid might be rectilinear, let's compute some average spacing
-  // that preserves the actual volume extent
+  // Compute origin and spacing from the full grid extent
   for (int d = 0; d < 3; d++) {
     if (mesh->coords[d]) {
       if (mesh->datatype == DB_FLOAT) {
         float *c = (float *)mesh->coords[d];
-        origin[d] = c[realNodeFirst[d]];
-        if (mesh->dims[d] > realNodeFirst[d])
-          spacing[d] = (c[realNodeLast[d]] - c[realNodeFirst[d]]) / dims[d];
+        origin[d] = c[0]; // First node in full grid
+        if (mesh->dims[d] > 1) {
+          // Spacing from full grid extent
+          spacing[d] = (c[mesh->dims[d] - 1] - c[0]) / nodes[d];
+        }
+        roi.lower[d] = c[minIndex[d]];
+        roi.upper[d] = c[maxIndex[d]];
       } else if (mesh->datatype == DB_DOUBLE) {
         double *c = (double *)mesh->coords[d];
-        origin[d] = c[realNodeFirst[d]];
-        if (mesh->dims[d] > realNodeFirst[d])
-          spacing[d] = (c[realNodeLast[d]] - c[realNodeFirst[d]]) / dims[d];
+        origin[d] = c[0]; // First node in full grid
+        if (mesh->dims[d] > 1) {
+          // Spacing from full grid extent
+          spacing[d] = (c[mesh->dims[d] - 1] - c[0]) / nodes[d];
+        }
+        roi.lower[d] = c[minIndex[d]];
+        roi.upper[d] = c[maxIndex[d]];
       }
     }
   }
 
   logStatus(
-      "[import_SILO] extent: [%.9f, %.9f, %.9f ; %.9f, %.9f, %.9f] spacing: [%.9f, %.9f, %.9f]",
+      "[import_SILO] origin: %.9f %.9f %.9f, spacing: %.9f %.9f %.9f, %s values",
       origin.x,
       origin.y,
       origin.z,
-      origin.x + spacing.x * dims.x,
-      origin.y + spacing.y * dims.y,
-      origin.z + spacing.z * dims.z,
       spacing.x,
       spacing.y,
-      spacing.z);
+      spacing.z,
+      isNodeCentered ? "nodes" : "cells");
 
   field->setParameter("origin", origin);
   field->setParameter("spacing", spacing);
+  field->setParameter("dataCentering", isNodeCentered ? "node" : "cell");
 
-  // Copy variable data - only copy non-ghost zones
-  size_t numElements = dims.x * dims.y * dims.z;
-  auto dataType = siloTypeToANARIType(var->datatype);
-  auto dataArray = scene.createArray(dataType, dims.x, dims.y, dims.z);
-
-  void *dst = dataArray->map();
-
+  // Set ROI to exclude ghost zones if they exist
   if (hasGhostZones) {
-    // Copy only the real zone sub-region defined by [realZoneFirst,
-    // realZoneLast] For structured grids, min_index/max_index are NODE indices,
-    // zones are nodes-1
-    size_t dstIdx = 0;
-    size_t elementSize = anari::sizeOf(dataType);
-
-    for (int k = realZoneFirst.z; k <= realZoneLast.z; k++) {
-      for (int j = realZoneFirst.y; j <= realZoneLast.y; j++) {
-        for (int i = realZoneFirst.x; i <= realZoneLast.x; i++) {
-          int srcIdx = k * totalDims.y * totalDims.x + j * totalDims.x + i;
-          std::memcpy((char *)dst + dstIdx * elementSize,
-              (char *)var->vals[0] + srcIdx * elementSize,
-              elementSize);
-          dstIdx++;
-        }
-      }
-    }
+    field->setParameter("roi", roi);
     logStatus(
-        "[import_SILO] copied %zu real zones (excluded ghosts from %d total)",
-        dstIdx,
-        totalDims.x * totalDims.y * totalDims.z);
-  } else {
-    // No ghost zones, direct copy
-    void *src = var->vals[0];
-    std::memcpy(dst, src, numElements * anari::sizeOf(dataType));
+        "[import_SILO] ROI set to %.9f => %.9f; %.9f => %.9f; %.9f => %.9f to exclude ghost zones",
+        roi.lower.x,
+        roi.upper.x,
+        roi.lower.y,
+        roi.upper.y,
+        roi.lower.z,
+        roi.upper.z);
   }
 
-  dataArray->unmap();
-
+  // Load all variable data (including ghost zones)
+  auto dataType = siloTypeToANARIType(var->datatype);
+  ArrayRef dataArray;
+  if (isNodeCentered) {
+    dataArray = scene.createArray(dataType, nodes.x, nodes.y, nodes.z);
+  } else {
+    dataArray = scene.createArray(dataType, zones.x, zones.y, zones.z);
+  }
+  dataArray->setData(var->vals[0]);
   field->setParameterObject("data", *dataArray);
 
   DBFreeQuadmesh(mesh);
@@ -876,6 +830,7 @@ static SpatialFieldRef import_SILO_multiMesh(Scene &scene,
   // Derived fields are always computed as float32
   anari::DataType globalDataType = ANARI_FLOAT32;
   bool firstBlock = true;
+  bool isNodeCentered = true; // Default to node-centered
 
   std::filesystem::path basePath = std::filesystem::path(file).parent_path();
 
@@ -951,29 +906,35 @@ static SpatialFieldRef import_SILO_multiMesh(Scene &scene,
             if (qm->coords[0] && qm->dims[0] > realNodeFirst.x + 1) {
               if (qm->datatype == DB_FLOAT) {
                 float *x = (float *)qm->coords[0];
-                globalSpacing.x = x[realNodeFirst.x + 1] - x[realNodeFirst.x];
+                globalSpacing.x = (x[realNodeLast.x] - x[realNodeFirst.x])
+                    / (qm->dims[0] + (isNodeCentered ? -1 : 0));
               } else if (qm->datatype == DB_DOUBLE) {
                 double *x = (double *)qm->coords[0];
-                globalSpacing.x = x[realNodeFirst.x + 1] - x[realNodeFirst.x];
+                globalSpacing.x = (x[realNodeLast.x] - x[realNodeFirst.x])
+                    / (qm->dims[0] + (isNodeCentered ? -1 : 0));
               }
             }
             if (qm->coords[1] && qm->dims[1] > realNodeFirst.y + 1) {
               if (qm->datatype == DB_FLOAT) {
                 float *y = (float *)qm->coords[1];
-                globalSpacing.y = y[realNodeFirst.y + 1] - y[realNodeFirst.y];
+                globalSpacing.y = (y[realNodeLast.y] - y[realNodeFirst.y])
+                    / (qm->dims[1] + (isNodeCentered ? -1 : 0));
               } else if (qm->datatype == DB_DOUBLE) {
                 double *y = (double *)qm->coords[1];
-                globalSpacing.y = y[realNodeFirst.y + 1] - y[realNodeFirst.y];
+                globalSpacing.y = (y[realNodeLast.y] - y[realNodeFirst.y])
+                    / (qm->dims[1] + (isNodeCentered ? -1 : 0));
               }
             }
             if (qm->ndims > 2 && qm->coords[2]
                 && qm->dims[2] > realNodeFirst.z + 1) {
               if (qm->datatype == DB_FLOAT) {
                 float *z = (float *)qm->coords[2];
-                globalSpacing.z = z[realNodeFirst.z + 1] - z[realNodeFirst.z];
+                globalSpacing.z = (z[realNodeLast.z] - z[realNodeFirst.z])
+                    / (qm->dims[2] + (isNodeCentered ? -1 : 0));
               } else if (qm->datatype == DB_DOUBLE) {
                 double *z = (double *)qm->coords[2];
-                globalSpacing.z = z[realNodeFirst.z + 1] - z[realNodeFirst.z];
+                globalSpacing.z = (z[realNodeLast.z] - z[realNodeFirst.z])
+                    / (qm->dims[2] + (isNodeCentered ? -1 : 0));
               }
             }
             if (!isDerivedField) {
@@ -1006,6 +967,11 @@ static SpatialFieldRef import_SILO_multiMesh(Scene &scene,
 
           info.origin = blockOrigin;
           info.spacing = globalSpacing;
+
+          // Capture centering from first block
+          if (firstBlock) {
+            isNodeCentered = (qv->centering == DB_NODECENT);
+          }
 
           // Dims are in zones (nodes - 1)
           info.dims = int3(realNodeLast.x - realNodeFirst.x,
@@ -1452,6 +1418,7 @@ static SpatialFieldRef import_SILO_multiMesh(Scene &scene,
   field->setName(fieldName.c_str());
   field->setParameter("origin", globalMin);
   field->setParameter("spacing", globalSpacing);
+  field->setParameter("dataCentering", isNodeCentered ? "node" : "cell");
   field->setParameterObject("data", *unifiedDataArray);
 
   // Create single volume with unified field
