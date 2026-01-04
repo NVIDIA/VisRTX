@@ -167,7 +167,7 @@ void StructuredRegularField::finalize()
       m_filter == "nearest" ? cudaFilterModePoint : cudaFilterModeLinear;
   texDesc.readMode =
       isFloat(format) ? cudaReadModeElementType : cudaReadModeNormalizedFloat;
-  texDesc.normalizedCoords = 1;
+  texDesc.normalizedCoords = 0;
 
   cudaCreateTextureObject(&m_textureObject, &resDesc, &texDesc, nullptr);
 
@@ -204,7 +204,7 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.samplerCallableIndex = SbtCallableEntryPoints::SpatialFieldSamplerRegular;
   sf.data.structuredRegular.texObj = m_textureObject;
   sf.data.structuredRegular.origin = m_origin;
-  sf.data.structuredRegular.invDims = 1.0f / vec3(dims.x, dims.y, dims.z);
+  sf.data.structuredRegular.invDims = 1.0f / vec3(dims.x - 1, dims.y - 1, dims.z - 1);
   sf.data.structuredRegular.invSpacing = 1.0f / m_spacing;
   sf.data.structuredRegular.cellCentered = m_cellCentered;
   sf.grid = m_uniformGrid.gpuData();

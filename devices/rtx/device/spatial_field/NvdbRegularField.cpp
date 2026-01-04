@@ -165,8 +165,6 @@ SpatialFieldGPUData NvdbRegularField::gpuData() const
     break;
   }
   
-  sf.data.nvdbRegular.voxelSize = m_voxelSize;
-  sf.data.nvdbRegular.origin = m_bounds.lower;
   sf.data.nvdbRegular.gridData = m_deviceBuffer.ptr();
   sf.data.nvdbRegular.gridType = gridType;
   sf.data.nvdbRegular.cellCentered = m_cellCentered;

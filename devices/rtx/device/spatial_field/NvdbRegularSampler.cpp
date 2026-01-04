@@ -29,14 +29,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "NvdbSampler.h"
-#include "NvdbSampler_ptx.h"
+#include "NvdbRegularSampler.h"
+#include "NvdbRegularSampler_ptx.h"
 
 namespace visrtx {
 
-ptx_blob NvdbSampler::ptx()
+ptx_blob NvdbRegularSampler::ptx()
 {
-  return {NvdbSampler_ptx, sizeof(NvdbSampler_ptx)};
+  return {NvdbRegularSampler_ptx, sizeof(NvdbRegularSampler_ptx)};
 }
 
 } // namespace visrtx

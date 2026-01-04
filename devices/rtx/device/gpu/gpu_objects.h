@@ -412,15 +412,17 @@ struct StructuredRegularData
   vec3 invDims;
   vec3 invSpacing;
   bool cellCentered;
+
+  StructuredRegularData() = default;
 };
 
 struct NVdbRegularData
 {
-  vec3 origin;
-  vec3 voxelSize;
   nanovdb::GridType gridType;
   const void *gridData;
   bool cellCentered;
+
+  NVdbRegularData() = default;
 };
 
 struct SpatialFieldGPUData

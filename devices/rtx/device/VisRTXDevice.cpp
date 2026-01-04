@@ -68,7 +68,7 @@
 
 // spatial field samplers
 #include "spatial_field/StructuredRegularSampler.h"
-#include "spatial_field/NvdbSampler.h"
+#include "spatial_field/NvdbRegularSampler.h"
 
 // MDL
 #ifdef USE_MDL
@@ -784,7 +784,7 @@ DeviceInitStatus VisRTXDevice::initOptix()
           StructuredRegularSampler::ptx(),
           "'structuredRegular' field sampler"),
       init_module(&state.fieldSamplers.nvdb,
-          NvdbSampler::ptx(),
+          NvdbRegularSampler::ptx(),
           "'nvdb' field sampler"),
   };
 

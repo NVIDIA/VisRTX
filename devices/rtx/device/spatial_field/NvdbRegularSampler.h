@@ -35,7 +35,7 @@
 
 namespace visrtx {
 
-struct NvdbSampler
+struct NvdbRegularSampler
 {
   static ptx_blob ptx();
 };

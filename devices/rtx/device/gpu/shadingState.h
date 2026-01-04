@@ -141,7 +141,7 @@ struct StructuredRegularSamplerState
 
 // NanoVDB Sampler States
 template <typename T>
-struct NvdbSamplerState
+struct NvdbRegularSamplerState
 {
   using GridType = nanovdb::Grid<nanovdb::NanoTree<T>>;
   using AccessorType = typename GridType::AccessorType;
@@ -150,8 +150,10 @@ struct NvdbSamplerState
   const GridType *grid;
   AccessorType accessor;
   SamplerType sampler;
-  nanovdb::Vec3f scale;
   nanovdb::Vec3f offset;
+  nanovdb::Vec3f scale;
+  nanovdb::Vec3f indexMin;
+  nanovdb::Vec3f indexMax;
 };
 
 struct VolumeSamplingState
@@ -161,11 +163,11 @@ struct VolumeSamplingState
   union
   {
     StructuredRegularSamplerState structuredRegular;
-    NvdbSamplerState<nanovdb::Fp4> nvdbFp4;
-    NvdbSamplerState<nanovdb::Fp8> nvdbFp8;
-    NvdbSamplerState<nanovdb::Fp16> nvdbFp16;
-    NvdbSamplerState<nanovdb::FpN> nvdbFpN;
-    NvdbSamplerState<float> nvdbFloat;
+    NvdbRegularSamplerState<nanovdb::Fp4> nvdbFp4;
+    NvdbRegularSamplerState<nanovdb::Fp8> nvdbFp8;
+    NvdbRegularSamplerState<nanovdb::Fp16> nvdbFp16;
+    NvdbRegularSamplerState<nanovdb::FpN> nvdbFpN;
+    NvdbRegularSamplerState<float> nvdbFloat;
   };
 };
 

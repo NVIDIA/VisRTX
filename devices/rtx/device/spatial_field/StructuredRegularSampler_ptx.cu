@@ -51,9 +51,7 @@ VISRTX_CALLABLE float __direct_callable__sampleStructuredRegular(
     const vec3 *location)
 {
   const auto &state = samplerState->structuredRegular;
-  // Node-centered: map to index space [0.5, dims-0.5]
-  // Cell-centered: map to index space [0, dims]
-  const auto texelCoords = (*location - state.origin) * state.invSpacing + state.offset;
-  const auto coords = texelCoords * state.invDims;
+  const auto texelCoords = (*location - state.origin) * state.invSpacing;
+  const auto coords = texelCoords + state.offset;
   return tex3D<float>(state.texObj, coords.x, coords.y, coords.z);
 }
