@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -57,6 +57,16 @@ using byte_chunk_t = std::array<uint8_t, SIZE>;
 
 int countCudaChannels(const cudaChannelFormatDesc &desc);
 cudaTextureAddressMode stringToAddressMode(const std::string &str);
+
+void makeCudaArrayUint8(
+    cudaArray_t &cuArray, int nc, const uint8_t *data, uvec3 size);
+void makeCudaArrayFloat(
+    cudaArray_t &cuArray, int nc, const float *data, uvec3 size);
+
+void makeCudaArrayUint8(
+    cudaArray_t &cuArray, const Array &array, uint32_t size);
+void makeCudaArrayFloat(
+    cudaArray_t &cuArray, const Array &array, uint32_t size);
 
 void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec2 size);
 void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec2 size);

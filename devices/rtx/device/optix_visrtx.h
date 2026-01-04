@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -199,6 +199,8 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   {
     OptixModule structuredRegular{nullptr};
     OptixModule nvdb{nullptr};
+    OptixModule structuredRectilinear{nullptr};
+    OptixModule nvdbRectilinear{nullptr};
   } fieldSamplers;
 
   struct ObjectUpdates

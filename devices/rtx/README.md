@@ -99,6 +99,40 @@ box; omitting either leaves the bound open.
 **Parameters:**
 - `roi` (`FLOAT32_BOX3`): the restriction box to apply (default: unbounded).
 
+
+#### VISRTX_SPATIAL_FIELD_STRUCTURED_RECTILINEAR
+
+The `structuredRectilinear` spatial field type provides efficient sampling of structured grids with 
+rectilinear (non-uniform) spacing. Unlike `structuredRegular` which assumes uniform spacing, this type 
+requires explicit 1D coordinate arrays for each axis.
+
+**Parameters:**
+- `data` (ARRAY3D): The 3D voxel data
+- `coordsX` (ARRAY1D): X-axis coordinates (required)
+- `coordsY` (ARRAY1D): Y-axis coordinates (required)
+- `coordsZ` (ARRAY1D): Z-axis coordinates (required)
+- `filter`: Filtering method (same as structuredRegular)
+- `dataCentering`: Cell vs node centering (same as structuredRegular)
+
+The axis coordinate arrays define the actual position of each voxel along that axis, enabling 
+support for non-uniform grid spacing commonly found in scientific simulations.
+
+#### VISRTX_SPATIAL_FIELD_NANOVDB_RECTILINEAR
+
+The `nanovdbRectilinear` spatial field type extends NanoVDB support to rectilinear grids. 
+It supports all NanoVDB grid types (Fp4, Fp8, Fp16, FpN, Float) with rectilinear coordinate transforms.
+
+**Parameters:**
+- `gridData` (ARRAY1D): Serialized NanoVDB grid data
+- `coordsX` (ARRAY1D): X-axis coordinates (required)
+- `coordsY` (ARRAY1D): Y-axis coordinates (required)
+- `coordsZ` (ARRAY1D): Z-axis coordinates (required)
+- `filter`: Filtering method
+- `dataCentering`: Cell vs node centering
+
+This type automatically detects the grid type from the NanoVDB metadata and routes to the 
+appropriate sampler implementation.
+
 ## Additional ANARI Parameter and Property Extensions
 
 The following section describes what additional parameters and properties can be
@@ -178,6 +212,8 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `VISRTX_TRIANGLE_BACK_FACE_CULLING`
 - `VISRTX_SPATIAL_FIELD_DATA_CENTERING`
 - `VISRTX_SPATIAL_FIELD_REGION_OF_INTEREST`
+- `VISRTX_SPATIAL_FIELD_STRUCTURED_RECTILINEAR`
+- `VISRTX_SPATIAL_FIELD_NANOVDB_RECTILINEAR`
 
 For any found bugs in extensions that are implemented, please [open an
 issue](https://github.com/NVIDIA/VisRTX/issues/new)!

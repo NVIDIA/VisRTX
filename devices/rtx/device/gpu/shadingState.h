@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -91,9 +91,9 @@ struct TextureHandler : mi::neuraylib::Texture_handler_base
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
 using ResourceData = mi::neuraylib::Resource_data;
 
-struct alignas(8)  MDLShadingState
+struct alignas(8) MDLShadingState
 {
-  const char * argBlock;
+  const char *argBlock;
 
   ShadingStateMaterial state;
   TextureHandler textureHandler;
@@ -139,6 +139,17 @@ struct StructuredRegularSamplerState
   vec3 offset;
 };
 
+// Structured Rectilinear Sampler State
+struct StructuredRectilinearSamplerState
+{
+  cudaTextureObject_t texObj;
+  vec3 dims;
+  vec3 offset;
+  cudaTextureObject_t axisLUT[3];
+  vec3 axisBoundsMin;
+  vec3 axisBoundsMax;
+};
+
 // NanoVDB Sampler States
 template <typename T>
 struct NvdbRegularSamplerState
@@ -156,6 +167,24 @@ struct NvdbRegularSamplerState
   nanovdb::Vec3f indexMax;
 };
 
+// NanoVDB Rectilinear Sampler States
+template <typename T>
+struct NvdbRectilinearSamplerState
+{
+  using GridType = nanovdb::Grid<nanovdb::NanoTree<T>>;
+  using AccessorType = typename GridType::AccessorType;
+  using SamplerType = nanovdb::math::SampleFromVoxels<AccessorType, 1>;
+
+  const GridType *grid;
+  AccessorType accessor;
+  SamplerType sampler;
+  nanovdb::Vec3f offset;
+  nanovdb::Vec3f scale;
+  nanovdb::Vec3f indexMin;
+  nanovdb::Vec3f indexMax;
+  cudaTextureObject_t axisLUT[3];
+};
+
 struct VolumeSamplingState
 {
   VISRTX_DEVICE VolumeSamplingState() {};
@@ -168,6 +197,12 @@ struct VolumeSamplingState
     NvdbRegularSamplerState<nanovdb::Fp16> nvdbFp16;
     NvdbRegularSamplerState<nanovdb::FpN> nvdbFpN;
     NvdbRegularSamplerState<float> nvdbFloat;
+    StructuredRectilinearSamplerState structuredRectilinear;
+    NvdbRectilinearSamplerState<nanovdb::Fp4> nvdbRectilinearFp4;
+    NvdbRectilinearSamplerState<nanovdb::Fp8> nvdbRectilinearFp8;
+    NvdbRectilinearSamplerState<nanovdb::Fp16> nvdbRectilinearFp16;
+    NvdbRectilinearSamplerState<nanovdb::FpN> nvdbRectilinearFpN;
+    NvdbRectilinearSamplerState<float> nvdbRectilinearFloat;
   };
 };
 

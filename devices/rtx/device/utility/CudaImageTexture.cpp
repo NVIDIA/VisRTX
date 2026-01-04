@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -138,6 +138,64 @@ cudaTextureAddressMode stringToAddressMode(const std::string &str)
     return cudaAddressModeClamp;
 }
 
+void makeCudaArrayUint8(
+    cudaArray_t &cuArray, int nc, const uint8_t *data, uvec3 size)
+{
+  if (!cuArray) {
+    auto desc = cudaCreateChannelDesc(nc >= 1 ? 8 : 0,
+        nc >= 2 ? 8 : 0,
+        nc >= 3 ? 8 : 0,
+        nc >= 4 ? 8 : 0,
+        cudaChannelFormatKindUnsigned);
+
+    cudaMalloc3DArray(&cuArray,
+        &desc,
+        make_cudaExtent(size.x, size.y, size.z <= 1 ? 0 : size.z));
+  }
+
+  cudaMemcpy3DParms p = {};
+  p.dstArray = cuArray;
+  p.srcPtr = make_cudaPitchedPtr(const_cast<uint8_t *>(data),
+      size.x * nc * sizeof(uint8_t),
+      size.x,
+      size.y);
+  p.srcPos = p.dstPos = make_cudaPos(0, 0, 0);
+  p.extent = make_cudaExtent(size.x, size.y, size.z);
+  p.kind = cudaMemcpyHostToDevice;
+  cudaMemcpy3D(&p);
+}
+
+void makeCudaArrayFloat(
+    cudaArray_t &cuArray, int nc, const float *data, uvec3 size)
+{
+  if (!cuArray) {
+    auto desc = cudaCreateChannelDesc(nc >= 1 ? 32 : 0,
+        nc >= 2 ? 32 : 0,
+        nc >= 3 ? 32 : 0,
+        nc >= 4 ? 32 : 0,
+        cudaChannelFormatKindFloat);
+
+    cudaMalloc3DArray(&cuArray,
+        &desc,
+        make_cudaExtent(
+            size.x, size.y <= 1 ? 0 : size.y, size.z <= 1 ? 0 : size.z));
+  }
+
+  cudaMemcpy3DParms p = {};
+  p.dstArray = cuArray;
+  p.srcPtr = make_cudaPitchedPtr(
+      const_cast<float *>(data), size.x * nc * sizeof(float), size.x, size.y);
+  p.srcPos = p.dstPos = make_cudaPos(0, 0, 0);
+  p.extent = make_cudaExtent(size.x, size.y, size.z);
+  p.kind = cudaMemcpyHostToDevice;
+  cudaMemcpy3D(&p);
+}
+
+void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uint32_t size)
+{
+  makeCudaArrayUint8(cuArray, array, uvec3(size, 1, 1));
+}
+
 void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec2 size)
 {
   makeCudaArrayUint8(cuArray, array, uvec3(size, 1));
@@ -205,26 +263,12 @@ void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec3 size)
   if (nc == 3)
     nc = 4;
 
-  if (!cuArray) {
-    auto desc = cudaCreateChannelDesc(nc >= 1 ? 8 : 0,
-        nc >= 2 ? 8 : 0,
-        nc >= 3 ? 8 : 0,
-        nc >= 4 ? 8 : 0,
-        cudaChannelFormatKindUnsigned);
+  makeCudaArrayUint8(cuArray, nc, stagingBuffer.data(), size);
+}
 
-    cudaMalloc3DArray(&cuArray,
-        &desc,
-        make_cudaExtent(size.x, size.y, size.z <= 1 ? 0 : size.z));
-  }
-
-  cudaMemcpy3DParms p = {};
-  p.dstArray = cuArray;
-  p.srcPtr = make_cudaPitchedPtr(
-      stagingBuffer.data(), size.x * nc * sizeof(uint8_t), size.x, size.y);
-  p.srcPos = p.dstPos = make_cudaPos(0, 0, 0);
-  p.extent = make_cudaExtent(size.x, size.y, size.z);
-  p.kind = cudaMemcpyHostToDevice;
-  cudaMemcpy3D(&p);
+void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uint32_t size)
+{
+  makeCudaArrayFloat(cuArray, array, uvec3(size, 1, 1));
 }
 
 void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec2 size)
@@ -294,27 +338,7 @@ void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec3 size)
   if (nc == 3)
     nc = 4;
 
-  if (!cuArray) {
-    auto desc = cudaCreateChannelDesc(nc >= 1 ? 32 : 0,
-        nc >= 2 ? 32 : 0,
-        nc >= 3 ? 32 : 0,
-        nc >= 4 ? 32 : 0,
-        cudaChannelFormatKindFloat);
-
-    cudaMalloc3DArray(&cuArray,
-        &desc,
-        make_cudaExtent(
-            size.x, size.y <= 1 ? 0 : size.y, size.z <= 1 ? 0 : size.z));
-  }
-
-  cudaMemcpy3DParms p = {};
-  p.dstArray = cuArray;
-  p.srcPtr = make_cudaPitchedPtr(
-      stagingBuffer.data(), size.x * nc * sizeof(float), size.x, size.y);
-  p.srcPos = p.dstPos = make_cudaPos(0, 0, 0);
-  p.extent = make_cudaExtent(size.x, size.y, size.z);
-  p.kind = cudaMemcpyHostToDevice;
-  cudaMemcpy3D(&p);
+  makeCudaArrayFloat(cuArray, nc, stagingBuffer.data(), size);
 }
 
 cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,

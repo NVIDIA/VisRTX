@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -425,6 +425,28 @@ struct NVdbRegularData
   NVdbRegularData() = default;
 };
 
+struct StructuredRectilinearData
+{
+  cudaTextureObject_t texObj;
+  vec3 dims;
+  bool cellCentered;
+  cudaTextureObject_t axisLUT[3];
+  vec3 axisBoundsMin;
+  vec3 axisBoundsMax;
+
+  StructuredRectilinearData() = default;
+};
+
+struct NVdbRectilinearData
+{
+  nanovdb::GridType gridType;
+  const void *gridData;
+  bool cellCentered;
+  cudaTextureObject_t axisLUT[3];
+
+  NVdbRectilinearData() = default;
+};
+
 struct SpatialFieldGPUData
 {
   SbtCallableEntryPoints samplerCallableIndex{SbtCallableEntryPoints::Invalid};
@@ -432,6 +454,8 @@ struct SpatialFieldGPUData
   {
     StructuredRegularData structuredRegular;
     NVdbRegularData nvdbRegular;
+    StructuredRectilinearData structuredRectilinear;
+    NVdbRectilinearData nvdbRectilinear;
   } data;
   UniformGridData grid;
   box3 roi;
@@ -507,9 +531,10 @@ struct RectLightGPUData
   vec3 edge1;
   vec3 edge2;
   float intensity;
-  struct {
-    unsigned int front: 1;
-    unsigned int back: 1;
+  struct
+  {
+    unsigned int front : 1;
+    unsigned int back : 1;
   } side;
   float oneOverArea;
 };

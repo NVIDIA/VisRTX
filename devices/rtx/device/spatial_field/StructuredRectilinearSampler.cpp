@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,43 +29,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "SpatialField.h"
-// specific types
-#include "NvdbRectilinearField.h"
-#include "NvdbRegularField.h"
-#include "StructuredRectilinearField.h"
-#include "StructuredRegularField.h"
-#include "UnknownSpatialField.h"
+#include "StructuredRectilinearSampler.h"
+#include "StructuredRectilinearSampler_ptx.h"
 
 namespace visrtx {
 
-SpatialField::SpatialField(DeviceGlobalState *s)
-    : RegisteredObject<SpatialFieldGPUData>(ANARI_SPATIAL_FIELD, s)
+ptx_blob StructuredRectilinearSampler::ptx()
 {
-  setRegistry(s->registry.fields);
-}
-
-void SpatialField::markFinalized()
-{
-  Object::markFinalized();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
-}
-
-SpatialField *SpatialField::createInstance(
-    std::string_view subtype, DeviceGlobalState *d)
-{
-  if (subtype == "structuredRegular")
-    return new StructuredRegularField(d);
-  else if (subtype == "structuredRectilinear")
-    return new StructuredRectilinearField(d);
-  else if (subtype == "nanovdb")
-    return new NvdbRegularField(d);
-  else if (subtype == "nanovdbRectilinear")
-    return new NvdbRectilinearField(d);
-  else
-    return new UnknownSpatialField(subtype, d);
+  return {StructuredRectilinearSampler_ptx,
+      sizeof(StructuredRectilinearSampler_ptx)};
 }
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::SpatialField *);

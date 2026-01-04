@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,43 +29,48 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "SpatialField.h"
-// specific types
-#include "NvdbRectilinearField.h"
-#include "NvdbRegularField.h"
-#include "StructuredRectilinearField.h"
-#include "StructuredRegularField.h"
-#include "UnknownSpatialField.h"
+#pragma once
+
+#include "array/Array1D.h"
+#include "array/Array3D.h"
+#include "spatial_field/SpatialField.h"
 
 namespace visrtx {
 
-SpatialField::SpatialField(DeviceGlobalState *s)
-    : RegisteredObject<SpatialFieldGPUData>(ANARI_SPATIAL_FIELD, s)
+struct StructuredRectilinearField : public SpatialField
 {
-  setRegistry(s->registry.fields);
-}
+  StructuredRectilinearField(DeviceGlobalState *d);
+  ~StructuredRectilinearField();
 
-void SpatialField::markFinalized()
-{
-  Object::markFinalized();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
-}
+  void commitParameters() override;
+  void finalize() override;
+  bool isValid() const override;
 
-SpatialField *SpatialField::createInstance(
-    std::string_view subtype, DeviceGlobalState *d)
-{
-  if (subtype == "structuredRegular")
-    return new StructuredRegularField(d);
-  else if (subtype == "structuredRectilinear")
-    return new StructuredRectilinearField(d);
-  else if (subtype == "nanovdb")
-    return new NvdbRegularField(d);
-  else if (subtype == "nanovdbRectilinear")
-    return new NvdbRectilinearField(d);
-  else
-    return new UnknownSpatialField(subtype, d);
-}
+  box3 bounds() const override;
+  float stepSize() const override;
+
+ private:
+  SpatialFieldGPUData gpuData() const override;
+  void cleanup();
+
+  void buildGrid();
+
+  std::string m_filter;
+  bool m_cellCentered{false};
+  box3 m_roi{box3(vec3(std::numeric_limits<float>::lowest()),
+      vec3(std::numeric_limits<float>::max()))};
+  helium::ChangeObserverPtr<Array3D> m_data;
+
+  // Required rectilinear axis arrays (all 3 required)
+  box3 m_bounds;
+  helium::ChangeObserverPtr<Array1D> m_axisArrayX;
+  helium::ChangeObserverPtr<Array1D> m_axisArrayY;
+  helium::ChangeObserverPtr<Array1D> m_axisArrayZ;
+  cudaArray_t m_axisLutArrays[3]{};
+  cudaTextureObject_t m_axisLutTextures[3]{};
+
+  cudaArray_t m_cudaArray{};
+  cudaTextureObject_t m_textureObject{};
+};
 
 } // namespace visrtx
-
-VISRTX_ANARI_TYPEFOR_DEFINITION(visrtx::SpatialField *);

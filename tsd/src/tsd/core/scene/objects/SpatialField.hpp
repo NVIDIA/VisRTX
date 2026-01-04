@@ -30,6 +30,7 @@ using SpatialFieldRef = ObjectPoolRef<SpatialField>;
 namespace tokens::spatial_field {
 
 extern const Token structuredRegular;
+extern const Token structuredRectilinear;
 extern const Token unstructured;
 extern const Token amr;
 extern const Token nanovdb;

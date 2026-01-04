@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -441,8 +441,10 @@ void Renderer::initOptixPipeline()
     std::vector<OptixProgramGroupDesc> callableDescs(FIXED_CALLABLES_COUNT);
 
     // Fixed material shaders: Matte, PhysicallyBased
-    constexpr auto SBT_CALLABLE_MATTE_OFFSET = int(SbtCallableEntryPoints::Matte);
-    constexpr auto SBT_CALLABLE_PHYSICALLYBASED_OFFSET = int(SbtCallableEntryPoints::PBR);
+    constexpr auto SBT_CALLABLE_MATTE_OFFSET =
+        int(SbtCallableEntryPoints::Matte);
+    constexpr auto SBT_CALLABLE_PHYSICALLYBASED_OFFSET =
+        int(SbtCallableEntryPoints::PBR);
 
     OptixProgramGroupDesc callableDesc = {};
     callableDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
@@ -450,94 +452,223 @@ void Renderer::initOptixPipeline()
 
     // Matte
     callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::Initialize)] = callableDesc;
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::Initialize)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC = "__direct_callable__nextRay";
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::EvaluateNextRay)] = callableDesc;
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateNextRay)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateTint";
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::EvaluateTint)] = callableDesc;
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateTint";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateTint)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateOpacity";
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::EvaluateOpacity)] = callableDesc;
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateOpacity";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateOpacity)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateEmission";
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateEmission";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC = "__direct_callable__shadeSurface";
-    callableDescs[SBT_CALLABLE_MATTE_OFFSET + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__shadeSurface";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
 
     // Physically Based
-    callableDesc.callables.moduleDC = deviceState()->materialShaders.physicallyBased;
+    callableDesc.callables.moduleDC =
+        deviceState()->materialShaders.physicallyBased;
 
     callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::Initialize)] = callableDesc;
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::Initialize)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC = "__direct_callable__nextRay";
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::EvaluateNextRay)] = callableDesc;
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateNextRay)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateTint";
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::EvaluateTint)] = callableDesc;
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateTint";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateTint)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateOpacity";
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::EvaluateOpacity)] = callableDesc;
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateOpacity";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateOpacity)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateEmission";
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateEmission";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
 
-    callableDesc.callables.entryFunctionNameDC = "__direct_callable__shadeSurface";
-    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__shadeSurface";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
 
     // Spatial Field Samplers
     OptixProgramGroupDesc samplerDesc = {};
     samplerDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
-    
+
     // Structured Regular sampler
-    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_REGULAR_OFFSET = int(SbtCallableEntryPoints::SpatialFieldSamplerRegular);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_REGULAR_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerRegular);
     samplerDesc.callables.moduleDC = state.fieldSamplers.structuredRegular;
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__initStructuredRegularSampler";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_REGULAR_OFFSET + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__sampleStructuredRegular";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_REGULAR_OFFSET + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
-    
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initStructuredRegularSampler";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_REGULAR_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleStructuredRegular";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_REGULAR_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
     // NanoVDB samplers
     samplerDesc.callables.moduleDC = state.fieldSamplers.nvdb;
-    
-    // Fp4
-    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP4_OFFSET = int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp4);
-    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP8_OFFSET = int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp8);
-    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP16_OFFSET = int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp16);
-    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FPN_OFFSET = int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFpN);
-    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FLOAT_OFFSET = int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFloat);
 
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__initNvdbSamplerFp4";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP4_OFFSET + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__sampleNvdbFp4";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP4_OFFSET + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
-    
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP4_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp4);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP8_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp8);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP16_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFp16);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FPN_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFpN);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_FLOAT_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbFloat);
+
+    // Fp4
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbSamplerFp4";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP4_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbFp4";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP4_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
     // Fp8
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__initNvdbSamplerFp8";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP8_OFFSET + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__sampleNvdbFp8";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP8_OFFSET + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
-    
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbSamplerFp8";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP8_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbFp8";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP8_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
     // Fp16
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__initNvdbSamplerFp16";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP16_OFFSET + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__sampleNvdbFp16";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP16_OFFSET + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
-    
-    // FpN 
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__initNvdbSamplerFpN";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FPN_OFFSET + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__sampleNvdbFpN";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FPN_OFFSET + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
-    
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbSamplerFp16";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP16_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbFp16";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FP16_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
+    // FpN
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbSamplerFpN";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FPN_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbFpN";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FPN_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
     // Float
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__initNvdbSamplerFloat";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FLOAT_OFFSET + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
-    samplerDesc.callables.entryFunctionNameDC = "__direct_callable__sampleNvdbFloat";
-    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FLOAT_OFFSET + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbSamplerFloat";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FLOAT_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbFloat";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_FLOAT_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
+    // StructuredRectilinear sampler
+    samplerDesc.callables.moduleDC = state.fieldSamplers.structuredRectilinear;
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_RECTILINEAR_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerRectilinear);
+
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initStructuredRectilinearSampler";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_RECTILINEAR_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleStructuredRectilinear";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_RECTILINEAR_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
+    // NanoVDB rectilinear samplers
+    samplerDesc.callables.moduleDC = state.fieldSamplers.nvdbRectilinear;
+
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP4_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbRectilinearFp4);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP8_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbRectilinearFp8);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP16_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbRectilinearFp16);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FPN_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbRectilinearFpN);
+    constexpr auto SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FLOAT_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerNvdbRectilinearFloat);
+
+    // Fp4
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbRectilinearSamplerFp4";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP4_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbRectilinearFp4";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP4_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
+    // Fp8
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbRectilinearSamplerFp8";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP8_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbRectilinearFp8";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP8_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
+    // Fp16
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbRectilinearSamplerFp16";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP16_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbRectilinearFp16";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FP16_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
+    // FpN
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbRectilinearSamplerFpN";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FPN_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbRectilinearFpN";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FPN_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
+    // Float
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initNvdbRectilinearSamplerFloat";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FLOAT_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleNvdbRectilinearFloat";
+    callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FLOAT_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
 
 #ifdef USE_MDL
     if (state.mdl) {
@@ -583,19 +714,24 @@ void Renderer::initOptixPipeline()
         callableDesc.callables.entryFunctionNameDC = "__direct_callable__init";
         callableDescs.push_back(callableDesc);
 
-        callableDesc.callables.entryFunctionNameDC = "__direct_callable__nextRay";
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__nextRay";
         callableDescs.push_back(callableDesc);
 
-        callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateTint";
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateTint";
         callableDescs.push_back(callableDesc);
 
-        callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateOpacity";
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateOpacity";
         callableDescs.push_back(callableDesc);
 
-        callableDesc.callables.entryFunctionNameDC = "__direct_callable__evaluateEmission";
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateEmission";
         callableDescs.push_back(callableDesc);
 
-        callableDesc.callables.entryFunctionNameDC = "__direct_callable__shadeSurface";
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__shadeSurface";
         callableDescs.push_back(callableDesc);
       }
 

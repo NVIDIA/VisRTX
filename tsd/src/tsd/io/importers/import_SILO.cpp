@@ -418,9 +418,27 @@ static SpatialFieldRef createFieldFromQuadMesh(Scene &scene,
     return {};
   }
 
-  // Create structured regular spatial field
-  auto field = scene.createObject<SpatialField>(
-      tokens::spatial_field::structuredRegular);
+  // Check environment variable to force uniform grid approximation
+  bool useUniformGrid = false;
+  if (const char *env = std::getenv("TSD_SILO_IMPORT_RECTILINEAR_AS_UNIFORM")) {
+    auto s = std::string_view(env);
+    useUniformGrid = s == "1" || s == "true";
+  }
+
+  // Create spatial field - use structuredRectilinear by default, unless env var
+  // is set
+  SpatialFieldRef field;
+  if (useUniformGrid) {
+    field = scene.createObject<SpatialField>(
+        tokens::spatial_field::structuredRegular);
+    logStatus(
+        "[import_SILO] using uniform grid approximation (TSD_SILO_IMPORT_RECTILINEAR_AS_UNIFORM set)");
+  } else {
+    field = scene.createObject<SpatialField>(
+        tokens::spatial_field::structuredRectilinear);
+    logStatus(
+        "[import_SILO] using rectilinear grid with explicit axis coordinates");
+  }
   field->setName(fieldName.c_str());
 
   // Zones are defined between nodes, so zone count = node_count - 1
@@ -499,8 +517,35 @@ static SpatialFieldRef createFieldFromQuadMesh(Scene &scene,
       spacing.z,
       isNodeCentered ? "nodes" : "cells");
 
-  field->setParameter("origin", origin);
-  field->setParameter("spacing", spacing);
+  if (useUniformGrid) {
+    // Set uniform grid parameters
+    field->setParameter("origin", origin);
+    field->setParameter("spacing", spacing);
+  } else {
+    // Extract axis coordinates for rectilinear grid
+    for (int d = 0; d < 3; d++) {
+      const char *axisNames[] = {"coordsX", "coordsY", "coordsZ"};
+      if (mesh->coords[d]) {
+        auto axisArray = scene.createArray(ANARI_FLOAT32, mesh->dims[d]);
+        float *axisData = (float *)axisArray->map();
+
+        // Copy coordinates to float array
+        if (mesh->datatype == DB_FLOAT) {
+          float *c = (float *)mesh->coords[d];
+          std::copy(c, c + mesh->dims[d], axisData);
+        } else if (mesh->datatype == DB_DOUBLE) {
+          double *c = (double *)mesh->coords[d];
+          for (int i = 0; i < mesh->dims[d]; i++) {
+            axisData[i] = static_cast<float>(c[i]);
+          }
+        }
+
+        axisArray->unmap();
+        field->setParameterObject(axisNames[d], *axisArray);
+      }
+    }
+  }
+
   field->setParameter("dataCentering", isNodeCentered ? "node" : "cell");
 
   // Set ROI to exclude ghost zones if they exist

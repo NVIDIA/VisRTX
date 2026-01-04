@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -61,12 +61,31 @@ enum class SbtCallableEntryPoints : uint32_t
   Matte = 0,
   PBR = Matte + int(SurfaceShaderEntryPoints::Count),
   SpatialFieldSamplerRegular = PBR + int(SurfaceShaderEntryPoints::Count),
-  SpatialFieldSamplerNvdbFp4 = SpatialFieldSamplerRegular + int(SpatialFieldSamplerEntryPoints::Count),
-  SpatialFieldSamplerNvdbFp8 = SpatialFieldSamplerNvdbFp4 + int(SpatialFieldSamplerEntryPoints::Count),
-  SpatialFieldSamplerNvdbFp16 = SpatialFieldSamplerNvdbFp8 + int(SpatialFieldSamplerEntryPoints::Count),
-  SpatialFieldSamplerNvdbFpN = SpatialFieldSamplerNvdbFp16 + int(SpatialFieldSamplerEntryPoints::Count),
-  SpatialFieldSamplerNvdbFloat = SpatialFieldSamplerNvdbFpN + int(SpatialFieldSamplerEntryPoints::Count),
-  Last = SpatialFieldSamplerNvdbFloat + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFp4 =
+      SpatialFieldSamplerRegular + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFp8 =
+      SpatialFieldSamplerNvdbFp4 + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFp16 =
+      SpatialFieldSamplerNvdbFp8 + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFpN =
+      SpatialFieldSamplerNvdbFp16 + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbFloat =
+      SpatialFieldSamplerNvdbFpN + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerRectilinear =
+      SpatialFieldSamplerNvdbFloat + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbRectilinearFp4 = SpatialFieldSamplerRectilinear
+      + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbRectilinearFp8 = SpatialFieldSamplerNvdbRectilinearFp4
+      + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbRectilinearFp16 = SpatialFieldSamplerNvdbRectilinearFp8
+      + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbRectilinearFpN = SpatialFieldSamplerNvdbRectilinearFp16
+      + int(SpatialFieldSamplerEntryPoints::Count),
+  SpatialFieldSamplerNvdbRectilinearFloat =
+      SpatialFieldSamplerNvdbRectilinearFpN
+      + int(SpatialFieldSamplerEntryPoints::Count),
+  Last = SpatialFieldSamplerNvdbRectilinearFloat
+      + int(SpatialFieldSamplerEntryPoints::Count),
 };
 
 } // namespace visrtx

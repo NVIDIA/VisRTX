@@ -51,7 +51,9 @@
       $<$<BOOL:VISRTX_ENABLE_NEURAL>:"visrtx_geometry_neural",>
       "visrtx_triangle_back_face_culling",
       "visrtx_spatial_field_data_centering",
-      "visrtx_spatial_field_region_of_interest"
+      "visrtx_spatial_field_region_of_interest",
+      "visrtx_spatial_field_structured_rectilinear",
+      "visrtx_spatial_field_nanovdb_rectilinear"
     ]
   },
   "objects": [
