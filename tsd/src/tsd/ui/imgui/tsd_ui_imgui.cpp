@@ -650,7 +650,8 @@ bool buildUI_parameter(tsd::core::Object &o,
     ImGui::BeginTooltip();
     if (isArray) {
       const auto idx = pVal.getAsObjectIndex();
-      buildUI_array_info_tooltip_text(scene, idx);
+      if (idx != TSD_INVALID_INDEX)
+        buildUI_array_info_tooltip_text(scene, idx);
     } else if (type == ANARI_FLOAT32_MAT4) {
       auto *value_f = (const float *)value;
       ImGui::Text("[%.3f %.3f %.3f %.3f]",
