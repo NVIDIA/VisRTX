@@ -518,6 +518,76 @@ bool buildUI_parameter(tsd::core::Object &o,
     } else
       update |= ImGui::DragFloat2(name, (float *)value);
     break;
+  case ANARI_FLOAT32_BOX2:
+    ImGui::PushID(name);
+    ImGui::SetNextItemOpen(false, ImGuiCond_FirstUseEver);
+    if (ImGui::CollapsingHeader(name)) {
+      if (bounded) {
+        if (pMin && pMax) {
+          update |= ImGui::SliderFloat2("lower",
+              (float *)value,
+              pMin.get<tsd::math::box2>().lower.x,
+              pMax.get<tsd::math::box2>().lower.x);
+          update |= ImGui::SliderFloat2("upper",
+              (float *)value + 2,
+              pMin.get<tsd::math::box2>().upper.x,
+              pMax.get<tsd::math::box2>().upper.x);
+        } else {
+          float minLower = pMin ? pMin.get<tsd::math::box2>().lower.x
+                                : std::numeric_limits<float>::lowest();
+          float maxLower = pMax ? pMax.get<tsd::math::box2>().lower.x
+                                : std::numeric_limits<float>::max();
+          update |=
+              ImGui::DragFloat2("lower", (float *)value, 1.f, minLower, maxLower);
+          float minUpper = pMin ? pMin.get<tsd::math::box2>().upper.x
+                                : std::numeric_limits<float>::lowest();
+          float maxUpper = pMax ? pMax.get<tsd::math::box2>().upper.x
+                                : std::numeric_limits<float>::max();
+          update |= ImGui::DragFloat2(
+              "upper", (float *)value + 2, 1.f, minUpper, maxUpper);
+        }
+      } else {
+        update |= ImGui::DragFloat2("lower", (float *)value);
+        update |= ImGui::DragFloat2("upper", (float *)value + 2);
+      }
+    }
+    ImGui::PopID();
+    break;
+  case ANARI_FLOAT32_BOX3:
+    ImGui::PushID(name);
+    ImGui::SetNextItemOpen(false, ImGuiCond_FirstUseEver);
+    if (ImGui::CollapsingHeader(name)) {
+      if (bounded) {
+        if (pMin && pMax) {
+          update |= ImGui::SliderFloat3("lower",
+              (float *)value,
+              pMin.get<tsd::math::box3>().lower.x,
+              pMax.get<tsd::math::box3>().lower.x);
+          update |= ImGui::SliderFloat3("upper",
+              (float *)value + 3,
+              pMin.get<tsd::math::box3>().upper.x,
+              pMax.get<tsd::math::box3>().upper.x);
+        } else {
+          float minLower = pMin ? pMin.get<tsd::math::box3>().lower.x
+                                : std::numeric_limits<float>::lowest();
+          float maxLower = pMax ? pMax.get<tsd::math::box3>().lower.x
+                                : std::numeric_limits<float>::max();
+          update |=
+              ImGui::DragFloat3("lower", (float *)value, 1.f, minLower, maxLower);
+          float minUpper = pMin ? pMin.get<tsd::math::box3>().upper.x
+                                : std::numeric_limits<float>::lowest();
+          float maxUpper = pMax ? pMax.get<tsd::math::box3>().upper.x
+                                : std::numeric_limits<float>::max();
+          update |= ImGui::DragFloat3(
+              "upper", (float *)value + 3, 1.f, minUpper, maxUpper);
+        }
+      } else {
+        update |= ImGui::DragFloat3("lower", (float *)value);
+        update |= ImGui::DragFloat3("upper", (float *)value + 3);
+      }
+    }
+    ImGui::PopID();
+    break;
   case ANARI_FLOAT32_VEC3:
     if (usage & tsd::core::ParameterUsageHint::COLOR)
       update |= ImGui::ColorEdit3(name, (float *)value);
