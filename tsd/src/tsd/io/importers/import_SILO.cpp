@@ -27,10 +27,6 @@
 #endif
 #endif
 
-namespace anari {
-  ANARI_TYPEFOR_SPECIALIZATION(tsd::math::box3, ANARI_FLOAT32_BOX3);
-} // namespace anari
-
 namespace tsd::io {
 
 using namespace tsd::core;

@@ -138,3 +138,9 @@ using mat4 = float4x4;
 namespace math = core::math;
 
 } // namespace tsd
+
+namespace anari {
+// box1 is already exposed by helium.
+ANARI_TYPEFOR_SPECIALIZATION(tsd::core::math::box2, ANARI_FLOAT32_BOX2);
+ANARI_TYPEFOR_SPECIALIZATION(tsd::core::math::box3, ANARI_FLOAT32_BOX3);
+} // namespace anari

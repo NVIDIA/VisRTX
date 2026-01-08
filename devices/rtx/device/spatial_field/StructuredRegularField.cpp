@@ -33,19 +33,17 @@
 
 #include "gpu/gpu_decl.h"
 #include "gpu/shadingState.h"
-#include "utility/AnariTypeHelpers.h"
 
 // anari
 #include <anari/anari_cpp/Traits.h>
-#include <anari/frontend/anari_enums.h>
+#include "utility/AnariTypeHelpers.h"
+
 // std
 #include <algorithm>
 #include <limits>
 #include <vector>
 // glm
 #include <glm/gtx/component_wise.hpp>
-
-VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::box3, ANARI_FLOAT32_BOX3);
 
 namespace visrtx {
 

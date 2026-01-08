@@ -13,10 +13,6 @@
 // std
 #include <optional>
 
-namespace anari {
-  ANARI_TYPEFOR_SPECIALIZATION(tsd::math::box3, ANARI_FLOAT32_BOX3);
-}
-
 namespace tsd::core {
 
 SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
@@ -44,8 +40,8 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
     addParameter("roi")
         .setDescription("ROI box in object space")
         .setValue(tsd::math::box3(
-            tsd::math::float3(-INFINITY, -INFINITY, -INFINITY),
-            tsd::math::float3(INFINITY, INFINITY, INFINITY)));
+            tsd::math::float3(-math::inf, -math::inf, -math::inf),
+            tsd::math::float3(math::inf, math::inf, math::inf)));
   } else if (stype == tokens::spatial_field::amr) {
     addParameter("gridOrigin")
         .setValue(tsd::math::float3(0.f, 0.f, 0.f))
@@ -85,8 +81,8 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
     addParameter("roi")
         .setDescription("ROI box in object space")
         .setValue(tsd::math::box3(
-            tsd::math::float3(-INFINITY, -INFINITY, -INFINITY),
-            tsd::math::float3(INFINITY, INFINITY, INFINITY)));
+            tsd::math::float3(-math::inf, -math::inf, -math::inf),
+            tsd::math::float3(math::inf, math::inf, math::inf)));
   }
 }
 
