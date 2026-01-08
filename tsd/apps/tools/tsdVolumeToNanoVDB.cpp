@@ -7,6 +7,7 @@
 #include <string_view>
 #include <tsd/core/Logging.hpp>
 #include <tsd/core/scene/Scene.hpp>
+#include <tsd/core/scene/objects/SpatialField.hpp>
 #include <tsd/io/importers.hpp>
 #include <tsd/io/serialization.hpp>
 
@@ -65,14 +66,16 @@ int main(int argc, const char *argv[])
 
     if (arg == "--undefined" || arg == "-u") {
       if (i + 1 >= argc) {
-        tsd::core::logError("Option %s requires a value", std::string(arg).c_str());
+        tsd::core::logError(
+            "Option %s requires a value", std::string(arg).c_str());
         printUsage(argv[0]);
         return 1;
       }
       try {
         undefinedValue = std::stof(std::string(argv[++i]));
       } catch (const std::exception &e) {
-        tsd::core::logError("Invalid undefined value: %s", std::string(argv[i] ).c_str());
+        tsd::core::logError(
+            "Invalid undefined value: %s", std::string(argv[i]).c_str());
         printUsage(argv[0]);
         return 1;
       }
@@ -96,7 +99,8 @@ int main(int argc, const char *argv[])
       } else if (precStr == "float32") {
         precision = tsd::io::VDBPrecision::Float32;
       } else {
-        tsd::core::logError("Unknown precision type: %s", std::string(precStr).c_str());
+        tsd::core::logError(
+            "Unknown precision type: %s", std::string(precStr).c_str());
         printUsage(argv[0]);
         return 1;
       }
@@ -108,7 +112,8 @@ int main(int argc, const char *argv[])
       } else if (!outputFile) {
         outputFile = std::string(arg);
       } else {
-        tsd::core::logError("Unexpected positional argument: %s", std::string(arg).c_str());
+        tsd::core::logError(
+            "Unexpected positional argument: %s", std::string(arg).c_str());
         printUsage(argv[0]);
         return 1;
       }
@@ -141,6 +146,15 @@ int main(int argc, const char *argv[])
   if (!spatialField) {
     tsd::core::logError("Volume does not have a spatial field");
     return 1;
+  }
+
+  const auto subtype = spatialField->subtype();
+  const bool isRectilinear =
+      subtype == tsd::core::tokens::spatial_field::structuredRectilinear;
+
+  if (isRectilinear) {
+    tsd::core::logStatus(
+        "Detected rectilinear grid; writing NanoVDB sidecar with axis coordinates.");
   }
 
   tsd::io::export_StructuredRegularVolumeToNanoVDB(spatialField,

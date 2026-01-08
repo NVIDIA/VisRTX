@@ -1,9 +1,10 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/core/Logging.hpp"
+#include "tsd/io/serialization/NanoVdbSidecar.hpp"
 
 // nanovdb
 #include <nanovdb/GridHandle.h>
@@ -12,6 +13,7 @@
 #include <nanovdb/io/IO.h>
 #include <nanovdb/tools/GridStats.h>
 
+#include <filesystem>
 #include <limits>
 
 namespace tsd::io {
@@ -24,7 +26,25 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
   if (file.empty())
     return {};
 
-  auto field = scene.createObject<SpatialField>(tokens::spatial_field::nanovdb);
+  const std::filesystem::path nvdbPath(filepath);
+  const auto sidecarPath = makeSidecarPath(nvdbPath);
+
+  std::optional<NanoVdbSidecar> sidecar;
+  std::string sidecarError;
+
+  if (std::filesystem::exists(sidecarPath)) {
+    sidecar = readSidecar(sidecarPath, sidecarError);
+    if (!sidecar) {
+      logWarning("[import_NVDB] Found sidecar but failed to parse: %s (%s)",
+          sidecarPath.string().c_str(),
+          sidecarError.c_str());
+    }
+  }
+
+  const bool hasRectCoords = sidecar && sidecar->hasCoords();
+  auto field = scene.createObject<SpatialField>(hasRectCoords
+          ? tokens::spatial_field::nanovdbRectilinear
+          : tokens::spatial_field::nanovdb);
   field->setName(file.c_str());
 
   try {
@@ -106,6 +126,32 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
     gridData->unmap();
     field->setParameterObject("data", *gridData);
 
+    if (sidecar) {
+      if (!sidecar->dataCentering.empty())
+        field->setParameter("dataCentering", sidecar->dataCentering.c_str());
+
+      if (sidecar->roi)
+        field->setParameter("roi", *sidecar->roi);
+
+      if (hasRectCoords) {
+        auto makeCoordArray = [&](const std::vector<double> &src) {
+          auto arr = scene.createArray(ANARI_FLOAT32, src.size());
+          auto *dst = arr->mapAs<float>();
+          for (size_t i = 0; i < src.size(); ++i)
+            dst[i] = static_cast<float>(src[i]);
+          arr->unmap();
+          return arr;
+        };
+
+        auto coordsX = makeCoordArray(sidecar->coordsX);
+        auto coordsY = makeCoordArray(sidecar->coordsY);
+        auto coordsZ = makeCoordArray(sidecar->coordsZ);
+        field->setParameterObject("coordsX", *coordsX);
+        field->setParameterObject("coordsY", *coordsY);
+        field->setParameterObject("coordsZ", *coordsZ);
+      }
+    }
+
     logStatus("[import_NVDB] ...done!");
   } catch (const std::exception &e) {
     logStatus("[import_NVDB] failed: %s", e.what());
@@ -115,4 +161,4 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
   return field;
 }
 
-} // namespace tsd
+} // namespace tsd::io

@@ -775,8 +775,10 @@ void LayerTree::buildUI_objectSceneMenu()
         auto tf1D = (*menuNode)->getObject();
         auto spatialFieldObject = tf1D->parameterValueAsObject("value");
         if (spatialFieldObject
-            && spatialFieldObject->subtype()
-                == core::tokens::volume::structuredRegular) {
+            && (spatialFieldObject->subtype()
+                    == core::tokens::volume::structuredRegular
+                || spatialFieldObject->subtype()
+                    == core::tokens::volume::structuredRectilinear)) {
           ImGui::Separator();
           if (ImGui::MenuItem("export to NanoVDB")) {
             appCore()->windows.exportNanoVDBDialog->show();

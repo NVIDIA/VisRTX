@@ -34,6 +34,7 @@ extern const Token structuredRectilinear;
 extern const Token unstructured;
 extern const Token amr;
 extern const Token nanovdb;
+extern const Token nanovdbRectilinear;
 
 } // namespace tokens::spatial_field
 

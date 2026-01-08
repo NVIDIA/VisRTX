@@ -6,6 +6,7 @@
 #include "tsd/core/scene/objects/Array.hpp"
 #include "tsd/core/scene/objects/SpatialField.hpp"
 #include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/NanoVdbSidecar.hpp"
 
 // nanovdb
 #include <nanovdb/io/IO.h>
@@ -14,9 +15,15 @@
 #include <nanovdb/tools/GridStats.h>
 
 // std
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <filesystem>
 #include <string_view>
 #include <type_traits>
+#include <vector>
+
+using namespace std::string_view_literals;
 
 namespace tsd::io {
 
@@ -46,9 +53,6 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
       spacing.x,
       spacing.y,
       spacing.z);
-
-  // Adjust spacing to account node vs cell storage
-  spacing = spacing / dims * (dims - math::int3(1));
 
   // Create a build grid, for now, always float. We can always use nanovdb
   // toolings to convert later if needed.
@@ -256,16 +260,31 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
     VDBPrecision precision,
     bool enableDithering)
 {
-  if (spatialField->subtype() != tokens::volume::structuredRegular) {
+  const auto subtype = spatialField->subtype();
+  const bool isStructuredRegular =
+      subtype == tokens::spatial_field::structuredRegular;
+  const bool isStructuredRectilinear =
+      subtype == tokens::spatial_field::structuredRectilinear;
+
+  if (!isStructuredRegular && !isStructuredRectilinear) {
     tsd::core::logError(
-        "[export_StructuredRegularVolumeToNanoVDB] Not a structuredRegularVolume.");
+        "[export_StructuredRegularVolumeToNanoVDB] Not a structured volume.");
     return;
   }
 
-  tsd::core::logStatus("Exporting StructuredRegularVolume to VDB file: %s",
+  tsd::core::logStatus("Exporting StructuredVolume to VDB file: %s",
       std::string(outputFilename).c_str());
 
-  // Get volume data array object
+  const auto dataCentering =
+      spatialField->parameter("dataCentering")->value().getString();
+
+  // Dumb heuristic here: everything but cell is node-centered
+  const bool cellCentered = dataCentering == "cell"sv;
+
+  tsd::core::logStatus(
+      "[export_StructuredRegularVolumeToNanoVDB] Data centering: %s",
+      dataCentering.c_str());
+
   const auto *volumeData = spatialField->parameterValueAsObject<Array>("data");
   if (!volumeData) {
     tsd::core::logError(
@@ -276,90 +295,144 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
   const auto dims =
       math::int3(volumeData->dim(0), volumeData->dim(1), volumeData->dim(2));
 
-  const auto origin =
-      spatialField->parameterValueAs<math::float3>("origin").value_or(
-          math::float3(0.0f));
-  const auto spacing =
-      spatialField->parameterValueAs<math::float3>("spacing").value_or(
-          math::float3(1.0f));
+  math::float3 origin{};
+  math::float3 spacing{};
+
+  NanoVdbSidecar sidecar;
+  sidecar.schemaVersion = 1;
+  sidecar.dataCentering = dataCentering;
+
+  auto isFinite3 = [](const math::float3 &v) {
+    return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
+  };
+
+  if (auto roi = spatialField->parameterValueAs<math::box3>("roi")) {
+    if (isFinite3(roi->lower) && isFinite3(roi->upper))
+      sidecar.roi = *roi;
+  }
+
+  std::vector<double> coordsX;
+  std::vector<double> coordsY;
+  std::vector<double> coordsZ;
+
+  if (isStructuredRegular) {
+    sidecar.volumeType = "structuredRegular";
+    origin = spatialField->parameterValueAs<math::float3>("origin").value_or(
+        math::float3(0.0f));
+    spacing = spatialField->parameterValueAs<math::float3>("spacing").value_or(
+        math::float3(1.0f));
+    spacing = cellCentered ? spacing : spacing / dims * (dims - math::int3(1));
+
+    sidecar.origin = origin;
+    sidecar.spacing = spacing;
+  } else {
+    sidecar.volumeType = "structuredRectilinear";
+
+    const auto *axisX = spatialField->parameterValueAsObject<Array>("coordsX");
+    const auto *axisY = spatialField->parameterValueAsObject<Array>("coordsY");
+    const auto *axisZ = spatialField->parameterValueAsObject<Array>("coordsZ");
+
+    if (!axisX || !axisY || !axisZ) {
+      tsd::core::logError(
+          "[export_StructuredRegularVolumeToNanoVDB] Missing rectilinear coordinates.");
+      return;
+    }
+
+    auto copyAxis = [](const Array *axis, std::vector<double> &dst) {
+      switch (axis->elementType()) {
+      case ANARI_FLOAT32: {
+        const auto *ptr = axis->dataAs<float>();
+        dst.assign(ptr, ptr + axis->size());
+        break;
+      }
+      case ANARI_FLOAT64: {
+        const auto *ptr = axis->dataAs<double>();
+        dst.assign(ptr, ptr + axis->size());
+        break;
+      }
+      default:
+        return false;
+      }
+      return true;
+    };
+
+    if (!copyAxis(axisX, coordsX) || !copyAxis(axisY, coordsY)
+        || !copyAxis(axisZ, coordsZ)) {
+      tsd::core::logError(
+          "[export_StructuredRegularVolumeToNanoVDB] Rectilinear coordinates must be float or double.");
+      return;
+    }
+
+    if (coordsX.size() < 2 || coordsY.size() < 2 || coordsZ.size() < 2) {
+      tsd::core::logError(
+          "[export_StructuredRegularVolumeToNanoVDB] Rectilinear coordinates must have at least two entries per axis.");
+      return;
+    }
+
+    origin = math::float3(static_cast<float>(coordsX.front()),
+        static_cast<float>(coordsY.front()),
+        static_cast<float>(coordsZ.front()));
+
+    const auto extent =
+        math::float3(static_cast<float>(coordsX.back() - coordsX.front()),
+            static_cast<float>(coordsY.back() - coordsY.front()),
+            static_cast<float>(coordsZ.back() - coordsZ.front()));
+
+    // For rectilinear grids, only export coordinate arrays, not origin/spacing
+    sidecar.coordsX = coordsX;
+    sidecar.coordsY = coordsY;
+    sidecar.coordsZ = coordsZ;
+  }
+
+  auto dispatchExport = [&](auto ptr) {
+    doExportStructuredRegularVolumeToNanoVDB(ptr,
+        origin,
+        spacing,
+        dims,
+        outputFilename,
+        useUndefinedValue,
+        undefinedValue,
+        precision,
+        enableDithering);
+  };
 
   switch (volumeData->elementType()) {
   case ANARI_UFIXED8:
-    doExportStructuredRegularVolumeToNanoVDB(
-        reinterpret_cast<const uint8_t *>(volumeData->data()),
-        origin,
-        spacing,
-        dims,
-        outputFilename,
-        useUndefinedValue,
-        undefinedValue,
-        precision,
-        enableDithering);
+    dispatchExport(reinterpret_cast<const uint8_t *>(volumeData->data()));
     break;
   case ANARI_FIXED8:
-    doExportStructuredRegularVolumeToNanoVDB(
-        reinterpret_cast<const int8_t *>(volumeData->data()),
-        origin,
-        spacing,
-        dims,
-        outputFilename,
-        useUndefinedValue,
-        undefinedValue,
-        precision,
-        enableDithering);
+    dispatchExport(reinterpret_cast<const int8_t *>(volumeData->data()));
     break;
   case ANARI_UFIXED16:
-    doExportStructuredRegularVolumeToNanoVDB(
-        reinterpret_cast<const uint16_t *>(volumeData->data()),
-        origin,
-        spacing,
-        dims,
-        outputFilename,
-        useUndefinedValue,
-        undefinedValue,
-        precision,
-        enableDithering);
+    dispatchExport(reinterpret_cast<const uint16_t *>(volumeData->data()));
     break;
   case ANARI_FIXED16:
-    doExportStructuredRegularVolumeToNanoVDB(
-        reinterpret_cast<const int16_t *>(volumeData->data()),
-        origin,
-        spacing,
-        dims,
-        outputFilename,
-        useUndefinedValue,
-        undefinedValue,
-        precision,
-        enableDithering);
+    dispatchExport(reinterpret_cast<const int16_t *>(volumeData->data()));
     break;
   case ANARI_FLOAT32:
-    doExportStructuredRegularVolumeToNanoVDB(
-        reinterpret_cast<const float *>(volumeData->data()),
-        origin,
-        spacing,
-        dims,
-        outputFilename,
-        useUndefinedValue,
-        undefinedValue,
-        precision,
-        enableDithering);
+    dispatchExport(reinterpret_cast<const float *>(volumeData->data()));
     break;
   case ANARI_FLOAT64:
-    doExportStructuredRegularVolumeToNanoVDB(
-        reinterpret_cast<const double *>(volumeData->data()),
-        origin,
-        spacing,
-        dims,
-        outputFilename,
-        useUndefinedValue,
-        undefinedValue,
-        precision,
-        enableDithering);
+    dispatchExport(reinterpret_cast<const double *>(volumeData->data()));
     break;
   default:
     tsd::core::logError(
         "[export_StructuredRegularVolumeToNanoVDB] Volume data is not of a supported float type.");
     return;
+  }
+
+  const auto sidecarPath =
+      makeSidecarPath(std::filesystem::path(outputFilename));
+  std::string sidecarError;
+  if (!writeSidecar(sidecar, sidecarPath, sidecarError)) {
+    tsd::core::logWarning(
+        "[export_StructuredRegularVolumeToNanoVDB] Failed to write sidecar %s: %s",
+        sidecarPath.string().c_str(),
+        sidecarError.c_str());
+  } else {
+    tsd::core::logStatus(
+        "[export_StructuredRegularVolumeToNanoVDB] Wrote sidecar: %s",
+        sidecarPath.string().c_str());
   }
 }
 

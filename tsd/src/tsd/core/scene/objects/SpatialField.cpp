@@ -92,7 +92,7 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
         .setValue({ANARI_ARRAY1D, INVALID_INDEX})
         .setDescription("array of floats containing the scalar voxel data");
   } else if (stype == tokens::spatial_field::nanovdb) {
-    addParameter("gridData")
+    addParameter("data")
         .setValue({ANARI_ARRAY1D, INVALID_INDEX})
         .setDescription("array containing serialzed NanoVDB grid");
     addParameter("filter").setValue("linear").setStringValues(
@@ -108,6 +108,34 @@ SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
         .setValue(tsd::math::box3(
             tsd::math::float3(-math::inf, -math::inf, -math::inf),
             tsd::math::float3(math::inf, math::inf, math::inf)));
+  } else if (stype == tokens::spatial_field::nanovdbRectilinear) {
+    addParameter("data")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("array containing serialzed NanoVDB grid");
+    addParameter("filter")
+        .setValue("linear")
+        .setStringValues({"linear", "nearest"})
+        .setStringSelection(0);
+    addParameter("dataCentering")
+        .setValue("cell")
+        .setStringValues({"node", "cell"})
+        .setStringSelection(1)
+        .setDescription(
+            "whether data values are node-centered or cell-centered");
+    addParameter("roi")
+        .setDescription("ROI box in object space")
+        .setValue(tsd::math::box3(
+            tsd::math::float3(-math::inf, -math::inf, -math::inf),
+            tsd::math::float3(math::inf, math::inf, math::inf)));
+    addParameter("coordsX")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("X-axis coordinates");
+    addParameter("coordsY")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("Y-axis coordinates");
+    addParameter("coordsZ")
+        .setValue({ANARI_ARRAY1D, INVALID_INDEX})
+        .setDescription("Z-axis coordinates");
   }
 }
 
@@ -176,6 +204,7 @@ const Token structuredRectilinear = "structuredRectilinear";
 const Token unstructured = "unstructured";
 const Token amr = "amr";
 const Token nanovdb = "nanovdb";
+const Token nanovdbRectilinear = "nanovdbRectilinear";
 
 } // namespace tokens::spatial_field
 

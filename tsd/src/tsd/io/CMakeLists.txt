@@ -50,6 +50,7 @@ PRIVATE
   procedural/generate_rtow.cpp
   procedural/generate_sphereSetVolume.cpp
   serialization/export_RegularVolumeToNanoVDB.cpp
+  serialization/NanoVdbSidecar.cpp
   serialization/export_SceneToUSD.cpp
   serialization/serialization_datatree.cpp
 )
