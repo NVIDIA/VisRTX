@@ -31,7 +31,7 @@ ANARIDevice Library::newDevice(const char * /*subtype*/)
 
 const char **Library::getDeviceExtensions(const char * /*deviceType*/)
 {
-  return nullptr;
+  return query_extensions();
 }
 
 } // namespace tsd_device

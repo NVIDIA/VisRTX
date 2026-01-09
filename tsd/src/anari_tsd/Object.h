@@ -8,6 +8,7 @@
 #include <helium/BaseObject.h>
 #include <helium/utility/ChangeObserverPtr.h>
 // std
+#include <memory>
 #include <string_view>
 
 namespace tsd_device {
@@ -41,7 +42,8 @@ struct TSDObject : public Object
   tsd::core::Object *tsdObject() const;
 
  private:
-  tsd::core::Any m_object;
+  tsd::core::Any m_object; // scene ref for non-renderer objects
+  std::unique_ptr<tsd::core::Object> m_rendererObject; // only if ANARI_RENDERER
 };
 
 } // namespace tsd_device

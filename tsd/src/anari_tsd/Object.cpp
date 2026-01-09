@@ -86,6 +86,10 @@ TSDObject::TSDObject(
     obj = s->scene.createObject<tsd::core::Light>(subtype).data();
     name = "light" + std::to_string(s->lightCount++);
     break;
+  case ANARI_RENDERER:
+    obj = new tsd::core::Object(ANARI_RENDERER, subtype);
+    name = "renderer" + std::to_string(s->rendererCount++);
+    break;
   default:
     break;
   }
@@ -94,10 +98,13 @@ TSDObject::TSDObject(
     reportMessage(ANARI_SEVERITY_WARNING,
         "failed to create equivalent TSD object for %s",
         anari::toString(type));
-  } else {
+    return;
+  } else if (type == ANARI_RENDERER)
+    m_rendererObject.reset(obj);
+  else
     m_object = tsd::core::Any(obj->type(), obj->index());
-    obj->setName(name.c_str());
-  }
+
+  obj->setName(name.c_str());
 }
 
 void TSDObject::commitParameters()

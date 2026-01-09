@@ -29,6 +29,8 @@ DeviceGlobalState *Frame::deviceState() const
 void Frame::commitParameters()
 {
   m_world = getParamObject<World>("world");
+  m_renderer = getParamObject<TSDObject>("renderer");
+  m_camera = getParamObject<TSDObject>("camera");
 }
 
 void Frame::finalize()
@@ -36,6 +38,16 @@ void Frame::finalize()
   if (!m_world) {
     reportMessage(
         ANARI_SEVERITY_WARNING, "missing required parameter 'world' on frame");
+  }
+
+  if (!m_renderer) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "missing required parameter 'renderer' on frame");
+  }
+
+  if (!m_camera) {
+    reportMessage(
+        ANARI_SEVERITY_WARNING, "missing required parameter 'camera' on frame");
   }
 }
 

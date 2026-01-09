@@ -30,6 +30,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   int volumeCount{0};
   int fieldCount{0};
   int lightCount{0};
+  int rendererCount{0};
   int worldCount{0};
 };
 
