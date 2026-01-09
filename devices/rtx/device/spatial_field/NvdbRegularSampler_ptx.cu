@@ -38,12 +38,12 @@
 using namespace visrtx;
 
 VISRTX_DEVICE nanovdb::Vec3f clamp(const nanovdb::Vec3f &v,
-                                 const nanovdb::Vec3f &min,
-                                 const nanovdb::Vec3f &max)
+    const nanovdb::Vec3f &min,
+    const nanovdb::Vec3f &max)
 {
   return nanovdb::Vec3f(nanovdb::math::Clamp(v[0], min[0], max[0]),
-                        nanovdb::math::Clamp(v[1], min[1], max[1]),
-                        nanovdb::math::Clamp(v[2], min[2], max[2]));
+      nanovdb::math::Clamp(v[1], min[1], max[1]),
+      nanovdb::math::Clamp(v[2], min[2], max[2]));
 }
 
 template <typename ValueType>
@@ -61,32 +61,37 @@ VISRTX_DEVICE void initNvdbSampler(
   new (&state.sampler) typename NvdbRegularSamplerState<ValueType>::SamplerType(
       nanovdb::math::createSampler<1>(state.accessor));
 
-  const bool cellCentered = field->data.nvdbRegular.cellCentered;
   const nanovdb::CoordBBox indexBBox = grid->indexBBox();
   const nanovdb::Vec3f dims = nanovdb::Vec3f(indexBBox.dim());
-  state.indexMin = indexBBox.min().asVec3d();
-  state.indexMax = indexBBox.max().asVec3d();
-
-  if (cellCentered) {
-    state.offset = nanovdb::Vec3f(-0.5f);
+  // NanoVDB samplers get exact values at 0, 1, ... N, which works for
+  // node centered data. For cell centered data, we need to offset by -0.5
+  // and clamp to artificially create the full voxel, extrapolating the
+  // outermost voxel values.
+  // Scale moves from index space to index space - 1
+  state.offsetDown = -nanovdb::Vec3f(indexBBox.min());
+  if (field->data.nvdbRectilinear.cellCentered) {
+    state.offsetUp = nanovdb::Vec3f(-0.5f) - state.offsetDown;
     state.scale = nanovdb::Vec3f(1.0f);
   } else {
-    state.offset = nanovdb::Vec3f(0.0f);
-    state.scale = (dims - nanovdb::Vec3f(1.0f)) / dims;
+    state.offsetUp = -state.offsetDown;
+    state.scale = (dims) / (dims + nanovdb::Vec3f(1.0f));
   }
+
+  state.indexMin = nanovdb::Vec3f(indexBBox.min());
+  state.indexMax = nanovdb::Vec3f(indexBBox.max());
 }
 
 template <typename ValueType>
 VISRTX_DEVICE float sampleNvdb(
     const NvdbRegularSamplerState<ValueType> &state, const vec3 *location)
 {
-  auto indexPos = state.grid->worldToIndexF(
+  const auto indexPos0 = state.grid->worldToIndexF(
       nanovdb::Vec3f(location->x, location->y, location->z));
 
-  indexPos = indexPos * state.scale + state.offset;
-  indexPos = clamp(indexPos, state.indexMin, state.indexMax);
+  const auto indexPos =
+      (indexPos0 - state.offsetDown) * state.scale + state.offsetUp;
 
-  return state.sampler(indexPos);
+  return state.sampler(clamp(indexPos, state.indexMin, state.indexMax));
 }
 
 // Fp4 sampler

@@ -161,7 +161,8 @@ struct NvdbRegularSamplerState
   const GridType *grid;
   AccessorType accessor;
   SamplerType sampler;
-  nanovdb::Vec3f offset;
+  nanovdb::Vec3f offsetDown;
+  nanovdb::Vec3f offsetUp;
   nanovdb::Vec3f scale;
   nanovdb::Vec3f indexMin;
   nanovdb::Vec3f indexMax;
@@ -178,8 +179,10 @@ struct NvdbRectilinearSamplerState
   const GridType *grid;
   AccessorType accessor;
   SamplerType sampler;
-  nanovdb::Vec3f offset;
-  nanovdb::Vec3f scale;
+  nanovdb::Vec3f offsetDown;
+  nanovdb::Vec3f offsetUp;
+  nanovdb::Vec3f scaleDown;
+  nanovdb::Vec3f scaleUp;
   nanovdb::Vec3f indexMin;
   nanovdb::Vec3f indexMax;
   cudaTextureObject_t axisLUT[3];

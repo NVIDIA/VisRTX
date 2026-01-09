@@ -29,6 +29,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <driver_types.h>
+#include <nanovdb/math/Math.h>
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/shadingState.h"
@@ -61,19 +63,25 @@ VISRTX_DEVICE void initNvdbRectilinearSampler(
       typename NvdbRectilinearSamplerState<ValueType>::SamplerType(
           nanovdb::math::createSampler<1>(state.accessor));
 
-  const bool cellCentered = field->data.nvdbRectilinear.cellCentered;
   const nanovdb::CoordBBox indexBBox = grid->indexBBox();
   const nanovdb::Vec3f dims = nanovdb::Vec3f(indexBBox.dim());
-  state.indexMin = indexBBox.min().asVec3d();
-  state.indexMax = indexBBox.max().asVec3d();
 
-  if (cellCentered) {
-    state.offset = nanovdb::Vec3f(-0.5f);
-    state.scale = nanovdb::Vec3f(1.0f);
+  // NanoVDB samplers get exact values at 0, 1, ... N, which works for
+  // node centered data. For cell centered data, we need to offset by -0.5
+  // and clamp to artificially create the full voxel, extrapolating the
+  // outermost voxel values.
+  // ScaleDown moves from index space to normalized space [0, 1]
+  // ScaleUp moves from normalized space [0, 1] to index space - 1
+  state.scaleDown = 1.0f / dims;
+  state.scaleUp = dims - nanovdb::Vec3f(1.0f);
+  state.offsetDown = -nanovdb::Vec3f(indexBBox.min());
+  if (field->data.nvdbRectilinear.cellCentered) {
+    state.offsetUp = nanovdb::Vec3f(-0.5f) - state.offsetDown;
   } else {
-    state.offset = nanovdb::Vec3f(0.0f);
-    state.scale = (dims - nanovdb::Vec3f(1.0f)) / dims;
+    state.offsetUp = -state.offsetDown;
   }
+  state.indexMin = nanovdb::Vec3f(indexBBox.min());
+  state.indexMax = nanovdb::Vec3f(indexBBox.max());
 
   state.axisLUT[0] = field->data.nvdbRectilinear.axisLUT[0];
   state.axisLUT[1] = field->data.nvdbRectilinear.axisLUT[1];
@@ -84,37 +92,22 @@ template <typename ValueType>
 VISRTX_DEVICE float sampleNvdbRectilinear(
     const NvdbRectilinearSamplerState<ValueType> &state, const vec3 *location)
 {
-  nanovdb::Vec3f samplePos(location->x, location->y, location->z);
+  const auto indexPos0 = state.grid->worldToIndexF(
+      nanovdb::Vec3f(location->x, location->y, location->z));
 
-  // Apply rectilinear mapping to samplePosition
-  if (state.axisLUT[0]) {
-    samplePos[0] -= state.indexMin[0];
-    samplePos[0] /= (state.indexMax[0] - state.indexMin[0]);
-    samplePos[0] = tex1D<float>(state.axisLUT[0], samplePos[0]);
-    samplePos[0] *= (state.indexMax[0] - state.indexMin[0]);
-    samplePos[0] += state.indexMin[0];
-  }
-  if (state.axisLUT[1]) {
-    samplePos[1] -= state.indexMin[1];
-    samplePos[1] /= (state.indexMax[1] - state.indexMin[1]);
-    samplePos[1] = tex1D<float>(state.axisLUT[1], samplePos[1]);
-    samplePos[1] *= (state.indexMax[1] - state.indexMin[1]);
-    samplePos[1] += state.indexMin[1];
-  }
-  if (state.axisLUT[2]) {
-    samplePos[2] -= state.indexMin[2];
-    samplePos[2] /= (state.indexMax[2] - state.indexMin[2]);
-    samplePos[2] = tex1D<float>(state.axisLUT[2], samplePos[2]);
-    samplePos[2] *= (state.indexMax[2] - state.indexMin[2]);
-    samplePos[2] += state.indexMin[2];
-  }
+  // Recenter and normalize
+  const auto normalizedPos = (indexPos0 - state.offsetDown) * state.scaleDown;
 
-  auto indexPos = state.grid->worldToIndexF(samplePos);
+  // Apply rectilinear mapping
+  const auto normalizedPosRect =
+      nanovdb::Vec3f(tex1D<float>(state.axisLUT[0], normalizedPos[0]),
+          tex1D<float>(state.axisLUT[1], normalizedPos[1]),
+          tex1D<float>(state.axisLUT[2], normalizedPos[2]));
 
-  indexPos = indexPos * state.scale + state.offset;
-  indexPos = clamp(indexPos, state.indexMin, state.indexMax);
+  // Back to index space
+  const auto indexPos = normalizedPosRect * state.scaleUp + state.offsetUp;
 
-  return state.sampler(indexPos);
+  return state.sampler(clamp(indexPos, state.indexMin, state.indexMax));
 }
 
 // Fp4 rectilinear sampler
