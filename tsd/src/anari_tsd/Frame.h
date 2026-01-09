@@ -46,6 +46,8 @@ struct Frame : public helium::BaseFrame
   helium::IntrusivePtr<World> m_world;
   helium::IntrusivePtr<TSDObject> m_renderer;
   helium::IntrusivePtr<TSDObject> m_camera;
+
+  anari::Frame m_anariFrame{nullptr};
 };
 
 } // namespace tsd_device

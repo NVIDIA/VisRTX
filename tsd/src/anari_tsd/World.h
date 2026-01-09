@@ -6,16 +6,26 @@
 #include "Instance.h"
 // std
 #include <vector>
+// tsd_rendering
+#include "tsd/rendering/index/RenderIndexAllLayers.hpp"
 
 namespace tsd_device {
 
 struct World : public Object
 {
   World(DeviceGlobalState *s);
-   ~World() override;
+  ~World() override;
+
+  bool getProperty(const std::string_view &name,
+      ANARIDataType type,
+      void *ptr,
+      uint64_t size,
+      uint32_t flags) override;
 
   void commitParameters() override;
   void finalize() override;
+
+  const tsd::rendering::RenderIndexAllLayers *getRenderIndex() const;
 
  private:
   tsd::core::Layer *layer() const;
@@ -34,6 +44,7 @@ struct World : public Object
   std::vector<TSDObject *> m_zeroLights;
 
   tsd::core::Token m_layerName;
+  tsd::rendering::RenderIndexAllLayers *m_renderIndex{nullptr};
 };
 
 } // namespace tsd_device

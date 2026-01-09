@@ -6,19 +6,25 @@
 #include <helium/helium_math.h>
 // tsd_io
 #include "tsd/io/serialization.hpp"
+// std
+#include <algorithm>
 
 namespace tsd_device {
 
-Frame::Frame(DeviceGlobalState *s) : helium::BaseFrame(s) {}
+Frame::Frame(DeviceGlobalState *s) : helium::BaseFrame(s)
+{
+  m_anariFrame = anari::newObject<anari::Frame>(s->device);
+}
 
 Frame::~Frame()
 {
   wait();
+  anari::release(deviceState()->device, m_anariFrame);
 }
 
 bool Frame::isValid() const
 {
-  return m_world && m_world->isValid();
+  return m_world && m_world->isValid() && m_renderer && m_camera;
 }
 
 DeviceGlobalState *Frame::deviceState() const
@@ -49,6 +55,41 @@ void Frame::finalize()
     reportMessage(
         ANARI_SEVERITY_WARNING, "missing required parameter 'camera' on frame");
   }
+
+  if (!isValid())
+    return;
+
+  auto *state = deviceState();
+  auto d = state->device;
+  anari::unsetAllParameters(d, m_anariFrame);
+  std::for_each(params_begin(), params_end(), [&](auto &p) {
+    if (anari::isObject(p.second.type())) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "skip forwarding object parameter '%s' on ANARIFrame",
+          p.first.c_str());
+    } else if (p.first == "name" && p.second.type() == ANARI_STRING) {
+      anari::setParameter(
+          d, m_anariFrame, p.first.c_str(), p.second.getString());
+    } else if (p.second.type() != ANARI_UNKNOWN) {
+      anari::setParameter(
+          d, m_anariFrame, p.first.c_str(), p.second.type(), p.second.data());
+    } else {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "skip setting parameter '%s' of unknown type on ANARIFrame",
+          p.first.c_str());
+    }
+  });
+
+  anari::setParameter(
+      d, m_anariFrame, "camera", (anari::Camera)m_camera->anariHandle());
+  anari::setParameter(
+      d, m_anariFrame, "renderer", (anari::Renderer)m_renderer->anariHandle());
+  anari::setParameter(d,
+      m_anariFrame,
+      "world",
+      (anari::World)m_world->getRenderIndex()->world());
+
+  anari::commitParameters(d, m_anariFrame);
 }
 
 bool Frame::getProperty(const std::string_view &name,
@@ -57,16 +98,26 @@ bool Frame::getProperty(const std::string_view &name,
     uint64_t size,
     uint32_t flags)
 {
-  return 0;
+  std::string nameStr(name);
+  return anariGetProperty(deviceState()->device,
+      m_anariFrame,
+      nameStr.c_str(),
+      type,
+      ptr,
+      size,
+      flags);
 }
 
 void Frame::renderFrame()
 {
   auto *state = deviceState();
   state->commitBuffer.flush();
-  reportMessage(
-      ANARI_SEVERITY_INFO, "exporting scene to 'tsd_device_export.tsd'");
-  tsd::io::save_Scene(state->scene, "tsd_device_export.tsd");
+
+  const char *filename = "live_capture.tsd";
+  reportMessage(ANARI_SEVERITY_INFO, "exporting scene to '%s'", filename);
+  tsd::io::save_Scene(state->scene, filename);
+
+  anari::render(state->device, m_anariFrame);
 }
 
 void *Frame::map(std::string_view channel,
@@ -74,16 +125,21 @@ void *Frame::map(std::string_view channel,
     uint32_t *height,
     ANARIDataType *pixelType)
 {
-  wait();
-  *width = 0;
-  *height = 0;
-  *pixelType = ANARI_UNKNOWN;
-  return nullptr;
+  auto *state = deviceState();
+  std::string channelStr(channel);
+  return (void *)anariMapFrame(state->device,
+      m_anariFrame,
+      channelStr.c_str(),
+      width,
+      height,
+      pixelType);
 }
 
 void Frame::unmap(std::string_view channel)
 {
-  // no-op
+  auto *state = deviceState();
+  std::string channelStr(channel);
+  anari::unmap(state->device, m_anariFrame, channelStr.c_str());
 }
 
 int Frame::frameReady(ANARIWaitMask m)
@@ -98,17 +154,17 @@ int Frame::frameReady(ANARIWaitMask m)
 
 void Frame::discard()
 {
-  // no-op
+  anari::discard(deviceState()->device, m_anariFrame);
 }
 
 bool Frame::ready() const
 {
-  return true;
+  return anari::isReady(deviceState()->device, m_anariFrame);
 }
 
 void Frame::wait() const
 {
-  // no-op
+  anari::wait(deviceState()->device, m_anariFrame);
 }
 
 } // namespace tsd_device

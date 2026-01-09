@@ -228,6 +228,8 @@ void Device::initDevice()
         "created ANARI device (%p) from library '%s'",
         (void *)state->device,
         libraryName.c_str());
+
+    state->scene.setUpdateDelegate(&state->anari.getUpdateDelegate());
   }
 
   m_initialized = true;

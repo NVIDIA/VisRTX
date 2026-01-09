@@ -13,13 +13,32 @@ World::World(DeviceGlobalState *s)
       m_instanceData(this)
 {
   m_layerName = "world" + std::to_string(s->worldCount++);
-  s->scene.addLayer(m_layerName);
+  auto *l = s->scene.addLayer(m_layerName);
+  m_renderIndex =
+      (tsd::rendering::RenderIndexAllLayers *)s->anari.acquireRenderIndex(
+          s->scene, s->device);
 }
 
 World::~World()
 {
   auto *s = deviceState();
   s->scene.removeLayer(m_layerName);
+}
+
+bool World::getProperty(const std::string_view &name,
+    ANARIDataType type,
+    void *ptr,
+    uint64_t size,
+    uint32_t flags)
+{
+  std::string nameStr(name);
+  return anariGetProperty(deviceState()->device,
+      m_renderIndex->world(),
+      nameStr.c_str(),
+      type,
+      ptr,
+      size,
+      flags);
 }
 
 void World::commitParameters()
@@ -34,6 +53,11 @@ void World::finalize()
 {
   updateValidObjects();
   updateLayer();
+}
+
+const tsd::rendering::RenderIndexAllLayers *World::getRenderIndex() const
+{
+  return m_renderIndex;
 }
 
 tsd::core::Layer *World::layer() const

@@ -57,6 +57,8 @@ TSDObject::TSDObject(
   case ANARI_CAMERA:
     obj = s->scene.createObject<tsd::core::Camera>(subtype).data();
     name = "camera" + std::to_string(s->cameraCount++);
+    m_liveHandle =
+        anari::newObject<anari::Camera>(s->device, subtype.c_str());
     break;
   case ANARI_SURFACE:
     obj = s->scene.createObject<tsd::core::Surface>().data();
@@ -89,6 +91,8 @@ TSDObject::TSDObject(
   case ANARI_RENDERER:
     obj = new tsd::core::Object(ANARI_RENDERER, subtype);
     name = "renderer" + std::to_string(s->rendererCount++);
+    m_liveHandle =
+        anari::newObject<anari::Renderer>(s->device, subtype.c_str());
     break;
   default:
     break;
@@ -105,6 +109,15 @@ TSDObject::TSDObject(
     m_object = tsd::core::Any(obj->type(), obj->index());
 
   obj->setName(name.c_str());
+}
+
+TSDObject::~TSDObject()
+{
+  auto *s = deviceState();
+  if (m_liveHandle) {
+    anari::release(s->device, m_liveHandle);
+    m_liveHandle = nullptr;
+  }
 }
 
 void TSDObject::commitParameters()
@@ -145,11 +158,23 @@ void TSDObject::commitParameters()
           p.first.c_str());
     }
   });
+
+  if (m_liveHandle) {
+    auto *state = deviceState();
+    object->updateAllANARIParameters(state->device, m_liveHandle);
+    anari::commitParameters(state->device, m_liveHandle);
+  }
 }
 
 tsd::core::Object *TSDObject::tsdObject() const
 {
-  return deviceState()->scene.getObject(m_object);
+  return m_rendererObject ? m_rendererObject.get()
+                          : deviceState()->scene.getObject(m_object);
+}
+
+anari::Object TSDObject::anariHandle() const
+{
+  return m_liveHandle;
 }
 
 } // namespace tsd_device

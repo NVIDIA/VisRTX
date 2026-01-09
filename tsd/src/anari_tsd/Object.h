@@ -35,15 +35,21 @@ struct TSDObject : public Object
   TSDObject(anari::DataType type,
       DeviceGlobalState *s,
       tsd::core::Token subtype = tsd::core::tokens::none);
-  virtual ~TSDObject() = default;
+  virtual ~TSDObject();
 
   virtual void commitParameters() override;
 
   tsd::core::Object *tsdObject() const;
+  anari::Object anariHandle() const;
 
  private:
   tsd::core::Any m_object; // scene ref for non-renderer objects
   std::unique_ptr<tsd::core::Object> m_rendererObject; // only if ANARI_RENDERER
+
+  // Renderers + cameras track a live ANARI object to be used by the Frame, all
+  // other objects are created + managed via a render index to populate the
+  // World.
+  anari::Object m_liveHandle{nullptr};
 };
 
 } // namespace tsd_device
