@@ -109,7 +109,16 @@ static void buildUI_parameter_contextMenu(
             p->setUsage(tsd::core::ParameterUsageHint::NONE);
             p->setValue(tsd::math::int4(1));
           }
-          ImGui::EndMenu(); // "float"
+          ImGui::EndMenu(); // "int"
+        }
+
+        ImGui::Separator();
+
+        if (ImGui::MenuItem("string")) {
+          p->setUsage(tsd::core::ParameterUsageHint::NONE);
+          p->setValue("");
+          p->setStringSelection(0);
+          p->setStringValues({});
         }
 
         ImGui::EndMenu(); // "uniform"
@@ -537,8 +546,8 @@ bool buildUI_parameter(tsd::core::Object &o,
                                 : std::numeric_limits<float>::lowest();
           float maxLower = pMax ? pMax.get<tsd::math::box2>().lower.x
                                 : std::numeric_limits<float>::max();
-          update |=
-              ImGui::DragFloat2("lower", (float *)value, 1.f, minLower, maxLower);
+          update |= ImGui::DragFloat2(
+              "lower", (float *)value, 1.f, minLower, maxLower);
           float minUpper = pMin ? pMin.get<tsd::math::box2>().upper.x
                                 : std::numeric_limits<float>::lowest();
           float maxUpper = pMax ? pMax.get<tsd::math::box2>().upper.x
@@ -572,8 +581,8 @@ bool buildUI_parameter(tsd::core::Object &o,
                                 : std::numeric_limits<float>::lowest();
           float maxLower = pMax ? pMax.get<tsd::math::box3>().lower.x
                                 : std::numeric_limits<float>::max();
-          update |=
-              ImGui::DragFloat3("lower", (float *)value, 1.f, minLower, maxLower);
+          update |= ImGui::DragFloat3(
+              "lower", (float *)value, 1.f, minLower, maxLower);
           float minUpper = pMin ? pMin.get<tsd::math::box3>().upper.x
                                 : std::numeric_limits<float>::lowest();
           float maxUpper = pMax ? pMax.get<tsd::math::box3>().upper.x

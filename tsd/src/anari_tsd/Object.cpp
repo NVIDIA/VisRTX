@@ -127,6 +127,8 @@ void TSDObject::commitParameters()
               tsd::core::Token(p.first), *obj->tsdObject());
         }
       }
+    } else if (p.first == "name" && p.second.type() == ANARI_STRING) {
+      object->setName(p.second.getString().c_str());
     } else if (p.second.type() != ANARI_UNKNOWN) {
       object->setParameter(
           tsd::core::Token(p.first), p.second.type(), p.second.data());
