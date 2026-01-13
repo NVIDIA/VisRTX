@@ -48,6 +48,8 @@ struct Frame : public helium::BaseFrame
   helium::IntrusivePtr<TSDObject> m_camera;
 
   anari::Frame m_anariFrame{nullptr};
+
+  helium::TimeStamp m_lastCommitFlushOccured{0};
 };
 
 } // namespace tsd_device

@@ -167,6 +167,7 @@ void Renderer::commitParameters()
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
       std::clamp(getParam<float>("volumeSamplingRate", 0.125f), 1e-3f, 10.f);
+  m_premultiplyBackground = getParam<bool>("premultiplyBackground", false);
   if (m_checkerboard)
     m_spp = 1;
 }
@@ -207,6 +208,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
   fd.renderer.numIterations = std::max(m_spp, 1);
   fd.renderer.maxRayDepth = m_maxRayDepth;
+  fd.renderer.premultiplyBackground = m_premultiplyBackground;
 }
 
 OptixPipeline Renderer::pipeline()

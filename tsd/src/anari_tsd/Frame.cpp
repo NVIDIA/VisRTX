@@ -113,9 +113,12 @@ void Frame::renderFrame()
   auto *state = deviceState();
   state->commitBuffer.flush();
 
-  const char *filename = "live_capture.tsd";
-  reportMessage(ANARI_SEVERITY_INFO, "exporting scene to '%s'", filename);
-  tsd::io::save_Scene(state->scene, filename);
+  if (m_lastCommitFlushOccured < state->commitBuffer.lastObjectFinalization()) {
+    m_lastCommitFlushOccured = state->commitBuffer.lastObjectFinalization();
+    const char *filename = "live_capture.tsd";
+    reportMessage(ANARI_SEVERITY_INFO, "exporting scene to '%s'", filename);
+    tsd::io::save_Scene(state->scene, filename);
+  }
 
   anari::render(state->device, m_anariFrame);
 }
