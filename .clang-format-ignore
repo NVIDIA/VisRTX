@@ -1,0 +1,10 @@
+# Ignore JSON files from clang-format
+*.json
+
+# Ignore original backup files
+*.orig
+
+# Ignore generated files
+*_queries.cpp
+*_queries.h
+*_ptx.h

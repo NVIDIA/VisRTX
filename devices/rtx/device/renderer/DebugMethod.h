@@ -41,6 +41,7 @@ enum class DebugMethod
   PRIM_INDEX,
   OBJ_INDEX,
   INST_INDEX,
+  MAT_ID,
   NG,
   NG_ABS,
   NS,
