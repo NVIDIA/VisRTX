@@ -82,8 +82,11 @@ void Viewport::buildUI()
   bool didPick = ui_picking(); // Needs to happen before ui_menubar
   ui_menubar();
 
-  if (m_anariPass && !didPick)
-    m_anariPass->setEnableIDs(appCore()->getFirstSelected().valid());
+  if (m_anariPass && !didPick) {
+    bool needIDs = appCore()->getFirstSelected().valid()
+        || m_visualizeAOV == tsd::rendering::AOVType::EDGES;
+    m_anariPass->setEnableIDs(needIDs);
+  }
 
   if (m_rIdx && (m_rIdx->isFlat() != appCore()->anari.useFlatRenderIndex())) {
     tsd::core::logWarning("instancing setting changed: resetting viewport");
@@ -270,6 +273,8 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["visualizeAOV"] = static_cast<int>(m_visualizeAOV);
   root["depthVisualMinimum"] = m_depthVisualMinimum;
   root["depthVisualMaximum"] = m_depthVisualMaximum;
+  root["edgeThreshold"] = m_edgeThreshold;
+  root["edgeInvert"] = m_edgeInvert;
   root["fov"] = m_fov;
   root["resolutionScale"] = m_resolutionScale;
   root["showAxes"] = m_showAxes;
@@ -326,6 +331,8 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aovType);
   root["depthVisualMinimum"].getValue(ANARI_FLOAT32, &m_depthVisualMinimum);
   root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
+  root["edgeThreshold"].getValue(ANARI_FLOAT32, &m_edgeThreshold);
+  root["edgeInvert"].getValue(ANARI_BOOL, &m_edgeInvert);
   root["fov"].getValue(ANARI_FLOAT32, &m_fov);
   root["resolutionScale"].getValue(ANARI_FLOAT32, &m_resolutionScale);
   root["showAxes"].getValue(ANARI_BOOL, &m_showAxes);
@@ -521,6 +528,8 @@ void Viewport::setupRenderPipeline()
   m_visualizeAOVPass =
       m_pipeline.emplace_back<tsd::rendering::VisualizeAOVPass>();
   m_visualizeAOVPass->setEnabled(false);
+  m_visualizeAOVPass->setEdgeThreshold(m_edgeThreshold);
+  m_visualizeAOVPass->setEdgeInvert(m_edgeInvert);
 
   m_outlinePass = m_pipeline.emplace_back<tsd::rendering::OutlineRenderPass>();
 
@@ -1120,7 +1129,8 @@ void Viewport::ui_menubar()
 
       ImGui::Separator();
 
-      const char *aovItems[] = {"default", "depth", "albedo", "normal"};
+      const char *aovItems[] = {
+          "default", "depth", "albedo", "normal", "edges"};
       if (int aov = int(m_visualizeAOV); ImGui::Combo(
               "visualize AOV", &aov, aovItems, IM_ARRAYSIZE(aovItems))) {
         if (aov != int(m_visualizeAOV)) {
@@ -1130,6 +1140,8 @@ void Viewport::ui_menubar()
               m_visualizeAOV == tsd::rendering::AOVType::ALBEDO);
           m_anariPass->setEnableNormals(
               m_visualizeAOV == tsd::rendering::AOVType::NORMAL);
+          m_anariPass->setEnableIDs(
+              m_visualizeAOV == tsd::rendering::AOVType::EDGES);
         }
       }
 
@@ -1148,6 +1160,17 @@ void Viewport::ui_menubar()
       if (depthRangeChanged)
         m_visualizeAOVPass->setDepthRange(
             m_depthVisualMinimum, m_depthVisualMaximum);
+      ImGui::EndDisabled();
+
+      ImGui::BeginDisabled(m_visualizeAOV != tsd::rendering::AOVType::EDGES);
+      bool edgeSettingsChanged = false;
+      edgeSettingsChanged |=
+          ImGui::DragFloat("edge threshold", &m_edgeThreshold, 0.01f, 0.f, 1.f);
+      edgeSettingsChanged |= ImGui::Checkbox("invert edges", &m_edgeInvert);
+      if (edgeSettingsChanged) {
+        m_visualizeAOVPass->setEdgeThreshold(m_edgeThreshold);
+        m_visualizeAOVPass->setEdgeInvert(m_edgeInvert);
+      }
       ImGui::EndDisabled();
 
       ImGui::Separator();

@@ -271,7 +271,7 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   ImGui::Separator();
   ImGui::Text("==== AOV Visualization ====");
 
-  const char *aovItems[] = {"none", "depth", "albedo", "normal"};
+  const char *aovItems[] = {"none", "depth", "albedo", "normal", "edges"};
   int aovIdx = static_cast<int>(core->offline.aov.aovType);
   if (ImGui::Combo("AOV type", &aovIdx, aovItems, IM_ARRAYSIZE(aovItems))) {
     core->offline.aov.aovType = static_cast<tsd::rendering::AOVType>(aovIdx);
@@ -289,6 +289,13 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
       0.1f,
       core->offline.aov.depthMin,
       1e20f);
+  ImGui::EndDisabled();
+
+  ImGui::BeginDisabled(
+      core->offline.aov.aovType != tsd::rendering::AOVType::EDGES);
+  ImGui::DragFloat(
+      "edge threshold", &core->offline.aov.edgeThreshold, 0.01f, 0.f, 1.f);
+  ImGui::Checkbox("invert edges", &core->offline.aov.edgeInvert);
   ImGui::EndDisabled();
 
   ImGui::Unindent(tsd::ui::INDENT_AMOUNT);

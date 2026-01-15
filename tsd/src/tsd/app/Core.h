@@ -202,6 +202,8 @@ struct OfflineRenderSequenceConfig
     tsd::rendering::AOVType aovType{tsd::rendering::AOVType::NONE};
     float depthMin{0.f};
     float depthMax{1.f};
+    float edgeThreshold{0.5f};
+    bool edgeInvert{false};
   } aov;
 
   void saveSettings(tsd::core::DataNode &root);

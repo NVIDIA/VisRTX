@@ -102,12 +102,16 @@ static OfflineRenderRig setupRig(tsd::app::Core &core)
         rig.pipeline->emplace_back<tsd::rendering::VisualizeAOVPass>();
     aovPass->setAOVType(config.aov.aovType);
     aovPass->setDepthRange(config.aov.depthMin, config.aov.depthMax);
+    aovPass->setEdgeThreshold(config.aov.edgeThreshold);
+    aovPass->setEdgeInvert(config.aov.edgeInvert);
 
     // Enable necessary frame channels
     if (config.aov.aovType == tsd::rendering::AOVType::ALBEDO) {
       rig.anariPass->setEnableAlbedo(true);
     } else if (config.aov.aovType == tsd::rendering::AOVType::NORMAL) {
       rig.anariPass->setEnableNormals(true);
+    } else if (config.aov.aovType == tsd::rendering::AOVType::EDGES) {
+      rig.anariPass->setEnableIDs(true);
     }
   }
 
