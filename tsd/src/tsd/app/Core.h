@@ -8,6 +8,7 @@
 #include "tsd/core/scene/Scene.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
+#include "tsd/rendering/pipeline/passes/VisualizeAOVPass.h"
 #include "tsd/rendering/view/Manipulator.hpp"
 // std
 #include <map>
@@ -195,6 +196,13 @@ struct OfflineRenderSequenceConfig
     std::string outputDirectory{"./"};
     std::string filePrefix{"frame_"};
   } output;
+
+  struct AOVSettings
+  {
+    tsd::rendering::AOVType aovType{tsd::rendering::AOVType::NONE};
+    float depthMin{0.f};
+    float depthMax{1.f};
+  } aov;
 
   void saveSettings(tsd::core::DataNode &root);
   void loadSettings(tsd::core::DataNode &root);

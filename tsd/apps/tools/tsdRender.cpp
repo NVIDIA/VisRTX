@@ -6,6 +6,7 @@
 #include <tsd/core/scene/Scene.hpp>
 // tsd_rendering
 #include <tsd/rendering/pipeline/RenderPipeline.h>
+#include <tsd/rendering/pipeline/passes/VisualizeAOVPass.h>
 #include <tsd/rendering/index/RenderIndexAllLayers.hpp>
 #include <tsd/rendering/view/ManipulatorToAnari.hpp>
 // tsd_app
@@ -252,6 +253,22 @@ static void setupRenderPipeline()
   arp->setRenderer(r);
   arp->setCamera(g_camera);
   arp->setRunAsync(false);
+
+  // Add AOV visualization pass if enabled
+  if (g_core->offline.aov.aovType != tsd::rendering::AOVType::NONE) {
+    auto *aovPass =
+        g_renderPipeline->emplace_back<tsd::rendering::VisualizeAOVPass>();
+    aovPass->setAOVType(g_core->offline.aov.aovType);
+    aovPass->setDepthRange(
+        g_core->offline.aov.depthMin, g_core->offline.aov.depthMax);
+
+    // Enable necessary frame channels
+    if (g_core->offline.aov.aovType == tsd::rendering::AOVType::ALBEDO) {
+      arp->setEnableAlbedo(true);
+    } else if (g_core->offline.aov.aovType == tsd::rendering::AOVType::NORMAL) {
+      arp->setEnableNormals(true);
+    }
+  }
 
   anari::release(g_device, r);
 

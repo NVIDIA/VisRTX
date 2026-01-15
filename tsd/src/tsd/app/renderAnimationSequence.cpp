@@ -9,6 +9,7 @@
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"
+#include "tsd/rendering/pipeline/passes/VisualizeAOVPass.h"
 // std
 #include <filesystem>
 #include <iomanip>
@@ -94,6 +95,21 @@ static OfflineRenderRig setupRig(tsd::app::Core &core)
   rig.anariPass->setWorld(rig.renderIndex->world());
   rig.anariPass->setRenderer(r);
   rig.anariPass->setCamera(c);
+
+  // Add AOV visualization pass if enabled
+  if (config.aov.aovType != tsd::rendering::AOVType::NONE) {
+    auto *aovPass =
+        rig.pipeline->emplace_back<tsd::rendering::VisualizeAOVPass>();
+    aovPass->setAOVType(config.aov.aovType);
+    aovPass->setDepthRange(config.aov.depthMin, config.aov.depthMax);
+
+    // Enable necessary frame channels
+    if (config.aov.aovType == tsd::rendering::AOVType::ALBEDO) {
+      rig.anariPass->setEnableAlbedo(true);
+    } else if (config.aov.aovType == tsd::rendering::AOVType::NORMAL) {
+      rig.anariPass->setEnableNormals(true);
+    }
+  }
 
   rig.saveToFilePass->setEnabled(true);
   rig.saveToFilePass->setSingleShotMode(false);

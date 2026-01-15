@@ -266,6 +266,31 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
     ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
   }
 
+  // AOV Visualization //
+
+  ImGui::Separator();
+  ImGui::Text("==== AOV Visualization ====");
+
+  const char *aovItems[] = {"none", "depth", "albedo", "normal"};
+  int aovIdx = static_cast<int>(core->offline.aov.aovType);
+  if (ImGui::Combo("AOV type", &aovIdx, aovItems, IM_ARRAYSIZE(aovItems))) {
+    core->offline.aov.aovType = static_cast<tsd::rendering::AOVType>(aovIdx);
+  }
+
+  ImGui::BeginDisabled(
+      core->offline.aov.aovType != tsd::rendering::AOVType::DEPTH);
+  ImGui::DragFloat("depth min",
+      &core->offline.aov.depthMin,
+      0.1f,
+      0.f,
+      core->offline.aov.depthMax);
+  ImGui::DragFloat("depth max",
+      &core->offline.aov.depthMax,
+      0.1f,
+      core->offline.aov.depthMin,
+      1e20f);
+  ImGui::EndDisabled();
+
   ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
 }
 
