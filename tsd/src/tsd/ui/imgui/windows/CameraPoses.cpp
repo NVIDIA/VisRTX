@@ -491,6 +491,25 @@ void CameraPoses::renderInterpolatedPath()
         anariPass->setRenderer(r);
         anariPass->setCamera(c);
 
+        // Add AOV visualization pass if enabled
+        if (config.aov.aovType != tsd::rendering::AOVType::NONE) {
+          auto *aovPass =
+              pipeline->emplace_back<tsd::rendering::VisualizeAOVPass>();
+          aovPass->setAOVType(config.aov.aovType);
+          aovPass->setDepthRange(config.aov.depthMin, config.aov.depthMax);
+          aovPass->setEdgeThreshold(config.aov.edgeThreshold);
+          aovPass->setEdgeInvert(config.aov.edgeInvert);
+
+          // Enable necessary frame channels
+          if (config.aov.aovType == tsd::rendering::AOVType::ALBEDO) {
+            anariPass->setEnableAlbedo(true);
+          } else if (config.aov.aovType == tsd::rendering::AOVType::NORMAL) {
+            anariPass->setEnableNormals(true);
+          } else if (config.aov.aovType == tsd::rendering::AOVType::EDGES) {
+            anariPass->setEnableIDs(true);
+          }
+        }
+
         auto *savePass =
             pipeline->emplace_back<tsd::rendering::SaveToFilePass>();
         savePass->setSingleShotMode(false);
