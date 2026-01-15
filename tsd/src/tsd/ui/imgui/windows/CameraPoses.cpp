@@ -5,6 +5,8 @@
 // tsd_app
 #include "tsd/app/Core.h"
 #include "tsd/app/renderAnimationSequence.h"
+// tsd_ui_imgui
+#include "tsd/ui/imgui/windows/Viewport.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 // tsd_rendering
@@ -20,7 +22,8 @@
 
 namespace tsd::ui::imgui {
 
-CameraPoses::CameraPoses(Application *app, const char *name) : Window(app, name)
+CameraPoses::CameraPoses(Application *app, Viewport *viewport, const char *name)
+    : Window(app, name), m_viewport(viewport)
 {}
 
 void CameraPoses::buildUI()
@@ -43,6 +46,14 @@ void CameraPoses::buildUI()
   ImGui::SameLine();
   if (ImGui::Button("turntable views"))
     ImGui::OpenPopup("CameraPoses_turntablePopupMenu");
+
+  ImGui::SameLine();
+  if (ImGui::Button("add camera object")) {
+    if (m_viewport)
+      m_viewport->addCameraObjectFromCurrentView();
+    else
+      tsd::core::logWarning("Viewport window not found");
+  }
 
   ImGui::SameLine();
   ImGui::Text(" | ");
@@ -162,48 +173,59 @@ void CameraPoses::buildUI_interpolationControls()
 
   ImGui::BeginDisabled(!hasPoses || m_isRendering);
 
+  auto &pathSettings = appCore()->view.pathSettings;
+
   // Interpolation type selector
   const char *interpTypes[] = {
       "Linear", "Smooth Step", "Catmull-Rom Spline", "Cubic Bezier"};
-  int currentType = static_cast<int>(m_interpolationType);
+  int currentType = static_cast<int>(pathSettings.type);
   if (ImGui::Combo("type", &currentType, interpTypes, 4)) {
-    m_interpolationType = static_cast<InterpolationType>(currentType);
+    pathSettings.type =
+        static_cast<tsd::rendering::CameraPathInterpolationType>(currentType);
   }
   if (ImGui::IsItemHovered() && !m_isRendering) {
-    switch (m_interpolationType) {
-    case InterpolationType::LINEAR:
+    switch (pathSettings.type) {
+    case tsd::rendering::CameraPathInterpolationType::LINEAR:
       ImGui::SetTooltip("Simple linear interpolation (straight paths)");
       break;
-    case InterpolationType::SMOOTH_STEP:
+    case tsd::rendering::CameraPathInterpolationType::SMOOTH_STEP:
       ImGui::SetTooltip("Smooth acceleration/deceleration at keyframes");
       break;
-    case InterpolationType::CATMULL_ROM:
+    case tsd::rendering::CameraPathInterpolationType::CATMULL_ROM:
       ImGui::SetTooltip("Smooth spline passing through all keyframes");
       break;
-    case InterpolationType::CUBIC_BEZIER:
+    case tsd::rendering::CameraPathInterpolationType::CUBIC_BEZIER:
       ImGui::SetTooltip("Smooth cubic interpolation with tension control");
       break;
     }
   }
 
   // Tension slider for spline-based interpolation
-  if (m_interpolationType == InterpolationType::CATMULL_ROM
-      || m_interpolationType == InterpolationType::CUBIC_BEZIER) {
+  if (pathSettings.type
+          == tsd::rendering::CameraPathInterpolationType::CATMULL_ROM
+      || pathSettings.type
+          == tsd::rendering::CameraPathInterpolationType::CUBIC_BEZIER) {
     ImGui::DragFloat(
-        "tension", &m_interpolationTension, 0.01f, 0.0f, 1.0f, "%.2f");
+        "tension", &pathSettings.tension, 0.01f, 0.0f, 1.0f, "%.2f");
     if (ImGui::IsItemHovered()) {
       ImGui::SetTooltip("Controls curve tightness (0=loose, 1=tight)");
     }
   }
 
-  ImGui::DragInt("frames", &m_interpolationFrames, 1.0f, 1, 1000);
+  ImGui::DragInt(
+      "frames per pose", &pathSettings.framesPerSegment, 1.0f, 1, 1000);
   if (ImGui::IsItemHovered() && !m_isRendering) {
     if (hasPoses) {
       ImGui::SetTooltip(
-          "Number of frames to generate between each pair of poses");
+          "Number of frames per pose (controls total frame count)");
     } else {
       ImGui::SetTooltip("Add at least 2 poses to enable interpolation");
     }
+  }
+
+  ImGui::DragInt("fps", &pathSettings.framesPerSecond, 1.0f, 1, 240);
+  if (ImGui::IsItemHovered() && !m_isRendering) {
+    ImGui::SetTooltip("Frames per second for the camera animation timeline");
   }
 
   ImGui::Checkbox("update viewport", &m_updateViewport);
@@ -233,11 +255,16 @@ void CameraPoses::buildUI_interpolationControls()
     ImGui::EndDisabled();
     if (ImGui::IsItemHovered() && hasPoses) {
       const int numPoses = static_cast<int>(appCore()->view.poses.size());
-      const int totalFrames = (numPoses - 1) * m_interpolationFrames + numPoses;
-      ImGui::SetTooltip("Render %d frames (%d poses × %d interpolation frames)",
+      const int totalFrames = numPoses * pathSettings.framesPerSegment + 1;
+      const float durationSeconds = (totalFrames - 1)
+          / static_cast<float>(std::max(1, pathSettings.framesPerSecond));
+      ImGui::SetTooltip(
+          "Render %d frames (%d poses × %d frames per pose, %.2fs @ %d fps)",
           totalFrames,
           numPoses,
-          m_interpolationFrames);
+          pathSettings.framesPerSegment,
+          durationSeconds,
+          pathSettings.framesPerSecond);
     }
   } else {
     // Cancel button is always enabled during rendering
@@ -290,67 +317,6 @@ void CameraPoses::buildUI_interpolationControls()
   }
 
   ImGui::Unindent(INDENT_AMOUNT);
-}
-
-float CameraPoses::interpolate(float t, InterpolationType type, float tension)
-{
-  switch (type) {
-  case InterpolationType::LINEAR:
-    return t;
-
-  case InterpolationType::SMOOTH_STEP:
-    // Smoothstep function: 3t^2 - 2t^3
-    return t * t * (3.0f - 2.0f * t);
-
-  case InterpolationType::CUBIC_BEZIER: {
-    // Cubic ease in-out with tension
-    float a = 2.0f - tension;
-    if (t < 0.5f) {
-      return a * t * t * t;
-    } else {
-      float f = (2.0f * t - 2.0f);
-      return 0.5f * f * f * f + 1.0f;
-    }
-  }
-
-  case InterpolationType::CATMULL_ROM:
-    // For Catmull-Rom, tension is handled in the spline function
-    return t;
-
-  default:
-    return t;
-  }
-}
-
-tsd::math::float3 CameraPoses::interpolateCatmullRom(float t,
-    const tsd::math::float3 &p0,
-    const tsd::math::float3 &p1,
-    const tsd::math::float3 &p2,
-    const tsd::math::float3 &p3,
-    float tension)
-{
-  // Catmull-Rom spline interpolation
-  // tension parameter controls curve tightness (0.5 = standard Catmull-Rom)
-  float t2 = t * t;
-  float t3 = t2 * t;
-
-  // Catmull-Rom basis matrix with tension adjustment
-  float c = (1.0f - tension) * 0.5f;
-
-  tsd::math::float3 result;
-  for (int i = 0; i < 3; ++i) {
-    float v0 = (&p0.x)[i];
-    float v1 = (&p1.x)[i];
-    float v2 = (&p2.x)[i];
-    float v3 = (&p3.x)[i];
-
-    (&result.x)[i] = c
-        * ((-v0 + 3.0f * v1 - 3.0f * v2 + v3) * t3
-            + (2.0f * v0 - 5.0f * v1 + 4.0f * v2 - v3) * t2 + (-v0 + v2) * t
-            + 2.0f * v1);
-  }
-
-  return result;
 }
 
 void CameraPoses::renderInterpolatedPath()
@@ -415,11 +381,21 @@ void CameraPoses::renderInterpolatedPath()
   std::filesystem::path outputPath(outputDirectory);
   std::filesystem::create_directories(outputPath);
 
+  std::vector<tsd::rendering::CameraPose> samples;
+  tsd::rendering::buildCameraPathSamples(
+      poses, core->view.pathSettings, samples);
+
+  if (samples.empty()) {
+    tsd::core::logWarning("[CameraPoses] No camera path samples generated");
+    return;
+  }
+
+  core->updateCameraPathAnimation();
+
   m_isRendering = true;
   m_renderTimer.start();
   m_currentFrame = 0;
-  m_totalFrames = static_cast<int>(
-      (poses.size() - 1) * m_interpolationFrames + poses.size());
+  m_totalFrames = static_cast<int>(samples.size());
 
   tsd::core::logStatus(
       "[CameraPoses] Starting interpolated path rendering: %d frames to '%s' "
@@ -429,13 +405,10 @@ void CameraPoses::renderInterpolatedPath()
       filePrefix.c_str());
 
   // Capture settings by value
-  const int interpolationFrames = m_interpolationFrames;
   const std::string capturedOutputDirectory = outputDirectory;
   const std::string capturedFilePrefix = filePrefix;
-  const InterpolationType interpolationType = m_interpolationType;
-  const float interpolationTension = m_interpolationTension;
   const bool updateViewport = m_updateViewport;
-  std::vector<tsd::rendering::CameraPose> posesCopy = poses;
+  std::vector<tsd::rendering::CameraPose> samplesCopy = samples;
 
   // Calculate total frames for capture
   const int capturedTotalFrames = m_totalFrames;
@@ -444,12 +417,9 @@ void CameraPoses::renderInterpolatedPath()
   m_renderFuture = std::async(std::launch::async,
       [this,
           core,
-          posesCopy,
-          interpolationFrames,
+          samplesCopy,
           capturedOutputDirectory,
           capturedFilePrefix,
-          interpolationType,
-          interpolationTension,
           updateViewport,
           capturedTotalFrames]() {
         // Setup render pipeline
@@ -462,10 +432,17 @@ void CameraPoses::renderInterpolatedPath()
 
         auto &scene = core->tsd.scene;
         auto *renderIndex = core->anari.acquireRenderIndex(scene, d);
+        if (!renderIndex) {
+          tsd::core::logError("[CameraPoses] Failed to acquire render index");
+          anari::release(d, d);
+          return;
+        }
 
         // Create renderer
         if (config.renderer.rendererObjects.empty()
-            || config.renderer.activeRenderer < 0) {
+            || config.renderer.activeRenderer < 0
+            || config.renderer.activeRenderer
+                >= static_cast<int>(config.renderer.rendererObjects.size())) {
           tsd::core::logError("[CameraPoses] No renderer configured");
           anari::release(d, d);
           return;
@@ -518,21 +495,11 @@ void CameraPoses::renderInterpolatedPath()
             pipeline->emplace_back<tsd::rendering::SaveToFilePass>();
         savePass->setSingleShotMode(false);
 
-        // Linear interpolation helper
-        auto lerp = [](float t, float a, float b) { return a + t * (b - a); };
-        auto lerpVec3 = [&lerp](float t,
-                            const tsd::math::float3 &a,
-                            const tsd::math::float3 &b) {
-          return tsd::math::float3{
-              lerp(t, a.x, b.x), lerp(t, a.y, b.y), lerp(t, a.z, b.z)};
-        };
-
         // Render interpolated frames
         int frameIndex = 0;
         tsd::rendering::Manipulator manipulator;
 
-        for (size_t poseIdx = 0; poseIdx < posesCopy.size() - 1; ++poseIdx) {
-          // Check for cancellation
+        for (const auto &pose : samplesCopy) {
           if (m_cancelRequested) {
             tsd::core::logInfo(
                 "[CameraPoses] Rendering cancelled at frame %d/%d",
@@ -541,115 +508,15 @@ void CameraPoses::renderInterpolatedPath()
             break;
           }
 
-          const auto &pose0 = posesCopy[poseIdx];
-          const auto &pose1 = posesCopy[poseIdx + 1];
-
-          // For Catmull-Rom, we need neighboring points
-          const auto &posePrev = (poseIdx > 0) ? posesCopy[poseIdx - 1] : pose0;
-          const auto &poseNext =
-              (poseIdx < posesCopy.size() - 2) ? posesCopy[poseIdx + 2] : pose1;
-
-          // Render interpolated frames between pose0 and pose1
-          for (int i = 0; i <= interpolationFrames; ++i) {
-            // Check for cancellation
-            if (m_cancelRequested) {
-              tsd::core::logInfo(
-                  "[CameraPoses] Rendering cancelled at frame %d/%d",
-                  frameIndex,
-                  capturedTotalFrames);
-              break;
-            }
-
-            m_currentFrame = frameIndex;
-
-            float t = static_cast<float>(i) / interpolationFrames;
-
-            // Apply interpolation curve
-            float tInterp =
-                interpolate(t, interpolationType, interpolationTension);
-
-            // Interpolate camera pose
-            tsd::rendering::CameraPose interpPose;
-
-            if (interpolationType == InterpolationType::CATMULL_ROM) {
-              // Use Catmull-Rom spline for smooth curves
-              interpPose.lookat = interpolateCatmullRom(t,
-                  posePrev.lookat,
-                  pose0.lookat,
-                  pose1.lookat,
-                  poseNext.lookat,
-                  interpolationTension);
-              interpPose.azeldist = interpolateCatmullRom(t,
-                  posePrev.azeldist,
-                  pose0.azeldist,
-                  pose1.azeldist,
-                  poseNext.azeldist,
-                  interpolationTension);
-              interpPose.fixedDist = lerp(t, pose0.fixedDist, pose1.fixedDist);
-            } else {
-              // Use simple lerp with the interpolation curve
-              interpPose.lookat = lerpVec3(tInterp, pose0.lookat, pose1.lookat);
-              interpPose.azeldist =
-                  lerpVec3(tInterp, pose0.azeldist, pose1.azeldist);
-              interpPose.fixedDist =
-                  lerp(tInterp, pose0.fixedDist, pose1.fixedDist);
-            }
-
-            // For upAxis, just use the first pose's axis (no interpolation for
-            // enum)
-            interpPose.upAxis = pose0.upAxis;
-
-            // Apply camera pose
-            manipulator.setConfig(interpPose);
-            tsd::rendering::updateCameraParametersPerspective(
-                d, c, manipulator);
-            anari::commitParameters(d, c);
-
-            // Update viewport camera if requested
-            if (updateViewport) {
-              std::lock_guard<std::mutex> lock(m_poseMutex);
-              m_currentPose = interpPose;
-              m_hasNewPose.store(true);
-            }
-
-            // Setup output filename with prefix
-            std::ostringstream ss;
-            if (!capturedFilePrefix.empty()) {
-              ss << capturedFilePrefix << "_";
-            }
-            ss << std::setfill('0') << std::setw(4) << frameIndex << ".png";
-            std::filesystem::path filename =
-                std::filesystem::path(capturedOutputDirectory) / ss.str();
-            savePass->setFilename(filename.string());
-
-            // Render with accumulation
-            for (int sampleIdx = 0; sampleIdx < config.frame.samples;
-                ++sampleIdx) {
-              savePass->setEnabled(sampleIdx == config.frame.samples - 1);
-              pipeline->render();
-            }
-
-            frameIndex++;
-          }
-
-          // Break outer loop if cancelled
-          if (m_cancelRequested) {
-            break;
-          }
-        }
-
-        // Render final pose (only if not cancelled)
-        if (!m_cancelRequested) {
           m_currentFrame = frameIndex;
-          const auto &finalPose = posesCopy.back();
-          manipulator.setConfig(finalPose);
+          manipulator.setConfig(pose);
           tsd::rendering::updateCameraParametersPerspective(d, c, manipulator);
           anari::commitParameters(d, c);
 
           // Update viewport camera if requested
           if (updateViewport) {
             std::lock_guard<std::mutex> lock(m_poseMutex);
-            m_currentPose = finalPose;
+            m_currentPose = pose;
             m_hasNewPose.store(true);
           }
 
@@ -668,6 +535,7 @@ void CameraPoses::renderInterpolatedPath()
             savePass->setEnabled(sampleIdx == config.frame.samples - 1);
             pipeline->render();
           }
+          frameIndex++;
         }
 
         // Cleanup

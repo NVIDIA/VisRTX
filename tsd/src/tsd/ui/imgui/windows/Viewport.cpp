@@ -837,6 +837,40 @@ void Viewport::createCameraFromCurrentView()
   tsd::core::logStatus("Created camera '%s' from current view", name.c_str());
 }
 
+void Viewport::addCameraObjectFromCurrentView()
+{
+  createCameraFromCurrentView();
+
+  auto cam = m_selectedCamera;
+  if (!cam) {
+    tsd::core::logWarning("No camera available to add to scene");
+    return;
+  }
+
+  auto &scene = appCore()->tsd.scene;
+  auto selectedNode = appCore()->getFirstSelected();
+  auto *layer =
+      selectedNode.valid() ? selectedNode->container() : scene.defaultLayer();
+  if (!layer) {
+    tsd::core::logWarning("No layer available to add camera object");
+    return;
+  }
+
+  auto parentNode = selectedNode.valid() ? selectedNode : layer->root();
+  auto cameraNode =
+      scene.insertChildObjectNode(parentNode, cam, cam->name().c_str());
+  appCore()->setSelected(cameraNode);
+  appCore()->view.cameraPathCameraIndex = cam.index();
+  if (appCore()->offline.camera.cameraIndex == TSD_INVALID_INDEX) {
+    appCore()->offline.camera.cameraIndex = cam.index();
+    tsd::core::logStatus(
+        "Offline render camera set to '%s'", cam->name().c_str());
+  }
+  appCore()->updateCameraPathAnimation();
+
+  tsd::core::logStatus("Added camera '%s' to scene", cam->name().c_str());
+}
+
 void Viewport::echoCameraConfig()
 {
   const auto p = m_arcball->eye();

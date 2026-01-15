@@ -707,6 +707,94 @@ void Core::updateExistingCameraPoseFromView(CameraPose &p)
   p.upAxis = static_cast<int>(view.manipulator.axis());
 }
 
+bool Core::updateCameraPathAnimation()
+{
+  auto &scene = tsd.scene;
+
+  if (view.poses.size() < 2) {
+    tsd::core::logWarning(
+        "[camera path] Need at least 2 poses to build animation");
+    return false;
+  }
+
+  size_t cameraIndex = view.cameraPathCameraIndex;
+  if (cameraIndex == TSD_INVALID_INDEX)
+    cameraIndex = offline.camera.cameraIndex;
+
+  auto camera = scene.getObject<tsd::core::Camera>(cameraIndex);
+  if (!camera) {
+    tsd::core::logWarning("[camera path] No camera selected for animation");
+    return false;
+  }
+
+  std::vector<tsd::rendering::CameraPose> samples;
+  tsd::rendering::buildCameraPathSamples(
+      view.poses, view.pathSettings, samples);
+
+  if (samples.empty()) {
+    tsd::core::logWarning("[camera path] No samples generated");
+    return false;
+  }
+
+  offline.frame.numFrames = static_cast<int>(samples.size());
+  if (offline.frame.renderSubset) {
+    offline.frame.startFrame =
+        std::clamp(offline.frame.startFrame, 0, offline.frame.numFrames - 1);
+    offline.frame.endFrame =
+        std::clamp(offline.frame.endFrame, 0, offline.frame.numFrames - 1);
+  }
+
+  if (view.cameraPathAnimation)
+    scene.removeAnimation(view.cameraPathAnimation);
+
+  auto *animation = scene.addAnimation("camera_path");
+  view.cameraPathAnimation = animation;
+
+  auto positionArray = scene.createArray(ANARI_FLOAT32_VEC3, samples.size());
+  auto directionArray = scene.createArray(ANARI_FLOAT32_VEC3, samples.size());
+  auto upArray = scene.createArray(ANARI_FLOAT32_VEC3, samples.size());
+
+  positionArray->setName("camera_path_position");
+  directionArray->setName("camera_path_direction");
+  upArray->setName("camera_path_up");
+
+  tsd::rendering::Manipulator tempManipulator;
+  auto *positions = positionArray->mapAs<tsd::math::float3>();
+  auto *directions = directionArray->mapAs<tsd::math::float3>();
+  auto *ups = upArray->mapAs<tsd::math::float3>();
+
+  for (size_t i = 0; i < samples.size(); ++i) {
+    tempManipulator.setConfig(samples[i]);
+    positions[i] = tempManipulator.eye();
+    directions[i] = tempManipulator.dir();
+    ups[i] = tempManipulator.up();
+  }
+
+  const auto firstPosition = positions[0];
+  const auto firstDirection = directions[0];
+  const auto firstUp = ups[0];
+
+  positionArray->unmap();
+  directionArray->unmap();
+  upArray->unmap();
+
+  std::vector<tsd::core::Token> params = {"position", "direction", "up"};
+  std::vector<tsd::core::TimeStepValues> valueArrays = {
+      positionArray, directionArray, upArray};
+  animation->setAsTimeSteps(*camera, params, valueArrays);
+
+  // Seed camera parameters with the first sample for immediate feedback
+  camera->setParameter("position", firstPosition);
+  camera->setParameter("direction", firstDirection);
+  camera->setParameter("up", firstUp);
+
+  tsd::core::logStatus(
+      "[camera path] Built animation with %zu samples for camera '%s'",
+      samples.size(),
+      camera->name().c_str());
+  return true;
+}
+
 void Core::setCameraPose(const CameraPose &pose)
 {
   view.manipulator.setConfig(
@@ -717,6 +805,11 @@ void Core::setCameraPose(const CameraPose &pose)
 void Core::removeAllPoses()
 {
   view.poses.clear();
+  if (view.cameraPathAnimation) {
+    tsd::core::logStatus("[camera path] Clearing camera path animation");
+    tsd.scene.removeAnimation(view.cameraPathAnimation);
+    view.cameraPathAnimation = nullptr;
+  }
 }
 
 void OfflineRenderSequenceConfig::saveSettings(tsd::core::DataNode &root)

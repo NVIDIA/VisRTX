@@ -49,10 +49,10 @@ class Application : public TSDApplication
     auto *core = appCore();
 
     auto *animations = new tsd_ui::Animations(this);
-    auto *cameras = new tsd_ui::CameraPoses(this);
     auto *log = new tsd_ui::Log(this);
     auto *viewport = new tsd_ui::MultiDeviceViewport(
         this, &core->view.manipulator, "Viewport");
+    auto *cameras = new tsd_ui::CameraPoses(this, nullptr);
     auto *dbeditor = new tsd_ui::DatabaseEditor(this);
     auto *oeditor = new tsd_ui::ObjectEditor(this);
     auto *otree = new tsd_ui::LayerTree(this);

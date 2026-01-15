@@ -6,8 +6,8 @@
 #include "modals/AppSettingsDialog.h"
 #include "modals/BlockingTaskModal.h"
 #include "modals/ExportNanoVDBFileDialog.h"
-#include "modals/OfflineRenderModal.h"
 #include "modals/ImportFileDialog.h"
+#include "modals/OfflineRenderModal.h"
 // tsd_app
 #include "tsd/app/Core.h"
 // anari_viewer
@@ -26,6 +26,16 @@ class Application : public anari_viewer::Application
   tsd::app::Core *appCore();
 
   void getFilenameFromDialog(std::string &filenameOut, bool save = false);
+
+  template <typename T>
+  T *findWindowOfType()
+  {
+    for (auto *w : m_windows) {
+      if (auto *typed = dynamic_cast<T *>(w))
+        return typed;
+    }
+    return nullptr;
+  }
 
   // Not movable or copyable //
   Application(const Application &) = delete;

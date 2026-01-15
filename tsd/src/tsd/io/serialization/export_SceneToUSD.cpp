@@ -15,6 +15,7 @@
 
 #include "tsd/core/scene/Scene.hpp"
 #include "tsd/core/scene/objects/Array.hpp"
+#include "tsd/core/scene/objects/Camera.hpp"
 #include "tsd/core/scene/objects/Material.hpp"
 #include "tsd/core/scene/objects/Sampler.hpp"
 #include "tsd/core/scene/objects/Surface.hpp"
@@ -33,6 +34,7 @@
 #include <pxr/usd/sdf/types.h>
 #include <pxr/usd/usd/prim.h>
 #include <pxr/usd/usd/stage.h>
+#include <pxr/usd/usdGeom/camera.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdGeom/scope.h>
@@ -45,6 +47,7 @@
 // std
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -738,7 +741,7 @@ static pxr::SdfPath tsdSurfaceToUSD(
   return surfacePath;
 }
 
-void export_SceneToUSD(Scene &scene, const char *filename)
+void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
 {
   // Clear some global state (!!!)
   usedTextureFileNames.clear();
@@ -755,6 +758,9 @@ void export_SceneToUSD(Scene &scene, const char *filename)
     tsd::core::logError("Failed to create USD stage for file: %s", filename);
     return;
   }
+
+  const float originalTime = scene.getAnimationTime();
+  const int exportFps = std::max(1, framesPerSecond);
 
   pxr::SdfPath currentPath = allLayersPath;
   std::unordered_set<pxr::SdfPath, pxr::SdfPath::Hash> existingNames;
@@ -809,6 +815,129 @@ void export_SceneToUSD(Scene &scene, const char *filename)
               stage, currentPath.AppendChild(pxr::TfToken(name.c_str())));
 
           switch (object->type()) {
+          case ANARI_CAMERA: {
+            auto camera = static_cast<const Camera *>(object);
+            auto usdCamera = pxr::UsdGeomCamera::Define(stage, objectPath);
+
+            size_t cameraSampleCount = 0;
+            for (size_t i = 0; i < scene.numberOfAnimations(); ++i) {
+              if (auto *anim = scene.animation(i);
+                  anim && anim->targetsObject(camera)) {
+                cameraSampleCount = anim->timeStepCount();
+                break;
+              }
+            }
+
+            if (camera->subtype() == tokens::camera::orthographic) {
+              usdCamera.GetProjectionAttr().Set(
+                  pxr::UsdGeomTokens->orthographic);
+            } else {
+              usdCamera.GetProjectionAttr().Set(
+                  pxr::UsdGeomTokens->perspective);
+            }
+
+            auto xformOp =
+                usdCamera.AddXformOp(pxr::UsdGeomXformOp::TypeTransform);
+
+            auto setCameraSample = [&](double timeCode, bool timeSampled) {
+              const auto position =
+                  camera->parameterValueAs<math::float3>("position")
+                      .value_or(math::float3(0.f, 0.f, 0.f));
+              const auto direction =
+                  camera->parameterValueAs<math::float3>("direction")
+                      .value_or(math::float3(0.f, 0.f, -1.f));
+              const auto up =
+                  camera->parameterValueAs<math::float3>("up").value_or(
+                      math::float3(0.f, 1.f, 0.f));
+
+              const auto at = position + direction;
+              const auto view = linalg::lookat_matrix(position, at, up);
+              const auto world = linalg::inverse(view);
+              const auto xfm = math::mul(transformStack.top(), world);
+
+              const auto usdXfm = pxr::GfMatrix4d(xfm[0][0],
+                  xfm[0][1],
+                  xfm[0][2],
+                  xfm[0][3],
+                  xfm[1][0],
+                  xfm[1][1],
+                  xfm[1][2],
+                  xfm[1][3],
+                  xfm[2][0],
+                  xfm[2][1],
+                  xfm[2][2],
+                  xfm[2][3],
+                  xfm[3][0],
+                  xfm[3][1],
+                  xfm[3][2],
+                  xfm[3][3]);
+
+              if (timeSampled)
+                xformOp.Set(usdXfm, timeCode);
+              else
+                xformOp.Set(usdXfm);
+
+              if (camera->subtype() == tokens::camera::orthographic) {
+                const auto height =
+                    camera->parameterValueAs<float>("height").value_or(1.f);
+                if (timeSampled) {
+                  usdCamera.GetVerticalApertureAttr().Set(height, timeCode);
+                  usdCamera.GetHorizontalApertureAttr().Set(height, timeCode);
+                } else {
+                  usdCamera.GetVerticalApertureAttr().Set(height);
+                  usdCamera.GetHorizontalApertureAttr().Set(height);
+                }
+              } else {
+                const auto fovy =
+                    camera->parameterValueAs<float>("fovy").value_or(
+                        float(M_PI) / 3.0f);
+                constexpr float verticalAperture = 24.0f;
+                const float focalLength =
+                    0.5f * verticalAperture / std::tan(0.5f * fovy);
+                if (timeSampled) {
+                  usdCamera.GetVerticalApertureAttr().Set(
+                      verticalAperture, timeCode);
+                  usdCamera.GetHorizontalApertureAttr().Set(
+                      verticalAperture, timeCode);
+                  usdCamera.GetFocalLengthAttr().Set(focalLength, timeCode);
+                } else {
+                  usdCamera.GetVerticalApertureAttr().Set(verticalAperture);
+                  usdCamera.GetHorizontalApertureAttr().Set(verticalAperture);
+                  usdCamera.GetFocalLengthAttr().Set(focalLength);
+                }
+              }
+
+              auto nearVal = camera->parameterValueAs<float>("near");
+              auto farVal = camera->parameterValueAs<float>("far");
+              if (nearVal && farVal && *farVal > *nearVal && *farVal > 0.f) {
+                const auto clip = pxr::GfVec2f(*nearVal, *farVal);
+                if (timeSampled)
+                  usdCamera.GetClippingRangeAttr().Set(clip, timeCode);
+                else
+                  usdCamera.GetClippingRangeAttr().Set(clip);
+              }
+            };
+
+            if (cameraSampleCount > 1) {
+              const double timeCodesPerSecond = static_cast<double>(exportFps);
+              stage->SetStartTimeCode(0.0);
+              stage->SetEndTimeCode(static_cast<double>(cameraSampleCount - 1));
+              stage->SetTimeCodesPerSecond(timeCodesPerSecond);
+              stage->SetFramesPerSecond(timeCodesPerSecond);
+
+              for (size_t i = 0; i < cameraSampleCount; ++i) {
+                const double tNorm = static_cast<double>(i)
+                    / static_cast<double>(cameraSampleCount - 1);
+                scene.setAnimationTime(static_cast<float>(tNorm));
+                setCameraSample(static_cast<double>(i), true);
+              }
+              scene.setAnimationTime(originalTime);
+            } else {
+              setCameraSample(0.0, false);
+            }
+
+            break;
+          }
           case ANARI_SURFACE: {
             if (auto meshPath = tsdSurfaceToUSD(
                     stage, static_cast<const Surface *>(object));
@@ -875,7 +1004,7 @@ void export_SceneToUSD(Scene &scene, const char *filename)
 #else
 
 namespace tsd::io {
-void export_SceneToUSD(Scene &, const char *)
+void export_SceneToUSD(Scene &, const char *, int)
 {
   tsd::core::logError("[export_USD] USD not enabled in TSD build.");
 }

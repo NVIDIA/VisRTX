@@ -11,20 +11,16 @@
 #include "tsd/app/Core.h"
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/core/Timer.hpp"
+#include "tsd/rendering/view/CameraPath.h"
 
 namespace tsd::ui::imgui {
 
-enum class InterpolationType
-{
-  LINEAR,
-  SMOOTH_STEP,
-  CATMULL_ROM,
-  CUBIC_BEZIER
-};
+struct Viewport;
 
 struct CameraPoses : public Window
 {
-  CameraPoses(Application *app, const char *name = "Camera Poses");
+  CameraPoses(
+      Application *app, Viewport *viewport, const char *name = "Camera Poses");
   void buildUI() override;
 
  private:
@@ -33,25 +29,11 @@ struct CameraPoses : public Window
   void buildUI_interpolationControls();
   void renderInterpolatedPath();
 
-  // Interpolation helper functions
-  static float interpolate(
-      float t, InterpolationType type, float tension = 0.5f);
-  static tsd::math::float3 interpolateCatmullRom(float t,
-      const tsd::math::float3 &p0,
-      const tsd::math::float3 &p1,
-      const tsd::math::float3 &p2,
-      const tsd::math::float3 &p3,
-      float tension);
-
   tsd::math::float3 m_turntableCenter{0.f, 0.f, 0.f};
   tsd::math::float3 m_turntableAzimuths{0.f, 360.f, 20.f};
   tsd::math::float3 m_turntableElevations{0.f, 45.f, 10.f};
   float m_turntableDistance{1.f};
 
-  // Interpolation settings
-  InterpolationType m_interpolationType{InterpolationType::LINEAR};
-  int m_interpolationFrames{10};
-  float m_interpolationTension{0.5f}; // For Catmull-Rom and Bezier
   bool m_updateViewport{true}; // Update viewport during rendering
   bool m_isRendering{false};
   bool m_cancelRequested{false};
@@ -62,6 +44,7 @@ struct CameraPoses : public Window
   std::atomic<bool> m_hasNewPose{false};
   tsd::rendering::CameraPose m_currentPose;
   std::mutex m_poseMutex;
+  Viewport *m_viewport{nullptr};
 };
 
 } // namespace tsd::ui::imgui

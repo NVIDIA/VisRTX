@@ -116,6 +116,7 @@ void renderAnimationSequence(Core &core,
     const std::string &filePrefix,
     RenderSequenceCallback preFrameCallback)
 {
+  core.updateCameraPathAnimation();
   auto rp = setupRig(core);
 
   if (rp.pipeline.get() == nullptr) {

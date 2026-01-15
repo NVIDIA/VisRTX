@@ -16,12 +16,17 @@
 
 #include "tsd/app/TaskQueue.h"
 #include "tsd/app/renderAnimationSequence.h"
+#include "tsd/rendering/view/CameraPath.h"
 
 namespace tsd::ui::imgui {
 struct BlockingTaskModal;
 struct ImportFileDialog;
 struct ExportNanoVDBFileDialog;
 } // namespace tsd::ui::imgui
+
+namespace tsd::core {
+struct Animation;
+}
 
 namespace tsd::app {
 
@@ -154,6 +159,9 @@ struct CameraState
 {
   std::vector<CameraPose> poses;
   tsd::rendering::Manipulator manipulator;
+  tsd::rendering::CameraPathSettings pathSettings;
+  size_t cameraPathCameraIndex{TSD_INVALID_INDEX};
+  tsd::core::Animation *cameraPathAnimation{nullptr};
 };
 
 struct ImporterState
@@ -274,6 +282,7 @@ struct Core
   void updateExistingCameraPoseFromView(CameraPose &p);
   void setCameraPose(const CameraPose &pose);
   void removeAllPoses();
+  bool updateCameraPathAnimation();
 
   // Not copyable or moveable //
   Core(const Core &) = delete;

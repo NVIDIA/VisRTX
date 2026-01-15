@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd_core
-#include <tsd/core/scene/Scene.hpp>
 #include <tsd/core/Logging.hpp>
+#include <tsd/core/scene/Scene.hpp>
 // tsd_io
 #include <tsd/io/procedural.hpp>
 #include <tsd/io/serialization.hpp>
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
   tsd::core::setLogToStdout();
   tsd::core::Scene scene;
@@ -16,6 +16,6 @@ int main(int argc, char** argv)
     tsd::io::load_Scene(scene, argv[1]);
   else
     tsd::io::generate_material_orb(scene, scene.defaultLayer()->root());
-  tsd::io::export_SceneToUSD(scene, "scene.usda");
+  tsd::io::export_SceneToUSD(scene, "scene.usda", 30);
   return 0;
 }

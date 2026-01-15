@@ -44,6 +44,9 @@ struct Animation
 
   void update(float time);
 
+  bool targetsObject(const Object *obj) const;
+  size_t timeStepCount() const;
+
   void serialize(DataNode &node) const;
   void deserialize(DataNode &node);
 
