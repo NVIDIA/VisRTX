@@ -206,7 +206,6 @@ void Application::uiMainMenuBar()
     ImGui::Separator();
 
     if (ImGui::MenuItem("Export as USD...")) {
-      m_core.updateCameraPathAnimation();
       io::export_SceneToUSD(m_core.tsd.scene,
           "scene.usda",
           m_core.view.pathSettings.framesPerSecond);
