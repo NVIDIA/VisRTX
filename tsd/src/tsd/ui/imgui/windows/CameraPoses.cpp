@@ -48,7 +48,7 @@ void CameraPoses::buildUI()
     ImGui::OpenPopup("CameraPoses_turntablePopupMenu");
 
   ImGui::SameLine();
-  if (ImGui::Button("add camera object")) {
+  if (ImGui::Button("camera")) {
     if (m_viewport)
       m_viewport->addCameraObjectFromCurrentView();
     else
@@ -176,39 +176,31 @@ void CameraPoses::buildUI_interpolationControls()
   auto &pathSettings = appCore()->view.pathSettings;
 
   // Interpolation type selector
-  const char *interpTypes[] = {
-      "Linear", "Smooth Step", "Catmull-Rom Spline", "Cubic Bezier"};
+  const char *interpTypes[] = {"Linear", "Smooth"};
   int currentType = static_cast<int>(pathSettings.type);
-  if (ImGui::Combo("type", &currentType, interpTypes, 4)) {
+  if (ImGui::Combo("type", &currentType, interpTypes, 2)) {
     pathSettings.type =
         static_cast<tsd::rendering::CameraPathInterpolationType>(currentType);
   }
   if (ImGui::IsItemHovered() && !m_isRendering) {
     switch (pathSettings.type) {
     case tsd::rendering::CameraPathInterpolationType::LINEAR:
-      ImGui::SetTooltip("Simple linear interpolation (straight paths)");
+      ImGui::SetTooltip("Linear interpolation (constant velocity)");
       break;
-    case tsd::rendering::CameraPathInterpolationType::SMOOTH_STEP:
-      ImGui::SetTooltip("Smooth acceleration/deceleration at keyframes");
-      break;
-    case tsd::rendering::CameraPathInterpolationType::CATMULL_ROM:
-      ImGui::SetTooltip("Smooth spline passing through all keyframes");
-      break;
-    case tsd::rendering::CameraPathInterpolationType::CUBIC_BEZIER:
-      ImGui::SetTooltip("Smooth cubic interpolation with tension control");
+    case tsd::rendering::CameraPathInterpolationType::SMOOTH:
+      ImGui::SetTooltip(
+          "Smooth motion through all poses with ease-in/out at start and end");
       break;
     }
   }
 
-  // Tension slider for spline-based interpolation
+  // Smoothness slider for SMOOTH mode
   if (pathSettings.type
-          == tsd::rendering::CameraPathInterpolationType::CATMULL_ROM
-      || pathSettings.type
-          == tsd::rendering::CameraPathInterpolationType::CUBIC_BEZIER) {
+      == tsd::rendering::CameraPathInterpolationType::SMOOTH) {
     ImGui::DragFloat(
-        "tension", &pathSettings.tension, 0.01f, 0.0f, 1.0f, "%.2f");
+        "smoothness", &pathSettings.smoothness, 0.01f, 0.0f, 1.0f, "%.2f");
     if (ImGui::IsItemHovered()) {
-      ImGui::SetTooltip("Controls curve tightness (0=loose, 1=tight)");
+      ImGui::SetTooltip("Path smoothness (0=minimal, 1=maximum)");
     }
   }
 

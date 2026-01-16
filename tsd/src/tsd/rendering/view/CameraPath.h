@@ -13,9 +13,7 @@ namespace tsd::rendering {
 enum class CameraPathInterpolationType
 {
   LINEAR,
-  SMOOTH_STEP,
-  CATMULL_ROM,
-  CUBIC_BEZIER
+  SMOOTH
 };
 
 struct CameraPathSettings
@@ -23,57 +21,29 @@ struct CameraPathSettings
   CameraPathInterpolationType type{CameraPathInterpolationType::LINEAR};
   int framesPerSegment{30}; // frames per pose
   int framesPerSecond{30};
-  float tension{0.5f};
+  float smoothness{0.5f}; // 0=sharp, 1=very smooth (for SMOOTH mode)
 };
 
-inline float interpolateCameraPathT(
-    float t, CameraPathInterpolationType type, float tension)
+// Interpolate azimuth/elevation/distance with proper angle wrapping
+inline tsd::math::float3 lerpAzElDist(
+    float t, const tsd::math::float3 &a, const tsd::math::float3 &b)
 {
-  switch (type) {
-  case CameraPathInterpolationType::LINEAR:
-    return t;
-  case CameraPathInterpolationType::SMOOTH_STEP:
-    return t * t * (3.0f - 2.0f * t);
-  case CameraPathInterpolationType::CUBIC_BEZIER: {
-    float a = 2.0f - tension;
-    if (t < 0.5f) {
-      return a * t * t * t;
-    } else {
-      float f = (2.0f * t - 2.0f);
-      return 0.5f * f * f * f + 1.0f;
-    }
-  }
-  case CameraPathInterpolationType::CATMULL_ROM:
-  default:
-    return t;
-  }
-}
+  // For angles, compute the shortest rotation path
+  auto lerpAngle = [](float t, float a, float b) {
+    float diff = b - a;
+    // Normalize to [-180, 180]
+    while (diff > 180.0f)
+      diff -= 360.0f;
+    while (diff < -180.0f)
+      diff += 360.0f;
+    return a + t * diff;
+  };
 
-inline tsd::math::float3 interpolateCameraPathCatmullRom(float t,
-    const tsd::math::float3 &p0,
-    const tsd::math::float3 &p1,
-    const tsd::math::float3 &p2,
-    const tsd::math::float3 &p3,
-    float tension)
-{
-  float t2 = t * t;
-  float t3 = t2 * t;
-  float c = (1.0f - tension) * 0.5f;
+  float azimuth = lerpAngle(t, a.x, b.x);
+  float elevation = lerpAngle(t, a.y, b.y);
+  float distance = a.z + t * (b.z - a.z);
 
-  tsd::math::float3 result;
-  for (int i = 0; i < 3; ++i) {
-    float v0 = (&p0.x)[i];
-    float v1 = (&p1.x)[i];
-    float v2 = (&p2.x)[i];
-    float v3 = (&p3.x)[i];
-
-    (&result.x)[i] = c
-        * ((-v0 + 3.0f * v1 - 3.0f * v2 + v3) * t3
-            + (2.0f * v0 - 5.0f * v1 + 4.0f * v2 - v3) * t2 + (-v0 + v2) * t
-            + 2.0f * v1);
-  }
-
-  return result;
+  return tsd::math::float3{azimuth, elevation, distance};
 }
 
 inline CameraPose sampleCameraPathAt(const std::vector<CameraPose> &poses,
@@ -90,6 +60,13 @@ inline CameraPose sampleCameraPathAt(const std::vector<CameraPose> &poses,
   if (poses.size() < 2)
     return poses.empty() ? CameraPose{} : poses.front();
 
+  // Apply global smoothing to the entire path if requested
+  // This ensures continuous motion through all poses
+  if (settings.type == CameraPathInterpolationType::SMOOTH) {
+    // Smooth step function (ease in at start, ease out at end)
+    t = t * t * (3.0f - 2.0f * t);
+  }
+
   t = std::clamp(t, 0.f, 1.f);
   const float segmentCount = static_cast<float>(poses.size() - 1);
   const float scaled = t * segmentCount;
@@ -99,36 +76,88 @@ inline CameraPose sampleCameraPathAt(const std::vector<CameraPose> &poses,
 
   const auto &pose0 = poses[poseIdx];
   const auto &pose1 = poses[poseIdx + 1];
-  const auto &posePrev = (poseIdx > 0) ? poses[poseIdx - 1] : pose0;
-  const auto &poseNext =
-      (poseIdx < poses.size() - 2) ? poses[poseIdx + 2] : pose1;
 
-  const float tInterp =
-      interpolateCameraPathT(localT, settings.type, settings.tension);
-
+  // Linear interpolation between poses (global smoothing already applied)
   CameraPose interpPose;
-  if (settings.type == CameraPathInterpolationType::CATMULL_ROM) {
-    interpPose.lookat = interpolateCameraPathCatmullRom(localT,
-        posePrev.lookat,
-        pose0.lookat,
-        pose1.lookat,
-        poseNext.lookat,
-        settings.tension);
-    interpPose.azeldist = interpolateCameraPathCatmullRom(localT,
-        posePrev.azeldist,
-        pose0.azeldist,
-        pose1.azeldist,
-        poseNext.azeldist,
-        settings.tension);
-    interpPose.fixedDist = lerp(localT, pose0.fixedDist, pose1.fixedDist);
-  } else {
-    interpPose.lookat = lerpVec3(tInterp, pose0.lookat, pose1.lookat);
-    interpPose.azeldist = lerpVec3(tInterp, pose0.azeldist, pose1.azeldist);
-    interpPose.fixedDist = lerp(tInterp, pose0.fixedDist, pose1.fixedDist);
+  interpPose.lookat = lerpVec3(localT, pose0.lookat, pose1.lookat);
+  interpPose.azeldist = lerpAzElDist(localT, pose0.azeldist, pose1.azeldist);
+  interpPose.fixedDist = lerp(localT, pose0.fixedDist, pose1.fixedDist);
+  interpPose.upAxis = pose0.upAxis;
+
+  return interpPose;
+}
+
+// Apply smoothing to the entire path using a simple moving average filter
+inline void smoothCameraPath(std::vector<CameraPose> &poses, float smoothness)
+{
+  if (poses.size() < 3 || smoothness <= 0.0f)
+    return;
+
+  // Convert smoothness [0, 1] to window size [1, 5]
+  int windowSize = 1 + static_cast<int>(smoothness * 4.0f);
+  windowSize = std::clamp(windowSize, 1, 5);
+
+  if (windowSize <= 1)
+    return;
+
+  std::vector<CameraPose> smoothed = poses;
+
+  // Apply gaussian-like weighted average
+  for (size_t i = 0; i < poses.size(); ++i) {
+    tsd::math::float3 avgLookat(0.f);
+    tsd::math::float3 avgAzElDist(0.f);
+    float avgFixedDist = 0.f;
+    float totalWeight = 0.f;
+
+    for (int offset = -windowSize; offset <= windowSize; ++offset) {
+      int idx = static_cast<int>(i) + offset;
+      if (idx < 0 || idx >= static_cast<int>(poses.size()))
+        continue;
+
+      // Gaussian-like weight
+      float weight =
+          std::exp(-0.5f * (offset * offset) / (windowSize * windowSize));
+
+      avgLookat += poses[idx].lookat * weight;
+      avgFixedDist += poses[idx].fixedDist * weight;
+      totalWeight += weight;
+
+      // Handle angle wrapping for azimuth/elevation
+      if (totalWeight == weight) {
+        // First sample - use as-is
+        avgAzElDist = poses[idx].azeldist * weight;
+      } else {
+        // Subsequent samples - use angle-aware interpolation
+        tsd::math::float3 normalized = poses[idx].azeldist;
+
+        // Normalize azimuth relative to average
+        float azDiff = normalized.x - (avgAzElDist.x / (totalWeight - weight));
+        while (azDiff > 180.0f)
+          azDiff -= 360.0f;
+        while (azDiff < -180.0f)
+          azDiff += 360.0f;
+        normalized.x = (avgAzElDist.x / (totalWeight - weight)) + azDiff;
+
+        // Normalize elevation relative to average
+        float elDiff = normalized.y - (avgAzElDist.y / (totalWeight - weight));
+        while (elDiff > 180.0f)
+          elDiff -= 360.0f;
+        while (elDiff < -180.0f)
+          elDiff += 360.0f;
+        normalized.y = (avgAzElDist.y / (totalWeight - weight)) + elDiff;
+
+        avgAzElDist += normalized * weight;
+      }
+    }
+
+    if (totalWeight > 0.f) {
+      smoothed[i].lookat = avgLookat / totalWeight;
+      smoothed[i].azeldist = avgAzElDist / totalWeight;
+      smoothed[i].fixedDist = avgFixedDist / totalWeight;
+    }
   }
 
-  interpPose.upAxis = pose0.upAxis;
-  return interpPose;
+  poses = smoothed;
 }
 
 inline void buildCameraPathSamplesByCount(const std::vector<CameraPose> &poses,
@@ -149,6 +178,11 @@ inline void buildCameraPathSamplesByCount(const std::vector<CameraPose> &poses,
   for (size_t i = 0; i < sampleCount; ++i) {
     float t = static_cast<float>(i) / static_cast<float>(sampleCount - 1);
     outSamples.push_back(sampleCameraPathAt(poses, settings, t));
+  }
+
+  // Apply global smoothing if requested
+  if (settings.type == CameraPathInterpolationType::SMOOTH) {
+    smoothCameraPath(outSamples, settings.smoothness);
   }
 }
 

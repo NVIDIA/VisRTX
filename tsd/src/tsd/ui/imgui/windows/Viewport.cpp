@@ -836,8 +836,22 @@ void Viewport::createCameraFromCurrentView()
     }
   }
 
-  // Set name
-  std::string name = "ViewCamera_" + std::to_string(cam.index());
+  // Set name based on interpolation algorithm
+  const auto &pathSettings = appCore()->view.pathSettings;
+  std::string interpName;
+  switch (pathSettings.type) {
+  case tsd::rendering::CameraPathInterpolationType::LINEAR:
+    interpName = "Linear";
+    break;
+  case tsd::rendering::CameraPathInterpolationType::SMOOTH:
+    interpName = "Smooth";
+    break;
+  default:
+    interpName = "Unknown";
+    break;
+  }
+
+  std::string name = "Camera_" + interpName + "_" + std::to_string(cam.index());
   cam->setName(name.c_str());
 
   // Auto-select it
@@ -865,9 +879,9 @@ void Viewport::addCameraObjectFromCurrentView()
     return;
   }
 
-  auto parentNode = selectedNode.valid() ? selectedNode : layer->root();
+  // Always add camera to the root of the layer, not as a child of selection
   auto cameraNode =
-      scene.insertChildObjectNode(parentNode, cam, cam->name().c_str());
+      scene.insertChildObjectNode(layer->root(), cam, cam->name().c_str());
   appCore()->setSelected(cameraNode);
   appCore()->view.cameraPathCameraIndex = cam.index();
   if (appCore()->offline.camera.cameraIndex == TSD_INVALID_INDEX) {
