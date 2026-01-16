@@ -110,6 +110,8 @@ struct Viewport : public Window
   bool m_showAxes{true};
   float m_depthVisualMinimum{0.f};
   float m_depthVisualMaximum{1.f};
+  float m_edgeThreshold{0.5f};
+  bool m_edgeInvert{false};
 
   float m_fov{40.f};
 

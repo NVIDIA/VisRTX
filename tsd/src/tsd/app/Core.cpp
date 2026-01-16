@@ -843,6 +843,13 @@ void OfflineRenderSequenceConfig::saveSettings(tsd::core::DataNode &root)
   auto &outputRoot = root["output"];
   outputRoot["outputDirectory"] = output.outputDirectory;
   outputRoot["filePrefix"] = output.filePrefix;
+
+  auto &aovRoot = root["aov"];
+  aovRoot["aovType"] = static_cast<int>(aov.aovType);
+  aovRoot["depthMin"] = aov.depthMin;
+  aovRoot["depthMax"] = aov.depthMax;
+  aovRoot["edgeThreshold"] = aov.edgeThreshold;
+  aovRoot["edgeInvert"] = aov.edgeInvert;
 }
 
 void OfflineRenderSequenceConfig::loadSettings(tsd::core::DataNode &root)
@@ -879,6 +886,15 @@ void OfflineRenderSequenceConfig::loadSettings(tsd::core::DataNode &root)
   auto &outputRoot = root["output"];
   outputRoot["outputDirectory"].getValue(ANARI_STRING, &output.outputDirectory);
   outputRoot["filePrefix"].getValue(ANARI_STRING, &output.filePrefix);
+
+  auto &aovRoot = root["aov"];
+  int aovTypeInt = static_cast<int>(aov.aovType);
+  aovRoot["aovType"].getValue(ANARI_INT32, &aovTypeInt);
+  aov.aovType = static_cast<tsd::rendering::AOVType>(aovTypeInt);
+  aovRoot["depthMin"].getValue(ANARI_FLOAT32, &aov.depthMin);
+  aovRoot["depthMax"].getValue(ANARI_FLOAT32, &aov.depthMax);
+  aovRoot["edgeThreshold"].getValue(ANARI_FLOAT32, &aov.edgeThreshold);
+  aovRoot["edgeInvert"].getValue(ANARI_BOOL, &aov.edgeInvert);
 }
 
 } // namespace tsd::app
