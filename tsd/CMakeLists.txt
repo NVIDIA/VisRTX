@@ -59,6 +59,7 @@ option(TSD_USE_TORCH "Use PyTorch for importing neural geometries" OFF)
 option(TSD_USE_VTK "Use VTK for importing VTK file formats" OFF)
 option(TSD_USE_SILO "Use Silo for importing Silo file formats" OFF)
 option(TSD_USE_MPI "Enable MPI support" OFF)
+option(TSD_USE_NETWORKING "Enable networking support via boost.asio" OFF)
 
 if (APPLE)
   set(TSD_USE_CUDA OFF)

@@ -94,17 +94,19 @@ void setLoggingCallback(LoggingCallback cb)
   g_loggingCallback = cb;
 }
 
-void setLogToStdout()
+void setLogToStdout(bool verbose)
 {
-  setLoggingCallback([](LogLevel level, std::string message) {
-    fmt::print(stdout, "{}", message);
+  setLoggingCallback([verbose](LogLevel level, std::string message) {
+    if (verbose || level != LogLevel::DEBUG)
+      fmt::print(stdout, "{}", message);
   });
 }
 
-void setLogToStderr()
+void setLogToStderr(bool verbose)
 {
-  setLoggingCallback([](LogLevel level, std::string message) {
-    fmt::print(stderr, "{}", message);
+  setLoggingCallback([verbose](LogLevel level, std::string message) {
+    if (verbose || level != LogLevel::DEBUG)
+      fmt::print(stderr, "{}", message);
   });
 }
 

@@ -1,0 +1,63 @@
+// Copyright 2026 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+// std
+#include <cstdint>
+#include <vector>
+// tsd_core
+#include "tsd/core/TSDMath.hpp"
+
+namespace tsd::network {
+
+// Message types for client-server communication
+//
+// Note: these are prepended with who is receiving the message for clarity
+enum MessageType
+{
+  // Set state: client -> server
+  SERVER_SHUTDOWN = 0,
+  SERVER_PING,
+  SERVER_START_RENDERING,
+  SERVER_STOP_RENDERING,
+  SERVER_SET_FRAME_CONFIG,
+  SERVER_SET_VIEW,
+  // Get state: server -> client
+  CLIENT_PING,
+  CLIENT_RECEIVE_FRAME_BUFFER_COLOR,
+  CLIENT_RECEIVE_FRAME_CONFIG,
+  CLIENT_RECEIVE_VIEW,
+  // Request state: client-> server
+  SERVER_REQUEST_FRAME_CONFIG,
+  SERVER_REQUEST_VIEW,
+  // All errors
+  ERROR = 255
+};
+
+struct RenderSession
+{
+  struct Frame
+  {
+    struct Config
+    {
+      tsd::math::uint2 size{800, 600};
+    } config;
+    int configVersion{0};
+
+    struct Buffers
+    {
+      std::vector<uint8_t> color;
+    } buffers;
+    int buffersVersion{0};
+  } frame;
+
+  struct View
+  {
+    tsd::math::float3 azeldist{0.f, 0.f, 1.f};
+    tsd::math::float3 lookat{0.f, 0.f, 0.f};
+  } view;
+  int viewVersion{0};
+};
+
+} // namespace tsd::network
