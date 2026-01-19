@@ -63,8 +63,7 @@ void computeEdgesImage(
           return;
         }
 
-        // Check if any neighbor has a different object ID (including
-        // background)
+        // Check if any neighbor has a different object ID
         bool isEdge = false;
 
         for (int dy = -1; dy <= 1 && !isEdge; ++dy) {

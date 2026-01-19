@@ -55,22 +55,20 @@ VISRTX_DEVICE const SpatialFieldGPUData &getSpatialFieldData(
 }
 
 VISRTX_DEVICE void volumeSamplerInit(
-    VolumeSamplingState *samplerState,
-    const SpatialFieldGPUData &field)
+    VolumeSamplingState *samplerState, const SpatialFieldGPUData &field)
 {
-  optixDirectCall<void>(
-      uint32_t(field.samplerCallableIndex) + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Init),
+  optixDirectCall<void>(uint32_t(field.samplerCallableIndex)
+          + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Init),
       samplerState,
       &field);
 }
 
-VISRTX_DEVICE float volumeSamplerSample(
-    const VolumeSamplingState *samplerState,
+VISRTX_DEVICE float volumeSamplerSample(const VolumeSamplingState *samplerState,
     const SpatialFieldGPUData &field,
     const vec3 &position)
 {
-  return optixDirectCall<float>(
-      uint32_t(field.samplerCallableIndex) + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Sample),
+  return optixDirectCall<float>(uint32_t(field.samplerCallableIndex)
+          + static_cast<uint32_t>(SpatialFieldSamplerEntryPoints::Sample),
       samplerState,
       &position);
 }
@@ -95,12 +93,30 @@ VISRTX_DEVICE vec4 classifySample(const VolumeGPUData &v, float s)
   return retval;
 }
 
+VISRTX_DEVICE uint32_t colorToMaterialID(
+    const vec3 &color, uint32_t numBins = 16)
+{
+  // Quantize RGB color to create a material ID
+  // Each channel is divided into numBins levels
+  const uint32_t r =
+      static_cast<uint32_t>(glm::clamp(color.x, 0.f, 1.f) * (numBins - 1));
+  const uint32_t g =
+      static_cast<uint32_t>(glm::clamp(color.y, 0.f, 1.f) * (numBins - 1));
+  const uint32_t b =
+      static_cast<uint32_t>(glm::clamp(color.z, 0.f, 1.f) * (numBins - 1));
+
+  // Pack into a single ID: each channel gets log2(numBins) bits
+  return (r * numBins * numBins) + (g * numBins) + b;
+}
+
 VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
     box1 interval,
     vec3 *color,
     float &opacity,
-    float invSamplingRate)
+    float invSamplingRate,
+    float *outDepth = nullptr,
+    uint32_t *outMaterialID = nullptr)
 {
   const auto &volume = *hit.volume;
   /////////////////////////////////////////////////////////////////////////////
@@ -125,6 +141,9 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
         curand_uniform(&ss.rs) * (interval.upper - interval.lower);
 
   constexpr float OPACITY_THRESHOLD = 0.99f;
+  constexpr float DEPTH_OPACITY_THRESHOLD = 0.01f;
+  bool depthSet = false;
+  bool materialIDSet = false;
 
   while (opacity < OPACITY_THRESHOLD && size(interval) >= 0.f) {
     const vec3 p = hit.localRay.org + hit.localRay.dir * interval.lower;
@@ -138,6 +157,19 @@ VISRTX_DEVICE void _rayMarchVolume(ScreenSample &ss,
       if (color)
         *color += transmittance * stepOpacity * vec3(co);
       opacity += transmittance * stepOpacity;
+
+      // Track depth and material ID of first opaque sample
+      if (!depthSet && opacity >= DEPTH_OPACITY_THRESHOLD) {
+        if (outDepth) {
+          *outDepth = interval.lower;
+          depthSet = true;
+        }
+        if (outMaterialID && !materialIDSet) {
+          // Use transfer function color to determine material ID
+          *outMaterialID = colorToMaterialID(vec3(co));
+          materialIDSet = true;
+        }
+      }
     }
 
     interval.lower += stepSize;
@@ -148,7 +180,8 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
     vec3 *color,
     float &opacity,
-    float invSamplingRate)
+    float invSamplingRate,
+    uint32_t *outMaterialID = nullptr)
 {
   const auto &volume = *hit.volume;
   /////////////////////////////////////////////////////////////////////////////
@@ -158,10 +191,18 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
   /////////////////////////////////////////////////////////////////////////////
   const float stepSize = volume.stepSize;
   box1 interval = hit.localRay.t;
-  const float depth = interval.lower;
+  float depth =
+      hit.localRay.t.upper; // Default to far plane (no opaque content)
   interval.lower += stepSize * curand_uniform(&ss.rs); // jitter
 
-  _rayMarchVolume(ss, hit, interval, color, opacity, invSamplingRate);
+  _rayMarchVolume(ss,
+      hit,
+      interval,
+      color,
+      opacity,
+      invSamplingRate,
+      &depth,
+      outMaterialID);
 
   return depth;
 }
@@ -290,32 +331,78 @@ VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
   VolumeHit hit;
   ray.t.upper = tfar;
   float depth = tfar;
+  float contentDepth = tfar; // Track content-based depth separately
 
   constexpr float OPACITY_THRESHOLD = 0.99f;
 
   objID = ~0;
   instID = ~0;
   opacity = 0.0f;
+  uint32_t materialID = ~0; // Track material ID from first opaque sample
+  uint32_t volumeID = ~0; // Track the volume ID for objID assignment
+  bool objIDSet =
+      false; // Track if we've already set objID based on first visible sample
 
   do {
     hit.foundHit = false;
     intersectVolume(ss, ray, type, &hit);
     if (!hit.foundHit)
       break;
-    if (objID == ~0) {
-      objID = hit.volume->id;
+    if (instID == ~0) {
       instID = hit.instance->id;
     }
+    if (volumeID == ~0) {
+      volumeID = hit.volume->id;
+    }
 
-    // Track closest intersection depth
+    // Track closest bounding box intersection depth
     depth = min(depth, hit.localRay.t.lower);
 
     // Save where this volume ends, so
     // float tmax = hit.localRay.t.upper;
     hit.localRay.t.upper = glm::min(tfar, hit.localRay.t.upper);
 
-    // Ray march through this volume segment
-    detail::rayMarchVolume(ss, hit, &color, opacity, invSamplingRate);
+    // Ray march through this volume segment and get content depth
+    float segmentContentDepth = hit.localRay.t.upper; // Default to far plane
+    vec3 segmentColor(0.f);
+    float segmentOpacity = 0.f;
+    uint32_t segmentMaterialID = ~0;
+
+    const auto &volume = *hit.volume;
+    const float stepSize = volume.stepSize;
+    box1 interval = hit.localRay.t;
+    interval.lower += stepSize * curand_uniform(&ss.rs); // jitter
+
+    detail::_rayMarchVolume(ss,
+        hit,
+        interval,
+        &segmentColor,
+        segmentOpacity,
+        invSamplingRate,
+        &segmentContentDepth,
+        &segmentMaterialID);
+
+    // Composite the segment color
+    const float transmittance = (1.0f - opacity);
+    color += transmittance * segmentColor;
+    opacity += transmittance * segmentOpacity;
+
+    // Set objID based on first visible sample (before full accumulation)
+    // Use a very low threshold to ensure consistent objID
+    constexpr float MIN_SEGMENT_OPACITY = 0.001f;
+    if (!objIDSet && segmentOpacity > MIN_SEGMENT_OPACITY && volumeID != ~0u) {
+      objID = volumeID;
+      objIDSet = true;
+    }
+
+    // Update content depth and material ID if this is the first significant
+    // opacity contribution
+    if (contentDepth >= tfar && segmentContentDepth < hit.localRay.t.upper) {
+      contentDepth = segmentContentDepth;
+      if (segmentMaterialID != ~0u) {
+        materialID = segmentMaterialID;
+      }
+    }
 
     if (ray.t.lower < hit.localRay.t.upper)
       ray.t.lower = hit.localRay.t.upper;
@@ -324,7 +411,8 @@ VISRTX_DEVICE float rayMarchAllVolumes(ScreenSample &ss,
 
   } while (opacity < OPACITY_THRESHOLD);
 
-  return depth;
+  // Return content-based depth if opaque content was found, otherwise far plane
+  return contentDepth;
 }
 
 template <typename RAY_TYPE>

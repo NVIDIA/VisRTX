@@ -110,7 +110,7 @@ struct Viewport : public Window
   bool m_showAxes{true};
   float m_depthVisualMinimum{0.f};
   float m_depthVisualMaximum{1.f};
-  float m_edgeThreshold{0.5f};
+  float m_edgeThreshold{0.5f}; // 0.0 = 1px radius, 1.0 = 5px radius
   bool m_edgeInvert{false};
 
   float m_fov{40.f};
