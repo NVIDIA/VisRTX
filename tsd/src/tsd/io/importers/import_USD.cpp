@@ -910,7 +910,8 @@ static void import_usd_volume(Scene &scene,
   VolumeTransferFunction tf = get_volume_transfer_function(prim);
 
   ArrayRef colorArray;
-  math::float2 valueRange;
+  // Default to the field's value range to avoid undefined ranges.
+  math::float2 valueRange = field->computeValueRange();
 
   // Create a volume node and assign the field, color map, and value range
   auto [inst, volume] = scene.insertNewChildObjectNode<Volume>(
@@ -922,7 +923,8 @@ static void import_usd_volume(Scene &scene,
     // Use transfer function from USD material
     colorArray = scene.createArray(ANARI_FLOAT32_VEC4, tf.colors.size());
     colorArray->setData(tf.colors.data(), tf.colors.size());
-    valueRange = tf.domain;
+    if (tf.domain.x < tf.domain.y)
+      valueRange = tf.domain;
 
     // Create opacity control points from USD transfer function
     std::vector<math::float2> opacityControlPoints;

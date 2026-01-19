@@ -30,6 +30,34 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
   try {
     auto grid = nanovdb::io::readGrid(filepath);
     auto metadata = grid.gridMetaData();
+
+    bool hasActiveVoxels = false;
+    switch (metadata->gridType()) {
+    case nanovdb::GridType::Fp4:
+      hasActiveVoxels = grid.grid<nanovdb::Fp4>()->activeVoxelCount() > 0;
+      break;
+    case nanovdb::GridType::Fp8:
+      hasActiveVoxels = grid.grid<nanovdb::Fp8>()->activeVoxelCount() > 0;
+      break;
+    case nanovdb::GridType::Fp16:
+      hasActiveVoxels = grid.grid<nanovdb::Fp16>()->activeVoxelCount() > 0;
+      break;
+    case nanovdb::GridType::FpN:
+      hasActiveVoxels = grid.grid<nanovdb::FpN>()->activeVoxelCount() > 0;
+      break;
+    case nanovdb::GridType::Float:
+      hasActiveVoxels = grid.grid<float>()->activeVoxelCount() > 0;
+      break;
+    default:
+      break;
+    }
+
+    if (!hasActiveVoxels) {
+      logStatus("[import_NVDB] no active voxels, skipping '%s'", filepath);
+      scene.removeObject(field.data());
+      return {};
+    }
+
     if (!metadata->hasMinMax()) {
       switch (metadata->gridType()) {
       case nanovdb::GridType::Fp4: {
