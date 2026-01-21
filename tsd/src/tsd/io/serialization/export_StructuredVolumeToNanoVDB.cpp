@@ -28,7 +28,7 @@ using namespace std::string_view_literals;
 namespace tsd::io {
 
 template <typename T>
-void doExportStructuredRegularVolumeToNanoVDB(const T *data,
+void doExportStructuredVolumeToNanoVDB(const T *data,
     math::float3 origin,
     math::float3 spacing,
     math::int3 dims,
@@ -39,17 +39,17 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
     bool enableDithering)
 {
   tsd::core::logStatus(
-      "[export_StructuredRegularVolumeToNanoVDB] Volume dimensions: %u x %u x %u",
+      "[export_StructuredVolumeToNanoVDB] Volume dimensions: %u x %u x %u",
       dims.x,
       dims.y,
       dims.z);
   tsd::core::logStatus(
-      "[export_StructuredRegularVolumeToNanoVDB] Origin: (%.3f, %.3f, %.3f)",
+      "[export_StructuredVolumeToNanoVDB] Origin: (%.3f, %.3f, %.3f)",
       origin.x,
       origin.y,
       origin.z);
   tsd::core::logStatus(
-      "[export_StructuredRegularVolumeToNanoVDB] Spacing: (%.3f, %.3f, %.3f)",
+      "[export_StructuredVolumeToNanoVDB] Spacing: (%.3f, %.3f, %.3f)",
       spacing.x,
       spacing.y,
       spacing.z);
@@ -142,7 +142,7 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
       : 0.0f;
 
   tsd::core::logStatus(
-      "[export_StructuredRegularVolumeToNanoVDB] Active voxels: %zu/%zu (%.1f%% inactive cell compression)",
+      "[export_StructuredVolumeToNanoVDB] Active voxels: %zu/%zu (%.1f%% inactive cell compression)",
       activeVoxelsCount,
       totalVoxelsCount,
       inactiveCellCompression * 100.0f);
@@ -152,11 +152,11 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
   // Validate quantization choice
   if (precision == VDBPrecision::Fp4 && valueRange > 30.0f) {
     tsd::core::logWarning(
-        "[export_StructuredRegularVolumeToNanoVDB] Fp4 quantization with value range %.2f may introduce significant error (recommended < 30.0)",
+        "[export_StructuredVolumeToNanoVDB] Fp4 quantization with value range %.2f may introduce significant error (recommended < 30.0)",
         valueRange);
   } else if (precision == VDBPrecision::Fp8 && valueRange > 500.0f) {
     tsd::core::logWarning(
-        "[export_StructuredRegularVolumeToNanoVDB] Fp8 quantization with value range %.2f may introduce significant error (recommended < 500.0)",
+        "[export_StructuredVolumeToNanoVDB] Fp8 quantization with value range %.2f may introduce significant error (recommended < 500.0)",
         valueRange);
   }
 
@@ -203,7 +203,7 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
     break;
   case VDBPrecision::Half:
     tsd::core::logWarning(
-        "[export_StructuredRegularVolumeToNanoVDB] Half precision not supported in this NanoVDB build, using Fp16 instead");
+        "[export_StructuredVolumeToNanoVDB] Half precision not supported in this NanoVDB build, using Fp16 instead");
     handle = nanovdb::tools::createNanoGrid<nanovdb::tools::build::Grid<float>,
         nanovdb::Fp16>(*buildGrid,
         nanovdb::tools::StatsMode::All,
@@ -215,7 +215,7 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
 
   if (!handle) {
     tsd::core::logError(
-        "[export_StructuredRegularVolumeToNanoVDB] Failed to create NanoVDB grid.");
+        "[export_StructuredVolumeToNanoVDB] Failed to create NanoVDB grid.");
     return;
   }
 
@@ -229,12 +229,12 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
       : 0.0f;
 
   tsd::core::logStatus(
-      "[export_StructuredRegularVolumeToNanoVDB] Quantization compression: %.1f%% (%.2f MB -> %.2f MB)",
+      "[export_StructuredVolumeToNanoVDB] Quantization compression: %.1f%% (%.2f MB -> %.2f MB)",
       quantizationCompression * 100.0f,
       uncompressedActiveSize / (1024.0f * 1024.0f),
       finalSize / (1024.0f * 1024.0f));
   tsd::core::logStatus(
-      "[export_StructuredRegularVolumeToNanoVDB] Total compression: %.1f%% (%.2f MB -> %.2f MB)",
+      "[export_StructuredVolumeToNanoVDB] Total compression: %.1f%% (%.2f MB -> %.2f MB)",
       totalCompression * 100.0f,
       uncompressedSize / (1024.0f * 1024.0f),
       finalSize / (1024.0f * 1024.0f));
@@ -244,16 +244,16 @@ void doExportStructuredRegularVolumeToNanoVDB(const T *data,
     nanovdb::io::writeGrid(
         std::string(outputFilename).c_str(), handle, nanovdb::io::Codec::NONE);
     tsd::core::logStatus(
-        "[export_StructuredRegularVolumeToNanoVDB] Successfully wrote VDB file: %s",
+        "[export_StructuredVolumeToNanoVDB] Successfully wrote VDB file: %s",
         std::string(outputFilename).c_str());
   } catch (const std::exception &e) {
     tsd::core::logError(
-        "[export_StructuredRegularVolumeToNanoVDB] Failed to write VDB file: %s",
+        "[export_StructuredVolumeToNanoVDB] Failed to write VDB file: %s",
         e.what());
   }
 }
 
-void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
+void export_StructuredVolumeToNanoVDB(const SpatialField *spatialField,
     std::string_view outputFilename,
     bool useUndefinedValue,
     float undefinedValue,
@@ -268,7 +268,7 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
 
   if (!isStructuredRegular && !isStructuredRectilinear) {
     tsd::core::logError(
-        "[export_StructuredRegularVolumeToNanoVDB] Not a structured volume.");
+        "[export_StructuredVolumeToNanoVDB] Not a structured volume.");
     return;
   }
 
@@ -281,14 +281,13 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
   // Dumb heuristic here: everything but cell is node-centered
   const bool cellCentered = dataCentering == "cell"sv;
 
-  tsd::core::logStatus(
-      "[export_StructuredRegularVolumeToNanoVDB] Data centering: %s",
+  tsd::core::logStatus("[export_StructuredVolumeToNanoVDB] Data centering: %s",
       dataCentering.c_str());
 
   const auto *volumeData = spatialField->parameterValueAsObject<Array>("data");
   if (!volumeData) {
     tsd::core::logError(
-        "[export_StructuredRegularVolumeToNanoVDB] No volume data found.");
+        "[export_StructuredVolumeToNanoVDB] No volume data found.");
     return;
   }
 
@@ -334,7 +333,7 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
 
     if (!axisX || !axisY || !axisZ) {
       tsd::core::logError(
-          "[export_StructuredRegularVolumeToNanoVDB] Missing rectilinear coordinates.");
+          "[export_StructuredVolumeToNanoVDB] Missing rectilinear coordinates.");
       return;
     }
 
@@ -359,13 +358,13 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
     if (!copyAxis(axisX, coordsX) || !copyAxis(axisY, coordsY)
         || !copyAxis(axisZ, coordsZ)) {
       tsd::core::logError(
-          "[export_StructuredRegularVolumeToNanoVDB] Rectilinear coordinates must be float or double.");
+          "[export_StructuredVolumeToNanoVDB] Rectilinear coordinates must be float or double.");
       return;
     }
 
     if (coordsX.size() < 2 || coordsY.size() < 2 || coordsZ.size() < 2) {
       tsd::core::logError(
-          "[export_StructuredRegularVolumeToNanoVDB] Rectilinear coordinates must have at least two entries per axis.");
+          "[export_StructuredVolumeToNanoVDB] Rectilinear coordinates must have at least two entries per axis.");
       return;
     }
 
@@ -387,7 +386,7 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
   }
 
   auto dispatchExport = [&](auto ptr) {
-    doExportStructuredRegularVolumeToNanoVDB(ptr,
+    doExportStructuredVolumeToNanoVDB(ptr,
         origin,
         spacing,
         dims,
@@ -419,7 +418,7 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
     break;
   default:
     tsd::core::logError(
-        "[export_StructuredRegularVolumeToNanoVDB] Volume data is not of a supported float type.");
+        "[export_StructuredVolumeToNanoVDB] Volume data is not of a supported float type.");
     return;
   }
 
@@ -428,12 +427,11 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
   std::string sidecarError;
   if (!writeSidecar(sidecar, sidecarPath, sidecarError)) {
     tsd::core::logWarning(
-        "[export_StructuredRegularVolumeToNanoVDB] Failed to write sidecar %s: %s",
+        "[export_StructuredVolumeToNanoVDB] Failed to write sidecar %s: %s",
         sidecarPath.string().c_str(),
         sidecarError.c_str());
   } else {
-    tsd::core::logStatus(
-        "[export_StructuredRegularVolumeToNanoVDB] Wrote sidecar: %s",
+    tsd::core::logStatus("[export_StructuredVolumeToNanoVDB] Wrote sidecar: %s",
         sidecarPath.string().c_str());
   }
 }

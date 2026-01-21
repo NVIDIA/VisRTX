@@ -37,7 +37,7 @@ void load_Scene(Scene &scene, core::DataNode &root);
 
 void export_SceneToUSD(
     Scene &scene, const char *filename, int framesPerSecond = 30);
-void export_StructuredRegularVolumeToNanoVDB(
+void export_StructuredVolumeToNanoVDB(
   const SpatialField* spatialField,
   std::string_view outputFilename,
   bool useUndefinedValue = false,

@@ -49,7 +49,7 @@ PRIVATE
   procedural/generate_randomSpheres.cpp
   procedural/generate_rtow.cpp
   procedural/generate_sphereSetVolume.cpp
-  serialization/export_RegularVolumeToNanoVDB.cpp
+  serialization/export_StructuredVolumeToNanoVDB.cpp
   serialization/NanoVdbSidecar.cpp
   serialization/export_SceneToUSD.cpp
   serialization/serialization_datatree.cpp

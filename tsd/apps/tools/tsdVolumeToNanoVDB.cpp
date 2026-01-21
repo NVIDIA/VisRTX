@@ -157,7 +157,7 @@ int main(int argc, const char *argv[])
         "Detected rectilinear grid; writing NanoVDB sidecar with axis coordinates.");
   }
 
-  tsd::io::export_StructuredRegularVolumeToNanoVDB(spatialField,
+  tsd::io::export_StructuredVolumeToNanoVDB(spatialField,
       outputFile->c_str(),
       undefinedValue.has_value(),
       undefinedValue.value_or(0.0f),
