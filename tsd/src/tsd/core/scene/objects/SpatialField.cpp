@@ -150,7 +150,8 @@ tsd::math::float2 SpatialField::computeValueRange()
       retval = *r;
     else if (auto r = getDataRangeFromParameter(parameter("cell.data")); r)
       retval = *r;
-  } else if (subtype() == tokens::spatial_field::nanovdb) {
+  } else if (subtype() == tokens::spatial_field::nanovdb
+      || subtype() == tokens::spatial_field::nanovdbRectilinear) {
     if (auto *range = parameter("range"); range)
       retval = range->value().get<tsd::math::float2>();
   } else if (subtype() == tokens::spatial_field::amr) {
