@@ -369,16 +369,18 @@ void export_StructuredRegularVolumeToNanoVDB(const SpatialField *spatialField,
       return;
     }
 
-    origin = math::float3(static_cast<float>(coordsX.front()),
-        static_cast<float>(coordsY.front()),
-        static_cast<float>(coordsZ.front()));
-
     const auto extent =
         math::float3(static_cast<float>(coordsX.back() - coordsX.front()),
             static_cast<float>(coordsY.back() - coordsY.front()),
             static_cast<float>(coordsZ.back() - coordsZ.front()));
 
-    // For rectilinear grids, only export coordinate arrays, not origin/spacing
+    origin = math::float3(static_cast<float>(coordsX.front()),
+        static_cast<float>(coordsY.front()),
+        static_cast<float>(coordsZ.front()));
+
+    // Compute a uniform voxel spacing equivalent for nanovdb
+    spacing = extent / dims;
+
     sidecar.coordsX = coordsX;
     sidecar.coordsY = coordsY;
     sidecar.coordsZ = coordsZ;
