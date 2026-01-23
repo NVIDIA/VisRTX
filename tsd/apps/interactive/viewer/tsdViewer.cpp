@@ -14,6 +14,9 @@
 #include <tsd/ui/imgui/windows/ObjectEditor.h>
 #include <tsd/ui/imgui/windows/TransferFunctionEditor.h>
 #include <tsd/ui/imgui/windows/Viewport.h>
+#ifdef TSD_USE_LUA
+#include <tsd/ui/imgui/windows/Terminal.h>
+#endif
 // std
 #include <chrono>
 
@@ -46,6 +49,9 @@ class Application : public TSDApplication
     auto *otree = new tsd_ui::LayerTree(this);
     auto *tfeditor = new tsd_ui::TransferFunctionEditor(this);
     auto *isoeditor = new tsd_ui::IsosurfaceEditor(this);
+#ifdef TSD_USE_LUA
+    auto *terminal = new tsd_ui::Terminal(this);
+#endif
 
     windows.emplace_back(animations);
     windows.emplace_back(cameras);
@@ -54,9 +60,12 @@ class Application : public TSDApplication
     windows.emplace_back(dbeditor);
     windows.emplace_back(oeditor);
     windows.emplace_back(otree);
-    windows.emplace_back(log);
     windows.emplace_back(tfeditor);
     windows.emplace_back(isoeditor);
+#ifdef TSD_USE_LUA
+    windows.emplace_back(terminal);
+#endif
+    windows.emplace_back(log);
 
     setWindowArray(windows);
 
@@ -155,6 +164,12 @@ Pos=549,876
 Size=1371,255
 Collapsed=0
 DockId=0x00000005,0
+
+[Window][Terminal]
+Pos=549,876
+Size=1371,255
+Collapsed=0
+DockId=0x00000005,1
 
 [Window][Secondary View]
 Pos=1237,26

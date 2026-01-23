@@ -31,6 +31,7 @@ project_sources(PRIVATE
 
 if(TSD_USE_LUA)
   project_sources(PRIVATE
+    windows/Terminal.cpp
     ExtensionManager.cpp
   )
   project_link_libraries(PRIVATE tsd_lua tsd_ext_sol2)
