@@ -17,6 +17,7 @@
 #include <vtkPointData.h>
 #include <vtkSmartPointer.h>
 #include <vtkUnstructuredGrid.h>
+#include <vtkUnstructuredGridReader.h>
 #include <vtkXMLUnstructuredGridReader.h>
 #endif
 // std
@@ -47,13 +48,26 @@ static ArrayRef makeFloatArray1D(
 
 SpatialFieldRef import_VTU(Scene &scene, const char *filepath)
 {
+  vtkUnstructuredGrid *grid{nullptr};
+
   // Read .vtu file
   vtkSmartPointer<vtkXMLUnstructuredGridReader> reader =
       vtkSmartPointer<vtkXMLUnstructuredGridReader>::New();
-  reader->SetFileName(filepath);
-  reader->Update();
 
-  vtkUnstructuredGrid *grid = reader->GetOutput();
+  vtkSmartPointer<vtkUnstructuredGridReader> legacyReader =
+      vtkSmartPointer<vtkUnstructuredGridReader>::New();
+
+  if (reader->CanReadFile(filepath)) {
+    reader->SetFileName(filepath);
+    reader->Update();
+    grid = reader->GetOutput();
+  } else {
+    // legacy reader has no CanReadFile
+    legacyReader->SetFileName(filepath);
+    legacyReader->Update();
+    grid = legacyReader->GetOutput();
+  }
+
   if (!grid) {
     logError("[import_VTU] failed to load .vtu file '%s'", filepath);
     return {};
