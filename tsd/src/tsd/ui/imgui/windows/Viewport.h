@@ -184,8 +184,6 @@ struct Viewport : public Window
   float m_latestAnariFL{0.f};
   float m_minFL{std::numeric_limits<float>::max()};
   float m_maxFL{-std::numeric_limits<float>::max()};
-
-  std::string m_overlayWindowName;
 };
 
 } // namespace tsd::ui::imgui

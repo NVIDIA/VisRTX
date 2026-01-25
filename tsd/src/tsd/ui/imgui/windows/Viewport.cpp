@@ -36,8 +36,6 @@ Viewport::Viewport(
     : Window(app, name)
 {
   setManipulator(m);
-  m_overlayWindowName = "overlay_";
-  m_overlayWindowName += name;
   setLibrary("");
 }
 
@@ -63,6 +61,8 @@ void Viewport::buildUI()
   updateImage();
   updateCamera();
 
+  ui_menubar();
+
   ImGui::BeginDisabled(!m_deviceReadyToUse);
 
   if (m_outputPass) {
@@ -72,15 +72,16 @@ void Viewport::buildUI()
         ImVec2(1, 0));
   }
 
-  if (m_showOverlay)
-    ui_overlay();
-
-  ImGui::EndDisabled();
-
   ui_gizmo();
   ui_handleInput();
   bool didPick = ui_picking(); // Needs to happen before ui_menubar
-  ui_menubar();
+
+  // Render the overlay after input handling so it does not interfere.
+  if (m_showOverlay) {
+    ui_overlay();
+  }
+
+  ImGui::EndDisabled();
 
   if (m_anariPass && !didPick) {
     bool needIDs = appCore()->getFirstSelected().valid()
@@ -1459,19 +1460,20 @@ bool Viewport::ui_picking()
 
 void Viewport::ui_overlay()
 {
-  ImGuiIO &io = ImGui::GetIO();
-  ImVec2 windowPos = ImGui::GetWindowPos();
-  windowPos.x += 10;
-  windowPos.y += 63 * io.FontGlobalScale;
+  ImVec2 contentStart = ImGui::GetCursorStartPos();
+  ImGui::SetCursorPos(ImVec2(contentStart[0] + 2.0f, contentStart[1] + 2.0f));
 
-  ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration
-      | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_AlwaysAutoResize
-      | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing
-      | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove;
+  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.7f));
 
-  ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always);
+  ImGuiChildFlags childFlags = ImGuiChildFlags_Border
+      | ImGuiChildFlags_AutoResizeX | ImGuiChildFlags_AutoResizeY;
+  ImGuiWindowFlags childWindowFlags =
+      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
 
-  if (ImGui::Begin(m_overlayWindowName.c_str(), nullptr, window_flags)) {
+  // Render overlay as a child window within the viewport.
+  // This ensures it's properly occluded when other windows are on top.
+  if (ImGui::BeginChild(
+          "##viewportOverlay", ImVec2(0, 0), childFlags, childWindowFlags)) {
     ImGui::Text("  device: %s", m_libName.c_str());
 
     // Camera indicator
@@ -1493,7 +1495,6 @@ void Viewport::ui_overlay()
     ImGui::Text("   (max): %.2fms", m_maxFL);
 
     ImGui::Separator();
-
     ImGui::Checkbox("camera config", &m_showCameraInfo);
     if (m_showCameraInfo) {
       auto at = m_arcball->at();
@@ -1516,9 +1517,10 @@ void Viewport::ui_overlay()
         m_arcball->setFixedDistance(fixedDist);
       }
     }
-
-    ImGui::End();
   }
+  ImGui::EndChild();
+
+  ImGui::PopStyleColor();
 }
 
 bool Viewport::canShowGizmo() const
@@ -1638,7 +1640,7 @@ void Viewport::ui_gizmo()
 
 int Viewport::windowFlags() const
 {
-  return ImGuiWindowFlags_MenuBar;
+  return ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar;
 }
 
 void Viewport::RendererUpdateDelegate::signalParameterUpdated(
