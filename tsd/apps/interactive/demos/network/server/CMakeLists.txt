@@ -3,7 +3,7 @@
 
 project(tsdServer)
 project_add_executable(
-  CopyColorBufferPass.cpp
+  CopyFromColorBufferPass.cpp
   RenderServer.cpp
   tsdServer.cpp
 )

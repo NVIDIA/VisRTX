@@ -8,10 +8,10 @@
 
 namespace tsd::rendering {
 
-struct CopyColorBufferPass : public RenderPass
+struct CopyToColorBufferPass : public RenderPass
 {
-  CopyColorBufferPass();
-  ~CopyColorBufferPass() override;
+  CopyToColorBufferPass();
+  ~CopyToColorBufferPass() override;
 
   void setExternalBuffer(std::vector<uint8_t> &buffer);
 

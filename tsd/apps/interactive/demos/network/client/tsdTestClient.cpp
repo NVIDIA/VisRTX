@@ -51,7 +51,8 @@ int main()
 
   client->registerHandler(MessageType::CLIENT_RECEIVE_FRAME_CONFIG,
       [session](const tsd::network::Message &msg) {
-        tsd::network::safeCopyFromPayload(msg, &session->frame.config);
+        auto pos = 0u;
+        tsd::network::payloadRead(msg, pos, &session->frame.config);
         tsd::core::logStatus("[Client] Received frame config: size=(%u,%u)",
             session->frame.config.size.x,
             session->frame.config.size.y);
@@ -59,7 +60,8 @@ int main()
 
   client->registerHandler(MessageType::CLIENT_RECEIVE_VIEW,
       [session](const tsd::network::Message &msg) {
-        tsd::network::safeCopyFromPayload(msg, &session->view);
+        auto pos = 0u;
+        tsd::network::payloadRead(msg, pos, &session->view);
         tsd::core::logStatus(
             "[Client] Received view: azel=(%f,%f), dist=%f, "
             "lookat=(%f,%f,%f)",

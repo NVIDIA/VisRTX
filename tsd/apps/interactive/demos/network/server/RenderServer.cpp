@@ -5,7 +5,7 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 
-#include "CopyColorBufferPass.hpp"
+#include "CopyFromColorBufferPass.hpp"
 
 namespace tsd::network {
 
@@ -135,7 +135,7 @@ void RenderServer::setup_RenderPipeline()
   arp->setEnableIDs(false);
 
   auto *ccbp =
-      m_renderPipeline.emplace_back<tsd::rendering::CopyColorBufferPass>();
+      m_renderPipeline.emplace_back<tsd::rendering::CopyFromColorBufferPass>();
   ccbp->setExternalBuffer(m_session.frame.buffers.color);
 }
 
@@ -181,7 +181,8 @@ void RenderServer::setup_Messaging()
   m_server->registerHandler(MessageType::SERVER_SET_FRAME_CONFIG,
       [&](const tsd::network::Message &msg) {
         auto *config = &m_session.frame.config;
-        if (tsd::network::safeCopyFromPayload(msg, config)) {
+        auto pos = 0u;
+        if (tsd::network::payloadRead(msg, pos, config)) {
           m_session.frame.configVersion++;
           tsd::core::logDebug(
               "[Server] Received frame config: size=(%u,%u), version=%d",
@@ -197,7 +198,8 @@ void RenderServer::setup_Messaging()
   m_server->registerHandler(
       MessageType::SERVER_SET_VIEW, [&](const tsd::network::Message &msg) {
         auto *view = &m_session.view;
-        if (tsd::network::safeCopyFromPayload(msg, view)) {
+        auto pos = 0u;
+        if (tsd::network::payloadRead(msg, pos, view)) {
           m_session.viewVersion++;
           tsd::core::logDebug(
               "[Server] Received view: azel=(%f,%f), dist=%f, "
@@ -218,7 +220,7 @@ void RenderServer::setup_Messaging()
       [s = m_server, session = &m_session](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested frame config.");
         tsd::network::Message outMsg;
-        tsd::network::safeCopyToPayload(outMsg, &session->frame.config);
+        tsd::network::payloadWrite(outMsg, &session->frame.config);
         outMsg.header.type = MessageType::CLIENT_RECEIVE_FRAME_CONFIG;
         outMsg.header.payload_length = uint32_t(outMsg.payload.size());
         s->send(outMsg);
@@ -228,7 +230,7 @@ void RenderServer::setup_Messaging()
       [s = m_server, session = &m_session](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested view.");
         tsd::network::Message outMsg;
-        tsd::network::safeCopyToPayload(outMsg, &session->view);
+        tsd::network::payloadWrite(outMsg, &session->view);
         outMsg.header.type = MessageType::CLIENT_RECEIVE_VIEW;
         outMsg.header.payload_length = uint32_t(outMsg.payload.size());
         s->send(outMsg);

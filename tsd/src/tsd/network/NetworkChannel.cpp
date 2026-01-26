@@ -229,6 +229,11 @@ void NetworkServer::start_accept()
 
 NetworkClient::NetworkClient(const std::string &host, short port)
 {
+  connect(host, port);
+}
+
+void NetworkClient::connect(const std::string &host, short port)
+{
   asio::ip::tcp::resolver resolver(m_io_context);
   auto endpoints = resolver.resolve(host, std::to_string(port));
   asio::async_connect(m_socket,

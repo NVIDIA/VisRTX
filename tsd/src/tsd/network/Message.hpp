@@ -6,6 +6,7 @@
 // boost asio
 #include <boost/asio.hpp>
 // std
+#include <string.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -41,47 +42,29 @@ struct Message
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-inline Message make_message(uint8_t type)
-{
-  Message msg;
-  msg.header.type = type;
-  msg.header.payload_length = 0;
-  return msg;
-}
-
-inline Message make_message(uint8_t type, const std::string &data)
-{
-  Message msg;
-  msg.header.type = type;
-  msg.header.payload_length = static_cast<uint32_t>(data.size());
-  msg.payload.reserve(data.size() + 1);
-  msg.payload.resize(data.size());
-  std::memcpy(msg.payload.data(), data.data(), data.size());
-  msg.payload.push_back(std::byte(0)); // Null-terminate for safety
-  msg.header.payload_length++;
-  return msg;
-}
+// write to payload //
 
 template <typename T>
-inline Message make_message(uint8_t type, const T *data, uint32_t count = 1)
+inline void payloadWrite(Message &msg, const T *data, uint32_t length = 1)
 {
   static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
       "Message payload must be a POD type");
-  Message msg;
-  msg.header.type = type;
-  msg.header.payload_length = static_cast<uint32_t>(sizeof(T) * count);
-  msg.payload.resize(sizeof(T) * count);
-  std::memcpy(msg.payload.data(), data, sizeof(T) * count);
-  return msg;
+  size_t old_size = msg.payload.size();
+  msg.payload.resize(old_size + sizeof(T) * length);
+  std::memcpy(msg.payload.data() + old_size, data, sizeof(T) * length);
+  msg.header.payload_length += static_cast<uint32_t>(sizeof(T) * length);
 }
 
-template <typename T>
-inline Message make_message(uint8_t type, const std::vector<T> &data)
+inline void payloadWrite(Message &msg, const std::string &str)
 {
-  static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
-      "Message payload must be a POD type");
-  return make_message(type, data.data(), static_cast<uint32_t>(data.size()));
+  size_t old_size = msg.payload.size();
+  msg.payload.resize(old_size + str.size() + 1);
+  std::memcpy(msg.payload.data() + old_size, str.data(), str.size());
+  msg.header.payload_length += static_cast<uint32_t>(str.size() + 1);
+  msg.payload.back() = std::byte(0); // Null-terminate
 }
+
+// read from payload //
 
 template <typename T>
 inline T *payloadAs(Message &msg)
@@ -96,37 +79,62 @@ inline const T *payloadAs(const Message &msg)
 }
 
 template <typename T>
-inline bool safeCopyFromPayload(const Message &msg, T *dst, size_t count = 1)
+inline bool payloadRead(
+    const Message &msg, uint32_t &offset, T *data, uint32_t length = 1)
 {
-  if (msg.header.payload_length != sizeof(T) * count)
+  static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
+      "Message payload must be a POD type");
+  size_t expected_size = sizeof(T) * length;
+  if (msg.header.payload_length < (expected_size + offset))
     return false;
-  std::memcpy(dst, msg.payload.data(), sizeof(T) * count);
+  std::memcpy(data, msg.payload.data() + offset, expected_size);
+  offset += static_cast<uint32_t>(expected_size);
   return true;
 }
 
-template <typename T>
-inline void safeCopyToPayload(Message &msg, T *src, size_t count = 1)
+inline bool payloadRead(const Message &msg, uint32_t &offset, std::string &str)
 {
-  msg.payload.resize(sizeof(T) * count);
-  std::memcpy(msg.payload.data(), src, sizeof(T) * count);
+  if (offset >= msg.header.payload_length)
+    return false;
+  const char *start =
+      reinterpret_cast<const char *>(msg.payload.data() + offset);
+  size_t max_length = msg.header.payload_length - offset;
+  size_t length = strnlen(start, max_length);
+  str.assign(start, length);
+  offset += static_cast<uint32_t>(length + 1); // +1 for null-terminator
+  return true;
 }
 
-inline std::vector<std::byte> serialize_message(const Message &msg)
-{
-  if (msg.payload.size() != msg.header.payload_length) {
-    throw std::runtime_error(
-        "Message payload size does not match header payload_length");
-  }
+// make_message() //
 
-  std::vector<std::byte> buffer;
-  buffer.resize(sizeof(Message::Header) + msg.payload.size());
-  auto *dst = buffer.data();
-  std::memcpy(dst, &msg.header, sizeof(Message::Header));
-  if (!msg.payload.empty()) {
-    dst += sizeof(Message::Header);
-    std::memcpy(dst, msg.payload.data(), msg.payload.size());
-  }
-  return buffer;
+inline Message make_message(uint8_t type)
+{
+  Message msg;
+  msg.header.type = type;
+  return msg;
+}
+
+inline Message make_message(uint8_t type, const std::string &data)
+{
+  Message msg = make_message(type);
+  payloadWrite(msg, data);
+  return msg;
+}
+
+template <typename T>
+inline Message make_message(uint8_t type, const T *data, uint32_t count = 1)
+{
+  Message msg = make_message(type);
+  payloadWrite(msg, data, count);
+  return msg;
+}
+
+template <typename T>
+inline Message make_message(uint8_t type, const std::vector<T> &data)
+{
+  static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
+      "Message payload must be a POD type");
+  return make_message(type, data.data(), static_cast<uint32_t>(data.size()));
 }
 
 } // namespace tsd::network

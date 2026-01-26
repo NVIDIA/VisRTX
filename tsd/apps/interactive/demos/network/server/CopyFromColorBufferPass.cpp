@@ -1,7 +1,7 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "CopyColorBufferPass.hpp"
+#include "CopyFromColorBufferPass.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 // std
@@ -9,24 +9,24 @@
 
 namespace tsd::rendering {
 
-CopyColorBufferPass::CopyColorBufferPass() = default;
+CopyFromColorBufferPass::CopyFromColorBufferPass() = default;
 
-CopyColorBufferPass::~CopyColorBufferPass() = default;
+CopyFromColorBufferPass::~CopyFromColorBufferPass() = default;
 
-void CopyColorBufferPass::setExternalBuffer(std::vector<uint8_t> &buffer)
+void CopyFromColorBufferPass::setExternalBuffer(std::vector<uint8_t> &buffer)
 {
   m_externalBuffer = &buffer;
 }
 
-void CopyColorBufferPass::render(RenderBuffers &b, int /*stageId*/)
+void CopyFromColorBufferPass::render(RenderBuffers &b, int /*stageId*/)
 {
   if (!b.color) {
-    tsd::core::logError("[CopyColorBufferPass] No color buffer available");
+    tsd::core::logError("[CopyFromColorBufferPass] No color buffer available");
     return;
   }
 
   if (!m_externalBuffer) {
-    tsd::core::logError("[CopyColorBufferPass] No external buffer set");
+    tsd::core::logError("[CopyFromColorBufferPass] No external buffer set");
     return;
   }
 
@@ -34,7 +34,7 @@ void CopyColorBufferPass::render(RenderBuffers &b, int /*stageId*/)
   const size_t totalPixels = size.x * size.y;
 
   if (totalPixels == 0) {
-    tsd::core::logError("[CopyColorBufferPass] Invalid dimensions");
+    tsd::core::logError("[CopyFromColorBufferPass] Invalid dimensions");
     return;
   }
 

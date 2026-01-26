@@ -65,8 +65,11 @@ struct NetworkServer : public NetworkChannel
 
 struct NetworkClient : public NetworkChannel
 {
+  NetworkClient() = default;
   NetworkClient(const std::string &host, short port);
   ~NetworkClient() override = default;
+
+  void connect(const std::string &host, short port);
 };
 
 // Inlined helper functions ///////////////////////////////////////////////////
