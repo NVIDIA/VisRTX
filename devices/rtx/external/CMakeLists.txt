@@ -29,4 +29,6 @@
 
 add_subdirectory(fmtlib)
 add_subdirectory(nonstd)
-add_subdirectory(stb_image)
+if(NOT TARGET stb_image)
+  add_subdirectory(stb_image)
+endif()

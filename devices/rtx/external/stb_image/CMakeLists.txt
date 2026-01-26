@@ -31,6 +31,19 @@ if (TARGET visrtx::stb_image)
   return()
 endif()
 
+# Check if a different stb_image target exists (e.g., from OWL)
+if (TARGET stb_image)
+  # Create an alias with VisRTX's expected name
+  if (NOT TARGET visrtx_stb_image)
+    add_library(visrtx_stb_image STATIC stb_image_write.c stb_image.c)
+    target_include_directories(visrtx_stb_image INTERFACE ${CMAKE_CURRENT_LIST_DIR})
+    add_library(visrtx::stb_image ALIAS visrtx_stb_image)
+    # Also create the expected bare name alias for internal use
+    add_library(stb_image_visrtx ALIAS visrtx_stb_image)
+  endif()
+  return()
+endif()
+
 project(stb_image LANGUAGES C)
 add_library(stb_image STATIC stb_image_write.c stb_image.c)
 target_include_directories(stb_image INTERFACE ${CMAKE_CURRENT_LIST_DIR})
