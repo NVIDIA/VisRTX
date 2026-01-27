@@ -11,11 +11,9 @@
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/tsd_font.h"
-#include "tsd/ui/imgui/tsd_ui_imgui.h"
 #include "tsd/ui/imgui/windows/Window.h"
 // anari_viewer
 #include "anari_viewer/ui_anari.h"
-#include "anari_viewer/windows/Window.h"
 // SDL
 #include <SDL3/SDL_dialog.h>
 #include <SDL3/SDL_video.h>
@@ -48,6 +46,12 @@ CommandLineOptions *Application::commandLineOptions()
 {
   return &m_commandLine;
 }
+#ifdef TSD_USE_LUA
+ExtensionManager *Application::extensionManager() const
+{
+  return m_extensionManager.get();
+}
+#endif
 
 void Application::getFilenameFromDialog(std::string &filenameOut, bool save)
 {
@@ -130,6 +134,11 @@ anari_viewer::WindowArray Application::setupWindows()
   m_appSettingsDialog->applySettings();
 
   SDL_SetRenderVSync(sdlRenderer(), 1);
+
+#ifdef TSD_USE_LUA
+  m_extensionManager = std::make_unique<ExtensionManager>();
+  m_extensionManager->initialize(appCore());
+#endif
 
   return {};
 }
@@ -322,12 +331,17 @@ void Application::uiMainMenuBar()
     ImGui::EndMenu();
   }
 
+#ifdef TSD_USE_LUA
+  renderLuaMenu();
+#endif
+
   if (ImGui::BeginMenu("View")) {
     for (auto &w : m_windows) {
       ImGui::PushID(&w);
       ImGui::Checkbox(w->name(), w->visiblePtr());
       ImGui::PopID();
     }
+
     ImGui::EndMenu();
   }
 }
@@ -615,5 +629,48 @@ void Application::updateWindowTitle()
 
   SDL_SetWindowTitle(w, title.c_str());
 }
+
+#ifdef TSD_USE_LUA
+void Application::renderLuaMenu()
+{
+  if (ImGui::BeginMenu("Lua")) {
+    const auto &tree = m_extensionManager->getMenuTree();
+    renderActionMenu(tree);
+
+    if (!tree.empty())
+      ImGui::Separator();
+
+    if (ImGui::MenuItem("Reload Script"))
+      m_extensionManager->refresh();
+
+    ImGui::EndMenu();
+  }
+}
+
+void Application::renderActionMenu(const std::vector<ActionMenuNode> &entries)
+{
+  for (const auto &entry : entries) {
+    if (entry.isSeparator) {
+      ImGui::Separator();
+    } else if (entry.isFolder) {
+      if (ImGui::BeginMenu(entry.name.c_str())) {
+        renderActionMenu(entry.children);
+        ImGui::EndMenu();
+      }
+    } else {
+      if (ImGui::MenuItem(entry.name.c_str())) {
+        showTaskModal(
+            [this, actionIndex = entry.actionIndex]() {
+              m_extensionManager->executeAction(actionIndex);
+            },
+            "Executing Action...");
+      }
+
+      if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", entry.name.c_str());
+    }
+  }
+}
+#endif
 
 } // namespace tsd::ui::imgui

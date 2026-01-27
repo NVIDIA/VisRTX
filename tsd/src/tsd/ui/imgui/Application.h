@@ -16,6 +16,10 @@
 // anari_viewer
 #include <anari_viewer/Application.h>
 
+#ifdef TSD_USE_LUA
+#include "ExtensionManager.h"
+#endif
+
 namespace tsd::ui::imgui {
 
 struct Window;
@@ -55,6 +59,10 @@ class Application : public anari_viewer::Application
   void showTaskModal(FUNCTION &&f, const char *text = "Please Wait");
   void showImportFileDialog();
   void showExportNanoVDBFileDialog();
+  // Not movable or copyable //
+#ifdef TSD_USE_LUA
+  ExtensionManager *extensionManager() const;
+#endif
 
   ///////////////////////////////////////////////////////
   //// Application is not a movable or copyable type ////
@@ -76,6 +84,11 @@ class Application : public anari_viewer::Application
   // Internal API //
 
   virtual void uiMainMenuBar();
+
+#ifdef TSD_USE_LUA
+  void renderLuaMenu();
+  void renderActionMenu(const std::vector<ActionMenuNode> &entries);
+#endif
 
   void doSave(const std::string &name = "");
 
@@ -125,6 +138,10 @@ class Application : public anari_viewer::Application
   std::string m_currentSessionFilename;
   std::string m_filenameToSaveNextFrame;
   std::string m_filenameToLoadNextFrame;
+
+#ifdef TSD_USE_LUA
+  std::unique_ptr<ExtensionManager> m_extensionManager;
+#endif
 
   struct UsdDeviceState
   {
