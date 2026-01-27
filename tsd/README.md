@@ -56,3 +56,7 @@ for the definitive list of available options. Note that some importers may only
 work when explicitly enabled in CMake -- this is for when the importer incurs
 an additional build dependency. Use `ccmake` or `cmake-gui` to discover what
 additional options may need to be enabled.
+
+## Components
+
+- [Lua Scripting](src/tsd/scripting/) — Lua bindings and scripting API
