@@ -100,7 +100,7 @@ struct Application : public TSDApplication
       ImGui::BeginDisabled(!m_client->isConnected());
       if (ImGui::MenuItem("Disconnect", "", false, true)) {
         tsd::core::logStatus("[Client] Disconnecting from server...");
-        tsd::core::logWarning("[Client] Disconnect not yet implemented");
+        m_client->disconnect();
       }
       ImGui::EndDisabled();
 

@@ -70,6 +70,7 @@ struct NetworkClient : public NetworkChannel
   ~NetworkClient() override = default;
 
   void connect(const std::string &host, short port);
+  void disconnect();
 };
 
 // Inlined helper functions ///////////////////////////////////////////////////
