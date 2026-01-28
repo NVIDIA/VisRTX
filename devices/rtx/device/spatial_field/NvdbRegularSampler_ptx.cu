@@ -69,11 +69,11 @@ VISRTX_DEVICE void initNvdbSampler(
   // outermost voxel values.
   // Scale moves from index space to index space - 1
   state.offsetDown = -nanovdb::Vec3f(indexBBox.min());
-  if (field->data.nvdbRectilinear.cellCentered) {
-    state.offsetUp = nanovdb::Vec3f(-0.5f) - state.offsetDown;
+  if (field->data.nvdbRegular.cellCentered) {
+    state.offsetUp = nanovdb::Vec3f(-0.5f) + state.offsetDown;
     state.scale = nanovdb::Vec3f(1.0f);
   } else {
-    state.offsetUp = -state.offsetDown;
+    state.offsetUp = state.offsetDown;
     state.scale = (dims) / (dims + nanovdb::Vec3f(1.0f));
   }
 

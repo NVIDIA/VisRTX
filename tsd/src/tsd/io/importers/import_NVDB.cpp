@@ -121,8 +121,8 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
       logStatus("No data range found.");
     }
 
-    auto gridData = scene.createArray(ANARI_UINT8, grid.size());
-    std::memcpy(gridData->map(), grid.data(), grid.size());
+    auto gridData = scene.createArray(ANARI_UINT8, grid.bufferSize());
+    std::memcpy(gridData->map(), grid.data(), grid.bufferSize());
     gridData->unmap();
     field->setParameterObject("data", *gridData);
 

@@ -220,7 +220,7 @@ void doExportStructuredVolumeToNanoVDB(const T *data,
   }
 
   // Calculate quantization compression (after quantization)
-  size_t finalSize = handle.size();
+  size_t finalSize = handle.bufferSize();
   float quantizationCompression = uncompressedActiveSize > 0
       ? (1.0f - static_cast<float>(finalSize) / uncompressedActiveSize)
       : 0.0f;

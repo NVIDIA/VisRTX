@@ -76,9 +76,9 @@ VISRTX_DEVICE void initNvdbRectilinearSampler(
   state.scaleUp = dims - nanovdb::Vec3f(1.0f);
   state.offsetDown = -nanovdb::Vec3f(indexBBox.min());
   if (field->data.nvdbRectilinear.cellCentered) {
-    state.offsetUp = nanovdb::Vec3f(-0.5f) - state.offsetDown;
+    state.offsetUp = nanovdb::Vec3f(-0.5f) + state.offsetDown;
   } else {
-    state.offsetUp = -state.offsetDown;
+    state.offsetUp = state.offsetDown;
   }
   state.indexMin = nanovdb::Vec3f(indexBBox.min());
   state.indexMax = nanovdb::Vec3f(indexBBox.max());
