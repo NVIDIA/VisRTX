@@ -35,6 +35,7 @@ struct BaseUpdateDelegate
   virtual void signalActiveLayersChanged() = 0;
   virtual void signalObjectFilteringChanged() = 0;
   virtual void signalInvalidateCachedObjects() = 0;
+  virtual void signalAnimationTimeChanged(float time) = 0;
 
   // Not copyable or movable
   BaseUpdateDelegate(const BaseUpdateDelegate &) = delete;
@@ -64,6 +65,7 @@ struct EmptyUpdateDelegate : public BaseUpdateDelegate
   void signalActiveLayersChanged() override {}
   void signalObjectFilteringChanged() override {}
   void signalInvalidateCachedObjects() override {}
+  void signalAnimationTimeChanged(float) override {}
 };
 
 /// Update delegate that dispatches signals to N held other update delegates
@@ -99,6 +101,7 @@ struct MultiUpdateDelegate : public BaseUpdateDelegate
   void signalActiveLayersChanged() override;
   void signalObjectFilteringChanged() override;
   void signalInvalidateCachedObjects() override;
+  void signalAnimationTimeChanged(float time) override;
 
  private:
   std::vector<std::unique_ptr<BaseUpdateDelegate>> m_delegates;

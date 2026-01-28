@@ -548,6 +548,10 @@ void Scene::setAnimationTime(float time)
   m_animations.time = time;
   for (auto &a : m_animations.objects)
     a->update(time);
+  
+  // Signal delegates that animation time changed
+  if (m_updateDelegate)
+    m_updateDelegate->signalAnimationTimeChanged(time);
 }
 
 float Scene::getAnimationTime() const
