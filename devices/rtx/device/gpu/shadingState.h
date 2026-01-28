@@ -60,6 +60,7 @@ struct NextRay
 struct MatteShadingState
 {
   vec3 baseColor;
+  vec3 normal;
   float opacity;
 };
 

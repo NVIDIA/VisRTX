@@ -45,14 +45,13 @@ VISRTX_CALLABLE void __direct_callable__init(MatteShadingState *shadingState,
   float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
 
   shadingState->baseColor = vec3(color);
+  shadingState->normal = hit->Ns;
   shadingState->opacity =
       adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
 }
 
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
-    const MatteShadingState *shadingState,
-    const Ray *ray,
-    RandState *rs)
+    const MatteShadingState *shadingState, const Ray *ray, RandState *rs)
 {
   return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
 }
@@ -70,13 +69,15 @@ float __direct_callable__evaluateOpacity(const MatteShadingState *shadingState)
 }
 
 VISRTX_CALLABLE
-vec3 __direct_callable__evaluateEmission(const MatteShadingState *shadingState, const vec3* outgoingDir)
+vec3 __direct_callable__evaluateEmission(
+    const MatteShadingState *shadingState, const vec3 *outgoingDir)
 {
   return vec3(0.0f, 0.0f, 0.0f);
 }
 
 VISRTX_CALLABLE
-vec3 __direct_callable__evaluateTransmission(const MatteShadingState *shadingState)
+vec3 __direct_callable__evaluateTransmission(
+    const MatteShadingState *shadingState)
 {
   return vec3(0.0f);
 }
@@ -95,5 +96,6 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     const vec3 *outgoingDir)
 {
   float NdotL = fmaxf(0.0f, dot(hit->Ns, lightSample->dir));
-  return shadingState->baseColor * float(M_1_PI) * NdotL * lightSample->radiance / lightSample->pdf;
+  return shadingState->baseColor * float(M_1_PI) * NdotL * lightSample->radiance
+      / lightSample->pdf;
 }
