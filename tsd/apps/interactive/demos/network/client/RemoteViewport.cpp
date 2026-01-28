@@ -111,6 +111,7 @@ void RemoteViewport::setupRenderPipeline()
   m_outputPass = m_pipeline.emplace_back<tsd::rendering::CopyToSDLTexturePass>(
       m_app->sdlRenderer());
 
+  m_clearPass->setClearColor(tsd::math::float4(1.f, 0.f, 0.f, 1.f));
   m_incomingFramePass->setExternalBuffer(m_incomingColorBuffer);
 
   reshape(m_viewportSize);
