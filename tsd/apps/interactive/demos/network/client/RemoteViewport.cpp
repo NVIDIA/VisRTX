@@ -151,22 +151,7 @@ void RemoteViewport::updateCamera()
 
     m_channel->send(
         tsd::network::make_message(MessageType::SERVER_SET_VIEW, &viewMsg));
-
-    if (m_echoCameraConfig)
-      echoCameraConfig();
   }
-}
-
-void RemoteViewport::echoCameraConfig()
-{
-  const auto p = m_arcball->eye();
-  const auto d = m_arcball->dir();
-  const auto u = m_arcball->up();
-
-  tsd::core::logStatus("Camera:");
-  tsd::core::logStatus("  pos: %f, %f, %f", p.x, p.y, p.z);
-  tsd::core::logStatus("  dir: %f, %f, %f", d.x, d.y, d.z);
-  tsd::core::logStatus("   up: %f, %f, %f", u.x, u.y, u.z);
 }
 
 void RemoteViewport::ui_menubar()
@@ -251,7 +236,6 @@ void RemoteViewport::ui_handleInput()
 
 void RemoteViewport::ui_overlay()
 {
-#if 0
   ImVec2 contentStart = ImGui::GetCursorStartPos();
   ImGui::SetCursorPos(ImVec2(contentStart[0] + 2.0f, contentStart[1] + 2.0f));
 
@@ -266,25 +250,14 @@ void RemoteViewport::ui_overlay()
   // This ensures it's properly occluded when other windows are on top.
   if (ImGui::BeginChild(
           "##viewportOverlay", ImVec2(0, 0), childFlags, childWindowFlags)) {
-    ImGui::Text("  device: %s", m_libName.c_str());
+    ImGui::Text("viewport: %i x %i", m_viewportSize.x, m_viewportSize.y);
 
-    // Camera indicator
-    if (m_selectedCamera) {
-      ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f),
-          "  camera: %s",
-          m_selectedCamera->name().c_str());
-    } else {
-      ImGui::Text("  camera: <Manipulator>");
-    }
-
-    ImGui::Text("Viewport: %i x %i", m_viewportSize.x, m_viewportSize.y);
-    ImGui::Text("  render: %i x %i", m_renderSize.x, m_renderSize.y);
-    ImGui::Text(" samples: %i", m_frameSamples);
-
+#if 0
     ImGui::Text(" display: %.2fms", m_latestFL);
     ImGui::Text("   ANARI: %.2fms", m_latestAnariFL);
     ImGui::Text("   (min): %.2fms", m_minFL);
     ImGui::Text("   (max): %.2fms", m_maxFL);
+#endif
 
     ImGui::Separator();
     ImGui::Checkbox("camera config", &m_showCameraInfo);
@@ -298,11 +271,6 @@ void RemoteViewport::ui_overlay()
       update |= ImGui::SliderFloat("el", &azel.y, 0.f, 360.f);
       update |= ImGui::DragFloat("dist", &dist);
       update |= ImGui::DragFloat3("at", &at.x);
-      ImGui::BeginDisabled(m_currentCamera != m_orthoCamera);
-      update |= ImGui::DragFloat("near", &fixedDist);
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("near plane distance for orthographic camera");
-      ImGui::EndDisabled();
 
       if (update) {
         m_arcball->setConfig(at, dist, azel);
@@ -313,7 +281,6 @@ void RemoteViewport::ui_overlay()
   ImGui::EndChild();
 
   ImGui::PopStyleColor();
-#endif
 }
 
 int RemoteViewport::windowFlags() const

@@ -41,7 +41,6 @@ struct RemoteViewport : public Window
 
   void updateCamera();
 
-  void echoCameraConfig();
   void ui_menubar();
   void ui_handleInput();
   void ui_overlay();
@@ -54,8 +53,6 @@ struct RemoteViewport : public Window
   bool m_wasConnected{false};
   bool m_mouseRotating{false};
   bool m_manipulating{false};
-  bool m_echoCameraConfig{false};
-
   bool m_showOverlay{true};
   bool m_showCameraInfo{false};
 
