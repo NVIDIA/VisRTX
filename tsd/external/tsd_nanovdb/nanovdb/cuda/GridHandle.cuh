@@ -25,22 +25,25 @@ namespace nanovdb {
 
 namespace cuda {
 
-namespace {// anonymous namespace
-__global__ void cpyGridHandleMeta(const GridData *d_data, GridHandleMetaData *d_meta)
+namespace detail {
+
+static __global__ void cpyGridHandleMeta(const GridData *d_data, GridHandleMetaData *d_meta)
 {
     nanovdb::cpyGridHandleMeta(d_data, d_meta);
 }
 
-__global__ void updateGridCount(GridData *d_data, uint32_t gridIndex, uint32_t gridCount, bool *d_dirty)
+static __global__ void updateGridCount(GridData *d_data, uint32_t gridIndex, uint32_t gridCount, bool *d_dirty)
 {
     NANOVDB_ASSERT(gridIndex < gridCount);
-    if (*d_dirty = d_data->mGridIndex != gridIndex || d_data->mGridCount != gridCount) {
+    *d_dirty = (d_data->mGridIndex != gridIndex) || (d_data->mGridCount != gridCount);
+    if (*d_dirty) {
         d_data->mGridIndex = gridIndex;
         d_data->mGridCount = gridCount;
         if (d_data->mChecksum.isEmpty()) *d_dirty = false;// no need to update checksum if it didn't already exist
     }
 }
-}// anonymous namespace
+
+}// namespace detail
 
 template<typename BufferT, template <class, class...> class VectorT = std::vector>
 inline typename util::enable_if<BufferTraits<BufferT>::hasDeviceDual, VectorT<GridHandle<BufferT>>>::type
@@ -51,20 +54,22 @@ splitGridHandles(const GridHandle<BufferT> &handle, const BufferT* other = nullp
     VectorT<GridHandle<BufferT>> handles(handle.gridCount());
     bool dirty, *d_dirty;// use this to check if the checksum needs to be recomputed
     cudaCheck(util::cuda::mallocAsync((void**)&d_dirty, sizeof(bool), stream));
+    int device = util::cuda::currentDevice();
     for (uint32_t n=0; n<handle.gridCount(); ++n) {
-        auto buffer = BufferT::create(handle.gridSize(n), other, false, stream);
+        auto buffer = BufferT::create(handle.gridSize(n), other, device, stream);
         GridData *dst = reinterpret_cast<GridData*>(buffer.deviceData());
         const GridData *src = reinterpret_cast<const GridData*>(ptr);
         cudaCheck(cudaMemcpyAsync(dst, src, handle.gridSize(n), cudaMemcpyDeviceToDevice, stream));
-        updateGridCount<<<1, 1, 0, stream>>>(dst, 0u, 1u, d_dirty);
+        detail::updateGridCount<<<1, 1, 0, stream>>>(dst, 0u, 1u, d_dirty);
         cudaCheckError();
         cudaCheck(cudaMemcpyAsync(&dirty, d_dirty, sizeof(bool), cudaMemcpyDeviceToHost, stream));
+        cudaCheck(cudaStreamSynchronize(stream));
         if (dirty) tools::cuda::updateChecksum(dst, CheckMode::Partial, stream);
         handles[n] = nanovdb::GridHandle<BufferT>(std::move(buffer));
         ptr = util::PtrAdd(ptr, handle.gridSize(n));
     }
     cudaCheck(util::cuda::freeAsync(d_dirty, stream));
-    return std::move(handles);
+    return handles;
 }// cuda::splitGridHandles
 
 template<typename BufferT, template <class, class...> class VectorT>
@@ -77,7 +82,8 @@ mergeGridHandles(const VectorT<GridHandle<BufferT>> &handles, const BufferT* oth
         gridCount += h.gridCount();
         for (uint32_t n=0; n<h.gridCount(); ++n) size += h.gridSize(n);
     }
-    auto buffer = BufferT::create(size, other, false, stream);
+    int device = util::cuda::currentDevice();
+    auto buffer = BufferT::create(size, other, device, stream);
     void *dst = buffer.deviceData();
     bool dirty, *d_dirty;// use this to check if the checksum needs to be recomputed
     cudaCheck(util::cuda::mallocAsync((void**)&d_dirty, sizeof(bool), stream));
@@ -86,9 +92,10 @@ mergeGridHandles(const VectorT<GridHandle<BufferT>> &handles, const BufferT* oth
         for (uint32_t n=0; n<h.gridCount(); ++n) {
             cudaCheck(cudaMemcpyAsync(dst, src, h.gridSize(n), cudaMemcpyDeviceToDevice, stream));
             GridData *data = reinterpret_cast<GridData*>(dst);
-            updateGridCount<<<1, 1, 0, stream>>>(data, counter++, gridCount, d_dirty);
+            detail::updateGridCount<<<1, 1, 0, stream>>>(data, counter++, gridCount, d_dirty);
             cudaCheckError();
             cudaCheck(cudaMemcpyAsync(&dirty, d_dirty, sizeof(bool), cudaMemcpyDeviceToHost, stream));
+            cudaCheck(cudaStreamSynchronize(stream));
             if (dirty) tools::cuda::updateChecksum(data, CheckMode::Partial, stream);
             dst = util::PtrAdd(dst, h.gridSize(n));
             src = util::PtrAdd(src, h.gridSize(n));
@@ -129,7 +136,7 @@ GridHandle<BufferT>::GridHandle(T&& buffer)
             if (!tmp.isValid()) throw std::runtime_error("GridHandle was constructed with an invalid device buffer");
             GridHandleMetaData *d_metaData;
             cudaMalloc((void**)&d_metaData, tmp.mGridCount*sizeof(GridHandleMetaData));
-            cuda::cpyGridHandleMeta<<<1,1>>>(d_data, d_metaData);
+            cuda::detail::cpyGridHandleMeta<<<1,1>>>(d_data, d_metaData);
             mMetaData.resize(tmp.mGridCount);
             cudaCheck(cudaMemcpy(mMetaData.data(), d_metaData,tmp.mGridCount*sizeof(GridHandleMetaData), cudaMemcpyDeviceToHost));
             cudaCheck(cudaFree(d_metaData));
