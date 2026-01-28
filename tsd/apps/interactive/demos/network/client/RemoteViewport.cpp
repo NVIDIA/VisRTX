@@ -41,14 +41,18 @@ void RemoteViewport::buildUI()
   if (m_viewportSize != viewportSize || m_wasConnected != isConnected)
     reshape(viewportSize);
 
+  if (!m_wasConnected && isConnected) {
+    m_channel->send(
+        tsd::network::make_message(MessageType::SERVER_REQUEST_VIEW));
+  }
+
   m_wasConnected = isConnected;
+  m_incomingFramePass->setEnabled(isConnected);
 
   updateCamera();
   m_pipeline.render();
 
   ui_menubar();
-
-  ImGui::BeginDisabled(!isConnected);
 
   if (m_outputPass) {
     ImGui::Image((ImTextureID)m_outputPass->getTexture(),
@@ -62,8 +66,6 @@ void RemoteViewport::buildUI()
   // Render the overlay after input handling so it does not interfere.
   if (m_showOverlay)
     ui_overlay();
-
-  ImGui::EndDisabled();
 }
 
 void RemoteViewport::setManipulator(tsd::rendering::Manipulator *m)

@@ -22,6 +22,7 @@ struct Application : public TSDApplication
   Application()
   {
     m_client = std::make_shared<tsd::network::NetworkClient>();
+
     m_client->registerHandler(
         MessageType::ERROR, [](const tsd::network::Message &msg) {
           tsd::core::logError("[Client] Received error from server: '%s'",
@@ -32,6 +33,20 @@ struct Application : public TSDApplication
     m_client->registerHandler(
         MessageType::CLIENT_PING, [](const tsd::network::Message &msg) {
           tsd::core::logStatus("[Client] Received PING from server");
+        });
+
+    m_client->registerHandler(MessageType::CLIENT_RECEIVE_VIEW,
+        [this](const tsd::network::Message &msg) {
+          tsd::core::logStatus("[Client] Received view from server");
+          const auto *viewMsg =
+              tsd::network::payloadAs<tsd::network::RenderSession::View>(msg);
+          auto *core = appCore();
+          auto *manipulator = &core->view.manipulator;
+          manipulator->setConfig(
+              tsd::math::float3(
+                  viewMsg->lookat.x, viewMsg->lookat.y, viewMsg->lookat.z),
+              viewMsg->azeldist.z,
+              tsd::math::float2(viewMsg->azeldist.x, viewMsg->azeldist.y));
         });
 
     m_client->start();
@@ -58,10 +73,6 @@ struct Application : public TSDApplication
     windows.emplace_back(log);
 
     setWindowArray(windows);
-
-    manipulator->setConfig(tsd::math::float3(0.f, 0.136f, 0.f),
-        0.95f,
-        tsd::math::float2(315.f, 20.f));
 
     return windows;
   }
@@ -238,7 +249,6 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
   }
 
  private:
-  uint64_t m_accumulationVersion{0};
   tsd::ui::imgui::RemoteViewport *m_viewport{nullptr};
   std::shared_ptr<tsd::network::NetworkClient> m_client;
   std::string m_host{"127.0.0.1"};
