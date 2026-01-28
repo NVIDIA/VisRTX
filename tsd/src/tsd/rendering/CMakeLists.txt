@@ -13,6 +13,8 @@ PRIVATE
   pipeline/passes/AnariAxesRenderPass.cpp
   pipeline/passes/AnariSceneRenderPass.cpp
   pipeline/passes/ClearBuffersPass.cpp
+  pipeline/passes/CopyFromColorBufferPass.cpp
+  pipeline/passes/CopyToColorBufferPass.cpp
   pipeline/passes/CopyToSDLTexturePass.cpp
   pipeline/passes/MultiDeviceSceneRenderPass.cpp
   pipeline/passes/OutlineRenderPass.cpp

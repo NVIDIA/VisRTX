@@ -5,8 +5,6 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 
-#include "CopyFromColorBufferPass.hpp"
-
 namespace tsd::network {
 
 RenderServer::RenderServer(int argc, const char **argv)

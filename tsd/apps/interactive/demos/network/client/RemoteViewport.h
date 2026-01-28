@@ -12,8 +12,6 @@
 // tsd_network
 #include "tsd/network/NetworkChannel.hpp"
 
-#include "CopyToColorBufferPass.hpp"
-
 #include "../RenderSession.hpp"
 
 using tsd::network::MessageType;
