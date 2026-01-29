@@ -33,8 +33,7 @@ int main()
   // Client setup //
 
   auto session = std::make_shared<tsd::network::RenderSession>();
-  auto client =
-      std::make_shared<tsd::network::NetworkClient>("127.0.0.1", 12345);
+  auto client = std::make_shared<tsd::network::NetworkClient>();
 
   // Handlers //
 
@@ -84,7 +83,16 @@ int main()
 
   // Run client //
 
-  client->start();
+  client->connect("127.0.0.1", 12345);
+
+  client->send(make_message(MessageType::SERVER_START_RENDERING));
+
+  tsd::core::logStatus("[Client] Rendering for 1 second...");
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+
+  client->send(make_message(MessageType::SERVER_STOP_RENDERING)).get();
+  client->send(make_message(MessageType::SERVER_REQUEST_FRAME_CONFIG)).get();
+  client->send(make_message(MessageType::SERVER_REQUEST_VIEW)).get();
 
   for (int i = 0; i < 3; ++i) {
     tsd::core::logStatus("[Client] Sending PING #%d", i + 1);
@@ -92,22 +100,13 @@ int main()
     client->send(make_message(MessageType::SERVER_PING));
   }
 
-  client->send(make_message(MessageType::SERVER_REQUEST_FRAME_CONFIG));
-  client->send(make_message(MessageType::SERVER_REQUEST_VIEW));
-  client->send(make_message(MessageType::SERVER_START_RENDERING));
-
-  for (int i = 0; i < 3; ++i) {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    tsd::core::logStatus("[Client] Waiting for %i seconds...", i + 1);
-  }
-
-  client->send(make_message(MessageType::SERVER_STOP_RENDERING));
+  tsd::core::logStatus("[Client] Waiting for 3 seconds...");
+  std::this_thread::sleep_for(std::chrono::seconds(3));
 
   // Shutdown //
 
   tsd::core::logStatus("[Client] Sending SHUTDOWN");
-  client->send(make_message(MessageType::SERVER_SHUTDOWN));
-
+  client->send(make_message(MessageType::SERVER_SHUTDOWN)).get();
   client->stop();
 
   // Store fine frame //

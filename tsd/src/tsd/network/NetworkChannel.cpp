@@ -41,43 +41,13 @@ void NetworkChannel::removeAllHandlers()
   m_handlers.clear();
 }
 
-void NetworkChannel::send(const Message &msg)
-{
-  if (!isConnected()) {
-    tsd::core::logError("[NetworkChannel] Cannot send message: not connected");
-    return;
-  }
-
-  auto self = shared_from_this();
-
-  auto header = std::make_shared<Message::Header>();
-  std::memcpy(header.get(), &msg.header, sizeof(Message::Header));
-
-  asio::async_write(m_socket,
-      asio::buffer(header.get(), sizeof(Message::Header)),
-      [self, header](const boost::system::error_code &error, std::size_t) {
-        self->log_asio_error(error, "Send(Header)");
-      });
-
-  if (msg.header.payload_length == 0)
-    return;
-
-  auto payload = std::make_shared<MessagePayload>();
-  *payload = msg.payload;
-  asio::async_write(m_socket,
-      asio::buffer(*payload),
-      [self, payload](const boost::system::error_code &error, std::size_t) {
-        self->log_asio_error(error, "Send(Payload)");
-      });
-}
-
-MessageFuture NetworkChannel::sendAsync(const Message &msg)
+MessageFuture NetworkChannel::send(const Message &msg)
 {
   auto promise = std::make_shared<std::promise<boost::system::error_code>>();
   auto future = promise->get_future();
 
   if (!isConnected()) {
-    log_asio_error(asio::error::not_connected, "SendAsync");
+    log_asio_error(asio::error::not_connected, "Send");
     promise->set_value(asio::error::not_connected); // Set error in promise
     return future;
   }

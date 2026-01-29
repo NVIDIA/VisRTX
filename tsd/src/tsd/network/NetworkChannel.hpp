@@ -27,9 +27,7 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
 
   // Send messages //
 
-  // NOTE(jda) - this is also async, just no future involved
-  void send(const Message &msg);
-  MessageFuture sendAsync(const Message &msg);
+  MessageFuture send(const Message &msg);
 
   // Start/stop channel from sending and receiving messages //
 

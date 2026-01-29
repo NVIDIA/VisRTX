@@ -94,7 +94,7 @@ struct Application : public TSDApplication
                 m_host.c_str(),
                 m_port);
             m_client
-                ->sendAsync(tsd::network::make_message(
+                ->send(tsd::network::make_message(
                     MessageType::SERVER_START_RENDERING))
                 .get();
           } else {
@@ -120,7 +120,7 @@ struct Application : public TSDApplication
 
       if (ImGui::MenuItem("Quit", "Esc", false, true)) {
         m_client
-            ->sendAsync(
+            ->send(
                 tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
             .get();
         m_client->disconnect();
@@ -151,9 +151,7 @@ struct Application : public TSDApplication
 
       if (ImGui::MenuItem("Shutdown")) {
         tsd::core::logStatus("[Client] Sending SHUTDOWN command");
-        m_client
-            ->sendAsync(
-                tsd::network::make_message(MessageType::SERVER_SHUTDOWN))
+        m_client->send(tsd::network::make_message(MessageType::SERVER_SHUTDOWN))
             .get();
         m_client->disconnect();
       }
@@ -174,8 +172,7 @@ struct Application : public TSDApplication
   void teardown() override
   {
     m_client
-        ->sendAsync(
-            tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
+        ->send(tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
         .get();
     m_client->disconnect();
     m_client->removeAllHandlers();

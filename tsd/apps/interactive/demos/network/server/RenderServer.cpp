@@ -31,20 +31,24 @@ void RenderServer::run(short port)
   tsd::core::logStatus("[Server] Listening on port %i...", int(port));
 
   while (m_mode != ServerMode::SHUTDOWN) {
-    if (!m_server->isConnected()) {
+    if (!m_server->isConnected() || m_mode == ServerMode::DISCONNECTED) {
       if (m_previousMode != ServerMode::DISCONNECTED) {
         tsd::core::logStatus("[Server] Listening on port %i...", int(port));
+        m_lastSentFrame = {};
         m_mode = ServerMode::DISCONNECTED;
       }
-    } else if (m_mode == ServerMode::PAUSED) {
-      if (m_previousMode != ServerMode::PAUSED)
-        tsd::core::logStatus("[Server] Rendering paused...");
-    } else {
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    } else if (m_mode == ServerMode::RENDERING) {
       tsd::core::logDebug("[Server] Rendering frame...");
       update_FrameConfig();
       update_View();
       m_renderPipeline.render();
       send_FrameBuffer();
+    } else {
+      if (m_previousMode != ServerMode::PAUSED)
+        tsd::core::logStatus("[Server] Rendering paused...");
+      m_lastSentFrame = {};
+      std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     m_previousMode = m_mode;
@@ -278,7 +282,7 @@ void RenderServer::send_FrameBuffer()
     return;
   }
 
-  m_lastSentFrame = m_server->sendAsync(
+  m_lastSentFrame = m_server->send(
       tsd::network::make_message(MessageType::CLIENT_RECEIVE_FRAME_BUFFER_COLOR,
           m_session.frame.buffers.color));
 }
