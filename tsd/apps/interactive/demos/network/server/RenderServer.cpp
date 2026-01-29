@@ -168,6 +168,7 @@ void RenderServer::setup_Messaging()
         tsd::core::logStatus(
             "[Server] Stopping rendering as requested by client.");
         m_rendering = false;
+        m_lastSentFrame.get();
       });
 
   m_server->registerHandler(

@@ -90,6 +90,19 @@ struct Application : public TSDApplication
           m_port = static_cast<short>(port);
         if (ImGui::Button("Connect")) {
           m_client->connect(m_host, m_port);
+          if (m_client->isConnected()) {
+            tsd::core::logStatus("[Client] Connected to server at %s:%d",
+                m_host.c_str(),
+                m_port);
+            m_client
+                ->sendAsync(tsd::network::make_message(
+                    MessageType::SERVER_START_RENDERING))
+                .get();
+          } else {
+            tsd::core::logError("[Client] Failed to connect to server at %s:%d",
+                m_host.c_str(),
+                m_port);
+          }
         }
         ImGui::EndMenu();
       } // Connect
@@ -144,6 +157,13 @@ struct Application : public TSDApplication
       tsd::core::logStatus("[Client] Sending PING");
       m_client->send(tsd::network::make_message(MessageType::SERVER_PING));
     }
+  }
+
+  void teardown() override
+  {
+    m_client->send(
+        tsd::network::make_message(MessageType::SERVER_STOP_RENDERING));
+    TSDApplication::teardown();
   }
 
   const char *getDefaultLayout() const override
