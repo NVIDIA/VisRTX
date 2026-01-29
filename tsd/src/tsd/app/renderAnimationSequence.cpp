@@ -110,8 +110,13 @@ static OfflineRenderRig setupRig(tsd::app::Core &core)
       rig.anariPass->setEnableAlbedo(true);
     } else if (config.aov.aovType == tsd::rendering::AOVType::NORMAL) {
       rig.anariPass->setEnableNormals(true);
-    } else if (config.aov.aovType == tsd::rendering::AOVType::EDGES) {
+    } else if (config.aov.aovType == tsd::rendering::AOVType::EDGES
+        || config.aov.aovType == tsd::rendering::AOVType::OBJECT_ID) {
       rig.anariPass->setEnableIDs(true);
+    } else if (config.aov.aovType == tsd::rendering::AOVType::PRIMITIVE_ID) {
+      rig.anariPass->setEnablePrimitiveId(true);
+    } else if (config.aov.aovType == tsd::rendering::AOVType::INSTANCE_ID) {
+      rig.anariPass->setEnableInstanceId(true);
     }
   }
 

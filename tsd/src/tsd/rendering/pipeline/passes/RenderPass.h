@@ -15,6 +15,8 @@ struct RenderBuffers
   uint32_t *color{nullptr};
   float *depth{nullptr};
   uint32_t *objectId{nullptr};
+  uint32_t *primitiveId{nullptr};
+  uint32_t *instanceId{nullptr};
   tsd::math::float3 *albedo{nullptr};
   tsd::math::float3 *normal{nullptr};
   detail::ComputeStream stream{};

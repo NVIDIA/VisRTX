@@ -501,8 +501,15 @@ void CameraPoses::renderInterpolatedPath()
             anariPass->setEnableAlbedo(true);
           } else if (config.aov.aovType == tsd::rendering::AOVType::NORMAL) {
             anariPass->setEnableNormals(true);
-          } else if (config.aov.aovType == tsd::rendering::AOVType::EDGES) {
+          } else if (config.aov.aovType == tsd::rendering::AOVType::EDGES
+              || config.aov.aovType == tsd::rendering::AOVType::OBJECT_ID) {
             anariPass->setEnableIDs(true);
+          } else if (config.aov.aovType
+              == tsd::rendering::AOVType::PRIMITIVE_ID) {
+            anariPass->setEnablePrimitiveId(true);
+          } else if (config.aov.aovType
+              == tsd::rendering::AOVType::INSTANCE_ID) {
+            anariPass->setEnableInstanceId(true);
           }
         }
 

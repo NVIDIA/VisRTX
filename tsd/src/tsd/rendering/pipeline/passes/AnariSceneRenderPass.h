@@ -19,6 +19,8 @@ struct AnariSceneRenderPass : public RenderPass
   void setWorld(anari::World w);
   void setColorFormat(anari::DataType t);
   void setEnableIDs(bool on);
+  void setEnablePrimitiveId(bool on);
+  void setEnableInstanceId(bool on);
   void setEnableAlbedo(bool on);
   void setEnableNormals(bool on);
 
@@ -42,6 +44,8 @@ struct AnariSceneRenderPass : public RenderPass
   bool m_firstFrame{true};
   bool m_deviceSupportsCUDAFrames{false};
   bool m_enableIDs{false};
+  bool m_enablePrimitiveId{false};
+  bool m_enableInstanceId{false};
   bool m_enableAlbedo{false};
   bool m_enableNormals{false};
   bool m_runAsync{true};

@@ -85,7 +85,8 @@ void Viewport::buildUI()
 
   if (m_anariPass && !didPick) {
     bool needIDs = appCore()->getFirstSelected().valid()
-        || m_visualizeAOV == tsd::rendering::AOVType::EDGES;
+        || m_visualizeAOV == tsd::rendering::AOVType::EDGES
+        || m_visualizeAOV == tsd::rendering::AOVType::OBJECT_ID;
     m_anariPass->setEnableIDs(needIDs);
   }
 
@@ -1178,8 +1179,14 @@ void Viewport::ui_menubar()
 
       ImGui::Separator();
 
-      const char *aovItems[] = {
-          "default", "depth", "albedo", "normal", "edges"};
+      const char *aovItems[] = {"default",
+          "depth",
+          "albedo",
+          "normal",
+          "edges",
+          "object ID",
+          "primitive ID",
+          "instance ID"};
       if (int aov = int(m_visualizeAOV); ImGui::Combo(
               "visualize AOV", &aov, aovItems, IM_ARRAYSIZE(aovItems))) {
         if (aov != int(m_visualizeAOV)) {
@@ -1190,7 +1197,12 @@ void Viewport::ui_menubar()
           m_anariPass->setEnableNormals(
               m_visualizeAOV == tsd::rendering::AOVType::NORMAL);
           m_anariPass->setEnableIDs(
-              m_visualizeAOV == tsd::rendering::AOVType::EDGES);
+              m_visualizeAOV == tsd::rendering::AOVType::EDGES
+              || m_visualizeAOV == tsd::rendering::AOVType::OBJECT_ID);
+          m_anariPass->setEnablePrimitiveId(
+              m_visualizeAOV == tsd::rendering::AOVType::PRIMITIVE_ID);
+          m_anariPass->setEnableInstanceId(
+              m_visualizeAOV == tsd::rendering::AOVType::INSTANCE_ID);
         }
       }
 

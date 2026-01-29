@@ -13,7 +13,10 @@ enum class AOVType
   DEPTH,
   ALBEDO,
   NORMAL,
-  EDGES
+  EDGES,
+  OBJECT_ID,
+  PRIMITIVE_ID,
+  INSTANCE_ID
 };
 
 struct VisualizeAOVPass : public RenderPass

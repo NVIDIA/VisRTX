@@ -156,6 +156,64 @@ void AnariSceneRenderPass::setEnableIDs(bool on)
   }
 }
 
+void AnariSceneRenderPass::setEnablePrimitiveId(bool on)
+{
+  if (on == m_enablePrimitiveId)
+    return;
+
+  m_enablePrimitiveId = on;
+
+  if (on) {
+    tsd::core::logInfo("[RenderPipeline] enabling primitiveId frame channel");
+
+    anari::discard(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+
+    anari::setParameter(m_device, m_frame, "channel.primitiveId", ANARI_UINT32);
+    anari::commitParameters(m_device, m_frame);
+
+    anari::render(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+  } else {
+    tsd::core::logInfo("[RenderPipeline] disabling primitiveId frame channel");
+    anari::unsetParameter(m_device, m_frame, "channel.primitiveId");
+    anari::commitParameters(m_device, m_frame);
+
+    auto size = getDimensions();
+    const size_t totalSize = size_t(size.x) * size_t(size.y);
+    std::fill(m_buffers.primitiveId, m_buffers.primitiveId + totalSize, ~0u);
+  }
+}
+
+void AnariSceneRenderPass::setEnableInstanceId(bool on)
+{
+  if (on == m_enableInstanceId)
+    return;
+
+  m_enableInstanceId = on;
+
+  if (on) {
+    tsd::core::logInfo("[RenderPipeline] enabling instanceId frame channel");
+
+    anari::discard(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+
+    anari::setParameter(m_device, m_frame, "channel.instanceId", ANARI_UINT32);
+    anari::commitParameters(m_device, m_frame);
+
+    anari::render(m_device, m_frame);
+    anari::wait(m_device, m_frame);
+  } else {
+    tsd::core::logInfo("[RenderPipeline] disabling instanceId frame channel");
+    anari::unsetParameter(m_device, m_frame, "channel.instanceId");
+    anari::commitParameters(m_device, m_frame);
+
+    auto size = getDimensions();
+    const size_t totalSize = size_t(size.x) * size_t(size.y);
+    std::fill(m_buffers.instanceId, m_buffers.instanceId + totalSize, ~0u);
+  }
+}
+
 void AnariSceneRenderPass::setEnableAlbedo(bool on)
 {
   if (on == m_enableAlbedo)
@@ -237,6 +295,8 @@ void AnariSceneRenderPass::updateSize()
   m_buffers.color = detail::allocate<uint32_t>(totalSize);
   m_buffers.depth = detail::allocate<float>(totalSize);
   m_buffers.objectId = detail::allocate<uint32_t>(totalSize);
+  m_buffers.primitiveId = detail::allocate<uint32_t>(totalSize);
+  m_buffers.instanceId = detail::allocate<uint32_t>(totalSize);
   m_buffers.albedo = detail::allocate<tsd::math::float3>(totalSize);
   m_buffers.normal = detail::allocate<tsd::math::float3>(totalSize);
 }
@@ -267,8 +327,14 @@ void AnariSceneRenderPass::copyFrameData()
       m_deviceSupportsCUDAFrames ? "channel.colorCUDA" : "channel.color";
   const char *depthChannel =
       m_deviceSupportsCUDAFrames ? "channel.depthCUDA" : "channel.depth";
-  const char *idChannel =
+  const char *objectIdChannel =
       m_deviceSupportsCUDAFrames ? "channel.objectIdCUDA" : "channel.objectId";
+  const char *primitiveIdChannel = m_deviceSupportsCUDAFrames
+      ? "channel.primitiveIdCUDA"
+      : "channel.primitiveId";
+  const char *instanceIdChannel = m_deviceSupportsCUDAFrames
+      ? "channel.instanceIdCUDA"
+      : "channel.instanceId";
   const char *albedoChannel =
       m_deviceSupportsCUDAFrames ? "channel.albedoCUDA" : "channel.albedo";
   const char *normalChannel =
@@ -290,17 +356,31 @@ void AnariSceneRenderPass::copyFrameData()
 
     detail::copy(m_buffers.depth, depth.data, totalSize);
     if (m_enableIDs) {
-      auto objectId = anari::map<uint32_t>(m_device, m_frame, idChannel);
+      auto objectId = anari::map<uint32_t>(m_device, m_frame, objectIdChannel);
       if (objectId.data)
         detail::copy(m_buffers.objectId, objectId.data, totalSize);
     }
+    if (m_enablePrimitiveId) {
+      auto primitiveId =
+          anari::map<uint32_t>(m_device, m_frame, primitiveIdChannel);
+      if (primitiveId.data)
+        detail::copy(m_buffers.primitiveId, primitiveId.data, totalSize);
+    }
+    if (m_enableInstanceId) {
+      auto instanceId =
+          anari::map<uint32_t>(m_device, m_frame, instanceIdChannel);
+      if (instanceId.data)
+        detail::copy(m_buffers.instanceId, instanceId.data, totalSize);
+    }
     if (m_enableAlbedo) {
-      auto albedo = anari::map<tsd::math::float3>(m_device, m_frame, albedoChannel);
+      auto albedo =
+          anari::map<tsd::math::float3>(m_device, m_frame, albedoChannel);
       if (albedo.data)
         detail::copy(m_buffers.albedo, albedo.data, totalSize);
     }
     if (m_enableNormals) {
-      auto normal = anari::map<tsd::math::float3>(m_device, m_frame, normalChannel);
+      auto normal =
+          anari::map<tsd::math::float3>(m_device, m_frame, normalChannel);
       if (normal.data)
         detail::copy(m_buffers.normal, normal.data, totalSize);
     }
@@ -309,7 +389,11 @@ void AnariSceneRenderPass::copyFrameData()
   anari::unmap(m_device, m_frame, colorChannel);
   anari::unmap(m_device, m_frame, depthChannel);
   if (m_enableIDs)
-    anari::unmap(m_device, m_frame, idChannel);
+    anari::unmap(m_device, m_frame, objectIdChannel);
+  if (m_enablePrimitiveId)
+    anari::unmap(m_device, m_frame, primitiveIdChannel);
+  if (m_enableInstanceId)
+    anari::unmap(m_device, m_frame, instanceIdChannel);
   if (m_enableAlbedo)
     anari::unmap(m_device, m_frame, albedoChannel);
   if (m_enableNormals)
@@ -326,6 +410,10 @@ void AnariSceneRenderPass::composite(RenderBuffers &b, int stageId)
     detail::copy(b.color, m_buffers.color, totalSize);
     detail::copy(b.depth, m_buffers.depth, totalSize);
     detail::copy(b.objectId, m_buffers.objectId, totalSize);
+    if (m_enablePrimitiveId)
+      detail::copy(b.primitiveId, m_buffers.primitiveId, totalSize);
+    if (m_enableInstanceId)
+      detail::copy(b.instanceId, m_buffers.instanceId, totalSize);
     if (m_enableAlbedo)
       detail::copy(b.albedo, m_buffers.albedo, totalSize);
     if (m_enableNormals)
@@ -340,6 +428,8 @@ void AnariSceneRenderPass::cleanup()
   detail::free(m_buffers.color);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
+  detail::free(m_buffers.primitiveId);
+  detail::free(m_buffers.instanceId);
   detail::free(m_buffers.albedo);
   detail::free(m_buffers.normal);
 }

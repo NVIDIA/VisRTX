@@ -11,6 +11,52 @@ namespace tsd::rendering {
 
 // Thrust kernels /////////////////////////////////////////////////////////////
 
+// Same as visrtx gpu_utils.h
+DEVICE_FCN tsd::math::float3 makeRandomColor(uint32_t i)
+{
+  const uint32_t mx = 13 * 17 * 43;
+  const uint32_t my = 11 * 29;
+  const uint32_t mz = 7 * 23 * 63;
+  const uint32_t g = (i * (3 * 5 * 127) + 12312314);
+
+  if (i == ~0u)
+    return tsd::math::float3(0.0f);
+
+  return tsd::math::float3((g % mx) * (1.f / (mx - 1)),
+      (g % my) * (1.f / (my - 1)),
+      (g % mz) * (1.f / (mz - 1)));
+}
+
+void computeObjectIdImage(RenderBuffers &b, tsd::math::uint2 size)
+{
+  detail::parallel_for(
+      b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
+        uint32_t id = b.objectId ? b.objectId[i] : ~0u;
+        auto color = makeRandomColor(id);
+        b.color[i] = helium::cvt_color_to_uint32({color, 1.f});
+      });
+}
+
+void computePrimitiveIdImage(RenderBuffers &b, tsd::math::uint2 size)
+{
+  detail::parallel_for(
+      b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
+        uint32_t id = b.primitiveId ? b.primitiveId[i] : ~0u;
+        auto color = makeRandomColor(id);
+        b.color[i] = helium::cvt_color_to_uint32({color, 1.f});
+      });
+}
+
+void computeInstanceIdImage(RenderBuffers &b, tsd::math::uint2 size)
+{
+  detail::parallel_for(
+      b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
+        uint32_t id = b.instanceId ? b.instanceId[i] : ~0u;
+        auto color = makeRandomColor(id);
+        b.color[i] = helium::cvt_color_to_uint32({color, 1.f});
+      });
+}
+
 void computeDepthImage(
     RenderBuffers &b, float minDepth, float maxDepth, tsd::math::uint2 size)
 {
@@ -147,6 +193,15 @@ void VisualizeAOVPass::render(RenderBuffers &b, int stageId)
     break;
   case AOVType::EDGES:
     computeEdgesImage(b, m_edgeThreshold, m_edgeInvert, size);
+    break;
+  case AOVType::OBJECT_ID:
+    computeObjectIdImage(b, size);
+    break;
+  case AOVType::PRIMITIVE_ID:
+    computePrimitiveIdImage(b, size);
+    break;
+  case AOVType::INSTANCE_ID:
+    computeInstanceIdImage(b, size);
     break;
   default:
     break;

@@ -39,7 +39,9 @@ void RenderPipeline::setDimensions(uint32_t width, uint32_t height)
   const size_t totalSize = size_t(width) * size_t(height);
   m_buffers.color = detail::allocate<uint32_t>(totalSize);
   m_buffers.depth = detail::allocate<float>(totalSize);
+  m_buffers.instanceId = detail::allocate<uint32_t>(totalSize);
   m_buffers.objectId = detail::allocate<uint32_t>(totalSize);
+  m_buffers.primitiveId = detail::allocate<uint32_t>(totalSize);
   m_buffers.albedo = detail::allocate<tsd::math::float3>(totalSize);
   m_buffers.normal = detail::allocate<tsd::math::float3>(totalSize);
   for (auto &p : m_passes)

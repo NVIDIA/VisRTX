@@ -271,7 +271,14 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   ImGui::Separator();
   ImGui::Text("==== AOV Visualization ====");
 
-  const char *aovItems[] = {"none", "depth", "albedo", "normal", "edges"};
+  const char *aovItems[] = {"none",
+      "depth",
+      "albedo",
+      "normal",
+      "edges",
+      "object ID",
+      "primitive ID",
+      "instance ID"};
   int aovIdx = static_cast<int>(core->offline.aov.aovType);
   if (ImGui::Combo("AOV type", &aovIdx, aovItems, IM_ARRAYSIZE(aovItems))) {
     core->offline.aov.aovType = static_cast<tsd::rendering::AOVType>(aovIdx);
