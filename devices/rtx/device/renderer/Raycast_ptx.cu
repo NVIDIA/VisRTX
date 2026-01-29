@@ -150,6 +150,9 @@ VISRTX_GLOBAL void __raygen__()
           vInstID);
 
       if (firstHit) {
+        if (opacity > 0.f) {
+          outputNormal = -ray.dir;
+        }
         depth = min(depth, volumeDepth);
         primID = 0;
         objID = vObjID;
@@ -159,10 +162,10 @@ VISRTX_GLOBAL void __raygen__()
       color *= opacity;
 
       const auto bg = getBackground(frameData, ss.screen, ray.dir);
-        const bool premultiplyBg = rendererParams.premultiplyBackground;
-        accumulateValue(
-            color, premultiplyBg ? vec3(bg) * bg.a : vec3(bg), opacity);
-      accumulateValue(opacity, bg.w, opacity);
+      const bool premultiplyBg = rendererParams.premultiplyBackground;
+      accumulateValue(
+          color, premultiplyBg ? vec3(bg) * bg.a : vec3(bg), opacity);
+      accumulateValue(opacity, bg.a, opacity);
       accumulateValue(outputColor, color, outputOpacity);
       accumulateValue(outputOpacity, opacity, outputOpacity);
       break;

@@ -141,7 +141,7 @@ VISRTX_GLOBAL void __raygen__()
             objID = vObjID;
             instID = vInstID;
           } else {
-            outputNormal = surfaceHit.Ng;
+            outputNormal = surfaceHit.Ns;
             depth = surfaceHit.t;
             primID = computeGeometryPrimId(surfaceHit);
             objID = surfaceHit.objID;
@@ -189,6 +189,9 @@ VISRTX_GLOBAL void __raygen__()
             vInstID);
 
         if (firstHit) {
+          if (opacity > 0.f) {
+            outputNormal = -ray.dir;
+          }
           depth = min(depth, volumeDepth);
           primID = 0;
           objID = vObjID;
