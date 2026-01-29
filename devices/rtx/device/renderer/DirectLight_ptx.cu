@@ -397,6 +397,9 @@ VISRTX_GLOBAL void __raygen__()
             vInstID);
 
         if (firstHit) {
+          if (opacity > 0.f) {
+            outputNormal = -ray.dir;
+          }
           depth = min(depth, volumeDepth);
           primID = 0;
           objID = vObjID;
