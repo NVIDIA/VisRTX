@@ -48,13 +48,12 @@ struct Application : public TSDApplication
               viewMsg->azeldist.z,
               tsd::math::float2(viewMsg->azeldist.x, viewMsg->azeldist.y));
         });
-
-    m_client->start();
   }
 
   ~Application() override
   {
-    m_client->stop();
+    if (m_client)
+      m_client->stop();
   }
 
   anari_viewer::WindowArray setupWindows() override
@@ -120,6 +119,14 @@ struct Application : public TSDApplication
       ImGui::Separator();
 
       if (ImGui::MenuItem("Quit", "Esc", false, true)) {
+        m_client
+            ->sendAsync(
+                tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
+            .get();
+        m_client->disconnect();
+        m_client->removeAllHandlers();
+        m_viewport->setNetworkChannel(nullptr);
+        m_client.reset();
         std::exit(0);
       }
       ImGui::EndMenu();
@@ -140,10 +147,15 @@ struct Application : public TSDApplication
             tsd::network::make_message(MessageType::SERVER_STOP_RENDERING));
       }
 
+      ImGui::Separator();
+
       if (ImGui::MenuItem("Shutdown")) {
         tsd::core::logStatus("[Client] Sending SHUTDOWN command");
-        m_client->send(
-            tsd::network::make_message(MessageType::SERVER_SHUTDOWN));
+        m_client
+            ->sendAsync(
+                tsd::network::make_message(MessageType::SERVER_SHUTDOWN))
+            .get();
+        m_client->disconnect();
       }
 
       ImGui::EndMenu();
@@ -161,8 +173,13 @@ struct Application : public TSDApplication
 
   void teardown() override
   {
-    m_client->send(
-        tsd::network::make_message(MessageType::SERVER_STOP_RENDERING));
+    m_client
+        ->sendAsync(
+            tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
+        .get();
+    m_client->disconnect();
+    m_client->removeAllHandlers();
+    m_viewport->setNetworkChannel(nullptr);
     TSDApplication::teardown();
   }
 
@@ -284,6 +301,7 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
 int main(int argc, const char *argv[])
 {
   {
+    tsd::core::setLogToStdout();
     tsd::demo::Application app;
     app.run(1920, 1080, "TSD Remote Viewer");
   }

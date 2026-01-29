@@ -28,7 +28,8 @@ RemoteViewport::RemoteViewport(Application *app,
 
 RemoteViewport::~RemoteViewport()
 {
-  m_channel->removeAllHandlers();
+  if (m_channel)
+    m_channel->removeAllHandlers();
 }
 
 void RemoteViewport::buildUI()
@@ -76,6 +77,9 @@ void RemoteViewport::setManipulator(tsd::rendering::Manipulator *m)
 void RemoteViewport::setNetworkChannel(tsd::network::NetworkChannel *c)
 {
   m_channel = c;
+
+  if (!c)
+    return;
 
   c->registerHandler(MessageType::CLIENT_RECEIVE_FRAME_BUFFER_COLOR,
       [&](const tsd::network::Message &msg) {

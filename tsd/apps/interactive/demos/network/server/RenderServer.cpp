@@ -30,15 +30,15 @@ void RenderServer::run(short port)
 
   tsd::core::logStatus("[Server] Listening on port %i...", int(port));
 
-  while (m_running) {
+  while (m_mode != ServerMode::SHUTDOWN) {
     if (!m_server->isConnected()) {
-      tsd::core::logStatus("[Server] Listening on port %i...", int(port));
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-      continue;
-    } else if (!m_rendering) {
-      tsd::core::logStatus("[Server] Rendering paused...");
-      std::this_thread::sleep_for(std::chrono::seconds(3));
-      continue;
+      if (m_previousMode != ServerMode::DISCONNECTED) {
+        tsd::core::logStatus("[Server] Listening on port %i...", int(port));
+        m_mode = ServerMode::DISCONNECTED;
+      }
+    } else if (m_mode == ServerMode::PAUSED) {
+      if (m_previousMode != ServerMode::PAUSED)
+        tsd::core::logStatus("[Server] Rendering paused...");
     } else {
       tsd::core::logDebug("[Server] Rendering frame...");
       update_FrameConfig();
@@ -46,6 +46,8 @@ void RenderServer::run(short port)
       m_renderPipeline.render();
       send_FrameBuffer();
     }
+
+    m_previousMode = m_mode;
   }
 
   tsd::core::logStatus("[Server] Shutting down...");
@@ -74,7 +76,7 @@ void RenderServer::setup_ANARIDevice()
   auto device = m_core.anari.loadDevice("environment");
   if (!device) {
     tsd::core::logError("[Server] Failed to load 'environment' ANARI device.");
-    return std::exit(-1);
+    std::exit(EXIT_FAILURE);
   }
 
   auto &scene = m_core.tsd.scene;
@@ -160,21 +162,21 @@ void RenderServer::setup_Messaging()
       [&](const tsd::network::Message &msg) {
         tsd::core::logStatus(
             "[Server] Starting rendering as requested by client.");
-        m_rendering = true;
+        m_mode = ServerMode::RENDERING;
       });
 
   m_server->registerHandler(MessageType::SERVER_STOP_RENDERING,
       [&](const tsd::network::Message &msg) {
         tsd::core::logStatus(
             "[Server] Stopping rendering as requested by client.");
-        m_rendering = false;
+        m_mode = ServerMode::PAUSED;
         m_lastSentFrame.get();
       });
 
   m_server->registerHandler(
       MessageType::SERVER_SHUTDOWN, [&](const tsd::network::Message &msg) {
         tsd::core::logStatus("[Server] Shutdown message received from client.");
-        m_running = false;
+        m_mode = ServerMode::SHUTDOWN;
       });
 
   m_server->registerHandler(MessageType::SERVER_SET_FRAME_CONFIG,

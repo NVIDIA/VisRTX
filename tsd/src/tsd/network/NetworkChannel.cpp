@@ -95,7 +95,7 @@ MessageFuture NetworkChannel::sendAsync(const Message &msg)
           promise->set_value(error);
       });
 
-  if (msg.header.payload_length == 0)
+  if (header->payload_length == 0)
     return future;
 
   auto payload = std::make_shared<MessagePayload>();
@@ -113,14 +113,38 @@ MessageFuture NetworkChannel::sendAsync(const Message &msg)
 
 void NetworkChannel::start()
 {
-  m_io_thread = std::thread([this]() { m_io_context.run(); });
+  tsd::core::logDebug("[NetworkChannel] starting channel");
+  stop();
+  m_io_context.restart();
+  m_io_thread = std::thread([this]() {
+    tsd::core::logDebug("[NetworkChannel] starting IO thread");
+    try {
+      m_io_context.run();
+    } catch (const std::exception &e) {
+      tsd::core::logError(
+          "[NetworkChannel] IO thread context error: %s", e.what());
+    } catch (...) {
+      tsd::core::logError("[NetworkChannel] IO thread context unknown error");
+    }
+    tsd::core::logDebug("[NetworkChannel] IO thread stopped");
+  });
 }
 
 void NetworkChannel::stop()
 {
-  m_io_context.stop();
-  if (m_io_thread.joinable())
-    m_io_thread.join();
+  try {
+    boost::system::error_code ec{};
+    m_socket.shutdown(tcp::socket::shutdown_both, ec);
+    m_socket.close(ec);
+    m_io_context.stop();
+    if (m_io_thread.joinable())
+      m_io_thread.join();
+  } catch (const std::system_error &e) {
+    tsd::core::logError(
+        "[NetworkChannel] System error during stop: %s", e.what());
+  } catch (const std::exception &e) {
+    tsd::core::logError("[NetworkChannel] Error during stop: %s", e.what());
+  }
 }
 
 void NetworkChannel::read_header()
@@ -179,7 +203,7 @@ void NetworkChannel::invoke_handler()
   if (auto *handler = m_handlers.at(msg.header.type); handler != nullptr) {
     (*handler)(msg);
   } else {
-    tsd::core::logError(
+    tsd::core::logWarning(
         "[NetworkChannel] No handler registered for message type %d",
         static_cast<int>(msg.header.type));
   }
@@ -188,6 +212,9 @@ void NetworkChannel::invoke_handler()
 void NetworkChannel::log_asio_error(
     const boost::system::error_code &error, const char *context)
 {
+  if (!error)
+    return;
+
   if (error == asio::error::eof) {
     tsd::core::logStatus(
         "[NetworkChannel] %s: connection closed by peer", context);
@@ -195,11 +222,15 @@ void NetworkChannel::log_asio_error(
     tsd::core::logStatus(
         "[NetworkChannel] %s: connection reset by peer", context);
   } else if (error == asio::error::not_connected) {
-    tsd::core::logError("[NetworkChannel] %s: not connected", context);
+    tsd::core::logWarning("[NetworkChannel] %s: not connected", context);
   } else if (error) {
     tsd::core::logError(
         "[NetworkChannel] %s error: %s", context, error.message().c_str());
   }
+
+  boost::system::error_code ec{};
+  m_socket.shutdown(tcp::socket::shutdown_both, ec);
+  m_socket.close(ec);
 }
 
 // NetworkServer definitions //////////////////////////////////////////////////
@@ -234,6 +265,7 @@ NetworkClient::NetworkClient(const std::string &host, short port)
 
 void NetworkClient::connect(const std::string &host, short port)
 {
+  start();
   asio::ip::tcp::resolver resolver(m_io_context);
   auto endpoints = resolver.resolve(host, std::to_string(port));
   asio::async_connect(m_socket,
@@ -264,6 +296,7 @@ void NetworkClient::disconnect()
   } else {
     tsd::core::logStatus("[NetworkClient] Disconnected from server");
   }
+  stop();
 }
 
 } // namespace tsd::network

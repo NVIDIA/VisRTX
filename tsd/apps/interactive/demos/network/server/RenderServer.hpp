@@ -35,6 +35,16 @@ struct RenderServer
   void update_View();
   void send_FrameBuffer();
 
+  enum class ServerMode
+  {
+    DISCONNECTED,
+    PAUSED,
+    RENDERING,
+    SHUTDOWN
+  };
+
+  // Data //
+
   short m_port{12345};
   bool m_running{true};
 
@@ -50,7 +60,8 @@ struct RenderServer
   tsd::rendering::Manipulator m_manipulator;
   tsd::rendering::RenderIndex *m_renderIndex{nullptr};
   tsd::rendering::RenderPipeline m_renderPipeline;
-  bool m_rendering{false};
+  ServerMode m_mode{ServerMode::DISCONNECTED};
+  ServerMode m_previousMode{ServerMode::DISCONNECTED};
 
   struct SessionVersions
   {
