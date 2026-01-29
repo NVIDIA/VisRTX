@@ -5,6 +5,6 @@ project(tsdTestClient)
 project_add_executable(tsdTestClient.cpp)
 project_link_libraries(tsd_network stb_image)
 
-project(tsdInteractiveClient)
-project_add_executable(RemoteViewport.cpp tsdInteractiveClient.cpp)
+project(tsdRemoteViewer)
+project_add_executable(RemoteViewport.cpp tsdRemoteViewer.cpp)
 project_link_libraries(tsd_ui_imgui tsd_network)

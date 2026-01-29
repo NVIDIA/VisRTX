@@ -265,7 +265,7 @@ int main(int argc, const char *argv[])
 {
   {
     tsd::demo::Application app;
-    app.run(1920, 1080, "TSD Interactive Client");
+    app.run(1920, 1080, "TSD Remote Viewer");
   }
 
   return 0;
