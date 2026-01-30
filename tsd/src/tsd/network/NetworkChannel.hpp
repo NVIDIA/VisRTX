@@ -23,18 +23,17 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
   // Receive messages //
 
   void registerHandler(uint8_t messageType, MessageHandler handler);
+  void removeHandler(uint8_t messageType);
   void removeAllHandlers();
 
   // Send messages //
 
   MessageFuture send(const Message &msg);
 
-  // Start/stop channel from sending and receiving messages //
-
-  void start();
-  void stop();
-
  protected:
+  void start_messaging();
+  void stop_messaging();
+
   void read_header();
   void read_payload();
   void invoke_handler();
@@ -54,6 +53,9 @@ struct NetworkServer : public NetworkChannel
 {
   NetworkServer(short port);
   ~NetworkServer() override = default;
+
+  void start();
+  void stop();
 
  private:
   void start_accept();

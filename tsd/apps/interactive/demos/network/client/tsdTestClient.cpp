@@ -107,7 +107,7 @@ int main()
 
   tsd::core::logStatus("[Client] Sending SHUTDOWN");
   client->send(make_message(MessageType::SERVER_SHUTDOWN)).get();
-  client->stop();
+  client->disconnect();
 
   // Store fine frame //
 

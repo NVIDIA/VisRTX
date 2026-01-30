@@ -76,8 +76,7 @@ struct Application : public TSDApplication
 
   ~Application() override
   {
-    if (m_client)
-      m_client->stop();
+    // no-op
   }
 
   anari_viewer::WindowArray setupWindows() override

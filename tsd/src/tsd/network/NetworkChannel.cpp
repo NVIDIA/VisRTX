@@ -23,7 +23,7 @@ NetworkChannel::NetworkChannel()
 
 NetworkChannel::~NetworkChannel()
 {
-  stop();
+  stop_messaging();
 }
 
 bool NetworkChannel::isConnected() const
@@ -34,6 +34,11 @@ bool NetworkChannel::isConnected() const
 void NetworkChannel::registerHandler(uint8_t type, MessageHandler handler)
 {
   m_handlers[type] = handler;
+}
+
+void NetworkChannel::removeHandler(uint8_t messageType)
+{
+  m_handlers.erase(messageType);
 }
 
 void NetworkChannel::removeAllHandlers()
@@ -81,10 +86,10 @@ MessageFuture NetworkChannel::send(const Message &msg)
   return future;
 }
 
-void NetworkChannel::start()
+void NetworkChannel::start_messaging()
 {
   tsd::core::logDebug("[NetworkChannel] starting channel");
-  stop();
+  stop_messaging();
   m_io_context.restart();
   m_io_thread = std::thread([this]() {
     tsd::core::logDebug("[NetworkChannel] starting IO thread");
@@ -100,7 +105,7 @@ void NetworkChannel::start()
   });
 }
 
-void NetworkChannel::stop()
+void NetworkChannel::stop_messaging()
 {
   try {
     boost::system::error_code ec{};
@@ -211,6 +216,16 @@ NetworkServer::NetworkServer(short port)
   start_accept();
 }
 
+void NetworkServer::start()
+{
+  start_messaging();
+}
+
+void NetworkServer::stop()
+{
+  stop_messaging();
+}
+
 void NetworkServer::start_accept()
 {
   auto socket = std::make_shared<tcp::socket>(m_io_context);
@@ -235,7 +250,7 @@ NetworkClient::NetworkClient(const std::string &host, short port)
 
 void NetworkClient::connect(const std::string &host, short port)
 {
-  start();
+  start_messaging();
   asio::ip::tcp::resolver resolver(m_io_context);
   auto endpoints = resolver.resolve(host, std::to_string(port));
   asio::async_connect(m_socket,
@@ -266,7 +281,7 @@ void NetworkClient::disconnect()
   } else {
     tsd::core::logStatus("[NetworkClient] Disconnected from server");
   }
-  stop();
+  stop_messaging();
 }
 
 } // namespace tsd::network
