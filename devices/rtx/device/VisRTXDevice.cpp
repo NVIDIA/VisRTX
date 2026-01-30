@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -71,6 +71,8 @@
 #include "spatial_field/NvdbRegularSampler.h"
 #include "spatial_field/StructuredRectilinearSampler.h"
 #include "spatial_field/StructuredRegularSampler.h"
+// analytical field sampler (from devices/visrtx)
+#include "AnalyticalFieldSampler.h"
 
 // MDL
 #ifdef USE_MDL
@@ -794,6 +796,10 @@ DeviceInitStatus VisRTXDevice::initOptix()
       init_module(&state.fieldSamplers.nvdbRectilinear,
           NvdbRectilinearSampler::ptx(),
           "'nanovdbRectilinear' field sampler"),
+      // Analytical field sampler module (from devices/visrtx)
+      init_module(&state.fieldSamplers.analyticalField,
+          AnalyticalFieldSampler::ptx(),
+          "'analyticalField' sampler"),
   };
 
   for (auto &f : compileTasks)

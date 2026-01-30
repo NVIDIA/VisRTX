@@ -45,6 +45,9 @@
 // nanovdb
 #include <nanovdb/NanoVDB.h>
 
+// Custom analytical field data structures
+#include "spatial_field/AnalyticalFieldData.h"
+
 // cuda half precision
 #ifdef VISRTX_USE_NEURAL
 #include <cuda_fp16.h>
@@ -465,6 +468,8 @@ struct SpatialFieldGPUData
     NVdbRegularData nvdbRegular;
     StructuredRectilinearData structuredRectilinear;
     NVdbRectilinearData nvdbRectilinear;
+    // Generic analytical field data - type dispatch happens in the sampler
+    AnalyticalFieldGPUData analytical;
   } data;
   UniformGridData grid;
   box3 roi;

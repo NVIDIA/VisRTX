@@ -30,6 +30,7 @@
  */
 
 #include "SpatialField.h"
+#include "SpatialFieldRegistry.h"
 // specific types
 #include "NvdbRectilinearField.h"
 #include "NvdbRegularField.h"
@@ -54,6 +55,7 @@ void SpatialField::markFinalized()
 SpatialField *SpatialField::createInstance(
     std::string_view subtype, DeviceGlobalState *d)
 {
+  // Try built-in types first
   if (subtype == "structuredRegular")
     return new StructuredRegularField(d);
   else if (subtype == "structuredRectilinear")
@@ -62,8 +64,15 @@ SpatialField *SpatialField::createInstance(
     return new NvdbRegularField(d);
   else if (subtype == "nanovdbRectilinear")
     return new NvdbRectilinearField(d);
-  else
-    return new UnknownSpatialField(subtype, d);
+  
+  // Try registry for custom field types (registered at static init time)
+  std::string subtypeStr(subtype);
+  if (auto* customField = SpatialFieldRegistry::instance().create(d, subtypeStr)) {
+    return customField;
+  }
+  
+  // Unknown type
+  return new UnknownSpatialField(subtype, d);
 }
 
 } // namespace visrtx

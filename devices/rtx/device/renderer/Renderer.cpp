@@ -714,6 +714,21 @@ void Renderer::initOptixPipeline()
     callableDescs[SBT_CALLABLE_SPATIAL_FIELD_NVDB_REC_FLOAT_OFFSET
         + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
 
+    // Analytical field sampler (from devices/visrtx)
+    // A single callable pair handles all analytical field subtypes via type dispatch
+    samplerDesc.callables.moduleDC = state.fieldSamplers.analyticalField;
+
+    constexpr auto SBT_CALLABLE_ANALYTICAL_OFFSET =
+        int(SbtCallableEntryPoints::SpatialFieldSamplerAnalytical);
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__initAnalyticalSampler";
+    callableDescs[SBT_CALLABLE_ANALYTICAL_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Init)] = samplerDesc;
+    samplerDesc.callables.entryFunctionNameDC =
+        "__direct_callable__sampleAnalytical";
+    callableDescs[SBT_CALLABLE_ANALYTICAL_OFFSET
+        + int(SpatialFieldSamplerEntryPoints::Sample)] = samplerDesc;
+
 #ifdef USE_MDL
     if (state.mdl) {
       for (const auto &ptxBlob : state.mdl->materialRegistry.getPtxBlobs()) {

@@ -201,6 +201,9 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule nvdb{nullptr};
     OptixModule structuredRectilinear{nullptr};
     OptixModule nvdbRectilinear{nullptr};
+    // Analytical field sampler module (from devices/visrtx)
+    // Contains all analytical field subtypes: magnetic, imf, aurora, planet, cloud
+    OptixModule analyticalField{nullptr};
   } fieldSamplers;
 
   struct ObjectUpdates
