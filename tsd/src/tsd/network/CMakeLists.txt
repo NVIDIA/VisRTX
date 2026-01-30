@@ -5,7 +5,10 @@ project(tsd_network)
 
 project_add_library(STATIC)
 
-project_sources(PRIVATE NetworkChannel.cpp)
+project_sources(PRIVATE
+  messages/TransferScene.cpp
+  NetworkChannel.cpp
+)
 
 # Find Boost (Asio)
 find_package(Boost 1.66 REQUIRED COMPONENTS system)

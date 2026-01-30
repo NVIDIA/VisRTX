@@ -28,7 +28,8 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
 
   // Send messages //
 
-  MessageFuture send(const Message &msg);
+  MessageFuture send(Message &&msg);
+  MessageFuture send(uint8_t type, StructuredMessage &&msg);
 
  protected:
   void start_messaging();

@@ -46,7 +46,7 @@ void NetworkChannel::removeAllHandlers()
   m_handlers.clear();
 }
 
-MessageFuture NetworkChannel::send(const Message &msg)
+MessageFuture NetworkChannel::send(Message &&msg)
 {
   auto promise = std::make_shared<std::promise<boost::system::error_code>>();
   auto future = promise->get_future();
@@ -74,7 +74,7 @@ MessageFuture NetworkChannel::send(const Message &msg)
     return future;
 
   auto payload = std::make_shared<MessagePayload>();
-  *payload = msg.payload;
+  *payload = std::move(msg.payload);
   asio::async_write(m_socket,
       asio::buffer(*payload),
       [self, payload, promise](
@@ -84,6 +84,12 @@ MessageFuture NetworkChannel::send(const Message &msg)
       });
 
   return future;
+}
+
+MessageFuture NetworkChannel::send(uint8_t type, StructuredMessage &&msg)
+{
+  Message message = msg.toMessage(type);
+  return send(std::move(message));
 }
 
 void NetworkChannel::start_messaging()

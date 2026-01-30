@@ -14,7 +14,8 @@
 #include <string>
 #include <type_traits>
 #include <vector>
-// tsd
+// tsd_core
+#include "tsd/core/DataTree.hpp"
 #include "tsd/core/FlatMap.hpp"
 
 namespace asio = boost::asio;
@@ -40,12 +41,87 @@ struct Message
   MessagePayload payload; // Actual payload data
 };
 
+struct StructuredMessage
+{
+  StructuredMessage() = default;
+  StructuredMessage(const Message &msg); // parse received message
+  virtual ~StructuredMessage() = default;
+
+  void fromMessage(const Message &msg);
+  Message toMessage(uint8_t type);
+
+  const tsd::core::DataTree &tree() const;
+
+  // Child classes override to associate behavior on receipt using tree contents
+  virtual void execute() = 0;
+
+ protected:
+  tsd::core::DataTree m_tree;
+};
+
 // Helper functions ///////////////////////////////////////////////////////////
 
 // write to payload //
 
 template <typename T>
-inline void payloadWrite(Message &msg, const T *data, uint32_t length = 1)
+void payloadWrite(Message &msg, const T *data, uint32_t length = 1);
+void payloadWrite(Message &msg, const std::string &str);
+
+// read from payload //
+
+template <typename T>
+T *payloadAs(Message &msg);
+template <typename T>
+const T *payloadAs(const Message &msg);
+
+template <typename T>
+bool payloadRead(
+    const Message &msg, uint32_t &offset, T *data, uint32_t length = 1);
+bool payloadRead(const Message &msg, uint32_t &offset, std::string &str);
+
+// make_message() //
+
+Message make_message(uint8_t type);
+Message make_message(uint8_t type, const std::string &data);
+template <typename T>
+Message make_message(uint8_t type, const T *data, uint32_t count = 1);
+template <typename T>
+Message make_message(uint8_t type, const std::vector<T> &data);
+
+///////////////////////////////////////////////////////////////////////////////
+// Inlined definitions ////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+// StucturedMessage definitions //
+
+inline StructuredMessage::StructuredMessage(const Message &msg)
+{
+  fromMessage(msg);
+}
+
+inline void StructuredMessage::fromMessage(const Message &msg)
+{
+  m_tree.load(msg.payload);
+}
+
+inline Message StructuredMessage::toMessage(uint8_t type)
+{
+  Message msg;
+  msg.header.type = type;
+  m_tree.save(msg.payload);
+  msg.header.payload_length = uint32_t(msg.payload.size());
+  return msg;
+}
+
+inline const tsd::core::DataTree &StructuredMessage::tree() const
+{
+  return m_tree;
+}
+
+// Helper functions //
+
+template <typename T>
+inline void payloadWrite(Message &msg, const T *data, uint32_t length)
 {
   static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
       "Message payload must be a POD type");
@@ -64,8 +140,6 @@ inline void payloadWrite(Message &msg, const std::string &str)
   msg.payload.back() = std::byte(0); // Null-terminate
 }
 
-// read from payload //
-
 template <typename T>
 inline T *payloadAs(Message &msg)
 {
@@ -80,7 +154,7 @@ inline const T *payloadAs(const Message &msg)
 
 template <typename T>
 inline bool payloadRead(
-    const Message &msg, uint32_t &offset, T *data, uint32_t length = 1)
+    const Message &msg, uint32_t &offset, T *data, uint32_t length)
 {
   static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
       "Message payload must be a POD type");
@@ -105,8 +179,6 @@ inline bool payloadRead(const Message &msg, uint32_t &offset, std::string &str)
   return true;
 }
 
-// make_message() //
-
 inline Message make_message(uint8_t type)
 {
   Message msg;
@@ -122,7 +194,7 @@ inline Message make_message(uint8_t type, const std::string &data)
 }
 
 template <typename T>
-inline Message make_message(uint8_t type, const T *data, uint32_t count = 1)
+inline Message make_message(uint8_t type, const T *data, uint32_t count)
 {
   Message msg = make_message(type);
   payloadWrite(msg, data, count);

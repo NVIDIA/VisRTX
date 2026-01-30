@@ -9,7 +9,9 @@
 #include <tsd/ui/imgui/windows/ObjectEditor.h>
 #include <tsd/ui/imgui/windows/Viewport.h>
 // tsd_io
-#include "tsd/io/serialization.hpp"
+#include <tsd/io/serialization.hpp>
+// tsd_network
+#include <tsd/network/messages/TransferScene.hpp>
 
 #include "NetworkUpdateDelegate.hpp"
 #include "RemoteViewport.h"
@@ -59,19 +61,12 @@ struct Application : public TSDApplication
 
     m_client->registerHandler(MessageType::CLIENT_RECEIVE_SCENE,
         [this](const tsd::network::Message &msg) {
-          tsd::core::logStatus(
-              "[Client] Received scene from server (%zu bytes)",
-              msg.header.payload_length);
-
-          tsd::core::DataTree sceneTree;
-          sceneTree.load(msg.payload);
-
           auto &scene = appCore()->tsd.scene;
-          tsd::io::load_Scene(scene, sceneTree.root());
-
+          tsd::network::messages::TransferScene sceneMsg(msg, &scene);
+          sceneMsg.execute();
           tsd::core::logStatus("[Client] Scene contents:");
           tsd::core::logStatus(
-              "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
+              "\n%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
         });
 
     auto *core = appCore();

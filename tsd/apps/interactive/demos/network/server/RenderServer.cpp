@@ -7,6 +7,8 @@
 #include "tsd/core/Timer.hpp"
 // tsd_io
 #include "tsd/io/serialization.hpp"
+// tsd_network
+#include "tsd/network/messages/TransferScene.hpp"
 
 namespace tsd::network {
 
@@ -50,22 +52,13 @@ void RenderServer::run(short port)
       send_FrameBuffer();
       m_wasRenderingBeforeSendScene = true;
     } else if (m_mode == ServerMode::SEND_SCENE) {
-      tsd::core::logStatus("[Server] Serializing scene...");
-
-      tsd::core::DataTree sceneTree;
-      tsd::io::save_Scene(m_core.tsd.scene, sceneTree.root());
-
-      // Prep message
-      tsd::network::Message sceneMsg;
-      sceneTree.save(sceneMsg.payload);
-      sceneMsg.header.type = MessageType::CLIENT_RECEIVE_SCENE;
-      sceneMsg.header.payload_length = uint32_t(sceneMsg.payload.size());
+      tsd::core::logStatus("[Server] Serializing + sending scene...");
 
       tsd::core::Timer timer;
       timer.start();
-      tsd::core::logStatus(
-          "[Server] Sending scene (%zu bytes)...", sceneMsg.payload.size());
-      m_server->send(sceneMsg).get();
+      tsd::network::messages::TransferScene sceneMsg(&m_core.tsd.scene);
+      m_server->send(MessageType::CLIENT_RECEIVE_SCENE, std::move(sceneMsg))
+          .get();
       timer.end();
       tsd::core::logStatus("[Server] ...done! (%.3f s)", timer.seconds());
 
@@ -252,21 +245,14 @@ void RenderServer::setup_Messaging()
   m_server->registerHandler(MessageType::SERVER_REQUEST_FRAME_CONFIG,
       [s = m_server, session = &m_session](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested frame config.");
-        tsd::network::Message outMsg;
-        tsd::network::payloadWrite(outMsg, &session->frame.config);
-        outMsg.header.type = MessageType::CLIENT_RECEIVE_FRAME_CONFIG;
-        outMsg.header.payload_length = uint32_t(outMsg.payload.size());
-        s->send(outMsg);
+        s->send(make_message(
+            MessageType::CLIENT_RECEIVE_FRAME_CONFIG, &session->frame.config));
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_VIEW,
       [s = m_server, session = &m_session](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested view.");
-        tsd::network::Message outMsg;
-        tsd::network::payloadWrite(outMsg, &session->view);
-        outMsg.header.type = MessageType::CLIENT_RECEIVE_VIEW;
-        outMsg.header.payload_length = uint32_t(outMsg.payload.size());
-        s->send(outMsg);
+        s->send(make_message(MessageType::CLIENT_RECEIVE_VIEW, &session->view));
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_SCENE,

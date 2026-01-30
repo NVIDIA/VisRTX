@@ -6,9 +6,9 @@
 #include <memory>
 #include <thread>
 // tsd_network
-#include "tsd/network/NetworkChannel.hpp"
+#include <tsd/network/NetworkChannel.hpp>
 // tsd_core
-#include "tsd/core/Logging.hpp"
+#include <tsd/core/Logging.hpp>
 // stb_image
 #include "stb_image_write.h"
 
