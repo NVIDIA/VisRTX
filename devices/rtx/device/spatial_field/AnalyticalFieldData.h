@@ -91,10 +91,13 @@ struct CloudFieldData
   cudaTextureObject_t cloudData;     // 3D cloud density texture
   visrtx::vec3 cloudDims;            // Cloud volume dimensions
   float planetRadius;                // Planet radius for spherical mapping
-  float normalEpsilon;               // Epsilon for gradient computation
   float atmosphereThickness;         // Atmosphere layer thickness
+  float minLat;                      // Minimum latitude in degrees
+  float maxLat;                      // Maximum latitude in degrees
+  float minLon;                      // Minimum longitude in degrees
+  float maxLon;                      // Maximum longitude in degrees
+  float normalEpsilon;               // Epsilon for gradient computation
   int computeNormals;                // Boolean: compute gradients for lighting
-  float padding;                     // Alignment padding
 };
 
 /**

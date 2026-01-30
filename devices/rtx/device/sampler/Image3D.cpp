@@ -101,6 +101,13 @@ bool Image3D::isValid() const
   return m_image;
 }
 
+uvec3 Image3D::imageSize() const
+{
+  if (!m_image) return uvec3(0);
+  auto sz = m_image->size();
+  return uvec3(sz.x, sz.y, sz.z);
+}
+
 int Image3D::numChannels() const
 {
   ANARIDataType format = m_image->elementType();
