@@ -31,6 +31,7 @@ PRIVATE
   scene/objects/Volume.cpp
   AnariObjectCache.cpp
   ColorMapUtil.cpp
+  DataStream.cpp
   Logging.cpp
   Parameter.cpp
   Token.cpp

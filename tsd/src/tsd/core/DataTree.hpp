@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tsd/core/Any.hpp"
+#include "tsd/core/DataStream.hpp"
 #include "tsd/core/Forest.hpp"
 // std
 #include <algorithm>
@@ -157,7 +158,9 @@ struct DataTree
   // File I/O //
 
   bool save(const char *filename);
+  bool save(std::vector<std::byte> &buffer);
   bool load(const char *filename);
+  bool load(const std::vector<std::byte> &buffer);
 
   // Visual inspection //
 
@@ -171,8 +174,10 @@ struct DataTree
   DataTree &operator=(DataTree &&) = delete;
 
  private:
+  bool saveImpl(DataWriter &writer);
+  bool loadImpl(DataReader &reader);
   void writeDataNode(
-      std::FILE *fp, const DataNode &node, const std::string &path) const;
+      DataWriter &writer, const DataNode &node, const std::string &path) const;
   std::string printablePath(const std::string &path) const;
 
   Forest<std::unique_ptr<DataNode>> m_tree;
@@ -577,159 +582,32 @@ inline void DataTree::traverse(DataNode::Ref start,
 
 inline bool DataTree::save(const char *filename)
 {
-  std::FILE *fp = std::fopen(filename, "wb");
-  if (!fp)
+  FileWriter writer(filename);
+  if (!writer)
     return false;
+  return saveImpl(writer);
+}
 
-  // Count + write number of leaf nodes //
-
-  size_t numLeafNodes = 0;
-  m_tree.traverse(m_tree.root(), [&](auto &nodeRef, int level) {
-    if (level == 0)
-      return true;
-    else if (auto &node = **nodeRef; nodeRef.isLeaf())
-      numLeafNodes++;
-    return true;
-  });
-
-  std::fwrite(&numLeafNodes, sizeof(size_t), 1, fp);
-
-  // Travese tree and write nodes //
-
-  std::string path;
-  path.reserve(256);
-  m_tree.traverse(
-      m_tree.root(),
-      [&](auto &nodeRef, int level) {
-        if (level == 0)
-          return true;
-
-        if (auto &node = **nodeRef; nodeRef.isLeaf()) {
-          writeDataNode(fp, node, path);
-          numLeafNodes++;
-        } else {
-          const auto &name = node.name();
-          std::copy(name.begin(), name.end(), std::back_inserter(path));
-          path.push_back('\0');
-        }
-
-        return true;
-      },
-      [&](auto &nodeRef, int level) {
-        if (level == 0)
-          return;
-        else if (level == 1) {
-          path.clear();
-          return;
-        }
-
-        if (!nodeRef.isLeaf())
-          path.resize(path.size() - ((*nodeRef)->name().size() + 1));
-      });
-
-  std::fclose(fp);
-
-  return true;
+inline bool DataTree::save(std::vector<std::byte> &buffer)
+{
+  BufferWriter writer;
+  bool res = saveImpl(writer);
+  buffer = writer.take();
+  return res;
 }
 
 inline bool DataTree::load(const char *filename)
 {
-  auto splitNullSeparatedStrings =
-      [](const char *buffer, size_t bufferSize) -> std::vector<std::string> {
-    std::vector<std::string> result;
-    for (size_t start = 0; start < bufferSize;) {
-      size_t end = start;
-      while (end < bufferSize && buffer[end] != '\0')
-        ++end;
-      if (end > start)
-        result.emplace_back(buffer + start, end - start);
-      start = end + 1;
-    }
-
-    return result;
-  };
-
-  /////////////////////////////////////////////////////////////////////////////
-
-  auto *fp = std::fopen(filename, "rb");
-  if (!fp)
+  FileReader reader(filename);
+  if (!reader)
     return false;
+  return loadImpl(reader);
+}
 
-  m_tree.root()->erase_subtree();
-  auto &rootNode = root();
-
-  size_t numLeafNodes = 0;
-  auto r = std::fread(&numLeafNodes, sizeof(size_t), 1, fp);
-
-  for (size_t i = 0; i < numLeafNodes; i++) {
-    size_t size = 0;
-
-    // name
-    r = std::fread(&size, sizeof(size_t), 1, fp);
-    std::string name(size, '\0');
-    r = std::fread(name.data(), sizeof(char), size, fp);
-
-    // path
-    r = std::fread(&size, sizeof(size_t), 1, fp);
-    std::string fullPath(size, '\0');
-    r = std::fread(fullPath.data(), sizeof(char), size, fp);
-
-    // isArray
-    uint8_t isArray = 0;
-    r = std::fread(&isArray, sizeof(uint8_t), 1, fp);
-
-    // type
-    anari::DataType type = ANARI_UNKNOWN;
-    r = std::fread(&type, sizeof(anari::DataType), 1, fp);
-
-    // Create node //
-
-    auto path = splitNullSeparatedStrings(fullPath.c_str(), fullPath.size());
-
-    DataNode *parentPtr = &rootNode;
-    for (auto &loc : path) {
-      if (!loc.empty())
-        parentPtr = &parentPtr->append(loc);
-    }
-
-    auto &node = parentPtr->append(name);
-
-    // Read node value //
-
-    if (isArray) {
-      // array size + data
-      r = std::fread(&size, sizeof(size_t), 1, fp);
-      void *dataPtr = node.setValueAsArray(type, size);
-      r = std::fread(dataPtr, anari::sizeOf(type), size, fp);
-    } else {
-      if (anari::isObject(type)) {
-        size_t idx = INVALID_INDEX;
-        r = std::fread(&idx, sizeof(size_t), 1, fp);
-        node.setValueObject(type, idx);
-      } else if (type == ANARI_STRING) {
-        r = std::fread(&size, sizeof(size_t), 1, fp);
-        std::string str(size, '\0');
-        r = std::fread(str.data(), sizeof(char), size, fp);
-        node = str.c_str();
-      } else if (type != ANARI_UNKNOWN) {
-        constexpr int MAX_SIZE = 16 * sizeof(float);
-        if (anari::sizeOf(type) <= MAX_SIZE) {
-          uint8_t data[MAX_SIZE];
-          r = std::fread(data, anari::sizeOf(type), 1, fp);
-          node.setValue(type, (void *)data);
-        } else {
-          printf("ERROR: type %s is too large to read when parsing DataTree\n",
-              anari::toString(type));
-          fflush(stdout);
-          std::fclose(fp);
-          abort();
-        }
-      }
-    }
-  }
-
-  std::fclose(fp);
-  return true;
+inline bool DataTree::load(const std::vector<std::byte> &buffer)
+{
+  BufferReader reader(buffer);
+  return loadImpl(reader);
 }
 
 inline void DataTree::print()
@@ -783,20 +661,165 @@ inline void DataTree::print()
   printf("\n");
 }
 
+inline bool DataTree::saveImpl(DataWriter &writer)
+{
+  // Count + write number of leaf nodes //
+
+  size_t numLeafNodes = 0;
+  m_tree.traverse(m_tree.root(), [&](auto &nodeRef, int level) {
+    if (level == 0)
+      return true;
+    else if (auto &node = **nodeRef; nodeRef.isLeaf())
+      numLeafNodes++;
+    return true;
+  });
+
+  writer.write(&numLeafNodes, sizeof(size_t), 1);
+
+  // Travese tree and write nodes //
+
+  std::string path;
+  path.reserve(256);
+  m_tree.traverse(
+      m_tree.root(),
+      [&](auto &nodeRef, int level) {
+        if (level == 0)
+          return true;
+
+        if (auto &node = **nodeRef; nodeRef.isLeaf()) {
+          writeDataNode(writer, node, path);
+          numLeafNodes++;
+        } else {
+          const auto &name = node.name();
+          std::copy(name.begin(), name.end(), std::back_inserter(path));
+          path.push_back('\0');
+        }
+
+        return true;
+      },
+      [&](auto &nodeRef, int level) {
+        if (level == 0)
+          return;
+        else if (level == 1) {
+          path.clear();
+          return;
+        }
+
+        if (!nodeRef.isLeaf())
+          path.resize(path.size() - ((*nodeRef)->name().size() + 1));
+      });
+
+  return true;
+}
+
+inline bool DataTree::loadImpl(DataReader &reader)
+{
+  auto splitNullSeparatedStrings =
+      [](const char *buffer, size_t bufferSize) -> std::vector<std::string> {
+    std::vector<std::string> result;
+    for (size_t start = 0; start < bufferSize;) {
+      size_t end = start;
+      while (end < bufferSize && buffer[end] != '\0')
+        ++end;
+      if (end > start)
+        result.emplace_back(buffer + start, end - start);
+      start = end + 1;
+    }
+
+    return result;
+  };
+
+  /////////////////////////////////////////////////////////////////////////////
+
+  m_tree.root()->erase_subtree();
+  auto &rootNode = root();
+
+  size_t numLeafNodes = 0;
+  auto r = reader.read(&numLeafNodes, sizeof(size_t), 1);
+
+  for (size_t i = 0; i < numLeafNodes; i++) {
+    size_t size = 0;
+
+    // name
+    r = reader.read(&size, sizeof(size_t), 1);
+    std::string name(size, '\0');
+    r = reader.read(name.data(), sizeof(char), size);
+
+    // path
+    r = reader.read(&size, sizeof(size_t), 1);
+    std::string fullPath(size, '\0');
+    r = reader.read(fullPath.data(), sizeof(char), size);
+
+    // isArray
+    uint8_t isArray = 0;
+    r = reader.read(&isArray, sizeof(uint8_t), 1);
+
+    // type
+    anari::DataType type = ANARI_UNKNOWN;
+    r = reader.read(&type, sizeof(anari::DataType), 1);
+
+    // Create node //
+
+    auto path = splitNullSeparatedStrings(fullPath.c_str(), fullPath.size());
+
+    DataNode *parentPtr = &rootNode;
+    for (auto &loc : path) {
+      if (!loc.empty())
+        parentPtr = &parentPtr->append(loc);
+    }
+
+    auto &node = parentPtr->append(name);
+
+    // Read node value //
+
+    if (isArray) {
+      // array size + data
+      r = reader.read(&size, sizeof(size_t), 1);
+      void *dataPtr = node.setValueAsArray(type, size);
+      r = reader.read(dataPtr, anari::sizeOf(type), size);
+    } else {
+      if (anari::isObject(type)) {
+        size_t idx = INVALID_INDEX;
+        r = reader.read(&idx, sizeof(size_t), 1);
+        node.setValueObject(type, idx);
+      } else if (type == ANARI_STRING) {
+        r = reader.read(&size, sizeof(size_t), 1);
+        std::string str(size, '\0');
+        r = reader.read(str.data(), sizeof(char), size);
+        node = str.c_str();
+      } else if (type != ANARI_UNKNOWN) {
+        constexpr int MAX_SIZE = 16 * sizeof(float);
+        if (anari::sizeOf(type) <= MAX_SIZE) {
+          uint8_t data[MAX_SIZE];
+          r = reader.read(data, anari::sizeOf(type), 1);
+          node.setValue(type, (void *)data);
+        } else {
+          printf("ERROR: type %s is too large to read when parsing DataTree\n",
+              anari::toString(type));
+          fflush(stdout);
+          abort();
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 inline void DataTree::writeDataNode(
-    std::FILE *fp, const DataNode &node, const std::string &path) const
+    DataWriter &writer, const DataNode &node, const std::string &path) const
 {
   // name
   size_t size = node.name().size();
-  std::fwrite(&size, sizeof(size_t), 1, fp);
-  std::fwrite(node.name().c_str(), sizeof(char), size, fp);
+  writer.write(&size, sizeof(size_t), 1);
+  writer.write(node.name().c_str(), sizeof(char), size);
   // path
   size = path.size();
-  std::fwrite(&size, sizeof(size_t), 1, fp);
-  std::fwrite(path.c_str(), sizeof(char), size, fp);
+  writer.write(&size, sizeof(size_t), 1);
+  writer.write(path.c_str(), sizeof(char), size);
   // isArray
   const uint8_t isArray = node.holdsArray();
-  std::fwrite(&isArray, sizeof(uint8_t), 1, fp);
+  writer.write(&isArray, sizeof(uint8_t), 1);
 
   if (isArray) {
     // array info + data
@@ -804,24 +827,24 @@ inline void DataTree::writeDataNode(
     const void *data = nullptr;
     size = 0;
     node.getValueAsArray(&type, &data, &size);
-    std::fwrite(&type, sizeof(anari::DataType), 1, fp);
-    std::fwrite(&size, sizeof(size_t), 1, fp);
-    std::fwrite(data, sizeof(uint8_t), size * anari::sizeOf(type), fp);
+    writer.write(&type, sizeof(anari::DataType), 1);
+    writer.write(&size, sizeof(size_t), 1);
+    writer.write(data, sizeof(uint8_t), size * anari::sizeOf(type));
   } else {
     // value info + data
     auto &v = node.getValue();
     auto type = v.type();
-    std::fwrite(&type, sizeof(anari::DataType), 1, fp);
+    writer.write(&type, sizeof(anari::DataType), 1);
     if (anari::isObject(type)) {
       size_t idx = v.getAsObjectIndex();
-      std::fwrite(&idx, sizeof(size_t), 1, fp);
+      writer.write(&idx, sizeof(size_t), 1);
     } else if (type == ANARI_STRING) {
       const char *data = v.getCStr();
       size = data ? std::strlen(data) : 0;
-      std::fwrite(&size, sizeof(size_t), 1, fp);
-      std::fwrite(data, sizeof(char), size, fp);
+      writer.write(&size, sizeof(size_t), 1);
+      writer.write(data, sizeof(char), size);
     } else if (type != ANARI_UNKNOWN) {
-      std::fwrite(v.data(), anari::sizeOf(type), 1, fp);
+      writer.write(v.data(), anari::sizeOf(type), 1);
     }
   }
 }
