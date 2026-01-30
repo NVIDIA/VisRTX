@@ -12,7 +12,7 @@ namespace tsd::network {
 template <typename FCN>
 static void async_invoke(boost::asio::io_context &io_context, FCN &&f)
 {
-  io_context.post([f = std::forward<FCN>(f)]() mutable { f(); });
+  boost::asio::post(io_context, [f = std::forward<FCN>(f)]() mutable { f(); });
 }
 
 // NetworkChannel definitions /////////////////////////////////////////////////
