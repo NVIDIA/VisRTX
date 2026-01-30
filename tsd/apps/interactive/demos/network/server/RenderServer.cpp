@@ -4,6 +4,9 @@
 #include "RenderServer.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/Timer.hpp"
+// tsd_io
+#include "tsd/io/serialization.hpp"
 
 namespace tsd::network {
 
@@ -37,6 +40,7 @@ void RenderServer::run(short port)
         m_lastSentFrame = {};
         m_mode = ServerMode::DISCONNECTED;
       }
+      m_wasRenderingBeforeSendScene = false;
       std::this_thread::sleep_for(std::chrono::seconds(1));
     } else if (m_mode == ServerMode::RENDERING) {
       tsd::core::logDebug("[Server] Rendering frame...");
@@ -44,9 +48,33 @@ void RenderServer::run(short port)
       update_View();
       m_renderPipeline.render();
       send_FrameBuffer();
+      m_wasRenderingBeforeSendScene = true;
+    } else if (m_mode == ServerMode::SEND_SCENE) {
+      tsd::core::logStatus("[Server] Serializing scene...");
+
+      tsd::core::DataTree sceneTree;
+      tsd::io::save_Scene(m_core.tsd.scene, sceneTree.root());
+
+      // Prep message
+      tsd::network::Message sceneMsg;
+      sceneTree.save(sceneMsg.payload);
+      sceneMsg.header.type = MessageType::CLIENT_RECEIVE_SCENE;
+      sceneMsg.header.payload_length = uint32_t(sceneMsg.payload.size());
+
+      tsd::core::Timer timer;
+      timer.start();
+      tsd::core::logStatus(
+          "[Server] Sending scene (%zu bytes)...", sceneMsg.payload.size());
+      m_server->send(sceneMsg).get();
+      timer.end();
+      tsd::core::logStatus("[Server] ...done! (%.3f s)", timer.seconds());
+
+      m_mode = m_wasRenderingBeforeSendScene ? ServerMode::RENDERING
+                                             : ServerMode::PAUSED;
     } else {
       if (m_previousMode != ServerMode::PAUSED)
         tsd::core::logStatus("[Server] Rendering paused...");
+      m_wasRenderingBeforeSendScene = false;
       m_lastSentFrame = {};
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
@@ -239,6 +267,14 @@ void RenderServer::setup_Messaging()
         outMsg.header.type = MessageType::CLIENT_RECEIVE_VIEW;
         outMsg.header.payload_length = uint32_t(outMsg.payload.size());
         s->send(outMsg);
+      });
+
+  m_server->registerHandler(MessageType::SERVER_REQUEST_SCENE,
+      [this](const tsd::network::Message &msg) {
+        tsd::core::logDebug("[Server] Client requested scene...");
+        // Notify client a big message is coming...
+        m_server->send(make_message(MessageType::CLIENT_SCENE_TRANSFER_BEGIN));
+        m_mode = ServerMode::SEND_SCENE;
       });
 }
 

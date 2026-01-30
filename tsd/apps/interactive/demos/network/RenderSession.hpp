@@ -28,9 +28,12 @@ enum MessageType
   CLIENT_RECEIVE_FRAME_BUFFER_COLOR,
   CLIENT_RECEIVE_FRAME_CONFIG,
   CLIENT_RECEIVE_VIEW,
+  CLIENT_RECEIVE_SCENE,
+  CLIENT_SCENE_TRANSFER_BEGIN, // notify the client a big message is coming...
   // Request state: client-> server
   SERVER_REQUEST_FRAME_CONFIG,
   SERVER_REQUEST_VIEW,
+  SERVER_REQUEST_SCENE,
   // All errors
   ERROR = 255
 };

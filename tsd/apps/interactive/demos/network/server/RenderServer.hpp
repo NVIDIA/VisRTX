@@ -40,13 +40,13 @@ struct RenderServer
     DISCONNECTED,
     PAUSED,
     RENDERING,
+    SEND_SCENE,
     SHUTDOWN
   };
 
   // Data //
 
   short m_port{12345};
-  bool m_running{true};
 
   RenderSession m_session;
   tsd::app::Core m_core;
@@ -62,6 +62,7 @@ struct RenderServer
   tsd::rendering::RenderPipeline m_renderPipeline;
   ServerMode m_mode{ServerMode::DISCONNECTED};
   ServerMode m_previousMode{ServerMode::DISCONNECTED};
+  bool m_wasRenderingBeforeSendScene{false};
 
   struct SessionVersions
   {

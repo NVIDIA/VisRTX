@@ -4,11 +4,12 @@
 // tsd_ui_imgui
 #include <tsd/ui/imgui/Application.h>
 #include <tsd/ui/imgui/windows/DatabaseEditor.h>
+#include <tsd/ui/imgui/windows/LayerTree.h>
 #include <tsd/ui/imgui/windows/Log.h>
 #include <tsd/ui/imgui/windows/ObjectEditor.h>
 #include <tsd/ui/imgui/windows/Viewport.h>
 // tsd_io
-#include "tsd/io/procedural.hpp"
+#include "tsd/io/serialization.hpp"
 
 #include "RemoteViewport.h"
 
@@ -48,6 +49,29 @@ struct Application : public TSDApplication
               viewMsg->azeldist.z,
               tsd::math::float2(viewMsg->azeldist.x, viewMsg->azeldist.y));
         });
+
+    m_client->registerHandler(MessageType::CLIENT_SCENE_TRANSFER_BEGIN,
+        [this](const tsd::network::Message &msg) {
+          tsd::core::logStatus(
+              "[Client] Server has initiated scene transfer...");
+        });
+
+    m_client->registerHandler(MessageType::CLIENT_RECEIVE_SCENE,
+        [this](const tsd::network::Message &msg) {
+          tsd::core::logStatus(
+              "[Client] Received scene from server (%zu bytes)",
+              msg.header.payload_length);
+
+          tsd::core::DataTree sceneTree;
+          sceneTree.load(msg.payload);
+
+          auto &scene = appCore()->tsd.scene;
+          tsd::io::load_Scene(scene, sceneTree.root());
+
+          tsd::core::logStatus("[Client] Scene contents:");
+          tsd::core::logStatus(
+              "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
+        });
   }
 
   ~Application() override
@@ -67,9 +91,15 @@ struct Application : public TSDApplication
     auto *log = new tsd_ui::Log(this);
     m_viewport = new tsd_ui::RemoteViewport(
         this, manipulator, m_client.get(), "Viewport");
+    auto *ltree = new tsd_ui::LayerTree(this);
+    auto *oeditor = new tsd_ui::ObjectEditor(this);
+    auto *dbeditor = new tsd_ui::DatabaseEditor(this);
 
     windows.emplace_back(m_viewport);
     windows.emplace_back(log);
+    windows.emplace_back(ltree);
+    windows.emplace_back(oeditor);
+    windows.emplace_back(dbeditor);
 
     setWindowArray(windows);
 
@@ -149,7 +179,15 @@ struct Application : public TSDApplication
 
       ImGui::Separator();
 
-      if (ImGui::MenuItem("Shutdown")) {
+      if (ImGui::MenuItem("Request Scene")) {
+        tsd::core::logStatus("[Client] Requesting scene from server");
+        m_client->send(
+            tsd::network::make_message(MessageType::SERVER_REQUEST_SCENE));
+      }
+
+      ImGui::Separator();
+
+      if (ImGui::MenuItem("Shutdown Server")) {
         tsd::core::logStatus("[Client] Sending SHUTDOWN command");
         m_client->send(tsd::network::make_message(MessageType::SERVER_SHUTDOWN))
             .get();
@@ -166,6 +204,10 @@ struct Application : public TSDApplication
     if (ImGui::IsKeyPressed(ImGuiKey_P, false)) {
       tsd::core::logStatus("[Client] Sending PING");
       m_client->send(tsd::network::make_message(MessageType::SERVER_PING));
+    }
+
+    if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) {
+      printf("%s\n", ImGui::SaveIniSettingsToMemory());
     }
   }
 
@@ -185,12 +227,12 @@ struct Application : public TSDApplication
     return R"layout(
 [Window][MainDockSpace]
 Pos=0,26
-Size=1920,1105
+Size=1920,1054
 Collapsed=0
 
 [Window][Viewport]
 Pos=549,26
-Size=1371,857
+Size=1371,806
 Collapsed=0
 DockId=0x00000003,0
 
@@ -201,7 +243,7 @@ Collapsed=0
 DockId=0x00000004,0
 
 [Window][Log]
-Pos=549,885
+Pos=549,834
 Size=1371,246
 Collapsed=0
 DockId=0x0000000A,0
@@ -212,16 +254,16 @@ Size=400,400
 Collapsed=0
 
 [Window][Layers]
-Pos=0,25
-Size=548,347
+Pos=0,26
+Size=547,640
 Collapsed=0
 DockId=0x00000005,0
 
 [Window][Object Editor]
-Pos=0,609
-Size=547,522
+Pos=0,668
+Size=547,412
 Collapsed=0
-DockId=0x00000008,0
+DockId=0x00000006,0
 
 [Window][Scene Controls]
 Pos=0,26
@@ -230,10 +272,10 @@ Collapsed=0
 DockId=0x00000007,0
 
 [Window][Database Editor]
-Pos=0,609
-Size=547,522
+Pos=0,668
+Size=547,412
 Collapsed=0
-DockId=0x00000008,1
+DockId=0x00000006,1
 
 [Table][0x39E9F5ED,1]
 Column 0  Weight=1.0000
@@ -267,13 +309,13 @@ Column 0  Weight=1.0000
 Column 1  Weight=1.0000
 
 [Docking][Data]
-DockSpace       ID=0x782A6D6B Pos=0,25 Size=1920,1054 Split=X Selected=0x13926F0B
-  DockNode      ID=0x00000005 Parent=0x782A6D6B SizeRef=548,626 Selected=0x1FD98235
-  DockNode      ID=0x00000006 Parent=0x782A6D6B SizeRef=1370,626 CentralNode=1 Selected=0x13926F0B
-DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
+DockSpace       ID=0x782A6D6B Pos=0,25 Size=1920,1054 CentralNode=1 Selected=0x13926F0B
+DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1054 Split=X
   DockNode      ID=0x00000001 Parent=0x80F5B4C5 SizeRef=547,1054 Split=Y Selected=0x6426B955
     DockNode    ID=0x00000007 Parent=0x00000001 SizeRef=547,581 Selected=0x6426B955
-    DockNode    ID=0x00000008 Parent=0x00000001 SizeRef=547,522 Selected=0x82B4C496
+    DockNode    ID=0x00000008 Parent=0x00000001 SizeRef=547,522 Split=Y Selected=0x8B73155F
+      DockNode  ID=0x00000005 Parent=0x00000008 SizeRef=547,640 Selected=0xCD8384B1
+      DockNode  ID=0x00000006 Parent=0x00000008 SizeRef=547,412 Selected=0x82B4C496
   DockNode      ID=0x00000002 Parent=0x80F5B4C5 SizeRef=1371,1054 Split=Y Selected=0xC450F867
     DockNode    ID=0x00000009 Parent=0x00000002 SizeRef=1371,806 Split=X Selected=0xC450F867
       DockNode  ID=0x00000003 Parent=0x00000009 SizeRef=686,857 CentralNode=1 Selected=0xC450F867
