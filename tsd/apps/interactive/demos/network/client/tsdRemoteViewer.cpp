@@ -11,6 +11,7 @@
 // tsd_io
 #include "tsd/io/serialization.hpp"
 
+#include "NetworkUpdateDelegate.hpp"
 #include "RemoteViewport.h"
 
 namespace tsd::demo {
@@ -72,6 +73,9 @@ struct Application : public TSDApplication
           tsd::core::logStatus(
               "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
         });
+
+    auto *core = appCore();
+    core->tsd.scene.setUpdateDelegate(&m_updateDelegate);
   }
 
   ~Application() override
@@ -97,8 +101,8 @@ struct Application : public TSDApplication
     windows.emplace_back(m_viewport);
     windows.emplace_back(log);
     windows.emplace_back(ltree);
-    windows.emplace_back(oeditor);
     windows.emplace_back(dbeditor);
+    windows.emplace_back(oeditor);
 
     setWindowArray(windows);
 
@@ -324,6 +328,7 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1054 Split=X
   }
 
  private:
+  tsd::network::NetworkUpdateDelegate m_updateDelegate;
   tsd::ui::imgui::RemoteViewport *m_viewport{nullptr};
   std::shared_ptr<tsd::network::NetworkClient> m_client;
   std::string m_host{"127.0.0.1"};
