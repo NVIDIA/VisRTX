@@ -182,7 +182,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const Ray *ray,
     RandState *rs)
 {
-  // Before anything, check for opacity. If below, than we just pass through
+  // Before anything, check for opacity. If below, then we just pass through
   if (curand_uniform(rs) > shadingState->opacity)
   {
     return NextRay{ray->dir, vec3(1.0f)};

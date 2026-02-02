@@ -200,7 +200,7 @@ VISRTX_CALLABLE
 NextRay __direct_callable__nextRay(
     const MDLShadingState *shadingState, const Ray *ray, RandState *rs)
 {
-  // Before anything, check for opacity. If below, than we just pass through
+  // Before anything, check for opacity. If below, then we just pass through
   if (curand_uniform(rs) > mdlOpacity(&shadingState->state,
           &shadingState->resData,
           shadingState->argBlock)) {
