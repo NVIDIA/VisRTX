@@ -75,6 +75,9 @@ class Application : public anari_viewer::Application
   void setWindowArray(const anari_viewer::WindowArray &wa);
   virtual const char *getDefaultLayout() const = 0;
 
+  template <class FUNCTION>
+  void showTaskModal(FUNCTION &&f, const char *text = "Please Wait");
+
   // Data //
 
   std::vector<Window *> m_windows;
@@ -113,5 +116,13 @@ class Application : public anari_viewer::Application
     tsd::rendering::RenderIndex *renderIndex{nullptr};
   } m_tsdDevice;
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+template <class F>
+inline void Application::showTaskModal(F &&f, const char *text)
+{
+  m_taskModal->activate(std::forward<F>(f), text);
+}
 
 } // namespace tsd::ui::imgui

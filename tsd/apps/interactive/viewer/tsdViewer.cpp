@@ -96,7 +96,7 @@ class Application : public TSDApplication
     };
 
 #if 1
-    m_taskModal->activate(populateScene, "Please Wait: Loading Scene...");
+    showTaskModal(populateScene, "Please Wait: Loading Scene...");
 #else
     populateScene();
 #endif
