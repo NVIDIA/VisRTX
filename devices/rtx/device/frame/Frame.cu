@@ -316,6 +316,12 @@ void Frame::renderFrame()
       1));
   instrument::rangePop(); // optixLaunch()
 
+  // Increment frameID after rendering completes
+  if (checkerboarding())
+    hd.fb.frameID += int(hd.fb.checkerboardID == 3);
+  else
+    hd.fb.frameID += m_renderer->spp();
+
   if (m_denoise)
     m_denoiser.launch();
 
@@ -682,10 +688,6 @@ void Frame::newFrame()
           vec3(0.0f));
     }
   } else {
-    if (checkerboarding())
-      hd.fb.frameID += int(hd.fb.checkerboardID == 3);
-    else
-      hd.fb.frameID += m_renderer->spp();
     hd.fb.checkerboardID =
         checkerboarding() ? ((hd.fb.checkerboardID + 1) & 0x3) : -1;
   }
