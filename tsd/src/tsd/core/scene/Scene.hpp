@@ -138,6 +138,7 @@ struct Scene
 
   void removeLayer(Token name);
   void removeLayer(const Layer *layer);
+  void removeAllLayers();
 
   // Insert nodes //
 
@@ -198,8 +199,6 @@ struct Scene
   void cleanupScene(); // remove unused + defragment
 
  private:
-  void removeAllLayers();
-
   friend void ::tsd::io::save_Scene(Scene &scene, core::DataNode &root);
   friend void ::tsd::io::load_Scene(Scene &scene, core::DataNode &root);
 

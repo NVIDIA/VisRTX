@@ -433,6 +433,16 @@ void Scene::removeLayer(const Layer *layer)
   }
 }
 
+void Scene::removeAllLayers()
+{
+  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++) {
+    if (m_updateDelegate)
+      m_updateDelegate->signalLayerRemoved(itr->second.ptr.get());
+  }
+
+  m_layers.clear();
+}
+
 LayerNodeRef Scene::insertChildNode(LayerNodeRef parent, const char *name)
 {
   auto *layer = parent->container();
@@ -548,7 +558,7 @@ void Scene::setAnimationTime(float time)
   m_animations.time = time;
   for (auto &a : m_animations.objects)
     a->update(time);
-  
+
   // Signal delegates that animation time changed
   if (m_updateDelegate)
     m_updateDelegate->signalAnimationTimeChanged(time);
@@ -776,16 +786,6 @@ void Scene::cleanupScene()
 {
   removeUnusedObjects();
   defragmentObjectStorage();
-}
-
-void Scene::removeAllLayers()
-{
-  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++) {
-    if (m_updateDelegate)
-      m_updateDelegate->signalLayerRemoved(itr->second.ptr.get());
-  }
-
-  m_layers.clear();
 }
 
 ArrayRef Scene::createArrayImpl(anari::DataType type,

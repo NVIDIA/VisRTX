@@ -23,206 +23,196 @@ namespace tsd_ui = tsd::ui::imgui;
 
 struct Application : public TSDApplication
 {
-  Application()
-  {
-    m_client = std::make_shared<tsd::network::NetworkClient>();
+  Application();
+  ~Application() override;
 
-    m_client->registerHandler(
-        MessageType::ERROR, [](const tsd::network::Message &msg) {
-          tsd::core::logError("[Client] Received error from server: '%s'",
-              tsd::network::payloadAs<char>(msg));
-          std::exit(1);
-        });
+  anari_viewer::WindowArray setupWindows() override;
+  void uiMainMenuBar() override;
+  void teardown() override;
+  const char *getDefaultLayout() const override;
 
-    m_client->registerHandler(
-        MessageType::CLIENT_PING, [](const tsd::network::Message &msg) {
-          tsd::core::logStatus("[Client] Received PING from server");
-        });
+ private:
+  void connect();
+  void disconnect();
 
-    m_client->registerHandler(MessageType::CLIENT_RECEIVE_VIEW,
-        [this](const tsd::network::Message &msg) {
-          tsd::core::logStatus("[Client] Received view from server");
-          const auto *viewMsg =
-              tsd::network::payloadAs<tsd::network::RenderSession::View>(msg);
-          auto *core = appCore();
-          auto *manipulator = &core->view.manipulator;
-          manipulator->setConfig(
-              tsd::math::float3(
-                  viewMsg->lookat.x, viewMsg->lookat.y, viewMsg->lookat.z),
-              viewMsg->azeldist.z,
-              tsd::math::float2(viewMsg->azeldist.x, viewMsg->azeldist.y));
-        });
+  tsd::network::NetworkUpdateDelegate m_updateDelegate;
+  tsd::ui::imgui::RemoteViewport *m_viewport{nullptr};
+  std::shared_ptr<tsd::network::NetworkClient> m_client;
+  std::string m_host{"127.0.0.1"};
+  short m_port{12345};
+};
 
-    m_client->registerHandler(MessageType::CLIENT_SCENE_TRANSFER_BEGIN,
-        [this](const tsd::network::Message &msg) {
-          tsd::core::logStatus(
-              "[Client] Server has initiated scene transfer...");
-        });
+// Application definitions ////////////////////////////////////////////////////
 
-    m_client->registerHandler(MessageType::CLIENT_RECEIVE_SCENE,
-        [this](const tsd::network::Message &msg) {
-          auto &scene = appCore()->tsd.scene;
-          tsd::network::messages::TransferScene sceneMsg(msg, &scene);
-          sceneMsg.execute();
-          tsd::core::logStatus("[Client] Scene contents:");
-          tsd::core::logStatus(
-              "\n%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
-        });
+Application::Application()
+{
+  m_client = std::make_shared<tsd::network::NetworkClient>();
 
-    auto *core = appCore();
-    core->tsd.scene.setUpdateDelegate(&m_updateDelegate);
-  }
+  m_client->registerHandler(
+      MessageType::ERROR, [](const tsd::network::Message &msg) {
+        tsd::core::logError("[Client] Received error from server: '%s'",
+            tsd::network::payloadAs<char>(msg));
+        std::exit(1);
+      });
 
-  ~Application() override
-  {
-    // no-op
-  }
+  m_client->registerHandler(
+      MessageType::CLIENT_PING, [](const tsd::network::Message &msg) {
+        tsd::core::logStatus("[Client] Received PING from server");
+      });
 
-  anari_viewer::WindowArray setupWindows() override
-  {
-    auto windows = TSDApplication::setupWindows();
+  m_client->registerHandler(MessageType::CLIENT_RECEIVE_VIEW,
+      [this](const tsd::network::Message &msg) {
+        tsd::core::logStatus("[Client] Received view from server");
+        const auto *viewMsg =
+            tsd::network::payloadAs<tsd::network::RenderSession::View>(msg);
+        auto *core = appCore();
+        auto *manipulator = &core->view.manipulator;
+        manipulator->setConfig(
+            tsd::math::float3(
+                viewMsg->lookat.x, viewMsg->lookat.y, viewMsg->lookat.z),
+            viewMsg->azeldist.z,
+            tsd::math::float2(viewMsg->azeldist.x, viewMsg->azeldist.y));
+      });
 
-    auto *core = appCore();
-    auto *manipulator = &core->view.manipulator;
-    core->tsd.sceneLoadComplete = true;
+  m_client->registerHandler(MessageType::CLIENT_SCENE_TRANSFER_BEGIN,
+      [this](const tsd::network::Message &msg) {
+        tsd::core::logStatus("[Client] Server has initiated scene transfer...");
+      });
 
-    auto *log = new tsd_ui::Log(this);
-    m_viewport = new tsd_ui::RemoteViewport(
-        this, manipulator, m_client.get(), "Viewport");
-    auto *ltree = new tsd_ui::LayerTree(this);
-    auto *oeditor = new tsd_ui::ObjectEditor(this);
-    auto *dbeditor = new tsd_ui::DatabaseEditor(this);
-
-    windows.emplace_back(m_viewport);
-    windows.emplace_back(log);
-    windows.emplace_back(ltree);
-    windows.emplace_back(dbeditor);
-    windows.emplace_back(oeditor);
-
-    setWindowArray(windows);
-
-    return windows;
-  }
-
-  void uiMainMenuBar() override
-  {
-    // Menu //
-
-    if (ImGui::BeginMenu("Client")) {
-      ImGui::BeginDisabled(m_client->isConnected());
-      if (ImGui::BeginMenu("Connect")) {
-        ImGui::InputText("Host", &m_host);
-        int port = m_port;
-        if (ImGui::InputInt("Port", &port))
-          m_port = static_cast<short>(port);
-        if (ImGui::Button("Connect")) {
-          m_client->connect(m_host, m_port);
-          if (m_client->isConnected()) {
-            tsd::core::logStatus("[Client] Connected to server at %s:%d",
-                m_host.c_str(),
-                m_port);
-            m_client
-                ->send(tsd::network::make_message(
-                    MessageType::SERVER_START_RENDERING))
-                .get();
-          } else {
-            tsd::core::logError("[Client] Failed to connect to server at %s:%d",
-                m_host.c_str(),
-                m_port);
-          }
-        }
-        ImGui::EndMenu();
-      } // Connect
-      ImGui::EndDisabled();
-
-      ImGui::Separator();
-
-      ImGui::BeginDisabled(!m_client->isConnected());
-      if (ImGui::MenuItem("Disconnect", "", false, true)) {
-        tsd::core::logStatus("[Client] Disconnecting from server...");
-        m_client->disconnect();
-      }
-      ImGui::EndDisabled();
-
-      ImGui::Separator();
-
-      if (ImGui::MenuItem("Quit", "Esc", false, true)) {
-        m_client
-            ->send(
-                tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
-            .get();
-        m_client->disconnect();
-        m_client->removeAllHandlers();
-        m_viewport->setNetworkChannel(nullptr);
-        m_client.reset();
-        std::exit(0);
-      }
-      ImGui::EndMenu();
-    }
-
-    ImGui::BeginDisabled(!m_client->isConnected());
-
-    if (ImGui::BeginMenu("Commands")) {
-      if (ImGui::MenuItem("Start Rendering")) {
-        tsd::core::logStatus("[Client] Sending START_RENDERING command");
+  m_client->registerHandler(MessageType::CLIENT_RECEIVE_SCENE,
+      [this](const tsd::network::Message &msg) {
+        auto &scene = appCore()->tsd.scene;
+        tsd::network::messages::TransferScene sceneMsg(msg, &scene);
+        sceneMsg.execute();
+        tsd::core::logStatus("[Client] Scene contents:");
+        tsd::core::logStatus(
+            "\n%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
+        tsd::core::logStatus("[Client] Requesting start of rendering...");
         m_client->send(
             tsd::network::make_message(MessageType::SERVER_START_RENDERING));
-      }
+      });
 
-      if (ImGui::MenuItem("Stop Rendering")) {
-        tsd::core::logStatus("[Client] Sending STOP_RENDERING command");
-        m_client->send(
-            tsd::network::make_message(MessageType::SERVER_STOP_RENDERING));
-      }
+  auto *core = appCore();
+  core->tsd.scene.setUpdateDelegate(&m_updateDelegate);
+}
 
-      ImGui::Separator();
+Application::~Application() = default;
 
-      if (ImGui::MenuItem("Request Scene")) {
-        tsd::core::logStatus("[Client] Requesting scene from server");
-        m_client->send(
-            tsd::network::make_message(MessageType::SERVER_REQUEST_SCENE));
-      }
+anari_viewer::WindowArray Application::setupWindows()
+{
+  auto windows = TSDApplication::setupWindows();
 
-      ImGui::Separator();
+  auto *core = appCore();
+  auto *manipulator = &core->view.manipulator;
+  core->tsd.sceneLoadComplete = true;
 
-      if (ImGui::MenuItem("Shutdown Server")) {
-        tsd::core::logStatus("[Client] Sending SHUTDOWN command");
-        m_client->send(tsd::network::make_message(MessageType::SERVER_SHUTDOWN))
-            .get();
-        m_client->disconnect();
-      }
+  auto *log = new tsd_ui::Log(this);
+  m_viewport =
+      new tsd_ui::RemoteViewport(this, manipulator, m_client.get(), "Viewport");
+  auto *ltree = new tsd_ui::LayerTree(this);
+  auto *oeditor = new tsd_ui::ObjectEditor(this);
+  auto *dbeditor = new tsd_ui::DatabaseEditor(this);
+
+  windows.emplace_back(m_viewport);
+  windows.emplace_back(log);
+  windows.emplace_back(ltree);
+  windows.emplace_back(dbeditor);
+  windows.emplace_back(oeditor);
+
+  setWindowArray(windows);
+
+  return windows;
+}
+
+void Application::uiMainMenuBar()
+{
+  // Menu //
+
+  if (ImGui::BeginMenu("Client")) {
+    ImGui::BeginDisabled(m_client->isConnected());
+    if (ImGui::BeginMenu("Connect")) {
+      ImGui::InputText("Host", &m_host);
+
+      int port = m_port;
+      if (ImGui::InputInt("Port", &port))
+        m_port = static_cast<short>(port);
+
+      if (ImGui::Button("Connect"))
+        connect();
 
       ImGui::EndMenu();
-    }
-
+    } // Connect
     ImGui::EndDisabled();
 
-    // Keyboard shortcuts //
+    ImGui::Separator();
 
-    if (ImGui::IsKeyPressed(ImGuiKey_P, false)) {
-      tsd::core::logStatus("[Client] Sending PING");
-      m_client->send(tsd::network::make_message(MessageType::SERVER_PING));
+    ImGui::BeginDisabled(!m_client->isConnected());
+    if (ImGui::MenuItem("Disconnect", "", false, true))
+      disconnect();
+    ImGui::EndDisabled();
+
+    ImGui::Separator();
+
+    if (ImGui::MenuItem("Quit", "Esc", false, true)) {
+      teardown();
+      std::exit(0);
     }
 
-    if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) {
-      printf("%s\n", ImGui::SaveIniSettingsToMemory());
+    ImGui::EndMenu(); // "Client"
+  }
+
+  ImGui::BeginDisabled(!m_client->isConnected());
+
+  if (ImGui::BeginMenu("Server")) {
+    if (ImGui::MenuItem("Start Rendering")) {
+      tsd::core::logStatus("[Client] Sending START_RENDERING command");
+      m_client->send(
+          tsd::network::make_message(MessageType::SERVER_START_RENDERING));
     }
+
+    if (ImGui::MenuItem("Pause Rendering")) {
+      tsd::core::logStatus("[Client] Sending STOP_RENDERING command");
+      m_client->send(
+          tsd::network::make_message(MessageType::SERVER_STOP_RENDERING));
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::MenuItem("Shutdown")) {
+      tsd::core::logStatus("[Client] Sending SHUTDOWN command");
+      m_client->send(tsd::network::make_message(MessageType::SERVER_SHUTDOWN))
+          .get();
+      disconnect();
+    }
+
+    ImGui::EndMenu(); // "Server"
   }
 
-  void teardown() override
-  {
-    m_client
-        ->send(tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
-        .get();
-    m_client->disconnect();
-    m_client->removeAllHandlers();
-    m_viewport->setNetworkChannel(nullptr);
-    TSDApplication::teardown();
+  ImGui::EndDisabled();
+
+  // Keyboard shortcuts //
+
+  if (ImGui::IsKeyPressed(ImGuiKey_P, false)) {
+    tsd::core::logStatus("[Client] Sending PING");
+    m_client->send(tsd::network::make_message(MessageType::SERVER_PING));
   }
 
-  const char *getDefaultLayout() const override
-  {
-    return R"layout(
+  if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) {
+    printf("%s\n", ImGui::SaveIniSettingsToMemory());
+  }
+}
+
+void Application::teardown()
+{
+  disconnect();
+  m_client->removeAllHandlers();
+  m_viewport->setNetworkChannel(nullptr);
+  TSDApplication::teardown();
+}
+
+const char *Application::getDefaultLayout() const
+{
+  return R"layout(
 [Window][MainDockSpace]
 Pos=0,26
 Size=1920,1054
@@ -320,15 +310,36 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1054 Split=X
       DockNode  ID=0x00000004 Parent=0x00000009 SizeRef=683,857 Selected=0xA3219422
     DockNode    ID=0x0000000A Parent=0x00000002 SizeRef=1371,246 Selected=0x139FDA3F
 )layout";
-  }
+}
 
- private:
-  tsd::network::NetworkUpdateDelegate m_updateDelegate;
-  tsd::ui::imgui::RemoteViewport *m_viewport{nullptr};
-  std::shared_ptr<tsd::network::NetworkClient> m_client;
-  std::string m_host{"127.0.0.1"};
-  short m_port{12345};
-};
+void Application::connect()
+{
+  m_client->connect(m_host, m_port);
+  if (m_client->isConnected()) {
+    tsd::core::logStatus(
+        "[Client] Connected to server at %s:%d", m_host.c_str(), m_port);
+    tsd::core::logStatus("[Client] Requesting scene from server");
+    m_client->send(
+                tsd::network::make_message(MessageType::SERVER_REQUEST_SCENE))
+        .get();
+  } else {
+    tsd::core::logError("[Client] Failed to connect to server at %s:%d",
+        m_host.c_str(),
+        m_port);
+  }
+}
+
+void Application::disconnect()
+{
+  tsd::core::logStatus("[Client] Disconnecting from server...");
+  m_client->send(tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
+      .get();
+  m_client->disconnect();
+
+  auto &scene = appCore()->tsd.scene;
+  scene.removeAllLayers();
+  scene.removeAllObjects();
+}
 
 } // namespace tsd::demo
 
