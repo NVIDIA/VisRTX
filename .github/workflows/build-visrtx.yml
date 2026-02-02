@@ -4,6 +4,8 @@ on:
     branches: [ next_release ]
   pull_request:
     branches: [ main, next_release ]
+    paths:
+      - 'devices/**'  # Only trigger if VisRTX device has changes
 jobs:
   build:
     strategy:

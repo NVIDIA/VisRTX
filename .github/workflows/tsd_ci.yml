@@ -5,6 +5,8 @@ on:
     branches: [ next_release ]
   pull_request:
     branches: [ main, next_release ]
+    paths:
+      - 'tsd/**'  # Only trigger if TSD has changes
 
 jobs:
   build:
