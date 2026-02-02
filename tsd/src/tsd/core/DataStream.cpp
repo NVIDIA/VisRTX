@@ -110,7 +110,7 @@ void BufferReader::reset(size_t offset)
   m_offset = offset;
 }
 
-// BufferWriter definitions ///////////////////////////////////////////////////
+// FileReader definitions /////////////////////////////////////////////////////
 
 FileReader::FileReader(const char *filename, const char *mode)
 {
