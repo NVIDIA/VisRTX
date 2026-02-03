@@ -203,9 +203,6 @@ struct NvdbRectilinearSamplerState
   SpatialFieldFilter filter;
 };
 
-// Analytical field sampler states (used by devices/visrtx analytical fields)
-#include "spatial_field/AnalyticalFieldData.h"
-
 struct VolumeSamplingState
 {
   VISRTX_DEVICE VolumeSamplingState() {};
@@ -224,8 +221,7 @@ struct VolumeSamplingState
     NvdbRectilinearSamplerState<nanovdb::Fp16> nvdbRectilinearFp16;
     NvdbRectilinearSamplerState<nanovdb::FpN> nvdbRectilinearFpN;
     NvdbRectilinearSamplerState<float> nvdbRectilinearFloat;
-    // Generic analytical field sampler - dispatches by type at runtime
-    AnalyticalFieldGPUData analytical;
+    AnalyticalData analytical;  // For analytical spatial fields
   };
 };
 
