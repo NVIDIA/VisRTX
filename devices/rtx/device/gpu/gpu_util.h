@@ -304,7 +304,10 @@ VISRTX_DEVICE vec4 getBackgroundImage(
 VISRTX_DEVICE vec4 getBackground(
     const FrameGPUData &fd, const vec2 &loc, const vec3 &rayDir)
 {
-  // Check HDRI lights bucket for visible environment maps
+  // Accumulate contributions from all visible HDRI lights
+  vec3 hdriContribution = vec3(0.f);
+  bool hasVisibleHDRI = false;
+
   for (size_t i = 0; i < fd.world.numHdriLightInstances; i++) {
     const auto &hdriLight = fd.world.hdriLightInstances[i];
     const auto &light = fd.registry.lights[hdriLight.lightIndex];
@@ -313,9 +316,13 @@ VISRTX_DEVICE vec4 getBackground(
       // For orthonormal matrices, inverse = transpose
       const mat3 xfmInv = glm::transpose(mat3(hdriLight.xfm));
       const vec3 localRayDir = xfmInv * rayDir;
-      return vec4(sampleHDRI(light, localRayDir), 1.f);
+      hdriContribution += sampleHDRI(light, localRayDir);
+      hasVisibleHDRI = true;
     }
   }
+
+  if (hasVisibleHDRI)
+    return vec4(hdriContribution, 1.f);
 
   // No visible HDRI, use background image/color
   return getBackgroundImage(fd.renderer, loc);
