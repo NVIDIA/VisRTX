@@ -44,7 +44,7 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose);
 
 // Arrays //
 
-void arrayToNode(const Array &arr, core::DataNode &node);
+void arrayToNode(const Array &arr, core::DataNode &node, bool forceProxyArrays = false);
 
 // Layers //
 
@@ -54,7 +54,7 @@ void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene);
 // Scenes //
 
 void save_Scene(Scene &scene, const char *filename);
-void save_Scene(Scene &scene, core::DataNode &root);
+void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays);
 void load_Scene(Scene &scene, const char *filename);
 void load_Scene(Scene &scene, core::DataNode &root);
 

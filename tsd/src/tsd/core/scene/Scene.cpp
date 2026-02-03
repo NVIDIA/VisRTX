@@ -119,6 +119,13 @@ ArrayRef Scene::createArrayCUDA(
   return createArrayImpl(type, items0, items1, items2, Array::MemoryKind::CUDA);
 }
 
+ArrayRef Scene::createArrayProxy(
+    anari::DataType type, size_t items0, size_t items1, size_t items2)
+{
+  return createArrayImpl(
+      type, items0, items1, items2, Array::MemoryKind::PROXY);
+}
+
 SurfaceRef Scene::createSurface(const char *name, GeometryRef g, MaterialRef m)
 {
   auto surface = createObject<Surface>();

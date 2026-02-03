@@ -12,7 +12,7 @@ namespace tsd::network::messages {
 struct TransferScene : public StructuredMessage
 {
   // Sender -- will serialize the scene into the message on construction
-  TransferScene(tsd::core::Scene *scene);
+  TransferScene(tsd::core::Scene *scene, bool includeArrayData = false);
 
   // Receiver -- will setup deserialization on execute()
   TransferScene(const Message &msg, tsd::core::Scene *scene);

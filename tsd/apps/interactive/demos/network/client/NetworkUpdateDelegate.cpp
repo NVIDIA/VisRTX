@@ -13,9 +13,8 @@ namespace tsd::network {
 
 NetworkUpdateDelegate::NetworkUpdateDelegate(
     tsd::network::NetworkChannel *channel)
-    : m_channel(channel)
 {
-  // no-op
+  setNetworkChannel(channel);
 }
 
 void NetworkUpdateDelegate::setNetworkChannel(
@@ -51,8 +50,7 @@ void NetworkUpdateDelegate::signalParameterRemoved(
 
 void NetworkUpdateDelegate::signalArrayMapped(const tsd::core::Array *)
 {
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalArrayMapped not implemented");
+  // no-op
 }
 
 void NetworkUpdateDelegate::signalArrayUnmapped(const tsd::core::Array *)
@@ -64,15 +62,13 @@ void NetworkUpdateDelegate::signalArrayUnmapped(const tsd::core::Array *)
 void NetworkUpdateDelegate::signalObjectParameterUseCountZero(
     const tsd::core::Object *obj)
 {
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalObjectParameterUseCountZero not implemented");
+  // no-op
 }
 
 void NetworkUpdateDelegate::signalObjectLayerUseCountZero(
     const tsd::core::Object *obj)
 {
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalObjectLayerUseCountZero not implemented");
+  // no-op
 }
 
 void NetworkUpdateDelegate::signalObjectRemoved(const tsd::core::Object *)

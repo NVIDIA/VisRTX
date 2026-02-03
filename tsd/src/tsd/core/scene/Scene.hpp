@@ -24,8 +24,8 @@ struct Scene;
 } // namespace tsd::core
 
 namespace tsd::io {
-void save_Scene(core::Scene &scene, core::DataNode &root);
-void load_Scene(core::Scene &scene, core::DataNode &root);
+void save_Scene(core::Scene &, core::DataNode &, bool);
+void load_Scene(core::Scene &, core::DataNode &);
 } // namespace tsd::io
 
 namespace tsd::core {
@@ -95,6 +95,10 @@ struct Scene
       size_t items1 = 0,
       size_t items2 = 0);
   ArrayRef createArrayCUDA(anari::DataType type,
+      size_t items0,
+      size_t items1 = 0,
+      size_t items2 = 0);
+  ArrayRef createArrayProxy(anari::DataType type,
       size_t items0,
       size_t items1 = 0,
       size_t items2 = 0);
@@ -199,8 +203,8 @@ struct Scene
   void cleanupScene(); // remove unused + defragment
 
  private:
-  friend void ::tsd::io::save_Scene(Scene &scene, core::DataNode &root);
-  friend void ::tsd::io::load_Scene(Scene &scene, core::DataNode &root);
+  friend void ::tsd::io::save_Scene(Scene &, core::DataNode &, bool);
+  friend void ::tsd::io::load_Scene(Scene &, core::DataNode &);
 
   template <typename OBJ_T>
   ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv, Token subtype);

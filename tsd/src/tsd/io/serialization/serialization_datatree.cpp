@@ -156,26 +156,38 @@ void nodeToNewObject(Scene &scene, core::DataNode &node)
   case ANARI_ARRAY3D: {
     auto &arrayData = node["arrayData"];
     auto &arrayDim = node["arrayDim"];
+    auto isProxy = !arrayData.holdsArray();
 
     auto dim = arrayDim.getValueAs<tsd::math::uint3>();
-
-    anari::DataType arrayElementType = ANARI_UNKNOWN;
-    const void *arrayPtr = nullptr;
-    size_t arraySize = 0;
-
-    arrayData.getValueAsArray(&arrayElementType, &arrayPtr, &arraySize);
 
     const bool is2D = type == ANARI_ARRAY2D;
     const bool is3D = type == ANARI_ARRAY3D;
     const size_t dim_x = dim[0];
     const size_t dim_y = is2D || is3D ? dim[1] : size_t(0);
     const size_t dim_z = is3D ? dim[2] : size_t(0);
-    auto arr = scene.createArray(arrayElementType, dim_x, dim_y, dim_z);
+
+    anari::DataType arrayElementType = ANARI_UNKNOWN;
+    const void *arrayPtr = nullptr;
+    size_t arraySize = 0;
+
+    if (isProxy) {
+      arrayElementType =
+          static_cast<anari::DataType>(arrayData.getValueAs<int>());
+    } else {
+      arrayData.getValueAsArray(&arrayElementType, &arrayPtr, &arraySize);
+    }
+
+    auto arr = isProxy
+        ? scene.createArrayProxy(arrayElementType, dim_x, dim_y, dim_z)
+        : scene.createArray(arrayElementType, dim_x, dim_y, dim_z);
+
     if (arr) {
-      auto *memOut = arr->map();
-      std::memcpy(memOut, arrayPtr, arr->size() * arr->elementSize());
-      arr->unmap();
       obj = arr.data();
+      if (!isProxy) {
+        auto *memOut = arr->map();
+        std::memcpy(memOut, arrayPtr, arr->size() * arr->elementSize());
+        arr->unmap();
+      }
     }
   } break;
   case ANARI_GEOMETRY:
@@ -243,12 +255,21 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
 
 // Arrays /////////////////////////////////////////////////////////////////////
 
-void arrayToNode(const Array &arr, core::DataNode &node)
+void arrayToNode(const Array &arr, core::DataNode &node, bool forceProxyArrays)
 {
   objectToNode(arr, node);
 
   node["arrayDim"] = tsd::math::uint3{
       uint32_t(arr.dim(0)), uint32_t(arr.dim(1)), uint32_t(arr.dim(2))};
+
+  auto &arrayData = node.append("arrayData");
+
+  bool isProxy =
+      forceProxyArrays ? true : (arr.kind() == Array::MemoryKind::PROXY);
+  if (isProxy) {
+    arrayData = static_cast<int>(arr.elementType());
+    return;
+  }
 
   const void *mem = arr.data();
 #if TSD_USE_CUDA
@@ -256,12 +277,10 @@ void arrayToNode(const Array &arr, core::DataNode &node)
     const size_t numBytes = arr.size() * arr.elementSize();
     std::vector<uint8_t> hostBuf(numBytes);
     cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
-    node["arrayData"].setValueAsArray(
-        arr.elementType(), hostBuf.data(), numBytes);
+    arrayData.setValueAsArray(arr.elementType(), hostBuf.data(), numBytes);
   } else
 #endif
-    node["arrayData"].setValueAsExternalArray(
-        arr.elementType(), mem, arr.size());
+    arrayData.setValueAsExternalArray(arr.elementType(), mem, arr.size());
 }
 
 // Layers /////////////////////////////////////////////////////////////////////
@@ -347,13 +366,13 @@ void save_Scene(Scene &scene, const char *filename)
   tsd::core::logStatus("Saving context to file: %s", filename);
   tsd::core::logStatus("  ...serializing context");
   core::DataTree tree;
-  save_Scene(scene, tree.root());
+  save_Scene(scene, tree.root(), false);
   tsd::core::logStatus("  ...writing file");
   tree.save(filename);
   tsd::core::logStatus("  ...done!");
 }
 
-void save_Scene(Scene &scene, core::DataNode &root)
+void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays)
 {
   // Layers //
 
@@ -386,7 +405,7 @@ void save_Scene(Scene &scene, core::DataNode &root)
   // ObjectDB //
 
   auto &objectDB = root["objectDB"];
-  auto objectArrayToNode = [](core::DataNode &objArrayRoot,
+  auto objectArrayToNode = [&](core::DataNode &objArrayRoot,
                                const auto &objArray,
                                const char *arrayName) {
     if (objArray.empty())
@@ -402,7 +421,7 @@ void save_Scene(Scene &scene, core::DataNode &root)
         return;
       auto &m = childNode.append();
       if constexpr (std::is_same<decltype(obj), const Array *>::value)
-        arrayToNode(*obj, m);
+        arrayToNode(*obj, m, forceProxyArrays);
       else
         objectToNode(*obj, m);
     });

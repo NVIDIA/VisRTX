@@ -357,7 +357,7 @@ void Application::saveApplicationState(const char *_filename)
     // Serialize TSD context
     tsd::core::logStatus("serializing TSD context...");
     root["context"].reset();
-    tsd::io::save_Scene(core.tsd.scene, root["context"]);
+    tsd::io::save_Scene(core.tsd.scene, root["context"], false);
 
     // Save to file
     tsd::core::logStatus("writing state file '%s'...", filename.c_str());

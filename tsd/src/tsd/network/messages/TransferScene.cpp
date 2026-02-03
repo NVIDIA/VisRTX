@@ -9,7 +9,7 @@
 
 namespace tsd::network::messages {
 
-TransferScene::TransferScene(tsd::core::Scene *scene)
+TransferScene::TransferScene(tsd::core::Scene *scene, bool includeArrayData)
 {
   if (!scene) {
     tsd::core::logError(
@@ -17,7 +17,7 @@ TransferScene::TransferScene(tsd::core::Scene *scene)
     return;
   }
 
-  tsd::io::save_Scene(*scene, m_tree.root());
+  tsd::io::save_Scene(*scene, m_tree.root(), !includeArrayData);
 }
 
 TransferScene::TransferScene(const Message &msg, tsd::core::Scene *scene)
