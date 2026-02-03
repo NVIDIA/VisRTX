@@ -304,12 +304,16 @@ VISRTX_DEVICE vec4 getBackgroundImage(
 VISRTX_DEVICE vec4 getBackground(
     const FrameGPUData &fd, const vec2 &loc, const vec3 &rayDir)
 {
-  const LightGPUData *hdri =
-      fd.world.hdri != -1 ? &fd.registry.lights[fd.world.hdri] : nullptr;
-  if (hdri && hdri->hdri.visible)
-    return vec4(sampleHDRI(*hdri, rayDir), 1.f);
-  else
-    return getBackgroundImage(fd.renderer, loc);
+  // Check HDRI lights bucket for visible environment maps
+  for (size_t i = 0; i < fd.world.numHdriLightInstances; i++) {
+    const auto &hdriLight = fd.world.hdriLightInstances[i];
+    const auto &light = fd.registry.lights[hdriLight.lightIndex];
+    if (light.hdri.visible)
+      return vec4(sampleHDRI(light, rayDir), 1.f);
+  }
+
+  // No visible HDRI, use background image/color
+  return getBackgroundImage(fd.renderer, loc);
 }
 
 VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)

@@ -193,7 +193,8 @@ WorldGPUData World::gpuData() const
   retval.lightInstances = m_instanceLightGPUData.dataDevice();
   retval.numLightInstances = m_instanceLightGPUData.size();
 
-  retval.hdri = m_hdri;
+  retval.hdriLightInstances = m_instanceHdriLightGPUData.dataDevice();
+  retval.numHdriLightInstances = m_instanceHdriLightGPUData.size();
 
   return retval;
 }
@@ -456,28 +457,63 @@ void World::buildInstanceVolumeGPUData()
 
 void World::buildInstanceLightGPUData()
 {
-  m_instanceLightGPUData.resize(m_numLightInstances);
+  // Calculate total lights
+  size_t totalLights = 0;
+  size_t totalHdriLights = 0;
 
-  m_hdri = -1;
-
-  int instID = 0;
   std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
     auto *group = inst->group();
-    auto *li = m_instanceLightGPUData.dataHost();
     if (!group->containsLights())
       return;
 
     group->rebuildLights();
-    const auto lgi = group->lightGPUIndices();
+    const auto &lights = group->lights();
+    const size_t numTransforms = inst->numTransforms();
+    const DeviceObjectIndex hdriIdx = group->firstHDRI();
 
-    if (m_hdri == -1)
-      m_hdri = group->firstHDRI();
+    totalLights += lights.size() * numTransforms;
 
-    for (size_t t = 0; t < inst->numTransforms(); t++)
-      li[instID++] = {lgi.data(), lgi.size(), mat4(inst->xfm(t))};
+    // Count HDRI lights separately
+    for (auto *light : lights) {
+      if (light->isHDRI())
+        totalHdriLights += numTransforms;
+    }
+  });
+
+  // Allocate both arrays
+  m_instanceLightGPUData.resize(totalLights);
+  m_instanceHdriLightGPUData.resize(totalHdriLights);
+
+  size_t lightIndex = 0;
+  size_t hdriIndex = 0;
+
+  std::for_each(m_instances.begin(), m_instances.end(), [&](auto *inst) {
+    auto *group = inst->group();
+    if (!group->containsLights())
+      return;
+
+    group->rebuildLights();
+
+    auto *lights = m_instanceLightGPUData.dataHost();
+    auto *hdris = m_instanceHdriLightGPUData.dataHost();
+
+    for (size_t t = 0; t < inst->numTransforms(); t++) {
+      const mat4 xfm = mat4(inst->xfm(t));
+
+      for (auto *light : group->lights()) {
+        const auto lightIdx = light->index();
+
+        lights[lightIndex++] = {lightIdx, xfm};
+
+        // HDRI lights also go into hdriLights
+        if (light->isHDRI())
+          hdris[hdriIndex++] = {lightIdx, xfm};
+      }
+    }
   });
 
   m_instanceLightGPUData.upload();
+  m_instanceHdriLightGPUData.upload();
 }
 
 } // namespace visrtx

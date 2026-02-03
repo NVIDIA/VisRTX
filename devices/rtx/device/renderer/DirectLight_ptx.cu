@@ -39,11 +39,11 @@
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
 #include "gpu/intersectRay.h"
+#include "gpu/renderer/common.h"
+#include "gpu/renderer/raygen_helpers.h"
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
-#include "gpu/renderer/common.h"
-#include "gpu/renderer/raygen_helpers.h"
 
 namespace visrtx {
 
@@ -53,43 +53,41 @@ DECLARE_FRAME_DATA(frameData)
 
 struct DirectLightShadingPolicy
 {
-  static VISRTX_DEVICE vec4 shadeSurface(const MaterialShadingState &shadingState,
-    ScreenSample &ss,
-    const Ray &ray,
-    const SurfaceHit &hit)
-{
-  const auto &rendererParams = frameData.renderer;
-  const auto &directLightParams = rendererParams.params.directLight;
+  static VISRTX_DEVICE vec4 shadeSurface(
+      const MaterialShadingState &shadingState,
+      ScreenSample &ss,
+      const Ray &ray,
+      const SurfaceHit &hit)
+  {
+    const auto &rendererParams = frameData.renderer;
+    const auto &directLightParams = rendererParams.params.directLight;
 
-  auto &world = frameData.world;
+    auto &world = frameData.world;
 
-  // Compute ambient light contribution //
-  const float aoFactor = directLightParams.aoSamples > 0
-      ? computeAO(ss,
-            ray,
-            hit,
-            rendererParams.occlusionDistance,
-            directLightParams.aoSamples,
-            &surfaceAttenuation)
-      : 1.f;
+    // Compute ambient light contribution //
+    const float aoFactor = directLightParams.aoSamples > 0
+        ? computeAO(ss,
+              ray,
+              hit,
+              rendererParams.occlusionDistance,
+              directLightParams.aoSamples,
+              &surfaceAttenuation)
+        : 1.f;
 
-  vec3 contrib = materialEvaluateEmission(shadingState, -ray.dir);
+    vec3 contrib = materialEvaluateEmission(shadingState, -ray.dir);
 
-  // Handle ambient light contribution
-  if (rendererParams.ambientIntensity > 0.0f) {
-    contrib += rendererParams.ambientColor * rendererParams.ambientIntensity
-        * materialEvaluateTint(shadingState);
-  }
+    // Handle ambient light contribution
+    if (rendererParams.ambientIntensity > 0.0f) {
+      contrib += rendererParams.ambientColor * rendererParams.ambientIntensity
+          * materialEvaluateTint(shadingState);
+    }
 
-  // Handle all lights contributions
-  for (size_t i = 0; i < world.numLightInstances; i++) {
-    auto *inst = world.lightInstances + i;
-    if (!inst)
-      continue;
-
-    for (size_t l = 0; l < inst->numLights; l++) {
+    // Handle all lights contributions
+    for (size_t i = 0; i < world.numLightInstances; i++) {
+      const auto &light = world.lightInstances[i];
       const auto lightSample =
-          sampleLight(ss, hit, inst->indices[l], inst->xfm);
+          sampleLight(ss, hit, light.lightIndex, light.xfm);
+
       if (lightSample.pdf == 0.0f)
         continue;
 
@@ -114,50 +112,49 @@ struct DirectLightShadingPolicy
 
       contrib += thisLightContrib * attenuation;
     }
-  }
 
-  // Take AO in account
-  contrib *= aoFactor;
+    // Take AO in account
+    contrib *= aoFactor;
 
-  // Then proceed with single bounce ray for indirect lighting
-  SurfaceHit bounceHit = hit;
-  NextRay nextRay = materialNextRay(shadingState, ray, ss.rs);
-  if (glm::any(glm::greaterThan(
-          nextRay.contributionWeight, glm::vec3(MIN_CONTRIBUTION_EPSILON)))) {
-    Ray bounceRay = {
-        bounceHit.hitpoint
-            + bounceHit.Ng
-                * std::copysignf(
-                    bounceHit.epsilon, dot(bounceHit.Ns, nextRay.direction)),
-        normalize(nextRay.direction),
-    };
+    // Then proceed with single bounce ray for indirect lighting
+    SurfaceHit bounceHit = hit;
+    NextRay nextRay = materialNextRay(shadingState, ray, ss.rs);
+    if (glm::any(glm::greaterThan(
+            nextRay.contributionWeight, glm::vec3(MIN_CONTRIBUTION_EPSILON)))) {
+      Ray bounceRay = {
+          bounceHit.hitpoint
+              + bounceHit.Ng
+                  * std::copysignf(
+                      bounceHit.epsilon, dot(bounceHit.Ns, nextRay.direction)),
+          normalize(nextRay.direction),
+      };
 
-    // Only check for intersecting surfaces and background as secondary light
-    // interactions
-    bounceHit.foundHit = false;
-    intersectSurface(ss, bounceRay, RayType::PRIMARY, &bounceHit);
+      // Only check for intersecting surfaces and background as secondary light
+      // interactions
+      bounceHit.foundHit = false;
+      intersectSurface(ss, bounceRay, RayType::PRIMARY, &bounceHit);
 
-    if (bounceHit.foundHit) {
-      // We hit something. Gather its contribution, cosine weighted diffuse
-      // only, we want this to be lightweight.
-      MaterialShadingState bounceShadingState;
-      materialInitShading(
-          &bounceShadingState, frameData, *bounceHit.material, bounceHit);
+      if (bounceHit.foundHit) {
+        // We hit something. Gather its contribution, cosine weighted diffuse
+        // only, we want this to be lightweight.
+        MaterialShadingState bounceShadingState;
+        materialInitShading(
+            &bounceShadingState, frameData, *bounceHit.material, bounceHit);
 
-      auto sampleDir = randomDir(ss.rs, bounceHit.Ns);
-      auto cosineT = dot(bounceHit.Ns, sampleDir);
-      auto color = materialEvaluateTint(bounceShadingState) * cosineT;
-      contrib += color * nextRay.contributionWeight;
-    } else {
-      // No hit, get background contribution directly (no surface to weight
-      // against)
-      const auto color = getBackground(frameData, ss.screen, bounceRay.dir);
-      contrib += vec3(color) * nextRay.contributionWeight;
+        auto sampleDir = randomDir(ss.rs, bounceHit.Ns);
+        auto cosineT = dot(bounceHit.Ns, sampleDir);
+        auto color = materialEvaluateTint(bounceShadingState) * cosineT;
+        contrib += color * nextRay.contributionWeight;
+      } else {
+        // No hit, get background contribution directly (no surface to weight
+        // against)
+        const auto color = getBackground(frameData, ss.screen, bounceRay.dir);
+        contrib += vec3(color) * nextRay.contributionWeight;
+      }
     }
-  }
 
-  float opacity = evaluateOpacity(shadingState);
-  return vec4(contrib, opacity);
+    float opacity = evaluateOpacity(shadingState);
+    return vec4(contrib, opacity);
   }
 };
 

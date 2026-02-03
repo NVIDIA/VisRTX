@@ -612,9 +612,8 @@ struct InstanceVolumeGPUData
 
 struct InstanceLightGPUData
 {
-  const DeviceObjectIndex *indices;
-  size_t numLights;
-  mat4 xfm;
+  DeviceObjectIndex lightIndex; // Index into registry.lights[]
+  mat4 xfm; // Transform for this light instance
 };
 
 // World //
@@ -632,7 +631,8 @@ struct WorldGPUData
   const InstanceLightGPUData *lightInstances;
   size_t numLightInstances;
 
-  DeviceObjectIndex hdri;
+  const InstanceLightGPUData *hdriLightInstances;
+  size_t numHdriLightInstances;
 };
 
 // Renderer //

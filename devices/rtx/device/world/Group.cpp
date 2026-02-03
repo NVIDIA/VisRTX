@@ -186,6 +186,11 @@ DeviceObjectIndex Group::firstHDRI() const
   return m_firstHDRI;
 }
 
+const std::vector<Light *> &Group::lights() const
+{
+  return m_lights;
+}
+
 void Group::rebuildSurfaceBVHs()
 {
   const auto &state = *deviceState();
