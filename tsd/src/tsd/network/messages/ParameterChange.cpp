@@ -53,18 +53,8 @@ void ParameterChange::execute()
   }
 
   auto paramName = m_tree.root()["n"].getValueAs<std::string>();
-  auto *p = obj->parameter(paramName.c_str());
-  if (!p) {
-    tsd::core::logError(
-        "[message::ParameterChange] Unable to find parameter '%s' on object "
-        "(%s, %zu)",
-        paramName.c_str(),
-        anari::toString(o.type()),
-        o.getAsObjectIndex());
-    return;
-  }
-
-  tsd::io::nodeToParameter(m_tree.root()["v"], *p);
+  auto &p = obj->addParameter(paramName.c_str()); // parameter may be new
+  tsd::io::nodeToParameter(m_tree.root()["v"], p);
 }
 
 } // namespace tsd::network::messages

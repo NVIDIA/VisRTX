@@ -35,7 +35,7 @@ struct Application : public TSDApplication
   void connect();
   void disconnect();
 
-  tsd::network::NetworkUpdateDelegate m_updateDelegate;
+  std::unique_ptr<tsd::network::NetworkUpdateDelegate> m_updateDelegate;
   tsd::ui::imgui::RemoteViewport *m_viewport{nullptr};
   std::shared_ptr<tsd::network::NetworkClient> m_client;
   std::string m_host{"127.0.0.1"};
@@ -46,9 +46,12 @@ struct Application : public TSDApplication
 
 Application::Application()
 {
+  auto *core = appCore();
+
   m_client = std::make_shared<tsd::network::NetworkClient>();
 
-  m_updateDelegate.setNetworkChannel(m_client.get());
+  m_updateDelegate = std::make_unique<tsd::network::NetworkUpdateDelegate>(
+      &core->tsd.scene, m_client.get());
 
   m_client->registerHandler(
       MessageType::ERROR, [](const tsd::network::Message &msg) {
@@ -79,6 +82,7 @@ Application::Application()
   m_client->registerHandler(MessageType::CLIENT_SCENE_TRANSFER_BEGIN,
       [this](const tsd::network::Message &msg) {
         tsd::core::logStatus("[Client] Server has initiated scene transfer...");
+        m_updateDelegate->setEnabled(false);
       });
 
   m_client->registerHandler(MessageType::CLIENT_RECEIVE_SCENE,
@@ -86,6 +90,7 @@ Application::Application()
         auto &scene = appCore()->tsd.scene;
         tsd::network::messages::TransferScene sceneMsg(msg, &scene);
         sceneMsg.execute();
+        m_updateDelegate->setEnabled(true);
         tsd::core::logStatus("[Client] Scene contents:");
         tsd::core::logStatus(
             "\n%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
@@ -94,8 +99,7 @@ Application::Application()
             tsd::network::make_message(MessageType::SERVER_START_RENDERING));
       });
 
-  auto *core = appCore();
-  core->tsd.scene.setUpdateDelegate(&m_updateDelegate);
+  core->tsd.scene.setUpdateDelegate(m_updateDelegate.get());
 }
 
 Application::~Application() = default;

@@ -17,6 +17,7 @@ TransferScene::TransferScene(tsd::core::Scene *scene, bool includeArrayData)
     return;
   }
 
+  scene->cleanupScene(); // don't sync a scene without compacted object pools
   tsd::io::save_Scene(*scene, m_tree.root(), !includeArrayData);
 }
 

@@ -107,6 +107,44 @@ void Scene::setMpiRankInfo(int rank, int numRanks)
   m_mpi.numRanks = numRanks;
 }
 
+Object *Scene::createObject(anari::DataType type, Token subtype)
+{
+  Object *obj = nullptr;
+
+  switch (type) {
+  case ANARI_SURFACE:
+    obj = createObjectImpl(m_db.surface).data();
+    break;
+  case ANARI_GEOMETRY:
+    obj = createObjectImpl(m_db.geometry, subtype).data();
+    break;
+  case ANARI_MATERIAL:
+    obj = createObjectImpl(m_db.material, subtype).data();
+    break;
+  case ANARI_SAMPLER:
+    obj = createObjectImpl(m_db.sampler, subtype).data();
+    break;
+  case ANARI_VOLUME:
+    obj = createObjectImpl(m_db.volume, subtype).data();
+    break;
+  case ANARI_SPATIAL_FIELD:
+    obj = createObjectImpl(m_db.field, subtype).data();
+    break;
+  case ANARI_LIGHT:
+    obj = createObjectImpl(m_db.light, subtype).data();
+    break;
+  case ANARI_CAMERA:
+    obj = createObjectImpl(m_db.camera, subtype).data();
+    break;
+  default:
+    logError("[Scene::createObject(type, subtype)] unsupported object type %s",
+        anari::toString(type));
+    break;
+  }
+
+  return obj;
+}
+
 ArrayRef Scene::createArray(
     anari::DataType type, size_t items0, size_t items1, size_t items2)
 {
@@ -360,6 +398,15 @@ Layer *Scene::addLayer(Token name)
     m_numActiveLayers++;
   }
   return ls.ptr.get();
+}
+
+Token Scene::getLayerName(const Layer *layer) const
+{
+  for (size_t i = 0; i < m_layers.size(); i++) {
+    if (m_layers.at_index(i).second.ptr.get() == layer)
+      return m_layers.at_index(i).first;
+  }
+  return {};
 }
 
 bool Scene::layerIsActive(Token name) const

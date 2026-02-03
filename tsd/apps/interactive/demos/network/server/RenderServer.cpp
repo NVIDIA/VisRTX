@@ -8,8 +8,10 @@
 // tsd_io
 #include "tsd/io/serialization.hpp"
 // tsd_network
+#include "tsd/network/messages/NewObject.hpp"
 #include "tsd/network/messages/ParameterChange.hpp"
 #include "tsd/network/messages/TransferArrayData.hpp"
+#include "tsd/network/messages/TransferLayer.hpp"
 #include "tsd/network/messages/TransferScene.hpp"
 
 namespace tsd::network {
@@ -189,21 +191,21 @@ void RenderServer::setup_Messaging()
       [&](const tsd::network::Message &msg) {
         tsd::core::logStatus(
             "[Server] Starting rendering as requested by client.");
-        m_mode = ServerMode::RENDERING;
+        set_Mode(ServerMode::RENDERING);
       });
 
   m_server->registerHandler(MessageType::SERVER_STOP_RENDERING,
       [&](const tsd::network::Message &msg) {
         tsd::core::logStatus(
             "[Server] Stopping rendering as requested by client.");
-        m_mode = ServerMode::PAUSED;
+        set_Mode(ServerMode::PAUSED);
         m_lastSentFrame.get();
       });
 
   m_server->registerHandler(
       MessageType::SERVER_SHUTDOWN, [&](const tsd::network::Message &msg) {
         tsd::core::logStatus("[Server] Shutdown message received from client.");
-        m_mode = ServerMode::SHUTDOWN;
+        set_Mode(ServerMode::SHUTDOWN);
       });
 
   m_server->registerHandler(MessageType::SERVER_SET_FRAME_CONFIG,
@@ -258,6 +260,18 @@ void RenderServer::setup_Messaging()
         arrayData.execute();
       });
 
+  m_server->registerHandler(
+      MessageType::SERVER_ADD_OBJECT, [this](const tsd::network::Message &msg) {
+        tsd::network::messages::NewObject newObj(msg, &m_core.tsd.scene);
+        newObj.execute();
+      });
+
+  m_server->registerHandler(MessageType::SERVER_UPDATE_LAYER,
+      [this](const tsd::network::Message &msg) {
+        tsd::network::messages::TransferLayer layerMsg(msg, &m_core.tsd.scene);
+        layerMsg.execute();
+      });
+
   m_server->registerHandler(MessageType::SERVER_REQUEST_FRAME_CONFIG,
       [s = m_server, session = &m_session](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested frame config.");
@@ -276,7 +290,7 @@ void RenderServer::setup_Messaging()
         tsd::core::logDebug("[Server] Client requested scene...");
         // Notify client a big message is coming...
         m_server->send(make_message(MessageType::CLIENT_SCENE_TRANSFER_BEGIN));
-        m_mode = ServerMode::SEND_SCENE;
+        set_Mode(ServerMode::SEND_SCENE);
       });
 }
 
@@ -323,6 +337,13 @@ void RenderServer::send_FrameBuffer()
   m_lastSentFrame = m_server->send(
       tsd::network::make_message(MessageType::CLIENT_RECEIVE_FRAME_BUFFER_COLOR,
           m_session.frame.buffers.color));
+}
+
+void RenderServer::set_Mode(ServerMode mode)
+{
+  if (m_mode == ServerMode::SHUTDOWN) // if shutting down, do not change mode
+    return;
+  m_mode = mode;
 }
 
 } // namespace tsd::network

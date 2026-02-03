@@ -90,6 +90,7 @@ struct Scene
   ObjectPoolRef<T> createObject();
   template <typename T>
   ObjectPoolRef<T> createObject(Token subtype);
+  Object *createObject(anari::DataType type, Token subtype);
   ArrayRef createArray(anari::DataType type,
       size_t items0,
       size_t items1 = 0,
@@ -131,6 +132,8 @@ struct Scene
   Layer *layer(size_t i) const;
 
   Layer *addLayer(Token name);
+
+  Token getLayerName(const Layer *layer) const;
 
   bool layerIsActive(Token name) const;
   void setLayerActive(const Layer *layer, bool active);

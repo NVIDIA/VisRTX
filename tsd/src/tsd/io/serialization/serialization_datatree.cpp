@@ -321,6 +321,8 @@ void layerToNode(Layer &layer, core::DataNode &node)
 
 void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
 {
+  layer.clear();
+
   std::stack<LayerNodeRef> tsdNodes;
   LayerNodeRef currentParentNode;
   LayerNodeRef currentNode = layer.root();
@@ -405,18 +407,18 @@ void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays)
   // ObjectDB //
 
   auto &objectDB = root["objectDB"];
-  auto objectArrayToNode = [&](core::DataNode &objArrayRoot,
-                               const auto &objArray,
-                               const char *arrayName) {
-    if (objArray.empty())
+  auto objectPoolToNode = [&](core::DataNode &objPoolRoot,
+                               const auto &objPool,
+                               const char *poolName) {
+    if (objPool.empty())
       return;
 
     tsd::core::logStatus("    ...serializing %zu %s objects",
-        size_t(objArray.size()),
-        arrayName);
+        size_t(objPool.size()),
+        poolName);
 
-    auto &childNode = objArrayRoot[arrayName];
-    foreach_item_const(objArray, [&](const auto *obj) {
+    auto &childNode = objPoolRoot[poolName];
+    foreach_item_const(objPool, [&](const auto *obj) {
       if (!obj)
         return;
       auto &m = childNode.append();
@@ -427,15 +429,15 @@ void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays)
     });
   };
 
-  objectArrayToNode(objectDB, scene.m_db.geometry, "geometry");
-  objectArrayToNode(objectDB, scene.m_db.sampler, "sampler");
-  objectArrayToNode(objectDB, scene.m_db.material, "material");
-  objectArrayToNode(objectDB, scene.m_db.surface, "surface");
-  objectArrayToNode(objectDB, scene.m_db.field, "spatialfield");
-  objectArrayToNode(objectDB, scene.m_db.volume, "volume");
-  objectArrayToNode(objectDB, scene.m_db.light, "light");
-  objectArrayToNode(objectDB, scene.m_db.camera, "camera");
-  objectArrayToNode(objectDB, scene.m_db.array, "array");
+  objectPoolToNode(objectDB, scene.m_db.geometry, "geometry");
+  objectPoolToNode(objectDB, scene.m_db.sampler, "sampler");
+  objectPoolToNode(objectDB, scene.m_db.material, "material");
+  objectPoolToNode(objectDB, scene.m_db.surface, "surface");
+  objectPoolToNode(objectDB, scene.m_db.field, "spatialfield");
+  objectPoolToNode(objectDB, scene.m_db.volume, "volume");
+  objectPoolToNode(objectDB, scene.m_db.light, "light");
+  objectPoolToNode(objectDB, scene.m_db.camera, "camera");
+  objectPoolToNode(objectDB, scene.m_db.array, "array");
 }
 
 void load_Scene(Scene &scene, const char *filename)
@@ -467,21 +469,21 @@ void load_Scene(Scene &scene, core::DataNode &root)
   tsd::core::logStatus("  ...converting objects");
 
   auto &objectDB = root["objectDB"];
-  auto nodeToObjectArray =
+  auto nodeToObjectPool =
       [](core::DataNode &node, Scene &scene, const char *childNodeName) {
         auto &objectsNode = node[childNodeName];
         objectsNode.foreach_child([&](auto &n) { nodeToNewObject(scene, n); });
       };
 
-  nodeToObjectArray(objectDB, scene, "array");
-  nodeToObjectArray(objectDB, scene, "sampler");
-  nodeToObjectArray(objectDB, scene, "material");
-  nodeToObjectArray(objectDB, scene, "geometry");
-  nodeToObjectArray(objectDB, scene, "surface");
-  nodeToObjectArray(objectDB, scene, "spatialfield");
-  nodeToObjectArray(objectDB, scene, "volume");
-  nodeToObjectArray(objectDB, scene, "light");
-  nodeToObjectArray(objectDB, scene, "camera");
+  nodeToObjectPool(objectDB, scene, "array");
+  nodeToObjectPool(objectDB, scene, "sampler");
+  nodeToObjectPool(objectDB, scene, "material");
+  nodeToObjectPool(objectDB, scene, "geometry");
+  nodeToObjectPool(objectDB, scene, "surface");
+  nodeToObjectPool(objectDB, scene, "spatialfield");
+  nodeToObjectPool(objectDB, scene, "volume");
+  nodeToObjectPool(objectDB, scene, "light");
+  nodeToObjectPool(objectDB, scene, "camera");
 
   // Layers
 

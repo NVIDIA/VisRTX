@@ -4,6 +4,7 @@
 #pragma once
 
 // tsd_core
+#include "tsd/core/scene/Scene.hpp"
 #include "tsd/core/scene/UpdateDelegate.hpp"
 // tsd_network
 #include "tsd/network/NetworkChannel.hpp"
@@ -12,9 +13,11 @@ namespace tsd::network {
 
 struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
 {
-  NetworkUpdateDelegate(tsd::network::NetworkChannel *channel = nullptr);
+  NetworkUpdateDelegate(
+      tsd::core::Scene *scene, tsd::network::NetworkChannel *channel);
   ~NetworkUpdateDelegate() override = default;
 
+  void setEnabled(bool enabled);
   void setNetworkChannel(tsd::network::NetworkChannel *channel);
 
   // Update signals //
@@ -39,7 +42,9 @@ struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
   void signalAnimationTimeChanged(float) override;
 
  private:
+  tsd::core::Scene *m_scene{nullptr};
   tsd::network::NetworkChannel *m_channel{nullptr};
+  bool m_enabled{true};
 };
 
 } // namespace tsd::network

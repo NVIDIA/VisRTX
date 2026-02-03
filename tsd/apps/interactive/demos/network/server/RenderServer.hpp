@@ -26,15 +26,6 @@ struct RenderServer
   void run(short port = 12345);
 
  private:
-  void setup_Scene();
-  void setup_ANARIDevice();
-  void setup_Manipulator();
-  void setup_RenderPipeline();
-  void setup_Messaging();
-  void update_FrameConfig();
-  void update_View();
-  void send_FrameBuffer();
-
   enum class ServerMode
   {
     DISCONNECTED,
@@ -43,6 +34,16 @@ struct RenderServer
     SEND_SCENE,
     SHUTDOWN
   };
+
+  void setup_Scene();
+  void setup_ANARIDevice();
+  void setup_Manipulator();
+  void setup_RenderPipeline();
+  void setup_Messaging();
+  void update_FrameConfig();
+  void update_View();
+  void send_FrameBuffer();
+  void set_Mode(ServerMode mode);
 
   // Data //
 
