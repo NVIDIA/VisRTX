@@ -58,7 +58,7 @@ Application::Application()
       });
 
   m_client->registerHandler(
-      MessageType::CLIENT_PING, [](const tsd::network::Message &msg) {
+      MessageType::PING, [](const tsd::network::Message &msg) {
         tsd::core::logStatus("[Client] Received PING from server");
       });
 
@@ -196,7 +196,7 @@ void Application::uiMainMenuBar()
 
   if (ImGui::IsKeyPressed(ImGuiKey_P, false)) {
     tsd::core::logStatus("[Client] Sending PING");
-    m_client->send(tsd::network::make_message(MessageType::SERVER_PING));
+    m_client->send(tsd::network::make_message(MessageType::PING));
   }
 
   if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) {

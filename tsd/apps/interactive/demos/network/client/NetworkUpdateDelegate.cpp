@@ -6,6 +6,7 @@
 #include "tsd/core/Logging.hpp"
 // tsd_network
 #include "tsd/network/messages/ParameterChange.hpp"
+#include "tsd/network/messages/TransferArrayData.hpp"
 
 #include "../RenderSession.hpp"
 
@@ -53,10 +54,15 @@ void NetworkUpdateDelegate::signalArrayMapped(const tsd::core::Array *)
   // no-op
 }
 
-void NetworkUpdateDelegate::signalArrayUnmapped(const tsd::core::Array *)
+void NetworkUpdateDelegate::signalArrayUnmapped(const tsd::core::Array *a)
 {
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalArrayUnmapped not implemented");
+  if (!m_channel) {
+    tsd::core::logError(
+        "NetworkUpdateDelegate::signalArrayUnmapped: no network channel");
+    return;
+  }
+  auto msg = tsd::network::messages::TransferArrayData(a);
+  m_channel->send(MessageType::SERVER_SET_ARRAY_DATA, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalObjectParameterUseCountZero(

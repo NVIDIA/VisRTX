@@ -36,12 +36,14 @@ struct Array : public Object
 
   size_t size() const;
   size_t elementSize() const;
+  anari::DataType elementType() const;
+  size_t dim(size_t d) const;
   bool isEmpty() const;
 
   MemoryKind kind() const;
-  size_t dim(size_t d) const;
-
-  anari::DataType elementType() const;
+  bool isHost() const;
+  bool isCUDA() const;
+  bool isProxy() const;
 
   void *map();
   template <typename T>

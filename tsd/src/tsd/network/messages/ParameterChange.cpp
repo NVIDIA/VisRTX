@@ -28,7 +28,7 @@ ParameterChange::ParameterChange(
 ParameterChange::ParameterChange(const Message &msg, tsd::core::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
-  tsd::core::logStatus(
+  tsd::core::logDebug(
       "[message::ParameterChange] Received object parameter from server"
       " (%zu bytes)",
       msg.header.payload_length);
@@ -52,13 +52,13 @@ void ParameterChange::execute()
     return;
   }
 
-  auto *paramName = m_tree.root()["n"].getValueAs<std::string>().c_str();
-  auto *p = obj->parameter(paramName);
+  auto paramName = m_tree.root()["n"].getValueAs<std::string>();
+  auto *p = obj->parameter(paramName.c_str());
   if (!p) {
     tsd::core::logError(
         "[message::ParameterChange] Unable to find parameter '%s' on object "
         "(%s, %zu)",
-        paramName,
+        paramName.c_str(),
         anari::toString(o.type()),
         o.getAsObjectIndex());
     return;

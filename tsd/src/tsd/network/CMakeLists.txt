@@ -7,6 +7,7 @@ project_add_library(STATIC)
 
 project_sources(PRIVATE
   messages/ParameterChange.cpp
+  messages/TransferArrayData.cpp
   messages/TransferScene.cpp
   NetworkChannel.cpp
 )

@@ -44,7 +44,7 @@ int main()
       });
 
   client->registerHandler(
-      MessageType::CLIENT_PING, [](const tsd::network::Message &msg) {
+      MessageType::PING, [](const tsd::network::Message &msg) {
         tsd::core::logStatus("[Client] Received PING from server");
       });
 
@@ -97,7 +97,7 @@ int main()
   for (int i = 0; i < 3; ++i) {
     tsd::core::logStatus("[Client] Sending PING #%d", i + 1);
     std::this_thread::sleep_for(std::chrono::seconds(1));
-    client->send(make_message(MessageType::SERVER_PING));
+    client->send(make_message(MessageType::PING));
   }
 
   tsd::core::logStatus("[Client] Waiting for 3 seconds...");

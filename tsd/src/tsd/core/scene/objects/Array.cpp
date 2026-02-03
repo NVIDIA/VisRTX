@@ -62,14 +62,9 @@ size_t Array::elementSize() const
   return anari::sizeOf(m_elementType);
 }
 
-bool Array::isEmpty() const
+anari::DataType Array::elementType() const
 {
-  return size() == 0;
-}
-
-Array::MemoryKind Array::kind() const
-{
-  return m_kind;
+  return m_elementType;
 }
 
 size_t Array::dim(size_t d) const
@@ -84,9 +79,29 @@ size_t Array::dim(size_t d) const
   return 0;
 }
 
-anari::DataType Array::elementType() const
+bool Array::isEmpty() const
 {
-  return m_elementType;
+  return size() == 0;
+}
+
+Array::MemoryKind Array::kind() const
+{
+  return m_kind;
+}
+
+bool Array::isHost() const
+{
+  return kind() == MemoryKind::HOST;
+}
+
+bool Array::isCUDA() const
+{
+  return kind() == MemoryKind::CUDA;
+}
+
+bool Array::isProxy() const
+{
+  return kind() == MemoryKind::PROXY;
 }
 
 void *Array::map()

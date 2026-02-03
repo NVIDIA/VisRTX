@@ -9,6 +9,7 @@
 #include "tsd/io/serialization.hpp"
 // tsd_network
 #include "tsd/network/messages/ParameterChange.hpp"
+#include "tsd/network/messages/TransferArrayData.hpp"
 #include "tsd/network/messages/TransferScene.hpp"
 
 namespace tsd::network {
@@ -180,7 +181,7 @@ void RenderServer::setup_Messaging()
       });
 
   m_server->registerHandler(
-      MessageType::SERVER_PING, [](const tsd::network::Message &msg) {
+      MessageType::PING, [](const tsd::network::Message &msg) {
         tsd::core::logStatus("[Server] Received PING from client");
       });
 
@@ -248,6 +249,13 @@ void RenderServer::setup_Messaging()
         tsd::network::messages::ParameterChange paramChange(
             msg, &m_core.tsd.scene);
         paramChange.execute();
+      });
+
+  m_server->registerHandler(MessageType::SERVER_SET_ARRAY_DATA,
+      [this](const tsd::network::Message &msg) {
+        tsd::network::messages::TransferArrayData arrayData(
+            msg, &m_core.tsd.scene);
+        arrayData.execute();
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_FRAME_CONFIG,
