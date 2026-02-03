@@ -8,6 +8,7 @@
 // tsd_io
 #include "tsd/io/serialization.hpp"
 // tsd_network
+#include "tsd/network/messages/ParameterChange.hpp"
 #include "tsd/network/messages/TransferScene.hpp"
 
 namespace tsd::network {
@@ -240,6 +241,13 @@ void RenderServer::setup_Messaging()
         } else {
           tsd::core::logError("[Server] Invalid payload for SERVER_SET_VIEW");
         }
+      });
+
+  m_server->registerHandler(MessageType::SERVER_SET_OBJECT_PARAMETER,
+      [this](const tsd::network::Message &msg) {
+        tsd::network::messages::ParameterChange paramChange(
+            msg, &m_core.tsd.scene);
+        paramChange.execute();
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_FRAME_CONFIG,

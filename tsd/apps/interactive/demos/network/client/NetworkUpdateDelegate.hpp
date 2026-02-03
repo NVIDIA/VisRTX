@@ -3,14 +3,21 @@
 
 #pragma once
 
+// tsd_core
 #include "tsd/core/scene/UpdateDelegate.hpp"
+// tsd_network
+#include "tsd/network/NetworkChannel.hpp"
 
 namespace tsd::network {
 
 struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
 {
-  NetworkUpdateDelegate() = default;
+  NetworkUpdateDelegate(tsd::network::NetworkChannel *channel = nullptr);
   ~NetworkUpdateDelegate() override = default;
+
+  void setNetworkChannel(tsd::network::NetworkChannel *channel);
+
+  // Update signals //
 
   void signalObjectAdded(const tsd::core::Object *) override;
   void signalParameterUpdated(
@@ -30,6 +37,9 @@ struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
   void signalObjectFilteringChanged() override;
   void signalInvalidateCachedObjects() override;
   void signalAnimationTimeChanged(float) override;
+
+ private:
+  tsd::network::NetworkChannel *m_channel{nullptr};
 };
 
 } // namespace tsd::network

@@ -4,8 +4,25 @@
 #include "NetworkUpdateDelegate.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
+// tsd_network
+#include "tsd/network/messages/ParameterChange.hpp"
+
+#include "../RenderSession.hpp"
 
 namespace tsd::network {
+
+NetworkUpdateDelegate::NetworkUpdateDelegate(
+    tsd::network::NetworkChannel *channel)
+    : m_channel(channel)
+{
+  // no-op
+}
+
+void NetworkUpdateDelegate::setNetworkChannel(
+    tsd::network::NetworkChannel *channel)
+{
+  m_channel = channel;
+}
 
 void NetworkUpdateDelegate::signalObjectAdded(const tsd::core::Object *)
 {
@@ -14,10 +31,15 @@ void NetworkUpdateDelegate::signalObjectAdded(const tsd::core::Object *)
 }
 
 void NetworkUpdateDelegate::signalParameterUpdated(
-    const tsd::core::Object *, const tsd::core::Parameter *)
+    const tsd::core::Object *o, const tsd::core::Parameter *p)
 {
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalParameterUpdated not implemented");
+  if (!m_channel) {
+    tsd::core::logError(
+        "NetworkUpdateDelegate::signalParameterUpdated: no network channel");
+    return;
+  }
+  auto msg = tsd::network::messages::ParameterChange(o, p);
+  m_channel->send(MessageType::SERVER_SET_OBJECT_PARAMETER, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalParameterRemoved(

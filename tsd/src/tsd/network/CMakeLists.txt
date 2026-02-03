@@ -6,6 +6,7 @@ project(tsd_network)
 project_add_library(STATIC)
 
 project_sources(PRIVATE
+  messages/ParameterChange.cpp
   messages/TransferScene.cpp
   NetworkChannel.cpp
 )

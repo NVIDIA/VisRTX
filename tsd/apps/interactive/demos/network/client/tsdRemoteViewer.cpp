@@ -48,6 +48,8 @@ Application::Application()
 {
   m_client = std::make_shared<tsd::network::NetworkClient>();
 
+  m_updateDelegate.setNetworkChannel(m_client.get());
+
   m_client->registerHandler(
       MessageType::ERROR, [](const tsd::network::Message &msg) {
         tsd::core::logError("[Client] Received error from server: '%s'",
