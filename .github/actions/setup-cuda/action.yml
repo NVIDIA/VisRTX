@@ -1,0 +1,52 @@
+name: 'Setup CUDA Toolkit with Caching'
+description: 'Install and cache NVIDIA CUDA Toolkit for Linux and Windows'
+inputs:
+  cuda-version:
+    description: 'CUDA version to install (e.g., 12.4.1, 13.0.2)'
+    required: true
+  cache-key-suffix:
+    description: 'Optional suffix for cache key (e.g., workflow file hash)'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Cache CUDA Toolkit
+      id: cache-cuda
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.os == 'Linux' && '/usr/local/cuda-*' || 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA' }}
+        key: cuda-${{ runner.os }}-${{ inputs.cuda-version }}-${{ inputs.cache-key-suffix }}
+        restore-keys: |
+          cuda-${{ runner.os }}-${{ inputs.cuda-version }}-
+
+    - name: Setup CUDA Toolkit
+      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      uses: Jimver/cuda-toolkit@v0.2.30
+      id: cuda-toolkit
+      with:
+        cuda: ${{ inputs.cuda-version }}
+        method: 'network'
+        sub-packages: ${{ runner.os == 'Linux' && '["nvcc", "cudart", "nvml-dev", "thrust"]' || '[]' }}
+        non-cuda-sub-packages: ${{ runner.os == 'Linux' && '["libcurand", "libcurand-dev"]' || '[]' }}
+
+    - name: Set CUDA_PATH environment variable
+      shell: bash
+      run: |
+        if [ "${{ runner.os }}" == "Linux" ]; then
+          CUDA_DIR=$(ls -d /usr/local/cuda-${{ inputs.cuda-version }}* | head -n 1)
+          echo "CUDA_PATH=$CUDA_DIR" >> $GITHUB_ENV
+          echo "$CUDA_DIR/bin" >> $GITHUB_PATH
+        else
+          CUDA_DIR="C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ inputs.cuda-version }}"
+          echo "CUDA_PATH=$CUDA_DIR" >> $env:GITHUB_ENV
+          echo "$CUDA_DIR\bin" >> $env:GITHUB_PATH
+        fi
+        echo "CUDA installed at: $CUDA_PATH"
+
+    - name: Verify CUDA Installation
+      shell: bash
+      run: |
+        nvcc --version
+        echo "CUDA_PATH: $CUDA_PATH"

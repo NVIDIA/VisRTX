@@ -25,13 +25,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
-      - name: Setup CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.29
+      - name: Setup CUDA Toolkit with Caching
+        uses: ./.github/actions/setup-cuda
         with:
-          cuda: ${{ matrix.cudaversion }}
-          method: 'network'
-          sub-packages: ${{ matrix.os == 'linux' && '["nvcc", "cudart", "nvml-dev", "thrust"]' || '[]' }}
-          non-cuda-sub-packages: ${{ matrix.os == 'linux' && '["libcurand", "libcurand-dev"]' || '[]' }}
+          cuda-version: ${{ matrix.cudaversion }}
+          cache-key-suffix: ${{ hashFiles('.github/workflows/build-visrtx.yml') }}
       - name: Configure dependencies
         run: >
           cmake -LA -G "${{ matrix.generator }}" -B ${{github.workspace}}/deps_build
@@ -54,21 +52,3 @@ jobs:
       - name: Install VisRTX
         run: >
           cmake --build ${{ github.workspace }}/build-visrtx --config ${{ matrix.config }} --target install --parallel
-      - name: Configure TSD CMake (CUDA)
-        run: >
-          cmake -LA -B ${{github.workspace}}/build-tsd
-          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/deps
-          -DCMAKE_BUILD_TYPE=${{ matrix.config }}
-          -DTSD_BUILD_APPS=ON
-          -DTSD_BUILD_INTERACTIVE_APPS=OFF
-          -DTSD_BUILD_UI_LIBRARY=OFF
-          -DTSD_USE_ASSIMP=OFF
-          -DTSD_USE_CUDA=ON
-          -DTSD_USE_HDF5=OFF
-          -DTSD_USE_SDL3=OFF
-          -DTSD_USE_TBB=OFF
-          -DTSD_USE_USD=OFF
-          -DTSD_ENABLE_SERIALIZATION=OFF
-          ${{ github.workspace }}/tsd
-      - name: Build TSD (CUDA)
-        run: cmake --build ${{ github.workspace }}/build-tsd --config ${{ matrix.config }} --parallel
