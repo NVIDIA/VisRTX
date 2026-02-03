@@ -24,11 +24,34 @@ enum class VDBPrecision
 
 // clang-format off
 
+// Parameters //
+
+void parameterToNode(const Parameter &p, core::DataNode &node);
+void nodeToParameter(core::DataNode &node, Parameter &p);
+void nodeToObjectParameters(core::DataNode &node, Object &obj);
+
+// Objects //
+
 void objectToNode(const Object &obj, core::DataNode &node);
 void nodeToObject(core::DataNode &node, Object &obj);
+void nodeToObjectMetadata(core::DataNode &node, Object &obj);
+void nodeToNewObject(Scene &scene, core::DataNode &node);
+
+// Camera poses //
 
 void cameraPoseToNode(const rendering::CameraPose &pose, core::DataNode &node);
 void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose);
+
+// Arrays //
+
+void arrayToNode(const Array &arr, core::DataNode &node);
+
+// Layers //
+
+void layerToNode(Layer &layer, core::DataNode &node);
+void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene);
+
+// Scenes //
 
 void save_Scene(Scene &scene, const char *filename);
 void save_Scene(Scene &scene, core::DataNode &root);

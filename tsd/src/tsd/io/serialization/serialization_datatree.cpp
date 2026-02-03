@@ -19,11 +19,9 @@
 
 namespace tsd::io {
 
-///////////////////
-// Serialization //
-///////////////////
+// Parameters /////////////////////////////////////////////////////////////////
 
-static void parameterToNode(const Parameter &p, core::DataNode &node)
+void parameterToNode(const Parameter &p, core::DataNode &node)
 {
   node["value"] = p.value();
   if (!p.description().empty())
@@ -42,6 +40,43 @@ static void parameterToNode(const Parameter &p, core::DataNode &node)
     node["stringSelection"] = p.stringSelection();
   }
 }
+
+void nodeToParameter(core::DataNode &node, Parameter &p)
+{
+  if (auto *c = node.child("description"); c != nullptr)
+    p.setDescription(c->getValueAs<std::string>().c_str());
+
+  if (auto *c = node.child("usage"); c != nullptr)
+    p.setUsage(static_cast<ParameterUsageHint>(c->getValueAs<int>()));
+
+  if (auto *c = node.child("min"); c != nullptr)
+    p.setMin(c->getValue());
+
+  if (auto *c = node.child("max"); c != nullptr)
+    p.setMax(c->getValue());
+
+  if (auto *c = node.child("stringValues"); c != nullptr) {
+    std::vector<std::string> stringValues;
+    c->foreach_child([&](core::DataNode &child) {
+      stringValues.push_back(child.getValueAs<std::string>());
+    });
+    p.setStringValues(stringValues);
+    p.setStringSelection(node["stringSelection"].getValueAs<int>());
+  }
+
+  p.setValue(node["value"].getValue());
+}
+
+void nodeToObjectParameters(core::DataNode &node, Object &obj)
+{
+  node.foreach_child([&](core::DataNode &parameterNode) {
+    const Token parameterName(parameterNode.name().c_str());
+    auto &p = obj.addParameter(parameterName);
+    nodeToParameter(parameterNode, p);
+  });
+}
+
+// Objects ////////////////////////////////////////////////////////////////////
 
 void objectToNode(const Object &obj, core::DataNode &node)
 {
@@ -73,110 +108,19 @@ void objectToNode(const Object &obj, core::DataNode &node)
   }
 }
 
-void cameraPoseToNode(const rendering::CameraPose &p, core::DataNode &node)
+void nodeToObject(core::DataNode &node, Object &obj)
 {
-  node["name"] = p.name;
-  node["lookat"] = p.lookat;
-  node["azeldist"] = p.azeldist;
-  node["fixedDist"] = p.fixedDist;
-  node["upAxis"] = p.upAxis;
+  if (auto *c = node.child("name"); c != nullptr)
+    obj.setName(c->getValueAs<std::string>().c_str());
+
+  if (auto *c = node.child("parameters"); c != nullptr)
+    nodeToObjectParameters(*c, obj);
+
+  if (auto *c = node.child("metadata"); c != nullptr)
+    nodeToObjectMetadata(*c, obj);
 }
 
-static void arrayToNode(const Array &arr, core::DataNode &node)
-{
-  objectToNode(arr, node);
-
-  node["arrayDim"] = tsd::math::uint3{
-      uint32_t(arr.dim(0)), uint32_t(arr.dim(1)), uint32_t(arr.dim(2))};
-
-  const void *mem = arr.data();
-#if TSD_USE_CUDA
-  if (arr.kind() == Array::MemoryKind::CUDA) {
-    const size_t numBytes = arr.size() * arr.elementSize();
-    std::vector<uint8_t> hostBuf(numBytes);
-    cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
-    node["arrayData"].setValueAsArray(
-        arr.elementType(), hostBuf.data(), numBytes);
-  } else
-#endif
-    node["arrayData"].setValueAsExternalArray(
-        arr.elementType(), mem, arr.size());
-}
-
-static void layerToNode(Layer &layer, core::DataNode &node)
-{
-  std::stack<core::DataNode *> nodes;
-  core::DataNode *currentParentNode = nullptr;
-  core::DataNode *currentNode = &node;
-  int currentLevel = -1;
-  layer.traverse(layer.root(), [&](LayerNode &tsdNode, int level) {
-    if (currentLevel < level) {
-      nodes.push(currentNode);
-      currentParentNode = currentNode;
-    } else if (currentLevel > level) {
-      for (int i = 0; i < currentLevel - level; i++)
-        nodes.pop();
-      currentParentNode = nodes.top();
-    }
-
-    currentLevel = level;
-
-    if (level == 0)
-      currentNode = &node;
-    else
-      currentNode = &currentParentNode->child("children")->append();
-
-    currentNode->append("name") = tsdNode->name();
-    currentNode->append("value") = tsdNode->getValueRaw();
-    if (tsdNode->isTransform())
-      currentNode->append("transformSRT") = tsdNode->getTransformSRT();
-    currentNode->append("enabled") = tsdNode->isEnabled();
-    currentNode->append("children");
-
-    return true;
-  });
-}
-
-/////////////////////
-// Deserialization //
-/////////////////////
-
-static void nodeToParameter(core::DataNode &node, Parameter &p)
-{
-  if (auto *c = node.child("description"); c != nullptr)
-    p.setDescription(c->getValueAs<std::string>().c_str());
-
-  if (auto *c = node.child("usage"); c != nullptr)
-    p.setUsage(static_cast<ParameterUsageHint>(c->getValueAs<int>()));
-
-  if (auto *c = node.child("min"); c != nullptr)
-    p.setMin(c->getValue());
-
-  if (auto *c = node.child("max"); c != nullptr)
-    p.setMax(c->getValue());
-
-  if (auto *c = node.child("stringValues"); c != nullptr) {
-    std::vector<std::string> stringValues;
-    c->foreach_child([&](core::DataNode &child) {
-      stringValues.push_back(child.getValueAs<std::string>());
-    });
-    p.setStringValues(stringValues);
-    p.setStringSelection(node["stringSelection"].getValueAs<int>());
-  }
-
-  p.setValue(node["value"].getValue());
-}
-
-static void nodeToObjectParameters(core::DataNode &node, Object &obj)
-{
-  node.foreach_child([&](core::DataNode &parameterNode) {
-    const Token parameterName(parameterNode.name().c_str());
-    auto &p = obj.addParameter(parameterName);
-    nodeToParameter(parameterNode, p);
-  });
-}
-
-static void nodeToObjectMetadata(core::DataNode &node, Object &obj)
+void nodeToObjectMetadata(core::DataNode &node, Object &obj)
 {
   node.foreach_child([&](core::DataNode &n) {
     if (n.holdsArray()) {
@@ -191,28 +135,7 @@ static void nodeToObjectMetadata(core::DataNode &node, Object &obj)
   });
 }
 
-void nodeToObject(core::DataNode &node, Object &obj)
-{
-  if (auto *c = node.child("name"); c != nullptr)
-    obj.setName(c->getValueAs<std::string>().c_str());
-
-  if (auto *c = node.child("parameters"); c != nullptr)
-    nodeToObjectParameters(*c, obj);
-
-  if (auto *c = node.child("metadata"); c != nullptr)
-    nodeToObjectMetadata(*c, obj);
-}
-
-void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
-{
-  node["name"].getValue(ANARI_STRING, &pose.name);
-  node["lookat"].getValue(ANARI_FLOAT32_VEC3, &pose.lookat);
-  node["azeldist"].getValue(ANARI_FLOAT32_VEC3, &pose.azeldist);
-  node["fixedDist"].getValue(ANARI_FLOAT32, &pose.fixedDist);
-  node["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
-}
-
-static void nodeToNewObject(Scene &scene, core::DataNode &node)
+void nodeToNewObject(Scene &scene, core::DataNode &node)
 {
   const Any self = node["self"].getValue();
   const auto type = self.type();
@@ -298,7 +221,86 @@ static void nodeToNewObject(Scene &scene, core::DataNode &node)
   nodeToObject(node, *obj);
 }
 
-static void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
+// Camera poses ///////////////////////////////////////////////////////////////
+
+void cameraPoseToNode(const rendering::CameraPose &p, core::DataNode &node)
+{
+  node["name"] = p.name;
+  node["lookat"] = p.lookat;
+  node["azeldist"] = p.azeldist;
+  node["fixedDist"] = p.fixedDist;
+  node["upAxis"] = p.upAxis;
+}
+
+void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
+{
+  node["name"].getValue(ANARI_STRING, &pose.name);
+  node["lookat"].getValue(ANARI_FLOAT32_VEC3, &pose.lookat);
+  node["azeldist"].getValue(ANARI_FLOAT32_VEC3, &pose.azeldist);
+  node["fixedDist"].getValue(ANARI_FLOAT32, &pose.fixedDist);
+  node["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
+}
+
+// Arrays /////////////////////////////////////////////////////////////////////
+
+void arrayToNode(const Array &arr, core::DataNode &node)
+{
+  objectToNode(arr, node);
+
+  node["arrayDim"] = tsd::math::uint3{
+      uint32_t(arr.dim(0)), uint32_t(arr.dim(1)), uint32_t(arr.dim(2))};
+
+  const void *mem = arr.data();
+#if TSD_USE_CUDA
+  if (arr.kind() == Array::MemoryKind::CUDA) {
+    const size_t numBytes = arr.size() * arr.elementSize();
+    std::vector<uint8_t> hostBuf(numBytes);
+    cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
+    node["arrayData"].setValueAsArray(
+        arr.elementType(), hostBuf.data(), numBytes);
+  } else
+#endif
+    node["arrayData"].setValueAsExternalArray(
+        arr.elementType(), mem, arr.size());
+}
+
+// Layers /////////////////////////////////////////////////////////////////////
+
+void layerToNode(Layer &layer, core::DataNode &node)
+{
+  std::stack<core::DataNode *> nodes;
+  core::DataNode *currentParentNode = nullptr;
+  core::DataNode *currentNode = &node;
+  int currentLevel = -1;
+  layer.traverse(layer.root(), [&](LayerNode &tsdNode, int level) {
+    if (currentLevel < level) {
+      nodes.push(currentNode);
+      currentParentNode = currentNode;
+    } else if (currentLevel > level) {
+      for (int i = 0; i < currentLevel - level; i++)
+        nodes.pop();
+      currentParentNode = nodes.top();
+    }
+
+    currentLevel = level;
+
+    if (level == 0)
+      currentNode = &node;
+    else
+      currentNode = &currentParentNode->child("children")->append();
+
+    currentNode->append("name") = tsdNode->name();
+    currentNode->append("value") = tsdNode->getValueRaw();
+    if (tsdNode->isTransform())
+      currentNode->append("transformSRT") = tsdNode->getTransformSRT();
+    currentNode->append("enabled") = tsdNode->isEnabled();
+    currentNode->append("children");
+
+    return true;
+  });
+}
+
+void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
 {
   std::stack<LayerNodeRef> tsdNodes;
   LayerNodeRef currentParentNode;
