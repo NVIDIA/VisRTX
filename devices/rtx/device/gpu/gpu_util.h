@@ -308,8 +308,13 @@ VISRTX_DEVICE vec4 getBackground(
   for (size_t i = 0; i < fd.world.numHdriLightInstances; i++) {
     const auto &hdriLight = fd.world.hdriLightInstances[i];
     const auto &light = fd.registry.lights[hdriLight.lightIndex];
-    if (light.hdri.visible)
-      return vec4(sampleHDRI(light, rayDir), 1.f);
+    if (light.hdri.visible) {
+      // Transform ray direction from world space to HDRI local space
+      // For orthonormal matrices, inverse = transpose
+      const mat3 xfmInv = glm::transpose(mat3(hdriLight.xfm));
+      const vec3 localRayDir = xfmInv * rayDir;
+      return vec4(sampleHDRI(light, localRayDir), 1.f);
+    }
   }
 
   // No visible HDRI, use background image/color
