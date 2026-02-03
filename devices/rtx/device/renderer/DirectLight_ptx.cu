@@ -129,7 +129,7 @@ struct DirectLightShadingPolicy
             + bounceHit.Ng
                 * std::copysignf(
                     bounceHit.epsilon, dot(bounceHit.Ns, nextRay.direction)),
-        nextRay.direction,
+        normalize(nextRay.direction),
     };
 
     // Only check for intersecting surfaces and background as secondary light
