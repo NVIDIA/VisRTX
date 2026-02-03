@@ -11,11 +11,10 @@ namespace visrtx {
 
 /**
  * @brief Abstract base class for analytical (procedural) spatial fields
- * 
+ *
  * Analytical fields compute their values procedurally rather than from
- * stored data. They provide a framework for implementing custom fields
- * like magnetic fields, aurora effects, or planetary surfaces.
- * 
+ * stored data. They provide a framework for implementing custom fields.
+ *
  * Subclasses must implement:
  * - commitParameters(): Parse ANARI parameters
  * - finalize(): Prepare GPU data

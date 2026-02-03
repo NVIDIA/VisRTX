@@ -9,9 +9,9 @@ namespace visrtx {
 
 /**
  * @brief PTX wrapper for analytical field samplers
- * 
- * This single module contains callable programs for all analytical field subtypes:
- * - Magnetic, IMF, Aurora, Planet, Cloud
+ *
+ * This single module contains callable programs for all analytical field
+ * subtypes
  */
 struct AnalyticalFieldSampler
 {
