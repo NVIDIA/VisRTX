@@ -72,7 +72,7 @@
 #include "spatial_field/StructuredRectilinearSampler.h"
 #include "spatial_field/StructuredRegularSampler.h"
 // analytical field sampler (from devices/visrtx)
-#include "AnalyticalFieldSampler.h"
+#include "spatial_field/AnalyticalFieldSampler.h"
 
 // MDL
 #ifdef USE_MDL
