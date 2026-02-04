@@ -41,7 +41,7 @@ void RenderServer::run(short port)
 
   tsd::core::logStatus("[Server] Listening on port %i...", int(port));
 
-  while (m_currentMode != ServerMode::SHUTDOWN) {
+  while (m_nextMode != ServerMode::SHUTDOWN) {
     bool wasRendering = m_currentMode == ServerMode::RENDERING;
 
     m_currentMode =
