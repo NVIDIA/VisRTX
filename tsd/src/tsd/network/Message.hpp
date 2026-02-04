@@ -79,15 +79,6 @@ bool payloadRead(
     const Message &msg, uint32_t &offset, T *data, uint32_t length = 1);
 bool payloadRead(const Message &msg, uint32_t &offset, std::string &str);
 
-// make_message() //
-
-Message make_message(uint8_t type);
-Message make_message(uint8_t type, const std::string &data);
-template <typename T>
-Message make_message(uint8_t type, const T *data, uint32_t count = 1);
-template <typename T>
-Message make_message(uint8_t type, const std::vector<T> &data);
-
 ///////////////////////////////////////////////////////////////////////////////
 // Inlined definitions ////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -177,36 +168,6 @@ inline bool payloadRead(const Message &msg, uint32_t &offset, std::string &str)
   str.assign(start, length);
   offset += static_cast<uint32_t>(length + 1); // +1 for null-terminator
   return true;
-}
-
-inline Message make_message(uint8_t type)
-{
-  Message msg;
-  msg.header.type = type;
-  return msg;
-}
-
-inline Message make_message(uint8_t type, const std::string &data)
-{
-  Message msg = make_message(type);
-  payloadWrite(msg, data);
-  return msg;
-}
-
-template <typename T>
-inline Message make_message(uint8_t type, const T *data, uint32_t count)
-{
-  Message msg = make_message(type);
-  payloadWrite(msg, data, count);
-  return msg;
-}
-
-template <typename T>
-inline Message make_message(uint8_t type, const std::vector<T> &data)
-{
-  static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
-      "Message payload must be a POD type");
-  return make_message(type, data.data(), static_cast<uint32_t>(data.size()));
 }
 
 } // namespace tsd::network

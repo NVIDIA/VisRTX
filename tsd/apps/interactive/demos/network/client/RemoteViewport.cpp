@@ -42,10 +42,8 @@ void RemoteViewport::buildUI()
   if (m_viewportSize != viewportSize || m_wasConnected != isConnected)
     reshape(viewportSize);
 
-  if (!m_wasConnected && isConnected) {
-    m_channel->send(
-        tsd::network::make_message(MessageType::SERVER_REQUEST_VIEW));
-  }
+  if (!m_wasConnected && isConnected)
+    m_channel->send(MessageType::SERVER_REQUEST_VIEW);
 
   m_wasConnected = isConnected;
   m_incomingFramePass->setEnabled(isConnected);
@@ -136,8 +134,7 @@ void RemoteViewport::reshape(tsd::math::int2 newSize)
   if (m_channel && m_channel->isConnected()) {
     tsd::network::RenderSession::Frame::Config frameConfig;
     frameConfig.size = tsd::math::uint2(newSize.x, newSize.y);
-    m_channel->send(tsd::network::make_message(
-        MessageType::SERVER_SET_FRAME_CONFIG, &frameConfig));
+    m_channel->send(MessageType::SERVER_SET_FRAME_CONFIG, &frameConfig);
   }
 }
 
@@ -153,8 +150,7 @@ void RemoteViewport::updateCamera()
     viewMsg.azeldist.z = m_arcball->distance();
     viewMsg.lookat = m_arcball->at();
 
-    m_channel->send(
-        tsd::network::make_message(MessageType::SERVER_SET_VIEW, &viewMsg));
+    m_channel->send(MessageType::SERVER_SET_VIEW, &viewMsg);
   }
 }
 

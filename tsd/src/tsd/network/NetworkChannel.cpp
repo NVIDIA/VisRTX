@@ -86,15 +86,20 @@ MessageFuture NetworkChannel::send(Message &&msg)
   return future;
 }
 
+MessageFuture NetworkChannel::send(uint8_t type, StructuredMessage &&msg)
+{
+  Message message = msg.toMessage(type);
+  return send(std::move(message));
+}
+
 MessageFuture NetworkChannel::send(uint8_t type)
 {
   return send(make_message(type));
 }
 
-MessageFuture NetworkChannel::send(uint8_t type, StructuredMessage &&msg)
+MessageFuture NetworkChannel::send(uint8_t type, const std::string &str)
 {
-  Message message = msg.toMessage(type);
-  return send(std::move(message));
+  return send(make_message(type, str));
 }
 
 void NetworkChannel::start_messaging()

@@ -20,17 +20,26 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
 
   bool isConnected() const;
 
-  // Receive messages //
+  //// Receive messages ////
 
   void registerHandler(uint8_t messageType, MessageHandler handler);
   void removeHandler(uint8_t messageType);
   void removeAllHandlers();
 
-  // Send messages //
+  //// Send messages ////
 
   MessageFuture send(Message &&msg);
-  MessageFuture send(uint8_t type); // empty payload
   MessageFuture send(uint8_t type, StructuredMessage &&msg);
+
+  /* No payload */
+  MessageFuture send(uint8_t type);
+
+  /* With payloads */
+  MessageFuture send(uint8_t type, const std::string &str);
+  template <typename T>
+  MessageFuture send(uint8_t type, const T *data, uint32_t count = 1);
+  template <typename T>
+  MessageFuture send(uint8_t type, const std::vector<T> &data);
 
  protected:
   void start_messaging();
@@ -49,6 +58,12 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
   tcp::socket m_socket;
   Message m_currentMessage;
   HandlerMap m_handlers;
+
+ private:
+  Message make_message(uint8_t type);
+  Message make_message(uint8_t type, const std::string &data);
+  template <typename T>
+  Message make_message(uint8_t type, const T *data, uint32_t count);
 };
 
 struct NetworkServer : public NetworkChannel
@@ -75,6 +90,51 @@ struct NetworkClient : public NetworkChannel
   void connect(const std::string &host, short port);
   void disconnect();
 };
+
+// Inline definitions /////////////////////////////////////////////////////////
+
+template <typename T>
+inline MessageFuture NetworkChannel::send(
+    uint8_t type, const T *data, uint32_t count)
+{
+  static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
+      "Message payload must be a POD type");
+  return send(make_message(type, data, count));
+}
+
+template <typename T>
+inline MessageFuture NetworkChannel::send(
+    uint8_t type, const std::vector<T> &data)
+{
+  return send(
+      make_message(type, data.data(), static_cast<uint32_t>(data.size())));
+}
+
+inline Message NetworkChannel::make_message(uint8_t type)
+{
+  Message msg;
+  msg.header.type = type;
+  return msg;
+}
+
+inline Message NetworkChannel::make_message(
+    uint8_t type, const std::string &data)
+{
+  Message msg = make_message(type);
+  payloadWrite(msg, data);
+  return msg;
+}
+
+template <typename T>
+inline Message NetworkChannel::make_message(
+    uint8_t type, const T *data, uint32_t count)
+{
+  static_assert(std::is_standard_layout_v<T> && std::is_trivially_copyable_v<T>,
+      "Message payload must be a POD type");
+  Message msg = make_message(type);
+  payloadWrite(msg, data, count);
+  return msg;
+}
 
 // Inlined helper functions ///////////////////////////////////////////////////
 

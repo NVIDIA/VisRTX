@@ -302,14 +302,14 @@ void RenderServer::setup_Messaging()
   m_server->registerHandler(MessageType::SERVER_REQUEST_FRAME_CONFIG,
       [s = m_server, session = &m_session](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested frame config.");
-        s->send(make_message(
-            MessageType::CLIENT_RECEIVE_FRAME_CONFIG, &session->frame.config));
+        s->send(
+            MessageType::CLIENT_RECEIVE_FRAME_CONFIG, &session->frame.config);
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_VIEW,
       [s = m_server, session = &m_session](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested view.");
-        s->send(make_message(MessageType::CLIENT_RECEIVE_VIEW, &session->view));
+        s->send(MessageType::CLIENT_RECEIVE_VIEW, &session->view);
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_SCENE,
@@ -361,9 +361,9 @@ void RenderServer::send_FrameBuffer()
     return;
   }
 
-  m_lastSentFrame = m_server->send(
-      tsd::network::make_message(MessageType::CLIENT_RECEIVE_FRAME_BUFFER_COLOR,
-          m_session.frame.buffers.color));
+  m_lastSentFrame =
+      m_server->send(MessageType::CLIENT_RECEIVE_FRAME_BUFFER_COLOR,
+          m_session.frame.buffers.color);
 }
 
 void RenderServer::set_Mode(ServerMode mode)

@@ -95,8 +95,7 @@ Application::Application()
         tsd::core::logStatus(
             "\n%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
         tsd::core::logStatus("[Client] Requesting start of rendering...");
-        m_client->send(
-            tsd::network::make_message(MessageType::SERVER_START_RENDERING));
+        m_client->send(MessageType::SERVER_START_RENDERING);
       });
 
   core->tsd.scene.setUpdateDelegate(m_updateDelegate.get());
