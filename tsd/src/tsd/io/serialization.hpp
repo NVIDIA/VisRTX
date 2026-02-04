@@ -32,7 +32,7 @@ void nodeToObjectParameters(core::DataNode &node, Object &obj);
 
 // Objects //
 
-void objectToNode(const Object &obj, core::DataNode &node);
+void objectToNode(const Object &obj, core::DataNode &node, bool forceArraysAsProxies = false);
 void nodeToObject(core::DataNode &node, Object &obj);
 void nodeToObjectMetadata(core::DataNode &node, Object &obj);
 void nodeToNewObject(Scene &scene, core::DataNode &node);
@@ -41,10 +41,6 @@ void nodeToNewObject(Scene &scene, core::DataNode &node);
 
 void cameraPoseToNode(const rendering::CameraPose &pose, core::DataNode &node);
 void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose);
-
-// Arrays //
-
-void arrayToNode(const Array &arr, core::DataNode &node, bool forceProxyArrays = false);
 
 // Layers //
 

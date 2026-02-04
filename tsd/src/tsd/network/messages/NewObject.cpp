@@ -16,11 +16,7 @@ NewObject::NewObject(const tsd::core::Object *o)
     return;
   }
 
-  auto type = o->type();
-  if (anari::isArray(type))
-    tsd::io::arrayToNode(*(const tsd::core::Array *)o, m_tree.root());
-  else
-    tsd::io::objectToNode(*o, m_tree.root());
+  tsd::io::objectToNode(*o, m_tree.root());
 }
 
 NewObject::NewObject(const Message &msg, tsd::core::Scene *scene)

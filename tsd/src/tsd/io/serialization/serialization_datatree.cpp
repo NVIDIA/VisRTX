@@ -80,7 +80,36 @@ void nodeToObjectParameters(core::DataNode &node, Object &obj)
 
 // Objects ////////////////////////////////////////////////////////////////////
 
-void objectToNode(const Object &obj, core::DataNode &node)
+// Helper function for arrays
+static void arrayToNode(
+    const Array &arr, core::DataNode &node, bool forceArraysAsProxies)
+{
+  node["arrayDim"] = tsd::math::uint3{
+      uint32_t(arr.dim(0)), uint32_t(arr.dim(1)), uint32_t(arr.dim(2))};
+
+  auto &arrayData = node.append("arrayData");
+
+  bool isProxy =
+      forceArraysAsProxies ? true : (arr.kind() == Array::MemoryKind::PROXY);
+  if (isProxy) {
+    arrayData = static_cast<int>(arr.elementType());
+    return;
+  }
+
+  const void *mem = arr.data();
+#if TSD_USE_CUDA
+  if (arr.kind() == Array::MemoryKind::CUDA) {
+    const size_t numBytes = arr.size() * arr.elementSize();
+    std::vector<uint8_t> hostBuf(numBytes);
+    cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
+    arrayData.setValueAsArray(arr.elementType(), hostBuf.data(), numBytes);
+  } else
+#endif
+    arrayData.setValueAsExternalArray(arr.elementType(), mem, arr.size());
+}
+
+void objectToNode(
+    const Object &obj, core::DataNode &node, bool forceProxyArrays)
 {
   node["name"] = obj.name();
   node["self"] = Any(obj.type(), obj.index());
@@ -107,6 +136,11 @@ void objectToNode(const Object &obj, core::DataNode &node)
       else if (auto v = obj.getMetadataValue(n); v.valid())
         metadata[n] = v;
     }
+  }
+
+  if (anari::isArray(obj.type())) {
+    const Array &arr = static_cast<const Array &>(obj);
+    arrayToNode(arr, node, forceProxyArrays);
   }
 }
 
@@ -258,34 +292,6 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
 
 // Arrays /////////////////////////////////////////////////////////////////////
 
-void arrayToNode(const Array &arr, core::DataNode &node, bool forceProxyArrays)
-{
-  objectToNode(arr, node);
-
-  node["arrayDim"] = tsd::math::uint3{
-      uint32_t(arr.dim(0)), uint32_t(arr.dim(1)), uint32_t(arr.dim(2))};
-
-  auto &arrayData = node.append("arrayData");
-
-  bool isProxy =
-      forceProxyArrays ? true : (arr.kind() == Array::MemoryKind::PROXY);
-  if (isProxy) {
-    arrayData = static_cast<int>(arr.elementType());
-    return;
-  }
-
-  const void *mem = arr.data();
-#if TSD_USE_CUDA
-  if (arr.kind() == Array::MemoryKind::CUDA) {
-    const size_t numBytes = arr.size() * arr.elementSize();
-    std::vector<uint8_t> hostBuf(numBytes);
-    cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
-    arrayData.setValueAsArray(arr.elementType(), hostBuf.data(), numBytes);
-  } else
-#endif
-    arrayData.setValueAsExternalArray(arr.elementType(), mem, arr.size());
-}
-
 // Layers /////////////////////////////////////////////////////////////////////
 
 void layerToNode(Layer &layer, core::DataNode &node)
@@ -424,10 +430,7 @@ void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays)
       if (!obj)
         return;
       auto &m = childNode.append();
-      if constexpr (std::is_same<decltype(obj), const Array *>::value)
-        arrayToNode(*obj, m, forceProxyArrays);
-      else
-        objectToNode(*obj, m);
+      objectToNode(*obj, m, forceProxyArrays);
     });
   };
 
