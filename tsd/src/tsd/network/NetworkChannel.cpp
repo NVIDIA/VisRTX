@@ -86,6 +86,11 @@ MessageFuture NetworkChannel::send(Message &&msg)
   return future;
 }
 
+MessageFuture NetworkChannel::send(uint8_t type)
+{
+  return send(make_message(type));
+}
+
 MessageFuture NetworkChannel::send(uint8_t type, StructuredMessage &&msg)
 {
   Message message = msg.toMessage(type);

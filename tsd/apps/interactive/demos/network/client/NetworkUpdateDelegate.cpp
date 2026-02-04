@@ -128,8 +128,12 @@ void NetworkUpdateDelegate::signalRemoveAllObjects()
 {
   if (!m_enabled)
     return;
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalRemoveAllObjects not implemented");
+  else if (!m_channel) {
+    tsd::core::logError(
+        "NetworkUpdateDelegate::signalRemoveAllObjects: no network channel");
+    return;
+  }
+  m_channel->send(MessageType::SERVER_REMOVE_ALL_OBJECTS);
 }
 
 void NetworkUpdateDelegate::signalLayerAdded(const tsd::core::Layer *l)

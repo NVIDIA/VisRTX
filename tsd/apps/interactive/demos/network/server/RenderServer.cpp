@@ -281,6 +281,11 @@ void RenderServer::setup_Messaging()
         removeObj.execute();
       });
 
+  m_server->registerHandler(MessageType::SERVER_REMOVE_ALL_OBJECTS,
+      [this](const tsd::network::Message &) {
+        m_core.tsd.scene.removeAllObjects();
+      });
+
   m_server->registerHandler(MessageType::SERVER_UPDATE_LAYER,
       [this](const tsd::network::Message &msg) {
         tsd::network::messages::TransferLayer layerMsg(msg, &m_core.tsd.scene);

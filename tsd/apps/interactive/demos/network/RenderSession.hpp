@@ -27,6 +27,7 @@ enum MessageType
   SERVER_SET_ARRAY_DATA,
   SERVER_ADD_OBJECT,
   SERVER_REMOVE_OBJECT,
+  SERVER_REMOVE_ALL_OBJECTS,
   SERVER_UPDATE_LAYER,
 
   // Get state: server -> client
