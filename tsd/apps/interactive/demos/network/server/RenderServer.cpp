@@ -189,6 +189,12 @@ void RenderServer::setup_Messaging()
         tsd::core::logStatus("[Server] Received PING from client");
       });
 
+  m_server->registerHandler(
+      MessageType::DISCONNECT, [&](const tsd::network::Message &msg) {
+        tsd::core::logStatus("[Server] Client signaled disconnection.");
+        set_Mode(ServerMode::DISCONNECTED);
+      });
+
   m_server->registerHandler(MessageType::SERVER_START_RENDERING,
       [&](const tsd::network::Message &msg) {
         tsd::core::logStatus(
@@ -310,7 +316,7 @@ void RenderServer::setup_Messaging()
       [this](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested scene...");
         // Notify client a big message is coming...
-        m_server->send(make_message(MessageType::CLIENT_SCENE_TRANSFER_BEGIN));
+        m_server->send(MessageType::CLIENT_SCENE_TRANSFER_BEGIN);
         set_Mode(ServerMode::SEND_SCENE);
       });
 }

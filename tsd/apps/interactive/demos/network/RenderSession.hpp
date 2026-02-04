@@ -45,6 +45,9 @@ enum MessageType
   // All ping messages
   PING,
 
+  // All disconnections
+  DISCONNECT,
+
   // All errors
   ERROR = 255
 };

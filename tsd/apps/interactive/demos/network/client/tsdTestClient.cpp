@@ -85,14 +85,14 @@ int main()
 
   client->connect("127.0.0.1", 12345);
 
-  client->send(make_message(MessageType::SERVER_START_RENDERING));
+  client->send(MessageType::SERVER_START_RENDERING);
 
   tsd::core::logStatus("[Client] Rendering for 1 second...");
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
-  client->send(make_message(MessageType::SERVER_STOP_RENDERING)).get();
-  client->send(make_message(MessageType::SERVER_REQUEST_FRAME_CONFIG)).get();
-  client->send(make_message(MessageType::SERVER_REQUEST_VIEW)).get();
+  client->send(MessageType::SERVER_STOP_RENDERING).get();
+  client->send(MessageType::SERVER_REQUEST_FRAME_CONFIG).get();
+  client->send(MessageType::SERVER_REQUEST_VIEW).get();
 
   for (int i = 0; i < 3; ++i) {
     tsd::core::logStatus("[Client] Sending PING #%d", i + 1);
@@ -106,7 +106,7 @@ int main()
   // Shutdown //
 
   tsd::core::logStatus("[Client] Sending SHUTDOWN");
-  client->send(make_message(MessageType::SERVER_SHUTDOWN)).get();
+  client->send(MessageType::SERVER_SHUTDOWN).get();
   client->disconnect();
 
   // Store fine frame //

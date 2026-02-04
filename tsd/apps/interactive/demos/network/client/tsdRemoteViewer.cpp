@@ -172,22 +172,19 @@ void Application::uiMainMenuBar()
   if (ImGui::BeginMenu("Server")) {
     if (ImGui::MenuItem("Start Rendering")) {
       tsd::core::logStatus("[Client] Sending START_RENDERING command");
-      m_client->send(
-          tsd::network::make_message(MessageType::SERVER_START_RENDERING));
+      m_client->send(MessageType::SERVER_START_RENDERING);
     }
 
     if (ImGui::MenuItem("Pause Rendering")) {
       tsd::core::logStatus("[Client] Sending STOP_RENDERING command");
-      m_client->send(
-          tsd::network::make_message(MessageType::SERVER_STOP_RENDERING));
+      m_client->send(MessageType::SERVER_STOP_RENDERING);
     }
 
     ImGui::Separator();
 
     if (ImGui::MenuItem("Shutdown")) {
       tsd::core::logStatus("[Client] Sending SHUTDOWN command");
-      m_client->send(tsd::network::make_message(MessageType::SERVER_SHUTDOWN))
-          .get();
+      m_client->send(MessageType::SERVER_SHUTDOWN).get();
       disconnect();
     }
 
@@ -200,7 +197,7 @@ void Application::uiMainMenuBar()
 
   if (ImGui::IsKeyPressed(ImGuiKey_P, false)) {
     tsd::core::logStatus("[Client] Sending PING");
-    m_client->send(tsd::network::make_message(MessageType::PING));
+    m_client->send(MessageType::PING);
   }
 
   if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) {
@@ -325,9 +322,7 @@ void Application::connect()
     tsd::core::logStatus(
         "[Client] Connected to server at %s:%d", m_host.c_str(), m_port);
     tsd::core::logStatus("[Client] Requesting scene from server");
-    m_client->send(
-                tsd::network::make_message(MessageType::SERVER_REQUEST_SCENE))
-        .get();
+    m_client->send(MessageType::SERVER_REQUEST_SCENE).get();
   } else {
     tsd::core::logError("[Client] Failed to connect to server at %s:%d",
         m_host.c_str(),
@@ -338,8 +333,8 @@ void Application::connect()
 void Application::disconnect()
 {
   tsd::core::logStatus("[Client] Disconnecting from server...");
-  m_client->send(tsd::network::make_message(MessageType::SERVER_STOP_RENDERING))
-      .get();
+  m_updateDelegate->setEnabled(false);
+  m_client->send(MessageType::DISCONNECT).get();
   m_client->disconnect();
 
   auto &scene = appCore()->tsd.scene;
