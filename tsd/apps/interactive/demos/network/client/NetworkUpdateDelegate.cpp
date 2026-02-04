@@ -7,6 +7,7 @@
 // tsd_network
 #include "tsd/network/messages/NewObject.hpp"
 #include "tsd/network/messages/ParameterChange.hpp"
+#include "tsd/network/messages/ParameterRemove.hpp"
 #include "tsd/network/messages/TransferArrayData.hpp"
 #include "tsd/network/messages/TransferLayer.hpp"
 
@@ -60,12 +61,17 @@ void NetworkUpdateDelegate::signalParameterUpdated(
 }
 
 void NetworkUpdateDelegate::signalParameterRemoved(
-    const tsd::core::Object *, const tsd::core::Parameter *)
+    const tsd::core::Object *o, const tsd::core::Parameter *p)
 {
   if (!m_enabled)
     return;
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalParameterRemoved not implemented");
+  else if (!m_channel) {
+    tsd::core::logError(
+        "NetworkUpdateDelegate::signalParameterRemoved: no network channel");
+    return;
+  }
+  auto msg = tsd::network::messages::ParameterRemove(o, p);
+  m_channel->send(MessageType::SERVER_REMOVE_OBJECT_PARAMETER, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalArrayMapped(const tsd::core::Array *)

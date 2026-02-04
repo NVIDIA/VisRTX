@@ -230,6 +230,7 @@ void nodeToNewObject(Scene &scene, core::DataNode &node)
         index);
   }
 
+  obj->removeAllParameters(); // clear default parameters
   nodeToObject(node, *obj);
 }
 
