@@ -9,6 +9,7 @@ project_sources(PRIVATE
   messages/NewObject.cpp
   messages/ParameterChange.cpp
   messages/ParameterRemove.cpp
+  messages/RemoveObject.cpp
   messages/TransferArrayData.cpp
   messages/TransferLayer.cpp
   messages/TransferScene.cpp

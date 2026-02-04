@@ -11,6 +11,7 @@
 #include "tsd/network/messages/NewObject.hpp"
 #include "tsd/network/messages/ParameterChange.hpp"
 #include "tsd/network/messages/ParameterRemove.hpp"
+#include "tsd/network/messages/RemoveObject.hpp"
 #include "tsd/network/messages/TransferArrayData.hpp"
 #include "tsd/network/messages/TransferLayer.hpp"
 #include "tsd/network/messages/TransferScene.hpp"
@@ -272,6 +273,12 @@ void RenderServer::setup_Messaging()
       MessageType::SERVER_ADD_OBJECT, [this](const tsd::network::Message &msg) {
         tsd::network::messages::NewObject newObj(msg, &m_core.tsd.scene);
         newObj.execute();
+      });
+
+  m_server->registerHandler(MessageType::SERVER_REMOVE_OBJECT,
+      [this](const tsd::network::Message &msg) {
+        tsd::network::messages::RemoveObject removeObj(msg, &m_core.tsd.scene);
+        removeObj.execute();
       });
 
   m_server->registerHandler(MessageType::SERVER_UPDATE_LAYER,

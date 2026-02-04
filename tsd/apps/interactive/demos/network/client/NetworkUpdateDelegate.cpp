@@ -8,6 +8,7 @@
 #include "tsd/network/messages/NewObject.hpp"
 #include "tsd/network/messages/ParameterChange.hpp"
 #include "tsd/network/messages/ParameterRemove.hpp"
+#include "tsd/network/messages/RemoveObject.hpp"
 #include "tsd/network/messages/TransferArrayData.hpp"
 #include "tsd/network/messages/TransferLayer.hpp"
 
@@ -110,12 +111,17 @@ void NetworkUpdateDelegate::signalObjectLayerUseCountZero(
   // no-op
 }
 
-void NetworkUpdateDelegate::signalObjectRemoved(const tsd::core::Object *)
+void NetworkUpdateDelegate::signalObjectRemoved(const tsd::core::Object *o)
 {
   if (!m_enabled)
     return;
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalObjectRemoved not implemented");
+  else if (!m_channel) {
+    tsd::core::logError(
+        "NetworkUpdateDelegate::signalObjectRemoved: no network channel");
+    return;
+  }
+  auto msg = tsd::network::messages::RemoveObject(o);
+  m_channel->send(MessageType::SERVER_REMOVE_OBJECT, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalRemoveAllObjects()
