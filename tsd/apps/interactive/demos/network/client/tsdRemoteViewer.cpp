@@ -339,6 +339,7 @@ void Application::disconnect()
 
   auto *core = appCore();
   core->tsd.sceneLoadComplete = false;
+  core->clearSelected();
   auto &scene = core->tsd.scene;
   scene.removeAllLayers();
   scene.removeAllObjects();
