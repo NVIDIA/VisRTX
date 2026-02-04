@@ -96,9 +96,11 @@ Application::Application()
             "\n%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
         tsd::core::logStatus("[Client] Requesting start of rendering...");
         m_client->send(MessageType::SERVER_START_RENDERING);
+        appCore()->tsd.sceneLoadComplete = true;
       });
 
   core->tsd.scene.setUpdateDelegate(m_updateDelegate.get());
+  core->tsd.sceneLoadComplete = false;
 }
 
 Application::~Application() = default;
@@ -109,7 +111,6 @@ anari_viewer::WindowArray Application::setupWindows()
 
   auto *core = appCore();
   auto *manipulator = &core->view.manipulator;
-  core->tsd.sceneLoadComplete = true;
 
   auto *log = new tsd_ui::Log(this);
   m_viewport =
@@ -336,7 +337,9 @@ void Application::disconnect()
   m_client->send(MessageType::DISCONNECT).get();
   m_client->disconnect();
 
-  auto &scene = appCore()->tsd.scene;
+  auto *core = appCore();
+  core->tsd.sceneLoadComplete = false;
+  auto &scene = core->tsd.scene;
   scene.removeAllLayers();
   scene.removeAllObjects();
 }

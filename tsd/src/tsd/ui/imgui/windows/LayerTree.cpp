@@ -32,7 +32,7 @@ LayerTree::LayerTree(Application *app, const char *name) : Window(app, name) {}
 void LayerTree::buildUI()
 {
   if (!appCore()->tsd.sceneLoadComplete) {
-    ImGui::Text("PLEASE WAIT...LOADING SCENE");
+    ImGui::Text("{SCENE NOT AVAILABLE}");
     return;
   }
 
