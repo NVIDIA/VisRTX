@@ -4,6 +4,10 @@
 #include "TransferArrayData.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
+#if TSD_USE_CUDA
+// cuda
+#include <cuda_runtime.h>
+#endif
 
 namespace tsd::network::messages {
 
@@ -34,6 +38,19 @@ TransferArrayData::TransferArrayData(const tsd::core::Array *array)
 
   auto &d = root["d"];
   d.setValueAsExternalArray(array->elementType(), array->data(), array->size());
+
+#if TSD_USE_CUDA
+  if (array->kind() == tsd::core::Array::MemoryKind::CUDA) {
+    const size_t numBytes = array->size() * array->elementSize();
+    std::vector<std::byte> hostBuf(numBytes);
+    cudaMemcpy(hostBuf.data(), array->data(), numBytes, cudaMemcpyDeviceToHost);
+    d.setValueAsArray(array->elementType(), hostBuf.data(), array->size());
+  } else
+#endif
+  {
+    d.setValueAsExternalArray(
+        array->elementType(), array->data(), array->size());
+  }
 }
 
 TransferArrayData::TransferArrayData(
@@ -41,8 +58,7 @@ TransferArrayData::TransferArrayData(
     : StructuredMessage(msg), m_scene(scene)
 {
   tsd::core::logDebug(
-      "[message::ParameterChange] Received object parameter from server"
-      " (%zu bytes)",
+      "[message::TransferArrayData] Received message (%zu bytes)",
       msg.header.payload_length);
 }
 
@@ -59,7 +75,8 @@ void TransferArrayData::execute()
   if (!array) {
     tsd::core::logError(
         "[message::TransferArrayData] Unable to find array (%s, %zu)",
-        anari::toString(a.type()), a.getAsObjectIndex());
+        anari::toString(a.type()),
+        a.getAsObjectIndex());
     return;
   }
 
@@ -69,6 +86,28 @@ void TransferArrayData::execute()
   size_t size = 0;
   d.getValueAsArray(&type, &ptr, &size);
 
+  if (array->elementType() != type) {
+    tsd::core::logError(
+        "[message::TransferArrayData] Array type mismatch (%s != %s) for "
+        "array (%s, %zu)",
+        anari::toString(array->elementType()),
+        anari::toString(type),
+        anari::toString(a.type()),
+        a.getAsObjectIndex());
+    return;
+  } else if (array->size() != size) {
+    tsd::core::logError(
+        "[message::TransferArrayData] Array size mismatch (%zu != %zu) for "
+        "array (%s, %zu)",
+        array->size(),
+        size,
+        anari::toString(a.type()),
+        a.getAsObjectIndex());
+    return;
+  }
+
+  if (array->isProxy())
+    array->convertProxyToHost();
   array->setData(ptr);
 }
 

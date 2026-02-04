@@ -25,9 +25,7 @@ TransferLayer::TransferLayer(tsd::core::Scene *scene, tsd::core::Layer *layer)
 TransferLayer::TransferLayer(const Message &msg, tsd::core::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
-  tsd::core::logDebug(
-      "[message::TransferLayer] Received scene from server"
-      " (%zu bytes)",
+  tsd::core::logDebug("[message::TransferLayer] Received message (%zu bytes)",
       msg.header.payload_length);
 }
 
@@ -47,8 +45,7 @@ void TransferLayer::execute()
     tsd::core::logDebug(
         "[message::TransferLayer] Creating new layer '%s'", layerName.c_str());
   } else {
-    tsd::core::logDebug(
-        "[message::TransferLayer] Updating existing layer '%s'",
+    tsd::core::logDebug("[message::TransferLayer] Updating existing layer '%s'",
         layerName.c_str());
   }
   tsd::io::nodeToLayer(root["l"], *layer, *m_scene);

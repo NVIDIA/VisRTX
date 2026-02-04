@@ -22,9 +22,7 @@ RemoveObject::RemoveObject(const tsd::core::Object *o)
 RemoveObject::RemoveObject(const Message &msg, tsd::core::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
-  tsd::core::logDebug(
-      "[message::RemoveObject] Received new object from server"
-      " (%zu bytes)",
+  tsd::core::logDebug("[message::RemoveObject] Received message (%zu bytes)",
       msg.header.payload_length);
 }
 

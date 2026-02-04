@@ -28,9 +28,8 @@ ParameterChange::ParameterChange(
 ParameterChange::ParameterChange(const Message &msg, tsd::core::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
-  tsd::core::logDebug(
-      "[message::ParameterChange] Received object parameter from server"
-      " (%zu bytes)",
+  tsd::core::logStatus(
+      "[message::ParameterChange] Received message (%zu bytes)",
       msg.header.payload_length);
 }
 

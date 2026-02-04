@@ -16,7 +16,11 @@ struct Array : public Object
 {
   static constexpr anari::DataType ANARI_TYPE = ANARI_ARRAY;
   // clang-format off
-  enum class MemoryKind { HOST, CUDA, PROXY };
+  enum class MemoryKind {
+    HOST, // Memory allocated on the host (main memory)
+    CUDA, // Memory allocated on the GPU (device memory)
+    PROXY // No memory allocated, only a placeholder object (not mappable)
+  };
   // clang-format on
 
   Array(
@@ -44,6 +48,8 @@ struct Array : public Object
   bool isHost() const;
   bool isCUDA() const;
   bool isProxy() const;
+
+  void convertProxyToHost();
 
   void *map();
   template <typename T>

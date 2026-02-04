@@ -65,8 +65,10 @@ void nodeToParameter(core::DataNode &node, Parameter &p)
     p.setStringSelection(node["stringSelection"].getValueAs<int>());
   }
 
+  if (auto *c = node.child("enabled"); c != nullptr)
+    p.setEnabled(c->getValueAs<bool>());
+
   p.setValue(node["value"].getValue());
-  p.setEnabled(node["enabled"].getValueAs<bool>());
 }
 
 void nodeToObjectParameters(core::DataNode &node, Object &obj)
@@ -102,7 +104,7 @@ static void arrayToNode(
     const size_t numBytes = arr.size() * arr.elementSize();
     std::vector<uint8_t> hostBuf(numBytes);
     cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
-    arrayData.setValueAsArray(arr.elementType(), hostBuf.data(), numBytes);
+    arrayData.setValueAsArray(arr.elementType(), hostBuf.data(), arr.size());
   } else
 #endif
     arrayData.setValueAsExternalArray(arr.elementType(), mem, arr.size());
@@ -289,8 +291,6 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
   node["fixedDist"].getValue(ANARI_FLOAT32, &pose.fixedDist);
   node["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
 }
-
-// Arrays /////////////////////////////////////////////////////////////////////
 
 // Layers /////////////////////////////////////////////////////////////////////
 

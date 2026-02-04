@@ -24,9 +24,7 @@ TransferScene::TransferScene(tsd::core::Scene *scene, bool includeArrayData)
 TransferScene::TransferScene(const Message &msg, tsd::core::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
-  tsd::core::logStatus(
-      "[message::TransferScene] Received scene from server"
-      " (%zu bytes)",
+  tsd::core::logStatus("[message::TransferScene] Received message (%zu bytes)",
       msg.header.payload_length);
 }
 

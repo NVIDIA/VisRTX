@@ -104,6 +104,18 @@ bool Array::isProxy() const
   return kind() == MemoryKind::PROXY;
 }
 
+void Array::convertProxyToHost()
+{
+  if (kind() != MemoryKind::PROXY) {
+    logWarning(
+        "Array::convertProxyToHost() - array is not PROXY, no action taken");
+    return;
+  }
+
+  m_kind = MemoryKind::HOST;
+  m_data = std::malloc(size() * elementSize());
+}
+
 void *Array::map()
 {
   if (kind() == MemoryKind::PROXY) {

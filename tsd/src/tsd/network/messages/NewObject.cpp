@@ -16,15 +16,13 @@ NewObject::NewObject(const tsd::core::Object *o)
     return;
   }
 
-  tsd::io::objectToNode(*o, m_tree.root());
+  tsd::io::objectToNode(*o, m_tree.root(), true);
 }
 
 NewObject::NewObject(const Message &msg, tsd::core::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
-  tsd::core::logDebug(
-      "[message::NewObject] Received new object from server"
-      " (%zu bytes)",
+  tsd::core::logDebug("[message::NewObject] Received message (%zu bytes)",
       msg.header.payload_length);
 }
 
