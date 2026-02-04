@@ -291,20 +291,8 @@ void NetworkClient::connect(const std::string &host, short port)
 
 void NetworkClient::disconnect()
 {
-  boost::system::error_code ec{};
-  m_socket.shutdown(tcp::socket::shutdown_both, ec);
-  if (ec) {
-    tsd::core::logError(
-        "[NetworkClient] Shutdown error: %s", ec.message().c_str());
-  }
-  m_socket.close(ec);
-  if (ec) {
-    tsd::core::logError(
-        "[NetworkClient] Close error: %s", ec.message().c_str());
-  } else {
-    tsd::core::logStatus("[NetworkClient] Disconnected from server");
-  }
   stop_messaging();
+  tsd::core::logStatus("[NetworkClient] Disconnected from server");
 }
 
 } // namespace tsd::network
