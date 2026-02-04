@@ -7,6 +7,7 @@
 // std
 #include <future>
 #include <memory>
+#include <optional>
 #include <thread>
 
 namespace tsd::network {
@@ -53,7 +54,9 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
 
   asio::io_context m_io_context;
   std::thread m_io_thread;
-  asio::executor_work_guard<asio::io_context::executor_type> m_work;
+
+  using WorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
+  std::optional<WorkGuard> m_work;
 
   tcp::socket m_socket;
   Message m_currentMessage;

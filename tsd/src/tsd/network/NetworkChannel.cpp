@@ -17,9 +17,7 @@ static void async_invoke(boost::asio::io_context &io_context, FCN &&f)
 
 // NetworkChannel definitions /////////////////////////////////////////////////
 
-NetworkChannel::NetworkChannel()
-    : m_work(asio::make_work_guard(m_io_context)), m_socket(m_io_context)
-{}
+NetworkChannel::NetworkChannel() : m_socket(m_io_context) {}
 
 NetworkChannel::~NetworkChannel()
 {
@@ -48,7 +46,8 @@ void NetworkChannel::removeAllHandlers()
 
 MessageFuture NetworkChannel::send(Message &&msg)
 {
-  auto promise = std::make_shared<std::promise<boost::system::error_code>>();
+  using MessagePromise = std::promise<boost::system::error_code>;
+  auto promise = std::make_shared<MessagePromise>();
   auto future = promise->get_future();
 
   if (!isConnected()) {
@@ -106,6 +105,7 @@ void NetworkChannel::start_messaging()
 {
   tsd::core::logDebug("[NetworkChannel] starting channel");
   stop_messaging();
+  m_work.emplace(asio::make_work_guard(m_io_context));
   m_io_context.restart();
   m_io_thread = std::thread([this]() {
     tsd::core::logDebug("[NetworkChannel] starting IO thread");
@@ -130,6 +130,9 @@ void NetworkChannel::stop_messaging()
     m_io_context.stop();
     if (m_io_thread.joinable())
       m_io_thread.join();
+    m_work.reset();
+    m_io_context.restart();
+    m_io_context.poll(); // drain any remaining tasks
   } catch (const std::system_error &e) {
     tsd::core::logError(
         "[NetworkChannel] System error during stop: %s", e.what());
