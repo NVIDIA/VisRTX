@@ -243,38 +243,40 @@ void Core::addBuiltinModule(
   nonstd::scope_exit finalizeTransaction(
       [transaction]() { transaction->commit(); });
 
-  auto result = impexpApi->load_module_from_string(
-    transaction.get(),
-    std::string(moduleName).c_str(),
-    std::string(moduleSource).c_str(),
-    executionContext.get()
-  );
+  auto result = impexpApi->load_module_from_string(transaction.get(),
+      std::string(moduleName).c_str(),
+      std::string(moduleSource).c_str(),
+      executionContext.get());
 
   switch (result) {
-    case 0: {
-      logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-          "Added builtin module {} from source", moduleName);
-      break;
-    }
-    case 1: {
-      logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-          "Builtin module {} already exists",
-          moduleName);
-      break;
-    }
-    case -1:
-      logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-          "Invalid name {} or module source for builtin", moduleName);
-      break;
-    case -2:
-      logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-          "Ignoring builtin {} would shadow a file based definition", moduleName);
-      break;
-    default:
-      logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
-          "Unknown error while adding builtin module {}", moduleName);
-      logExecutionContextMessages(executionContext.get());
-      break;
+  case 0: {
+    logMessage(mi::base::MESSAGE_SEVERITY_INFO,
+        "Added builtin module {} from source",
+        moduleName);
+    break;
+  }
+  case 1: {
+    logMessage(mi::base::MESSAGE_SEVERITY_INFO,
+        "Builtin module {} already exists",
+        moduleName);
+    break;
+  }
+  case -1:
+    logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+        "Invalid name {} or module source for builtin",
+        moduleName);
+    break;
+  case -2:
+    logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
+        "Ignoring builtin {} would shadow a file based definition",
+        moduleName);
+    break;
+  default:
+    logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+        "Unknown error while adding builtin module {}",
+        moduleName);
+    logExecutionContextMessages(executionContext.get());
+    break;
   }
 }
 
@@ -288,9 +290,10 @@ const mi::neuraylib::IModule *Core::loadModule(
 
   // If that fails, try and resolve it as a file name.
   // First considering  the module name from the MDL file name.
-  if (auto name = make_handle(impexpApi->get_mdl_module_name(moduleName.c_str()));
+  if (auto name =
+          make_handle(impexpApi->get_mdl_module_name(moduleName.c_str()));
       name.is_valid_interface()) {
-      moduleName = name->get_c_str();
+    moduleName = name->get_c_str();
   } else {
     // Check if this is a single MDL name, such as OmniPBR.mdl and
     // resolve it to its equivalent module name, such as ::OmniPBR.
@@ -303,7 +306,6 @@ const mi::neuraylib::IModule *Core::loadModule(
       moduleName.clear();
     }
   }
-
 
   if (moduleName.empty()) {
     logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
@@ -388,14 +390,14 @@ mi::neuraylib::ICompiled_material *Core::getCompiledMaterial(
   return compiledMaterial;
 }
 
-mi::neuraylib::ICompiled_material *Core::getDistilledToTransmissivePBR(
+mi::neuraylib::ICompiled_material *Core::getDistilledToDiffuse(
     const mi::neuraylib::ICompiled_material *compiledMaterial)
 {
   auto distiller_api = make_handle(
       m_neuray->get_api_component<mi::neuraylib::IMdl_distiller_api>());
   mi::Sint32 result = 0;
   auto distilledMaterial = distiller_api->distill_material(
-      compiledMaterial, "transmissive_pbr", nullptr, &result);
+      compiledMaterial, "diffuse", nullptr, &result);
   if (result != 0) {
     logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Failed to distill material: %i\n",
@@ -417,8 +419,7 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
   auto executionContext =
       make_handle(m_mdlFactory->clone(m_executionContext.get()));
 
-  auto distilledMaterial =
-      make_handle(getDistilledToTransmissivePBR(compiledMaterial));
+  auto distilledMaterial = make_handle(getDistilledToDiffuse(compiledMaterial));
 
   // ANARI attributes 0 to 3
   const int numTextureSpaces = 4;
@@ -450,66 +451,44 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
       {"surface.emission.emission", "mdlEmission"},
       {"surface.emission.intensity", "mdlEmissionIntensity"},
       {"surface.emission.mode", "mdlEmissionMode"},
+
+      {"volume.scattering_coefficient", "mdlTransmission"},
+
+      {"geometry.cutout_opacity", "mdlOpacity"},
   };
 
-  // Special case for tint, transmission and opacity.
-  // For some renderers, we want to be able to access these directly to
-  // compute some simplified light propagation.
-  // run something like:
-  //     mdl_distiller_cli -class -tmm -m transmissive_pbr -o - -p
-  //     /path/to/materials/folder ::My::Material
-  // to get a description of a transmissive pbr material.
-  static mi::neuraylib::Target_function_description
-      distilledTransmissivePBRMaterialFunctions[][3] = {
-          // Generic version for transmissive_pbr
-          {
-              {"surface.scattering.base.layer.tint", "mdlTint"},
-              {"volume.scattering_coefficient", "mdlTransmission"},
-              {"geometry.cutout_opacity", "mdlOpacity"},
-          },
-
-          // Simplified version where tint is rooted directly under scattering.
-          {
-              {"surface.scattering.layer.tint", "mdlTint"},
-              {"volume.scattering_coefficient", "mdlTransmission"},
-              {"geometry.cutout_opacity", "mdlOpacity"},
-          },
-          // Simplified version where tint is rooted directly under scattering.
-          {
-              {"surface.scattering.tint", "mdlTint"},
-              {"volume.scattering_coefficient", "mdlTransmission"},
-              {"geometry.cutout_opacity", "mdlOpacity"},
-          }
-
-      };
+  static mi::neuraylib::Target_function_description distilledFunctions[] = {
+      {"surface.scattering.tint", "mdlTint"},
+  };
 
   // Generate target code for the compiled material
-  for (auto &distilledMaterialFunctions :
-      distilledTransmissivePBRMaterialFunctions) {
-    auto linkUnit = make_handle(
-        ptxBackend->create_link_unit(transaction, executionContext.get()));
-    linkUnit->add_material(compiledMaterial,
-        std::data(materialFunctions),
-        std::size(materialFunctions),
-        executionContext.get());
+  auto linkUnit = make_handle(
+      ptxBackend->create_link_unit(transaction, executionContext.get()));
 
-    linkUnit->add_material(distilledMaterial.get(),
-        std::data(distilledMaterialFunctions),
-        std::size(distilledMaterialFunctions),
-        executionContext.get());
+  // Add main material functions (BSDF, emission, and auxiliary
+  // albedo/normal/roughness)
+  linkUnit->add_material(compiledMaterial,
+      std::data(materialFunctions),
+      std::size(materialFunctions),
+      executionContext.get());
 
-    if (!logExecutionContextMessages(executionContext.get()))
-      continue;
+  if (!logExecutionContextMessages(executionContext.get()))
+    return {};
 
-    auto targetCode =
-        ptxBackend->translate_link_unit(linkUnit.get(), executionContext.get());
-    if (!logExecutionContextMessages(executionContext.get()))
-      continue;
+  linkUnit->add_material(distilledMaterial.get(),
+      std::data(distilledFunctions),
+      std::size(distilledFunctions),
+      executionContext.get());
 
-    return targetCode;
-  }
+  if (!logExecutionContextMessages(executionContext.get()))
+    return {};
 
-  return {};
+  auto targetCode =
+      ptxBackend->translate_link_unit(linkUnit.get(), executionContext.get());
+  if (!logExecutionContextMessages(executionContext.get()))
+    return {};
+
+  return targetCode;
 }
 
 bool Core::logExecutionContextMessages(
@@ -616,7 +595,8 @@ auto Core::resolveModule(std::string_view moduleId) -> std::string
     return resolvedModule->get_module_name();
   } else {
     logMessage(mi::base::MESSAGE_SEVERITY_WARNING,
-        "Failed to resolve module `{}` using entityResolver\n", moduleId);
+        "Failed to resolve module `{}` using entityResolver\n",
+        moduleId);
   }
 
   return {};
