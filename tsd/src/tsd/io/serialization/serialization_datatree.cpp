@@ -24,6 +24,7 @@ namespace tsd::io {
 void parameterToNode(const Parameter &p, core::DataNode &node)
 {
   node["value"] = p.value();
+  node["enabled"] = p.isEnabled();
   if (!p.description().empty())
     node["description"] = p.description();
   if (p.usage() != ParameterUsageHint::NONE)
@@ -65,6 +66,7 @@ void nodeToParameter(core::DataNode &node, Parameter &p)
   }
 
   p.setValue(node["value"].getValue());
+  p.setEnabled(node["enabled"].getValueAs<bool>());
 }
 
 void nodeToObjectParameters(core::DataNode &node, Object &obj)
@@ -409,14 +411,13 @@ void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays)
 
   auto &objectDB = root["objectDB"];
   auto objectPoolToNode = [&](core::DataNode &objPoolRoot,
-                               const auto &objPool,
-                               const char *poolName) {
+                              const auto &objPool,
+                              const char *poolName) {
     if (objPool.empty())
       return;
 
-    tsd::core::logStatus("    ...serializing %zu %s objects",
-        size_t(objPool.size()),
-        poolName);
+    tsd::core::logStatus(
+        "    ...serializing %zu %s objects", size_t(objPool.size()), poolName);
 
     auto &childNode = objPoolRoot[poolName];
     foreach_item_const(objPool, [&](const auto *obj) {
