@@ -232,6 +232,13 @@ void NetworkServer::start()
   start_messaging();
 }
 
+void NetworkServer::restart()
+{
+  stop();
+  start_accept();
+  start();
+}
+
 void NetworkServer::stop()
 {
   stop_messaging();

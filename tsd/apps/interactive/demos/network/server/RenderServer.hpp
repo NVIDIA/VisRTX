@@ -61,9 +61,9 @@ struct RenderServer
   tsd::rendering::Manipulator m_manipulator;
   tsd::rendering::RenderIndex *m_renderIndex{nullptr};
   tsd::rendering::RenderPipeline m_renderPipeline;
-  ServerMode m_mode{ServerMode::DISCONNECTED};
+  ServerMode m_currentMode{ServerMode::DISCONNECTED};
+  ServerMode m_nextMode{ServerMode::DISCONNECTED};
   ServerMode m_previousMode{ServerMode::DISCONNECTED};
-  bool m_wasRenderingBeforeSendScene{false};
 
   struct SessionVersions
   {

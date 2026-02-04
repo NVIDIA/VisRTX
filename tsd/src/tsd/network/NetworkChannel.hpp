@@ -57,6 +57,7 @@ struct NetworkServer : public NetworkChannel
   ~NetworkServer() override = default;
 
   void start();
+  void restart(); // must be running already
   void stop();
 
  private:

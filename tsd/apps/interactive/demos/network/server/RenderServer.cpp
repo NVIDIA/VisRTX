@@ -41,24 +41,26 @@ void RenderServer::run(short port)
 
   tsd::core::logStatus("[Server] Listening on port %i...", int(port));
 
-  while (m_mode != ServerMode::SHUTDOWN) {
-    if (!m_server->isConnected() || m_mode == ServerMode::DISCONNECTED) {
+  while (m_currentMode != ServerMode::SHUTDOWN) {
+    bool wasRendering = m_currentMode == ServerMode::RENDERING;
+
+    m_currentMode =
+        m_server->isConnected() ? m_nextMode : ServerMode::DISCONNECTED;
+
+    if (m_currentMode == ServerMode::DISCONNECTED) {
+      m_lastSentFrame = {}; // reset any pending frame sends
       if (m_previousMode != ServerMode::DISCONNECTED) {
         tsd::core::logStatus("[Server] Listening on port %i...", int(port));
-        if (m_lastSentFrame.valid())
-          m_lastSentFrame.get();
-        m_mode = ServerMode::DISCONNECTED;
+        m_server->restart();
       }
-      m_wasRenderingBeforeSendScene = false;
       std::this_thread::sleep_for(std::chrono::seconds(1));
-    } else if (m_mode == ServerMode::RENDERING) {
+    } else if (m_currentMode == ServerMode::RENDERING) {
       tsd::core::logDebug("[Server] Rendering frame...");
       update_FrameConfig();
       update_View();
       m_renderPipeline.render();
       send_FrameBuffer();
-      m_wasRenderingBeforeSendScene = true;
-    } else if (m_mode == ServerMode::SEND_SCENE) {
+    } else if (m_currentMode == ServerMode::SEND_SCENE) {
       tsd::core::logStatus("[Server] Serializing + sending scene...");
 
       tsd::core::Timer timer;
@@ -69,18 +71,14 @@ void RenderServer::run(short port)
       timer.end();
       tsd::core::logStatus("[Server] ...done! (%.3f s)", timer.seconds());
 
-      m_mode = m_wasRenderingBeforeSendScene ? ServerMode::RENDERING
-                                             : ServerMode::PAUSED;
+      set_Mode(wasRendering ? ServerMode::RENDERING : ServerMode::PAUSED);
     } else {
       if (m_previousMode != ServerMode::PAUSED)
         tsd::core::logStatus("[Server] Rendering paused...");
-      m_wasRenderingBeforeSendScene = false;
-      if (m_lastSentFrame.valid())
-        m_lastSentFrame.get();
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    m_previousMode = m_mode;
+    m_previousMode = m_currentMode;
   }
 
   tsd::core::logStatus("[Server] Shutting down...");
@@ -364,9 +362,11 @@ void RenderServer::send_FrameBuffer()
 
 void RenderServer::set_Mode(ServerMode mode)
 {
-  if (m_mode == ServerMode::SHUTDOWN) // if shutting down, do not change mode
+  const bool shuttingDown = m_nextMode == ServerMode::SHUTDOWN
+      || m_currentMode == ServerMode::SHUTDOWN;
+  if (shuttingDown) // if shutting down, do not change mode
     return;
-  m_mode = mode;
+  m_nextMode = mode;
 }
 
 } // namespace tsd::network
