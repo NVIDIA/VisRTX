@@ -457,11 +457,16 @@ export material physically_based_material(
     );
 
     // Sheen
-    bsdf dielectricSheenBsdf = ::df::sheen_bsdf(
-        tint: resolvedSheenColor,
-        roughness: resolvedSheenRoughness * resolvedSheenRoughness,
-        multiscatter_tint: color(1.0),
-        multiscatter: dielectricIridescenceBsdf,
+    float sheenWeight = ::math::max_value(resolvedSheenColor);
+    bsdf dielectricSheenBsdf = ::df::weighted_layer(
+        weight: sheenWeight,
+        base: dielectricIridescenceBsdf,
+        layer: ::df::sheen_bsdf(
+            tint: resolvedSheenColor,
+            roughness: resolvedSheenRoughness * resolvedSheenRoughness,
+            multiscatter_tint: color(1.0),
+            multiscatter: dielectricIridescenceBsdf,
+        ),
     );
 
     // Onto the metallic layer
