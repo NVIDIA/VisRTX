@@ -17,10 +17,7 @@ static void async_invoke(boost::asio::io_context &io_context, FCN &&f)
 
 // NetworkChannel definitions /////////////////////////////////////////////////
 
-NetworkChannel::NetworkChannel() : m_socket(m_io_context)
-{
-  m_io_context.stop();
-}
+NetworkChannel::NetworkChannel() : m_socket(m_io_context) {}
 
 NetworkChannel::~NetworkChannel()
 {
@@ -137,9 +134,9 @@ void NetworkChannel::stop_messaging()
       if (m_io_thread.joinable())
         m_io_thread.join();
       m_work.reset();
-      m_io_context.restart();
-      m_io_context.poll(); // drain any remaining tasks
-      m_io_context.stop();
+
+      // Ensure all completion handlers have finished before returning
+      m_io_context.poll();
     }
   } catch (const std::system_error &e) {
     tsd::core::logError(

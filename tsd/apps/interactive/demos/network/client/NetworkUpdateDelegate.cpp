@@ -44,7 +44,7 @@ void NetworkUpdateDelegate::signalObjectAdded(const tsd::core::Object *o)
     return;
   }
   auto msg = tsd::network::messages::NewObject(o);
-  m_channel->send(MessageType::SERVER_ADD_OBJECT, std::move(msg)).get();
+  m_channel->send(MessageType::SERVER_ADD_OBJECT, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalParameterUpdated(
@@ -58,8 +58,7 @@ void NetworkUpdateDelegate::signalParameterUpdated(
     return;
   }
   auto msg = tsd::network::messages::ParameterChange(o, p);
-  m_channel->send(MessageType::SERVER_SET_OBJECT_PARAMETER, std::move(msg))
-      .get();
+  m_channel->send(MessageType::SERVER_SET_OBJECT_PARAMETER, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalParameterRemoved(
@@ -73,8 +72,7 @@ void NetworkUpdateDelegate::signalParameterRemoved(
     return;
   }
   auto msg = tsd::network::messages::ParameterRemove(o, p);
-  m_channel->send(MessageType::SERVER_REMOVE_OBJECT_PARAMETER, std::move(msg))
-      .get();
+  m_channel->send(MessageType::SERVER_REMOVE_OBJECT_PARAMETER, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalArrayMapped(const tsd::core::Array *)
@@ -94,7 +92,7 @@ void NetworkUpdateDelegate::signalArrayUnmapped(const tsd::core::Array *a)
     return;
   }
   auto msg = tsd::network::messages::TransferArrayData(a);
-  m_channel->send(MessageType::SERVER_SET_ARRAY_DATA, std::move(msg)).get();
+  m_channel->send(MessageType::SERVER_SET_ARRAY_DATA, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalObjectParameterUseCountZero(
@@ -123,7 +121,7 @@ void NetworkUpdateDelegate::signalObjectRemoved(const tsd::core::Object *o)
     return;
   }
   auto msg = tsd::network::messages::RemoveObject(o);
-  m_channel->send(MessageType::SERVER_REMOVE_OBJECT, std::move(msg)).get();
+  m_channel->send(MessageType::SERVER_REMOVE_OBJECT, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalRemoveAllObjects()
@@ -135,7 +133,7 @@ void NetworkUpdateDelegate::signalRemoveAllObjects()
         "NetworkUpdateDelegate::signalRemoveAllObjects: no network channel");
     return;
   }
-  m_channel->send(MessageType::SERVER_REMOVE_ALL_OBJECTS).get();
+  m_channel->send(MessageType::SERVER_REMOVE_ALL_OBJECTS);
 }
 
 void NetworkUpdateDelegate::signalLayerAdded(const tsd::core::Layer *l)
@@ -149,7 +147,7 @@ void NetworkUpdateDelegate::signalLayerAdded(const tsd::core::Layer *l)
   }
   auto msg = tsd::network::messages::TransferLayer(
       m_scene, const_cast<tsd::core::Layer *>(l));
-  m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg)).get();
+  m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalLayerUpdated(const tsd::core::Layer *l)
@@ -163,7 +161,7 @@ void NetworkUpdateDelegate::signalLayerUpdated(const tsd::core::Layer *l)
   }
   auto msg = tsd::network::messages::TransferLayer(
       m_scene, const_cast<tsd::core::Layer *>(l));
-  m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg)).get();
+  m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg));
 }
 
 void NetworkUpdateDelegate::signalLayerRemoved(const tsd::core::Layer *)
