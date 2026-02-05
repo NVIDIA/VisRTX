@@ -331,7 +331,7 @@
             "ANARI_INT32"
           ],
           "tags": [],
-          "default": 512,
+          "default": 128,
           "minimum": 0,
           "description": "stop refining the frame after this number of samples"
         },
