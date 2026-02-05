@@ -17,7 +17,10 @@ static void async_invoke(boost::asio::io_context &io_context, FCN &&f)
 
 // NetworkChannel definitions /////////////////////////////////////////////////
 
-NetworkChannel::NetworkChannel() : m_socket(m_io_context) {}
+NetworkChannel::NetworkChannel() : m_socket(m_io_context)
+{
+  m_io_context.stop();
+}
 
 NetworkChannel::~NetworkChannel()
 {
@@ -124,15 +127,20 @@ void NetworkChannel::start_messaging()
 void NetworkChannel::stop_messaging()
 {
   try {
-    boost::system::error_code ec{};
-    m_socket.shutdown(tcp::socket::shutdown_both, ec);
-    m_socket.close(ec);
-    m_io_context.stop();
-    if (m_io_thread.joinable())
-      m_io_thread.join();
-    m_work.reset();
-    m_io_context.restart();
-    m_io_context.poll(); // drain any remaining tasks
+    if (m_socket.is_open()) {
+      boost::system::error_code ec{};
+      m_socket.shutdown(tcp::socket::shutdown_both, ec);
+      m_socket.close(ec);
+    }
+    if (!m_io_context.stopped()) {
+      m_io_context.stop();
+      if (m_io_thread.joinable())
+        m_io_thread.join();
+      m_work.reset();
+      m_io_context.restart();
+      m_io_context.poll(); // drain any remaining tasks
+      m_io_context.stop();
+    }
   } catch (const std::system_error &e) {
     tsd::core::logError(
         "[NetworkChannel] System error during stop: %s", e.what());
@@ -148,58 +156,57 @@ void NetworkChannel::read_header()
     return;
   }
 
+  auto message = std::make_shared<Message>();
   auto self = shared_from_this();
   asio::async_read(m_socket,
-      asio::buffer(&m_currentMessage.header, sizeof(Message::Header)),
-      [this, self](const boost::system::error_code &error,
+      asio::buffer(&message->header, sizeof(Message::Header)),
+      [this, self, message](const boost::system::error_code &error,
           std::size_t bytes_transferred) {
         log_asio_error(error, "ReadHeader");
         if (!error)
-          read_payload(); // Read next message
+          read_payload(message); // Read next message
       });
 }
 
-void NetworkChannel::read_payload()
+void NetworkChannel::read_payload(std::shared_ptr<Message> msg)
 {
   if (!isConnected()) {
     tsd::core::logError("[NetworkChannel] Cannot read payload: not connected");
     return;
   }
 
-  if (m_currentMessage.header.payload_length == 0) {
-    async_invoke(m_io_context, [this]() {
-      invoke_handler();
-      read_header(); // Read next message
+  if (msg->header.payload_length == 0) {
+    async_invoke(m_io_context, [this, msg]() {
+      invoke_handler(msg);
+      read_header(); // Read next msg
     });
     return;
   }
 
-  m_currentMessage.payload.resize(m_currentMessage.header.payload_length);
+  msg->payload.resize(msg->header.payload_length);
 
   auto self = shared_from_this();
   asio::async_read(m_socket,
-      asio::buffer(m_currentMessage.payload.data(),
-          m_currentMessage.header.payload_length),
-      [this, self](const boost::system::error_code &error,
+      asio::buffer(msg->payload.data(), msg->header.payload_length),
+      [this, self, msg](const boost::system::error_code &error,
           std::size_t bytes_transferred) {
         log_asio_error(error, "ReadPayload");
         if (!error) {
-          invoke_handler();
-          read_header(); // Read next message
+          invoke_handler(msg);
+          read_header(); // Read next msg
         }
       });
 }
 
-void NetworkChannel::invoke_handler()
+void NetworkChannel::invoke_handler(std::shared_ptr<Message> msg)
 {
-  Message &msg = m_currentMessage;
   // Invoke handler if registered
-  if (auto *handler = m_handlers.at(msg.header.type); handler != nullptr) {
-    (*handler)(msg);
+  if (auto *handler = m_handlers.at(msg->header.type); handler != nullptr) {
+    (*handler)(*msg);
   } else {
     tsd::core::logWarning(
         "[NetworkChannel] No handler registered for message type %d",
-        static_cast<int>(msg.header.type));
+        static_cast<int>(msg->header.type));
   }
 }
 
@@ -222,9 +229,11 @@ void NetworkChannel::log_asio_error(
         "[NetworkChannel] %s error: %s", context, error.message().c_str());
   }
 
-  boost::system::error_code ec{};
-  m_socket.shutdown(tcp::socket::shutdown_both, ec);
-  m_socket.close(ec);
+  if (m_socket.is_open()) {
+    boost::system::error_code ec{};
+    m_socket.shutdown(tcp::socket::shutdown_both, ec);
+    m_socket.close(ec);
+  }
 }
 
 // NetworkServer definitions //////////////////////////////////////////////////
@@ -261,9 +270,9 @@ void NetworkServer::start_accept()
           tsd::core::logStatus("[NetworkServer] New connection from %s",
               socket->remote_endpoint().address().to_string().c_str());
           m_socket = std::move(*socket);
+          read_header();
+          start_accept(); // Accept next connection
         }
-        read_header();
-        start_accept(); // Accept next connection
       });
 }
 

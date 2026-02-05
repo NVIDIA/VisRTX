@@ -48,7 +48,6 @@ void RenderServer::run(short port)
         m_server->isConnected() ? m_nextMode : ServerMode::DISCONNECTED;
 
     if (m_currentMode == ServerMode::DISCONNECTED) {
-      m_lastSentFrame = {}; // reset any pending frame sends
       if (m_previousMode != ServerMode::DISCONNECTED) {
         tsd::core::logStatus("[Server] Listening on port %i...", int(port));
         m_server->restart();

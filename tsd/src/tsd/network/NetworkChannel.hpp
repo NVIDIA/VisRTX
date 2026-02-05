@@ -47,8 +47,8 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
   void stop_messaging();
 
   void read_header();
-  void read_payload();
-  void invoke_handler();
+  void read_payload(std::shared_ptr<Message> msg);
+  void invoke_handler(std::shared_ptr<Message> msg);
   void log_asio_error(
       const boost::system::error_code &error, const char *context);
 
@@ -59,7 +59,6 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
   std::optional<WorkGuard> m_work;
 
   tcp::socket m_socket;
-  Message m_currentMessage;
   HandlerMap m_handlers;
 
  private:
