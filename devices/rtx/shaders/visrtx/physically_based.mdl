@@ -515,6 +515,7 @@ export material physically_based_material(
     volume: material_volume(
         absorption_coefficient:
             resolvedThickness == 0.0f ? color(0.0f) : -math::log(resolvedAttenuationColor) / resolvedAttenuationDistance,
+        scattering_coefficient: resolvedBaseColor * resolvedTransmission,
     ),
     ior: color(ior),
     geometry: material_geometry(
