@@ -23,7 +23,6 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
   std::string file = fileOf(filepath);
   if (file.empty())
     return {};
-
   auto field = scene.createObject<SpatialField>(tokens::spatial_field::nanovdb);
   field->setName(file.c_str());
 
@@ -53,9 +52,13 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
     }
 
     if (!hasActiveVoxels) {
-      logStatus("[import_NVDB] no active voxels, skipping '%s'", filepath);
-      scene.removeObject(field.data());
-      return {};
+      logWarning("[import_NVDB] no active voxels in '%s'", filepath);
+      if (TSD_NANOVDB_SKIP_INVALID_VOLUMES) {
+        logStatus(
+            "[import_NVDB] skipping due to TSD_NANOVDB_SKIP_INVALID_VOLUMES");
+        scene.removeObject(field.data());
+        return {};
+      }
     }
 
     if (!metadata->hasMinMax()) {

@@ -59,6 +59,8 @@ option(TSD_USE_TORCH "Use PyTorch for importing neural geometries" OFF)
 option(TSD_USE_VTK "Use VTK for importing VTK file formats" OFF)
 option(TSD_USE_SILO "Use Silo for importing Silo file formats" OFF)
 option(TSD_USE_MPI "Enable MPI support" OFF)
+option(TSD_NANOVDB_SKIP_INVALID_VOLUMES
+  "Skip NanoVDB volumes with zero active voxels" OFF)
 
 if (APPLE)
   set(TSD_USE_CUDA OFF)
