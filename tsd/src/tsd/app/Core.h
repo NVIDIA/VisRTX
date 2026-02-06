@@ -3,20 +3,20 @@
 
 #pragma once
 
+#include "CoreController.h"
+
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
-#include "tsd/core/scene/Scene.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/passes/VisualizeAOVPass.h"
 #include "tsd/rendering/view/Manipulator.hpp"
+// tsd_io
+#include "tsd/io/importers.hpp"
 // std
 #include <map>
-#include <string>
-#include <utility>
 
 #include "tsd/app/TaskQueue.h"
-#include "tsd/app/renderAnimationSequence.h"
 #include "tsd/rendering/view/CameraPath.h"
 
 namespace tsd::ui::imgui {
@@ -31,47 +31,7 @@ struct Animation;
 
 namespace tsd::app {
 
-struct Core;
-
-using CameraPose = tsd::rendering::CameraPose;
 using DeviceInitParam = std::pair<std::string, tsd::core::Any>;
-
-enum class ImporterType
-{
-  AGX,
-  ASSIMP,
-  ASSIMP_FLAT,
-  AXYZ,
-  DLAF,
-  E57XYZ,
-  GLTF,
-  HDRI,
-  HSMESH,
-  NBODY,
-  OBJ,
-  PDB,
-  PLY,
-  POINTSBIN_MULTIFILE,
-  PT,
-  SILO,
-  SMESH,
-  SMESH_ANIMATION, // time series version
-  SWC,
-  TRK,
-  USD,
-  USD2,
-  XYZDP,
-  VOLUME,
-  TSD,
-  XF, // Special case for transfer function files
-      // Not an actual scene importer, but used to set transfer function from
-      // CLI
-  BLANK, // Must be last import type before 'NONE'
-  NONE
-};
-
-using ImportFile = std::pair<ImporterType, std::string>;
-using ImportAnimationFiles = std::pair<ImporterType, std::vector<std::string>>;
 
 struct CommandLineOptions
 {
@@ -82,11 +42,11 @@ struct CommandLineOptions
   bool loadedFromStateFile{false};
   std::string stateFile;
   std::string currentLayerName{"default"};
-  std::vector<ImportFile> filenames;
-  std::vector<ImportAnimationFiles> animationFilenames;
+  std::vector<tsd::io::ImportFile> filenames;
+  std::vector<tsd::io::ImportAnimationFiles> animationFilenames;
   std::vector<tsd::core::Token> animationLayerNames;
-  ImportAnimationFiles *currentAnimationSequence{nullptr};
-  ImporterType importerType{ImporterType::NONE};
+  tsd::io::ImportAnimationFiles *currentAnimationSequence{nullptr};
+  tsd::io::ImporterType importerType{tsd::io::ImporterType::NONE};
   std::vector<std::string> libraryList;
   std::string secondaryViewportLibrary;
   std::string cameraFile;
@@ -165,11 +125,6 @@ struct CameraState
   tsd::core::Animation *cameraPathAnimation{nullptr};
 };
 
-struct ImporterState
-{
-  core::TransferFunction transferFunction;
-};
-
 struct OfflineRenderSequenceConfig
 {
   struct FrameSettings
@@ -232,14 +187,13 @@ struct Tasking
   TaskQueue queue{10};
 };
 
-struct Core
+struct Core : public CoreController
 {
   CommandLineOptions commandLine;
   TSDState tsd;
   ANARIDeviceManager anari;
   LogState logging;
   CameraState view;
-  ImporterState importer;
   OfflineRenderSequenceConfig offline;
   Windows windows;
   Tasking jobs;
@@ -251,48 +205,43 @@ struct Core
   Core();
   ~Core();
 
-  void parseCommandLine(int argc, const char **argv);
-  void setupSceneFromCommandLine(bool hdriOnly = false);
-  void importFile(const ImportFile &file, tsd::core::LayerNodeRef root = {});
-  void importFiles(
-      const std::vector<ImportFile> &files, tsd::core::LayerNodeRef root = {});
-  void importAnimations(const std::vector<ImportAnimationFiles> &files,
-      tsd::core::LayerNodeRef root = {});
+  void parseCommandLine(int argc, const char **argv) override;
+  void setupSceneFromCommandLine(bool hdriOnly = false) override;
 
   // Offline rendering //
 
-  void setOfflineRenderingLibrary(const std::string &libName);
-  void renderOfflineAnimationSequence(RenderSequenceCallback cb = {});
+  void setOfflineRenderingLibrary(const std::string &libName) override;
 
   // Selection //
 
-  tsd::core::LayerNodeRef getFirstSelected() const;
-  const std::vector<tsd::core::LayerNodeRef> &getSelectedNodes() const;
-  void setSelected(tsd::core::LayerNodeRef node);
-  void setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes);
-  void setSelected(const tsd::core::Object *obj);
-  void addToSelection(tsd::core::LayerNodeRef node);
-  void removeFromSelection(tsd::core::LayerNodeRef node);
-  bool isSelected(tsd::core::LayerNodeRef node) const;
-  void clearSelected();
+  tsd::core::LayerNodeRef getFirstSelected() const override;
+  const std::vector<tsd::core::LayerNodeRef> &getSelectedNodes() const override;
+  void setSelected(tsd::core::LayerNodeRef node) override;
+  void setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes) override;
+  void setSelected(const tsd::core::Object *obj) override;
+  void addToSelection(tsd::core::LayerNodeRef node) override;
+  void removeFromSelection(tsd::core::LayerNodeRef node) override;
+  bool isSelected(tsd::core::LayerNodeRef node) const override;
+  void clearSelected() override;
 
   // Returns only parent nodes from selection (filters out children of selected
   // nodes)
-  std::vector<tsd::core::LayerNodeRef> getParentOnlySelectedNodes() const;
+  std::vector<tsd::core::LayerNodeRef> getParentOnlySelectedNodes()
+      const override;
 
   // Camera poses //
 
-  void addCurrentViewToCameraPoses(const char *name = "");
+  void addCurrentViewToCameraPoses(const char *name = "") override;
   void addTurntableCameraPoses(
       const tsd::math::float3 &azimuths, // begin, end, step
       const tsd::math::float3 &elevations, // begin, end, step
       const tsd::math::float3 &center,
       float distance,
-      const char *name = "");
-  void updateExistingCameraPoseFromView(CameraPose &p);
-  void setCameraPose(const CameraPose &pose);
-  void removeAllPoses();
-  bool updateCameraPathAnimation();
+      const char *name = "") override;
+  void updateExistingCameraPoseFromView(CameraPose &p) override;
+  void setCameraPose(const CameraPose &pose) override;
+  void removeAllPoses() override;
+  bool updateCameraPathAnimation() override;
 
   // Not copyable or moveable //
   Core(const Core &) = delete;

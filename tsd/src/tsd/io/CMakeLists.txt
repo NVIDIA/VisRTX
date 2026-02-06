@@ -16,6 +16,7 @@ PRIVATE
   importers/import_AXYZ.cpp
   importers/import_DLAF.cpp
   importers/import_E57XYZ.cpp
+  importers/import_file.cpp
   importers/import_FLASH.cpp
   importers/import_GLTF.cpp
   importers/import_HDRI.cpp

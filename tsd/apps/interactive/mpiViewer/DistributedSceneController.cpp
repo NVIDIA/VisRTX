@@ -49,7 +49,7 @@ void DistributedSceneController::initialize(int argc, const char **argv)
   for (size_t i = 0; i < filenames.size(); i++) {
     if (numRanks() > 1 && (i % numRanks() != rank()))
       continue;
-    m_core->importFile(filenames[i]);
+    tsd::io::import_file(m_core->tsd.scene, filenames[i]);
     tsd::core::logStatus(
         "[DistributedSceneController] "
         "rank '%i' loaded file '%s'",

@@ -13,7 +13,8 @@ namespace tsd::core {
 using ColorPoint = float4;
 using OpacityPoint = float2;
 
-struct TransferFunction {
+struct TransferFunction
+{
   std::vector<ColorPoint> colorPoints;
   std::vector<OpacityPoint> opacityPoints;
   math::box1 range = {};
