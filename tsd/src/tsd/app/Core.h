@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -17,12 +17,17 @@
 
 #include "tsd/app/TaskQueue.h"
 #include "tsd/app/renderAnimationSequence.h"
+#include "tsd/rendering/view/CameraPath.h"
 
 namespace tsd::ui::imgui {
 struct BlockingTaskModal;
 struct ImportFileDialog;
 struct ExportNanoVDBFileDialog;
 } // namespace tsd::ui::imgui
+
+namespace tsd::core {
+struct Animation;
+}
 
 namespace tsd::app {
 
@@ -155,6 +160,9 @@ struct CameraState
 {
   std::vector<CameraPose> poses;
   tsd::rendering::Manipulator manipulator;
+  tsd::rendering::CameraPathSettings pathSettings;
+  size_t cameraPathCameraIndex{TSD_INVALID_INDEX};
+  tsd::core::Animation *cameraPathAnimation{nullptr};
 };
 
 struct ImporterState
@@ -202,6 +210,8 @@ struct OfflineRenderSequenceConfig
     tsd::rendering::AOVType aovType{tsd::rendering::AOVType::NONE};
     float depthMin{0.f};
     float depthMax{1.f};
+    float edgeThreshold{0.5f};
+    bool edgeInvert{false};
   } aov;
 
   void saveSettings(tsd::core::DataNode &root);
@@ -282,6 +292,7 @@ struct Core
   void updateExistingCameraPoseFromView(CameraPose &p);
   void setCameraPose(const CameraPose &pose);
   void removeAllPoses();
+  bool updateCameraPathAnimation();
 
   // Not copyable or moveable //
   Core(const Core &) = delete;

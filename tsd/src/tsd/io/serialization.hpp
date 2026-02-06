@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -24,19 +24,39 @@ enum class VDBPrecision
 
 // clang-format off
 
-void objectToNode(const Object &obj, core::DataNode &node);
+// Parameters //
+
+void parameterToNode(const Parameter &p, core::DataNode &node);
+void nodeToParameter(core::DataNode &node, Parameter &p);
+void nodeToObjectParameters(core::DataNode &node, Object &obj);
+
+// Objects //
+
+void objectToNode(const Object &obj, core::DataNode &node, bool forceArraysAsProxies = false);
 void nodeToObject(core::DataNode &node, Object &obj);
+void nodeToObjectMetadata(core::DataNode &node, Object &obj);
+void nodeToNewObject(Scene &scene, core::DataNode &node);
+
+// Camera poses //
 
 void cameraPoseToNode(const rendering::CameraPose &pose, core::DataNode &node);
 void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose);
 
+// Layers //
+
+void layerToNode(Layer &layer, core::DataNode &node);
+void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene);
+
+// Scenes //
+
 void save_Scene(Scene &scene, const char *filename);
-void save_Scene(Scene &scene, core::DataNode &root);
+void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays);
 void load_Scene(Scene &scene, const char *filename);
 void load_Scene(Scene &scene, core::DataNode &root);
 
-void export_SceneToUSD(Scene &scene, const char *filename);
-void export_StructuredRegularVolumeToNanoVDB(
+void export_SceneToUSD(
+    Scene &scene, const char *filename, int framesPerSecond = 30);
+void export_StructuredVolumeToNanoVDB(
   const SpatialField* spatialField,
   std::string_view outputFilename,
   bool useUndefinedValue = false,

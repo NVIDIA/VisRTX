@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -176,9 +176,9 @@ float generateCDFTables(const float *luminanceImage,
       conditionalCdf->ptrAs<float>(),
       width,
       height);
-  
+
   // Compute pdfWeight
-  
+
   // Not the best, but accumulation operations of cdfs accumulate error.
   // Lets recompute the total luminance from the luminance array
   // to avoid this.

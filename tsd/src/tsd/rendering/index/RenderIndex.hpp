@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -49,6 +49,7 @@ struct RenderIndex : public BaseUpdateDelegate
   void signalObjectRemoved(const Object *o) override;
   void signalRemoveAllObjects() override;
   void signalInvalidateCachedObjects() override;
+  void signalAnimationTimeChanged(float time) override;
 
  protected:
   virtual void updateWorld() = 0;

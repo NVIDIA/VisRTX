@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -64,7 +64,7 @@ void NvdbRegularField::commitParameters()
 
   auto dataCentering = getParamString("dataCentering", "cell");
   m_cellCentered = (dataCentering == "cell");
-  
+
   // ROI in object space (default: full range)
   m_roi = getParam<box3>("roi",
       box3(vec3(std::numeric_limits<float>::lowest()),
@@ -139,7 +139,7 @@ float NvdbRegularField::stepSize() const
 SpatialFieldGPUData NvdbRegularField::gpuData() const
 {
   SpatialFieldGPUData sf;
-  
+
   // Map grid type to callable index
   auto gridType = m_gridMetadata->gridType();
   switch (gridType) {
@@ -162,7 +162,7 @@ SpatialFieldGPUData NvdbRegularField::gpuData() const
     sf.samplerCallableIndex = SbtCallableEntryPoints::Invalid;
     break;
   }
-  
+
   sf.data.nvdbRegular.gridData = m_deviceBuffer.ptr();
   sf.data.nvdbRegular.gridType = gridType;
   sf.data.nvdbRegular.cellCentered = m_cellCentered;

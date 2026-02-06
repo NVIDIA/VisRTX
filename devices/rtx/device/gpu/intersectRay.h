@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -66,7 +66,7 @@ VISRTX_DEVICE void launchRay(ScreenSample &ss,
       optixFlags,
       static_cast<uint32_t>(rayType) * NUM_SBT_PRIMITIVE_INTERSECTOR_ENTRIES,
       0u,
-      0u,
+      static_cast<uint32_t>(rayType),
       u0,
       u1,
       u2,
@@ -100,14 +100,6 @@ VISRTX_DEVICE void intersectVolume(ScreenSample &ss,
     uint32_t optixFlags = OPTIX_RAY_FLAG_DISABLE_ANYHIT)
 {
   detail::launchRay(ss, r, rayType, false, dataPtr, optixFlags);
-}
-
-template <typename T>
-VISRTX_DEVICE float surfaceAttenuation(ScreenSample &ss, Ray r, T rayType)
-{
-  float a = 0.f;
-  intersectSurface(ss, r, rayType, &a, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
-  return a;
 }
 
 } // namespace visrtx

@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "LayerTree.h"
@@ -32,7 +32,7 @@ LayerTree::LayerTree(Application *app, const char *name) : Window(app, name) {}
 void LayerTree::buildUI()
 {
   if (!appCore()->tsd.sceneLoadComplete) {
-    ImGui::Text("PLEASE WAIT...LOADING SCENE");
+    ImGui::Text("{SCENE NOT AVAILABLE}");
     return;
   }
 
@@ -775,8 +775,10 @@ void LayerTree::buildUI_objectSceneMenu()
         auto tf1D = (*menuNode)->getObject();
         auto spatialFieldObject = tf1D->parameterValueAsObject("value");
         if (spatialFieldObject
-            && spatialFieldObject->subtype()
-                == core::tokens::volume::structuredRegular) {
+            && (spatialFieldObject->subtype()
+                    == core::tokens::volume::structuredRegular
+                || spatialFieldObject->subtype()
+                    == core::tokens::volume::structuredRectilinear)) {
           ImGui::Separator();
           if (ImGui::MenuItem("export to NanoVDB")) {
             appCore()->windows.exportNanoVDBDialog->show();

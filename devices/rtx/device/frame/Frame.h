@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -93,6 +93,8 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   float m_invFrameID{1.f};
   int m_perPixelBytes{1};
   bool m_denoise{false};
+  bool m_denoiseUsingAlbedo{false};
+  bool m_denoiseUsingNormal{false};
   bool m_nextFrameReset{true};
   bool m_frameMappedOnce{false}; // NOTE(jda) - for instrumented events
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,12 +36,13 @@
 namespace visrtx {
 
 static const std::vector<HitgroupFunctionNames> g_directLightHitNames = {
-    {"__closesthit__primary", "__anyhit__primary"},
+    {"__closesthit__shading", "__anyhit__shading"},
     {"__closesthit__shadow", "__anyhit__shadow"},
-    {"__closesthit__bounce", "__anyhit__bounce"}};
+};
 
 static const std::vector<std::string> g_directLightMissNames = {
-    "__miss__", "__miss__"};
+    "__miss__shading", "__miss__shadow"
+};
 
 DirectLight::DirectLight(DeviceGlobalState *s) : Renderer(s, 0.f) {}
 

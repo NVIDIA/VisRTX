@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,8 @@ struct Denoiser : public Object
   ~Denoiser() override;
 
   void setup(
-      uvec2 size, HostDeviceArray<uint8_t> &pixelBuffer, ANARIDataType format);
+      uvec2 size, HostDeviceArray<uint8_t> &pixelBuffer, ANARIDataType format,
+    DeviceBuffer &accumAlbedo, DeviceBuffer &accumNormal);
   void cleanup();
 
   void launch();
@@ -51,7 +52,7 @@ struct Denoiser : public Object
   void *mapGPUColorBuffer();
 
  private:
-  void init();
+  void init(const DeviceBuffer &accumAlbedo, const DeviceBuffer &accumNormal);
 
   // Data //
 
@@ -66,6 +67,8 @@ struct Denoiser : public Object
 
   DeviceBuffer m_state;
   DeviceBuffer m_scratch;
+  bool m_usingAlbedo{false};
+  bool m_usingNormal{false};
 
   // This buffer is only used when format != ANARI_FLOAT32_VEC4
   HostDeviceArray<uint32_t> m_uintPixels;

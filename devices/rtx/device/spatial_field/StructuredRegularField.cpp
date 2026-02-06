@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -103,7 +103,7 @@ void StructuredRegularField::commitParameters()
   m_cellCentered = (dataCentering == "cell");
   m_filter = getParamString("filter", "linear");
   m_data = getParamObject<Array3D>("data");
-  
+
   // ROI in object space (default: full range)
   m_roi = getParam<box3>("roi",
       box3(vec3(std::numeric_limits<float>::lowest()),
@@ -206,10 +206,10 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.data.structuredRegular.invSpacing = 1.0f / m_spacing;
   sf.data.structuredRegular.cellCentered = m_cellCentered;
   sf.grid = m_uniformGrid.gpuData();
-  
+
   sf.roi.lower = m_roi.lower;
   sf.roi.upper = m_roi.upper;
-  
+
   return sf;
 }
 

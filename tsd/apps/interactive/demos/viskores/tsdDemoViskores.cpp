@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd_ui_imgui
@@ -98,7 +98,7 @@ class Application : public TSDApplication
     };
 
 #if 1
-    m_taskModal->activate(populateScene, "Please Wait: Loading Scene...");
+    showTaskModal(populateScene, "Please Wait: Loading Scene...");
 #else
     populateScene();
 #endif

@@ -1,4 +1,4 @@
-## Copyright 2024-2025 NVIDIA Corporation
+## Copyright 2024-2026 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.21)
@@ -61,6 +61,7 @@ option(TSD_USE_SILO "Use Silo for importing Silo file formats" OFF)
 option(TSD_USE_MPI "Enable MPI support" OFF)
 option(TSD_NANOVDB_SKIP_INVALID_VOLUMES
   "Skip NanoVDB volumes with zero active voxels" OFF)
+option(TSD_USE_NETWORKING "Enable networking support via boost.asio" OFF)
 
 if (APPLE)
   set(TSD_USE_CUDA OFF)

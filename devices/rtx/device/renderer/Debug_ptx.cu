@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,6 +30,7 @@
  */
 
 #include "DebugMethod.h"
+#include "gpu/intersectRay.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
@@ -253,15 +254,9 @@ VISRTX_GLOBAL void __raygen__()
     instID = vrd.instance->id;
   }
 
-  accumResults(frameData,
-      ss.pixel,
-      vec4(color, 1.f),
-      depth,
-      color,
-      normal,
-      primID,
-      objID,
-      instID);
+  setPixelIds(frameData.fb, ss.pixel, depth, primID, objID, instID);
+
+  accumPixelSample(frameData, ss.pixel, vec4(color, 1.f), color, normal);
 }
 
 } // namespace visrtx

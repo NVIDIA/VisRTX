@@ -14,13 +14,20 @@
 
     \note  This file does NOT depend on OpenVDB, but optionally on ZIP and BLOSC
 
-    \details NanoVDB files take on of two formats:
+    \details NanoVDB files take on one of the two following formats:
              1) multiple segments each with multiple grids (segments have easy to access metadata about its grids)
              2) starting with verion 32.6.0 nanovdb files also support a raw buffer with one or more grids (just a
              dump of a raw grid buffer, so no new metadata in headers as when using segments mentioned above).
 
-    // 1: Segment:  FileHeader, MetaData0, gridName0...MetaDataN, gridNameN, compressed Grid0, ... compressed GridN
-    // 2: Raw: Grid0, ... GridN
+    Example of case 1:
+        | <------------------------------------ segment 1 with N grids --------------------------------------> | <--- segment 2 ...
+        FileHeader, FileMetaData0, gridName0...FileMetaDataN, gridNameN, compressed Grid0, ... compressed GridN FileHeader ...
+    Example of case 2:
+        | <-- grid buffer ---> |
+        Grid0, Grid1, ... GridN
+
+    Note that FileHeader and FileMetaData (both defined in NanoVDB.h) have fixed sizes of respectively 16B and 176B.
+    However, GridNameX and GridX have variable sizes!
 */
 
 #ifndef NANOVDB_IO_H_HAS_BEEN_INCLUDED
@@ -216,7 +223,7 @@ fileSize_t Internal::write(std::ostream& os, const GridHandle<BufferT>& handle, 
         uLongf                   size = compressBound(static_cast<uLongf>(residual)); // Get an upper bound on the size of the compressed data.
         std::unique_ptr<Bytef[]> tmp(new Bytef[size]);
         const int                status = compress(tmp.get(), &size, reinterpret_cast<const Bytef*>(data), static_cast<uLongf>(residual));
-        if (status != Z_OK) std::runtime_error("Internal write error in ZIP");
+        if (status != Z_OK) throw std::runtime_error("Internal write error in ZIP");
         if (size > residual) std::cerr << "\nWarning: Unexpected ZIP compression from " << residual << " to " << size << " bytes\n";
         const fileSize_t outBytes = size;
         os.write(reinterpret_cast<const char*>(&outBytes), sizeof(fileSize_t));
@@ -233,7 +240,7 @@ fileSize_t Internal::write(std::ostream& os, const GridHandle<BufferT>& handle, 
             fileSize_t              chunk = residual < MAX_SIZE ? residual : MAX_SIZE, size = chunk + BLOSC_MAX_OVERHEAD;
             std::unique_ptr<char[]> tmp(new char[size]);
             const int               count = blosc_compress_ctx(9, 1, sizeof(float), chunk, data, tmp.get(), size, BLOSC_LZ4_COMPNAME, 1 << 18, 1);
-            if (count <= 0) std::runtime_error("Internal write error in BLOSC");
+            if (count <= 0) throw std::runtime_error("Internal write error in BLOSC");
             const fileSize_t outBytes = count;
             os.write(reinterpret_cast<const char*>(&outBytes), sizeof(fileSize_t));
             os.write(reinterpret_cast<const char*>(tmp.get()), outBytes);
@@ -277,7 +284,7 @@ void Internal::read(std::istream& is, char* data, fileSize_t residual, Codec cod
         is.read(reinterpret_cast<char*>(tmp.get()), size);
         uLongf numBytes = static_cast<uLongf>(residual);
         int status = uncompress(reinterpret_cast<Bytef*>(data), &numBytes, tmp.get(), static_cast<uLongf>(size));
-        if (status != Z_OK) std::runtime_error("Internal read error in ZIP");
+        if (status != Z_OK) throw std::runtime_error("Internal read error in ZIP");
         if (fileSize_t(numBytes) != residual) throw std::runtime_error("UNZIP failed on byte size");
 #else
         throw std::runtime_error("ZIP compression codec was disabled during build");
@@ -293,7 +300,7 @@ void Internal::read(std::istream& is, char* data, fileSize_t residual, Codec cod
             is.read(reinterpret_cast<char*>(tmp.get()), size);
             const fileSize_t chunk = residual < MAX_SIZE ? residual : MAX_SIZE;
             const int        count = blosc_decompress_ctx(tmp.get(), data, size_t(chunk), 1); //fails with more threads :(
-            if (count < 1) std::runtime_error("Internal read error in BLOSC");
+            if (count < 1) throw std::runtime_error("Internal read error in BLOSC");
             if (count != int(chunk)) throw std::runtime_error("BLOSC failed on byte size");
             data += size_t(chunk);
             residual -= chunk;
@@ -325,10 +332,11 @@ inline FileGridMetaData::FileGridMetaData(uint64_t size, Codec c, const GridData
                    {0, 0, 0, 1}, // nodeCount[4]
                    {0, 0, 0}, // tileCount[3]
                    c, // codec
-                   0, // padding
+                   uint16_t(gridData.mBlindMetadataCount), // number of blind meta data
                    Version()}// version
     , gridName(gridData.gridName())
 {
+    NANOVDB_ASSERT(gridData.mBlindMetadataCount <= uint32_t(1 << 16));// due to uint32_t -> uin16_t conversion
     auto &treeData = *reinterpret_cast<const TreeData*>(gridData.treePtr());
     nameKey = stringHash(gridName);
     voxelCount = treeData.mVoxelCount;
@@ -722,9 +730,13 @@ inline uint64_t stringHash(const char* c_str)
 
 } // namespace io ======================================================================
 
+} // namespace nanovdb ===================================================================
+
+// the following stream specializations should not be namespaced!
+
 template<typename T>
 inline std::ostream&
-operator<<(std::ostream& os, const math::BBox<math::Vec3<T>>& b)
+operator<<(std::ostream& os, const nanovdb::math::BBox<nanovdb::math::Vec3<T>>& b)
 {
     os << "(" << b[0][0] << "," << b[0][1] << "," << b[0][2] << ") -> "
        << "(" << b[1][0] << "," << b[1][1] << "," << b[1][2] << ")";
@@ -732,7 +744,7 @@ operator<<(std::ostream& os, const math::BBox<math::Vec3<T>>& b)
 }
 
 inline std::ostream&
-operator<<(std::ostream& os, const CoordBBox& b)
+operator<<(std::ostream& os, const nanovdb::CoordBBox& b)
 {
     os << "(" << b[0][0] << "," << b[0][1] << "," << b[0][2] << ") -> "
        << "(" << b[1][0] << "," << b[1][1] << "," << b[1][2] << ")";
@@ -740,7 +752,7 @@ operator<<(std::ostream& os, const CoordBBox& b)
 }
 
 inline std::ostream&
-operator<<(std::ostream& os, const Coord& ijk)
+operator<<(std::ostream& os, const nanovdb::Coord& ijk)
 {
     os << "(" << ijk[0] << "," << ijk[1] << "," << ijk[2] << ")";
     return os;
@@ -748,7 +760,7 @@ operator<<(std::ostream& os, const Coord& ijk)
 
 template<typename T>
 inline std::ostream&
-operator<<(std::ostream& os, const math::Vec3<T>& v)
+operator<<(std::ostream& os, const nanovdb::math::Vec3<T>& v)
 {
     os << "(" << v[0] << "," << v[1] << "," << v[2] << ")";
     return os;
@@ -756,12 +768,10 @@ operator<<(std::ostream& os, const math::Vec3<T>& v)
 
 template<typename T>
 inline std::ostream&
-operator<<(std::ostream& os, const math::Vec4<T>& v)
+operator<<(std::ostream& os, const nanovdb::math::Vec4<T>& v)
 {
     os << "(" << v[0] << "," << v[1] << "," << v[2] << "," << v[3] << ")";
     return os;
 }
-
-} // namespace nanovdb ===================================================================
 
 #endif // NANOVDB_IO_H_HAS_BEEN_INCLUDED

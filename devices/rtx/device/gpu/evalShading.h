@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -89,6 +89,28 @@ VISRTX_DEVICE vec3 materialEvaluateEmission(
   return optixDirectCall<vec3>(shadingState.callableBaseIndex
           + int(SurfaceShaderEntryPoints::EvaluateEmission),
       &shadingState.data, &outgoingDir);
+}
+
+VISRTX_DEVICE vec3 materialEvaluateTransmission(
+    const MaterialShadingState &shadingState)
+{
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
+    return vec3(0.0f); // Default transmission
+
+  return optixDirectCall<vec3>(shadingState.callableBaseIndex
+          + int(SurfaceShaderEntryPoints::EvaluateTransmission),
+      &shadingState.data);
+}
+
+VISRTX_DEVICE vec3 materialEvaluateNormal(
+    const MaterialShadingState &shadingState)
+{
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
+    return vec3(0.8f, 0.8f, 0.8f); // Default tint color
+
+  return optixDirectCall<vec3>(shadingState.callableBaseIndex
+          + int(SurfaceShaderEntryPoints::EvaluateNormal),
+      &shadingState.data);
 }
 
 VISRTX_DEVICE NextRay materialNextRay(const MaterialShadingState &shadingState,

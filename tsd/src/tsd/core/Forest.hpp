@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -138,6 +138,8 @@ struct Forest
   void erase_subtree(NodeRef n);
   NodeRef copy_subtree(NodeRef source, NodeRef newParent);
   void move_subtree(NodeRef source, NodeRef newParent);
+
+  void clear();
 
   // Queries //
 
@@ -558,6 +560,12 @@ inline void Forest<T>::move_subtree(
   else
     newParent->m_children_end->m_next = source;
   newParent->m_children_end = source;
+}
+
+template <typename T>
+inline void Forest<T>::clear()
+{
+  erase_subtree(m_root);
 }
 
 template <typename T>

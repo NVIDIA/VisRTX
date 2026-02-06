@@ -1,4 +1,4 @@
-## Copyright 2025 NVIDIA Corporation
+## Copyright 2025-2026 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
 import struct

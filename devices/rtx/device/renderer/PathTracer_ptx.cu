@@ -33,6 +33,7 @@
 
 #include "gpu/evalShading.h"
 #include "gpu/gpu_debug.h"
+#include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
 namespace visrtx {
@@ -82,7 +83,7 @@ VISRTX_GLOBAL void __miss__()
 VISRTX_GLOBAL void __raygen__()
 {
   auto &rendererParams = frameData.renderer;
-  auto &dptParams = rendererParams.params.dpt;
+  auto &ptParams = rendererParams.params.pathTracer;
 
   PathData pathData;
 
@@ -137,7 +138,7 @@ VISRTX_GLOBAL void __raygen__()
       if (!hit.foundHit && !volumeHit)
         break;
 
-      if (pathData.depth++ >= dptParams.maxDepth) {
+      if (pathData.depth++ >= ptParams.maxDepth) {
         pathData.Lw = vec3(0.f);
         break;
       }
@@ -201,16 +202,10 @@ VISRTX_GLOBAL void __raygen__()
       color = vec3(1) - color;
     if (debug())
       printf("========== END: FrameID %i ==========\n", frameData.fb.frameID);
-    accumResults(frameData,
-        ss.pixel,
-        vec4(color, 1.f),
-        outDepth,
-        outColor,
-        outNormal,
-        primID,
-        objID,
-        instID,
-        i);
+    setPixelIds(frameData.fb, ss.pixel, outDepth, primID, objID, instID);
+
+    accumPixelSample(
+        frameData, ss.pixel, vec4(color, 1.f), outColor, outNormal, i);
   }
 }
 

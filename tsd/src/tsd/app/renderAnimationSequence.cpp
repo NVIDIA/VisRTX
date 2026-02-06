@@ -1,4 +1,4 @@
-// Copyright 2025 NVIDIA Corporation
+// Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/app/renderAnimationSequence.h"
@@ -102,12 +102,21 @@ static OfflineRenderRig setupRig(tsd::app::Core &core)
         rig.pipeline->emplace_back<tsd::rendering::VisualizeAOVPass>();
     aovPass->setAOVType(config.aov.aovType);
     aovPass->setDepthRange(config.aov.depthMin, config.aov.depthMax);
+    aovPass->setEdgeThreshold(config.aov.edgeThreshold);
+    aovPass->setEdgeInvert(config.aov.edgeInvert);
 
     // Enable necessary frame channels
     if (config.aov.aovType == tsd::rendering::AOVType::ALBEDO) {
       rig.anariPass->setEnableAlbedo(true);
     } else if (config.aov.aovType == tsd::rendering::AOVType::NORMAL) {
       rig.anariPass->setEnableNormals(true);
+    } else if (config.aov.aovType == tsd::rendering::AOVType::EDGES
+        || config.aov.aovType == tsd::rendering::AOVType::OBJECT_ID) {
+      rig.anariPass->setEnableIDs(true);
+    } else if (config.aov.aovType == tsd::rendering::AOVType::PRIMITIVE_ID) {
+      rig.anariPass->setEnablePrimitiveId(true);
+    } else if (config.aov.aovType == tsd::rendering::AOVType::INSTANCE_ID) {
+      rig.anariPass->setEnableInstanceId(true);
     }
   }
 
@@ -132,6 +141,7 @@ void renderAnimationSequence(Core &core,
     const std::string &filePrefix,
     RenderSequenceCallback preFrameCallback)
 {
+  core.updateCameraPathAnimation();
   auto rp = setupRig(core);
 
   if (rp.pipeline.get() == nullptr) {

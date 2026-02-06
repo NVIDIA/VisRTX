@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
 mdl 1.8;
@@ -497,7 +497,7 @@ export material physically_based_material(
             mode: ::df::scatter_reflect,
             roughness_u: resolvedClearcoatRoughness * resolvedClearcoatRoughness,
         ),
-        base: metallicRoughnessBsdf,        
+        base: metallicRoughnessBsdf,
     );
 } in material(
     surface: material_surface(
@@ -508,7 +508,7 @@ export material physically_based_material(
         )
     ),
     volume: material_volume(
-        absorption_coefficient: 
+        absorption_coefficient:
             resolvedThickness == 0.0f ? color(0.0f) : -math::log(resolvedAttenuationColor) / resolvedAttenuationDistance,
     ),
     ior: color(ior),

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -105,7 +105,7 @@ VISRTX_DEVICE LightSample sampleSphereLight(
   LightSample ls;
   auto u1 = curand_uniform(&rs);
   auto u2 = curand_uniform(&rs);
-  
+
   // Uniform sampling on unit sphere using Marsaglia's method
   // u1 maps to z-coordinate: z ∈ [-1, 1]
   auto z = 1.f - 2.f * u1;
@@ -115,17 +115,17 @@ VISRTX_DEVICE LightSample sampleSphereLight(
   auto phi = 2.f * float(M_PI) * u2;
   auto x = r * cosf(phi);
   auto y = r * sinf(phi);
-  
+
   // Scale by sphere radius to get point on sphere surface
   auto p = vec3(x, y, z) * ld.sphere.radius;
   auto worldSamplePos = xfmPoint(xfm, ld.sphere.position + p);
   ls.dir = worldSamplePos - hit.hitpoint;
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
-  
+
   // Sphere emits uniformly in all directions (Lambertian)
   ls.radiance = ld.color * ld.sphere.intensity;
-  
+
   // Convert area PDF to solid angle PDF for proper Monte Carlo integration
   // Area PDF = 1 / (4πr²), but we need solid angle PDF
   // Conversion: pdf_solid_angle = pdf_area * distance² / |cos θ|
@@ -134,7 +134,7 @@ VISRTX_DEVICE LightSample sampleSphereLight(
   auto worldSphereCenter = xfmPoint(xfm, ld.sphere.position);
   auto surfaceNormal = normalize(worldSamplePos - worldSphereCenter);
   auto cosTheta = dot(surfaceNormal, -ls.dir);
-  
+
   if (cosTheta > 0.0f) {
     // Note: For non-uniform scaling transforms, the area calculation would need
     // to account for the transform's effect on surface area (determinant of jacobian)
@@ -170,7 +170,7 @@ VISRTX_DEVICE LightSample sampleRectLight(
 
   // Apply Lambert's cosine law: radiance ∝ cos(θ) where θ is angle to normal
   auto cosTheta = dot(normal, -ls.dir);
-  
+
   // Handle front/back face emission based on light configuration
   if (ld.rect.side.back) {
     if (ld.rect.side.front)
@@ -183,7 +183,7 @@ VISRTX_DEVICE LightSample sampleRectLight(
   if (cosTheta > 0.0f) {
     // Lambertian emission: radiance scaled by cosine factor
     ls.radiance = ld.color * ld.rect.intensity * cosTheta;
-    
+
     // Convert area PDF to solid angle PDF for proper Monte Carlo integration
     // Area PDF = 1 / area, Solid angle PDF = area_pdf * distance² / |cos θ|
     float areaPdf = 1.0f / area;
@@ -203,10 +203,10 @@ VISRTX_DEVICE LightSample sampleRingLight(
   LightSample ls;
   auto u1 = curand_uniform(&rs);
   auto u2 = curand_uniform(&rs);
-  
+
   // Sample angle uniformly around the ring: φ ∈ [0, 2π]
   auto phi = 2.0f * M_PI * u1;
-  
+
   // Sample radial position uniformly by area between inner and outer radius
   // For uniform area sampling: r² = u₂(R² - r²) + r² where R=outer, r=inner
   auto outerRadius = ld.ring.radius;
@@ -216,19 +216,19 @@ VISRTX_DEVICE LightSample sampleRingLight(
   // Create orthonormal basis with ring direction as normal
   auto direction = normalize(ld.ring.direction);
   auto basis = computeOrthonormalBasis(direction);
-    
+
   // Convert polar coordinates (r, φ) to Cartesian in ring's local frame
   auto localX = r * cosf(phi);
   auto localY = r * sinf(phi);
   auto samplePos = basis[0] * localX + basis[1] * localY;
-  
+
   // Calculate direction and distance to light sample point
   ls.dir = xfmPoint(xfm, ld.ring.position + samplePos) - hit.hitpoint;
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
-  
+
   auto worldDirection = xfmVec(xfm, direction);
-  
+
   // Calculate spotlight-like cone attenuation
   float spot;
   auto cosTheta = dot(worldDirection, -ls.dir);
@@ -244,12 +244,12 @@ VISRTX_DEVICE LightSample sampleRingLight(
     spot = (cosTheta - ld.ring.cosOuterAngle) / (ld.ring.cosInnerAngle - ld.ring.cosOuterAngle);
     spot = spot * spot * (3.0f - 2.0f * spot);
   }
-  
+
   if (spot > 0.0f) {
     if (cosTheta > 0.0f) {
       // Apply both spot attenuation and Lambert's cosine law
       ls.radiance = ld.color * ld.ring.intensity * spot * cosTheta;
-      
+
       // Convert area PDF to solid angle PDF for proper Monte Carlo integration
       // Ring area = π(R² - r²), so area PDF = 1 / ring_area
       // Solid angle PDF = area_pdf * distance² / |cos θ|
@@ -263,7 +263,7 @@ VISRTX_DEVICE LightSample sampleRingLight(
     ls.radiance = vec3(0.0f);
     ls.pdf = 0.0f;
   }
-  
+
   return ls;
 }
 
@@ -275,14 +275,14 @@ VISRTX_DEVICE LightSample sampleSpotLight(
   ls.dir = xfmPoint(xfm, ld.spot.position) - hit.hitpoint;
   ls.dist = length(ls.dir);
   ls.dir /= ls.dist;
-  
+
   // Transform spot light direction to world space
   auto worldDirection = normalize(xfmVec(xfm, ld.spot.direction));
-  
+
   // Calculate angle between light direction and direction to hit point
   // spot = cos(angle_between_directions)
   float spot = dot(worldDirection, -ls.dir);
-  
+
   // Apply spotlight cone attenuation with smooth falloff
   if (spot < ld.spot.cosOuterAngle)
     spot = 0.f;  // Outside cone: no illumination
@@ -294,7 +294,7 @@ VISRTX_DEVICE LightSample sampleSpotLight(
         / (ld.spot.cosInnerAngle - ld.spot.cosOuterAngle);
     spot = spot * spot * (3.f - 2.f * spot);  // smoothstep function
   }
-  
+
   // Apply inverse square law with spotlight attenuation
   ls.radiance = ld.color * ld.spot.intensity * spot / pow2(ls.dist);
   // Delta function for point light source

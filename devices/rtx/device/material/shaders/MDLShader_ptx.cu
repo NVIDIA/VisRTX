@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,6 +54,7 @@ using EdfEvaluateFunc = mi::neuraylib::Edf_evaluate_function;
 //
 using TintExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using OpacityExprFunc = mi::neuraylib::Material_function<float>::Type;
+using TransmissionExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 using EmissionIntensityExprFunc = mi::neuraylib::Material_function<vec3>::Type;
 
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
@@ -75,6 +76,7 @@ VISRTX_CALLABLE BsdfIsThinWalled mdl_isThinWalled;
 
 VISRTX_CALLABLE TintExprFunc mdlTint;
 VISRTX_CALLABLE OpacityExprFunc mdlOpacity;
+VISRTX_CALLABLE TransmissionExprFunc mdlTransmission;
 VISRTX_CALLABLE EdfEvaluateFunc mdlEmission_evaluate;
 VISRTX_CALLABLE EmissionIntensityExprFunc mdlEmissionIntensity;
 
@@ -152,9 +154,7 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->argBlock = md->argBlock;
 
   // Init
-  mdlInit(&shadingState->state,
-      &shadingState->resData,
-      shadingState->argBlock);
+  mdlInit(&shadingState->state, &shadingState->resData, shadingState->argBlock);
 }
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
@@ -200,6 +200,13 @@ VISRTX_CALLABLE
 NextRay __direct_callable__nextRay(
     const MDLShadingState *shadingState, const Ray *ray, RandState *rs)
 {
+  // Before anything, check for opacity. If below, then we just pass through
+  if (curand_uniform(rs) > mdlOpacity(&shadingState->state,
+          &shadingState->resData,
+          shadingState->argBlock)) {
+    return NextRay{ray->dir, vec3(1.0f)};
+  }
+
   // Sample
   BsdfSampleData sample_data = {};
   if (shadingState->isFrontFace) {
@@ -259,4 +266,18 @@ vec3 __direct_callable__evaluateEmission(
   return (evalData.pdf > 1e-12f)
       ? make_vec3(evalData.edf) * evalData.cos * intensity / evalData.pdf
       : vec3(0.0f);
+}
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateTransmission(
+    const MDLShadingState *shadingState)
+{
+  return mdlTransmission(
+      &shadingState->state, &shadingState->resData, shadingState->argBlock);
+}
+
+VISRTX_CALLABLE
+vec3 __direct_callable__evaluateNormal(const MDLShadingState *shadingState)
+{
+  return make_vec3(shadingState->state.normal);
 }

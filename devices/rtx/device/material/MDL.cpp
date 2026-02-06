@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -348,7 +348,7 @@ void MDL::syncParameters()
             // Search for a free slot to reuse
             it = std::find(begin(m_samplers), end(m_samplers), SamplerDesc{});
           }
-          
+
           if (it == end(m_samplers)) {
             it = m_samplers.insert(it, {sampler, name, samplerIsFromRegistry});
           } else {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -91,9 +91,8 @@ void Frame::commitParameters()
   m_instIDType = getParam<ANARIDataType>("channel.instanceId", ANARI_UNKNOWN);
   m_albedoType = getParam<ANARIDataType>("channel.albedo", ANARI_UNKNOWN);
   m_normalType = getParam<ANARIDataType>("channel.normal", ANARI_UNKNOWN);
-  m_manualAccumulationRestart = getParam("accumulationVersion",
-                                    ANARI_UINT64,
-                                    &m_applicationAccumulationVersion);
+  m_manualAccumulationRestart = getParam(
+      "accumulationVersion", ANARI_UINT64, &m_applicationAccumulationVersion);
 }
 
 void Frame::finalize()
@@ -126,8 +125,10 @@ void Frame::finalize()
   const bool channelPrimID = m_primIDType == ANARI_UINT32;
   const bool channelObjID = m_objIDType == ANARI_UINT32;
   const bool channelInstID = m_instIDType == ANARI_UINT32;
-  const bool channelAlbedo = m_albedoType == ANARI_FLOAT32_VEC3;
-  const bool channelNormal = m_normalType == ANARI_FLOAT32_VEC3;
+  const bool channelAlbedo =
+      m_denoiseUsingAlbedo || (m_albedoType == ANARI_FLOAT32_VEC3);
+  const bool channelNormal =
+      m_denoiseUsingNormal || (m_normalType == ANARI_FLOAT32_VEC3);
 
   const bool channelDepth = m_depthType == ANARI_FLOAT32 || channelPrimID
       || channelObjID || channelInstID;
@@ -145,8 +146,14 @@ void Frame::finalize()
   m_instIDBuffer.resize(channelInstID ? numPixels() : 0);
 
   m_accumColor.reserve(numPixels() * sizeof(vec4));
-  m_accumAlbedo.reserve((channelAlbedo ? numPixels() : 0) * sizeof(vec3));
-  m_accumNormal.reserve((channelNormal ? numPixels() : 0) * sizeof(vec3));
+  if (channelAlbedo)
+    m_accumAlbedo.reserve(numPixels() * sizeof(vec3));
+  else
+    m_accumAlbedo.reset();
+  if (channelNormal)
+    m_accumNormal.reserve(numPixels() * sizeof(vec3));
+  else
+    m_accumNormal.reset();
 
   hd.fb.buffers.colorAccumulation = m_accumColor.ptrAs<vec4>();
 
@@ -166,7 +173,8 @@ void Frame::finalize()
   hd.fb.buffers.normal = channelNormal ? m_accumNormal.ptrAs<vec3>() : nullptr;
 
   if (m_denoise)
-    m_denoiser.setup(hd.fb.size, m_pixelBuffer, m_colorType);
+    m_denoiser.setup(
+        hd.fb.size, m_pixelBuffer, m_colorType, m_accumAlbedo, m_accumNormal);
   else
     m_denoiser.cleanup();
 
@@ -247,8 +255,14 @@ void Frame::renderFrame()
   }
 
   bool wasDenoising = m_denoise;
+  bool wasDenoisingUsingAlbedo = m_denoiseUsingAlbedo;
+  bool wasDenoisingUsingNormal = m_denoiseUsingNormal;
   m_denoise = m_renderer->denoise();
-  if (m_denoise != wasDenoising)
+  m_denoiseUsingAlbedo = m_renderer->denoiseUsingAlbedo();
+  m_denoiseUsingNormal = m_renderer->denoiseUsingNormal();
+  if (m_denoise != wasDenoising
+      || m_denoiseUsingAlbedo != wasDenoisingUsingAlbedo
+      || m_denoiseUsingNormal != wasDenoisingUsingNormal)
     this->finalize();
 
   m_frameMappedOnce = false;
@@ -301,6 +315,12 @@ void Frame::renderFrame()
       checkerboarding() ? (hd.fb.size.y + 1) / 2 : hd.fb.size.y,
       1));
   instrument::rangePop(); // optixLaunch()
+
+  // Increment frameID after rendering completes
+  if (checkerboarding())
+    hd.fb.frameID += int(hd.fb.checkerboardID == 3);
+  else
+    hd.fb.frameID += m_renderer->spp();
 
   if (m_denoise)
     m_denoiser.launch();
@@ -553,14 +573,13 @@ void *Frame::mapAlbedoBuffer(bool gpu)
 void *Frame::mapNormalBuffer(bool gpu)
 {
   auto &state = *deviceState();
-  const float invFrameID = m_invFrameID;
   auto begin = thrust::device_pointer_cast<vec3>((vec3 *)m_accumNormal.ptr());
   auto end = begin + numPixels();
   thrust::transform(thrust::cuda::par.on(state.stream),
       begin,
       end,
       thrust::device_pointer_cast<vec3>(m_normalBuffer.dataDevice()),
-      [=] __device__(const vec3 &in) { return in * invFrameID; });
+      [=] __device__(const vec3 &in) { return normalize(in); });
   if (gpu)
     return m_normalBuffer.dataDevice();
   else {
@@ -619,8 +638,10 @@ void Frame::newFrame()
     const bool channelPrimID = m_primIDType == ANARI_UINT32;
     const bool channelObjID = m_objIDType == ANARI_UINT32;
     const bool channelInstID = m_instIDType == ANARI_UINT32;
-    const bool channelAlbedo = m_albedoType == ANARI_FLOAT32_VEC3;
-    const bool channelNormal = m_normalType == ANARI_FLOAT32_VEC3;
+    const bool channelAlbedo =
+        m_denoiseUsingAlbedo || (m_albedoType == ANARI_FLOAT32_VEC3);
+    const bool channelNormal =
+        m_denoiseUsingNormal || (m_normalType == ANARI_FLOAT32_VEC3);
 
     const bool channelDepth = m_depthType == ANARI_FLOAT32 || channelPrimID
         || channelObjID || channelInstID;
@@ -640,19 +661,19 @@ void Frame::newFrame()
     if (channelPrimID) {
       thrust::fill_n(thrust::device_pointer_cast(m_primIDBuffer.dataDevice()),
           numPixels(),
-          uint32_t(0));
+          ~0u);
     }
 
     if (channelObjID) {
       thrust::fill_n(thrust::device_pointer_cast(m_objIDBuffer.dataDevice()),
           numPixels(),
-          uint32_t(0));
+          ~0u);
     }
 
     if (channelInstID) {
       thrust::fill_n(thrust::device_pointer_cast(m_instIDBuffer.dataDevice()),
           numPixels(),
-          uint32_t(0));
+          ~0u);
     }
 
     if (channelAlbedo) {
@@ -667,10 +688,6 @@ void Frame::newFrame()
           vec3(0.0f));
     }
   } else {
-    if (checkerboarding())
-      hd.fb.frameID += int(hd.fb.checkerboardID == 3);
-    else
-      hd.fb.frameID += m_renderer->spp();
     hd.fb.checkerboardID =
         checkerboarding() ? ((hd.fb.checkerboardID + 1) & 0x3) : -1;
   }

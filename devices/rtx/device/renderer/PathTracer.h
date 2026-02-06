@@ -35,13 +35,14 @@
 
 namespace visrtx {
 
-struct DiffusePathTracer : public Renderer
+struct PathTracer : public Renderer
 {
-  DiffusePathTracer(DeviceGlobalState *s);
+  PathTracer(DeviceGlobalState *s);
   void commitParameters() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;
   Span<HitgroupFunctionNames> hitgroupSbtNames() const override;
+  Span<std::string> missSbtNames() const override;
 
   static ptx_blob ptx();
 

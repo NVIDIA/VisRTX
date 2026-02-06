@@ -1,4 +1,4 @@
-// Copyright 2025 NVIDIA Corporation
+// Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/scene/Animation.hpp"
@@ -122,6 +122,23 @@ void Animation::update(float time)
     }
     updateInfoString(time, true);
   }
+}
+
+bool Animation::targetsObject(const Object *obj) const
+{
+  return obj && m_timesteps.object && m_timesteps.object.get() == obj;
+}
+
+size_t Animation::timeStepCount() const
+{
+  const auto &ts = m_timesteps;
+  if (!ts.stepsValues.empty()) {
+    const auto &steps = ts.stepsValues.front();
+    return steps ? steps->size() : 0;
+  }
+  if (!ts.stepsArrays.empty())
+    return ts.stepsArrays.front().size();
+  return 0;
 }
 
 void Animation::serialize(DataNode &node) const

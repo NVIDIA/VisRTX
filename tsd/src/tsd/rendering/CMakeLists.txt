@@ -1,4 +1,4 @@
-## Copyright 2024-2025 NVIDIA Corporation
+## Copyright 2024-2026 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
 project(tsd_rendering)
@@ -13,6 +13,8 @@ PRIVATE
   pipeline/passes/AnariAxesRenderPass.cpp
   pipeline/passes/AnariSceneRenderPass.cpp
   pipeline/passes/ClearBuffersPass.cpp
+  pipeline/passes/CopyFromColorBufferPass.cpp
+  pipeline/passes/CopyToColorBufferPass.cpp
   pipeline/passes/CopyToSDLTexturePass.cpp
   pipeline/passes/MultiDeviceSceneRenderPass.cpp
   pipeline/passes/OutlineRenderPass.cpp

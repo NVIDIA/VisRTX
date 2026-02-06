@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "RenderIndex.hpp"
@@ -172,6 +172,11 @@ void RenderIndex::signalInvalidateCachedObjects()
   signalRemoveAllObjects();
   populate(false); // always 'false' as this may already be the delegate
   updateWorld();
+}
+
+void RenderIndex::signalAnimationTimeChanged(float)
+{
+  // no-op
 }
 
 } // namespace tsd::rendering

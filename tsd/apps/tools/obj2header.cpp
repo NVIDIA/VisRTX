@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd_io
@@ -143,7 +143,7 @@ int main(int argc, const char *argv[])
     return 1;
   }
 
-  fprintf(fout, "// Copyright 2024-2025 NVIDIA Corporation\n");
+  fprintf(fout, "// Copyright 2024-2026 NVIDIA Corporation\n");
   fprintf(fout, "// SPDX-License-Identifier: Apache-2.0\n");
   fprintf(fout, "\n");
   fprintf(fout, "#include <cstdint>\n");

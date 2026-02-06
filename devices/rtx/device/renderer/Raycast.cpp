@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,10 +35,10 @@
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
+static const std::vector<HitgroupFunctionNames> g_raycastHitNames = {
     {"__closesthit__primary", "__anyhit__primary"}};
 
-static const std::vector<std::string> g_aoMissNames = {"__miss__"};
+static const std::vector<std::string> g_raycastMissNames = {"__miss__"};
 
 Raycast::Raycast(DeviceGlobalState *s) : Renderer(s) {}
 
@@ -56,12 +56,12 @@ OptixModule Raycast::optixModule() const
 
 Span<HitgroupFunctionNames> Raycast::hitgroupSbtNames() const
 {
-  return make_Span(g_aoHitNames.data(), g_aoHitNames.size());
+  return make_Span(g_raycastHitNames.data(), g_raycastHitNames.size());
 }
 
 Span<std::string> Raycast::missSbtNames() const
 {
-  return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
+  return make_Span(g_raycastMissNames.data(), g_raycastMissNames.size());
 }
 
 ptx_blob Raycast::ptx()

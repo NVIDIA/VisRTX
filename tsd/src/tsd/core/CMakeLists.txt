@@ -1,4 +1,4 @@
-## Copyright 2024-2025 NVIDIA Corporation
+## Copyright 2024-2026 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
 project(tsd_core)
@@ -31,6 +31,7 @@ PRIVATE
   scene/objects/Volume.cpp
   AnariObjectCache.cpp
   ColorMapUtil.cpp
+  DataStream.cpp
   Logging.cpp
   Parameter.cpp
   Token.cpp

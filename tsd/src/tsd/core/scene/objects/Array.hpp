@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -16,7 +16,11 @@ struct Array : public Object
 {
   static constexpr anari::DataType ANARI_TYPE = ANARI_ARRAY;
   // clang-format off
-  enum class MemoryKind { HOST, CUDA };
+  enum class MemoryKind {
+    HOST, // Memory allocated on the host (main memory)
+    CUDA, // Memory allocated on the GPU (device memory)
+    PROXY // No memory allocated, only a placeholder object (not mappable)
+  };
   // clang-format on
 
   Array(
@@ -36,12 +40,16 @@ struct Array : public Object
 
   size_t size() const;
   size_t elementSize() const;
+  anari::DataType elementType() const;
+  size_t dim(size_t d) const;
   bool isEmpty() const;
 
   MemoryKind kind() const;
-  size_t dim(size_t d) const;
+  bool isHost() const;
+  bool isCUDA() const;
+  bool isProxy() const;
 
-  anari::DataType elementType() const;
+  void convertProxyToHost();
 
   void *map();
   template <typename T>

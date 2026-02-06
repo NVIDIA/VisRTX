@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -6,8 +6,8 @@
 #include "modals/AppSettingsDialog.h"
 #include "modals/BlockingTaskModal.h"
 #include "modals/ExportNanoVDBFileDialog.h"
-#include "modals/OfflineRenderModal.h"
 #include "modals/ImportFileDialog.h"
+#include "modals/OfflineRenderModal.h"
 // tsd_app
 #include "tsd/app/Core.h"
 // anari_viewer
@@ -26,6 +26,16 @@ class Application : public anari_viewer::Application
   tsd::app::Core *appCore();
 
   void getFilenameFromDialog(std::string &filenameOut, bool save = false);
+
+  template <typename T>
+  T *findWindowOfType()
+  {
+    for (auto *w : m_windows) {
+      if (auto *typed = dynamic_cast<T *>(w))
+        return typed;
+    }
+    return nullptr;
+  }
 
   // Not movable or copyable //
   Application(const Application &) = delete;
@@ -65,6 +75,9 @@ class Application : public anari_viewer::Application
   void setWindowArray(const anari_viewer::WindowArray &wa);
   virtual const char *getDefaultLayout() const = 0;
 
+  template <class FUNCTION>
+  void showTaskModal(FUNCTION &&f, const char *text = "Please Wait");
+
   // Data //
 
   std::vector<Window *> m_windows;
@@ -103,5 +116,13 @@ class Application : public anari_viewer::Application
     tsd::rendering::RenderIndex *renderIndex{nullptr};
   } m_tsdDevice;
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+template <class F>
+inline void Application::showTaskModal(F &&f, const char *text)
+{
+  m_taskModal->activate(std::forward<F>(f), text);
+}
 
 } // namespace tsd::ui::imgui

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
 mdl 1.8;
@@ -64,7 +64,7 @@ export material shading_normal(
           tangent_v: state::texture_tangent_v(texture_space)
         )
     );
-  
+
   material mat = material(surface : material_surface(
     scattering : df::diffuse_reflection_bsdf(tint : color(n + 1.0f / 2.0f))
   ));

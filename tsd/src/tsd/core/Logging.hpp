@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -31,8 +31,8 @@ enum LogLevel
 using LoggingCallback = std::function<void(LogLevel, std::string)>;
 
 void setLoggingCallback(LoggingCallback cb);
-void setLogToStdout();
-void setLogToStderr();
+void setLogToStdout(bool verbose = false);
+void setLogToStderr(bool verbose = false);
 void setNoLogging();
 
 } // namespace tsd::core

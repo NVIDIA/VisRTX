@@ -36,8 +36,8 @@
 // specific renderers
 #include "AmbientOcclusion.h"
 #include "Debug.h"
-#include "DiffusePathTracer.h"
 #include "DirectLight.h"
+#include "PathTracer.h"
 #include "Raycast.h"
 #include "Test.h"
 #include "UnknownRenderer.h"
@@ -116,8 +116,8 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     return new Raycast(d);
   else if (subtype == "ao")
     return new AmbientOcclusion(d);
-  else if (subtype == "diffuse_pathtracer" || subtype == "dpt")
-    return new DiffusePathTracer(d);
+  else if (subtype == "pathTracer" || subtype == "pt")
+    return new PathTracer(d);
   else if (subtype == "directLight" || subtype == "default")
     return new DirectLight(d);
   else if (subtype == "test")
@@ -161,7 +161,13 @@ void Renderer::commitParameters()
       getParam<float>("ambientRadiance", m_defaultAmbientRadiance);
   m_occlusionDistance = getParam<float>("ambientOcclusionDistance", 1e20f);
   m_checkerboard = getParam<bool>("checkerboarding", false);
+
   m_denoise = getParam<bool>("denoise", false);
+  auto denoiseMode = getParamString("denoiseMode", "color");
+  m_denoiseAlbedo =
+      (denoiseMode == "colorAlbedo" || denoiseMode == "colorAlbedoNormal");
+  m_denoiseNormal = (denoiseMode == "colorAlbedoNormal");
+
   m_tonemap = getParam<bool>("tonemap", true);
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
@@ -257,6 +263,16 @@ bool Renderer::denoise() const
   return m_denoise;
 }
 
+bool Renderer::denoiseUsingAlbedo() const
+{
+  return m_denoiseAlbedo;
+}
+
+bool Renderer::denoiseUsingNormal() const
+{
+  return m_denoiseNormal;
+}
+
 int Renderer::sampleLimit() const
 {
   return m_sampleLimit;
@@ -313,21 +329,26 @@ void Renderer::initOptixPipeline()
   // Miss program //
 
   {
-    m_missPGs.resize(1);
-    OptixProgramGroupOptions pgOptions = {};
-    OptixProgramGroupDesc pgDesc = {};
-    pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-    pgDesc.miss.module = shadingModule;
-    pgDesc.miss.entryFunctionName = "__miss__";
+    const auto missNames = missSbtNames();
+    m_missPGs.resize(missNames.size());
 
-    sizeof_log = sizeof(log);
-    OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
-        &pgDesc,
-        1,
-        &pgOptions,
-        log,
-        &sizeof_log,
-        &m_missPGs[0]));
+    int i = 0;
+    for (const auto &missName : missNames) {
+      OptixProgramGroupOptions pgOptions = {};
+      OptixProgramGroupDesc pgDesc = {};
+      pgDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
+      pgDesc.miss.module = shadingModule;
+      pgDesc.miss.entryFunctionName = missName.c_str();
+
+      sizeof_log = sizeof(log);
+      OPTIX_CHECK(optixProgramGroupCreate(state.optixContext,
+          &pgDesc,
+          1,
+          &pgOptions,
+          log,
+          &sizeof_log,
+          &m_missPGs[i++]));
+    }
 
     if (sizeof_log > 1)
       reportMessage(ANARI_SEVERITY_DEBUG, "PG Miss Log:\n%s", log);
@@ -477,7 +498,18 @@ void Renderer::initOptixPipeline()
         + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateTransmission";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateTransmission)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateNormal";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateNormal)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC =
         "__direct_callable__shadeSurface";
+
     callableDescs[SBT_CALLABLE_MATTE_OFFSET
         + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
 
@@ -507,6 +539,16 @@ void Renderer::initOptixPipeline()
         "__direct_callable__evaluateEmission";
     callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
         + int(SurfaceShaderEntryPoints::EvaluateEmission)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateTransmission";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateTransmission)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluateNormal";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluateNormal)] = callableDesc;
 
     callableDesc.callables.entryFunctionNameDC =
         "__direct_callable__shadeSurface";
@@ -730,6 +772,14 @@ void Renderer::initOptixPipeline()
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__evaluateEmission";
+        callableDescs.push_back(callableDesc);
+
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateTransmission";
+        callableDescs.push_back(callableDesc);
+
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluateNormal";
         callableDescs.push_back(callableDesc);
 
         callableDesc.callables.entryFunctionNameDC =

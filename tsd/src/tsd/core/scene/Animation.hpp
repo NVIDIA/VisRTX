@@ -1,4 +1,4 @@
-// Copyright 2025 NVIDIA Corporation
+// Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -43,6 +43,9 @@ struct Animation
       const std::vector<TimeStepArrays> &steps);
 
   void update(float time);
+
+  bool targetsObject(const Object *obj) const;
+  size_t timeStepCount() const;
 
   void serialize(DataNode &node) const;
   void deserialize(DataNode &node);

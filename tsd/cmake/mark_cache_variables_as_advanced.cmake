@@ -1,4 +1,4 @@
-## Copyright 2024-2025 NVIDIA Corporation
+## Copyright 2024-2026 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
 function(mark_cache_variables_as_advanced)

@@ -1,4 +1,4 @@
-// Copyright 2025 NVIDIA Corporation
+// Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/importers.hpp"
@@ -168,7 +168,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
           continue;
         }
         arr->setData(pv.data);
-        
+
         // Debug: print attribute values for first timestep
         if (firstStep && tsParamName.find("attribute") != std::string::npos) {
           logInfo("[import_AGX] DEBUG: %s data pointer: %p, bytes: %lu",
@@ -205,7 +205,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
                 maxVal);
           }
         }
-        
+
         timeSteps[paramIdx++].push_back(arr);
         if (firstStep)
           geom->setParameterObject(tsParamName.c_str(), *arr);
@@ -228,7 +228,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
     return;
   }
   mat->setName("agx_material");
-  
+
   // Check if we have vertex attributes to map to color
   bool hasAttribute0 = false;
   for (const auto& name : timeStepNames) {
@@ -237,7 +237,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
       break;
     }
   }
-  
+
   if (hasAttribute0 && !timeSteps.empty() && timeSteps[0].size() > 0) {
     // Find vertex.attribute0 in first timestep
     size_t attr0Idx = 0;
@@ -247,12 +247,12 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
         break;
       }
     }
-    
+
     if (attr0Idx < timeSteps.size() && !timeSteps[attr0Idx].empty()) {
       auto attr0Array = timeSteps[attr0Idx][0];
       auto scalarRange = computeScalarRange(*attr0Array);
       logInfo("[import_AGX] vertex.attribute0 range: [%f, %f]", scalarRange.x, scalarRange.y);
-      
+
       // Create colormap sampler
       auto colorMapSampler = makeDefaultColorMapSampler(scene, scalarRange);
       mat->setParameterObject("color", *colorMapSampler);

@@ -1,4 +1,4 @@
-// Copyright 2025 NVIDIA Corporation
+// Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd_core
@@ -261,12 +261,16 @@ static void setupRenderPipeline()
     aovPass->setAOVType(g_core->offline.aov.aovType);
     aovPass->setDepthRange(
         g_core->offline.aov.depthMin, g_core->offline.aov.depthMax);
+    aovPass->setEdgeThreshold(g_core->offline.aov.edgeThreshold);
+    aovPass->setEdgeInvert(g_core->offline.aov.edgeInvert);
 
     // Enable necessary frame channels
     if (g_core->offline.aov.aovType == tsd::rendering::AOVType::ALBEDO) {
       arp->setEnableAlbedo(true);
     } else if (g_core->offline.aov.aovType == tsd::rendering::AOVType::NORMAL) {
       arp->setEnableNormals(true);
+    } else if (g_core->offline.aov.aovType == tsd::rendering::AOVType::EDGES) {
+      arp->setEnableIDs(true);
     }
   }
 

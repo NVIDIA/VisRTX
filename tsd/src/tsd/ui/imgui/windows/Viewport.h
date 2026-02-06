@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -15,8 +15,8 @@
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"
-#include "tsd/rendering/view/Manipulator.hpp"
 #include "tsd/rendering/view/CameraUpdateDelegate.hpp"
+#include "tsd/rendering/view/Manipulator.hpp"
 
 // ImGuizmo
 #include <ImGuizmo.h>
@@ -27,8 +27,8 @@
 #include <future>
 #include <limits>
 #include <memory>
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace tsd::ui::imgui {
 
@@ -54,6 +54,7 @@ struct Viewport : public Window
   void setDatabaseCamera(tsd::core::CameraRef cam);
   void clearDatabaseCamera();
   void createCameraFromCurrentView();
+  void addCameraObjectFromCurrentView();
 
  private:
   void saveSettings(tsd::core::DataNode &thisWindowRoot) override;
@@ -109,6 +110,8 @@ struct Viewport : public Window
   bool m_showAxes{true};
   float m_depthVisualMinimum{0.f};
   float m_depthVisualMaximum{1.f};
+  float m_edgeThreshold{0.5f};
+  bool m_edgeInvert{false};
 
   float m_fov{40.f};
 
@@ -181,8 +184,6 @@ struct Viewport : public Window
   float m_latestAnariFL{0.f};
   float m_minFL{std::numeric_limits<float>::max()};
   float m_maxFL{-std::numeric_limits<float>::max()};
-
-  std::string m_overlayWindowName;
 };
 
 } // namespace tsd::ui::imgui

@@ -65,13 +65,9 @@ VISRTX_CALLABLE float __direct_callable__sampleStructuredRectilinear(
   vec3 normalizedPos = (*location - state.axisBoundsMin)
       / (state.axisBoundsMax - state.axisBoundsMin);
 
-  normalizedPos =
-      vec3(state.axisLUT[0] ? tex1D<float>(state.axisLUT[0], normalizedPos.x)
-                            : normalizedPos.x,
-          state.axisLUT[1] ? tex1D<float>(state.axisLUT[1], normalizedPos.y)
-                           : normalizedPos.y,
-          state.axisLUT[2] ? tex1D<float>(state.axisLUT[2], normalizedPos.z)
-                           : normalizedPos.z);
+  normalizedPos = vec3(tex1D<float>(state.axisLUT[0], normalizedPos.x),
+      tex1D<float>(state.axisLUT[1], normalizedPos.y),
+      tex1D<float>(state.axisLUT[2], normalizedPos.z));
 
   // Sample texture with transformed coordinates
   auto sampleCoord = normalizedPos * state.dims + state.offset;

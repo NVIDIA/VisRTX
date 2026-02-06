@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -157,6 +157,12 @@ MaterialRegistry::acquireMaterial(
   auto targetCode = make_handle(
       m_core->getPtxTargetCode(compiledMaterial.get(), transaction.get()));
   std::vector<libmdl::TextureDescriptor> textureDescs;
+  if (!targetCode.is_valid_interface()) {
+    m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
+        "Failed generating PTX target code for material {}",
+        fullMaterialName);
+    return {};
+  }
 
   for (auto i = 1ul; i < targetCode->get_texture_count(); ++i) {
     libmdl::TextureDescriptor textureDesc{i - 1, targetCode->get_texture(i)};

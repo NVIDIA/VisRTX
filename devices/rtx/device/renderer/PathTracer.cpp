@@ -29,42 +29,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "DiffusePathTracer.h"
+#include "PathTracer.h"
 // ptx
-#include "DiffusePathTracer_ptx.h"
+#include "PathTracer_ptx.h"
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_dptHitNames = {
+static const std::vector<HitgroupFunctionNames> g_ptHitNames = {
     {"__closesthit__", "__anyhit__"}};
 
-DiffusePathTracer::DiffusePathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
+static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
 
-void DiffusePathTracer::commitParameters()
+
+PathTracer::PathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
+
+void PathTracer::commitParameters()
 {
   Renderer::commitParameters();
   m_maxDepth = std::clamp(getParam<int>("maxDepth", 5), 1, 256);
 }
 
-void DiffusePathTracer::populateFrameData(FrameGPUData &fd) const
+void PathTracer::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
-  fd.renderer.params.dpt.maxDepth = m_maxDepth;
+  fd.renderer.params.pathTracer.maxDepth = m_maxDepth;
 }
 
-OptixModule DiffusePathTracer::optixModule() const
+OptixModule PathTracer::optixModule() const
 {
-  return deviceState()->rendererModules.diffusePathTracer;
+  return deviceState()->rendererModules.pathTracer;
 }
 
-Span<HitgroupFunctionNames> DiffusePathTracer::hitgroupSbtNames() const
+Span<HitgroupFunctionNames> PathTracer::hitgroupSbtNames() const
 {
-  return make_Span(g_dptHitNames.data(), g_dptHitNames.size());
+  return make_Span(g_ptHitNames.data(), g_ptHitNames.size());
 }
 
-ptx_blob DiffusePathTracer::ptx()
+Span<std::string> PathTracer::missSbtNames() const
 {
-  return {DiffusePathTracer_ptx, sizeof(DiffusePathTracer_ptx)};
+  return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
+}
+
+ptx_blob PathTracer::ptx()
+{
+  return {PathTracer_ptx, sizeof(PathTracer_ptx)};
 }
 
 } // namespace visrtx

@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd_core
@@ -205,8 +205,11 @@ void Application::uiMainMenuBar()
 
     ImGui::Separator();
 
-    if (ImGui::MenuItem("Export as USD..."))
-      io::export_SceneToUSD(m_core.tsd.scene, "scene.usda");
+    if (ImGui::MenuItem("Export as USD...")) {
+      io::export_SceneToUSD(m_core.tsd.scene,
+          "scene.usda",
+          m_core.view.pathSettings.framesPerSecond);
+    }
 
     ImGui::Separator();
 
@@ -354,7 +357,7 @@ void Application::saveApplicationState(const char *_filename)
     // Serialize TSD context
     tsd::core::logStatus("serializing TSD context...");
     root["context"].reset();
-    tsd::io::save_Scene(core.tsd.scene, root["context"]);
+    tsd::io::save_Scene(core.tsd.scene, root["context"], false);
 
     // Save to file
     tsd::core::logStatus("writing state file '%s'...", filename.c_str());

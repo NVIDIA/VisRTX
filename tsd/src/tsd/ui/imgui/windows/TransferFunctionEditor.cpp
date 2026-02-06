@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "TransferFunctionEditor.h"
@@ -225,7 +225,7 @@ void TransferFunctionEditor::buildUI_opacityScale()
   auto *param = m_volume->parameter("opacity");
   if (!tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene))
     return;
-  
+
   // Apply to all other volumes
   float opacity = param->value().get<float>();
   for (auto *volume : m_otherVolumes) {
@@ -238,7 +238,7 @@ void TransferFunctionEditor::buildUI_unitDistance()
   auto *param = m_volume->parameter("unitDistance");
   if (!tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene))
     return;
-  
+
   // Apply to all other volumes
   float unitDistance = param->value().get<float>();
   for (auto *volume : m_otherVolumes) {
@@ -387,7 +387,7 @@ void TransferFunctionEditor::setMap(int selection)
 void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
 {
   const auto &selectedNodes = appCore()->getSelectedNodes();
-  
+
   // Collect all volume pointers from selection
   std::vector<tsd::core::Volume*> allVolumes;
   for (const auto &node : selectedNodes) {
@@ -409,7 +409,7 @@ void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
 
   // Set first volume as reference
   m_volume = allVolumes[0];
-  
+
   // Collect remaining volumes, sort and remove duplicates
   m_otherVolumes.clear();
   if (allVolumes.size() > 1) {
@@ -585,7 +585,7 @@ void TransferFunctionEditor::loadColormap(
 {
   // Use the centralized import function
   auto &scene = appCore()->tsd.scene;
-  
+
   // Extract control points from the loaded transfer function
     core::TransferFunction tfn = tsd::io::importTransferFunction(filepath);
 
@@ -683,7 +683,7 @@ void TransferFunctionEditor::updateColormaps()
         "[tfn_editor] No color map array, cannot update volume!");
     return;
   }
-  
+
   // Update reference volume
   if (m_volume) {
     auto *colorArray = m_volume->parameterValueAsObject<tsd::core::Array>("color");
@@ -699,13 +699,13 @@ void TransferFunctionEditor::updateColormaps()
           m_tfnOpacityPoints.size());
     }
   }
-  
+
   // Update other volumes
   for (auto *volume : m_otherVolumes) {
     auto *colorArray = volume->parameterValueAsObject<tsd::core::Array>("color");
     if (!colorArray)
       continue;
-      
+
     auto co = getSampledColorsAndOpacities(colorArray->size());
     auto *colorMap = colorArray->mapAs<tsd::math::float4>();
     std::copy(co.begin(), co.end(), colorMap);

@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/scene/UpdateDelegate.hpp"
@@ -135,6 +135,12 @@ void MultiUpdateDelegate::signalInvalidateCachedObjects()
 {
   for (auto &d : m_delegates)
     d->signalInvalidateCachedObjects();
+}
+
+void MultiUpdateDelegate::signalAnimationTimeChanged(float time)
+{
+  for (auto &d : m_delegates)
+    d->signalAnimationTimeChanged(time);
 }
 
 } // namespace tsd::core

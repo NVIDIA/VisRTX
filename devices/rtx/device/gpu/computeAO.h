@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,13 +35,12 @@
 
 namespace visrtx {
 
-template <typename T>
 VISRTX_DEVICE float computeAO(ScreenSample &ss,
     const Ray &primaryRay,
-    T rayType,
     const Hit &currentHit,
     float dist,
-    int numSamples)
+    int numSamples,
+    float (*surfaceAttenuation)(ScreenSample &, const Ray&))
 {
   float weights = 0.0f;
   float hits = 0.0f;
@@ -55,7 +54,7 @@ VISRTX_DEVICE float computeAO(ScreenSample &ss,
     float weight = max(0.f, dot(aoRay.dir, currentHit.Ns));
     if (weight > 1e-8f) {
       weights += weight;
-      hits += weight * surfaceAttenuation(ss, aoRay, rayType);
+      hits += weight * surfaceAttenuation(ss, aoRay);
     }
   }
 

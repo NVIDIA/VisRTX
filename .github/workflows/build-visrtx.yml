@@ -4,6 +4,8 @@ on:
     branches: [ next_release ]
   pull_request:
     branches: [ main, next_release ]
+    paths:
+      - 'devices/**'  # Only trigger if VisRTX device has changes
 jobs:
   build:
     strategy:
@@ -52,11 +54,6 @@ jobs:
       - name: Install VisRTX
         run: >
           cmake --build ${{ github.workspace }}/build-visrtx --config ${{ matrix.config }} --target install --parallel
-      - name: Archive VisRTX build artifacts
-        uses: actions/upload-artifact@v5
-        with:
-          name: visrtx-build-${{ matrix.runs-on }}-${{ matrix.cudaversion }}-${{ matrix.config }}
-          path: install
       - name: Configure TSD CMake (CUDA)
         run: >
           cmake -LA -B ${{github.workspace}}/build-tsd

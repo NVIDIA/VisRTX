@@ -1,4 +1,4 @@
-## Copyright 2024-2025 NVIDIA Corporation
+## Copyright 2024-2026 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
 project(tsd_io)
@@ -49,7 +49,8 @@ PRIVATE
   procedural/generate_randomSpheres.cpp
   procedural/generate_rtow.cpp
   procedural/generate_sphereSetVolume.cpp
-  serialization/export_RegularVolumeToNanoVDB.cpp
+  serialization/export_StructuredVolumeToNanoVDB.cpp
+  serialization/NanoVdbSidecar.cpp
   serialization/export_SceneToUSD.cpp
   serialization/serialization_datatree.cpp
 )

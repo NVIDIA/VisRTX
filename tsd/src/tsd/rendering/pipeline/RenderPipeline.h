@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -9,6 +9,8 @@
 #if ENABLE_SDL
 #include "passes/CopyToSDLTexturePass.h"
 #endif
+#include "passes/CopyFromColorBufferPass.hpp"
+#include "passes/CopyToColorBufferPass.hpp"
 #include "passes/MultiDeviceSceneRenderPass.h"
 #include "passes/OutlineRenderPass.h"
 #include "passes/PickPass.h"

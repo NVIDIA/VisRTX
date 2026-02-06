@@ -163,8 +163,8 @@ set(SOURCES
 
   renderer/AmbientOcclusion.cpp
   renderer/Debug.cpp
-  renderer/DiffusePathTracer.cpp
   renderer/DirectLight.cpp
+  renderer/PathTracer.cpp
   renderer/Raycast.cpp
   renderer/Renderer.cpp
   renderer/Test.cpp
@@ -359,8 +359,8 @@ endfunction()
 
 GenerateEmbeddedPTX(renderer AmbientOcclusion)
 GenerateEmbeddedPTX(renderer Debug)
-GenerateEmbeddedPTX(renderer DiffusePathTracer)
 GenerateEmbeddedPTX(renderer DirectLight)
+GenerateEmbeddedPTX(renderer PathTracer)
 GenerateEmbeddedPTX(renderer Raycast)
 GenerateEmbeddedPTX(renderer Test)
 GenerateEmbeddedPTX(geometry Intersectors)

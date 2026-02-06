@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
 #pragma once
@@ -110,7 +110,7 @@ class Core
   mi::neuraylib::ICompiled_material *getCompiledMaterial(
       const mi::neuraylib::IFunction_definition *,
       bool classCompilation = true);
-  mi::neuraylib::ICompiled_material *getDistilledToDiffuseMaterial(
+  mi::neuraylib::ICompiled_material *getDistilledToTransmissivePBR(
       const mi::neuraylib::ICompiled_material *compiledMaterial);
 
   const mi::neuraylib::ITarget_code *getPtxTargetCode(

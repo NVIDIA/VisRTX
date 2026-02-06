@@ -77,6 +77,14 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "denoiseMode",
+          "types": ["ANARI_STRING"],
+          "tags": [],
+          "default": "color",
+          "values": ["color", "colorAlbedo", "colorAlbedoNormal"],
+          "description": "mode controlling buffers given to the denoiser"
+        },
+        {
           "name": "tonemap",
           "types": ["ANARI_BOOL"],
           "tags": [],
@@ -185,6 +193,20 @@
           "description": "enable the OptiX denoiser"
         },
         {
+          "name": "denoiseAlbedo",
+          "types": ["ANARI_BOOL"],
+          "tags": [],
+          "default": false,
+          "description": "enable albedo use by the OptiX denoiser"
+        },
+        {
+          "name": "denoiseNormal",
+          "types": ["ANARI_BOOL"],
+          "tags": [],
+          "default": false,
+          "description": "enable normal use by the OptiX denoiser"
+        },
+        {
           "name": "tonemap",
           "types": ["ANARI_BOOL"],
           "tags": [],
@@ -249,7 +271,7 @@
     },
     {
       "type": "ANARI_RENDERER",
-      "name": "dpt",
+      "name": "pathTracer",
       "parameters": [
         {
           "name": "sampleLimit",
@@ -265,6 +287,20 @@
           "tags": [],
           "default": false,
           "description": "enable the OptiX denoiser"
+        },
+        {
+          "name": "denoiseAlbedo",
+          "types": ["ANARI_BOOL"],
+          "tags": [],
+          "default": false,
+          "description": "enable albedo use by the OptiX denoiser"
+        },
+        {
+          "name": "denoiseNormal",
+          "types": ["ANARI_BOOL"],
+          "tags": [],
+          "default": false,
+          "description": "enable normal use by the OptiX denoiser"
         },
         {
           "name": "tonemap",

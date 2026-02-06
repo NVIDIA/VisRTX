@@ -1,4 +1,4 @@
-// Copyright 2024-2025 NVIDIA Corporation
+// Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -31,7 +31,7 @@ struct LayerTree : public Window
       tsd::core::Layer &layer,
       const tsd::core::LayerNodeRef &anchor,
       const tsd::core::LayerNodeRef &target);
-  
+
   std::vector<tsd::core::LayerNodeRef> copyNodesTo(
       tsd::core::LayerNodeRef targetParent,
       const std::vector<tsd::core::LayerNodeRef>& sourceNodes,
