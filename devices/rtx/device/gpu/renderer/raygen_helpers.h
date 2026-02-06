@@ -35,6 +35,7 @@
 #include "gpu/intersectRay.h"
 #include "gpu/renderer/common.h"
 #include "gpu/shadingState.h"
+#include "gpu/volumeIntegration.h"
 
 // Shared helper functions for ray generation across renderers
 

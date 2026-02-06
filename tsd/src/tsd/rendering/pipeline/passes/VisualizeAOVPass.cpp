@@ -76,7 +76,7 @@ void computeAlbedoImage(RenderBuffers &b, tsd::math::uint2 size)
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
         const auto albedo = b.albedo ? b.albedo[i] : tsd::math::float3(0.f);
-        b.color[i] = helium::cvt_color_to_uint32({albedo, 1.f});
+        b.color[i] = helium::cvt_color_to_uint32_srgb({albedo, 1.f});
       });
 }
 

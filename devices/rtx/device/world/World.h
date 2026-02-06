@@ -111,7 +111,7 @@ struct World : public Object
   // Lights //
 
   HostDeviceArray<InstanceLightGPUData> m_instanceLightGPUData;
-  DeviceObjectIndex m_hdri{-1};
+  HostDeviceArray<InstanceLightGPUData> m_instanceHdriLightGPUData;
 };
 
 } // namespace visrtx
