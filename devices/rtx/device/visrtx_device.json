@@ -141,16 +141,6 @@
           "description": "samples per-pixel"
         },
         {
-          "name": "maxRayDepth",
-          "types": [
-            "ANARI_INT32"
-          ],
-          "tags": [],
-          "default": 5,
-          "minimum": 1,
-          "description": "Maximum number of ray bounces"
-        },
-        {
           "name": "ambientSamples",
           "types": [
             "ANARI_INT32"
