@@ -26,7 +26,7 @@ enum class Shape
 
 struct TextureDescriptor
 {
-  uint64_t knownIndex;
+  uint64_t knownIndex = 0;
 
   std::string url;
   ColorSpace colorSpace{ColorSpace::sRGB};

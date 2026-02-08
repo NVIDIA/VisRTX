@@ -75,6 +75,8 @@ void MDL::clearSamplers()
 {
   auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
   for (auto &samplerDesc : m_samplers) {
+    if (!samplerDesc.sampler)
+      continue;
     if (samplerDesc.isFromRegistry) {
       samplerRegistry.releaseSampler(samplerDesc.sampler);
     } else {
@@ -160,6 +162,13 @@ void MDL::syncSource()
       for (auto textureDesc :
           argumentBlockDescriptor.m_defaultAndBodyTextureDescriptors) {
         auto sampler = samplerRegistry.acquireSampler(textureDesc);
+        if (!sampler) {
+          reportMessage(ANARI_SEVERITY_WARNING,
+              "Failed to acquire default texture '%s' for material %s",
+              textureDesc.url.c_str(),
+              source.c_str());
+          continue;
+        }
         auto index = textureDesc.knownIndex;
         if (m_samplers.size() <= index) {
           m_samplers.resize(index + 1);
@@ -210,11 +219,13 @@ void MDL::syncParameters()
         if (type == libmdl::ArgumentBlockDescriptor::ArgumentType::Texture) {
           if (auto it = find_if(begin(m_samplers), end(m_samplers), [name = name](auto &p) { return p.name == name; });
               it != end(m_samplers)) {
-            if (it->isFromRegistry) {
-              auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
-              samplerRegistry.releaseSampler(it->sampler);
-            } else {
-              it->sampler->refDec(helium::INTERNAL);
+            if (it->sampler) {
+              if (it->isFromRegistry) {
+                auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
+                samplerRegistry.releaseSampler(it->sampler);
+              } else {
+                it->sampler->refDec(helium::INTERNAL);
+              }
             }
             *it = {};
           }
@@ -339,10 +350,12 @@ void MDL::syncParameters()
           });
           if (it != end(m_samplers)) {
             // Found, release
-            if (it->isFromRegistry) {
-              samplerRegistry.releaseSampler(it->sampler);
-            } else {
-              it->sampler->refDec(helium::INTERNAL);
+            if (it->sampler) {
+              if (it->isFromRegistry) {
+                samplerRegistry.releaseSampler(it->sampler);
+              } else {
+                it->sampler->refDec(helium::INTERNAL);
+              }
             }
           } else {
             // Search for a free slot to reuse

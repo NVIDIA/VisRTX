@@ -71,9 +71,9 @@ struct MDL : public Material
   std::string m_source;
   std::string m_sourceType;
   struct SamplerDesc {
-    Sampler* sampler;
+    Sampler* sampler = nullptr;
     std::string name;
-    bool isFromRegistry;
+    bool isFromRegistry = false;
     bool operator==(const SamplerDesc &other) const {
       return sampler == other.sampler && name == other.name &&
              isFromRegistry == other.isFromRegistry;
