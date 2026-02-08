@@ -166,6 +166,9 @@ SpatialFieldGPUData NvdbRegularField::gpuData() const
   sf.data.nvdbRegular.gridData = m_deviceBuffer.ptr();
   sf.data.nvdbRegular.gridType = gridType;
   sf.data.nvdbRegular.cellCentered = m_cellCentered;
+  sf.data.nvdbRegular.filter = (m_filter == "nearest")
+      ? SpatialFieldFilter::Nearest
+      : SpatialFieldFilter::Linear;
 
   sf.grid = m_uniformGrid.gpuData();
 

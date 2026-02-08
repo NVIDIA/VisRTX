@@ -56,10 +56,18 @@ VISRTX_DEVICE void initNvdbSampler(
 
   state.grid = grid;
   state.accessor = grid->getAccessor();
+  state.filter = field->data.nvdbRegular.filter;
   // Use placement new to construct sampler in-place, as we cannot assign
   // because of deleted constructor of the nanovdb samplers
-  new (&state.sampler) typename NvdbRegularSamplerState<ValueType>::SamplerType(
-      nanovdb::math::createSampler<1>(state.accessor));
+  if (state.filter == SpatialFieldFilter::Nearest) {
+    new (&state.nearestSampler)
+        typename NvdbRegularSamplerState<ValueType>::NearestSamplerType(
+            nanovdb::math::createSampler<0>(state.accessor));
+  } else {
+    new (&state.linearSampler)
+        typename NvdbRegularSamplerState<ValueType>::LinearSamplerType(
+            nanovdb::math::createSampler<1>(state.accessor));
+  }
 
   const nanovdb::CoordBBox indexBBox = grid->indexBBox();
   const nanovdb::Vec3f dims = nanovdb::Vec3f(indexBBox.dim());
@@ -91,7 +99,11 @@ VISRTX_DEVICE float sampleNvdb(
   const auto indexPos =
       (indexPos0 - state.offsetDown) * state.scale + state.offsetUp;
 
-  return state.sampler(clamp(indexPos, state.indexMin, state.indexMax));
+  const auto clamped = clamp(indexPos, state.indexMin, state.indexMax);
+
+  if (state.filter == SpatialFieldFilter::Nearest)
+    return state.nearestSampler(clamped);
+  return state.linearSampler(clamped);
 }
 
 // Fp4 sampler

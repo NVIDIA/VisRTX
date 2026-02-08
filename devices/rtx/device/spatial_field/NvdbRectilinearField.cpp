@@ -246,6 +246,9 @@ SpatialFieldGPUData NvdbRectilinearField::gpuData() const
   sf.data.nvdbRectilinear.gridData = m_deviceBuffer.ptr();
   sf.data.nvdbRectilinear.gridType = gridType;
   sf.data.nvdbRectilinear.cellCentered = m_cellCentered;
+  sf.data.nvdbRectilinear.filter = (m_filter == "nearest")
+      ? SpatialFieldFilter::Nearest
+      : SpatialFieldFilter::Linear;
 
   sf.data.nvdbRectilinear.axisLUT[0] = m_axisLutTextures[0];
   sf.data.nvdbRectilinear.axisLUT[1] = m_axisLutTextures[1];

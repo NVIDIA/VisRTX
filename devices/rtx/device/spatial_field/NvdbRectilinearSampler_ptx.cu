@@ -57,11 +57,18 @@ VISRTX_DEVICE void initNvdbRectilinearSampler(
 
   state.grid = grid;
   state.accessor = grid->getAccessor();
+  state.filter = field->data.nvdbRectilinear.filter;
   // Use placement new to construct sampler in-place, as we cannot assign
   // because of deleted constructor of the nanovdb samplers
-  new (&state.sampler)
-      typename NvdbRectilinearSamplerState<ValueType>::SamplerType(
-          nanovdb::math::createSampler<1>(state.accessor));
+  if (state.filter == SpatialFieldFilter::Nearest) {
+    new (&state.nearestSampler)
+        typename NvdbRectilinearSamplerState<ValueType>::NearestSamplerType(
+            nanovdb::math::createSampler<0>(state.accessor));
+  } else {
+    new (&state.linearSampler)
+        typename NvdbRectilinearSamplerState<ValueType>::LinearSamplerType(
+            nanovdb::math::createSampler<1>(state.accessor));
+  }
 
   const nanovdb::CoordBBox indexBBox = grid->indexBBox();
   const nanovdb::Vec3f dims = nanovdb::Vec3f(indexBBox.dim());
@@ -107,7 +114,10 @@ VISRTX_DEVICE float sampleNvdbRectilinear(
   // Back to index space
   const auto indexPos = normalizedPosRect * state.scaleUp + state.offsetUp;
 
-  return state.sampler(clamp(indexPos, state.indexMin, state.indexMax));
+  const auto clamped = clamp(indexPos, state.indexMin, state.indexMax);
+  if (state.filter == SpatialFieldFilter::Nearest)
+    return state.nearestSampler(clamped);
+  return state.linearSampler(clamped);
 }
 
 // Fp4 rectilinear sampler
