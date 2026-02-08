@@ -74,7 +74,7 @@ VISRTX_DEVICE void initNvdbSampler(
     state.scale = nanovdb::Vec3f(1.0f);
   } else {
     state.offsetUp = state.offsetDown;
-    state.scale = (dims) / (dims + nanovdb::Vec3f(1.0f));
+    state.scale = (dims - nanovdb::Vec3f(1.0f)) / dims;
   }
 
   state.indexMin = nanovdb::Vec3f(indexBBox.min());
