@@ -71,6 +71,12 @@ void TransferFunction1D::finalize()
     return;
   }
 
+  if (m_unitDistance <= 0.f) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "unitDistance must be positive on transferFunction1D volume, clamping to minimum");
+    m_unitDistance = 1e-6f;
+  }
+
   discritizeTFData();
   createTFTexture();
   m_field->m_uniformGrid.computeMaxOpacities(
@@ -91,7 +97,7 @@ VolumeGPUData TransferFunction1D::gpuData() const
   retval.stepSize = m_field->stepSize();
   retval.data.tf1d.tfTex = m_textureObject;
   retval.data.tf1d.valueRange = m_valueRange;
-  retval.data.tf1d.oneOverUnitDistance = 1.0f / m_unitDistance;
+  retval.data.tf1d.oneOverUnitDistance = 1.0f / glm::max(m_unitDistance, 1e-6f);
   retval.data.tf1d.field = m_field->index();
   retval.data.tf1d.uniformColor = vec3(m_uniformColor);
   retval.data.tf1d.uniformOpacity = m_uniformOpacity;
