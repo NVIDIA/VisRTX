@@ -45,7 +45,7 @@ Array::~Array()
   if (m_data) {
 #if TSD_USE_CUDA
     if (kind() == MemoryKind::CUDA)
-      cudaMalloc(&m_data, size() * elementSize());
+      cudaFree(m_data);
     else
 #endif
       std::free(m_data);
@@ -249,6 +249,18 @@ Array::Array(Array &&o) : Object(std::move(static_cast<Object &&>(o)))
 Array &Array::operator=(Array &&o)
 {
   if (this != &o) {
+    // Free old data buffer before taking ownership of the new one.
+    // Without this, every pool erase (m_values[i] = {}) leaks the old buffer.
+    if (m_data) {
+#if TSD_USE_CUDA
+      if (m_kind == MemoryKind::CUDA)
+        cudaFree(m_data);
+      else
+#endif
+      if (m_kind != MemoryKind::PROXY)
+        std::free(m_data);
+    }
+
     *static_cast<Object *>(this) = std::move(*static_cast<Object *>(&o));
     m_data = o.m_data;
     m_kind = o.m_kind;
