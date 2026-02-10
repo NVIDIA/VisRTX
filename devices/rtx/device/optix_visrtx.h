@@ -201,7 +201,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
     OptixModule nvdb{nullptr};
     OptixModule structuredRectilinear{nullptr};
     OptixModule nvdbRectilinear{nullptr};
-    OptixModule analyticalField{nullptr};
+    OptixModule customField{nullptr};
   } fieldSamplers;
 
   struct ObjectUpdates

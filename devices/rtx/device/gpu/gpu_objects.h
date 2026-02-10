@@ -456,8 +456,9 @@ struct NVdbRectilinearData
   NVdbRectilinearData() = default;
 };
 
-struct AnalyticalData {
-  AnalyticalData() = default;
+struct CustomFieldData
+{
+  CustomFieldData() = default;
   uint32_t subType;
 
   // Generic storage for field-specific data
@@ -476,7 +477,7 @@ struct SpatialFieldGPUData
     NVdbRegularData nvdbRegular;
     StructuredRectilinearData structuredRectilinear;
     NVdbRectilinearData nvdbRectilinear;
-    AnalyticalData analytical;
+    CustomFieldData custom;
   } data;
   UniformGridData grid;
   box3 roi;

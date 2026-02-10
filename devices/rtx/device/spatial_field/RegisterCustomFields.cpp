@@ -7,16 +7,17 @@
 
 namespace visrtx {
 
-// This function is called by external applications (like VolumetricPlanets) 
-// to register their custom analytical spatial fields with the VisRTX device.
+// This function is called by external applications (like VolumetricPlanets)
+// to register their custom spatial fields with the VisRTX device.
 //
 // Usage from VolumetricPlanets:
 //   #include "spatial_field/SpatialFieldRegistry.h"
-//   visrtx::registerAnalyticalField("magnetic", [](DeviceGlobalState* d) {
+//   visrtx::registerCustomField("magnetic", [](DeviceGlobalState* d) {
 //     return new MagneticField(d);
 //   });
 
-void registerAnalyticalField(const std::string& typeName, SpatialFieldFactory factory)
+void registerCustomField(
+    const std::string &typeName, SpatialFieldFactory factory)
 {
   SpatialFieldRegistry::instance().registerType(typeName, factory);
 }

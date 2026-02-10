@@ -10,9 +10,9 @@
 namespace visrtx {
 
 /**
- * @brief Abstract base class for analytical (procedural) spatial fields
+ * @brief Abstract base class for procedural spatial fields
  *
- * Analytical fields compute their values procedurally rather than from
+ * Custom fields compute their values procedurally rather than from
  * stored data. They provide a framework for implementing custom fields.
  *
  * Subclasses must implement:
@@ -21,10 +21,10 @@ namespace visrtx {
  * - bounds(): Return field bounding box
  * - stepSize(): Return ray marching step size
  */
-struct AnalyticalField : public SpatialField
+struct CustomField : public SpatialField
 {
-  AnalyticalField(DeviceGlobalState *d) : SpatialField(d) {}
-  ~AnalyticalField() override = default;
+  CustomField(DeviceGlobalState *d) : SpatialField(d) {}
+  ~CustomField() override = default;
 };
 
 } // namespace visrtx

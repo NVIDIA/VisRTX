@@ -8,12 +8,12 @@
 namespace visrtx {
 
 /**
- * @brief PTX wrapper for analytical field samplers
+ * @brief PTX wrapper for custom field samplers
  *
- * This single module contains callable programs for all analytical field
+ * This single module contains callable programs for all custom field
  * subtypes
  */
-struct AnalyticalFieldSampler
+struct CustomFieldSampler
 {
   static ptx_blob ptx();
 };

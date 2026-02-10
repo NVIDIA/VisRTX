@@ -221,7 +221,7 @@ struct VolumeSamplingState
     NvdbRectilinearSamplerState<nanovdb::Fp16> nvdbRectilinearFp16;
     NvdbRectilinearSamplerState<nanovdb::FpN> nvdbRectilinearFpN;
     NvdbRectilinearSamplerState<float> nvdbRectilinearFloat;
-    AnalyticalData analytical;  // For analytical spatial fields
+    CustomFieldData custom; // For custom spatial fields
   };
 };
 

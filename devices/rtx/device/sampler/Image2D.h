@@ -47,9 +47,12 @@ struct Image2D : public Sampler
   bool isValid() const override;
 
   int numChannels() const override;
-  
-  // Public accessor for texture object (used by analytical fields)
-  cudaTextureObject_t textureObject() const { return m_texture; }
+
+  // Public accessor for texture object (used by custom fields)
+  cudaTextureObject_t textureObject() const
+  {
+    return m_texture;
+  }
 
  private:
   SamplerGPUData gpuData() const override;
