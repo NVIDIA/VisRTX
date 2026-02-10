@@ -126,13 +126,18 @@ VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
   VolumeSamplingState samplerState;
   volumeSamplerInit(&samplerState, field);
 
-  const float stepSize = volume.stepSize * invSamplingRate;
-  const float exponent = stepSize * svv.oneOverUnitDistance;
+  // The local ray direction is actually accounting for instance scaling
+  // transformation, meaning it's not a unit vector.
+  // We need to use that to compensate our step size.
+  const float localDirLen = glm::length(hit.localRay.dir);
+  const float localStep = volume.stepSize * invSamplingRate;
+  const float dt = localStep / localDirLen;
+  const float exponent = localStep * svv.oneOverUnitDistance;
 
   // Apply jitter to starting position to reduce banding artifacts
   // Still making sure we stay inside the volume
   interval.lower +=
-      curand_uniform(&ss.rs) * min(stepSize, interval.upper - interval.lower);
+      curand_uniform(&ss.rs) * min(dt, interval.upper - interval.lower);
 
   // Track the depth of the first color contribution
   float depth = std::numeric_limits<float>::max();
@@ -160,7 +165,7 @@ VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
       }
     }
 
-    interval.lower += stepSize;
+    interval.lower += dt;
   }
 
   if (normal) {
@@ -168,8 +173,7 @@ VISRTX_DEVICE float _rayMarchVolume(ScreenSample &ss,
     if (depth < std::numeric_limits<float>::max()) {
       const vec3 p = hit.localRay.org + hit.localRay.dir * depth;
       vec3 localGradient(0.f);
-      volumeSamplerSampleWithGradient(
-          &samplerState, field, p, &localGradient);
+      volumeSamplerSampleWithGradient(&samplerState, field, p, &localGradient);
       constexpr float MIN_GRADIENT_LENGTH_SQ = 1e-12f;
       if (glm::dot(localGradient, localGradient) > MIN_GRADIENT_LENGTH_SQ) {
         // Convert local-space volume gradient to world-space normal direction.

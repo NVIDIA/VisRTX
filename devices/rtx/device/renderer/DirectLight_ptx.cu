@@ -29,12 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <cmath>
-#include <glm/common.hpp>
-#include <glm/ext/vector_float4.hpp>
-#include <glm/geometric.hpp>
-#include <glm/vector_relational.hpp>
-#include <limits>
+// visrtx
 #include "gpu/evalShading.h"
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
@@ -44,6 +39,16 @@
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
+
+// glm
+#include <glm/common.hpp>
+#include <glm/ext/vector_float4.hpp>
+#include <glm/geometric.hpp>
+#include <glm/vector_relational.hpp>
+
+// std
+#include <cmath>
+#include <limits>
 
 namespace visrtx {
 
