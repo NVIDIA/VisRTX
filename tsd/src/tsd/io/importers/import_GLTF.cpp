@@ -1394,6 +1394,8 @@ void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
   } else {
     logWarning("[import_GLTF] no scenes found in glTF file");
   }
+
+  scene.signalLayerChange(targetLocation->container());
 }
 
 } // namespace tsd::io
