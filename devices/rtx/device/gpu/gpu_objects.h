@@ -459,7 +459,7 @@ struct NVdbRectilinearData
 struct AnalyticalData {
   AnalyticalData() = default;
   uint32_t subType;
-  uint32_t padding_; // Ensure fieldData is 8-byte aligned
+
   // Generic storage for field-specific data
   // External projects can use this to store
   // their custom field parameters and reinterpret_cast as needed
