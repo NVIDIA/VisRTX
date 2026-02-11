@@ -3,6 +3,7 @@
 
 #include "AppSettingsDialog.h"
 // tsd_ui
+#include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 
 namespace tsd::ui::imgui {
@@ -29,18 +30,18 @@ void AppSettingsDialog::buildUI()
 
 void AppSettingsDialog::applySettings()
 {
-  auto *core = appCore();
+  const auto *config = m_app->uiConfig();
 
   ImGuiIO &io = ImGui::GetIO();
-  io.FontGlobalScale = core->windows.fontScale;
+  io.FontGlobalScale = config->fontScale;
 
   ImGuiStyle &style = ImGui::GetStyle();
-  style.WindowRounding = core->windows.uiRounding;
-  style.ChildRounding = core->windows.uiRounding;
-  style.FrameRounding = core->windows.uiRounding;
-  style.ScrollbarRounding = core->windows.uiRounding;
-  style.GrabRounding = core->windows.uiRounding;
-  style.PopupRounding = core->windows.uiRounding;
+  style.WindowRounding = config->rounding;
+  style.ChildRounding = config->rounding;
+  style.FrameRounding = config->rounding;
+  style.ScrollbarRounding = config->rounding;
+  style.GrabRounding = config->rounding;
+  style.PopupRounding = config->rounding;
 }
 
 void AppSettingsDialog::buildUI_applicationSettings()
@@ -52,11 +53,12 @@ void AppSettingsDialog::buildUI_applicationSettings()
 
   bool doUpdate = false;
 
-  doUpdate |=
-      ImGui::DragFloat("font size", &core->windows.fontScale, 0.01f, 0.5f, 4.f);
+  auto *config = m_app->uiConfig();
 
   doUpdate |=
-      ImGui::DragFloat("rounding", &core->windows.uiRounding, 0.01f, 0.f, 12.f);
+      ImGui::DragFloat("font size", &config->fontScale, 0.01f, 0.5f, 4.f);
+
+  doUpdate |= ImGui::DragFloat("rounding", &config->rounding, 0.01f, 0.f, 12.f);
 
   bool useFlat = core->anari.useFlatRenderIndex();
   if (ImGui::Checkbox("use flat render index", &useFlat))

@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-namespace tsd::app {
+namespace tsd::core {
 
 using Future = std::future<void>;
 
@@ -107,4 +107,4 @@ inline void wait(const Future &f)
     f.wait();
 }
 
-} // namespace tsd::app
+} // namespace tsd::core

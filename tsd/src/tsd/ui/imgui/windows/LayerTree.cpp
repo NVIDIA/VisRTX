@@ -2,14 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "LayerTree.h"
-
 // tsd_core
 #include "tsd/core/scene/objects/Volume.hpp"
 // tsd_io
 #include "tsd/io/procedural.hpp"
-// tsd_app
-#include "tsd/app/Core.h"
 // tsd_ui_imgui
+#include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/modals/ExportNanoVDBFileDialog.h"
 #include "tsd/ui/imgui/modals/ImportFileDialog.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
@@ -722,7 +720,7 @@ void LayerTree::buildUI_objectSceneMenu()
       ImGui::Separator();
 
       if (ImGui::MenuItem("import..."))
-        appCore()->windows.importDialog->show();
+        m_app->showImportFileDialog();
 
       ImGui::Separator();
 
@@ -780,9 +778,8 @@ void LayerTree::buildUI_objectSceneMenu()
                 || spatialFieldObject->subtype()
                     == core::tokens::volume::structuredRectilinear)) {
           ImGui::Separator();
-          if (ImGui::MenuItem("export to NanoVDB")) {
-            appCore()->windows.exportNanoVDBDialog->show();
-          }
+          if (ImGui::MenuItem("export to NanoVDB"))
+            m_app->showExportNanoVDBFileDialog();
         }
       }
       ImGui::Separator();

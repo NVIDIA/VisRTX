@@ -13,7 +13,7 @@ BlockingTaskModal::~BlockingTaskModal() = default;
 
 void BlockingTaskModal::buildUI()
 {
-  if (tsd::app::isReady(m_future))
+  if (tsd::core::isReady(m_future))
     this->hide();
 
   ImGui::ProgressBar(
@@ -22,6 +22,14 @@ void BlockingTaskModal::buildUI()
   m_timer.end();
   ImGui::NewLine();
   ImGui::TextDisabled("elapsed time: %.2fs", m_timer.seconds());
+}
+
+void BlockingTaskModal::activate(tsd::core::Future &&f, const char *text)
+{
+  m_timer.start();
+  m_future = std::move(f);
+  m_text = text;
+  this->show();
 }
 
 } // namespace tsd::ui::imgui

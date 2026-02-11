@@ -36,7 +36,7 @@ class Application : public TSDApplication
   {
     auto *log = new tsd::ui::imgui::Log(this, m_controller->appCore());
 
-    if (!m_controller->appCore()->logging.verbose) {
+    if (!m_controller->appCore()->logVerbose()) {
       tsd::core::logStatus(
           "app window running on rank '%i'", m_controller->rank());
     }

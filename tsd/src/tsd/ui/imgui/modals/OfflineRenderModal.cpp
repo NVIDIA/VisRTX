@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "OfflineRenderModal.h"
+#include "tsd/ui/imgui/Application.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 
@@ -15,7 +16,7 @@ OfflineRenderModal::~OfflineRenderModal() = default;
 
 void OfflineRenderModal::buildUI()
 {
-  if (tsd::app::isReady(m_future))
+  if (tsd::core::isReady(m_future))
     this->hide();
 
   ImGui::ProgressBar(
@@ -38,7 +39,7 @@ void OfflineRenderModal::start()
   m_canceled = false;
   this->show();
   auto *core = appCore();
-  m_future = core->jobs.queue.enqueue([&, core]() {
+  m_future = m_app->enqueueTask([this, core]() {
     tsd::app::renderAnimationSequence(*core,
         core->offline.output.outputDirectory,
         core->offline.output.filePrefix,

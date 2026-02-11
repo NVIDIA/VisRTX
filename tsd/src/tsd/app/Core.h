@@ -3,27 +3,20 @@
 
 #pragma once
 
-#include "CoreController.h"
-
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
+#include "tsd/core/scene/Scene.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/passes/VisualizeAOVPass.h"
+#include "tsd/rendering/view/CameraPath.h"
 #include "tsd/rendering/view/Manipulator.hpp"
 // tsd_io
 #include "tsd/io/importers.hpp"
 // std
 #include <map>
 
-#include "tsd/app/TaskQueue.h"
-#include "tsd/rendering/view/CameraPath.h"
-
-namespace tsd::ui::imgui {
-struct BlockingTaskModal;
-struct ImportFileDialog;
-struct ExportNanoVDBFileDialog;
-} // namespace tsd::ui::imgui
+#include "tsd/app/renderAnimationSequence.h"
 
 namespace tsd::core {
 struct Animation;
@@ -31,14 +24,13 @@ struct Animation;
 
 namespace tsd::app {
 
+using CameraPose = tsd::rendering::CameraPose;
 using DeviceInitParam = std::pair<std::string, tsd::core::Any>;
 
 struct CommandLineOptions
 {
   bool useDefaultLayout{true};
   bool useDefaultRenderer{true};
-  bool loadingScene{false};
-  bool preloadDevices{false};
   bool loadedFromStateFile{false};
   std::string stateFile;
   std::string currentLayerName{"default"};
@@ -110,12 +102,6 @@ struct ANARIDeviceManager
   } m_settings;
 };
 
-struct LogState
-{
-  bool verbose{false};
-  bool echoOutput{false};
-};
-
 struct CameraState
 {
   std::vector<CameraPose> poses;
@@ -173,30 +159,13 @@ struct OfflineRenderSequenceConfig
   void loadSettings(tsd::core::DataNode &root);
 };
 
-struct Windows
-{
-  tsd::ui::imgui::BlockingTaskModal *taskModal{nullptr};
-  tsd::ui::imgui::ImportFileDialog *importDialog{nullptr};
-  tsd::ui::imgui::ExportNanoVDBFileDialog *exportNanoVDBDialog{nullptr};
-  float fontScale{1.f};
-  float uiRounding{9.f};
-};
-
-struct Tasking
-{
-  TaskQueue queue{10};
-};
-
-struct Core : public CoreController
+struct Core
 {
   CommandLineOptions commandLine;
   TSDState tsd;
   ANARIDeviceManager anari;
-  LogState logging;
   CameraState view;
   OfflineRenderSequenceConfig offline;
-  Windows windows;
-  Tasking jobs;
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
@@ -205,43 +174,51 @@ struct Core : public CoreController
   Core();
   ~Core();
 
-  void parseCommandLine(int argc, const char **argv) override;
-  void setupSceneFromCommandLine(bool hdriOnly = false) override;
+  // Command line parsing //
+
+  void parseCommandLine(int argc, const char **argv);
+  void setupSceneFromCommandLine(bool hdriOnly = false);
+
+  // Logging //
+
+  bool logVerbose() const;
+  void setLogVerbose(bool v);
+  bool logEchoOutput() const;
+  void setLogEchoOutput(bool v);
 
   // Offline rendering //
 
-  void setOfflineRenderingLibrary(const std::string &libName) override;
+  void setOfflineRenderingLibrary(const std::string &libName);
 
   // Selection //
 
-  tsd::core::LayerNodeRef getFirstSelected() const override;
-  const std::vector<tsd::core::LayerNodeRef> &getSelectedNodes() const override;
-  void setSelected(tsd::core::LayerNodeRef node) override;
-  void setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes) override;
-  void setSelected(const tsd::core::Object *obj) override;
-  void addToSelection(tsd::core::LayerNodeRef node) override;
-  void removeFromSelection(tsd::core::LayerNodeRef node) override;
-  bool isSelected(tsd::core::LayerNodeRef node) const override;
-  void clearSelected() override;
+  tsd::core::LayerNodeRef getFirstSelected() const;
+  const std::vector<tsd::core::LayerNodeRef> &getSelectedNodes() const;
+  void setSelected(tsd::core::LayerNodeRef node);
+  void setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes);
+  void setSelected(const tsd::core::Object *obj);
+  void addToSelection(tsd::core::LayerNodeRef node);
+  void removeFromSelection(tsd::core::LayerNodeRef node);
+  bool isSelected(tsd::core::LayerNodeRef node) const;
+  void clearSelected();
 
   // Returns only parent nodes from selection (filters out children of selected
   // nodes)
-  std::vector<tsd::core::LayerNodeRef> getParentOnlySelectedNodes()
-      const override;
+  std::vector<tsd::core::LayerNodeRef> getParentOnlySelectedNodes() const;
 
   // Camera poses //
 
-  void addCurrentViewToCameraPoses(const char *name = "") override;
+  void addCurrentViewToCameraPoses(const char *name = "");
   void addTurntableCameraPoses(
       const tsd::math::float3 &azimuths, // begin, end, step
       const tsd::math::float3 &elevations, // begin, end, step
       const tsd::math::float3 &center,
       float distance,
-      const char *name = "") override;
-  void updateExistingCameraPoseFromView(CameraPose &p) override;
-  void setCameraPose(const CameraPose &pose) override;
-  void removeAllPoses() override;
-  bool updateCameraPathAnimation() override;
+      const char *name = "");
+  void updateExistingCameraPoseFromView(CameraPose &p);
+  void setCameraPose(const CameraPose &pose);
+  void removeAllPoses();
+  bool updateCameraPathAnimation();
 
   // Not copyable or moveable //
   Core(const Core &) = delete;
@@ -249,6 +226,13 @@ struct Core : public CoreController
   Core &operator=(const Core &) = delete;
   Core &operator=(Core &&) = delete;
   //////////////////////////////
+
+ private:
+  struct LogState
+  {
+    bool verbose{false};
+    bool echoOutput{false};
+  } m_logging;
 };
 
 void anariStatusFunc(const void *_core,

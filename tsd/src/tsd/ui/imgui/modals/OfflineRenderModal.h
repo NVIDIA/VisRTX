@@ -5,6 +5,7 @@
 
 #include "Modal.h"
 // tsd_core
+#include "tsd/core/TaskQueue.hpp"
 #include "tsd/core/Timer.hpp"
 
 namespace tsd::ui::imgui {
@@ -18,7 +19,7 @@ struct OfflineRenderModal : public Modal
   void start();
 
  private:
-  tsd::app::Future m_future;
+  tsd::core::Future m_future;
   std::string m_text;
   tsd::core::Timer m_timer;
   bool m_canceled{false};

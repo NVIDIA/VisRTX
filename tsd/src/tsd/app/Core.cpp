@@ -81,161 +81,7 @@ static std::vector<std::string> parseLibraryList(bool defaultNone)
   return libList;
 }
 
-// Core definitions ///////////////////////////////////////////////////////////
-
-Core::Core() : anari(&logging.verbose)
-{
-  tsd.scene.setUpdateDelegate(&anari.getUpdateDelegate());
-}
-
-Core::~Core()
-{
-  anari.releaseAllDevices();
-}
-
-void Core::parseCommandLine(int argc, const char **argv)
-{
-  if (argc < 2 || argv == nullptr) {
-    this->commandLine.libraryList =
-        parseLibraryList(!this->commandLine.useDefaultRenderer);
-    return;
-  }
-
-  auto &importerType = this->commandLine.importerType;
-
-  for (int i = 1; i < argc; i++) {
-    if (!argv[i])
-      continue;
-    std::string arg = argv[i];
-    if (arg == "-v" || arg == "--verbose")
-      this->logging.verbose = true;
-    else if (arg == "-e" || arg == "--echoOutput")
-      this->logging.echoOutput = true;
-    else if (arg == "--noDefaultLayout")
-      this->commandLine.useDefaultLayout = false;
-    else if (arg == "-pd" || arg == "--preloadDevices")
-      this->commandLine.preloadDevices = true;
-    else if (arg == "--secondaryView" || arg == "-sv")
-      this->commandLine.secondaryViewportLibrary = argv[++i];
-    else if (arg == "--noDefaultRenderer")
-      this->commandLine.useDefaultRenderer = false;
-    else if (arg == "-l" || arg == "--layer")
-      this->commandLine.currentLayerName = argv[++i];
-    else if (arg == "-tsd") {
-      importerType = tsd::io::ImporterType::TSD;
-      this->commandLine.loadingScene = true;
-    } else if (arg == "-agx")
-      importerType = tsd::io::ImporterType::AGX;
-    else if (arg == "-assimp")
-      importerType = tsd::io::ImporterType::ASSIMP;
-    else if (arg == "-assimp_flat")
-      importerType = tsd::io::ImporterType::ASSIMP_FLAT;
-    else if (arg == "-axyz")
-      importerType = tsd::io::ImporterType::AXYZ;
-    else if (arg == "-dlaf")
-      importerType = tsd::io::ImporterType::DLAF;
-    else if (arg == "-e57xyz")
-      importerType = tsd::io::ImporterType::E57XYZ;
-    else if (arg == "-gltf")
-      importerType = tsd::io::ImporterType::GLTF;
-    else if (arg == "-hdri")
-      importerType = tsd::io::ImporterType::HDRI;
-    else if (arg == "-hsmesh")
-      importerType = tsd::io::ImporterType::HSMESH;
-    else if (arg == "-nbody")
-      importerType = tsd::io::ImporterType::NBODY;
-    else if (arg == "-obj")
-      importerType = tsd::io::ImporterType::OBJ;
-    else if (arg == "-pdb")
-      importerType = tsd::io::ImporterType::PDB;
-    else if (arg == "-ply")
-      importerType = tsd::io::ImporterType::PLY;
-    else if (arg == "-pointsbin") {
-      this->commandLine.currentAnimationSequence = nullptr; // reset to new seq
-      importerType = tsd::io::ImporterType::POINTSBIN_MULTIFILE;
-    } else if (arg == "-pt")
-      importerType = tsd::io::ImporterType::PT;
-    else if (arg == "-silo")
-      importerType = tsd::io::ImporterType::SILO;
-    else if (arg == "-smesh")
-      importerType = tsd::io::ImporterType::SMESH;
-    else if (arg == "-smesh_animation")
-      importerType = tsd::io::ImporterType::SMESH_ANIMATION;
-    else if (arg == "-swc")
-      importerType = tsd::io::ImporterType::SWC;
-    else if (arg == "-trk")
-      importerType = tsd::io::ImporterType::TRK;
-    else if (arg == "-usd")
-      importerType = tsd::io::ImporterType::USD;
-    else if (arg == "-usd2")
-      importerType = tsd::io::ImporterType::USD2;
-    else if (arg == "-xyzdp")
-      importerType = tsd::io::ImporterType::XYZDP;
-    else if (arg == "-volume")
-      importerType = tsd::io::ImporterType::VOLUME;
-    else if (arg == "-blank")
-      importerType = tsd::io::ImporterType::BLANK;
-    else if (arg == "-xf" || arg == "--transferFunction")
-      importerType = tsd::io::ImporterType::XF;
-    else if (arg == "-camera" || arg == "--camera")
-      this->commandLine.cameraFile = argv[++i];
-    else {
-      if (importerType != tsd::io::ImporterType::NONE) {
-        if (importerType == tsd::io::ImporterType::POINTSBIN_MULTIFILE) {
-          if (!this->commandLine.currentAnimationSequence) {
-            this->commandLine.animationFilenames.push_back(
-                {tsd::io::ImporterType::POINTSBIN_MULTIFILE, {}});
-            this->commandLine.currentAnimationSequence =
-                &this->commandLine.animationFilenames.back();
-            this->commandLine.animationLayerNames.push_back(
-                this->commandLine.currentLayerName);
-          }
-          this->commandLine.currentAnimationSequence->second.push_back(arg);
-        } else {
-          this->commandLine.filenames.push_back(
-              {importerType, arg + ';' + this->commandLine.currentLayerName});
-          this->commandLine.currentAnimationSequence = nullptr;
-        }
-      } else {
-        this->commandLine.stateFile = arg;
-        this->commandLine.loadedFromStateFile = true;
-      }
-    }
-  }
-
-  this->commandLine.currentAnimationSequence = nullptr;
-
-  this->commandLine.libraryList =
-      parseLibraryList(!this->commandLine.useDefaultRenderer);
-}
-
-void Core::setupSceneFromCommandLine(bool hdriOnly)
-{
-  if (hdriOnly) {
-    for (const auto &f : commandLine.filenames) {
-      tsd::core::logStatus("...loading file '%s'", f.second.c_str());
-      if (f.first == tsd::io::ImporterType::HDRI)
-        tsd::io::import_HDRI(tsd.scene, f.second.c_str());
-    }
-    return;
-  }
-
-  const bool haveFiles = commandLine.filenames.size() > 0
-      || commandLine.animationFilenames.size() > 0;
-  const bool blankImport =
-      !haveFiles && commandLine.importerType == tsd::io::ImporterType::BLANK;
-  const bool loadFromState = commandLine.loadedFromStateFile;
-
-  const bool generateOrb = !(blankImport || haveFiles || loadFromState);
-
-  if (generateOrb) {
-    tsd::core::logStatus("...generating material_orb from embedded data");
-    tsd::io::generate_material_orb(tsd.scene);
-  } else if (!loadFromState) {
-    tsd::io::import_files(tsd.scene, commandLine.filenames);
-    tsd::io::import_animations(tsd.scene, commandLine.animationFilenames);
-  }
-}
+// ANARIDeviceManager definitions /////////////////////////////////////////////
 
 ANARIDeviceManager::ANARIDeviceManager(const bool *verboseFlag)
     : m_verboseFlag(verboseFlag)
@@ -354,6 +200,179 @@ void ANARIDeviceManager::saveSettings(tsd::core::DataNode &root)
 void ANARIDeviceManager::loadSettings(tsd::core::DataNode &root)
 {
   root["useFlatRenderIndex"].getValue(ANARI_BOOL, &m_settings.forceFlat);
+}
+
+// Core definitions ///////////////////////////////////////////////////////////
+
+Core::Core() : anari(&m_logging.verbose)
+{
+  tsd.scene.setUpdateDelegate(&anari.getUpdateDelegate());
+}
+
+Core::~Core()
+{
+  anari.releaseAllDevices();
+}
+
+void Core::parseCommandLine(int argc, const char **argv)
+{
+  if (argc < 2 || argv == nullptr) {
+    this->commandLine.libraryList =
+        parseLibraryList(!this->commandLine.useDefaultRenderer);
+    return;
+  }
+
+  auto &importerType = this->commandLine.importerType;
+
+  for (int i = 1; i < argc; i++) {
+    if (!argv[i])
+      continue;
+    std::string arg = argv[i];
+    if (arg == "-v" || arg == "--verbose")
+      setLogVerbose(true);
+    else if (arg == "-e" || arg == "--echoOutput")
+      setLogEchoOutput(true);
+    else if (arg == "--noDefaultLayout")
+      this->commandLine.useDefaultLayout = false;
+    else if (arg == "--secondaryView" || arg == "-sv")
+      this->commandLine.secondaryViewportLibrary = argv[++i];
+    else if (arg == "--noDefaultRenderer")
+      this->commandLine.useDefaultRenderer = false;
+    else if (arg == "-l" || arg == "--layer")
+      this->commandLine.currentLayerName = argv[++i];
+    else if (arg == "-tsd")
+      importerType = tsd::io::ImporterType::TSD;
+    else if (arg == "-agx")
+      importerType = tsd::io::ImporterType::AGX;
+    else if (arg == "-assimp")
+      importerType = tsd::io::ImporterType::ASSIMP;
+    else if (arg == "-assimp_flat")
+      importerType = tsd::io::ImporterType::ASSIMP_FLAT;
+    else if (arg == "-axyz")
+      importerType = tsd::io::ImporterType::AXYZ;
+    else if (arg == "-dlaf")
+      importerType = tsd::io::ImporterType::DLAF;
+    else if (arg == "-e57xyz")
+      importerType = tsd::io::ImporterType::E57XYZ;
+    else if (arg == "-gltf")
+      importerType = tsd::io::ImporterType::GLTF;
+    else if (arg == "-hdri")
+      importerType = tsd::io::ImporterType::HDRI;
+    else if (arg == "-hsmesh")
+      importerType = tsd::io::ImporterType::HSMESH;
+    else if (arg == "-nbody")
+      importerType = tsd::io::ImporterType::NBODY;
+    else if (arg == "-obj")
+      importerType = tsd::io::ImporterType::OBJ;
+    else if (arg == "-pdb")
+      importerType = tsd::io::ImporterType::PDB;
+    else if (arg == "-ply")
+      importerType = tsd::io::ImporterType::PLY;
+    else if (arg == "-pointsbin") {
+      this->commandLine.currentAnimationSequence = nullptr; // reset to new seq
+      importerType = tsd::io::ImporterType::POINTSBIN_MULTIFILE;
+    } else if (arg == "-pt")
+      importerType = tsd::io::ImporterType::PT;
+    else if (arg == "-silo")
+      importerType = tsd::io::ImporterType::SILO;
+    else if (arg == "-smesh")
+      importerType = tsd::io::ImporterType::SMESH;
+    else if (arg == "-smesh_animation")
+      importerType = tsd::io::ImporterType::SMESH_ANIMATION;
+    else if (arg == "-swc")
+      importerType = tsd::io::ImporterType::SWC;
+    else if (arg == "-trk")
+      importerType = tsd::io::ImporterType::TRK;
+    else if (arg == "-usd")
+      importerType = tsd::io::ImporterType::USD;
+    else if (arg == "-usd2")
+      importerType = tsd::io::ImporterType::USD2;
+    else if (arg == "-xyzdp")
+      importerType = tsd::io::ImporterType::XYZDP;
+    else if (arg == "-volume")
+      importerType = tsd::io::ImporterType::VOLUME;
+    else if (arg == "-blank")
+      importerType = tsd::io::ImporterType::BLANK;
+    else if (arg == "-xf" || arg == "--transferFunction")
+      importerType = tsd::io::ImporterType::XF;
+    else if (arg == "-camera" || arg == "--camera")
+      this->commandLine.cameraFile = argv[++i];
+    else {
+      if (importerType != tsd::io::ImporterType::NONE) {
+        if (importerType == tsd::io::ImporterType::POINTSBIN_MULTIFILE) {
+          if (!this->commandLine.currentAnimationSequence) {
+            this->commandLine.animationFilenames.push_back(
+                {tsd::io::ImporterType::POINTSBIN_MULTIFILE, {}});
+            this->commandLine.currentAnimationSequence =
+                &this->commandLine.animationFilenames.back();
+            this->commandLine.animationLayerNames.push_back(
+                this->commandLine.currentLayerName);
+          }
+          this->commandLine.currentAnimationSequence->second.push_back(arg);
+        } else {
+          this->commandLine.filenames.push_back(
+              {importerType, arg + ';' + this->commandLine.currentLayerName});
+          this->commandLine.currentAnimationSequence = nullptr;
+        }
+      } else {
+        this->commandLine.stateFile = arg;
+        this->commandLine.loadedFromStateFile = true;
+      }
+    }
+  }
+
+  this->commandLine.currentAnimationSequence = nullptr;
+
+  this->commandLine.libraryList =
+      parseLibraryList(!this->commandLine.useDefaultRenderer);
+}
+
+void Core::setupSceneFromCommandLine(bool hdriOnly)
+{
+  if (hdriOnly) {
+    for (const auto &f : commandLine.filenames) {
+      tsd::core::logStatus("...loading file '%s'", f.second.c_str());
+      if (f.first == tsd::io::ImporterType::HDRI)
+        tsd::io::import_HDRI(tsd.scene, f.second.c_str());
+    }
+    return;
+  }
+
+  const bool haveFiles = commandLine.filenames.size() > 0
+      || commandLine.animationFilenames.size() > 0;
+  const bool blankImport =
+      !haveFiles && commandLine.importerType == tsd::io::ImporterType::BLANK;
+  const bool loadFromState = commandLine.loadedFromStateFile;
+
+  const bool generateOrb = !(blankImport || haveFiles || loadFromState);
+
+  if (generateOrb) {
+    tsd::core::logStatus("...generating material_orb from embedded data");
+    tsd::io::generate_material_orb(tsd.scene);
+  } else if (!loadFromState) {
+    tsd::io::import_files(tsd.scene, commandLine.filenames);
+    tsd::io::import_animations(tsd.scene, commandLine.animationFilenames);
+  }
+}
+
+bool Core::logVerbose() const
+{
+  return m_logging.verbose;
+}
+
+void Core::setLogVerbose(bool v)
+{
+  m_logging.verbose = v;
+}
+
+bool Core::logEchoOutput() const
+{
+  return m_logging.echoOutput;
+}
+
+void Core::setLogEchoOutput(bool v)
+{
+  m_logging.echoOutput = v;
 }
 
 void Core::setOfflineRenderingLibrary(const std::string &libName)

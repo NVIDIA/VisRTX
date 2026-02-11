@@ -2,17 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ExportNanoVDBFileDialog.h"
-
-// tsd
+// tsd_core
 #include "tsd/core/Logging.hpp"
-
 // tsd_io
 #include "tsd/io/serialization.hpp"
-
 // tsd ui
 #include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/modals/BlockingTaskModal.h"
-
 // imgui
 #include "imgui.h"
 
@@ -116,7 +112,8 @@ void ExportNanoVDBFileDialog::buildUI()
               && spatialFieldObject->subtype()
                   != core::tokens::volume::structuredRectilinear)) {
         core::logError(
-            "[ExportVDBFileDialog] Selected TransferFunction1D does not reference a structured regular volume.");
+            "[ExportVDBFileDialog] Selected TransferFunction1D does not "
+            "reference a structured regular volume.");
         return;
       }
 
@@ -155,12 +152,7 @@ void ExportNanoVDBFileDialog::buildUI()
           m_enableDithering);
     };
 
-    if (!appCore()->windows.taskModal)
-      doExport();
-    else {
-      appCore()->windows.taskModal->activate(
-          doExport, "Please Wait: Exporting to NanoVDB...");
-    }
+    m_app->showTaskModal(doExport, "Please Wait: Exporting to NanoVDB...");
   }
 }
 

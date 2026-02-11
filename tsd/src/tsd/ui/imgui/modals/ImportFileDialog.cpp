@@ -8,6 +8,8 @@
 #include <SDL3/SDL_dialog.h>
 // tsd_io
 #include "tsd/io/importers.hpp"
+// tsd_core
+#include "tsd/core/Logging.hpp"
 
 namespace tsd::ui::imgui {
 
@@ -105,12 +107,7 @@ void ImportFileDialog::buildUI()
       scene.signalLayerChange(layer);
     };
 
-    if (!appCore()->windows.taskModal)
-      doLoad();
-    else {
-      appCore()->windows.taskModal->activate(
-          doLoad, "Please Wait: Importing Data...");
-    }
+    m_app->showTaskModal(doLoad, "Please Wait: Importing Data...");
   }
 }
 

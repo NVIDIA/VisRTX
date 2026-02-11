@@ -10,12 +10,21 @@
 #include "modals/OfflineRenderModal.h"
 // tsd_app
 #include "tsd/app/Core.h"
+// tsd_core
+#include "tsd/core/Logging.hpp"
+#include "tsd/core/TaskQueue.hpp"
 // anari_viewer
 #include <anari_viewer/Application.h>
 
 namespace tsd::ui::imgui {
 
 struct Window;
+
+struct UIConfig
+{
+  float fontScale{1.f};
+  float rounding{9.f};
+};
 
 class Application : public anari_viewer::Application
 {
@@ -24,25 +33,28 @@ class Application : public anari_viewer::Application
   ~Application() override;
 
   tsd::app::Core *appCore();
+  UIConfig *uiConfig();
 
-  void getFilenameFromDialog(std::string &filenameOut, bool save = false);
+  void getFilenameFromDialog(
+      std::string &filenameOut, bool isSaveDialog = false);
 
-  template <typename T>
-  T *findWindowOfType()
-  {
-    for (auto *w : m_windows) {
-      if (auto *typed = dynamic_cast<T *>(w))
-        return typed;
-    }
-    return nullptr;
-  }
+  // Enqueue a task to be executed on a background thread
+  template <class FUNCTION>
+  tsd::core::Future enqueueTask(FUNCTION &&task);
 
-  // Not movable or copyable //
+  // Enqueue a task, then show a modal until task is complete
+  template <class FUNCTION>
+  void showTaskModal(FUNCTION &&f, const char *text = "Please Wait");
+  void showImportFileDialog();
+  void showExportNanoVDBFileDialog();
+
+  ///////////////////////////////////////////////////////
+  //// Application is not a movable or copyable type ////
   Application(const Application &) = delete;
   Application &operator=(const Application &) = delete;
   Application(Application &&) = delete;
   Application &operator=(Application &&) = delete;
-  /////////////////////////////
+  ///////////////////////////////////////////////////////
 
  protected:
   // Things from anari_viewer::Application to override //
@@ -75,9 +87,6 @@ class Application : public anari_viewer::Application
   void setWindowArray(const anari_viewer::WindowArray &wa);
   virtual const char *getDefaultLayout() const = 0;
 
-  template <class FUNCTION>
-  void showTaskModal(FUNCTION &&f, const char *text = "Please Wait");
-
   // Data //
 
   std::vector<Window *> m_windows;
@@ -95,6 +104,8 @@ class Application : public anari_viewer::Application
   // Data //
 
   tsd::app::Core m_core;
+
+  tsd::core::TaskQueue m_jobs{10};
 
   std::string m_applicationName = "TSD";
 
@@ -115,14 +126,31 @@ class Application : public anari_viewer::Application
     anari::Frame frame{nullptr};
     tsd::rendering::RenderIndex *renderIndex{nullptr};
   } m_tsdDevice;
+
+  UIConfig m_uiConfig;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
+template <class FUNCTION>
+inline tsd::core::Future Application::enqueueTask(FUNCTION &&task)
+{
+  return m_jobs.enqueue(std::forward<FUNCTION>(task));
+}
+
 template <class F>
 inline void Application::showTaskModal(F &&f, const char *text)
 {
-  m_taskModal->activate(std::forward<F>(f), text);
+  auto future = enqueueTask(std::forward<F>(f));
+
+  if (!m_taskModal) {
+    tsd::core::logWarning(
+        "[Application] No task modal available to show, "
+        "executing task without showing modal.");
+    future.wait();
+  } else {
+    m_taskModal->activate(std::move(future), text);
+  }
 }
 
 } // namespace tsd::ui::imgui

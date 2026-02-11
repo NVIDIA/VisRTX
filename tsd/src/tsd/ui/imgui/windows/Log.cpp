@@ -41,8 +41,13 @@ Log::~Log()
 void Log::buildUI()
 {
   if (ImGui::BeginPopup("Options")) {
-    ImGui::Checkbox("Log verbose ANARI messages", &appCore()->logging.verbose);
-    ImGui::Checkbox("Echo log to stdout", &appCore()->logging.echoOutput);
+    auto core = appCore();
+    bool logVerbose = core->logVerbose();
+    if (ImGui::Checkbox("Log verbose ANARI messages", &logVerbose))
+      core->setLogVerbose(logVerbose);
+    bool echoOutput = core->logEchoOutput();
+    if (ImGui::Checkbox("Echo log to stdout", &echoOutput))
+      core->setLogEchoOutput(echoOutput);
     ImGui::Checkbox("Auto-scroll", &m_autoScroll);
     ImGui::EndPopup();
   }
@@ -91,7 +96,7 @@ void Log::addText(tsd::core::LogLevel level, const std::string &msg)
 {
   m_colorIDs.push_back(static_cast<int>(level));
 
-  if (appCore() && appCore()->logging.echoOutput)
+  if (appCore() && appCore()->logEchoOutput())
     fmt::print(stdout, "{}", msg);
 
   auto old_size = m_buf.size();
