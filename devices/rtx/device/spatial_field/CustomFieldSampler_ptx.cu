@@ -61,7 +61,7 @@ VISRTX_CALLABLE float __direct_callable__sampleCustom(
     const VolumeSamplingState *samplerState, const vec3 *location)
 {
 #ifdef VISRTX_CUSTOM_SAMPLE_DISPATCH
-  const CustomData &data = samplerState->custom;
+  const CustomFieldData &data = samplerState->custom;
   const vec3 P = *location;
 
   // Dispatch macro expands to switch statement with all registered field types
