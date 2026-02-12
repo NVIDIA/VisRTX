@@ -364,7 +364,38 @@ void registerCoreBindings(sol::state &lua)
       "timeStepCount",
       &core::Animation::timeStepCount,
       "update",
-      &core::Animation::update);
+      &core::Animation::update,
+      "setAsTimeSteps",
+      sol::overload(
+          // Single parameter: anim:setAsTimeSteps(obj, "param", arrayRef)
+          [](core::Animation &a,
+              sol::object obj,
+              const std::string &param,
+              core::ArrayRef arr) {
+            auto *o = extractObjectPtr(obj);
+            if (!o)
+              throw std::runtime_error(
+                  "setAsTimeSteps: first argument must be a valid object");
+            core::TimeStepValues steps(arr);
+            a.setAsTimeSteps(*o, core::Token(param), steps);
+          },
+          // Multi parameter: anim:setAsTimeSteps(obj, {"p1","p2"}, {arr1,arr2})
+          [](core::Animation &a,
+              sol::object obj,
+              sol::table params,
+              sol::table arrays) {
+            auto *o = extractObjectPtr(obj);
+            if (!o)
+              throw std::runtime_error(
+                  "setAsTimeSteps: first argument must be a valid object");
+            std::vector<core::Token> paramVec;
+            for (size_t i = 1; i <= params.size(); i++)
+              paramVec.emplace_back(params[i].get<std::string>().c_str());
+            std::vector<core::TimeStepValues> stepVec;
+            for (size_t i = 1; i <= arrays.size(); i++)
+              stepVec.emplace_back(arrays[i].get<core::ArrayRef>());
+            a.setAsTimeSteps(*o, paramVec, stepVec);
+          }));
 
   tsd["createScene"] = []() { return std::make_unique<core::Scene>(); };
 
