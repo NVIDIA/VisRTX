@@ -27,6 +27,7 @@ namespace tokens {
 
 extern Token none;
 extern Token unknown;
+extern Token defaultToken;
 
 } // namespace tokens
 

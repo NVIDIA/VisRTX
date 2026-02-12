@@ -61,7 +61,7 @@ TSDObject::TSDObject(
         anari::newObject<anari::Camera>(s->device, subtype.c_str());
     break;
   case ANARI_SURFACE:
-    obj = s->scene.createObject<tsd::core::Surface>().data();
+    obj = s->scene.createSurface().data();
     name = "surface" + std::to_string(s->surfaceCount++);
     break;
   case ANARI_GEOMETRY:

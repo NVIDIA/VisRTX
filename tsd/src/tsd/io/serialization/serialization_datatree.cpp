@@ -238,7 +238,7 @@ void nodeToNewObject(Scene &scene, core::DataNode &node)
     obj = scene.createObject<Sampler>(subtype).data();
     break;
   case ANARI_SURFACE:
-    obj = scene.createObject<Surface>().data();
+    obj = scene.createSurface().data();
     break;
   case ANARI_SPATIAL_FIELD:
     obj = scene.createObject<SpatialField>(subtype).data();

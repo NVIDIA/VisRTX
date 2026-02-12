@@ -14,6 +14,7 @@ namespace tokens {
 
 Token none = "none";
 Token unknown = "unknown";
+Token defaultToken = "default";
 
 } // namespace tokens
 

@@ -87,8 +87,6 @@ struct Scene
   /////////////////////////////
 
   template <typename T>
-  ObjectPoolRef<T> createObject();
-  template <typename T>
   ObjectPoolRef<T> createObject(Token subtype);
   Object *createObject(anari::DataType type, Token subtype);
   ArrayRef createArray(anari::DataType type,
@@ -103,7 +101,8 @@ struct Scene
       size_t items0,
       size_t items1 = 0,
       size_t items2 = 0);
-  SurfaceRef createSurface(const char *name, GeometryRef g, MaterialRef m = {});
+  SurfaceRef createSurface(
+      const char *name = "", GeometryRef g = {}, MaterialRef m = {});
 
   template <typename T>
   ObjectPoolRef<T> getObject(size_t i) const;
@@ -244,22 +243,6 @@ struct Scene
 ///////////////////////////////////////////////////////////////////////////////
 
 // Scene //
-
-template <typename T>
-inline ObjectPoolRef<T> Scene::createObject()
-{
-  static_assert(std::is_base_of<Object, T>::value,
-      "Scene::createObject<> can only create tsd::Object subclasses");
-  static_assert(!std::is_same<T, Array>::value,
-      "Use Scene::createArray() to create tsd::Array objects");
-  return {};
-}
-
-template <>
-inline SurfaceRef Scene::createObject()
-{
-  return createObjectImpl(m_db.surface);
-}
 
 template <typename T>
 inline ObjectPoolRef<T> Scene::createObject(Token subtype)

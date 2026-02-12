@@ -166,8 +166,9 @@ ArrayRef Scene::createArrayProxy(
 
 SurfaceRef Scene::createSurface(const char *name, GeometryRef g, MaterialRef m)
 {
-  auto surface = createObject<Surface>();
-  surface->setGeometry(g);
+  auto surface = createObjectImpl(m_db.surface);
+  if (g)
+    surface->setGeometry(g);
   surface->setMaterial(m ? m : defaultMaterial());
   surface->setName(name);
   return surface;
@@ -533,17 +534,17 @@ LayerNodeRef Scene::insertChildObjectNode(
   return inst;
 }
 
-void Scene::removeNode(LayerNodeRef node, bool deleteReferencedObjects)
+void Scene::removeNode(LayerNodeRef obj, bool deleteReferencedObjects)
 {
-  if (!node.valid() || node->isRoot())
+  if (obj->isRoot())
     return;
 
-  auto *layer = node->container();
+  auto *layer = obj->container();
 
   if (deleteReferencedObjects) {
     std::vector<LayerNodeRef> objects;
 
-    layer->traverse(node, [&](auto &node, int level) {
+    layer->traverse(obj, [&](auto &node, int level) {
       if (node.isLeaf())
         objects.push_back(layer->at(node.index()));
       return true;
@@ -553,7 +554,7 @@ void Scene::removeNode(LayerNodeRef node, bool deleteReferencedObjects)
       removeObject(o->value().getObject());
   }
 
-  layer->erase(node);
+  layer->erase(obj);
   signalLayerChange(layer);
 }
 
