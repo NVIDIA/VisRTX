@@ -46,7 +46,7 @@ class Application : public TSDApplication
 
     setWindowArray(windows);
 
-    viewport->setLibrary(core->commandLine.libraryList[0], false);
+    viewport->setLibraryToDefault();
     manipulator->setConfig(tsd::math::float3(2.743f, 4.747f, 0.944f),
         90.f,
         tsd::math::float2(180.f, 0.f));

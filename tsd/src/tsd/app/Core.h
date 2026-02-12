@@ -13,9 +13,8 @@
 #include "tsd/rendering/view/Manipulator.hpp"
 // tsd_io
 #include "tsd/io/importers.hpp"
-// std
-#include <map>
 
+#include "tsd/app/ANARIDeviceManager.h"
 #include "tsd/app/renderAnimationSequence.h"
 
 namespace tsd::core {
@@ -25,12 +24,9 @@ struct Animation;
 namespace tsd::app {
 
 using CameraPose = tsd::rendering::CameraPose;
-using DeviceInitParam = std::pair<std::string, tsd::core::Any>;
 
 struct CommandLineOptions
 {
-  bool useDefaultLayout{true};
-  bool useDefaultRenderer{true};
   bool loadedFromStateFile{false};
   std::string stateFile;
   std::string currentLayerName{"default"};
@@ -39,8 +35,6 @@ struct CommandLineOptions
   std::vector<tsd::core::Token> animationLayerNames;
   tsd::io::ImportAnimationFiles *currentAnimationSequence{nullptr};
   tsd::io::ImporterType importerType{tsd::io::ImporterType::NONE};
-  std::vector<std::string> libraryList;
-  std::string secondaryViewportLibrary;
   std::string cameraFile;
 };
 
@@ -56,50 +50,6 @@ struct TSDState
   bool sceneLoadComplete{false};
   std::vector<tsd::core::LayerNodeRef> selectedNodes;
   StashedSelection stashedSelection;
-};
-
-struct ANARIDeviceManager
-{
-  ANARIDeviceManager(const bool *verboseFlag = nullptr);
-
-  anari::Device loadDevice(const std::string &libName,
-      const std::vector<DeviceInitParam> &initialDeviceParams = {});
-
-  const anari::Extensions *loadDeviceExtensions(const std::string &libName);
-  tsd::rendering::RenderIndex *acquireRenderIndex(
-      tsd::core::Scene &c, anari::Device device);
-  void releaseRenderIndex(anari::Device device);
-  void releaseAllDevices();
-  tsd::core::MultiUpdateDelegate &getUpdateDelegate();
-
-  void setUseFlatRenderIndex(
-      bool f); // next acquireRenderIndex(...) will use flat render index
-  bool useFlatRenderIndex() const;
-
-  void saveSettings(tsd::core::DataNode &root);
-  void loadSettings(tsd::core::DataNode &root);
-
- private:
-  const bool *m_verboseFlag{nullptr};
-  struct LiveAnariIndex
-  {
-    int refCount{0};
-    tsd::rendering::RenderIndex *idx{nullptr};
-  };
-  std::map<anari::Device, LiveAnariIndex> m_rIdxs;
-  tsd::core::MultiUpdateDelegate m_delegate;
-  std::map<std::string, anari::Device> m_loadedDevices;
-  std::map<std::string, anari::Extensions> m_loadedDeviceExtensions;
-
-  // Settings //
-
-  struct Settings
-  {
-    // Use flat render index by default, unless set otherwise
-    // This is to avoid issues with instancing in the scene graph
-    // and to allow for faster rendering in some cases.
-    bool forceFlat{false};
-  } m_settings;
 };
 
 struct CameraState
@@ -234,13 +184,5 @@ struct Core
     bool echoOutput{false};
   } m_logging;
 };
-
-void anariStatusFunc(const void *_core,
-    ANARIDevice device,
-    ANARIObject source,
-    ANARIDataType sourceType,
-    ANARIStatusSeverity severity,
-    ANARIStatusCode code,
-    const char *message);
 
 } // namespace tsd::app

@@ -232,6 +232,16 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
     updateLibrary();
 }
 
+void Viewport::setLibraryToDefault()
+{
+  if (appCore()->commandLine.loadedFromStateFile)
+    return;
+
+  setLibrary(m_app->commandLineOptions()->useDefaultRenderer
+          ? appCore()->anari.libraryList()[0]
+          : "");
+}
+
 void Viewport::setDeviceChangeCb(ViewportDeviceChangeCb cb)
 {
   m_deviceChangeCb = std::move(cb);
@@ -381,7 +391,7 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   // Setup library //
 
   auto *core = appCore();
-  if (core->commandLine.useDefaultRenderer) {
+  if (m_app->commandLineOptions()->useDefaultRenderer) {
     std::string libraryName;
     root["anariLibrary"].getValue(ANARI_STRING, &libraryName);
     setLibrary(libraryName);
@@ -914,7 +924,8 @@ void Viewport::ui_menubar()
     // Device //
 
     if (ImGui::BeginMenu("Device")) {
-      for (auto &libName : appCore()->commandLine.libraryList) {
+      const auto &libraryList = appCore()->anari.libraryList();
+      for (auto &libName : libraryList) {
         const bool isThisLibrary = m_libName == libName;
         if (ImGui::RadioButton(libName.c_str(), isThisLibrary))
           setLibrary(libName);

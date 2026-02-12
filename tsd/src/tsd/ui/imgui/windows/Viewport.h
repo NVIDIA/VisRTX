@@ -46,6 +46,7 @@ struct Viewport : public Window
   void resetView(bool resetAzEl = true);
   void centerView();
   void setLibrary(const std::string &libName, bool doAsync = true);
+  void setLibraryToDefault();
   void setDeviceChangeCb(ViewportDeviceChangeCb cb);
   void setExternalInstances(
       const anari::Instance *instances = nullptr, size_t count = 0);

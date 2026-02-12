@@ -26,6 +26,13 @@ struct UIConfig
   float rounding{9.f};
 };
 
+struct CommandLineOptions
+{
+  bool useDefaultLayout{true};
+  bool useDefaultRenderer{true};
+  std::string secondaryViewportLibrary;
+};
+
 class Application : public anari_viewer::Application
 {
  public:
@@ -34,6 +41,7 @@ class Application : public anari_viewer::Application
 
   tsd::app::Core *appCore();
   UIConfig *uiConfig();
+  CommandLineOptions *commandLineOptions();
 
   void getFilenameFromDialog(
       std::string &filenameOut, bool isSaveDialog = false);
@@ -57,6 +65,8 @@ class Application : public anari_viewer::Application
   ///////////////////////////////////////////////////////
 
  protected:
+  void parseCommandLine(int argc, const char **argv);
+
   // Things from anari_viewer::Application to override //
 
   virtual anari_viewer::WindowArray setupWindows() override;
@@ -98,6 +108,9 @@ class Application : public anari_viewer::Application
 
   tsd::core::DataTree m_settings;
 
+  UIConfig m_uiConfig;
+  CommandLineOptions m_commandLine;
+
  private:
   void updateWindowTitle();
 
@@ -126,8 +139,6 @@ class Application : public anari_viewer::Application
     anari::Frame frame{nullptr};
     tsd::rendering::RenderIndex *renderIndex{nullptr};
   } m_tsdDevice;
-
-  UIConfig m_uiConfig;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////

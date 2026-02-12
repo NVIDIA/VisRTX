@@ -42,6 +42,11 @@ UIConfig *Application::uiConfig()
   return &m_uiConfig;
 }
 
+CommandLineOptions *Application::commandLineOptions()
+{
+  return &m_commandLine;
+}
+
 void Application::getFilenameFromDialog(std::string &filenameOut, bool save)
 {
   auto fileDialogCb =
@@ -80,6 +85,21 @@ void Application::showExportNanoVDBFileDialog()
   m_exportNanoVDBFileDialog->show();
 }
 
+void Application::parseCommandLine(int argc, const char **argv)
+{
+  for (int i = 1; i < argc; i++) {
+    if (!argv[i])
+      continue;
+    std::string arg = argv[i];
+    if (arg == "--noDefaultLayout")
+      m_commandLine.useDefaultLayout = false;
+    else if (arg == "--secondaryView" || arg == "-sv")
+      m_commandLine.secondaryViewportLibrary = argv[++i];
+    else if (arg == "--noDefaultRenderer")
+      m_commandLine.useDefaultRenderer = false;
+  }
+}
+
 anari_viewer::WindowArray Application::setupWindows()
 {
   anari_viewer::ui::init();
@@ -91,7 +111,7 @@ anari_viewer::WindowArray Application::setupWindows()
   io.Fonts->ConfigData[0].FontDataOwnedByAtlas = false;
   io.FontDefault = font;
 
-  if (appCore()->commandLine.useDefaultLayout)
+  if (commandLineOptions()->useDefaultLayout)
     ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
 
   m_appSettingsDialog = std::make_unique<AppSettingsDialog>(this);

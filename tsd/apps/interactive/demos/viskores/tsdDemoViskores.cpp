@@ -93,8 +93,7 @@ class Application : public TSDApplication
 
       core->tsd.sceneLoadComplete = true;
 
-      if (!core->commandLine.loadedFromStateFile)
-        vp->setLibrary(core->commandLine.libraryList[0], false);
+      vp->setLibraryToDefault();
     };
 
 #if 1

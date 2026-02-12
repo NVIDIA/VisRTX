@@ -60,14 +60,14 @@ class Application : public TSDApplication
 
     setWindowArray(windows);
 
-    if (core->commandLine.secondaryViewportLibrary.empty())
+    if (commandLineOptions()->secondaryViewportLibrary.empty())
       viewport2->hide();
     tfeditor->hide();
     isoeditor->hide();
 
     // Populate scene //
 
-    auto populateScene = [vp = viewport, vp2 = viewport2, core = core]() {
+    auto populateScene = [this, vp = viewport, vp2 = viewport2, core = core]() {
       auto loadStart = std::chrono::steady_clock::now();
       core->setupSceneFromCommandLine();
       auto loadEnd = std::chrono::steady_clock::now();
@@ -88,10 +88,12 @@ class Application : public TSDApplication
           "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
       core->tsd.sceneLoadComplete = true;
 
-      if (!core->commandLine.loadedFromStateFile) {
-        vp->setLibrary(core->commandLine.libraryList[0], false);
-        if (!core->commandLine.secondaryViewportLibrary.empty())
-          vp2->setLibrary(core->commandLine.secondaryViewportLibrary);
+      auto setupDefaultRenderer = !core->commandLine.loadedFromStateFile
+          || !commandLineOptions()->useDefaultRenderer;
+      if (setupDefaultRenderer) {
+        vp->setLibraryToDefault();
+        if (!commandLineOptions()->secondaryViewportLibrary.empty())
+          vp2->setLibrary(commandLineOptions()->secondaryViewportLibrary);
       }
     };
 

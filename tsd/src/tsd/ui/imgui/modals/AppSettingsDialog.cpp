@@ -12,8 +12,9 @@ AppSettingsDialog::AppSettingsDialog(Application *app)
     : Modal(app, "AppSettings")
 {
   auto *core = appCore();
+  const auto &libraryList = core->anari.libraryList();
   if (core->offline.renderer.activeRenderer < 0)
-    core->setOfflineRenderingLibrary(core->commandLine.libraryList[0]);
+    core->setOfflineRenderingLibrary(libraryList[0]);
 }
 
 void AppSettingsDialog::buildUI()
@@ -236,10 +237,11 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   }
 
   ImGui::SameLine();
+  const auto &libraryList = appCore()->anari.libraryList();
   if (ImGui::BeginCombo("##library_combo", "", ImGuiComboFlags_NoPreview)) {
-    for (size_t n = 0; n < core->commandLine.libraryList.size(); n++) {
-      if (ImGui::Selectable(core->commandLine.libraryList[n].c_str(), false))
-        core->setOfflineRenderingLibrary(core->commandLine.libraryList[n]);
+    for (size_t n = 0; n < libraryList.size(); n++) {
+      if (ImGui::Selectable(libraryList[n].c_str(), false))
+        core->setOfflineRenderingLibrary(libraryList[n]);
     }
     ImGui::EndCombo();
   }

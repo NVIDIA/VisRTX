@@ -29,10 +29,10 @@ class Application : public TSDApplication
 
     tsd::io::generate_material_orb(core->tsd.scene);
 
-    auto &libList = core->commandLine.libraryList;
-    libList.clear();
+    std::vector<std::string> libList;
     libList.push_back("visrtx");
     libList.push_back("{none}");
+    core->anari.setLibraryList(libList);
 
     auto *manipulator = &core->view.manipulator;
     core->tsd.sceneLoadComplete = true;
@@ -45,7 +45,7 @@ class Application : public TSDApplication
 
     setWindowArray(windows);
 
-    m_viewport->setLibrary(libList[0], false);
+    m_viewport->setLibraryToDefault();
 
     manipulator->setConfig(tsd::math::float3(0.f, 0.136f, 0.f),
         0.95f,

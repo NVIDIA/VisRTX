@@ -117,7 +117,7 @@ class Application : public TSDApplication
         "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
     core->tsd.sceneLoadComplete = true;
 
-    viewport->setLibrary(core->commandLine.libraryList[0], false);
+    viewport->setLibraryToDefault();
 
     return windows;
   }

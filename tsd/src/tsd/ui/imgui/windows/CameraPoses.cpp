@@ -332,10 +332,11 @@ void CameraPoses::renderInterpolatedPath()
   // Auto-initialize offline renderer settings if not configured
   if (core->offline.renderer.rendererObjects.empty()
       || core->offline.renderer.libraryName.empty()) {
-    if (!core->commandLine.libraryList.empty()) {
+    const auto &libraryList = appCore()->anari.libraryList();
+    if (!libraryList.empty()) {
       tsd::core::logStatus(
           "[CameraPoses] Initializing offline renderer from viewport device");
-      core->setOfflineRenderingLibrary(core->commandLine.libraryList[0]);
+      core->setOfflineRenderingLibrary(libraryList[0]);
     } else {
       tsd::core::logError(
           "[CameraPoses] No ANARI library available. Cannot render.");
