@@ -14,7 +14,9 @@ void registerAllBindings(sol::state &lua)
   tsd["render"] = lua.create_table();
 
   // Register bindings in order of dependency
+  registerMathBindings(lua);
   registerCoreBindings(lua);
+  registerObjectBindings(lua);
 }
 
 } // namespace tsd::scripting

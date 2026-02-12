@@ -10,6 +10,8 @@ PRIVATE
   LuaContext.cpp
   LuaBindings.cpp
   bindings/CoreBindings.cpp
+  bindings/MathBindings.cpp
+  bindings/ObjectBindings.cpp
   bindings/ParameterHelpers.cpp
 )
 
