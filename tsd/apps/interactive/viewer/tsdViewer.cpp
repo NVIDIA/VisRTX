@@ -89,7 +89,7 @@ class Application : public TSDApplication
       core->tsd.sceneLoadComplete = true;
 
       auto setupDefaultRenderer = !core->commandLine.loadedFromStateFile
-          || !commandLineOptions()->useDefaultRenderer;
+          && commandLineOptions()->useDefaultRenderer;
       if (setupDefaultRenderer) {
         vp->setLibraryToDefault();
         if (!commandLineOptions()->secondaryViewportLibrary.empty())
