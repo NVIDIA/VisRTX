@@ -23,3 +23,15 @@ project_link_libraries(
 project(tsdVolumeToNanoVDB)
 project_add_executable(tsdVolumeToNanoVDB.cpp)
 project_link_libraries(tsd_core tsd_io)
+
+if(TSD_USE_LUA)
+  project(tsdLua)
+  project_add_executable(tsdLua.cpp)
+  project_link_libraries(
+    tsd_lua
+    tsd_core
+    tsd_io
+    tsd_rendering
+    tsd_ext_sol2
+  )
+endif()
