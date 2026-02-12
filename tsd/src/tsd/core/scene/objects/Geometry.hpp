@@ -9,8 +9,6 @@ namespace tsd::core {
 
 struct Geometry : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_GEOMETRY;
-
   DECLARE_OBJECT_DEFAULT_LIFETIME(Geometry);
 
   Geometry(Token subtype = tokens::unknown);

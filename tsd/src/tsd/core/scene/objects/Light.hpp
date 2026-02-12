@@ -9,8 +9,6 @@ namespace tsd::core {
 
 struct Light : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_LIGHT;
-
   DECLARE_OBJECT_DEFAULT_LIFETIME(Light);
 
   Light(Token subtype = tokens::unknown);

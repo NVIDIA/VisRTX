@@ -9,8 +9,6 @@ namespace tsd::core {
 
 struct Sampler : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_SAMPLER;
-
   DECLARE_OBJECT_DEFAULT_LIFETIME(Sampler);
 
   Sampler(Token subtype = tokens::unknown);

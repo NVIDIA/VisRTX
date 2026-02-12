@@ -14,7 +14,6 @@ namespace tsd::core {
 
 struct Array : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_ARRAY;
   // clang-format off
   enum class MemoryKind {
     HOST, // Memory allocated on the host (main memory)

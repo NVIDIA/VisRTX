@@ -10,8 +10,6 @@ namespace tsd::core {
 
 struct Surface : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_SURFACE;
-
   DECLARE_OBJECT_DEFAULT_LIFETIME(Surface);
 
   Surface();

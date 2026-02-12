@@ -9,8 +9,6 @@ namespace tsd::core {
 
 struct Material : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_MATERIAL;
-
   DECLARE_OBJECT_DEFAULT_LIFETIME(Material);
 
   Material(Token subtype = tokens::unknown);

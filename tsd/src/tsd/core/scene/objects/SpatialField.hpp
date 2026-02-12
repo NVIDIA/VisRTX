@@ -11,8 +11,6 @@ struct Scene;
 
 struct SpatialField : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_SPATIAL_FIELD;
-
   DECLARE_OBJECT_DEFAULT_LIFETIME(SpatialField);
 
   SpatialField(Token subtype = tokens::unknown);
