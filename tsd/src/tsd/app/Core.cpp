@@ -25,18 +25,25 @@ Core::~Core()
 
 void Core::parseCommandLine(int argc, const char **argv)
 {
+  std::vector<std::string> args(argv, argv + argc);
+  parseCommandLine(args);
+}
+
+void Core::parseCommandLine(std::vector<std::string> &args)
+{
   auto &importerType = this->commandLine.importerType;
 
-  for (int i = 1; argv && i < argc; i++) {
-    if (!argv[i])
+  for (int i = 1; i < args.size(); i++) {
+    std::string &arg = args[i];
+    if (arg.empty())
       continue;
-    std::string arg = argv[i];
+
     if (arg == "-v" || arg == "--verbose")
       setLogVerbose(true);
     else if (arg == "-e" || arg == "--echoOutput")
       setLogEchoOutput(true);
     else if (arg == "-l" || arg == "--layer")
-      this->commandLine.currentLayerName = argv[++i];
+      this->commandLine.currentLayerName = args[++i];
     else if (arg == "-tsd")
       importerType = tsd::io::ImporterType::TSD;
     else if (arg == "-agx")
@@ -93,7 +100,7 @@ void Core::parseCommandLine(int argc, const char **argv)
     else if (arg == "-xf" || arg == "--transferFunction")
       importerType = tsd::io::ImporterType::XF;
     else if (arg == "-camera" || arg == "--camera")
-      this->commandLine.cameraFile = argv[++i];
+      this->commandLine.cameraFile = args[++i];
     else {
       if (importerType != tsd::io::ImporterType::NONE) {
         if (importerType == tsd::io::ImporterType::POINTSBIN_MULTIFILE) {

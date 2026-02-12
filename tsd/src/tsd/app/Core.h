@@ -126,7 +126,8 @@ struct Core
 
   // Command line parsing //
 
-  void parseCommandLine(int argc, const char **argv);
+  void parseCommandLine(int argc, const char **argv); // raw main() arguments
+  void parseCommandLine(std::vector<std::string> &args); // removes used args
   void setupSceneFromCommandLine(bool hdriOnly = false);
 
   // Logging //

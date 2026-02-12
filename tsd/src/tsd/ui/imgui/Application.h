@@ -65,7 +65,7 @@ class Application : public anari_viewer::Application
   ///////////////////////////////////////////////////////
 
  protected:
-  void parseCommandLine(int argc, const char **argv);
+  void parseCommandLine(std::vector<std::string> &args);
 
   // Things from anari_viewer::Application to override //
 

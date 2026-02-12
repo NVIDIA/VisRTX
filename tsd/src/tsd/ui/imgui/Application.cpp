@@ -24,8 +24,10 @@ namespace tsd::ui::imgui {
 
 Application::Application(int argc, const char **argv)
 {
+  std::vector<std::string> args(argv, argv + argc);
   auto *core = appCore();
-  core->parseCommandLine(argc, argv);
+  parseCommandLine(args);
+  core->parseCommandLine(args);
   if (!core->commandLine.stateFile.empty())
     m_filenameToLoadNextFrame = core->commandLine.stateFile;
 }
@@ -85,18 +87,20 @@ void Application::showExportNanoVDBFileDialog()
   m_exportNanoVDBFileDialog->show();
 }
 
-void Application::parseCommandLine(int argc, const char **argv)
+void Application::parseCommandLine(std::vector<std::string> &args)
 {
-  for (int i = 1; i < argc; i++) {
-    if (!argv[i])
+  for (int i = 1; i < args.size(); i++) {
+    std::string arg = std::move(args[i]); // consume arguments
+    if (arg.empty())
       continue;
-    std::string arg = argv[i];
     if (arg == "--noDefaultLayout")
       m_commandLine.useDefaultLayout = false;
     else if (arg == "--secondaryView" || arg == "-sv")
-      m_commandLine.secondaryViewportLibrary = argv[++i];
+      m_commandLine.secondaryViewportLibrary = std::move(args[++i]);
     else if (arg == "--noDefaultRenderer")
       m_commandLine.useDefaultRenderer = false;
+    else
+      args[i] = std::move(arg); // move back unconsumed arguments
   }
 }
 
