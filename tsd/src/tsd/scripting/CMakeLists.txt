@@ -12,6 +12,9 @@ PRIVATE
   bindings/CoreBindings.cpp
   bindings/MathBindings.cpp
   bindings/ObjectBindings.cpp
+  bindings/LayerBindings.cpp
+  bindings/IOBindings.cpp
+  bindings/RenderBindings.cpp
   bindings/ParameterHelpers.cpp
 )
 

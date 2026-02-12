@@ -15,5 +15,8 @@ void registerAllBindings(sol::state &lua);
 void registerMathBindings(sol::state &lua);
 void registerCoreBindings(sol::state &lua);
 void registerObjectBindings(sol::state &lua);
+void registerLayerBindings(sol::state &lua);
+void registerIOBindings(sol::state &lua);
+void registerRenderBindings(sol::state &lua);
 
 } // namespace tsd::scripting
