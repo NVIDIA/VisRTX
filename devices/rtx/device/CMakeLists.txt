@@ -161,7 +161,7 @@ set(SOURCES
   material/shaders/MatteShader.cpp
   material/shaders/PhysicallyBasedShader.cpp
 
-  renderer/AmbientOcclusion.cpp
+  renderer/Fast.cpp
   renderer/Debug.cpp
   renderer/Interactive.cpp
   renderer/PathTracer.cpp
@@ -358,7 +358,7 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
   )
 endfunction()
 
-GenerateEmbeddedPTX(renderer AmbientOcclusion)
+GenerateEmbeddedPTX(renderer Fast)
 GenerateEmbeddedPTX(renderer Debug)
 GenerateEmbeddedPTX(renderer Interactive)
 GenerateEmbeddedPTX(renderer PathTracer)

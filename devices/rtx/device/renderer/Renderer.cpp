@@ -34,7 +34,7 @@
 #include <helium/utility/TimeStamp.h>
 
 // specific renderers
-#include "AmbientOcclusion.h"
+#include "Fast.h"
 #include "Debug.h"
 #include "Interactive.h"
 #include "PathTracer.h"
@@ -111,8 +111,8 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     }
   };
 
-  if (subtype == "ao")
-    return new AmbientOcclusion(d);
+  if (subtype == "fast")
+    return new Fast(d);
   else if (subtype == "pathTracer" || subtype == "pt")
     return new PathTracer(d);
   else if (subtype == "interactive" || subtype == "default")

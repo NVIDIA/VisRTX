@@ -82,9 +82,9 @@ VISRTX_GLOBAL void __miss__()
   // no-op
 }
 
-// AmbientOcclusion shading policy for templated rendering loop /////////////
+// Fast shading policy for templated rendering loop /////////////////////////
 
-struct AmbientOcclusionShadingPolicy
+struct FastShadingPolicy
 {
   static VISRTX_DEVICE vec4 shadeSurface(const MaterialShadingState &shadingState,
       ScreenSample &ss,
@@ -92,7 +92,7 @@ struct AmbientOcclusionShadingPolicy
       const SurfaceHit &hit)
   {
     const auto &rendererParams = frameData.renderer;
-    const auto &aoParams = rendererParams.params.ao;
+    const auto &aoParams = rendererParams.params.fast;
 
     const float aoFactor = aoParams.aoSamples > 0
         ? computeAO(ss,
@@ -119,7 +119,7 @@ VISRTX_GLOBAL void __raygen__()
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
 
-  renderPixel<AmbientOcclusionShadingPolicy>(frameData, ss);
+  renderPixel<FastShadingPolicy>(frameData, ss);
 }
 
 } // namespace visrtx

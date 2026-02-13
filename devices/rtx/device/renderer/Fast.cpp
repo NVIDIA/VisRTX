@@ -29,50 +29,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "AmbientOcclusion.h"
+#include "Fast.h"
 // ptx
-#include "AmbientOcclusion_ptx.h"
+#include "Fast_ptx.h"
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_aoHitNames = {
+static const std::vector<HitgroupFunctionNames> g_fastHitNames = {
     {"__closesthit__primary", "__anyhit__primary"},
     {"__closesthit__shadow", "__anyhit__shadow"}};
 
-static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
+static const std::vector<std::string> g_fastMissNames = {"__miss__", "__miss__"};
 
-AmbientOcclusion::AmbientOcclusion(DeviceGlobalState *s) : Renderer(s, 1.f) {}
+Fast::Fast(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
-void AmbientOcclusion::commitParameters()
+void Fast::commitParameters()
 {
   Renderer::commitParameters();
   m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
 }
 
-void AmbientOcclusion::populateFrameData(FrameGPUData &fd) const
+void Fast::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
-  fd.renderer.params.ao.aoSamples = m_aoSamples;
+  fd.renderer.params.fast.aoSamples = m_aoSamples;
 }
 
-OptixModule AmbientOcclusion::optixModule() const
+OptixModule Fast::optixModule() const
 {
-  return deviceState()->rendererModules.ambientOcclusion;
+  return deviceState()->rendererModules.fast;
 }
 
-Span<HitgroupFunctionNames> AmbientOcclusion::hitgroupSbtNames() const
+Span<HitgroupFunctionNames> Fast::hitgroupSbtNames() const
 {
-  return make_Span(g_aoHitNames.data(), g_aoHitNames.size());
+  return make_Span(g_fastHitNames.data(), g_fastHitNames.size());
 }
 
-Span<std::string> AmbientOcclusion::missSbtNames() const
+Span<std::string> Fast::missSbtNames() const
 {
-  return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
+  return make_Span(g_fastMissNames.data(), g_fastMissNames.size());
 }
 
-ptx_blob AmbientOcclusion::ptx()
+ptx_blob Fast::ptx()
 {
-  return {AmbientOcclusion_ptx, sizeof(AmbientOcclusion_ptx)};
+  return {Fast_ptx, sizeof(Fast_ptx)};
 }
 
 } // namespace visrtx

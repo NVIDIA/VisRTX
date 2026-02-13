@@ -197,7 +197,7 @@
     },
     {
       "type": "ANARI_RENDERER",
-      "name": "ao",
+      "name": "fast",
       "parameters": [
         {
           "name": "sampleLimit",

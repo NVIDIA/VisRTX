@@ -55,7 +55,7 @@
 // PTX //
 
 // renderers
-#include "renderer/AmbientOcclusion.h"
+#include "renderer/Fast.h"
 #include "renderer/Debug.h"
 #include "renderer/Interactive.h"
 #include "renderer/PathTracer.h"
@@ -427,7 +427,7 @@ VisRTXDevice::~VisRTXDevice()
   CUDA_SYNC_CHECK();
 
   optixModuleDestroy(state.rendererModules.debug);
-  optixModuleDestroy(state.rendererModules.ambientOcclusion);
+  optixModuleDestroy(state.rendererModules.fast);
   optixModuleDestroy(state.rendererModules.pathTracer);
   optixModuleDestroy(state.rendererModules.interactive);
 #ifdef USE_MDL
@@ -762,9 +762,8 @@ DeviceInitStatus VisRTXDevice::initOptix()
   auto compileTasks = std::array{
       init_module(
           &state.rendererModules.debug, Debug::ptx(), "'debug' renderer"),
-      init_module(&state.rendererModules.ambientOcclusion,
-          AmbientOcclusion::ptx(),
-          "'ao' renderer"),
+      init_module(
+          &state.rendererModules.fast, Fast::ptx(), "'fast' renderer"),
       init_module(&state.rendererModules.pathTracer,
           PathTracer::ptx(),
           "'pathTracer' renderer"),

@@ -664,7 +664,7 @@ struct DebugRendererGPUData
   int method;
 };
 
-struct AORendererGPUData
+struct FastRendererGPUData
 {
   int aoSamples;
 };
@@ -686,7 +686,7 @@ struct InteractiveRendererGPUData
 union RendererParametersGPUData
 {
   DebugRendererGPUData debug;
-  AORendererGPUData ao;
+  FastRendererGPUData fast;
   PTRendererGPUData pathTracer;
   InteractiveRendererGPUData interactive;
 };
