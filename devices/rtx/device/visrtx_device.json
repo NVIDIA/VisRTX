@@ -324,7 +324,7 @@
     },
     {
       "type": "ANARI_RENDERER",
-      "name": "pathTracer",
+      "name": "quality",
       "parameters": [
         {
           "name": "sampleLimit",

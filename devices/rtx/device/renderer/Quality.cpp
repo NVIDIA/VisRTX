@@ -29,50 +29,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "PathTracer.h"
+#include "Quality.h"
 // ptx
-#include "PathTracer_ptx.h"
+#include "Quality_ptx.h"
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_ptHitNames = {
+static const std::vector<HitgroupFunctionNames> g_qualityHitNames = {
     {"__closesthit__", "__anyhit__"}};
 
-static const std::vector<std::string> g_aoMissNames = {"__miss__", "__miss__"};
+static const std::vector<std::string> g_qualityMissNames = {"__miss__", "__miss__"};
 
 
-PathTracer::PathTracer(DeviceGlobalState *s) : Renderer(s, 1.f) {}
+Quality::Quality(DeviceGlobalState *s) : Renderer(s, 1.f) {}
 
-void PathTracer::commitParameters()
+void Quality::commitParameters()
 {
   Renderer::commitParameters();
   m_maxDepth = std::clamp(getParam<int>("maxDepth", 5), 1, 256);
 }
 
-void PathTracer::populateFrameData(FrameGPUData &fd) const
+void Quality::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
-  fd.renderer.params.pathTracer.maxDepth = m_maxDepth;
+  fd.renderer.params.quality.maxDepth = m_maxDepth;
 }
 
-OptixModule PathTracer::optixModule() const
+OptixModule Quality::optixModule() const
 {
-  return deviceState()->rendererModules.pathTracer;
+  return deviceState()->rendererModules.quality;
 }
 
-Span<HitgroupFunctionNames> PathTracer::hitgroupSbtNames() const
+Span<HitgroupFunctionNames> Quality::hitgroupSbtNames() const
 {
-  return make_Span(g_ptHitNames.data(), g_ptHitNames.size());
+  return make_Span(g_qualityHitNames.data(), g_qualityHitNames.size());
 }
 
-Span<std::string> PathTracer::missSbtNames() const
+Span<std::string> Quality::missSbtNames() const
 {
-  return make_Span(g_aoMissNames.data(), g_aoMissNames.size());
+  return make_Span(g_qualityMissNames.data(), g_qualityMissNames.size());
 }
 
-ptx_blob PathTracer::ptx()
+ptx_blob Quality::ptx()
 {
-  return {PathTracer_ptx, sizeof(PathTracer_ptx)};
+  return {Quality_ptx, sizeof(Quality_ptx)};
 }
 
 } // namespace visrtx

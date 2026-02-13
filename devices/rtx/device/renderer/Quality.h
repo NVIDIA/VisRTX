@@ -35,9 +35,9 @@
 
 namespace visrtx {
 
-struct PathTracer : public Renderer
+struct Quality : public Renderer
 {
-  PathTracer(DeviceGlobalState *s);
+  Quality(DeviceGlobalState *s);
   void commitParameters() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;

@@ -670,7 +670,7 @@ struct FastRendererGPUData
   float aoBlend;
 };
 
-struct PTRendererGPUData
+struct QualityRendererGPUData
 {
   int maxDepth;
 };
@@ -688,7 +688,7 @@ union RendererParametersGPUData
 {
   DebugRendererGPUData debug;
   FastRendererGPUData fast;
-  PTRendererGPUData pathTracer;
+  QualityRendererGPUData quality;
   InteractiveRendererGPUData interactive;
 };
 

@@ -37,7 +37,7 @@
 #include "Fast.h"
 #include "Debug.h"
 #include "Interactive.h"
-#include "PathTracer.h"
+#include "Quality.h"
 #include "Test.h"
 #include "UnknownRenderer.h"
 
@@ -113,8 +113,8 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
 
   if (subtype == "fast")
     return new Fast(d);
-  else if (subtype == "pathTracer" || subtype == "pt")
-    return new PathTracer(d);
+  else if (subtype == "quality")
+    return new Quality(d);
   else if (subtype == "interactive" || subtype == "default")
     return new Interactive(d);
   else if (subtype == "test")

@@ -164,7 +164,7 @@ set(SOURCES
   renderer/Fast.cpp
   renderer/Debug.cpp
   renderer/Interactive.cpp
-  renderer/PathTracer.cpp
+  renderer/Quality.cpp
   renderer/Renderer.cpp
   renderer/Test.cpp
   renderer/UnknownRenderer.cpp
@@ -361,7 +361,7 @@ endfunction()
 GenerateEmbeddedPTX(renderer Fast)
 GenerateEmbeddedPTX(renderer Debug)
 GenerateEmbeddedPTX(renderer Interactive)
-GenerateEmbeddedPTX(renderer PathTracer)
+GenerateEmbeddedPTX(renderer Quality)
 GenerateEmbeddedPTX(renderer Test)
 GenerateEmbeddedPTX(geometry Intersectors)
 GenerateEmbeddedPTX(material/shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)

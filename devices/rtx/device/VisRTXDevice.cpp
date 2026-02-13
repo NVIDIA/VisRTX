@@ -58,7 +58,7 @@
 #include "renderer/Fast.h"
 #include "renderer/Debug.h"
 #include "renderer/Interactive.h"
-#include "renderer/PathTracer.h"
+#include "renderer/Quality.h"
 #include "renderer/Test.h"
 
 // materials
@@ -428,7 +428,7 @@ VisRTXDevice::~VisRTXDevice()
 
   optixModuleDestroy(state.rendererModules.debug);
   optixModuleDestroy(state.rendererModules.fast);
-  optixModuleDestroy(state.rendererModules.pathTracer);
+  optixModuleDestroy(state.rendererModules.quality);
   optixModuleDestroy(state.rendererModules.interactive);
 #ifdef USE_MDL
   optixModuleDestroy(state.rendererModules.mdl);
@@ -764,9 +764,8 @@ DeviceInitStatus VisRTXDevice::initOptix()
           &state.rendererModules.debug, Debug::ptx(), "'debug' renderer"),
       init_module(
           &state.rendererModules.fast, Fast::ptx(), "'fast' renderer"),
-      init_module(&state.rendererModules.pathTracer,
-          PathTracer::ptx(),
-          "'pathTracer' renderer"),
+      init_module(
+          &state.rendererModules.quality, Quality::ptx(), "'quality' renderer"),
       init_module(&state.rendererModules.interactive,
           Interactive::ptx(),
           "'interactive' renderer"),
