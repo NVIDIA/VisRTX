@@ -59,7 +59,6 @@
 #include "renderer/Debug.h"
 #include "renderer/DirectLight.h"
 #include "renderer/PathTracer.h"
-#include "renderer/Raycast.h"
 #include "renderer/Test.h"
 
 // materials
@@ -428,7 +427,6 @@ VisRTXDevice::~VisRTXDevice()
   CUDA_SYNC_CHECK();
 
   optixModuleDestroy(state.rendererModules.debug);
-  optixModuleDestroy(state.rendererModules.raycast);
   optixModuleDestroy(state.rendererModules.ambientOcclusion);
   optixModuleDestroy(state.rendererModules.pathTracer);
   optixModuleDestroy(state.rendererModules.directLight);
@@ -764,8 +762,6 @@ DeviceInitStatus VisRTXDevice::initOptix()
   auto compileTasks = std::array{
       init_module(
           &state.rendererModules.debug, Debug::ptx(), "'debug' renderer"),
-      init_module(
-          &state.rendererModules.raycast, Raycast::ptx(), "'raycast' renderer"),
       init_module(&state.rendererModules.ambientOcclusion,
           AmbientOcclusion::ptx(),
           "'ao' renderer"),

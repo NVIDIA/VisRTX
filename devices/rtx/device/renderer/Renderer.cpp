@@ -38,7 +38,6 @@
 #include "Debug.h"
 #include "DirectLight.h"
 #include "PathTracer.h"
-#include "Raycast.h"
 #include "Test.h"
 #include "UnknownRenderer.h"
 
@@ -112,9 +111,7 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     }
   };
 
-  if (subtype == "raycast")
-    return new Raycast(d);
-  else if (subtype == "ao")
+  if (subtype == "ao")
     return new AmbientOcclusion(d);
   else if (subtype == "pathTracer" || subtype == "pt")
     return new PathTracer(d);

@@ -399,50 +399,6 @@
     },
     {
       "type": "ANARI_RENDERER",
-      "name": "raycast",
-      "parameters": [
-        {
-          "name": "cullTriangleBackfaces",
-          "types": [
-            "ANARI_BOOL"
-          ],
-          "tags": [],
-          "default": false,
-          "description": "enable triangle back face culling"
-        },
-        {
-          "name": "tonemap",
-          "types": [
-            "ANARI_BOOL"
-          ],
-          "tags": [],
-          "default": true,
-          "description": "enable internal tonemapping during sample accumulation"
-        },
-        {
-          "name": "premultiplyBackground",
-          "types": [
-            "ANARI_BOOL"
-          ],
-          "tags": [],
-          "default": false,
-          "description": "pre-multiply alpha channel with background color"
-        },
-        {
-          "name": "volumeSamplingRate",
-          "types": [
-            "ANARI_FLOAT32"
-          ],
-          "tags": [],
-          "default": 0.125,
-          "minimum": 0.001,
-          "maximum": 10.0,
-          "description": "sampling rate of volumes when ray marching"
-        }
-      ]
-    },
-    {
-      "type": "ANARI_RENDERER",
       "name": "debug",
       "parameters": [
         {
@@ -451,8 +407,9 @@
             "ANARI_STRING"
           ],
           "tags": [],
-          "default": "primIndex",
+          "default": "baseColor",
           "values": [
+            "baseColor",
             "primitiveId",
             "objectId",
             "instanceId",

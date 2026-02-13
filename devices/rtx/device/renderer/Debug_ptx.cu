@@ -30,15 +30,14 @@
  */
 
 #include "DebugMethod.h"
+#include "gpu/evalShading.h"
 #include "gpu/intersectRay.h"
+#include "gpu/renderer/common.h"
+#include "gpu/renderer/raygen_helpers.h"
+#include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
 
 namespace visrtx {
-
-enum class RayType
-{
-  DEBUG
-};
 
 struct SurfaceRayData : public SurfaceHit
 {
@@ -51,6 +50,22 @@ struct VolumeRayData : public VolumeHit
 };
 
 DECLARE_FRAME_DATA(frameData)
+
+struct BaseColorShadingPolicy
+{
+  static VISRTX_DEVICE vec4 shadeSurface(
+      const MaterialShadingState &shadingState,
+      ScreenSample &ss,
+      const Ray &ray,
+      const SurfaceHit &hit)
+  {
+    auto baseColor = materialEvaluateTint(shadingState);
+    auto opacity = materialEvaluateOpacity(shadingState);
+    const auto lighting =
+        glm::abs(glm::dot(ray.dir, hit.Ns)) * frameData.renderer.ambientColor;
+    return vec4(baseColor * lighting, opacity);
+  }
+};
 
 VISRTX_DEVICE void handleSurfaceHit()
 {
@@ -190,6 +205,12 @@ VISRTX_DEVICE void handleVolumeHit()
 
 VISRTX_GLOBAL void __closesthit__()
 {
+  const auto method =
+      static_cast<DebugMethod>(frameData.renderer.params.debug.method);
+  if (method == DebugMethod::BASE_COLOR) {
+    ray::populateHit();
+    return;
+  }
   if (ray::isIntersectingSurfaces())
     handleSurfaceHit();
   else
@@ -206,6 +227,14 @@ VISRTX_GLOBAL void __raygen__()
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
+
+  const auto method =
+      static_cast<DebugMethod>(frameData.renderer.params.debug.method);
+  if (method == DebugMethod::BASE_COLOR) {
+    renderPixel<BaseColorShadingPolicy>(frameData, ss);
+    return;
+  }
+
   auto ray = makePrimaryRay(ss, true /*pixel centered*/);
 
   auto color = vec3(getBackgroundImage(frameData.renderer, ss.screen));
@@ -216,10 +245,10 @@ VISRTX_GLOBAL void __raygen__()
   uint32_t instID = ~0u;
 
   SurfaceRayData srd{};
-  intersectSurface(ss, ray, RayType::DEBUG, &srd);
+  intersectSurface(ss, ray, RayType::PRIMARY, &srd);
 
   VolumeRayData vrd{};
-  intersectVolume(ss, ray, RayType::DEBUG, &vrd);
+  intersectVolume(ss, ray, RayType::PRIMARY, &vrd);
 
   if (srd.foundHit && vrd.foundHit) {
     const bool volumeFirst = vrd.localRay.t.lower < srd.t;

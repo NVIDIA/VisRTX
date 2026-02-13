@@ -165,7 +165,6 @@ set(SOURCES
   renderer/Debug.cpp
   renderer/DirectLight.cpp
   renderer/PathTracer.cpp
-  renderer/Raycast.cpp
   renderer/Renderer.cpp
   renderer/Test.cpp
   renderer/UnknownRenderer.cpp
@@ -363,7 +362,6 @@ GenerateEmbeddedPTX(renderer AmbientOcclusion)
 GenerateEmbeddedPTX(renderer Debug)
 GenerateEmbeddedPTX(renderer DirectLight)
 GenerateEmbeddedPTX(renderer PathTracer)
-GenerateEmbeddedPTX(renderer Raycast)
 GenerateEmbeddedPTX(renderer Test)
 GenerateEmbeddedPTX(geometry Intersectors)
 GenerateEmbeddedPTX(material/shaders MatteShader ENTRIES __direct__callable__evalSurfaceMaterial)
