@@ -6,21 +6,17 @@
 #include "Window.h"
 
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
-
 // tsd_core
 #include "tsd/core/scene/Object.hpp"
 #include "tsd/core/scene/UpdateDelegate.hpp"
 #include "tsd/core/scene/objects/Camera.hpp"
-
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"
 #include "tsd/rendering/view/CameraUpdateDelegate.hpp"
 #include "tsd/rendering/view/Manipulator.hpp"
-
 // ImGuizmo
 #include <ImGuizmo.h>
-
 // std
 #include <array>
 #include <functional>

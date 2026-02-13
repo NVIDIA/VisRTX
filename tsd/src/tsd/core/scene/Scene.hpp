@@ -210,10 +210,8 @@ struct Scene
   friend void ::tsd::io::save_Scene(Scene &, core::DataNode &, bool);
   friend void ::tsd::io::load_Scene(Scene &, core::DataNode &);
 
-  template <typename OBJ_T>
-  ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv, Token subtype);
-  template <typename OBJ_T>
-  ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv);
+  template <typename OBJ_T, typename... Args>
+  ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv, Args &&...args);
 
   ArrayRef createArrayImpl(anari::DataType type,
       size_t items0,
@@ -358,24 +356,11 @@ inline CameraRef Scene::getObject(size_t i) const
   return m_db.camera.at(i);
 }
 
-template <typename OBJ_T>
+template <typename OBJ_T, typename... Args>
 inline ObjectPoolRef<OBJ_T> Scene::createObjectImpl(
-    ObjectPool<OBJ_T> &iv, Token subtype)
+    ObjectPool<OBJ_T> &iv, Args &&...args)
 {
-  auto retval = iv.emplace(subtype);
-  retval->m_scene = this;
-  retval->m_index = retval.index();
-  if (m_updateDelegate) {
-    retval->setUpdateDelegate(m_updateDelegate);
-    m_updateDelegate->signalObjectAdded(retval.data());
-  }
-  return retval;
-}
-
-template <typename OBJ_T>
-inline ObjectPoolRef<OBJ_T> Scene::createObjectImpl(ObjectPool<OBJ_T> &iv)
-{
-  auto retval = iv.emplace();
+  auto retval = iv.emplace(std::forward<Args>(args)...);
   retval->m_scene = this;
   retval->m_index = retval.index();
   if (m_updateDelegate) {

@@ -180,6 +180,9 @@ constexpr bool isObject()
 std::vector<std::string> getANARIObjectSubtypes(
     anari::Device d, anari::DataType type);
 
+void parseANARIObjectInfo(
+    Object &o, anari::Device d, ANARIDataType objectType, const char *subtype);
+
 Object parseANARIObjectInfo(
     anari::Device d, ANARIDataType type, const char *subtype);
 

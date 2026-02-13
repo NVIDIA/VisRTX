@@ -20,7 +20,7 @@ namespace tsd::network {
 
 RenderServer::RenderServer(int argc, const char **argv)
 {
-  tsd::core::setLogToStdout();
+  tsd::core::setLogToStdout(true);
   tsd::core::logStatus("[Server] Parsing command line...");
   m_core.parseCommandLine(argc, argv);
 }

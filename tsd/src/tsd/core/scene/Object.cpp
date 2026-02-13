@@ -472,21 +472,19 @@ std::vector<std::string> getANARIObjectSubtypes(
   return retval;
 }
 
-Object parseANARIObjectInfo(
-    anari::Device d, ANARIDataType objectType, const char *subtype)
+void parseANARIObjectInfo(
+    Object &o, anari::Device d, ANARIDataType objectType, const char *subtype)
 {
-  Object retval(objectType, subtype);
-
   if (objectType == ANARI_RENDERER) {
-    retval.addParameter("background")
+    o.addParameter("background")
         .setValue(float4(0.05f, 0.05f, 0.05f, 1.f))
         .setDescription("background color")
         .setUsage(ParameterUsageHint::COLOR);
-    retval.addParameter("ambientRadiance")
+    o.addParameter("ambientRadiance")
         .setValue(0.25f)
         .setDescription("intensity of ambient light")
         .setMin(0.f);
-    retval.addParameter("ambientColor")
+    o.addParameter("ambientColor")
         .setValue(float3(1.f))
         .setDescription("color of ambient light")
         .setUsage(ParameterUsageHint::COLOR);
@@ -497,7 +495,7 @@ Object parseANARIObjectInfo(
 
   for (; parameter && parameter->name != nullptr; parameter++) {
     tsd::core::Token name(parameter->name);
-    if (retval.parameter(name))
+    if (o.parameter(name))
       continue;
 
     auto *description = (const char *)anariGetParameterInfo(d,
@@ -540,7 +538,7 @@ Object parseANARIObjectInfo(
         "value",
         ANARI_STRING_LIST);
 
-    auto &p = retval.addParameter(name);
+    auto &p = o.addParameter(name);
     p.setValue(Any(parameter->type, nullptr));
     p.setDescription(description ? description : "");
     p.setValue(parseValue(parameter->type, defaultValue));
@@ -555,7 +553,13 @@ Object parseANARIObjectInfo(
     if (!svs.empty())
       p.setStringValues(svs);
   }
+}
 
+Object parseANARIObjectInfo(
+    anari::Device d, ANARIDataType objectType, const char *subtype)
+{
+  Object retval(objectType, subtype);
+  parseANARIObjectInfo(retval, d, objectType, subtype);
   return retval;
 }
 
