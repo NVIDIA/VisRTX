@@ -36,7 +36,7 @@
 // specific renderers
 #include "AmbientOcclusion.h"
 #include "Debug.h"
-#include "DirectLight.h"
+#include "Interactive.h"
 #include "PathTracer.h"
 #include "Test.h"
 #include "UnknownRenderer.h"
@@ -115,8 +115,8 @@ static Renderer *make_renderer(std::string_view subtype, DeviceGlobalState *d)
     return new AmbientOcclusion(d);
   else if (subtype == "pathTracer" || subtype == "pt")
     return new PathTracer(d);
-  else if (subtype == "directLight" || subtype == "default")
-    return new DirectLight(d);
+  else if (subtype == "interactive" || subtype == "default")
+    return new Interactive(d);
   else if (subtype == "test")
     return new Test(d);
   else if (beginsWith(subtype, "debug")) {

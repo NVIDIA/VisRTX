@@ -29,24 +29,24 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "DirectLight.h"
+#include "Interactive.h"
 // ptx
-#include "DirectLight_ptx.h"
+#include "Interactive_ptx.h"
 
 namespace visrtx {
 
-static const std::vector<HitgroupFunctionNames> g_directLightHitNames = {
+static const std::vector<HitgroupFunctionNames> g_interactiveHitNames = {
     {"__closesthit__shading", "__anyhit__shading"},
     {"__closesthit__shadow", "__anyhit__shadow"},
 };
 
-static const std::vector<std::string> g_directLightMissNames = {
+static const std::vector<std::string> g_interactiveMissNames = {
     "__miss__shading", "__miss__shadow"
 };
 
-DirectLight::DirectLight(DeviceGlobalState *s) : Renderer(s, 0.f) {}
+Interactive::Interactive(DeviceGlobalState *s) : Renderer(s, 0.f) {}
 
-void DirectLight::commitParameters()
+void Interactive::commitParameters()
 {
   Renderer::commitParameters();
   m_lightFalloff = std::clamp(getParam<float>("lightFalloff", 1.f), 0.f, 1.f);
@@ -55,37 +55,37 @@ void DirectLight::commitParameters()
       getParam<float>("volumeSamplingRateShadows", 0.0125f), 1e-4f, 10.f);
 }
 
-void DirectLight::populateFrameData(FrameGPUData &fd) const
+void Interactive::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
-  auto &directLight = fd.renderer.params.directLight;
-  directLight.lightFalloff = m_lightFalloff;
-  directLight.aoSamples = m_aoSamples;
-  directLight.aoColor = m_aoColor;
-  directLight.aoIntensity = m_aoIntensity;
-  directLight.inverseVolumeSamplingRateShadows =
+  auto &interactive = fd.renderer.params.interactive;
+  interactive.lightFalloff = m_lightFalloff;
+  interactive.aoSamples = m_aoSamples;
+  interactive.aoColor = m_aoColor;
+  interactive.aoIntensity = m_aoIntensity;
+  interactive.inverseVolumeSamplingRateShadows =
       1.f / m_volumeSamplingRateShadows;
 }
 
-OptixModule DirectLight::optixModule() const
+OptixModule Interactive::optixModule() const
 {
-  return deviceState()->rendererModules.directLight;
+  return deviceState()->rendererModules.interactive;
 }
 
-Span<HitgroupFunctionNames> DirectLight::hitgroupSbtNames() const
+Span<HitgroupFunctionNames> Interactive::hitgroupSbtNames() const
 {
-  return make_Span(g_directLightHitNames.data(), g_directLightHitNames.size());
+  return make_Span(g_interactiveHitNames.data(), g_interactiveHitNames.size());
 }
 
-Span<std::string> DirectLight::missSbtNames() const
+Span<std::string> Interactive::missSbtNames() const
 {
   return make_Span(
-      g_directLightMissNames.data(), g_directLightMissNames.size());
+      g_interactiveMissNames.data(), g_interactiveMissNames.size());
 }
 
-ptx_blob DirectLight::ptx()
+ptx_blob Interactive::ptx()
 {
-  return {DirectLight_ptx, sizeof(DirectLight_ptx)};
+  return {Interactive_ptx, sizeof(Interactive_ptx)};
 }
 
 } // namespace visrtx

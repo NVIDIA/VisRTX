@@ -54,9 +54,9 @@ namespace visrtx {
 
 DECLARE_FRAME_DATA(frameData)
 
-// DirectLight shading policy for templated rendering loop //////////////////
+// Interactive shading policy for templated rendering loop //////////////////
 
-struct DirectLightShadingPolicy
+struct InteractiveShadingPolicy
 {
   static VISRTX_DEVICE vec4 shadeSurface(
       const MaterialShadingState &shadingState,
@@ -65,17 +65,17 @@ struct DirectLightShadingPolicy
       const SurfaceHit &hit)
   {
     const auto &rendererParams = frameData.renderer;
-    const auto &directLightParams = rendererParams.params.directLight;
+    const auto &interactiveParams = rendererParams.params.interactive;
 
     auto &world = frameData.world;
 
     // Compute ambient light contribution //
-    const float aoFactor = directLightParams.aoSamples > 0
+    const float aoFactor = interactiveParams.aoSamples > 0
         ? computeAO(ss,
               ray,
               hit,
               rendererParams.occlusionDistance,
-              directLightParams.aoSamples,
+              interactiveParams.aoSamples,
               &surfaceAttenuation)
         : 1.f;
 
@@ -202,7 +202,7 @@ VISRTX_GLOBAL void __anyhit__shadow()
     rayMarchVolume(ray::screenSample(),
         hit,
         attenuation,
-        rendererParams.directLight.inverseVolumeSamplingRateShadows);
+        rendererParams.interactive.inverseVolumeSamplingRateShadows);
     if (attenuation < OPACITY_THRESHOLD)
       optixIgnoreIntersection();
   }
@@ -235,7 +235,7 @@ VISRTX_GLOBAL void __raygen__()
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
 
-  renderPixel<DirectLightShadingPolicy>(frameData, ss);
+  renderPixel<InteractiveShadingPolicy>(frameData, ss);
 }
 
 } // namespace visrtx

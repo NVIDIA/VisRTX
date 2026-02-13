@@ -173,7 +173,7 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
   {
     OptixModule debug{nullptr};
     OptixModule ambientOcclusion{nullptr};
-    OptixModule directLight{nullptr};
+    OptixModule interactive{nullptr};
     OptixModule pathTracer{nullptr};
     OptixModule test{nullptr};
 #ifdef USE_MDL

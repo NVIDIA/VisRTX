@@ -35,9 +35,9 @@
 
 namespace visrtx {
 
-struct DirectLight : public Renderer
+struct Interactive : public Renderer
 {
-  DirectLight(DeviceGlobalState *s);
+  Interactive(DeviceGlobalState *s);
   void commitParameters() override;
   void populateFrameData(FrameGPUData &fd) const override;
   OptixModule optixModule() const override;

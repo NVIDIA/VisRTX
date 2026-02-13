@@ -674,7 +674,7 @@ struct PTRendererGPUData
   int maxDepth;
 };
 
-struct DirectLightRendererGPUData
+struct InteractiveRendererGPUData
 {
   float lightFalloff;
   int aoSamples;
@@ -688,7 +688,7 @@ union RendererParametersGPUData
   DebugRendererGPUData debug;
   AORendererGPUData ao;
   PTRendererGPUData pathTracer;
-  DirectLightRendererGPUData directLight;
+  InteractiveRendererGPUData interactive;
 };
 
 enum class BackgroundMode
