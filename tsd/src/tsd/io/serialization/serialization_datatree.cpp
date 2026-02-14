@@ -29,9 +29,9 @@ void parameterToNode(const Parameter &p, core::DataNode &node)
     node["description"] = p.description();
   if (p.usage() != ParameterUsageHint::NONE)
     node["usage"] = static_cast<int>(p.usage());
-  if (p.min())
+  if (p.hasMin())
     node["min"] = p.min();
-  if (p.max())
+  if (p.hasMax())
     node["max"] = p.max();
 
   if (!p.stringValues().empty()) {
@@ -117,6 +117,9 @@ void objectToNode(
   node["self"] = Any(obj.type(), obj.index());
   node["subtype"] = obj.subtype().c_str();
 
+  if (obj.type() == ANARI_RENDERER && obj.rendererDeviceName())
+    node["rendererDeviceName"] = obj.rendererDeviceName().c_str();
+
   if (obj.numParameters() > 0) {
     auto &params = node["parameters"];
     for (size_t i = 0; i < obj.numParameters(); i++) {
@@ -178,7 +181,7 @@ void nodeToNewObject(Scene &scene, core::DataNode &node)
   const Any self = node["self"].getValue();
   const auto type = self.type();
   const size_t index = self.getAsObjectIndex();
-  const Token subtype(node["subtype"].getValueAs<std::string>().c_str());
+  const Token subtype(node["subtype"].getValueAs<std::string>());
 
   if (!anari::isObject(type)) {
     logError("[nodeToObject] parsed invalid object type '%s'",
@@ -252,6 +255,13 @@ void nodeToNewObject(Scene &scene, core::DataNode &node)
   case ANARI_CAMERA:
     obj = scene.createObject<Camera>(subtype).data();
     break;
+  case ANARI_RENDERER: {
+    std::string rendererDeviceName;
+    if (auto *c = node.child("rendererDeviceName"); c != nullptr)
+      rendererDeviceName = c->getValueAs<std::string>();
+    if (!rendererDeviceName.empty())
+      obj = scene.createRenderer(rendererDeviceName, subtype).data();
+  } break;
   default:
     break;
   }
@@ -442,6 +452,7 @@ void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays)
   objectPoolToNode(objectDB, scene.m_db.volume, "volume");
   objectPoolToNode(objectDB, scene.m_db.light, "light");
   objectPoolToNode(objectDB, scene.m_db.camera, "camera");
+  objectPoolToNode(objectDB, scene.m_db.renderer, "renderer");
   objectPoolToNode(objectDB, scene.m_db.array, "array");
 }
 
@@ -489,6 +500,7 @@ void load_Scene(Scene &scene, core::DataNode &root)
   nodeToObjectPool(objectDB, scene, "volume");
   nodeToObjectPool(objectDB, scene, "light");
   nodeToObjectPool(objectDB, scene, "camera");
+  nodeToObjectPool(objectDB, scene, "renderer");
 
   // Layers
 

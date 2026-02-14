@@ -32,6 +32,7 @@ static tsd::rendering::Manipulator g_manipulator;
 static std::vector<tsd::rendering::CameraPose> g_cameraPoses;
 static std::unique_ptr<tsd::app::Core> g_core;
 
+static tsd::core::Token g_deviceName;
 static anari::Library g_library{nullptr};
 static anari::Device g_device{nullptr};
 static anari::Camera g_camera{nullptr};
@@ -67,6 +68,7 @@ static void loadANARIDevice()
   };
 
   auto library = g_core->offline.renderer.libraryName;
+  g_deviceName = library;
 
   printf("Loading ANARI device from '%s' library...", library.c_str());
   fflush(stdout);
@@ -109,8 +111,8 @@ static void initTSDRenderIndex()
   fflush(stdout);
 
   g_timer.start();
-  g_renderIndex =
-      std::make_unique<tsd::rendering::RenderIndexAllLayers>(*g_ctx, g_device);
+  g_renderIndex = std::make_unique<tsd::rendering::RenderIndexAllLayers>(
+      *g_ctx, g_deviceName, g_device);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());

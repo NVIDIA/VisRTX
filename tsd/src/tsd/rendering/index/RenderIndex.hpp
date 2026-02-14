@@ -18,11 +18,12 @@ struct RenderToAnariObjectsVisitor;
 
 struct RenderIndex : public BaseUpdateDelegate
 {
-  RenderIndex(Scene &scene, anari::Device d);
+  RenderIndex(Scene &scene, tsd::core::Token deviceName, anari::Device d);
   virtual ~RenderIndex();
 
   anari::Device device() const;
   anari::World world() const;
+  anari::Renderer renderer(size_t i);
 
   void logCacheInfo() const;
 

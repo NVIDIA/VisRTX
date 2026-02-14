@@ -10,6 +10,7 @@
 #include "tsd/core/scene/objects/Geometry.hpp"
 #include "tsd/core/scene/objects/Light.hpp"
 #include "tsd/core/scene/objects/Material.hpp"
+#include "tsd/core/scene/objects/Renderer.hpp"
 #include "tsd/core/scene/objects/Sampler.hpp"
 #include "tsd/core/scene/objects/SpatialField.hpp"
 #include "tsd/core/scene/objects/Surface.hpp"
@@ -43,6 +44,7 @@ struct ObjectDatabase
   ObjectPool<SpatialField> field;
   ObjectPool<Light> light;
   ObjectPool<Camera> camera;
+  ObjectPool<Renderer> renderer;
 
   // Not copyable or moveable //
   ObjectDatabase() = default;
@@ -86,6 +88,8 @@ struct Scene
   // Flat object collections //
   /////////////////////////////
 
+  // Generic objets //
+
   template <typename T>
   ObjectPoolRef<T> createObject(Token subtype);
   Object *createObject(anari::DataType type, Token subtype);
@@ -113,6 +117,15 @@ struct Scene
   void removeObject(const Object *o);
   void removeObject(const Any &o);
   void removeAllObjects();
+
+  // Renderers (specially handled per-device) //
+
+  RendererRef createRenderer(
+      Token deviceName, Token subtype = tokens::defaultToken);
+  std::vector<RendererRef> createStandardRenderers(
+      Token deviceName, anari::Device device);
+  std::vector<RendererRef> renderersOfDevice(Token deviceName) const;
+  void removeRenderersForDevice(Token deviceName);
 
   BaseUpdateDelegate *updateDelegate() const;
   void setUpdateDelegate(BaseUpdateDelegate *ud);
@@ -171,8 +184,7 @@ struct Scene
 
   // Remove nodes //
 
-  void removeNode(
-      LayerNodeRef obj, bool deleteReferencedObjects = false);
+  void removeNode(LayerNodeRef obj, bool deleteReferencedObjects = false);
 
   // Indicate changes occurred //
 
@@ -249,6 +261,8 @@ inline ObjectPoolRef<T> Scene::createObject(Token subtype)
       "Scene::createObject<> can only create tsd::Object subclasses");
   static_assert(!std::is_same<T, Array>::value,
       "Use Scene::createArray() to create tsd::Array objects");
+  static_assert(!std::is_same<T, Renderer>::value,
+      "Use Scene::createRenderer() to create tsd::Renderer objects");
   return {};
 }
 
@@ -354,6 +368,12 @@ template <>
 inline CameraRef Scene::getObject(size_t i) const
 {
   return m_db.camera.at(i);
+}
+
+template <>
+inline RendererRef Scene::getObject(size_t i) const
+{
+  return m_db.renderer.at(i);
 }
 
 template <typename OBJ_T, typename... Args>

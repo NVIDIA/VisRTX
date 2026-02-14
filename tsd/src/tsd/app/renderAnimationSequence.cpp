@@ -42,10 +42,11 @@ static OfflineRenderRig setupRig(tsd::app::Core &core)
   // Setup render index //
 
   auto &config = core.offline;
-  auto d = core.anari.loadDevice(config.renderer.libraryName.c_str());
+  auto name = config.renderer.libraryName.c_str();
+  auto d = core.anari.loadDevice(name);
 
   auto &scene = core.tsd.scene;
-  rig.renderIndex = core.anari.acquireRenderIndex(scene, d);
+  rig.renderIndex = core.anari.acquireRenderIndex(scene, name, d);
 
   // Setup camera //
 

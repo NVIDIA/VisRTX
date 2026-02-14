@@ -23,9 +23,11 @@ static void releaseInstances(
 
 // RenderIndexAllLayers definitions ///////////////////////////////////////////
 
-RenderIndexAllLayers::RenderIndexAllLayers(
-    Scene &scene, anari::Device d, bool alwaysGatherAllLights)
-    : RenderIndex(scene, d), m_forceAllLights(alwaysGatherAllLights)
+RenderIndexAllLayers::RenderIndexAllLayers(Scene &scene,
+    tsd::core::Token deviceName,
+    anari::Device d,
+    bool alwaysGatherAllLights)
+    : RenderIndex(scene, deviceName, d), m_forceAllLights(alwaysGatherAllLights)
 {
   m_includedLayers = scene.getActiveLayers();
 }

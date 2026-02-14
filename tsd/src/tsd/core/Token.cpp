@@ -4,10 +4,12 @@
 #include "tsd/core/Token.hpp"
 // std
 #include <memory>
+#include <mutex>
 #include <unordered_set>
 
 namespace tsd::core {
 
+static std::mutex g_tokenRegistryMutex;
 static std::unique_ptr<std::unordered_set<std::string>> g_tokenRegistry;
 
 Token::Token(const char *s) : Token(std::string(s)) {}
@@ -16,8 +18,12 @@ Token::Token(const std::string &s)
 {
   if (s.empty())
     return;
-  else if (!g_tokenRegistry)
-    g_tokenRegistry = std::make_unique<std::unordered_set<std::string>>();
+  else if (!g_tokenRegistry) {
+    std::lock_guard<std::mutex> lock(g_tokenRegistryMutex);
+    if (!g_tokenRegistry)
+      g_tokenRegistry = std::make_unique<std::unordered_set<std::string>>();
+  }
+  std::lock_guard<std::mutex> lock(g_tokenRegistryMutex);
   auto result = g_tokenRegistry->insert(s);
   m_value = result.first->c_str();
 }

@@ -58,6 +58,7 @@ Object::Object(Object &&o)
   m_updateDelegate = std::move(o.m_updateDelegate);
   m_metadata = std::move(o.m_metadata);
   m_useCounts = std::move(o.m_useCounts);
+  m_rendererDeviceName = std::move(o.m_rendererDeviceName);
   for (auto &p : m_parameters)
     p.second.setObserver(this);
 }
@@ -75,6 +76,7 @@ Object &Object::operator=(Object &&o)
   m_updateDelegate = std::move(o.m_updateDelegate);
   m_metadata = std::move(o.m_metadata);
   m_useCounts = std::move(o.m_useCounts);
+  m_rendererDeviceName = std::move(o.m_rendererDeviceName);
   for (auto &p : m_parameters)
     p.second.setObserver(this);
   return *this;
@@ -98,6 +100,11 @@ size_t Object::index() const
 Scene *Object::scene() const
 {
   return m_scene;
+}
+
+Token Object::rendererDeviceName() const
+{
+  return m_rendererDeviceName;
 }
 
 size_t Object::totalUseCount() const
@@ -550,8 +557,10 @@ void parseANARIObjectInfo(
     std::vector<std::string> svs;
     for (; stringValues && *stringValues; stringValues++)
       svs.push_back(*stringValues);
-    if (!svs.empty())
+    if (!svs.empty()) {
       p.setStringValues(svs);
+      p.setValue(svs[0].c_str()); // reset default value
+    }
   }
 }
 

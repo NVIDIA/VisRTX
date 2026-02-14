@@ -17,6 +17,14 @@
 #include <type_traits>
 
 namespace tsd::core {
+struct Object;
+} // namespace tsd::core
+
+namespace tsd::io {
+void nodeToNewObject(core::DataNode &node, core::Object &obj);
+} // namespace tsd::io
+
+namespace tsd::core {
 
 struct Scene;
 struct AnariObjectCache;
@@ -61,6 +69,7 @@ struct Object : public ParameterObserver
   Token subtype() const;
   size_t index() const;
   Scene *scene() const;
+  Token rendererDeviceName() const; // only populated by Renderer
 
   //// Use count tracking (Scene garbage collection) ////
 
@@ -140,8 +149,11 @@ struct Object : public ParameterObserver
   virtual void removeParameter(const Parameter *p) override;
   BaseUpdateDelegate *updateDelegate() const;
 
+  Token m_rendererDeviceName{}; // only used by Renderer
+
  private:
   friend struct Scene;
+  friend void io::nodeToNewObject(core::DataNode &node, Object &obj);
 
   void incObjectUseCountParameter(const Parameter *p);
   void decObjectUseCountParameter(const Parameter *p);

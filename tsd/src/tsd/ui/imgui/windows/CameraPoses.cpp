@@ -421,14 +421,16 @@ void CameraPoses::renderInterpolatedPath()
           capturedTotalFrames]() {
         // Setup render pipeline
         auto &config = core->offline;
-        auto d = core->anari.loadDevice(config.renderer.libraryName.c_str());
+        auto deviceName = config.renderer.libraryName.c_str();
+        auto d = core->anari.loadDevice(deviceName);
         if (!d) {
           tsd::core::logError("[CameraPoses] Failed to load ANARI device");
           return;
         }
 
         auto &scene = core->tsd.scene;
-        auto *renderIndex = core->anari.acquireRenderIndex(scene, d);
+        auto *renderIndex =
+            core->anari.acquireRenderIndex(scene, deviceName, d);
         if (!renderIndex) {
           tsd::core::logError("[CameraPoses] Failed to acquire render index");
           anari::release(d, d);

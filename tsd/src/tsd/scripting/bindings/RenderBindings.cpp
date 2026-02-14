@@ -108,7 +108,7 @@ void registerRenderBindings(sol::state &lua)
   tsd.new_usertype<rendering::RenderIndexAllLayers>(
       "RenderIndex",
       sol::constructors<rendering::RenderIndexAllLayers(
-          core::Scene &, anari::Device)>(),
+          core::Scene &, tsd::core::Token, anari::Device)>(),
       "populate",
       [](rendering::RenderIndexAllLayers &ri) { ri.populate(); },
       "world",
@@ -123,7 +123,7 @@ void registerRenderBindings(sol::state &lua)
       throw std::runtime_error("createRenderIndex: device handle is null");
     }
     return std::make_shared<rendering::RenderIndexAllLayers>(
-        scene, dev->device);
+        scene, dev->libraryName, dev->device);
   };
 
   render["getWorldBounds"] =

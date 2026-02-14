@@ -26,6 +26,7 @@ struct World : public Object
   void finalize() override;
 
   const tsd::rendering::RenderIndexAllLayers *getRenderIndex() const;
+  tsd::rendering::RenderIndexAllLayers *getRenderIndex();
 
  private:
   tsd::core::Layer *layer() const;

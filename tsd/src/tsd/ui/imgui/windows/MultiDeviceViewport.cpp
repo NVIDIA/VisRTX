@@ -131,7 +131,7 @@ void MultiDeviceViewport::setLibrary(const std::string &libName)
     auto r = anari::newObject<anari::Renderer>(d, "default");
 
     auto *ri = (tsd::rendering::RenderIndexAllLayers *)adm.acquireRenderIndex(
-        scene, d);
+        scene, libName, d);
     ri->setIncludedLayers({l});
 
     m_cameras.push_back(c);

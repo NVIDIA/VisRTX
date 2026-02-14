@@ -66,17 +66,18 @@ int main()
 
   // Setup ANARI device //
 
-  anari::Library lib = anari::loadLibrary("environment", statusFunc);
+  const char *deviceName = "environment";
+  anari::Library lib = anari::loadLibrary(deviceName, statusFunc);
   anari::Device device = anari::newDevice(lib, "default");
 
   // Setup render indexes //
 
   tsd::rendering::MultiUpdateDelegate ud;
 
-  auto *rIdx1 =
-      ud.emplace<tsd::rendering::RenderIndexFlatRegistry>(scene, device);
-  auto *rIdx2 =
-      ud.emplace<tsd::rendering::RenderIndexFlatRegistry>(scene, device);
+  auto *rIdx1 = ud.emplace<tsd::rendering::RenderIndexFlatRegistry>(
+      scene, deviceName, device);
+  auto *rIdx2 = ud.emplace<tsd::rendering::RenderIndexFlatRegistry>(
+      scene, deviceName, device);
 
   rIdx1->populate(false);
   rIdx2->populate(false);

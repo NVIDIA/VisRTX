@@ -112,7 +112,7 @@ void RenderServer::setup_ANARIDevice()
   auto &scene = m_core.tsd.scene;
 
   m_device = device;
-  m_renderIndex = m_core.anari.acquireRenderIndex(scene, device);
+  m_renderIndex = m_core.anari.acquireRenderIndex(scene, "environment", device);
   m_camera = anari::newObject<anari::Camera>(device, "perspective");
   m_renderer = anari::newObject<anari::Renderer>(device, "default");
 

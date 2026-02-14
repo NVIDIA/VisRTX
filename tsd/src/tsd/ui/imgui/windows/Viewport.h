@@ -57,9 +57,6 @@ struct Viewport : public Window
   void saveSettings(tsd::core::DataNode &thisWindowRoot) override;
   void loadSettings(tsd::core::DataNode &thisWindowRoot) override;
 
-  void loadANARIRendererParameters(anari::Device d);
-  void updateAllRendererParameters(anari::Device d);
-
   void setupRenderPipeline();
   void teardownDevice();
   void reshape(tsd::math::int2 newWindowSize);
@@ -135,17 +132,8 @@ struct Viewport : public Window
   anari::Camera m_orthoCamera{nullptr};
   anari::Camera m_omniCamera{nullptr};
 
-  std::vector<anari::Renderer> m_renderers;
-  std::vector<tsd::core::Object> m_rendererObjects;
-  int m_currentRenderer{0};
-
-  struct RendererUpdateDelegate : public tsd::core::EmptyUpdateDelegate
-  {
-    void signalParameterUpdated(
-        const tsd::core::Object *o, const tsd::core::Parameter *p) override;
-    anari::Device d{nullptr};
-    anari::Renderer r{nullptr};
-  } m_rud;
+  std::vector<tsd::core::RendererRef> m_rendererObjects;
+  tsd::core::RendererRef m_currentRenderer;
 
   // Camera manipulator //
 

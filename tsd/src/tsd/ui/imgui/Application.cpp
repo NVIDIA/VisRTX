@@ -135,10 +135,8 @@ anari_viewer::WindowArray Application::setupWindows()
 
   SDL_SetRenderVSync(sdlRenderer(), 1);
 
-#ifdef TSD_USE_LUA
   m_extensionManager = std::make_unique<ExtensionManager>();
   m_extensionManager->initialize(appCore());
-#endif
 
   return {};
 }
@@ -427,6 +425,15 @@ void Application::loadApplicationState(const char *filename)
   auto &core = *appCore();
   auto &root = m_settings.root();
 
+  // TSD context from app state file, or context-only file
+  if (auto *c = root.child("context"); c != nullptr)
+    tsd::io::load_Scene(core.tsd.scene, *c);
+  else
+    tsd::io::load_Scene(core.tsd.scene, root);
+
+  // Clear out context tree
+  root["context"].reset();
+
   // Window state
   auto &windows = root["windows"];
   for (auto *w : m_windows)
@@ -468,15 +475,6 @@ void Application::loadApplicationState(const char *filename)
     });
   }
 
-  // TSD context from app state file, or context-only file
-  if (auto *c = root.child("context"); c != nullptr)
-    tsd::io::load_Scene(core.tsd.scene, *c);
-  else
-    tsd::io::load_Scene(core.tsd.scene, root);
-
-  // Clear out context tree
-  root["context"].reset();
-
   m_appSettingsDialog->applySettings();
 
   tsd::core::logStatus("...loaded state from '%s'", filename);
@@ -512,7 +510,7 @@ void Application::setupUsdDevice()
   }
 
   m_usdDevice.renderIndex =
-      m_core.anari.acquireRenderIndex(m_core.tsd.scene, d);
+      m_core.anari.acquireRenderIndex(m_core.tsd.scene, "usd", d);
   m_usdDevice.frame = anari::newObject<anari::Frame>(d);
   anari::setParameter(
       d, m_usdDevice.frame, "world", m_usdDevice.renderIndex->world());
@@ -569,7 +567,7 @@ void Application::setupTsdDevice()
   }
 
   m_tsdDevice.renderIndex =
-      m_core.anari.acquireRenderIndex(m_core.tsd.scene, d);
+      m_core.anari.acquireRenderIndex(m_core.tsd.scene, "tsd", d);
   m_tsdDevice.frame = anari::newObject<anari::Frame>(d);
   anari::setParameter(
       d, m_tsdDevice.frame, "world", m_tsdDevice.renderIndex->world());

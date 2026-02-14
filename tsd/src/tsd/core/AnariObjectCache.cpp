@@ -27,8 +27,9 @@ static bool supportsCUDAArrays(anari::Device d)
 
 // AnariObjectCache definitions ///////////////////////////////////////////////
 
-AnariObjectCache::AnariObjectCache(Scene &scene, anari::Device d)
-    : device(d), m_ctx(&scene)
+AnariObjectCache::AnariObjectCache(
+    Scene &scene, tsd::core::Token name, anari::Device d)
+    : device(d), deviceName(name), m_scene(&scene)
 {
   anari::retain(device, device);
   m_supportsCUDA = supportsCUDAArrays(d);
@@ -45,7 +46,7 @@ AnariObjectCache::~AnariObjectCache()
 anari::Object AnariObjectCache::getHandle(
     anari::DataType type, size_t i, bool createIfNotPresent)
 {
-  return getHandle(m_ctx->getObject(type, i), createIfNotPresent);
+  return getHandle(m_scene->getObject(type, i), createIfNotPresent);
 }
 
 anari::Object AnariObjectCache::getHandle(
@@ -57,6 +58,9 @@ anari::Object AnariObjectCache::getHandle(
   auto idx = obj->index();
   auto o = readHandle(type, idx);
   if (!o && createIfNotPresent) {
+    if (type == ANARI_RENDERER && obj->rendererDeviceName() != deviceName)
+      return nullptr; // don't create renderer for wrong device
+
     auto d = device;
     o = obj->makeANARIObject(d);
     obj->updateAllANARIParameters(d, o, this);
@@ -95,6 +99,9 @@ void AnariObjectCache::insertEmptyHandle(anari::DataType type)
     break;
   case ANARI_LIGHT:
     light.insert(nullptr);
+    break;
+  case ANARI_RENDERER:
+    renderer.insert(nullptr);
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
@@ -146,6 +153,9 @@ void AnariObjectCache::removeHandle(anari::DataType type, size_t index)
   case ANARI_LIGHT:
     light.erase(index);
     break;
+  case ANARI_RENDERER:
+    renderer.erase(index);
+    break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
@@ -179,6 +189,7 @@ void AnariObjectCache::clear()
   releaseAllHandles(material);
   releaseAllHandles(sampler);
   releaseAllHandles(light);
+  releaseAllHandles(renderer);
   releaseAllHandles(array); // this needs to be last!
 }
 
@@ -197,7 +208,7 @@ void AnariObjectCache::updateObjectArrayData(const Array *a)
     auto *src = (const size_t *)a->data();
     auto *dst = (anari::Object *)anariMapArray(device, arr);
     std::transform(src, src + a->size(), dst, [&](size_t idx) {
-      auto *obj = m_ctx->getObject(elementType, idx);
+      auto *obj = m_scene->getObject(elementType, idx);
       auto handle = this->getHandle(obj, true);
       if (handle == nullptr)
         logWarning("[RenderIndex] object array encountered null handle");
@@ -231,6 +242,9 @@ void AnariObjectCache::replaceHandle(
     break;
   case ANARI_LIGHT:
     light[i] = (anari::Light)o;
+    break;
+  case ANARI_RENDERER:
+    renderer[i] = (anari::Renderer)o;
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
@@ -268,6 +282,9 @@ anari::Object AnariObjectCache::readHandle(anari::DataType type, size_t i) const
     break;
   case ANARI_LIGHT:
     obj = light.at(i).value_or(nullptr);
+    break;
+  case ANARI_RENDERER:
+    obj = renderer.at(i).value_or(nullptr);
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:

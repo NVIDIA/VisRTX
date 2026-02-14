@@ -16,7 +16,7 @@ World::World(DeviceGlobalState *s)
   auto *l = s->scene.addLayer(m_layerName);
   m_renderIndex =
       (tsd::rendering::RenderIndexAllLayers *)s->anari.acquireRenderIndex(
-          s->scene, s->device);
+          s->scene, s->deviceName, s->device);
 }
 
 World::~World()
@@ -56,6 +56,11 @@ void World::finalize()
 }
 
 const tsd::rendering::RenderIndexAllLayers *World::getRenderIndex() const
+{
+  return m_renderIndex;
+}
+
+tsd::rendering::RenderIndexAllLayers *World::getRenderIndex()
 {
   return m_renderIndex;
 }

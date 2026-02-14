@@ -57,8 +57,7 @@ TSDObject::TSDObject(
   case ANARI_CAMERA:
     obj = s->scene.createObject<tsd::core::Camera>(subtype).data();
     name = "camera" + std::to_string(s->cameraCount++);
-    m_liveHandle =
-        anari::newObject<anari::Camera>(s->device, subtype.c_str());
+    m_liveHandle = anari::newObject<anari::Camera>(s->device, subtype.c_str());
     break;
   case ANARI_SURFACE:
     obj = s->scene.createSurface().data();
@@ -89,24 +88,21 @@ TSDObject::TSDObject(
     name = "light" + std::to_string(s->lightCount++);
     break;
   case ANARI_RENDERER:
-    obj = new tsd::core::Object(ANARI_RENDERER, subtype);
+    obj = s->scene.createRenderer(s->deviceName, subtype).data();
     name = "renderer" + std::to_string(s->rendererCount++);
-    m_liveHandle =
-        anari::newObject<anari::Renderer>(s->device, subtype.c_str());
     break;
   default:
     break;
   }
 
-  if (!obj) {
+  if (obj)
+    m_object = tsd::core::Any(obj->type(), obj->index());
+  else {
     reportMessage(ANARI_SEVERITY_WARNING,
         "failed to create equivalent TSD object for %s",
         anari::toString(type));
     return;
-  } else if (type == ANARI_RENDERER)
-    m_rendererObject.reset(obj);
-  else
-    m_object = tsd::core::Any(obj->type(), obj->index());
+  }
 
   obj->setName(name.c_str());
 }
@@ -168,8 +164,7 @@ void TSDObject::commitParameters()
 
 tsd::core::Object *TSDObject::tsdObject() const
 {
-  return m_rendererObject ? m_rendererObject.get()
-                          : deviceState()->scene.getObject(m_object);
+  return deviceState()->scene.getObject(m_object);
 }
 
 anari::Object TSDObject::anariHandle() const
