@@ -48,6 +48,7 @@ struct Fast : public Renderer
 
  private:
   int m_aoSamples{1};
+  float m_aoBlend{1.f};
 };
 
 } // namespace visrtx

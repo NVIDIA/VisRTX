@@ -94,7 +94,10 @@ struct FastShadingPolicy
     const auto &rendererParams = frameData.renderer;
     const auto &aoParams = rendererParams.params.fast;
 
-    const float aoFactor = aoParams.aoSamples > 0
+    const float ndotl = glm::abs(glm::dot(ray.dir, hit.Ns));
+
+    const bool traceAO = aoParams.aoBlend > 0.f && aoParams.aoSamples > 0;
+    const float aoFactor = traceAO
         ? computeAO(ss,
               ray,
               hit,
@@ -106,10 +109,12 @@ struct FastShadingPolicy
     auto materialBaseColor = materialEvaluateTint(shadingState);
     auto materialOpacity = materialEvaluateOpacity(shadingState);
 
-    const auto lighting =
-        aoFactor * rendererParams.ambientIntensity * rendererParams.ambientColor;
+    const float lighting = glm::mix(ndotl,
+        aoFactor * rendererParams.ambientIntensity,
+        aoParams.aoBlend);
 
-    return vec4(materialBaseColor * lighting, materialOpacity);
+    return vec4(materialBaseColor * lighting * rendererParams.ambientColor,
+        materialOpacity);
   }
 };
 

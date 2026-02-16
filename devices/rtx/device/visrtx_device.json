@@ -299,6 +299,17 @@
           "description": "ambient occlusion distance"
         },
         {
+          "name": "aoBlend",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": 1.0,
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "description": "blend between NdotL headlight shading (0) and ambient occlusion (1)"
+        },
+        {
           "name": "volumeSamplingRate",
           "types": [
             "ANARI_FLOAT32"

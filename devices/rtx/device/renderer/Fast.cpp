@@ -47,12 +47,14 @@ void Fast::commitParameters()
 {
   Renderer::commitParameters();
   m_aoSamples = std::clamp(getParam<int>("ambientSamples", 1), 0, 256);
+  m_aoBlend = std::clamp(getParam<float>("aoBlend", 1.f), 0.f, 1.f);
 }
 
 void Fast::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
   fd.renderer.params.fast.aoSamples = m_aoSamples;
+  fd.renderer.params.fast.aoBlend = m_aoBlend;
 }
 
 OptixModule Fast::optixModule() const

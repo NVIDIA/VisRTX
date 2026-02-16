@@ -667,6 +667,7 @@ struct DebugRendererGPUData
 struct FastRendererGPUData
 {
   int aoSamples;
+  float aoBlend;
 };
 
 struct PTRendererGPUData
