@@ -624,10 +624,6 @@ void Scene::setAnimationTime(float time)
   // Signal delegates that animation time changed
   if (m_updateDelegate)
     m_updateDelegate->signalAnimationTimeChanged(time);
-
-  // Signal delegates that animation time changed
-  if (m_updateDelegate)
-    m_updateDelegate->signalAnimationTimeChanged(time);
 }
 
 float Scene::getAnimationTime() const
