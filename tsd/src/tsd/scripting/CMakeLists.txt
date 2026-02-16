@@ -40,6 +40,12 @@ PRIVATE
   TSD_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
-if(UNIX)
+if(MSVC)
+  set_source_files_properties(
+    bindings/CoreBindings.cpp
+    bindings/ObjectBindings.cpp
+    PROPERTIES COMPILE_OPTIONS "/bigobj"
+  )
+elseif(UNIX)
   target_link_options(tsd_lua PUBLIC -rdynamic)
 endif()
