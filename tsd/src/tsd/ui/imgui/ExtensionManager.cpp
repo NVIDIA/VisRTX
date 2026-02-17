@@ -8,8 +8,8 @@
 #include "tsd/core/Logging.hpp"
 // tsd_scripting
 #ifdef TSD_USE_LUA
-#include "tsd/scripting/LuaContext.hpp"
 #include <sol/sol.hpp>
+#include "tsd/scripting/LuaContext.hpp"
 #endif
 // std
 #include <algorithm>
@@ -88,8 +88,11 @@ scripting::LuaContext &ExtensionManager::luaContext()
   return *m_luaContext;
 }
 
+#endif
+
 void ExtensionManager::registerViewerBindings()
 {
+#ifdef TSD_USE_LUA
   auto &lua = m_luaContext->lua();
   sol::table tsd = lua["tsd"];
   sol::table viewer = lua.create_table();
@@ -97,26 +100,24 @@ void ExtensionManager::registerViewerBindings()
 
   viewer["refresh"] = []() { /* no-op in viewer */ };
 
-  viewer["addMenuAction"] =
-      [this](const std::string &path, sol::protected_function fn) {
-        auto sharedFn =
-            std::make_shared<sol::protected_function>(std::move(fn));
-        addMenuAction(path, [sharedFn]() {
-          auto result = (*sharedFn)();
-          if (!result.valid()) {
-            sol::error err = result;
-            throw std::runtime_error(err.what());
-          }
-        });
-      };
+  viewer["addMenuAction"] = [this](const std::string &path,
+                                sol::protected_function fn) {
+    auto sharedFn = std::make_shared<sol::protected_function>(std::move(fn));
+    addMenuAction(path, [sharedFn]() {
+      auto result = (*sharedFn)();
+      if (!result.valid()) {
+        sol::error err = result;
+        throw std::runtime_error(err.what());
+      }
+    });
+  };
 
-  viewer["addSeparator"] =
-      [this](const std::string &path) { addSeparator(path); };
+  viewer["addSeparator"] = [this](
+                               const std::string &path) { addSeparator(path); };
 
   viewer["clearActions"] = [this]() { clearActions(); };
-}
-
 #endif // TSD_USE_LUA
+}
 
 const std::vector<ActionMenuNode> &ExtensionManager::getMenuTree()
 {
@@ -140,9 +141,8 @@ void ExtensionManager::executeAction(size_t actionIndex)
     action.fn();
     tsd::core::logStatus("Action completed: %s", action.displayName.c_str());
   } catch (const std::exception &e) {
-    tsd::core::logError("Action error in '%s': %s",
-        action.path.c_str(),
-        e.what());
+    tsd::core::logError(
+        "Action error in '%s': %s", action.path.c_str(), e.what());
   }
 }
 
@@ -228,7 +228,11 @@ void ExtensionManager::rebuildMenuTree()
 
 std::vector<std::string> ExtensionManager::getSearchPaths()
 {
+#if TSD_USE_LUA
   return scripting::LuaContext::defaultSearchPaths();
+#else
+  return {};
+#endif
 }
 
 } // namespace tsd::ui::imgui

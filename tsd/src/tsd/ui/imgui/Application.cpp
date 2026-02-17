@@ -646,6 +646,7 @@ void Application::renderLuaMenu()
     ImGui::EndMenu();
   }
 }
+#endif
 
 void Application::renderActionMenu(const std::vector<ActionMenuNode> &entries)
 {
@@ -671,6 +672,5 @@ void Application::renderActionMenu(const std::vector<ActionMenuNode> &entries)
     }
   }
 }
-#endif
 
 } // namespace tsd::ui::imgui

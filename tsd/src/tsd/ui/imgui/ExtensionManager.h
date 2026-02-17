@@ -22,7 +22,7 @@ namespace ui::imgui {
 
 struct ActionEntry
 {
-  std::string path;        // "glTF/Geometry/Box"
+  std::string path; // "glTF/Geometry/Box"
   std::string displayName; // "Box"
   std::function<void()> fn;
 };
@@ -59,9 +59,7 @@ class ExtensionManager
   static std::vector<std::string> getSearchPaths();
 
  private:
-#ifdef TSD_USE_LUA
   void registerViewerBindings();
-#endif
   void rebuildMenuTree();
 
 #ifdef TSD_USE_LUA

@@ -22,17 +22,17 @@ project_sources(PRIVATE
   windows/Log.cpp
   windows/MultiDeviceViewport.cpp
   windows/ObjectEditor.cpp
+  windows/Terminal.cpp
   windows/TransferFunctionEditor.cpp
   windows/Viewport.cpp
   windows/Window.cpp
   Application.cpp
+  ExtensionManager.cpp
   tsd_ui_imgui.cpp
 )
 
 if(TSD_USE_LUA)
   project_sources(PRIVATE
-    windows/Terminal.cpp
-    ExtensionManager.cpp
   )
   project_link_libraries(PRIVATE tsd_lua tsd_ext_sol2)
   project_compile_definitions(PRIVATE TSD_USE_LUA=1)
