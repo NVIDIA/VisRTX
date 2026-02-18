@@ -1097,7 +1097,10 @@ function tsd.render.getWorldBounds(device, index) end
 ---@param device tsd.AnariDevice
 ---@param index tsd.RenderIndex
 ---@param camera tsd.CameraSetup
----@param rendererParams? table<string, boolean|number|string|tsd.float2|tsd.float3|tsd.float4|tsd.mat4|number[]>  Optional renderer parameters. Special key "renderer" selects subtype (default: "default"). Supports vector values for params like background (float4), ambientColor (float3).
+--- Optional renderer parameters.
+--- Special key "renderer" selects subtype (default: "default").
+--- Supports vector values for params like background (float4), ambientColor (float3).
+---@param rendererParams? table<string, boolean|number|string|tsd.float2|tsd.float3|tsd.float4|tsd.mat4|number[]>
 ---@return tsd.RenderPipeline
 function tsd.render.createPipeline(width, height, device, index, camera, rendererParams) end
 
