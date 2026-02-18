@@ -41,6 +41,8 @@ struct LuaCameraSetup
   math::float3 up{0.f, 1.f, 0.f};
   float fovy{40.f};
   float aspect{1.777f}; // 16:9
+  float aperture{0.f};
+  float focusDistance{1.f};
 };
 
 void registerRenderBindings(sol::state &lua)
@@ -59,7 +61,11 @@ void registerRenderBindings(sol::state &lua)
       "fovy",
       &LuaCameraSetup::fovy,
       "aspect",
-      &LuaCameraSetup::aspect);
+      &LuaCameraSetup::aspect,
+      "aperture",
+      &LuaCameraSetup::aperture,
+      "focusDistance",
+      &LuaCameraSetup::focusDistance);
 
   tsd.new_usertype<LuaAnariDevice>("AnariDevice",
       sol::no_constructor,
@@ -187,6 +193,12 @@ void registerRenderBindings(sol::state &lua)
     anari::setParameter(dev->device, cam, "position", camera.position);
     anari::setParameter(dev->device, cam, "direction", camera.direction);
     anari::setParameter(dev->device, cam, "up", camera.up);
+    if (camera.aperture > 0.f) {
+      anari::setParameter(
+          dev->device, cam, "apertureRadius", camera.aperture);
+      anari::setParameter(
+          dev->device, cam, "focusDistance", camera.focusDistance);
+    }
     anari::commitParameters(dev->device, cam);
 
     auto renderer = anari::newObject<anari::Renderer>(dev->device, "default");

@@ -667,6 +667,8 @@ function Scene:cleanupScene() end
 ---@field up tsd.float3
 ---@field fovy number
 ---@field aspect number
+---@field aperture number   # Aperture radius for depth of field (0 = disabled)
+---@field focusDistance number  # Focus distance for depth of field
 local CameraSetup = {}
 
 ---@return tsd.CameraSetup
