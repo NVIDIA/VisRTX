@@ -206,11 +206,9 @@ function Sampler:valid() end
 local Surface = {}
 ---@return boolean
 function Surface:valid() end
-
 --- Get the geometry attached to this surface.
 ---@return tsd.Geometry?
 function Surface:geometry() end
-
 --- Get the material attached to this surface.
 ---@return tsd.Material?
 function Surface:material() end
@@ -219,7 +217,6 @@ function Surface:material() end
 local Volume = {}
 ---@return boolean
 function Volume:valid() end
-
 --- Get the spatial field attached to this volume.
 ---@return tsd.SpatialField?
 function Volume:spatialField() end
@@ -228,7 +225,6 @@ function Volume:spatialField() end
 local SpatialField = {}
 ---@return boolean
 function SpatialField:valid() end
-
 --- Compute the value range of this spatial field.
 ---@return tsd.float2
 function SpatialField:computeValueRange() end
@@ -237,29 +233,22 @@ function SpatialField:computeValueRange() end
 local Array = {}
 ---@return boolean
 function Array:valid() end
-
 ---@return integer
 function Array:elementType() end
-
 ---@return integer
 function Array:size() end
-
 ---@return integer
 function Array:elementSize() end
-
 ---@return boolean
 function Array:isEmpty() end
-
 ---@param d integer
 ---@return integer
 function Array:dim(d) end
-
 --- Set array data from a Lua table.
 --- For 2D/3D arrays, supports either a flat/linear table or a shape-matching nested table.
 --- Vector elements support `tsd.float2/3/4(...)` values or numeric tables.
 ---@param data table
 function Array:setData(data) end
-
 --- Get array data as a flat/linear Lua table.
 ---@return table
 function Array:getData() end
@@ -840,7 +829,6 @@ function tsd.radians(degrees) end
 ---@param radians number
 ---@return number
 function tsd.degrees(radians) end
-
 ------------------------------------------------------------------------
 -- Sub-tables
 ------------------------------------------------------------------------
