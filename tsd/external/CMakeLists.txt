@@ -12,6 +12,10 @@ add_subdirectory(tsd_tinygltf)
 add_subdirectory(tsd_tinyobjloader)
 add_subdirectory(tsd_tinyply)
 
+if(TSD_USE_NETWORKING)
+  add_subdirectory(tsd_json)
+endif()
+
 if(TSD_BUILD_UI_LIBRARY)
   add_subdirectory(tsd_imguizmo)
 endif()

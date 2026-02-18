@@ -4,7 +4,9 @@
 #pragma once
 
 // std
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <thread>
 // tsd_network
 #include "tsd/network/NetworkChannel.hpp"
@@ -17,6 +19,29 @@
 #include "../RenderSession.hpp"
 
 namespace tsd::network {
+
+// Extended TSD protocol message types for volume management.
+// These augment the base MessageType enum (IDs 0-21 + 255) with
+// volume list / info / attribute / transfer-function operations (110-118).
+// Extended TSD protocol message types for volume management (IDs 110-118).
+enum TSDVolumeMessage : uint8_t
+{
+  REQUEST_VOLUME_LIST = 110,
+  VOLUME_LIST = 111,
+  SET_VOLUME_TF = 112,
+  REQUEST_VOLUME_INFO = 116,
+  VOLUME_INFO = 117,
+  SET_VOLUME_ATTRIBUTE = 118,
+};
+
+// Wire-format type tags for SET_VOLUME_ATTRIBUTE payloads.
+enum AttributeType : uint8_t
+{
+  ATTR_BOOL = 0,
+  ATTR_INT32 = 1,
+  ATTR_FLOAT32 = 2,
+  ATTR_STRING = 3,
+};
 
 struct RenderServer
 {
@@ -44,6 +69,10 @@ struct RenderServer
   void update_View();
   void send_FrameBuffer();
   void set_Mode(ServerMode mode);
+  std::string buildVolumeListJson() const;
+  std::string buildVolumeInfoJson(uint32_t volIndex) const;
+  void handle_SetVolumeAttribute(const Message &msg);
+  void handle_SetVolumeTF(const Message &msg);
 
   // Data //
 

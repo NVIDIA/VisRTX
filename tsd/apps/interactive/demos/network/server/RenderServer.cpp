@@ -8,6 +8,7 @@
 // tsd_io
 #include "tsd/io/serialization.hpp"
 // tsd_network
+#include "tsd/network/JsonHelpers.hpp"
 #include "tsd/network/messages/NewObject.hpp"
 #include "tsd/network/messages/ParameterChange.hpp"
 #include "tsd/network/messages/ParameterRemove.hpp"
@@ -15,6 +16,8 @@
 #include "tsd/network/messages/TransferArrayData.hpp"
 #include "tsd/network/messages/TransferLayer.hpp"
 #include "tsd/network/messages/TransferScene.hpp"
+// std
+#include <cstring>
 
 namespace tsd::network {
 
@@ -318,6 +321,36 @@ void RenderServer::setup_Messaging()
         m_server->send(MessageType::CLIENT_SCENE_TRANSFER_BEGIN);
         set_Mode(ServerMode::SEND_SCENE);
       });
+
+  // -- Volume management handlers ------------------------------------------
+
+  m_server->registerHandler(
+      REQUEST_VOLUME_LIST, [this](const tsd::network::Message &) {
+        std::string json = buildVolumeListJson();
+        m_server->send(VOLUME_LIST, json);
+      });
+
+  m_server->registerHandler(
+      REQUEST_VOLUME_INFO, [this](const tsd::network::Message &msg) {
+        if (msg.header.payload_length < 4u)
+          return;
+        uint32_t volIndex = 0;
+        uint32_t pos = 0;
+        if (!tsd::network::payloadRead(msg, pos, &volIndex))
+          return;
+        std::string json = buildVolumeInfoJson(volIndex);
+        m_server->send(VOLUME_INFO, json);
+      });
+
+  m_server->registerHandler(
+      SET_VOLUME_ATTRIBUTE, [this](const tsd::network::Message &msg) {
+        handle_SetVolumeAttribute(msg);
+      });
+
+  m_server->registerHandler(
+      SET_VOLUME_TF, [this](const tsd::network::Message &msg) {
+        handle_SetVolumeTF(msg);
+      });
 }
 
 void RenderServer::update_FrameConfig()
@@ -372,6 +405,263 @@ void RenderServer::set_Mode(ServerMode mode)
   if (shuttingDown) // if shutting down, do not change mode
     return;
   m_nextMode = mode;
+}
+
+// ---------------------------------------------------------------------------
+// Volume JSON builders
+// ---------------------------------------------------------------------------
+
+std::string RenderServer::buildVolumeListJson() const
+{
+  auto &scene = m_core.tsd.scene;
+  const auto &pool = scene.objectDB().volume;
+  auto jList = nlohmann::json::array();
+  for (size_t i = 0; i < pool.capacity(); i++) {
+    auto ref = pool.at(i);
+    if (!ref.data())
+      continue;
+    jList.push_back({{"index", static_cast<unsigned>(i)},
+        {"name", std::string(ref->name())}});
+  }
+  return jList.dump();
+}
+
+std::string RenderServer::buildVolumeInfoJson(uint32_t volIndex) const
+{
+  auto &scene = m_core.tsd.scene;
+  const auto &pool = scene.objectDB().volume;
+  if (volIndex >= pool.capacity())
+    return "{}";
+  auto ref = pool.at(volIndex);
+  if (!ref.data())
+    return "{}";
+
+  nlohmann::json j;
+  j["index"] = volIndex;
+  j["name"] = std::string(ref->name());
+
+  objectParamsToJson(j, *ref);
+
+  auto *colorArray = ref->parameterValueAsObject<tsd::core::Array>("color");
+  if (colorArray && colorArray->size() > 0) {
+    j["numColors"] = colorArray->size();
+    if (colorArray->isHost()
+        && colorArray->elementType() == ANARI_FLOAT32_VEC4) {
+      const auto *colors = colorArray->dataAs<tsd::math::float4>();
+      if (colors) {
+        auto arr = nlohmann::json::array();
+        for (size_t c = 0; c < colorArray->size(); c++)
+          arr.push_back({colors[c].x, colors[c].y, colors[c].z, colors[c].w});
+        j["colors"] = arr;
+      }
+    }
+  }
+
+  objectMetadataToJson(j, *ref);
+
+  auto *field = ref->parameterValueAsObject<tsd::core::SpatialField>("value");
+  if (field) {
+    nlohmann::json jf;
+    jf["name"] = std::string(field->name());
+    jf["subtype"] = std::string(field->subtype().c_str());
+    objectParamsToJson(jf, *field);
+    objectMetadataToJson(jf, *field);
+    j["field"] = jf;
+  }
+
+  return j.dump();
+}
+
+// ---------------------------------------------------------------------------
+// Volume attribute + transfer function handlers
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Read a fixed-width, null-terminated string field from a message payload.
+std::string readFixedString(
+    const tsd::network::Message &msg, uint32_t offset, size_t fieldLen)
+{
+  const char *raw =
+      reinterpret_cast<const char *>(msg.payload.data() + offset);
+  std::string s(raw, raw + fieldLen);
+  size_t nul = s.find('\0');
+  if (nul != std::string::npos)
+    s.resize(nul);
+  return s;
+}
+
+// Set a parameter on whichever object owns it (volume first, then field).
+template <typename T>
+void setOnVolumeOrField(tsd::core::Object &vol,
+    tsd::core::SpatialField *field,
+    const char *name,
+    const T &value)
+{
+  if (vol.parameter(name))
+    vol.setParameter(name, value);
+  else if (field && field->parameter(name))
+    field->setParameter(name, value);
+}
+
+} // anonymous namespace
+
+void RenderServer::handle_SetVolumeAttribute(const Message &msg)
+{
+  constexpr size_t nameLen = 64;
+  if (msg.header.payload_length < 4u + nameLen + 1u)
+    return;
+
+  uint32_t pos = 0;
+  uint32_t volIndex = 0;
+  if (!tsd::network::payloadRead(msg, pos, &volIndex))
+    return;
+
+  std::string name = readFixedString(msg, pos, nameLen);
+  if (name.empty())
+    return;
+  pos += nameLen;
+
+  uint8_t typeByte = static_cast<uint8_t>(msg.payload[pos]);
+  pos += 1;
+
+  auto &scene = m_core.tsd.scene;
+  if (volIndex >= scene.objectDB().volume.capacity())
+    return;
+  auto volRef = scene.objectDB().volume.at(volIndex);
+  if (!volRef.data())
+    return;
+
+  auto *field =
+      volRef->parameterValueAsObject<tsd::core::SpatialField>("value");
+
+  switch (typeByte) {
+  case ATTR_BOOL: {
+    if (pos + 1 > msg.header.payload_length)
+      return;
+    bool v = static_cast<uint8_t>(msg.payload[pos]) != 0;
+    setOnVolumeOrField(*volRef, field, name.c_str(), v);
+    tsd::core::logDebug("[Server] vol[%u].%s = %s",
+        volIndex,
+        name.c_str(),
+        v ? "true" : "false");
+    break;
+  }
+  case ATTR_INT32: {
+    int32_t v = 0;
+    if (!tsd::network::payloadRead(msg, pos, &v))
+      return;
+    setOnVolumeOrField(*volRef, field, name.c_str(), v);
+    tsd::core::logDebug(
+        "[Server] vol[%u].%s = %d", volIndex, name.c_str(), v);
+    break;
+  }
+  case ATTR_FLOAT32: {
+    float v = 0.f;
+    if (!tsd::network::payloadRead(msg, pos, &v))
+      return;
+    setOnVolumeOrField(*volRef, field, name.c_str(), v);
+    tsd::core::logDebug(
+        "[Server] vol[%u].%s = %g", volIndex, name.c_str(), v);
+    break;
+  }
+  case ATTR_STRING: {
+    constexpr size_t valLen = 64;
+    if (pos + valLen > msg.header.payload_length)
+      return;
+    std::string val = readFixedString(msg, pos, valLen);
+    if (volRef->parameter(name.c_str()))
+      volRef->setParameter(name.c_str(), ANARI_STRING, val.c_str());
+    else if (field && field->parameter(name.c_str()))
+      field->setParameter(name.c_str(), ANARI_STRING, val.c_str());
+    tsd::core::logDebug(
+        "[Server] vol[%u].%s = '%s'", volIndex, name.c_str(), val.c_str());
+    break;
+  }
+  default:
+    break;
+  }
+}
+
+void RenderServer::handle_SetVolumeTF(const Message &msg)
+{
+  if (msg.header.payload_length < 4u + 4u + 4u + 4u)
+    return;
+
+  uint32_t pos = 0u;
+  uint32_t volIndex = 0u, numSamples = 0u, numOpacity = 0u;
+  if (!tsd::network::payloadRead(msg, pos, &volIndex)
+      || !tsd::network::payloadRead(msg, pos, &numSamples))
+    return;
+  if (numSamples > 4096u)
+    return;
+
+  // Read color samples (RGBA float4 array)
+  const size_t colorBytes = numSamples * 4u * sizeof(float);
+  if (pos + colorBytes > msg.header.payload_length)
+    return;
+  const float *rgba =
+      reinterpret_cast<const float *>(msg.payload.data() + pos);
+  pos += static_cast<uint32_t>(colorBytes);
+
+  // Read opacity control points (XY float2 array)
+  if (!tsd::network::payloadRead(msg, pos, &numOpacity))
+    return;
+  const size_t opacityBytes = numOpacity * 2u * sizeof(float);
+  if (pos + opacityBytes > msg.header.payload_length)
+    return;
+  const float *xy =
+      reinterpret_cast<const float *>(msg.payload.data() + pos);
+  pos += static_cast<uint32_t>(opacityBytes);
+
+  // Resolve volume
+  auto &scene = m_core.tsd.scene;
+  if (volIndex >= scene.objectDB().volume.capacity())
+    return;
+  auto volRef = scene.objectDB().volume.at(volIndex);
+  if (!volRef.data())
+    return;
+
+  // Apply color array
+  std::vector<tsd::math::float4> colors(numSamples);
+  for (uint32_t i = 0; i < numSamples; i++)
+    colors[i] = tsd::math::float4(
+        rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]);
+  auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, numSamples);
+  colorArray->setData(colors.data());
+  volRef->setParameterObject("color", *colorArray);
+
+  // Apply opacity control points
+  std::vector<tsd::math::float2> opacityPts(numOpacity);
+  for (uint32_t i = 0; i < numOpacity; i++)
+    opacityPts[i] = tsd::math::float2(xy[i * 2], xy[i * 2 + 1]);
+  volRef->setMetadataArray(
+      "opacityControlPoints", ANARI_FLOAT32_VEC2, opacityPts.data(), numOpacity);
+
+  // Optional trailing fields: valueRange, opacity, unitDistance
+  auto readOptionalFloat = [&](float &out) -> bool {
+    if (pos + 4u > msg.header.payload_length)
+      return false;
+    std::memcpy(&out, msg.payload.data() + pos, 4u);
+    pos += 4u;
+    return true;
+  };
+
+  float lo = 0.f, hi = 0.f, opacity = -1.f, unitDistance = -1.f;
+  if (readOptionalFloat(lo) && readOptionalFloat(hi)) {
+    float range[2] = {lo, hi};
+    volRef->setParameter("valueRange", ANARI_FLOAT32_BOX1, range);
+  }
+  if (readOptionalFloat(opacity) && opacity >= 0.f)
+    volRef->setParameter("opacity", opacity);
+  if (readOptionalFloat(unitDistance) && unitDistance > 0.f)
+    volRef->setParameter("unitDistance", unitDistance);
+
+  tsd::core::logDebug(
+      "[Server] Set TF for volume %u (%zu colors, %u opacity pts)",
+      volIndex,
+      size_t(numSamples),
+      numOpacity);
 }
 
 } // namespace tsd::network
