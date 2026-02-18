@@ -19,9 +19,24 @@ static void registerVecArithmetic(sol::usertype<T> &ut)
     return a - b;
   };
   ut[sol::meta_function::multiplication] =
-      sol::overload([](const T &a, float s) { return a * s; },
-          [](float s, const T &a) { return s * a; });
-  ut[sol::meta_function::division] = [](const T &a, float s) { return a / s; };
+      [](sol::object lhs, sol::object rhs) -> T {
+    if (lhs.is<T>() && rhs.is<T>())
+      return lhs.as<T>() * rhs.as<T>();
+    if (lhs.is<T>() && rhs.is<double>())
+      return lhs.as<T>() * static_cast<float>(rhs.as<double>());
+    if (lhs.is<double>() && rhs.is<T>())
+      return static_cast<float>(lhs.as<double>()) * rhs.as<T>();
+    throw std::runtime_error("invalid operand types for *");
+  };
+  ut[sol::meta_function::division] =
+      [](sol::object lhs, sol::object rhs) -> T {
+    if (lhs.is<T>() && rhs.is<T>())
+      return lhs.as<T>() / rhs.as<T>();
+    if (lhs.is<T>() && rhs.is<double>())
+      return lhs.as<T>() / static_cast<float>(rhs.as<double>());
+    throw std::runtime_error("invalid operand types for /");
+  };
+  ut[sol::meta_function::unary_minus] = [](const T &a) { return -a; };
 }
 
 void registerMathBindings(sol::state &lua)

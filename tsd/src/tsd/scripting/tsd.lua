@@ -12,8 +12,11 @@
 ---@field y number
 ---@operator add(tsd.float2): tsd.float2
 ---@operator sub(tsd.float2): tsd.float2
+---@operator mul(tsd.float2): tsd.float2
 ---@operator mul(number): tsd.float2
+---@operator div(tsd.float2): tsd.float2
 ---@operator div(number): tsd.float2
+---@operator unm: tsd.float2
 local float2 = {}
 
 ---@class tsd.float3
@@ -22,8 +25,11 @@ local float2 = {}
 ---@field z number
 ---@operator add(tsd.float3): tsd.float3
 ---@operator sub(tsd.float3): tsd.float3
+---@operator mul(tsd.float3): tsd.float3
 ---@operator mul(number): tsd.float3
+---@operator div(tsd.float3): tsd.float3
 ---@operator div(number): tsd.float3
+---@operator unm: tsd.float3
 local float3 = {}
 
 ---@class tsd.float4
@@ -33,8 +39,11 @@ local float3 = {}
 ---@field w number
 ---@operator add(tsd.float4): tsd.float4
 ---@operator sub(tsd.float4): tsd.float4
+---@operator mul(tsd.float4): tsd.float4
 ---@operator mul(number): tsd.float4
+---@operator div(tsd.float4): tsd.float4
 ---@operator div(number): tsd.float4
+---@operator unm: tsd.float4
 local float4 = {}
 
 ---@class tsd.mat3
