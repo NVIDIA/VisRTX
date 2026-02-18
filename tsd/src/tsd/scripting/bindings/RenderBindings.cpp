@@ -201,10 +201,25 @@ void registerRenderBindings(sol::state &lua)
     }
     anari::commitParameters(dev->device, cam);
 
-    auto renderer = anari::newObject<anari::Renderer>(dev->device, "default");
+    std::string rendererName = "default";
+    if (rendererParams) {
+      sol::object val = (*rendererParams)["renderer"];
+      if (val.is<std::string>())
+        rendererName = val.as<std::string>();
+    }
+
+    auto renderer =
+        anari::newObject<anari::Renderer>(dev->device, rendererName.c_str());
+    if (!renderer) {
+      throw std::runtime_error(fmt::format(
+          "createPipeline: failed to create renderer subtype '{}'",
+          rendererName));
+    }
     if (rendererParams) {
       for (const auto &kv : *rendererParams) {
         std::string key = kv.first.as<std::string>();
+        if (key == "renderer")
+          continue;
         sol::object val = kv.second;
         if (val.is<bool>())
           anari::setParameter(
@@ -218,6 +233,38 @@ void registerRenderBindings(sol::state &lua)
         else if (val.is<float>() || val.is<double>())
           anari::setParameter(
               dev->device, renderer, key.c_str(), val.as<float>());
+        else if (val.is<math::float2>())
+          anari::setParameter(
+              dev->device, renderer, key.c_str(), val.as<math::float2>());
+        else if (val.is<math::float3>())
+          anari::setParameter(
+              dev->device, renderer, key.c_str(), val.as<math::float3>());
+        else if (val.is<math::float4>())
+          anari::setParameter(
+              dev->device, renderer, key.c_str(), val.as<math::float4>());
+        else if (val.is<math::mat4>())
+          anari::setParameter(
+              dev->device, renderer, key.c_str(), val.as<math::mat4>());
+        else if (val.is<sol::table>()) {
+          sol::table t = val.as<sol::table>();
+          size_t len = t.size();
+          if (len == 2) {
+            anari::setParameter(dev->device,
+                renderer,
+                key.c_str(),
+                math::float2(t[1], t[2]));
+          } else if (len == 3) {
+            anari::setParameter(dev->device,
+                renderer,
+                key.c_str(),
+                math::float3(t[1], t[2], t[3]));
+          } else if (len == 4) {
+            anari::setParameter(dev->device,
+                renderer,
+                key.c_str(),
+                math::float4(t[1], t[2], t[3], t[4]));
+          }
+        }
       }
     }
     anari::commitParameters(dev->device, renderer);
