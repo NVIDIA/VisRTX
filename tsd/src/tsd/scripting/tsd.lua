@@ -206,9 +206,11 @@ function Sampler:valid() end
 local Surface = {}
 ---@return boolean
 function Surface:valid() end
+
 --- Get the geometry attached to this surface.
 ---@return tsd.Geometry?
 function Surface:geometry() end
+
 --- Get the material attached to this surface.
 ---@return tsd.Material?
 function Surface:material() end
@@ -217,6 +219,7 @@ function Surface:material() end
 local Volume = {}
 ---@return boolean
 function Volume:valid() end
+
 --- Get the spatial field attached to this volume.
 ---@return tsd.SpatialField?
 function Volume:spatialField() end
@@ -225,6 +228,7 @@ function Volume:spatialField() end
 local SpatialField = {}
 ---@return boolean
 function SpatialField:valid() end
+
 --- Compute the value range of this spatial field.
 ---@return tsd.float2
 function SpatialField:computeValueRange() end
@@ -233,22 +237,29 @@ function SpatialField:computeValueRange() end
 local Array = {}
 ---@return boolean
 function Array:valid() end
+
 ---@return integer
 function Array:elementType() end
+
 ---@return integer
 function Array:size() end
+
 ---@return integer
 function Array:elementSize() end
+
 ---@return boolean
 function Array:isEmpty() end
+
 ---@param d integer
 ---@return integer
 function Array:dim(d) end
+
 --- Set array data from a Lua table.
 --- For 2D/3D arrays, supports either a flat/linear table or a shape-matching nested table.
 --- Vector elements support `tsd.float2/3/4(...)` values or numeric tables.
 ---@param data table
 function Array:setData(data) end
+
 --- Get array data as a flat/linear Lua table.
 ---@return table
 function Array:getData() end
@@ -827,6 +838,7 @@ function tsd.radians(degrees) end
 ---@param radians number
 ---@return number
 function tsd.degrees(radians) end
+
 ------------------------------------------------------------------------
 -- Sub-tables
 ------------------------------------------------------------------------
@@ -895,6 +907,81 @@ function tsd.io.importPDB(...) end
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
 function tsd.io.importSWC(...) end
 
+--- Import an AGX file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importAGX(...) end
+
+--- Import via ASSIMP (supports many formats).
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, flatten: boolean)
+function tsd.io.importASSIMP(...) end
+
+--- Import an AXYZ point cloud file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importAXYZ(...) end
+
+--- Import a DLAF file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
+function tsd.io.importDLAF(...) end
+
+--- Import an E57 point cloud file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importE57XYZ(...) end
+
+--- Import an HSMESH file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importHSMESH(...) end
+
+--- Import an N-body simulation file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
+function tsd.io.importNBODY(...) end
+
+--- Import POINTSBIN files (multi-file).
+---@overload fun(scene: tsd.Scene, filepaths: string[])
+---@overload fun(scene: tsd.Scene, filepaths: string[], location: tsd.LayerNode)
+function tsd.io.importPOINTSBIN(...) end
+
+--- Import a PT file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importPT(...) end
+
+--- Import a Silo file (scene-level). Requires a location parameter.
+---@param scene tsd.Scene
+---@param filename string
+---@param location tsd.LayerNode
+function tsd.io.importSilo(scene, filename, location) end
+
+--- Import an SMESH file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, isAnimation: boolean)
+function tsd.io.importSMESH(...) end
+
+--- Import a TRK track file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importTRK(...) end
+
+--- Import a USD file (alternate importer).
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importUSD2(...) end
+
+--- Import an XYZDP point cloud file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importXYZDP(...) end
+
 --- Import a volume file (auto-detects format).
 ---@overload fun(scene: tsd.Scene, filename: string): tsd.Volume
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode): tsd.Volume
@@ -917,6 +1004,24 @@ function tsd.io.importNVDB(scene, filename) end
 ---@param filename string
 ---@return tsd.Volume
 function tsd.io.importMHD(scene, filename) end
+
+--- Import a FLASH (HDF5 AMR) volume file.
+---@param scene tsd.Scene
+---@param filename string
+---@return tsd.SpatialField
+function tsd.io.importFLASH(scene, filename) end
+
+--- Import a VTI (VTK ImageData) volume file.
+---@param scene tsd.Scene
+---@param filename string
+---@return tsd.SpatialField
+function tsd.io.importVTI(scene, filename) end
+
+--- Import a VTU (VTK UnstructuredGrid) volume file.
+---@param scene tsd.Scene
+---@param filename string
+---@return tsd.SpatialField
+function tsd.io.importVTU(scene, filename) end
 
 --- Generate random spheres.
 ---@overload fun(scene: tsd.Scene)
