@@ -482,21 +482,6 @@ std::vector<std::string> getANARIObjectSubtypes(
 void parseANARIObjectInfo(
     Object &o, anari::Device d, ANARIDataType objectType, const char *subtype)
 {
-  if (objectType == ANARI_RENDERER) {
-    o.addParameter("background")
-        .setValue(float4(0.05f, 0.05f, 0.05f, 1.f))
-        .setDescription("background color")
-        .setUsage(ParameterUsageHint::COLOR);
-    o.addParameter("ambientRadiance")
-        .setValue(0.25f)
-        .setDescription("intensity of ambient light")
-        .setMin(0.f);
-    o.addParameter("ambientColor")
-        .setValue(float3(1.f))
-        .setDescription("color of ambient light")
-        .setUsage(ParameterUsageHint::COLOR);
-  }
-
   auto *parameter = (const ANARIParameter *)anariGetObjectInfo(
       d, objectType, subtype, "parameter", ANARI_PARAMETER_LIST);
 

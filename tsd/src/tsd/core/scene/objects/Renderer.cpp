@@ -10,6 +10,19 @@ Renderer::Renderer(Token sourceDevice, Token subtype)
     : Object(ANARI_RENDERER, subtype)
 {
   m_rendererDeviceName = sourceDevice;
+
+  addParameter("background")
+      .setValue(float4(0.05f, 0.05f, 0.05f, 1.f))
+      .setDescription("background color")
+      .setUsage(ParameterUsageHint::COLOR);
+  addParameter("ambientRadiance")
+      .setValue(0.25f)
+      .setDescription("intensity of ambient light")
+      .setMin(0.f);
+  addParameter("ambientColor")
+      .setValue(float3(1.f))
+      .setDescription("color of ambient light")
+      .setUsage(ParameterUsageHint::COLOR);
 }
 
 ObjectPoolRef<Renderer> Renderer::self() const
