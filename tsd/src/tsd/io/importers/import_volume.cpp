@@ -13,9 +13,8 @@ namespace tsd::io {
 
 using namespace tsd::core;
 
-VolumeRef import_volume(Scene &scene,
-    const char *filepath,
-    LayerNodeRef location)
+VolumeRef import_volume(
+    Scene &scene, const char *filepath, LayerNodeRef location)
 {
   SpatialFieldRef field;
 
@@ -64,7 +63,7 @@ VolumeRef import_volume(Scene &scene,
 
 VolumeRef import_volume(Scene &scene,
     const char *filepath,
-    const TransferFunction& transferFunction,
+    const TransferFunction &transferFunction,
     LayerNodeRef location)
 {
   auto volume = import_volume(scene, filepath, location);
@@ -82,15 +81,16 @@ VolumeRef import_volume(Scene &scene,
     colormap.push_back({color.x, color.y, color.z, opacty});
   }
 
-  auto colorArray = scene.createArray(
-      ANARI_FLOAT32_VEC4, colormap.size());
+  auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, colormap.size());
   colorArray->setData(colormap);
   volume->setParameterObject("color", *colorArray);
 
   if (transferFunction.range.lower < transferFunction.range.upper)
-    volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &transferFunction.range);
+    volume->setParameter(
+        "valueRange", ANARI_FLOAT32_BOX1, &transferFunction.range);
 
-  volume->setMetadataArray("opacityControlPoints", ANARI_FLOAT32_VEC2,
+  volume->setMetadataArray("opacityControlPoints",
+      ANARI_FLOAT32_VEC2,
       transferFunction.opacityPoints.data(),
       transferFunction.opacityPoints.size());
 

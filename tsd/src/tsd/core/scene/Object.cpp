@@ -199,6 +199,11 @@ void Object::setName(const char *n)
   m_name = n;
 }
 
+void Object::setName(const std::string &n)
+{
+  m_name = n;
+}
+
 Any Object::getMetadataValue(const std::string &name) const
 {
   if (!m_metadata)

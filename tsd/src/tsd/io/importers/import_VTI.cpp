@@ -5,9 +5,9 @@
 #define TSD_USE_VTK 1
 #endif
 
+#include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/core/Logging.hpp"
 #if TSD_USE_VTK
 // vtk
 #include <vtkCellData.h>
@@ -24,42 +24,6 @@
 namespace tsd::io {
 
 #if TSD_USE_VTK
-static anari::DataType vtkTypeToANARIType(int vtkType)
-{
-  switch (vtkType) {
-  case VTK_FLOAT:
-    return ANARI_FLOAT32;
-  case VTK_DOUBLE:
-    return ANARI_FLOAT64;
-  case VTK_CHAR:
-    return ANARI_FIXED8;
-  case VTK_SHORT:
-    return ANARI_FIXED16;
-  case VTK_INT:
-    return ANARI_FIXED32;
-  case VTK_UNSIGNED_CHAR:
-    return ANARI_UFIXED8;
-  case VTK_UNSIGNED_SHORT:
-    return ANARI_UFIXED16;
-  case VTK_UNSIGNED_INT:
-    return ANARI_UFIXED32;
-  default:
-    logError("[import_VTI] unsupported vtk type %d", vtkType);
-    return ANARI_UNKNOWN;
-  }
-}
-
-static ArrayRef makeArray3D(
-    Scene &scene, vtkDataArray *array, vtkIdType w, vtkIdType h, vtkIdType d)
-{
-  void *ptr = array->GetVoidPointer(0);
-  int vtkType = array->GetDataType();
-
-  auto arr = scene.createArray(vtkTypeToANARIType(vtkType), w, h, d);
-  arr->setData(ptr);
-  return arr;
-}
-
 SpatialFieldRef import_VTI(Scene &scene, const char *filepath)
 {
   vtkNew<vtkXMLImageDataReader> reader;
@@ -81,8 +45,8 @@ SpatialFieldRef import_VTI(Scene &scene, const char *filepath)
   grid->GetSpacing(spacing);
   grid->GetOrigin(origin);
 
-  auto field =
-      scene.createObject<SpatialField>(tokens::spatial_field::structuredRegular);
+  auto field = scene.createObject<SpatialField>(
+      tokens::spatial_field::structuredRegular);
   field->setName(fileOf(filepath).c_str());
   field->setParameter("origin", float3(origin[0], origin[1], origin[2]));
   field->setParameter("spacing", float3(spacing[0], spacing[1], spacing[2]));
@@ -102,7 +66,8 @@ SpatialFieldRef import_VTI(Scene &scene, const char *filepath)
       continue;
     }
 
-    auto a = makeArray3D(scene, array, dims[0], dims[1], dims[2]);
+    auto a = makeArray3DFromVTK(
+        scene, array, dims[0], dims[1], dims[2], "[import_VTI]");
     field->setParameterObject("data", *a);
     break;
   }
@@ -117,4 +82,4 @@ SpatialFieldRef import_VTI(Scene &scene, const char *filepath)
 }
 #endif
 
-} // namespace tsd
+} // namespace tsd::io

@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include <anari/anari_cpp/ext/linalg.h>
+// tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/Token.hpp"
+// tsd_io
 #include "tsd/io/importers/detail/dds.h"
 // mikktspace
 #include "mikktspace.h"
 // stb_image
 #include "stb_image.h"
-#include "tsd/core/Token.hpp"
+// anari
+#include <anari/anari_cpp/ext/linalg.h>
 // std
 #include <algorithm>
 #include <cstddef>
@@ -524,9 +527,8 @@ static core::TransferFunction importParaViewTransferFunction(
   }
 
   // Read entire file
-  const std::string jsonContent{(
-      std::istreambuf_iterator<char>(file)),
-      std::istreambuf_iterator<char>()};
+  const std::string jsonContent{
+      (std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>()};
 
   // Parse RGBPoints array
   if (const auto rgbPointsPos = jsonContent.find("\"RGBPoints\"");
@@ -535,13 +537,12 @@ static core::TransferFunction importParaViewTransferFunction(
         filepath.c_str());
     return {};
   } else if (const auto arrayStart = jsonContent.find("[", rgbPointsPos);
-             arrayStart == std::string::npos) {
+      arrayStart == std::string::npos) {
     logError(
         "[importParaViewTransferFunction] Invalid RGBPoints format in file: %s",
         filepath.c_str());
     return {};
   } else {
-
     int bracketCount = 0;
     size_t arrayEnd = arrayStart;
     for (size_t i = arrayStart; i < jsonContent.length(); ++i) {
@@ -620,7 +621,8 @@ static core::TransferFunction importParaViewTransferFunction(
               opacityArrayStart + 1, opacityArrayEnd - opacityArrayStart - 1);
           std::istringstream opacitySS(opacityContent);
 
-          for (std::string opacityToken; std::getline(opacitySS, opacityToken, ',');) {
+          for (std::string opacityToken;
+              std::getline(opacitySS, opacityToken, ',');) {
             // Trim whitespace
             if (const auto first = opacityToken.find_first_not_of(" \t\n\r");
                 first != std::string::npos) {
@@ -647,7 +649,8 @@ static core::TransferFunction importParaViewTransferFunction(
           "[importParaViewTransferFunction] Invalid Points data in file: %s, ignoring opacity",
           filepath.c_str());
       // Build a simple opacity ramp
-      opacityValues = {rgbValues[0], 0.0f, rgbValues[rgbValues.size() - 4], 1.0f};
+      opacityValues = {
+          rgbValues[0], 0.0f, rgbValues[rgbValues.size() - 4], 1.0f};
     }
 
     std::vector<ColorPoint> colorPoints;
@@ -664,8 +667,7 @@ static core::TransferFunction importParaViewTransferFunction(
     const size_t numOpacityPoints = opacityValues.size() / 2;
     opacityPoints.reserve(numOpacityPoints);
     for (size_t i = 0; i < numOpacityPoints; ++i) {
-      opacityPoints.push_back(
-          {opacityValues[i * 2], opacityValues[i * 2 + 1]});
+      opacityPoints.push_back({opacityValues[i * 2], opacityValues[i * 2 + 1]});
     }
 
     const auto valueRange =
@@ -683,8 +685,8 @@ static core::TransferFunction importParaViewTransferFunction(
       colorPoints.push_back({valueRange.upper, back.y, back.z, back.w});
     }
     if (valueRange.lower < opacityPoints.front().x) {
-      opacityPoints.insert(opacityPoints.begin(),
-          {valueRange.lower, opacityPoints.front().y});
+      opacityPoints.insert(
+          opacityPoints.begin(), {valueRange.lower, opacityPoints.front().y});
     }
     if (valueRange.upper > opacityPoints.back().x) {
       opacityPoints.push_back({valueRange.upper, opacityPoints.back().y});
@@ -718,5 +720,73 @@ core::TransferFunction importTransferFunction(const std::string &filepath)
       "[importTransferFunction] Unsupported file extension: %s", ext.c_str());
   return {};
 }
+
+#if TSD_USE_VTK
+anari::DataType vtkTypeToANARIType(
+    int vtkType, int numComps, const char *errorIdentifier)
+{
+  if (numComps > 4) {
+    tsd::core::logError(
+        "[%s] unsupported number of components %d", errorIdentifier, numComps);
+    return ANARI_UNKNOWN;
+  }
+
+  numComps -= 1; // ANARI types are zero-indexed (e.g. FLOAT3 = FLOAT + 2)
+
+  switch (vtkType) {
+  case VTK_FLOAT:
+    return ANARI_FLOAT32 + numComps;
+  case VTK_DOUBLE:
+    return ANARI_FLOAT64 + numComps;
+  case VTK_CHAR:
+    return ANARI_FIXED8 + numComps;
+  case VTK_SHORT:
+    return ANARI_FIXED16 + numComps;
+  case VTK_INT:
+    return ANARI_FIXED32 + numComps;
+  case VTK_UNSIGNED_CHAR:
+    return ANARI_UFIXED8 + numComps;
+  case VTK_UNSIGNED_SHORT:
+    return ANARI_UFIXED16 + numComps;
+  case VTK_UNSIGNED_INT:
+    return ANARI_UFIXED32 + numComps;
+  default:
+    tsd::core::logError(
+        "[%s] unsupported vtk type %d[%d]", errorIdentifier, vtkType, numComps);
+    return ANARI_UNKNOWN;
+  }
+}
+
+tsd::core::ArrayRef makeArray1DFromVTK(
+    tsd::core::Scene &scene, vtkDataArray *array, const char *errorIdentifier)
+{
+  const void *ptr = array->GetVoidPointer(0);
+  const auto numTuples = array->GetNumberOfTuples();
+  const int numComps = array->GetNumberOfComponents();
+  const int vtkType = array->GetDataType();
+
+  auto arr = scene.createArray(
+      vtkTypeToANARIType(vtkType, numComps, errorIdentifier), numTuples);
+  arr->setData(ptr);
+  return arr;
+}
+
+tsd::core::ArrayRef makeArray3DFromVTK(tsd::core::Scene &scene,
+    vtkDataArray *array,
+    size_t w,
+    size_t h,
+    size_t d,
+    const char *errorIdentifier)
+{
+  const void *ptr = array->GetVoidPointer(0);
+  const int numComps = array->GetNumberOfComponents();
+  const int vtkType = array->GetDataType();
+
+  auto arr = scene.createArray(
+      vtkTypeToANARIType(vtkType, numComps, errorIdentifier), w, h, d);
+  arr->setData(ptr);
+  return arr;
+}
+#endif
 
 } // namespace tsd::io
