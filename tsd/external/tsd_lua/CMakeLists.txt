@@ -1,83 +1,67 @@
 ## Copyright 2026 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
-include(FetchContent)
-
-FetchContent_Declare(
-  lua
-  URL https://www.lua.org/ftp/lua-5.4.8.tar.gz
-  URL_HASH SHA256=4f18ddae154e793e46eeab727c59ef1c0c0c2b744e7b94219710d76f530629ae
-  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-
-FetchContent_MakeAvailable(lua)
-
-# Lua source files (core library, no standalone interpreter)
-set(LUA_CORE_SOURCES
-  ${lua_SOURCE_DIR}/src/lapi.c
-  ${lua_SOURCE_DIR}/src/lcode.c
-  ${lua_SOURCE_DIR}/src/lctype.c
-  ${lua_SOURCE_DIR}/src/ldebug.c
-  ${lua_SOURCE_DIR}/src/ldo.c
-  ${lua_SOURCE_DIR}/src/ldump.c
-  ${lua_SOURCE_DIR}/src/lfunc.c
-  ${lua_SOURCE_DIR}/src/lgc.c
-  ${lua_SOURCE_DIR}/src/llex.c
-  ${lua_SOURCE_DIR}/src/lmem.c
-  ${lua_SOURCE_DIR}/src/lobject.c
-  ${lua_SOURCE_DIR}/src/lopcodes.c
-  ${lua_SOURCE_DIR}/src/lparser.c
-  ${lua_SOURCE_DIR}/src/lstate.c
-  ${lua_SOURCE_DIR}/src/lstring.c
-  ${lua_SOURCE_DIR}/src/ltable.c
-  ${lua_SOURCE_DIR}/src/ltm.c
-  ${lua_SOURCE_DIR}/src/lundump.c
-  ${lua_SOURCE_DIR}/src/lvm.c
-  ${lua_SOURCE_DIR}/src/lzio.c
-)
-
-# Lua auxiliary library
-set(LUA_AUX_SOURCES
-  ${lua_SOURCE_DIR}/src/lauxlib.c
-  ${lua_SOURCE_DIR}/src/lbaselib.c
-  ${lua_SOURCE_DIR}/src/lcorolib.c
-  ${lua_SOURCE_DIR}/src/ldblib.c
-  ${lua_SOURCE_DIR}/src/liolib.c
-  ${lua_SOURCE_DIR}/src/lmathlib.c
-  ${lua_SOURCE_DIR}/src/loadlib.c
-  ${lua_SOURCE_DIR}/src/loslib.c
-  ${lua_SOURCE_DIR}/src/lstrlib.c
-  ${lua_SOURCE_DIR}/src/ltablib.c
-  ${lua_SOURCE_DIR}/src/lutf8lib.c
-  ${lua_SOURCE_DIR}/src/linit.c
-)
-
 project(tsd_ext_lua LANGUAGES C)
 
-add_library(${PROJECT_NAME} STATIC
-  ${LUA_CORE_SOURCES}
-  ${LUA_AUX_SOURCES}
+anari_sdk_fetch_project(
+  NAME ${PROJECT_NAME}
+  URL https://www.lua.org/ftp/lua-5.4.8.tar.gz
+  MD5 81cf5265b8634967d8a7480d238168ce
 )
 
-target_include_directories(${PROJECT_NAME}
-  PUBLIC
-    $<BUILD_INTERFACE:${lua_SOURCE_DIR}/src>
+project_add_library(STATIC
+  # Lua source files (core library, no standalone interpreter)
+  ${tsd_ext_lua_LOCATION}/src/lapi.c
+  ${tsd_ext_lua_LOCATION}/src/lcode.c
+  ${tsd_ext_lua_LOCATION}/src/lctype.c
+  ${tsd_ext_lua_LOCATION}/src/ldebug.c
+  ${tsd_ext_lua_LOCATION}/src/ldo.c
+  ${tsd_ext_lua_LOCATION}/src/ldump.c
+  ${tsd_ext_lua_LOCATION}/src/lfunc.c
+  ${tsd_ext_lua_LOCATION}/src/lgc.c
+  ${tsd_ext_lua_LOCATION}/src/llex.c
+  ${tsd_ext_lua_LOCATION}/src/lmem.c
+  ${tsd_ext_lua_LOCATION}/src/lobject.c
+  ${tsd_ext_lua_LOCATION}/src/lopcodes.c
+  ${tsd_ext_lua_LOCATION}/src/lparser.c
+  ${tsd_ext_lua_LOCATION}/src/lstate.c
+  ${tsd_ext_lua_LOCATION}/src/lstring.c
+  ${tsd_ext_lua_LOCATION}/src/ltable.c
+  ${tsd_ext_lua_LOCATION}/src/ltm.c
+  ${tsd_ext_lua_LOCATION}/src/lundump.c
+  ${tsd_ext_lua_LOCATION}/src/lvm.c
+  ${tsd_ext_lua_LOCATION}/src/lzio.c
+  # Lua auxiliary library
+  ${tsd_ext_lua_LOCATION}/src/lauxlib.c
+  ${tsd_ext_lua_LOCATION}/src/lbaselib.c
+  ${tsd_ext_lua_LOCATION}/src/lcorolib.c
+  ${tsd_ext_lua_LOCATION}/src/ldblib.c
+  ${tsd_ext_lua_LOCATION}/src/liolib.c
+  ${tsd_ext_lua_LOCATION}/src/lmathlib.c
+  ${tsd_ext_lua_LOCATION}/src/loadlib.c
+  ${tsd_ext_lua_LOCATION}/src/loslib.c
+  ${tsd_ext_lua_LOCATION}/src/lstrlib.c
+  ${tsd_ext_lua_LOCATION}/src/ltablib.c
+  ${tsd_ext_lua_LOCATION}/src/lutf8lib.c
+  ${tsd_ext_lua_LOCATION}/src/linit.c
 )
+
+project_include_directories(PUBLIC ${tsd_ext_lua_LOCATION}/src)
 
 # Platform-specific definitions
 if(UNIX AND NOT APPLE)
-  target_compile_definitions(${PROJECT_NAME} PRIVATE LUA_USE_LINUX)
-  target_link_libraries(${PROJECT_NAME} PRIVATE m dl)
+  project_compile_definitions(PRIVATE LUA_USE_LINUX)
+  project_link_libraries(PRIVATE m dl)
 elseif(APPLE)
-  target_compile_definitions(${PROJECT_NAME} PRIVATE LUA_USE_MACOSX)
-  target_link_libraries(${PROJECT_NAME} PRIVATE m)
+  project_compile_definitions(PRIVATE LUA_USE_MACOSX)
+  project_link_libraries(PRIVATE m)
 elseif(WIN32)
-  target_compile_definitions(${PROJECT_NAME} PRIVATE LUA_USE_WINDOWS)
+  project_compile_definitions(PRIVATE LUA_USE_WINDOWS)
 endif()
 
 # Suppress warnings from Lua code
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-  target_compile_options(${PROJECT_NAME} PRIVATE -w)
+  project_compile_options(PRIVATE -w)
 elseif(MSVC)
-  target_compile_options(${PROJECT_NAME} PRIVATE /W0)
+  project_compile_options(PRIVATE /W0)
 endif()

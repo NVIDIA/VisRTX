@@ -34,4 +34,5 @@ mark_cache_variables_as_advanced(
   "^GAME"
   "LIB$"
   "^HDF5"
+  "^SOL2"
 )

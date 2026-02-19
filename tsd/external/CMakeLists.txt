@@ -18,7 +18,7 @@ endif()
 
 if(TSD_USE_LUA)
   add_subdirectory(tsd_lua)
-  add_subdirectory(tsd_sol2)
+  add_subdirectory(tsd_sol2 EXCLUDE_FROM_ALL)
 endif()
 
 if (NOT TARGET fmt::fmt)
