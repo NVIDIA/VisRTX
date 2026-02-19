@@ -124,7 +124,8 @@ void Frame::renderFrame()
     tsd::io::save_Scene(state->scene, filename);
   }
 
-  anari::render(state->device, m_anariFrame);
+  if (isValid())
+    anari::render(state->device, m_anariFrame);
 }
 
 void *Frame::map(std::string_view channel,

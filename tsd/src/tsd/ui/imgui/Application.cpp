@@ -200,6 +200,7 @@ void Application::uiFrameStart()
 void Application::teardown()
 {
   teardownUsdDevice();
+  teardownTsdDevice();
   anari_viewer::ui::shutdown();
 }
 
