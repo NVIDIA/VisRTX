@@ -3,6 +3,21 @@
 
 project(tsd_ext_lua LANGUAGES C)
 
+find_package(Lua)
+if(LUA_FOUND)
+  if(LUA_VERSION_STRING VERSION_LESS "5.5")
+    project_add_library(INTERFACE)
+    set_target_properties(${PROJECT_NAME}
+      PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${LUA_INCLUDE_DIR}"
+        INTERFACE_LINK_LIBRARIES "${LUA_LIBRARIES}"
+    )
+    return()
+  else()
+    message(WARNING "Found Lua >= 5.5, which is not supported yet. Falling back to embedding Lua 5.4")
+  endif()
+endif()
+
 anari_sdk_fetch_project(
   NAME ${PROJECT_NAME}
   URL https://www.lua.org/ftp/lua-5.4.8.tar.gz

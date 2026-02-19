@@ -46,6 +46,4 @@ if(MSVC)
     bindings/ObjectBindings.cpp
     PROPERTIES COMPILE_OPTIONS "/bigobj"
   )
-elseif(UNIX)
-  target_link_options(tsd_lua PUBLIC -rdynamic)
 endif()
