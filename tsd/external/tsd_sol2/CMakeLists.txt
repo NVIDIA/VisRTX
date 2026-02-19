@@ -9,11 +9,7 @@ project(tsd_ext_sol2 LANGUAGES CXX)
 find_package(sol2 CONFIG)
 if(sol2_FOUND)
   project_add_library(INTERFACE)
-  set_target_properties(${PROJECT_NAME}
-    PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${SOL2_INCLUDE_DIRS}"
-      INTERFACE_LINK_LIBRARIES "${SOL2_LIBRARIES}"
-  )
+  project_link_libraries(INTERFACE sol2::sol2)
 else()
   anari_sdk_fetch_project(
     NAME ${PROJECT_NAME}
