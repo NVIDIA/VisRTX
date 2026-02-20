@@ -1,8 +1,8 @@
-# TSD Viewer — Jupyter widget for remote rendering
+# TSD Jupyter — Jupyter widget for remote rendering
 
-The **tsdviewer** package provides Jupyter widgets to connect to a TSD (Time-Space Data) render server, display a live view, and control the camera and volume transfer functions from a notebook.
+The **tsdjupyter** package provides Jupyter widgets to connect to a TSD (Time-Space Data) render server, display a live view, and control the camera and volume transfer functions from a notebook.
 
-![TSD Viewer in Jupyter](tsdViewerJupyterNotebook.png)
+![TSD Jupyter in Jupyter](tsdViewerJupyterNotebook.png)
 
 ## Prerequisites
 
@@ -11,10 +11,10 @@ The **tsdviewer** package provides Jupyter widgets to connect to a TSD (Time-Spa
 
 ## Installation
 
-From the `tsdviewer` directory (this folder):
+From the `tsdjupyter` directory (this folder):
 
 ```bash
-cd tsdviewer   # if you are in tsd/python
+cd tsdjupyter   # if you are in tsd/python
 pip install -e .
 ```
 
@@ -27,9 +27,9 @@ pip install -e ".[dev]"
 ## Quick start
 
 ```python
-from tsdviewer import TSDViewer, TransferFunctionWidget
+from tsdjupyter import TSDJupyter, TransferFunctionWidget
 
-viewer = TSDViewer(
+viewer = TSDJupyter(
     host="localhost",
     port=12345,
     width=1120,
@@ -50,14 +50,14 @@ The viewer connects on creation by default. Use the canvas to orbit/dolly/pan; u
 
 ## Example notebook
 
-Run the demo notebook from the `tsdviewer` directory:
+Run the demo notebook from the `tsdjupyter` directory:
 
 ```bash
-cd tsdviewer
-jupyter notebook notebooks/tsdviewer_demo.ipynb
+cd tsdjupyter
+jupyter notebook notebooks/tsdjupyter_demo.ipynb
 ```
 
-Or in JupyterLab: **File → Open** → `notebooks/tsdviewer_demo.ipynb`.
+Or in JupyterLab: **File → Open** → `notebooks/tsdjupyter_demo.ipynb`.
 
 ## Mouse controls
 
@@ -81,8 +81,8 @@ Or in JupyterLab: **File → Open** → `notebooks/tsdviewer_demo.ipynb`.
 
 | Component               | Description |
 |-------------------------|-------------|
-| `TSDViewer(host, port, ...)` | Main widget: viewport, camera, connection to TSD server. |
-| `TransferFunctionWidget(viewer)` | Colour/opacity editor bound to the viewer’s selected volume. |
-| `TSDClient`             | Low-level client (message types, connect, send view/frame config). Use `TSDViewer` unless you need custom messaging. |
+| `TSDJupyter(host, port, ...)` | Main widget: viewport, camera, connection to TSD server. |
+| `TransferFunctionWidget(viewer)` | Colour/opacity editor bound to the viewer's selected volume. |
+| `TSDClient`             | Low-level client (message types, connect, send view/frame config). Use `TSDJupyter` unless you need custom messaging. |
 
-See the docstrings in `tsdviewer.viewer`, `tsdviewer.transfer_function`, and `tsdviewer.tsd_client` for full API details.
+See the docstrings in `tsdjupyter.viewer`, `tsdjupyter.transfer_function`, and `tsdjupyter.tsd_client` for full API details.

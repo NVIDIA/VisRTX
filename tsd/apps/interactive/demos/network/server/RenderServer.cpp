@@ -509,7 +509,7 @@ void setOnVolumeOrField(tsd::core::Object &vol,
 void RenderServer::handle_SetVolumeAttribute(const Message &msg)
 {
   constexpr size_t nameLen = 64;
-  if (msg.header.payload_length < 4u + nameLen + 1u)
+  if (msg.header.payload_length < 4u + nameLen + 4u)
     return;
 
   uint32_t pos = 0;
@@ -522,8 +522,9 @@ void RenderServer::handle_SetVolumeAttribute(const Message &msg)
     return;
   pos += nameLen;
 
-  uint8_t typeByte = static_cast<uint8_t>(msg.payload[pos]);
-  pos += 1;
+  uint32_t anariType = 0;
+  if (!tsd::network::payloadRead(msg, pos, &anariType))
+    return;
 
   auto &scene = m_core.tsd.scene;
   if (volIndex >= scene.objectDB().volume.capacity())
@@ -535,8 +536,8 @@ void RenderServer::handle_SetVolumeAttribute(const Message &msg)
   auto *field =
       volRef->parameterValueAsObject<tsd::core::SpatialField>("value");
 
-  switch (typeByte) {
-  case ATTR_BOOL: {
+  switch (static_cast<int>(anariType)) {
+  case ANARI_BOOL: {
     if (pos + 1 > msg.header.payload_length)
       return;
     bool v = static_cast<uint8_t>(msg.payload[pos]) != 0;
@@ -547,7 +548,7 @@ void RenderServer::handle_SetVolumeAttribute(const Message &msg)
         v ? "true" : "false");
     break;
   }
-  case ATTR_INT32: {
+  case ANARI_INT32: {
     int32_t v = 0;
     if (!tsd::network::payloadRead(msg, pos, &v))
       return;
@@ -556,7 +557,7 @@ void RenderServer::handle_SetVolumeAttribute(const Message &msg)
         "[Server] vol[%u].%s = %d", volIndex, name.c_str(), v);
     break;
   }
-  case ATTR_FLOAT32: {
+  case ANARI_FLOAT32: {
     float v = 0.f;
     if (!tsd::network::payloadRead(msg, pos, &v))
       return;
@@ -565,7 +566,7 @@ void RenderServer::handle_SetVolumeAttribute(const Message &msg)
         "[Server] vol[%u].%s = %g", volIndex, name.c_str(), v);
     break;
   }
-  case ATTR_STRING: {
+  case ANARI_STRING: {
     constexpr size_t valLen = 64;
     if (pos + valLen > msg.header.payload_length)
       return;
@@ -607,12 +608,20 @@ void RenderServer::handle_SetVolumeTF(const Message &msg)
   // Read opacity control points (XY float2 array)
   if (!tsd::network::payloadRead(msg, pos, &numOpacity))
     return;
+  if (numOpacity > 4096u)
+    return;
   const size_t opacityBytes = numOpacity * 2u * sizeof(float);
   if (pos + opacityBytes > msg.header.payload_length)
     return;
   const float *xy =
       reinterpret_cast<const float *>(msg.payload.data() + pos);
   pos += static_cast<uint32_t>(opacityBytes);
+
+  // Flags bitmask indicating which optional fields are present:
+  //   bit 0 → valueRange (2 floats), bit 1 → opacity, bit 2 → unitDistance
+  uint32_t flags = 0;
+  if (!tsd::network::payloadRead(msg, pos, &flags))
+    return;
 
   // Resolve volume
   auto &scene = m_core.tsd.scene;
@@ -638,24 +647,27 @@ void RenderServer::handle_SetVolumeTF(const Message &msg)
   volRef->setMetadataArray(
       "opacityControlPoints", ANARI_FLOAT32_VEC2, opacityPts.data(), numOpacity);
 
-  // Optional trailing fields: valueRange, opacity, unitDistance
-  auto readOptionalFloat = [&](float &out) -> bool {
-    if (pos + 4u > msg.header.payload_length)
-      return false;
-    std::memcpy(&out, msg.payload.data() + pos, 4u);
-    pos += 4u;
-    return true;
-  };
-
-  float lo = 0.f, hi = 0.f, opacity = -1.f, unitDistance = -1.f;
-  if (readOptionalFloat(lo) && readOptionalFloat(hi)) {
+  // Optional fields keyed by flags bitmask
+  if (flags & 0x1) {
+    float lo = 0.f, hi = 0.f;
+    if (!tsd::network::payloadRead(msg, pos, &lo)
+        || !tsd::network::payloadRead(msg, pos, &hi))
+      return;
     float range[2] = {lo, hi};
     volRef->setParameter("valueRange", ANARI_FLOAT32_BOX1, range);
   }
-  if (readOptionalFloat(opacity) && opacity >= 0.f)
+  if (flags & 0x2) {
+    float opacity = 0.f;
+    if (!tsd::network::payloadRead(msg, pos, &opacity))
+      return;
     volRef->setParameter("opacity", opacity);
-  if (readOptionalFloat(unitDistance) && unitDistance > 0.f)
+  }
+  if (flags & 0x4) {
+    float unitDistance = 0.f;
+    if (!tsd::network::payloadRead(msg, pos, &unitDistance))
+      return;
     volRef->setParameter("unitDistance", unitDistance);
+  }
 
   tsd::core::logDebug(
       "[Server] Set TF for volume %u (%zu colors, %u opacity pts)",

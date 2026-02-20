@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-Base Jupyter notebook widget for interactive remote rendering via a TSD server.
+TSD Jupyter — base Jupyter notebook widget for interactive remote rendering
+via a TSD server.
 
 Provides canvas display, camera control (orbit/dolly/pan), camera animations,
 and a detachable popup viewer. Application-specific features (scene-time
@@ -10,8 +11,8 @@ animation, denoiser control, etc.) should be added by subclasses.
 
 Usage::
 
-    from tsdviewer import TSDViewer
-    viewer = TSDViewer("hostname", 12345)
+    from tsdjupyter import TSDJupyter
+    viewer = TSDJupyter("hostname", 12345)
     viewer          # displays the interactive viewer in the notebook
 
 Mouse controls:
@@ -32,6 +33,7 @@ Camera animation API::
     viewer.stop_animation()
 """
 
+import asyncio
 import io
 import math
 import struct
@@ -50,7 +52,7 @@ from .tsd_client import (
     VIEW_FORMAT,
 )
 
-logger = logging.getLogger("tsdviewer.viewer")
+logger = logging.getLogger("tsdjupyter.viewer")
 
 # ---------------------------------------------------------------------------
 # JavaScript front-end  (embedded ESM for anywidget)
@@ -362,7 +364,7 @@ export function render({ model, el }) {
 
     const popW = width + 40;
     const popH = height + 60;
-    popupWin = window.open('', 'TSD_Viewer_' + Date.now(),
+    popupWin = window.open('', 'TSD_Jupyter_' + Date.now(),
       'width=' + popW + ',height=' + popH + ',resizable=yes,scrollbars=no');
     if (!popupWin) {
       alert('Popup blocked \\u2014 please allow popups for this site.');
@@ -370,7 +372,7 @@ export function render({ model, el }) {
     }
 
     const doc = popupWin.document;
-    doc.title = 'TSD Viewer';
+    doc.title = 'TSD Jupyter';
     doc.body.style.cssText =
       'margin:0; padding:20px; background:' + COLORS.bg +
       '; display:flex; justify-content:center; align-items:flex-start;' +
@@ -476,11 +478,11 @@ def _lerp_camera(c0: dict, c1: dict, t: float) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# TSDViewer widget
+# TSDJupyter widget
 # ---------------------------------------------------------------------------
 
 
-class TSDViewer(anywidget.AnyWidget):
+class TSDJupyter(anywidget.AnyWidget):
     """Base interactive Jupyter widget that connects to a TSD server and
     displays streamed rendering with orbit/dolly/pan mouse controls and
     built-in camera animation support.
@@ -974,6 +976,25 @@ class TSDViewer(anywidget.AnyWidget):
         elif action == "record":
             self.record_keyframe()
 
+    # -- Thread-safe trait helpers --------------------------------------------
+
+    def _set_traits_threadsafe(self, **traits):
+        """Set synced traitlets from any thread, marshalling onto the IO loop
+        when called from a background thread (e.g. the recv thread)."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        def _apply():
+            for name, value in traits.items():
+                setattr(self, name, value)
+
+        if loop is not None and not loop.is_closed():
+            loop.call_soon_threadsafe(_apply)
+        else:
+            _apply()
+
     # -- Message handlers (called from recv thread) --------------------------
 
     def _on_frame(self, _msg_type: int, payload: bytes):
@@ -1001,13 +1022,16 @@ class TSDViewer(anywidget.AnyWidget):
             img = img.convert("RGB")
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=self._jpeg_quality)
-            self._frame_jpeg = buf.getvalue()
+            jpeg_data = buf.getvalue()
 
             tags = self._build_status_tags()
-            self._status = (
+            status = (
                 f"Connected | Frame #{self._frame_count}"
                 f" | {self._width}\u00d7{self._height}"
                 f"{tags}"
+            )
+            self._set_traits_threadsafe(
+                _frame_jpeg=jpeg_data, _status=status
             )
         except Exception as exc:
             logger.error("Frame encode error: %s", exc)
@@ -1040,7 +1064,7 @@ class TSDViewer(anywidget.AnyWidget):
 
     def _handle_server_disconnect(self):
         self.stop_animation()
-        self._status = "Server disconnected"
+        self._set_traits_threadsafe(_status="Server disconnected")
 
     # -- Viewport resize -----------------------------------------------------
 

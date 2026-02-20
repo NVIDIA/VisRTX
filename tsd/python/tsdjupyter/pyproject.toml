@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tsdviewer"
+name = "tsdjupyter"
 version = "0.1.0"
-description = "Jupyter widget for interactive remote rendering via a TSD server"
+description = "TSD Jupyter — Jupyter widget for interactive remote rendering via a TSD server"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
 dependencies = ["anywidget>=0.9", "ipywidgets>=8.0", "Pillow>=9.0"]
@@ -14,4 +14,4 @@ dependencies = ["anywidget>=0.9", "ipywidgets>=8.0", "Pillow>=9.0"]
 dev = ["jupyterlab", "notebook"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["tsdviewer"]
+packages = ["tsdjupyter"]

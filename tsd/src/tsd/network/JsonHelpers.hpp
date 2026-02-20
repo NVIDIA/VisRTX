@@ -6,10 +6,11 @@
 #include "tsd/core/Any.hpp"
 #include "tsd/core/scene/Object.hpp"
 #include <nlohmann/json.hpp>
+#include <optional>
 
 namespace tsd::network {
 
-inline nlohmann::json anyToJson(const tsd::core::Any &v)
+inline std::optional<nlohmann::json> anyToJson(const tsd::core::Any &v)
 {
   auto t = v.type();
   if (t == ANARI_BOOL)
@@ -26,21 +27,21 @@ inline nlohmann::json anyToJson(const tsd::core::Any &v)
     return v.getString();
   if (t == ANARI_FLOAT32_VEC2) {
     auto w = v.getAs<tsd::math::float2>(ANARI_FLOAT32_VEC2);
-    return {w.x, w.y};
+    return nlohmann::json{w.x, w.y};
   }
   if (t == ANARI_FLOAT32_VEC3) {
     auto w = v.getAs<tsd::math::float3>(ANARI_FLOAT32_VEC3);
-    return {w.x, w.y, w.z};
+    return nlohmann::json{w.x, w.y, w.z};
   }
   if (t == ANARI_FLOAT32_VEC4) {
     auto w = v.getAs<tsd::math::float4>(ANARI_FLOAT32_VEC4);
-    return {w.x, w.y, w.z, w.w};
+    return nlohmann::json{w.x, w.y, w.z, w.w};
   }
   if (t == ANARI_FLOAT32_BOX1) {
     auto w = v.getAs<tsd::math::box1>(ANARI_FLOAT32_BOX1);
-    return {w.lower, w.upper};
+    return nlohmann::json{w.lower, w.upper};
   }
-  return nullptr;
+  return std::nullopt;
 }
 
 inline void objectParamsToJson(
@@ -50,7 +51,8 @@ inline void objectParamsToJson(
     const auto &val = obj.parameterAt(i).value();
     if (!val.valid() || val.holdsObject())
       continue;
-    j[obj.parameterNameAt(i)] = anyToJson(val);
+    if (auto jv = anyToJson(val))
+      j[obj.parameterNameAt(i)] = *jv;
   }
 }
 
@@ -64,7 +66,8 @@ inline void objectMetadataToJson(
 
     auto mv = obj.getMetadataValue(name);
     if (mv.valid() && !mv.holdsObject()) {
-      j[name] = anyToJson(mv);
+      if (auto jv = anyToJson(mv))
+        j[name] = *jv;
       continue;
     }
 

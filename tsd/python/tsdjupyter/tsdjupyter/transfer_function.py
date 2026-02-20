@@ -5,10 +5,10 @@
 Transfer function widget – interactive colour-map editor, opacity curve editor,
 value-range control, opacity-scale and unit-distance sliders.
 
-Use with a connected TSDViewer (or subclass)::
+Use with a connected TSDJupyter (or subclass)::
 
-    from tsdviewer import TSDViewer, TransferFunctionWidget
-    viewer = TSDViewer("host", 12345)
+    from tsdjupyter import TSDJupyter, TransferFunctionWidget
+    viewer = TSDJupyter("host", 12345)
     viewer.connect()
     tf = TransferFunctionWidget(viewer)
     display(viewer)
@@ -23,9 +23,9 @@ import anywidget
 import traitlets
 
 if TYPE_CHECKING:
-    from .viewer import TSDViewer
+    from .viewer import TSDJupyter
 
-logger = logging.getLogger("tsdviewer.transfer_function")
+logger = logging.getLogger("tsdjupyter.transfer_function")
 
 # ---------------------------------------------------------------------------
 # Preset colormaps – each returns 256 RGBA tuples (α = 1)
@@ -293,8 +293,9 @@ export function render({ model, el }) {
       if (v.valueRange) { vrMin.value=v.valueRange[0]; vrMax.value=v.valueRange[1]; serverValueRange=v.valueRange; }
       if (v.opacity !== undefined) { opSlider.value=v.opacity; opVal.textContent=Number(v.opacity).toFixed(2); }
       if (v.unitDistance !== undefined) { udInput.value=v.unitDistance; }
-      if (v.opacityPoints && v.opacityPoints.length >= 2) {
-        opacityPts = v.opacityPoints.map(p => ({x:p[0],y:p[1]}));
+      const opPts = v.opacityControlPoints || v.opacityPoints;
+      if (Array.isArray(opPts) && opPts.length >= 2) {
+        opacityPts = opPts.map(p => ({x:p[0],y:p[1]}));
       }
     } catch(e){}
     drawAll();
@@ -581,7 +582,7 @@ class TransferFunctionWidget(anywidget.AnyWidget):
     _apply = traitlets.Dict({}).tag(sync=True)
     _load_preset = traitlets.Dict({}).tag(sync=True)
 
-    def __init__(self, viewer: "TSDViewer", **kwargs):
+    def __init__(self, viewer: "TSDJupyter", **kwargs):
         super().__init__(**kwargs)
         self._viewer = viewer
         self._client = viewer._client

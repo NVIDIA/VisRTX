@@ -1,7 +1,7 @@
 # Copyright 2025-2026 NVIDIA Corporation
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""TSDViewer — base Jupyter widget and client for TSD server interaction."""
+"""TSD Jupyter — Jupyter widget and client for TSD server interaction."""
 
 from .tsd_client import (
     TSDClient,
@@ -13,12 +13,12 @@ from .tsd_client import (
     FRAME_CONFIG_FORMAT,
     FRAME_CONFIG_SIZE,
 )
-from .viewer import TSDViewer
+from .viewer import TSDJupyter
 from .transfer_function import TransferFunctionWidget
 
 __all__ = [
     "TSDClient",
-    "TSDViewer",
+    "TSDJupyter",
     "TransferFunctionWidget",
     "MessageType",
     "HEADER_FORMAT",

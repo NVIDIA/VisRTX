@@ -18,7 +18,7 @@ import threading
 import logging
 from enum import IntEnum
 
-logger = logging.getLogger("tsdviewer.tsd_client")
+logger = logging.getLogger("tsdjupyter.tsd_client")
 
 # ---------------------------------------------------------------------------
 # Wire format constants
@@ -229,16 +229,24 @@ class TSDClient:
             return b""
         result: list[bytes | None] = [None]
         event = threading.Event()
+        msg_key = int(MessageType.CLIENT_RECEIVE_SCENE)
+        prev_handler = self._handlers.get(msg_key)
 
         def on_response(_msg_type: int, payload: bytes) -> None:
             result[0] = bytes(payload) if payload else b""
-            self.remove_handler(MessageType.CLIENT_RECEIVE_SCENE)
+            _restore()
             event.set()
+
+        def _restore():
+            if prev_handler is not None:
+                self._handlers[msg_key] = prev_handler
+            else:
+                self._handlers.pop(msg_key, None)
 
         self.register_handler(MessageType.CLIENT_RECEIVE_SCENE, on_response)
         self.send(MessageType.SERVER_REQUEST_SCENE)
         if not event.wait(timeout=timeout):
-            self.remove_handler(MessageType.CLIENT_RECEIVE_SCENE)
+            _restore()
             raise TimeoutError(
                 f"Scene request timed out after {timeout}s"
             )
@@ -317,27 +325,37 @@ class TSDClient:
             )
         return result[0] if result[0] is not None else {}
 
+    # ANARI data type enum values (mirrors the C++ ANARIDataType defines)
+    _ANARI_TYPE_MAP = {
+        "bool": 103,      # ANARI_BOOL
+        "int32": 1016,    # ANARI_INT32
+        "float32": 1068,  # ANARI_FLOAT32
+        "string": 101,    # ANARI_STRING
+    }
+
     def set_volume_attribute(
         self, volume_index: int, name: str, param_type: str, value
     ):
-        """Set an attribute on a volume (or its spatial field).
+        """Set a parameter on a volume (or its spatial field).
 
         Parameters
         ----------
         volume_index : int
             Index of the volume in the scene.
         name : str
-            Attribute name (e.g. ``"elevationScale"``).
+            Parameter name (e.g. ``"elevationScale"``).
         param_type : str
             One of ``"bool"``, ``"int32"``, ``"float32"``, ``"string"``.
         value
             Value matching the type.
         """
+        anari_type = self._ANARI_TYPE_MAP.get(param_type)
+        if anari_type is None:
+            raise ValueError(f"Unknown param_type: {param_type}")
+
         name_bytes = (name + "\0").encode("utf-8")[:64].ljust(64, b"\x00")
-        type_map = {"bool": 0, "int32": 1, "float32": 2, "string": 3}
-        type_byte = type_map.get(param_type, 0)
-        type_b = struct.pack("<B", type_byte)
         vol_b = struct.pack("<I", volume_index)
+        type_b = struct.pack("<I", anari_type)
         if param_type == "bool":
             payload = vol_b + name_bytes + type_b + struct.pack("<B", 1 if value else 0)
         elif param_type == "int32":
@@ -347,8 +365,6 @@ class TSDClient:
         elif param_type == "string":
             val_bytes = (str(value) + "\0").encode("utf-8")[:64].ljust(64, b"\x00")
             payload = vol_b + name_bytes + type_b + val_bytes
-        else:
-            raise ValueError(f"Unknown param_type: {param_type}")
         self.send(MessageType.SET_VOLUME_ATTRIBUTE, payload)
 
     def set_volume_tf(
@@ -383,19 +399,30 @@ class TSDClient:
             raise ValueError(
                 "color_rgba length 1–4096 and at least one opacity point required"
             )
-        payload = struct.pack("<II", volume_index, num_samples)
+        payload = bytearray(struct.pack("<II", volume_index, num_samples))
         for r, g, b, a in color_rgba:
-            payload += struct.pack("<4f", r, g, b, a)
-        payload += struct.pack("<I", num_opacity)
+            payload.extend(struct.pack("<4f", r, g, b, a))
+        payload.extend(struct.pack("<I", num_opacity))
         for x, y in opacity_xy:
-            payload += struct.pack("<2f", x, y)
+            payload.extend(struct.pack("<2f", x, y))
+
+        # Flags bitmask: bit 0 = valueRange, bit 1 = opacity, bit 2 = unitDistance
+        flags = 0
         if value_range is not None:
-            payload += struct.pack("<2f", value_range[0], value_range[1])
+            flags |= 0x1
         if opacity is not None:
-            payload += struct.pack("<f", opacity)
+            flags |= 0x2
         if unit_distance is not None:
-            payload += struct.pack("<f", unit_distance)
-        self.send(MessageType.SET_VOLUME_TF, payload)
+            flags |= 0x4
+        payload.extend(struct.pack("<I", flags))
+
+        if value_range is not None:
+            payload.extend(struct.pack("<2f", value_range[0], value_range[1]))
+        if opacity is not None:
+            payload.extend(struct.pack("<f", opacity))
+        if unit_distance is not None:
+            payload.extend(struct.pack("<f", unit_distance))
+        self.send(MessageType.SET_VOLUME_TF, bytes(payload))
 
     # -- Internal ------------------------------------------------------------
 
