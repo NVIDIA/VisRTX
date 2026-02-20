@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tsd/core/ObjectPool.hpp"
+#include "tsd/core/Token.hpp"
 // anari
 #include <anari/anari_cpp.hpp>
 
@@ -15,7 +16,7 @@ struct Scene;
 
 struct AnariObjectCache
 {
-  AnariObjectCache(Scene &scene, anari::Device d);
+  AnariObjectCache(Scene &scene, tsd::core::Token deviceName, anari::Device d);
   ~AnariObjectCache();
   anari::Object getHandle(
       anari::DataType type, size_t index, bool createIfNotPresent);
@@ -37,14 +38,16 @@ struct AnariObjectCache
   ObjectPool<anari::SpatialField> field;
   ObjectPool<anari::Light> light;
   ObjectPool<anari::Array> array;
+  ObjectPool<anari::Renderer> renderer;
 
   anari::Device device{nullptr};
+  tsd::core::Token deviceName;
 
  private:
   void replaceHandle(anari::Object o, anari::DataType type, size_t i);
   anari::Object readHandle(anari::DataType type, size_t i) const;
 
-  Scene *m_ctx{nullptr};
+  Scene *m_scene{nullptr};
   bool m_supportsCUDA{false};
 };
 

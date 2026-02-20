@@ -41,6 +41,8 @@ struct LuaCameraSetup
   math::float3 up{0.f, 1.f, 0.f};
   float fovy{40.f};
   float aspect{1.777f}; // 16:9
+  float aperture{0.f};
+  float focusDistance{1.f};
 };
 
 void registerRenderBindings(sol::state &lua)
@@ -59,7 +61,11 @@ void registerRenderBindings(sol::state &lua)
       "fovy",
       &LuaCameraSetup::fovy,
       "aspect",
-      &LuaCameraSetup::aspect);
+      &LuaCameraSetup::aspect,
+      "aperture",
+      &LuaCameraSetup::aperture,
+      "focusDistance",
+      &LuaCameraSetup::focusDistance);
 
   tsd.new_usertype<LuaAnariDevice>("AnariDevice",
       sol::no_constructor,
@@ -102,7 +108,7 @@ void registerRenderBindings(sol::state &lua)
   tsd.new_usertype<rendering::RenderIndexAllLayers>(
       "RenderIndex",
       sol::constructors<rendering::RenderIndexAllLayers(
-          core::Scene &, anari::Device)>(),
+          core::Scene &, tsd::core::Token, anari::Device)>(),
       "populate",
       [](rendering::RenderIndexAllLayers &ri) { ri.populate(); },
       "world",
@@ -117,7 +123,7 @@ void registerRenderBindings(sol::state &lua)
       throw std::runtime_error("createRenderIndex: device handle is null");
     }
     return std::make_shared<rendering::RenderIndexAllLayers>(
-        scene, dev->device);
+        scene, dev->libraryName, dev->device);
   };
 
   render["getWorldBounds"] =
@@ -187,12 +193,33 @@ void registerRenderBindings(sol::state &lua)
     anari::setParameter(dev->device, cam, "position", camera.position);
     anari::setParameter(dev->device, cam, "direction", camera.direction);
     anari::setParameter(dev->device, cam, "up", camera.up);
+    if (camera.aperture > 0.f) {
+      anari::setParameter(
+          dev->device, cam, "apertureRadius", camera.aperture);
+      anari::setParameter(
+          dev->device, cam, "focusDistance", camera.focusDistance);
+    }
     anari::commitParameters(dev->device, cam);
 
-    auto renderer = anari::newObject<anari::Renderer>(dev->device, "default");
+    std::string rendererName = "default";
+    if (rendererParams) {
+      sol::object val = (*rendererParams)["renderer"];
+      if (val.is<std::string>())
+        rendererName = val.as<std::string>();
+    }
+
+    auto renderer =
+        anari::newObject<anari::Renderer>(dev->device, rendererName.c_str());
+    if (!renderer) {
+      throw std::runtime_error(fmt::format(
+          "createPipeline: failed to create renderer subtype '{}'",
+          rendererName));
+    }
     if (rendererParams) {
       for (const auto &kv : *rendererParams) {
         std::string key = kv.first.as<std::string>();
+        if (key == "renderer")
+          continue;
         sol::object val = kv.second;
         if (val.is<bool>())
           anari::setParameter(
@@ -206,6 +233,38 @@ void registerRenderBindings(sol::state &lua)
         else if (val.is<float>() || val.is<double>())
           anari::setParameter(
               dev->device, renderer, key.c_str(), val.as<float>());
+        else if (val.is<math::float2>())
+          anari::setParameter(
+              dev->device, renderer, key.c_str(), val.as<math::float2>());
+        else if (val.is<math::float3>())
+          anari::setParameter(
+              dev->device, renderer, key.c_str(), val.as<math::float3>());
+        else if (val.is<math::float4>())
+          anari::setParameter(
+              dev->device, renderer, key.c_str(), val.as<math::float4>());
+        else if (val.is<math::mat4>())
+          anari::setParameter(
+              dev->device, renderer, key.c_str(), val.as<math::mat4>());
+        else if (val.is<sol::table>()) {
+          sol::table t = val.as<sol::table>();
+          size_t len = t.size();
+          if (len == 2) {
+            anari::setParameter(dev->device,
+                renderer,
+                key.c_str(),
+                math::float2(t[1], t[2]));
+          } else if (len == 3) {
+            anari::setParameter(dev->device,
+                renderer,
+                key.c_str(),
+                math::float3(t[1], t[2], t[3]));
+          } else if (len == 4) {
+            anari::setParameter(dev->device,
+                renderer,
+                key.c_str(),
+                math::float4(t[1], t[2], t[3], t[4]));
+          }
+        }
       }
     }
     anari::commitParameters(dev->device, renderer);

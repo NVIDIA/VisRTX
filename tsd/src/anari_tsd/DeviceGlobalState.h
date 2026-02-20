@@ -15,12 +15,13 @@ using TSDAny = tsd::core::Any;
 
 struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 {
-  DeviceGlobalState(ANARIDevice d);
+  DeviceGlobalState(anari::Device d);
 
   tsd::core::Scene scene;
   tsd::app::ANARIDeviceManager anari;
 
   anari::Device device{nullptr};
+  tsd::core::Token deviceName;
 
   int cameraCount{0};
   int surfaceCount{0};

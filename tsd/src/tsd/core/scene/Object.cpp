@@ -14,6 +14,7 @@ namespace tokens {
 
 Token none = "none";
 Token unknown = "unknown";
+Token defaultToken = "default";
 
 } // namespace tokens
 
@@ -57,6 +58,7 @@ Object::Object(Object &&o)
   m_updateDelegate = std::move(o.m_updateDelegate);
   m_metadata = std::move(o.m_metadata);
   m_useCounts = std::move(o.m_useCounts);
+  m_rendererDeviceName = std::move(o.m_rendererDeviceName);
   for (auto &p : m_parameters)
     p.second.setObserver(this);
 }
@@ -74,6 +76,7 @@ Object &Object::operator=(Object &&o)
   m_updateDelegate = std::move(o.m_updateDelegate);
   m_metadata = std::move(o.m_metadata);
   m_useCounts = std::move(o.m_useCounts);
+  m_rendererDeviceName = std::move(o.m_rendererDeviceName);
   for (auto &p : m_parameters)
     p.second.setObserver(this);
   return *this;
@@ -97,6 +100,11 @@ size_t Object::index() const
 Scene *Object::scene() const
 {
   return m_scene;
+}
+
+Token Object::rendererDeviceName() const
+{
+  return m_rendererDeviceName;
 }
 
 size_t Object::totalUseCount() const
@@ -187,6 +195,11 @@ std::string &Object::editableName()
 }
 
 void Object::setName(const char *n)
+{
+  m_name = n;
+}
+
+void Object::setName(const std::string &n)
 {
   m_name = n;
 }
@@ -471,32 +484,15 @@ std::vector<std::string> getANARIObjectSubtypes(
   return retval;
 }
 
-Object parseANARIObjectInfo(
-    anari::Device d, ANARIDataType objectType, const char *subtype)
+void parseANARIObjectInfo(
+    Object &o, anari::Device d, ANARIDataType objectType, const char *subtype)
 {
-  Object retval(objectType, subtype);
-
-  if (objectType == ANARI_RENDERER) {
-    retval.addParameter("background")
-        .setValue(float4(0.05f, 0.05f, 0.05f, 1.f))
-        .setDescription("background color")
-        .setUsage(ParameterUsageHint::COLOR);
-    retval.addParameter("ambientRadiance")
-        .setValue(0.25f)
-        .setDescription("intensity of ambient light")
-        .setMin(0.f);
-    retval.addParameter("ambientColor")
-        .setValue(float3(1.f))
-        .setDescription("color of ambient light")
-        .setUsage(ParameterUsageHint::COLOR);
-  }
-
   auto *parameter = (const ANARIParameter *)anariGetObjectInfo(
       d, objectType, subtype, "parameter", ANARI_PARAMETER_LIST);
 
   for (; parameter && parameter->name != nullptr; parameter++) {
     tsd::core::Token name(parameter->name);
-    if (retval.parameter(name))
+    if (o.parameter(name))
       continue;
 
     auto *description = (const char *)anariGetParameterInfo(d,
@@ -539,7 +535,7 @@ Object parseANARIObjectInfo(
         "value",
         ANARI_STRING_LIST);
 
-    auto &p = retval.addParameter(name);
+    auto &p = o.addParameter(name);
     p.setValue(Any(parameter->type, nullptr));
     p.setDescription(description ? description : "");
     p.setValue(parseValue(parameter->type, defaultValue));
@@ -551,10 +547,18 @@ Object parseANARIObjectInfo(
     std::vector<std::string> svs;
     for (; stringValues && *stringValues; stringValues++)
       svs.push_back(*stringValues);
-    if (!svs.empty())
+    if (!svs.empty()) {
       p.setStringValues(svs);
+      p.setValue(svs[0].c_str()); // reset default value
+    }
   }
+}
 
+Object parseANARIObjectInfo(
+    anari::Device d, ANARIDataType objectType, const char *subtype)
+{
+  Object retval(objectType, subtype);
+  parseANARIObjectInfo(retval, d, objectType, subtype);
   return retval;
 }
 

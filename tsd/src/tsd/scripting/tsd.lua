@@ -12,8 +12,11 @@
 ---@field y number
 ---@operator add(tsd.float2): tsd.float2
 ---@operator sub(tsd.float2): tsd.float2
+---@operator mul(tsd.float2): tsd.float2
 ---@operator mul(number): tsd.float2
+---@operator div(tsd.float2): tsd.float2
 ---@operator div(number): tsd.float2
+---@operator unm: tsd.float2
 local float2 = {}
 
 ---@class tsd.float3
@@ -22,8 +25,11 @@ local float2 = {}
 ---@field z number
 ---@operator add(tsd.float3): tsd.float3
 ---@operator sub(tsd.float3): tsd.float3
+---@operator mul(tsd.float3): tsd.float3
 ---@operator mul(number): tsd.float3
+---@operator div(tsd.float3): tsd.float3
 ---@operator div(number): tsd.float3
+---@operator unm: tsd.float3
 local float3 = {}
 
 ---@class tsd.float4
@@ -33,8 +39,11 @@ local float3 = {}
 ---@field w number
 ---@operator add(tsd.float4): tsd.float4
 ---@operator sub(tsd.float4): tsd.float4
+---@operator mul(tsd.float4): tsd.float4
 ---@operator mul(number): tsd.float4
+---@operator div(tsd.float4): tsd.float4
 ---@operator div(number): tsd.float4
+---@operator unm: tsd.float4
 local float4 = {}
 
 ---@class tsd.mat3
@@ -647,6 +656,8 @@ function Scene:cleanupScene() end
 ---@field up tsd.float3
 ---@field fovy number
 ---@field aspect number
+---@field aperture number   # Aperture radius for depth of field (0 = disabled)
+---@field focusDistance number  # Focus distance for depth of field
 local CameraSetup = {}
 
 ---@return tsd.CameraSetup
@@ -886,6 +897,81 @@ function tsd.io.importPDB(...) end
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
 function tsd.io.importSWC(...) end
 
+--- Import an AGX file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importAGX(...) end
+
+--- Import via ASSIMP (supports many formats).
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, flatten: boolean)
+function tsd.io.importASSIMP(...) end
+
+--- Import an AXYZ point cloud file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importAXYZ(...) end
+
+--- Import a DLAF file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
+function tsd.io.importDLAF(...) end
+
+--- Import an E57 point cloud file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importE57XYZ(...) end
+
+--- Import an HSMESH file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importHSMESH(...) end
+
+--- Import an N-body simulation file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
+function tsd.io.importNBODY(...) end
+
+--- Import POINTSBIN files (multi-file).
+---@overload fun(scene: tsd.Scene, filepaths: string[])
+---@overload fun(scene: tsd.Scene, filepaths: string[], location: tsd.LayerNode)
+function tsd.io.importPOINTSBIN(...) end
+
+--- Import a PT file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importPT(...) end
+
+--- Import a Silo file (scene-level). Requires a location parameter.
+---@param scene tsd.Scene
+---@param filename string
+---@param location tsd.LayerNode
+function tsd.io.importSilo(scene, filename, location) end
+
+--- Import an SMESH file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, isAnimation: boolean)
+function tsd.io.importSMESH(...) end
+
+--- Import a TRK track file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importTRK(...) end
+
+--- Import a USD file (alternate importer).
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importUSD2(...) end
+
+--- Import an XYZDP point cloud file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importXYZDP(...) end
+
 --- Import a volume file (auto-detects format).
 ---@overload fun(scene: tsd.Scene, filename: string): tsd.Volume
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode): tsd.Volume
@@ -908,6 +994,24 @@ function tsd.io.importNVDB(scene, filename) end
 ---@param filename string
 ---@return tsd.Volume
 function tsd.io.importMHD(scene, filename) end
+
+--- Import a FLASH (HDF5 AMR) volume file.
+---@param scene tsd.Scene
+---@param filename string
+---@return tsd.SpatialField
+function tsd.io.importFLASH(scene, filename) end
+
+--- Import a VTI (VTK ImageData) volume file.
+---@param scene tsd.Scene
+---@param filename string
+---@return tsd.SpatialField
+function tsd.io.importVTI(scene, filename) end
+
+--- Import a VTU (VTK UnstructuredGrid) volume file.
+---@param scene tsd.Scene
+---@param filename string
+---@return tsd.SpatialField
+function tsd.io.importVTU(scene, filename) end
 
 --- Generate random spheres.
 ---@overload fun(scene: tsd.Scene)
@@ -993,7 +1097,10 @@ function tsd.render.getWorldBounds(device, index) end
 ---@param device tsd.AnariDevice
 ---@param index tsd.RenderIndex
 ---@param camera tsd.CameraSetup
----@param rendererParams? table<string, boolean|number|string>  Optional renderer parameters (e.g. {denoise=true, denoiseMode="colorAlbedoNormal"})
+--- Optional renderer parameters.
+--- Special key "renderer" selects subtype (default: "default").
+--- Supports vector values for params like background (float4), ambientColor (float3).
+---@param rendererParams? table<string, boolean|number|string|tsd.float2|tsd.float3|tsd.float4|tsd.mat4|number[]>
 ---@return tsd.RenderPipeline
 function tsd.render.createPipeline(width, height, device, index, camera, rendererParams) end
 

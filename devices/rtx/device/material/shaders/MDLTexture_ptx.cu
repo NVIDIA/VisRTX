@@ -137,6 +137,38 @@ VISRTX_DEVICE void storeResult(T (&res)[SIZE], Vs &&...vs)
       res, std::make_integer_sequence<Size, SIZE>{}, std::forward<Vs>(vs)...);
 }
 
+// Sampler invSize helpers — the MDL texture dimensionality may not match the
+// actual ANARI sampler type (e.g. image1D bound to a texture_2d parameter).
+// Reading the wrong union member would hit uninitialized memory.
+
+VISRTX_DEVICE vec2 getInvSize2D(const SamplerGPUData &s)
+{
+  switch (s.type) {
+  case SamplerType::TEXTURE1D:
+    return vec2(s.image1D.invSize, 0.f);
+  case SamplerType::TEXTURE2D:
+    return s.image2D.invSize;
+  case SamplerType::TEXTURE3D:
+    return vec2(s.image3D.invSize);
+  default:
+    return vec2(0.f);
+  }
+}
+
+VISRTX_DEVICE vec3 getInvSize3D(const SamplerGPUData &s)
+{
+  switch (s.type) {
+  case SamplerType::TEXTURE1D:
+    return vec3(s.image1D.invSize, 0.f, 0.f);
+  case SamplerType::TEXTURE2D:
+    return vec3(s.image2D.invSize, 0.f);
+  case SamplerType::TEXTURE3D:
+    return s.image3D.invSize;
+  default:
+    return vec3(0.f);
+  }
+}
+
 // 2D lookup
 
 VISRTX_CALLABLE void tex_lookup_float4_2d(float (&result)[4],
@@ -153,7 +185,7 @@ VISRTX_CALLABLE void tex_lookup_float4_2d(float (&result)[4],
   if (tex_texture_isvalid(textureHandler, textureIdx)) {
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
-    auto invSize = samplerData.image2D.invSize;
+    auto invSize = getInvSize2D(samplerData);
     ::float2 coords = {coord[0], coord[1]};
 
     if (handleWrapping(coords.x, invSize.x, wrapU, cropU)
@@ -178,7 +210,7 @@ VISRTX_CALLABLE void tex_lookup_float3_2d(float (&result)[3],
   if (tex_texture_isvalid(textureHandler, textureIdx)) {
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
-    auto invSize = samplerData.image2D.invSize;
+    auto invSize = getInvSize2D(samplerData);
     ::float2 coords = {coord[0], coord[1]};
 
     if (handleWrapping(coords.x, invSize.x, wrapU, cropU)
@@ -226,7 +258,7 @@ VISRTX_CALLABLE void tex_lookup_float4_3d(float (&result)[4],
   if (tex_texture_isvalid(textureHandler, textureIdx)) {
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
-    auto invSize = samplerData.image3D.invSize;
+    auto invSize = getInvSize3D(samplerData);
     ::float3 coords = {coord[0], coord[1], coord[2]};
 
     if (handleWrapping(coords.x, invSize.x, wrapU, cropU)
@@ -255,7 +287,7 @@ VISRTX_CALLABLE void tex_lookup_float3_3d(float (&result)[3],
   if (tex_texture_isvalid(textureHandler, textureIdx)) {
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
-    auto invSize = samplerData.image3D.invSize;
+    auto invSize = getInvSize3D(samplerData);
     ::float3 coords = {coord[0], coord[1], coord[2]};
 
     if (handleWrapping(coords.x, invSize.x, wrapU, cropU)
@@ -305,7 +337,19 @@ VISRTX_CALLABLE void tex_resolution_2d(int (&result)[2],
   if (tex_texture_isvalid(textureHandler, textureIdx)) {
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
-    v = samplerData.image2D.size;
+    switch (samplerData.type) {
+    case SamplerType::TEXTURE1D:
+      v = ivec2(samplerData.image1D.size, 1);
+      break;
+    case SamplerType::TEXTURE2D:
+      v = samplerData.image2D.size;
+      break;
+    case SamplerType::TEXTURE3D:
+      v = ivec2(samplerData.image3D.size);
+      break;
+    default:
+      break;
+    }
   }
 
   storeResult(result, v);
@@ -321,7 +365,19 @@ VISRTX_CALLABLE void tex_resolution_3d(int (&result)[3],
   if (tex_texture_isvalid(textureHandler, textureIdx)) {
     auto samplerData = getSamplerData(
         *textureHandler->fd, textureHandler->samplers[textureIdx - 1]);
-    v = samplerData.image3D.size;
+    switch (samplerData.type) {
+    case SamplerType::TEXTURE1D:
+      v = ivec3(samplerData.image1D.size, 1, 1);
+      break;
+    case SamplerType::TEXTURE2D:
+      v = ivec3(samplerData.image2D.size, 1);
+      break;
+    case SamplerType::TEXTURE3D:
+      v = samplerData.image3D.size;
+      break;
+    default:
+      break;
+    }
   }
 
   storeResult(result, v);

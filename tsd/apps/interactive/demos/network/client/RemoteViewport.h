@@ -56,6 +56,10 @@ struct RemoteViewport : public Window
 
   float m_fov{40.f};
 
+  std::vector<tsd::core::RendererAppRef> m_rendererObjects;
+  tsd::core::RendererAppRef m_currentRenderer;
+  size_t m_receivedRendererIdx{0};
+
   // Camera manipulator //
 
   int m_arcballUp{1};

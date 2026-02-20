@@ -297,6 +297,9 @@ void buildUI_object(tsd::core::Object &o,
     ImGui::Text("   subtype: %s", o.subtype().c_str());
   }
 
+  if (o.type() == ANARI_RENDERER)
+    ImGui::Text("    device: %s", o.rendererDeviceName().c_str());
+
   ImGui::Text("use counts: %zu | %zu | %zu",
       o.useCount(tsd::core::Object::UseKind::APP),
       o.useCount(tsd::core::Object::UseKind::PARAMETER),

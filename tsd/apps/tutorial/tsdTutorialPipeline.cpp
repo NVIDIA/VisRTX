@@ -69,7 +69,7 @@ int main()
   printf("setup render index...");
   fflush(stdout);
 
-  tsd::rendering::RenderIndexFlatRegistry rIdx(scene, device);
+  tsd::rendering::RenderIndexFlatRegistry rIdx(scene, "environment", device);
   rIdx.populate();
 
   printf("done!\n");

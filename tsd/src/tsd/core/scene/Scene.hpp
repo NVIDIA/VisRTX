@@ -10,6 +10,7 @@
 #include "tsd/core/scene/objects/Geometry.hpp"
 #include "tsd/core/scene/objects/Light.hpp"
 #include "tsd/core/scene/objects/Material.hpp"
+#include "tsd/core/scene/objects/Renderer.hpp"
 #include "tsd/core/scene/objects/Sampler.hpp"
 #include "tsd/core/scene/objects/SpatialField.hpp"
 #include "tsd/core/scene/objects/Surface.hpp"
@@ -43,6 +44,7 @@ struct ObjectDatabase
   ObjectPool<SpatialField> field;
   ObjectPool<Light> light;
   ObjectPool<Camera> camera;
+  ObjectPool<Renderer> renderer;
 
   // Not copyable or moveable //
   ObjectDatabase() = default;
@@ -86,8 +88,8 @@ struct Scene
   // Flat object collections //
   /////////////////////////////
 
-  template <typename T>
-  ObjectPoolRef<T> createObject();
+  // Generic objets //
+
   template <typename T>
   ObjectPoolRef<T> createObject(Token subtype);
   Object *createObject(anari::DataType type, Token subtype);
@@ -103,7 +105,8 @@ struct Scene
       size_t items0,
       size_t items1 = 0,
       size_t items2 = 0);
-  SurfaceRef createSurface(const char *name, GeometryRef g, MaterialRef m = {});
+  SurfaceRef createSurface(
+      const char *name = "", GeometryRef g = {}, MaterialRef m = {});
 
   template <typename T>
   ObjectPoolRef<T> getObject(size_t i) const;
@@ -114,6 +117,15 @@ struct Scene
   void removeObject(const Object *o);
   void removeObject(const Any &o);
   void removeAllObjects();
+
+  // Renderers (specially handled per-device) //
+
+  RendererAppRef createRenderer(
+      Token deviceName, Token subtype = tokens::defaultToken);
+  std::vector<RendererAppRef> createStandardRenderers(
+      Token deviceName, anari::Device device);
+  std::vector<RendererAppRef> renderersOfDevice(Token deviceName) const;
+  void removeRenderersForDevice(Token deviceName);
 
   BaseUpdateDelegate *updateDelegate() const;
   void setUpdateDelegate(BaseUpdateDelegate *ud);
@@ -172,8 +184,7 @@ struct Scene
 
   // Remove nodes //
 
-  void removeNode(
-      LayerNodeRef obj, bool deleteReferencedObjects = false);
+  void removeNode(LayerNodeRef obj, bool deleteReferencedObjects = false);
 
   // Indicate changes occurred //
 
@@ -203,7 +214,7 @@ struct Scene
   // Cleanup operations //
   ////////////////////////
 
-  void removeUnusedObjects();
+  void removeUnusedObjects(bool includeRenderers = false);
   void defragmentObjectStorage();
   void cleanupScene(); // remove unused + defragment
 
@@ -211,10 +222,8 @@ struct Scene
   friend void ::tsd::io::save_Scene(Scene &, core::DataNode &, bool);
   friend void ::tsd::io::load_Scene(Scene &, core::DataNode &);
 
-  template <typename OBJ_T>
-  ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv, Token subtype);
-  template <typename OBJ_T>
-  ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv);
+  template <typename OBJ_T, typename... Args>
+  ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv, Args &&...args);
 
   ArrayRef createArrayImpl(anari::DataType type,
       size_t items0,
@@ -246,28 +255,14 @@ struct Scene
 // Scene //
 
 template <typename T>
-inline ObjectPoolRef<T> Scene::createObject()
-{
-  static_assert(std::is_base_of<Object, T>::value,
-      "Scene::createObject<> can only create tsd::Object subclasses");
-  static_assert(!std::is_same<T, Array>::value,
-      "Use Scene::createArray() to create tsd::Array objects");
-  return {};
-}
-
-template <>
-inline SurfaceRef Scene::createObject()
-{
-  return createObjectImpl(m_db.surface);
-}
-
-template <typename T>
 inline ObjectPoolRef<T> Scene::createObject(Token subtype)
 {
   static_assert(std::is_base_of<Object, T>::value,
       "Scene::createObject<> can only create tsd::Object subclasses");
   static_assert(!std::is_same<T, Array>::value,
       "Use Scene::createArray() to create tsd::Array objects");
+  static_assert(!std::is_same<T, Renderer>::value,
+      "Use Scene::createRenderer() to create tsd::Renderer objects");
   return {};
 }
 
@@ -375,24 +370,17 @@ inline CameraRef Scene::getObject(size_t i) const
   return m_db.camera.at(i);
 }
 
-template <typename OBJ_T>
-inline ObjectPoolRef<OBJ_T> Scene::createObjectImpl(
-    ObjectPool<OBJ_T> &iv, Token subtype)
+template <>
+inline RendererRef Scene::getObject(size_t i) const
 {
-  auto retval = iv.emplace(subtype);
-  retval->m_scene = this;
-  retval->m_index = retval.index();
-  if (m_updateDelegate) {
-    retval->setUpdateDelegate(m_updateDelegate);
-    m_updateDelegate->signalObjectAdded(retval.data());
-  }
-  return retval;
+  return m_db.renderer.at(i);
 }
 
-template <typename OBJ_T>
-inline ObjectPoolRef<OBJ_T> Scene::createObjectImpl(ObjectPool<OBJ_T> &iv)
+template <typename OBJ_T, typename... Args>
+inline ObjectPoolRef<OBJ_T> Scene::createObjectImpl(
+    ObjectPool<OBJ_T> &iv, Args &&...args)
 {
-  auto retval = iv.emplace();
+  auto retval = iv.emplace(std::forward<Args>(args)...);
   retval->m_scene = this;
   retval->m_index = retval.index();
   if (m_updateDelegate) {

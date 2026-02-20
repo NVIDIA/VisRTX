@@ -107,4 +107,17 @@ AnyObjectUsePtr::operator bool() const
   return get() != nullptr;
 }
 
+bool operator==(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b)
+{
+  auto *a1 = a.get();
+  auto *b1 = b.get();
+  return (a1 && b1) && (a1->type() == b1->type())
+      && (a1->index() == b1->index());
+}
+
+bool operator!=(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b)
+{
+  return !(a == b);
+}
+
 } // namespace tsd::core

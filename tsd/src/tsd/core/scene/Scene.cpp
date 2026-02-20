@@ -20,7 +20,8 @@ std::string objectDBInfo(const ObjectDatabase &db)
   ss << "     volumes: " << db.volume.size() << '\n';
   ss << "      fields: " << db.field.size() << '\n';
   ss << "      lights: " << db.light.size() << '\n';
-  ss << "     cameras: " << db.camera.size();
+  ss << "     cameras: " << db.camera.size() << '\n';
+  ss << "   renderers: " << db.renderer.size();
   return ss.str();
 }
 
@@ -65,6 +66,7 @@ Scene::~Scene()
   reportObjectUsages(m_db.field);
   reportObjectUsages(m_db.array);
   reportObjectUsages(m_db.camera);
+  reportObjectUsages(m_db.renderer);
 }
 
 MaterialRef Scene::defaultMaterial() const
@@ -166,8 +168,9 @@ ArrayRef Scene::createArrayProxy(
 
 SurfaceRef Scene::createSurface(const char *name, GeometryRef g, MaterialRef m)
 {
-  auto surface = createObject<Surface>();
-  surface->setGeometry(g);
+  auto surface = createObjectImpl(m_db.surface);
+  if (g)
+    surface->setGeometry(g);
   surface->setMaterial(m ? m : defaultMaterial());
   surface->setName(name);
   return surface;
@@ -206,6 +209,9 @@ Object *Scene::getObject(ANARIDataType type, size_t i) const
     break;
   case ANARI_CAMERA:
     obj = m_db.camera.at(i).data();
+    break;
+  case ANARI_RENDERER:
+    obj = m_db.renderer.at(i).data();
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
@@ -248,6 +254,9 @@ size_t Scene::numberOfObjects(anari::DataType type) const
     break;
   case ANARI_CAMERA:
     numObjects = m_db.camera.capacity();
+    break;
+  case ANARI_RENDERER:
+    numObjects = m_db.renderer.capacity();
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
@@ -306,6 +315,9 @@ void Scene::removeObject(const Object *_o)
   case ANARI_CAMERA:
     m_db.camera.erase(index);
     break;
+  case ANARI_RENDERER:
+    m_db.renderer.erase(index);
+    break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
@@ -333,6 +345,49 @@ void Scene::removeAllObjects()
   m_db.field.clear();
   m_db.light.clear();
   m_db.camera.clear();
+  m_db.renderer.clear();
+}
+
+RendererAppRef Scene::createRenderer(Token device, Token subtype)
+{
+  return createObjectImpl(m_db.renderer, device, subtype);
+}
+
+std::vector<RendererAppRef> Scene::createStandardRenderers(
+    Token deviceName, anari::Device d)
+{
+  if (!d)
+    return {};
+
+  auto subtypes = tsd::core::getANARIObjectSubtypes(d, ANARI_RENDERER);
+  std::vector<RendererAppRef> retval;
+  retval.reserve(subtypes.size());
+
+  for (auto &subtype : subtypes) {
+    auto r = createObjectImpl(m_db.renderer, deviceName, subtype);
+    tsd::core::parseANARIObjectInfo(*r, d, ANARI_RENDERER, subtype.c_str());
+    retval.push_back(r);
+  }
+
+  return retval;
+}
+
+std::vector<RendererAppRef> Scene::renderersOfDevice(Token deviceName) const
+{
+  std::vector<RendererAppRef> renderers;
+  renderers.reserve(5);
+  foreach_item_const(m_db.renderer, [&](auto *r) {
+    if (r && r->rendererDeviceName() == deviceName)
+      renderers.push_back(getObject<Renderer>(r->index()));
+  });
+  return renderers;
+}
+
+void Scene::removeRenderersForDevice(Token deviceName)
+{
+  auto renderers = renderersOfDevice(deviceName);
+  for (auto &r : renderers)
+    removeObject(r.get());
 }
 
 BaseUpdateDelegate *Scene::updateDelegate() const
@@ -360,6 +415,7 @@ void Scene::setUpdateDelegate(BaseUpdateDelegate *ud)
   setDelegateOnObjects(m_db.volume);
   setDelegateOnObjects(m_db.field);
   setDelegateOnObjects(m_db.camera);
+  setDelegateOnObjects(m_db.renderer);
 }
 
 const ObjectDatabase &Scene::objectDB() const
@@ -533,17 +589,17 @@ LayerNodeRef Scene::insertChildObjectNode(
   return inst;
 }
 
-void Scene::removeNode(LayerNodeRef node, bool deleteReferencedObjects)
+void Scene::removeNode(LayerNodeRef obj, bool deleteReferencedObjects)
 {
-  if (!node.valid() || node->isRoot())
+  if (obj->isRoot())
     return;
 
-  auto *layer = node->container();
+  auto *layer = obj->container();
 
   if (deleteReferencedObjects) {
     std::vector<LayerNodeRef> objects;
 
-    layer->traverse(node, [&](auto &node, int level) {
+    layer->traverse(obj, [&](auto &node, int level) {
       if (node.isLeaf())
         objects.push_back(layer->at(node.index()));
       return true;
@@ -553,7 +609,7 @@ void Scene::removeNode(LayerNodeRef node, bool deleteReferencedObjects)
       removeObject(o->value().getObject());
   }
 
-  layer->erase(node);
+  layer->erase(obj);
   signalLayerChange(layer);
 }
 
@@ -654,7 +710,7 @@ void Scene::incrementAnimationTime()
   setAnimationTime(newTime);
 }
 
-void Scene::removeUnusedObjects()
+void Scene::removeUnusedObjects(bool includeRenderers)
 {
   tsd::core::logStatus("Removing unused context objects");
 
@@ -678,6 +734,10 @@ void Scene::removeUnusedObjects()
   removeUnused(m_db.field);
   removeUnused(m_db.sampler);
   removeUnused(m_db.array);
+  removeUnused(m_db.camera);
+
+  if (includeRenderers)
+    removeUnused(m_db.renderer);
 }
 
 void Scene::defragmentObjectStorage()
@@ -697,6 +757,7 @@ void Scene::defragmentObjectStorage()
   defrag |= defragmentations[ANARI_SPATIAL_FIELD] = m_db.field.defragment();
   defrag |= defragmentations[ANARI_LIGHT] = m_db.light.defragment();
   defrag |= defragmentations[ANARI_CAMERA] = m_db.camera.defragment();
+  defrag |= defragmentations[ANARI_RENDERER] = m_db.renderer.defragment();
 
   if (!defrag) {
     tsd::core::logStatus("No defragmentation needed");
@@ -735,6 +796,8 @@ void Scene::defragmentObjectStorage()
       return findIdx(m_db.light, idx);
     case ANARI_CAMERA:
       return findIdx(m_db.camera, idx);
+    case ANARI_RENDERER:
+      return findIdx(m_db.renderer, idx);
     case ANARI_ARRAY:
     case ANARI_ARRAY1D:
     case ANARI_ARRAY2D:
@@ -816,6 +879,7 @@ void Scene::defragmentObjectStorage()
   updateParameterReferences(m_db.field);
   updateParameterReferences(m_db.light);
   updateParameterReferences(m_db.camera);
+  updateParameterReferences(m_db.renderer);
 
   // Function to update all self-held index values to the new actual index //
 
@@ -838,6 +902,7 @@ void Scene::defragmentObjectStorage()
   updateObjectHeldIndex(m_db.field);
   updateObjectHeldIndex(m_db.light);
   updateObjectHeldIndex(m_db.camera);
+  updateObjectHeldIndex(m_db.renderer);
 
   // Signal updates to any delegates //
   if (m_updateDelegate)

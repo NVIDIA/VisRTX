@@ -42,8 +42,24 @@ void RemoteViewport::buildUI()
   if (m_viewportSize != viewportSize || m_wasConnected != isConnected)
     reshape(viewportSize);
 
-  if (!m_wasConnected && isConnected)
+  auto *core = appCore();
+  auto &scene = core->tsd.scene;
+
+  if (!m_wasConnected && isConnected) {
     m_channel->send(MessageType::SERVER_REQUEST_VIEW);
+    m_channel->send(MessageType::SERVER_REQUEST_CURRENT_RENDERER);
+  } else if (isConnected && m_rendererObjects.empty()
+      && scene.numberOfObjects(ANARI_RENDERER) != 0) {
+    auto fr = scene.getObject<tsd::core::Renderer>(0);
+    m_rendererObjects = scene.renderersOfDevice(fr->rendererDeviceName());
+    m_currentRenderer = m_rendererObjects[0];
+  } else if (m_currentRenderer
+      && m_currentRenderer->index() != m_receivedRendererIdx) {
+    m_currentRenderer = m_rendererObjects[m_receivedRendererIdx];
+  } else if (!isConnected) {
+    m_rendererObjects.clear();
+    m_currentRenderer.reset();
+  }
 
   m_wasConnected = isConnected;
   m_incomingFramePass->setEnabled(isConnected);
@@ -90,6 +106,15 @@ void RemoteViewport::setNetworkChannel(tsd::network::NetworkChannel *c)
         std::memcpy(m_incomingColorBuffer.data(),
             msg.payload.data(),
             msg.header.payload_length);
+      });
+
+  c->registerHandler(MessageType::CLIENT_RECEIVE_CURRENT_RENDERER,
+      [this](const tsd::network::Message &msg) {
+        auto rendererIdx = *tsd::network::payloadAs<size_t>(msg);
+        tsd::core::logDebug(
+            "[Client] Received current renderer index %zu from server.",
+            rendererIdx);
+        m_receivedRendererIdx = rendererIdx;
       });
 }
 
@@ -163,6 +188,37 @@ void RemoteViewport::ui_menubar()
       ImGui::Checkbox("show info overlay", &m_showOverlay);
       ImGui::EndMenu();
     }
+
+    // Renderer //
+
+    ImGui::BeginDisabled(m_rendererObjects.empty());
+    if (ImGui::BeginMenu("Renderer")) {
+      if (m_rendererObjects.size() > 1) {
+        ImGui::Text("Subtype:");
+        ImGui::Indent(INDENT_AMOUNT);
+        for (int i = 0; i < m_rendererObjects.size(); i++) {
+          auto &ro = m_rendererObjects[i];
+          const char *rName = ro->subtype().c_str();
+          if (ImGui::RadioButton(rName, m_currentRenderer == ro)) {
+            m_currentRenderer = ro;
+            auto idx = m_receivedRendererIdx = ro->index();
+            m_channel->send(MessageType::SERVER_SET_CURRENT_RENDERER, &idx);
+          }
+        }
+        ImGui::Unindent(INDENT_AMOUNT);
+      }
+
+      ImGui::Separator();
+
+      if (!m_rendererObjects.empty()) {
+        ImGui::Text("Parameters:");
+        ImGui::Indent(INDENT_AMOUNT);
+        tsd::ui::buildUI_object(*m_currentRenderer, appCore()->tsd.scene, true);
+        ImGui::Unindent(INDENT_AMOUNT);
+      }
+      ImGui::EndMenu();
+    }
+    ImGui::EndDisabled();
 
     ImGui::EndMenuBar();
   }

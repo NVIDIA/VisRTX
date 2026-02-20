@@ -27,9 +27,10 @@ struct ANARIDeviceManager
 
   const anari::Extensions *loadDeviceExtensions(const std::string &libName);
   tsd::rendering::RenderIndex *acquireRenderIndex(
-      tsd::core::Scene &c, anari::Device device);
+      tsd::core::Scene &c, tsd::core::Token deviceName, anari::Device device);
   void releaseRenderIndex(anari::Device device);
   void releaseAllDevices();
+
   tsd::core::MultiUpdateDelegate &getUpdateDelegate();
 
   void setUseFlatRenderIndex(

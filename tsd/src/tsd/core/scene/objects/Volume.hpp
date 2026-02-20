@@ -9,8 +9,6 @@ namespace tsd::core {
 
 struct Volume : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_VOLUME;
-
   DECLARE_OBJECT_DEFAULT_LIFETIME(Volume);
 
   Volume(Token subtype = tokens::unknown);

@@ -163,7 +163,6 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
     auto start = std::chrono::steady_clock::now();
     auto d = adm.loadDevice(libName);
-    m_rud.d = d;
     m_libName = libName;
 
     m_frameSamples = 0;
@@ -179,9 +178,10 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       tsd::core::logStatus("[viewport] getting renderer params...");
 
-      m_currentRenderer = 0;
-      loadANARIRendererParameters(d);
-      updateAllRendererParameters(d);
+      m_rendererObjects = scene.renderersOfDevice(libName);
+      if (m_rendererObjects.empty())
+        m_rendererObjects = scene.createStandardRenderers(libName, d);
+      m_currentRenderer = m_rendererObjects[0];
 
       m_perspCamera = anari::newObject<anari::Camera>(d, "perspective");
       m_currentCamera = m_perspCamera;
@@ -192,7 +192,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       tsd::core::logStatus("[viewport] populating render index...");
 
-      m_rIdx = adm.acquireRenderIndex(scene, d);
+      m_rIdx = adm.acquireRenderIndex(scene, libName, d);
       setSelectionVisibilityFilterEnabled(m_showOnlySelected);
 
       tsd::core::logStatus("[viewport] getting scene bounds...");
@@ -315,12 +315,6 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
     root["selectedCamera"] = static_cast<uint64_t>(m_selectedCamera.index());
   }
 
-  // Renderer settings //
-
-  auto &renderers = root["renderers"];
-  for (auto &ro : m_rendererObjects)
-    tsd::io::objectToNode(ro, renderers[ro.name()]);
-
   // Base window settings //
 
   Window::saveSettings(root);
@@ -395,46 +389,6 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
     std::string libraryName;
     root["anariLibrary"].getValue(ANARI_STRING, &libraryName);
     setLibrary(libraryName);
-  }
-
-  // Renderer settings //
-
-  root["renderers"].foreach_child([&](auto &node) {
-    for (auto &ro : m_rendererObjects) {
-      if (ro.subtype() == node.name()) {
-        tsd::io::nodeToObject(node, ro);
-        return;
-      }
-    }
-  });
-
-  updateAllRendererParameters(m_device);
-}
-
-void Viewport::loadANARIRendererParameters(anari::Device d)
-{
-  m_rendererObjects.clear();
-  for (auto &r : m_renderers)
-    anari::release(d, r);
-  m_renderers.clear();
-
-  for (auto &name : tsd::core::getANARIObjectSubtypes(d, ANARI_RENDERER)) {
-    auto ar = anari::newObject<anari::Renderer>(d, name.c_str());
-    auto o = tsd::core::parseANARIObjectInfo(d, ANARI_RENDERER, name.c_str());
-    o.setName(name.c_str());
-    o.setUpdateDelegate(&m_rud);
-    m_rendererObjects.push_back(std::move(o));
-    m_renderers.push_back(ar);
-  }
-}
-
-void Viewport::updateAllRendererParameters(anari::Device d)
-{
-  for (size_t i = 0; i < m_rendererObjects.size(); i++) {
-    auto &ro = m_rendererObjects[i];
-    auto ar = m_renderers[i];
-    ro.updateAllANARIParameters(d, ar);
-    anari::commitParameters(d, ar);
   }
 }
 
@@ -576,14 +530,11 @@ void Viewport::teardownDevice()
   anari::release(m_device, m_perspCamera);
   anari::release(m_device, m_orthoCamera);
   anari::release(m_device, m_omniCamera);
-  for (auto &r : m_renderers)
-    anari::release(m_device, r);
   anari::release(m_device, m_device);
 
   m_perspCamera = nullptr;
   m_orthoCamera = nullptr;
   m_omniCamera = nullptr;
-  m_renderers.clear();
   m_rendererObjects.clear();
   m_device = nullptr;
 
@@ -633,10 +584,10 @@ void Viewport::updateFrame()
   if (!m_anariPass)
     return;
 
-  m_rud.r = m_renderers[m_currentRenderer];
   m_anariPass->setCamera(m_currentCamera);
-  m_anariPass->setRenderer(m_rud.r);
   m_anariPass->setWorld(m_rIdx->world());
+  if (m_currentRenderer)
+    m_anariPass->setRenderer(m_rIdx->renderer(m_currentRenderer->index()));
 }
 
 void Viewport::updateCamera(bool force)
@@ -947,9 +898,12 @@ void Viewport::ui_menubar()
         ImGui::Text("Subtype:");
         ImGui::Indent(INDENT_AMOUNT);
         for (int i = 0; i < m_rendererObjects.size(); i++) {
-          const char *rName = m_rendererObjects[i].name().c_str();
-          if (ImGui::RadioButton(rName, &m_currentRenderer, i))
+          auto ro = m_rendererObjects[i];
+          const char *rName = ro->subtype().c_str();
+          if (ImGui::RadioButton(rName, m_currentRenderer == ro)) {
+            m_currentRenderer = ro;
             updateFrame();
+          }
         }
         ImGui::Unindent(INDENT_AMOUNT);
       }
@@ -960,14 +914,14 @@ void Viewport::ui_menubar()
         ImGui::Text("Parameters:");
         ImGui::Indent(INDENT_AMOUNT);
 
-        tsd::ui::buildUI_object(
-            m_rendererObjects[m_currentRenderer], appCore()->tsd.scene, true);
+        tsd::ui::buildUI_object(*m_currentRenderer, appCore()->tsd.scene, true);
 
         ImGui::Unindent(INDENT_AMOUNT);
         ImGui::Separator();
         ImGui::Separator();
         ImGui::Indent(INDENT_AMOUNT);
 
+#if 0
         if (ImGui::BeginMenu("reset to defaults?")) {
           if (ImGui::MenuItem("yes")) {
             loadANARIRendererParameters(m_device);
@@ -976,6 +930,7 @@ void Viewport::ui_menubar()
           }
           ImGui::EndMenu();
         }
+#endif
 
         ImGui::Unindent(INDENT_AMOUNT);
       }
@@ -1664,15 +1619,6 @@ void Viewport::ui_gizmo()
 int Viewport::windowFlags() const
 {
   return ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar;
-}
-
-void Viewport::RendererUpdateDelegate::signalParameterUpdated(
-    const tsd::core::Object *o, const tsd::core::Parameter *p)
-{
-  if (d && r) {
-    o->updateANARIParameter(d, r, *p, p->name().c_str());
-    anari::commitParameters(d, r);
-  }
 }
 
 } // namespace tsd::ui::imgui

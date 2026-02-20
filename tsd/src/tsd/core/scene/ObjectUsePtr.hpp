@@ -41,6 +41,12 @@ struct ObjectUsePtr
   ObjectPoolRef<T> m_object;
 };
 
+template <typename T, Object::UseKind K>
+bool operator==(const ObjectUsePtr<T, K> &a, const ObjectUsePtr<T, K> &b);
+
+template <typename T, Object::UseKind K>
+bool operator!=(const ObjectUsePtr<T, K> &a, const ObjectUsePtr<T, K> &b);
+
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T, Object::UseKind K>
@@ -177,6 +183,21 @@ template <typename T, Object::UseKind K>
 inline ObjectUsePtr<T, K>::operator bool() const
 {
   return m_object;
+}
+
+template <typename T, Object::UseKind K>
+inline bool operator==(const ObjectUsePtr<T, K> &a, const ObjectUsePtr<T, K> &b)
+{
+  auto *a1 = a.get();
+  auto *b1 = b.get();
+  return (a1 && b1) && (a1->type() == b1->type())
+      && (a1->index() == b1->index());
+}
+
+template <typename T, Object::UseKind K>
+inline bool operator!=(const ObjectUsePtr<T, K> &a, const ObjectUsePtr<T, K> &b)
+{
+  return !(a == b);
 }
 
 } // namespace tsd::core

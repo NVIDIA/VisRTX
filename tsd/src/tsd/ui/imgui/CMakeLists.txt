@@ -32,8 +32,6 @@ project_sources(PRIVATE
 )
 
 if(TSD_USE_LUA)
-  project_sources(PRIVATE
-  )
   project_link_libraries(PRIVATE tsd_lua tsd_ext_sol2)
   project_compile_definitions(PRIVATE TSD_USE_LUA=1)
 endif()

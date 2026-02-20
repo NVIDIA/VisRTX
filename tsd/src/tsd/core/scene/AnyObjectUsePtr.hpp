@@ -42,6 +42,9 @@ struct AnyObjectUsePtr
   Scene *m_scene{nullptr};
 };
 
+bool operator==(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b);
+bool operator!=(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b);
+
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T>

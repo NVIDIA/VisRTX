@@ -168,6 +168,150 @@ void registerIOBindings(sol::state &lua)
         TSD_LUA_IMPORT_WRAP(tsd::io::import_SWC(s, f.c_str(), loc), f);
       });
 
+  io["importAGX"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_AGX(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_AGX(s, f.c_str(), loc), f);
+      });
+
+  io["importASSIMP"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_ASSIMP(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_ASSIMP(s, f.c_str(), loc), f);
+      },
+      [](core::Scene &s,
+          const std::string &f,
+          core::LayerNodeRef loc,
+          bool flatten) {
+        TSD_LUA_IMPORT_WRAP(
+            tsd::io::import_ASSIMP(s, f.c_str(), loc, flatten), f);
+      });
+
+  io["importAXYZ"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_AXYZ(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_AXYZ(s, f.c_str(), loc), f);
+      });
+
+  io["importDLAF"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_DLAF(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_DLAF(s, f.c_str(), loc), f);
+      },
+      [](core::Scene &s,
+          const std::string &f,
+          core::LayerNodeRef loc,
+          bool useDefaultMat) {
+        TSD_LUA_IMPORT_WRAP(
+            tsd::io::import_DLAF(s, f.c_str(), loc, useDefaultMat), f);
+      });
+
+  io["importE57XYZ"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_E57XYZ(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_E57XYZ(s, f.c_str(), loc), f);
+      });
+
+  io["importHSMESH"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_HSMESH(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_HSMESH(s, f.c_str(), loc), f);
+      });
+
+  io["importNBODY"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_NBODY(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_NBODY(s, f.c_str(), loc), f);
+      },
+      [](core::Scene &s,
+          const std::string &f,
+          core::LayerNodeRef loc,
+          bool useDefaultMat) {
+        TSD_LUA_IMPORT_WRAP(
+            tsd::io::import_NBODY(s, f.c_str(), loc, useDefaultMat), f);
+      });
+
+  io["importPOINTSBIN"] = sol::overload(
+      [](core::Scene &s, sol::table filepaths) {
+        std::vector<std::string> paths;
+        for (size_t i = 1; i <= filepaths.size(); i++)
+          paths.push_back(filepaths[i].get<std::string>());
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_POINTSBIN(s, paths), "POINTSBIN");
+      },
+      [](core::Scene &s, sol::table filepaths, core::LayerNodeRef loc) {
+        std::vector<std::string> paths;
+        for (size_t i = 1; i <= filepaths.size(); i++)
+          paths.push_back(filepaths[i].get<std::string>());
+        TSD_LUA_IMPORT_WRAP(
+            tsd::io::import_POINTSBIN(s, paths, loc), "POINTSBIN");
+      });
+
+  io["importPT"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_PT(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_PT(s, f.c_str(), loc), f);
+      });
+
+  io["importSilo"] = sol::overload(
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_SILO(s, f.c_str(), loc), f);
+      });
+
+  io["importSMESH"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_SMESH(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_SMESH(s, f.c_str(), loc), f);
+      },
+      [](core::Scene &s,
+          const std::string &f,
+          core::LayerNodeRef loc,
+          bool isAnimation) {
+        TSD_LUA_IMPORT_WRAP(
+            tsd::io::import_SMESH(s, f.c_str(), loc, isAnimation), f);
+      });
+
+  io["importTRK"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_TRK(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_TRK(s, f.c_str(), loc), f);
+      });
+
+  io["importUSD2"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_USD2(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_USD2(s, f.c_str(), loc), f);
+      });
+
+  io["importXYZDP"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_XYZDP(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_XYZDP(s, f.c_str(), loc), f);
+      });
+
   // Volume importers
   io["importVolume"] = sol::overload(
       [](core::Scene &s, const std::string &f) {
@@ -188,6 +332,18 @@ void registerIOBindings(sol::state &lua)
 
   io["importMHD"] = [](core::Scene &s, const std::string &f) {
     TSD_LUA_IMPORT_WRAP_RETURN(tsd::io::import_MHD(s, f.c_str()), f);
+  };
+
+  io["importFLASH"] = [](core::Scene &s, const std::string &f) {
+    TSD_LUA_IMPORT_WRAP_RETURN(tsd::io::import_FLASH(s, f.c_str()), f);
+  };
+
+  io["importVTI"] = [](core::Scene &s, const std::string &f) {
+    TSD_LUA_IMPORT_WRAP_RETURN(tsd::io::import_VTI(s, f.c_str()), f);
+  };
+
+  io["importVTU"] = [](core::Scene &s, const std::string &f) {
+    TSD_LUA_IMPORT_WRAP_RETURN(tsd::io::import_VTU(s, f.c_str()), f);
   };
 
   // Procedural generators

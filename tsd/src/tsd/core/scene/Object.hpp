@@ -17,6 +17,14 @@
 #include <type_traits>
 
 namespace tsd::core {
+struct Object;
+} // namespace tsd::core
+
+namespace tsd::io {
+void nodeToNewObject(core::DataNode &node, core::Object &obj);
+} // namespace tsd::io
+
+namespace tsd::core {
 
 struct Scene;
 struct AnariObjectCache;
@@ -27,6 +35,7 @@ namespace tokens {
 
 extern Token none;
 extern Token unknown;
+extern Token defaultToken;
 
 } // namespace tokens
 
@@ -60,6 +69,7 @@ struct Object : public ParameterObserver
   Token subtype() const;
   size_t index() const;
   Scene *scene() const;
+  Token rendererDeviceName() const; // only populated by Renderer
 
   //// Use count tracking (Scene garbage collection) ////
 
@@ -73,6 +83,7 @@ struct Object : public ParameterObserver
   const std::string &name() const;
   std::string &editableName();
   void setName(const char *n);
+  void setName(const std::string &n);
 
   Any getMetadataValue(const std::string &name) const;
   void getMetadataArray(const std::string &name,
@@ -139,8 +150,11 @@ struct Object : public ParameterObserver
   virtual void removeParameter(const Parameter *p) override;
   BaseUpdateDelegate *updateDelegate() const;
 
+  Token m_rendererDeviceName{}; // only used by Renderer
+
  private:
   friend struct Scene;
+  friend void io::nodeToNewObject(core::DataNode &node, Object &obj);
 
   void incObjectUseCountParameter(const Parameter *p);
   void decObjectUseCountParameter(const Parameter *p);
@@ -178,6 +192,9 @@ constexpr bool isObject()
 
 std::vector<std::string> getANARIObjectSubtypes(
     anari::Device d, anari::DataType type);
+
+void parseANARIObjectInfo(
+    Object &o, anari::Device d, ANARIDataType objectType, const char *subtype);
 
 Object parseANARIObjectInfo(
     anari::Device d, ANARIDataType type, const char *subtype);

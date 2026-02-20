@@ -66,8 +66,9 @@ void DistributedSceneController::initialize(int argc, const char **argv)
     deviceParameters.push_back({"dataGroupID", tsd::core::Any(-1)});
   }
 
+  auto *deviceName = m_anari.libraryName.c_str();
   auto d = m_anari.device =
-      m_core->anari.loadDevice(m_anari.libraryName, deviceParameters);
+      m_core->anari.loadDevice(deviceName, deviceParameters);
 
   auto f = m_anari.frame = anari::newObject<anari::Frame>(d);
   m_anari.camera = anari::newObject<anari::Camera>(d, "perspective");
@@ -75,7 +76,8 @@ void DistributedSceneController::initialize(int argc, const char **argv)
   m_anari.hdriLight = anari::newObject<anari::Light>(d, "hdri");
 
   auto &scene = m_core->tsd.scene;
-  auto *ri = m_anari.renderIndex = m_core->anari.acquireRenderIndex(scene, d);
+  auto *ri = m_anari.renderIndex =
+      m_core->anari.acquireRenderIndex(scene, deviceName, d);
 
   anari::setParameter(d, f, "camera", m_anari.camera);
   anari::setParameter(d, f, "renderer", m_anari.renderer);

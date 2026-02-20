@@ -35,7 +35,7 @@ Log::Log(Application *app, bool installAsLoggingTarget)
 Log::~Log()
 {
   if (m_isLoggingTarget)
-    tsd::core::setLogToStdout();
+    tsd::core::setLogToStdout(true);
 }
 
 void Log::buildUI()

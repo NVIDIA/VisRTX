@@ -4,32 +4,23 @@
 # Sol3 (sol2 v3.x) - Modern C++ Lua Bindings
 # Header-only library, downloads sol3 headers
 
-include(FetchContent)
-
-FetchContent_Declare(
-  sol2
-  GIT_REPOSITORY https://github.com/ThePhD/sol2.git
-  GIT_TAG v3.5.0
-  GIT_SHALLOW TRUE
-)
-
-FetchContent_MakeAvailable(sol2)
-
 project(tsd_ext_sol2 LANGUAGES CXX)
 
-add_library(${PROJECT_NAME} INTERFACE)
+anari_sdk_fetch_project(
+  NAME ${PROJECT_NAME}
+  URL https://github.com/ThePhD/sol2/archive/refs/tags/v3.5.0.zip
+  MD5 2a52be066fbb16a44ad9568a6ebecc84
+)
 
-target_include_directories(${PROJECT_NAME}
+project_add_library(INTERFACE)
+
+project_include_directories(
   INTERFACE
-    $<BUILD_INTERFACE:${sol2_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${tsd_ext_sol2_LOCATION}/include>
 )
 
 # Link against Lua
-target_link_libraries(${PROJECT_NAME} INTERFACE tsd_ext_lua)
+project_link_libraries(INTERFACE tsd_ext_lua)
 
 # Sol3 configuration
-target_compile_definitions(${PROJECT_NAME}
-  INTERFACE
-    SOL_ALL_SAFETIES_ON=1
-    SOL_USING_CXX_LUA=0
-)
+project_compile_definitions(INTERFACE SOL_ALL_SAFETIES_ON=1 SOL_USING_CXX_LUA=0)

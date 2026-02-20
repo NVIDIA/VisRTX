@@ -23,7 +23,7 @@ namespace tsd::network {
 
 RenderServer::RenderServer(int argc, const char **argv)
 {
-  tsd::core::setLogToStdout();
+  tsd::core::setLogToStdout(true);
   tsd::core::logStatus("[Server] Parsing command line...");
   m_core.parseCommandLine(argc, argv);
 }
@@ -89,7 +89,6 @@ void RenderServer::run(short port)
   m_server->removeAllHandlers();
 
   anari::release(m_device, m_camera);
-  anari::release(m_device, m_renderer);
   m_core.anari.releaseRenderIndex(m_device);
   m_core.anari.releaseAllDevices();
 }
@@ -106,21 +105,30 @@ void RenderServer::setup_Scene()
 void RenderServer::setup_ANARIDevice()
 {
   tsd::core::logStatus("[Server] Loading 'environment' device...");
-  auto device = m_core.anari.loadDevice("environment");
+  const char *libNameEnv = std::getenv("ANARI_LIBRARY");
+  if (!libNameEnv) {
+    tsd::core::logWarning(
+        "[Server] ANARI_LIBRARY environment variable not set,"
+        " defaulting to 'helide'");
+    libNameEnv = "helide"; // default to helide if env var not set
+  }
+
+  m_libName = libNameEnv;
+
+  auto device = m_core.anari.loadDevice(m_libName);
   if (!device) {
-    tsd::core::logError("[Server] Failed to load 'environment' ANARI device.");
+    tsd::core::logError(
+        "[Server] Failed to load '%s' ANARI device.", m_libName.c_str());
     std::exit(EXIT_FAILURE);
   }
 
   auto &scene = m_core.tsd.scene;
 
   m_device = device;
-  m_renderIndex = m_core.anari.acquireRenderIndex(scene, device);
+  m_renderIndex = m_core.anari.acquireRenderIndex(scene, m_libName, device);
   m_camera = anari::newObject<anari::Camera>(device, "perspective");
-  m_renderer = anari::newObject<anari::Renderer>(device, "default");
-
-  anari::setParameter(device, m_renderer, "ambientRadiance", 1.f);
-  anari::commitParameters(device, m_renderer);
+  m_renderers = scene.createStandardRenderers(m_libName, device);
+  m_currentRenderer = m_renderers[0];
 }
 
 void RenderServer::setup_Manipulator()
@@ -163,9 +171,10 @@ void RenderServer::setup_RenderPipeline()
       m_renderPipeline.emplace_back<tsd::rendering::AnariSceneRenderPass>(
           m_device);
   arp->setWorld(m_renderIndex->world());
-  arp->setRenderer(m_renderer);
+  arp->setRenderer(m_renderIndex->renderer(m_currentRenderer->index()));
   arp->setCamera(m_camera);
   arp->setEnableIDs(false);
+  m_sceneRenderPass = arp;
 
   auto *ccbp =
       m_renderPipeline.emplace_back<tsd::rendering::CopyFromColorBufferPass>();
@@ -271,6 +280,30 @@ void RenderServer::setup_Messaging()
         paramRemove.execute();
       });
 
+  m_server->registerHandler(MessageType::SERVER_SET_CURRENT_RENDERER,
+      [this](const tsd::network::Message &msg) {
+        size_t idx = 0;
+        uint32_t pos = 0;
+        if (tsd::network::payloadRead(msg, pos, &idx)) {
+          if (idx < m_renderers.size()) {
+            auto renderer = m_renderers[idx];
+            tsd::core::logDebug(
+                "[Server] Setting current renderer to index %u (subtype '%s')",
+                idx,
+                renderer->subtype().c_str());
+            m_currentRenderer = renderer;
+            m_sceneRenderPass->setRenderer(m_renderIndex->renderer(idx));
+          } else {
+            tsd::core::logError(
+                "[Server] Invalid renderer index %u in SERVER_SET_CURRENT_RENDERER",
+                idx);
+          }
+        } else {
+          tsd::core::logError(
+              "[Server] Invalid payload for SERVER_SET_CURRENT_RENDERER");
+        }
+      });
+
   m_server->registerHandler(MessageType::SERVER_SET_ARRAY_DATA,
       [this](const tsd::network::Message &msg) {
         tsd::network::messages::TransferArrayData arrayData(
@@ -306,6 +339,13 @@ void RenderServer::setup_Messaging()
         tsd::core::logDebug("[Server] Client requested frame config.");
         s->send(
             MessageType::CLIENT_RECEIVE_FRAME_CONFIG, &session->frame.config);
+      });
+
+  m_server->registerHandler(MessageType::SERVER_REQUEST_CURRENT_RENDERER,
+      [this, s = m_server](const tsd::network::Message &msg) {
+        tsd::core::logDebug("[Server] Client requested current renderer.");
+        auto idx = m_currentRenderer->index();
+        s->send(MessageType::CLIENT_RECEIVE_CURRENT_RENDERER, &idx);
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_VIEW,

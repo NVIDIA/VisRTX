@@ -38,6 +38,7 @@ PRIVATE
   importers/import_TRK.cpp
   importers/import_volume.cpp
   importers/import_VTI.cpp
+  importers/import_VTP.cpp
   importers/import_VTU.cpp
   importers/import_XYZDP.cpp
   procedural/generate_cylinders.cpp

@@ -6,21 +6,17 @@
 #include "Window.h"
 
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
-
 // tsd_core
 #include "tsd/core/scene/Object.hpp"
 #include "tsd/core/scene/UpdateDelegate.hpp"
 #include "tsd/core/scene/objects/Camera.hpp"
-
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"
 #include "tsd/rendering/view/CameraUpdateDelegate.hpp"
 #include "tsd/rendering/view/Manipulator.hpp"
-
 // ImGuizmo
 #include <ImGuizmo.h>
-
 // std
 #include <array>
 #include <functional>
@@ -60,9 +56,6 @@ struct Viewport : public Window
  private:
   void saveSettings(tsd::core::DataNode &thisWindowRoot) override;
   void loadSettings(tsd::core::DataNode &thisWindowRoot) override;
-
-  void loadANARIRendererParameters(anari::Device d);
-  void updateAllRendererParameters(anari::Device d);
 
   void setupRenderPipeline();
   void teardownDevice();
@@ -139,17 +132,8 @@ struct Viewport : public Window
   anari::Camera m_orthoCamera{nullptr};
   anari::Camera m_omniCamera{nullptr};
 
-  std::vector<anari::Renderer> m_renderers;
-  std::vector<tsd::core::Object> m_rendererObjects;
-  int m_currentRenderer{0};
-
-  struct RendererUpdateDelegate : public tsd::core::EmptyUpdateDelegate
-  {
-    void signalParameterUpdated(
-        const tsd::core::Object *o, const tsd::core::Parameter *p) override;
-    anari::Device d{nullptr};
-    anari::Renderer r{nullptr};
-  } m_rud;
+  std::vector<tsd::core::RendererAppRef> m_rendererObjects;
+  tsd::core::RendererAppRef m_currentRenderer;
 
   // Camera manipulator //
 

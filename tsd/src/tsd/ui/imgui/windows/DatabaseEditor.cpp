@@ -45,6 +45,7 @@ void DatabaseEditor::buildUI()
   const auto &db = appCore()->tsd.scene.objectDB();
 
   buildUI_objectSection(db.camera, "Cameras");
+  buildUI_objectSection(db.renderer, "Renderers");
   buildUI_objectSection(db.light, "Lights");
   buildUI_objectSection(db.sampler, "Samplers");
   buildUI_objectSection(db.material, "Materials");

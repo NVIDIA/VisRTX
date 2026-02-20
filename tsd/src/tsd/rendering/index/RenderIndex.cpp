@@ -8,8 +8,9 @@
 
 namespace tsd::rendering {
 
-RenderIndex::RenderIndex(Scene &scene, anari::Device d)
-    : m_cache(scene, d), m_ctx(&scene)
+RenderIndex::RenderIndex(
+    Scene &scene, tsd::core::Token deviceName, anari::Device d)
+    : m_cache(scene, deviceName, d), m_ctx(&scene)
 {
   anari::retain(d, d);
   m_world = anari::newObject<anari::World>(d);
@@ -32,6 +33,11 @@ anari::World RenderIndex::world() const
   return m_world;
 }
 
+anari::Renderer RenderIndex::renderer(size_t i)
+{
+  return (anari::Renderer)m_cache.getHandle(ANARI_RENDERER, i, true);
+}
+
 void RenderIndex::logCacheInfo() const
 {
   logStatus("RENDER INDEX:");
@@ -45,6 +51,7 @@ void RenderIndex::logCacheInfo() const
   logStatus("      fields: %zu", m_cache.field.size());
   logStatus("      lights: %zu", m_cache.light.size());
   logStatus("      arrays: %zu", m_cache.array.size());
+  logStatus("   renderers: %zu", m_cache.renderer.size());
 }
 
 void RenderIndex::populate(bool setAsUpdateDelegate)
@@ -66,6 +73,7 @@ void RenderIndex::populate(bool setAsUpdateDelegate)
   createANARICacheObjects(db.field, m_cache.field);
   createANARICacheObjects(db.volume, m_cache.volume);
   createANARICacheObjects(db.light, m_cache.light);
+  createANARICacheObjects(db.renderer, m_cache.renderer);
 
   if (setAsUpdateDelegate)
     m_ctx->setUpdateDelegate(this);

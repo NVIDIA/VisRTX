@@ -1,5 +1,5 @@
--- Comprehensive TSD Lua API Test Script
--- Tests all documented API functions to verify they work correctly
+-- Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+-- SPDX-License-Identifier: BSD-3-Clause
 
 local passed = 0
 local failed = 0
@@ -12,7 +12,7 @@ local function test(name, fn)
     print("[PASS] " .. name)
   else
     failed = failed + 1
-    table.insert(errors, {name = name, error = tostring(err)})
+    table.insert(errors, { name = name, error = tostring(err) })
     print("[FAIL] " .. name .. ": " .. tostring(err))
   end
 end
@@ -64,7 +64,7 @@ test("tsd.float3(x, y, z)", function()
   assert(v.z == 3.0, "v.z should be 3.0")
 end)
 
-test("tsd.float3(v) uniform is not supported", function()
+test("tsd.float3(v) rejects single-arg call", function()
   local ok = pcall(function()
     tsd.float3(5.0)
   end)
@@ -87,14 +87,14 @@ test("tsd.float4(x, y, z, w)", function()
   assert(v.w == 4.0, "v.w should be 4.0")
 end)
 
-test("tsd.float4(float3, w) is not supported", function()
+test("tsd.float4(float3, w) rejects mixed-arg call", function()
   local ok = pcall(function()
     tsd.float4(tsd.float3(1.0, 2.0, 3.0), 4.0)
   end)
   assert(not ok, "float4(float3, w) should not be supported")
 end)
 
-test("tsd.float4(v) uniform is not supported", function()
+test("tsd.float4(v) rejects single-arg call", function()
   local ok = pcall(function()
     tsd.float4(5.0)
   end)
@@ -177,8 +177,8 @@ test("matrix-vector multiplication", function()
   local v = tsd.float4(1.0, 2.0, 3.0, 1.0)
   local out = tsd.mat4.identity * v
   assert(math.abs(out.x - 1.0) < 0.001 and math.abs(out.y - 2.0) < 0.001
-      and math.abs(out.z - 3.0) < 0.001 and math.abs(out.w - 1.0) < 0.001,
-      "mat4 * float4 should work")
+    and math.abs(out.z - 3.0) < 0.001 and math.abs(out.w - 1.0) < 0.001,
+    "mat4 * float4 should work")
 end)
 
 -- Geometry creation
@@ -248,16 +248,22 @@ section("Parameter Setting")
 test("ref:setParameter with float", function()
   local geom = scene:createGeometry("sphere")
   geom:setParameter("radius", 1.5)
+  local val = geom:getParameter("radius")
+  assert(math.abs(val - 1.5) < 0.001, "radius should be 1.5")
 end)
 
 test("ref:setParameter with float3", function()
   local mat = scene:createMaterial("matte")
   mat:setParameter("color", tsd.float3(1.0, 0.0, 0.0))
+  local c = mat:getParameter("color")
+  assert(c ~= nil, "color should be set")
+  assert(math.abs(c.x - 1.0) < 0.001, "color.x should be 1.0")
+  assert(math.abs(c.y - 0.0) < 0.001, "color.y should be 0.0")
 end)
 
 test("ref:setParameter with table as float3", function()
   local mat = scene:createMaterial("matte")
-  mat:setParameter("color", {0.5, 0.5, 0.5})
+  mat:setParameter("color", { 0.5, 0.5, 0.5 })
   local c = mat:getParameter("color")
   assert(c ~= nil, "color should be set")
   assert(math.abs(c.x - 0.5) < 0.001, "color.x should be 0.5")
@@ -318,7 +324,7 @@ end)
 
 test("ref:removeAllParameters()", function()
   local mat = scene:createMaterial("matte")
-  mat:setParameter("color", {1, 0, 0})
+  mat:setParameter("color", { 1, 0, 0 })
   mat:setParameter("opacity", 0.5)
   assert(mat:numParameters() >= 2, "should have at least 2 parameters")
   mat:removeAllParameters()
@@ -347,6 +353,8 @@ test("ref:numMetadata / ref:getMetadataName", function()
   geom:setMetadata("key1", "value1")
   geom:setMetadata("key2", 2)
   assert(geom:numMetadata() >= 2, "should have at least 2 metadata entries")
+  local name = geom:getMetadataName(0)
+  assert(type(name) == "string", "getMetadataName should return a string")
 end)
 
 test("ref:removeMetadata", function()
@@ -372,18 +380,22 @@ end)
 section("Layer Operations")
 
 test("scene:addLayer(name)", function()
-  local layer = scene:addLayer("testLayer")
+  local s = tsd.createScene()
+  local layer = s:addLayer("testLayer")
   assert(layer ~= nil, "layer should be created")
 end)
 
 test("scene:layer(name)", function()
-  scene:addLayer("namedLayer")
-  local layer = scene:layer("namedLayer")
+  local s = tsd.createScene()
+  s:addLayer("namedLayer")
+  local layer = s:layer("namedLayer")
   assert(layer ~= nil, "layer should be retrieved by name")
 end)
 
 test("scene:layer(index)", function()
-  local layer = scene:layer(0)
+  local s = tsd.createScene()
+  s:addLayer("indexedLayer")
+  local layer = s:layer(0)
   assert(layer ~= nil, "layer should be retrieved by index")
 end)
 
@@ -393,17 +405,20 @@ test("scene:defaultLayer()", function()
 end)
 
 test("scene:numberOfLayers()", function()
-  local count = scene:numberOfLayers()
+  local s = tsd.createScene()
+  s:addLayer("countLayer")
+  local count = s:numberOfLayers()
   assert(count >= 1, "should have at least one layer")
 end)
 
 test("scene:layerIsActive / scene:setLayerActive", function()
-  scene:addLayer("toggleLayer")
-  assert(scene:layerIsActive("toggleLayer"), "new layer should be active")
-  scene:setLayerActive("toggleLayer", false)
-  assert(not scene:layerIsActive("toggleLayer"), "layer should be inactive")
-  scene:setLayerActive("toggleLayer", true)
-  assert(scene:layerIsActive("toggleLayer"), "layer should be active again")
+  local s = tsd.createScene()
+  s:addLayer("toggleLayer")
+  assert(s:layerIsActive("toggleLayer"), "new layer should be active")
+  s:setLayerActive("toggleLayer", false)
+  assert(not s:layerIsActive("toggleLayer"), "layer should be inactive")
+  s:setLayerActive("toggleLayer", true)
+  assert(s:layerIsActive("toggleLayer"), "layer should be active again")
 end)
 
 -- Array creation
@@ -441,9 +456,9 @@ end)
 test("array:setData with table", function()
   local arr = scene:createArray("float3", 3)
   arr:setData({
-    {0, 0, 0},
-    {1, 0, 0},
-    {0, 1, 0}
+    { 0, 0, 0 },
+    { 1, 0, 0 },
+    { 0, 1, 0 }
   })
 end)
 
@@ -461,10 +476,10 @@ end)
 test("array:setData accepts linear data for 2D arrays", function()
   local arr = scene:createArray("float3", 2, 2)
   arr:setData({
-    {0, 0, 1},
-    {0, 1, 0},
-    {0, 1, 1},
-    {1, 0, 0}
+    { 0, 0, 1 },
+    { 0, 1, 0 },
+    { 0, 1, 1 },
+    { 1, 0, 0 }
   })
   local data = arr:getData()
   assert(#data == 4, "2D array getData should return linear layout")
@@ -476,12 +491,12 @@ test("array:setData accepts nested data for 2D arrays", function()
   local arr = scene:createArray("float3", 2, 2)
   arr:setData({
     {
-      {0, 0, 1},
-      {0, 1, 0},
+      { 0, 0, 1 },
+      { 0, 1, 0 },
     },
     {
-      {0, 1, 1},
-      {1, 0, 0},
+      { 0, 1, 1 },
+      { 1, 0, 0 },
     }
   })
   local data = arr:getData()
@@ -494,12 +509,12 @@ test("array:setData accepts nested data for 3D arrays", function()
   local arr = scene:createArray("float", 2, 2, 2)
   arr:setData({
     {
-      {1.0, 2.0},
-      {3.0, 4.0},
+      { 1.0, 2.0 },
+      { 3.0, 4.0 },
     },
     {
-      {5.0, 6.0},
-      {7.0, 8.0},
+      { 5.0, 6.0 },
+      { 7.0, 8.0 },
     }
   })
   local data = arr:getData()
@@ -510,7 +525,7 @@ end)
 
 test("array:getData roundtrip (float)", function()
   local arr = scene:createArray("float", 4)
-  arr:setData({0.5, 1.5, 2.5, 3.5})
+  arr:setData({ 0.5, 1.5, 2.5, 3.5 })
   local data = arr:getData()
   assert(#data == 4, "data table should have 4 elements")
   assert(math.abs(data[1] - 0.5) < 0.001, "data[1] should match")
@@ -520,8 +535,8 @@ end)
 test("array:getData roundtrip (float3)", function()
   local arr = scene:createArray("float3", 2)
   arr:setData({
-    {0.0, 1.0, 2.0},
-    {3.0, 4.0, 5.0},
+    { 0.0, 1.0, 2.0 },
+    { 3.0, 4.0, 5.0 },
   })
   local data = arr:getData()
   assert(#data == 2, "data table should have 2 elements")
@@ -532,7 +547,7 @@ end)
 
 test("array:setData truncates oversized input", function()
   local arr = scene:createArray("float", 3)
-  arr:setData({1.0, 2.0, 3.0, 4.0, 5.0})
+  arr:setData({ 1.0, 2.0, 3.0, 4.0, 5.0 })
   local data = arr:getData()
   assert(#data == 3, "data table should have 3 elements")
   assert(math.abs(data[3] - 3.0) < 0.001, "last stored value should be 3.0")
@@ -540,8 +555,8 @@ end)
 
 test("array:setData leaves tail unchanged on short input", function()
   local arr = scene:createArray("float", 4)
-  arr:setData({1.0, 2.0, 3.0, 4.0})
-  arr:setData({9.0, 8.0})
+  arr:setData({ 1.0, 2.0, 3.0, 4.0 })
+  arr:setData({ 9.0, 8.0 })
   local data = arr:getData()
   assert(math.abs(data[1] - 9.0) < 0.001, "first element should be updated")
   assert(math.abs(data[2] - 8.0) < 0.001, "second element should be updated")
@@ -554,6 +569,13 @@ test("array:size()", function()
   assert(arr:size() == 10, "array size should be 10")
 end)
 
+test("array:dim() for 1D arrays", function()
+  local arr = scene:createArray("float", 7)
+  assert(arr:dim(0) == 7, "dim(0) should be 7")
+  assert(arr:dim(1) == 1, "dim(1) should be 1 for 1D arrays")
+  assert(arr:dim(2) == 1, "dim(2) should be 1 for 1D arrays")
+end)
+
 test("array:isEmpty()", function()
   local arr = scene:createArray("float", 5)
   assert(not arr:isEmpty(), "non-empty array should not be empty")
@@ -562,22 +584,22 @@ end)
 test("ref:setParameterArray with inferred 1D dims", function()
   local geom = scene:createGeometry("triangle")
   local arr = geom:setParameterArray("vertex.position", "float3", {
-    {0, 0, 0},
-    {1, 0, 0},
-    {0, 1, 0},
+    { 0, 0, 0 },
+    { 1, 0, 0 },
+    { 0, 1, 0 },
   })
   assert(arr ~= nil and arr:valid(), "returned array should be valid")
   assert(arr:size() == 3, "array should have 3 elements")
-  local p = geom:parameter("vertex.position")
+  local p = geom:getParameter("vertex.position")
   assert(p ~= nil, "vertex.position parameter should be present")
 end)
 
 test("ref:setParameterArray with explicit 2D dims and linear data", function()
   local field = scene:createSpatialField("structuredRegular")
-  local arr = field:setParameterArray("data", "float", 2, 2, {0, 1, 3, 3})
+  local arr = field:setParameterArray("data", "float", 2, 2, { 0, 1, 3, 3 })
   assert(arr ~= nil and arr:valid(), "returned array should be valid")
   assert(arr:dim(0) == 2 and arr:dim(1) == 2 and arr:dim(2) == 1,
-      "array dims should be 2x2")
+    "array dims should be 2x2")
   local data = arr:getData()
   assert(#data == 4, "array should contain 4 values")
   assert(math.abs(data[4] - 3.0) < 0.001, "last value should match input")
@@ -586,7 +608,7 @@ end)
 test("ref:setParameterArray with explicit 2D dims rejects wrong element shape", function()
   local geom = scene:createGeometry("triangle")
   local ok, err = pcall(function()
-    geom:setParameterArray("vertex.position", "float3", 2, 2, {0, 1, 3, 3})
+    geom:setParameterArray("vertex.position", "float3", 2, 2, { 0, 1, 3, 3 })
   end)
   assert(not ok, "float3 array with scalar elements should fail")
   assert(err ~= nil, "error message should be present")
@@ -596,126 +618,105 @@ test("ref:setParameterArray with inferred 3D dims from nested data", function()
   local field = scene:createSpatialField("structuredRegular")
   local arr = field:setParameterArray("data", "float", {
     {
-      {1.0, 2.0},
-      {3.0, 4.0},
+      { 1.0, 2.0 },
+      { 3.0, 4.0 },
     },
     {
-      {5.0, 6.0},
-      {7.0, 8.0},
+      { 5.0, 6.0 },
+      { 7.0, 8.0 },
     }
   })
   assert(arr ~= nil and arr:valid(), "returned array should be valid")
   assert(arr:dim(0) == 2 and arr:dim(1) == 2 and arr:dim(2) == 2,
-      "array dims should be inferred as 2x2x2")
+    "array dims should be inferred as 2x2x2")
 end)
 
 -- Object access
 section("Object Access")
 
 test("scene:getGeometry(index)", function()
-  scene:createGeometry("sphere")
-  local geom = scene:getGeometry(0)
+  local s = tsd.createScene()
+  s:createGeometry("sphere")
+  local geom = s:getGeometry(0)
   assert(geom ~= nil, "geometry should be retrieved")
   assert(geom:valid(), "retrieved ref should be valid")
 end)
 
 test("scene:getMaterial(index)", function()
-  scene:createMaterial("matte")
-  local mat = scene:getMaterial(0)
+  local s = tsd.createScene()
+  s:createMaterial("matte")
+  local mat = s:getMaterial(0)
   assert(mat ~= nil, "material should be retrieved")
+  assert(mat:valid(), "retrieved ref should be valid")
 end)
 
 test("scene:getLight(index)", function()
-  scene:createLight("point")
-  local light = scene:getLight(0)
+  local s = tsd.createScene()
+  s:createLight("point")
+  local light = s:getLight(0)
   assert(light ~= nil, "light should be retrieved")
-end)
-
--- Iteration
-section("Iteration")
-
-test("scene:forEachGeometry", function()
-  local count = 0
-  scene:forEachGeometry(function(g)
-    count = count + 1
-  end)
-  assert(count >= 0, "forEachGeometry should iterate")
-end)
-
-test("scene:forEachMaterial", function()
-  local count = 0
-  scene:forEachMaterial(function(m)
-    count = count + 1
-  end)
-  assert(count >= 0, "forEachMaterial should iterate")
-end)
-
-test("scene:forEachLight", function()
-  local count = 0
-  scene:forEachLight(function(l)
-    count = count + 1
-  end)
-  assert(count >= 0, "forEachLight should iterate")
-end)
-
-test("scene:forEachSurface", function()
-  local count = 0
-  scene:forEachSurface(function(s)
-    count = count + 1
-  end)
-  assert(count >= 0, "forEachSurface should iterate")
+  assert(light:valid(), "retrieved ref should be valid")
 end)
 
 -- Scene removal operations
 section("Scene Removal Operations")
 
 test("scene:removeUnusedObjects", function()
-  scene:removeUnusedObjects()
-  -- No error means success
+  local s = tsd.createScene()
+  s:createGeometry("sphere")
+  s:removeUnusedObjects()
 end)
 
 test("scene:cleanupScene", function()
-  scene:cleanupScene()
+  local s = tsd.createScene()
+  s:createGeometry("sphere")
+  s:cleanupScene()
 end)
 
 -- Animation API
 section("Animation API")
 
 test("scene:numberOfAnimations()", function()
-  local count = scene:numberOfAnimations()
-  assert(count >= 0, "animation count should be non-negative")
+  local s = tsd.createScene()
+  local count = s:numberOfAnimations()
+  assert(count == 0, "fresh scene should have 0 animations")
 end)
 
 test("scene:addAnimation(name)", function()
-  local anim = scene:addAnimation("testAnim")
+  local s = tsd.createScene()
+  local anim = s:addAnimation("testAnim")
   assert(anim ~= nil, "animation should be created")
-  assert(scene:numberOfAnimations() >= 1, "should have at least 1 animation")
+  assert(s:numberOfAnimations() == 1, "should have 1 animation")
 end)
 
 test("animation name", function()
-  local anim = scene:addAnimation("myAnimation")
+  local s = tsd.createScene()
+  local anim = s:addAnimation("myAnimation")
   assert(anim.name == "myAnimation", "animation name should match")
   anim.name = "renamedAnimation"
   assert(anim.name == "renamedAnimation", "renamed animation name should match")
 end)
 
 test("scene:setAnimationTime / getAnimationTime", function()
-  scene:setAnimationTime(0.5)
-  local t = scene:getAnimationTime()
+  local s = tsd.createScene()
+  s:setAnimationTime(0.5)
+  local t = s:getAnimationTime()
   assert(math.abs(t - 0.5) < 0.001, "animation time should be 0.5")
 end)
 
 test("scene:setAnimationIncrement / getAnimationIncrement", function()
-  scene:setAnimationIncrement(0.02)
-  local inc = scene:getAnimationIncrement()
+  local s = tsd.createScene()
+  s:setAnimationIncrement(0.02)
+  local inc = s:getAnimationIncrement()
   assert(math.abs(inc - 0.02) < 0.001, "animation increment should be 0.02")
 end)
 
 test("scene:incrementAnimationTime", function()
-  scene:setAnimationTime(0.0)
-  scene:setAnimationIncrement(0.1)
-  scene:incrementAnimationTime()
-  local t = scene:getAnimationTime()
+  local s = tsd.createScene()
+  s:setAnimationTime(0.0)
+  s:setAnimationIncrement(0.1)
+  s:incrementAnimationTime()
+  local t = s:getAnimationTime()
   assert(math.abs(t - 0.1) < 0.001, "animation time should be 0.1 after increment")
 end)
 
@@ -783,16 +784,16 @@ test("Create triangle with vertex arrays", function()
 
   local posArray = scene:createArray("float3", 3)
   posArray:setData({
-    {-0.5, -0.5, 0.0},
-    { 0.5, -0.5, 0.0},
-    { 0.0,  0.5, 0.0}
+    { -0.5, -0.5, 0.0 },
+    { 0.5,  -0.5, 0.0 },
+    { 0.0,  0.5,  0.0 }
   })
   assert(posArray:size() == 3, "array should have 3 elements")
 
   geom:setParameter("vertex.position", posArray)
 
   local mat = scene:createMaterial("matte")
-  mat:setParameter("color", {0.9, 0.9, 0.9})
+  mat:setParameter("color", { 0.9, 0.9, 0.9 })
   local surf = scene:createSurface("DirectTriangleSurface", geom, mat)
   assert(surf:valid(), "surface should be valid")
 end)
@@ -867,13 +868,13 @@ test("createSurface with param table", function()
   assert(id == 42, "id should be 42")
 end)
 
-test("createGeometry without param table (backward compat)", function()
+test("createGeometry without param table", function()
   local geom = scene:createGeometry("sphere")
   assert(geom:valid(), "geometry should be valid without params")
 end)
 
 test("param table with plain-table-as-vector (float3)", function()
-  local mat = scene:createMaterial("matte", { color = {0.5, 0.5, 0.5} })
+  local mat = scene:createMaterial("matte", { color = { 0.5, 0.5, 0.5 } })
   assert(mat:valid(), "material should be valid")
   local c = mat:getParameter("color")
   assert(c ~= nil, "color should be set")
@@ -933,8 +934,12 @@ test("ANARI type constants exist and are unique", function()
     "GEOMETRY", "MATERIAL", "LIGHT", "CAMERA",
     "SURFACE", "VOLUME", "SAMPLER", "ARRAY", "SPATIAL_FIELD"
   }
+  local seen = {}
   for _, name in ipairs(names) do
     assert(tsd[name] ~= nil, "tsd." .. name .. " should exist")
+    local value = tsd[name]
+    assert(not seen[value], "tsd." .. name .. " should be unique")
+    seen[value] = true
   end
   -- Verify they can be used with numberOfObjects (functional test)
   local s = tsd.createScene()
@@ -985,7 +990,7 @@ end)
 
 test("SpatialField:computeValueRange()", function()
   local field = scene:createSpatialField("structuredRegular")
-  field:setParameterArray("data", "float", 2, 2, 2, {0, 1, 2, 3, 4, 5, 6, 7})
+  field:setParameterArray("data", "float", 2, 2, 2, { 0, 1, 2, 3, 4, 5, 6, 7 })
   local range = field:computeValueRange()
   assert(range ~= nil, "computeValueRange should return non-nil")
   assert(range.x <= range.y, "min should be <= max")
@@ -1024,7 +1029,7 @@ test("float3 scalar divide", function()
     "float3 scalar divide should work")
 end)
 
-test("float2 arithmetic", function()
+test("float2 addition", function()
   local a = tsd.float2(1, 2)
   local b = tsd.float2(3, 4)
   local c = a + b
@@ -1032,12 +1037,60 @@ test("float2 arithmetic", function()
     "float2 addition should work")
 end)
 
-test("float4 arithmetic", function()
+test("float2 subtraction", function()
+  local a = tsd.float2(4, 5)
+  local b = tsd.float2(1, 2)
+  local c = a - b
+  assert(math.abs(c.x - 3) < 0.001 and math.abs(c.y - 3) < 0.001,
+    "float2 subtraction should work")
+end)
+
+test("float2 scalar multiply", function()
+  local a = tsd.float2(1, 2)
+  local c = a * 3
+  assert(math.abs(c.x - 3) < 0.001 and math.abs(c.y - 6) < 0.001,
+    "float2 scalar multiply should work")
+end)
+
+test("float2 scalar divide", function()
+  local a = tsd.float2(4, 6)
+  local c = a / 2
+  assert(math.abs(c.x - 2) < 0.001 and math.abs(c.y - 3) < 0.001,
+    "float2 scalar divide should work")
+end)
+
+test("float4 addition", function()
   local a = tsd.float4(1, 2, 3, 4)
   local b = tsd.float4(5, 6, 7, 8)
   local c = a + b
-  assert(math.abs(c.x - 6) < 0.001 and math.abs(c.w - 12) < 0.001,
+  assert(math.abs(c.x - 6) < 0.001 and math.abs(c.y - 8) < 0.001
+    and math.abs(c.z - 10) < 0.001 and math.abs(c.w - 12) < 0.001,
     "float4 addition should work")
+end)
+
+test("float4 subtraction", function()
+  local a = tsd.float4(5, 6, 7, 8)
+  local b = tsd.float4(1, 2, 3, 4)
+  local c = a - b
+  assert(math.abs(c.x - 4) < 0.001 and math.abs(c.y - 4) < 0.001
+    and math.abs(c.z - 4) < 0.001 and math.abs(c.w - 4) < 0.001,
+    "float4 subtraction should work")
+end)
+
+test("float4 scalar multiply", function()
+  local a = tsd.float4(1, 2, 3, 4)
+  local c = a * 2
+  assert(math.abs(c.x - 2) < 0.001 and math.abs(c.y - 4) < 0.001
+    and math.abs(c.z - 6) < 0.001 and math.abs(c.w - 8) < 0.001,
+    "float4 scalar multiply should work")
+end)
+
+test("float4 scalar divide", function()
+  local a = tsd.float4(2, 4, 6, 8)
+  local c = a / 2
+  assert(math.abs(c.x - 1) < 0.001 and math.abs(c.y - 2) < 0.001
+    and math.abs(c.z - 3) < 0.001 and math.abs(c.w - 4) < 0.001,
+    "float4 scalar divide should work")
 end)
 
 -- matrix constructors
@@ -1055,7 +1108,7 @@ test("mat3(float3, float3, float3) constructor", function()
   local m = tsd.mat3(c0, c1, c2)
   assert(m ~= nil, "mat3 columns constructor should construct")
   assert(m[0].x == 1.0 and m[1].y == 5.0 and m[2].z == 9.0,
-      "mat3 columns should map as expected")
+    "mat3 columns should map as expected")
 end)
 
 test("mat4() constructor", function()
@@ -1071,7 +1124,7 @@ test("mat4(float4, float4, float4, float4) constructor", function()
   local m = tsd.mat4(c0, c1, c2, c3)
   assert(m ~= nil, "mat4 columns constructor should construct")
   assert(m[3].x == 10.0 and m[3].y == 20.0 and m[3].z == 30.0 and m[3].w == 1.0,
-      "mat4 columns should map as expected")
+    "mat4 columns should map as expected")
 end)
 
 test("mat4.identity exists", function()
@@ -1234,12 +1287,10 @@ end)
 
 test("scene:removeObject(nil) is a no-op", function()
   local s = tsd.createScene()
-  local before = 0
-  s:forEachGeometry(function(_) before = before + 1 end)
+  s:createGeometry("sphere")
   s:removeObject(nil)
-  local after = 0
-  s:forEachGeometry(function(_) after = after + 1 end)
-  assert(after == before, "removeObject(nil) should not change object counts")
+  assert(s:numberOfObjects(tsd.GEOMETRY) == 1,
+    "removeObject(nil) should not change object counts")
 end)
 
 test("scene:removeNode(node) removes node but keeps referenced object", function()
@@ -1569,7 +1620,7 @@ test("scene:forEachSampler", function()
   local s = tsd.createScene()
   s:createSampler("image2D")
   local count = 0
-  s:forEachSampler(function(s)
+  s:forEachSampler(function(_)
     count = count + 1
   end)
   assert(count == 1, "should iterate over 1 sampler")
@@ -1604,7 +1655,7 @@ section("Array Types (Extended)")
 test("int array creation and data", function()
   local arr = scene:createArray("int", 3)
   assert(arr:valid(), "int array should be valid")
-  arr:setData({10, 20, 30})
+  arr:setData({ 10, 20, 30 })
   local data = arr:getData()
   assert(data[1] == 10 and data[2] == 20 and data[3] == 30,
     "int array data should roundtrip")
@@ -1613,7 +1664,7 @@ end)
 test("uint array creation and data", function()
   local arr = scene:createArray("uint", 3)
   assert(arr:valid(), "uint array should be valid")
-  arr:setData({100, 200, 300})
+  arr:setData({ 100, 200, 300 })
   local data = arr:getData()
   assert(data[1] == 100 and data[3] == 300, "uint array data should roundtrip")
 end)
@@ -1724,3 +1775,7 @@ if #errors > 0 then
 end
 
 print(string.format("\nTotal: %d/%d tests passed", passed, passed + failed))
+
+if failed > 0 then
+  error(string.format("%d tests failed", failed), 0)
+end

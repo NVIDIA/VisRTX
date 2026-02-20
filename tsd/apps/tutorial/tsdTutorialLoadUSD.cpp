@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 
   // Setup render index //
 
-  tsd::rendering::RenderIndexFlatRegistry rIdx(scene, device);
+  tsd::rendering::RenderIndexFlatRegistry rIdx(scene, "helide", device);
   rIdx.populate();
 
   // Create camera //

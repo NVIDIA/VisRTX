@@ -143,16 +143,16 @@ const anari::Extensions *ANARIDeviceManager::loadDeviceExtensions(
 }
 
 tsd::rendering::RenderIndex *ANARIDeviceManager::acquireRenderIndex(
-    tsd::core::Scene &c, anari::Device d)
+    tsd::core::Scene &c, tsd::core::Token n, anari::Device d)
 {
   auto &liveIdx = m_rIdxs[d];
   if (liveIdx.refCount == 0) {
     if (useFlatRenderIndex()) {
       liveIdx.idx =
-          m_delegate.emplace<tsd::rendering::RenderIndexFlatRegistry>(c, d);
+          m_delegate.emplace<tsd::rendering::RenderIndexFlatRegistry>(c, n, d);
     } else {
       liveIdx.idx =
-          m_delegate.emplace<tsd::rendering::RenderIndexAllLayers>(c, d);
+          m_delegate.emplace<tsd::rendering::RenderIndexAllLayers>(c, n, d);
     }
     liveIdx.idx->populate(false);
   }

@@ -25,6 +25,7 @@ PRIVATE
   scene/objects/Geometry.cpp
   scene/objects/Light.cpp
   scene/objects/Material.cpp
+  scene/objects/Renderer.cpp
   scene/objects/Sampler.cpp
   scene/objects/SpatialField.cpp
   scene/objects/Surface.cpp

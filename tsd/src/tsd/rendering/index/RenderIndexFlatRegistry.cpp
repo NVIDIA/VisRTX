@@ -5,8 +5,9 @@
 
 namespace tsd::rendering {
 
-RenderIndexFlatRegistry::RenderIndexFlatRegistry(Scene &scene, anari::Device d)
-    : RenderIndex(scene, d)
+RenderIndexFlatRegistry::RenderIndexFlatRegistry(
+    Scene &scene, tsd::core::Token deviceName, anari::Device d)
+    : RenderIndex(scene, deviceName, d)
 {}
 
 RenderIndexFlatRegistry::~RenderIndexFlatRegistry() = default;

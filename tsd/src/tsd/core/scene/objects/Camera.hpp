@@ -9,8 +9,6 @@ namespace tsd::core {
 
 struct Camera : public Object
 {
-  static constexpr anari::DataType ANARI_TYPE = ANARI_CAMERA;
-
   DECLARE_OBJECT_DEFAULT_LIFETIME(Camera);
 
   Camera(Token subtype = tokens::unknown);

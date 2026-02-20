@@ -57,12 +57,13 @@ int main()
 
   // Setup ANARI device //
 
-  anari::Library lib = anari::loadLibrary("environment", statusFunc);
+  const char *deviceName = "environment";
+  anari::Library lib = anari::loadLibrary(deviceName, statusFunc);
   anari::Device device = anari::newDevice(lib, "default");
 
   // Setup render index //
 
-  tsd::rendering::RenderIndexFlatRegistry rIdx(scene, device);
+  tsd::rendering::RenderIndexFlatRegistry rIdx(scene, deviceName, device);
   rIdx.populate();
 
   // Create camera //

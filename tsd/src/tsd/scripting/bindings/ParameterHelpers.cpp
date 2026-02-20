@@ -5,6 +5,7 @@
 #include "tsd/core/Parameter.hpp"
 #include "tsd/core/Token.hpp"
 #include "tsd/core/scene/Object.hpp"
+#include "tsd/core/scene/Scene.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
 #include <fmt/format.h>
@@ -150,25 +151,39 @@ sol::object getParameterAsLua(
   if (val.is<math::mat4>())
     return sol::make_object(lua, val.get<math::mat4>());
 
-  // Handle object references
-  if (val.is<core::ArrayRef>())
-    return sol::make_object(lua, val.get<core::ArrayRef>());
-  if (val.is<core::SamplerRef>())
-    return sol::make_object(lua, val.get<core::SamplerRef>());
-  if (val.is<core::GeometryRef>())
-    return sol::make_object(lua, val.get<core::GeometryRef>());
-  if (val.is<core::MaterialRef>())
-    return sol::make_object(lua, val.get<core::MaterialRef>());
-  if (val.is<core::SpatialFieldRef>())
-    return sol::make_object(lua, val.get<core::SpatialFieldRef>());
-  if (val.is<core::VolumeRef>())
-    return sol::make_object(lua, val.get<core::VolumeRef>());
-  if (val.is<core::LightRef>())
-    return sol::make_object(lua, val.get<core::LightRef>());
-  if (val.is<core::CameraRef>())
-    return sol::make_object(lua, val.get<core::CameraRef>());
-  if (val.is<core::SurfaceRef>())
-    return sol::make_object(lua, val.get<core::SurfaceRef>());
+  // From the lua space, we only deal with Refs, not the underlying objects, so
+  // convert back to Ref types for these.
+  if (val.holdsObject()) {
+    auto *scene = obj->scene();
+    if (!scene)
+      return sol::nil;
+    auto idx = val.getAsObjectIndex();
+    switch (val.type()) {
+    case ANARI_ARRAY:
+    case ANARI_ARRAY1D:
+    case ANARI_ARRAY2D:
+    case ANARI_ARRAY3D:
+      return sol::make_object(lua, scene->getObject<core::Array>(idx));
+    case ANARI_SAMPLER:
+      return sol::make_object(lua, scene->getObject<core::Sampler>(idx));
+    case ANARI_GEOMETRY:
+      return sol::make_object(lua, scene->getObject<core::Geometry>(idx));
+    case ANARI_MATERIAL:
+      return sol::make_object(lua, scene->getObject<core::Material>(idx));
+    case ANARI_SPATIAL_FIELD:
+      return sol::make_object(lua, scene->getObject<core::SpatialField>(idx));
+    case ANARI_VOLUME:
+      return sol::make_object(lua, scene->getObject<core::Volume>(idx));
+    case ANARI_LIGHT:
+      return sol::make_object(lua, scene->getObject<core::Light>(idx));
+    case ANARI_CAMERA:
+      return sol::make_object(lua, scene->getObject<core::Camera>(idx));
+    case ANARI_SURFACE:
+      return sol::make_object(lua, scene->getObject<core::Surface>(idx));
+    default:
+      break;
+    }
+  }
 
   return sol::nil;
 }

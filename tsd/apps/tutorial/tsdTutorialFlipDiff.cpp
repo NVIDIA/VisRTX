@@ -75,8 +75,8 @@ int main()
 
   tsd::io::generate_randomSpheres(scene);
 
-  auto light =
-      scene.createObject<tsd::core::Light>(tsd::core::tokens::light::directional);
+  auto light = scene.createObject<tsd::core::Light>(
+      tsd::core::tokens::light::directional);
   light->setName("mainLight");
   light->setParameter("direction", float3(-1.f, 0.f, 0.f));
   light->setParameter("irradiance", 1.f);
@@ -90,7 +90,7 @@ int main()
 
   // Setup render index //
 
-  tsd::rendering::RenderIndexFlatRegistry rIdx(scene, device);
+  tsd::rendering::RenderIndexFlatRegistry rIdx(scene, "visrtx", device);
   rIdx.populate();
 
   // Create camera //
