@@ -78,11 +78,11 @@ Camera::Camera(Token subtype) : Object(ANARI_CAMERA, subtype)
   if (subtype == tokens::camera::perspective) {
     // KHR_CAMERA_PERSPECTIVE extension
     addParameter("fovy")
-        .setValue(float(M_PI) / 3.0f)
+        .setValue(math::radians(40.f))
         .setDescription(
             "the field of view (angle in radians) of the frame's height")
-        .setMin(0.001f)
-        .setMax(float(M_PI) - 0.001f);
+        .setMin(math::radians(0.1f))
+        .setMax(math::radians(179.9f));
 
     addParameter("near").setDescription("near clip plane distance").setMin(0.f);
     addParameter("far").setDescription("far clip plane distance").setMin(0.f);

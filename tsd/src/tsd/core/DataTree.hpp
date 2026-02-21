@@ -13,6 +13,7 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
+#include <string_view>
 #include <string>
 #include <vector>
 
@@ -92,14 +93,14 @@ struct DataNode
 
   size_t numChildren() const;
 
-  DataNode *child(const std::string &childName);
-  const DataNode *child(const std::string &childName) const;
+  DataNode *child(std::string_view childName);
+  const DataNode *child(const std::string_view childName) const;
   DataNode *child(size_t childIdx);
   const DataNode *child(size_t childIdx) const;
-  DataNode &operator[](const std::string &childName);
+  DataNode &operator[](std::string_view childName);
 
-  DataNode &append(const std::string &newChildName = "");
-  void remove(const std::string &name);
+  DataNode &append(std::string_view newChildName = "");
+  void remove(std::string_view name);
   void remove(DataNode &childNode);
 
   // Algorithms //
@@ -296,7 +297,7 @@ inline std::string DataNode::getValueAs() const
 template <typename T>
 inline T DataNode::getValueOr(const T &alt) const
 {
-  return getValue().is<T>() ? getValueAs<T>() : alt;
+  return getValue().getValueOr(alt);
 }
 
 template <>
@@ -441,21 +442,21 @@ inline size_t DataNode::numChildren() const
   return num;
 }
 
-inline DataNode *DataNode::child(const std::string &childName)
+inline DataNode *DataNode::child(std::string_view childName)
 {
   auto n = find_first_child(
       self(), [&](DataNode::Ptr &cn) { return cn->name() == childName; });
   return n ? (**n).get() : nullptr;
 }
 
-inline const DataNode *DataNode::child(const std::string &childName) const
+inline const DataNode *DataNode::child(std::string_view childName) const
 {
   auto n = find_first_child(
       self(), [&](DataNode::Ptr &cn) { return cn->name() == childName; });
   return n ? (**n).get() : nullptr;
 }
 
-inline DataNode &DataNode::operator[](const std::string &childName)
+inline DataNode &DataNode::operator[](std::string_view childName)
 {
   auto *n = child(childName);
   return n ? *n : append(childName);
@@ -477,11 +478,11 @@ inline const DataNode *DataNode::child(size_t childIdx) const
   return n ? (**n).get() : nullptr;
 }
 
-inline DataNode &DataNode::append(const std::string &newChildName)
+inline DataNode &DataNode::append(std::string_view newChildName)
 {
   clearValue();
 
-  std::string name = newChildName;
+  std::string name(newChildName);
   if (name.empty()) {
 #if 1
     static int counter = 0;
@@ -500,7 +501,7 @@ inline DataNode &DataNode::append(const std::string &newChildName)
   }
 }
 
-inline void DataNode::remove(const std::string &name)
+inline void DataNode::remove(std::string_view name)
 {
   if (auto *c = child(name); c != nullptr)
     self()->container()->erase(c->self());

@@ -32,7 +32,7 @@ struct CameraPoses : public Window
 
   tsd::math::float3 m_turntableCenter{0.f, 0.f, 0.f};
   tsd::math::float3 m_turntableAzimuths{0.f, 360.f, 20.f};
-  tsd::math::float3 m_turntableElevations{0.f, 45.f, 10.f};
+  tsd::math::float3 m_turntableElevations{5.f, 45.f, 10.f};
   float m_turntableDistance{1.f};
 
   bool m_updateViewport{true}; // Update viewport during rendering

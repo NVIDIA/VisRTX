@@ -81,10 +81,13 @@ class Application : public anari_viewer::Application
 
   virtual void uiMainMenuBar();
 
-#ifdef TSD_USE_LUA
-  void renderLuaMenu();
-#endif
-  void renderActionMenu(const std::vector<ActionMenuNode> &entries);
+  void uiMainMenuBar_File();
+  void uiMainMenuBar_Edit();
+  void uiMainMenuBar_Tools();
+  void uiMainMenuBar_Lua();
+  void uiMainMenuBar_View();
+
+  void uiActionMenu(const std::vector<ActionMenuNode> &entries);
 
   void doSave(const std::string &name = "");
 

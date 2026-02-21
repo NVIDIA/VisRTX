@@ -1,22 +1,22 @@
-// Copyright 2025 NVIDIA Corporation
+// Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include <tsd/app/Core.h>
+#include <tsd/rendering/pipeline/RenderPipeline.h>
 #include <tsd/core/Logging.hpp>
 #include <tsd/core/Timer.hpp>
 #include <tsd/core/scene/Scene.hpp>
-#include <tsd/rendering/pipeline/RenderPipeline.h>
-#include <tsd/rendering/index/RenderIndexAllLayers.hpp>
-#include <tsd/rendering/view/ManipulatorToAnari.hpp>
-#include <tsd/app/Core.h>
 #include <tsd/io/procedural.hpp>
 #include <tsd/io/serialization.hpp>
+#include <tsd/rendering/index/RenderIndexAllLayers.hpp>
+#include <tsd/rendering/view/ManipulatorToAnari.hpp>
 #include "stb_image_write.h"
 
 #include <chrono>
 #include <cstdio>
+#include <iostream>
 #include <memory>
 #include <vector>
-#include <iostream>
 
 static std::unique_ptr<tsd::rendering::RenderIndexAllLayers> g_renderIndex;
 static std::unique_ptr<tsd::rendering::RenderPipeline> g_renderPipeline;
@@ -29,7 +29,6 @@ static tsd::core::Token g_deviceName;
 static anari::Library g_library{nullptr};
 static anari::Device g_device{nullptr};
 static anari::Camera g_camera{nullptr};
-
 
 struct Config
 {
@@ -47,7 +46,8 @@ struct Config
   tsd::math::float3 ambientColor = {1.f, 1.f, 1.f};
   bool hasBackground = false;
 
-  struct DirectionalLight {
+  struct DirectionalLight
+  {
     tsd::math::float3 direction;
     tsd::math::float3 color;
     float irradiance;
@@ -63,24 +63,34 @@ static void printUsage(const char *programName)
   std::cout << "Rendering Options:\n";
   std::cout << "  -w, --width <int>          Frame width (default: 1024)\n";
   std::cout << "  -h, --height <int>         Frame height (default: 768)\n";
-  std::cout << "  -s, --samples <int>        Samples per pixel (default: 128)\n";
-  std::cout << "  -o, --output <file>        Output filename (default: tsdOffline.png)\n";
-  std::cout << "  --lib <name>               ANARI library name (default: TSD_ANARI_LIBRARIES[0], environment, or visrtx)\n";
-  std::cout << "  --renderer <name>          Renderer name (default: default)\n";
+  std::cout
+      << "  -s, --samples <int>        Samples per pixel (default: 128)\n";
+  std::cout
+      << "  -o, --output <file>        Output filename (default: tsdOffline.png)\n";
+  std::cout
+      << "  --lib <name>               ANARI library name (default: TSD_ANARI_LIBRARIES[0], environment, or visrtx)\n";
+  std::cout
+      << "  --renderer <name>          Renderer name (default: default)\n";
   std::cout << "  --campos <x y z>           Camera position (3 floats)\n";
   std::cout << "  --lookpos <x y z>          Camera look-at point (3 floats)\n";
   std::cout << "  --upvec <x y z>            Camera up vector (3 floats)\n";
-  std::cout << "  --fovy <float>             Field of view Y in degrees (default: 40)\n";
+  std::cout
+      << "  --fovy <float>             Field of view Y in degrees (default: 40)\n";
   std::cout << "  --aperture <float>         Aperture radius (default: 0)\n";
   std::cout << "  --focus <float>            Focus distance (default: 1)\n";
   std::cout << "\n";
   std::cout << "Lighting and Background:\n";
-  std::cout << "  --bg-color <r g b a>       Background color (4 floats, default: 0.05 0.05 0.05 1.0)\n";
-  std::cout << "  --no-bg                    Set background to black (0 0 0 0)\n";
-  std::cout << "  --ambient <float>          Ambient radiance (default: 0.25)\n";
-  std::cout << "  --ambient-color <r g b>    Ambient color (3 floats, default: 1.0 1.0 1.0)\n";
+  std::cout
+      << "  --bg-color <r g b a>       Background color (4 floats, default: 0.05 0.05 0.05 1.0)\n";
+  std::cout
+      << "  --no-bg                    Set background to black (0 0 0 0)\n";
+  std::cout
+      << "  --ambient <float>          Ambient radiance (default: 0.25)\n";
+  std::cout
+      << "  --ambient-color <r g b>    Ambient color (3 floats, default: 1.0 1.0 1.0)\n";
   std::cout << "  --dir-light <dx dy dz> <r g b> <intensity>\n";
-  std::cout << "                             Add directional light (direction + color + intensity)\n";
+  std::cout
+      << "                             Add directional light (direction + color + intensity)\n";
   std::cout << "  --help                     Show this help message\n";
   std::cout << "\n";
   std::cout << "Importer Options:\n";
@@ -88,12 +98,15 @@ static void printUsage(const char *programName)
   std::cout << "  -gltf <file...>            Import GLTF/GLB files\n";
   std::cout << "  -obj <file...>             Import Wavefront OBJ files\n";
   std::cout << "  -ply <file...>             Import PLY files\n";
-  std::cout << "  -volume <file...>          Import volume data (RAW, NVDB, VTI, etc.)\n";
+  std::cout
+      << "  -volume <file...>          Import volume data (RAW, NVDB, VTI, etc.)\n";
   std::cout << "  -hdri <file>               Set HDRI environment map\n";
   std::cout << "  -silo <file...>            Import Silo files\n";
   std::cout << "  -usd <file...>             Import USD files\n";
-  std::cout << "  -l, --layer <name>         Specify layer name for following imports\n";
-  std::cout << "  -assimp <file...>          Import via ASSIMP (supports many formats)\n";
+  std::cout
+      << "  -l, --layer <name>         Specify layer name for following imports\n";
+  std::cout
+      << "  -assimp <file...>          Import via ASSIMP (supports many formats)\n";
   std::cout << "  -axyz <file...>            Import AXYZ point cloud files\n";
   std::cout << "  -e57xyz <file...>          Import E57 point cloud files\n";
   std::cout << "  -pdb <file...>             Import PDB molecule files\n";
@@ -106,16 +119,22 @@ static void printUsage(const char *programName)
   std::cout << "  " << programName << " -gltf model.glb -o output.png\n";
   std::cout << "\n";
   std::cout << "  # Render volume data at custom resolution\n";
-  std::cout << "  " << programName << " -volume density.raw -w 2048 -h 2048 -s 256 -o volume.png\n";
+  std::cout << "  " << programName
+            << " -volume density.raw -w 2048 -h 2048 -s 256 -o volume.png\n";
   std::cout << "\n";
   std::cout << "  # Combine multiple formats\n";
-  std::cout << "  " << programName << " -obj mesh.obj -hdri env.hdr -w 1920 -h 1080 -o render.png\n";
+  std::cout << "  " << programName
+            << " -obj mesh.obj -hdri env.hdr -w 1920 -h 1080 -o render.png\n";
   std::cout << "\n";
   std::cout << "  # With custom camera\n";
-  std::cout << "  " << programName << " -gltf scene.glb --campos 10 10 10 --lookpos 0 0 0 -o out.png\n";
+  std::cout
+      << "  " << programName
+      << " -gltf scene.glb --campos 10 10 10 --lookpos 0 0 0 -o out.png\n";
   std::cout << "\n";
-  std::cout << "If no importer flags are specified, a default empty scene will be created.\n";
-  std::cout << "If camera is not specified, it will be computed from scene bounds.\n";
+  std::cout
+      << "If no importer flags are specified, a default empty scene will be created.\n";
+  std::cout
+      << "If camera is not specified, it will be computed from scene bounds.\n";
 }
 
 static tsd::math::float3 parseFloat3(const char **argv, int &i)
@@ -129,7 +148,8 @@ static tsd::math::float3 parseFloat3(const char **argv, int &i)
 
 // Parse rendering-specific options and build a new argv with importer options
 // Returns the new argc for importer parsing, or -1 on error
-static int parseRenderingOptions(int argc, const char *argv[], std::vector<const char*> &importerArgv)
+static int parseRenderingOptions(
+    int argc, const char *argv[], std::vector<const char *> &importerArgv)
 {
   // First element is always the program name
   importerArgv.push_back(argv[0]);
@@ -243,7 +263,8 @@ static int parseRenderingOptions(int argc, const char *argv[], std::vector<const
       g_config.ambientColor.z = std::stof(argv[++i]);
     } else if (arg == "--dir-light") {
       if (i + 7 >= argc) {
-        std::cerr << "Error: --dir-light requires 7 arguments (dx dy dz r g b intensity)\n";
+        std::cerr
+            << "Error: --dir-light requires 7 arguments (dx dy dz r g b intensity)\n";
         return -1;
       }
       Config::DirectionalLight light;
@@ -300,13 +321,12 @@ static void initTSDRenderIndex()
   fflush(stdout);
 
   g_timer.start();
-  g_renderIndex =
-      std::make_unique<tsd::rendering::RenderIndexAllLayers>(g_core->tsd.scene, g_deviceName, g_device);
+  g_renderIndex = std::make_unique<tsd::rendering::RenderIndexAllLayers>(
+      g_core->tsd.scene, g_deviceName, g_device);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
-
 
 static void populateTSDScene()
 {
@@ -343,7 +363,8 @@ static void setupLights()
 
   // Add user-specified directional lights
   for (const auto &lightConfig : g_config.directionalLights) {
-    auto light = g_core->tsd.scene.createObject<tsd::core::Light>("directional");
+    auto light =
+        g_core->tsd.scene.createObject<tsd::core::Light>("directional");
     light->setParameter("direction", lightConfig.direction);
     light->setParameter("color", lightConfig.color);
     light->setParameter("irradiance", lightConfig.irradiance);
@@ -379,36 +400,17 @@ static void setupCameraManipulator()
     if (g_config.autoCamera) {
       printf("from world bounds...");
       fflush(stdout);
-
-      tsd::math::float3 bounds[2] = {{-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}};
-      if (!anariGetProperty(g_device,
-              g_renderIndex->world(),
-              "bounds",
-              ANARI_FLOAT32_BOX3,
-              &bounds[0],
-              sizeof(bounds),
-              ANARI_WAIT)) {
-        printf("(no bounds, using defaults)...");
-        fflush(stdout);
-      }
-
-      auto center = 0.5f * (bounds[0] + bounds[1]);
-      auto diag = bounds[1] - bounds[0];
-      float dist = 1.25f * tsd::math::length(diag);
-
-      // Match tsdViewer resetView(true): azimuth=0, elevation=20, distance=1.25*|diag|
-      pose.lookat = center;
-      pose.fixedDist = dist;
-      pose.azeldist = {0.f, 20.f, dist};
-      pose.upAxis = static_cast<int>(tsd::rendering::UpAxis::POS_Y);
+      pose = g_renderIndex->computeDefaultView();
     } else {
       printf("from command line...");
       fflush(stdout);
 
       pose.lookat = g_config.cameraLookAt;
-      pose.fixedDist = tsd::math::length(g_config.cameraPos - g_config.cameraLookAt);
+      pose.fixedDist =
+          tsd::math::length(g_config.cameraPos - g_config.cameraLookAt);
 
-      auto dir = tsd::math::normalize(g_config.cameraPos - g_config.cameraLookAt);
+      auto dir =
+          tsd::math::normalize(g_config.cameraPos - g_config.cameraLookAt);
       float azimuth = std::atan2(dir.x, dir.z) * 180.f / M_PI;
       float elevation = std::asin(dir.y) * 180.f / M_PI;
       pose.azeldist = {azimuth, elevation, pose.fixedDist};
@@ -438,7 +440,8 @@ static void setupRenderPipeline()
   g_camera = anari::newObject<anari::Camera>(g_device, "perspective");
   anari::setParameter(
       g_device, g_camera, "aspect", frameWidth / float(frameHeight));
-  anari::setParameter(g_device, g_camera, "fovy", anari::radians(g_config.fovy));
+  anari::setParameter(
+      g_device, g_camera, "fovy", anari::radians(g_config.fovy));
   anari::setParameter(g_device,
       g_camera,
       "apertureRadius",
@@ -449,7 +452,8 @@ static void setupRenderPipeline()
       g_core->offline.camera.focusDistance);
   anari::commitParameters(g_device, g_camera);
 
-  auto r = anari::newObject<anari::Renderer>(g_device, g_config.rendererName.c_str());
+  auto r = anari::newObject<anari::Renderer>(
+      g_device, g_config.rendererName.c_str());
 
   // Set background and ambient lighting
   anari::setParameter(g_device, r, "background", g_config.background);
@@ -538,14 +542,16 @@ int main(int argc, const char *argv[])
 
   // Initialize Core first so it can be used for parsing
   g_core = std::make_unique<tsd::app::Core>();
-  // Default library: TSD_ANARI_LIBRARIES[0], then "environment" (reads ANARI_LIBRARY), then "visrtx"
+  // Default library: TSD_ANARI_LIBRARIES[0], then "environment" (reads
+  // ANARI_LIBRARY), then "visrtx"
   std::string defaultLibrary = "visrtx";
   if (getenv("ANARI_LIBRARY"))
     defaultLibrary = "environment";
   if (const char *tsdLibs = getenv("TSD_ANARI_LIBRARIES")) {
     std::string envStr = tsdLibs;
     auto comma = envStr.find(',');
-    std::string first = (comma != std::string::npos) ? envStr.substr(0, comma) : envStr;
+    std::string first =
+        (comma != std::string::npos) ? envStr.substr(0, comma) : envStr;
     first.erase(0, first.find_first_not_of(" \t"));
     first.erase(first.find_last_not_of(" \t") + 1);
     if (!first.empty())
@@ -556,7 +562,7 @@ int main(int argc, const char *argv[])
   // Two-pass command line parsing:
   // 1. Extract rendering options (width, height, samples, etc.)
   // 2. Pass remaining args (importer flags and filenames) to Core
-  std::vector<const char*> importerArgv;
+  std::vector<const char *> importerArgv;
   int importerArgc = parseRenderingOptions(argc, argv, importerArgv);
   if (importerArgc < 0) {
     return 1;
@@ -567,7 +573,9 @@ int main(int argc, const char *argv[])
 
   printf("tsdOffline - Headless TSD Renderer\n");
   printf("===================================\n");
-  printf("Resolution: %ux%u\n", g_core->offline.frame.width, g_core->offline.frame.height);
+  printf("Resolution: %ux%u\n",
+      g_core->offline.frame.width,
+      g_core->offline.frame.height);
   printf("Samples: %u\n", g_core->offline.frame.samples);
   printf("Library: %s\n", g_core->offline.renderer.libraryName.c_str());
   printf("Renderer: %s\n", g_config.rendererName.c_str());
@@ -576,8 +584,8 @@ int main(int argc, const char *argv[])
 
   // Core already initializes its scene, no separate initialization needed
   loadANARIDevice();
-  populateTSDScene();  // Import data into scene FIRST
-  setupLights();       // Then add lights
+  populateTSDScene(); // Import data into scene FIRST
+  setupLights(); // Then add lights
   initTSDRenderIndex(); // THEN create render index with populated scene
   populateRenderIndex();
   setupCameraManipulator();

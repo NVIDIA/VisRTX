@@ -9,6 +9,7 @@
 #include "tsd/core/scene/UpdateDelegate.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexFilterFcn.hpp"
+#include "tsd/rendering/view/Manipulator.hpp"
 
 namespace tsd::rendering {
 
@@ -24,6 +25,9 @@ struct RenderIndex : public BaseUpdateDelegate
   anari::Device device() const;
   anari::World world() const;
   anari::Renderer renderer(size_t i);
+  anari::Camera camera(size_t i);
+
+  CameraPose computeDefaultView() const;
 
   void logCacheInfo() const;
 

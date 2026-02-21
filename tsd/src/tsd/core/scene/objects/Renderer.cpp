@@ -10,7 +10,22 @@ Renderer::Renderer(Token sourceDevice, Token subtype)
     : Object(ANARI_RENDERER, subtype)
 {
   m_rendererDeviceName = sourceDevice;
+  setCommonParameterDefaults();
+}
 
+ObjectPoolRef<Renderer> Renderer::self() const
+{
+  return scene() ? scene()->getObject<Renderer>(index())
+                 : ObjectPoolRef<Renderer>{};
+}
+
+anari::Object Renderer::makeANARIObject(anari::Device d) const
+{
+  return anari::newObject<anari::Renderer>(d, subtype().c_str());
+}
+
+void Renderer::setCommonParameterDefaults()
+{
   addParameter("background")
       .setValue(float4(0.05f, 0.05f, 0.05f, 1.f))
       .setDescription("background color")
@@ -23,17 +38,6 @@ Renderer::Renderer(Token sourceDevice, Token subtype)
       .setValue(float3(1.f))
       .setDescription("color of ambient light")
       .setUsage(ParameterUsageHint::COLOR);
-}
-
-ObjectPoolRef<Renderer> Renderer::self() const
-{
-  return scene() ? scene()->getObject<Renderer>(index())
-                 : ObjectPoolRef<Renderer>{};
-}
-
-anari::Object Renderer::makeANARIObject(anari::Device d) const
-{
-  return anari::newObject<anari::Renderer>(d, subtype().c_str());
 }
 
 } // namespace tsd::core

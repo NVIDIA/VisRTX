@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "tsd/core/scene/Object.hpp"
+#include "tsd/core/scene/ObjectUsePtr.hpp"
 
 namespace tsd::core {
 
@@ -20,6 +20,7 @@ struct Camera : public Object
 };
 
 using CameraRef = ObjectPoolRef<Camera>;
+using CameraAppRef = ObjectUsePtr<Camera, Object::UseKind::APP>;
 
 namespace tokens::camera {
 

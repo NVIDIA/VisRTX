@@ -29,11 +29,15 @@ std::string objectDBInfo(const ObjectDatabase &db)
 
 Scene::Scene()
 {
-  createObject<Material>(tokens::material::matte)->setName("default_material");
+  defaultMaterial();
+  defaultCamera();
 }
 
 Scene::~Scene()
 {
+  m_defaultObjects.material.reset();
+  m_defaultObjects.camera.reset();
+
   m_updateDelegate = nullptr;
   m_layers.clear();
   m_animations.objects.clear();
@@ -69,9 +73,30 @@ Scene::~Scene()
   reportObjectUsages(m_db.renderer);
 }
 
-MaterialRef Scene::defaultMaterial() const
+MaterialRef Scene::defaultMaterial()
 {
-  return getObject<Material>(0);
+  if (!m_defaultObjects.material) {
+    if (numberOfObjects(ANARI_MATERIAL) == 0) {
+      m_defaultObjects.material =
+          createObject<Material>(tokens::material::matte);
+      m_defaultObjects.material->setName("default");
+    } else
+      m_defaultObjects.material = getObject<Material>(0);
+  }
+  return m_defaultObjects.material.ref();
+}
+
+CameraRef Scene::defaultCamera()
+{
+  if (!m_defaultObjects.camera) {
+    if (numberOfObjects(ANARI_CAMERA) == 0) {
+      m_defaultObjects.camera =
+          createObject<Camera>(tokens::camera::perspective);
+      m_defaultObjects.camera->setName("default");
+    } else
+      m_defaultObjects.camera = getObject<Camera>(0);
+  }
+  return m_defaultObjects.camera.ref();
 }
 
 Layer *Scene::defaultLayer()
@@ -232,37 +257,37 @@ size_t Scene::numberOfObjects(anari::DataType type) const
 
   switch (type) {
   case ANARI_SURFACE:
-    numObjects = m_db.surface.capacity();
+    numObjects = m_db.surface.size();
     break;
   case ANARI_GEOMETRY:
-    numObjects = m_db.geometry.capacity();
+    numObjects = m_db.geometry.size();
     break;
   case ANARI_MATERIAL:
-    numObjects = m_db.material.capacity();
+    numObjects = m_db.material.size();
     break;
   case ANARI_SAMPLER:
-    numObjects = m_db.sampler.capacity();
+    numObjects = m_db.sampler.size();
     break;
   case ANARI_VOLUME:
-    numObjects = m_db.volume.capacity();
+    numObjects = m_db.volume.size();
     break;
   case ANARI_SPATIAL_FIELD:
-    numObjects = m_db.field.capacity();
+    numObjects = m_db.field.size();
     break;
   case ANARI_LIGHT:
-    numObjects = m_db.light.capacity();
+    numObjects = m_db.light.size();
     break;
   case ANARI_CAMERA:
-    numObjects = m_db.camera.capacity();
+    numObjects = m_db.camera.size();
     break;
   case ANARI_RENDERER:
-    numObjects = m_db.renderer.capacity();
+    numObjects = m_db.renderer.size();
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
   case ANARI_ARRAY3D:
-    numObjects = m_db.array.capacity();
+    numObjects = m_db.array.size();
     break;
   default:
     break; // no-op
@@ -333,6 +358,9 @@ void Scene::removeAllObjects()
 {
   if (m_updateDelegate)
     m_updateDelegate->signalRemoveAllObjects();
+
+  m_defaultObjects.material.reset();
+  m_defaultObjects.camera.reset();
 
   removeAllLayers();
 
@@ -714,8 +742,10 @@ void Scene::removeUnusedObjects(bool includeRenderers)
 {
   tsd::core::logStatus("Removing unused context objects");
 
-  // Always keep around the default material //
-  ObjectUsePtr<Material> defaultMat = getObject<Material>(0).data();
+  // Always keep around the default material + default camera //
+
+  ObjectUsePtr<Material> defaultMat = defaultMaterial();
+  ObjectUsePtr<Camera> defaultCam = defaultCamera();
 
   auto removeUnused = [&](auto &array) {
     foreach_item_ref(array, [&](auto ref) {

@@ -4,21 +4,13 @@
 #pragma once
 
 #include "tsd/core/TSDMath.hpp"
+#include "tsd/core/ObjectVersion.hpp"
 // std
 #include <string>
 
 namespace tsd::rendering {
 
-using UpdateToken = size_t;
-
-struct CameraPose
-{
-  std::string name;
-  tsd::math::float3 lookat{0.f};
-  tsd::math::float3 azeldist{0.f};
-  float fixedDist{tsd::math::inf};
-  int upAxis{0};
-};
+using UpdateToken = tsd::core::ObjectVersion;
 
 enum class UpAxis
 {
@@ -28,6 +20,15 @@ enum class UpAxis
   NEG_X,
   NEG_Y,
   NEG_Z
+};
+
+struct CameraPose
+{
+  std::string name;
+  tsd::math::float3 lookat{0.f};
+  tsd::math::float3 azeldist{0.f};
+  float fixedDist{tsd::math::inf};
+  int upAxis{static_cast<int>(UpAxis::POS_Y)};
 };
 
 class Manipulator
@@ -155,11 +156,7 @@ inline void Manipulator::startNewRotation()
 
 inline bool Manipulator::hasChanged(UpdateToken &t) const
 {
-  if (t < m_token) {
-    t = m_token;
-    return true;
-  } else
-    return false;
+  return tsd::core::versionChanged(t, m_token);
 }
 
 inline void Manipulator::rotate(anari::math::float2 delta)

@@ -96,16 +96,23 @@ AnariSceneRenderPass::~AnariSceneRenderPass()
 
 void AnariSceneRenderPass::setCamera(anari::Camera c)
 {
-  anari::retain(m_device, c);
+  if (c)
+    anari::retain(m_device, c);
   anari::setParameter(m_device, m_frame, "camera", c);
   anari::commitParameters(m_device, m_frame);
   anari::release(m_device, m_camera);
   m_camera = c;
+  if (m_camera) {
+    auto size = getDimensions();
+    anari::setParameter(m_device, m_camera, "aspect", size.x / float(size.y));
+    anari::commitParameters(m_device, m_camera);
+  }
 }
 
 void AnariSceneRenderPass::setRenderer(anari::Renderer r)
 {
-  anari::retain(m_device, r);
+  if (r)
+    anari::retain(m_device, r);
   anari::setParameter(m_device, m_frame, "renderer", r);
   anari::commitParameters(m_device, m_frame);
   anari::release(m_device, m_renderer);
@@ -114,7 +121,8 @@ void AnariSceneRenderPass::setRenderer(anari::Renderer r)
 
 void AnariSceneRenderPass::setWorld(anari::World w)
 {
-  anari::retain(m_device, w);
+  if (w)
+    anari::retain(m_device, w);
   anari::setParameter(m_device, m_frame, "world", w);
   anari::commitParameters(m_device, m_frame);
   anari::release(m_device, m_world);
@@ -123,6 +131,7 @@ void AnariSceneRenderPass::setWorld(anari::World w)
 
 void AnariSceneRenderPass::setColorFormat(anari::DataType t)
 {
+  m_format = t;
   anari::setParameter(m_device, m_frame, "channel.color", t);
   anari::commitParameters(m_device, m_frame);
 }
@@ -227,7 +236,8 @@ void AnariSceneRenderPass::setEnableAlbedo(bool on)
     anari::discard(m_device, m_frame);
     anari::wait(m_device, m_frame);
 
-    anari::setParameter(m_device, m_frame, "channel.albedo", ANARI_FLOAT32_VEC3);
+    anari::setParameter(
+        m_device, m_frame, "channel.albedo", ANARI_FLOAT32_VEC3);
     anari::commitParameters(m_device, m_frame);
 
     anari::render(m_device, m_frame);
@@ -252,7 +262,8 @@ void AnariSceneRenderPass::setEnableNormals(bool on)
     anari::discard(m_device, m_frame);
     anari::wait(m_device, m_frame);
 
-    anari::setParameter(m_device, m_frame, "channel.normal", ANARI_FLOAT32_VEC3);
+    anari::setParameter(
+        m_device, m_frame, "channel.normal", ANARI_FLOAT32_VEC3);
     anari::commitParameters(m_device, m_frame);
 
     anari::render(m_device, m_frame);
@@ -262,6 +273,11 @@ void AnariSceneRenderPass::setEnableNormals(bool on)
     anari::unsetParameter(m_device, m_frame, "channel.normal");
     anari::commitParameters(m_device, m_frame);
   }
+}
+
+anari::DataType AnariSceneRenderPass::getColorFormat() const
+{
+  return m_format;
 }
 
 void AnariSceneRenderPass::setRunAsync(bool on)
@@ -290,6 +306,11 @@ void AnariSceneRenderPass::updateSize()
   auto size = getDimensions();
   anari::setParameter(m_device, m_frame, "size", size);
   anari::commitParameters(m_device, m_frame);
+
+  if (m_camera) {
+    anari::setParameter(m_device, m_camera, "aspect", size.x / float(size.y));
+    anari::commitParameters(m_device, m_camera);
+  }
 
   const size_t totalSize = size_t(size.x) * size_t(size.y);
   m_buffers.color = detail::allocate<uint32_t>(totalSize);

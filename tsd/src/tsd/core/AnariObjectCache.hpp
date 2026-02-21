@@ -39,6 +39,7 @@ struct AnariObjectCache
   ObjectPool<anari::Light> light;
   ObjectPool<anari::Array> array;
   ObjectPool<anari::Renderer> renderer;
+  ObjectPool<anari::Camera> camera;
 
   anari::Device device{nullptr};
   tsd::core::Token deviceName;

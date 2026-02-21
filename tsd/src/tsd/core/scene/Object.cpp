@@ -204,7 +204,7 @@ void Object::setName(const std::string &n)
   m_name = n;
 }
 
-Any Object::getMetadataValue(const std::string &name) const
+Any Object::getMetadataValue(std::string_view name) const
 {
   if (!m_metadata)
     return {};
@@ -214,7 +214,7 @@ Any Object::getMetadataValue(const std::string &name) const
     return {};
 }
 
-void Object::getMetadataArray(const std::string &name,
+void Object::getMetadataArray(std::string_view name,
     anari::DataType *type,
     const void **ptr,
     size_t *size) const
@@ -228,26 +228,29 @@ void Object::getMetadataArray(const std::string &name,
     c->getValueAsArray(type, ptr, size);
 }
 
-void Object::setMetadataValue(const std::string &name, Any v)
+void Object::setMetadataValue(std::string_view name, Any v)
 {
   initMetadata();
   m_metadata->root().append(name) = v;
+  m_versions.metadata++;
 }
 
-void Object::setMetadataArray(const std::string &name,
+void Object::setMetadataArray(std::string_view name,
     anari::DataType type,
     const void *v,
     size_t numElements)
 {
   initMetadata();
   m_metadata->root().append(name).setValueAsArray(type, v, numElements);
+  m_versions.metadata++;
 }
 
-void Object::removeMetadata(const std::string &name)
+void Object::removeMetadata(std::string_view name)
 {
   if (!m_metadata)
     return;
   m_metadata->root().remove(name);
+  m_versions.metadata++;
 }
 
 size_t Object::numMetadata() const
@@ -270,6 +273,7 @@ const char *Object::getMetadataName(size_t i) const
 Parameter &Object::addParameter(Token name)
 {
   m_parameters.set(name, Parameter(this, name.c_str()));
+  m_versions.parameter++;
   return *parameter(name);
 }
 
@@ -350,6 +354,16 @@ const char *Object::parameterNameAt(size_t i) const
   return m_parameters.at_index(i).first.c_str();
 }
 
+ObjectVersion Object::lastParameterChange() const
+{
+  return m_versions.parameter;
+}
+
+ObjectVersion Object::lastMetadataChange() const
+{
+  return m_versions.metadata;
+}
+
 anari::Object Object::makeANARIObject(anari::Device) const
 {
   return {};
@@ -412,11 +426,13 @@ void Object::parameterChanged(const Parameter *p, const Any &oldValue)
   incObjectUseCountParameter(p);
   if (m_updateDelegate)
     m_updateDelegate->signalParameterUpdated(this, p);
+  m_versions.parameter++;
 }
 
 void Object::removeParameter(const Parameter *p)
 {
   removeParameter(p->name());
+  m_versions.parameter++;
 }
 
 BaseUpdateDelegate *Object::updateDelegate() const

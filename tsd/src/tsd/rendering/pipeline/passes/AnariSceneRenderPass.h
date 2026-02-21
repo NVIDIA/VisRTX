@@ -27,6 +27,7 @@ struct AnariSceneRenderPass : public RenderPass
   // default' true', if 'false', then anari::wait() on each pass
   void setRunAsync(bool on);
 
+  anari::DataType getColorFormat() const;
   // NOTE(jda): these do not increase ref count, no need to release
   anari::Device getDevice() const;
   anari::Frame getFrame() const;
@@ -49,6 +50,8 @@ struct AnariSceneRenderPass : public RenderPass
   bool m_enableAlbedo{false};
   bool m_enableNormals{false};
   bool m_runAsync{true};
+
+  anari::DataType m_format{ANARI_UFIXED8_RGBA_SRGB};
 
   anari::Device m_device{nullptr};
   anari::Camera m_camera{nullptr};

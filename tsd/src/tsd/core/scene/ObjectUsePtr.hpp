@@ -35,6 +35,8 @@ struct ObjectUsePtr
   T *operator->();
   T &operator*();
 
+  ObjectPoolRef<T> ref() const;
+
   operator bool() const;
 
  private:
@@ -177,6 +179,12 @@ template <typename T, Object::UseKind K>
 inline T &ObjectUsePtr<T, K>::operator*()
 {
   return *get();
+}
+
+template <typename T, Object::UseKind K>
+inline ObjectPoolRef<T> ObjectUsePtr<T, K>::ref() const
+{
+  return m_object;
 }
 
 template <typename T, Object::UseKind K>

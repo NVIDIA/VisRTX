@@ -48,11 +48,6 @@ struct Viewport : public Window
       const anari::Instance *instances = nullptr, size_t count = 0);
   void setCustomFrameParameter(const char *name, const tsd::core::Any &value);
 
-  void setDatabaseCamera(tsd::core::CameraRef cam);
-  void clearDatabaseCamera();
-  void createCameraFromCurrentView();
-  void addCameraObjectFromCurrentView();
-
  private:
   void saveSettings(tsd::core::DataNode &thisWindowRoot) override;
   void loadSettings(tsd::core::DataNode &thisWindowRoot) override;
@@ -67,14 +62,19 @@ struct Viewport : public Window
   void updateCamera(bool force = false);
   void updateImage();
 
-  void applyCameraParameters(tsd::core::Camera *cam);
-
-  void echoCameraConfig();
   void ui_menubar();
+  void ui_menubar_Device();
+  void ui_menubar_Renderer();
+  void ui_menubar_Camera();
+  void ui_menubar_TransformManipulator();
+  void ui_menubar_Viewport();
+  void ui_menubar_World();
+
   void ui_handleInput();
   bool ui_picking();
   void ui_overlay();
   void ui_gizmo();
+
   bool canShowGizmo() const;
 
   int windowFlags() const override; // anari_viewer::Window
@@ -92,7 +92,6 @@ struct Viewport : public Window
   bool m_mouseRotating{false};
   bool m_manipulating{false};
   bool m_frameCancelled{false};
-  bool m_echoCameraConfig{false};
 
   bool m_showOverlay{true};
   bool m_showCameraInfo{false};
@@ -106,8 +105,6 @@ struct Viewport : public Window
   float m_depthVisualMaximum{1.f};
   float m_edgeThreshold{0.5f};
   bool m_edgeInvert{false};
-
-  float m_fov{40.f};
 
   // Gizmo state //
 
@@ -123,32 +120,18 @@ struct Viewport : public Window
 
   // ANARI objects //
 
-  anari::DataType m_format{ANARI_UFIXED8_RGBA_SRGB};
-
-  anari::Extensions m_extensions{};
   anari::Device m_device{nullptr};
-  anari::Camera m_currentCamera{nullptr};
-  anari::Camera m_perspCamera{nullptr};
-  anari::Camera m_orthoCamera{nullptr};
-  anari::Camera m_omniCamera{nullptr};
-
   std::vector<tsd::core::RendererAppRef> m_rendererObjects;
   tsd::core::RendererAppRef m_currentRenderer;
 
   // Camera manipulator //
 
+  tsd::core::CameraAppRef m_currentCamera;
+
   int m_arcballUp{1};
   tsd::rendering::Manipulator m_localArcball;
   tsd::rendering::Manipulator *m_arcball{nullptr};
   tsd::rendering::UpdateToken m_cameraToken{0};
-  float m_apertureRadius{0.f};
-  float m_focusDistance{1.f};
-
-  // Database camera state //
-
-  tsd::core::CameraRef m_selectedCamera;
-  std::unique_ptr<tsd::core::CameraUpdateDelegate> m_cameraDelegate;
-  std::vector<tsd::core::CameraRef> m_menuCameraRefs;
 
   // Display //
 

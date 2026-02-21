@@ -40,6 +40,7 @@ AnariAxesRenderPass::AnariAxesRenderPass(
     m_camera = anari::newObject<anari::Camera>(d, "perspective");
     anari::setParameter(d, m_camera, "fovy", tsd::math::radians(5.f));
   }
+  anari::setParameter(d, m_camera, "aspect", 1.f);
   anari::commitParameters(d, m_camera);
   anari::setParameter(d, m_frame, "camera", m_camera);
 

@@ -77,7 +77,8 @@ struct Scene
   Scene(Scene &&) = delete;
   Scene &operator=(Scene &&) = delete;
 
-  MaterialRef defaultMaterial() const;
+  MaterialRef defaultMaterial();
+  CameraRef defaultCamera();
   Layer *defaultLayer();
 
   int mpiRank() const;
@@ -232,6 +233,13 @@ struct Scene
       Array::MemoryKind kind);
 
   ObjectDatabase m_db;
+
+  struct DefaultObjects
+  {
+    ObjectUsePtr<Material> material;
+    ObjectUsePtr<Camera> camera;
+  } m_defaultObjects;
+
   BaseUpdateDelegate *m_updateDelegate{nullptr};
   LayerMap m_layers;
   size_t m_numActiveLayers{0};

@@ -25,6 +25,7 @@ PRIVATE
   pipeline/RenderPipeline.cpp
   view/CameraUpdateDelegate.cpp
   view/ManipulatorToAnari.cpp
+  view/ManipulatorToTSD.cpp
 )
 
 project_include_directories(

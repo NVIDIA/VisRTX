@@ -6,6 +6,7 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/FlatMap.hpp"
 #include "tsd/core/ObjectPool.hpp"
+#include "tsd/core/ObjectVersion.hpp"
 #include "tsd/core/Parameter.hpp"
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/core/Token.hpp"
@@ -14,6 +15,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <type_traits>
 
 namespace tsd::core {
@@ -85,18 +87,18 @@ struct Object : public ParameterObserver
   void setName(const char *n);
   void setName(const std::string &n);
 
-  Any getMetadataValue(const std::string &name) const;
-  void getMetadataArray(const std::string &name,
+  Any getMetadataValue(std::string_view name) const;
+  void getMetadataArray(std::string_view name,
       anari::DataType *type,
       const void **ptr,
       size_t *size) const;
 
-  void setMetadataValue(const std::string &name, Any v);
-  void setMetadataArray(const std::string &name,
+  void setMetadataValue(std::string_view name, Any v);
+  void setMetadataArray(std::string_view name,
       anari::DataType type,
       const void *v,
       size_t numElements);
-  void removeMetadata(const std::string &name);
+  void removeMetadata(std::string_view name);
 
   size_t numMetadata() const;
   const char *getMetadataName(size_t i) const;
@@ -127,6 +129,11 @@ struct Object : public ParameterObserver
   const Parameter &parameterAt(size_t i) const;
   Parameter &parameterAt(size_t i);
   const char *parameterNameAt(size_t i) const;
+
+  //// Change tracking ////
+
+  ObjectVersion lastParameterChange() const;
+  ObjectVersion lastMetadataChange() const;
 
   //// ANARI Objects /////
 
@@ -176,6 +183,11 @@ struct Object : public ParameterObserver
     size_t parameter{0};
     size_t layer{0};
   } m_useCounts;
+  struct Versions
+  {
+    ObjectVersion parameter{0};
+    ObjectVersion metadata{0};
+  } m_versions;
 };
 
 void print(const Object &obj, std::ostream &out = std::cout);

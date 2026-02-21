@@ -103,6 +103,9 @@ void AnariObjectCache::insertEmptyHandle(anari::DataType type)
   case ANARI_RENDERER:
     renderer.insert(nullptr);
     break;
+  case ANARI_CAMERA:
+    camera.insert(nullptr);
+    break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
@@ -156,6 +159,9 @@ void AnariObjectCache::removeHandle(anari::DataType type, size_t index)
   case ANARI_RENDERER:
     renderer.erase(index);
     break;
+  case ANARI_CAMERA:
+    camera.erase(index);
+    break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
@@ -190,6 +196,7 @@ void AnariObjectCache::clear()
   releaseAllHandles(sampler);
   releaseAllHandles(light);
   releaseAllHandles(renderer);
+  releaseAllHandles(camera);
   releaseAllHandles(array); // this needs to be last!
 }
 
@@ -246,6 +253,9 @@ void AnariObjectCache::replaceHandle(
   case ANARI_RENDERER:
     renderer[i] = (anari::Renderer)o;
     break;
+  case ANARI_CAMERA:
+    camera[i] = (anari::Camera)o;
+    break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:
   case ANARI_ARRAY2D:
@@ -285,6 +295,9 @@ anari::Object AnariObjectCache::readHandle(anari::DataType type, size_t i) const
     break;
   case ANARI_RENDERER:
     obj = renderer.at(i).value_or(nullptr);
+    break;
+  case ANARI_CAMERA:
+    obj = camera.at(i).value_or(nullptr);
     break;
   case ANARI_ARRAY:
   case ANARI_ARRAY1D:

@@ -639,9 +639,10 @@ bool buildUI_parameter(tsd::core::Object &o,
       else
         ImGui::BulletText("%s | [%zu] %s", name, idx, anari::toString(type));
     } else {
-      if (useTable)
-        ImGui::Text("%s", anari::toString(type));
-      else
+      if (useTable) {
+        ImGui::TextColored(
+            ImVec4(0.6f, 0.6f, 0.6f, 1.f), "%s", anari::toString(type));
+      } else
         ImGui::BulletText("%s | %s", name, anari::toString(type));
     }
     break;

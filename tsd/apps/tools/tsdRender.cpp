@@ -190,26 +190,7 @@ static void setupCameraManipulator()
   } else {
     printf("from world bounds...");
     fflush(stdout);
-
-    tsd::math::float3 bounds[2] = {{-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}};
-    anariGetProperty(g_device,
-        g_renderIndex->world(),
-        "bounds",
-        ANARI_FLOAT32_BOX3,
-        &bounds[0],
-        sizeof(bounds),
-        ANARI_WAIT);
-
-    auto center = 0.5f * (bounds[0] + bounds[1]);
-    auto diag = bounds[1] - bounds[0];
-
-    tsd::rendering::CameraPose pose;
-    pose.fixedDist = 2.f * tsd::math::length(diag);
-    pose.lookat = center;
-    pose.azeldist = {0.f, 20.f, pose.fixedDist};
-    pose.upAxis = static_cast<int>(tsd::rendering::UpAxis::POS_Y);
-
-    g_cameraPoses.push_back(std::move(pose));
+    g_cameraPoses.push_back(g_renderIndex->computeDefaultView());
   }
   g_timer.end();
 

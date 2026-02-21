@@ -18,6 +18,8 @@ struct Renderer : public Object
   ObjectPoolRef<Renderer> self() const;
 
   anari::Object makeANARIObject(anari::Device d) const override;
+
+  void setCommonParameterDefaults();
 };
 
 using RendererRef = ObjectPoolRef<Renderer>;

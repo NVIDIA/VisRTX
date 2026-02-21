@@ -133,28 +133,10 @@ void RenderServer::setup_ANARIDevice()
 void RenderServer::setup_Manipulator()
 {
   tsd::core::logStatus("[Server] Setting up manipulator...");
-
-  tsd::math::float3 bounds[2] = {{-1.f, -1.f, -1.f}, {1.f, 1.f, 1.f}};
-  auto &scene = m_core.tsd.scene;
-  if (!anariGetProperty(m_device,
-          m_renderIndex->world(),
-          "bounds",
-          ANARI_FLOAT32_BOX3,
-          &bounds[0],
-          sizeof(bounds),
-          ANARI_WAIT)) {
-    tsd::core::logWarning("[Server] anari::World returned no bounds!");
-  }
-
-  auto center = 0.5f * (bounds[0] + bounds[1]);
-  auto diag = bounds[1] - bounds[0];
-
-  m_manipulator.setConfig(center, 1.25f * linalg::length(diag), {0.f, 20.f});
-
+  m_manipulator.setConfig(m_renderIndex->computeDefaultView());
   auto azel = m_manipulator.azel();
   auto dist = m_manipulator.distance();
   auto lookat = m_manipulator.at();
-
   m_session.view.azeldist = {azel.x, azel.y, dist};
   m_session.view.lookat = lookat;
 }

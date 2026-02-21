@@ -610,7 +610,8 @@ void LayerTree::buildUI_objectSceneMenu()
       scene.signalLayerChange(&layer);
     }
 
-    ImGui::Separator();
+    if (nodeSelected)
+      ImGui::Separator();
 
     if (nodeSelected && ImGui::BeginMenu("rename")) {
       ImGui::InputText("##edit_node_name", &(*menuNode)->name());
@@ -714,13 +715,9 @@ void LayerTree::buildUI_objectSceneMenu()
         OBJECT_UI_MENU_ITEM("light", ANARI_LIGHT);
         OBJECT_UI_MENU_ITEM("surface", ANARI_SURFACE);
         OBJECT_UI_MENU_ITEM("volume", ANARI_VOLUME);
+#undef OBJECT_UI_MENU_ITEM
         ImGui::EndMenu();
       }
-
-      ImGui::Separator();
-
-      if (ImGui::MenuItem("import..."))
-        m_app->showImportFileDialog();
 
       ImGui::Separator();
 
@@ -762,6 +759,11 @@ void LayerTree::buildUI_objectSceneMenu()
 
         ImGui::EndMenu();
       }
+
+      ImGui::Separator();
+
+      if (ImGui::MenuItem("from file..."))
+        m_app->showImportFileDialog();
 
       ImGui::EndMenu();
     }
