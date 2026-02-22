@@ -38,6 +38,7 @@ void import_TRK(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_USD(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_USD2(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_VTP(Scene &scene, const char *filepath, LayerNodeRef location = {});
+void import_VTU(Scene &scene, const char *filepath, LayerNodeRef location);
 void import_XYZDP(Scene &scene, const char *filename, LayerNodeRef location = {});
 
 // Spatial field importers //
@@ -93,6 +94,7 @@ enum class ImporterType
   USD,
   USD2,
   VTP,
+  VTU,
   XYZDP,
   VOLUME,
   TSD,

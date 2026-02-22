@@ -93,6 +93,8 @@ void Core::parseCommandLine(std::vector<std::string> &args)
       importerType = tsd::io::ImporterType::USD2;
     else if (arg == "-vtp")
       importerType = tsd::io::ImporterType::VTP;
+    else if (arg == "-vtu")
+      importerType = tsd::io::ImporterType::VTU;
     else if (arg == "-xyzdp")
       importerType = tsd::io::ImporterType::XYZDP;
     else if (arg == "-volume")

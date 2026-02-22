@@ -86,6 +86,8 @@ void import_file(Scene &scene,
     tsd::io::import_USD2(scene, file.c_str(), root);
   } else if (f.first == ImporterType::VTP)
     tsd::io::import_VTP(scene, file.c_str(), root);
+  else if (f.first == ImporterType::VTU)
+    tsd::io::import_VTU(scene, file.c_str(), root);
   else if (f.first == ImporterType::XYZDP)
     tsd::io::import_XYZDP(scene, file.c_str(), root);
   else if (f.first == ImporterType::VOLUME)
