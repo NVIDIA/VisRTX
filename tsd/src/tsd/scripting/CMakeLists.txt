@@ -35,7 +35,7 @@ PRIVATE
 
 project_compile_definitions(
 PUBLIC
-  TSD_USE_LUA=1
+  TSD_USE_LUA
 PRIVATE
   TSD_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )

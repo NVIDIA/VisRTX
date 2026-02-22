@@ -228,7 +228,7 @@ void ExtensionManager::rebuildMenuTree()
 
 std::vector<std::string> ExtensionManager::getSearchPaths()
 {
-#if TSD_USE_LUA
+#ifdef TSD_USE_LUA
   return scripting::LuaContext::defaultSearchPaths();
 #else
   return {};
