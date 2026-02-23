@@ -62,7 +62,7 @@ local mat4 = {}
 -- Parameter value types accepted by setParameter / returned by getParameter
 ------------------------------------------------------------------------
 
----@alias tsd.ParameterValue boolean|number|string|tsd.float2|tsd.float3|tsd.float4|tsd.mat4|tsd.Array|tsd.Sampler|tsd.Geometry|tsd.Material|tsd.SpatialField|tsd.Volume|tsd.Light|tsd.Camera|tsd.Surface|number[]
+---@alias tsd.ParameterValue boolean|number|string|tsd.float2|tsd.float3|tsd.float4|tsd.mat4|tsd.Array|tsd.Sampler|tsd.Geometry|tsd.Material|tsd.SpatialField|tsd.Volume|tsd.Light|tsd.Camera|tsd.Surface|tsd.Transform|number[]
 
 ------------------------------------------------------------------------
 -- Token (CoreBindings.cpp)
@@ -229,6 +229,11 @@ function SpatialField:valid() end
 ---@return tsd.float2
 function SpatialField:computeValueRange() end
 
+---@class tsd.Transform: tsd.Object
+local Transform = {}
+---@return boolean
+function Transform:valid() end
+
 ---@class tsd.Array: tsd.Object
 local Array = {}
 ---@return boolean
@@ -306,13 +311,6 @@ function LayerNode:isEnabled() end
 
 ---@param enabled boolean
 function LayerNode:setEnabled(enabled) end
-
----@return tsd.mat4
-function LayerNode:getTransform() end
-
---- Get transform as packed SRT (columns: scale, euler-rotation-degrees, translation).
----@return tsd.mat3
-function LayerNode:getTransformSRT() end
 
 ---@overload fun(self: tsd.LayerNode, m: tsd.mat4)
 ---@overload fun(self: tsd.LayerNode, srt: tsd.mat3)
@@ -417,6 +415,11 @@ function Scene:createVolume(subtype, params) end
 ---@return tsd.SpatialField
 function Scene:createSpatialField(subtype, params) end
 
+---@param subtype string
+---@param params? table<string, tsd.ParameterValue>
+---@return tsd.Transform
+function Scene:createTransform(subtype, params) end
+
 ---@param name string
 ---@param geometry tsd.Geometry
 ---@param material tsd.Material
@@ -474,6 +477,10 @@ function Scene:getSampler(index) end
 ---@return tsd.SpatialField
 function Scene:getSpatialField(index) end
 
+---@param index integer
+---@return tsd.Transform
+function Scene:getTransform(index) end
+
 -- Object counts ----------------------------------------------------------
 
 --- Return the number of objects of the given ANARI type.
@@ -518,6 +525,10 @@ function Scene:forEachSampler(fn) end
 --- Iterate over all arrays. Return false from the callback to stop early.
 ---@param fn fun(obj: tsd.Array): boolean?
 function Scene:forEachArray(fn) end
+
+--- Iterate over all transforms. Return false from the callback to stop early.
+---@param fn fun(obj: tsd.Transform): boolean?
+function Scene:forEachTransform(fn) end
 
 -- Layers -----------------------------------------------------------------
 
@@ -736,6 +747,8 @@ tsd.SAMPLER = 0
 tsd.ARRAY = 0
 ---@type integer
 tsd.SPATIAL_FIELD = 0
+---@type integer
+tsd.TRANSFORM = 0
 
 -- Math utility functions (MathBindings.cpp) ------------------------------
 

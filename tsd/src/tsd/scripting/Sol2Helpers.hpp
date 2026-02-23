@@ -19,6 +19,7 @@
 #include "tsd/core/scene/objects/Sampler.hpp"
 #include "tsd/core/scene/objects/SpatialField.hpp"
 #include "tsd/core/scene/objects/Surface.hpp"
+#include "tsd/core/scene/objects/Transform.hpp"
 #include "tsd/core/scene/objects/Volume.hpp"
 
 #include <functional>
@@ -50,6 +51,7 @@ TSD_SOL2_COMPARISON_OPS(Light)
 TSD_SOL2_COMPARISON_OPS(Material)
 TSD_SOL2_COMPARISON_OPS(Sampler)
 TSD_SOL2_COMPARISON_OPS(Volume)
+TSD_SOL2_COMPARISON_OPS(Transform)
 TSD_SOL2_COMPARISON_OPS(LayerNodeData)
 
 #undef TSD_SOL2_COMPARISON_OPS

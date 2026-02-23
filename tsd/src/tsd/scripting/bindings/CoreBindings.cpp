@@ -4,14 +4,14 @@
 #include "ArrayHelpers.hpp"
 #include "ObjectMethodBindings.hpp"
 #include "ParameterHelpers.hpp"
-#include "tsd/scripting/LuaBindings.hpp"
-#include "tsd/core/Token.hpp"
 #include "tsd/core/Parameter.hpp"
+#include "tsd/core/Token.hpp"
 #include "tsd/core/scene/Animation.hpp"
 #include "tsd/core/scene/Object.hpp"
 #include "tsd/core/scene/Scene.hpp"
 #include "tsd/core/scene/objects/Array.hpp"
 #include "tsd/core/scene/objects/Sampler.hpp"
+#include "tsd/scripting/LuaBindings.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
 #include <sol/sol.hpp>
@@ -52,6 +52,10 @@ static core::Object *extractObjectPtr(sol::object luaObj)
     auto ref = luaObj.as<core::SpatialFieldRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
+  if (luaObj.is<core::TransformRef>()) {
+    auto ref = luaObj.as<core::TransformRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
   if (luaObj.is<core::ArrayRef>()) {
     auto ref = luaObj.as<core::ArrayRef>();
     return ref.valid() ? ref.data() : nullptr;
@@ -90,7 +94,6 @@ static auto makeCreateBinding()
   };
 }
 
-
 void registerCoreBindings(sol::state &lua)
 {
   sol::table tsd = lua["tsd"];
@@ -107,7 +110,8 @@ void registerCoreBindings(sol::state &lua)
       [](const core::Token &a, const core::Token &b) { return a == b; });
 
   // Read-only from Lua; values are set through Object
-  tsd.new_usertype<core::Parameter>("Parameter",
+  tsd.new_usertype<core::Parameter>(
+      "Parameter",
       sol::no_constructor,
       "name",
       [](const core::Parameter &p) { return p.name().str(); },
@@ -116,24 +120,32 @@ void registerCoreBindings(sol::state &lua)
       "isEnabled",
       &core::Parameter::isEnabled);
 
-  auto objectType = tsd.new_usertype<core::Object>("Object",
-      sol::no_constructor,
-      "index",
-      &core::Object::index);
+  auto objectType = tsd.new_usertype<core::Object>(
+      "Object", sol::no_constructor, "index", &core::Object::index);
 
   registerObjectMethodsOn(
       objectType, [](core::Object &o) -> core::Object * { return &o; });
 
-  tsd.new_usertype<core::Scene>("Scene",
+  tsd.new_usertype<core::Scene>(
+      "Scene",
       sol::constructors<core::Scene()>(),
       // Object creation
-      "createGeometry", makeCreateBinding<core::Geometry>(),
-      "createMaterial", makeCreateBinding<core::Material>(),
-      "createLight", makeCreateBinding<core::Light>(),
-      "createCamera", makeCreateBinding<core::Camera>(),
-      "createSampler", makeCreateBinding<core::Sampler>(),
-      "createVolume", makeCreateBinding<core::Volume>(),
-      "createSpatialField", makeCreateBinding<core::SpatialField>(),
+      "createGeometry",
+      makeCreateBinding<core::Geometry>(),
+      "createMaterial",
+      makeCreateBinding<core::Material>(),
+      "createLight",
+      makeCreateBinding<core::Light>(),
+      "createCamera",
+      makeCreateBinding<core::Camera>(),
+      "createSampler",
+      makeCreateBinding<core::Sampler>(),
+      "createVolume",
+      makeCreateBinding<core::Volume>(),
+      "createSpatialField",
+      makeCreateBinding<core::SpatialField>(),
+      "createTransform",
+      makeCreateBinding<core::Transform>(),
       "createSurface",
       [](core::Scene &s,
           const std::string &name,
@@ -174,9 +186,7 @@ void registerCoreBindings(sol::state &lua)
       "getCamera",
       [](core::Scene &s, size_t i) { return s.getObject<core::Camera>(i); },
       "getSurface",
-      [](core::Scene &s, size_t i) {
-        return s.getObject<core::Surface>(i);
-      },
+      [](core::Scene &s, size_t i) { return s.getObject<core::Surface>(i); },
       "getArray",
       [](core::Scene &s, size_t i) { return s.getObject<core::Array>(i); },
       "getVolume",
@@ -187,6 +197,8 @@ void registerCoreBindings(sol::state &lua)
       [](core::Scene &s, size_t i) {
         return s.getObject<core::SpatialField>(i);
       },
+      "getTransform",
+      [](core::Scene &s, size_t i) { return s.getObject<core::Transform>(i); },
       // Object counts
       "numberOfObjects",
       [](core::Scene &s, ANARIDataType type) -> size_t {
@@ -211,6 +223,8 @@ void registerCoreBindings(sol::state &lua)
       makeForEach([](auto &db) -> auto & { return db.sampler; }),
       "forEachArray",
       makeForEach([](auto &db) -> auto & { return db.array; }),
+      "forEachTransform",
+      makeForEach([](auto &db) -> auto & { return db.transform; }),
       // Layers
       "addLayer",
       [](core::Scene &s, const std::string &name) {
@@ -314,16 +328,13 @@ void registerCoreBindings(sol::state &lua)
       // Node removal
       "removeNode",
       sol::overload(
-          [](core::Scene &s, core::LayerNodeRef obj) {
-            s.removeNode(obj);
-          },
+          [](core::Scene &s, core::LayerNodeRef obj) { s.removeNode(obj); },
           [](core::Scene &s, core::LayerNodeRef obj, bool deleteObjects) {
             s.removeNode(obj, deleteObjects);
           }),
       // Animation
       "addAnimation",
-      sol::overload(
-          [](core::Scene &s) { return s.addAnimation(); },
+      sol::overload([](core::Scene &s) { return s.addAnimation(); },
           [](core::Scene &s, const std::string &name) {
             return s.addAnimation(name.c_str());
           }),
@@ -353,11 +364,11 @@ void registerCoreBindings(sol::state &lua)
       "cleanupScene",
       &core::Scene::cleanupScene);
 
-  tsd.new_usertype<core::Animation>("Animation",
+  tsd.new_usertype<core::Animation>(
+      "Animation",
       sol::no_constructor,
       "name",
-      sol::property(
-          [](const core::Animation &a) { return a.name(); },
+      sol::property([](const core::Animation &a) { return a.name(); },
           [](core::Animation &a, const std::string &n) { a.name() = n; }),
       "info",
       [](const core::Animation &a) { return a.info(); },
@@ -409,6 +420,7 @@ void registerCoreBindings(sol::state &lua)
   tsd["SAMPLER"] = ANARI_SAMPLER;
   tsd["ARRAY"] = ANARI_ARRAY;
   tsd["SPATIAL_FIELD"] = ANARI_SPATIAL_FIELD;
+  tsd["TRANSFORM"] = core::TSD_TRANSFORM;
 }
 
 } // namespace tsd::scripting

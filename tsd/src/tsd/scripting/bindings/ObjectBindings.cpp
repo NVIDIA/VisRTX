@@ -14,6 +14,7 @@
 #include "tsd/core/scene/objects/Sampler.hpp"
 #include "tsd/core/scene/objects/SpatialField.hpp"
 #include "tsd/core/scene/objects/Surface.hpp"
+#include "tsd/core/scene/objects/Transform.hpp"
 #include "tsd/core/scene/objects/Volume.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
@@ -678,6 +679,11 @@ void registerObjectBindings(sol::state &lua)
       sol::base_classes,
       sol::bases<core::Object>());
 
+  tsd.new_usertype<core::Transform>("Transform",
+      sol::no_constructor,
+      sol::base_classes,
+      sol::bases<core::Object>());
+
   tsd.new_usertype<core::Surface>(
       "Surface",
       sol::no_constructor,
@@ -763,6 +769,7 @@ void registerObjectBindings(sol::state &lua)
   registerObjectPoolRef<core::Light>(tsd, "Light");
   registerObjectPoolRef<core::Camera>(tsd, "Camera");
   registerObjectPoolRef<core::Sampler>(tsd, "Sampler");
+  registerObjectPoolRef<core::Transform>(tsd, "Transform");
 
   auto surfaceRefType = registerObjectPoolRef<core::Surface>(tsd, "Surface");
   surfaceRefType["geometry"] = +[](core::SurfaceRef &r) -> core::Geometry * {

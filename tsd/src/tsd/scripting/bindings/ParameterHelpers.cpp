@@ -6,6 +6,7 @@
 #include "tsd/core/Token.hpp"
 #include "tsd/core/scene/Object.hpp"
 #include "tsd/core/scene/Scene.hpp"
+#include "tsd/core/scene/objects/Transform.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
 #include <fmt/format.h>
@@ -71,6 +72,10 @@ void setParameterFromLua(
     auto ref = value.as<core::SurfaceRef>();
     if (ref.valid())
       obj->setParameterObject(token, *ref.data());
+  } else if (value.is<core::TransformRef>()) {
+    auto ref = value.as<core::TransformRef>();
+    if (ref.valid())
+      obj->setParameterObject(token, *ref.data());
   } else if (value.is<sol::table>()) {
     sol::table t = value.as<sol::table>();
     size_t len = t.size();
@@ -107,7 +112,7 @@ void setParameterFromLua(
         "Unsupported type '{}' for parameter '{}'"
         ": expected bool, number, string, float2/3/4, mat4, ArrayRef, "
         "SamplerRef, GeometryRef, MaterialRef, SpatialFieldRef, "
-        "VolumeRef, LightRef, CameraRef, SurfaceRef, "
+        "VolumeRef, LightRef, CameraRef, SurfaceRef, TransformRef, "
         "or table of 2-4 numbers",
         typeName,
         name));
@@ -180,8 +185,8 @@ sol::object getParameterAsLua(
       return sol::make_object(lua, scene->getObject<core::Camera>(idx));
     case ANARI_SURFACE:
       return sol::make_object(lua, scene->getObject<core::Surface>(idx));
-    default:
-      break;
+    case core::TSD_TRANSFORM:
+      return sol::make_object(lua, scene->getObject<core::Transform>(idx));
     }
   }
 

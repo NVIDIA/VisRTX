@@ -1,10 +1,11 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/scripting/LuaBindings.hpp"
+#include <fmt/format.h>
 #include "tsd/core/scene/Layer.hpp"
 #include "tsd/core/scene/objects/Array.hpp"
-#include <fmt/format.h>
+#include "tsd/core/scene/objects/Transform.hpp"
+#include "tsd/scripting/LuaBindings.hpp"
 
 #include <sol/sol.hpp>
 
@@ -14,7 +15,8 @@ void registerLayerBindings(sol::state &lua)
 {
   sol::table tsd = lua["tsd"];
 
-  tsd.new_usertype<core::LayerNodeRef>("LayerNode",
+  tsd.new_usertype<core::LayerNodeRef>(
+      "LayerNode",
       sol::no_constructor,
       "valid",
       &core::LayerNodeRef::valid,
@@ -29,11 +31,17 @@ void registerLayerBindings(sol::state &lua)
         return fmt::format("LayerNode({})", r->value().name());
       },
       "parent",
-      [](core::LayerNodeRef &r) { return r.valid() ? r->parent() : core::LayerNodeRef{}; },
+      [](core::LayerNodeRef &r) {
+        return r.valid() ? r->parent() : core::LayerNodeRef{};
+      },
       "next",
-      [](core::LayerNodeRef &r) { return r.valid() ? r->next() : core::LayerNodeRef{}; },
+      [](core::LayerNodeRef &r) {
+        return r.valid() ? r->next() : core::LayerNodeRef{};
+      },
       "sibling",
-      [](core::LayerNodeRef &r) { return r.valid() ? r->sibling() : core::LayerNodeRef{}; },
+      [](core::LayerNodeRef &r) {
+        return r.valid() ? r->sibling() : core::LayerNodeRef{};
+      },
       "isRoot",
       [](const core::LayerNodeRef &r) { return r.valid() && r->isRoot(); },
       "isLeaf",
@@ -54,9 +62,8 @@ void registerLayerBindings(sol::state &lua)
       [](core::LayerNodeRef &r, const std::string &name) -> core::LayerNodeRef {
         if (!r.valid())
           return {};
-        return find_first_child(r, [&](const core::LayerNodeData &d) {
-          return d.name() == name;
-        });
+        return find_first_child(
+            r, [&](const core::LayerNodeData &d) { return d.name() == name; });
       },
       "name",
       sol::property(
@@ -68,53 +75,69 @@ void registerLayerBindings(sol::state &lua)
               r->value().name() = n;
           }),
       "isObject",
-      [](const core::LayerNodeRef &r) { return r.valid() && r->value().isObject(); },
+      [](const core::LayerNodeRef &r) {
+        return r.valid() && r->value().isObject();
+      },
       "isTransform",
-      [](const core::LayerNodeRef &r) { return r.valid() && r->value().isTransform(); },
+      [](const core::LayerNodeRef &r) {
+        return r.valid() && r->value().isTransform();
+      },
       "isEmpty",
-      [](const core::LayerNodeRef &r) { return !r.valid() || r->value().isEmpty(); },
+      [](const core::LayerNodeRef &r) {
+        return !r.valid() || r->value().isEmpty();
+      },
       "isEnabled",
-      [](const core::LayerNodeRef &r) { return r.valid() && r->value().isEnabled(); },
+      [](const core::LayerNodeRef &r) {
+        return r.valid() && r->value().isEnabled();
+      },
       "setEnabled",
       [](core::LayerNodeRef &r, bool enabled) {
         if (r.valid())
           r->value().setEnabled(enabled);
       },
-      "getTransform",
-      [](const core::LayerNodeRef &r) -> math::mat4 {
-        return r.valid() ? r->value().getTransform() : math::mat4(math::identity);
-      },
-      "getTransformSRT",
-      [](const core::LayerNodeRef &r) -> math::mat3 {
-        return r.valid() ? r->value().getTransformSRT() : math::IDENTITY_MAT3;
-      },
       "setAsTransform",
       sol::overload(
           [](core::LayerNodeRef &r, const math::mat4 &m) {
-            if (r.valid())
-              r->value().setAsTransform(m);
+            if (!r.valid())
+              return;
+            if (auto *xfm = r->value().getTransformObject())
+              xfm->setTransform(m);
           },
           [](core::LayerNodeRef &r, const math::mat3 &srt) {
-            if (r.valid())
-              r->value().setAsTransform(srt);
+            if (!r.valid())
+              return;
+            if (auto *xfm = r->value().getTransformObject())
+              xfm->setTransform(srt);
           }),
       "setAsTransformArray",
       sol::overload(
-          [](core::LayerNodeRef &r, core::Array &a) {
-            if (r.valid())
-              r->value().setAsTransformArray(&a);
+          [](const core::LayerNodeRef &r, core::Array &a) {
+            if (!r.valid())
+              return;
+            auto arr = a.self();
+            if (!arr.valid())
+              return;
+            if (auto *xfm = r->value().getTransformObject())
+              xfm->setTransformArray(arr);
           },
-          [](core::LayerNodeRef &r, core::ArrayRef a) {
-            if (r.valid() && a)
-              r->value().setAsTransformArray(a.data());
+          [](const core::LayerNodeRef &r, core::ArrayRef a) {
+            if (!r.valid() || !a.valid())
+              return;
+            if (auto *xfm = r->value().getTransformObject())
+              xfm->setTransformArray(a);
           }),
       "getTransformArray",
       [](const core::LayerNodeRef &r) -> core::Array * {
-        return r.valid() ? r->value().getTransformArray() : nullptr;
+        if (!r.valid())
+          return nullptr;
+        if (auto *xfm = r->value().getTransformObject())
+          return xfm->getTransformArray();
+        return nullptr;
       });
 
   using Layer = core::Layer;
-  tsd.new_usertype<Layer>("Layer",
+  tsd.new_usertype<Layer>(
+      "Layer",
       sol::no_constructor,
       "root",
       [](Layer &l) { return l.root(); },
@@ -127,7 +150,7 @@ void registerLayerBindings(sol::state &lua)
       "foreach",
       [](Layer &l, sol::function fn) {
         l.traverse(l.root(), [&fn, &l](core::LayerNode &node, int level) {
-            sol::object result = fn(l.at(node.index()), level);
+          sol::object result = fn(l.at(node.index()), level);
           if (result.is<bool>() && !result.as<bool>())
             return false;
           return true;
