@@ -60,7 +60,7 @@
   "objects": [
     {
       "type": "ANARI_RENDERER",
-      "name": "default",
+      "name": "interactive",
       "parameters": [
         {
           "name": "sampleLimit",
