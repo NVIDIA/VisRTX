@@ -227,4 +227,20 @@ void RenderIndex::signalAnimationTimeChanged(float)
   // no-op
 }
 
+void RenderIndex::signalObjectParameterUseCountZero(const Object *o)
+{
+  if (o->useCount(tsd::core::Object::UseKind::LAYER) > 0)
+    return;
+
+  m_cache.releaseHandle(o);
+}
+
+void RenderIndex::signalObjectLayerUseCountZero(const Object *o)
+{
+  if (o->useCount(tsd::core::Object::UseKind::PARAMETER) > 0)
+    return;
+
+  m_cache.releaseHandle(o);
+}
+
 } // namespace tsd::rendering

@@ -796,7 +796,7 @@ void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
         if (node->isEmpty())
           return true;
         if (node->isTransform()) {
-          auto transform = node->getTransform();
+          auto transform = node->getTransformObject()->getTransform();
           transformStack.pop();
           transformStack.push(math::mul(transformStack.top(), transform));
         }

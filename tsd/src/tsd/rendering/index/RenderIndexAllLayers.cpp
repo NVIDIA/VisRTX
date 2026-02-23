@@ -1,40 +1,49 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/rendering/index/RenderIndexAllLayers.hpp"
-
+#include "RenderIndexAllLayers.hpp"
 #include "RenderToAnariObjectsVisitor.hpp"
+
 // tsd_core
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/ObjectPool.hpp"
+#include "tsd/core/TSDMath.hpp"
+#include "tsd/core/TSDTypes.hpp"
+#include "tsd/core/scene/Layer.hpp"
+#include "tsd/core/scene/Object.hpp"
+#include "tsd/core/scene/objects/Array.hpp"
+#include "tsd/core/scene/objects/Transform.hpp"
+
+// anari
+#include <anari/anari_cpp/Traits.h>
+#include <anari/anari_cpp/ext/linalg.h>
+#include <anari/frontend/anari_enums.h>
+#include <helium/utility/TimeStamp.h>
+
 // std
 #include <algorithm>
-#include <iterator>
+#include <anari/anari_cpp.hpp>
+#include <variant>
 
 namespace tsd::rendering {
 
-// Helper functions ///////////////////////////////////////////////////////////
-
-static void releaseInstances(
-    anari::Device d, const std::vector<anari::Instance> &instances)
-{
-  for (auto i : instances)
-    anari::release(d, i);
-}
-
 // RenderIndexAllLayers definitions ///////////////////////////////////////////
 
-RenderIndexAllLayers::RenderIndexAllLayers(Scene &scene,
-    tsd::core::Token deviceName,
-    anari::Device d,
-    bool alwaysGatherAllLights)
-    : RenderIndex(scene, deviceName, d), m_forceAllLights(alwaysGatherAllLights)
+RenderIndexAllLayers::RenderIndexAllLayers(
+    Scene &scene, tsd::core::Token deviceName, anari::Device d)
+    : RenderIndex(scene, deviceName, d)
 {
   m_includedLayers = scene.getActiveLayers();
 }
 
 RenderIndexAllLayers::~RenderIndexAllLayers()
 {
-  releaseAllInstances();
+  for (auto &&[_, instanceCache] : m_layerInstanceCache) {
+    for (auto &instance : instanceCache)
+      anari::release(device(), instance);
+  }
+  for (auto &&[_, rootInst] : m_layerRootInstance)
+    anari::release(device(), rootInst);
 }
 
 bool RenderIndexAllLayers::isFlat() const
@@ -59,177 +68,422 @@ void RenderIndexAllLayers::setIncludedLayers(
 
 void RenderIndexAllLayers::signalArrayUnmapped(const Array *a)
 {
-  RenderIndex::signalArrayUnmapped(a);
-  if (a->elementType() == ANARI_FLOAT32_MAT4)
+  bool hasChanged = false;
+
+  const auto &transforms = m_ctx->objectDB().transform;
+  for (auto txIndex = 0; txIndex < transforms.capacity(); ++txIndex) {
+    if (const auto &tx = transforms.at(txIndex)) {
+      for (auto paramIndex = 0; paramIndex < tx->numParameters();
+          ++paramIndex) {
+        const auto &param = tx->parameterAt(paramIndex);
+        const auto &value = param.value();
+
+        if (value.holdsObject() && m_ctx->getObject(value) == a) {
+          hasChanged |= invalidateTransformAtObjectIndex(tx.index());
+        }
+      }
+    }
+  }
+
+  if (hasChanged) {
     updateWorld();
+  }
+  RenderIndex::signalArrayUnmapped(a);
 }
 
-void RenderIndexAllLayers::signalObjectParameterUseCountZero(const Object *o)
+void RenderIndexAllLayers::signalParameterUpdated(
+    const Object *o, const Parameter *p)
 {
-  if (o->useCount(tsd::core::Object::UseKind::LAYER) > 0)
-    return;
-  m_cache.releaseHandle(o);
-#if 0
-    tsd::core::logDebug(
-        "RenderIndex: Object of type %s and name '%s' has "
-        "parameter use count zero; its ANARI handle may be "
-        "released now.",
-        anari::toString(o->type()),
-        o->name().c_str());
-#endif
+  if (o->type() == TSD_TRANSFORM) {
+    if (invalidateTransformAtObjectIndex(o->index()))
+      updateWorld();
+  }
+
+  RenderIndex::signalParameterUpdated(o, p);
 }
 
 void RenderIndexAllLayers::signalObjectLayerUseCountZero(const Object *o)
 {
-  if (o->useCount(tsd::core::Object::UseKind::PARAMETER) > 0)
-    return;
-  m_cache.releaseHandle(o);
-#if 0
-    tsd::core::logDebug(
-        "RenderIndex: Object of type %s and name '%s' has "
-        "layer use count zero; its ANARI handle may be "
-        "released now.",
-        anari::toString(o->type()),
-        o->name().c_str());
-#endif
+  if (o->type() == TSD_TRANSFORM) {
+    auto objectIndex = o->index();
+    std::vector<const Layer *> layersToClear;
+    // Invalidate all layers holding that very object
+    for (auto &&[layer, transformDependency] : m_layerTransformDependency) {
+      for (const auto &transform : transformDependency) {
+        if (transform.transformObjectIndex == objectIndex) {
+          layersToClear.push_back(layer);
+          break;
+        }
+      }
+    }
+
+    for (auto l : layersToClear) {
+      tagDirtyTopology(l);
+    }
+  }
+
+  updateWorld();
+  RenderIndex::signalObjectLayerUseCountZero(o);
 }
 
 void RenderIndexAllLayers::signalLayerAdded(const Layer *l)
 {
-  syncLayerInstances(l, false, objectMask_all());
+  m_includedLayers.push_back(l);
   updateWorld();
 }
 
 void RenderIndexAllLayers::signalLayerUpdated(const Layer *l)
 {
-  if (m_instanceCache.contains(l)) {
-    syncLayerInstances(l, false, objectMask_all());
-    updateWorld();
-  }
+  tagDirtyTopology(l);
+  updateWorld();
 }
 
 void RenderIndexAllLayers::signalLayerRemoved(const Layer *l)
 {
-  if (m_instanceCache.contains(l)) {
-    releaseInstances(device(), m_instanceCache[l]);
-    m_instanceCache.erase(l);
-    updateWorld();
-  }
+  tagDirtyTopology(l);
+  m_includedLayers.erase(
+      std::remove(m_includedLayers.begin(), m_includedLayers.end(), l),
+      m_includedLayers.end());
+  updateWorld();
 }
 
 void RenderIndexAllLayers::signalActiveLayersChanged()
 {
-  if (!m_customIncludedLayers) {
-    if (m_includedLayers.empty()
-        && m_ctx->numberOfActiveLayers() == m_ctx->numberOfLayers())
-      return;
+  if (!m_customIncludedLayers)
     m_includedLayers = m_ctx->getActiveLayers();
-  }
+
   signalInvalidateCachedObjects();
+
+  RenderIndex::signalActiveLayersChanged();
 }
 
 void RenderIndexAllLayers::signalObjectFilteringChanged()
 {
   if (m_filter || m_filterForceUpdate) {
-    releaseAllInstances();
-    updateWorld();
     m_filterForceUpdate = false;
+    updateWorld();
   }
+
+  RenderIndex::signalObjectFilteringChanged();
+}
+
+void RenderIndexAllLayers::signalAnimationTimeChanged(float)
+{
+  // Transform/value updates are applied through signalParameterUpdated().
 }
 
 void RenderIndexAllLayers::signalRemoveAllObjects()
 {
-  releaseAllInstances();
   RenderIndex::signalRemoveAllObjects();
+  m_includedLayers.clear();
+  m_layerTransformDependency.clear();
+  m_layerTransformCache.clear();
+  for (auto &&[_, instanceCache] : m_layerInstanceCache) {
+    for (auto &instance : instanceCache)
+      anari::release(device(), instance);
+    instanceCache.clear();
+  }
+  m_layerInstanceCache.clear();
+  for (auto &&[_, rootInst] : m_layerRootInstance)
+    anari::release(device(), rootInst);
+  m_layerRootInstance.clear();
+
+  m_transformLastUpdateTimeStamp = helium::newTimeStamp();
 }
 
 void RenderIndexAllLayers::updateWorld()
 {
-#if 0
-  tsd::core::logDebug(
-      "RenderIndexAllLayers: updating world with %zu layers included, "
-      "%zu external instances, and %zu cached layers.",
-      m_includedLayers.size(),
-      m_externalInstances.size(),
-      m_instanceCache.size());
-#endif
-
   auto d = device();
   auto w = world();
 
-  if (m_instanceCache.empty()) {
-    if (!m_includedLayers.empty()) { // only sync specified layers
-      tsd::core::logDebug(
-          "[RenderIndexAllLayers] cache empty, "
-          "repopulating using specific layers");
-      if (m_forceAllLights) {
-        // first just the surfaces/volumes from included layers
-        for (auto &l : m_includedLayers)
-          syncLayerInstances(l, false, objectMask_surfacesAndVolumes());
-        // then all lights from all layers
-        for (auto &l : m_ctx->layers())
-          syncLayerInstances(l.second.ptr.get(), true, objectMask_lights());
-      } else {
-        for (auto &l : m_includedLayers)
-          syncLayerInstances(l, false, objectMask_all());
-      }
-    } else { // sync everything
-      tsd::core::logDebug(
-          "[RenderIndexAllLayers] cache empty, "
-          "repopulating using all layers");
-      for (auto &l : m_ctx->layers())
-        syncLayerInstances(l.second.ptr.get(), false, objectMask_all());
+  auto effectiveLayers = m_includedLayers;
+
+  bool needTopologyUpdate = false;
+  bool needInstanceUpdate = false;
+  for (const auto *l : effectiveLayers) {
+    if (!m_layerTransformDependency.contains(l)) {
+      needTopologyUpdate = true;
+      updateLayerTransformDependency(l);
+    }
+    if (updateLayerTransformCache(l)) {
+      needInstanceUpdate = true;
+      RenderToAnariObjectsVisitor visitor(d,
+          m_cache,
+          m_layerInstanceCache[l],
+          m_layerRootInstance[l],
+          m_filter);
+      const_cast<Layer *>(l)->traverse(l->root(), visitor);
+      visitor.finalizeRootObjects();
     }
   }
+  m_transformLastUpdateTimeStamp = helium::newTimeStamp();
 
-  std::vector<anari::Instance> instances;
-  instances.reserve(2000);
+  if (needInstanceUpdate)
+    writeTransformCacheToInstances();
 
-  for (auto &i : m_instanceCache)
-    std::copy(i.second.begin(), i.second.end(), std::back_inserter(instances));
+  if (needTopologyUpdate) {
+    std::vector<anari::Instance> allInstances;
+    for (const auto *l : effectiveLayers) {
+      auto *deps = m_layerTransformDependency.at(l);
+      auto &instances = m_layerInstanceCache[l];
+      for (size_t i = 0; i < instances.size(); i++) {
+        if ((*deps)[i].transformObjectIndex != INVALID_INDEX && instances[i])
+          allInstances.push_back(instances[i]);
+      }
+      if (auto *rootInst = m_layerRootInstance.at(l); rootInst && *rootInst)
+        allInstances.push_back(*rootInst);
+    }
 
-  std::copy(m_externalInstances.begin(),
-      m_externalInstances.end(),
-      std::back_inserter(instances));
+    if (!allInstances.empty()) {
+      anari::setParameterArray1D(device(),
+          m_world,
+          "instance",
+          allInstances.data(),
+          allInstances.size());
+    } else {
+      anari::unsetParameter(device(), m_world, "instance");
+    }
 
-  if (instances.empty())
-    anari::unsetParameter(d, w, "instance");
-  else {
-    anari::setParameterArray1D(
-        d, w, "instance", instances.data(), instances.size());
+    anari::commitParameters(d, w);
   }
-
-  anari::commitParameters(d, w);
 }
 
-void RenderIndexAllLayers::syncLayerInstances(
-    const Layer *_layer, bool appendExisting, uint8_t mask)
+void RenderIndexAllLayers::updateLayerTransformDependency(const Layer *l)
+{
+  // Dependency/cache/instance vectors are indexed by transform traversal order
+  // (entry index), not by transform object pool index.
+  // We only use pool capacity here as a conservative reserve upper bound.
+  auto xfmCapacity = m_ctx->objectDB().transform.capacity();
+
+  std::vector<TransformDependency> orderedTransforms;
+  // Final size equals the number of enabled transform nodes in this layer.
+  orderedTransforms.reserve(xfmCapacity);
+
+  auto mutableLayer = const_cast<Layer *>(l);
+  size_t currentOrderedIndex = INVALID_INDEX;
+
+  mutableLayer->traverse(
+      mutableLayer->root(),
+      [&](LayerNode &n, int /*level*/) {
+        if (!n->isEnabled())
+          return false; // match RenderToAnariObjectsVisitor subtree pruning
+        if (!n->isTransform())
+          return true;
+
+        auto transformObject = n->getTransformObject();
+
+        const size_t parentOrderedIndex = currentOrderedIndex;
+        currentOrderedIndex = orderedTransforms.size();
+        orderedTransforms.push_back({n->getObjectIndex(),
+            parentOrderedIndex,
+            n->name().size() ? n->name() : n->getObject()->name()});
+
+        return true;
+      },
+      [&](LayerNode &n, int /*level*/) {
+        if (!n->isEnabled())
+          return true;
+        if (!n->isTransform())
+          return true;
+
+        currentOrderedIndex = currentOrderedIndex == INVALID_INDEX
+            ? INVALID_INDEX
+            : orderedTransforms[currentOrderedIndex].parentOrderedIndex;
+        return true;
+      });
+
+  auto xfmCount = orderedTransforms.size();
+  m_layerTransformDependency[l] = std::move(orderedTransforms);
+  m_layerTransformCache[l].clear();
+  m_layerTransformCache[l].resize(
+      xfmCount, {math::IDENTITY_MAT4, helium::newTimeStamp()});
+  m_layerAttributeCache[l].clear();
+  m_layerAttributeCache[l].resize(xfmCount);
+
+  // Release any previously-allocated instances before recreating
+  if (auto *oldInstances = m_layerInstanceCache.at(l)) {
+    for (auto &inst : *oldInstances)
+      anari::release(device(), inst);
+  }
+  m_layerInstanceCache[l].clear();
+  m_layerInstanceCache[l].reserve(orderedTransforms.size());
+  std::generate_n(
+      back_inserter(m_layerInstanceCache[l]), xfmCount, [d = device()]() {
+        return anari::newObject<anari::Instance>(d, "transform");
+      });
+
+  if (auto *oldRoot = m_layerRootInstance.at(l))
+    anari::release(device(), *oldRoot);
+  m_layerRootInstance[l] =
+      anari::newObject<anari::Instance>(device(), "transform");
+}
+
+bool RenderIndexAllLayers::updateLayerTransformCache(const Layer *l)
+{
+  auto *orderedTransforms = m_layerTransformDependency.at(l);
+  auto *transformCache = m_layerTransformCache.at(l);
+
+  const TransformCache identityCache = {math::IDENTITY_MAT4, 0};
+
+  auto thisTs = helium::newTimeStamp();
+
+  bool hasUpdate = false;
+
+  for (size_t transformOrderedIndex = 0;
+      transformOrderedIndex < orderedTransforms->size();
+      ++transformOrderedIndex) {
+    const auto &t = (*orderedTransforms)[transformOrderedIndex];
+    auto transformObjectIndex = t.transformObjectIndex;
+    if (transformObjectIndex == INVALID_INDEX)
+      continue;
+
+    auto parentOrderedIndex = t.parentOrderedIndex;
+    bool hasParent = parentOrderedIndex != INVALID_INDEX;
+
+    if ((*transformCache)[transformOrderedIndex].timestamp
+            < m_transformLastUpdateTimeStamp
+        && (!hasParent
+            || (*transformCache)[parentOrderedIndex].timestamp
+                < m_transformLastUpdateTimeStamp)) {
+      continue;
+    }
+
+    // FIXME: Handle other properties such as color
+
+    const auto *parentCache =
+        hasParent ? &(*transformCache)[parentOrderedIndex] : &identityCache;
+
+    auto thisTransformRef =
+        m_ctx->objectDB().transform.at(transformObjectIndex);
+    auto *thisTransform = thisTransformRef.data();
+    auto thisXfm = thisTransform->getTransformAsAny();
+    auto *thisCache = &(*transformCache)[transformOrderedIndex];
+
+    if (thisXfm.is<math::mat4>()) {
+      const auto xfm = thisXfm.getAs<math::mat4>();
+
+      if (std::holds_alternative<math::mat4>(parentCache->value)) {
+        const auto &parentXfm = std::get<math::mat4>(parentCache->value);
+        thisCache->value = composeTransform(parentXfm, xfm);
+      } else {
+        const auto &parentXfms =
+            std::get<std::vector<math::mat4>>(parentCache->value);
+        thisCache->value =
+            composeTransform(&*cbegin(parentXfms), &*cend(parentXfms), xfm);
+      }
+    } else if (auto xfmArray =
+                   m_ctx->getObject<Array>(thisXfm.getAsObjectIndex());
+        xfmArray && xfmArray->elementType() == ANARI_FLOAT32_MAT4) {
+      const auto xfmsCount = xfmArray->size();
+      const auto *xfms = xfmArray->dataAs<math::mat4>();
+
+      if (std::holds_alternative<math::mat4>(parentCache->value)) {
+        const auto &parentXfm = std::get<math::mat4>(parentCache->value);
+        thisCache->value = composeTransform(parentXfm, xfms, xfms + xfmsCount);
+      } else {
+        const auto &parentXfms =
+            std::get<std::vector<math::mat4>>(parentCache->value);
+        thisCache->value = composeTransform(
+            &*cbegin(parentXfms), &*cend(parentXfms), xfms, xfms + xfmsCount);
+      }
+    } else {
+      logWarning("Unexpected transformation value type, ignoring...\n");
+      thisCache->value = math::IDENTITY_MAT4;
+    }
+
+    hasUpdate = true;
+    thisCache->timestamp = thisTs;
+  }
+
+  return hasUpdate;
+}
+
+void RenderIndexAllLayers::writeTransformCacheToInstances()
 {
   auto d = device();
 
-  std::vector<anari::Instance> instances;
-  instances.reserve(100);
+  for (const auto &[layer, transformCache] : m_layerTransformCache) {
+    auto *transformDependency = m_layerTransformDependency.at(layer);
+    auto &instanceCache = m_layerInstanceCache[layer];
+    for (size_t transformIndex = 0; transformIndex < transformCache.size();
+        transformIndex++) {
+      if (!transformDependency
+          || (*transformDependency)[transformIndex].transformObjectIndex
+              == INVALID_INDEX)
+        continue;
 
-  auto *layer = const_cast<Layer *>(_layer);
+      const auto &transform = transformCache[transformIndex];
+      auto instance = instanceCache[transformIndex];
+      if (!instance)
+        continue;
 
-  RenderToAnariObjectsVisitor visitor(
-      d, m_cache, &instances, mask, m_filter ? &m_filter : nullptr);
-  layer->traverse(layer->root(), visitor);
+      if (std::holds_alternative<std::vector<math::mat4>>(transform.value)) {
+        const auto &array = std::get<std::vector<math::mat4>>(transform.value);
+        uint64_t stride = 0;
+        auto *xfms = (math::mat4 *)anariMapParameterArray1D(d,
+            instance,
+            "transform",
+            ANARI_FLOAT32_MAT4,
+            array.size(),
+            &stride);
 
-  auto &cached = m_instanceCache[layer];
-  if (appendExisting)
-    std::copy(instances.begin(), instances.end(), std::back_inserter(cached));
-  else {
-    releaseInstances(d, cached);
-    cached = instances;
+        if (stride == sizeof(math::mat4))
+          std::copy(cbegin(array), cend(array), xfms);
+
+        anariUnmapParameterArray(d, instance, "transform");
+      } else {
+        anari::setParameter(
+            d, instance, "transform", std::get<math::mat4>(transform.value));
+      }
+
+      anari::commitParameters(d, instance);
+    }
   }
 }
 
-void RenderIndexAllLayers::releaseAllInstances()
+bool RenderIndexAllLayers::invalidateTransformAtObjectIndex(
+    size_t objectIndex, const Layer *layer)
 {
-  for (auto &i : m_instanceCache)
-    releaseInstances(device(), i.second);
-  m_instanceCache.clear();
+  bool didInvalidate = false;
+
+  auto &transformDependency = *m_layerTransformDependency.at(layer);
+  auto &transformCache = *m_layerTransformCache.at(layer);
+  auto &instanceCache = *m_layerInstanceCache.at(layer);
+  for (size_t i = 0; i < transformDependency.size(); ++i) {
+    if (transformDependency[i].transformObjectIndex == objectIndex) {
+      transformCache[i].timestamp = helium::newTimeStamp();
+      didInvalidate = true;
+    }
+  }
+
+  return didInvalidate;
 }
 
+bool RenderIndexAllLayers::invalidateTransformAtObjectIndex(size_t index)
+{
+  bool didInvalidate = false;
+
+  for (auto &&[layer, _] : m_layerTransformDependency) {
+    didInvalidate |= invalidateTransformAtObjectIndex(index, layer);
+  }
+
+  return didInvalidate;
+}
+
+void RenderIndexAllLayers::tagDirtyTopology(const Layer *l)
+{
+  m_layerTransformDependency.erase(l);
+  m_layerTransformCache.erase(l);
+  m_layerNodeInstanceParams.erase(l);
+  m_layerAttributeCache.erase(l);
+  if (auto *instances = m_layerInstanceCache.at(l)) {
+    for (auto &inst : *instances)
+      anari::release(device(), inst);
+  }
+  m_layerInstanceCache.erase(l);
+  if (auto *rootInst = m_layerRootInstance.at(l)) {
+    anari::release(device(), *rootInst);
+    m_layerRootInstance.erase(l);
+  }
+}
 } // namespace tsd::rendering

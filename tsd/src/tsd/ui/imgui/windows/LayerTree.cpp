@@ -229,7 +229,7 @@ void LayerTree::buildUI_tree()
         nameText = node->name().c_str();
       else {
         switch (node->type()) {
-        case ANARI_FLOAT32_MAT4:
+        case core::TSD_TRANSFORM:
           nameText = "xfm";
           break;
         case ANARI_SURFACE:
@@ -249,7 +249,7 @@ void LayerTree::buildUI_tree()
 
       const char *typeText = "[-]";
       switch (node->type()) {
-      case ANARI_FLOAT32_MAT4:
+      case core::TSD_TRANSFORM:
         typeText = "[T]";
         break;
       case ANARI_SURFACE:
@@ -284,7 +284,7 @@ void LayerTree::buildUI_tree()
               anari::toString(node->type()),
               node->getObjectIndex());
         } else if (node->isTransform())
-          ImGui::SetTooltip("transform: ANARI_FLOAT32_MAT4");
+          ImGui::SetTooltip("transform");
       }
 
       if (ImGui::IsItemClicked() && m_menuNode == TSD_INVALID_INDEX) {

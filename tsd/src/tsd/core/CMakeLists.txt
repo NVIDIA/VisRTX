@@ -29,6 +29,7 @@ PRIVATE
   scene/objects/Sampler.cpp
   scene/objects/SpatialField.cpp
   scene/objects/Surface.cpp
+  scene/objects/Transform.cpp
   scene/objects/Volume.cpp
   AnariObjectCache.cpp
   ColorMapUtil.cpp

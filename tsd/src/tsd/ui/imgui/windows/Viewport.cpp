@@ -92,8 +92,7 @@ void Viewport::buildUI()
   if (m_rIdx) {
     auto kind = appCore()->anari.renderIndexKind();
     if (kind != m_lastIndexKind) {
-      tsd::core::logWarning(
-          "render index setting changed: resetting viewport");
+      tsd::core::logWarning("render index setting changed: resetting viewport");
       m_lastIndexKind = kind;
       auto lib = m_libName;
       setLibrary("");
@@ -1217,10 +1216,12 @@ bool Viewport::canShowGizmo() const
   if (!m_enableGizmo || !m_deviceReadyToUse)
     return false;
 
-  // Check if we have a selected node with a transform
+  // Check if we have a selected node with a scalar transform.
+  // Array transforms (instancing) can't be meaningfully manipulated via gizmo.
   auto selectedNode = appCore()->getFirstSelected();
   if (selectedNode.valid()) {
-    return (*selectedNode)->isTransform();
+    return (*selectedNode)->isTransform()
+        && !(*selectedNode)->getTransformObject()->getTransformArray();
   }
 
   return false;
@@ -1233,8 +1234,11 @@ void Viewport::ui_gizmo()
 
   auto computeWorldTransform = [](tsd::core::LayerNodeRef node) -> math::mat4 {
     auto world = math::IDENTITY_MAT4;
-    for (; node; node = node->parent())
-      world = mul((*node)->getTransform(), world);
+    for (; node; node = node->parent()) {
+      if ((*node)->isTransform()) {
+        world = mul((*node)->getTransformObject()->getTransform(), world);
+      }
+    }
 
     return world;
   };
@@ -1242,7 +1246,8 @@ void Viewport::ui_gizmo()
   auto selectedNodeRef = appCore()->getFirstSelected();
   auto parentNodeRef = selectedNodeRef->parent();
 
-  auto localTransform = (*selectedNodeRef)->getTransform();
+  auto localTransform =
+      (*selectedNodeRef)->getTransformObject()->getTransform();
   auto parentWorldTransform = computeWorldTransform(parentNodeRef);
   auto worldTransform = mul(parentWorldTransform, localTransform);
 
@@ -1323,7 +1328,7 @@ void Viewport::ui_gizmo()
           &worldTransform[0].x)) {
     auto invParent = linalg::inverse(parentWorldTransform);
     localTransform = mul(invParent, worldTransform);
-    (*selectedNodeRef)->setAsTransform(localTransform);
+    (*selectedNodeRef)->getTransformObject()->setTransform(localTransform);
   }
 }
 

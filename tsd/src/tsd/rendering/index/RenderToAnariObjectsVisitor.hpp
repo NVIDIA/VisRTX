@@ -4,62 +4,37 @@
 #pragma once
 
 // tsd_core
+#include "tsd/core/AnariObjectCache.hpp"
+#include "tsd/core/TSDTypes.hpp"
 #include "tsd/core/scene/Layer.hpp"
+#include "tsd/core/scene/objects/Transform.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexFilterFcn.hpp"
 // std
-#include <algorithm>
-#include <cstdint>
-#include <iterator>
+#include <anari/anari_cpp.hpp>
+#include <cassert>
 #include <stack>
+#include <vector>
 
 namespace tsd::rendering {
-
-enum RenderInclusionMask
-{
-  SURFACES = 1 << 0,
-  VOLUMES = 1 << 1,
-  LIGHTS = 1 << 2,
-  ALL = ((1 << 3) - 1)
-};
-
-constexpr uint8_t objectMask_none()
-{
-  return 0;
-}
-
-constexpr uint8_t objectMask_all()
-{
-  return RenderInclusionMask::ALL;
-}
-
-constexpr uint8_t objectMask_surfacesAndVolumes()
-{
-  return RenderInclusionMask::SURFACES | RenderInclusionMask::VOLUMES;
-}
-
-constexpr uint8_t objectMask_lights()
-{
-  return RenderInclusionMask::LIGHTS;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 
 struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
 {
   RenderToAnariObjectsVisitor(anari::Device d,
-      tsd::core::AnariObjectCache &oc,
-      std::vector<anari::Instance> *instances,
-      uint8_t inclusionMask = objectMask_all(),
-      RenderIndexFilterFcn *f = nullptr);
+      tsd::core::AnariObjectCache &cache,
+      std::vector<anari::Instance> &instanceCache,
+      anari::Instance &rootInstance,
+      RenderIndexFilterFcn filter);
   ~RenderToAnariObjectsVisitor();
 
-  bool preChildren(tsd::core::LayerNode &n, int level) override;
-  void postChildren(tsd::core::LayerNode &n, int level) override;
+  bool preChildren(tsd::core::LayerNode &n, int /*level*/) override;
+  void postChildren(tsd::core::LayerNode &n, int /*level*/) override;
+
+  void finalizeRootObjects();
 
  private:
   bool isIncludedAfterFiltering(const tsd::core::LayerNode &n) const;
-  void createInstanceFromTop();
+  bool commitGroupToInstance(anari::Instance instance);
 
   struct GroupedObjects
   {
@@ -70,29 +45,30 @@ struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
 
   anari::Device m_device{nullptr};
   tsd::core::AnariObjectCache *m_cache{nullptr};
-  std::vector<anari::Instance> *m_instances{nullptr};
-  std::stack<tsd::math::mat4> m_xfms;
+  std::vector<anari::Instance> *m_instances;
+  anari::Instance *m_rootInstance{nullptr};
+  RenderIndexFilterFcn m_filter;
   std::stack<GroupedObjects> m_objects;
-  const tsd::core::Array *m_xfmArray{nullptr};
-  uint8_t m_mask{objectMask_none()};
-  RenderIndexFilterFcn *m_filter{nullptr};
+  size_t m_nextTransformOrderedIndex{0};
+  std::stack<size_t> m_transformOrderedIndices;
+  size_t m_expectedTransformCount{0};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
 inline RenderToAnariObjectsVisitor::RenderToAnariObjectsVisitor(anari::Device d,
-    tsd::core::AnariObjectCache &oc,
-    std::vector<anari::Instance> *instances,
-    uint8_t mask,
-    RenderIndexFilterFcn *f)
+    tsd::core::AnariObjectCache &cache,
+    std::vector<anari::Instance> &instanceCache,
+    anari::Instance &rootInstance,
+    RenderIndexFilterFcn filter)
     : m_device(d),
-      m_cache(&oc),
-      m_instances(instances),
-      m_mask(mask),
-      m_filter(f)
+      m_cache(&cache),
+      m_instances(&instanceCache),
+      m_rootInstance(&rootInstance),
+      m_filter(std::move(filter)),
+      m_expectedTransformCount(instanceCache.size())
 {
   anari::retain(d, d);
-  m_xfms.emplace(tsd::math::identity);
   m_objects.emplace();
 }
 
@@ -102,7 +78,7 @@ inline RenderToAnariObjectsVisitor::~RenderToAnariObjectsVisitor()
 }
 
 inline bool RenderToAnariObjectsVisitor::preChildren(
-    tsd::core::LayerNode &n, int level)
+    tsd::core::LayerNode &n, int /*level*/)
 {
   if (!n->isEnabled())
     return false;
@@ -112,89 +88,58 @@ inline bool RenderToAnariObjectsVisitor::preChildren(
   const bool included = isIncludedAfterFiltering(n);
 
   auto type = n->type();
+
   switch (type) {
-  case ANARI_SURFACE:
-    if (m_mask & RenderInclusionMask::SURFACES) {
-      size_t i = n->getObjectIndex();
-      if (auto h = m_cache->getHandle(type, i, true); h != nullptr && included)
-        current.surfaces.push_back((anari::Surface)h);
-    }
+  case ANARI_SURFACE: {
+    size_t i = n->getObjectIndex();
+    if (auto h = m_cache->getHandle(type, i, true); h != nullptr && included)
+      current.surfaces.push_back((anari::Surface)h);
     break;
-  case ANARI_VOLUME:
-    if (m_mask & RenderInclusionMask::VOLUMES) {
-      size_t i = n->getObjectIndex();
-      if (auto h = m_cache->getHandle(type, i, true); h != nullptr && included)
-        current.volumes.push_back((anari::Volume)h);
-    }
+  }
+  case ANARI_VOLUME: {
+    size_t i = n->getObjectIndex();
+    if (auto h = m_cache->getHandle(type, i, true); h != nullptr && included)
+      current.volumes.push_back((anari::Volume)h);
     break;
-  case ANARI_LIGHT:
-    if (m_mask & RenderInclusionMask::LIGHTS) {
-      size_t i = n->getObjectIndex();
-      if (auto h = m_cache->getHandle(type, i, true); h != nullptr)
-        current.lights.push_back((anari::Light)h);
-    }
+  }
+  case ANARI_LIGHT: {
+    size_t i = n->getObjectIndex();
+    if (auto h = m_cache->getHandle(type, i, true); h != nullptr)
+      current.lights.push_back((anari::Light)h);
     break;
-  case ANARI_FLOAT32_MAT4:
-    m_xfms.push(tsd::math::mul(m_xfms.top(), n->getTransform()));
+  }
+  case core::TSD_TRANSFORM: {
+    assert(m_nextTransformOrderedIndex < m_instances->size());
+    m_transformOrderedIndices.push(m_nextTransformOrderedIndex++);
     m_objects.emplace();
     break;
-  case ANARI_ARRAY1D: {
-    if (auto *a = n->getTransformArray(); a) {
-      m_objects.emplace();
-      m_xfmArray = a;
-    }
   }
-  default:
-    break;
   }
 
   return true;
 }
 
 inline void RenderToAnariObjectsVisitor::postChildren(
-    tsd::core::LayerNode &n, int level)
+    tsd::core::LayerNode &n, int /*level*/)
 {
   if (!n->isEnabled())
     return;
 
-  bool consumeXfmArray = false;
-  switch (n->type()) {
-  case ANARI_ARRAY1D: {
-    if (auto *a = n->getTransformArray(); !a)
-      break;
-    consumeXfmArray = true;
-  }
-  // intentionally fallthrough...
-  case ANARI_FLOAT32_MAT4:
-    createInstanceFromTop();
+  auto nodeType = n->type();
+  switch (nodeType) {
+  case core::TSD_TRANSFORM: {
+    const auto orderedIndex = m_transformOrderedIndices.top();
+    m_transformOrderedIndices.pop();
+    assert(orderedIndex < m_instances->size());
 
-    if (!consumeXfmArray)
-      m_xfms.pop();
-    else {
-      //
-      // NOTE(jda) - custom parameters here is awkward, should be generalized...
-      //
-      //   TODO: Put setting TSD object parameters on an ANARI handle in a
-      //         common spot for here + base Object updates physically the same.
-      //
-      anari::Instance inst = m_instances->back();
-      for (auto &p : n->getInstanceParameters()) {
-        if (!p.second.holdsObject())
-          continue;
-        auto objType = p.second.type();
-        auto objHandle =
-            m_cache->getHandle(objType, p.second.getAsObjectIndex(), true);
-        anari::setParameter(
-            m_device, inst, p.first.c_str(), objType, &objHandle);
-      }
-      anari::commitParameters(m_device, inst);
+    if (!commitGroupToInstance((*m_instances)[orderedIndex])) {
+      anari::release(m_device, (*m_instances)[orderedIndex]);
+      (*m_instances)[orderedIndex] = {};
     }
 
     m_objects.pop();
     break;
-  default:
-    // no-op
-    break;
+  }
   }
 }
 
@@ -205,18 +150,23 @@ inline bool RenderToAnariObjectsVisitor::isIncludedAfterFiltering(
     return true;
 
   auto type = n->type();
-  if (!anari::isObject(type))
+  if (!anari::isObject(type) && !tsd::core::isTSDTransform(type))
     return false;
 
-  return (*m_filter)(n->getObject());
+  return m_filter(n->getObject());
 }
 
-inline void RenderToAnariObjectsVisitor::createInstanceFromTop()
+inline bool RenderToAnariObjectsVisitor::commitGroupToInstance(
+    anari::Instance instance)
 {
   auto &current = m_objects.top();
+
   if (current.surfaces.empty() && current.volumes.empty()
-      && current.lights.empty())
-    return;
+      && current.lights.empty()) {
+    anari::unsetParameter(m_device, instance, "group");
+    anari::commitParameters(m_device, instance);
+    return false;
+  }
 
   auto group = anari::newObject<anari::Group>(m_device);
 
@@ -241,46 +191,24 @@ inline void RenderToAnariObjectsVisitor::createInstanceFromTop()
         m_device, group, "light", current.lights.data(), current.lights.size());
   }
 
-  current.surfaces.clear();
-  current.volumes.clear();
-  current.lights.clear();
-
   anari::commitParameters(m_device, group);
 
-  auto instance = anari::newObject<anari::Instance>(m_device, "transform");
-
-  const auto xfm = m_xfms.top();
-  if (!m_xfmArray)
-    anari::setParameter(m_device, instance, "transform", xfm);
-  else {
-    const auto *xfms_in = m_xfmArray->dataAs<tsd::math::mat4>();
-
-    uint64_t stride = 0;
-    auto *xfms_out = (tsd::math::mat4 *)anariMapParameterArray1D(m_device,
-        instance,
-        "transform",
-        ANARI_FLOAT32_MAT4,
-        m_xfmArray->size(),
-        &stride);
-
-    if (stride == sizeof(tsd::math::mat4)) {
-      std::transform(xfms_in,
-          xfms_in + m_xfmArray->size(),
-          xfms_out,
-          [&](const tsd::math::mat4 &m) { return tsd::math::mul(xfm, m); });
-    } else {
-      throw std::runtime_error("render index -- bad transform array stride");
-    }
-
-    anariUnmapParameterArray(m_device, instance, "transform");
-
-    m_xfmArray = nullptr;
-  }
   anari::setParameter(m_device, instance, "group", group);
   anari::commitParameters(m_device, instance);
-  m_instances->push_back(instance);
 
   anari::release(m_device, group);
+
+  return true;
+}
+
+inline void RenderToAnariObjectsVisitor::finalizeRootObjects()
+{
+  assert(m_transformOrderedIndices.empty());
+  assert(m_nextTransformOrderedIndex == m_expectedTransformCount);
+  if (!commitGroupToInstance(*m_rootInstance)) {
+    anari::release(m_device, *m_rootInstance);
+    *m_rootInstance = {};
+  }
 }
 
 } // namespace tsd::rendering

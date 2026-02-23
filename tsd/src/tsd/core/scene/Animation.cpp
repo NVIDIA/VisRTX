@@ -218,7 +218,6 @@ void Animation::deserialize(DataNode &node)
         !kindNode || kindNode->getValueAs<std::string>() == "arrays";
 
     auto object = m_scene->getObject(tsNode["object"].getValue());
-
     if (auto *sets = tsNode.child("animationSets"); sets != nullptr) {
       std::vector<Token> parameterNames;
       std::vector<TimeStepArrays> allSteps;

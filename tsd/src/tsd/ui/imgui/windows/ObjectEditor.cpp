@@ -27,41 +27,32 @@ void ObjectEditor::buildUI()
 
   auto &node = *selectedNode;
 
-  if (auto *selectedObject = node->getObject(); selectedObject) {
+  if (node->isTransform()) {
+    auto *transformObject = node->getTransformObject();
+    if (transformObject->getTransformArray()) {
+      ImGui::Text("Instance transform (%zu instances)",
+          transformObject->getTransformArray()->size());
+    } else {
+      // Decompose SRT from the live matrix so sliders reflect the actual
+      // transform.
+      auto currentMat = transformObject->getTransform();
+      math::float3 sc, azelrot, tl;
+      math::mat4 rot;
+      math::decomposeMatrix(currentMat, sc, rot, tl);
+      azelrot = math::degrees(math::matrixToAzElRoll(rot));
+      math::mat3 srt(sc, azelrot, tl);
+
+      bool doUpdate = false;
+
+      doUpdate |= ImGui::DragFloat3("scale", &sc.x);
+      doUpdate |= ImGui::SliderFloat3("rotation", &azelrot.x, 0.f, 360.f);
+      doUpdate |= ImGui::DragFloat3("translation", &tl.x);
+
+      if (doUpdate)
+        transformObject->setTransform(math::mat3(sc, azelrot, tl));
+    }
+  } else if (auto *selectedObject = node->getObject(); selectedObject) {
     tsd::ui::buildUI_object(*selectedObject, appCore()->tsd.scene, true);
-  } else if (node->isTransform()) {
-    // Setup transform values //
-
-    auto srt = node->getTransformSRT();
-    auto &sc = srt[0];
-    auto &azelrot = srt[1];
-    auto &tl = srt[2];
-
-    // UI widgets //
-
-    bool doUpdate = false;
-
-    ImGui::BeginDisabled(node->isDefaultValue());
-    if (ImGui::Button("reset")) {
-      node->setToDefaultValue();
-      doUpdate = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("set default"))
-      node->setCurrentValueAsDefault();
-    ImGui::EndDisabled();
-
-    doUpdate |= ImGui::DragFloat3("scale", &sc.x);
-    doUpdate |= ImGui::SliderFloat3("rotation", &azelrot.x, 0.f, 360.f);
-    doUpdate |= ImGui::DragFloat3("translation", &tl.x);
-
-    // Handle transform update //
-
-    if (doUpdate) {
-      node->setAsTransform(srt);
-      auto *layer = selectedNode->container();
-      scene->signalLayerChange(layer);
-    }
   } else if (!node->isEmpty()) {
     ImGui::Text("{unhandled '%s' node}", anari::toString(node->type()));
   } else {

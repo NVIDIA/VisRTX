@@ -120,7 +120,8 @@ void World::updateLayer()
   l->erase_subtree(l->root());
 
   for (auto *inst : m_instances) {
-    auto instNode = l->root()->insert_last_child(inst->xfm());
+    auto instNode = deviceState()->scene.insertChildTransformNode(
+        l->root(), inst->xfm());
     inst->group()->addObjectsToLayer(instNode);
   }
 

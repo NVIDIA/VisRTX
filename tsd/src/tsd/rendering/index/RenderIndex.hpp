@@ -57,6 +57,8 @@ struct RenderIndex : public BaseUpdateDelegate
   void signalRemoveAllObjects() override;
   void signalInvalidateCachedObjects() override;
   void signalAnimationTimeChanged(float time) override;
+  void signalObjectParameterUseCountZero(const Object *o) override;
+  void signalObjectLayerUseCountZero(const Object *o) override;
 
  protected:
   virtual void updateWorld() = 0;

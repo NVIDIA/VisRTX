@@ -620,9 +620,7 @@ inline void DataTree::print()
     for (int i = 1; i < level; i++)
       printf("    ");
 
-    if (!node.isLeaf())
-      printf("%s:\n", node.name().c_str());
-    else {
+    {
       printf("%s: ", node.name().c_str());
 
       if (node.holdsObjectIdx()) {

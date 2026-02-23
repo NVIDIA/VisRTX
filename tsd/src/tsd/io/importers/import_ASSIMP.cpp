@@ -609,7 +609,8 @@ static void populateASSIMPLayer(Scene &scene,
   tsd::math::mat4 mat;
   std::memcpy(&mat, &node->mTransformation, sizeof(mat));
   mat = tsd::math::transpose(mat);
-  auto tr = tsdLayerRef->insert_last_child({mat, node->mName.C_Str()});
+  auto tr = scene.insertChildTransformNode(
+      tsdLayerRef, mat, node->mName.C_Str());
 
   for (unsigned int i = 0; i < node->mNumMeshes; i++) {
     auto mesh = surfaces.at(node->mMeshes[i]);

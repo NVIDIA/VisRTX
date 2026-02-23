@@ -21,7 +21,8 @@ std::string objectDBInfo(const ObjectDatabase &db)
   ss << "      fields: " << db.field.size() << '\n';
   ss << "      lights: " << db.light.size() << '\n';
   ss << "     cameras: " << db.camera.size() << '\n';
-  ss << "   renderers: " << db.renderer.size();
+  ss << "   renderers: " << db.renderer.size() << '\n';
+  ss << "  transforms: " << db.transform.size();
   return ss.str();
 }
 
@@ -71,6 +72,7 @@ Scene::~Scene()
   reportObjectUsages(m_db.array);
   reportObjectUsages(m_db.camera);
   reportObjectUsages(m_db.renderer);
+  reportObjectUsages(m_db.transform);
 }
 
 MaterialRef Scene::defaultMaterial()
@@ -163,6 +165,9 @@ Object *Scene::createObject(anari::DataType type, Token subtype)
   case ANARI_CAMERA:
     obj = createObjectImpl(m_db.camera, subtype).data();
     break;
+  case TSD_TRANSFORM:
+    obj = createObjectImpl(m_db.transform, subtype).data();
+    break;
   default:
     logError("[Scene::createObject(type, subtype)] unsupported object type %s",
         anari::toString(type));
@@ -199,6 +204,13 @@ SurfaceRef Scene::createSurface(const char *name, GeometryRef g, MaterialRef m)
   surface->setMaterial(m ? m : defaultMaterial());
   surface->setName(name);
   return surface;
+}
+
+TransformRef Scene::createTransform(const char *name)
+{
+  auto xfm = createObject<Transform>(tokens::transform::transform);
+  xfm->setName(name);
+  return xfm;
 }
 
 Object *Scene::getObject(const Any &a) const
@@ -244,8 +256,9 @@ Object *Scene::getObject(ANARIDataType type, size_t i) const
   case ANARI_ARRAY3D:
     obj = m_db.array.at(i).data();
     break;
-  default:
-    break; // no-op
+  case TSD_TRANSFORM:
+    obj = m_db.transform.at(i).data();
+    break;
   }
 
   return obj;
@@ -289,8 +302,9 @@ size_t Scene::numberOfObjects(anari::DataType type) const
   case ANARI_ARRAY3D:
     numObjects = m_db.array.size();
     break;
-  default:
-    break; // no-op
+  case TSD_TRANSFORM:
+    numObjects = m_db.transform.capacity();
+    break;
   }
 
   return numObjects;
@@ -349,8 +363,9 @@ void Scene::removeObject(const Object *_o)
   case ANARI_ARRAY3D:
     m_db.array.erase(index);
     break;
-  default:
-    break; // no-op
+  case TSD_TRANSFORM:
+    m_db.transform.erase(index);
+    break;
   }
 }
 
@@ -367,6 +382,7 @@ void Scene::removeAllObjects()
   m_db.array.clear();
   m_db.surface.clear();
   m_db.geometry.clear();
+  m_db.transform.clear();
   m_db.material.clear();
   m_db.sampler.clear();
   m_db.volume.clear();
@@ -444,6 +460,7 @@ void Scene::setUpdateDelegate(BaseUpdateDelegate *ud)
   setDelegateOnObjects(m_db.field);
   setDelegateOnObjects(m_db.camera);
   setDelegateOnObjects(m_db.renderer);
+  setDelegateOnObjects(m_db.transform);
 }
 
 const ObjectDatabase &Scene::objectDB() const
@@ -476,7 +493,7 @@ Layer *Scene::addLayer(Token name)
 {
   auto &ls = m_layers[name];
   if (!ls.ptr) {
-    ls.ptr.reset(new Layer({tsd::math::mat4(tsd::math::identity), "root"}));
+    ls.ptr.reset(new Layer(LayerNodeData("root")));
     if (m_updateDelegate)
       m_updateDelegate->signalLayerAdded(ls.ptr.get());
     m_numActiveLayers++;
@@ -591,19 +608,20 @@ LayerNodeRef Scene::insertChildNode(LayerNodeRef parent, const char *name)
 LayerNodeRef Scene::insertChildTransformNode(
     LayerNodeRef parent, mat4 xfm, const char *name)
 {
-  auto *layer = parent->container();
-  auto inst = layer->insert_last_child(parent, xfm);
-  (*inst)->name() = name;
-  signalLayerChange(parent->container());
+  auto transform = createTransform(name);
+  transform->setTransform(xfm);
+  auto inst =
+      insertChildObjectNode(parent, TSD_TRANSFORM, transform->index(), name);
   return inst;
 }
 
 LayerNodeRef Scene::insertChildTransformArrayNode(
     LayerNodeRef parent, Array *a, const char *name)
 {
-  auto inst = parent->insert_last_child({a});
-  (*inst)->name() = name;
-  signalLayerChange(parent->container());
+  auto transform = createTransform(name);
+  transform->setTransformArray(getObject<Array>(a->index()));
+  auto inst =
+      insertChildObjectNode(parent, TSD_TRANSFORM, transform->index(), name);
   return inst;
 }
 
@@ -758,6 +776,7 @@ void Scene::removeUnusedObjects(bool includeRenderers)
   removeUnused(m_db.surface);
   removeUnused(m_db.volume);
   removeUnused(m_db.light);
+  removeUnused(m_db.transform);
   removeUnused(m_db.geometry);
   removeUnused(m_db.material);
   removeUnused(m_db.field);
@@ -780,6 +799,7 @@ void Scene::defragmentObjectStorage()
   defrag |= defragmentations[ANARI_ARRAY] = m_db.array.defragment();
   defrag |= defragmentations[ANARI_SURFACE] = m_db.surface.defragment();
   defrag |= defragmentations[ANARI_GEOMETRY] = m_db.geometry.defragment();
+  defrag |= defragmentations[TSD_TRANSFORM] = m_db.transform.defragment();
   defrag |= defragmentations[ANARI_MATERIAL] = m_db.material.defragment();
   defrag |= defragmentations[ANARI_SAMPLER] = m_db.sampler.defragment();
   defrag |= defragmentations[ANARI_VOLUME] = m_db.volume.defragment();
@@ -833,7 +853,9 @@ void Scene::defragmentObjectStorage()
     case ANARI_ARRAY3D:
       return findIdx(m_db.array, idx);
     default:
-      break; // no-op
+      if (objType == TSD_TRANSFORM)
+        return findIdx(m_db.transform, idx);
+      break;
     }
 
     return INVALID_INDEX;
@@ -902,6 +924,7 @@ void Scene::defragmentObjectStorage()
   updateParameterReferences(m_db.array);
   updateParameterReferences(m_db.surface);
   updateParameterReferences(m_db.geometry);
+  updateParameterReferences(m_db.transform);
   updateParameterReferences(m_db.material);
   updateParameterReferences(m_db.sampler);
   updateParameterReferences(m_db.volume);
@@ -925,6 +948,7 @@ void Scene::defragmentObjectStorage()
   updateObjectHeldIndex(m_db.array);
   updateObjectHeldIndex(m_db.surface);
   updateObjectHeldIndex(m_db.geometry);
+  updateObjectHeldIndex(m_db.transform);
   updateObjectHeldIndex(m_db.material);
   updateObjectHeldIndex(m_db.sampler);
   updateObjectHeldIndex(m_db.volume);

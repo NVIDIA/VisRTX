@@ -183,7 +183,7 @@ void nodeToNewObject(Scene &scene, core::DataNode &node)
   const size_t index = self.getAsObjectIndex();
   const Token subtype(node["subtype"].getValueAs<std::string>());
 
-  if (!anari::isObject(type)) {
+  if (!anari::isObject(type) && !core::isTSDTransform(type)) {
     logError("[nodeToObject] parsed invalid object type '%s'",
         anari::toString(type));
     return;
@@ -262,6 +262,9 @@ void nodeToNewObject(Scene &scene, core::DataNode &node)
     if (!rendererDeviceName.empty())
       obj = scene.createRenderer(rendererDeviceName, subtype).get();
   } break;
+  case TSD_TRANSFORM:
+    obj = scene.createObject<Transform>(subtype).data();
+    break;
   default:
     break;
   }
@@ -329,8 +332,6 @@ void layerToNode(Layer &layer, core::DataNode &node)
 
     currentNode->append("name") = tsdNode->name();
     currentNode->append("value") = tsdNode->getValueRaw();
-    if (tsdNode->isTransform())
-      currentNode->append("transformSRT") = tsdNode->getTransformSRT();
     currentNode->append("enabled") = tsdNode->isEnabled();
     currentNode->append("children");
 
@@ -366,10 +367,7 @@ void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
       currentNode = layer.root();
     else {
       currentNode = layer.insert_last_child(currentParentNode, {});
-      if (auto *c = node.child("transformSRT"); c != nullptr)
-        (*currentNode)->setAsTransform(c->getValueAs<math::mat3>());
-      else
-        (*currentNode)->setValueRaw(node["value"].getValue(), &scene);
+      (*currentNode)->setValueRaw(node["value"].getValue(), &scene);
       (*currentNode)->setEnabled(node["enabled"].getValueOr(true));
       (*currentNode)->name() = node["name"].getValueAs<std::string>();
     }
@@ -453,6 +451,7 @@ void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays)
   objectPoolToNode(objectDB, scene.m_db.light, "light");
   objectPoolToNode(objectDB, scene.m_db.camera, "camera");
   objectPoolToNode(objectDB, scene.m_db.renderer, "renderer");
+  objectPoolToNode(objectDB, scene.m_db.transform, "transform");
   objectPoolToNode(objectDB, scene.m_db.array, "array");
 }
 
@@ -501,6 +500,7 @@ void load_Scene(Scene &scene, core::DataNode &root)
   nodeToObjectPool(objectDB, scene, "light");
   nodeToObjectPool(objectDB, scene, "camera");
   nodeToObjectPool(objectDB, scene, "renderer");
+  nodeToObjectPool(objectDB, scene, "transform");
 
   // Layers
 

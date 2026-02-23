@@ -14,6 +14,7 @@
 #include "tsd/core/scene/objects/Sampler.hpp"
 #include "tsd/core/scene/objects/SpatialField.hpp"
 #include "tsd/core/scene/objects/Surface.hpp"
+#include "tsd/core/scene/objects/Transform.hpp"
 #include "tsd/core/scene/objects/Volume.hpp"
 // std
 #include <memory>
@@ -38,6 +39,7 @@ struct ObjectDatabase
   ObjectPool<Array> array;
   ObjectPool<Surface> surface;
   ObjectPool<Geometry> geometry;
+  ObjectPool<Transform> transform;
   ObjectPool<Material> material;
   ObjectPool<Sampler> sampler;
   ObjectPool<Volume> volume;
@@ -108,6 +110,7 @@ struct Scene
       size_t items2 = 0);
   SurfaceRef createSurface(
       const char *name = "", GeometryRef g = {}, MaterialRef m = {});
+  TransformRef createTransform(const char *name = "");
 
   template <typename T>
   ObjectPoolRef<T> getObject(size_t i) const;
@@ -316,6 +319,12 @@ inline CameraRef Scene::createObject(Token subtype)
   return createObjectImpl(m_db.camera, subtype);
 }
 
+template <>
+inline TransformRef Scene::createObject(Token subtype)
+{
+  return createObjectImpl(m_db.transform, subtype);
+}
+
 template <typename T>
 inline ObjectPoolRef<T> Scene::getObject(size_t i) const
 {
@@ -376,6 +385,12 @@ template <>
 inline CameraRef Scene::getObject(size_t i) const
 {
   return m_db.camera.at(i);
+}
+
+template <>
+inline TransformRef Scene::getObject(size_t i) const
+{
+  return m_db.transform.at(i);
 }
 
 template <>

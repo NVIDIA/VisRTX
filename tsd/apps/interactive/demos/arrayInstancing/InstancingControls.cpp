@@ -45,11 +45,12 @@ void InstancingControls::buildUI()
 void InstancingControls::createScene()
 {
   auto &scene = appCore()->tsd.scene;
-  auto *layer = scene.defaultLayer();
 
   // Clear out previous scene //
 
   scene.removeAllObjects();
+
+  auto *layer = scene.defaultLayer();
 
   // Default (global) material //
 
@@ -130,8 +131,11 @@ void InstancingControls::generateInstances()
   size_t numXfms = size_t(m_numInstances);
   auto xfmArray = scene.createArray(ANARI_FLOAT32_MAT4, numXfms);
 
-  auto xfmArrayNode =
-      scene.defaultLayer()->root()->insert_last_child({xfmArray});
+  auto xfmTransform = scene.createTransform("array_instances");
+  xfmTransform->setParameterObject("transform", *xfmArray);
+
+  auto xfmNode =
+      scene.defaultLayer()->root()->insert_last_child({xfmTransform});
 
   std::mt19937 rng;
   rng.seed(0);
@@ -160,13 +164,12 @@ void InstancingControls::generateInstances()
   });
   attrArray->unmap();
 
-  (*xfmArrayNode)
-      ->setInstanceParameter(
-          "color", tsd::core::Any(ANARI_ARRAY1D, attrArray.index()));
+  (*xfmNode)->getTransformObject()->setParameter(
+      "color", tsd::core::Any(ANARI_ARRAY1D, attrArray.index()));
 
   // Generate mesh //
 
-  tsd::io::generate_monkey(scene, xfmArrayNode);
+  tsd::io::generate_monkey(scene, xfmNode);
 }
 
 } // namespace tsd::demo

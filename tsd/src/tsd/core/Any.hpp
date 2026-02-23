@@ -3,6 +3,8 @@
 
 #pragma once
 
+// tsd
+#include "tsd/core/TSDTypes.hpp"
 // anari
 #include <anari/anari_cpp.hpp>
 // std
@@ -143,7 +145,7 @@ inline Any::Any(ANARIDataType type, const void *v) : Any()
 
 inline Any::Any(ANARIDataType type, size_t v) : Any()
 {
-  if (anari::isObject(type)) {
+  if (anari::isObject(type) || isTSDTransform(type)) {
     m_type = type;
     std::memcpy(m_storage.data(), &v, sizeof(v));
   }
@@ -190,9 +192,10 @@ inline bool Any::operator==(const Any &rhs) const
   else if (type() == ANARI_STRING)
     return m_string == rhs.m_string;
   else {
-    return std::equal(m_storage.data(),
-        m_storage.data() + ::anari::sizeOf(type()),
-        rhs.m_storage.data());
+    size_t cmpSize =
+        isTSDTransform(type()) ? sizeof(size_t) : ::anari::sizeOf(type());
+    return std::equal(
+        m_storage.data(), m_storage.data() + cmpSize, rhs.m_storage.data());
   }
 }
 
@@ -270,7 +273,7 @@ inline bool Any::is(ANARIDataType t) const
 
 inline bool Any::holdsObject() const
 {
-  return anari::isObject(this->type());
+  return anari::isObject(this->type()) || isTSDTransform(this->type());
 }
 
 inline ANARIDataType Any::type() const
