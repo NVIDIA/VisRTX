@@ -145,7 +145,7 @@ inline Any::Any(ANARIDataType type, size_t v) : Any()
 {
   if (anari::isObject(type)) {
     m_type = type;
-    std::memcpy(m_storage.data(), &v, anari::sizeOf(type));
+    std::memcpy(m_storage.data(), &v, sizeof(v));
   }
 }
 
