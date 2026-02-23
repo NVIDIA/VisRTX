@@ -129,20 +129,43 @@ VISRTX_DEVICE bool shouldTerminatePath(
   return false;
 }
 
-VISRTX_DEVICE LightSample sampleLights(
-    ScreenSample &ss, const FrameGPUData &frameData, const vec3 &origin)
+VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
+    const FrameGPUData &frameData,
+    const vec3 &origin,
+    const vec3 &normal)
 {
   const auto &world = frameData.world;
+  bool hasAmbientLight = frameData.renderer.ambientIntensity > 0.0f;
+  auto numLights = world.numLightInstances + hasAmbientLight;
 
-  if (world.numLightInstances == 0)
+  if (numLights == 0)
     return {};
 
-  // curand_uniform returns (0,1], so invert to get [0,numLights)
-  const size_t selectedIdx =
-      size_t((1.0f - curand_uniform(&ss.rs)) * float(world.numLightInstances));
+  // curand_uniform returns (0,1], invert to get [0,numLights).
+  // Clamp to handle float rounding when curand returns a subnormal.
+  const size_t selectedIdx = glm::min(
+      size_t((1.0f - curand_uniform(&ss.rs)) * float(numLights)),
+      numLights - 1);
 
-  const auto &lightInstance = world.lightInstances[selectedIdx];
-  return sampleLight(ss, origin, lightInstance.lightIndex, lightInstance.xfm);
+  const float radianceWeight = float(numLights);
+
+  // last index is reserved for ambient light if it exists
+  if (selectedIdx == world.numLightInstances) {
+    const auto &rendererParams = frameData.renderer;
+    return LightSample{
+        radianceWeight * rendererParams.ambientColor
+            * rendererParams.ambientIntensity,
+        sampleHemisphere(ss.rs, normal),
+        std::numeric_limits<float>::max(),
+        1.0f / (2.0f * float(M_PI)),
+    };
+  } else {
+    const auto &lightInstance = world.lightInstances[selectedIdx];
+    auto ls =
+        sampleLight(ss, origin, lightInstance.lightIndex, lightInstance.xfm);
+    ls.radiance *= radianceWeight;
+    return ls;
+  }
 }
 
 VISRTX_DEVICE
@@ -263,7 +286,8 @@ VISRTX_GLOBAL void __raygen__()
         const vec3 scatterPos = ray.org + ray.dir * volumeSample.depth;
 
         {
-          LightSample lightSample = sampleLights(ss, frameData, scatterPos);
+          LightSample lightSample =
+              sampleLights(ss, frameData, scatterPos, volumeSample.normal);
           if (lightSample.pdf >= ATTENUATION_EPSILON
               && lightSample.dist > 0.0f) {
             const float eps = VOLUME_SCATTER_EPSILON;
@@ -283,12 +307,6 @@ VISRTX_GLOBAL void __raygen__()
         }
 
         accumulateValue(sample.opacity, 1.0f, sample.opacity);
-
-        if (isFirstBounce && rendererParams.ambientIntensity > 0.0f) {
-          sample.color += sampleContribution * rendererParams.ambientColor
-              * rendererParams.ambientIntensity * volumeSample.albedo;
-        }
-
         sampleContribution *= volumeSample.albedo;
         if (shouldTerminatePath(ss, d, sampleContribution, true))
           break;
@@ -338,15 +356,8 @@ VISRTX_GLOBAL void __raygen__()
         }
 
         sample.color += sampleContribution * materialEmission * materialOpacity;
-
-        if (isFirstBounce && rendererParams.ambientIntensity > 0.0f) {
-          sample.color += sampleContribution * rendererParams.ambientColor
-              * rendererParams.ambientIntensity * materialTint
-              * materialOpacity;
-        }
-
         LightSample lightSample =
-            sampleLights(ss, frameData, surfaceHit.hitpoint);
+            sampleLights(ss, frameData, surfaceHit.hitpoint, surfaceHit.Ng);
         if (lightSample.pdf >= ATTENUATION_EPSILON && lightSample.dist > 0.0f) {
           const float lightDotNg = dot(lightSample.dir, surfaceHit.Ng);
           if (lightDotNg > 0.0f) {
