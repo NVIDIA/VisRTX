@@ -87,6 +87,8 @@ struct Viewport : public Window
   bool m_deviceReadyToUse{false};
   std::string m_libName;
   tsd::rendering::RenderIndex *m_rIdx{nullptr};
+  tsd::app::RenderIndexKind m_lastIndexKind{
+      tsd::app::RenderIndexKind::ALL_LAYERS};
 
   tsd::math::float2 m_previousMouse{-1.f, -1.f};
   bool m_mouseRotating{false};

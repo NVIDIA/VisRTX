@@ -147,12 +147,16 @@ tsd::rendering::RenderIndex *ANARIDeviceManager::acquireRenderIndex(
 {
   auto &liveIdx = m_rIdxs[d];
   if (liveIdx.refCount == 0) {
-    if (useFlatRenderIndex()) {
+    switch (renderIndexKind()) {
+    case RenderIndexKind::FLAT:
       liveIdx.idx =
           m_delegate.emplace<tsd::rendering::RenderIndexFlatRegistry>(c, n, d);
-    } else {
+      break;
+    case RenderIndexKind::ALL_LAYERS:
+    default:
       liveIdx.idx =
           m_delegate.emplace<tsd::rendering::RenderIndexAllLayers>(c, n, d);
+      break;
     }
     liveIdx.idx->populate(false);
   }
@@ -184,25 +188,34 @@ tsd::core::MultiUpdateDelegate &ANARIDeviceManager::getUpdateDelegate()
   return m_delegate;
 }
 
-void ANARIDeviceManager::setUseFlatRenderIndex(bool f)
+void ANARIDeviceManager::setRenderIndexKind(RenderIndexKind k)
 {
-  m_settings.forceFlat = f;
+  m_settings.renderIndexKind = k;
 }
 
-bool ANARIDeviceManager::useFlatRenderIndex() const
+RenderIndexKind ANARIDeviceManager::renderIndexKind() const
 {
-  return m_settings.forceFlat;
+  return m_settings.renderIndexKind;
 }
 
 void ANARIDeviceManager::saveSettings(tsd::core::DataNode &root)
 {
-  root.reset(); // clear all previous values, if they exist
-  root["useFlatRenderIndex"] = m_settings.forceFlat;
+  root.reset();
+  root["renderIndexKind"] = static_cast<int>(m_settings.renderIndexKind);
 }
 
 void ANARIDeviceManager::loadSettings(tsd::core::DataNode &root)
 {
-  root["useFlatRenderIndex"].getValue(ANARI_BOOL, &m_settings.forceFlat);
+  int kind = 0;
+  if (root["renderIndexKind"].getValue(ANARI_INT32, &kind)) {
+    m_settings.renderIndexKind = static_cast<RenderIndexKind>(kind);
+  } else {
+    // Backward compatibility with old bool keys
+    bool flat = false;
+    root["useFlatRenderIndex"].getValue(ANARI_BOOL, &flat);
+    if (flat)
+      m_settings.renderIndexKind = RenderIndexKind::FLAT;
+  }
 }
 
 } // namespace tsd::app

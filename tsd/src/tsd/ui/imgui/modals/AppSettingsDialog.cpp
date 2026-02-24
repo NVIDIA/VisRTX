@@ -61,12 +61,18 @@ void AppSettingsDialog::buildUI_applicationSettings()
 
   doUpdate |= ImGui::DragFloat("rounding", &config->rounding, 0.01f, 0.f, 12.f);
 
-  bool useFlat = core->anari.useFlatRenderIndex();
-  if (ImGui::Checkbox("use flat render index", &useFlat))
-    core->anari.setUseFlatRenderIndex(useFlat);
+  auto kind = core->anari.renderIndexKind();
 
+  if (ImGui::RadioButton(
+          "all layers", kind == tsd::app::RenderIndexKind::ALL_LAYERS))
+    core->anari.setRenderIndexKind(tsd::app::RenderIndexKind::ALL_LAYERS);
   if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("Check this option to bypass instancing of objects.");
+    ImGui::SetTooltip("Full render index with instancing support.");
+  ImGui::SameLine();
+  if (ImGui::RadioButton("flat", kind == tsd::app::RenderIndexKind::FLAT))
+    core->anari.setRenderIndexKind(tsd::app::RenderIndexKind::FLAT);
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("Bypass instancing of objects.");
 
   if (doUpdate)
     applySettings();
