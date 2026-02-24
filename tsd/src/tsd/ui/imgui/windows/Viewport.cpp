@@ -85,11 +85,16 @@ void Viewport::buildUI()
     m_anariPass->setEnableIDs(needIDs);
   }
 
-  if (m_rIdx && (m_rIdx->isFlat() != appCore()->anari.useFlatRenderIndex())) {
-    tsd::core::logWarning("instancing setting changed: resetting viewport");
-    auto lib = m_libName;
-    setLibrary(""); // clear old library
-    setLibrary(lib);
+  if (m_rIdx) {
+    auto kind = appCore()->anari.renderIndexKind();
+    if (kind != m_lastIndexKind) {
+      tsd::core::logWarning(
+          "render index setting changed: resetting viewport");
+      m_lastIndexKind = kind;
+      auto lib = m_libName;
+      setLibrary("");
+      setLibrary(lib);
+    }
   }
 }
 

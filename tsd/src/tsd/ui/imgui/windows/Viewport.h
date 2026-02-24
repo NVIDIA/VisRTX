@@ -78,6 +78,8 @@ struct Viewport : public BaseViewport
   std::future<void> m_initFuture;
   std::string m_libName;
   tsd::rendering::RenderIndex *m_rIdx{nullptr};
+  tsd::app::RenderIndexKind m_lastIndexKind{
+      tsd::app::RenderIndexKind::ALL_LAYERS};
 
   bool m_showOverlay{true};
   bool m_showAxes{true};

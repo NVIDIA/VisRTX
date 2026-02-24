@@ -13,6 +13,12 @@
 
 namespace tsd::app {
 
+enum class RenderIndexKind : int
+{
+  ALL_LAYERS = 0,
+  FLAT
+};
+
 using DeviceInitParam = std::pair<std::string, tsd::core::Any>;
 
 struct ANARIDeviceManager
@@ -33,9 +39,8 @@ struct ANARIDeviceManager
 
   tsd::core::MultiUpdateDelegate &getUpdateDelegate();
 
-  void setUseFlatRenderIndex(
-      bool f); // next acquireRenderIndex(...) will use flat render index
-  bool useFlatRenderIndex() const;
+  void setRenderIndexKind(RenderIndexKind k);
+  RenderIndexKind renderIndexKind() const;
 
   void saveSettings(tsd::core::DataNode &root);
   void loadSettings(tsd::core::DataNode &root);
@@ -57,10 +62,7 @@ struct ANARIDeviceManager
 
   struct Settings
   {
-    // Use flat render index by default, unless set otherwise
-    // This is to avoid issues with instancing in the scene graph
-    // and to allow for faster rendering in some cases.
-    bool forceFlat{false};
+    RenderIndexKind renderIndexKind{RenderIndexKind::ALL_LAYERS};
   } m_settings;
 };
 
