@@ -577,6 +577,7 @@ void Scene::removeAllLayers()
   }
 
   m_layers.clear();
+  m_numActiveLayers = 0;
 }
 
 LayerNodeRef Scene::insertChildNode(LayerNodeRef parent, const char *name)
