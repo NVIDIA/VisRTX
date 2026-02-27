@@ -351,9 +351,9 @@ static SpatialFieldRef createFieldFromVolumeCells(
     if (!array)
       continue;
     int nComp = array->GetNumberOfComponents();
-    std::string arrName =
-        (array->GetName() && array->GetName()[0] != '\0') ? array->GetName()
-                                                          : baseName;
+    std::string arrName = (array->GetName() && array->GetName()[0] != '\0')
+        ? array->GetName()
+        : baseName;
 
     if (nComp == 1) {
       auto dataArr = scene.createArray(ANARI_FLOAT32, numPoints);

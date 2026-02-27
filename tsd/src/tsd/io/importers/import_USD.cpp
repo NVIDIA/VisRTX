@@ -21,9 +21,9 @@
 #include <pxr/base/tf/token.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usd/stage.h>
+#include <pxr/usd/usdGeom/basisCurves.h>
 #include <pxr/usd/usdGeom/cone.h>
 #include <pxr/usd/usdGeom/cylinder.h>
-#include <pxr/usd/usdGeom/basisCurves.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdGeom/points.h>
 #include <pxr/usd/usdGeom/primvarsAPI.h>
@@ -679,8 +679,8 @@ static void import_usd_points(Scene &scene,
   pointsPrim.GetPointsAttr().GetTimeSamples(&timeSamples);
 
   // Build position+radius arrays for one time step
-  auto buildFrame =
-      [&](pxr::UsdTimeCode tc) -> std::pair<ObjectUsePtr<Array>, ObjectUsePtr<Array>> {
+  auto buildFrame = [&](pxr::UsdTimeCode tc)
+      -> std::pair<ObjectUsePtr<Array>, ObjectUsePtr<Array>> {
     pxr::VtArray<pxr::GfVec3f> pts;
     pxr::VtArray<float> wids;
     pointsPrim.GetPointsAttr().Get(&pts, tc);
@@ -1471,9 +1471,7 @@ static void import_usd_prim_recursive(Scene &scene,
   }
 }
 
-void import_USD(Scene &scene,
-    const char *filepath,
-    LayerNodeRef location)
+void import_USD(Scene &scene, const char *filepath, LayerNodeRef location)
 {
   pxr::UsdStageRefPtr stage = pxr::UsdStage::Open(filepath);
   if (!stage) {
@@ -1504,14 +1502,13 @@ void import_USD(Scene &scene,
   for (pxr::UsdPrim const &prim : stage->Traverse()) {
     // if (prim.IsPrototype()) continue;
     if (prim.GetParent() && prim.GetParent().IsPseudoRoot()) {
-      import_usd_prim_recursive(scene, prim, usd_root, xformCache, basePath, pxr::GfMatrix4d(1.0));
+      import_usd_prim_recursive(
+          scene, prim, usd_root, xformCache, basePath, pxr::GfMatrix4d(1.0));
     }
   }
 }
 #else
-void import_USD(Scene &scene,
-    const char *filepath,
-    LayerNodeRef location)
+void import_USD(Scene &scene, const char *filepath, LayerNodeRef location)
 {
   tsd::core::logError("[import_USD] USD not enabled in TSD build.");
 }

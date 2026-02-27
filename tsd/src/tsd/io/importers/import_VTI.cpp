@@ -74,8 +74,7 @@ SpatialFieldRef import_VTI(Scene &scene, const char *filepath)
       std::string nameY = baseName + "_y";
       std::string nameZ = baseName + "_z";
 
-      size_t n =
-          (size_t)dims[0] * (size_t)dims[1] * (size_t)dims[2];
+      size_t n = (size_t)dims[0] * (size_t)dims[1] * (size_t)dims[2];
 
       auto arrX = scene.createArray(ANARI_FLOAT32, dims[0], dims[1], dims[2]);
       auto arrY = scene.createArray(ANARI_FLOAT32, dims[0], dims[1], dims[2]);

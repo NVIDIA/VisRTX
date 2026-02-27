@@ -12,13 +12,12 @@
 // imgui
 #include "imgui.h"
 // std
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace tsd::ui::imgui {
 
-VorticityDialog::VorticityDialog(Application *app)
-    : Modal(app, "Flow Analysis")
+VorticityDialog::VorticityDialog(Application *app) : Modal(app, "Flow Analysis")
 {}
 
 void VorticityDialog::buildUI()
@@ -96,8 +95,8 @@ void VorticityDialog::buildUI()
 
   ImGui::SameLine();
 
-  bool canRun = (m_uIdx >= 0 && m_vIdx >= 0 && m_wIdx >= 0
-      && m_uIdx != m_vIdx && m_uIdx != m_wIdx && m_vIdx != m_wIdx);
+  bool canRun = (m_uIdx >= 0 && m_vIdx >= 0 && m_wIdx >= 0 && m_uIdx != m_vIdx
+      && m_uIdx != m_wIdx && m_vIdx != m_wIdx);
 
   ImGui::BeginDisabled(!canRun);
 
