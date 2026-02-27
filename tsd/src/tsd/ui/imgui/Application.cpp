@@ -128,6 +128,7 @@ anari_viewer::WindowArray Application::setupWindows()
   m_offlineRenderModal = std::make_unique<OfflineRenderModal>(this);
   m_fileDialog = std::make_unique<ImportFileDialog>(this);
   m_exportNanoVDBFileDialog = std::make_unique<ExportNanoVDBFileDialog>(this);
+  m_vorticityDialog = std::make_unique<VorticityDialog>(this);
 
   m_applicationName = SDL_GetWindowTitle(sdlWindow());
   updateWindowTitle();
@@ -184,6 +185,11 @@ void Application::uiFrameStart()
   // Handle app shortcuts //
   if (m_exportNanoVDBFileDialog->visible()) {
     m_exportNanoVDBFileDialog->renderUI();
+    modalActive = true;
+  }
+
+  if (m_vorticityDialog->visible()) {
+    m_vorticityDialog->renderUI();
     modalActive = true;
   }
 
@@ -332,6 +338,11 @@ void Application::uiMainMenuBar_Tools()
       ImGui::EndDisabled();
       ImGui::EndMenu();
     }
+
+    ImGui::Separator();
+
+    if (ImGui::MenuItem("Flow Analysis..."))
+      m_vorticityDialog->show();
 
     ImGui::Separator();
 

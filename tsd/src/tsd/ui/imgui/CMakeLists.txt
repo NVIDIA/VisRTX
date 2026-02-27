@@ -14,6 +14,7 @@ project_sources(PRIVATE
   modals/OfflineRenderModal.cpp
   modals/ImportFileDialog.cpp
   modals/Modal.cpp
+  modals/VorticityDialog.cpp
   windows/Animations.cpp
   windows/CameraPoses.cpp
   windows/DatabaseEditor.cpp

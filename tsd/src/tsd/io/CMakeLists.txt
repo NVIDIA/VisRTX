@@ -42,6 +42,7 @@ PRIVATE
   importers/import_VTP.cpp
   importers/import_VTU.cpp
   importers/import_XYZDP.cpp
+  procedural/computeVorticity.cpp
   procedural/generate_cylinders.cpp
   procedural/generate_default_lights.cpp
   procedural/generate_hdri_dome.cpp
