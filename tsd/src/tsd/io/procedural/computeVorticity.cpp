@@ -13,6 +13,16 @@
 // std
 #include <cstring>
 #include <string>
+#if TSD_USE_VTK
+#include <vtkCellArray.h>
+#include <vtkDataObject.h>
+#include <vtkFloatArray.h>
+#include <vtkGradientFilter.h>
+#include <vtkPointData.h>
+#include <vtkPoints.h>
+#include <vtkSmartPointer.h>
+#include <vtkUnstructuredGrid.h>
+#endif
 
 namespace tsd::io {
 
@@ -172,6 +182,159 @@ static bool extractNanoVDB(Scene &scene, SpatialField *field, FieldData &out)
   return true;
 }
 
+static bool extractStructuredRectilinear(
+    Scene &scene, SpatialField *field, FieldData &out)
+{
+  auto *p = field->parameter("data");
+  if (!p || !anari::isArray(p->value().type())) {
+    logError(
+        "[computeVorticity] structuredRectilinear field has no 'data' array");
+    return false;
+  }
+
+  auto arr = scene.getObject<Array>(p->value().getAsObjectIndex());
+  if (!arr) {
+    logError(
+        "[computeVorticity] structuredRectilinear 'data' array is invalid");
+    return false;
+  }
+
+  out.nx = arr->dim(0);
+  out.ny = arr->dim(1);
+  out.nz = arr->dim(2);
+
+  if (out.nx < 2 || out.ny < 2 || out.nz < 2) {
+    logError("[computeVorticity] field dimensions must be >= 2 in each axis");
+    return false;
+  }
+
+  if (arr->elementType() != ANARI_FLOAT32) {
+    logError(
+        "[computeVorticity] structuredRectilinear field element type must be "
+        "ANARI_FLOAT32 (got %d)",
+        (int)arr->elementType());
+    return false;
+  }
+
+  out.ptr = arr->dataAs<float>();
+
+  auto readCoords = [&](const char *name,
+                        std::vector<double> &dst,
+                        size_t n) -> bool {
+    auto *cp = field->parameter(name);
+    if (!cp || !anari::isArray(cp->value().type())) {
+      logError(
+          "[computeVorticity] structuredRectilinear field missing '%s'", name);
+      return false;
+    }
+    auto ca = scene.getObject<Array>(cp->value().getAsObjectIndex());
+    if (!ca) {
+      logError(
+          "[computeVorticity] structuredRectilinear '%s' array is invalid",
+          name);
+      return false;
+    }
+    dst.resize(n);
+    const float *src = ca->dataAs<float>();
+    for (size_t i = 0; i < n; ++i)
+      dst[i] = src[i];
+    return true;
+  };
+
+  return readCoords("coordsX", out.x, out.nx)
+      && readCoords("coordsY", out.y, out.ny)
+      && readCoords("coordsZ", out.z, out.nz);
+}
+
+static bool extractNanoVDBRectilinear(
+    Scene &scene, SpatialField *field, FieldData &out)
+{
+  auto *p = field->parameter("data");
+  if (!p || !anari::isArray(p->value().type())) {
+    logError(
+        "[computeVorticity] nanovdbRectilinear field has no 'data' array");
+    return false;
+  }
+
+  auto arr = scene.getObject<Array>(p->value().getAsObjectIndex());
+  if (!arr || !arr->data()) {
+    logError(
+        "[computeVorticity] nanovdbRectilinear 'data' array is invalid");
+    return false;
+  }
+
+  const uint8_t *rawData = static_cast<const uint8_t *>(arr->data());
+  const auto *meta =
+      reinterpret_cast<const nanovdb::GridMetaData *>(rawData);
+
+  if (meta->gridType() != nanovdb::GridType::Float) {
+    logError(
+        "[computeVorticity] nanovdbRectilinear field must be float32 "
+        "(GridType::Float)");
+    return false;
+  }
+
+  const auto *grid =
+      reinterpret_cast<const nanovdb::NanoGrid<float> *>(rawData);
+  auto bbox = grid->indexBBox();
+  auto lo = bbox.min();
+  auto hi = bbox.max();
+
+  out.nx = (size_t)(hi[0] - lo[0] + 1);
+  out.ny = (size_t)(hi[1] - lo[1] + 1);
+  out.nz = (size_t)(hi[2] - lo[2] + 1);
+
+  if (out.nx < 2 || out.ny < 2 || out.nz < 2) {
+    logError(
+        "[computeVorticity] nanovdbRectilinear field dimensions must be >= 2");
+    return false;
+  }
+
+  auto readCoords = [&](const char *name,
+                        std::vector<double> &dst,
+                        size_t n) -> bool {
+    auto *cp = field->parameter(name);
+    if (!cp || !anari::isArray(cp->value().type())) {
+      logError(
+          "[computeVorticity] nanovdbRectilinear field missing '%s'", name);
+      return false;
+    }
+    auto ca = scene.getObject<Array>(cp->value().getAsObjectIndex());
+    if (!ca) {
+      logError(
+          "[computeVorticity] nanovdbRectilinear '%s' array is invalid", name);
+      return false;
+    }
+    dst.resize(n);
+    const float *src = ca->dataAs<float>();
+    for (size_t i = 0; i < n; ++i)
+      dst[i] = src[i];
+    return true;
+  };
+
+  if (!readCoords("coordsX", out.x, out.nx)
+      || !readCoords("coordsY", out.y, out.ny)
+      || !readCoords("coordsZ", out.z, out.nz))
+    return false;
+
+  // Rasterize sparse grid into a dense float buffer
+  out.ownedData.resize(out.nx * out.ny * out.nz, 0.0f);
+  out.ptr = out.ownedData.data();
+  auto acc = grid->getAccessor();
+
+  for (int k = lo[2]; k <= hi[2]; ++k) {
+    for (int j = lo[1]; j <= hi[1]; ++j) {
+      float *row = out.ownedData.data()
+          + (size_t)(k - lo[2]) * out.ny * out.nx
+          + (size_t)(j - lo[1]) * out.nx;
+      for (int i = lo[0]; i <= hi[0]; ++i)
+        row[i - lo[0]] = acc.getValue(nanovdb::Coord(i, j, k));
+    }
+  }
+
+  return true;
+}
+
 static bool extractFieldData(Scene &scene, SpatialField *field, FieldData &out)
 {
   if (!field) {
@@ -181,12 +344,18 @@ static bool extractFieldData(Scene &scene, SpatialField *field, FieldData &out)
 
   if (field->subtype() == tokens::spatial_field::structuredRegular) {
     return extractStructuredRegular(scene, field, out);
+  } else if (field->subtype() == tokens::spatial_field::structuredRectilinear) {
+    return extractStructuredRectilinear(scene, field, out);
   } else if (field->subtype() == tokens::spatial_field::nanovdb) {
     return extractNanoVDB(scene, field, out);
+  } else if (field->subtype() == tokens::spatial_field::nanovdbRectilinear) {
+    return extractNanoVDBRectilinear(scene, field, out);
   } else {
     logError(
         "[computeVorticity] unsupported SpatialField subtype '%s'; "
-        "only structuredRegular and nanovdb are supported",
+        "only structuredRegular, structuredRectilinear, nanovdb, and "
+        "nanovdbRectilinear are supported (unstructured and amr require "
+        "mesh interpolation first)",
         field->subtype().c_str());
     return false;
   }
@@ -233,6 +402,265 @@ static VolumeRef wrapAsVolume(Scene &scene,
 }
 
 // ---------------------------------------------------------------------------
+// Unstructured path — only compiled when VTK is available
+// ---------------------------------------------------------------------------
+
+#if TSD_USE_VTK
+
+// Create an unstructured SpatialField + transferFunction1D Volume by copying
+// topology parameters from meshSource and supplying a new vertex.data array.
+static VolumeRef wrapAsUnstructuredVolume(Scene &scene,
+    const std::string &name,
+    SpatialField *meshSource,
+    ArrayRef &dataArr,
+    LayerNodeRef location)
+{
+  auto field = scene.createObject<SpatialField>(
+      tokens::spatial_field::unstructured);
+  field->setName(name.c_str());
+
+  // Share topology parameter objects from meshSource
+  for (const char *pname :
+      {"vertex.position", "index", "cell.index", "cell.type"}) {
+    auto *p = meshSource->parameter(pname);
+    if (!p || !anari::isArray(p->value().type()))
+      continue;
+    auto arr = scene.getObject<Array>(p->value().getAsObjectIndex());
+    if (arr)
+      field->setParameterObject(pname, *arr);
+  }
+
+  field->setParameterObject("vertex.data", *dataArr);
+
+  float2 valueRange = field->computeValueRange();
+
+  auto tx = scene.insertChildTransformNode(
+      location ? location : scene.defaultLayer()->root());
+
+  auto [inst, vol] =
+      scene.insertNewChildObjectNode<Volume>(tx, tokens::volume::transferFunction1D);
+  vol->setName(name.c_str());
+  vol->setParameterObject("value", *field);
+  vol->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+
+  auto colorArr = scene.createArray(ANARI_FLOAT32_VEC4, 256);
+  colorArr->setData(makeDefaultColorMap(256).data());
+  vol->setParameterObject("color", *colorArr);
+
+  return vol;
+}
+
+static VorticityResult computeVorticityUnstructured(Scene &scene,
+    SpatialField *u,
+    SpatialField *v,
+    SpatialField *w,
+    LayerNodeRef location,
+    VorticityOptions opts)
+{
+  VorticityResult result;
+
+  // Step 1: numPoints from u's vertex.position array
+  auto *posParam = u->parameter("vertex.position");
+  if (!posParam || !anari::isArray(posParam->value().type())) {
+    logError(
+        "[computeVorticity] unstructured field missing 'vertex.position'");
+    return result;
+  }
+  auto posArr = scene.getObject<Array>(posParam->value().getAsObjectIndex());
+  if (!posArr) {
+    logError(
+        "[computeVorticity] unstructured field 'vertex.position' is invalid");
+    return result;
+  }
+  const size_t numPoints = posArr->dim(0);
+
+  // Validate v and w have matching point count
+  auto getNumPoints = [&](SpatialField *field) -> size_t {
+    auto *p = field->parameter("vertex.position");
+    if (!p || !anari::isArray(p->value().type()))
+      return 0;
+    auto a = scene.getObject<Array>(p->value().getAsObjectIndex());
+    return a ? a->dim(0) : 0;
+  };
+  if (getNumPoints(v) != numPoints || getNumPoints(w) != numPoints) {
+    logError(
+        "[computeVorticity] U/V/W unstructured fields have mismatched point "
+        "counts");
+    return result;
+  }
+
+  // Step 2: scalar velocity data from vertex.data
+  auto getDataPtr = [&](SpatialField *field) -> const float * {
+    auto *p = field->parameter("vertex.data");
+    if (!p || !anari::isArray(p->value().type()))
+      return nullptr;
+    auto a = scene.getObject<Array>(p->value().getAsObjectIndex());
+    return a ? a->dataAs<float>() : nullptr;
+  };
+  const float *uPtr = getDataPtr(u);
+  const float *vPtr = getDataPtr(v);
+  const float *wPtr = getDataPtr(w);
+  if (!uPtr || !vPtr || !wPtr) {
+    logError(
+        "[computeVorticity] unstructured fields missing 'vertex.data' scalar");
+    return result;
+  }
+
+  // Step 3: get topology arrays
+  auto *indexParam = u->parameter("index");
+  auto *cellIdxParam = u->parameter("cell.index");
+  auto *cellTypeParam = u->parameter("cell.type");
+  if (!indexParam || !cellIdxParam || !cellTypeParam
+      || !anari::isArray(indexParam->value().type())
+      || !anari::isArray(cellIdxParam->value().type())
+      || !anari::isArray(cellTypeParam->value().type())) {
+    logError(
+        "[computeVorticity] unstructured field missing topology parameters");
+    return result;
+  }
+  auto connArr = scene.getObject<Array>(indexParam->value().getAsObjectIndex());
+  auto cellIdxArr =
+      scene.getObject<Array>(cellIdxParam->value().getAsObjectIndex());
+  auto cellTypeArr =
+      scene.getObject<Array>(cellTypeParam->value().getAsObjectIndex());
+
+  const uint32_t *connectivity = connArr->dataAs<uint32_t>();
+  const uint32_t *cellIndex = cellIdxArr->dataAs<uint32_t>();
+  const uint8_t *cellTypeData = cellTypeArr->dataAs<uint8_t>();
+  const size_t numCells = cellIdxArr->dim(0);
+  const size_t connSize = connArr->dim(0);
+
+  logStatus(
+      "[computeVorticity] computing vortical quantities on %zu-point "
+      "unstructured grid...",
+      numPoints);
+
+  // Step 4: reconstruct vtkUnstructuredGrid
+  auto vgrid = vtkSmartPointer<vtkUnstructuredGrid>::New();
+
+  auto points = vtkSmartPointer<vtkPoints>::New();
+  points->SetDataTypeToFloat();
+  points->SetNumberOfPoints(static_cast<vtkIdType>(numPoints));
+  const float *rawPos = posArr->dataAs<float>();
+  for (size_t i = 0; i < numPoints; ++i)
+    points->SetPoint(static_cast<vtkIdType>(i),
+        rawPos[i * 3],
+        rawPos[i * 3 + 1],
+        rawPos[i * 3 + 2]);
+  vgrid->SetPoints(points);
+
+  vgrid->Allocate(static_cast<vtkIdType>(numCells));
+  for (size_t ci = 0; ci < numCells; ++ci) {
+    size_t start = cellIndex[ci];
+    size_t end = (ci + 1 < numCells) ? cellIndex[ci + 1] : connSize;
+    size_t npts = end - start;
+    std::vector<vtkIdType> ptIds(npts);
+    for (size_t j = 0; j < npts; ++j)
+      ptIds[j] = static_cast<vtkIdType>(connectivity[start + j]);
+    vgrid->InsertNextCell(
+        static_cast<int>(cellTypeData[ci]), static_cast<vtkIdType>(npts), ptIds.data());
+  }
+
+  // Add interleaved velocity array (u,v,w per point)
+  auto velArr = vtkSmartPointer<vtkFloatArray>::New();
+  velArr->SetName("velocity");
+  velArr->SetNumberOfComponents(3);
+  velArr->SetNumberOfTuples(static_cast<vtkIdType>(numPoints));
+  for (size_t i = 0; i < numPoints; ++i) {
+    float tuple[3] = {uPtr[i], vPtr[i], wPtr[i]};
+    velArr->SetTuple(static_cast<vtkIdType>(i), tuple);
+  }
+  vgrid->GetPointData()->AddArray(velArr);
+
+  // Step 5: run vtkGradientFilter to get the 9-component Jacobian
+  auto gradFilter = vtkSmartPointer<vtkGradientFilter>::New();
+  gradFilter->SetInputData(vgrid);
+  gradFilter->SetInputArrayToProcess(
+      0, 0, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, "velocity");
+  gradFilter->SetResultArrayName("gradients");
+  gradFilter->SetComputeGradient(1);
+  gradFilter->Update();
+
+  auto *gradOutput =
+      vtkUnstructuredGrid::SafeDownCast(gradFilter->GetOutput());
+  if (!gradOutput) {
+    logError("[computeVorticity] vtkGradientFilter failed");
+    return result;
+  }
+  vtkDataArray *gradData =
+      gradOutput->GetPointData()->GetArray("gradients");
+  if (!gradData || gradData->GetNumberOfComponents() != 9) {
+    logError(
+        "[computeVorticity] gradient filter output has unexpected format");
+    return result;
+  }
+
+  // Step 6: unpack Jacobian into 9 double vectors
+  // VTK ordering: d(comp0)/dx, d(comp0)/dy, d(comp0)/dz,
+  //               d(comp1)/dx, d(comp1)/dy, d(comp1)/dz,
+  //               d(comp2)/dx, d(comp2)/dy, d(comp2)/dz
+  // → dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz
+  std::vector<double> dux(numPoints), duy(numPoints), duz(numPoints);
+  std::vector<double> dvx(numPoints), dvy(numPoints), dvz(numPoints);
+  std::vector<double> dwx(numPoints), dwy(numPoints), dwz(numPoints);
+  for (size_t i = 0; i < numPoints; ++i) {
+    double t[9];
+    gradData->GetTuple(static_cast<vtkIdType>(i), t);
+    dux[i] = t[0]; duy[i] = t[1]; duz[i] = t[2];
+    dvx[i] = t[3]; dvy[i] = t[4]; dvz[i] = t[5];
+    dwx[i] = t[6]; dwy[i] = t[7]; dwz[i] = t[8];
+  }
+
+  // Step 7: allocate output arrays and compute
+  auto makeOutBuf = [&](bool enabled) -> std::pair<ArrayRef, float *> {
+    if (!enabled)
+      return {};
+    auto arr = scene.createArray(ANARI_FLOAT32, numPoints);
+    return {arr, arr->mapAs<float>()};
+  };
+  auto [lambda2Arr,   lambda2Out]   = makeOutBuf(opts.lambda2);
+  auto [qCritArr,     qCritOut]     = makeOutBuf(opts.qCriterion);
+  auto [vorticityArr, vorticityOut] = makeOutBuf(opts.vorticity);
+  auto [helicityArr,  helicityOut]  = makeOutBuf(opts.helicity);
+
+  vort_from_jacobians(uPtr,
+      vPtr,
+      wPtr,
+      dux.data(), dvx.data(), dwx.data(),
+      duy.data(), dvy.data(), dwy.data(),
+      duz.data(), dvz.data(), dwz.data(),
+      vorticityOut, helicityOut, lambda2Out, qCritOut,
+      numPoints);
+
+  // Step 8: unmap
+  if (lambda2Arr)   lambda2Arr->unmap();
+  if (qCritArr)     qCritArr->unmap();
+  if (vorticityArr) vorticityArr->unmap();
+  if (helicityArr)  helicityArr->unmap();
+
+  logStatus("[computeVorticity] creating output volumes...");
+
+  // Step 9: wrap each result as an unstructured volume
+  if (lambda2Arr)
+    result.lambda2 =
+        wrapAsUnstructuredVolume(scene, "lambda2", u, lambda2Arr, location);
+  if (qCritArr)
+    result.qCriterion =
+        wrapAsUnstructuredVolume(scene, "q_criterion", u, qCritArr, location);
+  if (vorticityArr)
+    result.vorticity =
+        wrapAsUnstructuredVolume(scene, "vorticity", u, vorticityArr, location);
+  if (helicityArr)
+    result.helicity =
+        wrapAsUnstructuredVolume(scene, "helicity", u, helicityArr, location);
+
+  logStatus("[computeVorticity] done.");
+  return result;
+}
+
+#endif // TSD_USE_VTK
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -244,6 +672,11 @@ VorticityResult computeVorticity(Scene &scene,
     VorticityOptions opts)
 {
   VorticityResult result;
+
+#if TSD_USE_VTK
+  if (u && u->subtype() == tokens::spatial_field::unstructured)
+    return computeVorticityUnstructured(scene, u, v, w, location, opts);
+#endif
 
   logStatus("[computeVorticity] extracting field data...");
 
@@ -275,26 +708,16 @@ VorticityResult computeVorticity(Scene &scene,
 
   // Pre-allocate one ANARI float32 array per selected output and map it so
   // vort() can write directly into the final storage — no intermediate buffers.
-  ArrayRef lambda2Arr, qCritArr, vorticityArr, helicityArr;
-  float *lambda2Out = nullptr, *qCritOut = nullptr;
-  float *vorticityOut = nullptr, *helicityOut = nullptr;
-
-  if (opts.lambda2) {
-    lambda2Arr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
-    lambda2Out = lambda2Arr->mapAs<float>();
-  }
-  if (opts.qCriterion) {
-    qCritArr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
-    qCritOut = qCritArr->mapAs<float>();
-  }
-  if (opts.vorticity) {
-    vorticityArr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
-    vorticityOut = vorticityArr->mapAs<float>();
-  }
-  if (opts.helicity) {
-    helicityArr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
-    helicityOut = helicityArr->mapAs<float>();
-  }
+  auto makeOutBuf = [&](bool enabled) -> std::pair<ArrayRef, float *> {
+    if (!enabled)
+      return {};
+    auto arr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
+    return {arr, arr->mapAs<float>()};
+  };
+  auto [lambda2Arr,   lambda2Out]   = makeOutBuf(opts.lambda2);
+  auto [qCritArr,     qCritOut]     = makeOutBuf(opts.qCriterion);
+  auto [vorticityArr, vorticityOut] = makeOutBuf(opts.vorticity);
+  auto [helicityArr,  helicityOut]  = makeOutBuf(opts.helicity);
 
   // Compute — vort() reads float* velocity directly, writes float* outputs.
   // Null output pointers are silently skipped inside vort().

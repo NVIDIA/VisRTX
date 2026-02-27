@@ -257,7 +257,11 @@ static void createSurfaceFromGrid(Scene &scene,
           ("vtu_surface | " + std::string(filename)).c_str(), mesh, mat));
 }
 
-// Build an unstructured spatial field from volume cells only
+// Build an unstructured spatial field from volume cells only.
+// All point-data arrays are exposed as named SpatialFields sharing topology:
+//   1-component → one field named after the array
+//   3-component → three fields named {arr}_x, {arr}_y, {arr}_z
+// Returns the first SpatialField created (used for the scene volume wrapper).
 static SpatialFieldRef createFieldFromVolumeCells(
     Scene &scene, vtkUnstructuredGrid *grid, const char *filepath)
 {
@@ -276,11 +280,7 @@ static SpatialFieldRef createFieldFromVolumeCells(
   vtkIdType numPoints = grid->GetNumberOfPoints();
   vtkIdType numVolumeCells = static_cast<vtkIdType>(volumeCellIndices.size());
 
-  auto field = scene.createObject<tsd::core::SpatialField>(
-      tokens::spatial_field::unstructured);
-  field->setName(fileOf(filepath).c_str());
-
-  // Vertices
+  // Build shared topology arrays
   auto vertexArray = scene.createArray(ANARI_FLOAT32_VEC3, numPoints);
   auto *vertexData = vertexArray->mapAs<tsd::math::float3>();
   for (vtkIdType i = 0; i < numPoints; ++i) {
@@ -288,9 +288,7 @@ static SpatialFieldRef createFieldFromVolumeCells(
     vertexData[i] = tsd::math::float3(pt[0], pt[1], pt[2]);
   }
   vertexArray->unmap();
-  field->setParameterObject("vertex.position", *vertexArray);
 
-  // Cells
   std::vector<uint32_t> connectivity;
   std::vector<uint32_t> cellIndex;
   std::vector<uint8_t> cellTypes;
@@ -324,27 +322,84 @@ static SpatialFieldRef createFieldFromVolumeCells(
 
   auto indexArray = scene.createArray(ANARI_UINT32, connectivity.size());
   indexArray->setData(connectivity.data());
-  field->setParameterObject("index", *indexArray);
 
   auto cellIndexArray = scene.createArray(ANARI_UINT32, cellIndex.size());
   cellIndexArray->setData(cellIndex.data());
-  field->setParameterObject("cell.index", *cellIndexArray);
 
   auto cellTypesArray = scene.createArray(ANARI_UINT8, cellTypes.size());
   cellTypesArray->setData(cellTypes.data());
-  field->setParameterObject("cell.type", *cellTypesArray);
 
-  // Vertex data
+  // Helper: create a new unstructured SpatialField with shared topology
+  auto makeTopoField = [&](const std::string &name) -> SpatialFieldRef {
+    auto f = scene.createObject<tsd::core::SpatialField>(
+        tokens::spatial_field::unstructured);
+    f->setName(name.c_str());
+    f->setParameterObject("vertex.position", *vertexArray);
+    f->setParameterObject("index", *indexArray);
+    f->setParameterObject("cell.index", *cellIndexArray);
+    f->setParameterObject("cell.type", *cellTypesArray);
+    return f;
+  };
+
+  // Vertex data: expose all point arrays
   vtkPointData *pointData = grid->GetPointData();
-  for (int i = 0; i < std::min(1, pointData->GetNumberOfArrays()); ++i) {
+  SpatialFieldRef firstField;
+  std::string baseName = fileOf(filepath);
+
+  for (int i = 0; i < pointData->GetNumberOfArrays(); ++i) {
     vtkDataArray *array = pointData->GetArray(i);
     if (!array)
       continue;
-    auto a = makeFloatArray1D(scene, array, numPoints);
-    field->setParameterObject("vertex.data", *a);
+    int nComp = array->GetNumberOfComponents();
+    std::string arrName =
+        (array->GetName() && array->GetName()[0] != '\0') ? array->GetName()
+                                                          : baseName;
+
+    if (nComp == 1) {
+      auto dataArr = scene.createArray(ANARI_FLOAT32, numPoints);
+      auto *buf = dataArr->mapAs<float>();
+      for (vtkIdType j = 0; j < numPoints; ++j)
+        buf[j] = static_cast<float>(array->GetComponent(j, 0));
+      dataArr->unmap();
+      auto f = makeTopoField(arrName);
+      f->setParameterObject("vertex.data", *dataArr);
+      if (!firstField)
+        firstField = f;
+    } else if (nComp == 3) {
+      for (int c = 0; c < 3; ++c) {
+        const char *suffix = (c == 0) ? "_x" : (c == 1) ? "_y" : "_z";
+        std::string compName = arrName + suffix;
+        auto dataArr = scene.createArray(ANARI_FLOAT32, numPoints);
+        auto *buf = dataArr->mapAs<float>();
+        for (vtkIdType j = 0; j < numPoints; ++j)
+          buf[j] = static_cast<float>(array->GetComponent(j, c));
+        dataArr->unmap();
+        auto f = makeTopoField(compName);
+        f->setParameterObject("vertex.data", *dataArr);
+        if (!firstField)
+          firstField = f;
+      }
+      logStatus(
+          "[import_VTU] split 3-component array '%s' into '%s_x', '%s_y', "
+          "'%s_z'",
+          arrName.c_str(),
+          arrName.c_str(),
+          arrName.c_str(),
+          arrName.c_str());
+    } else {
+      logWarning(
+          "[import_VTU] array '%s' has %d components (only 1 or 3 are "
+          "supported) -- skipping",
+          arrName.c_str(),
+          nComp);
+    }
   }
 
-  // Cell data
+  // Fallback: no point arrays → create a topology-only field
+  if (!firstField)
+    firstField = makeTopoField(baseName);
+
+  // Cell data: attach first scalar array to firstField for rendering
   vtkCellData *cellData = grid->GetCellData();
   for (int i = 0; i < std::min(1, cellData->GetNumberOfArrays()); ++i) {
     vtkDataArray *array = cellData->GetArray(i);
@@ -361,10 +416,10 @@ static SpatialFieldRef createFieldFromVolumeCells(
     a->unmap();
     filtered->unmap();
 
-    field->setParameterObject("cell.data", *filtered);
+    firstField->setParameterObject("cell.data", *filtered);
   }
 
-  return field;
+  return firstField;
 }
 
 // Full-scene importer: surfaces + volumes
