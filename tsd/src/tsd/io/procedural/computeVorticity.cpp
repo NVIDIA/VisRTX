@@ -48,6 +48,60 @@ struct FieldData
 };
 
 // ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+static void fillLinearCoords(
+    std::vector<double> &dst, size_t n, double origin, double spacing)
+{
+  dst.resize(n);
+  for (size_t i = 0; i < n; ++i)
+    dst[i] = origin + i * spacing;
+}
+
+static bool readCoordsParam(Scene &scene,
+    SpatialField *field,
+    const char *name,
+    std::vector<double> &dst,
+    size_t n)
+{
+  auto *cp = field->parameter(name);
+  if (!cp || !anari::isArray(cp->value().type())) {
+    logError("[computeVorticity] field missing coord parameter '%s'", name);
+    return false;
+  }
+  auto ca = scene.getObject<Array>(cp->value().getAsObjectIndex());
+  if (!ca) {
+    logError("[computeVorticity] field coord parameter '%s' is invalid", name);
+    return false;
+  }
+  dst.resize(n);
+  const float *src = ca->dataAs<float>();
+  for (size_t i = 0; i < n; ++i)
+    dst[i] = src[i];
+  return true;
+}
+
+static void rasterizeNanoVDB(const nanovdb::NanoGrid<float> *grid,
+    nanovdb::Coord lo,
+    nanovdb::Coord hi,
+    FieldData &out)
+{
+  out.ownedData.resize(out.nx * out.ny * out.nz, 0.0f);
+  out.ptr = out.ownedData.data();
+  auto acc = grid->getAccessor();
+  for (int k = lo[2]; k <= hi[2]; ++k) {
+    for (int j = lo[1]; j <= hi[1]; ++j) {
+      float *row = out.ownedData.data()
+          + (size_t)(k - lo[2]) * out.ny * out.nx
+          + (size_t)(j - lo[1]) * out.nx;
+      for (int i = lo[0]; i <= hi[0]; ++i)
+        row[i - lo[0]] = acc.getValue(nanovdb::Coord(i, j, k));
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Extraction helpers
 // ---------------------------------------------------------------------------
 
@@ -96,15 +150,9 @@ static bool extractStructuredRegular(
   // Point directly at the ANARI array's storage — no copy needed.
   out.ptr = arr->dataAs<float>();
 
-  out.x.resize(out.nx);
-  out.y.resize(out.ny);
-  out.z.resize(out.nz);
-  for (size_t i = 0; i < out.nx; ++i)
-    out.x[i] = origin.x + i * (double)spacing.x;
-  for (size_t j = 0; j < out.ny; ++j)
-    out.y[j] = origin.y + j * (double)spacing.y;
-  for (size_t k = 0; k < out.nz; ++k)
-    out.z[k] = origin.z + k * (double)spacing.z;
+  fillLinearCoords(out.x, out.nx, origin.x, spacing.x);
+  fillLinearCoords(out.y, out.ny, origin.y, spacing.y);
+  fillLinearCoords(out.z, out.nz, origin.z, spacing.z);
 
   return true;
 }
@@ -156,30 +204,10 @@ static bool extractNanoVDB(Scene &scene, SpatialField *field, FieldData &out)
   double dy = (out.ny > 1) ? (worldHi[1] - worldLo[1]) / (out.ny - 1) : 1.0;
   double dz = (out.nz > 1) ? (worldHi[2] - worldLo[2]) / (out.nz - 1) : 1.0;
 
-  out.x.resize(out.nx);
-  out.y.resize(out.ny);
-  out.z.resize(out.nz);
-  for (size_t i = 0; i < out.nx; ++i)
-    out.x[i] = worldLo[0] + i * dx;
-  for (size_t j = 0; j < out.ny; ++j)
-    out.y[j] = worldLo[1] + j * dy;
-  for (size_t k = 0; k < out.nz; ++k)
-    out.z[k] = worldLo[2] + k * dz;
-
-  // Rasterize sparse grid into a dense float buffer (no double conversion).
-  out.ownedData.resize(out.nx * out.ny * out.nz, 0.0f);
-  out.ptr = out.ownedData.data();
-  auto acc = grid->getAccessor();
-
-  for (int k = lo[2]; k <= hi[2]; ++k) {
-    for (int j = lo[1]; j <= hi[1]; ++j) {
-      float *row = out.ownedData.data()
-          + (size_t)(k - lo[2]) * out.ny * out.nx
-          + (size_t)(j - lo[1]) * out.nx;
-      for (int i = lo[0]; i <= hi[0]; ++i)
-        row[i - lo[0]] = acc.getValue(nanovdb::Coord(i, j, k));
-    }
-  }
+  fillLinearCoords(out.x, out.nx, worldLo[0], dx);
+  fillLinearCoords(out.y, out.ny, worldLo[1], dy);
+  fillLinearCoords(out.z, out.nz, worldLo[2], dz);
+  rasterizeNanoVDB(grid, lo, hi, out);
 
   return true;
 }
@@ -220,32 +248,9 @@ static bool extractStructuredRectilinear(
 
   out.ptr = arr->dataAs<float>();
 
-  auto readCoords = [&](const char *name,
-                        std::vector<double> &dst,
-                        size_t n) -> bool {
-    auto *cp = field->parameter(name);
-    if (!cp || !anari::isArray(cp->value().type())) {
-      logError(
-          "[computeVorticity] structuredRectilinear field missing '%s'", name);
-      return false;
-    }
-    auto ca = scene.getObject<Array>(cp->value().getAsObjectIndex());
-    if (!ca) {
-      logError(
-          "[computeVorticity] structuredRectilinear '%s' array is invalid",
-          name);
-      return false;
-    }
-    dst.resize(n);
-    const float *src = ca->dataAs<float>();
-    for (size_t i = 0; i < n; ++i)
-      dst[i] = src[i];
-    return true;
-  };
-
-  return readCoords("coordsX", out.x, out.nx)
-      && readCoords("coordsY", out.y, out.ny)
-      && readCoords("coordsZ", out.z, out.nz);
+  return readCoordsParam(scene, field, "coordsX", out.x, out.nx)
+      && readCoordsParam(scene, field, "coordsY", out.y, out.ny)
+      && readCoordsParam(scene, field, "coordsZ", out.z, out.nz);
 }
 
 static bool extractNanoVDBRectilinear(
@@ -292,48 +297,12 @@ static bool extractNanoVDBRectilinear(
     return false;
   }
 
-  auto readCoords = [&](const char *name,
-                        std::vector<double> &dst,
-                        size_t n) -> bool {
-    auto *cp = field->parameter(name);
-    if (!cp || !anari::isArray(cp->value().type())) {
-      logError(
-          "[computeVorticity] nanovdbRectilinear field missing '%s'", name);
-      return false;
-    }
-    auto ca = scene.getObject<Array>(cp->value().getAsObjectIndex());
-    if (!ca) {
-      logError(
-          "[computeVorticity] nanovdbRectilinear '%s' array is invalid", name);
-      return false;
-    }
-    dst.resize(n);
-    const float *src = ca->dataAs<float>();
-    for (size_t i = 0; i < n; ++i)
-      dst[i] = src[i];
-    return true;
-  };
-
-  if (!readCoords("coordsX", out.x, out.nx)
-      || !readCoords("coordsY", out.y, out.ny)
-      || !readCoords("coordsZ", out.z, out.nz))
+  if (!readCoordsParam(scene, field, "coordsX", out.x, out.nx)
+      || !readCoordsParam(scene, field, "coordsY", out.y, out.ny)
+      || !readCoordsParam(scene, field, "coordsZ", out.z, out.nz))
     return false;
 
-  // Rasterize sparse grid into a dense float buffer
-  out.ownedData.resize(out.nx * out.ny * out.nz, 0.0f);
-  out.ptr = out.ownedData.data();
-  auto acc = grid->getAccessor();
-
-  for (int k = lo[2]; k <= hi[2]; ++k) {
-    for (int j = lo[1]; j <= hi[1]; ++j) {
-      float *row = out.ownedData.data()
-          + (size_t)(k - lo[2]) * out.ny * out.nx
-          + (size_t)(j - lo[1]) * out.nx;
-      for (int i = lo[0]; i <= hi[0]; ++i)
-        row[i - lo[0]] = acc.getValue(nanovdb::Coord(i, j, k));
-    }
-  }
-
+  rasterizeNanoVDB(grid, lo, hi, out);
   return true;
 }
 
