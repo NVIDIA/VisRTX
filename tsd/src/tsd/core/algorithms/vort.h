@@ -53,90 +53,43 @@ static double q_crit(double j00, double j01, double j02,
 }
 
 // ---------------------------------------------------------------------------
-// 1D finite-difference helpers — float* input, double* output, stride s.
+// grad3D — finite differences along one axis of a 3D float field.
 //
-// grad1D:    uniform spacing; 2nd-order one-sided BCs, 2nd-order central.
-//            inv2h = 1/(2h).
-// grad1D_nu: non-uniform spacing; 1st-order one-sided BCs, 2nd-order central.
-//            c[]: coordinate array (length n).
-// ---------------------------------------------------------------------------
-
-static void grad1D(
-    const float *fc, double *gc, size_t n, size_t s, double inv2h)
-{
-  gc[0]       = (-3.0*fc[0] + 4.0*fc[s]         - fc[2*s])          * inv2h;
-  for (size_t i = 1; i < n-1; ++i)
-    gc[i*s]   = ((double)fc[(i+1)*s] - (double)fc[(i-1)*s])          * inv2h;
-  gc[(n-1)*s] = ( 3.0*fc[(n-1)*s] - 4.0*fc[(n-2)*s] + fc[(n-3)*s]) * inv2h;
-}
-
-static void grad1D_nu(
-    const float *fc, double *gc, size_t n, size_t s, const double *c)
-{
-  gc[0]       = ((double)fc[s]       - (double)fc[0])       / (c[1]   - c[0]);
-  for (size_t i = 1; i < n-1; ++i)
-    gc[i*s]   = ((double)fc[(i+1)*s] - (double)fc[(i-1)*s]) / (c[i+1] - c[i-1]);
-  gc[(n-1)*s] = ((double)fc[(n-1)*s] - (double)fc[(n-2)*s]) / (c[n-1] - c[n-2]);
-}
-
-// ---------------------------------------------------------------------------
-// Gradient helpers — float* input, double* output (scratch).
-// All three take a coordinate array so uniform and rectilinear grids share the
-// same interface; uniform fields pass the x_/y_/z_ arrays built from
-// origin+spacing in extractStructuredRegular.
+// axis 0 (x): stride 1,       n=nx, outer=ny*nz passes
+// axis 1 (y): stride nx,      n=ny, outer=nx*nz passes
+// axis 2 (z): stride nx*ny,   n=nz, outer=nx*ny passes
 //
-// Boundary accuracy: 1st-order one-sided. Interior: 2nd-order central.
+// c[]: coordinate array along the axis (length n).
+// Boundary: 1st-order one-sided.  Interior: 2nd-order central.
 // ---------------------------------------------------------------------------
-
-// x is the fastest index, so every (z,y) pair is a contiguous row of nx
-// floats — collapse both outer loops into a single row index.
-inline void gradX(const float *u,
-    double *uGrad,
-    const double *x_,
+static void grad3D(const float *fc,
+    double *gc,
     size_t nx,
     size_t ny,
-    size_t nz)
-{
-  const int nrows = (int)(ny * nz);
-  for (int r = 0; r < nrows; ++r)
-    grad1D_nu(u + (size_t)r*nx, uGrad + (size_t)r*nx, nx, 1, x_);
-}
-
-// y has stride nx.  Iterate over every (z,x) pair as the column base;
-// the 1D y-pass then uses gc[y*nx] with no extra offset arithmetic.
-inline void gradY(const float *v,
-    double *vGrad,
-    const double *y_,
-    size_t nx,
-    size_t ny,
-    size_t nz)
+    size_t nz,
+    int axis,
+    const double *c)
 {
   const size_t slab = nx * ny;
-  for (int z = 0; z < (int)nz; ++z)
-    for (int x = 0; x < (int)nx; ++x)
-      grad1D_nu(v + (size_t)z*slab + x, vGrad + (size_t)z*slab + x, ny, nx, y_);
-}
+  size_t n, s, outer;
+  if      (axis == 0) { n = nx; s = 1;    outer = ny * nz; }
+  else if (axis == 1) { n = ny; s = nx;   outer = nx * nz; }
+  else                { n = nz; s = slab; outer = slab;    }
 
-// Non-uniform z spacing: 1st-order one-sided at boundaries, 2nd-order central
-// in the interior.
-// z has stride slab=nx*ny.  Every (y,x) pair gives a z-column addressable as
-// wc[k*slab] — flatten both outer loops into a single index over ny*nx.
-inline void gradZ(const float *w,
-    double *wGrad,
-    const double *z_,
-    size_t nx,
-    size_t ny,
-    size_t nz)
-{
-  const size_t slab = nx * ny;
-  const int ncols = (int)slab;
-  for (int yx = 0; yx < ncols; ++yx) {
-    const float *wc = w     + yx;
-    double      *gc = wGrad + yx;
-    gc[0]              = ((double)wc[slab]        - (double)wc[0])           / (z_[1]      - z_[0]);
-    for (size_t k = 1; k < nz - 1; ++k)
-      gc[k * slab]     = ((double)wc[(k+1)*slab]  - (double)wc[(k-1)*slab]) / (z_[k+1]    - z_[k-1]);
-    gc[(nz-1) * slab]  = ((double)wc[(nz-1)*slab] - (double)wc[(nz-2)*slab]) / (z_[nz-1] - z_[nz-2]);
+  auto pass = [n, s, c](const float *f, double *g) {
+    g[0]         = ((double)f[s]         - (double)f[0])         / (c[1]   - c[0]);
+    for (size_t i = 1; i < n-1; ++i)
+      g[i*s]     = ((double)f[(i+1)*s]   - (double)f[(i-1)*s])   / (c[i+1] - c[i-1]);
+    g[(n-1)*s]   = ((double)f[(n-1)*s]   - (double)f[(n-2)*s])   / (c[n-1] - c[n-2]);
+  };
+
+  if (axis == 1) {
+    for (size_t z = 0; z < nz; ++z)
+      for (size_t x = 0; x < nx; ++x)
+        pass(fc + z*slab + x, gc + z*slab + x);
+  } else {
+    for (size_t r = 0; r < outer; ++r)
+      pass(fc + r*n*s, gc + r*n*s);
   }
 }
 
@@ -232,17 +185,17 @@ inline void vort(const float *u,
   std::vector<double> duy(len), dvy(len), dwy(len);
   std::vector<double> duz(len), dvz(len), dwz(len);
 
-  gradX(u, dux.data(), x_, nx, ny, nz);
-  gradX(v, dvx.data(), x_, nx, ny, nz);
-  gradX(w, dwx.data(), x_, nx, ny, nz);
+  grad3D(u, dux.data(), nx, ny, nz, 0, x_);
+  grad3D(v, dvx.data(), nx, ny, nz, 0, x_);
+  grad3D(w, dwx.data(), nx, ny, nz, 0, x_);
 
-  gradY(u, duy.data(), y_, nx, ny, nz);
-  gradY(v, dvy.data(), y_, nx, ny, nz);
-  gradY(w, dwy.data(), y_, nx, ny, nz);
+  grad3D(u, duy.data(), nx, ny, nz, 1, y_);
+  grad3D(v, dvy.data(), nx, ny, nz, 1, y_);
+  grad3D(w, dwy.data(), nx, ny, nz, 1, y_);
 
-  gradZ(u, duz.data(), z_, nx, ny, nz);
-  gradZ(v, dvz.data(), z_, nx, ny, nz);
-  gradZ(w, dwz.data(), z_, nx, ny, nz);
+  grad3D(u, duz.data(), nx, ny, nz, 2, z_);
+  grad3D(v, dvz.data(), nx, ny, nz, 2, z_);
+  grad3D(w, dwz.data(), nx, ny, nz, 2, z_);
 
   vort_from_jacobians(u,
       v,
