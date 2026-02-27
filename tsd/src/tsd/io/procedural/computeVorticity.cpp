@@ -19,15 +19,25 @@ namespace tsd::io {
 using namespace tsd::core;
 
 // ---------------------------------------------------------------------------
-// Internal helpers
+// FieldData — holds a pointer to float velocity data plus coordinate arrays.
+//
+// For structuredRegular fields the data pointer is non-owning (points directly
+// into the ANARI Array storage — no copy).  For NanoVDB fields the sparse
+// grid is rasterized into ownedData (float, not double) and ptr is set to
+// point at that buffer.
 // ---------------------------------------------------------------------------
 
 struct FieldData
 {
-  std::vector<double> values;
-  std::vector<double> x, y, z;
+  const float *ptr{nullptr}; // non-owning (structuredRegular) or alias into ownedData
+  std::vector<float> ownedData; // owns data for NanoVDB rasterization
+  std::vector<double> x, y, z; // world-space coordinate arrays
   size_t nx{0}, ny{0}, nz{0};
 };
+
+// ---------------------------------------------------------------------------
+// Extraction helpers
+// ---------------------------------------------------------------------------
 
 static bool extractStructuredRegular(
     Scene &scene, SpatialField *field, FieldData &out)
@@ -71,7 +81,9 @@ static bool extractStructuredRegular(
   auto origin = p_orig->value().get<math::float3>();
   auto spacing = p_spc->value().get<math::float3>();
 
-  // Build coordinate arrays
+  // Point directly at the ANARI array's storage — no copy needed.
+  out.ptr = arr->dataAs<float>();
+
   out.x.resize(out.nx);
   out.y.resize(out.ny);
   out.z.resize(out.nz);
@@ -81,13 +93,6 @@ static bool extractStructuredRegular(
     out.y[j] = origin.y + j * (double)spacing.y;
   for (size_t k = 0; k < out.nz; ++k)
     out.z[k] = origin.z + k * (double)spacing.z;
-
-  // Convert float → double
-  size_t total = out.nx * out.ny * out.nz;
-  out.values.resize(total);
-  const float *src = arr->dataAs<float>();
-  for (size_t i = 0; i < total; ++i)
-    out.values[i] = src[i];
 
   return true;
 }
@@ -131,7 +136,6 @@ static bool extractNanoVDB(Scene &scene, SpatialField *field, FieldData &out)
     return false;
   }
 
-  // Derive world-space coordinates from the grid map
   const auto &map = grid->map();
   auto worldLo = map.applyMap(nanovdb::Vec3d(lo[0], lo[1], lo[2]));
   auto worldHi = map.applyMap(nanovdb::Vec3d(hi[0], hi[1], hi[2]));
@@ -150,9 +154,9 @@ static bool extractNanoVDB(Scene &scene, SpatialField *field, FieldData &out)
   for (size_t k = 0; k < out.nz; ++k)
     out.z[k] = worldLo[2] + k * dz;
 
-  // Rasterize into a dense buffer using the accessor
-  size_t total = out.nx * out.ny * out.nz;
-  out.values.resize(total, 0.0);
+  // Rasterize sparse grid into a dense float buffer (no double conversion).
+  out.ownedData.resize(out.nx * out.ny * out.nz, 0.0f);
+  out.ptr = out.ownedData.data();
   auto acc = grid->getAccessor();
 
   for (int k = lo[2]; k <= hi[2]; ++k) {
@@ -161,8 +165,8 @@ static bool extractNanoVDB(Scene &scene, SpatialField *field, FieldData &out)
       size_t jj = (size_t)(j - lo[1]);
       for (int i = lo[0]; i <= hi[0]; ++i) {
         size_t ii = (size_t)(i - lo[0]);
-        out.values[kk * out.ny * out.nx + jj * out.nx + ii] =
-            (double)acc.getValue(nanovdb::Coord(i, j, k));
+        out.ownedData[kk * out.ny * out.nx + jj * out.nx + ii] =
+            acc.getValue(nanovdb::Coord(i, j, k));
       }
     }
   }
@@ -190,9 +194,14 @@ static bool extractFieldData(Scene &scene, SpatialField *field, FieldData &out)
   }
 }
 
-static VolumeRef makeOutputVolume(Scene &scene,
+// ---------------------------------------------------------------------------
+// wrapAsVolume — create a SpatialField + transferFunction1D Volume around an
+// already-filled ANARI Array.  The array must already be unmapped.
+// ---------------------------------------------------------------------------
+
+static VolumeRef wrapAsVolume(Scene &scene,
     const std::string &name,
-    const std::vector<double> &data,
+    ArrayRef &dataArr,
     size_t nx,
     size_t ny,
     size_t nz,
@@ -200,25 +209,15 @@ static VolumeRef makeOutputVolume(Scene &scene,
     const math::float3 &spacing,
     LayerNodeRef location)
 {
-  // Create output SpatialField
   auto field =
       scene.createObject<SpatialField>(tokens::spatial_field::structuredRegular);
   field->setName(name.c_str());
   field->setParameter("origin", origin);
   field->setParameter("spacing", spacing);
-
-  // Fill output array
-  auto dataArr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
-  float *dst = dataArr->mapAs<float>();
-  for (size_t i = 0; i < data.size(); ++i)
-    dst[i] = (float)data[i];
-  dataArr->unmap();
   field->setParameterObject("data", *dataArr);
 
-  // Compute value range
   float2 valueRange = field->computeValueRange();
 
-  // Create Volume node in the scene tree
   auto tx = scene.insertChildTransformNode(
       location ? location : scene.defaultLayer()->root());
 
@@ -228,7 +227,6 @@ static VolumeRef makeOutputVolume(Scene &scene,
   vol->setParameterObject("value", *field);
   vol->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
 
-  // Default colormap
   auto colorArr = scene.createArray(ANARI_FLOAT32_VEC4, 256);
   colorArr->setData(makeDefaultColorMap(256).data());
   vol->setParameterObject("color", *colorArr);
@@ -259,75 +257,93 @@ VorticityResult computeVorticity(Scene &scene,
   if (!extractFieldData(scene, w, wData))
     return result;
 
-  // Verify matching dimensions
   if (uData.nx != vData.nx || uData.nx != wData.nx || uData.ny != vData.ny
       || uData.ny != wData.ny || uData.nz != vData.nz
       || uData.nz != wData.nz) {
     logError(
         "[computeVorticity] U/V/W fields have mismatched dimensions: "
         "U=(%zu,%zu,%zu) V=(%zu,%zu,%zu) W=(%zu,%zu,%zu)",
-        uData.nx,
-        uData.ny,
-        uData.nz,
-        vData.nx,
-        vData.ny,
-        vData.nz,
-        wData.nx,
-        wData.ny,
-        wData.nz);
+        uData.nx, uData.ny, uData.nz,
+        vData.nx, vData.ny, vData.nz,
+        wData.nx, wData.ny, wData.nz);
     return result;
   }
 
-  size_t nx = uData.nx, ny = uData.ny, nz = uData.nz;
-  size_t total = nx * ny * nz;
+  const size_t nx = uData.nx, ny = uData.ny, nz = uData.nz;
 
   logStatus(
       "[computeVorticity] computing vortical quantities on %zux%zux%zu grid...",
+      nx, ny, nz);
+
+  // Pre-allocate one ANARI float32 array per selected output and map it so
+  // vort() can write directly into the final storage — no intermediate buffers.
+  ArrayRef lambda2Arr, qCritArr, vorticityArr, helicityArr;
+  float *lambda2Out = nullptr, *qCritOut = nullptr;
+  float *vorticityOut = nullptr, *helicityOut = nullptr;
+
+  if (opts.lambda2) {
+    lambda2Arr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
+    lambda2Out = lambda2Arr->mapAs<float>();
+  }
+  if (opts.qCriterion) {
+    qCritArr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
+    qCritOut = qCritArr->mapAs<float>();
+  }
+  if (opts.vorticity) {
+    vorticityArr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
+    vorticityOut = vorticityArr->mapAs<float>();
+  }
+  if (opts.helicity) {
+    helicityArr = scene.createArray(ANARI_FLOAT32, nx, ny, nz);
+    helicityOut = helicityArr->mapAs<float>();
+  }
+
+  // Compute — vort() reads float* velocity directly, writes float* outputs.
+  // Null output pointers are silently skipped inside vort().
+  vort(uData.ptr,
+      vData.ptr,
+      wData.ptr,
+      uData.x.data(),
+      uData.y.data(),
+      uData.z.data(),
+      vorticityOut,
+      helicityOut,
+      lambda2Out,
+      qCritOut,
       nx,
       ny,
       nz);
 
-  // Allocate output buffers
-  std::vector<double> vorticityBuf(total, 0.0);
-  std::vector<double> helicityBuf(total, 0.0);
-  std::vector<double> lambda2Buf(total, 0.0);
-  std::vector<double> qCritBuf(total, 0.0);
-
-  // Run the vorticity computation
-  vort(uData.values,
-      vData.values,
-      wData.values,
-      uData.x,
-      uData.y,
-      uData.z,
-      vorticityBuf,
-      helicityBuf,
-      lambda2Buf,
-      qCritBuf,
-      nx,
-      ny,
-      nz);
+  // Unmap output arrays before handing them to SpatialField
+  if (lambda2Arr)
+    lambda2Arr->unmap();
+  if (qCritArr)
+    qCritArr->unmap();
+  if (vorticityArr)
+    vorticityArr->unmap();
+  if (helicityArr)
+    helicityArr->unmap();
 
   logStatus("[computeVorticity] creating output volumes...");
 
-  // Derive origin and spacing from the U field coordinates
-  math::float3 origin{(float)uData.x[0], (float)uData.y[0], (float)uData.z[0]};
-  math::float3 spacing{(float)(uData.x[1] - uData.x[0]),
+  const math::float3 origin{
+      (float)uData.x[0], (float)uData.y[0], (float)uData.z[0]};
+  const math::float3 spacing{(float)(uData.x[1] - uData.x[0]),
       (float)(uData.y[1] - uData.y[0]),
       (float)(uData.z[1] - uData.z[0])};
 
-  if (opts.lambda2)
-    result.lambda2 = makeOutputVolume(
-        scene, "lambda2", lambda2Buf, nx, ny, nz, origin, spacing, location);
-  if (opts.qCriterion)
-    result.qCriterion = makeOutputVolume(
-        scene, "q_criterion", qCritBuf, nx, ny, nz, origin, spacing, location);
-  if (opts.vorticity)
-    result.vorticity = makeOutputVolume(
-        scene, "vorticity", vorticityBuf, nx, ny, nz, origin, spacing, location);
-  if (opts.helicity)
-    result.helicity = makeOutputVolume(
-        scene, "helicity", helicityBuf, nx, ny, nz, origin, spacing, location);
+  if (lambda2Arr)
+    result.lambda2 = wrapAsVolume(
+        scene, "lambda2", lambda2Arr, nx, ny, nz, origin, spacing, location);
+  if (qCritArr)
+    result.qCriterion = wrapAsVolume(
+        scene, "q_criterion", qCritArr, nx, ny, nz, origin, spacing, location);
+  if (vorticityArr)
+    result.vorticity = wrapAsVolume(
+        scene, "vorticity", vorticityArr, nx, ny, nz, origin, spacing, location);
+  if (helicityArr)
+    result.helicity = wrapAsVolume(
+        scene, "helicity", helicityArr, nx, ny, nz, origin, spacing, location);
 
   logStatus("[computeVorticity] done.");
   return result;

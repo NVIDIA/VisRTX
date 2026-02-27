@@ -88,43 +88,52 @@ static double q_crit(double J[3][3])
   return 0.5 * (trO2 - trS2);
 }
 
-// Forward declarations
+// ---------------------------------------------------------------------------
+// Gradient helpers — float* input, double* output (scratch).
+// Each gradient function reads float velocity values and writes double-precision
+// gradient values so that finite differences retain full precision.
+//
+// Boundary scheme: 2nd-order one-sided stencil.
+// Interior scheme: 2nd-order central difference.
+// ---------------------------------------------------------------------------
 
-inline void gradX(std::vector<double> &u,
-    std::vector<double> &uGrad,
+// Forward declarations
+inline void gradX(const float *u,
+    double *uGrad,
     double dx,
     size_t nx,
     size_t ny,
     size_t nz);
-inline void gradY(std::vector<double> &v,
-    std::vector<double> &vGrad,
+inline void gradY(const float *v,
+    double *vGrad,
     double dy,
     size_t nx,
     size_t ny,
     size_t nz);
-inline void gradZ(std::vector<double> &w,
-    std::vector<double> &wGrad,
-    std::vector<double> &z_,
+inline void gradZ(const float *w,
+    double *wGrad,
+    const double *z_,
     size_t nx,
     size_t ny,
     size_t nz);
-inline void vort(std::vector<double> &u,
-    std::vector<double> &v,
-    std::vector<double> &w,
-    std::vector<double> &x_,
-    std::vector<double> &y_,
-    std::vector<double> &z_,
-    std::vector<double> &vorticity,
-    std::vector<double> &helicity,
-    std::vector<double> &lambda2,
-    std::vector<double> &qCriterion,
+inline void vort(const float *u,
+    const float *v,
+    const float *w,
+    const double *x_,
+    const double *y_,
+    const double *z_,
+    float *vorticity,
+    float *helicity,
+    float *lambda2,
+    float *qCriterion,
     size_t nx,
     size_t ny,
     size_t nz);
 
-// 2nd-order one-sided BCs, 2nd-order central FD in interior, in x
-inline void gradX(std::vector<double> &u,
-    std::vector<double> &uGrad,
+// ---------------------------------------------------------------------------
+
+inline void gradX(const float *u,
+    double *uGrad,
     double dx,
     size_t nx,
     size_t ny,
@@ -132,7 +141,7 @@ inline void gradX(std::vector<double> &u,
 {
 #pragma omp parallel for
   for (auto z = 0; z < (int)nz; ++z) {
-    auto off = z * nx * ny;
+    auto off = (size_t)z * nx * ny;
     for (auto row = 0; row < (int)ny; ++row) {
       // Left boundary: 2nd-order one-sided forward
       uGrad[off + row * nx + 0] =
@@ -147,16 +156,16 @@ inline void gradX(std::vector<double> &u,
       // Interior: 2nd-order central
       for (auto col = 1; col < (int)nx - 1; ++col) {
         uGrad[off + row * nx + col] =
-            (u[off + row * nx + col + 1] - u[off + row * nx + col - 1])
+            ((double)u[off + row * nx + col + 1]
+                - (double)u[off + row * nx + col - 1])
             / (2.0 * dx);
       }
     }
   }
 }
 
-// 2nd-order one-sided BCs, 2nd-order central FD in interior, in y
-inline void gradY(std::vector<double> &v,
-    std::vector<double> &vGrad,
+inline void gradY(const float *v,
+    double *vGrad,
     double dy,
     size_t nx,
     size_t ny,
@@ -164,7 +173,7 @@ inline void gradY(std::vector<double> &v,
 {
 #pragma omp parallel for
   for (auto z = 0; z < (int)nz; ++z) {
-    auto off = z * nx * ny;
+    auto off = (size_t)z * nx * ny;
     for (auto col = 0; col < (int)nx; ++col) {
       // Bottom boundary (row=0): 2nd-order one-sided forward
       vGrad[0 * nx + col + off] =
@@ -180,17 +189,19 @@ inline void gradY(std::vector<double> &v,
       // Interior: 2nd-order central
       for (auto row = 1; row < (int)ny - 1; ++row) {
         vGrad[row * nx + col + off] =
-            (v[(row + 1) * nx + col + off] - v[(row - 1) * nx + col + off])
+            ((double)v[(row + 1) * nx + col + off]
+                - (double)v[(row - 1) * nx + col + off])
             / (2.0 * dy);
       }
     }
   }
 }
 
-// Non-uniform spacing in z (one-sided FD at boundaries)
-inline void gradZ(std::vector<double> &w,
-    std::vector<double> &wGrad,
-    std::vector<double> &z_,
+// Non-uniform z spacing: 1st-order one-sided at boundaries, 2nd-order central
+// in the interior.
+inline void gradZ(const float *w,
+    double *wGrad,
+    const double *z_,
     size_t nx,
     size_t ny,
     size_t nz)
@@ -199,90 +210,110 @@ inline void gradZ(std::vector<double> &w,
 #pragma omp parallel for
   for (auto row = 0; row < (int)ny; ++row) {
     for (auto col = 0; col < (int)nx; ++col) {
+      // Top boundary
       wGrad[(nz - 1) * off + row * nx + col] =
-          (w[(nz - 1) * off + row * nx + col]
-              - w[(nz - 2) * off + row * nx + col])
+          ((double)w[(nz - 1) * off + row * nx + col]
+              - (double)w[(nz - 2) * off + row * nx + col])
           / (z_[nz - 1] - z_[nz - 2]);
+      // Bottom boundary
       wGrad[0 * off + row * nx + col] =
-          (w[1 * off + row * nx + col] - w[0 * off + row * nx + col])
+          ((double)w[1 * off + row * nx + col]
+              - (double)w[0 * off + row * nx + col])
           / (z_[1] - z_[0]);
       // Interior: 2nd-order central
       for (auto z = 1; z < (int)nz - 1; ++z) {
         wGrad[z * off + row * nx + col] =
-            (w[(z + 1) * off + row * nx + col]
-                - w[(z - 1) * off + row * nx + col])
+            ((double)w[(z + 1) * off + row * nx + col]
+                - (double)w[(z - 1) * off + row * nx + col])
             / (z_[z + 1] - z_[z - 1]);
       }
     }
   }
 }
 
-inline void vort(std::vector<double> &u,
-    std::vector<double> &v,
-    std::vector<double> &w,
-    std::vector<double> &x_,
-    std::vector<double> &y_,
-    std::vector<double> &z_,
-    std::vector<double> &vorticity,
-    std::vector<double> &helicity,
-    std::vector<double> &lambda2,
-    std::vector<double> &qCriterion,
+// ---------------------------------------------------------------------------
+// vort — compute vortical quantities from float velocity fields.
+//
+// Inputs:  u, v, w    — float velocity components (x,y,z), row-major [z][y][x]
+//          x_, y_, z_ — double coordinate arrays (length nx, ny, nz)
+// Outputs: vorticity, helicity, lambda2, qCriterion — float*, written in-place.
+//          Any output pointer may be null; null outputs are simply skipped.
+//          If both lambda2 and qCriterion are null the eigenvalue loop is skipped.
+//
+// Internal gradient arrays are double-precision scratch space (9 × N doubles).
+// ---------------------------------------------------------------------------
+inline void vort(const float *u,
+    const float *v,
+    const float *w,
+    const double *x_,
+    const double *y_,
+    const double *z_,
+    float *vorticity,
+    float *helicity,
+    float *lambda2,
+    float *qCriterion,
     size_t nx,
     size_t ny,
     size_t nz)
 {
-  auto len = u.size();
-  std::vector<double> dux(len);
-  std::vector<double> dvx(len);
-  std::vector<double> dwx(len);
-  std::vector<double> duy(len);
-  std::vector<double> dvy(len);
-  std::vector<double> dwy(len);
-  std::vector<double> duz(len);
-  std::vector<double> dvz(len);
-  std::vector<double> dwz(len);
+  const size_t len = nx * ny * nz;
 
-  double dx = x_.at(1) - x_.at(0);
-  double dy = y_.at(1) - y_.at(0);
+  // 9 double-precision gradient scratch arrays (shared across u/v/w)
+  std::vector<double> dux(len), dvx(len), dwx(len);
+  std::vector<double> duy(len), dvy(len), dwy(len);
+  std::vector<double> duz(len), dvz(len), dwz(len);
 
-  gradX(u, dux, dx, nx, ny, nz);
-  gradX(v, dvx, dx, nx, ny, nz);
-  gradX(w, dwx, dx, nx, ny, nz);
+  const double dx = x_[1] - x_[0];
+  const double dy = y_[1] - y_[0];
 
-  gradY(u, duy, dy, nx, ny, nz);
-  gradY(v, dvy, dy, nx, ny, nz);
-  gradY(w, dwy, dy, nx, ny, nz);
+  gradX(u, dux.data(), dx, nx, ny, nz);
+  gradX(v, dvx.data(), dx, nx, ny, nz);
+  gradX(w, dwx.data(), dx, nx, ny, nz);
 
-  gradZ(u, duz, z_, nx, ny, nz);
-  gradZ(v, dvz, z_, nx, ny, nz);
-  gradZ(w, dwz, z_, nx, ny, nz);
+  gradY(u, duy.data(), dy, nx, ny, nz);
+  gradY(v, dvy.data(), dy, nx, ny, nz);
+  gradY(w, dwy.data(), dy, nx, ny, nz);
 
-  for (size_t i = 0; i < len; ++i) {
-    vorticity[i] =
-        std::sqrt((dwy[i] - dvz[i]) * (dwy[i] - dvz[i])
-            + (duz[i] - dwx[i]) * (duz[i] - dwx[i])
-            + (dvx[i] - duy[i]) * (dvx[i] - duy[i]));
+  gradZ(u, duz.data(), z_, nx, ny, nz);
+  gradZ(v, dvz.data(), z_, nx, ny, nz);
+  gradZ(w, dwz.data(), z_, nx, ny, nz);
 
-    helicity[i] = std::abs(
-        ((dwy[i] - dvz[i]) * u[i]) + ((duz[i] - dwx[i]) * v[i])
-        + ((dvx[i] - duy[i]) * w[i]));
+  // Vorticity magnitude and helicity (cheap loop, not worth parallelising over
+  // the eigen solver — keep separate so the OMP loop below is clean)
+  if (vorticity || helicity) {
+    for (size_t i = 0; i < len; ++i) {
+      const double omx = dwy[i] - dvz[i];
+      const double omy = duz[i] - dwx[i];
+      const double omz = dvx[i] - duy[i];
+      const double omag = std::sqrt(omx * omx + omy * omy + omz * omz);
 
-    double velMag = std::sqrt(u[i] * u[i] + v[i] * v[i] + w[i] * w[i]);
-    if (velMag != 0 && vorticity[i] != 0) {
-      helicity[i] /= (2 * velMag * vorticity[i]);
-    } else {
-      helicity[i] = 0;
+      if (vorticity)
+        vorticity[i] = (float)omag;
+
+      if (helicity) {
+        const double ui = u[i], vi = v[i], wi = w[i];
+        const double h = std::abs(omx * ui + omy * vi + omz * wi);
+        const double vmag = std::sqrt(ui * ui + vi * vi + wi * wi);
+        helicity[i] = (vmag > 0.0 && omag > 0.0)
+            ? (float)(h / (2.0 * vmag * omag))
+            : 0.0f;
+      }
     }
   }
 
+  // Lambda2 and Q-criterion (expensive: one eigensolve per voxel)
+  if (lambda2 || qCriterion) {
 #pragma omp parallel for
-  for (size_t i = 0; i < len; ++i) {
-    double J[3][3] = {{dux[i], duy[i], duz[i]},
-        {dvx[i], dvy[i], dvz[i]},
-        {dwx[i], dwy[i], dwz[i]}};
-
-    lambda2[i] = -std::min(l2(J), 0.0);
-    qCriterion[i] = std::max(q_crit(J), 0.0);
+    for (size_t i = 0; i < len; ++i) {
+      double J[3][3] = {{dux[i], duy[i], duz[i]},
+          {dvx[i], dvy[i], dvz[i]},
+          {dwx[i], dwy[i], dwz[i]}};
+      if (lambda2)
+        lambda2[i] = (float)(-std::min(l2(J), 0.0));
+      if (qCriterion)
+        qCriterion[i] = (float)std::max(q_crit(J), 0.0);
+    }
   }
+
   std::cout << "[vort] Vortical variables computed" << std::endl;
 }
