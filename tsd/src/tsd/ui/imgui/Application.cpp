@@ -341,7 +341,7 @@ void Application::uiMainMenuBar_Tools()
 
     ImGui::Separator();
 
-    if (ImGui::MenuItem("Flow Analysis..."))
+    if (ImGui::MenuItem("Flow Analysis"))
       m_vorticityDialog->show();
 
     ImGui::Separator();
