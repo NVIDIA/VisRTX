@@ -18,8 +18,10 @@
 #include <vtkDataObject.h>
 #include <vtkFloatArray.h>
 #include <vtkGradientFilter.h>
+#include <vtkImageData.h>
 #include <vtkPointData.h>
 #include <vtkPoints.h>
+#include <vtkProbeFilter.h>
 #include <vtkSmartPointer.h>
 #include <vtkUnstructuredGrid.h>
 #endif
@@ -407,48 +409,6 @@ static VolumeRef wrapAsVolume(Scene &scene,
 
 #if TSD_USE_VTK
 
-// Create an unstructured SpatialField + transferFunction1D Volume by copying
-// topology parameters from meshSource and supplying a new vertex.data array.
-static VolumeRef wrapAsUnstructuredVolume(Scene &scene,
-    const std::string &name,
-    SpatialField *meshSource,
-    ArrayRef &dataArr,
-    LayerNodeRef location)
-{
-  auto field = scene.createObject<SpatialField>(
-      tokens::spatial_field::unstructured);
-  field->setName(name.c_str());
-
-  // Share topology parameter objects from meshSource
-  for (const char *pname :
-      {"vertex.position", "index", "cell.index", "cell.type"}) {
-    auto *p = meshSource->parameter(pname);
-    if (!p || !anari::isArray(p->value().type()))
-      continue;
-    auto arr = scene.getObject<Array>(p->value().getAsObjectIndex());
-    if (arr)
-      field->setParameterObject(pname, *arr);
-  }
-
-  field->setParameterObject("vertex.data", *dataArr);
-
-  float2 valueRange = field->computeValueRange();
-
-  auto tx = scene.insertChildTransformNode(
-      location ? location : scene.defaultLayer()->root());
-
-  auto [inst, vol] =
-      scene.insertNewChildObjectNode<Volume>(tx, tokens::volume::transferFunction1D);
-  vol->setName(name.c_str());
-  vol->setParameterObject("value", *field);
-  vol->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-
-  auto colorArr = scene.createArray(ANARI_FLOAT32_VEC4, 256);
-  colorArr->setData(makeDefaultColorMap(256).data());
-  vol->setParameterObject("color", *colorArr);
-
-  return vol;
-}
 
 static VorticityResult computeVorticityUnstructured(Scene &scene,
     SpatialField *u,
@@ -541,12 +501,10 @@ static VorticityResult computeVorticityUnstructured(Scene &scene,
   auto points = vtkSmartPointer<vtkPoints>::New();
   points->SetDataTypeToFloat();
   points->SetNumberOfPoints(static_cast<vtkIdType>(numPoints));
-  const float *rawPos = posArr->dataAs<float>();
+  const auto *rawPos = posArr->dataAs<tsd::math::float3>();
   for (size_t i = 0; i < numPoints; ++i)
-    points->SetPoint(static_cast<vtkIdType>(i),
-        rawPos[i * 3],
-        rawPos[i * 3 + 1],
-        rawPos[i * 3 + 2]);
+    points->SetPoint(
+        static_cast<vtkIdType>(i), rawPos[i].x, rawPos[i].y, rawPos[i].z);
   vgrid->SetPoints(points);
 
   vgrid->Allocate(static_cast<vtkIdType>(numCells));
@@ -638,21 +596,97 @@ static VorticityResult computeVorticityUnstructured(Scene &scene,
   if (vorticityArr) vorticityArr->unmap();
   if (helicityArr)  helicityArr->unmap();
 
-  logStatus("[computeVorticity] creating output volumes...");
+  // Step 9: Resample onto a structured regular grid and create volumes.
+  // VisRTX does not support the "unstructured" SpatialField subtype, so we
+  // interpolate the per-point output values onto an axis-aligned regular grid
+  // using vtkProbeFilter, then wrap as structuredRegular which VisRTX does
+  // support.
 
-  // Step 9: wrap each result as an unstructured volume
-  if (lambda2Arr)
-    result.lambda2 =
-        wrapAsUnstructuredVolume(scene, "lambda2", u, lambda2Arr, location);
-  if (qCritArr)
-    result.qCriterion =
-        wrapAsUnstructuredVolume(scene, "q_criterion", u, qCritArr, location);
-  if (vorticityArr)
-    result.vorticity =
-        wrapAsUnstructuredVolume(scene, "vorticity", u, vorticityArr, location);
-  if (helicityArr)
-    result.helicity =
-        wrapAsUnstructuredVolume(scene, "helicity", u, helicityArr, location);
+  // 9a. Add vortical output arrays back to vgrid as VTK point data.
+  auto addToGrid = [&](const char *name, ArrayRef &arr, bool enabled) {
+    if (!enabled || !arr)
+      return;
+    const float *src = arr->dataAs<float>(); // ANARI_FLOAT32, safe
+    auto vtkarr = vtkSmartPointer<vtkFloatArray>::New();
+    vtkarr->SetName(name);
+    vtkarr->SetNumberOfComponents(1);
+    vtkarr->SetNumberOfTuples(static_cast<vtkIdType>(numPoints));
+    for (size_t i = 0; i < numPoints; ++i)
+      vtkarr->SetValue(static_cast<vtkIdType>(i), src[i]);
+    vgrid->GetPointData()->AddArray(vtkarr);
+  };
+  addToGrid("lambda2",     lambda2Arr,   opts.lambda2);
+  addToGrid("q_criterion", qCritArr,     opts.qCriterion);
+  addToGrid("vorticity",   vorticityArr, opts.vorticity);
+  addToGrid("helicity",    helicityArr,  opts.helicity);
+
+  // 9b. Compute output grid resolution proportional to bounding box extents.
+  double bounds[6];
+  vgrid->GetBounds(bounds);
+  const double bx = bounds[1] - bounds[0];
+  const double by = bounds[3] - bounds[2];
+  const double bz = bounds[5] - bounds[4];
+  const double maxB = std::max({bx, by, bz});
+  if (maxB < 1e-10) {
+    logError("[computeVorticity] degenerate mesh bounds, aborting resample");
+    return result;
+  }
+  const int MAX_RES = 64;
+  const size_t resX = std::max(size_t(2), size_t(std::round(MAX_RES * bx / maxB)));
+  const size_t resY = std::max(size_t(2), size_t(std::round(MAX_RES * by / maxB)));
+  const size_t resZ = std::max(size_t(2), size_t(std::round(MAX_RES * bz / maxB)));
+
+  logStatus("[computeVorticity] resampling to %zu×%zu×%zu structured grid...",
+      resX, resY, resZ);
+
+  auto imData = vtkSmartPointer<vtkImageData>::New();
+  imData->SetDimensions(static_cast<int>(resX),
+      static_cast<int>(resY),
+      static_cast<int>(resZ));
+  imData->SetOrigin(bounds[0], bounds[2], bounds[4]);
+  imData->SetSpacing(
+      bx / (resX - 1), by / (resY - 1), bz / (resZ - 1));
+
+  auto probe = vtkSmartPointer<vtkProbeFilter>::New();
+  probe->SetSourceData(vgrid);
+  probe->SetInputData(imData);
+  probe->Update();
+
+  auto *probed = vtkImageData::SafeDownCast(probe->GetOutput());
+  if (!probed) {
+    logError("[computeVorticity] vtkProbeFilter resampling failed");
+    return result;
+  }
+
+  // 9c. Extract resampled arrays and wrap as structuredRegular volumes.
+  const size_t resTotal = resX * resY * resZ;
+  const math::float3 origin{
+      (float)bounds[0], (float)bounds[2], (float)bounds[4]};
+  const math::float3 spacing{
+      (float)(bx / (resX - 1)),
+      (float)(by / (resY - 1)),
+      (float)(bz / (resZ - 1))};
+
+  auto wrapResampled = [&](const char *name, bool enabled) -> VolumeRef {
+    if (!enabled)
+      return {};
+    vtkDataArray *arr = probed->GetPointData()->GetArray(name);
+    if (!arr)
+      return {};
+    auto outArr = scene.createArray(ANARI_FLOAT32, resX, resY, resZ);
+    auto *buf = outArr->mapAs<float>();
+    for (size_t i = 0; i < resTotal; ++i)
+      buf[i] = static_cast<float>(arr->GetTuple1(static_cast<vtkIdType>(i)));
+    outArr->unmap();
+    return wrapAsVolume(
+        scene, name, outArr, resX, resY, resZ, origin, spacing, location);
+  };
+
+  logStatus("[computeVorticity] creating output volumes...");
+  result.lambda2    = wrapResampled("lambda2",     opts.lambda2);
+  result.qCriterion = wrapResampled("q_criterion", opts.qCriterion);
+  result.vorticity  = wrapResampled("vorticity",   opts.vorticity);
+  result.helicity   = wrapResampled("helicity",    opts.helicity);
 
   logStatus("[computeVorticity] done.");
   return result;

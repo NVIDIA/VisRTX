@@ -466,6 +466,9 @@ void import_VTU(Scene &scene, const char *filepath, LayerNodeRef location)
       volume->setName(fileOf(filepath).c_str());
       volume->setParameterObject("value", *field);
       volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+      auto colorArr = scene.createArray(ANARI_FLOAT32_VEC4, 256);
+      colorArr->setData(tsd::core::makeDefaultColorMap(256).data());
+      volume->setParameterObject("color", *colorArr);
     }
   }
 }
