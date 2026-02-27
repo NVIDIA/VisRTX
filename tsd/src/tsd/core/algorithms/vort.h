@@ -8,66 +8,45 @@
 #include <iostream>
 #include <vector>
 
-// 3x3 symmetric eigenvalue solver — analytical (Cardano/trigonometric method)
-// Returns eigenvalues sorted largest→smallest in eigs[0..2]
-static void eigen3sym(double A[3][3], double eigs[3])
-{
-  double p1 = A[0][1] * A[0][1] + A[0][2] * A[0][2] + A[1][2] * A[1][2];
-  if (p1 == 0.0) {
-    // Diagonal matrix — eigenvalues are the diagonal entries
-    eigs[0] = A[0][0];
-    eigs[1] = A[1][1];
-    eigs[2] = A[2][2];
-    if (eigs[0] < eigs[1])
-      std::swap(eigs[0], eigs[1]);
-    if (eigs[1] < eigs[2])
-      std::swap(eigs[1], eigs[2]);
-    if (eigs[0] < eigs[1])
-      std::swap(eigs[0], eigs[1]);
-    return;
-  }
-  double q = (A[0][0] + A[1][1] + A[2][2]) / 3.0;
-  double p2 = (A[0][0] - q) * (A[0][0] - q) + (A[1][1] - q) * (A[1][1] - q)
-      + (A[2][2] - q) * (A[2][2] - q) + 2 * p1;
-  double p = std::sqrt(p2 / 6.0);
-  double B[3][3];
-  for (int i = 0; i < 3; i++)
-    for (int j = 0; j < 3; j++)
-      B[i][j] = (A[i][j] - (i == j ? q : 0.0)) / p;
-  double r = (B[0][0] * (B[1][1] * B[2][2] - B[1][2] * B[2][1])
-                 - B[0][1] * (B[1][0] * B[2][2] - B[1][2] * B[2][0])
-                 + B[0][2] * (B[1][0] * B[2][1] - B[1][1] * B[2][0]))
-      / 2.0;
-  double phi;
-  if (r <= -1.0)
-    phi = M_PI / 3.0;
-  else if (r >= 1.0)
-    phi = 0.0;
-  else
-    phi = std::acos(r) / 3.0;
-  eigs[0] = q + 2 * p * std::cos(phi);
-  eigs[2] = q + 2 * p * std::cos(phi + 2.0943951023931953); // phi + 2*pi/3
-  eigs[1] = 3 * q - eigs[0] - eigs[2];
-}
-
-// lambda2: second (middle) eigenvalue of S^2 + O^2
-// J is the velocity gradient Jacobian; uses no external dependencies
+// lambda2: middle eigenvalue of M = S^2 + O^2, where S and O are the
+// symmetric and skew-symmetric parts of the velocity gradient Jacobian J.
+// Uses the analytical trigonometric (Cardano) formula for 3x3 symmetric matrices:
+//   eig_k = q + 2p * cos(phi + 2*pi*k/3),  k = 0,1,2
+// where q = tr(M)/3, p = ||M - q*I||_F / sqrt(6), phi = acos(det(M-q*I)/(2p^3)) / 3.
+// The middle eigenvalue is recovered via the trace identity: eig1 = 3q - eig0 - eig2.
 static double l2(double J[3][3])
 {
   double S[3][3], O[3][3];
   for (int i = 0; i < 3; i++)
     for (int j = 0; j < 3; j++) {
       S[i][j] = 0.5 * (J[i][j] + J[j][i]);
-      O[i][j] = S[i][j] - J[j][i]; // O = S - J^T = 0.5*(J - J^T)
+      O[i][j] = 0.5 * (J[i][j] - J[j][i]);
     }
   double M[3][3] = {};
   for (int i = 0; i < 3; i++)
     for (int j = 0; j < 3; j++)
       for (int k = 0; k < 3; k++)
         M[i][j] += S[i][k] * S[k][j] + O[i][k] * O[k][j];
-  double eigs[3];
-  eigen3sym(M, eigs); // sorted largest→smallest; eigs[1] is the middle
-  return eigs[1];
+
+  const double q  = (M[0][0] + M[1][1] + M[2][2]) / 3.0;
+  const double a  = M[0][0]-q, d = M[1][1]-q, f = M[2][2]-q;
+  const double p1 = M[0][1]*M[0][1] + M[0][2]*M[0][2] + M[1][2]*M[1][2];
+  if (p1 == 0.0) {
+    // Diagonal — middle eigenvalue by inspection
+    double e[3] = {a, d, f};
+    if (e[0] < e[1]) std::swap(e[0], e[1]);
+    if (e[1] < e[2]) std::swap(e[1], e[2]);
+    if (e[0] < e[1]) std::swap(e[0], e[1]);
+    return q + e[1];
+  }
+  const double p   = std::sqrt((a*a + d*d + f*f + 2.0*p1) / 6.0);
+  const double r   = (a*(d*f - M[1][2]*M[1][2])
+                    - M[0][1]*(M[0][1]*f - M[1][2]*M[0][2])
+                    + M[0][2]*(M[0][1]*M[1][2] - d*M[0][2])) / (2.0*p*p*p);
+  const double phi = std::acos(std::max(-1.0, std::min(1.0, r))) / 3.0;
+  const double e0  = q + 2.0*p*std::cos(phi);
+  const double e2  = q + 2.0*p*std::cos(phi + 2.0943951023931953); // phi + 2*pi/3
+  return 3.0*q - e0 - e2; // middle eigenvalue via trace identity
 }
 
 // Q-criterion: 0.5 * (||O||_F^2 - ||S||_F^2)
@@ -77,7 +56,7 @@ static double q_crit(double J[3][3])
   for (int i = 0; i < 3; i++)
     for (int j = 0; j < 3; j++) {
       S[i][j] = 0.5 * (J[i][j] + J[j][i]);
-      O[i][j] = S[i][j] - J[j][i];
+      O[i][j] = 0.5 * (J[i][j] - J[j][i]);
     }
   double trO2 = 0, trS2 = 0;
   for (int i = 0; i < 3; i++)
@@ -122,58 +101,6 @@ static void grad1D_nu(
 // origin+spacing in extractStructuredRegular.
 //
 // Boundary accuracy: 1st-order one-sided. Interior: 2nd-order central.
-// ---------------------------------------------------------------------------
-
-// Forward declarations
-inline void gradX(const float *u,
-    double *uGrad,
-    const double *x_,
-    size_t nx,
-    size_t ny,
-    size_t nz);
-inline void gradY(const float *v,
-    double *vGrad,
-    const double *y_,
-    size_t nx,
-    size_t ny,
-    size_t nz);
-inline void gradZ(const float *w,
-    double *wGrad,
-    const double *z_,
-    size_t nx,
-    size_t ny,
-    size_t nz);
-inline void vort_from_jacobians(const float *u,
-    const float *v,
-    const float *w,
-    const double *dux,
-    const double *dvx,
-    const double *dwx,
-    const double *duy,
-    const double *dvy,
-    const double *dwy,
-    const double *duz,
-    const double *dvz,
-    const double *dwz,
-    float *vorticity,
-    float *helicity,
-    float *lambda2,
-    float *qCriterion,
-    size_t len);
-inline void vort(const float *u,
-    const float *v,
-    const float *w,
-    const double *x_,
-    const double *y_,
-    const double *z_,
-    float *vorticity,
-    float *helicity,
-    float *lambda2,
-    float *qCriterion,
-    size_t nx,
-    size_t ny,
-    size_t nz);
-
 // ---------------------------------------------------------------------------
 
 // x is the fastest index, so every (z,y) pair is a contiguous row of nx
