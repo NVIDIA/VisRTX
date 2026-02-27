@@ -8,29 +8,25 @@
 #include <iostream>
 #include <vector>
 
-// lambda2: middle eigenvalue of M = S^2 + O^2, where S and O are the
-// symmetric and skew-symmetric parts of the velocity gradient Jacobian J.
-// Uses the analytical trigonometric (Cardano) formula for 3x3 symmetric matrices:
-//   eig_k = q + 2p * cos(phi + 2*pi*k/3),  k = 0,1,2
-// where q = tr(M)/3, p = ||M - q*I||_F / sqrt(6), phi = acos(det(M-q*I)/(2p^3)) / 3.
-// The middle eigenvalue is recovered via the trace identity: eig1 = 3q - eig0 - eig2.
-static double l2(double J[3][3])
+// lambda2: middle eigenvalue of M = S^2 + O^2, where S=(J+J^T)/2, O=(J-J^T)/2.
+// M is symmetric with 6 unique entries computed as M = (J^2 + (J^T)^2) / 2.
+// Eigenvalues via the trigonometric (Cardano) formula: eig_k = q + 2p*cos(phi + 2*pi*k/3).
+// Middle eigenvalue recovered from the trace identity: eig1 = 3q - eig0 - eig2.
+static double l2(double j00, double j01, double j02,
+                 double j10, double j11, double j12,
+                 double j20, double j21, double j22)
 {
-  double S[3][3], O[3][3];
-  for (int i = 0; i < 3; i++)
-    for (int j = 0; j < 3; j++) {
-      S[i][j] = 0.5 * (J[i][j] + J[j][i]);
-      O[i][j] = 0.5 * (J[i][j] - J[j][i]);
-    }
-  double M[3][3] = {};
-  for (int i = 0; i < 3; i++)
-    for (int j = 0; j < 3; j++)
-      for (int k = 0; k < 3; k++)
-        M[i][j] += S[i][k] * S[k][j] + O[i][k] * O[k][j];
+  // 6 unique entries of symmetric M = (J^2 + (J^T)^2) / 2
+  const double m00 = j00*j00 + j01*j10 + j02*j20;
+  const double m11 = j10*j01 + j11*j11 + j12*j21;
+  const double m22 = j20*j02 + j21*j12 + j22*j22;
+  const double m01 = 0.5*(j00*j01 + j01*j11 + j02*j21 + j00*j10 + j10*j11 + j20*j12);
+  const double m02 = 0.5*(j00*j02 + j01*j12 + j02*j22 + j00*j20 + j10*j21 + j20*j22);
+  const double m12 = 0.5*(j10*j02 + j11*j12 + j12*j22 + j01*j20 + j11*j21 + j21*j22);
 
-  const double q  = (M[0][0] + M[1][1] + M[2][2]) / 3.0;
-  const double a  = M[0][0]-q, d = M[1][1]-q, f = M[2][2]-q;
-  const double p1 = M[0][1]*M[0][1] + M[0][2]*M[0][2] + M[1][2]*M[1][2];
+  const double q  = (m00 + m11 + m22) / 3.0;
+  const double a  = m00-q, d = m11-q, f = m22-q;
+  const double p1 = m01*m01 + m02*m02 + m12*m12;
   if (p1 == 0.0) {
     // Diagonal — middle eigenvalue by inspection
     double e[3] = {a, d, f};
@@ -40,31 +36,20 @@ static double l2(double J[3][3])
     return q + e[1];
   }
   const double p   = std::sqrt((a*a + d*d + f*f + 2.0*p1) / 6.0);
-  const double r   = (a*(d*f - M[1][2]*M[1][2])
-                    - M[0][1]*(M[0][1]*f - M[1][2]*M[0][2])
-                    + M[0][2]*(M[0][1]*M[1][2] - d*M[0][2])) / (2.0*p*p*p);
+  const double r   = (a*(d*f - m12*m12) - m01*(m01*f - m12*m02) + m02*(m01*m12 - d*m02))
+                     / (2.0*p*p*p);
   const double phi = std::acos(std::max(-1.0, std::min(1.0, r))) / 3.0;
   const double e0  = q + 2.0*p*std::cos(phi);
   const double e2  = q + 2.0*p*std::cos(phi + 2.0943951023931953); // phi + 2*pi/3
   return 3.0*q - e0 - e2; // middle eigenvalue via trace identity
 }
 
-// Q-criterion: 0.5 * (||O||_F^2 - ||S||_F^2)
-static double q_crit(double J[3][3])
+// Q-criterion: 0.5*(||O||^2 - ||S||^2) = -0.5*tr(J^2) = -0.5*(j00^2+j11^2+j22^2 + 2*(j01*j10+j02*j20+j12*j21))
+static double q_crit(double j00, double j01, double j02,
+                     double j10, double j11, double j12,
+                     double j20, double j21, double j22)
 {
-  double S[3][3], O[3][3];
-  for (int i = 0; i < 3; i++)
-    for (int j = 0; j < 3; j++) {
-      S[i][j] = 0.5 * (J[i][j] + J[j][i]);
-      O[i][j] = 0.5 * (J[i][j] - J[j][i]);
-    }
-  double trO2 = 0, trS2 = 0;
-  for (int i = 0; i < 3; i++)
-    for (int j = 0; j < 3; j++) {
-      trO2 += O[i][j] * O[i][j];
-      trS2 += S[i][j] * S[i][j];
-    }
-  return 0.5 * (trO2 - trS2);
+  return -0.5*(j00*j00 + j11*j11 + j22*j22 + 2.0*(j01*j10 + j02*j20 + j12*j21));
 }
 
 // ---------------------------------------------------------------------------
@@ -201,13 +186,14 @@ inline void vort_from_jacobians(const float *u,
       }
     }
     if (lambda2 || qCriterion) {
-      double J[3][3] = {{dux[i], duy[i], duz[i]},
-          {dvx[i], dvy[i], dvz[i]},
-          {dwx[i], dwy[i], dwz[i]}};
       if (lambda2)
-        lambda2[i] = (float)(-std::min(l2(J), 0.0));
+        lambda2[i] = (float)(-std::min(l2(dux[i], duy[i], duz[i],
+                                          dvx[i], dvy[i], dvz[i],
+                                          dwx[i], dwy[i], dwz[i]), 0.0));
       if (qCriterion)
-        qCriterion[i] = (float)std::max(q_crit(J), 0.0);
+        qCriterion[i] = (float)std::max(q_crit(dux[i], duy[i], duz[i],
+                                                dvx[i], dvy[i], dvz[i],
+                                                dwx[i], dwy[i], dwz[i]), 0.0);
     }
   }
 }
