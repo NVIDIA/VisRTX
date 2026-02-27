@@ -132,6 +132,8 @@ inline void vort(const float *u,
 
 // ---------------------------------------------------------------------------
 
+// x is the fastest index, so every (z,y) pair is a contiguous row of nx
+// floats — collapse both outer loops into a single row index.
 inline void gradX(const float *u,
     double *uGrad,
     double dx,
@@ -139,31 +141,20 @@ inline void gradX(const float *u,
     size_t ny,
     size_t nz)
 {
-#pragma omp parallel for
-  for (auto z = 0; z < (int)nz; ++z) {
-    auto off = (size_t)z * nx * ny;
-    for (auto row = 0; row < (int)ny; ++row) {
-      // Left boundary: 2nd-order one-sided forward
-      uGrad[off + row * nx + 0] =
-          (-3.0 * u[off + row * nx + 0] + 4.0 * u[off + row * nx + 1]
-              - u[off + row * nx + 2])
-          / (2.0 * dx);
-      // Right boundary: 2nd-order one-sided backward
-      uGrad[off + row * nx + nx - 1] =
-          (3.0 * u[off + row * nx + nx - 1] - 4.0 * u[off + row * nx + nx - 2]
-              + u[off + row * nx + nx - 3])
-          / (2.0 * dx);
-      // Interior: 2nd-order central
-      for (auto col = 1; col < (int)nx - 1; ++col) {
-        uGrad[off + row * nx + col] =
-            ((double)u[off + row * nx + col + 1]
-                - (double)u[off + row * nx + col - 1])
-            / (2.0 * dx);
-      }
-    }
+  const double inv2dx = 1.0 / (2.0 * dx);
+  const int nrows = (int)(ny * nz);
+  for (int r = 0; r < nrows; ++r) {
+    const float *ur = u     + (size_t)r * nx;
+    double      *gr = uGrad + (size_t)r * nx;
+    gr[0]      = (-3.0 * ur[0] + 4.0 * ur[1]      - ur[2])        * inv2dx;
+    for (size_t c = 1; c < nx - 1; ++c)
+      gr[c]    = ((double)ur[c + 1] - (double)ur[c - 1])           * inv2dx;
+    gr[nx - 1] = ( 3.0 * ur[nx-1] - 4.0 * ur[nx-2] + ur[nx-3])   * inv2dx;
   }
 }
 
+// y has stride nx.  Iterate over every (z,x) pair as the column base;
+// the 1D y-pass then uses vc[y*nx] with no extra offset arithmetic.
 inline void gradY(const float *v,
     double *vGrad,
     double dy,
@@ -171,34 +162,24 @@ inline void gradY(const float *v,
     size_t ny,
     size_t nz)
 {
-#pragma omp parallel for
-  for (auto z = 0; z < (int)nz; ++z) {
-    auto off = (size_t)z * nx * ny;
-    for (auto col = 0; col < (int)nx; ++col) {
-      // Bottom boundary (row=0): 2nd-order one-sided forward
-      vGrad[0 * nx + col + off] =
-          (-3.0 * v[0 * nx + col + off] + 4.0 * v[1 * nx + col + off]
-              - v[2 * nx + col + off])
-          / (2.0 * dy);
-      // Top boundary (row=ny-1): 2nd-order one-sided backward
-      vGrad[(ny - 1) * nx + col + off] =
-          (3.0 * v[(ny - 1) * nx + col + off]
-              - 4.0 * v[(ny - 2) * nx + col + off]
-              + v[(ny - 3) * nx + col + off])
-          / (2.0 * dy);
-      // Interior: 2nd-order central
-      for (auto row = 1; row < (int)ny - 1; ++row) {
-        vGrad[row * nx + col + off] =
-            ((double)v[(row + 1) * nx + col + off]
-                - (double)v[(row - 1) * nx + col + off])
-            / (2.0 * dy);
-      }
+  const double inv2dy = 1.0 / (2.0 * dy);
+  const size_t slab = nx * ny;
+  for (int z = 0; z < (int)nz; ++z) {
+    for (int x = 0; x < (int)nx; ++x) {
+      const float *vc = v     + (size_t)z * slab + x;
+      double      *gc = vGrad + (size_t)z * slab + x;
+      gc[0]            = (-3.0 * vc[0] + 4.0 * vc[nx]        - vc[2*nx])            * inv2dy;
+      for (size_t y = 1; y < ny - 1; ++y)
+        gc[y * nx]     = ((double)vc[(y+1)*nx] - (double)vc[(y-1)*nx])               * inv2dy;
+      gc[(ny-1) * nx]  = ( 3.0 * vc[(ny-1)*nx] - 4.0 * vc[(ny-2)*nx] + vc[(ny-3)*nx]) * inv2dy;
     }
   }
 }
 
 // Non-uniform z spacing: 1st-order one-sided at boundaries, 2nd-order central
 // in the interior.
+// z has stride slab=nx*ny.  Every (y,x) pair gives a z-column addressable as
+// wc[k*slab] — flatten both outer loops into a single index over ny*nx.
 inline void gradZ(const float *w,
     double *wGrad,
     const double *z_,
@@ -206,28 +187,15 @@ inline void gradZ(const float *w,
     size_t ny,
     size_t nz)
 {
-  size_t off = nx * ny;
-#pragma omp parallel for
-  for (auto row = 0; row < (int)ny; ++row) {
-    for (auto col = 0; col < (int)nx; ++col) {
-      // Top boundary
-      wGrad[(nz - 1) * off + row * nx + col] =
-          ((double)w[(nz - 1) * off + row * nx + col]
-              - (double)w[(nz - 2) * off + row * nx + col])
-          / (z_[nz - 1] - z_[nz - 2]);
-      // Bottom boundary
-      wGrad[0 * off + row * nx + col] =
-          ((double)w[1 * off + row * nx + col]
-              - (double)w[0 * off + row * nx + col])
-          / (z_[1] - z_[0]);
-      // Interior: 2nd-order central
-      for (auto z = 1; z < (int)nz - 1; ++z) {
-        wGrad[z * off + row * nx + col] =
-            ((double)w[(z + 1) * off + row * nx + col]
-                - (double)w[(z - 1) * off + row * nx + col])
-            / (z_[z + 1] - z_[z - 1]);
-      }
-    }
+  const size_t slab = nx * ny;
+  const int ncols = (int)slab;
+  for (int yx = 0; yx < ncols; ++yx) {
+    const float *wc = w     + yx;
+    double      *gc = wGrad + yx;
+    gc[0]              = ((double)wc[slab]        - (double)wc[0])           / (z_[1]      - z_[0]);
+    for (size_t k = 1; k < nz - 1; ++k)
+      gc[k * slab]     = ((double)wc[(k+1)*slab]  - (double)wc[(k-1)*slab]) / (z_[k+1]    - z_[k-1]);
+    gc[(nz-1) * slab]  = ((double)wc[(nz-1)*slab] - (double)wc[(nz-2)*slab]) / (z_[nz-1] - z_[nz-2]);
   }
 }
 
@@ -278,8 +246,6 @@ inline void vort(const float *u,
   gradZ(v, dvz.data(), z_, nx, ny, nz);
   gradZ(w, dwz.data(), z_, nx, ny, nz);
 
-  // Vorticity magnitude and helicity (cheap loop, not worth parallelising over
-  // the eigen solver — keep separate so the OMP loop below is clean)
   if (vorticity || helicity) {
     for (size_t i = 0; i < len; ++i) {
       const double omx = dwy[i] - dvz[i];
@@ -303,7 +269,6 @@ inline void vort(const float *u,
 
   // Lambda2 and Q-criterion (expensive: one eigensolve per voxel)
   if (lambda2 || qCriterion) {
-#pragma omp parallel for
     for (size_t i = 0; i < len; ++i) {
       double J[3][3] = {{dux[i], duy[i], duz[i]},
           {dvx[i], dvy[i], dvz[i]},

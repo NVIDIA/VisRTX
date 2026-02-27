@@ -160,14 +160,12 @@ static bool extractNanoVDB(Scene &scene, SpatialField *field, FieldData &out)
   auto acc = grid->getAccessor();
 
   for (int k = lo[2]; k <= hi[2]; ++k) {
-    size_t kk = (size_t)(k - lo[2]);
     for (int j = lo[1]; j <= hi[1]; ++j) {
-      size_t jj = (size_t)(j - lo[1]);
-      for (int i = lo[0]; i <= hi[0]; ++i) {
-        size_t ii = (size_t)(i - lo[0]);
-        out.ownedData[kk * out.ny * out.nx + jj * out.nx + ii] =
-            acc.getValue(nanovdb::Coord(i, j, k));
-      }
+      float *row = out.ownedData.data()
+          + (size_t)(k - lo[2]) * out.ny * out.nx
+          + (size_t)(j - lo[1]) * out.nx;
+      for (int i = lo[0]; i <= hi[0]; ++i)
+        row[i - lo[0]] = acc.getValue(nanovdb::Coord(i, j, k));
     }
   }
 
