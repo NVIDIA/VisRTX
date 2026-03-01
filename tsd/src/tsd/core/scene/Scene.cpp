@@ -531,12 +531,10 @@ void Scene::setAllLayersActive()
 std::vector<const Layer *> Scene::getActiveLayers() const
 {
   std::vector<const Layer *> activeLayers;
-  if (numberOfActiveLayers() != numberOfLayers()) {
-    activeLayers.reserve(m_layers.size());
-    for (const auto &ls : m_layers) {
-      if (ls.second.active)
-        activeLayers.push_back(ls.second.ptr.get());
-    }
+  activeLayers.reserve(m_layers.size());
+  for (const auto &ls : m_layers) {
+    if (ls.second.active)
+      activeLayers.push_back(ls.second.ptr.get());
   }
   return activeLayers;
 }
