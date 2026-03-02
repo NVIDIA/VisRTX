@@ -671,6 +671,8 @@ inline void forall_children(ForestNodeRef<T> node, FCN &&fcn)
 template <typename T, typename PREDICATE>
 inline ForestNodeRef<T> find_first_child(ForestNodeRef<T> n, PREDICATE &&p)
 {
+  if (n->isLeaf())
+    return {};
   for (auto s = n->next(); s && s != n; s = s->sibling()) {
     if (p(**s))
       return s;
