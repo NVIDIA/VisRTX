@@ -36,6 +36,23 @@ struct RenderIndexAllLayers : public RenderIndex
   void signalAnimationTimeChanged(float time) override;
   void signalRemoveAllObjects() override;
 
+  struct TransformCache
+  {
+    using Value = std::variant<math::mat4, std::vector<math::mat4>>;
+    Value value;
+    helium::TimeStamp timestamp{};
+  };
+
+  struct AttributeValue
+  {
+    std::vector<uint8_t> data;
+    ANARIDataType elementType{ANARI_UNKNOWN};
+
+    bool empty() const;
+    size_t elementSize() const;
+    size_t count() const;
+  };
+
  private:
   void updateWorld() override;
 
@@ -44,20 +61,7 @@ struct RenderIndexAllLayers : public RenderIndex
   bool m_customIncludedLayers{false};
   bool m_filterForceUpdate{false};
 
-  void tagDirtyTopology(const Layer *l)
-  {
-    m_layerTransformDependency.erase(l);
-    m_layerTransformCache.erase(l);
-    if (auto *instances = m_layerInstanceCache.at(l)) {
-      for (auto &inst : *instances)
-        anari::release(device(), inst);
-    }
-    m_layerInstanceCache.erase(l);
-    if (auto *rootInst = m_layerRootInstance.at(l)) {
-      anari::release(device(), *rootInst);
-      m_layerRootInstance.erase(l);
-    }
-  }
+  void tagDirtyTopology(const Layer *l);
 
   helium::TimeStamp m_transformLastUpdateTimeStamp{0};
 
@@ -68,23 +72,22 @@ struct RenderIndexAllLayers : public RenderIndex
     std::string transformName;
   };
 
-  struct TransformCache
-  {
-    using Value = std::variant<math::mat4, std::vector<math::mat4>>;
-    Value value;
-    helium::TimeStamp timestamp{};
-  };
+  using AttributeCache = FlatMap<Token, AttributeValue>;
+  using InstanceParameterMap = tsd::core::Transform::InstanceParameterMap;
 
   FlatMap<const Layer *, std::vector<TransformDependency>>
       m_layerTransformDependency;
   FlatMap<const Layer *, std::vector<TransformCache>> m_layerTransformCache;
   FlatMap<const Layer *, std::vector<anari::Instance>> m_layerInstanceCache;
   FlatMap<const Layer *, anari::Instance> m_layerRootInstance;
+  FlatMap<const Layer *, std::vector<InstanceParameterMap>>
+      m_layerNodeInstanceParams;
+  FlatMap<const Layer *, std::vector<AttributeCache>> m_layerAttributeCache;
 
   void updateLayerTransformDependency(const Layer *l);
   bool updateLayerTransformCache(const Layer *l);
-  void writeTransformCacheToInstances();
-  // void patchInstanceTransforms();
+  void updateLayerAttributeCache(const Layer *l);
+  void writeTransformCacheToInstances(const Layer *l);
   bool invalidateTransformAtObjectIndex(size_t index);
   bool invalidateTransformAtObjectIndex(size_t index, const Layer *l);
 };
