@@ -356,7 +356,8 @@ void BaseViewport::ui_gizmo()
     auto invParent = linalg::inverse(parentWorldTransform);
     localTransform = mul(invParent, worldTransform);
     (*selectedNodeRef)->setAsTransform(localTransform);
-    appCore()->tsd.scene.signalLayerChange(selectedNodeRef->container());
+    appCore()->tsd.scene.signalLayerTransformChanged(
+        selectedNodeRef->container());
   }
 }
 

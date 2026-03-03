@@ -49,7 +49,7 @@ void TransferLayer::execute()
         layerName.c_str());
   }
   tsd::io::nodeToLayer(root["l"], *layer, *m_scene);
-  m_scene->signalLayerChange(layer);
+  m_scene->signalLayerStructureChanged(layer);
 }
 
 } // namespace tsd::network::messages

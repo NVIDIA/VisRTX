@@ -594,7 +594,7 @@ LayerNodeRef Scene::insertChildTransformNode(
   auto *layer = parent->container();
   auto inst = layer->insert_last_child(parent, xfm);
   (*inst)->name() = name;
-  signalLayerChange(parent->container());
+  signalLayerStructureChanged(parent->container());
   return inst;
 }
 
@@ -603,7 +603,7 @@ LayerNodeRef Scene::insertChildTransformArrayNode(
 {
   auto inst = parent->insert_last_child({a});
   (*inst)->name() = name;
-  signalLayerChange(parent->container());
+  signalLayerStructureChanged(parent->container());
   return inst;
 }
 
@@ -612,7 +612,7 @@ LayerNodeRef Scene::insertChildObjectNode(
 {
   auto inst = parent->insert_last_child({type, idx, this});
   (*inst)->name() = name;
-  signalLayerChange(parent->container());
+  signalLayerStructureChanged(parent->container());
   return inst;
 }
 
@@ -637,13 +637,19 @@ void Scene::removeNode(LayerNodeRef obj, bool deleteReferencedObjects)
   }
 
   layer->erase(obj);
-  signalLayerChange(layer);
+  signalLayerStructureChanged(layer);
 }
 
-void Scene::signalLayerChange(const Layer *l)
+void Scene::signalLayerStructureChanged(const Layer *l)
 {
   if (m_updateDelegate)
-    m_updateDelegate->signalLayerUpdated(l);
+    m_updateDelegate->signalLayerStructureUpdated(l);
+}
+
+void Scene::signalLayerTransformChanged(const Layer *l)
+{
+  if (m_updateDelegate)
+    m_updateDelegate->signalLayerTransformUpdated(l);
 }
 
 void Scene::signalActiveLayersChanged()

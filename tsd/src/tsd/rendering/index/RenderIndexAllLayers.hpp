@@ -27,7 +27,8 @@ struct RenderIndexAllLayers : public RenderIndex
   void signalObjectParameterUseCountZero(const Object *obj) override;
   void signalObjectLayerUseCountZero(const Object *obj) override;
   void signalLayerAdded(const Layer *l) override;
-  void signalLayerUpdated(const Layer *l) override;
+  void signalLayerStructureUpdated(const Layer *l) override;
+  void signalLayerTransformUpdated(const Layer *l) override;
   void signalLayerRemoved(const Layer *l) override;
   void signalActiveLayersChanged() override;
   void signalObjectFilteringChanged() override;

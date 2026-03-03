@@ -180,7 +180,12 @@ void RenderIndex::signalLayerAdded(const Layer *)
   // no-op
 }
 
-void RenderIndex::signalLayerUpdated(const Layer *)
+void RenderIndex::signalLayerStructureUpdated(const Layer *)
+{
+  // no-op
+}
+
+void RenderIndex::signalLayerTransformUpdated(const Layer *)
 {
   // no-op
 }

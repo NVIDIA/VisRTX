@@ -32,7 +32,8 @@ struct BaseUpdateDelegate
   virtual void signalObjectRemoved(const Object *o) = 0;
   virtual void signalRemoveAllObjects() = 0;
   virtual void signalLayerAdded(const Layer *l) = 0;
-  virtual void signalLayerUpdated(const Layer *l) = 0;
+  virtual void signalLayerStructureUpdated(const Layer *l) = 0;
+  virtual void signalLayerTransformUpdated(const Layer *l) = 0;
   virtual void signalLayerRemoved(const Layer *l) = 0;
   virtual void signalActiveLayersChanged() = 0;
   virtual void signalObjectFilteringChanged() = 0;
@@ -65,7 +66,8 @@ struct EmptyUpdateDelegate : public BaseUpdateDelegate
   void signalObjectRemoved(const Object *) override {}
   void signalRemoveAllObjects() override {}
   void signalLayerAdded(const Layer *) override {}
-  void signalLayerUpdated(const Layer *) override {}
+  void signalLayerStructureUpdated(const Layer *) override {}
+  void signalLayerTransformUpdated(const Layer *) override {}
   void signalLayerRemoved(const Layer *) override {}
   void signalActiveLayersChanged() override {}
   void signalObjectFilteringChanged() override {}
@@ -103,7 +105,8 @@ struct MultiUpdateDelegate : public BaseUpdateDelegate
   void signalObjectRemoved(const Object *o) override;
   void signalRemoveAllObjects() override;
   void signalLayerAdded(const Layer *) override;
-  void signalLayerUpdated(const Layer *) override;
+  void signalLayerStructureUpdated(const Layer *) override;
+  void signalLayerTransformUpdated(const Layer *) override;
   void signalLayerRemoved(const Layer *) override;
   void signalActiveLayersChanged() override;
   void signalObjectFilteringChanged() override;

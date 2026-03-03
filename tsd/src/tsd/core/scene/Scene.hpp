@@ -189,7 +189,8 @@ struct Scene
 
   // Indicate changes occurred //
 
-  void signalLayerChange(const Layer *l);
+  void signalLayerStructureChanged(const Layer *l);
+  void signalLayerTransformChanged(const Layer *l);
   void signalActiveLayersChanged();
   void signalObjectParameterUseCountZero(const Object *obj);
   void signalObjectLayerUseCountZero(const Object *obj);

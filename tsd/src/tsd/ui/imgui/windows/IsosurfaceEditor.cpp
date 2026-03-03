@@ -118,7 +118,7 @@ void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
   auto n = layer->insert_last_child(layer->root(), {s});
 
   appCore()->setSelected(n);
-  scene.signalLayerChange(layer);
+  scene.signalLayerStructureChanged(layer);
 }
 
 } // namespace tsd::ui::imgui

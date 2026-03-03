@@ -60,7 +60,7 @@ void ObjectEditor::buildUI()
     if (doUpdate) {
       node->setAsTransform(srt);
       auto *layer = selectedNode->container();
-      scene->signalLayerChange(layer);
+      scene->signalLayerTransformChanged(layer);
     }
   } else if (!node->isEmpty()) {
     ImGui::Text("{unhandled '%s' node}", anari::toString(node->type()));

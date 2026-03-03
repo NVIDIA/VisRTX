@@ -100,7 +100,15 @@ void RenderIndexAllLayers::signalLayerAdded(const Layer *l)
   updateWorld();
 }
 
-void RenderIndexAllLayers::signalLayerUpdated(const Layer *l)
+void RenderIndexAllLayers::signalLayerStructureUpdated(const Layer *l)
+{
+  if (m_instanceCache.contains(l)) {
+    syncLayerInstances(l, false, objectMask_all());
+    updateWorld();
+  }
+}
+
+void RenderIndexAllLayers::signalLayerTransformUpdated(const Layer *l)
 {
   if (m_instanceCache.contains(l)) {
     syncLayerInstances(l, false, objectMask_all());

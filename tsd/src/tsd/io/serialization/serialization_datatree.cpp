@@ -514,7 +514,7 @@ void load_Scene(Scene &scene, core::DataNode &root)
     bool active = true;
     nLayer["isActive"].getValue(ANARI_BOOL, &active);
     scene.setLayerActive(layerName, active);
-    scene.signalLayerChange(&tLayer);
+    scene.signalLayerStructureChanged(&tLayer);
   });
 
   scene.m_numActiveLayers = 0;

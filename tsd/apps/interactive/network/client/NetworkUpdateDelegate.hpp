@@ -36,7 +36,8 @@ struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
   void signalObjectRemoved(const tsd::core::Object *) override;
   void signalRemoveAllObjects() override;
   void signalLayerAdded(const tsd::core::Layer *) override;
-  void signalLayerUpdated(const tsd::core::Layer *) override;
+  void signalLayerStructureUpdated(const tsd::core::Layer *) override;
+  void signalLayerTransformUpdated(const tsd::core::Layer *) override;
   void signalLayerRemoved(const tsd::core::Layer *) override;
   void signalActiveLayersChanged() override;
   void signalObjectFilteringChanged() override;

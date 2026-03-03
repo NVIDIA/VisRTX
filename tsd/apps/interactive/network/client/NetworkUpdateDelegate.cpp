@@ -14,8 +14,8 @@
 
 #include "../RenderSession.hpp"
 
-#define CHECK_READY_OR_RETURN() \
-  if (!isReady(__func__)) \
+#define CHECK_READY_OR_RETURN()                                                \
+  if (!isReady(__func__))                                                      \
     return;
 
 namespace tsd::network {
@@ -117,7 +117,17 @@ void NetworkUpdateDelegate::signalLayerAdded(const tsd::core::Layer *l)
   m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg));
 }
 
-void NetworkUpdateDelegate::signalLayerUpdated(const tsd::core::Layer *l)
+void NetworkUpdateDelegate::signalLayerStructureUpdated(
+    const tsd::core::Layer *l)
+{
+  CHECK_READY_OR_RETURN();
+  auto msg = tsd::network::messages::TransferLayer(
+      m_scene, const_cast<tsd::core::Layer *>(l));
+  m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg));
+}
+
+void NetworkUpdateDelegate::signalLayerTransformUpdated(
+    const tsd::core::Layer *l)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::TransferLayer(

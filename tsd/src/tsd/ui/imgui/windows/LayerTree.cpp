@@ -443,7 +443,7 @@ void LayerTree::buildUI_tree()
       ImGuiIO &io = ImGui::GetIO();
       copyNodesTo(dragAndDropTarget, droppedNodes, !io.KeyCtrl);
 
-      appCore()->tsd.scene.signalLayerChange(&layer);
+      appCore()->tsd.scene.signalLayerStructureChanged(&layer);
     }
   }
 }
@@ -546,7 +546,7 @@ void LayerTree::buildUI_handleSelection()
           appCore()->setSelected(newNodes);
         }
 
-        scene.signalLayerChange(&layer);
+        scene.signalLayerStructureChanged(&layer);
       }
     }
   }
@@ -591,7 +591,7 @@ void LayerTree::buildUI_objectSceneMenu()
     bool enabled = (*menuNode)->isEnabled();
     if (nodeSelected && ImGui::Checkbox("visible", &enabled)) {
       (*menuNode)->setEnabled(enabled);
-      scene.signalLayerChange(&layer);
+      scene.signalLayerStructureChanged(&layer);
     }
 
     if (nodeSelected && ImGui::MenuItem("show all")) {
@@ -599,7 +599,7 @@ void LayerTree::buildUI_objectSceneMenu()
         n->setEnabled(true);
         return true;
       });
-      scene.signalLayerChange(&layer);
+      scene.signalLayerStructureChanged(&layer);
     }
 
     if (nodeSelected && ImGui::MenuItem("hide all")) {
@@ -607,7 +607,7 @@ void LayerTree::buildUI_objectSceneMenu()
         n->setEnabled(false);
         return true;
       });
-      scene.signalLayerChange(&layer);
+      scene.signalLayerStructureChanged(&layer);
     }
 
     if (nodeSelected)

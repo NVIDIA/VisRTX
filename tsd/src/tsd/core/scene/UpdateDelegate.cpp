@@ -114,10 +114,16 @@ void MultiUpdateDelegate::signalLayerAdded(const Layer *l)
     d->signalLayerAdded(l);
 }
 
-void MultiUpdateDelegate::signalLayerUpdated(const Layer *l)
+void MultiUpdateDelegate::signalLayerStructureUpdated(const Layer *l)
 {
   for (auto &d : m_delegates)
-    d->signalLayerUpdated(l);
+    d->signalLayerStructureUpdated(l);
+}
+
+void MultiUpdateDelegate::signalLayerTransformUpdated(const Layer *l)
+{
+  for (auto &d : m_delegates)
+    d->signalLayerTransformUpdated(l);
 }
 
 void MultiUpdateDelegate::signalLayerRemoved(const Layer *l)

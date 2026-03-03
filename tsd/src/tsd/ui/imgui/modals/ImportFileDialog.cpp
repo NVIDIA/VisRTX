@@ -107,7 +107,7 @@ void ImportFileDialog::buildUI()
       tsd::io::ImportFile file{
           static_cast<tsd::io::ImporterType>(m_selectedFileType), m_filename};
       tsd::io::import_file(scene, file, importRoot);
-      scene.signalLayerChange(layer);
+      scene.signalLayerStructureChanged(layer);
     };
 
     m_app->showTaskModal(doLoad, "Please Wait: Importing Data...");

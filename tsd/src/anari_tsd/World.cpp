@@ -134,7 +134,7 @@ void World::updateLayer()
       zi->insert_last_child(obj->tsdObject());
   }
 
-  deviceState()->scene.signalLayerChange(l);
+  deviceState()->scene.signalLayerStructureChanged(l);
 }
 
 } // namespace tsd_device

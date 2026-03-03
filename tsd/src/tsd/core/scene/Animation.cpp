@@ -116,7 +116,7 @@ void Animation::update(float time)
     const size_t idx =
         calculateIndexForTime(time, ts.transformFrames.size(), false);
     (*ts.transformNode)->setAsTransform(ts.transformFrames[idx]);
-    m_scene->signalLayerChange(ts.transformNode->container());
+    m_scene->signalLayerTransformChanged(ts.transformNode->container());
     updateInfoString(time, false);
     return;
   }

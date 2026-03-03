@@ -79,7 +79,7 @@ void InstancingControls::createScene()
 
   // Finally update instancing in RenderIndexes //
 
-  scene.signalLayerChange(layer);
+  scene.signalLayerStructureChanged(layer);
 }
 
 void InstancingControls::generateSpheres()

@@ -577,8 +577,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
                 {0, 0, 0, 1}));
         material->setParameterObject("clearcoatRoughness", *sampler);
       } else {
-        material->setParameter(
-            "clearcoatRoughness", clearcoatRoughnessFactor);
+        material->setParameter("clearcoatRoughness", clearcoatRoughnessFactor);
       }
 
       // Clearcoat normal texture
@@ -772,8 +771,8 @@ static std::vector<MaterialRef> importGLTFMaterials(
                 {0, 0, 0, 0},
                 {0, 0, 0, 0},
                 {0, 0, 0, 1}));
-        sampler->setParameter("outOffset",
-            float4(iridescenceThicknessMinimum, 0.0f, 0.0f, 0.0f));
+        sampler->setParameter(
+            "outOffset", float4(iridescenceThicknessMinimum, 0.0f, 0.0f, 0.0f));
         material->setParameterObject("iridescenceThickness", *sampler);
       } else {
         material->setParameter("iridescenceThickness",
@@ -1395,7 +1394,7 @@ void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
     logWarning("[import_GLTF] no scenes found in glTF file");
   }
 
-  scene.signalLayerChange(targetLocation->container());
+  scene.signalLayerStructureChanged(targetLocation->container());
 }
 
 } // namespace tsd::io
