@@ -9,6 +9,7 @@
 #include "tsd/rendering/index/RenderIndexFilterFcn.hpp"
 // std
 #include <algorithm>
+#include <anari/anari_cpp.hpp>
 #include <cstdint>
 #include <iterator>
 #include <stack>
@@ -59,7 +60,7 @@ struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
 
  private:
   bool isIncludedAfterFiltering(const tsd::core::LayerNode &n) const;
-  void createInstanceFromTop();
+  anari::Instance createInstanceFromTop();
 
   struct GroupedObjects
   {
@@ -71,9 +72,7 @@ struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
   anari::Device m_device{nullptr};
   tsd::core::AnariObjectCache *m_cache{nullptr};
   std::vector<anari::Instance> *m_instances{nullptr};
-  std::stack<tsd::math::mat4> m_xfms;
   std::stack<GroupedObjects> m_objects;
-  const tsd::core::Array *m_xfmArray{nullptr};
   uint8_t m_mask{objectMask_none()};
   RenderIndexFilterFcn *m_filter{nullptr};
 };
@@ -92,7 +91,6 @@ inline RenderToAnariObjectsVisitor::RenderToAnariObjectsVisitor(anari::Device d,
       m_filter(f)
 {
   anari::retain(d, d);
-  m_xfms.emplace(tsd::math::identity);
   m_objects.emplace();
 }
 
@@ -135,14 +133,11 @@ inline bool RenderToAnariObjectsVisitor::preChildren(
     }
     break;
   case ANARI_FLOAT32_MAT4:
-    m_xfms.push(tsd::math::mul(m_xfms.top(), n->getTransform()));
     m_objects.emplace();
     break;
   case ANARI_ARRAY1D: {
-    if (auto *a = n->getTransformArray(); a) {
+    if (auto *a = n->getTransformArray(); a)
       m_objects.emplace();
-      m_xfmArray = a;
-    }
   }
   default:
     break;
@@ -157,27 +152,14 @@ inline void RenderToAnariObjectsVisitor::postChildren(
   if (!n->isEnabled())
     return;
 
-  bool consumeXfmArray = false;
   switch (n->type()) {
   case ANARI_ARRAY1D: {
     if (auto *a = n->getTransformArray(); !a)
       break;
-    consumeXfmArray = true;
   }
   // intentionally fallthrough...
-  case ANARI_FLOAT32_MAT4:
-    createInstanceFromTop();
-
-    if (!consumeXfmArray)
-      m_xfms.pop();
-    else {
-      //
-      // NOTE(jda) - custom parameters here is awkward, should be generalized...
-      //
-      //   TODO: Put setting TSD object parameters on an ANARI handle in a
-      //         common spot for here + base Object updates physically the same.
-      //
-      anari::Instance inst = m_instances->back();
+  case ANARI_FLOAT32_MAT4: {
+    if (auto inst = createInstanceFromTop()) {
       for (auto &p : n->getInstanceParameters()) {
         if (!p.second.holdsObject())
           continue;
@@ -189,9 +171,9 @@ inline void RenderToAnariObjectsVisitor::postChildren(
       }
       anari::commitParameters(m_device, inst);
     }
-
     m_objects.pop();
     break;
+  }
   default:
     // no-op
     break;
@@ -211,12 +193,12 @@ inline bool RenderToAnariObjectsVisitor::isIncludedAfterFiltering(
   return (*m_filter)(n->getObject());
 }
 
-inline void RenderToAnariObjectsVisitor::createInstanceFromTop()
+inline anari::Instance RenderToAnariObjectsVisitor::createInstanceFromTop()
 {
   auto &current = m_objects.top();
   if (current.surfaces.empty() && current.volumes.empty()
       && current.lights.empty())
-    return;
+    return {};
 
   auto group = anari::newObject<anari::Group>(m_device);
 
@@ -248,39 +230,13 @@ inline void RenderToAnariObjectsVisitor::createInstanceFromTop()
   anari::commitParameters(m_device, group);
 
   auto instance = anari::newObject<anari::Instance>(m_device, "transform");
-
-  const auto xfm = m_xfms.top();
-  if (!m_xfmArray)
-    anari::setParameter(m_device, instance, "transform", xfm);
-  else {
-    const auto *xfms_in = m_xfmArray->dataAs<tsd::math::mat4>();
-
-    uint64_t stride = 0;
-    auto *xfms_out = (tsd::math::mat4 *)anariMapParameterArray1D(m_device,
-        instance,
-        "transform",
-        ANARI_FLOAT32_MAT4,
-        m_xfmArray->size(),
-        &stride);
-
-    if (stride == sizeof(tsd::math::mat4)) {
-      std::transform(xfms_in,
-          xfms_in + m_xfmArray->size(),
-          xfms_out,
-          [&](const tsd::math::mat4 &m) { return tsd::math::mul(xfm, m); });
-    } else {
-      throw std::runtime_error("render index -- bad transform array stride");
-    }
-
-    anariUnmapParameterArray(m_device, instance, "transform");
-
-    m_xfmArray = nullptr;
-  }
   anari::setParameter(m_device, instance, "group", group);
   anari::commitParameters(m_device, instance);
   m_instances->push_back(instance);
 
   anari::release(m_device, group);
+
+  return instance;
 }
 
 } // namespace tsd::rendering

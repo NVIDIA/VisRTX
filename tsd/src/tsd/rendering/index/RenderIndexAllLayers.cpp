@@ -6,6 +6,7 @@
 #include "RenderToAnariObjectsVisitor.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
+#include "tsd/rendering/index/TransformsToAnariVisitor.hpp"
 // std
 #include <algorithm>
 #include <iterator>
@@ -111,7 +112,7 @@ void RenderIndexAllLayers::signalLayerStructureUpdated(const Layer *l)
 void RenderIndexAllLayers::signalLayerTransformUpdated(const Layer *l)
 {
   if (m_instanceCache.contains(l)) {
-    syncLayerInstances(l, false, objectMask_all());
+    syncLayerTransforms(l);
     updateWorld();
   }
 }
@@ -231,6 +232,17 @@ void RenderIndexAllLayers::syncLayerInstances(
     releaseInstances(d, cached);
     cached = instances;
   }
+
+  syncLayerTransforms(layer);
+}
+
+void RenderIndexAllLayers::syncLayerTransforms(const Layer *_layer)
+{
+  auto d = device();
+
+  auto *layer = const_cast<Layer *>(_layer);
+  TransformsToAnariVisitor visitor(d, m_instanceCache[layer].data());
+  layer->traverse(layer->root(), visitor);
 }
 
 void RenderIndexAllLayers::releaseAllInstances()

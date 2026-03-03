@@ -38,6 +38,7 @@ struct RenderIndexAllLayers : public RenderIndex
   void updateWorld() override;
   void syncLayerInstances(
       const Layer *layer, bool appendExisting, uint8_t mask);
+  void syncLayerTransforms(const Layer *layer);
   void releaseAllInstances();
 
   RenderIndexFilterFcn m_filter;
