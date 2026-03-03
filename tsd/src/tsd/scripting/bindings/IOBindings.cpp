@@ -222,6 +222,14 @@ void registerIOBindings(sol::state &lua)
         TSD_LUA_IMPORT_WRAP(tsd::io::import_E57XYZ(s, f.c_str(), loc), f);
       });
 
+  io["importENSIGHT"] = sol::overload(
+      [](core::Scene &s, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_ENSIGHT(s, f.c_str()), f);
+      },
+      [](core::Scene &s, const std::string &f, core::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_ENSIGHT(s, f.c_str(), loc), f);
+      });
+
   io["importHSMESH"] = sol::overload(
       [](core::Scene &s, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_HSMESH(s, f.c_str()), f);
