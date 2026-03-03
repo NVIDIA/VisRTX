@@ -212,7 +212,8 @@ void RenderIndex::signalRemoveAllObjects()
   auto w = world();
   anari::unsetAllParameters(d, w);
   anari::commitParameters(d, w);
-  m_cache.clear();
+  // Don't m_cache.clear(); for now objects are still referenced by Layers
+  // and will be clear later on.
 }
 
 void RenderIndex::signalInvalidateCachedObjects()
