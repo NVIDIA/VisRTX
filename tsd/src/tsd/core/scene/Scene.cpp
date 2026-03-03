@@ -62,17 +62,17 @@ Scene::~Scene()
     array.clear();
   };
 
-  reportObjectUsages(m_db.light);
   reportObjectUsages(m_db.surface);
   reportObjectUsages(m_db.volume);
-  reportObjectUsages(m_db.geometry);
-  reportObjectUsages(m_db.material);
-  reportObjectUsages(m_db.sampler);
-  reportObjectUsages(m_db.field);
-  reportObjectUsages(m_db.array);
+  reportObjectUsages(m_db.light);
   reportObjectUsages(m_db.camera);
   reportObjectUsages(m_db.renderer);
   reportObjectUsages(m_db.transform);
+  reportObjectUsages(m_db.geometry);
+  reportObjectUsages(m_db.material);
+  reportObjectUsages(m_db.field);
+  reportObjectUsages(m_db.sampler);
+  reportObjectUsages(m_db.array);
 }
 
 MaterialRef Scene::defaultMaterial()
@@ -379,17 +379,17 @@ void Scene::removeAllObjects()
 
   removeAllLayers();
 
-  m_db.array.clear();
   m_db.surface.clear();
-  m_db.geometry.clear();
-  m_db.transform.clear();
-  m_db.material.clear();
-  m_db.sampler.clear();
   m_db.volume.clear();
-  m_db.field.clear();
   m_db.light.clear();
   m_db.camera.clear();
   m_db.renderer.clear();
+  m_db.transform.clear();
+  m_db.geometry.clear();
+  m_db.material.clear();
+  m_db.field.clear();
+  m_db.sampler.clear();
+  m_db.array.clear();
 }
 
 RendererAppRef Scene::createRenderer(Token device, Token subtype)
