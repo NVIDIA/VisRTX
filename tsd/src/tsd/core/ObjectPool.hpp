@@ -316,13 +316,13 @@ inline const T &ObjectPoolRef<T>::operator*() const
 template <typename T>
 inline T *ObjectPoolRef<T>::operator->()
 {
-  return &storage()[index()];
+  return data();
 }
 
 template <typename T>
 inline const T *ObjectPoolRef<T>::operator->() const
 {
-  return &storage()[index()];
+  return data();
 }
 
 template <typename T>
