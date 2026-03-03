@@ -640,6 +640,8 @@ void Viewport::ui_menubar_Renderer()
       ImGui::Indent(INDENT_AMOUNT);
       for (int i = 0; i < m_rendererObjects.size(); i++) {
         auto ro = m_rendererObjects[i];
+        if (!ro)
+          continue;
         const char *rName = ro->subtype().c_str();
         if (ImGui::RadioButton(rName, m_currentRenderer == ro)) {
           m_currentRenderer = ro;
@@ -651,7 +653,7 @@ void Viewport::ui_menubar_Renderer()
 
     ImGui::Separator();
 
-    if (!m_rendererObjects.empty()) {
+    if (m_currentRenderer) {
       ImGui::Text("Parameters:");
       ImGui::Indent(INDENT_AMOUNT);
 
@@ -684,6 +686,12 @@ void Viewport::ui_menubar_Camera()
 {
   if (ImGui::BeginMenu("Camera")) {
     auto &scene = appCore()->tsd.scene;
+
+    if (!m_currentCamera) {
+      ImGui::TextDisabled("No camera available");
+      ImGui::EndMenu();
+      return;
+    }
 
     ImGui::Text("Manipulator:");
     {
