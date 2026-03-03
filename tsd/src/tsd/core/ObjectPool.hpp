@@ -51,6 +51,8 @@ struct ObjectPool
   template <typename U>
   void sync_slots(const ObjectPool<U> &o);
 
+  size_t epoch() const;
+
  private:
   template <typename U>
   friend struct ObjectPool;
@@ -58,6 +60,7 @@ struct ObjectPool
   mutable storage_t m_values;
   marker_t m_slots;
   index_pool_t m_freeIndices;
+  size_t m_epoch{0};
 };
 
 template <typename T>
@@ -94,6 +97,7 @@ struct ObjectPoolRef
 
   size_t m_idx{INVALID_INDEX};
   const ObjectPool<T> *m_iv{nullptr};
+  size_t m_epoch{0};
 };
 
 template <typename T>
@@ -217,6 +221,7 @@ inline bool ObjectPool<T>::erase(size_t i)
   m_values[i] = {};
   m_slots[i] = false;
   m_freeIndices.push(i);
+  m_epoch++;
 
   return true;
 }
@@ -227,6 +232,13 @@ inline void ObjectPool<T>::clear()
   m_values.clear();
   m_slots.clear();
   m_freeIndices = {};
+  m_epoch++;
+}
+
+template <typename T>
+inline size_t ObjectPool<T>::epoch() const
+{
+  return m_epoch;
 }
 
 template <typename T>
@@ -252,6 +264,7 @@ inline bool ObjectPool<T>::defragment()
   std::fill(m_slots.begin(), m_slots.end(), true);
   while (!m_freeIndices.empty())
     m_freeIndices.pop();
+  m_epoch++;
 
   return true;
 }
@@ -262,13 +275,14 @@ inline void ObjectPool<T>::sync_slots(const ObjectPool<U> &o)
 {
   m_slots = o.m_slots;
   m_freeIndices = o.m_freeIndices;
+  m_epoch++;
 }
 
 // ObjectPoolRef //
 
 template <typename T>
 inline ObjectPoolRef<T>::ObjectPoolRef(const ObjectPool<T> &iv, size_t idx)
-    : m_iv(&iv), m_idx(idx)
+    : m_iv(&iv), m_idx(idx), m_epoch(iv.epoch())
 {}
 
 template <typename T>
@@ -328,7 +342,8 @@ inline const T *ObjectPoolRef<T>::operator->() const
 template <typename T>
 inline bool ObjectPoolRef<T>::valid() const
 {
-  return m_idx != INVALID_INDEX && m_iv;
+  return m_idx != INVALID_INDEX && m_iv && m_epoch == m_iv->epoch()
+      && m_idx < m_iv->capacity() && !m_iv->slot_empty(m_idx);
 }
 
 template <typename T>
@@ -340,7 +355,7 @@ inline ObjectPoolRef<T>::operator bool() const
 template <typename T>
 inline bool operator==(const ObjectPoolRef<T> &a, const ObjectPoolRef<T> &b)
 {
-  return a.m_iv == b.m_iv && a.m_idx == b.m_idx;
+  return a.m_iv == b.m_iv && a.m_idx == b.m_idx && a.m_epoch == b.m_epoch;
 }
 
 template <typename T>
