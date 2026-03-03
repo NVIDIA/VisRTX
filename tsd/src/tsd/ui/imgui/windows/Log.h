@@ -8,6 +8,7 @@
 #include "tsd/core/Logging.hpp"
 // std
 #include <array>
+#include <mutex>
 
 namespace tsd::ui::imgui {
 
@@ -26,6 +27,7 @@ struct Log : public Window
   // Data //
 
   bool m_isLoggingTarget{false};
+  std::mutex m_mutex;
 
   ImGuiTextBuffer m_buf;
   ImGuiTextFilter m_filter;

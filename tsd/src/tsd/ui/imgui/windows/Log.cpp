@@ -40,6 +40,7 @@ Log::~Log()
 
 void Log::buildUI()
 {
+  std::lock_guard<std::mutex> guard(m_mutex);
   if (ImGui::BeginPopup("Options")) {
     auto core = appCore();
     bool logVerbose = core->logVerbose();
@@ -94,6 +95,7 @@ void Log::buildUI()
 
 void Log::addText(tsd::core::LogLevel level, const std::string &msg)
 {
+  std::lock_guard<std::mutex> guard(m_mutex);
   m_colorIDs.push_back(static_cast<int>(level));
 
   if (appCore() && appCore()->logEchoOutput())
@@ -137,6 +139,7 @@ void Log::showLine(int line_no, bool useFilter)
 
 void Log::clear()
 {
+  std::lock_guard<std::mutex> guard(m_mutex);
   m_buf.clear();
   m_lineOffsets.clear();
   m_lineOffsets.push_back(0);
