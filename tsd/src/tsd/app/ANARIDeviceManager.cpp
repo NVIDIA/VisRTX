@@ -209,12 +209,6 @@ void ANARIDeviceManager::loadSettings(tsd::core::DataNode &root)
   int kind = 0;
   if (root["renderIndexKind"].getValue(ANARI_INT32, &kind)) {
     m_settings.renderIndexKind = static_cast<RenderIndexKind>(kind);
-  } else {
-    // Backward compatibility with old bool keys
-    bool flat = false;
-    root["useFlatRenderIndex"].getValue(ANARI_BOOL, &flat);
-    if (flat)
-      m_settings.renderIndexKind = RenderIndexKind::FLAT;
   }
 }
 
