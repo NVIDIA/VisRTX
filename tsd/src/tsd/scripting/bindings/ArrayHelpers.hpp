@@ -12,7 +12,17 @@ namespace tsd::scripting {
 
 ANARIDataType arrayTypeFromString(const std::string &typeStr);
 
+scene::Object *extractObjectPtr(sol::object luaObj);
+
 void arraySetDataFromLua(scene::Array &arr, sol::table data, sol::this_state s);
+
+void arraySetObjectsFromLua(scene::Array &arr, sol::table data);
+
+void inferArrayDimsFromLuaData(sol::table data,
+    ANARIDataType elemType,
+    size_t &items0,
+    size_t &items1,
+    size_t &items2);
 
 scene::ArrayRef setParameterArrayFromLua(scene::Object &obj,
     const std::string &name,
