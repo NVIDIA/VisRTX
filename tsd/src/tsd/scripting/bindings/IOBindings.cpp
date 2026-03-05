@@ -1,10 +1,11 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/scene/Scene.hpp"
+#include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/procedural.hpp"
 #include "tsd/io/serialization.hpp"
+#include "tsd/scene/Scene.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
@@ -426,6 +427,14 @@ void registerIOBindings(sol::state &lua)
       [](scene::Scene &s, scene::LayerNodeRef loc) {
         tsd::io::generate_sphereSetVolume(s, loc);
       });
+
+  // Utilities
+  io["makeDefaultColorMap"] = [](scene::Scene &s, sol::optional<size_t> size) {
+    auto colors = core::makeDefaultColorMap(size.value_or(256));
+    auto arr = s.createArray(ANARI_FLOAT32_VEC4, colors.size());
+    arr->setData(colors.data());
+    return arr;
+  };
 
   // Serialization
   io["saveScene"] = sol::overload(
