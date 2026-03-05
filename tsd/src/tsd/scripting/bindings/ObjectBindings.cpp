@@ -4,6 +4,7 @@
 #include "ArrayHelpers.hpp"
 #include "ObjectMethodBindings.hpp"
 #include "ParameterHelpers.hpp"
+#include "tsd/core/Logging.hpp"
 #include "tsd/core/Token.hpp"
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Array.hpp"
@@ -18,6 +19,7 @@
 #include "tsd/scripting/LuaBindings.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
+#include <algorithm>
 #include <fmt/format.h>
 #include <functional>
 #include <sol/sol.hpp>
@@ -53,6 +55,85 @@ class ScopedArrayMap
   T *m_ptr;
 };
 
+scene::Object *extractObjectPtr(sol::object luaObj)
+{
+  if (luaObj.is<scene::GeometryRef>()) {
+    auto ref = luaObj.as<scene::GeometryRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::MaterialRef>()) {
+    auto ref = luaObj.as<scene::MaterialRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::LightRef>()) {
+    auto ref = luaObj.as<scene::LightRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::CameraRef>()) {
+    auto ref = luaObj.as<scene::CameraRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::SamplerRef>()) {
+    auto ref = luaObj.as<scene::SamplerRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::SurfaceRef>()) {
+    auto ref = luaObj.as<scene::SurfaceRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::VolumeRef>()) {
+    auto ref = luaObj.as<scene::VolumeRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::SpatialFieldRef>()) {
+    auto ref = luaObj.as<scene::SpatialFieldRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::ArrayRef>()) {
+    auto ref = luaObj.as<scene::ArrayRef>();
+    return ref.valid() ? ref.data() : nullptr;
+  }
+  if (luaObj.is<scene::Object *>()) {
+    return luaObj.as<scene::Object *>();
+  }
+  return nullptr;
+}
+
+void arraySetObjectsFromLua(scene::Array &arr, sol::table data)
+{
+  const size_t count = data.size();
+  const size_t copyCount = std::min(count, arr.size());
+
+  if (count != arr.size()) {
+    core::logWarning(
+        "Array.setData(): table size (%zu) differs from array size (%zu)%s",
+        count,
+        arr.size(),
+        count > arr.size() ? "; truncating" : "; padding with null objects");
+  }
+
+  ScopedArrayMap<core::Object *> map(arr);
+  for (size_t i = 0; i < arr.size(); i++)
+    map[i] = nullptr;
+
+  for (size_t i = 1; i <= copyCount; i++) {
+    auto *ptr = extractObjectPtr(data[i]);
+    if (!ptr)
+      throw std::runtime_error(
+          "createArray: invalid object at index " + std::to_string(i));
+    map[i - 1] = ptr;
+  }
+}
+
+static void arraySetFromLua(
+    scene::Array &arr, sol::table data, sol::this_state s)
+{
+  if (anari::isObject(arr.elementType()))
+    arraySetObjectsFromLua(arr, data);
+  else
+    arraySetDataFromLua(arr, data, s);
+}
+
 ANARIDataType arrayTypeFromString(const std::string &typeStr)
 {
   if (typeStr == "float")
@@ -82,9 +163,31 @@ ANARIDataType arrayTypeFromString(const std::string &typeStr)
   if (typeStr == "mat4")
     return ANARI_FLOAT32_MAT4;
 
+  // ANARI object types
+  if (typeStr == "spatialField")
+    return ANARI_SPATIAL_FIELD;
+  if (typeStr == "geometry")
+    return ANARI_GEOMETRY;
+  if (typeStr == "material")
+    return ANARI_MATERIAL;
+  if (typeStr == "surface")
+    return ANARI_SURFACE;
+  if (typeStr == "volume")
+    return ANARI_VOLUME;
+  if (typeStr == "light")
+    return ANARI_LIGHT;
+  if (typeStr == "camera")
+    return ANARI_CAMERA;
+  if (typeStr == "sampler")
+    return ANARI_SAMPLER;
+  if (typeStr == "array1d")
+    return ANARI_ARRAY1D;
+
   throw std::runtime_error(fmt::format(
       "Unknown array type: '{}'. Valid types: float, float2, float3, float4, "
-      "int, int2, int3, int4, uint, uint2, uint3, uint4, mat4",
+      "int, int2, int3, int4, uint, uint2, uint3, uint4, mat4, "
+      "spatialField, geometry, material, surface, volume, light, camera, "
+      "sampler, array1d",
       typeStr));
 }
 
@@ -217,7 +320,7 @@ static void getVecArrayAsLua(sol::state_view &lua,
   }
 }
 
-static void inferArrayDimsFromLuaData(sol::table data,
+void inferArrayDimsFromLuaData(sol::table data,
     ANARIDataType elemType,
     size_t &items0,
     size_t &items1,
@@ -527,13 +630,16 @@ scene::ArrayRef setParameterArrayFromLua(scene::Object &obj,
 
   const auto elemType = arrayTypeFromString(typeStr);
   size_t items0 = 0, items1 = 0, items2 = 0;
-  inferArrayDimsFromLuaData(data, elemType, items0, items1, items2);
+  if (anari::isObject(elemType))
+    items0 = data.size();
+  else
+    inferArrayDimsFromLuaData(data, elemType, items0, items1, items2);
 
   auto arr = scene->createArray(elemType, items0, items1, items2);
   if (!arr.valid())
     throw std::runtime_error("setParameterArray: failed to create array");
 
-  arraySetDataFromLua(*arr.data(), data, s);
+  arraySetFromLua(*arr.data(), data, s);
   obj.setParameterObject(core::Token(name), *arr.data());
   return arr;
 }
@@ -552,12 +658,12 @@ scene::ArrayRef setParameterArrayFromLua(scene::Object &obj,
     throw std::runtime_error(
         "setParameterArray: object is not attached to a scene");
 
-  auto arr =
-      scene->createArray(arrayTypeFromString(typeStr), items0, items1, items2);
+  const auto elemType = arrayTypeFromString(typeStr);
+  auto arr = scene->createArray(elemType, items0, items1, items2);
   if (!arr.valid())
     throw std::runtime_error("setParameterArray: failed to create array");
 
-  arraySetDataFromLua(*arr.data(), data, s);
+  arraySetFromLua(*arr.data(), data, s);
   obj.setParameterObject(core::Token(name), *arr.data());
   return arr;
 }

@@ -18,48 +18,44 @@
 
 namespace tsd::scripting {
 
-static scene::Object *extractObjectPtr(sol::object luaObj)
+static scene::ArrayRef createArrayFromLua(scene::Scene &scene,
+    const std::string &typeStr,
+    size_t items0,
+    size_t items1,
+    size_t items2)
 {
-  if (luaObj.is<scene::GeometryRef>()) {
-    auto ref = luaObj.as<scene::GeometryRef>();
-    return ref.valid() ? ref.data() : nullptr;
+  return scene.createArray(arrayTypeFromString(typeStr), items0, items1, items2);
+}
+
+static scene::ArrayRef createArrayFromLua(scene::Scene &scene,
+    const std::string &typeStr,
+    size_t items0,
+    size_t items1,
+    size_t items2,
+    sol::table data,
+    sol::this_state s)
+{
+  const auto elemType = arrayTypeFromString(typeStr);
+  const bool isObj = anari::isObject(elemType);
+
+  if (items0 == 0) {
+    if (isObj) {
+      items0 = data.size();
+    } else {
+      inferArrayDimsFromLuaData(data, elemType, items0, items1, items2);
+    }
   }
-  if (luaObj.is<scene::MaterialRef>()) {
-    auto ref = luaObj.as<scene::MaterialRef>();
-    return ref.valid() ? ref.data() : nullptr;
-  }
-  if (luaObj.is<scene::LightRef>()) {
-    auto ref = luaObj.as<scene::LightRef>();
-    return ref.valid() ? ref.data() : nullptr;
-  }
-  if (luaObj.is<scene::CameraRef>()) {
-    auto ref = luaObj.as<scene::CameraRef>();
-    return ref.valid() ? ref.data() : nullptr;
-  }
-  if (luaObj.is<scene::SamplerRef>()) {
-    auto ref = luaObj.as<scene::SamplerRef>();
-    return ref.valid() ? ref.data() : nullptr;
-  }
-  if (luaObj.is<scene::SurfaceRef>()) {
-    auto ref = luaObj.as<scene::SurfaceRef>();
-    return ref.valid() ? ref.data() : nullptr;
-  }
-  if (luaObj.is<scene::VolumeRef>()) {
-    auto ref = luaObj.as<scene::VolumeRef>();
-    return ref.valid() ? ref.data() : nullptr;
-  }
-  if (luaObj.is<scene::SpatialFieldRef>()) {
-    auto ref = luaObj.as<scene::SpatialFieldRef>();
-    return ref.valid() ? ref.data() : nullptr;
-  }
-  if (luaObj.is<scene::ArrayRef>()) {
-    auto ref = luaObj.as<scene::ArrayRef>();
-    return ref.valid() ? ref.data() : nullptr;
-  }
-  if (luaObj.is<scene::Object *>()) {
-    return luaObj.as<scene::Object *>();
-  }
-  return nullptr;
+
+  auto arr = scene.createArray(elemType, items0, items1, items2);
+  if (!arr.valid())
+    throw std::runtime_error("createArray: failed to create array");
+
+  if (isObj)
+    arraySetObjectsFromLua(*arr.data(), data);
+  else
+    arraySetDataFromLua(*arr.data(), data, s);
+
+  return arr;
 }
 
 template <typename F>
@@ -153,22 +149,60 @@ void registerContextBindings(sol::state &lua)
       },
       "createArray",
       sol::overload(
-          [](scene::Scene &s, const std::string &typeStr, size_t items0) {
-            return s.createArray(arrayTypeFromString(typeStr), items0);
+          // (typeStr, table) — infer dims from data
+          [](scene::Scene &s,
+              const std::string &typeStr,
+              sol::table data,
+              sol::this_state st) {
+            return createArrayFromLua(s, typeStr, 0, 0, 0, data, st);
           },
+          // (typeStr, items0) — empty 1D
+          [](scene::Scene &s, const std::string &typeStr, size_t items0) {
+            return createArrayFromLua(s, typeStr, items0, 0, 0);
+          },
+          // (typeStr, items0, table) — 1D with data
+          [](scene::Scene &s,
+              const std::string &typeStr,
+              size_t items0,
+              sol::table data,
+              sol::this_state st) {
+            return createArrayFromLua(s, typeStr, items0, 0, 0, data, st);
+          },
+          // (typeStr, items0, items1) — empty 2D
           [](scene::Scene &s,
               const std::string &typeStr,
               size_t items0,
               size_t items1) {
-            return s.createArray(arrayTypeFromString(typeStr), items0, items1);
+            return createArrayFromLua(s, typeStr, items0, items1, 0);
           },
+          // (typeStr, items0, items1, table) — 2D with data
+          [](scene::Scene &s,
+              const std::string &typeStr,
+              size_t items0,
+              size_t items1,
+              sol::table data,
+              sol::this_state st) {
+            return createArrayFromLua(
+                s, typeStr, items0, items1, 0, data, st);
+          },
+          // (typeStr, items0, items1, items2) — empty 3D
           [](scene::Scene &s,
               const std::string &typeStr,
               size_t items0,
               size_t items1,
               size_t items2) {
-            return s.createArray(
-                arrayTypeFromString(typeStr), items0, items1, items2);
+            return createArrayFromLua(s, typeStr, items0, items1, items2);
+          },
+          // (typeStr, items0, items1, items2, table) — 3D with data
+          [](scene::Scene &s,
+              const std::string &typeStr,
+              size_t items0,
+              size_t items1,
+              size_t items2,
+              sol::table data,
+              sol::this_state st) {
+            return createArrayFromLua(
+                s, typeStr, items0, items1, items2, data, st);
           }),
       // Object access
       "getGeometry",

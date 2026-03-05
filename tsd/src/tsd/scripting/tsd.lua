@@ -122,6 +122,7 @@ function Object:setParameter(name, value) end
 
 --- Create an array, populate it from Lua data, and bind it to a parameter.
 --- For 2D/3D arrays, `data` may be linear or shape-matching nested.
+--- `typeStr` may also name ANARI object arrays such as "geometry" or "material".
 ---@param name string
 ---@param typeStr string
 ---@param data table
@@ -374,9 +375,10 @@ function Animation:timeStepCount() end
 ---@param time number
 function Animation:update(time) end
 
---- Bind time-step arrays to an object's parameters for animation.
---- Single parameter: pass a string name and a single Array.
---- Multi parameter: pass a table of string names and a table of Arrays.
+--- Bind time-step data to an object's parameter for animation.
+--- The array's element type determines behavior:
+---   - Scalar/vector types: discrete value animation (index into array)
+---   - Object types: object-swap animation (pick object at index)
 ---@overload fun(self: tsd.Animation, obj: tsd.Object, param: string, array: tsd.Array)
 ---@overload fun(self: tsd.Animation, obj: tsd.Object, params: string[], arrays: tsd.Array[])
 function Animation:setAsTimeSteps(obj, params, arrays) end
@@ -439,13 +441,22 @@ function Scene:createSurface(name, geometry, material, params) end
 --- "float", "float2", "float3", "float4",
 --- "int", "int2", "int3", "int4",
 --- "uint", "uint2", "uint3", "uint4",
---- "mat4".
+--- "mat4",
+--- "spatialField", "geometry", "material", "surface", "volume",
+--- "light", "camera", "sampler", "array1d".
+--- Pass a table to populate inline; table shape determines dimensions
+--- unless explicit sizes are given.
 ---@param typeStr string
----@param items0 integer
+---@param items0_or_data integer|table
+---@overload fun(self: tsd.Scene, typeStr: string, data: table): tsd.Array
+---@overload fun(self: tsd.Scene, typeStr: string, items0: integer): tsd.Array
+---@overload fun(self: tsd.Scene, typeStr: string, items0: integer, data: table): tsd.Array
 ---@overload fun(self: tsd.Scene, typeStr: string, items0: integer, items1: integer): tsd.Array
+---@overload fun(self: tsd.Scene, typeStr: string, items0: integer, items1: integer, data: table): tsd.Array
 ---@overload fun(self: tsd.Scene, typeStr: string, items0: integer, items1: integer, items2: integer): tsd.Array
+---@overload fun(self: tsd.Scene, typeStr: string, items0: integer, items1: integer, items2: integer, data: table): tsd.Array
 ---@return tsd.Array
-function Scene:createArray(typeStr, items0) end
+function Scene:createArray(typeStr, items0_or_data) end
 
 -- Object access ----------------------------------------------------------
 
@@ -1005,19 +1016,19 @@ function tsd.io.importVolume(...) end
 --- Import a RAW volume file.
 ---@param scene tsd.Scene
 ---@param filename string
----@return tsd.Volume
+---@return tsd.SpatialField
 function tsd.io.importRAW(scene, filename) end
 
 --- Import a NanoVDB volume file.
 ---@param scene tsd.Scene
 ---@param filename string
----@return tsd.Volume
+---@return tsd.SpatialField
 function tsd.io.importNVDB(scene, filename) end
 
 --- Import an MHD (MetaImage) volume file.
 ---@param scene tsd.Scene
 ---@param filename string
----@return tsd.Volume
+---@return tsd.SpatialField
 function tsd.io.importMHD(scene, filename) end
 
 --- Import a FLASH (HDF5 AMR) volume file.
@@ -1078,6 +1089,12 @@ function tsd.io.generateRtow(...) end
 ---@overload fun(scene: tsd.Scene)
 ---@overload fun(scene: tsd.Scene, location: tsd.LayerNode)
 function tsd.io.generateSphereSetVolume(...) end
+
+--- Create a default RGB-ramp color map array (float4, with alpha).
+---@param scene tsd.Scene
+---@param size? integer  Number of samples (default 256).
+---@return tsd.Array
+function tsd.io.makeDefaultColorMap(scene, size) end
 
 --- Save a scene to a TSD file.
 --- When called with a state table, the file can be opened directly in
