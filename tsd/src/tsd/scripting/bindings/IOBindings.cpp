@@ -425,7 +425,11 @@ void registerIOBindings(sol::state &lua)
   io["loadScene"] = [](core::Scene &s, const std::string &filename) {
     core::DataTree tree;
     tree.load(filename.c_str());
-    tsd::io::load_Scene(s, tree.root());
+    auto &root = tree.root();
+    if (auto *c = root.child("context"); c != nullptr)
+      tsd::io::load_Scene(s, *c);
+    else
+      tsd::io::load_Scene(s, root);
   };
 }
 
