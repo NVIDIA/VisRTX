@@ -674,6 +674,8 @@ static void readVarFile(const std::string &filename,
     return;
   }
 
+  logInfo("[import_ENSIGHT] reading variable file '%s'", filename.c_str());
+
   readRecord80(f); // description
 
   std::map<int, const EnsightPart *> byId;
@@ -734,7 +736,8 @@ static void readVarFile(const std::string &filename,
 void import_ENSIGHT(Scene &scene,
     const char *filepath,
     LayerNodeRef location,
-    const std::vector<std::string> &fields)
+    const std::vector<std::string> &fields,
+    int timestep)
 {
   if (!location)
     location = scene.defaultLayer()->root();
@@ -746,13 +749,25 @@ void import_ENSIGHT(Scene &scene,
   if (!parseCase(caseFile, caseData))
     return;
 
-  logStatus("[import_ENSIGHT] loading '%s'", caseFile.c_str());
+  if (timestep < 0 || timestep >= caseData.numSteps) {
+    logError("[import_ENSIGHT] timestep %d out of range [0, %d)",
+        timestep,
+        caseData.numSteps);
+    return;
+  }
 
+  logStatus("[import_ENSIGHT] loading '%s' (timestep %d/%d)",
+      caseFile.c_str(),
+      timestep,
+      caseData.numSteps);
+
+  const auto expandedPatterns = expandPattern(caseData.geoPattern,
+      caseData.startNumber,
+      caseData.increment,
+      caseData.numSteps);
   const std::string geoFile = caseDir
-      + expandPattern(caseData.geoPattern,
-          caseData.startNumber,
-          caseData.increment,
-          caseData.numSteps)[0];
+      + (timestep < expandedPatterns.size() ? expandedPatterns[timestep]
+                                            : expandedPatterns.front());
 
   std::vector<EnsightPart> parts;
   if (!readGeoFile(geoFile, parts)) {
@@ -761,7 +776,9 @@ void import_ENSIGHT(Scene &scene,
     return;
   }
 
-  logStatus("[import_ENSIGHT] read %zu part(s)", parts.size());
+  logStatus("[import_ENSIGHT] read %zu part(s) from %s",
+      parts.size(),
+      geoFile.c_str());
 
   // Read per-node variable data for all parts (first timestep only)
   struct VarData
@@ -804,11 +821,13 @@ void import_ENSIGHT(Scene &scene,
       continue;
 
     int nc = (info.type == "vector") ? 3 : 1;
+    const auto expandedPatterns = expandPattern(info.filenamePattern,
+        caseData.startNumber,
+        caseData.increment,
+        caseData.numSteps);
     const std::string varFile = caseDir
-        + expandPattern(info.filenamePattern,
-            caseData.startNumber,
-            caseData.increment,
-            caseData.numSteps)[0];
+        + (timestep < expandedPatterns.size() ? expandedPatterns[timestep]
+                                              : expandedPatterns.front());
 
     VarData vd;
     vd.numComponents = nc;

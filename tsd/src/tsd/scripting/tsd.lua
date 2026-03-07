@@ -940,6 +940,15 @@ function tsd.io.importDLAF(...) end
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
 function tsd.io.importE57XYZ(...) end
 
+--- Import an EnSight Gold case file.
+--- Fields selects which variables to load (up to 4 ANARI attribute slots).
+--- Timestep selects which time step index to load (0-based).
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, fields: string[])
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, fields: string[], timestep: integer)
+function tsd.io.importENSIGHT(...) end
+
 --- Import an HSMESH file.
 ---@overload fun(scene: tsd.Scene, filename: string)
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)

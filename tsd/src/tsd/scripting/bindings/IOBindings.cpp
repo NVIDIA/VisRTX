@@ -237,6 +237,17 @@ void registerIOBindings(sol::state &lua)
         for (size_t i = 1; i <= fields.size(); i++)
           fs.push_back(fields[i].get<std::string>());
         TSD_LUA_IMPORT_WRAP(tsd::io::import_ENSIGHT(s, f.c_str(), loc, fs), f);
+      },
+      [](core::Scene &s,
+          const std::string &f,
+          core::LayerNodeRef loc,
+          sol::table fields,
+          int timestep) {
+        std::vector<std::string> fs;
+        for (size_t i = 1; i <= fields.size(); i++)
+          fs.push_back(fields[i].get<std::string>());
+        TSD_LUA_IMPORT_WRAP(
+            tsd::io::import_ENSIGHT(s, f.c_str(), loc, fs, timestep), f);
       });
 
   io["importHSMESH"] = sol::overload(

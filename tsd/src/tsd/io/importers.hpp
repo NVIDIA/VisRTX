@@ -25,7 +25,8 @@ void import_E57XYZ(Scene &scene, const char *filename, LayerNodeRef location = {
 void import_ENSIGHT(Scene &scene,
     const char *filename,
     LayerNodeRef location = {},
-    const std::vector<std::string> &fields = {});
+    const std::vector<std::string> &fields = {},
+    int timestep = 0);
 void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_HDRI(Scene &scene, const char *filename, LayerNodeRef location = {});
 void import_HSMESH(Scene &scene, const char *filename, LayerNodeRef location = {});
