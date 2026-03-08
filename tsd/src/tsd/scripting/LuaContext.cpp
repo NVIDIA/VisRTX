@@ -32,6 +32,7 @@ LuaContext::LuaContext() : m_impl(std::make_unique<Impl>())
       sol::lib::os,
       sol::lib::math,
       sol::lib::table,
+      sol::lib::io,
       sol::lib::utf8);
 
   m_impl->lua.set_function("print", [this](sol::variadic_args va) {
