@@ -9,4 +9,9 @@ DeviceGlobalState::DeviceGlobalState(anari::Device d)
     : helium::BaseGlobalDeviceState(d)
 {}
 
+bool DeviceGlobalState::usingExternalScene() const
+{
+  return scene != &localScene;
+}
+
 } // namespace tsd_device

@@ -13,13 +13,16 @@ namespace tsd_device {
 
 Frame::Frame(DeviceGlobalState *s) : helium::BaseFrame(s)
 {
-  m_anariFrame = anari::newObject<anari::Frame>(s->device);
+  if (!s->usingExternalScene())
+    m_anariFrame = anari::newObject<anari::Frame>(s->device);
 }
 
 Frame::~Frame()
 {
   wait();
-  anari::release(deviceState()->device, m_anariFrame);
+  auto *state = deviceState();
+  if (!state->usingExternalScene())
+    anari::release(state->device, m_anariFrame);
 }
 
 bool Frame::isValid() const
@@ -41,6 +44,8 @@ void Frame::commitParameters()
 
 void Frame::finalize()
 {
+  auto *state = deviceState();
+
   if (!m_world) {
     reportMessage(
         ANARI_SEVERITY_WARNING, "missing required parameter 'world' on frame");
@@ -56,10 +61,9 @@ void Frame::finalize()
         ANARI_SEVERITY_WARNING, "missing required parameter 'camera' on frame");
   }
 
-  if (!isValid())
+  if (!isValid() || state->usingExternalScene())
     return;
 
-  auto *state = deviceState();
   auto d = state->device;
   anari::unsetAllParameters(d, m_anariFrame);
   std::for_each(params_begin(), params_end(), [&](auto &p) {
@@ -87,7 +91,7 @@ void Frame::finalize()
       "renderer",
       ri->renderer(m_renderer->tsdObject()->index()));
   anari::setParameter(
-      d, m_anariFrame, "camera", (anari::Camera)m_camera->anariHandle());
+      d, m_anariFrame, "camera", ri->camera(m_camera->tsdObject()->index()));
   anari::setParameter(d,
       m_anariFrame,
       "world",
@@ -117,14 +121,19 @@ void Frame::renderFrame()
   auto *state = deviceState();
   state->commitBuffer.flush();
 
+  if (m_world)
+    m_world->updateLayer();
+
   if (m_lastCommitFlushOccured < state->commitBuffer.lastObjectFinalization()) {
     m_lastCommitFlushOccured = state->commitBuffer.lastObjectFinalization();
-    const char *filename = "live_capture.tsd";
-    reportMessage(ANARI_SEVERITY_INFO, "exporting scene to '%s'", filename);
-    tsd::io::save_Scene(state->scene, filename);
+    if (!state->usingExternalScene()) {
+      const char *filename = "live_capture.tsd";
+      reportMessage(ANARI_SEVERITY_INFO, "exporting scene to '%s'", filename);
+      tsd::io::save_Scene(*state->scene, filename);
+    }
   }
 
-  if (isValid())
+  if (isValid() && !state->usingExternalScene())
     anari::render(state->device, m_anariFrame);
 }
 
@@ -134,6 +143,9 @@ void *Frame::map(std::string_view channel,
     ANARIDataType *pixelType)
 {
   auto *state = deviceState();
+  if (state->usingExternalScene())
+    return nullptr;
+
   std::string channelStr(channel);
   return (void *)anariMapFrame(state->device,
       m_anariFrame,
@@ -146,6 +158,8 @@ void *Frame::map(std::string_view channel,
 void Frame::unmap(std::string_view channel)
 {
   auto *state = deviceState();
+  if (state->usingExternalScene())
+    return;
   std::string channelStr(channel);
   anari::unmap(state->device, m_anariFrame, channelStr.c_str());
 }
@@ -167,12 +181,17 @@ void Frame::discard()
 
 bool Frame::ready() const
 {
-  return anari::isReady(deviceState()->device, m_anariFrame);
+  auto *state = deviceState();
+  return state->usingExternalScene()
+      ? true
+      : anari::isReady(state->device, m_anariFrame);
 }
 
 void Frame::wait() const
 {
-  anari::wait(deviceState()->device, m_anariFrame);
+  auto *state = deviceState();
+  if (!state->usingExternalScene())
+    anari::wait(state->device, m_anariFrame);
 }
 
 } // namespace tsd_device

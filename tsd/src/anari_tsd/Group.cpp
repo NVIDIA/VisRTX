@@ -46,6 +46,9 @@ void Group::finalize()
         std::back_inserter(m_lights),
         [](auto *o) { return (TSDObject *)o; });
   }
+
+  auto *s = deviceState();
+  s->objectUpdates.instancing++;
 }
 
 const std::vector<TSDObject *> &Group::surfaces() const

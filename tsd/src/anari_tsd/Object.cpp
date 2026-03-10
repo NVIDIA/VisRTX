@@ -55,40 +55,39 @@ TSDObject::TSDObject(
   std::string name;
   switch (type) {
   case ANARI_CAMERA:
-    obj = s->scene.createObject<tsd::core::Camera>(subtype).data();
+    obj = s->scene->createObject<tsd::core::Camera>(subtype).data();
     name = "camera" + std::to_string(s->cameraCount++);
-    m_liveHandle = anari::newObject<anari::Camera>(s->device, subtype.c_str());
     break;
   case ANARI_SURFACE:
-    obj = s->scene.createSurface().data();
+    obj = s->scene->createSurface().data();
     name = "surface" + std::to_string(s->surfaceCount++);
     break;
   case ANARI_GEOMETRY:
-    obj = s->scene.createObject<tsd::core::Geometry>(subtype).data();
+    obj = s->scene->createObject<tsd::core::Geometry>(subtype).data();
     name = "geometry" + std::to_string(s->geometryCount++);
     break;
   case ANARI_MATERIAL:
-    obj = s->scene.createObject<tsd::core::Material>(subtype).data();
+    obj = s->scene->createObject<tsd::core::Material>(subtype).data();
     name = "material" + std::to_string(s->materialCount++);
     break;
   case ANARI_SAMPLER:
-    obj = s->scene.createObject<tsd::core::Sampler>(subtype).data();
+    obj = s->scene->createObject<tsd::core::Sampler>(subtype).data();
     name = "sampler" + std::to_string(s->samplerCount++);
     break;
   case ANARI_VOLUME:
-    obj = s->scene.createObject<tsd::core::Volume>(subtype).data();
+    obj = s->scene->createObject<tsd::core::Volume>(subtype).data();
     name = "volume" + std::to_string(s->volumeCount++);
     break;
   case ANARI_SPATIAL_FIELD:
-    obj = s->scene.createObject<tsd::core::SpatialField>(subtype).data();
+    obj = s->scene->createObject<tsd::core::SpatialField>(subtype).data();
     name = "field" + std::to_string(s->fieldCount++);
     break;
   case ANARI_LIGHT:
-    obj = s->scene.createObject<tsd::core::Light>(subtype).data();
+    obj = s->scene->createObject<tsd::core::Light>(subtype).data();
     name = "light" + std::to_string(s->lightCount++);
     break;
   case ANARI_RENDERER:
-    obj = s->scene.createRenderer(s->deviceName, subtype).get();
+    obj = s->scene->createRenderer(s->deviceName, subtype).get();
     name = "renderer" + std::to_string(s->rendererCount++);
     break;
   default:
@@ -107,14 +106,7 @@ TSDObject::TSDObject(
   obj->setName(name.c_str());
 }
 
-TSDObject::~TSDObject()
-{
-  auto *s = deviceState();
-  if (m_liveHandle) {
-    anari::release(s->device, m_liveHandle);
-    m_liveHandle = nullptr;
-  }
-}
+TSDObject::~TSDObject() = default;
 
 void TSDObject::commitParameters()
 {
@@ -154,22 +146,11 @@ void TSDObject::commitParameters()
           p.first.c_str());
     }
   });
-
-  if (m_liveHandle) {
-    auto *state = deviceState();
-    object->updateAllANARIParameters(state->device, m_liveHandle);
-    anari::commitParameters(state->device, m_liveHandle);
-  }
 }
 
 tsd::core::Object *TSDObject::tsdObject() const
 {
-  return deviceState()->scene.getObject(m_object);
-}
-
-anari::Object TSDObject::anariHandle() const
-{
-  return m_liveHandle;
+  return deviceState()->scene->getObject(m_object);
 }
 
 } // namespace tsd_device

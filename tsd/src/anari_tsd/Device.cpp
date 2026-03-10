@@ -7,7 +7,7 @@
 #include "Frame.h"
 #include "Object.h"
 
-#include "anari_library_tsd_queries.h"
+#include "tsd_device_queries.h"
 
 namespace tsd_device {
 
@@ -212,25 +212,39 @@ void Device::initDevice()
 {
   if (m_initialized)
     return;
+
   reportMessage(ANARI_SEVERITY_DEBUG, "initializing TSD device (%p)", this);
 
   auto *state = deviceState();
-  auto *libraryNameEnv = getenv("ANARI_TSD_LIBRARY");
-  std::string libraryName = libraryNameEnv ? libraryNameEnv : "helide";
 
-  state->device = state->anari.loadDevice(libraryName.c_str());
-  if (!state->device) {
-    reportMessage(ANARI_SEVERITY_ERROR,
-        "failed to create ANARI device from library '%s'",
-        libraryName.c_str());
+  state->scene = &state->localScene;
+  if (m_scene != nullptr) {
+    reportMessage(ANARI_SEVERITY_INFO,
+        "using externally provided TSD scene (%p)",
+        m_scene);
+    state->scene = m_scene;
   } else {
     reportMessage(ANARI_SEVERITY_INFO,
-        "created ANARI device (%p) from library '%s'",
-        (void *)state->device,
-        libraryName.c_str());
+        "using internal TSD scene (%p) and setting up a surrogate ANARI device",
+        (void *)state->scene);
 
-    state->deviceName = libraryName;
-    state->scene.setUpdateDelegate(&state->anari.getUpdateDelegate());
+    auto *libraryNameEnv = getenv("ANARI_TSD_LIBRARY");
+    std::string libraryName = libraryNameEnv ? libraryNameEnv : "helide";
+
+    state->device = state->anari.loadDevice(libraryName.c_str());
+    if (!state->device) {
+      reportMessage(ANARI_SEVERITY_ERROR,
+          "failed to create ANARI device from library '%s'",
+          libraryName.c_str());
+    } else {
+      reportMessage(ANARI_SEVERITY_INFO,
+          "created ANARI device (%p) from library '%s'",
+          (void *)state->device,
+          libraryName.c_str());
+
+      state->deviceName = libraryName;
+      state->scene->setUpdateDelegate(&state->anari.getUpdateDelegate());
+    }
   }
 
   m_initialized = true;
@@ -239,6 +253,7 @@ void Device::initDevice()
 void Device::deviceCommitParameters()
 {
   helium::BaseDevice::deviceCommitParameters();
+  m_scene = (tsd::core::Scene *)getParam<void *>("scene", nullptr);
 }
 
 int Device::deviceGetProperty(const char *name,
@@ -264,3 +279,9 @@ DeviceGlobalState *Device::deviceState() const
 }
 
 } // namespace tsd_device
+
+extern "C" ANARIDevice anariNewTsdDevice(
+    ANARIStatusCallback defaultCallback, const void *userPtr)
+{
+  return (ANARIDevice) new tsd_device::Device(defaultCallback, userPtr);
+}

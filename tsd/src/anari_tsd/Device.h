@@ -85,6 +85,7 @@ struct Device : public helium::BaseDevice
   DeviceGlobalState *deviceState() const;
 
   bool m_initialized{false};
+  tsd::core::Scene *m_scene{nullptr};
 };
 
 } // namespace tsd_device

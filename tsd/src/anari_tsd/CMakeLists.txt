@@ -1,30 +1,24 @@
 ## Copyright 2026 NVIDIA Corporation
 ## SPDX-License-Identifier: Apache-2.0
 
-project(anari_library_tsd LANGUAGES CXX)
+project(tsd_device LANGUAGES CXX)
 
-project_add_library(SHARED
+project_add_library(OBJECT
   Array.cpp
   Device.cpp
   DeviceGlobalState.cpp
   Frame.cpp
   Group.cpp
   Instance.cpp
-  Library.cpp
   Object.cpp
   World.cpp
 )
-project_link_libraries(PRIVATE tsd_app tsd_io anari::helium)
-project_compile_definitions(PRIVATE "anari_library_tsd_EXPORTS")
+project_link_libraries(PUBLIC tsd_app tsd_io anari::helium)
 project_include_directories(
-PRIVATE
+PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
 )
-
-## Generated code ##
-
-include(GenerateExportHeader)
-generate_export_header(${PROJECT_NAME} EXPORT_MACRO_NAME "ANARI_TSD_EXPORT")
 
 anari_generate_queries(
   DEVICE_TARGET ${PROJECT_NAME}
@@ -32,7 +26,14 @@ anari_generate_queries(
   JSON_DEFINITIONS_FILE ${ANARI_CODE_GEN_ROOT}/devices/experimental_device.json
 )
 
-## Install ##
+## Installable TSD device library ##
+
+project(anari_library_tsd LANGUAGES CXX)
+project_add_library(SHARED Library.cpp)
+project_link_libraries(PUBLIC tsd_device)
+
+include(GenerateExportHeader)
+generate_export_header(${PROJECT_NAME} EXPORT_MACRO_NAME "ANARI_TSD_EXPORT")
 
 install(TARGETS ${PROJECT_NAME}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

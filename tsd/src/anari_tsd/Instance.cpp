@@ -30,6 +30,9 @@ void Instance::finalize()
   }
   if (!m_group)
     reportMessage(ANARI_SEVERITY_WARNING, "missing 'group' on ANARIInstance");
+
+  auto *s = deviceState();
+  s->objectUpdates.instancing++;
 }
 
 bool Instance::isValid() const

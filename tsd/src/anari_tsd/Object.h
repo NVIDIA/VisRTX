@@ -40,15 +40,9 @@ struct TSDObject : public Object
   virtual void commitParameters() override;
 
   tsd::core::Object *tsdObject() const;
-  anari::Object anariHandle() const;
 
  private:
   tsd::core::Any m_object; // scene ref for non-renderer objects
-
-  // Cameras track a live ANARI object to be used by the Frame, all
-  // other objects are created + managed via a render index to populate the
-  // World.
-  anari::Object m_liveHandle{nullptr};
 };
 
 } // namespace tsd_device

@@ -4,7 +4,7 @@
 #include "Device.h"
 #include "anari/backend/LibraryImpl.h"
 #include "anari_library_tsd_export.h"
-#include "anari_library_tsd_queries.h"
+#include "tsd_device_queries.h"
 
 namespace tsd_device {
 

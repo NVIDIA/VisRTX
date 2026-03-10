@@ -12,7 +12,7 @@ Array::Array(DeviceGlobalState *state, Array1DMemoryDescriptor desc)
       m_deleter(desc.deleter),
       m_deleterPtr(desc.deleterPtr)
 {
-  m_array = state->scene.createArray(desc.elementType, desc.numItems);
+  m_array = state->scene->createArray(desc.elementType, desc.numItems);
   syncSharedData();
 }
 
@@ -22,7 +22,7 @@ Array::Array(DeviceGlobalState *state, Array2DMemoryDescriptor desc)
       m_deleter(desc.deleter),
       m_deleterPtr(desc.deleterPtr)
 {
-  m_array = state->scene.createArray(
+  m_array = state->scene->createArray(
       desc.elementType, desc.numItems1, desc.numItems2);
   syncSharedData();
 }
@@ -33,7 +33,7 @@ Array::Array(DeviceGlobalState *state, Array3DMemoryDescriptor desc)
       m_deleter(desc.deleter),
       m_deleterPtr(desc.deleterPtr)
 {
-  m_array = state->scene.createArray(
+  m_array = state->scene->createArray(
       desc.elementType, desc.numItems1, desc.numItems2, desc.numItems3);
   syncSharedData();
 }

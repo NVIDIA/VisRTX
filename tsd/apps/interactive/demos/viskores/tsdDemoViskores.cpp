@@ -11,11 +11,15 @@
 #include <tsd/ui/imgui/windows/ObjectEditor.h>
 #include <tsd/ui/imgui/windows/TransferFunctionEditor.h>
 #include <tsd/ui/imgui/windows/Viewport.h>
+// anari_tsd
+#include "anari_tsd/anariNewTsdDevice.h"
 // std
 #include <chrono>
 
 #include "NodeEditor.h"
 #include "NodeInfoWindow.h"
+
+#define TSD_DEVICE_PASSTHROUGH 1
 
 namespace tsd::demo {
 
@@ -25,106 +29,134 @@ namespace tsd_ui = tsd::ui::imgui;
 class Application : public TSDApplication
 {
  public:
-  Application(int argc, const char *argv[]) : TSDApplication(argc, argv) {}
-  ~Application() override = default;
+  Application(int argc, const char *argv[]);
+  ~Application() override;
 
-  anari_viewer::WindowArray setupWindows() override
-  {
-    ImNodes::CreateContext();
+  anari_viewer::WindowArray setupWindows() override;
+  void uiFrameEnd() override;
+  void teardown() override;
+  const char *getDefaultLayout() const override;
 
-    auto windows = TSDApplication::setupWindows();
+ private:
+  void setupGraph();
 
-    auto *core = appCore();
+  tsd::ui::imgui::Viewport *m_viewport{nullptr};
+  tsd::viskores_graph::NodeEditor *m_neditor{nullptr};
+  viskores::graph::ExecutionGraph m_graph;
 
-    auto *cameras = new tsd_ui::CameraPoses(this);
-    auto *log = new tsd_ui::Log(this);
-    m_viewport =
-        new tsd_ui::Viewport(this, &core->view.manipulator, "Viewport");
-    m_viewport->setDeviceChangeCb([&](const std::string &libName) {
-      auto &adm = appCore()->anari;
-      auto &scene = appCore()->tsd.scene;
-      // Use the same ANARI device for the graph as we are in the viewport
-      m_graph.setANARIDevice(adm.loadDevice(libName));
-      if (!libName.empty()) {
-        tsd::core::logStatus(
-            "[viskores] graph now using ANARI library '%s'", libName.c_str());
-      }
-    });
-    auto *dbeditor = new tsd_ui::DatabaseEditor(this);
-    auto *oeditor = new tsd_ui::ObjectEditor(this);
-    auto *otree = new tsd_ui::LayerTree(this);
-    auto *tfeditor = new tsd_ui::TransferFunctionEditor(this);
-    auto *isoeditor = new tsd_ui::IsosurfaceEditor(this);
+  anari::Device m_tsdDevice{nullptr};
+  anari::Frame m_tsdFrame{nullptr};
+};
 
-    auto ninfo = new tsd::viskores_graph::NodeInfoWindow(this);
-    m_neditor = new tsd::viskores_graph::NodeEditor(this, &m_graph, ninfo);
+// Applications definitions ///////////////////////////////////////////////////
 
-    windows.emplace_back(cameras);
-    windows.emplace_back(m_viewport);
-    windows.emplace_back(dbeditor);
-    windows.emplace_back(oeditor);
-    windows.emplace_back(otree);
-    windows.emplace_back(log);
-    windows.emplace_back(tfeditor);
-    windows.emplace_back(ninfo);
-    windows.emplace_back(m_neditor);
+Application::Application(int argc, const char *argv[])
+    : TSDApplication(argc, argv)
+{}
 
-    setWindowArray(windows);
+Application::~Application() = default;
 
-    tfeditor->hide();
+anari_viewer::WindowArray Application::setupWindows()
+{
+  ImNodes::CreateContext();
 
-    // Populate scene //
+  auto windows = TSDApplication::setupWindows();
 
-    auto populateScene = [vp = m_viewport, core = core]() {
-      auto &scene = core->tsd.scene;
+  auto *core = appCore();
 
-      const bool setupDefaultLight = !core->commandLine.loadedFromStateFile
-          && scene.numberOfObjects(ANARI_LIGHT) == 0;
-      if (setupDefaultLight) {
-        tsd::core::logStatus("...setting up default light");
+  auto *cameras = new tsd_ui::CameraPoses(this);
+  auto *log = new tsd_ui::Log(this);
+  m_viewport = new tsd_ui::Viewport(this, &core->view.manipulator, "Viewport");
+  auto *dbeditor = new tsd_ui::DatabaseEditor(this);
+  auto *oeditor = new tsd_ui::ObjectEditor(this);
+  auto *otree = new tsd_ui::LayerTree(this);
+  auto *tfeditor = new tsd_ui::TransferFunctionEditor(this);
+  auto *isoeditor = new tsd_ui::IsosurfaceEditor(this);
 
-        auto light = scene.createObject<tsd::core::Light>(
-            tsd::core::tokens::light::directional);
-        light->setName("mainLight");
-        light->setParameter("direction", tsd::math::float2(0.f, 240.f));
+  auto ninfo = new tsd::viskores_graph::NodeInfoWindow(this);
+  m_neditor = new tsd::viskores_graph::NodeEditor(this, &m_graph, ninfo);
 
-        scene.defaultLayer()->root()->insert_first_child({light});
-      }
+  windows.emplace_back(cameras);
+  windows.emplace_back(m_viewport);
+  windows.emplace_back(dbeditor);
+  windows.emplace_back(oeditor);
+  windows.emplace_back(otree);
+  windows.emplace_back(log);
+  windows.emplace_back(tfeditor);
+  windows.emplace_back(ninfo);
+  windows.emplace_back(m_neditor);
 
-      core->tsd.sceneLoadComplete = true;
+  setWindowArray(windows);
 
-      vp->setLibraryToDefault();
-    };
+  tfeditor->hide();
+
+  setupGraph();
+
+  // Populate scene //
+
+  auto populateScene = [vp = m_viewport, core = core]() {
+    auto &scene = core->tsd.scene;
+
+    const bool setupDefaultLight = !core->commandLine.loadedFromStateFile
+        && scene.numberOfObjects(ANARI_LIGHT) == 0;
+    if (setupDefaultLight) {
+      tsd::core::logStatus("...setting up default light");
+
+      auto light = scene.createObject<tsd::core::Light>(
+          tsd::core::tokens::light::directional);
+      light->setName("mainLight");
+      light->setParameter("direction", tsd::math::float2(0.f, 240.f));
+
+      scene.defaultLayer()->root()->insert_first_child({light});
+    }
+
+    core->tsd.sceneLoadComplete = true;
+
+    vp->setLibraryToDefault();
+  };
 
 #if 1
-    showTaskModal(populateScene, "Please Wait: Loading Scene...");
+  showTaskModal(populateScene, "Please Wait: Loading Scene...");
 #else
-    populateScene();
+  populateScene();
 #endif
 
-    return windows;
-  }
+  return windows;
+}
 
-  void uiFrameEnd() override
-  {
-    m_graph.update(viskores::graph::GraphExecutionPolicy::ALL_ASYNC, [&]() {
-      auto &instances = m_graph.getANARIInstances();
-      m_viewport->setExternalInstances(instances.data(), instances.size());
-      m_neditor->updateNodeSummary();
-    });
-    TSDApplication::uiFrameEnd();
-  }
+void Application::uiFrameEnd()
+{
+  m_graph.update(viskores::graph::GraphExecutionPolicy::ALL_ASYNC, [&]() {
+#if TSD_DEVICE_PASSTHROUGH
+    anari::render(m_tsdDevice, m_tsdFrame);
+    anari::wait(m_tsdDevice, m_tsdFrame);
+#if 0
+    auto *core = appCore();
+    core->tsd.scene.removeUnusedObjects();
+#endif
+#else
+    auto &instances = m_graph.getANARIInstances();
+    m_viewport->setExternalInstances(instances.data(), instances.size());
+#endif
+    m_neditor->updateNodeSummary();
+  });
+  TSDApplication::uiFrameEnd();
+}
 
-  void teardown() override
-  {
-    m_graph.sync();
-    ImNodes::DestroyContext();
-    TSDApplication::teardown();
+void Application::teardown()
+{
+  m_graph.sync();
+  if (m_tsdDevice) {
+    anari::release(m_tsdDevice, m_tsdFrame);
+    anari::release(m_tsdDevice, m_tsdDevice);
   }
+  ImNodes::DestroyContext();
+  TSDApplication::teardown();
+}
 
-  const char *getDefaultLayout() const override
-  {
-    return R"layout(
+const char *Application::getDefaultLayout() const
+{
+  return R"layout(
 [Window][MainDockSpace]
 Pos=0,26
 Size=1920,1105
@@ -254,13 +286,45 @@ DockSpace           ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Spli
     DockNode        ID=0x0000000B Parent=0x0000000A SizeRef=550,590 Selected=0x3429FA32
     DockNode        ID=0x0000000C Parent=0x0000000A SizeRef=550,462 Selected=0xBCE6538B
 )layout";
-  }
+}
 
- private:
-  tsd::ui::imgui::Viewport *m_viewport{nullptr};
-  tsd::viskores_graph::NodeEditor *m_neditor{nullptr};
-  viskores::graph::ExecutionGraph m_graph;
-};
+void Application::setupGraph()
+{
+#if TSD_DEVICE_PASSTHROUGH
+  anari::Device d = anariNewTsdDevice();
+  void *scenePtr = &appCore()->tsd.scene;
+  anari::setParameter(d, d, "scene", scenePtr);
+  anari::commitParameters(d, d);
+
+  m_graph.setANARIDevice(d);
+
+  m_tsdFrame = anari::newObject<anari::Frame>(d);
+  auto tsdRenderer = anari::newObject<anari::Renderer>(d, "default");
+  auto tsdCamera = anari::newObject<anari::Camera>(d, "perspective");
+  auto tsdWorld = m_graph.getANARIWorld();
+
+  anari::setParameter(d, m_tsdFrame, "renderer", tsdRenderer);
+  anari::setParameter(d, m_tsdFrame, "camera", tsdCamera);
+  anari::setParameter(d, m_tsdFrame, "world", tsdWorld);
+  anari::commitParameters(d, m_tsdFrame);
+
+  anari::release(d, tsdRenderer);
+  anari::release(d, tsdCamera);
+
+  m_tsdDevice = d;
+#else
+  m_viewport->setDeviceChangeCb([&](const std::string &libName) {
+    auto &adm = appCore()->anari;
+    auto &scene = appCore()->tsd.scene;
+    // Use the same ANARI device for the graph as we are in the viewport
+    m_graph.setANARIDevice(adm.loadDevice(libName));
+    if (!libName.empty()) {
+      tsd::core::logStatus(
+          "[viskores] graph now using ANARI library '%s'", libName.c_str());
+    }
+  });
+#endif
+}
 
 } // namespace tsd::demo
 

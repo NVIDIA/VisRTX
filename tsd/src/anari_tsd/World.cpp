@@ -13,16 +13,20 @@ World::World(DeviceGlobalState *s)
       m_instanceData(this)
 {
   m_layerName = "world" + std::to_string(s->worldCount++);
-  auto *l = s->scene.addLayer(m_layerName);
-  m_renderIndex =
-      (tsd::rendering::RenderIndexAllLayers *)s->anari.acquireRenderIndex(
-          s->scene, s->deviceName, s->device);
+  auto *l = s->scene->addLayer(m_layerName);
+  if (!s->usingExternalScene()) {
+    m_renderIndex =
+        (tsd::rendering::RenderIndexAllLayers *)s->anari.acquireRenderIndex(
+            *s->scene, s->deviceName, s->device);
+  }
 }
 
 World::~World()
 {
   auto *s = deviceState();
-  s->scene.removeLayer(m_layerName);
+  if (!s->usingExternalScene())
+    s->anari.releaseRenderIndex(s->device);
+  s->scene->removeLayer(m_layerName);
 }
 
 bool World::getProperty(const std::string_view &name,
@@ -52,7 +56,37 @@ void World::commitParameters()
 void World::finalize()
 {
   updateValidObjects();
+  auto *s = deviceState();
+  s->objectUpdates.instancing++;
   updateLayer();
+}
+
+void World::updateLayer()
+{
+  auto *s = deviceState();
+  if (!tsd::core::versionChanged(
+          m_instancingUpdated, s->objectUpdates.instancing))
+    return;
+
+  auto *l = layer();
+  l->erase_subtree(l->root());
+
+  for (auto *inst : m_instances) {
+    auto instNode = l->root()->insert_last_child(inst->xfm());
+    inst->group()->addObjectsToLayer(instNode);
+  }
+
+  if (m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData) {
+    auto zi = l->root()->insert_last_child("zero-instance");
+    for (auto *obj : m_zeroSurfaces)
+      zi->insert_last_child(obj->tsdObject());
+    for (auto *obj : m_zeroVolumes)
+      zi->insert_last_child(obj->tsdObject());
+    for (auto *obj : m_zeroLights)
+      zi->insert_last_child(obj->tsdObject());
+  }
+
+  s->scene->signalLayerStructureChanged(l);
 }
 
 const tsd::rendering::RenderIndexAllLayers *World::getRenderIndex() const
@@ -68,7 +102,7 @@ tsd::rendering::RenderIndexAllLayers *World::getRenderIndex()
 tsd::core::Layer *World::layer() const
 {
   auto *s = deviceState();
-  return s->scene.layer(m_layerName);
+  return s->scene->layer(m_layerName);
 }
 
 void World::updateValidObjects()
@@ -112,29 +146,6 @@ void World::updateValidObjects()
             m_zeroLights.push_back((TSDObject *)o);
         });
   }
-}
-
-void World::updateLayer()
-{
-  auto *l = layer();
-  l->erase_subtree(l->root());
-
-  for (auto *inst : m_instances) {
-    auto instNode = l->root()->insert_last_child(inst->xfm());
-    inst->group()->addObjectsToLayer(instNode);
-  }
-
-  if (m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData) {
-    auto zi = l->root()->insert_last_child("zero-instance");
-    for (auto *obj : m_zeroSurfaces)
-      zi->insert_last_child(obj->tsdObject());
-    for (auto *obj : m_zeroVolumes)
-      zi->insert_last_child(obj->tsdObject());
-    for (auto *obj : m_zeroLights)
-      zi->insert_last_child(obj->tsdObject());
-  }
-
-  deviceState()->scene.signalLayerStructureChanged(l);
 }
 
 } // namespace tsd_device
