@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "tsd/scene/Animation.hpp"
+#include "tsd/animation/Animation.hpp"
+#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/scene/Layer.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Camera.hpp"
@@ -221,30 +222,8 @@ struct Scene
   // Animations //
   ////////////////
 
-  Animation *addAnimation(const char *name = "");
-  size_t numberOfAnimations() const;
-  Animation *animation(size_t i) const;
-  void removeAnimation(Animation *a);
-  void removeAllAnimations();
-
-  void setAnimationTime(float time /* 0.f - 1.f */);
-  float getAnimationTime() const;
-
-  void setAnimationIncrement(float increment);
-  float getAnimationIncrement() const;
-  void incrementAnimationTime();
-
-  int getAnimationTotalFrames() const;
-  void setAnimationTotalFrames(int frames); // clamp to >= 2
-  float getAnimationFPS() const;
-  void setAnimationFPS(float fps); // clamp to > 0
-
-  int getAnimationFrame() const; // round(time * (totalFrames - 1))
-  void setAnimationFrame(int frame); // setAnimationTime(frame / (totalFrames-1))
-  void incrementAnimationFrame(); // frame++ with loop wrap
-
-  Animation *addKeyframeAnimation(const char *name, LayerNodeRef node);
-  Animation *addKeyframeAnimationForCamera(const char *name, CameraRef cam);
+  tsd::animation::SceneAnimation &sceneAnimation();
+  const tsd::animation::SceneAnimation &sceneAnimation() const;
 
   ////////////////////////
   // Cleanup operations //
@@ -282,14 +261,7 @@ struct Scene
   bool m_inLayerBatch{false};
   std::vector<const Layer *> m_batchedLayerUpdates;
 
-  struct AnimationData
-  {
-    float incrementSize{0.01f};
-    float time{0.f};
-    int totalFrames{100};
-    float fps{24.f};
-    std::vector<std::unique_ptr<Animation>> objects;
-  } m_animations;
+  tsd::animation::SceneAnimation m_sceneAnimation{*this};
 
   struct MpiData
   {

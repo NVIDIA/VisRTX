@@ -40,7 +40,7 @@ Scene::~Scene()
 
   m_updateDelegate = nullptr;
   m_layers.clear();
-  m_animations.objects.clear();
+  m_sceneAnimation.removeAllAnimations();
 
   auto reportObjectUsages = [&](auto &array) {
     foreach_item_const(array, [&](auto *o) {
@@ -700,133 +700,14 @@ void Scene::signalObjectLayerUseCountZero(const Object *obj)
     m_updateDelegate->signalObjectLayerUseCountZero(obj);
 }
 
-Animation *Scene::addAnimation(const char *name)
+tsd::animation::SceneAnimation &Scene::sceneAnimation()
 {
-  auto anim = std::unique_ptr<Animation>(new Animation(this, name));
-  auto *retval = anim.get();
-  m_animations.objects.push_back(std::move(anim));
-  return retval;
+  return m_sceneAnimation;
 }
 
-size_t Scene::numberOfAnimations() const
+const tsd::animation::SceneAnimation &Scene::sceneAnimation() const
 {
-  return m_animations.objects.size();
-}
-
-Animation *Scene::animation(size_t i) const
-{
-  if (i < m_animations.objects.size())
-    return m_animations.objects[i].get();
-  return nullptr;
-}
-
-void Scene::removeAnimation(Animation *a)
-{
-  auto itr = std::find_if(m_animations.objects.begin(),
-      m_animations.objects.end(),
-      [&](auto &anim) { return anim.get() == a; });
-  if (itr != m_animations.objects.end())
-    m_animations.objects.erase(itr);
-}
-
-void Scene::removeAllAnimations()
-{
-  m_animations.objects.clear();
-}
-
-void Scene::setAnimationTime(float time)
-{
-  m_animations.time = time;
-  for (auto &a : m_animations.objects)
-    a->update(time);
-
-  // Signal delegates that animation time changed
-  if (m_updateDelegate)
-    m_updateDelegate->signalAnimationTimeChanged(time);
-}
-
-float Scene::getAnimationTime() const
-{
-  return m_animations.time;
-}
-
-void Scene::setAnimationIncrement(float increment)
-{
-  m_animations.incrementSize = increment;
-  if (increment > 0.5f) {
-    logWarning(
-        "[scene] setting animation increment > 0.5 will cause odd"
-        " animation behavior.");
-  }
-}
-
-float Scene::getAnimationIncrement() const
-{
-  return m_animations.incrementSize;
-}
-
-void Scene::incrementAnimationTime()
-{
-  auto newTime = m_animations.time + m_animations.incrementSize;
-  if (newTime > 1.f)
-    newTime = 0.f;
-  setAnimationTime(newTime);
-}
-
-int Scene::getAnimationTotalFrames() const
-{
-  return m_animations.totalFrames;
-}
-
-void Scene::setAnimationTotalFrames(int frames)
-{
-  m_animations.totalFrames = std::max(2, frames);
-}
-
-float Scene::getAnimationFPS() const
-{
-  return m_animations.fps;
-}
-
-void Scene::setAnimationFPS(float fps)
-{
-  if (fps > 0.f)
-    m_animations.fps = fps;
-}
-
-int Scene::getAnimationFrame() const
-{
-  return static_cast<int>(
-      std::round(m_animations.time * (m_animations.totalFrames - 1)));
-}
-
-void Scene::setAnimationFrame(int frame)
-{
-  int clamped = std::clamp(frame, 0, m_animations.totalFrames - 1);
-  setAnimationTime(
-      static_cast<float>(clamped) / (m_animations.totalFrames - 1));
-}
-
-void Scene::incrementAnimationFrame()
-{
-  int frame = getAnimationFrame() + 1;
-  if (frame >= m_animations.totalFrames)
-    frame = 0;
-  setAnimationFrame(frame);
-}
-
-Animation *Scene::addKeyframeAnimation(const char *name, LayerNodeRef node)
-{
-  auto *anim = addAnimation(name);
-  anim->setKeyframeTargetNode(node);
-  return anim;
-}
-
-Animation *Scene::addKeyframeAnimationForCamera(const char *name, CameraRef cam)
-{
-  auto *anim = addAnimation(name);
-  anim->setKeyframeTargetObject(*cam);
-  return anim;
+  return m_sceneAnimation;
 }
 
 void Scene::removeUnusedObjects(bool includeRenderersAndCameras)
