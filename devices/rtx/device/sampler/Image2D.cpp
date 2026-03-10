@@ -99,6 +99,11 @@ int Image2D::numChannels() const
   return numANARIChannels(format);
 }
 
+cudaTextureObject_t Image2D::textureObject() const
+{
+  return m_texture;
+}
+
 SamplerGPUData Image2D::gpuData() const
 {
   SamplerGPUData retval = Sampler::gpuData();
