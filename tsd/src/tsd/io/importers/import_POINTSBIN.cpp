@@ -32,7 +32,7 @@ void import_POINTSBIN(Scene &scene,
 
   size_t numTimeSteps = filepaths.size();
 
-  std::vector<TimeStepArrays> arrays;
+  std::vector<std::vector<ObjectUsePtr<Array>>> arrays;
   arrays.emplace_back(); // vertex.position
   arrays.emplace_back(); // vertex.attribute0
 
@@ -54,9 +54,13 @@ void import_POINTSBIN(Scene &scene,
   }
 
   if (numTimeSteps > 1) {
-    auto *anim = scene.addAnimation("pointsbin animation");
-    anim->setAsTimeSteps(
-        *geom, {Token("vertex.position"), Token("vertex.attribute0")}, arrays);
+    auto tb = makeLinearTimeBase(numTimeSteps);
+    auto &anim = scene.sceneAnimation().addAnimation("pointsbin animation");
+    addArrayTimeStepBindings(anim,
+        geom.data(),
+        {Token("vertex.position"), Token("vertex.attribute0")},
+        arrays,
+        tb);
   }
 
   geom->setParameterObject("vertex.position", *arrays[0][0]);

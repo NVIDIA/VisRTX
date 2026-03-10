@@ -742,10 +742,13 @@ static void import_usd_points(Scene &scene,
       }
     }
     if (posArrays.size() > 1) {
-      auto *anim = scene.addAnimation(primName.c_str());
-      anim->setAsTimeSteps(*geom,
-          std::vector<Token>{"vertex.position", "vertex.radius"},
-          std::vector<TimeStepArrays>{posArrays, radArrays});
+      auto tb = makeLinearTimeBase(posArrays.size());
+      auto &anim = scene.sceneAnimation().addAnimation(primName.c_str());
+      addArrayTimeStepBindings(anim,
+          geom.data(),
+          {Token("vertex.position"), Token("vertex.radius")},
+          {posArrays, radArrays},
+          tb);
     }
   }
 }
@@ -860,8 +863,13 @@ static void import_usd_curves(Scene &scene,
         posArrays.push_back(arr);
     }
     if (posArrays.size() > 1) {
-      auto *anim = scene.addAnimation(primName.c_str());
-      anim->setAsTimeSteps(*geom, "vertex.position", posArrays);
+      auto tb = makeLinearTimeBase(posArrays.size());
+      auto &anim = scene.sceneAnimation().addAnimation(primName.c_str());
+      addArrayTimeStepBindings(anim,
+          geom.data(),
+          {Token("vertex.position")},
+          {posArrays},
+          tb);
     }
   }
 }
@@ -1119,10 +1127,13 @@ static void import_usd_cube(Scene &scene,
       normArrays.push_back(normArr);
     }
 
-    auto *anim = scene.addAnimation(primName.c_str());
-    anim->setAsTimeSteps(*geom,
-        std::vector<Token>{"vertex.position", "vertex.normal"},
-        std::vector<TimeStepArrays>{posArrays, normArrays});
+    auto tb = makeLinearTimeBase(posArrays.size());
+    auto &anim = scene.sceneAnimation().addAnimation(primName.c_str());
+    addArrayTimeStepBindings(anim,
+        geom.data(),
+        {Token("vertex.position"), Token("vertex.normal")},
+        {posArrays, normArrays},
+        tb);
 
     logStatus(
         "[import_USD] Cube '%s': animated xform over %zu frames\n",
@@ -1661,7 +1672,7 @@ static void import_usd_camera(Scene &scene, const pxr::UsdPrim &prim)
   }
 
   std::vector<Token> animParams{"position", "direction", "up"};
-  std::vector<TimeStepValues> animArrays{posArr, dirArr, upArr};
+  std::vector<ObjectUsePtr<Array>> animArrays{posArr, dirArr, upArr};
   if (hasIntrinsicAnimation) {
     animParams.push_back("fovy");
     animArrays.push_back(fovArr);
@@ -1675,8 +1686,14 @@ static void import_usd_camera(Scene &scene, const pxr::UsdPrim &prim)
     }
   }
 
-  auto *anim = scene.addAnimation(primName.c_str());
-  anim->setAsTimeSteps(*camera, animParams, animArrays);
+  auto tb = makeLinearTimeBase(numFrames);
+  auto &anim = scene.sceneAnimation().addAnimation(primName.c_str());
+  addValueTimeStepBindings(anim,
+      camera.data(),
+      animParams,
+      animArrays,
+      tb,
+      tsd::animation::InterpolationRule::LINEAR);
 
   logStatus("[import_USD] Created animated camera '%s' (%zu frames)\n",
       primName.c_str(),
@@ -1807,8 +1824,9 @@ static void import_usd_prim_recursive(Scene &scene,
       frames.push_back(to_tsd_mat4(tc.GetLocalTransformation(prim, &resets)));
     }
     size_t numFrames = frames.size();
-    scene.addAnimation(primName.c_str())
-        ->setAsTransformSteps(thisNode, std::move(frames));
+    auto tb = makeLinearTimeBase(numFrames);
+    auto &anim = scene.sceneAnimation().addAnimation(primName.c_str());
+    addTransformStepBinding(anim, thisNode, frames, tb);
     logStatus("[import_USD] Xform '%s': animated transform (%zu frames)\n",
         primName.c_str(),
         numFrames);
