@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/animation/Animation.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
@@ -58,5 +59,36 @@ tsd::scene::ArrayRef makeArray3DFromVTK(tsd::scene::Scene &scene,
     size_t d,
     const char *errorIdentifier = "");
 #endif
+
+// Animation helpers ///////////////////////////////////////////////////////////
+
+// Create a linear time base [0..1] with `count` evenly spaced samples.
+std::vector<float> makeLinearTimeBase(size_t count);
+
+// Build bindings for the "one value-array per parameter" pattern (e.g. camera
+// animation where each Array has N elements of the parameter's scalar type).
+void addValueTimeStepBindings(tsd::animation::Animation &anim,
+    tsd::scene::Object *target,
+    const std::vector<tsd::core::Token> &paramNames,
+    const std::vector<tsd::scene::ObjectUsePtr<tsd::scene::Array>> &dataArrays,
+    const std::vector<float> &timeBase,
+    tsd::animation::InterpolationRule interp =
+        tsd::animation::InterpolationRule::STEP);
+
+// Build bindings for the "array-of-arrays per parameter" pattern (e.g. geometry
+// animation where each timestep swaps a different Array object).
+void addArrayTimeStepBindings(tsd::animation::Animation &anim,
+    tsd::scene::Object *target,
+    const std::vector<tsd::core::Token> &paramNames,
+    const std::vector<std::vector<tsd::scene::ObjectUsePtr<tsd::scene::Array>>>
+        &arraysPerParam,
+    const std::vector<float> &timeBase);
+
+// Build a TransformBinding from a sequence of mat4 frames (decomposes each
+// frame into rotation quaternion, translation, and scale).
+void addTransformStepBinding(tsd::animation::Animation &anim,
+    tsd::scene::LayerNodeRef target,
+    const std::vector<tsd::math::mat4> &frames,
+    const std::vector<float> &timeBase);
 
 } // namespace tsd::io

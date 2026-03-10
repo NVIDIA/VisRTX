@@ -759,7 +759,7 @@ void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
     return;
   }
 
-  const float originalTime = scene.getAnimationTime();
+  const float originalTime = scene.sceneAnimation().getAnimationTime();
   const int exportFps = std::max(1, framesPerSecond);
 
   pxr::SdfPath currentPath = allLayersPath;
@@ -820,12 +820,15 @@ void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
             auto usdCamera = pxr::UsdGeomCamera::Define(stage, objectPath);
 
             size_t cameraSampleCount = 0;
-            for (size_t i = 0; i < scene.numberOfAnimations(); ++i) {
-              if (auto *anim = scene.animation(i);
-                  anim && anim->targetsObject(camera)) {
-                cameraSampleCount = anim->timeStepCount();
-                break;
+            for (auto &anim : scene.sceneAnimation().animations()) {
+              for (auto &b : anim.bindings) {
+                if (b.target == camera) {
+                  cameraSampleCount = b.timeBase.size();
+                  break;
+                }
               }
+              if (cameraSampleCount > 0)
+                break;
             }
 
             if (camera->subtype() == tokens::camera::orthographic) {
@@ -928,10 +931,10 @@ void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
               for (size_t i = 0; i < cameraSampleCount; ++i) {
                 const double tNorm = static_cast<double>(i)
                     / static_cast<double>(cameraSampleCount - 1);
-                scene.setAnimationTime(static_cast<float>(tNorm));
+                scene.sceneAnimation().setAnimationTime(static_cast<float>(tNorm));
                 setCameraSample(static_cast<double>(i), true);
               }
-              scene.setAnimationTime(originalTime);
+              scene.sceneAnimation().setAnimationTime(originalTime);
             } else {
               setCameraSample(0.0, false);
             }

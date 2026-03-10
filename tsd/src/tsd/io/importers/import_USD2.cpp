@@ -188,48 +188,34 @@ static void importUsdGeomCamera(Scene &scene, const pxr::UsdPrim &prim)
     return;
   }
 
-  auto cameraAnimation = scene.addAnimation(primName.c_str());
+  auto &cameraAnimation = scene.sceneAnimation().addAnimation(primName.c_str());
   std::vector<Token> animatedParams;
-  std::vector<std::vector<Any>> animatedValues;
+  std::vector<ObjectUsePtr<Array>> animatedArrays;
 
-  if (isPositionsAnimated) {
-    animatedParams.push_back("position");
-    animatedValues.push_back(positions);
-  }
-  if (isDirectionsAnimated) {
-    animatedParams.push_back("direction");
-    animatedValues.push_back(directions);
-  }
-  if (isUpsAnimated) {
-    animatedParams.push_back("up");
-    animatedValues.push_back(ups);
-  }
-  if (isFovsAnimated) {
-    animatedParams.push_back("fovy");
-    animatedValues.push_back(fovs);
-  }
-
-  std::vector<TimeStepValues> finalValueArrays;
-  for (size_t i = 0; i < animatedValues.size(); i++) {
-    auto &values = animatedValues[i];
-    auto &paramName = animatedParams[i];
-
+  auto addAnimParam = [&](const char *name, std::vector<Any> &values) {
     auto type = values[0].type();
-    auto arr = scene.createArray(values[0].type(), values.size());
-    arr->setName((std::string("animated_") + paramName.c_str()).c_str());
-
+    auto arr = scene.createArray(type, values.size());
+    arr->setName((std::string("animated_") + name).c_str());
     auto *ptr = (uint8_t *)arr->map();
-    for (size_t j = 0; j < values.size(); j++) {
-      auto &v = values[j];
-      auto *dst = ptr + (j * anari::sizeOf(type));
-      std::memcpy(dst, v.data(), anari::sizeOf(type));
-    }
+    for (size_t j = 0; j < values.size(); j++)
+      std::memcpy(ptr + j * anari::sizeOf(type), values[j].data(), anari::sizeOf(type));
     arr->unmap();
+    animatedParams.push_back(name);
+    animatedArrays.push_back(arr);
+  };
 
-    finalValueArrays.push_back(arr);
-  }
+  if (isPositionsAnimated) addAnimParam("position", positions);
+  if (isDirectionsAnimated) addAnimParam("direction", directions);
+  if (isUpsAnimated) addAnimParam("up", ups);
+  if (isFovsAnimated) addAnimParam("fovy", fovs);
 
-  cameraAnimation->setAsTimeSteps(*camera, animatedParams, finalValueArrays);
+  auto tb = makeLinearTimeBase(positions.size());
+  addValueTimeStepBindings(cameraAnimation,
+      camera.data(),
+      animatedParams,
+      animatedArrays,
+      tb,
+      tsd::animation::InterpolationRule::LINEAR);
 
   logStatus("[import_USD] Created camera '%s'\n", primName.c_str());
 }

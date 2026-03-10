@@ -124,7 +124,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
   // geometry time steps
 
   std::vector<Token> timeStepNames;
-  std::vector<TimeStepArrays> timeSteps;
+  std::vector<std::vector<ObjectUsePtr<Array>>> timeSteps;
 
   agxReaderResetTimeSteps(r);
   uint32_t stepIndex = 0, paramCount = 0;
@@ -283,13 +283,12 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
   // animation
 
   if (!timeSteps.empty()) {
-    auto *anim = scene.addAnimation(file.c_str());
-    if (anim) {
-      anim->setAsTimeSteps(*geom, timeStepNames, timeSteps);
-      logInfo("[import_AGX] animation created successfully");
-    } else {
-      logError("[import_AGX] failed to create animation");
-    }
+    size_t numSteps = timeSteps.empty() ? 0 : timeSteps[0].size();
+    auto tb = makeLinearTimeBase(numSteps);
+    auto &anim = scene.sceneAnimation().addAnimation(file.c_str());
+    addArrayTimeStepBindings(
+        anim, geom.data(), timeStepNames, timeSteps, tb);
+    logInfo("[import_AGX] animation created successfully");
   }
 
   //// Cleanup ////

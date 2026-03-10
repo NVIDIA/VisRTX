@@ -16,6 +16,7 @@
 #include <anari/anari_cpp/ext/linalg.h>
 // std
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <fstream>
@@ -789,5 +790,120 @@ tsd::scene::ArrayRef makeArray3DFromVTK(tsd::scene::Scene &scene,
   return arr;
 }
 #endif
+
+// Animation helpers ///////////////////////////////////////////////////////////
+
+std::vector<float> makeLinearTimeBase(size_t count)
+{
+  std::vector<float> tb(count);
+  float denom = count > 1 ? float(count - 1) : 1.f;
+  for (size_t i = 0; i < count; i++)
+    tb[i] = float(i) / denom;
+  return tb;
+}
+
+void addValueTimeStepBindings(tsd::animation::Animation &anim,
+    Object *target,
+    const std::vector<Token> &paramNames,
+    const std::vector<ObjectUsePtr<Array>> &dataArrays,
+    const std::vector<float> &timeBase,
+    tsd::animation::InterpolationRule interp)
+{
+  for (size_t i = 0; i < paramNames.size(); i++) {
+    tsd::animation::ObjectParameterBinding b;
+    b.target = target;
+    b.paramName = paramNames[i];
+    b.dataType = dataArrays[i]->elementType();
+    b.data = tsd::animation::TimeSamples(
+        dataArrays[i]->elementType(), dataArrays[i]->size());
+    b.data.setData(dataArrays[i]->data());
+    b.timeBase = timeBase;
+    b.interp = interp;
+    anim.bindings.push_back(std::move(b));
+  }
+}
+
+void addArrayTimeStepBindings(tsd::animation::Animation &anim,
+    Object *target,
+    const std::vector<Token> &paramNames,
+    const std::vector<std::vector<ObjectUsePtr<Array>>> &arraysPerParam,
+    const std::vector<float> &timeBase)
+{
+  for (size_t i = 0; i < paramNames.size(); i++) {
+    auto &arrays = arraysPerParam[i];
+
+    tsd::animation::TimeSamples samples(ANARI_ARRAY1D, arrays.size());
+    auto *indices = samples.mapAs<size_t>();
+    for (size_t j = 0; j < arrays.size(); j++)
+      indices[j] = arrays[j]->index();
+    samples.unmap();
+
+    tsd::animation::ObjectParameterBinding b;
+    b.target = target;
+    b.paramName = paramNames[i];
+    b.dataType = ANARI_ARRAY1D;
+    b.data = std::move(samples);
+    b.timeBase = timeBase;
+    b.interp = tsd::animation::InterpolationRule::STEP;
+    anim.bindings.push_back(std::move(b));
+  }
+}
+
+static math::float4 mat3ToQuat(
+    math::float3 c0, math::float3 c1, math::float3 c2)
+{
+  // Shepperd's method
+  float trace = c0.x + c1.y + c2.z;
+  math::float4 q;
+  if (trace > 0.f) {
+    float s = 0.5f / std::sqrt(trace + 1.f);
+    q = {(c1.z - c2.y) * s, (c2.x - c0.z) * s, (c0.y - c1.x) * s, 0.25f / s};
+  } else if (c0.x > c1.y && c0.x > c2.z) {
+    float s = 0.5f / std::sqrt(1.f + c0.x - c1.y - c2.z);
+    q = {0.25f / s, (c0.y + c1.x) * s, (c2.x + c0.z) * s, (c1.z - c2.y) * s};
+  } else if (c1.y > c2.z) {
+    float s = 0.5f / std::sqrt(1.f + c1.y - c0.x - c2.z);
+    q = {(c0.y + c1.x) * s, 0.25f / s, (c1.z + c2.y) * s, (c2.x - c0.z) * s};
+  } else {
+    float s = 0.5f / std::sqrt(1.f + c2.z - c0.x - c1.y);
+    q = {(c2.x + c0.z) * s, (c1.z + c2.y) * s, 0.25f / s, (c0.y - c1.x) * s};
+  }
+  float len = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+  return {q.x / len, q.y / len, q.z / len, q.w / len};
+}
+
+void addTransformStepBinding(tsd::animation::Animation &anim,
+    LayerNodeRef target,
+    const std::vector<math::mat4> &frames,
+    const std::vector<float> &timeBase)
+{
+  size_t n = frames.size();
+  tsd::animation::TransformBinding tb;
+  tb.target = target;
+  tb.timeBase = timeBase;
+  tb.rotation.resize(n);
+  tb.translation.resize(n);
+  tb.scale.resize(n);
+
+  for (size_t i = 0; i < n; i++) {
+    auto &m = frames[i];
+    math::float3 c0 = {m[0][0], m[0][1], m[0][2]};
+    math::float3 c1 = {m[1][0], m[1][1], m[1][2]};
+    math::float3 c2 = {m[2][0], m[2][1], m[2][2]};
+
+    tb.scale[i] = {length(c0), length(c1), length(c2)};
+    if (tb.scale[i].x > 0.f)
+      c0 = c0 / tb.scale[i].x;
+    if (tb.scale[i].y > 0.f)
+      c1 = c1 / tb.scale[i].y;
+    if (tb.scale[i].z > 0.f)
+      c2 = c2 / tb.scale[i].z;
+
+    tb.rotation[i] = mat3ToQuat(c0, c1, c2);
+    tb.translation[i] = {m[3][0], m[3][1], m[3][2]};
+  }
+
+  anim.transforms.push_back(std::move(tb));
+}
 
 } // namespace tsd::io
