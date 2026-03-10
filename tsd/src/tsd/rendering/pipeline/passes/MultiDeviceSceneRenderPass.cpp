@@ -77,6 +77,11 @@ void MultiDeviceSceneRenderPass::setRunAsync(bool on)
   m_runAsync = on;
 }
 
+anari::Frame MultiDeviceSceneRenderPass::getFrame(size_t i) const
+{
+  return i < m_frames.size() ? m_frames[i] : nullptr;
+}
+
 void MultiDeviceSceneRenderPass::foreach_frame(
     const std::function<void(anari::Device, anari::Frame)> &func) const
 {

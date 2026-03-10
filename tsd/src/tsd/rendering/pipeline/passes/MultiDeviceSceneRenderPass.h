@@ -27,6 +27,8 @@ struct MultiDeviceSceneRenderPass : public RenderPass
   // default' true' -- if 'false', then anari::wait() on each pass
   void setRunAsync(bool on);
 
+  anari::Frame getFrame(size_t i = 0) const;
+
  private:
   void foreach_frame(
       const std::function<void(anari::Device, anari::Frame)> &func) const;
