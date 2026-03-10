@@ -21,21 +21,26 @@ void Animations::buildUI()
   auto &scene = ctx->tsd.scene;
 
   if (m_playing)
-    scene.incrementAnimationTime();
+    scene.sceneAnimation().incrementAnimationTime();
 
   buildUI_animationControls();
 
-  tsd::scene::Animation *toDelete = nullptr;
-  for (size_t i = 0; i < scene.numberOfAnimations(); i++) {
-    auto *animation = scene.animation(i);
+  size_t toDelete = SIZE_MAX;
+  auto &anims = scene.sceneAnimation().animations();
+  for (size_t i = 0; i < anims.size(); i++) {
+    auto &anim = anims[i];
     ImGui::PushID(static_cast<int>(i));
-    buildUI_editAnimation(animation);
+    ImGui::Separator();
+    ImGui::Text("name | %s", anim.name.c_str());
+    ImGui::Text("info | %zu bindings, %zu transforms",
+        anim.bindings.size(),
+        anim.transforms.size());
     if (ImGui::Button("delete"))
-      toDelete = animation;
+      toDelete = i;
     ImGui::PopID();
   }
-  if (toDelete != nullptr)
-    scene.removeAnimation(toDelete);
+  if (toDelete != SIZE_MAX)
+    scene.sceneAnimation().removeAnimation(toDelete);
 }
 
 void Animations::buildUI_animationControls()
@@ -45,9 +50,9 @@ void Animations::buildUI_animationControls()
 
   ImGui::BeginDisabled(m_playing);
 
-  float time = scene.getAnimationTime();
+  float time = scene.sceneAnimation().getAnimationTime();
   if (ImGui::SliderFloat("time", &time, 0.f, 1.f))
-    scene.setAnimationTime(time);
+    scene.sceneAnimation().setAnimationTime(time);
 
   if (ImGui::Button("play"))
     m_playing = true;
@@ -60,16 +65,10 @@ void Animations::buildUI_animationControls()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  float increment = scene.getAnimationIncrement();
+  float increment = scene.sceneAnimation().getAnimationIncrement();
   if (ImGui::DragFloat("step", &increment, 0.01f, 0.f, 0.5f))
-    scene.setAnimationIncrement(increment);
+    scene.sceneAnimation().setAnimationIncrement(increment);
 }
 
-void Animations::buildUI_editAnimation(tsd::scene::Animation *animation)
-{
-  ImGui::Separator();
-  ImGui::Text("name | %s", animation->name().c_str());
-  ImGui::Text("info | %s", animation->info().c_str());
-}
 
 } // namespace tsd::ui::imgui

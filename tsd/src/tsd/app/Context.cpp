@@ -4,6 +4,8 @@
 #define ANARI_EXTENSION_UTILITY_IMPL
 
 #include "Context.h"
+// tsd_animation
+#include "tsd/animation/Animation.hpp"
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
@@ -450,25 +452,27 @@ bool Context::updateCameraPathAnimation()
         std::clamp(offline.frame.endFrame, 0, offline.frame.numFrames - 1);
   }
 
-  if (view.cameraPathAnimation)
-    scene.removeAnimation(view.cameraPathAnimation);
+  // Remove existing camera path animation by name
+  auto &anims = scene.sceneAnimation().animations();
+  for (size_t i = 0; i < anims.size(); i++) {
+    if (anims[i].name == view.cameraPathAnimationName) {
+      scene.sceneAnimation().removeAnimation(i);
+      break;
+    }
+  }
 
-  auto *animation = scene.addAnimation("camera_path");
-  view.cameraPathAnimation = animation;
+  view.cameraPathAnimationName = "camera_path";
 
-  auto positionArray = scene.createArray(ANARI_FLOAT32_VEC3, samples.size());
-  auto directionArray = scene.createArray(ANARI_FLOAT32_VEC3, samples.size());
-  auto upArray = scene.createArray(ANARI_FLOAT32_VEC3, samples.size());
+  // Build time base: linear 0..1
+  std::vector<float> timeBase(samples.size());
+  for (size_t i = 0; i < samples.size(); i++)
+    timeBase[i] = static_cast<float>(i) / (samples.size() - 1);
 
-  positionArray->setName("camera_path_position");
-  directionArray->setName("camera_path_direction");
-  upArray->setName("camera_path_up");
+  std::vector<tsd::math::float3> positions(samples.size());
+  std::vector<tsd::math::float3> directions(samples.size());
+  std::vector<tsd::math::float3> ups(samples.size());
 
   tsd::rendering::Manipulator tempManipulator;
-  auto *positions = positionArray->mapAs<tsd::math::float3>();
-  auto *directions = directionArray->mapAs<tsd::math::float3>();
-  auto *ups = upArray->mapAs<tsd::math::float3>();
-
   for (size_t i = 0; i < samples.size(); ++i) {
     tempManipulator.setConfig(samples[i]);
     positions[i] = tempManipulator.eye();
@@ -480,14 +484,33 @@ bool Context::updateCameraPathAnimation()
   const auto firstDirection = directions[0];
   const auto firstUp = ups[0];
 
-  positionArray->unmap();
-  directionArray->unmap();
-  upArray->unmap();
+  using tsd::animation::InterpolationRule;
+  using tsd::animation::ObjectParameterBinding;
+  using tsd::animation::TimeSamples;
 
-  std::vector<tsd::core::Token> params = {"position", "direction", "up"};
-  std::vector<tsd::scene::TimeStepValues> valueArrays = {
-      positionArray, directionArray, upArray};
-  animation->setAsTimeSteps(*camera, params, valueArrays);
+  auto makeBinding = [&](tsd::core::Token param,
+                         ANARIDataType dataType,
+                         const void *data,
+                         size_t count) -> ObjectParameterBinding {
+    ObjectParameterBinding b;
+    b.target = camera.data();
+    b.paramName = param;
+    b.dataType = dataType;
+    b.data = TimeSamples(dataType, count);
+    b.data.setData(data);
+    b.timeBase = timeBase;
+    b.interp = InterpolationRule::LINEAR;
+    return b;
+  };
+
+  auto &anim =
+      scene.sceneAnimation().addAnimation(view.cameraPathAnimationName);
+  anim.bindings.push_back(makeBinding(
+      "position", ANARI_FLOAT32_VEC3, positions.data(), samples.size()));
+  anim.bindings.push_back(makeBinding(
+      "direction", ANARI_FLOAT32_VEC3, directions.data(), samples.size()));
+  anim.bindings.push_back(
+      makeBinding("up", ANARI_FLOAT32_VEC3, ups.data(), samples.size()));
 
   // Seed camera parameters with the first sample for immediate feedback
   camera->setParameter("position", firstPosition);
@@ -511,10 +534,16 @@ void Context::setCameraPose(const CameraPose &pose)
 void Context::removeAllPoses()
 {
   view.poses.clear();
-  if (view.cameraPathAnimation) {
+  if (!view.cameraPathAnimationName.empty()) {
     tsd::core::logStatus("[camera path] Clearing camera path animation");
-    tsd.scene.removeAnimation(view.cameraPathAnimation);
-    view.cameraPathAnimation = nullptr;
+    auto &anims = tsd.scene.sceneAnimation().animations();
+    for (size_t i = 0; i < anims.size(); i++) {
+      if (anims[i].name == view.cameraPathAnimationName) {
+        tsd.scene.sceneAnimation().removeAnimation(i);
+        break;
+      }
+    }
+    view.cameraPathAnimationName.clear();
   }
 }
 

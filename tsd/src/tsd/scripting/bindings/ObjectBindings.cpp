@@ -112,16 +112,16 @@ void arraySetObjectsFromLua(scene::Array &arr, sol::table data)
         count > arr.size() ? "; truncating" : "; padding with null objects");
   }
 
-  ScopedArrayMap<core::Object *> map(arr);
+  ScopedArrayMap<size_t> map(arr);
   for (size_t i = 0; i < arr.size(); i++)
-    map[i] = nullptr;
+    map[i] = size_t(-1);
 
   for (size_t i = 1; i <= copyCount; i++) {
     auto *ptr = extractObjectPtr(data[i]);
     if (!ptr)
       throw std::runtime_error(
           "createArray: invalid object at index " + std::to_string(i));
-    map[i - 1] = ptr;
+    map[i - 1] = ptr->index();
   }
 }
 
