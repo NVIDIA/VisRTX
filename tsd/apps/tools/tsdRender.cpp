@@ -1,6 +1,8 @@
 // Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+// tsd_animation
+#include <tsd/animation/Animation.hpp>
 // tsd_core
 #include <tsd/core/Timer.hpp>
 #include <tsd/scene/Scene.hpp>
@@ -282,20 +284,23 @@ static void renderFrames()
 
   g_timer.start();
 
-  // Check for keyframe animations
-  bool hasKeyframeAnimation = false;
+  // Check for camera animations
+  bool hasCameraAnimation = false;
   const tsd::scene::Object *animatedCamera = nullptr;
-  for (size_t i = 0; i < g_scene->numberOfAnimations(); i++) {
-    auto *anim = g_scene->animation(i);
-    if (anim->hasKeyframes()) {
-      hasKeyframeAnimation = true;
-      if (!animatedCamera && anim->keyframeTargetObject())
-        animatedCamera = anim->keyframeTargetObject();
+  for (auto &anim : g_scene->sceneAnimation().animations()) {
+    for (auto &b : anim.bindings) {
+      if (b.target && b.target->type() == ANARI_CAMERA) {
+        hasCameraAnimation = true;
+        animatedCamera = b.target;
+        break;
+      }
     }
+    if (hasCameraAnimation)
+      break;
   }
 
-  if (hasKeyframeAnimation) {
-    const int totalFrames = g_scene->getAnimationTotalFrames();
+  if (hasCameraAnimation) {
+    const int totalFrames = g_scene->sceneAnimation().getAnimationTotalFrames();
 
     // If no animated camera, set static pose once from saved poses
     if (!animatedCamera) {
@@ -308,7 +313,7 @@ static void renderFrames()
     printf("...animating %d frames...\n", totalFrames);
 
     for (int i = 0; i < totalFrames; i++) {
-      g_scene->setAnimationFrame(i);
+      g_scene->sceneAnimation().setAnimationFrame(i);
 
       if (animatedCamera) {
         using anari::math::float3;

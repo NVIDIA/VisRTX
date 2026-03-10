@@ -281,7 +281,7 @@ void DistributedSceneController::executeFrame_syncAnimation()
   if (auto d = anariDevice(); d && m_distributedState->animation.sync()) {
     auto *state = m_distributedState->animation.read();
     auto *ctx = appContext();
-    ctx->tsd.scene.setAnimationTime(state->time);
+    ctx->tsd.scene.sceneAnimation().setAnimationTime(state->time);
     rank_printf(rank(), "    -> synchronized animation\n");
   }
 }

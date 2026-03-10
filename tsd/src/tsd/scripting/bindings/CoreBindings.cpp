@@ -6,11 +6,11 @@
 #include "ParameterHelpers.hpp"
 #include "tsd/scene/Parameter.hpp"
 #include "tsd/core/Token.hpp"
-#include "tsd/scene/Animation.hpp"
 #include "tsd/scene/Object.hpp"
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Sampler.hpp"
+#include "tsd/animation/Animation.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
@@ -363,28 +363,38 @@ void registerContextBindings(sol::state &lua)
           }),
       // Animation
       "addAnimation",
-      sol::overload([](scene::Scene &s) { return s.addAnimation(); },
-          [](scene::Scene &s, const std::string &name) {
-            return s.addAnimation(name.c_str());
+      sol::overload(
+          [](scene::Scene &s) -> tsd::animation::Animation & {
+            return s.sceneAnimation().addAnimation();
+          },
+          [](scene::Scene &s,
+              const std::string &name) -> tsd::animation::Animation & {
+            return s.sceneAnimation().addAnimation(name);
           }),
-      "numberOfAnimations",
-      &scene::Scene::numberOfAnimations,
-      "animation",
-      &scene::Scene::animation,
+      "animations",
+      [](scene::Scene &s) -> std::vector<tsd::animation::Animation> & {
+        return s.sceneAnimation().animations();
+      },
       "removeAnimation",
-      &scene::Scene::removeAnimation,
+      [](scene::Scene &s, size_t i) {
+        s.sceneAnimation().removeAnimation(i);
+      },
       "removeAllAnimations",
-      &scene::Scene::removeAllAnimations,
+      [](scene::Scene &s) { s.sceneAnimation().removeAllAnimations(); },
       "setAnimationTime",
-      &scene::Scene::setAnimationTime,
+      [](scene::Scene &s, float t) { s.sceneAnimation().setAnimationTime(t); },
       "getAnimationTime",
-      &scene::Scene::getAnimationTime,
+      [](scene::Scene &s) { return s.sceneAnimation().getAnimationTime(); },
       "setAnimationIncrement",
-      &scene::Scene::setAnimationIncrement,
+      [](scene::Scene &s, float v) {
+        s.sceneAnimation().setAnimationIncrement(v);
+      },
       "getAnimationIncrement",
-      &scene::Scene::getAnimationIncrement,
+      [](scene::Scene &s) {
+        return s.sceneAnimation().getAnimationIncrement();
+      },
       "incrementAnimationTime",
-      &scene::Scene::incrementAnimationTime,
+      [](scene::Scene &s) { s.sceneAnimation().incrementAnimationTime(); },
       // Cleanup
       "removeUnusedObjects",
       &scene::Scene::removeUnusedObjects,
@@ -393,59 +403,64 @@ void registerContextBindings(sol::state &lua)
       "cleanupScene",
       &scene::Scene::cleanupScene);
 
-  tsd.new_usertype<scene::Animation>(
+  tsd.new_usertype<tsd::animation::Animation>(
       "Animation",
       sol::no_constructor,
       "name",
-      sol::property([](const scene::Animation &a) { return a.name(); },
-          [](scene::Animation &a, const std::string &n) { a.name() = n; }),
-      "info",
-      [](const scene::Animation &a) { return a.info(); },
-      "timeStepCount",
-      &scene::Animation::timeStepCount,
-      "update",
-      &scene::Animation::update,
-      "setAsTimeSteps",
-      sol::overload(
-          // Single parameter: anim:setAsTimeSteps(obj, "param", arrayRef)
-          [](scene::Animation &a,
-              sol::object obj,
-              const std::string &param,
-              scene::ArrayRef arr) {
-            auto *o = extractObjectPtr(obj);
-            if (!o)
-              throw std::runtime_error(
-                  "setAsTimeSteps: first argument must be a valid object");
-            scene::TimeStepValues steps(arr);
-            a.setAsTimeSteps(*o, core::Token(param), steps);
-          },
-          // Multi parameter: anim:setAsTimeSteps(obj, {"p1","p2"}, {arr1,arr2})
-          [](scene::Animation &a,
-              sol::object obj,
-              sol::table params,
-              sol::table arrays) {
-            auto *o = extractObjectPtr(obj);
-            if (!o)
-              throw std::runtime_error(
-                  "setAsTimeSteps: first argument must be a valid object");
-            std::vector<core::Token> paramVec;
-            for (size_t i = 1; i <= params.size(); i++)
-              paramVec.emplace_back(params[i].get<std::string>().c_str());
-            std::vector<scene::TimeStepValues> stepVec;
-            for (size_t i = 1; i <= arrays.size(); i++)
-              stepVec.emplace_back(arrays[i].get<scene::ArrayRef>());
-            a.setAsTimeSteps(*o, paramVec, stepVec);
-          }),
-      "setAsTransformSteps",
-      [](scene::Animation &a, scene::LayerNodeRef node, sol::table frames) {
+      &tsd::animation::Animation::name,
+      "addBinding",
+      [](tsd::animation::Animation &a,
+          sol::object target,
+          const std::string &param,
+          scene::ArrayRef dataArr,
+          scene::ArrayRef timeBaseArr,
+          sol::optional<std::string> interpStr) {
+        auto *obj = extractObjectPtr(target);
+        if (!obj)
+          throw std::runtime_error("addBinding: invalid target object");
+        auto interp = tsd::animation::InterpolationRule::LINEAR;
+        if (interpStr && *interpStr == "step")
+          interp = tsd::animation::InterpolationRule::STEP;
+        else if (interpStr && *interpStr == "slerp")
+          interp = tsd::animation::InterpolationRule::SLERP;
+
+        size_t count = std::min(dataArr->size(), timeBaseArr->size());
+        tsd::animation::ObjectParameterBinding b;
+        b.target = obj;
+        b.paramName = core::Token(param);
+        b.dataType = dataArr->elementType();
+        b.data = tsd::animation::TimeSamples(dataArr->elementType(), count);
+        b.data.setData(dataArr->data());
+        b.timeBase.assign(
+            timeBaseArr->dataAs<float>(), timeBaseArr->dataAs<float>() + count);
+        b.interp = interp;
+        a.bindings.push_back(std::move(b));
+      },
+      "addTransformBinding",
+      [](tsd::animation::Animation &a,
+          scene::LayerNodeRef node,
+          scene::ArrayRef timeBaseArr,
+          scene::ArrayRef rotArr,
+          scene::ArrayRef transArr,
+          scene::ArrayRef scaleArr) {
         if (!node.valid())
           throw std::runtime_error(
-              "setAsTransformSteps: node must be a valid LayerNode");
-        std::vector<math::mat4> mats;
-        mats.reserve(frames.size());
-        for (size_t i = 1; i <= frames.size(); i++)
-          mats.push_back(frames[i].get<math::mat4>());
-        a.setAsTransformSteps(node, std::move(mats));
+              "addTransformBinding: node must be valid");
+        size_t count = timeBaseArr->size();
+        tsd::animation::TransformBinding tb;
+        tb.target = node;
+        tb.timeBase.assign(
+            timeBaseArr->dataAs<float>(), timeBaseArr->dataAs<float>() + count);
+        tb.rotation.assign(
+            rotArr->dataAs<math::float4>(),
+            rotArr->dataAs<math::float4>() + count);
+        tb.translation.assign(
+            transArr->dataAs<math::float3>(),
+            transArr->dataAs<math::float3>() + count);
+        tb.scale.assign(
+            scaleArr->dataAs<math::float3>(),
+            scaleArr->dataAs<math::float3>() + count);
+        a.transforms.push_back(std::move(tb));
       });
 
   tsd["createScene"] = []() { return std::make_unique<scene::Scene>(); };

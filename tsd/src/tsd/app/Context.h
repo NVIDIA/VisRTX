@@ -56,7 +56,7 @@ struct CameraState
   tsd::rendering::Manipulator manipulator;
   tsd::rendering::CameraPathSettings pathSettings;
   size_t cameraPathCameraIndex{TSD_INVALID_INDEX};
-  tsd::scene::Animation *cameraPathAnimation{nullptr};
+  std::string cameraPathAnimationName;
 };
 
 struct OfflineRenderSequenceConfig
