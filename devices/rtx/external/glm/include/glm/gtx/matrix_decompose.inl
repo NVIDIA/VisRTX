@@ -2,6 +2,7 @@
 
 #include "../gtc/constants.hpp"
 #include "../gtc/epsilon.hpp"
+#include "../gtx/transform.hpp"
 
 namespace glm{
 namespace detail
@@ -172,10 +173,10 @@ namespace detail
 			j = Next[i];
 			k = Next[j];
 
-#           ifdef GLM_FORCE_QUAT_DATA_XYZW
-                int off = 0;
-#           else
+#           ifdef GLM_FORCE_QUAT_DATA_WXYZ
                 int off = 1;
+#           else
+                int off = 0;
 #           endif
 
 			root = sqrt(Row[i][i] - Row[j][j] - Row[k][k] + static_cast<T>(1.0));
@@ -188,5 +189,46 @@ namespace detail
 		} // End if <= 0
 
 		return true;
+	}
+
+	// Recomposes a model matrix from a previously-decomposed matrix
+	// http://www.opensource.apple.com/source/WebCore/WebCore-514/platform/graphics/transforms/TransformationMatrix.cpp
+	// https://stackoverflow.com/a/75573092/1047040
+	template <typename T, qualifier Q>
+	GLM_FUNC_DECL mat<4, 4, T, Q> recompose(
+		vec<3, T, Q> const& scale, qua<T, Q> const& orientation, vec<3, T, Q> const& translation,
+		vec<3, T, Q> const& skew, vec<4, T, Q> const& perspective)
+	{
+		glm::mat4 m = glm::mat4(1.f);
+
+		m[0][3] = perspective.x;
+		m[1][3] = perspective.y;
+		m[2][3] = perspective.z;
+		m[3][3] = perspective.w;
+
+		m *= glm::translate(translation);
+		m *= glm::mat4_cast(orientation);
+
+		if (abs(skew.x) > static_cast<T>(0)) {
+			glm::mat4 tmp(1.f);
+			tmp[2][1] = skew.x;
+			m *= tmp;
+		}
+
+		if (abs(skew.y) > static_cast<T>(0)) {
+			glm::mat4 tmp(1.f);
+			tmp[2][0] = skew.y;
+			m *= tmp;
+		}
+
+		if (abs(skew.z) > static_cast<T>(0)) {
+			glm::mat4 tmp(1.f);
+			tmp[1][0] = skew.z;
+			m *= tmp;
+		}
+
+		m *= glm::scale(scale);
+
+		return m;
 	}
 }//namespace glm

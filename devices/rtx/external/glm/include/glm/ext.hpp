@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "glm.hpp"
+#include "./glm.hpp"
 
 #if GLM_MESSAGES == GLM_ENABLE && !defined(GLM_MESSAGE_EXT_INCLUDED_DISPLAYED)
 #	define GLM_MESSAGE_EXT_INCLUDED_DISPLAYED
@@ -200,9 +200,11 @@
 #include "./gtx/color_encoding.hpp"
 #include "./gtx/color_space.hpp"
 #include "./gtx/color_space_YCoCg.hpp"
+#include "./gtx/common.hpp"
 #include "./gtx/compatibility.hpp"
 #include "./gtx/component_wise.hpp"
 #include "./gtx/dual_quaternion.hpp"
+#include "./gtx/easing.hpp"
 #include "./gtx/euler_angles.hpp"
 #include "./gtx/extend.hpp"
 #include "./gtx/extended_min_max.hpp"
@@ -212,10 +214,18 @@
 #include "./gtx/functions.hpp"
 #include "./gtx/gradient_paint.hpp"
 #include "./gtx/handed_coordinate_space.hpp"
+
+#if __cplusplus >= 201103L
+#include "./gtx/hash.hpp"
+#endif
+
 #include "./gtx/integer.hpp"
 #include "./gtx/intersect.hpp"
+#include "./gtx/io.hpp"
 #include "./gtx/log_base.hpp"
 #include "./gtx/matrix_cross_product.hpp"
+#include "./gtx/matrix_decompose.hpp"
+#include "./gtx/matrix_factorisation.hpp"
 #include "./gtx/matrix_interpolation.hpp"
 #include "./gtx/matrix_major_storage.hpp"
 #include "./gtx/matrix_operation.hpp"
@@ -227,11 +237,13 @@
 #include "./gtx/number_precision.hpp"
 #include "./gtx/optimum_pow.hpp"
 #include "./gtx/orthonormalize.hpp"
+#include "./gtx/pca.hpp"
 #include "./gtx/perpendicular.hpp"
 #include "./gtx/polar_coordinates.hpp"
 #include "./gtx/projection.hpp"
 #include "./gtx/quaternion.hpp"
 #include "./gtx/raw_data.hpp"
+#include "./gtx/rotate_normalized_axis.hpp"
 #include "./gtx/rotate_vector.hpp"
 #include "./gtx/spline.hpp"
 #include "./gtx/std_based_type.hpp"

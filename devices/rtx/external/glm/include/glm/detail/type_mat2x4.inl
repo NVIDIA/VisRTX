@@ -4,7 +4,7 @@ namespace glm
 
 #	if GLM_CONFIG_DEFAULTED_DEFAULT_CTOR == GLM_DISABLE
 		template<typename T, qualifier Q>
-		GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>::mat()
+		GLM_DEFAULTED_DEFAULT_CTOR_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>::mat()
 #			if GLM_CONFIG_CTOR_INIT == GLM_CTOR_INITIALIZER_LIST
 				: value{col_type(1, 0, 0, 0), col_type(0, 1, 0, 0)}
 #			endif
@@ -20,7 +20,7 @@ namespace glm
 	template<qualifier P>
 	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>::mat(mat<2, 4, T, P> const& m)
 #		if GLM_HAS_INITIALIZER_LISTS
-			: value{m[0], m[1]}
+			: value{col_type(m[0]), col_type(m[1])}
 #		endif
 	{
 #		if !GLM_HAS_INITIALIZER_LISTS
@@ -219,16 +219,16 @@ namespace glm
 	// -- Accesses --
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER typename mat<2, 4, T, Q>::col_type & mat<2, 4, T, Q>::operator[](typename mat<2, 4, T, Q>::length_type i)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR typename mat<2, 4, T, Q>::col_type & mat<2, 4, T, Q>::operator[](typename mat<2, 4, T, Q>::length_type i) GLM_NOEXCEPT
 	{
-		assert(i < this->length());
+		GLM_ASSERT_LENGTH(i, this->length());
 		return this->value[i];
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER GLM_CONSTEXPR typename mat<2, 4, T, Q>::col_type const& mat<2, 4, T, Q>::operator[](typename mat<2, 4, T, Q>::length_type i) const
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR typename mat<2, 4, T, Q>::col_type const& mat<2, 4, T, Q>::operator[](typename mat<2, 4, T, Q>::length_type i) const GLM_NOEXCEPT
 	{
-		assert(i < this->length());
+		GLM_ASSERT_LENGTH(i, this->length());
 		return this->value[i];
 	}
 
@@ -236,7 +236,7 @@ namespace glm
 
 	template<typename T, qualifier Q>
 	template<typename U>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator=(mat<2, 4, U, Q> const& m)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator=(mat<2, 4, U, Q> const& m)
 	{
 		this->value[0] = m[0];
 		this->value[1] = m[1];
@@ -245,7 +245,7 @@ namespace glm
 
 	template<typename T, qualifier Q>
 	template<typename U>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator+=(U s)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator+=(U s)
 	{
 		this->value[0] += s;
 		this->value[1] += s;
@@ -254,7 +254,7 @@ namespace glm
 
 	template<typename T, qualifier Q>
 	template<typename U>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator+=(mat<2, 4, U, Q> const& m)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator+=(mat<2, 4, U, Q> const& m)
 	{
 		this->value[0] += m[0];
 		this->value[1] += m[1];
@@ -263,7 +263,7 @@ namespace glm
 
 	template<typename T, qualifier Q>
 	template<typename U>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator-=(U s)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator-=(U s)
 	{
 		this->value[0] -= s;
 		this->value[1] -= s;
@@ -272,7 +272,7 @@ namespace glm
 
 	template<typename T, qualifier Q>
 	template<typename U>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator-=(mat<2, 4, U, Q> const& m)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator-=(mat<2, 4, U, Q> const& m)
 	{
 		this->value[0] -= m[0];
 		this->value[1] -= m[1];
@@ -281,7 +281,7 @@ namespace glm
 
 	template<typename T, qualifier Q>
 	template<typename U>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator*=(U s)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator*=(U s)
 	{
 		this->value[0] *= s;
 		this->value[1] *= s;
@@ -290,7 +290,7 @@ namespace glm
 
 	template<typename T, qualifier Q>
 	template<typename U>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> & mat<2, 4, T, Q>::operator/=(U s)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> & mat<2, 4, T, Q>::operator/=(U s)
 	{
 		this->value[0] /= s;
 		this->value[1] /= s;
@@ -300,7 +300,7 @@ namespace glm
 	// -- Increment and decrement operators --
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator++()
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator++()
 	{
 		++this->value[0];
 		++this->value[1];
@@ -308,7 +308,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator--()
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q>& mat<2, 4, T, Q>::operator--()
 	{
 		--this->value[0];
 		--this->value[1];
@@ -316,7 +316,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> mat<2, 4, T, Q>::operator++(int)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> mat<2, 4, T, Q>::operator++(int)
 	{
 		mat<2, 4, T, Q> Result(*this);
 		++*this;
@@ -324,7 +324,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> mat<2, 4, T, Q>::operator--(int)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> mat<2, 4, T, Q>::operator--(int)
 	{
 		mat<2, 4, T, Q> Result(*this);
 		--*this;
@@ -334,13 +334,13 @@ namespace glm
 	// -- Unary arithmetic operators --
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator+(mat<2, 4, T, Q> const& m)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator+(mat<2, 4, T, Q> const& m)
 	{
 		return m;
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator-(mat<2, 4, T, Q> const& m)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator-(mat<2, 4, T, Q> const& m)
 	{
 		return mat<2, 4, T, Q>(
 			-m[0],
@@ -350,7 +350,7 @@ namespace glm
 	// -- Binary arithmetic operators --
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator+(mat<2, 4, T, Q> const& m, T scalar)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator+(mat<2, 4, T, Q> const& m, T scalar)
 	{
 		return mat<2, 4, T, Q>(
 			m[0] + scalar,
@@ -358,7 +358,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator+(mat<2, 4, T, Q> const& m1, mat<2, 4, T, Q> const& m2)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator+(mat<2, 4, T, Q> const& m1, mat<2, 4, T, Q> const& m2)
 	{
 		return mat<2, 4, T, Q>(
 			m1[0] + m2[0],
@@ -366,7 +366,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator-(mat<2, 4, T, Q> const& m, T scalar)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator-(mat<2, 4, T, Q> const& m, T scalar)
 	{
 		return mat<2, 4, T, Q>(
 			m[0] - scalar,
@@ -374,7 +374,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator-(mat<2, 4, T, Q> const& m1, mat<2, 4, T, Q> const& m2)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator-(mat<2, 4, T, Q> const& m1, mat<2, 4, T, Q> const& m2)
 	{
 		return mat<2, 4, T, Q>(
 			m1[0] - m2[0],
@@ -382,7 +382,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator*(mat<2, 4, T, Q> const& m, T scalar)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator*(mat<2, 4, T, Q> const& m, T scalar)
 	{
 		return mat<2, 4, T, Q>(
 			m[0] * scalar,
@@ -390,7 +390,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator*(T scalar, mat<2, 4, T, Q> const& m)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator*(T scalar, mat<2, 4, T, Q> const& m)
 	{
 		return mat<2, 4, T, Q>(
 			m[0] * scalar,
@@ -398,7 +398,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER typename mat<2, 4, T, Q>::col_type operator*(mat<2, 4, T, Q> const& m, typename mat<2, 4, T, Q>::row_type const& v)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR typename mat<2, 4, T, Q>::col_type operator*(mat<2, 4, T, Q> const& m, typename mat<2, 4, T, Q>::row_type const& v)
 	{
 		return typename mat<2, 4, T, Q>::col_type(
 			m[0][0] * v.x + m[1][0] * v.y,
@@ -408,7 +408,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER typename mat<2, 4, T, Q>::row_type operator*(typename mat<2, 4, T, Q>::col_type const& v, mat<2, 4, T, Q> const& m)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR typename mat<2, 4, T, Q>::row_type operator*(typename mat<2, 4, T, Q>::col_type const& v, mat<2, 4, T, Q> const& m)
 	{
 		return typename mat<2, 4, T, Q>::row_type(
 			v.x * m[0][0] + v.y * m[0][1] + v.z * m[0][2] + v.w * m[0][3],
@@ -416,48 +416,29 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<4, 4, T, Q> operator*(mat<2, 4, T, Q> const& m1, mat<4, 2, T, Q> const& m2)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<4, 4, T, Q> operator*(mat<2, 4, T, Q> const& m1, mat<4, 2, T, Q> const& m2)
 	{
-		T SrcA00 = m1[0][0];
-		T SrcA01 = m1[0][1];
-		T SrcA02 = m1[0][2];
-		T SrcA03 = m1[0][3];
-		T SrcA10 = m1[1][0];
-		T SrcA11 = m1[1][1];
-		T SrcA12 = m1[1][2];
-		T SrcA13 = m1[1][3];
-
-		T SrcB00 = m2[0][0];
-		T SrcB01 = m2[0][1];
-		T SrcB10 = m2[1][0];
-		T SrcB11 = m2[1][1];
-		T SrcB20 = m2[2][0];
-		T SrcB21 = m2[2][1];
-		T SrcB30 = m2[3][0];
-		T SrcB31 = m2[3][1];
-
-		mat<4, 4, T, Q> Result;
-		Result[0][0] = SrcA00 * SrcB00 + SrcA10 * SrcB01;
-		Result[0][1] = SrcA01 * SrcB00 + SrcA11 * SrcB01;
-		Result[0][2] = SrcA02 * SrcB00 + SrcA12 * SrcB01;
-		Result[0][3] = SrcA03 * SrcB00 + SrcA13 * SrcB01;
-		Result[1][0] = SrcA00 * SrcB10 + SrcA10 * SrcB11;
-		Result[1][1] = SrcA01 * SrcB10 + SrcA11 * SrcB11;
-		Result[1][2] = SrcA02 * SrcB10 + SrcA12 * SrcB11;
-		Result[1][3] = SrcA03 * SrcB10 + SrcA13 * SrcB11;
-		Result[2][0] = SrcA00 * SrcB20 + SrcA10 * SrcB21;
-		Result[2][1] = SrcA01 * SrcB20 + SrcA11 * SrcB21;
-		Result[2][2] = SrcA02 * SrcB20 + SrcA12 * SrcB21;
-		Result[2][3] = SrcA03 * SrcB20 + SrcA13 * SrcB21;
-		Result[3][0] = SrcA00 * SrcB30 + SrcA10 * SrcB31;
-		Result[3][1] = SrcA01 * SrcB30 + SrcA11 * SrcB31;
-		Result[3][2] = SrcA02 * SrcB30 + SrcA12 * SrcB31;
-		Result[3][3] = SrcA03 * SrcB30 + SrcA13 * SrcB31;
-		return Result;
+		return mat<4, 4, T, Q>(
+			m1[0][0] * m2[0][0] + m1[1][0] * m2[0][1],
+			m1[0][1] * m2[0][0] + m1[1][1] * m2[0][1],
+			m1[0][2] * m2[0][0] + m1[1][2] * m2[0][1],
+			m1[0][3] * m2[0][0] + m1[1][3] * m2[0][1],
+			m1[0][0] * m2[1][0] + m1[1][0] * m2[1][1],
+			m1[0][1] * m2[1][0] + m1[1][1] * m2[1][1],
+			m1[0][2] * m2[1][0] + m1[1][2] * m2[1][1],
+			m1[0][3] * m2[1][0] + m1[1][3] * m2[1][1],
+			m1[0][0] * m2[2][0] + m1[1][0] * m2[2][1],
+			m1[0][1] * m2[2][0] + m1[1][1] * m2[2][1],
+			m1[0][2] * m2[2][0] + m1[1][2] * m2[2][1],
+			m1[0][3] * m2[2][0] + m1[1][3] * m2[2][1],
+			m1[0][0] * m2[3][0] + m1[1][0] * m2[3][1],
+			m1[0][1] * m2[3][0] + m1[1][1] * m2[3][1],
+			m1[0][2] * m2[3][0] + m1[1][2] * m2[3][1],
+			m1[0][3] * m2[3][0] + m1[1][3] * m2[3][1]);
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator*(mat<2, 4, T, Q> const& m1, mat<2, 2, T, Q> const& m2)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator*(mat<2, 4, T, Q> const& m1, mat<2, 2, T, Q> const& m2)
 	{
 		return mat<2, 4, T, Q>(
 			m1[0][0] * m2[0][0] + m1[1][0] * m2[0][1],
@@ -471,7 +452,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<3, 4, T, Q> operator*(mat<2, 4, T, Q> const& m1, mat<3, 2, T, Q> const& m2)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<3, 4, T, Q> operator*(mat<2, 4, T, Q> const& m1, mat<3, 2, T, Q> const& m2)
 	{
 		return mat<3, 4, T, Q>(
 			m1[0][0] * m2[0][0] + m1[1][0] * m2[0][1],
@@ -489,7 +470,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator/(mat<2, 4, T, Q> const& m, T scalar)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator/(mat<2, 4, T, Q> const& m, T scalar)
 	{
 		return mat<2, 4, T, Q>(
 			m[0] / scalar,
@@ -497,7 +478,7 @@ namespace glm
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER mat<2, 4, T, Q> operator/(T scalar, mat<2, 4, T, Q> const& m)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR mat<2, 4, T, Q> operator/(T scalar, mat<2, 4, T, Q> const& m)
 	{
 		return mat<2, 4, T, Q>(
 			scalar / m[0],
@@ -507,13 +488,13 @@ namespace glm
 	// -- Boolean operators --
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER bool operator==(mat<2, 4, T, Q> const& m1, mat<2, 4, T, Q> const& m2)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR bool operator==(mat<2, 4, T, Q> const& m1, mat<2, 4, T, Q> const& m2)
 	{
 		return (m1[0] == m2[0]) && (m1[1] == m2[1]);
 	}
 
 	template<typename T, qualifier Q>
-	GLM_FUNC_QUALIFIER bool operator!=(mat<2, 4, T, Q> const& m1, mat<2, 4, T, Q> const& m2)
+	GLM_FUNC_QUALIFIER GLM_CONSTEXPR bool operator!=(mat<2, 4, T, Q> const& m1, mat<2, 4, T, Q> const& m2)
 	{
 		return (m1[0] != m2[0]) || (m1[1] != m2[1]);
 	}
