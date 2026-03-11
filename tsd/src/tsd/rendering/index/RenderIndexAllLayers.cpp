@@ -241,7 +241,8 @@ void RenderIndexAllLayers::syncLayerTransforms(const Layer *_layer)
   auto d = device();
 
   auto *layer = const_cast<Layer *>(_layer);
-  TransformsToAnariVisitor visitor(d, m_instanceCache[layer].data());
+  TransformsToAnariVisitor visitor(
+      d, m_instanceCache[layer].data(), m_filter ? &m_filter : nullptr);
   layer->traverse(layer->root(), visitor);
 }
 
