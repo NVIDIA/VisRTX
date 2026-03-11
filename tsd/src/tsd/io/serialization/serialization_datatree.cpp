@@ -98,6 +98,18 @@ static void arrayToNode(
     return;
   }
 
+  // Object-type arrays store Object* pointers in memory — serialize as pool
+  // indices instead, keeping the original ANARI element type for the array.
+  if (anari::isObject(arr.elementType())) {
+    auto *const *ptrs = static_cast<Object *const *>(arr.data());
+    std::vector<size_t> indices(arr.size());
+    for (size_t i = 0; i < arr.size(); i++)
+      indices[i] = ptrs[i] ? ptrs[i]->index() : size_t(-1);
+    arrayData.setValueAsArray(
+        arr.elementType(), indices.data(), indices.size());
+    return;
+  }
+
   const void *mem = arr.data();
 #if TSD_USE_CUDA
   if (arr.kind() == Array::MemoryKind::CUDA) {
@@ -224,7 +236,9 @@ void nodeToNewObject(Scene &scene, core::DataNode &node)
 
     if (arr) {
       obj = arr.data();
-      if (!isProxy) {
+      // Object-type arrays contain pool indices (or stale pointers from old
+      // files) — resolved after all object pools are loaded.
+      if (!isProxy && !anari::isObject(arrayElementType)) {
         auto *memOut = arr->map();
         std::memcpy(memOut, arrayPtr, arr->size() * arr->elementSize());
         arr->unmap();
@@ -502,6 +516,35 @@ void load_Scene(Scene &scene, core::DataNode &root)
   nodeToObjectPool(objectDB, scene, "light");
   nodeToObjectPool(objectDB, scene, "camera");
   nodeToObjectPool(objectDB, scene, "renderer");
+
+  // Resolve object-type arrays — their serialized data contains pool indices
+  // that must be converted to Object* pointers now that all pools are loaded.
+  if (auto *arraysNode = objectDB.child("array"); arraysNode != nullptr) {
+    arraysNode->foreach_child([&](auto &arrNode) {
+      const Any self = arrNode["self"].getValue();
+      auto arr = scene.getObject<Array>(self.getAsObjectIndex());
+      if (!arr || !anari::isObject(arr->elementType()))
+        return;
+
+      auto &arrayData = arrNode["arrayData"];
+      ANARIDataType dataType = ANARI_UNKNOWN;
+      const void *ptr = nullptr;
+      size_t count = 0;
+      arrayData.getValueAsArray(&dataType, &ptr, &count);
+      if (count == 0)
+        return;
+
+      const auto *indices = static_cast<const size_t *>(ptr);
+      auto objElemType = arr->elementType();
+      auto **objPtrs = arr->mapAs<Object *>();
+      for (size_t i = 0; i < count; i++) {
+        objPtrs[i] = (indices[i] != size_t(-1))
+            ? scene.getObject(objElemType, indices[i])
+            : nullptr;
+      }
+      arr->unmap();
+    });
+  }
 
   // Layers
 
