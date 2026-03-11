@@ -88,8 +88,7 @@ void Viewport::buildUI()
   if (m_rIdx) {
     auto kind = appCore()->anari.renderIndexKind();
     if (kind != m_lastIndexKind) {
-      tsd::core::logWarning(
-          "render index setting changed: resetting viewport");
+      tsd::core::logWarning("render index setting changed: resetting viewport");
       m_lastIndexKind = kind;
       auto lib = m_libName;
       setLibrary("");
@@ -206,10 +205,9 @@ void Viewport::setCustomFrameParameter(
     return;
   }
 
-  auto d = m_anariPass->getDevice();
   auto f = m_anariPass->getFrame();
-  anari::setParameter(d, f, name, value.type(), value.data());
-  anari::commitParameters(d, f);
+  anari::setParameter(m_device, f, name, value.type(), value.data());
+  anari::commitParameters(m_device, f);
 }
 
 void Viewport::saveSettings(tsd::core::DataNode &root)
@@ -612,7 +610,7 @@ void Viewport::ui_menubar_Viewport()
     {
       ImGui::Text("Format:");
       ImGui::Indent(INDENT_AMOUNT);
-      anari::DataType format = m_anariPass->getColorFormat();
+      anari::DataType format = m_colorFormat;
       if (ImGui::RadioButton(
               "UFIXED8_RGBA_SRGB", format == ANARI_UFIXED8_RGBA_SRGB))
         format = ANARI_UFIXED8_RGBA_SRGB;
@@ -621,8 +619,10 @@ void Viewport::ui_menubar_Viewport()
       if (ImGui::RadioButton("FLOAT32_VEC4", format == ANARI_FLOAT32_VEC4))
         format = ANARI_FLOAT32_VEC4;
 
-      if (format != m_anariPass->getColorFormat())
+      if (format != m_colorFormat) {
         m_anariPass->setColorFormat(format);
+        m_colorFormat = format;
+      }
       ImGui::Unindent(INDENT_AMOUNT);
     }
 

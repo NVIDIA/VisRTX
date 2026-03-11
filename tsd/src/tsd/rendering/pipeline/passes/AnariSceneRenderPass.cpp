@@ -275,29 +275,14 @@ void AnariSceneRenderPass::setEnableNormals(bool on)
   }
 }
 
-anari::DataType AnariSceneRenderPass::getColorFormat() const
-{
-  return m_format;
-}
-
 void AnariSceneRenderPass::setRunAsync(bool on)
 {
   m_runAsync = on;
 }
 
-anari::Device AnariSceneRenderPass::getDevice() const
-{
-  return m_device;
-}
-
 anari::Frame AnariSceneRenderPass::getFrame() const
 {
   return m_frame;
-}
-
-anari::Camera AnariSceneRenderPass::getCamera() const
-{
-  return m_camera;
 }
 
 void AnariSceneRenderPass::updateSize()

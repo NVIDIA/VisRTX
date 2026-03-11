@@ -5,24 +5,19 @@
 
 #include "BaseViewport.h"
 
-#include "tsd/ui/imgui/tsd_ui_imgui.h"
 // tsd_core
-#include "tsd/core/scene/Object.hpp"
-#include "tsd/core/scene/UpdateDelegate.hpp"
 #include "tsd/core/scene/objects/Camera.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"
-#include "tsd/rendering/view/CameraUpdateDelegate.hpp"
 #include "tsd/rendering/view/Manipulator.hpp"
+// anari
+#include <anari/frontend/anari_enums.h>
 // std
-#include <array>
 #include <functional>
 #include <future>
 #include <limits>
-#include <memory>
 #include <string>
-#include <vector>
 
 namespace tsd::ui::imgui {
 
@@ -92,6 +87,7 @@ struct Viewport : public BaseViewport
   float m_depthVisualMaximum{1.f};
   float m_edgeThreshold{0.5f};
   bool m_edgeInvert{false};
+  anari::DataType m_colorFormat = ANARI_UNKNOWN;
 
   // Picking state //
 

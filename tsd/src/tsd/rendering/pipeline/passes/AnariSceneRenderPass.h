@@ -27,11 +27,7 @@ struct AnariSceneRenderPass : public RenderPass
   // default' true', if 'false', then anari::wait() on each pass
   void setRunAsync(bool on);
 
-  anari::DataType getColorFormat() const;
-  // NOTE(jda): these do not increase ref count, no need to release
-  anari::Device getDevice() const;
   anari::Frame getFrame() const;
-  anari::Camera getCamera() const;
 
  private:
   void updateSize() override;
