@@ -12,7 +12,6 @@ set(TSD_CORE_CUDA_SOURCES
   algorithms/detail/computeScalarRange_ufixed16.cpp
   algorithms/detail/computeScalarRange_float32.cpp
   algorithms/detail/computeScalarRange_float64.cpp
-  scene/objects/SpatialField.cpp
 )
 
 set(TSD_CORE_CXX_SOURCES
@@ -38,6 +37,7 @@ set(TSD_CORE_CXX_SOURCES
   Logging.cpp
   Parameter.cpp
   Token.cpp
+  scene/objects/SpatialField.cpp
 )
 
 project_sources(PRIVATE ${TSD_CORE_CUDA_SOURCES} ${TSD_CORE_CXX_SOURCES})

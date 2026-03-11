@@ -52,6 +52,11 @@
 #include <cmath>
 #include <limits>
 
+// Windows.h is draw in by thread_search.cuh, so we need to undef OPAQUE
+#ifdef OPAQUE
+#undef OPAQUE
+#endif
+
 namespace visrtx {
 
 // Light sampling result containing direction, distance, radiance and PDF

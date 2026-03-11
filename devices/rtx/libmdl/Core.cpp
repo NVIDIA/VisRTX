@@ -41,7 +41,7 @@
 #include <string>
 
 #ifdef MI_PLATFORM_WINDOWS
-#define WINDOWS_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 static_assert(sizeof(HMODULE) <= sizeof(void *));
 

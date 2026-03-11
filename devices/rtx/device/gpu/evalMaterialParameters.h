@@ -44,12 +44,14 @@ namespace visrtx {
 VISRTX_DEVICE float adjustedMaterialOpacity(
     float opacityIn, AlphaMode mode, float cutoff)
 {
-  // Compare by value to avoid macro expansion of OPAQUE/BLEND from Windows/CUDA headers
-  if (mode == static_cast<AlphaMode>(0)) // OPAQUE
+  if (mode == AlphaMode::OPAQUE)
     return 1.f;
-  if (mode == static_cast<AlphaMode>(1)) // BLEND
-    return opacityIn;
-  return opacityIn < cutoff ? 0.f : 1.f; // MASK
+  else {
+    if (mode == AlphaMode::BLEND)
+      return opacityIn;
+    else
+      return opacityIn < cutoff ? 0.f : 1.f;
+  }
 }
 
 VISRTX_DEVICE bool isPopulated(const AttributeData &ap)
