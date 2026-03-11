@@ -6,22 +6,25 @@ project(tsd_core)
 project_add_library(STATIC)
 
 set(TSD_CORE_CUDA_SOURCES
-  algorithms/detail/computeScalarRange_fixed8.cpp
   algorithms/detail/computeScalarRange_fixed16.cpp
-  algorithms/detail/computeScalarRange_ufixed8.cpp
-  algorithms/detail/computeScalarRange_ufixed16.cpp
+  algorithms/detail/computeScalarRange_fixed8.cpp
   algorithms/detail/computeScalarRange_float32.cpp
   algorithms/detail/computeScalarRange_float64.cpp
+  algorithms/detail/computeScalarRange_ufixed16.cpp
+  algorithms/detail/computeScalarRange_ufixed8.cpp
 )
 
 set(TSD_CORE_CXX_SOURCES
   algorithms/computeScalarRange.cpp
+  AnariObjectCache.cpp
+  ColorMapUtil.cpp
+  DataStream.cpp
+  Logging.cpp
+  Parameter.cpp
   scene/Animation.cpp
   scene/AnyObjectUsePtr.cpp
   scene/Layer.cpp
   scene/Object.cpp
-  scene/Scene.cpp
-  scene/UpdateDelegate.cpp
   scene/objects/Array.cpp
   scene/objects/Camera.cpp
   scene/objects/Geometry.cpp
@@ -29,15 +32,12 @@ set(TSD_CORE_CXX_SOURCES
   scene/objects/Material.cpp
   scene/objects/Renderer.cpp
   scene/objects/Sampler.cpp
+  scene/objects/SpatialField.cpp
   scene/objects/Surface.cpp
   scene/objects/Volume.cpp
-  AnariObjectCache.cpp
-  ColorMapUtil.cpp
-  DataStream.cpp
-  Logging.cpp
-  Parameter.cpp
+  scene/Scene.cpp
+  scene/UpdateDelegate.cpp
   Token.cpp
-  scene/objects/SpatialField.cpp
 )
 
 project_sources(PRIVATE ${TSD_CORE_CUDA_SOURCES} ${TSD_CORE_CXX_SOURCES})
