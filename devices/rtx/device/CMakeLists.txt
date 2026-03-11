@@ -51,6 +51,8 @@ set(VISRTX_CUDA_COMPILE_OPTIONS
   "-Xcudafe=--diag_suppress=20012"
   # Silence the multitude of warnings about deprecated/to be removed GPU architectures
   "-Wno-deprecated-gpu-targets"
+  # CUDA 13+ CCCL requires MSVC standard conforming preprocessor
+  "$<$<CXX_COMPILER_ID:MSVC>:-Xcompiler=/Zc:preprocessor>"
   # Debug info support
   "$<$<CONFIG:DEBUG>:-O0;-lineinfo>" # -G would be nice for debug, but does not work with glm...
   "$<$<CONFIG:RELWITHDEBINFO>:-lineinfo>"

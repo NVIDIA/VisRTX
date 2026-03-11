@@ -11,7 +11,7 @@ namespace tsd::core {
 
 tsd::math::float2 computeScalarRange(const Array &a)
 {
-  constexpr float maxFloat = std::numeric_limits<float>::max();
+  constexpr float maxFloat = (std::numeric_limits<float>::max)();
   tsd::math::float2 retval{maxFloat, -maxFloat};
 
   const anari::DataType type = a.elementType();
@@ -24,10 +24,10 @@ tsd::math::float2 computeScalarRange(const Array &a)
     const auto *end = begin + a.size();
     std::for_each(begin, end, [&](uint64_t idx) {
       tsd::math::float2 subRange{maxFloat, -maxFloat};
-      if (auto subArray = scene->getObject<Array>(idx); subArray)
+      if (auto subArray = scene->template getObject<Array>(idx); subArray)
         subRange = computeScalarRange(*subArray);
-      retval.x = std::min(retval.x, subRange.x);
-      retval.y = std::max(retval.y, subRange.y);
+      retval.x = (std::min)(retval.x, subRange.x);
+      retval.y = (std::max)(retval.y, subRange.y);
     });
   } else if (elementsAreScalars) {
     switch (type) {
