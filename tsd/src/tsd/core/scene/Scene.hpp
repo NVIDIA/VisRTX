@@ -160,6 +160,7 @@ struct Scene
   void removeLayer(const Layer *layer);
   void removeAllLayers();
 
+
   // Insert nodes //
 
   LayerNodeRef insertChildNode(LayerNodeRef parent, const char *name = "");
@@ -188,6 +189,9 @@ struct Scene
   void removeNode(LayerNodeRef obj, bool deleteReferencedObjects = false);
 
   // Indicate changes occurred //
+
+  void beginLayerEditBatch(); // structural layer changes are batched
+  void endLayerEditBatch(); // stop batching + flush all layer update signals
 
   void signalLayerStructureChanged(const Layer *l);
   void signalLayerTransformChanged(const Layer *l);
@@ -254,8 +258,12 @@ struct Scene
   } m_defaultObjects;
 
   BaseUpdateDelegate *m_updateDelegate{nullptr};
+
   LayerMap m_layers;
   size_t m_numActiveLayers{0};
+  bool m_inLayerBatch{false};
+  std::vector<const Layer *> m_batchedLayerUpdates;
+
   struct AnimationData
   {
     float incrementSize{0.01f};
@@ -264,6 +272,7 @@ struct Scene
     float fps{24.f};
     std::vector<std::unique_ptr<Animation>> objects;
   } m_animations;
+
   struct MpiData
   {
     int rank{0};

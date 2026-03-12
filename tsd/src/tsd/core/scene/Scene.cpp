@@ -637,9 +637,34 @@ void Scene::removeNode(LayerNodeRef obj, bool deleteReferencedObjects)
   signalLayerStructureChanged(layer);
 }
 
+void Scene::beginLayerEditBatch()
+{
+  m_inLayerBatch = true;
+}
+
+void Scene::endLayerEditBatch()
+{
+  m_inLayerBatch = false;
+
+  auto &bl = m_batchedLayerUpdates;
+  if (bl.empty())
+    return;
+
+  // Remove duplicates
+  std::sort(bl.begin(), bl.end());
+  bl.erase(std::unique(bl.begin(), bl.end()), bl.end());
+
+  for (auto *l : bl)
+    signalLayerStructureChanged(l);
+
+  bl.clear();
+}
+
 void Scene::signalLayerStructureChanged(const Layer *l)
 {
-  if (m_updateDelegate)
+  if (m_inLayerBatch)
+    m_batchedLayerUpdates.push_back(l);
+  else if (m_updateDelegate)
     m_updateDelegate->signalLayerStructureUpdated(l);
 }
 

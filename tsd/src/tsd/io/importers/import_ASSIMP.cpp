@@ -657,11 +657,13 @@ void import_ASSIMP(
   auto materials = importASSIMPMaterials(scene, a_scene, filename);
   auto meshes = importASSIMPSurfaces(scene, materials, a_scene);
 
+  scene.beginLayerEditBatch();
   populateASSIMPLayer(scene,
       location ? location : scene.defaultLayer()->root(),
       meshes,
       lights,
       a_scene->mRootNode);
+  scene.endLayerEditBatch();
 }
 #else
 void import_ASSIMP(

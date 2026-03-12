@@ -1357,6 +1357,8 @@ void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
     return;
   }
 
+  scene.beginLayerEditBatch();
+
   // Import materials
   auto materials = importGLTFMaterials(scene, model);
 
@@ -1397,6 +1399,8 @@ void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
   } else {
     logWarning("[import_GLTF] no scenes found in glTF file");
   }
+
+  scene.endLayerEditBatch();
 }
 
 } // namespace tsd::io
