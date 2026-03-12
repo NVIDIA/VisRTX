@@ -153,7 +153,7 @@ void RenderIndex::signalParameterRemoved(const Object *o, const Parameter *p)
 }
 
 void RenderIndex::signalParameterBatchUpdated(
-    const Object *o, const std::vector<Parameter *> &ps)
+    const Object *o, const std::vector<const Parameter *> &ps)
 {
   for (auto *p : ps)
     signalParameterUpdated(o, p);

@@ -28,7 +28,7 @@ struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
   void signalParameterRemoved(
       const tsd::core::Object *, const tsd::core::Parameter *) override;
   void signalParameterBatchUpdated(const tsd::core::Object *,
-      const std::vector<tsd::core::Parameter *> &) override;
+      const std::vector<const tsd::core::Parameter *> &) override;
   void signalArrayMapped(const tsd::core::Array *) override;
   void signalArrayUnmapped(const tsd::core::Array *) override;
   void signalObjectParameterUseCountZero(const tsd::core::Object *obj) override;

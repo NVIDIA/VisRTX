@@ -62,7 +62,8 @@ void NetworkUpdateDelegate::signalParameterRemoved(
 }
 
 void NetworkUpdateDelegate::signalParameterBatchUpdated(
-    const tsd::core::Object *o, const std::vector<tsd::core::Parameter *> &ps)
+    const tsd::core::Object *o,
+    const std::vector<const tsd::core::Parameter *> &ps)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::ParameterChange(o, ps.data(), ps.size());

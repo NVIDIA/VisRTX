@@ -66,7 +66,7 @@ void MultiUpdateDelegate::signalParameterRemoved(
 }
 
 void MultiUpdateDelegate::signalParameterBatchUpdated(
-    const Object *o, const std::vector<Parameter *> &ps)
+    const Object *o, const std::vector<const Parameter *> &ps)
 {
   for (auto &d : m_delegates)
     d->signalParameterBatchUpdated(o, ps);

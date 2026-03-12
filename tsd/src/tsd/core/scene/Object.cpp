@@ -460,7 +460,7 @@ void Object::parameterChanged(const Parameter *p, const Any &oldValue)
   }
   incObjectUseCountParameter(p);
   if (m_inParameterBatch) {
-    m_batchedParameters.push_back(const_cast<Parameter *>(p));
+    m_batchedParameters.push_back(p);
   } else if (m_updateDelegate) {
     m_updateDelegate->signalParameterUpdated(this, p);
     m_versions.parameter++;

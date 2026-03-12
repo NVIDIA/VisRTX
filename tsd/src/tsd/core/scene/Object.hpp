@@ -175,7 +175,7 @@ struct Object : public ParameterObserver
 
   ParameterMap m_parameters;
   bool m_inParameterBatch{false};
-  std::vector<Parameter *> m_batchedParameters;
+  std::vector<const Parameter *> m_batchedParameters;
 
   anari::DataType m_type{ANARI_UNKNOWN};
   Token m_subtype;

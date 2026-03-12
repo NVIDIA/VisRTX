@@ -24,7 +24,7 @@ struct BaseUpdateDelegate
   virtual void signalParameterUpdated(const Object *o, const Parameter *p) = 0;
   virtual void signalParameterRemoved(const Object *o, const Parameter *p) = 0;
   virtual void signalParameterBatchUpdated(
-      const Object *o, const std::vector<Parameter *> &ps) = 0;
+      const Object *o, const std::vector<const Parameter *> &ps) = 0;
   virtual void signalArrayMapped(const Array *a) = 0;
   virtual void signalArrayUnmapped(const Array *a) = 0;
   virtual void signalObjectParameterUseCountZero(const Object *obj) = 0;
@@ -57,7 +57,7 @@ struct EmptyUpdateDelegate : public BaseUpdateDelegate
   void signalParameterUpdated(const Object *, const Parameter *) override {}
   void signalParameterRemoved(const Object *, const Parameter *) override {}
   void signalParameterBatchUpdated(
-      const Object *, const std::vector<Parameter *> &) override
+      const Object *, const std::vector<const Parameter *> &) override
   {}
   void signalArrayMapped(const Array *) override {}
   void signalArrayUnmapped(const Array *) override {}
@@ -97,7 +97,7 @@ struct MultiUpdateDelegate : public BaseUpdateDelegate
   void signalParameterUpdated(const Object *o, const Parameter *p) override;
   void signalParameterRemoved(const Object *o, const Parameter *p) override;
   void signalParameterBatchUpdated(
-      const Object *o, const std::vector<Parameter *> &ps) override;
+      const Object *o, const std::vector<const Parameter *> &ps) override;
   void signalArrayMapped(const Array *a) override;
   void signalArrayUnmapped(const Array *a) override;
   void signalObjectParameterUseCountZero(const Object *obj) override;
