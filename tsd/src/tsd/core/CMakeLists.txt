@@ -24,6 +24,7 @@ set(TSD_CORE_CXX_SOURCES
   scene/Animation.cpp
   scene/AnyObjectUsePtr.cpp
   scene/Layer.cpp
+  scene/LayerNodeData.cpp
   scene/Object.cpp
   scene/objects/Array.cpp
   scene/objects/Camera.cpp
