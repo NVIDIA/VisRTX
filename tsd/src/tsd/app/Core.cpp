@@ -247,11 +247,9 @@ void Core::setSelected(const tsd::core::Object *obj)
   // Search all layers for first node referencing this object
   const auto &layers = tsd.scene.layers();
   for (auto &&[layerTk, state] : layers) {
-    // Layer::traverse is non-const, so we need to cast away constness here
-    // This needs to be fixed at some point in the future
-    auto layer = const_cast<tsd::core::Layer *>(state.ptr.get());
+    auto layer = state.ptr.get();
     tsd::core::LayerNodeRef foundNode;
-    layer->traverse(layer->root(), [&](auto &node, int level) {
+    layer->traverse_const(layer->root(), [&](const auto &node, int level) {
       if (foundNode.valid())
         return false;
       if (level > 0) {

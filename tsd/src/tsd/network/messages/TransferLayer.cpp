@@ -9,7 +9,8 @@
 
 namespace tsd::network::messages {
 
-TransferLayer::TransferLayer(tsd::core::Scene *scene, tsd::core::Layer *layer)
+TransferLayer::TransferLayer(
+    tsd::core::Scene *scene, const tsd::core::Layer *layer)
 {
   if (!(scene && layer)) {
     tsd::core::logError(

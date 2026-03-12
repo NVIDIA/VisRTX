@@ -304,13 +304,13 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
 
 // Layers /////////////////////////////////////////////////////////////////////
 
-void layerToNode(Layer &layer, core::DataNode &node)
+void layerToNode(const Layer &layer, core::DataNode &node)
 {
   std::stack<core::DataNode *> nodes;
   core::DataNode *currentParentNode = nullptr;
   core::DataNode *currentNode = &node;
   int currentLevel = -1;
-  layer.traverse(layer.root(), [&](LayerNode &tsdNode, int level) {
+  layer.traverse_const(layer.root(), [&](const LayerNode &tsdNode, int level) {
     if (currentLevel < level) {
       nodes.push(currentNode);
       currentParentNode = currentNode;

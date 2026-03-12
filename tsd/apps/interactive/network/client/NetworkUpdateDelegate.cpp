@@ -112,8 +112,7 @@ void NetworkUpdateDelegate::signalRemoveAllObjects()
 void NetworkUpdateDelegate::signalLayerAdded(const tsd::core::Layer *l)
 {
   CHECK_READY_OR_RETURN();
-  auto msg = tsd::network::messages::TransferLayer(
-      m_scene, const_cast<tsd::core::Layer *>(l));
+  auto msg = tsd::network::messages::TransferLayer(m_scene, l);
   m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg));
 }
 
@@ -121,8 +120,7 @@ void NetworkUpdateDelegate::signalLayerStructureUpdated(
     const tsd::core::Layer *l)
 {
   CHECK_READY_OR_RETURN();
-  auto msg = tsd::network::messages::TransferLayer(
-      m_scene, const_cast<tsd::core::Layer *>(l));
+  auto msg = tsd::network::messages::TransferLayer(m_scene, l);
   m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg));
 }
 
@@ -130,8 +128,7 @@ void NetworkUpdateDelegate::signalLayerTransformUpdated(
     const tsd::core::Layer *l)
 {
   CHECK_READY_OR_RETURN();
-  auto msg = tsd::network::messages::TransferLayer(
-      m_scene, const_cast<tsd::core::Layer *>(l));
+  auto msg = tsd::network::messages::TransferLayer(m_scene, l);
   m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg));
 }
 

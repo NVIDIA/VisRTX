@@ -14,6 +14,10 @@ struct Layer final
   using Visitor = ForestVisitor<LayerNodeData>;
   using VisitorEntryFunction = ForestVisitorEntryFunction<LayerNodeData>;
   using VisitorExitFunction = ForestVisitorExitFunction<LayerNodeData>;
+  using ConstVisitorEntryFunction =
+      ConstForestVisitorEntryFunction<LayerNodeData>;
+  using ConstVisitorExitFunction =
+      ConstForestVisitorExitFunction<LayerNodeData>;
 
   Layer(Scene *scene, std::string name = "<unnamed layer>");
   ~Layer();
@@ -41,6 +45,12 @@ struct Layer final
   void traverse(LayerNodeRef start,
       VisitorEntryFunction &&onNodeEntry,
       VisitorExitFunction &&onNodeExit);
+
+  void traverse_const(LayerNodeRef start, Visitor &visitor) const;
+  void traverse_const(LayerNodeRef start, ConstVisitorEntryFunction &&f) const;
+  void traverse_const(LayerNodeRef start,
+      ConstVisitorEntryFunction &&onNodeEntry,
+      ConstVisitorExitFunction &&onNodeExit) const;
 
  private:
   Scene *m_scene{nullptr};

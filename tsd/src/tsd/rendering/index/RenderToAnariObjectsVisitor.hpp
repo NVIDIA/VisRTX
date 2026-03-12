@@ -55,8 +55,8 @@ struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
       RenderIndexFilterFcn *f = nullptr);
   ~RenderToAnariObjectsVisitor();
 
-  bool preChildren(tsd::core::LayerNode &n, int level) override;
-  void postChildren(tsd::core::LayerNode &n, int level) override;
+  bool preChildren_const(const tsd::core::LayerNode &n, int level) override;
+  void postChildren_const(const tsd::core::LayerNode &n, int level) override;
 
  private:
   bool isIncludedAfterFiltering(const tsd::core::LayerNode &n) const;
@@ -99,8 +99,8 @@ inline RenderToAnariObjectsVisitor::~RenderToAnariObjectsVisitor()
   anari::release(m_device, m_device);
 }
 
-inline bool RenderToAnariObjectsVisitor::preChildren(
-    tsd::core::LayerNode &n, int level)
+inline bool RenderToAnariObjectsVisitor::preChildren_const(
+    const tsd::core::LayerNode &n, int level)
 {
   if (!n->isEnabled())
     return false;
@@ -146,8 +146,8 @@ inline bool RenderToAnariObjectsVisitor::preChildren(
   return true;
 }
 
-inline void RenderToAnariObjectsVisitor::postChildren(
-    tsd::core::LayerNode &n, int level)
+inline void RenderToAnariObjectsVisitor::postChildren_const(
+    const tsd::core::LayerNode &n, int level)
 {
   if (!n->isEnabled())
     return;

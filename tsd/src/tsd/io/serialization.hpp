@@ -44,7 +44,7 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose);
 
 // Layers //
 
-void layerToNode(Layer &layer, core::DataNode &node);
+void layerToNode(const Layer &layer, core::DataNode &node);
 void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene);
 
 // Scenes //

@@ -13,8 +13,8 @@
 #include <cstring>
 #include <iterator>
 #include <memory>
-#include <string_view>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace tsd::core {

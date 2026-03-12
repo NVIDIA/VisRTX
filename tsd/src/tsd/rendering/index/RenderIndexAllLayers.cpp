@@ -212,18 +212,16 @@ void RenderIndexAllLayers::updateWorld()
 }
 
 void RenderIndexAllLayers::syncLayerInstances(
-    const Layer *_layer, bool appendExisting, uint8_t mask)
+    const Layer *layer, bool appendExisting, uint8_t mask)
 {
   auto d = device();
 
   std::vector<anari::Instance> instances;
   instances.reserve(100);
 
-  auto *layer = const_cast<Layer *>(_layer);
-
   RenderToAnariObjectsVisitor visitor(
       d, m_cache, &instances, mask, m_filter ? &m_filter : nullptr);
-  layer->traverse(layer->root(), visitor);
+  layer->traverse_const(layer->root(), visitor);
 
   auto &cached = m_instanceCache[layer];
   if (appendExisting)
@@ -236,14 +234,13 @@ void RenderIndexAllLayers::syncLayerInstances(
   syncLayerTransforms(layer);
 }
 
-void RenderIndexAllLayers::syncLayerTransforms(const Layer *_layer)
+void RenderIndexAllLayers::syncLayerTransforms(const Layer *layer)
 {
   auto d = device();
 
-  auto *layer = const_cast<Layer *>(_layer);
   TransformsToAnariVisitor visitor(
       d, m_instanceCache[layer].data(), m_filter ? &m_filter : nullptr);
-  layer->traverse(layer->root(), visitor);
+  layer->traverse_const(layer->root(), visitor);
 }
 
 void RenderIndexAllLayers::releaseAllInstances()

@@ -86,4 +86,22 @@ void Layer::traverse(LayerNodeRef start,
   m_tree.traverse(start, std::move(onNodeEntry), std::move(onNodeExit));
 }
 
+void Layer::traverse_const(LayerNodeRef start, Visitor &visitor) const
+{
+  m_tree.traverse_const(start, visitor);
+}
+
+void Layer::traverse_const(
+    LayerNodeRef start, ConstVisitorEntryFunction &&f) const
+{
+  m_tree.traverse_const(start, std::move(f));
+}
+
+void Layer::traverse_const(LayerNodeRef start,
+    ConstVisitorEntryFunction &&onNodeEntry,
+    ConstVisitorExitFunction &&onNodeExit) const
+{
+  m_tree.traverse_const(start, std::move(onNodeEntry), std::move(onNodeExit));
+}
+
 } // namespace tsd::core
