@@ -207,8 +207,8 @@ void readTrkFile(
       std::filesystem::path(filename).filename().string();
 
   // Create transform node for the streamlines
-  auto trackLocation = scene.insertChildTransformNode(location);
-  (*trackLocation)->name() = "xfm";
+  auto trackLocation = scene.insertChildTransformNode(
+      location, mat4(tsd::math::identity), "xfm");
 
   // Create curve geometry
   auto curves = scene.createObject<Geometry>(tokens::geometry::curve);

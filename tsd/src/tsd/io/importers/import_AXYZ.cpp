@@ -64,8 +64,9 @@ void import_AXYZ(Scene &scene, const char *filepath, LayerNodeRef location)
   // create TSD objects //
 
   auto axyz_root = scene.insertChildTransformNode(
-      location ? location : scene.defaultLayer()->root());
-  (*axyz_root)->name() = "axyz_transform_" + file;
+      location ? location : scene.defaultLayer()->root(),
+      mat4(tsd::math::identity),
+      ("axyz_transform_" + file).c_str());
 
   // geometry + material
 

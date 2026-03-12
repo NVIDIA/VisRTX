@@ -60,8 +60,8 @@ void import_HSMESH(Scene &scene, const char *filepath, LayerNodeRef location)
 
   auto surface = scene.createSurface(filename.c_str(), geom, mat);
 
-  auto surfaceLayerRef = scene.insertChildObjectNode(hs_root, surface);
-  (*surfaceLayerRef)->name() = filename;
+  auto surfaceLayerRef =
+      scene.insertChildObjectNode(hs_root, surface, filename.c_str());
 
   std::fclose(fp);
 }

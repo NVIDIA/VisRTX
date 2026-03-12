@@ -70,8 +70,9 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
   //// Create TSD objects ////
 
   auto agx_root = scene.insertChildTransformNode(
-      location ? location : scene.defaultLayer()->root());
-  (*agx_root)->name() = "agx_transform_" + file;
+      location ? location : scene.defaultLayer()->root(),
+      mat4(tsd::math::identity),
+      ("agx_transform_" + file).c_str());
 
   // geometry
 
@@ -178,8 +179,9 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
           if (pv.elementType == ANARI_FLOAT32 && pv.elementCount > 0) {
             const float *values = (const float *)pv.data;
             float minVal = values[0], maxVal = values[0];
-            for (size_t i = 1; i < std::min((size_t)pv.elementCount, (size_t)100);
-                 i++) {
+            for (size_t i = 1;
+                i < std::min((size_t)pv.elementCount, (size_t)100);
+                i++) {
               if (values[i] < minVal)
                 minVal = values[i];
               if (values[i] > maxVal)
@@ -231,7 +233,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
 
   // Check if we have vertex attributes to map to color
   bool hasAttribute0 = false;
-  for (const auto& name : timeStepNames) {
+  for (const auto &name : timeStepNames) {
     if (name.str().find("attribute0") != std::string::npos) {
       hasAttribute0 = true;
       break;
@@ -251,12 +253,15 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
     if (attr0Idx < timeSteps.size() && !timeSteps[attr0Idx].empty()) {
       auto attr0Array = timeSteps[attr0Idx][0];
       auto scalarRange = computeScalarRange(*attr0Array);
-      logInfo("[import_AGX] vertex.attribute0 range: [%f, %f]", scalarRange.x, scalarRange.y);
+      logInfo("[import_AGX] vertex.attribute0 range: [%f, %f]",
+          scalarRange.x,
+          scalarRange.y);
 
       // Create colormap sampler
       auto colorMapSampler = makeDefaultColorMapSampler(scene, scalarRange);
       mat->setParameterObject("color", *colorMapSampler);
-      logInfo("[import_AGX] applied colormap to material for vertex.attribute0");
+      logInfo(
+          "[import_AGX] applied colormap to material for vertex.attribute0");
     } else {
       mat->setParameter("color", tsd::math::float3(0.8f, 0.8f, 0.8f));
     }

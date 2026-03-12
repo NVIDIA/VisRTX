@@ -955,8 +955,7 @@ void import_ENSIGHT(Scene &scene,
     }
 
     auto surface = scene.createSurface(partName.c_str(), geom, mat);
-    auto nodeRef = scene.insertChildObjectNode(root, surface);
-    (*nodeRef)->name() = partName;
+    auto nodeRef = scene.insertChildObjectNode(root, surface, partName.c_str());
   }
 
   logStatus("[import_ENSIGHT] done, %zu part(s) loaded", parts.size());

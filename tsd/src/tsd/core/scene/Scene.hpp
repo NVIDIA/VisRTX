@@ -160,7 +160,6 @@ struct Scene
   void removeLayer(const Layer *layer);
   void removeAllLayers();
 
-
   // Insert nodes //
 
   LayerNodeRef insertChildNode(LayerNodeRef parent, const char *name = "");

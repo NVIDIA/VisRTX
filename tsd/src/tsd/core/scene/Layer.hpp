@@ -23,6 +23,8 @@ struct Layer final
   const std::string &name() const;
   std::string &editableName();
 
+  // Nodes within the layer //
+
   size_t size() const;
   size_t capacity() const;
   bool empty() const;
