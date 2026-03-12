@@ -476,7 +476,7 @@ Layer *Scene::addLayer(Token name)
 {
   auto &ls = m_layers[name];
   if (!ls.ptr) {
-    ls.ptr.reset(new Layer({tsd::math::mat4(tsd::math::identity), "root"}));
+    ls.ptr.reset(new Layer(this, name.str()));
     if (m_updateDelegate)
       m_updateDelegate->signalLayerAdded(ls.ptr.get());
     m_numActiveLayers++;
@@ -582,37 +582,34 @@ void Scene::removeAllLayers()
 
 LayerNodeRef Scene::insertChildNode(LayerNodeRef parent, const char *name)
 {
-  auto *layer = parent->container();
-  auto inst = layer->insert_last_child(parent, {});
-  (*inst)->name() = name;
-  return inst;
+  return parent->insert_last_child({(*parent)->layer(), name});
 }
 
 LayerNodeRef Scene::insertChildTransformNode(
     LayerNodeRef parent, mat4 xfm, const char *name)
 {
-  auto *layer = parent->container();
-  auto inst = layer->insert_last_child(parent, xfm);
-  (*inst)->name() = name;
-  signalLayerStructureChanged(parent->container());
+  auto *layer = (*parent)->layer();
+  auto inst = parent->insert_last_child({layer, xfm, name});
+  signalLayerStructureChanged(layer);
   return inst;
 }
 
 LayerNodeRef Scene::insertChildTransformArrayNode(
     LayerNodeRef parent, Array *a, const char *name)
 {
-  auto inst = parent->insert_last_child({a});
-  (*inst)->name() = name;
-  signalLayerStructureChanged(parent->container());
+  auto *layer = (*parent)->layer();
+  auto inst = parent->insert_last_child({layer, a, name});
+  signalLayerStructureChanged(layer);
   return inst;
 }
 
 LayerNodeRef Scene::insertChildObjectNode(
     LayerNodeRef parent, anari::DataType type, size_t idx, const char *name)
 {
-  auto inst = parent->insert_last_child({type, idx, this});
-  (*inst)->name() = name;
-  signalLayerStructureChanged(parent->container());
+  auto *layer = (*parent)->layer();
+  auto *obj = getObject(type, idx);
+  auto inst = parent->insert_last_child({layer, obj, name});
+  signalLayerStructureChanged(layer);
   return inst;
 }
 
@@ -621,7 +618,7 @@ void Scene::removeNode(LayerNodeRef obj, bool deleteReferencedObjects)
   if (obj->isRoot())
     return;
 
-  auto *layer = obj->container();
+  auto *layer = (*obj)->layer();
 
   if (deleteReferencedObjects) {
     std::vector<LayerNodeRef> objects;
@@ -915,7 +912,7 @@ void Scene::defragmentObjectStorage()
 
       size_t newIdx = getUpdatedIndex(objType, node->getObjectIndex());
       if (newIdx != INVALID_INDEX)
-        node->setAsObject(node->type(), newIdx, this);
+        node->setAsObject(node->type(), newIdx);
       else
         toErase.push_back(&node);
 

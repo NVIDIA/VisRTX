@@ -336,8 +336,7 @@ static std::vector<MaterialRef> importASSIMPMaterials(
           if (ai_real anisotropyFactor;
               assimpMat->Get(AI_MATKEY_ANISOTROPY_FACTOR, anisotropyFactor)
               == AI_SUCCESS) {
-        m->setParameter(
-            "anisotropyStrength", ANARI_FLOAT32, &anisotropyFactor);
+        m->setParameter("anisotropyStrength", ANARI_FLOAT32, &anisotropyFactor);
       }
 
 #ifdef AI_MATKEY_ANISOTROPY_ROTATION
@@ -392,8 +391,7 @@ static std::vector<MaterialRef> importASSIMPMaterials(
       } else if (ai_real sheenRoughnessFactor;
           assimpMat->Get(AI_MATKEY_SHEEN_ROUGHNESS_FACTOR, sheenRoughnessFactor)
           == AI_SUCCESS) {
-        m->setParameter(
-            "sheenRoughness", ANARI_FLOAT32, &sheenRoughnessFactor);
+        m->setParameter("sheenRoughness", ANARI_FLOAT32, &sheenRoughnessFactor);
       }
 
       // Clearcoat handling
@@ -609,11 +607,12 @@ static void populateASSIMPLayer(Scene &scene,
   tsd::math::mat4 mat;
   std::memcpy(&mat, &node->mTransformation, sizeof(mat));
   mat = tsd::math::transpose(mat);
-  auto tr = tsdLayerRef->insert_last_child({mat, node->mName.C_Str()});
+  auto tr =
+      scene.insertChildTransformNode(tsdLayerRef, mat, node->mName.C_Str());
 
   for (unsigned int i = 0; i < node->mNumMeshes; i++) {
     auto mesh = surfaces.at(node->mMeshes[i]);
-    tr->insert_last_child({mesh, mesh->name().c_str()});
+    scene.insertChildObjectNode(tr, mesh, mesh->name().c_str());
   }
 
   // https://github.com/assimp/assimp/issues/1168#issuecomment-278673292
@@ -625,7 +624,7 @@ static void populateASSIMPLayer(Scene &scene,
       [name](const LightRef &lightRef) { return lightRef->name() == name; });
 
   if (it != lights.end())
-    tr->insert_first_child({ANARI_LIGHT, (*it)->index(), &scene});
+    scene.insertChildObjectNode(tr, *it, (*it)->name().c_str());
 
   for (unsigned int i = 0; i < node->mNumChildren; i++)
     populateASSIMPLayer(scene, tr, surfaces, lights, node->mChildren[i]);

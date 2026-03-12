@@ -357,7 +357,7 @@ void BaseViewport::ui_gizmo()
     localTransform = mul(invParent, worldTransform);
     (*selectedNodeRef)->setAsTransform(localTransform);
     appCore()->tsd.scene.signalLayerTransformChanged(
-        selectedNodeRef->container());
+        (*selectedNodeRef)->layer());
   }
 }
 

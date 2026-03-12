@@ -59,7 +59,7 @@ void ObjectEditor::buildUI()
 
     if (doUpdate) {
       node->setAsTransform(srt);
-      auto *layer = selectedNode->container();
+      auto *layer = (*selectedNode)->layer();
       scene->signalLayerTransformChanged(layer);
     }
   } else if (!node->isEmpty()) {

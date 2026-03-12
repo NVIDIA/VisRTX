@@ -101,15 +101,14 @@ class Application : public TSDApplication
     surface->setName("particle_surface");
     surface->setParameterObject("geometry", *particles);
     surface->setParameterObject("material", *particleMat);
-    scene.defaultLayer()->root()->insert_first_child(
-        {ANARI_SURFACE, surface.index(), &core->tsd.scene});
+    auto *layer = scene.defaultLayer();
+    layer->root()->insert_first_child({layer, surface});
 
     surface = scene.createSurface();
     surface->setName("bh_surface");
     surface->setParameterObject("geometry", *blackHoles);
     surface->setParameterObject("material", *bhMat);
-    scene.defaultLayer()->root()->insert_first_child(
-        {ANARI_SURFACE, surface.index(), &core->tsd.scene});
+    layer->root()->insert_first_child({layer, surface});
 
     // Setup app //
 

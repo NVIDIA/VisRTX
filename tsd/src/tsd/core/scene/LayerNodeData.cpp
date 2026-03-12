@@ -1,45 +1,34 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/core/scene/Layer.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/core/scene/Layer.hpp"
 #include "tsd/core/scene/Scene.hpp"
 
 namespace tsd::core {
 
-LayerNodeData::LayerNodeData(const char *n)
+LayerNodeData::LayerNodeData(Layer *layer, const char *n) : m_layer(layer)
 {
   setEmpty();
   m_name = n;
 }
 
-LayerNodeData::LayerNodeData(Object *o, const char *n) : LayerNodeData(n)
+LayerNodeData::LayerNodeData(Layer *layer, const math::mat4 &m, const char *n)
+    : LayerNodeData(layer, n)
+{
+  setAsTransform(m);
+}
+
+LayerNodeData::LayerNodeData(Layer *layer, const math::mat3 &m, const char *n)
+    : LayerNodeData(layer, n)
+{
+  setAsTransform(m);
+}
+
+LayerNodeData::LayerNodeData(Layer *layer, Object *o, const char *n)
+    : LayerNodeData(layer, n)
 {
   setAsObject(o);
-}
-
-LayerNodeData::LayerNodeData(
-    anari::DataType type, size_t index, Scene *s, const char *n)
-    : LayerNodeData(n)
-{
-  setAsObject(type, index, s);
-}
-
-LayerNodeData::LayerNodeData(const math::mat4 &m, const char *n)
-    : LayerNodeData(n)
-{
-  setAsTransform(m);
-}
-
-LayerNodeData::LayerNodeData(const math::mat3 &m, const char *n)
-    : LayerNodeData(n)
-{
-  setAsTransform(m);
-}
-
-LayerNodeData::LayerNodeData(Array *a, const char *n) : LayerNodeData(n)
-{
-  setAsTransformArray(a);
 }
 
 LayerNodeData::LayerNodeData(const LayerNodeData &o)
@@ -50,7 +39,7 @@ LayerNodeData::LayerNodeData(const LayerNodeData &o)
   m_defaultValue = o.m_defaultValue;
   m_srt = o.m_srt;
   m_instanceParameters = o.m_instanceParameters;
-  m_scene = o.m_scene;
+  m_layer = o.m_layer;
   incObjectUseCount();
 }
 
@@ -62,8 +51,8 @@ LayerNodeData::LayerNodeData(LayerNodeData &&o)
   m_defaultValue = std::move(o.m_defaultValue);
   m_srt = std::move(o.m_srt);
   m_instanceParameters = std::move(o.m_instanceParameters);
-  m_scene = std::move(o.m_scene);
-  o.m_scene = nullptr;
+  m_layer = std::move(o.m_layer);
+  o.m_layer = nullptr;
   o.m_value.reset();
 }
 
@@ -76,7 +65,7 @@ LayerNodeData &LayerNodeData::operator=(const LayerNodeData &o)
   m_defaultValue = o.m_defaultValue;
   m_srt = o.m_srt;
   m_instanceParameters = o.m_instanceParameters;
-  m_scene = o.m_scene;
+  m_layer = o.m_layer;
   incObjectUseCount();
   return *this;
 }
@@ -90,8 +79,8 @@ LayerNodeData &LayerNodeData::operator=(LayerNodeData &&o)
   m_defaultValue = std::move(o.m_defaultValue);
   m_srt = std::move(o.m_srt);
   m_instanceParameters = std::move(o.m_instanceParameters);
-  m_scene = std::move(o.m_scene);
-  o.m_scene = nullptr;
+  m_layer = std::move(o.m_layer);
+  o.m_layer = nullptr;
   o.m_value.reset();
   return *this;
 }
@@ -99,6 +88,16 @@ LayerNodeData &LayerNodeData::operator=(LayerNodeData &&o)
 LayerNodeData::~LayerNodeData()
 {
   decObjectUseCount();
+}
+
+const Layer *LayerNodeData::layer() const
+{
+  return m_layer;
+}
+
+Layer *LayerNodeData::layer()
+{
+  return m_layer;
 }
 
 bool LayerNodeData::hasDefault() const
@@ -154,7 +153,7 @@ bool LayerNodeData::isEnabled() const
 void LayerNodeData::setAsObject(Object *o)
 {
   if (o)
-    setAsObject(o->type(), o->index(), o->scene());
+    setAsObject(o->type(), o->index());
   else {
     tsd::core::logWarning(
         "LayerNodeData::setAsObject() called with null object,"
@@ -163,11 +162,10 @@ void LayerNodeData::setAsObject(Object *o)
   }
 }
 
-void LayerNodeData::setAsObject(anari::DataType type, size_t index, Scene *s)
+void LayerNodeData::setAsObject(anari::DataType type, size_t index)
 {
   decObjectUseCount();
   m_value = Any(type, index);
-  m_scene = s;
   incObjectUseCount();
 }
 
@@ -230,7 +228,6 @@ void LayerNodeData::setEmpty()
   m_srt[0] = math::float3(1.f, 1.f, 1.f);
   m_srt[1] = math::float3(0.f, 0.f, 0.f);
   m_srt[2] = math::float3(0.f, 0.f, 0.f);
-  m_scene = nullptr;
   clearInstanceParameters();
   m_name.clear();
 }
@@ -242,7 +239,8 @@ void LayerNodeData::setEnabled(bool e)
 
 Object *LayerNodeData::getObject() const
 {
-  return isObject() && m_scene ? m_scene->getObject(m_value) : nullptr;
+  auto *scene = m_layer ? m_layer->scene() : nullptr;
+  return isObject() && scene ? scene->getObject(m_value) : nullptr;
 }
 
 size_t LayerNodeData::getObjectIndex() const
@@ -289,10 +287,9 @@ Any LayerNodeData::getValueRaw() const
   return m_value;
 }
 
-void LayerNodeData::setValueRaw(const Any &v, Scene *scene)
+void LayerNodeData::setValueRaw(const Any &v)
 {
   setEmpty();
-  m_scene = scene;
   m_value = v;
   setCurrentValueAsDefault();
   incObjectUseCount();

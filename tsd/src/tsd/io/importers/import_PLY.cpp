@@ -164,6 +164,7 @@ void import_PLY(Scene &scene, const char *filename, LayerNodeRef location)
     auto ply_root = scene.insertChildNode(
         location ? location : scene.defaultLayer()->root(),
         fileOf(filename).c_str());
+    auto *layer = (*ply_root)->layer();
     auto mesh = scene.createObject<Geometry>(tokens::geometry::triangle);
 
     auto makeArray1DForMesh = [&](Token parameterName,
@@ -205,7 +206,7 @@ void import_PLY(Scene &scene, const char *filename, LayerNodeRef location)
     mesh->setName((objectName + "_mesh").c_str());
 
     auto surface = scene.createSurface(objectName.c_str(), mesh, mat);
-    ply_root->insert_last_child({surface});
+    ply_root->insert_last_child({layer, surface});
 
   } catch (const std::exception &e) {
     logError("[import_PLY] caught tinyply exception: %s", e.what());

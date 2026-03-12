@@ -68,12 +68,13 @@ const std::vector<TSDObject *> &Group::lights() const
 
 void Group::addObjectsToLayer(tsd::core::LayerNodeRef parent) const
 {
+  auto *layer = (*parent)->layer();
   for (auto *obj : m_surfaces)
-    parent->insert_last_child(obj->tsdObject());
+    parent->insert_last_child({layer, obj->tsdObject()});
   for (auto *obj : m_volumes)
-    parent->insert_last_child(obj->tsdObject());
+    parent->insert_last_child({layer, obj->tsdObject()});
   for (auto *obj : m_lights)
-    parent->insert_last_child(obj->tsdObject());
+    parent->insert_last_child({layer, obj->tsdObject()});
 }
 
 } // namespace tsd_device

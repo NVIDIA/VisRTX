@@ -107,7 +107,8 @@ anari_viewer::WindowArray Application::setupWindows()
       light->setName("mainLight");
       light->setParameter("direction", tsd::math::float2(0.f, 240.f));
 
-      scene.defaultLayer()->root()->insert_first_child({light});
+      auto *l = scene.defaultLayer();
+      l->root()->insert_first_child({l, light});
     }
 
     core->tsd.sceneLoadComplete = true;

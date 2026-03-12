@@ -1296,7 +1296,8 @@ static void populateGLTFLayer(Scene &scene,
   }
 
   // Create node in the hierarchy
-  auto nodeRef = parentNode->insert_last_child({transform, node.name.c_str()});
+  auto nodeRef =
+      scene.insertChildTransformNode(parentNode, transform, node.name.c_str());
 
   // Add mesh if present
   if (node.mesh >= 0 && node.mesh < model.meshes.size()) {
@@ -1311,14 +1312,16 @@ static void populateGLTFLayer(Scene &scene,
 
       if (surfaceIndex < surfaces.size()) {
         auto surface = surfaces[surfaceIndex];
-        nodeRef->insert_last_child({surface, surface->name().c_str()});
+        scene.insertChildObjectNode(nodeRef, surface, surface->name().c_str());
       }
     }
   }
 
   // Add light if present (KHR_lights_punctual extension)
-  if (node.light >= 0 && node.light < lights.size())
-    nodeRef->insert_first_child({lights[node.light]});
+  if (node.light >= 0 && node.light < lights.size()) {
+    scene.insertChildObjectNode(
+        nodeRef, lights[node.light], lights[node.light]->name().c_str());
+  }
 
   // Process children
   for (int childIndex : node.children) {
@@ -1366,6 +1369,7 @@ void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
   // Build scene hierarchy
   LayerNodeRef targetLocation =
       location ? location : scene.defaultLayer()->root();
+  auto *layer = (*targetLocation)->layer();
 
   // Create a root node for the entire glTF file
   std::string fileName = fileOf(filename);
@@ -1376,8 +1380,8 @@ void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
   }
 
   // Create root transformation node
-  auto rootNode =
-      targetLocation->insert_last_child({IDENTITY_MAT4, fileName.c_str()});
+  auto rootNode = targetLocation->insert_last_child(
+      {layer, IDENTITY_MAT4, fileName.c_str()});
 
   if (model.defaultScene >= 0 && model.defaultScene < model.scenes.size()) {
     const auto &gltfScene = model.scenes[model.defaultScene];
@@ -1393,8 +1397,6 @@ void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
   } else {
     logWarning("[import_GLTF] no scenes found in glTF file");
   }
-
-  scene.signalLayerStructureChanged(targetLocation->container());
 }
 
 } // namespace tsd::io

@@ -69,21 +69,21 @@ void World::updateLayer()
     return;
 
   auto *l = layer();
-  l->erase_subtree(l->root());
+  l->clear();
 
   for (auto *inst : m_instances) {
-    auto instNode = l->root()->insert_last_child(inst->xfm());
+    auto instNode = l->root()->insert_last_child({l, inst->xfm()});
     inst->group()->addObjectsToLayer(instNode);
   }
 
   if (m_zeroSurfaceData || m_zeroVolumeData || m_zeroLightData) {
-    auto zi = l->root()->insert_last_child("zero-instance");
+    auto zi = l->root()->insert_last_child({l, "zero-instance"});
     for (auto *obj : m_zeroSurfaces)
-      zi->insert_last_child(obj->tsdObject());
+      zi->insert_last_child({l, obj->tsdObject()});
     for (auto *obj : m_zeroVolumes)
-      zi->insert_last_child(obj->tsdObject());
+      zi->insert_last_child({l, obj->tsdObject()});
     for (auto *obj : m_zeroLights)
-      zi->insert_last_child(obj->tsdObject());
+      zi->insert_last_child({l, obj->tsdObject()});
   }
 
   s->scene->signalLayerStructureChanged(l);

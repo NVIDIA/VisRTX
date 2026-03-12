@@ -78,8 +78,8 @@ class Application : public TSDApplication
     volume->setParameterObject("value", *field);
     volume->setParameterObject("color", *colorArray);
 
-    auto volumeNode = scene.defaultLayer()->root()->insert_first_child(
-        {ANARI_VOLUME, volume.index(), &core->tsd.scene});
+    auto *layer = scene.defaultLayer();
+    auto volumeNode = layer->root()->insert_first_child({layer, volume});
 
     // Setup app //
 

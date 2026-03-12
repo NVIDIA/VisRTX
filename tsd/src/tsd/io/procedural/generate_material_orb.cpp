@@ -28,9 +28,9 @@ namespace tsd::io {
         ANARI_FLOAT32_VEC2, std::size(source::vertex_uv) / 2);                 \
     uvArray->setData(std::data(source::vertex_uv));                            \
                                                                                \
-    mesh->setParameterObject("vertex.position", *positionArray);             \
-    mesh->setParameterObject("vertex.normal", *normalArray);                 \
-    mesh->setParameterObject("vertex.attribute0", *uvArray);                 \
+    mesh->setParameterObject("vertex.position", *positionArray);               \
+    mesh->setParameterObject("vertex.normal", *normalArray);                   \
+    mesh->setParameterObject("vertex.attribute0", *uvArray);                   \
                                                                                \
     mat = scene.createObject<Material>(mat_type);                              \
     auto matName = std::string(name) + "_material";                            \
@@ -76,10 +76,10 @@ void generate_material_orb(Scene &scene, LayerNodeRef location)
 {
   if (!location)
     location = scene.defaultLayer()->root();
+  auto *layer = (*location)->layer();
 
   auto orb_root = location->insert_last_child(
-      {tsd::math::mat4(tsd::math::identity)});
-  (*orb_root)->name() = "Material Orb";
+      {layer, tsd::math::mat4(tsd::math::identity), "Material Orb"});
 
   MaterialRef mat;
 

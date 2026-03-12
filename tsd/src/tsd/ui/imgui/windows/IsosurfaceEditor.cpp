@@ -115,7 +115,7 @@ void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
 
   auto s = scene.createSurface("isosurface", g, scene.defaultMaterial());
 
-  auto n = layer->insert_last_child(layer->root(), {s});
+  auto n = layer->root()->insert_last_child({layer, s});
 
   appCore()->setSelected(n);
   scene.signalLayerStructureChanged(layer);

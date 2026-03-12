@@ -272,7 +272,7 @@ void Animation::update(float time)
     const size_t idx =
         calculateIndexForTime(time, ts.transformFrames.size(), false);
     (*ts.transformNode)->setAsTransform(ts.transformFrames[idx]);
-    m_scene->signalLayerTransformChanged(ts.transformNode->container());
+    m_scene->signalLayerTransformChanged((*ts.transformNode)->layer());
     updateInfoString(time, false);
     return;
   }
@@ -317,10 +317,10 @@ void Animation::update(float time)
       result = kfs.back().matrix;
     } else {
       // Binary search for surrounding pair
-      auto it = std::lower_bound(
-          kfs.begin(), kfs.end(), time, [](const TransformKeyframe &k, float t) {
-            return k.time < t;
-          });
+      auto it = std::lower_bound(kfs.begin(),
+          kfs.end(),
+          time,
+          [](const TransformKeyframe &k, float t) { return k.time < t; });
       const auto &k1 = *it;
       const auto &k0 = *(it - 1);
       float alpha = (time - k0.time) / (k1.time - k0.time);
@@ -333,7 +333,7 @@ void Animation::update(float time)
       }
     }
     (*kf.transformNode)->setAsTransform(result);
-    m_scene->signalLayerTransformChanged(kf.transformNode->container());
+    m_scene->signalLayerTransformChanged((*kf.transformNode)->layer());
   }
 
   if (!kf.channels.empty() && kf.object) {
@@ -350,10 +350,10 @@ void Animation::update(float time)
       } else if (time >= cks.back().time) {
         result = cks.back().value;
       } else {
-        auto it = std::lower_bound(cks.begin(),
-            cks.end(),
-            time,
-            [](const ValueKeyframe &k, float t) { return k.time < t; });
+        auto it = std::lower_bound(
+            cks.begin(), cks.end(), time, [](const ValueKeyframe &k, float t) {
+              return k.time < t;
+            });
         const auto &vk1 = *it;
         const auto &vk0 = *(it - 1);
         float alpha = (time - vk0.time) / (vk1.time - vk0.time);
@@ -434,15 +434,14 @@ void Animation::serialize(DataNode &node) const
 
   // Transform node reference
   if (kf.transformNode) {
-    auto *lay = kf.transformNode->container();
+    auto *lay = (*kf.transformNode)->layer();
     kfNode["nodeLayer"] = m_scene->getLayerName(lay).str();
     kfNode["nodeIndex"] = kf.transformNode->index();
   }
 
   // Camera/object reference
   if (kf.object) {
-    kfNode["object"] =
-        tsd::core::Any(kf.object->type(), kf.object->index());
+    kfNode["object"] = tsd::core::Any(kf.object->type(), kf.object->index());
   }
 
   // Transform keyframes: time + flat mat4 (16 floats)
@@ -564,7 +563,8 @@ void Animation::deserialize(DataNode &node)
     if (auto *objNode = kfData->child("object")) {
       auto *obj = m_scene->getObject(objNode->getValue());
       if (obj)
-        kf.object = *obj;  // use operator=(Object&), NOT the constructor (which is a no-op)
+        kf.object = *obj; // use operator=(Object&), NOT the constructor (which
+                          // is a no-op)
     }
 
     // Restore transform keyframes

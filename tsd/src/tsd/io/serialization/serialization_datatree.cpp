@@ -365,11 +365,11 @@ void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
     if (level == 0)
       currentNode = layer.root();
     else {
-      currentNode = layer.insert_last_child(currentParentNode, {});
+      currentNode = currentParentNode->insert_last_child({&layer});
       if (auto *c = node.child("transformSRT"); c != nullptr)
         (*currentNode)->setAsTransform(c->getValueAs<math::mat3>());
       else
-        (*currentNode)->setValueRaw(node["value"].getValue(), &scene);
+        (*currentNode)->setValueRaw(node["value"].getValue());
       (*currentNode)->setEnabled(node["enabled"].getValueOr(true));
       (*currentNode)->name() = node["name"].getValueAs<std::string>();
     }
