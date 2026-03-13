@@ -14,6 +14,7 @@
 namespace tsd::rendering {
 
 using namespace tsd::core;
+using namespace tsd::scene;
 
 struct RenderToAnariObjectsVisitor;
 
@@ -72,7 +73,7 @@ struct RenderIndex : public BaseUpdateDelegate
   friend struct RenderToAnariObjectsVisitor;
 };
 
-using MultiRenderIndex = tsd::core::MultiUpdateDelegate;
+using MultiRenderIndex = tsd::scene::MultiUpdateDelegate;
 
 // Inlined definitions ////////////////////////////////////////////////////////
 

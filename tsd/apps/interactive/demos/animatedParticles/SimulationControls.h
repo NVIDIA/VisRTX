@@ -21,9 +21,9 @@ struct SimulationControls : public tsd::ui::imgui::Window
       const char *name = "Simulation Controls");
 
   void buildUI() override;
-  void setGeometry(tsd::core::GeometryRef particles,
-      tsd::core::GeometryRef blackHoles,
-      tsd::core::SamplerRef particleColorSampler);
+  void setGeometry(tsd::scene::GeometryRef particles,
+      tsd::scene::GeometryRef blackHoles,
+      tsd::scene::SamplerRef particleColorSampler);
 
  private:
   void remakeDataArrays();
@@ -32,16 +32,16 @@ struct SimulationControls : public tsd::ui::imgui::Window
   std::pair<tsd::math::float3, tsd::math::float3> updateBhPoints();
   void iterateSimulation();
 
-  tsd::core::ObjectUsePtr<tsd::core::Geometry> m_particleGeom;
-  tsd::core::ObjectUsePtr<tsd::core::Geometry> m_bhGeom;
-  tsd::core::ObjectUsePtr<tsd::core::Sampler> m_particleColorSampler;
-  tsd::core::ObjectUsePtr<tsd::core::Array> m_dataPoints;
-  tsd::core::ObjectUsePtr<tsd::core::Array> m_dataPointsCUDA;
-  tsd::core::ObjectUsePtr<tsd::core::Array> m_dataDistances;
-  tsd::core::ObjectUsePtr<tsd::core::Array> m_dataDistancesCUDA;
-  tsd::core::ObjectUsePtr<tsd::core::Array> m_dataVelocities;
-  tsd::core::ObjectUsePtr<tsd::core::Array> m_dataVelocitiesCUDA;
-  tsd::core::ObjectUsePtr<tsd::core::Array> m_dataBhPoints;
+  tsd::scene::ObjectUsePtr<tsd::scene::Geometry> m_particleGeom;
+  tsd::scene::ObjectUsePtr<tsd::scene::Geometry> m_bhGeom;
+  tsd::scene::ObjectUsePtr<tsd::scene::Sampler> m_particleColorSampler;
+  tsd::scene::ObjectUsePtr<tsd::scene::Array> m_dataPoints;
+  tsd::scene::ObjectUsePtr<tsd::scene::Array> m_dataPointsCUDA;
+  tsd::scene::ObjectUsePtr<tsd::scene::Array> m_dataDistances;
+  tsd::scene::ObjectUsePtr<tsd::scene::Array> m_dataDistancesCUDA;
+  tsd::scene::ObjectUsePtr<tsd::scene::Array> m_dataVelocities;
+  tsd::scene::ObjectUsePtr<tsd::scene::Array> m_dataVelocitiesCUDA;
+  tsd::scene::ObjectUsePtr<tsd::scene::Array> m_dataBhPoints;
   int m_particlesPerSide{100};
   tsd::demo::ParticleSystemParameters m_params;
   float m_angle{0.f};

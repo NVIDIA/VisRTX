@@ -10,7 +10,7 @@
 namespace tsd::io {
 
 void import_file(
-    Scene &scene, const ImportFile &f, tsd::core::LayerNodeRef root)
+    Scene &scene, const ImportFile &f, tsd::scene::LayerNodeRef root)
 {
   tsd::core::TransferFunction tf;
   import_file(scene, f, tf, root);
@@ -19,7 +19,7 @@ void import_file(
 void import_file(Scene &scene,
     const ImportFile &f,
     tsd::core::TransferFunction &tf,
-    tsd::core::LayerNodeRef root)
+    tsd::scene::LayerNodeRef root)
 {
   const bool customLocation = root;
 
@@ -106,7 +106,7 @@ void import_file(Scene &scene,
 
 void import_files(Scene &s,
     const std::vector<ImportFile> &files,
-    tsd::core::LayerNodeRef root)
+    tsd::scene::LayerNodeRef root)
 {
   import_files(s, files, {}, root);
 }
@@ -114,7 +114,7 @@ void import_files(Scene &s,
 void import_files(Scene &s,
     const std::vector<ImportFile> &files,
     tsd::core::TransferFunction tf,
-    tsd::core::LayerNodeRef root)
+    tsd::scene::LayerNodeRef root)
 {
   if (tf.colorPoints.empty() && tf.opacityPoints.empty()) {
     // If the transfer function is empty, initialize it to a default value
@@ -136,7 +136,7 @@ void import_files(Scene &s,
 
 void import_animations(Scene &scene,
     const std::vector<ImportAnimationFiles> &files,
-    tsd::core::LayerNodeRef root)
+    tsd::scene::LayerNodeRef root)
 {
   const bool customLocation = root;
 

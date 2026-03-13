@@ -5,7 +5,7 @@
 
 #include "tsd/scene/Object.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Sampler : public Object
 {
@@ -32,4 +32,4 @@ extern const Token transform;
 
 } // namespace tokens::sampler
 
-} // namespace tsd::core
+} // namespace tsd::scene

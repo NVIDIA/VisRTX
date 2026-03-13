@@ -3,17 +3,18 @@
 
 #include "tsd/scene/objects/SpatialField.hpp"
 
+// tsd_core
 #include "tsd/core/Logging.hpp"
-#include "tsd/core/Parameter.hpp"
 #include "tsd/core/TSDMath.hpp"
-#include "tsd/scene/algorithms/computeScalarRange.hpp"
+// tsd_scene
 #include "tsd/scene/Scene.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 // anari
 #include <anari/frontend/anari_enums.h>
 // std
 #include <optional>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 SpatialField::SpatialField(Token stype) : Object(ANARI_SPATIAL_FIELD, stype)
 {
@@ -208,4 +209,4 @@ const Token nanovdbRectilinear = "nanovdbRectilinear";
 
 } // namespace tokens::spatial_field
 
-} // namespace tsd::core
+} // namespace tsd::scene

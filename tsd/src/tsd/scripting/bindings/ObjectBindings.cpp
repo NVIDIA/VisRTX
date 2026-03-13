@@ -29,7 +29,7 @@ template <typename T>
 class ScopedArrayMap
 {
  public:
-  ScopedArrayMap(core::Array &arr) : m_array(arr), m_ptr(arr.mapAs<T>()) {}
+  ScopedArrayMap(scene::Array &arr) : m_array(arr), m_ptr(arr.mapAs<T>()) {}
   ~ScopedArrayMap()
   {
     if (m_ptr)
@@ -49,7 +49,7 @@ class ScopedArrayMap
   }
 
  private:
-  core::Array &m_array;
+  scene::Array &m_array;
   T *m_ptr;
 };
 
@@ -324,7 +324,7 @@ static void inferArrayDimsFromLuaData(sol::table data,
       "provide explicit dimensions");
 }
 
-void arraySetDataFromLua(core::Array &arr, sol::table data, sol::this_state s)
+void arraySetDataFromLua(scene::Array &arr, sol::table data, sol::this_state s)
 {
   const size_t dim0 = arr.dim(0);
   const size_t dim1 = arr.dim(1);
@@ -514,7 +514,7 @@ void arraySetDataFromLua(core::Array &arr, sol::table data, sol::this_state s)
 #undef FILL_VEC
 }
 
-core::ArrayRef setParameterArrayFromLua(core::Object &obj,
+scene::ArrayRef setParameterArrayFromLua(scene::Object &obj,
     const std::string &name,
     const std::string &typeStr,
     sol::table data,
@@ -538,7 +538,7 @@ core::ArrayRef setParameterArrayFromLua(core::Object &obj,
   return arr;
 }
 
-core::ArrayRef setParameterArrayFromLua(core::Object &obj,
+scene::ArrayRef setParameterArrayFromLua(scene::Object &obj,
     const std::string &name,
     const std::string &typeStr,
     size_t items0,
@@ -562,7 +562,7 @@ core::ArrayRef setParameterArrayFromLua(core::Object &obj,
   return arr;
 }
 
-static sol::table arrayGetDataAsLua(core::Array &arr, sol::this_state s)
+static sol::table arrayGetDataAsLua(scene::Array &arr, sol::this_state s)
 {
   sol::state_view lua(s);
   const auto count = arr.size();
@@ -646,7 +646,7 @@ auto registerObjectPoolRef(sol::table &tsd, const char *name)
       });
 
   registerObjectMethodsOn(refType,
-      [](Ref &r) -> core::Object * { return r.valid() ? r.data() : nullptr; });
+      [](Ref &r) -> scene::Object * { return r.valid() ? r.data() : nullptr; });
 
   return refType;
 }
@@ -658,164 +658,164 @@ void registerObjectBindings(sol::state &lua)
   // Register concrete Object types first (metatables keyed by C++ type_index)
   // Then register Ref types which overwrite tsd["Name"] table entries.
 
-  tsd.new_usertype<core::Geometry>("Geometry",
+  tsd.new_usertype<scene::Geometry>("Geometry",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>());
+      sol::bases<scene::Object>());
 
-  tsd.new_usertype<core::Material>("Material",
+  tsd.new_usertype<scene::Material>("Material",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>());
+      sol::bases<scene::Object>());
 
-  tsd.new_usertype<core::Light>("Light",
+  tsd.new_usertype<scene::Light>("Light",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>());
+      sol::bases<scene::Object>());
 
-  tsd.new_usertype<core::Camera>("Camera",
+  tsd.new_usertype<scene::Camera>("Camera",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>());
+      sol::bases<scene::Object>());
 
-  tsd.new_usertype<core::Surface>(
+  tsd.new_usertype<scene::Surface>(
       "Surface",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>(),
+      sol::bases<scene::Object>(),
       sol::meta_function::equal_to,
-      [](const core::Surface &a, const core::Surface &b) { return &a == &b; },
+      [](const scene::Surface &a, const scene::Surface &b) { return &a == &b; },
       sol::meta_function::less_than,
-      [](const core::Surface &a, const core::Surface &b) {
-        return std::less<const core::Surface *>{}(&a, &b);
+      [](const scene::Surface &a, const scene::Surface &b) {
+        return std::less<const scene::Surface *>{}(&a, &b);
       },
       "geometry",
-      [](core::Surface &s) {
-        return s.parameterValueAsObject<core::Geometry>("geometry");
+      [](scene::Surface &s) {
+        return s.parameterValueAsObject<scene::Geometry>("geometry");
       },
       "material",
-      [](core::Surface &s) {
-        return s.parameterValueAsObject<core::Material>("material");
+      [](scene::Surface &s) {
+        return s.parameterValueAsObject<scene::Material>("material");
       });
 
-  tsd.new_usertype<core::Volume>("Volume",
+  tsd.new_usertype<scene::Volume>("Volume",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>(),
+      sol::bases<scene::Object>(),
       "spatialField",
-      [](core::Volume &v) {
-        return v.parameterValueAsObject<core::SpatialField>("value");
+      [](scene::Volume &v) {
+        return v.parameterValueAsObject<scene::SpatialField>("value");
       });
 
-  tsd.new_usertype<core::Sampler>("Sampler",
+  tsd.new_usertype<scene::Sampler>("Sampler",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>());
+      sol::bases<scene::Object>());
 
-  tsd.new_usertype<core::SpatialField>(
+  tsd.new_usertype<scene::SpatialField>(
       "SpatialField",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>(),
+      sol::bases<scene::Object>(),
       sol::meta_function::equal_to,
-      [](const core::SpatialField &a, const core::SpatialField &b) {
+      [](const scene::SpatialField &a, const scene::SpatialField &b) {
         return &a == &b;
       },
       sol::meta_function::less_than,
-      [](const core::SpatialField &a, const core::SpatialField &b) {
-        return std::less<const core::SpatialField *>{}(&a, &b);
+      [](const scene::SpatialField &a, const scene::SpatialField &b) {
+        return std::less<const scene::SpatialField *>{}(&a, &b);
       },
       "computeValueRange",
-      &core::SpatialField::computeValueRange);
+      &scene::SpatialField::computeValueRange);
 
-  tsd.new_usertype<core::Array>(
+  tsd.new_usertype<scene::Array>(
       "Array",
       sol::no_constructor,
       sol::base_classes,
-      sol::bases<core::Object>(),
+      sol::bases<scene::Object>(),
       sol::meta_function::equal_to,
-      [](const core::Array &a, const core::Array &b) { return &a == &b; },
+      [](const scene::Array &a, const scene::Array &b) { return &a == &b; },
       sol::meta_function::less_than,
-      [](const core::Array &a, const core::Array &b) {
-        return std::less<const core::Array *>{}(&a, &b);
+      [](const scene::Array &a, const scene::Array &b) {
+        return std::less<const scene::Array *>{}(&a, &b);
       },
       "elementType",
-      &core::Array::elementType,
+      &scene::Array::elementType,
       "size",
-      &core::Array::size,
+      &scene::Array::size,
       "elementSize",
-      &core::Array::elementSize,
+      &scene::Array::elementSize,
       "isEmpty",
-      &core::Array::isEmpty,
+      &scene::Array::isEmpty,
       "dim",
-      &core::Array::dim,
+      &scene::Array::dim,
       "setData",
-      [](core::Array &arr, sol::table data, sol::this_state s) {
+      [](scene::Array &arr, sol::table data, sol::this_state s) {
         arraySetDataFromLua(arr, data, s);
       },
       "getData",
-      [](core::Array &arr, sol::this_state s) {
+      [](scene::Array &arr, sol::this_state s) {
         return arrayGetDataAsLua(arr, s);
       });
 
-  registerObjectPoolRef<core::Geometry>(tsd, "Geometry");
-  registerObjectPoolRef<core::Material>(tsd, "Material");
-  registerObjectPoolRef<core::Light>(tsd, "Light");
-  registerObjectPoolRef<core::Camera>(tsd, "Camera");
-  registerObjectPoolRef<core::Sampler>(tsd, "Sampler");
+  registerObjectPoolRef<scene::Geometry>(tsd, "Geometry");
+  registerObjectPoolRef<scene::Material>(tsd, "Material");
+  registerObjectPoolRef<scene::Light>(tsd, "Light");
+  registerObjectPoolRef<scene::Camera>(tsd, "Camera");
+  registerObjectPoolRef<scene::Sampler>(tsd, "Sampler");
 
-  auto surfaceRefType = registerObjectPoolRef<core::Surface>(tsd, "Surface");
-  surfaceRefType["geometry"] = +[](core::SurfaceRef &r) -> core::Geometry * {
+  auto surfaceRefType = registerObjectPoolRef<scene::Surface>(tsd, "Surface");
+  surfaceRefType["geometry"] = +[](scene::SurfaceRef &r) -> scene::Geometry * {
     if (!r.valid())
       return nullptr;
-    return r.data()->parameterValueAsObject<core::Geometry>("geometry");
+    return r.data()->parameterValueAsObject<scene::Geometry>("geometry");
   };
-  surfaceRefType["material"] = +[](core::SurfaceRef &r) -> core::Material * {
+  surfaceRefType["material"] = +[](scene::SurfaceRef &r) -> scene::Material * {
     if (!r.valid())
       return nullptr;
-    return r.data()->parameterValueAsObject<core::Material>("material");
+    return r.data()->parameterValueAsObject<scene::Material>("material");
   };
 
-  auto volumeRefType = registerObjectPoolRef<core::Volume>(tsd, "Volume");
+  auto volumeRefType = registerObjectPoolRef<scene::Volume>(tsd, "Volume");
   volumeRefType["spatialField"] =
-      +[](core::VolumeRef &r) -> core::SpatialField * {
+      +[](scene::VolumeRef &r) -> scene::SpatialField * {
     if (!r.valid())
       return nullptr;
-    return r.data()->parameterValueAsObject<core::SpatialField>("value");
+    return r.data()->parameterValueAsObject<scene::SpatialField>("value");
   };
 
   auto fieldRefType =
-      registerObjectPoolRef<core::SpatialField>(tsd, "SpatialField");
+      registerObjectPoolRef<scene::SpatialField>(tsd, "SpatialField");
   fieldRefType["computeValueRange"] =
-      +[](core::SpatialFieldRef &r) -> math::float2 {
+      +[](scene::SpatialFieldRef &r) -> math::float2 {
     if (!r.valid())
       return math::float2(0.f);
     return r.data()->computeValueRange();
   };
 
-  auto arrayRefType = registerObjectPoolRef<core::Array>(tsd, "Array");
-  arrayRefType["elementType"] = +[](const core::ArrayRef &r) -> ANARIDataType {
+  auto arrayRefType = registerObjectPoolRef<scene::Array>(tsd, "Array");
+  arrayRefType["elementType"] = +[](const scene::ArrayRef &r) -> ANARIDataType {
     return r.valid() ? r.data()->elementType() : ANARI_UNKNOWN;
   };
-  arrayRefType["size"] = +[](const core::ArrayRef &r) -> size_t {
+  arrayRefType["size"] = +[](const scene::ArrayRef &r) -> size_t {
     return r.valid() ? r.data()->size() : 0;
   };
-  arrayRefType["elementSize"] = +[](const core::ArrayRef &r) -> size_t {
+  arrayRefType["elementSize"] = +[](const scene::ArrayRef &r) -> size_t {
     return r.valid() ? r.data()->elementSize() : 0;
   };
-  arrayRefType["isEmpty"] = +[](const core::ArrayRef &r) -> bool {
+  arrayRefType["isEmpty"] = +[](const scene::ArrayRef &r) -> bool {
     return r.valid() ? r.data()->isEmpty() : true;
   };
-  arrayRefType["dim"] = +[](const core::ArrayRef &r, size_t d) -> size_t {
+  arrayRefType["dim"] = +[](const scene::ArrayRef &r, size_t d) -> size_t {
     return r.valid() ? r.data()->dim(d) : 0;
   };
   arrayRefType["setData"] =
-      [](core::ArrayRef &r, sol::table data, sol::this_state s) {
+      [](scene::ArrayRef &r, sol::table data, sol::this_state s) {
         if (!r.valid())
           throw std::runtime_error("attempt to setData on invalid Array");
         arraySetDataFromLua(*r.data(), data, s);
       };
-  arrayRefType["getData"] = [](core::ArrayRef &r, sol::this_state s) {
+  arrayRefType["getData"] = [](scene::ArrayRef &r, sol::this_state s) {
     if (!r.valid())
       throw std::runtime_error("attempt to getData on invalid Array");
     return arrayGetDataAsLua(*r.data(), s);

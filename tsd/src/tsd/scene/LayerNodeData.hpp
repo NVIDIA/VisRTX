@@ -8,7 +8,9 @@
 #include "tsd/core/Forest.hpp"
 #include "tsd/core/TSDMath.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
+
+using namespace tsd::core;
 
 struct Array;
 struct Object;
@@ -101,4 +103,4 @@ inline LayerNodeData::LayerNodeData(
     : LayerNodeData(layer, obj.data(), n)
 {}
 
-} // namespace tsd::core
+} // namespace tsd::scene

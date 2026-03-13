@@ -22,17 +22,17 @@ std::string fileOf(const std::string &filepath);
 std::string extensionOf(const std::string &filepath);
 std::vector<std::string> splitString(const std::string &s, char delim);
 
-tsd::core::ArrayRef readArray(
-    tsd::core::Scene &scene, anari::DataType elementType, std::FILE *fp);
+tsd::scene::ArrayRef readArray(
+    tsd::scene::Scene &scene, anari::DataType elementType, std::FILE *fp);
 
-using TextureCache = std::unordered_map<std::string, tsd::core::ArrayRef>;
-tsd::core::SamplerRef importTexture(tsd::core::Scene &scene,
+using TextureCache = std::unordered_map<std::string, tsd::scene::ArrayRef>;
+tsd::scene::SamplerRef importTexture(tsd::scene::Scene &scene,
     std::string filepath,
     TextureCache &cache,
     bool isLinear = false);
 
-tsd::core::SamplerRef makeDefaultColorMapSampler(
-    tsd::core::Scene &scene, const tsd::math::float2 &range);
+tsd::scene::SamplerRef makeDefaultColorMapSampler(
+    tsd::scene::Scene &scene, const tsd::math::float2 &range);
 
 // Transfer function import functions
 tsd::core::TransferFunction importTransferFunction(const std::string &filepath);
@@ -48,10 +48,10 @@ bool calcTangentsForTriangleMesh(const tsd::math::uint3 *indices,
 #if TSD_USE_VTK
 anari::DataType vtkTypeToANARIType(
     int vtkType, int numComps, const char *errorIdentifier = "");
-tsd::core::ArrayRef makeArray1DFromVTK(tsd::core::Scene &scene,
+tsd::scene::ArrayRef makeArray1DFromVTK(tsd::scene::Scene &scene,
     vtkDataArray *array,
     const char *errorIdentifier = "");
-tsd::core::ArrayRef makeArray3DFromVTK(tsd::core::Scene &scene,
+tsd::scene::ArrayRef makeArray3DFromVTK(tsd::scene::Scene &scene,
     vtkDataArray *array,
     size_t w,
     size_t h,

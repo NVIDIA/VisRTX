@@ -8,10 +8,10 @@
 
 namespace {
 
-struct MockObject : public tsd::core::Object
+struct MockObject : public tsd::scene::Object
 {
   void parameterChanged(
-      const tsd::core::Parameter *, const tsd::core::Any &) override
+      const tsd::scene::Parameter *, const tsd::core::Any &) override
   {
     notified = true;
   }

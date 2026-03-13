@@ -19,7 +19,7 @@
 #include <thrust/extrema.h>
 #endif
 
-namespace tsd::core::detail {
+namespace tsd::scene::detail {
 
 template <int ANARI_ENUM_T>
 inline tsd::math::float2 computeScalarRangeImpl(const Array &a)
@@ -62,4 +62,4 @@ tsd::math::float2 computeScalarRange_fixed16(const Array &a);
 tsd::math::float2 computeScalarRange_float32(const Array &a);
 tsd::math::float2 computeScalarRange_float64(const Array &a);
 
-} // namespace tsd::core::detail
+} // namespace tsd::scene::detail

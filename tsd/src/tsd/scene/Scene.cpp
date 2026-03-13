@@ -7,7 +7,7 @@
 // std
 #include <sstream>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 std::string objectDBInfo(const ObjectDatabase &db)
 {
@@ -387,13 +387,13 @@ std::vector<RendererAppRef> Scene::createStandardRenderers(
   if (!d)
     return {};
 
-  auto subtypes = tsd::core::getANARIObjectSubtypes(d, ANARI_RENDERER);
+  auto subtypes = tsd::scene::getANARIObjectSubtypes(d, ANARI_RENDERER);
   std::vector<RendererAppRef> retval;
   retval.reserve(subtypes.size());
 
   for (auto &subtype : subtypes) {
     auto r = createObjectImpl(m_db.renderer, deviceName, subtype);
-    tsd::core::parseANARIObjectInfo(*r, d, ANARI_RENDERER, subtype.c_str());
+    tsd::scene::parseANARIObjectInfo(*r, d, ANARI_RENDERER, subtype.c_str());
     retval.push_back(r);
   }
 
@@ -1068,4 +1068,4 @@ ArrayRef Scene::createArrayImpl(anari::DataType type,
   return retval;
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

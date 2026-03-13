@@ -7,9 +7,9 @@
 #include "tsd/core/FlatMap.hpp"
 #include "tsd/core/ObjectPool.hpp"
 #include "tsd/core/ObjectVersion.hpp"
-#include "tsd/core/Parameter.hpp"
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/core/Token.hpp"
+#include "tsd/scene/Parameter.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
 // std
 #include <iostream>
@@ -18,15 +18,17 @@
 #include <string_view>
 #include <type_traits>
 
-namespace tsd::core {
+namespace tsd::scene {
 struct Object;
-} // namespace tsd::core
+} // namespace tsd::scene
 
 namespace tsd::io {
-void nodeToNewObject(core::DataNode &node, core::Object &obj);
+void nodeToNewObject(core::DataNode &node, scene::Object &obj);
 } // namespace tsd::io
 
-namespace tsd::core {
+namespace tsd::scene {
+
+using namespace tsd::core;
 
 struct Scene;
 struct AnariHandleCache;
@@ -258,4 +260,4 @@ inline const std::optional<T> Object::parameterValueAs(Token name) const
   return p->value().get<T>();
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

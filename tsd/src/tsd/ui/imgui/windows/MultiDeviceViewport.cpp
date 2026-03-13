@@ -293,9 +293,9 @@ void MultiDeviceViewport::updateCamera(bool force)
 void MultiDeviceViewport::loadANARIRendererParameters()
 {
   auto d = m_rud.devices[0];
-  for (auto &name : tsd::core::getANARIObjectSubtypes(d, ANARI_RENDERER)) {
+  for (auto &name : tsd::scene::getANARIObjectSubtypes(d, ANARI_RENDERER)) {
     auto &o = m_rendererObject;
-    o = tsd::core::parseANARIObjectInfo(d, ANARI_RENDERER, name.c_str());
+    o = tsd::scene::parseANARIObjectInfo(d, ANARI_RENDERER, name.c_str());
     o.setName(name.c_str());
     o.setUpdateDelegate(&m_rud);
     break;
@@ -504,7 +504,7 @@ int MultiDeviceViewport::windowFlags() const
 }
 
 void MultiDeviceViewport::RendererUpdateDelegate::signalParameterUpdated(
-    const tsd::core::Object *o, const tsd::core::Parameter *p)
+    const tsd::scene::Object *o, const tsd::scene::Parameter *p)
 {
   for (size_t i = 0; i < devices.size(); i++) {
     auto d = devices[i];

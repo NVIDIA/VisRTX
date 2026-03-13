@@ -4,7 +4,7 @@
 #include "tsd/scene/objects/Volume.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Volume::Volume(Token stype) : Object(ANARI_VOLUME, stype)
 {
@@ -58,4 +58,4 @@ const Token transferFunction1D = "transferFunction1D";
 
 } // namespace tokens::volume
 
-} // namespace tsd::core
+} // namespace tsd::scene

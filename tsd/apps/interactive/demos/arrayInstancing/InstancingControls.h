@@ -29,7 +29,7 @@ struct InstancingControls : public tsd::ui::imgui::Window
   float m_particleRadius{0.5f};
   bool m_addSpheres{true};
   bool m_addInstances{true};
-  tsd::core::Object *m_light{nullptr};
+  tsd::scene::Object *m_light{nullptr};
 };
 
 } // namespace tsd::demo

@@ -5,7 +5,7 @@
 
 #include "tsd/scene/ObjectUsePtr.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Renderer : public Object
 {
@@ -25,4 +25,4 @@ struct Renderer : public Object
 using RendererRef = ObjectPoolRef<Renderer>;
 using RendererAppRef = ObjectUsePtr<Renderer, Object::UseKind::APP>;
 
-} // namespace tsd::core
+} // namespace tsd::scene

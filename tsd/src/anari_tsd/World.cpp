@@ -99,7 +99,7 @@ tsd::rendering::RenderIndexAllLayers *World::getRenderIndex()
   return m_renderIndex;
 }
 
-tsd::core::Layer *World::layer() const
+tsd::scene::Layer *World::layer() const
 {
   auto *s = deviceState();
   return s->scene->layer(m_layerName);

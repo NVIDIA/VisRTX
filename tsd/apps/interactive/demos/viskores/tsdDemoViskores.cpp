@@ -102,8 +102,8 @@ anari_viewer::WindowArray Application::setupWindows()
     if (setupDefaultLight) {
       tsd::core::logStatus("...setting up default light");
 
-      auto light = scene.createObject<tsd::core::Light>(
-          tsd::core::tokens::light::directional);
+      auto light = scene.createObject<tsd::scene::Light>(
+          tsd::scene::tokens::light::directional);
       light->setName("mainLight");
       light->setParameter("direction", tsd::math::float2(0.f, 240.f));
 

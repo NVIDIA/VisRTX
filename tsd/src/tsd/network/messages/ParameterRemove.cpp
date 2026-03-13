@@ -10,7 +10,7 @@
 namespace tsd::network::messages {
 
 ParameterRemove::ParameterRemove(
-    const tsd::core::Object *obj, const tsd::core::Parameter *param)
+    const tsd::scene::Object *obj, const tsd::scene::Parameter *param)
 {
   if (!(obj && param)) {
     tsd::core::logError(
@@ -24,7 +24,7 @@ ParameterRemove::ParameterRemove(
   root["n"] = param->name().str(); // parameter name
 }
 
-ParameterRemove::ParameterRemove(const Message &msg, tsd::core::Scene *scene)
+ParameterRemove::ParameterRemove(const Message &msg, tsd::scene::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
   tsd::core::logDebug("[message::ParameterRemove] Received message (%zu bytes)",

@@ -34,12 +34,12 @@ struct TSDObject : public Object
 {
   TSDObject(anari::DataType type,
       DeviceGlobalState *s,
-      tsd::core::Token subtype = tsd::core::tokens::none);
+      tsd::core::Token subtype = tsd::scene::tokens::none);
   virtual ~TSDObject();
 
   virtual void commitParameters() override;
 
-  tsd::core::Object *tsdObject() const;
+  tsd::scene::Object *tsdObject() const;
 
  private:
   tsd::core::Any m_object; // scene ref for non-renderer objects

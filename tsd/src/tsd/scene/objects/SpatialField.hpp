@@ -5,7 +5,7 @@
 
 #include "tsd/scene/ObjectUsePtr.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Scene;
 
@@ -37,4 +37,4 @@ extern const Token nanovdbRectilinear;
 
 } // namespace tokens::spatial_field
 
-} // namespace tsd::core
+} // namespace tsd::scene

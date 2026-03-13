@@ -128,7 +128,7 @@ void BaseViewport::camera_update(bool force)
   tsd::rendering::updateCameraObject(*m_camera.current, *m_camera.arcball);
 }
 
-void BaseViewport::camera_setCurrent(tsd::core::CameraAppRef c)
+void BaseViewport::camera_setCurrent(tsd::scene::CameraAppRef c)
 {
   m_camera.current = c;
 }
@@ -262,7 +262,7 @@ void BaseViewport::ui_gizmo()
   if (!gizmo_canShow())
     return;
 
-  auto computeWorldTransform = [](tsd::core::LayerNodeRef node) -> math::mat4 {
+  auto computeWorldTransform = [](tsd::scene::LayerNodeRef node) -> math::mat4 {
     auto world = math::IDENTITY_MAT4;
     for (; node; node = node->parent())
       world = mul((*node)->getTransform(), world);
@@ -278,7 +278,7 @@ void BaseViewport::ui_gizmo()
   auto worldTransform = mul(parentWorldTransform, localTransform);
 
   ImGuizmo::SetOrthographic(
-      m_camera.current->subtype() == core::tokens::camera::orthographic);
+      m_camera.current->subtype() == scene::tokens::camera::orthographic);
   ImGuizmo::BeginFrame();
 
   // Setup ImGuizmo with window and relative viewport information
@@ -312,7 +312,7 @@ void BaseViewport::ui_gizmo()
   float near = std::max(1e-8f, distanceToSelectedObject * 1e-2f);
   float far = std::max(1e-6f, distanceToSelectedObject * 1e2f);
 
-  if (m_camera.current->subtype() == core::tokens::camera::perspective) {
+  if (m_camera.current->subtype() == scene::tokens::camera::perspective) {
     const float fovRadians =
         m_camera.current->parameterValueAs<float>("fovy").value_or(
             math::radians(40.f));
@@ -324,7 +324,7 @@ void BaseViewport::ui_gizmo()
         {0.0f, 0.0f, -2.0f * far * near / (far - near), 0.0f},
     };
   } else if (m_camera.current->subtype()
-      == core::tokens::camera::orthographic) {
+      == scene::tokens::camera::orthographic) {
     // The 0.75 factor is to match updateCameraParametersOrthographic
     const float height = m_camera.arcball->distance() * 0.75f;
     const float halfHeight = height * 0.5f;
@@ -424,7 +424,7 @@ void BaseViewport::ui_menubar_Camera()
       update |= ImGui::DragFloat("Distance", &dist);
       update |= ImGui::DragFloat3("At", &at.x);
       ImGui::BeginDisabled(
-          m_camera.current->subtype() != core::tokens::camera::orthographic);
+          m_camera.current->subtype() != scene::tokens::camera::orthographic);
       update |= ImGui::DragFloat("Near", &fixedDist);
       if (ImGui::IsItemHovered())
         ImGui::SetTooltip("near plane distance for orthographic camera");
@@ -458,18 +458,18 @@ void BaseViewport::ui_menubar_Camera()
 
       if (ImGui::BeginMenu("Select Camera")) {
         if (ImGui::BeginMenu("New")) {
-          tsd::core::CameraRef newCam;
+          tsd::scene::CameraRef newCam;
           if (ImGui::MenuItem("Perspective")) {
-            newCam = scene.createObject<tsd::core::Camera>(
-                tsd::core::tokens::camera::perspective);
+            newCam = scene.createObject<tsd::scene::Camera>(
+                tsd::scene::tokens::camera::perspective);
           }
           if (ImGui::MenuItem("Orthographic")) {
-            newCam = scene.createObject<tsd::core::Camera>(
-                tsd::core::tokens::camera::orthographic);
+            newCam = scene.createObject<tsd::scene::Camera>(
+                tsd::scene::tokens::camera::orthographic);
           }
           if (ImGui::MenuItem("Omnidirectional")) {
-            newCam = scene.createObject<tsd::core::Camera>(
-                tsd::core::tokens::camera::omnidirectional);
+            newCam = scene.createObject<tsd::scene::Camera>(
+                tsd::scene::tokens::camera::omnidirectional);
           }
 
           if (newCam) {
@@ -486,7 +486,7 @@ void BaseViewport::ui_menubar_Camera()
         auto t = ANARI_CAMERA;
         if (auto i = tsd::ui::buildUI_objects_menulist(scene, t);
             i != TSD_INVALID_INDEX) {
-          camera_setCurrent(scene.getObject<tsd::core::Camera>(i));
+          camera_setCurrent(scene.getObject<tsd::scene::Camera>(i));
           tsd::rendering::updateManipulatorFromCamera(
               *m_camera.arcball, *m_camera.current);
         }

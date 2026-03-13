@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <memory>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Array : public Object
 {
@@ -128,4 +128,4 @@ inline void Array::setData(const std::vector<T> &data, size_t startOffset)
   setData(data.data(), data.size(), startOffset);
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

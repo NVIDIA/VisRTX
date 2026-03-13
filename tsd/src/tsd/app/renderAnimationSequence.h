@@ -15,7 +15,7 @@ struct Context;
 using RenderSequenceCallback =
     std::function<bool(int frameIndex, int numFrames)>;
 
-void renderAnimationSequence(Context &core,
+void renderAnimationSequence(Context &ctx,
     const std::string &outputDir,
     const std::string &filePrefix,
     RenderSequenceCallback preFrameCallback = {});

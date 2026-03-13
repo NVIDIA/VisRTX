@@ -41,14 +41,14 @@ struct Array : public helium::BaseArray
       uint64_t size,
       uint32_t flags) override;
 
-  tsd::core::Object *tsdObject() const;
+  tsd::scene::Object *tsdObject() const;
   DeviceGlobalState *deviceState() const;
 
  private:
   void syncSharedData();
   void freeAppMemory();
 
-  mutable tsd::core::ArrayRef m_array;
+  mutable tsd::scene::ArrayRef m_array;
   const void *m_appMemory{nullptr};
   ANARIMemoryDeleter m_deleter{};
   const void *m_deleterPtr{nullptr};

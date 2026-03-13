@@ -5,7 +5,7 @@
 
 #include "tsd/scene/Object.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Material : public Object
 {
@@ -29,4 +29,4 @@ extern const Token mdl;
 
 } // namespace tokens::material
 
-} // namespace tsd::core
+} // namespace tsd::scene

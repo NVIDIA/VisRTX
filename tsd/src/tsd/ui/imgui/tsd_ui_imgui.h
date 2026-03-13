@@ -13,15 +13,15 @@ namespace tsd::ui {
 
 constexpr float INDENT_AMOUNT = 25.f;
 
-void buildUI_object(tsd::core::Object &o,
-    tsd::core::Scene &scene,
+void buildUI_object(tsd::scene::Object &o,
+    tsd::scene::Scene &scene,
     bool useTableForParameters = false,
     int level = 0);
-bool buildUI_parameter(tsd::core::Object &o,
-    tsd::core::Parameter &p,
-    tsd::core::Scene &scene,
+bool buildUI_parameter(tsd::scene::Object &o,
+    tsd::scene::Parameter &p,
+    tsd::scene::Scene &scene,
     bool asTable = false);
 size_t buildUI_objects_menulist(
-    const tsd::core::Scene &scene, anari::DataType &type);
+    const tsd::scene::Scene &scene, anari::DataType &type);
 
 } // namespace tsd::ui

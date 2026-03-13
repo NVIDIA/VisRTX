@@ -205,8 +205,8 @@ void Context::setOfflineRenderingLibrary(const std::string &libName)
   this->offline.renderer.activeRenderer = 0;
   this->offline.renderer.libraryName = libName;
 
-  for (auto &name : tsd::core::getANARIObjectSubtypes(d, ANARI_RENDERER)) {
-    auto o = tsd::core::parseANARIObjectInfo(d, ANARI_RENDERER, name.c_str());
+  for (auto &name : tsd::scene::getANARIObjectSubtypes(d, ANARI_RENDERER)) {
+    auto o = tsd::scene::parseANARIObjectInfo(d, ANARI_RENDERER, name.c_str());
     o.setName(name.c_str());
     this->offline.renderer.rendererObjects.push_back(std::move(o));
   }
@@ -214,30 +214,30 @@ void Context::setOfflineRenderingLibrary(const std::string &libName)
   anari::release(d, d);
 }
 
-tsd::core::LayerNodeRef Context::getFirstSelected() const
+tsd::scene::LayerNodeRef Context::getFirstSelected() const
 {
-  return tsd.selectedNodes.empty() ? tsd::core::LayerNodeRef{}
+  return tsd.selectedNodes.empty() ? tsd::scene::LayerNodeRef{}
                                    : tsd.selectedNodes[0];
 }
 
-const std::vector<tsd::core::LayerNodeRef> &Context::getSelectedNodes() const
+const std::vector<tsd::scene::LayerNodeRef> &Context::getSelectedNodes() const
 {
   return tsd.selectedNodes;
 }
 
-void Context::setSelected(tsd::core::LayerNodeRef node)
+void Context::setSelected(tsd::scene::LayerNodeRef node)
 {
-  setSelected(std::vector<tsd::core::LayerNodeRef>{
-      node.valid() ? node : tsd::core::LayerNodeRef{}});
+  setSelected(std::vector<tsd::scene::LayerNodeRef>{
+      node.valid() ? node : tsd::scene::LayerNodeRef{}});
 }
 
-void Context::setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes)
+void Context::setSelected(const std::vector<tsd::scene::LayerNodeRef> &nodes)
 {
   tsd.selectedNodes = nodes;
   anari.getUpdateDelegate().signalObjectFilteringChanged();
 }
 
-void Context::setSelected(const tsd::core::Object *obj)
+void Context::setSelected(const tsd::scene::Object *obj)
 {
   if (!obj) {
     clearSelected();
@@ -248,7 +248,7 @@ void Context::setSelected(const tsd::core::Object *obj)
   const auto &layers = tsd.scene.layers();
   for (auto &&[layerTk, state] : layers) {
     auto layer = state.ptr.get();
-    tsd::core::LayerNodeRef foundNode;
+    tsd::scene::LayerNodeRef foundNode;
     layer->traverse_const(layer->root(), [&](const auto &node, int level) {
       if (foundNode.valid())
         return false;
@@ -279,7 +279,7 @@ void Context::setSelected(const tsd::core::Object *obj)
   clearSelected();
 }
 
-void Context::addToSelection(tsd::core::LayerNodeRef node)
+void Context::addToSelection(tsd::scene::LayerNodeRef node)
 {
   if (!node.valid())
     return;
@@ -293,7 +293,7 @@ void Context::addToSelection(tsd::core::LayerNodeRef node)
   anari.getUpdateDelegate().signalObjectFilteringChanged();
 }
 
-void Context::removeFromSelection(tsd::core::LayerNodeRef node)
+void Context::removeFromSelection(tsd::scene::LayerNodeRef node)
 {
   auto it = std::find(tsd.selectedNodes.begin(), tsd.selectedNodes.end(), node);
   if (it != tsd.selectedNodes.end()) {
@@ -302,7 +302,7 @@ void Context::removeFromSelection(tsd::core::LayerNodeRef node)
   }
 }
 
-bool Context::isSelected(tsd::core::LayerNodeRef node) const
+bool Context::isSelected(tsd::scene::LayerNodeRef node) const
 {
   return std::find(tsd.selectedNodes.begin(), tsd.selectedNodes.end(), node)
       != tsd.selectedNodes.end();
@@ -315,9 +315,9 @@ void Context::clearSelected()
     anari.getUpdateDelegate().signalObjectFilteringChanged();
   }
 }
-std::vector<tsd::core::LayerNodeRef> Context::getParentOnlySelectedNodes() const
+std::vector<tsd::scene::LayerNodeRef> Context::getParentOnlySelectedNodes() const
 {
-  std::vector<tsd::core::LayerNodeRef> parentOnly;
+  std::vector<tsd::scene::LayerNodeRef> parentOnly;
 
   for (const auto &node : tsd.selectedNodes) {
     if (!node.valid())
@@ -427,7 +427,7 @@ bool Context::updateCameraPathAnimation()
   if (cameraIndex == TSD_INVALID_INDEX)
     cameraIndex = offline.camera.cameraIndex;
 
-  auto camera = scene.getObject<tsd::core::Camera>(cameraIndex);
+  auto camera = scene.getObject<tsd::scene::Camera>(cameraIndex);
   if (!camera) {
     tsd::core::logWarning("[camera path] No camera selected for animation");
     return false;
@@ -485,7 +485,7 @@ bool Context::updateCameraPathAnimation()
   upArray->unmap();
 
   std::vector<tsd::core::Token> params = {"position", "direction", "up"};
-  std::vector<tsd::core::TimeStepValues> valueArrays = {
+  std::vector<tsd::scene::TimeStepValues> valueArrays = {
       positionArray, directionArray, upArray};
   animation->setAsTimeSteps(*camera, params, valueArrays);
 
@@ -584,7 +584,7 @@ void OfflineRenderSequenceConfig::loadSettings(tsd::core::DataNode &root)
   auto &rendererObjectsRoot = rendererRoot["rendererObjects"];
   renderer.rendererObjects.clear();
   rendererObjectsRoot.foreach_child([&](auto &node) {
-    tsd::core::Object ro(ANARI_RENDERER, node.name().c_str());
+    tsd::scene::Object ro(ANARI_RENDERER, node.name().c_str());
     tsd::io::nodeToObject(node, ro);
     renderer.rendererObjects.push_back(std::move(ro));
   });

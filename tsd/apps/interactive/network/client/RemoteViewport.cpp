@@ -200,7 +200,7 @@ void RemoteViewport::updateRenderer()
   auto &scene = ctx->tsd.scene;
   if (m_renderers.objects.empty()
       && scene.numberOfObjects(ANARI_RENDERER) != 0) {
-    auto fr = scene.getObject<tsd::core::Renderer>(0);
+    auto fr = scene.getObject<tsd::scene::Renderer>(0);
     m_renderers.objects = scene.renderersOfDevice(fr->rendererDeviceName());
   } else if (m_renderers.objects.empty()) {
     // We only update when we have the list of renderers from the server
@@ -213,7 +213,7 @@ void RemoteViewport::updateRenderer()
 
   if (rendererFromServer) {
     m_renderers.current = m_receivedRendererIdx >= m_renderers.objects.size()
-        ? tsd::core::RendererAppRef{}
+        ? tsd::scene::RendererAppRef{}
         : m_renderers.objects[m_receivedRendererIdx];
     m_prevRenderer = m_renderers.current;
   } else if (rendererChanged) {
@@ -238,7 +238,7 @@ void RemoteViewport::updateCamera()
   if (cameraFromServer) {
     auto *ctx = appContext();
     auto &scene = ctx->tsd.scene;
-    camera_setCurrent(scene.getObject<tsd::core::Camera>(m_receivedCameraIdx));
+    camera_setCurrent(scene.getObject<tsd::scene::Camera>(m_receivedCameraIdx));
     m_camera.arcballToken = {};
     m_manipulatorSynchronized = false;
     return;

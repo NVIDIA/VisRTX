@@ -257,14 +257,14 @@ void TransferFunctionEditor::buildUI_valueRange()
 
     for (auto *volume : m_otherVolumes) {
       auto *field =
-          volume->parameterValueAsObject<tsd::core::SpatialField>("value");
+          volume->parameterValueAsObject<tsd::scene::SpatialField>("value");
         volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &range);
       }
     }
 
   if (ImGui::Button("reset##valueRange") && m_volume) {
     auto *field =
-        m_volume->parameterValueAsObject<tsd::core::SpatialField>("value");
+        m_volume->parameterValueAsObject<tsd::scene::SpatialField>("value");
     if (field) {
       auto valueRange = field->computeValueRange();
       m_volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
@@ -389,13 +389,13 @@ void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
   const auto &selectedNodes = appContext()->getSelectedNodes();
 
   // Collect all volume pointers from selection
-  std::vector<tsd::core::Volume*> allVolumes;
+  std::vector<tsd::scene::Volume*> allVolumes;
   for (const auto &node : selectedNodes) {
     if (!node.valid())
       continue;
     auto *obj = (*node)->getObject();
     if (obj && obj->type() == ANARI_VOLUME) {
-      allVolumes.push_back((tsd::core::Volume *)obj);
+      allVolumes.push_back((tsd::scene::Volume *)obj);
     }
   }
 
@@ -426,11 +426,11 @@ void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
 
   auto *firstVolume = m_volume;
   if (m_colorMapArray == nullptr
-      || m_colorMapArray != firstVolume->parameterValueAsObject<tsd::core::Array>("color")) {
+      || m_colorMapArray != firstVolume->parameterValueAsObject<tsd::scene::Array>("color")) {
     setMap(0);
 
     m_colorMapArray =
-        firstVolume->parameterValueAsObject<tsd::core::Array>("color");
+        firstVolume->parameterValueAsObject<tsd::scene::Array>("color");
 
     auto &cm = m_tfnsColorPoints[0];
     cm.resize(m_colorMapArray->size());
@@ -686,7 +686,7 @@ void TransferFunctionEditor::updateColormaps()
 
   // Update reference volume
   if (m_volume) {
-    auto *colorArray = m_volume->parameterValueAsObject<tsd::core::Array>("color");
+    auto *colorArray = m_volume->parameterValueAsObject<tsd::scene::Array>("color");
     if (colorArray) {
       auto co = getSampledColorsAndOpacities(colorArray->size());
       auto *colorMap = colorArray->mapAs<tsd::math::float4>();
@@ -702,7 +702,7 @@ void TransferFunctionEditor::updateColormaps()
 
   // Update other volumes
   for (auto *volume : m_otherVolumes) {
-    auto *colorArray = volume->parameterValueAsObject<tsd::core::Array>("color");
+    auto *colorArray = volume->parameterValueAsObject<tsd::scene::Array>("color");
     if (!colorArray)
       continue;
 

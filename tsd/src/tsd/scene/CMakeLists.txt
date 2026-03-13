@@ -20,7 +20,10 @@ set(TSD_CORE_CXX_SOURCES
   AnyObjectUsePtr.cpp
   Layer.cpp
   LayerNodeData.cpp
+  Parameter.cpp
   Object.cpp
+  Scene.cpp
+  UpdateDelegate.cpp
   algorithms/computeScalarRange.cpp
   objects/Array.cpp
   objects/Camera.cpp
@@ -32,8 +35,6 @@ set(TSD_CORE_CXX_SOURCES
   objects/SpatialField.cpp
   objects/Surface.cpp
   objects/Volume.cpp
-  Scene.cpp
-  UpdateDelegate.cpp
 )
 
 project_sources(PRIVATE ${TSD_CORE_CUDA_SOURCES} ${TSD_CORE_CXX_SOURCES})

@@ -4,7 +4,7 @@
 #include "ArrayHelpers.hpp"
 #include "ObjectMethodBindings.hpp"
 #include "ParameterHelpers.hpp"
-#include "tsd/core/Parameter.hpp"
+#include "tsd/scene/Parameter.hpp"
 #include "tsd/core/Token.hpp"
 #include "tsd/scene/Animation.hpp"
 #include "tsd/scene/Object.hpp"
@@ -18,46 +18,46 @@
 
 namespace tsd::scripting {
 
-static core::Object *extractObjectPtr(sol::object luaObj)
+static scene::Object *extractObjectPtr(sol::object luaObj)
 {
-  if (luaObj.is<core::GeometryRef>()) {
-    auto ref = luaObj.as<core::GeometryRef>();
+  if (luaObj.is<scene::GeometryRef>()) {
+    auto ref = luaObj.as<scene::GeometryRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::MaterialRef>()) {
-    auto ref = luaObj.as<core::MaterialRef>();
+  if (luaObj.is<scene::MaterialRef>()) {
+    auto ref = luaObj.as<scene::MaterialRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::LightRef>()) {
-    auto ref = luaObj.as<core::LightRef>();
+  if (luaObj.is<scene::LightRef>()) {
+    auto ref = luaObj.as<scene::LightRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::CameraRef>()) {
-    auto ref = luaObj.as<core::CameraRef>();
+  if (luaObj.is<scene::CameraRef>()) {
+    auto ref = luaObj.as<scene::CameraRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::SamplerRef>()) {
-    auto ref = luaObj.as<core::SamplerRef>();
+  if (luaObj.is<scene::SamplerRef>()) {
+    auto ref = luaObj.as<scene::SamplerRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::SurfaceRef>()) {
-    auto ref = luaObj.as<core::SurfaceRef>();
+  if (luaObj.is<scene::SurfaceRef>()) {
+    auto ref = luaObj.as<scene::SurfaceRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::VolumeRef>()) {
-    auto ref = luaObj.as<core::VolumeRef>();
+  if (luaObj.is<scene::VolumeRef>()) {
+    auto ref = luaObj.as<scene::VolumeRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::SpatialFieldRef>()) {
-    auto ref = luaObj.as<core::SpatialFieldRef>();
+  if (luaObj.is<scene::SpatialFieldRef>()) {
+    auto ref = luaObj.as<scene::SpatialFieldRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::ArrayRef>()) {
-    auto ref = luaObj.as<core::ArrayRef>();
+  if (luaObj.is<scene::ArrayRef>()) {
+    auto ref = luaObj.as<scene::ArrayRef>();
     return ref.valid() ? ref.data() : nullptr;
   }
-  if (luaObj.is<core::Object *>()) {
-    return luaObj.as<core::Object *>();
+  if (luaObj.is<scene::Object *>()) {
+    return luaObj.as<scene::Object *>();
   }
   return nullptr;
 }
@@ -65,7 +65,7 @@ static core::Object *extractObjectPtr(sol::object luaObj)
 template <typename F>
 static auto makeForEach(F poolAccessor)
 {
-  return [poolAccessor](core::Scene &s, sol::function fn) {
+  return [poolAccessor](scene::Scene &s, sol::function fn) {
     const auto &pool = poolAccessor(s.objectDB());
     for (size_t i = 0; i < pool.capacity(); i++) {
       if (!pool.slot_empty(i)) {
@@ -80,7 +80,7 @@ static auto makeForEach(F poolAccessor)
 template <typename T>
 static auto makeCreateBinding()
 {
-  return [](core::Scene &s,
+  return [](scene::Scene &s,
              const std::string &subtype,
              sol::optional<sol::table> params) {
     auto ref = s.createObject<T>(core::Token(subtype));
@@ -106,45 +106,45 @@ void registerContextBindings(sol::state &lua)
       [](const core::Token &a, const core::Token &b) { return a == b; });
 
   // Read-only from Lua; values are set through Object
-  tsd.new_usertype<core::Parameter>(
+  tsd.new_usertype<scene::Parameter>(
       "Parameter",
       sol::no_constructor,
       "name",
-      [](const core::Parameter &p) { return p.name().str(); },
+      [](const scene::Parameter &p) { return p.name().str(); },
       "description",
-      &core::Parameter::description,
+      &scene::Parameter::description,
       "isEnabled",
-      &core::Parameter::isEnabled);
+      &scene::Parameter::isEnabled);
 
-  auto objectType = tsd.new_usertype<core::Object>(
-      "Object", sol::no_constructor, "index", &core::Object::index);
+  auto objectType = tsd.new_usertype<scene::Object>(
+      "Object", sol::no_constructor, "index", &scene::Object::index);
 
   registerObjectMethodsOn(
-      objectType, [](core::Object &o) -> core::Object * { return &o; });
+      objectType, [](scene::Object &o) -> scene::Object * { return &o; });
 
-  tsd.new_usertype<core::Scene>(
+  tsd.new_usertype<scene::Scene>(
       "Scene",
-      sol::constructors<core::Scene()>(),
+      sol::constructors<scene::Scene()>(),
       // Object creation
       "createGeometry",
-      makeCreateBinding<core::Geometry>(),
+      makeCreateBinding<scene::Geometry>(),
       "createMaterial",
-      makeCreateBinding<core::Material>(),
+      makeCreateBinding<scene::Material>(),
       "createLight",
-      makeCreateBinding<core::Light>(),
+      makeCreateBinding<scene::Light>(),
       "createCamera",
-      makeCreateBinding<core::Camera>(),
+      makeCreateBinding<scene::Camera>(),
       "createSampler",
-      makeCreateBinding<core::Sampler>(),
+      makeCreateBinding<scene::Sampler>(),
       "createVolume",
-      makeCreateBinding<core::Volume>(),
+      makeCreateBinding<scene::Volume>(),
       "createSpatialField",
-      makeCreateBinding<core::SpatialField>(),
+      makeCreateBinding<scene::SpatialField>(),
       "createSurface",
-      [](core::Scene &s,
+      [](scene::Scene &s,
           const std::string &name,
-          core::GeometryRef g,
-          core::MaterialRef m,
+          scene::GeometryRef g,
+          scene::MaterialRef m,
           sol::optional<sol::table> params) {
         auto ref = s.createSurface(name.c_str(), g, m);
         if (params)
@@ -153,16 +153,16 @@ void registerContextBindings(sol::state &lua)
       },
       "createArray",
       sol::overload(
-          [](core::Scene &s, const std::string &typeStr, size_t items0) {
+          [](scene::Scene &s, const std::string &typeStr, size_t items0) {
             return s.createArray(arrayTypeFromString(typeStr), items0);
           },
-          [](core::Scene &s,
+          [](scene::Scene &s,
               const std::string &typeStr,
               size_t items0,
               size_t items1) {
             return s.createArray(arrayTypeFromString(typeStr), items0, items1);
           },
-          [](core::Scene &s,
+          [](scene::Scene &s,
               const std::string &typeStr,
               size_t items0,
               size_t items1,
@@ -172,28 +172,28 @@ void registerContextBindings(sol::state &lua)
           }),
       // Object access
       "getGeometry",
-      [](core::Scene &s, size_t i) { return s.getObject<core::Geometry>(i); },
+      [](scene::Scene &s, size_t i) { return s.getObject<scene::Geometry>(i); },
       "getMaterial",
-      [](core::Scene &s, size_t i) { return s.getObject<core::Material>(i); },
+      [](scene::Scene &s, size_t i) { return s.getObject<scene::Material>(i); },
       "getLight",
-      [](core::Scene &s, size_t i) { return s.getObject<core::Light>(i); },
+      [](scene::Scene &s, size_t i) { return s.getObject<scene::Light>(i); },
       "getCamera",
-      [](core::Scene &s, size_t i) { return s.getObject<core::Camera>(i); },
+      [](scene::Scene &s, size_t i) { return s.getObject<scene::Camera>(i); },
       "getSurface",
-      [](core::Scene &s, size_t i) { return s.getObject<core::Surface>(i); },
+      [](scene::Scene &s, size_t i) { return s.getObject<scene::Surface>(i); },
       "getArray",
-      [](core::Scene &s, size_t i) { return s.getObject<core::Array>(i); },
+      [](scene::Scene &s, size_t i) { return s.getObject<scene::Array>(i); },
       "getVolume",
-      [](core::Scene &s, size_t i) { return s.getObject<core::Volume>(i); },
+      [](scene::Scene &s, size_t i) { return s.getObject<scene::Volume>(i); },
       "getSampler",
-      [](core::Scene &s, size_t i) { return s.getObject<core::Sampler>(i); },
+      [](scene::Scene &s, size_t i) { return s.getObject<scene::Sampler>(i); },
       "getSpatialField",
-      [](core::Scene &s, size_t i) {
-        return s.getObject<core::SpatialField>(i);
+      [](scene::Scene &s, size_t i) {
+        return s.getObject<scene::SpatialField>(i);
       },
       // Object counts
       "numberOfObjects",
-      [](core::Scene &s, ANARIDataType type) -> size_t {
+      [](scene::Scene &s, ANARIDataType type) -> size_t {
         return s.numberOfObjects(type);
       },
       // Iteration over objects
@@ -217,44 +217,44 @@ void registerContextBindings(sol::state &lua)
       makeForEach([](auto &db) -> auto & { return db.array; }),
       // Layers
       "addLayer",
-      [](core::Scene &s, const std::string &name) {
+      [](scene::Scene &s, const std::string &name) {
         return s.addLayer(core::Token(name));
       },
       "layer",
       sol::overload(
-          [](core::Scene &s, const std::string &name) {
+          [](scene::Scene &s, const std::string &name) {
             return s.layer(core::Token(name));
           },
-          [](core::Scene &s, size_t i) { return s.layer(i); }),
+          [](scene::Scene &s, size_t i) { return s.layer(i); }),
       "numberOfLayers",
-      &core::Scene::numberOfLayers,
+      &scene::Scene::numberOfLayers,
       "defaultLayer",
-      &core::Scene::defaultLayer,
+      &scene::Scene::defaultLayer,
       "defaultMaterial",
-      &core::Scene::defaultMaterial,
+      &scene::Scene::defaultMaterial,
       // Node insertion
       "insertChildNode",
-      [](core::Scene &s, core::LayerNodeRef parent, const std::string &name) {
+      [](scene::Scene &s, scene::LayerNodeRef parent, const std::string &name) {
         return s.insertChildNode(parent, name.c_str());
       },
       "insertChildTransformNode",
-      [](core::Scene &s,
-          core::LayerNodeRef parent,
+      [](scene::Scene &s,
+          scene::LayerNodeRef parent,
           const math::mat4 &xfm,
           const std::string &name) {
         return s.insertChildTransformNode(parent, xfm, name.c_str());
       },
       "insertChildTransformArrayNode",
       sol::overload(
-          [](core::Scene &s,
-              core::LayerNodeRef parent,
-              core::Array &a,
+          [](scene::Scene &s,
+              scene::LayerNodeRef parent,
+              scene::Array &a,
               const std::string &name) {
             return s.insertChildTransformArrayNode(parent, &a, name.c_str());
           },
-          [](core::Scene &s,
-              core::LayerNodeRef parent,
-              core::ArrayRef a,
+          [](scene::Scene &s,
+              scene::LayerNodeRef parent,
+              scene::ArrayRef a,
               const std::string &name) {
             if (!a)
               throw std::runtime_error(
@@ -264,8 +264,8 @@ void registerContextBindings(sol::state &lua)
           }),
       // Object node insertion (adds objects to the renderable scene graph)
       "insertObjectNode",
-      [](core::Scene &s,
-          core::LayerNodeRef parent,
+      [](scene::Scene &s,
+          scene::LayerNodeRef parent,
           sol::object objArg,
           sol::optional<std::string> name) {
         auto *obj = extractObjectPtr(objArg);
@@ -276,117 +276,117 @@ void registerContextBindings(sol::state &lua)
       },
       // Object removal
       "removeObject",
-      [](core::Scene &s, sol::object objArg) {
+      [](scene::Scene &s, sol::object objArg) {
         auto *obj = extractObjectPtr(objArg);
         if (obj)
           s.removeObject(obj);
       },
       "removeAllObjects",
-      &core::Scene::removeAllObjects,
+      &scene::Scene::removeAllObjects,
       // Layer removal
       "removeLayer",
       sol::overload(
-          [](core::Scene &s, const std::string &name) {
+          [](scene::Scene &s, const std::string &name) {
             s.removeLayer(core::Token(name));
           },
-          [](core::Scene &s, core::Layer *layer) { s.removeLayer(layer); }),
+          [](scene::Scene &s, scene::Layer *layer) { s.removeLayer(layer); }),
       "removeAllLayers",
-      &core::Scene::removeAllLayers,
+      &scene::Scene::removeAllLayers,
       // Layer active state
       "layerIsActive",
-      [](core::Scene &s, const std::string &name) {
+      [](scene::Scene &s, const std::string &name) {
         return s.layerIsActive(core::Token(name));
       },
       "setLayerActive",
-      [](core::Scene &s, const std::string &name, bool active) {
+      [](scene::Scene &s, const std::string &name, bool active) {
         s.setLayerActive(core::Token(name), active);
       },
       "setAllLayersActive",
-      &core::Scene::setAllLayersActive,
+      &scene::Scene::setAllLayersActive,
       "setOnlyLayerActive",
-      [](core::Scene &s, const std::string &name) {
+      [](scene::Scene &s, const std::string &name) {
         s.setOnlyLayerActive(core::Token(name));
       },
       "numberOfActiveLayers",
-      &core::Scene::numberOfActiveLayers,
+      &scene::Scene::numberOfActiveLayers,
       // Signal layer changes
       "signalLayerStructureChanged",
-      [](core::Scene &s, core::Layer *l) {
+      [](scene::Scene &s, scene::Layer *l) {
         if (l)
           s.signalLayerStructureChanged(l);
       },
       "signalLayerTransformChanged",
-      [](core::Scene &s, core::Layer *l) {
+      [](scene::Scene &s, scene::Layer *l) {
         if (l)
           s.signalLayerTransformChanged(l);
       },
       // Node removal
       "removeNode",
       sol::overload(
-          [](core::Scene &s, core::LayerNodeRef obj) { s.removeNode(obj); },
-          [](core::Scene &s, core::LayerNodeRef obj, bool deleteObjects) {
+          [](scene::Scene &s, scene::LayerNodeRef obj) { s.removeNode(obj); },
+          [](scene::Scene &s, scene::LayerNodeRef obj, bool deleteObjects) {
             s.removeNode(obj, deleteObjects);
           }),
       // Animation
       "addAnimation",
-      sol::overload([](core::Scene &s) { return s.addAnimation(); },
-          [](core::Scene &s, const std::string &name) {
+      sol::overload([](scene::Scene &s) { return s.addAnimation(); },
+          [](scene::Scene &s, const std::string &name) {
             return s.addAnimation(name.c_str());
           }),
       "numberOfAnimations",
-      &core::Scene::numberOfAnimations,
+      &scene::Scene::numberOfAnimations,
       "animation",
-      &core::Scene::animation,
+      &scene::Scene::animation,
       "removeAnimation",
-      &core::Scene::removeAnimation,
+      &scene::Scene::removeAnimation,
       "removeAllAnimations",
-      &core::Scene::removeAllAnimations,
+      &scene::Scene::removeAllAnimations,
       "setAnimationTime",
-      &core::Scene::setAnimationTime,
+      &scene::Scene::setAnimationTime,
       "getAnimationTime",
-      &core::Scene::getAnimationTime,
+      &scene::Scene::getAnimationTime,
       "setAnimationIncrement",
-      &core::Scene::setAnimationIncrement,
+      &scene::Scene::setAnimationIncrement,
       "getAnimationIncrement",
-      &core::Scene::getAnimationIncrement,
+      &scene::Scene::getAnimationIncrement,
       "incrementAnimationTime",
-      &core::Scene::incrementAnimationTime,
+      &scene::Scene::incrementAnimationTime,
       // Cleanup
       "removeUnusedObjects",
-      &core::Scene::removeUnusedObjects,
+      &scene::Scene::removeUnusedObjects,
       "defragmentObjectStorage",
-      &core::Scene::defragmentObjectStorage,
+      &scene::Scene::defragmentObjectStorage,
       "cleanupScene",
-      &core::Scene::cleanupScene);
+      &scene::Scene::cleanupScene);
 
-  tsd.new_usertype<core::Animation>(
+  tsd.new_usertype<scene::Animation>(
       "Animation",
       sol::no_constructor,
       "name",
-      sol::property([](const core::Animation &a) { return a.name(); },
-          [](core::Animation &a, const std::string &n) { a.name() = n; }),
+      sol::property([](const scene::Animation &a) { return a.name(); },
+          [](scene::Animation &a, const std::string &n) { a.name() = n; }),
       "info",
-      [](const core::Animation &a) { return a.info(); },
+      [](const scene::Animation &a) { return a.info(); },
       "timeStepCount",
-      &core::Animation::timeStepCount,
+      &scene::Animation::timeStepCount,
       "update",
-      &core::Animation::update,
+      &scene::Animation::update,
       "setAsTimeSteps",
       sol::overload(
           // Single parameter: anim:setAsTimeSteps(obj, "param", arrayRef)
-          [](core::Animation &a,
+          [](scene::Animation &a,
               sol::object obj,
               const std::string &param,
-              core::ArrayRef arr) {
+              scene::ArrayRef arr) {
             auto *o = extractObjectPtr(obj);
             if (!o)
               throw std::runtime_error(
                   "setAsTimeSteps: first argument must be a valid object");
-            core::TimeStepValues steps(arr);
+            scene::TimeStepValues steps(arr);
             a.setAsTimeSteps(*o, core::Token(param), steps);
           },
           // Multi parameter: anim:setAsTimeSteps(obj, {"p1","p2"}, {arr1,arr2})
-          [](core::Animation &a,
+          [](scene::Animation &a,
               sol::object obj,
               sol::table params,
               sol::table arrays) {
@@ -397,13 +397,13 @@ void registerContextBindings(sol::state &lua)
             std::vector<core::Token> paramVec;
             for (size_t i = 1; i <= params.size(); i++)
               paramVec.emplace_back(params[i].get<std::string>().c_str());
-            std::vector<core::TimeStepValues> stepVec;
+            std::vector<scene::TimeStepValues> stepVec;
             for (size_t i = 1; i <= arrays.size(); i++)
-              stepVec.emplace_back(arrays[i].get<core::ArrayRef>());
+              stepVec.emplace_back(arrays[i].get<scene::ArrayRef>());
             a.setAsTimeSteps(*o, paramVec, stepVec);
           }),
       "setAsTransformSteps",
-      [](core::Animation &a, core::LayerNodeRef node, sol::table frames) {
+      [](scene::Animation &a, scene::LayerNodeRef node, sol::table frames) {
         if (!node.valid())
           throw std::runtime_error(
               "setAsTransformSteps: node must be a valid LayerNode");
@@ -414,7 +414,7 @@ void registerContextBindings(sol::state &lua)
         a.setAsTransformSteps(node, std::move(mats));
       });
 
-  tsd["createScene"] = []() { return std::make_unique<core::Scene>(); };
+  tsd["createScene"] = []() { return std::make_unique<scene::Scene>(); };
 
   // ANARI data type constants
   tsd["GEOMETRY"] = ANARI_GEOMETRY;

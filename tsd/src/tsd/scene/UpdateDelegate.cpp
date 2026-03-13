@@ -5,7 +5,7 @@
 // std
 #include <algorithm>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 size_t MultiUpdateDelegate::size() const
 {
@@ -156,4 +156,4 @@ void MultiUpdateDelegate::signalAnimationTimeChanged(float time)
     d->signalAnimationTimeChanged(time);
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

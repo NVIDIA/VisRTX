@@ -5,7 +5,7 @@
 
 #include "tsd/scene/Object.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Volume : public Object
 {
@@ -29,4 +29,4 @@ extern const Token transferFunction1D;
 
 } // namespace tokens::volume
 
-} // namespace tsd::core
+} // namespace tsd::scene

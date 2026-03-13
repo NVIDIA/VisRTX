@@ -24,7 +24,7 @@
 // Application state //////////////////////////////////////////////////////////
 
 static std::unique_ptr<tsd::core::DataTree> g_stateFile;
-static std::unique_ptr<tsd::core::Scene> g_scene;
+static std::unique_ptr<tsd::scene::Scene> g_scene;
 static std::unique_ptr<tsd::rendering::RenderIndexAllLayers> g_renderIndex;
 static std::unique_ptr<tsd::rendering::RenderPipeline> g_renderPipeline;
 static tsd::core::Timer g_timer;
@@ -99,7 +99,7 @@ static void initTSDScene()
   fflush(stdout);
 
   g_timer.start();
-  g_scene = std::make_unique<tsd::core::Scene>();
+  g_scene = std::make_unique<tsd::scene::Scene>();
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -284,7 +284,7 @@ static void renderFrames()
 
   // Check for keyframe animations
   bool hasKeyframeAnimation = false;
-  const tsd::core::Object *animatedCamera = nullptr;
+  const tsd::scene::Object *animatedCamera = nullptr;
   for (size_t i = 0; i < g_scene->numberOfAnimations(); i++) {
     auto *anim = g_scene->animation(i);
     if (anim->hasKeyframes()) {

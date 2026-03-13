@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <iomanip>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 namespace tokens {
 
@@ -622,4 +622,4 @@ Object parseANARIObjectInfo(
   return retval;
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

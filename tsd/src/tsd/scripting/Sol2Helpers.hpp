@@ -23,23 +23,37 @@
 
 #include <functional>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 // Macro to generate all 6 comparison operators for a type.
 // These compare by pointer identity, which is what Sol2 needs for usertype
 // objects that don't have semantic comparison operators.
 // Ordering uses std::less to guarantee a total order across unrelated pointers.
-#define TSD_SOL2_COMPARISON_OPS(Type) \
-  inline bool operator==(const Type &a, const Type &b) { return &a == &b; } \
-  inline bool operator!=(const Type &a, const Type &b) { return &a != &b; } \
-  inline bool operator<(const Type &a, const Type &b) \
-  { return std::less<const Type *>{}(&a, &b); } \
-  inline bool operator<=(const Type &a, const Type &b) \
-  { return &a == &b || std::less<const Type *>{}(&a, &b); } \
-  inline bool operator>(const Type &a, const Type &b) \
-  { return std::less<const Type *>{}(&b, &a); } \
-  inline bool operator>=(const Type &a, const Type &b) \
-  { return &a == &b || std::less<const Type *>{}(&b, &a); }
+#define TSD_SOL2_COMPARISON_OPS(Type)                                          \
+  inline bool operator==(const Type &a, const Type &b)                         \
+  {                                                                            \
+    return &a == &b;                                                           \
+  }                                                                            \
+  inline bool operator!=(const Type &a, const Type &b)                         \
+  {                                                                            \
+    return &a != &b;                                                           \
+  }                                                                            \
+  inline bool operator<(const Type &a, const Type &b)                          \
+  {                                                                            \
+    return std::less<const Type *>{}(&a, &b);                                  \
+  }                                                                            \
+  inline bool operator<=(const Type &a, const Type &b)                         \
+  {                                                                            \
+    return &a == &b || std::less<const Type *>{}(&a, &b);                      \
+  }                                                                            \
+  inline bool operator>(const Type &a, const Type &b)                          \
+  {                                                                            \
+    return std::less<const Type *>{}(&b, &a);                                  \
+  }                                                                            \
+  inline bool operator>=(const Type &a, const Type &b)                         \
+  {                                                                            \
+    return &a == &b || std::less<const Type *>{}(&b, &a);                      \
+  }
 
 TSD_SOL2_COMPARISON_OPS(Array)
 TSD_SOL2_COMPARISON_OPS(Surface)
@@ -54,4 +68,4 @@ TSD_SOL2_COMPARISON_OPS(LayerNodeData)
 
 #undef TSD_SOL2_COMPARISON_OPS
 
-} // namespace tsd::core
+} // namespace tsd::scene

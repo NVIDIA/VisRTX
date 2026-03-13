@@ -8,7 +8,7 @@
 // anari
 #include <anari/anari_cpp.hpp>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Array;
 struct Object;
@@ -30,16 +30,16 @@ struct AnariHandleCache
   bool supportsCUDA() const;
   void updateObjectArrayData(const Array *a); // for arrays-of-arrays
 
-  ObjectPool<anari::Surface> surface;
-  ObjectPool<anari::Geometry> geometry;
-  ObjectPool<anari::Material> material;
-  ObjectPool<anari::Sampler> sampler;
-  ObjectPool<anari::Volume> volume;
-  ObjectPool<anari::SpatialField> field;
-  ObjectPool<anari::Light> light;
-  ObjectPool<anari::Array> array;
-  ObjectPool<anari::Renderer> renderer;
-  ObjectPool<anari::Camera> camera;
+  tsd::core::ObjectPool<anari::Surface> surface;
+  tsd::core::ObjectPool<anari::Geometry> geometry;
+  tsd::core::ObjectPool<anari::Material> material;
+  tsd::core::ObjectPool<anari::Sampler> sampler;
+  tsd::core::ObjectPool<anari::Volume> volume;
+  tsd::core::ObjectPool<anari::SpatialField> field;
+  tsd::core::ObjectPool<anari::Light> light;
+  tsd::core::ObjectPool<anari::Array> array;
+  tsd::core::ObjectPool<anari::Renderer> renderer;
+  tsd::core::ObjectPool<anari::Camera> camera;
 
   anari::Device device{nullptr};
   tsd::core::Token deviceName;
@@ -52,4 +52,4 @@ struct AnariHandleCache
   bool m_supportsCUDA{false};
 };
 
-} // namespace tsd::core
+} // namespace tsd::scene

@@ -11,10 +11,10 @@
 
 namespace tsd::network {
 
-struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
+struct NetworkUpdateDelegate : public tsd::scene::BaseUpdateDelegate
 {
   NetworkUpdateDelegate(
-      tsd::core::Scene *scene, tsd::network::NetworkChannel *channel);
+      tsd::scene::Scene *scene, tsd::network::NetworkChannel *channel);
   ~NetworkUpdateDelegate() override = default;
 
   void setEnabled(bool enabled);
@@ -22,23 +22,23 @@ struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
 
   // Update signals //
 
-  void signalObjectAdded(const tsd::core::Object *) override;
+  void signalObjectAdded(const tsd::scene::Object *) override;
   void signalParameterUpdated(
-      const tsd::core::Object *, const tsd::core::Parameter *) override;
+      const tsd::scene::Object *, const tsd::scene::Parameter *) override;
   void signalParameterRemoved(
-      const tsd::core::Object *, const tsd::core::Parameter *) override;
-  void signalParameterBatchUpdated(const tsd::core::Object *,
-      const std::vector<const tsd::core::Parameter *> &) override;
-  void signalArrayMapped(const tsd::core::Array *) override;
-  void signalArrayUnmapped(const tsd::core::Array *) override;
-  void signalObjectParameterUseCountZero(const tsd::core::Object *obj) override;
-  void signalObjectLayerUseCountZero(const tsd::core::Object *obj) override;
-  void signalObjectRemoved(const tsd::core::Object *) override;
+      const tsd::scene::Object *, const tsd::scene::Parameter *) override;
+  void signalParameterBatchUpdated(const tsd::scene::Object *,
+      const std::vector<const tsd::scene::Parameter *> &) override;
+  void signalArrayMapped(const tsd::scene::Array *) override;
+  void signalArrayUnmapped(const tsd::scene::Array *) override;
+  void signalObjectParameterUseCountZero(const tsd::scene::Object *obj) override;
+  void signalObjectLayerUseCountZero(const tsd::scene::Object *obj) override;
+  void signalObjectRemoved(const tsd::scene::Object *) override;
   void signalRemoveAllObjects() override;
-  void signalLayerAdded(const tsd::core::Layer *) override;
-  void signalLayerStructureUpdated(const tsd::core::Layer *) override;
-  void signalLayerTransformUpdated(const tsd::core::Layer *) override;
-  void signalLayerRemoved(const tsd::core::Layer *) override;
+  void signalLayerAdded(const tsd::scene::Layer *) override;
+  void signalLayerStructureUpdated(const tsd::scene::Layer *) override;
+  void signalLayerTransformUpdated(const tsd::scene::Layer *) override;
+  void signalLayerRemoved(const tsd::scene::Layer *) override;
   void signalActiveLayersChanged() override;
   void signalObjectFilteringChanged() override;
   void signalInvalidateCachedObjects() override;
@@ -47,7 +47,7 @@ struct NetworkUpdateDelegate : public tsd::core::BaseUpdateDelegate
  private:
   bool isReady(const char *fcn) const;
 
-  tsd::core::Scene *m_scene{nullptr};
+  tsd::scene::Scene *m_scene{nullptr};
   tsd::network::NetworkChannel *m_channel{nullptr};
   bool m_enabled{true};
 };

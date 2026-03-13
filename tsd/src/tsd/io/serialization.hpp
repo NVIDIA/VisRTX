@@ -9,7 +9,7 @@
 
 namespace tsd::io {
 
-using namespace tsd::core;
+using namespace tsd::scene;
 
 // NanoVDB quantization precision options
 enum class VDBPrecision

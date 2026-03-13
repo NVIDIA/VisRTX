@@ -5,8 +5,8 @@
 
 #include "tsd/scene/objects/Array.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 tsd::math::float2 computeScalarRange(const Array &a);
 
-} // namespace tsd::core
+} // namespace tsd::scene

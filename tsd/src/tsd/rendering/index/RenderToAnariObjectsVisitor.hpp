@@ -46,20 +46,20 @@ constexpr uint8_t objectMask_lights()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
+struct RenderToAnariObjectsVisitor : public tsd::scene::LayerVisitor
 {
   RenderToAnariObjectsVisitor(anari::Device d,
-      tsd::core::AnariHandleCache &oc,
+      tsd::scene::AnariHandleCache &oc,
       std::vector<anari::Instance> *instances,
       uint8_t inclusionMask = objectMask_all(),
       RenderIndexFilterFcn *f = nullptr);
   ~RenderToAnariObjectsVisitor();
 
-  bool preChildren_const(const tsd::core::LayerNode &n, int level) override;
-  void postChildren_const(const tsd::core::LayerNode &n, int level) override;
+  bool preChildren_const(const tsd::scene::LayerNode &n, int level) override;
+  void postChildren_const(const tsd::scene::LayerNode &n, int level) override;
 
  private:
-  bool isIncludedAfterFiltering(const tsd::core::LayerNode &n) const;
+  bool isIncludedAfterFiltering(const tsd::scene::LayerNode &n) const;
   anari::Instance createInstanceFromTop();
 
   struct GroupedObjects
@@ -70,7 +70,7 @@ struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
   };
 
   anari::Device m_device{nullptr};
-  tsd::core::AnariHandleCache *m_cache{nullptr};
+  tsd::scene::AnariHandleCache *m_cache{nullptr};
   std::vector<anari::Instance> *m_instances{nullptr};
   std::stack<GroupedObjects> m_objects;
   uint8_t m_mask{objectMask_none()};
@@ -80,7 +80,7 @@ struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
 // Inlined definitions ////////////////////////////////////////////////////////
 
 inline RenderToAnariObjectsVisitor::RenderToAnariObjectsVisitor(anari::Device d,
-    tsd::core::AnariHandleCache &oc,
+    tsd::scene::AnariHandleCache &oc,
     std::vector<anari::Instance> *instances,
     uint8_t mask,
     RenderIndexFilterFcn *f)
@@ -100,7 +100,7 @@ inline RenderToAnariObjectsVisitor::~RenderToAnariObjectsVisitor()
 }
 
 inline bool RenderToAnariObjectsVisitor::preChildren_const(
-    const tsd::core::LayerNode &n, int level)
+    const tsd::scene::LayerNode &n, int level)
 {
   if (!n->isEnabled())
     return false;
@@ -147,7 +147,7 @@ inline bool RenderToAnariObjectsVisitor::preChildren_const(
 }
 
 inline void RenderToAnariObjectsVisitor::postChildren_const(
-    const tsd::core::LayerNode &n, int level)
+    const tsd::scene::LayerNode &n, int level)
 {
   if (!n->isEnabled())
     return;
@@ -181,7 +181,7 @@ inline void RenderToAnariObjectsVisitor::postChildren_const(
 }
 
 inline bool RenderToAnariObjectsVisitor::isIncludedAfterFiltering(
-    const tsd::core::LayerNode &n) const
+    const tsd::scene::LayerNode &n) const
 {
   if (!m_filter)
     return true;

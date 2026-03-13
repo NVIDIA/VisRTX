@@ -6,7 +6,7 @@
 // tsd
 #include "tsd/scene/objects/Geometry.hpp"
 
-using tsd::core::Geometry;
+using tsd::scene::Geometry;
 
 SCENARIO("tsd::Geometry interface", "[Geometry]")
 {

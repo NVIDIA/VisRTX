@@ -4,7 +4,7 @@
 #include "tsd/scene/objects/Renderer.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Renderer::Renderer(Token sourceDevice, Token subtype)
     : Object(ANARI_RENDERER, subtype)
@@ -40,4 +40,4 @@ void Renderer::setCommonParameterDefaults()
       .setUsage(ParameterUsageHint::COLOR);
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

@@ -13,21 +13,21 @@ struct ParameterChange : public StructuredMessage
 {
   // Sender -- will serialize the data on construction
   ParameterChange(
-      const tsd::core::Object *obj, const tsd::core::Parameter *param);
+      const tsd::scene::Object *obj, const tsd::scene::Parameter *param);
 
   // Sender -- will serialize the data on construction
-  ParameterChange(const tsd::core::Object *obj,
-      const tsd::core::Parameter *const *params,
+  ParameterChange(const tsd::scene::Object *obj,
+      const tsd::scene::Parameter *const *params,
       size_t np);
 
   // Receiver -- will setup deserialization on execute()
-  ParameterChange(const Message &msg, tsd::core::Scene *scene);
+  ParameterChange(const Message &msg, tsd::scene::Scene *scene);
 
   // Receiver behavior
   void execute() override;
 
  private:
-  tsd::core::Scene *m_scene{nullptr};
+  tsd::scene::Scene *m_scene{nullptr};
 };
 
 } // namespace tsd::network::messages

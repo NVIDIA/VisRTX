@@ -1,10 +1,11 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/core/Parameter.hpp"
+#include "tsd/scene/Parameter.hpp"
+// tsd_core
 #include "tsd/core/Logging.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Parameter::Parameter(ParameterObserver *object, Token name)
     : m_observer(object), m_name(name)
@@ -159,4 +160,4 @@ void Parameter::setObserver(ParameterObserver *o)
   m_observer = o;
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

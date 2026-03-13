@@ -6,7 +6,7 @@
 #include "tsd/scene/objects/Geometry.hpp"
 #include "tsd/scene/objects/Material.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Surface : public Object
 {
@@ -34,4 +34,4 @@ extern const Token material;
 
 } // namespace tokens::surface
 
-} // namespace tsd::core
+} // namespace tsd::scene

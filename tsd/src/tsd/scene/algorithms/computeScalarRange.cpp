@@ -8,7 +8,7 @@
 
 #include "tsd/scene/algorithms/detail/computeScalarRangeImpl.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 tsd::math::float2 computeScalarRange(const Array &a)
 {
@@ -62,4 +62,4 @@ tsd::math::float2 computeScalarRange(const Array &a)
   return retval;
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

@@ -20,16 +20,16 @@
 #include <type_traits>
 #include <utility>
 
-namespace tsd::core {
+namespace tsd::scene {
 struct Scene;
-} // namespace tsd::core
+} // namespace tsd::scene
 
 namespace tsd::io {
-void save_Scene(core::Scene &, core::DataNode &, bool);
-void load_Scene(core::Scene &, core::DataNode &);
+void save_Scene(scene::Scene &, core::DataNode &, bool);
+void load_Scene(scene::Scene &, core::DataNode &);
 } // namespace tsd::io
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct BaseUpdateDelegate;
 
@@ -452,4 +452,4 @@ inline T *Object::parameterValueAsObject(Token name) const
   return (T *)s->getObject(p->value());
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

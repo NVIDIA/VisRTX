@@ -54,8 +54,8 @@ struct RemoteViewport : public BaseViewport
 
   size_t m_receivedRendererIdx{TSD_INVALID_INDEX};
   size_t m_receivedCameraIdx{TSD_INVALID_INDEX};
-  tsd::core::RendererAppRef m_prevRenderer;
-  tsd::core::CameraAppRef m_prevCamera;
+  tsd::scene::RendererAppRef m_prevRenderer;
+  tsd::scene::CameraAppRef m_prevCamera;
 
   // Camera manipulator //
 

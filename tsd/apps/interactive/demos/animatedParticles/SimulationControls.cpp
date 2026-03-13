@@ -79,9 +79,9 @@ void SimulationControls::buildUI()
   ImGui::InputFloat("delta T", &m_params.deltaT);
 }
 
-void SimulationControls::setGeometry(tsd::core::GeometryRef particles,
-    tsd::core::GeometryRef blackHoles,
-    tsd::core::SamplerRef sampler)
+void SimulationControls::setGeometry(tsd::scene::GeometryRef particles,
+    tsd::scene::GeometryRef blackHoles,
+    tsd::scene::SamplerRef sampler)
 {
   m_particleGeom = particles;
   m_bhGeom = blackHoles;

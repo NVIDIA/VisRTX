@@ -21,7 +21,7 @@ struct Group : public Object
   const std::vector<TSDObject *> &volumes() const;
   const std::vector<TSDObject *> &lights() const;
 
-  void addObjectsToLayer(tsd::core::LayerNodeRef parent) const;
+  void addObjectsToLayer(tsd::scene::LayerNodeRef parent) const;
 
  private:
   helium::ChangeObserverPtr<helium::ObjectArray> m_surfaceData;

@@ -4,7 +4,7 @@
 #include "tsd/scene/objects/Sampler.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Sampler::Sampler(Token subtype) : Object(ANARI_SAMPLER, subtype)
 {
@@ -74,4 +74,4 @@ const Token transform = "transform";
 
 } // namespace tokens::sampler
 
-} // namespace tsd::core
+} // namespace tsd::scene

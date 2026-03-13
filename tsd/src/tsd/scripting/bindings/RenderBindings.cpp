@@ -108,7 +108,7 @@ void registerRenderBindings(sol::state &lua)
   tsd.new_usertype<rendering::RenderIndexAllLayers>(
       "RenderIndex",
       sol::constructors<rendering::RenderIndexAllLayers(
-          core::Scene &, tsd::core::Token, anari::Device)>(),
+          scene::Scene &, tsd::core::Token, anari::Device)>(),
       "populate",
       [](rendering::RenderIndexAllLayers &ri) { ri.populate(); },
       "world",
@@ -116,7 +116,7 @@ void registerRenderBindings(sol::state &lua)
       "device",
       &rendering::RenderIndexAllLayers::device);
 
-  render["createRenderIndex"] = [](core::Scene &scene,
+  render["createRenderIndex"] = [](scene::Scene &scene,
                                     std::shared_ptr<LuaAnariDevice> dev)
       -> std::shared_ptr<rendering::RenderIndexAllLayers> {
     if (!dev || !dev->device) {

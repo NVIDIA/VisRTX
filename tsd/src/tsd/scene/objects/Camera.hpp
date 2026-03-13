@@ -5,7 +5,7 @@
 
 #include "tsd/scene/ObjectUsePtr.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Camera : public Object
 {
@@ -30,4 +30,4 @@ extern const Token omnidirectional;
 
 } // namespace tokens::camera
 
-} // namespace tsd::core
+} // namespace tsd::scene

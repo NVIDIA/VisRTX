@@ -10,6 +10,6 @@
 
 namespace tsd::rendering {
 
-using RenderIndexFilterFcn = std::function<bool(const tsd::core::Object *)>;
+using RenderIndexFilterFcn = std::function<bool(const tsd::scene::Object *)>;
 
 } // namespace tsd::rendering

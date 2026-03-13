@@ -143,7 +143,7 @@ const anari::Extensions *ANARIDeviceManager::loadDeviceExtensions(
 }
 
 tsd::rendering::RenderIndex *ANARIDeviceManager::acquireRenderIndex(
-    tsd::core::Scene &c, tsd::core::Token n, anari::Device d)
+    tsd::scene::Scene &c, tsd::core::Token n, anari::Device d)
 {
   auto &liveIdx = m_rIdxs[d];
   if (liveIdx.refCount == 0) {
@@ -183,7 +183,7 @@ void ANARIDeviceManager::releaseAllDevices()
   m_loadedDevices.clear();
 }
 
-tsd::core::MultiUpdateDelegate &ANARIDeviceManager::getUpdateDelegate()
+tsd::scene::MultiUpdateDelegate &ANARIDeviceManager::getUpdateDelegate()
 {
   return m_delegate;
 }

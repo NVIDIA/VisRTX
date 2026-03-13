@@ -5,7 +5,7 @@
 
 #include "tsd/scene/Object.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Geometry : public Object
 {
@@ -33,4 +33,4 @@ extern const Token sphere;
 extern const Token triangle;
 } // namespace tokens::geometry
 
-} // namespace tsd::core
+} // namespace tsd::scene

@@ -110,7 +110,7 @@ void import_VTP(Scene &scene, const char *filepath, LayerNodeRef location)
 
   // --- Point data: serialize arrays as raw bytes --- //
 
-  std::vector<tsd::core::ArrayRef> pointDataArrays;
+  std::vector<tsd::scene::ArrayRef> pointDataArrays;
 
   vtkPointData *pointData = triangleMesh->GetPointData();
   const int numPointArrays = pointData->GetNumberOfArrays();
@@ -134,7 +134,7 @@ void import_VTP(Scene &scene, const char *filepath, LayerNodeRef location)
 
   // --- Cell data: serialize arrays as raw bytes --- //
 
-  std::vector<tsd::core::ArrayRef> cellDataArrays;
+  std::vector<tsd::scene::ArrayRef> cellDataArrays;
 
   vtkCellData *cellData = triangleMesh->GetCellData();
   const int numCellArrays = cellData->GetNumberOfArrays();
@@ -176,7 +176,7 @@ void import_VTP(Scene &scene, const char *filepath, LayerNodeRef location)
 
   // color map + material
 
-  auto mat = scene.createObject<tsd::core::Material>(
+  auto mat = scene.createObject<tsd::scene::Material>(
       tokens::material::physicallyBased);
 
   mat->setName("vtp_material | " + std::string(filename));

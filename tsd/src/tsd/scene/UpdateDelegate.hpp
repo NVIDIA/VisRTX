@@ -8,7 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Array;
 struct Object;
@@ -126,4 +126,4 @@ inline T *MultiUpdateDelegate::emplace(Args &&...args)
   return (T *)m_delegates.back().get();
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

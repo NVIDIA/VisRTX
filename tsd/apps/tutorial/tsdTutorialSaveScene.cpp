@@ -9,7 +9,7 @@
 
 int main()
 {
-  tsd::core::Scene scene;
+  tsd::scene::Scene scene;
   tsd::io::generate_material_orb(scene, scene.defaultLayer()->root());
   tsd::io::save_Scene(scene, "scene.tsd");
   return 0;

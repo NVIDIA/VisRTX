@@ -21,7 +21,7 @@ struct Animations : public Window
 
  private:
   void buildUI_animationControls();
-  void buildUI_editAnimation(tsd::core::Animation *animation);
+  void buildUI_editAnimation(tsd::scene::Animation *animation);
 
   // Data //
 

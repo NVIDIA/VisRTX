@@ -19,7 +19,7 @@ struct AppSettingsDialog : public Modal
   void buildUI_applicationSettings();
   void buildUI_offlineRenderSettings();
 
-  std::vector<tsd::core::CameraRef> m_menuCameraRefs;
+  std::vector<tsd::scene::CameraRef> m_menuCameraRefs;
 };
 
 } // namespace tsd::ui::imgui

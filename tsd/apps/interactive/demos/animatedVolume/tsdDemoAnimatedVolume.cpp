@@ -63,12 +63,12 @@ class Application : public TSDApplication
     colorArray->setData(
         tsd::core::makeDefaultColorMap(colorArray->size()).data());
 
-    auto field = scene.createObject<tsd::core::SpatialField>(
-        tsd::core::tokens::spatial_field::structuredRegular);
+    auto field = scene.createObject<tsd::scene::SpatialField>(
+        tsd::scene::tokens::spatial_field::structuredRegular);
     field->setName("jacobi_field");
 
-    auto volume = scene.createObject<tsd::core::Volume>(
-        tsd::core::tokens::volume::transferFunction1D);
+    auto volume = scene.createObject<tsd::scene::Volume>(
+        tsd::scene::tokens::volume::transferFunction1D);
     volume->setName("jacobi_volume");
 
     tsd::math::float2 valueRange{0.f, 1.f};
@@ -86,7 +86,7 @@ class Application : public TSDApplication
     ctx->setSelected(volumeNode);
 
     tsd::core::logStatus(
-        "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
+        "%s", tsd::scene::objectDBInfo(scene.objectDB()).c_str());
     ctx->tsd.sceneLoadComplete = true;
 
     viewport->setLibraryToDefault();

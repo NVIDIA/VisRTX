@@ -67,7 +67,7 @@ void RenderIndexAllLayers::signalArrayUnmapped(const Array *a)
 
 void RenderIndexAllLayers::signalObjectParameterUseCountZero(const Object *o)
 {
-  if (o->useCount(tsd::core::Object::UseKind::LAYER) > 0)
+  if (o->useCount(tsd::scene::Object::UseKind::LAYER) > 0)
     return;
   m_cache.releaseHandle(o);
 #if 0
@@ -82,7 +82,7 @@ void RenderIndexAllLayers::signalObjectParameterUseCountZero(const Object *o)
 
 void RenderIndexAllLayers::signalObjectLayerUseCountZero(const Object *o)
 {
-  if (o->useCount(tsd::core::Object::UseKind::PARAMETER) > 0)
+  if (o->useCount(tsd::scene::Object::UseKind::PARAMETER) > 0)
     return;
   m_cache.releaseHandle(o);
 #if 0

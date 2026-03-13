@@ -9,10 +9,10 @@
 
 namespace tsd::rendering {
 
-void updateCameraObject(tsd::core::Camera &c,
+void updateCameraObject(tsd::scene::Camera &c,
     const Manipulator &m,
     bool includeManipulatorMetadata = true);
 
-void updateManipulatorFromCamera(Manipulator &m, const tsd::core::Camera &c);
+void updateManipulatorFromCamera(Manipulator &m, const tsd::scene::Camera &c);
 
 } // namespace tsd::rendering

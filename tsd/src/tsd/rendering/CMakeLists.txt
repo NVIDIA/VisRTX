@@ -23,7 +23,6 @@ PRIVATE
   pipeline/passes/SaveToFilePass.cpp
   pipeline/passes/VisualizeAOVPass.cpp
   pipeline/RenderPipeline.cpp
-  view/CameraUpdateDelegate.cpp
   view/ManipulatorToAnari.cpp
   view/ManipulatorToTSD.cpp
 )

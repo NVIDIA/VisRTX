@@ -31,7 +31,7 @@ struct World : public Object
   tsd::rendering::RenderIndexAllLayers *getRenderIndex();
 
  private:
-  tsd::core::Layer *layer() const;
+  tsd::scene::Layer *layer() const;
 
   void updateValidObjects();
 

@@ -21,7 +21,7 @@ static void noopANARIDeleter(const void *, const void *)
   // do nothing
 }
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Array::Array(anari::DataType type, size_t items0, Array::MemoryKind kind)
     : Array(ANARI_ARRAY1D, type, items0, 1, 1, kind)
@@ -304,4 +304,4 @@ void Array::freeMemory()
   }
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

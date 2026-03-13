@@ -261,7 +261,7 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   if (auto *c = root.child("currentCamera"); c) {
     uint64_t idx = 0;
     c->getValue(ANARI_UINT64, &idx);
-    m_camera.current = appContext()->tsd.scene.getObject<tsd::core::Camera>(idx);
+    m_camera.current = appContext()->tsd.scene.getObject<tsd::scene::Camera>(idx);
   }
 
   // Setup library //
@@ -431,7 +431,7 @@ void Viewport::renderer_resetParameterDefaults()
 
   m_renderers.current->removeAllParameters();
   m_renderers.current->setCommonParameterDefaults();
-  tsd::core::parseANARIObjectInfo(*m_renderers.current,
+  tsd::scene::parseANARIObjectInfo(*m_renderers.current,
       m_device,
       ANARI_RENDERER,
       m_renderers.current->subtype().c_str());
@@ -483,7 +483,7 @@ void Viewport::setSelectionVisibilityFilterEnabled(bool enabled)
   if (!enabled)
     m_rIdx->setFilterFunction({});
   else {
-    m_rIdx->setFilterFunction([this](const tsd::core::Object *obj) {
+    m_rIdx->setFilterFunction([this](const tsd::scene::Object *obj) {
       auto selectedNode = appContext()->getFirstSelected();
       if (!selectedNode.valid())
         return true;
@@ -812,7 +812,7 @@ bool Viewport::ui_picking()
   // Pick view center //
 
   const bool shouldPickCenter =
-      m_camera.current->subtype() == core::tokens::camera::perspective
+      m_camera.current->subtype() == scene::tokens::camera::perspective
       && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
       && ImGui::IsKeyDown(ImGuiKey_LeftShift);
   if (shouldPickCenter && ImGui::IsWindowHovered()) {

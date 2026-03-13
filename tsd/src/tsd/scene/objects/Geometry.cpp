@@ -4,7 +4,7 @@
 #include "tsd/scene/objects/Geometry.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Geometry::Geometry(Token stype) : Object(ANARI_GEOMETRY, stype) {}
 
@@ -32,4 +32,4 @@ const Token triangle = "triangle";
 
 } // namespace tokens::geometry
 
-} // namespace tsd::core
+} // namespace tsd::scene

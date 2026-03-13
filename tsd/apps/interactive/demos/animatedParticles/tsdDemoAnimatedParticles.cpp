@@ -57,13 +57,13 @@ class Application : public TSDApplication
 
     // Geometry
 
-    auto particles = scene.createObject<tsd::core::Geometry>(
-        tsd::core::tokens::geometry::sphere);
+    auto particles = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
     particles->setName("particle_geometry");
     particles->setParameter("radius", 0.01f);
 
-    auto blackHoles = scene.createObject<tsd::core::Geometry>(
-        tsd::core::tokens::geometry::sphere);
+    auto blackHoles = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
     blackHoles->setName("blackHole_geometry");
     blackHoles->setParameter("radius", 0.1f);
 
@@ -76,8 +76,8 @@ class Application : public TSDApplication
     colorMapPtr[2] = tsd::math::float4(1.f, 0.f, 0.f, 1.f);
     samplerImageArray->unmap();
 
-    auto sampler = scene.createObject<tsd::core::Sampler>(
-        tsd::core::tokens::sampler::image1D);
+    auto sampler = scene.createObject<tsd::scene::Sampler>(
+        tsd::scene::tokens::sampler::image1D);
     sampler->setParameter("inAttribute", "attribute0");
     sampler->setParameter("filter", "linear");
     sampler->setParameter("wrapMode", "mirrorRepeat");
@@ -87,12 +87,12 @@ class Application : public TSDApplication
 
     // Materials
 
-    auto particleMat = scene.createObject<tsd::core::Material>(
-        tsd::core::tokens::material::matte);
+    auto particleMat = scene.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
     particleMat->setParameterObject("color", *sampler);
 
-    auto bhMat = scene.createObject<tsd::core::Material>(
-        tsd::core::tokens::material::matte);
+    auto bhMat = scene.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
     bhMat->setParameter("color", tsd::math::float3(0.f));
 
     // Surfaces
@@ -113,7 +113,7 @@ class Application : public TSDApplication
     // Setup app //
 
     tsd::core::logStatus(
-        "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
+        "%s", tsd::scene::objectDBInfo(scene.objectDB()).c_str());
     ctx->tsd.sceneLoadComplete = true;
 
     viewport->setLibraryToDefault();

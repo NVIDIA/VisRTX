@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/scripting/LuaContext.hpp"
-#include "tsd/core/Logging.hpp"
-#include "tsd/scene/Scene.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
-
+// tsd_core
+#include "tsd/core/Logging.hpp"
+// tsd_scene
+#include "tsd/scene/Scene.hpp"
+// sol
 #include <sol/sol.hpp>
-
+// fmt
 #include <fmt/format.h>
-
+// std
 #include <filesystem>
 
 namespace tsd::scripting {
@@ -17,8 +19,8 @@ namespace tsd::scripting {
 struct LuaContext::Impl
 {
   sol::state lua;
-  core::Scene *boundScene{nullptr};
-  std::unique_ptr<core::Scene> ownedScene;
+  scene::Scene *boundScene{nullptr};
+  std::unique_ptr<scene::Scene> ownedScene;
   PrintCallback printCallback;
   std::string outputBuffer;
 };
@@ -156,7 +158,7 @@ std::vector<std::string> LuaContext::addScriptSearchPaths(
   return errors;
 }
 
-void LuaContext::bindScene(core::Scene *scene, const std::string &varName)
+void LuaContext::bindScene(scene::Scene *scene, const std::string &varName)
 {
   m_impl->boundScene = scene;
   m_impl->ownedScene.reset();
@@ -167,15 +169,15 @@ void LuaContext::bindScene(core::Scene *scene, const std::string &varName)
   }
 }
 
-core::Scene *LuaContext::createOwnedScene(const std::string &varName)
+scene::Scene *LuaContext::createOwnedScene(const std::string &varName)
 {
-  m_impl->ownedScene = std::make_unique<core::Scene>();
+  m_impl->ownedScene = std::make_unique<scene::Scene>();
   m_impl->boundScene = m_impl->ownedScene.get();
   m_impl->lua[varName] = m_impl->boundScene;
   return m_impl->boundScene;
 }
 
-core::Scene *LuaContext::boundScene() const
+scene::Scene *LuaContext::boundScene() const
 {
   return m_impl->boundScene;
 }

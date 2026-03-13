@@ -70,7 +70,7 @@ void CuttingPlaneDialog::buildUI()
     }
 
     auto &scene = appContext()->tsd.scene;
-    foreach_item_const(scene.objectDB().renderer, [&](tsd::core::Renderer *r) {
+    foreach_item_const(scene.objectDB().renderer, [&](tsd::scene::Renderer *r) {
       if (r)
         r->setParameter(tsd::core::Token("cutPlane"),
                         ANARI_FLOAT32_VEC4, plane);

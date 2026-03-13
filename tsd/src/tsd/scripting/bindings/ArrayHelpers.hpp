@@ -12,15 +12,15 @@ namespace tsd::scripting {
 
 ANARIDataType arrayTypeFromString(const std::string &typeStr);
 
-void arraySetDataFromLua(core::Array &arr, sol::table data, sol::this_state s);
+void arraySetDataFromLua(scene::Array &arr, sol::table data, sol::this_state s);
 
-core::ArrayRef setParameterArrayFromLua(core::Object &obj,
+scene::ArrayRef setParameterArrayFromLua(scene::Object &obj,
     const std::string &name,
     const std::string &typeStr,
     sol::table data,
     sol::this_state s);
 
-core::ArrayRef setParameterArrayFromLua(core::Object &obj,
+scene::ArrayRef setParameterArrayFromLua(scene::Object &obj,
     const std::string &name,
     const std::string &typeStr,
     size_t items0,

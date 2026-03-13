@@ -19,6 +19,7 @@
 namespace tsd::io::materials {
 
 using namespace tsd::core;
+using namespace tsd::scene;
 
 // Helper functions for extracting shader parameters
 

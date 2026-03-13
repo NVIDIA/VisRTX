@@ -99,7 +99,7 @@ void RenderServer::setup_Scene()
   tsd::core::logStatus("[Server] Setting up scene from command line...");
   m_ctx.setupSceneFromCommandLine();
   tsd::core::logStatus(
-      "%s", tsd::core::objectDBInfo(m_ctx.tsd.scene.objectDB()).c_str());
+      "%s", tsd::scene::objectDBInfo(m_ctx.tsd.scene.objectDB()).c_str());
   tsd::core::logStatus("[Server] Scene setup complete.");
 }
 
@@ -274,7 +274,7 @@ void RenderServer::setup_Messaging()
         size_t idx = 0;
         uint32_t pos = 0;
         if (tsd::network::payloadRead(msg, pos, &idx)) {
-          auto camera = m_ctx.tsd.scene.getObject<tsd::core::Camera>(idx);
+          auto camera = m_ctx.tsd.scene.getObject<tsd::scene::Camera>(idx);
           if (camera) {
             tsd::core::logDebug(
                 "[Server] Setting current camera to index %u (subtype '%s')",

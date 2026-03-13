@@ -29,6 +29,7 @@ ANARI_TYPEFOR_SPECIALIZATION(U64Vec2, ANARI_UINT64_VEC2);
 namespace tsd::io {
 
 using namespace tsd::core;
+using namespace tsd::scene;
 
 #ifdef _WIN32
 constexpr char path_sep = '\\';
@@ -69,10 +70,10 @@ std::vector<std::string> splitString(const std::string &s, char delim)
   return result;
 }
 
-tsd::core::ArrayRef readArray(
-    tsd::core::Scene &scene, anari::DataType elementType, std::FILE *fp)
+tsd::scene::ArrayRef readArray(
+    tsd::scene::Scene &scene, anari::DataType elementType, std::FILE *fp)
 {
-  tsd::core::ArrayRef retval;
+  tsd::scene::ArrayRef retval;
 
   size_t size = 0;
   auto r = std::fread(&size, sizeof(size_t), 1, fp);
@@ -757,8 +758,8 @@ anari::DataType vtkTypeToANARIType(
   }
 }
 
-tsd::core::ArrayRef makeArray1DFromVTK(
-    tsd::core::Scene &scene, vtkDataArray *array, const char *errorIdentifier)
+tsd::scene::ArrayRef makeArray1DFromVTK(
+    tsd::scene::Scene &scene, vtkDataArray *array, const char *errorIdentifier)
 {
   const void *ptr = array->GetVoidPointer(0);
   const auto numTuples = array->GetNumberOfTuples();
@@ -771,7 +772,7 @@ tsd::core::ArrayRef makeArray1DFromVTK(
   return arr;
 }
 
-tsd::core::ArrayRef makeArray3DFromVTK(tsd::core::Scene &scene,
+tsd::scene::ArrayRef makeArray3DFromVTK(tsd::scene::Scene &scene,
     vtkDataArray *array,
     size_t w,
     size_t h,

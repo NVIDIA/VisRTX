@@ -25,7 +25,7 @@ void Animations::buildUI()
 
   buildUI_animationControls();
 
-  tsd::core::Animation *toDelete = nullptr;
+  tsd::scene::Animation *toDelete = nullptr;
   for (size_t i = 0; i < scene.numberOfAnimations(); i++) {
     auto *animation = scene.animation(i);
     ImGui::PushID(static_cast<int>(i));
@@ -65,7 +65,7 @@ void Animations::buildUI_animationControls()
     scene.setAnimationIncrement(increment);
 }
 
-void Animations::buildUI_editAnimation(tsd::core::Animation *animation)
+void Animations::buildUI_editAnimation(tsd::scene::Animation *animation)
 {
   ImGui::Separator();
   ImGui::Text("name | %s", animation->name().c_str());

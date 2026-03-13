@@ -8,10 +8,10 @@
 
 int main()
 {
-  tsd::core::Scene scene;
+  tsd::scene::Scene scene;
   tsd::io::generate_randomSpheres(scene);
-  auto geom = scene.getObject<tsd::core::Geometry>(0);
+  auto geom = scene.getObject<tsd::scene::Geometry>(0);
   geom->setName("main geom");
-  tsd::core::print(*geom);
+  tsd::scene::print(*geom);
   return 0;
 }

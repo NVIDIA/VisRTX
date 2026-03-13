@@ -99,7 +99,7 @@ void ExportNanoVDBFileDialog::buildUI()
       }
 
       if (selectedObject->subtype()
-          != core::tokens::volume::transferFunction1D) {
+          != scene::tokens::volume::transferFunction1D) {
         core::logError(
             "[ExportVDBFileDialog] Selected object is not a transfer function 1D.");
         return;
@@ -108,9 +108,9 @@ void ExportNanoVDBFileDialog::buildUI()
 
       if (!spatialFieldObject
           || (spatialFieldObject->subtype()
-                  != core::tokens::volume::structuredRegular
+                  != scene::tokens::volume::structuredRegular
               && spatialFieldObject->subtype()
-                  != core::tokens::volume::structuredRectilinear)) {
+                  != scene::tokens::volume::structuredRectilinear)) {
         core::logError(
             "[ExportVDBFileDialog] Selected TransferFunction1D does not "
             "reference a structured regular volume.");
@@ -144,7 +144,7 @@ void ExportNanoVDBFileDialog::buildUI()
       }
 
       io::export_StructuredVolumeToNanoVDB(
-          static_cast<const core::SpatialField *>(spatialFieldObject),
+          static_cast<const scene::SpatialField *>(spatialFieldObject),
           m_filename.c_str(),
           m_enableUndefinedValue,
           m_undefinedValue,

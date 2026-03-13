@@ -56,9 +56,9 @@ struct RenderServer
 
   std::string m_libName;
   anari::Device m_device{nullptr};
-  tsd::core::CameraAppRef m_camera;
-  std::vector<tsd::core::RendererAppRef> m_renderers;
-  tsd::core::RendererAppRef m_currentRenderer;
+  tsd::scene::CameraAppRef m_camera;
+  std::vector<tsd::scene::RendererAppRef> m_renderers;
+  tsd::scene::RendererAppRef m_currentRenderer;
   tsd::rendering::RenderIndex *m_renderIndex{nullptr};
   tsd::rendering::RenderPipeline m_renderPipeline;
   tsd::rendering::AnariSceneRenderPass *m_sceneRenderPass{nullptr};

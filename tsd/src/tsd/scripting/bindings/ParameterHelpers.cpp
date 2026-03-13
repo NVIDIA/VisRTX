@@ -2,18 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ParameterHelpers.hpp"
-#include "tsd/core/Parameter.hpp"
+// tsd_core
 #include "tsd/core/Token.hpp"
+// tsd_scene
 #include "tsd/scene/Object.hpp"
+#include "tsd/scene/Parameter.hpp"
 #include "tsd/scene/Scene.hpp"
+// tsd_scripting
 #include "tsd/scripting/Sol2Helpers.hpp"
-
+// fmt
 #include <fmt/format.h>
 
 namespace tsd::scripting {
 
 void setParameterFromLua(
-    core::Object *obj, const std::string &name, sol::object value)
+    scene::Object *obj, const std::string &name, sol::object value)
 {
   core::Token token(name);
 
@@ -33,42 +36,42 @@ void setParameterFromLua(
     obj->setParameter(token, value.as<math::float4>());
   } else if (value.is<math::mat4>()) {
     obj->setParameter(token, value.as<math::mat4>());
-  } else if (value.is<core::ArrayRef>()) {
-    auto ref = value.as<core::ArrayRef>();
+  } else if (value.is<scene::ArrayRef>()) {
+    auto ref = value.as<scene::ArrayRef>();
     if (ref.valid()) {
       obj->setParameterObject(token, *ref.data());
     }
-  } else if (value.is<core::SamplerRef>()) {
-    auto ref = value.as<core::SamplerRef>();
+  } else if (value.is<scene::SamplerRef>()) {
+    auto ref = value.as<scene::SamplerRef>();
     if (ref.valid()) {
       obj->setParameterObject(token, *ref.data());
     }
-  } else if (value.is<core::GeometryRef>()) {
-    auto ref = value.as<core::GeometryRef>();
+  } else if (value.is<scene::GeometryRef>()) {
+    auto ref = value.as<scene::GeometryRef>();
     if (ref.valid())
       obj->setParameterObject(token, *ref.data());
-  } else if (value.is<core::MaterialRef>()) {
-    auto ref = value.as<core::MaterialRef>();
+  } else if (value.is<scene::MaterialRef>()) {
+    auto ref = value.as<scene::MaterialRef>();
     if (ref.valid())
       obj->setParameterObject(token, *ref.data());
-  } else if (value.is<core::SpatialFieldRef>()) {
-    auto ref = value.as<core::SpatialFieldRef>();
+  } else if (value.is<scene::SpatialFieldRef>()) {
+    auto ref = value.as<scene::SpatialFieldRef>();
     if (ref.valid())
       obj->setParameterObject(token, *ref.data());
-  } else if (value.is<core::VolumeRef>()) {
-    auto ref = value.as<core::VolumeRef>();
+  } else if (value.is<scene::VolumeRef>()) {
+    auto ref = value.as<scene::VolumeRef>();
     if (ref.valid())
       obj->setParameterObject(token, *ref.data());
-  } else if (value.is<core::LightRef>()) {
-    auto ref = value.as<core::LightRef>();
+  } else if (value.is<scene::LightRef>()) {
+    auto ref = value.as<scene::LightRef>();
     if (ref.valid())
       obj->setParameterObject(token, *ref.data());
-  } else if (value.is<core::CameraRef>()) {
-    auto ref = value.as<core::CameraRef>();
+  } else if (value.is<scene::CameraRef>()) {
+    auto ref = value.as<scene::CameraRef>();
     if (ref.valid())
       obj->setParameterObject(token, *ref.data());
-  } else if (value.is<core::SurfaceRef>()) {
-    auto ref = value.as<core::SurfaceRef>();
+  } else if (value.is<scene::SurfaceRef>()) {
+    auto ref = value.as<scene::SurfaceRef>();
     if (ref.valid())
       obj->setParameterObject(token, *ref.data());
   } else if (value.is<sol::table>()) {
@@ -114,7 +117,7 @@ void setParameterFromLua(
   }
 }
 
-void applyParameterTable(core::Object *obj, const sol::table &params)
+void applyParameterTable(scene::Object *obj, const sol::table &params)
 {
   for (auto &[key, value] : params) {
     if (key.is<std::string>())
@@ -123,10 +126,10 @@ void applyParameterTable(core::Object *obj, const sol::table &params)
 }
 
 sol::object getParameterAsLua(
-    sol::state_view lua, const core::Object *obj, const std::string &name)
+    sol::state_view lua, const scene::Object *obj, const std::string &name)
 {
   core::Token token(name);
-  const core::Parameter *p = obj->parameter(token);
+  const scene::Parameter *p = obj->parameter(token);
   if (!p)
     return sol::nil;
 
@@ -163,23 +166,23 @@ sol::object getParameterAsLua(
     case ANARI_ARRAY1D:
     case ANARI_ARRAY2D:
     case ANARI_ARRAY3D:
-      return sol::make_object(lua, scene->getObject<core::Array>(idx));
+      return sol::make_object(lua, scene->getObject<scene::Array>(idx));
     case ANARI_SAMPLER:
-      return sol::make_object(lua, scene->getObject<core::Sampler>(idx));
+      return sol::make_object(lua, scene->getObject<scene::Sampler>(idx));
     case ANARI_GEOMETRY:
-      return sol::make_object(lua, scene->getObject<core::Geometry>(idx));
+      return sol::make_object(lua, scene->getObject<scene::Geometry>(idx));
     case ANARI_MATERIAL:
-      return sol::make_object(lua, scene->getObject<core::Material>(idx));
+      return sol::make_object(lua, scene->getObject<scene::Material>(idx));
     case ANARI_SPATIAL_FIELD:
-      return sol::make_object(lua, scene->getObject<core::SpatialField>(idx));
+      return sol::make_object(lua, scene->getObject<scene::SpatialField>(idx));
     case ANARI_VOLUME:
-      return sol::make_object(lua, scene->getObject<core::Volume>(idx));
+      return sol::make_object(lua, scene->getObject<scene::Volume>(idx));
     case ANARI_LIGHT:
-      return sol::make_object(lua, scene->getObject<core::Light>(idx));
+      return sol::make_object(lua, scene->getObject<scene::Light>(idx));
     case ANARI_CAMERA:
-      return sol::make_object(lua, scene->getObject<core::Camera>(idx));
+      return sol::make_object(lua, scene->getObject<scene::Camera>(idx));
     case ANARI_SURFACE:
-      return sol::make_object(lua, scene->getObject<core::Surface>(idx));
+      return sol::make_object(lua, scene->getObject<scene::Surface>(idx));
     default:
       break;
     }
@@ -189,7 +192,7 @@ sol::object getParameterAsLua(
 }
 
 void setMetadataFromLua(
-    core::Object *obj, const std::string &key, sol::object value)
+    scene::Object *obj, const std::string &key, sol::object value)
 {
   if (value.is<bool>()) {
     obj->setMetadataValue(key, core::Any(value.as<bool>()));
@@ -213,7 +216,7 @@ void setMetadataFromLua(
 }
 
 sol::object getMetadataAsLua(
-    sol::state_view lua, const core::Object *obj, const std::string &key)
+    sol::state_view lua, const scene::Object *obj, const std::string &key)
 {
   auto val = obj->getMetadataValue(key);
   if (val.is<bool>())

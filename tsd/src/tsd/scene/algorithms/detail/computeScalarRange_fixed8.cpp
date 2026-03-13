@@ -3,11 +3,11 @@
 
 #include "computeScalarRangeImpl.hpp"
 
-namespace tsd::core::detail {
+namespace tsd::scene::detail {
 
 tsd::math::float2 computeScalarRange_fixed8(const Array &a)
 {
   return computeScalarRangeImpl<ANARI_FIXED8>(a);
 }
 
-} // namespace tsd::core::detail
+} // namespace tsd::scene::detail

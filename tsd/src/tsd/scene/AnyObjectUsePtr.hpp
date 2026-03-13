@@ -5,7 +5,7 @@
 
 #include "tsd/scene/Object.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Scene;
 
@@ -63,4 +63,4 @@ T *AnyObjectUsePtr::getAs()
   return get() != nullptr ? dynamic_cast<T *>(get()) : nullptr;
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

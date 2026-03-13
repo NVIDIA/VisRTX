@@ -10,7 +10,7 @@
 namespace tsd::network::messages {
 
 TransferLayer::TransferLayer(
-    tsd::core::Scene *scene, const tsd::core::Layer *layer)
+    tsd::scene::Scene *scene, const tsd::scene::Layer *layer)
 {
   if (!(scene && layer)) {
     tsd::core::logError(
@@ -23,7 +23,7 @@ TransferLayer::TransferLayer(
   tsd::io::layerToNode(*layer, root["l"]);
 }
 
-TransferLayer::TransferLayer(const Message &msg, tsd::core::Scene *scene)
+TransferLayer::TransferLayer(const Message &msg, tsd::scene::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
   tsd::core::logDebug("[message::TransferLayer] Received message (%zu bytes)",

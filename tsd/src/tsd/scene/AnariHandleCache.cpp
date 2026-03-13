@@ -6,7 +6,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -313,4 +313,4 @@ anari::Object AnariHandleCache::readHandle(anari::DataType type, size_t i) const
   return obj;
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

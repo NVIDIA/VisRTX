@@ -364,7 +364,7 @@ static void setupLights()
   // Add user-specified directional lights
   for (const auto &lightConfig : g_config.directionalLights) {
     auto light =
-        g_ctx->tsd.scene.createObject<tsd::core::Light>("directional");
+        g_ctx->tsd.scene.createObject<tsd::scene::Light>("directional");
     light->setParameter("direction", lightConfig.direction);
     light->setParameter("color", lightConfig.color);
     light->setParameter("irradiance", lightConfig.irradiance);

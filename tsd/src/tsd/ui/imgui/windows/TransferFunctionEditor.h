@@ -50,9 +50,9 @@ class TransferFunctionEditor : public Window
 
   // Data //
 
-  tsd::core::Volume *m_volume{nullptr};
-  std::vector<tsd::core::Volume*> m_otherVolumes;
-  tsd::core::Array *m_colorMapArray{nullptr};
+  tsd::scene::Volume *m_volume{nullptr};
+  std::vector<tsd::scene::Volume*> m_otherVolumes;
+  tsd::scene::Array *m_colorMapArray{nullptr};
 
   // all available transfer functions
   std::vector<std::string> m_tfnsNames;

@@ -12,16 +12,16 @@ namespace tsd::network::messages {
 struct NewObject : public StructuredMessage
 {
   // Sender -- will serialize the data on construction
-  NewObject(const tsd::core::Object *obj);
+  NewObject(const tsd::scene::Object *obj);
 
   // Receiver -- will setup deserialization on execute()
-  NewObject(const Message &msg, tsd::core::Scene *scene);
+  NewObject(const Message &msg, tsd::scene::Scene *scene);
 
   // Receiver behavior
   void execute() override;
 
  private:
-  tsd::core::Scene *m_scene{nullptr};
+  tsd::scene::Scene *m_scene{nullptr};
 };
 
 } // namespace tsd::network::messages

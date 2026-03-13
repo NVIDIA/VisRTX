@@ -9,7 +9,7 @@
 
 namespace tsd::network::messages {
 
-NewObject::NewObject(const tsd::core::Object *o)
+NewObject::NewObject(const tsd::scene::Object *o)
 {
   if (!o) {
     tsd::core::logError("[message::NewObject] No client object provided");
@@ -19,7 +19,7 @@ NewObject::NewObject(const tsd::core::Object *o)
   tsd::io::objectToNode(*o, m_tree.root(), true);
 }
 
-NewObject::NewObject(const Message &msg, tsd::core::Scene *scene)
+NewObject::NewObject(const Message &msg, tsd::scene::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
   tsd::core::logDebug("[message::NewObject] Received message (%zu bytes)",

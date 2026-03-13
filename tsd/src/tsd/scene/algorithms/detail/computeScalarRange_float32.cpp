@@ -3,11 +3,11 @@
 
 #include "computeScalarRangeImpl.hpp"
 
-namespace tsd::core::detail {
+namespace tsd::scene::detail {
 
 tsd::math::float2 computeScalarRange_float32(const Array &a)
 {
   return computeScalarRangeImpl<ANARI_FLOAT32>(a);
 }
 
-} // namespace tsd::core::detail
+} // namespace tsd::scene::detail

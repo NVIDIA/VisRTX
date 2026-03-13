@@ -13,7 +13,6 @@ set(TSD_CORE_CXX_SOURCES
   ColorMapUtil.cpp
   DataStream.cpp
   Logging.cpp
-  Parameter.cpp
   Token.cpp
 )
 

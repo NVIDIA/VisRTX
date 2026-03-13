@@ -27,21 +27,21 @@ struct LayerTree : public Window
   void buildUI_newLayerSceneMenu();
   void buildUI_setActiveLayersSceneMenus();
 
-  std::vector<tsd::core::LayerNodeRef> computeSelectionRange(
-      tsd::core::Layer &layer,
-      const tsd::core::LayerNodeRef &anchor,
-      const tsd::core::LayerNodeRef &target);
+  std::vector<tsd::scene::LayerNodeRef> computeSelectionRange(
+      tsd::scene::Layer &layer,
+      const tsd::scene::LayerNodeRef &anchor,
+      const tsd::scene::LayerNodeRef &target);
 
-  std::vector<tsd::core::LayerNodeRef> copyNodesTo(
-      tsd::core::LayerNodeRef targetParent,
-      const std::vector<tsd::core::LayerNodeRef>& sourceNodes,
+  std::vector<tsd::scene::LayerNodeRef> copyNodesTo(
+      tsd::scene::LayerNodeRef targetParent,
+      const std::vector<tsd::scene::LayerNodeRef>& sourceNodes,
       bool cutOperation
   );
 
   bool isValidDropTarget(
-      tsd::core::Layer& layer,
-      tsd::core::LayerNodeRef targetParent,
-      const tsd::core::LayerNodeRef* sourceNodes,
+      tsd::scene::Layer& layer,
+      tsd::scene::LayerNodeRef targetParent,
+      const tsd::scene::LayerNodeRef* sourceNodes,
       size_t count
   ) const;
 
@@ -55,7 +55,7 @@ struct LayerTree : public Window
   bool m_menuVisible{false};
   std::vector<int> m_needToTreePop;
   int m_layerIdx{0};
-  tsd::core::LayerNodeRef m_anchorNode;
+  tsd::scene::LayerNodeRef m_anchorNode;
 };
 
 } // namespace tsd::ui::imgui

@@ -5,7 +5,7 @@
 
 #include "tsd/scene/LayerNodeData.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Scene;
 
@@ -60,4 +60,4 @@ struct Layer final
 
 using LayerVisitor = Layer::Visitor;
 
-} // namespace tsd::core
+} // namespace tsd::scene

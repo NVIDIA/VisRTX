@@ -5,7 +5,7 @@
 #include "tsd/scene/Layer.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 LayerNodeData::LayerNodeData(Layer *layer, const char *n) : m_layer(layer)
 {
@@ -322,4 +322,4 @@ void LayerNodeData::decObjectUseCount()
     o->decUseCount(Object::UseKind::LAYER);
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

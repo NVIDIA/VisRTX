@@ -5,13 +5,13 @@
 
 #include "tsd/scene/Object.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 template <typename T, Object::UseKind K = Object::UseKind::APP>
 struct ObjectUsePtr
 {
   static_assert(isObject<T>(),
-      "ObjectUsePtr can only be instantiated with tsd::core::Object types");
+      "ObjectUsePtr can only be instantiated with tsd::scene::Object types");
 
   ObjectUsePtr() = default;
   ~ObjectUsePtr();
@@ -127,7 +127,7 @@ inline ObjectUsePtr<T, K> &ObjectUsePtr<T, K>::operator=(ObjectPoolRef<T> o)
 {
   static_assert(isObject<T>(),
       "ObjectUsePtr can only be assigned ObjectPoolRef<T> when T is a"
-      " tsd::core::Object type");
+      " tsd::scene::Object type");
   reset();
   if (o) {
     m_object = o;
@@ -207,4 +207,4 @@ inline bool operator!=(const ObjectUsePtr<T, K> &a, const ObjectUsePtr<T, K> &b)
   return !(a == b);
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

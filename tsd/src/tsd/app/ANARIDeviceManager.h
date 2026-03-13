@@ -33,11 +33,11 @@ struct ANARIDeviceManager
 
   const anari::Extensions *loadDeviceExtensions(const std::string &libName);
   tsd::rendering::RenderIndex *acquireRenderIndex(
-      tsd::core::Scene &c, tsd::core::Token deviceName, anari::Device device);
+      tsd::scene::Scene &c, tsd::core::Token deviceName, anari::Device device);
   void releaseRenderIndex(anari::Device device);
   void releaseAllDevices();
 
-  tsd::core::MultiUpdateDelegate &getUpdateDelegate();
+  tsd::scene::MultiUpdateDelegate &getUpdateDelegate();
 
   void setRenderIndexKind(RenderIndexKind k);
   RenderIndexKind renderIndexKind() const;
@@ -53,7 +53,7 @@ struct ANARIDeviceManager
     tsd::rendering::RenderIndex *idx{nullptr};
   };
   std::map<anari::Device, LiveAnariIndex> m_rIdxs;
-  tsd::core::MultiUpdateDelegate m_delegate;
+  tsd::scene::MultiUpdateDelegate m_delegate;
   std::map<std::string, anari::Device> m_loadedDevices;
   std::map<std::string, anari::Extensions> m_loadedDeviceExtensions;
   std::vector<std::string> m_libraryList;

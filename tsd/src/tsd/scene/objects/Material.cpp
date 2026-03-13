@@ -6,7 +6,7 @@
 // std
 #include <limits>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Material::Material(Token subtype) : Object(ANARI_MATERIAL, subtype)
 {
@@ -166,4 +166,4 @@ Token const mdl = "mdl";
 
 } // namespace tokens::material
 
-} // namespace tsd::core
+} // namespace tsd::scene

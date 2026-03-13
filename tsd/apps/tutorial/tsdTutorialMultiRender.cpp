@@ -58,7 +58,7 @@ int main()
 {
   // Create context //
 
-  tsd::core::Scene scene;
+  tsd::scene::Scene scene;
 
   // Populate spheres //
 
@@ -131,7 +131,7 @@ int main()
   renderSingleFrame(device, frame, "test2_1.png");
 
   // Mutate material
-  scene.getObject<tsd::core::Material>(0)->setParameter(
+  scene.getObject<tsd::scene::Material>(0)->setParameter(
       "color", float3(0.f, 1.f, 0.f));
 
   // Render updated frames //

@@ -28,15 +28,16 @@ void VorticityDialog::buildUI()
   auto &scene = ctx->tsd.scene;
 
   // Collect all SpatialFields in the scene
-  std::vector<const SpatialField *> fields;
+  std::vector<const tsd::scene::SpatialField *> fields;
   std::vector<std::string> fieldNames;
 
-  foreach_item_const(scene.objectDB().field, [&](const SpatialField *sf) {
-    if (sf) {
-      fields.push_back(sf);
-      fieldNames.push_back(sf->name());
-    }
-  });
+  foreach_item_const(
+      scene.objectDB().field, [&](const tsd::scene::SpatialField *sf) {
+        if (sf) {
+          fields.push_back(sf);
+          fieldNames.push_back(sf->name());
+        }
+      });
 
   // Helper to build the combo label list
   std::vector<const char *> labels;
@@ -103,9 +104,9 @@ void VorticityDialog::buildUI()
   if (ImGui::Button("Compute")) {
     this->hide();
 
-    const SpatialField *uField = fields[m_uIdx];
-    const SpatialField *vField = fields[m_vIdx];
-    const SpatialField *wField = fields[m_wIdx];
+    const tsd::scene::SpatialField *uField = fields[m_uIdx];
+    const tsd::scene::SpatialField *vField = fields[m_vIdx];
+    const tsd::scene::SpatialField *wField = fields[m_wIdx];
 
     tsd::io::VorticityOptions opts;
     opts.lambda2 = m_computeLambda2;

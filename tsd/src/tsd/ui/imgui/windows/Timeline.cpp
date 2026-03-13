@@ -15,12 +15,12 @@
 
 namespace tsd::ui::imgui {
 
-static void captureCurrentCameraKeyframe(tsd::core::Animation *anim, float t)
+static void captureCurrentCameraKeyframe(tsd::scene::Animation *anim, float t)
 {
   const auto *obj = anim->keyframeTargetObject();
   if (!obj || obj->type() != ANARI_CAMERA)
     return;
-  const auto *cam = static_cast<const tsd::core::Camera *>(obj);
+  const auto *cam = static_cast<const tsd::scene::Camera *>(obj);
 
   if (auto v = cam->parameterValueAs<math::float3>("position"))
     anim->addValueKeyframe("position", ANARI_FLOAT32_VEC3, t, &*v);
@@ -28,7 +28,7 @@ static void captureCurrentCameraKeyframe(tsd::core::Animation *anim, float t)
     anim->addValueKeyframe("direction", ANARI_FLOAT32_VEC3, t, &*v);
   if (auto v = cam->parameterValueAs<math::float3>("up"))
     anim->addValueKeyframe("up", ANARI_FLOAT32_VEC3, t, &*v);
-  if (cam->subtype() == tsd::core::tokens::camera::perspective) {
+  if (cam->subtype() == tsd::scene::tokens::camera::perspective) {
     if (auto v = cam->parameterValueAs<float>("fovy"))
       anim->addValueKeyframe("fovy", ANARI_FLOAT32, t, &*v);
   }
@@ -428,7 +428,7 @@ void Timeline::buildUI_canvas()
 
         int nodeIdx = 0;
         layer->traverse(
-            layer->root(), [&](tsd::core::LayerNode &node, int level) {
+            layer->root(), [&](tsd::scene::LayerNode &node, int level) {
               if (!node->isTransform() && node->name().empty())
                 return true;
 

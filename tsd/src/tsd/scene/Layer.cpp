@@ -5,7 +5,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Layer::Layer(Scene *scene, std::string name)
     : m_scene(scene), m_name(std::move(name))
@@ -104,4 +104,4 @@ void Layer::traverse_const(LayerNodeRef start,
   m_tree.traverse_const(start, std::move(onNodeEntry), std::move(onNodeExit));
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

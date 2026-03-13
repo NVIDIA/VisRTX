@@ -21,7 +21,7 @@
 namespace tsd::network {
 
 NetworkUpdateDelegate::NetworkUpdateDelegate(
-    tsd::core::Scene *scene, tsd::network::NetworkChannel *channel)
+    tsd::scene::Scene *scene, tsd::network::NetworkChannel *channel)
     : m_scene(scene)
 {
   setNetworkChannel(channel);
@@ -38,7 +38,7 @@ void NetworkUpdateDelegate::setNetworkChannel(
   m_channel = channel;
 }
 
-void NetworkUpdateDelegate::signalObjectAdded(const tsd::core::Object *o)
+void NetworkUpdateDelegate::signalObjectAdded(const tsd::scene::Object *o)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::NewObject(o);
@@ -46,7 +46,7 @@ void NetworkUpdateDelegate::signalObjectAdded(const tsd::core::Object *o)
 }
 
 void NetworkUpdateDelegate::signalParameterUpdated(
-    const tsd::core::Object *o, const tsd::core::Parameter *p)
+    const tsd::scene::Object *o, const tsd::scene::Parameter *p)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::ParameterChange(o, p);
@@ -54,7 +54,7 @@ void NetworkUpdateDelegate::signalParameterUpdated(
 }
 
 void NetworkUpdateDelegate::signalParameterRemoved(
-    const tsd::core::Object *o, const tsd::core::Parameter *p)
+    const tsd::scene::Object *o, const tsd::scene::Parameter *p)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::ParameterRemove(o, p);
@@ -62,21 +62,21 @@ void NetworkUpdateDelegate::signalParameterRemoved(
 }
 
 void NetworkUpdateDelegate::signalParameterBatchUpdated(
-    const tsd::core::Object *o,
-    const std::vector<const tsd::core::Parameter *> &ps)
+    const tsd::scene::Object *o,
+    const std::vector<const tsd::scene::Parameter *> &ps)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::ParameterChange(o, ps.data(), ps.size());
   m_channel->send(MessageType::SERVER_SET_OBJECT_PARAMETER, std::move(msg));
 }
 
-void NetworkUpdateDelegate::signalArrayMapped(const tsd::core::Array *)
+void NetworkUpdateDelegate::signalArrayMapped(const tsd::scene::Array *)
 {
   CHECK_READY_OR_RETURN();
   // no-op
 }
 
-void NetworkUpdateDelegate::signalArrayUnmapped(const tsd::core::Array *a)
+void NetworkUpdateDelegate::signalArrayUnmapped(const tsd::scene::Array *a)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::TransferArrayData(a);
@@ -84,20 +84,20 @@ void NetworkUpdateDelegate::signalArrayUnmapped(const tsd::core::Array *a)
 }
 
 void NetworkUpdateDelegate::signalObjectParameterUseCountZero(
-    const tsd::core::Object *obj)
+    const tsd::scene::Object *obj)
 {
   CHECK_READY_OR_RETURN();
   // no-op
 }
 
 void NetworkUpdateDelegate::signalObjectLayerUseCountZero(
-    const tsd::core::Object *obj)
+    const tsd::scene::Object *obj)
 {
   CHECK_READY_OR_RETURN();
   // no-op
 }
 
-void NetworkUpdateDelegate::signalObjectRemoved(const tsd::core::Object *o)
+void NetworkUpdateDelegate::signalObjectRemoved(const tsd::scene::Object *o)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::RemoveObject(o);
@@ -110,7 +110,7 @@ void NetworkUpdateDelegate::signalRemoveAllObjects()
   m_channel->send(MessageType::SERVER_REMOVE_ALL_OBJECTS);
 }
 
-void NetworkUpdateDelegate::signalLayerAdded(const tsd::core::Layer *l)
+void NetworkUpdateDelegate::signalLayerAdded(const tsd::scene::Layer *l)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::TransferLayer(m_scene, l);
@@ -118,7 +118,7 @@ void NetworkUpdateDelegate::signalLayerAdded(const tsd::core::Layer *l)
 }
 
 void NetworkUpdateDelegate::signalLayerStructureUpdated(
-    const tsd::core::Layer *l)
+    const tsd::scene::Layer *l)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::TransferLayer(m_scene, l);
@@ -126,14 +126,14 @@ void NetworkUpdateDelegate::signalLayerStructureUpdated(
 }
 
 void NetworkUpdateDelegate::signalLayerTransformUpdated(
-    const tsd::core::Layer *l)
+    const tsd::scene::Layer *l)
 {
   CHECK_READY_OR_RETURN();
   auto msg = tsd::network::messages::TransferLayer(m_scene, l);
   m_channel->send(MessageType::SERVER_UPDATE_LAYER, std::move(msg));
 }
 
-void NetworkUpdateDelegate::signalLayerRemoved(const tsd::core::Layer *)
+void NetworkUpdateDelegate::signalLayerRemoved(const tsd::scene::Layer *)
 {
   CHECK_READY_OR_RETURN();
   tsd::core::logWarning(

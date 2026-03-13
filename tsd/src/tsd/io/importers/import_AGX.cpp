@@ -76,7 +76,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
 
   // geometry
 
-  auto geom = scene.createObject<tsd::core::Geometry>(subtype);
+  auto geom = scene.createObject<tsd::scene::Geometry>(subtype);
   if (!geom) {
     logError("[import_AGX] failed to create geometry of type '%s'", subtype);
     agxReleaseReader(r);
@@ -222,8 +222,8 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
 
   // material
 
-  auto mat = scene.createObject<tsd::core::Material>(
-      tsd::core::tokens::material::matte);
+  auto mat = scene.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
   if (!mat) {
     logError("[import_AGX] failed to create material");
     agxReleaseReader(r);

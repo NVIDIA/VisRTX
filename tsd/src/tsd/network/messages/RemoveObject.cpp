@@ -9,7 +9,7 @@
 
 namespace tsd::network::messages {
 
-RemoveObject::RemoveObject(const tsd::core::Object *o)
+RemoveObject::RemoveObject(const tsd::scene::Object *o)
 {
   if (!o) {
     tsd::core::logError("[message::RemoveObject] No client object provided");
@@ -19,7 +19,7 @@ RemoveObject::RemoveObject(const tsd::core::Object *o)
   m_tree.root() = tsd::core::Any(o->type(), o->index());
 }
 
-RemoveObject::RemoveObject(const Message &msg, tsd::core::Scene *scene)
+RemoveObject::RemoveObject(const Message &msg, tsd::scene::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
   tsd::core::logDebug("[message::RemoveObject] Received message (%zu bytes)",

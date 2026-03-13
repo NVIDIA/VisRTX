@@ -80,7 +80,7 @@ Application::Application()
         m_updateDelegate->setEnabled(true);
         tsd::core::logStatus("[Client] Scene contents:");
         tsd::core::logStatus(
-            "\n%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
+            "\n%s", tsd::scene::objectDBInfo(scene.objectDB()).c_str());
         tsd::core::logStatus("[Client] Requesting start of rendering...");
         m_client->send(MessageType::SERVER_START_RENDERING);
         appContext()->tsd.sceneLoadComplete = true;

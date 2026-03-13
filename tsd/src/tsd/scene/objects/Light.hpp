@@ -5,7 +5,7 @@
 
 #include "tsd/scene/Object.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 struct Light : public Object
 {
@@ -32,4 +32,4 @@ extern const Token spot;
 
 } // namespace tokens::light
 
-} // namespace tsd::core
+} // namespace tsd::scene

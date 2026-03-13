@@ -11,7 +11,7 @@
 
 namespace tsd::network::messages {
 
-TransferArrayData::TransferArrayData(const tsd::core::Array *array)
+TransferArrayData::TransferArrayData(const tsd::scene::Array *array)
 {
   if (!array) {
     tsd::core::logError(
@@ -40,7 +40,7 @@ TransferArrayData::TransferArrayData(const tsd::core::Array *array)
   d.setValueAsExternalArray(array->elementType(), array->data(), array->size());
 
 #if TSD_USE_CUDA
-  if (array->kind() == tsd::core::Array::MemoryKind::CUDA) {
+  if (array->kind() == tsd::scene::Array::MemoryKind::CUDA) {
     const size_t numBytes = array->size() * array->elementSize();
     std::vector<std::byte> hostBuf(numBytes);
     cudaMemcpy(hostBuf.data(), array->data(), numBytes, cudaMemcpyDeviceToHost);
@@ -54,7 +54,7 @@ TransferArrayData::TransferArrayData(const tsd::core::Array *array)
 }
 
 TransferArrayData::TransferArrayData(
-    const Message &msg, tsd::core::Scene *scene)
+    const Message &msg, tsd::scene::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
   tsd::core::logDebug(
@@ -71,7 +71,7 @@ void TransferArrayData::execute()
   }
 
   auto a = m_tree.root()["a"].getValue();
-  auto array = m_scene->getObject<tsd::core::Array>(a.getAsObjectIndex());
+  auto array = m_scene->getObject<tsd::scene::Array>(a.getAsObjectIndex());
   if (!array) {
     tsd::core::logError(
         "[message::TransferArrayData] Unable to find array (%s, %zu)",

@@ -132,7 +132,7 @@ int main(int argc, const char *argv[])
 
   tsd::core::logStatus("Loading volume from: %s", inputFile->c_str());
 
-  tsd::core::Scene scene;
+  tsd::scene::Scene scene;
   auto volume = tsd::io::import_volume(scene, inputFile->c_str());
 
   if (!volume) {
@@ -141,7 +141,7 @@ int main(int argc, const char *argv[])
   }
 
   const auto *spatialField =
-      volume->parameterValueAsObject<tsd::core::SpatialField>("value");
+      volume->parameterValueAsObject<tsd::scene::SpatialField>("value");
 
   if (!spatialField) {
     tsd::core::logError("Volume does not have a spatial field");
@@ -150,7 +150,7 @@ int main(int argc, const char *argv[])
 
   const auto subtype = spatialField->subtype();
   const bool isRectilinear =
-      subtype == tsd::core::tokens::spatial_field::structuredRectilinear;
+      subtype == tsd::scene::tokens::spatial_field::structuredRectilinear;
 
   if (isRectilinear) {
     tsd::core::logStatus(

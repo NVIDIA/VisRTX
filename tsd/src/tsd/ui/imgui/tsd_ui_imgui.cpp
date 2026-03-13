@@ -13,15 +13,15 @@ static std::string s_newParameterName;
 
 static bool UI_stringList_callback(void *p, int index, const char **out_text)
 {
-  const auto &stringList = ((tsd::core::Parameter *)p)->stringValues();
+  const auto &stringList = ((tsd::scene::Parameter *)p)->stringValues();
   *out_text = stringList[index].c_str();
   return true;
 }
 
 static void buildUI_array_info_tooltip_text(
-    const tsd::core::Scene &scene, size_t idx)
+    const tsd::scene::Scene &scene, size_t idx)
 {
-  const auto &a = *scene.getObject<tsd::core::Array>(idx);
+  const auto &a = *scene.getObject<tsd::scene::Array>(idx);
   ImGui::Text(" idx: [%zu]", idx);
   ImGui::Text("name: '%s'", a.name().c_str());
   const auto t = a.type();
@@ -35,23 +35,23 @@ static void buildUI_array_info_tooltip_text(
 }
 
 static void buildUI_parameter_contextMenu(
-    tsd::core::Scene &scene, tsd::core::Object *o, tsd::core::Parameter *p)
+    tsd::scene::Scene &scene, tsd::scene::Object *o, tsd::scene::Parameter *p)
 {
   if (ImGui::BeginPopup("buildUI_parameter_contextMenu")) {
     if (ImGui::BeginMenu("set type")) {
       if (ImGui::BeginMenu("uniform")) {
         if (ImGui::MenuItem("direction")) {
-          p->setUsage(tsd::core::ParameterUsageHint::DIRECTION);
+          p->setUsage(tsd::scene::ParameterUsageHint::DIRECTION);
           p->setValue(tsd::math::float2(0.f));
         }
 
         if (ImGui::BeginMenu("color")) {
           if (ImGui::MenuItem("rgb") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::COLOR);
+            p->setUsage(tsd::scene::ParameterUsageHint::COLOR);
             p->setValue(tsd::math::float3(1));
           }
           if (ImGui::MenuItem("rgba") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::COLOR);
+            p->setUsage(tsd::scene::ParameterUsageHint::COLOR);
             p->setValue(tsd::math::float4(1));
           }
           ImGui::EndMenu(); // "color"
@@ -59,12 +59,12 @@ static void buildUI_parameter_contextMenu(
 
         if (ImGui::BeginMenu("transform")) {
           if (ImGui::MenuItem("identity") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(tsd::math::scaling_matrix(tsd::math::float3(1.f)));
           }
           ImGui::Separator();
           if (ImGui::MenuItem("value range") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::VALUE_RANGE_TRANSFORM);
+            p->setUsage(tsd::scene::ParameterUsageHint::VALUE_RANGE_TRANSFORM);
             p->setValue(tsd::math::float2(0.f, 1.f));
           }
           ImGui::EndMenu(); // "transform"
@@ -74,19 +74,19 @@ static void buildUI_parameter_contextMenu(
 
         if (ImGui::BeginMenu("float")) {
           if (ImGui::MenuItem("float1") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(1.f);
           }
           if (ImGui::MenuItem("float2") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(tsd::math::float2(1.f));
           }
           if (ImGui::MenuItem("float3") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(tsd::math::float3(1.f));
           }
           if (ImGui::MenuItem("float4") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(tsd::math::float4(1.f));
           }
           ImGui::EndMenu(); // "float"
@@ -94,19 +94,19 @@ static void buildUI_parameter_contextMenu(
 
         if (ImGui::BeginMenu("int")) {
           if (ImGui::MenuItem("int1") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(0);
           }
           if (ImGui::MenuItem("int2") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(tsd::math::int2(1));
           }
           if (ImGui::MenuItem("int3") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(tsd::math::int3(1));
           }
           if (ImGui::MenuItem("int4") && p) {
-            p->setUsage(tsd::core::ParameterUsageHint::NONE);
+            p->setUsage(tsd::scene::ParameterUsageHint::NONE);
             p->setValue(tsd::math::int4(1));
           }
           ImGui::EndMenu(); // "int"
@@ -115,7 +115,7 @@ static void buildUI_parameter_contextMenu(
         ImGui::Separator();
 
         if (ImGui::MenuItem("string")) {
-          p->setUsage(tsd::core::ParameterUsageHint::NONE);
+          p->setUsage(tsd::scene::ParameterUsageHint::NONE);
           p->setValue("");
           p->setStringSelection(0);
           p->setStringValues({});
@@ -134,7 +134,7 @@ static void buildUI_parameter_contextMenu(
       if (ImGui::BeginMenu("object")) {
         if (ImGui::BeginMenu("new")) {
           if (ImGui::BeginMenu("array")) {
-            tsd::core::ArrayRef a;
+            tsd::scene::ArrayRef a;
 
             if (ImGui::BeginMenu("color map (RGB)")) {
 #define OBJECT_UI_MENU_ITEM(text, name)                                        \
@@ -161,20 +161,20 @@ static void buildUI_parameter_contextMenu(
           }
 
           if (ImGui::BeginMenu("material")) {
-            tsd::core::MaterialRef m;
+            tsd::scene::MaterialRef m;
             if (ImGui::MenuItem("matte")) {
-              m = scene.createObject<tsd::core::Material>(
-                  tsd::core::tokens::material::matte);
+              m = scene.createObject<tsd::scene::Material>(
+                  tsd::scene::tokens::material::matte);
             }
 
             if (ImGui::MenuItem("physicallyBased")) {
-              m = scene.createObject<tsd::core::Material>(
-                  tsd::core::tokens::material::physicallyBased);
+              m = scene.createObject<tsd::scene::Material>(
+                  tsd::scene::tokens::material::physicallyBased);
             }
 
             if (ImGui::MenuItem("mdl")) {
-              m = scene.createObject<tsd::core::Material>(
-                  tsd::core::tokens::material::mdl);
+              m = scene.createObject<tsd::scene::Material>(
+                  tsd::scene::tokens::material::mdl);
             }
 
             if (m)
@@ -183,12 +183,12 @@ static void buildUI_parameter_contextMenu(
           }
 
           if (ImGui::BeginMenu("geometry")) {
-            tsd::core::GeometryRef g;
+            tsd::scene::GeometryRef g;
 
 #define OBJECT_UI_MENU_ITEM(text, subtype)                                     \
   if (ImGui::MenuItem(text)) {                                                 \
-    g = scene.createObject<tsd::core::Geometry>(                               \
-        tsd::core::tokens::geometry::subtype);                                 \
+    g = scene.createObject<tsd::scene::Geometry>(                               \
+        tsd::scene::tokens::geometry::subtype);                                 \
   }
             OBJECT_UI_MENU_ITEM("cone", cone);
             OBJECT_UI_MENU_ITEM("curve", curve);
@@ -206,12 +206,12 @@ static void buildUI_parameter_contextMenu(
           }
 
           if (ImGui::BeginMenu("sampler")) {
-            tsd::core::SamplerRef s;
+            tsd::scene::SamplerRef s;
 
 #define OBJECT_UI_MENU_ITEM(text, subtype)                                     \
   if (ImGui::MenuItem(text)) {                                                 \
-    s = scene.createObject<tsd::core::Sampler>(                                \
-        tsd::core::tokens::sampler::subtype);                                  \
+    s = scene.createObject<tsd::scene::Sampler>(                                \
+        tsd::scene::tokens::sampler::subtype);                                  \
   }
             OBJECT_UI_MENU_ITEM("compressedImage2D", compressedImage2D);
             OBJECT_UI_MENU_ITEM("image1D", image1D);
@@ -266,13 +266,13 @@ static void buildUI_parameter_contextMenu(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void buildUI_object(tsd::core::Object &o,
-    tsd::core::Scene &scene,
+void buildUI_object(tsd::scene::Object &o,
+    tsd::scene::Scene &scene,
     bool useTableForParameters,
     int level)
 {
   static anari::DataType typeForSelection = ANARI_UNKNOWN;
-  static tsd::core::Parameter *paramForSelection = nullptr;
+  static tsd::scene::Parameter *paramForSelection = nullptr;
   static bool openContextMenu = false;
 
   ImGui::PushID(&o);
@@ -283,7 +283,7 @@ void buildUI_object(tsd::core::Object &o,
   ImGui::Separator();
 
   if (anari::isArray(o.type())) {
-    const auto &a = *(tsd::core::Array *)&o;
+    const auto &a = *(tsd::scene::Array *)&o;
     const auto t = a.type();
     ImGui::Text("%s", anari::toString(t));
     if (t == ANARI_ARRAY3D)
@@ -301,10 +301,10 @@ void buildUI_object(tsd::core::Object &o,
     ImGui::Text("    device: %s", o.rendererDeviceName().c_str());
 
   ImGui::Text("use counts: [ %zu | %zu | %zu | %zu ]",
-      o.useCount(tsd::core::Object::UseKind::APP),
-      o.useCount(tsd::core::Object::UseKind::PARAMETER),
-      o.useCount(tsd::core::Object::UseKind::LAYER),
-      o.useCount(tsd::core::Object::UseKind::INTERNAL));
+      o.useCount(tsd::scene::Object::UseKind::APP),
+      o.useCount(tsd::scene::Object::UseKind::PARAMETER),
+      o.useCount(tsd::scene::Object::UseKind::LAYER),
+      o.useCount(tsd::scene::Object::UseKind::INTERNAL));
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip(
         "references to this object:"
@@ -439,9 +439,9 @@ void buildUI_object(tsd::core::Object &o,
   }
 }
 
-bool buildUI_parameter(tsd::core::Object &o,
-    tsd::core::Parameter &p,
-    tsd::core::Scene &scene,
+bool buildUI_parameter(tsd::scene::Object &o,
+    tsd::scene::Parameter &p,
+    tsd::scene::Scene &scene,
     bool useTable)
 {
   ImGui::PushID(&p);
@@ -602,13 +602,13 @@ bool buildUI_parameter(tsd::core::Object &o,
     ImGui::PopID();
     break;
   case ANARI_FLOAT32_VEC3:
-    if (usage & tsd::core::ParameterUsageHint::COLOR)
+    if (usage & tsd::scene::ParameterUsageHint::COLOR)
       update |= ImGui::ColorEdit3(name, (float *)value);
     else
       update |= ImGui::DragFloat3(name, (float *)value);
     break;
   case ANARI_FLOAT32_VEC4:
-    if (usage & tsd::core::ParameterUsageHint::COLOR)
+    if (usage & tsd::scene::ParameterUsageHint::COLOR)
       update |= ImGui::ColorEdit4(name, (float *)value);
     else
       update |= ImGui::DragFloat4(name, (float *)value);
@@ -710,7 +710,7 @@ bool buildUI_parameter(tsd::core::Object &o,
 }
 
 size_t buildUI_objects_menulist(
-    const tsd::core::Scene &scene, anari::DataType &type)
+    const tsd::scene::Scene &scene, anari::DataType &type)
 {
   size_t retval = TSD_INVALID_INDEX;
 

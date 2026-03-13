@@ -11,7 +11,7 @@
 
 namespace tsd::io {
 
-using namespace tsd::core;
+using namespace tsd::scene;
 
 // clang-format off
 
@@ -118,22 +118,22 @@ using ImportFile = std::pair<ImporterType, std::string>;
 using ImportAnimationFiles = std::pair<ImporterType, std::vector<std::string>>;
 
 void import_file(
-    Scene &scene, const ImportFile &file, tsd::core::LayerNodeRef root = {});
+    Scene &scene, const ImportFile &file, tsd::scene::LayerNodeRef root = {});
 void import_file(Scene &scene,
     const ImportFile &file,
     tsd::core::TransferFunction &transferFunction,
-    tsd::core::LayerNodeRef root = {});
+    tsd::scene::LayerNodeRef root = {});
 
 void import_files(Scene &scene,
     const std::vector<ImportFile> &files,
-    tsd::core::LayerNodeRef root = {});
+    tsd::scene::LayerNodeRef root = {});
 void import_files(Scene &scene,
     const std::vector<ImportFile> &files,
     tsd::core::TransferFunction transferFunction,
-    tsd::core::LayerNodeRef root = {});
+    tsd::scene::LayerNodeRef root = {});
 
 void import_animations(Scene &scene,
     const std::vector<ImportAnimationFiles> &files,
-    tsd::core::LayerNodeRef root = {});
+    tsd::scene::LayerNodeRef root = {});
 
 } // namespace tsd::io

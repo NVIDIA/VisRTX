@@ -20,13 +20,13 @@
 
 namespace tsd::app {
 
-void renderAnimationSequence(Context &core,
+void renderAnimationSequence(Context &ctx,
     const std::string &outputDir,
     const std::string &filePrefix,
     RenderSequenceCallback preFrameCallback)
 {
-  auto &config = core.offline;
-  auto &scene = core.tsd.scene;
+  auto &config = ctx.offline;
+  auto &scene = ctx.tsd.scene;
 
   // Validate renderer config //
 
@@ -87,7 +87,7 @@ void renderAnimationSequence(Context &core,
   if (camIdx == tsd::core::INVALID_INDEX)
     camIdx = 0;
 
-  auto cameraRef = scene.getObject<tsd::core::Camera>(camIdx);
+  auto cameraRef = scene.getObject<tsd::scene::Camera>(camIdx);
   if (!cameraRef) {
     tsd::core::logError(
         "[renderAnimationSequence] No camera at index %zu", camIdx);

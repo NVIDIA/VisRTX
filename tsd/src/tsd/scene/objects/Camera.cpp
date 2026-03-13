@@ -7,7 +7,7 @@
 #include <cmath>
 #include <string>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Camera::Camera(Token subtype) : Object(ANARI_CAMERA, subtype)
 {
@@ -136,4 +136,4 @@ const Token omnidirectional = "omnidirectional";
 
 } // namespace tokens::camera
 
-} // namespace tsd::core
+} // namespace tsd::scene

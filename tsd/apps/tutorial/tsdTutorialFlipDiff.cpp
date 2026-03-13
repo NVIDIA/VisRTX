@@ -69,19 +69,19 @@ int main()
 {
   // Create context //
 
-  tsd::core::Scene scene;
+  tsd::scene::Scene scene;
 
   // Populate spheres //
 
   tsd::io::generate_randomSpheres(scene);
 
-  auto light = scene.createObject<tsd::core::Light>(
-      tsd::core::tokens::light::directional);
+  auto light = scene.createObject<tsd::scene::Light>(
+      tsd::scene::tokens::light::directional);
   light->setName("mainLight");
   light->setParameter("direction", float3(-1.f, 0.f, 0.f));
   light->setParameter("irradiance", 1.f);
 
-  printf("%s\n", tsd::core::objectDBInfo(scene.objectDB()).c_str());
+  printf("%s\n", tsd::scene::objectDBInfo(scene.objectDB()).c_str());
 
   // Setup ANARI device //
 

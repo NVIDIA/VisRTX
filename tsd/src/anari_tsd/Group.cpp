@@ -66,7 +66,7 @@ const std::vector<TSDObject *> &Group::lights() const
   return m_lights;
 }
 
-void Group::addObjectsToLayer(tsd::core::LayerNodeRef parent) const
+void Group::addObjectsToLayer(tsd::scene::LayerNodeRef parent) const
 {
   auto *layer = (*parent)->layer();
   for (auto *obj : m_surfaces)

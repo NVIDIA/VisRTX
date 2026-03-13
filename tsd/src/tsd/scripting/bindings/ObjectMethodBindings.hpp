@@ -4,11 +4,11 @@
 #pragma once
 
 // Shared template that registers all Object methods on a sol::usertype,
-// parameterized by an accessor that extracts the core::Object* from the
+// parameterized by an accessor that extracts the scene::Object* from the
 // bound user type.  Used for both the Object type itself and for
 // ObjectPoolRef<T> types, so the method list is defined in exactly one place.
 //
-// Accessor signature:  core::Object *(UserType &u)
+// Accessor signature:  scene::Object *(UserType &u)
 //   - For Object:  returns &u  (never null)
 //   - For Ref:     returns r.data() when valid, nullptr otherwise
 //
@@ -20,7 +20,7 @@
 #include "ArrayHelpers.hpp"
 #include "ParameterHelpers.hpp"
 #include "tsd/core/Token.hpp"
-#include "tsd/core/Parameter.hpp"
+#include "tsd/scene/Parameter.hpp"
 
 #include <sol/sol.hpp>
 
@@ -128,7 +128,7 @@ void registerObjectMethodsOn(sol::usertype<UserType> &ut, Accessor access)
   };
 
   ut["parameter"] = [access](UserType &u,
-                        const std::string &name) -> const core::Parameter * {
+                        const std::string &name) -> const scene::Parameter * {
     auto *obj = access(u);
     if (!obj)
       return nullptr;

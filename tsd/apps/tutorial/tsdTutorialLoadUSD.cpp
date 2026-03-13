@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 
   // Create context //
 
-  tsd::core::Scene scene;
+  tsd::scene::Scene scene;
 
   // Populate spheres //
 

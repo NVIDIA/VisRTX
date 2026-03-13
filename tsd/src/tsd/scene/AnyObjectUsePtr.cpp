@@ -4,7 +4,7 @@
 #include "tsd/scene/AnyObjectUsePtr.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 AnyObjectUsePtr::AnyObjectUsePtr(Object &o)
 {
@@ -120,4 +120,4 @@ bool operator!=(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b)
   return !(a == b);
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

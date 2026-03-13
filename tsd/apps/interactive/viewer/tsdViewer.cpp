@@ -92,7 +92,7 @@ class Application : public TSDApplication
 
       tsd::core::logStatus("...scene load complete! (%.3fs)", loadSeconds);
       tsd::core::logStatus(
-          "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
+          "%s", tsd::scene::objectDBInfo(scene.objectDB()).c_str());
       ctx->tsd.sceneLoadComplete = true;
 
       auto setupDefaultRenderer = !ctx->commandLine.loadedFromStateFile

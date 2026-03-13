@@ -4,7 +4,7 @@
 #include "tsd/scene/objects/Surface.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Surface::Surface() : Object(ANARI_SURFACE)
 {
@@ -50,4 +50,4 @@ const Token material = "material";
 
 } // namespace tokens::surface
 
-} // namespace tsd::core
+} // namespace tsd::scene

@@ -14,11 +14,11 @@
 // std
 #include <numeric>
 
-SCENARIO("tsd::core::Array interface", "[Array]")
+SCENARIO("tsd::scene::Array interface", "[Array]")
 {
   GIVEN("A default constructed Array")
   {
-    tsd::core::Array arr;
+    tsd::scene::Array arr;
 
     THEN("The array is empty")
     {
@@ -33,7 +33,7 @@ SCENARIO("tsd::core::Array interface", "[Array]")
 
   GIVEN("A constructed int Array")
   {
-    auto arr = tsd::core::Array(ANARI_INT32, 4);
+    auto arr = tsd::scene::Array(ANARI_INT32, 4);
 
     THEN("The array is not empty")
     {
@@ -60,7 +60,7 @@ SCENARIO("tsd::core::Array interface", "[Array]")
 
   GIVEN("A constructed a UFIXED8 Array with linear elements")
   {
-    auto arr = tsd::core::Array(ANARI_UFIXED8, 256);
+    auto arr = tsd::scene::Array(ANARI_UFIXED8, 256);
     auto *begin = arr.mapAs<uint8_t>();
     auto *end = begin + 256;
     std::iota(begin, end, 0);
@@ -68,7 +68,7 @@ SCENARIO("tsd::core::Array interface", "[Array]")
 
     THEN("Computing the range will return the correct min + max")
     {
-      auto range = tsd::core::computeScalarRange(arr);
+      auto range = tsd::scene::computeScalarRange(arr);
       REQUIRE(range.x == 0.f);
       REQUIRE(range.y == 1.f);
     }

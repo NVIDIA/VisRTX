@@ -19,24 +19,24 @@ namespace tsd::rendering {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TransformsToAnariVisitor : public tsd::core::LayerVisitor
+struct TransformsToAnariVisitor : public tsd::scene::LayerVisitor
 {
   TransformsToAnariVisitor(anari::Device d,
       anari::Instance *instances,
       RenderIndexFilterFcn *filter = nullptr);
   ~TransformsToAnariVisitor();
 
-  bool preChildren_const(const tsd::core::LayerNode &n, int level) override;
-  void postChildren_const(const tsd::core::LayerNode &n, int level) override;
+  bool preChildren_const(const tsd::scene::LayerNode &n, int level) override;
+  void postChildren_const(const tsd::scene::LayerNode &n, int level) override;
 
  private:
-  bool isIncludedAfterFiltering(const tsd::core::LayerNode &n) const;
+  bool isIncludedAfterFiltering(const tsd::scene::LayerNode &n) const;
 
   anari::Device m_device{nullptr};
   anari::Instance *m_currentInstance;
   std::stack<tsd::math::mat4> m_xfms;
   std::stack<bool> m_hasObjects;
-  const tsd::core::Array *m_xfmArray{nullptr};
+  const tsd::scene::Array *m_xfmArray{nullptr};
   RenderIndexFilterFcn *m_filter{nullptr};
 };
 
@@ -57,7 +57,7 @@ inline TransformsToAnariVisitor::~TransformsToAnariVisitor()
 }
 
 inline bool TransformsToAnariVisitor::preChildren_const(
-    const tsd::core::LayerNode &n, int level)
+    const tsd::scene::LayerNode &n, int level)
 {
   if (!n->isEnabled())
     return false;
@@ -91,7 +91,7 @@ inline bool TransformsToAnariVisitor::preChildren_const(
 }
 
 inline void TransformsToAnariVisitor::postChildren_const(
-    const tsd::core::LayerNode &n, int level)
+    const tsd::scene::LayerNode &n, int level)
 {
   if (!n->isEnabled())
     return;
@@ -148,7 +148,7 @@ inline void TransformsToAnariVisitor::postChildren_const(
 }
 
 inline bool TransformsToAnariVisitor::isIncludedAfterFiltering(
-    const tsd::core::LayerNode &n) const
+    const tsd::scene::LayerNode &n) const
 {
   if (!m_filter)
     return true;

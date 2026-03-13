@@ -7,14 +7,14 @@
 #include "tsd/scene/ObjectUsePtr.hpp"
 #include "tsd/scene/Scene.hpp"
 
-using tsd::core::Material;
-using tsd::core::MaterialRef;
-using tsd::core::Object;
-using tsd::core::ObjectUsePtr;
-using tsd::core::Scene;
-namespace material = tsd::core::tokens::material;
+using tsd::scene::Material;
+using tsd::scene::MaterialRef;
+using tsd::scene::Object;
+using tsd::scene::ObjectUsePtr;
+using tsd::scene::Scene;
+namespace material = tsd::scene::tokens::material;
 
-SCENARIO("tsd::core::ObjectUsePtr interface", "[ObjectUsePtr]")
+SCENARIO("tsd::scene::ObjectUsePtr interface", "[ObjectUsePtr]")
 {
   Scene scene;
 

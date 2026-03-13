@@ -9,7 +9,7 @@
 // std
 #include <algorithm>
 
-namespace tsd::core {
+namespace tsd::scene {
 
 // Helper functions ///////////////////////////////////////////////////////////
 
@@ -633,4 +633,4 @@ void Animation::updateInfoString(float time, bool cellCentered)
   }
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

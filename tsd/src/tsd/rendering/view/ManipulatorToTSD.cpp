@@ -6,14 +6,14 @@
 namespace tsd::rendering {
 
 void updateCameraObject(
-    tsd::core::Camera &c, const Manipulator &m, bool includeManipulatorMetadata)
+    tsd::scene::Camera &c, const Manipulator &m, bool includeManipulatorMetadata)
 {
   c.beginParameterBatch();
 
   c.setParameter("direction", m.dir());
   c.setParameter("up", m.up());
 
-  if (c.subtype() == core::tokens::camera::orthographic) {
+  if (c.subtype() == scene::tokens::camera::orthographic) {
     c.setParameter("position", m.eye_FixedDistance());
     c.setParameter("height", m.distance() * 0.75f);
   } else {
@@ -31,7 +31,7 @@ void updateCameraObject(
   c.endParameterBatch();
 }
 
-void updateManipulatorFromCamera(Manipulator &m, const tsd::core::Camera &c)
+void updateManipulatorFromCamera(Manipulator &m, const tsd::scene::Camera &c)
 {
   auto at = c.getMetadataValue("manipulator.at").getValueOr(m.at());
   auto d = c.getMetadataValue("manipulator.distance").getValueOr(m.distance());

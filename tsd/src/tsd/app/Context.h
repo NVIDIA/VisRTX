@@ -17,10 +17,6 @@
 #include "tsd/app/ANARIDeviceManager.h"
 #include "tsd/app/renderAnimationSequence.h"
 
-namespace tsd::core {
-struct Animation;
-}
-
 namespace tsd::app {
 
 using CameraPose = tsd::rendering::CameraPose;
@@ -44,13 +40,13 @@ struct TSDState
 {
   struct StashedSelection
   {
-    std::vector<tsd::core::LayerNodeRef> nodes;
+    std::vector<tsd::scene::LayerNodeRef> nodes;
     bool shouldDeleteAfterPaste{false};
   };
 
-  tsd::core::Scene scene;
+  tsd::scene::Scene scene;
   bool sceneLoadComplete{false};
-  std::vector<tsd::core::LayerNodeRef> selectedNodes;
+  std::vector<tsd::scene::LayerNodeRef> selectedNodes;
   StashedSelection stashedSelection;
 };
 
@@ -60,7 +56,7 @@ struct CameraState
   tsd::rendering::Manipulator manipulator;
   tsd::rendering::CameraPathSettings pathSettings;
   size_t cameraPathCameraIndex{TSD_INVALID_INDEX};
-  tsd::core::Animation *cameraPathAnimation{nullptr};
+  tsd::scene::Animation *cameraPathAnimation{nullptr};
 };
 
 struct OfflineRenderSequenceConfig
@@ -87,7 +83,7 @@ struct OfflineRenderSequenceConfig
 
   struct RenderSettings
   {
-    std::vector<tsd::core::Object> rendererObjects;
+    std::vector<tsd::scene::Object> rendererObjects;
     int activeRenderer{-1};
     std::string libraryName;
   } renderer;
@@ -145,19 +141,19 @@ struct Context
 
   // Selection //
 
-  tsd::core::LayerNodeRef getFirstSelected() const;
-  const std::vector<tsd::core::LayerNodeRef> &getSelectedNodes() const;
-  void setSelected(tsd::core::LayerNodeRef node);
-  void setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes);
-  void setSelected(const tsd::core::Object *obj);
-  void addToSelection(tsd::core::LayerNodeRef node);
-  void removeFromSelection(tsd::core::LayerNodeRef node);
-  bool isSelected(tsd::core::LayerNodeRef node) const;
+  tsd::scene::LayerNodeRef getFirstSelected() const;
+  const std::vector<tsd::scene::LayerNodeRef> &getSelectedNodes() const;
+  void setSelected(tsd::scene::LayerNodeRef node);
+  void setSelected(const std::vector<tsd::scene::LayerNodeRef> &nodes);
+  void setSelected(const tsd::scene::Object *obj);
+  void addToSelection(tsd::scene::LayerNodeRef node);
+  void removeFromSelection(tsd::scene::LayerNodeRef node);
+  bool isSelected(tsd::scene::LayerNodeRef node) const;
   void clearSelected();
 
   // Returns only parent nodes from selection (filters out children of selected
   // nodes)
-  std::vector<tsd::core::LayerNodeRef> getParentOnlySelectedNodes() const;
+  std::vector<tsd::scene::LayerNodeRef> getParentOnlySelectedNodes() const;
 
   // Camera poses //
 

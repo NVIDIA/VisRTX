@@ -55,8 +55,8 @@ void InstancingControls::createScene()
 
   // Default (global) material //
 
-  auto mat = scene.createObject<tsd::core::Material>(
-      tsd::core::tokens::material::matte);
+  auto mat = scene.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
   mat->setName("default_material");
   mat->setParameter("color", "color");
 
@@ -69,8 +69,8 @@ void InstancingControls::createScene()
 
   // Add light //
 
-  auto light = scene.createObject<tsd::core::Light>(
-      tsd::core::tokens::light::directional);
+  auto light = scene.createObject<tsd::scene::Light>(
+      tsd::scene::tokens::light::directional);
   light->setName("mainLight");
   light->setParameter("direction", tsd::math::float2(0.f, 240.f));
   m_light = light.data();
@@ -88,8 +88,8 @@ void InstancingControls::generateSpheres()
 
   // Generate geometry //
 
-  auto spheres = scene.createObject<tsd::core::Geometry>(
-      tsd::core::tokens::geometry::sphere);
+  auto spheres = scene.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
 
   spheres->setName("random_spheres_geometry");
   spheres->setParameter("radius", m_particleRadius);

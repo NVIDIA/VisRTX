@@ -109,7 +109,7 @@ bool Array::getProperty(const std::string_view &name,
   return 0;
 }
 
-tsd::core::Object *Array::tsdObject() const
+tsd::scene::Object *Array::tsdObject() const
 {
   return m_array.data();
 }

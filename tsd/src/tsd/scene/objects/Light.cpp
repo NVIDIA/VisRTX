@@ -4,7 +4,7 @@
 #include "tsd/scene/objects/Light.hpp"
 #include "tsd/scene/Scene.hpp"
 
-namespace tsd::core {
+namespace tsd::scene {
 
 Light::Light(Token subtype) : Object(ANARI_LIGHT, subtype)
 {
@@ -148,4 +148,4 @@ const Token spot = "spot";
 
 } // namespace tokens::light
 
-} // namespace tsd::core
+} // namespace tsd::scene

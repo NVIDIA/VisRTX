@@ -256,7 +256,7 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   ImGui::Text("ANARI library");
 
   auto comboGetRendererSubtype = [](void *data, int n) -> const char * {
-    auto &renderers = *(std::vector<tsd::core::Object> *)data;
+    auto &renderers = *(std::vector<tsd::scene::Object> *)data;
     return renderers[n].name().c_str();
   };
 

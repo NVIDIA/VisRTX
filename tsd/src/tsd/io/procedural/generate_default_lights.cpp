@@ -10,8 +10,8 @@ void generate_default_lights(Scene &scene)
   auto *layer = scene.defaultLayer();
   auto lightsRoot = layer->root()->insert_first_child({layer, "defaultLights"});
 
-  auto light = scene.createObject<tsd::core::Light>(
-      tsd::core::tokens::light::directional);
+  auto light = scene.createObject<tsd::scene::Light>(
+      tsd::scene::tokens::light::directional);
   light->setName("mainDistantLight");
   light->setParameter("direction", tsd::math::float2(0.f, 240.f));
 

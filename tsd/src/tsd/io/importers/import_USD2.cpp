@@ -41,6 +41,7 @@ using namespace std::string_view_literals;
 namespace tsd::io {
 
 using namespace tsd::core;
+using namespace tsd::scene;
 
 #if TSD_USE_USD
 

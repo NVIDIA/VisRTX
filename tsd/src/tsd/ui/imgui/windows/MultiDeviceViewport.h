@@ -55,12 +55,12 @@ struct MultiDeviceViewport : public Window
 
   anari::DataType m_format{ANARI_UFIXED8_RGBA_SRGB};
   std::vector<anari::Camera> m_cameras;
-  tsd::core::Object m_rendererObject;
+  tsd::scene::Object m_rendererObject;
 
-  struct RendererUpdateDelegate : public tsd::core::EmptyUpdateDelegate
+  struct RendererUpdateDelegate : public tsd::scene::EmptyUpdateDelegate
   {
     void signalParameterUpdated(
-        const tsd::core::Object *o, const tsd::core::Parameter *p) override;
+        const tsd::scene::Object *o, const tsd::scene::Parameter *p) override;
     std::vector<anari::Device> devices;
     std::vector<anari::Renderer> renderers;
   } m_rud;

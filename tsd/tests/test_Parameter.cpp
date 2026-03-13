@@ -4,19 +4,19 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/core/Parameter.hpp"
+#include "tsd/scene/Parameter.hpp"
 
 namespace {
 
-struct MockObject : public tsd::core::ParameterObserver
+struct MockObject : public tsd::scene::ParameterObserver
 {
   void parameterChanged(
-      const tsd::core::Parameter *, const tsd::core::Any &) override
+      const tsd::scene::Parameter *, const tsd::core::Any &) override
   {
     notified = true;
   }
 
-  void removeParameter(const tsd::core::Parameter *) override
+  void removeParameter(const tsd::scene::Parameter *) override
   {
     // no-op
   }
@@ -28,12 +28,12 @@ struct MockObject : public tsd::core::ParameterObserver
 
 ///////////////////////////////////////////////////////////////////////////////
 
-SCENARIO("tsd::core::Parameter interface", "[Parameter]")
+SCENARIO("tsd::scene::Parameter interface", "[Parameter]")
 {
   GIVEN("A constructed Parameter with a value")
   {
     MockObject obj;
-    tsd::core::Parameter prop(&obj, "test_parameter");
+    tsd::scene::Parameter prop(&obj, "test_parameter");
     prop.setValue(5);
 
     THEN("The Parameter name is correct")
@@ -82,10 +82,10 @@ SCENARIO("tsd::core::Parameter interface", "[Parameter]")
     }
   }
 
-  GIVEN("A constructed tsd::core::Parameter with a value and min/max")
+  GIVEN("A constructed tsd::scene::Parameter with a value and min/max")
   {
     MockObject obj;
-    tsd::core::Parameter prop(&obj, "test_parameter");
+    tsd::scene::Parameter prop(&obj, "test_parameter");
     prop.setValue(5)
         .setDescription("this is a test parameter")
         .setMin(0)

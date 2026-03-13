@@ -49,7 +49,7 @@ void import_AXYZ(Scene &scene, const char *filepath, LayerNodeRef location)
       numParticles,
       filepath);
 
-  std::vector<tsd::core::ObjectUsePtr<tsd::core::Array>> timeSteps;
+  std::vector<tsd::scene::ObjectUsePtr<tsd::scene::Array>> timeSteps;
 
   for (int t = 0; t < numTimeSteps; ++t) {
     auto positionsArray = scene.createArray(ANARI_FLOAT32_VEC3, numParticles);
@@ -70,14 +70,14 @@ void import_AXYZ(Scene &scene, const char *filepath, LayerNodeRef location)
 
   // geometry + material
 
-  auto geom = scene.createObject<tsd::core::Geometry>(
-      tsd::core::tokens::geometry::sphere);
+  auto geom = scene.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
   geom->setName(("axyz_geometry" + file).c_str());
   geom->setParameter("radius", 0.1f); // TODO: something smarter
   geom->setParameterObject("vertex.position", *timeSteps[0]);
 
-  auto mat = scene.createObject<tsd::core::Material>(
-      tsd::core::tokens::material::matte);
+  auto mat = scene.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
   mat->setName("axyz_material");
   mat->setParameter("color", tsd::math::float3(0.8f, 0.8f, 0.8f));
 

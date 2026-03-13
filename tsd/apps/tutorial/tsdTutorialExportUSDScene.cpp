@@ -11,7 +11,7 @@
 int main(int argc, char **argv)
 {
   tsd::core::setLogToStdout();
-  tsd::core::Scene scene;
+  tsd::scene::Scene scene;
   if (argc > 1)
     tsd::io::load_Scene(scene, argv[1]);
   else

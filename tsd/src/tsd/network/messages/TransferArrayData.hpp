@@ -12,16 +12,16 @@ namespace tsd::network::messages {
 struct TransferArrayData : public StructuredMessage
 {
   // Sender -- will serialize the data on construction
-  TransferArrayData(const tsd::core::Array *array);
+  TransferArrayData(const tsd::scene::Array *array);
 
   // Receiver -- will setup deserialization on execute()
-  TransferArrayData(const Message &msg, tsd::core::Scene *scene);
+  TransferArrayData(const Message &msg, tsd::scene::Scene *scene);
 
   // Receiver behavior
   void execute() override;
 
  private:
-  tsd::core::Scene *m_scene{nullptr};
+  tsd::scene::Scene *m_scene{nullptr};
 };
 
 } // namespace tsd::network::messages

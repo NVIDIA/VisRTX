@@ -98,8 +98,8 @@ struct Viewport : public BaseViewport
   // ANARI objects //
 
   anari::Device m_device{nullptr};
-  tsd::core::RendererAppRef m_prevRenderer;
-  tsd::core::CameraAppRef m_prevCamera;
+  tsd::scene::RendererAppRef m_prevRenderer;
+  tsd::scene::CameraAppRef m_prevCamera;
   tsd::core::ObjectVersion m_lastCameraChange{};
 
   // Display //

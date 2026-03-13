@@ -46,7 +46,7 @@ struct BaseViewport : public Window
   void imagePipeline_teardown();
 
   void camera_update(bool force = false);
-  void camera_setCurrent(tsd::core::CameraAppRef c);
+  void camera_setCurrent(tsd::scene::CameraAppRef c);
   virtual void camera_resetView(bool resetAzEl = true) = 0;
   virtual void camera_centerView() = 0;
 
@@ -63,7 +63,7 @@ struct BaseViewport : public Window
 
   struct CameraState
   {
-    tsd::core::CameraAppRef current;
+    tsd::scene::CameraAppRef current;
     tsd::rendering::Manipulator localArcball;
     tsd::rendering::Manipulator *arcball{nullptr};
     tsd::rendering::UpdateToken arcballToken{0};
@@ -79,8 +79,8 @@ struct BaseViewport : public Window
 
   struct RendererState
   {
-    std::vector<tsd::core::RendererAppRef> objects;
-    tsd::core::RendererAppRef current;
+    std::vector<tsd::scene::RendererAppRef> objects;
+    tsd::scene::RendererAppRef current;
   } m_renderers;
 
  private:

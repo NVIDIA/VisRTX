@@ -13,18 +13,20 @@
 #include <string>
 #include <vector>
 
-namespace tsd::core {
+namespace tsd::scene {
+
+using namespace tsd::core;
 
 struct Scene;
 using TimeStepValues = ObjectUsePtr<Array>;
 using TimeStepArrays = std::vector<TimeStepValues>;
 
-// Keyframe types ///////////////////////////////////////////////////////////////
+// Keyframe types//////////////////////////////////////////////////////////////
 
 struct TransformKeyframe
 {
-  float time{0.f};      // normalized [0.0, 1.0]
-  math::mat4 matrix;    // transform at this keyframe
+  float time{0.f}; // normalized [0.0, 1.0]
+  math::mat4 matrix; // transform at this keyframe
 };
 
 struct ValueKeyframe
@@ -127,4 +129,4 @@ struct Animation
   } m_keyframes;
 };
 
-} // namespace tsd::core
+} // namespace tsd::scene

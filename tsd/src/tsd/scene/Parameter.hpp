@@ -3,14 +3,17 @@
 
 #pragma once
 
-#include "Any.hpp"
-#include "Token.hpp"
+// tsd_core
+#include "tsd/core/Any.hpp"
+#include "tsd/core/Token.hpp"
 // std
 #include <string>
 #include <string_view>
 #include <vector>
 
-namespace tsd::core {
+namespace tsd::scene {
+
+using namespace tsd::core;
 
 enum ParameterUsageHint
 {
@@ -118,4 +121,4 @@ inline void Parameter::operator=(T newValue)
   setValue(newValue);
 }
 
-} // namespace tsd::core
+} // namespace tsd::scene

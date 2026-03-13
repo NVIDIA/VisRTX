@@ -9,7 +9,7 @@
 
 namespace tsd::network::messages {
 
-TransferScene::TransferScene(tsd::core::Scene *scene, bool includeArrayData)
+TransferScene::TransferScene(tsd::scene::Scene *scene, bool includeArrayData)
 {
   if (!scene) {
     tsd::core::logError(
@@ -21,7 +21,7 @@ TransferScene::TransferScene(tsd::core::Scene *scene, bool includeArrayData)
   tsd::io::save_Scene(*scene, m_tree.root(), !includeArrayData);
 }
 
-TransferScene::TransferScene(const Message &msg, tsd::core::Scene *scene)
+TransferScene::TransferScene(const Message &msg, tsd::scene::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
   tsd::core::logStatus("[message::TransferScene] Received message (%zu bytes)",

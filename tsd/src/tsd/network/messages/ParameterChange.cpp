@@ -10,12 +10,12 @@
 namespace tsd::network::messages {
 
 ParameterChange::ParameterChange(
-    const tsd::core::Object *obj, const tsd::core::Parameter *param)
+    const tsd::scene::Object *obj, const tsd::scene::Parameter *param)
     : ParameterChange(obj, &param, 1)
 {}
 
-ParameterChange::ParameterChange(const tsd::core::Object *obj,
-    const tsd::core::Parameter *const *params,
+ParameterChange::ParameterChange(const tsd::scene::Object *obj,
+    const tsd::scene::Parameter *const *params,
     size_t np)
 {
   if (!obj) {
@@ -37,7 +37,7 @@ ParameterChange::ParameterChange(const tsd::core::Object *obj,
   }
 }
 
-ParameterChange::ParameterChange(const Message &msg, tsd::core::Scene *scene)
+ParameterChange::ParameterChange(const Message &msg, tsd::scene::Scene *scene)
     : StructuredMessage(msg), m_scene(scene)
 {
 #if 0

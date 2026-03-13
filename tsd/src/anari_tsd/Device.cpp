@@ -253,7 +253,7 @@ void Device::initDevice()
 void Device::deviceCommitParameters()
 {
   helium::BaseDevice::deviceCommitParameters();
-  m_scene = (tsd::core::Scene *)getParam<void *>("scene", nullptr);
+  m_scene = (tsd::scene::Scene *)getParam<void *>("scene", nullptr);
 }
 
 int Device::deviceGetProperty(const char *name,

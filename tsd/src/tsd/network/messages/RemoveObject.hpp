@@ -12,16 +12,16 @@ namespace tsd::network::messages {
 struct RemoveObject : public StructuredMessage
 {
   // Sender -- will serialize the data on construction
-  RemoveObject(const tsd::core::Object *obj);
+  RemoveObject(const tsd::scene::Object *obj);
 
   // Receiver -- will setup deserialization on execute()
-  RemoveObject(const Message &msg, tsd::core::Scene *scene);
+  RemoveObject(const Message &msg, tsd::scene::Scene *scene);
 
   // Receiver behavior
   void execute() override;
 
  private:
-  tsd::core::Scene *m_scene{nullptr};
+  tsd::scene::Scene *m_scene{nullptr};
 };
 
 } // namespace tsd::network::messages
