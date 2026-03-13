@@ -630,7 +630,7 @@ static sol::table arrayGetDataAsLua(scene::Array &arr, sol::this_state s)
 template <typename T>
 auto registerObjectPoolRef(sol::table &tsd, const char *name)
 {
-  using Ref = core::ObjectPoolRef<T>;
+  using Ref = scene::ObjectPoolRef<T>;
   auto refType = tsd.new_usertype<Ref>(
       name,
       sol::no_constructor,
