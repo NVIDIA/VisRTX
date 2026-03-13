@@ -42,7 +42,7 @@ PRIVATE
 
 if(MSVC)
   set_source_files_properties(
-    bindings/ContextBindings.cpp
+    bindings/CoreBindings.cpp
     bindings/ObjectBindings.cpp
     PROPERTIES COMPILE_OPTIONS "/bigobj"
   )
