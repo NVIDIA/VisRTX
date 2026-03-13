@@ -196,8 +196,8 @@ void RemoteViewport::updateRenderer()
   if (!m_channel || !m_channel->isConnected())
     return;
 
-  auto *core = appCore();
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  auto &scene = ctx->tsd.scene;
   if (m_renderers.objects.empty()
       && scene.numberOfObjects(ANARI_RENDERER) != 0) {
     auto fr = scene.getObject<tsd::core::Renderer>(0);
@@ -236,8 +236,8 @@ void RemoteViewport::updateCamera()
       m_camera.current && m_camera.current != m_prevCamera;
 
   if (cameraFromServer) {
-    auto *core = appCore();
-    auto &scene = core->tsd.scene;
+    auto *ctx = appContext();
+    auto &scene = ctx->tsd.scene;
     camera_setCurrent(scene.getObject<tsd::core::Camera>(m_receivedCameraIdx));
     m_camera.arcballToken = {};
     m_manipulatorSynchronized = false;

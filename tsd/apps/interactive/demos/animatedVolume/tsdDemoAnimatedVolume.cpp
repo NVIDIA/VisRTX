@@ -30,9 +30,9 @@ class Application : public TSDApplication
   {
     auto windows = TSDApplication::setupWindows();
 
-    auto *core = appCore();
-    auto &scene = core->tsd.scene;
-    auto *manipulator = &core->view.manipulator;
+    auto *ctx = appContext();
+    auto &scene = ctx->tsd.scene;
+    auto *manipulator = &ctx->view.manipulator;
 
     auto *log = new tsd_ui::Log(this);
     auto *viewport = new tsd_ui::Viewport(this, manipulator, "Viewport");
@@ -55,11 +55,11 @@ class Application : public TSDApplication
 
     setWindowArray(windows);
 
-    core->setupSceneFromCommandLine(true);
+    ctx->setupSceneFromCommandLine(true);
 
     // Populate scene data //
 
-    auto colorArray = core->tsd.scene.createArray(ANARI_FLOAT32_VEC4, 256);
+    auto colorArray = ctx->tsd.scene.createArray(ANARI_FLOAT32_VEC4, 256);
     colorArray->setData(
         tsd::core::makeDefaultColorMap(colorArray->size()).data());
 
@@ -83,11 +83,11 @@ class Application : public TSDApplication
 
     // Setup app //
 
-    core->setSelected(volumeNode);
+    ctx->setSelected(volumeNode);
 
     tsd::core::logStatus(
         "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
-    core->tsd.sceneLoadComplete = true;
+    ctx->tsd.sceneLoadComplete = true;
 
     viewport->setLibraryToDefault();
 

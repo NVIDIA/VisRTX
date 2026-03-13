@@ -6,7 +6,7 @@
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // tsd_io
 #include "tsd/io/importers/detail/importer_common.hpp"
 // tsd_ui_imgui
@@ -223,7 +223,7 @@ void TransferFunctionEditor::buildUI_drawEditor()
 void TransferFunctionEditor::buildUI_opacityScale()
 {
   auto *param = m_volume->parameter("opacity");
-  if (!tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene))
+  if (!tsd::ui::buildUI_parameter(*m_volume, *param, appContext()->tsd.scene))
     return;
 
   // Apply to all other volumes
@@ -236,7 +236,7 @@ void TransferFunctionEditor::buildUI_opacityScale()
 void TransferFunctionEditor::buildUI_unitDistance()
 {
   auto *param = m_volume->parameter("unitDistance");
-  if (!tsd::ui::buildUI_parameter(*m_volume, *param, appCore()->tsd.scene))
+  if (!tsd::ui::buildUI_parameter(*m_volume, *param, appContext()->tsd.scene))
     return;
 
   // Apply to all other volumes
@@ -251,7 +251,7 @@ void TransferFunctionEditor::buildUI_valueRange()
   ImGui::BeginDisabled(!m_volume);
 
   if (tsd::ui::buildUI_parameter(
-      *m_volume, *m_volume->parameter("valueRange"), appCore()->tsd.scene)) {
+      *m_volume, *m_volume->parameter("valueRange"), appContext()->tsd.scene)) {
 
     auto range = m_volume->parameterValueAs<tsd::math::box1>("valueRange");
 
@@ -386,7 +386,7 @@ void TransferFunctionEditor::setMap(int selection)
 
 void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
 {
-  const auto &selectedNodes = appCore()->getSelectedNodes();
+  const auto &selectedNodes = appContext()->getSelectedNodes();
 
   // Collect all volume pointers from selection
   std::vector<tsd::core::Volume*> allVolumes;
@@ -584,7 +584,7 @@ void TransferFunctionEditor::loadColormap(
     const std::string &filepath, const std::string &name)
 {
   // Use the centralized import function
-  auto &scene = appCore()->tsd.scene;
+  auto &scene = appContext()->tsd.scene;
 
   // Extract control points from the loaded transfer function
     core::TransferFunction tfn = tsd::io::importTransferFunction(filepath);

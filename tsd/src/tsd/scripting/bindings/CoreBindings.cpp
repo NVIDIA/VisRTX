@@ -90,7 +90,7 @@ static auto makeCreateBinding()
   };
 }
 
-void registerCoreBindings(sol::state &lua)
+void registerContextBindings(sol::state &lua)
 {
   sol::table tsd = lua["tsd"];
 

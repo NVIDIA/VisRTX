@@ -11,10 +11,10 @@ namespace tsd::ui::imgui {
 AppSettingsDialog::AppSettingsDialog(Application *app)
     : Modal(app, "AppSettings")
 {
-  auto *core = appCore();
-  const auto &libraryList = core->anari.libraryList();
-  if (core->offline.renderer.activeRenderer < 0)
-    core->setOfflineRenderingLibrary(libraryList[0]);
+  auto *ctx = appContext();
+  const auto &libraryList = ctx->anari.libraryList();
+  if (ctx->offline.renderer.activeRenderer < 0)
+    ctx->setOfflineRenderingLibrary(libraryList[0]);
 }
 
 void AppSettingsDialog::buildUI()
@@ -47,7 +47,7 @@ void AppSettingsDialog::applySettings()
 
 void AppSettingsDialog::buildUI_applicationSettings()
 {
-  auto *core = appCore();
+  auto *ctx = appContext();
 
   ImGui::Text("Application Settings:");
   ImGui::Indent(tsd::ui::INDENT_AMOUNT);
@@ -61,16 +61,16 @@ void AppSettingsDialog::buildUI_applicationSettings()
 
   doUpdate |= ImGui::DragFloat("rounding", &config->rounding, 0.01f, 0.f, 12.f);
 
-  auto kind = core->anari.renderIndexKind();
+  auto kind = ctx->anari.renderIndexKind();
 
   if (ImGui::RadioButton(
           "all layers", kind == tsd::app::RenderIndexKind::ALL_LAYERS))
-    core->anari.setRenderIndexKind(tsd::app::RenderIndexKind::ALL_LAYERS);
+    ctx->anari.setRenderIndexKind(tsd::app::RenderIndexKind::ALL_LAYERS);
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("Full render index with instancing support.");
   ImGui::SameLine();
   if (ImGui::RadioButton("flat", kind == tsd::app::RenderIndexKind::FLAT))
-    core->anari.setRenderIndexKind(tsd::app::RenderIndexKind::FLAT);
+    ctx->anari.setRenderIndexKind(tsd::app::RenderIndexKind::FLAT);
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("Bypass instancing of objects.");
 
@@ -82,7 +82,7 @@ void AppSettingsDialog::buildUI_applicationSettings()
 
 void AppSettingsDialog::buildUI_offlineRenderSettings()
 {
-  auto *core = appCore();
+  auto *ctx = appContext();
 
   ImGui::Text("Offline Render Settings (tsdRender):");
   ImGui::Indent(tsd::ui::INDENT_AMOUNT);
@@ -91,13 +91,13 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
 
   ImGui::Text("Output:");
   ImGui::InputText("##outputDirectory",
-      &core->offline.output.outputDirectory,
+      &ctx->offline.output.outputDirectory,
       ImGuiInputTextFlags_EnterReturnsTrue);
   ImGui::SameLine();
   ImGui::Text("output directory");
 
   ImGui::InputText("##filePrefix",
-      &core->offline.output.filePrefix,
+      &ctx->offline.output.filePrefix,
       ImGuiInputTextFlags_EnterReturnsTrue);
   ImGui::SameLine();
   ImGui::Text("file prefix");
@@ -105,24 +105,24 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   // Frame //
 
   ImGui::Text("==== Frame ====");
-  ImGui::DragInt("##width", (int *)&core->offline.frame.width, 1, 10, 10000);
+  ImGui::DragInt("##width", (int *)&ctx->offline.frame.width, 1, 10, 10000);
   ImGui::SameLine();
   ImGui::Text("x");
   ImGui::SameLine();
-  ImGui::DragInt("##height", (int *)&core->offline.frame.height, 1, 10, 10000);
+  ImGui::DragInt("##height", (int *)&ctx->offline.frame.height, 1, 10, 10000);
   ImGui::SameLine();
   ImGui::Text("size");
 
   ImGui::DragInt("samples",
-      (int *)&core->offline.frame.samples,
+      (int *)&ctx->offline.frame.samples,
       1,
       1,
       std::numeric_limits<int>::max());
 
   auto fixupStartEndFrame = [&]() {
-    auto &num = core->offline.frame.numFrames;
-    auto &start = core->offline.frame.startFrame;
-    auto &end = core->offline.frame.endFrame;
+    auto &num = ctx->offline.frame.numFrames;
+    auto &start = ctx->offline.frame.startFrame;
+    auto &end = ctx->offline.frame.endFrame;
     if (end >= num)
       end = num - 1;
     if (start > end)
@@ -134,7 +134,7 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   bool doFix = false;
 
   doFix |= ImGui::DragInt("total animation frame count",
-      (int *)&core->offline.frame.numFrames,
+      (int *)&ctx->offline.frame.numFrames,
       1,
       1,
       std::numeric_limits<int>::max());
@@ -143,32 +143,32 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
     ImGui::SetTooltip("Number of total frames for [0.0-1.0] animation time.");
 
   ImGui::DragInt("frameIncrement",
-      (int *)&core->offline.frame.frameIncrement,
+      (int *)&ctx->offline.frame.frameIncrement,
       1,
       1,
-      std::max(1, core->offline.frame.numFrames / 2));
+      std::max(1, ctx->offline.frame.numFrames / 2));
 
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("Render every {N} frames");
 
-  ImGui::Checkbox("render subset", &core->offline.frame.renderSubset);
+  ImGui::Checkbox("render subset", &ctx->offline.frame.renderSubset);
 
-  ImGui::BeginDisabled(!core->offline.frame.renderSubset);
+  ImGui::BeginDisabled(!ctx->offline.frame.renderSubset);
 
   doFix |= ImGui::DragInt("start frame offset",
-      (int *)&core->offline.frame.startFrame,
+      (int *)&ctx->offline.frame.startFrame,
       1,
       0,
-      core->offline.frame.numFrames - 1);
+      ctx->offline.frame.numFrames - 1);
 
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("Offset into total frame count (when rendering subset)");
 
   doFix |= ImGui::DragInt("end frame offset",
-      (int *)&core->offline.frame.endFrame,
+      (int *)&ctx->offline.frame.endFrame,
       1,
-      core->offline.frame.startFrame,
-      core->offline.frame.numFrames - 1);
+      ctx->offline.frame.startFrame,
+      ctx->offline.frame.numFrames - 1);
 
   if (ImGui::IsItemHovered()) {
     ImGui::SetTooltip(
@@ -186,12 +186,12 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   ImGui::Separator();
   ImGui::Text("==== Camera ====");
   ImGui::DragFloat("apertureRadius",
-      &core->offline.camera.apertureRadius,
+      &ctx->offline.camera.apertureRadius,
       1,
       0.f,
       std::numeric_limits<float>::max());
   ImGui::DragFloat("focusDistance",
-      &core->offline.camera.focusDistance,
+      &ctx->offline.camera.focusDistance,
       1,
       0.f,
       std::numeric_limits<float>::max());
@@ -202,12 +202,12 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   m_menuCameraRefs[0] = {};
   int currentSelection = 0;
 
-  const auto &cameraDB = appCore()->tsd.scene.objectDB().camera;
+  const auto &cameraDB = appContext()->tsd.scene.objectDB().camera;
   tsd::core::foreach_item_const(cameraDB, [&](const auto *cam) {
     if (cam) {
       cameraNames.push_back(cam->name());
       m_menuCameraRefs.push_back(cam->self());
-      if (core->offline.camera.cameraIndex == cam->index()) {
+      if (ctx->offline.camera.cameraIndex == cam->index()) {
         currentSelection = static_cast<int>(cameraNames.size() - 1);
       }
     }
@@ -224,9 +224,9 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
           &cameraNames,
           static_cast<int>(cameraNames.size()))) {
     if (currentSelection == 0)
-      core->offline.camera.cameraIndex = TSD_INVALID_INDEX;
+      ctx->offline.camera.cameraIndex = TSD_INVALID_INDEX;
     else {
-      core->offline.camera.cameraIndex =
+      ctx->offline.camera.cameraIndex =
           m_menuCameraRefs[currentSelection].index();
     }
   }
@@ -237,17 +237,17 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   ImGui::Text("==== Renderer ====");
 
   if (ImGui::InputText("##ANARI library",
-          &core->offline.renderer.libraryName,
+          &ctx->offline.renderer.libraryName,
           ImGuiInputTextFlags_EnterReturnsTrue)) {
-    core->setOfflineRenderingLibrary(core->offline.renderer.libraryName);
+    ctx->setOfflineRenderingLibrary(ctx->offline.renderer.libraryName);
   }
 
   ImGui::SameLine();
-  const auto &libraryList = appCore()->anari.libraryList();
+  const auto &libraryList = appContext()->anari.libraryList();
   if (ImGui::BeginCombo("##library_combo", "", ImGuiComboFlags_NoPreview)) {
     for (size_t n = 0; n < libraryList.size(); n++) {
       if (ImGui::Selectable(libraryList[n].c_str(), false))
-        core->setOfflineRenderingLibrary(libraryList[n]);
+        ctx->setOfflineRenderingLibrary(libraryList[n]);
     }
     ImGui::EndCombo();
   }
@@ -261,17 +261,17 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
   };
 
   ImGui::Combo("renderer",
-      &core->offline.renderer.activeRenderer,
+      &ctx->offline.renderer.activeRenderer,
       comboGetRendererSubtype,
-      &core->offline.renderer.rendererObjects,
-      core->offline.renderer.rendererObjects.size());
+      &ctx->offline.renderer.rendererObjects,
+      ctx->offline.renderer.rendererObjects.size());
 
   {
     ImGui::Indent(tsd::ui::INDENT_AMOUNT);
-    auto &activeRenderer = core->offline.renderer.activeRenderer;
+    auto &activeRenderer = ctx->offline.renderer.activeRenderer;
     tsd::ui::buildUI_object(
-        core->offline.renderer.rendererObjects[activeRenderer],
-        core->tsd.scene,
+        ctx->offline.renderer.rendererObjects[activeRenderer],
+        ctx->tsd.scene,
         false);
     ImGui::Unindent(tsd::ui::INDENT_AMOUNT);
   }
@@ -289,30 +289,30 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
       "object ID",
       "primitive ID",
       "instance ID"};
-  int aovIdx = static_cast<int>(core->offline.aov.aovType);
+  int aovIdx = static_cast<int>(ctx->offline.aov.aovType);
   if (ImGui::Combo("AOV type", &aovIdx, aovItems, IM_ARRAYSIZE(aovItems))) {
-    core->offline.aov.aovType = static_cast<tsd::rendering::AOVType>(aovIdx);
+    ctx->offline.aov.aovType = static_cast<tsd::rendering::AOVType>(aovIdx);
   }
 
   ImGui::BeginDisabled(
-      core->offline.aov.aovType != tsd::rendering::AOVType::DEPTH);
+      ctx->offline.aov.aovType != tsd::rendering::AOVType::DEPTH);
   ImGui::DragFloat("depth min",
-      &core->offline.aov.depthMin,
+      &ctx->offline.aov.depthMin,
       0.1f,
       0.f,
-      core->offline.aov.depthMax);
+      ctx->offline.aov.depthMax);
   ImGui::DragFloat("depth max",
-      &core->offline.aov.depthMax,
+      &ctx->offline.aov.depthMax,
       0.1f,
-      core->offline.aov.depthMin,
+      ctx->offline.aov.depthMin,
       1e20f);
   ImGui::EndDisabled();
 
   ImGui::BeginDisabled(
-      core->offline.aov.aovType != tsd::rendering::AOVType::EDGES);
+      ctx->offline.aov.aovType != tsd::rendering::AOVType::EDGES);
   ImGui::DragFloat(
-      "edge threshold", &core->offline.aov.edgeThreshold, 0.01f, 0.f, 1.f);
-  ImGui::Checkbox("invert edges", &core->offline.aov.edgeInvert);
+      "edge threshold", &ctx->offline.aov.edgeThreshold, 0.01f, 0.f, 1.f);
+  ImGui::Checkbox("invert edges", &ctx->offline.aov.edgeInvert);
   ImGui::EndDisabled();
 
   ImGui::Unindent(tsd::ui::INDENT_AMOUNT);

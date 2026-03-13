@@ -6,7 +6,7 @@ project(tsd_app)
 project_add_library(STATIC)
 project_sources(PRIVATE
   ANARIDeviceManager.cpp
-  Core.cpp
+  Context.cpp
   renderAnimationSequence.cpp
 )
 project_link_libraries(PUBLIC tsd_core tsd_io tsd_rendering)

@@ -9,7 +9,7 @@
 // tsd_network
 #include "tsd/network/NetworkChannel.hpp"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // tsd_rendering
 #include "tsd/rendering/pipeline/RenderPipeline.h"
 #include "tsd/rendering/view/ManipulatorToAnari.hpp"
@@ -49,7 +49,7 @@ struct RenderServer
   short m_port{12345};
 
   RenderSession m_session;
-  tsd::app::Core m_core;
+  tsd::app::Context m_ctx;
 
   std::shared_ptr<NetworkServer> m_server;
   MessageFuture m_lastSentFrame;

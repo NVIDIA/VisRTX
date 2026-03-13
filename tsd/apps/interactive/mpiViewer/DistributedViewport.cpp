@@ -24,8 +24,8 @@ DistributedViewport::DistributedViewport(tsd::ui::imgui::Application *app,
   resetView(true);
   m_overlayWindowName = "overlay_";
   m_overlayWindowName += name;
-  m_coreMenuName = "vpContextMenu_";
-  m_coreMenuName += name;
+  m_ctxMenuName = "vpContextMenu_";
+  m_ctxMenuName += name;
 }
 
 DistributedViewport::~DistributedViewport()

@@ -25,17 +25,17 @@ class Application : public TSDApplication
   {
     auto windows = TSDApplication::setupWindows();
 
-    auto *core = appCore();
+    auto *ctx = appContext();
 
-    tsd::io::generate_material_orb(core->tsd.scene);
+    tsd::io::generate_material_orb(ctx->tsd.scene);
 
     std::vector<std::string> libList;
     libList.push_back("visrtx");
     libList.push_back("{none}");
-    core->anari.setLibraryList(libList);
+    ctx->anari.setLibraryList(libList);
 
-    auto *manipulator = &core->view.manipulator;
-    core->tsd.sceneLoadComplete = true;
+    auto *manipulator = &ctx->view.manipulator;
+    ctx->tsd.sceneLoadComplete = true;
 
     auto *log = new tsd_ui::Log(this);
     m_viewport = new tsd_ui::Viewport(this, manipulator, "Viewport");

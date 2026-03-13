@@ -1586,7 +1586,7 @@ static void import_usd_camera(Scene &scene, const pxr::UsdPrim &prim)
   }
 
   // Build flat per-param arrays (TimeStepValues: one big array per parameter,
-  // element-indexed by frame — same pattern as Core.cpp camera path animation)
+  // element-indexed by frame — same pattern as Context.cpp camera path animation)
   size_t numFrames = timeSamples.size();
   auto posArr = scene.createArray(ANARI_FLOAT32_VEC3, numFrames);
   auto dirArr = scene.createArray(ANARI_FLOAT32_VEC3, numFrames);

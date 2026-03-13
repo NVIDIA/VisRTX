@@ -3,7 +3,7 @@
 
 #include "Log.h"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // std
 #include <cstdio>
 // fmt
@@ -42,13 +42,13 @@ void Log::buildUI()
 {
   std::lock_guard<std::mutex> guard(m_mutex);
   if (ImGui::BeginPopup("Options")) {
-    auto core = appCore();
-    bool logVerbose = core->logVerbose();
+    auto ctx = appContext();
+    bool logVerbose = ctx->logVerbose();
     if (ImGui::Checkbox("Log verbose ANARI messages", &logVerbose))
-      core->setLogVerbose(logVerbose);
-    bool echoOutput = core->logEchoOutput();
+      ctx->setLogVerbose(logVerbose);
+    bool echoOutput = ctx->logEchoOutput();
     if (ImGui::Checkbox("Echo log to stdout", &echoOutput))
-      core->setLogEchoOutput(echoOutput);
+      ctx->setLogEchoOutput(echoOutput);
     ImGui::Checkbox("Auto-scroll", &m_autoScroll);
     ImGui::EndPopup();
   }
@@ -98,7 +98,7 @@ void Log::addText(tsd::core::LogLevel level, const std::string &msg)
   std::lock_guard<std::mutex> guard(m_mutex);
   m_colorIDs.push_back(static_cast<int>(level));
 
-  if (appCore() && appCore()->logEchoOutput())
+  if (appContext() && appContext()->logEchoOutput())
     fmt::print(stdout, "{}", msg);
 
   auto old_size = m_buf.size();

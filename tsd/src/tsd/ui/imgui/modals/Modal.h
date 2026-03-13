@@ -7,7 +7,7 @@
 // imgui
 #include "imgui.h"
 
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 
 namespace tsd::ui::imgui {
 
@@ -28,7 +28,7 @@ struct Modal
 
  protected:
   virtual void buildUI() = 0;
-  tsd::app::Core *appCore() const;
+  tsd::app::Context *appContext() const;
 
   Application *m_app{nullptr};
 

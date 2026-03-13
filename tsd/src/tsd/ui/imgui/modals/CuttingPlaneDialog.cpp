@@ -69,7 +69,7 @@ void CuttingPlaneDialog::buildUI()
       plane[3] = -1e30f; // disabled sentinel
     }
 
-    auto &scene = appCore()->tsd.scene;
+    auto &scene = appContext()->tsd.scene;
     foreach_item_const(scene.objectDB().renderer, [&](tsd::core::Renderer *r) {
       if (r)
         r->setParameter(tsd::core::Token("cutPlane"),

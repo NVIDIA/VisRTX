@@ -8,7 +8,7 @@
 // tsd_core
 #include "tsd/core/DataTree.hpp"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 
 namespace tsd::ui::imgui {
 
@@ -26,7 +26,7 @@ struct Window : public anari_viewer::windows::Window
   virtual void loadSettings(tsd::core::DataNode &thisWindowRoot);
 
  protected:
-  tsd::app::Core *appCore() const;
+  tsd::app::Context *appContext() const;
 
   Application *m_app{nullptr};
 };

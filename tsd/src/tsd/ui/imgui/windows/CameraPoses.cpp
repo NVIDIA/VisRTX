@@ -3,7 +3,7 @@
 
 #include "CameraPoses.h"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 #include "tsd/app/renderAnimationSequence.h"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/windows/Viewport.h"
@@ -30,14 +30,14 @@ void CameraPoses::buildUI()
   // Check if we have a new pose from rendering thread
   if (m_hasNewPose.load()) {
     std::lock_guard<std::mutex> lock(m_poseMutex);
-    appCore()->setCameraPose(m_currentPose);
+    appContext()->setCameraPose(m_currentPose);
     m_hasNewPose.store(false);
   }
 
   ImGui::Text("Add/Remove:");
 
   if (ImGui::Button("current view"))
-    appCore()->addCurrentViewToCameraPoses();
+    appContext()->addCurrentViewToCameraPoses();
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("insert new view using the current camera view");
 
@@ -76,7 +76,7 @@ void CameraPoses::buildUI()
   ImGui::Text("Saved Camera Poses:");
 
   if (ImGui::BeginTable("camera poses", 4, flags)) {
-    for (auto &p : appCore()->view.poses) {
+    for (auto &p : appContext()->view.poses) {
       ImGui::PushID(&p);
 
       ImGui::TableNextRow();
@@ -87,13 +87,13 @@ void CameraPoses::buildUI()
 
       ImGui::TableSetColumnIndex(1);
       if (ImGui::Button(">"))
-        appCore()->setCameraPose(p);
+        appContext()->setCameraPose(p);
       if (ImGui::IsItemHovered())
         ImGui::SetTooltip("set as current view");
 
       ImGui::TableSetColumnIndex(2);
       if (ImGui::Button("+")) {
-        appCore()->updateExistingCameraPoseFromView(p);
+        appContext()->updateExistingCameraPoseFromView(p);
         tsd::core::logStatus("camera pose '%s' updated", p.name.c_str());
       }
       if (ImGui::IsItemHovered())
@@ -112,7 +112,7 @@ void CameraPoses::buildUI()
   }
 
   if (toRemove >= 0)
-    appCore()->view.poses.erase(appCore()->view.poses.begin() + toRemove);
+    appContext()->view.poses.erase(appContext()->view.poses.begin() + toRemove);
 
   ImGui::Separator();
   buildUI_interpolationControls();
@@ -141,7 +141,7 @@ void CameraPoses::buildUI_turntablePopupMenu()
       ImGui::SetTooltip("view distance from center");
 
     if (ImGui::Button("ok")) {
-      appCore()->addTurntableCameraPoses(m_turntableAzimuths,
+      appContext()->addTurntableCameraPoses(m_turntableAzimuths,
           m_turntableElevations,
           m_turntableCenter,
           m_turntableDistance);
@@ -159,7 +159,7 @@ void CameraPoses::buildUI_confirmPopupMenu()
   if (ImGui::BeginPopup("CameraPoses_confirmPopupMenu")) {
     ImGui::Text("are you sure?");
     if (ImGui::Button("yes")) {
-      appCore()->removeAllPoses();
+      appContext()->removeAllPoses();
       ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
@@ -174,11 +174,11 @@ void CameraPoses::buildUI_interpolationControls()
   ImGui::Text("Camera Path Animation:");
   ImGui::Indent(INDENT_AMOUNT);
 
-  const bool hasPoses = appCore()->view.poses.size() >= 2;
+  const bool hasPoses = appContext()->view.poses.size() >= 2;
 
   ImGui::BeginDisabled(!hasPoses || m_isRendering);
 
-  auto &pathSettings = appCore()->view.pathSettings;
+  auto &pathSettings = appContext()->view.pathSettings;
 
   // Interpolation type selector
   const char *interpTypes[] = {"Linear", "Smooth"};
@@ -252,7 +252,7 @@ void CameraPoses::buildUI_interpolationControls()
     }
     ImGui::EndDisabled();
     if (ImGui::IsItemHovered() && hasPoses) {
-      const int numPoses = static_cast<int>(appCore()->view.poses.size());
+      const int numPoses = static_cast<int>(appContext()->view.poses.size());
       const int totalFrames = numPoses * pathSettings.framesPerSegment + 1;
       const float durationSeconds = (totalFrames - 1)
           / static_cast<float>(std::max(1, pathSettings.framesPerSecond));
@@ -319,8 +319,8 @@ void CameraPoses::buildUI_interpolationControls()
 
 void CameraPoses::renderInterpolatedPath()
 {
-  auto *core = appCore();
-  const auto &poses = core->view.poses;
+  auto *ctx = appContext();
+  const auto &poses = ctx->view.poses;
 
   if (poses.size() < 2) {
     tsd::core::logWarning(
@@ -332,13 +332,13 @@ void CameraPoses::renderInterpolatedPath()
   // This ensures exported frames match what you see in the viewport
 
   // Auto-initialize offline renderer settings if not configured
-  if (core->offline.renderer.rendererObjects.empty()
-      || core->offline.renderer.libraryName.empty()) {
-    const auto &libraryList = appCore()->anari.libraryList();
+  if (ctx->offline.renderer.rendererObjects.empty()
+      || ctx->offline.renderer.libraryName.empty()) {
+    const auto &libraryList = appContext()->anari.libraryList();
     if (!libraryList.empty()) {
       tsd::core::logStatus(
           "[CameraPoses] Initializing offline renderer from viewport device");
-      core->setOfflineRenderingLibrary(libraryList[0]);
+      ctx->setOfflineRenderingLibrary(libraryList[0]);
     } else {
       tsd::core::logError(
           "[CameraPoses] No ANARI library available. Cannot render.");
@@ -347,28 +347,28 @@ void CameraPoses::renderInterpolatedPath()
   }
 
   // Log what renderer we're using with details
-  if (core->offline.renderer.activeRenderer >= 0
-      && core->offline.renderer.activeRenderer
-          < static_cast<int>(core->offline.renderer.rendererObjects.size())) {
+  if (ctx->offline.renderer.activeRenderer >= 0
+      && ctx->offline.renderer.activeRenderer
+          < static_cast<int>(ctx->offline.renderer.rendererObjects.size())) {
     const auto &rendererObj =
-        core->offline.renderer
-            .rendererObjects[core->offline.renderer.activeRenderer];
+        ctx->offline.renderer
+            .rendererObjects[ctx->offline.renderer.activeRenderer];
     tsd::core::logStatus("[CameraPoses] Rendering camera path with:");
     tsd::core::logStatus(
-        "  Device: '%s'", core->offline.renderer.libraryName.c_str());
+        "  Device: '%s'", ctx->offline.renderer.libraryName.c_str());
     tsd::core::logStatus("  Renderer: '%s' (index %d)",
         rendererObj.subtype().c_str(),
-        core->offline.renderer.activeRenderer);
+        ctx->offline.renderer.activeRenderer);
   } else {
     tsd::core::logStatus(
         "[CameraPoses] Rendering with: device='%s', renderer index %d",
-        core->offline.renderer.libraryName.c_str(),
-        core->offline.renderer.activeRenderer);
+        ctx->offline.renderer.libraryName.c_str(),
+        ctx->offline.renderer.activeRenderer);
   }
 
   // Create output directory from offline settings
-  const std::string &outputDirectory = core->offline.output.outputDirectory;
-  const std::string &filePrefix = core->offline.output.filePrefix;
+  const std::string &outputDirectory = ctx->offline.output.outputDirectory;
+  const std::string &filePrefix = ctx->offline.output.filePrefix;
 
   if (outputDirectory.empty()) {
     tsd::core::logError(
@@ -382,14 +382,14 @@ void CameraPoses::renderInterpolatedPath()
 
   std::vector<tsd::rendering::CameraPose> samples;
   tsd::rendering::buildCameraPathSamples(
-      poses, core->view.pathSettings, samples);
+      poses, ctx->view.pathSettings, samples);
 
   if (samples.empty()) {
     tsd::core::logWarning("[CameraPoses] No camera path samples generated");
     return;
   }
 
-  core->updateCameraPathAnimation();
+  ctx->updateCameraPathAnimation();
 
   m_isRendering = true;
   m_renderTimer.start();
@@ -415,24 +415,23 @@ void CameraPoses::renderInterpolatedPath()
   // Launch rendering in background
   m_renderFuture = std::async(std::launch::async,
       [this,
-          core,
+          ctx,
           samplesCopy,
           capturedOutputDirectory,
           capturedFilePrefix,
           updateViewport,
           capturedTotalFrames]() {
         // Setup render pipeline
-        auto &config = core->offline;
+        auto &config = ctx->offline;
         auto deviceName = config.renderer.libraryName.c_str();
-        auto d = core->anari.loadDevice(deviceName);
+        auto d = ctx->anari.loadDevice(deviceName);
         if (!d) {
           tsd::core::logError("[CameraPoses] Failed to load ANARI device");
           return;
         }
 
-        auto &scene = core->tsd.scene;
-        auto *renderIndex =
-            core->anari.acquireRenderIndex(scene, deviceName, d);
+        auto &scene = ctx->tsd.scene;
+        auto *renderIndex = ctx->anari.acquireRenderIndex(scene, deviceName, d);
         if (!renderIndex) {
           tsd::core::logError("[CameraPoses] Failed to acquire render index");
           anari::release(d, d);
@@ -567,7 +566,7 @@ void CameraPoses::renderInterpolatedPath()
 
         // Cleanup
         pipeline.reset();
-        core->anari.releaseRenderIndex(d);
+        ctx->anari.releaseRenderIndex(d);
         anari::release(d, c);
         anari::release(d, r);
         anari::release(d, d);

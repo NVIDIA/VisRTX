@@ -62,11 +62,11 @@ anari_viewer::WindowArray Application::setupWindows()
 
   auto windows = TSDApplication::setupWindows();
 
-  auto *core = appCore();
+  auto *ctx = appContext();
 
   auto *cameras = new tsd_ui::CameraPoses(this);
   auto *log = new tsd_ui::Log(this);
-  m_viewport = new tsd_ui::Viewport(this, &core->view.manipulator, "Viewport");
+  m_viewport = new tsd_ui::Viewport(this, &ctx->view.manipulator, "Viewport");
   auto *dbeditor = new tsd_ui::DatabaseEditor(this);
   auto *oeditor = new tsd_ui::ObjectEditor(this);
   auto *otree = new tsd_ui::LayerTree(this);
@@ -94,10 +94,10 @@ anari_viewer::WindowArray Application::setupWindows()
 
   // Populate scene //
 
-  auto populateScene = [vp = m_viewport, core = core]() {
-    auto &scene = core->tsd.scene;
+  auto populateScene = [vp = m_viewport, ctx = ctx]() {
+    auto &scene = ctx->tsd.scene;
 
-    const bool setupDefaultLight = !core->commandLine.loadedFromStateFile
+    const bool setupDefaultLight = !ctx->commandLine.loadedFromStateFile
         && scene.numberOfObjects(ANARI_LIGHT) == 0;
     if (setupDefaultLight) {
       tsd::core::logStatus("...setting up default light");
@@ -111,7 +111,7 @@ anari_viewer::WindowArray Application::setupWindows()
       l->root()->insert_first_child({l, light});
     }
 
-    core->tsd.sceneLoadComplete = true;
+    ctx->tsd.sceneLoadComplete = true;
 
     vp->setLibraryToDefault();
   };
@@ -132,8 +132,8 @@ void Application::uiFrameEnd()
     anari::render(m_tsdDevice, m_tsdFrame);
     anari::wait(m_tsdDevice, m_tsdFrame);
 #if 0
-    auto *core = appCore();
-    core->tsd.scene.removeUnusedObjects();
+    auto *ctx = appContext();
+    ctx->tsd.scene.removeUnusedObjects();
 #endif
 #else
     auto &instances = m_graph.getANARIInstances();
@@ -293,7 +293,7 @@ void Application::setupGraph()
 {
 #if TSD_DEVICE_PASSTHROUGH
   anari::Device d = anariNewTsdDevice();
-  void *scenePtr = &appCore()->tsd.scene;
+  void *scenePtr = &appContext()->tsd.scene;
   anari::setParameter(d, d, "scene", scenePtr);
   anari::commitParameters(d, d);
 
@@ -315,8 +315,8 @@ void Application::setupGraph()
   m_tsdDevice = d;
 #else
   m_viewport->setDeviceChangeCb([&](const std::string &libName) {
-    auto &adm = appCore()->anari;
-    auto &scene = appCore()->tsd.scene;
+    auto &adm = appContext()->anari;
+    auto &scene = appContext()->tsd.scene;
     // Use the same ANARI device for the graph as we are in the viewport
     m_graph.setANARIDevice(adm.loadDevice(libName));
     if (!libName.empty()) {

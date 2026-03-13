@@ -47,12 +47,12 @@ struct Application : public TSDApplication
 
 Application::Application()
 {
-  auto *core = appCore();
+  auto *ctx = appContext();
 
   m_client = std::make_shared<tsd::network::NetworkClient>();
 
   m_updateDelegate = std::make_unique<tsd::network::NetworkUpdateDelegate>(
-      &core->tsd.scene, m_client.get());
+      &ctx->tsd.scene, m_client.get());
 
   m_client->registerHandler(
       MessageType::ERROR, [](const tsd::network::Message &msg) {
@@ -74,7 +74,7 @@ Application::Application()
 
   m_client->registerHandler(MessageType::CLIENT_RECEIVE_SCENE,
       [this](const tsd::network::Message &msg) {
-        auto &scene = appCore()->tsd.scene;
+        auto &scene = appContext()->tsd.scene;
         tsd::network::messages::TransferScene sceneMsg(msg, &scene);
         sceneMsg.execute();
         m_updateDelegate->setEnabled(true);
@@ -83,11 +83,11 @@ Application::Application()
             "\n%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
         tsd::core::logStatus("[Client] Requesting start of rendering...");
         m_client->send(MessageType::SERVER_START_RENDERING);
-        appCore()->tsd.sceneLoadComplete = true;
+        appContext()->tsd.sceneLoadComplete = true;
       });
 
-  core->tsd.scene.setUpdateDelegate(m_updateDelegate.get());
-  core->tsd.sceneLoadComplete = false;
+  ctx->tsd.scene.setUpdateDelegate(m_updateDelegate.get());
+  ctx->tsd.sceneLoadComplete = false;
 }
 
 Application::~Application() = default;
@@ -96,8 +96,8 @@ anari_viewer::WindowArray Application::setupWindows()
 {
   auto windows = TSDApplication::setupWindows();
 
-  auto *core = appCore();
-  auto *manipulator = &core->view.manipulator;
+  auto *ctx = appContext();
+  auto *manipulator = &ctx->view.manipulator;
 
   auto *log = new tsd_ui::Log(this);
   m_viewport =
@@ -344,10 +344,10 @@ void Application::disconnect()
   m_client->send(MessageType::DISCONNECT).get();
   m_client->disconnect();
 
-  auto *core = appCore();
-  core->tsd.sceneLoadComplete = false;
-  core->clearSelected();
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  ctx->tsd.sceneLoadComplete = false;
+  ctx->clearSelected();
+  auto &scene = ctx->tsd.scene;
   scene.removeAllObjects();
 }
 

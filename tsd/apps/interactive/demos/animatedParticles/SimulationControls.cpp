@@ -95,7 +95,7 @@ void SimulationControls::remakeDataArrays()
   const int numParticles =
       m_particlesPerSide * m_particlesPerSide * m_particlesPerSide;
 
-  auto &scene = appCore()->tsd.scene;
+  auto &scene = appContext()->tsd.scene;
   m_dataPointsCUDA = scene.createArrayCUDA(ANARI_FLOAT32_VEC3, numParticles);
   m_dataDistancesCUDA = scene.createArrayCUDA(ANARI_FLOAT32, numParticles);
   m_dataVelocitiesCUDA =

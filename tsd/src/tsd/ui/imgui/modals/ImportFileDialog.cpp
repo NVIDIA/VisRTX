@@ -98,10 +98,10 @@ void ImportFileDialog::buildUI()
     this->hide();
 
     auto doLoad = [&]() {
-      auto *core = appCore();
-      auto &scene = core->tsd.scene;
-      auto *layer = core->tsd.scene.defaultLayer();
-      auto importRoot = core->getFirstSelected();
+      auto *ctx = appContext();
+      auto &scene = ctx->tsd.scene;
+      auto *layer = ctx->tsd.scene.defaultLayer();
+      auto importRoot = ctx->getFirstSelected();
       if (!importRoot.valid())
         importRoot = layer->root();
       tsd::io::ImportFile file{

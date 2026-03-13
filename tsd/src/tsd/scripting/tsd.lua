@@ -65,7 +65,7 @@ local mat4 = {}
 ---@alias tsd.ParameterValue boolean|number|string|tsd.float2|tsd.float3|tsd.float4|tsd.mat4|tsd.Array|tsd.Sampler|tsd.Geometry|tsd.Material|tsd.SpatialField|tsd.Volume|tsd.Light|tsd.Camera|tsd.Surface|number[]
 
 ------------------------------------------------------------------------
--- Token (CoreBindings.cpp)
+-- Token (ContextBindings.cpp)
 ------------------------------------------------------------------------
 
 ---@class tsd.Token
@@ -83,7 +83,7 @@ function Token:str() end
 function Token:empty() end
 
 ------------------------------------------------------------------------
--- Parameter (CoreBindings.cpp — read-only descriptor)
+-- Parameter (ContextBindings.cpp — read-only descriptor)
 ------------------------------------------------------------------------
 
 ---@class tsd.Parameter
@@ -358,7 +358,7 @@ function Layer:at(index) end
 function Layer:foreach(fn) end
 
 ------------------------------------------------------------------------
--- Animation (CoreBindings.cpp)
+-- Animation (ContextBindings.cpp)
 ------------------------------------------------------------------------
 
 ---@class tsd.Animation
@@ -382,7 +382,7 @@ function Animation:update(time) end
 function Animation:setAsTimeSteps(obj, params, arrays) end
 
 ------------------------------------------------------------------------
--- Scene (CoreBindings.cpp)
+-- Scene (ContextBindings.cpp)
 ------------------------------------------------------------------------
 
 ---@class tsd.Scene

@@ -25,19 +25,19 @@ class Application : public TSDApplication
   {
     // Setup default scene //
 
-    auto *core = appCore();
-    auto &scene = core->tsd.scene;
+    auto *ctx = appContext();
+    auto &scene = ctx->tsd.scene;
 
-    core->setupSceneFromCommandLine();
+    ctx->setupSceneFromCommandLine();
 
-    const bool setupDefaultLight = !core->commandLine.loadedFromStateFile
+    const bool setupDefaultLight = !ctx->commandLine.loadedFromStateFile
         && scene.numberOfObjects(ANARI_LIGHT) == 0;
     if (setupDefaultLight) {
       tsd::core::logStatus("...setting up default light");
       tsd::io::generate_default_lights(scene);
     }
 
-    core->tsd.sceneLoadComplete = true;
+    ctx->tsd.sceneLoadComplete = true;
   }
 
   ~Application() override = default;
@@ -46,12 +46,12 @@ class Application : public TSDApplication
   {
     auto windows = TSDApplication::setupWindows();
 
-    auto *core = appCore();
+    auto *ctx = appContext();
 
     auto *animations = new tsd_ui::Animations(this);
     auto *log = new tsd_ui::Log(this);
     auto *viewport = new tsd_ui::MultiDeviceViewport(
-        this, &core->view.manipulator, "Viewport");
+        this, &ctx->view.manipulator, "Viewport");
     auto *cameras = new tsd_ui::CameraPoses(this, nullptr);
     auto *dbeditor = new tsd_ui::DatabaseEditor(this);
     auto *oeditor = new tsd_ui::ObjectEditor(this);

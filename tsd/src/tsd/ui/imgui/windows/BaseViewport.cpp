@@ -120,7 +120,7 @@ void BaseViewport::camera_update(bool force)
     return;
 
   if (!m_camera.current)
-    camera_setCurrent(appCore()->tsd.scene.defaultCamera());
+    camera_setCurrent(appContext()->tsd.scene.defaultCamera());
 
   if (!force && !m_camera.arcball->hasChanged(m_camera.arcballToken))
     return;
@@ -139,7 +139,7 @@ bool BaseViewport::gizmo_canShow() const
     return false;
 
   // Check if we have a selected node with a transform
-  auto selectedNode = appCore()->getFirstSelected();
+  auto selectedNode = appContext()->getFirstSelected();
   if (selectedNode.valid()) {
     return (*selectedNode)->isTransform();
   }
@@ -270,7 +270,7 @@ void BaseViewport::ui_gizmo()
     return world;
   };
 
-  auto selectedNodeRef = appCore()->getFirstSelected();
+  auto selectedNodeRef = appContext()->getFirstSelected();
   auto parentNodeRef = selectedNodeRef->parent();
 
   auto localTransform = (*selectedNodeRef)->getTransform();
@@ -356,7 +356,7 @@ void BaseViewport::ui_gizmo()
     auto invParent = linalg::inverse(parentWorldTransform);
     localTransform = mul(invParent, worldTransform);
     (*selectedNodeRef)->setAsTransform(localTransform);
-    appCore()->tsd.scene.signalLayerTransformChanged(
+    appContext()->tsd.scene.signalLayerTransformChanged(
         (*selectedNodeRef)->layer());
   }
 }
@@ -382,7 +382,7 @@ void BaseViewport::ui_menubar_Renderer()
       ImGui::Text("Parameters:");
       ImGui::Indent(INDENT_AMOUNT);
 
-      tsd::ui::buildUI_object(*m_renderers.current, appCore()->tsd.scene, true);
+      tsd::ui::buildUI_object(*m_renderers.current, appContext()->tsd.scene, true);
 
       ImGui::Unindent(INDENT_AMOUNT);
       ImGui::Separator();
@@ -404,7 +404,7 @@ void BaseViewport::ui_menubar_Renderer()
 void BaseViewport::ui_menubar_Camera()
 {
   if (ImGui::BeginMenu("Camera")) {
-    auto &scene = appCore()->tsd.scene;
+    auto &scene = appContext()->tsd.scene;
 
     ImGui::Text("Manipulator:");
     {

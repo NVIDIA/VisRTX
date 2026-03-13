@@ -9,13 +9,13 @@
 
 namespace tsd::app {
 
-struct Core;
+struct Context;
 
 // Callback type for per-frame actions; return false to abort sequence
 using RenderSequenceCallback =
     std::function<bool(int frameIndex, int numFrames)>;
 
-void renderAnimationSequence(Core &core,
+void renderAnimationSequence(Context &core,
     const std::string &outputDir,
     const std::string &filePrefix,
     RenderSequenceCallback preFrameCallback = {});

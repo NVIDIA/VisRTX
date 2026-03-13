@@ -49,9 +49,9 @@ const char *Modal::name() const
   return m_name.c_str();
 }
 
-tsd::app::Core *Modal::appCore() const
+tsd::app::Context *Modal::appContext() const
 {
-  return m_app ? m_app->appCore() : nullptr;
+  return m_app ? m_app->appContext() : nullptr;
 }
 
 } // namespace tsd::ui::imgui

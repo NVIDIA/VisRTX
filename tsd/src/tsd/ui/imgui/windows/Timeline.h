@@ -4,7 +4,7 @@
 #pragma once
 
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/windows/Window.h"
 // std

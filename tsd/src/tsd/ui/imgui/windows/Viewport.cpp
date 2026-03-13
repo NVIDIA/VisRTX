@@ -79,14 +79,14 @@ void Viewport::buildUI()
   ImGui::EndDisabled();
 
   if (m_anariPass && !didPick) {
-    bool needIDs = appCore()->getFirstSelected().valid()
+    bool needIDs = appContext()->getFirstSelected().valid()
         || m_visualizeAOV == tsd::rendering::AOVType::EDGES
         || m_visualizeAOV == tsd::rendering::AOVType::OBJECT_ID;
     m_anariPass->setEnableIDs(needIDs);
   }
 
   if (m_rIdx) {
-    auto kind = appCore()->anari.renderIndexKind();
+    auto kind = appContext()->anari.renderIndexKind();
     if (kind != m_lastIndexKind) {
       tsd::core::logWarning("render index setting changed: resetting viewport");
       m_lastIndexKind = kind;
@@ -108,8 +108,8 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
   }
 
   auto updateLibrary = [&, libName = libName]() {
-    auto &adm = appCore()->anari;
-    auto &scene = appCore()->tsd.scene;
+    auto &adm = appContext()->anari;
+    auto &scene = appContext()->tsd.scene;
 
     auto start = std::chrono::steady_clock::now();
     auto d = adm.loadDevice(libName);
@@ -139,7 +139,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       viewport_setActive(true);
 
       static bool firstFrame = true;
-      if (firstFrame && appCore()->commandLine.loadedFromStateFile)
+      if (firstFrame && appContext()->commandLine.loadedFromStateFile)
         firstFrame = false;
 
       if (!m_camera.current)
@@ -150,9 +150,9 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
       if (firstFrame || m_camera.arcball->distance() == tsd::math::inf) {
         camera_resetView(true);
-        if (appCore()->view.poses.empty()) {
+        if (appContext()->view.poses.empty()) {
           tsd::core::logStatus("[viewport] adding 'default' camera pose");
-          appCore()->addCurrentViewToCameraPoses("default");
+          appContext()->addCurrentViewToCameraPoses("default");
         }
         firstFrame = false;
       }
@@ -175,11 +175,11 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
 
 void Viewport::setLibraryToDefault()
 {
-  if (appCore()->commandLine.loadedFromStateFile)
+  if (appContext()->commandLine.loadedFromStateFile)
     return;
 
   setLibrary(m_app->commandLineOptions()->useDefaultRenderer
-          ? appCore()->anari.libraryList()[0]
+          ? appContext()->anari.libraryList()[0]
           : "");
 }
 
@@ -261,12 +261,12 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   if (auto *c = root.child("currentCamera"); c) {
     uint64_t idx = 0;
     c->getValue(ANARI_UINT64, &idx);
-    m_camera.current = appCore()->tsd.scene.getObject<tsd::core::Camera>(idx);
+    m_camera.current = appContext()->tsd.scene.getObject<tsd::core::Camera>(idx);
   }
 
   // Setup library //
 
-  auto *core = appCore();
+  auto *ctx = appContext();
   if (m_app->commandLineOptions()->useDefaultRenderer) {
     std::string libraryName;
     root["anariLibrary"].getValue(ANARI_STRING, &libraryName);
@@ -368,8 +368,8 @@ void Viewport::imagePipeline_populate(tsd::rendering::RenderPipeline &p)
       }
 
       auto *obj = (id == ~0u) ? nullptr
-                              : appCore()->tsd.scene.getObject(objectType, id);
-      appCore()->setSelected(obj);
+                              : appContext()->tsd.scene.getObject(objectType, id);
+      appContext()->setSelected(obj);
     }
 
     m_pickPass->setEnabled(false);
@@ -383,7 +383,7 @@ void Viewport::imagePipeline_populate(tsd::rendering::RenderPipeline &p)
   m_outlinePass = p.emplace_back<tsd::rendering::OutlineRenderPass>();
 
   anari::Extensions extensions{};
-  auto &adm = appCore()->anari;
+  auto &adm = appContext()->anari;
   if (auto *exts = adm.loadDeviceExtensions(m_libName); exts != nullptr)
     extensions = *exts;
 
@@ -452,7 +452,7 @@ void Viewport::teardownDevice()
   m_outputPass = nullptr;
   m_saveToFilePass = nullptr;
 
-  appCore()->anari.releaseRenderIndex(m_device);
+  appContext()->anari.releaseRenderIndex(m_device);
   m_rIdx = nullptr;
   m_libName.clear();
 
@@ -484,7 +484,7 @@ void Viewport::setSelectionVisibilityFilterEnabled(bool enabled)
     m_rIdx->setFilterFunction({});
   else {
     m_rIdx->setFilterFunction([this](const tsd::core::Object *obj) {
-      auto selectedNode = appCore()->getFirstSelected();
+      auto selectedNode = appContext()->getFirstSelected();
       if (!selectedNode.valid())
         return true;
       auto *selectedObject = (*selectedNode)->getObject();
@@ -499,7 +499,7 @@ void Viewport::updateFrame()
     return;
 
   if (!m_camera.current)
-    m_camera.current = appCore()->tsd.scene.defaultCamera();
+    m_camera.current = appContext()->tsd.scene.defaultCamera();
 
   m_anariPass->setWorld(m_rIdx->world());
   if (m_camera.current)
@@ -519,7 +519,7 @@ void Viewport::updateImage()
   anari::getProperty(
       m_device, frame, "numSamples", m_frameSamples, ANARI_NO_WAIT);
 
-  auto selectedNode = appCore()->getFirstSelected();
+  auto selectedNode = appContext()->getFirstSelected();
   const auto *selectedObject =
       selectedNode.valid() ? (*selectedNode)->getObject() : nullptr;
   const bool doHighlight = !m_showOnlySelected && m_highlightSelection
@@ -589,7 +589,7 @@ void Viewport::ui_menubar()
 void Viewport::ui_menubar_Device()
 {
   if (ImGui::BeginMenu("Device")) {
-    const auto &libraryList = appCore()->anari.libraryList();
+    const auto &libraryList = appContext()->anari.libraryList();
     for (auto &libName : libraryList) {
       const bool isThisLibrary = m_libName == libName;
       if (ImGui::RadioButton(libName.c_str(), isThisLibrary))

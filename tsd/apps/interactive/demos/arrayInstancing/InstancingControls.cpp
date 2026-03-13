@@ -21,7 +21,7 @@ InstancingControls::InstancingControls(
 void InstancingControls::buildUI()
 {
   if (ImGui::Button("clear scene"))
-    appCore()->tsd.scene.removeAllObjects();
+    appContext()->tsd.scene.removeAllObjects();
 
   ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
   if (ImGui::CollapsingHeader("Instancing")) {
@@ -38,7 +38,7 @@ void InstancingControls::buildUI()
 
   ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
   if (ImGui::CollapsingHeader("Lighting")) {
-    tsd::ui::buildUI_object(*m_light, appCore()->tsd.scene, true);
+    tsd::ui::buildUI_object(*m_light, appContext()->tsd.scene, true);
   }
 }
 
@@ -46,7 +46,7 @@ void InstancingControls::createScene()
 {
   // Clear out previous scene //
 
-  auto &scene = appCore()->tsd.scene;
+  auto &scene = appContext()->tsd.scene;
   scene.removeAllObjects();
 
   // Then only get the default layer //
@@ -84,7 +84,7 @@ void InstancingControls::createScene()
 
 void InstancingControls::generateSpheres()
 {
-  auto &scene = appCore()->tsd.scene;
+  auto &scene = appContext()->tsd.scene;
 
   // Generate geometry //
 
@@ -126,7 +126,7 @@ void InstancingControls::generateSpheres()
 
 void InstancingControls::generateInstances()
 {
-  auto &scene = appCore()->tsd.scene;
+  auto &scene = appContext()->tsd.scene;
   auto *layer = scene.defaultLayer();
 
   // Setup transforms //

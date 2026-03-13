@@ -13,7 +13,7 @@
 #include "modals/CuttingPlaneDialog.h"
 #include "modals/VorticityDialog.h"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TaskQueue.hpp"
@@ -43,7 +43,7 @@ class Application : public anari_viewer::Application
   Application(int argc = 0, const char **argv = nullptr);
   ~Application() override;
 
-  tsd::app::Core *appCore();
+  tsd::app::Context *appContext();
   UIConfig *uiConfig();
   CommandLineOptions *commandLineOptions();
 
@@ -132,7 +132,7 @@ class Application : public anari_viewer::Application
 
   // Data //
 
-  tsd::app::Core m_core;
+  tsd::app::Context m_ctx;
 
   tsd::core::TaskQueue m_jobs{10};
 

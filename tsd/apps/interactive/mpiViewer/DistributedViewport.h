@@ -13,7 +13,7 @@
 #include <tsd/core/scene/Object.hpp>
 #include <tsd/core/scene/UpdateDelegate.hpp>
 // tsd_app
-#include <tsd/app/Core.h>
+#include <tsd/app/Context.h>
 // tsd_rendering
 #include <tsd/rendering/view/Manipulator.hpp>
 // tsd_ui_imgui
@@ -56,7 +56,7 @@ struct DistributedViewport : public tsd::ui::imgui::Window
   tsd::math::float2 m_previousMouse{-1.f, -1.f};
   bool m_mouseRotating{false};
   bool m_manipulating{false};
-  bool m_coreMenuVisible{false};
+  bool m_ctxMenuVisible{false};
   bool m_saveNextFrame{false};
   int m_screenshotIndex{0};
   bool m_showOverlay{true};
@@ -89,7 +89,7 @@ struct DistributedViewport : public tsd::ui::imgui::Window
   float m_maxFL{-std::numeric_limits<float>::max()};
 
   std::string m_overlayWindowName;
-  std::string m_coreMenuName;
+  std::string m_ctxMenuName;
 };
 
 } // namespace tsd::mpi_viewer

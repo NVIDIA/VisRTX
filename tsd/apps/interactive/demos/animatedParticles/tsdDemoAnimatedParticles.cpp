@@ -30,9 +30,9 @@ class Application : public TSDApplication
   {
     auto windows = TSDApplication::setupWindows();
 
-    auto *core = appCore();
-    auto &scene = core->tsd.scene;
-    auto *manipulator = &core->view.manipulator;
+    auto *ctx = appContext();
+    auto &scene = ctx->tsd.scene;
+    auto *manipulator = &ctx->view.manipulator;
 
     auto *log = new tsd_ui::Log(this);
     auto *viewport = new tsd_ui::Viewport(this, manipulator, "Viewport");
@@ -51,7 +51,7 @@ class Application : public TSDApplication
 
     setWindowArray(windows);
 
-    core->setupSceneFromCommandLine(true);
+    ctx->setupSceneFromCommandLine(true);
 
     // Populate scene data //
 
@@ -114,7 +114,7 @@ class Application : public TSDApplication
 
     tsd::core::logStatus(
         "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
-    core->tsd.sceneLoadComplete = true;
+    ctx->tsd.sceneLoadComplete = true;
 
     viewport->setLibraryToDefault();
 

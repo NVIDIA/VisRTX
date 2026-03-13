@@ -38,8 +38,8 @@ Timeline::Timeline(Application *app, const char *name) : Window(app, name) {}
 
 void Timeline::buildUI()
 {
-  auto *core = appCore();
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  auto &scene = ctx->tsd.scene;
 
   // Space toggles play
   if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
@@ -80,8 +80,8 @@ void Timeline::buildUI()
 
 void Timeline::buildUI_transport()
 {
-  auto *core = appCore();
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  auto &scene = ctx->tsd.scene;
 
   ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(16.f, 2.f));
 
@@ -152,8 +152,8 @@ void Timeline::buildUI_transport()
 
 void Timeline::buildUI_canvas()
 {
-  auto *core = appCore();
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  auto &scene = ctx->tsd.scene;
 
   const float nameColWidth = 150.f;
   const float rowHeight = 20.f;

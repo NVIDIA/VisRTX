@@ -24,8 +24,8 @@ void VorticityDialog::buildUI()
 {
   using namespace tsd::core;
 
-  auto *core = appCore();
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  auto &scene = ctx->tsd.scene;
 
   // Collect all SpatialFields in the scene
   std::vector<const SpatialField *> fields;

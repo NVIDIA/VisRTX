@@ -88,8 +88,8 @@ void ExportNanoVDBFileDialog::buildUI()
     this->hide();
 
     auto doExport = [&]() {
-      auto *core = appCore();
-      auto selectedNode = core->getFirstSelected();
+      auto *ctx = appContext();
+      auto selectedNode = ctx->getFirstSelected();
       auto selectedObject =
           selectedNode.valid() ? (*selectedNode)->getObject() : nullptr;
       if (!selectedObject) {

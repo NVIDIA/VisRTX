@@ -111,7 +111,7 @@ struct OfflineRenderSequenceConfig
   void loadSettings(tsd::core::DataNode &root);
 };
 
-struct Core
+struct Context
 {
   CommandLineOptions commandLine;
   TSDState tsd;
@@ -123,8 +123,8 @@ struct Core
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
 
-  Core();
-  ~Core();
+  Context();
+  ~Context();
 
   // Command line parsing //
 
@@ -174,10 +174,10 @@ struct Core
   bool updateCameraPathAnimation();
 
   // Not copyable or moveable //
-  Core(const Core &) = delete;
-  Core(Core &&) = delete;
-  Core &operator=(const Core &) = delete;
-  Core &operator=(Core &&) = delete;
+  Context(const Context &) = delete;
+  Context(Context &&) = delete;
+  Context &operator=(const Context &) = delete;
+  Context &operator=(Context &&) = delete;
   //////////////////////////////
 
  private:

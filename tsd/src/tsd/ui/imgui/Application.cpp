@@ -23,18 +23,18 @@ namespace tsd::ui::imgui {
 Application::Application(int argc, const char **argv)
 {
   std::vector<std::string> args(argv, argv + argc);
-  auto *core = appCore();
+  auto *ctx = appContext();
   parseCommandLine(args);
-  core->parseCommandLine(args);
-  if (!core->commandLine.stateFile.empty())
-    m_filenameToLoadNextFrame = core->commandLine.stateFile;
+  ctx->parseCommandLine(args);
+  if (!ctx->commandLine.stateFile.empty())
+    m_filenameToLoadNextFrame = ctx->commandLine.stateFile;
 }
 
 Application::~Application() = default;
 
-tsd::app::Core *Application::appCore()
+tsd::app::Context *Application::appContext()
 {
-  return &m_core;
+  return &m_ctx;
 }
 
 UIConfig *Application::uiConfig()
@@ -139,7 +139,7 @@ anari_viewer::WindowArray Application::setupWindows()
   SDL_SetRenderVSync(sdlRenderer(), 1);
 
   m_extensionManager = std::make_unique<ExtensionManager>();
-  m_extensionManager->initialize(appCore());
+  m_extensionManager->initialize(appContext());
 
   return {};
 }
@@ -207,7 +207,7 @@ void Application::uiFrameStart()
     doSave();
 
   if (!modalActive && ImGui::IsKeyChordPressed(ImGuiKey_Escape))
-    m_core.clearSelected();
+    m_ctx.clearSelected();
 }
 
 void Application::teardown()
@@ -263,9 +263,9 @@ void Application::uiMainMenuBar_File()
     ImGui::Separator();
 
     if (ImGui::MenuItem("Export as USD...")) {
-      io::export_SceneToUSD(m_core.tsd.scene,
+      io::export_SceneToUSD(m_ctx.tsd.scene,
           "scene.usda",
-          m_core.view.pathSettings.framesPerSecond);
+          m_ctx.view.pathSettings.framesPerSecond);
     }
 
     ImGui::Separator();
@@ -301,22 +301,22 @@ void Application::uiMainMenuBar_Edit()
 
     if (ImGui::BeginMenu("Scene")) {
       if (ImGui::MenuItem("Cleanup Unused Objects"))
-        m_core.tsd.scene.removeUnusedObjects(false);
+        m_ctx.tsd.scene.removeUnusedObjects(false);
 
       if (ImGui::MenuItem("Cleanup Unused Objects + Renderers"))
-        m_core.tsd.scene.removeUnusedObjects(true);
+        m_ctx.tsd.scene.removeUnusedObjects(true);
 
       if (ImGui::MenuItem("Defragment Scene Storage"))
-        m_core.tsd.scene.defragmentObjectStorage();
+        m_ctx.tsd.scene.defragmentObjectStorage();
 
       if (ImGui::MenuItem("Cleanup Unused Objects + Defragment")) {
-        m_core.tsd.scene.removeUnusedObjects(false);
-        m_core.tsd.scene.defragmentObjectStorage();
+        m_ctx.tsd.scene.removeUnusedObjects(false);
+        m_ctx.tsd.scene.defragmentObjectStorage();
       }
 
       if (ImGui::MenuItem("Cleanup Unused + Defragment All")) {
-        m_core.tsd.scene.removeUnusedObjects(true);
-        m_core.tsd.scene.defragmentObjectStorage();
+        m_ctx.tsd.scene.removeUnusedObjects(true);
+        m_ctx.tsd.scene.defragmentObjectStorage();
       }
 
       ImGui::EndMenu();
@@ -447,7 +447,7 @@ void Application::saveApplicationState(const char *_filename)
   auto doSave = [&, filename = f_str]() {
     tsd::core::logStatus("clearing old settings tree...");
 
-    auto &core = *appCore();
+    auto &ctx = *appContext();
     auto &root = m_settings.root();
     root.reset();
 
@@ -461,28 +461,28 @@ void Application::saveApplicationState(const char *_filename)
     root["layout"] = ImGui::SaveIniSettingsToMemory();
 
     // ANARIDeviceManager settings
-    core.anari.saveSettings(root["ANARIDeviceManager"]);
+    ctx.anari.saveSettings(root["ANARIDeviceManager"]);
 
     // Offline rendering settings
     auto &offlineSettings = root["offlineRendering"];
-    core.offline.saveSettings(offlineSettings);
+    ctx.offline.saveSettings(offlineSettings);
 
     // General application settings
     auto &settings = root["settings"];
-    settings["logVerbose"] = core.logVerbose();
-    settings["logEchoOutput"] = core.logEchoOutput();
+    settings["logVerbose"] = ctx.logVerbose();
+    settings["logEchoOutput"] = ctx.logEchoOutput();
     settings["fontScale"] = m_uiConfig.fontScale;
     settings["uiRounding"] = m_uiConfig.rounding;
 
     // Camera poses
     auto &cameraPoses = root["cameraPoses"];
-    for (auto &p : core.view.poses)
+    for (auto &p : ctx.view.poses)
       tsd::io::cameraPoseToNode(p, cameraPoses.append());
 
     // Serialize TSD context
     tsd::core::logStatus("serializing TSD context...");
     root["context"].reset();
-    tsd::io::save_Scene(core.tsd.scene, root["context"], false);
+    tsd::io::save_Scene(ctx.tsd.scene, root["context"], false);
 
     // Save to file
     tsd::core::logStatus("writing state file '%s'...", filename.c_str());
@@ -508,14 +508,14 @@ void Application::loadApplicationState(const char *filename)
     return;
   }
 
-  auto &core = *appCore();
+  auto &ctx = *appContext();
   auto &root = m_settings.root();
 
   // TSD context from app state file, or context-only file
   if (auto *c = root.child("context"); c != nullptr)
-    tsd::io::load_Scene(core.tsd.scene, *c);
+    tsd::io::load_Scene(ctx.tsd.scene, *c);
   else
-    tsd::io::load_Scene(core.tsd.scene, root);
+    tsd::io::load_Scene(ctx.tsd.scene, root);
 
   // Clear out context tree
   root["context"].reset();
@@ -531,33 +531,33 @@ void Application::loadApplicationState(const char *filename)
 
   // ANARIDeviceManager settings
   if (auto *c = root.child("ANARIDeviceManager"); c != nullptr)
-    core.anari.loadSettings(*c);
+    ctx.anari.loadSettings(*c);
 
   // Offline rendering settings
   auto &offlineSettings = root["offlineRendering"];
-  core.offline.loadSettings(offlineSettings);
+  ctx.offline.loadSettings(offlineSettings);
 
   // General application settings
   if (auto *c = root.child("settings"); c != nullptr) {
     auto &settings = *c;
 
-    bool logVerbose = core.logVerbose();
+    bool logVerbose = ctx.logVerbose();
     settings["logVerbose"].getValue(ANARI_BOOL, &logVerbose);
-    core.setLogVerbose(logVerbose);
-    bool logEchoOutput = core.logEchoOutput();
+    ctx.setLogVerbose(logVerbose);
+    bool logEchoOutput = ctx.logEchoOutput();
     settings["logEchoOutput"].getValue(ANARI_BOOL, &logEchoOutput);
-    core.setLogEchoOutput(logEchoOutput);
+    ctx.setLogEchoOutput(logEchoOutput);
 
     settings["fontScale"].getValue(ANARI_FLOAT32, &m_uiConfig.fontScale);
     settings["uiRounding"].getValue(ANARI_FLOAT32, &m_uiConfig.rounding);
   }
 
-  core.view.poses.clear();
+  ctx.view.poses.clear();
   if (auto *c = root.child("cameraPoses"); c != nullptr) {
     c->foreach_child([&](auto &p) {
       tsd::rendering::CameraPose pose;
       tsd::io::nodeToCameraPose(p, pose);
-      core.view.poses.push_back(std::move(pose));
+      ctx.view.poses.push_back(std::move(pose));
     });
   }
 
@@ -573,7 +573,7 @@ void Application::loadStateForNextFrame()
 {
   if (m_filenameToLoadNextFrame.empty())
     return;
-  m_core.clearSelected();
+  m_ctx.clearSelected();
   loadApplicationState(m_filenameToLoadNextFrame.c_str());
   m_filenameToLoadNextFrame.clear();
 }
@@ -586,7 +586,7 @@ void Application::setupUsdDevice()
   auto d = m_usdDevice.device;
 
   if (d == nullptr) {
-    d = m_core.anari.loadDevice("usd");
+    d = m_ctx.anari.loadDevice("usd");
     if (!d) {
       tsd::core::logWarning("USD device failed to load");
       return;
@@ -596,7 +596,7 @@ void Application::setupUsdDevice()
   }
 
   m_usdDevice.renderIndex =
-      m_core.anari.acquireRenderIndex(m_core.tsd.scene, "usd", d);
+      m_ctx.anari.acquireRenderIndex(m_ctx.tsd.scene, "usd", d);
   m_usdDevice.frame = anari::newObject<anari::Frame>(d);
   anari::setParameter(
       d, m_usdDevice.frame, "world", m_usdDevice.renderIndex->world());
@@ -628,7 +628,7 @@ void Application::teardownUsdDevice()
     return;
   tsd::core::logStatus("tearing down USD device...");
   auto d = m_usdDevice.device;
-  m_core.anari.releaseRenderIndex(d);
+  m_ctx.anari.releaseRenderIndex(d);
   anari::release(d, m_usdDevice.frame);
   anari::release(d, d);
   m_usdDevice.device = nullptr;
@@ -643,7 +643,7 @@ void Application::setupTsdDevice()
   auto d = m_tsdDevice.device;
 
   if (d == nullptr) {
-    d = m_core.anari.loadDevice("tsd");
+    d = m_ctx.anari.loadDevice("tsd");
     if (!d) {
       tsd::core::logWarning("TSD device failed to load");
       return;
@@ -653,7 +653,7 @@ void Application::setupTsdDevice()
   }
 
   m_tsdDevice.renderIndex =
-      m_core.anari.acquireRenderIndex(m_core.tsd.scene, "tsd", d);
+      m_ctx.anari.acquireRenderIndex(m_ctx.tsd.scene, "tsd", d);
   m_tsdDevice.frame = anari::newObject<anari::Frame>(d);
   anari::setParameter(
       d, m_tsdDevice.frame, "world", m_tsdDevice.renderIndex->world());
@@ -687,7 +687,7 @@ void Application::teardownTsdDevice()
     return;
   tsd::core::logStatus("tearing down TSD device...");
   auto d = m_tsdDevice.device;
-  m_core.anari.releaseRenderIndex(d);
+  m_ctx.anari.releaseRenderIndex(d);
   anari::release(d, m_tsdDevice.frame);
   anari::release(d, d);
   m_tsdDevice.device = nullptr;

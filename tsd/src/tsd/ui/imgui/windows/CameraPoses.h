@@ -8,7 +8,7 @@
 #include <atomic>
 #include <future>
 #include <mutex>
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/core/Timer.hpp"
 #include "tsd/rendering/view/CameraPath.h"

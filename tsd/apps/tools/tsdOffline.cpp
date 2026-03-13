@@ -1,7 +1,7 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include <tsd/app/Core.h>
+#include <tsd/app/Context.h>
 #include <tsd/rendering/pipeline/RenderPipeline.h>
 #include <tsd/core/Logging.hpp>
 #include <tsd/core/Timer.hpp>
@@ -23,7 +23,7 @@ static std::unique_ptr<tsd::rendering::RenderPipeline> g_renderPipeline;
 static tsd::core::Timer g_timer;
 static tsd::rendering::Manipulator g_manipulator;
 static std::vector<tsd::rendering::CameraPose> g_cameraPoses;
-static std::unique_ptr<tsd::app::Core> g_core;
+static std::unique_ptr<tsd::app::Context> g_ctx;
 
 static tsd::core::Token g_deviceName;
 static anari::Library g_library{nullptr};
@@ -165,19 +165,19 @@ static int parseRenderingOptions(
         std::cerr << "Error: " << arg << " requires an argument\n";
         return -1;
       }
-      g_core->offline.frame.width = std::stoi(argv[++i]);
+      g_ctx->offline.frame.width = std::stoi(argv[++i]);
     } else if (arg == "-h" || arg == "--height") {
       if (i + 1 >= argc) {
         std::cerr << "Error: " << arg << " requires an argument\n";
         return -1;
       }
-      g_core->offline.frame.height = std::stoi(argv[++i]);
+      g_ctx->offline.frame.height = std::stoi(argv[++i]);
     } else if (arg == "-s" || arg == "--samples") {
       if (i + 1 >= argc) {
         std::cerr << "Error: " << arg << " requires an argument\n";
         return -1;
       }
-      g_core->offline.frame.samples = std::stoi(argv[++i]);
+      g_ctx->offline.frame.samples = std::stoi(argv[++i]);
     } else if (arg == "-o" || arg == "--output") {
       if (i + 1 >= argc) {
         std::cerr << "Error: " << arg << " requires an argument\n";
@@ -189,7 +189,7 @@ static int parseRenderingOptions(
         std::cerr << "Error: " << arg << " requires an argument\n";
         return -1;
       }
-      g_core->offline.renderer.libraryName = argv[++i];
+      g_ctx->offline.renderer.libraryName = argv[++i];
     } else if (arg == "--renderer") {
       if (i + 1 >= argc) {
         std::cerr << "Error: " << arg << " requires an argument\n";
@@ -227,13 +227,13 @@ static int parseRenderingOptions(
         std::cerr << "Error: --aperture requires an argument\n";
         return -1;
       }
-      g_core->offline.camera.apertureRadius = std::stof(argv[++i]);
+      g_ctx->offline.camera.apertureRadius = std::stof(argv[++i]);
     } else if (arg == "--focus") {
       if (i + 1 >= argc) {
         std::cerr << "Error: --focus requires an argument\n";
         return -1;
       }
-      g_core->offline.camera.focusDistance = std::stof(argv[++i]);
+      g_ctx->offline.camera.focusDistance = std::stof(argv[++i]);
     } else if (arg == "--bg-color") {
       if (i + 4 >= argc) {
         std::cerr << "Error: --bg-color requires 4 arguments (r g b a)\n";
@@ -301,7 +301,7 @@ static void loadANARIDevice()
       fprintf(stderr, "[ANARI][ERROR] %s\n", message);
   };
 
-  const auto &libraryName = g_core->offline.renderer.libraryName;
+  const auto &libraryName = g_ctx->offline.renderer.libraryName;
   g_deviceName = libraryName;
 
   printf("Loading ANARI device from '%s' library...", libraryName.c_str());
@@ -322,7 +322,7 @@ static void initTSDRenderIndex()
 
   g_timer.start();
   g_renderIndex = std::make_unique<tsd::rendering::RenderIndexAllLayers>(
-      g_core->tsd.scene, g_deviceName, g_device);
+      g_ctx->tsd.scene, g_deviceName, g_device);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -335,7 +335,7 @@ static void populateTSDScene()
 
   g_timer.start();
 
-  g_core->setupSceneFromCommandLine();
+  g_ctx->setupSceneFromCommandLine();
 
   g_timer.end();
 
@@ -364,7 +364,7 @@ static void setupLights()
   // Add user-specified directional lights
   for (const auto &lightConfig : g_config.directionalLights) {
     auto light =
-        g_core->tsd.scene.createObject<tsd::core::Light>("directional");
+        g_ctx->tsd.scene.createObject<tsd::core::Light>("directional");
     light->setParameter("direction", lightConfig.direction);
     light->setParameter("color", lightConfig.color);
     light->setParameter("irradiance", lightConfig.irradiance);
@@ -372,13 +372,13 @@ static void setupLights()
 
   // If no lights were specified and scene has none, add viewer-default lights
   if (g_config.directionalLights.empty()
-      && g_core->tsd.scene.numberOfObjects(ANARI_LIGHT) == 0) {
-    tsd::io::generate_default_lights(g_core->tsd.scene);
+      && g_ctx->tsd.scene.numberOfObjects(ANARI_LIGHT) == 0) {
+    tsd::io::generate_default_lights(g_ctx->tsd.scene);
     printf("(added default light)...");
     fflush(stdout);
   } else {
     printf("(%zu light(s) in scene)...",
-        g_core->tsd.scene.numberOfObjects(ANARI_LIGHT));
+        g_ctx->tsd.scene.numberOfObjects(ANARI_LIGHT));
     fflush(stdout);
   }
 
@@ -427,8 +427,8 @@ static void setupCameraManipulator()
 
 static void setupRenderPipeline()
 {
-  const auto frameWidth = g_core->offline.frame.width;
-  const auto frameHeight = g_core->offline.frame.height;
+  const auto frameWidth = g_ctx->offline.frame.width;
+  const auto frameHeight = g_ctx->offline.frame.height;
 
   printf("Setting up render pipeline (%u x %u)...", frameWidth, frameHeight);
   fflush(stdout);
@@ -445,11 +445,11 @@ static void setupRenderPipeline()
   anari::setParameter(g_device,
       g_camera,
       "apertureRadius",
-      g_core->offline.camera.apertureRadius);
+      g_ctx->offline.camera.apertureRadius);
   anari::setParameter(g_device,
       g_camera,
       "focusDistance",
-      g_core->offline.camera.focusDistance);
+      g_ctx->offline.camera.focusDistance);
   anari::commitParameters(g_device, g_camera);
 
   auto r = anari::newObject<anari::Renderer>(
@@ -479,9 +479,9 @@ static void setupRenderPipeline()
 
 static void renderFrame()
 {
-  const auto frameWidth = g_core->offline.frame.width;
-  const auto frameHeight = g_core->offline.frame.height;
-  const auto frameSamples = g_core->offline.frame.samples;
+  const auto frameWidth = g_ctx->offline.frame.width;
+  const auto frameHeight = g_ctx->offline.frame.height;
+  const auto frameSamples = g_ctx->offline.frame.samples;
 
   printf("Rendering frame (%u spp)...\n", frameSamples);
   fflush(stdout);
@@ -540,8 +540,8 @@ int main(int argc, const char *argv[])
   // Enable TSD logging to stdout so we can see import errors
   tsd::core::setLogToStdout();
 
-  // Initialize Core first so it can be used for parsing
-  g_core = std::make_unique<tsd::app::Core>();
+  // Initialize Context first so it can be used for parsing
+  g_ctx = std::make_unique<tsd::app::Context>();
   // Default library: TSD_ANARI_LIBRARIES[0], then "environment" (reads
   // ANARI_LIBRARY), then "visrtx"
   std::string defaultLibrary = "visrtx";
@@ -557,32 +557,32 @@ int main(int argc, const char *argv[])
     if (!first.empty())
       defaultLibrary = first;
   }
-  g_core->offline.renderer.libraryName = defaultLibrary; // overridden by --lib
+  g_ctx->offline.renderer.libraryName = defaultLibrary; // overridden by --lib
 
   // Two-pass command line parsing:
   // 1. Extract rendering options (width, height, samples, etc.)
-  // 2. Pass remaining args (importer flags and filenames) to Core
+  // 2. Pass remaining args (importer flags and filenames) to Context
   std::vector<const char *> importerArgv;
   int importerArgc = parseRenderingOptions(argc, argv, importerArgv);
   if (importerArgc < 0) {
     return 1;
   }
 
-  // Let Core parse importer options (-gltf, -obj, -volume, etc.)
-  g_core->parseCommandLine(importerArgc, importerArgv.data());
+  // Let Context parse importer options (-gltf, -obj, -volume, etc.)
+  g_ctx->parseCommandLine(importerArgc, importerArgv.data());
 
   printf("tsdOffline - Headless TSD Renderer\n");
   printf("===================================\n");
   printf("Resolution: %ux%u\n",
-      g_core->offline.frame.width,
-      g_core->offline.frame.height);
-  printf("Samples: %u\n", g_core->offline.frame.samples);
-  printf("Library: %s\n", g_core->offline.renderer.libraryName.c_str());
+      g_ctx->offline.frame.width,
+      g_ctx->offline.frame.height);
+  printf("Samples: %u\n", g_ctx->offline.frame.samples);
+  printf("Library: %s\n", g_ctx->offline.renderer.libraryName.c_str());
   printf("Renderer: %s\n", g_config.rendererName.c_str());
   printf("Output: %s\n", g_config.outputFile.c_str());
   printf("\n");
 
-  // Core already initializes its scene, no separate initialization needed
+  // Context already initializes its scene, no separate initialization needed
   loadANARIDevice();
   populateTSDScene(); // Import data into scene FIRST
   setupLights(); // Then add lights
@@ -593,7 +593,7 @@ int main(int argc, const char *argv[])
   renderFrame();
   cleanup();
 
-  g_core.reset();
+  g_ctx.reset();
 
   return 0;
 }

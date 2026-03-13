@@ -3,7 +3,7 @@
 
 #define ANARI_EXTENSION_UTILITY_IMPL
 
-#include "Core.h"
+#include "Context.h"
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
@@ -14,23 +14,23 @@
 
 namespace tsd::app {
 
-Core::Core() : anari(&m_logging.verbose)
+Context::Context() : anari(&m_logging.verbose)
 {
   tsd.scene.setUpdateDelegate(&anari.getUpdateDelegate());
 }
 
-Core::~Core()
+Context::~Context()
 {
   anari.releaseAllDevices();
 }
 
-void Core::parseCommandLine(int argc, const char **argv)
+void Context::parseCommandLine(int argc, const char **argv)
 {
   std::vector<std::string> args(argv, argv + argc);
   parseCommandLine(args);
 }
 
-void Core::parseCommandLine(std::vector<std::string> &args)
+void Context::parseCommandLine(std::vector<std::string> &args)
 {
   auto &importerType = this->commandLine.importerType;
 
@@ -142,7 +142,7 @@ void Core::parseCommandLine(std::vector<std::string> &args)
   this->commandLine.currentAnimationSequence = nullptr;
 }
 
-void Core::setupSceneFromCommandLine(bool hdriOnly)
+void Context::setupSceneFromCommandLine(bool hdriOnly)
 {
   if (hdriOnly) {
     for (const auto &f : commandLine.filenames) {
@@ -170,33 +170,33 @@ void Core::setupSceneFromCommandLine(bool hdriOnly)
   }
 }
 
-bool Core::logVerbose() const
+bool Context::logVerbose() const
 {
   return m_logging.verbose;
 }
 
-void Core::setLogVerbose(bool v)
+void Context::setLogVerbose(bool v)
 {
   m_logging.verbose = v;
 }
 
-bool Core::logEchoOutput() const
+bool Context::logEchoOutput() const
 {
   return m_logging.echoOutput;
 }
 
-void Core::setLogEchoOutput(bool v)
+void Context::setLogEchoOutput(bool v)
 {
   m_logging.echoOutput = v;
 }
 
-void Core::setOfflineRenderingLibrary(const std::string &libName)
+void Context::setOfflineRenderingLibrary(const std::string &libName)
 {
   auto &dm = this->anari;
   auto d = dm.loadDevice(libName);
   if (!d) {
     tsd::core::logError(
-        "[Core] Failed to load ANARI device for offline rendering: %s",
+        "[Context] Failed to load ANARI device for offline rendering: %s",
         libName.c_str());
     return;
   }
@@ -214,30 +214,30 @@ void Core::setOfflineRenderingLibrary(const std::string &libName)
   anari::release(d, d);
 }
 
-tsd::core::LayerNodeRef Core::getFirstSelected() const
+tsd::core::LayerNodeRef Context::getFirstSelected() const
 {
   return tsd.selectedNodes.empty() ? tsd::core::LayerNodeRef{}
                                    : tsd.selectedNodes[0];
 }
 
-const std::vector<tsd::core::LayerNodeRef> &Core::getSelectedNodes() const
+const std::vector<tsd::core::LayerNodeRef> &Context::getSelectedNodes() const
 {
   return tsd.selectedNodes;
 }
 
-void Core::setSelected(tsd::core::LayerNodeRef node)
+void Context::setSelected(tsd::core::LayerNodeRef node)
 {
   setSelected(std::vector<tsd::core::LayerNodeRef>{
       node.valid() ? node : tsd::core::LayerNodeRef{}});
 }
 
-void Core::setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes)
+void Context::setSelected(const std::vector<tsd::core::LayerNodeRef> &nodes)
 {
   tsd.selectedNodes = nodes;
   anari.getUpdateDelegate().signalObjectFilteringChanged();
 }
 
-void Core::setSelected(const tsd::core::Object *obj)
+void Context::setSelected(const tsd::core::Object *obj)
 {
   if (!obj) {
     clearSelected();
@@ -279,7 +279,7 @@ void Core::setSelected(const tsd::core::Object *obj)
   clearSelected();
 }
 
-void Core::addToSelection(tsd::core::LayerNodeRef node)
+void Context::addToSelection(tsd::core::LayerNodeRef node)
 {
   if (!node.valid())
     return;
@@ -293,7 +293,7 @@ void Core::addToSelection(tsd::core::LayerNodeRef node)
   anari.getUpdateDelegate().signalObjectFilteringChanged();
 }
 
-void Core::removeFromSelection(tsd::core::LayerNodeRef node)
+void Context::removeFromSelection(tsd::core::LayerNodeRef node)
 {
   auto it = std::find(tsd.selectedNodes.begin(), tsd.selectedNodes.end(), node);
   if (it != tsd.selectedNodes.end()) {
@@ -302,20 +302,20 @@ void Core::removeFromSelection(tsd::core::LayerNodeRef node)
   }
 }
 
-bool Core::isSelected(tsd::core::LayerNodeRef node) const
+bool Context::isSelected(tsd::core::LayerNodeRef node) const
 {
   return std::find(tsd.selectedNodes.begin(), tsd.selectedNodes.end(), node)
       != tsd.selectedNodes.end();
 }
 
-void Core::clearSelected()
+void Context::clearSelected()
 {
   if (!tsd.selectedNodes.empty()) {
     tsd.selectedNodes.clear();
     anari.getUpdateDelegate().signalObjectFilteringChanged();
   }
 }
-std::vector<tsd::core::LayerNodeRef> Core::getParentOnlySelectedNodes() const
+std::vector<tsd::core::LayerNodeRef> Context::getParentOnlySelectedNodes() const
 {
   std::vector<tsd::core::LayerNodeRef> parentOnly;
 
@@ -354,7 +354,7 @@ std::vector<tsd::core::LayerNodeRef> Core::getParentOnlySelectedNodes() const
 
   return parentOnly;
 }
-void Core::addCurrentViewToCameraPoses(const char *_name)
+void Context::addCurrentViewToCameraPoses(const char *_name)
 {
   auto azel = view.manipulator.azel();
   auto dist = view.manipulator.distance();
@@ -373,7 +373,7 @@ void Core::addCurrentViewToCameraPoses(const char *_name)
   view.poses.push_back(std::move(pose));
 }
 
-void Core::addTurntableCameraPoses(const tsd::math::float3 &azs,
+void Context::addTurntableCameraPoses(const tsd::math::float3 &azs,
     const tsd::math::float3 &els,
     const tsd::math::float3 &center,
     float dist,
@@ -402,7 +402,7 @@ void Core::addTurntableCameraPoses(const tsd::math::float3 &azs,
   }
 }
 
-void Core::updateExistingCameraPoseFromView(CameraPose &p)
+void Context::updateExistingCameraPoseFromView(CameraPose &p)
 {
   auto azel = view.manipulator.azel();
   auto dist = view.manipulator.distance();
@@ -413,7 +413,7 @@ void Core::updateExistingCameraPoseFromView(CameraPose &p)
   p.upAxis = static_cast<int>(view.manipulator.axis());
 }
 
-bool Core::updateCameraPathAnimation()
+bool Context::updateCameraPathAnimation()
 {
   auto &scene = tsd.scene;
 
@@ -501,14 +501,14 @@ bool Core::updateCameraPathAnimation()
   return true;
 }
 
-void Core::setCameraPose(const CameraPose &pose)
+void Context::setCameraPose(const CameraPose &pose)
 {
   view.manipulator.setConfig(
       pose.lookat, pose.azeldist.z, {pose.azeldist.x, pose.azeldist.y});
   view.manipulator.setAxis(static_cast<tsd::rendering::UpAxis>(pose.upAxis));
 }
 
-void Core::removeAllPoses()
+void Context::removeAllPoses()
 {
   view.poses.clear();
   if (view.cameraPathAnimation) {

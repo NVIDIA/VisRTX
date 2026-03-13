@@ -34,9 +34,9 @@ class Application : public TSDApplication
 
   anari_viewer::WindowArray setupWindows() override
   {
-    auto *log = new tsd::ui::imgui::Log(this, m_controller->appCore());
+    auto *log = new tsd::ui::imgui::Log(this, m_controller->appContext());
 
-    if (!m_controller->appCore()->logVerbose()) {
+    if (!m_controller->appContext()->logVerbose()) {
       tsd::core::logStatus(
           "app window running on rank '%i'", m_controller->rank());
     }

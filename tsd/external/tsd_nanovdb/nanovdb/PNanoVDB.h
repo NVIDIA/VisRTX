@@ -1080,7 +1080,7 @@ PNANOVDB_FORCE_INLINE void pnanovdb_write_vec3(pnanovdb_buf_t buf, pnanovdb_addr
     pnanovdb_write_float(buf, pnanovdb_address_offset(address, 8u), PNANOVDB_DEREF(value).z);
 }
 
-// ------------------------------------------------ Core Structures -----------------------------------------------------------
+// ------------------------------------------------ Context Structures -----------------------------------------------------------
 
 #define PNANOVDB_MAGIC_NUMBER 0x304244566f6e614eUL// "NanoVDB0" in hex - little endian (uint64_t)
 #define PNANOVDB_MAGIC_GRID   0x314244566f6e614eUL// "NanoVDB1" in hex - little endian (uint64_t)

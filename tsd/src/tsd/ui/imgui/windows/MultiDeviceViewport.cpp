@@ -79,12 +79,12 @@ void MultiDeviceViewport::centerView()
 
 void MultiDeviceViewport::setLibrary(const std::string &libName)
 {
-  auto *core = appCore();
-  auto &adm = core->anari;
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  auto &adm = ctx->anari;
+  auto &scene = ctx->tsd.scene;
 
   auto library =
-      anari::loadLibrary(libName.c_str(), tsd::app::anariStatusFunc, core);
+      anari::loadLibrary(libName.c_str(), tsd::app::anariStatusFunc, ctx);
   if (!library) {
     tsd::core::logError(
         "[multi-viewport] failed to load ANARI library '%s'", libName.c_str());
@@ -147,14 +147,14 @@ void MultiDeviceViewport::setLibrary(const std::string &libName)
   updateAllRendererParameters();
 
   static bool firstFrame = true;
-  if (firstFrame && core->commandLine.loadedFromStateFile)
+  if (firstFrame && ctx->commandLine.loadedFromStateFile)
     firstFrame = false;
 
   if (firstFrame || m_arcball->distance() == tsd::math::inf) {
     resetView(true);
-    if (core->view.poses.empty()) {
+    if (ctx->view.poses.empty()) {
       tsd::core::logStatus("[multi-viewport] adding 'default' camera pose");
-      core->addCurrentViewToCameraPoses("default");
+      ctx->addCurrentViewToCameraPoses("default");
     }
     firstFrame = false;
   }
@@ -199,7 +199,7 @@ void MultiDeviceViewport::loadSettings(tsd::core::DataNode &root)
 tsd::rendering::RenderIndexAllLayers *MultiDeviceViewport::getRenderIndex(
     size_t i) const
 {
-  auto &delegate = appCore()->anari.getUpdateDelegate();
+  auto &delegate = appContext()->anari.getUpdateDelegate();
   return (tsd::rendering::RenderIndexAllLayers *)delegate.get(i);
 }
 
@@ -236,7 +236,7 @@ void MultiDeviceViewport::setupRenderPipeline(
           devices);
 
   {
-    auto &adm = appCore()->anari;
+    auto &adm = appContext()->anari;
     auto d = adm.loadDevice("helide");
     auto e = adm.loadDeviceExtensions("helide");
 
@@ -322,7 +322,7 @@ void MultiDeviceViewport::ui_menubar()
       ImGui::Text("Parameters:");
       ImGui::Indent(INDENT_AMOUNT);
 
-      tsd::ui::buildUI_object(m_rendererObject, appCore()->tsd.scene, false);
+      tsd::ui::buildUI_object(m_rendererObject, appContext()->tsd.scene, false);
 
       ImGui::Unindent(INDENT_AMOUNT);
       ImGui::Separator();

@@ -35,12 +35,12 @@ class Application : public TSDApplication
   {
     auto windows = TSDApplication::setupWindows();
 
-    auto *core = appCore();
+    auto *ctx = appContext();
 
     auto *viewport =
-        new tsd_ui::Viewport(this, &core->view.manipulator, "Viewport");
+        new tsd_ui::Viewport(this, &ctx->view.manipulator, "Viewport");
     auto *viewport2 =
-        new tsd_ui::Viewport(this, &core->view.manipulator, "Secondary View");
+        new tsd_ui::Viewport(this, &ctx->view.manipulator, "Secondary View");
     auto *animations = new tsd_ui::Animations(this);
     auto *timeline = new tsd_ui::Timeline(this);
     auto *cameras = new tsd_ui::CameraPoses(this);
@@ -74,16 +74,16 @@ class Application : public TSDApplication
 
     // Populate scene //
 
-    auto populateScene = [this, vp = viewport, vp2 = viewport2, core = core]() {
+    auto populateScene = [this, vp = viewport, vp2 = viewport2, ctx = ctx]() {
       auto loadStart = std::chrono::steady_clock::now();
-      core->setupSceneFromCommandLine();
+      ctx->setupSceneFromCommandLine();
       auto loadEnd = std::chrono::steady_clock::now();
       auto loadSeconds =
           std::chrono::duration<float>(loadEnd - loadStart).count();
 
-      auto &scene = core->tsd.scene;
+      auto &scene = ctx->tsd.scene;
 
-      const bool setupDefaultLight = !core->commandLine.loadedFromStateFile
+      const bool setupDefaultLight = !ctx->commandLine.loadedFromStateFile
           && scene.numberOfObjects(ANARI_LIGHT) == 0;
       if (setupDefaultLight) {
         tsd::core::logStatus("...setting up default light");
@@ -93,9 +93,9 @@ class Application : public TSDApplication
       tsd::core::logStatus("...scene load complete! (%.3fs)", loadSeconds);
       tsd::core::logStatus(
           "%s", tsd::core::objectDBInfo(scene.objectDB()).c_str());
-      core->tsd.sceneLoadComplete = true;
+      ctx->tsd.sceneLoadComplete = true;
 
-      auto setupDefaultRenderer = !core->commandLine.loadedFromStateFile
+      auto setupDefaultRenderer = !ctx->commandLine.loadedFromStateFile
           && commandLineOptions()->useDefaultRenderer;
       if (setupDefaultRenderer) {
         vp->setLibraryToDefault();

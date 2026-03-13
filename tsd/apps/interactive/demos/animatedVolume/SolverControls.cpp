@@ -93,7 +93,7 @@ void SolverControls::remakeDataArray()
     return;
   }
 
-  auto &scene = appCore()->tsd.scene;
+  auto &scene = appContext()->tsd.scene;
 
   m_dataHost = {};
   m_dataCUDA_1 = {};

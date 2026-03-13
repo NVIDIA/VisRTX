@@ -4,7 +4,7 @@
 #include "tsd/app/renderAnimationSequence.h"
 // tsd_app
 #include "tsd/app/ANARIDeviceManager.h"
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/scene/Animation.hpp"
@@ -20,7 +20,7 @@
 
 namespace tsd::app {
 
-void renderAnimationSequence(Core &core,
+void renderAnimationSequence(Context &core,
     const std::string &outputDir,
     const std::string &filePrefix,
     RenderSequenceCallback preFrameCallback)

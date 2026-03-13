@@ -16,7 +16,7 @@ class LuaContext;
 
 namespace tsd {
 namespace app {
-struct Core;
+struct Context;
 }
 namespace ui::imgui {
 
@@ -42,7 +42,7 @@ class ExtensionManager
   ExtensionManager();
   ~ExtensionManager();
 
-  void initialize(tsd::app::Core *core);
+  void initialize(tsd::app::Context *ctx);
   void refresh();
 
   void addMenuAction(const std::string &path, std::function<void()> fn);
@@ -68,7 +68,7 @@ class ExtensionManager
   std::vector<ActionEntry> m_actions;
   std::vector<ActionMenuNode> m_menuTree;
   bool m_menuDirty{true};
-  tsd::app::Core *m_core{nullptr};
+  tsd::app::Context *m_ctx{nullptr};
 };
 
 } // namespace ui::imgui

@@ -17,8 +17,8 @@ void Animations::buildUI()
   if (ImGui::IsKeyPressed(ImGuiKey_Space))
     m_playing = !m_playing;
 
-  auto *core = appCore();
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  auto &scene = ctx->tsd.scene;
 
   if (m_playing)
     scene.incrementAnimationTime();
@@ -40,8 +40,8 @@ void Animations::buildUI()
 
 void Animations::buildUI_animationControls()
 {
-  auto *core = appCore();
-  auto &scene = core->tsd.scene;
+  auto *ctx = appContext();
+  auto &scene = ctx->tsd.scene;
 
   ImGui::BeginDisabled(m_playing);
 

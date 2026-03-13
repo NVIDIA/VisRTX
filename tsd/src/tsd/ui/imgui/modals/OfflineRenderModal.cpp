@@ -38,11 +38,11 @@ void OfflineRenderModal::start()
   m_timer.start();
   m_canceled = false;
   this->show();
-  auto *core = appCore();
-  m_future = m_app->enqueueTask([this, core]() {
-    tsd::app::renderAnimationSequence(*core,
-        core->offline.output.outputDirectory,
-        core->offline.output.filePrefix,
+  auto *ctx = appContext();
+  m_future = m_app->enqueueTask([this, ctx]() {
+    tsd::app::renderAnimationSequence(*ctx,
+        ctx->offline.output.outputDirectory,
+        ctx->offline.output.filePrefix,
         [&](int frameIndex, int numFrames) {
           tsd::core::logStatus("[OfflineRenderModal] Rendering frame %d of %d",
               frameIndex + 1,

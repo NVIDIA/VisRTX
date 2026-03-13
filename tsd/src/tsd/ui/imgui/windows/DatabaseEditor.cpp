@@ -5,7 +5,7 @@
 // tsd_ui_imgui
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 
 namespace tsd::ui::imgui {
 
@@ -15,7 +15,7 @@ DatabaseEditor::DatabaseEditor(Application *app, const char *name)
 
 void DatabaseEditor::buildUI()
 {
-  ImGui::BeginDisabled(!appCore()->tsd.sceneLoadComplete);
+  ImGui::BeginDisabled(!appContext()->tsd.sceneLoadComplete);
 
   auto buildUI_objectSection = [&](const auto &ctxList,
                                    const char *headerText) {
@@ -34,15 +34,15 @@ void DatabaseEditor::buildUI()
         const bool doDelete = ImGui::Button("delete");
         ImGui::EndDisabled();
         if (doDelete)
-          appCore()->tsd.scene.removeObject(o);
+          appContext()->tsd.scene.removeObject(o);
         else
-          tsd::ui::buildUI_object(*o, appCore()->tsd.scene, true);
+          tsd::ui::buildUI_object(*o, appContext()->tsd.scene, true);
         ImGui::PopID();
       });
     }
   };
 
-  const auto &db = appCore()->tsd.scene.objectDB();
+  const auto &db = appContext()->tsd.scene.objectDB();
 
   buildUI_objectSection(db.camera, "Cameras");
   buildUI_objectSection(db.renderer, "Renderers");

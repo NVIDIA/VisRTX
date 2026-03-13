@@ -22,9 +22,9 @@ void Window::loadSettings(tsd::core::DataNode &thisWindowRoot)
   thisWindowRoot["visible"].getValue(ANARI_BOOL, visiblePtr());
 }
 
-tsd::app::Core *Window::appCore() const
+tsd::app::Context *Window::appContext() const
 {
-  return m_app ? m_app->appCore() : nullptr;
+  return m_app ? m_app->appContext() : nullptr;
 }
 
 } // namespace tsd::ui::imgui

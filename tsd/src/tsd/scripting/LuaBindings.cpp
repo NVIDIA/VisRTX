@@ -15,7 +15,7 @@ void registerAllBindings(sol::state &lua)
 
   // Register bindings in order of dependency
   registerMathBindings(lua);
-  registerCoreBindings(lua);
+  registerContextBindings(lua);
   registerObjectBindings(lua);
   registerLayerBindings(lua);
   registerIOBindings(lua);

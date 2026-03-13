@@ -25,9 +25,9 @@ class Application : public TSDApplication
   {
     auto windows = TSDApplication::setupWindows();
 
-    auto *core = appCore();
-    auto *manipulator = &core->view.manipulator;
-    core->tsd.sceneLoadComplete = true;
+    auto *ctx = appContext();
+    auto *manipulator = &ctx->view.manipulator;
+    ctx->tsd.sceneLoadComplete = true;
 
     auto *log = new tsd_ui::Log(this);
     auto *viewport = new tsd_ui::Viewport(this, manipulator, "Viewport");

@@ -3,7 +3,7 @@
 
 #include "ExtensionManager.h"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 // tsd_scripting
@@ -19,13 +19,13 @@ namespace tsd::ui::imgui {
 ExtensionManager::ExtensionManager() = default;
 ExtensionManager::~ExtensionManager() = default;
 
-void ExtensionManager::initialize(tsd::app::Core *core)
+void ExtensionManager::initialize(tsd::app::Context *ctx)
 {
-  m_core = core;
+  m_ctx = ctx;
 
 #ifdef TSD_USE_LUA
   m_luaContext = std::make_unique<scripting::LuaContext>();
-  m_luaContext->bindScene(&core->tsd.scene, "scene");
+  m_luaContext->bindScene(&ctx->tsd.scene, "scene");
 
   // Route print output through tsd::core logging
   m_luaContext->setPrintCallback([](const std::string &msg) {
@@ -46,7 +46,7 @@ void ExtensionManager::refresh()
 #ifdef TSD_USE_LUA
   clearActions();
   m_luaContext.reset();
-  initialize(m_core);
+  initialize(m_ctx);
 #endif
 }
 

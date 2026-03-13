@@ -23,8 +23,8 @@ void DistributedSceneController::initialize(int argc, const char **argv)
     MPI_Init(nullptr, nullptr);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &numRanks);
-    m_core = std::make_unique<tsd::app::Core>();
-    m_core->tsd.scene.setMpiRankInfo(rank, numRanks);
+    m_ctx = std::make_unique<tsd::app::Context>();
+    m_ctx->tsd.scene.setMpiRankInfo(rank, numRanks);
     m_distributedState = std::make_unique<DistributedState>();
     m_mpiInitialized = true;
   }
@@ -33,23 +33,23 @@ void DistributedSceneController::initialize(int argc, const char **argv)
     std::string arg = argv[i];
     if (arg == "-ptc") {
       m_anari.libraryName = "ptc";
-      argv[i] = nullptr; // remove from args passed to tsd::app::Core
+      argv[i] = nullptr; // remove from args passed to tsd::app::Context
     } else if (arg == "-gpn" || arg == "--gpusPerNode") {
       m_anari.gpusPerNode = std::stoi(argv[++i]);
-      argv[i] = nullptr; // remove from args passed to tsd::app::Core
+      argv[i] = nullptr; // remove from args passed to tsd::app::Context
       argv[i - 1] = nullptr;
     }
   }
 
-  m_core->parseCommandLine(argc, argv);
+  m_ctx->parseCommandLine(argc, argv);
 
   // Load scene files assigned to this rank //
 
-  auto &filenames = m_core->commandLine.filenames;
+  auto &filenames = m_ctx->commandLine.filenames;
   for (size_t i = 0; i < filenames.size(); i++) {
     if (numRanks() > 1 && (i % numRanks() != rank()))
       continue;
-    tsd::io::import_file(m_core->tsd.scene, filenames[i]);
+    tsd::io::import_file(m_ctx->tsd.scene, filenames[i]);
     tsd::core::logStatus(
         "[DistributedSceneController] "
         "rank '%i' loaded file '%s'",
@@ -68,16 +68,16 @@ void DistributedSceneController::initialize(int argc, const char **argv)
 
   auto *deviceName = m_anari.libraryName.c_str();
   auto d = m_anari.device =
-      m_core->anari.loadDevice(deviceName, deviceParameters);
+      m_ctx->anari.loadDevice(deviceName, deviceParameters);
 
   auto f = m_anari.frame = anari::newObject<anari::Frame>(d);
   m_anari.camera = anari::newObject<anari::Camera>(d, "perspective");
   m_anari.renderer = anari::newObject<anari::Renderer>(d, "default");
   m_anari.hdriLight = anari::newObject<anari::Light>(d, "hdri");
 
-  auto &scene = m_core->tsd.scene;
+  auto &scene = m_ctx->tsd.scene;
   auto *ri = m_anari.renderIndex =
-      m_core->anari.acquireRenderIndex(scene, deviceName, d);
+      m_ctx->anari.acquireRenderIndex(scene, deviceName, d);
 
   anari::setParameter(d, f, "camera", m_anari.camera);
   anari::setParameter(d, f, "renderer", m_anari.renderer);
@@ -91,7 +91,7 @@ void DistributedSceneController::initialize(int argc, const char **argv)
   rng.seed(rank());
   std::normal_distribution<float> dist(0.2f, 0.8f);
 
-  auto mat = m_core->tsd.scene.defaultMaterial();
+  auto mat = m_ctx->tsd.scene.defaultMaterial();
   mat->setParameter(
       "color", tsd::math::float3(dist(rng), dist(rng), dist(rng)));
 
@@ -144,12 +144,12 @@ void DistributedSceneController::shutdown()
   MPI_Barrier(MPI_COMM_WORLD);
 
   auto d = m_anari.device;
-  m_core->anari.releaseRenderIndex(d);
+  m_ctx->anari.releaseRenderIndex(d);
   anari::release(d, m_anari.hdriLight);
   anari::release(d, m_anari.renderer);
   anari::release(d, m_anari.camera);
   anari::release(d, m_anari.frame);
-  m_core->anari.releaseAllDevices();
+  m_ctx->anari.releaseAllDevices();
 
   MPI_Finalize();
 }
@@ -159,9 +159,9 @@ bool DistributedSceneController::isRunning() const
   return m_distributedState->frame.read()->running;
 }
 
-tsd::app::Core *DistributedSceneController::appCore()
+tsd::app::Context *DistributedSceneController::appContext()
 {
-  return m_core.get();
+  return m_ctx.get();
 }
 
 DistributedState *DistributedSceneController::distributedState()
@@ -171,12 +171,12 @@ DistributedState *DistributedSceneController::distributedState()
 
 int DistributedSceneController::rank() const
 {
-  return m_core->tsd.scene.mpiRank();
+  return m_ctx->tsd.scene.mpiRank();
 }
 
 int DistributedSceneController::numRanks() const
 {
-  return m_core->tsd.scene.mpiNumRanks();
+  return m_ctx->tsd.scene.mpiNumRanks();
 }
 
 bool DistributedSceneController::isMain() const
@@ -280,8 +280,8 @@ void DistributedSceneController::executeFrame_syncAnimation()
   rank_printf(rank(), "synchronizing animation...\n");
   if (auto d = anariDevice(); d && m_distributedState->animation.sync()) {
     auto *state = m_distributedState->animation.read();
-    auto *core = appCore();
-    core->tsd.scene.setAnimationTime(state->time);
+    auto *ctx = appContext();
+    ctx->tsd.scene.setAnimationTime(state->time);
     rank_printf(rank(), "    -> synchronized animation\n");
   }
 }

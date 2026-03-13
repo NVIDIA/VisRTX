@@ -5,7 +5,7 @@
 // tsd_ui_imgui
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // std
 #include <algorithm>
 
@@ -17,11 +17,11 @@ IsosurfaceEditor::IsosurfaceEditor(Application *app, const char *name)
 
 void IsosurfaceEditor::buildUI()
 {
-  auto &scene = appCore()->tsd.scene;
+  auto &scene = appContext()->tsd.scene;
 
   tsd::core::Object *selectedIsosurface = nullptr;
   tsd::core::Object *selectedVolume = nullptr;
-  auto selectedNode = appCore()->getFirstSelected();
+  auto selectedNode = appContext()->getFirstSelected();
   tsd::core::Object *selectedObject =
       selectedNode.valid() ? (*selectedNode)->getObject() : nullptr;
 
@@ -96,10 +96,10 @@ void IsosurfaceEditor::buildUI()
 
 void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
 {
-  auto selectedNode = appCore()->getFirstSelected();
+  auto selectedNode = appContext()->getFirstSelected();
   tsd::core::Object *selectedObject =
       selectedNode.valid() ? (*selectedNode)->getObject() : nullptr;
-  auto &scene = appCore()->tsd.scene;
+  auto &scene = appContext()->tsd.scene;
   auto *layer = scene.defaultLayer();
 
   auto isovalue = scene.createArray(ANARI_FLOAT32, 1);
@@ -117,7 +117,7 @@ void IsosurfaceEditor::addIsosurfaceGeometryFromSelected()
 
   auto n = layer->root()->insert_last_child({layer, s});
 
-  appCore()->setSelected(n);
+  appContext()->setSelected(n);
   scene.signalLayerStructureChanged(layer);
 }
 

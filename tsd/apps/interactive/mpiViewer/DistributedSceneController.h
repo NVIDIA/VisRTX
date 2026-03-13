@@ -8,7 +8,7 @@
 #endif
 
 // tsd_app
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 // tsd_mpi
 #include "tsd/mpi/ReplicatedObject.hpp"
 // std
@@ -101,7 +101,7 @@ struct DistributedSceneController
   void shutdown();
   bool isRunning() const;
 
-  tsd::app::Core *appCore();
+  tsd::app::Context *appContext();
   DistributedState *distributedState();
 
   int rank() const;
@@ -123,7 +123,7 @@ struct DistributedSceneController
   void executeFrame_syncAnimation();
   void executeFrame_render();
 
-  std::unique_ptr<tsd::app::Core> m_core;
+  std::unique_ptr<tsd::app::Context> m_ctx;
 
   bool m_mpiInitialized{false};
 

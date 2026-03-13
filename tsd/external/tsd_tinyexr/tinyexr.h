@@ -165,11 +165,11 @@ typedef struct _EXRVersion {
   int version;    // this must be 2
   // tile format image;
   // not zero for only a single-part "normal" tiled file (according to spec.)
-  int tiled;      
+  int tiled;
   int long_name;  // long name attribute
   // deep image(EXR 2.0);
   // for a multi-part file, indicates that at least one part is of type deep* (according to spec.)
-  int non_image;  
+  int non_image;
   int multipart;  // multi-part(EXR 2.0)
 } EXRVersion;
 
@@ -766,7 +766,7 @@ namespace miniz {
      5/27/11 v1.10 - Substantial compressor optimizations:
       - Level 1 is now ~4x faster than before. The L1 compressor's throughput
    now varies between 70-110MB/sec. on a
-      - Core i7 (actual throughput varies depending on the type of data, and x64
+      - Context i7 (actual throughput varies depending on the type of data, and x64
    vs. x86).
       - Improved baseline L2-L9 compression perf. Also, greatly improved
    compression perf. issues on some file types.
@@ -11110,7 +11110,7 @@ static int DecodeTiledLevel(EXRImage* exr_image, const EXRHeader* exr_header,
 #else
   unsigned error_flag(EF_SUCCESS);
 #endif
-  
+
   // Although the spec says : "...the data window is subdivided into an array of smaller rectangles...",
   // the IlmImf library allows the dimensions of the tile to be larger (or equal) than the dimensions of the data window.
 #if 0
@@ -11160,7 +11160,7 @@ static int DecodeTiledLevel(EXRImage* exr_image, const EXRHeader* exr_header,
     tinyexr::tinyexr_uint64 offset = offset_data.offsets[level_index][y_tile][x_tile];
     if (offset + sizeof(int) * 5 > size) {
       // Insufficient data size.
-      error_flag |= EF_INSUFFICIENT_DATA; 
+      error_flag |= EF_INSUFFICIENT_DATA;
       continue;
     }
 
@@ -11226,7 +11226,7 @@ static int DecodeTiledLevel(EXRImage* exr_image, const EXRHeader* exr_header,
     exr_image->tiles[tile_idx].level_y = tile_coordinates[3];
 
 #if TINYEXR_HAS_CXX11 && (TINYEXR_USE_THREAD > 0)
-  }  
+  }
         }));
     }  // num_thread loop
 
@@ -12800,7 +12800,7 @@ namespace tinyexr
 
 // out_data must be allocated initially with the block-header size
 // of the current image(-part) type
-static bool EncodePixelData(/* out */ std::vector<unsigned char>& out_data,                         
+static bool EncodePixelData(/* out */ std::vector<unsigned char>& out_data,
                             const unsigned char* const* images,
                             const int* requested_pixel_types,
                             int compression_type,
@@ -13080,13 +13080,13 @@ static int EncodeTiledLevel(const EXRImage* level_image, const EXRHeader* exr_he
     int y_tile = i / num_x_tiles;
 
     EXRTile& tile = level_image->tiles[tile_idx];
- 
+
     const unsigned char* const* images =
       static_cast<const unsigned char* const*>(tile.images);
 
     data_list[data_idx].resize(5*sizeof(int));
     size_t data_header_size = data_list[data_idx].size();
-    bool ret = EncodePixelData(data_list[data_idx],                         
+    bool ret = EncodePixelData(data_list[data_idx],
                                images,
                                exr_header->requested_pixel_types,
                                exr_header->compression_type,
@@ -13133,7 +13133,7 @@ static int EncodeTiledLevel(const EXRImage* level_image, const EXRHeader* exr_he
 
   if (invalid_data) {
     if (err) {
-      (*err) += "Failed to encode tile data.\n";  
+      (*err) += "Failed to encode tile data.\n";
     }
     return TINYEXR_ERROR_INVALID_DATA;
   }
@@ -13304,7 +13304,7 @@ static int EncodeChunk(const EXRImage* exr_image, const EXRHeader* exr_header,
       data_list[i].resize(2*sizeof(int));
       size_t data_header_size = data_list[i].size();
 
-      bool ret = EncodePixelData(data_list[i],                         
+      bool ret = EncodePixelData(data_list[i],
                                  images,
                                  exr_header->requested_pixel_types,
                                  exr_header->compression_type,
@@ -13320,7 +13320,7 @@ static int EncodeChunk(const EXRImage* exr_image, const EXRHeader* exr_header,
                                  compression_param);
       if (!ret) {
         invalid_data = true;
-        continue; // "break" cannot be used with OpenMP 
+        continue; // "break" cannot be used with OpenMP
       }
       assert(data_list[i].size() > data_header_size);
       int data_len = static_cast<int>(data_list[i].size() - data_header_size);
@@ -14736,7 +14736,7 @@ int LoadEXRMultipartImageFromMemory(EXRImage *exr_images,
               return TINYEXR_ERROR_INVALID_DATA;
             }
             offset_data.offsets[l][dy][dx] = offset + 4; // +4 to skip 'part number'
-            marker += sizeof(tinyexr::tinyexr_uint64);  // = 8 
+            marker += sizeof(tinyexr::tinyexr_uint64);  // = 8
           }
         }
       }

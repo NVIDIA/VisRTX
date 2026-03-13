@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ObjectEditor.h"
-#include "tsd/app/Core.h"
+#include "tsd/app/Context.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 
 namespace math = tsd::math;
@@ -15,20 +15,20 @@ ObjectEditor::ObjectEditor(Application *app, const char *name)
 
 void ObjectEditor::buildUI()
 {
-  auto selectedNode = appCore()->getFirstSelected();
+  auto selectedNode = appContext()->getFirstSelected();
   if (!selectedNode.valid()) {
     ImGui::Text("{no object selected}");
     return;
   }
 
-  ImGui::BeginDisabled(!appCore()->tsd.sceneLoadComplete);
+  ImGui::BeginDisabled(!appContext()->tsd.sceneLoadComplete);
 
-  auto *scene = &appCore()->tsd.scene;
+  auto *scene = &appContext()->tsd.scene;
 
   auto &node = *selectedNode;
 
   if (auto *selectedObject = node->getObject(); selectedObject) {
-    tsd::ui::buildUI_object(*selectedObject, appCore()->tsd.scene, true);
+    tsd::ui::buildUI_object(*selectedObject, appContext()->tsd.scene, true);
   } else if (node->isTransform()) {
     // Setup transform values //
 
