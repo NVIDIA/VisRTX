@@ -4,9 +4,9 @@
 #pragma once
 
 // tsd_core
-#include "tsd/core/scene/AnariHandleCache.hpp"
-#include "tsd/core/scene/Scene.hpp"
-#include "tsd/core/scene/UpdateDelegate.hpp"
+#include "tsd/scene/AnariHandleCache.hpp"
+#include "tsd/scene/Scene.hpp"
+#include "tsd/scene/UpdateDelegate.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexFilterFcn.hpp"
 #include "tsd/rendering/view/Manipulator.hpp"

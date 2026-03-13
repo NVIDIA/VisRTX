@@ -4,8 +4,8 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/core/scene/ObjectUsePtr.hpp"
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/ObjectUsePtr.hpp"
+#include "tsd/scene/Scene.hpp"
 
 using tsd::core::Material;
 using tsd::core::MaterialRef;

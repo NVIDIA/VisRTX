@@ -10,7 +10,7 @@
 #include "tsd/io/importers/detail/importer_common.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
-#include "tsd/core/algorithms/computeScalarRange.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #if TSD_USE_VTK
 // vtk
 #include <vtkAbstractArray.h>

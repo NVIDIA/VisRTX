@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "tsd/core/scene/Object.hpp"
-#include "tsd/core/scene/objects/Array.hpp"
+#include "tsd/scene/Object.hpp"
+#include "tsd/scene/objects/Array.hpp"
 
 #include <sol/sol.hpp>
 

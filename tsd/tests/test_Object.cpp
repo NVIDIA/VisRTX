@@ -4,7 +4,7 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/core/scene/Object.hpp"
+#include "tsd/scene/Object.hpp"
 
 namespace {
 

@@ -1,0 +1,12 @@
+// Copyright 2024-2026 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include "tsd/scene/objects/Array.hpp"
+
+namespace tsd::core {
+
+tsd::math::float2 computeScalarRange(const Array &a);
+
+} // namespace tsd::core

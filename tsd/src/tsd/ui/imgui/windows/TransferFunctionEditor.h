@@ -6,8 +6,8 @@
 #include "Window.h"
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
-#include "tsd/core/scene/objects/Array.hpp"
-#include "tsd/core/scene/objects/Volume.hpp"
+#include "tsd/scene/objects/Array.hpp"
+#include "tsd/scene/objects/Volume.hpp"
 // std
 #include <string>
 #include <vector>

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "tsd/core/ColorMapUtil.hpp"
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 // std
 #include <cstdio>
 #include <string>

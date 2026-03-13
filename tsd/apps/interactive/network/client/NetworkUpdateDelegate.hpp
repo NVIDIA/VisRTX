@@ -4,8 +4,8 @@
 #pragma once
 
 // tsd_core
-#include "tsd/core/scene/Scene.hpp"
-#include "tsd/core/scene/UpdateDelegate.hpp"
+#include "tsd/scene/Scene.hpp"
+#include "tsd/scene/UpdateDelegate.hpp"
 // tsd_network
 #include "tsd/network/NetworkChannel.hpp"
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd_core
-#include <tsd/core/scene/Scene.hpp>
+#include <tsd/scene/Scene.hpp>
 // tsd_io
 #include <tsd/io/serialization.hpp>
 // std

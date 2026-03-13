@@ -4,7 +4,7 @@
 #include "CuttingPlaneDialog.h"
 // tsd_core
 #include "tsd/core/ObjectPool.hpp"
-#include "tsd/core/scene/objects/Renderer.hpp"
+#include "tsd/scene/objects/Renderer.hpp"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
 // imgui

@@ -13,12 +13,12 @@
 #include <anari/frontend/anari_enums.h>
 #include <anari/frontend/type_utility.h>
 
-#include "tsd/core/scene/Scene.hpp"
-#include "tsd/core/scene/objects/Array.hpp"
-#include "tsd/core/scene/objects/Camera.hpp"
-#include "tsd/core/scene/objects/Material.hpp"
-#include "tsd/core/scene/objects/Sampler.hpp"
-#include "tsd/core/scene/objects/Surface.hpp"
+#include "tsd/scene/Scene.hpp"
+#include "tsd/scene/objects/Array.hpp"
+#include "tsd/scene/objects/Camera.hpp"
+#include "tsd/scene/objects/Material.hpp"
+#include "tsd/scene/objects/Sampler.hpp"
+#include "tsd/scene/objects/Surface.hpp"
 
 #if TSD_USE_USD
 // stb and tinyexr

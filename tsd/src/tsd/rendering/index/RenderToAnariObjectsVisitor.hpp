@@ -4,7 +4,7 @@
 #pragma once
 
 // tsd_core
-#include "tsd/core/scene/Layer.hpp"
+#include "tsd/scene/Layer.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexFilterFcn.hpp"
 // std

@@ -10,7 +10,7 @@
 #include "helium/array/Array3D.h"
 #include "helium/array/ObjectArray.h"
 // tsd_core
-#include "tsd/core/scene/objects/Array.hpp"
+#include "tsd/scene/objects/Array.hpp"
 
 namespace tsd_device {
 

@@ -9,5 +9,5 @@ project_sources(PRIVATE
   Context.cpp
   renderAnimationSequence.cpp
 )
-project_link_libraries(PUBLIC tsd_core tsd_io tsd_rendering)
+project_link_libraries(PUBLIC tsd_scene tsd_io tsd_rendering)
 project_include_directories(PUBLIC ${CMAKE_CURRENT_LIST_DIR})

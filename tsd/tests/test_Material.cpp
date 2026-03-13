@@ -4,7 +4,7 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/core/scene/objects/Material.hpp"
+#include "tsd/scene/objects/Material.hpp"
 
 using tsd::core::Material;
 

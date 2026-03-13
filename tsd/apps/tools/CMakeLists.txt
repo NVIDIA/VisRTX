@@ -13,7 +13,7 @@ project(tsdRender)
 project_add_executable(tsdRender.cpp)
 project_link_libraries(
   tsd_app
-  tsd_core
+  tsd_scene
   tsd_io
   tsd_rendering
   tsd_ext_tinyexr_impl
@@ -22,14 +22,14 @@ project_link_libraries(
 
 project(tsdVolumeToNanoVDB)
 project_add_executable(tsdVolumeToNanoVDB.cpp)
-project_link_libraries(tsd_core tsd_io)
+project_link_libraries(tsd_scene tsd_io)
 
 if(TSD_USE_LUA)
   project(tsdLua)
   project_add_executable(tsdLua.cpp)
   project_link_libraries(
     tsd_lua
-    tsd_core
+    tsd_scene
     tsd_io
     tsd_rendering
     tsd_ext_sol2
@@ -40,7 +40,7 @@ project(tsdOffline)
 project_add_executable(tsdOffline.cpp)
 project_link_libraries(
   tsd_app
-  tsd_core
+  tsd_scene
   tsd_io
   tsd_rendering
   tsd_ext_tinyexr_impl

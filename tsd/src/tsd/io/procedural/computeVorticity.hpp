@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "tsd/core/scene/Scene.hpp"
-#include "tsd/core/scene/objects/SpatialField.hpp"
-#include "tsd/core/scene/objects/Volume.hpp"
+#include "tsd/scene/Scene.hpp"
+#include "tsd/scene/objects/SpatialField.hpp"
+#include "tsd/scene/objects/Volume.hpp"
 
 namespace tsd::io {
 

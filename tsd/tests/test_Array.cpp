@@ -9,8 +9,8 @@
 // catch
 #include "catch.hpp"
 // tsd_core
-#include "tsd/core/algorithms/computeScalarRange.hpp"
-#include "tsd/core/scene/objects/Array.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
+#include "tsd/scene/objects/Array.hpp"
 // std
 #include <numeric>
 

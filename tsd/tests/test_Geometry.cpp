@@ -4,7 +4,7 @@
 // catch
 #include "catch.hpp"
 // tsd
-#include "tsd/core/scene/objects/Geometry.hpp"
+#include "tsd/scene/objects/Geometry.hpp"
 
 using tsd::core::Geometry;
 

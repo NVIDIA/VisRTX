@@ -4,7 +4,7 @@
 #pragma once
 
 // tsd_core
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 // imgui
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>

@@ -5,7 +5,7 @@
 #include <tsd/rendering/pipeline/RenderPipeline.h>
 #include <tsd/core/Logging.hpp>
 #include <tsd/core/Timer.hpp>
-#include <tsd/core/scene/Scene.hpp>
+#include <tsd/scene/Scene.hpp>
 #include <tsd/io/procedural.hpp>
 #include <tsd/io/serialization.hpp>
 #include <tsd/rendering/index/RenderIndexAllLayers.hpp>

@@ -10,16 +10,16 @@
 //
 // Include this header AFTER the TSD headers and BEFORE <sol/sol.hpp>.
 
-#include "tsd/core/scene/Layer.hpp"
-#include "tsd/core/scene/objects/Array.hpp"
-#include "tsd/core/scene/objects/Camera.hpp"
-#include "tsd/core/scene/objects/Geometry.hpp"
-#include "tsd/core/scene/objects/Light.hpp"
-#include "tsd/core/scene/objects/Material.hpp"
-#include "tsd/core/scene/objects/Sampler.hpp"
-#include "tsd/core/scene/objects/SpatialField.hpp"
-#include "tsd/core/scene/objects/Surface.hpp"
-#include "tsd/core/scene/objects/Volume.hpp"
+#include "tsd/scene/Layer.hpp"
+#include "tsd/scene/objects/Array.hpp"
+#include "tsd/scene/objects/Camera.hpp"
+#include "tsd/scene/objects/Geometry.hpp"
+#include "tsd/scene/objects/Light.hpp"
+#include "tsd/scene/objects/Material.hpp"
+#include "tsd/scene/objects/Sampler.hpp"
+#include "tsd/scene/objects/SpatialField.hpp"
+#include "tsd/scene/objects/Surface.hpp"
+#include "tsd/scene/objects/Volume.hpp"
 
 #include <functional>
 

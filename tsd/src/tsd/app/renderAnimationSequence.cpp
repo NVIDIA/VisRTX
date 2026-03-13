@@ -7,7 +7,7 @@
 #include "tsd/app/Context.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
-#include "tsd/core/scene/Animation.hpp"
+#include "tsd/scene/Animation.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexAllLayers.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"

@@ -20,7 +20,7 @@ project_add_executable(
   test_Parameter.cpp
   test_Token.cpp
 )
-project_link_libraries(PRIVATE tsd_core tsd_ext_catch2)
+project_link_libraries(PRIVATE tsd_scene tsd_ext_catch2)
 
 add_test(NAME tsd::Array         COMMAND ${PROJECT_NAME} "[Array]"        )
 add_test(NAME tsd::DataTree      COMMAND ${PROJECT_NAME} "[DataTree]"     )

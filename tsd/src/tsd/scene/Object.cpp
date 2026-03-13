@@ -1,0 +1,625 @@
+// Copyright 2024-2026 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#include "tsd/scene/Object.hpp"
+#include "tsd/scene/AnariHandleCache.hpp"
+#include "tsd/core/Logging.hpp"
+#include "tsd/scene/Scene.hpp"
+// std
+#include <algorithm>
+#include <iomanip>
+
+namespace tsd::core {
+
+namespace tokens {
+
+Token none = "none";
+Token unknown = "unknown";
+Token defaultToken = "default";
+
+} // namespace tokens
+
+// Helper functions ///////////////////////////////////////////////////////////
+
+static Any parseValue(ANARIDataType type, const void *mem)
+{
+  if (type == ANARI_STRING)
+    return Any(ANARI_STRING, "");
+  else if (anari::isObject(type)) {
+    ANARIObject nullHandle = ANARI_INVALID_HANDLE;
+    return Any(type, &nullHandle);
+  } else if (mem)
+    return Any(type, mem);
+  else
+    return {};
+}
+
+// Object definitions /////////////////////////////////////////////////////////
+
+Object::Object(anari::DataType type, Token stype)
+    : m_type(type), m_subtype(stype)
+{}
+
+Object::~Object()
+{
+  for (auto &p : m_parameters)
+    decObjectUseCountParameter(&p.second);
+}
+
+Object::Object(Object &&o)
+{
+  for (auto &p : m_parameters)
+    decObjectUseCountParameter(&p.second);
+  m_parameters = std::move(o.m_parameters);
+  m_type = std::move(o.m_type);
+  m_subtype = std::move(o.m_subtype);
+  m_name = std::move(o.m_name);
+  m_scene = std::move(o.m_scene);
+  m_index = std::move(o.m_index);
+  m_updateDelegate = std::move(o.m_updateDelegate);
+  m_metadata = std::move(o.m_metadata);
+  m_useCounts = std::move(o.m_useCounts);
+  m_rendererDeviceName = std::move(o.m_rendererDeviceName);
+  for (auto &p : m_parameters)
+    p.second.setObserver(this);
+}
+
+Object &Object::operator=(Object &&o)
+{
+  for (auto &p : m_parameters)
+    decObjectUseCountParameter(&p.second);
+  m_parameters = std::move(o.m_parameters);
+  m_type = std::move(o.m_type);
+  m_subtype = std::move(o.m_subtype);
+  m_name = std::move(o.m_name);
+  m_scene = std::move(o.m_scene);
+  m_index = std::move(o.m_index);
+  m_updateDelegate = std::move(o.m_updateDelegate);
+  m_metadata = std::move(o.m_metadata);
+  m_useCounts = std::move(o.m_useCounts);
+  m_rendererDeviceName = std::move(o.m_rendererDeviceName);
+  for (auto &p : m_parameters)
+    p.second.setObserver(this);
+  return *this;
+}
+
+anari::DataType Object::type() const
+{
+  return m_type;
+}
+
+Token Object::subtype() const
+{
+  return m_subtype;
+}
+
+size_t Object::index() const
+{
+  return m_index;
+}
+
+Scene *Object::scene() const
+{
+  return m_scene;
+}
+
+Token Object::rendererDeviceName() const
+{
+  return m_rendererDeviceName;
+}
+
+size_t Object::totalUseCount() const
+{
+  return useCount(UseKind::APP) + useCount(UseKind::PARAMETER)
+      + useCount(UseKind::LAYER) + useCount(UseKind::INTERNAL);
+}
+
+size_t Object::useCount(UseKind kind) const
+{
+  switch (kind) {
+  case UseKind::APP:
+    return m_useCounts.app;
+  case UseKind::PARAMETER:
+    return m_useCounts.parameter;
+  case UseKind::LAYER:
+    return m_useCounts.layer;
+  case UseKind::INTERNAL:
+    return m_useCounts.internal;
+  }
+
+  logError("Object::UseCount() called with an unhandled UseKind");
+  return 0;
+}
+
+void Object::incUseCount(UseKind kind)
+{
+  switch (kind) {
+  case UseKind::APP:
+    m_useCounts.app++;
+    break;
+  case UseKind::PARAMETER:
+    m_useCounts.parameter++;
+    break;
+  case UseKind::LAYER:
+    m_useCounts.layer++;
+    break;
+  case UseKind::INTERNAL:
+    m_useCounts.internal++;
+    break;
+  }
+}
+
+void Object::decUseCount(UseKind kind)
+{
+  size_t *useCount = nullptr;
+  const char *typeStr = "UNKNOWN";
+  switch (kind) {
+  case UseKind::APP:
+    useCount = &m_useCounts.app;
+    typeStr = "APP";
+    break;
+  case UseKind::PARAMETER:
+    useCount = &m_useCounts.parameter;
+    typeStr = "PARAMETER";
+    break;
+  case UseKind::LAYER:
+    useCount = &m_useCounts.layer;
+    typeStr = "LAYER";
+    break;
+  case UseKind::INTERNAL:
+    useCount = &m_useCounts.internal;
+    typeStr = "INTERNAL";
+    break;
+  }
+
+  if (*useCount > 0)
+    (*useCount)--;
+  else {
+    logError(
+        "Object::decUseCount() called on object with zero use count on object"
+        " of type %s, idx %zu, and name '%s', with use kind of {%s}",
+        anari::toString(type()),
+        index(),
+        name().c_str(),
+        typeStr);
+  }
+
+  if (kind == UseKind::PARAMETER && *useCount == 0 && m_scene) {
+    // If parameter use count just went to zero, notify scene that this object's
+    // corresponding ANARI handle might be garbage-collectable now.
+    m_scene->signalObjectParameterUseCountZero(this);
+  } else if (kind == UseKind::LAYER && *useCount == 0 && m_scene) {
+    // If parameter use count just went to zero, notify scene that this object's
+    // corresponding ANARI handle might be garbage-collectable now.
+    m_scene->signalObjectLayerUseCountZero(this);
+  }
+}
+
+const std::string &Object::name() const
+{
+  return m_name;
+}
+
+std::string &Object::editableName()
+{
+  return m_name;
+}
+
+void Object::setName(const char *n)
+{
+  m_name = n;
+}
+
+void Object::setName(const std::string &n)
+{
+  m_name = n;
+}
+
+Any Object::getMetadataValue(std::string_view name) const
+{
+  if (!m_metadata)
+    return {};
+  else if (const auto *c = m_metadata->root().child(name); c != nullptr)
+    return c->getValue();
+  else
+    return {};
+}
+
+void Object::getMetadataArray(std::string_view name,
+    anari::DataType *type,
+    const void **ptr,
+    size_t *size) const
+{
+  *type = ANARI_UNKNOWN;
+  *ptr = nullptr;
+  *size = 0;
+  if (!m_metadata)
+    return;
+  if (const auto *c = m_metadata->root().child(name); c != nullptr)
+    c->getValueAsArray(type, ptr, size);
+}
+
+void Object::setMetadataValue(std::string_view name, Any v)
+{
+  initMetadata();
+  m_metadata->root().append(name) = v;
+  m_versions.metadata++;
+}
+
+void Object::setMetadataArray(std::string_view name,
+    anari::DataType type,
+    const void *v,
+    size_t numElements)
+{
+  initMetadata();
+  m_metadata->root().append(name).setValueAsArray(type, v, numElements);
+  m_versions.metadata++;
+}
+
+void Object::removeMetadata(std::string_view name)
+{
+  if (!m_metadata)
+    return;
+  m_metadata->root().remove(name);
+  m_versions.metadata++;
+}
+
+size_t Object::numMetadata() const
+{
+  if (!m_metadata)
+    return 0;
+  return m_metadata->root().numChildren();
+}
+
+const char *Object::getMetadataName(size_t i) const
+{
+  if (!m_metadata)
+    return "";
+  if (const auto *c = m_metadata->root().child(i); c != nullptr)
+    return c->name().c_str();
+  else
+    return "";
+}
+
+Parameter &Object::addParameter(Token name)
+{
+  m_parameters.set(name, Parameter(this, name.c_str()));
+  m_versions.parameter++;
+  return *parameter(name);
+}
+
+Parameter *Object::setParameter(Token name, ANARIDataType type, const void *v)
+{
+  if (anari::isObject(type))
+    return nullptr;
+
+  auto *p = parameter(name);
+  if (p) {
+    decObjectUseCountParameter(p);
+    p->setValue({type, v});
+  } else {
+    p = &(addParameter(name));
+    p->setValue({type, v});
+  }
+  return p;
+}
+
+Parameter *Object::setParameterObject(Token name, const Object &obj)
+{
+  auto *p = parameter(name);
+  if (p)
+    p->setValue({obj.type(), obj.index()});
+  else {
+    p = &(addParameter(name));
+    p->setValue({obj.type(), obj.index()});
+  }
+  return p;
+}
+
+const Parameter *Object::parameter(Token name) const
+{
+  return m_parameters.at(name);
+}
+
+Parameter *Object::parameter(Token name)
+{
+  return m_parameters.at(name);
+}
+
+void Object::removeParameter(Token name)
+{
+  if (auto *p = parameter(name); p) {
+    decObjectUseCountParameter(p);
+    if (m_updateDelegate)
+      m_updateDelegate->signalParameterRemoved(this, p);
+  }
+  m_parameters.erase(name);
+}
+
+void Object::removeAllParameters()
+{
+  for (size_t i = 0; i < numParameters(); i++) {
+    if (m_updateDelegate)
+      m_updateDelegate->signalParameterRemoved(this, &parameterAt(i));
+  }
+  m_parameters.clear();
+}
+
+size_t Object::numParameters() const
+{
+  return m_parameters.size();
+}
+
+const Parameter &Object::parameterAt(size_t i) const
+{
+  return m_parameters.at_index(i).second;
+}
+
+Parameter &Object::parameterAt(size_t i)
+{
+  return m_parameters.at_index(i).second;
+}
+
+const char *Object::parameterNameAt(size_t i) const
+{
+  return m_parameters.at_index(i).first.c_str();
+}
+
+void Object::beginParameterBatch()
+{
+  m_inParameterBatch = true;
+}
+
+void Object::endParameterBatch()
+{
+  m_inParameterBatch = false;
+
+  auto &bp = m_batchedParameters;
+
+  // Remove duplicates
+  std::sort(bp.begin(), bp.end());
+  bp.erase(std::unique(bp.begin(), bp.end()), bp.end());
+
+  // Flush updates through delegate
+  if (m_updateDelegate)
+    m_updateDelegate->signalParameterBatchUpdated(this, bp);
+
+  m_versions.parameter++;
+
+  bp.clear();
+}
+
+ObjectVersion Object::lastParameterChange() const
+{
+  return m_versions.parameter;
+}
+
+ObjectVersion Object::lastMetadataChange() const
+{
+  return m_versions.metadata;
+}
+
+anari::Object Object::makeANARIObject(anari::Device) const
+{
+  return {};
+}
+
+void Object::updateANARIParameter(anari::Device d,
+    anari::Object o,
+    const Parameter &p,
+    const char *n,
+    AnariHandleCache *cache) const
+{
+  if (!o)
+    return;
+
+  if (!p.isEnabled()) {
+    anari::unsetParameter(d, o, n);
+  } else if (cache && p.value().holdsObject()) {
+    auto objType = p.value().type();
+    auto objHandle =
+        cache->getHandle(objType, p.value().getAsObjectIndex(), true);
+    if (objHandle)
+      anari::setParameter(d, o, n, objType, &objHandle);
+    else
+      anari::unsetParameter(d, o, n);
+  } else if (!p.value().holdsObject()) {
+    if (p.value().type() == ANARI_FLOAT32_VEC2
+        && p.usage() & ParameterUsageHint::DIRECTION) {
+      anari::setParameter(d, o, n, math::azelToDir(p.value().get<float2>()));
+    } else if (p.value().type() == ANARI_FLOAT32_VEC2
+        && p.usage() & ParameterUsageHint::VALUE_RANGE_TRANSFORM) {
+      anari::setParameter(
+          d, o, n, math::makeValueRangeTransform(p.value().get<float2>()));
+    } else {
+      anari::setParameter(d, o, n, p.value().type(), p.value().data());
+    }
+  }
+}
+
+void Object::updateAllANARIParameters(
+    anari::Device d, anari::Object o, AnariHandleCache *cache) const
+{
+  if (!o)
+    return;
+
+  for (size_t i = 0; i < numParameters(); i++)
+    updateANARIParameter(d, o, parameterAt(i), parameterNameAt(i), cache);
+}
+
+void Object::setUpdateDelegate(BaseUpdateDelegate *ud)
+{
+  m_updateDelegate = ud;
+}
+
+void Object::parameterChanged(const Parameter *p, const Any &oldValue)
+{
+  if (m_scene) {
+    if (auto *obj = m_scene->getObject(oldValue); obj != nullptr)
+      obj->decUseCount(UseKind::PARAMETER);
+  }
+  incObjectUseCountParameter(p);
+  if (m_inParameterBatch) {
+    m_batchedParameters.push_back(p);
+  } else if (m_updateDelegate) {
+    m_updateDelegate->signalParameterUpdated(this, p);
+    m_versions.parameter++;
+  }
+}
+
+void Object::removeParameter(const Parameter *p)
+{
+  if (m_inParameterBatch) {
+    logError(
+        "Object::removeParameter() called while in a parameter batch update. "
+        "This is not supported and will lead to unexpected behavior.");
+  }
+
+  removeParameter(p->name());
+  m_versions.parameter++;
+}
+
+BaseUpdateDelegate *Object::updateDelegate() const
+{
+  return m_updateDelegate;
+}
+
+void Object::incObjectUseCountParameter(const Parameter *p)
+{
+  if (!m_scene)
+    return;
+  if (auto *obj = m_scene->getObject(p->value()))
+    obj->incUseCount(UseKind::PARAMETER);
+}
+
+void Object::decObjectUseCountParameter(const Parameter *p)
+{
+  if (!m_scene)
+    return;
+  if (auto *obj = m_scene->getObject(p->value()))
+    obj->decUseCount(UseKind::PARAMETER);
+}
+
+void Object::initMetadata() const
+{
+  if (!m_metadata)
+    m_metadata = std::make_unique<core::DataTree>();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+void print(const Object &obj, std::ostream &out)
+{
+  out << "Object -- '" << obj.name() << "'\n";
+  out << "     type : " << anari::toString(obj.type()) << '\n';
+  if (!obj.subtype().empty())
+    out << "  subtype : " << obj.subtype().c_str() << '\n';
+
+  out << "\nparameters(" << obj.numParameters() << "):\n";
+  for (int i = 0; i < obj.numParameters(); i++) {
+    auto &p = obj.parameterAt(i);
+    auto *name = obj.parameterNameAt(i);
+    out << std::setw(20) << name << "\t| " << anari::toString(p.value().type())
+        << '\n';
+  }
+}
+
+std::vector<std::string> getANARIObjectSubtypes(
+    anari::Device d, anari::DataType type)
+{
+  if (!anari::isObject(type))
+    return {};
+
+  const char **r_subtypes = anariGetObjectSubtypes(d, type);
+
+  std::vector<std::string> retval;
+  if (r_subtypes != nullptr) {
+    for (int i = 0; r_subtypes[i] != nullptr; i++)
+      retval.push_back(r_subtypes[i]);
+  } else if (type == ANARI_RENDERER)
+    retval.emplace_back("default");
+
+  return retval;
+}
+
+void parseANARIObjectInfo(
+    Object &o, anari::Device d, ANARIDataType objectType, const char *subtype)
+{
+  auto *parameter = (const ANARIParameter *)anariGetObjectInfo(
+      d, objectType, subtype, "parameter", ANARI_PARAMETER_LIST);
+
+  for (; parameter && parameter->name != nullptr; parameter++) {
+    tsd::core::Token name(parameter->name);
+    if (o.parameter(name))
+      continue;
+
+    auto *description = (const char *)anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "description",
+        ANARI_STRING);
+
+    const void *defaultValue = anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "default",
+        parameter->type);
+
+    const void *minValue = anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "minimum",
+        parameter->type);
+
+    const void *maxValue = anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "maximum",
+        parameter->type);
+
+    const auto **stringValues = (const char **)anariGetParameterInfo(d,
+        objectType,
+        subtype,
+        parameter->name,
+        parameter->type,
+        "value",
+        ANARI_STRING_LIST);
+
+    auto &p = o.addParameter(name);
+    p.setValue(Any(parameter->type, nullptr));
+    p.setDescription(description ? description : "");
+    p.setValue(parseValue(parameter->type, defaultValue));
+    if (minValue)
+      p.setMin(parseValue(parameter->type, minValue));
+    if (maxValue)
+      p.setMax(parseValue(parameter->type, maxValue));
+
+    std::vector<std::string> svs;
+    for (; stringValues && *stringValues; stringValues++)
+      svs.push_back(*stringValues);
+    if (!svs.empty()) {
+      p.setStringValues(svs);
+      p.setValue(svs[0].c_str()); // reset default value
+    }
+  }
+}
+
+Object parseANARIObjectInfo(
+    anari::Device d, ANARIDataType objectType, const char *subtype)
+{
+  Object retval(objectType, subtype);
+  parseANARIObjectInfo(retval, d, objectType, subtype);
+  return retval;
+}
+
+} // namespace tsd::core

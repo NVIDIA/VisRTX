@@ -4,7 +4,7 @@
 #pragma once
 
 // tsd_core
-#include "tsd/core/scene/Object.hpp"
+#include "tsd/scene/Object.hpp"
 // std
 #include <functional>
 

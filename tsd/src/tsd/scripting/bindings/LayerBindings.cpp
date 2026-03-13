@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/scripting/LuaBindings.hpp"
-#include "tsd/core/scene/Layer.hpp"
-#include "tsd/core/scene/objects/Array.hpp"
+#include "tsd/scene/Layer.hpp"
+#include "tsd/scene/objects/Array.hpp"
 #include <fmt/format.h>
 
 #include <sol/sol.hpp>

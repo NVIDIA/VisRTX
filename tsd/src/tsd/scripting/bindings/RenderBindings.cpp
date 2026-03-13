@@ -3,7 +3,7 @@
 
 #include <fmt/format.h>
 #include <sol/sol.hpp>
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 #include "tsd/rendering/index/RenderIndexAllLayers.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"
 #include "tsd/scripting/LuaBindings.hpp"

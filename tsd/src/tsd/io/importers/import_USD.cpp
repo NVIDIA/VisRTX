@@ -9,7 +9,7 @@
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TSDMath.hpp"
-#include "tsd/core/scene/objects/Array.hpp"
+#include "tsd/scene/objects/Array.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/HDRImage.h"
 #include "tsd/io/importers/detail/importer_common.hpp"

@@ -5,7 +5,7 @@
 
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/passes/VisualizeAOVPass.h"

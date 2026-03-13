@@ -6,7 +6,7 @@
 // tsd_ui_imgui
 #include <tsd/ui/imgui/windows/Window.h>
 // tsd_core
-#include <tsd/core/scene/Object.hpp>
+#include <tsd/scene/Object.hpp>
 
 namespace tsd::demo {
 

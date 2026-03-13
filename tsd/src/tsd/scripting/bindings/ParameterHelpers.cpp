@@ -4,8 +4,8 @@
 #include "ParameterHelpers.hpp"
 #include "tsd/core/Parameter.hpp"
 #include "tsd/core/Token.hpp"
-#include "tsd/core/scene/Object.hpp"
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Object.hpp"
+#include "tsd/scene/Scene.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
 #include <fmt/format.h>

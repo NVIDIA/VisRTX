@@ -5,7 +5,7 @@
 
 #include "tsd/network/Message.hpp"
 // tsd_core
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 
 namespace tsd::network::messages {
 

@@ -3,7 +3,7 @@
 
 #include "LayerTree.h"
 // tsd_core
-#include "tsd/core/scene/objects/Volume.hpp"
+#include "tsd/scene/objects/Volume.hpp"
 // tsd_io
 #include "tsd/io/procedural.hpp"
 // tsd_ui_imgui

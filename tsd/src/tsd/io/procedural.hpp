@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 #include "tsd/io/procedural/computeVorticity.hpp"
 
 namespace tsd::io {

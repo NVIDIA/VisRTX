@@ -6,8 +6,8 @@
 #include <string>
 #include <string_view>
 #include <tsd/core/Logging.hpp>
-#include <tsd/core/scene/Scene.hpp>
-#include <tsd/core/scene/objects/SpatialField.hpp>
+#include <tsd/scene/Scene.hpp>
+#include <tsd/scene/objects/SpatialField.hpp>
 #include <tsd/io/importers.hpp>
 #include <tsd/io/serialization.hpp>
 

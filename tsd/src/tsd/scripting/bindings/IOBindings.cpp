@@ -1,7 +1,7 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/procedural.hpp"
 #include "tsd/io/serialization.hpp"

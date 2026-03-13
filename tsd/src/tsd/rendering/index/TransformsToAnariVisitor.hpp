@@ -5,7 +5,7 @@
 
 // tsd_core
 #include <anari/anari_cpp/ext/linalg.h>
-#include "tsd/core/scene/Layer.hpp"
+#include "tsd/scene/Layer.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexFilterFcn.hpp"
 // std

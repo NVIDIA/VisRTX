@@ -25,7 +25,7 @@ PUBLIC
 
 project_link_libraries(
 PUBLIC
-  tsd_core
+  tsd_scene
   tsd_io
   tsd_rendering
 PRIVATE

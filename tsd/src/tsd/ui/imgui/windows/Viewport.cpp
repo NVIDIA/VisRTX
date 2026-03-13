@@ -8,7 +8,7 @@
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
-#include "tsd/core/scene/objects/Camera.hpp"
+#include "tsd/scene/objects/Camera.hpp"
 // tsd_io
 #include "tsd/io/serialization.hpp"
 // tsd_rendering

@@ -6,8 +6,8 @@
 // tsd_ui_imgui
 #include <tsd/ui/imgui/windows/Window.h>
 // tsd_core
-#include <tsd/core/scene/objects/Array.hpp>
-#include <tsd/core/scene/objects/SpatialField.hpp>
+#include <tsd/scene/objects/Array.hpp>
+#include <tsd/scene/objects/SpatialField.hpp>
 // std
 #include <functional>
 

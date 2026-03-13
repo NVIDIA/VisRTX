@@ -19,7 +19,7 @@ project_sources(PRIVATE
 # Find Boost (Asio)
 find_package(Boost 1.66 REQUIRED)
 
-project_link_libraries(PUBLIC Boost::boost tsd_core)
+project_link_libraries(PUBLIC Boost::boost tsd_scene)
 project_include_directories(
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>

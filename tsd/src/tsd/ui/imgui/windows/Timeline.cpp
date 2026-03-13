@@ -4,8 +4,8 @@
 #include "Timeline.h"
 // tsd_core
 #include "tsd/core/ObjectPool.hpp"
-#include "tsd/core/scene/Animation.hpp"
-#include "tsd/core/scene/objects/Camera.hpp"
+#include "tsd/scene/Animation.hpp"
+#include "tsd/scene/objects/Camera.hpp"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
 // std

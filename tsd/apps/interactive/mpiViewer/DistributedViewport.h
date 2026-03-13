@@ -10,8 +10,8 @@
 #include <array>
 #include <limits>
 // tsd_core
-#include <tsd/core/scene/Object.hpp>
-#include <tsd/core/scene/UpdateDelegate.hpp>
+#include <tsd/scene/Object.hpp>
+#include <tsd/scene/UpdateDelegate.hpp>
 // tsd_app
 #include <tsd/app/Context.h>
 // tsd_rendering

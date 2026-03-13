@@ -6,7 +6,7 @@
 #include "BaseViewport.h"
 
 // tsd_core
-#include "tsd/core/scene/objects/Camera.hpp"
+#include "tsd/scene/objects/Camera.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/RenderPipeline.h"

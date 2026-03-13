@@ -4,7 +4,7 @@
 #pragma once
 
 #include <limits>
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 #include "tsd/rendering/view/Manipulator.hpp"
 
 namespace tsd::io {

@@ -5,43 +5,15 @@ project(tsd_core)
 
 project_add_library(STATIC)
 
-set(TSD_CORE_CUDA_SOURCES
-  algorithms/detail/computeScalarRange_fixed16.cpp
-  algorithms/detail/computeScalarRange_fixed8.cpp
-  algorithms/detail/computeScalarRange_float32.cpp
-  algorithms/detail/computeScalarRange_float64.cpp
-  algorithms/detail/computeScalarRange_ufixed16.cpp
-  algorithms/detail/computeScalarRange_ufixed8.cpp
-)
-
 if (TSD_USE_CUDA)
   list(APPEND TSD_CORE_CUDA_SOURCES algorithms/detail/vort_cuda.cu)
 endif()
 
 set(TSD_CORE_CXX_SOURCES
-  algorithms/computeScalarRange.cpp
   ColorMapUtil.cpp
   DataStream.cpp
   Logging.cpp
   Parameter.cpp
-  scene/AnariHandleCache.cpp
-  scene/Animation.cpp
-  scene/AnyObjectUsePtr.cpp
-  scene/Layer.cpp
-  scene/LayerNodeData.cpp
-  scene/Object.cpp
-  scene/objects/Array.cpp
-  scene/objects/Camera.cpp
-  scene/objects/Geometry.cpp
-  scene/objects/Light.cpp
-  scene/objects/Material.cpp
-  scene/objects/Renderer.cpp
-  scene/objects/Sampler.cpp
-  scene/objects/SpatialField.cpp
-  scene/objects/Surface.cpp
-  scene/objects/Volume.cpp
-  scene/Scene.cpp
-  scene/UpdateDelegate.cpp
   Token.cpp
 )
 

@@ -3,7 +3,7 @@
 
 #include "tsd/scripting/LuaContext.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/core/scene/Scene.hpp"
+#include "tsd/scene/Scene.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
 
 #include <sol/sol.hpp>
