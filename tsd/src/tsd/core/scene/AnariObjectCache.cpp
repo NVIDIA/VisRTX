@@ -1,7 +1,8 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/core/AnariObjectCache.hpp"
+#include "tsd/core/scene/AnariObjectCache.hpp"
+// tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/scene/Scene.hpp"
 

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/scene/Object.hpp"
-#include "tsd/core/AnariObjectCache.hpp"
+#include "tsd/core/scene/AnariObjectCache.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/scene/Scene.hpp"
 // std

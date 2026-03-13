@@ -20,11 +20,11 @@ endif()
 
 set(TSD_CORE_CXX_SOURCES
   algorithms/computeScalarRange.cpp
-  AnariObjectCache.cpp
   ColorMapUtil.cpp
   DataStream.cpp
   Logging.cpp
   Parameter.cpp
+  scene/AnariObjectCache.cpp
   scene/Animation.cpp
   scene/AnyObjectUsePtr.cpp
   scene/Layer.cpp

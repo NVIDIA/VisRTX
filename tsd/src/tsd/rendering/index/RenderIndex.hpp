@@ -4,7 +4,7 @@
 #pragma once
 
 // tsd_core
-#include "tsd/core/AnariObjectCache.hpp"
+#include "tsd/core/scene/AnariObjectCache.hpp"
 #include "tsd/core/scene/Scene.hpp"
 #include "tsd/core/scene/UpdateDelegate.hpp"
 // tsd_rendering
