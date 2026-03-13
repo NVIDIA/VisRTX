@@ -49,7 +49,7 @@ constexpr uint8_t objectMask_lights()
 struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
 {
   RenderToAnariObjectsVisitor(anari::Device d,
-      tsd::core::AnariObjectCache &oc,
+      tsd::core::AnariHandleCache &oc,
       std::vector<anari::Instance> *instances,
       uint8_t inclusionMask = objectMask_all(),
       RenderIndexFilterFcn *f = nullptr);
@@ -70,7 +70,7 @@ struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
   };
 
   anari::Device m_device{nullptr};
-  tsd::core::AnariObjectCache *m_cache{nullptr};
+  tsd::core::AnariHandleCache *m_cache{nullptr};
   std::vector<anari::Instance> *m_instances{nullptr};
   std::stack<GroupedObjects> m_objects;
   uint8_t m_mask{objectMask_none()};
@@ -80,7 +80,7 @@ struct RenderToAnariObjectsVisitor : public tsd::core::LayerVisitor
 // Inlined definitions ////////////////////////////////////////////////////////
 
 inline RenderToAnariObjectsVisitor::RenderToAnariObjectsVisitor(anari::Device d,
-    tsd::core::AnariObjectCache &oc,
+    tsd::core::AnariHandleCache &oc,
     std::vector<anari::Instance> *instances,
     uint8_t mask,
     RenderIndexFilterFcn *f)

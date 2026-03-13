@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/scene/Object.hpp"
-#include "tsd/core/scene/AnariObjectCache.hpp"
+#include "tsd/core/scene/AnariHandleCache.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/scene/Scene.hpp"
 // std
@@ -408,7 +408,7 @@ void Object::updateANARIParameter(anari::Device d,
     anari::Object o,
     const Parameter &p,
     const char *n,
-    AnariObjectCache *cache) const
+    AnariHandleCache *cache) const
 {
   if (!o)
     return;
@@ -438,7 +438,7 @@ void Object::updateANARIParameter(anari::Device d,
 }
 
 void Object::updateAllANARIParameters(
-    anari::Device d, anari::Object o, AnariObjectCache *cache) const
+    anari::Device d, anari::Object o, AnariHandleCache *cache) const
 {
   if (!o)
     return;

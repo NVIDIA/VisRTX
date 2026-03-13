@@ -14,10 +14,10 @@ struct Array;
 struct Object;
 struct Scene;
 
-struct AnariObjectCache
+struct AnariHandleCache
 {
-  AnariObjectCache(Scene &scene, tsd::core::Token deviceName, anari::Device d);
-  ~AnariObjectCache();
+  AnariHandleCache(Scene &scene, tsd::core::Token deviceName, anari::Device d);
+  ~AnariHandleCache();
   anari::Object getHandle(
       anari::DataType type, size_t index, bool createIfNotPresent);
   anari::Object getHandle(const Object *o, bool createIfNotPresent);

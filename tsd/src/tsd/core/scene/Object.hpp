@@ -29,7 +29,7 @@ void nodeToNewObject(core::DataNode &node, core::Object &obj);
 namespace tsd::core {
 
 struct Scene;
-struct AnariObjectCache;
+struct AnariHandleCache;
 
 // Token declarations /////////////////////////////////////////////////////////
 
@@ -146,10 +146,10 @@ struct Object : public ParameterObserver
       anari::Object o,
       const Parameter &p,
       const char *n,
-      AnariObjectCache *cache = nullptr) const;
+      AnariHandleCache *cache = nullptr) const;
   void updateAllANARIParameters(anari::Device d,
       anari::Object o,
-      AnariObjectCache *cache = nullptr) const;
+      AnariHandleCache *cache = nullptr) const;
 
   //// Updates ////
 

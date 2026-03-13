@@ -19,7 +19,7 @@ RenderIndex::RenderIndex(
 RenderIndex::~RenderIndex()
 {
   auto d = device();
-  anari::release(d, m_world); // release before AnariObjectCache
+  anari::release(d, m_world); // release before AnariHandleCache
   anari::release(d, d);
 }
 

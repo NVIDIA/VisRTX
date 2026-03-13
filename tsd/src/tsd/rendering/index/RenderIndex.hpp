@@ -4,7 +4,7 @@
 #pragma once
 
 // tsd_core
-#include "tsd/core/scene/AnariObjectCache.hpp"
+#include "tsd/core/scene/AnariHandleCache.hpp"
 #include "tsd/core/scene/Scene.hpp"
 #include "tsd/core/scene/UpdateDelegate.hpp"
 // tsd_rendering
@@ -63,7 +63,7 @@ struct RenderIndex : public BaseUpdateDelegate
   virtual void updateWorld() = 0;
 
   Scene *m_ctx{nullptr};
-  AnariObjectCache m_cache;
+  AnariHandleCache m_cache;
 
   anari::World m_world{nullptr};
   std::vector<anari::Instance> m_externalInstances;

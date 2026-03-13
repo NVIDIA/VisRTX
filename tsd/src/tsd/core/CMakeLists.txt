@@ -24,7 +24,7 @@ set(TSD_CORE_CXX_SOURCES
   DataStream.cpp
   Logging.cpp
   Parameter.cpp
-  scene/AnariObjectCache.cpp
+  scene/AnariHandleCache.cpp
   scene/Animation.cpp
   scene/AnyObjectUsePtr.cpp
   scene/Layer.cpp

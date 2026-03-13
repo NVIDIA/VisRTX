@@ -1,7 +1,7 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/core/scene/AnariObjectCache.hpp"
+#include "tsd/core/scene/AnariHandleCache.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/scene/Scene.hpp"
@@ -26,9 +26,9 @@ static bool supportsCUDAArrays(anari::Device d)
   return supportsCUDA;
 }
 
-// AnariObjectCache definitions ///////////////////////////////////////////////
+// AnariHandleCache definitions ///////////////////////////////////////////////
 
-AnariObjectCache::AnariObjectCache(
+AnariHandleCache::AnariHandleCache(
     Scene &scene, tsd::core::Token name, anari::Device d)
     : device(d), deviceName(name), m_scene(&scene)
 {
@@ -38,19 +38,19 @@ AnariObjectCache::AnariObjectCache(
       m_supportsCUDA ? "supports" : "does NOT support");
 }
 
-AnariObjectCache::~AnariObjectCache()
+AnariHandleCache::~AnariHandleCache()
 {
   clear();
   anari::release(device, device);
 }
 
-anari::Object AnariObjectCache::getHandle(
+anari::Object AnariHandleCache::getHandle(
     anari::DataType type, size_t i, bool createIfNotPresent)
 {
   return getHandle(m_scene->getObject(type, i), createIfNotPresent);
 }
 
-anari::Object AnariObjectCache::getHandle(
+anari::Object AnariHandleCache::getHandle(
     const Object *obj, bool createIfNotPresent)
 {
   if (!obj)
@@ -77,7 +77,7 @@ anari::Object AnariObjectCache::getHandle(
   return o;
 }
 
-void AnariObjectCache::insertEmptyHandle(anari::DataType type)
+void AnariHandleCache::insertEmptyHandle(anari::DataType type)
 {
   switch (type) {
   case ANARI_SURFACE:
@@ -118,19 +118,19 @@ void AnariObjectCache::insertEmptyHandle(anari::DataType type)
   }
 }
 
-void AnariObjectCache::releaseHandle(anari::DataType type, size_t index)
+void AnariHandleCache::releaseHandle(anari::DataType type, size_t index)
 {
   removeHandle(type, index);
   insertEmptyHandle(type);
 }
 
-void AnariObjectCache::releaseHandle(const Object *o)
+void AnariHandleCache::releaseHandle(const Object *o)
 {
   if (o)
     return releaseHandle(o->type(), o->index());
 }
 
-void AnariObjectCache::removeHandle(anari::DataType type, size_t index)
+void AnariHandleCache::removeHandle(anari::DataType type, size_t index)
 {
   auto handle = getHandle(type, index, false);
   anari::release(device, handle);
@@ -174,12 +174,12 @@ void AnariObjectCache::removeHandle(anari::DataType type, size_t index)
   }
 }
 
-void AnariObjectCache::removeHandle(const Object *o)
+void AnariHandleCache::removeHandle(const Object *o)
 {
   return removeHandle(o->type(), o->index());
 }
 
-void AnariObjectCache::clear()
+void AnariHandleCache::clear()
 {
   auto releaseAllHandles = [&](auto &iv) {
     for (int i = 0; i < iv.capacity(); i++) {
@@ -201,12 +201,12 @@ void AnariObjectCache::clear()
   releaseAllHandles(array); // this needs to be last!
 }
 
-bool AnariObjectCache::supportsCUDA() const
+bool AnariHandleCache::supportsCUDA() const
 {
   return m_supportsCUDA;
 }
 
-void AnariObjectCache::updateObjectArrayData(const Array *a)
+void AnariHandleCache::updateObjectArrayData(const Array *a)
 {
   auto elementType = a->elementType();
   if (!a || !anari::isObject(elementType) || a->isEmpty())
@@ -219,14 +219,14 @@ void AnariObjectCache::updateObjectArrayData(const Array *a)
       auto *obj = m_scene->getObject(elementType, idx);
       auto handle = this->getHandle(obj, true);
       if (handle == nullptr)
-        logWarning("[RenderIndex] object array encountered null handle");
+        logWarning("[AnariHandleCache] object array encountered null handle");
       return handle;
     });
     anariUnmapArray(device, arr);
   }
 }
 
-void AnariObjectCache::replaceHandle(
+void AnariHandleCache::replaceHandle(
     anari::Object o, anari::DataType type, size_t i)
 {
   switch (type) {
@@ -268,7 +268,7 @@ void AnariObjectCache::replaceHandle(
   }
 }
 
-anari::Object AnariObjectCache::readHandle(anari::DataType type, size_t i) const
+anari::Object AnariHandleCache::readHandle(anari::DataType type, size_t i) const
 {
   anari::Object obj = nullptr;
 
