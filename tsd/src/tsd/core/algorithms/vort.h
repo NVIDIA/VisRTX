@@ -8,6 +8,8 @@
 #include <iostream>
 #include <vector>
 
+namespace tsd::core {
+
 // lambda2: middle eigenvalue of M = S^2 + O^2, where S=(J+J^T)/2, O=(J-J^T)/2.
 // M is symmetric with 6 unique entries computed as M = (J^2 + (J^T)^2) / 2.
 // Eigenvalues via the trigonometric (Cardano) formula: eig_k = q + 2p*cos(phi +
@@ -270,3 +272,5 @@ inline void vort(const float *u,
       qCriterion,
       len);
 }
+
+} // namespace tsd::core

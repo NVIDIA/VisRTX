@@ -6,6 +6,8 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace tsd::core {
+
 // GPU-accelerated vortical field computation.
 // Same signature and semantics as vort() in vort.h, but runs on the GPU.
 // All pointers are host pointers; data transfer is managed internally.
@@ -46,3 +48,5 @@ void vort_cuda_unstructured(const float *positions,
     float *helicity,
     float *lambda2,
     float *qCriterion);
+
+} // namespace tsd::core

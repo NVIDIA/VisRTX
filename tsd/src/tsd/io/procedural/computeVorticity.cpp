@@ -7,7 +7,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/algorithms/vort.h"
 #if TSD_USE_CUDA
-#include "vort_cuda.h"
+#include "tsd/core/algorithms/vort_cuda.h"
 #endif
 // nanovdb
 #include <nanovdb/NanoVDB.h>
@@ -648,8 +648,8 @@ static VorticityResult computeVorticityUnstructured(Scene &scene,
 
   // Wrap each output as an unstructured SpatialField sharing the topology
   // arrays from the u-field.  wrapFieldAsVolume adds the transfer function.
-  auto makeUnstrField =
-      [&](const std::string &name, ArrayRef &arr) -> SpatialFieldRef {
+  auto makeUnstrField = [&](const std::string &name,
+                            ArrayRef &arr) -> SpatialFieldRef {
     if (!arr)
       return {};
     auto f =

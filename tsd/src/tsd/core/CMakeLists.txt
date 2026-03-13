@@ -14,6 +14,10 @@ set(TSD_CORE_CUDA_SOURCES
   algorithms/detail/computeScalarRange_ufixed8.cpp
 )
 
+if (TSD_USE_CUDA)
+  list(APPEND TSD_CORE_CUDA_SOURCES algorithms/detail/vort_cuda.cu)
+endif()
+
 set(TSD_CORE_CXX_SOURCES
   algorithms/computeScalarRange.cpp
   AnariObjectCache.cpp

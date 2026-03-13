@@ -152,7 +152,3 @@ if (TSD_NANOVDB_SKIP_INVALID_VOLUMES)
 else()
   project_compile_definitions(PRIVATE -DTSD_NANOVDB_SKIP_INVALID_VOLUMES=0)
 endif()
-
-if (TSD_USE_CUDA)
-  project_sources(PRIVATE procedural/vort.cu)
-endif()

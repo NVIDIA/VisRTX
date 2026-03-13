@@ -1,14 +1,16 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "vort_cuda.h"
-// tsd
+#include "tsd/core/algorithms/vort_cuda.h"
+// tsd_core
 #include "tsd/core/Logging.hpp"
 // cuda
 #include <cuda_runtime.h>
 // std
 #include <cmath>
 #include <cstdint>
+
+namespace tsd::core {
 
 // ---------------------------------------------------------------------------
 // Device functions: lambda2 and Q-criterion (mirrors vort.h)
@@ -29,14 +31,11 @@ __device__ static double l2_d(double j00,
   const double m11 = j10 * j01 + j11 * j11 + j12 * j21;
   const double m22 = j20 * j02 + j21 * j12 + j22 * j22;
   const double m01 = 0.5
-      * (j00 * j01 + j01 * j11 + j02 * j21 + j00 * j10 + j10 * j11
-          + j20 * j12);
+      * (j00 * j01 + j01 * j11 + j02 * j21 + j00 * j10 + j10 * j11 + j20 * j12);
   const double m02 = 0.5
-      * (j00 * j02 + j01 * j12 + j02 * j22 + j00 * j20 + j10 * j21
-          + j20 * j22);
+      * (j00 * j02 + j01 * j12 + j02 * j22 + j00 * j20 + j10 * j21 + j20 * j22);
   const double m12 = 0.5
-      * (j10 * j02 + j11 * j12 + j12 * j22 + j01 * j20 + j11 * j21
-          + j21 * j22);
+      * (j10 * j02 + j11 * j12 + j12 * j22 + j01 * j20 + j11 * j21 + j21 * j22);
 
   const double q = (m00 + m11 + m22) / 3.0;
   const double a = m00 - q, d = m11 - q, f = m22 - q;
@@ -99,12 +98,8 @@ __device__ static double q_crit_d(double j00,
 // Boundary: 1st-order one-sided.  Interior: 2nd-order central.
 // ---------------------------------------------------------------------------
 
-__device__ static double grad1(const float *fc,
-    size_t tid,
-    size_t i,
-    size_t n,
-    size_t s,
-    const double *c)
+__device__ static double grad1(
+    const float *fc, size_t tid, size_t i, size_t n, size_t s, const double *c)
 {
   if (i == 0)
     return ((double)fc[tid + s] - (double)fc[tid]) / (c[1] - c[0]);
@@ -169,17 +164,16 @@ __global__ static void vort_fused_kernel(const float *u,
       const double ui = u[tid], vi = v[tid], wi = w[tid];
       const double h = fabs(omx * ui + omy * vi + omz * wi);
       const double vmag = sqrt(ui * ui + vi * vi + wi * wi);
-      helicity[tid] = (vmag > 0.0 && omag > 0.0)
-          ? (float)(h / (2.0 * vmag * omag))
-          : 0.0f;
+      helicity[tid] =
+          (vmag > 0.0 && omag > 0.0) ? (float)(h / (2.0 * vmag * omag)) : 0.0f;
     }
   }
   if (lambda2)
-    lambda2[tid] = (float)(-fmin(
-        l2_d(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz), 0.0));
+    lambda2[tid] =
+        (float)(-fmin(l2_d(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz), 0.0));
   if (qCriterion)
-    qCriterion[tid] = (float)fmax(
-        q_crit_d(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz), 0.0);
+    qCriterion[tid] =
+        (float)fmax(q_crit_d(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz), 0.0);
 }
 
 // ---------------------------------------------------------------------------
@@ -223,8 +217,7 @@ void vort_cuda(const float *u,
   bool ok = true;
   auto check = [&](cudaError_t e) {
     if (e != cudaSuccess && ok) {
-      tsd::core::logError(
-          "[vort_cuda] CUDA error: %s", cudaGetErrorString(e));
+      tsd::core::logError("[vort_cuda] CUDA error: %s", cudaGetErrorString(e));
       ok = false;
     }
   };
@@ -263,19 +256,8 @@ void vort_cuda(const float *u,
     // Single fused kernel: computes all 9 Jacobian components per thread in
     // registers and immediately derives the requested vortical quantities.
     // Eliminates 9x len*sizeof(double) of intermediate global memory traffic.
-    vort_fused_kernel<<<grid, BLOCK>>>(d_u,
-        d_v,
-        d_w,
-        d_x,
-        d_y,
-        d_z,
-        d_vort,
-        d_hel,
-        d_l2,
-        d_qc,
-        nx,
-        ny,
-        nz);
+    vort_fused_kernel<<<grid, BLOCK>>>(
+        d_u, d_v, d_w, d_x, d_y, d_z, d_vort, d_hel, d_l2, d_qc, nx, ny, nz);
 
     check(cudaDeviceSynchronize());
   }
@@ -315,20 +297,28 @@ void vort_cuda(const float *u,
 // Supported: TETRA(10)=4, HEX(12)=12, WEDGE(13)=8, PYRAMID(14)=6.
 __device__ static int num_tris_for_type(uint8_t ct)
 {
-  if (ct == 10) return 4;
-  if (ct == 12) return 12;
-  if (ct == 13) return 8;
-  if (ct == 14) return 6;
+  if (ct == 10)
+    return 4;
+  if (ct == 12)
+    return 12;
+  if (ct == 13)
+    return 8;
+  if (ct == 14)
+    return 6;
   return 0;
 }
 
 // Returns the expected number of vertices for a given VTK cell type.
 __device__ static uint32_t expected_nv(uint8_t ct)
 {
-  if (ct == 10) return 4; // TETRA
-  if (ct == 12) return 8; // HEX
-  if (ct == 13) return 6; // WEDGE
-  if (ct == 14) return 5; // PYRAMID
+  if (ct == 10)
+    return 4; // TETRA
+  if (ct == 12)
+    return 8; // HEX
+  if (ct == 13)
+    return 6; // WEDGE
+  if (ct == 14)
+    return 5; // PYRAMID
   return 0;
 }
 
@@ -348,12 +338,18 @@ __device__ static void tri_indices(uint8_t ct, int k, int &i0, int &i1, int &i2)
   } else if (ct == 12) { // HEX: 6 quad faces → 12 triangles
     // VTK faces: {0,4,7,3},{1,2,6,5},{0,1,5,4},{3,7,6,2},{0,3,2,1},{4,5,6,7}
     const int t[12][3] = {
-        {0, 4, 7}, {0, 7, 3}, // face 0
-        {1, 2, 6}, {1, 6, 5}, // face 1
-        {0, 1, 5}, {0, 5, 4}, // face 2
-        {3, 7, 6}, {3, 6, 2}, // face 3
-        {0, 3, 2}, {0, 2, 1}, // face 4
-        {4, 5, 6}, {4, 6, 7}, // face 5
+        {0, 4, 7},
+        {0, 7, 3}, // face 0
+        {1, 2, 6},
+        {1, 6, 5}, // face 1
+        {0, 1, 5},
+        {0, 5, 4}, // face 2
+        {3, 7, 6},
+        {3, 6, 2}, // face 3
+        {0, 3, 2},
+        {0, 2, 1}, // face 4
+        {4, 5, 6},
+        {4, 6, 7}, // face 5
     };
     i0 = t[k][0];
     i1 = t[k][1];
@@ -361,10 +357,14 @@ __device__ static void tri_indices(uint8_t ct, int k, int &i0, int &i1, int &i2)
   } else if (ct == 13) { // WEDGE: 2 tri + 3 quad faces → 8 triangles
     // VTK faces: {0,1,2},{3,5,4},{0,3,4,1},{1,4,5,2},{2,5,3,0}
     const int t[8][3] = {
-        {0, 1, 2}, {3, 5, 4}, // tri faces
-        {0, 3, 4}, {0, 4, 1}, // quad face {0,3,4,1}
-        {1, 4, 5}, {1, 5, 2}, // quad face {1,4,5,2}
-        {2, 5, 3}, {2, 3, 0}, // quad face {2,5,3,0}
+        {0, 1, 2},
+        {3, 5, 4}, // tri faces
+        {0, 3, 4},
+        {0, 4, 1}, // quad face {0,3,4,1}
+        {1, 4, 5},
+        {1, 5, 2}, // quad face {1,4,5,2}
+        {2, 5, 3},
+        {2, 3, 0}, // quad face {2,5,3,0}
     };
     i0 = t[k][0];
     i1 = t[k][1];
@@ -372,8 +372,12 @@ __device__ static void tri_indices(uint8_t ct, int k, int &i0, int &i1, int &i2)
   } else { // PYRAMID (14): 1 quad + 4 tri faces → 6 triangles
     // VTK faces: {0,3,2,1},{0,1,4},{1,2,4},{2,3,4},{3,0,4}
     const int t[6][3] = {
-        {0, 3, 2}, {0, 2, 1}, // quad base {0,3,2,1}
-        {0, 1, 4}, {1, 2, 4}, {2, 3, 4}, {3, 0, 4},
+        {0, 3, 2},
+        {0, 2, 1}, // quad base {0,3,2,1}
+        {0, 1, 4},
+        {1, 2, 4},
+        {2, 3, 4},
+        {3, 0, 4},
     };
     i0 = t[k][0];
     i1 = t[k][1];
@@ -476,9 +480,8 @@ __global__ static void gg_cell_kernel(const float *pos,
   // vol = Σ(face_centroid · N) = 3 * true_volume
   const double true_vol = vol / 3.0;
   if (true_vol > 1e-30) {
-    cellGrad[ci] = {(float)(gx / true_vol),
-        (float)(gy / true_vol),
-        (float)(gz / true_vol)};
+    cellGrad[ci] = {
+        (float)(gx / true_vol), (float)(gy / true_vol), (float)(gz / true_vol)};
   } else {
     cellGrad[ci] = {0.f, 0.f, 0.f};
   }
@@ -559,17 +562,16 @@ __global__ static void vort_jacobian_kernel(const float *u,
       const double ui = u[vi], vi_ = v[vi], wi = w[vi];
       const double h = fabs(omx * ui + omy * vi_ + omz * wi);
       const double vmag = sqrt(ui * ui + vi_ * vi_ + wi * wi);
-      helicity[vi] = (vmag > 0.0 && omag > 0.0)
-          ? (float)(h / (2.0 * vmag * omag))
-          : 0.0f;
+      helicity[vi] =
+          (vmag > 0.0 && omag > 0.0) ? (float)(h / (2.0 * vmag * omag)) : 0.0f;
     }
   }
   if (lambda2)
-    lambda2[vi] = (float)(-fmin(
-        l2_d(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz), 0.0));
+    lambda2[vi] =
+        (float)(-fmin(l2_d(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz), 0.0));
   if (qCriterion)
-    qCriterion[vi] = (float)fmax(
-        q_crit_d(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz), 0.0);
+    qCriterion[vi] =
+        (float)fmax(q_crit_d(dux, duy, duz, dvx, dvy, dvz, dwx, dwy, dwz), 0.0);
 }
 
 // ---------------------------------------------------------------------------
@@ -654,58 +656,97 @@ void vort_cuda_unstructured(const float *positions,
     check(cudaMalloc(&d_qc, numPoints * sizeof(float)));
 
   if (ok) {
-    check(cudaMemcpy(d_pos, positions, numPoints * 3 * sizeof(float),
+    check(cudaMemcpy(d_pos,
+        positions,
+        numPoints * 3 * sizeof(float),
         cudaMemcpyHostToDevice));
-    check(cudaMemcpy(
-        d_u, u, numPoints * sizeof(float), cudaMemcpyHostToDevice));
-    check(cudaMemcpy(
-        d_v, v, numPoints * sizeof(float), cudaMemcpyHostToDevice));
-    check(cudaMemcpy(
-        d_w, w, numPoints * sizeof(float), cudaMemcpyHostToDevice));
-    check(cudaMemcpy(d_conn, connectivity, connSize * sizeof(uint32_t),
+    check(
+        cudaMemcpy(d_u, u, numPoints * sizeof(float), cudaMemcpyHostToDevice));
+    check(
+        cudaMemcpy(d_v, v, numPoints * sizeof(float), cudaMemcpyHostToDevice));
+    check(
+        cudaMemcpy(d_w, w, numPoints * sizeof(float), cudaMemcpyHostToDevice));
+    check(cudaMemcpy(d_conn,
+        connectivity,
+        connSize * sizeof(uint32_t),
         cudaMemcpyHostToDevice));
-    check(cudaMemcpy(d_cellIdx, cellIndex, numCells * sizeof(uint32_t),
+    check(cudaMemcpy(d_cellIdx,
+        cellIndex,
+        numCells * sizeof(uint32_t),
         cudaMemcpyHostToDevice));
     check(cudaMemcpy(
         d_ct, cellTypes, numCells * sizeof(uint8_t), cudaMemcpyHostToDevice));
-    check(cudaMemcpy(d_vco, vtxCellOffsets, (numPoints + 1) * sizeof(uint32_t),
+    check(cudaMemcpy(d_vco,
+        vtxCellOffsets,
+        (numPoints + 1) * sizeof(uint32_t),
         cudaMemcpyHostToDevice));
-    check(cudaMemcpy(d_vcl, vtxCellList, listSize * sizeof(uint32_t),
+    check(cudaMemcpy(d_vcl,
+        vtxCellList,
+        listSize * sizeof(uint32_t),
         cudaMemcpyHostToDevice));
   }
 
   if (ok) {
     // Pass 1+2 for u: cell-centered GG gradient → volume-weighted vertex avg
-    gg_cell_kernel<<<gridC, BLOCK>>>(
-        d_pos, d_u, d_conn, d_cellIdx, d_ct, numCells, connSize, d_cgU,
+    gg_cell_kernel<<<gridC, BLOCK>>>(d_pos,
+        d_u,
+        d_conn,
+        d_cellIdx,
+        d_ct,
+        numCells,
+        connSize,
+        d_cgU,
         d_cellVol);
     gg_vertex_kernel<<<gridP, BLOCK>>>(
         d_vco, d_vcl, d_cgU, d_cellVol, numPoints, d_vgU);
 
     // Pass 1+2 for v (cell volumes are geometry-only, same as u pass)
-    gg_cell_kernel<<<gridC, BLOCK>>>(
-        d_pos, d_v, d_conn, d_cellIdx, d_ct, numCells, connSize, d_cgV,
+    gg_cell_kernel<<<gridC, BLOCK>>>(d_pos,
+        d_v,
+        d_conn,
+        d_cellIdx,
+        d_ct,
+        numCells,
+        connSize,
+        d_cgV,
         d_cellVol);
     gg_vertex_kernel<<<gridP, BLOCK>>>(
         d_vco, d_vcl, d_cgV, d_cellVol, numPoints, d_vgV);
 
     // Pass 1+2 for w
-    gg_cell_kernel<<<gridC, BLOCK>>>(
-        d_pos, d_w, d_conn, d_cellIdx, d_ct, numCells, connSize, d_cgW,
+    gg_cell_kernel<<<gridC, BLOCK>>>(d_pos,
+        d_w,
+        d_conn,
+        d_cellIdx,
+        d_ct,
+        numCells,
+        connSize,
+        d_cgW,
         d_cellVol);
     gg_vertex_kernel<<<gridP, BLOCK>>>(
         d_vco, d_vcl, d_cgW, d_cellVol, numPoints, d_vgW);
 
     // Pass 3: vorticity/helicity/lambda2/Q from assembled Jacobian
-    vort_jacobian_kernel<<<gridP, BLOCK>>>(d_u, d_v, d_w, d_vgU, d_vgV, d_vgW,
-        numPoints, d_vort, d_hel, d_l2, d_qc);
+    vort_jacobian_kernel<<<gridP, BLOCK>>>(d_u,
+        d_v,
+        d_w,
+        d_vgU,
+        d_vgV,
+        d_vgW,
+        numPoints,
+        d_vort,
+        d_hel,
+        d_l2,
+        d_qc);
 
     check(cudaDeviceSynchronize());
   }
 
   if (ok) {
     if (vorticity)
-      check(cudaMemcpy(vorticity, d_vort, numPoints * sizeof(float),
+      check(cudaMemcpy(vorticity,
+          d_vort,
+          numPoints * sizeof(float),
           cudaMemcpyDeviceToHost));
     if (helicity)
       check(cudaMemcpy(
@@ -714,8 +755,8 @@ void vort_cuda_unstructured(const float *positions,
       check(cudaMemcpy(
           lambda2, d_l2, numPoints * sizeof(float), cudaMemcpyDeviceToHost));
     if (qCriterion)
-      check(cudaMemcpy(qCriterion, d_qc, numPoints * sizeof(float),
-          cudaMemcpyDeviceToHost));
+      check(cudaMemcpy(
+          qCriterion, d_qc, numPoints * sizeof(float), cudaMemcpyDeviceToHost));
   }
 
   cudaFree(d_pos);
@@ -739,3 +780,5 @@ void vort_cuda_unstructured(const float *positions,
   cudaFree(d_l2);
   cudaFree(d_qc);
 }
+
+} // namespace tsd::core
