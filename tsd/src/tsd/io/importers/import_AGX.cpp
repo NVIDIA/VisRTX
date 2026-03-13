@@ -71,7 +71,7 @@ void import_AGX(Scene &scene, const char *filepath, LayerNodeRef location)
 
   auto agx_root = scene.insertChildTransformNode(
       location ? location : scene.defaultLayer()->root(),
-      mat4(tsd::math::identity),
+      math::IDENTITY_MAT4,
       ("agx_transform_" + file).c_str());
 
   // geometry

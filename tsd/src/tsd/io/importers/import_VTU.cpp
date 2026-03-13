@@ -451,7 +451,7 @@ void import_VTU(Scene &scene, const char *filepath, LayerNodeRef location)
 
   auto root = scene.insertChildTransformNode(
       location ? location : scene.defaultLayer()->root(),
-      tsd::math::mat4(tsd::math::identity),
+      math::IDENTITY_MAT4,
       fileOf(filepath).c_str());
 
   if (hasSurface)

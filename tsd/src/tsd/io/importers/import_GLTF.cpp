@@ -1382,8 +1382,8 @@ void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
   }
 
   // Create root transformation node
-  auto rootNode = targetLocation->insert_last_child(
-      {layer, IDENTITY_MAT4, fileName.c_str()});
+  auto rootNode = scene.insertChildTransformNode(
+      targetLocation, IDENTITY_MAT4, fileName.c_str());
 
   if (model.defaultScene >= 0 && model.defaultScene < model.scenes.size()) {
     const auto &gltfScene = model.scenes[model.defaultScene];

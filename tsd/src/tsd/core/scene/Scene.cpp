@@ -608,6 +608,14 @@ LayerNodeRef Scene::insertChildObjectNode(
 {
   auto *layer = (*parent)->layer();
   auto *obj = getObject(type, idx);
+  if (!obj) {
+    logError(
+        "[Scene::insertChildObjectNode()] failed to find object of type %s and"
+        " index [%zu]",
+        anari::toString(type),
+        idx);
+    return {};
+  }
   auto inst = parent->insert_last_child({layer, obj, name});
   signalLayerStructureChanged(layer);
   return inst;

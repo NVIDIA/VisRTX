@@ -55,8 +55,7 @@ struct Layer final
  private:
   Scene *m_scene{nullptr};
   std::string m_name;
-  Forest<LayerNodeData> m_tree{
-      {this, tsd::math::mat4(tsd::math::identity), "root"}};
+  Forest<LayerNodeData> m_tree{{this, math::IDENTITY_MAT4, "root"}};
 };
 
 using LayerVisitor = Layer::Visitor;

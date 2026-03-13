@@ -220,7 +220,7 @@ static pxr::TfToken tsdSamplertoScalarOutputToken(const Sampler *sampler)
 {
   assert(sampler);
   auto transform = sampler->parameterValueAs<math::mat4>("outTransform")
-                       .value_or(mat4(math::identity));
+                       .value_or(math::IDENTITY_MAT4);
   auto x = transform.row(0);
   switch (argmax(x)) {
   case 0:
@@ -776,7 +776,7 @@ void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
           // special case for root -- output UsdGeomScope
           currentPath = currentPath.AppendChild(pxr::TfToken(l.first.c_str()));
           pxr::UsdGeomScope::Define(stage, currentPath);
-          transformStack.push(math::mat4(math::identity));
+          transformStack.push(math::IDENTITY_MAT4);
 
           return true;
         }

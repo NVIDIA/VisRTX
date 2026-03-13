@@ -157,7 +157,7 @@ void import_PT(Scene &scene, const char *filename, LayerNodeRef location)
 
     // Create transform as parent of neural object
     const auto xformNode = scene.insertChildTransformNode(
-        neuralLocation, tsd::math::mat4(tsd::math::identity), basename.c_str());
+        neuralLocation, math::IDENTITY_MAT4, basename.c_str());
 
     auto neural = scene.createObject<Geometry>(tokens::geometry::neural);
     const std::string name = "neural_geometry_t";

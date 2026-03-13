@@ -164,7 +164,7 @@ struct Scene
 
   LayerNodeRef insertChildNode(LayerNodeRef parent, const char *name = "");
   LayerNodeRef insertChildTransformNode(LayerNodeRef parent,
-      mat4 xfm = mat4(tsd::math::identity),
+      mat4 xfm = math::IDENTITY_MAT4,
       const char *name = "");
   LayerNodeRef insertChildTransformArrayNode(
       LayerNodeRef parent, Array *a, const char *name = "");
