@@ -15,6 +15,7 @@
 #include "tsd/scene/objects/Surface.hpp"
 #include "tsd/scene/objects/Volume.hpp"
 // std
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -228,6 +229,14 @@ struct Scene
   void defragmentObjectStorage();
   void cleanupScene(); // remove unused + defragment
 
+  // Defragmentation callbacks //
+
+  using IndexRemapper = std::function<size_t(ANARIDataType, size_t)>;
+  using DefragCallback = std::function<void(const IndexRemapper &)>;
+
+  size_t addDefragCallback(DefragCallback cb);
+  void removeDefragCallback(size_t token);
+
  private:
   friend void ::tsd::io::save_Scene(
       Scene &, core::DataNode &, bool, tsd::animation::SceneAnimation *);
@@ -257,6 +266,14 @@ struct Scene
   size_t m_numActiveLayers{0};
   bool m_inLayerBatch{false};
   std::vector<const Layer *> m_batchedLayerUpdates;
+
+  struct DefragCallbackEntry
+  {
+    size_t token;
+    DefragCallback callback;
+  };
+  std::vector<DefragCallbackEntry> m_defragCallbacks;
+  size_t m_nextDefragToken{0};
 
   struct MpiData
   {

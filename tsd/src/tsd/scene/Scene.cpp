@@ -5,6 +5,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/ObjectUsePtr.hpp"
 // std
+#include <algorithm>
 #include <sstream>
 
 namespace tsd::scene {
@@ -31,6 +32,68 @@ Scene::Scene()
 {
   defaultMaterial();
   defaultCamera();
+
+  // Layer-node object reference patching
+  addDefragCallback([this](const IndexRemapper &remap) {
+    std::vector<LayerNode *> toErase;
+
+    for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++) {
+      auto &layer = *itr->second.ptr;
+      layer.traverse(layer.root(), [&](LayerNode &node, int) {
+        if (!node->isObject())
+          return true;
+        auto objType =
+            anari::isArray(node->type()) ? ANARI_ARRAY : node->type();
+        size_t newIdx = remap(objType, node->getObjectIndex());
+        if (newIdx != INVALID_INDEX)
+          node->setAsObject(node->type(), newIdx);
+        else
+          toErase.push_back(&node);
+        return true;
+      });
+    }
+
+    for (auto *ln : toErase)
+      ln->erase_self();
+    if (!toErase.empty()) {
+      tsd::core::logStatus(
+          "    Removed %zu layer nodes referencing deleted objects",
+          toErase.size());
+    }
+  });
+
+  // Object parameter reference patching
+  addDefragCallback([this](const IndexRemapper &remap) {
+    auto updateParams = [&](auto &array) {
+      foreach_item(array, [&](Object *o) {
+        if (!o)
+          return;
+        for (size_t i = 0; i < o->numParameters(); i++) {
+          auto &p = o->parameterAt(i);
+          const auto &v = p.value();
+          if (!v.holdsObject())
+            continue;
+          auto objType =
+              anari::isArray(v.type()) ? ANARI_ARRAY : v.type();
+          auto newIdx = remap(objType, v.getAsObjectIndex());
+          Any newValue =
+              newIdx != INVALID_INDEX ? Any(v.type(), newIdx) : Any();
+          p.m_value = newValue;
+        }
+      });
+    };
+
+    updateParams(m_db.array);
+    updateParams(m_db.surface);
+    updateParams(m_db.geometry);
+    updateParams(m_db.material);
+    updateParams(m_db.sampler);
+    updateParams(m_db.volume);
+    updateParams(m_db.field);
+    updateParams(m_db.light);
+    updateParams(m_db.camera);
+    updateParams(m_db.renderer);
+  });
 }
 
 Scene::~Scene()
@@ -732,6 +795,21 @@ void Scene::removeUnusedObjects(bool includeRenderersAndCameras)
   }
 }
 
+size_t Scene::addDefragCallback(DefragCallback cb)
+{
+  size_t token = m_nextDefragToken++;
+  m_defragCallbacks.push_back({token, std::move(cb)});
+  return token;
+}
+
+void Scene::removeDefragCallback(size_t token)
+{
+  auto it = std::remove_if(m_defragCallbacks.begin(),
+      m_defragCallbacks.end(),
+      [token](const auto &e) { return e.token == token; });
+  m_defragCallbacks.erase(it, m_defragCallbacks.end());
+}
+
 void Scene::defragmentObjectStorage()
 {
   FlatMap<anari::DataType, bool> defragmentations;
@@ -762,15 +840,15 @@ void Scene::defragmentObjectStorage()
     }
   }
 
-  // Function to find the object holding an index and returning the new index //
+  // Build index remapper //
 
-  auto getUpdatedIndex = [&](anari::DataType objType, size_t idx) -> size_t {
+  IndexRemapper getUpdatedIndex = [&](anari::DataType objType,
+                                      size_t idx) -> size_t {
     auto findIdx = [](const auto &a, size_t i) {
       auto ref = find_item_if(a, [&](auto *o) { return o->index() == i; });
       return ref ? ref.index() : INVALID_INDEX;
     };
 
-    size_t newObjIndex = INVALID_INDEX;
     switch (objType) {
     case ANARI_SURFACE:
       return findIdx(m_db.surface, idx);
@@ -796,84 +874,19 @@ void Scene::defragmentObjectStorage()
     case ANARI_ARRAY3D:
       return findIdx(m_db.array, idx);
     default:
-      break; // no-op
+      break;
     }
 
     return INVALID_INDEX;
   };
 
-  // Function to update indices to objects in layer nodes //
+  // Invoke all registered defrag callbacks //
 
-  std::vector<LayerNode *> toErase;
-  auto updateLayerObjReferenceIndices = [&](Layer &layer) {
-    layer.traverse(layer.root(), [&](LayerNode &node, int /*level*/) {
-      if (!node->isObject())
-        return true;
-      auto objType = anari::isArray(node->type()) ? ANARI_ARRAY : node->type();
-      if (!defragmentations[objType])
-        return true;
+  for (auto &entry : m_defragCallbacks)
+    entry.callback(getUpdatedIndex);
 
-      size_t newIdx = getUpdatedIndex(objType, node->getObjectIndex());
-      if (newIdx != INVALID_INDEX)
-        node->setAsObject(node->type(), newIdx);
-      else
-        toErase.push_back(&node);
-
-      return true;
-    });
-  };
-
-  // Invoke above function on all layers//
-
-  for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++)
-    updateLayerObjReferenceIndices(*itr->second.ptr);
-
-  for (auto *ln : toErase)
-    ln->erase_self();
-  if (!toErase.empty()) {
-    tsd::core::logStatus(
-        "    Removed %zu layer nodes referencing deleted objects",
-        toErase.size());
-  }
-  toErase.clear();
-
-  // Function to update indices to objects on object parameters //
-
-  auto updateParameterReferences = [&](auto &array) {
-    foreach_item(array, [&](Object *o) {
-      if (!o)
-        return;
-      for (size_t i = 0; i < o->numParameters(); i++) {
-        auto &p = o->parameterAt(i);
-        const auto &v = p.value();
-        if (!v.holdsObject())
-          continue;
-        auto objType = anari::isArray(v.type()) ? ANARI_ARRAY : v.type();
-        if (!defragmentations[objType])
-          continue;
-
-        auto newIdx = getUpdatedIndex(objType, v.getAsObjectIndex());
-        Any newValue = newIdx != INVALID_INDEX ? Any(v.type(), newIdx) : Any();
-        p.m_value = newValue; // we don't want refcount changes, essentially
-                              // this is move semantics
-      }
-    });
-  };
-
-  // Invoke above function on all object arrays //
-
-  updateParameterReferences(m_db.array);
-  updateParameterReferences(m_db.surface);
-  updateParameterReferences(m_db.geometry);
-  updateParameterReferences(m_db.material);
-  updateParameterReferences(m_db.sampler);
-  updateParameterReferences(m_db.volume);
-  updateParameterReferences(m_db.field);
-  updateParameterReferences(m_db.light);
-  updateParameterReferences(m_db.camera);
-  updateParameterReferences(m_db.renderer);
-
-  // Function to update all self-held index values to the new actual index //
+  // Update all self-held index values to the new actual index //
+  // (Must be last — getUpdatedIndex relies on old m_index values)
 
   auto updateObjectHeldIndex = [&](auto &array) {
     foreach_item_ref(array, [&](auto ref) {
@@ -882,8 +895,6 @@ void Scene::defragmentObjectStorage()
       ref->m_index = ref.index();
     });
   };
-
-  // Invoke above function on all object arrays //
 
   updateObjectHeldIndex(m_db.array);
   updateObjectHeldIndex(m_db.surface);
