@@ -16,6 +16,10 @@ namespace tsd::scene {
 struct Scene;
 }
 
+namespace tsd::animation {
+class SceneAnimation;
+}
+
 namespace tsd::scripting {
 
 using PrintCallback = std::function<void(const std::string &)>;
@@ -46,6 +50,9 @@ class LuaContext
 
   // Scene IS owned by LuaContext
   scene::Scene *createOwnedScene(const std::string &varName = "scene");
+
+  void bindSceneAnimation(tsd::animation::SceneAnimation *sa,
+      const std::string &varName = "sceneAnimation");
 
   scene::Scene *boundScene() const;
 

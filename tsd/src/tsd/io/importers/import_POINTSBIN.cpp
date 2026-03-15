@@ -5,6 +5,7 @@
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/animation/SceneAnimation.hpp"
 // std
 #include <array>
 #include <vector>
@@ -18,7 +19,8 @@ using namespace tsd::core;
 //
 void import_POINTSBIN(Scene &scene,
     const std::vector<std::string> &filepaths,
-    LayerNodeRef location)
+    LayerNodeRef location,
+    tsd::animation::SceneAnimation *sceneAnim)
 {
   if (filepaths.empty())
     return;
@@ -54,8 +56,9 @@ void import_POINTSBIN(Scene &scene,
   }
 
   if (numTimeSteps > 1) {
+    if (!sceneAnim) return;
     auto tb = makeLinearTimeBase(numTimeSteps);
-    auto &anim = scene.sceneAnimation().addAnimation("pointsbin animation");
+    auto &anim = sceneAnim->addAnimation("pointsbin animation");
     addArrayTimeStepBindings(anim,
         geom.data(),
         {Token("vertex.position"), Token("vertex.attribute0")},

@@ -3,6 +3,8 @@
 
 #include "tsd/scripting/LuaContext.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
+// tsd_animation
+#include "tsd/animation/SceneAnimation.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 // tsd_scene
@@ -21,6 +23,7 @@ struct LuaContext::Impl
   sol::state lua;
   scene::Scene *boundScene{nullptr};
   std::unique_ptr<scene::Scene> ownedScene;
+  std::unique_ptr<animation::SceneAnimation> ownedSceneAnimation;
   PrintCallback printCallback;
   std::string outputBuffer;
 };
@@ -174,7 +177,22 @@ scene::Scene *LuaContext::createOwnedScene(const std::string &varName)
   m_impl->ownedScene = std::make_unique<scene::Scene>();
   m_impl->boundScene = m_impl->ownedScene.get();
   m_impl->lua[varName] = m_impl->boundScene;
+
+  m_impl->ownedSceneAnimation =
+      std::make_unique<animation::SceneAnimation>(*m_impl->boundScene);
+  m_impl->lua["sceneAnimation"] = m_impl->ownedSceneAnimation.get();
+
   return m_impl->boundScene;
+}
+
+void LuaContext::bindSceneAnimation(
+    tsd::animation::SceneAnimation *sa, const std::string &varName)
+{
+  m_impl->ownedSceneAnimation.reset();
+  if (sa)
+    m_impl->lua[varName] = sa;
+  else
+    m_impl->lua[varName] = sol::lua_nil;
 }
 
 scene::Scene *LuaContext::boundScene() const

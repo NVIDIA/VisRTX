@@ -3,6 +3,7 @@
 
 #include "Animations.h"
 // tsd_core
+#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/core/Logging.hpp"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
@@ -18,15 +19,15 @@ void Animations::buildUI()
     m_playing = !m_playing;
 
   auto *ctx = appContext();
-  auto &scene = ctx->tsd.scene;
+  auto &sceneAnim = ctx->tsd.sceneAnimation;
 
   if (m_playing)
-    scene.sceneAnimation().incrementAnimationTime();
+    sceneAnim.incrementAnimationTime();
 
   buildUI_animationControls();
 
   size_t toDelete = SIZE_MAX;
-  auto &anims = scene.sceneAnimation().animations();
+  auto &anims = sceneAnim.animations();
   for (size_t i = 0; i < anims.size(); i++) {
     auto &anim = anims[i];
     ImGui::PushID(static_cast<int>(i));
@@ -40,19 +41,19 @@ void Animations::buildUI()
     ImGui::PopID();
   }
   if (toDelete != SIZE_MAX)
-    scene.sceneAnimation().removeAnimation(toDelete);
+    sceneAnim.removeAnimation(toDelete);
 }
 
 void Animations::buildUI_animationControls()
 {
   auto *ctx = appContext();
-  auto &scene = ctx->tsd.scene;
+  auto &sceneAnim = ctx->tsd.sceneAnimation;
 
   ImGui::BeginDisabled(m_playing);
 
-  float time = scene.sceneAnimation().getAnimationTime();
+  float time = sceneAnim.getAnimationTime();
   if (ImGui::SliderFloat("time", &time, 0.f, 1.f))
-    scene.sceneAnimation().setAnimationTime(time);
+    sceneAnim.setAnimationTime(time);
 
   if (ImGui::Button("play"))
     m_playing = true;
@@ -65,9 +66,9 @@ void Animations::buildUI_animationControls()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  float increment = scene.sceneAnimation().getAnimationIncrement();
+  float increment = sceneAnim.getAnimationIncrement();
   if (ImGui::DragFloat("step", &increment, 0.01f, 0.f, 0.5f))
-    scene.sceneAnimation().setAnimationIncrement(increment);
+    sceneAnim.setAnimationIncrement(increment);
 }
 
 

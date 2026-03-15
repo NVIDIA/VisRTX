@@ -4,6 +4,7 @@
 #include "Timeline.h"
 // tsd_core
 #include "tsd/animation/Animation.hpp"
+#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/core/ObjectPool.hpp"
 #include "tsd/scene/objects/Camera.hpp"
 // tsd_ui_imgui
@@ -201,6 +202,7 @@ void Timeline::buildUI()
 {
   auto *ctx = appContext();
   auto &scene = ctx->tsd.scene;
+  auto &sceneAnim = ctx->tsd.sceneAnimation;
 
   // Space toggles play
   if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
@@ -209,16 +211,16 @@ void Timeline::buildUI()
   }
 
   if (m_playing) {
-    scene.sceneAnimation().incrementAnimationFrame();
-    if (!m_loop && scene.sceneAnimation().getAnimationFrame() == 0)
+    sceneAnim.incrementAnimationFrame();
+    if (!m_loop && sceneAnim.getAnimationFrame() == 0)
       m_playing = false;
   }
 
   // K shortcut: set keyframe on selected tracks
   if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
       && ImGui::IsKeyPressed(ImGuiKey_K)) {
-    float t = scene.sceneAnimation().getAnimationTime();
-    auto &anims = scene.sceneAnimation().animations();
+    float t = sceneAnim.getAnimationTime();
+    auto &anims = sceneAnim.animations();
     for (size_t i = 0; i < anims.size(); i++) {
       if (!m_selectedTracks.empty() && m_selectedTracks.count(i) == 0)
         continue;
@@ -242,6 +244,7 @@ void Timeline::buildUI_transport()
 {
   auto *ctx = appContext();
   auto &scene = ctx->tsd.scene;
+  auto &sceneAnim = ctx->tsd.sceneAnimation;
 
   ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(16.f, 2.f));
 
@@ -271,7 +274,7 @@ void Timeline::buildUI_transport()
     // Stop
     if (ImGui::Button(" [] ")) {
       m_playing = false;
-      scene.sceneAnimation().setAnimationFrame(0);
+      sceneAnim.setAnimationFrame(0);
     }
     if (ImGui::IsItemHovered())
       ImGui::SetTooltip("Stop");
@@ -283,10 +286,10 @@ void Timeline::buildUI_transport()
 
     // Frame counter
     ImGui::TableNextColumn();
-    int frame = scene.sceneAnimation().getAnimationFrame();
-    int totalFrames = scene.sceneAnimation().getAnimationTotalFrames();
+    int frame = sceneAnim.getAnimationFrame();
+    int totalFrames = sceneAnim.getAnimationTotalFrames();
     if (ImGui::InputInt("##frame", &frame, 1, 10))
-      scene.sceneAnimation().setAnimationFrame(frame);
+      sceneAnim.setAnimationFrame(frame);
 
     ImGui::TableNextColumn();
     ImGui::Text("%d / %d", frame, totalFrames - 1);
@@ -294,13 +297,13 @@ void Timeline::buildUI_transport()
     // Total frames
     ImGui::TableNextColumn();
     if (ImGui::InputInt("Frames", &totalFrames, 1, 10))
-      scene.sceneAnimation().setAnimationTotalFrames(totalFrames);
+      sceneAnim.setAnimationTotalFrames(totalFrames);
 
     // FPS
-    float fps = scene.sceneAnimation().getAnimationFPS();
+    float fps = sceneAnim.getAnimationFPS();
     ImGui::TableNextColumn();
     if (ImGui::DragFloat("FPS", &fps, 0.5f, 1.f, 240.f, "%.1f"))
-      scene.sceneAnimation().setAnimationFPS(fps);
+      sceneAnim.setAnimationFPS(fps);
 
     ImGui::PopStyleVar();
 
@@ -314,13 +317,14 @@ void Timeline::buildUI_canvas()
 {
   auto *ctx = appContext();
   auto &scene = ctx->tsd.scene;
+  auto &sceneAnim = ctx->tsd.sceneAnimation;
 
   const float nameColWidth = 150.f;
   const float rowHeight = 20.f;
   const float rulerHeight = 24.f;
 
-  int totalFrames = scene.sceneAnimation().getAnimationTotalFrames();
-  int currentFrame = scene.sceneAnimation().getAnimationFrame();
+  int totalFrames = sceneAnim.getAnimationTotalFrames();
+  int currentFrame = sceneAnim.getAnimationFrame();
   float canvasWidth = ImGui::GetContentRegionAvail().x - nameColWidth;
 
   // Zoom with scroll wheel when hovering canvas
@@ -333,7 +337,7 @@ void Timeline::buildUI_canvas()
   }
 
   float totalCanvasWidth = m_pixelsPerFrame * (totalFrames - 1);
-  auto &anims = scene.sceneAnimation().animations();
+  auto &anims = sceneAnim.animations();
   size_t numAnims = anims.size();
   float keysColWidth = std::max(canvasWidth, totalCanvasWidth + 20.f);
 
@@ -392,7 +396,7 @@ void Timeline::buildUI_canvas()
             std::clamp(currentFrame + static_cast<int>(dx / m_pixelsPerFrame),
                 0,
                 totalFrames - 1);
-        scene.sceneAnimation().setAnimationFrame(newFrame);
+        sceneAnim.setAnimationFrame(newFrame);
       }
 
       ImGui::SetCursorScreenPos(rulerPos);
@@ -401,7 +405,7 @@ void Timeline::buildUI_canvas()
         float mx = ImGui::GetMousePos().x - rulerPos.x;
         int newFrame = std::clamp(
             static_cast<int>(mx / m_pixelsPerFrame), 0, totalFrames - 1);
-        scene.sceneAnimation().setAnimationFrame(newFrame);
+        sceneAnim.setAnimationFrame(newFrame);
       }
     }
 
@@ -445,7 +449,7 @@ void Timeline::buildUI_canvas()
       ImGui::SameLine();
       bool removed = false;
       if (ImGui::SmallButton("x")) {
-        scene.sceneAnimation().removeAnimation(i);
+        sceneAnim.removeAnimation(i);
         m_selectedTracks.erase(i);
         removed = true;
       }
@@ -590,7 +594,7 @@ void Timeline::buildUI_canvas()
                 auto nodeRef = layer->at(node.index());
                 const char *animName =
                     !node->name().empty() ? node->name().c_str() : menuLabel;
-                auto &newAnim = scene.sceneAnimation().addAnimation(animName);
+                auto &newAnim = sceneAnim.addAnimation(animName);
                 newAnim.transforms.push_back({nodeRef, {}, {}, {}, {}});
                 ImGui::CloseCurrentPopup();
               }
@@ -615,7 +619,7 @@ void Timeline::buildUI_canvas()
               menuLabel, sizeof(menuLabel), "Camera [%zu]", cam->index());
         ImGui::PushID(static_cast<int>(cam->index() + 900000));
         if (ImGui::MenuItem(menuLabel)) {
-          auto &newAnim = scene.sceneAnimation().addAnimation(menuLabel);
+          auto &newAnim = sceneAnim.addAnimation(menuLabel);
           auto *camPtr = const_cast<tsd::scene::Camera *>(cam);
           using tsd::animation::ObjectParameterBinding;
           using tsd::animation::InterpolationRule;
@@ -641,7 +645,7 @@ void Timeline::buildUI_canvas()
 
     ImGui::TableSetColumnIndex(1);
     if (ImGui::Button("Set Keyframe (K)")) {
-      float t = scene.sceneAnimation().getAnimationTime();
+      float t = sceneAnim.getAnimationTime();
       for (size_t i = 0; i < anims.size(); i++) {
         if (!m_selectedTracks.empty() && m_selectedTracks.count(i) == 0)
           continue;

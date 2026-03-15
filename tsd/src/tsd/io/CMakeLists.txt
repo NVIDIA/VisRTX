@@ -66,7 +66,7 @@ PUBLIC
 
 project_link_libraries(
 PUBLIC
-  tsd_scene
+  tsd_animation tsd_scene
 PRIVATE
   $<BUILD_INTERFACE:tsd_ext_agx>
   $<BUILD_INTERFACE:tsd_ext_mikktspace>

@@ -359,29 +359,28 @@ function Layer:at(index) end
 function Layer:foreach(fn) end
 
 ------------------------------------------------------------------------
--- Animation (ContextBindings.cpp)
+-- Animation (CoreBindings.cpp)
 ------------------------------------------------------------------------
 
 ---@class tsd.Animation
 ---@field name string # Animation name (read/write)
 local Animation = {}
 
----@return string
-function Animation:info() end
+--- Add a parameter binding to this animation.
+---@param target tsd.Object
+---@param param string
+---@param dataArray tsd.Array
+---@param timeBaseArray tsd.Array
+---@param interp? string # "linear" (default), "step", or "slerp"
+function Animation:addBinding(target, param, dataArray, timeBaseArray, interp) end
 
----@return integer
-function Animation:timeStepCount() end
-
----@param time number
-function Animation:update(time) end
-
---- Bind time-step data to an object's parameter for animation.
---- The array's element type determines behavior:
----   - Scalar/vector types: discrete value animation (index into array)
----   - Object types: object-swap animation (pick object at index)
----@overload fun(self: tsd.Animation, obj: tsd.Object, param: string, array: tsd.Array)
----@overload fun(self: tsd.Animation, obj: tsd.Object, params: string[], arrays: tsd.Array[])
-function Animation:setAsTimeSteps(obj, params, arrays) end
+--- Add a transform binding to this animation.
+---@param node tsd.LayerNode
+---@param timeBaseArray tsd.Array
+---@param rotationArray tsd.Array # float4 quaternions
+---@param translationArray tsd.Array # float3 positions
+---@param scaleArray tsd.Array # float3 scale factors
+function Animation:addTransformBinding(node, timeBaseArray, rotationArray, translationArray, scaleArray) end
 
 ------------------------------------------------------------------------
 -- Scene (ContextBindings.cpp)
@@ -631,39 +630,6 @@ function Scene:removeAllLayers() end
 ---@overload fun(self: tsd.Scene, node: tsd.LayerNode, deleteObjects: boolean)
 function Scene:removeNode(...) end
 
--- Animation --------------------------------------------------------------
-
----@overload fun(self: tsd.Scene): tsd.Animation
----@overload fun(self: tsd.Scene, name: string): tsd.Animation
----@return tsd.Animation
-function Scene:addAnimation(...) end
-
----@return integer
-function Scene:numberOfAnimations() end
-
----@param index integer
----@return tsd.Animation
-function Scene:animation(index) end
-
----@param animation tsd.Animation
-function Scene:removeAnimation(animation) end
-
-function Scene:removeAllAnimations() end
-
----@param time number
-function Scene:setAnimationTime(time) end
-
----@return number
-function Scene:getAnimationTime() end
-
----@param increment number
-function Scene:setAnimationIncrement(increment) end
-
----@return number
-function Scene:getAnimationIncrement() end
-
-function Scene:incrementAnimationTime() end
-
 -- Cleanup ----------------------------------------------------------------
 
 function Scene:removeUnusedObjects() end
@@ -671,6 +637,63 @@ function Scene:removeUnusedObjects() end
 function Scene:defragmentObjectStorage() end
 
 function Scene:cleanupScene() end
+
+------------------------------------------------------------------------
+-- SceneAnimation (CoreBindings.cpp)
+------------------------------------------------------------------------
+
+---@class tsd.SceneAnimation
+local SceneAnimation = {}
+
+---@overload fun(self: tsd.SceneAnimation): tsd.Animation
+---@overload fun(self: tsd.SceneAnimation, name: string): tsd.Animation
+---@return tsd.Animation
+function SceneAnimation:addAnimation(...) end
+
+---@return tsd.Animation[]
+function SceneAnimation:animations() end
+
+---@return integer
+function SceneAnimation:numberOfAnimations() end
+
+---@param index integer
+function SceneAnimation:removeAnimation(index) end
+
+function SceneAnimation:removeAllAnimations() end
+
+---@param time number
+function SceneAnimation:setAnimationTime(time) end
+
+---@return number
+function SceneAnimation:getAnimationTime() end
+
+---@param increment number
+function SceneAnimation:setAnimationIncrement(increment) end
+
+---@return number
+function SceneAnimation:getAnimationIncrement() end
+
+function SceneAnimation:incrementAnimationTime() end
+
+---@return integer
+function SceneAnimation:getAnimationTotalFrames() end
+
+---@param frames integer
+function SceneAnimation:setAnimationTotalFrames(frames) end
+
+---@return number
+function SceneAnimation:getAnimationFPS() end
+
+---@param fps number
+function SceneAnimation:setAnimationFPS(fps) end
+
+---@return integer
+function SceneAnimation:getAnimationFrame() end
+
+---@param frame integer
+function SceneAnimation:setAnimationFrame(frame) end
+
+function SceneAnimation:incrementAnimationFrame() end
 
 ------------------------------------------------------------------------
 -- Render types (RenderBindings.cpp)
@@ -1163,5 +1186,8 @@ function tsd.render.renderToFile(pipeline, samples, filename, width, height) end
 
 ---@type tsd.Scene
 scene = nil
+
+---@type tsd.SceneAnimation
+sceneAnimation = nil
 
 return tsd

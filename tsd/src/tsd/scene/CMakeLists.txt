@@ -37,7 +37,7 @@ set(TSD_CORE_CXX_SOURCES
 )
 
 project_sources(PRIVATE ${TSD_CORE_CUDA_SOURCES} ${TSD_CORE_CXX_SOURCES})
-project_link_libraries(PUBLIC tsd_core tsd_animation)
+project_link_libraries(PUBLIC tsd_core)
 project_include_directories(
 INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../..>
