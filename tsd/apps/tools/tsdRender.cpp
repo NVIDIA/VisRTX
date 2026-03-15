@@ -294,9 +294,9 @@ static void renderFrames()
   const tsd::scene::Object *animatedCamera = nullptr;
   for (auto &anim : g_sceneAnimation->animations()) {
     for (auto &b : anim.bindings) {
-      if (b.target && b.target->type() == ANARI_CAMERA) {
+      if (b.target && b.target.type() == ANARI_CAMERA) {
         hasCameraAnimation = true;
-        animatedCamera = b.target;
+        animatedCamera = b.target.resolve();
         break;
       }
     }

@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "tsd/animation/AnimObjectRef.hpp"
 #include "tsd/animation/TimeSamples.hpp"
 #include "tsd/scene/Layer.hpp"
-#include "tsd/scene/Object.hpp"
 // tsd
 #include <tsd/core/Any.hpp>
 #include <tsd/core/TSDMath.hpp>
@@ -15,11 +15,6 @@
 #include <vector>
 
 namespace tsd::animation {
-
-using Token = tsd::core::Token;
-using Any = tsd::core::Any;
-using Object = tsd::scene::Object *;
-using LayerNodeRef = tsd::scene::LayerNodeRef;
 
 // Interpolation //////////////////////////////////////////////////////////////
 
@@ -34,8 +29,8 @@ enum class InterpolationRule
 
 struct ObjectParameterBinding
 {
-  Object target;
-  Token paramName;
+  AnimObjectRef target;
+  core::Token paramName;
   ANARIDataType dataType{ANARI_UNKNOWN};
 
   TimeSamples data;
@@ -45,7 +40,7 @@ struct ObjectParameterBinding
 
 struct TransformBinding
 {
-  LayerNodeRef target;
+  scene::LayerNodeRef target;
   std::vector<float> timeBase;
   std::vector<tsd::core::math::float4> rotation;
   std::vector<tsd::core::math::float3> translation;
@@ -63,14 +58,14 @@ struct Animation
 
 struct ParameterSubstitution
 {
-  Object target;
-  Token paramName;
-  Any value;
+  tsd::scene::Object *target;
+  core::Token paramName;
+  core::Any value;
 };
 
 struct TransformSubstitution
 {
-  LayerNodeRef target;
+  scene::LayerNodeRef target;
   tsd::core::math::mat4 transform;
 };
 

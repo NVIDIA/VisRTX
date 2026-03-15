@@ -486,6 +486,7 @@ bool Context::updateCameraPathAnimation()
   const auto firstDirection = directions[0];
   const auto firstUp = ups[0];
 
+  using tsd::animation::AnimObjectRef;
   using tsd::animation::InterpolationRule;
   using tsd::animation::ObjectParameterBinding;
   using tsd::animation::TimeSamples;
@@ -495,7 +496,7 @@ bool Context::updateCameraPathAnimation()
                          const void *data,
                          size_t count) -> ObjectParameterBinding {
     ObjectParameterBinding b;
-    b.target = camera.data();
+    b.target = AnimObjectRef(*camera.data());
     b.paramName = param;
     b.dataType = dataType;
     b.data = TimeSamples(dataType, count);

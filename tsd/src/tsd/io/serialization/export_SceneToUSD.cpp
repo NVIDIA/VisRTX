@@ -828,7 +828,7 @@ void export_SceneToUSD(Scene &scene,
             if (sceneAnim) {
               for (auto &anim : sceneAnim->animations()) {
                 for (auto &b : anim.bindings) {
-                  if (b.target == camera) {
+                  if (b.target.resolve() == camera) {
                     cameraSampleCount = b.timeBase.size();
                     break;
                   }
