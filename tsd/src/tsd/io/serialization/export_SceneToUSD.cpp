@@ -5,6 +5,7 @@
 #endif
 
 // tsd
+#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/serialization.hpp"
 
@@ -741,7 +742,10 @@ static pxr::SdfPath tsdSurfaceToUSD(
   return surfacePath;
 }
 
-void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
+void export_SceneToUSD(Scene &scene,
+    const char *filename,
+    int framesPerSecond,
+    tsd::animation::SceneAnimation *sceneAnim)
 {
   // Clear some global state (!!!)
   usedTextureFileNames.clear();
@@ -759,7 +763,8 @@ void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
     return;
   }
 
-  const float originalTime = scene.sceneAnimation().getAnimationTime();
+  const float originalTime =
+      sceneAnim ? sceneAnim->getAnimationTime() : 0.f;
   const int exportFps = std::max(1, framesPerSecond);
 
   pxr::SdfPath currentPath = allLayersPath;
@@ -820,15 +825,17 @@ void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
             auto usdCamera = pxr::UsdGeomCamera::Define(stage, objectPath);
 
             size_t cameraSampleCount = 0;
-            for (auto &anim : scene.sceneAnimation().animations()) {
-              for (auto &b : anim.bindings) {
-                if (b.target == camera) {
-                  cameraSampleCount = b.timeBase.size();
-                  break;
+            if (sceneAnim) {
+              for (auto &anim : sceneAnim->animations()) {
+                for (auto &b : anim.bindings) {
+                  if (b.target == camera) {
+                    cameraSampleCount = b.timeBase.size();
+                    break;
+                  }
                 }
+                if (cameraSampleCount > 0)
+                  break;
               }
-              if (cameraSampleCount > 0)
-                break;
             }
 
             if (camera->subtype() == tokens::camera::orthographic) {
@@ -931,10 +938,10 @@ void export_SceneToUSD(Scene &scene, const char *filename, int framesPerSecond)
               for (size_t i = 0; i < cameraSampleCount; ++i) {
                 const double tNorm = static_cast<double>(i)
                     / static_cast<double>(cameraSampleCount - 1);
-                scene.sceneAnimation().setAnimationTime(static_cast<float>(tNorm));
+                sceneAnim->setAnimationTime(static_cast<float>(tNorm));
                 setCameraSample(static_cast<double>(i), true);
               }
-              scene.sceneAnimation().setAnimationTime(originalTime);
+              sceneAnim->setAnimationTime(originalTime);
             } else {
               setCameraSample(0.0, false);
             }

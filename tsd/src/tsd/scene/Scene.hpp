@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "tsd/animation/Animation.hpp"
-#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/scene/Layer.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Camera.hpp"
@@ -25,9 +23,13 @@ namespace tsd::scene {
 struct Scene;
 } // namespace tsd::scene
 
+namespace tsd::animation {
+class SceneAnimation;
+} // namespace tsd::animation
+
 namespace tsd::io {
-void save_Scene(scene::Scene &, core::DataNode &, bool);
-void load_Scene(scene::Scene &, core::DataNode &);
+void save_Scene(scene::Scene &, core::DataNode &, bool, animation::SceneAnimation *);
+void load_Scene(scene::Scene &, core::DataNode &, animation::SceneAnimation *);
 } // namespace tsd::io
 
 namespace tsd::scene {
@@ -218,13 +220,6 @@ struct Scene
   void signalObjectParameterUseCountZero(const Object *obj);
   void signalObjectLayerUseCountZero(const Object *obj);
 
-  ////////////////
-  // Animations //
-  ////////////////
-
-  tsd::animation::SceneAnimation &sceneAnimation();
-  const tsd::animation::SceneAnimation &sceneAnimation() const;
-
   ////////////////////////
   // Cleanup operations //
   ////////////////////////
@@ -234,8 +229,10 @@ struct Scene
   void cleanupScene(); // remove unused + defragment
 
  private:
-  friend void ::tsd::io::save_Scene(Scene &, core::DataNode &, bool);
-  friend void ::tsd::io::load_Scene(Scene &, core::DataNode &);
+  friend void ::tsd::io::save_Scene(
+      Scene &, core::DataNode &, bool, tsd::animation::SceneAnimation *);
+  friend void ::tsd::io::load_Scene(
+      Scene &, core::DataNode &, tsd::animation::SceneAnimation *);
 
   template <typename OBJ_T, typename... Args>
   ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv, Args &&...args);
@@ -260,8 +257,6 @@ struct Scene
   size_t m_numActiveLayers{0};
   bool m_inLayerBatch{false};
   std::vector<const Layer *> m_batchedLayerUpdates;
-
-  tsd::animation::SceneAnimation m_sceneAnimation{*this};
 
   struct MpiData
   {

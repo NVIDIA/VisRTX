@@ -11,6 +11,7 @@
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Sampler.hpp"
 #include "tsd/animation/Animation.hpp"
+#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
@@ -361,40 +362,6 @@ void registerContextBindings(sol::state &lua)
           [](scene::Scene &s, scene::LayerNodeRef obj, bool deleteObjects) {
             s.removeNode(obj, deleteObjects);
           }),
-      // Animation
-      "addAnimation",
-      sol::overload(
-          [](scene::Scene &s) -> tsd::animation::Animation & {
-            return s.sceneAnimation().addAnimation();
-          },
-          [](scene::Scene &s,
-              const std::string &name) -> tsd::animation::Animation & {
-            return s.sceneAnimation().addAnimation(name);
-          }),
-      "animations",
-      [](scene::Scene &s) -> std::vector<tsd::animation::Animation> & {
-        return s.sceneAnimation().animations();
-      },
-      "removeAnimation",
-      [](scene::Scene &s, size_t i) {
-        s.sceneAnimation().removeAnimation(i);
-      },
-      "removeAllAnimations",
-      [](scene::Scene &s) { s.sceneAnimation().removeAllAnimations(); },
-      "setAnimationTime",
-      [](scene::Scene &s, float t) { s.sceneAnimation().setAnimationTime(t); },
-      "getAnimationTime",
-      [](scene::Scene &s) { return s.sceneAnimation().getAnimationTime(); },
-      "setAnimationIncrement",
-      [](scene::Scene &s, float v) {
-        s.sceneAnimation().setAnimationIncrement(v);
-      },
-      "getAnimationIncrement",
-      [](scene::Scene &s) {
-        return s.sceneAnimation().getAnimationIncrement();
-      },
-      "incrementAnimationTime",
-      [](scene::Scene &s) { s.sceneAnimation().incrementAnimationTime(); },
       // Cleanup
       "removeUnusedObjects",
       &scene::Scene::removeUnusedObjects,
@@ -475,6 +442,58 @@ void registerContextBindings(sol::state &lua)
   tsd["SAMPLER"] = ANARI_SAMPLER;
   tsd["ARRAY"] = ANARI_ARRAY;
   tsd["SPATIAL_FIELD"] = ANARI_SPATIAL_FIELD;
+}
+
+void registerSceneAnimationBindings(sol::state &lua)
+{
+  using SA = tsd::animation::SceneAnimation;
+  sol::table tsd = lua["tsd"];
+
+  tsd.new_usertype<SA>("SceneAnimation",
+      sol::no_constructor,
+      "addAnimation",
+      sol::overload(
+          [](SA &sa) -> tsd::animation::Animation & {
+            return sa.addAnimation();
+          },
+          [](SA &sa,
+              const std::string &name) -> tsd::animation::Animation & {
+            return sa.addAnimation(name);
+          }),
+      "animations",
+      [](SA &sa) -> std::vector<tsd::animation::Animation> & {
+        return sa.animations();
+      },
+      "numberOfAnimations",
+      [](SA &sa) -> size_t { return sa.animations().size(); },
+      "removeAnimation",
+      &SA::removeAnimation,
+      "removeAllAnimations",
+      &SA::removeAllAnimations,
+      "setAnimationTime",
+      &SA::setAnimationTime,
+      "getAnimationTime",
+      &SA::getAnimationTime,
+      "setAnimationIncrement",
+      &SA::setAnimationIncrement,
+      "getAnimationIncrement",
+      &SA::getAnimationIncrement,
+      "incrementAnimationTime",
+      &SA::incrementAnimationTime,
+      "getAnimationTotalFrames",
+      &SA::getAnimationTotalFrames,
+      "setAnimationTotalFrames",
+      &SA::setAnimationTotalFrames,
+      "getAnimationFPS",
+      &SA::getAnimationFPS,
+      "setAnimationFPS",
+      &SA::setAnimationFPS,
+      "getAnimationFrame",
+      &SA::getAnimationFrame,
+      "setAnimationFrame",
+      &SA::setAnimationFrame,
+      "incrementAnimationFrame",
+      &SA::incrementAnimationFrame);
 }
 
 } // namespace tsd::scripting

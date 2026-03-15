@@ -3,6 +3,8 @@
 
 #pragma once
 
+// tsd_animation
+#include "tsd/animation/SceneAnimation.hpp"
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/scene/Scene.hpp"
@@ -44,7 +46,10 @@ struct TSDState
     bool shouldDeleteAfterPaste{false};
   };
 
+  TSDState() : sceneAnimation(scene) {}
+
   tsd::scene::Scene scene;
+  tsd::animation::SceneAnimation sceneAnimation;
   bool sceneLoadComplete{false};
   std::vector<tsd::scene::LayerNodeRef> selectedNodes;
   StashedSelection stashedSelection;

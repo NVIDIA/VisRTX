@@ -40,7 +40,6 @@ Scene::~Scene()
 
   m_updateDelegate = nullptr;
   m_layers.clear();
-  m_sceneAnimation.removeAllAnimations();
 
   auto reportObjectUsages = [&](auto &array) {
     foreach_item_const(array, [&](auto *o) {
@@ -698,16 +697,6 @@ void Scene::signalObjectLayerUseCountZero(const Object *obj)
 {
   if (m_updateDelegate)
     m_updateDelegate->signalObjectLayerUseCountZero(obj);
-}
-
-tsd::animation::SceneAnimation &Scene::sceneAnimation()
-{
-  return m_sceneAnimation;
-}
-
-const tsd::animation::SceneAnimation &Scene::sceneAnimation() const
-{
-  return m_sceneAnimation;
 }
 
 void Scene::removeUnusedObjects(bool includeRenderersAndCameras)

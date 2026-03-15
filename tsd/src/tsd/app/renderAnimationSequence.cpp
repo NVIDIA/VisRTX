@@ -8,6 +8,7 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/animation/Animation.hpp"
+#include "tsd/animation/SceneAnimation.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexAllLayers.hpp"
 #include "tsd/rendering/pipeline/ImagePipeline.h"
@@ -27,6 +28,7 @@ void renderAnimationSequence(Context &ctx,
 {
   auto &config = ctx.offline;
   auto &scene = ctx.tsd.scene;
+  auto &sceneAnim = ctx.tsd.sceneAnimation;
 
   // Validate renderer config //
 
@@ -74,7 +76,7 @@ void renderAnimationSequence(Context &ctx,
 
   // If no camera configured, find a camera-targeting binding
   if (camIdx == tsd::core::INVALID_INDEX) {
-    for (const auto &anim : scene.sceneAnimation().animations()) {
+    for (const auto &anim : sceneAnim.animations()) {
       for (const auto &b : anim.bindings) {
         if (b.target && b.target->type() == ANARI_CAMERA) {
           camIdx = b.target->index();
@@ -160,8 +162,8 @@ void renderAnimationSequence(Context &ctx,
 
   // Determine frame range //
 
-  bool hasAnimations = !scene.sceneAnimation().animations().empty();
-  int numFrames = hasAnimations ? scene.sceneAnimation().getAnimationTotalFrames()
+  bool hasAnimations = !sceneAnim.animations().empty();
+  int numFrames = hasAnimations ? sceneAnim.getAnimationTotalFrames()
                                 : config.frame.numFrames;
 
   auto frameStart = config.frame.renderSubset ? config.frame.startFrame : 0;
@@ -169,7 +171,7 @@ void renderAnimationSequence(Context &ctx,
       config.frame.renderSubset ? config.frame.endFrame : numFrames - 1;
   auto increment = config.frame.frameIncrement;
 
-  int savedFrame = scene.sceneAnimation().getAnimationFrame();
+  int savedFrame = sceneAnim.getAnimationFrame();
 
   tsd::core::logStatus(
       "[renderAnimationSequence] Rendering %d frames (%d spp) to '%s'...",
@@ -188,7 +190,7 @@ void renderAnimationSequence(Context &ctx,
     }
 
     // Advance animation — updates TSD objects, render index commits to ANARI //
-    scene.sceneAnimation().setAnimationFrame(frameIndex);
+    sceneAnim.setAnimationFrame(frameIndex);
 
     // Output filename //
     std::ostringstream ss;
@@ -206,7 +208,7 @@ void renderAnimationSequence(Context &ctx,
   }
 
   // Restore animation state //
-  scene.sceneAnimation().setAnimationFrame(savedFrame);
+  sceneAnim.setAnimationFrame(savedFrame);
 }
 
 } // namespace tsd::app

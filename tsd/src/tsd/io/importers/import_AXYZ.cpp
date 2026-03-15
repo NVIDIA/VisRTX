@@ -7,6 +7,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/animation/SceneAnimation.hpp"
 // std
 #include <algorithm>
 #include <cstdio>
@@ -16,7 +17,7 @@ namespace tsd::io {
 
 using namespace tsd::core;
 
-void import_AXYZ(Scene &scene, const char *filepath, LayerNodeRef location)
+void import_AXYZ(Scene &scene, const char *filepath, LayerNodeRef location, tsd::animation::SceneAnimation *sceneAnim)
 {
   std::string file = fileOf(filepath);
   if (file.empty())
@@ -88,8 +89,10 @@ void import_AXYZ(Scene &scene, const char *filepath, LayerNodeRef location)
 
   // animation
 
+  if (!sceneAnim) return;
+
   auto tb = makeLinearTimeBase(timeSteps.size());
-  auto &anim = scene.sceneAnimation().addAnimation(file.c_str());
+  auto &anim = sceneAnim->addAnimation(file.c_str());
   addArrayTimeStepBindings(
       anim, geom.data(), {Token("vertex.position")}, {timeSteps}, tb);
 }

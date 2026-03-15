@@ -167,8 +167,10 @@ void Context::setupSceneFromCommandLine(bool hdriOnly)
     tsd::core::logStatus("...generating material_orb from embedded data");
     tsd::io::generate_material_orb(tsd.scene);
   } else if (!loadFromState) {
-    tsd::io::import_files(tsd.scene, commandLine.filenames);
-    tsd::io::import_animations(tsd.scene, commandLine.animationFilenames);
+    tsd::io::import_files(
+        tsd.scene, commandLine.filenames, {}, &tsd.sceneAnimation);
+    tsd::io::import_animations(
+        tsd.scene, commandLine.animationFilenames, {}, &tsd.sceneAnimation);
   }
 }
 
@@ -453,10 +455,10 @@ bool Context::updateCameraPathAnimation()
   }
 
   // Remove existing camera path animation by name
-  auto &anims = scene.sceneAnimation().animations();
+  auto &anims = tsd.sceneAnimation.animations();
   for (size_t i = 0; i < anims.size(); i++) {
     if (anims[i].name == view.cameraPathAnimationName) {
-      scene.sceneAnimation().removeAnimation(i);
+      tsd.sceneAnimation.removeAnimation(i);
       break;
     }
   }
@@ -504,7 +506,7 @@ bool Context::updateCameraPathAnimation()
   };
 
   auto &anim =
-      scene.sceneAnimation().addAnimation(view.cameraPathAnimationName);
+      tsd.sceneAnimation.addAnimation(view.cameraPathAnimationName);
   anim.bindings.push_back(makeBinding(
       "position", ANARI_FLOAT32_VEC3, positions.data(), samples.size()));
   anim.bindings.push_back(makeBinding(
@@ -536,10 +538,10 @@ void Context::removeAllPoses()
   view.poses.clear();
   if (!view.cameraPathAnimationName.empty()) {
     tsd::core::logStatus("[camera path] Clearing camera path animation");
-    auto &anims = tsd.scene.sceneAnimation().animations();
+    auto &anims = tsd.sceneAnimation.animations();
     for (size_t i = 0; i < anims.size(); i++) {
       if (anims[i].name == view.cameraPathAnimationName) {
-        tsd.scene.sceneAnimation().removeAnimation(i);
+        tsd.sceneAnimation.removeAnimation(i);
         break;
       }
     }

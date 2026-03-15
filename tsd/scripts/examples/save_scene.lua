@@ -126,9 +126,9 @@ dirArray:setData(dirData)
 
 print("Creating turntable animation...")
 
-local animation = scene:addAnimation("turntable")
+local animation = sceneAnimation:addAnimation("turntable")
 animation:setAsTimeSteps(camera, { "position", "direction" }, { posArray, dirArray })
-scene:setAnimationIncrement(1.0 / numFrames)
+sceneAnimation:setAnimationIncrement(1.0 / numFrames)
 
 -- 6) Save with viewer state ----------------------------------------------
 

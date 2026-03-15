@@ -4,8 +4,12 @@
 #pragma once
 
 #include <limits>
-#include "tsd/scene/Scene.hpp"
 #include "tsd/rendering/view/Manipulator.hpp"
+#include "tsd/scene/Scene.hpp"
+
+namespace tsd::animation {
+class SceneAnimation;
+} // namespace tsd::animation
 
 namespace tsd::io {
 
@@ -50,12 +54,12 @@ void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene);
 // Scenes //
 
 void save_Scene(Scene &scene, const char *filename);
-void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays);
-void load_Scene(Scene &scene, const char *filename);
-void load_Scene(Scene &scene, core::DataNode &root);
+void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays, tsd::animation::SceneAnimation *sceneAnim = nullptr);
+void load_Scene(Scene &scene, const char *filename, tsd::animation::SceneAnimation *sceneAnim = nullptr);
+void load_Scene(Scene &scene, core::DataNode &root, tsd::animation::SceneAnimation *sceneAnim = nullptr);
 
 void export_SceneToUSD(
-    Scene &scene, const char *filename, int framesPerSecond = 30);
+    Scene &scene, const char *filename, int framesPerSecond = 30, tsd::animation::SceneAnimation *sceneAnim = nullptr);
 void export_StructuredVolumeToNanoVDB(
   const SpatialField* spatialField,
   std::string_view outputFilename,
