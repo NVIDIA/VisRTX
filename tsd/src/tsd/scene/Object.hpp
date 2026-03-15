@@ -201,6 +201,7 @@ struct Object : public ParameterObserver
     size_t app{0};
     size_t parameter{0};
     size_t layer{0};
+    size_t anim{0};
     size_t internal{0};
   } m_useCounts;
   struct Versions
