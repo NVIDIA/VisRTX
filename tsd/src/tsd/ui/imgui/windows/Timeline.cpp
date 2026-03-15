@@ -171,8 +171,8 @@ static void captureCurrentCameraKeyframe(
   // Find a camera-targeting binding to identify the camera
   tsd::scene::Object *camObj = nullptr;
   for (auto &b : anim.bindings) {
-    if (b.target && b.target->type() == ANARI_CAMERA) {
-      camObj = b.target;
+    if (b.target && b.target.type() == ANARI_CAMERA) {
+      camObj = b.target.resolve();
       break;
     }
   }
@@ -626,7 +626,7 @@ void Timeline::buildUI_canvas()
           auto makeEmptyBinding =
               [&](const char *param) -> ObjectParameterBinding {
             ObjectParameterBinding b;
-            b.target = camPtr;
+            b.target = tsd::animation::AnimObjectRef(*camPtr);
             b.paramName = param;
             b.dataType = ANARI_FLOAT32_VEC3;
             b.interp = InterpolationRule::LINEAR;

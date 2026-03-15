@@ -393,7 +393,7 @@ void registerContextBindings(sol::state &lua)
 
         size_t count = std::min(dataArr->size(), timeBaseArr->size());
         tsd::animation::ObjectParameterBinding b;
-        b.target = obj;
+        b.target = tsd::animation::AnimObjectRef(*obj);
         b.paramName = core::Token(param);
         b.dataType = dataArr->elementType();
         b.data = tsd::animation::TimeSamples(dataArr->elementType(), count);

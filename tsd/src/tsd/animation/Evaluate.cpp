@@ -10,6 +10,7 @@
 
 namespace tsd::animation {
 
+using tsd::core::Any;
 using namespace tsd::core::math;
 
 // Time base lookup ///////////////////////////////////////////////////////////
@@ -196,7 +197,7 @@ EvaluationResult evaluate(
       auto value = interpolateBinding(binding, sample);
       if (value.valid()) {
         result.parameters.push_back(
-            {binding.target, binding.paramName, std::move(value)});
+            {binding.target.resolve(), binding.paramName, std::move(value)});
       }
     }
 

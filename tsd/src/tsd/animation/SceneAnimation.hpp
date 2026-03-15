@@ -17,6 +17,7 @@ class SceneAnimation
 {
  public:
   explicit SceneAnimation(tsd::scene::Scene &scene);
+  ~SceneAnimation();
 
   using TimeChangedCallback = std::function<void(float)>;
   void setTimeChangedCallback(TimeChangedCallback cb);
@@ -46,6 +47,7 @@ class SceneAnimation
 
  private:
   tsd::scene::Scene &m_scene;
+  size_t m_defragToken{0};
   TimeChangedCallback m_timeChangedCallback;
   float m_incrementSize{0.01f};
   float m_time{0.f};

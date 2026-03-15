@@ -78,8 +78,8 @@ void renderAnimationSequence(Context &ctx,
   if (camIdx == tsd::core::INVALID_INDEX) {
     for (const auto &anim : sceneAnim.animations()) {
       for (const auto &b : anim.bindings) {
-        if (b.target && b.target->type() == ANARI_CAMERA) {
-          camIdx = b.target->index();
+        if (b.target && b.target.type() == ANARI_CAMERA) {
+          camIdx = b.target.index();
           break;
         }
       }
