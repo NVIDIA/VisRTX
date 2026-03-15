@@ -111,7 +111,8 @@ Token Object::rendererDeviceName() const
 size_t Object::totalUseCount() const
 {
   return useCount(UseKind::APP) + useCount(UseKind::PARAMETER)
-      + useCount(UseKind::LAYER) + useCount(UseKind::INTERNAL);
+      + useCount(UseKind::LAYER) + useCount(UseKind::ANIM)
+      + useCount(UseKind::INTERNAL);
 }
 
 size_t Object::useCount(UseKind kind) const
@@ -123,6 +124,8 @@ size_t Object::useCount(UseKind kind) const
     return m_useCounts.parameter;
   case UseKind::LAYER:
     return m_useCounts.layer;
+  case UseKind::ANIM:
+    return m_useCounts.anim;
   case UseKind::INTERNAL:
     return m_useCounts.internal;
   }
@@ -142,6 +145,9 @@ void Object::incUseCount(UseKind kind)
     break;
   case UseKind::LAYER:
     m_useCounts.layer++;
+    break;
+  case UseKind::ANIM:
+    m_useCounts.anim++;
     break;
   case UseKind::INTERNAL:
     m_useCounts.internal++;
@@ -165,6 +171,10 @@ void Object::decUseCount(UseKind kind)
   case UseKind::LAYER:
     useCount = &m_useCounts.layer;
     typeStr = "LAYER";
+    break;
+  case UseKind::ANIM:
+    useCount = &m_useCounts.anim;
+    typeStr = "ANIM";
     break;
   case UseKind::INTERNAL:
     useCount = &m_useCounts.internal;
