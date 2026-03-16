@@ -4,14 +4,14 @@
 #include "ArrayHelpers.hpp"
 #include "ObjectMethodBindings.hpp"
 #include "ParameterHelpers.hpp"
-#include "tsd/scene/Parameter.hpp"
+#include "tsd/animation/Animation.hpp"
+#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/core/Token.hpp"
 #include "tsd/scene/Object.hpp"
+#include "tsd/scene/Parameter.hpp"
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Sampler.hpp"
-#include "tsd/animation/Animation.hpp"
-#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"
 
@@ -25,7 +25,8 @@ static scene::ArrayRef createArrayFromLua(scene::Scene &scene,
     size_t items1,
     size_t items2)
 {
-  return scene.createArray(arrayTypeFromString(typeStr), items0, items1, items2);
+  return scene.createArray(
+      arrayTypeFromString(typeStr), items0, items1, items2);
 }
 
 static scene::ArrayRef createArrayFromLua(scene::Scene &scene,
@@ -183,8 +184,7 @@ void registerContextBindings(sol::state &lua)
               size_t items1,
               sol::table data,
               sol::this_state st) {
-            return createArrayFromLua(
-                s, typeStr, items0, items1, 0, data, st);
+            return createArrayFromLua(s, typeStr, items0, items1, 0, data, st);
           },
           // (typeStr, items0, items1, items2) — empty 3D
           [](scene::Scene &s,
@@ -375,7 +375,7 @@ void registerContextBindings(sol::state &lua)
       sol::no_constructor,
       "name",
       &tsd::animation::Animation::name,
-      "addBinding",
+      "addObjectParameterBinding",
       [](tsd::animation::Animation &a,
           sol::object target,
           const std::string &param,
@@ -384,7 +384,8 @@ void registerContextBindings(sol::state &lua)
           sol::optional<std::string> interpStr) {
         auto *obj = extractObjectPtr(target);
         if (!obj)
-          throw std::runtime_error("addBinding: invalid target object");
+          throw std::runtime_error(
+              "addObjectParameterinding: invalid target object");
         auto interp = tsd::animation::InterpolationRule::LINEAR;
         if (interpStr && *interpStr == "step")
           interp = tsd::animation::InterpolationRule::STEP;
@@ -392,16 +393,13 @@ void registerContextBindings(sol::state &lua)
           interp = tsd::animation::InterpolationRule::SLERP;
 
         size_t count = std::min(dataArr->size(), timeBaseArr->size());
-        tsd::animation::ObjectParameterBinding b;
-        b.target = tsd::animation::AnimObjectRef(*obj);
-        b.paramName = core::Token(param);
-        b.dataType = dataArr->elementType();
-        b.data = tsd::animation::TimeSamples(dataArr->elementType(), count);
-        b.data.setData(dataArr->data());
-        b.timeBase.assign(
-            timeBaseArr->dataAs<float>(), timeBaseArr->dataAs<float>() + count);
-        b.interp = interp;
-        a.bindings.push_back(std::move(b));
+        a.addObjectParameterBinding(*obj,
+            core::Token(param),
+            dataArr->elementType(),
+            dataArr->data(),
+            timeBaseArr->dataAs<float>(),
+            count,
+            interp);
       },
       "addTransformBinding",
       [](tsd::animation::Animation &a,
@@ -411,23 +409,14 @@ void registerContextBindings(sol::state &lua)
           scene::ArrayRef transArr,
           scene::ArrayRef scaleArr) {
         if (!node.valid())
-          throw std::runtime_error(
-              "addTransformBinding: node must be valid");
+          throw std::runtime_error("addTransformBinding: node must be valid");
         size_t count = timeBaseArr->size();
-        tsd::animation::TransformBinding tb;
-        tb.target = node;
-        tb.timeBase.assign(
-            timeBaseArr->dataAs<float>(), timeBaseArr->dataAs<float>() + count);
-        tb.rotation.assign(
+        a.addTransformBinding(node,
+            timeBaseArr->dataAs<float>(),
             rotArr->dataAs<math::float4>(),
-            rotArr->dataAs<math::float4>() + count);
-        tb.translation.assign(
             transArr->dataAs<math::float3>(),
-            transArr->dataAs<math::float3>() + count);
-        tb.scale.assign(
             scaleArr->dataAs<math::float3>(),
-            scaleArr->dataAs<math::float3>() + count);
-        a.transforms.push_back(std::move(tb));
+            count);
       });
 
   tsd["createScene"] = []() { return std::make_unique<scene::Scene>(); };
@@ -449,15 +438,15 @@ void registerSceneAnimationBindings(sol::state &lua)
   using SA = tsd::animation::SceneAnimation;
   sol::table tsd = lua["tsd"];
 
-  tsd.new_usertype<SA>("SceneAnimation",
+  tsd.new_usertype<SA>(
+      "SceneAnimation",
       sol::no_constructor,
       "addAnimation",
       sol::overload(
           [](SA &sa) -> tsd::animation::Animation & {
             return sa.addAnimation();
           },
-          [](SA &sa,
-              const std::string &name) -> tsd::animation::Animation & {
+          [](SA &sa, const std::string &name) -> tsd::animation::Animation & {
             return sa.addAnimation(name);
           }),
       "animations",

@@ -52,6 +52,21 @@ struct Animation
   std::string name;
   std::vector<ObjectParameterBinding> bindings;
   std::vector<TransformBinding> transforms;
+
+  void addObjectParameterBinding(scene::Object &target,
+      core::Token paramName,
+      ANARIDataType dataType,
+      const void *data,
+      const float *timeBase,
+      size_t count,
+      InterpolationRule interp = InterpolationRule::LINEAR);
+
+  void addTransformBinding(scene::LayerNodeRef target,
+      const float *timeBase,
+      const tsd::core::math::float4 *rotation,
+      const tsd::core::math::float3 *translation,
+      const tsd::core::math::float3 *scale,
+      size_t count);
 };
 
 // Evaluation /////////////////////////////////////////////////////////////////

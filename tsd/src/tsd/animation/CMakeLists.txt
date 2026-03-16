@@ -7,6 +7,7 @@ project_add_library(STATIC)
 
 project_sources(
 PRIVATE
+  Animation.cpp
   Apply.cpp
   Evaluate.cpp
   SceneAnimation.cpp
