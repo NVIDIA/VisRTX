@@ -18,7 +18,7 @@ void CopyFromColorBufferPass::setExternalBuffer(std::vector<uint8_t> &buffer)
   m_externalBuffer = &buffer;
 }
 
-void CopyFromColorBufferPass::render(RenderBuffers &b, int /*stageId*/)
+void CopyFromColorBufferPass::render(ImageBuffers &b, int /*stageId*/)
 {
   if (!b.color) {
     tsd::core::logError("[CopyFromColorBufferPass] No color buffer available");

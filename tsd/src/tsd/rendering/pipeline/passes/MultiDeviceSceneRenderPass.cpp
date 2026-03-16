@@ -107,7 +107,7 @@ void MultiDeviceSceneRenderPass::updateSize()
       std::numeric_limits<float>::infinity());
 }
 
-void MultiDeviceSceneRenderPass::render(RenderBuffers &b, int stageId)
+void MultiDeviceSceneRenderPass::render(ImageBuffers &b, int stageId)
 {
   m_buffers.stream = b.stream;
   foreach_frame([](anari::Device d, anari::Frame f) { anari::render(d, f); });
@@ -142,7 +142,7 @@ void MultiDeviceSceneRenderPass::copyFrameData()
   anari::unmap(d, f, "channel.depth");
 }
 
-void MultiDeviceSceneRenderPass::composite(RenderBuffers &b, int stageId)
+void MultiDeviceSceneRenderPass::composite(ImageBuffers &b, int stageId)
 {
   if (stageId != 0) {
     tsd::core::logWarning(

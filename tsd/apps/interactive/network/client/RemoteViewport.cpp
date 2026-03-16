@@ -142,7 +142,7 @@ void RemoteViewport::disconnect()
   m_prevCamera = {};
 }
 
-void RemoteViewport::imagePipeline_populate(tsd::rendering::RenderPipeline &p)
+void RemoteViewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 {
   m_clearPass = p.emplace_back<tsd::rendering::ClearBuffersPass>();
   m_incomingFramePass = p.emplace_back<tsd::rendering::CopyToColorBufferPass>();

@@ -5,7 +5,7 @@
 #include <sol/sol.hpp>
 #include "tsd/scene/Scene.hpp"
 #include "tsd/rendering/index/RenderIndexAllLayers.hpp"
-#include "tsd/rendering/pipeline/RenderPipeline.h"
+#include "tsd/rendering/pipeline/ImagePipeline.h"
 #include "tsd/scripting/LuaBindings.hpp"
 
 #include <cctype>
@@ -153,19 +153,19 @@ void registerRenderBindings(sol::state &lua)
     return result;
   };
 
-  tsd.new_usertype<rendering::RenderPipeline>("RenderPipeline",
-      sol::constructors<rendering::RenderPipeline(),
-          rendering::RenderPipeline(int, int)>(),
+  tsd.new_usertype<rendering::ImagePipeline>("ImagePipeline",
+      sol::constructors<rendering::ImagePipeline(),
+          rendering::ImagePipeline(int, int)>(),
       "setDimensions",
-      &rendering::RenderPipeline::setDimensions,
+      &rendering::ImagePipeline::setDimensions,
       "render",
-      &rendering::RenderPipeline::render,
+      &rendering::ImagePipeline::render,
       "size",
-      &rendering::RenderPipeline::size,
+      &rendering::ImagePipeline::size,
       "empty",
-      &rendering::RenderPipeline::empty,
+      &rendering::ImagePipeline::empty,
       "clear",
-      &rendering::RenderPipeline::clear);
+      &rendering::ImagePipeline::clear);
 
   render["createPipeline"] =
       [](int width,
@@ -174,7 +174,7 @@ void registerRenderBindings(sol::state &lua)
           std::shared_ptr<rendering::RenderIndexAllLayers> index,
           const LuaCameraSetup &camera,
           sol::optional<sol::table> rendererParams)
-      -> std::shared_ptr<rendering::RenderPipeline> {
+      -> std::shared_ptr<rendering::ImagePipeline> {
     if (width <= 0 || height <= 0) {
       throw std::runtime_error("createPipeline: width and height must be > 0");
     }
@@ -185,7 +185,7 @@ void registerRenderBindings(sol::state &lua)
       throw std::runtime_error("createPipeline: render index handle is null");
     }
 
-    auto pipeline = std::make_shared<rendering::RenderPipeline>(width, height);
+    auto pipeline = std::make_shared<rendering::ImagePipeline>(width, height);
 
     auto cam = anari::newObject<anari::Camera>(dev->device, "perspective");
     anari::setParameter(dev->device, cam, "aspect", camera.aspect);
@@ -282,7 +282,7 @@ void registerRenderBindings(sol::state &lua)
     return pipeline;
   };
 
-  render["renderToFile"] = [](std::shared_ptr<rendering::RenderPipeline>
+  render["renderToFile"] = [](std::shared_ptr<rendering::ImagePipeline>
                                    pipeline,
                                int samples,
                                const std::string &filename,

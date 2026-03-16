@@ -11,7 +11,7 @@
 #include "tsd/core/Logging.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
-#include "tsd/rendering/pipeline/RenderPipeline.h"
+#include "tsd/rendering/pipeline/ImagePipeline.h"
 #include "tsd/rendering/view/ManipulatorToAnari.hpp"
 // imgui
 #include <misc/cpp/imgui_stdlib.h>
@@ -481,7 +481,7 @@ void CameraPoses::renderInterpolatedPath()
         anari::commitParameters(d, c);
 
         // Create render pipeline
-        auto pipeline = std::make_unique<tsd::rendering::RenderPipeline>(
+        auto pipeline = std::make_unique<tsd::rendering::ImagePipeline>(
             config.frame.width, config.frame.height);
 
         auto *anariPass =

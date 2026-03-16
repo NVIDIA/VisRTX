@@ -3,13 +3,13 @@
 
 #pragma once
 
-#include "RenderPass.h"
+#include "ImagePass.h"
 // anari
 #include <anari/anari_cpp.hpp>
 
 namespace tsd::rendering {
 
-struct AnariSceneRenderPass : public RenderPass
+struct AnariSceneRenderPass : public ImagePass
 {
   AnariSceneRenderPass(anari::Device d);
   ~AnariSceneRenderPass() override;
@@ -31,12 +31,12 @@ struct AnariSceneRenderPass : public RenderPass
 
  private:
   void updateSize() override;
-  void render(RenderBuffers &b, int stageId) override;
+  void render(ImageBuffers &b, int stageId) override;
   void copyFrameData();
-  void composite(RenderBuffers &b, int stageId);
+  void composite(ImageBuffers &b, int stageId);
   void cleanup();
 
-  RenderBuffers m_buffers;
+  ImageBuffers m_buffers;
 
   bool m_firstFrame{true};
   bool m_deviceSupportsCUDAFrames{false};

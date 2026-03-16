@@ -19,10 +19,10 @@ PRIVATE
   pipeline/passes/MultiDeviceSceneRenderPass.cpp
   pipeline/passes/OutlineRenderPass.cpp
   pipeline/passes/PickPass.cpp
-  pipeline/passes/RenderPass.cpp
+  pipeline/passes/ImagePass.cpp
   pipeline/passes/SaveToFilePass.cpp
   pipeline/passes/VisualizeAOVPass.cpp
-  pipeline/RenderPipeline.cpp
+  pipeline/ImagePipeline.cpp
   view/ManipulatorToAnari.cpp
   view/ManipulatorToTSD.cpp
 )
@@ -40,8 +40,8 @@ if (TSD_USE_CUDA)
   set_source_files_properties(
     pipeline/passes/AnariAxesRenderPass.cpp
     pipeline/passes/AnariSceneRenderPass.cpp
+    pipeline/passes/ImagePass.cpp
     pipeline/passes/OutlineRenderPass.cpp
-    pipeline/passes/RenderPass.cpp
     pipeline/passes/VisualizeAOVPass.cpp
     PROPERTIES
       COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"

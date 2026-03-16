@@ -18,7 +18,7 @@ void ClearBuffersPass::setClearColor(const tsd::math::float4 &color)
   m_clearColor = color;
 }
 
-void ClearBuffersPass::render(RenderBuffers &b, int /*stageId*/)
+void ClearBuffersPass::render(ImageBuffers &b, int /*stageId*/)
 {
   const auto size = getDimensions();
   const size_t totalSize = size_t(size.x) * size_t(size.y);

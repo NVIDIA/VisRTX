@@ -6,7 +6,7 @@
 // tsd_io
 #include <tsd/io/procedural.hpp>
 // tsd_rendering
-#include <tsd/rendering/pipeline/RenderPipeline.h>
+#include <tsd/rendering/pipeline/ImagePipeline.h>
 #include <tsd/rendering/index/RenderIndexFlatRegistry.hpp>
 // std
 #include <cstdio>
@@ -107,7 +107,7 @@ int main()
   printf("setup pipeline...");
   fflush(stdout);
 
-  tsd::rendering::RenderPipeline rpipe(imageSize.x, imageSize.y);
+  tsd::rendering::ImagePipeline rpipe(imageSize.x, imageSize.y);
 
   auto *arp = rpipe.emplace_back<tsd::rendering::AnariSceneRenderPass>(device);
   arp->setWorld(rIdx.world());

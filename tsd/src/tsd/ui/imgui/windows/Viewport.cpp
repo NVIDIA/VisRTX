@@ -276,7 +276,7 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   }
 }
 
-void Viewport::imagePipeline_populate(tsd::rendering::RenderPipeline &p)
+void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 {
   tsd::core::logStatus("[viewport] initialized scene for '%s' device in %.2fs",
       m_libName.c_str(),
@@ -290,7 +290,7 @@ void Viewport::imagePipeline_populate(tsd::rendering::RenderPipeline &p)
 
   m_pickPass = p.emplace_back<tsd::rendering::PickPass>();
   m_pickPass->setEnabled(false);
-  m_pickPass->setPickOperation([&](tsd::rendering::RenderBuffers &b) {
+  m_pickPass->setPickOperation([&](tsd::rendering::ImageBuffers &b) {
     // Get depth //
 
     auto [width, height] = m_pickPass->getDimensions();

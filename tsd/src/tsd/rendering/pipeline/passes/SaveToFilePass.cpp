@@ -27,7 +27,7 @@ void SaveToFilePass::setSingleShotMode(bool enabled)
   m_singleShot = enabled;
 }
 
-void SaveToFilePass::render(RenderBuffers &b, int /*stageId*/)
+void SaveToFilePass::render(ImageBuffers &b, int /*stageId*/)
 {
   if (m_filename.empty()) {
     tsd::core::logWarning("[SaveToFilePass] No filename set, skipping save");

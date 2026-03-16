@@ -21,11 +21,11 @@
 
 namespace tsd::rendering {
 
-struct RenderPipeline final
+struct ImagePipeline final
 {
-  RenderPipeline();
-  RenderPipeline(int width, int height);
-  ~RenderPipeline();
+  ImagePipeline();
+  ImagePipeline(int width, int height);
+  ~ImagePipeline();
 
   void setDimensions(uint32_t width, uint32_t height);
   void render();
@@ -42,15 +42,15 @@ struct RenderPipeline final
  private:
   void cleanup();
 
-  std::vector<std::unique_ptr<RenderPass>> m_passes;
-  RenderBuffers m_buffers;
+  std::vector<std::unique_ptr<ImagePass>> m_passes;
+  ImageBuffers m_buffers;
   tsd::math::uint2 m_size{0, 0};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
 template <typename T, typename... Args>
-inline T *RenderPipeline::emplace_back(Args &&...args)
+inline T *ImagePipeline::emplace_back(Args &&...args)
 {
   auto *p = new T(std::forward<Args>(args)...);
   if (m_size.x != 0 && m_size.y != 0)

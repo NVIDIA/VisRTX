@@ -3,15 +3,15 @@
 
 #pragma once
 
-#include "RenderPass.h"
+#include "ImagePass.h"
 // std
 #include <functional>
 
 namespace tsd::rendering {
 
-struct PickPass : public RenderPass
+struct PickPass : public ImagePass
 {
-  using PickOpFunc = std::function<void(RenderBuffers &b)>;
+  using PickOpFunc = std::function<void(ImageBuffers &b)>;
 
   PickPass();
   ~PickPass() override;
@@ -19,7 +19,7 @@ struct PickPass : public RenderPass
   void setPickOperation(PickOpFunc &&f);
 
  private:
-  void render(RenderBuffers &b, int stageId) override;
+  void render(ImageBuffers &b, int stageId) override;
 
   PickOpFunc m_op;
 };

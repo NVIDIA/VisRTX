@@ -696,27 +696,27 @@ function RenderIndex:world() end
 ---@return any
 function RenderIndex:device() end
 
----@class tsd.RenderPipeline
-local RenderPipeline = {}
+---@class tsd.ImagePipeline
+local ImagePipeline = {}
 
----@overload fun(): tsd.RenderPipeline
----@overload fun(width: integer, height: integer): tsd.RenderPipeline
----@return tsd.RenderPipeline
-function RenderPipeline.new(...) end
+---@overload fun(): tsd.ImagePipeline
+---@overload fun(width: integer, height: integer): tsd.ImagePipeline
+---@return tsd.ImagePipeline
+function ImagePipeline.new(...) end
 
 ---@param width integer
 ---@param height integer
-function RenderPipeline:setDimensions(width, height) end
+function ImagePipeline:setDimensions(width, height) end
 
-function RenderPipeline:render() end
+function ImagePipeline:render() end
 
 ---@return integer
-function RenderPipeline:size() end
+function ImagePipeline:size() end
 
 ---@return boolean
-function RenderPipeline:empty() end
+function ImagePipeline:empty() end
 
-function RenderPipeline:clear() end
+function ImagePipeline:clear() end
 
 ------------------------------------------------------------------------
 -- Module-level table (injected as a global by the C++ runtime)
@@ -1126,14 +1126,14 @@ function tsd.render.getWorldBounds(device, index) end
 --- Special key "renderer" selects subtype (default: "default").
 --- Supports vector values for params like background (float4), ambientColor (float3).
 ---@param rendererParams? table<string, boolean|number|string|tsd.float2|tsd.float3|tsd.float4|tsd.mat4|number[]>
----@return tsd.RenderPipeline
+---@return tsd.ImagePipeline
 function tsd.render.createPipeline(width, height, device, index, camera, rendererParams) end
 
 --- Render multiple samples and save to an image file.
 --- Supported formats: png, jpg/jpeg, bmp, tga, ppm.
 --- Throws if `pipeline` is nil, `samples < 1`, or width/height are <= 0.
 --- The pipeline dimensions are set to `(width, height)` before rendering.
----@param pipeline tsd.RenderPipeline
+---@param pipeline tsd.ImagePipeline
 ---@param samples integer
 ---@param filename string
 ---@param width integer

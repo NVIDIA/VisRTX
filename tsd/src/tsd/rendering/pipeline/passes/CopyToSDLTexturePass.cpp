@@ -57,7 +57,7 @@ bool CopyToSDLTexturePass::checkGLInterop() const
   cudaError_t err =
       cudaGLGetDevices(&numDevices, cudaDevices, 8, cudaGLDeviceListAll);
   if (err != cudaSuccess) {
-    tsd::core::logWarning("[RenderPipeline] failed to get CUDA GL devices");
+    tsd::core::logWarning("[ImagePipeline] failed to get CUDA GL devices");
     cudaGetLastError(); // Clear the error so it is not captured by subsequent calls.
     return false;
   }
@@ -68,7 +68,7 @@ bool CopyToSDLTexturePass::checkGLInterop() const
     for (unsigned int i = 0; i < numDevices; ++i) {
       if (currentDevice == cudaDevices[i]) {
         tsd::core::logStatus(
-            "[RenderPipeline] using CUDA-GL interop via SDL3");
+            "[ImagePipeline] using CUDA-GL interop via SDL3");
         return true;
       }
     }
@@ -76,11 +76,11 @@ bool CopyToSDLTexturePass::checkGLInterop() const
 #endif
 
   tsd::core::logWarning(
-      "[RenderPipeline] unable to use CUDA-GL interop via SDL3");
+      "[ImagePipeline] unable to use CUDA-GL interop via SDL3");
   return false;
 }
 
-void CopyToSDLTexturePass::render(RenderBuffers &b, int /*stageId*/)
+void CopyToSDLTexturePass::render(ImageBuffers &b, int /*stageId*/)
 {
   const auto size = getDimensions();
 
@@ -141,7 +141,7 @@ void CopyToSDLTexturePass::updateSize()
           cudaGraphicsRegisterFlagsWriteDiscard);
     } else {
       tsd::core::logWarning(
-          "[RenderPipeline] could not get SDL texture number!");
+          "[ImagePipeline] could not get SDL texture number!");
     }
   }
 #endif

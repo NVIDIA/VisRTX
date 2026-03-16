@@ -22,8 +22,8 @@ DEVICE_FCN_INLINE uint32_t shadePixel(uint32_t c_in)
   return helium::cvt_color_to_uint32(c_out);
 };
 
-void compositeFrame(RenderBuffers &b_out,
-    const RenderBuffers &b_in,
+void compositeFrame(ImageBuffers &b_out,
+    const ImageBuffers &b_in,
     tsd::math::uint2 size,
     bool firstPass)
 {
@@ -75,9 +75,9 @@ AnariSceneRenderPass::AnariSceneRenderPass(anari::Device d) : m_device(d)
   m_deviceSupportsCUDAFrames = supportsCUDAFbData(d);
 
   if (m_deviceSupportsCUDAFrames)
-    tsd::core::logStatus("[RenderPipeline] using CUDA-mapped fb channels");
+    tsd::core::logStatus("[ImagePipeline] using CUDA-mapped fb channels");
   else
-    tsd::core::logStatus("[RenderPipeline] using host-mapped fb channels");
+    tsd::core::logStatus("[ImagePipeline] using host-mapped fb channels");
 }
 
 AnariSceneRenderPass::~AnariSceneRenderPass()
@@ -144,7 +144,7 @@ void AnariSceneRenderPass::setEnableIDs(bool on)
   m_enableIDs = on;
 
   if (on) {
-    tsd::core::logInfo("[RenderPipeline] enabling objectId frame channel");
+    tsd::core::logInfo("[ImagePipeline] enabling objectId frame channel");
 
     anari::discard(m_device, m_frame);
     anari::wait(m_device, m_frame);
@@ -155,7 +155,7 @@ void AnariSceneRenderPass::setEnableIDs(bool on)
     anari::render(m_device, m_frame);
     anari::wait(m_device, m_frame);
   } else {
-    tsd::core::logInfo("[RenderPipeline] disabling objectId frame channel");
+    tsd::core::logInfo("[ImagePipeline] disabling objectId frame channel");
     anari::unsetParameter(m_device, m_frame, "channel.objectId");
     anari::commitParameters(m_device, m_frame);
 
@@ -173,7 +173,7 @@ void AnariSceneRenderPass::setEnablePrimitiveId(bool on)
   m_enablePrimitiveId = on;
 
   if (on) {
-    tsd::core::logInfo("[RenderPipeline] enabling primitiveId frame channel");
+    tsd::core::logInfo("[ImagePipeline] enabling primitiveId frame channel");
 
     anari::discard(m_device, m_frame);
     anari::wait(m_device, m_frame);
@@ -184,7 +184,7 @@ void AnariSceneRenderPass::setEnablePrimitiveId(bool on)
     anari::render(m_device, m_frame);
     anari::wait(m_device, m_frame);
   } else {
-    tsd::core::logInfo("[RenderPipeline] disabling primitiveId frame channel");
+    tsd::core::logInfo("[ImagePipeline] disabling primitiveId frame channel");
     anari::unsetParameter(m_device, m_frame, "channel.primitiveId");
     anari::commitParameters(m_device, m_frame);
 
@@ -202,7 +202,7 @@ void AnariSceneRenderPass::setEnableInstanceId(bool on)
   m_enableInstanceId = on;
 
   if (on) {
-    tsd::core::logInfo("[RenderPipeline] enabling instanceId frame channel");
+    tsd::core::logInfo("[ImagePipeline] enabling instanceId frame channel");
 
     anari::discard(m_device, m_frame);
     anari::wait(m_device, m_frame);
@@ -213,7 +213,7 @@ void AnariSceneRenderPass::setEnableInstanceId(bool on)
     anari::render(m_device, m_frame);
     anari::wait(m_device, m_frame);
   } else {
-    tsd::core::logInfo("[RenderPipeline] disabling instanceId frame channel");
+    tsd::core::logInfo("[ImagePipeline] disabling instanceId frame channel");
     anari::unsetParameter(m_device, m_frame, "channel.instanceId");
     anari::commitParameters(m_device, m_frame);
 
@@ -231,7 +231,7 @@ void AnariSceneRenderPass::setEnableAlbedo(bool on)
   m_enableAlbedo = on;
 
   if (on) {
-    tsd::core::logInfo("[RenderPipeline] enabling albedo frame channel");
+    tsd::core::logInfo("[ImagePipeline] enabling albedo frame channel");
 
     anari::discard(m_device, m_frame);
     anari::wait(m_device, m_frame);
@@ -243,7 +243,7 @@ void AnariSceneRenderPass::setEnableAlbedo(bool on)
     anari::render(m_device, m_frame);
     anari::wait(m_device, m_frame);
   } else {
-    tsd::core::logInfo("[RenderPipeline] disabling albedo frame channel");
+    tsd::core::logInfo("[ImagePipeline] disabling albedo frame channel");
     anari::unsetParameter(m_device, m_frame, "channel.albedo");
     anari::commitParameters(m_device, m_frame);
   }
@@ -257,7 +257,7 @@ void AnariSceneRenderPass::setEnableNormals(bool on)
   m_enableNormals = on;
 
   if (on) {
-    tsd::core::logInfo("[RenderPipeline] enabling normal frame channel");
+    tsd::core::logInfo("[ImagePipeline] enabling normal frame channel");
 
     anari::discard(m_device, m_frame);
     anari::wait(m_device, m_frame);
@@ -269,7 +269,7 @@ void AnariSceneRenderPass::setEnableNormals(bool on)
     anari::render(m_device, m_frame);
     anari::wait(m_device, m_frame);
   } else {
-    tsd::core::logInfo("[RenderPipeline] disabling normal frame channel");
+    tsd::core::logInfo("[ImagePipeline] disabling normal frame channel");
     anari::unsetParameter(m_device, m_frame, "channel.normal");
     anari::commitParameters(m_device, m_frame);
   }
@@ -307,7 +307,7 @@ void AnariSceneRenderPass::updateSize()
   m_buffers.normal = detail::allocate<tsd::math::float3>(totalSize);
 }
 
-void AnariSceneRenderPass::render(RenderBuffers &b, int stageId)
+void AnariSceneRenderPass::render(ImageBuffers &b, int stageId)
 {
   m_buffers.stream = b.stream;
 
@@ -406,7 +406,7 @@ void AnariSceneRenderPass::copyFrameData()
     anari::unmap(m_device, m_frame, normalChannel);
 }
 
-void AnariSceneRenderPass::composite(RenderBuffers &b, int stageId)
+void AnariSceneRenderPass::composite(ImageBuffers &b, int stageId)
 {
   const bool firstPass = stageId == 0;
   const tsd::math::uint2 size(getDimensions());

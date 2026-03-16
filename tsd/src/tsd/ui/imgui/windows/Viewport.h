@@ -9,7 +9,7 @@
 #include "tsd/scene/objects/Camera.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
-#include "tsd/rendering/pipeline/RenderPipeline.h"
+#include "tsd/rendering/pipeline/ImagePipeline.h"
 #include "tsd/rendering/view/Manipulator.hpp"
 // anari
 #include <anari/frontend/anari_enums.h>
@@ -42,7 +42,7 @@ struct Viewport : public BaseViewport
   void saveSettings(tsd::core::DataNode &thisWindowRoot) override;
   void loadSettings(tsd::core::DataNode &thisWindowRoot) override;
 
-  void imagePipeline_populate(tsd::rendering::RenderPipeline &p) override;
+  void imagePipeline_populate(tsd::rendering::ImagePipeline &p) override;
 
   void camera_resetView(bool resetAzEl = true) override;
   void camera_centerView() override;
@@ -104,7 +104,7 @@ struct Viewport : public BaseViewport
 
   // Display //
 
-  tsd::rendering::RenderPipeline m_pipeline;
+  tsd::rendering::ImagePipeline m_pipeline;
   tsd::rendering::AnariSceneRenderPass *m_anariPass{nullptr};
   tsd::rendering::PickPass *m_pickPass{nullptr};
   tsd::rendering::VisualizeAOVPass *m_visualizeAOVPass{nullptr};

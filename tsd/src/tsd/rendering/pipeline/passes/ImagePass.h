@@ -10,7 +10,7 @@
 
 namespace tsd::rendering {
 
-struct RenderBuffers
+struct ImageBuffers
 {
   uint32_t *color{nullptr};
   float *depth{nullptr};
@@ -22,10 +22,10 @@ struct RenderBuffers
   detail::ComputeStream stream{};
 };
 
-struct RenderPass
+struct ImagePass
 {
-  RenderPass();
-  virtual ~RenderPass();
+  ImagePass();
+  virtual ~ImagePass();
 
   void setEnabled(bool enabled);
   bool isEnabled() const;
@@ -33,7 +33,7 @@ struct RenderPass
   tsd::math::uint2 getDimensions() const;
 
  protected:
-  virtual void render(RenderBuffers &b, int stageId) = 0;
+  virtual void render(ImageBuffers &b, int stageId) = 0;
   virtual void updateSize();
 
  private:
@@ -42,7 +42,7 @@ struct RenderPass
   tsd::math::uint2 m_size{0, 0};
   bool m_enabled{true};
 
-  friend struct RenderPipeline;
+  friend struct ImagePipeline;
 };
 
 // Utility functions //////////////////////////////////////////////////////////

@@ -10,7 +10,7 @@ composable render-pass pipeline.
 - Two render-index strategies:
   `RenderIndexAllLayers` (layer-aware instancing) and
   `RenderIndexFlatRegistry` (flat object registry).
-- `RenderPipeline` chains render passes over shared `RenderBuffers`.
+- `ImagePipeline` chains render passes over shared `ImageBuffers`.
 - Passes include ANARI scene rendering, multi-device rendering/compositing,
   picking, outline visualization, AOV visualization, image copy, and file save.
 - View/camera tools:

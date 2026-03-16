@@ -11,7 +11,7 @@
 // tsd_app
 #include "tsd/app/Context.h"
 // tsd_rendering
-#include "tsd/rendering/pipeline/RenderPipeline.h"
+#include "tsd/rendering/pipeline/ImagePipeline.h"
 #include "tsd/rendering/view/ManipulatorToAnari.hpp"
 
 #include "../RenderSession.hpp"
@@ -38,7 +38,7 @@ struct RenderServer
   void setup_Scene();
   void setup_ANARIDevice();
   void setup_Camera();
-  void setup_RenderPipeline();
+  void setup_ImagePipeline();
   void setup_Messaging();
   void update_FrameConfig();
   void send_FrameBuffer();
@@ -60,8 +60,8 @@ struct RenderServer
   std::vector<tsd::scene::RendererAppRef> m_renderers;
   tsd::scene::RendererAppRef m_currentRenderer;
   tsd::rendering::RenderIndex *m_renderIndex{nullptr};
-  tsd::rendering::RenderPipeline m_renderPipeline;
-  tsd::rendering::AnariSceneRenderPass *m_sceneRenderPass{nullptr};
+  tsd::rendering::ImagePipeline m_renderPipeline;
+  tsd::rendering::AnariSceneRenderPass *m_sceneImagePass{nullptr};
   ServerMode m_currentMode{ServerMode::DISCONNECTED};
   ServerMode m_nextMode{ServerMode::DISCONNECTED};
   ServerMode m_previousMode{ServerMode::DISCONNECTED};

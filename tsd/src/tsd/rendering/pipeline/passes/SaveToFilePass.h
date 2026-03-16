@@ -3,13 +3,13 @@
 
 #pragma once
 
-#include "RenderPass.h"
+#include "ImagePass.h"
 // std
 #include <string>
 
 namespace tsd::rendering {
 
-struct SaveToFilePass : public RenderPass
+struct SaveToFilePass : public ImagePass
 {
   SaveToFilePass();
   ~SaveToFilePass() override;
@@ -20,7 +20,7 @@ struct SaveToFilePass : public RenderPass
   void setSingleShotMode(bool enabled);
 
  private:
-  void render(RenderBuffers &b, int stageId) override;
+  void render(ImageBuffers &b, int stageId) override;
 
   std::string m_filename;
   bool m_singleShot{true};

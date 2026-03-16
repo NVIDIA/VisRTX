@@ -5,7 +5,7 @@
 #include <tsd/core/Timer.hpp>
 #include <tsd/scene/Scene.hpp>
 // tsd_rendering
-#include <tsd/rendering/pipeline/RenderPipeline.h>
+#include <tsd/rendering/pipeline/ImagePipeline.h>
 #include <tsd/rendering/pipeline/passes/VisualizeAOVPass.h>
 #include <tsd/rendering/index/RenderIndexAllLayers.hpp>
 #include <tsd/rendering/view/ManipulatorToAnari.hpp>
@@ -26,7 +26,7 @@
 static std::unique_ptr<tsd::core::DataTree> g_stateFile;
 static std::unique_ptr<tsd::scene::Scene> g_scene;
 static std::unique_ptr<tsd::rendering::RenderIndexAllLayers> g_renderIndex;
-static std::unique_ptr<tsd::rendering::RenderPipeline> g_renderPipeline;
+static std::unique_ptr<tsd::rendering::ImagePipeline> g_renderPipeline;
 static tsd::core::Timer g_timer;
 static tsd::rendering::Manipulator g_manipulator;
 static std::vector<tsd::rendering::CameraPose> g_cameraPoses;
@@ -197,7 +197,7 @@ static void setupCameraManipulator()
   printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
 
-static void setupRenderPipeline()
+static void setupImagePipeline()
 {
   const auto frameWidth = g_ctx->offline.frame.width;
   const auto frameHeight = g_ctx->offline.frame.height;
@@ -207,7 +207,7 @@ static void setupRenderPipeline()
 
   g_timer.start();
   g_renderPipeline =
-      std::make_unique<tsd::rendering::RenderPipeline>(frameWidth, frameHeight);
+      std::make_unique<tsd::rendering::ImagePipeline>(frameWidth, frameHeight);
 
   g_camera = anari::newObject<anari::Camera>(g_device, "perspective");
   anari::setParameter(
@@ -405,7 +405,7 @@ int main(int argc, const char *argv[])
   populateTSDScene();
   populateRenderIndex();
   setupCameraManipulator();
-  setupRenderPipeline();
+  setupImagePipeline();
   renderFrames();
   cleanup();
 

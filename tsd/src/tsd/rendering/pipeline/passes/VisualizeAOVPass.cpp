@@ -27,7 +27,7 @@ DEVICE_FCN tsd::math::float3 makeRandomColor(uint32_t i)
       (g % mz) * (1.f / (mz - 1)));
 }
 
-void computeObjectIdImage(RenderBuffers &b, tsd::math::uint2 size)
+void computeObjectIdImage(ImageBuffers &b, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -37,7 +37,7 @@ void computeObjectIdImage(RenderBuffers &b, tsd::math::uint2 size)
       });
 }
 
-void computePrimitiveIdImage(RenderBuffers &b, tsd::math::uint2 size)
+void computePrimitiveIdImage(ImageBuffers &b, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -47,7 +47,7 @@ void computePrimitiveIdImage(RenderBuffers &b, tsd::math::uint2 size)
       });
 }
 
-void computeInstanceIdImage(RenderBuffers &b, tsd::math::uint2 size)
+void computeInstanceIdImage(ImageBuffers &b, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -58,7 +58,7 @@ void computeInstanceIdImage(RenderBuffers &b, tsd::math::uint2 size)
 }
 
 void computeDepthImage(
-    RenderBuffers &b, float minDepth, float maxDepth, tsd::math::uint2 size)
+    ImageBuffers &b, float minDepth, float maxDepth, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -71,7 +71,7 @@ void computeDepthImage(
       });
 }
 
-void computeAlbedoImage(RenderBuffers &b, tsd::math::uint2 size)
+void computeAlbedoImage(ImageBuffers &b, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -80,7 +80,7 @@ void computeAlbedoImage(RenderBuffers &b, tsd::math::uint2 size)
       });
 }
 
-void computeNormalImage(RenderBuffers &b, tsd::math::uint2 size)
+void computeNormalImage(ImageBuffers &b, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -92,7 +92,7 @@ void computeNormalImage(RenderBuffers &b, tsd::math::uint2 size)
 }
 
 void computeEdgesImage(
-    RenderBuffers &b, float threshold, bool invert, tsd::math::uint2 size)
+    ImageBuffers &b, float threshold, bool invert, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -174,7 +174,7 @@ void VisualizeAOVPass::setEdgeInvert(bool invert)
   m_edgeInvert = invert;
 }
 
-void VisualizeAOVPass::render(RenderBuffers &b, int stageId)
+void VisualizeAOVPass::render(ImageBuffers &b, int stageId)
 {
   if (stageId == 0 || m_aovType == AOVType::NONE)
     return;

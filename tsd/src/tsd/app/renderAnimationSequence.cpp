@@ -10,7 +10,7 @@
 #include "tsd/scene/Animation.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexAllLayers.hpp"
-#include "tsd/rendering/pipeline/RenderPipeline.h"
+#include "tsd/rendering/pipeline/ImagePipeline.h"
 #include "tsd/rendering/pipeline/passes/VisualizeAOVPass.h"
 // std
 #include <filesystem>
@@ -103,7 +103,7 @@ void renderAnimationSequence(Context &ctx,
 
   // Setup render pipeline //
 
-  tsd::rendering::RenderPipeline pipeline;
+  tsd::rendering::ImagePipeline pipeline;
   pipeline.setDimensions(config.frame.width, config.frame.height);
 
   auto *anariPass =

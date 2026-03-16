@@ -38,7 +38,7 @@ void RenderServer::run(short port)
   setup_Scene();
   setup_ANARIDevice();
   setup_Camera();
-  setup_RenderPipeline();
+  setup_ImagePipeline();
   setup_Messaging();
 
   m_server->start();
@@ -145,7 +145,7 @@ void RenderServer::setup_Camera()
   tsd::rendering::updateCameraObject(*m_camera, manipulator, true);
 }
 
-void RenderServer::setup_RenderPipeline()
+void RenderServer::setup_ImagePipeline()
 {
   tsd::core::logStatus("[Server] Setting up render pipeline...");
 
@@ -159,7 +159,7 @@ void RenderServer::setup_RenderPipeline()
   arp->setRenderer(m_renderIndex->renderer(m_currentRenderer->index()));
   arp->setCamera(m_renderIndex->camera(m_camera->index()));
   arp->setEnableIDs(false);
-  m_sceneRenderPass = arp;
+  m_sceneImagePass = arp;
 
   auto *ccbp =
       m_renderPipeline.emplace_back<tsd::rendering::CopyFromColorBufferPass>();
@@ -256,7 +256,7 @@ void RenderServer::setup_Messaging()
                 idx,
                 renderer->subtype().c_str());
             m_currentRenderer = renderer;
-            m_sceneRenderPass->setRenderer(m_renderIndex->renderer(idx));
+            m_sceneImagePass->setRenderer(m_renderIndex->renderer(idx));
           } else {
             tsd::core::logError(
                 "[Server] Invalid renderer index %u in "
@@ -280,7 +280,7 @@ void RenderServer::setup_Messaging()
                 "[Server] Setting current camera to index %u (subtype '%s')",
                 idx,
                 camera->subtype().c_str());
-            m_sceneRenderPass->setCamera(m_renderIndex->camera(idx));
+            m_sceneImagePass->setCamera(m_renderIndex->camera(idx));
           } else {
             tsd::core::logError(
                 "[Server] Invalid camera index %u in "

@@ -1,7 +1,7 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "RenderPipeline.h"
+#include "ImagePipeline.h"
 // std
 #include <chrono>
 #include <cstring>
@@ -9,19 +9,19 @@
 
 namespace tsd::rendering {
 
-RenderPipeline::RenderPipeline()
+ImagePipeline::ImagePipeline()
 {
 #ifdef ENABLE_CUDA
   cudaStreamCreate(&m_buffers.stream);
 #endif
 }
 
-RenderPipeline::RenderPipeline(int width, int height)
+ImagePipeline::ImagePipeline(int width, int height)
 {
   setDimensions(width, height);
 }
 
-RenderPipeline::~RenderPipeline()
+ImagePipeline::~ImagePipeline()
 {
   void cleanup();
 #ifdef ENABLE_CUDA
@@ -29,7 +29,7 @@ RenderPipeline::~RenderPipeline()
 #endif
 }
 
-void RenderPipeline::setDimensions(uint32_t width, uint32_t height)
+void ImagePipeline::setDimensions(uint32_t width, uint32_t height)
 {
   if (m_size.x == width && m_size.y == height)
     return;
@@ -48,7 +48,7 @@ void RenderPipeline::setDimensions(uint32_t width, uint32_t height)
     p->setDimensions(width, height);
 }
 
-void RenderPipeline::render()
+void ImagePipeline::render()
 {
   int stageId = 0;
 #define PRINT_LATENCIES 0
@@ -70,27 +70,27 @@ void RenderPipeline::render()
 #endif
 }
 
-const uint32_t *RenderPipeline::getColorBuffer() const
+const uint32_t *ImagePipeline::getColorBuffer() const
 {
   return m_buffers.color;
 }
 
-size_t RenderPipeline::size() const
+size_t ImagePipeline::size() const
 {
   return m_passes.size();
 }
 
-bool RenderPipeline::empty() const
+bool ImagePipeline::empty() const
 {
   return m_passes.empty();
 }
 
-void RenderPipeline::clear()
+void ImagePipeline::clear()
 {
   m_passes.clear();
 }
 
-void RenderPipeline::cleanup()
+void ImagePipeline::cleanup()
 {
   detail::free(m_buffers.color);
   detail::free(m_buffers.depth);

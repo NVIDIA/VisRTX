@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "RenderPass.h"
+#include "ImagePass.h"
 
 namespace tsd::rendering {
 
@@ -19,7 +19,7 @@ enum class AOVType
   INSTANCE_ID
 };
 
-struct VisualizeAOVPass : public RenderPass
+struct VisualizeAOVPass : public ImagePass
 {
   VisualizeAOVPass();
   ~VisualizeAOVPass() override;
@@ -30,7 +30,7 @@ struct VisualizeAOVPass : public RenderPass
   void setEdgeInvert(bool invert);
 
  private:
-  void render(RenderBuffers &b, int stageId) override;
+  void render(ImageBuffers &b, int stageId) override;
 
   AOVType m_aovType{AOVType::NONE};
   float m_minDepth{0.f};

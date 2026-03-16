@@ -1,7 +1,7 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "RenderPass.h"
+#include "ImagePass.h"
 // std
 #include <algorithm>
 #include <cstring>
@@ -14,31 +14,31 @@
 
 namespace tsd::rendering {
 
-RenderPass::RenderPass() = default;
+ImagePass::ImagePass() = default;
 
-RenderPass::~RenderPass() = default;
+ImagePass::~ImagePass() = default;
 
-void RenderPass::setEnabled(bool enabled)
+void ImagePass::setEnabled(bool enabled)
 {
   m_enabled = enabled;
 }
 
-bool RenderPass::isEnabled() const
+bool ImagePass::isEnabled() const
 {
   return m_enabled;
 }
 
-void RenderPass::updateSize()
+void ImagePass::updateSize()
 {
   // no-up
 }
 
-tsd::math::uint2 RenderPass::getDimensions() const
+tsd::math::uint2 ImagePass::getDimensions() const
 {
   return m_size;
 }
 
-void RenderPass::setDimensions(uint32_t width, uint32_t height)
+void ImagePass::setDimensions(uint32_t width, uint32_t height)
 {
   if (m_size.x == width && m_size.y == height)
     return;

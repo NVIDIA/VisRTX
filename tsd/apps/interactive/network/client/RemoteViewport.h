@@ -7,7 +7,7 @@
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 #include "tsd/ui/imgui/windows/BaseViewport.h"
 // tsd_rendering
-#include "tsd/rendering/pipeline/RenderPipeline.h"
+#include "tsd/rendering/pipeline/ImagePipeline.h"
 #include "tsd/rendering/view/Manipulator.hpp"
 // tsd_network
 #include "tsd/network/NetworkChannel.hpp"
@@ -32,7 +32,7 @@ struct RemoteViewport : public BaseViewport
   void disconnect();
 
  private:
-  void imagePipeline_populate(tsd::rendering::RenderPipeline &p) override;
+  void imagePipeline_populate(tsd::rendering::ImagePipeline &p) override;
 
   void camera_resetView(bool resetAzEl = true) override;
   void camera_centerView() override;

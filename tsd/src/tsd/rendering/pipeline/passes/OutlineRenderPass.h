@@ -3,11 +3,11 @@
 
 #pragma once
 
-#include "RenderPass.h"
+#include "ImagePass.h"
 
 namespace tsd::rendering {
 
-struct OutlineRenderPass : public RenderPass
+struct OutlineRenderPass : public ImagePass
 {
   OutlineRenderPass();
   ~OutlineRenderPass() override;
@@ -15,7 +15,7 @@ struct OutlineRenderPass : public RenderPass
   void setOutlineId(uint32_t id);
 
  private:
-  void render(RenderBuffers &b, int stageId) override;
+  void render(ImageBuffers &b, int stageId) override;
 
   uint32_t m_outlineId{~0u};
 };

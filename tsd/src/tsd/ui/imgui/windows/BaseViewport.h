@@ -5,7 +5,7 @@
 
 #include "Window.h"
 // tsd_rendering
-#include "tsd/rendering/pipeline/RenderPipeline.h"
+#include "tsd/rendering/pipeline/ImagePipeline.h"
 // ImGuizmo
 #include <ImGuizmo.h>
 
@@ -38,7 +38,7 @@ struct BaseViewport : public Window
   bool viewport_isActive() const;
   virtual void viewport_reshape(tsd::math::int2 newWindowSize);
 
-  virtual void imagePipeline_populate(tsd::rendering::RenderPipeline &p) = 0;
+  virtual void imagePipeline_populate(tsd::rendering::ImagePipeline &p) = 0;
   void imagePipeline_setup();
   bool imagePipeline_isSetup() const;
   void imagePipeline_setDimensions(uint32_t width, uint32_t height);
@@ -86,7 +86,7 @@ struct BaseViewport : public Window
  private:
   int windowFlags() const override; // anari_viewer::Window
 
-  tsd::rendering::RenderPipeline m_pipeline;
+  tsd::rendering::ImagePipeline m_pipeline;
 
   struct InputState
   {

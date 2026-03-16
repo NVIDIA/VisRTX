@@ -4,7 +4,7 @@
 #pragma once
 
 // tsd_rendering
-#include <tsd/rendering/pipeline/passes/RenderPass.h>
+#include <tsd/rendering/pipeline/passes/ImagePass.h>
 // anari
 #include <anari/anari_cpp.hpp>
 // std
@@ -12,7 +12,7 @@
 
 namespace tsd::rendering {
 
-struct MultiDeviceSceneRenderPass : public RenderPass
+struct MultiDeviceSceneRenderPass : public ImagePass
 {
   MultiDeviceSceneRenderPass(const std::vector<anari::Device> &devices);
   ~MultiDeviceSceneRenderPass() override;
@@ -34,12 +34,12 @@ struct MultiDeviceSceneRenderPass : public RenderPass
       const std::function<void(anari::Device, anari::Frame)> &func) const;
 
   void updateSize() override;
-  void render(RenderBuffers &b, int stageId) override;
+  void render(ImageBuffers &b, int stageId) override;
   void copyFrameData();
-  void composite(RenderBuffers &b, int stageId);
+  void composite(ImageBuffers &b, int stageId);
   void cleanup();
 
-  RenderBuffers m_buffers;
+  ImageBuffers m_buffers;
 
   bool m_firstFrame{true};
   bool m_runAsync{true};

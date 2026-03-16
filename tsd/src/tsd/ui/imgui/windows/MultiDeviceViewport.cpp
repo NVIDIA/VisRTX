@@ -120,7 +120,7 @@ void MultiDeviceViewport::setLibrary(const std::string &libName)
 
   tsd::core::logStatus("[multi-viewport] setting up render pipeline...");
 
-  setupRenderPipeline(devices);
+  setupImagePipeline(devices);
 
   tsd::core::logStatus("[multi-viewport] creating cameras and renderers...");
 
@@ -226,7 +226,7 @@ void MultiDeviceViewport::getSceneBounds(tsd::math::float3 boundsOut[2]) const
   std::memcpy(boundsOut, bounds, sizeof(tsd::math::float3) * 2);
 }
 
-void MultiDeviceViewport::setupRenderPipeline(
+void MultiDeviceViewport::setupImagePipeline(
     const std::vector<anari::Device> &devices)
 {
   m_pipeline.clear();
