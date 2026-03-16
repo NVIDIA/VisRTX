@@ -1,6 +1,7 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "tsd/animation/SceneAnimation.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/procedural.hpp"
@@ -443,23 +444,52 @@ void registerIOBindings(sol::state &lua)
         tsd::io::save_Scene(s, tree.root(), false);
         tree.save(filename.c_str());
       },
+      [](scene::Scene &s,
+          animation::SceneAnimation &sa,
+          const std::string &filename) {
+        core::DataTree tree;
+        tsd::io::save_Scene(s, tree.root(), false, &sa);
+        tree.save(filename.c_str());
+      },
       [](scene::Scene &s, const std::string &filename, sol::table state) {
         core::DataTree tree;
         auto &root = tree.root();
         tsd::io::save_Scene(s, root["context"], false);
         copyTableToNode(state, root);
         tree.save(filename.c_str());
+      },
+      [](scene::Scene &s,
+          animation::SceneAnimation &sa,
+          const std::string &filename,
+          sol::table state) {
+        core::DataTree tree;
+        auto &root = tree.root();
+        tsd::io::save_Scene(s, root["context"], false, &sa);
+        copyTableToNode(state, root);
+        tree.save(filename.c_str());
       });
 
-  io["loadScene"] = [](scene::Scene &s, const std::string &filename) {
-    core::DataTree tree;
-    tree.load(filename.c_str());
-    auto &root = tree.root();
-    if (auto *c = root.child("context"); c != nullptr)
-      tsd::io::load_Scene(s, *c);
-    else
-      tsd::io::load_Scene(s, root);
-  };
+  io["loadScene"] = sol::overload(
+      [](scene::Scene &s, const std::string &filename) {
+        core::DataTree tree;
+        tree.load(filename.c_str());
+        auto &root = tree.root();
+        if (auto *c = root.child("context"); c != nullptr)
+          tsd::io::load_Scene(s, *c);
+        else
+          tsd::io::load_Scene(s, root);
+      },
+      [](scene::Scene &s,
+          animation::SceneAnimation &sa,
+          const std::string &filename) {
+        core::DataTree tree;
+        tree.load(filename.c_str());
+        auto &root = tree.root();
+        if (auto *c = root.child("context"); c != nullptr)
+          tsd::io::load_Scene(s, *c, &sa);
+        else
+          tsd::io::load_Scene(s, root, &sa);
+      });
 }
 
 #undef TSD_LUA_IMPORT_WRAP
