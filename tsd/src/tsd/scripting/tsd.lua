@@ -372,7 +372,7 @@ local Animation = {}
 ---@param dataArray tsd.Array
 ---@param timeBaseArray tsd.Array
 ---@param interp? string # "linear" (default), "step", or "slerp"
-function Animation:addBinding(target, param, dataArray, timeBaseArray, interp) end
+function Animation:addObjectParameterBinding(target, param, dataArray, timeBaseArray, interp) end
 
 --- Add a transform binding to this animation.
 ---@param node tsd.LayerNode
