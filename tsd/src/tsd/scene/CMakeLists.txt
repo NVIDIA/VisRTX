@@ -16,7 +16,6 @@ set(TSD_CORE_CUDA_SOURCES
 
 set(TSD_CORE_CXX_SOURCES
   AnariHandleCache.cpp
-  AnyObjectUsePtr.cpp
   Layer.cpp
   LayerNodeData.cpp
   Parameter.cpp
