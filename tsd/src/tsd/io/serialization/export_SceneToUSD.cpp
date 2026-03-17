@@ -1010,13 +1010,19 @@ void export_SceneToUSD(Scene &scene,
 
   tsd::core::logStatus("...done exporting USD scene to file: %s", filename);
 }
+
+} // namespace tsd::io
+
 #else
 
 namespace tsd::io {
-void export_SceneToUSD(Scene &, const char *, int)
+
+void export_SceneToUSD(
+    Scene &, const char *, int, tsd::animation::SceneAnimation *)
 {
   tsd::core::logError("[export_USD] USD not enabled in TSD build.");
 }
-#endif
 
 } // namespace tsd::io
+
+#endif
