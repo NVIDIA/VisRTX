@@ -10,7 +10,7 @@
 #include <utility>
 
 namespace tsd::animation {
-class AnimationManager;
+struct AnimationManager;
 } // namespace tsd::animation
 
 namespace tsd::io {

@@ -17,7 +17,7 @@ struct Scene;
 }
 
 namespace tsd::animation {
-class AnimationManager;
+struct AnimationManager;
 }
 
 namespace tsd::scripting {

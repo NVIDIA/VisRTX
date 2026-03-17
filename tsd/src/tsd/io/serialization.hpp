@@ -3,12 +3,15 @@
 
 #pragma once
 
+// std
 #include <limits>
+// tsd_rendering
 #include "tsd/rendering/view/Manipulator.hpp"
+// tsd_scene
 #include "tsd/scene/Scene.hpp"
 
 namespace tsd::animation {
-class AnimationManager;
+struct AnimationManager;
 } // namespace tsd::animation
 
 namespace tsd::io {
