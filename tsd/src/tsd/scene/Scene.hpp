@@ -137,6 +137,8 @@ struct Scene
   void removeObject(const Object *o);
   void removeObject(const Any &o);
   void removeAllObjects();
+  void insertEmptySlot(anari::DataType type);
+  void rebuildFreeLists();
 
   // Renderers (specially handled per-device) //
 

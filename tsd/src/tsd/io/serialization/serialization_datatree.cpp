@@ -472,18 +472,19 @@ void save_Scene(Scene &scene,
   auto objectPoolToNode = [&](core::DataNode &objPoolRoot,
                               const auto &objPool,
                               const char *poolName) {
-    if (objPool.empty())
+    if (objPool.capacity() == 0)
       return;
 
-    tsd::core::logStatus(
-        "    ...serializing %zu %s objects", size_t(objPool.size()), poolName);
+    tsd::core::logStatus("    ...serializing %zu %s objects (%zu slots)",
+        size_t(objPool.size()),
+        poolName,
+        size_t(objPool.capacity()));
 
     auto &childNode = objPoolRoot[poolName];
     foreach_item_const(objPool, [&](const auto *obj) {
-      if (!obj)
-        return;
       auto &m = childNode.append();
-      objectToNode(*obj, m, forceProxyArrays);
+      if (obj)
+        objectToNode(*obj, m, forceProxyArrays);
     });
   };
 
@@ -531,22 +532,31 @@ void load_Scene(Scene &scene,
   tsd::core::logStatus("  ...converting objects");
 
   auto &objectDB = root["objectDB"];
-  auto nodeToObjectPool =
-      [](core::DataNode &node, Scene &scene, const char *childNodeName) {
-        auto &objectsNode = node[childNodeName];
-        objectsNode.foreach_child([&](auto &n) { nodeToNewObject(scene, n); });
-      };
+  auto nodeToObjectPool = [](core::DataNode &node,
+                              Scene &scene,
+                              const char *childNodeName,
+                              anari::DataType poolType) {
+    auto &objectsNode = node[childNodeName];
+    objectsNode.foreach_child([&](auto &n) {
+      if (!n.child("self"))
+        scene.insertEmptySlot(poolType);
+      else
+        nodeToNewObject(scene, n);
+    });
+  };
 
-  nodeToObjectPool(objectDB, scene, "array");
-  nodeToObjectPool(objectDB, scene, "sampler");
-  nodeToObjectPool(objectDB, scene, "material");
-  nodeToObjectPool(objectDB, scene, "geometry");
-  nodeToObjectPool(objectDB, scene, "surface");
-  nodeToObjectPool(objectDB, scene, "spatialfield");
-  nodeToObjectPool(objectDB, scene, "volume");
-  nodeToObjectPool(objectDB, scene, "light");
-  nodeToObjectPool(objectDB, scene, "camera");
-  nodeToObjectPool(objectDB, scene, "renderer");
+  nodeToObjectPool(objectDB, scene, "array", ANARI_ARRAY);
+  nodeToObjectPool(objectDB, scene, "sampler", ANARI_SAMPLER);
+  nodeToObjectPool(objectDB, scene, "material", ANARI_MATERIAL);
+  nodeToObjectPool(objectDB, scene, "geometry", ANARI_GEOMETRY);
+  nodeToObjectPool(objectDB, scene, "surface", ANARI_SURFACE);
+  nodeToObjectPool(objectDB, scene, "spatialfield", ANARI_SPATIAL_FIELD);
+  nodeToObjectPool(objectDB, scene, "volume", ANARI_VOLUME);
+  nodeToObjectPool(objectDB, scene, "light", ANARI_LIGHT);
+  nodeToObjectPool(objectDB, scene, "camera", ANARI_CAMERA);
+  nodeToObjectPool(objectDB, scene, "renderer", ANARI_RENDERER);
+
+  scene.rebuildFreeLists();
 
   // Layers
 
@@ -594,11 +604,9 @@ void load_Scene(Scene &scene,
 
             auto paramName =
                 Token(bNode["paramName"].getValueAs<std::string>().c_str());
-            auto dataType =
-                (ANARIDataType)bNode["dataType"].getValueAs<int>();
-            auto interp =
-                (tsd::animation::InterpolationRule)bNode["interp"]
-                    .getValueAs<int>();
+            auto dataType = (ANARIDataType)bNode["dataType"].getValueAs<int>();
+            auto interp = (tsd::animation::InterpolationRule)bNode["interp"]
+                              .getValueAs<int>();
 
             const float *tbPtr = nullptr;
             size_t tbCount = 0;

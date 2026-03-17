@@ -55,6 +55,8 @@ struct ObjectPool
 
   void clear();
   void reserve(size_t size);
+  void insert_empty_slot();
+  void rebuild_free_list();
 
   bool defragment();
 
@@ -253,6 +255,22 @@ inline void ObjectPool<T>::reserve(size_t size)
 {
   m_values.reserve(size);
   m_slots.reserve(size);
+}
+
+template <typename T>
+inline void ObjectPool<T>::insert_empty_slot()
+{
+  m_values.emplace_back();
+  m_slots.push_back(false);
+}
+
+template <typename T>
+inline void ObjectPool<T>::rebuild_free_list()
+{
+  m_freeIndices = {};
+  for (size_t i = m_values.size(); i-- > 0;)
+    if (!m_slots[i])
+      m_freeIndices.push(i);
 }
 
 template <typename T>

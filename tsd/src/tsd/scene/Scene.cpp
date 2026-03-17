@@ -416,6 +416,61 @@ void Scene::removeObject(const Object *_o)
   }
 }
 
+void Scene::insertEmptySlot(anari::DataType type)
+{
+  switch (type) {
+  case ANARI_SURFACE:
+    m_db.surface.insert_empty_slot();
+    break;
+  case ANARI_GEOMETRY:
+    m_db.geometry.insert_empty_slot();
+    break;
+  case ANARI_MATERIAL:
+    m_db.material.insert_empty_slot();
+    break;
+  case ANARI_SAMPLER:
+    m_db.sampler.insert_empty_slot();
+    break;
+  case ANARI_VOLUME:
+    m_db.volume.insert_empty_slot();
+    break;
+  case ANARI_SPATIAL_FIELD:
+    m_db.field.insert_empty_slot();
+    break;
+  case ANARI_LIGHT:
+    m_db.light.insert_empty_slot();
+    break;
+  case ANARI_CAMERA:
+    m_db.camera.insert_empty_slot();
+    break;
+  case ANARI_RENDERER:
+    m_db.renderer.insert_empty_slot();
+    break;
+  case ANARI_ARRAY:
+  case ANARI_ARRAY1D:
+  case ANARI_ARRAY2D:
+  case ANARI_ARRAY3D:
+    m_db.array.insert_empty_slot();
+    break;
+  default:
+    break;
+  }
+}
+
+void Scene::rebuildFreeLists()
+{
+  m_db.array.rebuild_free_list();
+  m_db.surface.rebuild_free_list();
+  m_db.geometry.rebuild_free_list();
+  m_db.material.rebuild_free_list();
+  m_db.sampler.rebuild_free_list();
+  m_db.volume.rebuild_free_list();
+  m_db.field.rebuild_free_list();
+  m_db.light.rebuild_free_list();
+  m_db.camera.rebuild_free_list();
+  m_db.renderer.rebuild_free_list();
+}
+
 void Scene::removeAllObjects()
 {
   if (m_updateDelegate)
