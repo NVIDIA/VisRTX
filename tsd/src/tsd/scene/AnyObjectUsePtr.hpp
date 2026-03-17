@@ -63,7 +63,11 @@ bool operator!=(const AnyObjectUsePtr<K> &a, const AnyObjectUsePtr<K> &b);
 template <Object::UseKind K>
 inline AnyObjectUsePtr<K>::AnyObjectUsePtr(Object &o)
 {
-  reset();
+  if (o.scene() != nullptr) {
+    m_scene = o.scene();
+    m_object = Any(o.type(), o.index());
+    o.incUseCount(K);
+  }
 }
 
 template <Object::UseKind K>
