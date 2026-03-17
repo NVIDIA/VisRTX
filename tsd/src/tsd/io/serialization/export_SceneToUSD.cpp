@@ -763,8 +763,7 @@ void export_SceneToUSD(Scene &scene,
     return;
   }
 
-  const float originalTime =
-      sceneAnim ? sceneAnim->getAnimationTime() : 0.f;
+  const float originalTime = sceneAnim ? sceneAnim->getAnimationTime() : 0.f;
   const int exportFps = std::max(1, framesPerSecond);
 
   pxr::SdfPath currentPath = allLayersPath;
@@ -828,7 +827,7 @@ void export_SceneToUSD(Scene &scene,
             if (sceneAnim) {
               for (auto &anim : sceneAnim->animations()) {
                 for (auto &b : anim.bindings) {
-                  if (b.target.resolve() == camera) {
+                  if (b.target.get() == camera) {
                     cameraSampleCount = b.timeBase.size();
                     break;
                   }

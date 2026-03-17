@@ -4,6 +4,7 @@
 #pragma once
 
 #include "Animation.hpp"
+
 // std
 #include <functional>
 
@@ -47,7 +48,6 @@ class SceneAnimation
 
  private:
   tsd::scene::Scene &m_scene;
-  size_t m_defragToken{0};
   TimeChangedCallback m_timeChangedCallback;
   float m_incrementSize{0.01f};
   float m_time{0.f};

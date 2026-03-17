@@ -429,8 +429,8 @@ void save_Scene(Scene &scene,
       for (const auto &b : anim.bindings) {
         auto &bNode = bindingsNode.append();
         bNode["targetType"] =
-            b.target ? (int)b.target.type() : (int)ANARI_UNKNOWN;
-        bNode["targetIndex"] = b.target ? b.target.index() : size_t(-1);
+            b.target ? (int)b.target->type() : (int)ANARI_UNKNOWN;
+        bNode["targetIndex"] = b.target ? b.target->index() : size_t(-1);
         bNode["paramName"] = b.paramName.str();
         bNode["dataType"] = (int)b.dataType;
         if (!b.timeBase.empty())
@@ -592,7 +592,7 @@ void load_Scene(Scene &scene,
             auto targetIndex = bNode["targetIndex"].getValueAs<size_t>();
             if (targetType != ANARI_UNKNOWN && targetIndex != size_t(-1)) {
               if (auto *obj = scene.getObject(targetType, targetIndex))
-                b.target = tsd::animation::AnimObjectRef(*obj);
+                b.target = *obj;
             }
             b.paramName =
                 Token(bNode["paramName"].getValueAs<std::string>().c_str());

@@ -197,7 +197,7 @@ EvaluationResult evaluate(
       auto value = interpolateBinding(binding, sample);
       if (value.valid()) {
         result.parameters.push_back(
-            {binding.target.resolve(), binding.paramName, std::move(value)});
+            {binding.target, binding.paramName, std::move(value)});
       }
     }
 

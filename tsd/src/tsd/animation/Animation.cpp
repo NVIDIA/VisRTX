@@ -14,7 +14,7 @@ void Animation::addObjectParameterBinding(scene::Object &target,
     InterpolationRule interp)
 {
   ObjectParameterBinding b;
-  b.target = AnimObjectRef(target);
+  b.target = target;
   b.paramName = paramName;
   b.dataType = dataType;
   b.data = TimeSamples(dataType, count);

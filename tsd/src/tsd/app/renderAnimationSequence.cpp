@@ -6,9 +6,9 @@
 #include "tsd/app/ANARIDeviceManager.h"
 #include "tsd/app/Context.h"
 // tsd_core
-#include "tsd/core/Logging.hpp"
 #include "tsd/animation/Animation.hpp"
 #include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/core/Logging.hpp"
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexAllLayers.hpp"
 #include "tsd/rendering/pipeline/ImagePipeline.h"
@@ -42,14 +42,12 @@ void renderAnimationSequence(Context &ctx,
   auto &ro = config.renderer.rendererObjects[config.renderer.activeRenderer];
   auto libName = config.renderer.libraryName;
 
-  tsd::core::logStatus(
-      "[renderAnimationSequence] Loading ANARI device '%s'...",
+  tsd::core::logStatus("[renderAnimationSequence] Loading ANARI device '%s'...",
       libName.c_str());
 
   // Create a fresh isolated device (not shared with viewport) //
 
-  auto library =
-      anari::loadLibrary(libName.c_str(), anariStatusFunc, nullptr);
+  auto library = anari::loadLibrary(libName.c_str(), anariStatusFunc, nullptr);
   if (!library) {
     tsd::core::logError(
         "[renderAnimationSequence] Failed to load ANARI library '%s'",
@@ -78,8 +76,8 @@ void renderAnimationSequence(Context &ctx,
   if (camIdx == tsd::core::INVALID_INDEX) {
     for (const auto &anim : sceneAnim.animations()) {
       for (const auto &b : anim.bindings) {
-        if (b.target && b.target.type() == ANARI_CAMERA) {
-          camIdx = b.target.index();
+        if (b.target && b.target->type() == ANARI_CAMERA) {
+          camIdx = b.target->index();
           break;
         }
       }
@@ -123,8 +121,7 @@ void renderAnimationSequence(Context &ctx,
   // AOV pass //
 
   if (config.aov.aovType != tsd::rendering::AOVType::NONE) {
-    auto *aovPass =
-        pipeline.emplace_back<tsd::rendering::VisualizeAOVPass>();
+    auto *aovPass = pipeline.emplace_back<tsd::rendering::VisualizeAOVPass>();
     aovPass->setAOVType(config.aov.aovType);
     aovPass->setDepthRange(config.aov.depthMin, config.aov.depthMax);
     aovPass->setEdgeThreshold(config.aov.edgeThreshold);
@@ -180,7 +177,7 @@ void renderAnimationSequence(Context &ctx,
       outputDir.c_str());
 
   for (int frameIndex = frameStart; frameIndex <= frameEnd;
-       frameIndex += increment) {
+      frameIndex += increment) {
     if (preFrameCallback) {
       if (!preFrameCallback(frameIndex, numFrames)) {
         tsd::core::logStatus(

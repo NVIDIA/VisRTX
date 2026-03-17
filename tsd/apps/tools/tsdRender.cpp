@@ -105,8 +105,7 @@ static void initTSDScene()
 
   g_timer.start();
   g_scene = std::make_unique<tsd::scene::Scene>();
-  g_sceneAnimation =
-      std::make_unique<tsd::animation::SceneAnimation>(*g_scene);
+  g_sceneAnimation = std::make_unique<tsd::animation::SceneAnimation>(*g_scene);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -294,9 +293,9 @@ static void renderFrames()
   const tsd::scene::Object *animatedCamera = nullptr;
   for (auto &anim : g_sceneAnimation->animations()) {
     for (auto &b : anim.bindings) {
-      if (b.target && b.target.type() == ANARI_CAMERA) {
+      if (b.target && b.target->type() == ANARI_CAMERA) {
         hasCameraAnimation = true;
-        animatedCamera = b.target.resolve();
+        animatedCamera = b.target.get();
         break;
       }
     }

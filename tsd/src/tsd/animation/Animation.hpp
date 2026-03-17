@@ -3,13 +3,15 @@
 
 #pragma once
 
-#include "tsd/animation/AnimObjectRef.hpp"
 #include "tsd/animation/TimeSamples.hpp"
-#include "tsd/scene/Layer.hpp"
+
 // tsd
-#include <tsd/core/Any.hpp>
-#include <tsd/core/TSDMath.hpp>
-#include <tsd/core/Token.hpp>
+#include "tsd/core/Any.hpp"
+#include "tsd/core/Token.hpp"
+#include "tsd/scene/AnyObjectUsePtr.hpp"
+#include "tsd/scene/Layer.hpp"
+#include "tsd/scene/Object.hpp"
+
 // std
 #include <string>
 #include <vector>
@@ -29,7 +31,7 @@ enum class InterpolationRule
 
 struct ObjectParameterBinding
 {
-  AnimObjectRef target;
+  scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> target;
   core::Token paramName;
   ANARIDataType dataType{ANARI_UNKNOWN};
 
@@ -73,7 +75,7 @@ struct Animation
 
 struct ParameterSubstitution
 {
-  tsd::scene::Object *target;
+  scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> target;
   core::Token paramName;
   core::Any value;
 };

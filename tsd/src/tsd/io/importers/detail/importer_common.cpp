@@ -811,7 +811,7 @@ void addValueTimeStepBindings(tsd::animation::Animation &anim,
 {
   for (size_t i = 0; i < paramNames.size(); i++) {
     tsd::animation::ObjectParameterBinding b;
-    b.target = tsd::animation::AnimObjectRef(*target);
+    b.target = *target;
     b.paramName = paramNames[i];
     b.dataType = dataArrays[i]->elementType();
     b.data = tsd::animation::TimeSamples(
@@ -839,7 +839,7 @@ void addArrayTimeStepBindings(tsd::animation::Animation &anim,
     samples.unmap();
 
     tsd::animation::ObjectParameterBinding b;
-    b.target = tsd::animation::AnimObjectRef(*target);
+    b.target = *target;
     b.paramName = paramNames[i];
     b.dataType = ANARI_ARRAY1D;
     b.data = std::move(samples);

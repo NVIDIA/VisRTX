@@ -18,9 +18,8 @@ namespace tsd::ui::imgui {
 
 // Helpers for keyframe-style editing on vector-based bindings ////////////////
 
-static void insertKeyframe(tsd::animation::ObjectParameterBinding &b,
-    float time,
-    const void *value)
+static void insertKeyframe(
+    tsd::animation::ObjectParameterBinding &b, float time, const void *value)
 {
   size_t elemSize = anari::sizeOf(b.dataType);
   if (elemSize == 0)
@@ -52,8 +51,7 @@ static void insertKeyframe(tsd::animation::ObjectParameterBinding &b,
   tsd::animation::TimeSamples newData(b.dataType, newCount);
   auto *newVals = static_cast<uint8_t *>(newData.map());
 
-  const auto *oldData =
-      static_cast<const uint8_t *>(b.data.data());
+  const auto *oldData = static_cast<const uint8_t *>(b.data.data());
 
   if (oldData && insertIdx > 0)
     std::memcpy(newVals, oldData, insertIdx * elemSize);
@@ -101,9 +99,8 @@ static void removeKeyframe(
   b.data = std::move(newData);
 }
 
-static void insertTransformKeyframe(tsd::animation::TransformBinding &tb,
-    float time,
-    const math::mat4 &m)
+static void insertTransformKeyframe(
+    tsd::animation::TransformBinding &tb, float time, const math::mat4 &m)
 {
   // Decompose mat4 -> rotation quaternion, translation, scale
   math::float3 c0 = {m[0][0], m[0][1], m[0][2]};
@@ -171,8 +168,8 @@ static void captureCurrentCameraKeyframe(
   // Find a camera-targeting binding to identify the camera
   tsd::scene::Object *camObj = nullptr;
   for (auto &b : anim.bindings) {
-    if (b.target && b.target.type() == ANARI_CAMERA) {
-      camObj = b.target.resolve();
+    if (b.target && b.target->type() == ANARI_CAMERA) {
+      camObj = b.target.get();
       break;
     }
   }
@@ -476,8 +473,8 @@ void Timeline::buildUI_canvas()
           if (b.timeBase.empty())
             continue;
           for (size_t ki = 0; ki < b.timeBase.size(); ki++) {
-            float kx =
-                rowPos.x + b.timeBase[ki] * (totalFrames - 1) * m_pixelsPerFrame;
+            float kx = rowPos.x
+                + b.timeBase[ki] * (totalFrames - 1) * m_pixelsPerFrame;
             float ky = rowPos.y + rowHeight * 0.5f;
             float r = 4.f;
             uint32_t fillCol = (bi == 0) ? IM_COL32(80, 200, 255, 255)
@@ -626,7 +623,7 @@ void Timeline::buildUI_canvas()
           auto makeEmptyBinding =
               [&](const char *param) -> ObjectParameterBinding {
             ObjectParameterBinding b;
-            b.target = tsd::animation::AnimObjectRef(*camPtr);
+            b.target = *camPtr;
             b.paramName = param;
             b.dataType = ANARI_FLOAT32_VEC3;
             b.interp = InterpolationRule::LINEAR;

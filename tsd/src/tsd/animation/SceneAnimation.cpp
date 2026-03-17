@@ -10,26 +10,9 @@
 
 namespace tsd::animation {
 
-SceneAnimation::SceneAnimation(tsd::scene::Scene &scene) : m_scene(scene)
-{
-  m_defragToken = m_scene.addDefragCallback(
-      [this](const tsd::scene::Scene::IndexRemapper &remap) {
-        for (auto &anim : m_animations) {
-          for (auto &b : anim.bindings) {
-            if (!b.target)
-              continue;
-            size_t newIdx = remap(b.target.type(), b.target.index());
-            if (newIdx != tsd::core::INVALID_INDEX)
-              b.target.updateIndex(newIdx);
-          }
-        }
-      });
-}
+SceneAnimation::SceneAnimation(tsd::scene::Scene &scene) : m_scene(scene) {}
 
-SceneAnimation::~SceneAnimation()
-{
-  m_scene.removeDefragCallback(m_defragToken);
-}
+SceneAnimation::~SceneAnimation() {}
 
 void SceneAnimation::setTimeChangedCallback(TimeChangedCallback cb)
 {

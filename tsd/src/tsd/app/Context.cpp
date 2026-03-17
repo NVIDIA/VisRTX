@@ -69,8 +69,7 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       for (auto &t : tokens)
         if (!t.empty())
           this->commandLine.ensightFields.push_back(t);
-    }
-    else if (arg == "-gltf")
+    } else if (arg == "-gltf")
       importerType = tsd::io::ImporterType::GLTF;
     else if (arg == "-hdri")
       importerType = tsd::io::ImporterType::HDRI;
@@ -319,7 +318,8 @@ void Context::clearSelected()
     anari.getUpdateDelegate().signalObjectFilteringChanged();
   }
 }
-std::vector<tsd::scene::LayerNodeRef> Context::getParentOnlySelectedNodes() const
+std::vector<tsd::scene::LayerNodeRef> Context::getParentOnlySelectedNodes()
+    const
 {
   std::vector<tsd::scene::LayerNodeRef> parentOnly;
 
@@ -486,7 +486,6 @@ bool Context::updateCameraPathAnimation()
   const auto firstDirection = directions[0];
   const auto firstUp = ups[0];
 
-  using tsd::animation::AnimObjectRef;
   using tsd::animation::InterpolationRule;
   using tsd::animation::ObjectParameterBinding;
   using tsd::animation::TimeSamples;
@@ -496,7 +495,7 @@ bool Context::updateCameraPathAnimation()
                          const void *data,
                          size_t count) -> ObjectParameterBinding {
     ObjectParameterBinding b;
-    b.target = AnimObjectRef(*camera.data());
+    b.target = *camera.data();
     b.paramName = param;
     b.dataType = dataType;
     b.data = TimeSamples(dataType, count);
@@ -506,8 +505,7 @@ bool Context::updateCameraPathAnimation()
     return b;
   };
 
-  auto &anim =
-      tsd.sceneAnimation.addAnimation(view.cameraPathAnimationName);
+  auto &anim = tsd.sceneAnimation.addAnimation(view.cameraPathAnimationName);
   anim.bindings.push_back(makeBinding(
       "position", ANARI_FLOAT32_VEC3, positions.data(), samples.size()));
   anim.bindings.push_back(makeBinding(
