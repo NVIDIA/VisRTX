@@ -22,9 +22,9 @@ namespace tsd::io {
 // See https://github.com/jeffamstutz/agx
 //
 void import_AGX(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const char *filepath,
-    LayerNodeRef location,
-    tsd::animation::SceneAnimation *sceneAnim)
+    LayerNodeRef location)
 {
   std::string file = fileOf(filepath);
   if (file.empty()) {
@@ -287,10 +287,9 @@ void import_AGX(Scene &scene,
   // animation
 
   if (!timeSteps.empty()) {
-    if (!sceneAnim) return;
     size_t numSteps = timeSteps.empty() ? 0 : timeSteps[0].size();
     auto tb = makeLinearTimeBase(numSteps);
-    auto &anim = sceneAnim->addAnimation(file.c_str());
+    auto &anim = sceneAnim.addAnimation(file.c_str());
     addArrayTimeStepBindings(
         anim, geom.data(), timeStepNames, timeSteps, tb);
     logInfo("[import_AGX] animation created successfully");

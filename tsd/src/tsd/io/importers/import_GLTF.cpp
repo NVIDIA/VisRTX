@@ -1329,8 +1329,9 @@ static void populateGLTFLayer(Scene &scene,
   }
 }
 
-void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location)
+void import_GLTF(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location)
 {
+  (void)sceneAnim;
   tinygltf::Model model;
   tinygltf::TinyGLTF loader;
   std::string err;

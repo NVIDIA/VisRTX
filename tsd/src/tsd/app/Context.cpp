@@ -149,7 +149,7 @@ void Context::setupSceneFromCommandLine(bool hdriOnly)
     for (const auto &f : commandLine.filenames) {
       tsd::core::logStatus("...loading file '%s'", f.second.c_str());
       if (f.first == tsd::io::ImporterType::HDRI)
-        tsd::io::import_HDRI(tsd.scene, f.second.c_str());
+        tsd::io::import_HDRI(tsd.scene, tsd.sceneAnimation, f.second.c_str());
     }
     return;
   }
@@ -166,10 +166,9 @@ void Context::setupSceneFromCommandLine(bool hdriOnly)
     tsd::core::logStatus("...generating material_orb from embedded data");
     tsd::io::generate_material_orb(tsd.scene);
   } else if (!loadFromState) {
-    tsd::io::import_files(
-        tsd.scene, commandLine.filenames, {}, &tsd.sceneAnimation);
+    tsd::io::import_files(tsd.scene, tsd.sceneAnimation, commandLine.filenames);
     tsd::io::import_animations(
-        tsd.scene, commandLine.animationFilenames, {}, &tsd.sceneAnimation);
+        tsd.scene, tsd.sceneAnimation, commandLine.animationFilenames);
   }
 }
 

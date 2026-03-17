@@ -423,8 +423,9 @@ static SpatialFieldRef createFieldFromVolumeCells(
 }
 
 // Full-scene importer: surfaces + volumes
-void import_VTU(Scene &scene, const char *filepath, LayerNodeRef location)
+void import_VTU(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location)
 {
+  (void)sceneAnim;
   auto grid = loadVTUGrid(filepath);
   if (!grid)
     return;
@@ -485,8 +486,9 @@ SpatialFieldRef import_VTU(Scene &scene, const char *filepath)
 
 #else
 
-void import_VTU(Scene &scene, const char *filepath, LayerNodeRef location)
+void import_VTU(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location)
 {
+  (void)sceneAnim;
   logError("[import_VTU] VTK not enabled in TSD build.");
 }
 

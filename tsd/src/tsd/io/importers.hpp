@@ -21,34 +21,35 @@ using namespace tsd::scene;
 
 // Full scene importers //
 
-void import_AGX(Scene &scene, const char *filename, LayerNodeRef location = {}, tsd::animation::SceneAnimation *sceneAnim = nullptr);
-void import_ASSIMP(Scene &scene, const char *filename, LayerNodeRef location = {}, bool flatten = false);
-void import_AXYZ(Scene &scene, const char *filename, LayerNodeRef location = {}, tsd::animation::SceneAnimation *sceneAnim = nullptr);
-void import_DLAF(Scene &scene, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
-void import_E57XYZ(Scene &scene, const char *filename, LayerNodeRef location = {});
+void import_AGX(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_ASSIMP(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {}, bool flatten = false);
+void import_AXYZ(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_DLAF(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
+void import_E57XYZ(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
 void import_ENSIGHT(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const char *filename,
     LayerNodeRef location = {},
     const std::vector<std::string> &fields = {},
     int timestep = 0);
-void import_GLTF(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_HDRI(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_HSMESH(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_NBODY(Scene &scene, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
-void import_OBJ(Scene &scene, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
-void import_PDB(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_PLY(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_POINTSBIN(Scene &scene, const std::vector<std::string> &filepaths, LayerNodeRef location = {}, tsd::animation::SceneAnimation *sceneAnim = nullptr);
-void import_PT(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_SILO(Scene &scene, const char *filename, LayerNodeRef location);
-void import_SMESH(Scene &scene, const char *filename, LayerNodeRef location = {}, bool isAnimation = false, tsd::animation::SceneAnimation *sceneAnim = nullptr);
-void import_SWC(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_TRK(Scene &scene, const char *filename, LayerNodeRef location = {});
-void import_USD(Scene &scene, const char *filename, LayerNodeRef location = {}, tsd::animation::SceneAnimation *sceneAnim = nullptr);
-void import_USD2(Scene &scene, const char *filename, LayerNodeRef location = {}, tsd::animation::SceneAnimation *sceneAnim = nullptr);
-void import_VTP(Scene &scene, const char *filepath, LayerNodeRef location = {});
-void import_VTU(Scene &scene, const char *filepath, LayerNodeRef location);
-void import_XYZDP(Scene &scene, const char *filename, LayerNodeRef location = {});
+void import_GLTF(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_HDRI(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_HSMESH(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_NBODY(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
+void import_OBJ(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
+void import_PDB(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_PLY(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_POINTSBIN(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const std::vector<std::string> &filepaths, LayerNodeRef location = {});
+void import_PT(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_SILO(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location);
+void import_SMESH(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {}, bool isAnimation = false);
+void import_SWC(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_TRK(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_USD(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_USD2(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
+void import_VTP(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location = {});
+void import_VTU(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location);
+void import_XYZDP(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location = {});
 
 // Spatial field importers //
 
@@ -122,28 +123,28 @@ using ImportFile = std::pair<ImporterType, std::string>;
 using ImportAnimationFiles = std::pair<ImporterType, std::vector<std::string>>;
 
 void import_file(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const ImportFile &file,
-    tsd::scene::LayerNodeRef root = {},
-    tsd::animation::SceneAnimation *sceneAnim = nullptr);
+    tsd::scene::LayerNodeRef root = {});
 void import_file(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const ImportFile &file,
     tsd::core::TransferFunction &transferFunction,
-    tsd::scene::LayerNodeRef root = {},
-    tsd::animation::SceneAnimation *sceneAnim = nullptr);
+    tsd::scene::LayerNodeRef root = {});
 
 void import_files(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const std::vector<ImportFile> &files,
-    tsd::scene::LayerNodeRef root = {},
-    tsd::animation::SceneAnimation *sceneAnim = nullptr);
+    tsd::scene::LayerNodeRef root = {});
 void import_files(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const std::vector<ImportFile> &files,
     tsd::core::TransferFunction transferFunction,
-    tsd::scene::LayerNodeRef root = {},
-    tsd::animation::SceneAnimation *sceneAnim = nullptr);
+    tsd::scene::LayerNodeRef root = {});
 
 void import_animations(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const std::vector<ImportAnimationFiles> &files,
-    tsd::scene::LayerNodeRef root = {},
-    tsd::animation::SceneAnimation *sceneAnim = nullptr);
+    tsd::scene::LayerNodeRef root = {});
 
 } // namespace tsd::io

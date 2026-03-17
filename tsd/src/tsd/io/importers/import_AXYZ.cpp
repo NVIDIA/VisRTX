@@ -17,7 +17,7 @@ namespace tsd::io {
 
 using namespace tsd::core;
 
-void import_AXYZ(Scene &scene, const char *filepath, LayerNodeRef location, tsd::animation::SceneAnimation *sceneAnim)
+void import_AXYZ(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location)
 {
   std::string file = fileOf(filepath);
   if (file.empty())
@@ -89,10 +89,8 @@ void import_AXYZ(Scene &scene, const char *filepath, LayerNodeRef location, tsd:
 
   // animation
 
-  if (!sceneAnim) return;
-
   auto tb = makeLinearTimeBase(timeSteps.size());
-  auto &anim = sceneAnim->addAnimation(file.c_str());
+  auto &anim = sceneAnim.addAnimation(file.c_str());
   addArrayTimeStepBindings(
       anim, geom.data(), {Token("vertex.position")}, {timeSteps}, tb);
 }

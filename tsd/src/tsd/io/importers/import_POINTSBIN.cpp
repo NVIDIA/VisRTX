@@ -18,9 +18,9 @@ using namespace tsd::core;
 // Importing a bespoke binary dump of points + N vertex attribute scalars
 //
 void import_POINTSBIN(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const std::vector<std::string> &filepaths,
-    LayerNodeRef location,
-    tsd::animation::SceneAnimation *sceneAnim)
+    LayerNodeRef location)
 {
   if (filepaths.empty())
     return;
@@ -56,9 +56,8 @@ void import_POINTSBIN(Scene &scene,
   }
 
   if (numTimeSteps > 1) {
-    if (!sceneAnim) return;
     auto tb = makeLinearTimeBase(numTimeSteps);
-    auto &anim = sceneAnim->addAnimation("pointsbin animation");
+    auto &anim = sceneAnim.addAnimation("pointsbin animation");
     addArrayTimeStepBindings(anim,
         geom.data(),
         {Token("vertex.position"), Token("vertex.attribute0")},

@@ -417,8 +417,9 @@ void readPDBFile(Scene &scene, const char *filename, LayerNodeRef location)
  * @param location Node in the scene graph where the 3D representation should be
  * added.
  */
-void import_PDB(Scene &scene, const char *filename, LayerNodeRef location)
+void import_PDB(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location)
 {
+  (void)sceneAnim;
   readPDBFile(scene, filename, location);
 }
 }; // namespace tsd::io

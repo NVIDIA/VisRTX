@@ -14,8 +14,9 @@ namespace tsd::io {
 
 using namespace tinyply;
 
-void import_PLY(Scene &scene, const char *filename, LayerNodeRef location)
+void import_PLY(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location)
 {
+  (void)sceneAnim;
   std::unique_ptr<std::istream> file_stream;
   std::vector<uint8_t> byte_buffer;
 

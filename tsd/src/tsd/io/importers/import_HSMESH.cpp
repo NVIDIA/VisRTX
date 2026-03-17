@@ -29,8 +29,9 @@ static ArrayRef readHsArray(Scene &scene,
 //
 // Importing Haystack meshes: https://github.com/ingowald/haystack
 //
-void import_HSMESH(Scene &scene, const char *filepath, LayerNodeRef location)
+void import_HSMESH(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location)
 {
+  (void)sceneAnim;
   auto *fp = std::fopen(filepath, "rb");
   if (!fp)
     return;

@@ -1530,7 +1530,7 @@ SpatialFieldRef import_SILO(Scene &scene, const char *filepath)
   return field;
 }
 
-void import_SILO(Scene &scene, const char *filename, LayerNodeRef location)
+void import_SILO(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location)
 {
   SpatialFieldRef field = import_SILO(scene, filename);
   if (field) {
@@ -1561,8 +1561,9 @@ SpatialFieldRef import_SILO(Scene &scene, const char *filepath)
   return {};
 }
 
-void import_SILO(Scene &scene, const char *filename, LayerNodeRef location)
+void import_SILO(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location)
 {
+  (void)sceneAnim;
   logError("[import_SILO] Silo support not enabled in this build");
 }
 

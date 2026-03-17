@@ -42,10 +42,12 @@ void importNBODYFile(const char *filename, NBODYScene &s)
 }
 
 void import_NBODY(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const char *filepath,
     LayerNodeRef location,
     bool useDefaultMaterial)
 {
+  (void)sceneAnim;
   NBODYScene nbody;
   importNBODYFile(filepath, nbody);
 

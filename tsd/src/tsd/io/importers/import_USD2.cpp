@@ -66,7 +66,7 @@ bool isTimeStepValuesAnimated(const std::vector<Any> &values)
 
 static void importUsdGeomCamera(Scene &scene,
     const pxr::UsdPrim &prim,
-    tsd::animation::SceneAnimation *sceneAnim)
+    tsd::animation::SceneAnimation &sceneAnim)
 {
   // Import default camera parameters
   std::string primName = prim.GetName().GetString();
@@ -192,45 +192,43 @@ static void importUsdGeomCamera(Scene &scene,
     return;
   }
 
-  if (sceneAnim) {
-    auto &cameraAnimation = sceneAnim->addAnimation(primName.c_str());
-    std::vector<Token> animatedParams;
-    std::vector<ObjectUsePtr<Array>> animatedArrays;
+  auto &cameraAnimation = sceneAnim.addAnimation(primName.c_str());
+  std::vector<Token> animatedParams;
+  std::vector<ObjectUsePtr<Array>> animatedArrays;
 
-    auto addAnimParam = [&](const char *name, std::vector<Any> &values) {
-      auto type = values[0].type();
-      auto arr = scene.createArray(type, values.size());
-      arr->setName((std::string("animated_") + name).c_str());
-      auto *ptr = (uint8_t *)arr->map();
-      for (size_t j = 0; j < values.size(); j++)
-        std::memcpy(
-            ptr + j * anari::sizeOf(type), values[j].data(), anari::sizeOf(type));
-      arr->unmap();
-      animatedParams.push_back(name);
-      animatedArrays.push_back(arr);
-    };
+  auto addAnimParam = [&](const char *name, std::vector<Any> &values) {
+    auto type = values[0].type();
+    auto arr = scene.createArray(type, values.size());
+    arr->setName((std::string("animated_") + name).c_str());
+    auto *ptr = (uint8_t *)arr->map();
+    for (size_t j = 0; j < values.size(); j++)
+      std::memcpy(
+          ptr + j * anari::sizeOf(type), values[j].data(), anari::sizeOf(type));
+    arr->unmap();
+    animatedParams.push_back(name);
+    animatedArrays.push_back(arr);
+  };
 
-    if (isPositionsAnimated) addAnimParam("position", positions);
-    if (isDirectionsAnimated) addAnimParam("direction", directions);
-    if (isUpsAnimated) addAnimParam("up", ups);
-    if (isFovsAnimated) addAnimParam("fovy", fovs);
+  if (isPositionsAnimated) addAnimParam("position", positions);
+  if (isDirectionsAnimated) addAnimParam("direction", directions);
+  if (isUpsAnimated) addAnimParam("up", ups);
+  if (isFovsAnimated) addAnimParam("fovy", fovs);
 
-    auto tb = makeLinearTimeBase(positions.size());
-    addValueTimeStepBindings(cameraAnimation,
-        camera.data(),
-        animatedParams,
-        animatedArrays,
-        tb,
-        tsd::animation::InterpolationRule::LINEAR);
-  }
+  auto tb = makeLinearTimeBase(positions.size());
+  addValueTimeStepBindings(cameraAnimation,
+      camera.data(),
+      animatedParams,
+      animatedArrays,
+      tb,
+      tsd::animation::InterpolationRule::LINEAR);
 
   logStatus("[import_USD] Created camera '%s'\n", primName.c_str());
 }
 
 void import_USD2(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const char *filename,
-    LayerNodeRef location,
-    tsd::animation::SceneAnimation *sceneAnim)
+    LayerNodeRef location)
 {
   // Open the USD stage
   pxr::UsdStageRefPtr stage = pxr::UsdStage::Open(filename);
@@ -389,9 +387,9 @@ void import_USD2(Scene &scene,
 }
 #else
 void import_USD2(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const char *filename,
-    LayerNodeRef location,
-    tsd::animation::SceneAnimation *sceneAnim)
+    LayerNodeRef location)
 {
   tsd::core::logError("[import_USD2] USD not enabled in TSD build.");
 }

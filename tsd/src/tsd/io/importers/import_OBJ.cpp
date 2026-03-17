@@ -19,10 +19,12 @@ struct OBJData
 };
 
 void import_OBJ(Scene &scene,
+    tsd::animation::SceneAnimation &sceneAnim,
     const char *filepath,
     LayerNodeRef location,
     bool useDefaultMaterial)
 {
+  (void)sceneAnim;
   OBJData objdata;
   std::string warn;
   std::string err;
