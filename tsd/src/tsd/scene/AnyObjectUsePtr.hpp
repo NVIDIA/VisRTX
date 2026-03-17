@@ -19,6 +19,7 @@ struct Scene;
  *   auto *geom = ptr.getAs<Geometry>();
  *   ptr.reset();
  */
+template <Object::UseKind K = Object::UseKind::APP>
 struct AnyObjectUsePtr
 {
   AnyObjectUsePtr() = default;
@@ -52,25 +53,30 @@ struct AnyObjectUsePtr
   Scene *m_scene{nullptr};
 };
 
-bool operator==(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b);
-bool operator!=(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b);
+template <Object::UseKind K>
+bool operator==(const AnyObjectUsePtr<K> &a, const AnyObjectUsePtr<K> &b);
+template <Object::UseKind K>
+bool operator!=(const AnyObjectUsePtr<K> &a, const AnyObjectUsePtr<K> &b);
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-inline AnyObjectUsePtr::AnyObjectUsePtr(Object &o)
+template <Object::UseKind K>
+inline AnyObjectUsePtr<K>::AnyObjectUsePtr(Object &o)
 {
   reset();
 }
 
-inline AnyObjectUsePtr::AnyObjectUsePtr(const AnyObjectUsePtr &o)
+template <Object::UseKind K>
+inline AnyObjectUsePtr<K>::AnyObjectUsePtr(const AnyObjectUsePtr &o)
 {
   m_object = o.m_object;
   m_scene = o.m_scene;
   if (auto *obj = get(); obj != nullptr)
-    obj->incUseCount(Object::UseKind::APP);
+    obj->incUseCount(K);
 }
 
-inline AnyObjectUsePtr::AnyObjectUsePtr(AnyObjectUsePtr &&o)
+template <Object::UseKind K>
+inline AnyObjectUsePtr<K>::AnyObjectUsePtr(AnyObjectUsePtr &&o)
 {
   m_object = std::move(o.m_object);
   m_scene = o.m_scene;
@@ -78,24 +84,28 @@ inline AnyObjectUsePtr::AnyObjectUsePtr(AnyObjectUsePtr &&o)
   o.m_object.reset();
 }
 
-inline AnyObjectUsePtr::~AnyObjectUsePtr()
+template <Object::UseKind K>
+inline AnyObjectUsePtr<K>::~AnyObjectUsePtr()
 {
   reset();
 }
 
-inline AnyObjectUsePtr &AnyObjectUsePtr::operator=(const AnyObjectUsePtr &o)
+template <Object::UseKind K>
+inline AnyObjectUsePtr<K> &AnyObjectUsePtr<K>::operator=(
+    const AnyObjectUsePtr &o)
 {
   if (this != &o) {
     reset();
     m_object = o.m_object;
     m_scene = o.m_scene;
     if (auto *obj = get(); obj != nullptr)
-      obj->incUseCount(Object::UseKind::APP);
+      obj->incUseCount(K);
   }
   return *this;
 }
 
-inline AnyObjectUsePtr &AnyObjectUsePtr::operator=(AnyObjectUsePtr &&o)
+template <Object::UseKind K>
+inline AnyObjectUsePtr<K> &AnyObjectUsePtr<K>::operator=(AnyObjectUsePtr &&o)
 {
   m_object = std::move(o.m_object);
   m_scene = o.m_scene;
@@ -104,61 +114,71 @@ inline AnyObjectUsePtr &AnyObjectUsePtr::operator=(AnyObjectUsePtr &&o)
   return *this;
 }
 
-inline AnyObjectUsePtr &AnyObjectUsePtr::operator=(Object &o)
+template <Object::UseKind K>
+inline AnyObjectUsePtr<K> &AnyObjectUsePtr<K>::operator=(Object &o)
 {
   reset();
   if (o.scene() != nullptr) {
     m_scene = o.scene();
     m_object = Any(o.type(), o.index());
-    o.incUseCount(Object::UseKind::APP);
+    o.incUseCount(K);
   }
   return *this;
 }
 
-inline void AnyObjectUsePtr::reset()
+template <Object::UseKind K>
+inline void AnyObjectUsePtr<K>::reset()
 {
   if (auto *obj = get(); obj != nullptr)
-    obj->decUseCount(Object::UseKind::APP);
+    obj->decUseCount(K);
 
   m_scene = nullptr;
 }
 
-inline const Object *AnyObjectUsePtr::get() const
+template <Object::UseKind K>
+inline const Object *AnyObjectUsePtr<K>::get() const
 {
   return m_scene && m_object ? m_scene->getObject(m_object) : nullptr;
 }
 
-inline const Object *AnyObjectUsePtr::operator->() const
+template <Object::UseKind K>
+inline const Object *AnyObjectUsePtr<K>::operator->() const
 {
   return get();
 }
 
-inline const Object &AnyObjectUsePtr::operator*() const
+template <Object::UseKind K>
+inline const Object &AnyObjectUsePtr<K>::operator*() const
 {
   return *get();
 }
 
-inline Object *AnyObjectUsePtr::get()
+template <Object::UseKind K>
+inline Object *AnyObjectUsePtr<K>::get()
 {
   return m_scene && m_object ? m_scene->getObject(m_object) : nullptr;
 }
 
-inline Object *AnyObjectUsePtr::operator->()
+template <Object::UseKind K>
+inline Object *AnyObjectUsePtr<K>::operator->()
 {
   return get();
 }
 
-inline Object &AnyObjectUsePtr::operator*()
+template <Object::UseKind K>
+inline Object &AnyObjectUsePtr<K>::operator*()
 {
   return *get();
 }
 
-inline AnyObjectUsePtr::operator bool() const
+template <Object::UseKind K>
+inline AnyObjectUsePtr<K>::operator bool() const
 {
   return get() != nullptr;
 }
 
-inline bool operator==(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b)
+template <Object::UseKind K>
+inline bool operator==(const AnyObjectUsePtr<K> &a, const AnyObjectUsePtr<K> &b)
 {
   auto *a1 = a.get();
   auto *b1 = b.get();
@@ -166,21 +186,24 @@ inline bool operator==(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b)
       && (a1->index() == b1->index());
 }
 
-inline bool operator!=(const AnyObjectUsePtr &a, const AnyObjectUsePtr &b)
+template <Object::UseKind K>
+inline bool operator!=(const AnyObjectUsePtr<K> &a, const AnyObjectUsePtr<K> &b)
 {
   return !(a == b);
 }
 
+template <Object::UseKind K>
 template <typename T>
-inline const T *AnyObjectUsePtr::getAs() const
+inline const T *AnyObjectUsePtr<K>::getAs() const
 {
   static_assert(std::is_base_of<Object, T>::value,
       "AnyObjectUsePtr::getAs<T> requires T to derive from Object");
   return get() != nullptr ? dynamic_cast<const T *>(get()) : nullptr;
 }
 
+template <Object::UseKind K>
 template <typename T>
-T *AnyObjectUsePtr::getAs()
+T *AnyObjectUsePtr<K>::getAs()
 {
   static_assert(std::is_base_of<Object, T>::value,
       "AnyObjectUsePtr::getAs<T> requires T to derive from Object");
