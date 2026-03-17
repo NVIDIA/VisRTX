@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // tsd_animation
-#include <tsd/animation/SceneAnimation.hpp>
+#include <tsd/animation/AnimationManager.hpp>
 // tsd_core
 #include <tsd/scene/Scene.hpp>
 // tsd_io
@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 
   // Populate spheres //
 
-  tsd::animation::SceneAnimation anim(&scene);
+  tsd::animation::AnimationManager anim(&scene);
   tsd::io::import_USD(scene, anim, g_filename.c_str());
 
   // Setup ANARI device //

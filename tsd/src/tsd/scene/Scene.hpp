@@ -25,13 +25,13 @@ struct Scene;
 } // namespace tsd::scene
 
 namespace tsd::animation {
-class SceneAnimation;
+class AnimationManager;
 } // namespace tsd::animation
 
 namespace tsd::io {
 // clang-format off
-void save_Scene(scene::Scene &, core::DataNode &, bool, animation::SceneAnimation *);
-void load_Scene(scene::Scene &, core::DataNode &, animation::SceneAnimation *);
+void save_Scene(scene::Scene &, core::DataNode &, bool, animation::AnimationManager *);
+void load_Scene(scene::Scene &, core::DataNode &, animation::AnimationManager *);
 // clang-format on
 } // namespace tsd::io
 
@@ -235,9 +235,9 @@ struct Scene
 
  private:
   friend void ::tsd::io::save_Scene(
-      Scene &, core::DataNode &, bool, tsd::animation::SceneAnimation *);
+      Scene &, core::DataNode &, bool, tsd::animation::AnimationManager *);
   friend void ::tsd::io::load_Scene(
-      Scene &, core::DataNode &, tsd::animation::SceneAnimation *);
+      Scene &, core::DataNode &, tsd::animation::AnimationManager *);
 
   template <typename OBJ_T, typename... Args>
   ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv, Args &&...args);

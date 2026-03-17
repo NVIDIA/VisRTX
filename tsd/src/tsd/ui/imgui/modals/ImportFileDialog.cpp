@@ -106,7 +106,7 @@ void ImportFileDialog::buildUI()
         importRoot = layer->root();
       tsd::io::ImportFile file{
           static_cast<tsd::io::ImporterType>(m_selectedFileType), m_filename};
-      tsd::io::import_file(scene, ctx->tsd.sceneAnimation, file, importRoot);
+      tsd::io::import_file(scene, ctx->tsd.animationMgr, file, importRoot);
       scene.signalLayerStructureChanged(layer);
     };
 

@@ -11,7 +11,7 @@
 // tsd_core
 #include <tsd/core/Logging.hpp>
 // tsd_animation
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 // tsd_io
 #include <tsd/io/importers/detail/importer_common.hpp>
 #if TSD_USE_USD
@@ -66,7 +66,7 @@ bool isTimeStepValuesAnimated(const std::vector<Any> &values)
 
 static void importUsdGeomCamera(Scene &scene,
     const pxr::UsdPrim &prim,
-    tsd::animation::SceneAnimation &sceneAnim)
+    tsd::animation::AnimationManager &animMgr)
 {
   // Import default camera parameters
   std::string primName = prim.GetName().GetString();
@@ -192,7 +192,7 @@ static void importUsdGeomCamera(Scene &scene,
     return;
   }
 
-  auto &cameraAnimation = sceneAnim.addAnimation(primName.c_str());
+  auto &cameraAnimation = animMgr.addAnimation(primName.c_str());
   std::vector<Token> animatedParams;
   std::vector<ObjectUsePtr<Array>> animatedArrays;
 
@@ -226,7 +226,7 @@ static void importUsdGeomCamera(Scene &scene,
 }
 
 void import_USD2(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const char *filename,
     LayerNodeRef location)
 {
@@ -263,7 +263,7 @@ void import_USD2(Scene &scene,
           prim.GetPath().GetString().c_str());
 
       // Import the camera with time-sampled animation
-      importUsdGeomCamera(scene, prim, sceneAnim);
+      importUsdGeomCamera(scene, prim, animMgr);
       cameraCount++;
     }
     // Check if this prim is a material
@@ -387,7 +387,7 @@ void import_USD2(Scene &scene,
 }
 #else
 void import_USD2(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const char *filename,
     LayerNodeRef location)
 {

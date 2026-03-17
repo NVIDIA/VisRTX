@@ -5,7 +5,7 @@
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 // std
 #include <array>
 #include <cstdio>
@@ -19,7 +19,7 @@ using namespace tsd::core;
 // Importing a bespoke binary dump of just triangles + vertex attribute scalars
 //
 void import_SMESH(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const char *filepath,
     LayerNodeRef location,
     bool isAnimation)
@@ -56,7 +56,7 @@ void import_SMESH(Scene &scene,
   if (size > 1) {
     auto animationName = "SMESH animation for " + std::string(filename);
     auto tb = makeLinearTimeBase(size);
-    auto &anim = sceneAnim.addAnimation(animationName);
+    auto &anim = animMgr.addAnimation(animationName);
     addArrayTimeStepBindings(anim,
         geom.data(),
         {Token("primitive.index"),

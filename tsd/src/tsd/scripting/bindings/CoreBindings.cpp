@@ -5,7 +5,7 @@
 #include "ObjectMethodBindings.hpp"
 #include "ParameterHelpers.hpp"
 #include "tsd/animation/Animation.hpp"
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/Token.hpp"
 #include "tsd/scene/Object.hpp"
 #include "tsd/scene/Parameter.hpp"
@@ -550,13 +550,13 @@ void registerContextBindings(sol::state &lua)
   tsd["SPATIAL_FIELD"] = ANARI_SPATIAL_FIELD;
 }
 
-void registerSceneAnimationBindings(sol::state &lua)
+void registerAnimationManagerBindings(sol::state &lua)
 {
-  using SA = tsd::animation::SceneAnimation;
+  using SA = tsd::animation::AnimationManager;
   sol::table tsd = lua["tsd"];
 
   tsd.new_usertype<SA>(
-      "SceneAnimation",
+      "AnimationManager",
       sol::no_constructor,
       "addAnimation",
       sol::overload(

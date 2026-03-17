@@ -734,13 +734,13 @@ static void readVarFile(const std::string &filename,
 }
 
 void import_ENSIGHT(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const char *filepath,
     LayerNodeRef location,
     const std::vector<std::string> &fields,
     int timestep)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   if (!location)
     location = scene.defaultLayer()->root();
 

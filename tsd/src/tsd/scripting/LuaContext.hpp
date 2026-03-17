@@ -17,7 +17,7 @@ struct Scene;
 }
 
 namespace tsd::animation {
-class SceneAnimation;
+class AnimationManager;
 }
 
 namespace tsd::scripting {
@@ -51,8 +51,8 @@ class LuaContext
   // Scene IS owned by LuaContext
   scene::Scene *createOwnedScene(const std::string &varName = "scene");
 
-  void bindSceneAnimation(tsd::animation::SceneAnimation *sa,
-      const std::string &varName = "sceneAnimation");
+  void bindAnimationManager(tsd::animation::AnimationManager *sa,
+      const std::string &varName = "animationMgr");
 
   scene::Scene *boundScene() const;
 

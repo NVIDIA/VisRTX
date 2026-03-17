@@ -1,7 +1,7 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/procedural.hpp"
@@ -108,14 +108,14 @@ void registerIOBindings(sol::state &lua)
 
   // Importers - geometry/scene formats
   io["importOBJ"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_OBJ(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_OBJ(s, anim, f.c_str(), loc), f);
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &anim,
+          animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc,
           bool useDefaultMat) {
@@ -124,70 +124,70 @@ void registerIOBindings(sol::state &lua)
       });
 
   io["importGLTF"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_GLTF(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_GLTF(s, anim, f.c_str(), loc), f);
       });
 
   io["importPLY"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_PLY(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_PLY(s, anim, f.c_str(), loc), f);
       });
 
   io["importHDRI"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_HDRI(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_HDRI(s, anim, f.c_str(), loc), f);
       });
 
   io["importUSD"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_USD(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_USD(s, anim, f.c_str(), loc), f);
       });
 
   io["importPDB"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_PDB(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_PDB(s, anim, f.c_str(), loc), f);
       });
 
   io["importSWC"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_SWC(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_SWC(s, anim, f.c_str(), loc), f);
       });
 
   io["importAGX"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_AGX(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_AGX(s, anim, f.c_str(), loc), f);
       });
 
   io["importASSIMP"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_ASSIMP(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_ASSIMP(s, anim, f.c_str(), loc), f);
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &anim,
+          animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc,
           bool flatten) {
@@ -196,22 +196,22 @@ void registerIOBindings(sol::state &lua)
       });
 
   io["importAXYZ"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_AXYZ(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_AXYZ(s, anim, f.c_str(), loc), f);
       });
 
   io["importDLAF"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_DLAF(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_DLAF(s, anim, f.c_str(), loc), f);
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &anim,
+          animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc,
           bool useDefaultMat) {
@@ -220,22 +220,22 @@ void registerIOBindings(sol::state &lua)
       });
 
   io["importE57XYZ"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_E57XYZ(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_E57XYZ(s, anim, f.c_str(), loc), f);
       });
 
   io["importENSIGHT"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_ENSIGHT(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_ENSIGHT(s, anim, f.c_str(), loc), f);
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &anim,
+          animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc,
           sol::table fields) {
@@ -245,7 +245,7 @@ void registerIOBindings(sol::state &lua)
         TSD_LUA_IMPORT_WRAP(tsd::io::import_ENSIGHT(s, anim, f.c_str(), loc, fs), f);
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &anim,
+          animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc,
           sol::table fields,
@@ -258,22 +258,22 @@ void registerIOBindings(sol::state &lua)
       });
 
   io["importHSMESH"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_HSMESH(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_HSMESH(s, anim, f.c_str(), loc), f);
       });
 
   io["importNBODY"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_NBODY(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_NBODY(s, anim, f.c_str(), loc), f);
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &anim,
+          animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc,
           bool useDefaultMat) {
@@ -282,13 +282,13 @@ void registerIOBindings(sol::state &lua)
       });
 
   io["importPOINTSBIN"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, sol::table filepaths) {
+      [](scene::Scene &s, animation::AnimationManager &anim, sol::table filepaths) {
         std::vector<std::string> paths;
         for (size_t i = 1; i <= filepaths.size(); i++)
           paths.push_back(filepaths[i].get<std::string>());
         TSD_LUA_IMPORT_WRAP(tsd::io::import_POINTSBIN(s, anim, paths), "POINTSBIN");
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, sol::table filepaths, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, sol::table filepaths, scene::LayerNodeRef loc) {
         std::vector<std::string> paths;
         for (size_t i = 1; i <= filepaths.size(); i++)
           paths.push_back(filepaths[i].get<std::string>());
@@ -297,27 +297,27 @@ void registerIOBindings(sol::state &lua)
       });
 
   io["importPT"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_PT(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_PT(s, anim, f.c_str(), loc), f);
       });
 
   io["importSilo"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_SILO(s, anim, f.c_str(), loc), f);
       });
 
   io["importSMESH"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_SMESH(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_SMESH(s, anim, f.c_str(), loc), f);
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &anim,
+          animation::AnimationManager &anim,
           const std::string &f,
           scene::LayerNodeRef loc,
           bool isAnimation) {
@@ -326,26 +326,26 @@ void registerIOBindings(sol::state &lua)
       });
 
   io["importTRK"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_TRK(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_TRK(s, anim, f.c_str(), loc), f);
       });
 
   io["importUSD2"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_USD2(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_USD2(s, anim, f.c_str(), loc), f);
       });
 
   io["importXYZDP"] = sol::overload(
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_XYZDP(s, anim, f.c_str()), f);
       },
-      [](scene::Scene &s, animation::SceneAnimation &anim, const std::string &f, scene::LayerNodeRef loc) {
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_XYZDP(s, anim, f.c_str(), loc), f);
       });
 
@@ -452,7 +452,7 @@ void registerIOBindings(sol::state &lua)
         tree.save(filename.c_str());
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &sa,
+          animation::AnimationManager &sa,
           const std::string &filename) {
         core::DataTree tree;
         tsd::io::save_Scene(s, tree.root(), false, &sa);
@@ -466,7 +466,7 @@ void registerIOBindings(sol::state &lua)
         tree.save(filename.c_str());
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &sa,
+          animation::AnimationManager &sa,
           const std::string &filename,
           sol::table state) {
         core::DataTree tree;
@@ -487,7 +487,7 @@ void registerIOBindings(sol::state &lua)
           tsd::io::load_Scene(s, root);
       },
       [](scene::Scene &s,
-          animation::SceneAnimation &sa,
+          animation::AnimationManager &sa,
           const std::string &filename) {
         core::DataTree tree;
         tree.load(filename.c_str());

@@ -42,12 +42,12 @@ void importDLAFFile(const char *filename, DLAFScene &s)
 }
 
 void import_DLAF(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const char *filepath,
     LayerNodeRef location,
     bool useDefaultMaterial)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   DLAFScene dlaf;
   importDLAFFile(filepath, dlaf);
 

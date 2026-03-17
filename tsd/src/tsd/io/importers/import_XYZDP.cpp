@@ -14,9 +14,9 @@
 
 namespace tsd::io {
 
-void import_XYZDP(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location)
+void import_XYZDP(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   std::string file = fileOf(filepath);
   if (file.empty())
     return;

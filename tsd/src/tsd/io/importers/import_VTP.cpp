@@ -30,9 +30,9 @@
 namespace tsd::io {
 
 #if TSD_USE_VTK
-void import_VTP(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location)
+void import_VTP(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   auto filename = fileOf(filepath);
 
   auto reader = vtkSmartPointer<vtkXMLPolyDataReader>::New();
@@ -203,9 +203,9 @@ void import_VTP(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const c
           ("vtp_surface | " + std::string(filename)).c_str(), mesh, mat));
 }
 #else
-void import_VTP(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filepath, LayerNodeRef location)
+void import_VTP(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   logError("[import_VTP] VTK not enabled in TSD build.");
 }
 #endif

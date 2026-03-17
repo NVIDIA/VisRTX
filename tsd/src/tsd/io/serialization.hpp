@@ -8,7 +8,7 @@
 #include "tsd/scene/Scene.hpp"
 
 namespace tsd::animation {
-class SceneAnimation;
+class AnimationManager;
 } // namespace tsd::animation
 
 namespace tsd::io {
@@ -54,12 +54,12 @@ void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene);
 // Scenes //
 
 void save_Scene(Scene &scene, const char *filename);
-void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays, tsd::animation::SceneAnimation *sceneAnim = nullptr);
-void load_Scene(Scene &scene, const char *filename, tsd::animation::SceneAnimation *sceneAnim = nullptr);
-void load_Scene(Scene &scene, core::DataNode &root, tsd::animation::SceneAnimation *sceneAnim = nullptr);
+void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays, tsd::animation::AnimationManager *animMgr = nullptr);
+void load_Scene(Scene &scene, const char *filename, tsd::animation::AnimationManager *animMgr = nullptr);
+void load_Scene(Scene &scene, core::DataNode &root, tsd::animation::AnimationManager *animMgr = nullptr);
 
 void export_SceneToUSD(
-    Scene &scene, const char *filename, int framesPerSecond = 30, tsd::animation::SceneAnimation *sceneAnim = nullptr);
+    Scene &scene, const char *filename, int framesPerSecond = 30, tsd::animation::AnimationManager *animMgr = nullptr);
 void export_StructuredVolumeToNanoVDB(
   const SpatialField* spatialField,
   std::string_view outputFilename,

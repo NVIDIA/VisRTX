@@ -10,7 +10,7 @@ PRIVATE
   Animation.cpp
   applyResults.cpp
   evaluate.cpp
-  SceneAnimation.cpp
+  AnimationManager.cpp
   TimeSamples.cpp
 )
 

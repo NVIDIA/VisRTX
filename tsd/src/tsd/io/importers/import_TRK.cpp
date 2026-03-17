@@ -249,9 +249,9 @@ void readTrkFile(
  * @param location Node in the scene graph where the streamlines should be
  * imported.
  */
-void import_TRK(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location)
+void import_TRK(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   readTrkFile(scene, filename, location);
 }
 

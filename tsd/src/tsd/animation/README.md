@@ -17,7 +17,7 @@ TSD scenes.
   `EvaluationResult` — a pure data structure of parameter and transform
   substitutions — without mutating the scene.
 - `applyResults()` writes an `EvaluationResult` into a live `Scene`.
-- `SceneAnimation` owns a scene's animation collection and provides time/frame
+- `AnimationManager` owns a scene's animation collection and provides time/frame
   control with an optional time-changed callback.
 
 ### Why Use This Library

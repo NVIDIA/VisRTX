@@ -4,7 +4,7 @@
 #include "Timeline.h"
 // tsd_core
 #include "tsd/animation/Animation.hpp"
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/ObjectPool.hpp"
 #include "tsd/scene/objects/Camera.hpp"
 // tsd_ui_imgui
@@ -195,7 +195,7 @@ void Timeline::buildUI()
 {
   auto *ctx = appContext();
   auto &scene = ctx->tsd.scene;
-  auto &sceneAnim = ctx->tsd.sceneAnimation;
+  auto &animMgr = ctx->tsd.animationMgr;
 
   // Space toggles play
   if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
@@ -204,16 +204,16 @@ void Timeline::buildUI()
   }
 
   if (m_playing) {
-    sceneAnim.incrementAnimationFrame();
-    if (!m_loop && sceneAnim.getAnimationFrame() == 0)
+    animMgr.incrementAnimationFrame();
+    if (!m_loop && animMgr.getAnimationFrame() == 0)
       m_playing = false;
   }
 
   // K shortcut: set keyframe on selected tracks
   if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
       && ImGui::IsKeyPressed(ImGuiKey_K)) {
-    float t = sceneAnim.getAnimationTime();
-    auto &anims = sceneAnim.animations();
+    float t = animMgr.getAnimationTime();
+    auto &anims = animMgr.animations();
     for (size_t i = 0; i < anims.size(); i++) {
       if (!m_selectedTracks.empty() && m_selectedTracks.count(i) == 0)
         continue;
@@ -237,7 +237,7 @@ void Timeline::buildUI_transport()
 {
   auto *ctx = appContext();
   auto &scene = ctx->tsd.scene;
-  auto &sceneAnim = ctx->tsd.sceneAnimation;
+  auto &animMgr = ctx->tsd.animationMgr;
 
   ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(16.f, 2.f));
 
@@ -267,7 +267,7 @@ void Timeline::buildUI_transport()
     // Stop
     if (ImGui::Button(" [] ")) {
       m_playing = false;
-      sceneAnim.setAnimationFrame(0);
+      animMgr.setAnimationFrame(0);
     }
     if (ImGui::IsItemHovered())
       ImGui::SetTooltip("Stop");
@@ -279,10 +279,10 @@ void Timeline::buildUI_transport()
 
     // Frame counter
     ImGui::TableNextColumn();
-    int frame = sceneAnim.getAnimationFrame();
-    int totalFrames = sceneAnim.getAnimationTotalFrames();
+    int frame = animMgr.getAnimationFrame();
+    int totalFrames = animMgr.getAnimationTotalFrames();
     if (ImGui::InputInt("##frame", &frame, 1, 10))
-      sceneAnim.setAnimationFrame(frame);
+      animMgr.setAnimationFrame(frame);
 
     ImGui::TableNextColumn();
     ImGui::Text("%d / %d", frame, totalFrames - 1);
@@ -290,7 +290,7 @@ void Timeline::buildUI_transport()
     // Total frames
     ImGui::TableNextColumn();
     if (ImGui::InputInt("Frames", &totalFrames, 1, 10))
-      sceneAnim.setAnimationTotalFrames(totalFrames);
+      animMgr.setAnimationTotalFrames(totalFrames);
 
     ImGui::PopStyleVar();
 
@@ -304,14 +304,14 @@ void Timeline::buildUI_canvas()
 {
   auto *ctx = appContext();
   auto &scene = ctx->tsd.scene;
-  auto &sceneAnim = ctx->tsd.sceneAnimation;
+  auto &animMgr = ctx->tsd.animationMgr;
 
   const float nameColWidth = 150.f;
   const float rowHeight = 20.f;
   const float rulerHeight = 24.f;
 
-  int totalFrames = sceneAnim.getAnimationTotalFrames();
-  int currentFrame = sceneAnim.getAnimationFrame();
+  int totalFrames = animMgr.getAnimationTotalFrames();
+  int currentFrame = animMgr.getAnimationFrame();
   float canvasWidth = ImGui::GetContentRegionAvail().x - nameColWidth;
 
   // Zoom with scroll wheel when hovering canvas
@@ -324,7 +324,7 @@ void Timeline::buildUI_canvas()
   }
 
   float totalCanvasWidth = m_pixelsPerFrame * (totalFrames - 1);
-  auto &anims = sceneAnim.animations();
+  auto &anims = animMgr.animations();
   size_t numAnims = anims.size();
   float keysColWidth = std::max(canvasWidth, totalCanvasWidth + 20.f);
 
@@ -383,7 +383,7 @@ void Timeline::buildUI_canvas()
             std::clamp(currentFrame + static_cast<int>(dx / m_pixelsPerFrame),
                 0,
                 totalFrames - 1);
-        sceneAnim.setAnimationFrame(newFrame);
+        animMgr.setAnimationFrame(newFrame);
       }
 
       ImGui::SetCursorScreenPos(rulerPos);
@@ -392,7 +392,7 @@ void Timeline::buildUI_canvas()
         float mx = ImGui::GetMousePos().x - rulerPos.x;
         int newFrame = std::clamp(
             static_cast<int>(mx / m_pixelsPerFrame), 0, totalFrames - 1);
-        sceneAnim.setAnimationFrame(newFrame);
+        animMgr.setAnimationFrame(newFrame);
       }
     }
 
@@ -436,7 +436,7 @@ void Timeline::buildUI_canvas()
       ImGui::SameLine();
       bool removed = false;
       if (ImGui::SmallButton("x")) {
-        sceneAnim.removeAnimation(i);
+        animMgr.removeAnimation(i);
         m_selectedTracks.erase(i);
         removed = true;
       }
@@ -581,7 +581,7 @@ void Timeline::buildUI_canvas()
                 auto nodeRef = layer->at(node.index());
                 const char *animName =
                     !node->name().empty() ? node->name().c_str() : menuLabel;
-                auto &newAnim = sceneAnim.addAnimation(animName);
+                auto &newAnim = animMgr.addAnimation(animName);
                 newAnim.transforms.push_back({nodeRef, {}, {}, {}, {}});
                 ImGui::CloseCurrentPopup();
               }
@@ -606,7 +606,7 @@ void Timeline::buildUI_canvas()
               menuLabel, sizeof(menuLabel), "Camera [%zu]", cam->index());
         ImGui::PushID(static_cast<int>(cam->index() + 900000));
         if (ImGui::MenuItem(menuLabel)) {
-          auto &newAnim = sceneAnim.addAnimation(menuLabel);
+          auto &newAnim = animMgr.addAnimation(menuLabel);
           auto *camPtr = const_cast<tsd::scene::Camera *>(cam);
           newAnim.addObjectParameterBinding(camPtr,
               "position", ANARI_FLOAT32_VEC3,
@@ -627,7 +627,7 @@ void Timeline::buildUI_canvas()
 
     ImGui::TableSetColumnIndex(1);
     if (ImGui::Button("Set Keyframe (K)")) {
-      float t = sceneAnim.getAnimationTime();
+      float t = animMgr.getAnimationTime();
       for (size_t i = 0; i < anims.size(); i++) {
         if (!m_selectedTracks.empty() && m_selectedTracks.count(i) == 0)
           continue;

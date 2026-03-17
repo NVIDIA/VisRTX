@@ -7,7 +7,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 // std
 #include <algorithm>
 #include <vector>
@@ -22,7 +22,7 @@ namespace tsd::io {
 // See https://github.com/jeffamstutz/agx
 //
 void import_AGX(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const char *filepath,
     LayerNodeRef location)
 {
@@ -289,7 +289,7 @@ void import_AGX(Scene &scene,
   if (!timeSteps.empty()) {
     size_t numSteps = timeSteps.empty() ? 0 : timeSteps[0].size();
     auto tb = makeLinearTimeBase(numSteps);
-    auto &anim = sceneAnim.addAnimation(file.c_str());
+    auto &anim = animMgr.addAnimation(file.c_str());
     addArrayTimeStepBindings(
         anim, geom.data(), timeStepNames, timeSteps, tb);
     logInfo("[import_AGX] animation created successfully");

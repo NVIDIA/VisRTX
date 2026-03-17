@@ -5,7 +5,7 @@
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 // std
 #include <array>
 #include <vector>
@@ -18,7 +18,7 @@ using namespace tsd::core;
 // Importing a bespoke binary dump of points + N vertex attribute scalars
 //
 void import_POINTSBIN(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const std::vector<std::string> &filepaths,
     LayerNodeRef location)
 {
@@ -57,7 +57,7 @@ void import_POINTSBIN(Scene &scene,
 
   if (numTimeSteps > 1) {
     auto tb = makeLinearTimeBase(numTimeSteps);
-    auto &anim = sceneAnim.addAnimation("pointsbin animation");
+    auto &anim = animMgr.addAnimation("pointsbin animation");
     addArrayTimeStepBindings(anim,
         geom.data(),
         {Token("vertex.position"), Token("vertex.attribute0")},

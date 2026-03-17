@@ -26,7 +26,7 @@ void ExtensionManager::initialize(tsd::app::Context *ctx)
 #ifdef TSD_USE_LUA
   m_luaContext = std::make_unique<scripting::LuaContext>();
   m_luaContext->bindScene(&ctx->tsd.scene, "scene");
-  m_luaContext->bindSceneAnimation(&ctx->tsd.sceneAnimation);
+  m_luaContext->bindAnimationManager(&ctx->tsd.animationMgr);
 
   // Route print output through tsd::core logging
   m_luaContext->setPrintCallback([](const std::string &msg) {

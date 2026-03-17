@@ -635,9 +635,9 @@ static void populateASSIMPLayer(Scene &scene,
 ///////////////////////////////////////////////////////////////////////////////
 
 void import_ASSIMP(
-    Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location, bool flatten)
+    Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location, bool flatten)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   Assimp::DefaultLogger::create("", Assimp::Logger::VERBOSE);
 
   Assimp::Importer importer;
@@ -668,9 +668,9 @@ void import_ASSIMP(
 }
 #else
 void import_ASSIMP(
-    Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location, bool flatten)
+    Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location, bool flatten)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   logError("[import_ASSIMP] ASSIMP not enabled in TSD build.");
 }
 #endif

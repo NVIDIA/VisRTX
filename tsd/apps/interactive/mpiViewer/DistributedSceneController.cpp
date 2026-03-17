@@ -49,7 +49,7 @@ void DistributedSceneController::initialize(int argc, const char **argv)
   for (size_t i = 0; i < filenames.size(); i++) {
     if (numRanks() > 1 && (i % numRanks() != rank()))
       continue;
-    tsd::io::import_file(m_ctx->tsd.scene, m_ctx->tsd.sceneAnimation, filenames[i]);
+    tsd::io::import_file(m_ctx->tsd.scene, m_ctx->tsd.animationMgr, filenames[i]);
     tsd::core::logStatus(
         "[DistributedSceneController] "
         "rank '%i' loaded file '%s'",
@@ -281,7 +281,7 @@ void DistributedSceneController::executeFrame_syncAnimation()
   if (auto d = anariDevice(); d && m_distributedState->animation.sync()) {
     auto *state = m_distributedState->animation.read();
     auto *ctx = appContext();
-    ctx->tsd.sceneAnimation.setAnimationTime(state->time);
+    ctx->tsd.animationMgr.setAnimationTime(state->time);
     rank_printf(rank(), "    -> synchronized animation\n");
   }
 }

@@ -16,7 +16,7 @@
 
 namespace tsd::app {
 
-TSDState::TSDState() : sceneAnimation(&scene) {}
+TSDState::TSDState() : animationMgr(&scene) {}
 
 Context::Context() : anari(&m_logging.verbose)
 {
@@ -151,7 +151,7 @@ void Context::setupSceneFromCommandLine(bool hdriOnly)
     for (const auto &f : commandLine.filenames) {
       tsd::core::logStatus("...loading file '%s'", f.second.c_str());
       if (f.first == tsd::io::ImporterType::HDRI)
-        tsd::io::import_HDRI(tsd.scene, tsd.sceneAnimation, f.second.c_str());
+        tsd::io::import_HDRI(tsd.scene, tsd.animationMgr, f.second.c_str());
     }
     return;
   }
@@ -168,9 +168,9 @@ void Context::setupSceneFromCommandLine(bool hdriOnly)
     tsd::core::logStatus("...generating material_orb from embedded data");
     tsd::io::generate_material_orb(tsd.scene);
   } else if (!loadFromState) {
-    tsd::io::import_files(tsd.scene, tsd.sceneAnimation, commandLine.filenames);
+    tsd::io::import_files(tsd.scene, tsd.animationMgr, commandLine.filenames);
     tsd::io::import_animations(
-        tsd.scene, tsd.sceneAnimation, commandLine.animationFilenames);
+        tsd.scene, tsd.animationMgr, commandLine.animationFilenames);
   }
 }
 
@@ -456,10 +456,10 @@ bool Context::updateCameraPathAnimation()
   }
 
   // Remove existing camera path animation by name
-  auto &anims = tsd.sceneAnimation.animations();
+  auto &anims = tsd.animationMgr.animations();
   for (size_t i = 0; i < anims.size(); i++) {
     if (anims[i].name == view.cameraPathAnimationName) {
-      tsd.sceneAnimation.removeAnimation(i);
+      tsd.animationMgr.removeAnimation(i);
       break;
     }
   }
@@ -487,7 +487,7 @@ bool Context::updateCameraPathAnimation()
   const auto firstDirection = directions[0];
   const auto firstUp = ups[0];
 
-  auto &anim = tsd.sceneAnimation.addAnimation(view.cameraPathAnimationName);
+  auto &anim = tsd.animationMgr.addAnimation(view.cameraPathAnimationName);
   anim.addObjectParameterBinding(camera.data(),
       "position",
       ANARI_FLOAT32_VEC3,
@@ -531,10 +531,10 @@ void Context::removeAllPoses()
   view.poses.clear();
   if (!view.cameraPathAnimationName.empty()) {
     tsd::core::logStatus("[camera path] Clearing camera path animation");
-    auto &anims = tsd.sceneAnimation.animations();
+    auto &anims = tsd.animationMgr.animations();
     for (size_t i = 0; i < anims.size(); i++) {
       if (anims[i].name == view.cameraPathAnimationName) {
-        tsd.sceneAnimation.removeAnimation(i);
+        tsd.animationMgr.removeAnimation(i);
         break;
       }
     }

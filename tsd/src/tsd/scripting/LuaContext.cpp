@@ -4,7 +4,7 @@
 #include "tsd/scripting/LuaContext.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
 // tsd_animation
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 // tsd_scene
@@ -23,7 +23,7 @@ struct LuaContext::Impl
   sol::state lua;
   scene::Scene *boundScene{nullptr};
   std::unique_ptr<scene::Scene> ownedScene;
-  std::unique_ptr<animation::SceneAnimation> ownedSceneAnimation;
+  std::unique_ptr<animation::AnimationManager> ownedAnimationManager;
   PrintCallback printCallback;
   std::string outputBuffer;
 };
@@ -178,17 +178,17 @@ scene::Scene *LuaContext::createOwnedScene(const std::string &varName)
   m_impl->boundScene = m_impl->ownedScene.get();
   m_impl->lua[varName] = m_impl->boundScene;
 
-  m_impl->ownedSceneAnimation =
-      std::make_unique<animation::SceneAnimation>(m_impl->boundScene);
-  m_impl->lua["sceneAnimation"] = m_impl->ownedSceneAnimation.get();
+  m_impl->ownedAnimationManager =
+      std::make_unique<animation::AnimationManager>(m_impl->boundScene);
+  m_impl->lua["animationMgr"] = m_impl->ownedAnimationManager.get();
 
   return m_impl->boundScene;
 }
 
-void LuaContext::bindSceneAnimation(
-    tsd::animation::SceneAnimation *sa, const std::string &varName)
+void LuaContext::bindAnimationManager(
+    tsd::animation::AnimationManager *sa, const std::string &varName)
 {
-  m_impl->ownedSceneAnimation.reset();
+  m_impl->ownedAnimationManager.reset();
   if (sa)
     m_impl->lua[varName] = sa;
   else

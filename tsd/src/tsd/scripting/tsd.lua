@@ -640,61 +640,61 @@ function Scene:defragmentObjectStorage() end
 function Scene:cleanupScene() end
 
 ------------------------------------------------------------------------
--- SceneAnimation (CoreBindings.cpp)
+-- AnimationManager (CoreBindings.cpp)
 ------------------------------------------------------------------------
 
----@class tsd.SceneAnimation
-local SceneAnimation = {}
+---@class tsd.AnimationManager
+local AnimationManager = {}
 
----@overload fun(self: tsd.SceneAnimation): tsd.Animation
----@overload fun(self: tsd.SceneAnimation, name: string): tsd.Animation
+---@overload fun(self: tsd.AnimationManager): tsd.Animation
+---@overload fun(self: tsd.AnimationManager, name: string): tsd.Animation
 ---@return tsd.Animation
-function SceneAnimation:addAnimation(...) end
+function AnimationManager:addAnimation(...) end
 
 ---@return tsd.Animation[]
-function SceneAnimation:animations() end
+function AnimationManager:animations() end
 
 ---@return integer
-function SceneAnimation:numberOfAnimations() end
+function AnimationManager:numberOfAnimations() end
 
 ---@param index integer
-function SceneAnimation:removeAnimation(index) end
+function AnimationManager:removeAnimation(index) end
 
-function SceneAnimation:removeAllAnimations() end
+function AnimationManager:removeAllAnimations() end
 
 ---@param time number
-function SceneAnimation:setAnimationTime(time) end
+function AnimationManager:setAnimationTime(time) end
 
 ---@return number
-function SceneAnimation:getAnimationTime() end
+function AnimationManager:getAnimationTime() end
 
 ---@param increment number
-function SceneAnimation:setAnimationIncrement(increment) end
+function AnimationManager:setAnimationIncrement(increment) end
 
 ---@return number
-function SceneAnimation:getAnimationIncrement() end
+function AnimationManager:getAnimationIncrement() end
 
-function SceneAnimation:incrementAnimationTime() end
+function AnimationManager:incrementAnimationTime() end
 
 ---@return integer
-function SceneAnimation:getAnimationTotalFrames() end
+function AnimationManager:getAnimationTotalFrames() end
 
 ---@param frames integer
-function SceneAnimation:setAnimationTotalFrames(frames) end
+function AnimationManager:setAnimationTotalFrames(frames) end
 
 ---@return number
-function SceneAnimation:getAnimationFPS() end
+function AnimationManager:getAnimationFPS() end
 
 ---@param fps number
-function SceneAnimation:setAnimationFPS(fps) end
+function AnimationManager:setAnimationFPS(fps) end
 
 ---@return integer
-function SceneAnimation:getAnimationFrame() end
+function AnimationManager:getAnimationFrame() end
 
 ---@param frame integer
-function SceneAnimation:setAnimationFrame(frame) end
+function AnimationManager:setAnimationFrame(frame) end
 
-function SceneAnimation:incrementAnimationFrame() end
+function AnimationManager:incrementAnimationFrame() end
 
 ------------------------------------------------------------------------
 -- Render types (RenderBindings.cpp)
@@ -1188,7 +1188,7 @@ function tsd.render.renderToFile(pipeline, samples, filename, width, height) end
 ---@type tsd.Scene
 scene = nil
 
----@type tsd.SceneAnimation
-sceneAnimation = nil
+---@type tsd.AnimationManager
+animationMgr = nil
 
 return tsd

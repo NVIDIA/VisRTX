@@ -484,7 +484,7 @@ void Application::saveApplicationState(const char *_filename)
     tsd::core::logStatus("serializing TSD context...");
     root["context"].reset();
     tsd::io::save_Scene(
-        ctx.tsd.scene, root["context"], false, &ctx.tsd.sceneAnimation);
+        ctx.tsd.scene, root["context"], false, &ctx.tsd.animationMgr);
 
     // Save to file
     tsd::core::logStatus("writing state file '%s'...", filename.c_str());
@@ -515,9 +515,9 @@ void Application::loadApplicationState(const char *filename)
 
   // TSD context from app state file, or context-only file
   if (auto *c = root.child("context"); c != nullptr)
-    tsd::io::load_Scene(ctx.tsd.scene, *c, &ctx.tsd.sceneAnimation);
+    tsd::io::load_Scene(ctx.tsd.scene, *c, &ctx.tsd.animationMgr);
   else
-    tsd::io::load_Scene(ctx.tsd.scene, root, &ctx.tsd.sceneAnimation);
+    tsd::io::load_Scene(ctx.tsd.scene, root, &ctx.tsd.animationMgr);
 
   // Clear out context tree
   root["context"].reset();

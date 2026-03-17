@@ -5,7 +5,7 @@
 #endif
 
 // tsd
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/serialization.hpp"
 
@@ -745,7 +745,7 @@ static pxr::SdfPath tsdSurfaceToUSD(
 void export_SceneToUSD(Scene &scene,
     const char *filename,
     int framesPerSecond,
-    tsd::animation::SceneAnimation *sceneAnim)
+    tsd::animation::AnimationManager *animMgr)
 {
   // Clear some global state (!!!)
   usedTextureFileNames.clear();
@@ -763,7 +763,7 @@ void export_SceneToUSD(Scene &scene,
     return;
   }
 
-  const float originalTime = sceneAnim ? sceneAnim->getAnimationTime() : 0.f;
+  const float originalTime = animMgr ? animMgr->getAnimationTime() : 0.f;
   const int exportFps = std::max(1, framesPerSecond);
 
   pxr::SdfPath currentPath = allLayersPath;
@@ -824,8 +824,8 @@ void export_SceneToUSD(Scene &scene,
             auto usdCamera = pxr::UsdGeomCamera::Define(stage, objectPath);
 
             size_t cameraSampleCount = 0;
-            if (sceneAnim) {
-              for (auto &anim : sceneAnim->animations()) {
+            if (animMgr) {
+              for (auto &anim : animMgr->animations()) {
                 for (auto &b : anim.bindings) {
                   if (b.target.get() == camera) {
                     cameraSampleCount = b.timeBase.size();
@@ -937,10 +937,10 @@ void export_SceneToUSD(Scene &scene,
               for (size_t i = 0; i < cameraSampleCount; ++i) {
                 const double tNorm = static_cast<double>(i)
                     / static_cast<double>(cameraSampleCount - 1);
-                sceneAnim->setAnimationTime(static_cast<float>(tNorm));
+                animMgr->setAnimationTime(static_cast<float>(tNorm));
                 setCameraSample(static_cast<double>(i), true);
               }
-              sceneAnim->setAnimationTime(originalTime);
+              animMgr->setAnimationTime(originalTime);
             } else {
               setCameraSample(0.0, false);
             }
@@ -1018,7 +1018,7 @@ void export_SceneToUSD(Scene &scene,
 namespace tsd::io {
 
 void export_SceneToUSD(
-    Scene &, const char *, int, tsd::animation::SceneAnimation *)
+    Scene &, const char *, int, tsd::animation::AnimationManager *)
 {
   tsd::core::logError("[export_USD] USD not enabled in TSD build.");
 }

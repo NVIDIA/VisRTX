@@ -135,9 +135,9 @@ ModelData loadModel(const char *filename)
   return data;
 }
 
-void import_PT(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location)
+void import_PT(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   try {
     ModelData data = loadModel(filename);
 
@@ -199,9 +199,9 @@ void import_PT(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const ch
 } // namespace tsd
 #else
 namespace tsd::io {
-void import_PT(Scene &scene, tsd::animation::SceneAnimation &sceneAnim, const char *filename, LayerNodeRef location)
+void import_PT(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location)
 {
-  (void)sceneAnim;
+  (void)animMgr;
   logError("[import_PT] PyTorch not enabled in TSD build.");
 }
 } // namespace tsd

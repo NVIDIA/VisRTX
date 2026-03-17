@@ -14,14 +14,14 @@ struct Scene;
 
 namespace tsd::animation {
 
-struct SceneAnimation
+struct AnimationManager
 {
-  SceneAnimation(tsd::scene::Scene *scene);
+  AnimationManager(tsd::scene::Scene *scene);
 
-  TSD_NOT_COPYABLE(SceneAnimation)
-  TSD_NOT_MOVEABLE(SceneAnimation)
+  TSD_NOT_COPYABLE(AnimationManager)
+  TSD_NOT_MOVEABLE(AnimationManager)
 
-  ~SceneAnimation();
+  ~AnimationManager();
 
   using TimeChangedCallback = std::function<void(float)>;
   void setTimeChangedCallback(TimeChangedCallback cb);

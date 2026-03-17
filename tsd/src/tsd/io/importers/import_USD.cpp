@@ -6,7 +6,7 @@
 #define TSD_USE_USD 1
 #endif
 
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TSDMath.hpp"
@@ -672,7 +672,7 @@ static void import_usd_points(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
-    tsd::animation::SceneAnimation &sceneAnim)
+    tsd::animation::AnimationManager &animMgr)
 {
   pxr::UsdGeomPoints pointsPrim(prim);
   std::string primName = prim.GetPath().GetString();
@@ -745,7 +745,7 @@ static void import_usd_points(Scene &scene,
     }
     if (posArrays.size() > 1) {
       auto tb = makeLinearTimeBase(posArrays.size());
-      auto &anim = sceneAnim.addAnimation(primName.c_str());
+      auto &anim = animMgr.addAnimation(primName.c_str());
       addArrayTimeStepBindings(anim,
           geom.data(),
           {Token("vertex.position"), Token("vertex.radius")},
@@ -761,7 +761,7 @@ static void import_usd_curves(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
-    tsd::animation::SceneAnimation &sceneAnim)
+    tsd::animation::AnimationManager &animMgr)
 {
   pxr::UsdGeomBasisCurves curvesPrim(prim);
   std::string primName = prim.GetPath().GetString();
@@ -867,7 +867,7 @@ static void import_usd_curves(Scene &scene,
     }
     if (posArrays.size() > 1) {
       auto tb = makeLinearTimeBase(posArrays.size());
-      auto &anim = sceneAnim.addAnimation(primName.c_str());
+      auto &anim = animMgr.addAnimation(primName.c_str());
       addArrayTimeStepBindings(anim,
           geom.data(),
           {Token("vertex.position")},
@@ -1010,7 +1010,7 @@ static void import_usd_cube(Scene &scene,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
     const std::string &basePath,
-    tsd::animation::SceneAnimation &sceneAnim)
+    tsd::animation::AnimationManager &animMgr)
 {
   pxr::UsdGeomCube cubePrim(prim);
   double size = 2.0;
@@ -1132,7 +1132,7 @@ static void import_usd_cube(Scene &scene,
     }
 
     auto tb = makeLinearTimeBase(posArrays.size());
-    auto &anim = sceneAnim.addAnimation(primName.c_str());
+    auto &anim = animMgr.addAnimation(primName.c_str());
     addArrayTimeStepBindings(anim,
         geom.data(),
         {Token("vertex.position"), Token("vertex.normal")},
@@ -1509,7 +1509,7 @@ static void import_usd_dome_light(Scene &scene,
 // orbit/crane rigs animate correctly even when the camera prim itself is static.
 static void import_usd_camera(Scene &scene,
     const pxr::UsdPrim &prim,
-    tsd::animation::SceneAnimation &sceneAnim)
+    tsd::animation::AnimationManager &animMgr)
 {
   std::string primName = prim.GetName().GetString();
   if (primName.empty())
@@ -1693,7 +1693,7 @@ static void import_usd_camera(Scene &scene,
   }
 
   auto tb = makeLinearTimeBase(numFrames);
-  auto &anim = sceneAnim.addAnimation(primName.c_str());
+  auto &anim = animMgr.addAnimation(primName.c_str());
   addValueTimeStepBindings(anim,
       camera.data(),
       animParams,
@@ -1723,7 +1723,7 @@ static void import_usd_prim_recursive(Scene &scene,
     pxr::UsdGeomXformCache &xformCache,
     const std::string &basePath,
     const pxr::GfMatrix4d &parentWorldXform,
-    tsd::animation::SceneAnimation &sceneAnim)
+    tsd::animation::AnimationManager &animMgr)
 {
   // if (prim.IsPrototype()) return;
   if (prim.IsInstance()) {
@@ -1742,7 +1742,7 @@ static void import_usd_prim_recursive(Scene &scene,
           scene.insertChildTransformNode(parent, tsdXform, primName.c_str());
       // Recursively import the prototype under this transform node
       import_usd_prim_recursive(
-          scene, prototype, xformNode, xformCache, basePath, thisWorldXform, sceneAnim);
+          scene, prototype, xformNode, xformCache, basePath, thisWorldXform, animMgr);
     } else {
       tsd::core::logStatus("[import_USD] Instance has no prototype: %s\n",
           prim.GetName().GetString().c_str());
@@ -1753,7 +1753,7 @@ static void import_usd_prim_recursive(Scene &scene,
   // Cameras are imported as standalone TSD Camera objects (not scene nodes).
   // import_usd_camera walks the hierarchy itself for animated rigs.
   if (prim.IsA<pxr::UsdGeomCamera>()) {
-    import_usd_camera(scene, prim, sceneAnim);
+    import_usd_camera(scene, prim, animMgr);
     return;
   }
 
@@ -1832,7 +1832,7 @@ static void import_usd_prim_recursive(Scene &scene,
     }
     size_t numFrames = frames.size();
     auto tb = makeLinearTimeBase(numFrames);
-    auto &anim = sceneAnim.addAnimation(primName.c_str());
+    auto &anim = animMgr.addAnimation(primName.c_str());
     addTransformStepBinding(anim, thisNode, frames, tb);
     logStatus("[import_USD] Xform '%s': animated transform (%zu frames)\n",
         primName.c_str(),
@@ -1851,7 +1851,7 @@ static void import_usd_prim_recursive(Scene &scene,
   if (prim.IsA<pxr::UsdGeomMesh>()) {
     import_usd_mesh(scene, prim, thisNode, identity, basePath);
   } else if (prim.IsA<pxr::UsdGeomPoints>()) {
-    import_usd_points(scene, prim, thisNode, identity, sceneAnim);
+    import_usd_points(scene, prim, thisNode, identity, animMgr);
   } else if (prim.IsA<pxr::UsdGeomSphere>()) {
     import_usd_sphere(scene, prim, thisNode, identity);
   } else if (prim.IsA<pxr::UsdGeomCone>()) {
@@ -1859,9 +1859,9 @@ static void import_usd_prim_recursive(Scene &scene,
   } else if (prim.IsA<pxr::UsdGeomCylinder>()) {
     import_usd_cylinder(scene, prim, thisNode, identity);
   } else if (prim.IsA<pxr::UsdGeomCube>()) {
-    import_usd_cube(scene, prim, thisNode, identity, basePath, sceneAnim);
+    import_usd_cube(scene, prim, thisNode, identity, basePath, animMgr);
   } else if (prim.IsA<pxr::UsdGeomBasisCurves>()) {
-    import_usd_curves(scene, prim, thisNode, identity, sceneAnim);
+    import_usd_curves(scene, prim, thisNode, identity, animMgr);
   } else if (prim.IsA<pxr::UsdLuxDistantLight>()) {
     import_usd_distant_light(scene, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxRectLight>()) {
@@ -1878,12 +1878,12 @@ static void import_usd_prim_recursive(Scene &scene,
   // Recurse into children
   for (const auto &child : prim.GetChildren()) {
     import_usd_prim_recursive(
-        scene, child, thisNode, xformCache, basePath, thisWorldXform, sceneAnim);
+        scene, child, thisNode, xformCache, basePath, thisWorldXform, animMgr);
   }
 }
 
 void import_USD(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const char *filepath,
     LayerNodeRef location)
 {
@@ -1922,13 +1922,13 @@ void import_USD(Scene &scene,
           xformCache,
           basePath,
           pxr::GfMatrix4d(1.0),
-          sceneAnim);
+          animMgr);
     }
   }
 }
 #else
 void import_USD(Scene &scene,
-    tsd::animation::SceneAnimation &sceneAnim,
+    tsd::animation::AnimationManager &animMgr,
     const char *filepath,
     LayerNodeRef location)
 {

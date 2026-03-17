@@ -5,7 +5,7 @@
 #define TSD_USE_CUDA 1
 #endif
 
-#include "tsd/animation/SceneAnimation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/serialization.hpp"
@@ -397,7 +397,7 @@ void save_Scene(Scene &scene, const char *filename)
 void save_Scene(Scene &scene,
     core::DataNode &root,
     bool forceProxyArrays,
-    tsd::animation::SceneAnimation *sceneAnim)
+    tsd::animation::AnimationManager *animMgr)
 {
   // Layers //
 
@@ -414,8 +414,8 @@ void save_Scene(Scene &scene,
 
   // Animations //
 
-  if (sceneAnim) {
-    const auto &anims = sceneAnim->animations();
+  if (animMgr) {
+    const auto &anims = animMgr->animations();
     tsd::core::logStatus("    ...serializing %zu animations", anims.size());
 
     auto &animationsRoot = root["animation"];
@@ -461,9 +461,9 @@ void save_Scene(Scene &scene,
     }
 
     auto &animationSettings = animationsRoot["settings"];
-    animationSettings["time"] = sceneAnim->getAnimationTime();
-    animationSettings["increment"] = sceneAnim->getAnimationIncrement();
-    animationSettings["totalFrames"] = sceneAnim->getAnimationTotalFrames();
+    animationSettings["time"] = animMgr->getAnimationTime();
+    animationSettings["increment"] = animMgr->getAnimationIncrement();
+    animationSettings["totalFrames"] = animMgr->getAnimationTotalFrames();
   }
 
   // ObjectDB //
@@ -501,7 +501,7 @@ void save_Scene(Scene &scene,
 
 void load_Scene(Scene &scene,
     const char *filename,
-    tsd::animation::SceneAnimation *sceneAnim)
+    tsd::animation::AnimationManager *animMgr)
 {
   tsd::core::logStatus("Loading context from file: %s", filename);
   tsd::core::logStatus("  ...loading file");
@@ -509,14 +509,14 @@ void load_Scene(Scene &scene,
   tree.load(filename);
   auto &root = tree.root();
   if (auto *c = root.child("context"); c != nullptr)
-    load_Scene(scene, *c, sceneAnim);
+    load_Scene(scene, *c, animMgr);
   else
-    load_Scene(scene, root, sceneAnim);
+    load_Scene(scene, root, animMgr);
 }
 
 void load_Scene(Scene &scene,
     core::DataNode &root,
-    tsd::animation::SceneAnimation *sceneAnim)
+    tsd::animation::AnimationManager *animMgr)
 {
   // Clear out any existing context contents //
 
@@ -573,7 +573,7 @@ void load_Scene(Scene &scene,
 
   // Animations
 
-  if (sceneAnim) {
+  if (animMgr) {
     if (auto *c = root.child("animation"); c != nullptr) {
       tsd::core::logStatus("  ...converting animations");
 
@@ -581,7 +581,7 @@ void load_Scene(Scene &scene,
       auto &animationObjects = animationRoot["objects"];
       animationObjects.foreach_child([&](core::DataNode &animNode) {
         auto &anim =
-            sceneAnim->addAnimation(animNode["name"].getValueAs<std::string>());
+            animMgr->addAnimation(animNode["name"].getValueAs<std::string>());
 
         if (auto *bindingsNode = animNode.child("bindings")) {
           bindingsNode->foreach_child([&](core::DataNode &bNode) {
@@ -671,10 +671,10 @@ void load_Scene(Scene &scene,
       });
 
       auto &animationSettings = animationRoot["settings"];
-      sceneAnim->setAnimationIncrement(
+      animMgr->setAnimationIncrement(
           animationSettings["increment"].getValueAs<float>());
       if (auto *tf = animationSettings.child("totalFrames"); tf != nullptr)
-        sceneAnim->setAnimationTotalFrames(tf->getValueAs<int>());
+        animMgr->setAnimationTotalFrames(tf->getValueAs<int>());
     } else {
       tsd::core::logStatus("  ...no animations found!");
     }

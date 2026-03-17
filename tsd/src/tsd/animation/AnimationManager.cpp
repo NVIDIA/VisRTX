@@ -1,7 +1,7 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "SceneAnimation.hpp"
+#include "AnimationManager.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
@@ -10,42 +10,42 @@
 
 namespace tsd::animation {
 
-SceneAnimation::SceneAnimation(tsd::scene::Scene *scene) : m_scene(scene) {}
+AnimationManager::AnimationManager(tsd::scene::Scene *scene) : m_scene(scene) {}
 
-SceneAnimation::~SceneAnimation() {}
+AnimationManager::~AnimationManager() {}
 
-void SceneAnimation::setTimeChangedCallback(TimeChangedCallback cb)
+void AnimationManager::setTimeChangedCallback(TimeChangedCallback cb)
 {
   m_timeChangedCallback = std::move(cb);
 }
 
-Animation &SceneAnimation::addAnimation(const std::string &name)
+Animation &AnimationManager::addAnimation(const std::string &name)
 {
   return m_animations.emplace_back(Animation{name, {}, {}});
 }
 
-std::vector<Animation> &SceneAnimation::animations()
+std::vector<Animation> &AnimationManager::animations()
 {
   return m_animations;
 }
 
-const std::vector<Animation> &SceneAnimation::animations() const
+const std::vector<Animation> &AnimationManager::animations() const
 {
   return m_animations;
 }
 
-void SceneAnimation::removeAnimation(size_t index)
+void AnimationManager::removeAnimation(size_t index)
 {
   if (index < m_animations.size())
     m_animations.erase(m_animations.begin() + index);
 }
 
-void SceneAnimation::removeAllAnimations()
+void AnimationManager::removeAllAnimations()
 {
   m_animations.clear();
 }
 
-void SceneAnimation::setAnimationTime(float time)
+void AnimationManager::setAnimationTime(float time)
 {
   m_time = time;
 
@@ -58,12 +58,12 @@ void SceneAnimation::setAnimationTime(float time)
     m_timeChangedCallback(time);
 }
 
-float SceneAnimation::getAnimationTime() const
+float AnimationManager::getAnimationTime() const
 {
   return m_time;
 }
 
-void SceneAnimation::setAnimationIncrement(float increment)
+void AnimationManager::setAnimationIncrement(float increment)
 {
   m_incrementSize = increment;
   if (increment > 0.5f) {
@@ -73,12 +73,12 @@ void SceneAnimation::setAnimationIncrement(float increment)
   }
 }
 
-float SceneAnimation::getAnimationIncrement() const
+float AnimationManager::getAnimationIncrement() const
 {
   return m_incrementSize;
 }
 
-void SceneAnimation::incrementAnimationTime()
+void AnimationManager::incrementAnimationTime()
 {
   auto newTime = m_time + m_incrementSize;
   if (newTime > 1.f)
@@ -86,28 +86,28 @@ void SceneAnimation::incrementAnimationTime()
   setAnimationTime(newTime);
 }
 
-int SceneAnimation::getAnimationTotalFrames() const
+int AnimationManager::getAnimationTotalFrames() const
 {
   return m_totalFrames;
 }
 
-void SceneAnimation::setAnimationTotalFrames(int frames)
+void AnimationManager::setAnimationTotalFrames(int frames)
 {
   m_totalFrames = std::max(2, frames);
 }
 
-int SceneAnimation::getAnimationFrame() const
+int AnimationManager::getAnimationFrame() const
 {
   return static_cast<int>(std::round(m_time * (m_totalFrames - 1)));
 }
 
-void SceneAnimation::setAnimationFrame(int frame)
+void AnimationManager::setAnimationFrame(int frame)
 {
   int clamped = std::clamp(frame, 0, m_totalFrames - 1);
   setAnimationTime(static_cast<float>(clamped) / (m_totalFrames - 1));
 }
 
-void SceneAnimation::incrementAnimationFrame()
+void AnimationManager::incrementAnimationFrame()
 {
   int frame = getAnimationFrame() + 1;
   if (frame >= m_totalFrames)

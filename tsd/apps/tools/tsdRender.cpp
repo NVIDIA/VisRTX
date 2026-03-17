@@ -3,7 +3,7 @@
 
 // tsd_animation
 #include <tsd/animation/Animation.hpp>
-#include <tsd/animation/SceneAnimation.hpp>
+#include <tsd/animation/AnimationManager.hpp>
 // tsd_core
 #include <tsd/core/Timer.hpp>
 #include <tsd/scene/Scene.hpp>
@@ -35,7 +35,7 @@ static tsd::rendering::Manipulator g_manipulator;
 static std::vector<tsd::rendering::CameraPose> g_cameraPoses;
 static std::unique_ptr<tsd::app::Context> g_ctx;
 
-static std::unique_ptr<tsd::animation::SceneAnimation> g_sceneAnimation;
+static std::unique_ptr<tsd::animation::AnimationManager> g_animationMgr;
 
 static tsd::core::Token g_deviceName;
 static anari::Library g_library{nullptr};
@@ -105,8 +105,8 @@ static void initTSDScene()
 
   g_timer.start();
   g_scene = std::make_unique<tsd::scene::Scene>();
-  g_sceneAnimation =
-      std::make_unique<tsd::animation::SceneAnimation>(g_scene.get());
+  g_animationMgr =
+      std::make_unique<tsd::animation::AnimationManager>(g_scene.get());
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
@@ -292,7 +292,7 @@ static void renderFrames()
   // Check for camera animations
   bool hasCameraAnimation = false;
   const tsd::scene::Object *animatedCamera = nullptr;
-  for (auto &anim : g_sceneAnimation->animations()) {
+  for (auto &anim : g_animationMgr->animations()) {
     for (auto &b : anim.bindings) {
       if (b.target && b.target->type() == ANARI_CAMERA) {
         hasCameraAnimation = true;
@@ -305,7 +305,7 @@ static void renderFrames()
   }
 
   if (hasCameraAnimation) {
-    const int totalFrames = g_sceneAnimation->getAnimationTotalFrames();
+    const int totalFrames = g_animationMgr->getAnimationTotalFrames();
 
     // If no animated camera, set static pose once from saved poses
     if (!animatedCamera) {
@@ -318,7 +318,7 @@ static void renderFrames()
     printf("...animating %d frames...\n", totalFrames);
 
     for (int i = 0; i < totalFrames; i++) {
-      g_sceneAnimation->setAnimationFrame(i);
+      g_animationMgr->setAnimationFrame(i);
 
       if (animatedCamera) {
         using anari::math::float3;
