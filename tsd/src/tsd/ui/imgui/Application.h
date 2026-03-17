@@ -62,13 +62,8 @@ class Application : public anari_viewer::Application
 
   ExtensionManager *extensionManager() const;
 
-  ///////////////////////////////////////////////////////
-  //// Application is not a movable or copyable type ////
-  Application(const Application &) = delete;
-  Application &operator=(const Application &) = delete;
-  Application(Application &&) = delete;
-  Application &operator=(Application &&) = delete;
-  ///////////////////////////////////////////////////////
+  TSD_NOT_COPYABLE(Application)
+  TSD_NOT_MOVEABLE(Application)
 
  protected:
   void parseCommandLine(std::vector<std::string> &args);

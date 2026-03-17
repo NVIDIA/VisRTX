@@ -16,7 +16,7 @@ namespace tsd::animation {
 
 struct SceneAnimation
 {
-  SceneAnimation(tsd::scene::Scene &scene);
+  SceneAnimation(tsd::scene::Scene *scene);
 
   TSD_NOT_COPYABLE(SceneAnimation)
   TSD_NOT_MOVEABLE(SceneAnimation)

@@ -10,7 +10,7 @@
 
 namespace tsd::animation {
 
-SceneAnimation::SceneAnimation(tsd::scene::Scene &scene) : m_scene(&scene) {}
+SceneAnimation::SceneAnimation(tsd::scene::Scene *scene) : m_scene(scene) {}
 
 SceneAnimation::~SceneAnimation() {}
 

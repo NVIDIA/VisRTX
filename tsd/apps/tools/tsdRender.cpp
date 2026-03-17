@@ -105,7 +105,8 @@ static void initTSDScene()
 
   g_timer.start();
   g_scene = std::make_unique<tsd::scene::Scene>();
-  g_sceneAnimation = std::make_unique<tsd::animation::SceneAnimation>(*g_scene);
+  g_sceneAnimation =
+      std::make_unique<tsd::animation::SceneAnimation>(g_scene.get());
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());

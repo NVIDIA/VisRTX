@@ -179,7 +179,7 @@ scene::Scene *LuaContext::createOwnedScene(const std::string &varName)
   m_impl->lua[varName] = m_impl->boundScene;
 
   m_impl->ownedSceneAnimation =
-      std::make_unique<animation::SceneAnimation>(*m_impl->boundScene);
+      std::make_unique<animation::SceneAnimation>(m_impl->boundScene);
   m_impl->lua["sceneAnimation"] = m_impl->ownedSceneAnimation.get();
 
   return m_impl->boundScene;

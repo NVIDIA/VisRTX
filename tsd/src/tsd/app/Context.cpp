@@ -16,6 +16,8 @@
 
 namespace tsd::app {
 
+TSDState::TSDState() : sceneAnimation(&scene) {}
+
 Context::Context() : anari(&m_logging.verbose)
 {
   tsd.scene.setUpdateDelegate(&anari.getUpdateDelegate());
@@ -487,14 +489,23 @@ bool Context::updateCameraPathAnimation()
 
   auto &anim = tsd.sceneAnimation.addAnimation(view.cameraPathAnimationName);
   anim.addObjectParameterBinding(camera.data(),
-      "position", ANARI_FLOAT32_VEC3,
-      positions.data(), timeBase.data(), samples.size());
+      "position",
+      ANARI_FLOAT32_VEC3,
+      positions.data(),
+      timeBase.data(),
+      samples.size());
   anim.addObjectParameterBinding(camera.data(),
-      "direction", ANARI_FLOAT32_VEC3,
-      directions.data(), timeBase.data(), samples.size());
+      "direction",
+      ANARI_FLOAT32_VEC3,
+      directions.data(),
+      timeBase.data(),
+      samples.size());
   anim.addObjectParameterBinding(camera.data(),
-      "up", ANARI_FLOAT32_VEC3,
-      ups.data(), timeBase.data(), samples.size());
+      "up",
+      ANARI_FLOAT32_VEC3,
+      ups.data(),
+      timeBase.data(),
+      samples.size());
 
   // Seed camera parameters with the first sample for immediate feedback
   camera->setParameter("position", firstPosition);

@@ -4,14 +4,13 @@
 #pragma once
 
 #include "tsd/animation/TimeSamples.hpp"
-
-// tsd
+// tsd_core
 #include "tsd/core/Any.hpp"
 #include "tsd/core/Token.hpp"
+// tsd_scene
 #include "tsd/scene/AnyObjectUsePtr.hpp"
 #include "tsd/scene/Layer.hpp"
 #include "tsd/scene/Object.hpp"
-
 // std
 #include <string>
 #include <vector>
