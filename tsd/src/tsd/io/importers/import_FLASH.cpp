@@ -474,7 +474,7 @@ SpatialFieldRef import_FLASH(Scene &scene, const char *filepath)
   return field;
 }
 #else
-SpatialFieldRef import_FLASH(Scene &, tsd::animation::SceneAnimation &, const char *)
+SpatialFieldRef import_FLASH(Scene &, const char *)
 {
   logError("[import_FLASH] HDF5 not enabled in TSD build.");
   return {};
