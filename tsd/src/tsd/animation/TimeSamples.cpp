@@ -24,7 +24,7 @@ TimeSamples::TimeSamples(anari::DataType elementType, size_t items)
 
 TimeSamples::~TimeSamples()
 {
-  freeMemory();
+  std::free(m_data);
 }
 
 size_t TimeSamples::size() const
@@ -49,7 +49,6 @@ bool TimeSamples::isEmpty() const
 
 void *TimeSamples::map()
 {
-  decObjectUseCounts();
   m_mapped = true;
   return m_data;
 }
@@ -72,7 +71,6 @@ const void *TimeSamples::elementAt(size_t i) const
 void TimeSamples::unmap()
 {
   m_mapped = false;
-  incObjectUseCounts();
 }
 
 void TimeSamples::setData(const void *data, size_t byteOffset)
@@ -99,23 +97,21 @@ TimeSamples::TimeSamples(const TimeSamples &o)
     size_t bytes = size() * elementSize();
     m_data = std::malloc(bytes);
     std::memcpy(m_data, o.m_data, bytes);
-    incObjectUseCounts();
   }
 }
 
 TimeSamples &TimeSamples::operator=(const TimeSamples &o)
 {
   if (this != &o) {
-    freeMemory();
+    std::free(m_data);
+    m_data = nullptr;
     m_elementType = o.m_elementType;
     m_size = o.m_size;
     m_mapped = false;
-    m_data = nullptr;
     if (o.m_data && !o.isEmpty()) {
       size_t bytes = size() * elementSize();
       m_data = std::malloc(bytes);
       std::memcpy(m_data, o.m_data, bytes);
-      incObjectUseCounts();
     }
   }
   return *this;
@@ -133,7 +129,7 @@ TimeSamples::TimeSamples(TimeSamples &&o)
 TimeSamples &TimeSamples::operator=(TimeSamples &&o)
 {
   if (this != &o) {
-    freeMemory();
+    std::free(m_data);
     m_data = o.m_data;
     m_elementType = o.m_elementType;
     m_size = o.m_size;
@@ -141,40 +137,6 @@ TimeSamples &TimeSamples::operator=(TimeSamples &&o)
     o.m_data = nullptr;
   }
   return *this;
-}
-
-bool TimeSamples::holdsObjects() const
-{
-  return m_data && !isEmpty() && anari::isObject(m_elementType);
-}
-
-void TimeSamples::incObjectUseCounts()
-{
-  if (!holdsObjects())
-    return;
-  auto **objects = static_cast<scene::Object **>(m_data);
-  for (size_t i = 0; i < m_size; i++) {
-    if (objects[i])
-      objects[i]->incUseCount(scene::Object::UseKind::ANIM);
-  }
-}
-
-void TimeSamples::decObjectUseCounts()
-{
-  if (!holdsObjects())
-    return;
-  auto **objects = static_cast<scene::Object **>(m_data);
-  for (size_t i = 0; i < m_size; i++) {
-    if (objects[i])
-      objects[i]->decUseCount(scene::Object::UseKind::ANIM);
-  }
-}
-
-void TimeSamples::freeMemory()
-{
-  decObjectUseCounts();
-  std::free(m_data);
-  m_data = nullptr;
 }
 
 } // namespace tsd::animation

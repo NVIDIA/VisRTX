@@ -3,8 +3,6 @@
 
 #pragma once
 
-// tsd
-#include "tsd/scene/Object.hpp"
 // anari
 #include <anari/anari_cpp.hpp>
 // std
@@ -52,11 +50,6 @@ struct TimeSamples
   TimeSamples &operator=(TimeSamples &&);
 
  private:
-  bool holdsObjects() const;
-  void incObjectUseCounts();
-  void decObjectUseCounts();
-  void freeMemory();
-
   void *m_data{nullptr};
   anari::DataType m_elementType{ANARI_UNKNOWN};
   size_t m_size{0};

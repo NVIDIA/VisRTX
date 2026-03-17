@@ -5,7 +5,10 @@
 
 namespace tsd::animation {
 
-void Animation::addObjectParameterBinding(scene::Object &target,
+// Animation //////////////////////////////////////////////////////////////////
+
+ObjectParameterBinding &Animation::addObjectParameterBinding(
+    scene::Object *target,
     core::Token paramName,
     ANARIDataType dataType,
     const void *data,
@@ -14,17 +17,50 @@ void Animation::addObjectParameterBinding(scene::Object &target,
     InterpolationRule interp)
 {
   ObjectParameterBinding b;
-  b.target = target;
+  if (target)
+    b.target = *target;
   b.paramName = paramName;
   b.dataType = dataType;
-  b.data = TimeSamples(dataType, count);
-  b.data.setData(data);
-  b.timeBase.assign(timeBase, timeBase + count);
+  if (data && count > 0) {
+    b.data = TimeSamples(dataType, count);
+    b.data.setData(data);
+  }
+  if (timeBase && count > 0)
+    b.timeBase.assign(timeBase, timeBase + count);
   b.interp = interp;
   bindings.push_back(std::move(b));
+  return bindings.back();
 }
 
-void Animation::addTransformBinding(scene::LayerNodeRef target,
+ObjectParameterBinding &Animation::addObjectParameterBinding(
+    scene::Object *target,
+    core::Token paramName,
+    ANARIDataType dataType,
+    scene::Object *const *objects,
+    const float *timeBase,
+    size_t count,
+    InterpolationRule interp)
+{
+  ObjectParameterBinding b;
+  if (target)
+    b.target = *target;
+  b.paramName = paramName;
+  b.dataType = dataType;
+  if (objects && count > 0) {
+    std::vector<size_t> indices(count);
+    for (size_t i = 0; i < count; i++)
+      indices[i] = objects[i] ? objects[i]->index() : TSD_INVALID_INDEX;
+    b.data = TimeSamples(dataType, count);
+    b.data.setData(indices.data());
+  }
+  if (timeBase && count > 0)
+    b.timeBase.assign(timeBase, timeBase + count);
+  b.interp = interp;
+  bindings.push_back(std::move(b));
+  return bindings.back();
+}
+
+TransformBinding &Animation::addTransformBinding(scene::LayerNodeRef target,
     const float *timeBase,
     const tsd::core::math::float4 *rotation,
     const tsd::core::math::float3 *translation,
@@ -38,6 +74,7 @@ void Animation::addTransformBinding(scene::LayerNodeRef target,
   tb.translation.assign(translation, translation + count);
   tb.scale.assign(scale, scale + count);
   transforms.push_back(std::move(tb));
+  return transforms.back();
 }
 
 } // namespace tsd::animation

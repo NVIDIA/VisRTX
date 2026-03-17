@@ -810,16 +810,13 @@ void addValueTimeStepBindings(tsd::animation::Animation &anim,
     tsd::animation::InterpolationRule interp)
 {
   for (size_t i = 0; i < paramNames.size(); i++) {
-    tsd::animation::ObjectParameterBinding b;
-    b.target = *target;
-    b.paramName = paramNames[i];
-    b.dataType = dataArrays[i]->elementType();
-    b.data = tsd::animation::TimeSamples(
-        dataArrays[i]->elementType(), dataArrays[i]->size());
-    b.data.setData(dataArrays[i]->data());
-    b.timeBase = timeBase;
-    b.interp = interp;
-    anim.bindings.push_back(std::move(b));
+    anim.addObjectParameterBinding(target,
+        paramNames[i],
+        dataArrays[i]->elementType(),
+        dataArrays[i]->data(),
+        timeBase.data(),
+        timeBase.size(),
+        interp);
   }
 }
 
@@ -831,21 +828,16 @@ void addArrayTimeStepBindings(tsd::animation::Animation &anim,
 {
   for (size_t i = 0; i < paramNames.size(); i++) {
     auto &arrays = arraysPerParam[i];
-
-    tsd::animation::TimeSamples samples(ANARI_ARRAY1D, arrays.size());
-    auto *indices = samples.mapAs<size_t>();
+    std::vector<size_t> poolIndices(arrays.size());
     for (size_t j = 0; j < arrays.size(); j++)
-      indices[j] = arrays[j]->index();
-    samples.unmap();
-
-    tsd::animation::ObjectParameterBinding b;
-    b.target = *target;
-    b.paramName = paramNames[i];
-    b.dataType = ANARI_ARRAY1D;
-    b.data = std::move(samples);
-    b.timeBase = timeBase;
-    b.interp = tsd::animation::InterpolationRule::STEP;
-    anim.bindings.push_back(std::move(b));
+      poolIndices[j] = arrays[j]->index();
+    anim.addObjectParameterBinding(target,
+        paramNames[i],
+        ANARI_ARRAY1D,
+        poolIndices.data(),
+        timeBase.data(),
+        arrays.size(),
+        tsd::animation::InterpolationRule::STEP);
   }
 }
 

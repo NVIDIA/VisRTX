@@ -586,41 +586,37 @@ void load_Scene(Scene &scene,
 
         if (auto *bindingsNode = animNode.child("bindings")) {
           bindingsNode->foreach_child([&](core::DataNode &bNode) {
-            tsd::animation::ObjectParameterBinding b;
             auto targetType =
                 (ANARIDataType)bNode["targetType"].getValueAs<int>();
             auto targetIndex = bNode["targetIndex"].getValueAs<size_t>();
-            if (targetType != ANARI_UNKNOWN && targetIndex != size_t(-1)) {
-              if (auto *obj = scene.getObject(targetType, targetIndex))
-                b.target = *obj;
-            }
-            b.paramName =
+            scene::Object *target = nullptr;
+            if (targetType != ANARI_UNKNOWN && targetIndex != size_t(-1))
+              target = scene.getObject(targetType, targetIndex);
+
+            auto paramName =
                 Token(bNode["paramName"].getValueAs<std::string>().c_str());
-            b.dataType = (ANARIDataType)bNode["dataType"].getValueAs<int>();
+            auto dataType =
+                (ANARIDataType)bNode["dataType"].getValueAs<int>();
+            auto interp =
+                (tsd::animation::InterpolationRule)bNode["interp"]
+                    .getValueAs<int>();
 
-            if (auto *tbNode = bNode.child("timeBase")) {
-              const float *tbPtr = nullptr;
-              size_t tbCount = 0;
+            const float *tbPtr = nullptr;
+            size_t tbCount = 0;
+            if (auto *tbNode = bNode.child("timeBase"))
               tbNode->getValueAsArray(&tbPtr, &tbCount);
-              if (tbPtr && tbCount > 0)
-                b.timeBase.assign(tbPtr, tbPtr + tbCount);
-            }
 
+            const void *dataPtr = nullptr;
+            size_t dataCount = 0;
             if (auto *dataNode = bNode.child("data");
                 dataNode && dataNode->holdsArray()) {
               ANARIDataType dt = ANARI_UNKNOWN;
-              const void *ptr = nullptr;
-              size_t count = 0;
-              dataNode->getValueAsArray(&dt, &ptr, &count);
-              if (count > 0) {
-                b.data = tsd::animation::TimeSamples(b.dataType, count);
-                b.data.setData(ptr);
-              }
+              dataNode->getValueAsArray(&dt, &dataPtr, &dataCount);
             }
 
-            b.interp = (tsd::animation::InterpolationRule)bNode["interp"]
-                           .getValueAs<int>();
-            anim.bindings.push_back(std::move(b));
+            size_t count = dataCount > 0 ? dataCount : tbCount;
+            anim.addObjectParameterBinding(
+                target, paramName, dataType, dataPtr, tbPtr, count, interp);
           });
         }
 

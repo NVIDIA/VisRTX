@@ -369,18 +369,19 @@ local Animation = {}
 --- Add a parameter binding to this animation.
 ---@param target tsd.Object
 ---@param param string
----@param dataArray tsd.Array
----@param timeBaseArray tsd.Array
+---@param dataType string # e.g. "float3", "spatialField"
+---@param data table # table of values or object refs
+---@param timeBase number[] # table of float timestamps
 ---@param interp? string # "linear" (default), "step", or "slerp"
-function Animation:addObjectParameterBinding(target, param, dataArray, timeBaseArray, interp) end
+function Animation:addObjectParameterBinding(target, param, dataType, data, timeBase, interp) end
 
 --- Add a transform binding to this animation.
 ---@param node tsd.LayerNode
----@param timeBaseArray tsd.Array
----@param rotationArray tsd.Array # float4 quaternions
----@param translationArray tsd.Array # float3 positions
----@param scaleArray tsd.Array # float3 scale factors
-function Animation:addTransformBinding(node, timeBaseArray, rotationArray, translationArray, scaleArray) end
+---@param timeBase number[] # table of float timestamps
+---@param rotation table # table of float4 quaternions
+---@param translation table # table of float3 positions
+---@param scale table # table of float3 scale factors
+function Animation:addTransformBinding(node, timeBase, rotation, translation, scale) end
 
 ------------------------------------------------------------------------
 -- Scene (ContextBindings.cpp)

@@ -31,7 +31,6 @@ static void insertKeyframe(
   size_t insertIdx = count;
   for (size_t i = 0; i < count; i++) {
     if (std::abs(b.timeBase[i] - time) < 1e-4f) {
-      // Replace existing keyframe at this time
       auto *dst = static_cast<uint8_t *>(b.data.map());
       std::memcpy(dst + i * elemSize, value, elemSize);
       b.data.unmap();
@@ -43,14 +42,11 @@ static void insertKeyframe(
     }
   }
 
-  // Insert into timeBase vector
   b.timeBase.insert(b.timeBase.begin() + insertIdx, time);
 
-  // Rebuild data TimeSamples with new element
   size_t newCount = count + 1;
   tsd::animation::TimeSamples newData(b.dataType, newCount);
   auto *newVals = static_cast<uint8_t *>(newData.map());
-
   const auto *oldData = static_cast<const uint8_t *>(b.data.data());
 
   if (oldData && insertIdx > 0)
@@ -618,20 +614,15 @@ void Timeline::buildUI_canvas()
         if (ImGui::MenuItem(menuLabel)) {
           auto &newAnim = sceneAnim.addAnimation(menuLabel);
           auto *camPtr = const_cast<tsd::scene::Camera *>(cam);
-          using tsd::animation::ObjectParameterBinding;
-          using tsd::animation::InterpolationRule;
-          auto makeEmptyBinding =
-              [&](const char *param) -> ObjectParameterBinding {
-            ObjectParameterBinding b;
-            b.target = *camPtr;
-            b.paramName = param;
-            b.dataType = ANARI_FLOAT32_VEC3;
-            b.interp = InterpolationRule::LINEAR;
-            return b;
-          };
-          newAnim.bindings.push_back(makeEmptyBinding("position"));
-          newAnim.bindings.push_back(makeEmptyBinding("direction"));
-          newAnim.bindings.push_back(makeEmptyBinding("up"));
+          newAnim.addObjectParameterBinding(camPtr,
+              "position", ANARI_FLOAT32_VEC3,
+              (const void *)nullptr, nullptr, 0);
+          newAnim.addObjectParameterBinding(camPtr,
+              "direction", ANARI_FLOAT32_VEC3,
+              (const void *)nullptr, nullptr, 0);
+          newAnim.addObjectParameterBinding(camPtr,
+              "up", ANARI_FLOAT32_VEC3,
+              (const void *)nullptr, nullptr, 0);
           ImGui::CloseCurrentPopup();
         }
         ImGui::PopID();

@@ -486,32 +486,16 @@ bool Context::updateCameraPathAnimation()
   const auto firstDirection = directions[0];
   const auto firstUp = ups[0];
 
-  using tsd::animation::InterpolationRule;
-  using tsd::animation::ObjectParameterBinding;
-  using tsd::animation::TimeSamples;
-
-  auto makeBinding = [&](tsd::core::Token param,
-                         ANARIDataType dataType,
-                         const void *data,
-                         size_t count) -> ObjectParameterBinding {
-    ObjectParameterBinding b;
-    b.target = *camera.data();
-    b.paramName = param;
-    b.dataType = dataType;
-    b.data = TimeSamples(dataType, count);
-    b.data.setData(data);
-    b.timeBase = timeBase;
-    b.interp = InterpolationRule::LINEAR;
-    return b;
-  };
-
   auto &anim = tsd.sceneAnimation.addAnimation(view.cameraPathAnimationName);
-  anim.bindings.push_back(makeBinding(
-      "position", ANARI_FLOAT32_VEC3, positions.data(), samples.size()));
-  anim.bindings.push_back(makeBinding(
-      "direction", ANARI_FLOAT32_VEC3, directions.data(), samples.size()));
-  anim.bindings.push_back(
-      makeBinding("up", ANARI_FLOAT32_VEC3, ups.data(), samples.size()));
+  anim.addObjectParameterBinding(camera.data(),
+      "position", ANARI_FLOAT32_VEC3,
+      positions.data(), timeBase.data(), samples.size());
+  anim.addObjectParameterBinding(camera.data(),
+      "direction", ANARI_FLOAT32_VEC3,
+      directions.data(), timeBase.data(), samples.size());
+  anim.addObjectParameterBinding(camera.data(),
+      "up", ANARI_FLOAT32_VEC3,
+      ups.data(), timeBase.data(), samples.size());
 
   // Seed camera parameters with the first sample for immediate feedback
   camera->setParameter("position", firstPosition);

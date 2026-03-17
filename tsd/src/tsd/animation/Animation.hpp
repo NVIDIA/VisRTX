@@ -34,7 +34,6 @@ struct ObjectParameterBinding
   scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> target;
   core::Token paramName;
   ANARIDataType dataType{ANARI_UNKNOWN};
-
   TimeSamples data;
   std::vector<float> timeBase;
   InterpolationRule interp{InterpolationRule::STEP};
@@ -55,7 +54,7 @@ struct Animation
   std::vector<ObjectParameterBinding> bindings;
   std::vector<TransformBinding> transforms;
 
-  void addObjectParameterBinding(scene::Object &target,
+  ObjectParameterBinding &addObjectParameterBinding(scene::Object *target,
       core::Token paramName,
       ANARIDataType dataType,
       const void *data,
@@ -63,7 +62,15 @@ struct Animation
       size_t count,
       InterpolationRule interp = InterpolationRule::LINEAR);
 
-  void addTransformBinding(scene::LayerNodeRef target,
+  ObjectParameterBinding &addObjectParameterBinding(scene::Object *target,
+      core::Token paramName,
+      ANARIDataType dataType,
+      scene::Object *const *objects,
+      const float *timeBase,
+      size_t count,
+      InterpolationRule interp = InterpolationRule::STEP);
+
+  TransformBinding &addTransformBinding(scene::LayerNodeRef target,
       const float *timeBase,
       const tsd::core::math::float4 *rotation,
       const tsd::core::math::float3 *translation,
