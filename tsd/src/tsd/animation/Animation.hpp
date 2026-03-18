@@ -27,6 +27,7 @@ enum class InterpolationRule
   SLERP,
 };
 
+
 // Bindings ///////////////////////////////////////////////////////////////////
 
 struct ObjectParameterBinding
