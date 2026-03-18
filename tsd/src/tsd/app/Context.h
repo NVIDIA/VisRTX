@@ -46,7 +46,7 @@ struct TSDState
     bool shouldDeleteAfterPaste{false};
   };
 
-  TSDState();
+  TSDState() : sceneAnimation(scene) {}
 
   tsd::scene::Scene scene;
   tsd::animation::SceneAnimation sceneAnimation;
@@ -174,8 +174,12 @@ struct Context
   void removeAllPoses();
   bool updateCameraPathAnimation();
 
-  TSD_NOT_COPYABLE(Context)
-  TSD_NOT_MOVEABLE(Context)
+  // Not copyable or moveable //
+  Context(const Context &) = delete;
+  Context(Context &&) = delete;
+  Context &operator=(const Context &) = delete;
+  Context &operator=(Context &&) = delete;
+  //////////////////////////////
 
  private:
   struct LogState
