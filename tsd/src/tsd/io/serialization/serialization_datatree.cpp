@@ -307,76 +307,114 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
 
 void layerToNode(const Layer &layer, core::DataNode &node)
 {
-  std::stack<core::DataNode *> nodes;
-  core::DataNode *currentParentNode = nullptr;
-  core::DataNode *currentNode = &node;
-  int currentLevel = -1;
-  layer.traverse_const(layer.root(), [&](const LayerNode &tsdNode, int level) {
-    if (currentLevel < level) {
-      nodes.push(currentNode);
-      currentParentNode = currentNode;
-    } else if (currentLevel > level) {
-      for (int i = 0; i < currentLevel - level; i++)
-        nodes.pop();
-      currentParentNode = nodes.top();
-    }
+  auto &slotsNode = node["slots"];
+  for (size_t i = 0; i < layer.capacity(); i++) {
+    auto &slotNode = slotsNode.append();
+    if (layer.slot_empty(i))
+      continue;
 
-    currentLevel = level;
-
-    if (level == 0)
-      currentNode = &node;
-    else
-      currentNode = &currentParentNode->child("children")->append();
-
-    currentNode->append("name") = tsdNode->name();
-    currentNode->append("value") = tsdNode->getValueRaw();
-    if (tsdNode->isTransform())
-      currentNode->append("transformSRT") = tsdNode->getTransformSRT();
-    currentNode->append("enabled") = tsdNode->isEnabled();
-    currentNode->append("children");
-
-    return true;
-  });
+    auto nref = layer.at(i);
+    const auto &nd = nref->value();
+    slotNode["index"] = i;
+    slotNode["name"] = nd.name();
+    slotNode["value"] = nd.getValueRaw();
+    if (nd.isTransform())
+      slotNode["transformSRT"] = nd.getTransformSRT();
+    slotNode["enabled"] = nd.isEnabled();
+    if (auto p = nref->parent(); p)
+      slotNode["parentIndex"] = p->index();
+  }
 }
 
 void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
 {
-  layer.clear();
+  // Support legacy format (has "children" key on root)
+  if (rootNode.child("children")) {
+    layer.clear();
 
-  std::stack<LayerNodeRef> tsdNodes;
-  LayerNodeRef currentParentNode;
-  LayerNodeRef currentNode = layer.root();
-  int currentLevel = -1;
-  rootNode.traverse([&](core::DataNode &node, int level) {
-    if (level & 0x1 || !node.child("children"))
+    std::stack<LayerNodeRef> tsdNodes;
+    LayerNodeRef currentParentNode;
+    LayerNodeRef currentNode = layer.root();
+    int currentLevel = -1;
+    rootNode.traverse([&](core::DataNode &node, int level) {
+      if (level & 0x1 || !node.child("children"))
+        return true;
+
+      level /= 2;
+      if (currentLevel < level) {
+        tsdNodes.push(currentNode);
+        currentParentNode = currentNode;
+      } else if (currentLevel > level) {
+        for (int i = 0; i < currentLevel - level; i++)
+          tsdNodes.pop();
+        currentParentNode = tsdNodes.top();
+      }
+
+      currentLevel = level;
+
+      if (level == 0)
+        currentNode = layer.root();
+      else {
+        currentNode = currentParentNode->insert_last_child({&layer});
+        if (auto *c = node.child("transformSRT"); c != nullptr)
+          (*currentNode)->setAsTransform(c->getValueAs<math::mat3>());
+        else
+          (*currentNode)->setValueRaw(node["value"].getValue());
+        (*currentNode)->setEnabled(node["enabled"].getValueOr(true));
+        (*currentNode)->name() = node["name"].getValueAs<std::string>();
+      }
+
       return true;
+    });
+    return;
+  }
 
-    level /= 2;
-    if (currentLevel < level) {
-      tsdNodes.push(currentNode);
-      currentParentNode = currentNode;
-    } else if (currentLevel > level) {
-      for (int i = 0; i < currentLevel - level; i++)
-        tsdNodes.pop();
-      currentParentNode = tsdNodes.top();
+  // New index-preserving format
+  layer.reset();
+
+  auto *slotsNode = rootNode.child("slots");
+  if (!slotsNode)
+    return;
+
+  // Pass 1: allocate slots in order, collect parent indices
+  std::vector<size_t> parentIndices;
+  slotsNode->foreach_child([&](core::DataNode &slotNode) {
+    if (!slotNode.child("index")) {
+      layer.insert_empty_slot();
+      parentIndices.push_back(INVALID_INDEX);
+      return;
     }
 
-    currentLevel = level;
+    size_t storedIndex = slotNode["index"].getValueAs<size_t>();
+    LayerNodeData nd(&layer);
+    if (auto *c = slotNode.child("transformSRT"); c != nullptr)
+      nd.setAsTransform(c->getValueAs<math::mat3>());
+    else
+      nd.setValueRaw(slotNode["value"].getValue());
+    nd.setEnabled(slotNode["enabled"].getValueOr(true));
+    nd.name() = slotNode["name"].getValueAs<std::string>();
 
-    if (level == 0)
-      currentNode = layer.root();
-    else {
-      currentNode = currentParentNode->insert_last_child({&layer});
-      if (auto *c = node.child("transformSRT"); c != nullptr)
-        (*currentNode)->setAsTransform(c->getValueAs<math::mat3>());
-      else
-        (*currentNode)->setValueRaw(node["value"].getValue());
-      (*currentNode)->setEnabled(node["enabled"].getValueOr(true));
-      (*currentNode)->name() = node["name"].getValueAs<std::string>();
+    auto nref = layer.emplace_detached(std::move(nd));
+    if (nref->index() != storedIndex) {
+      logError("[nodeToLayer] node index mismatch: got %zu, expected %zu",
+          nref->index(),
+          storedIndex);
     }
 
-    return true;
+    if (auto *c = slotNode.child("parentIndex"); c != nullptr)
+      parentIndices.push_back(c->getValueAs<size_t>());
+    else
+      parentIndices.push_back(INVALID_INDEX);
   });
+
+  // Pass 2: wire parent-child relationships in pool-index order
+  for (size_t i = 0; i < layer.capacity(); i++) {
+    if (layer.slot_empty(i) || parentIndices[i] == INVALID_INDEX)
+      continue;
+    layer.adopt_last_child(layer.at(parentIndices[i]), layer.at(i));
+  }
+
+  layer.rebuild_free_list();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

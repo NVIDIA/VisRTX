@@ -63,6 +63,36 @@ void Layer::clear()
   m_tree.clear();
 }
 
+void Layer::reset()
+{
+  m_tree.reset();
+}
+
+LayerNodeRef Layer::emplace_detached(LayerNodeData &&v)
+{
+  return m_tree.emplace_detached(std::move(v));
+}
+
+void Layer::adopt_last_child(LayerNodeRef parent, LayerNodeRef child)
+{
+  m_tree.adopt_last_child(parent, child);
+}
+
+void Layer::insert_empty_slot()
+{
+  m_tree.insert_empty_slot();
+}
+
+void Layer::rebuild_free_list()
+{
+  m_tree.rebuild_free_list();
+}
+
+bool Layer::slot_empty(size_t i) const
+{
+  return m_tree.slot_empty(i);
+}
+
 bool Layer::isAncestorOf(
     LayerNodeRef potentialAncestor, LayerNodeRef node) const
 {

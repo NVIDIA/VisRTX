@@ -149,6 +149,7 @@ struct Forest
   Forest &operator=(Forest &&) = delete;
 
   void reserve(size_t size);
+  void reset();
 
   // ForestNode access //
 
@@ -166,6 +167,8 @@ struct Forest
 
   NodeRef insert_first_child(NodeRef n, T &&v);
   NodeRef insert_last_child(NodeRef n, T &&v);
+  NodeRef emplace_detached(T &&v);
+  void adopt_last_child(NodeRef parent, NodeRef child);
 
   void erase(NodeRef n);
   void erase_subtree(NodeRef n);
@@ -173,6 +176,9 @@ struct Forest
   void move_subtree(NodeRef source, NodeRef newParent);
 
   void clear();
+  void insert_empty_slot();
+  void rebuild_free_list();
+  bool slot_empty(size_t i) const;
 
   // Queries //
 
@@ -608,6 +614,54 @@ template <typename T>
 inline void Forest<T>::clear()
 {
   erase_subtree(m_root);
+}
+
+template <typename T>
+inline void Forest<T>::reset()
+{
+  m_nodes.clear();
+  m_root = {};
+}
+
+template <typename T>
+inline typename Forest<T>::NodeRef Forest<T>::emplace_detached(T &&v)
+{
+  auto n = make_ForestNode(std::forward<T>(v));
+  if (!m_root)
+    m_root = n;
+  return n;
+}
+
+template <typename T>
+inline void Forest<T>::adopt_last_child(
+    Forest<T>::NodeRef parent, Forest<T>::NodeRef child)
+{
+  child->m_parent = parent;
+  child->m_prev = parent->m_children_end;
+  child->m_next = parent->self();
+  if (parent->isLeaf())
+    parent->m_children_begin = child;
+  else
+    parent->m_children_end->m_next = child;
+  parent->m_children_end = child;
+}
+
+template <typename T>
+inline void Forest<T>::insert_empty_slot()
+{
+  m_nodes.insert_empty_slot();
+}
+
+template <typename T>
+inline void Forest<T>::rebuild_free_list()
+{
+  m_nodes.rebuild_free_list();
+}
+
+template <typename T>
+inline bool Forest<T>::slot_empty(size_t i) const
+{
+  return m_nodes.slot_empty(i);
 }
 
 template <typename T>

@@ -47,6 +47,12 @@ struct Layer final
   LayerNodeRef at(size_t i) const;
   void erase(LayerNodeRef obj);
   void clear();
+  void reset();
+  LayerNodeRef emplace_detached(LayerNodeData &&v);
+  void adopt_last_child(LayerNodeRef parent, LayerNodeRef child);
+  void insert_empty_slot();
+  void rebuild_free_list();
+  bool slot_empty(size_t i) const;
 
   bool isAncestorOf(LayerNodeRef potentialAncestor, LayerNodeRef node) const;
 
