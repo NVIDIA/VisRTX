@@ -12,6 +12,11 @@ add_subdirectory(tsd_tinygltf)
 add_subdirectory(tsd_tinyobjloader)
 add_subdirectory(tsd_tinyply)
 
+add_subdirectory(
+  ${CMAKE_CURRENT_LIST_DIR}/../../devices/rtx/external
+  ${CMAKE_CURRENT_BINARY_DIR}/tsd_visrtx_external
+)
+
 if(TSD_BUILD_UI_LIBRARY)
   add_subdirectory(tsd_imguizmo)
 endif()
@@ -19,15 +24,4 @@ endif()
 if(TSD_USE_LUA)
   add_subdirectory(tsd_lua)
   add_subdirectory(tsd_sol2 EXCLUDE_FROM_ALL)
-endif()
-
-if (NOT TARGET fmt::fmt)
-  add_subdirectory(
-    ${CMAKE_CURRENT_LIST_DIR}/../../devices/rtx/external/fmtlib
-    ${CMAKE_CURRENT_BINARY_DIR}/tsd_fmt
-  )
-  add_subdirectory(
-    ${CMAKE_CURRENT_LIST_DIR}/../../devices/rtx/external/stb_image
-    ${CMAKE_CURRENT_BINARY_DIR}/tsd_stb
-  )
 endif()

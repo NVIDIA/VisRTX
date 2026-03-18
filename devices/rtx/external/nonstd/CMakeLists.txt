@@ -28,7 +28,10 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 foreach(lib expected scope span)
-    add_library(${lib}-lite INTERFACE)
-    target_include_directories(${lib}-lite INTERFACE ${CMAKE_CURRENT_LIST_DIR}/${lib}/include)
-    add_library(nonstd::${lib}-lite ALIAS ${lib}-lite)
+  if (TARGET nonstd::${lib}-lite)
+    continue()
+  endif()
+  add_library(${lib}-lite INTERFACE)
+  target_include_directories(${lib}-lite INTERFACE ${CMAKE_CURRENT_LIST_DIR}/${lib}/include)
+  add_library(nonstd::${lib}-lite ALIAS ${lib}-lite)
 endforeach()

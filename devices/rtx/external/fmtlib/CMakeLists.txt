@@ -27,6 +27,10 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+if (TARGET fmt)
+  return()
+endif()
+
 add_library(fmt STATIC src/format.cc)
 target_include_directories(fmt PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 target_compile_definitions(fmt PUBLIC FMT_UNICODE=0)
