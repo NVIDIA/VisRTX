@@ -10,9 +10,25 @@
 
 namespace tsd::animation {
 
-AnimationManager::AnimationManager(tsd::scene::Scene *scene) : m_scene(scene) {}
+AnimationManager::AnimationManager(tsd::scene::Scene *scene) : m_scene(scene)
+{
+  m_defragToken = m_scene->addDefragCallback([this](const auto &remap) {
+    for (auto &anim : m_animations) {
+      for (auto &binding : anim.bindings) {
+        binding.target.updateDefragmentedIndex(
+            remap(binding.target.get()->type(), binding.target.get()->index()));
 
-AnimationManager::~AnimationManager() {}
+        // TODO: If this is an object time series, update each time step index
+        //       to the new remapped index.
+      }
+    }
+  });
+}
+
+AnimationManager::~AnimationManager()
+{
+  m_scene->removeDefragCallback(m_defragToken);
+}
 
 void AnimationManager::setTimeChangedCallback(TimeChangedCallback cb)
 {

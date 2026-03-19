@@ -828,13 +828,13 @@ void addArrayTimeStepBindings(tsd::animation::Animation &anim,
 {
   for (size_t i = 0; i < paramNames.size(); i++) {
     auto &arrays = arraysPerParam[i];
-    std::vector<size_t> poolIndices(arrays.size());
+    std::vector<Object *> objectPtrs(arrays.size());
     for (size_t j = 0; j < arrays.size(); j++)
-      poolIndices[j] = arrays[j]->index();
+      objectPtrs[j] = const_cast<Array *>(arrays[j].get());
     anim.addObjectParameterBinding(target,
         paramNames[i],
         ANARI_ARRAY1D,
-        poolIndices.data(),
+        objectPtrs.data(),
         timeBase.data(),
         arrays.size(),
         tsd::animation::InterpolationRule::STEP);

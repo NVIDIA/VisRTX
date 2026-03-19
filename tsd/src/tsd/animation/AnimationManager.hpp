@@ -54,6 +54,7 @@ struct AnimationManager
   float m_time{0.f};
   int m_totalFrames{100};
   std::vector<Animation> m_animations;
+  size_t m_defragToken{0};
 };
 
 } // namespace tsd::animation

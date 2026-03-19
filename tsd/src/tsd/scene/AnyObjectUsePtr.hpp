@@ -48,6 +48,10 @@ struct AnyObjectUsePtr
 
   operator bool() const;
 
+  // WARNING: this is just for dealing with scene defragmentation, do not use
+  // directly!
+  void updateDefragmentedIndex(size_t newIndex);
+
  private:
   Any m_object;
   Scene *m_scene{nullptr};
@@ -212,6 +216,14 @@ T *AnyObjectUsePtr<K>::getAs()
   static_assert(std::is_base_of<Object, T>::value,
       "AnyObjectUsePtr::getAs<T> requires T to derive from Object");
   return get() != nullptr ? dynamic_cast<T *>(get()) : nullptr;
+}
+
+template <Object::UseKind K>
+void AnyObjectUsePtr<K>::updateDefragmentedIndex(size_t newIndex)
+{
+  if (!m_scene || !m_object)
+    return;
+  m_object = Any(m_object.type(), newIndex);
 }
 
 } // namespace tsd::scene

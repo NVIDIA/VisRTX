@@ -5,8 +5,6 @@
 
 namespace tsd::animation {
 
-// Animation //////////////////////////////////////////////////////////////////
-
 ObjectParameterBinding &Animation::addObjectParameterBinding(
     scene::Object *target,
     core::Token paramName,
@@ -48,8 +46,10 @@ ObjectParameterBinding &Animation::addObjectParameterBinding(
   b.dataType = dataType;
   if (objects && count > 0) {
     std::vector<size_t> indices(count);
-    for (size_t i = 0; i < count; i++)
-      indices[i] = objects[i] ? objects[i]->index() : TSD_INVALID_INDEX;
+    for (size_t i = 0; i < count; i++) {
+      auto *object = objects[i];
+      indices[i] = object ? object->index() : TSD_INVALID_INDEX;
+    }
     b.data = TimeSamples(dataType, count);
     b.data.setData(indices.data());
   }

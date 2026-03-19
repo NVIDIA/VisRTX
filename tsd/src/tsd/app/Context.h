@@ -48,6 +48,9 @@ struct TSDState
 
   TSDState();
 
+  // NOTE(jda) - FIX: scene must be declared before animation manager since the
+  // manager needs a pointer to it, and animation manager must be destroyed
+  // first...
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animationMgr;
   bool sceneLoadComplete{false};

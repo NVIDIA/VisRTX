@@ -70,47 +70,32 @@ static float4 lerpV4(float4 a, float4 b, float t)
 
 // Quaternion SLERP ///////////////////////////////////////////////////////////
 
-static float dot4(float4 a, float4 b)
+static float4 safeNormalize(float4 v)
 {
-  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-}
-
-static float4 scaleV4(float4 v, float s)
-{
-  return {v.x * s, v.y * s, v.z * s, v.w * s};
-}
-
-static float4 normalizeQuat(float4 v)
-{
-  float len = std::sqrt(dot4(v, v));
-  return (len > 0.f) ? scaleV4(v, 1.f / len) : v;
+  float len = std::sqrt(tsd::math::dot(v, v));
+  return (len > 0.f) ? v / tsd::math::length(v) : v;
 }
 
 static float4 slerp(float4 a, float4 b, float t)
 {
-  float d = dot4(a, b);
+  float d = tsd::math::dot(a, b);
 
   // Short path: negate to avoid the long arc
   if (d < 0.f) {
-    b = scaleV4(b, -1.f);
+    b = b * -1.f;
     d = -d;
   }
 
   constexpr float THRESHOLD = 0.9995f;
   if (d > THRESHOLD)
-    return normalizeQuat(lerpV4(a, b, t));
+    return safeNormalize(lerpV4(a, b, t));
 
   float theta = std::acos(std::clamp(d, -1.f, 1.f));
   float sinTheta = std::sin(theta);
   float wa = std::sin((1.f - t) * theta) / sinTheta;
   float wb = std::sin(t * theta) / sinTheta;
 
-  return {
-      wa * a.x + wb * b.x,
-      wa * a.y + wb * b.y,
-      wa * a.z + wb * b.z,
-      wa * a.w + wb * b.w,
-  };
+  return wa * a + wb * b;
 }
 
 // Compose mat4 from decomposed transform /////////////////////////////////////
