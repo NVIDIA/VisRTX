@@ -7,21 +7,18 @@
 // std
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 namespace tsd::animation {
 
 AnimationManager::AnimationManager(tsd::scene::Scene *scene) : m_scene(scene)
 {
-  m_defragToken = m_scene->addDefragCallback([this](const auto &remap) {
-    for (auto &anim : m_animations) {
-      for (auto &binding : anim.bindings) {
-        binding.target.updateDefragmentedIndex(
-            remap(binding.target.get()->type(), binding.target.get()->index()));
+  if (!m_scene)
+    throw std::runtime_error("AnimationManager requires a valid Scene.");
 
-        // TODO: If this is an object time series, update each time step index
-        //       to the new remapped index.
-      }
-    }
+  m_defragToken = m_scene->addDefragCallback([this](const auto &remap) {
+    for (auto &anim : m_animations)
+      anim.updateObjectDefragmentedIndices(remap);
   });
 }
 
@@ -35,9 +32,14 @@ void AnimationManager::setTimeChangedCallback(TimeChangedCallback cb)
   m_timeChangedCallback = std::move(cb);
 }
 
+scene::Scene *AnimationManager::scene() const
+{
+  return m_scene;
+}
+
 Animation &AnimationManager::addAnimation(const std::string &name)
 {
-  return m_animations.emplace_back(Animation{name, {}, {}});
+  return m_animations.emplace_back(this, name);
 }
 
 std::vector<Animation> &AnimationManager::animations()
@@ -65,10 +67,8 @@ void AnimationManager::setAnimationTime(float time)
 {
   m_time = time;
 
-  if (!m_animations.empty()) {
-    auto result = evaluate(m_animations, time);
-    applyResults(result, *m_scene);
-  }
+  for (auto &anim : m_animations)
+    anim.setAnimationTime(time);
 
   if (m_timeChangedCallback)
     m_timeChangedCallback(time);
@@ -129,6 +129,31 @@ void AnimationManager::incrementAnimationFrame()
   if (frame >= m_totalFrames)
     frame = 0;
   setAnimationFrame(frame);
+}
+
+void AnimationManager::toDataNode(core::DataNode &node) const
+{
+  node["time"] = m_time;
+  node["increment"] = m_incrementSize;
+  node["totalFrames"] = m_totalFrames;
+
+  core::DataNode &animationsNode = node["objects"];
+  for (const auto &anim : m_animations) {
+    core::DataNode &animNode = animationsNode.append();
+    anim.toDataNode(animNode);
+  }
+}
+
+void AnimationManager::fromDataNode(core::DataNode &node)
+{
+  m_time = node["time"].getValueOr<float>(m_time);
+  m_incrementSize = node["increment"].getValueOr<float>(m_incrementSize);
+  m_totalFrames = node["totalFrames"].getValueOr<int>(m_totalFrames);
+
+  node["objects"].foreach_child([&](core::DataNode &animNode) {
+    auto &anim = addAnimation();
+    anim.fromDataNode(animNode);
+  });
 }
 
 } // namespace tsd::animation

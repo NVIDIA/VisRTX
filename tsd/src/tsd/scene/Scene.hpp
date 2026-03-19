@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/scene/DefragCallback.hpp"
 #include "tsd/scene/Layer.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Camera.hpp"
@@ -15,7 +16,6 @@
 #include "tsd/scene/objects/Surface.hpp"
 #include "tsd/scene/objects/Volume.hpp"
 // std
-#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -226,9 +226,6 @@ struct Scene
   void cleanupScene(); // remove unused + defragment
 
   // Defragmentation callbacks //
-
-  using IndexRemapper = std::function<size_t(ANARIDataType, size_t)>;
-  using DefragCallback = std::function<void(const IndexRemapper &)>;
 
   size_t addDefragCallback(DefragCallback cb);
   void removeDefragCallback(size_t token);

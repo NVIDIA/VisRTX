@@ -14,20 +14,31 @@ struct Scene;
 
 namespace tsd::animation {
 
+/*
+ * Central owner of all animations in a scene; provides time and frame control
+ * and dispatches animation evaluation to each owned Animation instance.
+ *
+ * Example:
+ *   AnimationManager mgr(&scene);
+ *   Animation &a = mgr.addAnimation("fade");
+ *   mgr.setAnimationTime(1.0f);
+ *   mgr.incrementAnimationFrame();
+ */
 struct AnimationManager
 {
-  AnimationManager(tsd::scene::Scene *scene);
-
   TSD_NOT_COPYABLE(AnimationManager)
   TSD_NOT_MOVEABLE(AnimationManager)
 
+  AnimationManager(tsd::scene::Scene *scene);
   ~AnimationManager();
 
   using TimeChangedCallback = std::function<void(float)>;
   void setTimeChangedCallback(TimeChangedCallback cb);
 
+  scene::Scene *scene() const;
+
   // Animation collection
-  Animation &addAnimation(const std::string &name = "");
+  Animation &addAnimation(const std::string &name = "<unnamed_animation>");
   std::vector<Animation> &animations();
   const std::vector<Animation> &animations() const;
   void removeAnimation(size_t index);
@@ -47,8 +58,13 @@ struct AnimationManager
   void setAnimationFrame(int frame);
   void incrementAnimationFrame();
 
+  // Serialization //
+
+  void toDataNode(core::DataNode &node) const;
+  void fromDataNode(core::DataNode &node);
+
  private:
-  tsd::scene::Scene *m_scene{nullptr};
+  scene::Scene *m_scene{nullptr};
   TimeChangedCallback m_timeChangedCallback;
   float m_incrementSize{0.01f};
   float m_time{0.f};

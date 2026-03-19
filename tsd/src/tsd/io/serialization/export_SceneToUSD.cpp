@@ -827,9 +827,9 @@ void export_SceneToUSD(Scene &scene,
             size_t cameraSampleCount = 0;
             if (animMgr) {
               for (auto &anim : animMgr->animations()) {
-                for (auto &b : anim.bindings) {
-                  if (b.target.get() == camera) {
-                    cameraSampleCount = b.timeBase.size();
+                for (const auto &b : anim.objectParameterBindings()) {
+                  if (b.target() == camera) {
+                    cameraSampleCount = b.timeBase().size();
                     break;
                   }
                 }

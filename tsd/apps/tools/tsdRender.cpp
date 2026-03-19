@@ -293,15 +293,15 @@ static void renderFrames()
   bool hasCameraAnimation = false;
   const tsd::scene::Object *animatedCamera = nullptr;
   for (auto &anim : g_animationMgr->animations()) {
-    for (auto &b : anim.bindings) {
-      if (b.target && b.target->type() == ANARI_CAMERA) {
+    for (auto &b : anim.objectParameterBindings()) {
+      if (b.target() && b.target()->type() == ANARI_CAMERA) {
         hasCameraAnimation = true;
-        animatedCamera = b.target.get();
+        animatedCamera = b.target();
         break;
       }
     }
     if (hasCameraAnimation)
-      break;
+      break;;
   }
 
   if (hasCameraAnimation) {

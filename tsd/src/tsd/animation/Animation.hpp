@@ -3,57 +3,47 @@
 
 #pragma once
 
-#include "tsd/animation/TimeSamples.hpp"
-// tsd_core
-#include "tsd/core/Any.hpp"
-#include "tsd/core/Token.hpp"
+#include "tsd/animation/ObjectParameterBinding.hpp"
+#include "tsd/animation/TransformBinding.hpp"
 // tsd_scene
 #include "tsd/scene/AnyObjectUsePtr.hpp"
-#include "tsd/scene/Layer.hpp"
-#include "tsd/scene/Object.hpp"
+#include "tsd/scene/Scene.hpp"
 // std
 #include <string>
 #include <vector>
 
 namespace tsd::animation {
 
-// Interpolation //////////////////////////////////////////////////////////////
+struct AnimationManager;
 
-enum class InterpolationRule
-{
-  STEP,
-  LINEAR,
-  SLERP,
-};
-
-// Bindings ///////////////////////////////////////////////////////////////////
-
-struct ObjectParameterBinding
-{
-  scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> target;
-  core::Token paramName;
-  ANARIDataType dataType{ANARI_UNKNOWN};
-  TimeSamples data;
-  std::vector<float> timeBase;
-  InterpolationRule interp{InterpolationRule::STEP};
-};
-
-struct TransformBinding
-{
-  scene::LayerNodeRef target;
-  std::vector<float> timeBase;
-  std::vector<tsd::core::math::float4> rotation;
-  std::vector<tsd::core::math::float3> translation;
-  std::vector<tsd::core::math::float3> scale;
-};
-
+/*
+ * Named animation that owns a collection of parameter and transform bindings,
+ * evaluating and applying interpolated values to scene objects at a given time.
+ *
+ * Example:
+ *   Animation &anim = manager.addAnimation("spin");
+ *   anim.addTransformBinding(nodeRef, times, rot, trans, scale, count);
+ *   anim.setAnimationTime(0.5f);
+ */
 struct Animation
 {
-  std::string name;
-  std::vector<ObjectParameterBinding> bindings;
-  std::vector<TransformBinding> transforms;
+  TSD_DEFAULT_COPYABLE(Animation)
+  TSD_DEFAULT_MOVEABLE(Animation)
 
-  ObjectParameterBinding &addObjectParameterBinding(scene::Object *target,
+  Animation(AnimationManager *manager, const std::string &name);
+  ~Animation();
+
+  AnimationManager *manager() const;
+
+  const std::string &name() const;
+  std::string &editableName();
+
+  void setAnimationTime(float t);
+  void updateObjectDefragmentedIndices(const scene::IndexRemapper &cb);
+
+  // Object Parameter Bindings //
+
+  void addObjectParameterBinding(scene::Object *target,
       core::Token paramName,
       ANARIDataType dataType,
       const void *data,
@@ -61,7 +51,7 @@ struct Animation
       size_t count,
       InterpolationRule interp = InterpolationRule::LINEAR);
 
-  ObjectParameterBinding &addObjectParameterBinding(scene::Object *target,
+  void addObjectParameterBinding(scene::Object *target,
       core::Token paramName,
       ANARIDataType dataType,
       scene::Object *const *objects,
@@ -69,44 +59,62 @@ struct Animation
       size_t count,
       InterpolationRule interp = InterpolationRule::STEP);
 
-  TransformBinding &addTransformBinding(scene::LayerNodeRef target,
+  const std::vector<ObjectParameterBinding> &objectParameterBindings() const;
+  ObjectParameterBinding *editableObjectParameterBinding(size_t i);
+  void removeObjectParameterBinding(size_t i);
+
+  // Transform Bindings //
+
+  void addTransformBinding(scene::LayerNodeRef target);
+  void addTransformBinding(scene::LayerNodeRef target,
       const float *timeBase,
       const tsd::core::math::float4 *rotation,
       const tsd::core::math::float3 *translation,
       const tsd::core::math::float3 *scale,
       size_t count);
+
+  const std::vector<TransformBinding> &transformBindings() const;
+  TransformBinding *editableTransformBinding(size_t i);
+  void removeTransformBinding(size_t i);
+
+  // Serialization //
+
+  void toDataNode(core::DataNode &node) const;
+  void fromDataNode(core::DataNode &node);
+
+ private:
+  struct ParameterSubstitution
+  {
+    scene::Object *target{nullptr};
+    core::Token paramName;
+    core::Any value;
+  };
+
+  struct TransformSubstitution
+  {
+    scene::LayerNodeRef target;
+    tsd::core::math::mat4 transform;
+  };
+
+  struct EvaluationResult
+  {
+    std::vector<ParameterSubstitution> parameters;
+    std::vector<TransformSubstitution> transforms;
+  };
+
+  core::Any interpolateBinding(
+      const ObjectParameterBinding &binding, const TimeSample &sample) const;
+
+  EvaluationResult evaluate(float currentTime);
+
+  void applyResults(EvaluationResult &result, scene::Scene &scene);
+
+  // Data //
+
+  AnimationManager *m_manager{nullptr};
+  std::string m_name{"<unnamed_animation>"};
+  std::vector<ObjectParameterBinding> m_bindings;
+  std::vector<TransformBinding> m_transforms;
 };
 
-// Evaluation /////////////////////////////////////////////////////////////////
-
-struct ParameterSubstitution
-{
-  scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> target;
-  core::Token paramName;
-  core::Any value;
-};
-
-struct TransformSubstitution
-{
-  scene::LayerNodeRef target;
-  tsd::core::math::mat4 transform;
-};
-
-struct EvaluationResult
-{
-  std::vector<ParameterSubstitution> parameters;
-  std::vector<TransformSubstitution> transforms;
-};
-
-EvaluationResult evaluate(
-    const std::vector<Animation> &animations, float currentTime);
-
-} // namespace tsd::animation
-
-namespace tsd::scene {
-struct Scene;
-} // namespace tsd::scene
-
-namespace tsd::animation {
-void applyResults(EvaluationResult &result, tsd::scene::Scene &scene);
 } // namespace tsd::animation

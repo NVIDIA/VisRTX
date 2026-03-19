@@ -870,12 +870,9 @@ void addTransformStepBinding(tsd::animation::Animation &anim,
     const std::vector<float> &timeBase)
 {
   size_t n = frames.size();
-  tsd::animation::TransformBinding tb;
-  tb.target = target;
-  tb.timeBase = timeBase;
-  tb.rotation.resize(n);
-  tb.translation.resize(n);
-  tb.scale.resize(n);
+  std::vector<tsd::core::math::float4> rotation;
+  std::vector<tsd::core::math::float3> translation;
+  std::vector<tsd::core::math::float3> scale;
 
   for (size_t i = 0; i < n; i++) {
     auto &m = frames[i];
@@ -883,19 +880,24 @@ void addTransformStepBinding(tsd::animation::Animation &anim,
     math::float3 c1 = {m[1][0], m[1][1], m[1][2]};
     math::float3 c2 = {m[2][0], m[2][1], m[2][2]};
 
-    tb.scale[i] = {length(c0), length(c1), length(c2)};
-    if (tb.scale[i].x > 0.f)
-      c0 = c0 / tb.scale[i].x;
-    if (tb.scale[i].y > 0.f)
-      c1 = c1 / tb.scale[i].y;
-    if (tb.scale[i].z > 0.f)
-      c2 = c2 / tb.scale[i].z;
+    scale[i] = {length(c0), length(c1), length(c2)};
+    if (scale[i].x > 0.f)
+      c0 = c0 / scale[i].x;
+    if (scale[i].y > 0.f)
+      c1 = c1 / scale[i].y;
+    if (scale[i].z > 0.f)
+      c2 = c2 / scale[i].z;
 
-    tb.rotation[i] = mat3ToQuat(c0, c1, c2);
-    tb.translation[i] = {m[3][0], m[3][1], m[3][2]};
+    rotation[i] = mat3ToQuat(c0, c1, c2);
+    translation[i] = {m[3][0], m[3][1], m[3][2]};
   }
 
-  anim.transforms.push_back(std::move(tb));
+  anim.addTransformBinding(target,
+      timeBase.data(),
+      rotation.data(),
+      translation.data(),
+      scale.data(),
+      timeBase.size());
 }
 
 } // namespace tsd::io

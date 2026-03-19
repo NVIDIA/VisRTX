@@ -71,22 +71,6 @@ void renderAnimationSequence(Context &ctx,
   // Validate camera — resolve index //
 
   size_t camIdx = config.camera.cameraIndex;
-
-  // If no camera configured, find a camera-targeting binding
-  if (camIdx == tsd::core::INVALID_INDEX) {
-    for (const auto &anim : animMgr.animations()) {
-      for (const auto &b : anim.bindings) {
-        if (b.target && b.target->type() == ANARI_CAMERA) {
-          camIdx = b.target->index();
-          break;
-        }
-      }
-      if (camIdx != tsd::core::INVALID_INDEX)
-        break;
-    }
-  }
-
-  // Last resort: use camera 0
   if (camIdx == tsd::core::INVALID_INDEX)
     camIdx = 0;
 

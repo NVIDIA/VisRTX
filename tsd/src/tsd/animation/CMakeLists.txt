@@ -8,10 +8,11 @@ project_add_library(STATIC)
 project_sources(
 PRIVATE
   Animation.cpp
-  applyResults.cpp
-  evaluate.cpp
   AnimationManager.cpp
+  Binding.cpp
+  ObjectParameterBinding.cpp
   TimeSamples.cpp
+  TransformBinding.cpp
 )
 
 project_include_directories(

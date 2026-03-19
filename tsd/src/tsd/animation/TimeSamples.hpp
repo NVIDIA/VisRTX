@@ -13,6 +13,16 @@
 
 namespace tsd::animation {
 
+/*
+ * Owning, type-aware buffer of keyframe values backed by a raw allocation;
+ * supports map/unmap access, deep copy, and move semantics.
+ *
+ * Example:
+ *   TimeSamples ts(ANARI_FLOAT32, 4);
+ *   float *p = ts.mapAs<float>();
+ *   p[0] = 0.f; p[1] = 1.f; p[2] = 2.f; p[3] = 3.f;
+ *   ts.unmap();
+ */
 struct TimeSamples
 {
   TimeSamples(anari::DataType elementType, size_t items);

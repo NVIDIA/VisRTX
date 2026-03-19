@@ -458,7 +458,7 @@ bool Context::updateCameraPathAnimation()
   // Remove existing camera path animation by name
   auto &anims = tsd.animationMgr.animations();
   for (size_t i = 0; i < anims.size(); i++) {
-    if (anims[i].name == view.cameraPathAnimationName) {
+    if (anims[i].name() == view.cameraPathAnimationName) {
       tsd.animationMgr.removeAnimation(i);
       break;
     }
@@ -533,7 +533,7 @@ void Context::removeAllPoses()
     tsd::core::logStatus("[camera path] Clearing camera path animation");
     auto &anims = tsd.animationMgr.animations();
     for (size_t i = 0; i < anims.size(); i++) {
-      if (anims[i].name == view.cameraPathAnimationName) {
+      if (anims[i].name() == view.cameraPathAnimationName) {
         tsd.animationMgr.removeAnimation(i);
         break;
       }

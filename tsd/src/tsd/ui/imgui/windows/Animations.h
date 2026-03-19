@@ -22,9 +22,6 @@ struct Animations : public Window
  private:
   void buildUI_animationControls();
 
-
-  // Data //
-
   bool m_playing{false};
 };
 

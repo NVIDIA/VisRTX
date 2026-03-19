@@ -19,167 +19,29 @@ namespace tsd::ui::imgui {
 
 // Helpers for keyframe-style editing on vector-based bindings ////////////////
 
-static void insertKeyframe(
-    tsd::animation::ObjectParameterBinding &b, float time, const void *value)
-{
-  size_t elemSize = anari::sizeOf(b.dataType);
-  if (elemSize == 0)
-    return;
-
-  size_t count = b.timeBase.size();
-
-  // Find insertion point (maintain time sort)
-  size_t insertIdx = count;
-  for (size_t i = 0; i < count; i++) {
-    if (std::abs(b.timeBase[i] - time) < 1e-4f) {
-      auto *dst = static_cast<uint8_t *>(b.data.map());
-      std::memcpy(dst + i * elemSize, value, elemSize);
-      b.data.unmap();
-      return;
-    }
-    if (b.timeBase[i] > time) {
-      insertIdx = i;
-      break;
-    }
-  }
-
-  b.timeBase.insert(b.timeBase.begin() + insertIdx, time);
-
-  size_t newCount = count + 1;
-  tsd::animation::TimeSamples newData(b.dataType, newCount);
-  auto *newVals = static_cast<uint8_t *>(newData.map());
-  const auto *oldData = static_cast<const uint8_t *>(b.data.data());
-
-  if (oldData && insertIdx > 0)
-    std::memcpy(newVals, oldData, insertIdx * elemSize);
-
-  std::memcpy(newVals + insertIdx * elemSize, value, elemSize);
-
-  if (oldData && insertIdx < count)
-    std::memcpy(newVals + (insertIdx + 1) * elemSize,
-        oldData + insertIdx * elemSize,
-        (count - insertIdx) * elemSize);
-
-  newData.unmap();
-  b.data = std::move(newData);
-}
-
-static void removeKeyframe(
-    tsd::animation::ObjectParameterBinding &b, size_t index)
-{
-  size_t count = b.timeBase.size();
-  if (index >= count)
-    return;
-
-  size_t elemSize = anari::sizeOf(b.dataType);
-  if (count <= 1) {
-    b.timeBase.clear();
-    b.data = tsd::animation::TimeSamples();
-    return;
-  }
-
-  b.timeBase.erase(b.timeBase.begin() + index);
-
-  size_t newCount = count - 1;
-  tsd::animation::TimeSamples newData(b.dataType, newCount);
-  auto *newVals = static_cast<uint8_t *>(newData.map());
-  const auto *oldData = static_cast<const uint8_t *>(b.data.data());
-
-  if (index > 0)
-    std::memcpy(newVals, oldData, index * elemSize);
-  if (index < newCount)
-    std::memcpy(newVals + index * elemSize,
-        oldData + (index + 1) * elemSize,
-        (newCount - index) * elemSize);
-
-  newData.unmap();
-  b.data = std::move(newData);
-}
-
-static void insertTransformKeyframe(
-    tsd::animation::TransformBinding &tb, float time, const math::mat4 &m)
-{
-  // Decompose mat4 -> rotation quaternion, translation, scale
-  math::float3 c0 = {m[0][0], m[0][1], m[0][2]};
-  math::float3 c1 = {m[1][0], m[1][1], m[1][2]};
-  math::float3 c2 = {m[2][0], m[2][1], m[2][2]};
-
-  auto vecLen = [](math::float3 v) {
-    return std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-  };
-  math::float3 scl = {vecLen(c0), vecLen(c1), vecLen(c2)};
-  if (scl.x > 0.f)
-    c0 = {c0.x / scl.x, c0.y / scl.x, c0.z / scl.x};
-  if (scl.y > 0.f)
-    c1 = {c1.x / scl.y, c1.y / scl.y, c1.z / scl.y};
-  if (scl.z > 0.f)
-    c2 = {c2.x / scl.z, c2.y / scl.z, c2.z / scl.z};
-
-  // Shepperd's method (mat3 -> unit quaternion)
-  float trace = c0.x + c1.y + c2.z;
-  math::float4 rot;
-  if (trace > 0.f) {
-    float s = 0.5f / std::sqrt(trace + 1.f);
-    rot = {(c1.z - c2.y) * s, (c2.x - c0.z) * s, (c0.y - c1.x) * s, 0.25f / s};
-  } else if (c0.x > c1.y && c0.x > c2.z) {
-    float s = 0.5f / std::sqrt(1.f + c0.x - c1.y - c2.z);
-    rot = {0.25f / s, (c0.y + c1.x) * s, (c2.x + c0.z) * s, (c1.z - c2.y) * s};
-  } else if (c1.y > c2.z) {
-    float s = 0.5f / std::sqrt(1.f + c1.y - c0.x - c2.z);
-    rot = {(c0.y + c1.x) * s, 0.25f / s, (c1.z + c2.y) * s, (c2.x - c0.z) * s};
-  } else {
-    float s = 0.5f / std::sqrt(1.f + c2.z - c0.x - c1.y);
-    rot = {(c2.x + c0.z) * s, (c1.z + c2.y) * s, 0.25f / s, (c0.y - c1.x) * s};
-  }
-  float qlen =
-      std::sqrt(rot.x * rot.x + rot.y * rot.y + rot.z * rot.z + rot.w * rot.w);
-  rot = {rot.x / qlen, rot.y / qlen, rot.z / qlen, rot.w / qlen};
-
-  math::float3 trans = {m[3][0], m[3][1], m[3][2]};
-
-  // Find insertion point (maintain time sort)
-  size_t count = tb.timeBase.size();
-  size_t insertIdx = count;
-  for (size_t i = 0; i < count; i++) {
-    if (std::abs(tb.timeBase[i] - time) < 1e-4f) {
-      tb.rotation[i] = rot;
-      tb.translation[i] = trans;
-      tb.scale[i] = scl;
-      return;
-    }
-    if (tb.timeBase[i] > time) {
-      insertIdx = i;
-      break;
-    }
-  }
-
-  tb.timeBase.insert(tb.timeBase.begin() + insertIdx, time);
-  tb.rotation.insert(tb.rotation.begin() + insertIdx, rot);
-  tb.translation.insert(tb.translation.begin() + insertIdx, trans);
-  tb.scale.insert(tb.scale.begin() + insertIdx, scl);
-}
-
 static void captureCurrentCameraKeyframe(
     tsd::animation::Animation &anim, float t)
 {
   // Find a camera-targeting binding to identify the camera
-  tsd::scene::Object *camObj = nullptr;
-  for (auto &b : anim.bindings) {
-    if (b.target && b.target->type() == ANARI_CAMERA) {
-      camObj = b.target.get();
+  const tsd::scene::Object *cam = nullptr;
+  for (auto &b : anim.objectParameterBindings()) {
+    auto *t = b.target();
+    if (t && t->type() == ANARI_CAMERA) {
+      cam = t;
       break;
     }
   }
-  if (!camObj)
+  if (!cam)
     return;
-  const auto *cam = static_cast<const tsd::scene::Camera *>(camObj);
 
-  auto captureParam = [&](const char *paramName, ANARIDataType type) {
-    for (auto &b : anim.bindings) {
-      if (b.paramName == tsd::core::Token(paramName)) {
+  auto captureParam = [&](const char *_paramName, ANARIDataType type) {
+    auto paramName = tsd::core::Token(_paramName);
+    for (size_t i = 0; i < anim.objectParameterBindings().size(); i++) {
+      auto &b = *anim.editableObjectParameterBinding(i);
+      if (b.paramName() == paramName) {
         auto val = cam->parameterValueAs<math::float3>(paramName);
         if (val)
-          insertKeyframe(b, t, &*val);
+          b.insertKeyframe(t, &*val);
         return;
       }
     }
@@ -189,6 +51,8 @@ static void captureCurrentCameraKeyframe(
   captureParam("direction", ANARI_FLOAT32_VEC3);
   captureParam("up", ANARI_FLOAT32_VEC3);
 }
+
+// Timeline definitions ///////////////////////////////////////////////////////
 
 Timeline::Timeline(Application *app, const char *name) : Window(app, name) {}
 
@@ -219,10 +83,10 @@ void Timeline::buildUI()
       if (!m_selectedTracks.empty() && m_selectedTracks.count(i) == 0)
         continue;
       auto &anim = anims[i];
-      if (!anim.transforms.empty() && anim.transforms[0].target) {
-        auto nodeRef = anim.transforms[0].target;
-        math::mat4 mat = (*nodeRef)->getTransform();
-        insertTransformKeyframe(anim.transforms[0], t, mat);
+      auto *transform = anim.editableTransformBinding(0);
+      if (transform && transform->target()) {
+        math::mat4 mat = (*transform->target())->getTransform();
+        transform->insertKeyframe(t, mat);
       } else {
         captureCurrentCameraKeyframe(anim, t);
       }
@@ -413,10 +277,10 @@ void Timeline::buildUI_canvas()
             ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
 
       char label[64];
-      if (anim.name.size() > 20)
-        std::snprintf(label, sizeof(label), "%.17s...", anim.name.c_str());
+      if (anim.name().size() > 20)
+        std::snprintf(label, sizeof(label), "%.17s...", anim.name().c_str());
       else
-        std::snprintf(label, sizeof(label), "%s", anim.name.c_str());
+        std::snprintf(label, sizeof(label), "%s", anim.name().c_str());
 
       float colW = ImGui::GetContentRegionAvail().x;
       if (ImGui::Button(label, ImVec2(colW - 30.f, rowHeight))) {
@@ -459,13 +323,13 @@ void Timeline::buildUI_canvas()
             rowBg);
 
         // Draw binding keyframe diamonds
-        for (size_t bi = 0; bi < anim.bindings.size(); bi++) {
-          const auto &b = anim.bindings[bi];
-          if (b.timeBase.empty())
+        for (size_t bi = 0; bi < anim.objectParameterBindings().size(); bi++) {
+          const auto &b = anim.objectParameterBindings()[bi];
+          if (b.timeBase().empty())
             continue;
-          for (size_t ki = 0; ki < b.timeBase.size(); ki++) {
+          for (size_t ki = 0; ki < b.timeBase().size(); ki++) {
             float kx = rowPos.x
-                + b.timeBase[ki] * (totalFrames - 1) * m_pixelsPerFrame;
+                + b.timeBase()[ki] * (totalFrames - 1) * m_pixelsPerFrame;
             float ky = rowPos.y + rowHeight * 0.5f;
             float r = 4.f;
             uint32_t fillCol = (bi == 0) ? IM_COL32(80, 200, 255, 255)
@@ -486,12 +350,12 @@ void Timeline::buildUI_canvas()
             ImGui::InvisibleButton("##bkf", ImVec2(r * 2.f, r * 2.f));
             if (ImGui::IsItemHovered()) {
               int kframe = static_cast<int>(
-                  std::round(b.timeBase[ki] * (totalFrames - 1)));
-              ImGui::SetTooltip("%s @ frame %d", b.paramName.c_str(), kframe);
+                  std::round(b.timeBase()[ki] * (totalFrames - 1)));
+              ImGui::SetTooltip("%s @ frame %d", b.paramName().c_str(), kframe);
             }
             if (ImGui::BeginPopupContextItem("##bkf_ctx")) {
               if (ImGui::MenuItem("Delete keyframe"))
-                removeKeyframe(anim.bindings[bi], ki);
+                anim.editableObjectParameterBinding(bi)->removeKeyframe(ki);
               ImGui::EndPopup();
             }
             ImGui::PopID();
@@ -499,13 +363,13 @@ void Timeline::buildUI_canvas()
         }
 
         // Draw transform binding keyframe diamonds
-        for (size_t ti = 0; ti < anim.transforms.size(); ti++) {
-          const auto &tfb = anim.transforms[ti];
-          if (tfb.timeBase.empty())
+        for (size_t ti = 0; ti < anim.transformBindings().size(); ti++) {
+          const auto &tfb = *anim.editableTransformBinding(ti);
+          if (tfb.timeBase().empty())
             continue;
-          for (size_t ki = 0; ki < tfb.timeBase.size(); ki++) {
+          for (size_t ki = 0; ki < tfb.timeBase().size(); ki++) {
             float kx = rowPos.x
-                + tfb.timeBase[ki] * (totalFrames - 1) * m_pixelsPerFrame;
+                + tfb.timeBase()[ki] * (totalFrames - 1) * m_pixelsPerFrame;
             float ky = rowPos.y + rowHeight * 0.5f;
             float r = 5.f;
             uint32_t fillCol = selected ? IM_COL32(255, 200, 50, 255)
@@ -526,7 +390,7 @@ void Timeline::buildUI_canvas()
             ImGui::InvisibleButton("##tkf", ImVec2(r * 2.f, r * 2.f));
             if (ImGui::IsItemHovered()) {
               int kframe = static_cast<int>(
-                  std::round(tfb.timeBase[ki] * (totalFrames - 1)));
+                  std::round(tfb.timeBase()[ki] * (totalFrames - 1)));
               ImGui::SetTooltip("Transform @ frame %d", kframe);
             }
             ImGui::PopID();
@@ -581,7 +445,7 @@ void Timeline::buildUI_canvas()
                   const char *animName =
                       !node->name().empty() ? node->name().c_str() : menuLabel;
                   auto &newAnim = animMgr.addAnimation(animName);
-                  newAnim.transforms.push_back({nodeRef, {}, {}, {}, {}});
+                  newAnim.addTransformBinding(nodeRef);
                   ImGui::CloseCurrentPopup();
                 }
                 ImGui::PopID();
@@ -635,10 +499,10 @@ void Timeline::buildUI_canvas()
         if (!m_selectedTracks.empty() && m_selectedTracks.count(i) == 0)
           continue;
         auto &anim = anims[i];
-        if (!anim.transforms.empty() && anim.transforms[0].target) {
-          auto nodeRef = anim.transforms[0].target;
-          math::mat4 mat = (*nodeRef)->getTransform();
-          insertTransformKeyframe(anim.transforms[0], t, mat);
+        auto *transform = anim.editableTransformBinding(0);
+        if (transform && transform->target()) {
+          math::mat4 mat = (*transform->target())->getTransform();
+          transform->insertKeyframe(t, mat);
         } else {
           captureCurrentCameraKeyframe(anim, t);
         }

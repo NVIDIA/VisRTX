@@ -414,60 +414,6 @@ void save_Scene(Scene &scene,
     }
   }
 
-  // Animations //
-
-  if (animMgr) {
-    const auto &anims = animMgr->animations();
-    tsd::core::logStatus("    ...serializing %zu animations", anims.size());
-
-    auto &animationsRoot = root["animation"];
-
-    auto &animationObjects = animationsRoot["objects"];
-    for (const auto &anim : anims) {
-      auto &animNode = animationObjects.append();
-      animNode["name"] = anim.name;
-
-      auto &bindingsNode = animNode["bindings"];
-      for (const auto &b : anim.bindings) {
-        auto &bNode = bindingsNode.append();
-        bNode["targetType"] =
-            b.target ? (int)b.target->type() : (int)ANARI_UNKNOWN;
-        bNode["targetIndex"] = b.target ? b.target->index() : size_t(-1);
-        bNode["paramName"] = b.paramName.str();
-        bNode["dataType"] = (int)b.dataType;
-        if (!b.timeBase.empty())
-          bNode["timeBase"].setValueAsArray(b.timeBase);
-        if (!b.data.isEmpty())
-          bNode["data"].setValueAsArray(
-              b.dataType, b.data.data(), b.data.size());
-        bNode["interp"] = (int)b.interp;
-      }
-
-      auto &transformsNode = animNode["transforms"];
-      for (const auto &tb : anim.transforms) {
-        auto &tNode = transformsNode.append();
-        if (tb.target) {
-          auto *lay = tb.target->value().layer();
-          tNode["layerName"] = scene.getLayerName(lay).str();
-          tNode["nodeIndex"] = tb.target->index();
-        }
-        if (!tb.timeBase.empty())
-          tNode["timeBase"].setValueAsArray(tb.timeBase);
-        if (!tb.rotation.empty())
-          tNode["rotation"].setValueAsArray(tb.rotation);
-        if (!tb.translation.empty())
-          tNode["translation"].setValueAsArray(tb.translation);
-        if (!tb.scale.empty())
-          tNode["scale"].setValueAsArray(tb.scale);
-      }
-    }
-
-    auto &animationSettings = animationsRoot["settings"];
-    animationSettings["time"] = animMgr->getAnimationTime();
-    animationSettings["increment"] = animMgr->getAnimationIncrement();
-    animationSettings["totalFrames"] = animMgr->getAnimationTotalFrames();
-  }
-
   // ObjectDB //
 
   auto &objectDB = root["objectDB"];
@@ -499,6 +445,11 @@ void save_Scene(Scene &scene,
   objectPoolToNode(objectDB, scene.m_db.camera, "camera");
   objectPoolToNode(objectDB, scene.m_db.renderer, "renderer");
   objectPoolToNode(objectDB, scene.m_db.array, "array");
+
+  // Animations //
+
+  if (animMgr)
+    animMgr->toDataNode(root["animations"]);
 }
 
 void load_Scene(Scene &scene,
@@ -575,112 +526,8 @@ void load_Scene(Scene &scene,
 
   // Animations
 
-  if (animMgr) {
-    if (auto *c = root.child("animation"); c != nullptr) {
-      tsd::core::logStatus("  ...converting animations");
-
-      auto &animationRoot = *c;
-      auto &animationObjects = animationRoot["objects"];
-      animationObjects.foreach_child([&](core::DataNode &animNode) {
-        auto &anim =
-            animMgr->addAnimation(animNode["name"].getValueAs<std::string>());
-
-        if (auto *bindingsNode = animNode.child("bindings")) {
-          bindingsNode->foreach_child([&](core::DataNode &bNode) {
-            auto targetType =
-                (ANARIDataType)bNode["targetType"].getValueAs<int>();
-            auto targetIndex = bNode["targetIndex"].getValueAs<size_t>();
-            scene::Object *target = nullptr;
-            if (targetType != ANARI_UNKNOWN && targetIndex != size_t(-1))
-              target = scene.getObject(targetType, targetIndex);
-
-            auto paramName =
-                Token(bNode["paramName"].getValueAs<std::string>().c_str());
-            auto dataType =
-                (ANARIDataType)bNode["dataType"].getValueAs<int>();
-            auto interp =
-                (tsd::animation::InterpolationRule)bNode["interp"]
-                    .getValueAs<int>();
-
-            const float *tbPtr = nullptr;
-            size_t tbCount = 0;
-            if (auto *tbNode = bNode.child("timeBase"))
-              tbNode->getValueAsArray(&tbPtr, &tbCount);
-
-            const void *dataPtr = nullptr;
-            size_t dataCount = 0;
-            if (auto *dataNode = bNode.child("data");
-                dataNode && dataNode->holdsArray()) {
-              ANARIDataType dt = ANARI_UNKNOWN;
-              dataNode->getValueAsArray(&dt, &dataPtr, &dataCount);
-            }
-
-            size_t count = dataCount > 0 ? dataCount : tbCount;
-            anim.addObjectParameterBinding(
-                target, paramName, dataType, dataPtr, tbPtr, count, interp);
-          });
-        }
-
-        if (auto *transformsNode = animNode.child("transforms")) {
-          transformsNode->foreach_child([&](core::DataNode &tNode) {
-            tsd::animation::TransformBinding tb;
-            if (auto *lnNode = tNode.child("layerName")) {
-              auto layerName = Token(lnNode->getValueAs<std::string>().c_str());
-              auto *lay = scene.layer(layerName);
-              if (lay) {
-                size_t idx = tNode["nodeIndex"].getValueAs<size_t>();
-                tb.target = lay->at(idx);
-              }
-            }
-
-            auto loadFloatVec = [&](const char *key, std::vector<float> &out) {
-              if (auto *n = tNode.child(key)) {
-                const float *ptr = nullptr;
-                size_t count = 0;
-                n->getValueAsArray(&ptr, &count);
-                if (ptr && count > 0)
-                  out.assign(ptr, ptr + count);
-              }
-            };
-            auto loadFloat4Vec = [&](const char *key,
-                                     std::vector<tsd::math::float4> &out) {
-              if (auto *n = tNode.child(key)) {
-                const tsd::math::float4 *ptr = nullptr;
-                size_t count = 0;
-                n->getValueAsArray(&ptr, &count);
-                if (ptr && count > 0)
-                  out.assign(ptr, ptr + count);
-              }
-            };
-            auto loadFloat3Vec = [&](const char *key,
-                                     std::vector<tsd::math::float3> &out) {
-              if (auto *n = tNode.child(key)) {
-                const tsd::math::float3 *ptr = nullptr;
-                size_t count = 0;
-                n->getValueAsArray(&ptr, &count);
-                if (ptr && count > 0)
-                  out.assign(ptr, ptr + count);
-              }
-            };
-
-            loadFloatVec("timeBase", tb.timeBase);
-            loadFloat4Vec("rotation", tb.rotation);
-            loadFloat3Vec("translation", tb.translation);
-            loadFloat3Vec("scale", tb.scale);
-            anim.transforms.push_back(std::move(tb));
-          });
-        }
-      });
-
-      auto &animationSettings = animationRoot["settings"];
-      animMgr->setAnimationIncrement(
-          animationSettings["increment"].getValueAs<float>());
-      if (auto *tf = animationSettings.child("totalFrames"); tf != nullptr)
-        animMgr->setAnimationTotalFrames(tf->getValueAs<int>());
-    } else {
-      tsd::core::logStatus("  ...no animations found!");
-    }
-  }
+  if (animMgr)
+    animMgr->fromDataNode(root["animations"]);
 
   tsd::core::logStatus("  ...done!");
 }
