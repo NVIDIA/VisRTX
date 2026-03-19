@@ -399,6 +399,8 @@ void save_Scene(Scene &scene,
     bool forceProxyArrays,
     tsd::animation::AnimationManager *animMgr)
 {
+  scene.defragmentObjectStorage(); // ensure contiguous object indices
+
   // Layers //
 
   tsd::core::logStatus("    ...serializing %zu layers", scene.numberOfLayers());
