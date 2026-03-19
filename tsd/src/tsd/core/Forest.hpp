@@ -149,8 +149,6 @@ struct Forest
 
   void reserve(size_t size);
 
-  bool storageIsDense() const;
-
   // ForestNode access //
 
   size_t size() const;
@@ -384,12 +382,6 @@ template <typename T>
 inline void Forest<T>::reserve(size_t size)
 {
   m_nodes.reserve(size);
-}
-
-template <typename T>
-inline bool Forest<T>::storageIsDense() const
-{
-  return m_nodes.isDense();
 }
 
 template <typename T>

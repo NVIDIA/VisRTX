@@ -49,7 +49,7 @@ struct ObjectPool
 
   bool slot_empty(size_t i) const;
   float density() const;
-  bool isDense() const;
+  bool is_dense() const;
 
   ObjectPoolRef<T> insert(T &&v);
   template <typename... Args>
@@ -208,7 +208,7 @@ inline float ObjectPool<T>::density() const
 }
 
 template <typename T>
-inline bool ObjectPool<T>::isDense() const
+inline bool ObjectPool<T>::is_dense() const
 {
   return density() == 1.f;
 }
@@ -267,7 +267,7 @@ inline void ObjectPool<T>::reserve(size_t size)
 template <typename T>
 inline std::vector<ObjectPoolRemapping> ObjectPool<T>::defragment()
 {
-  if (isDense())
+  if (is_dense())
     return {};
 
   std::vector<ObjectPoolRemapping> retval;
