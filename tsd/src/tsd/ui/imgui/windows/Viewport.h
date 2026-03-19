@@ -68,6 +68,8 @@ struct Viewport : public BaseViewport
 
   // Data /////////////////////////////////////////////////////////////////////
 
+  size_t m_defragToken{0};
+
   ViewportDeviceChangeCb m_deviceChangeCb;
   float m_timeToLoadDevice{0.f};
   std::future<void> m_initFuture;
@@ -76,6 +78,7 @@ struct Viewport : public BaseViewport
   tsd::app::RenderIndexKind m_lastIndexKind{
       tsd::app::RenderIndexKind::ALL_LAYERS};
 
+  bool m_refreshDeviceNextFrame{false};
   bool m_showOverlay{true};
   bool m_showAxes{true};
   bool m_highlightSelection{true};

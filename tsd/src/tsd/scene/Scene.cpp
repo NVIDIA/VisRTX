@@ -92,12 +92,13 @@ Scene::~Scene()
 
       logWarning(
           "Scene::~Scene(): object of type %s, index [%zu], and name '%s' has"
-          " non-zero use count of"
+          " non-zero use count of (%zu) --> "
           " [app(%zu) | param(%zu) | layer(%zu) | anim(%zu) | internal(%zu)]"
           " at scene destruction",
           anari::toString(o->type()),
           o->index(),
           o->name().c_str(),
+          o->totalUseCount(),
           o->useCount(Object::UseKind::APP),
           o->useCount(Object::UseKind::PARAMETER),
           o->useCount(Object::UseKind::LAYER),

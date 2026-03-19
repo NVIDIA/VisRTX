@@ -498,7 +498,7 @@ void Object::incObjectUseCountParameter(const Parameter *p)
 {
   if (!m_scene)
     return;
-  if (auto *obj = m_scene->getObject(p->value()))
+  if (auto *obj = m_scene->getObject(p->value()); obj != nullptr)
     obj->incUseCount(UseKind::PARAMETER);
 }
 
@@ -506,7 +506,7 @@ void Object::decObjectUseCountParameter(const Parameter *p)
 {
   if (!m_scene)
     return;
-  if (auto *obj = m_scene->getObject(p->value()))
+  if (auto *obj = m_scene->getObject(p->value()); obj != nullptr)
     obj->decUseCount(UseKind::PARAMETER);
 }
 

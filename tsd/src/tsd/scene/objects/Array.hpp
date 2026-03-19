@@ -83,8 +83,7 @@ struct Array : public Object
   anari::Object makeANARIObject(anari::Device d) const override;
 
   // Movable, not copyable
-  Array(const Array &) = delete;
-  Array &operator=(const Array &) = delete;
+  TSD_NOT_COPYABLE(Array)
   Array(Array &&);
   Array &operator=(Array &&);
 

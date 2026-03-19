@@ -32,12 +32,14 @@ Viewport::Viewport(
 {
   m_viewport.resolutionScale = 0.75f;
   BaseViewport::setManipulator(m);
-  setLibrary("");
+  m_defragToken = appContext()->tsd.scene.addDefragCallback(
+      [this](const auto &) { m_refreshDeviceNextFrame = true; });
 }
 
 Viewport::~Viewport()
 {
   teardownDevice();
+  appContext()->tsd.scene.removeDefragCallback(m_defragToken);
 }
 
 void Viewport::buildUI()
@@ -46,6 +48,14 @@ void Viewport::buildUI()
       && !BaseViewport::imagePipeline_isSetup();
   if (setupPipeline)
     BaseViewport::imagePipeline_setup();
+
+  if (m_refreshDeviceNextFrame) {
+    if (!m_libName.empty()) {
+      auto lib = m_libName; // setLibrary() clears m_libName
+      setLibrary(lib);
+    }
+    m_refreshDeviceNextFrame = false;
+  }
 
   BaseViewport::buildUI();
 
@@ -91,9 +101,7 @@ void Viewport::buildUI()
     if (kind != m_lastIndexKind) {
       tsd::core::logWarning("render index setting changed: resetting viewport");
       m_lastIndexKind = kind;
-      auto lib = m_libName;
-      setLibrary("");
-      setLibrary(lib);
+      m_refreshDeviceNextFrame = true;
     }
   }
 }
@@ -599,10 +607,8 @@ void Viewport::ui_menubar_Device()
         setLibrary(libName);
     }
     ImGui::Separator();
-    if (ImGui::MenuItem("Reload Current Device")) {
-      auto lib = m_libName; // setLibrary() clears m_libName
-      setLibrary(lib);
-    }
+    if (ImGui::MenuItem("Reload Current Device"))
+      m_refreshDeviceNextFrame = true;
     ImGui::EndMenu();
   }
 }
