@@ -165,8 +165,8 @@ SCENARIO("tsd::core::ObjectPool defragmentation", "[ObjectPool]")
         THEN("The remaining values are correct")
         {
           REQUIRE(iv[0] == 0);
-          REQUIRE(iv[1] == 3);
-          REQUIRE(iv[2] == 4);
+          REQUIRE(iv[1] == 4);
+          REQUIRE(iv[2] == 3);
         }
       }
     }

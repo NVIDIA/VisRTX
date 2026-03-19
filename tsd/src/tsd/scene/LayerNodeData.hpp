@@ -80,7 +80,7 @@ struct LayerNodeData
   //////////////////////////////////////////////////////////////////
   // Warning: these operate on the raw Any value, no type checking!
   Any getValueRaw() const;
-  void setValueRaw(const Any &v);
+  void setValueRaw(const Any &v, bool ignoreObjectUsageCounts = false);
   //////////////////////////////////////////////////////////////////
 
   const InstanceParameterMap &getInstanceParameters() const;

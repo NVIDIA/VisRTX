@@ -53,6 +53,7 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <stack>
 #include <string>
 #include <unordered_map>
 #include <vector>

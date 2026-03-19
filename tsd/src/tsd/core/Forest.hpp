@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tsd/core/ObjectPool.hpp"
+#include "tsd/core/TypeMacros.hpp"
 // std
 #include <functional>
 #include <utility>
@@ -143,12 +144,12 @@ struct Forest
   Forest() = delete;
   ~Forest() = default;
 
-  Forest(const Forest &) = delete;
-  Forest &operator=(const Forest &) = delete;
-  Forest(Forest &&) = delete;
-  Forest &operator=(Forest &&) = delete;
+  TSD_NOT_COPYABLE(Forest)
+  TSD_NOT_MOVEABLE(Forest)
 
   void reserve(size_t size);
+
+  bool storageIsDense() const;
 
   // ForestNode access //
 
@@ -383,6 +384,12 @@ template <typename T>
 inline void Forest<T>::reserve(size_t size)
 {
   m_nodes.reserve(size);
+}
+
+template <typename T>
+inline bool Forest<T>::storageIsDense() const
+{
+  return m_nodes.isDense();
 }
 
 template <typename T>

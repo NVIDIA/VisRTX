@@ -35,30 +35,15 @@ Scene::Scene()
 
   // Layer-node object reference patching
   addDefragCallback([this](const IndexRemapper &remap) {
-    std::vector<LayerNode *> toErase;
-
     for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++) {
       auto &layer = *itr->second.ptr;
       layer.traverse(layer.root(), [&](LayerNode &node, int) {
         if (!node->isObject())
           return true;
-        auto objType =
-            anari::isArray(node->type()) ? ANARI_ARRAY : node->type();
-        size_t newIdx = remap(objType, node->getObjectIndex());
-        if (newIdx != INVALID_INDEX)
-          node->setAsObject(node->type(), newIdx);
-        else
-          toErase.push_back(&node);
+        size_t newIdx = remap(node->type(), node->getObjectIndex());
+        node->setValueRaw({node->type(), newIdx}, true);
         return true;
       });
-    }
-
-    for (auto *ln : toErase)
-      ln->erase_self();
-    if (!toErase.empty()) {
-      tsd::core::logStatus(
-          "    Removed %zu layer nodes referencing deleted objects",
-          toErase.size());
     }
   });
 
@@ -73,12 +58,8 @@ Scene::Scene()
           const auto &v = p.value();
           if (!v.holdsObject())
             continue;
-          auto objType =
-              anari::isArray(v.type()) ? ANARI_ARRAY : v.type();
-          auto newIdx = remap(objType, v.getAsObjectIndex());
-          Any newValue =
-              newIdx != INVALID_INDEX ? Any(v.type(), newIdx) : Any();
-          p.m_value = newValue;
+          size_t newIdx = remap(v.type(), v.getAsObjectIndex());
+          p.m_value = Any(v.type(), newIdx);
         }
       });
     };
@@ -109,16 +90,19 @@ Scene::~Scene()
       if (!o || o->totalUseCount() == 0)
         return;
 
-      if (o->type() == ANARI_MATERIAL && o->index() == 0)
-        return;
-
       logWarning(
           "Scene::~Scene(): object of type %s, index [%zu], and name '%s' has"
-          " non-zero use count of %zu at scene destruction",
+          " non-zero use count of"
+          " [app(%zu) | param(%zu) | layer(%zu) | anim(%zu) | internal(%zu)]"
+          " at scene destruction",
           anari::toString(o->type()),
           o->index(),
           o->name().c_str(),
-          o->totalUseCount());
+          o->useCount(Object::UseKind::APP),
+          o->useCount(Object::UseKind::PARAMETER),
+          o->useCount(Object::UseKind::LAYER),
+          o->useCount(Object::UseKind::ANIM),
+          o->useCount(Object::UseKind::INTERNAL));
     });
     array.clear();
   };
@@ -812,30 +796,30 @@ void Scene::removeDefragCallback(size_t token)
 
 void Scene::defragmentObjectStorage()
 {
-  FlatMap<anari::DataType, bool> defragmentations;
+  FlatMap<anari::DataType, std::vector<core::ObjectPoolRemapping>> defrags;
 
   // Defragment object storage and stash whether something happened //
 
   bool defrag = false;
 
-  defrag |= defragmentations[ANARI_ARRAY] = m_db.array.defragment();
-  defrag |= defragmentations[ANARI_SURFACE] = m_db.surface.defragment();
-  defrag |= defragmentations[ANARI_GEOMETRY] = m_db.geometry.defragment();
-  defrag |= defragmentations[ANARI_MATERIAL] = m_db.material.defragment();
-  defrag |= defragmentations[ANARI_SAMPLER] = m_db.sampler.defragment();
-  defrag |= defragmentations[ANARI_VOLUME] = m_db.volume.defragment();
-  defrag |= defragmentations[ANARI_SPATIAL_FIELD] = m_db.field.defragment();
-  defrag |= defragmentations[ANARI_LIGHT] = m_db.light.defragment();
-  defrag |= defragmentations[ANARI_CAMERA] = m_db.camera.defragment();
-  defrag |= defragmentations[ANARI_RENDERER] = m_db.renderer.defragment();
+  defrag |= !(defrags[ANARI_ARRAY] = m_db.array.defragment()).empty();
+  defrag |= !(defrags[ANARI_SURFACE] = m_db.surface.defragment()).empty();
+  defrag |= !(defrags[ANARI_GEOMETRY] = m_db.geometry.defragment()).empty();
+  defrag |= !(defrags[ANARI_MATERIAL] = m_db.material.defragment()).empty();
+  defrag |= !(defrags[ANARI_SAMPLER] = m_db.sampler.defragment()).empty();
+  defrag |= !(defrags[ANARI_VOLUME] = m_db.volume.defragment()).empty();
+  defrag |= !(defrags[ANARI_SPATIAL_FIELD] = m_db.field.defragment()).empty();
+  defrag |= !(defrags[ANARI_LIGHT] = m_db.light.defragment()).empty();
+  defrag |= !(defrags[ANARI_CAMERA] = m_db.camera.defragment()).empty();
+  defrag |= !(defrags[ANARI_RENDERER] = m_db.renderer.defragment()).empty();
 
   if (!defrag) {
     tsd::core::logStatus("No defragmentation needed");
     return;
   } else {
     tsd::core::logStatus("Defragmenting context arrays:");
-    for (const auto &pair : defragmentations) {
-      if (pair.second)
+    for (const auto &pair : defrags) {
+      if (!pair.second.empty())
         tsd::core::logStatus("    --> %s", anari::toString(pair.first));
     }
   }
@@ -844,40 +828,15 @@ void Scene::defragmentObjectStorage()
 
   IndexRemapper getUpdatedIndex = [&](anari::DataType objType,
                                       size_t idx) -> size_t {
-    auto findIdx = [](const auto &a, size_t i) {
-      auto ref = find_item_if(a, [&](auto *o) { return o->index() == i; });
-      return ref ? ref.index() : INVALID_INDEX;
-    };
-
-    switch (objType) {
-    case ANARI_SURFACE:
-      return findIdx(m_db.surface, idx);
-    case ANARI_GEOMETRY:
-      return findIdx(m_db.geometry, idx);
-    case ANARI_MATERIAL:
-      return findIdx(m_db.material, idx);
-    case ANARI_SAMPLER:
-      return findIdx(m_db.sampler, idx);
-    case ANARI_VOLUME:
-      return findIdx(m_db.volume, idx);
-    case ANARI_SPATIAL_FIELD:
-      return findIdx(m_db.field, idx);
-    case ANARI_LIGHT:
-      return findIdx(m_db.light, idx);
-    case ANARI_CAMERA:
-      return findIdx(m_db.camera, idx);
-    case ANARI_RENDERER:
-      return findIdx(m_db.renderer, idx);
-    case ANARI_ARRAY:
-    case ANARI_ARRAY1D:
-    case ANARI_ARRAY2D:
-    case ANARI_ARRAY3D:
-      return findIdx(m_db.array, idx);
-    default:
-      break;
-    }
-
-    return INVALID_INDEX;
+    if (anari::isArray(objType))
+      objType = ANARI_ARRAY;
+    auto &remaps = defrags[objType];
+    auto it = std::find_if(
+        remaps.begin(), remaps.end(), [&](auto &r) { return r.first == idx; });
+    if (it != remaps.end())
+      return it->second;
+    else
+      return idx; // index was not remapped, so return original
   };
 
   // Invoke all registered defrag callbacks //
@@ -886,7 +845,6 @@ void Scene::defragmentObjectStorage()
     entry.callback(getUpdatedIndex);
 
   // Update all self-held index values to the new actual index //
-  // (Must be last — getUpdatedIndex relies on old m_index values)
 
   auto updateObjectHeldIndex = [&](auto &array) {
     foreach_item_ref(array, [&](auto ref) {

@@ -287,12 +287,14 @@ Any LayerNodeData::getValueRaw() const
   return m_value;
 }
 
-void LayerNodeData::setValueRaw(const Any &v)
+void LayerNodeData::setValueRaw(const Any &v, bool ignoreObjectUsageCounts)
 {
-  setEmpty();
+  if (!ignoreObjectUsageCounts)
+    setEmpty();
   m_value = v;
   setCurrentValueAsDefault();
-  incObjectUseCount();
+  if (!ignoreObjectUsageCounts)
+    incObjectUseCount();
 }
 
 const InstanceParameterMap &LayerNodeData::getInstanceParameters() const
