@@ -41,63 +41,6 @@ static TimeSample findTimeSample(const std::vector<float> times, float t)
   return {size_t(lo), size_t(hi), alpha};
 }
 
-// Scalar interpolation ///////////////////////////////////////////////////////
-
-static float lerpF(float a, float b, float t)
-{
-  return a + t * (b - a);
-}
-
-static float2 lerpV2(float2 a, float2 b, float t)
-{
-  return {lerpF(a.x, b.x, t), lerpF(a.y, b.y, t)};
-}
-
-static float3 lerpV3(float3 a, float3 b, float t)
-{
-  return {lerpF(a.x, b.x, t), lerpF(a.y, b.y, t), lerpF(a.z, b.z, t)};
-}
-
-static float4 lerpV4(float4 a, float4 b, float t)
-{
-  return {
-      lerpF(a.x, b.x, t),
-      lerpF(a.y, b.y, t),
-      lerpF(a.z, b.z, t),
-      lerpF(a.w, b.w, t),
-  };
-}
-
-// Quaternion SLERP ///////////////////////////////////////////////////////////
-
-static float4 safeNormalize(float4 v)
-{
-  float len = std::sqrt(tsd::math::dot(v, v));
-  return (len > 0.f) ? v / tsd::math::length(v) : v;
-}
-
-static float4 slerp(float4 a, float4 b, float t)
-{
-  float d = tsd::math::dot(a, b);
-
-  // Short path: negate to avoid the long arc
-  if (d < 0.f) {
-    b = b * -1.f;
-    d = -d;
-  }
-
-  constexpr float THRESHOLD = 0.9995f;
-  if (d > THRESHOLD)
-    return safeNormalize(lerpV4(a, b, t));
-
-  float theta = std::acos(std::clamp(d, -1.f, 1.f));
-  float sinTheta = std::sin(theta);
-  float wa = std::sin((1.f - t) * theta) / sinTheta;
-  float wb = std::sin(t * theta) / sinTheta;
-
-  return wa * a + wb * b;
-}
-
 // Compose mat4 from decomposed transform /////////////////////////////////////
 
 static mat4 composeTransform(float4 quat, float3 trans, float3 scl)
@@ -138,22 +81,22 @@ static Any interpolateBinding(
     switch (binding.dataType) {
     case ANARI_FLOAT32: {
       auto *arr = reinterpret_cast<const float *>(data);
-      float v = lerpF(arr[sample.lo], arr[sample.hi], sample.alpha);
+      float v = tsd::math::lerp(arr[sample.lo], arr[sample.hi], sample.alpha);
       return Any(v);
     }
     case ANARI_FLOAT32_VEC2: {
       auto *arr = reinterpret_cast<const float2 *>(data);
-      auto v = lerpV2(arr[sample.lo], arr[sample.hi], sample.alpha);
+      auto v = tsd::math::lerp(arr[sample.lo], arr[sample.hi], sample.alpha);
       return Any(v);
     }
     case ANARI_FLOAT32_VEC3: {
       auto *arr = reinterpret_cast<const float3 *>(data);
-      auto v = lerpV3(arr[sample.lo], arr[sample.hi], sample.alpha);
+      auto v = tsd::math::lerp(arr[sample.lo], arr[sample.hi], sample.alpha);
       return Any(v);
     }
     case ANARI_FLOAT32_VEC4: {
       auto *arr = reinterpret_cast<const float4 *>(data);
-      auto v = lerpV4(arr[sample.lo], arr[sample.hi], sample.alpha);
+      auto v = tsd::math::lerp(arr[sample.lo], arr[sample.hi], sample.alpha);
       return Any(v);
     }
     default:
@@ -200,11 +143,12 @@ EvaluationResult evaluate(
         t = tb.translation[sample.lo];
         s = tb.scale[sample.lo];
       } else {
-        rot =
-            slerp(tb.rotation[sample.lo], tb.rotation[sample.hi], sample.alpha);
-        t = lerpV3(
+        rot = tsd::math::qslerp(
+            tb.rotation[sample.lo], tb.rotation[sample.hi], sample.alpha);
+        t = tsd::math::slerp(
             tb.translation[sample.lo], tb.translation[sample.hi], sample.alpha);
-        s = lerpV3(tb.scale[sample.lo], tb.scale[sample.hi], sample.alpha);
+        s = tsd::math::slerp(
+            tb.scale[sample.lo], tb.scale[sample.hi], sample.alpha);
       }
 
       result.transforms.push_back({tb.target, composeTransform(rot, t, s)});
