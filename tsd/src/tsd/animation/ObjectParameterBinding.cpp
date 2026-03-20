@@ -28,11 +28,9 @@ ObjectParameterBinding::ObjectParameterBinding(scene::Object *target,
         auto *object = objects[i];
         indices[i] = object ? object->index() : TSD_INVALID_INDEX;
       }
-      m_data = TimeSamples(type, count);
-      m_data.setData(indices.data());
+      m_data = core::AnyArray(type, indices.data(), count);
     } else {
-      m_data = TimeSamples(type, count);
-      m_data.setData(data);
+      m_data = core::AnyArray(type, data, count);
     }
   }
 
@@ -55,7 +53,7 @@ anari::DataType ObjectParameterBinding::type() const
   return m_type;
 }
 
-const TimeSamples &ObjectParameterBinding::data() const
+const core::AnyArray &ObjectParameterBinding::data() const
 {
   return m_data;
 }
@@ -82,9 +80,8 @@ void ObjectParameterBinding::insertKeyframe(float time, const void *value)
   size_t insertIdx = count;
   for (size_t i = 0; i < count; i++) {
     if (std::abs(m_timeBase[i] - time) < 1e-4f) {
-      auto *dst = static_cast<uint8_t *>(m_data.map());
+      auto *dst = static_cast<uint8_t *>(m_data.data());
       std::memcpy(dst + i * elemSize, value, elemSize);
-      m_data.unmap();
       return;
     }
     if (m_timeBase[i] > time) {
@@ -96,8 +93,8 @@ void ObjectParameterBinding::insertKeyframe(float time, const void *value)
   m_timeBase.insert(m_timeBase.begin() + insertIdx, time);
 
   size_t newCount = count + 1;
-  tsd::animation::TimeSamples newData(m_type, newCount);
-  auto *newVals = static_cast<uint8_t *>(newData.map());
+  core::AnyArray newData(m_type, newCount);
+  auto *newVals = static_cast<uint8_t *>(newData.data());
   const auto *oldData = static_cast<const uint8_t *>(m_data.data());
 
   if (oldData && insertIdx > 0)
@@ -110,7 +107,6 @@ void ObjectParameterBinding::insertKeyframe(float time, const void *value)
         oldData + insertIdx * elemSize,
         (count - insertIdx) * elemSize);
 
-  newData.unmap();
   m_data = std::move(newData);
 }
 
@@ -123,15 +119,15 @@ void ObjectParameterBinding::removeKeyframe(size_t i)
   size_t elemSize = anari::sizeOf(m_type);
   if (count <= 1) {
     m_timeBase.clear();
-    m_data = tsd::animation::TimeSamples();
+    m_data.reset();
     return;
   }
 
   m_timeBase.erase(m_timeBase.begin() + i);
 
   size_t newCount = count - 1;
-  tsd::animation::TimeSamples newData(m_type, newCount);
-  auto *newVals = static_cast<uint8_t *>(newData.map());
+  core::AnyArray newData(m_type, newCount);
+  auto *newVals = static_cast<uint8_t *>(newData.data());
   const auto *oldData = static_cast<const uint8_t *>(m_data.data());
 
   if (i > 0)
@@ -141,7 +137,6 @@ void ObjectParameterBinding::removeKeyframe(size_t i)
         oldData + (i + 1) * elemSize,
         (newCount - i) * elemSize);
 
-  newData.unmap();
   m_data = std::move(newData);
 }
 
@@ -163,7 +158,7 @@ void ObjectParameterBinding::toDataNode(core::DataNode &node) const
   node["dataType"] = (int)m_type;
   if (!m_timeBase.empty())
     node["timeBase"].setValueAsArray(m_timeBase);
-  if (!m_data.isEmpty())
+  if (!m_data.empty())
     node["data"].setValueAsArray(m_type, m_data.data(), m_data.size());
   node["interp"] = (int)m_interp;
 }

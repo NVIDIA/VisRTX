@@ -5,11 +5,11 @@
 
 #include "tsd/animation/Binding.hpp"
 // tsd_core
+#include "tsd/core/AnyArray.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/TypeMacros.hpp"
 // tsd_animation
 #include "tsd/animation/Interpolation.hpp"
-#include "tsd/animation/TimeSamples.hpp"
 // tsd_scene
 #include "tsd/scene/AnyObjectUsePtr.hpp"
 #include "tsd/scene/DefragCallback.hpp"
@@ -20,7 +20,7 @@ namespace tsd::animation {
 
 /*
  * Binding that drives a single named parameter on a scene object over time,
- * interpolating typed keyframe values stored in a TimeSamples buffer.
+ * interpolating typed keyframe values stored in an AnyArray buffer.
  *
  * Example:
  *   ObjectParameterBinding b(obj, "opacity", ANARI_FLOAT32,
@@ -44,7 +44,7 @@ struct ObjectParameterBinding : public Binding
   scene::Object *target() const;
   core::Token paramName() const;
   anari::DataType type() const;
-  const TimeSamples &data() const;
+  const core::AnyArray &data() const;
   const std::vector<float> &timeBase() const;
   InterpolationRule interpolation() const;
 
@@ -62,7 +62,7 @@ struct ObjectParameterBinding : public Binding
   scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> m_target;
   core::Token m_paramName;
   anari::DataType m_type{ANARI_UNKNOWN};
-  TimeSamples m_data;
+  core::AnyArray m_data;
   std::vector<float> m_timeBase;
   InterpolationRule m_interp{InterpolationRule::STEP};
 };

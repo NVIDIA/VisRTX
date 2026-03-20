@@ -8,16 +8,16 @@ TSD scenes.
 - **`Binding`** — base class that associates a binding with its owning
   `scene::Scene`. `ObjectParameterBinding` and `TransformBinding` extend it.
 
-- **`TimeSamples`** — owning, type-aware keyframe value buffer backed by a raw
-  allocation. Supports `map()`/`unmap()` write access, typed accessors
-  (`mapAs<T>()`, `dataAs<T>()`), `elementAt(i)`, and deep-copy/move semantics.
+- **`core::AnyArray`** — owning, type-aware keyframe value buffer (from
+  `tsd_core`) backed by `std::vector<uint8_t>`. Provides typed accessors
+  (`dataAs<T>()`, `elementAt(i)`) and automatic copy/move semantics.
 
 - **`Interpolation.hpp`** — defines `InterpolationRule` (STEP, LINEAR, SLERP)
   and `TimeSample` (lo/hi bracket indices + normalized alpha), the lookup
   result of a time query against a sorted time-base.
 
 - **`ObjectParameterBinding`** — drives a single named ANARI parameter on a
-  `scene::Object` over time. Stores typed keyframe values in a `TimeSamples`
+  `scene::Object` over time. Stores typed keyframe values in a `core::AnyArray`
   buffer alongside a float time-base and an `InterpolationRule`. The target
   object is tracked via `AnyObjectUsePtr<UseKind::ANIM>`, which provides
   reference-counted, defrag-safe lifetime management. Keyframes can be added

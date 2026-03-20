@@ -11,7 +11,6 @@ PRIVATE
   AnimationManager.cpp
   Binding.cpp
   ObjectParameterBinding.cpp
-  TimeSamples.cpp
   TransformBinding.cpp
 )
 
