@@ -41,7 +41,7 @@ static void captureCurrentCameraKeyframe(
       if (b.paramName() == paramName) {
         auto val = cam->parameterValueAs<math::float3>(paramName);
         if (val)
-          b.insertKeyframe(t, &*val);
+          b.insertKeyframe(t, *val);
         return;
       }
     }

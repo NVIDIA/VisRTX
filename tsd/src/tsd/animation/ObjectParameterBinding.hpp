@@ -14,6 +14,7 @@
 #include "tsd/scene/AnyObjectUsePtr.hpp"
 #include "tsd/scene/DefragCallback.hpp"
 // std
+#include <stdexcept>
 #include <vector>
 
 namespace tsd::animation {
@@ -48,7 +49,8 @@ struct ObjectParameterBinding : public Binding
   const std::vector<float> &timeBase() const;
   InterpolationRule interpolation() const;
 
-  void insertKeyframe(float time, const void *value);
+  template <typename T>
+  void insertKeyframe(float time, const T &value);
   void removeKeyframe(size_t i);
 
   void updateObjectDefragmentedIndices(const scene::IndexRemapper &cb);
@@ -59,6 +61,8 @@ struct ObjectParameterBinding : public Binding
   void fromDataNode(core::DataNode &node);
 
  private:
+  void insertKeyframeImpl(float time, const void *value);
+
   scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> m_target;
   core::Token m_paramName;
   anari::DataType m_type{ANARI_UNKNOWN};
@@ -66,5 +70,19 @@ struct ObjectParameterBinding : public Binding
   std::vector<float> m_timeBase;
   InterpolationRule m_interp{InterpolationRule::STEP};
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+template <typename T>
+inline void ObjectParameterBinding::insertKeyframe(float time, const T &value)
+{
+  if (anari::ANARITypeFor<T>::value != type()) {
+    throw std::runtime_error(
+        "ObjectParameterBinding::insertKeyframe<T>()"
+        " called with mismatched value type");
+  }
+
+  insertKeyframeImpl(time, &value);
+}
 
 } // namespace tsd::animation

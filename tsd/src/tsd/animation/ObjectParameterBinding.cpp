@@ -68,7 +68,7 @@ InterpolationRule ObjectParameterBinding::interpolation() const
   return m_interp;
 }
 
-void ObjectParameterBinding::insertKeyframe(float time, const void *value)
+void ObjectParameterBinding::insertKeyframeImpl(float time, const void *value)
 {
   size_t elemSize = anari::sizeOf(m_type);
   if (elemSize == 0)
