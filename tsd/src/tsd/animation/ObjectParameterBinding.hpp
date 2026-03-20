@@ -69,6 +69,8 @@ struct ObjectParameterBinding : public Binding
   core::AnyArray m_data;
   std::vector<float> m_timeBase;
   InterpolationRule m_interp{InterpolationRule::STEP};
+  std::vector<scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM>>
+      m_objectRefs;
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////

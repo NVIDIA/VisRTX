@@ -24,9 +24,14 @@ ObjectParameterBinding::ObjectParameterBinding(scene::Object *target,
     if (anari::isObject(type)) {
       std::vector<size_t> indices(count);
       const auto *objects = static_cast<const scene::Object *const *>(data);
+      m_objectRefs.reserve(count);
       for (size_t i = 0; i < count; i++) {
         auto *object = objects[i];
         indices[i] = object ? object->index() : TSD_INVALID_INDEX;
+        if (object)
+          m_objectRefs.emplace_back(*const_cast<scene::Object *>(object));
+        else
+          m_objectRefs.emplace_back();
       }
       m_data = core::AnyArray(type, indices.data(), count);
     } else {
@@ -82,6 +87,14 @@ void ObjectParameterBinding::insertKeyframeImpl(float time, const void *value)
     if (std::abs(m_timeBase[i] - time) < 1e-4f) {
       auto *dst = static_cast<uint8_t *>(m_data.data());
       std::memcpy(dst + i * elemSize, value, elemSize);
+      if (anari::isObject(m_type)) {
+        const size_t newIdx =
+            *reinterpret_cast<const size_t *>(dst + i * elemSize);
+        scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> newRef;
+        if (auto *obj = scene()->getObject(m_type, newIdx))
+          newRef = *obj;
+        m_objectRefs[i] = std::move(newRef);
+      }
       return;
     }
     if (m_timeBase[i] > time) {
@@ -108,6 +121,15 @@ void ObjectParameterBinding::insertKeyframeImpl(float time, const void *value)
         (count - insertIdx) * elemSize);
 
   m_data = std::move(newData);
+
+  if (anari::isObject(m_type)) {
+    const size_t newIdx = *reinterpret_cast<const size_t *>(
+        static_cast<const uint8_t *>(m_data.data()) + insertIdx * elemSize);
+    scene::AnyObjectUsePtr<scene::Object::UseKind::ANIM> newRef;
+    if (auto *obj = scene()->getObject(m_type, newIdx))
+      newRef = *obj;
+    m_objectRefs.insert(m_objectRefs.begin() + insertIdx, std::move(newRef));
+  }
 }
 
 void ObjectParameterBinding::removeKeyframe(size_t i)
@@ -120,6 +142,7 @@ void ObjectParameterBinding::removeKeyframe(size_t i)
   if (count <= 1) {
     m_timeBase.clear();
     m_data.reset();
+    m_objectRefs.clear();
     return;
   }
 
@@ -138,6 +161,9 @@ void ObjectParameterBinding::removeKeyframe(size_t i)
         (newCount - i) * elemSize);
 
   m_data = std::move(newData);
+
+  if (anari::isObject(m_type))
+    m_objectRefs.erase(m_objectRefs.begin() + i);
 }
 
 void ObjectParameterBinding::updateObjectDefragmentedIndices(
@@ -146,8 +172,17 @@ void ObjectParameterBinding::updateObjectDefragmentedIndices(
   if (!m_target || !cb)
     return;
   m_target.updateDefragmentedIndex(cb(m_target->type(), m_target->index()));
-  // TODO: If this is an object time series, update each time step index
-  //       to the new remapped index.
+
+  if (anari::isObject(m_type) && !m_objectRefs.empty()) {
+    auto *indices = static_cast<size_t *>(m_data.data());
+    for (size_t i = 0; i < m_objectRefs.size(); i++) {
+      if (!m_objectRefs[i])
+        continue;
+      size_t newIdx = cb(m_type, m_objectRefs[i]->index());
+      m_objectRefs[i].updateDefragmentedIndex(newIdx);
+      indices[i] = newIdx;
+    }
+  }
 }
 
 void ObjectParameterBinding::toDataNode(core::DataNode &node) const
