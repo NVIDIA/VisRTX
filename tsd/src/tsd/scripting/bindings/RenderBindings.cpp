@@ -77,7 +77,7 @@ void registerRenderBindings(sol::state &lua)
     auto statusFunc = [](const void *,
                           ANARIDevice,
                           ANARIObject,
-                          ANARIDataType,
+                          anari::DataType,
                           ANARIStatusSeverity severity,
                           ANARIStatusCode,
                           const char *message) {

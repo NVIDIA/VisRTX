@@ -33,14 +33,14 @@ struct AnyArray
 {
   // Construction
   AnyArray() = default;
-  AnyArray(ANARIDataType type, size_t count);
-  AnyArray(ANARIDataType type, const void *src, size_t count);
+  AnyArray(anari::DataType type, size_t count);
+  AnyArray(anari::DataType type, const void *src, size_t count);
 
   TSD_DEFAULT_COPYABLE(AnyArray)
   TSD_DEFAULT_MOVEABLE(AnyArray)
 
   // Type / capacity query
-  ANARIDataType elementType() const;
+  anari::DataType elementType() const;
   size_t size() const;        // element count
   size_t elementSize() const; // bytes per element (anari::sizeOf(type))
   size_t byteSize() const;    // total bytes
@@ -50,7 +50,7 @@ struct AnyArray
 
   template <typename T>
   bool is() const;
-  bool is(ANARIDataType t) const;
+  bool is(anari::DataType t) const;
 
   // Raw buffer access
   const void *data() const;
@@ -83,18 +83,18 @@ struct AnyArray
 
  private:
   std::vector<uint8_t> m_storage;
-  ANARIDataType m_type{ANARI_UNKNOWN};
+  anari::DataType m_type{ANARI_UNKNOWN};
 };
 
 // Inlined definitions ////////////////////////////////////////////////////////
 
-inline AnyArray::AnyArray(ANARIDataType type, size_t count)
+inline AnyArray::AnyArray(anari::DataType type, size_t count)
     : m_type(type)
 {
   m_storage.resize(count * anari::sizeOf(type), 0);
 }
 
-inline AnyArray::AnyArray(ANARIDataType type, const void *src, size_t count)
+inline AnyArray::AnyArray(anari::DataType type, const void *src, size_t count)
     : m_type(type)
 {
   const size_t bytes = count * anari::sizeOf(type);
@@ -103,7 +103,7 @@ inline AnyArray::AnyArray(ANARIDataType type, const void *src, size_t count)
     std::memcpy(m_storage.data(), src, bytes);
 }
 
-inline ANARIDataType AnyArray::elementType() const
+inline anari::DataType AnyArray::elementType() const
 {
   return m_type;
 }
@@ -145,7 +145,7 @@ inline bool AnyArray::is() const
   return is(anari::ANARITypeFor<T>::value);
 }
 
-inline bool AnyArray::is(ANARIDataType t) const
+inline bool AnyArray::is(anari::DataType t) const
 {
   return m_type == t;
 }
@@ -173,7 +173,7 @@ inline void *AnyArray::elementAt(size_t i)
 template <typename T>
 inline const T &AnyArray::get(size_t i) const
 {
-  constexpr ANARIDataType type = anari::ANARITypeFor<T>::value;
+  constexpr anari::DataType type = anari::ANARITypeFor<T>::value;
   static_assert(type != ANARI_STRING,
       "AnyArray::get<T>() does not support string element types");
   if (m_type != type)
@@ -185,7 +185,7 @@ inline const T &AnyArray::get(size_t i) const
 template <typename T>
 inline T &AnyArray::get(size_t i)
 {
-  constexpr ANARIDataType type = anari::ANARITypeFor<T>::value;
+  constexpr anari::DataType type = anari::ANARITypeFor<T>::value;
   static_assert(type != ANARI_STRING,
       "AnyArray::get<T>() does not support string element types");
   if (m_type != type)
@@ -238,7 +238,7 @@ inline void AnyArray::setElement(size_t i, const void *value)
 template <typename T>
 inline void AnyArray::setElement(size_t i, const T &value)
 {
-  constexpr ANARIDataType type = anari::ANARITypeFor<T>::value;
+  constexpr anari::DataType type = anari::ANARITypeFor<T>::value;
   static_assert(type != ANARI_STRING,
       "AnyArray::setElement<T>() does not support string element types");
   if (m_type != type)

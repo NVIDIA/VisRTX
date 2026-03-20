@@ -13,7 +13,7 @@ namespace tsd::app {
 void anariStatusFunc(const void *_verboseFlag,
     ANARIDevice device,
     ANARIObject source,
-    ANARIDataType sourceType,
+    anari::DataType sourceType,
     ANARIStatusSeverity severity,
     ANARIStatusCode code,
     const char *message)

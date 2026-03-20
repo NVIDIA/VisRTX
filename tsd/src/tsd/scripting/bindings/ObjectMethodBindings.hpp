@@ -46,7 +46,7 @@ void registerObjectMethodsOn(sol::usertype<UserType> &ut, Accessor access)
     return "";
   };
 
-  ut["type"] = [access](UserType &u) -> ANARIDataType {
+  ut["type"] = [access](UserType &u) -> anari::DataType {
     if (auto *obj = access(u))
       return obj->type();
     return ANARI_UNKNOWN;

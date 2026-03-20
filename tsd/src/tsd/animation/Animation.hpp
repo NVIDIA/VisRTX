@@ -45,7 +45,7 @@ struct Animation
 
   void addObjectParameterBinding(scene::Object *target,
       core::Token paramName,
-      ANARIDataType dataType,
+      anari::DataType dataType,
       const void *data,
       const float *timeBase,
       size_t count,
@@ -53,7 +53,7 @@ struct Animation
 
   void addObjectParameterBinding(scene::Object *target,
       core::Token paramName,
-      ANARIDataType dataType,
+      anari::DataType dataType,
       scene::Object *const *objects,
       const float *timeBase,
       size_t count,

@@ -80,7 +80,7 @@ struct ANARIDeviceManager
 void anariStatusFunc(const void *_core,
     ANARIDevice device,
     ANARIObject source,
-    ANARIDataType sourceType,
+    anari::DataType sourceType,
     ANARIStatusSeverity severity,
     ANARIStatusCode code,
     const char *message);

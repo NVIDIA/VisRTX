@@ -80,7 +80,7 @@ void Animation::updateObjectDefragmentedIndices(const scene::IndexRemapper &cb)
 
 void Animation::addObjectParameterBinding(scene::Object *target,
     core::Token paramName,
-    ANARIDataType type,
+    anari::DataType type,
     const void *data,
     const float *timeBase,
     size_t count,
@@ -92,7 +92,7 @@ void Animation::addObjectParameterBinding(scene::Object *target,
 
 void Animation::addObjectParameterBinding(scene::Object *target,
     core::Token paramName,
-    ANARIDataType type,
+    anari::DataType type,
     scene::Object *const *objects,
     const float *timeBase,
     size_t count,

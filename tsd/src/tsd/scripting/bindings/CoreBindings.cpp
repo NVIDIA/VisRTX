@@ -271,7 +271,7 @@ void registerContextBindings(sol::state &lua)
       },
       // Object counts
       "numberOfObjects",
-      [](scene::Scene &s, ANARIDataType type) -> size_t {
+      [](scene::Scene &s, anari::DataType type) -> size_t {
         return s.numberOfObjects(type);
       },
       // Iteration over objects

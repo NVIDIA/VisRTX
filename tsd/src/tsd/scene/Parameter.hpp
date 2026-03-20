@@ -128,7 +128,7 @@ struct Parameter
 };
 
 template <typename T>
-constexpr ANARIDataType anariType()
+constexpr anari::DataType anariType()
 {
   return anari::ANARITypeFor<T>::value;
 }

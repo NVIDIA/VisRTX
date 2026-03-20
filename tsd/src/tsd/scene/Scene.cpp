@@ -253,7 +253,7 @@ Object *Scene::getObject(const Any &a) const
   return getObject(a.type(), a.getAsObjectIndex());
 }
 
-Object *Scene::getObject(ANARIDataType type, size_t i) const
+Object *Scene::getObject(anari::DataType type, size_t i) const
 {
   Object *obj = nullptr;
 

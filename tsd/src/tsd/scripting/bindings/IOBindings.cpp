@@ -27,7 +27,7 @@ static bool isNumericVector(const sol::table &t, size_t &len)
   return true;
 }
 
-static constexpr ANARIDataType vecTypes[] = {
+static constexpr anari::DataType vecTypes[] = {
     ANARI_UNKNOWN, // 0
     ANARI_UNKNOWN, // 1
     ANARI_FLOAT32_VEC2, // 2

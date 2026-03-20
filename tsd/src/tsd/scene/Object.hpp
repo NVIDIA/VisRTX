@@ -121,7 +121,7 @@ struct Object : public ParameterObserver
   Parameter &addParameter(Token name);
   template <typename T>
   Parameter *setParameter(Token name, T value);
-  Parameter *setParameter(Token name, ANARIDataType type, const void *v);
+  Parameter *setParameter(Token name, anari::DataType type, const void *v);
   Parameter *setParameterObject(Token name, const Object &obj);
 
   const Parameter *parameter(Token name) const;
@@ -227,10 +227,10 @@ std::vector<std::string> getANARIObjectSubtypes(
     anari::Device d, anari::DataType type);
 
 void parseANARIObjectInfo(
-    Object &o, anari::Device d, ANARIDataType objectType, const char *subtype);
+    Object &o, anari::Device d, anari::DataType objectType, const char *subtype);
 
 Object parseANARIObjectInfo(
-    anari::Device d, ANARIDataType type, const char *subtype);
+    anari::Device d, anari::DataType type, const char *subtype);
 
 // Inlined definitions ////////////////////////////////////////////////////////
 

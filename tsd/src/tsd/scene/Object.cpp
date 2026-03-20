@@ -21,7 +21,7 @@ Token defaultToken = "default";
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static Any parseValue(ANARIDataType type, const void *mem)
+static Any parseValue(anari::DataType type, const void *mem)
 {
   if (type == ANARI_STRING)
     return Any(ANARI_STRING, "");
@@ -298,7 +298,7 @@ Parameter &Object::addParameter(Token name)
   return *parameter(name);
 }
 
-Parameter *Object::setParameter(Token name, ANARIDataType type, const void *v)
+Parameter *Object::setParameter(Token name, anari::DataType type, const void *v)
 {
   if (anari::isObject(type))
     return nullptr;
@@ -555,7 +555,7 @@ std::vector<std::string> getANARIObjectSubtypes(
 }
 
 void parseANARIObjectInfo(
-    Object &o, anari::Device d, ANARIDataType objectType, const char *subtype)
+    Object &o, anari::Device d, anari::DataType objectType, const char *subtype)
 {
   auto *parameter = (const ANARIParameter *)anariGetObjectInfo(
       d, objectType, subtype, "parameter", ANARI_PARAMETER_LIST);
@@ -625,7 +625,7 @@ void parseANARIObjectInfo(
 }
 
 Object parseANARIObjectInfo(
-    anari::Device d, ANARIDataType objectType, const char *subtype)
+    anari::Device d, anari::DataType objectType, const char *subtype)
 {
   Object retval(objectType, subtype);
   parseANARIObjectInfo(retval, d, objectType, subtype);

@@ -34,7 +34,7 @@ static void captureCurrentCameraKeyframe(
   if (!cam)
     return;
 
-  auto captureParam = [&](const char *_paramName, ANARIDataType type) {
+  auto captureParam = [&](const char *_paramName, anari::DataType type) {
     auto paramName = tsd::core::Token(_paramName);
     for (size_t i = 0; i < anim.objectParameterBindings().size(); i++) {
       auto &b = *anim.editableObjectParameterBinding(i);

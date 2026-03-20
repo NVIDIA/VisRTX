@@ -134,7 +134,7 @@ static void arraySetFromLua(
     arraySetDataFromLua(arr, data, s);
 }
 
-ANARIDataType arrayTypeFromString(const std::string &typeStr)
+anari::DataType arrayTypeFromString(const std::string &typeStr)
 {
   if (typeStr == "float")
     return ANARI_FLOAT32;
@@ -191,7 +191,7 @@ ANARIDataType arrayTypeFromString(const std::string &typeStr)
       typeStr));
 }
 
-static size_t elementArity(ANARIDataType elemType)
+static size_t elementArity(anari::DataType elemType)
 {
   switch (elemType) {
   case ANARI_FLOAT32_VEC2:
@@ -211,12 +211,12 @@ static size_t elementArity(ANARIDataType elemType)
   }
 }
 
-static bool isElementTable(sol::table t, ANARIDataType elemType)
+static bool isElementTable(sol::table t, anari::DataType elemType)
 {
   return t.size() == elementArity(elemType);
 }
 
-static bool isVecUserdata(sol::object o, ANARIDataType elemType)
+static bool isVecUserdata(sol::object o, anari::DataType elemType)
 {
   switch (elemType) {
   case ANARI_FLOAT32_VEC2:
@@ -242,7 +242,7 @@ static bool isVecUserdata(sol::object o, ANARIDataType elemType)
   }
 }
 
-static bool isElementLike(sol::object o, ANARIDataType elemType)
+static bool isElementLike(sol::object o, anari::DataType elemType)
 {
   if (elemType == ANARI_FLOAT32_MAT4)
     return o.is<math::mat4>();
@@ -321,7 +321,7 @@ static void getVecArrayAsLua(sol::state_view &lua,
 }
 
 void inferArrayDimsFromLuaData(sol::table data,
-    ANARIDataType elemType,
+    anari::DataType elemType,
     size_t &items0,
     size_t &items1,
     size_t &items2)
@@ -900,7 +900,7 @@ void registerObjectBindings(sol::state &lua)
   };
 
   auto arrayRefType = registerObjectPoolRef<scene::Array>(tsd, "Array");
-  arrayRefType["elementType"] = +[](const scene::ArrayRef &r) -> ANARIDataType {
+  arrayRefType["elementType"] = +[](const scene::ArrayRef &r) -> anari::DataType {
     return r.valid() ? r.data()->elementType() : ANARI_UNKNOWN;
   };
   arrayRefType["size"] = +[](const scene::ArrayRef &r) -> size_t {
