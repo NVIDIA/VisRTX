@@ -12,6 +12,7 @@ add_subdirectory(tsd_tinyexr)
 add_subdirectory(tsd_tinygltf)
 add_subdirectory(tsd_tinyobjloader)
 add_subdirectory(tsd_tinyply)
+add_subdirectory(tsd_zlib)
 
 add_subdirectory(
   ${CMAKE_CURRENT_LIST_DIR}/../../devices/rtx/external
