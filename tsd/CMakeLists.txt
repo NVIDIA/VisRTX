@@ -62,6 +62,8 @@ option(TSD_USE_MPI "Enable MPI support" OFF)
 option(TSD_USE_NETWORKING "Enable networking support via boost.asio" OFF)
 option(TSD_NANOVDB_SKIP_INVALID_VOLUMES
   "Skip NanoVDB volumes with zero active voxels" OFF)
+option(TSD_NANOVDB_USE_ZIP
+  "Enable zlib so NanoVDB importer can read ZIP-compressed .nvdb files" ON)
 option(TSD_USE_LUA "Enable Lua scripting support" ON)
 
 if (APPLE)

@@ -15,6 +15,7 @@
 
 #include <filesystem>
 #include <limits>
+#include <string_view>
 
 namespace tsd::io {
 
@@ -186,7 +187,17 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
 
     logStatus("[import_NVDB] ...done!");
   } catch (const std::exception &e) {
+    using namespace std::string_view_literals;
+    const std::string_view msg(e.what());
     logStatus("[import_NVDB] failed: %s", e.what());
+    if (msg.find("compression codec was disabled"sv) != std::string_view::npos) {
+      logStatus(
+          "[import_NVDB] '%s' is stored with a compressed codec but TSD was "
+          "built without it. Reconfigure with -DTSD_NANOVDB_USE_ZIP=ON (and "
+          "ensure zlib is available) to decompress at read time. ANARI is "
+          "always handed the uncompressed in-memory grid buffer.",
+          filepath);
+    }
     scene.removeObject(field.data());
     return {};
   }
