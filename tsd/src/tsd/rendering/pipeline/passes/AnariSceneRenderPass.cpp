@@ -291,6 +291,7 @@ void AnariSceneRenderPass::updateSize()
 
   const size_t totalSize = size_t(size.x) * size_t(size.y);
   m_buffers.color = detail::allocate<uint32_t>(totalSize);
+  m_buffers.hdrColor = detail::allocate<float>(totalSize * 4);
   m_buffers.depth = detail::allocate<float>(totalSize);
   m_buffers.objectId = detail::allocate<uint32_t>(totalSize);
   m_buffers.primitiveId = detail::allocate<uint32_t>(totalSize);
@@ -345,6 +346,7 @@ void AnariSceneRenderPass::copyFrameData()
   const size_t totalSize = size.x * size.y;
   if (totalSize > 0 && size.x == color.width && size.y == color.height) {
     if (color.pixelType == ANARI_FLOAT32_VEC4) {
+      detail::copy(m_buffers.hdrColor, (float *)color.data, totalSize * 4);
       detail::convertFloatColorBuffer_(m_buffers.stream,
           (const float *)color.data,
           (uint8_t *)m_buffers.color,
@@ -406,6 +408,8 @@ void AnariSceneRenderPass::composite(ImageBuffers &b, int stageId)
 
   if (firstPass) {
     detail::copy(b.color, m_buffers.color, totalSize);
+    if (m_format == ANARI_FLOAT32_VEC4)
+      detail::copy(b.hdrColor, m_buffers.hdrColor, totalSize * 4);
     detail::copy(b.depth, m_buffers.depth, totalSize);
     detail::copy(b.objectId, m_buffers.objectId, totalSize);
     if (m_enablePrimitiveId)
@@ -424,6 +428,7 @@ void AnariSceneRenderPass::composite(ImageBuffers &b, int stageId)
 void AnariSceneRenderPass::cleanup()
 {
   detail::free(m_buffers.color);
+  detail::free(m_buffers.hdrColor);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
   detail::free(m_buffers.primitiveId);

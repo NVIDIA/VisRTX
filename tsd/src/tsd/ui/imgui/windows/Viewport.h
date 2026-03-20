@@ -10,6 +10,16 @@
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/ImagePipeline.h"
+#include "tsd/rendering/pipeline/passes/AnariAxesRenderPass.h"
+#include "tsd/rendering/pipeline/passes/AnariSceneRenderPass.h"
+#include "tsd/rendering/pipeline/passes/AutoExposurePass.h"
+#include "tsd/rendering/pipeline/passes/CopyToSDLTexturePass.h"
+#include "tsd/rendering/pipeline/passes/OutlineRenderPass.h"
+#include "tsd/rendering/pipeline/passes/OutputTransformPass.h"
+#include "tsd/rendering/pipeline/passes/PickPass.h"
+#include "tsd/rendering/pipeline/passes/SaveToFilePass.h"
+#include "tsd/rendering/pipeline/passes/ToneMapPass.h"
+#include "tsd/rendering/pipeline/passes/VisualizeAOVPass.h"
 #include "tsd/rendering/view/Manipulator.hpp"
 // anari
 #include <anari/frontend/anari_enums.h>
@@ -56,6 +66,7 @@ struct Viewport : public BaseViewport
   void updateFrame();
   void updateImage();
   void updateAxes();
+  void updateDisplayPassState();
 
   void ui_menubar();
   void ui_menubar_Device();
@@ -91,6 +102,13 @@ struct Viewport : public BaseViewport
   bool m_edgeInvert{false};
   anari::DataType m_colorFormat{ANARI_UFIXED8_RGBA_SRGB};
 
+  tsd::rendering::ToneMapOperator m_toneMapOperator{
+      tsd::rendering::ToneMapOperator::ACES};
+  bool m_autoExposureEnabled{false};
+  float m_toneMapExposure{0.f};
+  float m_toneMapGamma{2.2f};
+  float m_currentAutoExposure{0.f};
+
   // Picking state //
 
   bool m_selectObjectNextPick{false};
@@ -109,6 +127,9 @@ struct Viewport : public BaseViewport
   tsd::rendering::AnariSceneRenderPass *m_anariPass{nullptr};
   tsd::rendering::PickPass *m_pickPass{nullptr};
   tsd::rendering::VisualizeAOVPass *m_visualizeAOVPass{nullptr};
+  tsd::rendering::AutoExposurePass *m_autoExposurePass{nullptr};
+  tsd::rendering::ToneMapPass *m_toneMapPass{nullptr};
+  tsd::rendering::OutputTransformPass *m_outputTransformPass{nullptr};
   tsd::rendering::OutlineRenderPass *m_outlinePass{nullptr};
   tsd::rendering::AnariAxesRenderPass *m_axesPass{nullptr};
   tsd::rendering::CopyToSDLTexturePass *m_outputPass{nullptr};

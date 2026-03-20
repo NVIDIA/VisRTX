@@ -38,6 +38,7 @@ void ImagePipeline::setDimensions(uint32_t width, uint32_t height)
   cleanup();
   const size_t totalSize = size_t(width) * size_t(height);
   m_buffers.color = detail::allocate<uint32_t>(totalSize);
+  m_buffers.hdrColor = detail::allocate<float>(totalSize * 4);
   m_buffers.depth = detail::allocate<float>(totalSize);
   m_buffers.instanceId = detail::allocate<uint32_t>(totalSize);
   m_buffers.objectId = detail::allocate<uint32_t>(totalSize);
@@ -51,6 +52,7 @@ void ImagePipeline::setDimensions(uint32_t width, uint32_t height)
 void ImagePipeline::render()
 {
   int stageId = 0;
+  m_buffers.exposure = 0.f;
   m_passTimings.clear();
   for (auto &p : m_passes) {
     if (!p->isEnabled())
@@ -92,6 +94,7 @@ void ImagePipeline::clear()
 void ImagePipeline::cleanup()
 {
   detail::free(m_buffers.color);
+  detail::free(m_buffers.hdrColor);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
   detail::free(m_buffers.primitiveId);

@@ -234,6 +234,10 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["depthVisualMaximum"] = m_depthVisualMaximum;
   root["edgeInvert"] = m_edgeInvert;
   root["showAxes"] = m_showAxes;
+  root["autoExposureEnabled"] = m_autoExposureEnabled;
+  root["toneMapExposure"] = m_toneMapExposure;
+  root["toneMapGamma"] = m_toneMapGamma;
+  root["toneMapOperator"] = static_cast<int>(m_toneMapOperator);
 
   // Database Camera //
 
@@ -262,6 +266,13 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
   root["edgeInvert"].getValue(ANARI_BOOL, &m_edgeInvert);
   root["showAxes"].getValue(ANARI_BOOL, &m_showAxes);
+  root["autoExposureEnabled"].getValue(ANARI_BOOL, &m_autoExposureEnabled);
+  root["toneMapExposure"].getValue(ANARI_FLOAT32, &m_toneMapExposure);
+  root["toneMapGamma"].getValue(ANARI_FLOAT32, &m_toneMapGamma);
+  int toneMapOperator = static_cast<int>(m_toneMapOperator);
+  root["toneMapOperator"].getValue(ANARI_INT32, &toneMapOperator);
+  m_toneMapOperator =
+      static_cast<tsd::rendering::ToneMapOperator>(toneMapOperator);
 
   // Database Camera //
 
@@ -384,9 +395,20 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
     m_pickPass->setEnabled(false);
   });
 
+  m_autoExposurePass = p.emplace_back<tsd::rendering::AutoExposurePass>();
+
+  m_toneMapPass = p.emplace_back<tsd::rendering::ToneMapPass>();
+  m_toneMapPass->setOperator(m_toneMapOperator);
+  m_toneMapPass->setAutoExposureEnabled(m_autoExposureEnabled);
+  m_toneMapPass->setExposure(m_toneMapExposure);
+
+  m_outputTransformPass = p.emplace_back<tsd::rendering::OutputTransformPass>();
+  m_outputTransformPass->setGamma(m_toneMapGamma);
+
   m_visualizeAOVPass = p.emplace_back<tsd::rendering::VisualizeAOVPass>();
   m_visualizeAOVPass->setEnabled(false);
   m_visualizeAOVPass->setEdgeInvert(m_edgeInvert);
+  updateDisplayPassState();
 
   m_outlinePass = p.emplace_back<tsd::rendering::OutlineRenderPass>();
 
@@ -456,7 +478,9 @@ void Viewport::teardownDevice()
   BaseViewport::imagePipeline_teardown();
 
   m_anariPass = nullptr;
+  m_autoExposurePass = nullptr;
   m_outlinePass = nullptr;
+  m_outputTransformPass = nullptr;
   m_outputPass = nullptr;
   m_saveToFilePass = nullptr;
 
@@ -544,6 +568,8 @@ void Viewport::updateImage()
 
   auto start = std::chrono::steady_clock::now();
   BaseViewport::imagePipeline_render();
+  if (m_autoExposurePass)
+    m_currentAutoExposure = m_autoExposurePass->currentExposure();
   auto end = std::chrono::steady_clock::now();
   m_latestFL = std::chrono::duration<float>(end - start).count() * 1000;
 
@@ -577,6 +603,25 @@ void Viewport::updateAxes()
       m_camera.current->parameterValueAs<tsd::math::float3>("up").value_or(
           tsd::math::float3(0.0f, 1.0f, 0.0f));
   m_axesPass->setView(axesDir, axesUp);
+}
+
+void Viewport::updateDisplayPassState()
+{
+  if (!m_toneMapPass || !m_outputTransformPass)
+    return;
+
+  const bool showBeauty = m_visualizeAOV == tsd::rendering::AOVType::NONE;
+  if (m_autoExposurePass) {
+    m_autoExposurePass->setEnabled(showBeauty && m_autoExposureEnabled);
+    m_autoExposurePass->setHDREnabled(
+        showBeauty && m_colorFormat == ANARI_FLOAT32_VEC4);
+  }
+  m_toneMapPass->setEnabled(showBeauty);
+  m_outputTransformPass->setEnabled(showBeauty);
+  m_toneMapPass->setAutoExposureEnabled(showBeauty && m_autoExposureEnabled);
+  m_toneMapPass->setHDREnabled(
+      showBeauty && m_colorFormat == ANARI_FLOAT32_VEC4);
+  m_outputTransformPass->setColorFormat(m_colorFormat);
 }
 
 void Viewport::ui_menubar()
@@ -628,6 +673,7 @@ void Viewport::ui_menubar_Viewport()
       if (format != m_colorFormat) {
         m_anariPass->setColorFormat(format);
         m_colorFormat = format;
+        updateDisplayPassState();
       }
       ImGui::Unindent(INDENT_AMOUNT);
     }
@@ -688,6 +734,7 @@ void Viewport::ui_menubar_Viewport()
         if (aov != int(m_visualizeAOV)) {
           m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aov);
           m_visualizeAOVPass->setAOVType(m_visualizeAOV);
+          updateDisplayPassState();
           m_anariPass->setEnableAlbedo(
               m_visualizeAOV == tsd::rendering::AOVType::ALBEDO);
           m_anariPass->setEnableNormals(
@@ -731,6 +778,71 @@ void Viewport::ui_menubar_Viewport()
     }
 
     ImGui::Separator();
+
+    {
+      ImGui::Text("Exposure:");
+      ImGui::Indent(INDENT_AMOUNT);
+
+      ImGui::BeginDisabled(m_colorFormat != ANARI_FLOAT32_VEC4
+          || m_visualizeAOV != tsd::rendering::AOVType::NONE);
+
+      if (ImGui::Checkbox("Auto Exposure", &m_autoExposureEnabled))
+        updateDisplayPassState();
+
+      if (m_autoExposureEnabled) {
+        if (ImGui::DragFloat(
+                "Compensation", &m_toneMapExposure, 0.05f, -10.f, 10.f))
+          m_toneMapPass->setExposure(m_toneMapExposure);
+        ImGui::Text("Current EV: %.2f", m_currentAutoExposure);
+      } else if (ImGui::DragFloat(
+                     "Exposure", &m_toneMapExposure, 0.05f, -10.f, 10.f)) {
+        m_toneMapPass->setExposure(m_toneMapExposure);
+      }
+
+      ImGui::EndDisabled();
+      ImGui::Unindent(INDENT_AMOUNT);
+    }
+
+    ImGui::Separator();
+
+    {
+      ImGui::Text("Tonemapping:");
+      ImGui::Indent(INDENT_AMOUNT);
+
+      ImGui::BeginDisabled(m_colorFormat != ANARI_FLOAT32_VEC4
+          || m_visualizeAOV != tsd::rendering::AOVType::NONE);
+
+      const char *toneMapItems[] = {"None",
+          "Reinhard",
+          "ACES Filmic",
+          "Hable",
+          "Khronos PBR Neutral",
+          "AgX"};
+      if (int op = int(m_toneMapOperator); ImGui::Combo(
+              "Operator", &op, toneMapItems, IM_ARRAYSIZE(toneMapItems))) {
+        m_toneMapOperator = static_cast<tsd::rendering::ToneMapOperator>(op);
+        m_toneMapPass->setOperator(m_toneMapOperator);
+      }
+
+      ImGui::EndDisabled();
+      ImGui::Unindent(INDENT_AMOUNT);
+    }
+
+    ImGui::Separator();
+
+    {
+      ImGui::Text("Output Transform:");
+      ImGui::Indent(INDENT_AMOUNT);
+
+      ImGui::BeginDisabled(m_colorFormat == ANARI_UFIXED8_RGBA_SRGB
+          || m_visualizeAOV != tsd::rendering::AOVType::NONE);
+
+      if (ImGui::DragFloat("Gamma", &m_toneMapGamma, 0.01f, 0.1f, 5.f))
+        m_outputTransformPass->setGamma(m_toneMapGamma);
+
+      ImGui::EndDisabled();
+      ImGui::Unindent(INDENT_AMOUNT);
+    }
 
     {
       ImGui::Text("Display:");

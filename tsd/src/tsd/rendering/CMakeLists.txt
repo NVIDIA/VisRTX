@@ -12,15 +12,18 @@ PRIVATE
   index/RenderIndexAllLayers.cpp
   pipeline/passes/AnariAxesRenderPass.cpp
   pipeline/passes/AnariSceneRenderPass.cpp
+  pipeline/passes/AutoExposurePass.cpp
   pipeline/passes/ClearBuffersPass.cpp
   pipeline/passes/CopyFromColorBufferPass.cpp
   pipeline/passes/CopyToColorBufferPass.cpp
   pipeline/passes/CopyToSDLTexturePass.cpp
   pipeline/passes/MultiDeviceSceneRenderPass.cpp
   pipeline/passes/OutlineRenderPass.cpp
+  pipeline/passes/OutputTransformPass.cpp
   pipeline/passes/PickPass.cpp
   pipeline/passes/ImagePass.cpp
   pipeline/passes/SaveToFilePass.cpp
+  pipeline/passes/ToneMapPass.cpp
   pipeline/passes/VisualizeAOVPass.cpp
   pipeline/ImagePipeline.cpp
   view/ManipulatorToAnari.cpp
@@ -40,9 +43,12 @@ if (TSD_USE_CUDA)
   set_source_files_properties(
     pipeline/passes/AnariAxesRenderPass.cpp
     pipeline/passes/AnariSceneRenderPass.cpp
+    pipeline/passes/AutoExposurePass.cpp
     pipeline/passes/ClearBuffersPass.cpp
     pipeline/passes/ImagePass.cpp
     pipeline/passes/OutlineRenderPass.cpp
+    pipeline/passes/OutputTransformPass.cpp
+    pipeline/passes/ToneMapPass.cpp
     pipeline/passes/VisualizeAOVPass.cpp
     PROPERTIES
       COMPILE_OPTIONS "--extended-lambda;--expt-relaxed-constexpr;-Xcudafe=--diag_suppress=20012;-Wno-deprecated-gpu-targets"

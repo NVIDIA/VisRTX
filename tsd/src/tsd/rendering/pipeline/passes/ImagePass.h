@@ -23,6 +23,8 @@ namespace tsd::rendering {
 struct ImageBuffers
 {
   uint32_t *color{nullptr};
+  float *hdrColor{nullptr};
+  float exposure{0.f};
   float *depth{nullptr};
   uint32_t *objectId{nullptr};
   uint32_t *primitiveId{nullptr};
