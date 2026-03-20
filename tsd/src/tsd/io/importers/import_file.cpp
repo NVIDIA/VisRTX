@@ -68,6 +68,8 @@ void import_file(Scene &scene,
     tsd::io::import_OBJ(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::PDB)
     tsd::io::import_PDB(scene, animMgr, file.c_str(), root);
+  else if (f.first == ImporterType::PBRT)
+    tsd::io::import_PBRT(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::PLY)
     tsd::io::import_PLY(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::POINTSBIN_MULTIFILE)

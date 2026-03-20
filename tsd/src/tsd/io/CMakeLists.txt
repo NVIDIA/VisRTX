@@ -12,6 +12,9 @@ PRIVATE
   importers/detail/ensight_io.cpp
   importers/detail/HDRImage.cpp
   importers/detail/importer_common.cpp
+  importers/detail/pbrt/PbrtLexer.cpp
+  importers/detail/pbrt/PbrtParser.cpp
+  importers/detail/pbrt/PbrtScene.cpp
   importers/detail/usd/MaterialCommon.cpp
   importers/detail/usd/OmniPbrMaterial.cpp
   importers/import_AGX.cpp
@@ -29,6 +32,7 @@ PRIVATE
   importers/import_NBODY.cpp
   importers/import_NVDB.cpp
   importers/import_OBJ.cpp
+  importers/import_PBRT.cpp
   importers/import_USD.cpp
   importers/import_PDB.cpp
   importers/import_PLY.cpp

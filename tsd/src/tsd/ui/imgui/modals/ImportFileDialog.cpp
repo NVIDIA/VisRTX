@@ -38,6 +38,7 @@ void ImportFileDialog::buildUI()
       "NBODY",
       "OBJ",
       "PDB",
+      "PBRT",
       "PLY",
       "POINTSBIN_MULTIFILE",
       "PT (neural)",
@@ -51,6 +52,7 @@ void ImportFileDialog::buildUI()
       "VTU",
       "XYZDP",
       "VOLUME",
+      "VOLUME_ANIMATION",
       "TSD",
   };
 

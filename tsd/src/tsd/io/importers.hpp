@@ -73,6 +73,7 @@ void import_HSMESH(Scene &scene, tsd::animation::AnimationManager &animMgr, cons
 void import_NBODY(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
 void import_OBJ(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {}, bool useDefaultMaterial = false);
 void import_PDB(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
+void import_PBRT(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_PLY(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_POINTSBIN(Scene &scene, tsd::animation::AnimationManager &animMgr, const std::vector<std::string> &filepaths, LayerNodeRef location = {});
 void import_PT(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
@@ -146,6 +147,7 @@ enum class ImporterType
   NBODY,
   OBJ,
   PDB,
+  PBRT,
   PLY,
   POINTSBIN_MULTIFILE,
   PT,

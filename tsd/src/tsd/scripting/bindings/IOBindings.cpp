@@ -163,6 +163,14 @@ void registerIOBindings(sol::state &lua)
         TSD_LUA_IMPORT_WRAP(tsd::io::import_PDB(s, anim, f.c_str(), loc), f);
       });
 
+  io["importPBRT"] = sol::overload(
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_PBRT(s, anim, f.c_str()), f);
+      },
+      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
+        TSD_LUA_IMPORT_WRAP(tsd::io::import_PBRT(s, anim, f.c_str(), loc), f);
+      });
+
   io["importSWC"] = sol::overload(
       [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_SWC(s, anim, f.c_str()), f);

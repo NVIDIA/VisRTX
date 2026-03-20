@@ -12,6 +12,9 @@
 #include "mikktspace.h"
 // stb_image
 #include "stb_image.h"
+#ifndef _WIN32
+#include "tinyexr.h"
+#endif
 // anari
 #include <anari/anari_cpp/ext/linalg.h>
 // std
@@ -390,6 +393,41 @@ SamplerRef importStbTexture(
                    : SamplerRef{};
 }
 
+#ifndef _WIN32
+// Follow actual HDRI importer: tinyexr is excluded on Windows; to be
+// investigated.
+static SamplerRef importExrTexture(
+    Scene &scene, const std::string &filepath, TextureCache &cache)
+{
+  // EXR is always linear (no sRGB encoding); collapse both cache buckets onto
+  // the linear key so a .exr can't be imported twice as srgb vs linear.
+  auto cacheKey = makeTextureCacheKey(filepath, /*isLinear=*/true);
+  if (auto dataArray = cache[cacheKey]; dataArray.valid())
+    return makeTextureSampler(scene, dataArray, filepath);
+
+  float *rgba = nullptr;
+  int width = 0;
+  int height = 0;
+  const char *err = nullptr;
+  int ret = LoadEXR(&rgba, &width, &height, filepath.c_str(), &err);
+  if (ret != TINYEXR_SUCCESS) {
+    logError("[importTexture] failed to load EXR '%s': %s",
+        filepath.c_str(),
+        err ? err : "unknown error");
+    if (err)
+      FreeEXRErrorMessage(err);
+    return {};
+  }
+
+  auto dataArray = scene.createArray(ANARI_FLOAT32_VEC4, width, height);
+  dataArray->setData(rgba);
+  cache[cacheKey] = dataArray;
+  free(rgba);
+
+  return makeTextureSampler(scene, dataArray, filepath);
+}
+#endif
+
 SamplerRef importTexture(
     Scene &scene, std::string filepath, TextureCache &cache, bool isLinear)
 {
@@ -398,9 +436,18 @@ SamplerRef importTexture(
         return c == '\\' ? '/' : c;
       });
 
+  auto ext = extensionOf(filepath);
+  std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+    return std::tolower(c);
+  });
+
   SamplerRef tex;
-  if (filepath.size() > 4 && filepath.substr(filepath.size() - 4) == ".dds") {
+  if (ext == ".dds") {
     tex = importDdsTexture(scene, filepath, cache);
+#ifndef _WIN32
+  } else if (ext == ".exr") {
+    tex = importExrTexture(scene, filepath, cache);
+#endif
   } else {
     tex = importStbTexture(scene, filepath, cache, isLinear);
   }

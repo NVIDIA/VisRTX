@@ -940,6 +940,11 @@ function tsd.io.importHDRI(...) end
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
 function tsd.io.importUSD(...) end
 
+--- Import a PBRT v4 scene file.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+function tsd.io.importPBRT(...) end
+
 --- Import a PDB (Protein Data Bank) file.
 ---@overload fun(scene: tsd.Scene, filename: string)
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)

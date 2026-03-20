@@ -80,6 +80,8 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       importerType = tsd::io::ImporterType::OBJ;
     else if (arg == "-pdb")
       importerType = tsd::io::ImporterType::PDB;
+    else if (arg == "-pbrt")
+      importerType = tsd::io::ImporterType::PBRT;
     else if (arg == "-ply")
       importerType = tsd::io::ImporterType::PLY;
     else if (arg == "-pointsbin") {
