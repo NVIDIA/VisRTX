@@ -1022,11 +1022,6 @@ function tsd.io.importSMESH(...) end
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
 function tsd.io.importTRK(...) end
 
---- Import a USD file (alternate importer).
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
-function tsd.io.importUSD2(...) end
-
 --- Import an XYZDP point cloud file.
 ---@overload fun(scene: tsd.Scene, filename: string)
 ---@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)

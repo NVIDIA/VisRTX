@@ -27,7 +27,6 @@ PRIVATE
   importers/import_NVDB.cpp
   importers/import_OBJ.cpp
   importers/import_USD.cpp
-  importers/import_USD2.cpp
   importers/import_PDB.cpp
   importers/import_PLY.cpp
   importers/import_POINTSBIN.cpp

@@ -100,10 +100,8 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       importerType = tsd::io::ImporterType::SWC;
     else if (arg == "-trk")
       importerType = tsd::io::ImporterType::TRK;
-    else if (arg == "-usd")
+    else if (arg == "-usd" || arg == "-usd2")
       importerType = tsd::io::ImporterType::USD;
-    else if (arg == "-usd2")
-      importerType = tsd::io::ImporterType::USD2;
     else if (arg == "-vtp")
       importerType = tsd::io::ImporterType::VTP;
     else if (arg == "-vtu")

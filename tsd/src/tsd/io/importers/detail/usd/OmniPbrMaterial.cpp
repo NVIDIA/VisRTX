@@ -46,7 +46,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("baseColor", *sampler);
     } else {
-      logWarning("[import_USD2] Failed to load diffuse texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load diffuse texture: %s\n", resolvedPath.c_str());
     }
   } else {
     // Use constant color
@@ -88,7 +88,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("metallic", *sampler);
     } else {
-      logWarning("[import_USD2] Failed to load metallic texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load metallic texture: %s\n", resolvedPath.c_str());
     }
   } else {
     float metallic = 0.0f;
@@ -111,7 +111,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("roughness", *sampler);
     } else {
-      logWarning("[import_USD2] Failed to load roughness texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load roughness texture: %s\n", resolvedPath.c_str());
     }
   } else {
     float roughness = 0.5f;  // Default to mid-range roughness
@@ -134,7 +134,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("normal", *sampler);
     } else {
-      logWarning("[import_USD2] Failed to load normal texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load normal texture: %s\n", resolvedPath.c_str());
     }
   }
 
@@ -150,7 +150,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("occlusion", *sampler);
     } else {
-      logWarning("[import_USD2] Failed to load occlusion texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load occlusion texture: %s\n", resolvedPath.c_str());
     }
   }
 
@@ -170,7 +170,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
       if (sampler) {
         mat->setParameterObject("opacity", *sampler);
       } else {
-        logWarning("[import_USD2] Failed to load opacity texture: %s\n", resolvedPath.c_str());
+        logWarning("[import_USD] Failed to load opacity texture: %s\n", resolvedPath.c_str());
       }
     } else {
       float opacityConstant = 1.0f;
@@ -209,7 +209,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     mat->setParameter("specular", specularLevel);
   }
 
-  logStatus("[import_USD2] Created OmniPBR material: '%s'\n", matName.c_str());
+  logStatus("[import_USD] Created OmniPBR material: '%s'\n", matName.c_str());
   return mat;
 }
 

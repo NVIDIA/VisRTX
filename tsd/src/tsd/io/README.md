@@ -7,7 +7,7 @@ serialization workflows.
 
 - File importers for full scenes and geometry datasets:
   AGX, ASSIMP, AXYZ, DLAF, E57, ENSIGHT, GLTF, HDRI, HSMESH, NBODY, OBJ, PDB,
-  PLY, POINTSBIN, PT, SILO, SMESH, SWC, TRK, USD/USD2, VTP, VTU, XYZDP.
+  PLY, POINTSBIN, PT, SILO, SMESH, SWC, TRK, USD, VTP, VTU, XYZDP.
 - Volume/spatial-field importers (`import_RAW`, `import_NVDB`, `import_VTI`,
   etc.) and `import_volume()` dispatch helpers.
 - Procedural generators for test and demo scenes (`generate_randomSpheres`,

@@ -47,7 +47,6 @@ void ImportFileDialog::buildUI()
       "SWC",
       "TRK",
       "USD",
-      "USD2",
       "VTP",
       "VTU",
       "XYZDP",

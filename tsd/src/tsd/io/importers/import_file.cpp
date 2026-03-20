@@ -86,10 +86,7 @@ void import_file(Scene &scene,
     tsd::io::import_TRK(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::USD)
     tsd::io::import_USD(scene, animMgr, file.c_str(), root);
-  else if (f.first == ImporterType::USD2) {
-    tsd::io::import_USD(scene, animMgr, file.c_str(), root);
-    tsd::io::import_USD2(scene, animMgr, file.c_str(), root);
-  } else if (f.first == ImporterType::VTP)
+  else if (f.first == ImporterType::VTP)
     tsd::io::import_VTP(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::VTU)
     tsd::io::import_VTU(scene, animMgr, file.c_str(), root);

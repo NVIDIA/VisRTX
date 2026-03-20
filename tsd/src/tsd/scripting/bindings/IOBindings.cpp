@@ -333,14 +333,6 @@ void registerIOBindings(sol::state &lua)
         TSD_LUA_IMPORT_WRAP(tsd::io::import_TRK(s, anim, f.c_str(), loc), f);
       });
 
-  io["importUSD2"] = sol::overload(
-      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
-        TSD_LUA_IMPORT_WRAP(tsd::io::import_USD2(s, anim, f.c_str()), f);
-      },
-      [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f, scene::LayerNodeRef loc) {
-        TSD_LUA_IMPORT_WRAP(tsd::io::import_USD2(s, anim, f.c_str(), loc), f);
-      });
-
   io["importXYZDP"] = sol::overload(
       [](scene::Scene &s, animation::AnimationManager &anim, const std::string &f) {
         TSD_LUA_IMPORT_WRAP(tsd::io::import_XYZDP(s, anim, f.c_str()), f);

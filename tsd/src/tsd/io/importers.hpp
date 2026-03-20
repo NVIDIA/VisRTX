@@ -46,7 +46,6 @@ void import_SMESH(Scene &scene, tsd::animation::AnimationManager &animMgr, const
 void import_SWC(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_TRK(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_USD(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
-void import_USD2(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_VTP(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location = {});
 void import_VTU(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location);
 void import_XYZDP(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
@@ -106,7 +105,6 @@ enum class ImporterType
   SWC,
   TRK,
   USD,
-  USD2,
   VTP,
   VTU,
   XYZDP,

@@ -14,12 +14,14 @@
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/HDRImage.h"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/io/importers/detail/usd/OmniPbrMaterial.h"
 #if TSD_USE_USD
 // usd
 #include <pxr/base/gf/matrix4f.h>
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3f.h>
 #include <pxr/base/tf/token.h>
+#include <pxr/usd/sdf/assetPath.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdGeom/basisCurves.h>
@@ -49,6 +51,7 @@
 // std
 #include <limits>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tsd::io {
@@ -138,17 +141,53 @@ static MaterialRef import_usd_preview_surface_material(Scene &scene,
   return mat;
 }
 
-// Helper to get the bound material for a prim (USD or default)
-static MaterialRef get_bound_material(
-    Scene &scene, const pxr::UsdPrim &prim, const std::string &basePath)
+// Caches material refs by USD prim path to avoid duplicate imports
+using MaterialCache = std::unordered_map<std::string, MaterialRef>;
+
+// Try to import the bound material for a prim.  Checks the cache first, then
+// tries OmniPBR (MDL), then UsdPreviewSurface, then falls back to default.
+static MaterialRef get_bound_material(Scene &scene,
+    const pxr::UsdPrim &prim,
+    const std::string &basePath,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
-  MaterialRef mat = scene.defaultMaterial();
   pxr::UsdShadeMaterialBindingAPI binding(prim);
   pxr::UsdShadeMaterial usdMat = binding.ComputeBoundMaterial();
-  if (usdMat)
+  if (!usdMat)
+    return scene.defaultMaterial();
+
+  std::string matPath = usdMat.GetPath().GetString();
+  auto it = matCache.find(matPath);
+  if (it != matCache.end())
+    return it->second;
+
+  MaterialRef mat;
+
+  // Try OmniPBR via MDL surface output
+  auto mdlOutput = usdMat.GetSurfaceOutput(pxr::TfToken("mdl"));
+  for (auto &src : mdlOutput.GetConnectedSources()) {
+    pxr::UsdShadeShader shader(src.source);
+    pxr::TfToken subId;
+    shader.GetSourceAssetSubIdentifier(&subId, pxr::TfToken("mdl"));
+    if (subId == pxr::TfToken("OmniPBR")) {
+      mat = materials::importOmniPBRMaterial(
+          scene, usdMat, shader, basePath, texCache);
+      break;
+    }
+  }
+
+  // Fall back to UsdPreviewSurface
+  if (!mat)
     mat = import_usd_preview_surface_material(scene, usdMat, basePath);
+
+  if (!mat)
+    mat = scene.defaultMaterial();
+
+  matCache[matPath] = mat;
   return mat;
 }
+
 
 // Helper to extract volume transfer function from USD material
 struct VolumeTransferFunction
@@ -439,7 +478,9 @@ static void import_usd_mesh(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
-    const std::string &basePath)
+    const std::string &basePath,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   pxr::UsdGeomMesh mesh(prim);
 
@@ -657,7 +698,8 @@ static void import_usd_mesh(Scene &scene,
   meshObj->setName(prim.GetPath().GetText());
 
   // Material binding
-  MaterialRef mat = get_bound_material(scene, prim, basePath);
+  MaterialRef mat =
+      get_bound_material(scene, prim, basePath, matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), meshObj, mat);
   logStatus("[import_USD] Assigned material to mesh '%s': %s\n",
@@ -672,7 +714,9 @@ static void import_usd_points(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
-    tsd::animation::AnimationManager &animMgr)
+    tsd::animation::AnimationManager &animMgr,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   pxr::UsdGeomPoints pointsPrim(prim);
   std::string primName = prim.GetPath().GetString();
@@ -722,7 +766,7 @@ static void import_usd_points(Scene &scene,
   geom->setParameterObject("vertex.position", *firstPosArray);
   geom->setParameterObject("vertex.radius", *firstRadArray);
 
-  MaterialRef mat = get_bound_material(scene, prim, "");
+  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   scene.insertChildObjectNode(parent, surface);
 
@@ -761,7 +805,9 @@ static void import_usd_curves(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
-    tsd::animation::AnimationManager &animMgr)
+    tsd::animation::AnimationManager &animMgr,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   pxr::UsdGeomBasisCurves curvesPrim(prim);
   std::string primName = prim.GetPath().GetString();
@@ -847,7 +893,7 @@ static void import_usd_curves(Scene &scene,
   idxArray->setData(segIndices.data(), segIndices.size());
   geom->setParameterObject("primitive.index", *idxArray);
 
-  MaterialRef mat = get_bound_material(scene, prim, "");
+  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   scene.insertChildObjectNode(parent, surface);
 
@@ -881,7 +927,9 @@ static void import_usd_curves(Scene &scene,
 static void import_usd_sphere(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
-    const pxr::GfMatrix4d &usdXform)
+    const pxr::GfMatrix4d &usdXform,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   pxr::UsdGeomSphere spherePrim(prim);
   // UsdGeomSphere is always centered at the origin in local space
@@ -905,7 +953,7 @@ static void import_usd_sphere(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = get_bound_material(scene, prim, "");
+  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to sphere '%s': %s\n",
@@ -918,7 +966,9 @@ static void import_usd_sphere(Scene &scene,
 static void import_usd_cone(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
-    const pxr::GfMatrix4d &usdXform)
+    const pxr::GfMatrix4d &usdXform,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   pxr::UsdGeomCone conePrim(prim);
   // UsdGeomCone is always centered at the origin in local space
@@ -949,7 +999,7 @@ static void import_usd_cone(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = get_bound_material(scene, prim, "");
+  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to cone '%s': %s\n",
@@ -962,7 +1012,9 @@ static void import_usd_cone(Scene &scene,
 static void import_usd_cylinder(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
-    const pxr::GfMatrix4d &usdXform)
+    const pxr::GfMatrix4d &usdXform,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   pxr::UsdGeomCylinder cylPrim(prim);
   // UsdGeomCylinder is always centered at the origin in local space
@@ -994,7 +1046,7 @@ static void import_usd_cylinder(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = get_bound_material(scene, prim, "");
+  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   tsd::core::logStatus("[import_USD] Assigned material to cylinder '%s': %s\n",
@@ -1010,7 +1062,9 @@ static void import_usd_cube(Scene &scene,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
     const std::string &basePath,
-    tsd::animation::AnimationManager &animMgr)
+    tsd::animation::AnimationManager &animMgr,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   pxr::UsdGeomCube cubePrim(prim);
   double size = 2.0;
@@ -1107,7 +1161,8 @@ static void import_usd_cube(Scene &scene,
   idxArr->setData((uint3 *)indices.data(), indices.size() / 3);
   geom->setParameterObject("primitive.index", *idxArr);
 
-  MaterialRef mat = get_bound_material(scene, prim, basePath);
+  MaterialRef mat =
+      get_bound_material(scene, prim, basePath, matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to cube '%s': %s\n",
       primName.c_str(),
@@ -1723,7 +1778,9 @@ static void import_usd_prim_recursive(Scene &scene,
     pxr::UsdGeomXformCache &xformCache,
     const std::string &basePath,
     const pxr::GfMatrix4d &parentWorldXform,
-    tsd::animation::AnimationManager &animMgr)
+    tsd::animation::AnimationManager &animMgr,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   // if (prim.IsPrototype()) return;
   if (prim.IsInstance()) {
@@ -1740,9 +1797,15 @@ static void import_usd_prim_recursive(Scene &scene,
         primName = "<unnamed_instance>";
       auto xformNode =
           scene.insertChildTransformNode(parent, tsdXform, primName.c_str());
-      // Recursively import the prototype under this transform node
-      import_usd_prim_recursive(
-          scene, prototype, xformNode, xformCache, basePath, thisWorldXform, animMgr);
+      import_usd_prim_recursive(scene,
+          prototype,
+          xformNode,
+          xformCache,
+          basePath,
+          thisWorldXform,
+          animMgr,
+          matCache,
+          texCache);
     } else {
       tsd::core::logStatus("[import_USD] Instance has no prototype: %s\n",
           prim.GetName().GetString().c_str());
@@ -1849,19 +1912,23 @@ static void import_usd_prim_recursive(Scene &scene,
   // world-space semantics and are handled separately.
   const pxr::GfMatrix4d identity(1.0);
   if (prim.IsA<pxr::UsdGeomMesh>()) {
-    import_usd_mesh(scene, prim, thisNode, identity, basePath);
+    import_usd_mesh(
+        scene, prim, thisNode, identity, basePath, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomPoints>()) {
-    import_usd_points(scene, prim, thisNode, identity, animMgr);
+    import_usd_points(
+        scene, prim, thisNode, identity, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomSphere>()) {
-    import_usd_sphere(scene, prim, thisNode, identity);
+    import_usd_sphere(scene, prim, thisNode, identity, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCone>()) {
-    import_usd_cone(scene, prim, thisNode, identity);
+    import_usd_cone(scene, prim, thisNode, identity, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCylinder>()) {
-    import_usd_cylinder(scene, prim, thisNode, identity);
+    import_usd_cylinder(scene, prim, thisNode, identity, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCube>()) {
-    import_usd_cube(scene, prim, thisNode, identity, basePath, animMgr);
+    import_usd_cube(
+        scene, prim, thisNode, identity, basePath, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomBasisCurves>()) {
-    import_usd_curves(scene, prim, thisNode, identity, animMgr);
+    import_usd_curves(
+        scene, prim, thisNode, identity, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdLuxDistantLight>()) {
     import_usd_distant_light(scene, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxRectLight>()) {
@@ -1877,8 +1944,15 @@ static void import_usd_prim_recursive(Scene &scene,
   }
   // Recurse into children
   for (const auto &child : prim.GetChildren()) {
-    import_usd_prim_recursive(
-        scene, child, thisNode, xformCache, basePath, thisWorldXform, animMgr);
+    import_usd_prim_recursive(scene,
+        child,
+        thisNode,
+        xformCache,
+        basePath,
+        thisWorldXform,
+        animMgr,
+        matCache,
+        texCache);
   }
 }
 
@@ -1911,6 +1985,8 @@ void import_USD(Scene &scene,
   pxr::UsdGeomXformCache xformCache(pxr::UsdTimeCode::Default());
 
   std::string basePath = pathOf(filepath);
+  MaterialCache matCache;
+  TextureCache texCache;
 
   // Traverse all prims in the USD file, but only import top-level prims
   for (pxr::UsdPrim const &prim : stage->Traverse()) {
@@ -1922,9 +1998,16 @@ void import_USD(Scene &scene,
           xformCache,
           basePath,
           pxr::GfMatrix4d(1.0),
-          animMgr);
+          animMgr,
+          matCache,
+          texCache);
     }
   }
+
+  if (!matCache.empty())
+    logStatus("[import_USD] Imported %zu unique materials\n", matCache.size());
+  if (!texCache.empty())
+    logStatus("[import_USD] Loaded %zu unique textures\n", texCache.size());
 }
 #else
 void import_USD(Scene &scene,
