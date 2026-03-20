@@ -258,7 +258,7 @@ inline void *Any::data()
 
 inline size_t Any::getAsObjectIndex() const
 {
-  return holdsObject() ? storageAs<size_t>() : ~size_t(0);
+  return holdsObject() ? storageAs<size_t>() : INVALID_INDEX;
 }
 
 template <typename T>

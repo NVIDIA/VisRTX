@@ -33,7 +33,7 @@ struct ObjectParameterBinding : public Binding
   TSD_DEFAULT_COPYABLE(ObjectParameterBinding)
   TSD_DEFAULT_MOVEABLE(ObjectParameterBinding)
 
-  ObjectParameterBinding() = default;
+  ObjectParameterBinding(scene::Scene *scene); // empty, no target
   ObjectParameterBinding(scene::Object *target,
       core::Token paramName,
       anari::DataType type,

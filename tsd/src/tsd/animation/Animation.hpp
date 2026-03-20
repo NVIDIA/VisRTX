@@ -43,7 +43,7 @@ struct Animation
 
   // Object Parameter Bindings //
 
-  void addObjectParameterBinding(scene::Object *target,
+  ObjectParameterBinding &addObjectParameterBinding(scene::Object *target,
       core::Token paramName,
       anari::DataType dataType,
       const void *data,
@@ -51,7 +51,7 @@ struct Animation
       size_t count,
       InterpolationRule interp = InterpolationRule::LINEAR);
 
-  void addObjectParameterBinding(scene::Object *target,
+  ObjectParameterBinding &addObjectParameterBinding(scene::Object *target,
       core::Token paramName,
       anari::DataType dataType,
       scene::Object *const *objects,
@@ -65,8 +65,8 @@ struct Animation
 
   // Transform Bindings //
 
-  void addTransformBinding(scene::LayerNodeRef target);
-  void addTransformBinding(scene::LayerNodeRef target,
+  TransformBinding &addTransformBinding(scene::LayerNodeRef target);
+  TransformBinding &addTransformBinding(scene::LayerNodeRef target,
       const float *timeBase,
       const tsd::core::math::float4 *rotation,
       const tsd::core::math::float3 *translation,
@@ -83,6 +83,9 @@ struct Animation
   void fromDataNode(core::DataNode &node);
 
  private:
+  ObjectParameterBinding &addEmptyObjectParameterBinding();
+  TransformBinding &addEmptyTransformBinding();
+
   struct ParameterSubstitution
   {
     scene::Object *target{nullptr};

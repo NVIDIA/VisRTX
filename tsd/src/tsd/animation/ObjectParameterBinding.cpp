@@ -5,6 +5,10 @@
 
 namespace tsd::animation {
 
+ObjectParameterBinding::ObjectParameterBinding(scene::Scene *scene)
+    : Binding(scene)
+{}
+
 ObjectParameterBinding::ObjectParameterBinding(scene::Object *target,
     core::Token paramName,
     anari::DataType type,
@@ -203,7 +207,7 @@ void ObjectParameterBinding::fromDataNode(core::DataNode &node)
   auto targetType = (anari::DataType)node["targetType"].getValueAs<int>();
   auto targetIndex = node["targetIndex"].getValueAs<size_t>();
   scene::Object *target = nullptr;
-  if (targetType != ANARI_UNKNOWN && targetIndex != size_t(-1))
+  if (targetType != ANARI_UNKNOWN && targetIndex != TSD_INVALID_INDEX)
     target = this->scene()->getObject(targetType, targetIndex);
 
   m_paramName =
@@ -221,6 +225,21 @@ void ObjectParameterBinding::fromDataNode(core::DataNode &node)
   anari::DataType dt = ANARI_UNKNOWN;
   if (auto *dataNode = node.child("data"); dataNode && dataNode->holdsArray())
     dataNode->getValueAsArray(&dt, &dataPtr, &dataCount);
+
+  // Convert object indices back to pointers (if applicable), since indices are
+  // stored in the tree.
+  std::vector<scene::Object *> objectPtrs;
+  if (anari::isObject(m_type) && dataPtr && dataCount > 0) {
+    objectPtrs.resize(dataCount);
+    auto *indices = static_cast<const size_t *>(dataPtr);
+    for (size_t i = 0; i < dataCount; i++) {
+      if (indices[i] != TSD_INVALID_INDEX)
+        objectPtrs[i] = this->scene()->getObject(m_type, indices[i]);
+      else
+        objectPtrs[i] = nullptr;
+    }
+    dataPtr = objectPtrs.data();
+  }
 
   size_t count = dataCount > 0 ? dataCount : tbCount;
   *this = ObjectParameterBinding(

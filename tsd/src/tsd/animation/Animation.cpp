@@ -78,7 +78,8 @@ void Animation::updateObjectDefragmentedIndices(const scene::IndexRemapper &cb)
     b.updateObjectDefragmentedIndices(cb);
 }
 
-void Animation::addObjectParameterBinding(scene::Object *target,
+ObjectParameterBinding &Animation::addObjectParameterBinding(
+    scene::Object *target,
     core::Token paramName,
     anari::DataType type,
     const void *data,
@@ -88,9 +89,11 @@ void Animation::addObjectParameterBinding(scene::Object *target,
 {
   m_bindings.emplace_back(
       target, paramName, type, data, timeBase, count, interp);
+  return m_bindings.back();
 }
 
-void Animation::addObjectParameterBinding(scene::Object *target,
+ObjectParameterBinding &Animation::addObjectParameterBinding(
+    scene::Object *target,
     core::Token paramName,
     anari::DataType type,
     scene::Object *const *objects,
@@ -100,6 +103,7 @@ void Animation::addObjectParameterBinding(scene::Object *target,
 {
   m_bindings.emplace_back(
       target, paramName, type, objects, timeBase, count, interp);
+  return m_bindings.back();
 }
 
 const std::vector<ObjectParameterBinding> &Animation::objectParameterBindings()
@@ -119,12 +123,13 @@ void Animation::removeObjectParameterBinding(size_t i)
     m_bindings.erase(m_bindings.begin() + i);
 }
 
-void Animation::addTransformBinding(scene::LayerNodeRef target)
+TransformBinding &Animation::addTransformBinding(scene::LayerNodeRef target)
 {
   m_transforms.emplace_back(target);
+  return m_transforms.back();
 }
 
-void Animation::addTransformBinding(scene::LayerNodeRef target,
+TransformBinding &Animation::addTransformBinding(scene::LayerNodeRef target,
     const float *timeBase,
     const tsd::core::math::float4 *rotation,
     const tsd::core::math::float3 *translation,
@@ -133,6 +138,7 @@ void Animation::addTransformBinding(scene::LayerNodeRef target,
 {
   m_transforms.emplace_back(
       target, timeBase, rotation, translation, scale, count);
+  return m_transforms.back();
 }
 
 const std::vector<TransformBinding> &Animation::transformBindings() const
@@ -175,19 +181,29 @@ void Animation::fromDataNode(core::DataNode &node)
 
   if (auto *bindingsNode = node.child("objectBindings")) {
     bindingsNode->foreach_child([&](core::DataNode &bn) {
-      ObjectParameterBinding b;
+      auto &b = addEmptyObjectParameterBinding();
       b.fromDataNode(bn);
-      m_bindings.push_back(std::move(b));
     });
   }
 
   if (auto *transformsNode = node.child("transformBindings")) {
     transformsNode->foreach_child([&](core::DataNode &tn) {
-      TransformBinding b;
+      auto &b = addEmptyTransformBinding();
       b.fromDataNode(tn);
-      m_transforms.push_back(std::move(b));
     });
   }
+}
+
+ObjectParameterBinding &Animation::addEmptyObjectParameterBinding()
+{
+  m_bindings.emplace_back(m_manager->scene());
+  return m_bindings.back();
+}
+
+TransformBinding &Animation::addEmptyTransformBinding()
+{
+  m_transforms.emplace_back(m_manager->scene());
+  return m_transforms.back();
 }
 
 core::Any Animation::interpolateBinding(

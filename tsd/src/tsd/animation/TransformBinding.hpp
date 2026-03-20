@@ -28,7 +28,7 @@ struct TransformBinding : public Binding
   TSD_DEFAULT_COPYABLE(TransformBinding)
   TSD_DEFAULT_MOVEABLE(TransformBinding)
 
-  TransformBinding() = default;
+  TransformBinding(scene::Scene *scene); // empty, no target
   TransformBinding(scene::LayerNodeRef target);
   TransformBinding(scene::LayerNodeRef target,
       const float *timeBase,

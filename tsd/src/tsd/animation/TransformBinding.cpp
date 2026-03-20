@@ -7,6 +7,8 @@
 
 namespace tsd::animation {
 
+TransformBinding::TransformBinding(scene::Scene *scene) : Binding(scene) {}
+
 TransformBinding::TransformBinding(scene::LayerNodeRef target)
     : Binding((*m_target)->layer()->scene()), m_target(target)
 {}
