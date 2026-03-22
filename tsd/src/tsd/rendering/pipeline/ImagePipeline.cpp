@@ -94,6 +94,8 @@ void ImagePipeline::cleanup()
   detail::free(m_buffers.color);
   detail::free(m_buffers.depth);
   detail::free(m_buffers.objectId);
+  detail::free(m_buffers.primitiveId);
+  detail::free(m_buffers.instanceId);
   detail::free(m_buffers.albedo);
   detail::free(m_buffers.normal);
 }
