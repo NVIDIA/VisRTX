@@ -25,12 +25,18 @@ void ClearBuffersPass::render(ImageBuffers &b, int /*stageId*/)
   const auto c = helium::cvt_color_to_uint32(m_clearColor);
 #if ENABLE_CUDA
   thrust::fill(b.color, b.color + totalSize, c);
+  thrust::fill(b.hdrColor, b.hdrColor + totalSize * 4, 0.f);
   thrust::fill(b.depth, b.depth + totalSize, tsd::core::math::inf);
   thrust::fill(b.objectId, b.objectId + totalSize, ~0u);
+  thrust::fill(b.primitiveId, b.primitiveId + totalSize, ~0u);
+  thrust::fill(b.instanceId, b.instanceId + totalSize, ~0u);
 #else
   std::fill(b.color, b.color + totalSize, c);
+  std::fill(b.hdrColor, b.hdrColor + totalSize * 4, 0.f);
   std::fill(b.depth, b.depth + totalSize, tsd::core::math::inf);
   std::fill(b.objectId, b.objectId + totalSize, ~0u);
+  std::fill(b.primitiveId, b.primitiveId + totalSize, ~0u);
+  std::fill(b.instanceId, b.instanceId + totalSize, ~0u);
 #endif
 }
 
