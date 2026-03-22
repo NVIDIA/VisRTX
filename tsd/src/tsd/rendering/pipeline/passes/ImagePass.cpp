@@ -28,6 +28,11 @@ bool ImagePass::isEnabled() const
   return m_enabled;
 }
 
+const char *ImagePass::name() const
+{
+  return "ImagePass";
+}
+
 void ImagePass::updateSize()
 {
   // no-up

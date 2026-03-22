@@ -32,6 +32,7 @@ struct VisualizeAOVPass : public ImagePass
 {
   VisualizeAOVPass();
   ~VisualizeAOVPass() override;
+  const char *name() const override { return "Visualize AOV"; }
 
   void setAOVType(AOVType type);
   void setDepthRange(float minDepth, float maxDepth);

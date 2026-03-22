@@ -51,28 +51,27 @@ void ImagePipeline::setDimensions(uint32_t width, uint32_t height)
 void ImagePipeline::render()
 {
   int stageId = 0;
-#define PRINT_LATENCIES 0
+  m_passTimings.clear();
   for (auto &p : m_passes) {
     if (!p->isEnabled())
       continue;
-#if PRINT_LATENCIES
     auto start = std::chrono::steady_clock::now();
-#endif
     p->render(m_buffers, stageId++);
-#if PRINT_LATENCIES
     auto end = std::chrono::steady_clock::now();
-    auto time = std::chrono::duration<float>(end - start).count();
-    printf("[%i] %fms\t", stageId - 1, time * 1000);
-#endif
+    auto time = std::chrono::duration<float, std::milli>(end - start).count();
+    m_passTimings.push_back({p->name(), time});
   }
-#if PRINT_LATENCIES
-  printf("\n");
-#endif
 }
 
 const uint32_t *ImagePipeline::getColorBuffer() const
 {
   return m_buffers.color;
+}
+
+const std::vector<ImagePipeline::PassTiming> &ImagePipeline::getPassTimings()
+    const
+{
+  return m_passTimings;
 }
 
 size_t ImagePipeline::size() const

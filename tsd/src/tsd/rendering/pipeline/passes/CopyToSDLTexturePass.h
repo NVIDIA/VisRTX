@@ -18,6 +18,7 @@ struct CopyToSDLTexturePass : public ImagePass
 {
   CopyToSDLTexturePass(SDL_Renderer *renderer);
   ~CopyToSDLTexturePass() override;
+  const char *name() const override { return "Copy To SDL"; }
 
   SDL_Texture *getTexture() const;
 

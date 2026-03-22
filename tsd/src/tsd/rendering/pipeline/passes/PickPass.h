@@ -25,6 +25,7 @@ struct PickPass : public ImagePass
 
   PickPass();
   ~PickPass() override;
+  const char *name() const override { return "Pick"; }
 
   void setPickOperation(PickOpFunc &&f);
 

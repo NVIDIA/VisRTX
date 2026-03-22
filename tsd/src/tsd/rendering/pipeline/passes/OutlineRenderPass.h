@@ -19,6 +19,7 @@ struct OutlineRenderPass : public ImagePass
 {
   OutlineRenderPass();
   ~OutlineRenderPass() override;
+  const char *name() const override { return "Outline"; }
 
   void setOutlineId(uint32_t id);
 

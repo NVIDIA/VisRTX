@@ -22,6 +22,7 @@ struct AnariSceneRenderPass : public ImagePass
 {
   AnariSceneRenderPass(anari::Device d);
   ~AnariSceneRenderPass() override;
+  const char *name() const override { return "ANARI Scene"; }
 
   void setCamera(anari::Camera c);
   void setRenderer(anari::Renderer r);

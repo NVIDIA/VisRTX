@@ -904,6 +904,14 @@ void Viewport::ui_overlay()
     ImGui::Text("   ANARI: %.2fms", m_latestAnariFL);
     ImGui::Text("   (min): %.2fms", m_minFL);
     ImGui::Text("   (max): %.2fms", m_maxFL);
+
+    const auto &passTimings = m_pipeline.getPassTimings();
+    if (!passTimings.empty()) {
+      ImGui::Separator();
+      ImGui::Text("passes:");
+      for (const auto &timing : passTimings)
+        ImGui::Text("  %s: %.2fms", timing.name, timing.milliseconds);
+    }
   }
   ImGui::EndChild();
 

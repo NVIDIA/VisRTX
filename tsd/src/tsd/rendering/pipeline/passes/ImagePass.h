@@ -50,6 +50,7 @@ struct ImagePass
 
   void setEnabled(bool enabled);
   bool isEnabled() const;
+  virtual const char *name() const;
 
   tsd::math::uint2 getDimensions() const;
 

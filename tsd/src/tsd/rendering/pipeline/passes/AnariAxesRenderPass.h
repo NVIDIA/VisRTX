@@ -22,6 +22,7 @@ struct AnariAxesRenderPass : public ImagePass
 {
   AnariAxesRenderPass(anari::Device d, const anari::Extensions &e);
   ~AnariAxesRenderPass() override;
+  const char *name() const override { return "Axes Overlay"; }
 
   void setView(const tsd::math::float3 &dir, const tsd::math::float3 &up);
 

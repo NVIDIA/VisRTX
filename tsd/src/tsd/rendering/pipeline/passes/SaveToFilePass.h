@@ -22,6 +22,7 @@ struct SaveToFilePass : public ImagePass
 {
   SaveToFilePass();
   ~SaveToFilePass() override;
+  const char *name() const override { return "Save To File"; }
 
   void setFilename(const std::string &filename);
   const std::string &getFilename() const;

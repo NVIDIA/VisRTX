@@ -35,6 +35,12 @@ namespace tsd::rendering {
  */
 struct ImagePipeline final
 {
+  struct PassTiming
+  {
+    const char *name{nullptr};
+    float milliseconds{0.f};
+  };
+
   ImagePipeline();
   ImagePipeline(int width, int height);
   ~ImagePipeline();
@@ -43,6 +49,7 @@ struct ImagePipeline final
   void render();
 
   const uint32_t *getColorBuffer() const;
+  const std::vector<PassTiming> &getPassTimings() const;
 
   size_t size() const;
   bool empty() const;
@@ -55,6 +62,7 @@ struct ImagePipeline final
   void cleanup();
 
   std::vector<std::unique_ptr<ImagePass>> m_passes;
+  std::vector<PassTiming> m_passTimings;
   ImageBuffers m_buffers;
   tsd::math::uint2 m_size{0, 0};
 };
