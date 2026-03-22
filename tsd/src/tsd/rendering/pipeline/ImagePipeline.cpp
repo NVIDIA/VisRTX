@@ -23,7 +23,7 @@ ImagePipeline::ImagePipeline(int width, int height)
 
 ImagePipeline::~ImagePipeline()
 {
-  void cleanup();
+  cleanup();
 #ifdef ENABLE_CUDA
   cudaStreamDestroy(m_buffers.stream);
 #endif
