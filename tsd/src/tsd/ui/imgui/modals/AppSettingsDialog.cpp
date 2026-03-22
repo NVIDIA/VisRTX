@@ -310,8 +310,6 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
 
   ImGui::BeginDisabled(
       ctx->offline.aov.aovType != tsd::rendering::AOVType::EDGES);
-  ImGui::DragFloat(
-      "edge threshold", &ctx->offline.aov.edgeThreshold, 0.01f, 0.f, 1.f);
   ImGui::Checkbox("invert edges", &ctx->offline.aov.edgeInvert);
   ImGui::EndDisabled();
 

@@ -91,8 +91,7 @@ void computeNormalImage(ImageBuffers &b, tsd::math::uint2 size)
       });
 }
 
-void computeEdgesImage(
-    ImageBuffers &b, float threshold, bool invert, tsd::math::uint2 size)
+void computeEdgesImage(ImageBuffers &b, bool invert, tsd::math::uint2 size)
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
@@ -164,11 +163,6 @@ void VisualizeAOVPass::setDepthRange(float minDepth, float maxDepth)
   m_maxDepth = maxDepth;
 }
 
-void VisualizeAOVPass::setEdgeThreshold(float threshold)
-{
-  m_edgeThreshold = threshold;
-}
-
 void VisualizeAOVPass::setEdgeInvert(bool invert)
 {
   m_edgeInvert = invert;
@@ -192,7 +186,7 @@ void VisualizeAOVPass::render(ImageBuffers &b, int stageId)
     computeNormalImage(b, size);
     break;
   case AOVType::EDGES:
-    computeEdgesImage(b, m_edgeThreshold, m_edgeInvert, size);
+    computeEdgesImage(b, m_edgeInvert, size);
     break;
   case AOVType::OBJECT_ID:
     computeObjectIdImage(b, size);

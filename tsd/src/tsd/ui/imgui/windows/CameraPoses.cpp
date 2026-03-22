@@ -497,7 +497,6 @@ void CameraPoses::renderInterpolatedPath()
               pipeline->emplace_back<tsd::rendering::VisualizeAOVPass>();
           aovPass->setAOVType(config.aov.aovType);
           aovPass->setDepthRange(config.aov.depthMin, config.aov.depthMax);
-          aovPass->setEdgeThreshold(config.aov.edgeThreshold);
           aovPass->setEdgeInvert(config.aov.edgeInvert);
 
           // Enable necessary frame channels

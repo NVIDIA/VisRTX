@@ -232,7 +232,6 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["visualizeAOV"] = static_cast<int>(m_visualizeAOV);
   root["depthVisualMinimum"] = m_depthVisualMinimum;
   root["depthVisualMaximum"] = m_depthVisualMaximum;
-  root["edgeThreshold"] = m_edgeThreshold;
   root["edgeInvert"] = m_edgeInvert;
   root["showAxes"] = m_showAxes;
 
@@ -261,7 +260,6 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aovType);
   root["depthVisualMinimum"].getValue(ANARI_FLOAT32, &m_depthVisualMinimum);
   root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
-  root["edgeThreshold"].getValue(ANARI_FLOAT32, &m_edgeThreshold);
   root["edgeInvert"].getValue(ANARI_BOOL, &m_edgeInvert);
   root["showAxes"].getValue(ANARI_BOOL, &m_showAxes);
 
@@ -388,7 +386,6 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 
   m_visualizeAOVPass = p.emplace_back<tsd::rendering::VisualizeAOVPass>();
   m_visualizeAOVPass->setEnabled(false);
-  m_visualizeAOVPass->setEdgeThreshold(m_edgeThreshold);
   m_visualizeAOVPass->setEdgeInvert(m_edgeInvert);
 
   m_outlinePass = p.emplace_back<tsd::rendering::OutlineRenderPass>();
@@ -724,11 +721,8 @@ void Viewport::ui_menubar_Viewport()
 
       ImGui::BeginDisabled(m_visualizeAOV != tsd::rendering::AOVType::EDGES);
       bool edgeSettingsChanged = false;
-      edgeSettingsChanged |=
-          ImGui::DragFloat("Edge Threshold", &m_edgeThreshold, 0.01f, 0.f, 1.f);
       edgeSettingsChanged |= ImGui::Checkbox("Invert Edges", &m_edgeInvert);
       if (edgeSettingsChanged) {
-        m_visualizeAOVPass->setEdgeThreshold(m_edgeThreshold);
         m_visualizeAOVPass->setEdgeInvert(m_edgeInvert);
       }
       ImGui::EndDisabled();

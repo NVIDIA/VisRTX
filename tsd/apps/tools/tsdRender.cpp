@@ -249,7 +249,6 @@ static void setupImagePipeline()
     aovPass->setAOVType(g_ctx->offline.aov.aovType);
     aovPass->setDepthRange(
         g_ctx->offline.aov.depthMin, g_ctx->offline.aov.depthMax);
-    aovPass->setEdgeThreshold(g_ctx->offline.aov.edgeThreshold);
     aovPass->setEdgeInvert(g_ctx->offline.aov.edgeInvert);
 
     // Enable necessary frame channels
@@ -301,7 +300,7 @@ static void renderFrames()
       }
     }
     if (hasCameraAnimation)
-      break;;
+      break;
   }
 
   if (hasCameraAnimation) {
