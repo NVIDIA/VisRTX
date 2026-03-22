@@ -14,14 +14,6 @@ namespace tsd::rendering {
 
 // Thrust kernels /////////////////////////////////////////////////////////////
 
-DEVICE_FCN_INLINE uint32_t shadePixel(uint32_t c_in)
-{
-  auto c_in_f = helium::cvt_color_to_float4(c_in);
-  auto c_h = tsd::math::float4(1.f, 0.5f, 0.f, 1.f);
-  auto c_out = tsd::math::lerp(c_in_f, c_h, 0.8f);
-  return helium::cvt_color_to_uint32(c_out);
-};
-
 void compositeFrame(ImageBuffers &b_out,
     const ImageBuffers &b_in,
     tsd::math::uint2 size,
