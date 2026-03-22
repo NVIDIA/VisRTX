@@ -47,16 +47,16 @@ void SaveToFilePass::render(ImageBuffers &b, int /*stageId*/)
     return;
   }
 
-  // Use STB's built-in vertical flip functionality for simplicity
   stbi_flip_vertically_on_write(1);
 
-  // Write PNG file (4 components = RGBA, stride = width * 4 bytes)
   int result = stbi_write_png(m_filename.c_str(),
       static_cast<int>(size.x),
       static_cast<int>(size.y),
       4, // RGBA
       b.color,
       static_cast<int>(size.x) * 4);
+
+  stbi_flip_vertically_on_write(0);
 
   if (result) {
     tsd::core::logStatus(
