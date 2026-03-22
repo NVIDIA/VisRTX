@@ -109,6 +109,11 @@ void BaseViewport::imagePipeline_render()
   m_pipeline.render();
 }
 
+const tsd::rendering::ImagePipeline &BaseViewport::imagePipeline() const
+{
+  return m_pipeline;
+}
+
 void BaseViewport::imagePipeline_teardown()
 {
   m_pipeline.clear();

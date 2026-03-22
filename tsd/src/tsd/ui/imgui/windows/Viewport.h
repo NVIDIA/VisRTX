@@ -107,7 +107,6 @@ struct Viewport : public BaseViewport
 
   // Display //
 
-  tsd::rendering::ImagePipeline m_pipeline;
   tsd::rendering::AnariSceneRenderPass *m_anariPass{nullptr};
   tsd::rendering::PickPass *m_pickPass{nullptr};
   tsd::rendering::VisualizeAOVPass *m_visualizeAOVPass{nullptr};

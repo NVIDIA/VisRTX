@@ -44,6 +44,7 @@ struct BaseViewport : public Window
   void imagePipeline_setDimensions(uint32_t width, uint32_t height);
   void imagePipeline_render();
   void imagePipeline_teardown();
+  const tsd::rendering::ImagePipeline &imagePipeline() const;
 
   void camera_update(bool force = false);
   void camera_setCurrent(tsd::scene::CameraAppRef c);

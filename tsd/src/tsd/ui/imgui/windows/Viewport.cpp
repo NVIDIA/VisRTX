@@ -905,7 +905,7 @@ void Viewport::ui_overlay()
     ImGui::Text("   (min): %.2fms", m_minFL);
     ImGui::Text("   (max): %.2fms", m_maxFL);
 
-    const auto &passTimings = m_pipeline.getPassTimings();
+    const auto &passTimings = imagePipeline().getPassTimings();
     if (!passTimings.empty()) {
       ImGui::Separator();
       ImGui::Text("passes:");
