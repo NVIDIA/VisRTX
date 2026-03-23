@@ -4,8 +4,6 @@
 #include "CopyToColorBufferPass.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
-// std
-#include <cstring>
 
 namespace tsd::rendering {
 
@@ -39,7 +37,7 @@ void CopyToColorBufferPass::render(ImageBuffers &b, int /*stageId*/)
     return;
   }
 
-  std::memcpy(b.color, m_externalBuffer->data(), totalPixels * 4);
+  detail::memcpy_(b.color, m_externalBuffer->data(), totalPixels * 4);
 }
 
 } // namespace tsd::rendering
