@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/animation/ObjectCustomBinding.hpp"
 #include "tsd/animation/ObjectParameterBinding.hpp"
 #include "tsd/animation/TransformBinding.hpp"
 // tsd_scene
@@ -63,6 +64,15 @@ struct Animation
   ObjectParameterBinding *editableObjectParameterBinding(size_t i);
   void removeObjectParameterBinding(size_t i);
 
+  // Custom Object Bindings //
+
+  ObjectCustomBinding &addCustomObjectBinding(
+      scene::Object *target, ObjectCustomBinding::Callback callback);
+
+  const std::vector<ObjectCustomBinding> &customObjectBindings() const;
+  ObjectCustomBinding *editableCustomObjectBinding(size_t i);
+  void removeCustomObjectBinding(size_t i);
+
   // Transform Bindings //
 
   TransformBinding &addTransformBinding(scene::LayerNodeRef target);
@@ -117,6 +127,7 @@ struct Animation
   AnimationManager *m_manager{nullptr};
   std::string m_name{"<unnamed_animation>"};
   std::vector<ObjectParameterBinding> m_bindings;
+  std::vector<ObjectCustomBinding> m_customBindings;
   std::vector<TransformBinding> m_transforms;
 };
 

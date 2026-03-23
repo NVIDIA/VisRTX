@@ -10,6 +10,7 @@ PRIVATE
   Animation.cpp
   AnimationManager.cpp
   Binding.cpp
+  ObjectCustomBinding.cpp
   ObjectParameterBinding.cpp
   TransformBinding.cpp
 )

@@ -70,6 +70,8 @@ void Animation::setAnimationTime(float t)
 {
   auto r = evaluate(t);
   applyResults(r, *m_manager->scene());
+  for (const auto &cb : m_customBindings)
+    cb.invoke(t);
 }
 
 void Animation::updateObjectDefragmentedIndices(const scene::IndexRemapper &cb)
@@ -121,6 +123,29 @@ void Animation::removeObjectParameterBinding(size_t i)
 {
   if (i < m_bindings.size())
     m_bindings.erase(m_bindings.begin() + i);
+}
+
+ObjectCustomBinding &Animation::addCustomObjectBinding(
+    scene::Object *target, ObjectCustomBinding::Callback callback)
+{
+  m_customBindings.emplace_back(target, std::move(callback));
+  return m_customBindings.back();
+}
+
+const std::vector<ObjectCustomBinding> &Animation::customObjectBindings() const
+{
+  return m_customBindings;
+}
+
+ObjectCustomBinding *Animation::editableCustomObjectBinding(size_t i)
+{
+  return i < m_customBindings.size() ? &m_customBindings[i] : nullptr;
+}
+
+void Animation::removeCustomObjectBinding(size_t i)
+{
+  if (i < m_customBindings.size())
+    m_customBindings.erase(m_customBindings.begin() + i);
 }
 
 TransformBinding &Animation::addTransformBinding(scene::LayerNodeRef target)
