@@ -349,8 +349,10 @@ void Object::removeParameter(Token name)
 void Object::removeAllParameters()
 {
   for (size_t i = 0; i < numParameters(); i++) {
+    auto *p = &parameterAt(i);
+    decObjectUseCountParameter(p);
     if (m_updateDelegate)
-      m_updateDelegate->signalParameterRemoved(this, &parameterAt(i));
+      m_updateDelegate->signalParameterRemoved(this, p);
   }
   m_parameters.clear();
 }
