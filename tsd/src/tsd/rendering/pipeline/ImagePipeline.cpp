@@ -16,8 +16,7 @@ ImagePipeline::ImagePipeline()
 #endif
 }
 
-ImagePipeline::ImagePipeline(int width, int height)
-    : ImagePipeline()
+ImagePipeline::ImagePipeline(int width, int height) : ImagePipeline()
 {
   setDimensions(width, height);
 }
@@ -99,6 +98,11 @@ void ImagePipeline::cleanup()
   detail::free(m_buffers.instanceId);
   detail::free(m_buffers.albedo);
   detail::free(m_buffers.normal);
+
+  // nullify all buffers, retaining the associated CUDA streams.
+  auto stream = m_buffers.stream;
+  m_buffers = {};
+  m_buffers.stream = stream;
 }
 
 } // namespace tsd::rendering
