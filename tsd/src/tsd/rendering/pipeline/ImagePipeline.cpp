@@ -17,6 +17,7 @@ ImagePipeline::ImagePipeline()
 }
 
 ImagePipeline::ImagePipeline(int width, int height)
+    : ImagePipeline()
 {
   setDimensions(width, height);
 }
