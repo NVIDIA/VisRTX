@@ -62,7 +62,7 @@ void computeDepthImage(
 {
   detail::parallel_for(
       b.stream, 0u, uint32_t(size.x * size.y), [=] DEVICE_FCN(uint32_t i) {
-        const float depth = b.depth[i];
+        const float depth = b.depth ? b.depth[i] : 0.f;
         const float range = maxDepth - minDepth;
         const float v = range > 0.f
             ? std::clamp((depth - minDepth) / range, 0.f, 1.f)
