@@ -40,6 +40,7 @@ if (TSD_USE_CUDA)
   set_source_files_properties(
     pipeline/passes/AnariAxesRenderPass.cpp
     pipeline/passes/AnariSceneRenderPass.cpp
+    pipeline/passes/ClearBuffersPass.cpp
     pipeline/passes/ImagePass.cpp
     pipeline/passes/OutlineRenderPass.cpp
     pipeline/passes/VisualizeAOVPass.cpp
