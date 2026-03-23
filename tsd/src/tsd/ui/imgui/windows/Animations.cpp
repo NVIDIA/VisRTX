@@ -39,9 +39,10 @@ void Animations::buildUI()
       ImGui::PushID(static_cast<int>(i));
       ImGui::Separator();
       ImGui::Text("name | %s", anim.name().c_str());
-      ImGui::Text("info | %zu bindings, %zu transforms",
+      ImGui::Text("info | %zu parameter, %zu transforms, %zu callbacks",
           anim.objectParameterBindings().size(),
-          anim.transformBindings().size());
+          anim.transformBindings().size(),
+          anim.callbackBindings().size());
       if (ImGui::Button("delete"))
         toDelete = i;
       ImGui::PopID();
