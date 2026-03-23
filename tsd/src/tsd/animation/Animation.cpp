@@ -125,24 +125,23 @@ void Animation::removeObjectParameterBinding(size_t i)
     m_bindings.erase(m_bindings.begin() + i);
 }
 
-ObjectCustomBinding &Animation::addCustomObjectBinding(
-    scene::Object *target, ObjectCustomBinding::Callback callback)
+CallbackBinding &Animation::addCallbackBinding(CallbackBinding::Callback callback)
 {
-  m_customBindings.emplace_back(target, std::move(callback));
+  m_customBindings.emplace_back(std::move(callback));
   return m_customBindings.back();
 }
 
-const std::vector<ObjectCustomBinding> &Animation::customObjectBindings() const
+const std::vector<CallbackBinding> &Animation::callbackBindings() const
 {
   return m_customBindings;
 }
 
-ObjectCustomBinding *Animation::editableCustomObjectBinding(size_t i)
+CallbackBinding *Animation::editableCallbackBinding(size_t i)
 {
   return i < m_customBindings.size() ? &m_customBindings[i] : nullptr;
 }
 
-void Animation::removeCustomObjectBinding(size_t i)
+void Animation::removeCallbackBinding(size_t i)
 {
   if (i < m_customBindings.size())
     m_customBindings.erase(m_customBindings.begin() + i);
