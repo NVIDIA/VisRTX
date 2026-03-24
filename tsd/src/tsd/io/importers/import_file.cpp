@@ -1,9 +1,12 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "tsd/io/SpatialFieldFileBinding.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/io/serialization.hpp"
+// tsd_animation
+#include "tsd/animation/AnimationManager.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 
@@ -69,7 +72,7 @@ void import_file(Scene &scene,
   else if (f.first == ImporterType::PDB)
     tsd::io::import_PDB(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::PLY)
-    tsd::io::import_PLY(scene, animMgr, file.c_str());
+    tsd::io::import_PLY(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::POINTSBIN_MULTIFILE)
     tsd::io::import_POINTSBIN(scene, animMgr, {file.c_str()}, root);
   else if (f.first == ImporterType::PT)
@@ -147,10 +150,47 @@ void import_animations(Scene &scene,
 
     if (anim.first == ImporterType::POINTSBIN_MULTIFILE)
       import_POINTSBIN(scene, animMgr, anim.second, root);
+    else if (anim.first == ImporterType::VOLUME_ANIMATION)
+      import_volume_animation(scene, animMgr, anim.second, root);
     else {
       tsd::core::logWarning("...skipping unknown animation file importer type");
     }
   }
+}
+
+VolumeRef import_volume_animation(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const std::vector<std::string> &files,
+    LayerNodeRef location)
+{
+  if (files.empty()) {
+    logError("[import_volume_animation] file list is empty");
+    return {};
+  }
+
+  auto field = import_spatial_field(scene, files[0].c_str());
+  if (!field) {
+    logError("[import_volume_animation] failed to load first frame: '%s'",
+        files[0].c_str());
+    return {};
+  }
+
+  float2 valueRange = field->computeValueRange();
+
+  auto tx = scene.insertChildTransformNode(
+      location ? location : scene.defaultLayer()->root());
+
+  auto [inst, volume] = scene.insertNewChildObjectNode<Volume>(
+      tx, tokens::volume::transferFunction1D);
+  volume->setName(fileOf(files[0]).c_str());
+  volume->setParameterObject("value", *field);
+  volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+
+  SpatialFieldFileBinding binding(&scene, volume.data(), field, files);
+  auto &anim = animMgr.addAnimation(fileOf(files[0]).c_str());
+  binding.addToAnimation(anim);
+
+  return volume;
 }
 
 } // namespace tsd::io

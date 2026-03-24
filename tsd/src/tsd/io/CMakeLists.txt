@@ -7,6 +7,7 @@ project_add_library(STATIC)
 
 project_sources(
 PRIVATE
+  SpatialFieldFileBinding.cpp
   importers/detail/HDRImage.cpp
   importers/detail/importer_common.cpp
   importers/detail/usd/MaterialCommon.cpp

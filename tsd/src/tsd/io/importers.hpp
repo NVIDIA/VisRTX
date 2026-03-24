@@ -52,6 +52,11 @@ void import_XYZDP(Scene &scene, tsd::animation::AnimationManager &animMgr, const
 
 // Spatial field importers //
 
+// Dispatch to the appropriate spatial field importer based on file extension.
+// Supports: .raw, .flash/.hdf5, .nvdb, .mhd, .vtu, .silo/.sil
+// Note: .vti is not supported here; use import_volume() for VTI files.
+SpatialFieldRef import_spatial_field(Scene &scene, const char *filename);
+
 SpatialFieldRef import_RAW(Scene &scene, const char *filename);
 SpatialFieldRef import_FLASH(Scene &scene, const char *filename);
 SpatialFieldRef import_NVDB(Scene &scene, const char *filename);
@@ -75,6 +80,15 @@ VolumeRef import_volume(
 VolumeRef import_volume(Scene &scene,
     const char *filename,
     const core::TransferFunction &transferFunction,
+    LayerNodeRef location = {});
+
+// Load a sequence of spatial field files as an animated volume.
+// Creates a Volume for the first frame and registers a CallbackBinding on a
+// new Animation in animMgr so that subsequent frames are loaded on demand.
+// Time t=0.0 selects files[0]; t=1.0 selects files[N-1].
+VolumeRef import_volume_animation(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const std::vector<std::string> &files,
     LayerNodeRef location = {});
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -109,6 +123,7 @@ enum class ImporterType
   VTU,
   XYZDP,
   VOLUME,
+  VOLUME_ANIMATION, // time series of spatial field files
   TSD,
   XF, // Special case for transfer function files
       // Not an actual scene importer, but used to set transfer function from

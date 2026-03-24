@@ -1,9 +1,10 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include <anari/anari_cpp/ext/linalg.h>
+// tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
+// tsd_io
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
 // std
@@ -13,24 +14,36 @@ namespace tsd::io {
 
 using namespace tsd::core;
 
+SpatialFieldRef import_spatial_field(Scene &scene, const char *filepath)
+{
+  auto ext = extensionOf(filepath);
+  if (ext == ".raw")
+    return import_RAW(scene, filepath);
+  else if (ext == ".flash" || ext == ".hdf5")
+    return import_FLASH(scene, filepath);
+  else if (ext == ".nvdb")
+    return import_NVDB(scene, filepath);
+  else if (ext == ".mhd")
+    return import_MHD(scene, filepath);
+  else if (ext == ".vtu")
+    return import_VTU(scene, filepath);
+  else if (ext == ".silo" || ext == ".sil")
+    return import_SILO(scene, filepath);
+  else {
+    logError("[import_spatial_field] no loader for file type '%s'", ext.c_str());
+    return {};
+  }
+}
+
 VolumeRef import_volume(
     Scene &scene, const char *filepath, LayerNodeRef location)
 {
-  SpatialFieldRef field;
-
   auto file = fileOf(filepath);
   auto ext = extensionOf(filepath);
-  if (ext == ".raw")
-    field = import_RAW(scene, filepath);
-  else if (ext == ".flash" || ext == ".hdf5")
-    field = import_FLASH(scene, filepath);
-  else if (ext == ".nvdb")
-    field = import_NVDB(scene, filepath);
-  else if (ext == ".mhd")
-    field = import_MHD(scene, filepath);
-  else if (ext == ".vtu")
-    field = import_VTU(scene, filepath);
-  else if (ext == ".vti") {
+
+  SpatialFieldRef field;
+
+  if (ext == ".vti") {
     std::vector<SpatialFieldRef> extraFields;
     field = import_VTI(scene, filepath, location, &extraFields);
     // Store extra fields as named object parameters on the Volume so they
@@ -48,30 +61,23 @@ VolumeRef import_volume(
         volume->setParameterObject(extra->name().c_str(), *extra);
       return volume;
     }
+  } else {
+    field = import_spatial_field(scene, filepath);
   }
-  else if (ext == ".silo" || ext == ".sil")
-    field = import_SILO(scene, filepath);
-  else {
-    logError("[import_volume] no loader for file type '%s'", ext.c_str());
-    return {};
-  }
-
   if (!field) {
     logError(
         "[import_volume] unable to load field from file '%s'", file.c_str());
     return {};
   }
 
-  float2 valueRange{0.f, 1.f};
-  if (field)
-    valueRange = field->computeValueRange();
+  float2 valueRange = field->computeValueRange();
 
   auto tx = scene.insertChildTransformNode(
       location ? location : scene.defaultLayer()->root());
 
   auto [inst, volume] = scene.insertNewChildObjectNode<Volume>(
       tx, tokens::volume::transferFunction1D);
-  volume->setName(fileOf(filepath).c_str());
+  volume->setName(file.c_str());
   volume->setParameterObject("value", *field);
   volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
 

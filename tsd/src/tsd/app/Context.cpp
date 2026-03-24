@@ -110,7 +110,10 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       importerType = tsd::io::ImporterType::XYZDP;
     else if (arg == "-volume")
       importerType = tsd::io::ImporterType::VOLUME;
-    else if (arg == "-blank")
+    else if (arg == "-volume_animation") {
+      this->commandLine.currentAnimationSequence = nullptr; // reset to new seq
+      importerType = tsd::io::ImporterType::VOLUME_ANIMATION;
+    } else if (arg == "-blank")
       importerType = tsd::io::ImporterType::BLANK;
     else if (arg == "-xf" || arg == "--transferFunction")
       importerType = tsd::io::ImporterType::XF;
@@ -118,10 +121,10 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       this->commandLine.cameraFile = args[++i];
     else {
       if (importerType != tsd::io::ImporterType::NONE) {
-        if (importerType == tsd::io::ImporterType::POINTSBIN_MULTIFILE) {
+        if (importerType == tsd::io::ImporterType::POINTSBIN_MULTIFILE
+            || importerType == tsd::io::ImporterType::VOLUME_ANIMATION) {
           if (!this->commandLine.currentAnimationSequence) {
-            this->commandLine.animationFilenames.push_back(
-                {tsd::io::ImporterType::POINTSBIN_MULTIFILE, {}});
+            this->commandLine.animationFilenames.push_back({importerType, {}});
             this->commandLine.currentAnimationSequence =
                 &this->commandLine.animationFilenames.back();
             this->commandLine.animationLayerNames.push_back(
