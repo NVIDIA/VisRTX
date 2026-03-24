@@ -10,11 +10,11 @@
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TSDMath.hpp"
-#include "tsd/scene/objects/Array.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/HDRImage.h"
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/io/importers/detail/usd/OmniPbrMaterial.h"
+#include "tsd/scene/objects/Array.hpp"
 #if TSD_USE_USD
 // usd
 #include <pxr/base/gf/matrix4f.h>
@@ -187,7 +187,6 @@ static MaterialRef getBoundMaterial(Scene &scene,
   matCache[matPath] = mat;
   return mat;
 }
-
 
 // Helper to extract volume transfer function from USD material
 struct VolumeTransferFunction
@@ -454,8 +453,7 @@ static std::vector<T> tessellateFacevaryingData(
 // Uniform data has one value per face
 // Returns replicated data with one value per generated triangle
 template <typename T>
-static std::vector<T> tessellateUniformData(
-    const pxr::VtArray<T> &uniformData,
+static std::vector<T> tessellateUniformData(const pxr::VtArray<T> &uniformData,
     const pxr::VtArray<int> &faceVertexCounts)
 {
   std::vector<T> triangleData;
@@ -698,8 +696,7 @@ static void importUsdMesh(Scene &scene,
   meshObj->setName(prim.GetPath().GetText());
 
   // Material binding
-  MaterialRef mat =
-      getBoundMaterial(scene, prim, basePath, matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, basePath, matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), meshObj, mat);
   logStatus("[import_USD] Assigned material to mesh '%s': %s\n",
@@ -714,6 +711,7 @@ static void importUsdPoints(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
+    const std::string &basePath,
     tsd::animation::AnimationManager &animMgr,
     MaterialCache &matCache,
     TextureCache &texCache)
@@ -766,7 +764,7 @@ static void importUsdPoints(Scene &scene,
   geom->setParameterObject("vertex.position", *firstPosArray);
   geom->setParameterObject("vertex.radius", *firstRadArray);
 
-  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, basePath, matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   scene.insertChildObjectNode(parent, surface);
 
@@ -805,6 +803,7 @@ static void importUsdCurves(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
+    const std::string &basePath,
     tsd::animation::AnimationManager &animMgr,
     MaterialCache &matCache,
     TextureCache &texCache)
@@ -893,7 +892,7 @@ static void importUsdCurves(Scene &scene,
   idxArray->setData(segIndices.data(), segIndices.size());
   geom->setParameterObject("primitive.index", *idxArray);
 
-  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, basePath, matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   scene.insertChildObjectNode(parent, surface);
 
@@ -914,11 +913,8 @@ static void importUsdCurves(Scene &scene,
     if (posArrays.size() > 1) {
       auto tb = makeLinearTimeBase(posArrays.size());
       auto &anim = animMgr.addAnimation(primName.c_str());
-      addArrayTimeStepBindings(anim,
-          geom.data(),
-          {Token("vertex.position")},
-          {posArrays},
-          tb);
+      addArrayTimeStepBindings(
+          anim, geom.data(), {Token("vertex.position")}, {posArrays}, tb);
     }
   }
 }
@@ -928,6 +924,7 @@ static void importUsdSphere(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
+    const std::string &basePath,
     MaterialCache &matCache,
     TextureCache &texCache)
 {
@@ -953,7 +950,7 @@ static void importUsdSphere(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, basePath, matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to sphere '%s': %s\n",
@@ -967,6 +964,7 @@ static void importUsdCone(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
+    const std::string &basePath,
     MaterialCache &matCache,
     TextureCache &texCache)
 {
@@ -999,7 +997,7 @@ static void importUsdCone(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, basePath, matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to cone '%s': %s\n",
@@ -1013,6 +1011,7 @@ static void importUsdCylinder(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
+    const std::string &basePath,
     MaterialCache &matCache,
     TextureCache &texCache)
 {
@@ -1046,7 +1045,7 @@ static void importUsdCylinder(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, basePath, matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   tsd::core::logStatus("[import_USD] Assigned material to cylinder '%s': %s\n",
@@ -1074,11 +1073,11 @@ static void importUsdCube(Scene &scene,
   // 6 faces x 4 verts = 24 vertices with per-face normals, 12 triangles
   // Face order: +Z, -Z, +Y, -Y, +X, -X
   static const float cx[6][4][3] = {
-      {{-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1}},    // +Z
+      {{-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1}}, // +Z
       {{1, -1, -1}, {-1, -1, -1}, {-1, 1, -1}, {1, 1, -1}}, // -Z
-      {{-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1}},     // +Y
+      {{-1, 1, -1}, {1, 1, -1}, {1, 1, 1}, {-1, 1, 1}}, // +Y
       {{-1, -1, 1}, {1, -1, 1}, {1, -1, -1}, {-1, -1, -1}}, // -Y
-      {{1, -1, 1}, {1, -1, -1}, {1, 1, -1}, {1, 1, 1}},     // +X
+      {{1, -1, 1}, {1, -1, -1}, {1, 1, -1}, {1, 1, 1}}, // +X
       {{-1, -1, -1}, {-1, -1, 1}, {-1, 1, 1}, {-1, 1, -1}}, // -X
   };
   static const float lnx[6][3] = {
@@ -1101,8 +1100,7 @@ static void importUsdCube(Scene &scene,
   // Positions and normals are baked into world space so that animated xform
   // time steps can be represented by animating vertex.position/vertex.normal
   // (mirrors the approach used by importUsdCurves).
-  auto buildFrame =
-      [&](const pxr::GfMatrix4d &xfm)
+  auto buildFrame = [&](const pxr::GfMatrix4d &xfm)
       -> std::pair<ObjectUsePtr<Array>, ObjectUsePtr<Array>> {
     std::vector<float3> positions;
     std::vector<float3> normals;
@@ -1114,10 +1112,11 @@ static void importUsdCube(Scene &scene,
         pxr::GfVec4d wp = xfm * lp;
         positions.push_back(float3(float(wp[0]), float(wp[1]), float(wp[2])));
       }
-      // TransformDir applies rotation+scale only (no translation) — correct for normals
-      // when there is no non-uniform scale. Normalize to handle uniform scale.
-      pxr::GfVec3d wn = xfm.TransformDir(
-          pxr::GfVec3d(lnx[f][0], lnx[f][1], lnx[f][2]));
+      // TransformDir applies rotation+scale only (no translation) — correct for
+      // normals when there is no non-uniform scale. Normalize to handle uniform
+      // scale.
+      pxr::GfVec3d wn =
+          xfm.TransformDir(pxr::GfVec3d(lnx[f][0], lnx[f][1], lnx[f][2]));
       wn.Normalize();
       float3 wn3{float(wn[0]), float(wn[1]), float(wn[2])};
       for (int v = 0; v < 4; ++v)
@@ -1161,8 +1160,7 @@ static void importUsdCube(Scene &scene,
   idxArr->setData((uint3 *)indices.data(), indices.size() / 3);
   geom->setParameterObject("primitive.index", *idxArr);
 
-  MaterialRef mat =
-      getBoundMaterial(scene, prim, basePath, matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, basePath, matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to cube '%s': %s\n",
       primName.c_str(),
@@ -1194,8 +1192,7 @@ static void importUsdCube(Scene &scene,
         {posArrays, normArrays},
         tb);
 
-    logStatus(
-        "[import_USD] Cube '%s': animated xform over %zu frames\n",
+    logStatus("[import_USD] Cube '%s': animated xform over %zu frames\n",
         primName.c_str(),
         timeSamples.size());
   }
@@ -1561,7 +1558,8 @@ static void importUsdDomeLight(Scene &scene,
 
 // Helper: Import a UsdGeomCamera prim as an animated TSD camera.
 // Collects xform time samples from the prim and parent hierarchy so that
-// orbit/crane rigs animate correctly even when the camera prim itself is static.
+// orbit/crane rigs animate correctly even when the camera prim itself is
+// static.
 static void importUsdCamera(Scene &scene,
     const pxr::UsdPrim &prim,
     tsd::animation::AnimationManager &animMgr)
@@ -1574,8 +1572,7 @@ static void importUsdCamera(Scene &scene,
 
   // Read intrinsics at default time (usually static)
   pxr::GfCamera gfCamDef = usdCamera.GetCamera(pxr::UsdTimeCode::Default());
-  bool isPerspective =
-      gfCamDef.GetProjection() == pxr::GfCamera::Perspective;
+  bool isPerspective = gfCamDef.GetProjection() == pxr::GfCamera::Perspective;
   const char *cameraType = isPerspective ? "perspective" : "orthographic";
   float focalLength = gfCamDef.GetFocalLength();
   float horizAp = gfCamDef.GetHorizontalAperture();
@@ -1630,8 +1627,8 @@ static void importUsdCamera(Scene &scene,
       std::unique(timeSamples.begin(), timeSamples.end()), timeSamples.end());
 
   // Compute world-space pose from a transform cache at a given time
-  auto buildPose = [&](pxr::UsdGeomXformCache &cache)
-      -> std::tuple<float3, float3, float3> {
+  auto buildPose =
+      [&](pxr::UsdGeomXformCache &cache) -> std::tuple<float3, float3, float3> {
     auto xfm = cache.GetLocalToWorldTransform(prim);
     auto gfPos = xfm.Transform(pxr::GfVec3d(0, 0, 0));
     auto gfDir = xfm.TransformDir(pxr::GfVec3d(0, 0, -1));
@@ -1658,7 +1655,8 @@ static void importUsdCamera(Scene &scene,
   }
 
   // Build flat per-param arrays (TimeStepValues: one big array per parameter,
-  // element-indexed by frame — same pattern as Context.cpp camera path animation)
+  // element-indexed by frame — same pattern as Context.cpp camera path
+  // animation)
   size_t numFrames = timeSamples.size();
   auto posArr = scene.createArray(ANARI_FLOAT32_VEC3, numFrames);
   auto dirArr = scene.createArray(ANARI_FLOAT32_VEC3, numFrames);
@@ -1714,8 +1712,7 @@ static void importUsdCamera(Scene &scene,
         focusDists[i] = gfc.GetFocusDistance();
         // apertureRadius from fStop: fl is in tenths of scene units
         float fStop = gfc.GetFStop();
-        apertureRadii[i] =
-            fStop > 0.f ? (fl / 10.f) / (2.f * fStop) : 0.f;
+        apertureRadii[i] = fStop > 0.f ? (fl / 10.f) / (2.f * fStop) : 0.f;
       }
     }
   }
@@ -1916,19 +1913,22 @@ static void importUsdPrimRecursive(Scene &scene,
         scene, prim, thisNode, identity, basePath, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomPoints>()) {
     importUsdPoints(
-        scene, prim, thisNode, identity, animMgr, matCache, texCache);
+        scene, prim, thisNode, identity, basePath, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomSphere>()) {
-    importUsdSphere(scene, prim, thisNode, identity, matCache, texCache);
+    importUsdSphere(
+        scene, prim, thisNode, identity, basePath, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCone>()) {
-    importUsdCone(scene, prim, thisNode, identity, matCache, texCache);
+    importUsdCone(
+        scene, prim, thisNode, identity, basePath, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCylinder>()) {
-    importUsdCylinder(scene, prim, thisNode, identity, matCache, texCache);
+    importUsdCylinder(
+        scene, prim, thisNode, identity, basePath, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCube>()) {
     importUsdCube(
         scene, prim, thisNode, identity, basePath, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomBasisCurves>()) {
     importUsdCurves(
-        scene, prim, thisNode, identity, animMgr, matCache, texCache);
+        scene, prim, thisNode, identity, basePath, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdLuxDistantLight>()) {
     importUsdDistantLight(scene, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxRectLight>()) {
