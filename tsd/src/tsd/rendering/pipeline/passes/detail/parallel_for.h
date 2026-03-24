@@ -10,13 +10,16 @@
 #include <thrust/iterator/counting_iterator.h>
 #define DEVICE_FCN __device__
 #define DEVICE_FCN_INLINE __forceinline__ __device__
+#define HOST_DEVICE_FCN __host__ __device__
 #elif defined(ENABLE_TBB)
 #include <tbb/parallel_for.h>
 #define DEVICE_FCN
 #define DEVICE_FCN_INLINE inline
+#define HOST_DEVICE_FCN
 #else
 #define DEVICE_FCN
 #define DEVICE_FCN_INLINE inline
+#define HOST_DEVICE_FCN
 #endif
 
 #include "ComputeStream.h"

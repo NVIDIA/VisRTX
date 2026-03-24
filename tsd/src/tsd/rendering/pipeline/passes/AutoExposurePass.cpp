@@ -26,19 +26,20 @@ float computeSumLogLuminance(
   // Might have to be revisited to be exhautive and still high performance.
   // https://gpuopen.com/fidelityfx-spd/ ?
   const float *hdrColor = b.hdrColor;
+  const float minLum = MIN_LUMINANCE;
   return detail::parallel_reduce(
       b.stream,
       0u,
       numSamples,
       0.f,
-      [=] DEVICE_FCN(uint32_t j) {
+      [=] HOST_DEVICE_FCN(uint32_t j) -> float {
         const uint32_t idx = j * stride * 4;
         const float lum = std::max(0.2126f * hdrColor[idx + 0]
                 + 0.7152f * hdrColor[idx + 1] + 0.0722f * hdrColor[idx + 2],
-            MIN_LUMINANCE);
+            minLum);
         return std::log2(lum);
       },
-      [] DEVICE_FCN(float a, float b) { return a + b; });
+      [] HOST_DEVICE_FCN(float a, float b) -> float { return a + b; });
 }
 
 } // namespace
