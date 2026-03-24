@@ -9,10 +9,10 @@ CallbackBinding::CallbackBinding(Callback callback)
     : m_callback(std::move(callback))
 {}
 
-void CallbackBinding::invoke(float time) const
+void CallbackBinding::update(float t)
 {
   if (m_callback)
-    m_callback(time);
+    m_callback(t);
 }
 
 } // namespace tsd::animation

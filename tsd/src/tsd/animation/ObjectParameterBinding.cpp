@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/animation/ObjectParameterBinding.hpp"
+// tsd_scene
+#include "tsd/scene/Scene.hpp"
 
 namespace tsd::animation {
 
@@ -75,6 +77,74 @@ const std::vector<float> &ObjectParameterBinding::timeBase() const
 InterpolationRule ObjectParameterBinding::interpolation() const
 {
   return m_interp;
+}
+
+static core::Any interpolate(
+    const ObjectParameterBinding &binding, const TimeSample &sample)
+{
+  const auto *data = static_cast<const uint8_t *>(binding.data().data());
+  if (!data)
+    return {};
+
+  size_t elemSize = anari::sizeOf(binding.type());
+  if (elemSize == 0)
+    return {};
+
+  if (binding.interpolation() == InterpolationRule::STEP
+      || sample.lo == sample.hi) {
+    size_t idx = (sample.alpha < 0.5f) ? sample.lo : sample.hi;
+    return core::Any(binding.type(), data + idx * elemSize);
+  }
+
+  if (binding.interpolation() == InterpolationRule::LINEAR) {
+    switch (binding.type()) {
+    case ANARI_FLOAT32: {
+      auto *arr = reinterpret_cast<const float *>(data);
+      float v = tsd::math::lerp(arr[sample.lo], arr[sample.hi], sample.alpha);
+      return core::Any(v);
+    }
+    case ANARI_FLOAT32_VEC2: {
+      auto *arr = reinterpret_cast<const math::float2 *>(data);
+      auto v = tsd::math::lerp(arr[sample.lo], arr[sample.hi], sample.alpha);
+      return core::Any(v);
+    }
+    case ANARI_FLOAT32_VEC3: {
+      auto *arr = reinterpret_cast<const math::float3 *>(data);
+      auto v = tsd::math::lerp(arr[sample.lo], arr[sample.hi], sample.alpha);
+      return core::Any(v);
+    }
+    case ANARI_FLOAT32_VEC4: {
+      auto *arr = reinterpret_cast<const math::float4 *>(data);
+      auto v = tsd::math::lerp(arr[sample.lo], arr[sample.hi], sample.alpha);
+      return core::Any(v);
+    }
+    default:
+      break;
+    }
+  }
+
+  // Unsupported interpolation/type combination — fall back to STEP
+  size_t idx = (sample.alpha < 0.5f) ? sample.lo : sample.hi;
+  return core::Any(binding.type(), data + idx * elemSize);
+}
+
+void ObjectParameterBinding::update(float t)
+{
+  if (!target() || m_timeBase.empty())
+    return;
+
+  auto sample = findTimeSample(m_timeBase, t);
+  auto value = interpolate(*this, sample);
+  if (!value.valid())
+    return;
+
+  if (anari::isObject(value.type())) {
+    auto *obj = scene()->getObject(value);
+    if (obj)
+      target()->setParameterObject(m_paramName, *obj);
+  } else {
+    target()->setParameter(m_paramName, value.type(), value.data());
+  }
 }
 
 void ObjectParameterBinding::insertKeyframeImpl(float time, const void *value)
@@ -170,8 +240,7 @@ void ObjectParameterBinding::removeKeyframe(size_t i)
     m_objectRefs.erase(m_objectRefs.begin() + i);
 }
 
-void ObjectParameterBinding::updateObjectDefragmentedIndices(
-    const scene::IndexRemapper &cb)
+void ObjectParameterBinding::onDefragment(const scene::IndexRemapper &cb)
 {
   if (!m_target || !cb)
     return;

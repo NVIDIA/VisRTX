@@ -49,6 +49,8 @@ struct TransformBinding : public Binding
   const math::float3 &translation(size_t i) const;
   const math::float3 &scale(size_t i) const;
 
+  void update(float t) override;
+
   void insertKeyframe(float time, const math::mat4 &m);
   void removeKeyframe(size_t i);
 

@@ -5,9 +5,12 @@
 #define TSD_USE_CUDA 1
 #endif
 
+#include "tsd/animation/Animation.hpp"
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/io/animation/SpatialFieldFileBinding.hpp"
+#include "tsd/io/importers.hpp"
 #include "tsd/io/serialization.hpp"
 // std
 #include <stack>
@@ -379,6 +382,118 @@ void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
   });
 }
 
+// Animations /////////////////////////////////////////////////////////////////
+
+void animationToNode(const animation::Animation &anim, core::DataNode &node)
+{
+  node["name"] = anim.name();
+
+  auto &bindingsNode = node["objectBindings"];
+  for (const auto &b : anim.objectParameterBindings())
+    b.toDataNode(bindingsNode.append());
+
+  auto &transformsNode = node["transformBindings"];
+  for (const auto &tb : anim.transformBindings())
+    tb.toDataNode(transformsNode.append());
+
+  auto &fileBindingsNode = node["fileBindings"];
+  for (const auto &fb : anim.fileBindings()) {
+    auto &fbNode = fileBindingsNode.append();
+    fbNode["kind"] = fb->kind();
+    fb->toDataNode(fbNode);
+  }
+}
+
+void nodeToAnimation(
+    core::DataNode &node, animation::Animation &anim, Scene &scene)
+{
+  anim.editableName() = node["name"].getValueAs<std::string>();
+
+  if (auto *bindingsNode = node.child("objectBindings")) {
+    bindingsNode->foreach_child([&](core::DataNode &bn) {
+      auto &b = anim.addEmptyObjectParameterBinding();
+      b.fromDataNode(bn);
+    });
+  }
+
+  if (auto *transformsNode = node.child("transformBindings")) {
+    transformsNode->foreach_child([&](core::DataNode &tn) {
+      auto &b = anim.addEmptyTransformBinding();
+      b.fromDataNode(tn);
+    });
+  }
+
+  if (auto *fileBindingsNode = node.child("fileBindings")) {
+    fileBindingsNode->foreach_child([&](core::DataNode &fbNode) {
+      auto kind = fbNode["kind"].getValueAs<std::string>();
+      if (kind == "spatialField") {
+        auto targetIndex = fbNode["targetIndex"].getValueAs<size_t>();
+        auto *vol = static_cast<scene::Volume *>(
+            scene.getObject(ANARI_VOLUME, targetIndex));
+        if (!vol) {
+          logWarning(
+              "[nodeToAnimation] spatialField binding: volume index %zu not"
+              " found; skipping",
+              targetIndex);
+          return;
+        }
+
+        std::vector<std::string> files;
+        if (auto *filesNode = fbNode.child("files")) {
+          filesNode->foreach_child([&](core::DataNode &fn) {
+            files.push_back(fn.getValueAs<std::string>());
+          });
+        }
+
+        // The volume's current "value" param is the initial field (frame 0)
+        scene::SpatialFieldRef initialField;
+        if (auto *sf =
+                vol->parameterValueAsObject<scene::SpatialField>("value")) {
+          initialField = sf->self();
+        }
+
+        auto &fb = anim.emplaceFileBinding<SpatialFieldFileBinding>(
+            &scene, vol, initialField, std::move(files));
+        fb.addCallbackToAnimation(anim);
+      }
+    });
+  }
+}
+
+void animationManagerToNode(
+    const animation::AnimationManager &mgr, core::DataNode &node)
+{
+  node["time"] = mgr.getAnimationTime();
+  node["increment"] = mgr.getAnimationIncrement();
+  node["totalFrames"] = mgr.getAnimationTotalFrames();
+
+  auto &animationsNode = node["objects"];
+  for (const auto &anim : mgr.animations()) {
+    animationToNode(anim, animationsNode.append());
+  }
+}
+
+void nodeToAnimationManager(
+    core::DataNode &node, animation::AnimationManager &mgr, Scene &scene)
+{
+  float time = mgr.getAnimationTime();
+  float increment = mgr.getAnimationIncrement();
+  int totalFrames = mgr.getAnimationTotalFrames();
+
+  time = node["time"].getValueOr<float>(time);
+  increment = node["increment"].getValueOr<float>(increment);
+  totalFrames = node["totalFrames"].getValueOr<int>(totalFrames);
+
+  mgr.setAnimationTime(time);
+  mgr.setAnimationIncrement(increment);
+  mgr.setAnimationTotalFrames(totalFrames);
+
+  node["objects"].foreach_child([&](core::DataNode &animNode) {
+    auto &anim = mgr.addAnimation();
+    nodeToAnimation(animNode, anim, scene);
+  });
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -449,7 +564,7 @@ void save_Scene(Scene &scene,
   // Animations //
 
   if (animMgr)
-    animMgr->toDataNode(root["animations"]);
+    animationManagerToNode(*animMgr, root["animations"]);
 }
 
 void load_Scene(Scene &scene,
@@ -527,7 +642,7 @@ void load_Scene(Scene &scene,
   // Animations
 
   if (animMgr)
-    animMgr->fromDataNode(root["animations"]);
+    nodeToAnimationManager(root["animations"], *animMgr, scene);
 
   tsd::core::logStatus("  ...done!");
 }

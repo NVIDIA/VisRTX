@@ -11,6 +11,7 @@
 #include "tsd/scene/Scene.hpp"
 
 namespace tsd::animation {
+struct Animation;
 struct AnimationManager;
 } // namespace tsd::animation
 
@@ -53,6 +54,13 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose);
 
 void layerToNode(const Layer &layer, core::DataNode &node);
 void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene);
+
+// Animations //
+
+void animationToNode(const animation::Animation &anim, core::DataNode &node);
+void nodeToAnimation(core::DataNode &node, animation::Animation &anim, Scene &scene);
+void animationManagerToNode(const animation::AnimationManager &mgr, core::DataNode &node);
+void nodeToAnimationManager(core::DataNode &node, animation::AnimationManager &mgr, Scene &scene);
 
 // Scenes //
 

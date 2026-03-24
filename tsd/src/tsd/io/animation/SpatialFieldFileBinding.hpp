@@ -4,13 +4,12 @@
 #pragma once
 
 #include "tsd/animation/Animation.hpp"
-#include "tsd/animation/Binding.hpp"
+#include "tsd/animation/FileBinding.hpp"
 #include "tsd/scene/ObjectUsePtr.hpp"
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/SpatialField.hpp"
 #include "tsd/scene/objects/Volume.hpp"
 // std
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,13 +24,13 @@ namespace tsd::io {
  * Example:
  *   auto field0 = import_spatial_field(scene, files[0].c_str());
  *   auto vol = ...; // volume with field0 as "value"
- *   SpatialFieldFileBinding b(&scene, vol.data(), field0, files);
- *   b.addToAnimation(anim);
+ *   auto &b = anim.emplaceFileBinding<SpatialFieldFileBinding>(&scene,
+ * vol.data(), field0, files); b.addCallbackToAnimation(anim);
  *
  *   // Or use the higher-level helper:
  *   import_volume_animation(scene, animMgr, files, location);
  */
-struct SpatialFieldFileBinding : public tsd::animation::Binding
+struct SpatialFieldFileBinding : public tsd::animation::FileBinding
 {
   // Construct the binding.  `initialField` must already be set as the "value"
   // parameter on `volume` and corresponds to files[0].
@@ -40,28 +39,33 @@ struct SpatialFieldFileBinding : public tsd::animation::Binding
       scene::SpatialFieldRef initialField,
       std::vector<std::string> files);
 
-  // Registers a CallbackBinding on `anim` that calls invoke() on each time
-  // change.  The binding state is reference-counted via shared_ptr, so this
-  // SpatialFieldFileBinding object may be destroyed after addToAnimation().
-  void addToAnimation(tsd::animation::Animation &anim);
+  // FileBinding interface //
+
+  std::string kind() const override;
+
+  // Writes targetIndex (the volume's object-pool index) and the file list.
+  void toDataNode(tsd::core::DataNode &node) const override;
+
+  // Registers a CallbackBinding on `anim` that loads the appropriate file on
+  // each time change.  Does NOT add this binding to anim.fileBindings().
+  // Called both during initial import and during reconstruction from a
+  // DataNode.
+  void addCallbackToAnimation(tsd::animation::Animation &anim) override;
+
+  void onDefragment(const scene::IndexRemapper &cb) override;
 
   // Load the appropriate file for time t.  No-ops if the frame has not changed.
-  void invoke(float t);
+  void update(float t) override;
 
   size_t frameCount() const;
   int currentFrame() const;
 
  private:
-  struct SharedState
-  {
-    scene::Scene *scene{nullptr};
-    scene::ObjectUsePtr<scene::Volume, scene::Object::UseKind::ANIM> volume;
-    scene::SpatialFieldRef currentField;
-    std::vector<std::string> files;
-    int currentFrame{0};
-  };
-
-  std::shared_ptr<SharedState> m_state;
+  scene::ObjectUsePtr<scene::Volume, scene::Object::UseKind::ANIM> m_volume;
+  scene::ObjectUsePtr<scene::SpatialField, scene::Object::UseKind::ANIM>
+      m_currentField;
+  std::vector<std::string> m_files;
+  int m_currentFrame{0};
 };
 
 } // namespace tsd::io

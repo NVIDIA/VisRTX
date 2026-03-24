@@ -32,7 +32,7 @@ struct CallbackBinding : public Binding
 
   CallbackBinding(Callback callback);
 
-  void invoke(float time) const;
+  void update(float t) override;
 
  private:
   Callback m_callback;

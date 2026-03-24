@@ -749,7 +749,7 @@ void Scene::signalObjectLayerUseCountZero(const Object *obj)
 
 void Scene::removeUnusedObjects(bool includeRenderersAndCameras)
 {
-  tsd::core::logStatus("Removing unused context objects");
+  tsd::core::logDebug("Removing unused context objects");
 
   // Always keep around the default material + default camera //
 

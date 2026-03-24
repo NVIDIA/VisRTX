@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/animation/TransformBinding.hpp"
+// tsd_animation
+#include "tsd/animation/Interpolation.hpp"
 // tsd_scene
 #include "tsd/scene/Scene.hpp"
 
@@ -75,6 +77,33 @@ const math::float3 &TransformBinding::translation(size_t i) const
 const math::float3 &TransformBinding::scale(size_t i) const
 {
   return m_scale[i];
+}
+
+void TransformBinding::update(float t)
+{
+  if (!m_target || m_timeBase.empty())
+    return;
+
+  auto sample = findTimeSample(m_timeBase, t);
+
+  math::float4 rot;
+  math::float3 trans, scl;
+
+  if (sample.lo == sample.hi) {
+    rot = m_rotation[sample.lo];
+    trans = m_translation[sample.lo];
+    scl = m_scale[sample.lo];
+  } else {
+    rot = tsd::math::qslerp(
+        m_rotation[sample.lo], m_rotation[sample.hi], sample.alpha);
+    trans = tsd::math::slerp(
+        m_translation[sample.lo], m_translation[sample.hi], sample.alpha);
+    scl = tsd::math::slerp(
+        m_scale[sample.lo], m_scale[sample.hi], sample.alpha);
+  }
+
+  (*m_target)->setAsTransform(composeTransform(rot, trans, scl));
+  scene()->signalLayerTransformChanged(m_target->value().layer());
 }
 
 void TransformBinding::insertKeyframe(float time, const math::mat4 &m)

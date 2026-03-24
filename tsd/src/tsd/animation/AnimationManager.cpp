@@ -131,29 +131,4 @@ void AnimationManager::incrementAnimationFrame()
   setAnimationFrame(frame);
 }
 
-void AnimationManager::toDataNode(core::DataNode &node) const
-{
-  node["time"] = m_time;
-  node["increment"] = m_incrementSize;
-  node["totalFrames"] = m_totalFrames;
-
-  core::DataNode &animationsNode = node["objects"];
-  for (const auto &anim : m_animations) {
-    core::DataNode &animNode = animationsNode.append();
-    anim.toDataNode(animNode);
-  }
-}
-
-void AnimationManager::fromDataNode(core::DataNode &node)
-{
-  m_time = node["time"].getValueOr<float>(m_time);
-  m_incrementSize = node["increment"].getValueOr<float>(m_incrementSize);
-  m_totalFrames = node["totalFrames"].getValueOr<int>(m_totalFrames);
-
-  node["objects"].foreach_child([&](core::DataNode &animNode) {
-    auto &anim = addAnimation();
-    anim.fromDataNode(animNode);
-  });
-}
-
 } // namespace tsd::animation

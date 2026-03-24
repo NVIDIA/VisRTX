@@ -58,11 +58,6 @@ struct AnimationManager
   void setAnimationFrame(int frame);
   void incrementAnimationFrame();
 
-  // Serialization //
-
-  void toDataNode(core::DataNode &node) const;
-  void fromDataNode(core::DataNode &node);
-
  private:
   scene::Scene *m_scene{nullptr};
   TimeChangedCallback m_timeChangedCallback;

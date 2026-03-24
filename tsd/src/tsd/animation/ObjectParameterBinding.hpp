@@ -49,11 +49,13 @@ struct ObjectParameterBinding : public Binding
   const std::vector<float> &timeBase() const;
   InterpolationRule interpolation() const;
 
+  void update(float t) override;
+
   template <typename T>
   void insertKeyframe(float time, const T &value);
   void removeKeyframe(size_t i);
 
-  void updateObjectDefragmentedIndices(const scene::IndexRemapper &cb);
+  void onDefragment(const scene::IndexRemapper &cb) override;
 
   // Serialization //
 

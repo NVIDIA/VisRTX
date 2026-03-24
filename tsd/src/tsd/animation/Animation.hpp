@@ -4,13 +4,16 @@
 #pragma once
 
 #include "tsd/animation/CallbackBinding.hpp"
+#include "tsd/animation/FileBinding.hpp"
 #include "tsd/animation/ObjectParameterBinding.hpp"
 #include "tsd/animation/TransformBinding.hpp"
 // tsd_scene
 #include "tsd/scene/AnyObjectUsePtr.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
+#include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace tsd::animation {
@@ -28,7 +31,6 @@ struct AnimationManager;
  */
 struct Animation
 {
-  TSD_DEFAULT_COPYABLE(Animation)
   TSD_DEFAULT_MOVEABLE(Animation)
 
   Animation(AnimationManager *manager, const std::string &name);
@@ -42,7 +44,7 @@ struct Animation
   void setAnimationTime(float t);
   void updateObjectDefragmentedIndices(const scene::IndexRemapper &cb);
 
-  // Object Parameter Bindings //
+  //// Object Parameter Bindings ////
 
   ObjectParameterBinding &addObjectParameterBinding(scene::Object *target,
       core::Token paramName,
@@ -64,7 +66,7 @@ struct Animation
   ObjectParameterBinding *editableObjectParameterBinding(size_t i);
   void removeObjectParameterBinding(size_t i);
 
-  // Callback Bindings //
+  //// Callback Bindings ////
 
   CallbackBinding &addCallbackBinding(CallbackBinding::Callback callback);
 
@@ -72,7 +74,7 @@ struct Animation
   CallbackBinding *editableCallbackBinding(size_t i);
   void removeCallbackBinding(size_t i);
 
-  // Transform Bindings //
+  //// Transform Bindings ////
 
   TransformBinding &addTransformBinding(scene::LayerNodeRef target);
   TransformBinding &addTransformBinding(scene::LayerNodeRef target,
@@ -86,41 +88,23 @@ struct Animation
   TransformBinding *editableTransformBinding(size_t i);
   void removeTransformBinding(size_t i);
 
-  // Serialization //
+  //// File Bindings ////
 
-  void toDataNode(core::DataNode &node) const;
-  void fromDataNode(core::DataNode &node);
+  // File bindings are type-erased behind FileBinding* and owned exclusively by
+  // the Animation (unique_ptr).  A template emplacement function is used
+  // instead of a typed add() so that the concrete type is constructed in-place
+  // without requiring the caller to manage its lifetime (e.g. via shared_ptr).
+  template <typename T, typename... Args>
+  T &emplaceFileBinding(Args &&...args);
 
- private:
+  const std::vector<std::unique_ptr<FileBinding>> &fileBindings() const;
+
+  // Deserialization helpers: add an empty binding and return a reference so
+  // the caller can populate it via fromDataNode().
   ObjectParameterBinding &addEmptyObjectParameterBinding();
   TransformBinding &addEmptyTransformBinding();
 
-  struct ParameterSubstitution
-  {
-    scene::Object *target{nullptr};
-    core::Token paramName;
-    core::Any value;
-  };
-
-  struct TransformSubstitution
-  {
-    scene::LayerNodeRef target;
-    tsd::core::math::mat4 transform;
-  };
-
-  struct EvaluationResult
-  {
-    std::vector<ParameterSubstitution> parameters;
-    std::vector<TransformSubstitution> transforms;
-  };
-
-  core::Any interpolateBinding(
-      const ObjectParameterBinding &binding, const TimeSample &sample) const;
-
-  EvaluationResult evaluate(float currentTime);
-
-  void applyResults(EvaluationResult &result, scene::Scene &scene);
-
+ private:
   // Data //
 
   AnimationManager *m_manager{nullptr};
@@ -128,6 +112,19 @@ struct Animation
   std::vector<ObjectParameterBinding> m_bindings;
   std::vector<CallbackBinding> m_customBindings;
   std::vector<TransformBinding> m_transforms;
+  std::vector<std::unique_ptr<FileBinding>> m_fileBindings;
 };
+
+// Inlined definitions ////////////////////////////////////////////////////////
+
+template <typename T, typename... Args>
+inline T &Animation::emplaceFileBinding(Args &&...args)
+{
+  static_assert(
+      std::is_base_of_v<FileBinding, T>, "T must be derived from FileBinding");
+  auto &ptr = m_fileBindings.emplace_back(
+      std::make_unique<T>(std::forward<Args>(args)...));
+  return static_cast<T &>(*ptr);
+}
 
 } // namespace tsd::animation

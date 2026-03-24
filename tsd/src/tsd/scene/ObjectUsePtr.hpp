@@ -38,6 +38,9 @@ struct ObjectUsePtr
 
   void reset();
 
+  // WARNING: only for scene defragmentation — do not use directly!
+  void updateDefragmentedIndex(size_t newIndex);
+
   const T *get() const;
   const T *operator->() const;
   const T &operator*() const;
@@ -151,6 +154,13 @@ void ObjectUsePtr<T, K>::reset()
   if (m_object)
     m_object->decUseCount(K);
   m_object = {};
+}
+
+template <typename T, Object::UseKind K>
+inline void ObjectUsePtr<T, K>::updateDefragmentedIndex(size_t newIndex)
+{
+  if (m_object)
+    m_object = ObjectPoolRef<T>(m_object.storage(), newIndex);
 }
 
 template <typename T, Object::UseKind K>
