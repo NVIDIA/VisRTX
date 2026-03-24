@@ -478,9 +478,13 @@ void Viewport::teardownDevice()
   BaseViewport::imagePipeline_teardown();
 
   m_anariPass = nullptr;
+  m_pickPass = nullptr;
+  m_visualizeAOVPass = nullptr;
   m_autoExposurePass = nullptr;
-  m_outlinePass = nullptr;
+  m_toneMapPass = nullptr;
   m_outputTransformPass = nullptr;
+  m_outlinePass = nullptr;
+  m_axesPass = nullptr;
   m_outputPass = nullptr;
   m_saveToFilePass = nullptr;
 

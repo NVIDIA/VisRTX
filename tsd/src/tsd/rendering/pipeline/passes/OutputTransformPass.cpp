@@ -4,6 +4,7 @@
 #include "OutputTransformPass.h"
 // std
 #include <cmath>
+#include <limits>
 
 #include "detail/parallel_for.h"
 
@@ -33,7 +34,7 @@ void OutputTransformPass::setColorFormat(anari::DataType format)
 
 void OutputTransformPass::setGamma(float gamma)
 {
-  m_gamma = gamma;
+  m_gamma = std::max(gamma, 1e-6f);
 }
 
 void applyOutputTransform(ImageBuffers &b,

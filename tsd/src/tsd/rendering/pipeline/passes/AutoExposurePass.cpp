@@ -21,9 +21,9 @@ constexpr float MID_GRAY = 0.18f;
 float computeSumLogLuminance(
     const ImageBuffers &b, uint32_t numSamples, uint32_t stride)
 {
-  // very approximate and suboptimal, going only through a handleful of samples.
+  // very approximate and suboptimal, going only through a handful of samples.
   // Good enough for now.
-  // Might have to be revisited to be exhautive and still high performance.
+  // Might have to be revisited to be exhaustive and still high performance.
   // https://gpuopen.com/fidelityfx-spd/ ?
   const float *hdrColor = b.hdrColor;
   const float minLum = MIN_LUMINANCE;

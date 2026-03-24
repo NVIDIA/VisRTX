@@ -12,8 +12,8 @@ namespace tsd::rendering {
 
 /*
  * POD struct holding pointers to all per-pixel output buffers (color, depth,
- * object/primitive/instance IDs, albedo, normals) shared across pipeline
- * passes.
+ * object/primitive/instance IDs, albedo, normals, hdrColor and
+ * exposure setting) shared across pipeline passes.
  *
  * Example:
  *   ImageBuffers b;
