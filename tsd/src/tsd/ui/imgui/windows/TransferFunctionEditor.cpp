@@ -718,8 +718,39 @@ void TransferFunctionEditor::loadColormap(
 
 void TransferFunctionEditor::updateColormaps()
 {
-  if (!m_colorMapArray)
-    return; // scalar color — write-back not supported
+  if (!m_colorMapArray) {
+    // Map 0 = "{from volume}": the scalar is the canonical value, nothing to do.
+    if (m_currentMap == 0)
+      return;
+
+    // Named colormap selected on a scalar-color volume: promote to array.
+    constexpr size_t NUM_SAMPLES = 256;
+    auto co = getSampledColorsAndOpacities(NUM_SAMPLES);
+
+    auto promoteVolume = [&](tsd::scene::Volume *vol) {
+      auto *s = vol->scene();
+      if (!s)
+        return;
+      auto newArray = s->createArray(ANARI_FLOAT32_VEC4, NUM_SAMPLES);
+      newArray->setData(co);
+      vol->setParameterObject("color", *newArray);
+      vol->setMetadataArray("opacityControlPoints",
+          ANARI_FLOAT32_VEC2,
+          m_tfnOpacityPoints.data(),
+          m_tfnOpacityPoints.size());
+    };
+
+    if (m_volume)
+      promoteVolume(m_volume);
+    for (auto *vol : m_otherVolumes)
+      promoteVolume(vol);
+
+    // Update m_colorMapArray so subsequent frames take the array path.
+    if (m_volume)
+      m_colorMapArray =
+          m_volume->parameterValueAsObject<tsd::scene::Array>("color");
+    return;
+  }
 
   // Update reference volume
   if (m_volume) {
