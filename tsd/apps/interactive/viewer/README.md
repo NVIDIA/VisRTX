@@ -78,7 +78,6 @@ Use one of these flags before filenames to select how those files are loaded:
 - `-swc`
 - `-trk`
 - `-usd`
-- `-usd2`
 - `-vtp`
 - `-vtu`
 - `-xyzdp`
