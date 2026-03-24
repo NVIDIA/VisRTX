@@ -295,6 +295,8 @@ inline std::vector<ObjectPoolRemapping> ObjectPool<T>::defragment()
     lastOccupied = findLastOccupiedIdx(lastOccupied);
     if (lastOccupied == INVALID_INDEX)
       break;
+    if (freeIdx >= lastOccupied)
+      break;
     m_values[freeIdx] = std::move(m_values[lastOccupied]);
     m_slots[lastOccupied] = false;
     retval.push_back({lastOccupied, freeIdx});
