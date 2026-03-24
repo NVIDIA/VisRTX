@@ -1,7 +1,7 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/io/SpatialFieldFileBinding.hpp"
+#include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/importers.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
