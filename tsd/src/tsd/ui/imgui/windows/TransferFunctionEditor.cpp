@@ -425,39 +425,79 @@ void TransferFunctionEditor::setObjectPtrsFromSelectedObject()
   }
 
   auto *firstVolume = m_volume;
-  if (m_colorMapArray == nullptr
-      || m_colorMapArray != firstVolume->parameterValueAsObject<tsd::scene::Array>("color")) {
-    setMap(0);
+  auto *colorArray =
+      firstVolume->parameterValueAsObject<tsd::scene::Array>("color");
 
-    m_colorMapArray =
-        firstVolume->parameterValueAsObject<tsd::scene::Array>("color");
+  if (colorArray != nullptr) {
+    // Array path: existing behavior
+    if (m_colorMapArray == nullptr || m_colorMapArray != colorArray) {
+      setMap(0);
+      m_colorMapArray = colorArray;
+      m_lastColorVolume = firstVolume;
 
-    auto &cm = m_tfnsColorPoints[0];
-    cm.resize(m_colorMapArray->size());
-    auto *colorsIn = m_colorMapArray->dataAs<tsd::math::float4>();
-    std::copy(colorsIn, colorsIn + m_colorMapArray->size(), cm.begin());
+      auto &cm = m_tfnsColorPoints[0];
+      cm.resize(m_colorMapArray->size());
+      auto *colorsIn = m_colorMapArray->dataAs<tsd::math::float4>();
+      std::copy(colorsIn, colorsIn + m_colorMapArray->size(), cm.begin());
 
-    // Get opacity control points from volume //
+      // Get opacity control points from volume //
 
-    anari::DataType type = ANARI_UNKNOWN;
-    const tsd::math::float2 *opacityPoints = nullptr;
-    size_t size = 0;
-    firstVolume->getMetadataArray(
-        "opacityControlPoints", &type, (const void **)&opacityPoints, &size);
-    if (type == ANARI_FLOAT32_VEC2 && size > 0) {
-      tsd::core::logStatus("[tfn_editor] Receiving opacity control points");
-      m_tfnOpacityPoints.resize(size);
-      std::copy(
-          opacityPoints, opacityPoints + size, m_tfnOpacityPoints.begin());
-    } else {
-      tsd::core::logWarning(
-          "[tfn_editor] No metadata for opacity control points found!");
-      m_tfnOpacityPoints.resize(2);
-      m_tfnOpacityPoints[0] = {0.f, 0.f};
-      m_tfnOpacityPoints[1] = {1.f, 1.f};
+      anari::DataType type = ANARI_UNKNOWN;
+      const tsd::math::float2 *opacityPoints = nullptr;
+      size_t size = 0;
+      firstVolume->getMetadataArray(
+          "opacityControlPoints", &type, (const void **)&opacityPoints, &size);
+      if (type == ANARI_FLOAT32_VEC2 && size > 0) {
+        tsd::core::logStatus("[tfn_editor] Receiving opacity control points");
+        m_tfnOpacityPoints.resize(size);
+        std::copy(
+            opacityPoints, opacityPoints + size, m_tfnOpacityPoints.begin());
+      } else {
+        tsd::core::logWarning(
+            "[tfn_editor] No metadata for opacity control points found!");
+        m_tfnOpacityPoints.resize(2);
+        m_tfnOpacityPoints[0] = {0.f, 0.f};
+        m_tfnOpacityPoints[1] = {1.f, 1.f};
+      }
+
+      updateTfnPaletteTexture();
     }
+  } else {
+    // Scalar path: synthesize a uniform color map for display
+    if (firstVolume != m_lastColorVolume) {
+      setMap(0);
+      m_colorMapArray = nullptr;
+      m_lastColorVolume = firstVolume;
 
-    updateTfnPaletteTexture();
+      tsd::math::float4 scalarColor{1.f, 1.f, 1.f, 1.f};
+      if (auto v = firstVolume->parameterValueAs<tsd::math::float4>("color"))
+        scalarColor = *v;
+      else if (auto v = firstVolume->parameterValueAs<tsd::math::float3>("color"))
+        scalarColor = tsd::math::float4((*v).x, (*v).y, (*v).z, 1.f);
+
+      auto &cm = m_tfnsColorPoints[0];
+      cm.assign(2, scalarColor);
+
+      // Get opacity control points from volume //
+
+      anari::DataType type = ANARI_UNKNOWN;
+      const tsd::math::float2 *opacityPoints = nullptr;
+      size_t size = 0;
+      firstVolume->getMetadataArray(
+          "opacityControlPoints", &type, (const void **)&opacityPoints, &size);
+      if (type == ANARI_FLOAT32_VEC2 && size > 0) {
+        tsd::core::logStatus("[tfn_editor] Receiving opacity control points");
+        m_tfnOpacityPoints.resize(size);
+        std::copy(
+            opacityPoints, opacityPoints + size, m_tfnOpacityPoints.begin());
+      } else {
+        m_tfnOpacityPoints.resize(2);
+        m_tfnOpacityPoints[0] = {0.f, 0.f};
+        m_tfnOpacityPoints[1] = {1.f, 1.f};
+      }
+
+      updateTfnPaletteTexture();
+    }
   }
 }
 
@@ -678,11 +718,8 @@ void TransferFunctionEditor::loadColormap(
 
 void TransferFunctionEditor::updateColormaps()
 {
-  if (!m_colorMapArray) {
-    tsd::core::logError(
-        "[tfn_editor] No color map array, cannot update volume!");
-    return;
-  }
+  if (!m_colorMapArray)
+    return; // scalar color — write-back not supported
 
   // Update reference volume
   if (m_volume) {
@@ -720,12 +757,14 @@ void TransferFunctionEditor::updateColormaps()
 
 void TransferFunctionEditor::updateTfnPaletteTexture()
 {
-  if (!m_colorMapArray) {
+  auto width = m_colorMapArray
+      ? m_colorMapArray->size()
+      : std::max(m_tfnColorPoints->size(), size_t(2));
+  if (width == 0) {
     tsd::core::logError(
-        "[tfn_editor] No color map array, cannot update SDL image!");
+        "[tfn_editor] No color map data, cannot update SDL image!");
     return;
   }
-  auto width = m_colorMapArray->size();
   if (width != m_tfnPaletteWidth)
     resizeTfnPaletteTexture(width);
 

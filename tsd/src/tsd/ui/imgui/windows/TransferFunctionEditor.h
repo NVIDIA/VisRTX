@@ -53,6 +53,7 @@ class TransferFunctionEditor : public Window
   tsd::scene::Volume *m_volume{nullptr};
   std::vector<tsd::scene::Volume*> m_otherVolumes;
   tsd::scene::Array *m_colorMapArray{nullptr};
+  tsd::scene::Volume *m_lastColorVolume{nullptr};
 
   // all available transfer functions
   std::vector<std::string> m_tfnsNames;
