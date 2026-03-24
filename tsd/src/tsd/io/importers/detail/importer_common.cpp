@@ -870,9 +870,9 @@ void addTransformStepBinding(tsd::animation::Animation &anim,
     const std::vector<float> &timeBase)
 {
   size_t n = frames.size();
-  std::vector<tsd::core::math::float4> rotation;
-  std::vector<tsd::core::math::float3> translation;
-  std::vector<tsd::core::math::float3> scale;
+  std::vector<tsd::core::math::float4> rotation(n);
+  std::vector<tsd::core::math::float3> translation(n);
+  std::vector<tsd::core::math::float3> scale(n);
 
   for (size_t i = 0; i < n; i++) {
     auto &m = frames[i];

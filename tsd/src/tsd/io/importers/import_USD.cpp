@@ -98,7 +98,7 @@ static void setShaderInputIfPresent(MaterialRef &mat,
 }
 
 // Helper: Import a UsdPreviewSurface material as a physicallyBased TSD material
-static MaterialRef import_usd_preview_surface_material(Scene &scene,
+static MaterialRef importUsdPreviewSurfaceMaterial(Scene &scene,
     const pxr::UsdShadeMaterial &usdMat,
     const std::string &basePath)
 {
@@ -146,7 +146,7 @@ using MaterialCache = std::unordered_map<std::string, MaterialRef>;
 
 // Try to import the bound material for a prim.  Checks the cache first, then
 // tries OmniPBR (MDL), then UsdPreviewSurface, then falls back to default.
-static MaterialRef get_bound_material(Scene &scene,
+static MaterialRef getBoundMaterial(Scene &scene,
     const pxr::UsdPrim &prim,
     const std::string &basePath,
     MaterialCache &matCache,
@@ -179,7 +179,7 @@ static MaterialRef get_bound_material(Scene &scene,
 
   // Fall back to UsdPreviewSurface
   if (!mat)
-    mat = import_usd_preview_surface_material(scene, usdMat, basePath);
+    mat = importUsdPreviewSurfaceMaterial(scene, usdMat, basePath);
 
   if (!mat)
     mat = scene.defaultMaterial();
@@ -198,7 +198,7 @@ struct VolumeTransferFunction
   bool hasTransferFunction = false;
 };
 
-static VolumeTransferFunction get_volume_transfer_function(
+static VolumeTransferFunction getVolumeTransferFunction(
     const pxr::UsdPrim &prim)
 {
   VolumeTransferFunction tf;
@@ -378,7 +378,7 @@ static VolumeTransferFunction get_volume_transfer_function(
 // -----------------------------------------------------------------------------
 
 // Helper: Convert pxr::GfMatrix4d to tsd::math::mat4 (float4x4)
-inline tsd::math::mat4 to_tsd_mat4(const pxr::GfMatrix4d &m)
+inline tsd::math::mat4 toTsdMat4(const pxr::GfMatrix4d &m)
 {
   tsd::math::mat4 out;
   for (int i = 0; i < 4; ++i)
@@ -400,7 +400,7 @@ inline float3 max(const float3 &a, const float3 &b)
 // Helper: Generate triangle indices from polygon face data
 // Tessellates polygons to triangles using triangle fan (assumes convex
 // polygons) Returns indices into the original vertex array
-static std::vector<uint32_t> generate_triangle_indices(
+static std::vector<uint32_t> generateTriangleIndices(
     const pxr::VtArray<int> &faceVertexIndices,
     const pxr::VtArray<int> &faceVertexCounts)
 {
@@ -427,7 +427,7 @@ static std::vector<uint32_t> generate_triangle_indices(
 // FaceVarying data has one value per face-vertex (corner)
 // Returns tessellated data matching the triangle fan pattern
 template <typename T>
-static std::vector<T> tessellate_facevarying_data(
+static std::vector<T> tessellateFacevaryingData(
     const pxr::VtArray<T> &faceVaryingData,
     const pxr::VtArray<int> &faceVertexCounts)
 {
@@ -454,7 +454,7 @@ static std::vector<T> tessellate_facevarying_data(
 // Uniform data has one value per face
 // Returns replicated data with one value per generated triangle
 template <typename T>
-static std::vector<T> tessellate_uniform_data(
+static std::vector<T> tessellateUniformData(
     const pxr::VtArray<T> &uniformData,
     const pxr::VtArray<int> &faceVertexCounts)
 {
@@ -474,7 +474,7 @@ static std::vector<T> tessellate_uniform_data(
 }
 
 // Helper: Import a UsdGeomMesh prim as a TSD mesh under the given parent node
-static void import_usd_mesh(Scene &scene,
+static void importUsdMesh(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
@@ -545,7 +545,7 @@ static void import_usd_mesh(Scene &scene,
 
   // Generate triangle indices from polygon faces
   std::vector<uint32_t> indices =
-      generate_triangle_indices(faceVertexIndices, faceVertexCounts);
+      generateTriangleIndices(faceVertexIndices, faceVertexCounts);
 
   logStatus(
       "[import_USD] Mesh '%s': Generated %zu triangle indices (%zu triangles)\n",
@@ -591,7 +591,7 @@ static void import_usd_mesh(Scene &scene,
       // FaceVarying interpolation: normals are per face-vertex (corner)
       // Need to tessellate from polygon corners to triangle corners
       auto tessellatedNormals =
-          tessellate_facevarying_data(normals, faceVertexCounts);
+          tessellateFacevaryingData(normals, faceVertexCounts);
 
       std::vector<float3> normalData;
       normalData.reserve(tessellatedNormals.size());
@@ -613,7 +613,7 @@ static void import_usd_mesh(Scene &scene,
       // Uniform interpolation: one normal per face
       // Need to replicate for each triangle generated from that face
       auto tessellatedNormals =
-          tessellate_uniform_data(normals, faceVertexCounts);
+          tessellateUniformData(normals, faceVertexCounts);
 
       std::vector<float3> normalData;
       normalData.reserve(tessellatedNormals.size());
@@ -655,7 +655,7 @@ static void import_usd_mesh(Scene &scene,
     } else if (uvsInterpolation == pxr::UsdGeomTokens->faceVarying) {
       // FaceVarying interpolation: UVs are per face-vertex (corner)
       // Need to tessellate from polygon corners to triangle corners
-      auto tessellatedUVs = tessellate_facevarying_data(uvs, faceVertexCounts);
+      auto tessellatedUVs = tessellateFacevaryingData(uvs, faceVertexCounts);
 
       std::vector<float2> uvData;
       uvData.reserve(tessellatedUVs.size());
@@ -676,7 +676,7 @@ static void import_usd_mesh(Scene &scene,
     } else if (uvsInterpolation == pxr::UsdGeomTokens->uniform) {
       // Uniform interpolation: one UV per face
       // Need to replicate for each triangle generated from that face
-      auto tessellatedUVs = tessellate_uniform_data(uvs, faceVertexCounts);
+      auto tessellatedUVs = tessellateUniformData(uvs, faceVertexCounts);
 
       std::vector<float2> uvData;
       uvData.reserve(tessellatedUVs.size());
@@ -699,7 +699,7 @@ static void import_usd_mesh(Scene &scene,
 
   // Material binding
   MaterialRef mat =
-      get_bound_material(scene, prim, basePath, matCache, texCache);
+      getBoundMaterial(scene, prim, basePath, matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), meshObj, mat);
   logStatus("[import_USD] Assigned material to mesh '%s': %s\n",
@@ -710,7 +710,7 @@ static void import_usd_mesh(Scene &scene,
 
 // Helper: Import a UsdGeomPoints prim as a TSD sphere geometry (point cloud),
 // with animation if the positions/widths are time-sampled.
-static void import_usd_points(Scene &scene,
+static void importUsdPoints(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
@@ -766,7 +766,7 @@ static void import_usd_points(Scene &scene,
   geom->setParameterObject("vertex.position", *firstPosArray);
   geom->setParameterObject("vertex.radius", *firstRadArray);
 
-  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   scene.insertChildObjectNode(parent, surface);
 
@@ -801,7 +801,7 @@ static void import_usd_points(Scene &scene,
 
 // Helper: Import a UsdGeomBasisCurves prim as TSD curve geometry,
 // with animation if the positions are time-sampled.
-static void import_usd_curves(Scene &scene,
+static void importUsdCurves(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
@@ -893,7 +893,7 @@ static void import_usd_curves(Scene &scene,
   idxArray->setData(segIndices.data(), segIndices.size());
   geom->setParameterObject("primitive.index", *idxArray);
 
-  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   scene.insertChildObjectNode(parent, surface);
 
@@ -924,7 +924,7 @@ static void import_usd_curves(Scene &scene,
 }
 
 // Helper: Import a UsdGeomSphere prim as a TSD sphere geometry
-static void import_usd_sphere(Scene &scene,
+static void importUsdSphere(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
@@ -953,7 +953,7 @@ static void import_usd_sphere(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to sphere '%s': %s\n",
@@ -963,7 +963,7 @@ static void import_usd_sphere(Scene &scene,
 }
 
 // Helper: Import a UsdGeomCone prim as a TSD cone geometry
-static void import_usd_cone(Scene &scene,
+static void importUsdCone(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
@@ -999,7 +999,7 @@ static void import_usd_cone(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to cone '%s': %s\n",
@@ -1009,7 +1009,7 @@ static void import_usd_cone(Scene &scene,
 }
 
 // Helper: Import a UsdGeomCylinder prim as a TSD cylinder geometry
-static void import_usd_cylinder(Scene &scene,
+static void importUsdCylinder(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
@@ -1046,7 +1046,7 @@ static void import_usd_cylinder(Scene &scene,
   geom->setName(primName.c_str());
 
   // Material binding
-  MaterialRef mat = get_bound_material(scene, prim, "", matCache, texCache);
+  MaterialRef mat = getBoundMaterial(scene, prim, "", matCache, texCache);
 
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   tsd::core::logStatus("[import_USD] Assigned material to cylinder '%s': %s\n",
@@ -1057,7 +1057,7 @@ static void import_usd_cylinder(Scene &scene,
 
 // Helper: Import a UsdGeomCube prim as a triangulated TSD triangle mesh,
 // with animation if xformOps on the prim or its ancestors are time-sampled.
-static void import_usd_cube(Scene &scene,
+static void importUsdCube(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform,
@@ -1100,7 +1100,7 @@ static void import_usd_cube(Scene &scene,
   // Build position+normal arrays for one world transform.
   // Positions and normals are baked into world space so that animated xform
   // time steps can be represented by animating vertex.position/vertex.normal
-  // (mirrors the approach used by import_usd_curves).
+  // (mirrors the approach used by importUsdCurves).
   auto buildFrame =
       [&](const pxr::GfMatrix4d &xfm)
       -> std::pair<ObjectUsePtr<Array>, ObjectUsePtr<Array>> {
@@ -1132,7 +1132,7 @@ static void import_usd_cube(Scene &scene,
 
   // Collect xform time samples from this prim only — do NOT walk ancestors.
   // Parent Xform animation is already handled by the animated transform node
-  // created in import_usd_prim_recursive (setAsTransformSteps).  Walking up
+  // created in importUsdPrimRecursive (setAsTransformSteps).  Walking up
   // the hierarchy would bake the parent rotation into world-space vertex
   // positions while the transform node applies it a second time, producing a
   // double-transform (e.g. 720° apparent rotation for a 360° animated parent).
@@ -1162,7 +1162,7 @@ static void import_usd_cube(Scene &scene,
   geom->setParameterObject("primitive.index", *idxArr);
 
   MaterialRef mat =
-      get_bound_material(scene, prim, basePath, matCache, texCache);
+      getBoundMaterial(scene, prim, basePath, matCache, texCache);
   auto surface = scene.createSurface(primName.c_str(), geom, mat);
   logStatus("[import_USD] Assigned material to cube '%s': %s\n",
       primName.c_str(),
@@ -1202,7 +1202,7 @@ static void import_usd_cube(Scene &scene,
 }
 
 // Helper: Import a UsdVolVolume prim as a TSD volume geometry
-static void import_usd_volume(Scene &scene,
+static void importUsdVolume(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform)
@@ -1277,7 +1277,7 @@ static void import_usd_volume(Scene &scene,
   // information) We'll let the field define its own spatial extents
 
   // Check for transfer function from USD material
-  VolumeTransferFunction tf = get_volume_transfer_function(prim);
+  VolumeTransferFunction tf = getVolumeTransferFunction(prim);
 
   ArrayRef colorArray;
   // Default to the field's value range to avoid undefined ranges.
@@ -1324,7 +1324,7 @@ static void import_usd_volume(Scene &scene,
 // Light import helpers
 // -----------------------------------------------------------------------------
 
-static void import_usd_distant_light(
+static void importUsdDistantLight(
     Scene &scene, const pxr::UsdPrim &prim, LayerNodeRef parent)
 {
   pxr::UsdLuxDistantLight usdLight(prim);
@@ -1339,7 +1339,7 @@ static void import_usd_distant_light(
   scene.insertChildObjectNode(parent, light);
 }
 
-static void import_usd_rect_light(
+static void importUsdRectLight(
     Scene &scene, const pxr::UsdPrim &prim, LayerNodeRef parent)
 {
   pxr::UsdLuxRectLight usdLight(prim);
@@ -1359,7 +1359,7 @@ static void import_usd_rect_light(
   scene.insertChildObjectNode(parent, light);
 }
 
-static void import_usd_sphere_light(
+static void importUsdSphereLight(
     Scene &scene, const pxr::UsdPrim &prim, LayerNodeRef parent)
 {
   pxr::UsdLuxSphereLight usdLight(prim);
@@ -1377,7 +1377,7 @@ static void import_usd_sphere_light(
   scene.insertChildObjectNode(parent, light);
 }
 
-static void import_usd_disk_light(
+static void importUsdDiskLight(
     Scene &scene, const pxr::UsdPrim &prim, LayerNodeRef parent)
 {
   pxr::UsdLuxDiskLight usdLight(prim);
@@ -1395,7 +1395,7 @@ static void import_usd_disk_light(
   scene.insertChildObjectNode(parent, light);
 }
 
-static void import_usd_dome_light(Scene &scene,
+static void importUsdDomeLight(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const std::string &basePath,
@@ -1562,7 +1562,7 @@ static void import_usd_dome_light(Scene &scene,
 // Helper: Import a UsdGeomCamera prim as an animated TSD camera.
 // Collects xform time samples from the prim and parent hierarchy so that
 // orbit/crane rigs animate correctly even when the camera prim itself is static.
-static void import_usd_camera(Scene &scene,
+static void importUsdCamera(Scene &scene,
     const pxr::UsdPrim &prim,
     tsd::animation::AnimationManager &animMgr)
 {
@@ -1762,7 +1762,7 @@ static void import_usd_camera(Scene &scene,
 }
 
 // Helper to check if a GfMatrix4d is identity
-static bool is_identity(const pxr::GfMatrix4d &m)
+static bool isIdentity(const pxr::GfMatrix4d &m)
 {
   static const pxr::GfMatrix4d IDENTITY(1.0);
   return m == IDENTITY;
@@ -1772,7 +1772,7 @@ static bool is_identity(const pxr::GfMatrix4d &m)
 // Recursive import function for prims and their children
 // -----------------------------------------------------------------------------
 
-static void import_usd_prim_recursive(Scene &scene,
+static void importUsdPrimRecursive(Scene &scene,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     pxr::UsdGeomXformCache &xformCache,
@@ -1791,13 +1791,13 @@ static void import_usd_prim_recursive(Scene &scene,
           xformCache.GetLocalTransformation(prim, &resetsXformStack);
       pxr::GfMatrix4d thisWorldXform =
           resetsXformStack ? usdLocalXform : parentWorldXform * usdLocalXform;
-      tsd::math::mat4 tsdXform = to_tsd_mat4(usdLocalXform);
+      tsd::math::mat4 tsdXform = toTsdMat4(usdLocalXform);
       std::string primName = prim.GetName().GetString();
       if (primName.empty())
         primName = "<unnamed_instance>";
       auto xformNode =
           scene.insertChildTransformNode(parent, tsdXform, primName.c_str());
-      import_usd_prim_recursive(scene,
+      importUsdPrimRecursive(scene,
           prototype,
           xformNode,
           xformCache,
@@ -1814,9 +1814,9 @@ static void import_usd_prim_recursive(Scene &scene,
   }
 
   // Cameras are imported as standalone TSD Camera objects (not scene nodes).
-  // import_usd_camera walks the hierarchy itself for animated rigs.
+  // importUsdCamera walks the hierarchy itself for animated rigs.
   if (prim.IsA<pxr::UsdGeomCamera>()) {
-    import_usd_camera(scene, prim, animMgr);
+    importUsdCamera(scene, prim, animMgr);
     return;
   }
 
@@ -1864,11 +1864,11 @@ static void import_usd_prim_recursive(Scene &scene,
   //     support transforming the HDRI lights.
   // - The prim resets the xform stack
   // - The prim is an animated pure-xform node
-  bool createNode = !is_identity(usdLocalXform) || isGeometry || isLight
+  bool createNode = !isIdentity(usdLocalXform) || isGeometry || isLight
       || isVolume || resetsXformStack || hasXformAnimation;
   createNode = createNode && !isDomeLight;
 
-  tsd::math::mat4 tsdXform = to_tsd_mat4(usdLocalXform);
+  tsd::math::mat4 tsdXform = toTsdMat4(usdLocalXform);
   std::string primName = prim.GetName().GetString();
   if (primName.empty())
     primName = "<unnamed_xform>";
@@ -1891,7 +1891,7 @@ static void import_usd_prim_recursive(Scene &scene,
       pxr::UsdTimeCode timeCode(t);
       tc.SetTime(timeCode);
       bool resets = false;
-      frames.push_back(to_tsd_mat4(tc.GetLocalTransformation(prim, &resets)));
+      frames.push_back(toTsdMat4(tc.GetLocalTransformation(prim, &resets)));
     }
     size_t numFrames = frames.size();
     auto tb = makeLinearTimeBase(numFrames);
@@ -1912,39 +1912,39 @@ static void import_usd_prim_recursive(Scene &scene,
   // world-space semantics and are handled separately.
   const pxr::GfMatrix4d identity(1.0);
   if (prim.IsA<pxr::UsdGeomMesh>()) {
-    import_usd_mesh(
+    importUsdMesh(
         scene, prim, thisNode, identity, basePath, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomPoints>()) {
-    import_usd_points(
+    importUsdPoints(
         scene, prim, thisNode, identity, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomSphere>()) {
-    import_usd_sphere(scene, prim, thisNode, identity, matCache, texCache);
+    importUsdSphere(scene, prim, thisNode, identity, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCone>()) {
-    import_usd_cone(scene, prim, thisNode, identity, matCache, texCache);
+    importUsdCone(scene, prim, thisNode, identity, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCylinder>()) {
-    import_usd_cylinder(scene, prim, thisNode, identity, matCache, texCache);
+    importUsdCylinder(scene, prim, thisNode, identity, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomCube>()) {
-    import_usd_cube(
+    importUsdCube(
         scene, prim, thisNode, identity, basePath, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdGeomBasisCurves>()) {
-    import_usd_curves(
+    importUsdCurves(
         scene, prim, thisNode, identity, animMgr, matCache, texCache);
   } else if (prim.IsA<pxr::UsdLuxDistantLight>()) {
-    import_usd_distant_light(scene, prim, thisNode);
+    importUsdDistantLight(scene, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxRectLight>()) {
-    import_usd_rect_light(scene, prim, thisNode);
+    importUsdRectLight(scene, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxSphereLight>()) {
-    import_usd_sphere_light(scene, prim, thisNode);
+    importUsdSphereLight(scene, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxDiskLight>()) {
-    import_usd_disk_light(scene, prim, thisNode);
+    importUsdDiskLight(scene, prim, thisNode);
   } else if (prim.IsA<pxr::UsdLuxDomeLight>()) {
-    import_usd_dome_light(scene, prim, thisNode, basePath, thisWorldXform);
+    importUsdDomeLight(scene, prim, thisNode, basePath, thisWorldXform);
   } else if (prim.IsA<pxr::UsdVolVolume>()) {
-    import_usd_volume(scene, prim, thisNode, thisWorldXform);
+    importUsdVolume(scene, prim, thisNode, thisWorldXform);
   }
   // Recurse into children
   for (const auto &child : prim.GetChildren()) {
-    import_usd_prim_recursive(scene,
+    importUsdPrimRecursive(scene,
         child,
         thisNode,
         xformCache,
@@ -1992,7 +1992,7 @@ void import_USD(Scene &scene,
   for (pxr::UsdPrim const &prim : stage->Traverse()) {
     // if (prim.IsPrototype()) continue;
     if (prim.GetParent() && prim.GetParent().IsPseudoRoot()) {
-      import_usd_prim_recursive(scene,
+      importUsdPrimRecursive(scene,
           prim,
           usd_root,
           xformCache,
