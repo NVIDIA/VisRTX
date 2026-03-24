@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/Logging.hpp"
-#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 // std
 #include <algorithm>
 #include <array>

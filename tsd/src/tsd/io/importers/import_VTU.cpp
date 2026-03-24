@@ -6,9 +6,9 @@
 #endif
 
 #include "tsd/core/Logging.hpp"
-#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #if TSD_USE_VTK
 // vtk
 #include <vtkCell.h>
@@ -423,7 +423,10 @@ static SpatialFieldRef createFieldFromVolumeCells(
 }
 
 // Full-scene importer: surfaces + volumes
-void import_VTU(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location)
+void import_VTU(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location)
 {
   (void)animMgr;
   auto grid = loadVTUGrid(filepath);
@@ -486,7 +489,10 @@ SpatialFieldRef import_VTU(Scene &scene, const char *filepath)
 
 #else
 
-void import_VTU(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location)
+void import_VTU(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location)
 {
   (void)animMgr;
   logError("[import_VTU] VTK not enabled in TSD build.");

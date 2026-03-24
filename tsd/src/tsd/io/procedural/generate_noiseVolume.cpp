@@ -1,8 +1,8 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/io/procedural.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
+#include "tsd/io/procedural.hpp"
 // std
 #include <algorithm>
 #include <random>
@@ -23,8 +23,8 @@ VolumeRef generate_noiseVolume(Scene &scene,
   rng.seed(0);
   static std::normal_distribution<float> dist(0.f, 1.0f);
 
-  auto field =
-      scene.createObject<SpatialField>(tokens::spatial_field::structuredRegular);
+  auto field = scene.createObject<SpatialField>(
+      tokens::spatial_field::structuredRegular);
   field->setName("noise_field");
 
   auto voxelArray = scene.createArray(ANARI_UFIXED8, 64, 64, 64);
@@ -56,4 +56,4 @@ VolumeRef generate_noiseVolume(Scene &scene,
   return volume;
 }
 
-} // namespace tsd
+} // namespace tsd::io

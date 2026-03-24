@@ -19,4 +19,4 @@ struct HDRImage
   std::vector<float> pixel;
 };
 
-} // namespace tsd
+} // namespace tsd::io

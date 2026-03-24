@@ -3,11 +3,11 @@
 
 #include "tsd/io/importers.hpp"
 
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/animation/AnimationManager.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 // std
 #include <algorithm>
 #include <vector>
@@ -184,8 +184,8 @@ void import_AGX(Scene &scene,
             const float *values = (const float *)pv.data;
             float minVal = values[0], maxVal = values[0];
             for (size_t i = 1;
-                i < std::min((size_t)pv.elementCount, (size_t)100);
-                i++) {
+                 i < std::min((size_t)pv.elementCount, (size_t)100);
+                 i++) {
               if (values[i] < minVal)
                 minVal = values[i];
               if (values[i] > maxVal)
@@ -290,8 +290,7 @@ void import_AGX(Scene &scene,
     size_t numSteps = timeSteps.empty() ? 0 : timeSteps[0].size();
     auto tb = makeLinearTimeBase(numSteps);
     auto &anim = animMgr.addAnimation(file.c_str());
-    addArrayTimeStepBindings(
-        anim, geom.data(), timeStepNames, timeSteps, tb);
+    addArrayTimeStepBindings(anim, geom.data(), timeStepNames, timeSteps, tb);
     logInfo("[import_AGX] animation created successfully");
   }
 

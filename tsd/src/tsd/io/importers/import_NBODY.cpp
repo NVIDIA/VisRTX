@@ -1,10 +1,10 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/io/importers.hpp"
-#include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/io/importers.hpp"
+#include "tsd/io/importers/detail/importer_common.hpp"
 // std
 #include <array>
 #include <fstream>
@@ -83,4 +83,4 @@ void import_NBODY(Scene &scene,
   }
 }
 
-} // namespace tsd
+} // namespace tsd::io

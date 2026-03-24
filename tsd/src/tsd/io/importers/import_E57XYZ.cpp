@@ -5,8 +5,8 @@
 
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 // std
 #include <algorithm>
 #include <cstdio>
@@ -16,7 +16,10 @@ namespace tsd::io {
 
 using namespace tsd::core;
 
-void import_E57XYZ(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location)
+void import_E57XYZ(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location)
 {
   (void)animMgr;
   std::string file = fileOf(filepath);

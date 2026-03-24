@@ -30,7 +30,8 @@ SpatialFieldRef import_spatial_field(Scene &scene, const char *filepath)
   else if (ext == ".silo" || ext == ".sil")
     return import_SILO(scene, filepath);
   else {
-    logError("[import_spatial_field] no loader for file type '%s'", ext.c_str());
+    logError(
+        "[import_spatial_field] no loader for file type '%s'", ext.c_str());
     return {};
   }
 }

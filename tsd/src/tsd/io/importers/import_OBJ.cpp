@@ -93,7 +93,8 @@ void import_OBJ(Scene &scene,
 
     auto mesh = scene.createObject<Geometry>(tokens::geometry::triangle);
 
-    auto vertexPositionArray = scene.createArray(ANARI_FLOAT32_VEC3, numVertices);
+    auto vertexPositionArray =
+        scene.createArray(ANARI_FLOAT32_VEC3, numVertices);
     auto *outVertices = vertexPositionArray->mapAs<float3>();
 
     float2 *outTexcoords = nullptr;
@@ -169,11 +170,12 @@ void import_OBJ(Scene &scene,
 
     const int matID = shape.mesh.material_ids[0];
     const bool useDefault = useDefaultMaterial || matID < 0;
-    auto mat = useDefault ? scene.defaultMaterial() : getMaterial(size_t(matID));
+    auto mat =
+        useDefault ? scene.defaultMaterial() : getMaterial(size_t(matID));
 
     auto surface = scene.createSurface(name.c_str(), mesh, mat);
     scene.insertChildObjectNode(obj_root, surface);
   }
 }
 
-} // namespace tsd
+} // namespace tsd::io

@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/ColorMapUtil.hpp"
-#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 // std
 #include <array>
 #include <cstdio>
@@ -29,7 +29,10 @@ static ArrayRef readHsArray(Scene &scene,
 //
 // Importing Haystack meshes: https://github.com/ingowald/haystack
 //
-void import_HSMESH(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location)
+void import_HSMESH(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location)
 {
   (void)animMgr;
   auto *fp = std::fopen(filepath, "rb");

@@ -14,7 +14,10 @@ namespace tsd::io {
 
 using namespace tinyply;
 
-void import_PLY(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location)
+void import_PLY(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filename,
+    LayerNodeRef location)
 {
   (void)animMgr;
   std::unique_ptr<std::istream> file_stream;

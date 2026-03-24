@@ -78,8 +78,8 @@ void generate_material_orb(Scene &scene, LayerNodeRef location)
     location = scene.defaultLayer()->root();
   auto *layer = (*location)->layer();
 
-  auto orb_root = location->insert_last_child(
-      {layer, math::IDENTITY_MAT4, "Material Orb"});
+  auto orb_root =
+      location->insert_last_child({layer, math::IDENTITY_MAT4, "Material Orb"});
 
   MaterialRef mat;
 

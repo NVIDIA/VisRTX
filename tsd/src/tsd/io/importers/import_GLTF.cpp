@@ -1329,7 +1329,10 @@ static void populateGLTFLayer(Scene &scene,
   }
 }
 
-void import_GLTF(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location)
+void import_GLTF(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filename,
+    LayerNodeRef location)
 {
   (void)animMgr;
   tinygltf::Model model;

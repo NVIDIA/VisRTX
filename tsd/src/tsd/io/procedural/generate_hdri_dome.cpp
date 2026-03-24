@@ -14,10 +14,10 @@ void generate_hdri_dome(Scene &scene, LayerNodeRef location)
   std::vector<float3> colors = {float3(0.1f), float3(0.8f, 0.8f, 0.8f)};
   arr->setData(colors.data());
 
-  auto [inst, hdri] = scene.insertNewChildObjectNode<Light>(
-      location, tokens::light::hdri);
+  auto [inst, hdri] =
+      scene.insertNewChildObjectNode<Light>(location, tokens::light::hdri);
   hdri->setName("hdri_dome");
   hdri->setParameterObject("radiance", *arr);
 }
 
-} // namespace tsd
+} // namespace tsd::io

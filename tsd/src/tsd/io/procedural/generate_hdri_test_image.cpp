@@ -64,10 +64,10 @@ void generate_hdri_test_image(Scene &scene, LayerNodeRef location)
 
   arr->unmap();
 
-  auto [inst, hdri] = scene.insertNewChildObjectNode<Light>(
-      location, tokens::light::hdri);
+  auto [inst, hdri] =
+      scene.insertNewChildObjectNode<Light>(location, tokens::light::hdri);
   hdri->setName("hdri_dome");
   hdri->setParameterObject("radiance", *arr);
 }
 
-} // namespace tsd
+} // namespace tsd::io

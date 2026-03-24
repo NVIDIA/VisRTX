@@ -9,10 +9,10 @@
 #include <tsd/core/Logging.hpp>
 
 // pxr
-#include <pxr/usd/usdShade/output.h>
-#include <pxr/usd/usdShade/connectableAPI.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/usd/sdf/assetPath.h>
+#include <pxr/usd/usdShade/connectableAPI.h>
+#include <pxr/usd/usdShade/output.h>
 
 namespace tsd::io::materials {
 
@@ -46,14 +46,16 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("baseColor", *sampler);
     } else {
-      logWarning("[import_USD] Failed to load diffuse texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load diffuse texture: %s\n",
+          resolvedPath.c_str());
     }
   } else {
     // Use constant color
     pxr::GfVec3f diffuseColor;
-    if (getShaderColorInput(usdShader, "diffuse_color_constant", diffuseColor)) {
+    if (getShaderColorInput(
+            usdShader, "diffuse_color_constant", diffuseColor)) {
       mat->setParameter("baseColor",
-                       tsd::math::float3(diffuseColor[0], diffuseColor[1], diffuseColor[2]));
+          tsd::math::float3(diffuseColor[0], diffuseColor[1], diffuseColor[2]));
     }
   }
 
@@ -68,11 +70,9 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
 
   if (enableEmission) {
     // Scale emissive color by intensity
-    tsd::math::float3 finalEmissive(
-        emissiveColor[0] * emissiveIntensity,
+    tsd::math::float3 finalEmissive(emissiveColor[0] * emissiveIntensity,
         emissiveColor[1] * emissiveIntensity,
-        emissiveColor[2] * emissiveIntensity
-    );
+        emissiveColor[2] * emissiveIntensity);
     mat->setParameter("emissive", finalEmissive);
   }
 
@@ -88,7 +88,8 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("metallic", *sampler);
     } else {
-      logWarning("[import_USD] Failed to load metallic texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load metallic texture: %s\n",
+          resolvedPath.c_str());
     }
   } else {
     float metallic = 0.0f;
@@ -101,7 +102,8 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
 
   // Roughness - try texture first, then constant
   std::string roughnessTexPath;
-  if (getShaderTextureInput(usdShader, "reflectionroughness_texture", roughnessTexPath)) {
+  if (getShaderTextureInput(
+          usdShader, "reflectionroughness_texture", roughnessTexPath)) {
     std::string resolvedPath = roughnessTexPath;
     if (!resolvedPath.empty() && resolvedPath[0] != '/') {
       resolvedPath = basePath + roughnessTexPath;
@@ -111,11 +113,13 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("roughness", *sampler);
     } else {
-      logWarning("[import_USD] Failed to load roughness texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load roughness texture: %s\n",
+          resolvedPath.c_str());
     }
   } else {
-    float roughness = 0.5f;  // Default to mid-range roughness
-    if (getShaderFloatInput(usdShader, "reflection_roughness_constant", roughness)) {
+    float roughness = 0.5f; // Default to mid-range roughness
+    if (getShaderFloatInput(
+            usdShader, "reflection_roughness_constant", roughness)) {
       mat->setParameter("roughness", roughness);
     } else {
       mat->setParameter("roughness", 0.5f);
@@ -134,7 +138,8 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("normal", *sampler);
     } else {
-      logWarning("[import_USD] Failed to load normal texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load normal texture: %s\n",
+          resolvedPath.c_str());
     }
   }
 
@@ -150,7 +155,8 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
     if (sampler) {
       mat->setParameterObject("occlusion", *sampler);
     } else {
-      logWarning("[import_USD] Failed to load occlusion texture: %s\n", resolvedPath.c_str());
+      logWarning("[import_USD] Failed to load occlusion texture: %s\n",
+          resolvedPath.c_str());
     }
   }
 
@@ -170,7 +176,8 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
       if (sampler) {
         mat->setParameterObject("opacity", *sampler);
       } else {
-        logWarning("[import_USD] Failed to load opacity texture: %s\n", resolvedPath.c_str());
+        logWarning("[import_USD] Failed to load opacity texture: %s\n",
+            resolvedPath.c_str());
       }
     } else {
       float opacityConstant = 1.0f;

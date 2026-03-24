@@ -1,9 +1,9 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/core/Logging.hpp"
 // std
 #include <cstdio>
 #include <filesystem>
@@ -87,8 +87,8 @@ SpatialFieldRef import_MHD(Scene &scene, const char *filepath)
 
   const auto dataFilepath =
       fs::path(filepath).parent_path().string() + "/" + header.dataFile;
-  auto field =
-      scene.createObject<SpatialField>(tokens::spatial_field::structuredRegular);
+  auto field = scene.createObject<SpatialField>(
+      tokens::spatial_field::structuredRegular);
   field->setName(dataFilepath.c_str());
 
   auto voxelArray = scene.createArray(
@@ -116,4 +116,4 @@ SpatialFieldRef import_MHD(Scene &scene, const char *filepath)
   return field;
 }
 
-} // namespace tsd
+} // namespace tsd::io

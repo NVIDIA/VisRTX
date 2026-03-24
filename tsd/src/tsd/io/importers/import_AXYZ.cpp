@@ -3,11 +3,11 @@
 
 #include "tsd/io/importers.hpp"
 
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/animation/AnimationManager.hpp"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 // std
 #include <algorithm>
 #include <cstdio>
@@ -17,7 +17,10 @@ namespace tsd::io {
 
 using namespace tsd::core;
 
-void import_AXYZ(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filepath, LayerNodeRef location)
+void import_AXYZ(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location)
 {
   std::string file = fileOf(filepath);
   if (file.empty())

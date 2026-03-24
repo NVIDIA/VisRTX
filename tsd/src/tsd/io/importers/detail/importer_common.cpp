@@ -539,7 +539,7 @@ static core::TransferFunction importParaViewTransferFunction(
         filepath.c_str());
     return {};
   } else if (const auto arrayStart = jsonContent.find("[", rgbPointsPos);
-      arrayStart == std::string::npos) {
+             arrayStart == std::string::npos) {
     logError(
         "[importParaViewTransferFunction] Invalid RGBPoints format in file: %s",
         filepath.c_str());
@@ -624,7 +624,7 @@ static core::TransferFunction importParaViewTransferFunction(
           std::istringstream opacitySS(opacityContent);
 
           for (std::string opacityToken;
-              std::getline(opacitySS, opacityToken, ',');) {
+               std::getline(opacitySS, opacityToken, ',');) {
             // Trim whitespace
             if (const auto first = opacityToken.find_first_not_of(" \t\n\r");
                 first != std::string::npos) {

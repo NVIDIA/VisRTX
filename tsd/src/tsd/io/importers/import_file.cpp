@@ -187,8 +187,8 @@ VolumeRef import_volume_animation(Scene &scene,
   volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
 
   auto &anim = animMgr.addAnimation(fileOf(files[0]).c_str());
-  auto &fb =
-      anim.emplaceFileBinding<SpatialFieldFileBinding>(&scene, volume.data(), field, files);
+  auto &fb = anim.emplaceFileBinding<SpatialFieldFileBinding>(
+      &scene, volume.data(), field, files);
   fb.addCallbackToAnimation(anim);
 
   return volume;

@@ -67,4 +67,4 @@ void generate_cylinders(
   scene.insertChildObjectNode(location, surface);
 }
 
-} // namespace tsd
+} // namespace tsd::io

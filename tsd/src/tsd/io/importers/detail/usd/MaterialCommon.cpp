@@ -6,16 +6,15 @@
 #include "MaterialCommon.h"
 
 // pxr
-#include <pxr/usd/usdShade/input.h>
-#include <pxr/usd/usdShade/connectableAPI.h>
 #include <pxr/base/tf/token.h>
 #include <pxr/usd/sdf/assetPath.h>
+#include <pxr/usd/usdShade/connectableAPI.h>
+#include <pxr/usd/usdShade/input.h>
 
 namespace tsd::io::materials {
 
-bool getShaderFloatInput(const pxr::UsdShadeShader &shader,
-    const char *inputName,
-    float &outValue)
+bool getShaderFloatInput(
+    const pxr::UsdShadeShader &shader, const char *inputName, float &outValue)
 {
   pxr::UsdShadeInput input = shader.GetInput(pxr::TfToken(inputName));
   if (!input) {
@@ -31,7 +30,8 @@ bool getShaderFloatInput(const pxr::UsdShadeShader &shader,
       // Check if this is a connection to a material interface input
       pxr::UsdPrim sourcePrim = source.GetPrim();
       if (sourcePrim.IsA<pxr::UsdShadeMaterial>()) {
-        // This is a material interface connection - get the value from the material's input
+        // This is a material interface connection - get the value from the
+        // material's input
         pxr::UsdShadeMaterial mat(sourcePrim);
         pxr::UsdShadeInput matInput = mat.GetInput(sourceName);
         if (matInput && matInput.Get(&outValue)) {
@@ -60,9 +60,8 @@ bool getShaderFloatInput(const pxr::UsdShadeShader &shader,
   return false;
 }
 
-bool getShaderBoolInput(const pxr::UsdShadeShader &shader,
-    const char *inputName,
-    bool &outValue)
+bool getShaderBoolInput(
+    const pxr::UsdShadeShader &shader, const char *inputName, bool &outValue)
 {
   pxr::UsdShadeInput input = shader.GetInput(pxr::TfToken(inputName));
   if (!input) {
@@ -78,7 +77,8 @@ bool getShaderBoolInput(const pxr::UsdShadeShader &shader,
       // Check if this is a connection to a material interface input
       pxr::UsdPrim sourcePrim = source.GetPrim();
       if (sourcePrim.IsA<pxr::UsdShadeMaterial>()) {
-        // This is a material interface connection - get the value from the material's input
+        // This is a material interface connection - get the value from the
+        // material's input
         pxr::UsdShadeMaterial mat(sourcePrim);
         pxr::UsdShadeInput matInput = mat.GetInput(sourceName);
         if (matInput && matInput.Get(&outValue)) {
@@ -125,7 +125,8 @@ bool getShaderColorInput(const pxr::UsdShadeShader &shader,
       // Check if this is a connection to a material interface input
       pxr::UsdPrim sourcePrim = source.GetPrim();
       if (sourcePrim.IsA<pxr::UsdShadeMaterial>()) {
-        // This is a material interface connection - get the value from the material's input
+        // This is a material interface connection - get the value from the
+        // material's input
         pxr::UsdShadeMaterial mat(sourcePrim);
         pxr::UsdShadeInput matInput = mat.GetInput(sourceName);
         if (matInput && matInput.Get(&outValue)) {
@@ -173,7 +174,8 @@ bool getShaderTextureInput(const pxr::UsdShadeShader &shader,
     // Check if this is a connection to a material interface input
     pxr::UsdPrim sourcePrim = source.GetPrim();
     if (sourcePrim.IsA<pxr::UsdShadeMaterial>()) {
-      // This is a material interface connection - get the value from the material's input
+      // This is a material interface connection - get the value from the
+      // material's input
       pxr::UsdShadeMaterial mat(sourcePrim);
       pxr::UsdShadeInput matInput = mat.GetInput(sourceName);
       if (matInput) {
@@ -191,7 +193,8 @@ bool getShaderTextureInput(const pxr::UsdShadeShader &shader,
       pxr::UsdShadeShader textureShader(sourcePrim);
       if (textureShader) {
         // Look for file input on the texture reader
-        pxr::UsdShadeInput fileInput = textureShader.GetInput(pxr::TfToken("file"));
+        pxr::UsdShadeInput fileInput =
+            textureShader.GetInput(pxr::TfToken("file"));
         if (fileInput) {
           pxr::SdfAssetPath assetPath;
           if (fileInput.Get(&assetPath)) {

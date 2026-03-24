@@ -5,13 +5,13 @@
 
 #if TSD_USE_USD
 
-#include "tsd/scene/Scene.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/scene/Scene.hpp"
 
 // pxr
+#include <pxr/base/gf/vec3f.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/shader.h>
-#include <pxr/base/gf/vec3f.h>
 
 // std
 #include <string>
@@ -24,14 +24,12 @@ using namespace tsd::scene;
 // Helper functions for extracting shader parameters
 
 /// Get a float input from a USD shader
-bool getShaderFloatInput(const pxr::UsdShadeShader &shader,
-    const char *inputName,
-    float &outValue);
+bool getShaderFloatInput(
+    const pxr::UsdShadeShader &shader, const char *inputName, float &outValue);
 
 /// Get a bool input from a USD shader
-bool getShaderBoolInput(const pxr::UsdShadeShader &shader,
-    const char *inputName,
-    bool &outValue);
+bool getShaderBoolInput(
+    const pxr::UsdShadeShader &shader, const char *inputName, bool &outValue);
 
 /// Get a color3f input from a USD shader
 bool getShaderColorInput(const pxr::UsdShadeShader &shader,

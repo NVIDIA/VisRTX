@@ -44,7 +44,8 @@ inline SurfaceRef makeSphere(Scene &scene, float3 pos, float radius, int ID)
 
 inline MaterialRef makeDielectric(Scene &scene, float ior, int ID)
 {
-  auto material = scene.createObject<Material>(tokens::material::physicallyBased);
+  auto material =
+      scene.createObject<Material>(tokens::material::physicallyBased);
   material->setParameter("baseColor", float3(1.0f, 1.0f, 1.0f));
   material->setParameter("ior", ior);
   material->setName((std::string("dielectric") + std::to_string(ID)).c_str());
@@ -61,7 +62,8 @@ inline MaterialRef makeLambertian(Scene &scene, float3 color, int ID)
 
 inline MaterialRef makeMetal(Scene &scene, float3 refl, int ID)
 {
-  auto material = scene.createObject<Material>(tokens::material::physicallyBased);
+  auto material =
+      scene.createObject<Material>(tokens::material::physicallyBased);
   material->setParameter("baseColor", refl);
   material->setParameter("metallic", 0.9f);
   material->setParameter("roughness", 0.4f);
@@ -130,4 +132,4 @@ void generate_rtow(Scene &scene, LayerNodeRef location)
   i++;
 }
 
-} // namespace tsd
+} // namespace tsd::io

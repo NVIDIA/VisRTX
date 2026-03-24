@@ -22,8 +22,8 @@ void generate_monkey(Scene &scene, LayerNodeRef location)
       ANARI_FLOAT32_VEC3, std::size(obj2header::vertex_normal) / 3);
   normalArray->setData(std::data(obj2header::vertex_normal));
 
-  auto uvArray =
-      scene.createArray(ANARI_FLOAT32_VEC2, std::size(obj2header::vertex_uv) / 2);
+  auto uvArray = scene.createArray(
+      ANARI_FLOAT32_VEC2, std::size(obj2header::vertex_uv) / 2);
   uvArray->setData(std::data(obj2header::vertex_uv));
 
   auto indexArray = scene.createArray(
@@ -41,4 +41,4 @@ void generate_monkey(Scene &scene, LayerNodeRef location)
   scene.insertChildObjectNode(location, surface);
 }
 
-} // namespace tsd
+} // namespace tsd::io

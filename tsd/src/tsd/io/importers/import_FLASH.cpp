@@ -5,9 +5,9 @@
 #define TSD_USE_HDF5 1
 #endif
 
+#include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/core/Logging.hpp"
 #if TSD_USE_HDF5
 // std
 #include <algorithm>
@@ -438,8 +438,10 @@ SpatialFieldRef import_FLASH(Scene &scene, const char *filepath)
   auto blockData = scene.createArray(ANARI_ARRAY3D, amrField.blockData.size());
   {
     auto *dst = (size_t *)blockData->map();
-    std::transform(
-        amrField.blockData.begin(), amrField.blockData.end(), dst, [&](const auto &bd) {
+    std::transform(amrField.blockData.begin(),
+        amrField.blockData.end(),
+        dst,
+        [&](const auto &bd) {
           auto block = scene.createArray(
               ANARI_FLOAT32, bd.dims[0], bd.dims[1], bd.dims[2]);
           block->setData(bd.values);
@@ -451,11 +453,12 @@ SpatialFieldRef import_FLASH(Scene &scene, const char *filepath)
   auto data = scene.createArray(ANARI_FLOAT32, amrField.data.size());
   data->setData(amrField.data.data());
 
-  auto refinementRatio
-    = scene.createArray(ANARI_UINT32, amrField.refinementRatio.size());
+  auto refinementRatio =
+      scene.createArray(ANARI_UINT32, amrField.refinementRatio.size());
   refinementRatio->setData(amrField.refinementRatio);
 
-  auto blockBounds = scene.createArray(ANARI_INT32_BOX3, amrField.blockBounds.size());
+  auto blockBounds =
+      scene.createArray(ANARI_INT32_BOX3, amrField.blockBounds.size());
   blockBounds->setData(amrField.blockBounds.data());
 
   auto blockLevel = scene.createArray(ANARI_INT32, amrField.blockLevel.size());
@@ -481,4 +484,4 @@ SpatialFieldRef import_FLASH(Scene &, const char *)
 }
 #endif
 
-} // namespace tsd
+} // namespace tsd::io
