@@ -161,11 +161,10 @@ void NetworkUpdateDelegate::signalInvalidateCachedObjects()
       "NetworkUpdateDelegate::signalInvalidateCachedObjects not implemented");
 }
 
-void NetworkUpdateDelegate::signalAnimationTimeChanged(float)
+void NetworkUpdateDelegate::signalAnimationTimeChanged(float t)
 {
   CHECK_READY_OR_RETURN();
-  tsd::core::logWarning(
-      "NetworkUpdateDelegate::signalAnimationTimeChanged not implemented");
+  m_channel->send(MessageType::SERVER_UPDATE_TIME, &t);
 }
 
 bool NetworkUpdateDelegate::isReady(const char *fcn) const

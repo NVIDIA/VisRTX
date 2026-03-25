@@ -71,6 +71,8 @@ void RenderServer::run(short port)
       tsd::network::messages::TransferScene sceneMsg(&m_ctx.tsd.scene);
       m_server->send(MessageType::CLIENT_RECEIVE_SCENE, std::move(sceneMsg))
           .get();
+      const float time = m_ctx.tsd.animationMgr.getAnimationTime();
+      m_server->send(MessageType::CLIENT_RECEIVE_TIME, &time).get();
       timer.end();
       tsd::core::logStatus("[Server] ...done! (%.3f s)", timer.seconds());
 
@@ -321,6 +323,18 @@ void RenderServer::setup_Messaging()
       [this](const tsd::network::Message &msg) {
         tsd::network::messages::TransferLayer layerMsg(msg, &m_ctx.tsd.scene);
         layerMsg.execute();
+      });
+
+  m_server->registerHandler(MessageType::SERVER_UPDATE_TIME,
+      [this](const tsd::network::Message &msg) {
+        float time = 0.f;
+        uint32_t pos = 0;
+        if (tsd::network::payloadRead(msg, pos, &time)) {
+          m_ctx.tsd.animationMgr.setAnimationTime(time);
+        } else {
+          tsd::core::logError(
+              "[Server] Invalid payload for SERVER_UPDATE_TIME");
+        }
       });
 
   m_server->registerHandler(MessageType::SERVER_SAVE_STATE_FILE,

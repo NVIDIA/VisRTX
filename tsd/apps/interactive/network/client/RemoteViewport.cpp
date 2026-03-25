@@ -87,6 +87,7 @@ void RemoteViewport::buildUI()
   // Render the overlay after input handling so it does not interfere.
   if (m_showOverlay)
     ui_overlay();
+  BaseViewport::ui_animationSlider();
 }
 
 void RemoteViewport::setManipulator(tsd::rendering::Manipulator *m)

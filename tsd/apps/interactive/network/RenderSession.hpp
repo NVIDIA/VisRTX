@@ -30,6 +30,7 @@ enum MessageType
   SERVER_REMOVE_OBJECT,
   SERVER_REMOVE_ALL_OBJECTS,
   SERVER_UPDATE_LAYER,
+  SERVER_UPDATE_TIME,
   SERVER_SAVE_STATE_FILE,
 
   // Get state: server -> client
@@ -38,6 +39,7 @@ enum MessageType
   CLIENT_RECEIVE_CURRENT_RENDERER,
   CLIENT_RECEIVE_SCENE,
   CLIENT_RECEIVE_CURRENT_CAMERA,
+  CLIENT_RECEIVE_TIME,
   CLIENT_SCENE_TRANSFER_BEGIN, // notify the client a big message is coming...
 
   // Request state: client-> server

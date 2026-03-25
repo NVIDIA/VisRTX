@@ -88,6 +88,8 @@ void Viewport::buildUI()
   if (m_showOverlay)
     ui_overlay();
 
+  BaseViewport::ui_animationSlider();
+
   ImGui::EndDisabled();
 
   if (m_anariPass && !didPick) {
@@ -834,7 +836,7 @@ void Viewport::ui_menubar_Viewport()
       ImGui::Indent(INDENT_AMOUNT);
 
       ImGui::Checkbox("Axes", &m_showOrientationWidget);
-
+      ImGui::Checkbox("Animation Time Slider", &m_showAnimationSlider);
       ImGui::Checkbox("Info Window", &m_showOverlay);
       if (ImGui::MenuItem("Reset Timing Stats")) {
         m_minFL = m_latestFL;

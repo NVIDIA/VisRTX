@@ -41,6 +41,7 @@ struct Application : public TSDApplication
   std::string m_host{"127.0.0.1"};
   short m_port{12345};
   std::string m_stateFileName{"state.tsd"};
+  bool m_timeUpdatesEnabled{true};
 };
 
 // Application definitions ////////////////////////////////////////////////////
@@ -53,6 +54,11 @@ Application::Application()
 
   m_updateDelegate = std::make_unique<tsd::network::NetworkUpdateDelegate>(
       &ctx->tsd.scene, m_client.get());
+
+  ctx->tsd.animationMgr.setTimeChangedCallback([this](float time) {
+    if (m_timeUpdatesEnabled)
+      m_updateDelegate->signalAnimationTimeChanged(time);
+  });
 
   m_client->registerHandler(
       MessageType::ERROR, [](const tsd::network::Message &msg) {
@@ -84,6 +90,14 @@ Application::Application()
         tsd::core::logStatus("[Client] Requesting start of rendering...");
         m_client->send(MessageType::SERVER_START_RENDERING);
         appContext()->tsd.sceneLoadComplete = true;
+      });
+
+  m_client->registerHandler(MessageType::CLIENT_RECEIVE_TIME,
+      [this](const tsd::network::Message &msg) {
+        m_timeUpdatesEnabled = false;
+        float time = *tsd::network::payloadAs<float>(msg);
+        appContext()->tsd.animationMgr.setAnimationTime(time);
+        m_timeUpdatesEnabled = true;
       });
 
   ctx->tsd.scene.setUpdateDelegate(m_updateDelegate.get());

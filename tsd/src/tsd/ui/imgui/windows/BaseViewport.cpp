@@ -386,8 +386,8 @@ bool BaseViewport::ui_orientationWidget()
   const float size = 150.f * uiConfig->fontScale;
   const ImVec2 winPos = ImGui::GetWindowPos();
   const ImVec2 winSize = ImGui::GetWindowSize();
-  const float x = winPos.x;
-  const float y = winPos.y + winSize.y - size;
+  const float x = winPos.x + winSize.x - size - 5.f;
+  const float y = size * 0.6f;
   ImOGuizmo::SetRect(x, y, size);
 
   // Build view matrix from arcball (same approach as ui_gizmo())
@@ -423,6 +423,42 @@ bool BaseViewport::ui_orientationWidget()
     applyViewMatrixToArcball(viewMat);
 
   return snapped || mouseInWidget;
+}
+
+void BaseViewport::ui_animationSlider()
+{
+  if (!m_showAnimationSlider)
+    return;
+
+  auto &animMgr = appContext()->tsd.animationMgr;
+  ImGui::BeginDisabled(animMgr.animations().empty());
+
+  const ImVec2 contentStart = ImGui::GetCursorStartPos();
+  const float vpW = static_cast<float>(m_viewport.size.x);
+  const float vpH = static_cast<float>(m_viewport.size.y);
+  const float sliderW = vpW * 0.8f;
+  const float itemH = ImGui::GetFrameHeight();
+  const float padBottom = vpH * 0.05f;
+
+  const float x = contentStart.x + (vpW - sliderW) * 0.5f;
+  const float y = contentStart.y + vpH - padBottom - itemH;
+  ImGui::SetCursorPos(ImVec2(x, y));
+
+  ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.f, 0.f, 0.f, 0.5f));
+  const ImGuiWindowFlags flags =
+      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+  if (ImGui::BeginChild("##animSlider",
+          ImVec2(sliderW, itemH),
+          ImGuiChildFlags_None,
+          flags)) {
+    ImGui::SetNextItemWidth(-1.f);
+    float time = animMgr.getAnimationTime();
+    if (ImGui::SliderFloat("##animTime", &time, 0.f, 1.f))
+      animMgr.setAnimationTime(time);
+  }
+  ImGui::EndChild();
+  ImGui::PopStyleColor();
+  ImGui::EndDisabled();
 }
 
 void BaseViewport::ui_menubar_Renderer()

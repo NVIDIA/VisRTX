@@ -60,6 +60,7 @@ struct BaseViewport : public Window
   void ui_handleInput();
   void ui_gizmo();
   bool ui_orientationWidget(); // returns true if widget consumed mouse input
+  void ui_animationSlider();
   void ui_menubar_Renderer();
   void ui_menubar_Camera();
   void ui_menubar_TransformManipulator();
@@ -88,6 +89,7 @@ struct BaseViewport : public Window
   } m_renderers;
 
   bool m_showOrientationWidget{true};
+  bool m_showAnimationSlider{true};
 
  private:
   int windowFlags() const override; // anari_viewer::Window
