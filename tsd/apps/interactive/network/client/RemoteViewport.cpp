@@ -80,7 +80,9 @@ void RemoteViewport::buildUI()
   }
 
   BaseViewport::ui_gizmo();
-  BaseViewport::ui_handleInput();
+  const bool widgetActive = BaseViewport::ui_orientationWidget();
+  if (!widgetActive)
+    BaseViewport::ui_handleInput();
 
   // Render the overlay after input handling so it does not interfere.
   if (m_showOverlay)
