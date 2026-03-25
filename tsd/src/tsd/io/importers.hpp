@@ -89,6 +89,7 @@ VolumeRef import_volume(Scene &scene,
 VolumeRef import_volume_animation(Scene &scene,
     tsd::animation::AnimationManager &animMgr,
     const std::vector<std::string> &files,
+    const TransferFunction &transferFunction,
     LayerNodeRef location = {});
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -158,6 +159,12 @@ void import_files(Scene &scene,
 void import_animations(Scene &scene,
     tsd::animation::AnimationManager &animMgr,
     const std::vector<ImportAnimationFiles> &files,
+    tsd::scene::LayerNodeRef root = {});
+
+void import_animations(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const std::vector<ImportAnimationFiles> &files,
+    const tsd::core::TransferFunction &transferFunction,
     tsd::scene::LayerNodeRef root = {});
 
 } // namespace tsd::io

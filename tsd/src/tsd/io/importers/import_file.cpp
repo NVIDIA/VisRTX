@@ -1,12 +1,9 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/io/serialization.hpp"
-// tsd_animation
-#include "tsd/animation/AnimationManager.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 
@@ -142,6 +139,28 @@ void import_animations(Scene &scene,
     const std::vector<ImportAnimationFiles> &files,
     tsd::scene::LayerNodeRef root)
 {
+  tsd::core::TransferFunction tf;
+  if (tf.colorPoints.empty() && tf.opacityPoints.empty()) {
+    for (const auto &c : core::colormap::viridis) {
+      tf.colorPoints.push_back({float(tf.colorPoints.size())
+              / float(core::colormap::viridis.size() - 1),
+          c.x,
+          c.y,
+          c.z});
+    }
+    tf.opacityPoints = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+    tf.range = {};
+  }
+
+  import_animations(scene, animMgr, files, tf, root);
+}
+
+void import_animations(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const std::vector<ImportAnimationFiles> &files,
+    const tsd::core::TransferFunction &tf,
+    tsd::scene::LayerNodeRef root)
+{
   for (auto &anim : files) {
     if (anim.second.empty()) {
       tsd::core::logWarning("...skipping animation import for empty file list");
@@ -151,47 +170,11 @@ void import_animations(Scene &scene,
     if (anim.first == ImporterType::POINTSBIN_MULTIFILE)
       import_POINTSBIN(scene, animMgr, anim.second, root);
     else if (anim.first == ImporterType::VOLUME_ANIMATION)
-      import_volume_animation(scene, animMgr, anim.second, root);
+      import_volume_animation(scene, animMgr, anim.second, tf, root);
     else {
       tsd::core::logWarning("...skipping unknown animation file importer type");
     }
   }
-}
-
-VolumeRef import_volume_animation(Scene &scene,
-    tsd::animation::AnimationManager &animMgr,
-    const std::vector<std::string> &files,
-    LayerNodeRef location)
-{
-  if (files.empty()) {
-    logError("[import_volume_animation] file list is empty");
-    return {};
-  }
-
-  auto field = import_spatial_field(scene, files[0].c_str());
-  if (!field) {
-    logError("[import_volume_animation] failed to load first frame: '%s'",
-        files[0].c_str());
-    return {};
-  }
-
-  float2 valueRange = field->computeValueRange();
-
-  auto tx = scene.insertChildTransformNode(
-      location ? location : scene.defaultLayer()->root());
-
-  auto [inst, volume] = scene.insertNewChildObjectNode<Volume>(
-      tx, tokens::volume::transferFunction1D);
-  volume->setName(fileOf(files[0]).c_str());
-  volume->setParameterObject("value", *field);
-  volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-
-  auto &anim = animMgr.addAnimation(fileOf(files[0]).c_str());
-  auto &fb = anim.emplaceFileBinding<SpatialFieldFileBinding>(
-      &scene, volume.data(), field, files);
-  fb.addCallbackToAnimation(anim);
-
-  return volume;
 }
 
 } // namespace tsd::io
