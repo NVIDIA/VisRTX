@@ -40,16 +40,14 @@ void BaseViewport::saveSettings(tsd::core::DataNode &root)
   // Viewport settings //
 
   root["viewport.scale"] = m_viewport.resolutionScale;
+  root["viewport.showTimeSlider"] = m_showAnimationSlider;
+  root["viewport.showOrientationWidget"] = m_showOrientationWidget;
 
   // Gizmo settings //
 
   root["gizmo.active"] = m_gizmo.active;
   root["gizmo.operation"] = static_cast<int>(m_gizmo.operation);
   root["gizmo.mode"] = static_cast<int>(m_gizmo.mode);
-
-  // Orientation widget settings //
-
-  root["orientationWidget.show"] = m_showOrientationWidget;
 }
 
 void BaseViewport::loadSettings(tsd::core::DataNode &root)
@@ -57,6 +55,9 @@ void BaseViewport::loadSettings(tsd::core::DataNode &root)
   // Viewport settings //
 
   root["viewport.scale"].getValue(ANARI_FLOAT32, &m_viewport.resolutionScale);
+  root["viewport.showTimeSlider"].getValue(ANARI_BOOL, &m_showAnimationSlider);
+  root["viewport.showOrientationWidget"].getValue(
+      ANARI_BOOL, &m_showOrientationWidget);
 
   // Gizmo settings //
 
@@ -67,10 +68,6 @@ void BaseViewport::loadSettings(tsd::core::DataNode &root)
   int gizmoMode = static_cast<int>(m_gizmo.mode);
   root["gizmo.mode"].getValue(ANARI_INT32, &gizmoMode);
   m_gizmo.mode = static_cast<ImGuizmo::MODE>(gizmoMode);
-
-  // Orientation widget settings //
-
-  root["orientationWidget.show"].getValue(ANARI_BOOL, &m_showOrientationWidget);
 }
 
 void BaseViewport::viewport_setActive(bool active)
