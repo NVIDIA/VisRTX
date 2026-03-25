@@ -46,6 +46,13 @@ SpatialFieldRef import_RAW(Scene &scene, const char *filepath)
           type = ANARI_UFIXED32;
       }
 
+      if (sscanf(str.c_str(), "float%i", &bits) == 1) {
+        if (bits == 32)
+          type = ANARI_FLOAT32;
+        else if (bits == 64)
+          type = ANARI_FLOAT64;
+      }
+
       if (dimX && dimY && dimZ && type != ANARI_UNKNOWN)
         break;
     }
