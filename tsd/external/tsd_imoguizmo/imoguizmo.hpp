@@ -127,7 +127,7 @@ namespace ImOGuizmo {
 			}
 		}
 
-		void lookAt(ImVec3 const& eye, ImVec3 const& at, ImVec3 const& up, float* viewMatrix)
+		inline void lookAt(ImVec3 const& eye, ImVec3 const& at, ImVec3 const& up, float* viewMatrix)
 		{
 #ifdef IMOGUIZMO_LEFT_HANDED
 			const auto f = normalize(at - eye);
@@ -306,7 +306,7 @@ namespace ImOGuizmo {
 
 			const internal::ImVec3 pivotPos = internal::ImVec3{ &modelMat[12] } - internal::ImVec3{ &modelMat[8] } *pivotDistance;
 
-			internal::ImVec3 ups[6] = { 
+			internal::ImVec3 ups[6] = {
 #ifdef IMOGUIZMO_LEFT_HANDED
 #ifdef IMOGUIZMO_Z_UP
 				{0, 0, 1}, {0, 0, 1}, {0, -1, 0}, {0, 0, 1}, {0, 0, 1}, {0, 1, 0}
@@ -317,7 +317,7 @@ namespace ImOGuizmo {
 #ifdef IMOGUIZMO_Z_UP
 				{0, 0, 1}, {0, 0, 1}, {0, 1, 0}, {0, 0, 1}, {0, 0, 1}, {0, -1, 0}
 #else // Y is up
-				{0, 1, 0}, {0, 0, -1}, {0, 1, 0}, {0, 1, 0}, {0, 0, 1}, {0, 1, 0} 
+				{0, 1, 0}, {0, 0, -1}, {0, 1, 0}, {0, 1, 0}, {0, 0, 1}, {0, 1, 0}
 #endif
 #endif
 			};
@@ -327,16 +327,16 @@ namespace ImOGuizmo {
 			if (selection == 1) internal::lookAt(pivotPos + internal::ImVec3{ 0, pivotDistance, 0 }, pivotPos, ups[1], viewMatrix);
 			// +z axis
 			if (selection == 2) internal::lookAt(pivotPos + internal::ImVec3{ 0, 0, pivotDistance }, pivotPos, ups[2], viewMatrix);
-			// -x axis 
+			// -x axis
 			if (selection == 3) internal::lookAt(pivotPos - internal::ImVec3{ pivotDistance, 0, 0 }, pivotPos, ups[3], viewMatrix);
-			// -y axis 
+			// -y axis
 			if (selection == 4) internal::lookAt(pivotPos - internal::ImVec3{ 0, pivotDistance, 0 }, pivotPos, ups[4], viewMatrix);
-			// -z axis 
+			// -z axis
 			if (selection == 5) internal::lookAt(pivotPos - internal::ImVec3{ 0, 0, pivotDistance }, pivotPos, ups[5], viewMatrix);
 
 			return true;
 		}
-		
+
 		return false;
 	}
 }
