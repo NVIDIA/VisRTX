@@ -19,9 +19,8 @@ struct Parameter;
 
 /*
  * Abstract observer interface that receives all mutating signals produced by
- * a Scene: object creation/removal, parameter changes, layer edits, and
- * animation time updates. Subclass to drive downstream systems (e.g.
- * renderers).
+ * a Scene: object creation/removal, parameter changes, and layer edits.
+ * Subclass to drive downstream systems (e.g. renderers).
  *
  * Example:
  *   struct MyDelegate : BaseUpdateDelegate {
@@ -54,7 +53,6 @@ struct BaseUpdateDelegate
   virtual void signalActiveLayersChanged() = 0;
   virtual void signalObjectFilteringChanged() = 0;
   virtual void signalInvalidateCachedObjects() = 0;
-  virtual void signalAnimationTimeChanged(float time) = 0;
 
   TSD_NOT_COPYABLE(BaseUpdateDelegate)
   TSD_DEFAULT_MOVEABLE(BaseUpdateDelegate)
@@ -93,7 +91,6 @@ struct EmptyUpdateDelegate : public BaseUpdateDelegate
   void signalActiveLayersChanged() override {}
   void signalObjectFilteringChanged() override {}
   void signalInvalidateCachedObjects() override {}
-  void signalAnimationTimeChanged(float) override {}
 };
 
 /*
@@ -141,7 +138,6 @@ struct MultiUpdateDelegate : public BaseUpdateDelegate
   void signalActiveLayersChanged() override;
   void signalObjectFilteringChanged() override;
   void signalInvalidateCachedObjects() override;
-  void signalAnimationTimeChanged(float time) override;
 
  private:
   std::vector<std::unique_ptr<BaseUpdateDelegate>> m_delegates;

@@ -227,9 +227,4 @@ void RenderIndex::signalInvalidateCachedObjects()
   updateWorld();
 }
 
-void RenderIndex::signalAnimationTimeChanged(float)
-{
-  // no-op
-}
-
 } // namespace tsd::rendering

@@ -57,7 +57,7 @@ Application::Application()
 
   ctx->tsd.animationMgr.setTimeChangedCallback([this](float time) {
     if (m_timeUpdatesEnabled)
-      m_updateDelegate->signalAnimationTimeChanged(time);
+      m_client->send(MessageType::SERVER_UPDATE_TIME, &time);
   });
 
   m_client->registerHandler(

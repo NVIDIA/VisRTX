@@ -150,10 +150,4 @@ void MultiUpdateDelegate::signalInvalidateCachedObjects()
     d->signalInvalidateCachedObjects();
 }
 
-void MultiUpdateDelegate::signalAnimationTimeChanged(float time)
-{
-  for (auto &d : m_delegates)
-    d->signalAnimationTimeChanged(time);
-}
-
 } // namespace tsd::scene
