@@ -8,6 +8,8 @@
 #include "tsd/rendering/pipeline/ImagePipeline.h"
 // ImGuizmo
 #include <ImGuizmo.h>
+// imoguizmo
+#include <imoguizmo.hpp>
 
 namespace tsd::ui::imgui {
 
@@ -57,6 +59,7 @@ struct BaseViewport : public Window
 
   void ui_handleInput();
   void ui_gizmo();
+  bool ui_orientationWidget(); // returns true if widget consumed mouse input
   void ui_menubar_Renderer();
   void ui_menubar_Camera();
   void ui_menubar_TransformManipulator();
@@ -84,8 +87,11 @@ struct BaseViewport : public Window
     tsd::scene::RendererAppRef current;
   } m_renderers;
 
+  bool m_showOrientationWidget{true};
+
  private:
   int windowFlags() const override; // anari_viewer::Window
+  void applyViewMatrixToArcball(const float *viewMat);
 
   tsd::rendering::ImagePipeline m_pipeline;
 

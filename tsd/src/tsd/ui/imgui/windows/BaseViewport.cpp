@@ -45,6 +45,10 @@ void BaseViewport::saveSettings(tsd::core::DataNode &root)
   root["gizmo.active"] = m_gizmo.active;
   root["gizmo.operation"] = static_cast<int>(m_gizmo.operation);
   root["gizmo.mode"] = static_cast<int>(m_gizmo.mode);
+
+  // Orientation widget settings //
+
+  root["orientationWidget.show"] = m_showOrientationWidget;
 }
 
 void BaseViewport::loadSettings(tsd::core::DataNode &root)
@@ -62,6 +66,10 @@ void BaseViewport::loadSettings(tsd::core::DataNode &root)
   int gizmoMode = static_cast<int>(m_gizmo.mode);
   root["gizmo.mode"].getValue(ANARI_INT32, &gizmoMode);
   m_gizmo.mode = static_cast<ImGuizmo::MODE>(gizmoMode);
+
+  // Orientation widget settings //
+
+  root["orientationWidget.show"].getValue(ANARI_BOOL, &m_showOrientationWidget);
 }
 
 void BaseViewport::viewport_setActive(bool active)
@@ -366,6 +374,54 @@ void BaseViewport::ui_gizmo()
   }
 }
 
+bool BaseViewport::ui_orientationWidget()
+{
+  if (!m_showOrientationWidget || !m_camera.arcball)
+    return false;
+
+  // Position widget in the bottom-right corner of the window
+  const float size = 150.f;
+  const ImVec2 winPos = ImGui::GetWindowPos();
+  const ImVec2 winSize = ImGui::GetWindowSize();
+  const float x = winPos.x;
+  const float y = winPos.y + winSize.y - size;
+  ImOGuizmo::SetRect(x, y, size);
+
+  // Build view matrix from arcball (same approach as ui_gizmo())
+  const auto eye = m_camera.arcball->eye();
+  const auto at = m_camera.arcball->at();
+  const auto up = m_camera.arcball->up();
+  const auto view = linalg::lookat_matrix(eye, at, up);
+  float viewMat[16];
+  std::memcpy(viewMat, &view[0].x, sizeof(viewMat));
+
+  // Simple fixed perspective projection for the widget (fov=90deg, aspect=1)
+  const float near = 0.1f, far = 100.f;
+  const float f = 1.f; // 1/tan(45 deg)
+  // clang-format off
+  const float projMat[16] = {
+      f, 0, 0, 0,
+      0, f, 0, 0,
+      0, 0, -(far + near) / (far - near), -1.f,
+      0, 0, -2.f * far * near / (far - near), 0};
+  // clang-format on
+
+  // Block arcball input when the mouse is inside the widget circle
+  const ImVec2 center{x + size * 0.5f, y + size * 0.5f};
+  const ImVec2 mousePos = ImGui::GetIO().MousePos;
+  const float dx = mousePos.x - center.x;
+  const float dy = mousePos.y - center.y;
+  const bool mouseInWidget = (dx * dx + dy * dy) <= (size * 0.5f * size * 0.5f);
+
+  ImOGuizmo::SetDrawList(ImGui::GetWindowDrawList());
+  const float pivotDist = m_camera.arcball->distance();
+  const bool snapped = ImOGuizmo::DrawGizmo(viewMat, projMat, pivotDist);
+  if (snapped)
+    applyViewMatrixToArcball(viewMat);
+
+  return snapped || mouseInWidget;
+}
+
 void BaseViewport::ui_menubar_Renderer()
 {
   if (ImGui::BeginMenu("Renderer")) {
@@ -387,7 +443,8 @@ void BaseViewport::ui_menubar_Renderer()
       ImGui::Text("Parameters:");
       ImGui::Indent(INDENT_AMOUNT);
 
-      tsd::ui::buildUI_object(*m_renderers.current, appContext()->tsd.scene, true);
+      tsd::ui::buildUI_object(
+          *m_renderers.current, appContext()->tsd.scene, true);
 
       ImGui::Unindent(INDENT_AMOUNT);
       ImGui::Separator();
@@ -541,6 +598,71 @@ void BaseViewport::ui_menubar_TransformManipulator()
 int BaseViewport::windowFlags() const
 {
   return ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar;
+}
+
+void BaseViewport::applyViewMatrixToArcball(const float *viewMat)
+{
+  // Extract forward direction from column-major view matrix produced by
+  // imoguizmo's lookAt: col2 = {r[2], u[2], -f[2], 0}, so f = {-[2],-[6],-[10]}
+  const tsd::math::float3 forward{-viewMat[2], -viewMat[6], -viewMat[10]};
+
+  // d = direction from 'at' toward new 'eye' = -forward
+  const tsd::math::float3 d = -forward;
+
+  // Invert azelToDirection for the current up axis to recover azel.
+  // Manipulator::update() uses: az = radians(-m_azel.x), el =
+  // radians(-m_azel.y) so we store: m_azel.x = -degrees(az), m_azel.y =
+  // -degrees(el)
+  float az_rad = 0.f, el_rad = 0.f;
+  switch (m_camera.arcball->axis()) {
+  case tsd::rendering::UpAxis::POS_Y: {
+    // azelToDirection = -normalize({sin(az)*cos(el), sin(el), cos(az)*cos(el)})
+    const tsd::math::float3 D = -d;
+    el_rad = std::asin(D.y);
+    az_rad = std::atan2(D.x, D.z);
+    break;
+  }
+  case tsd::rendering::UpAxis::NEG_Y: {
+    // azelToDirection = normalize({sin(az)*cos(el), sin(el), cos(az)*cos(el)})
+    const tsd::math::float3 D = d;
+    el_rad = std::asin(D.y);
+    az_rad = std::atan2(D.x, D.z);
+    break;
+  }
+  case tsd::rendering::UpAxis::POS_Z: {
+    // azelToDirection = -normalize({sin(az)*cos(el), cos(az)*cos(el), sin(el)})
+    const tsd::math::float3 D = -d;
+    el_rad = std::asin(D.z);
+    az_rad = std::atan2(D.x, D.y);
+    break;
+  }
+  case tsd::rendering::UpAxis::NEG_Z: {
+    // azelToDirection = normalize({sin(az)*cos(el), cos(az)*cos(el), sin(el)})
+    const tsd::math::float3 D = d;
+    el_rad = std::asin(D.z);
+    az_rad = std::atan2(D.x, D.y);
+    break;
+  }
+  case tsd::rendering::UpAxis::POS_X: {
+    // azelToDirection = -normalize({sin(el), cos(az)*cos(el), sin(az)*cos(el)})
+    const tsd::math::float3 D = -d;
+    el_rad = std::asin(D.x);
+    az_rad = std::atan2(D.z, D.y);
+    break;
+  }
+  case tsd::rendering::UpAxis::NEG_X: {
+    // azelToDirection = normalize({sin(el), cos(az)*cos(el), sin(az)*cos(el)})
+    const tsd::math::float3 D = d;
+    el_rad = std::asin(D.x);
+    az_rad = std::atan2(D.z, D.y);
+    break;
+  }
+  }
+
+  const tsd::math::float2 newAzel{
+      -tsd::math::degrees(az_rad), -tsd::math::degrees(el_rad)};
+  m_camera.arcball->setConfig(
+      m_camera.arcball->at(), m_camera.arcball->distance(), newAzel);
 }
 
 } // namespace tsd::ui::imgui

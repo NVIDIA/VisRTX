@@ -10,7 +10,6 @@
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndex.hpp"
 #include "tsd/rendering/pipeline/ImagePipeline.h"
-#include "tsd/rendering/pipeline/passes/AnariAxesRenderPass.h"
 #include "tsd/rendering/pipeline/passes/AnariSceneRenderPass.h"
 #include "tsd/rendering/pipeline/passes/AutoExposurePass.h"
 #include "tsd/rendering/pipeline/passes/CopyToSDLTexturePass.h"
@@ -65,7 +64,6 @@ struct Viewport : public BaseViewport
 
   void updateFrame();
   void updateImage();
-  void updateAxes();
   void updateDisplayPassState();
 
   void ui_menubar();
@@ -91,7 +89,6 @@ struct Viewport : public BaseViewport
 
   bool m_refreshDeviceNextFrame{false};
   bool m_showOverlay{true};
-  bool m_showAxes{true};
   bool m_highlightSelection{true};
   bool m_showOnlySelected{false};
   int m_frameSamples{0};
@@ -131,7 +128,6 @@ struct Viewport : public BaseViewport
   tsd::rendering::ToneMapPass *m_toneMapPass{nullptr};
   tsd::rendering::OutputTransformPass *m_outputTransformPass{nullptr};
   tsd::rendering::OutlineRenderPass *m_outlinePass{nullptr};
-  tsd::rendering::AnariAxesRenderPass *m_axesPass{nullptr};
   tsd::rendering::CopyToSDLTexturePass *m_outputPass{nullptr};
   tsd::rendering::SaveToFilePass *m_saveToFilePass{nullptr};
 

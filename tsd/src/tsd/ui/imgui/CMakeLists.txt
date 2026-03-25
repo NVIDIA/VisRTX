@@ -47,6 +47,7 @@ PUBLIC
   tsd_io
   tsd_rendering
   tsd_ext_imguizmo
+  tsd_ext_imoguizmo
   tsd_ext_tinyexr
   stb_image
 PRIVATE

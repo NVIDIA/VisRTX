@@ -66,7 +66,6 @@ void Viewport::buildUI()
 
   updateImage();
   BaseViewport::camera_update();
-  updateAxes();
 
   ui_menubar();
 
@@ -80,7 +79,9 @@ void Viewport::buildUI()
   }
 
   BaseViewport::ui_gizmo();
-  BaseViewport::ui_handleInput();
+  const bool widgetActive = BaseViewport::ui_orientationWidget();
+  if (!widgetActive)
+    BaseViewport::ui_handleInput();
   bool didPick = ui_picking(); // Needs to happen before ui_menubar
 
   // Render the overlay after input handling so it does not interfere.
@@ -233,7 +234,6 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["depthVisualMinimum"] = m_depthVisualMinimum;
   root["depthVisualMaximum"] = m_depthVisualMaximum;
   root["edgeInvert"] = m_edgeInvert;
-  root["showAxes"] = m_showAxes;
   root["autoExposureEnabled"] = m_autoExposureEnabled;
   root["toneMapExposure"] = m_toneMapExposure;
   root["toneMapGamma"] = m_toneMapGamma;
@@ -265,7 +265,6 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   root["depthVisualMinimum"].getValue(ANARI_FLOAT32, &m_depthVisualMinimum);
   root["depthVisualMaximum"].getValue(ANARI_FLOAT32, &m_depthVisualMaximum);
   root["edgeInvert"].getValue(ANARI_BOOL, &m_edgeInvert);
-  root["showAxes"].getValue(ANARI_BOOL, &m_showAxes);
   root["autoExposureEnabled"].getValue(ANARI_BOOL, &m_autoExposureEnabled);
   root["toneMapExposure"].getValue(ANARI_FLOAT32, &m_toneMapExposure);
   root["toneMapGamma"].getValue(ANARI_FLOAT32, &m_toneMapGamma);
@@ -412,15 +411,6 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 
   m_outlinePass = p.emplace_back<tsd::rendering::OutlineRenderPass>();
 
-  anari::Extensions extensions{};
-  auto &adm = appContext()->anari;
-  if (auto *exts = adm.loadDeviceExtensions(m_libName); exts != nullptr)
-    extensions = *exts;
-
-  m_axesPass =
-      p.emplace_back<tsd::rendering::AnariAxesRenderPass>(m_device, extensions);
-  m_axesPass->setEnabled(m_showAxes);
-
   m_outputPass = p.emplace_back<tsd::rendering::CopyToSDLTexturePass>(
       m_app->sdlRenderer());
 }
@@ -484,7 +474,6 @@ void Viewport::teardownDevice()
   m_toneMapPass = nullptr;
   m_outputTransformPass = nullptr;
   m_outlinePass = nullptr;
-  m_axesPass = nullptr;
   m_outputPass = nullptr;
   m_saveToFilePass = nullptr;
 
@@ -583,30 +572,6 @@ void Viewport::updateImage()
   m_latestAnariFL = duration * 1000;
   m_minFL = std::min(m_minFL, m_latestAnariFL);
   m_maxFL = std::max(m_maxFL, m_latestAnariFL);
-}
-
-void Viewport::updateAxes()
-{
-  if (!m_axesPass || !m_camera.current)
-    return;
-
-  const bool doUpdate = m_camera.current != m_prevCamera
-      || m_camera.current->lastParameterChange() > m_lastCameraChange;
-
-  if (!doUpdate)
-    return;
-
-  m_prevCamera = m_camera.current;
-  m_lastCameraChange = m_camera.current->lastParameterChange();
-
-  // Get compass information
-  auto axesDir =
-      m_camera.current->parameterValueAs<tsd::math::float3>("direction")
-          .value_or(tsd::math::float3(0.0f, 0.0f, -1.0f));
-  auto axesUp =
-      m_camera.current->parameterValueAs<tsd::math::float3>("up").value_or(
-          tsd::math::float3(0.0f, 1.0f, 0.0f));
-  m_axesPass->setView(axesDir, axesUp);
 }
 
 void Viewport::updateDisplayPassState()
@@ -868,8 +833,7 @@ void Viewport::ui_menubar_Viewport()
       ImGui::Text("Overlay:");
       ImGui::Indent(INDENT_AMOUNT);
 
-      if (ImGui::Checkbox("Axes", &m_showAxes))
-        m_axesPass->setEnabled(m_showAxes);
+      ImGui::Checkbox("Axes", &m_showOrientationWidget);
 
       ImGui::Checkbox("Info Window", &m_showOverlay);
       if (ImGui::MenuItem("Reset Timing Stats")) {
