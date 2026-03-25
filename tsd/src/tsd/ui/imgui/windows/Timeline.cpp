@@ -62,18 +62,6 @@ void Timeline::buildUI()
   auto &scene = ctx->tsd.scene;
   auto &animMgr = ctx->tsd.animationMgr;
 
-  // Space toggles play
-  if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
-      && ImGui::IsKeyPressed(ImGuiKey_Space)) {
-    m_playing = !m_playing;
-  }
-
-  if (m_playing) {
-    animMgr.incrementAnimationFrame();
-    if (!m_loop && animMgr.getAnimationFrame() == 0)
-      m_playing = false;
-  }
-
   // K shortcut: set keyframe on selected tracks
   if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
       && ImGui::IsKeyPressed(ImGuiKey_K)) {
@@ -115,14 +103,14 @@ void Timeline::buildUI_transport()
 
     // Play/Pause
     ImGui::TableNextColumn();
-    if (m_playing) {
+    if (animMgr.isPlaying()) {
       if (ImGui::Button("||"))
-        m_playing = false;
+        animMgr.stop();
       if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Pause (Space)");
     } else {
       if (ImGui::Button(" > "))
-        m_playing = true;
+        animMgr.play();
       if (ImGui::IsItemHovered())
         ImGui::SetTooltip("Play (Space)");
     }
@@ -131,7 +119,7 @@ void Timeline::buildUI_transport()
 
     // Stop
     if (ImGui::Button(" [] ")) {
-      m_playing = false;
+      animMgr.stop();
       animMgr.setAnimationFrame(0);
     }
     if (ImGui::IsItemHovered())
@@ -140,7 +128,9 @@ void Timeline::buildUI_transport()
     ImGui::SameLine();
 
     // Loop toggle
-    ImGui::Checkbox("Loop", &m_loop);
+    bool loop = animMgr.isLoop();
+    if (ImGui::Checkbox("Loop", &loop))
+      animMgr.setLoop(loop);
 
     // Frame counter
     ImGui::TableNextColumn();

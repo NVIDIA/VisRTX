@@ -131,4 +131,50 @@ void AnimationManager::incrementAnimationFrame()
   setAnimationFrame(frame);
 }
 
+void AnimationManager::tick()
+{
+  if (!m_playing)
+    return;
+  if (m_loop) {
+    incrementAnimationFrame();
+  } else {
+    int prevFrame = getAnimationFrame();
+    incrementAnimationFrame();
+    if (getAnimationFrame() < prevFrame) {
+      setAnimationFrame(m_totalFrames - 1);
+      m_playing = false;
+    }
+  }
+}
+
+void AnimationManager::play()
+{
+  m_playing = true;
+}
+
+void AnimationManager::stop()
+{
+  m_playing = false;
+}
+
+void AnimationManager::togglePlay()
+{
+  m_playing = !m_playing;
+}
+
+bool AnimationManager::isPlaying() const
+{
+  return m_playing;
+}
+
+void AnimationManager::setLoop(bool loop)
+{
+  m_loop = loop;
+}
+
+bool AnimationManager::isLoop() const
+{
+  return m_loop;
+}
+
 } // namespace tsd::animation

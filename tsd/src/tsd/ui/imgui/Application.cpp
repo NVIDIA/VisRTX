@@ -148,6 +148,8 @@ anari_viewer::WindowArray Application::setupWindows()
 
 void Application::uiFrameStart()
 {
+  m_ctx.tsd.animationMgr.tick();
+
   if (!m_filenameToSaveNextFrame.empty()) {
     saveApplicationState(m_filenameToSaveNextFrame.c_str());
     m_filenameToSaveNextFrame.clear();
@@ -200,6 +202,9 @@ void Application::uiFrameStart()
     m_cuttingPlaneDialog->renderUI();
     modalActive = true;
   }
+
+  if (ImGui::IsKeyPressed(ImGuiKey_Space))
+    m_ctx.tsd.animationMgr.togglePlay();
 
   if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S))
     this->getFilenameFromDialog(m_filenameToSaveNextFrame, true);

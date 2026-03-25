@@ -17,14 +17,8 @@ Animations::Animations(Application *app, const char *name) : Window(app, name)
 
 void Animations::buildUI()
 {
-  if (ImGui::IsKeyPressed(ImGuiKey_Space))
-    m_playing = !m_playing;
-
   auto *ctx = appContext();
   auto &animMgr = ctx->tsd.animationMgr;
-
-  if (m_playing)
-    animMgr.incrementAnimationTime();
 
   buildUI_animationControls();
 
@@ -57,20 +51,20 @@ void Animations::buildUI_animationControls()
   auto *ctx = appContext();
   auto &animMgr = ctx->tsd.animationMgr;
 
-  ImGui::BeginDisabled(m_playing);
+  ImGui::BeginDisabled(animMgr.isPlaying());
 
   float time = animMgr.getAnimationTime();
   if (ImGui::SliderFloat("time", &time, 0.f, 1.f))
     animMgr.setAnimationTime(time);
 
   if (ImGui::Button("play"))
-    m_playing = true;
+    animMgr.play();
   ImGui::EndDisabled();
 
-  ImGui::BeginDisabled(!m_playing);
+  ImGui::BeginDisabled(!animMgr.isPlaying());
   ImGui::SameLine();
   if (ImGui::Button("stop"))
-    m_playing = false;
+    animMgr.stop();
   ImGui::EndDisabled();
 
   ImGui::SameLine();

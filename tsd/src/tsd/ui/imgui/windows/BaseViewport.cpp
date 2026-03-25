@@ -431,7 +431,6 @@ void BaseViewport::ui_animationSlider()
     return;
 
   auto &animMgr = appContext()->tsd.animationMgr;
-  ImGui::BeginDisabled(animMgr.animations().empty());
 
   const ImVec2 contentStart = ImGui::GetCursorStartPos();
   const float vpW = static_cast<float>(m_viewport.size.x);
@@ -458,7 +457,6 @@ void BaseViewport::ui_animationSlider()
   }
   ImGui::EndChild();
   ImGui::PopStyleColor();
-  ImGui::EndDisabled();
 }
 
 void BaseViewport::ui_menubar_Renderer()

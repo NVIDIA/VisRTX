@@ -23,10 +23,6 @@ struct Timeline : public Window
   void buildUI_transport();
   void buildUI_canvas();
 
-  // Transport state //
-  bool m_playing{false};
-  bool m_loop{true};
-
   // Canvas state //
   float m_pixelsPerFrame{8.f};
   float m_canvasScrollX{0.f};

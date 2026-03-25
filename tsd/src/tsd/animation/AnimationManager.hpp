@@ -58,12 +58,25 @@ struct AnimationManager
   void setAnimationFrame(int frame);
   void incrementAnimationFrame();
 
+  // Playing state — call tick() once per UI frame
+  void tick();
+  void play();
+  void stop();
+  void togglePlay();
+  bool isPlaying() const;
+
+  // Loop state
+  void setLoop(bool loop);
+  bool isLoop() const;
+
  private:
   scene::Scene *m_scene{nullptr};
   TimeChangedCallback m_timeChangedCallback;
   float m_incrementSize{0.01f};
   float m_time{0.f};
   int m_totalFrames{100};
+  bool m_playing{false};
+  bool m_loop{true};
   std::vector<Animation> m_animations;
   size_t m_defragToken{0};
 };

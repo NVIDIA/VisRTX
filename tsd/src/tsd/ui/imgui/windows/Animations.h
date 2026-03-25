@@ -21,8 +21,6 @@ struct Animations : public Window
 
  private:
   void buildUI_animationControls();
-
-  bool m_playing{false};
 };
 
 } // namespace tsd::ui::imgui
