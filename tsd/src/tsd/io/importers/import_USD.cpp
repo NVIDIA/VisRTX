@@ -7,6 +7,7 @@
 #endif
 
 #include "tsd/animation/AnimationManager.hpp"
+#include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TSDMath.hpp"
@@ -533,6 +534,9 @@ static void importUsdMesh(Scene &scene,
       normalsInterpolation.GetText(),
       uvs.size(),
       uvsInterpolation.GetText());
+
+  if (points.empty() || faceVertexIndices.empty())
+    return;
 
   // Convert vertex positions to float3
   std::vector<float3> positions;
@@ -1200,6 +1204,7 @@ static void importUsdCube(Scene &scene,
 
 // Helper: Import a UsdVolVolume prim as a TSD volume geometry
 static void importUsdVolume(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
     const pxr::UsdPrim &prim,
     LayerNodeRef parent,
     const pxr::GfMatrix4d &usdXform)
@@ -1211,43 +1216,68 @@ static void importUsdVolume(Scene &scene,
     primName = "<unnamed_volume>";
 
   // Find the field data by following field relationships
-  std::string filePath;
+  std::vector<std::string> filePaths;
 
   // Try field:volume relationship first (for VDB volumes and OpenVDBAsset)
   pxr::UsdRelationship fieldRel =
       prim.GetRelationship(pxr::TfToken("field:volume"));
-  if (!fieldRel) {
-    // Fall back to field:density relationship for other volume types
+  if (!fieldRel)
     fieldRel = prim.GetRelationship(pxr::TfToken("field:density"));
-  }
 
   if (fieldRel) {
     pxr::SdfPathVector targets;
     fieldRel.GetTargets(&targets);
     if (!targets.empty()) {
-      // Get the field prim (could be OpenVDBAsset, FieldBase, etc.)
       pxr::UsdPrim fieldPrim = prim.GetStage()->GetPrimAtPath(targets[0]);
       if (fieldPrim) {
         pxr::UsdAttribute filePathAttr =
             fieldPrim.GetAttribute(pxr::TfToken("filePath"));
         if (filePathAttr) {
-          pxr::SdfAssetPath assetPath;
-          if (filePathAttr.Get(&assetPath)) {
-            filePath = assetPath.GetResolvedPath();
-            if (filePath.empty())
-              filePath = assetPath.GetAssetPath();
+          // Collect time-sampled file paths for animation
+          std::vector<double> timeSamples;
+          filePathAttr.GetTimeSamples(&timeSamples);
+
+          if (!timeSamples.empty()) {
+            for (double t : timeSamples) {
+              pxr::SdfAssetPath ap;
+              if (filePathAttr.Get(&ap, t)) {
+                auto p = ap.GetResolvedPath();
+                if (p.empty())
+                  p = ap.GetAssetPath();
+                if (p.empty()) {
+                  logWarning(
+                      "[import_USD] volume '%s': empty filePath at time %g",
+                      primName.c_str(),
+                      t);
+                  continue;
+                }
+                filePaths.push_back(std::move(p));
+              }
+            }
+          } else {
+            // No time samples — read default-time value
+            pxr::SdfAssetPath ap;
+            if (filePathAttr.Get(&ap)) {
+              auto p = ap.GetResolvedPath();
+              if (p.empty())
+                p = ap.GetAssetPath();
+              if (!p.empty())
+                filePaths.push_back(std::move(p));
+            }
           }
         }
       }
     }
   }
 
-  if (filePath.empty()) {
+  if (filePaths.empty()) {
     tsd::core::logStatus(
         "[import_USD] No field data file found for volume '%s'\n",
         primName.c_str());
     return;
   }
+
+  std::string filePath = filePaths[0];
 
   SpatialFieldRef field;
   const auto ext = extensionOf(filePath);
@@ -1315,6 +1345,13 @@ static void importUsdVolume(Scene &scene,
 
   volume->setParameterObject("color", *colorArray);
   volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+
+  if (filePaths.size() > 1) {
+    auto &anim = animMgr.addAnimation(primName);
+    auto &fb = anim.emplaceFileBinding<SpatialFieldFileBinding>(
+        &scene, volume.data(), field, std::move(filePaths));
+    fb.addCallbackToAnimation(anim);
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -1940,7 +1977,7 @@ static void importUsdPrimRecursive(Scene &scene,
   } else if (prim.IsA<pxr::UsdLuxDomeLight>()) {
     importUsdDomeLight(scene, prim, thisNode, basePath, thisWorldXform);
   } else if (prim.IsA<pxr::UsdVolVolume>()) {
-    importUsdVolume(scene, prim, thisNode, thisWorldXform);
+    importUsdVolume(scene, animMgr, prim, thisNode, thisWorldXform);
   }
   // Recurse into children
   for (const auto &child : prim.GetChildren()) {
