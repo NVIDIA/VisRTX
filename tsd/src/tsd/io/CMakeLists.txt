@@ -8,6 +8,7 @@ project_add_library(STATIC)
 project_sources(
 PRIVATE
   animation/SpatialFieldFileBinding.cpp
+  importers/detail/ensight_io.cpp
   importers/detail/HDRImage.cpp
   importers/detail/importer_common.cpp
   importers/detail/usd/MaterialCommon.cpp
