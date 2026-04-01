@@ -125,9 +125,27 @@ endif()
 if (TSD_USE_USD)
   find_package(OpenGL)
   find_package(X11)
-  find_package(pxr REQUIRED usd usdGeom tf gf usdShade usdLux)
+  find_package(pxr REQUIRED sdf usd usdGeom tf gf usdShade usdLux)
   project_compile_definitions(PRIVATE -DTSD_USE_USD=1)
   project_link_libraries(PRIVATE ${PXR_LIBRARIES})
+
+  # CaseFileFormat -- SdfFileFormat plugin for EnSight .case files
+  add_library(CaseFileFormat SHARED
+    usd/CaseFileFormat.cpp
+  )
+  target_link_libraries(CaseFileFormat
+    PRIVATE tsd_io ${PXR_LIBRARIES}
+  )
+  target_include_directories(CaseFileFormat
+    PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../..
+  )
+  set_target_properties(CaseFileFormat PROPERTIES
+    PREFIX "lib"
+  )
+
+  install(TARGETS CaseFileFormat LIBRARY DESTINATION lib)
+  install(FILES usd/plugInfo.json
+    DESTINATION lib/usd/CaseFileFormat/resources)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_USD=0)
 endif()

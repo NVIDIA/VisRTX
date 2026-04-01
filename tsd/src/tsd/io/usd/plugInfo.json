@@ -1,0 +1,19 @@
+{
+  "Plugins": [{
+    "Info": {
+      "Types": {
+        "CaseFileFormat": {
+          "bases": ["SdfFileFormat"],
+          "displayName": "EnSight Gold Case",
+          "extensions": ["case"],
+          "formatId": "caseFileFormat",
+          "primary": true,
+          "target": "usd"
+        }
+      }
+    },
+    "LibraryPath": "../../libCaseFileFormat.so",
+    "Name": "CaseFileFormat",
+    "Type": "library"
+  }]
+}
