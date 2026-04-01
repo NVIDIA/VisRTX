@@ -637,6 +637,114 @@ bool readGeoFile(const std::string &filename, std::vector<Part> &parts)
   return !parts.empty();
 }
 
+bool readGeoFileHeader(
+    const std::string &filename, std::vector<PartHeader> &parts)
+{
+  std::FILE *f = std::fopen(filename.c_str(), "rb");
+  if (!f) {
+    logError(
+        "[import_ENSIGHT] cannot open geometry file '%s'", filename.c_str());
+    return false;
+  }
+
+  if (readRecord80(f) != "C Binary") {
+    logError(
+        "[import_ENSIGHT] only binary EnSight Gold geometry files are "
+        "supported (got non-binary header)");
+    std::fclose(f);
+    return false;
+  }
+  readRecord80(f); // description 1
+  readRecord80(f); // description 2
+
+  auto nodeIdLine = lowerStr(readRecord80(f));
+  bool hasNodeIds = nodeIdLine.find("given") != std::string::npos
+      || nodeIdLine.find("ignore") != std::string::npos;
+
+  auto elemIdLine = lowerStr(readRecord80(f));
+  bool hasElemIds = elemIdLine.find("given") != std::string::npos
+      || elemIdLine.find("ignore") != std::string::npos;
+
+  std::string token = lowerStr(readRecord80(f));
+  if (token == "extents") {
+    std::fseek(f, 6 * sizeof(float), SEEK_CUR);
+    token = lowerStr(readRecord80(f));
+  }
+
+  while (!token.empty()) {
+    if (token != "part") {
+      logWarning("[import_ENSIGHT] expected 'part', got '%s'", token.c_str());
+      break;
+    }
+
+    PartHeader ph;
+    int32_t partId;
+    std::fread(&partId, sizeof(int32_t), 1, f);
+    ph.id = partId;
+    ph.description = readRecord80(f);
+
+    auto coordTag = lowerStr(readRecord80(f));
+    if (coordTag != "coordinates") {
+      token = lowerStr(readRecord80(f));
+      continue;
+    }
+
+    int32_t numNodes;
+    std::fread(&numNodes, sizeof(int32_t), 1, f);
+    ph.numNodes = numNodes;
+
+    // Skip node IDs
+    if (hasNodeIds)
+      std::fseek(f, numNodes * (long)sizeof(int32_t), SEEK_CUR);
+
+    // Skip coordinate data (x, y, z arrays)
+    std::fseek(f, 3L * numNodes * sizeof(float), SEEK_CUR);
+
+    parts.push_back(std::move(ph));
+
+    // Skip element blocks until next "part" or EOF
+    token = lowerStr(readRecord80(f));
+    while (!token.empty() && token != "part") {
+      auto et = parseElemType(token);
+      int32_t numElems;
+      std::fread(&numElems, sizeof(int32_t), 1, f);
+
+      if (hasElemIds)
+        std::fseek(f, numElems * (long)sizeof(int32_t), SEEK_CUR);
+
+      if (et == EnsightElemType::nsided) {
+        std::vector<int32_t> nodeCounts(numElems);
+        std::fread(nodeCounts.data(), sizeof(int32_t), numElems, f);
+        int32_t totalNodes = 0;
+        for (auto n : nodeCounts)
+          totalNodes += n;
+        std::fseek(f, totalNodes * (long)sizeof(int32_t), SEEK_CUR);
+      } else if (et == EnsightElemType::nfaced) {
+        std::vector<int32_t> faceCounts(numElems);
+        std::fread(faceCounts.data(), sizeof(int32_t), numElems, f);
+        int32_t totalFaces = 0;
+        for (auto n : faceCounts)
+          totalFaces += n;
+        std::vector<int32_t> faceNodeCounts(totalFaces);
+        std::fread(faceNodeCounts.data(), sizeof(int32_t), totalFaces, f);
+        int32_t totalNodes = 0;
+        for (auto n : faceNodeCounts)
+          totalNodes += n;
+        std::fseek(f, totalNodes * (long)sizeof(int32_t), SEEK_CUR);
+      } else {
+        int npe = nodesPerElem(et);
+        if (npe > 0)
+          std::fseek(f, (long)numElems * npe * sizeof(int32_t), SEEK_CUR);
+      }
+
+      token = lowerStr(readRecord80(f));
+    }
+  }
+
+  std::fclose(f);
+  return !parts.empty();
+}
+
 void readVarFile(const std::string &filename,
     const std::vector<Part> &parts,
     int numComponents,

@@ -34,12 +34,24 @@ struct Part
   std::vector<uint32_t> triIndices;    // triangulated, 0-based
 };
 
+struct PartHeader
+{
+  int id{-1};
+  std::string description;
+  int numNodes{0};
+};
+
 bool parseCase(const std::string &path, CaseData &out);
 
 std::vector<std::string> expandPattern(
     const std::string &pat, int start, int incr, int steps);
 
 bool readGeoFile(const std::string &filename, std::vector<Part> &parts);
+
+// Read only part names and node counts from a binary .geo file.
+// Does NOT read coordinates or connectivity.
+bool readGeoFileHeader(
+    const std::string &filename, std::vector<PartHeader> &parts);
 
 // Read per-node variable data from a binary variable file.
 // Scalar: out[partId][i]     = value at node i.
