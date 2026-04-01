@@ -116,8 +116,10 @@ bool CaseFileFormat::Read(SdfLayer *layer,
 
   SdfLayerHandle layerHandle(layer);
 
+  VtDictionary ensightLayerData;
+  ensightLayerData["caseFile"] = VtValue(resolvedPath);
   VtDictionary layerData;
-  layerData["ensight:caseFile"] = VtValue(resolvedPath);
+  layerData["ensight"] = VtValue(ensightLayerData);
   layer->SetCustomLayerData(layerData);
 
   double startTC = static_cast<double>(caseData.startNumber);
@@ -141,9 +143,11 @@ bool CaseFileFormat::Read(SdfLayer *layer,
     partPrim->SetSpecifier(SdfSpecifierDef);
     partPrim->SetTypeName("Mesh");
 
-    partPrim->SetCustomData("ensight:partId", VtValue(ph.id));
-    partPrim->SetCustomData("ensight:scalarFields", VtValue(scalarFields));
-    partPrim->SetCustomData("ensight:vectorFields", VtValue(vectorFields));
+    VtDictionary ensightData;
+    ensightData["partId"] = VtValue(ph.id);
+    ensightData["scalarFields"] = VtValue(scalarFields);
+    ensightData["vectorFields"] = VtValue(vectorFields);
+    partPrim->SetCustomData("ensight", VtValue(ensightData));
   }
 
   return true;

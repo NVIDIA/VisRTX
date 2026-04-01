@@ -7,6 +7,7 @@ project_add_library(STATIC)
 
 project_sources(
 PRIVATE
+  animation/EnSightFileBinding.cpp
   animation/SpatialFieldFileBinding.cpp
   importers/detail/ensight_io.cpp
   importers/detail/HDRImage.cpp

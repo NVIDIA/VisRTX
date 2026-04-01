@@ -1,7 +1,9 @@
 // Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/importers/detail/ensight_io.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
@@ -25,7 +27,6 @@ void import_ENSIGHT(Scene &scene,
     const std::vector<std::string> &fields,
     int timestep)
 {
-  (void)animMgr;
   if (!location)
     location = scene.defaultLayer()->root();
 
@@ -48,13 +49,13 @@ void import_ENSIGHT(Scene &scene,
       timestep,
       caseData.numSteps);
 
-  const auto expandedPatterns = expandPattern(caseData.geoPattern,
+  const auto geoPatterns = expandPattern(caseData.geoPattern,
       caseData.startNumber,
       caseData.increment,
       caseData.numSteps);
   const std::string geoFile = caseDir
-      + (timestep < expandedPatterns.size() ? expandedPatterns[timestep]
-                                            : expandedPatterns.front());
+      + (timestep < (int)geoPatterns.size() ? geoPatterns[timestep]
+                                            : geoPatterns.front());
 
   std::vector<Part> parts;
   if (!readGeoFile(geoFile, parts)) {
@@ -113,8 +114,9 @@ void import_ENSIGHT(Scene &scene,
         caseData.increment,
         caseData.numSteps);
     const std::string varFile = caseDir
-        + (timestep < expandedPatterns.size() ? expandedPatterns[timestep]
-                                              : expandedPatterns.front());
+        + (timestep < (int)expandedPatterns.size()
+                ? expandedPatterns[timestep]
+                : expandedPatterns.front());
 
     VarData vd;
     vd.numComponents = nc;
@@ -122,7 +124,11 @@ void import_ENSIGHT(Scene &scene,
     varData[name] = std::move(vd);
   }
 
-  auto root = scene.insertChildTransformNode(location);
+  auto root = scene.insertChildTransformNode(
+      location, tsd::math::IDENTITY_MAT4, fileOf(geoFile).c_str());
+
+  // Track geometry refs for animation binding
+  std::vector<EnSightFileBinding::PartBinding> partBindings;
 
   for (const auto &part : parts) {
     const int numNodes = (int)part.x.size();
@@ -186,7 +192,7 @@ void import_ENSIGHT(Scene &scene,
         geom->setParameterObject(param.c_str(), *arr);
         if (!firstScalarArr)
           firstScalarArr = arr;
-      } else { // vector (3 components) → magnitude + x + y + z
+      } else { // vector (3 components) -> magnitude + x + y + z
         if ((int)data.size() != numNodes * vd.numComponents)
           continue;
         if (attrSlot + 3 > 3) {
@@ -243,6 +249,72 @@ void import_ENSIGHT(Scene &scene,
 
     auto surface = scene.createSurface(partName.c_str(), geom, mat);
     auto nodeRef = scene.insertChildObjectNode(root, surface, partName.c_str());
+
+    partBindings.push_back({part.id, geom.data()});
+  }
+
+  // Wire animation binding if this dataset has multiple timesteps
+  if (caseData.numSteps > 1 && !partBindings.empty()) {
+    // Expand geo file paths for all timesteps. Always store at least one
+    // geo file — readVarFile needs part metadata even for static geometry.
+    std::vector<std::string> allGeoFiles;
+    allGeoFiles.reserve(geoPatterns.size());
+    for (const auto &p : geoPatterns)
+      allGeoFiles.push_back(caseDir + p);
+
+    // Build field mappings with expanded file paths for all timesteps
+    std::vector<EnSightFileBinding::FieldMapping> fmBindings;
+    int attrSlot = 0;
+    for (const auto &varName : varOrder) {
+      if (attrSlot > 3)
+        break;
+      auto vIt = caseData.variables.find(varName);
+      if (vIt == caseData.variables.end())
+        continue;
+      const auto &info = vIt->second;
+      if (info.association != "vertex")
+        continue;
+      if (info.type != "scalar" && info.type != "vector")
+        continue;
+
+      const int nc = (info.type == "vector") ? 3 : 1;
+
+      // Vector fields occupy 4 slots; check if they fit
+      if (nc == 3 && attrSlot + 3 > 3) {
+        ++attrSlot; // skip same as import logic above
+        continue;
+      }
+
+      const auto varPatterns = expandPattern(info.filenamePattern,
+          caseData.startNumber,
+          caseData.increment,
+          caseData.numSteps);
+
+      EnSightFileBinding::FieldMapping fm;
+      fm.attributeName = Token(
+          ("vertex.attribute" + std::to_string(attrSlot)).c_str());
+      fm.ensightVarName = varName;
+      fm.type = info.type;
+      fm.files.reserve(varPatterns.size());
+      for (const auto &p : varPatterns)
+        fm.files.push_back(caseDir + p);
+      fmBindings.push_back(std::move(fm));
+
+      attrSlot += (nc == 3) ? 4 : 1;
+    }
+
+    const size_t numFields = fmBindings.size();
+    auto &anim = animMgr.addAnimation(fileOf(geoFile).c_str());
+    anim.emplaceFileBinding<EnSightFileBinding>(
+        &scene,
+        std::move(partBindings),
+        std::move(allGeoFiles),
+        std::move(fmBindings));
+
+    logStatus("[import_ENSIGHT] created animation '%s' (%d frames, %zu fields)",
+        fileOf(geoFile).c_str(),
+        caseData.numSteps,
+        numFields);
   }
 
   logStatus("[import_ENSIGHT] done, %zu part(s) loaded", parts.size());

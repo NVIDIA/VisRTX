@@ -10,14 +10,18 @@
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TSDMath.hpp"
+#include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/HDRImage.h"
+#include "tsd/io/importers/detail/ensight_io.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/io/importers/detail/usd/OmniPbrMaterial.h"
+#include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #if TSD_USE_USD
 // usd
+#include <pxr/base/vt/dictionary.h>
 #include <pxr/base/gf/matrix4f.h>
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3f.h>
@@ -1802,6 +1806,66 @@ static bool isIdentity(const pxr::GfMatrix4d &m)
 }
 
 // -----------------------------------------------------------------------------
+// EnSight-backed mesh import
+// -----------------------------------------------------------------------------
+
+// Import an entire EnSight dataset referenced by a Scope prim. Creates one
+// surface per internal part, all under the same parent node. Delegates to
+// import_ENSIGHT which already handles the .case → geometry pipeline.
+static void importEnsightDataset(Scene &scene,
+    const pxr::UsdPrim &scopePrim,
+    LayerNodeRef parent,
+    tsd::animation::AnimationManager &animMgr)
+{
+  std::string primName = scopePrim.GetName().GetString();
+
+  // Find the case file path from the first child's layer stack
+  std::string caseFile;
+  for (const auto &child : scopePrim.GetChildren()) {
+    for (const auto &spec : child.GetPrimStack()) {
+      auto lcd = spec->GetLayer()->GetCustomLayerData();
+      auto it = lcd.find("ensight");
+      if (it != lcd.end()) {
+        const auto &d = it->second.Get<pxr::VtDictionary>();
+        auto cfIt = d.find("caseFile");
+        if (cfIt != d.end()) {
+          caseFile = cfIt->second.Get<std::string>();
+          break;
+        }
+      }
+    }
+    if (!caseFile.empty())
+      break;
+  }
+
+  if (caseFile.empty()) {
+    logWarning("[import_USD] EnSight scope '%s': no case file found",
+        primName.c_str());
+    return;
+  }
+
+  // Read field mapping from the Scope's attributes
+  std::vector<std::string> fields;
+  for (int i = 0; i < 4; ++i) {
+    std::string attrName =
+        "ensight:fieldMapping:attribute" + std::to_string(i);
+    pxr::UsdAttribute attr =
+        scopePrim.GetAttribute(pxr::TfToken(attrName));
+    if (!attr)
+      continue;
+    std::string varName;
+    if (attr.Get(&varName))
+      fields.push_back(varName);
+  }
+
+  logStatus("[import_USD] Importing EnSight dataset '%s' from '%s'",
+      primName.c_str(),
+      caseFile.c_str());
+
+  import_ENSIGHT(scene, animMgr, caseFile.c_str(), parent, fields, 0);
+}
+
+// -----------------------------------------------------------------------------
 // Recursive import function for prims and their children
 // -----------------------------------------------------------------------------
 
@@ -1933,6 +1997,18 @@ static void importUsdPrimRecursive(Scene &scene,
     logStatus("[import_USD] Xform '%s': animated transform (%zu frames)\n",
         primName.c_str(),
         numFrames);
+  }
+
+  // Check if this Scope/Xform references an EnSight .case dataset. If so,
+  // import the entire dataset here and skip recursion into children (the
+  // CaseFileFormat plugin's Mesh prims are just metadata carriers).
+  if (isXform && numChildren > 0) {
+    auto firstChild = *prim.GetChildren().begin();
+    pxr::VtDictionary childCd = firstChild.GetCustomData();
+    if (childCd.count("ensight")) {
+      importEnsightDataset(scene, prim, thisNode, animMgr);
+      return;
+    }
   }
 
   // Import geometry for this prim (if any).

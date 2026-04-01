@@ -12,7 +12,7 @@
         }
       }
     },
-    "LibraryPath": "../../libCaseFileFormat.so",
+    "LibraryPath": "../../../libCaseFileFormat.so",
     "Name": "CaseFileFormat",
     "Type": "library"
   }]
