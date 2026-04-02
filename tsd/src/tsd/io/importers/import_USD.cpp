@@ -1941,11 +1941,11 @@ static void importUsdPrimRecursive(Scene &scene,
   for (const auto &child : prim.GetChildren())
     ++numChildren;
 
-  // For pure xform/scope prims, check for time-sampled animation *before*
-  // deciding whether to create a node — an animated xform that happens to be
-  // identity at the default time still needs a node.
+  // Check for time-sampled xform animation *before* deciding whether to
+  // create a node — an animated xform that happens to be identity at the
+  // default time still needs a node.
   std::vector<double> xformTimeSamples;
-  if (isXform) {
+  {
     pxr::UsdGeomXformable xformable(prim);
     if (xformable)
       xformable.GetTimeSamples(&xformTimeSamples);
@@ -1976,17 +1976,16 @@ static void importUsdPrimRecursive(Scene &scene,
         scene.insertChildTransformNode(parent, tsdXform, primName.c_str());
   }
 
-  // Attach xform animation for pure xform/scope prims with time samples.
-  // Geometry prims are excluded — proc shapes bake world-space positions, and
-  // mesh vertices are already in local space but we don't yet handle the
-  // animated-xform-on-mesh case here.
-  if (hasXformAnimation) {
-    pxr::UsdGeomXformCache tc;
+  // Attach xform animation for any prim with time-sampled transforms.
+  // Guard on createNode: if we didn't create a dedicated node (e.g. DomeLight),
+  // thisNode is the parent and animating it would be incorrect.
+  if (hasXformAnimation && createNode) {
     std::vector<math::mat4> frames;
     frames.reserve(xformTimeSamples.size());
+
+    pxr::UsdGeomXformCache tc;
     for (double t : xformTimeSamples) {
-      pxr::UsdTimeCode timeCode(t);
-      tc.SetTime(timeCode);
+      tc.SetTime(pxr::UsdTimeCode(t));
       bool resets = false;
       frames.push_back(toTsdMat4(tc.GetLocalTransformation(prim, &resets)));
     }
@@ -1994,7 +1993,7 @@ static void importUsdPrimRecursive(Scene &scene,
     auto tb = makeLinearTimeBase(numFrames);
     auto &anim = animMgr.addAnimation(primName.c_str());
     addTransformStepBinding(anim, thisNode, frames, tb);
-    logStatus("[import_USD] Xform '%s': animated transform (%zu frames)\n",
+    logStatus("[import_USD] '%s': animated transform (%zu frames)\n",
         primName.c_str(),
         numFrames);
   }
