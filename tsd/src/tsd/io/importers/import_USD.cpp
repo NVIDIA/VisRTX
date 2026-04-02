@@ -401,6 +401,43 @@ inline float3 max(const float3 &a, const float3 &b)
   return float3(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
 }
 
+// Resample a sparse set of authored USD time samples at the stage's frame rate
+// so that consecutive quaternion deltas stay small enough for correct SLERP.
+// Without this, a 360° rotation with only 2 keyframes produces identical
+// quaternions and no visible animation.
+static constexpr size_t MAX_XFORM_SAMPLES = 4096;
+
+static std::vector<double> densifyTimeSamples(
+    const std::vector<double> &authored, const pxr::UsdStageRefPtr &stage)
+{
+  if (authored.size() < 2)
+    return authored;
+
+  double fps = stage->GetFramesPerSecond();
+  if (fps <= 0)
+    fps = 24.0;
+
+  double tMin = authored.front();
+  double tMax = authored.back();
+  double range = tMax - tMin;
+  double step = 1.0 / fps;
+
+  size_t count = static_cast<size_t>(range / step) + 1;
+  if (count <= authored.size())
+    return authored;
+  if (count > MAX_XFORM_SAMPLES) {
+    count = MAX_XFORM_SAMPLES;
+    step = range / static_cast<double>(count - 1);
+  }
+
+  std::vector<double> dense;
+  dense.reserve(count);
+  for (size_t i = 0; i < count; ++i)
+    dense.push_back(tMin + i * step);
+  dense.back() = tMax;
+  return dense;
+}
+
 // Helper: Generate triangle indices from polygon face data
 // Tessellates polygons to triangles using triangle fan (assumes convex
 // polygons) Returns indices into the original vertex array
@@ -1980,11 +2017,14 @@ static void importUsdPrimRecursive(Scene &scene,
   // Guard on createNode: if we didn't create a dedicated node (e.g. DomeLight),
   // thisNode is the parent and animating it would be incorrect.
   if (hasXformAnimation && createNode) {
+    auto denseTimeSamples =
+        densifyTimeSamples(xformTimeSamples, prim.GetStage());
+
     std::vector<math::mat4> frames;
-    frames.reserve(xformTimeSamples.size());
+    frames.reserve(denseTimeSamples.size());
 
     pxr::UsdGeomXformCache tc;
-    for (double t : xformTimeSamples) {
+    for (double t : denseTimeSamples) {
       tc.SetTime(pxr::UsdTimeCode(t));
       bool resets = false;
       frames.push_back(toTsdMat4(tc.GetLocalTransformation(prim, &resets)));
