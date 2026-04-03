@@ -144,8 +144,20 @@ if (TSD_USE_USD)
     PREFIX "lib"
   )
 
-  install(TARGETS CaseFileFormat LIBRARY DESTINATION lib)
-  install(FILES usd/plugInfo.json
+  set(CASEFILEFORMAT_PLUGIN_FILENAME
+    "${CMAKE_SHARED_LIBRARY_PREFIX}CaseFileFormat${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  configure_file(
+    ${CMAKE_CURRENT_LIST_DIR}/usd/plugInfo.json.in
+    ${CMAKE_CURRENT_BINARY_DIR}/usd/plugInfo.json
+    @ONLY
+  )
+
+  install(TARGETS CaseFileFormat
+    RUNTIME DESTINATION lib
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+  )
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/usd/plugInfo.json
     DESTINATION lib/usd/CaseFileFormat/resources)
 else()
   project_compile_definitions(PRIVATE -DTSD_USE_USD=0)
