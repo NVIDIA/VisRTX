@@ -19,11 +19,11 @@ namespace tsd::io {
 using namespace tsd::core;
 using namespace tsd::io::ensight;
 
-void import_ENSIGHT(Scene &scene,
+static void import_ENSIGHT_impl(Scene &scene,
     tsd::animation::AnimationManager &animMgr,
     const char *filepath,
     LayerNodeRef location,
-    const std::vector<std::string> &fields,
+    const std::vector<std::string> *fields,
     int timestep)
 {
   if (!location)
@@ -76,11 +76,12 @@ void import_ENSIGHT(Scene &scene,
   std::map<std::string, VarData> varData;
 
   // Build the ordered list of variable names to load.
-  // If the caller specified a field list, use that order; otherwise use all
-  // node-centered scalar/vector variables (up to the 4-slot ANARI limit).
+  // If the caller specified a field list, use that order exactly; otherwise
+  // use all node-centered scalar/vector variables (up to the 4-slot ANARI
+  // limit).
   std::vector<std::string> varOrder;
-  if (!fields.empty()) {
-    for (const auto &f : fields)
+  if (fields != nullptr) {
+    for (const auto &f : *fields)
       if (caseData.variables.count(f))
         varOrder.push_back(f);
       else
@@ -279,6 +280,25 @@ void import_ENSIGHT(Scene &scene,
   }
 
   logStatus("[import_ENSIGHT] done, %zu part(s) loaded", parts.size());
+}
+
+void import_ENSIGHT(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location,
+    int timestep)
+{
+  import_ENSIGHT_impl(scene, animMgr, filepath, location, nullptr, timestep);
+}
+
+void import_ENSIGHT(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location,
+    const std::vector<std::string> &fields,
+    int timestep)
+{
+  import_ENSIGHT_impl(scene, animMgr, filepath, location, &fields, timestep);
 }
 
 } // namespace tsd::io

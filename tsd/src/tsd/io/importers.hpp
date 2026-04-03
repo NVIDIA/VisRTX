@@ -30,7 +30,12 @@ void import_ENSIGHT(Scene &scene,
     tsd::animation::AnimationManager &animMgr,
     const char *filename,
     LayerNodeRef location = {},
-    const std::vector<std::string> &fields = {},
+    int timestep = 0);
+void import_ENSIGHT(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filename,
+    LayerNodeRef location,
+    const std::vector<std::string> &fields,
     int timestep = 0);
 void import_GLTF(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_HDRI(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
