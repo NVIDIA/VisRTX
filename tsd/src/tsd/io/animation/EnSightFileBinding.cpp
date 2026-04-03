@@ -24,6 +24,62 @@ EnSightFileBinding::EnSightFileBinding(scene::Scene *scene,
       m_fieldMappings(std::move(fieldMappings))
 {}
 
+std::optional<EnSightFileBinding::SerializedData> EnSightFileBinding::fromDataNode(
+    scene::Scene &scene, core::DataNode &node)
+{
+  SerializedData data;
+
+  if (auto *partsNode = node.child("parts")) {
+    partsNode->foreach_child([&](core::DataNode &pn) {
+      auto partId = pn["partId"].getValueAs<int>();
+      auto targetIndex = pn["targetIndex"].getValueAs<size_t>();
+      auto *geom = static_cast<scene::Geometry *>(
+          scene.getObject(ANARI_GEOMETRY, targetIndex));
+      if (!geom) {
+        logWarning(
+            "[EnSightFileBinding] geometry index %zu not found for part %d; "
+            "skipping part",
+            targetIndex,
+            partId);
+        return;
+      }
+
+      data.parts.push_back({partId, geom});
+    });
+  }
+
+  if (auto *geoFilesNode = node.child("geoFiles")) {
+    geoFilesNode->foreach_child([&](core::DataNode &gn) {
+      data.geoFiles.push_back(gn.getValueAs<std::string>());
+    });
+  }
+
+  if (auto *fieldMappingsNode = node.child("fieldMappings")) {
+    fieldMappingsNode->foreach_child([&](core::DataNode &mn) {
+      FieldMapping fm;
+      fm.attributeName = mn["attributeName"].getValueAs<std::string>().c_str();
+      fm.ensightVarName = mn["ensightVarName"].getValueAs<std::string>();
+      fm.type = mn["type"].getValueAs<std::string>();
+
+      if (auto *filesNode = mn.child("files")) {
+        filesNode->foreach_child([&](core::DataNode &fn) {
+          fm.files.push_back(fn.getValueAs<std::string>());
+        });
+      }
+
+      data.fieldMappings.push_back(std::move(fm));
+    });
+  }
+
+  if (data.parts.empty()) {
+    logWarning(
+        "[EnSightFileBinding] binding has no valid geometry targets; skipping");
+    return std::nullopt;
+  }
+
+  return data;
+}
+
 std::string EnSightFileBinding::kind() const
 {
   return "ensight";

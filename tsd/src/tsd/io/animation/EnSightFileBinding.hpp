@@ -9,6 +9,7 @@
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Geometry.hpp"
 // std
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -30,10 +31,20 @@ struct EnSightFileBinding : public tsd::animation::FileBinding
     scene::ObjectUsePtr<scene::Geometry, scene::Object::UseKind::ANIM> geometry;
   };
 
+  struct SerializedData
+  {
+    std::vector<PartBinding> parts;
+    std::vector<std::string> geoFiles;
+    std::vector<FieldMapping> fieldMappings;
+  };
+
   EnSightFileBinding(scene::Scene *scene,
       std::vector<PartBinding> parts,
       std::vector<std::string> geoFiles,
       std::vector<FieldMapping> fieldMappings);
+
+  static std::optional<SerializedData> fromDataNode(
+      scene::Scene &scene, tsd::core::DataNode &node);
 
   // FileBinding interface
 
