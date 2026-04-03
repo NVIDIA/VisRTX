@@ -8,7 +8,6 @@
 #include "tsd/core/Logging.hpp"
 // std
 #include <algorithm>
-#include <cmath>
 
 namespace tsd::io {
 
@@ -163,15 +162,13 @@ void EnSightFileBinding::loadFrame(int frameIdx)
         arr->unmap();
         geom->setParameterObject(fm.attributeName.c_str(), *arr);
       } else {
-        // Vector field: store magnitude in the mapped attribute
-        auto magArr = scene()->createArray(ANARI_FLOAT32, numNodes);
-        auto *mag = magArr->mapAs<float>();
+        auto arr = scene()->createArray(ANARI_FLOAT32_VEC3, numNodes);
+        auto *vec = arr->mapAs<float3>();
         for (int i = 0; i < numNodes; ++i) {
-          float vx = data[i * 3], vy = data[i * 3 + 1], vz = data[i * 3 + 2];
-          mag[i] = std::sqrt(vx * vx + vy * vy + vz * vz);
+          vec[i] = float3(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
         }
-        magArr->unmap();
-        geom->setParameterObject(fm.attributeName.c_str(), *magArr);
+        arr->unmap();
+        geom->setParameterObject(fm.attributeName.c_str(), *arr);
       }
     }
   }

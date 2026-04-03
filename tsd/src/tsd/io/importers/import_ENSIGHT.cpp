@@ -10,7 +10,6 @@
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 // std
 #include <algorithm>
-#include <cmath>
 #include <map>
 #include <string>
 #include <vector>
@@ -192,48 +191,18 @@ void import_ENSIGHT(Scene &scene,
         geom->setParameterObject(param.c_str(), *arr);
         if (!firstScalarArr)
           firstScalarArr = arr;
-      } else { // vector (3 components) -> magnitude + x + y + z
+      } else { // vector (3 components) -> vec3 attribute
         if ((int)data.size() != numNodes * vd.numComponents)
           continue;
-        if (attrSlot + 3 > 3) {
-          logWarning(
-              "[import_ENSIGHT] vector field '%s' needs 4 attribute "
-              "slots starting at %d, which exceeds the ANARI limit; "
-              "skipping",
-              varName.c_str(),
-              attrSlot);
-          continue;
-        }
-        auto magArr = scene.createArray(ANARI_FLOAT32, numNodes);
-        auto xArr = scene.createArray(ANARI_FLOAT32, numNodes);
-        auto yArr = scene.createArray(ANARI_FLOAT32, numNodes);
-        auto zArr = scene.createArray(ANARI_FLOAT32, numNodes);
-        auto *mag = magArr->mapAs<float>();
-        auto *x = xArr->mapAs<float>();
-        auto *y = yArr->mapAs<float>();
-        auto *z = zArr->mapAs<float>();
+        auto arr = scene.createArray(ANARI_FLOAT32_VEC3, numNodes);
+        auto *vec = arr->mapAs<float3>();
         for (int i = 0; i < numNodes; ++i) {
-          float vx = data[i * 3], vy = data[i * 3 + 1], vz = data[i * 3 + 2];
-          x[i] = vx;
-          y[i] = vy;
-          z[i] = vz;
-          mag[i] = std::sqrt(vx * vx + vy * vy + vz * vz);
+          vec[i] = float3(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
         }
-        magArr->unmap();
-        xArr->unmap();
-        yArr->unmap();
-        zArr->unmap();
-        ArrayRef vComponents[] = {magArr, xArr, yArr, zArr};
-        for (int k = 0; k < 4; ++k) {
-          auto attr = "vertex.attribute" + std::to_string(attrSlot + k);
-          geom->setParameterObject(attr.c_str(), *vComponents[k]);
-        }
-        if (!firstScalarArr)
-          firstScalarArr = magArr;
-        attrSlot += 4;
+        arr->unmap();
+        geom->setParameterObject(param.c_str(), *arr);
       }
-      if (vd.numComponents == 1)
-        ++attrSlot;
+      ++attrSlot;
     }
 
     // Color-mapped material when a scalar field is present, otherwise default
@@ -277,14 +246,6 @@ void import_ENSIGHT(Scene &scene,
       if (info.type != "scalar" && info.type != "vector")
         continue;
 
-      const int nc = (info.type == "vector") ? 3 : 1;
-
-      // Vector fields occupy 4 slots; check if they fit
-      if (nc == 3 && attrSlot + 3 > 3) {
-        ++attrSlot; // skip same as import logic above
-        continue;
-      }
-
       const auto varPatterns = expandPattern(info.filenamePattern,
           caseData.startNumber,
           caseData.increment,
@@ -300,7 +261,7 @@ void import_ENSIGHT(Scene &scene,
         fm.files.push_back(caseDir + p);
       fmBindings.push_back(std::move(fm));
 
-      attrSlot += (nc == 3) ? 4 : 1;
+      ++attrSlot;
     }
 
     const size_t numFields = fmBindings.size();
