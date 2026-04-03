@@ -9,6 +9,7 @@
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/serialization.hpp"
@@ -454,6 +455,66 @@ void nodeToAnimation(
 
         anim.emplaceFileBinding<SpatialFieldFileBinding>(
             &scene, vol, initialField, std::move(files));
+      } else if (kind == "ensight") {
+        std::vector<EnSightFileBinding::PartBinding> parts;
+        if (auto *partsNode = fbNode.child("parts")) {
+          partsNode->foreach_child([&](core::DataNode &pn) {
+            auto partId = pn["partId"].getValueAs<int>();
+            auto targetIndex = pn["targetIndex"].getValueAs<size_t>();
+            auto *geom = static_cast<scene::Geometry *>(
+                scene.getObject(ANARI_GEOMETRY, targetIndex));
+            if (!geom) {
+              logWarning(
+                  "[nodeToAnimation] ensight binding: geometry index %zu not"
+                  " found for part %d; skipping part",
+                  targetIndex,
+                  partId);
+              return;
+            }
+
+            parts.push_back({partId, geom});
+          });
+        }
+
+        std::vector<std::string> geoFiles;
+        if (auto *geoFilesNode = fbNode.child("geoFiles")) {
+          geoFilesNode->foreach_child([&](core::DataNode &gn) {
+            geoFiles.push_back(gn.getValueAs<std::string>());
+          });
+        }
+
+        std::vector<EnSightFileBinding::FieldMapping> fieldMappings;
+        if (auto *fieldMappingsNode = fbNode.child("fieldMappings")) {
+          fieldMappingsNode->foreach_child([&](core::DataNode &mn) {
+            EnSightFileBinding::FieldMapping fm;
+            fm.attributeName =
+                mn["attributeName"].getValueAs<std::string>().c_str();
+            fm.ensightVarName = mn["ensightVarName"].getValueAs<std::string>();
+            fm.type = mn["type"].getValueAs<std::string>();
+
+            if (auto *filesNode = mn.child("files")) {
+              filesNode->foreach_child([&](core::DataNode &fn) {
+                fm.files.push_back(fn.getValueAs<std::string>());
+              });
+            }
+
+            fieldMappings.push_back(std::move(fm));
+          });
+        }
+
+        if (parts.empty()) {
+          logWarning(
+              "[nodeToAnimation] ensight binding has no valid geometry targets;"
+              " skipping");
+          return;
+        }
+
+        anim.emplaceFileBinding<EnSightFileBinding>(
+            &scene, std::move(parts), std::move(geoFiles), std::move(fieldMappings));
+      } else {
+        logWarning(
+            "[nodeToAnimation] unknown file binding kind '%s'; skipping",
+            kind.c_str());
       }
     });
   }
@@ -483,7 +544,6 @@ void nodeToAnimationManager(
   increment = node["increment"].getValueOr<float>(increment);
   totalFrames = node["totalFrames"].getValueOr<int>(totalFrames);
 
-  mgr.setAnimationTime(time);
   mgr.setAnimationIncrement(increment);
   mgr.setAnimationTotalFrames(totalFrames);
 
@@ -491,6 +551,8 @@ void nodeToAnimationManager(
     auto &anim = mgr.addAnimation();
     nodeToAnimation(animNode, anim, scene);
   });
+
+  mgr.setAnimationTime(time);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
