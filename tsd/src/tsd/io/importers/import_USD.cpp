@@ -1384,8 +1384,22 @@ static void importUsdVolume(Scene &scene,
     colorArray->setData(makeDefaultColorMap(colorArray->size()));
   }
 
+  // Override valueRange from custom USD attribute if present
+  pxr::GfVec2f customRange;
+  if (auto attr = prim.GetAttribute(pxr::TfToken("anari:valueRange"))) {
+    if (attr.Get(&customRange))
+      valueRange = math::float2(customRange[0], customRange[1]);
+  }
+
   volume->setParameterObject("color", *colorArray);
   volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+
+  // Read unitDistance from custom USD attribute if present
+  float unitDistance = 0.0f;
+  if (auto attr = prim.GetAttribute(pxr::TfToken("anari:unitDistance"))) {
+    if (attr.Get(&unitDistance) && unitDistance > 0.0f)
+      volume->setParameter("unitDistance", unitDistance);
+  }
 
   if (filePaths.size() > 1) {
     auto &anim = animMgr.addAnimation(primName);
