@@ -63,6 +63,7 @@ void RemoteViewport::buildUI()
 
   updateRenderer();
   updateCamera();
+  applyIncomingFrame();
   BaseViewport::imagePipeline_render();
 
   ImGui::BeginDisabled(!isConnected);
@@ -101,15 +102,17 @@ void RemoteViewport::setNetworkChannel(tsd::network::NetworkChannel *c)
 
   c->registerHandler(MessageType::CLIENT_RECEIVE_FRAME_BUFFER_COLOR,
       [&](const tsd::network::Message &msg) {
-        if (msg.header.payload_length != m_incomingColorBuffer.size()) {
+        std::lock_guard lock(m_incomingFrameMutex);
+        if (msg.header.payload_length != m_pendingColorBuffer.size()) {
           tsd::core::logWarning(
               "[Client] Received color buffer size does not match current"
               " viewport size");
           return;
         }
-        std::memcpy(m_incomingColorBuffer.data(),
+        std::memcpy(m_pendingColorBuffer.data(),
             msg.payload.data(),
             msg.header.payload_length);
+        m_hasPendingFrame = true;
       });
 
   c->registerHandler(MessageType::CLIENT_RECEIVE_CURRENT_RENDERER,
@@ -140,6 +143,10 @@ void RemoteViewport::disconnect()
   m_receivedCameraIdx = TSD_INVALID_INDEX;
   m_camera.current = {};
   m_prevCamera = {};
+  {
+    std::lock_guard lock(m_incomingFrameMutex);
+    m_hasPendingFrame = false;
+  }
 }
 
 void RemoteViewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
@@ -183,13 +190,29 @@ void RemoteViewport::viewport_reshape(tsd::math::int2 newSize)
 
   BaseViewport::viewport_reshape(newSize);
 
-  m_incomingColorBuffer.resize(newSize.x * newSize.y * 4);
-  std::fill(m_incomingColorBuffer.begin(), m_incomingColorBuffer.end(), 0);
+  {
+    std::lock_guard lock(m_incomingFrameMutex);
+    m_incomingColorBuffer.resize(newSize.x * newSize.y * 4);
+    m_pendingColorBuffer.resize(newSize.x * newSize.y * 4);
+    std::fill(m_incomingColorBuffer.begin(), m_incomingColorBuffer.end(), 0);
+    std::fill(m_pendingColorBuffer.begin(), m_pendingColorBuffer.end(), 0);
+    m_hasPendingFrame = false;
+  }
 
   m_frameConfig.size = tsd::math::uint2(newSize.x, newSize.y);
 
   if (m_channel && m_channel->isConnected())
     m_channel->send(MessageType::SERVER_SET_FRAME_CONFIG, &m_frameConfig);
+}
+
+void RemoteViewport::applyIncomingFrame()
+{
+  std::lock_guard lock(m_incomingFrameMutex);
+  if (!m_hasPendingFrame)
+    return;
+
+  m_incomingColorBuffer.swap(m_pendingColorBuffer);
+  m_hasPendingFrame = false;
 }
 
 void RemoteViewport::updateRenderer()

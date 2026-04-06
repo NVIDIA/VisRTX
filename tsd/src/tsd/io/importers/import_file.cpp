@@ -130,8 +130,13 @@ void import_files(Scene &s,
     tf.range = {};
   }
 
-  for (const auto &f : files)
-    import_file(s, animMgr, f, tf, root);
+  const size_t rank = s.mpiRank();
+  const size_t numRanks = s.mpiNumRanks();
+  for (size_t i = 0; i < files.size(); i++) {
+    if (numRanks > 1 && (i % numRanks != rank))
+      continue;
+    import_file(s, animMgr, files[i], tf, root);
+  }
 }
 
 void import_animations(Scene &scene,

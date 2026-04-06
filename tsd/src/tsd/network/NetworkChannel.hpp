@@ -5,8 +5,11 @@
 
 #include "Message.hpp"
 // std
+#include <atomic>
+#include <deque>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <thread>
 
@@ -70,10 +73,30 @@ struct NetworkChannel : public std::enable_shared_from_this<NetworkChannel>
   HandlerMap m_handlers;
 
  private:
+  struct PendingWrite
+  {
+    std::vector<std::byte> wireData;
+    std::shared_ptr<std::promise<boost::system::error_code>> promise;
+    std::shared_ptr<std::atomic<bool>> completed;
+  };
+
+  void enqueue_write(std::shared_ptr<PendingWrite> pending);
+  void start_next_write();
+  void fail_pending_writes(const boost::system::error_code &error);
+  void complete_write(
+      const std::shared_ptr<PendingWrite> &pending,
+      const boost::system::error_code &error);
+  void close_socket();
+
   Message make_message(uint8_t type);
   Message make_message(uint8_t type, const std::string &data);
   template <typename T>
   Message make_message(uint8_t type, const T *data, uint32_t count);
+
+  std::mutex m_writeMutex;
+  std::deque<std::shared_ptr<PendingWrite>> m_pendingWrites;
+  bool m_writeInProgress{false};
+  std::atomic<bool> m_messagingActive{false};
 };
 
 /*

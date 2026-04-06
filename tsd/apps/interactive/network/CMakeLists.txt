@@ -3,3 +3,6 @@
 
 add_subdirectory(client)
 add_subdirectory(server)
+if (TSD_USE_MPI)
+  add_subdirectory(mpiServer)
+endif()

@@ -13,6 +13,8 @@
 #include "tsd/network/NetworkChannel.hpp"
 
 #include "../RenderSession.hpp"
+// std
+#include <mutex>
 
 using tsd::network::MessageType;
 
@@ -43,6 +45,7 @@ struct RemoteViewport : public BaseViewport
 
   void updateRenderer();
   void updateCamera();
+  void applyIncomingFrame();
 
   void ui_menubar();
   void ui_overlay();
@@ -67,7 +70,10 @@ struct RemoteViewport : public BaseViewport
 
   // Display //
 
+  std::mutex m_incomingFrameMutex;
   std::vector<uint8_t> m_incomingColorBuffer;
+  std::vector<uint8_t> m_pendingColorBuffer;
+  bool m_hasPendingFrame{false};
   tsd::network::RenderSession::Frame::Config m_frameConfig;
 
   tsd::rendering::ClearBuffersPass *m_clearPass{nullptr};

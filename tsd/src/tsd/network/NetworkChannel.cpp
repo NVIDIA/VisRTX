@@ -50,37 +50,28 @@ MessageFuture NetworkChannel::send(Message &&msg)
   auto promise = std::make_shared<MessagePromise>();
   auto future = promise->get_future();
 
-  if (!isConnected()) {
+  if (!m_messagingActive.load() || !isConnected()) {
     log_asio_error(asio::error::not_connected, "Send");
     promise->set_value(asio::error::not_connected); // Set error in promise
     return future;
   }
 
   auto self = shared_from_this();
+  auto pending = std::make_shared<PendingWrite>();
+  pending->promise = promise;
+  pending->completed = std::make_shared<std::atomic<bool>>(false);
+  pending->wireData.resize(sizeof(Message::Header) + msg.payload.size());
+  std::memcpy(
+      pending->wireData.data(), &msg.header, sizeof(Message::Header));
+  if (!msg.payload.empty()) {
+    std::memcpy(pending->wireData.data() + sizeof(Message::Header),
+        msg.payload.data(),
+        msg.payload.size());
+  }
 
-  auto header = std::make_shared<Message::Header>();
-  *header = msg.header;
-  asio::async_write(m_socket,
-      asio::buffer(header.get(), sizeof(Message::Header)),
-      [self, header, promise](
-          const boost::system::error_code &error, std::size_t) {
-        self->log_asio_error(error, "Send(Header)");
-        if (header->payload_length == 0)
-          promise->set_value(error);
-      });
-
-  if (header->payload_length == 0)
-    return future;
-
-  auto payload = std::make_shared<MessagePayload>();
-  *payload = std::move(msg.payload);
-  asio::async_write(m_socket,
-      asio::buffer(*payload),
-      [self, payload, promise](
-          const boost::system::error_code &error, std::size_t) {
-        self->log_asio_error(error, "Send(Payload)");
-        promise->set_value(error);
-      });
+  boost::asio::post(m_io_context, [self, pending]() {
+    self->enqueue_write(std::move(pending));
+  });
 
   return future;
 }
@@ -107,6 +98,7 @@ void NetworkChannel::start_messaging()
   stop_messaging();
   m_work.emplace(asio::make_work_guard(m_io_context));
   m_io_context.restart();
+  m_messagingActive.store(true);
   m_io_thread = std::thread([this]() {
     tsd::core::logDebug("[NetworkChannel] starting IO thread");
     try {
@@ -124,20 +116,16 @@ void NetworkChannel::start_messaging()
 void NetworkChannel::stop_messaging()
 {
   try {
-    if (m_socket.is_open()) {
-      boost::system::error_code ec{};
-      m_socket.shutdown(tcp::socket::shutdown_both, ec);
-      m_socket.close(ec);
-    }
-    if (!m_io_context.stopped()) {
-      m_io_context.stop();
-      if (m_io_thread.joinable())
-        m_io_thread.join();
-      m_work.reset();
+    m_messagingActive.store(false);
+    fail_pending_writes(asio::error::operation_aborted);
+    close_socket();
+    m_io_context.stop();
+    if (m_io_thread.joinable())
+      m_io_thread.join();
+    m_work.reset();
 
-      // Ensure all completion handlers have finished before returning
-      m_io_context.poll();
-    }
+    // Ensure all completion handlers have finished before returning
+    m_io_context.poll();
   } catch (const std::system_error &e) {
     tsd::core::logError(
         "[NetworkChannel] System error during stop: %s", e.what());
@@ -226,11 +214,101 @@ void NetworkChannel::log_asio_error(
         "[NetworkChannel] %s error: %s", context, error.message().c_str());
   }
 
-  if (m_socket.is_open()) {
-    boost::system::error_code ec{};
-    m_socket.shutdown(tcp::socket::shutdown_both, ec);
-    m_socket.close(ec);
+  fail_pending_writes(error);
+  close_socket();
+}
+
+void NetworkChannel::enqueue_write(std::shared_ptr<PendingWrite> pending)
+{
+  if (!m_messagingActive.load() || !isConnected()) {
+    complete_write(pending, asio::error::not_connected);
+    return;
   }
+
+  {
+    std::lock_guard lock(m_writeMutex);
+    m_pendingWrites.push_back(std::move(pending));
+    if (m_writeInProgress)
+      return;
+    m_writeInProgress = true;
+  }
+
+  start_next_write();
+}
+
+void NetworkChannel::start_next_write()
+{
+  std::shared_ptr<PendingWrite> pending;
+  {
+    std::lock_guard lock(m_writeMutex);
+    if (m_pendingWrites.empty()) {
+      m_writeInProgress = false;
+      return;
+    }
+    pending = m_pendingWrites.front();
+  }
+
+  if (!m_messagingActive.load() || !isConnected()) {
+    fail_pending_writes(asio::error::not_connected);
+    return;
+  }
+
+  auto self = shared_from_this();
+  asio::async_write(m_socket,
+      asio::buffer(pending->wireData),
+      [self, pending](const boost::system::error_code &error, std::size_t) {
+        {
+          std::lock_guard lock(self->m_writeMutex);
+          if (!self->m_pendingWrites.empty()
+              && self->m_pendingWrites.front() == pending) {
+            self->m_pendingWrites.pop_front();
+          }
+        }
+
+        self->complete_write(pending, error);
+        if (error) {
+          self->log_asio_error(error, "Send");
+        } else {
+          self->start_next_write();
+        }
+      });
+}
+
+void NetworkChannel::fail_pending_writes(
+    const boost::system::error_code &error)
+{
+  std::deque<std::shared_ptr<PendingWrite>> pending;
+  {
+    std::lock_guard lock(m_writeMutex);
+    pending.swap(m_pendingWrites);
+    m_writeInProgress = false;
+  }
+
+  for (auto &p : pending)
+    complete_write(p, error);
+}
+
+void NetworkChannel::complete_write(
+    const std::shared_ptr<PendingWrite> &pending,
+    const boost::system::error_code &error)
+{
+  if (!pending || !pending->completed || !pending->promise)
+    return;
+
+  if (pending->completed->exchange(true))
+    return;
+
+  pending->promise->set_value(error);
+}
+
+void NetworkChannel::close_socket()
+{
+  if (!m_socket.is_open())
+    return;
+
+  boost::system::error_code ec{};
+  m_socket.shutdown(tcp::socket::shutdown_both, ec);
+  m_socket.close(ec);
 }
 
 // NetworkServer definitions //////////////////////////////////////////////////

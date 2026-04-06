@@ -7,3 +7,4 @@ docs/out/*
 .match3D
 .anari_deps
 .claude
+.codex

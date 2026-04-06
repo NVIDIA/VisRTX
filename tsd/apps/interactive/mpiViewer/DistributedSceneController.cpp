@@ -45,17 +45,9 @@ void DistributedSceneController::initialize(int argc, const char **argv)
 
   // Load scene files assigned to this rank //
 
-  auto &filenames = m_ctx->commandLine.filenames;
-  for (size_t i = 0; i < filenames.size(); i++) {
-    if (numRanks() > 1 && (i % numRanks() != rank()))
-      continue;
-    tsd::io::import_file(m_ctx->tsd.scene, m_ctx->tsd.animationMgr, filenames[i]);
-    tsd::core::logStatus(
-        "[DistributedSceneController] "
-        "rank '%i' loaded file '%s'",
-        rank(),
-        filenames[i].second.c_str());
-  }
+  tsd::io::import_files(m_ctx->tsd.scene,
+      m_ctx->tsd.animationMgr,
+      m_ctx->commandLine.filenames);
 
   // Setup ANARI state //
 
