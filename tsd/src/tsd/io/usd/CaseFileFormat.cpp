@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include "tsd/io/importers/detail/importer_common.hpp"
 
 PXR_NAMESPACE_OPEN_SCOPE
 
@@ -89,10 +90,9 @@ bool CaseFileFormat::Read(SdfLayer *layer,
   // expansion, geometry header reads, and prim population.
   if (metadataOnly)
     return true;
+
   // Resolve geo file path relative to case file directory
-  auto lastSlash = resolvedPath.rfind('/');
-  std::string caseDir =
-      (lastSlash != std::string::npos) ? resolvedPath.substr(0, lastSlash + 1) : "";
+  std::string caseDir = tsd::io::pathOf(resolvedPath);
   std::string geoPath = caseDir + caseData.geoPattern;
 
   // If geoPattern has wildcards, expand to get the first frame
