@@ -1905,7 +1905,7 @@ static void importEnsightDataset(Scene &scene,
     if (!attr)
       continue;
     std::string varName;
-    if (attr.Get(&varName))
+    if (attr.Get(&varName) && !varName.empty())
       fields.push_back(varName);
   }
 
