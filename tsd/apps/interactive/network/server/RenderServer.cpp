@@ -45,25 +45,38 @@ void RenderServer::run(short port)
 
   tsd::core::logStatus("[Server] Listening on port %i...", int(port));
 
-  while (m_nextMode != ServerMode::SHUTDOWN) {
-    bool wasRendering = m_currentMode == ServerMode::RENDERING;
+  while (true) {
+    ServerMode nextMode;
+    {
+      std::lock_guard lock(m_controlMutex);
+      if (m_nextMode == ServerMode::SHUTDOWN)
+        break;
+      nextMode = m_nextMode;
+    }
 
-    m_currentMode =
-        m_server->isConnected() ? m_nextMode : ServerMode::DISCONNECTED;
+    bool wasRendering = false;
+    auto currentMode = [&]() {
+      std::lock_guard lock(m_controlMutex);
+      wasRendering = m_currentMode == ServerMode::RENDERING;
+      m_currentMode =
+          m_server->isConnected() ? nextMode : ServerMode::DISCONNECTED;
+      return m_currentMode;
+    }();
 
-    if (m_currentMode == ServerMode::DISCONNECTED) {
+    if (currentMode == ServerMode::DISCONNECTED) {
       if (m_previousMode != ServerMode::DISCONNECTED) {
         tsd::core::logStatus("[Server] Listening on port %i...", int(port));
         m_server->restart();
       }
       std::this_thread::sleep_for(std::chrono::seconds(1));
-    } else if (m_currentMode == ServerMode::RENDERING) {
+    } else if (currentMode == ServerMode::RENDERING) {
       if (m_previousMode != ServerMode::RENDERING)
         tsd::core::logDebug("[Server] Rendering frames...");
+      update_View();
       update_FrameConfig();
       m_renderPipeline.render();
       send_FrameBuffer();
-    } else if (m_currentMode == ServerMode::SEND_SCENE) {
+    } else if (currentMode == ServerMode::SEND_SCENE) {
       tsd::core::logStatus("[Server] Serializing + sending scene...");
 
       tsd::core::Timer timer;
@@ -83,7 +96,7 @@ void RenderServer::run(short port)
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
-    m_previousMode = m_currentMode;
+    m_previousMode = currentMode;
   }
 
   tsd::core::logStatus("[Server] Shutting down...");
@@ -205,6 +218,7 @@ void RenderServer::setup_Messaging()
         tsd::core::logStatus(
             "[Server] Stopping rendering as requested by client.");
         set_Mode(ServerMode::PAUSED);
+        std::lock_guard lock(m_frameSendMutex);
         if (m_lastSentFrame.valid())
           m_lastSentFrame.get();
       });
@@ -217,15 +231,20 @@ void RenderServer::setup_Messaging()
 
   m_server->registerHandler(MessageType::SERVER_SET_FRAME_CONFIG,
       [&](const tsd::network::Message &msg) {
-        auto *config = &m_session.frame.config;
+        RenderSession::Frame::Config config;
         auto pos = 0u;
-        if (tsd::network::payloadRead(msg, pos, config)) {
-          m_session.frame.configVersion++;
+        if (tsd::network::payloadRead(msg, pos, &config)) {
+          int configVersion = 0;
+          {
+            std::lock_guard lock(m_controlMutex);
+            m_session.frame.config = config;
+            configVersion = ++m_session.frame.configVersion;
+          }
           tsd::core::logDebug(
               "[Server] Received frame config: size=(%u,%u), version=%d",
-              config->size.x,
-              config->size.y,
-              m_session.frame.configVersion);
+              config.size.x,
+              config.size.y,
+              configVersion);
         } else {
           tsd::core::logError(
               "[Server] Invalid payload for SERVER_SET_FRAME_CONFIG");
@@ -257,8 +276,9 @@ void RenderServer::setup_Messaging()
                 "[Server] Setting current renderer to index %u (subtype '%s')",
                 idx,
                 renderer->subtype().c_str());
+            std::lock_guard lock(m_controlMutex);
             m_currentRenderer = renderer;
-            m_sceneImagePass->setRenderer(m_renderIndex->renderer(idx));
+            ++m_viewVersion;
           } else {
             tsd::core::logError(
                 "[Server] Invalid renderer index %u in "
@@ -282,7 +302,9 @@ void RenderServer::setup_Messaging()
                 "[Server] Setting current camera to index %u (subtype '%s')",
                 idx,
                 camera->subtype().c_str());
-            m_sceneImagePass->setCamera(m_renderIndex->camera(idx));
+            std::lock_guard lock(m_controlMutex);
+            m_camera = camera;
+            ++m_viewVersion;
           } else {
             tsd::core::logError(
                 "[Server] Invalid camera index %u in "
@@ -353,23 +375,35 @@ void RenderServer::setup_Messaging()
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_FRAME_CONFIG,
-      [s = m_server, session = &m_session](const tsd::network::Message &msg) {
+      [this, s = m_server](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested frame config.");
-        s->send(
-            MessageType::CLIENT_RECEIVE_FRAME_CONFIG, &session->frame.config);
+        RenderSession::Frame::Config config;
+        {
+          std::lock_guard lock(m_controlMutex);
+          config = m_session.frame.config;
+        }
+        s->send(MessageType::CLIENT_RECEIVE_FRAME_CONFIG, &config);
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_CURRENT_RENDERER,
       [this, s = m_server](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested current renderer.");
-        auto idx = m_currentRenderer->index();
+        size_t idx = 0;
+        {
+          std::lock_guard lock(m_controlMutex);
+          idx = m_currentRenderer->index();
+        }
         s->send(MessageType::CLIENT_RECEIVE_CURRENT_RENDERER, &idx);
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_CURRENT_CAMERA,
       [this, s = m_server](const tsd::network::Message &msg) {
         tsd::core::logDebug("[Server] Client requested current camera.");
-        auto idx = m_camera->index();
+        size_t idx = 0;
+        {
+          std::lock_guard lock(m_controlMutex);
+          idx = m_camera->index();
+        }
         s->send(MessageType::CLIENT_RECEIVE_CURRENT_CAMERA, &idx);
       });
 
@@ -382,27 +416,55 @@ void RenderServer::setup_Messaging()
       });
 }
 
+void RenderServer::update_View()
+{
+  tsd::scene::RendererAppRef renderer;
+  tsd::scene::CameraAppRef camera;
+  int viewVersion = 0;
+
+  {
+    std::lock_guard lock(m_controlMutex);
+    if (m_viewVersion == m_sessionVersions.viewVersion)
+      return;
+
+    renderer = m_currentRenderer;
+    camera = m_camera;
+    viewVersion = m_viewVersion;
+  }
+
+  m_sceneImagePass->setRenderer(m_renderIndex->renderer(renderer->index()));
+  m_sceneImagePass->setCamera(m_renderIndex->camera(camera->index()));
+  m_sessionVersions.viewVersion = viewVersion;
+}
+
 void RenderServer::update_FrameConfig()
 {
-  if (m_session.frame.configVersion == m_sessionVersions.frameConfigVersion)
-    return;
+  RenderSession::Frame::Config config;
+  tsd::scene::CameraAppRef camera;
+  int configVersion = 0;
+  {
+    std::lock_guard lock(m_controlMutex);
+    if (m_session.frame.configVersion == m_sessionVersions.frameConfigVersion)
+      return;
 
-  m_renderPipeline.setDimensions(
-      m_session.frame.config.size.x, m_session.frame.config.size.y);
-  m_sessionVersions.frameConfigVersion = m_session.frame.configVersion;
+    config = m_session.frame.config;
+    camera = m_camera;
+    configVersion = m_session.frame.configVersion;
+  }
+
+  m_renderPipeline.setDimensions(config.size.x, config.size.y);
+  m_sessionVersions.frameConfigVersion = configVersion;
 
   auto d = m_device;
-  auto c = m_renderIndex->camera(m_camera->index());
-  anari::setParameter(d,
-      c,
-      "aspect",
-      float(m_session.frame.config.size.x)
-          / float(m_session.frame.config.size.y));
+  auto c = m_renderIndex->camera(camera->index());
+  anari::setParameter(
+      d, c, "aspect", float(config.size.x) / float(config.size.y));
   anari::commitParameters(d, c);
 }
 
 void RenderServer::send_FrameBuffer()
 {
+  std::lock_guard lock(m_frameSendMutex);
   if (!is_ready<boost::system::error_code>(m_lastSentFrame)) {
     tsd::core::logStatus(
         "[Server] Previous frame still being sent, skipping this frame.");
@@ -416,6 +478,7 @@ void RenderServer::send_FrameBuffer()
 
 void RenderServer::set_Mode(ServerMode mode)
 {
+  std::lock_guard lock(m_controlMutex);
   const bool shuttingDown = m_nextMode == ServerMode::SHUTDOWN
       || m_currentMode == ServerMode::SHUTDOWN;
   if (shuttingDown) // if shutting down, do not change mode

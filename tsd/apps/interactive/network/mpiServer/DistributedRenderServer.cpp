@@ -336,8 +336,14 @@ void DistributedRenderServer::setup_Messaging()
       MessageType::SERVER_STOP_RENDERING, [this](const Message &) {
         tsd::core::logStatus("[tsdMPIServer] Stopping rendering.");
         signalServerMode(ServerMode::PAUSED);
-        if (m_lastSentFrame.valid())
-          m_lastSentFrame.get();
+        MessageFuture lastSentFrame;
+        {
+          std::lock_guard lock(m_frameSendMutex);
+          if (m_lastSentFrame.valid())
+            lastSentFrame = std::move(m_lastSentFrame);
+        }
+        if (lastSentFrame.valid())
+          lastSentFrame.get();
       });
 
   m_server->registerHandler(
@@ -433,8 +439,12 @@ void DistributedRenderServer::setup_Messaging()
   m_server->registerHandler(MessageType::SERVER_REQUEST_FRAME_CONFIG,
       [this, s = m_server](const Message &) {
         tsd::core::logDebug("[tsdMPIServer] Client requested frame config.");
-        s->send(
-            MessageType::CLIENT_RECEIVE_FRAME_CONFIG, &m_session.frame.config);
+        RenderSession::Frame::Config config;
+        {
+          std::lock_guard lock(m_controlMutex);
+          config = m_session.frame.config;
+        }
+        s->send(MessageType::CLIENT_RECEIVE_FRAME_CONFIG, &config);
       });
 
   m_server->registerHandler(MessageType::SERVER_REQUEST_CURRENT_RENDERER,
@@ -492,8 +502,10 @@ void DistributedRenderServer::syncControlState()
   auto sz = cs->frameSize;
   if (sz.x > 0 && sz.y > 0) {
     m_renderPipeline.setDimensions(sz.x, sz.y);
-    if (isMain())
+    if (isMain()) {
+      std::lock_guard lock(m_controlMutex);
       m_session.frame.config.size = {uint32_t(sz.x), uint32_t(sz.y)};
+    }
 
     auto c = m_renderIndex->camera(size_t(cs->cameraIndex));
     if (m_device && c) {
@@ -633,6 +645,7 @@ void DistributedRenderServer::renderFrame()
 
 void DistributedRenderServer::send_FrameBuffer()
 {
+  std::lock_guard lock(m_frameSendMutex);
   if (!is_ready<boost::system::error_code>(m_lastSentFrame)) {
     tsd::core::logDebug(
         "[tsdMPIServer] Previous frame still sending, skipping.");

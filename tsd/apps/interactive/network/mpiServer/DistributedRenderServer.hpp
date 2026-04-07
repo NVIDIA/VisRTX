@@ -94,6 +94,7 @@ struct DistributedRenderServer
   RenderSession m_session;
   std::shared_ptr<NetworkServer> m_server;
   MessageFuture m_lastSentFrame;
+  std::mutex m_frameSendMutex;
   std::atomic<int> m_pendingServerMode{int(ServerMode::DISCONNECTED)};
   ServerMode m_previousMode{ServerMode::DISCONNECTED};
 

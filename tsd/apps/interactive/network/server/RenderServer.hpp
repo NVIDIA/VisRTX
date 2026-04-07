@@ -5,6 +5,7 @@
 
 // std
 #include <memory>
+#include <mutex>
 #include <thread>
 // tsd_network
 #include "tsd/network/NetworkChannel.hpp"
@@ -41,6 +42,7 @@ struct RenderServer
   void setup_ImagePipeline();
   void setup_Messaging();
   void update_FrameConfig();
+  void update_View();
   void send_FrameBuffer();
   void set_Mode(ServerMode mode);
 
@@ -62,6 +64,9 @@ struct RenderServer
   tsd::rendering::RenderIndex *m_renderIndex{nullptr};
   tsd::rendering::ImagePipeline m_renderPipeline;
   tsd::rendering::AnariSceneRenderPass *m_sceneImagePass{nullptr};
+  std::mutex m_controlMutex;
+  std::mutex m_frameSendMutex;
+  int m_viewVersion{0};
   ServerMode m_currentMode{ServerMode::DISCONNECTED};
   ServerMode m_nextMode{ServerMode::DISCONNECTED};
   ServerMode m_previousMode{ServerMode::DISCONNECTED};
