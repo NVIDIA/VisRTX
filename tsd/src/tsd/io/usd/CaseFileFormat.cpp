@@ -78,12 +78,17 @@ static std::string sanitizePrimName(const std::string &desc, int id)
 
 bool CaseFileFormat::Read(SdfLayer *layer,
     const std::string &resolvedPath,
-    bool /*metadataOnly*/) const
+    bool metadataOnly) const
 {
   tsd::io::ensight::CaseData caseData;
   if (!tsd::io::ensight::parseCase(resolvedPath, caseData))
     return false;
 
+  // USD may call Read() in metadata-only mode during lightweight layer
+  // inspection. In that case, avoid geometry path resolution, wildcard
+  // expansion, geometry header reads, and prim population.
+  if (metadataOnly)
+    return true;
   // Resolve geo file path relative to case file directory
   auto lastSlash = resolvedPath.rfind('/');
   std::string caseDir =
