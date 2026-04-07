@@ -146,17 +146,19 @@ void EnSightFileBinding::update(float t)
 
 void EnSightFileBinding::loadFrame(int frameIdx)
 {
-  // Always read the geo file — needed as part metadata for readVarFile,
-  // and for geometry update if transient.
+  if (m_geoFiles.empty()) {
+    logWarning(
+        "[EnSightFileBinding] no geo files; cannot load frame %d", frameIdx);
+    return;
+  }
+
   std::vector<ensight::Part> parts;
-  if (!m_geoFiles.empty()) {
-    const int geoIdx =
-        std::min(frameIdx, static_cast<int>(m_geoFiles.size()) - 1);
-    if (!ensight::readGeoFile(m_geoFiles[geoIdx], parts)) {
-      logWarning("[EnSightFileBinding] failed to read geo file '%s'",
-          m_geoFiles[geoIdx].c_str());
-      return;
-    }
+  const int geoIdx =
+      std::min(frameIdx, static_cast<int>(m_geoFiles.size()) - 1);
+  if (!ensight::readGeoFile(m_geoFiles[geoIdx], parts)) {
+    logWarning("[EnSightFileBinding] failed to read geo file '%s'",
+        m_geoFiles[geoIdx].c_str());
+    return;
   }
 
   // Update positions/indices if geometry is transient (multiple geo files)
