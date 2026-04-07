@@ -133,7 +133,8 @@ void import_files(Scene &s,
   const size_t rank = s.mpiRank();
   const size_t numRanks = s.mpiNumRanks();
   for (size_t i = 0; i < files.size(); i++) {
-    if (numRanks > 1 && (i % numRanks != rank))
+    const bool importOnAllRanks = files[i].first == ImporterType::XF;
+    if (!importOnAllRanks && numRanks > 1 && (i % numRanks != rank))
       continue;
     import_file(s, animMgr, files[i], tf, root);
   }
