@@ -104,7 +104,8 @@ bool CaseFileFormat::Read(SdfLayer *layer,
   }
 
   std::vector<tsd::io::ensight::PartHeader> partHeaders;
-  tsd::io::ensight::readGeoFileHeader(geoPath, partHeaders);
+  if (!tsd::io::ensight::readGeoFileHeader(geoPath, partHeaders))
+    return false;
 
   // Collect per-vertex scalar and vector field names
   VtStringArray scalarFields, vectorFields;
