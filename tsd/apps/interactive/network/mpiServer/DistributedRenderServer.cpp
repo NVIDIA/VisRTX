@@ -195,15 +195,7 @@ void DistributedRenderServer::setup_Scene()
   auto &filenames = m_ctx.commandLine.filenames;
 
   tsd::core::logStatus("[tsdMPIServer] Rank %d loading files...", rank());
-
-  for (size_t i = 0; i < filenames.size(); i++) {
-    if (numRanks() > 1 && (i % size_t(numRanks()) != size_t(rank())))
-      continue;
-    tsd::io::import_file(scene, animMgr, filenames[i]);
-    tsd::core::logStatus("[tsdMPIServer] Rank %d loaded '%s'",
-        rank(),
-        filenames[i].second.c_str());
-  }
+  tsd::io::import_files(scene, animMgr, filenames);
 
   tsd::core::logStatus(
       "%s", tsd::scene::objectDBInfo(scene.objectDB()).c_str());
