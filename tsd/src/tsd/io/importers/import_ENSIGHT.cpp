@@ -1,11 +1,11 @@
 // Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/io/animation/EnSightFileBinding.hpp"
-#include "tsd/io/importers/detail/ensight_io.hpp"
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/importers.hpp"
+#include "tsd/io/importers/detail/ensight_io.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 // std
@@ -70,10 +70,10 @@ static void import_ENSIGHT_impl(Scene &scene,
   // Read per-node variable data for all parts (first timestep only)
   struct VarData
   {
-    std::map<int, std::vector<float>> perPart;
+    core::FlatMap<int, std::vector<float>> perPart;
     int numComponents{1};
   };
-  std::map<std::string, VarData> varData;
+  core::FlatMap<std::string, VarData> varData;
 
   // Build the ordered list of variable names to load.
   // If the caller specified a field list, use that order exactly; otherwise
@@ -82,7 +82,7 @@ static void import_ENSIGHT_impl(Scene &scene,
   std::vector<std::string> varOrder;
   if (fields != nullptr) {
     for (const auto &f : *fields)
-      if (caseData.variables.count(f))
+      if (caseData.variables.contains(f))
         varOrder.push_back(f);
       else
         logWarning(
@@ -103,20 +103,19 @@ static void import_ENSIGHT_impl(Scene &scene,
 
   for (const auto &name : varOrder) {
     const auto &info = caseData.variables.at(name);
-    if (info.association != "vertex")
+    if (info->association != "vertex")
       continue;
-    if (info.type != "scalar" && info.type != "vector")
+    if (info->type != "scalar" && info->type != "vector")
       continue;
 
-    int nc = (info.type == "vector") ? 3 : 1;
-    const auto expandedPatterns = expandPattern(info.filenamePattern,
+    int nc = (info->type == "vector") ? 3 : 1;
+    const auto expandedPatterns = expandPattern(info->filenamePattern,
         caseData.startNumber,
         caseData.increment,
         caseData.numSteps);
     const std::string varFile = caseDir
-        + (timestep < (int)expandedPatterns.size()
-                ? expandedPatterns[timestep]
-                : expandedPatterns.front());
+        + (timestep < (int)expandedPatterns.size() ? expandedPatterns[timestep]
+                                                   : expandedPatterns.front());
 
     VarData vd;
     vd.numComponents = nc;
@@ -173,14 +172,12 @@ static void import_ENSIGHT_impl(Scene &scene,
             varName.c_str());
         break;
       }
-      auto vdIt = varData.find(varName);
-      if (vdIt == varData.end())
+      if (!varData.contains(varName))
         continue;
-      auto &vd = vdIt->second;
-      auto it = vd.perPart.find(part.id);
-      if (it == vd.perPart.end())
+      auto &vd = varData[varName];
+      if (!vd.perPart.contains(part.id))
         continue;
-      const auto &data = it->second;
+      const auto &data = vd.perPart[part.id];
       const std::string param = "vertex.attribute" + std::to_string(attrSlot);
 
       if (vd.numComponents == 1) {
@@ -238,10 +235,9 @@ static void import_ENSIGHT_impl(Scene &scene,
     for (const auto &varName : varOrder) {
       if (attrSlot > 3)
         break;
-      auto vIt = caseData.variables.find(varName);
-      if (vIt == caseData.variables.end())
+      if (!caseData.variables.contains(varName))
         continue;
-      const auto &info = vIt->second;
+      const auto &info = caseData.variables[varName];
       if (info.association != "vertex")
         continue;
       if (info.type != "scalar" && info.type != "vector")
@@ -253,8 +249,8 @@ static void import_ENSIGHT_impl(Scene &scene,
           caseData.numSteps);
 
       EnSightFileBinding::FieldMapping fm;
-      fm.attributeName = Token(
-          ("vertex.attribute" + std::to_string(attrSlot)).c_str());
+      fm.attributeName =
+          Token(("vertex.attribute" + std::to_string(attrSlot)).c_str());
       fm.ensightVarName = varName;
       fm.type = info.type;
       fm.files.reserve(varPatterns.size());
@@ -267,8 +263,7 @@ static void import_ENSIGHT_impl(Scene &scene,
 
     const size_t numFields = fmBindings.size();
     auto &anim = animMgr.addAnimation(fileOf(geoFile).c_str());
-    anim.emplaceFileBinding<EnSightFileBinding>(
-        &scene,
+    anim.emplaceFileBinding<EnSightFileBinding>(&scene,
         std::move(partBindings),
         std::move(allGeoFiles),
         std::move(fmBindings));

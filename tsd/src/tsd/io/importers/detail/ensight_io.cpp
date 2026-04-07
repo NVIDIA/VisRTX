@@ -222,7 +222,7 @@ static void accumulateVolumeFaces(EnsightElemType et,
     int npe,
     int numElems,
     const std::vector<int32_t> &conn,
-    std::map<FaceKey, FaceEntry> &faceMap)
+    tsd::core::FlatMap<FaceKey, FaceEntry> &faceMap)
 {
   const FaceDef *faceDefs = nullptr;
   int numFaceDefs = 0;
@@ -273,7 +273,8 @@ static void accumulateVolumeFaces(EnsightElemType et,
 
 // Triangulate boundary faces (count == 1) and append to triIndices.
 static void emitBoundaryFaces(
-    const std::map<FaceKey, FaceEntry> &faceMap, std::vector<uint32_t> &out)
+    const tsd::core::FlatMap<FaceKey, FaceEntry> &faceMap,
+    std::vector<uint32_t> &out)
 {
   for (const auto &[key, entry] : faceMap) {
     if (entry.count != 1)
@@ -546,7 +547,7 @@ bool readGeoFile(const std::string &filename, std::vector<Part> &parts)
 
     // Face map for surface extraction from volume elements.
     // Faces appearing exactly once are boundary (exterior) faces.
-    std::map<FaceKey, FaceEntry> faceMap;
+    tsd::core::FlatMap<FaceKey, FaceEntry> faceMap;
 
     token = lowerStr(readRecord80(f));
     while (!token.empty() && token != "part") {
@@ -748,7 +749,7 @@ bool readGeoFileHeader(
 void readVarFile(const std::string &filename,
     const std::vector<Part> &parts,
     int numComponents,
-    std::map<int, std::vector<float>> &out)
+    core::FlatMap<int, std::vector<float>> &out)
 {
   std::FILE *f = std::fopen(filename.c_str(), "rb");
   if (!f) {
@@ -761,7 +762,7 @@ void readVarFile(const std::string &filename,
 
   readRecord80(f); // description
 
-  std::map<int, const Part *> byId;
+  core::FlatMap<int, const Part *> byId;
   for (const auto &p : parts)
     byId[p.id] = &p;
 
@@ -786,14 +787,13 @@ void readVarFile(const std::string &filename,
       break;
     }
 
-    auto it = byId.find(partId);
-    if (it == byId.end()) {
+    if (!byId.contains(partId)) {
       logWarning("[import_ENSIGHT] var file: unknown part id %d", partId);
       token = lowerStr(readRecord80(f));
       continue;
     }
 
-    int numNodes = (int)it->second->x.size();
+    int numNodes = (int)byId[partId]->x.size();
     std::vector<float> &data = out[partId];
 
     if (numComponents == 1) {

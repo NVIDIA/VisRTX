@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/animation/EnSightFileBinding.hpp"
+#include "tsd/core/FlatMap.hpp"
 #include "tsd/io/importers/detail/ensight_io.hpp"
 // tsd_core
 #include "tsd/core/DataTree.hpp"
@@ -24,8 +25,8 @@ EnSightFileBinding::EnSightFileBinding(scene::Scene *scene,
       m_fieldMappings(std::move(fieldMappings))
 {}
 
-std::optional<EnSightFileBinding::SerializedData> EnSightFileBinding::fromDataNode(
-    scene::Scene &scene, core::DataNode &node)
+std::optional<EnSightFileBinding::SerializedData>
+EnSightFileBinding::fromDataNode(scene::Scene &scene, core::DataNode &node)
 {
   SerializedData data;
 
@@ -191,8 +192,7 @@ void EnSightFileBinding::loadFrame(int frameIdx)
       auto idxArr = scene()->createArray(ANARI_UINT32_VEC3, numTris);
       auto *tri = idxArr->mapAs<uint3>();
       for (int t = 0; t < numTris; ++t)
-        tri[t] = uint3(
-            ep->triIndices[t * 3],
+        tri[t] = uint3(ep->triIndices[t * 3],
             ep->triIndices[t * 3 + 1],
             ep->triIndices[t * 3 + 2]);
       idxArr->unmap();
@@ -206,7 +206,7 @@ void EnSightFileBinding::loadFrame(int frameIdx)
       continue;
 
     const int nc = (fm.type == "vector") ? 3 : 1;
-    std::map<int, std::vector<float>> varData;
+    core::FlatMap<int, std::vector<float>> varData;
     ensight::readVarFile(fm.files[frameIdx], parts, nc, varData);
 
     for (auto &pb : m_parts) {
@@ -214,11 +214,10 @@ void EnSightFileBinding::loadFrame(int frameIdx)
       if (!geom)
         continue;
 
-      auto it = varData.find(pb.partId);
-      if (it == varData.end())
+      if (!varData.contains(pb.partId))
         continue;
 
-      const auto &data = it->second;
+      const auto &data = varData[pb.partId];
       const int numNodes = static_cast<int>(data.size()) / nc;
 
       if (nc == 1) {
@@ -255,8 +254,7 @@ int EnSightFileBinding::currentFrame() const
   return m_currentFrame;
 }
 
-void EnSightFileBinding::addCallbackToAnimation(
-    tsd::animation::Animation &anim)
+void EnSightFileBinding::addCallbackToAnimation(tsd::animation::Animation &anim)
 {
   anim.addCallbackBinding([this](float t) { update(t); });
 }
