@@ -4,6 +4,9 @@
 #include "NetworkChannel.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
+// std
+#include <algorithm>
+#include <cassert>
 
 namespace tsd::network {
 
@@ -60,13 +63,16 @@ MessageFuture NetworkChannel::send(Message &&msg)
   auto pending = std::make_shared<PendingWrite>();
   pending->promise = promise;
   pending->completed = std::make_shared<std::atomic<bool>>(false);
-  pending->wireData.resize(sizeof(Message::Header) + msg.payload.size());
+  const auto payloadLength = static_cast<size_t>(msg.header.payload_length);
+  assert(payloadLength == msg.payload.size());
+  pending->wireData.resize(sizeof(Message::Header) + payloadLength);
   std::memcpy(
       pending->wireData.data(), &msg.header, sizeof(Message::Header));
-  if (!msg.payload.empty()) {
+  if (payloadLength > 0) {
+    const auto bytesToCopy = std::min(payloadLength, msg.payload.size());
     std::memcpy(pending->wireData.data() + sizeof(Message::Header),
         msg.payload.data(),
-        msg.payload.size());
+        bytesToCopy);
   }
 
   boost::asio::post(m_io_context, [self, pending]() {
