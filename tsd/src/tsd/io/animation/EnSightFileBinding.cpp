@@ -77,6 +77,13 @@ std::optional<EnSightFileBinding::SerializedData> EnSightFileBinding::fromDataNo
     return std::nullopt;
   }
 
+  if (data.geoFiles.empty() && !data.fieldMappings.empty()) {
+    logWarning(
+        "[EnSightFileBinding] field mappings require geo files for part "
+        "metadata; discarding field mappings");
+    data.fieldMappings.clear();
+  }
+
   return data;
 }
 
