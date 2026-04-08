@@ -197,180 +197,166 @@ static MaterialRef getBoundMaterial(Scene &scene,
 struct VolumeTransferFunction
 {
   std::vector<math::float4> colors;
-  std::vector<float> xPoints;
+  std::vector<float> xPointsColor; // color control point positions
+  std::vector<float>
+      xPoints; // opacity control point positions (legacy: shared)
+  std::vector<float> opacityValues; // opacity values at xPoints
   math::float2 domain{0.0f, 1.0f};
+  float unitDistance{0.0f};
   bool hasTransferFunction = false;
 };
+
+// Read all colormap attributes from a prim into VolumeTransferFunction.
+// Returns true if at least rgbaPoints was found and read successfully.
+static bool extractColormapFromPrim(
+    const pxr::UsdPrim &prim, VolumeTransferFunction &tf)
+{
+  auto rgbaAttr = prim.GetAttribute(pxr::TfToken("rgbaPoints"));
+  if (!rgbaAttr)
+    return false;
+
+  pxr::VtArray<pxr::GfVec4f> rgbaPoints;
+  if (!rgbaAttr.Get(&rgbaPoints) || rgbaPoints.empty())
+    return false;
+
+  tf.colors.resize(rgbaPoints.size());
+  for (size_t i = 0; i < rgbaPoints.size(); ++i) {
+    const auto &c = rgbaPoints[i];
+    tf.colors[i] = math::float4(c[0], c[1], c[2], c[3]);
+  }
+
+  auto readFloatArray = [&](const char *name, std::vector<float> &out) {
+    if (auto attr = prim.GetAttribute(pxr::TfToken(name))) {
+      pxr::VtArray<float> vals;
+      if (attr.Get(&vals))
+        out.assign(vals.begin(), vals.end());
+    }
+  };
+
+  readFloatArray("xPointsColor", tf.xPointsColor);
+  readFloatArray("xPoints", tf.xPoints);
+  readFloatArray("opacityValues", tf.opacityValues);
+
+  if (auto attr = prim.GetAttribute(pxr::TfToken("domain"))) {
+    pxr::GfVec2f domain;
+    if (attr.Get(&domain))
+      tf.domain = math::float2(domain[0], domain[1]);
+  }
+
+  if (auto attr = prim.GetAttribute(pxr::TfToken("unitDistance"))) {
+    float ud;
+    if (attr.Get(&ud) && ud > 0.0f)
+      tf.unitDistance = ud;
+  }
+
+  tf.hasTransferFunction = true;
+  return true;
+}
+
+// Convert the USD-specific representation to core::TransferFunction so that
+// the existing interpolation helpers (interpolateColor / interpolateOpacity)
+// can be used directly.
+static core::TransferFunction toTransferFunction(
+    const VolumeTransferFunction &vtf)
+{
+  core::TransferFunction tf;
+  tf.range = {vtf.domain.x, vtf.domain.y};
+
+  // ColorPoint is {x, r, g, b}
+  const auto &xColor =
+      vtf.xPointsColor.empty() ? vtf.xPoints : vtf.xPointsColor;
+  for (size_t i = 0; i < vtf.colors.size() && i < xColor.size(); ++i) {
+    tf.colorPoints.emplace_back(
+        xColor[i], vtf.colors[i].x, vtf.colors[i].y, vtf.colors[i].z);
+  }
+
+  // OpacityPoint is {x, opacity}
+  if (!vtf.opacityValues.empty()) {
+    for (size_t i = 0; i < vtf.opacityValues.size() && i < vtf.xPoints.size();
+        ++i)
+      tf.opacityPoints.emplace_back(vtf.xPoints[i], vtf.opacityValues[i]);
+  } else {
+    for (size_t i = 0; i < vtf.colors.size() && i < vtf.xPoints.size(); ++i)
+      tf.opacityPoints.emplace_back(vtf.xPoints[i], vtf.colors[i].w);
+  }
+
+  return tf;
+}
 
 static VolumeTransferFunction getVolumeTransferFunction(
     const pxr::UsdPrim &prim)
 {
   VolumeTransferFunction tf;
 
-  // Check if MaterialBindingAPI can be applied to this prim type
-  if (!pxr::UsdShadeMaterialBindingAPI::CanApply(prim)) {
-    return tf;
-  }
+  // Strategy 1: Material binding chain (Material → VolumeShader → Colormap)
+  if (pxr::UsdShadeMaterialBindingAPI::CanApply(prim)) {
+    pxr::UsdShadeMaterialBindingAPI binding(prim);
+    pxr::UsdShadeMaterial usdMat;
 
-  // Try to get material binding
-  pxr::UsdShadeMaterialBindingAPI binding(prim);
-  pxr::UsdShadeMaterial usdMat;
-
-  // First, try to get the direct material binding relationship
-  pxr::UsdRelationship materialRel =
-      prim.GetRelationship(pxr::TfToken("material:binding"));
-  if (materialRel) {
-    pxr::SdfPathVector targets;
-    materialRel.GetTargets(&targets);
-    if (!targets.empty()) {
-      // Try to get the material prim directly
-      pxr::UsdPrim materialPrim = prim.GetStage()->GetPrimAtPath(targets[0]);
-      if (materialPrim) {
-        usdMat = pxr::UsdShadeMaterial(materialPrim);
+    pxr::UsdRelationship materialRel =
+        prim.GetRelationship(pxr::TfToken("material:binding"));
+    if (materialRel) {
+      pxr::SdfPathVector targets;
+      materialRel.GetTargets(&targets);
+      if (!targets.empty()) {
+        pxr::UsdPrim materialPrim = prim.GetStage()->GetPrimAtPath(targets[0]);
+        if (materialPrim)
+          usdMat = pxr::UsdShadeMaterial(materialPrim);
       }
     }
-  }
 
-  // If direct resolution didn't work, try ComputeBoundMaterial
-  if (!usdMat && binding) {
-    usdMat = binding.ComputeBoundMaterial();
-  }
+    if (!usdMat && binding)
+      usdMat = binding.ComputeBoundMaterial();
 
-  if (!usdMat) {
-    return tf;
-  }
+    if (usdMat) {
+      pxr::UsdShadeOutput volumeOutput =
+          usdMat.GetOutput(pxr::TfToken("nvindex:volume"));
+      if (volumeOutput && volumeOutput.HasConnectedSource()) {
+        pxr::UsdShadeConnectableAPI src;
+        pxr::TfToken srcName;
+        pxr::UsdShadeAttributeType srcType;
+        volumeOutput.GetConnectedSource(&src, &srcName, &srcType);
+        pxr::UsdShadeShader volumeShader(src.GetPrim());
 
-  // Look for volume output connection
-  pxr::TfToken volumeOutputName("nvindex:volume");
-  pxr::UsdShadeOutput volumeOutput = usdMat.GetOutput(volumeOutputName);
-
-  if (!volumeOutput || !volumeOutput.HasConnectedSource()) {
-    return tf;
-  }
-
-  // Get the VolumeShader
-  pxr::UsdShadeConnectableAPI volumeSource;
-  pxr::TfToken volumeSourceName;
-  pxr::UsdShadeAttributeType volumeSourceType;
-  volumeOutput.GetConnectedSource(
-      &volumeSource, &volumeSourceName, &volumeSourceType);
-  pxr::UsdShadeShader volumeShader(volumeSource.GetPrim());
-
-  if (!volumeShader) {
-    return tf;
-  }
-
-  // Look for colormap input connection
-  pxr::UsdShadeInput colormapInput =
-      volumeShader.GetInput(pxr::TfToken("colormap"));
-  if (!colormapInput || !colormapInput.HasConnectedSource()) {
-    return tf;
-  }
-
-  // Get the Colormap shader
-  pxr::UsdShadeConnectableAPI colormapSource;
-  pxr::TfToken colormapSourceName;
-  pxr::UsdShadeAttributeType colormapSourceType;
-  bool hasConnection = colormapInput.GetConnectedSource(
-      &colormapSource, &colormapSourceName, &colormapSourceType);
-
-  if (!hasConnection) {
-    return tf;
-  }
-
-  pxr::UsdPrim colormapPrim = colormapSource.GetPrim();
-  if (!colormapPrim) {
-    return tf;
-  }
-
-  pxr::UsdShadeShader colormapShader(colormapPrim);
-
-  if (!colormapShader) {
-    // Try to extract data directly from the prim even if it's not a valid
-    // UsdShadeShader
-    pxr::UsdAttribute rgbaPointsAttr =
-        colormapPrim.GetAttribute(pxr::TfToken("rgbaPoints"));
-    pxr::UsdAttribute xPointsAttr =
-        colormapPrim.GetAttribute(pxr::TfToken("xPoints"));
-    pxr::UsdAttribute domainAttr =
-        colormapPrim.GetAttribute(pxr::TfToken("domain"));
-
-    if (rgbaPointsAttr && xPointsAttr) {
-      // Extract the data using the same logic as below
-      pxr::VtArray<pxr::GfVec4f> rgbaPoints;
-      pxr::VtArray<float> xPoints;
-
-      if (rgbaPointsAttr.Get(&rgbaPoints) && xPointsAttr.Get(&xPoints)) {
-        // Convert to TSD format
-        tf.colors.resize(rgbaPoints.size());
-        tf.xPoints.resize(xPoints.size());
-
-        for (size_t i = 0; i < rgbaPoints.size(); ++i) {
-          const auto &rgba = rgbaPoints[i];
-          tf.colors[i] = math::float4(rgba[0], rgba[1], rgba[2], rgba[3]);
-        }
-
-        for (size_t i = 0; i < xPoints.size(); ++i) {
-          tf.xPoints[i] = xPoints[i];
-        }
-
-        // Get domain if present
-        if (domainAttr) {
-          pxr::GfVec2f domain;
-          if (domainAttr.Get(&domain)) {
-            tf.domain = math::float2(domain[0], domain[1]);
+        if (volumeShader) {
+          pxr::UsdShadeInput cmapInput =
+              volumeShader.GetInput(pxr::TfToken("colormap"));
+          if (cmapInput && cmapInput.HasConnectedSource()) {
+            pxr::UsdShadeConnectableAPI cmapSrc;
+            pxr::TfToken cmapSrcName;
+            pxr::UsdShadeAttributeType cmapSrcType;
+            if (cmapInput.GetConnectedSource(
+                    &cmapSrc, &cmapSrcName, &cmapSrcType)) {
+              pxr::UsdPrim cmapPrim = cmapSrc.GetPrim();
+              if (cmapPrim && extractColormapFromPrim(cmapPrim, tf)) {
+                logStatus(
+                    "[import_USD] Found volume colormap via material binding, "
+                    "%zu colors, domain: [%f, %f]\n",
+                    tf.colors.size(),
+                    tf.domain.x,
+                    tf.domain.y);
+                return tf;
+              }
+            }
           }
         }
-
-        tf.hasTransferFunction = true;
       }
     }
-
-    return tf;
   }
 
-  // Extract transfer function data from colormap shader
-  pxr::UsdAttribute rgbaPointsAttr =
-      colormapShader.GetPrim().GetAttribute(pxr::TfToken("rgbaPoints"));
-  pxr::UsdAttribute xPointsAttr =
-      colormapShader.GetPrim().GetAttribute(pxr::TfToken("xPoints"));
-  pxr::UsdAttribute domainAttr =
-      colormapShader.GetPrim().GetAttribute(pxr::TfToken("domain"));
-
-  if (rgbaPointsAttr && xPointsAttr) {
-    pxr::VtArray<pxr::GfVec4f> rgbaPoints;
-    pxr::VtArray<float> xPoints;
-
-    if (rgbaPointsAttr.Get(&rgbaPoints) && xPointsAttr.Get(&xPoints)) {
-      // Convert to TSD format
-      tf.colors.resize(rgbaPoints.size());
-      tf.xPoints.resize(xPoints.size());
-
-      for (size_t i = 0; i < rgbaPoints.size(); ++i) {
-        const auto &rgba = rgbaPoints[i];
-        tf.colors[i] = math::float4(rgba[0], rgba[1], rgba[2], rgba[3]);
-      }
-
-      for (size_t i = 0; i < xPoints.size(); ++i) {
-        tf.xPoints[i] = xPoints[i];
-      }
-
-      // Get domain if present
-      if (domainAttr) {
-        pxr::GfVec2f domain;
-        if (domainAttr.Get(&domain)) {
-          tf.domain = math::float2(domain[0], domain[1]);
-        }
-      }
-
-      tf.hasTransferFunction = true;
-
+  // Strategy 2: Child Shader prim with colormap attributes
+  for (const auto &child : prim.GetChildren()) {
+    if (!child.IsA<pxr::UsdShadeShader>())
+      continue;
+    if (extractColormapFromPrim(child, tf)) {
       logStatus(
-          "[import_USD] Found volume transfer function with %zu colors and %zu x-points, domain: [%f, %f]\n",
+          "[import_USD] Found volume colormap on child prim '%s', "
+          "%zu colors, domain: [%f, %f]\n",
+          child.GetPath().GetText(),
           tf.colors.size(),
-          tf.xPoints.size(),
           tf.domain.x,
           tf.domain.y);
+      return tf;
     }
   }
 
@@ -1347,7 +1333,6 @@ static void importUsdVolume(Scene &scene,
   // Check for transfer function from USD material
   VolumeTransferFunction tf = getVolumeTransferFunction(prim);
 
-  ArrayRef colorArray;
   // Default to the field's value range to avoid undefined ranges.
   math::float2 valueRange = field->computeValueRange();
 
@@ -1357,49 +1342,37 @@ static void importUsdVolume(Scene &scene,
   volume->setName(primName.c_str());
   volume->setParameterObject("value", *field);
 
-  if (tf.hasTransferFunction && !tf.colors.empty() && !tf.xPoints.empty()) {
-    // Use transfer function from USD material
-    colorArray = scene.createArray(ANARI_FLOAT32_VEC4, tf.colors.size());
-    colorArray->setData(tf.colors.data(), tf.colors.size());
-    if (tf.domain.x < tf.domain.y)
-      valueRange = tf.domain;
-
-    // Create opacity control points from USD transfer function
-    std::vector<math::float2> opacityControlPoints;
-    opacityControlPoints.reserve(tf.colors.size());
-
-    for (size_t i = 0; i < tf.colors.size(); ++i) {
-      // x = position in transfer function, y = opacity value
-      opacityControlPoints.emplace_back(tf.xPoints[i], tf.colors[i].w);
-    }
-
-    // Set the opacity control points as metadata
-    volume->setMetadataArray("opacityControlPoints",
-        ANARI_FLOAT32_VEC2,
-        opacityControlPoints.data(),
-        opacityControlPoints.size());
+  if (tf.hasTransferFunction && !tf.colors.empty()) {
+    auto coreTF = toTransferFunction(tf);
+    applyTransferFunction(scene, volume, coreTF);
+    if (coreTF.range.lower < coreTF.range.upper)
+      valueRange = math::float2(coreTF.range.lower, coreTF.range.upper);
   } else {
-    // Use default transfer function if available, otherwise create default
-    colorArray = scene.createArray(ANARI_FLOAT32_VEC4, 256);
-    colorArray->setData(makeDefaultColorMap(colorArray->size()));
+    auto colors = makeDefaultColorMap(256);
+    auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, colors.size());
+    colorArray->setData(colors);
+    volume->setParameterObject("color", *colorArray);
+    volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
   }
 
   // Override valueRange from custom USD attribute if present
   pxr::GfVec2f customRange;
   if (auto attr = prim.GetAttribute(pxr::TfToken("anari:valueRange"))) {
-    if (attr.Get(&customRange))
+    if (attr.Get(&customRange)) {
       valueRange = math::float2(customRange[0], customRange[1]);
+      volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+    }
   }
 
-  volume->setParameterObject("color", *colorArray);
-  volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
-
-  // Read unitDistance from custom USD attribute if present
-  float unitDistance = 0.0f;
-  if (auto attr = prim.GetAttribute(pxr::TfToken("anari:unitDistance"))) {
-    if (attr.Get(&unitDistance) && unitDistance > 0.0f)
-      volume->setParameter("unitDistance", unitDistance);
+  // unitDistance: prefer transfer function value, then custom USD attribute
+  float unitDistance = tf.unitDistance;
+  if (unitDistance <= 0.0f) {
+    if (auto attr = prim.GetAttribute(pxr::TfToken("anari:unitDistance"))) {
+      attr.Get(&unitDistance);
+    }
   }
+  if (unitDistance > 0.0f)
+    volume->setParameter("unitDistance", unitDistance);
 
   if (filePaths.size() > 1) {
     auto &anim = animMgr.addAnimation(primName);

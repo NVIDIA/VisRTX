@@ -19,7 +19,7 @@ using namespace tsd::core;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static void applyTransferFunction(Scene &scene,
+void applyTransferFunction(Scene &scene,
     VolumeRef volume,
     const tsd::core::TransferFunction &transferFunction)
 {
