@@ -8,6 +8,7 @@
 
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/ColorMapUtil.hpp"
+#include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TSDMath.hpp"
 #include "tsd/io/animation/EnSightFileBinding.hpp"
@@ -1830,6 +1831,45 @@ static bool isIdentity(const pxr::GfMatrix4d &m)
 }
 
 // -----------------------------------------------------------------------------
+// RenderSettings import
+// -----------------------------------------------------------------------------
+
+static void importRenderSettings(
+    const pxr::UsdStageRefPtr &stage, core::DataNode &settings)
+{
+  for (const auto &prim : stage->Traverse()) {
+    if (prim.GetTypeName() != "RenderSettings")
+      continue;
+
+    if (auto attr = prim.GetAttribute(pxr::TfToken("tsd:io:cutPlane"))) {
+      pxr::GfVec4f val;
+      if (attr.Get(&val)) {
+        settings["cutPlane"] = math::float4(val[0], val[1], val[2], val[3]);
+        logStatus("[import_USD] RenderSettings cutPlane: (%f, %f, %f, %f)",
+            val[0],
+            val[1],
+            val[2],
+            val[3]);
+      }
+    }
+
+    auto collection =
+        pxr::UsdCollectionAPI::Get(prim, pxr::TfToken("tsd:io:cutPlaneTarget"));
+    if (collection) {
+      pxr::SdfPathVector includes;
+      collection.GetIncludesRel().GetTargets(&includes);
+      auto &targets = settings["cutPlaneTargets"];
+      for (const auto &path : includes) {
+        targets.append() = std::string(path.GetString());
+        logStatus("[import_USD] cutPlaneTarget: %s", path.GetText());
+      }
+    }
+
+    break; // only first RenderSettings prim
+  }
+}
+
+// -----------------------------------------------------------------------------
 // EnSight-backed mesh import
 // -----------------------------------------------------------------------------
 
@@ -1839,7 +1879,11 @@ static bool isIdentity(const pxr::GfMatrix4d &m)
 static void importEnsightDataset(Scene &scene,
     const pxr::UsdPrim &scopePrim,
     LayerNodeRef parent,
-    tsd::animation::AnimationManager &animMgr)
+    tsd::animation::AnimationManager &animMgr,
+    const core::DataNode &settings,
+    const std::string &basePath,
+    MaterialCache &matCache,
+    TextureCache &texCache)
 {
   std::string primName = scopePrim.GetName().GetString();
 
@@ -1882,11 +1926,33 @@ static void importEnsightDataset(Scene &scene,
       fields.push_back(varName);
   }
 
+  // Check if this prim is a cut plane target and build per-dataset settings
+  std::string primPath = scopePrim.GetPath().GetString();
+  core::DataTree datasetSettings;
+  const auto *targets = settings.child("cutPlaneTargets");
+  const auto *cutPlane = settings.child("cutPlane");
+  if (cutPlane && targets) {
+    for (size_t i = 0; i < targets->numChildren(); ++i) {
+      if (auto target = targets->child(i)->getValueAs<std::string>();
+          target == primPath) {
+        datasetSettings.root()["cutPlane"] = cutPlane->getValue();
+        // Cutting all the parts of the target.
+        datasetSettings.root().remove("cutPlaneTargets");
+        break;
+      } else if (target.substr(0, primPath.size() + 1) == primPath + "/") {
+        datasetSettings.root()["cutPlane"] = cutPlane->getValue();
+        datasetSettings.root()["cutPlaneTarget"].append(
+            target.substr(primPath.size() + 1));
+      }
+    }
+  }
+
   logStatus("[import_USD] Importing EnSight dataset '%s' from '%s'",
       primName.c_str(),
       caseFile.c_str());
 
-  import_ENSIGHT(scene, animMgr, caseFile.c_str(), parent, fields, 0);
+  import_ENSIGHT(
+      scene, animMgr, caseFile.c_str(), parent, fields, datasetSettings.root(), 0);
 }
 
 // -----------------------------------------------------------------------------
@@ -1901,7 +1967,8 @@ static void importUsdPrimRecursive(Scene &scene,
     const pxr::GfMatrix4d &parentWorldXform,
     tsd::animation::AnimationManager &animMgr,
     MaterialCache &matCache,
-    TextureCache &texCache)
+    TextureCache &texCache,
+    const core::DataNode &settings)
 {
   // if (prim.IsPrototype()) return;
   if (prim.IsInstance()) {
@@ -1926,7 +1993,8 @@ static void importUsdPrimRecursive(Scene &scene,
           thisWorldXform,
           animMgr,
           matCache,
-          texCache);
+          texCache,
+          settings);
     } else {
       tsd::core::logStatus("[import_USD] Instance has no prototype: %s\n",
           prim.GetName().GetString().c_str());
@@ -2032,7 +2100,14 @@ static void importUsdPrimRecursive(Scene &scene,
     auto firstChild = *prim.GetChildren().begin();
     pxr::VtDictionary childCd = firstChild.GetCustomData();
     if (childCd.count("ensight")) {
-      importEnsightDataset(scene, prim, thisNode, animMgr);
+      importEnsightDataset(scene,
+          prim,
+          thisNode,
+          animMgr,
+          settings,
+          basePath,
+          matCache,
+          texCache);
       return;
     }
   }
@@ -2090,7 +2165,8 @@ static void importUsdPrimRecursive(Scene &scene,
         thisWorldXform,
         animMgr,
         matCache,
-        texCache);
+        texCache,
+        settings);
   }
 }
 
@@ -2126,6 +2202,9 @@ void import_USD(Scene &scene,
   MaterialCache matCache;
   TextureCache texCache;
 
+  core::DataTree settings;
+  importRenderSettings(stage, settings.root());
+
   // Traverse all prims in the USD file, but only import top-level prims
   for (pxr::UsdPrim const &prim : stage->Traverse()) {
     // if (prim.IsPrototype()) continue;
@@ -2138,7 +2217,8 @@ void import_USD(Scene &scene,
           pxr::GfMatrix4d(1.0),
           animMgr,
           matCache,
-          texCache);
+          texCache,
+          settings.root());
     }
   }
 

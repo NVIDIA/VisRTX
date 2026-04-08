@@ -816,4 +816,21 @@ void readVarFile(const std::string &filename,
   std::fclose(f);
 }
 
+std::string sanitizePrimName(const std::string &desc, int id)
+{
+  if (desc.empty())
+    return "part_" + std::to_string(id);
+
+  std::string name = desc;
+  for (char &c : name) {
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
+      c = '_';
+  }
+
+  if (std::isdigit(static_cast<unsigned char>(name[0])))
+    name = "_" + name;
+
+  return name;
+}
+
 } // namespace tsd::io::ensight

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/animation/AnimationManager.hpp"
+#include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/importers.hpp"
@@ -19,11 +20,51 @@ namespace tsd::io {
 using namespace tsd::core;
 using namespace tsd::io::ensight;
 
+// Filter out triangles that lie on the wrong side of the plane.
+// Plane: nx*x + ny*y + nz*z + d = 0.
+// Keeps triangles whose centroid satisfies nx*cx + ny*cy + nz*cz + d >= 0.
+static size_t applyCutPlaneToPart(
+    Part &part, float nx, float ny, float nz, float d)
+{
+  const std::vector<float> &x = part.x;
+  const std::vector<float> &y = part.y;
+  const std::vector<float> &z = part.z;
+  std::vector<uint32_t> &indices = part.triIndices;
+
+  if (x.size() != y.size() || x.size() != z.size() || indices.size() % 3 != 0)
+    return indices.size() / 3;
+
+  std::vector<uint32_t> kept;
+  kept.reserve(indices.size());
+
+  for (size_t t = 0; t < indices.size(); t += 3) {
+    uint32_t i0 = indices[t], i1 = indices[t + 1], i2 = indices[t + 2];
+    if (i0 >= x.size() || i1 >= x.size() || i2 >= x.size())
+      continue;
+
+    constexpr float ONE_THIRD = 1.f / 3.f;
+    float cx = (x[i0] + x[i1] + x[i2]) * ONE_THIRD;
+    float cy = (y[i0] + y[i1] + y[i2]) * ONE_THIRD;
+    float cz = (z[i0] + z[i1] + z[i2]) * ONE_THIRD;
+
+    float signedDist = nx * cx + ny * cy + nz * cz + d;
+    if (signedDist >= 0.f) {
+      kept.push_back(i0);
+      kept.push_back(i1);
+      kept.push_back(i2);
+    }
+  }
+
+  indices = std::move(kept);
+  return indices.size() / 3;
+}
+
 static void import_ENSIGHT_impl(Scene &scene,
     tsd::animation::AnimationManager &animMgr,
     const char *filepath,
     LayerNodeRef location,
     const std::vector<std::string> *fields,
+    const core::DataNode *settings,
     int timestep)
 {
   if (!location)
@@ -66,6 +107,35 @@ static void import_ENSIGHT_impl(Scene &scene,
   logStatus("[import_ENSIGHT] read %zu part(s) from %s",
       parts.size(),
       geoFile.c_str());
+
+  // Apply cut plane to filter triangles if settings provide one
+  if (settings) {
+    const auto *cpNode = settings->child("cutPlane");
+    const auto *cpTargets = settings->child("cutPlaneTarget");
+    if (cpNode) {
+      auto cp = cpNode->getValueAs<tsd::math::float4>();
+      logStatus("[import_ENSIGHT] applying cut plane (%f, %f, %f, %f)",
+          cp.x,
+          cp.y,
+          cp.z,
+          cp.w);
+      for (auto &part : parts) {
+        auto sanitized = sanitizePrimName(part.description, part.id);
+        if (cpTargets && !cpTargets->child(sanitized))
+          continue;
+
+        size_t before = part.triIndices.size() / 3;
+        size_t after = applyCutPlaneToPart(part, cp.x, cp.y, cp.z, cp.w);
+        if (after < before) {
+          logStatus(
+              "[import_ENSIGHT] cut plane: part '%s' %zu -> %zu triangles",
+              part.description.c_str(),
+              before,
+              after);
+        }
+      }
+    }
+  }
 
   // Read per-node variable data for all parts (first timestep only)
   struct VarData
@@ -283,7 +353,8 @@ void import_ENSIGHT(Scene &scene,
     LayerNodeRef location,
     int timestep)
 {
-  import_ENSIGHT_impl(scene, animMgr, filepath, location, nullptr, timestep);
+  import_ENSIGHT_impl(
+      scene, animMgr, filepath, location, nullptr, nullptr, timestep);
 }
 
 void import_ENSIGHT(Scene &scene,
@@ -293,7 +364,20 @@ void import_ENSIGHT(Scene &scene,
     const std::vector<std::string> &fields,
     int timestep)
 {
-  import_ENSIGHT_impl(scene, animMgr, filepath, location, &fields, timestep);
+  import_ENSIGHT_impl(
+      scene, animMgr, filepath, location, &fields, nullptr, timestep);
+}
+
+void import_ENSIGHT(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location,
+    const std::vector<std::string> &fields,
+    const core::DataNode &settings,
+    int timestep)
+{
+  import_ENSIGHT_impl(
+      scene, animMgr, filepath, location, &fields, &settings, timestep);
 }
 
 } // namespace tsd::io

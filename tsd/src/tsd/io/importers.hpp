@@ -13,6 +13,10 @@ namespace tsd::animation {
 struct AnimationManager;
 } // namespace tsd::animation
 
+namespace tsd::core {
+class DataNode;
+} // namespace tsd::core
+
 namespace tsd::io {
 
 using namespace tsd::scene;
@@ -36,6 +40,13 @@ void import_ENSIGHT(Scene &scene,
     const char *filename,
     LayerNodeRef location,
     const std::vector<std::string> &fields,
+    int timestep = 0);
+void import_ENSIGHT(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filename,
+    LayerNodeRef location,
+    const std::vector<std::string> &fields,
+    const tsd::core::DataNode &settings,
     int timestep = 0);
 void import_GLTF(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});
 void import_HDRI(Scene &scene, tsd::animation::AnimationManager &animMgr, const char *filename, LayerNodeRef location = {});

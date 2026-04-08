@@ -62,4 +62,7 @@ void readVarFile(const std::string &filename,
     int numComponents,
     core::FlatMap<int, std::vector<float>> &out);
 
+// Sanitize an EnSight part description into a valid USD prim name.
+std::string sanitizePrimName(const std::string &desc, int id);
+
 } // namespace tsd::io::ensight
