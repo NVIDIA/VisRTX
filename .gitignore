@@ -8,3 +8,5 @@ docs/out/*
 .anari_deps
 .claude
 .codex
+*.egg-info*
+*.ipynb_checkpoints*
