@@ -42,6 +42,15 @@ bool getShaderTextureInput(const pxr::UsdShadeShader &shader,
     const char *inputName,
     std::string &outFilePath);
 
+/// Walk a UsdPreviewSurface input through UsdUVTexture -> UsdTransform2d ->
+/// UsdPrimvarReader_float2 and return a configured image2D sampler.
+/// Returns null SamplerRef if the input is not connected to a UsdUVTexture.
+SamplerRef resolveTexturedInput(Scene &scene,
+    const pxr::UsdShadeShader &shader,
+    const char *inputName,
+    const std::string &basePath,
+    TextureCache &texCache);
+
 } // namespace tsd::io::materials
 
 #endif

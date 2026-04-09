@@ -17,6 +17,7 @@
 #include "tsd/io/importers/detail/HDRImage.h"
 #include "tsd/io/importers/detail/ensight_io.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/io/importers/detail/usd/MaterialCommon.h"
 #include "tsd/io/importers/detail/usd/OmniPbrMaterial.h"
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/scene/objects/Array.hpp"
@@ -107,7 +108,8 @@ static void setShaderInputIfPresent(MaterialRef &mat,
 // Helper: Import a UsdPreviewSurface material as a physicallyBased TSD material
 static MaterialRef importUsdPreviewSurfaceMaterial(Scene &scene,
     const pxr::UsdShadeMaterial &usdMat,
-    const std::string &basePath)
+    const std::string &basePath,
+    TextureCache &texCache)
 {
   // Find the UsdPreviewSurface shader
   pxr::UsdShadeShader surfaceShader;
@@ -128,7 +130,12 @@ static MaterialRef importUsdPreviewSurfaceMaterial(Scene &scene,
 
   auto mat = scene.createObject<Material>(tokens::material::physicallyBased);
 
-  setShaderInputIfPresent(mat, surfaceShader, "diffuseColor", "baseColor");
+  if (auto sampler = materials::resolveTexturedInput(
+          scene, surfaceShader, "diffuseColor", basePath, texCache)) {
+    mat->setParameterObject("baseColor", *sampler);
+  } else {
+    setShaderInputIfPresent(mat, surfaceShader, "diffuseColor", "baseColor");
+  }
   setShaderInputIfPresent(mat, surfaceShader, "emissiveColor", "emissive");
   setShaderInputIfPresent(mat, surfaceShader, "metallic", "metallic", 0.0f);
   setShaderInputIfPresent(mat, surfaceShader, "roughness", "roughness", 0.0f);
@@ -188,7 +195,7 @@ static MaterialRef getBoundMaterial(Scene &scene,
 
   // Fall back to UsdPreviewSurface
   if (!mat)
-    mat = importUsdPreviewSurfaceMaterial(scene, usdMat, basePath);
+    mat = importUsdPreviewSurfaceMaterial(scene, usdMat, basePath, texCache);
 
   if (!mat)
     mat = scene.defaultMaterial();
