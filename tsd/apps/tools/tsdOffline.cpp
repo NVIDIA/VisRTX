@@ -35,6 +35,7 @@ static tsd::core::Token g_deviceName;
 static anari::Library g_library{nullptr};
 static anari::Device g_device{nullptr};
 static anari::Camera g_camera{nullptr};
+static bool g_numFramesExplicit = false;
 
 struct Config
 {
@@ -114,9 +115,9 @@ static void printUsage(const char *programName)
   std::cout
       << "                             (default: frame_)\n";
   std::cout
-      << "  --num-frames <int>         Number of frames to render when scene has\n";
+      << "  --num-frames <int>         Number of frames to render (default: 1,\n";
   std::cout
-      << "                             no animation data (default: 1)\n";
+      << "                             or total animation frames if scene has animations)\n";
 #ifdef TSD_USE_MPI
   std::cout << "\n";
   std::cout
@@ -311,6 +312,7 @@ static int parseRenderingOptions(
         return -1;
       }
       g_ctx->offline.frame.numFrames = std::stoi(argv[++i]);
+      g_numFramesExplicit = true;
     } else if (arg == "--dir-light") {
       if (i + 7 >= argc) {
         std::cerr
@@ -542,9 +544,13 @@ static void renderFrames()
   int numFrames = 1;
   if (animMode) {
     auto &animMgr = g_ctx->tsd.animationMgr;
-    numFrames = !animMgr.animations().empty()
-        ? animMgr.getAnimationTotalFrames()
-        : g_ctx->offline.frame.numFrames;
+    if (!animMgr.animations().empty()) {
+      numFrames = animMgr.getAnimationTotalFrames();
+      if (g_numFramesExplicit)
+        numFrames = std::min(numFrames, g_ctx->offline.frame.numFrames);
+    } else {
+      numFrames = g_ctx->offline.frame.numFrames;
+    }
   }
 
   const auto frameSamples = g_ctx->offline.frame.samples;
