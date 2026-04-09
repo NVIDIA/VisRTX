@@ -173,14 +173,16 @@ static MaterialRef getBoundMaterial(Scene &scene,
 
   // Try OmniPBR via MDL surface output
   auto mdlOutput = usdMat.GetSurfaceOutput(pxr::TfToken("mdl"));
-  for (auto &src : mdlOutput.GetConnectedSources()) {
-    pxr::UsdShadeShader shader(src.source);
-    pxr::TfToken subId;
-    shader.GetSourceAssetSubIdentifier(&subId, pxr::TfToken("mdl"));
-    if (subId == pxr::TfToken("OmniPBR")) {
-      mat = materials::importOmniPBRMaterial(
-          scene, usdMat, shader, basePath, texCache);
-      break;
+  if (mdlOutput) {
+    for (auto &src : mdlOutput.GetConnectedSources()) {
+      pxr::UsdShadeShader shader(src.source);
+      pxr::TfToken subId;
+      shader.GetSourceAssetSubIdentifier(&subId, pxr::TfToken("mdl"));
+      if (subId == pxr::TfToken("OmniPBR")) {
+        mat = materials::importOmniPBRMaterial(
+            scene, usdMat, shader, basePath, texCache);
+        break;
+      }
     }
   }
 
