@@ -1,6 +1,7 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "tsd/core/Logging.hpp"
 #include "tsd/scripting/LuaContext.hpp"
 
 #define SOL_ALL_SAFETIES_ON 1
@@ -23,6 +24,7 @@ static void printUsage(const char *progName)
   printf("Options:\n");
   printf("  -e <code>   Execute the given Lua code string\n");
   printf("  -i          Start interactive REPL mode\n");
+  printf("  -v          Enable verbose logging (INFO and DEBUG messages)\n");
   printf("  -h, --help  Show this help message\n");
   printf("\n");
   printf("Example scripts:\n");
@@ -110,6 +112,20 @@ int main(int argc, const char *argv[])
     return 0;
   }
 
+  // Scan for -v flag and remove it from the argument list
+  bool verbose = false;
+  int firstArg = 1;
+  if (strcmp(argv[1], "-v") == 0) {
+    verbose = true;
+    firstArg = 2;
+    if (firstArg >= argc) {
+      printUsage(argv[0]);
+      return 1;
+    }
+  }
+
+  tsd::core::setLogToStdout(verbose);
+
   // Create Lua context
   tsd::scripting::LuaContext ctx;
 
@@ -120,8 +136,8 @@ int main(int argc, const char *argv[])
   ctx.addScriptSearchPaths(tsd::scripting::LuaContext::defaultSearchPaths());
 
   // Handle -e option (execute string)
-  if (strcmp(argv[1], "-e") == 0) {
-    if (argc < 3) {
+  if (strcmp(argv[firstArg], "-e") == 0) {
+    if (firstArg + 1 >= argc) {
       fprintf(stderr, "Error: -e requires a Lua code argument\n");
       return 1;
     }
@@ -129,7 +145,7 @@ int main(int argc, const char *argv[])
     // Create a scene for the script
     ctx.createOwnedScene("scene");
 
-    auto result = ctx.executeString(argv[2]);
+    auto result = ctx.executeString(argv[firstArg + 1]);
     if (!result.success) {
       fprintf(stderr, "Error: %s\n", result.error.c_str());
       return 1;
@@ -138,20 +154,20 @@ int main(int argc, const char *argv[])
   }
 
   // Handle -i option (interactive mode)
-  if (strcmp(argv[1], "-i") == 0) {
+  if (strcmp(argv[firstArg], "-i") == 0) {
     runInteractiveMode(ctx);
     return 0;
   }
 
   // Otherwise, treat first argument as a script file
-  const char *scriptPath = argv[1];
+  const char *scriptPath = argv[firstArg];
 
   // Pass remaining args to Lua as 'arg' table
   sol::state &lua = ctx.lua();
   sol::table argTable = lua.create_table();
   argTable[0] = scriptPath;
-  for (int i = 2; i < argc; i++) {
-    argTable[i - 1] = argv[i];
+  for (int i = firstArg + 1; i < argc; i++) {
+    argTable[i - firstArg] = argv[i];
   }
   lua["arg"] = argTable;
 
