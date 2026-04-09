@@ -46,3 +46,7 @@ project_link_libraries(
   tsd_ext_tinyexr_impl
   stb_image
 )
+if(TSD_USE_MPI)
+  project_link_libraries(tsd_mpi)
+  project_compile_definitions(PRIVATE TSD_USE_MPI)
+endif()

@@ -12,10 +12,16 @@
 #include <tsd/rendering/view/ManipulatorToAnari.hpp>
 #include "stb_image_write.h"
 
+#ifdef TSD_USE_MPI
+#include <mpi.h>
+#endif
+
 #include <chrono>
 #include <cstdio>
+#include <iomanip>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <vector>
 
 static std::unique_ptr<tsd::rendering::RenderIndexAllLayers> g_renderIndex;
@@ -40,6 +46,9 @@ struct Config
 
   std::string rendererName = "default";
   std::string outputFile = "tsdOffline.png";
+
+  std::string animOutputDir;
+  std::string animPrefix = "frame_";
 
   tsd::math::float4 background = {0.05f, 0.05f, 0.05f, 1.f};
   float ambientRadiance = 0.25f;
@@ -92,6 +101,29 @@ static void printUsage(const char *programName)
   std::cout
       << "                             Add directional light (direction + color + intensity)\n";
   std::cout << "  --help                     Show this help message\n";
+  std::cout << "\n";
+  std::cout << "Animation Options:\n";
+  std::cout
+      << "  --anim-out-dir <dir>       Output directory for animation frames\n";
+  std::cout
+      << "                             (enables animation mode; frames saved as\n";
+  std::cout
+      << "                              <dir>/<prefix><NNNN>.png)\n";
+  std::cout
+      << "  --anim-prefix <prefix>     Filename prefix for animation frames\n";
+  std::cout
+      << "                             (default: frame_)\n";
+  std::cout
+      << "  --num-frames <int>         Number of frames to render when scene has\n";
+  std::cout
+      << "                             no animation data (default: 1)\n";
+#ifdef TSD_USE_MPI
+  std::cout << "\n";
+  std::cout
+      << "MPI: when run with mpirun/srun, each rank renders an interleaved subset\n";
+  std::cout
+      << "     of animation frames (rank k renders frames k, k+N, k+2N, ...).\n";
+#endif
   std::cout << "\n";
   std::cout << "Importer Options:\n";
   std::cout << "  -tsd <file>                Load TSD scene file\n";
@@ -261,6 +293,24 @@ static int parseRenderingOptions(
       g_config.ambientColor.x = std::stof(argv[++i]);
       g_config.ambientColor.y = std::stof(argv[++i]);
       g_config.ambientColor.z = std::stof(argv[++i]);
+    } else if (arg == "--anim-out-dir") {
+      if (i + 1 >= argc) {
+        std::cerr << "Error: --anim-out-dir requires an argument\n";
+        return -1;
+      }
+      g_config.animOutputDir = argv[++i];
+    } else if (arg == "--anim-prefix") {
+      if (i + 1 >= argc) {
+        std::cerr << "Error: --anim-prefix requires an argument\n";
+        return -1;
+      }
+      g_config.animPrefix = argv[++i];
+    } else if (arg == "--num-frames") {
+      if (i + 1 >= argc) {
+        std::cerr << "Error: --num-frames requires an argument\n";
+        return -1;
+      }
+      g_ctx->offline.frame.numFrames = std::stoi(argv[++i]);
     } else if (arg == "--dir-light") {
       if (i + 7 >= argc) {
         std::cerr
@@ -477,46 +527,94 @@ static void setupImagePipeline()
   printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
 
-static void renderFrame()
+static void renderFrames()
 {
+#ifdef TSD_USE_MPI
+  int mpiRank = 0, mpiSize = 1;
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
+  MPI_Comm_size(MPI_COMM_WORLD, &mpiSize);
+#else
+  const int mpiRank = 0, mpiSize = 1;
+#endif
+
+  const bool animMode = !g_config.animOutputDir.empty();
+
+  int numFrames = 1;
+  if (animMode) {
+    auto &animMgr = g_ctx->tsd.animationMgr;
+    numFrames = !animMgr.animations().empty()
+        ? animMgr.getAnimationTotalFrames()
+        : g_ctx->offline.frame.numFrames;
+  }
+
+  const auto frameSamples = g_ctx->offline.frame.samples;
   const auto frameWidth = g_ctx->offline.frame.width;
   const auto frameHeight = g_ctx->offline.frame.height;
-  const auto frameSamples = g_ctx->offline.frame.samples;
 
-  printf("Rendering frame (%u spp)...\n", frameSamples);
-  fflush(stdout);
+  if (mpiRank == 0) {
+    if (animMode)
+      printf("Rendering %d frame(s) (%u spp)...\n", numFrames, frameSamples);
+    else
+      printf("Rendering frame (%u spp)...\n", frameSamples);
+    fflush(stdout);
+  }
 
   stbi_flip_vertically_on_write(1);
 
-  g_timer.start();
-
   const auto &pose = g_cameraPoses[0];
-
   g_manipulator.setConfig(pose);
   tsd::rendering::updateCameraParametersPerspective(
       g_device, g_camera, g_manipulator);
   anari::commitParameters(g_device, g_camera);
 
-  for (int i = 0; i < frameSamples; i++) {
-    g_renderPipeline->render();
-    if ((i + 1) % 10 == 0 || i == frameSamples - 1) {
-      printf("...rendered %d/%u samples\r", i + 1, frameSamples);
-      fflush(stdout);
+  for (int frameIndex = 0; frameIndex < numFrames; ++frameIndex) {
+    if (mpiSize > 1 && frameIndex % mpiSize != mpiRank)
+      continue;
+
+    if (animMode)
+      g_ctx->tsd.animationMgr.setAnimationFrame(frameIndex);
+
+    g_timer.start();
+    for (int s = 0; s < (int)frameSamples; ++s) {
+      g_renderPipeline->render();
+      if ((s + 1) % 10 == 0 || s == (int)frameSamples - 1) {
+        if (animMode)
+          printf("[rank %d] frame %d/%d: %d/%u spp\r",
+              mpiRank,
+              frameIndex + 1,
+              numFrames,
+              s + 1,
+              frameSamples);
+        else
+          printf("...rendered %d/%u samples\r", s + 1, frameSamples);
+        fflush(stdout);
+      }
     }
+    printf("\n");
+    g_timer.end();
+
+    std::string outPath;
+    if (animMode) {
+      std::ostringstream ss;
+      ss << g_config.animOutputDir << "/" << g_config.animPrefix
+         << std::setfill('0') << std::setw(4) << frameIndex << ".png";
+      outPath = ss.str();
+    } else {
+      outPath = g_config.outputFile;
+    }
+
+    stbi_write_png(outPath.c_str(),
+        frameWidth,
+        frameHeight,
+        4,
+        g_renderPipeline->getColorBuffer(),
+        4 * frameWidth);
+
+    printf("[rank %d] written: %s (%.2f ms)\n",
+        mpiRank,
+        outPath.c_str(),
+        g_timer.milliseconds());
   }
-  printf("\n");
-
-  stbi_write_png(g_config.outputFile.c_str(),
-      frameWidth,
-      frameHeight,
-      4,
-      g_renderPipeline->getColorBuffer(),
-      4 * frameWidth);
-
-  g_timer.end();
-
-  printf("...done (%.2f ms)\n", g_timer.milliseconds());
-  printf("Output written to: %s\n", g_config.outputFile.c_str());
 }
 
 static void cleanup()
@@ -537,6 +635,14 @@ static void cleanup()
 
 int main(int argc, const char *argv[])
 {
+#ifdef TSD_USE_MPI
+  MPI_Init(&argc, (char ***)&argv);
+  int mpiRank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
+#else
+  const int mpiRank = 0;
+#endif
+
   // Enable TSD logging to stdout so we can see import errors
   tsd::core::setLogToStdout();
 
@@ -571,16 +677,23 @@ int main(int argc, const char *argv[])
   // Let Context parse importer options (-gltf, -obj, -volume, etc.)
   g_ctx->parseCommandLine(importerArgc, importerArgv.data());
 
-  printf("tsdOffline - Headless TSD Renderer\n");
-  printf("===================================\n");
-  printf("Resolution: %ux%u\n",
-      g_ctx->offline.frame.width,
-      g_ctx->offline.frame.height);
-  printf("Samples: %u\n", g_ctx->offline.frame.samples);
-  printf("Library: %s\n", g_ctx->offline.renderer.libraryName.c_str());
-  printf("Renderer: %s\n", g_config.rendererName.c_str());
-  printf("Output: %s\n", g_config.outputFile.c_str());
-  printf("\n");
+  if (mpiRank == 0) {
+    printf("tsdOffline - Headless TSD Renderer\n");
+    printf("===================================\n");
+    printf("Resolution: %ux%u\n",
+        g_ctx->offline.frame.width,
+        g_ctx->offline.frame.height);
+    printf("Samples: %u\n", g_ctx->offline.frame.samples);
+    printf("Library: %s\n", g_ctx->offline.renderer.libraryName.c_str());
+    printf("Renderer: %s\n", g_config.rendererName.c_str());
+    if (g_config.animOutputDir.empty())
+      printf("Output: %s\n", g_config.outputFile.c_str());
+    else
+      printf("Animation output: %s/%s<NNNN>.png\n",
+          g_config.animOutputDir.c_str(),
+          g_config.animPrefix.c_str());
+    printf("\n");
+  }
 
   // Context already initializes its scene, no separate initialization needed
   loadANARIDevice();
@@ -590,10 +703,14 @@ int main(int argc, const char *argv[])
   populateRenderIndex();
   setupCameraManipulator();
   setupImagePipeline();
-  renderFrame();
+  renderFrames();
   cleanup();
 
   g_ctx.reset();
+
+#ifdef TSD_USE_MPI
+  MPI_Finalize();
+#endif
 
   return 0;
 }
