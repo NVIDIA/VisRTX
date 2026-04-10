@@ -22,12 +22,13 @@
 #include "tsd/scene/objects/Array.hpp"
 #if TSD_USE_USD
 // usd
-#include <pxr/base/vt/dictionary.h>
 #include <pxr/base/gf/matrix4f.h>
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3f.h>
 #include <pxr/base/tf/token.h>
+#include <pxr/base/vt/dictionary.h>
 #include <pxr/usd/sdf/assetPath.h>
+#include <pxr/usd/usd/collectionAPI.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdGeom/basisCurves.h>
@@ -1915,10 +1916,8 @@ static void importEnsightDataset(Scene &scene,
   // Read field mapping from the Scope's attributes
   std::vector<std::string> fields;
   for (int i = 0; i < 4; ++i) {
-    std::string attrName =
-        "ensight:fieldMapping:attribute" + std::to_string(i);
-    pxr::UsdAttribute attr =
-        scopePrim.GetAttribute(pxr::TfToken(attrName));
+    std::string attrName = "ensight:fieldMapping:attribute" + std::to_string(i);
+    pxr::UsdAttribute attr = scopePrim.GetAttribute(pxr::TfToken(attrName));
     if (!attr)
       continue;
     std::string varName;
@@ -1947,12 +1946,39 @@ static void importEnsightDataset(Scene &scene,
     }
   }
 
-  logStatus("[import_USD] Importing EnSight dataset '%s' from '%s'",
-      primName.c_str(),
-      caseFile.c_str());
+  // Resolve scope-level material binding as fallback for all parts
+  MaterialRef fallbackMaterial =
+      getBoundMaterial(scene, scopePrim, basePath, matCache, texCache);
+  if (fallbackMaterial == scene.defaultMaterial())
+    fallbackMaterial = {};
 
-  import_ENSIGHT(
-      scene, animMgr, caseFile.c_str(), parent, fields, datasetSettings.root(), 0);
+  // Build per-part material map from USD child prim bindings.
+  // Child prim names match sanitized EnSight part names (via CaseFileFormat).
+  core::FlatMap<std::string, MaterialRef> perPartMaterials;
+  for (const auto &child : scopePrim.GetChildren()) {
+    MaterialRef childMat =
+        getBoundMaterial(scene, child, basePath, matCache, texCache);
+    if (childMat && childMat != scene.defaultMaterial()
+        && childMat != fallbackMaterial)
+      perPartMaterials[child.GetName().GetString()] = childMat;
+  }
+
+  logStatus(
+      "[import_USD] Importing EnSight dataset '%s' from '%s'"
+      " (%zu per-part material override(s))",
+      primName.c_str(),
+      caseFile.c_str(),
+      perPartMaterials.size());
+
+  import_ENSIGHT(scene,
+      animMgr,
+      caseFile.c_str(),
+      parent,
+      fields,
+      datasetSettings.root(),
+      fallbackMaterial,
+      perPartMaterials,
+      0);
 }
 
 // -----------------------------------------------------------------------------

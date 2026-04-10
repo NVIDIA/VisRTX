@@ -20,6 +20,8 @@ namespace tsd::io {
 using namespace tsd::core;
 using namespace tsd::io::ensight;
 
+using PerPartMaterialMap = core::FlatMap<std::string, MaterialRef>;
+
 // Filter out triangles that lie on the wrong side of the plane.
 // Plane: nx*x + ny*y + nz*z + d = 0.
 // Keeps triangles whose centroid satisfies nx*cx + ny*cy + nz*cz + d >= 0.
@@ -65,7 +67,9 @@ static void import_ENSIGHT_impl(Scene &scene,
     LayerNodeRef location,
     const std::vector<std::string> *fields,
     const core::DataNode *settings,
-    int timestep)
+    int timestep,
+    MaterialRef overrideMaterial = {},
+    const PerPartMaterialMap *perPartMaterials = nullptr)
 {
   if (!location)
     location = scene.defaultLayer()->root();
@@ -273,16 +277,27 @@ static void import_ENSIGHT_impl(Scene &scene,
       ++attrSlot;
     }
 
-    // Color-mapped material when a scalar field is present, otherwise default
+    // Per-part override > scope-level override > scalar colormap > default
     MaterialRef mat;
-    if (firstScalarArr) {
+    if (perPartMaterials) {
+      auto key = sanitizePrimName(part.description, part.id);
+      if (auto *p = perPartMaterials->at(key); p && *p) {
+        mat = *p;
+        logStatus("[import_ENSIGHT] part '%s': per-part material override '%s'",
+            partName.c_str(),
+            mat->name().c_str());
+      }
+    }
+    if (!mat && overrideMaterial)
+      mat = overrideMaterial;
+    if (!mat && firstScalarArr) {
       mat = scene.createObject<Material>(tokens::material::physicallyBased);
       auto range = computeScalarRange(*firstScalarArr);
       mat->setParameterObject(
           "baseColor", *makeDefaultColorMapSampler(scene, range));
-    } else {
-      mat = scene.defaultMaterial();
     }
+    if (!mat)
+      mat = scene.defaultMaterial();
 
     auto surface = scene.createSurface(partName.c_str(), geom, mat);
     auto nodeRef = scene.insertChildObjectNode(root, surface, partName.c_str());
@@ -378,6 +393,46 @@ void import_ENSIGHT(Scene &scene,
 {
   import_ENSIGHT_impl(
       scene, animMgr, filepath, location, &fields, &settings, timestep);
+}
+
+void import_ENSIGHT(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location,
+    const std::vector<std::string> &fields,
+    const core::DataNode &settings,
+    MaterialRef overrideMaterial,
+    int timestep)
+{
+  import_ENSIGHT_impl(scene,
+      animMgr,
+      filepath,
+      location,
+      &fields,
+      &settings,
+      timestep,
+      overrideMaterial);
+}
+
+void import_ENSIGHT(Scene &scene,
+    tsd::animation::AnimationManager &animMgr,
+    const char *filepath,
+    LayerNodeRef location,
+    const std::vector<std::string> &fields,
+    const core::DataNode &settings,
+    MaterialRef overrideMaterial,
+    const core::FlatMap<std::string, MaterialRef> &perPartMaterials,
+    int timestep)
+{
+  import_ENSIGHT_impl(scene,
+      animMgr,
+      filepath,
+      location,
+      &fields,
+      &settings,
+      timestep,
+      overrideMaterial,
+      &perPartMaterials);
 }
 
 } // namespace tsd::io

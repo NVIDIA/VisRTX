@@ -12,8 +12,6 @@
 #include <pxr/usd/sdf/primSpec.h>
 #include <pxr/usd/sdf/types.h>
 
-#include <algorithm>
-#include <cctype>
 #include <fstream>
 #include "tsd/io/importers/detail/importer_common.hpp"
 
@@ -59,23 +57,6 @@ bool CaseFileFormat::CanRead(const std::string &file) const
   return false;
 }
 
-static std::string sanitizePrimName(const std::string &desc, int id)
-{
-  if (desc.empty())
-    return "part_" + std::to_string(id);
-
-  std::string name = desc;
-  for (char &c : name) {
-    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
-      c = '_';
-  }
-
-  // USD prim names cannot start with a digit
-  if (std::isdigit(static_cast<unsigned char>(name[0])))
-    name = "_" + name;
-
-  return name;
-}
 
 bool CaseFileFormat::Read(SdfLayer *layer,
     const std::string &resolvedPath,
@@ -143,7 +124,8 @@ bool CaseFileFormat::Read(SdfLayer *layer,
 
   // One Mesh prim per EnSight part
   for (const auto &ph : partHeaders) {
-    std::string primName = sanitizePrimName(ph.description, ph.id);
+    std::string primName =
+        tsd::io::ensight::sanitizePrimName(ph.description, ph.id);
     SdfPath partPath = defaultPath.AppendChild(TfToken(primName));
     SdfPrimSpecHandle partPrim = SdfCreatePrimInLayer(layerHandle, partPath);
     partPrim->SetSpecifier(SdfSpecifierDef);
