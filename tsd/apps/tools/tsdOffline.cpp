@@ -10,6 +10,7 @@
 #include <tsd/io/serialization.hpp>
 #include <tsd/rendering/index/RenderIndexAllLayers.hpp>
 #include <tsd/rendering/view/ManipulatorToAnari.hpp>
+#include <tsd/rendering/view/ManipulatorToTSD.hpp>
 #include "stb_image_write.h"
 
 #ifdef TSD_USE_MPI
@@ -17,11 +18,13 @@
 #endif
 
 #include <chrono>
+#include <cctype>
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <vector>
 
 static std::unique_ptr<tsd::rendering::RenderIndexAllLayers> g_renderIndex;
@@ -36,6 +39,7 @@ static anari::Library g_library{nullptr};
 static anari::Device g_device{nullptr};
 static anari::Camera g_camera{nullptr};
 static bool g_numFramesExplicit = false;
+static bool g_usingSceneCamera = false;
 
 struct Config
 {
@@ -44,6 +48,10 @@ struct Config
   tsd::math::float3 cameraUp = {0.f, 1.f, 0.f};
   float fovy = 40.f;
   bool autoCamera = true;
+  bool hasManualCameraOptions = false;
+  bool hasCameraSelection = false;
+  bool createdDefaultCamera = false;
+  std::string cameraSelection;
 
   std::string rendererName = "default";
   std::string outputFile = "tsdOffline.png";
@@ -81,6 +89,8 @@ static void printUsage(const char *programName)
       << "  --lib <name>               ANARI library name (default: TSD_ANARI_LIBRARIES[0], environment, or visrtx)\n";
   std::cout
       << "  --renderer <name>          Renderer name (default: default)\n";
+  std::cout
+      << "  --camera <name-or-index>   Use a scene camera by exact name or object index\n";
   std::cout << "  --campos <x y z>           Camera position (3 floats)\n";
   std::cout << "  --lookpos <x y z>          Camera look-at point (3 floats)\n";
   std::cout << "  --upvec <x y z>            Camera up vector (3 floats)\n";
@@ -167,7 +177,11 @@ static void printUsage(const char *programName)
   std::cout
       << "If no importer flags are specified, a default empty scene will be created.\n";
   std::cout
-      << "If camera is not specified, it will be computed from scene bounds.\n";
+      << "If no camera is specified, available scene cameras will be listed and\n";
+  std::cout
+      << "you will be prompted to choose one. If the scene has no cameras, a\n";
+  std::cout
+      << "default camera will be created and framed from the scene bounds.\n";
 }
 
 static tsd::math::float3 parseFloat3(const char **argv, int &i)
@@ -177,6 +191,283 @@ static tsd::math::float3 parseFloat3(const char **argv, int &i)
   result.y = std::stof(argv[++i]);
   result.z = std::stof(argv[++i]);
   return result;
+}
+
+struct CameraChoice
+{
+  size_t index{TSD_INVALID_INDEX};
+  std::string name;
+  std::string subtype;
+};
+
+static void noteManualCameraOption()
+{
+  g_config.hasManualCameraOptions = true;
+}
+
+static bool parseCameraSelectionArg(int argc, const char *argv[], int &i)
+{
+  if (i + 1 >= argc) {
+    std::cerr << "Error: --camera requires an argument\n";
+    return false;
+  }
+
+  g_config.cameraSelection = argv[++i];
+  g_config.hasCameraSelection = true;
+  return true;
+}
+
+static bool validateCameraOptionCompatibility()
+{
+  if (g_config.hasCameraSelection && g_config.hasManualCameraOptions) {
+    std::cerr
+        << "Error: --camera cannot be used with --campos, --lookpos, --upvec, or --fovy\n";
+    return false;
+  }
+
+  return true;
+}
+
+static bool tryParseUnsignedIndex(const std::string &text, size_t &value)
+{
+  if (text.empty())
+    return false;
+
+  for (char c : text) {
+    if (!std::isdigit(static_cast<unsigned char>(c)))
+      return false;
+  }
+
+  try {
+    value = static_cast<size_t>(std::stoull(text));
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+static std::vector<CameraChoice> collectSceneCameras()
+{
+  std::vector<CameraChoice> cameras;
+  const auto &cameraDB = g_ctx->tsd.scene.objectDB().camera;
+
+  tsd::core::foreach_item_const(cameraDB, [&](const auto *cam) {
+    if (!cam)
+      return;
+
+    CameraChoice choice;
+    choice.index = cam->index();
+    choice.name = cam->name();
+    choice.subtype = cam->subtype().c_str();
+    cameras.push_back(std::move(choice));
+  });
+
+  return cameras;
+}
+
+static void printCameraList(const std::vector<CameraChoice> &cameras)
+{
+  std::cout << "Available cameras:\n";
+  for (size_t i = 0; i < cameras.size(); ++i) {
+    const auto &camera = cameras[i];
+    const char *name =
+        camera.name.empty() ? "<unnamed>" : camera.name.c_str();
+    std::cout << "  " << (i + 1) << ". index=" << camera.index
+              << " name=\"" << name << "\" subtype=" << camera.subtype
+              << '\n';
+  }
+}
+
+static void ensureSceneHasCamera()
+{
+  if (g_ctx->tsd.scene.numberOfObjects(ANARI_CAMERA) != 0)
+    return;
+
+  auto camera = g_ctx->tsd.scene.defaultCamera();
+  if (camera) {
+    g_ctx->offline.camera.cameraIndex = camera->index();
+    g_config.createdDefaultCamera = true;
+  }
+}
+
+static bool resolveCameraSelectionFromCli(const std::vector<CameraChoice> &cameras,
+    const std::string &selection,
+    size_t &cameraIndex)
+{
+  size_t parsedIndex = TSD_INVALID_INDEX;
+  if (tryParseUnsignedIndex(selection, parsedIndex)) {
+    for (const auto &camera : cameras) {
+      if (camera.index == parsedIndex) {
+        cameraIndex = camera.index;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  size_t matches = 0;
+  for (const auto &camera : cameras) {
+    if (camera.name == selection) {
+      cameraIndex = camera.index;
+      ++matches;
+    }
+  }
+
+  return matches == 1;
+}
+
+static bool resolvePromptSelection(const std::vector<CameraChoice> &cameras,
+    const std::string &selection,
+    size_t &cameraIndex)
+{
+  size_t parsedValue = TSD_INVALID_INDEX;
+  if (tryParseUnsignedIndex(selection, parsedValue)) {
+    if (parsedValue > 0 && parsedValue <= cameras.size()) {
+      cameraIndex = cameras[parsedValue - 1].index;
+      return true;
+    }
+
+    for (const auto &camera : cameras) {
+      if (camera.index == parsedValue) {
+        cameraIndex = camera.index;
+        return true;
+      }
+    }
+  }
+
+  return resolveCameraSelectionFromCli(cameras, selection, cameraIndex);
+}
+
+static size_t promptForCameraSelection(const std::vector<CameraChoice> &cameras)
+{
+  while (true) {
+    std::cout << "Choose camera [1-" << cameras.size()
+              << "] (or enter object index / exact name): ";
+    std::cout.flush();
+
+    std::string input;
+    if (!std::getline(std::cin, input)) {
+      std::cerr << "\nError: failed to read camera selection from stdin\n";
+      return TSD_INVALID_INDEX;
+    }
+
+    size_t cameraIndex = TSD_INVALID_INDEX;
+    if (resolvePromptSelection(cameras, input, cameraIndex))
+      return cameraIndex;
+
+    std::cout << "Invalid selection. Please choose a listed camera.\n";
+  }
+}
+
+static void selectOfflineCamera()
+{
+  ensureSceneHasCamera();
+
+  const auto cameras = collectSceneCameras();
+  if (cameras.empty())
+    return;
+
+  if (g_config.createdDefaultCamera) {
+    g_ctx->offline.camera.cameraIndex = cameras.front().index;
+    return;
+  }
+
+  size_t selectedIndex = TSD_INVALID_INDEX;
+  if (g_config.hasCameraSelection
+      && resolveCameraSelectionFromCli(
+          cameras, g_config.cameraSelection, selectedIndex)) {
+    g_ctx->offline.camera.cameraIndex = selectedIndex;
+    return;
+  }
+
+  if (g_config.hasCameraSelection) {
+    std::cout << "Requested camera '" << g_config.cameraSelection
+              << "' is invalid or ambiguous.\n";
+  }
+
+  printCameraList(cameras);
+  selectedIndex = promptForCameraSelection(cameras);
+  if (selectedIndex == TSD_INVALID_INDEX)
+    std::exit(1);
+
+  g_ctx->offline.camera.cameraIndex = selectedIndex;
+}
+
+static void configureDefaultSceneCameraPose()
+{
+  auto cameraIndex = g_ctx->offline.camera.cameraIndex;
+  auto camera = g_ctx->tsd.scene.getObject<tsd::scene::Camera>(cameraIndex);
+  if (!camera)
+    return;
+
+  auto pose = g_renderIndex->computeDefaultView();
+  g_manipulator.setConfig(pose);
+  tsd::rendering::updateCameraObject(*camera, g_manipulator);
+}
+
+static void setupManualCameraPose()
+{
+  printf("Setting up camera...");
+  fflush(stdout);
+
+  g_timer.start();
+
+  tsd::rendering::CameraPose pose;
+
+  if (g_config.autoCamera) {
+    printf("from world bounds...");
+    fflush(stdout);
+    pose = g_renderIndex->computeDefaultView();
+  } else {
+    printf("from command line...");
+    fflush(stdout);
+
+    pose.lookat = g_config.cameraLookAt;
+    pose.fixedDist =
+        tsd::math::length(g_config.cameraPos - g_config.cameraLookAt);
+
+    auto dir = tsd::math::normalize(g_config.cameraPos - g_config.cameraLookAt);
+    float azimuth = std::atan2(dir.x, dir.z) * 180.f / M_PI;
+    float elevation = std::asin(dir.y) * 180.f / M_PI;
+    pose.azeldist = {azimuth, elevation, pose.fixedDist};
+    pose.upAxis = static_cast<int>(tsd::rendering::UpAxis::POS_Y);
+  }
+
+  g_cameraPoses.clear();
+  g_cameraPoses.push_back(std::move(pose));
+
+  g_timer.end();
+
+  printf("done (%.2f ms)\n", g_timer.milliseconds());
+}
+
+static void setupSelectedSceneCamera()
+{
+  printf("Setting up camera...");
+  fflush(stdout);
+
+  g_timer.start();
+  selectOfflineCamera();
+
+  if (g_config.createdDefaultCamera) {
+    printf("using generated default camera...");
+    fflush(stdout);
+    configureDefaultSceneCameraPose();
+  } else {
+    auto camera =
+        g_ctx->tsd.scene.getObject<tsd::scene::Camera>(
+            g_ctx->offline.camera.cameraIndex);
+    const char *name =
+        (camera && !camera->name().empty()) ? camera->name().c_str() : "<unnamed>";
+    printf("using scene camera '%s' (index=%zu)...",
+        name,
+        g_ctx->offline.camera.cameraIndex);
+    fflush(stdout);
+  }
+
+  g_timer.end();
+
+  printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
 
 // Parse rendering-specific options and build a new argv with importer options
@@ -229,11 +520,15 @@ static int parseRenderingOptions(
         return -1;
       }
       g_config.rendererName = argv[++i];
+    } else if (arg == "--camera") {
+      if (!parseCameraSelectionArg(argc, argv, i))
+        return -1;
     } else if (arg == "--campos") {
       if (i + 3 >= argc) {
         std::cerr << "Error: --campos requires 3 arguments (x y z)\n";
         return -1;
       }
+      noteManualCameraOption();
       g_config.cameraPos = parseFloat3(argv, i);
       g_config.autoCamera = false;
     } else if (arg == "--lookpos") {
@@ -241,6 +536,7 @@ static int parseRenderingOptions(
         std::cerr << "Error: --lookpos requires 3 arguments (x y z)\n";
         return -1;
       }
+      noteManualCameraOption();
       g_config.cameraLookAt = parseFloat3(argv, i);
       g_config.autoCamera = false;
     } else if (arg == "--upvec") {
@@ -248,12 +544,14 @@ static int parseRenderingOptions(
         std::cerr << "Error: --upvec requires 3 arguments (x y z)\n";
         return -1;
       }
+      noteManualCameraOption();
       g_config.cameraUp = parseFloat3(argv, i);
     } else if (arg == "--fovy") {
       if (i + 1 >= argc) {
         std::cerr << "Error: --fovy requires an argument\n";
         return -1;
       }
+      noteManualCameraOption();
       g_config.fovy = std::stof(argv[++i]);
     } else if (arg == "--aperture") {
       if (i + 1 >= argc) {
@@ -439,44 +737,6 @@ static void setupLights()
   printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
 
-static void setupCameraManipulator()
-{
-  printf("Setting up camera...");
-  fflush(stdout);
-
-  g_timer.start();
-
-  if (g_cameraPoses.empty()) {
-    tsd::rendering::CameraPose pose;
-
-    if (g_config.autoCamera) {
-      printf("from world bounds...");
-      fflush(stdout);
-      pose = g_renderIndex->computeDefaultView();
-    } else {
-      printf("from command line...");
-      fflush(stdout);
-
-      pose.lookat = g_config.cameraLookAt;
-      pose.fixedDist =
-          tsd::math::length(g_config.cameraPos - g_config.cameraLookAt);
-
-      auto dir =
-          tsd::math::normalize(g_config.cameraPos - g_config.cameraLookAt);
-      float azimuth = std::atan2(dir.x, dir.z) * 180.f / M_PI;
-      float elevation = std::asin(dir.y) * 180.f / M_PI;
-      pose.azeldist = {azimuth, elevation, pose.fixedDist};
-      pose.upAxis = static_cast<int>(tsd::rendering::UpAxis::POS_Y);
-    }
-
-    g_cameraPoses.push_back(std::move(pose));
-  }
-
-  g_timer.end();
-
-  printf("done (%.2f ms)\n", g_timer.milliseconds());
-}
-
 static void setupImagePipeline()
 {
   const auto frameWidth = g_ctx->offline.frame.width;
@@ -489,11 +749,17 @@ static void setupImagePipeline()
   g_renderPipeline =
       std::make_unique<tsd::rendering::ImagePipeline>(frameWidth, frameHeight);
 
-  g_camera = anari::newObject<anari::Camera>(g_device, "perspective");
+  if (g_usingSceneCamera) {
+    auto cameraIndex = g_ctx->offline.camera.cameraIndex;
+    g_camera = g_renderIndex->camera(cameraIndex);
+  } else {
+    g_camera = anari::newObject<anari::Camera>(g_device, "perspective");
+    anari::setParameter(
+        g_device, g_camera, "fovy", anari::radians(g_config.fovy));
+  }
+
   anari::setParameter(
       g_device, g_camera, "aspect", frameWidth / float(frameHeight));
-  anari::setParameter(
-      g_device, g_camera, "fovy", anari::radians(g_config.fovy));
   anari::setParameter(g_device,
       g_camera,
       "apertureRadius",
@@ -567,11 +833,13 @@ static void renderFrames()
 
   stbi_flip_vertically_on_write(1);
 
-  const auto &pose = g_cameraPoses[0];
-  g_manipulator.setConfig(pose);
-  tsd::rendering::updateCameraParametersPerspective(
-      g_device, g_camera, g_manipulator);
-  anari::commitParameters(g_device, g_camera);
+  if (!g_usingSceneCamera) {
+    const auto &pose = g_cameraPoses[0];
+    g_manipulator.setConfig(pose);
+    tsd::rendering::updateCameraParametersPerspective(
+        g_device, g_camera, g_manipulator);
+    anari::commitParameters(g_device, g_camera);
+  }
 
   for (int frameIndex = 0; frameIndex < numFrames; ++frameIndex) {
     if (mpiSize > 1 && frameIndex % mpiSize != mpiRank)
@@ -631,7 +899,8 @@ static void cleanup()
   g_timer.start();
   g_renderPipeline.reset();
   g_renderIndex.reset();
-  anari::release(g_device, g_camera);
+  if (!g_usingSceneCamera)
+    anari::release(g_device, g_camera);
   anari::release(g_device, g_device);
   anari::unloadLibrary(g_library);
   g_timer.end();
@@ -680,6 +949,9 @@ int main(int argc, const char *argv[])
     return 1;
   }
 
+  if (!validateCameraOptionCompatibility())
+    return 1;
+
   // Let Context parse importer options (-gltf, -obj, -volume, etc.)
   g_ctx->parseCommandLine(importerArgc, importerArgv.data());
 
@@ -707,7 +979,11 @@ int main(int argc, const char *argv[])
   setupLights(); // Then add lights
   initTSDRenderIndex(); // THEN create render index with populated scene
   populateRenderIndex();
-  setupCameraManipulator();
+  g_usingSceneCamera = !g_config.hasManualCameraOptions;
+  if (g_usingSceneCamera)
+    setupSelectedSceneCamera();
+  else
+    setupManualCameraPose();
   setupImagePipeline();
   renderFrames();
   cleanup();

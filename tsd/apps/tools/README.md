@@ -73,11 +73,18 @@ Common options:
 - `-o, --output <file>` output image path (default `tsdOffline.png`)
 - `--lib <name>` ANARI library
 - `--renderer <name>` renderer subtype (default `default`)
+- `--camera <name-or-index>` select a scene camera by exact name or object index
 - `--campos <x y z>`, `--lookpos <x y z>`, `--upvec <x y z>`, `--fovy <float>`
 - `--aperture <float>`, `--focus <float>`
 - `--bg-color <r g b a>`, `--no-bg`
 - `--ambient <float>`, `--ambient-color <r g b>`
 - `--dir-light <dx dy dz> <r g b> <intensity>`
+
+If `--camera` is omitted, or if the requested camera is invalid, `tsdOffline`
+prints the available scene cameras and prompts on stdin for a selection. If the
+scene has no cameras, it creates a default perspective camera and frames it
+from the scene bounds. `--camera` is mutually exclusive with manual camera
+override flags (`--campos`, `--lookpos`, `--upvec`, `--fovy`).
 
 Importer flags include `-tsd`, `-gltf`, `-obj`, `-ply`, `-volume`, `-hdri`,
 `-silo`, `-usd`, `-assimp`, `-axyz`, `-e57xyz`, `-pdb`, `-swc`, `-trk`,
