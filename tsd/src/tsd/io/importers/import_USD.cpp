@@ -1531,8 +1531,7 @@ static void importUsdDomeLight(Scene &scene,
     if (!texFile.empty()) {
       // Use basePath to resolve relative paths if needed
       std::string resolvedPath = texFile;
-      if (!resolvedPath.empty() && resolvedPath[0] != '/') {
-        // Try to resolve relative to basePath
+      if (!resolvedPath.empty() && !isAbsolute(resolvedPath)) {
         resolvedPath = basePath + texFile;
       }
 

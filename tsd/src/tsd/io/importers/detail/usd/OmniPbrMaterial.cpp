@@ -38,7 +38,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
   if (getShaderTextureInput(usdShader, "diffuse_texture", diffuseTexPath)) {
     // Resolve relative path
     std::string resolvedPath = diffuseTexPath;
-    if (!resolvedPath.empty() && resolvedPath[0] != '/') {
+    if (!resolvedPath.empty() && !isAbsolute(resolvedPath)) {
       resolvedPath = basePath + diffuseTexPath;
     }
 
@@ -80,7 +80,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
   std::string metallicTexPath;
   if (getShaderTextureInput(usdShader, "metallic_texture", metallicTexPath)) {
     std::string resolvedPath = metallicTexPath;
-    if (!resolvedPath.empty() && resolvedPath[0] != '/') {
+    if (!resolvedPath.empty() && !isAbsolute(resolvedPath)) {
       resolvedPath = basePath + metallicTexPath;
     }
 
@@ -105,7 +105,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
   if (getShaderTextureInput(
           usdShader, "reflectionroughness_texture", roughnessTexPath)) {
     std::string resolvedPath = roughnessTexPath;
-    if (!resolvedPath.empty() && resolvedPath[0] != '/') {
+    if (!resolvedPath.empty() && !isAbsolute(resolvedPath)) {
       resolvedPath = basePath + roughnessTexPath;
     }
 
@@ -130,7 +130,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
   std::string normalTexPath;
   if (getShaderTextureInput(usdShader, "normalmap_texture", normalTexPath)) {
     std::string resolvedPath = normalTexPath;
-    if (!resolvedPath.empty() && resolvedPath[0] != '/') {
+    if (!resolvedPath.empty() && !isAbsolute(resolvedPath)) {
       resolvedPath = basePath + normalTexPath;
     }
 
@@ -147,7 +147,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
   std::string aoTexPath;
   if (getShaderTextureInput(usdShader, "ao_texture", aoTexPath)) {
     std::string resolvedPath = aoTexPath;
-    if (!resolvedPath.empty() && resolvedPath[0] != '/') {
+    if (!resolvedPath.empty() && !isAbsolute(resolvedPath)) {
       resolvedPath = basePath + aoTexPath;
     }
 
@@ -168,7 +168,7 @@ MaterialRef importOmniPBRMaterial(Scene &scene,
   if (enableOpacity) {
     if (getShaderTextureInput(usdShader, "opacity_texture", opacityTexPath)) {
       std::string resolvedPath = opacityTexPath;
-      if (!resolvedPath.empty() && resolvedPath[0] != '/') {
+      if (!resolvedPath.empty() && !isAbsolute(resolvedPath)) {
         resolvedPath = basePath + opacityTexPath;
       }
 

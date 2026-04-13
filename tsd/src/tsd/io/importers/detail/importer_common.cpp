@@ -62,6 +62,20 @@ std::string extensionOf(const std::string &filepath)
   return filepath.substr(pos);
 }
 
+bool isAbsolute(const std::string &filepath)
+{
+  if (filepath.empty())
+    return false;
+#ifdef _WIN32
+  // Drive letter (e.g. C:\) or UNC path (e.g. \\server\share)
+  if (filepath.size() >= 3 && std::isalpha(filepath[0]) && filepath[1] == ':')
+    return filepath[2] == '\\' || filepath[2] == '/';
+  if (filepath.size() >= 2 && filepath[0] == '\\' && filepath[1] == '\\')
+    return true;
+#endif
+  return filepath[0] == '/';
+}
+
 std::vector<std::string> splitString(const std::string &s, char delim)
 {
   std::vector<std::string> result;

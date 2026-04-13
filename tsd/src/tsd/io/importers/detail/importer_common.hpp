@@ -21,6 +21,8 @@ namespace tsd::io {
 std::string pathOf(const std::string &filepath);
 std::string fileOf(const std::string &filepath);
 std::string extensionOf(const std::string &filepath);
+bool isAbsolute(const std::string &filepath);
+
 std::vector<std::string> splitString(const std::string &s, char delim);
 
 tsd::scene::ArrayRef readArray(

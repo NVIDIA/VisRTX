@@ -348,7 +348,7 @@ SamplerRef resolveTexturedInput(Scene &scene,
   if (filePath.empty())
     return {};
 
-  if (filePath[0] != '/')
+  if (!isAbsolute(filePath))
     filePath = basePath + filePath;
 
   auto sampler = importTexture(scene, filePath, texCache, false);
