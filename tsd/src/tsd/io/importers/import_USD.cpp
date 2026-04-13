@@ -1355,9 +1355,17 @@ static void importUsdVolume(Scene &scene,
 
   if (tf.hasTransferFunction && !tf.colors.empty()) {
     auto coreTF = toTransferFunction(tf);
-    applyTransferFunction(scene, volume, coreTF);
-    if (coreTF.range.lower < coreTF.range.upper)
-      valueRange = math::float2(coreTF.range.lower, coreTF.range.upper);
+    if (!coreTF.colorPoints.empty() && !coreTF.opacityPoints.empty()) {
+      applyTransferFunction(scene, volume, coreTF);
+      if (coreTF.range.lower < coreTF.range.upper)
+        valueRange = math::float2(coreTF.range.lower, coreTF.range.upper);
+    } else {
+      auto colors = makeDefaultColorMap(256);
+      auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, colors.size());
+      colorArray->setData(colors);
+      volume->setParameterObject("color", *colorArray);
+      volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
+    }
   } else {
     auto colors = makeDefaultColorMap(256);
     auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, colors.size());
