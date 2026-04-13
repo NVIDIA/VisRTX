@@ -7,6 +7,7 @@
 // std
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <map>
