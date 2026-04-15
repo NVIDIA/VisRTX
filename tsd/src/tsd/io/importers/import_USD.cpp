@@ -1255,6 +1255,8 @@ static void importUsdVolume(Scene &scene,
 
   // Find the field data by following field relationships
   std::vector<std::string> filePaths;
+  bool isVTUAsset = false;
+  std::optional<std::string> propertyName;
 
   // Try field:volume relationship first (for VDB volumes and OpenVDBAsset)
   pxr::UsdRelationship fieldRel =
@@ -1268,6 +1270,18 @@ static void importUsdVolume(Scene &scene,
     if (!targets.empty()) {
       pxr::UsdPrim fieldPrim = prim.GetStage()->GetPrimAtPath(targets[0]);
       if (fieldPrim) {
+        isVTUAsset = fieldPrim.GetTypeName() == "VTUAsset";
+        if (isVTUAsset) {
+          // Nullable property: unset means default.
+          // Empty means no property. else load what's requested.
+          if (auto propAttr =
+                  fieldPrim.GetAttribute(pxr::TfToken("property"))) {
+            std::string val;
+            if (propAttr.Get(&val))
+              propertyName = std::move(val);
+          }
+        }
+
         pxr::UsdAttribute filePathAttr =
             fieldPrim.GetAttribute(pxr::TfToken("filePath"));
         if (filePathAttr) {
@@ -1318,18 +1332,25 @@ static void importUsdVolume(Scene &scene,
   std::string filePath = filePaths[0];
 
   SpatialFieldRef field;
-  const auto ext = extensionOf(filePath);
-  if (ext == ".raw")
-    field = import_RAW(scene, filePath.c_str());
-  else if (ext == ".flash")
-    field = import_FLASH(scene, filePath.c_str());
-  else if (ext == ".nvdb" || ext == ".vdb")
-    field = import_NVDB(scene, filePath.c_str());
-  else if (ext == ".mhd")
-    field = import_MHD(scene, filePath.c_str());
-  else {
-    throw std::runtime_error(
-        "[import_USD] no loader for file type '" + ext + "'");
+  if (isVTUAsset) {
+    field =
+        import_spatial_field(scene, filePath.c_str(), std::move(propertyName));
+  } else {
+    const auto ext = extensionOf(filePath);
+    if (ext == ".raw")
+      field = import_RAW(scene, filePath.c_str());
+    else if (ext == ".flash")
+      field = import_FLASH(scene, filePath.c_str());
+    else if (ext == ".nvdb" || ext == ".vdb")
+      field = import_NVDB(scene, filePath.c_str());
+    else if (ext == ".mhd")
+      field = import_MHD(scene, filePath.c_str());
+    else if (ext == ".vtu")
+      field = import_VTU(scene, filePath.c_str(), propertyName);
+    else {
+      throw std::runtime_error(
+          "[import_USD] no loader for file type '" + ext + "'");
+    }
   }
 
   if (!field) {
