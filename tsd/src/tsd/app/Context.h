@@ -36,6 +36,7 @@ struct CommandLineOptions
   tsd::io::ImporterType importerType{tsd::io::ImporterType::NONE};
   std::string cameraFile;
   std::vector<std::string> ensightFields;
+  std::string vtuProperty;
 };
 
 struct TSDState

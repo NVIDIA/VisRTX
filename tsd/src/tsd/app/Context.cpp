@@ -106,6 +106,8 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       importerType = tsd::io::ImporterType::VTP;
     else if (arg == "-vtu")
       importerType = tsd::io::ImporterType::VTU;
+    else if (arg == "-vtu_property")
+      this->commandLine.vtuProperty = args[++i];
     else if (arg == "-xyzdp")
       importerType = tsd::io::ImporterType::XYZDP;
     else if (arg == "-volume")
@@ -130,10 +132,17 @@ void Context::parseCommandLine(std::vector<std::string> &args)
             this->commandLine.animationLayerNames.push_back(
                 this->commandLine.currentLayerName);
           }
-          this->commandLine.currentAnimationSequence->second.push_back(arg);
+          auto file = arg;
+          if (importerType == tsd::io::ImporterType::VOLUME_ANIMATION
+              && !this->commandLine.vtuProperty.empty())
+            file += ';' + this->commandLine.vtuProperty;
+          this->commandLine.currentAnimationSequence->second.push_back(file);
         } else {
-          this->commandLine.filenames.push_back(
-              {importerType, arg + ';' + this->commandLine.currentLayerName});
+          auto file = arg + ';' + this->commandLine.currentLayerName;
+          if (importerType == tsd::io::ImporterType::VTU
+              && !this->commandLine.vtuProperty.empty())
+            file += ';' + this->commandLine.vtuProperty;
+          this->commandLine.filenames.push_back({importerType, file});
           this->commandLine.currentAnimationSequence = nullptr;
         }
       } else {

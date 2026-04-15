@@ -52,21 +52,31 @@ void applyTransferFunction(Scene &scene,
 
 // import_volume definitions //////////////////////////////////////////////////
 
-SpatialFieldRef import_spatial_field(Scene &scene, const char *filepath)
+SpatialFieldRef import_spatial_field(
+    Scene &scene, const char *filepath, std::optional<std::string> propertyName)
 {
-  auto ext = extensionOf(filepath);
+  // filepath may carry a ';property' suffix (CLI-encoded for animation
+  // frames). Split it off; the arg-supplied propertyName wins if given.
+  std::string file = filepath;
+  if (auto sep = file.find(';'); sep != std::string::npos) {
+    if (!propertyName)
+      propertyName = file.substr(sep + 1);
+    file.resize(sep);
+  }
+
+  auto ext = extensionOf(file.c_str());
   if (ext == ".raw")
-    return import_RAW(scene, filepath);
+    return import_RAW(scene, file.c_str());
   else if (ext == ".flash" || ext == ".hdf5")
-    return import_FLASH(scene, filepath);
+    return import_FLASH(scene, file.c_str());
   else if (ext == ".nvdb")
-    return import_NVDB(scene, filepath);
+    return import_NVDB(scene, file.c_str());
   else if (ext == ".mhd")
-    return import_MHD(scene, filepath);
+    return import_MHD(scene, file.c_str());
   else if (ext == ".vtu")
-    return import_VTU(scene, filepath);
+    return import_VTU(scene, file.c_str(), std::move(propertyName));
   else if (ext == ".silo" || ext == ".sil")
-    return import_SILO(scene, filepath);
+    return import_SILO(scene, file.c_str());
   else {
     logError(
         "[import_spatial_field] no loader for file type '%s'", ext.c_str());

@@ -88,8 +88,12 @@ void import_file(Scene &scene,
     tsd::io::import_USD(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::VTP)
     tsd::io::import_VTP(scene, animMgr, file.c_str(), root);
-  else if (f.first == ImporterType::VTU)
-    tsd::io::import_VTU(scene, animMgr, file.c_str(), root);
+  else if (f.first == ImporterType::VTU) {
+    std::optional<std::string> prop;
+    if (files.size() > 2 && !files[2].empty())
+      prop = files[2];
+    tsd::io::import_VTU(scene, animMgr, file.c_str(), root, std::move(prop));
+  }
   else if (f.first == ImporterType::XYZDP)
     tsd::io::import_XYZDP(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::VOLUME)
