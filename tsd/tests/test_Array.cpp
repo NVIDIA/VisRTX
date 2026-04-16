@@ -13,6 +13,7 @@
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 #include "tsd/scene/objects/Array.hpp"
 // std
+#include <memory>
 #include <numeric>
 
 SCENARIO("tsd::scene::Array interface", "[Array]")
@@ -78,18 +79,19 @@ SCENARIO("tsd::scene::Array interface", "[Array]")
 
 SCENARIO("tsd::scene::Array clone", "[Array]")
 {
+  auto scene = std::make_unique<tsd::scene::Scene>();
+
   GIVEN("A scene-owned host array with data and metadata")
   {
-    tsd::scene::Scene scene;
-    auto array = scene.createArray(ANARI_INT32, 4);
+    auto array = scene->createArray(ANARI_INT32, 4);
     array->setName("samples");
     array->setMetadataValue("stride", 16);
 
     int values[4] = {2, 4, 6, 8};
     array->setData(values, 4);
 
-    auto *clone = static_cast<tsd::scene::Array *>(
-        tsd::scene::cloneObject(array.data()));
+    auto *clone =
+        static_cast<tsd::scene::Array *>(tsd::scene::cloneObject(array.data()));
 
     THEN("The clone preserves array shape, storage kind, data, and metadata")
     {

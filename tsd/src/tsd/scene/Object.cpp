@@ -641,18 +641,20 @@ Object *cloneObject(const Object *object)
     return nullptr;
   }
 
+  auto *scene = object->scene();
+
   const auto cloneName =
       object->name().empty() ? std::string() : object->name() + "_clone";
   const Any sourceRef(object->type(), object->index());
 
-  auto *clone = createCloneDestination(*object->scene(), *object);
+  auto *clone = createCloneDestination(*scene, *object);
   if (!clone) {
     logError("cloneObject() unable to create clone of type %s",
         anari::toString(object->type()));
     return nullptr;
   }
 
-  object = object->scene()->getObject(sourceRef);
+  object = scene->getObject(sourceRef);
   if (!object) {
     logError("cloneObject() lost source object after creating clone");
     return nullptr;

@@ -6,6 +6,8 @@
 // tsd
 #include "tsd/scene/Object.hpp"
 #include "tsd/scene/Scene.hpp"
+// std
+#include <memory>
 
 namespace {
 
@@ -140,14 +142,15 @@ SCENARIO("tsd::Object interface", "[Object]")
 
 SCENARIO("tsd::Object clone for scene objects", "[Object]")
 {
+  auto scene = std::make_unique<tsd::scene::Scene>();
+
   GIVEN("A scene-owned surface with parameters and metadata")
   {
-    tsd::scene::Scene scene;
-    auto geometry =
-        scene.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
-    auto material = scene.createObject<tsd::scene::Material>(
+    auto geometry = scene->createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
+    auto material = scene->createObject<tsd::scene::Material>(
         tsd::scene::tokens::material::matte);
-    auto surface = scene.createSurface("primary_surface", geometry, material);
+    auto surface = scene->createSurface("primary_surface", geometry, material);
     surface->setParameter("testFloat", 3.5f);
     surface->setMetadataValue("priority", 7);
     const int metadataArray[3] = {1, 2, 3};
@@ -155,7 +158,8 @@ SCENARIO("tsd::Object clone for scene objects", "[Object]")
 
     auto *clone = tsd::scene::cloneObject(surface.data());
 
-    THEN("The clone preserves type, subtype, references, parameters, and metadata")
+    THEN(
+        "The clone preserves type, subtype, references, parameters, and metadata")
     {
       REQUIRE(clone != nullptr);
       REQUIRE(clone != surface.data());
@@ -192,8 +196,8 @@ SCENARIO("tsd::Object clone for scene objects", "[Object]")
 
       REQUIRE(
           clone->parameterValueAs<float>("testFloat").value() == Approx(9.f));
-      REQUIRE(
-          surface->parameterValueAs<float>("testFloat").value() == Approx(3.5f));
+      REQUIRE(surface->parameterValueAs<float>("testFloat").value()
+          == Approx(3.5f));
       REQUIRE(clone->getMetadataValue("priority").getAs<int>() == 99);
       REQUIRE(surface->getMetadataValue("priority").getAs<int>() == 7);
     }
@@ -201,8 +205,8 @@ SCENARIO("tsd::Object clone for scene objects", "[Object]")
 
   GIVEN("A scene-owned renderer with a device name")
   {
-    tsd::scene::Scene scene;
-    auto renderer = scene.createRenderer("visrtx", tsd::scene::tokens::defaultToken);
+    auto renderer =
+        scene->createRenderer("visrtx", tsd::scene::tokens::defaultToken);
     renderer->setName("main_renderer");
     renderer->setParameter("ambientRadiance", 1.25f);
     renderer->setMetadataValue("quality", 4);
