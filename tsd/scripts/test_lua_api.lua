@@ -717,6 +717,24 @@ test("animationMgr:incrementAnimationTime", function()
   assert(math.abs(t - 0.1) < 0.001, "animation time should be 0.1 after increment")
 end)
 
+test("animationMgr:setAnimationFPS / getAnimationFPS", function()
+  animationMgr:setAnimationFPS(12.0)
+  local fps = animationMgr:getAnimationFPS()
+  assert(math.abs(fps - 12.0) < 0.001, "animation fps should be 12")
+end)
+
+test("animationMgr manual increment is independent from playback fps", function()
+  animationMgr:setAnimationTime(0.0)
+  animationMgr:setAnimationIncrement(0.1)
+  animationMgr:setAnimationFPS(48.0)
+  animationMgr:incrementAnimationTime()
+  local t = animationMgr:getAnimationTime()
+  assert(
+    math.abs(t - 0.1) < 0.001,
+    "manual increment should still use the increment value"
+  )
+end)
+
 -- IO/Procedural generators
 section("Procedural Generators")
 

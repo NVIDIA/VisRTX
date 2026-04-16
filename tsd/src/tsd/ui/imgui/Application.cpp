@@ -162,7 +162,7 @@ void Application::uiFrameStart()
 {
   const ImGuiIO &io = ImGui::GetIO();
 
-  m_ctx.tsd.animationMgr.tick();
+  m_ctx.tsd.animationMgr.tick(ImGui::GetIO().DeltaTime);
 
   if (!m_filenameToSaveNextFrame.empty()) {
     saveApplicationState(m_filenameToSaveNextFrame.c_str());

@@ -7,6 +7,7 @@ endif()
 
 project(tsdTests LANGUAGES CXX)
 project_add_executable(
+  test_AnimationManager.cpp
   test_Algorithms.cpp
   test_AnyArray.cpp
   test_Array.cpp
@@ -22,8 +23,16 @@ project_add_executable(
   test_Parameter.cpp
   test_Token.cpp
 )
-project_link_libraries(PRIVATE tsd_algorithms tsd_scene tsd_ext_catch2)
+project_link_libraries(
+PRIVATE
+  tsd_algorithms
+  tsd_animation
+  tsd_io
+  tsd_scene
+  tsd_ext_catch2
+)
 
+add_test(NAME tsd::AnimationManager COMMAND ${PROJECT_NAME} "[AnimationManager]")
 add_test(NAME tsd::Algorithms    COMMAND ${PROJECT_NAME} "[Algorithms]"   )
 add_test(NAME tsd::AnyArray      COMMAND ${PROJECT_NAME} "[AnyArray]"     )
 add_test(NAME tsd::Array         COMMAND ${PROJECT_NAME} "[Array]"        )

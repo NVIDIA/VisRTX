@@ -479,6 +479,7 @@ void animationManagerToNode(
   node["time"] = mgr.getAnimationTime();
   node["increment"] = mgr.getAnimationIncrement();
   node["totalFrames"] = mgr.getAnimationTotalFrames();
+  node["fps"] = mgr.getAnimationFPS();
 
   auto &animationsNode = node["objects"];
   for (const auto &anim : mgr.animations()) {
@@ -491,13 +492,16 @@ void nodeToAnimationManager(
 {
   float time = mgr.getAnimationTime();
   float increment = mgr.getAnimationIncrement();
+  float fps = mgr.getAnimationFPS();
   int totalFrames = mgr.getAnimationTotalFrames();
 
   time = node["time"].getValueOr<float>(time);
   increment = node["increment"].getValueOr<float>(increment);
+  fps = node["fps"].getValueOr<float>(fps);
   totalFrames = node["totalFrames"].getValueOr<int>(totalFrames);
 
   mgr.setAnimationIncrement(increment);
+  mgr.setAnimationFPS(fps);
   mgr.setAnimationTotalFrames(totalFrames);
 
   node["objects"].foreach_child([&](core::DataNode &animNode) {

@@ -41,10 +41,14 @@ TSD scenes.
   - `addAnimation(name)` / `removeAnimation(i)` / `removeAllAnimations()`
   - `setAnimationTime(t)` / `getAnimationTime()`
   - `setAnimationIncrement(dt)` / `incrementAnimationTime()`
+  - `setAnimationFPS(fps)` / `getAnimationFPS()`
   - `setAnimationFrame(n)` / `getAnimationFrame()` /
     `incrementAnimationFrame()` / `getAnimationTotalFrames()`
   - `setTimeChangedCallback(cb)` — optional callback invoked on each time
     change
+  - `play()` / `stop()` / `tick(elapsedSeconds)` — playback advances using
+    wall-clock time and the configured FPS, independent of the manual
+    normalized-time increment
 
 ### Typical Usage
 
@@ -61,9 +65,14 @@ anim.addObjectParameterBinding(
     obj, "opacity", ANARI_FLOAT32, data, times, count,
     InterpolationRule::LINEAR);
 
-// Advance time — evaluates and applies all bindings to the scene
+// Advance time manually — evaluates and applies all bindings to the scene
 mgr.setAnimationTime(1.5f);
 mgr.incrementAnimationFrame();
+
+// Or drive playback from elapsed wall-clock time
+mgr.setAnimationFPS(24.f);
+mgr.play();
+mgr.tick(1.f / 24.f);
 ```
 
 ### Design Notes

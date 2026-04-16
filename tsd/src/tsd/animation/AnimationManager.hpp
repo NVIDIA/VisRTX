@@ -54,12 +54,14 @@ struct AnimationManager
   // Frame control
   int getAnimationTotalFrames() const;
   void setAnimationTotalFrames(int frames);
+  void setAnimationFPS(float fps);
+  float getAnimationFPS() const;
   int getAnimationFrame() const;
   void setAnimationFrame(int frame);
   void incrementAnimationFrame();
 
-  // Playing state — call tick() once per UI frame
-  void tick();
+  // Playing state — call tick(elapsedSeconds) once per UI frame
+  void tick(float elapsedSeconds);
   void play();
   void stop();
   void togglePlay();
@@ -70,10 +72,15 @@ struct AnimationManager
   bool isLoop() const;
 
  private:
+  void setAnimationTimeInternal(float time, bool resetPlaybackAccumulator);
+  void setAnimationFrameInternal(int frame, bool resetPlaybackAccumulator);
+
   scene::Scene *m_scene{nullptr};
   TimeChangedCallback m_timeChangedCallback;
   float m_incrementSize{0.01f};
+  float m_animationFPS{30.f};
   float m_time{0.f};
+  float m_playbackAccumulator{0.f};
   int m_totalFrames{100};
   bool m_playing{false};
   bool m_loop{true};

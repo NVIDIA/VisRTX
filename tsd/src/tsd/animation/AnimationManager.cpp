@@ -65,7 +65,16 @@ void AnimationManager::removeAllAnimations()
 
 void AnimationManager::setAnimationTime(float time)
 {
+  setAnimationTimeInternal(time, true);
+}
+
+void AnimationManager::setAnimationTimeInternal(
+    float time, bool resetPlaybackAccumulator)
+{
   m_time = time;
+
+  if (resetPlaybackAccumulator)
+    m_playbackAccumulator = 0.f;
 
   for (auto &anim : m_animations)
     anim.setAnimationTime(time);
@@ -112,6 +121,22 @@ void AnimationManager::setAnimationTotalFrames(int frames)
   m_totalFrames = std::max(2, frames);
 }
 
+void AnimationManager::setAnimationFPS(float fps)
+{
+  if (fps <= 0.f) {
+    tsd::core::logWarning(
+        "[scene] animation fps must be > 0; clamping to 1.");
+    fps = 1.f;
+  }
+
+  m_animationFPS = fps;
+}
+
+float AnimationManager::getAnimationFPS() const
+{
+  return m_animationFPS;
+}
+
 int AnimationManager::getAnimationFrame() const
 {
   return static_cast<int>(std::round(m_time * (m_totalFrames - 1)));
@@ -119,8 +144,16 @@ int AnimationManager::getAnimationFrame() const
 
 void AnimationManager::setAnimationFrame(int frame)
 {
+  setAnimationFrameInternal(frame, true);
+}
+
+void AnimationManager::setAnimationFrameInternal(
+    int frame, bool resetPlaybackAccumulator)
+{
   int clamped = std::clamp(frame, 0, m_totalFrames - 1);
-  setAnimationTime(static_cast<float>(clamped) / (m_totalFrames - 1));
+  setAnimationTimeInternal(
+      static_cast<float>(clamped) / (m_totalFrames - 1),
+      resetPlaybackAccumulator);
 }
 
 void AnimationManager::incrementAnimationFrame()
@@ -131,34 +164,64 @@ void AnimationManager::incrementAnimationFrame()
   setAnimationFrame(frame);
 }
 
-void AnimationManager::tick()
+void AnimationManager::tick(float elapsedSeconds)
 {
   if (!m_playing)
     return;
-  if (m_loop) {
-    incrementAnimationFrame();
-  } else {
-    int prevFrame = getAnimationFrame();
-    incrementAnimationFrame();
-    if (getAnimationFrame() < prevFrame) {
-      setAnimationFrame(m_totalFrames - 1);
-      m_playing = false;
+
+  if (elapsedSeconds <= 0.f)
+    return;
+
+  const float frameDuration = 1.f / m_animationFPS;
+  m_playbackAccumulator += elapsedSeconds;
+
+  if (m_playbackAccumulator < frameDuration)
+    return;
+
+  int steps = static_cast<int>(m_playbackAccumulator / frameDuration);
+  m_playbackAccumulator -= steps * frameDuration;
+
+  while (steps-- > 0 && m_playing) {
+    if (m_loop) {
+      int frame = getAnimationFrame() + 1;
+      if (frame >= m_totalFrames)
+        frame = 0;
+      setAnimationFrameInternal(frame, false);
+    } else {
+      int frame = getAnimationFrame();
+      if (frame >= m_totalFrames - 1) {
+        m_playing = false;
+        m_playbackAccumulator = 0.f;
+        break;
+      }
+
+      ++frame;
+      setAnimationFrameInternal(frame, false);
+
+      if (frame >= m_totalFrames - 1) {
+        m_playing = false;
+        m_playbackAccumulator = 0.f;
+        break;
+      }
     }
   }
 }
 
 void AnimationManager::play()
 {
+  m_playbackAccumulator = 0.f;
   m_playing = true;
 }
 
 void AnimationManager::stop()
 {
+  m_playbackAccumulator = 0.f;
   m_playing = false;
 }
 
 void AnimationManager::togglePlay()
 {
+  m_playbackAccumulator = 0.f;
   m_playing = !m_playing;
 }
 

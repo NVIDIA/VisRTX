@@ -68,8 +68,15 @@ void Animations::buildUI_animationControls()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
+  float fps = animMgr.getAnimationFPS();
+  ImGui::SetNextItemWidth(90.f);
+  if (ImGui::DragFloat("playback fps", &fps, 1.f, 1.f, 240.f, "%.1f"))
+    animMgr.setAnimationFPS(fps);
+
+  ImGui::SameLine();
   float increment = animMgr.getAnimationIncrement();
-  if (ImGui::DragFloat("step", &increment, 0.01f, 0.f, 0.5f))
+  ImGui::SetNextItemWidth(90.f);
+  if (ImGui::DragFloat("manual step", &increment, 0.01f, 0.f, 0.5f))
     animMgr.setAnimationIncrement(increment);
 }
 
