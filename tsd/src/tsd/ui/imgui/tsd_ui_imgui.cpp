@@ -357,7 +357,7 @@ void buildUI_object(tsd::scene::Object &o,
     pName += " : ";
     pName += anari::toString(pVal.type());
 
-    ImGui::SetNextItemOpen(false, ImGuiCond_FirstUseEver);
+    ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
     if (ImGui::CollapsingHeader(pName.c_str(), ImGuiTreeNodeFlags_None)) {
       ImGui::BeginDisabled(obj == nullptr);
       if (ImGui::Button("unset"))
