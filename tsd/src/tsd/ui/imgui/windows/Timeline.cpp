@@ -125,6 +125,7 @@ void Timeline::buildUI_transport()
       animMgr.stop();
       animMgr.setAnimationFrame(0);
     }
+
     if (ImGui::IsItemHovered())
       ImGui::SetTooltip("Stop");
 
@@ -166,13 +167,39 @@ void Timeline::buildUI_canvas()
   const float uiScale = ImGui::GetIO().FontGlobalScale;
   auto scaled = [uiScale](float value) { return value * uiScale; };
 
-  const float nameColWidth = scaled(150.f);
-  const float rowHeight = scaled(20.f);
+  const float rowHeight = scaled(28.f);
   const float rulerHeight = scaled(24.f);
   const float pixelsPerFrame = m_pixelsPerFrame * uiScale;
+  const float cellPaddingX = scaled(4.f);
+  const float cellPaddingY = scaled(8.f);
 
   int totalFrames = animMgr.getAnimationTotalFrames();
   int currentFrame = animMgr.getAnimationFrame();
+  auto &anims = animMgr.animations();
+
+  const auto writeTrackLabel =
+      [](const tsd::animation::Animation &anim, char *label, size_t size) {
+    if (anim.name().size() > 20)
+      std::snprintf(label, size, "%.17s...", anim.name().c_str());
+    else
+      std::snprintf(label, size, "%s", anim.name().c_str());
+  };
+
+  const ImGuiStyle &style = ImGui::GetStyle();
+  float maxTrackLabelWidth = ImGui::CalcTextSize("+ Add Track").x;
+  for (const auto &anim : anims) {
+    char label[64];
+    writeTrackLabel(anim, label, sizeof(label));
+    maxTrackLabelWidth =
+        std::max(maxTrackLabelWidth, ImGui::CalcTextSize(label).x);
+  }
+
+  const float removeButtonWidth =
+      ImGui::CalcTextSize("x").x + style.FramePadding.x * 2.f;
+  const float nameButtonWidth =
+      maxTrackLabelWidth + style.FramePadding.x * 2.f;
+  const float nameColWidth = nameButtonWidth + style.ItemSpacing.x
+      + removeButtonWidth + cellPaddingX * 2.f;
   float canvasWidth = ImGui::GetContentRegionAvail().x - nameColWidth;
 
   // Zoom with scroll wheel when hovering canvas
@@ -185,12 +212,11 @@ void Timeline::buildUI_canvas()
   }
 
   float totalCanvasWidth = pixelsPerFrame * (totalFrames - 1);
-  auto &anims = animMgr.animations();
   size_t numAnims = anims.size();
   float keysColWidth = std::max(canvasWidth, totalCanvasWidth + scaled(20.f));
 
   ImGui::PushStyleVar(
-      ImGuiStyleVar_CellPadding, ImVec2(scaled(4.f), scaled(8.f)));
+      ImGuiStyleVar_CellPadding, ImVec2(cellPaddingX, cellPaddingY));
 
   const ImGuiTableFlags tableFlags = ImGuiTableFlags_ScrollX
       | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerV
@@ -274,13 +300,11 @@ void Timeline::buildUI_canvas()
             ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
 
       char label[64];
-      if (anim.name().size() > 20)
-        std::snprintf(label, sizeof(label), "%.17s...", anim.name().c_str());
-      else
-        std::snprintf(label, sizeof(label), "%s", anim.name().c_str());
-
+      writeTrackLabel(anim, label, sizeof(label));
       float colW = ImGui::GetContentRegionAvail().x;
-      if (ImGui::Button(label, ImVec2(colW - scaled(30.f), rowHeight))) {
+      float trackButtonWidth = std::max(
+          0.f, colW - removeButtonWidth - style.ItemSpacing.x);
+      if (ImGui::Button(label, ImVec2(trackButtonWidth, rowHeight))) {
         if (ImGui::GetIO().KeyCtrl) {
           if (selected)
             m_selectedTracks.erase(i);
@@ -292,12 +316,15 @@ void Timeline::buildUI_canvas()
         }
       }
 
+      if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", anim.name().c_str());
+
       if (selected)
         ImGui::PopStyleColor();
 
       ImGui::SameLine();
       bool removed = false;
-      if (ImGui::SmallButton("x")) {
+      if (ImGui::Button("x")) {
         animMgr.removeAnimation(i);
         m_selectedTracks.erase(i);
         removed = true;
