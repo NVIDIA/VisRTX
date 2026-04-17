@@ -11,8 +11,6 @@
 #include "tsd/scene/algorithms/computeScalarRange.hpp"
 // std
 #include <algorithm>
-#include <array>
-#include <cstring>
 #include <set>
 #include <string_view>
 
@@ -435,10 +433,25 @@ static SpatialFieldRef createFieldFromVolumeCells(Scene &scene,
     vtkDataArray *array = cellData->GetArray(i);
     if (!array)
       continue;
+    int nComp = array->GetNumberOfComponents();
     std::string arrName = (array->GetName() && array->GetName()[0] != '\0')
         ? array->GetName()
         : baseName;
-    candidates.push_back({Source::Cell, i, -1, arrName});
+
+    if (nComp == 1) {
+      candidates.push_back({Source::Cell, i, 0, arrName});
+    } else if (nComp == 3) {
+      for (int c = 0; c < 3; ++c) {
+        const char *suffix = (c == 0) ? "_x" : (c == 1) ? "_y" : "_z";
+        candidates.push_back({Source::Cell, i, c, arrName + suffix});
+      }
+    } else {
+      logWarning(
+          "[import_VTU] cell array '%s' has %d components (only 1 or 3 are "
+          "supported) -- skipping",
+          arrName.c_str(),
+          nComp);
+    }
   }
 
   // Tri-state selection: nullopt = auto, "" = topology only, "name" = by name.
