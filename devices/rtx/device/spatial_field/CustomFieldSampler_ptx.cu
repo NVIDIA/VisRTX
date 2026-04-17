@@ -58,16 +58,16 @@ VISRTX_CALLABLE void __direct_callable__initCustomSampler(
  * not defined), returns 0.0 as a fallback.
  */
 VISRTX_CALLABLE float __direct_callable__sampleCustom(
-    const VolumeSamplingState *samplerState, const vec3 *location)
+    const VolumeSamplingState *samplerState,
+    const vec3 *location,
+    vec3 *gradient)
 {
 #ifdef VISRTX_CUSTOM_SAMPLE_DISPATCH
   const CustomFieldData &data = samplerState->custom;
   const vec3 P = *location;
 
-  // Dispatch macro expands to switch statement with all registered field types
   VISRTX_CUSTOM_SAMPLE_DISPATCH(data, P)
 #else
-  // No custom field types configured - return default value
   return 0.0f;
 #endif
 }
