@@ -4,6 +4,7 @@
 #include "WeightedPointsControls.h"
 #include "WeightedPointsOctree.h"
 #include <tsd/ui/imgui/tsd_ui_imgui.h>
+#include <tsd/animation/AnimationManager.hpp>
 #include <tsd/core/Logging.hpp>
 #include <tsd/core/TSDMath.hpp>
 #include <tsd/scene/objects/Array.hpp>
@@ -103,6 +104,44 @@ void WeightedPointsControls::buildUI()
   }
 
   ImGui::Spacing();
+
+  ImGui::SetNextItemOpen(true, ImGuiCond_FirstUseEver);
+  if (ImGui::CollapsingHeader("Animation")) {
+    if (!m_animationSetup && !m_originalPoints.empty()) {
+      setupAnimation();
+      m_animationSetup = true;
+    }
+
+    ImGui::DragFloat(
+        "Amplitude", &m_perturbAmplitude, 0.01f, 0.f, 20.f, "%.3f");
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip(
+          "Maximum displacement of points from their original positions "
+          "(in data units). Scaled by median nearest-neighbor distance.");
+    }
+
+    ImGui::DragFloat(
+        "Frequency", &m_perturbFrequency, 0.1f, 0.1f, 20.f, "%.1f");
+    if (ImGui::IsItemHovered()) {
+      ImGui::SetTooltip(
+          "Number of oscillation cycles over the full animation range.");
+    }
+
+    auto &mgr = appContext()->tsd.animationMgr;
+    bool playing = mgr.isPlaying();
+    if (ImGui::Button(playing ? "Stop" : "Play")) {
+      mgr.togglePlay();
+    }
+    ImGui::SameLine();
+    int frame = mgr.getAnimationFrame();
+    int totalFrames = mgr.getAnimationTotalFrames();
+    ImGui::SetNextItemWidth(-1);
+    if (ImGui::SliderInt("##frame", &frame, 0, totalFrames - 1)) {
+      mgr.setAnimationFrame(frame);
+    }
+  }
+
+  ImGui::Spacing();
   ImGui::Separator();
   ImGui::TextWrapped(
       "Weighted-points field: octree of Gaussian blobs with "
@@ -118,6 +157,8 @@ void WeightedPointsControls::createScene()
   layer->clear();
 
   generatePoints();
+  m_originalPoints = m_rawPoints;
+  m_animationSetup = false;
 
   const tsd::core::Token wpToken("weightedPoints");
   m_field = scene.createObject<tsd::scene::SpatialField>(wpToken);
@@ -318,6 +359,81 @@ void WeightedPointsControls::rebuildField()
       "[customField demo] %zu points -> %d nodes, "
       "sigma=%.4f, cutoff=%.3f, range=[0, %.2f]",
       n, numNodes, sigma, cutoff, rangeMax);
+}
+
+void WeightedPointsControls::rebuildFieldFast()
+{
+  if (!m_field || m_rawPoints.empty())
+    return;
+
+  auto &scene = appContext()->tsd.scene;
+  const size_t n = m_rawPoints.size() / 4;
+
+  std::vector<WeightedPoint> points;
+  points.reserve(n);
+  for (size_t i = 0; i < n; i++) {
+    const float *p = m_rawPoints.data() + i * 4;
+    points.push_back({p[0], p[1], p[2], p[3]});
+  }
+
+  WeightedPointsOctree octree;
+  octree.build(points, 8, 12);
+
+  const auto &flatValues = octree.flatValues();
+  const auto &flatIndices = octree.flatIndices();
+
+  if (octree.numNodes() == 0)
+    return;
+
+  auto valuesArray = scene.createArray(ANARI_FLOAT32, flatValues.size());
+  valuesArray->setData(flatValues.data());
+  m_field->setParameterObject("values", *valuesArray);
+
+  auto indicesArray = scene.createArray(ANARI_INT32, flatIndices.size());
+  indicesArray->setData(flatIndices.data());
+  m_field->setParameterObject("indices", *indicesArray);
+
+  scene.signalLayerStructureChanged(scene.defaultLayer());
+}
+
+// ---------------------------------------------------------------------------
+
+void WeightedPointsControls::setupAnimation()
+{
+  auto &mgr = appContext()->tsd.animationMgr;
+  mgr.removeAllAnimations();
+  mgr.setAnimationTotalFrames(100);
+  mgr.setLoop(true);
+
+  auto &anim = mgr.addAnimation("Point Perturbation");
+  anim.addCallbackBinding([this](float t) { perturbPoints(t); });
+}
+
+void WeightedPointsControls::perturbPoints(float t)
+{
+  if (m_originalPoints.empty() || !m_field || !m_volume)
+    return;
+
+  const size_t n = m_originalPoints.size() / 4;
+  float phase = t * m_perturbFrequency * 2.f * 3.14159265f;
+
+  m_rawPoints.resize(m_originalPoints.size());
+
+  for (size_t i = 0; i < n; i++) {
+    size_t base = i * 4;
+    float seed = static_cast<float>(i);
+
+    float dx = std::sin(phase + seed * 1.7f) * std::cos(seed * 0.3f);
+    float dy = std::cos(phase + seed * 2.3f) * std::sin(seed * 0.7f);
+    float dz = std::sin(phase + seed * 3.1f) * std::cos(seed * 1.1f);
+
+    m_rawPoints[base + 0] = m_originalPoints[base + 0] + dx * m_perturbAmplitude;
+    m_rawPoints[base + 1] = m_originalPoints[base + 1] + dy * m_perturbAmplitude;
+    m_rawPoints[base + 2] = m_originalPoints[base + 2] + dz * m_perturbAmplitude;
+    m_rawPoints[base + 3] = m_originalPoints[base + 3];
+  }
+
+  rebuildFieldFast();
 }
 
 // ---------------------------------------------------------------------------

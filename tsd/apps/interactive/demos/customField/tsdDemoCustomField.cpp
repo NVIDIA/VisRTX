@@ -3,11 +3,13 @@
 
 // tsd_ui_imgui
 #include <tsd/ui/imgui/Application.h>
+#include <tsd/ui/imgui/windows/Animations.h>
 #include <tsd/ui/imgui/windows/DatabaseEditor.h>
 #include <tsd/ui/imgui/windows/IsosurfaceEditor.h>
 #include <tsd/ui/imgui/windows/LayerTree.h>
 #include <tsd/ui/imgui/windows/Log.h>
 #include <tsd/ui/imgui/windows/ObjectEditor.h>
+#include <tsd/ui/imgui/windows/Timeline.h>
 #include <tsd/ui/imgui/windows/TransferFunctionEditor.h>
 #include <tsd/ui/imgui/windows/Viewport.h>
 
@@ -45,6 +47,8 @@ class Application : public TSDApplication
     auto *isoeditor = new tsd_ui::IsosurfaceEditor(this);
     auto *oeditor = new tsd_ui::ObjectEditor(this);
     auto *dbeditor = new tsd_ui::DatabaseEditor(this);
+    auto *timeline = new tsd_ui::Timeline(this);
+    auto *animations = new tsd_ui::Animations(this);
     auto *log = new tsd_ui::Log(this);
 
     windows.emplace_back(viewport);
@@ -54,6 +58,8 @@ class Application : public TSDApplication
     windows.emplace_back(isoeditor);
     windows.emplace_back(oeditor);
     windows.emplace_back(dbeditor);
+    windows.emplace_back(timeline);
+    windows.emplace_back(animations);
     windows.emplace_back(log);
 
     setWindowArray(windows);
@@ -83,13 +89,19 @@ Collapsed=0
 
 [Window][Viewport]
 Pos=449,26
-Size=1021,857
+Size=1021,611
 Collapsed=0
 DockId=0x00000003,0
 
+[Window][Timeline]
+Pos=449,639
+Size=1021,220
+Collapsed=0
+DockId=0x00000010,0
+
 [Window][Log]
-Pos=449,885
-Size=1471,246
+Pos=449,861
+Size=1471,270
 Collapsed=0
 DockId=0x0000000A,0
 
@@ -123,42 +135,17 @@ Size=447,522
 Collapsed=0
 DockId=0x00000008,2
 
+[Window][Animations]
+Pos=0,609
+Size=447,522
+Collapsed=0
+DockId=0x00000008,3
+
 [Window][TF Editor]
 Pos=1472,26
-Size=448,857
+Size=448,611
 Collapsed=0
 DockId=0x0000000C,0
-
-[Table][0x39E9F5ED,1]
-Column 0  Weight=1.0000
-
-[Table][0x418F6C9E,2]
-Column 0  Weight=1.0000
-Column 1  Weight=1.0000
-
-[Table][0xE57DC2D0,2]
-Column 0  Weight=1.0000
-Column 1  Weight=1.0000
-
-[Table][0x65B57849,2]
-Column 0  Weight=1.0000
-Column 1  Weight=1.0000
-
-[Table][0xE53C80DF,2]
-Column 0  Weight=1.0000
-Column 1  Weight=1.0000
-
-[Table][0x7FC3FA09,2]
-Column 0  Weight=1.0000
-Column 1  Weight=1.0000
-
-[Table][0xA96A74B3,2]
-Column 0  Weight=1.0000
-Column 1  Weight=1.0000
-
-[Table][0xC00D0D97,2]
-Column 0  Weight=1.0000
-Column 1  Weight=1.0000
 
 [Docking][Data]
 DockSpace       ID=0x782A6D6B Pos=0,25 Size=1920,1054 Split=X Selected=0x13926F0B
@@ -169,10 +156,12 @@ DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,26 Size=1920,1105 Split=X
     DockNode    ID=0x00000007 Parent=0x00000001 SizeRef=447,581 Selected=0xCD8384B1
     DockNode    ID=0x00000008 Parent=0x00000001 SizeRef=447,522 Selected=0x82B4C496
   DockNode      ID=0x00000002 Parent=0x80F5B4C5 SizeRef=1471,1054 Split=Y Selected=0xC450F867
-    DockNode    ID=0x0000000B Parent=0x00000002 SizeRef=1471,857 Split=X Selected=0xC450F867
-      DockNode  ID=0x00000003 Parent=0x0000000B SizeRef=1021,857 CentralNode=1 Selected=0xC450F867
-      DockNode  ID=0x0000000C Parent=0x0000000B SizeRef=448,857 Selected=0x3429FA32
-    DockNode    ID=0x0000000A Parent=0x00000002 SizeRef=1471,246 Selected=0x139FDA3F
+    DockNode    ID=0x0000000B Parent=0x00000002 SizeRef=1471,833 Split=X Selected=0xC450F867
+      DockNode  ID=0x0000000F Parent=0x0000000B SizeRef=1021,833 Split=Y Selected=0xC450F867
+        DockNode ID=0x00000003 Parent=0x0000000F SizeRef=1021,611 CentralNode=1 Selected=0xC450F867
+        DockNode ID=0x00000010 Parent=0x0000000F SizeRef=1021,220 Selected=0xB86F32B9
+      DockNode  ID=0x0000000C Parent=0x0000000B SizeRef=448,833 Selected=0x3429FA32
+    DockNode    ID=0x0000000A Parent=0x00000002 SizeRef=1471,270 Selected=0x139FDA3F
 )layout";
   }
 

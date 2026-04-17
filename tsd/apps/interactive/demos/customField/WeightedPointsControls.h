@@ -23,6 +23,9 @@ struct WeightedPointsControls : public tsd::ui::imgui::Window
   void createScene();
   void generatePoints();
   void rebuildField();
+  void rebuildFieldFast();
+  void setupAnimation();
+  void perturbPoints(float t);
 
   std::vector<float> generateRandomUniform();
   std::vector<float> loadPDB(const std::string &path);
@@ -31,15 +34,19 @@ struct WeightedPointsControls : public tsd::ui::imgui::Window
   int m_numPoints{2000};
   float m_sigmaOverride{0.f};
   float m_cutoffOverride{0.f};
+  float m_perturbAmplitude{15.f};
+  float m_perturbFrequency{2.f};
 
   std::string m_pdbPath;
   bool m_sceneCreated{false};
+  bool m_animationSetup{false};
 
   tsd::scene::SpatialFieldRef m_field;
   tsd::scene::VolumeRef m_volume;
   tsd::scene::Object *m_light{nullptr};
 
   std::vector<float> m_rawPoints;
+  std::vector<float> m_originalPoints;
 };
 
 } // namespace tsd::demo
