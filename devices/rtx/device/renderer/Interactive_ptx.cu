@@ -150,10 +150,9 @@ struct InteractiveShadingPolicy
             * rendererParams.ambientColor * rendererParams.ambientIntensity;
         contrib += color * nextRay.contributionWeight;
       } else {
-        // No hit, get background contribution directly (no surface to weight
-        // against)
-        const auto color = getBackground(frameData, ss.screen, bounceRay.dir);
-        contrib += vec3(color) * nextRay.contributionWeight;
+        if (vec3 hdri; getBackgroundLight(frameData, bounceRay.dir, hdri)) {
+          contrib += vec3(hdri) * nextRay.contributionWeight;
+        }
       }
     }
 

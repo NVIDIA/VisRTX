@@ -301,11 +301,11 @@ VISRTX_DEVICE vec4 getBackgroundImage(
       : make_vec4(tex2D<::float4>(rd.background.texobj, loc.x, loc.y));
 }
 
-VISRTX_DEVICE vec4 getBackground(
-    const FrameGPUData &fd, const vec2 &loc, const vec3 &rayDir)
+VISRTX_DEVICE bool getBackgroundLight(
+    const FrameGPUData &fd, const vec3 &rayDir, vec3 &outRadiance)
 {
   // Accumulate contributions from all visible HDRI lights
-  vec3 hdriContribution = vec3(0.f);
+  outRadiance = vec3(0.f);
   bool hasVisibleHDRI = false;
 
   for (size_t i = 0; i < fd.world.numHdriLightInstances; i++) {
@@ -316,11 +316,19 @@ VISRTX_DEVICE vec4 getBackground(
       // For orthonormal matrices, inverse = transpose
       const mat3 xfmInv = glm::transpose(mat3(hdriLight.xfm));
       const vec3 localRayDir = xfmInv * rayDir;
-      hdriContribution += sampleHDRI(light, localRayDir);
+      outRadiance += sampleHDRI(light, localRayDir);
       hasVisibleHDRI = true;
     }
   }
 
+  return hasVisibleHDRI;
+}
+
+VISRTX_DEVICE vec4 getBackground(
+    const FrameGPUData &fd, const vec2 &loc, const vec3 &rayDir)
+{
+  vec3 hdriContribution;
+  const bool hasVisibleHDRI = getBackgroundLight(fd, rayDir, hdriContribution);
   if (hasVisibleHDRI)
     return vec4(hdriContribution, 1.f);
 
