@@ -94,9 +94,9 @@ struct Array : public Object
       size_t items1,
       size_t items2,
       MemoryKind kind);
-  void freeMemory();
 
   void *m_data{nullptr};
+  void *m_dataUsageDescriptor{nullptr};
   MemoryKind m_kind{MemoryKind::HOST};
   anari::DataType m_elementType{ANARI_UNKNOWN};
   size_t m_dim0{0};

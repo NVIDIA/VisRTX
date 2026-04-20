@@ -10,18 +10,64 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
+#include <atomic>
 #include <stdexcept>
 #if TSD_USE_CUDA
 // cuda
 #include <cuda_runtime.h>
 #endif
 
-static void noopANARIDeleter(const void *, const void *)
+namespace tsd::scene {
+
+// Helper types + functions ///////////////////////////////////////////////////
+
+struct ArrayUsageDescriptor
 {
-  // do nothing
+  std::atomic<size_t> numReferences{1};
+};
+
+static bool isDevicePointer(const void *ptr)
+{
+#if TSD_USE_CUDA
+  cudaPointerAttributes attr;
+  cudaError_t err = cudaPointerGetAttributes(&attr, ptr);
+
+  // If the call fails, it's likely not a CUDA-recognized pointer
+  if (err != cudaSuccess) {
+    cudaGetLastError(); // clear error state
+    return false;
+  }
+
+  return (attr.type == cudaMemoryTypeDevice);
+#else
+  return false;
+#endif
 }
 
-namespace tsd::scene {
+static void tsdDeleter(const void *_usrPtr, const void *_mem)
+{
+  if (!_mem || !_usrPtr)
+    return;
+
+  auto *descriptor =
+      static_cast<ArrayUsageDescriptor *>(const_cast<void *>(_usrPtr));
+  auto *mem = const_cast<void *>(_mem);
+
+  auto result = descriptor->numReferences.fetch_sub(1);
+
+  if (result == 1) {
+#if TSD_USE_CUDA
+    if (isDevicePointer(mem))
+      cudaFree(mem);
+    else
+#endif
+      std::free(mem);
+
+    delete descriptor;
+  }
+}
+
+// Array definitions //////////////////////////////////////////////////////////
 
 Array::Array(anari::DataType type, size_t items0, Array::MemoryKind kind)
     : Array(ANARI_ARRAY1D, type, items0, 1, 1, kind)
@@ -42,7 +88,7 @@ Array::Array(anari::DataType type,
 
 Array::~Array()
 {
-  freeMemory();
+  tsdDeleter(m_dataUsageDescriptor, m_data);
 }
 
 size_t Array::size() const
@@ -203,17 +249,22 @@ anari::Object Array::makeANARIObject(anari::Device d) const
   switch (type()) {
   case ANARI_ARRAY1D:
     retval = anari::newArray1D(
-        d, ptr, noopANARIDeleter, nullptr, elementType(), dim(0));
+        d, ptr, tsdDeleter, m_dataUsageDescriptor, elementType(), dim(0));
     break;
   case ANARI_ARRAY2D:
-    retval = anari::newArray2D(
-        d, ptr, noopANARIDeleter, nullptr, elementType(), dim(0), dim(1));
+    retval = anari::newArray2D(d,
+        ptr,
+        tsdDeleter,
+        m_dataUsageDescriptor,
+        elementType(),
+        dim(0),
+        dim(1));
     break;
   case ANARI_ARRAY3D:
     retval = anari::newArray3D(d,
         ptr,
-        noopANARIDeleter,
-        nullptr,
+        tsdDeleter,
+        m_dataUsageDescriptor,
         elementType(),
         dim(0),
         dim(1),
@@ -223,6 +274,10 @@ anari::Object Array::makeANARIObject(anari::Device d) const
     break;
   }
 
+  auto *descriptor = static_cast<ArrayUsageDescriptor *>(m_dataUsageDescriptor);
+  if (descriptor)
+    descriptor->numReferences++;
+
   assert(retval != nullptr);
   return retval;
 }
@@ -230,6 +285,7 @@ anari::Object Array::makeANARIObject(anari::Device d) const
 Array::Array(Array &&o) : Object(std::move(static_cast<Object &&>(o)))
 {
   m_data = o.m_data;
+  m_dataUsageDescriptor = o.m_dataUsageDescriptor;
   m_kind = o.m_kind;
   m_elementType = o.m_elementType;
   m_dim0 = o.m_dim0;
@@ -237,14 +293,16 @@ Array::Array(Array &&o) : Object(std::move(static_cast<Object &&>(o)))
   m_dim2 = o.m_dim2;
   m_mapped = o.m_mapped;
   o.m_data = nullptr;
+  o.m_dataUsageDescriptor = nullptr;
 }
 
 Array &Array::operator=(Array &&o)
 {
   if (this != &o) {
-    freeMemory();
+    tsdDeleter(m_dataUsageDescriptor, m_data);
     *static_cast<Object *>(this) = std::move(*static_cast<Object *>(&o));
     m_data = o.m_data;
+    m_dataUsageDescriptor = o.m_dataUsageDescriptor;
     m_kind = o.m_kind;
     m_elementType = o.m_elementType;
     m_dim0 = o.m_dim0;
@@ -252,6 +310,7 @@ Array &Array::operator=(Array &&o)
     m_dim2 = o.m_dim2;
     m_mapped = o.m_mapped;
     o.m_data = nullptr;
+    o.m_dataUsageDescriptor = nullptr;
   }
   return *this;
 }
@@ -290,18 +349,9 @@ Array::Array(anari::DataType arrayType,
   } else { // MemoryKind::HOST
     m_data = std::malloc(size() * elementSize());
   }
-}
 
-void Array::freeMemory()
-{
-  if (m_data) {
-#if TSD_USE_CUDA
-    if (kind() == MemoryKind::CUDA)
-      cudaFree(m_data);
-    else
-#endif
-      std::free(m_data);
-  }
+  if (kind != MemoryKind::PROXY)
+    m_dataUsageDescriptor = new ArrayUsageDescriptor();
 }
 
 } // namespace tsd::scene
