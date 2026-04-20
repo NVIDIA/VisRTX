@@ -204,7 +204,7 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
 
     // Accumulate background for remaining transparency
     const auto bg = getBackground(frameData, ss.screen, ray.dir);
-    const bool premultiplyBg = rendererParams.premultiplyBackground;
+    const bool premultiplyBg = rendererParams.premultipliedAlpha;
     vec3 bgColor = premultiplyBg ? vec3(bg) * bg.a : vec3(bg);
 
     accumulateValue(outputColor, bgColor, outputOpacity);

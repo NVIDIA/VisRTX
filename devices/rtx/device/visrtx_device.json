@@ -105,13 +105,13 @@
           "description": "suppress fireflies via reversible tonemapping before accumulation"
         },
         {
-          "name": "premultiplyBackground",
+          "name": "premultipliedAlpha",
           "types": [
             "ANARI_BOOL"
           ],
           "tags": [],
           "default": false,
-          "description": "pre-multiply alpha channel with background color"
+          "description": "pre-multiply RGB by alpha in the composited output pixel"
         },
         {
           "name": "cullTriangleBackfaces",
@@ -266,13 +266,13 @@
           "description": "suppress fireflies via reversible tonemapping before accumulation"
         },
         {
-          "name": "premultiplyBackground",
+          "name": "premultipliedAlpha",
           "types": [
             "ANARI_BOOL"
           ],
           "tags": [],
           "default": false,
-          "description": "pre-multiply alpha channel with background color"
+          "description": "pre-multiply RGB by alpha in the composited output pixel"
         },
         {
           "name": "cullTriangleBackfaces",
@@ -405,6 +405,15 @@
           "tags": [],
           "default": true,
           "description": "suppress fireflies via reversible tonemapping before accumulation"
+        },
+        {
+          "name": "premultipliedAlpha",
+          "types": [
+            "ANARI_BOOL"
+          ],
+          "tags": [],
+          "default": false,
+          "description": "pre-multiply RGB by alpha in the composited output pixel"
         },
         {
           "name": "cullTriangleBackfaces",

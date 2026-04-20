@@ -94,7 +94,7 @@ struct Renderer : public Object
       true}; // enable internal tonemapping during sample accumulation
   int m_sampleLimit{0};
   bool m_cullTriangleBF{false};
-  bool m_premultiplyBackground{false};
+  bool m_premultipliedAlpha{false};
   float m_volumeSamplingRate{1.f};
   vec4 m_cutPlane{0.f};
 
