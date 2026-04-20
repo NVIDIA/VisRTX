@@ -96,13 +96,13 @@
           "description": "mode controlling buffers given to the denoiser"
         },
         {
-          "name": "tonemap",
+          "name": "fireflyFilter",
           "types": [
             "ANARI_BOOL"
           ],
           "tags": [],
           "default": true,
-          "description": "enable internal tonemapping during sample accumulation"
+          "description": "suppress fireflies via reversible tonemapping before accumulation"
         },
         {
           "name": "premultiplyBackground",
@@ -200,7 +200,12 @@
             "ANARI_FLOAT32_VEC4"
           ],
           "tags": [],
-          "default": [0.0, 0.0, 0.0, 0.0],
+          "default": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
           "description": "cutting plane equation (nx, ny, nz, d); disabled when all zero (vec4(0))"
         }
       ]
@@ -221,7 +226,9 @@
         },
         {
           "name": "fixedAmbientLighting",
-          "types": ["ANARI_BOOL"],
+          "types": [
+            "ANARI_BOOL"
+          ],
           "tags": [],
           "default": true,
           "description": "ignore 'ambientRaidance' and 'ambientColor' parameters on the renderer"
@@ -250,13 +257,13 @@
           "description": "mode controlling buffers given to the denoiser"
         },
         {
-          "name": "tonemap",
+          "name": "fireflyFilter",
           "types": [
             "ANARI_BOOL"
           ],
           "tags": [],
           "default": true,
-          "description": "enable internal tonemapping during sample accumulation"
+          "description": "suppress fireflies via reversible tonemapping before accumulation"
         },
         {
           "name": "premultiplyBackground",
@@ -343,7 +350,12 @@
             "ANARI_FLOAT32_VEC4"
           ],
           "tags": [],
-          "default": [0.0, 0.0, 0.0, 0.0],
+          "default": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
           "description": "cutting plane equation (nx, ny, nz, d); disabled when all zero (vec4(0))"
         }
       ]
@@ -386,13 +398,13 @@
           "description": "mode controlling buffers given to the denoiser"
         },
         {
-          "name": "tonemap",
+          "name": "fireflyFilter",
           "types": [
             "ANARI_BOOL"
           ],
           "tags": [],
           "default": true,
-          "description": "enable internal tonemapping during sample accumulation"
+          "description": "suppress fireflies via reversible tonemapping before accumulation"
         },
         {
           "name": "cullTriangleBackfaces",
@@ -438,7 +450,12 @@
             "ANARI_FLOAT32_VEC4"
           ],
           "tags": [],
-          "default": [0.0, 0.0, 0.0, 0.0],
+          "default": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
           "description": "cutting plane equation (nx, ny, nz, d); disabled when all zero (vec4(0))"
         }
       ]
@@ -489,7 +506,12 @@
             "ANARI_FLOAT32_VEC4"
           ],
           "tags": [],
-          "default": [0.0, 0.0, 0.0, 0.0],
+          "default": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
           "description": "cutting plane equation (nx, ny, nz, d); disabled when all zero (vec4(0))"
         }
       ]

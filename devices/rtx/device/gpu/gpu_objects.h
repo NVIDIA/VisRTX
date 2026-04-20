@@ -716,8 +716,9 @@ struct RendererGPUData
   float occlusionDistance;
   bool cullTriangleBF;
   bool premultiplyBackground;
-  bool tonemap; // enable internal tonemapping during sample accumulation
-  glm::vec4 cutPlane; // cutting plane (nx,ny,nz,d); disabled when all zero (GPU default)
+  bool fireflyFilter; // enable internal tonemapping during sample accumulation
+  glm::vec4 cutPlane; // cutting plane (nx,ny,nz,d); disabled when all zero (GPU
+                      // default)
 };
 
 // Frame //

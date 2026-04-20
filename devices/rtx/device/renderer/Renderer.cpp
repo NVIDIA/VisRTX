@@ -164,7 +164,8 @@ void Renderer::commitParameters()
       (denoiseMode == "colorAlbedo" || denoiseMode == "colorAlbedoNormal");
   m_denoiseNormal = (denoiseMode == "colorAlbedoNormal");
 
-  m_tonemap = getParam<bool>("tonemap", true);
+  m_fireflyFilter =
+      getParam<bool>("fireflyFilter", getParam<bool>("tonemap", true));
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
@@ -207,7 +208,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.ambientIntensity = m_ambientIntensity;
   fd.renderer.occlusionDistance = m_occlusionDistance;
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
-  fd.renderer.tonemap = m_tonemap;
+  fd.renderer.fireflyFilter = m_fireflyFilter;
   fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
   fd.renderer.numIterations = std::max(m_spp, 1);
   fd.renderer.premultiplyBackground = m_premultiplyBackground;
@@ -951,9 +952,9 @@ void Renderer::cleanup()
   }
 }
 
-bool Renderer::tonemap() const
+bool Renderer::filterFireflies() const
 {
-  return m_tonemap;
+  return m_fireflyFilter;
 }
 
 } // namespace visrtx

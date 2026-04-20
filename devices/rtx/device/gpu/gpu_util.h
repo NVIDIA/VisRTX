@@ -454,7 +454,7 @@ VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
   const auto frameID = fb.frameID + frameIDOffset;
 
   // Conditionally apply tonemapping during accumulation
-  if (frame.renderer.tonemap)
+  if (frame.renderer.fireflyFilter)
     detail::accumValue(
         fb.buffers.colorAccumulation, idx, detail::tonemap(color));
   else
@@ -466,7 +466,7 @@ VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
   // Conditionally apply inverse tonemapping on output
   const float frameDivisor = float(fb.frameID + frameIDOffset + 1);
   const auto normalizedColor = accumColor / frameDivisor;
-  const auto outputColor = frame.renderer.tonemap
+  const auto outputColor = frame.renderer.fireflyFilter
       ? detail::inverseTonemap(normalizedColor)
       : normalizedColor;
 
