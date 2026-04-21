@@ -143,9 +143,9 @@ VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
 
   // curand_uniform returns (0,1], invert to get [0,numLights).
   // Clamp to handle float rounding when curand returns a subnormal.
-  const size_t selectedIdx = glm::min(
-      size_t((1.0f - curand_uniform(&ss.rs)) * float(numLights)),
-      numLights - 1);
+  const size_t selectedIdx =
+      glm::min(size_t((1.0f - curand_uniform(&ss.rs)) * float(numLights)),
+          numLights - 1);
 
   const float radianceWeight = float(numLights);
 
@@ -399,10 +399,11 @@ VISRTX_GLOBAL void __raygen__()
         };
       }
 
-      if (!surfaceHit.foundHit) {
-        const auto bg = getBackground(frameData, ss.screen, ray.dir);
-        sample.color += sampleContribution * vec3(bg) * bg.a;
-        accumulateValue(sample.opacity, bg.a, sample.opacity);
+      if (!surfaceHit.foundHit && !volumeSample.didScatter) {
+        if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
+          sample.color += sampleContribution * hdri;
+          accumulateValue(sample.opacity, 1.f, sample.opacity);
+        }
 
         if (isFirstBounce && !firstHitAssigned) {
           setPixelIds(frameData.fb, ss.pixel, ray.t.upper, ~0u, ~0u, ~0u);
