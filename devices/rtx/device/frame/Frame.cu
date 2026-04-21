@@ -30,9 +30,12 @@
  */
 
 #include "Frame.h"
+#include "gpu/createScreenSample.h"
+#include "gpu/gpu_tonemap.h"
 #include "utility/instrument.h"
 // std
 #include <algorithm>
+#include <glm/ext/vector_float4.hpp>
 #include <random>
 // thrust
 #include <cuda_runtime_api.h>
@@ -41,6 +44,113 @@
 #include <thrust/transform.h>
 
 namespace visrtx {
+
+namespace {
+
+__global__ void compositeBackground(vec4 *__restrict__ accumColor,
+    vec4 *__restrict__ pixelBuf,
+    uint32_t *__restrict__ uintBuf,
+    RendererGPUData renderer,
+    uvec2 size,
+    vec2 invSize,
+    FrameFormat format,
+    int frameID,
+    int checkerboardID,
+    bool isDenoised)
+{
+  const uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= size.x * size.y)
+    return;
+
+  const uint32_t px = idx % size.x;
+  const uint32_t py = idx / size.x;
+
+  uint32_t sourceIdx = idx;
+  int divisor = frameID;
+  if (checkerboardID >= 0 && checkerboardID < 3) {
+    const int pixTile = (px & 1) | ((py & 1) << 1);
+    if (pixTile <= checkerboardID)
+      divisor = frameID + 1;
+    else if (frameID == 0) {
+      const uint32_t sourcePx = px & ~1u;
+      const uint32_t sourcePy = py & ~1u;
+      sourceIdx = sourcePx + sourcePy * size.x;
+      divisor = 1;
+    }
+  }
+  if (divisor == 0)
+    return;
+
+  vec4 rendered;
+  if (isDenoised) {
+    // The denoiser fills pixelBuf at every pixel, so reading from sourceIdx
+    // would race against another thread compositing into that same slot.
+    // Read RGB from this thread's own pixel; only the alpha needs the
+    // checkerboard source redirect because accumColor is sparse.
+    rendered = pixelBuf[idx];
+    rendered.a = accumColor[sourceIdx].a / float(divisor);
+  } else {
+    rendered = accumColor[sourceIdx] / float(divisor);
+    if (renderer.fireflyFilter)
+      rendered = detail::inverseTonemap(rendered);
+  }
+
+  const vec2 uv = (vec2(px, py) + 0.5f) * invSize;
+
+  vec4 bg;
+  if (renderer.backgroundMode == BackgroundMode::COLOR) {
+    bg = renderer.background.color;
+  } else {
+    const auto s = tex2D<float4>(renderer.background.texobj, uv.x, uv.y);
+    bg = vec4(s.x, s.y, s.z, s.w);
+  }
+
+  vec3 rgb = vec3(rendered);
+  float alpha = rendered.a;
+  accumulateValue(rgb, vec3(bg) * bg.a, alpha);
+  accumulateValue(alpha, bg.a, alpha);
+
+  if (!renderer.premultipliedAlpha && alpha > 0.0f)
+    rgb *= 1.0f / alpha;
+
+  vec4 rgba = vec4(rgb, alpha);
+  if (format == FrameFormat::SRGB) {
+    uintBuf[idx] = glm::packUnorm4x8(glm::convertLinearToSRGB(rgba));
+  } else if (format == FrameFormat::UINT) {
+    uintBuf[idx] = glm::packUnorm4x8(rgba);
+  } else {
+    pixelBuf[idx] = rgba;
+  }
+}
+
+void launchCompositeBackground(vec4 *accumColor,
+    vec4 *pixelBuf,
+    uint32_t *uintBuf,
+    const RendererGPUData &renderer,
+    uvec2 size,
+    vec2 invSize,
+    FrameFormat format,
+    int frameID,
+    int checkerboardID,
+    bool isDenoised,
+    cudaStream_t stream)
+{
+  const uint32_t nPixels = size.x * size.y;
+  const uint32_t blockSize = 256;
+  const uint32_t gridSize = (nPixels + blockSize - 1) / blockSize;
+  compositeBackground<<<gridSize, blockSize, 0, stream>>>(accumColor,
+      pixelBuf,
+      uintBuf,
+      renderer,
+      size,
+      invSize,
+      format,
+      frameID,
+      checkerboardID,
+      isDenoised);
+}
+
+} // anonymous namespace
 
 Frame::Frame(DeviceGlobalState *d) : helium::BaseFrame(d), m_denoiser(d)
 {
@@ -334,9 +444,36 @@ void Frame::renderFrame()
   else
     hd.fb.frameID += m_renderer->spp();
 
+  const bool useFloatOutput = m_denoise || m_colorType == ANARI_FLOAT32_VEC4;
+
   if (m_denoise) {
     m_denoiser.launch();
+
+    launchCompositeBackground(m_accumColor.ptrAs<vec4>(),
+        (vec4 *)m_pixelBuffer.dataDevice(),
+        nullptr,
+        hd.renderer,
+        hd.fb.size,
+        hd.fb.invSize,
+        FrameFormat::FLOAT,
+        hd.fb.frameID,
+        hd.fb.checkerboardID,
+        /*isDenoised=*/true,
+        state.stream);
+
     m_denoiser.convertOutput();
+  } else {
+    launchCompositeBackground(m_accumColor.ptrAs<vec4>(),
+        useFloatOutput ? (vec4 *)m_pixelBuffer.dataDevice() : nullptr,
+        useFloatOutput ? nullptr : (uint32_t *)m_pixelBuffer.dataDevice(),
+        hd.renderer,
+        hd.fb.size,
+        hd.fb.invSize,
+        hd.fb.format,
+        hd.fb.frameID,
+        hd.fb.checkerboardID,
+        /*isDenoised=*/false,
+        state.stream);
   }
 
   if (m_callback) {
