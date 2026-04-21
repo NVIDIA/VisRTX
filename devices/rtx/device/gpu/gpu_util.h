@@ -295,14 +295,6 @@ VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
   return sampleHDRI(ld, vec2(u, v)) * ld.hdri.scale;
 }
 
-VISRTX_DEVICE vec4 getBackgroundImage(
-    const RendererGPUData &rd, const vec2 &loc)
-{
-  return rd.backgroundMode == BackgroundMode::COLOR
-      ? rd.background.color
-      : make_vec4(tex2D<::float4>(rd.background.texobj, loc.x, loc.y));
-}
-
 VISRTX_DEVICE bool getBackgroundLight(
     const FrameGPUData &fd, const vec3 &rayDir, vec3 &outRadiance)
 {
@@ -324,18 +316,6 @@ VISRTX_DEVICE bool getBackgroundLight(
   }
 
   return hasVisibleHDRI;
-}
-
-VISRTX_DEVICE vec4 getBackground(
-    const FrameGPUData &fd, const vec2 &loc, const vec3 &rayDir)
-{
-  vec3 hdriContribution;
-  const bool hasVisibleHDRI = getBackgroundLight(fd, rayDir, hdriContribution);
-  if (hasVisibleHDRI)
-    return vec4(hdriContribution, 1.f);
-
-  // No visible HDRI, use background image/color
-  return getBackgroundImage(fd.renderer, loc);
 }
 
 VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
