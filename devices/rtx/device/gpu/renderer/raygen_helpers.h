@@ -202,13 +202,12 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
       // Otherwise, continue through transparent surface
     }
 
-    // Accumulate background for remaining transparency
-    const auto bg = getBackground(frameData, ss.screen, ray.dir);
-    const bool premultiplyBg = rendererParams.premultipliedAlpha;
-    vec3 bgColor = premultiplyBg ? vec3(bg) * bg.a : vec3(bg);
-
-    accumulateValue(outputColor, bgColor, outputOpacity);
-    accumulateValue(outputOpacity, bg.a, outputOpacity);
+    // Accumulate HDRI sky — marks sky pixels as opaque so the background
+    // compositing pass does not bleed through HDRI-covered pixels.
+    if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
+      accumulateValue(outputColor, hdri, outputOpacity);
+      accumulateValue(outputOpacity, 1.f, outputOpacity);
+    }
 
     // Write accumulated sample to framebuffer
     accumPixelSample(frameData,
