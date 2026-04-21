@@ -34,6 +34,8 @@
 #include "cameraCreateRay.h"
 #include "gpu/gpu_debug.h"
 #include "gpu_objects.h"
+#include "gpu_tonemap.h"
+
 // optix
 #include <optix_device.h>
 // std
@@ -349,30 +351,6 @@ VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace detail {
-
-VISRTX_DEVICE
-vec3 tonemap(vec3 v)
-{
-  return v / (1.0f + max(0.0f, compMax(v)));
-}
-
-VISRTX_DEVICE
-vec3 inverseTonemap(vec3 v)
-{
-  return v / max(1e-12f, 1.f - compMax(v));
-}
-
-VISRTX_DEVICE
-vec4 tonemap(vec4 v)
-{
-  return vec4(tonemap(vec3(v)), v.w);
-}
-
-VISRTX_DEVICE
-vec4 inverseTonemap(vec4 v)
-{
-  return vec4(inverseTonemap(vec3(v)), v.w);
-}
 
 template <typename T>
 VISRTX_DEVICE void accumValue(T *arr, size_t idx, const T &v)
