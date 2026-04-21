@@ -130,30 +130,33 @@ void Denoiser::launch()
       (CUdeviceptr)m_scratch.ptr(),
       static_cast<unsigned int>(m_scratch.bytes())));
   instrument::rangePop(); // optixDenoiserInvoke()
+}
 
-  if (m_format != ANARI_FLOAT32_VEC4) {
-    instrument::rangePush("denoiser transform pixels");
-    auto numPixels =
-        size_t(m_layer.output.width) * size_t(m_layer.output.height);
-    auto begin = thrust::device_ptr<vec4>((vec4 *)m_pixelBuffer->dataDevice());
-    auto end = begin + numPixels;
-    if (m_format == ANARI_UFIXED8_RGBA_SRGB) {
-      thrust::transform(thrust::cuda::par.on(state.stream),
-          begin,
-          end,
-          thrust::device_pointer_cast<uint32_t>(m_uintPixels.dataDevice()),
-          [] __device__(const vec4 &in) {
-            return glm::packUnorm4x8(glm::convertLinearToSRGB(in));
-          });
-    } else {
-      thrust::transform(thrust::cuda::par.on(state.stream),
-          begin,
-          end,
-          thrust::device_pointer_cast<uint32_t>(m_uintPixels.dataDevice()),
-          [] __device__(const vec4 &in) { return glm::packUnorm4x8(in); });
-    }
-    instrument::rangePop(); // denoiser transform pixels
+void Denoiser::convertOutput()
+{
+  if (m_format == ANARI_FLOAT32_VEC4)
+    return;
+  auto &state = *deviceState();
+  instrument::rangePush("denoiser transform pixels");
+  auto numPixels = size_t(m_layer.output.width) * size_t(m_layer.output.height);
+  auto begin = thrust::device_ptr<vec4>((vec4 *)m_pixelBuffer->dataDevice());
+  auto end = begin + numPixels;
+  if (m_format == ANARI_UFIXED8_RGBA_SRGB) {
+    thrust::transform(thrust::cuda::par.on(state.stream),
+        begin,
+        end,
+        thrust::device_pointer_cast<uint32_t>(m_uintPixels.dataDevice()),
+        [] __device__(const vec4 &in) {
+          return glm::packUnorm4x8(glm::convertLinearToSRGB(in));
+        });
+  } else {
+    thrust::transform(thrust::cuda::par.on(state.stream),
+        begin,
+        end,
+        thrust::device_pointer_cast<uint32_t>(m_uintPixels.dataDevice()),
+        [] __device__(const vec4 &in) { return glm::packUnorm4x8(in); });
   }
+  instrument::rangePop(); // denoiser transform pixels
 }
 
 void *Denoiser::mapColorBuffer()

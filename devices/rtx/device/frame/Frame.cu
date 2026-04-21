@@ -334,8 +334,10 @@ void Frame::renderFrame()
   else
     hd.fb.frameID += m_renderer->spp();
 
-  if (m_denoise)
+  if (m_denoise) {
     m_denoiser.launch();
+    m_denoiser.convertOutput();
+  }
 
   if (m_callback) {
     cudaLaunchHostFunc(
