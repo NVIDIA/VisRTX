@@ -269,7 +269,6 @@ VISRTX_GLOBAL void __raygen__()
         vec3(0.0f), 0.0f, vec3(0.0f), ray.t.upper, vec3(0.0f)};
 
     auto sampleContribution = vec3(1.0f);
-    bool firstHitAssigned = false;
 
     for (int d = 0; d < qualityParams.maxRayDepth; ++d) {
       const bool isFirstBounce = d == 0;
@@ -315,7 +314,7 @@ VISRTX_GLOBAL void __raygen__()
         if (shouldTerminatePath(ss, d, sampleContribution, true))
           break;
 
-        if (isFirstBounce && !firstHitAssigned) {
+        if (isFirstBounce) {
           setPixelIds(frameData.fb,
               ss.pixel,
               volumeSample.depth,
@@ -328,7 +327,6 @@ VISRTX_GLOBAL void __raygen__()
               ? volumeSample.normal
               : -ray.dir;
           sample.normal = volumeNormal;
-          firstHitAssigned = true;
         }
 
         const vec3 scatterDir = randomDir(ss.rs);
@@ -346,7 +344,7 @@ VISRTX_GLOBAL void __raygen__()
         const vec3 materialTint = materialEvaluateTint(shadingState);
         const float materialOpacity = materialEvaluateOpacity(shadingState);
 
-        if (isFirstBounce && !firstHitAssigned) {
+        if (isFirstBounce) {
           setPixelIds(frameData.fb,
               ss.pixel,
               surfaceHit.t,
@@ -356,7 +354,6 @@ VISRTX_GLOBAL void __raygen__()
           sample.depth = surfaceHit.t;
           sample.normal = materialEvaluateNormal(shadingState);
           sample.albedo = materialTint;
-          firstHitAssigned = true;
         }
 
         sample.color += sampleContribution * materialEmission * materialOpacity;
@@ -406,7 +403,7 @@ VISRTX_GLOBAL void __raygen__()
           accumulateValue(sample.opacity, 1.f, sample.opacity);
         }
 
-        if (isFirstBounce && !firstHitAssigned) {
+        if (isFirstBounce) {
           setPixelIds(frameData.fb, ss.pixel, ray.t.upper, ~0u, ~0u, ~0u);
         }
 
