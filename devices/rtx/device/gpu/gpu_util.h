@@ -275,6 +275,11 @@ VISRTX_DEVICE bool isMiddelPixel(
   return pixel.x == (fb.size.x / 2) && pixel.y == (fb.size.y / 2);
 }
 
+VISRTX_DEVICE bool continuesThroughSurface(const NextRay &nextRay)
+{
+  return (nextRay.flags & NEXT_RAY_CONTINUES_THROUGH_SURFACE) != 0u;
+}
+
 VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec2 &uv)
 {
   return vec3(make_vec4(tex2D<::float4>(ld.hdri.radiance, uv.x, uv.y)));

@@ -166,13 +166,13 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
               + sqrtf(alpha * alpha + (1.f - alpha * alpha) * NdotV * NdotV)));
 
   const float denom = 4.f * fabsf(NdotV) * fabsf(NdotL);
-  const vec3 specularBRDF =
-      denom != 0.f ? (F * D * G) / denom : vec3(0.f);
+  const vec3 specularBRDF = denom != 0.f ? (F * D * G) / denom : vec3(0.f);
 
   // Transmission is applied only to the diffuse BRDF. This is intentional:
   // In this model, transmission reduces the diffuse reflection, while specular
-  // reflection (surface reflection) is not affected by transmission, as it represents
-  // light reflected at the surface rather than transmitted through the material.
+  // reflection (surface reflection) is not affected by transmission, as it
+  // represents light reflected at the surface rather than transmitted through
+  // the material.
   return (diffuseBRDF * (1.0f - shadingState->transmission) + specularBRDF)
       * NdotL * lightSample->radiance / lightSample->pdf;
 }
@@ -184,9 +184,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
 {
   // Before anything, check for opacity. If below, then we just pass through
   if (curand_uniform(rs) > shadingState->opacity)
-  {
     return NextRay{ray->dir, vec3(1.0f)};
-  }
 
   // Open cone, along the perfect reflection ray, with a metallic and
   // roughness-dependent angle
@@ -198,16 +196,16 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
 
   bool isReflected = curand_uniform(rs) > transmission;
   auto nextVector = isReflected
-        ? glm::reflect(ray->dir, shadingState->normal)
-          : glm::refract(ray->dir, shadingState->normal, shadingState->ior);
+      ? glm::reflect(ray->dir, shadingState->normal)
+      : glm::refract(ray->dir, shadingState->normal, shadingState->ior);
 
   auto nextRay = computeOrthonormalBasis(normalize(nextVector))
-        * uniformSampleCone(cosThetaMax,
-            vec3(curand_uniform(rs), curand_uniform(rs), curand_uniform(rs)));
+      * uniformSampleCone(cosThetaMax,
+          vec3(curand_uniform(rs), curand_uniform(rs), curand_uniform(rs)));
 
   auto nextSampleWeight = isReflected
-    ? shadingState->baseColor * metalness * (1.0f - transmission)
-    : shadingState->baseColor * transmission;
+      ? shadingState->baseColor * metalness * (1.0f - transmission)
+      : shadingState->baseColor * transmission;
 
   return NextRay{nextRay, nextSampleWeight};
 }

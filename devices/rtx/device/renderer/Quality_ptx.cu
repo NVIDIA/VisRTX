@@ -377,8 +377,6 @@ VISRTX_GLOBAL void __raygen__()
           }
         }
 
-        accumulateValue(sample.opacity, materialOpacity, sample.opacity);
-
         auto nextRay = materialNextRay(shadingState, ray, ss.rs);
         sampleContribution *= nextRay.contributionWeight;
 

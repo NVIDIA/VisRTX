@@ -150,14 +150,13 @@ struct InteractiveShadingPolicy
             * rendererParams.ambientColor * rendererParams.ambientIntensity;
         contrib += color * nextRay.contributionWeight;
       } else {
-        if (vec3 hdri; getBackgroundLight(frameData, bounceRay.dir, hdri)) {
-          contrib += vec3(hdri) * nextRay.contributionWeight;
-        }
+        vec3 hdri;
+        if (getBackgroundLight(frameData, bounceRay.dir, hdri))
+          contrib += hdri * nextRay.contributionWeight;
       }
     }
 
-    float opacity = evaluateOpacity(shadingState);
-    return vec4(contrib, opacity);
+    return vec4(contrib, evaluateOpacity(shadingState));
   }
 };
 
