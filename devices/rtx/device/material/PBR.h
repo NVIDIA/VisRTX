@@ -31,8 +31,10 @@
 
 #pragma once
 
-#include "sampler/Sampler.h"
 #include "Material.h"
+#include "sampler/Sampler.h"
+
+#include <limits>
 
 namespace visrtx {
 
@@ -48,7 +50,7 @@ struct PBR : public Material
   float m_cutoff{0.5f};
   AlphaMode m_mode{AlphaMode::OPAQUE};
 
-  vec4 m_color{vec3(0.8f), 1.f};
+  vec4 m_color{1.f, 1.f, 1.f, 1.f};
   helium::ChangeObserverPtr<Sampler> m_colorSampler;
   std::string m_colorAttribute;
 
@@ -70,11 +72,57 @@ struct PBR : public Material
   helium::ChangeObserverPtr<Sampler> m_emissiveSampler;
   std::string m_emissiveAttribute;
 
+  helium::ChangeObserverPtr<Sampler> m_occlusionSampler;
+
+  float m_specular{0.f};
+  helium::ChangeObserverPtr<Sampler> m_specularSampler;
+  std::string m_specularAttribute;
+  bool m_useSpecular{false};
+
+  vec3 m_specularColor{1.f};
+  helium::ChangeObserverPtr<Sampler> m_specularColorSampler;
+  std::string m_specularColorAttribute;
+
+  float m_clearcoat{0.f};
+  helium::ChangeObserverPtr<Sampler> m_clearcoatSampler;
+  std::string m_clearcoatAttribute;
+
+  float m_clearcoatRoughness{0.f};
+  helium::ChangeObserverPtr<Sampler> m_clearcoatRoughnessSampler;
+  std::string m_clearcoatRoughnessAttribute;
+
+  helium::ChangeObserverPtr<Sampler> m_clearcoatNormalSampler;
+
   float m_transmission{0.f};
   helium::ChangeObserverPtr<Sampler> m_transmissionSampler;
   std::string m_transmissionAttribute;
 
   float m_ior{1.5f};
+
+  float m_thickness{0.f};
+  helium::ChangeObserverPtr<Sampler> m_thicknessSampler;
+  std::string m_thicknessAttribute;
+
+  float m_attenuationDistance{std::numeric_limits<float>::infinity()};
+  vec3 m_attenuationColor{1.f};
+
+  vec3 m_sheenColor{0.f};
+  helium::ChangeObserverPtr<Sampler> m_sheenColorSampler;
+  std::string m_sheenColorAttribute;
+
+  float m_sheenRoughness{0.f};
+  helium::ChangeObserverPtr<Sampler> m_sheenRoughnessSampler;
+  std::string m_sheenRoughnessAttribute;
+
+  float m_iridescence{0.f};
+  helium::ChangeObserverPtr<Sampler> m_iridescenceSampler;
+  std::string m_iridescenceAttribute;
+
+  float m_iridescenceIor{1.3f};
+
+  float m_iridescenceThickness{0.f};
+  helium::ChangeObserverPtr<Sampler> m_iridescenceThicknessSampler;
+  std::string m_iridescenceThicknessAttribute;
 };
 
 } // namespace visrtx

@@ -388,13 +388,10 @@ VISRTX_GLOBAL void __raygen__()
         if (shouldTerminatePath(ss, d, sampleContribution, true))
           break;
 
-        ray = Ray{
-            surfaceHit.hitpoint
-                + surfaceHit.Ng
-                    * std::copysignf(surfaceHit.epsilon,
-                        dot(surfaceHit.Ns, nextRay.direction)),
-            normalize(vec3(nextRay.direction)),
-        };
+        const float side = continuesThroughSurface(nextRay) ? -1.0f : 1.0f;
+        ray =
+            Ray{surfaceHit.hitpoint + surfaceHit.Ng * surfaceHit.epsilon * side,
+                normalize(vec3(nextRay.direction))};
       }
 
       if (!surfaceHit.foundHit && !volumeSample.didScatter) {

@@ -204,7 +204,7 @@ NextRay __direct_callable__nextRay(
   if (curand_uniform(rs) > mdlOpacity(&shadingState->state,
           &shadingState->resData,
           shadingState->argBlock)) {
-    return NextRay{ray->dir, vec3(1.0f)};
+    return NextRay{ray->dir, vec3(1.0f), NEXT_RAY_CONTINUES_THROUGH_SURFACE};
   }
 
   // Sample
@@ -227,10 +227,17 @@ NextRay __direct_callable__nextRay(
       &shadingState->resData,
       shadingState->argBlock);
 
-  return NextRay{vec3(sample_data.k2.x, sample_data.k2.y, sample_data.k2.z),
+  const vec3 direction(sample_data.k2.x, sample_data.k2.y, sample_data.k2.z);
+  const vec3 N = normalize(make_vec3(shadingState->state.normal));
+  const uint32_t flags = dot(ray->dir, N) * dot(direction, N) > 0.0f
+      ? NEXT_RAY_CONTINUES_THROUGH_SURFACE
+      : NEXT_RAY_NONE;
+
+  return NextRay{direction,
       vec3(sample_data.bsdf_over_pdf.x,
           sample_data.bsdf_over_pdf.y,
-          sample_data.bsdf_over_pdf.z)};
+          sample_data.bsdf_over_pdf.z),
+      flags};
 }
 
 // Signature must match the call inside shaderMDLSurface in MDLShader.cuh.
@@ -273,8 +280,7 @@ vec3 __direct_callable__evaluateTransmission(
     const MDLShadingState *shadingState)
 {
   return mdlTransmission(
-      &shadingState->state, &shadingState->resData, shadingState->argBlock)
-      * 0.85f;
+      &shadingState->state, &shadingState->resData, shadingState->argBlock);
 }
 
 VISRTX_CALLABLE

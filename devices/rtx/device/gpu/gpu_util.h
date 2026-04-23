@@ -34,8 +34,7 @@
 #include "cameraCreateRay.h"
 #include "gpu/gpu_debug.h"
 #include "gpu_objects.h"
-#include "gpu_tonemap.h"
-
+#include "shadingState.h"
 // optix
 #include <optix_device.h>
 // std
@@ -46,6 +45,7 @@
 #include <glm/packing.hpp>
 // cuda
 #include <vector_types.h>
+#include "gpu_tonemap.h"
 
 #ifndef __CUDACC__
 #error "gpu_util.h can only be included in device code"

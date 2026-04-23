@@ -65,7 +65,9 @@ VISRTX_DEVICE float volumeAttenuation(ScreenSample &ss, const Ray &r)
 VISRTX_DEVICE float evaluateOpacity(const MaterialShadingState &shadingState)
 {
   return materialEvaluateOpacity(shadingState)
-      * (1.0f - glm::luminosity(materialEvaluateTransmission(shadingState)));
+      * (1.0f
+          - glm::luminosity(materialEvaluateTransmission(shadingState))
+              * 0.85f);
 }
 
 // Templated rendering loop

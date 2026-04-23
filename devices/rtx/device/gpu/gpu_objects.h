@@ -363,6 +363,23 @@ struct MaterialGPUData
     MaterialParameter transmission;
 
     float ior;
+
+    // KHR_materials_* extensions
+    DeviceObjectIndex occlusionSampler;
+    MaterialParameter specular;
+    MaterialParameter specularColor;
+    uint32_t useSpecular;
+    MaterialParameter clearcoat;
+    MaterialParameter clearcoatRoughness;
+    DeviceObjectIndex clearcoatNormalSampler;
+    MaterialParameter thickness;
+    float attenuationDistance;
+    vec3 attenuationColor;
+    MaterialParameter sheenColor;
+    MaterialParameter sheenRoughness;
+    MaterialParameter iridescence;
+    float iridescenceIor;
+    MaterialParameter iridescenceThickness;
   };
 
   struct MDL

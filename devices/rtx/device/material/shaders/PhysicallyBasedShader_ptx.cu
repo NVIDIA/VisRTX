@@ -38,174 +38,512 @@
 
 using namespace visrtx;
 
+// Clearcoat is fixed to IOR 1.5 per glTF KHR_materials_clearcoat (F0 = 0.04).
+constexpr float CLEARCOAT_F0 = 0.04f;
+
+//-----------------------------------------------------------------------------
+// Helpers
+//-----------------------------------------------------------------------------
+
+VISRTX_DEVICE vec3 applyNormalMap(
+    const vec3 &tangentSpaceNormal, const SurfaceHit &hit, const vec3 &N)
+{
+  vec3 T = normalize(hit.tU);
+  vec3 B = normalize(hit.tV);
+  // Gram-Schmidt to build an orthonormal frame tied to N.
+  T = normalize(T - dot(T, N) * N);
+  B = normalize(B - dot(B, N) * N - dot(B, T) * T);
+  return normalize(T * tangentSpaceNormal.x + B * tangentSpaceNormal.y
+      + N * tangentSpaceNormal.z);
+}
+
+VISRTX_DEVICE vec3 sampleNormalMap(const FrameGPUData &fd,
+    DeviceObjectIndex samplerIdx,
+    const SurfaceHit &hit,
+    const vec3 &fallback)
+{
+  if (samplerIdx == ~visrtx::DeviceObjectIndex{0})
+    return fallback;
+  const vec3 ts = normalize(evaluateSampler(fd, samplerIdx, hit) * 2.0f - 1.0f);
+  return applyNormalMap(ts, hit, hit.Ns);
+}
+
+VISRTX_DEVICE float luminance(const vec3 &c)
+{
+  return dot(c, vec3(0.2126f, 0.7152f, 0.0722f));
+}
+
+VISRTX_DEVICE vec3 computeVolumeTransmission(
+    const PhysicallyBasedShadingState *state)
+{
+  if (!(state->thickness > 0.0f && state->attenuationDistance > 0.0f
+          && isfinite(state->attenuationDistance)))
+    return vec3(1.0f);
+
+  const float k = state->thickness / state->attenuationDistance;
+  return vec3(powf(fmaxf(state->attenuationColor.x, 1e-6f), k),
+      powf(fmaxf(state->attenuationColor.y, 1e-6f), k),
+      powf(fmaxf(state->attenuationColor.z, 1e-6f), k));
+}
+
+VISRTX_DEVICE vec3 computeTransmissionFilter(
+    const PhysicallyBasedShadingState *state)
+{
+  const float transmission =
+      fmaxf(0.0f, (1.0f - state->metallic) * state->transmission);
+  return state->baseColor * transmission * computeVolumeTransmission(state);
+}
+
+// Smith Lambda for GGX (common subterm of G1 / G2).
+VISRTX_DEVICE float smithLambdaGGX(float NdotX, float alpha2)
+{
+  const float NdotX2 = NdotX * NdotX;
+  const float safe = fmaxf(NdotX2, 1e-8f);
+  return 0.5f
+      * (-1.0f + sqrtf(fmaxf(0.0f, 1.0f + alpha2 * (1.0f - safe) / safe)));
+}
+
+VISRTX_DEVICE float smithG2GGX(float NdotV, float NdotL, float alpha2)
+{
+  return 1.0f
+      / (1.0f + smithLambdaGGX(NdotV, alpha2) + smithLambdaGGX(NdotL, alpha2));
+}
+
+VISRTX_DEVICE float smithG1GGX(float NdotV, float alpha2)
+{
+  return 1.0f / (1.0f + smithLambdaGGX(NdotV, alpha2));
+}
+
+VISRTX_DEVICE float ggxD(float NdotH, float alpha2)
+{
+  const float denom = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
+  return alpha2 / (float(M_PI) * denom * denom);
+}
+
+// Heitz 2018 (https://jcgt.org/published/0007/04/01/) visible-normal sampling
+// for GGX. Ve is the view direction in local tangent space (+z = normal).
+VISRTX_DEVICE vec3 sampleGGXVNDF(
+    const vec3 &Ve, float alpha, float u1, float u2)
+{
+  const vec3 Vh = normalize(vec3(alpha * Ve.x, alpha * Ve.y, Ve.z));
+  const float lensq = Vh.x * Vh.x + Vh.y * Vh.y;
+  const vec3 T1 = lensq > 0.0f ? vec3(-Vh.y, Vh.x, 0.0f) * (1.0f / sqrtf(lensq))
+                               : vec3(1.0f, 0.0f, 0.0f);
+  const vec3 T2 = glm::cross(Vh, T1);
+  const float r = sqrtf(u1);
+  const float phi = 2.0f * float(M_PI) * u2;
+  const float t1 = r * cosf(phi);
+  float t2 = r * sinf(phi);
+  const float s = 0.5f * (1.0f + Vh.z);
+  t2 = (1.0f - s) * sqrtf(fmaxf(0.0f, 1.0f - t1 * t1)) + s * t2;
+  const vec3 Nh =
+      t1 * T1 + t2 * T2 + sqrtf(fmaxf(0.0f, 1.0f - t1 * t1 - t2 * t2)) * Vh;
+  return normalize(vec3(alpha * Nh.x, alpha * Nh.y, fmaxf(0.0f, Nh.z)));
+}
+
+// Charlie distribution (Estevez-Kulla 2017) for sheen.
+VISRTX_DEVICE float charlieD(float NdotH, float alpha)
+{
+  const float invAlpha = 1.0f / fmaxf(alpha, 1e-4f);
+  const float sin2 = fmaxf(0.0f, 1.0f - NdotH * NdotH);
+  return (2.0f + invAlpha) * powf(sin2, 0.5f * invAlpha) / (2.0f * float(M_PI));
+}
+
+// Ashikhmin visibility term (Neubelt-Pettineo variant) used with Charlie D.
+VISRTX_DEVICE float charlieV(float NdotV, float NdotL)
+{
+  return 1.0f / (4.0f * (NdotV + NdotL - NdotV * NdotL) + 1e-6f);
+}
+
+// glTF KHR_materials_iridescence thin-film Fresnel (port of the reference
+// implementation at github.com/KhronosGroup/glTF-Sample-Renderer). Returns a
+// per-channel Fresnel reflectance for a thin film of thickness T sitting on a
+// base with Schlick F0. See the spec's Appendix B for the math.
+VISRTX_DEVICE vec3 fresnel0ToIor(vec3 F0)
+{
+  const vec3 s = sqrt(glm::clamp(F0, vec3(0.0f), vec3(0.9999f)));
+  return (vec3(1.0f) + s) / (vec3(1.0f) - s);
+}
+
+VISRTX_DEVICE vec3 iorToFresnel0(vec3 transmittedIor, float incidentIor)
+{
+  const vec3 t = (transmittedIor - vec3(incidentIor))
+      / (transmittedIor + vec3(incidentIor));
+  return t * t;
+}
+
+VISRTX_DEVICE float iorToFresnel0(float transmittedIor, float incidentIor)
+{
+  const float t =
+      (transmittedIor - incidentIor) / (transmittedIor + incidentIor);
+  return t * t;
+}
+
+VISRTX_DEVICE vec3 evalSensitivity(float opd, vec3 shift)
+{
+  // Approximate spectral sensitivity of the standard observer as three
+  // Gaussians (Belcour & Barla 2017, simplified) so the result stays in RGB.
+  const float phase = 2.0f * float(M_PI) * opd * 1e-9f;
+  const vec3 val = vec3(5.4856e-13f, 4.4201e-13f, 5.2481e-13f);
+  const vec3 pos = vec3(1.6810e+06f, 1.7953e+06f, 2.2084e+06f);
+  const vec3 var = vec3(4.3278e+09f, 9.3046e+09f, 6.6121e+09f);
+
+  vec3 xyz = val * sqrt(2.0f * float(M_PI) * var) * cos(pos * phase + shift)
+      * exp(-var * phase * phase);
+  xyz.x += 9.7470e-14f * sqrtf(2.0f * float(M_PI) * 4.5282e+09f)
+      * cosf(2.2399e+06f * phase + shift.x)
+      * expf(-4.5282e+09f * phase * phase);
+  xyz /= 1.0685e-7f;
+
+  // sRGB conversion (D65).
+  return vec3(3.2404542f * xyz.x - 1.5371385f * xyz.y - 0.4985314f * xyz.z,
+      -0.9692660f * xyz.x + 1.8760108f * xyz.y + 0.0415560f * xyz.z,
+      0.0556434f * xyz.x - 0.2040259f * xyz.y + 1.0572252f * xyz.z);
+}
+
+VISRTX_DEVICE vec3 evalIridescence(float outsideIor,
+    float iridescenceIor,
+    float cosTheta1,
+    float thickness,
+    vec3 baseF0)
+{
+  // Handle the case where thin-film IOR is close to the outside IOR: return
+  // the base Fresnel to avoid division by zero and phase artifacts.
+  const float iridescenceIorSafe = fmaxf(iridescenceIor, outsideIor + 1e-4f);
+
+  // Force iridescenceIor > outsideIor (otherwise Snell's law cannot refract).
+  const float sinTheta2Sq =
+      pow2(outsideIor / iridescenceIorSafe) * (1.0f - cosTheta1 * cosTheta1);
+  const float cosTheta2Sq = 1.0f - sinTheta2Sq;
+  if (cosTheta2Sq < 0.0f)
+    return vec3(1.0f); // Total internal reflection.
+  const float cosTheta2 = sqrtf(cosTheta2Sq);
+
+  // First interface: Fresnel between outside and thin film.
+  const float R0_12 = iorToFresnel0(iridescenceIorSafe, outsideIor);
+  const float R12 = R0_12 + (1.0f - R0_12) * pow5(1.0f - cosTheta1);
+  const float T121 = 1.0f - R12;
+  const float phi12 = iridescenceIorSafe < outsideIor ? float(M_PI) : 0.0f;
+  const float phi21 = float(M_PI) - phi12;
+
+  // Second interface: film to base.
+  const vec3 baseIor =
+      fresnel0ToIor(glm::clamp(baseF0, vec3(0.f), vec3(0.9999f)));
+  const vec3 R1 = iorToFresnel0(baseIor, iridescenceIorSafe);
+  const vec3 R23 = R1 + (vec3(1.0f) - R1) * pow5(1.0f - cosTheta2);
+  const vec3 phi23 = vec3(baseIor.x < iridescenceIorSafe ? float(M_PI) : 0.0f,
+      baseIor.y < iridescenceIorSafe ? float(M_PI) : 0.0f,
+      baseIor.z < iridescenceIorSafe ? float(M_PI) : 0.0f);
+
+  const float opd = 2.0f * iridescenceIorSafe * thickness * cosTheta2;
+  const vec3 phi = vec3(phi21) + phi23;
+
+  const vec3 R123 = glm::clamp(R12 * R23, vec3(1e-5f), vec3(0.9999f));
+  const vec3 r123 = sqrt(R123);
+  const vec3 Rs = pow2(T121) * R23 / (vec3(1.0f) - R123);
+
+  // DC term.
+  vec3 C0 = R12 + Rs;
+  vec3 I = C0;
+
+  // Higher-order terms.
+  vec3 Cm = Rs - T121;
+  for (int m = 1; m <= 2; ++m) {
+    Cm *= r123;
+    const vec3 Sm = 2.0f * evalSensitivity(float(m) * opd, float(m) * phi);
+    I += Cm * Sm;
+  }
+
+  return glm::max(I, vec3(0.0f));
+}
+
+//-----------------------------------------------------------------------------
+// Initialize shading state from material parameters
+//-----------------------------------------------------------------------------
+
 VISRTX_CALLABLE void __direct_callable__init(
     PhysicallyBasedShadingState *shadingState,
     const FrameGPUData *fd,
     const SurfaceHit *hit,
     const MaterialGPUData::PhysicallyBased *md)
 {
-  vec4 color = getMaterialParameter(*fd, md->baseColor, *hit);
-  float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
+  const vec4 color = getMaterialParameter(*fd, md->baseColor, *hit);
+  const float opacity = getMaterialParameter(*fd, md->opacity, *hit).x;
   shadingState->baseColor = vec3(color);
 
-  vec3 normal = hit->Ns;
+  const vec3 N = sampleNormalMap(*fd, md->normalSampler, *hit, hit->Ns);
+  shadingState->normal = N;
 
-  if (md->normalSampler != ~visrtx::DeviceObjectIndex{0}) {
-    // Normal mapping computation.
-    auto normalMapValue =
-        normalize(evaluateSampler(*fd, md->normalSampler, *hit) * 2.0f - 1.0f);
-    vec3 T = normalize(hit->tU);
-    vec3 B = normalize(hit->tV);
-
-    // Ensure orthogonality (Gram-Schmidt process)
-    T = normalize(T - dot(T, normal) * normal);
-    B = normalize(B - dot(B, normal) * normal - dot(B, T) * T);
-
-    // Transform normal from tangent space to world space
-    normal = normalize(T * normalMapValue.x + B * normalMapValue.y
-        + normal * normalMapValue.z);
-  }
-
-  shadingState->normal = normal;
   shadingState->opacity =
       adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
   shadingState->ior = hit->isFrontFace ? 1.0f / md->ior : md->ior;
   shadingState->metallic = getMaterialParameter(*fd, md->metallic, *hit).x;
   shadingState->roughness = getMaterialParameter(*fd, md->roughness, *hit).x;
-
-  // Emission mapping
   shadingState->emission = vec3(getMaterialParameter(*fd, md->emissive, *hit));
-
-  // Transmission
   shadingState->transmission =
       getMaterialParameter(*fd, md->transmission, *hit).x;
+
+  shadingState->occlusion =
+      md->occlusionSampler == ~visrtx::DeviceObjectIndex{0}
+      ? 1.0f
+      : evaluateSampler(*fd, md->occlusionSampler, *hit).x;
+
+  shadingState->specular = getMaterialParameter(*fd, md->specular, *hit).x;
+  shadingState->specularColor =
+      vec3(getMaterialParameter(*fd, md->specularColor, *hit));
+  shadingState->useSpecular = md->useSpecular;
+
+  shadingState->clearcoat = getMaterialParameter(*fd, md->clearcoat, *hit).x;
+  shadingState->clearcoatRoughness =
+      getMaterialParameter(*fd, md->clearcoatRoughness, *hit).x;
+  shadingState->clearcoatNormal =
+      sampleNormalMap(*fd, md->clearcoatNormalSampler, *hit, hit->Ns);
+
+  shadingState->thickness = getMaterialParameter(*fd, md->thickness, *hit).x;
+  shadingState->attenuationDistance = md->attenuationDistance;
+  shadingState->attenuationColor = md->attenuationColor;
+
+  shadingState->sheenColor =
+      vec3(getMaterialParameter(*fd, md->sheenColor, *hit));
+  shadingState->sheenRoughness =
+      getMaterialParameter(*fd, md->sheenRoughness, *hit).x;
+
+  shadingState->iridescence =
+      getMaterialParameter(*fd, md->iridescence, *hit).x;
+  shadingState->iridescenceIor = md->iridescenceIor;
+  shadingState->iridescenceThickness =
+      getMaterialParameter(*fd, md->iridescenceThickness, *hit).x;
 }
 
-VISRTX_CALLABLE
-vec3 __direct_callable__evaluateTint(
+//-----------------------------------------------------------------------------
+// Simple accessors
+//-----------------------------------------------------------------------------
+
+VISRTX_CALLABLE vec3 __direct_callable__evaluateTint(
     const PhysicallyBasedShadingState *shadingState)
 {
   return shadingState->baseColor;
 }
 
-VISRTX_CALLABLE
-float __direct_callable__evaluateOpacity(
+VISRTX_CALLABLE float __direct_callable__evaluateOpacity(
     const PhysicallyBasedShadingState *shadingState)
 {
   return shadingState->opacity;
 }
 
-VISRTX_CALLABLE
-vec3 __direct_callable__evaluateEmission(
+VISRTX_CALLABLE vec3 __direct_callable__evaluateEmission(
     const PhysicallyBasedShadingState *shadingState, const vec3 *outgoingDir)
 {
   return shadingState->emission;
 }
 
-VISRTX_CALLABLE
-vec3 __direct_callable__evaluateTransmission(
+VISRTX_CALLABLE vec3 __direct_callable__evaluateTransmission(
     const PhysicallyBasedShadingState *shadingState)
 {
-  return shadingState->baseColor * shadingState->transmission * 0.85f;
+  return computeTransmissionFilter(shadingState);
 }
 
-VISRTX_CALLABLE
-vec3 __direct_callable__evaluateNormal(
+VISRTX_CALLABLE vec3 __direct_callable__evaluateNormal(
     const PhysicallyBasedShadingState *shadingState)
 {
   return shadingState->normal;
 }
 
-// Signature must match the call inside shaderPhysicallyBasedSurface in
-// PhysicallyBasedShader.cuh.
+//-----------------------------------------------------------------------------
+// NEE shading: base (diffuse + GGX specular) + clearcoat + sheen
+//-----------------------------------------------------------------------------
+
+VISRTX_DEVICE vec3 computeDielectricF0(const PhysicallyBasedShadingState *state)
+{
+  const float iorF0 = pow2((1.0f - state->ior) / (1.0f + state->ior));
+  if (state->useSpecular == 0)
+    return vec3(iorF0);
+  return glm::min(vec3(iorF0) * state->specularColor, vec3(1.0f))
+      * state->specular;
+}
+
+VISRTX_DEVICE vec3 computeF0(const PhysicallyBasedShadingState *state)
+{
+  return glm::mix(
+      computeDielectricF0(state), state->baseColor, state->metallic);
+}
+
+VISRTX_DEVICE vec3 computeF90(const PhysicallyBasedShadingState *state)
+{
+  const float dielectricF90 = state->useSpecular == 0 ? 1.0f : state->specular;
+  return glm::mix(vec3(dielectricF90), vec3(1.0f), state->metallic);
+}
+
+VISRTX_DEVICE vec3 schlickFresnel(vec3 F0, vec3 F90, float VdotH)
+{
+  return F0 + (F90 - F0) * pow5(1.0f - fabsf(VdotH));
+}
+
 VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
-    const PhysicallyBasedShadingState *shadingState,
+    const PhysicallyBasedShadingState *state,
     const SurfaceHit *hit,
     const LightSample *lightSample,
     const vec3 *outgoingDir)
 {
-  const float NdotL = dot(shadingState->normal, lightSample->dir);
+  const vec3 N = state->normal;
+  const vec3 V = *outgoingDir;
+  const vec3 L = lightSample->dir;
+
+  const float NdotL = dot(N, L);
   if (NdotL <= 0.0f)
-    return vec3(0.0f, 0.0f, 0.0f);
+    return vec3(0.0f);
 
-  const vec3 H = normalize(lightSample->dir + *outgoingDir);
-  const float NdotH = dot(shadingState->normal, H);
+  const vec3 H = normalize(L + V);
+  const float NdotH = fmaxf(dot(N, H), 0.0f);
+  const float NdotV = fmaxf(dot(N, V), 1e-6f);
+  const float VdotH = fmaxf(dot(V, H), 0.0f);
 
-  const float NdotV = dot(shadingState->normal, *outgoingDir);
-  const float VdotH = dot(*outgoingDir, H);
-  const float LdotH = dot(lightSample->dir, H);
+  // Base F0 / F90, optionally overridden by iridescence.
+  vec3 F0 = computeF0(state);
+  vec3 F90 = computeF90(state);
+  vec3 F = schlickFresnel(F0, F90, VdotH);
+  if (state->iridescence > 0.0f && state->iridescenceThickness > 0.0f) {
+    const vec3 iridescent = evalIridescence(
+        1.0f, state->iridescenceIor, VdotH, state->iridescenceThickness, F0);
+    F = glm::mix(F, iridescent, state->iridescence);
+  }
 
-  // Fresnel
-  const vec3 f0 = glm::mix(
-      vec3(pow2((1.f - shadingState->ior) / (1.f + shadingState->ior))),
-      shadingState->baseColor,
-      shadingState->metallic);
-  const vec3 F = f0 + (vec3(1.f) - f0) * pow5(1.f - fabsf(VdotH));
+  // Base GGX specular lobe.
+  const float alpha = fmaxf(pow2(state->roughness), 1e-4f);
+  const float alpha2 = alpha * alpha;
+  const float D = ggxD(NdotH, alpha2);
+  const float G2 = smithG2GGX(NdotV, fmaxf(NdotL, 1e-6f), alpha2);
+  const vec3 specularBRDF = (F * D * G2) / (4.0f * NdotV * fmaxf(NdotL, 1e-6f));
 
-  // Metallic materials don't reflect diffusely:
+  // Diffuse lobe (energy-balanced against specular, attenuated by occlusion
+  // and transmission; metals have no diffuse).
   const vec3 diffuseColor =
-      glm::mix(shadingState->baseColor, vec3(0.f), shadingState->metallic);
+      glm::mix(state->baseColor, vec3(0.0f), state->metallic);
+  const vec3 diffuseBRDF = (vec3(1.0f) - F) * float(M_1_PI) * diffuseColor
+      * state->occlusion * (1.0f - state->transmission);
 
-  const vec3 diffuseBRDF =
-      (vec3(1.f) - F) * float(M_1_PI) * diffuseColor * fmaxf(0.f, NdotL);
+  vec3 base = diffuseBRDF + specularBRDF;
 
-  // Alpha
-  const float alpha = pow2(shadingState->roughness) * shadingState->opacity;
+  // Clearcoat: a second GGX lobe with its own normal and roughness, Fresnel-
+  // attenuating the base layer at both view and light angles.
+  if (state->clearcoat > 0.0f) {
+    const vec3 Nc = state->clearcoatNormal;
+    const float NcDotV = fmaxf(dot(Nc, V), 1e-6f);
+    const float NcDotL = fmaxf(dot(Nc, L), 0.0f);
+    const float NcDotH = fmaxf(dot(Nc, H), 0.0f);
+    const float FcV =
+        CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - NcDotV);
+    const float FcL =
+        CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - NcDotL);
+    const float alphaC = fmaxf(pow2(state->clearcoatRoughness), 1e-4f);
+    const float alphaC2 = alphaC * alphaC;
+    const float Dc = ggxD(NcDotH, alphaC2);
+    const float Gc = smithG2GGX(NcDotV, fmaxf(NcDotL, 1e-6f), alphaC2);
+    const float clearcoatLobe =
+        (FcV * Dc * Gc) / (4.0f * NcDotV * fmaxf(NcDotL, 1e-6f));
 
-  // GGX microfacet distribution
-  const float D = (alpha * alpha * heaviside(NdotH))
-      / (float(M_PI) * pow2(NdotH * NdotH * (alpha * alpha - 1.f) + 1.f));
+    const float attnV = 1.0f - state->clearcoat * FcV;
+    const float attnL = 1.0f - state->clearcoat * FcL;
+    base = base * attnV * attnL;
+    base +=
+        vec3(state->clearcoat * clearcoatLobe) * NcDotL / fmaxf(NdotL, 1e-6f);
+  }
 
-  // Masking-shadowing term
-  const float G =
-      ((2.f * fabsf(NdotL) * heaviside(LdotH))
-          / (fabsf(NdotL)
-              + sqrtf(alpha * alpha + (1.f - alpha * alpha) * NdotL * NdotL)))
-      * ((2.f * fabsf(NdotV) * heaviside(VdotH))
-          / (fabsf(NdotV)
-              + sqrtf(alpha * alpha + (1.f - alpha * alpha) * NdotV * NdotV)));
+  // Sheen: Charlie distribution + Ashikhmin visibility, added on top of the
+  // base layer without energy compensation (simple but consistent with the
+  // glTF reference for basic setups).
+  if (glm::any(glm::greaterThan(state->sheenColor, vec3(0.0f)))) {
+    const float alphaS = fmaxf(pow2(state->sheenRoughness), 1e-4f);
+    const float Ds = charlieD(NdotH, alphaS);
+    const float Vs = charlieV(NdotV, fmaxf(NdotL, 1e-6f));
+    base += state->sheenColor * Ds * Vs;
+  }
 
-  const float denom = 4.f * fabsf(NdotV) * fabsf(NdotL);
-  const vec3 specularBRDF = denom != 0.f ? (F * D * G) / denom : vec3(0.f);
-
-  // Transmission is applied only to the diffuse BRDF. This is intentional:
-  // In this model, transmission reduces the diffuse reflection, while specular
-  // reflection (surface reflection) is not affected by transmission, as it
-  // represents light reflected at the surface rather than transmitted through
-  // the material.
-  return (diffuseBRDF * (1.0f - shadingState->transmission) + specularBRDF)
-      * NdotL * lightSample->radiance / lightSample->pdf;
+  return base * NdotL * lightSample->radiance / lightSample->pdf;
 }
 
+//-----------------------------------------------------------------------------
+// Next-ray importance sampling: stochastic alpha, Fresnel-aware lobe pick,
+// GGX VNDF reflection/refraction. Clearcoat/sheen are NEE-only (no separate
+// lobe sampling), which matches what the base renderer is set up to consume.
+//-----------------------------------------------------------------------------
+
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
-    const PhysicallyBasedShadingState *shadingState,
-    const Ray *ray,
-    RandState *rs)
+    const PhysicallyBasedShadingState *state, const Ray *ray, RandState *rs)
 {
-  // Before anything, check for opacity. If below, then we just pass through
-  if (curand_uniform(rs) > shadingState->opacity)
-    return NextRay{ray->dir, vec3(1.0f)};
+  // Opacity pass-through (stochastic alpha): the ray continues unaltered.
+  if (curand_uniform(rs) > state->opacity)
+    return NextRay{ray->dir, vec3(1.0f), NEXT_RAY_CONTINUES_THROUGH_SURFACE};
 
-  // Open cone, along the perfect reflection ray, with a metallic and
-  // roughness-dependent angle
-  const float roughness = shadingState->roughness;
-  const float metalness = shadingState->metallic;
-  const float roughnessSqr = roughness * roughness;
-  const float cosThetaMax = 1.0f - (roughnessSqr * roughnessSqr);
-  const float transmission = shadingState->transmission;
+  const vec3 N = state->normal;
+  const vec3 V = -ray->dir;
+  const mat3 toWorld = computeOrthonormalBasis(N);
+  const mat3 toLocal = glm::transpose(toWorld);
+  const vec3 Vlocal = toLocal * V;
+  if (Vlocal.z <= 0.0f)
+    return NextRay{N, vec3(0.0f)};
 
-  bool isReflected = curand_uniform(rs) > transmission;
-  auto nextVector = isReflected
-      ? glm::reflect(ray->dir, shadingState->normal)
-      : glm::refract(ray->dir, shadingState->normal, shadingState->ior);
+  const float alpha = fmaxf(pow2(state->roughness), 1e-4f);
+  const float alpha2 = alpha * alpha;
+  const vec3 Hlocal =
+      sampleGGXVNDF(Vlocal, alpha, curand_uniform(rs), curand_uniform(rs));
 
-  auto nextRay = computeOrthonormalBasis(normalize(nextVector))
-      * uniformSampleCone(cosThetaMax,
-          vec3(curand_uniform(rs), curand_uniform(rs), curand_uniform(rs)));
+  const float NdotV = Vlocal.z;
+  const float VdotH = fmaxf(dot(Vlocal, Hlocal), 0.0f);
 
-  auto nextSampleWeight = isReflected
-      ? shadingState->baseColor * metalness * (1.0f - transmission)
-      : shadingState->baseColor * transmission;
+  // Fresnel at the sampled microfacet, with optional iridescence.
+  const vec3 F0 = computeF0(state);
+  const vec3 F90 = computeF90(state);
+  vec3 F = schlickFresnel(F0, F90, VdotH);
+  if (state->iridescence > 0.0f && state->iridescenceThickness > 0.0f) {
+    const vec3 iridescent = evalIridescence(
+        1.0f, state->iridescenceIor, VdotH, state->iridescenceThickness, F0);
+    F = glm::mix(F, iridescent, state->iridescence);
+  }
 
-  return NextRay{nextRay, nextSampleWeight};
+  const vec3 Lrefl = glm::reflect(-Vlocal, Hlocal);
+  const float eta = state->ior; // init() pre-inverted for front-facing hits
+  const vec3 Ltrans = glm::refract(-Vlocal, Hlocal, eta);
+  const vec3 transmissionFilter = computeTransmissionFilter(state);
+  const bool hasTransmission = luminance(transmissionFilter) > 0.0f;
+  const bool totalInternalReflection =
+      hasTransmission && (glm::length(Ltrans) < 1e-6f || Ltrans.z >= 0.0f);
+
+  vec3 reflectEnergy = totalInternalReflection ? vec3(1.0f) : F;
+  vec3 transmitEnergy = totalInternalReflection
+      ? vec3(0.0f)
+      : glm::max(vec3(1.0f) - F, vec3(0.0f)) * transmissionFilter;
+
+  const float reflectStrength =
+      fmaxf(luminance(glm::max(reflectEnergy, vec3(0.0f))), 0.0f);
+  const float transmitStrength =
+      fmaxf(luminance(glm::max(transmitEnergy, vec3(0.0f))), 0.0f);
+  const float combinedStrength = reflectStrength + transmitStrength;
+  if (combinedStrength <= 0.0f)
+    return NextRay{N, vec3(0.0f)};
+
+  const float reflectProb = reflectStrength / combinedStrength;
+  const bool sampleTransmission = curand_uniform(rs) > reflectProb;
+
+  if (sampleTransmission) {
+    const float NdotL = -Ltrans.z; // L points through the surface.
+    const float G1 = smithG1GGX(NdotV, alpha2);
+    const float G2 = smithG2GGX(NdotV, NdotL, alpha2);
+    const vec3 weight = transmitEnergy * (G2 / fmaxf(G1, 1e-8f))
+        / fmaxf(1.0f - reflectProb, 1e-8f);
+    return NextRay{normalize(toWorld * Ltrans),
+        weight,
+        NEXT_RAY_CONTINUES_THROUGH_SURFACE};
+  }
+
+  // Reflection.
+  if (Lrefl.z <= 0.0f)
+    return NextRay{N, vec3(0.0f)};
+
+  const float NdotL = Lrefl.z;
+  const float G1 = smithG1GGX(NdotV, alpha2);
+  const float G2 = smithG2GGX(NdotV, NdotL, alpha2);
+  const vec3 weight =
+      reflectEnergy * (G2 / fmaxf(G1, 1e-8f)) / fmaxf(reflectProb, 1e-8f);
+  return NextRay{normalize(toWorld * Lrefl), weight};
 }

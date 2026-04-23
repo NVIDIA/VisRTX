@@ -33,6 +33,7 @@
 #include "gpu/evalShading.h"
 #include "gpu/gpu_math.h"
 #include "gpu/gpu_objects.h"
+#include "gpu/gpu_util.h"
 #include "gpu/intersectRay.h"
 #include "gpu/renderer/common.h"
 #include "gpu/renderer/raygen_helpers.h"
@@ -124,13 +125,10 @@ struct InteractiveShadingPolicy
     NextRay nextRay = materialNextRay(shadingState, ray, ss.rs);
     if (glm::any(glm::greaterThan(
             nextRay.contributionWeight, glm::vec3(MIN_CONTRIBUTION_EPSILON)))) {
+      const float side = continuesThroughSurface(nextRay) ? -1.0f : 1.0f;
       Ray bounceRay = {
-          bounceHit.hitpoint
-              + bounceHit.Ng
-                  * std::copysignf(
-                      bounceHit.epsilon, dot(bounceHit.Ns, nextRay.direction)),
-          normalize(nextRay.direction),
-      };
+          bounceHit.hitpoint + bounceHit.Ng * bounceHit.epsilon * side,
+          normalize(nextRay.direction)};
 
       // Only check for intersecting surfaces and background as secondary light
       // interactions

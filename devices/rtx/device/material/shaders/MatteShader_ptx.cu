@@ -58,7 +58,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     return NextRay{ray->dir, vec3(1.0f), NEXT_RAY_CONTINUES_THROUGH_SURFACE};
   }
 
-  return NextRay{vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 0.0f)};
+  return NextRay{vec3(0.0f), vec3(0.0f)};
 }
 
 VISRTX_CALLABLE
