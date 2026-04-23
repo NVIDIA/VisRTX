@@ -134,10 +134,10 @@ void normalizeMarginalCDF(float *marginalCdf, int height)
   using thrust::device_pointer_cast;
 
   auto cdf = device_pointer_cast(marginalCdf);
-  thrust::transform(cdf,
-      cdf + height,
-      cdf,
-      [total = cdf[height - 1]] __device__(float x) { return x / total; });
+  thrust::transform(
+      cdf, cdf + height, cdf, [total = cdf[height - 1]] __device__(float x) {
+        return x / total;
+      });
 }
 
 void normalizeConditionalCDFs(float *d_conditional_cdf, int width, int height)
@@ -146,10 +146,10 @@ void normalizeConditionalCDFs(float *d_conditional_cdf, int width, int height)
 
   for (int y = 0; y < height; ++y) {
     auto cdfRow = device_pointer_cast(d_conditional_cdf + y * width);
-    thrust::transform(
-        cdfRow, cdfRow + width, cdfRow, [total = cdfRow[width - 1]] __device__(float x) {
-          return x / total;
-        });
+    thrust::transform(cdfRow,
+        cdfRow + width,
+        cdfRow,
+        [total = cdfRow[width - 1]] __device__(float x) { return x / total; });
   }
 }
 
@@ -172,22 +172,23 @@ float generateCDFTables(const float *luminanceImage,
   computeRowSums(luminanceImage, rowSums.ptrAs<float>(), width, height);
   computeMarginalCDF(
       rowSums.ptrAs<const float>(), marginalCdf->ptrAs<float>(), height);
-  computeConditionalCDFs(luminanceImage,
-      conditionalCdf->ptrAs<float>(),
-      width,
-      height);
+  computeConditionalCDFs(
+      luminanceImage, conditionalCdf->ptrAs<float>(), width, height);
 
   // Compute pdfWeight
 
   // Not the best, but accumulation operations of cdfs accumulate error.
   // Lets recompute the total luminance from the luminance array
   // to avoid this.
-  auto totalLuminance = reduce(
-      device_pointer_cast(luminanceImage),
-          device_pointer_cast(luminanceImage) + width * height);
+  auto totalLuminance = reduce(device_pointer_cast(luminanceImage),
+      device_pointer_cast(luminanceImage) + width * height);
 
-  float angularArea = 4.0f * float(M_PI) / (width * height);
-  float weight = 1.0f / (totalLuminance * angularArea);
+  // Equirectangular Jacobian |dω/d(u,v)| = 2π²·sinθ; the sinθ weighting is
+  // already folded into the CDF luminance, so the per-pixel area factor is
+  // 2π²/(W·H) and pdf_ω = (L/totalL) · (W·H)/(2π²).
+  const float equirectJacobian =
+      2.0f * float(M_PI) * float(M_PI) / (width * height);
+  float weight = 1.0f / (totalLuminance * equirectJacobian);
 
   // Normalize both tables
   normalizeMarginalCDF(marginalCdf->ptrAs<float>(), height);
@@ -211,8 +212,11 @@ float generateCDFTables(const glm::vec3 *rgbImage,
 
   computeWeightedLuminance(rgbImage, luminance.ptrAs<float>(), width, height);
 
-  return generateCDFTables(
-      luminance.ptrAs<const float>(), width, height, marginalCdf, conditionalCdf);
+  return generateCDFTables(luminance.ptrAs<const float>(),
+      width,
+      height,
+      marginalCdf,
+      conditionalCdf);
 }
 
 } // namespace visrtx

@@ -62,10 +62,10 @@ namespace visrtx {
 // Light sampling result containing direction, distance, radiance and PDF
 struct LightSample
 {
-  vec3 radiance;  // Emitted radiance in direction of hit point (W⋅sr⁻¹⋅m⁻²)
-  vec3 dir;       // Unit direction vector from hit point to light sample
-  float dist;     // Distance from hit point to light sample
-  float pdf;      // Probability density function value for this sample
+  vec3 radiance; // Emitted radiance in direction of hit point (W⋅sr⁻¹⋅m⁻²)
+  vec3 dir; // Unit direction vector from hit point to light sample
+  float dist; // Distance from hit point to light sample
+  float pdf; // Probability density function value for this sample
 };
 
 namespace detail {
@@ -74,8 +74,8 @@ VISRTX_DEVICE LightSample sampleDirectionalLight(
     const LightGPUData &ld, const mat4 &xfm)
 {
   LightSample ls;
-  // Transform light direction to world space and negate to get direction TO light
-  // (ld.distant.direction points FROM the light source)
+  // Transform light direction to world space and negate to get direction TO
+  // light (ld.distant.direction points FROM the light source)
   ls.dir = xfmVec(xfm, -ld.distant.direction);
   ls.dist = std::numeric_limits<float>::infinity();
   // For directional lights, irradiance is the amount of light per unit area
@@ -135,16 +135,19 @@ VISRTX_DEVICE LightSample sampleSphereLight(
   // Area PDF = 1 / (4πr²), but we need solid angle PDF
   // Conversion: pdf_solid_angle = pdf_area * distance² / |cos θ|
   // For sphere: cos θ = dot(surface_normal, -light_direction)
-  // Surface normal at sampled point: direction from sphere center to sample point
+  // Surface normal at sampled point: direction from sphere center to sample
+  // point
   auto worldSphereCenter = xfmPoint(xfm, ld.sphere.position);
   auto surfaceNormal = normalize(worldSamplePos - worldSphereCenter);
   auto cosTheta = dot(surfaceNormal, -ls.dir);
 
   if (cosTheta > 0.0f) {
     // Note: For non-uniform scaling transforms, the area calculation would need
-    // to account for the transform's effect on surface area (determinant of jacobian)
-    // Currently assumes uniform scaling or no scaling of the light geometry
-    float areaPdf = 1.f / (4.f * float(M_PI) * ld.sphere.radius * ld.sphere.radius);
+    // to account for the transform's effect on surface area (determinant of
+    // jacobian) Currently assumes uniform scaling or no scaling of the light
+    // geometry
+    float areaPdf =
+        1.f / (4.f * float(M_PI) * ld.sphere.radius * ld.sphere.radius);
     ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
   } else {
     // Back-facing surface element contributes no light
@@ -179,9 +182,9 @@ VISRTX_DEVICE LightSample sampleRectLight(
   // Handle front/back face emission based on light configuration
   if (ld.rect.side.back) {
     if (ld.rect.side.front)
-      cosTheta = fabsf(cosTheta);  // Both sides: always positive
+      cosTheta = fabsf(cosTheta); // Both sides: always positive
     else
-      cosTheta = -cosTheta;        // Back only: flip to back face
+      cosTheta = -cosTheta; // Back only: flip to back face
   }
   // Front only: use cosTheta as-is (positive for front face)
 
@@ -216,7 +219,8 @@ VISRTX_DEVICE LightSample sampleRingLight(
   // For uniform area sampling: r² = u₂(R² - r²) + r² where R=outer, r=inner
   auto outerRadius = ld.ring.radius;
   auto innerRadius = ld.ring.innerRadius;
-  auto r = sqrtf(u2 * (outerRadius * outerRadius - innerRadius * innerRadius) + innerRadius * innerRadius);
+  auto r = sqrtf(u2 * (outerRadius * outerRadius - innerRadius * innerRadius)
+      + innerRadius * innerRadius);
 
   // Create orthonormal basis with ring direction as normal
   auto direction = normalize(ld.ring.direction);
@@ -246,7 +250,8 @@ VISRTX_DEVICE LightSample sampleRingLight(
   } else {
     // Falloff region: smooth interpolation using smoothstep function
     // smoothstep(t) = 3t² - 2t³ provides C¹ continuity
-    spot = (cosTheta - ld.ring.cosOuterAngle) / (ld.ring.cosInnerAngle - ld.ring.cosOuterAngle);
+    spot = (cosTheta - ld.ring.cosOuterAngle)
+        / (ld.ring.cosInnerAngle - ld.ring.cosOuterAngle);
     spot = spot * spot * (3.0f - 2.0f * spot);
   }
 
@@ -258,7 +263,7 @@ VISRTX_DEVICE LightSample sampleRingLight(
       // Convert area PDF to solid angle PDF for proper Monte Carlo integration
       // Ring area = π(R² - r²), so area PDF = 1 / ring_area
       // Solid angle PDF = area_pdf * distance² / |cos θ|
-      float areaPdf = ld.ring.oneOverArea;  // This is 1 / ring_area
+      float areaPdf = ld.ring.oneOverArea; // This is 1 / ring_area
       ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
     } else {
       ls.radiance = vec3(0.0f);
@@ -290,14 +295,14 @@ VISRTX_DEVICE LightSample sampleSpotLight(
 
   // Apply spotlight cone attenuation with smooth falloff
   if (spot < ld.spot.cosOuterAngle)
-    spot = 0.f;  // Outside cone: no illumination
+    spot = 0.f; // Outside cone: no illumination
   else if (spot > ld.spot.cosInnerAngle)
-    spot = 1.f;  // Inside inner cone: full illumination
+    spot = 1.f; // Inside inner cone: full illumination
   else {
     // Falloff region: smooth interpolation using smoothstep
     spot = (spot - ld.spot.cosOuterAngle)
         / (ld.spot.cosInnerAngle - ld.spot.cosOuterAngle);
-    spot = spot * spot * (3.f - 2.f * spot);  // smoothstep function
+    spot = spot * spot * (3.f - 2.f * spot); // smoothstep function
   }
 
   // Apply inverse square law with spotlight attenuation
@@ -325,13 +330,15 @@ VISRTX_DEVICE LightSample sampleHDRILight(
       / glm::vec2(float(M_PI) * 2.0f, float(M_PI));
 
   auto radiance = sampleHDRI(ld, uv);
-  // Calculate PDF using luminance (ITU-R BT.709 weights) and jacobian
-  // sin(θ) term accounts for the jacobian of spherical→rectangular mapping
-  auto pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * sinf(thetaPhi.x) * ld.hdri.pdfWeight;
+  // pdf_ω = (L/totalL) · pdfWeight; the equirectangular sinθ jacobian is
+  // already folded into the CDF (computeWeightedLuminance) and into
+  // pdfWeight's 2π²/(W·H) factor, so do not re-multiply by sinθ here.
+  auto pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * ld.hdri.pdfWeight;
 
   LightSample ls;
   ls.dir = xfmVec(xfm, dir);
-  ls.dist = std::numeric_limits<float>::infinity();  // Environment is at infinity
+  ls.dist =
+      std::numeric_limits<float>::infinity(); // Environment is at infinity
   ls.radiance = radiance * ld.hdri.scale;
   ls.pdf = pdf;
 
@@ -342,7 +349,8 @@ VISRTX_DEVICE LightSample sampleHDRILight(
     const LightGPUData &ld, const mat4 &xfm, RandState &rs)
 {
   // Importance sampling using hierarchical (marginal/conditional) CDF approach
-  // First sample row (y) using marginal CDF, then column (x) using conditional CDF
+  // First sample row (y) using marginal CDF, then column (x) using conditional
+  // CDF
   auto y = inverseSampleCDF(
       ld.hdri.marginalCDF, ld.hdri.size.y, curand_uniform(&rs));
   auto x = inverseSampleCDF(ld.hdri.conditionalCDF + y * ld.hdri.size.x,
@@ -365,16 +373,17 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   // uv.y ∈ [0,1] → θ ∈ [0,π], uv.x ∈ [0,1] → φ ∈ [0,2π]
   auto thetaPhi = float(M_PI) * glm::vec2(uv.y, 2.0f * (uv.x));
 
-  // Calculate PDF using luminance and jacobian of spherical mapping
+  // pdf_ω = (L/totalL) · pdfWeight; the equirectangular sinθ jacobian is
+  // already folded into the CDF and pdfWeight, so do not re-multiply here.
   auto radiance = sampleHDRI(ld, uv);
-  auto pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * sinf(thetaPhi.x) * ld.hdri.pdfWeight;
+  auto pdf = dot(radiance, {0.2126f, 0.7152f, 0.0722f}) * ld.hdri.pdfWeight;
 
   LightSample ls;
   // Transform spherical direction to world space
   // ld.hdri.xfm is orthogonal, so we can use right-hand multiplication
   // instead of explicitly transposing/inverting the matrix
   ls.dir = xfmVec(xfm, sphericalCoordsToDirection(thetaPhi) * ld.hdri.xfm);
-  ls.dist = 1e20f;  // Environment is effectively at infinity
+  ls.dist = 1e20f; // Environment is effectively at infinity
   ls.radiance = radiance * ld.hdri.scale;
   ls.pdf = pdf;
 
