@@ -4,6 +4,10 @@
 #include "AnariSceneRenderPass.h"
 #include "tsd/core/Logging.hpp"
 // tsd_algorithms
+#include "tsd/algorithms/cpu/clearBuffers.hpp"
+#ifdef TSD_ALGORITHMS_HAS_CUDA
+#include "tsd/algorithms/cuda/clearBuffers.hpp"
+#endif
 #include "tsd/algorithms/cpu/depthCompositeFrame.hpp"
 #ifdef TSD_ALGORITHMS_HAS_CUDA
 #include "tsd/algorithms/cuda/depthCompositeFrame.hpp"
@@ -289,17 +293,27 @@ void AnariSceneRenderPass::render(ImageBuffers &b, int stageId)
   if (m_firstFrame)
     anari::render(m_device, m_frame);
 
-  if (m_firstFrame || !m_runAsync) {
+  if (!m_runAsync)
     anari::wait(m_device, m_frame);
-    m_firstFrame = false;
-  }
 
   if (anari::isReady(m_device, m_frame)) {
+    m_firstFrame = false;
     copyFrameData();
     anari::render(m_device, m_frame);
   }
 
-  composite(b, stageId);
+  if (!m_firstFrame)
+    composite(b, stageId);
+  else {
+    const auto size = getDimensions();
+    const uint32_t totalPixels = uint32_t(size.x) * uint32_t(size.y);
+#ifdef TSD_ALGORITHMS_HAS_CUDA
+    if (b.stream)
+      tsd::algorithms::cuda::fill(b.stream, b.color, totalPixels, 0);
+#else
+    tsd::algorithms::cpu::fill(b.color, totalPixels, 0);
+#endif
+  }
 }
 
 void AnariSceneRenderPass::copyFrameData()

@@ -35,8 +35,13 @@ void ImagePipeline::setDimensions(uint32_t width, uint32_t height)
     return;
   m_size.x = width;
   m_size.y = height;
+
   cleanup();
+
   const size_t totalSize = size_t(width) * size_t(height);
+  if (totalSize == 0)
+    return;
+
   m_buffers.color = detail::allocate<uint32_t>(totalSize);
   m_buffers.hdrColor = detail::allocate<float>(totalSize * 4);
   m_buffers.depth = detail::allocate<float>(totalSize);
@@ -45,6 +50,7 @@ void ImagePipeline::setDimensions(uint32_t width, uint32_t height)
   m_buffers.primitiveId = detail::allocate<uint32_t>(totalSize);
   m_buffers.albedo = detail::allocate<tsd::math::float3>(totalSize);
   m_buffers.normal = detail::allocate<tsd::math::float3>(totalSize);
+
   for (auto &p : m_passes)
     p->setDimensions(width, height);
 }
@@ -89,6 +95,7 @@ bool ImagePipeline::empty() const
 void ImagePipeline::clear()
 {
   m_passes.clear();
+  setDimensions(0, 0);
 }
 
 void ImagePipeline::cleanup()

@@ -13,11 +13,25 @@ BlockingTaskModal::~BlockingTaskModal() = default;
 
 void BlockingTaskModal::buildUI()
 {
-  if (tsd::core::isReady(m_future))
+  std::lock_guard<std::mutex> lock(m_mutex);
+
+  if (m_tasks.empty()) {
     this->hide();
+    return;
+  }
+
+  auto *t = &m_tasks.front();
+  while (tsd::core::isReady(t->future)) {
+    m_tasks.pop_front();
+    if (m_tasks.empty()) {
+      this->hide();
+      return;
+    }
+    t = &m_tasks.front();
+  }
 
   ImGui::ProgressBar(
-      -1.0f * (float)ImGui::GetTime(), ImVec2(0.0f, 0.0f), m_text.c_str());
+      -1.0f * (float)ImGui::GetTime(), ImVec2(0.0f, 0.0f), t->text.c_str());
 
   m_timer.end();
   ImGui::NewLine();
@@ -26,9 +40,10 @@ void BlockingTaskModal::buildUI()
 
 void BlockingTaskModal::activate(tsd::core::Future &&f, const char *text)
 {
-  m_timer.start();
-  m_future = std::move(f);
-  m_text = text;
+  std::lock_guard<std::mutex> lock(m_mutex);
+  if (m_tasks.empty())
+    m_timer.start();
+  m_tasks.push_back({std::move(f), text});
   this->show();
 }
 

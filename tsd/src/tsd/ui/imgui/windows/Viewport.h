@@ -24,7 +24,6 @@
 #include <anari/frontend/anari_enums.h>
 // std
 #include <functional>
-#include <future>
 #include <limits>
 #include <optional>
 #include <string>
@@ -41,7 +40,7 @@ struct Viewport : public BaseViewport
   ~Viewport();
 
   void buildUI() override;
-  void setLibrary(const std::string &libName, bool doAsync = true);
+  void setLibrary(const std::string &libName);
   void setLibraryToDefault();
   void setDeviceChangeCb(ViewportDeviceChangeCb cb);
   void setExternalInstances(
@@ -49,6 +48,8 @@ struct Viewport : public BaseViewport
   void setCustomFrameParameter(const char *name, const tsd::core::Any &value);
 
  private:
+  void refreshCurrentDevice();
+
   void saveSettings(tsd::core::DataNode &thisWindowRoot) override;
   void loadSettings(tsd::core::DataNode &thisWindowRoot) override;
 
@@ -84,13 +85,11 @@ struct Viewport : public BaseViewport
 
   ViewportDeviceChangeCb m_deviceChangeCb;
   float m_timeToLoadDevice{0.f};
-  std::future<void> m_initFuture;
   std::string m_libName;
   tsd::rendering::RenderIndex *m_rIdx{nullptr};
   tsd::app::RenderIndexKind m_lastIndexKind{
       tsd::app::RenderIndexKind::ALL_LAYERS};
 
-  bool m_refreshDeviceNextFrame{false};
   bool m_showOverlay{true};
   bool m_highlightSelection{true};
   bool m_showOnlySelected{false};

@@ -104,11 +104,7 @@ class Application : public TSDApplication
       }
     };
 
-#if 1
     showTaskModal(populateScene, "Please Wait: Loading Scene...");
-#else
-    populateScene();
-#endif
 
     return windows;
   }

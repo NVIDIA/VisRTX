@@ -23,11 +23,8 @@ BaseViewport::~BaseViewport()
 
 void BaseViewport::buildUI()
 {
-  ImVec2 _viewportSize = ImGui::GetContentRegionAvail();
-  tsd::math::int2 viewportSize(_viewportSize.x, _viewportSize.y);
-
-  if (m_viewport.size != viewportSize)
-    viewport_reshape(viewportSize);
+  ImVec2 viewportSize = ImGui::GetContentRegionAvail();
+  viewport_reshape({int(viewportSize.x), int(viewportSize.y)});
 }
 
 void BaseViewport::setManipulator(tsd::rendering::Manipulator *m)
@@ -127,7 +124,7 @@ void BaseViewport::imagePipeline_teardown()
 
 void BaseViewport::camera_update(bool force)
 {
-  if (!m_viewport.active)
+  if (!viewport_isActive())
     return;
 
   if (!m_camera.current)
@@ -146,7 +143,7 @@ void BaseViewport::camera_setCurrent(tsd::scene::CameraAppRef c)
 
 bool BaseViewport::gizmo_canShow() const
 {
-  if (!m_gizmo.active || !m_viewport.active)
+  if (!m_gizmo.active || !viewport_isActive())
     return false;
 
   // Check if we have a selected node with a transform

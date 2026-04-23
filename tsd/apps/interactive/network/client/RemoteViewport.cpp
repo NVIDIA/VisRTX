@@ -41,25 +41,24 @@ RemoteViewport::~RemoteViewport()
 
 void RemoteViewport::buildUI()
 {
-  BaseViewport::buildUI();
-
   bool isConnected = m_channel && m_channel->isConnected();
   BaseViewport::viewport_setActive(isConnected);
 
-  if (m_wasConnected != isConnected)
-    viewport_reshape(m_viewport.size);
+  BaseViewport::buildUI();
 
   if (!m_wasConnected && isConnected) {
     m_receivedCameraIdx = TSD_INVALID_INDEX;
     m_receivedRendererIdx = TSD_INVALID_INDEX;
     m_channel->send(MessageType::SERVER_REQUEST_CURRENT_CAMERA);
     m_channel->send(MessageType::SERVER_REQUEST_CURRENT_RENDERER);
+    m_clearPass->setClearColor(tsd::math::float4(0.f, 0.f, 0.f, 1.f));
   } else if (m_wasConnected && !isConnected) {
     disconnect();
+    m_incomingFramePass->setEnabled(false);
+    m_clearPass->setClearColor(tsd::math::float4(1.f, 0.f, 0.f, 1.f));
   }
 
   m_wasConnected = isConnected;
-  m_incomingFramePass->setEnabled(isConnected);
 
   updateRenderer();
   updateCamera();
@@ -70,17 +69,19 @@ void RemoteViewport::buildUI()
   ui_menubar();
   ImGui::EndDisabled();
 
-  if (m_outputPass) {
+  if (BaseViewport::imagePipeline_isSetup()) {
     ImGui::Image((ImTextureID)m_outputPass->getTexture(),
         ImGui::GetContentRegionAvail(),
         ImVec2(0, 1),
         ImVec2(1, 0));
   }
 
-  BaseViewport::ui_gizmo();
-  const bool widgetActive = BaseViewport::ui_orientationWidget();
-  if (!widgetActive)
-    BaseViewport::ui_handleInput();
+  if (BaseViewport::viewport_isActive()) {
+    BaseViewport::ui_gizmo();
+    const bool widgetActive = BaseViewport::ui_orientationWidget();
+    if (!widgetActive)
+      BaseViewport::ui_handleInput();
+  }
 
   // Render the overlay after input handling so it does not interfere.
   if (m_showOverlay)
@@ -152,14 +153,12 @@ void RemoteViewport::disconnect()
 void RemoteViewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 {
   m_clearPass = p.emplace_back<tsd::rendering::ClearBuffersPass>();
+  m_clearPass->setClearColor(tsd::math::float4(1.f, 0.f, 0.f, 1.f));
   m_incomingFramePass = p.emplace_back<tsd::rendering::CopyToColorBufferPass>();
+  m_incomingFramePass->setExternalBuffer(m_incomingColorBuffer);
+  m_incomingFramePass->setEnabled(false);
   m_outputPass = p.emplace_back<tsd::rendering::CopyToSDLTexturePass>(
       m_app->sdlRenderer());
-
-  m_clearPass->setClearColor(tsd::math::float4(1.f, 0.f, 0.f, 1.f));
-  m_incomingFramePass->setExternalBuffer(m_incomingColorBuffer);
-
-  viewport_reshape(m_viewport.size);
 }
 
 void RemoteViewport::camera_resetView(bool /*resetAzEl*/)
@@ -189,12 +188,19 @@ void RemoteViewport::renderer_resetParameterDefaults()
       "Renderer parameter reset is not currently supported in RemoteViewport.");
 }
 
-void RemoteViewport::viewport_reshape(tsd::math::int2 newSize)
+void RemoteViewport::viewport_reshape(tsd::math::int2 _newSize)
 {
-  if (newSize.x <= 0 || newSize.y <= 0)
+  if (_newSize.x <= 0 || _newSize.y <= 0)
     return;
 
-  BaseViewport::viewport_reshape(newSize);
+  BaseViewport::viewport_reshape(_newSize);
+
+  if (!BaseViewport::viewport_isActive())
+    return;
+
+  auto newSize = tsd::math::uint2(_newSize.x, _newSize.y);
+  if (m_frameConfig.size == newSize)
+    return;
 
   {
     std::lock_guard lock(m_incomingFrameMutex);
@@ -205,7 +211,7 @@ void RemoteViewport::viewport_reshape(tsd::math::int2 newSize)
     m_hasPendingFrame = false;
   }
 
-  m_frameConfig.size = tsd::math::uint2(newSize.x, newSize.y);
+  m_frameConfig.size = newSize;
 
   if (m_channel && m_channel->isConnected())
     m_channel->send(MessageType::SERVER_SET_FRAME_CONFIG, &m_frameConfig);
@@ -219,6 +225,7 @@ void RemoteViewport::applyIncomingFrame()
 
   m_incomingColorBuffer.swap(m_pendingColorBuffer);
   m_hasPendingFrame = false;
+  m_incomingFramePass->setEnabled(true);
 }
 
 void RemoteViewport::updateRenderer()

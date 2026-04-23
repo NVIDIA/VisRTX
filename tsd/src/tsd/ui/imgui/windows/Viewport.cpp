@@ -33,7 +33,7 @@ Viewport::Viewport(
   m_viewport.resolutionScale = 0.75f;
   BaseViewport::setManipulator(m);
   m_defragToken = appContext()->tsd.scene.addDefragCallback(
-      [this](const auto &) { m_refreshDeviceNextFrame = true; });
+      [this](const auto &) { refreshCurrentDevice(); });
 }
 
 Viewport::~Viewport()
@@ -44,34 +44,17 @@ Viewport::~Viewport()
 
 void Viewport::buildUI()
 {
-  const bool setupPipeline = BaseViewport::viewport_isActive()
-      && !BaseViewport::imagePipeline_isSetup();
-  if (setupPipeline)
-    BaseViewport::imagePipeline_setup();
-
-  if (m_refreshDeviceNextFrame) {
-    if (!m_libName.empty()) {
-      auto lib = m_libName; // setLibrary() clears m_libName
-      setLibrary(lib);
-    }
-    m_refreshDeviceNextFrame = false;
-  }
-
-  BaseViewport::buildUI();
-
-  if (m_prevRenderer != m_renderers.current
-      || m_prevCamera != m_camera.current) {
-    updateFrame();
-  }
-
+  if (BaseViewport::viewport_isActive())
+    BaseViewport::buildUI();
+  updateFrame();
   updateImage();
   BaseViewport::camera_update();
 
   ui_menubar();
 
-  ImGui::BeginDisabled(!BaseViewport::imagePipeline_isSetup());
+  ImGui::BeginDisabled(!BaseViewport::viewport_isActive());
 
-  if (m_outputPass) {
+  if (BaseViewport::viewport_isActive()) {
     ImGui::Image((ImTextureID)m_outputPass->getTexture(),
         ImGui::GetContentRegionAvail(),
         ImVec2(0, 1),
@@ -104,12 +87,12 @@ void Viewport::buildUI()
     if (kind != m_lastIndexKind) {
       tsd::core::logWarning("render index setting changed: resetting viewport");
       m_lastIndexKind = kind;
-      m_refreshDeviceNextFrame = true;
+      refreshCurrentDevice();
     }
   }
 }
 
-void Viewport::setLibrary(const std::string &libName, bool doAsync)
+void Viewport::setLibrary(const std::string &libName)
 {
   teardownDevice();
 
@@ -132,6 +115,8 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
     m_maxFL.reset();
 
     if (d) {
+      m_device = d;
+
       tsd::core::logStatus("[viewport] setting up renderer objects...");
 
       m_renderers.objects = scene.renderersOfDevice(libName);
@@ -144,14 +129,11 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       m_rIdx = adm.acquireRenderIndex(scene, libName, d);
       setSelectionVisibilityFilterEnabled(m_showOnlySelected);
 
-      tsd::core::logStatus("[viewport] getting scene bounds...");
-
-      m_device = d;
-      viewport_setActive(true);
-
       static bool firstFrame = true;
       if (firstFrame && appContext()->commandLine.loadedFromStateFile)
         firstFrame = false;
+
+      tsd::core::logStatus("[viewport] setting up camera...");
 
       if (!m_camera.current)
         BaseViewport::camera_setCurrent(scene.defaultCamera());
@@ -160,13 +142,16 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
           *m_camera.arcball, *m_camera.current);
 
       if (firstFrame || m_camera.arcball->distance() == tsd::math::inf) {
+        tsd::core::logStatus(
+            "[viewport] getting scene bounds to init camera...");
         camera_resetView(true);
-        if (appContext()->view.poses.empty()) {
-          tsd::core::logStatus("[viewport] adding 'default' camera pose");
-          appContext()->addCurrentViewToCameraPoses("default");
-        }
         firstFrame = false;
       }
+
+      tsd::core::logStatus("[viewport] setting up image pipeline...");
+
+      BaseViewport::imagePipeline_setup();
+      viewport_setActive(true);
 
       tsd::core::logStatus("[viewport] ...device load complete");
     }
@@ -178,10 +163,7 @@ void Viewport::setLibrary(const std::string &libName, bool doAsync)
       m_deviceChangeCb(m_libName);
   };
 
-  if (doAsync)
-    m_initFuture = std::async(updateLibrary);
-  else
-    updateLibrary();
+  m_app->showTaskModal(updateLibrary, "Loading Device...");
 }
 
 void Viewport::setLibraryToDefault()
@@ -209,7 +191,7 @@ void Viewport::setExternalInstances(
 void Viewport::setCustomFrameParameter(
     const char *name, const tsd::core::Any &value)
 {
-  if (!m_anariPass) {
+  if (!BaseViewport::viewport_isActive()) {
     tsd::core::logWarning(
         "[viewport] cannot set custom frame parameter '%s': no frame yet",
         name);
@@ -219,6 +201,14 @@ void Viewport::setCustomFrameParameter(
   auto f = m_anariPass->getFrame();
   anari::setParameter(m_device, f, name, value.type(), value.data());
   anari::commitParameters(m_device, f);
+}
+
+void Viewport::refreshCurrentDevice()
+{
+  if (BaseViewport::viewport_isActive()) {
+    auto lib = m_libName; // setLibrary() clears m_libName
+    setLibrary(lib);
+  }
 }
 
 void Viewport::saveSettings(tsd::core::DataNode &root)
@@ -419,8 +409,6 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 
 void Viewport::camera_resetView(bool resetAzEl)
 {
-  if (!BaseViewport::viewport_isActive())
-    return;
   auto axis = m_camera.arcball->axis();
   auto azel =
       resetAzEl ? tsd::math::float2(0.f, 20.f) : m_camera.arcball->azel();
@@ -479,13 +467,12 @@ void Viewport::renderer_resetParameterDefaults()
 
 void Viewport::teardownDevice()
 {
-  if (m_initFuture.valid())
-    m_initFuture.get();
-
   if (!BaseViewport::imagePipeline_isSetup())
     return;
 
+  BaseViewport::viewport_setActive(false);
   BaseViewport::imagePipeline_teardown();
+  BaseViewport::viewport_reshape(tsd::math::int2(1, 1));
 
   m_anariPass = nullptr;
   m_pickPass = nullptr;
@@ -511,8 +498,6 @@ void Viewport::teardownDevice()
   m_prevRenderer = {};
 
   m_device = nullptr;
-
-  BaseViewport::viewport_setActive(false);
 }
 
 void Viewport::pick(tsd::math::int2 l, bool selectObject)
@@ -540,15 +525,20 @@ void Viewport::setSelectionVisibilityFilterEnabled(bool enabled)
 
 void Viewport::updateFrame()
 {
-  if (!m_anariPass)
+  if (!BaseViewport::viewport_isActive())
+    return;
+
+  if (m_prevRenderer == m_renderers.current && m_prevCamera == m_camera.current)
     return;
 
   if (!m_camera.current)
     m_camera.current = appContext()->tsd.scene.defaultCamera();
 
   m_anariPass->setWorld(m_rIdx->world());
-  if (m_camera.current)
+  if (m_camera.current) {
     m_anariPass->setCamera(m_rIdx->camera(m_camera.current->index()));
+    m_prevCamera = m_camera.current;
+  }
   if (m_renderers.current) {
     m_anariPass->setRenderer(m_rIdx->renderer(m_renderers.current->index()));
     m_prevRenderer = m_renderers.current;
@@ -557,7 +547,7 @@ void Viewport::updateFrame()
 
 void Viewport::updateImage()
 {
-  if (!m_anariPass)
+  if (!BaseViewport::viewport_isActive())
     return;
 
   auto frame = m_anariPass->getFrame();
@@ -677,7 +667,7 @@ void Viewport::ui_menubar_Device()
     }
     ImGui::Separator();
     if (ImGui::MenuItem("Reload Current Device"))
-      m_refreshDeviceNextFrame = true;
+      refreshCurrentDevice();
     ImGui::EndMenu();
   }
 }
