@@ -145,23 +145,25 @@ VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
       glm::min(size_t((1.0f - curand_uniform(&ss.rs)) * float(numLights)),
           numLights - 1);
 
-  const float radianceWeight = float(numLights);
+  // Uniform light pick: P(light) = 1/numLights. Fold that into the returned
+  // pdf rather than into radiance so MIS weights see the full joint pdf
+  // P(dir, light) = P(dir | light) * (1/numLights).
+  const float lightPickPdf = 1.0f / float(numLights);
 
   // last index is reserved for ambient light if it exists
   if (selectedIdx == world.numLightInstances) {
     const auto &rendererParams = frameData.renderer;
     return LightSample{
-        radianceWeight * rendererParams.ambientColor
-            * rendererParams.ambientIntensity,
+        rendererParams.ambientColor * rendererParams.ambientIntensity,
         sampleHemisphere(ss.rs, normal),
         std::numeric_limits<float>::max(),
-        1.0f / (2.0f * float(M_PI)),
+        lightPickPdf / (2.0f * float(M_PI)),
     };
   } else {
     const auto &lightInstance = world.lightInstances[selectedIdx];
     auto ls =
         sampleLight(ss, origin, lightInstance.lightIndex, lightInstance.xfm);
-    ls.radiance *= radianceWeight;
+    ls.pdf *= lightPickPdf;
     return ls;
   }
 }
