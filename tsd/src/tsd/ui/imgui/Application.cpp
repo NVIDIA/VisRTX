@@ -862,7 +862,7 @@ void Application::teardownUsdDevice()
     return;
   tsd::core::logStatus("tearing down USD device...");
   auto d = m_usdDevice.device;
-  m_ctx.anari.releaseRenderIndex(d);
+  m_ctx.anari.releaseRenderIndex(m_ctx.tsd.scene, d);
   anari::release(d, m_usdDevice.frame);
   anari::release(d, d);
   m_usdDevice.device = nullptr;
@@ -921,7 +921,7 @@ void Application::teardownTsdDevice()
     return;
   tsd::core::logStatus("tearing down TSD device...");
   auto d = m_tsdDevice.device;
-  m_ctx.anari.releaseRenderIndex(d);
+  m_ctx.anari.releaseRenderIndex(m_ctx.tsd.scene, d);
   anari::release(d, m_tsdDevice.frame);
   anari::release(d, d);
   m_tsdDevice.device = nullptr;

@@ -13,8 +13,9 @@ namespace tsd::rendering {
  * collections.
  *
  * Example:
- *   RenderIndexFlatRegistry idx(scene, deviceToken, anariDevice);
- *   idx.populate();
+ *   auto *idx = scene.updateDelegate().emplace<RenderIndexFlatRegistry>(
+ *       scene, deviceToken, anariDevice);
+ *   idx->populate();
  */
 struct RenderIndexFlatRegistry : public RenderIndex
 {

@@ -176,7 +176,7 @@ void DistributedRenderServer::run(short port)
   }
 
   m_camera = {};
-  m_ctx.anari.releaseRenderIndex(m_device);
+  m_ctx.anari.releaseRenderIndex(m_ctx.tsd.scene, m_device);
   m_ctx.anari.releaseAllDevices();
 
   MPI_Barrier(MPI_COMM_WORLD);
@@ -256,7 +256,7 @@ void DistributedRenderServer::setup_ANARIDevice()
           return v.get<int32_t>() == myRank;
         return true; // no mpiRank tag → global (camera, renderer, etc.)
       });
-  m_ctx.anari.getUpdateDelegate().signalObjectFilteringChanged();
+  m_ctx.tsd.scene.updateDelegate().signalObjectFilteringChanged();
 
   m_camera = scene.defaultCamera();
   m_renderers = scene.renderersOfDevice(m_libName).empty()

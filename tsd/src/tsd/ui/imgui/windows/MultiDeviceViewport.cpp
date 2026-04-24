@@ -19,18 +19,23 @@ MultiDeviceViewport::MultiDeviceViewport(
 
 MultiDeviceViewport::~MultiDeviceViewport()
 {
+  auto &scene = appContext()->tsd.scene;
+  auto &anari = appContext()->anari;
+
   for (size_t i = 0; i < m_cameras.size(); i++) {
     auto *ri = getRenderIndex(i);
     auto d = ri->device();
     auto c = m_cameras[i];
     auto r = m_rud.renderers[i];
 
+    anari.releaseRenderIndex(scene, d);
     anari::release(d, c);
     anari::release(d, r);
   }
 
   m_rud.renderers.clear();
   m_rud.devices.clear();
+  m_renderIndices.clear();
 }
 
 void MultiDeviceViewport::buildUI()
@@ -135,6 +140,7 @@ void MultiDeviceViewport::setLibrary(const std::string &libName)
     ri->setIncludedLayers({l});
 
     m_cameras.push_back(c);
+    m_renderIndices.push_back(ri);
     m_rud.devices.push_back(d);
     m_rud.renderers.push_back(r);
 
@@ -199,8 +205,7 @@ void MultiDeviceViewport::loadSettings(tsd::core::DataNode &root)
 tsd::rendering::RenderIndexAllLayers *MultiDeviceViewport::getRenderIndex(
     size_t i) const
 {
-  auto &delegate = appContext()->anari.getUpdateDelegate();
-  return (tsd::rendering::RenderIndexAllLayers *)delegate.get(i);
+  return m_renderIndices.at(i);
 }
 
 void MultiDeviceViewport::getSceneBounds(tsd::math::float3 boundsOut[2]) const

@@ -495,7 +495,7 @@ void Viewport::teardownDevice()
   m_outputPass = nullptr;
   m_saveToFilePass = nullptr;
 
-  appContext()->anari.releaseRenderIndex(m_device);
+  appContext()->anari.releaseRenderIndex(appContext()->tsd.scene, m_device);
   m_rIdx = nullptr;
   m_libName.clear();
 

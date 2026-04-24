@@ -21,6 +21,7 @@ project_add_executable(
   test_Object.cpp
   test_ObjectUsePtr.cpp
   test_Parameter.cpp
+  test_Scene.cpp
   test_Token.cpp
 )
 project_link_libraries(
@@ -46,4 +47,5 @@ add_test(NAME tsd::Math          COMMAND ${PROJECT_NAME} "[Math]"         )
 add_test(NAME tsd::Object        COMMAND ${PROJECT_NAME} "[Object]"       )
 add_test(NAME tsd::ObjectUsePtr  COMMAND ${PROJECT_NAME} "[ObjectUsePtr]" )
 add_test(NAME tsd::Parameter     COMMAND ${PROJECT_NAME} "[Parameter]"    )
+add_test(NAME tsd::Scene         COMMAND ${PROJECT_NAME} "[Scene]"        )
 add_test(NAME tsd::Token         COMMAND ${PROJECT_NAME} "[Token]"        )

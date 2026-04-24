@@ -7,8 +7,41 @@
 // std
 #include <algorithm>
 #include <sstream>
+#if defined(__cpp_rtti) || defined(__GXX_RTTI) || defined(_CPPRTTI)
+#include <typeinfo>
+#endif
 
 namespace tsd::scene {
+
+namespace {
+
+const char *delegateTypeName(const BaseUpdateDelegate &delegate)
+{
+#if defined(__cpp_rtti) || defined(__GXX_RTTI) || defined(_CPPRTTI)
+  return typeid(delegate).name();
+#else
+  return "<rtti unavailable>";
+#endif
+}
+
+void logRemainingDelegates(const MultiUpdateDelegate &delegate)
+{
+  if (delegate.size() == 0)
+    return;
+
+  logError("Scene::~Scene(): %zu update delegate(s) still registered",
+      delegate.size());
+
+  for (size_t i = 0; i < delegate.size(); i++) {
+    auto *child = delegate.get(i);
+    logError("  delegate[%zu]: type=%s ptr=%p",
+        i,
+        child ? delegateTypeName(*child) : "<null>",
+        (const void *)child);
+  }
+}
+
+} // namespace
 
 std::string objectDBInfo(const ObjectDatabase &db)
 {
@@ -79,10 +112,11 @@ Scene::Scene()
 
 Scene::~Scene()
 {
+  logRemainingDelegates(m_updateDelegate);
+  m_updateDelegate.clear();
+
   m_defaultObjects.material.reset();
   m_defaultObjects.camera.reset();
-
-  m_updateDelegate = nullptr;
   m_layers.clear();
 
   auto reportObjectUsages = [&](auto &array) {
@@ -356,8 +390,7 @@ void Scene::removeObject(const Object *_o)
 
   auto &o = *_o;
 
-  if (m_updateDelegate)
-    m_updateDelegate->signalObjectRemoved(&o);
+  m_updateDelegate.signalObjectRemoved(&o);
 
   const auto type = o.type();
   const auto index = o.index();
@@ -403,8 +436,7 @@ void Scene::removeObject(const Object *_o)
 
 void Scene::removeAllObjects()
 {
-  if (m_updateDelegate)
-    m_updateDelegate->signalRemoveAllObjects();
+  m_updateDelegate.signalRemoveAllObjects();
 
   m_defaultObjects.material.reset();
   m_defaultObjects.camera.reset();
@@ -465,32 +497,14 @@ void Scene::removeRenderersForDevice(Token deviceName)
     removeObject(r.get());
 }
 
-BaseUpdateDelegate *Scene::updateDelegate() const
+MultiUpdateDelegate &Scene::updateDelegate()
 {
   return m_updateDelegate;
 }
 
-void Scene::setUpdateDelegate(BaseUpdateDelegate *ud)
+const MultiUpdateDelegate &Scene::updateDelegate() const
 {
-  m_updateDelegate = ud;
-
-  auto setDelegateOnObjects = [&](auto &array) {
-    foreach_item_const(array, [&](auto *o) {
-      if (o)
-        o->setUpdateDelegate(ud);
-    });
-  };
-
-  setDelegateOnObjects(m_db.array);
-  setDelegateOnObjects(m_db.light);
-  setDelegateOnObjects(m_db.surface);
-  setDelegateOnObjects(m_db.geometry);
-  setDelegateOnObjects(m_db.material);
-  setDelegateOnObjects(m_db.sampler);
-  setDelegateOnObjects(m_db.volume);
-  setDelegateOnObjects(m_db.field);
-  setDelegateOnObjects(m_db.camera);
-  setDelegateOnObjects(m_db.renderer);
+  return m_updateDelegate;
 }
 
 const ObjectDatabase &Scene::objectDB() const
@@ -524,8 +538,7 @@ Layer *Scene::addLayer(Token name)
   auto &ls = m_layers[name];
   if (!ls.ptr) {
     ls.ptr.reset(new Layer(this, name.str()));
-    if (m_updateDelegate)
-      m_updateDelegate->signalLayerAdded(ls.ptr.get());
+    m_updateDelegate.signalLayerAdded(ls.ptr.get());
     m_numActiveLayers++;
   }
   return ls.ptr.get();
@@ -595,8 +608,7 @@ void Scene::removeLayer(Token name)
 {
   if (!m_layers.contains(name))
     return;
-  if (m_updateDelegate)
-    m_updateDelegate->signalLayerRemoved(m_layers[name].ptr.get());
+  m_updateDelegate.signalLayerRemoved(m_layers[name].ptr.get());
   if (m_layers[name].active)
     m_numActiveLayers--;
   m_layers.erase(name);
@@ -606,10 +618,7 @@ void Scene::removeLayer(const Layer *layer)
 {
   for (size_t i = 0; i < m_layers.size(); i++) {
     if (m_layers.at_index(i).second.ptr.get() == layer) {
-      if (m_updateDelegate) {
-        m_updateDelegate->signalLayerRemoved(
-            m_layers.at_index(i).second.ptr.get());
-      }
+      m_updateDelegate.signalLayerRemoved(m_layers.at_index(i).second.ptr.get());
       m_layers.erase(i);
       return;
     }
@@ -619,8 +628,7 @@ void Scene::removeLayer(const Layer *layer)
 void Scene::removeAllLayers()
 {
   for (auto itr = m_layers.begin(); itr != m_layers.end(); itr++) {
-    if (m_updateDelegate)
-      m_updateDelegate->signalLayerRemoved(itr->second.ptr.get());
+    m_updateDelegate.signalLayerRemoved(itr->second.ptr.get());
   }
 
   m_layers.clear();
@@ -719,32 +727,28 @@ void Scene::signalLayerStructureChanged(const Layer *l)
 {
   if (m_inLayerBatch)
     m_batchedLayerUpdates.push_back(l);
-  else if (m_updateDelegate)
-    m_updateDelegate->signalLayerStructureUpdated(l);
+  else
+    m_updateDelegate.signalLayerStructureUpdated(l);
 }
 
 void Scene::signalLayerTransformChanged(const Layer *l)
 {
-  if (m_updateDelegate)
-    m_updateDelegate->signalLayerTransformUpdated(l);
+  m_updateDelegate.signalLayerTransformUpdated(l);
 }
 
 void Scene::signalActiveLayersChanged()
 {
-  if (m_updateDelegate)
-    m_updateDelegate->signalActiveLayersChanged();
+  m_updateDelegate.signalActiveLayersChanged();
 }
 
 void Scene::signalObjectParameterUseCountZero(const Object *obj)
 {
-  if (m_updateDelegate)
-    m_updateDelegate->signalObjectParameterUseCountZero(obj);
+  m_updateDelegate.signalObjectParameterUseCountZero(obj);
 }
 
 void Scene::signalObjectLayerUseCountZero(const Object *obj)
 {
-  if (m_updateDelegate)
-    m_updateDelegate->signalObjectLayerUseCountZero(obj);
+  m_updateDelegate.signalObjectLayerUseCountZero(obj);
 }
 
 void Scene::removeUnusedObjects(bool includeRenderersAndCameras)
@@ -867,8 +871,7 @@ void Scene::defragmentObjectStorage()
   updateObjectHeldIndex(m_db.renderer);
 
   // Signal updates to any delegates //
-  if (m_updateDelegate)
-    m_updateDelegate->signalInvalidateCachedObjects();
+  m_updateDelegate.signalInvalidateCachedObjects();
 }
 
 void Scene::cleanupScene()
@@ -900,10 +903,8 @@ ArrayRef Scene::createArrayImpl(anari::DataType type,
   retval->m_scene = this;
   retval->m_index = retval.index();
 
-  if (m_updateDelegate) {
-    retval->setUpdateDelegate(m_updateDelegate);
-    m_updateDelegate->signalObjectAdded(retval.data());
-  }
+  retval->setUpdateDelegate(&m_updateDelegate);
+  m_updateDelegate.signalObjectAdded(retval.data());
 
   return retval;
 }

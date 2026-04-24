@@ -18,10 +18,7 @@ namespace tsd::app {
 
 TSDState::TSDState() : animationMgr(&scene) {}
 
-Context::Context() : anari(&m_logging.verbose)
-{
-  tsd.scene.setUpdateDelegate(&anari.getUpdateDelegate());
-}
+Context::Context() : anari(&m_logging.verbose) {}
 
 Context::~Context()
 {
@@ -248,7 +245,7 @@ void Context::setSelected(tsd::scene::LayerNodeRef node)
 void Context::setSelected(const std::vector<tsd::scene::LayerNodeRef> &nodes)
 {
   tsd.selectedNodes = nodes;
-  anari.getUpdateDelegate().signalObjectFilteringChanged();
+  tsd.scene.updateDelegate().signalObjectFilteringChanged();
 }
 
 void Context::setSelected(const tsd::scene::Object *obj)
@@ -304,7 +301,7 @@ void Context::addToSelection(tsd::scene::LayerNodeRef node)
   }
 
   tsd.selectedNodes.push_back(node);
-  anari.getUpdateDelegate().signalObjectFilteringChanged();
+  tsd.scene.updateDelegate().signalObjectFilteringChanged();
 }
 
 void Context::removeFromSelection(tsd::scene::LayerNodeRef node)
@@ -312,7 +309,7 @@ void Context::removeFromSelection(tsd::scene::LayerNodeRef node)
   auto it = std::find(tsd.selectedNodes.begin(), tsd.selectedNodes.end(), node);
   if (it != tsd.selectedNodes.end()) {
     tsd.selectedNodes.erase(it);
-    anari.getUpdateDelegate().signalObjectFilteringChanged();
+    tsd.scene.updateDelegate().signalObjectFilteringChanged();
   }
 }
 
@@ -326,7 +323,7 @@ void Context::clearSelected()
 {
   if (!tsd.selectedNodes.empty()) {
     tsd.selectedNodes.clear();
-    anari.getUpdateDelegate().signalObjectFilteringChanged();
+    tsd.scene.updateDelegate().signalObjectFilteringChanged();
   }
 }
 std::vector<tsd::scene::LayerNodeRef> Context::getParentOnlySelectedNodes()

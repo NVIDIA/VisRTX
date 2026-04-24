@@ -55,6 +55,7 @@ struct MultiDeviceViewport : public Window
 
   anari::DataType m_format{ANARI_UFIXED8_RGBA_SRGB};
   std::vector<anari::Camera> m_cameras;
+  std::vector<tsd::rendering::RenderIndexAllLayers *> m_renderIndices;
   tsd::scene::Object m_rendererObject;
 
   struct RendererUpdateDelegate : public tsd::scene::EmptyUpdateDelegate

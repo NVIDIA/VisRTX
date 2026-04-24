@@ -5,6 +5,7 @@
 
 #include "tsd/scene/DefragCallback.hpp"
 #include "tsd/scene/Layer.hpp"
+#include "tsd/scene/UpdateDelegate.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Camera.hpp"
 #include "tsd/scene/objects/Geometry.hpp"
@@ -36,8 +37,6 @@ void load_Scene(scene::Scene &, core::DataNode &, animation::AnimationManager *)
 } // namespace tsd::io
 
 namespace tsd::scene {
-
-struct BaseUpdateDelegate;
 
 /*
  * Flat collection of ObjectPool instances, one per ANARI object type; serves
@@ -79,8 +78,8 @@ using LayerMap = FlatMap<Token, LayerState>;
 
 /*
  * Central scene container that owns all ANARI-typed objects, a named layer
- * hierarchy, animations, and an optional update delegate; the main entry point
- * for creating, retrieving, and removing scene content.
+ * hierarchy, animations, and an intrinsic MultiUpdateDelegate root; the main
+ * entry point for creating, retrieving, and removing scene content.
  *
  * Example:
  *   Scene scene;
@@ -147,8 +146,8 @@ struct Scene
   std::vector<RendererAppRef> renderersOfDevice(Token deviceName) const;
   void removeRenderersForDevice(Token deviceName);
 
-  BaseUpdateDelegate *updateDelegate() const;
-  void setUpdateDelegate(BaseUpdateDelegate *ud);
+  MultiUpdateDelegate &updateDelegate();
+  const MultiUpdateDelegate &updateDelegate() const;
 
   const ObjectDatabase &objectDB() const;
 
@@ -253,7 +252,7 @@ struct Scene
     ObjectUsePtr<Camera, Object::UseKind::INTERNAL> camera;
   } m_defaultObjects;
 
-  BaseUpdateDelegate *m_updateDelegate{nullptr};
+  MultiUpdateDelegate m_updateDelegate;
 
   LayerMap m_layers;
   size_t m_numActiveLayers{0};
@@ -410,10 +409,8 @@ inline ObjectPoolRef<OBJ_T> Scene::createObjectImpl(
   auto retval = iv.emplace(std::forward<Args>(args)...);
   retval->m_scene = this;
   retval->m_index = retval.index();
-  if (m_updateDelegate) {
-    retval->setUpdateDelegate(m_updateDelegate);
-    m_updateDelegate->signalObjectAdded(retval.data());
-  }
+  retval->setUpdateDelegate(&m_updateDelegate);
+  m_updateDelegate.signalObjectAdded(retval.data());
   return retval;
 }
 

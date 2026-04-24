@@ -24,7 +24,8 @@ struct RenderToAnariObjectsVisitor;
  * subclasses decide how layers are mapped to world instances.
  *
  * Example:
- *   auto idx = std::make_unique<RenderIndexAllLayers>(scene, device);
+ *   auto idx = scene.updateDelegate().emplace<RenderIndexAllLayers>(
+ *       scene, deviceName, device);
  *   idx->populate();
  *   anari::World world = idx->world();
  */
@@ -42,7 +43,9 @@ struct RenderIndex : public BaseUpdateDelegate
 
   void logCacheInfo() const;
 
-  void populate(bool setAsUpdateDelegate = true);
+  // Bootstrap or fully rebuild this index from the current Scene snapshot.
+  // This does not register the index as a Scene update delegate.
+  void populate();
 
   virtual void setFilterFunction(RenderIndexFilterFcn f);
   virtual bool isFlat() const = 0;

@@ -25,7 +25,7 @@ World::~World()
 {
   auto *s = deviceState();
   if (!s->usingExternalScene())
-    s->anari.releaseRenderIndex(s->device);
+    s->anari.releaseRenderIndex(*s->scene, s->device);
   s->scene->removeLayer(m_layerName);
 }
 

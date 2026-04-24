@@ -136,7 +136,7 @@ void DistributedSceneController::shutdown()
   MPI_Barrier(MPI_COMM_WORLD);
 
   auto d = m_anari.device;
-  m_ctx->anari.releaseRenderIndex(d);
+  m_ctx->anari.releaseRenderIndex(m_ctx->tsd.scene, d);
   anari::release(d, m_anari.hdriLight);
   anari::release(d, m_anari.renderer);
   anari::release(d, m_anari.camera);

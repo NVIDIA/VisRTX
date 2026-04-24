@@ -15,9 +15,10 @@ namespace tsd::rendering {
  * gathering.
  *
  * Example:
- *   RenderIndexAllLayers idx(scene, deviceToken, anariDevice);
- *   idx.populate();
- *   idx.setFilterFunction([](auto *o){ return o->name() != "hidden"; });
+ *   auto *idx = scene.updateDelegate().emplace<RenderIndexAllLayers>(
+ *       scene, deviceToken, anariDevice);
+ *   idx->populate();
+ *   idx->setFilterFunction([](auto *o){ return o->name() != "hidden"; });
  */
 struct RenderIndexAllLayers : public RenderIndex
 {

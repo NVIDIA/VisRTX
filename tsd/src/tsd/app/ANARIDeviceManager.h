@@ -23,14 +23,14 @@ using DeviceInitParam = std::pair<std::string, tsd::core::Any>;
 
 /*
  * Manages the lifecycle of ANARI devices and their associated RenderIndex
- * instances; loads libraries on demand, reference-counts render indices per
- * device, and fans update delegate signals to all active render indices.
+ * instances; loads libraries on demand and reference-counts one scene-owned
+ * RenderIndex per ANARI device.
  *
  * Example:
  *   ANARIDeviceManager mgr;
  *   auto device = mgr.loadDevice("visrtx");
  *   auto *idx = mgr.acquireRenderIndex(scene, deviceToken, device);
- *   mgr.releaseRenderIndex(device);
+ *   mgr.releaseRenderIndex(scene, device);
  */
 struct ANARIDeviceManager
 {
@@ -42,13 +42,11 @@ struct ANARIDeviceManager
   anari::Device loadDevice(const std::string &libName,
       const std::vector<DeviceInitParam> &initialDeviceParams = {});
 
-  const anari::Extensions *loadDeviceExtensions(const std::string &libName);
+ const anari::Extensions *loadDeviceExtensions(const std::string &libName);
   tsd::rendering::RenderIndex *acquireRenderIndex(
       tsd::scene::Scene &c, tsd::core::Token deviceName, anari::Device device);
-  void releaseRenderIndex(anari::Device device);
+  void releaseRenderIndex(tsd::scene::Scene &c, anari::Device device);
   void releaseAllDevices();
-
-  tsd::scene::MultiUpdateDelegate &getUpdateDelegate();
 
   void setRenderIndexKind(RenderIndexKind k);
   RenderIndexKind renderIndexKind() const;
@@ -60,11 +58,11 @@ struct ANARIDeviceManager
   const bool *m_verboseFlag{nullptr};
   struct LiveAnariIndex
   {
+    tsd::scene::Scene *scene{nullptr};
     int refCount{0};
     tsd::rendering::RenderIndex *idx{nullptr};
   };
   std::map<anari::Device, LiveAnariIndex> m_rIdxs;
-  tsd::scene::MultiUpdateDelegate m_delegate;
   std::map<std::string, anari::Device> m_loadedDevices;
   std::map<std::string, anari::Extensions> m_loadedDeviceExtensions;
   std::vector<std::string> m_libraryList;

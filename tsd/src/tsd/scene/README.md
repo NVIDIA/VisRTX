@@ -15,7 +15,9 @@ object concepts and layered scene-graph instancing.
   use-count tracking for cleanup/garbage collection.
 - Update notifications:
   `BaseUpdateDelegate` and `MultiUpdateDelegate` forward object/layer/animation
-  changes to rendering, networking, or UI subsystems.
+  changes to rendering, networking, or UI subsystems. Every `Scene`
+  intrinsically owns a `MultiUpdateDelegate` root exposed via
+  `scene.updateDelegate()`.
 - Animation system:
   time-step arrays and keyframe channels for parameter and transform
   interpolation.

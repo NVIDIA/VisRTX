@@ -105,7 +105,7 @@ void RenderServer::run(short port)
   m_server->removeAllHandlers();
 
   m_camera = {};
-  m_ctx.anari.releaseRenderIndex(m_device);
+  m_ctx.anari.releaseRenderIndex(m_ctx.tsd.scene, m_device);
   m_ctx.anari.releaseAllDevices();
 }
 

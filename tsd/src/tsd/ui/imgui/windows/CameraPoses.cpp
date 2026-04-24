@@ -565,7 +565,7 @@ void CameraPoses::renderInterpolatedPath()
 
         // Cleanup
         pipeline.reset();
-        ctx->anari.releaseRenderIndex(d);
+        ctx->anari.releaseRenderIndex(scene, d);
         anari::release(d, c);
         anari::release(d, r);
         anari::release(d, d);

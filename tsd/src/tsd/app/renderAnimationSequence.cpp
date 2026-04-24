@@ -64,8 +64,9 @@ void renderAnimationSequence(Context &ctx,
   }
   anari::commitParameters(d, d);
 
-  auto renderIndex =
-      std::make_unique<tsd::rendering::RenderIndexAllLayers>(scene, libName, d);
+  auto *renderIndex =
+      scene.updateDelegate().emplace<tsd::rendering::RenderIndexAllLayers>(
+          scene, libName, d);
   renderIndex->populate();
 
   // Validate camera — resolve index //
@@ -78,6 +79,7 @@ void renderAnimationSequence(Context &ctx,
   if (!cameraRef) {
     tsd::core::logError(
         "[renderAnimationSequence] No camera at index %zu", camIdx);
+    scene.updateDelegate().erase(renderIndex);
     anari::release(d, d);
     return;
   }
@@ -189,6 +191,7 @@ void renderAnimationSequence(Context &ctx,
 
   // Restore animation state //
   animMgr.setAnimationFrame(savedFrame);
+  scene.updateDelegate().erase(renderIndex);
 }
 
 } // namespace tsd::app

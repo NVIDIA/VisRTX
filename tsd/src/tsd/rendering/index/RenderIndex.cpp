@@ -86,7 +86,7 @@ void RenderIndex::logCacheInfo() const
   logStatus("   renderers: %zu", m_cache.renderer.size());
 }
 
-void RenderIndex::populate(bool setAsUpdateDelegate)
+void RenderIndex::populate()
 {
   m_cache.clear();
 
@@ -107,9 +107,6 @@ void RenderIndex::populate(bool setAsUpdateDelegate)
   createANARICacheObjects(db.light, m_cache.light);
   createANARICacheObjects(db.camera, m_cache.camera);
   createANARICacheObjects(db.renderer, m_cache.renderer);
-
-  if (setAsUpdateDelegate)
-    m_ctx->setUpdateDelegate(this);
 
   updateWorld();
 }
@@ -223,7 +220,7 @@ void RenderIndex::signalRemoveAllObjects()
 void RenderIndex::signalInvalidateCachedObjects()
 {
   signalRemoveAllObjects();
-  populate(false); // always 'false' as this may already be the delegate
+  populate();
   updateWorld();
 }
 

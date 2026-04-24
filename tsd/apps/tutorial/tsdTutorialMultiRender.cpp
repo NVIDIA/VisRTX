@@ -72,17 +72,15 @@ int main()
 
   // Setup render indexes //
 
-  tsd::rendering::MultiUpdateDelegate ud;
+  auto &ud = scene.updateDelegate();
 
   auto *rIdx1 = ud.emplace<tsd::rendering::RenderIndexFlatRegistry>(
       scene, deviceName, device);
   auto *rIdx2 = ud.emplace<tsd::rendering::RenderIndexFlatRegistry>(
       scene, deviceName, device);
 
-  rIdx1->populate(false);
-  rIdx2->populate(false);
-
-  scene.setUpdateDelegate(&ud);
+  rIdx1->populate();
+  rIdx2->populate();
 
   // Create camera //
 

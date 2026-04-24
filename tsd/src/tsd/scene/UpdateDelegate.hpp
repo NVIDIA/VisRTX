@@ -28,7 +28,7 @@ struct Parameter;
  *       { scheduleUpload(o, p); }
  *     // ... implement remaining pure virtuals ...
  *   };
- *   scene.setUpdateDelegate(&myDelegate);
+ *   scene.updateDelegate().emplace<MyDelegate>();
  */
 struct BaseUpdateDelegate
 {
@@ -64,8 +64,7 @@ struct BaseUpdateDelegate
  * events.
  *
  * Example:
- *   EmptyUpdateDelegate noop;
- *   scene.setUpdateDelegate(&noop);
+ *   scene.updateDelegate().emplace<EmptyUpdateDelegate>();
  */
 struct EmptyUpdateDelegate : public BaseUpdateDelegate
 {
@@ -98,10 +97,9 @@ struct EmptyUpdateDelegate : public BaseUpdateDelegate
  * out to each of them; enables multiple independent systems to observe a Scene.
  *
  * Example:
- *   MultiUpdateDelegate multi;
+ *   auto &multi = scene.updateDelegate();
  *   multi.emplace<RenderDelegate>();
  *   multi.emplace<NetworkDelegate>();
- *   scene.setUpdateDelegate(&multi);
  */
 struct MultiUpdateDelegate : public BaseUpdateDelegate
 {

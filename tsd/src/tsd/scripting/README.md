@@ -76,7 +76,7 @@ tsd.io.generateMaterialOrb(scene)
 -- Batch rendering
 local device = tsd.render.loadDevice("visrtx")
 local ri = tsd.render.createRenderIndex(scene, device)
-ri:populate()
+ri:populate() -- bootstrap the scene-owned live render index
 local cam = tsd.CameraSetup.new()
 cam.position, cam.direction, cam.up = tsd.float3(0, 0, 5), tsd.float3(0, 0, -1), tsd.float3(0, 1, 0)
 cam.fovy, cam.aspect = 45.0, 16/9

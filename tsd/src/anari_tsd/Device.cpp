@@ -243,7 +243,6 @@ void Device::initDevice()
           libraryName.c_str());
 
       state->deviceName = libraryName;
-      state->scene->setUpdateDelegate(&state->anari.getUpdateDelegate());
     }
   }
 

@@ -7,6 +7,8 @@
 // tsd_rendering
 #include "tsd/rendering/index/RenderIndexAllLayers.hpp"
 #include "tsd/rendering/index/RenderIndexFlatRegistry.hpp"
+// std
+#include <cassert>
 
 namespace tsd::app {
 
@@ -146,46 +148,76 @@ tsd::rendering::RenderIndex *ANARIDeviceManager::acquireRenderIndex(
     tsd::scene::Scene &c, tsd::core::Token n, anari::Device d)
 {
   auto &liveIdx = m_rIdxs[d];
+  if (liveIdx.scene && liveIdx.scene != &c) {
+    assert(liveIdx.scene == &c);
+    tsd::core::logError(
+        "ANARIDeviceManager::acquireRenderIndex() scene mismatch for device %p"
+        " (existing=%p, requested=%p)",
+        (void *)d,
+        (void *)liveIdx.scene,
+        (void *)&c);
+    return nullptr;
+  }
+
   if (liveIdx.refCount == 0) {
+    liveIdx.scene = &c;
     switch (renderIndexKind()) {
     case RenderIndexKind::FLAT:
-      liveIdx.idx =
-          m_delegate.emplace<tsd::rendering::RenderIndexFlatRegistry>(c, n, d);
+      liveIdx.idx = c.updateDelegate().emplace<
+          tsd::rendering::RenderIndexFlatRegistry>(c, n, d);
       break;
     case RenderIndexKind::ALL_LAYERS:
     default:
-      liveIdx.idx =
-          m_delegate.emplace<tsd::rendering::RenderIndexAllLayers>(c, n, d);
+      liveIdx.idx = c.updateDelegate().emplace<
+          tsd::rendering::RenderIndexAllLayers>(c, n, d);
       break;
     }
-    liveIdx.idx->populate(false);
+    liveIdx.idx->populate();
   }
   liveIdx.refCount++;
   return liveIdx.idx;
 }
 
-void ANARIDeviceManager::releaseRenderIndex(anari::Device d)
+void ANARIDeviceManager::releaseRenderIndex(tsd::scene::Scene &c, anari::Device d)
 {
-  auto &liveIdx = m_rIdxs[d];
+  auto itr = m_rIdxs.find(d);
+  if (itr == m_rIdxs.end())
+    return;
+
+  auto &liveIdx = itr->second;
+  if (liveIdx.scene && liveIdx.scene != &c) {
+    assert(liveIdx.scene == &c);
+    tsd::core::logError(
+        "ANARIDeviceManager::releaseRenderIndex() scene mismatch for device %p"
+        " (existing=%p, requested=%p)",
+        (void *)d,
+        (void *)liveIdx.scene,
+        (void *)&c);
+    return;
+  }
+
   if (liveIdx.refCount == 0)
     return;
-  else if (liveIdx.refCount == 1)
-    m_delegate.erase(liveIdx.idx);
-  liveIdx.refCount--;
+  if (--liveIdx.refCount == 0) {
+    c.updateDelegate().erase(liveIdx.idx);
+    m_rIdxs.erase(itr);
+  }
 }
 
 void ANARIDeviceManager::releaseAllDevices()
 {
+  for (auto &itr : m_rIdxs) {
+    auto &liveIdx = itr.second;
+    if (liveIdx.scene && liveIdx.idx)
+      liveIdx.scene->updateDelegate().erase(liveIdx.idx);
+  }
+  m_rIdxs.clear();
+
   for (auto &d : m_loadedDevices) {
     if (d.second)
       anari::release(d.second, d.second);
   }
   m_loadedDevices.clear();
-}
-
-tsd::scene::MultiUpdateDelegate &ANARIDeviceManager::getUpdateDelegate()
-{
-  return m_delegate;
 }
 
 void ANARIDeviceManager::setRenderIndexKind(RenderIndexKind k)

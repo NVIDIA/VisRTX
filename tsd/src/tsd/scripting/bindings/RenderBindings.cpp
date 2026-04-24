@@ -118,17 +118,17 @@ void registerRenderBindings(sol::state &lua)
 
   render["createRenderIndex"] = [](scene::Scene &scene,
                                     std::shared_ptr<LuaAnariDevice> dev)
-      -> std::shared_ptr<rendering::RenderIndexAllLayers> {
+      -> rendering::RenderIndexAllLayers * {
     if (!dev || !dev->device) {
       throw std::runtime_error("createRenderIndex: device handle is null");
     }
-    return std::make_shared<rendering::RenderIndexAllLayers>(
+    return scene.updateDelegate().emplace<rendering::RenderIndexAllLayers>(
         scene, dev->libraryName, dev->device);
   };
 
   render["getWorldBounds"] =
       [](std::shared_ptr<LuaAnariDevice> dev,
-          std::shared_ptr<rendering::RenderIndexAllLayers> index,
+          rendering::RenderIndexAllLayers *index,
           sol::this_state s) -> sol::table {
     if (!dev || !dev->device) {
       throw std::runtime_error("getWorldBounds: device handle is null");
@@ -171,7 +171,7 @@ void registerRenderBindings(sol::state &lua)
       [](int width,
           int height,
           std::shared_ptr<LuaAnariDevice> dev,
-          std::shared_ptr<rendering::RenderIndexAllLayers> index,
+          rendering::RenderIndexAllLayers *index,
           const LuaCameraSetup &camera,
           sol::optional<sol::table> rendererParams)
       -> std::shared_ptr<rendering::ImagePipeline> {

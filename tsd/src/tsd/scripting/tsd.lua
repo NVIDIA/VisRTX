@@ -723,6 +723,8 @@ local RenderIndex = {}
 ---@return tsd.RenderIndex
 function RenderIndex.new(...) end
 
+--- Bootstrap or rebuild this render index from the current scene snapshot.
+--- This does not register the render index for live scene updates.
 function RenderIndex:populate() end
 
 ---@return any
@@ -1137,7 +1139,7 @@ tsd.render = {}
 ---@return tsd.AnariDevice
 function tsd.render.loadDevice(libraryName) end
 
---- Create a render index for a scene.
+--- Create a scene-owned render index for live scene updates.
 --- Throws if `device` is nil or invalid.
 ---@param scene tsd.Scene
 ---@param device tsd.AnariDevice
