@@ -42,10 +42,11 @@ struct Denoiser : public Object
   ~Denoiser() override;
 
   void setup(uvec2 size,
-      HostDeviceArray<uint8_t> &pixelBuffer,
+      HostDeviceArray<uint8_t> &outputBuffer,
       ANARIDataType format,
-      DeviceBuffer &accumAlbedo,
-      DeviceBuffer &accumNormal);
+      DeviceBuffer &input,
+      DeviceBuffer &albedo,
+      DeviceBuffer &normal);
   void cleanup();
 
   void launch();

@@ -734,8 +734,6 @@ enum class FrameFormat
 struct FrameBuffers
 {
   glm::vec4 *colorAccumulation;
-  glm::vec4 *outColorVec4;
-  uint32_t *outColorUint;
   float *depth;
   uint32_t *primID;
   uint32_t *objID;
@@ -750,7 +748,6 @@ struct FramebufferGPUData
   int frameID;
   int checkerboardID;
   float invFrameID;
-  FrameFormat format;
   glm::uvec2 size;
   glm::vec2 invSize;
 };

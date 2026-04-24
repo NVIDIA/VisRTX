@@ -380,18 +380,6 @@ VISRTX_DEVICE uint32_t pixelIndex(
   return pixel.x + pixel.y * fb.size.x;
 }
 
-VISRTX_DEVICE void writeOutputColor(
-    const FramebufferGPUData &fb, const vec4 &color, const uint32_t idx)
-{
-  if (fb.format == FrameFormat::SRGB) {
-    fb.buffers.outColorUint[idx] =
-        glm::packUnorm4x8(glm::convertLinearToSRGB(color));
-  } else if (fb.format == FrameFormat::UINT)
-    fb.buffers.outColorUint[idx] = glm::packUnorm4x8(color);
-  else
-    fb.buffers.outColorVec4[idx] = color;
-}
-
 } // namespace detail
 
 VISRTX_DEVICE void setPixelIds(const FramebufferGPUData &fb,
@@ -432,48 +420,16 @@ VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
     const uvec2 &pixel,
     const vec4 &color,
     const vec3 &albedo,
-    const vec3 &normal,
-    const int frameIDOffset = 0)
+    const vec3 &normal)
 {
   const auto &fb = frame.fb;
   const uint32_t idx = detail::pixelIndex(fb, pixel);
-  const auto frameID = fb.frameID + frameIDOffset;
 
-  // Conditionally apply tonemapping during accumulation
-  if (frame.renderer.fireflyFilter)
-    detail::accumValue(
-        fb.buffers.colorAccumulation, idx, detail::tonemap(color));
-  else
-    detail::accumValue(fb.buffers.colorAccumulation, idx, color);
+  detail::accumValue(fb.buffers.colorAccumulation,
+      idx,
+      frame.renderer.fireflyFilter ? detail::tonemap(color) : color);
   detail::accumValue(fb.buffers.albedo, idx, albedo);
   detail::accumValue(fb.buffers.normal, idx, normal);
-
-  const auto accumColor = fb.buffers.colorAccumulation[idx];
-  // Conditionally apply inverse tonemapping on output
-  const float frameDivisor = float(fb.frameID + frameIDOffset + 1);
-  const auto normalizedColor = accumColor / frameDivisor;
-  const auto outputColor = frame.renderer.fireflyFilter
-      ? detail::inverseTonemap(normalizedColor)
-      : normalizedColor;
-
-  detail::writeOutputColor(fb, outputColor, idx);
-
-  if (fb.checkerboardID == 0 && frameID == 0) {
-    auto adjPix = uvec2(pixel.x + 1, pixel.y + 0);
-    if (!pixelOutOfFrame(adjPix, fb)) {
-      detail::writeOutputColor(fb, outputColor, detail::pixelIndex(fb, adjPix));
-    }
-
-    adjPix = uvec2(pixel.x + 0, pixel.y + 1);
-    if (!pixelOutOfFrame(adjPix, fb)) {
-      detail::writeOutputColor(fb, outputColor, detail::pixelIndex(fb, adjPix));
-    }
-
-    adjPix = uvec2(pixel.x + 1, pixel.y + 1);
-    if (!pixelOutOfFrame(adjPix, fb)) {
-      detail::writeOutputColor(fb, outputColor, detail::pixelIndex(fb, adjPix));
-    }
-  }
 }
 
 } // namespace visrtx

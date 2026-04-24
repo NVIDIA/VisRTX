@@ -35,8 +35,8 @@
 #include "camera/Camera.h"
 #include "gpu/gpu_objects.h"
 #include "renderer/Renderer.h"
-#include "world/World.h"
 #include "utility/DeviceObject.h"
+#include "world/World.h"
 // helium
 #include "helium/BaseFrame.h"
 // std
@@ -121,6 +121,13 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   DeviceBuffer m_accumColor; // vec4
   DeviceBuffer m_accumAlbedo; // vec3
   DeviceBuffer m_accumNormal; // vec3
+
+  // Per-pixel pre-denoise estimates. Keeping these separate from pixelBuffer
+  // avoids the denoiser reading its own previous output on non-rendered
+  // checkerboard pixels (which cycles-4 flicker at edges).
+  DeviceBuffer m_denoiseInput; // vec4
+  DeviceBuffer m_denoiseAlbedo; // vec3
+  DeviceBuffer m_denoiseNormal; // vec3
 
   helium::IntrusivePtr<Renderer> m_renderer;
   helium::IntrusivePtr<Camera> m_camera;

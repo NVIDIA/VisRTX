@@ -30,8 +30,8 @@
  */
 
 #include "Frame.h"
-#include "gpu/createScreenSample.h"
 #include "gpu/gpu_tonemap.h"
+#include "gpu/gpu_util.h"
 #include "utility/instrument.h"
 // std
 #include <algorithm>
@@ -46,6 +46,126 @@
 namespace visrtx {
 
 namespace {
+
+// Resolve per-pixel (sourceIdx, divisor) for the current sub-frame. Mirrors
+// compositeBackground so both kernels agree on which accumulator sample count
+// and source pixel to read under checkerboarding.
+__device__ bool resolveSample(uint32_t idx,
+    uvec2 size,
+    int frameID,
+    int checkerboardID,
+    uint32_t &sourceIdx,
+    int &divisor)
+{
+  sourceIdx = idx;
+  divisor = frameID;
+  if (checkerboardID >= 0 && checkerboardID < 3) {
+    const uint32_t px = idx % size.x;
+    const uint32_t py = idx / size.x;
+    const int pixTile = (px & 1) | ((py & 1) << 1);
+    if (pixTile <= checkerboardID) {
+      divisor = frameID + 1;
+    } else if (frameID == 0) {
+      sourceIdx = (px & ~1u) + (py & ~1u) * size.x;
+      divisor = 1;
+    }
+  }
+  return divisor > 0;
+}
+
+__global__ void prepareDenoiseInput(const vec4 *__restrict__ accumColor,
+    vec4 *__restrict__ denoiseInput,
+    uvec2 size,
+    int frameID,
+    int checkerboardID,
+    bool fireflyFilter)
+{
+  const uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= size.x * size.y)
+    return;
+
+  uint32_t srcIdx;
+  int divisor;
+  if (!resolveSample(idx, size, frameID, checkerboardID, srcIdx, divisor)) {
+    denoiseInput[idx] = vec4(0.f);
+    return;
+  }
+
+  vec4 c = accumColor[srcIdx] / float(divisor);
+  if (fireflyFilter)
+    c = detail::inverseTonemap(c);
+  denoiseInput[idx] = c;
+}
+
+void launchPrepareDenoiseInput(const vec4 *accumColor,
+    vec4 *denoiseInput,
+    uvec2 size,
+    int frameID,
+    int checkerboardID,
+    bool fireflyFilter,
+    cudaStream_t stream)
+{
+  const uint32_t nPixels = size.x * size.y;
+  const uint32_t blockSize = 256;
+  const uint32_t gridSize = (nPixels + blockSize - 1) / blockSize;
+  prepareDenoiseInput<<<gridSize, blockSize, 0, stream>>>(
+      accumColor, denoiseInput, size, frameID, checkerboardID, fireflyFilter);
+}
+
+__global__ void prepareDenoiseGuides(const vec3 *__restrict__ accumAlbedo,
+    const vec3 *__restrict__ accumNormal,
+    vec3 *__restrict__ denoiseAlbedo,
+    vec3 *__restrict__ denoiseNormal,
+    uvec2 size,
+    int frameID,
+    int checkerboardID)
+{
+  const uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= size.x * size.y)
+    return;
+
+  uint32_t srcIdx;
+  int divisor;
+  if (!resolveSample(idx, size, frameID, checkerboardID, srcIdx, divisor)) {
+    if (denoiseAlbedo)
+      denoiseAlbedo[idx] = vec3(0.f);
+    if (denoiseNormal)
+      denoiseNormal[idx] = vec3(0.f);
+    return;
+  }
+
+  const float invDivisor = 1.0f / float(divisor);
+  if (denoiseAlbedo)
+    denoiseAlbedo[idx] = accumAlbedo[srcIdx] * invDivisor;
+
+  if (denoiseNormal) {
+    const vec3 n = accumNormal[srcIdx];
+    const float len = glm::length(n);
+    constexpr float NORMAL_EPSILON = 1e-6f;
+    denoiseNormal[idx] = len > NORMAL_EPSILON ? n * (1.0f / len) : vec3(0.f);
+  }
+}
+
+void launchPrepareDenoiseGuides(const vec3 *accumAlbedo,
+    const vec3 *accumNormal,
+    vec3 *denoiseAlbedo,
+    vec3 *denoiseNormal,
+    uvec2 size,
+    int frameID,
+    int checkerboardID,
+    cudaStream_t stream)
+{
+  const uint32_t nPixels = size.x * size.y;
+  const uint32_t blockSize = 256;
+  const uint32_t gridSize = (nPixels + blockSize - 1) / blockSize;
+  prepareDenoiseGuides<<<gridSize, blockSize, 0, stream>>>(accumAlbedo,
+      accumNormal,
+      denoiseAlbedo,
+      denoiseNormal,
+      size,
+      frameID,
+      checkerboardID);
+}
 
 __global__ void compositeBackground(vec4 *__restrict__ accumColor,
     vec4 *__restrict__ pixelBuf,
@@ -62,24 +182,13 @@ __global__ void compositeBackground(vec4 *__restrict__ accumColor,
   if (idx >= size.x * size.y)
     return;
 
+  uint32_t sourceIdx;
+  int divisor;
+  if (!resolveSample(idx, size, frameID, checkerboardID, sourceIdx, divisor))
+    return;
+
   const uint32_t px = idx % size.x;
   const uint32_t py = idx / size.x;
-
-  uint32_t sourceIdx = idx;
-  int divisor = frameID;
-  if (checkerboardID >= 0 && checkerboardID < 3) {
-    const int pixTile = (px & 1) | ((py & 1) << 1);
-    if (pixTile <= checkerboardID)
-      divisor = frameID + 1;
-    else if (frameID == 0) {
-      const uint32_t sourcePx = px & ~1u;
-      const uint32_t sourcePy = py & ~1u;
-      sourceIdx = sourcePx + sourcePy * size.x;
-      divisor = 1;
-    }
-  }
-  if (divisor == 0)
-    return;
 
   vec4 rendered;
   if (isDenoised) {
@@ -221,12 +330,6 @@ void Frame::finalize()
   auto &hd = data();
 
   const bool useFloatFB = m_denoise || m_colorType == ANARI_FLOAT32_VEC4;
-  if (useFloatFB)
-    hd.fb.format = FrameFormat::FLOAT;
-  else if (m_colorType == ANARI_UFIXED8_RGBA_SRGB)
-    hd.fb.format = FrameFormat::SRGB;
-  else
-    hd.fb.format = FrameFormat::UINT;
 
   hd.fb.invSize = 1.f / vec2(hd.fb.size);
 
@@ -263,15 +366,23 @@ void Frame::finalize()
   else
     m_accumNormal.reset();
 
+  if (m_denoise) {
+    m_denoiseInput.reserve(numPixels() * sizeof(vec4));
+    if (m_denoiseUsingAlbedo)
+      m_denoiseAlbedo.reserve(numPixels() * sizeof(vec3));
+    else
+      m_denoiseAlbedo.reset();
+    if (m_denoiseUsingNormal)
+      m_denoiseNormal.reserve(numPixels() * sizeof(vec3));
+    else
+      m_denoiseNormal.reset();
+  } else {
+    m_denoiseInput.reset();
+    m_denoiseAlbedo.reset();
+    m_denoiseNormal.reset();
+  }
+
   hd.fb.buffers.colorAccumulation = m_accumColor.ptrAs<vec4>();
-
-  hd.fb.buffers.outColorVec4 = nullptr;
-  hd.fb.buffers.outColorUint = nullptr;
-
-  if (useFloatFB)
-    hd.fb.buffers.outColorVec4 = (vec4 *)m_pixelBuffer.dataDevice();
-  else
-    hd.fb.buffers.outColorUint = (uint32_t *)m_pixelBuffer.dataDevice();
 
   hd.fb.buffers.depth = channelDepth ? m_depthBuffer.dataDevice() : nullptr;
   hd.fb.buffers.primID = channelPrimID ? m_primIDBuffer.dataDevice() : nullptr;
@@ -281,8 +392,12 @@ void Frame::finalize()
   hd.fb.buffers.normal = channelNormal ? m_accumNormal.ptrAs<vec3>() : nullptr;
 
   if (m_denoise)
-    m_denoiser.setup(
-        hd.fb.size, m_pixelBuffer, m_colorType, m_accumAlbedo, m_accumNormal);
+    m_denoiser.setup(hd.fb.size,
+        m_pixelBuffer,
+        m_colorType,
+        m_denoiseInput,
+        m_denoiseAlbedo,
+        m_denoiseNormal);
   else
     m_denoiser.cleanup();
 
@@ -447,6 +562,25 @@ void Frame::renderFrame()
   const bool useFloatOutput = m_denoise || m_colorType == ANARI_FLOAT32_VEC4;
 
   if (m_denoise) {
+    launchPrepareDenoiseInput(m_accumColor.ptrAs<vec4>(),
+        m_denoiseInput.ptrAs<vec4>(),
+        hd.fb.size,
+        hd.fb.frameID,
+        hd.fb.checkerboardID,
+        hd.renderer.fireflyFilter,
+        state.stream);
+
+    if (m_denoiseUsingAlbedo || m_denoiseUsingNormal) {
+      launchPrepareDenoiseGuides(m_accumAlbedo.ptrAs<vec3>(),
+          m_accumNormal.ptrAs<vec3>(),
+          m_denoiseAlbedo.ptrAs<vec3>(),
+          m_denoiseNormal.ptrAs<vec3>(),
+          hd.fb.size,
+          hd.fb.frameID,
+          hd.fb.checkerboardID,
+          state.stream);
+    }
+
     m_denoiser.launch();
 
     launchCompositeBackground(m_accumColor.ptrAs<vec4>(),
@@ -463,13 +597,16 @@ void Frame::renderFrame()
 
     m_denoiser.convertOutput();
   } else {
+    const FrameFormat outFormat = useFloatOutput ? FrameFormat::FLOAT
+        : m_colorType == ANARI_UFIXED8_RGBA_SRGB ? FrameFormat::SRGB
+                                                 : FrameFormat::UINT;
     launchCompositeBackground(m_accumColor.ptrAs<vec4>(),
         useFloatOutput ? (vec4 *)m_pixelBuffer.dataDevice() : nullptr,
         useFloatOutput ? nullptr : (uint32_t *)m_pixelBuffer.dataDevice(),
         hd.renderer,
         hd.fb.size,
         hd.fb.invSize,
-        hd.fb.format,
+        outFormat,
         hd.fb.frameID,
         hd.fb.checkerboardID,
         /*isDenoised=*/false,

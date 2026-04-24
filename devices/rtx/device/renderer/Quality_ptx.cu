@@ -77,15 +77,13 @@ struct SampleDetails
 
 VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
     const uvec2 &pixel,
-    const SampleDetails &sample,
-    const int frameIDOffset = 0)
+    const SampleDetails &sample)
 {
   accumPixelSample(frame,
       pixel,
       vec4(sample.color, sample.opacity),
       sample.albedo,
-      sample.normal,
-      frameIDOffset);
+      sample.normal);
 }
 
 VISRTX_DEVICE vec3 surfaceAttenuation(ScreenSample &ss, Ray r)
@@ -387,6 +385,9 @@ VISRTX_GLOBAL void __raygen__()
         auto nextRay = materialNextRay(shadingState, ray, ss.rs);
         sampleContribution *= nextRay.contributionWeight;
 
+        if (!continuesThroughSurface(nextRay))
+          accumulateValue(sample.opacity, 1.0f, sample.opacity);
+
         if (shouldTerminatePath(ss, d, sampleContribution, true))
           break;
 
@@ -413,7 +414,7 @@ VISRTX_GLOBAL void __raygen__()
       }
     }
 
-    accumPixelSample(frameData, ss.pixel, sample, i);
+    accumPixelSample(frameData, ss.pixel, sample);
   }
 }
 

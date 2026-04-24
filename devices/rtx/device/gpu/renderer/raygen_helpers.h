@@ -214,8 +214,7 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
         ss.pixel,
         vec4(outputColor, outputOpacity),
         outputAlbedo,
-        outputNormal,
-        i);
+        outputNormal);
   }
 }
 
