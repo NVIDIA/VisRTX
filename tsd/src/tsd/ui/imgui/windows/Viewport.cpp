@@ -26,6 +26,29 @@
 
 namespace tsd::ui::imgui {
 
+namespace {
+
+bool deviceSupportsExtension(anari::Device d, const char *extension)
+{
+  if (!d || !extension)
+    return false;
+
+  auto list = (const char *const *)anariGetObjectInfo(
+      d, ANARI_DEVICE, "default", "extension", ANARI_STRING_LIST);
+
+  if (!list)
+    return false;
+
+  for (const char *const *i = list; *i != nullptr; ++i) {
+    if (std::string(*i) == extension)
+      return true;
+  }
+
+  return false;
+}
+
+} // namespace
+
 Viewport::Viewport(
     Application *app, tsd::rendering::Manipulator *m, const char *name)
     : BaseViewport(app, name)
@@ -77,9 +100,13 @@ void Viewport::buildUI()
   ImGui::EndDisabled();
 
   if (m_anariPass && !didPick) {
+    const bool doPrimitiveOutline = m_outlinePrimitives
+        && m_deviceSupportsPrimitiveId
+        && m_visualizeAOV == tsd::rendering::AOVType::NONE;
     bool needIDs = appContext()->getFirstSelected().valid()
         || m_visualizeAOV == tsd::rendering::AOVType::EDGES
-        || m_visualizeAOV == tsd::rendering::AOVType::OBJECT_ID;
+        || m_visualizeAOV == tsd::rendering::AOVType::OBJECT_ID
+        || doPrimitiveOutline;
     m_anariPass->setEnableIDs(needIDs);
   }
 
@@ -117,6 +144,13 @@ void Viewport::setLibrary(const std::string &libName)
 
     if (d) {
       m_device = d;
+      m_deviceSupportsPrimitiveId = deviceSupportsExtension(
+          d, "ANARI_KHR_FRAME_CHANNEL_PRIMITIVE_ID");
+
+      if (!m_deviceSupportsPrimitiveId
+          && m_visualizeAOV == tsd::rendering::AOVType::PRIMITIVE_ID) {
+        m_visualizeAOV = tsd::rendering::AOVType::NONE;
+      }
 
       tsd::core::logStatus("[viewport] setting up renderer objects...");
 
@@ -231,7 +265,7 @@ void Viewport::saveSettings(tsd::core::DataNode &root)
   root["showOverlay"] = m_showOverlay;
   root["showOnlySelected"] = m_showOnlySelected;
   root["highlightSelection"] = m_highlightSelection;
-  root["showOnlySelected"] = m_showOnlySelected;
+  root["outlinePrimitives"] = m_outlinePrimitives;
   root["visualizeAOV"] = static_cast<int>(m_visualizeAOV);
   root["depthVisualMinimum"] = m_depthVisualMinimum;
   root["depthVisualMaximum"] = m_depthVisualMaximum;
@@ -260,7 +294,7 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   root["showOverlay"].getValue(ANARI_BOOL, &m_showOverlay);
   root["showOnlySelected"].getValue(ANARI_BOOL, &m_showOnlySelected);
   root["highlightSelection"].getValue(ANARI_BOOL, &m_highlightSelection);
-  root["showOnlySelected"].getValue(ANARI_BOOL, &m_showOnlySelected);
+  root["outlinePrimitives"].getValue(ANARI_BOOL, &m_outlinePrimitives);
   int aovType = static_cast<int>(m_visualizeAOV);
   root["visualizeAOV"].getValue(ANARI_INT32, &aovType);
   m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aovType);
@@ -410,6 +444,9 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
   m_visualizeAOVPass->setEnabled(false);
   m_visualizeAOVPass->setEdgeInvert(m_edgeInvert);
 
+  m_primitiveOutlinePass =
+      p.emplace_back<tsd::rendering::PrimitiveOutlineRenderPass>();
+
   m_outlinePass = p.emplace_back<tsd::rendering::OutlineRenderPass>();
 
   m_outputPass = p.emplace_back<tsd::rendering::CopyToSDLTexturePass>(
@@ -491,6 +528,7 @@ void Viewport::teardownDevice()
   m_autoExposurePass = nullptr;
   m_toneMapPass = nullptr;
   m_outputTransformPass = nullptr;
+  m_primitiveOutlinePass = nullptr;
   m_outlinePass = nullptr;
   m_outputPass = nullptr;
   m_saveToFilePass = nullptr;
@@ -509,6 +547,7 @@ void Viewport::teardownDevice()
   m_prevRenderer = {};
 
   m_device = nullptr;
+  m_deviceSupportsPrimitiveId = false;
 }
 
 void Viewport::pick(tsd::math::int2 l, bool selectObject)
@@ -612,16 +651,24 @@ void Viewport::syncImagePassState()
       m_visualizeAOV == tsd::rendering::AOVType::ALBEDO);
   m_anariPass->setEnableNormals(
       m_visualizeAOV == tsd::rendering::AOVType::NORMAL);
-  m_anariPass->setEnablePrimitiveId(
-      m_visualizeAOV == tsd::rendering::AOVType::PRIMITIVE_ID);
+  const bool doPrimitiveOutline = m_outlinePrimitives
+      && m_deviceSupportsPrimitiveId
+      && m_visualizeAOV == tsd::rendering::AOVType::NONE;
+  m_anariPass->setEnablePrimitiveId(m_deviceSupportsPrimitiveId
+      && (m_visualizeAOV == tsd::rendering::AOVType::PRIMITIVE_ID
+          || doPrimitiveOutline));
   m_anariPass->setEnableInstanceId(
       m_visualizeAOV == tsd::rendering::AOVType::INSTANCE_ID);
 
   const auto selectedNode = appContext()->getFirstSelected();
   const bool needIDs = selectedNode.valid()
       || m_visualizeAOV == tsd::rendering::AOVType::EDGES
-      || m_visualizeAOV == tsd::rendering::AOVType::OBJECT_ID;
+      || m_visualizeAOV == tsd::rendering::AOVType::OBJECT_ID
+      || doPrimitiveOutline;
   m_anariPass->setEnableIDs(needIDs);
+
+  if (m_primitiveOutlinePass)
+    m_primitiveOutlinePass->setEnabled(doPrimitiveOutline);
 
   updateDisplayPassState();
 }
@@ -749,12 +796,24 @@ void Viewport::ui_menubar_Viewport()
           "object ID",
           "primitive ID",
           "instance ID"};
-      if (int aov = int(m_visualizeAOV);
-          ImGui::Combo("AOV", &aov, aovItems, IM_ARRAYSIZE(aovItems))) {
-        if (aov != int(m_visualizeAOV)) {
-          m_visualizeAOV = static_cast<tsd::rendering::AOVType>(aov);
-          syncImagePassState();
+      const int primitiveIdAOV = int(tsd::rendering::AOVType::PRIMITIVE_ID);
+      if (ImGui::BeginCombo("AOV", aovItems[int(m_visualizeAOV)])) {
+        for (int i = 0; i < IM_ARRAYSIZE(aovItems); ++i) {
+          const bool isSelected = i == int(m_visualizeAOV);
+          const bool supported =
+              i != primitiveIdAOV || m_deviceSupportsPrimitiveId;
+          if (!supported)
+            ImGui::BeginDisabled();
+          if (ImGui::Selectable(aovItems[i], isSelected) && supported) {
+            m_visualizeAOV = static_cast<tsd::rendering::AOVType>(i);
+            syncImagePassState();
+          }
+          if (isSelected)
+            ImGui::SetItemDefaultFocus();
+          if (!supported)
+            ImGui::EndDisabled();
         }
+        ImGui::EndCombo();
       }
 
       ImGui::BeginDisabled(m_visualizeAOV != tsd::rendering::AOVType::DEPTH);
@@ -858,6 +917,11 @@ void Viewport::ui_menubar_Viewport()
 
       ImGui::BeginDisabled(m_showOnlySelected);
       ImGui::Checkbox("Highlight Selected", &m_highlightSelection);
+      ImGui::EndDisabled();
+
+      ImGui::BeginDisabled(!m_deviceSupportsPrimitiveId);
+      if (ImGui::Checkbox("Outline Primitives", &m_outlinePrimitives))
+        syncImagePassState();
       ImGui::EndDisabled();
 
       if (ImGui::Checkbox("Only Show Selected", &m_showOnlySelected))

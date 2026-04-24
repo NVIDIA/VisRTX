@@ -8,16 +8,33 @@
 
 namespace tsd::algorithms::cuda {
 
-void outline(cudaStream_t stream,
+void outlineObject(cudaStream_t stream,
     const uint32_t *objectId,
     uint32_t *color,
     uint32_t outlineId,
     uint32_t width,
     uint32_t height);
 
-void outline(const uint32_t *objectId,
+void outlineObject(const uint32_t *objectId,
     uint32_t *color,
     uint32_t outlineId,
+    uint32_t width,
+    uint32_t height);
+
+void outlinePrimitives(cudaStream_t stream,
+    const uint32_t *objectId,
+    const uint32_t *primitiveId,
+    uint32_t *color,
+    uint32_t outlineColor,
+    uint32_t thickness,
+    uint32_t width,
+    uint32_t height);
+
+void outlinePrimitives(const uint32_t *objectId,
+    const uint32_t *primitiveId,
+    uint32_t *color,
+    uint32_t outlineColor,
+    uint32_t thickness,
     uint32_t width,
     uint32_t height);
 

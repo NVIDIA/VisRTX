@@ -30,12 +30,12 @@ void OutlineRenderPass::render(ImageBuffers &b, int stageId)
 
 #ifdef TSD_ALGORITHMS_HAS_CUDA
   if (b.stream) {
-    tsd::algorithms::cuda::outline(
+    tsd::algorithms::cuda::outlineObject(
         b.stream, b.objectId, b.color, m_outlineId, size.x, size.y);
     return;
   }
 #endif
-  tsd::algorithms::cpu::outline(
+  tsd::algorithms::cpu::outlineObject(
       b.objectId, b.color, m_outlineId, size.x, size.y);
 }
 

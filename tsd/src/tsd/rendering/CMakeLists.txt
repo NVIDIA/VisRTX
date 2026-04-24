@@ -19,6 +19,7 @@ PRIVATE
   pipeline/passes/CopyToSDLTexturePass.cpp
   pipeline/passes/MultiDeviceSceneRenderPass.cpp
   pipeline/passes/OutlineRenderPass.cpp
+  pipeline/passes/PrimitiveOutlineRenderPass.cpp
   pipeline/passes/OutputTransformPass.cpp
   pipeline/passes/PickPass.cpp
   pipeline/passes/ImagePass.cpp
@@ -47,6 +48,7 @@ if (TSD_USE_CUDA)
     pipeline/passes/ClearBuffersPass.cpp
     pipeline/passes/ImagePass.cpp
     pipeline/passes/OutlineRenderPass.cpp
+    pipeline/passes/PrimitiveOutlineRenderPass.cpp
     pipeline/passes/OutputTransformPass.cpp
     pipeline/passes/ToneMapPass.cpp
     pipeline/passes/VisualizeAOVPass.cpp

@@ -377,7 +377,7 @@ SCENARIO("Host compositing and outlining update only the intended pixels",
 
     WHEN("Outline shading is applied")
     {
-      cpu::outline(objectId.data(), color.data(), 5u, 4u, 4u);
+      cpu::outlineObject(objectId.data(), color.data(), 5u, 4u, 4u);
 
       THEN("Boundary-adjacent pixels are shaded while distant pixels are not")
       {

@@ -13,6 +13,7 @@
 #include "passes/CopyToColorBufferPass.hpp"
 #include "passes/MultiDeviceSceneRenderPass.h"
 #include "passes/OutlineRenderPass.h"
+#include "passes/PrimitiveOutlineRenderPass.h"
 #include "passes/PickPass.h"
 #include "passes/SaveToFilePass.h"
 #include "passes/VisualizeAOVPass.h"

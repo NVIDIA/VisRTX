@@ -14,6 +14,7 @@
 #include "tsd/rendering/pipeline/passes/AutoExposurePass.h"
 #include "tsd/rendering/pipeline/passes/CopyToSDLTexturePass.h"
 #include "tsd/rendering/pipeline/passes/OutlineRenderPass.h"
+#include "tsd/rendering/pipeline/passes/PrimitiveOutlineRenderPass.h"
 #include "tsd/rendering/pipeline/passes/OutputTransformPass.h"
 #include "tsd/rendering/pipeline/passes/PickPass.h"
 #include "tsd/rendering/pipeline/passes/SaveToFilePass.h"
@@ -92,8 +93,10 @@ struct Viewport : public BaseViewport
 
   bool m_showOverlay{true};
   bool m_highlightSelection{true};
+  bool m_outlinePrimitives{false};
   bool m_showOnlySelected{false};
   std::optional<float> m_frameProgress{0.f};
+  bool m_deviceSupportsPrimitiveId{false};
 
   tsd::rendering::AOVType m_visualizeAOV{tsd::rendering::AOVType::NONE};
   float m_depthVisualMinimum{0.f};
@@ -129,6 +132,7 @@ struct Viewport : public BaseViewport
   tsd::rendering::AutoExposurePass *m_autoExposurePass{nullptr};
   tsd::rendering::ToneMapPass *m_toneMapPass{nullptr};
   tsd::rendering::OutputTransformPass *m_outputTransformPass{nullptr};
+  tsd::rendering::PrimitiveOutlineRenderPass *m_primitiveOutlinePass{nullptr};
   tsd::rendering::OutlineRenderPass *m_outlinePass{nullptr};
   tsd::rendering::CopyToSDLTexturePass *m_outputPass{nullptr};
   tsd::rendering::SaveToFilePass *m_saveToFilePass{nullptr};
