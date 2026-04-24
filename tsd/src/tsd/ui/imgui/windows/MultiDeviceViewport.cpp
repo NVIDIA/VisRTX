@@ -24,6 +24,8 @@ MultiDeviceViewport::~MultiDeviceViewport()
 
   for (size_t i = 0; i < m_cameras.size(); i++) {
     auto *ri = getRenderIndex(i);
+    if (!ri)
+      continue;
     auto d = ri->device();
     auto c = m_cameras[i];
     auto r = m_rud.renderers[i];
@@ -129,6 +131,7 @@ void MultiDeviceViewport::setLibrary(const std::string &libName)
 
   tsd::core::logStatus("[multi-viewport] creating cameras and renderers...");
 
+  adm.setRenderIndexKind(tsd::app::RenderIndexKind::AllLayers);
   for (size_t i = 0; i < scene.numberOfLayers(); i++) {
     auto *l = scene.layer(i);
     auto d = devices[i];

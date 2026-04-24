@@ -149,7 +149,6 @@ tsd::rendering::RenderIndex *ANARIDeviceManager::acquireRenderIndex(
 {
   auto &liveIdx = m_rIdxs[d];
   if (liveIdx.scene && liveIdx.scene != &c) {
-    assert(liveIdx.scene == &c);
     tsd::core::logError(
         "ANARIDeviceManager::acquireRenderIndex() scene mismatch for device %p"
         " (existing=%p, requested=%p)",
@@ -163,13 +162,15 @@ tsd::rendering::RenderIndex *ANARIDeviceManager::acquireRenderIndex(
     liveIdx.scene = &c;
     switch (renderIndexKind()) {
     case RenderIndexKind::FLAT:
-      liveIdx.idx = c.updateDelegate().emplace<
-          tsd::rendering::RenderIndexFlatRegistry>(c, n, d);
+      liveIdx.idx =
+          c.updateDelegate().emplace<tsd::rendering::RenderIndexFlatRegistry>(
+              c, n, d);
       break;
     case RenderIndexKind::ALL_LAYERS:
     default:
-      liveIdx.idx = c.updateDelegate().emplace<
-          tsd::rendering::RenderIndexAllLayers>(c, n, d);
+      liveIdx.idx =
+          c.updateDelegate().emplace<tsd::rendering::RenderIndexAllLayers>(
+              c, n, d);
       break;
     }
     liveIdx.idx->populate();
@@ -178,7 +179,8 @@ tsd::rendering::RenderIndex *ANARIDeviceManager::acquireRenderIndex(
   return liveIdx.idx;
 }
 
-void ANARIDeviceManager::releaseRenderIndex(tsd::scene::Scene &c, anari::Device d)
+void ANARIDeviceManager::releaseRenderIndex(
+    tsd::scene::Scene &c, anari::Device d)
 {
   auto itr = m_rIdxs.find(d);
   if (itr == m_rIdxs.end())
@@ -186,7 +188,6 @@ void ANARIDeviceManager::releaseRenderIndex(tsd::scene::Scene &c, anari::Device 
 
   auto &liveIdx = itr->second;
   if (liveIdx.scene && liveIdx.scene != &c) {
-    assert(liveIdx.scene == &c);
     tsd::core::logError(
         "ANARIDeviceManager::releaseRenderIndex() scene mismatch for device %p"
         " (existing=%p, requested=%p)",
