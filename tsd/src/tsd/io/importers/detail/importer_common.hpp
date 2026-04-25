@@ -29,8 +29,26 @@ tsd::scene::ArrayRef readArray(
     tsd::scene::Scene &scene, anari::DataType elementType, std::FILE *fp);
 
 using TextureCache = std::unordered_map<std::string, tsd::scene::ArrayRef>;
+std::string makeTextureCacheKey(
+    const std::string &textureId, bool isLinear = false);
 tsd::scene::SamplerRef importTexture(tsd::scene::Scene &scene,
     std::string filepath,
+    TextureCache &cache,
+    bool isLinear = false);
+tsd::scene::SamplerRef importTextureFromMemory(tsd::scene::Scene &scene,
+    const std::string &cacheKey,
+    const std::string &displayName,
+    const void *data,
+    size_t numBytes,
+    TextureCache &cache,
+    bool isLinear = false,
+    const std::string &formatHint = "");
+tsd::scene::SamplerRef importRawTexture2D(tsd::scene::Scene &scene,
+    const std::string &cacheKey,
+    const std::string &displayName,
+    const void *data,
+    size_t width,
+    size_t height,
     TextureCache &cache,
     bool isLinear = false);
 

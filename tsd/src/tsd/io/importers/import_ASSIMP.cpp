@@ -8,6 +8,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
+#include <vector>
 #if TSD_USE_ASSIMP
 // assimp
 #include <assimp/postprocess.h>
@@ -23,37 +24,71 @@ using namespace tsd::core;
 #if TSD_USE_ASSIMP
 
 static SamplerRef importEmbeddedTexture(
-    Scene &scene, const aiTexture *embeddedTexture, TextureCache &cache)
+    Scene &scene,
+    const aiTexture *embeddedTexture,
+    int embeddedTextureIndex,
+    TextureCache &cache,
+    bool isLinear)
 {
-  std::string filepath = embeddedTexture->mFilename.C_Str();
-  const bool validTexture =
-      embeddedTexture->mHeight != 0 && embeddedTexture->pcData != nullptr;
-  logDebug("[import_ASSIMP] embedded '%s' texture | valid: %i height: %i",
-      filepath.c_str(),
+  const std::string filename = embeddedTexture->mFilename.C_Str();
+  const std::string textureId = embeddedTextureIndex >= 0
+      ? "assimp://embedded/" + std::to_string(embeddedTextureIndex)
+      : "assimp://embedded-name/" + filename;
+  const std::string cacheKey = makeTextureCacheKey(textureId, isLinear);
+  const std::string displayName = filename.empty()
+      ? (embeddedTextureIndex >= 0 ? "embedded_" + std::to_string(embeddedTextureIndex)
+                                   : "embedded_texture")
+      : filename;
+  const bool validTexture = embeddedTexture->pcData != nullptr;
+  logDebug(
+      "[import_ASSIMP] embedded '%s' texture | valid: %i height: %i hint: '%s'",
+      displayName.c_str(),
       int(validTexture),
-      int(embeddedTexture->mHeight));
+      int(embeddedTexture->mHeight),
+      embeddedTexture->achFormatHint);
 
-  auto dataArray = cache[filepath];
-
-  if (!validTexture)
+  if (!validTexture) {
+    logWarning("[import_ASSIMP] invalid embedded texture '%s'",
+        displayName.c_str());
     return {};
-
-  if (!dataArray.valid()) {
-    dataArray = scene.createArray(
-        ANARI_UFIXED8_VEC4, embeddedTexture->mWidth, embeddedTexture->mHeight);
-    dataArray->setData(embeddedTexture->pcData);
-    cache[filepath] = dataArray;
   }
 
-  auto tex = scene.createObject<Sampler>(tokens::sampler::image2D);
-  tex->setParameterObject("image", *dataArray);
-  tex->setParameter("inAttribute", "attribute0");
-  tex->setParameter("wrapMode1", "repeat");
-  tex->setParameter("wrapMode2", "repeat");
-  tex->setParameter("filter", "linear");
-  tex->setName(fileOf(filepath).c_str());
+  if (embeddedTexture->mHeight == 0) {
+    auto tex = importTextureFromMemory(scene,
+        cacheKey,
+        displayName,
+        embeddedTexture->pcData,
+        embeddedTexture->mWidth,
+        cache,
+        isLinear,
+        embeddedTexture->achFormatHint);
+    if (!tex) {
+      logWarning("[import_ASSIMP] failed to decode embedded texture '%s' (hint: %s)",
+          displayName.c_str(),
+          embeddedTexture->achFormatHint);
+    }
+    return tex;
+  }
 
-  return tex;
+  std::vector<uint8_t> rgba(
+      size_t(embeddedTexture->mWidth) * size_t(embeddedTexture->mHeight) * 4);
+  for (size_t i = 0; i < size_t(embeddedTexture->mWidth) * embeddedTexture->mHeight;
+       ++i) {
+    const auto &src = embeddedTexture->pcData[i];
+    rgba[i * 4 + 0] = src.r;
+    rgba[i * 4 + 1] = src.g;
+    rgba[i * 4 + 2] = src.b;
+    rgba[i * 4 + 3] = src.a;
+  }
+
+  return importRawTexture2D(scene,
+      cacheKey,
+      displayName,
+      rgba.data(),
+      embeddedTexture->mWidth,
+      embeddedTexture->mHeight,
+      cache,
+      isLinear);
 }
 
 static std::vector<SurfaceRef> importASSIMPSurfaces(Scene &scene,
@@ -72,26 +107,32 @@ static std::vector<SurfaceRef> importASSIMPSurfaces(Scene &scene,
         scene.createArray(ANARI_FLOAT32_VEC3, numVertices);
     auto *outVertices = vertexPositionArray->mapAs<float3>();
 
-    auto vertexNormalArray = scene.createArray(
-        ANARI_FLOAT32_VEC3, mesh->HasNormals() ? numVertices : 0);
-    float3 *outNormals =
-        vertexNormalArray ? vertexNormalArray->mapAs<float3>() : nullptr;
+    auto vertexNormalArray = mesh->HasNormals()
+        ? scene.createArray(ANARI_FLOAT32_VEC3, numVertices)
+        : ArrayRef{};
+    float3 *outNormals = vertexNormalArray ? vertexNormalArray->mapAs<float3>()
+                                           : nullptr;
 
-    auto vertexTexCoordArray = scene.createArray(ANARI_FLOAT32_VEC2,
-        mesh->HasTextureCoords(0 /*texcord set*/) ? numVertices : 0);
-    float2 *outTexCoords =
-        vertexTexCoordArray ? vertexTexCoordArray->mapAs<float2>() : nullptr;
+    auto vertexTexCoordArray = mesh->HasTextureCoords(0 /*texcord set*/)
+        ? scene.createArray(ANARI_FLOAT32_VEC2, numVertices)
+        : ArrayRef{};
+    float2 *outTexCoords = vertexTexCoordArray
+        ? vertexTexCoordArray->mapAs<float2>()
+        : nullptr;
 
-    auto vertexTangentArray = scene.createArray(
-        ANARI_FLOAT32_VEC4, mesh->HasTangentsAndBitangents() ? numVertices : 0);
-    float4 *outTangents =
-        vertexTangentArray ? vertexTangentArray->mapAs<float4>() : nullptr;
+    auto vertexTangentArray = mesh->HasTangentsAndBitangents()
+        ? scene.createArray(ANARI_FLOAT32_VEC4, numVertices)
+        : ArrayRef{};
+    float4 *outTangents = vertexTangentArray
+        ? vertexTangentArray->mapAs<float4>()
+        : nullptr;
 
     // TODO: test for AI_MAX_NUMBER_OF_COLOR_SETS, import all..
-    auto vertexColorArray = scene.createArray(
-        ANARI_FLOAT32_VEC4, mesh->mColors[0] ? numVertices : 0);
-    float4 *outColors =
-        vertexColorArray ? vertexColorArray->mapAs<float4>() : nullptr;
+    auto vertexColorArray = mesh->mColors[0]
+        ? scene.createArray(ANARI_FLOAT32_VEC4, numVertices)
+        : ArrayRef{};
+    float4 *outColors = vertexColorArray ? vertexColorArray->mapAs<float4>()
+                                         : nullptr;
 
     for (unsigned j = 0; j < mesh->mNumVertices; ++j) {
       aiVector3D v = mesh->mVertices[j];
@@ -217,9 +258,12 @@ static std::vector<MaterialRef> importASSIMPMaterials(
                            bool isLinear = false) -> SamplerRef {
       SamplerRef tex;
       if (texName.length != 0) {
-        auto *embeddedTexture = a_scene->GetEmbeddedTexture(texName.C_Str());
-        if (embeddedTexture)
-          tex = importEmbeddedTexture(scene, embeddedTexture, cache);
+        auto [embeddedTexture, embeddedTextureIndex] =
+            a_scene->GetEmbeddedTextureAndIndex(texName.C_Str());
+        if (embeddedTexture) {
+          tex = importEmbeddedTexture(
+              scene, embeddedTexture, embeddedTextureIndex, cache, isLinear);
+        }
         else
           tex =
               importTexture(scene, basePath + texName.C_Str(), cache, isLinear);
