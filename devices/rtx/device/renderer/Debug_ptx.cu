@@ -237,7 +237,10 @@ VISRTX_GLOBAL void __raygen__()
 
   auto ray = makePrimaryRay(ss, true /*pixel centered*/);
 
-  auto color = vec3(getBackgroundImage(frameData.renderer, ss.screen));
+  vec3 color{0.f};
+  if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
+    color = hdri;
+  }
   auto depth = ray.t.upper;
   auto normal = ray.dir;
   uint32_t primID = ~0u;
