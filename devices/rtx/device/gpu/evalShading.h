@@ -118,7 +118,7 @@ VISRTX_DEVICE NextRay materialNextRay(
     const MaterialShadingState &shadingState, const Ray &ray, RandState &rs)
 {
   if (shadingState.callableBaseIndex
-      == ~DeviceObjectIndex(0)) // No next ray by defaut
+      == ~DeviceObjectIndex(0)) // No next ray by default
     return NextRay{vec3(0.0f), vec3(0.0f)};
 
   return optixDirectCall<NextRay>(shadingState.callableBaseIndex
