@@ -80,11 +80,7 @@ void AnariSceneRenderPass::setCamera(anari::Camera c)
   anari::commitParameters(m_device, m_frame);
   anari::release(m_device, m_camera);
   m_camera = c;
-  if (m_camera) {
-    auto size = getDimensions();
-    anari::setParameter(m_device, m_camera, "aspect", size.x / float(size.y));
-    anari::commitParameters(m_device, m_camera);
-  }
+  updateCameraAspect();
 }
 
 void AnariSceneRenderPass::setRenderer(anari::Renderer r)
@@ -217,6 +213,15 @@ void AnariSceneRenderPass::setEnableNormals(bool on)
   anari::commitParameters(m_device, m_frame);
 }
 
+void AnariSceneRenderPass::setUseImplicitAspectRatio(bool on)
+{
+  if (on == m_useImplicitAspectRatio)
+    return;
+
+  m_useImplicitAspectRatio = on;
+  updateCameraAspect();
+}
+
 void AnariSceneRenderPass::startFirstFrame(bool waitForCompletion)
 {
   if (!m_firstFrame)
@@ -240,6 +245,20 @@ anari::Frame AnariSceneRenderPass::getFrame() const
   return m_frame;
 }
 
+void AnariSceneRenderPass::updateCameraAspect()
+{
+  auto size = getDimensions();
+  if (!m_camera || size.y == 0)
+    return;
+
+  if (m_useImplicitAspectRatio)
+    anari::unsetParameter(m_device, m_camera, "aspect");
+  else
+    anari::setParameter(m_device, m_camera, "aspect", size.x / float(size.y));
+
+  anari::commitParameters(m_device, m_camera);
+}
+
 void AnariSceneRenderPass::updateSize()
 {
   cleanup();
@@ -247,10 +266,7 @@ void AnariSceneRenderPass::updateSize()
   anari::setParameter(m_device, m_frame, "size", size);
   anari::commitParameters(m_device, m_frame);
 
-  if (m_camera) {
-    anari::setParameter(m_device, m_camera, "aspect", size.x / float(size.y));
-    anari::commitParameters(m_device, m_camera);
-  }
+  updateCameraAspect();
 
   const size_t totalSize = size_t(size.x) * size_t(size.y);
   m_buffers.color = detail::allocate<uint32_t>(totalSize);

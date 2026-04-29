@@ -39,6 +39,10 @@ struct Orthographic : public Camera
 {
   Orthographic(DeviceGlobalState *d);
   void commitParameters() override;
+  void populateFrameData(CameraGPUData &fd, uvec2 frameSize) const override;
+
+ private:
+  float m_height{1.f};
 };
 
 } // namespace visrtx

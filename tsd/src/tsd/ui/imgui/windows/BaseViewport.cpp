@@ -39,6 +39,7 @@ void BaseViewport::saveSettings(tsd::core::DataNode &root)
   root["viewport.scale"] = m_viewport.resolutionScale;
   root["viewport.showTimeSlider"] = m_showAnimationSlider;
   root["viewport.showOrientationWidget"] = m_showOrientationWidget;
+  root["camera.useImplicitAspectRatio"] = m_camera.useImplicitAspectRatio;
 
   // Gizmo settings //
 
@@ -55,6 +56,9 @@ void BaseViewport::loadSettings(tsd::core::DataNode &root)
   root["viewport.showTimeSlider"].getValue(ANARI_BOOL, &m_showAnimationSlider);
   root["viewport.showOrientationWidget"].getValue(
       ANARI_BOOL, &m_showOrientationWidget);
+  root["camera.useImplicitAspectRatio"].getValue(
+      ANARI_BOOL, &m_camera.useImplicitAspectRatio);
+  camera_setUseImplicitAspectRatio(m_camera.useImplicitAspectRatio);
 
   // Gizmo settings //
 
@@ -139,6 +143,11 @@ void BaseViewport::camera_update(bool force)
 void BaseViewport::camera_setCurrent(tsd::scene::CameraAppRef c)
 {
   m_camera.current = c;
+}
+
+void BaseViewport::camera_setUseImplicitAspectRatio(bool on)
+{
+  m_camera.useImplicitAspectRatio = on;
 }
 
 bool BaseViewport::gizmo_canShow() const
@@ -596,6 +605,10 @@ void BaseViewport::ui_menubar_Camera()
         ImGui::EndMenu();
       }
 
+      ImGui::Separator();
+      if (ImGui::Checkbox("Use Implicit Aspect Ratio",
+              &m_camera.useImplicitAspectRatio))
+        camera_setUseImplicitAspectRatio(m_camera.useImplicitAspectRatio);
       ImGui::Separator();
       tsd::ui::buildUI_object(*m_camera.current, scene, true);
       ImGui::Unindent(INDENT_AMOUNT);

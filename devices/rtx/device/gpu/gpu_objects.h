@@ -105,7 +105,7 @@ struct OrthographicCameraGPUData
 
 struct CameraGPUData
 {
-  CameraType type{CameraType::UNKNOWN};
+  CameraType type;
   vec4 region;
   vec3 pos;
   vec3 dir;
@@ -774,7 +774,7 @@ struct FrameGPUData
   FramebufferGPUData fb;
   RendererGPUData renderer;
   WorldGPUData world;
-  CameraGPUData *camera;
+  CameraGPUData camera;
 
   // Objects //
 

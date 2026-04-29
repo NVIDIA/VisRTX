@@ -35,17 +35,17 @@
 
 namespace visrtx {
 
-VISRTX_DEVICE Ray cameraCreateRay(const CameraGPUData *c, vec2 screen, vec2 r)
+VISRTX_DEVICE Ray cameraCreateRay(const CameraGPUData &c, vec2 screen, vec2 r)
 {
   Ray ray;
 
-  screen.x = glm::mix(c->region[0], c->region[2], screen.x);
-  screen.y = glm::mix(c->region[1], c->region[3], screen.y);
+  screen.x = glm::mix(c.region[0], c.region[2], screen.x);
+  screen.y = glm::mix(c.region[1], c.region[3], screen.y);
 
-  switch (c->type) {
+  switch (c.type) {
   case CameraType::PERSPECTIVE: {
-    const auto &p = c->perspective;
-    ray.org = c->pos;
+    const auto &p = c.perspective;
+    ray.org = c.pos;
     ray.dir = p.dir_00 + screen.x * p.dir_du + screen.y * p.dir_dv;
 
     if (p.scaledAperture > 0.f) {
@@ -59,8 +59,8 @@ VISRTX_DEVICE Ray cameraCreateRay(const CameraGPUData *c, vec2 screen, vec2 r)
     break;
   }
   case CameraType::ORTHOGRAPHIC: {
-    const auto &o = c->orthographic;
-    ray.dir = c->dir;
+    const auto &o = c.orthographic;
+    ray.dir = c.dir;
     ray.org = o.pos_00 + screen.x * o.pos_du + screen.y * o.pos_dv;
     break;
   }

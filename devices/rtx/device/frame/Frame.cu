@@ -519,8 +519,7 @@ void Frame::renderFrame()
   cudaEventRecord(m_eventStart, state.stream);
 
   m_renderer->populateFrameData(hd);
-
-  hd.camera = (CameraGPUData *)m_camera->deviceData();
+  m_camera->populateFrameData(hd.camera, hd.fb.size);
   hd.world = m_world->gpuData();
 
   hd.registry.samplers = state.registry.samplers.devicePtr();

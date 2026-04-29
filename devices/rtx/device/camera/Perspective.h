@@ -32,6 +32,8 @@
 #pragma once
 
 #include "camera/Camera.h"
+// glm
+#include <glm/trigonometric.hpp>
 
 namespace visrtx {
 
@@ -39,6 +41,12 @@ struct Perspective : public Camera
 {
   Perspective(DeviceGlobalState *d);
   void commitParameters() override;
+  void populateFrameData(CameraGPUData &fd, uvec2 frameSize) const override;
+
+ private:
+  float m_fovy{glm::radians(60.f)};
+  float m_focusDistance{1.f};
+  float m_apertureRadius{0.f};
 };
 
 } // namespace visrtx

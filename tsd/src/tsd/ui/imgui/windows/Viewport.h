@@ -56,6 +56,7 @@ struct Viewport : public BaseViewport
 
   void imagePipeline_populate(tsd::rendering::ImagePipeline &p) override;
 
+  void camera_setUseImplicitAspectRatio(bool on) override;
   void camera_resetView(bool resetAzEl = true) override;
   void camera_centerView() override;
 

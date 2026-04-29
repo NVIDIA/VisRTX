@@ -33,23 +33,30 @@
 
 #include "Object.h"
 #include "gpu/gpu_objects.h"
-#include "utility/DeviceObject.h"
+// std
+#include <optional>
 
 namespace visrtx {
 
-struct Camera : public Object, public DeviceObject<CameraGPUData>
+struct Camera : public Object
 {
   Camera(DeviceGlobalState *d);
   ~Camera() override = default;
 
-  void finalize() override;
+  void commitParameters() override;
+  virtual void populateFrameData(CameraGPUData &fd, uvec2 frameSize) const;
 
   static Camera *createInstance(std::string_view subtype, DeviceGlobalState *d);
 
-  void *deviceData() const override;
-
  protected:
-  void readBaseParameters(CameraGPUData &hd);
+  void populateBaseFrameData(CameraGPUData &fd) const;
+  float effectiveAspect(uvec2 frameSize) const;
+
+  vec4 m_region{0.f, 0.f, 1.f, 1.f};
+  vec3 m_pos{0.f};
+  vec3 m_dir{0.f, 0.f, 1.f};
+  vec3 m_up{0.f, 1.f, 0.f};
+  std::optional<float> m_aspect;
 };
 
 } // namespace visrtx

@@ -45,9 +45,24 @@ Camera::Camera(DeviceGlobalState *s) : Object(ANARI_CAMERA, s)
   s->commitBuffer.addObjectToCommit(this);
 }
 
-void Camera::finalize()
+void Camera::commitParameters()
 {
-  upload();
+  m_region = vec4(0.f, 0.f, 1.f, 1.f);
+  getParam("imageRegion", ANARI_FLOAT32_BOX2, &m_region);
+  m_pos = getParam<vec3>("position", vec3(0.f));
+  m_dir = normalize(getParam<vec3>("direction", vec3(0.f, 0.f, 1.f)));
+  m_up = normalize(getParam<vec3>("up", vec3(0.f, 1.f, 0.f)));
+
+  m_aspect.reset();
+  float aspect = 1.f;
+  if (getParam("aspect", ANARI_FLOAT32, &aspect))
+    m_aspect = aspect;
+}
+
+void Camera::populateFrameData(CameraGPUData &fd, uvec2 /*frameSize*/) const
+{
+  populateBaseFrameData(fd);
+  fd.type = CameraType::UNKNOWN;
 }
 
 Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
@@ -60,19 +75,20 @@ Camera *Camera::createInstance(std::string_view subtype, DeviceGlobalState *d)
     return new UnknownCamera(subtype, d);
 }
 
-void *Camera::deviceData() const
+void Camera::populateBaseFrameData(CameraGPUData &fd) const
 {
-  return DeviceObject<CameraGPUData>::deviceData();
+  fd.region = m_region;
+  fd.pos = m_pos;
+  fd.dir = m_dir;
+  fd.up = m_up;
 }
 
-void Camera::readBaseParameters(CameraGPUData &hd)
+float Camera::effectiveAspect(uvec2 frameSize) const
 {
-  vec4 region = vec4(0.f, 0.f, 1.f, 1.f);
-  getParam("imageRegion", ANARI_FLOAT32_BOX2, &region);
-  hd.region = region;
-  hd.pos = getParam<vec3>("position", vec3(0.f));
-  hd.dir = normalize(getParam<vec3>("direction", vec3(0.f, 0.f, 1.f)));
-  hd.up = normalize(getParam<vec3>("up", vec3(0.f, 1.f, 0.f)));
+  if (m_aspect)
+    return *m_aspect;
+
+  return frameSize.y == 0 ? 1.f : float(frameSize.x) / float(frameSize.y);
 }
 
 } // namespace visrtx

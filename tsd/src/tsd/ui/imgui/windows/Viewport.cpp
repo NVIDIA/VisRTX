@@ -335,6 +335,7 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
       m_timeToLoadDevice);
 
   m_anariPass = p.emplace_back<tsd::rendering::AnariSceneRenderPass>(m_device);
+  m_anariPass->setUseImplicitAspectRatio(m_camera.useImplicitAspectRatio);
 
   m_saveToFilePass = p.emplace_back<tsd::rendering::SaveToFilePass>();
   m_saveToFilePass->setEnabled(false);
@@ -576,6 +577,13 @@ void Viewport::setSelectionVisibilityFilterEnabled(bool enabled)
       return !selectedObject || obj == selectedObject;
     });
   }
+}
+
+void Viewport::camera_setUseImplicitAspectRatio(bool on)
+{
+  BaseViewport::camera_setUseImplicitAspectRatio(on);
+  if (m_anariPass)
+    m_anariPass->setUseImplicitAspectRatio(on);
 }
 
 void Viewport::updateFrame()

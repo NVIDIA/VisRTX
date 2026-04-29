@@ -37,18 +37,23 @@ Orthographic::Orthographic(DeviceGlobalState *s) : Camera(s) {}
 
 void Orthographic::commitParameters()
 {
-  const float aspect = getParam<float>("aspect", 1.f);
-  const float height = getParam<float>("height", 1.f);
+  Camera::commitParameters();
 
-  vec2 imgPlaneSize(height * aspect, height);
+  m_height = getParam<float>("height", 1.f);
+}
 
-  auto &hd = data();
-  readBaseParameters(hd);
-  hd.type = CameraType::ORTHOGRAPHIC;
-  auto &o = hd.orthographic;
-  o.pos_du = normalize(cross(hd.dir, hd.up)) * imgPlaneSize.x;
-  o.pos_dv = normalize(cross(o.pos_du, hd.dir)) * imgPlaneSize.y;
-  o.pos_00 = hd.pos - 0.5f * o.pos_du - 0.5f * o.pos_dv;
+void Orthographic::populateFrameData(CameraGPUData &fd, uvec2 frameSize) const
+{
+  populateBaseFrameData(fd);
+  fd.type = CameraType::ORTHOGRAPHIC;
+
+  const float aspect = effectiveAspect(frameSize);
+  vec2 imgPlaneSize(m_height * aspect, m_height);
+
+  auto &o = fd.orthographic;
+  o.pos_du = normalize(cross(fd.dir, fd.up)) * imgPlaneSize.x;
+  o.pos_dv = normalize(cross(o.pos_du, fd.dir)) * imgPlaneSize.y;
+  o.pos_00 = fd.pos - 0.5f * o.pos_du - 0.5f * o.pos_dv;
 }
 
 } // namespace visrtx

@@ -33,6 +33,7 @@ struct AnariSceneRenderPass : public ImagePass
   void setEnableInstanceId(bool on);
   void setEnableAlbedo(bool on);
   void setEnableNormals(bool on);
+  void setUseImplicitAspectRatio(bool on);
 
   void startFirstFrame(bool waitForCompletion = false);
 
@@ -43,6 +44,7 @@ struct AnariSceneRenderPass : public ImagePass
 
  private:
   void updateSize() override;
+  void updateCameraAspect();
   void render(ImageBuffers &b, int stageId) override;
   void copyFrameData();
   void composite(ImageBuffers &b, int stageId);
@@ -58,6 +60,7 @@ struct AnariSceneRenderPass : public ImagePass
   bool m_enableAlbedo{false};
   bool m_enableNormals{false};
   bool m_runAsync{true};
+  bool m_useImplicitAspectRatio{false};
 
   anari::DataType m_format{ANARI_UFIXED8_RGBA_SRGB};
 
