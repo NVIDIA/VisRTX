@@ -197,9 +197,11 @@ VISRTX_DEVICE const VolumeGPUData &volumeData(const FrameGPUData &frameData)
   return frameData.registry.volumes[idx];
 }
 
-VISRTX_DEVICE const SpatialFieldGPUData &fieldData(const FrameGPUData &frameData, const VolumeGPUData &volumeData)
+VISRTX_DEVICE const SpatialFieldGPUData &fieldData(
+    const FrameGPUData &frameData, const VolumeGPUData &volumeData)
 {
-  // Currently only TF1D volume type is supported, so assume this is what we have
+  // Currently only TF1D volume type is supported, so assume this is what we
+  // have
   return frameData.registry.fields[volumeData.data.tf1d.field];
 }
 
@@ -243,20 +245,22 @@ VISRTX_DEVICE void computeTangentSpace(
     if (ggd.tri.vertexTangentsFV != nullptr) {
       const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
 
-      const vec3 t0 = ggd.tri.vertexTangentsFV[idx.x];
-      const vec3 t1 = ggd.tri.vertexTangentsFV[idx.y];
-      const vec3 t2 = ggd.tri.vertexTangentsFV[idx.z];
-      const float handedness = ggd.tri.vertexTangentsFV[idx.x].w;
+      const vec4 t0 = ggd.tri.vertexTangentsFV[idx.x];
+      const vec4 t1 = ggd.tri.vertexTangentsFV[idx.y];
+      const vec4 t2 = ggd.tri.vertexTangentsFV[idx.z];
+      const float handedness = b.x * t0.w + b.y * t1.w + b.z * t2.w;
+      const float sign = handedness < 0.f ? -1.f : 1.f;
       hit.tU = normalize(b.x * vec3(t0) + b.y * vec3(t1) + b.z * vec3(t2));
-      hit.tV = handedness * normalize(cross(hit.Ns, hit.tU));
+      hit.tV = sign * normalize(cross(hit.Ns, hit.tU));
     } else if (ggd.tri.vertexTangents != nullptr) {
-      const vec3 t0 = ggd.tri.vertexTangents[idx.x];
-      const vec3 t1 = ggd.tri.vertexTangents[idx.y];
-      const vec3 t2 = ggd.tri.vertexTangents[idx.z];
-      const float handedness = ggd.tri.vertexTangents[idx.x].w;
+      const vec4 t0 = ggd.tri.vertexTangents[idx.x];
+      const vec4 t1 = ggd.tri.vertexTangents[idx.y];
+      const vec4 t2 = ggd.tri.vertexTangents[idx.z];
+      const float handedness = b.x * t0.w + b.y * t1.w + b.z * t2.w;
+      const float sign = handedness < 0.f ? -1.f : 1.f;
 
-      hit.tU = normalize(b.x * t0 + b.y * t1 + b.z * t2);
-      hit.tV = handedness * normalize(cross(hit.Ns, hit.tU));
+      hit.tU = normalize(b.x * vec3(t0) + b.y * vec3(t1) + b.z * vec3(t2));
+      hit.tV = sign * normalize(cross(hit.Ns, hit.tU));
     } else {
       auto tangentSpace = computeOrthonormalBasis(hit.Ng);
       hit.tU = tangentSpace[0];
