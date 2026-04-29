@@ -52,6 +52,49 @@ namespace {
 
 constexpr const auto eps = 1e-8f;
 
+__device__ glm::vec3 safeNormalize(
+    const glm::vec3 &v, const glm::vec3 &fallback)
+{
+  const float l2 = glm::dot(v, v);
+  return l2 > eps ? v * rsqrtf(l2) : fallback;
+}
+
+__device__ void makeTangentFrame(
+    const glm::vec3 &normal, glm::vec3 *tangent, glm::vec3 *bitangent)
+{
+  // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
+  const glm::vec3 n = safeNormalize(normal, glm::vec3(0.f, 0.f, 1.f));
+  const float sign = n.z >= 0.0f ? 1.0f : -1.0f;
+  const float a = -1.0f / (sign + n.z);
+  const float b = n.x * n.y * a;
+  *tangent = glm::vec3(1.0f + sign * n.x * n.x * a, sign * b, -sign * n.x);
+  *bitangent = glm::vec3(b, sign + n.y * n.y * a, -n.y);
+}
+
+__device__ glm::vec3 computeGeometricNormal(
+    const glm::vec3 &e1, const glm::vec3 &e2)
+{
+  return safeNormalize(glm::cross(e1, e2), glm::vec3(0.f, 0.f, 1.f));
+}
+
+__device__ void orthogonalizeTangent(const glm::vec3 &tangent,
+    const glm::vec3 &bitangent,
+    const glm::vec3 &normal,
+    glm::vec3 *outTangent,
+    float *outHandedness)
+{
+  glm::vec3 fallbackTangent;
+  glm::vec3 fallbackBitangent;
+  makeTangentFrame(normal, &fallbackTangent, &fallbackBitangent);
+
+  const glm::vec3 n = safeNormalize(normal, glm::vec3(0.f, 0.f, 1.f));
+  *outTangent =
+      safeNormalize(tangent - n * glm::dot(n, tangent), fallbackTangent);
+
+  const float bitangentSign = glm::dot(glm::cross(n, *outTangent), bitangent);
+  *outHandedness = bitangentSign < 0.0f ? -1.0f : 1.0f;
+}
+
 void cudaFreeMemoryDeleter(const void *, const void *memory)
 {
   cudaFree(const_cast<void *>(memory));
@@ -88,32 +131,22 @@ __device__ void __computeTangentAndBitangent(
   // Compute edges of the triangle
   glm::vec3 e1 = p1 - p0;
   glm::vec3 e2 = p2 - p0;
+  const auto normal = computeGeometricNormal(e1, e2);
 
-  if (dot(e1, e1) < eps || dot(e2, e2) < eps) {
-    // Degenerate triangle, use a default tangent and bitangent
-    *tangent = glm::vec3(1.0f, 0.0f, 0.0f);
-    *bitangent = glm::vec3(0.0f, 1.0f, 0.0f);
+  if (glm::dot(e1, e1) < eps || glm::dot(e2, e2) < eps) {
+    makeTangentFrame(normal, tangent, bitangent);
   } else {
-    auto normal = normalize(cross(e1, e2));
-
     // Compute differences in texture coordinates
     auto s = uv1 - uv0;
     auto t = uv2 - uv0;
 
-    auto cross = s.x * t.y - s.y * t.x;
+    auto det = s.x * t.y - s.y * t.x;
 
-    if (abs(cross) < eps) { // degenerate triangle (null vectors or collinears)
-      // Create a default orthonormal basis:
-      // https://graphics.pixar.com/library/OrthonormalB/paper.pdf
-      float sign = normal.z >= 0.0f ? 1.0f : -1.0f;
-      float a = -1.0f / (sign + normal.z);
-      float b = normal.x * normal.y * a;
-      *tangent = glm::vec3(
-          1.0f + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
-      *bitangent = glm::vec3(b, sign + normal.y * normal.y * a, -normal.y);
+    if (glm::abs(det) < eps) {
+      makeTangentFrame(normal, tangent, bitangent);
     } else {
       // Compute the determinant
-      float invdet = 1.0f / cross;
+      float invdet = 1.0f / det;
       *tangent = (t.y * e1 - s.y * e2) * invdet;
       *bitangent = (s.x * e2 - t.x * e1) * invdet;
     }
@@ -180,28 +213,36 @@ __global__ void __doComputeTangents(
       uv2 // Input texture coordinates
   );
 
-  vec3 n0, n1, n2;
-  if constexpr (NormalsIndexed) {
-    // Use indexed normals
-    n0 = normals[indexedIdx.x];
-    n1 = normals[indexedIdx.y];
-    n2 = normals[indexedIdx.z];
-  } else {
-    // Use per-face normals
-    n0 = normals[perFaceBaseIdx.x];
-    n1 = normals[perFaceBaseIdx.y];
-    n2 = normals[perFaceBaseIdx.z];
+  const vec3 geometricNormal = computeGeometricNormal(p1 - p0, p2 - p0);
+  vec3 n0 = geometricNormal;
+  vec3 n1 = geometricNormal;
+  vec3 n2 = geometricNormal;
+  if (normals) {
+    if constexpr (NormalsIndexed) {
+      // Use indexed normals
+      n0 = normals[indexedIdx.x];
+      n1 = normals[indexedIdx.y];
+      n2 = normals[indexedIdx.z];
+    } else {
+      // Use per-face normals
+      n0 = normals[perFaceBaseIdx.x];
+      n1 = normals[perFaceBaseIdx.y];
+      n2 = normals[perFaceBaseIdx.z];
+    }
+    n0 = safeNormalize(n0, geometricNormal);
+    n1 = safeNormalize(n1, geometricNormal);
+    n2 = safeNormalize(n2, geometricNormal);
   }
 
-  // Gram-Schmidt orthogonalize and compute handedness
-  vec3 t0 = normalize(tangent - n0 * dot(n0, tangent));
-  float h0 = copysign(1.0f, dot(cross(n0, t0), bitangent));
-
-  vec3 t1 = normalize(tangent - n1 * dot(n1, tangent));
-  float h1 = copysign(1.0f, dot(cross(n1, t1), bitangent));
-
-  vec3 t2 = normalize(tangent - n2 * dot(n2, tangent));
-  float h2 = copysign(1.0f, dot(cross(n2, t2), bitangent));
+  vec3 t0;
+  vec3 t1;
+  vec3 t2;
+  float h0;
+  float h1;
+  float h2;
+  orthogonalizeTangent(tangent, bitangent, n0, &t0, &h0);
+  orthogonalizeTangent(tangent, bitangent, n1, &t1, &h1);
+  orthogonalizeTangent(tangent, bitangent, n2, &t2, &h2);
 
   tangents[perFaceBaseIdx.x] = glm::vec4(t0, h0);
   tangents[perFaceBaseIdx.y] = glm::vec4(t1, h1);
@@ -235,9 +276,9 @@ void updateGeometryTangent(Triangle *triangle)
   auto normalsFV = triangle->getParamObject<Array1D>("faceVarying.normal");
   auto uvsFV = triangle->getParamObject<Array1D>("faceVarying.attribute0");
 
-  if (!positions || (!normals && !normalsFV)) {
+  if (!positions) {
     triangle->reportMessage(ANARI_SEVERITY_INFO,
-        "Triangle %p has no position or normals, cannot compute tangents",
+        "Triangle %p has no positions, cannot compute tangents",
         triangle);
     return;
   }
@@ -339,7 +380,9 @@ void updateGeometryTangent(Triangle *triangle)
         }
       }
     } else {
-      auto normalsPtr = normals->dataAs<const glm::vec3>(AddressSpace::GPU);
+      const auto *normalsPtr = normals
+          ? normals->dataAs<const glm::vec3>(AddressSpace::GPU)
+          : nullptr;
       if (uvsFV) {
         if (uvsFV->elementType() == ANARI_FLOAT32_VEC2) {
           auto uvsPtr = uvsFV->dataAs<const glm::vec2>(AddressSpace::GPU);
@@ -387,7 +430,8 @@ void updateGeometryTangent(Triangle *triangle)
     normals = normalsFV ? normalsFV : normals;
     uvs = uvsFV ? uvsFV : uvs;
 
-    auto normalsPtr = normals->dataAs<const glm::vec3>(AddressSpace::GPU);
+    const auto *normalsPtr =
+        normals ? normals->dataAs<const glm::vec3>(AddressSpace::GPU) : nullptr;
 
     if (uvs->elementType() == ANARI_FLOAT32_VEC2) {
       // Non indexed vertices, face varying normals and face varyings vec2 UVs.
