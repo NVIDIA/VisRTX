@@ -255,8 +255,7 @@ static ArrayRef importDdsTextureArray(Scene &scene,
     }
 
     default: {
-      logError(
-          "[importDdsTexture] unsupported DDS format '%c%c%c%c' for '%s'",
+      logError("[importDdsTexture] unsupported DDS format '%c%c%c%c' for '%s'",
           dds->header.pixelFormat.fourCC & 0xff,
           (dds->header.pixelFormat.fourCC >> 8) & 0xff,
           (dds->header.pixelFormat.fourCC >> 16) & 0xff,
@@ -307,10 +306,10 @@ SamplerRef importDdsTexture(
     return {};
   }
 
-  std::vector<char> buffer((std::istreambuf_iterator<char>(ifs)),
-      std::istreambuf_iterator<char>());
-  auto dataArray =
-      importDdsTextureArray(scene, buffer.data(), buffer.size(), filepath, cache);
+  std::vector<char> buffer(
+      (std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+  auto dataArray = importDdsTextureArray(
+      scene, buffer.data(), buffer.size(), filepath, cache);
   return dataArray ? makeCompressedTextureSampler(scene, dataArray, filepath)
                    : SamplerRef{};
 }
@@ -332,13 +331,18 @@ static ArrayRef importStbTextureArray(Scene &scene,
       stbi_ldr_to_hdr_scale(1.0f);
       stbi_ldr_to_hdr_gamma(2.2f);
     }
-    void *decodedData = stbi_loadf_from_memory(
-        static_cast<const stbi_uc *>(data), int(numBytes), &width, &height, &n, 0);
+    void *decodedData =
+        stbi_loadf_from_memory(static_cast<const stbi_uc *>(data),
+            int(numBytes),
+            &width,
+            &height,
+            &n,
+            0);
 
     if (!decodedData || n < 1) {
       if (!decodedData) {
-        logError("[importTexture] failed to import texture '%s'",
-            textureId.c_str());
+        logError(
+            "[importTexture] failed to import texture '%s'", textureId.c_str());
       } else {
         logWarning("[importTexture] texture '%s' with %i channels not imported",
             textureId.c_str(),
@@ -378,11 +382,12 @@ SamplerRef importStbTexture(
     return {};
   }
 
-  std::vector<char> buffer((std::istreambuf_iterator<char>(ifs)),
-      std::istreambuf_iterator<char>());
+  std::vector<char> buffer(
+      (std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
   auto dataArray = importStbTextureArray(
       scene, buffer.data(), buffer.size(), cacheKey, cache, isLinear);
-  return dataArray ? makeTextureSampler(scene, dataArray, filepath) : SamplerRef{};
+  return dataArray ? makeTextureSampler(scene, dataArray, filepath)
+                   : SamplerRef{};
 }
 
 SamplerRef importTexture(
@@ -419,9 +424,11 @@ SamplerRef importTextureFromMemory(Scene &scene,
       });
 
   if (format == "dds") {
-    auto dataArray = importDdsTextureArray(scene, data, numBytes, cacheKey, cache);
-    return dataArray ? makeCompressedTextureSampler(scene, dataArray, displayName)
-                     : SamplerRef{};
+    auto dataArray =
+        importDdsTextureArray(scene, data, numBytes, cacheKey, cache);
+    return dataArray
+        ? makeCompressedTextureSampler(scene, dataArray, displayName)
+        : SamplerRef{};
   }
 
   auto dataArray =
@@ -477,7 +484,8 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
     const float2 *texCoords,
     float4 *tangents,
     size_t numIndices,
-    size_t numVertices)
+    size_t numVertices,
+    bool flipTexCoordY)
 {
   if (!texCoords)
     return false;
@@ -492,6 +500,7 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
     const float3 *vertexNormals;
     const float2 *texCoords;
     float4 *tangents;
+    bool flipTexCoordY;
     size_t numIndices;
     size_t numVertices;
   } mesh;
@@ -501,6 +510,7 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
   mesh.vertexNormals = vertexNormals;
   mesh.texCoords = texCoords;
   mesh.tangents = tangents;
+  mesh.flipTexCoordY = flipTexCoordY;
   mesh.numIndices = numIndices;
   mesh.numVertices = numVertices;
 
@@ -567,7 +577,9 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
 
     assert(mesh->texCoords);
     unsigned vID = index[vertID];
-    oc = {mesh->texCoords[vID].x, 1.0f - mesh->texCoords[vID].y};
+    oc = {mesh->texCoords[vID].x,
+        mesh->flipTexCoordY ? 1.0f - mesh->texCoords[vID].y
+                            : mesh->texCoords[vID].y};
   };
 
   // callback to assign output tangents
@@ -667,7 +679,7 @@ static core::TransferFunction importParaViewTransferFunction(
         filepath.c_str());
     return {};
   } else if (const auto arrayStart = jsonContent.find("[", rgbPointsPos);
-             arrayStart == std::string::npos) {
+      arrayStart == std::string::npos) {
     logError(
         "[importParaViewTransferFunction] Invalid RGBPoints format in file: %s",
         filepath.c_str());
@@ -752,7 +764,7 @@ static core::TransferFunction importParaViewTransferFunction(
           std::istringstream opacitySS(opacityContent);
 
           for (std::string opacityToken;
-               std::getline(opacitySS, opacityToken, ',');) {
+              std::getline(opacitySS, opacityToken, ',');) {
             // Trim whitespace
             if (const auto first = opacityToken.find_first_not_of(" \t\n\r");
                 first != std::string::npos) {

@@ -1119,7 +1119,8 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
                   texCoords.data(),
                   tangents,
                   indices.size(),
-                  posAccessor.count);
+                  posAccessor.count,
+                  false);
 
               vertexTangentArray->unmap();
 

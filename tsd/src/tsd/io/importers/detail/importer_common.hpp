@@ -70,7 +70,8 @@ bool calcTangentsForTriangleMesh(const tsd::math::uint3 *indices,
     const tsd::math::float2 *texCoords,
     tsd::math::float4 *tangents,
     size_t numIndices,
-    size_t numVertices);
+    size_t numVertices,
+    bool flipTexCoordY = true);
 
 #if TSD_USE_VTK
 anari::DataType vtkTypeToANARIType(
