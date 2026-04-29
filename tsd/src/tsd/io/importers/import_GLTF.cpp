@@ -283,6 +283,14 @@ static SamplerRef importGLTFTexture(Scene &scene,
   return sampler;
 }
 
+static void applyNormalTextureScale(SamplerRef sampler, float scale)
+{
+  sampler->setParameter("outTransform",
+      mat4({scale, 0, 0, 0}, {0, scale, 0, 0}, {0, 0, 1, 0}, {0, 0, 0, 1}));
+  const float offset = 0.5f * (1.0f - scale);
+  sampler->setParameter("outOffset", float4(offset, offset, 0.0f, 0.0f));
+}
+
 static std::vector<MaterialRef> importGLTFMaterials(
     Scene &scene, const tinygltf::Model &model)
 {
@@ -402,11 +410,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
             "normal",
             gltfMaterial.normalTexture.texCoord)) {
       float normalScale = gltfMaterial.normalTexture.scale;
-      sampler->setParameter("outTransform",
-          mat4({normalScale, 0, 0, 0},
-              {0, normalScale, 0, 0},
-              {0, 0, 1, 0}, // Don't scale Z (blue) channel
-              {0, 0, 0, 1}));
+      applyNormalTextureScale(sampler, normalScale);
       material->setParameterObject("normal", *sampler);
     }
 
@@ -628,6 +632,8 @@ static std::vector<MaterialRef> importGLTFMaterials(
       // Clearcoat normal texture
       auto clearcoatNormalTextureIndex = GetValueOrDefault(
           clearcoatExt, -1, "clearcoatNormalTexture", "index");
+      float clearcoatNormalScale = GetValueOrDefault(
+          clearcoatExt, 1.0f, "clearcoatNormalTexture", "scale");
       auto clearcoatNormalTexCoord = GetValueOrDefault(
           clearcoatExt, 0, "clearcoatNormalTexture", "texCoord");
       if (auto sampler = importGLTFTexture(scene,
@@ -638,6 +644,7 @@ static std::vector<MaterialRef> importGLTFMaterials(
               false,
               "clearcoatNormal",
               clearcoatNormalTexCoord)) {
+        applyNormalTextureScale(sampler, clearcoatNormalScale);
         material->setParameterObject("clearcoatNormal", *sampler);
       }
     } else {
