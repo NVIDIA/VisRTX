@@ -989,8 +989,11 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
 
   for (const auto &mesh : model.meshes) {
     for (const auto &primitive : mesh.primitives) {
+      auto skipPrimitive = [&]() { surfaces.push_back({}); };
+
       if (primitive.mode != TINYGLTF_MODE_TRIANGLES) {
         logWarning("[import_GLTF] only triangle primitives are supported");
+        skipPrimitive();
         continue;
       }
 
@@ -1000,6 +1003,7 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
       auto posIt = primitive.attributes.find("POSITION");
       if (posIt == primitive.attributes.end()) {
         logWarning("[import_GLTF] primitive missing POSITION attribute");
+        skipPrimitive();
         continue;
       }
 
@@ -1007,6 +1011,7 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
       if (posAccessor.type != TINYGLTF_TYPE_VEC3
           || posAccessor.componentType != TINYGLTF_COMPONENT_TYPE_FLOAT) {
         logWarning("[import_GLTF] unsupported position data format");
+        skipPrimitive();
         continue;
       }
 
@@ -1106,6 +1111,7 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
             && indexAccessor.componentType
                 != TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
           logWarning("[import_GLTF] unsupported index data type");
+          skipPrimitive();
           continue;
         }
 
@@ -1415,7 +1421,7 @@ static void populateGLTFLayer(Scene &scene,
       }
       surfaceIndex += i;
 
-      if (surfaceIndex < surfaces.size()) {
+      if (surfaceIndex < surfaces.size() && surfaces[surfaceIndex]) {
         auto surface = surfaces[surfaceIndex];
         scene.insertChildObjectNode(nodeRef, surface, surface->name().c_str());
       }
