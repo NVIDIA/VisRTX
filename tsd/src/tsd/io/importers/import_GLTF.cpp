@@ -871,54 +871,46 @@ static std::vector<MaterialRef> importGLTFMaterials(
 }
 
 template <typename T>
-static const T *getAccessorData(const tinygltf::Model &model, int accessorIndex)
-{
-  if (accessorIndex < 0 || accessorIndex >= model.accessors.size())
-    return nullptr;
-
-  const auto &accessor = model.accessors[accessorIndex];
-  const auto &bufferView = model.bufferViews[accessor.bufferView];
-  const auto &buffer = model.buffers[bufferView.buffer];
-
-  return reinterpret_cast<const T *>(
-      buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
-}
-
-template <typename T>
-static void copyStridedData(
+static bool copyStridedData(
     const tinygltf::Model &model, int accessorIndex, T *outData)
 {
   if (accessorIndex < 0 || accessorIndex >= model.accessors.size())
-    return;
+    return false;
 
   const auto &accessor = model.accessors[accessorIndex];
+
+  // Refuse to copy when the accessor's element layout does not match the
+  // template type.
+  const size_t numComponents = tinygltf::GetNumComponentsInType(accessor.type);
+  const size_t componentSize =
+      tinygltf::GetComponentSizeInBytes(accessor.componentType);
+  const size_t bytesPerElement = numComponents * componentSize;
+  if (bytesPerElement != sizeof(T)) {
+    logWarning(
+        "[import_GLTF] accessor %d element size (%zu) does not match "
+        "destination size (%zu); skipping copy",
+        accessorIndex,
+        bytesPerElement,
+        sizeof(T));
+    return false;
+  }
+
   const auto &bufferView = model.bufferViews[accessor.bufferView];
   const auto &buffer = model.buffers[bufferView.buffer];
 
   const uint8_t *sourceData =
       buffer.data.data() + bufferView.byteOffset + accessor.byteOffset;
 
-  // Check if data is interleaved (has a stride)
   if (bufferView.byteStride > 0) {
-    // Calculate the size of one element based on accessor type and
-    // component type
-    size_t elementSize = tinygltf::GetNumComponentsInType(accessor.type);
-    size_t componentSize =
-        tinygltf::GetComponentSizeInBytes(accessor.componentType);
-
-    size_t bytesPerElement = elementSize * componentSize;
-
-    // Copy data with stride
     for (size_t i = 0; i < accessor.count; ++i) {
       std::memcpy(reinterpret_cast<uint8_t *>(outData) + i * bytesPerElement,
           sourceData + i * bufferView.byteStride,
           bytesPerElement);
     }
   } else {
-    // Data is tightly packed, direct copy
-    size_t bytesToCopy = accessor.count * sizeof(T);
-    std::memcpy(outData, sourceData, bytesToCopy);
+    std::memcpy(outData, sourceData, accessor.count * bytesPerElement);
   }
+  return true;
 }
 
 template <typename T>
@@ -930,8 +922,38 @@ static std::vector<T> copyAccessorData(
 
   const auto &accessor = model.accessors[accessorIndex];
   std::vector<T> data(accessor.count);
-  copyStridedData(model, accessorIndex, data.data());
+  if (!copyStridedData(model, accessorIndex, data.data()))
+    return {};
   return data;
+}
+
+template <typename INDEX_T>
+static void copyIndexTriplets(
+    const tinygltf::Model &model, int accessorIndex, uint3 *outIndices)
+{
+  auto indexData = copyAccessorData<INDEX_T>(model, accessorIndex);
+
+  // Drive the loop from the actual returned size so a validation failure
+  // (empty vector) doesn't OOB-index.
+  for (size_t i = 0; i < indexData.size() / 3; ++i) {
+    outIndices[i] =
+        uint3(indexData[i * 3], indexData[i * 3 + 1], indexData[i * 3 + 2]);
+  }
+}
+
+template <typename INDEX_T>
+static void appendIndexTriplets(const tinygltf::Model &model,
+    int accessorIndex,
+    std::vector<uint3> &indices)
+{
+  auto indexData = copyAccessorData<INDEX_T>(model, accessorIndex);
+  const size_t triplets = indexData.size() / 3;
+  indices.reserve(indices.size() + triplets);
+
+  for (size_t i = 0; i < triplets; ++i) {
+    indices.push_back(
+        uint3(indexData[i * 3], indexData[i * 3 + 1], indexData[i * 3 + 2]));
+  }
 }
 
 static int tangentTexCoordSetForPrimitive(
@@ -1078,73 +1100,30 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
       if (primitive.indices >= 0) {
         const auto &indexAccessor = model.accessors[primitive.indices];
 
-        if (indexAccessor.componentType
-            == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-          auto indexArray =
-              scene.createArray(ANARI_UINT32_VEC3, indexAccessor.count / 3);
-          auto *outIndices = indexArray->mapAs<uint3>();
-
-          // Check if we need to handle strided data
-          const auto &indexBufferView =
-              model.bufferViews[indexAccessor.bufferView];
-          if (indexBufferView.byteStride > 0
-              && indexBufferView.byteStride != sizeof(uint16_t)) {
-            // Handle strided indices
-            auto tempIndices = std::vector<uint16_t>(indexAccessor.count);
-            copyStridedData(model, primitive.indices, tempIndices.data());
-
-            for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
-              outIndices[i] = uint3(tempIndices[i * 3],
-                  tempIndices[i * 3 + 1],
-                  tempIndices[i * 3 + 2]);
-            }
-          } else {
-            // Direct access for tightly packed data
-            const uint16_t *inIndices =
-                getAccessorData<uint16_t>(model, primitive.indices);
-            for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
-              outIndices[i] = uint3(
-                  inIndices[i * 3], inIndices[i * 3 + 1], inIndices[i * 3 + 2]);
-            }
-          }
-
-          indexArray->unmap();
-          geometry->setParameterObject("primitive.index", *indexArray);
-        } else if (indexAccessor.componentType
-            == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-          auto indexArray =
-              scene.createArray(ANARI_UINT32_VEC3, indexAccessor.count / 3);
-
-          // Check if we need to handle strided data
-          const auto &indexBufferView =
-              model.bufferViews[indexAccessor.bufferView];
-          if (indexBufferView.byteStride > 0
-              && indexBufferView.byteStride != sizeof(uint32_t)) {
-            // Handle strided indices
-            auto tempIndices = std::vector<uint32_t>(indexAccessor.count);
-            copyStridedData(model, primitive.indices, tempIndices.data());
-            auto *outIndices = indexArray->mapAs<uint3>();
-
-            for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
-              outIndices[i] = uint3(tempIndices[i * 3],
-                  tempIndices[i * 3 + 1],
-                  tempIndices[i * 3 + 2]);
-            }
-            indexArray->unmap();
-          } else {
-            // Direct copy for tightly packed data
-            const uint32_t *indexData =
-                getAccessorData<uint32_t>(model, primitive.indices);
-            auto *outIndices = indexArray->mapAs<uint3>();
-            std::memcpy(
-                outIndices, indexData, indexAccessor.count * sizeof(uint32_t));
-            indexArray->unmap();
-          }
-          geometry->setParameterObject("primitive.index", *indexArray);
-        } else {
+        if (indexAccessor.componentType != TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE
+            && indexAccessor.componentType
+                != TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT
+            && indexAccessor.componentType
+                != TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
           logWarning("[import_GLTF] unsupported index data type");
           continue;
         }
+
+        auto indexArray =
+            scene.createArray(ANARI_UINT32_VEC3, indexAccessor.count / 3);
+        auto *outIndices = indexArray->mapAs<uint3>();
+
+        if (indexAccessor.componentType
+            == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+          copyIndexTriplets<uint8_t>(model, primitive.indices, outIndices);
+        else if (indexAccessor.componentType
+            == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+          copyIndexTriplets<uint16_t>(model, primitive.indices, outIndices);
+        else
+          copyIndexTriplets<uint32_t>(model, primitive.indices, outIndices);
+
+        indexArray->unmap();
+        geometry->setParameterObject("primitive.index", *indexArray);
       }
 
       std::string geometryName = mesh.name + "_primitive_"
@@ -1193,25 +1172,16 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
               // Indexed geometry
               const auto &indexAccessor = model.accessors[primitive.indices];
               if (indexAccessor.componentType
+                  == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+                appendIndexTriplets<uint8_t>(model, primitive.indices, indices);
+              } else if (indexAccessor.componentType
                   == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-                auto indexData =
-                    copyAccessorData<uint16_t>(model, primitive.indices);
-                indices.reserve(indexAccessor.count / 3);
-                for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
-                  indices.push_back(uint3(indexData[i * 3],
-                      indexData[i * 3 + 1],
-                      indexData[i * 3 + 2]));
-                }
+                appendIndexTriplets<uint16_t>(
+                    model, primitive.indices, indices);
               } else if (indexAccessor.componentType
                   == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-                auto indexData =
-                    copyAccessorData<uint32_t>(model, primitive.indices);
-                indices.reserve(indexAccessor.count / 3);
-                for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
-                  indices.push_back(uint3(indexData[i * 3],
-                      indexData[i * 3 + 1],
-                      indexData[i * 3 + 2]));
-                }
+                appendIndexTriplets<uint32_t>(
+                    model, primitive.indices, indices);
               }
             } else {
               // Non-indexed geometry (triangle soup) - generate sequential
