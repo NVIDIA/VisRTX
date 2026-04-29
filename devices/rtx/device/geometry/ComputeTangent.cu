@@ -52,6 +52,25 @@ namespace {
 
 constexpr const auto eps = 1e-8f;
 
+void cudaFreeMemoryDeleter(const void *, const void *memory)
+{
+  cudaFree(const_cast<void *>(memory));
+}
+
+bool reportCudaError(
+    visrtx::Triangle *triangle, cudaError_t error, const char *operation)
+{
+  if (error == cudaSuccess)
+    return false;
+
+  triangle->reportMessage(ANARI_SEVERITY_ERROR,
+      "CUDA error while computing tangents for Triangle %p during %s: %s",
+      triangle,
+      operation,
+      cudaGetErrorString(error));
+  return true;
+}
+
 } // namespace
 
 namespace visrtx {
@@ -108,7 +127,6 @@ template <bool VerticesIndexed,
     typename TexCoord>
 __global__ void __doComputeTangents(
     glm::vec4 *tangents, // Output tangent vectors with handedness (w component)
-    glm::vec3 *bitangents, // Output bitangent vectors
     const glm::uvec3 *indices, // Input triangle indices
     const glm::vec3 *positions, // Input vertex positions
     const glm::vec3 *normals, // Input vertex normals
@@ -197,7 +215,6 @@ template <bool VerticesIndexed,
     typename TexCoord>
 void __computeTangents(
     glm::vec4 *tangents, // Output tangent vectors with handedness (w component)
-    glm::vec3 *bitangents, // Output bitangent vectors
     const glm::uvec3 *indices, // Input triangle indices
     const glm::vec3 *positions, // Input vertex positions
     const glm::vec3 *normals, // Input vertex normals
@@ -207,7 +224,7 @@ void __computeTangents(
 {
   __doComputeTangents<VerticesIndexed, NormalsIndexed, UVsIndexed, TexCoord>
       <<<(numTriangles + 63) / 64, 64>>>(
-          tangents, bitangents, indices, positions, normals, uvs, numTriangles);
+          tangents, indices, positions, normals, uvs, numTriangles);
 }
 
 void updateGeometryTangent(Triangle *triangle)
@@ -257,12 +274,24 @@ void updateGeometryTangent(Triangle *triangle)
 
   auto tangentsCount = indices ? (indices->size() * 3) : positions->size();
   auto trianglesCount = indices ? indices->size() : positions->size() / 3;
+  if (trianglesCount == 0 || tangentsCount == 0) {
+    triangle->reportMessage(ANARI_SEVERITY_INFO,
+        "Triangle %p has no triangles, cannot compute tangents",
+        triangle);
+    return;
+  }
+
   glm::vec4 *tangents = {};
-  cudaMalloc(&tangents, sizeof(glm::vec4) * tangentsCount);
-  cudaMemset(tangents, 0, sizeof(glm::vec4) * tangentsCount);
-  glm::vec3 *bitangents = {};
-  cudaMalloc(&bitangents, sizeof(glm::vec3) * tangentsCount);
-  cudaMemset(bitangents, 0, sizeof(glm::vec3) * tangentsCount);
+  auto status = cudaMalloc(
+      reinterpret_cast<void **>(&tangents), sizeof(glm::vec4) * tangentsCount);
+  if (reportCudaError(triangle, status, "allocating tangent buffer"))
+    return;
+
+  status = cudaMemset(tangents, 0, sizeof(glm::vec4) * tangentsCount);
+  if (reportCudaError(triangle, status, "clearing tangent buffer")) {
+    cudaFree(tangents);
+    return;
+  }
 
   auto positionsPtr = positions->dataAs<const glm::vec3>(AddressSpace::GPU);
   if (indices) {
@@ -274,7 +303,6 @@ void updateGeometryTangent(Triangle *triangle)
           auto uvsPtr = uvsFV->dataAs<const glm::vec2>(AddressSpace::GPU);
           // Vertex indexed, face varying normals and face varyings vec2 UVs.
           __computeTangents<true, false, false>(tangents,
-              bitangents,
               indicesPtr,
               positionsPtr,
               normalsPtr,
@@ -284,7 +312,6 @@ void updateGeometryTangent(Triangle *triangle)
           auto uvsPtr = uvsFV->dataAs<const glm::vec3>(AddressSpace::GPU);
           // Vertex indexed, face varying normals and face varyings vec3 UVs.
           __computeTangents<true, false, false>(tangents,
-              bitangents,
               indicesPtr,
               positionsPtr,
               normalsPtr,
@@ -296,7 +323,6 @@ void updateGeometryTangent(Triangle *triangle)
           // Vertex indexed,  face varying normals and indexed vec2 UVs.
           auto uvsPtr = uvs->dataAs<const glm::vec2>(AddressSpace::GPU);
           __computeTangents<true, false, true>(tangents,
-              bitangents,
               indicesPtr,
               positionsPtr,
               normalsPtr,
@@ -306,7 +332,6 @@ void updateGeometryTangent(Triangle *triangle)
           // Vertex indexed,  face varying normals and indexed vec3 UVs.
           auto uvsPtr = uvs->dataAs<const glm::vec3>(AddressSpace::GPU);
           __computeTangents<true, false, true>(tangents,
-              bitangents,
               indicesPtr,
               positionsPtr,
               normalsPtr,
@@ -321,7 +346,6 @@ void updateGeometryTangent(Triangle *triangle)
           auto uvsPtr = uvsFV->dataAs<const glm::vec2>(AddressSpace::GPU);
           // Vertex indexed, index normals and face varyings vec2 UVs.
           __computeTangents<true, true, false>(tangents,
-              bitangents,
               indicesPtr,
               positionsPtr,
               normalsPtr,
@@ -331,7 +355,6 @@ void updateGeometryTangent(Triangle *triangle)
           auto uvsPtr = uvsFV->dataAs<const glm::vec3>(AddressSpace::GPU);
           // Vertex indexed, indexed normals and face varyings vec3 UVs.
           __computeTangents<true, true, false>(tangents,
-              bitangents,
               indicesPtr,
               positionsPtr,
               normalsPtr,
@@ -343,7 +366,6 @@ void updateGeometryTangent(Triangle *triangle)
           // Vertex indexed, indexed normals and indexed vec2 UVs.
           auto uvsPtr = uvs->dataAs<const glm::vec2>(AddressSpace::GPU);
           __computeTangents<true, true, true>(tangents,
-              bitangents,
               indicesPtr,
               positionsPtr,
               normalsPtr,
@@ -353,7 +375,6 @@ void updateGeometryTangent(Triangle *triangle)
           // Vertex indexed, indexed normals and indexed vec3 UVs.
           auto uvsPtr = uvs->dataAs<const glm::vec3>(AddressSpace::GPU);
           __computeTangents<true, true, true>(tangents,
-              bitangents,
               indicesPtr,
               positionsPtr,
               normalsPtr,
@@ -373,7 +394,6 @@ void updateGeometryTangent(Triangle *triangle)
       // Non indexed vertices, face varying normals and face varyings vec2 UVs.
       auto uvsPtr = uvs->dataAs<const glm::vec2>(AddressSpace::GPU);
       __computeTangents<false, false, false>(tangents,
-          bitangents,
           indicesPtr,
           positionsPtr,
           normalsPtr,
@@ -383,7 +403,6 @@ void updateGeometryTangent(Triangle *triangle)
       // Non indexed vertices, face varying normals and face varyings vec3 UVs.
       auto uvsPtr = uvs->dataAs<const glm::vec3>(AddressSpace::GPU);
       __computeTangents<false, false, false>(tangents,
-          bitangents,
           indicesPtr,
           positionsPtr,
           normalsPtr,
@@ -392,13 +411,22 @@ void updateGeometryTangent(Triangle *triangle)
     }
   }
 
-  // Release transient bitangent store
-  cudaFree(bitangents);
+  status = cudaGetLastError();
+  if (reportCudaError(triangle, status, "launching tangent kernel")) {
+    cudaFree(tangents);
+    return;
+  }
+
+  status = cudaDeviceSynchronize();
+  if (reportCudaError(triangle, status, "computing tangents")) {
+    cudaFree(tangents);
+    return;
+  }
 
   auto desc = Array1DMemoryDescriptor{
       {
           tangents,
-          {}, // deleter
+          cudaFreeMemoryDeleter, // deleter
           {}, // deleterPtr
           ANARI_FLOAT32_VEC4,
       },
