@@ -1164,24 +1164,26 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
         auto texCoordIt = primitive.attributes.find(tangentTexCoordAttribute);
 
         if (posIt != primitive.attributes.end()
-            && normalIt != primitive.attributes.end()
             && texCoordIt != primitive.attributes.end()) {
           // Get the accessors
           const auto &posAccessor = model.accessors[posIt->second];
-          const auto &normalAccessor = model.accessors[normalIt->second];
           const auto &texCoordAccessor = model.accessors[texCoordIt->second];
+          const bool hasUsableNormals = normalIt != primitive.attributes.end()
+              && model.accessors[normalIt->second].type == TINYGLTF_TYPE_VEC3
+              && model.accessors[normalIt->second].componentType
+                  == TINYGLTF_COMPONENT_TYPE_FLOAT;
 
           // Verify we have the right data types
           if (posAccessor.type == TINYGLTF_TYPE_VEC3
               && posAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT
-              && normalAccessor.type == TINYGLTF_TYPE_VEC3
-              && normalAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT
               && texCoordAccessor.type == TINYGLTF_TYPE_VEC2
               && texCoordAccessor.componentType
                   == TINYGLTF_COMPONENT_TYPE_FLOAT) {
             // Get stride-aware attribute data for tangent reconstruction.
             auto positions = copyAccessorData<float3>(model, posIt->second);
-            auto normals = copyAccessorData<float3>(model, normalIt->second);
+            auto normals = hasUsableNormals
+                ? copyAccessorData<float3>(model, normalIt->second)
+                : std::vector<float3>{};
             auto texCoords =
                 copyAccessorData<float2>(model, texCoordIt->second);
 
@@ -1234,7 +1236,7 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
 
               bool success = calcTangentsForTriangleMesh(indices.data(),
                   positions.data(),
-                  normals.data(),
+                  normals.empty() ? nullptr : normals.data(),
                   texCoords.data(),
                   tangents,
                   indices.size(),
@@ -1267,10 +1269,9 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
           }
         } else {
           logDebug(
-              "[import_GLTF] Skipping tangent computation for geometry '%s': missing required attributes (position=%s, normal=%s, texcoord=%s)",
+              "[import_GLTF] Skipping tangent computation for geometry '%s': missing required attributes (position=%s, texcoord=%s)",
               geometryName.c_str(),
               (posIt != primitive.attributes.end()) ? "yes" : "no",
-              (normalIt != primitive.attributes.end()) ? "yes" : "no",
               (texCoordIt != primitive.attributes.end()) ? "yes" : "no");
         }
       }
