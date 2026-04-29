@@ -153,11 +153,14 @@ VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
   // last index is reserved for ambient light if it exists
   if (selectedIdx == world.numLightInstances) {
     const auto &rendererParams = frameData.renderer;
+    // Fold the hemisphere-sample pdf cos(theta)/pi with the uniform light pick.
+    const vec3 dir = sampleHemisphere(ss.rs, normal);
+    const float cosNs = fmaxf(0.f, dot(dir, normal));
     return LightSample{
         rendererParams.ambientColor * rendererParams.ambientIntensity,
-        sampleHemisphere(ss.rs, normal),
+        dir,
         std::numeric_limits<float>::max(),
-        lightPickPdf / (2.0f * float(M_PI)),
+        lightPickPdf * cosNs * float(M_1_PI),
     };
   } else {
     const auto &lightInstance = world.lightInstances[selectedIdx];
@@ -359,6 +362,12 @@ VISRTX_GLOBAL void __raygen__()
         }
 
         sample.color += sampleContribution * materialEmission * materialOpacity;
+        // Sample around the shading normal so the cosine-weighted hemisphere's
+        // pdf matches the BRDF's NdotL (which uses Ns). Sampling around Ng
+        // would bias the Lambertian estimator by cos_Ns/cos_Ng on smooth or
+        // bump-mapped surfaces.
+        const vec3 shadowOrigin =
+            shadingHitpoint(surfaceHit) + surfaceHit.Ng * surfaceHit.epsilon;
         LightSample lightSample =
             sampleLights(ss, frameData, shadowOrigin, surfaceHit.Ns);
         if (lightSample.pdf >= ATTENUATION_EPSILON && lightSample.dist > 0.0f) {
