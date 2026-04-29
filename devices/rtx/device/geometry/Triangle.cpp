@@ -78,12 +78,14 @@ void Triangle::finalize()
         m_vertex->size());
   }
 
-  if (m_vertexNormalFV && 3 * m_index->size() != m_vertexNormalFV->size()) {
+  const size_t numTriangles = m_index ? m_index->size() : m_vertex->size() / 3;
+
+  if (m_vertexNormalFV && 3 * numTriangles != m_vertexNormalFV->size()) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "'faceVarying.normal' on triangle geometry is not matching "
         "the number of triangles in 'primitive.index' (%zu) vs. (%zu)",
         m_vertexNormalFV->size(),
-        m_index->size());
+        numTriangles);
   }
 
   if (m_vertexTangent && m_vertex->size() != m_vertexTangent->size()) {
@@ -94,12 +96,12 @@ void Triangle::finalize()
         m_vertex->size());
   }
 
-  if (m_vertexTangentFV && 3 * m_index->size() != m_vertexTangentFV->size()) {
+  if (m_vertexTangentFV && 3 * numTriangles != m_vertexTangentFV->size()) {
     reportMessage(ANARI_SEVERITY_WARNING,
         "'faceVarying.Tangent' on triangle geometry is not matching "
         "the number of triangles in 'primitive.index' (%zu) vs. (%zu)",
         m_vertexTangentFV->size(),
-        m_index->size());
+        numTriangles);
   }
 
   if (!m_vertexTangent && !m_vertexTangentFV) {
