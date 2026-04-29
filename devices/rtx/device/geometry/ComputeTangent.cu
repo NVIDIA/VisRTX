@@ -83,8 +83,7 @@ __device__ void __computeTangentAndBitangent(
     glm::vec3 p2,
     glm::vec2 uv0, // Input texture coordinates
     glm::vec2 uv1,
-    glm::vec2 uv2
-)
+    glm::vec2 uv2)
 {
   // Compute edges of the triangle
   glm::vec3 e1 = p1 - p0;
@@ -116,7 +115,7 @@ __device__ void __computeTangentAndBitangent(
       // Compute the determinant
       float invdet = 1.0f / cross;
       *tangent = (t.y * e1 - s.y * e2) * invdet;
-      *bitangent = (t.x * e1 - s.x * e2) * invdet;
+      *bitangent = (s.x * e2 - t.x * e1) * invdet;
     }
   }
 }
