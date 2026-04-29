@@ -843,6 +843,19 @@ static void copyStridedData(
   }
 }
 
+template <typename T>
+static std::vector<T> copyAccessorData(
+    const tinygltf::Model &model, int accessorIndex)
+{
+  if (accessorIndex < 0 || accessorIndex >= model.accessors.size())
+    return {};
+
+  const auto &accessor = model.accessors[accessorIndex];
+  std::vector<T> data(accessor.count);
+  copyStridedData(model, accessorIndex, data.data());
+  return data;
+}
+
 static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
     const tinygltf::Model &model,
     const std::vector<MaterialRef> &materials)
@@ -1051,13 +1064,11 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
               && texCoordAccessor.type == TINYGLTF_TYPE_VEC2
               && texCoordAccessor.componentType
                   == TINYGLTF_COMPONENT_TYPE_FLOAT) {
-            // Get the data
-            const float3 *positions =
-                getAccessorData<float3>(model, posIt->second);
-            const float3 *normals =
-                getAccessorData<float3>(model, normalIt->second);
-            const float2 *texCoords =
-                getAccessorData<float2>(model, texCoordIt->second);
+            // Get stride-aware attribute data for tangent reconstruction.
+            auto positions = copyAccessorData<float3>(model, posIt->second);
+            auto normals = copyAccessorData<float3>(model, normalIt->second);
+            auto texCoords =
+                copyAccessorData<float2>(model, texCoordIt->second);
 
             // Get or generate indices
             std::vector<uint3> indices;
@@ -1066,8 +1077,8 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
               const auto &indexAccessor = model.accessors[primitive.indices];
               if (indexAccessor.componentType
                   == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
-                const uint16_t *indexData =
-                    getAccessorData<uint16_t>(model, primitive.indices);
+                auto indexData =
+                    copyAccessorData<uint16_t>(model, primitive.indices);
                 indices.reserve(indexAccessor.count / 3);
                 for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
                   indices.push_back(uint3(indexData[i * 3],
@@ -1076,8 +1087,8 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
                 }
               } else if (indexAccessor.componentType
                   == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-                const uint32_t *indexData =
-                    getAccessorData<uint32_t>(model, primitive.indices);
+                auto indexData =
+                    copyAccessorData<uint32_t>(model, primitive.indices);
                 indices.reserve(indexAccessor.count / 3);
                 for (size_t i = 0; i < indexAccessor.count / 3; ++i) {
                   indices.push_back(uint3(indexData[i * 3],
@@ -1103,9 +1114,9 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
               auto *tangents = vertexTangentArray->mapAs<float4>();
 
               bool success = calcTangentsForTriangleMesh(indices.data(),
-                  positions,
-                  normals,
-                  texCoords,
+                  positions.data(),
+                  normals.data(),
+                  texCoords.data(),
                   tangents,
                   indices.size(),
                   posAccessor.count);
