@@ -485,7 +485,8 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
     float4 *tangents,
     size_t numIndices,
     size_t numVertices,
-    bool flipTexCoordY)
+    bool flipTexCoordY,
+    bool faceVaryingTangents)
 {
   if (!texCoords)
     return false;
@@ -501,6 +502,7 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
     const float2 *texCoords;
     float4 *tangents;
     bool flipTexCoordY;
+    bool faceVaryingTangents;
     size_t numIndices;
     size_t numVertices;
   } mesh;
@@ -511,6 +513,7 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
   mesh.texCoords = texCoords;
   mesh.tangents = tangents;
   mesh.flipTexCoordY = flipTexCoordY;
+  mesh.faceVaryingTangents = faceVaryingTangents;
   mesh.numIndices = numIndices;
   mesh.numVertices = numVertices;
 
@@ -593,6 +596,8 @@ bool calcTangentsForTriangleMesh(const uint3 *indices,
     uint3 index = mesh->indices[faceID];
 
     unsigned vID = index[vertID];
+    if (mesh->faceVaryingTangents)
+      vID = faceID * 3 + vertID;
 
     float4 &outtangent = mesh->tangents[vID];
 

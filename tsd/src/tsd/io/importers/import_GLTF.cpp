@@ -1224,8 +1224,12 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
 
             if (!indices.empty()) {
               // Create tangent array and compute tangents
+              const bool outputFaceVaryingTangents = primitive.indices >= 0;
+              const size_t tangentCount = outputFaceVaryingTangents
+                  ? indices.size() * 3
+                  : posAccessor.count;
               auto vertexTangentArray =
-                  scene.createArray(ANARI_FLOAT32_VEC4, posAccessor.count);
+                  scene.createArray(ANARI_FLOAT32_VEC4, tangentCount);
               auto *tangents = vertexTangentArray->mapAs<float4>();
 
               bool success = calcTangentsForTriangleMesh(indices.data(),
@@ -1235,13 +1239,16 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
                   tangents,
                   indices.size(),
                   posAccessor.count,
-                  false);
+                  false,
+                  outputFaceVaryingTangents);
 
               vertexTangentArray->unmap();
 
               if (success) {
-                geometry->setParameterObject(
-                    "vertex.tangent", *vertexTangentArray);
+                geometry->setParameterObject(outputFaceVaryingTangents
+                        ? "faceVarying.tangent"
+                        : "vertex.tangent",
+                    *vertexTangentArray);
                 logInfo(
                     "[import_GLTF] Computed tangents for geometry '%s' with %zu vertices and %zu triangles",
                     geometryName.c_str(),
