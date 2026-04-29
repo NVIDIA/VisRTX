@@ -531,36 +531,59 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
       ? vec3(0.0f)
       : glm::max(vec3(1.0f) - F, vec3(0.0f)) * transmissionFilter;
 
+  // Diffuse importance: the Lambertian throughput collapses to
+  //   (1-F) * baseColor * (1-metallic) * (1-transmission) * occlusion
+  // when sampled cosine-weighted (cos / pdf cancels with 1/pi). Mirror the
+  // factors used by shadeSurface's diffuseBRDF so the lobe split tracks the
+  // BRDF being estimated. TIR has no diffuse share (all energy is reflected).
+  const vec3 diffuseEnergy = totalInternalReflection
+      ? vec3(0.0f)
+      : glm::max(vec3(1.0f) - F, vec3(0.0f)) * state->baseColor
+          * (1.0f - state->metallic) * (1.0f - state->transmission)
+          * state->occlusion;
+
   const float reflectStrength =
       fmaxf(luminance(glm::max(reflectEnergy, vec3(0.0f))), 0.0f);
   const float transmitStrength =
       fmaxf(luminance(glm::max(transmitEnergy, vec3(0.0f))), 0.0f);
-  const float combinedStrength = reflectStrength + transmitStrength;
+  const float diffuseStrength =
+      fmaxf(luminance(glm::max(diffuseEnergy, vec3(0.0f))), 0.0f);
+  const float combinedStrength =
+      reflectStrength + transmitStrength + diffuseStrength;
   if (combinedStrength <= 0.0f)
     return NextRay{N, vec3(0.0f)};
 
   const float reflectProb = reflectStrength / combinedStrength;
-  const bool sampleTransmission = curand_uniform(rs) > reflectProb;
+  const float transmitProb = transmitStrength / combinedStrength;
+  const float diffuseProb = diffuseStrength / combinedStrength;
 
-  if (sampleTransmission) {
+  const float u = curand_uniform(rs);
+  if (u < reflectProb) {
+    if (Lrefl.z <= 0.0f)
+      return NextRay{N, vec3(0.0f)};
+    const float NdotL = Lrefl.z;
+    const float G1 = smithG1GGX(NdotV, alpha2);
+    const float G2 = smithG2GGX(NdotV, NdotL, alpha2);
+    const vec3 weight =
+        reflectEnergy * (G2 / fmaxf(G1, 1e-8f)) / fmaxf(reflectProb, 1e-8f);
+    return NextRay{normalize(toWorld * Lrefl), weight};
+  }
+
+  if (u < reflectProb + transmitProb) {
     const float NdotL = -Ltrans.z; // L points through the surface.
     const float G1 = smithG1GGX(NdotV, alpha2);
     const float G2 = smithG2GGX(NdotV, NdotL, alpha2);
     const vec3 weight = transmitEnergy * (G2 / fmaxf(G1, 1e-8f))
-        / fmaxf(1.0f - reflectProb, 1e-8f);
+        / fmaxf(transmitProb, 1e-8f);
     return NextRay{normalize(toWorld * Ltrans),
         weight,
         NEXT_RAY_CONTINUES_THROUGH_SURFACE};
   }
 
-  // Reflection.
-  if (Lrefl.z <= 0.0f)
-    return NextRay{N, vec3(0.0f)};
-
-  const float NdotL = Lrefl.z;
-  const float G1 = smithG1GGX(NdotV, alpha2);
-  const float G2 = smithG2GGX(NdotV, NdotL, alpha2);
-  const vec3 weight =
-      reflectEnergy * (G2 / fmaxf(G1, 1e-8f)) / fmaxf(reflectProb, 1e-8f);
-  return NextRay{normalize(toWorld * Lrefl), weight};
+  // Diffuse: sample around the shading normal so pdf=cos/pi matches the BRDF's
+  // NdotL (same axis as shadeSurface's diffuse term). Cos and pdf cancel,
+  // leaving only the energy term and the lobe-pick divisor.
+  const vec3 wi = sampleHemisphere(*rs, N);
+  const vec3 weight = diffuseEnergy / fmaxf(diffuseProb, 1e-8f);
+  return NextRay{wi, weight};
 }
