@@ -249,9 +249,9 @@ VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
 
 #define ulpEpsilon 0x1.fp-21
 
-VISRTX_DEVICE float epsilonFrom(const vec3 &P, const vec3 &dir, float t)
+VISRTX_DEVICE float epsilonFrom(const vec3 &P)
 {
-  return glm::compMax(vec4(abs(P), glm::compMax(abs(dir)) * t)) * ulpEpsilon;
+  return glm::compMax(abs(P)) * ulpEpsilon;
 }
 
 VISRTX_DEVICE bool pixelOutOfFrame(

@@ -399,7 +399,7 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   hit.primID = ray::primID();
   hit.objID = sd.id;
   hit.instID = isd.id;
-  hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
+  hit.epsilon = epsilonFrom(ray::hitpoint());
   ray::computeTangentSpace(gd, ray::primID(), hit);
 
   const auto &handle = optixGetTransformListHandle(0);
