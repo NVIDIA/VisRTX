@@ -73,8 +73,12 @@ __device__ bool resolveSample(uint32_t idx,
   return divisor > 0;
 }
 
-__global__ void prepareDenoiseInput(const vec4 *__restrict__ accumColor,
+__global__ void prepareDenoiseInputs(const vec4 *__restrict__ accumColor,
+    const vec3 *__restrict__ accumAlbedo,
+    const vec3 *__restrict__ accumNormal,
     vec4 *__restrict__ denoiseInput,
+    vec3 *__restrict__ denoiseAlbedo,
+    vec3 *__restrict__ denoiseNormal,
     uvec2 size,
     int frameID,
     int checkerboardID,
@@ -88,45 +92,6 @@ __global__ void prepareDenoiseInput(const vec4 *__restrict__ accumColor,
   int divisor;
   if (!resolveSample(idx, size, frameID, checkerboardID, srcIdx, divisor)) {
     denoiseInput[idx] = vec4(0.f);
-    return;
-  }
-
-  vec4 c = accumColor[srcIdx] / float(divisor);
-  if (fireflyFilter)
-    c = detail::inverseTonemap(c);
-  denoiseInput[idx] = c;
-}
-
-void launchPrepareDenoiseInput(const vec4 *accumColor,
-    vec4 *denoiseInput,
-    uvec2 size,
-    int frameID,
-    int checkerboardID,
-    bool fireflyFilter,
-    cudaStream_t stream)
-{
-  const uint32_t nPixels = size.x * size.y;
-  const uint32_t blockSize = 256;
-  const uint32_t gridSize = (nPixels + blockSize - 1) / blockSize;
-  prepareDenoiseInput<<<gridSize, blockSize, 0, stream>>>(
-      accumColor, denoiseInput, size, frameID, checkerboardID, fireflyFilter);
-}
-
-__global__ void prepareDenoiseGuides(const vec3 *__restrict__ accumAlbedo,
-    const vec3 *__restrict__ accumNormal,
-    vec3 *__restrict__ denoiseAlbedo,
-    vec3 *__restrict__ denoiseNormal,
-    uvec2 size,
-    int frameID,
-    int checkerboardID)
-{
-  const uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= size.x * size.y)
-    return;
-
-  uint32_t srcIdx;
-  int divisor;
-  if (!resolveSample(idx, size, frameID, checkerboardID, srcIdx, divisor)) {
     if (denoiseAlbedo)
       denoiseAlbedo[idx] = vec3(0.f);
     if (denoiseNormal)
@@ -135,6 +100,11 @@ __global__ void prepareDenoiseGuides(const vec3 *__restrict__ accumAlbedo,
   }
 
   const float invDivisor = 1.0f / float(divisor);
+  vec4 c = accumColor[srcIdx] * invDivisor;
+  if (fireflyFilter)
+    c = detail::inverseTonemap(c);
+  denoiseInput[idx] = c;
+
   if (denoiseAlbedo)
     denoiseAlbedo[idx] = accumAlbedo[srcIdx] * invDivisor;
 
@@ -146,25 +116,31 @@ __global__ void prepareDenoiseGuides(const vec3 *__restrict__ accumAlbedo,
   }
 }
 
-void launchPrepareDenoiseGuides(const vec3 *accumAlbedo,
+void launchPrepareDenoiseInputs(const vec4 *accumColor,
+    const vec3 *accumAlbedo,
     const vec3 *accumNormal,
+    vec4 *denoiseInput,
     vec3 *denoiseAlbedo,
     vec3 *denoiseNormal,
     uvec2 size,
     int frameID,
     int checkerboardID,
+    bool fireflyFilter,
     cudaStream_t stream)
 {
   const uint32_t nPixels = size.x * size.y;
   const uint32_t blockSize = 256;
   const uint32_t gridSize = (nPixels + blockSize - 1) / blockSize;
-  prepareDenoiseGuides<<<gridSize, blockSize, 0, stream>>>(accumAlbedo,
+  prepareDenoiseInputs<<<gridSize, blockSize, 0, stream>>>(accumColor,
+      accumAlbedo,
       accumNormal,
+      denoiseInput,
       denoiseAlbedo,
       denoiseNormal,
       size,
       frameID,
-      checkerboardID);
+      checkerboardID,
+      fireflyFilter);
 }
 
 __global__ void compositeBackground(vec4 *__restrict__ accumColor,
@@ -561,24 +537,17 @@ void Frame::renderFrame()
   const bool useFloatOutput = m_denoise || m_colorType == ANARI_FLOAT32_VEC4;
 
   if (m_denoise) {
-    launchPrepareDenoiseInput(m_accumColor.ptrAs<vec4>(),
+    launchPrepareDenoiseInputs(m_accumColor.ptrAs<vec4>(),
+        m_accumAlbedo.ptrAs<vec3>(),
+        m_accumNormal.ptrAs<vec3>(),
         m_denoiseInput.ptrAs<vec4>(),
+        m_denoiseAlbedo.ptrAs<vec3>(),
+        m_denoiseNormal.ptrAs<vec3>(),
         hd.fb.size,
         hd.fb.frameID,
         hd.fb.checkerboardID,
         hd.renderer.fireflyFilter,
         state.stream);
-
-    if (m_denoiseUsingAlbedo || m_denoiseUsingNormal) {
-      launchPrepareDenoiseGuides(m_accumAlbedo.ptrAs<vec3>(),
-          m_accumNormal.ptrAs<vec3>(),
-          m_denoiseAlbedo.ptrAs<vec3>(),
-          m_denoiseNormal.ptrAs<vec3>(),
-          hd.fb.size,
-          hd.fb.frameID,
-          hd.fb.checkerboardID,
-          state.stream);
-    }
 
     m_denoiser.launch();
 
