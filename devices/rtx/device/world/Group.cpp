@@ -102,7 +102,11 @@ void Group::finalize()
 void Group::markFinalized()
 {
   Object::markFinalized();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
+  auto &updates = deviceState()->objectUpdates;
+  const auto now = helium::newTimeStamp();
+  updates.lastSurfaceBLASChange = now;
+  updates.lastVolumeBLASChange = now;
+  updates.lastLightSetChange = now;
 }
 
 OptixTraversableHandle Group::optixTraversableTriangle() const
@@ -194,7 +198,8 @@ const std::vector<Light *> &Group::lights() const
 void Group::rebuildSurfaceBVHs()
 {
   const auto &state = *deviceState();
-  if (state.objectUpdates.lastBLASChange < m_objectUpdates.lastSurfaceBVHBuilt)
+  if (state.objectUpdates.lastSurfaceBLASChange
+      < m_objectUpdates.lastSurfaceBVHBuilt)
     return;
 
   partitionValidGeometriesByType();
@@ -249,10 +254,16 @@ void Group::rebuildSurfaceBVHs()
 
 void Group::rebuildVolumeBVH()
 {
+  const auto &state = *deviceState();
+  if (state.objectUpdates.lastVolumeBLASChange
+      < m_objectUpdates.lastVolumeBVHBuilt)
+    return;
+
   partitionValidVolumes();
   if (m_volumes.empty()) {
     m_volumeBounds = box3();
     m_traversableVolume = {};
+    m_objectUpdates.lastVolumeBVHBuilt = helium::newTimeStamp();
     reportMessage(
         ANARI_SEVERITY_DEBUG, "visrtx::Group skipping volume BVH build");
     return;
@@ -272,6 +283,10 @@ void Group::rebuildVolumeBVH()
 
 void Group::rebuildLights()
 {
+  const auto &state = *deviceState();
+  if (state.objectUpdates.lastLightSetChange < m_objectUpdates.lastLightRebuild)
+    return;
+
   partitionValidLights();
   buildLightGPUData();
   m_objectUpdates.lastLightRebuild = helium::newTimeStamp();

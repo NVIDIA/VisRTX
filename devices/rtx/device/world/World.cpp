@@ -203,7 +203,11 @@ void World::rebuildWorld()
 {
   const auto &state = *deviceState();
 
-  if (state.objectUpdates.lastBLASChange >= m_objectUpdates.lastBLASCheck) {
+  const auto &updates = state.objectUpdates;
+  const auto lastCheck = m_objectUpdates.lastBLASCheck;
+  if (updates.lastSurfaceBLASChange >= lastCheck
+      || updates.lastVolumeBLASChange >= lastCheck
+      || updates.lastLightSetChange >= lastCheck) {
     m_objectUpdates.lastTLASBuild = 0; // BLAS changed, so need to build TLAS
     rebuildBLASs();
   }

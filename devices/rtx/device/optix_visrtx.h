@@ -205,7 +205,9 @@ struct DeviceGlobalState : public helium::BaseGlobalDeviceState
 
   struct ObjectUpdates
   {
-    helium::TimeStamp lastBLASChange{0};
+    helium::TimeStamp lastSurfaceBLASChange{0};
+    helium::TimeStamp lastVolumeBLASChange{0};
+    helium::TimeStamp lastLightSetChange{0};
     helium::TimeStamp lastTLASChange{0};
   } objectUpdates;
 

@@ -51,7 +51,7 @@ void Volume::commitParameters()
 void Volume::markFinalized()
 {
   Object::markFinalized();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
+  deviceState()->objectUpdates.lastVolumeBLASChange = helium::newTimeStamp();
 }
 
 bool Volume::isVisible() const

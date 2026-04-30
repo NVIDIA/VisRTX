@@ -129,7 +129,7 @@ void Geometry::commitParameters()
 void Geometry::markFinalized()
 {
   Object::markFinalized();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
+  deviceState()->objectUpdates.lastSurfaceBLASChange = helium::newTimeStamp();
 }
 
 GeometryGPUData Geometry::gpuData() const

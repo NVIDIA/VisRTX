@@ -63,7 +63,7 @@ void Surface::finalize()
 void Surface::markFinalized()
 {
   Object::markFinalized();
-  deviceState()->objectUpdates.lastBLASChange = helium::newTimeStamp();
+  deviceState()->objectUpdates.lastSurfaceBLASChange = helium::newTimeStamp();
 }
 
 bool Surface::isValid() const
