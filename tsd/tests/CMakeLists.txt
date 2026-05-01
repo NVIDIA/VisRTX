@@ -24,6 +24,9 @@ project_add_executable(
   test_Scene.cpp
   test_Token.cpp
 )
+if (TARGET tsd_scivis_studio_model)
+  target_sources(${PROJECT_NAME} PRIVATE test_SciVisStudio.cpp)
+endif()
 project_link_libraries(
 PRIVATE
   tsd_algorithms
@@ -32,6 +35,9 @@ PRIVATE
   tsd_scene
   tsd_ext_catch2
 )
+if (TARGET tsd_scivis_studio_model)
+  target_link_libraries(${PROJECT_NAME} PRIVATE tsd_scivis_studio_model)
+endif()
 
 add_test(NAME tsd::AnimationManager COMMAND ${PROJECT_NAME} "[AnimationManager]")
 add_test(NAME tsd::Algorithms    COMMAND ${PROJECT_NAME} "[Algorithms]"   )
@@ -49,3 +55,6 @@ add_test(NAME tsd::ObjectUsePtr  COMMAND ${PROJECT_NAME} "[ObjectUsePtr]" )
 add_test(NAME tsd::Parameter     COMMAND ${PROJECT_NAME} "[Parameter]"    )
 add_test(NAME tsd::Scene         COMMAND ${PROJECT_NAME} "[Scene]"        )
 add_test(NAME tsd::Token         COMMAND ${PROJECT_NAME} "[Token]"        )
+if (TARGET tsd_scivis_studio_model)
+  add_test(NAME tsd::SciVisStudio COMMAND ${PROJECT_NAME} "[SciVisStudio]")
+endif()

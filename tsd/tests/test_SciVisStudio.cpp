@@ -1,0 +1,117 @@
+// Copyright 2026 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#include "catch.hpp"
+
+#include "ProjectContext.h"
+#include "ProjectSerialization.h"
+
+#include "tsd/app/Context.h"
+#include "tsd/core/DataTree.hpp"
+
+#include <filesystem>
+
+using namespace tsd::scivis_studio;
+
+SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
+{
+  GIVEN("A project with datasets, shots, and camera keyframes")
+  {
+    Project project;
+    project.name = "RoundTrip";
+    project.projectDirectory = "/tmp/roundtrip";
+    project.datasets.push_back({"dataset_0001",
+        "Dataset",
+        DatasetSourceKind::Static,
+        "OBJ",
+        {"/tmp/data.obj", "data.obj", 100, 42},
+        DatasetStatus::Available,
+        {"studio", 3}});
+
+    Shot shot;
+    shot.id = "shot_0001";
+    shot.name = "Shot 1";
+    shot.datasetBindings.push_back({"dataset_0001", true});
+    shot.lightGroup = {"studio", 5};
+    shot.camera = {ANARI_CAMERA, 2};
+    CameraKeyframe keyframe;
+    keyframe.frame = 12;
+    keyframe.name = "mid";
+    keyframe.manipulator.orbit.lookat = {1.f, 2.f, 3.f};
+    keyframe.manipulator.orbit.azeldist = {10.f, 20.f, 30.f};
+    keyframe.interpolationToNext = CameraInterpolation::Hold;
+    shot.cameraRig.keyframes.push_back(keyframe);
+    project.activeShotId = shot.id;
+    project.shots.push_back(shot);
+
+    tsd::core::DataTree tree;
+    projectToNode(project, tree.root()["scivisStudio"]);
+
+    Project loaded;
+    REQUIRE(nodeToProject(tree.root()["scivisStudio"], loaded));
+
+    THEN("IDs and keyframes survive round trip")
+    {
+      REQUIRE(loaded.datasets.size() == 1);
+      REQUIRE(loaded.datasets.front().id == "dataset_0001");
+      REQUIRE(loaded.shots.size() == 1);
+      REQUIRE(loaded.shots.front().id == "shot_0001");
+      REQUIRE(loaded.shots.front().cameraRig.keyframes.size() == 1);
+      REQUIRE(loaded.shots.front().cameraRig.keyframes.front().frame == 12);
+      REQUIRE(loaded.shots.front().cameraRig.keyframes.front().interpolationToNext
+          == CameraInterpolation::Hold);
+    }
+  }
+}
+
+SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
+{
+  const auto root =
+      std::filesystem::temp_directory_path() / "tsd_scivis_studio_test_project";
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root);
+
+  GIVEN("A valid project manifest")
+  {
+    tsd::core::DataTree tree;
+    tree.root()["projectKind"] = PROJECT_KIND;
+    tree.root()["schemaVersion"] = SCHEMA_VERSION;
+    REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+
+    THEN("Validation succeeds")
+    {
+      auto result = validateProjectRoot(root);
+      REQUIRE(result.ok);
+    }
+  }
+
+  GIVEN("An invalid project kind")
+  {
+    tsd::core::DataTree tree;
+    tree.root()["projectKind"] = "Other";
+    tree.root()["schemaVersion"] = SCHEMA_VERSION;
+    REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+
+    THEN("Validation fails")
+    {
+      auto result = validateProjectRoot(root);
+      REQUIRE_FALSE(result.ok);
+    }
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio default project creation", "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  auto &project = projectContext.project();
+  REQUIRE(project.name == "Untitled");
+  REQUIRE(project.shots.size() == 1);
+  REQUIRE(project.activeShotId == project.shots.front().id);
+  REQUIRE(project.dirty == false);
+  REQUIRE(appContext.tsd.scene.layer("studio") != nullptr);
+}
