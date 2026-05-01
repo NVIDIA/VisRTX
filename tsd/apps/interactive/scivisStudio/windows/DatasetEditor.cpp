@@ -1,0 +1,54 @@
+// Copyright 2026 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#include "DatasetEditor.h"
+
+#include "imgui.h"
+
+namespace tsd::scivis_studio {
+
+DatasetEditor::DatasetEditor(
+    tsd::ui::imgui::Application *app, ProjectContext *projectContext)
+    : Window(app, "Dataset Editor"), m_projectContext(projectContext)
+{}
+
+DatasetEditor::~DatasetEditor() = default;
+
+void DatasetEditor::buildUI()
+{
+  if (!m_projectContext)
+    return;
+
+  auto &datasets = m_projectContext->project().datasets;
+  if (datasets.empty()) {
+    ImGui::TextDisabled("No dataset selected");
+    return;
+  }
+
+  if (m_selectedDataset >= static_cast<int>(datasets.size()))
+    m_selectedDataset = 0;
+
+  const char *preview = datasets[m_selectedDataset].name.c_str();
+  if (ImGui::BeginCombo("Dataset", preview)) {
+    for (int i = 0; i < static_cast<int>(datasets.size()); ++i) {
+      const bool selected = i == m_selectedDataset;
+      if (ImGui::Selectable(datasets[i].name.c_str(), selected))
+        m_selectedDataset = i;
+      if (selected)
+        ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+
+  auto &dataset = datasets[m_selectedDataset];
+  ImGui::Text("ID: %s", dataset.id.c_str());
+  ImGui::Text("Status: %s", toString(dataset.status));
+  ImGui::Text("Source kind: %s", toString(dataset.sourceKind));
+  ImGui::Text("Importer: %s", dataset.importerType.c_str());
+  ImGui::TextWrapped("Path: %s", dataset.source.absolutePath.c_str());
+  ImGui::Text("Root: %s/%zu",
+      dataset.rootNode.layerName.c_str(),
+      dataset.rootNode.nodeIndex);
+}
+
+} // namespace tsd::scivis_studio

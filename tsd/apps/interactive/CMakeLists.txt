@@ -4,6 +4,7 @@
 add_subdirectory(dataTreeEditor)
 add_subdirectory(demos)
 add_subdirectory(multiDeviceViewer)
+add_subdirectory(scivisStudio)
 add_subdirectory(viewer)
 if (TSD_USE_MPI)
   add_subdirectory(mpiViewer)
