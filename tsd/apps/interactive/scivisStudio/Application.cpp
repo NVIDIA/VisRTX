@@ -22,6 +22,7 @@
 #include "imgui.h"
 
 #include <cstdlib>
+#include <cstdio>
 
 namespace tsd::scivis_studio {
 
@@ -361,6 +362,8 @@ void Application::uiMainMenuBar()
       ImGui::PopID();
     }
     ImGui::Separator();
+    if (ImGui::MenuItem("Print Layout"))
+      std::printf("%s\n", ImGui::SaveIniSettingsToMemory());
     if (ImGui::MenuItem("Reset Layout"))
       ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
     ImGui::EndMenu();
