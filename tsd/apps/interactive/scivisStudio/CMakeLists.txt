@@ -24,6 +24,18 @@ PUBLIC
   tsd_scene
 )
 
+set(SCIVIS_STUDIO_DEFAULT_LAYOUT_FILE
+  "${CMAKE_CURRENT_LIST_DIR}/default_ui_layout.txt")
+
+file(READ
+  "${SCIVIS_STUDIO_DEFAULT_LAYOUT_FILE}"
+  SCIVIS_STUDIO_DEFAULT_LAYOUT)
+
+configure_file(
+  DefaultLayout.h.in
+  "${CMAKE_CURRENT_BINARY_DIR}/DefaultLayout.h"
+  @ONLY)
+
 add_executable(scivisStudio
   Application.cpp
   RenderShot.cpp
@@ -35,6 +47,11 @@ add_executable(scivisStudio
   windows/DatasetEditor.cpp
   windows/ProjectWindow.cpp
   windows/ShotEditor.cpp
+)
+
+target_include_directories(scivisStudio
+PRIVATE
+  "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 target_link_libraries(scivisStudio

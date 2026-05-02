@@ -1,0 +1,77 @@
+[Window][MainDockSpace]
+Pos=0,42
+Size=3840,1980
+Collapsed=0
+
+[Window][Project]
+Pos=0,42
+Size=872,577
+Collapsed=0
+DockId=0x00000002,0
+
+[Window][Dataset Editor]
+Pos=0,1453
+Size=872,569
+Collapsed=0
+DockId=0x0000000A,0
+
+[Window][Shot Editor]
+Pos=0,621
+Size=872,830
+Collapsed=0
+DockId=0x0000000B,0
+
+[Window][Camera Rig]
+Pos=874,1452
+Size=2966,570
+Collapsed=0
+DockId=0x00000008,1
+
+[Window][Viewport]
+Pos=874,42
+Size=2966,1408
+Collapsed=0
+DockId=0x00000005,0
+
+[Window][Object Editor]
+Pos=0,1453
+Size=872,569
+Collapsed=0
+DockId=0x0000000A,1
+
+[Window][Log]
+Pos=874,1452
+Size=2966,570
+Collapsed=0
+DockId=0x00000008,0
+
+[Window][Layers]
+Pos=60,60
+Size=420,600
+Collapsed=0
+
+[Window][TF Editor]
+Pos=80,80
+Size=480,500
+Collapsed=0
+
+[Window][Debug##Default]
+Pos=60,60
+Size=400,400
+Collapsed=0
+
+[Window][##blocking_task_modal]
+Pos=1672,927
+Size=496,168
+Collapsed=0
+
+[Docking][Data]
+DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,42 Size=3840,1980 Split=X Selected=0xC450F867
+  DockNode      ID=0x00000007 Parent=0x80F5B4C5 SizeRef=872,1980 Split=Y Selected=0x9C21DE82
+    DockNode    ID=0x00000001 Parent=0x00000007 SizeRef=359,1409 Split=Y Selected=0x9C21DE82
+      DockNode  ID=0x00000002 Parent=0x00000001 SizeRef=359,577 Selected=0x9C21DE82
+      DockNode  ID=0x0000000B Parent=0x00000001 SizeRef=359,830 Selected=0x5CC9B8E1
+    DockNode    ID=0x0000000A Parent=0x00000007 SizeRef=359,569 Selected=0x3215D859
+  DockNode      ID=0x00000009 Parent=0x80F5B4C5 SizeRef=2966,1980 Split=Y
+    DockNode    ID=0x00000005 Parent=0x00000009 SizeRef=3840,1408 CentralNode=1 Selected=0xC450F867
+    DockNode    ID=0x00000008 Parent=0x00000009 SizeRef=3840,570 Selected=0x4192BA76

@@ -1,0 +1,10 @@
+// Copyright 2026 NVIDIA Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+namespace tsd::scivis_studio {
+
+inline constexpr const char *DEFAULT_LAYOUT = R"layout(@SCIVIS_STUDIO_DEFAULT_LAYOUT@)layout";
+
+} // namespace tsd::scivis_studio

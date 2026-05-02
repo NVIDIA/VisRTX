@@ -3,6 +3,7 @@
 
 #include "Application.h"
 
+#include "DefaultLayout.h"
 #include "RenderShot.h"
 #include "modals/AddDatasetDialog.h"
 #include "modals/ConfirmDiscardDialog.h"
@@ -377,64 +378,7 @@ void Application::uiMainMenuBar()
 
 const char *Application::getDefaultLayout() const
 {
-  return R"layout(
-[Window][MainDockSpace]
-Pos=0,56
-Size=1920,1024
-Collapsed=0
-
-[Window][Project]
-Pos=0,56
-Size=360,310
-Collapsed=0
-DockId=0x00000001,0
-
-[Window][Dataset Editor]
-Pos=0,368
-Size=360,280
-Collapsed=0
-DockId=0x00000002,0
-
-[Window][Shot Editor]
-Pos=0,650
-Size=360,430
-Collapsed=0
-DockId=0x00000003,0
-
-[Window][Camera Rig]
-Pos=362,760
-Size=1038,320
-Collapsed=0
-DockId=0x00000004,0
-
-[Window][Viewport]
-Pos=362,56
-Size=1038,702
-Collapsed=0
-DockId=0x00000005,0
-
-[Window][Object Editor]
-Pos=1402,56
-Size=518,702
-Collapsed=0
-DockId=0x00000006,0
-
-[Window][Log]
-Pos=1402,760
-Size=518,320
-Collapsed=0
-DockId=0x00000007,0
-
-[Window][Layers]
-Pos=60,60
-Size=420,600
-Collapsed=0
-
-[Window][TF Editor]
-Pos=80,80
-Size=480,500
-Collapsed=0
-)layout";
+  return DEFAULT_LAYOUT;
 }
 
 } // namespace tsd::scivis_studio
