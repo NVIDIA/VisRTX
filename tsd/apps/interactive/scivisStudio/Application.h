@@ -65,6 +65,7 @@ class Application : public tsd::ui::imgui::Application
   void newProject();
   void closeProject();
   void tickShotPlayback(float deltaTime);
+  void saveDefaultLayoutFile() const;
   void saveWindowSettings(tsd::core::DataNode &node);
   void loadWindowSettings(tsd::core::DataNode &node);
   std::string saveLayout() const;

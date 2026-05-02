@@ -6,5 +6,7 @@
 namespace tsd::scivis_studio {
 
 inline constexpr const char *DEFAULT_LAYOUT = R"layout(@SCIVIS_STUDIO_DEFAULT_LAYOUT@)layout";
+inline constexpr const char *DEFAULT_LAYOUT_FILE =
+    R"layout_path(@SCIVIS_STUDIO_DEFAULT_LAYOUT_FILE@)layout_path";
 
 } // namespace tsd::scivis_studio

@@ -23,7 +23,7 @@
 #include "imgui.h"
 
 #include <cstdlib>
-#include <cstdio>
+#include <fstream>
 
 namespace tsd::scivis_studio {
 
@@ -282,6 +282,32 @@ void Application::tickShotPlayback(float deltaTime)
   m_projectContext.applyActiveShot();
 }
 
+void Application::saveDefaultLayoutFile() const
+{
+  const std::string layout = ImGui::SaveIniSettingsToMemory();
+
+  std::ofstream out(DEFAULT_LAYOUT_FILE, std::ios::binary | std::ios::trunc);
+  if (!out) {
+    tsd::core::logError("[SciVisStudio] Failed to open default layout file '%s'",
+        DEFAULT_LAYOUT_FILE);
+    return;
+  }
+
+  out << layout;
+  if (layout.empty() || layout.back() != '\n')
+    out << '\n';
+
+  if (!out) {
+    tsd::core::logError(
+        "[SciVisStudio] Failed to write default layout file '%s'",
+        DEFAULT_LAYOUT_FILE);
+    return;
+  }
+
+  tsd::core::logStatus(
+      "[SciVisStudio] Saved default layout file '%s'", DEFAULT_LAYOUT_FILE);
+}
+
 void Application::uiFrameStart()
 {
   const ImGuiIO &io = ImGui::GetIO();
@@ -363,8 +389,8 @@ void Application::uiMainMenuBar()
       ImGui::PopID();
     }
     ImGui::Separator();
-    if (ImGui::MenuItem("Print Layout"))
-      std::printf("%s\n", ImGui::SaveIniSettingsToMemory());
+    if (ImGui::MenuItem("Save Default Layout File"))
+      saveDefaultLayoutFile();
     if (ImGui::MenuItem("Reset Layout"))
       ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
     ImGui::EndMenu();
