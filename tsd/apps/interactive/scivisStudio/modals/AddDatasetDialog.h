@@ -7,6 +7,7 @@
 #include "tsd/ui/imgui/modals/Modal.h"
 
 #include <array>
+#include <string>
 
 namespace tsd::scivis_studio {
 
@@ -22,6 +23,7 @@ struct AddDatasetDialog : public tsd::ui::imgui::Modal
   ProjectContext *m_projectContext{nullptr};
   std::array<char, 512> m_name{};
   std::array<char, 2048> m_sourcePath{};
+  std::string m_browsedSourcePath;
   int m_selectedImporter{0};
 };
 

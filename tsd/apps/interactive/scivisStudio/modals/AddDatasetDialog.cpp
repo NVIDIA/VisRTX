@@ -9,6 +9,7 @@
 #include "imgui.h"
 
 #include <array>
+#include <cstring>
 #include <filesystem>
 
 namespace tsd::scivis_studio {
@@ -50,6 +51,13 @@ constexpr std::array<ImporterChoice, 26> IMPORTERS = {{
     {"TSD", tsd::io::ImporterType::TSD},
 }};
 
+template <size_t N>
+void copyToInputBuffer(std::array<char, N> &buffer, const std::string &value)
+{
+  buffer.fill('\0');
+  std::strncpy(buffer.data(), value.c_str(), buffer.size() - 1);
+}
+
 } // namespace
 
 AddDatasetDialog::AddDatasetDialog(
@@ -62,6 +70,17 @@ AddDatasetDialog::~AddDatasetDialog() = default;
 void AddDatasetDialog::buildUI()
 {
   ImGui::InputText("Name", m_name.data(), m_name.size());
+
+  if (!m_browsedSourcePath.empty()) {
+    copyToInputBuffer(m_sourcePath, m_browsedSourcePath);
+    m_browsedSourcePath.clear();
+  }
+
+  if (ImGui::Button("...##datasetSource")) {
+    m_browsedSourcePath.clear();
+    m_app->getFilenameFromDialog(m_browsedSourcePath);
+  }
+  ImGui::SameLine();
   ImGui::InputText("Source Path", m_sourcePath.data(), m_sourcePath.size());
 
   const char *preview = IMPORTERS[m_selectedImporter].name;
