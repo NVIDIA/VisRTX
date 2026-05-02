@@ -5,9 +5,24 @@
 
 #include "ProjectSerialization.h"
 
+#include "tsd/ui/imgui/Application.h"
+
 #include "imgui.h"
 
+#include <cstring>
+
 namespace tsd::scivis_studio {
+
+namespace {
+
+template <size_t N>
+void copyToInputBuffer(std::array<char, N> &buffer, const std::string &value)
+{
+  buffer.fill('\0');
+  std::strncpy(buffer.data(), value.c_str(), buffer.size() - 1);
+}
+
+} // namespace
 
 ProjectLocationDialog::ProjectLocationDialog(tsd::ui::imgui::Application *app)
     : Modal(app, "Project Location")
@@ -65,6 +80,18 @@ void ProjectLocationDialog::buildUI()
   }
 
   ImGui::TextUnformatted(title);
+
+  if (!m_browsedDirectory.empty()) {
+    copyToInputBuffer(m_directory, m_browsedDirectory);
+    m_browsedDirectory.clear();
+  }
+
+  if (ImGui::Button("...##projectDirectory")) {
+    m_browsedDirectory.clear();
+    m_app->getFilenameFromDialog(
+        m_browsedDirectory, tsd::ui::imgui::FileDialogMode::OpenDirectory);
+  }
+  ImGui::SameLine();
   ImGui::InputText("Directory", m_directory.data(), m_directory.size());
   if (!m_error.empty())
     ImGui::TextColored(ImVec4(1.f, 0.35f, 0.25f, 1.f), "%s", m_error.c_str());

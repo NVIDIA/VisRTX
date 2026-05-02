@@ -34,6 +34,7 @@ struct ProjectLocationDialog : public tsd::ui::imgui::Modal
   ProjectLocationMode m_mode{ProjectLocationMode::OpenProject};
   std::function<void(const std::filesystem::path &)> m_onAccept;
   std::array<char, 2048> m_directory{};
+  std::string m_browsedDirectory;
   std::string m_error;
 };
 

@@ -43,6 +43,13 @@ struct CommandLineOptions
   std::string secondaryViewportLibrary;
 };
 
+enum class FileDialogMode
+{
+  OpenFile,
+  SaveFile,
+  OpenDirectory
+};
+
 class Application
 {
  public:
@@ -60,7 +67,9 @@ class Application
   CommandLineOptions *commandLineOptions();
 
   void getFilenameFromDialog(
-      std::string &filenameOut, bool isSaveDialog = false);
+      std::string &filenameOut,
+      FileDialogMode mode = FileDialogMode::OpenFile);
+  void getFilenameFromDialog(std::string &filenameOut, bool isSaveDialog);
 
   // Enqueue a task to be executed on a background thread
   template <class FUNCTION>

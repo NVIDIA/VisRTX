@@ -98,7 +98,15 @@ CommandLineOptions *Application::commandLineOptions()
   return &m_commandLine;
 }
 
-void Application::getFilenameFromDialog(std::string &filenameOut, bool save)
+void Application::getFilenameFromDialog(
+    std::string &filenameOut, bool isSaveDialog)
+{
+  getFilenameFromDialog(filenameOut,
+      isSaveDialog ? FileDialogMode::SaveFile : FileDialogMode::OpenFile);
+}
+
+void Application::getFilenameFromDialog(
+    std::string &filenameOut, FileDialogMode mode)
 {
   auto fileDialogCb =
       [](void *userdata, const char *const *filelist, int filter) {
@@ -112,9 +120,12 @@ void Application::getFilenameFromDialog(std::string &filenameOut, bool save)
           out = *filelist;
       };
 
-  if (save) {
+  if (mode == FileDialogMode::SaveFile) {
     SDL_ShowSaveFileDialog(
         fileDialogCb, &filenameOut, this->sdlWindow(), nullptr, 0, nullptr);
+  } else if (mode == FileDialogMode::OpenDirectory) {
+    SDL_ShowOpenFolderDialog(
+        fileDialogCb, &filenameOut, this->sdlWindow(), nullptr, false);
   } else {
     SDL_ShowOpenFileDialog(fileDialogCb,
         &filenameOut,

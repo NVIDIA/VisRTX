@@ -78,7 +78,8 @@ void AddDatasetDialog::buildUI()
 
   if (ImGui::Button("...##datasetSource")) {
     m_browsedSourcePath.clear();
-    m_app->getFilenameFromDialog(m_browsedSourcePath);
+    m_app->getFilenameFromDialog(
+        m_browsedSourcePath, tsd::ui::imgui::FileDialogMode::OpenFile);
   }
   ImGui::SameLine();
   ImGui::InputText("Source Path", m_sourcePath.data(), m_sourcePath.size());
