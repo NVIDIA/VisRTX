@@ -326,4 +326,14 @@ VISRTX_HOST_DEVICE vec3 xfmPoint(const mat4 &m, const vec3 &p)
   return m * vec4(p, 1.0f);
 }
 
+// mat3x4 stores OptiX-style affine rows: glm column i = OptiX row i =
+// (m_{i,0}, m_{i,1}, m_{i,2}, m_{i,3}). The transform is
+//   out_i = sum_j m_{i,j} * p_j + m_{i,3}.
+VISRTX_HOST_DEVICE vec3 xfmPoint(const mat3x4 &m, const vec3 &p)
+{
+  return vec3(glm::dot(vec3(m[0]), p) + m[0].w,
+      glm::dot(vec3(m[1]), p) + m[1].w,
+      glm::dot(vec3(m[2]), p) + m[2].w);
+}
+
 } // namespace visrtx

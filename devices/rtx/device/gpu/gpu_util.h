@@ -254,6 +254,87 @@ VISRTX_DEVICE float epsilonFrom(const vec3 &P)
   return glm::compMax(abs(P)) * ulpEpsilon;
 }
 
+// Hanika's shadow-terminator fix (Ray Tracing Gems II, ch. 4): lifts a
+// triangle hit point onto the smooth surface implied by per-vertex normals.
+// Without this, grazing-angle shadow rays self-occlude on the planar facet
+// and produce dark bands shaped like the underlying tessellation. All inputs
+// must share a coordinate space.
+VISRTX_DEVICE vec3 shadowTerminatorOffset(const vec3 &P,
+    const vec3 &v0,
+    const vec3 &v1,
+    const vec3 &v2,
+    const vec3 &n0,
+    const vec3 &n1,
+    const vec3 &n2,
+    const vec3 &bary)
+{
+  const float du = glm::dot(P - v0, n0);
+  const float dv = glm::dot(P - v1, n1);
+  const float dw = glm::dot(P - v2, n2);
+  const vec3 lu = du < 0.f ? -du * n0 : vec3(0.f);
+  const vec3 lv = dv < 0.f ? -dv * n1 : vec3(0.f);
+  const vec3 lw = dw < 0.f ? -dw * n2 : vec3(0.f);
+  return P + bary.x * lu + bary.y * lv + bary.z * lw;
+}
+
+// World-space hit position lifted onto the smooth surface implied by
+// per-vertex normals (Hanika shadow-terminator fix). Use this as the origin
+// for direct-light/AO shadow rays so grazing-angle queries do not self-shadow
+// the planar facet. Do NOT use it for path-continuation rays — transmission
+// especially needs the original facet point, since the smoothed point can sit
+// far enough above the facet that an "into-the-surface" offset still ends up
+// outside the volume.
+VISRTX_DEVICE vec3 shadingHitpoint(const SurfaceHit &hit)
+{
+  if (hit.geometry == nullptr || hit.geometry->type != GeometryType::TRIANGLE)
+    return hit.hitpoint;
+
+  const auto &tri = hit.geometry->tri;
+  if (tri.vertexNormalsFV == nullptr && tri.vertexNormals == nullptr)
+    return hit.hitpoint;
+
+  const uvec3 idx = tri.indices ? tri.indices[hit.primID]
+                                : uvec3(0, 1, 2) + hit.primID * 3;
+  const vec3 v0 = tri.vertices[idx.x];
+  const vec3 v1 = tri.vertices[idx.y];
+  const vec3 v2 = tri.vertices[idx.z];
+
+  vec3 n0, n1, n2;
+  if (tri.vertexNormalsFV != nullptr) {
+    const uvec3 nidx = uvec3(0, 1, 2) + hit.primID * 3;
+    n0 = tri.vertexNormalsFV[nidx.x];
+    n1 = tri.vertexNormalsFV[nidx.y];
+    n2 = tri.vertexNormalsFV[nidx.z];
+  } else {
+    n0 = tri.vertexNormals[idx.x];
+    n1 = tri.vertexNormals[idx.y];
+    n2 = tri.vertexNormals[idx.z];
+  }
+
+  // Hanika's tangent-plane projection assumes unit normals; user data is
+  // not guaranteed to be normalized.
+  n0 = normalize(n0);
+  n1 = normalize(n1);
+  n2 = normalize(n2);
+
+  // populateHit.h flips hit.Ng/Ns for back-face hits so they point toward
+  // the ray origin. The per-vertex normals here are still in the original
+  // outward orientation; flip them too so the smooth surface bulges onto
+  // the ray-origin side of the facet (otherwise Hanika lifts P away from
+  // the ray origin and the trailing `+ Ng * epsilon` can land below the
+  // facet).
+  if (!hit.isFrontFace) {
+    n0 = -n0;
+    n1 = -n1;
+    n2 = -n2;
+  }
+
+  const vec3 Plocal = xfmPoint(hit.worldToObject, hit.hitpoint);
+  const vec3 Psmooth =
+      shadowTerminatorOffset(Plocal, v0, v1, v2, n0, n1, n2, hit.uvw);
+  return xfmPoint(hit.objectToWorld, Psmooth);
+}
+
 VISRTX_DEVICE bool pixelOutOfFrame(
     const uvec2 &pixel, const FramebufferGPUData &fb)
 {

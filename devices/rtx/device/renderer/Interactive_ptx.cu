@@ -87,17 +87,18 @@ struct InteractiveShadingPolicy
         * materialEvaluateTint(shadingState);
 
     // Handle all lights contributions
+    const vec3 shadowOrigin = shadingHitpoint(hit) + hit.Ng * hit.epsilon;
     for (size_t i = 0; i < world.numLightInstances; i++) {
       const auto &light = world.lightInstances[i];
       const auto lightSample =
-          sampleLight(ss, hit.hitpoint, light.lightIndex, light.xfm);
+          sampleLight(ss, shadowOrigin, light.lightIndex, light.xfm);
 
       if (lightSample.pdf == 0.0f)
         continue;
 
       // Shadowing
       const Ray shadowRay = {
-          hit.hitpoint + hit.Ng * hit.epsilon,
+          shadowOrigin,
           lightSample.dir,
           {hit.epsilon, lightSample.dist},
       };

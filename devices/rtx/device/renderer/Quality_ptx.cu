@@ -377,7 +377,7 @@ VISRTX_GLOBAL void __raygen__()
           const float lightDotNs = dot(lightSample.dir, surfaceHit.Ns);
           if (lightDotNs > 0.0f) {
             const Ray shadowRay = {
-                surfaceHit.hitpoint + surfaceHit.Ng * surfaceHit.epsilon,
+                shadowOrigin,
                 lightSample.dir,
                 {surfaceHit.epsilon, lightSample.dist},
             };

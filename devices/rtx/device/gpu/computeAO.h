@@ -45,7 +45,7 @@ VISRTX_DEVICE float computeAO(ScreenSample &ss,
   float weights = 0.0f;
   float hits = 0.0f;
   Ray aoRay;
-  aoRay.org = currentHit.hitpoint + currentHit.Ns * currentHit.epsilon;
+  aoRay.org = shadingHitpoint(currentHit) + currentHit.Ng * currentHit.epsilon;
   aoRay.t.lower = currentHit.epsilon;
   aoRay.t.upper = dist;
 

@@ -225,22 +225,24 @@ VISRTX_DEVICE void computeTangentSpace(
     if (!optixIsFrontFaceHit())
       hit.Ng = -hit.Ng;
 
-    const bool hasVertexNormals = ggd.tri.vertexNormalsFV != nullptr
-        || ggd.tri.vertexNormals != nullptr;
     vec3 n0, n1, n2;
+    bool hasVertexNormals = true;
     if (ggd.tri.vertexNormalsFV != nullptr) {
-      const uvec3 nIdx = uvec3(0, 1, 2) + (hit.primID * 3);
-
-      n0 = ggd.tri.vertexNormalsFV[nIdx.x];
-      n1 = ggd.tri.vertexNormalsFV[nIdx.y];
-      n2 = ggd.tri.vertexNormalsFV[nIdx.z];
-      hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
+      const uvec3 nidx = uvec3(0, 1, 2) + (hit.primID * 3);
+      n0 = ggd.tri.vertexNormalsFV[nidx.x];
+      n1 = ggd.tri.vertexNormalsFV[nidx.y];
+      n2 = ggd.tri.vertexNormalsFV[nidx.z];
     } else if (ggd.tri.vertexNormals != nullptr) {
       n0 = ggd.tri.vertexNormals[idx.x];
       n1 = ggd.tri.vertexNormals[idx.y];
       n2 = ggd.tri.vertexNormals[idx.z];
+    } else {
+      hasVertexNormals = false;
+    }
+
+    if (hasVertexNormals)
       hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
-    } else
+    else
       hit.Ns = hit.Ng;
 
     hit.Ns = normalize(hit.Ns);
@@ -399,7 +401,7 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   hit.primID = ray::primID();
   hit.objID = sd.id;
   hit.instID = isd.id;
-  hit.epsilon = epsilonFrom(ray::hitpoint());
+  hit.epsilon = epsilonFrom(hit.hitpoint);
   ray::computeTangentSpace(gd, ray::primID(), hit);
 
   const auto &handle = optixGetTransformListHandle(0);
