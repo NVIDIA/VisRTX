@@ -360,10 +360,13 @@ VISRTX_GLOBAL void __raygen__()
 
         sample.color += sampleContribution * materialEmission * materialOpacity;
         LightSample lightSample =
-            sampleLights(ss, frameData, surfaceHit.hitpoint, surfaceHit.Ng);
+            sampleLights(ss, frameData, shadowOrigin, surfaceHit.Ns);
         if (lightSample.pdf >= ATTENUATION_EPSILON && lightSample.dist > 0.0f) {
-          const float lightDotNg = dot(lightSample.dir, surfaceHit.Ng);
-          if (lightDotNg > 0.0f) {
+          // Gate on the shading normal so the terminator follows the smooth
+          // surface; gating on Ng would carve the per-triangle facet shape
+          // into the lit/unlit boundary at grazing light angles.
+          const float lightDotNs = dot(lightSample.dir, surfaceHit.Ns);
+          if (lightDotNs > 0.0f) {
             const Ray shadowRay = {
                 surfaceHit.hitpoint + surfaceHit.Ng * surfaceHit.epsilon,
                 lightSample.dir,
