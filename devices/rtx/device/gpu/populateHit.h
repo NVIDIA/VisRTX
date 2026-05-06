@@ -225,42 +225,54 @@ VISRTX_DEVICE void computeTangentSpace(
     if (!optixIsFrontFaceHit())
       hit.Ng = -hit.Ng;
 
+    const bool hasVertexNormals = ggd.tri.vertexNormalsFV != nullptr
+        || ggd.tri.vertexNormals != nullptr;
+    vec3 n0, n1, n2;
     if (ggd.tri.vertexNormalsFV != nullptr) {
-      const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
+      const uvec3 nIdx = uvec3(0, 1, 2) + (hit.primID * 3);
 
-      const vec3 n0 = ggd.tri.vertexNormalsFV[idx.x];
-      const vec3 n1 = ggd.tri.vertexNormalsFV[idx.y];
-      const vec3 n2 = ggd.tri.vertexNormalsFV[idx.z];
+      n0 = ggd.tri.vertexNormalsFV[nIdx.x];
+      n1 = ggd.tri.vertexNormalsFV[nIdx.y];
+      n2 = ggd.tri.vertexNormalsFV[nIdx.z];
       hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
     } else if (ggd.tri.vertexNormals != nullptr) {
-      const vec3 n0 = ggd.tri.vertexNormals[idx.x];
-      const vec3 n1 = ggd.tri.vertexNormals[idx.y];
-      const vec3 n2 = ggd.tri.vertexNormals[idx.z];
+      n0 = ggd.tri.vertexNormals[idx.x];
+      n1 = ggd.tri.vertexNormals[idx.y];
+      n2 = ggd.tri.vertexNormals[idx.z];
       hit.Ns = b.x * n0 + b.y * n1 + b.z * n2;
     } else
       hit.Ns = hit.Ng;
 
     hit.Ns = normalize(hit.Ns);
 
-    if (ggd.tri.vertexTangentsFV != nullptr) {
-      const uvec3 idx = uvec3(0, 1, 2) + (hit.primID * 3);
+    const bool hasTangentsFV = ggd.tri.vertexTangentsFV != nullptr;
+    const bool hasTangentsV = ggd.tri.vertexTangents != nullptr;
+    if (hasTangentsFV || hasTangentsV) {
+      const uvec3 tIdx = hasTangentsFV
+          ? uvec3(0, 1, 2) + (hit.primID * 3)
+          : idx;
+      const vec4 *tArr = hasTangentsFV
+          ? ggd.tri.vertexTangentsFV
+          : ggd.tri.vertexTangents;
+      const vec4 t0 = tArr[tIdx.x];
+      const vec4 t1 = tArr[tIdx.y];
+      const vec4 t2 = tArr[tIdx.z];
 
-      const vec4 t0 = ggd.tri.vertexTangentsFV[idx.x];
-      const vec4 t1 = ggd.tri.vertexTangentsFV[idx.y];
-      const vec4 t2 = ggd.tri.vertexTangentsFV[idx.z];
-      const float handedness = b.x * t0.w + b.y * t1.w + b.z * t2.w;
-      const float sign = handedness < 0.f ? -1.f : 1.f;
-      hit.tU = normalize(b.x * vec3(t0) + b.y * vec3(t1) + b.z * vec3(t2));
-      hit.tV = sign * normalize(cross(hit.Ns, hit.tU));
-    } else if (ggd.tri.vertexTangents != nullptr) {
-      const vec4 t0 = ggd.tri.vertexTangents[idx.x];
-      const vec4 t1 = ggd.tri.vertexTangents[idx.y];
-      const vec4 t2 = ggd.tri.vertexTangents[idx.z];
-      const float handedness = b.x * t0.w + b.y * t1.w + b.z * t2.w;
-      const float sign = handedness < 0.f ? -1.f : 1.f;
+      // At UV mirror seams the sign flips between adjacent vertices;
+      // barycentric-summing the signs and applying a single sign at the
+      // hit point would carve seam edges into the tangent frame.
+      // Build each vertex's bitangent with its own sign and normal,
+      // then blend B and T independently — same convention
+      // as glTF Sample Renderer, PBRT, Filament.
+      const vec3 N0 = hasVertexNormals ? n0 : hit.Ng;
+      const vec3 N1 = hasVertexNormals ? n1 : hit.Ng;
+      const vec3 N2 = hasVertexNormals ? n2 : hit.Ng;
+      const vec3 B0 = t0.w * cross(N0, vec3(t0));
+      const vec3 B1 = t1.w * cross(N1, vec3(t1));
+      const vec3 B2 = t2.w * cross(N2, vec3(t2));
 
       hit.tU = normalize(b.x * vec3(t0) + b.y * vec3(t1) + b.z * vec3(t2));
-      hit.tV = sign * normalize(cross(hit.Ns, hit.tU));
+      hit.tV = normalize(b.x * B0 + b.y * B1 + b.z * B2);
     } else {
       auto tangentSpace = computeOrthonormalBasis(hit.Ng);
       hit.tU = tangentSpace[0];

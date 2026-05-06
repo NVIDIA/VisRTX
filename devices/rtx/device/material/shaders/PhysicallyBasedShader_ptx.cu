@@ -116,7 +116,13 @@ VISRTX_DEVICE float smithG1GGX(float NdotV, float alpha2)
 
 VISRTX_DEVICE float ggxD(float NdotH, float alpha2)
 {
-  const float denom = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
+  // The textbook denom `x·(α²−1) + 1` cancels catastrophically in fp32 once
+  // α² is below eps(1) ≈ 1.19e-7 (our α² floor is 1e-8): `α²−1` rounds to
+  // exactly −1, and at x=1 the whole denom collapses to 0. The algebraically
+  // equivalent `α²·x + (1−x)` has no near-1 subtraction so it stays exact.
+  // The fminf clamp keeps `1−x ≥ 0` against dot-product rounding above 1.
+  const float NdotH2 = fminf(NdotH * NdotH, 1.0f);
+  const float denom = alpha2 * NdotH2 + (1.0f - NdotH2);
   return alpha2 / (float(M_PI) * denom * denom);
 }
 
@@ -313,6 +319,15 @@ VISRTX_CALLABLE void __direct_callable__init(
   shadingState->iridescenceIor = md->iridescenceIor;
   shadingState->iridescenceThickness =
       getMaterialParameter(*fd, md->iridescenceThickness, *hit).x;
+
+  // Fall back to the geometric normal if sampleNormalMap produced NaN
+  // (texel decodes to zero, or zero-summed tangents) or zero-length. The
+  // negated comparison catches both since NaN compares false to anything.
+  if (!(glm::dot(shadingState->normal, shadingState->normal) > 1e-12f))
+    shadingState->normal = hit->Ng;
+  if (!(glm::dot(shadingState->clearcoatNormal, shadingState->clearcoatNormal)
+          > 1e-12f))
+    shadingState->clearcoatNormal = hit->Ng;
 }
 
 //-----------------------------------------------------------------------------
@@ -390,7 +405,9 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
   const vec3 L = lightSample->dir;
 
   const float NdotL = dot(N, L);
-  if (NdotL <= 0.0f)
+  // Negated form so a NaN NdotL takes this early-out — NaN compares false
+  // to everything, so `NdotL <= 0.0f` would let it pass through.
+  if (!(NdotL > 0.0f))
     return vec3(0.0f);
 
   const vec3 H = normalize(L + V);
