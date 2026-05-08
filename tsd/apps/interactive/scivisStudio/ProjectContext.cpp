@@ -17,11 +17,15 @@
 
 namespace tsd::scivis_studio {
 
-ProjectContext::ProjectContext(tsd::app::Context *ctx) : m_ctx(ctx) {}
+ProjectContext::ProjectContext(tsd::app::Context *ctx) : m_ctx(ctx)
+{
+  installAnimationManagerCallback();
+}
 
 void ProjectContext::setAppContext(tsd::app::Context *ctx)
 {
   m_ctx = ctx;
+  installAnimationManagerCallback();
 }
 
 tsd::app::Context *ProjectContext::appContext() const
@@ -48,6 +52,15 @@ void ProjectContext::resetScene()
   m_ctx->tsd.scene.removeAllObjects();
   m_ctx->tsd.scene.defaultMaterial();
   m_ctx->tsd.scene.defaultCamera();
+}
+
+void ProjectContext::installAnimationManagerCallback()
+{
+  if (!m_ctx)
+    return;
+
+  m_ctx->tsd.animationMgr.setTimeChangedCallback(
+      [this](float) { updateActiveShotFromAnimationTime(); });
 }
 
 tsd::scene::LayerNodeRef ProjectContext::ensureChild(
@@ -164,6 +177,7 @@ void ProjectContext::createUnsavedProject()
   m_project.shots.push_back(std::move(shot));
   m_project.activeShotId = m_project.shots.front().id;
   m_project.markClean();
+  syncAnimationManagerToActiveShot();
   applyActiveShot();
 }
 
@@ -207,6 +221,7 @@ bool ProjectContext::addShot(const std::string &name)
   m_project.activeShotId = shot.id;
   m_project.shots.push_back(std::move(shot));
   m_project.markDirty();
+  syncAnimationManagerToActiveShot();
   applyActiveShot();
   return true;
 }
@@ -317,6 +332,51 @@ void ProjectContext::applyActiveShot()
   }
 }
 
+void ProjectContext::syncAnimationManagerToActiveShot()
+{
+  if (!m_ctx)
+    return;
+
+  auto *shot = activeShot(m_project);
+  if (!shot)
+    return;
+
+  shot->frameCount = std::max(1, shot->frameCount);
+  shot->currentFrame = std::clamp(shot->currentFrame, 0, shot->frameCount - 1);
+  shot->fps = std::max(1.f, shot->fps);
+
+  m_syncingAnimationManager = true;
+
+  auto &animMgr = m_ctx->tsd.animationMgr;
+  animMgr.setAnimationTotalFrames(std::max(2, shot->frameCount));
+  animMgr.setAnimationFPS(shot->fps);
+  animMgr.setLoop(shot->loop);
+  animMgr.setAnimationFrame(shot->currentFrame);
+  if (shot->playing)
+    animMgr.play();
+  else
+    animMgr.stop();
+
+  m_syncingAnimationManager = false;
+}
+
+void ProjectContext::updateActiveShotFromAnimationTime()
+{
+  if (!m_ctx || m_syncingAnimationManager)
+    return;
+
+  auto *shot = activeShot(m_project);
+  if (!shot)
+    return;
+
+  const auto &animMgr = m_ctx->tsd.animationMgr;
+  shot->frameCount = std::max(1, shot->frameCount);
+  shot->currentFrame =
+      std::clamp(animMgr.getAnimationFrame(), 0, shot->frameCount - 1);
+  shot->playing = animMgr.isPlaying();
+  applyActiveShot();
+}
+
 bool ProjectContext::saveProject(const std::filesystem::path &directory,
     tsd::core::DataNode *windows,
     const std::string &layout,
@@ -418,13 +478,16 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
 
   auto &root = tree.root();
   resetScene();
+  m_syncingAnimationManager = true;
   if (auto *context = root.child("context"))
     tsd::io::load_Scene(m_ctx->tsd.scene, *context, &m_ctx->tsd.animationMgr);
+  m_syncingAnimationManager = false;
 
   loadedProject.projectDirectory = directory;
   loadedProject.markClean();
   m_project = std::move(loadedProject);
   markMissingDatasets();
+  syncAnimationManagerToActiveShot();
 
   if (windowsOut) {
     windowsOut->reset();

@@ -64,7 +64,6 @@ class Application : public tsd::ui::imgui::Application
   bool openProject(const std::filesystem::path &directory);
   void newProject();
   void closeProject();
-  void tickShotPlayback(float deltaTime);
   void saveDefaultLayoutFile() const;
   void saveWindowSettings(tsd::core::DataNode &node);
   void loadWindowSettings(tsd::core::DataNode &node);
@@ -76,7 +75,6 @@ class Application : public tsd::ui::imgui::Application
   ProjectContext m_projectContext;
   std::filesystem::path m_initialProjectDirectory;
   PendingDirtyAction m_pendingDirtyAction{PendingDirtyAction::None};
-  float m_playbackAccumulator{0.f};
 
   tsd::ui::imgui::Viewport *m_viewport{nullptr};
   tsd::ui::imgui::LayerTree *m_layerTree{nullptr};

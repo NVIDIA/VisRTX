@@ -99,10 +99,13 @@ bool renderActiveShotToFrames(
   }
 
   const int savedFrame = shot->currentFrame;
+  const bool savedPlaying = shot->playing;
   const int totalFrames = std::max(1, shot->frameCount);
   const auto prefix = shot->renderSettings.outputFilePrefix.empty()
       ? shot->id
       : shot->renderSettings.outputFilePrefix;
+  shot->playing = false;
+  projectContext.syncAnimationManagerToActiveShot();
 
   tsd::core::logStatus("[SciVisStudio] Rendering %d frames to '%s'",
       totalFrames,
@@ -112,8 +115,7 @@ bool renderActiveShotToFrames(
     if (progress && progress->onFrame && !progress->onFrame(frame, totalFrames))
       break;
 
-    shot->currentFrame = frame;
-    projectContext.applyActiveShot();
+    ctx->tsd.animationMgr.setAnimationFrame(frame);
 
     std::ostringstream ss;
     ss << prefix << '_' << std::setfill('0') << std::setw(4) << frame << ".png";
@@ -126,6 +128,8 @@ bool renderActiveShotToFrames(
   }
 
   shot->currentFrame = savedFrame;
+  shot->playing = savedPlaying;
+  projectContext.syncAnimationManagerToActiveShot();
   projectContext.applyActiveShot();
 
   ctx->tsd.scene.updateDelegate().erase(renderIndex);

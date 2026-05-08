@@ -30,6 +30,7 @@ struct ProjectContext
       const std::filesystem::path &sourcePath,
       tsd::io::ImporterType importerType);
   void applyActiveShot();
+  void syncAnimationManagerToActiveShot();
 
   bool saveProject(const std::filesystem::path &directory,
       tsd::core::DataNode *windows = nullptr,
@@ -56,9 +57,12 @@ struct ProjectContext
   void resetScene();
   void ensureRendererDefaults(Shot &shot);
   void markMissingDatasets();
+  void installAnimationManagerCallback();
+  void updateActiveShotFromAnimationTime();
 
   tsd::app::Context *m_ctx{nullptr};
   Project m_project;
+  bool m_syncingAnimationManager{false};
 };
 
 const char *toString(tsd::io::ImporterType importerType);

@@ -68,7 +68,10 @@ void CameraRigEditor::buildUI()
   ImGui::SameLine();
   if (ImGui::Button("Jump Viewport To Keyframe")) {
     shot->currentFrame = rig.keyframes[m_selectedKeyframe].frame;
-    m_projectContext->applyActiveShot();
+    if (ctx)
+      ctx->tsd.animationMgr.setAnimationFrame(shot->currentFrame);
+    else
+      m_projectContext->applyActiveShot();
   }
   ImGui::SameLine();
   if (ImGui::Button("Delete Keyframe")) {

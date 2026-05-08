@@ -44,27 +44,50 @@ void ShotEditor::buildUI()
     ImGui::TextDisabled("No active shot");
     return;
   }
+  auto *ctx = m_projectContext->appContext();
 
   if (inputText("Name", shot->name))
     project.markDirty();
 
-  bool changed = false;
-  changed |= ImGui::InputInt("Current frame", &shot->currentFrame);
-  changed |= ImGui::InputInt("Frame count", &shot->frameCount);
-  changed |= ImGui::InputFloat("FPS", &shot->fps);
-  shot->frameCount = std::max(1, shot->frameCount);
-  shot->currentFrame = std::clamp(shot->currentFrame, 0, shot->frameCount - 1);
-  shot->fps = std::max(1.f, shot->fps);
-
-  if (ImGui::Button(shot->playing ? "Stop" : "Play"))
-    shot->playing = !shot->playing;
-  ImGui::SameLine();
-  if (ImGui::Checkbox("Loop", &shot->loop))
+  int currentFrame = shot->currentFrame;
+  int frameCount = shot->frameCount;
+  float fps = shot->fps;
+  if (ImGui::InputInt("Current frame", &currentFrame)) {
+    shot->currentFrame = std::clamp(currentFrame, 0, shot->frameCount - 1);
     project.markDirty();
-
-  if (changed) {
+    if (ctx)
+      ctx->tsd.animationMgr.setAnimationFrame(shot->currentFrame);
+    else
+      m_projectContext->applyActiveShot();
+  }
+  bool playbackSettingsChanged = false;
+  playbackSettingsChanged |= ImGui::InputInt("Frame count", &frameCount);
+  playbackSettingsChanged |= ImGui::InputFloat("FPS", &fps);
+  if (playbackSettingsChanged) {
+    shot->frameCount = std::max(1, frameCount);
+    shot->currentFrame =
+        std::clamp(shot->currentFrame, 0, shot->frameCount - 1);
+    shot->fps = std::max(1.f, fps);
     project.markDirty();
+    m_projectContext->syncAnimationManagerToActiveShot();
     m_projectContext->applyActiveShot();
+  }
+
+  const bool playing = ctx ? ctx->tsd.animationMgr.isPlaying() : shot->playing;
+  if (ImGui::Button(playing ? "Stop" : "Play")) {
+    if (ctx) {
+      if (ctx->tsd.animationMgr.isPlaying())
+        ctx->tsd.animationMgr.stop();
+      else
+        ctx->tsd.animationMgr.play();
+      shot->playing = ctx->tsd.animationMgr.isPlaying();
+    } else
+      shot->playing = !shot->playing;
+  }
+  ImGui::SameLine();
+  if (ImGui::Checkbox("Loop", &shot->loop)) {
+    project.markDirty();
+    m_projectContext->syncAnimationManagerToActiveShot();
   }
 
   ImGui::SeparatorText("Render");

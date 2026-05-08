@@ -115,3 +115,27 @@ SCENARIO("SciVis Studio default project creation", "[SciVisStudio]")
   REQUIRE(project.dirty == false);
   REQUIRE(appContext.tsd.scene.layer("studio") != nullptr);
 }
+
+SCENARIO("SciVis Studio shot time is driven by the animation manager",
+    "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  auto &shot = *activeShot(projectContext.project());
+  shot.frameCount = 24;
+  shot.fps = 12.f;
+  shot.currentFrame = 4;
+  shot.loop = false;
+  projectContext.syncAnimationManagerToActiveShot();
+
+  auto &animMgr = appContext.tsd.animationMgr;
+  REQUIRE(animMgr.getAnimationTotalFrames() == 24);
+  REQUIRE(animMgr.getAnimationFPS() == Approx(12.f));
+  REQUIRE(animMgr.getAnimationFrame() == 4);
+  REQUIRE_FALSE(animMgr.isLoop());
+
+  animMgr.setAnimationFrame(9);
+  REQUIRE(shot.currentFrame == 9);
+}

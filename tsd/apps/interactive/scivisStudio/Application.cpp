@@ -264,34 +264,6 @@ void Application::renderActiveShot()
       "Rendering Active Shot...");
 }
 
-void Application::tickShotPlayback(float deltaTime)
-{
-  auto *shot = activeShot(m_projectContext.project());
-  if (!shot || !shot->playing || shot->fps <= 0.f)
-    return;
-
-  m_playbackAccumulator += deltaTime;
-  const float frameDuration = 1.f / shot->fps;
-  if (m_playbackAccumulator < frameDuration)
-    return;
-
-  int steps = static_cast<int>(m_playbackAccumulator / frameDuration);
-  m_playbackAccumulator -= steps * frameDuration;
-  while (steps-- > 0 && shot->playing) {
-    ++shot->currentFrame;
-    if (shot->currentFrame >= shot->frameCount) {
-      if (shot->loop)
-        shot->currentFrame = 0;
-      else {
-        shot->currentFrame = std::max(0, shot->frameCount - 1);
-        shot->playing = false;
-      }
-    }
-  }
-
-  m_projectContext.applyActiveShot();
-}
-
 void Application::saveDefaultLayoutFile() const
 {
   const std::string layout = ImGui::SaveIniSettingsToMemory();
@@ -322,7 +294,10 @@ void Application::saveDefaultLayoutFile() const
 void Application::uiFrameStart()
 {
   const ImGuiIO &io = ImGui::GetIO();
-  tickShotPlayback(io.DeltaTime);
+  auto &animMgr = appContext()->tsd.animationMgr;
+  animMgr.tick(io.DeltaTime);
+  if (auto *shot = activeShot(m_projectContext.project()))
+    shot->playing = animMgr.isPlaying();
 
   if (ImGui::BeginMainMenuBar()) {
     uiMainMenuBar();
@@ -352,8 +327,8 @@ void Application::uiFrameStart()
 
   if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space)) {
     if (auto *shot = activeShot(m_projectContext.project())) {
-      shot->playing = !shot->playing;
-      m_playbackAccumulator = 0.f;
+      animMgr.togglePlay();
+      shot->playing = animMgr.isPlaying();
     }
   }
 

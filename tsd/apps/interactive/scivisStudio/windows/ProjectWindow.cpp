@@ -39,6 +39,7 @@ void ProjectWindow::buildUI()
     const bool selected = shot.id == project.activeShotId;
     if (ImGui::Selectable(shot.name.c_str(), selected)) {
       project.activeShotId = shot.id;
+      m_projectContext->syncAnimationManagerToActiveShot();
       m_projectContext->applyActiveShot();
     }
   }
