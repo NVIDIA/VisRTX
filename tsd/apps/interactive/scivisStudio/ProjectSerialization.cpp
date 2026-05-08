@@ -56,8 +56,7 @@ static void nodeToManipulatorState(
     tsd::io::nodeToCameraPose(*orbit, state.orbit);
 }
 
-static void cameraRigToNode(
-    const ShotCameraRig &rig, tsd::core::DataNode &node)
+static void cameraRigToNode(const ShotCameraRig &rig, tsd::core::DataNode &node)
 {
   manipulatorStateToNode(rig.current, node["current"]);
   auto &keyframes = node["keyframes"];
@@ -158,8 +157,7 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
 {
   Project out;
   out.name = node["name"].getValueOr<std::string>("Untitled");
-  out.projectDirectory =
-      node["projectDirectory"].getValueOr<std::string>("");
+  out.projectDirectory = node["projectDirectory"].getValueOr<std::string>("");
   out.activeShotId = node["activeShot"].getValueOr<std::string>("");
   out.dirty = node["dirty"].getValueOr<bool>(false);
 
@@ -171,8 +169,8 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       dataset.sourceKind = datasetSourceKindFromString(
           d["sourceKind"].getValueOr<std::string>("Static"));
       dataset.importerType = d["importerType"].getValueOr<std::string>("NONE");
-      dataset.status =
-          datasetStatusFromString(d["status"].getValueOr<std::string>("Missing"));
+      dataset.status = datasetStatusFromString(
+          d["status"].getValueOr<std::string>("Missing"));
       if (auto *rootNode = d.child("rootNode"))
         dataset.rootNode = nodeToSceneNodeRef(*rootNode);
 
@@ -181,8 +179,7 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
             (*source)["absolutePath"].getValueOr<std::string>("");
         dataset.source.projectRelativePath =
             (*source)["projectRelativePath"].getValueOr<std::string>("");
-        dataset.source.fileSize =
-            (*source)["fileSize"].getValueOr<uint64_t>(0);
+        dataset.source.fileSize = (*source)["fileSize"].getValueOr<uint64_t>(0);
         dataset.source.modifiedTime =
             (*source)["modifiedTime"].getValueOr<int64_t>(0);
       }

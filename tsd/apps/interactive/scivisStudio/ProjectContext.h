@@ -44,8 +44,8 @@ struct ProjectContext
 
   tsd::scene::LayerNodeRef resolve(const SceneNodeRef &ref) const;
   tsd::scene::Object *resolve(const SceneObjectRef &ref) const;
-  SceneNodeRef refFor(const std::string &layerName,
-      tsd::scene::LayerNodeRef ref) const;
+  SceneNodeRef refFor(
+      const std::string &layerName, tsd::scene::LayerNodeRef ref) const;
 
  private:
   tsd::scene::LayerNodeRef ensureChild(

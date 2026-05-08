@@ -103,7 +103,8 @@ tsd::scene::LayerNodeRef ProjectContext::resolve(const SceneNodeRef &ref) const
 
 tsd::scene::Object *ProjectContext::resolve(const SceneObjectRef &ref) const
 {
-  if (!m_ctx || ref.type == ANARI_UNKNOWN || ref.objectIndex == TSD_INVALID_INDEX)
+  if (!m_ctx || ref.type == ANARI_UNKNOWN
+      || ref.objectIndex == TSD_INVALID_INDEX)
     return nullptr;
   return m_ctx->tsd.scene.getObject(ref.type, ref.objectIndex);
 }
@@ -173,8 +174,9 @@ bool ProjectContext::addShot(const std::string &name)
 
   Shot shot;
   shot.id = nextShotId(m_project);
-  shot.name = name.empty() ? ("Shot " + std::to_string(m_project.shots.size() + 1))
-                           : name;
+  shot.name = name.empty()
+      ? ("Shot " + std::to_string(m_project.shots.size() + 1))
+      : name;
   shot.renderSettings.outputFilePrefix = shot.id;
   ensureRendererDefaults(shot);
 
@@ -248,7 +250,8 @@ Dataset *ProjectContext::addStaticDataset(const std::string &name,
   dataset.name = name.empty() ? dataset.id : name;
   dataset.sourceKind = DatasetSourceKind::Static;
   dataset.importerType = toString(importerType);
-  dataset.source = collectSourceMetadata(sourcePath, m_project.projectDirectory);
+  dataset.source =
+      collectSourceMetadata(sourcePath, m_project.projectDirectory);
   dataset.status = DatasetStatus::Importing;
 
   auto datasetRoot = ensureChild(ensureDatasetsRoot(), dataset.id.c_str());
@@ -268,8 +271,7 @@ Dataset *ProjectContext::addStaticDataset(const std::string &name,
       setDatasetBinding(shot, record.id, &shot == activeShot(m_project));
   } catch (const std::exception &e) {
     record.status = DatasetStatus::ImportFailed;
-    tsd::core::logError(
-        "[SciVisStudio] Dataset import failed for '%s': %s",
+    tsd::core::logError("[SciVisStudio] Dataset import failed for '%s': %s",
         sourcePath.string().c_str(),
         e.what());
   } catch (...) {
@@ -329,8 +331,7 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
 
   std::error_code ec;
   const auto manifest = directory / PROJECT_MANIFEST_FILENAME;
-  const bool savingCurrent =
-      !m_project.projectDirectory.empty()
+  const bool savingCurrent = !m_project.projectDirectory.empty()
       && std::filesystem::equivalent(directory, m_project.projectDirectory, ec);
 
   if (std::filesystem::exists(manifest) && !savingCurrent) {

@@ -22,15 +22,17 @@ void ProjectWindow::buildUI()
   auto &project = m_projectContext->project();
   ImGui::Text("Name: %s", project.name.c_str());
   ImGui::Text("Path: %s",
-      project.projectDirectory.empty() ? "{unsaved}"
-                                       : project.projectDirectory.string().c_str());
+      project.projectDirectory.empty()
+          ? "{unsaved}"
+          : project.projectDirectory.string().c_str());
   ImGui::Text("Status: %s", project.dirty ? "dirty" : "clean");
 
   ImGui::SeparatorText("Datasets");
   if (project.datasets.empty())
     ImGui::TextDisabled("No datasets");
   for (const auto &dataset : project.datasets)
-    ImGui::BulletText("%s  [%s]", dataset.name.c_str(), toString(dataset.status));
+    ImGui::BulletText(
+        "%s  [%s]", dataset.name.c_str(), toString(dataset.status));
 
   ImGui::SeparatorText("Shots");
   for (auto &shot : project.shots) {

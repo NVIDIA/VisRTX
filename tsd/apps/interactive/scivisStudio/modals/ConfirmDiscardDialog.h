@@ -14,7 +14,8 @@ struct ConfirmDiscardDialog : public tsd::ui::imgui::Modal
   explicit ConfirmDiscardDialog(tsd::ui::imgui::Application *app);
   ~ConfirmDiscardDialog() override;
 
-  void configure(std::function<void()> onDiscard, std::function<void()> onCancel);
+  void configure(
+      std::function<void()> onDiscard, std::function<void()> onCancel);
 
  private:
   void buildUI() override;

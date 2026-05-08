@@ -59,8 +59,8 @@ anari_viewer::WindowArray Application::setupWindows()
   m_viewport = new tsd_ui::Viewport(this, &ctx->view.manipulator, "Viewport");
   auto *projectWindow = new ProjectWindow(this, &m_projectContext);
   auto *datasetEditor = new DatasetEditor(this, &m_projectContext);
-  auto *shotEditor = new ShotEditor(
-      this, &m_projectContext, [this]() { renderActiveShot(); });
+  auto *shotEditor =
+      new ShotEditor(this, &m_projectContext, [this]() { renderActiveShot(); });
   auto *cameraRigEditor = new CameraRigEditor(this, &m_projectContext);
   auto *objectEditor = new tsd_ui::ObjectEditor(this);
   m_layerTree = new tsd_ui::LayerTree(this);
@@ -149,8 +149,11 @@ bool Application::saveProjectAs(const std::filesystem::path &directory)
   saveApplicationSettings(root);
 
   std::string error;
-  const bool ok = m_projectContext.saveProject(
-      directory, root.child("windows"), saveLayout(), root.child("settings"), &error);
+  const bool ok = m_projectContext.saveProject(directory,
+      root.child("windows"),
+      saveLayout(),
+      root.child("settings"),
+      &error);
   if (!ok)
     tsd::core::logError("[SciVisStudio] Save failed: %s", error.c_str());
   return ok;
@@ -161,8 +164,11 @@ bool Application::openProject(const std::filesystem::path &directory)
   tsd::core::DataTree scratch;
   std::string layout;
   std::string error;
-  const bool ok = m_projectContext.openProject(
-      directory, &scratch.root()["windows"], &layout, &scratch.root()["settings"], &error);
+  const bool ok = m_projectContext.openProject(directory,
+      &scratch.root()["windows"],
+      &layout,
+      &scratch.root()["settings"],
+      &error);
   if (!ok) {
     tsd::core::logError("[SciVisStudio] Open failed: %s", error.c_str());
     return false;
@@ -193,8 +199,7 @@ void Application::requestDirtyAction(PendingDirtyAction action)
   }
 
   m_pendingDirtyAction = action;
-  m_confirmDiscardDialog->configure(
-      [this]() { continueDirtyAction(); },
+  m_confirmDiscardDialog->configure([this]() { continueDirtyAction(); },
       [this]() { m_pendingDirtyAction = PendingDirtyAction::None; });
   m_confirmDiscardDialog->show();
 }
@@ -228,14 +233,17 @@ void Application::showProjectLocationDialogForNew()
 void Application::showProjectLocationDialogForOpen()
 {
   m_projectLocationDialog->configure(ProjectLocationMode::OpenProject,
-      [this](const std::filesystem::path &directory) { openProject(directory); });
+      [this](
+          const std::filesystem::path &directory) { openProject(directory); });
   m_projectLocationDialog->show();
 }
 
 void Application::showProjectLocationDialogForSaveAs()
 {
   m_projectLocationDialog->configure(ProjectLocationMode::SaveProjectAs,
-      [this](const std::filesystem::path &directory) { saveProjectAs(directory); });
+      [this](const std::filesystem::path &directory) {
+        saveProjectAs(directory);
+      });
   m_projectLocationDialog->show();
 }
 
@@ -290,7 +298,8 @@ void Application::saveDefaultLayoutFile() const
 
   std::ofstream out(DEFAULT_LAYOUT_FILE, std::ios::binary | std::ios::trunc);
   if (!out) {
-    tsd::core::logError("[SciVisStudio] Failed to open default layout file '%s'",
+    tsd::core::logError(
+        "[SciVisStudio] Failed to open default layout file '%s'",
         DEFAULT_LAYOUT_FILE);
     return;
   }

@@ -78,7 +78,8 @@ void CameraRigEditor::buildUI()
   }
   ImGui::EndDisabled();
 
-  if (ImGui::BeginTable("keyframes", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+  if (ImGui::BeginTable(
+          "keyframes", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
     ImGui::TableSetupColumn("Frame");
     ImGui::TableSetupColumn("Name");
     ImGui::TableSetupColumn("Interpolation");
@@ -90,7 +91,8 @@ void CameraRigEditor::buildUI()
       ImGui::PushID(i);
       ImGui::TableNextRow();
       ImGui::TableNextColumn();
-      if (ImGui::Selectable("##select", m_selectedKeyframe == i,
+      if (ImGui::Selectable("##select",
+              m_selectedKeyframe == i,
               ImGuiSelectableFlags_SpanAllColumns))
         m_selectedKeyframe = i;
       ImGui::SameLine();
@@ -112,18 +114,16 @@ void CameraRigEditor::buildUI()
           keyframe.interpolationToNext == CameraInterpolation::Hold ? 0 : 1;
       const char *items[] = {"Hold", "Linear"};
       if (ImGui::Combo("##interp", &interpolation, items, 2)) {
-        keyframe.interpolationToNext =
-            interpolation == 0 ? CameraInterpolation::Hold
-                               : CameraInterpolation::Linear;
+        keyframe.interpolationToNext = interpolation == 0
+            ? CameraInterpolation::Hold
+            : CameraInterpolation::Linear;
         project.markDirty();
       }
 
       ImGui::TableNextColumn();
       const auto &pose = keyframe.manipulator.orbit;
-      ImGui::Text("%.2f %.2f %.2f",
-          pose.azeldist.x,
-          pose.azeldist.y,
-          pose.azeldist.z);
+      ImGui::Text(
+          "%.2f %.2f %.2f", pose.azeldist.x, pose.azeldist.y, pose.azeldist.z);
       ImGui::PopID();
     }
 

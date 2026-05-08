@@ -21,7 +21,8 @@ ShotEditor::ShotEditor(tsd::ui::imgui::Application *app,
 
 ShotEditor::~ShotEditor() = default;
 
-bool ShotEditor::inputText(const char *label, std::string &value, size_t capacity)
+bool ShotEditor::inputText(
+    const char *label, std::string &value, size_t capacity)
 {
   std::vector<char> buffer(capacity, '\0');
   std::strncpy(buffer.data(), value.c_str(), buffer.size() - 1);

@@ -33,7 +33,8 @@ ManipulatorState manipulatorStateFromManipulator(
 {
   ManipulatorState state;
   state.orbit.lookat = m.at();
-  state.orbit.azeldist = tsd::math::float3(m.azel().x, m.azel().y, m.distance());
+  state.orbit.azeldist =
+      tsd::math::float3(m.azel().x, m.azel().y, m.distance());
   state.orbit.fixedDist = m.fixedDistance();
   state.orbit.upAxis = static_cast<int>(m.axis());
   return state;

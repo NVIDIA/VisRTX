@@ -67,17 +67,17 @@ bool renderActiveShotToFrames(
   }
   anari::commitParameters(device, device);
 
-  auto *renderIndex =
-      ctx->tsd.scene.updateDelegate()
-          .emplace<tsd::rendering::RenderIndexAllLayers>(
-              ctx->tsd.scene, libName, device);
+  auto *renderIndex = ctx->tsd.scene.updateDelegate()
+                          .emplace<tsd::rendering::RenderIndexAllLayers>(
+                              ctx->tsd.scene, libName, device);
   renderIndex->populate();
 
   auto renderer = anari::newObject<anari::Renderer>(device, subtype.c_str());
   anari::commitParameters(device, renderer);
 
   tsd::rendering::ImagePipeline pipeline;
-  pipeline.setDimensions(shot->renderSettings.width, shot->renderSettings.height);
+  pipeline.setDimensions(
+      shot->renderSettings.width, shot->renderSettings.height);
   auto *anariPass =
       pipeline.emplace_back<tsd::rendering::AnariSceneRenderPass>(device);
   anariPass->setRunAsync(false);
@@ -116,8 +116,7 @@ bool renderActiveShotToFrames(
     projectContext.applyActiveShot();
 
     std::ostringstream ss;
-    ss << prefix << '_' << std::setfill('0') << std::setw(4) << frame
-       << ".png";
+    ss << prefix << '_' << std::setfill('0') << std::setw(4) << frame << ".png";
     savePass->setFilename((outputDirectory / ss.str()).string());
 
     for (uint32_t sample = 0; sample < shot->renderSettings.samples; ++sample) {
