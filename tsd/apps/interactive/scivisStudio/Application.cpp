@@ -96,6 +96,8 @@ anari_viewer::WindowArray Application::setupWindows()
   if (m_viewport)
     m_viewport->setLibraryToDefault();
 
+  ctx->tsd.sceneLoadComplete = true;
+
   return windows;
 }
 
