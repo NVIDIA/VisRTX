@@ -17,6 +17,22 @@
 
 namespace tsd::scivis_studio {
 
+static tsd::scene::LayerNodeRef findDirectChild(
+    tsd::scene::LayerNodeRef parent, const std::string &name)
+{
+  if (!parent)
+    return {};
+
+  auto child = parent->next();
+  while (child && child != parent) {
+    if ((*child)->name() == name)
+      return child;
+    child = child->sibling();
+  }
+
+  return {};
+}
+
 ProjectContext::ProjectContext(tsd::app::Context *ctx) : m_ctx(ctx)
 {
   installAnimationManagerCallback();
@@ -66,18 +82,7 @@ void ProjectContext::installAnimationManagerCallback()
 tsd::scene::LayerNodeRef ProjectContext::ensureChild(
     tsd::scene::LayerNodeRef parent, const char *name)
 {
-  tsd::scene::LayerNodeRef found;
-  if (!parent)
-    return {};
-
-  auto child = parent->next();
-  while (child && child != parent) {
-    if ((*child)->name() == name)
-      found = child;
-    child = child->sibling();
-  }
-
-  if (found)
+  if (auto found = findDirectChild(parent, name))
     return found;
 
   return m_ctx->tsd.scene.insertChildNode(parent, name);
@@ -120,6 +125,58 @@ tsd::scene::Object *ProjectContext::resolve(const SceneObjectRef &ref) const
       || ref.objectIndex == TSD_INVALID_INDEX)
     return nullptr;
   return m_ctx->tsd.scene.getObject(ref.type, ref.objectIndex);
+}
+
+tsd::scene::LayerNodeRef ProjectContext::resolveDatasetRoot(Dataset &dataset)
+{
+  if (!m_ctx)
+    return {};
+
+  auto *layer = m_ctx->tsd.scene.layer("studio");
+  if (layer) {
+    auto datasetsRoot = findDirectChild(layer->root(), "datasets");
+    auto datasetRoot = findDirectChild(datasetsRoot, dataset.id);
+    if (datasetRoot) {
+      dataset.rootNode = refFor("studio", datasetRoot);
+      return datasetRoot;
+    }
+  }
+
+  return resolve(dataset.rootNode);
+}
+
+tsd::scene::LayerNodeRef ProjectContext::resolveShotLightGroup(Shot &shot)
+{
+  if (!m_ctx)
+    return {};
+
+  auto *layer = m_ctx->tsd.scene.layer("studio");
+  if (layer) {
+    auto shotsRoot = findDirectChild(layer->root(), "shots");
+    auto shotRoot = findDirectChild(shotsRoot, shot.id);
+    auto lightsRoot = findDirectChild(shotRoot, "lights");
+    if (lightsRoot) {
+      shot.lightGroup = refFor("studio", lightsRoot);
+      return lightsRoot;
+    }
+  }
+
+  return resolve(shot.lightGroup);
+}
+
+tsd::scene::Object *ProjectContext::resolveShotCamera(Shot &shot)
+{
+  if (!m_ctx)
+    return nullptr;
+
+  const auto cameraName = shot.id + "_camera";
+  const auto &cameras = m_ctx->tsd.scene.objectDB().camera;
+  tsd::core::foreach_item_const(cameras, [&](const tsd::scene::Camera *camera) {
+    if (camera && camera->name() == cameraName)
+      shot.camera = {ANARI_CAMERA, camera->index()};
+  });
+
+  return resolve(shot.camera);
 }
 
 void ProjectContext::ensureRendererDefaults(Shot &shot)
@@ -311,8 +368,8 @@ void ProjectContext::applyActiveShot()
     return;
 
   std::vector<const tsd::scene::Layer *> changedLayers;
-  auto setNodeEnabled = [&](const SceneNodeRef &ref, bool enabled) {
-    if (auto node = resolve(ref)) {
+  auto setNodeEnabled = [&](tsd::scene::LayerNodeRef node, bool enabled) {
+    if (node) {
       if ((*node)->isEnabled() == enabled)
         return;
 
@@ -326,14 +383,14 @@ void ProjectContext::applyActiveShot()
   };
 
   for (auto &s : m_project.shots) {
-    setNodeEnabled(s.lightGroup, s.id == shot->id);
+    setNodeEnabled(resolveShotLightGroup(s), s.id == shot->id);
   }
 
-  for (const auto &dataset : m_project.datasets) {
+  for (auto &dataset : m_project.datasets) {
     bool enabled = false;
     if (const auto *binding = findDatasetBinding(*shot, dataset.id))
       enabled = binding->enabled;
-    setNodeEnabled(dataset.rootNode, enabled);
+    setNodeEnabled(resolveDatasetRoot(dataset), enabled);
   }
 
   for (auto *layer : changedLayers)
@@ -342,7 +399,7 @@ void ProjectContext::applyActiveShot()
   auto sampled = sampleCameraRig(shot->cameraRig, shot->currentFrame);
   applyManipulatorState(m_ctx->view.manipulator, sampled);
 
-  if (auto *obj = resolve(shot->camera)) {
+  if (auto *obj = resolveShotCamera(*shot)) {
     auto *camera = static_cast<tsd::scene::Camera *>(obj);
     tsd::rendering::updateCameraObject(*camera, m_ctx->view.manipulator);
   }
@@ -503,6 +560,7 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
   loadedProject.markClean();
   m_project = std::move(loadedProject);
   markMissingDatasets();
+  refreshRuntimeRefs();
   syncAnimationManagerToActiveShot();
 
   if (windowsOut) {
@@ -538,6 +596,17 @@ void ProjectContext::markMissingDatasets()
     if (!dataset.source.absolutePath.empty()
         && !std::filesystem::exists(dataset.source.absolutePath))
       dataset.status = DatasetStatus::Missing;
+  }
+}
+
+void ProjectContext::refreshRuntimeRefs()
+{
+  for (auto &dataset : m_project.datasets)
+    resolveDatasetRoot(dataset);
+
+  for (auto &shot : m_project.shots) {
+    resolveShotLightGroup(shot);
+    resolveShotCamera(shot);
   }
 }
 

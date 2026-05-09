@@ -28,6 +28,18 @@ struct CountingLayerUpdateDelegate : public tsd::scene::EmptyUpdateDelegate
   int layerStructureUpdates{0};
 };
 
+tsd::scene::LayerNodeRef findDirectChild(
+    tsd::scene::LayerNodeRef parent, const std::string &name)
+{
+  auto child = parent->next();
+  while (child && child != parent) {
+    if ((*child)->name() == name)
+      return child;
+    child = child->sibling();
+  }
+  return {};
+}
+
 } // namespace
 
 SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
@@ -63,9 +75,14 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
 
     tsd::core::DataTree tree;
     projectToNode(project, tree.root()["scivisStudio"]);
+    auto &serialized = tree.root()["scivisStudio"];
+
+    REQUIRE(serialized["datasets"].child(0)->child("rootNode") == nullptr);
+    REQUIRE(serialized["shots"].child(0)->child("lightGroup") == nullptr);
+    REQUIRE(serialized["shots"].child(0)->child("camera") == nullptr);
 
     Project loaded;
-    REQUIRE(nodeToProject(tree.root()["scivisStudio"], loaded));
+    REQUIRE(nodeToProject(serialized, loaded));
 
     THEN("IDs and keyframes survive round trip")
     {
@@ -167,6 +184,101 @@ SCENARIO("SciVis Studio shot dataset bindings update scene visibility",
   REQUIRE_FALSE((*datasetRoot)->isEnabled());
   REQUIRE(delegate->layerStructureUpdates == 1);
   REQUIRE(delegate->lastLayer == layer);
+}
+
+SCENARIO("SciVis Studio dataset binding resolves the dataset group by ID",
+    "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  auto &scene = appContext.tsd.scene;
+  auto *layer = scene.layer("studio");
+  REQUIRE(layer != nullptr);
+
+  auto datasetsRoot = findDirectChild(layer->root(), "datasets");
+  REQUIRE(datasetsRoot);
+  auto datasetRoot = scene.insertChildNode(datasetsRoot, "dataset_0001");
+  auto importedFileRoot = scene.insertChildNode(datasetRoot, "imported.vtp");
+  auto partRoot = scene.insertChildNode(importedFileRoot, "part_1");
+
+  auto &project = projectContext.project();
+  project.datasets.push_back({"dataset_0001",
+      "Dataset",
+      DatasetSourceKind::Static,
+      "VTP",
+      {},
+      DatasetStatus::Available,
+      projectContext.refFor("studio", partRoot)});
+
+  auto &shot = *activeShot(project);
+  setDatasetBinding(shot, "dataset_0001", false);
+
+  projectContext.applyActiveShot();
+
+  REQUIRE_FALSE((*datasetRoot)->isEnabled());
+  REQUIRE((*importedFileRoot)->isEnabled());
+  REQUIRE((*partRoot)->isEnabled());
+  REQUIRE(project.datasets.front().rootNode.nodeIndex == datasetRoot.index());
+}
+
+SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_runtime_refs";
+  std::filesystem::remove_all(root);
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+
+    auto &scene = appContext.tsd.scene;
+    auto *layer = scene.layer("studio");
+    REQUIRE(layer != nullptr);
+    auto datasetsRoot = findDirectChild(layer->root(), "datasets");
+    REQUIRE(datasetsRoot);
+    auto datasetRoot = scene.insertChildNode(datasetsRoot, "dataset_0001");
+    scene.insertChildNode(datasetRoot, "imported.vtp");
+
+    auto &project = projectContext.project();
+    project.datasets.push_back({"dataset_0001",
+        "Dataset",
+        DatasetSourceKind::Static,
+        "VTP",
+        {},
+        DatasetStatus::Available,
+        projectContext.refFor("studio", datasetRoot)});
+    setDatasetBinding(*activeShot(project), "dataset_0001", false);
+
+    REQUIRE(projectContext.saveProject(root));
+  }
+
+  {
+    tsd::core::DataTree manifest;
+    REQUIRE(manifest.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+    auto &projectNode = manifest.root()["scivisStudio"];
+    REQUIRE(projectNode["datasets"].child(0)->child("rootNode") == nullptr);
+    REQUIRE(projectNode["shots"].child(0)->child("lightGroup") == nullptr);
+    REQUIRE(projectNode["shots"].child(0)->child("camera") == nullptr);
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+
+    auto *layer = appContext.tsd.scene.layer("studio");
+    REQUIRE(layer != nullptr);
+    auto datasetsRoot = findDirectChild(layer->root(), "datasets");
+    auto datasetRoot = findDirectChild(datasetsRoot, "dataset_0001");
+    REQUIRE(datasetRoot);
+    REQUIRE_FALSE((*datasetRoot)->isEnabled());
+  }
+
+  std::filesystem::remove_all(root);
 }
 
 SCENARIO("SciVis Studio shot time is driven by the animation manager",

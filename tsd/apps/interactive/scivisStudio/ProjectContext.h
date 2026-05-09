@@ -47,6 +47,9 @@ struct ProjectContext
   tsd::scene::Object *resolve(const SceneObjectRef &ref) const;
   SceneNodeRef refFor(
       const std::string &layerName, tsd::scene::LayerNodeRef ref) const;
+  tsd::scene::LayerNodeRef resolveDatasetRoot(Dataset &dataset);
+  tsd::scene::LayerNodeRef resolveShotLightGroup(Shot &shot);
+  tsd::scene::Object *resolveShotCamera(Shot &shot);
 
  private:
   tsd::scene::LayerNodeRef ensureChild(
@@ -57,6 +60,7 @@ struct ProjectContext
   void resetScene();
   void ensureRendererDefaults(Shot &shot);
   void markMissingDatasets();
+  void refreshRuntimeRefs();
   void installAnimationManagerCallback();
   void updateActiveShotFromAnimationTime();
 

@@ -9,40 +9,6 @@
 
 namespace tsd::scivis_studio {
 
-static void sceneNodeRefToNode(
-    const SceneNodeRef &ref, tsd::core::DataNode &node)
-{
-  node["layerName"] = ref.layerName;
-  node["nodeIndex"] = static_cast<uint64_t>(ref.nodeIndex);
-}
-
-static SceneNodeRef nodeToSceneNodeRef(tsd::core::DataNode &node)
-{
-  SceneNodeRef ref;
-  if (auto *c = node.child("layerName"))
-    ref.layerName = c->getValueAs<std::string>();
-  if (auto *c = node.child("nodeIndex"))
-    ref.nodeIndex = static_cast<size_t>(c->getValueAs<uint64_t>());
-  return ref;
-}
-
-static void sceneObjectRefToNode(
-    const SceneObjectRef &ref, tsd::core::DataNode &node)
-{
-  node["type"] = static_cast<int>(ref.type);
-  node["objectIndex"] = static_cast<uint64_t>(ref.objectIndex);
-}
-
-static SceneObjectRef nodeToSceneObjectRef(tsd::core::DataNode &node)
-{
-  SceneObjectRef ref;
-  if (auto *c = node.child("type"))
-    ref.type = static_cast<anari::DataType>(c->getValueAs<int>());
-  if (auto *c = node.child("objectIndex"))
-    ref.objectIndex = static_cast<size_t>(c->getValueAs<uint64_t>());
-  return ref;
-}
-
 static void manipulatorStateToNode(
     const ManipulatorState &state, tsd::core::DataNode &node)
 {
@@ -106,7 +72,6 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     d["sourceKind"] = toString(dataset.sourceKind);
     d["importerType"] = dataset.importerType;
     d["status"] = toString(dataset.status);
-    sceneNodeRefToNode(dataset.rootNode, d["rootNode"]);
 
     auto &source = d["source"];
     source["absolutePath"] = dataset.source.absolutePath;
@@ -125,8 +90,6 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     s["currentFrame"] = shot.currentFrame;
     s["playing"] = shot.playing;
     s["loop"] = shot.loop;
-    sceneNodeRefToNode(shot.lightGroup, s["lightGroup"]);
-    sceneObjectRefToNode(shot.camera, s["camera"]);
     cameraRigToNode(shot.cameraRig, s["cameraRig"]);
 
     auto &render = s["renderSettings"];
@@ -171,8 +134,6 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       dataset.importerType = d["importerType"].getValueOr<std::string>("NONE");
       dataset.status = datasetStatusFromString(
           d["status"].getValueOr<std::string>("Missing"));
-      if (auto *rootNode = d.child("rootNode"))
-        dataset.rootNode = nodeToSceneNodeRef(*rootNode);
 
       if (auto *source = d.child("source")) {
         dataset.source.absolutePath =
@@ -197,10 +158,6 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       shot.currentFrame = s["currentFrame"].getValueOr<int>(0);
       shot.playing = s["playing"].getValueOr<bool>(false);
       shot.loop = s["loop"].getValueOr<bool>(true);
-      if (auto *lightGroup = s.child("lightGroup"))
-        shot.lightGroup = nodeToSceneNodeRef(*lightGroup);
-      if (auto *camera = s.child("camera"))
-        shot.camera = nodeToSceneObjectRef(*camera);
       if (auto *cameraRig = s.child("cameraRig"))
         nodeToCameraRig(*cameraRig, shot.cameraRig);
 

@@ -29,7 +29,7 @@ bool renderActiveShotToFrames(
     return false;
   }
 
-  auto *cameraObject = projectContext.resolve(shot->camera);
+  auto *cameraObject = projectContext.resolveShotCamera(*shot);
   if (!cameraObject || cameraObject->type() != ANARI_CAMERA) {
     tsd::core::logError("[SciVisStudio] Active shot camera is missing");
     return false;
