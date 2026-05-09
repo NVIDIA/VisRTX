@@ -8,10 +8,27 @@
 
 #include "tsd/app/Context.h"
 #include "tsd/core/DataTree.hpp"
+#include "tsd/scene/UpdateDelegate.hpp"
 
 #include <filesystem>
 
 using namespace tsd::scivis_studio;
+
+namespace {
+
+struct CountingLayerUpdateDelegate : public tsd::scene::EmptyUpdateDelegate
+{
+  void signalLayerStructureUpdated(const tsd::scene::Layer *l) override
+  {
+    lastLayer = l;
+    layerStructureUpdates++;
+  }
+
+  const tsd::scene::Layer *lastLayer{nullptr};
+  int layerStructureUpdates{0};
+};
+
+} // namespace
 
 SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
 {
@@ -114,6 +131,42 @@ SCENARIO("SciVis Studio default project creation", "[SciVisStudio]")
   REQUIRE(project.activeShotId == project.shots.front().id);
   REQUIRE(project.dirty == false);
   REQUIRE(appContext.tsd.scene.layer("studio") != nullptr);
+}
+
+SCENARIO("SciVis Studio shot dataset bindings update scene visibility",
+    "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  auto &scene = appContext.tsd.scene;
+  auto *layer = scene.layer("studio");
+  REQUIRE(layer != nullptr);
+
+  auto datasetRoot = scene.insertChildNode(layer->root(), "dataset_0001");
+  REQUIRE(datasetRoot);
+
+  auto &project = projectContext.project();
+  project.datasets.push_back({"dataset_0001",
+      "Dataset",
+      DatasetSourceKind::Static,
+      "OBJ",
+      {},
+      DatasetStatus::Available,
+      projectContext.refFor("studio", datasetRoot)});
+
+  auto &shot = *activeShot(project);
+  setDatasetBinding(shot, "dataset_0001", false);
+
+  auto *delegate =
+      scene.updateDelegate().emplace<CountingLayerUpdateDelegate>();
+
+  projectContext.applyActiveShot();
+
+  REQUIRE_FALSE((*datasetRoot)->isEnabled());
+  REQUIRE(delegate->layerStructureUpdates == 1);
+  REQUIRE(delegate->lastLayer == layer);
 }
 
 SCENARIO("SciVis Studio shot time is driven by the animation manager",

@@ -310,18 +310,34 @@ void ProjectContext::applyActiveShot()
   if (!shot)
     return;
 
+  std::vector<const tsd::scene::Layer *> changedLayers;
+  auto setNodeEnabled = [&](const SceneNodeRef &ref, bool enabled) {
+    if (auto node = resolve(ref)) {
+      if ((*node)->isEnabled() == enabled)
+        return;
+
+      (*node)->setEnabled(enabled);
+      auto *layer = (*node)->layer();
+      if (layer
+          && std::find(changedLayers.begin(), changedLayers.end(), layer)
+              == changedLayers.end())
+        changedLayers.push_back(layer);
+    }
+  };
+
   for (auto &s : m_project.shots) {
-    if (auto node = resolve(s.lightGroup))
-      (*node)->setEnabled(s.id == shot->id);
+    setNodeEnabled(s.lightGroup, s.id == shot->id);
   }
 
   for (const auto &dataset : m_project.datasets) {
     bool enabled = false;
     if (const auto *binding = findDatasetBinding(*shot, dataset.id))
       enabled = binding->enabled;
-    if (auto node = resolve(dataset.rootNode))
-      (*node)->setEnabled(enabled);
+    setNodeEnabled(dataset.rootNode, enabled);
   }
+
+  for (auto *layer : changedLayers)
+    m_ctx->tsd.scene.signalLayerStructureChanged(layer);
 
   auto sampled = sampleCameraRig(shot->cameraRig, shot->currentFrame);
   applyManipulatorState(m_ctx->view.manipulator, sampled);
