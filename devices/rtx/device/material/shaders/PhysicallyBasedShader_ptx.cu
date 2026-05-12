@@ -65,7 +65,11 @@ VISRTX_DEVICE vec3 sampleNormalMap(const FrameGPUData &fd,
   if (samplerIdx == ~visrtx::DeviceObjectIndex{0})
     return fallback;
   const vec3 ts = normalize(evaluateSampler(fd, samplerIdx, hit) * 2.0f - 1.0f);
-  return applyNormalMap(ts, hit, hit.Ns);
+  const vec3 N = applyNormalMap(ts, hit, hit.Ns);
+  // Negated comparison catches NaN (zero-decoded texels, zero-summed tangents)
+  // as well as zero-length results — fall back to the geometric normal so the
+  // shading frame is always usable.
+  return (dot(N, N) > 1e-12f) ? N : hit.Ng;
 }
 
 VISRTX_DEVICE float luminance(const vec3 &c)
@@ -319,15 +323,6 @@ VISRTX_CALLABLE void __direct_callable__init(
   shadingState->iridescenceIor = md->iridescenceIor;
   shadingState->iridescenceThickness =
       getMaterialParameter(*fd, md->iridescenceThickness, *hit).x;
-
-  // Fall back to the geometric normal if sampleNormalMap produced NaN
-  // (texel decodes to zero, or zero-summed tangents) or zero-length. The
-  // negated comparison catches both since NaN compares false to anything.
-  if (!(glm::dot(shadingState->normal, shadingState->normal) > 1e-12f))
-    shadingState->normal = hit->Ng;
-  if (!(glm::dot(shadingState->clearcoatNormal, shadingState->clearcoatNormal)
-          > 1e-12f))
-    shadingState->clearcoatNormal = hit->Ng;
 }
 
 //-----------------------------------------------------------------------------
