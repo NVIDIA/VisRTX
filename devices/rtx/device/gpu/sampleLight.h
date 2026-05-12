@@ -339,7 +339,7 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   ls.dir = xfmVec(xfm, dir);
   ls.dist =
       std::numeric_limits<float>::infinity(); // Environment is at infinity
-  ls.radiance = radiance * ld.hdri.scale;
+  ls.radiance = radiance * ld.hdri.scale * ld.color;
   ls.pdf = pdf;
 
   return ls;
@@ -384,7 +384,7 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   // instead of explicitly transposing/inverting the matrix
   ls.dir = xfmVec(xfm, sphericalCoordsToDirection(thetaPhi) * ld.hdri.xfm);
   ls.dist = 1e20f; // Environment is effectively at infinity
-  ls.radiance = radiance * ld.hdri.scale;
+  ls.radiance = radiance * ld.hdri.scale * ld.color;
   ls.pdf = pdf;
 
   return ls;
