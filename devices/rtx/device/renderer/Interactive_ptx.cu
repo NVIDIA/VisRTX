@@ -155,7 +155,7 @@ struct InteractiveShadingPolicy
       }
     }
 
-    return vec4(contrib, evaluateOpacity(shadingState));
+    return vec4(contrib, materialEvaluateOpacity(shadingState));
   }
 };
 
@@ -182,7 +182,7 @@ VISRTX_GLOBAL void __anyhit__shadow()
 
     MaterialShadingState shadingState;
     materialInitShading(&shadingState, frameData, *hit.material, hit);
-    auto opacity = evaluateOpacity(shadingState);
+    auto opacity = materialEvaluateOpacity(shadingState);
 
     auto &o = ray::rayData<float>();
 
