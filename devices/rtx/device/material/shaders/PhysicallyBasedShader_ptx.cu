@@ -489,8 +489,8 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
 
 //-----------------------------------------------------------------------------
 // Next-ray importance sampling: stochastic alpha, Fresnel-aware lobe pick,
-// GGX VNDF reflection/refraction. Clearcoat/sheen are NEE-only (no separate
-// lobe sampling), which matches what the base renderer is set up to consume.
+// GGX VNDF reflection/refraction, plus a clearcoat lobe sampled with
+// probability equal to its view-angle Fresnel weight. Sheen is NEE-only.
 //-----------------------------------------------------------------------------
 
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
@@ -500,8 +500,55 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   if (curand_uniform(rs) > state->opacity)
     return NextRay{ray->dir, vec3(1.0f), NEXT_RAY_CONTINUES_THROUGH_SURFACE};
 
-  const vec3 N = state->normal;
   const vec3 V = -ray->dir;
+
+  // Clearcoat lobe: pick it with probability `clearcoat·FcV(NcDotV)`. This
+  // exact weight makes the entry-side attenuation `1 - clearcoat·FcV` cancel
+  // the `1/(1-pick)` lobe-pick divisor in the base path below, so the base
+  // returns only need the exit-side `1 - clearcoat·FcL` multiplier.
+  const vec3 Nc = state->clearcoatNormal;
+  const float NcDotV_world = fmaxf(dot(Nc, V), 0.0f);
+  const float FcV_world =
+      CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - NcDotV_world);
+  const float clearcoatPick =
+      glm::clamp(state->clearcoat * FcV_world, 0.0f, 1.0f);
+
+  if (clearcoatPick > 0.0f && curand_uniform(rs) < clearcoatPick) {
+    const mat3 toWorldC = computeOrthonormalBasis(Nc);
+    const vec3 VlocalC = glm::transpose(toWorldC) * V;
+    if (VlocalC.z <= 0.0f)
+      return NextRay{Nc, vec3(0.0f)};
+    const float alphaC = fmaxf(pow2(state->clearcoatRoughness), 1e-4f);
+    const float alphaC2 = alphaC * alphaC;
+    const vec3 HlocalC = sampleGGXVNDF(
+        VlocalC, alphaC, curand_uniform(rs), curand_uniform(rs));
+    const vec3 LlocalC = glm::reflect(-VlocalC, HlocalC);
+    if (LlocalC.z <= 0.0f)
+      return NextRay{Nc, vec3(0.0f)};
+    const float VdotHc = fmaxf(dot(VlocalC, HlocalC), 0.0f);
+    const float Fc =
+        CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - VdotHc);
+    const float G1c = smithG1GGX(VlocalC.z, alphaC2);
+    const float G2c = smithG2GGX(VlocalC.z, LlocalC.z, alphaC2);
+    // VNDF gives BRDF·cos/pdf = clearcoat·Fc·G2/G1; the clearcoat factor
+    // cancels against the matching factor in clearcoatPick.
+    const vec3 weight = vec3(state->clearcoat * Fc * G2c / fmaxf(G1c, 1e-8f))
+        / fmaxf(clearcoatPick, 1e-8f);
+    return NextRay{normalize(toWorldC * LlocalC), weight};
+  }
+
+  // Exit-side clearcoat attenuation, applied to every base-path return.
+  // `fabsf` handles the transmission case where L points through the surface.
+  auto clearcoatExitAttn = [&](const vec3 &Lworld) -> float {
+    if (state->clearcoat <= 0.0f)
+      return 1.0f;
+    const float NcDotL = fabsf(dot(Nc, Lworld));
+    const float FcL =
+        CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - NcDotL);
+    return glm::clamp(1.0f - state->clearcoat * FcL, 0.0f, 1.0f);
+  };
+
+  const vec3 N = state->normal;
   const mat3 toWorld = computeOrthonormalBasis(N);
   const mat3 toLocal = glm::transpose(toWorld);
   const vec3 Vlocal = toLocal * V;
@@ -568,26 +615,27 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const float NdotL = Lrefl.z;
     const float G1 = smithG1GGX(NdotV, alpha2);
     const float G2 = smithG2GGX(NdotV, NdotL, alpha2);
-    const vec3 weight =
-        reflectEnergy * (G2 / fmaxf(G1, 1e-8f)) / fmaxf(reflectProb, 1e-8f);
-    return NextRay{normalize(toWorld * Lrefl), weight};
+    const vec3 Lworld = normalize(toWorld * Lrefl);
+    const vec3 weight = reflectEnergy * (G2 / fmaxf(G1, 1e-8f))
+        * clearcoatExitAttn(Lworld) / fmaxf(reflectProb, 1e-8f);
+    return NextRay{Lworld, weight};
   }
 
   if (u < reflectProb + transmitProb) {
     const float NdotL = -Ltrans.z; // L points through the surface.
     const float G1 = smithG1GGX(NdotV, alpha2);
     const float G2 = smithG2GGX(NdotV, NdotL, alpha2);
+    const vec3 Lworld = normalize(toWorld * Ltrans);
     const vec3 weight = transmitEnergy * (G2 / fmaxf(G1, 1e-8f))
-        / fmaxf(transmitProb, 1e-8f);
-    return NextRay{normalize(toWorld * Ltrans),
-        weight,
-        NEXT_RAY_CONTINUES_THROUGH_SURFACE};
+        * clearcoatExitAttn(Lworld) / fmaxf(transmitProb, 1e-8f);
+    return NextRay{Lworld, weight, NEXT_RAY_CONTINUES_THROUGH_SURFACE};
   }
 
   // Diffuse: sample around the shading normal so pdf=cos/pi matches the BRDF's
   // NdotL (same axis as shadeSurface's diffuse term). Cos and pdf cancel,
   // leaving only the energy term and the lobe-pick divisor.
   const vec3 wi = sampleHemisphere(*rs, N);
-  const vec3 weight = diffuseEnergy / fmaxf(diffuseProb, 1e-8f);
+  const vec3 weight =
+      diffuseEnergy * clearcoatExitAttn(wi) / fmaxf(diffuseProb, 1e-8f);
   return NextRay{wi, weight};
 }
