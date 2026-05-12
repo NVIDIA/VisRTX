@@ -286,7 +286,7 @@ VISRTX_CALLABLE void __direct_callable__init(
 
   shadingState->opacity =
       adjustedMaterialOpacity(color.w * opacity, md->alphaMode, md->cutoff);
-  shadingState->ior = hit->isFrontFace ? 1.0f / md->ior : md->ior;
+  shadingState->eta = hit->isFrontFace ? 1.0f / md->ior : md->ior;
   shadingState->metallic = getMaterialParameter(*fd, md->metallic, *hit).x;
   shadingState->roughness = getMaterialParameter(*fd, md->roughness, *hit).x;
   shadingState->emission = vec3(getMaterialParameter(*fd, md->emissive, *hit));
@@ -365,7 +365,7 @@ VISRTX_CALLABLE vec3 __direct_callable__evaluateNormal(
 
 VISRTX_DEVICE vec3 computeDielectricF0(const PhysicallyBasedShadingState *state)
 {
-  const float iorF0 = pow2((1.0f - state->ior) / (1.0f + state->ior));
+  const float iorF0 = pow2((1.0f - state->eta) / (1.0f + state->eta));
   if (state->useSpecular == 0)
     return vec3(iorF0);
   return glm::min(vec3(iorF0) * state->specularColor, vec3(1.0f))
@@ -524,8 +524,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   const vec3 Fdiff = evalFresnelWithIridescence(state, F0, F90, NdotV);
 
   const vec3 Lrefl = glm::reflect(-Vlocal, Hlocal);
-  const float eta = state->ior; // init() pre-inverted for front-facing hits
-  const vec3 Ltrans = glm::refract(-Vlocal, Hlocal, eta);
+  const vec3 Ltrans = glm::refract(-Vlocal, Hlocal, state->eta);
   const vec3 transmissionFilter = computeTransmissionFilter(state);
   const bool hasTransmission = luminance(transmissionFilter) > 0.0f;
   const bool totalInternalReflection =

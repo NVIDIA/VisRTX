@@ -80,7 +80,10 @@ struct PhysicallyBasedShadingState
   float metallic;
   float roughness;
   float transmission;
-  float ior;
+  // Refraction ratio n1/n2 from the incident side: init() stores 1/md->ior
+  // for front-facing hits and md->ior for back-facing hits, so this can be
+  // plugged directly into glm::refract and Schlick's F0 formula.
+  float eta;
   vec3 emission;
 
   float occlusion;
