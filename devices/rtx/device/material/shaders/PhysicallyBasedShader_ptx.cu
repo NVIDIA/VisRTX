@@ -394,6 +394,21 @@ VISRTX_DEVICE vec3 schlickFresnel(vec3 F0, vec3 F90, float VdotH)
   return F0 + (F90 - F0) * pow5(1.0f - fabsf(VdotH));
 }
 
+VISRTX_DEVICE vec3 evalFresnelWithIridescence(
+    const PhysicallyBasedShadingState *state,
+    const vec3 &F0,
+    const vec3 &F90,
+    float cosTheta)
+{
+  vec3 F = schlickFresnel(F0, F90, cosTheta);
+  if (state->iridescence > 0.0f && state->iridescenceThickness > 0.0f) {
+    const vec3 iridescent = evalIridescence(
+        1.0f, state->iridescenceIor, cosTheta, state->iridescenceThickness, F0);
+    F = glm::mix(F, iridescent, state->iridescence);
+  }
+  return F;
+}
+
 VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     const PhysicallyBasedShadingState *state,
     const SurfaceHit *hit,
@@ -415,15 +430,13 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
   const float NdotV = fmaxf(dot(N, V), 1e-6f);
   const float VdotH = fmaxf(dot(V, H), 0.0f);
 
-  // Base F0 / F90, optionally overridden by iridescence.
-  vec3 F0 = computeF0(state);
-  vec3 F90 = computeF90(state);
-  vec3 F = schlickFresnel(F0, F90, VdotH);
-  if (state->iridescence > 0.0f && state->iridescenceThickness > 0.0f) {
-    const vec3 iridescent = evalIridescence(
-        1.0f, state->iridescenceIor, VdotH, state->iridescenceThickness, F0);
-    F = glm::mix(F, iridescent, state->iridescence);
-  }
+  // Base F0 / F90. Specular uses Fresnel at the microfacet (VdotH); the
+  // diffuse weight uses Fresnel at NdotV (Frostbite/Disney convention) so
+  // shadeSurface and nextRay's diffuse split agree regardless of light dir.
+  const vec3 F0 = computeF0(state);
+  const vec3 F90 = computeF90(state);
+  const vec3 F = evalFresnelWithIridescence(state, F0, F90, VdotH);
+  const vec3 Fdiff = evalFresnelWithIridescence(state, F0, F90, NdotV);
 
   // Base GGX specular lobe.
   const float alpha = fmaxf(pow2(state->roughness), 1e-4f);
@@ -436,7 +449,7 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
   // and transmission; metals have no diffuse).
   const vec3 diffuseColor =
       glm::mix(state->baseColor, vec3(0.0f), state->metallic);
-  const vec3 diffuseBRDF = (vec3(1.0f) - F) * float(M_1_PI) * diffuseColor
+  const vec3 diffuseBRDF = (vec3(1.0f) - Fdiff) * float(M_1_PI) * diffuseColor
       * state->occlusion * (1.0f - state->transmission);
 
   vec3 base = diffuseBRDF + specularBRDF;
@@ -508,15 +521,12 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   const float NdotV = Vlocal.z;
   const float VdotH = fmaxf(dot(Vlocal, Hlocal), 0.0f);
 
-  // Fresnel at the sampled microfacet, with optional iridescence.
+  // Fresnel at the sampled microfacet (specular/transmission split) and at
+  // NdotV (diffuse weight) — matches the convention in shadeSurface.
   const vec3 F0 = computeF0(state);
   const vec3 F90 = computeF90(state);
-  vec3 F = schlickFresnel(F0, F90, VdotH);
-  if (state->iridescence > 0.0f && state->iridescenceThickness > 0.0f) {
-    const vec3 iridescent = evalIridescence(
-        1.0f, state->iridescenceIor, VdotH, state->iridescenceThickness, F0);
-    F = glm::mix(F, iridescent, state->iridescence);
-  }
+  const vec3 F = evalFresnelWithIridescence(state, F0, F90, VdotH);
+  const vec3 Fdiff = evalFresnelWithIridescence(state, F0, F90, NdotV);
 
   const vec3 Lrefl = glm::reflect(-Vlocal, Hlocal);
   const float eta = state->ior; // init() pre-inverted for front-facing hits
@@ -538,7 +548,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   // BRDF being estimated. TIR has no diffuse share (all energy is reflected).
   const vec3 diffuseEnergy = totalInternalReflection
       ? vec3(0.0f)
-      : glm::max(vec3(1.0f) - F, vec3(0.0f)) * state->baseColor
+      : glm::max(vec3(1.0f) - Fdiff, vec3(0.0f)) * state->baseColor
           * (1.0f - state->metallic) * (1.0f - state->transmission)
           * state->occlusion;
 
