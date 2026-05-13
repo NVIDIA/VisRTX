@@ -189,8 +189,8 @@ VISRTX_DEVICE LightSample sampleRectLight(
   // Front only: use cosTheta as-is (positive for front face)
 
   if (cosTheta > 0.0f) {
-    // Lambertian emission: radiance scaled by cosine factor
-    ls.radiance = ld.color * ld.rect.intensity * cosTheta;
+    // Lambertian radiance. cosTheta is handled through pdf below.
+    ls.radiance = ld.color * ld.rect.intensity;
 
     // Convert area PDF to solid angle PDF for proper Monte Carlo integration
     // Area PDF = 1 / area, Solid angle PDF = area_pdf * distance² / |cos θ|
@@ -257,8 +257,8 @@ VISRTX_DEVICE LightSample sampleRingLight(
 
   if (spot > 0.0f) {
     if (cosTheta > 0.0f) {
-      // Apply both spot attenuation and Lambert's cosine law
-      ls.radiance = ld.color * ld.ring.intensity * spot * cosTheta;
+      // Lambertian radiance. cosTheta is handled through pdf below.
+      ls.radiance = ld.color * ld.ring.intensity * spot;
 
       // Convert area PDF to solid angle PDF for proper Monte Carlo integration
       // Ring area = π(R² - r²), so area PDF = 1 / ring_area
