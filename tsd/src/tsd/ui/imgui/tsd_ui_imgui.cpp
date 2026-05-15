@@ -4,6 +4,8 @@
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
+// std
+#include <cstring>
 
 namespace tsd::ui {
 
@@ -614,6 +616,48 @@ bool buildUI_parameter(tsd::scene::Object &o,
     else
       update |= ImGui::DragFloat4(name, (float *)value);
     break;
+  case ANARI_FLOAT32_MAT3:
+  case ANARI_FLOAT32_MAT4: {
+    const int N = (type == ANARI_FLOAT32_MAT3) ? 3 : 4;
+    auto *m = (float *)value; // column-major
+    ImGui::PushID(name);
+    ImGui::SetNextItemOpen(false, ImGuiCond_FirstUseEver);
+    if (ImGui::CollapsingHeader(name)) {
+      float rows[4][4] = {};
+      for (int r = 0; r < N; ++r)
+        for (int c = 0; c < N; ++c)
+          rows[r][c] = m[c * N + r];
+
+      bool changed = false;
+      for (int r = 0; r < N; ++r) {
+        ImGui::PushID(r);
+        if (N == 3)
+          changed |= ImGui::DragFloat3("", rows[r], 0.01f);
+        else
+          changed |= ImGui::DragFloat4("", rows[r], 0.01f);
+        ImGui::PopID();
+      }
+
+      if (changed) {
+        for (int r = 0; r < N; ++r)
+          for (int c = 0; c < N; ++c)
+            m[c * N + r] = rows[r][c];
+        update = true;
+      }
+
+      if (ImGui::Button("identity")) {
+        if (N == 3) {
+          auto I = tsd::math::IDENTITY_MAT3;
+          std::memcpy(m, &I, sizeof(I));
+        } else {
+          auto I = tsd::math::IDENTITY_MAT4;
+          std::memcpy(m, &I, sizeof(I));
+        }
+        update = true;
+      }
+    }
+    ImGui::PopID();
+  } break;
   case ANARI_STRING: {
     if (!p.stringValues().empty()) {
       auto ss = p.stringSelection();
