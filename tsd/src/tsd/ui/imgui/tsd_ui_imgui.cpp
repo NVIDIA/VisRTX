@@ -39,6 +39,42 @@ static void buildUI_array_info_tooltip_text(
   ImGui::Text("type: %s", anari::toString(a.elementType()));
 }
 
+static void buildUI_sampler_info_tooltip_text(
+    const tsd::scene::Scene &scene, size_t idx)
+{
+  auto *s = scene.getObject(ANARI_SAMPLER, idx);
+  if (!s)
+    return;
+  // Preview the bound image array when present.
+  if (auto *p = s->parameter("image"); p) {
+    const auto aIdx = p->value().getAsObjectIndex();
+    if (aIdx != TSD_INVALID_INDEX) {
+      if (auto arr = scene.getObject<tsd::scene::Array>(aIdx); arr)
+        if (tsd::ui::buildUI_array_preview(*arr))
+          ImGui::Separator();
+    }
+  }
+  ImGui::Text(" idx: [%zu]", idx);
+  ImGui::Text("name: '%s'", s->name().c_str());
+  ImGui::Text("subtype: %s", s->subtype().c_str());
+}
+
+// Dispatch a hover-preview tooltip body for any object reference we know how
+// to preview. Returns true if something was drawn (caller may add separators).
+static bool buildUI_object_info_tooltip_text(
+    const tsd::scene::Scene &scene, anari::DataType type, size_t idx)
+{
+  if (anari::isArray(type)) {
+    buildUI_array_info_tooltip_text(scene, idx);
+    return true;
+  }
+  if (type == ANARI_SAMPLER) {
+    buildUI_sampler_info_tooltip_text(scene, idx);
+    return true;
+  }
+  return false;
+}
+
 static void buildUI_parameter_contextMenu(
     tsd::scene::Scene &scene, tsd::scene::Object *o, tsd::scene::Parameter *p)
 {
@@ -298,8 +334,20 @@ void buildUI_object(tsd::scene::Object &o,
     else
       ImGui::Text(" size: %zu", a.dim(0));
     ImGui::Text(" type: %s", anari::toString(a.elementType()));
+    tsd::ui::buildUI_array_preview(a);
   } else if (o.type() != ANARI_SURFACE) {
     ImGui::Text("   subtype: %s", o.subtype().c_str());
+  }
+
+  // Sampler: preview the bound image array inline.
+  if (o.type() == ANARI_SAMPLER) {
+    if (auto *p = o.parameter("image"); p) {
+      const auto idx = p->value().getAsObjectIndex();
+      if (idx != TSD_INVALID_INDEX) {
+        if (auto arr = scene.getObject<tsd::scene::Array>(idx); arr)
+          tsd::ui::buildUI_array_preview(*arr);
+      }
+    }
   }
 
   if (o.type() == ANARI_RENDERER)
@@ -439,9 +487,9 @@ void buildUI_object(tsd::scene::Object &o,
       if (ImGui::MenuItem(oTitle.c_str()))
         paramForSelection->setValue({typeForSelection, i});
 
-      if (anari::isArray(typeForSelection) && ImGui::IsItemHovered()) {
+      if (ImGui::IsItemHovered()) {
         ImGui::BeginTooltip();
-        buildUI_array_info_tooltip_text(scene, i);
+        buildUI_object_info_tooltip_text(scene, typeForSelection, i);
         ImGui::EndTooltip();
       }
 
@@ -707,10 +755,10 @@ bool buildUI_parameter(tsd::scene::Object &o,
 
   if (ImGui::IsItemHovered()) {
     ImGui::BeginTooltip();
-    if (isArray) {
-      const auto idx = pVal.getAsObjectIndex();
-      if (idx != TSD_INVALID_INDEX)
-        buildUI_array_info_tooltip_text(scene, idx);
+    const auto idx = pVal.getAsObjectIndex();
+    if (idx != TSD_INVALID_INDEX
+        && buildUI_object_info_tooltip_text(scene, type, idx)) {
+      // handled
     } else if (type == ANARI_FLOAT32_MAT4) {
       auto *value_f = (const float *)value;
       ImGui::Text("[%.3f %.3f %.3f %.3f]",
@@ -785,9 +833,9 @@ size_t buildUI_objects_menulist(
       type = obj->type();
     }
 
-    if (anari::isArray(type) && ImGui::IsItemHovered()) {
+    if (ImGui::IsItemHovered()) {
       ImGui::BeginTooltip();
-      buildUI_array_info_tooltip_text(scene, i);
+      buildUI_object_info_tooltip_text(scene, type, i);
       ImGui::EndTooltip();
     }
 
