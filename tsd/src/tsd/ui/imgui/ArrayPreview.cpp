@@ -8,6 +8,8 @@
 #include <SDL3/SDL.h>
 // std
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 
@@ -57,41 +59,155 @@ Cache &cache()
 
 using RGBA = std::array<float, 4>;
 
+template <typename T>
+inline float toNormalizedFloat(T v);
+
+template <>
+inline float toNormalizedFloat<float>(float v)
+{
+  return v;
+}
+template <>
+inline float toNormalizedFloat<uint8_t>(uint8_t v)
+{
+  return v / 255.f;
+}
+template <>
+inline float toNormalizedFloat<uint16_t>(uint16_t v)
+{
+  return v / 65535.f;
+}
+template <>
+inline float toNormalizedFloat<uint32_t>(uint32_t v)
+{
+  return v / 4294967295.f;
+}
+template <>
+inline float toNormalizedFloat<int8_t>(int8_t v)
+{
+  return std::max(v / 127.f, -1.f);
+}
+template <>
+inline float toNormalizedFloat<int16_t>(int16_t v)
+{
+  return std::max(v / 32767.f, -1.f);
+}
+template <>
+inline float toNormalizedFloat<int32_t>(int32_t v)
+{
+  return std::max(v / 2147483647.f, -1.f);
+}
+
+// linear → sRGB (IEC 61966-2-1). HDR values are clamped to [0, 1] first, so
+// previews show clipped highlights rather than wrapping or going black.
+inline float linearToSrgb(float c)
+{
+  c = std::clamp(c, 0.f, 1.f);
+  return c <= 0.0031308f ? c * 12.92f
+                         : 1.055f * std::pow(c, 1.f / 2.4f) - 0.055f;
+}
+
+// Preview keeps every sample in display space.
+//
+// Integer formats: normalized to [0, 1] and passed through. sRGB-tagged
+// formats deliberately skip the sRGB → linear decode — the texture is
+// blitted without a matching linear → sRGB encode, so decoding would make
+// sRGB-tagged previews look darker than identical content tagged as plain
+// UFIXED8.
+//
+// Float formats (incl. HDRIs): treated as linear-light and encoded to sRGB
+// here. Without this encode a linear value of 0.5 would display as if it
+// were sRGB 0.5, i.e. visibly too dark.
+template <typename T, int N>
+inline RGBA sample(const void *base, size_t i)
+{
+  auto *p = (const T *)base + i * N;
+  RGBA out = {0.f, 0.f, 0.f, 1.f};
+  for (int c = 0; c < N; ++c)
+    out[c] = toNormalizedFloat<T>(p[c]);
+  if constexpr (std::is_floating_point_v<T>) {
+    const int colorChans = (N == 4) ? 3 : N;
+    for (int c = 0; c < colorChans; ++c)
+      out[c] = linearToSrgb(out[c]);
+  }
+  return out;
+}
+
 RGBA sample(const void *base, anari::DataType t, size_t i)
 {
   switch (t) {
-  case ANARI_FLOAT32: {
-    auto *p = (const float *)base + i;
-    return {p[0], 0.f, 0.f, 1.f};
-  }
-  case ANARI_FLOAT32_VEC2: {
-    auto *p = (const float *)base + i * 2;
-    return {p[0], p[1], 0.f, 1.f};
-  }
-  case ANARI_FLOAT32_VEC3: {
-    auto *p = (const float *)base + i * 3;
-    return {p[0], p[1], p[2], 1.f};
-  }
-  case ANARI_FLOAT32_VEC4: {
-    auto *p = (const float *)base + i * 4;
-    return {p[0], p[1], p[2], p[3]};
-  }
-  case ANARI_UFIXED8: {
-    auto *p = (const uint8_t *)base + i;
-    return {p[0] / 255.f, 0.f, 0.f, 1.f};
-  }
-  case ANARI_UFIXED8_VEC2: {
-    auto *p = (const uint8_t *)base + i * 2;
-    return {p[0] / 255.f, p[1] / 255.f, 0.f, 1.f};
-  }
-  case ANARI_UFIXED8_VEC3: {
-    auto *p = (const uint8_t *)base + i * 3;
-    return {p[0] / 255.f, p[1] / 255.f, p[2] / 255.f, 1.f};
-  }
-  case ANARI_UFIXED8_VEC4: {
-    auto *p = (const uint8_t *)base + i * 4;
-    return {p[0] / 255.f, p[1] / 255.f, p[2] / 255.f, p[3] / 255.f};
-  }
+  // Float
+  case ANARI_FLOAT32:
+    return sample<float, 1>(base, i);
+  case ANARI_FLOAT32_VEC2:
+    return sample<float, 2>(base, i);
+  case ANARI_FLOAT32_VEC3:
+    return sample<float, 3>(base, i);
+  case ANARI_FLOAT32_VEC4:
+    return sample<float, 4>(base, i);
+  // UFIXED8
+  case ANARI_UFIXED8:
+    return sample<uint8_t, 1>(base, i);
+  case ANARI_UFIXED8_VEC2:
+    return sample<uint8_t, 2>(base, i);
+  case ANARI_UFIXED8_VEC3:
+    return sample<uint8_t, 3>(base, i);
+  case ANARI_UFIXED8_VEC4:
+    return sample<uint8_t, 4>(base, i);
+  // UFIXED8 sRGB — sampled identically to plain UFIXED8 (see sample<>).
+  case ANARI_UFIXED8_R_SRGB:
+    return sample<uint8_t, 1>(base, i);
+  case ANARI_UFIXED8_RA_SRGB:
+    return sample<uint8_t, 2>(base, i);
+  case ANARI_UFIXED8_RGB_SRGB:
+    return sample<uint8_t, 3>(base, i);
+  case ANARI_UFIXED8_RGBA_SRGB:
+    return sample<uint8_t, 4>(base, i);
+  // FIXED8 (signed normalized)
+  case ANARI_FIXED8:
+    return sample<int8_t, 1>(base, i);
+  case ANARI_FIXED8_VEC2:
+    return sample<int8_t, 2>(base, i);
+  case ANARI_FIXED8_VEC3:
+    return sample<int8_t, 3>(base, i);
+  case ANARI_FIXED8_VEC4:
+    return sample<int8_t, 4>(base, i);
+  // UFIXED16
+  case ANARI_UFIXED16:
+    return sample<uint16_t, 1>(base, i);
+  case ANARI_UFIXED16_VEC2:
+    return sample<uint16_t, 2>(base, i);
+  case ANARI_UFIXED16_VEC3:
+    return sample<uint16_t, 3>(base, i);
+  case ANARI_UFIXED16_VEC4:
+    return sample<uint16_t, 4>(base, i);
+  // FIXED16
+  case ANARI_FIXED16:
+    return sample<int16_t, 1>(base, i);
+  case ANARI_FIXED16_VEC2:
+    return sample<int16_t, 2>(base, i);
+  case ANARI_FIXED16_VEC3:
+    return sample<int16_t, 3>(base, i);
+  case ANARI_FIXED16_VEC4:
+    return sample<int16_t, 4>(base, i);
+  // UFIXED32
+  case ANARI_UFIXED32:
+    return sample<uint32_t, 1>(base, i);
+  case ANARI_UFIXED32_VEC2:
+    return sample<uint32_t, 2>(base, i);
+  case ANARI_UFIXED32_VEC3:
+    return sample<uint32_t, 3>(base, i);
+  case ANARI_UFIXED32_VEC4:
+    return sample<uint32_t, 4>(base, i);
+  // FIXED32
+  case ANARI_FIXED32:
+    return sample<int32_t, 1>(base, i);
+  case ANARI_FIXED32_VEC2:
+    return sample<int32_t, 2>(base, i);
+  case ANARI_FIXED32_VEC3:
+    return sample<int32_t, 3>(base, i);
+  case ANARI_FIXED32_VEC4:
+    return sample<int32_t, 4>(base, i);
   default:
     return {1.f, 0.f, 1.f, 1.f}; // magenta sentinel
   }
@@ -108,6 +224,30 @@ bool isPreviewableElement(anari::DataType t)
   case ANARI_UFIXED8_VEC2:
   case ANARI_UFIXED8_VEC3:
   case ANARI_UFIXED8_VEC4:
+  case ANARI_UFIXED8_R_SRGB:
+  case ANARI_UFIXED8_RA_SRGB:
+  case ANARI_UFIXED8_RGB_SRGB:
+  case ANARI_UFIXED8_RGBA_SRGB:
+  case ANARI_FIXED8:
+  case ANARI_FIXED8_VEC2:
+  case ANARI_FIXED8_VEC3:
+  case ANARI_FIXED8_VEC4:
+  case ANARI_UFIXED16:
+  case ANARI_UFIXED16_VEC2:
+  case ANARI_UFIXED16_VEC3:
+  case ANARI_UFIXED16_VEC4:
+  case ANARI_FIXED16:
+  case ANARI_FIXED16_VEC2:
+  case ANARI_FIXED16_VEC3:
+  case ANARI_FIXED16_VEC4:
+  case ANARI_UFIXED32:
+  case ANARI_UFIXED32_VEC2:
+  case ANARI_UFIXED32_VEC3:
+  case ANARI_UFIXED32_VEC4:
+  case ANARI_FIXED32:
+  case ANARI_FIXED32_VEC2:
+  case ANARI_FIXED32_VEC3:
+  case ANARI_FIXED32_VEC4:
     return true;
   default:
     return false;
