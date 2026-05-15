@@ -51,7 +51,7 @@ const ProjectContext &Application::projectContext() const
   return m_projectContext;
 }
 
-anari_viewer::WindowArray Application::setupWindows()
+tsd::ui::imgui::WindowArray Application::setupWindows()
 {
   auto windows = TSDApplication::setupWindows();
 

@@ -45,7 +45,7 @@ class Application : public tsd::ui::imgui::Application
   void renderActiveShot();
 
  protected:
-  anari_viewer::WindowArray setupWindows() override;
+  tsd::ui::imgui::WindowArray setupWindows() override;
   void uiFrameStart() override;
   void teardown() override;
   void uiMainMenuBar() override;
