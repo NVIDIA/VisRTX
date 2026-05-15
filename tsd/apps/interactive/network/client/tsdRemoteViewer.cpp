@@ -26,7 +26,7 @@ struct Application : public TSDApplication
   Application();
   ~Application() override;
 
-  anari_viewer::WindowArray setupWindows() override;
+  tsd::ui::imgui::WindowArray setupWindows() override;
   void uiMainMenuBar() override;
   void teardown() override;
   const char *getDefaultLayout() const override;
@@ -110,7 +110,7 @@ Application::~Application()
     appContext()->tsd.scene.updateDelegate().erase(m_updateDelegate);
 }
 
-anari_viewer::WindowArray Application::setupWindows()
+tsd::ui::imgui::WindowArray Application::setupWindows()
 {
   auto windows = TSDApplication::setupWindows();
 

@@ -32,7 +32,7 @@ class Application : public TSDApplication
   {}
   ~Application() override = default;
 
-  anari_viewer::WindowArray setupWindows() override
+  tsd::ui::imgui::WindowArray setupWindows() override
   {
     auto *log = new tsd::ui::imgui::Log(this, m_controller->appContext());
 
@@ -44,7 +44,7 @@ class Application : public TSDApplication
     auto *viewport = new tsd::mpi_viewer::DistributedViewport(
         this, m_controller, "Viewport");
 
-    anari_viewer::WindowArray windows = TSDApplication::setupWindows();
+    tsd::ui::imgui::WindowArray windows = TSDApplication::setupWindows();
     windows.emplace_back(viewport);
     windows.emplace_back(log);
 

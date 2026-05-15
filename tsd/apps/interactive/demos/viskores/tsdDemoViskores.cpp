@@ -32,7 +32,7 @@ class Application : public TSDApplication
   Application(int argc, const char *argv[]);
   ~Application() override;
 
-  anari_viewer::WindowArray setupWindows() override;
+  tsd::ui::imgui::WindowArray setupWindows() override;
   void uiFrameEnd() override;
   void teardown() override;
   const char *getDefaultLayout() const override;
@@ -56,7 +56,7 @@ Application::Application(int argc, const char *argv[])
 
 Application::~Application() = default;
 
-anari_viewer::WindowArray Application::setupWindows()
+tsd::ui::imgui::WindowArray Application::setupWindows()
 {
   ImNodes::CreateContext();
 

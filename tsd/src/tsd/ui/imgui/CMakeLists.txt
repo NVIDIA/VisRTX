@@ -3,8 +3,6 @@
 
 project(tsd_ui_imgui)
 
-find_package(anari REQUIRED COMPONENTS viewer)
-
 project_add_library(OBJECT)
 
 project_sources(PRIVATE
@@ -48,45 +46,12 @@ PUBLIC
   tsd_rendering
   tsd_ext_imguizmo
   tsd_ext_imoguizmo
+  tsd_ext_imgui_sdl
   tsd_ext_tinyexr
   stb_image
-PRIVATE
-  anari::anari_viewer
 )
-
-##
-## Gather anari::anari_viewer include paths for apps to have when needed
-##
-
-# Direct include dirs
-get_target_property(
-  ANARI_VIEWER_INCLUDE_DIRS
-  anari::anari_viewer
-  INTERFACE_INCLUDE_DIRECTORIES
-)
-
-# Get list of incoming dependent targets to anari::anari_viewer
-get_target_property(
-  ANARI_VIEWER_LINK_LIBRARIES
-  anari::anari_viewer
-  INTERFACE_LINK_LIBRARIES
-)
-
-# Append the list of include paths from each dependent target
-foreach(LINK_TARGET ${ANARI_VIEWER_LINK_LIBRARIES})
-  get_target_property(
-    LINK_TARGET_INCLUDE_DIRS
-    ${LINK_TARGET}
-    INTERFACE_INCLUDE_DIRECTORIES
-  )
-  if (LINK_TARGET_INCLUDE_DIRS)
-    list(APPEND ANARI_VIEWER_INCLUDE_DIRS ${LINK_TARGET_INCLUDE_DIRS})
-  endif()
-endforeach()
 
 project_include_directories(
   PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}
-  INTERFACE
-    ${ANARI_VIEWER_INCLUDE_DIRS}
 )

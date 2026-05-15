@@ -26,7 +26,7 @@ class Application : public TSDApplication
   Application(int argc, const char *argv[]) : TSDApplication(argc, argv) {}
   ~Application() override = default;
 
-  anari_viewer::WindowArray setupWindows() override
+  tsd::ui::imgui::WindowArray setupWindows() override
   {
     auto windows = TSDApplication::setupWindows();
 

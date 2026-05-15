@@ -17,14 +17,18 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TaskQueue.hpp"
-// anari_viewer
-#include <anari_viewer/Application.h>
+// SDL
+#include <SDL3/SDL.h>
 // std
 #include <filesystem>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace tsd::ui::imgui {
 
 struct Window;
+using WindowArray = std::vector<std::unique_ptr<Window>>;
 
 struct UIConfig
 {
@@ -39,11 +43,17 @@ struct CommandLineOptions
   std::string secondaryViewportLibrary;
 };
 
-class Application : public anari_viewer::Application
+class Application
 {
  public:
   Application(int argc = 0, const char **argv = nullptr);
-  ~Application() override;
+  virtual ~Application();
+
+  SDL_Renderer *sdlRenderer();
+  SDL_Window *sdlWindow();
+
+  // Start the application run loop
+  void run(int width, int height, const char *name);
 
   tsd::app::Context *appContext();
   UIConfig *uiConfig();
@@ -70,19 +80,26 @@ class Application : public anari_viewer::Application
 
  protected:
   void parseCommandLine(std::vector<std::string> &args);
-
-  // Things from anari_viewer::Application to override //
-
-  virtual anari_viewer::WindowArray setupWindows() override;
-  virtual void uiFrameStart() override;
-  virtual void teardown() override;
+  bool getWindowSize(int &width, int &height) const;
+  float getLastFrameLatency() const;
 
   // Internal API //
 
   virtual void setupImGuiStyle();
 
-  virtual void uiMainMenuBar();
+  virtual Uint32 sdlWindowFlags() const;
+  virtual WindowArray setupWindows();
 
+  virtual void mainLoopStart();
+  virtual void mainLoopEnd();
+  virtual void teardown();
+
+  virtual void uiFrameStart();
+  virtual void uiRenderStart();
+  virtual void uiRenderEnd();
+  virtual void uiFrameEnd();
+
+  virtual void uiMainMenuBar();
   void uiMainMenuBar_File();
   void uiMainMenuBar_Edit();
   void uiMainMenuBar_Tools();
@@ -113,7 +130,7 @@ class Application : public anari_viewer::Application
   void syncTsdScene();
   void teardownTsdDevice();
 
-  void setWindowArray(const anari_viewer::WindowArray &wa);
+  void setWindowArray(const WindowArray &wa);
   virtual const char *getDefaultLayout() const = 0;
 
   // Data //
@@ -133,11 +150,15 @@ class Application : public anari_viewer::Application
   CommandLineOptions m_commandLine;
 
  private:
+  void mainLoop();
   void updateWindowTitle();
 
   // Data //
 
   tsd::app::Context m_ctx;
+
+  struct AppImpl;
+  std::unique_ptr<AppImpl> m_impl;
 
   tsd::core::TaskQueue m_jobs{10};
 

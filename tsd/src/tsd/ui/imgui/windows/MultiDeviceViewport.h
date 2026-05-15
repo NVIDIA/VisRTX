@@ -43,7 +43,7 @@ struct MultiDeviceViewport : public Window
   void ui_menubar();
   void ui_handleInput();
 
-  int windowFlags() const override; // anari_viewer::Window
+  int windowFlags() const override;
 
   // ImGui input state //
 

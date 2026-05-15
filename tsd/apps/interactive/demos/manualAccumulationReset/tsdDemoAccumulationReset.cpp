@@ -21,7 +21,7 @@ class Application : public TSDApplication
   Application() = default;
   ~Application() override = default;
 
-  anari_viewer::WindowArray setupWindows() override
+  tsd::ui::imgui::WindowArray setupWindows() override
   {
     auto windows = TSDApplication::setupWindows();
 

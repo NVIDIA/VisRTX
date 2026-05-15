@@ -78,11 +78,7 @@ project(tsd LANGUAGES C CXX)
 
 ## Major dependencies ##
 
-if (TSD_BUILD_INTERACTIVE_APPS)
-  find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED COMPONENTS viewer)
-else()
-  find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
-endif()
+find_package(anari ${ANARI_REQUIRED_VERSION} REQUIRED)
 
 if (TSD_USE_CUDA)
   enable_language(CUDA)

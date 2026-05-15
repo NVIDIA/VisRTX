@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "anari_viewer/ui_anari.h"
 // SDL
 #include <SDL3/SDL.h>
 // std
@@ -47,7 +46,7 @@ struct DistributedViewport : public tsd::ui::imgui::Window
   void ui_overlay();
   void ui_timeControls();
 
-  int windowFlags() const override; // anari_viewer::Window
+  int windowFlags() const override;
 
   // Data /////////////////////////////////////////////////////////////////////
 

@@ -12,19 +12,44 @@
 #include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/tsd_font.h"
 #include "tsd/ui/imgui/windows/Window.h"
-// anari_viewer
-#include "anari_viewer/ui_anari.h"
 // SDL
+#include <SDL3/SDL.h>
 #include <SDL3/SDL_dialog.h>
-#include <SDL3/SDL_video.h>
 // std
+#include <chrono>
 #include <cstdlib>
+#include <stdexcept>
+// imgui
+#define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_sdlrenderer3.h"
 
 namespace tsd::ui::imgui {
 
-Application::Application(int argc, const char **argv)
+struct Application::AppImpl
 {
-  std::vector<std::string> args(argv, argv + argc);
+  SDL_Window *sdlWindow{nullptr};
+  SDL_Renderer *sdlRenderer{nullptr};
+  int width{0};
+  int height{0};
+  bool windowResized{true};
+  std::string name;
+
+  std::chrono::time_point<std::chrono::steady_clock> frameEndTime;
+  std::chrono::time_point<std::chrono::steady_clock> frameStartTime;
+
+  WindowArray windows;
+
+  void init(Uint32 windowFlags);
+  void renderWindows();
+  void cleanup();
+};
+
+Application::Application(int argc, const char **argv) : m_impl(new AppImpl)
+{
+  std::vector<std::string> args;
+  if (argv != nullptr)
+    args.assign(argv, argv + argc);
   auto *ctx = appContext();
   parseCommandLine(args);
   ctx->parseCommandLine(args);
@@ -33,6 +58,29 @@ Application::Application(int argc, const char **argv)
 }
 
 Application::~Application() = default;
+
+SDL_Renderer *Application::sdlRenderer()
+{
+  return m_impl->sdlRenderer;
+}
+
+SDL_Window *Application::sdlWindow()
+{
+  return m_impl->sdlWindow;
+}
+
+void Application::run(int width, int height, const char *name)
+{
+  m_impl->width = width;
+  m_impl->height = height;
+  m_impl->name = name;
+
+  m_impl->init(sdlWindowFlags());
+  m_impl->windows = setupWindows();
+  mainLoop();
+  teardown();
+  m_impl->cleanup();
+}
 
 tsd::app::Context *Application::appContext()
 {
@@ -48,13 +96,6 @@ CommandLineOptions *Application::commandLineOptions()
 {
   return &m_commandLine;
 }
-
-#ifdef TSD_USE_LUA
-ExtensionManager *Application::extensionManager() const
-{
-  return m_extensionManager.get();
-}
-#endif
 
 void Application::getFilenameFromDialog(std::string &filenameOut, bool save)
 {
@@ -99,6 +140,13 @@ void Application::saveDefaultApplicationSettings()
   saveGlobalApplicationSettings();
 }
 
+#ifdef TSD_USE_LUA
+ExtensionManager *Application::extensionManager() const
+{
+  return m_extensionManager.get();
+}
+#endif
+
 void Application::parseCommandLine(std::vector<std::string> &args)
 {
   for (int i = 1; i < args.size(); i++) {
@@ -116,130 +164,17 @@ void Application::parseCommandLine(std::vector<std::string> &args)
   }
 }
 
-anari_viewer::WindowArray Application::setupWindows()
+bool Application::getWindowSize(int &width, int &height) const
 {
-  anari_viewer::ui::init();
-
-  ImGuiIO &io = ImGui::GetIO();
-  io.IniFilename = nullptr;
-  auto *font = io.Fonts->AddFontFromMemoryCompressedTTF(
-      tsd_font_compressed_data, tsd_font_compressed_size, 20.f);
-  io.Fonts->ConfigData[0].FontDataOwnedByAtlas = false;
-  io.FontDefault = font;
-
-  auto *window = sdlWindow();
-  SDL_MaximizeWindow(window);
-  m_uiConfig.fontScale = SDL_GetWindowDisplayScale(window);
-
-  setupImGuiStyle();
-
-  if (commandLineOptions()->useDefaultLayout)
-    ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
-
-  m_appSettingsDialog = std::make_unique<AppSettingsDialog>(this);
-  m_taskModal = std::make_unique<BlockingTaskModal>(this);
-  m_offlineRenderModal = std::make_unique<OfflineRenderModal>(this);
-  m_fileDialog = std::make_unique<ImportFileDialog>(this);
-  m_exportNanoVDBFileDialog = std::make_unique<ExportNanoVDBFileDialog>(this);
-  m_vorticityDialog = std::make_unique<VorticityDialog>(this);
-  m_cuttingPlaneDialog = std::make_unique<CuttingPlaneDialog>(this);
-
-  m_applicationName = SDL_GetWindowTitle(sdlWindow());
-  updateWindowTitle();
-
-  loadGlobalApplicationSettings();
-  m_appSettingsDialog->applySettings();
-
-  SDL_SetRenderVSync(sdlRenderer(), 1);
-
-  m_extensionManager = std::make_unique<ExtensionManager>();
-  m_extensionManager->initialize(appContext());
-
-  return {};
+  width = m_impl->width;
+  height = m_impl->height;
+  return m_impl->windowResized;
 }
 
-void Application::uiFrameStart()
+float Application::getLastFrameLatency() const
 {
-  const ImGuiIO &io = ImGui::GetIO();
-
-  m_ctx.tsd.animationMgr.tick(ImGui::GetIO().DeltaTime);
-
-  if (!m_filenameToSaveNextFrame.empty()) {
-    saveApplicationState(m_filenameToSaveNextFrame.c_str());
-    m_filenameToSaveNextFrame.clear();
-  } else if (!m_filenameToLoadNextFrame.empty()) {
-    loadStateForNextFrame();
-  }
-
-  // Main Menu //
-
-  if (ImGui::BeginMainMenuBar()) {
-    uiMainMenuBar();
-    ImGui::EndMainMenuBar();
-  }
-
-  // Modals //
-
-  bool modalActive = false;
-  if (m_appSettingsDialog->visible()) {
-    m_appSettingsDialog->renderUI();
-    modalActive = true;
-  }
-
-  if (m_taskModal->visible()) {
-    m_taskModal->renderUI();
-    modalActive = true;
-  }
-
-  if (m_offlineRenderModal->visible()) {
-    m_offlineRenderModal->renderUI();
-    modalActive = true;
-  }
-
-  if (m_fileDialog->visible()) {
-    m_fileDialog->renderUI();
-    modalActive = true;
-  }
-
-  // Handle app shortcuts //
-  if (m_exportNanoVDBFileDialog->visible()) {
-    m_exportNanoVDBFileDialog->renderUI();
-    modalActive = true;
-  }
-
-  if (m_vorticityDialog->visible()) {
-    m_vorticityDialog->renderUI();
-    modalActive = true;
-  }
-
-  if (m_cuttingPlaneDialog->visible()) {
-    m_cuttingPlaneDialog->renderUI();
-    modalActive = true;
-  }
-
-  if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space))
-    m_ctx.tsd.animationMgr.togglePlay();
-
-  if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S))
-    this->getFilenameFromDialog(m_filenameToSaveNextFrame, true);
-  else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_S))
-    doSave("state.tsd");
-  else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
-    doSave();
-
-  if (ImGui::IsKeyPressed(ImGuiKey_F1, false))
-    printf("%s\n", ImGui::SaveIniSettingsToMemory());
-
-  if (!modalActive && ImGui::IsKeyChordPressed(ImGuiKey_Escape))
-    m_ctx.clearSelected();
-}
-
-void Application::teardown()
-{
-  teardownUsdDevice();
-  teardownTsdDevice();
-  appContext()->anari.releaseAllDevices();
-  anari_viewer::ui::shutdown();
+  auto diff = m_impl->frameEndTime - m_impl->frameStartTime;
+  return std::chrono::duration<float>(diff).count();
 }
 
 void Application::setupImGuiStyle()
@@ -370,6 +305,160 @@ void Application::setupImGuiStyle()
   style.Colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.0f, 1.0f, 1.0f, 0.7f);
   style.Colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.8f, 0.8f, 0.8f, 0.2f);
   style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.8f, 0.8f, 0.8f, 0.35f);
+}
+
+Uint32 Application::sdlWindowFlags() const
+{
+  return SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN
+      | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+}
+
+WindowArray Application::setupWindows()
+{
+  ImGuiIO &io = ImGui::GetIO();
+  io.IniFilename = nullptr;
+  auto *font = io.Fonts->AddFontFromMemoryCompressedTTF(
+      tsd_font_compressed_data, tsd_font_compressed_size, 20.f);
+  io.Fonts->ConfigData[0].FontDataOwnedByAtlas = false;
+  io.FontDefault = font;
+
+  auto *window = sdlWindow();
+  SDL_MaximizeWindow(window);
+  m_uiConfig.fontScale = SDL_GetWindowDisplayScale(window);
+
+  setupImGuiStyle();
+
+  if (commandLineOptions()->useDefaultLayout)
+    ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
+
+  m_appSettingsDialog = std::make_unique<AppSettingsDialog>(this);
+  m_taskModal = std::make_unique<BlockingTaskModal>(this);
+  m_offlineRenderModal = std::make_unique<OfflineRenderModal>(this);
+  m_fileDialog = std::make_unique<ImportFileDialog>(this);
+  m_exportNanoVDBFileDialog = std::make_unique<ExportNanoVDBFileDialog>(this);
+  m_vorticityDialog = std::make_unique<VorticityDialog>(this);
+  m_cuttingPlaneDialog = std::make_unique<CuttingPlaneDialog>(this);
+
+  m_applicationName = SDL_GetWindowTitle(sdlWindow());
+  updateWindowTitle();
+
+  loadGlobalApplicationSettings();
+  m_appSettingsDialog->applySettings();
+
+  SDL_SetRenderVSync(sdlRenderer(), 1);
+
+  m_extensionManager = std::make_unique<ExtensionManager>();
+  m_extensionManager->initialize(appContext());
+
+  return {};
+}
+
+void Application::mainLoopStart()
+{
+  // no-op
+}
+
+void Application::mainLoopEnd()
+{
+  // no-op
+}
+
+void Application::teardown()
+{
+  teardownUsdDevice();
+  teardownTsdDevice();
+  appContext()->anari.releaseAllDevices();
+}
+
+void Application::uiFrameStart()
+{
+  const ImGuiIO &io = ImGui::GetIO();
+
+  m_ctx.tsd.animationMgr.tick(ImGui::GetIO().DeltaTime);
+
+  if (!m_filenameToSaveNextFrame.empty()) {
+    saveApplicationState(m_filenameToSaveNextFrame.c_str());
+    m_filenameToSaveNextFrame.clear();
+  } else if (!m_filenameToLoadNextFrame.empty()) {
+    loadStateForNextFrame();
+  }
+
+  // Main Menu //
+
+  if (ImGui::BeginMainMenuBar()) {
+    uiMainMenuBar();
+    ImGui::EndMainMenuBar();
+  }
+
+  // Modals //
+
+  bool modalActive = false;
+  if (m_appSettingsDialog->visible()) {
+    m_appSettingsDialog->renderUI();
+    modalActive = true;
+  }
+
+  if (m_taskModal->visible()) {
+    m_taskModal->renderUI();
+    modalActive = true;
+  }
+
+  if (m_offlineRenderModal->visible()) {
+    m_offlineRenderModal->renderUI();
+    modalActive = true;
+  }
+
+  if (m_fileDialog->visible()) {
+    m_fileDialog->renderUI();
+    modalActive = true;
+  }
+
+  // Handle app shortcuts //
+  if (m_exportNanoVDBFileDialog->visible()) {
+    m_exportNanoVDBFileDialog->renderUI();
+    modalActive = true;
+  }
+
+  if (m_vorticityDialog->visible()) {
+    m_vorticityDialog->renderUI();
+    modalActive = true;
+  }
+
+  if (m_cuttingPlaneDialog->visible()) {
+    m_cuttingPlaneDialog->renderUI();
+    modalActive = true;
+  }
+
+  if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space))
+    m_ctx.tsd.animationMgr.togglePlay();
+
+  if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_S))
+    this->getFilenameFromDialog(m_filenameToSaveNextFrame, true);
+  else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Alt | ImGuiKey_S))
+    doSave("state.tsd");
+  else if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
+    doSave();
+
+  if (ImGui::IsKeyPressed(ImGuiKey_F1, false))
+    printf("%s\n", ImGui::SaveIniSettingsToMemory());
+
+  if (!modalActive && ImGui::IsKeyChordPressed(ImGuiKey_Escape))
+    m_ctx.clearSelected();
+}
+
+void Application::uiRenderStart()
+{
+  // no-op
+}
+
+void Application::uiRenderEnd()
+{
+  // no-op
+}
+
+void Application::uiFrameEnd()
+{
+  // no-op
 }
 
 void Application::uiMainMenuBar()
@@ -529,6 +618,7 @@ void Application::uiMainMenuBar_Tools()
     ImGui::EndMenu();
   }
 }
+
 void Application::uiMainMenuBar_Lua()
 {
 #ifdef TSD_USE_LUA
@@ -928,10 +1018,83 @@ void Application::teardownTsdDevice()
   m_tsdDevice.renderIndex = nullptr;
 }
 
-void Application::setWindowArray(const anari_viewer::WindowArray &wa)
+void Application::setWindowArray(const WindowArray &wa)
 {
   for (auto &w : wa)
     m_windows.push_back((Window *)w.get());
+}
+
+void Application::mainLoop()
+{
+  auto window = sdlWindow();
+
+  bool open = true;
+  while (open) {
+    m_impl->frameStartTime = m_impl->frameEndTime;
+    m_impl->frameEndTime = std::chrono::steady_clock::now();
+    mainLoopStart();
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+      ImGui_ImplSDL3_ProcessEvent(&event);
+      if (event.type == SDL_EVENT_QUIT)
+        open = false;
+      if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED
+          && event.window.windowID == SDL_GetWindowID(window))
+        open = false;
+    }
+
+    ImGui_ImplSDLRenderer3_NewFrame();
+    ImGui_ImplSDL3_NewFrame();
+
+    ImGui::NewFrame();
+
+    if (ImGui::IsKeyChordPressed(ImGuiKey_Q | ImGuiMod_Ctrl))
+      open = false;
+
+    uiFrameStart();
+
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking
+        | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse
+        | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
+        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+    ImGuiViewport *viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+    ImGui::Begin("MainDockSpace", nullptr, windowFlags);
+    ImGui::PopStyleVar(3);
+
+    ImGuiID dockspaceId = ImGui::GetID("MainDockSpaceID");
+    ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+
+    m_impl->renderWindows();
+
+    ImGui::End();
+
+    ImGui::Render();
+
+    uiRenderStart();
+    ImGuiIO &io = ImGui::GetIO();
+    m_impl->width = io.DisplaySize.x;
+    m_impl->height = io.DisplaySize.y;
+    auto sdlRenderer = m_impl->sdlRenderer;
+    SDL_SetRenderDrawColorFloat(sdlRenderer, 0.1f, 0.1f, 0.1f, 1.f);
+    SDL_RenderClear(sdlRenderer);
+    ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), sdlRenderer);
+    SDL_RenderPresent(sdlRenderer);
+    uiRenderEnd();
+
+    m_impl->windowResized = false;
+
+    uiFrameEnd();
+    mainLoopEnd();
+  }
 }
 
 void Application::updateWindowTitle()
@@ -946,6 +1109,74 @@ void Application::updateWindowTitle()
                                             : m_currentSessionFilename;
 
   SDL_SetWindowTitle(w, title.c_str());
+}
+
+void Application::AppImpl::init(Uint32 windowFlags)
+{
+  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
+    throw std::runtime_error("failed to initialize SDL");
+
+  sdlWindow = SDL_CreateWindow(name.c_str(), width, height, windowFlags);
+  if (sdlWindow == nullptr)
+    throw std::runtime_error("failed to create SDL window");
+
+  sdlRenderer = SDL_CreateRenderer(sdlWindow, nullptr);
+  SDL_SetWindowPosition(
+      sdlWindow, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+  if (sdlRenderer == nullptr) {
+    SDL_DestroyWindow(sdlWindow);
+    SDL_Quit();
+    throw std::runtime_error("failed to create SDL renderer");
+  }
+
+  SDL_ShowWindow(sdlWindow);
+
+  const float scale = SDL_GetWindowPixelDensity(sdlWindow);
+  SDL_SetRenderScale(sdlRenderer, scale, scale);
+
+  ImGui::CreateContext();
+  ImGui::StyleColorsDark();
+
+  ImGui_ImplSDL3_InitForSDLRenderer(sdlWindow, sdlRenderer);
+  ImGui_ImplSDLRenderer3_Init(sdlRenderer);
+
+  ImGuiIO &io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+  ImGuiStyle &style = ImGui::GetStyle();
+  if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+
+  style.WindowRounding = 0.0f;
+  style.ChildRounding = 0.f;
+  style.FrameRounding = 0.f;
+  style.PopupRounding = 0.f;
+  style.ScrollbarRounding = 0.f;
+  style.GrabRounding = 0.f;
+  style.TabRounding = 0.f;
+}
+
+void Application::AppImpl::renderWindows()
+{
+  for (auto &w : windows)
+    w->renderUI();
+}
+
+void Application::AppImpl::cleanup()
+{
+  windows.clear();
+
+  ImGui_ImplSDLRenderer3_Shutdown();
+  ImGui_ImplSDL3_Shutdown();
+  ImGui::DestroyContext();
+
+  SDL_DestroyRenderer(sdlRenderer);
+  SDL_DestroyWindow(sdlWindow);
+  SDL_Quit();
+
+  sdlRenderer = nullptr;
+  sdlWindow = nullptr;
 }
 
 } // namespace tsd::ui::imgui

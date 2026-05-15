@@ -20,6 +20,7 @@ add_subdirectory(
 )
 
 if(TSD_BUILD_UI_LIBRARY)
+  add_subdirectory(tsd_imgui_sdl)
   add_subdirectory(tsd_imguizmo)
 endif()
 

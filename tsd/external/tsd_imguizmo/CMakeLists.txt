@@ -24,5 +24,5 @@ PUBLIC
 project_link_libraries(
 PRIVATE
   anari::helium
-  anari::anari_viewer
+  tsd_ext_imgui_sdl
 )

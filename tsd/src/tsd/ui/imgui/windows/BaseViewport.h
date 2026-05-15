@@ -6,6 +6,8 @@
 #include "Window.h"
 // tsd_rendering
 #include "tsd/rendering/pipeline/ImagePipeline.h"
+// imgui
+#include <imgui.h>
 // ImGuizmo
 #include <ImGuizmo.h>
 // imoguizmo
@@ -95,7 +97,7 @@ struct BaseViewport : public Window
   bool m_showAnimationSlider{true};
 
  private:
-  int windowFlags() const override; // anari_viewer::Window
+  int windowFlags() const override;
   void applyViewMatrixToArcball(const float *viewMat);
 
   tsd::rendering::ImagePipeline m_pipeline;
