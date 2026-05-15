@@ -10,6 +10,9 @@ namespace detail {
 tsd::math::float3 interpolateColor(
     const std::vector<ColorPoint> &controlPoints, float x)
 {
+  if (controlPoints.empty())
+    return tsd::math::float3(0.f);
+
   auto first = controlPoints.front();
   if (x <= first.x)
     return tsd::math::float3(first.y, first.z, first.w);
@@ -25,13 +28,16 @@ tsd::math::float3 interpolateColor(
   }
 
   auto last = controlPoints.back();
-  return tsd::math::float3(last.x, last.y, last.z);
+  return tsd::math::float3(last.y, last.z, last.w);
 }
 
 float interpolateOpacity(
     const std::vector<OpacityPoint> &controlPoints, float x)
 
 {
+  if (controlPoints.empty())
+    return 0.f;
+
   auto first = controlPoints.front();
   if (x <= first.x)
     return first.y;
