@@ -51,6 +51,21 @@ float interpolateOpacity(
 
 } // namespace detail
 
+TransferFunction makeDefaultTransferFunction()
+{
+  TransferFunction tf;
+  const auto &viridis = colormap::viridis;
+  const float denom = float(viridis.size() - 1);
+  tf.colorPoints.reserve(viridis.size());
+  for (size_t i = 0; i < viridis.size(); ++i) {
+    const auto &c = viridis[i];
+    tf.colorPoints.push_back({float(i) / denom, c.x, c.y, c.z});
+  }
+  tf.opacityPoints = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+  tf.range = {};
+  return tf;
+}
+
 std::vector<math::float4> makeDefaultColorMap(size_t size)
 {
   std::vector<math::float4> colors;

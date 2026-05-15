@@ -30,6 +30,9 @@ struct TransferFunction
   math::box1 range = {};
 };
 
+// Default TF (viridis colors, linear opacity ramp, unset range).
+TransferFunction makeDefaultTransferFunction();
+
 std::vector<math::float4> makeDefaultColorMap(size_t size = 256);
 
 template <typename T>

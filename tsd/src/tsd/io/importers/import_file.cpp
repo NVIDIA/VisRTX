@@ -124,17 +124,8 @@ void import_files(Scene &s,
     tsd::core::TransferFunction tf,
     tsd::scene::LayerNodeRef root)
 {
-  if (tf.colorPoints.empty() && tf.opacityPoints.empty()) {
-    for (const auto &c : core::colormap::viridis) {
-      tf.colorPoints.push_back({float(tf.colorPoints.size())
-              / float(core::colormap::viridis.size() - 1),
-          c.x,
-          c.y,
-          c.z});
-    }
-    tf.opacityPoints = {{0.0f, 0.0f}, {1.0f, 1.0f}};
-    tf.range = {};
-  }
+  if (tf.colorPoints.empty() && tf.opacityPoints.empty())
+    tf = tsd::core::makeDefaultTransferFunction();
 
   const size_t rank = s.mpiRank();
   const size_t numRanks = s.mpiNumRanks();
@@ -151,20 +142,8 @@ void import_animations(Scene &scene,
     const std::vector<ImportAnimationFiles> &files,
     tsd::scene::LayerNodeRef root)
 {
-  tsd::core::TransferFunction tf;
-  if (tf.colorPoints.empty() && tf.opacityPoints.empty()) {
-    for (const auto &c : core::colormap::viridis) {
-      tf.colorPoints.push_back({float(tf.colorPoints.size())
-              / float(core::colormap::viridis.size() - 1),
-          c.x,
-          c.y,
-          c.z});
-    }
-    tf.opacityPoints = {{0.0f, 0.0f}, {1.0f, 1.0f}};
-    tf.range = {};
-  }
-
-  import_animations(scene, animMgr, files, tf, root);
+  import_animations(
+      scene, animMgr, files, tsd::core::makeDefaultTransferFunction(), root);
 }
 
 void import_animations(Scene &scene,
