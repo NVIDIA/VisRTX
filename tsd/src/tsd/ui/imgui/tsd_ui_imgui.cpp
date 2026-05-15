@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
+#include "tsd/ui/imgui/ArrayPreview.h"
 // tsd_core
 #include "tsd/core/ColorMapUtil.hpp"
 // std
@@ -24,6 +25,8 @@ static void buildUI_array_info_tooltip_text(
     const tsd::scene::Scene &scene, size_t idx)
 {
   const auto &a = *scene.getObject<tsd::scene::Array>(idx);
+  if (tsd::ui::buildUI_array_preview(a))
+    ImGui::Separator();
   ImGui::Text(" idx: [%zu]", idx);
   ImGui::Text("name: '%s'", a.name().c_str());
   const auto t = a.type();
@@ -435,6 +438,12 @@ void buildUI_object(tsd::scene::Object &o,
       oTitle += obj->name();
       if (ImGui::MenuItem(oTitle.c_str()))
         paramForSelection->setValue({typeForSelection, i});
+
+      if (anari::isArray(typeForSelection) && ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        buildUI_array_info_tooltip_text(scene, i);
+        ImGui::EndTooltip();
+      }
 
       ImGui::PopID();
     }

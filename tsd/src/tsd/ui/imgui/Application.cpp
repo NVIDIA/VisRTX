@@ -10,6 +10,7 @@
 #include "tsd/rendering/view/Manipulator.hpp"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
+#include "tsd/ui/imgui/ArrayPreview.h"
 #include "tsd/ui/imgui/tsd_font.h"
 #include "tsd/ui/imgui/windows/Window.h"
 // SDL
@@ -347,6 +348,8 @@ WindowArray Application::setupWindows()
 
   SDL_SetRenderVSync(sdlRenderer(), 1);
 
+  tsd::ui::setupArrayPreview(sdlRenderer());
+
   m_extensionManager = std::make_unique<ExtensionManager>();
   m_extensionManager->initialize(appContext());
 
@@ -365,6 +368,7 @@ void Application::mainLoopEnd()
 
 void Application::teardown()
 {
+  tsd::ui::teardownArrayPreview();
   teardownUsdDevice();
   teardownTsdDevice();
   appContext()->anari.releaseAllDevices();

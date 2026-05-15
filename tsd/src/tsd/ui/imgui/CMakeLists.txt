@@ -29,6 +29,7 @@ project_sources(PRIVATE
   windows/Viewport.cpp
   windows/Window.cpp
   Application.cpp
+  ArrayPreview.cpp
   ExtensionManager.cpp
   tsd_ui_imgui.cpp
 )
