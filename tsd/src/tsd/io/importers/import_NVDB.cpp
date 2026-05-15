@@ -52,6 +52,13 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
     auto grid = nanovdb::io::readGrid(filepath);
     auto metadata = grid.gridMetaData();
 
+    if (!metadata) {
+      logError(
+          "[import_NVDB] '%s' contains no readable grid metadata", filepath);
+      scene.removeObject(field.data());
+      return {};
+    }
+
     bool hasActiveVoxels = false;
     switch (metadata->gridType()) {
     case nanovdb::GridType::Fp4:
