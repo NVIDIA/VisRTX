@@ -7,9 +7,11 @@
 #include "tsd/core/FlatMap.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace tsd::animation {
 struct AnimationManager;
@@ -172,6 +174,20 @@ enum class ImporterType
 
 using ImportFile = std::pair<ImporterType, std::string>;
 using ImportAnimationFiles = std::pair<ImporterType, std::vector<std::string>>;
+
+struct UserColorMap
+{
+  std::string name;
+  std::filesystem::path path;
+  std::vector<tsd::core::ColorPoint> colorPoints;
+};
+
+std::filesystem::path userColorMapDirectory();
+std::vector<UserColorMap> loadUserColorMaps();
+std::vector<UserColorMap> loadUserColorMaps(
+    const std::filesystem::path &directory);
+tsd::core::TransferFunction importTransferFunction(
+    const std::string &filepath);
 
 void import_file(Scene &scene,
     tsd::animation::AnimationManager &animMgr,

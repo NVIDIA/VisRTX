@@ -7,6 +7,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/Token.hpp"
 // tsd_io
+#include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/dds.h"
 // mikktspace
 #include "mikktspace.h"
@@ -23,8 +24,11 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <system_error>
 #include <vector>
 
 using U64Vec2 = tsd::math::vec<std::uint64_t, 2>;
@@ -699,6 +703,13 @@ static core::TransferFunction import1dtTransferFunction(
           filepath.c_str());
       return {};
     }
+    if (colors.size() < 2) {
+      logError(
+          "[import1dtTransferFunction] Expected at least two RGBA entries in "
+          "file: %s",
+          filepath.c_str());
+      return {};
+    }
 
     const float normalizer = 1.0f / static_cast<float>(colors.size() - 1);
     for (auto &c : colors)
@@ -913,6 +924,86 @@ core::TransferFunction importTransferFunction(const std::string &filepath)
   logError(
       "[importTransferFunction] Unsupported file extension: %s", ext.c_str());
   return {};
+}
+
+std::filesystem::path userColorMapDirectory()
+{
+#ifdef _WIN32
+  if (const char *appData = std::getenv("APPDATA"); appData != nullptr)
+    return std::filesystem::path(appData) / "tsd" / "colormaps";
+#else
+  if (const char *home = std::getenv("HOME"); home != nullptr)
+    return std::filesystem::path(home) / ".config" / "tsd" / "colormaps";
+#endif
+
+  return std::filesystem::path("colormaps");
+}
+
+std::vector<UserColorMap> loadUserColorMaps()
+{
+  return loadUserColorMaps(userColorMapDirectory());
+}
+
+std::vector<UserColorMap> loadUserColorMaps(
+    const std::filesystem::path &directory)
+{
+  namespace fs = std::filesystem;
+
+  std::error_code ec;
+  if (!fs::exists(directory, ec) || !fs::is_directory(directory, ec))
+    return {};
+
+  std::vector<fs::path> files;
+  for (fs::directory_iterator it(directory, ec), end; !ec && it != end;
+      it.increment(ec)) {
+    const auto &entry = *it;
+    if (!entry.is_regular_file(ec))
+      continue;
+
+    auto ext = entry.path().extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext == ".1dt")
+      files.push_back(entry.path());
+  }
+
+  if (ec) {
+    logWarning("[loadUserColorMaps] Failed to scan directory '%s': %s",
+        directory.string().c_str(),
+        ec.message().c_str());
+  }
+
+  std::sort(files.begin(), files.end(), [](const fs::path &a,
+                                      const fs::path &b) {
+    return a.stem().string() < b.stem().string();
+  });
+
+  std::vector<UserColorMap> colorMaps;
+  for (const auto &file : files) {
+    auto tfn = importTransferFunction(file.string());
+    if (tfn.colorPoints.size() < 2) {
+      logWarning("[loadUserColorMaps] Skipping color map '%s'",
+          file.string().c_str());
+      continue;
+    }
+
+    UserColorMap colorMap;
+    colorMap.name = file.stem().string();
+    colorMap.path = file;
+    colorMap.colorPoints = std::move(tfn.colorPoints);
+
+    auto existing = std::find_if(colorMaps.begin(), colorMaps.end(),
+        [&](const UserColorMap &other) { return other.name == colorMap.name; });
+    if (existing != colorMaps.end()) {
+      logStatus("[loadUserColorMaps] Replaced color map '%s' from '%s'",
+          colorMap.name.c_str(),
+          colorMap.path.string().c_str());
+      *existing = std::move(colorMap);
+    } else {
+      colorMaps.push_back(std::move(colorMap));
+    }
+  }
+
+  return colorMaps;
 }
 
 #if TSD_USE_VTK

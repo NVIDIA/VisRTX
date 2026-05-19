@@ -118,6 +118,24 @@ Start secondary viewport on another ANARI library:
 ./tsdViewer -sv visgl -gltf scene.gltf
 ```
 
+## User Color Maps
+
+The transfer-function editor loads optional RGB color-map presets once at
+startup from the standard TSD config directory:
+
+- Linux/macOS: `~/.config/tsd/colormaps/`
+- Windows: `%APPDATA%/tsd/colormaps/`
+
+Only `.1dt` files are loaded. The filename stem becomes the color-map name in
+the editor, so `Magma Soft.1dt` appears as `Magma Soft`. Files are loaded in
+alphabetical order after the built-in palettes; if a user file has the same
+name as an earlier palette, it replaces that palette.
+
+Each non-comment line should contain whitespace-separated `r g b a` values.
+The auto-loaded presets use only RGB values; alpha is ignored so selecting one
+does not change the current opacity curve. Manual transfer-function load/save
+continues to use `.1dt` as full RGBA transfer-function state.
+
 ## Environment
 
 `TSD_ANARI_LIBRARIES` controls the ANARI library list shown in the UI (comma-

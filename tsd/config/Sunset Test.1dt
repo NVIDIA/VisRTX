@@ -1,0 +1,8 @@
+# Sunset Test - sample RGB palette for TSD
+# Rows are r g b a; alpha is ignored by auto-loaded RGB palettes.
+0.050 0.070 0.180 1.0
+0.190 0.120 0.330 0.8
+0.470 0.160 0.390 0.6
+0.800 0.260 0.300 0.4
+0.980 0.520 0.220 0.2
+1.000 0.840 0.430 0.0

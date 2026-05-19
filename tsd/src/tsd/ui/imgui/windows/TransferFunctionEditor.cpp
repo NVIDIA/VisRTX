@@ -8,7 +8,7 @@
 // tsd_app
 #include "tsd/app/Context.h"
 // tsd_io
-#include "tsd/io/importers/detail/importer_common.hpp"
+#include "tsd/io/importers.hpp"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
@@ -520,6 +520,25 @@ void TransferFunctionEditor::loadDefaultMaps()
     m_tfnsNames.push_back(name);
   };
 
+  auto addColorPoints =
+      [&](const std::vector<tsd::core::ColorPoint> &colorPoints,
+          const std::string &name,
+          const std::string &source) {
+        auto existing =
+            std::find(m_tfnsNames.begin(), m_tfnsNames.end(), name);
+        if (existing != m_tfnsNames.end()) {
+          auto index = std::distance(m_tfnsNames.begin(), existing);
+          m_tfnsColorPoints[index] = colorPoints;
+          tsd::core::logStatus(
+              ("[tfn_editor] Replaced color map '" + name + "' from "
+                  + source)
+                  .c_str());
+        } else {
+          m_tfnsColorPoints.push_back(colorPoints);
+          m_tfnsNames.push_back(name);
+        }
+      };
+
   addColorMap(tsd::core::colormap::jet, "Jet");
   addColorMap(tsd::core::colormap::cool_to_warm, "Cool to Warm");
   addColorMap(tsd::core::colormap::viridis, "Viridis");
@@ -527,16 +546,18 @@ void TransferFunctionEditor::loadDefaultMaps()
   addColorMap(tsd::core::colormap::inferno, "Inferno");
   addColorMap(tsd::core::colormap::ice_fire, "Ice Fire");
   addColorMap(tsd::core::colormap::grayscale, "Grayscale");
+
+  for (const auto &colorMap : tsd::io::loadUserColorMaps()) {
+    addColorPoints(
+        colorMap.colorPoints, colorMap.name, colorMap.path.string());
+  }
 };
 
 void TransferFunctionEditor::loadColormap(
     const std::string &filepath, const std::string &name)
 {
-  // Use the centralized import function
-  auto &scene = appContext()->tsd.scene;
-
   // Extract control points from the loaded transfer function
-    core::TransferFunction tfn = tsd::io::importTransferFunction(filepath);
+  core::TransferFunction tfn = tsd::io::importTransferFunction(filepath);
 
   if (tfn.colorPoints.empty() || tfn.opacityPoints.empty()) {
     tsd::core::logError(
