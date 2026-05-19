@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace tsd::ui::imgui {
 struct LayerTree;
@@ -56,7 +57,8 @@ class Application : public tsd::ui::imgui::Application
   {
     None,
     NewProject,
-    OpenProject
+    OpenProject,
+    OpenRecentProject
   };
 
   bool saveProject();
@@ -70,10 +72,20 @@ class Application : public tsd::ui::imgui::Application
   std::string saveLayout() const;
   void loadLayout(const std::string &layout);
   void requestDirtyAction(PendingDirtyAction action);
+  void requestOpenRecentProject(const std::filesystem::path &directory);
   void continueDirtyAction();
+  void loadRecentProjects();
+  void saveRecentProjects() const;
+  void addRecentProject(const std::filesystem::path &directory);
+  void removeRecentProject(const std::filesystem::path &directory);
+  void clearRecentProjects();
+  void uiRecentProjectsMenu();
+  std::filesystem::path recentProjectsFile() const;
 
   ProjectContext m_projectContext;
   std::filesystem::path m_initialProjectDirectory;
+  std::filesystem::path m_pendingProjectDirectory;
+  std::vector<std::filesystem::path> m_recentProjects;
   PendingDirtyAction m_pendingDirtyAction{PendingDirtyAction::None};
 
   tsd::ui::imgui::Viewport *m_viewport{nullptr};

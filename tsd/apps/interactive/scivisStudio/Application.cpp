@@ -22,13 +22,59 @@
 
 #include "imgui.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdlib>
+#include <exception>
 #include <fstream>
+#include <system_error>
 
 namespace tsd::scivis_studio {
 
 using TSDApplication = tsd::ui::imgui::Application;
 namespace tsd_ui = tsd::ui::imgui;
+
+namespace {
+
+constexpr std::size_t MAX_RECENT_PROJECTS = 10;
+
+std::filesystem::path studioConfigDirectory()
+{
+#ifdef _WIN32
+  if (const char *appData = std::getenv("APPDATA"); appData != nullptr)
+    return std::filesystem::path(appData) / "tsd" / "studio";
+#else
+  if (const char *home = std::getenv("HOME"); home != nullptr)
+    return std::filesystem::path(home) / ".config" / "tsd" / "studio";
+#endif
+
+  return std::filesystem::path("studio");
+}
+
+std::filesystem::path normalizedAbsolutePath(const std::filesystem::path &path)
+{
+  std::error_code ec;
+  auto absolute = std::filesystem::absolute(path, ec);
+  if (ec)
+    absolute = path;
+  return absolute.lexically_normal();
+}
+
+bool pathsReferToSameProject(
+    const std::filesystem::path &a, const std::filesystem::path &b)
+{
+  std::error_code ec;
+  if (std::filesystem::exists(a, ec) && !ec && std::filesystem::exists(b, ec)
+      && !ec) {
+    const bool same = std::filesystem::equivalent(a, b, ec);
+    if (!ec && same)
+      return true;
+  }
+
+  return normalizedAbsolutePath(a) == normalizedAbsolutePath(b);
+}
+
+} // namespace
 
 Application::Application(int argc, const char **argv)
     : TSDApplication(argc, argv), m_projectContext(appContext())
@@ -54,6 +100,7 @@ const ProjectContext &Application::projectContext() const
 tsd::ui::imgui::WindowArray Application::setupWindows()
 {
   auto windows = TSDApplication::setupWindows();
+  loadRecentProjects();
 
   auto *ctx = appContext();
   m_viewport = new tsd_ui::Viewport(this, &ctx->view.manipulator, "Viewport");
@@ -156,6 +203,8 @@ bool Application::saveProjectAs(const std::filesystem::path &directory)
       &error);
   if (!ok)
     tsd::core::logError("[SciVisStudio] Save failed: %s", error.c_str());
+  else
+    addRecentProject(directory);
   return ok;
 }
 
@@ -177,6 +226,7 @@ bool Application::openProject(const std::filesystem::path &directory)
   loadWindowSettings(scratch.root()["windows"]);
   loadLayout(layout);
   loadApplicationSettings(scratch.root());
+  addRecentProject(directory);
   return true;
 }
 
@@ -200,8 +250,18 @@ void Application::requestDirtyAction(PendingDirtyAction action)
 
   m_pendingDirtyAction = action;
   m_confirmDiscardDialog->configure([this]() { continueDirtyAction(); },
-      [this]() { m_pendingDirtyAction = PendingDirtyAction::None; });
+      [this]() {
+        m_pendingDirtyAction = PendingDirtyAction::None;
+        m_pendingProjectDirectory.clear();
+      });
   m_confirmDiscardDialog->show();
+}
+
+void Application::requestOpenRecentProject(
+    const std::filesystem::path &directory)
+{
+  m_pendingProjectDirectory = directory;
+  requestDirtyAction(PendingDirtyAction::OpenRecentProject);
 }
 
 void Application::continueDirtyAction()
@@ -213,6 +273,143 @@ void Application::continueDirtyAction()
     showProjectLocationDialogForNew();
   else if (action == PendingDirtyAction::OpenProject)
     showProjectLocationDialogForOpen();
+  else if (action == PendingDirtyAction::OpenRecentProject) {
+    const auto directory = m_pendingProjectDirectory;
+    m_pendingProjectDirectory.clear();
+    if (!openProject(directory))
+      removeRecentProject(directory);
+  }
+}
+
+std::filesystem::path Application::recentProjectsFile() const
+{
+  return studioConfigDirectory() / "recent_projects.txt";
+}
+
+void Application::loadRecentProjects()
+{
+  m_recentProjects.clear();
+
+  const auto filename = recentProjectsFile();
+  if (!std::filesystem::exists(filename))
+    return;
+
+  std::ifstream in(filename);
+  if (!in) {
+    tsd::core::logWarning(
+        "[SciVisStudio] Failed to read recent projects file '%s'",
+        filename.string().c_str());
+    return;
+  }
+
+  std::string line;
+  while (std::getline(in, line)) {
+    if (line.empty())
+      continue;
+
+    const auto path = normalizedAbsolutePath(line);
+    const auto duplicate = std::any_of(m_recentProjects.begin(),
+        m_recentProjects.end(),
+        [&](const auto &entry) { return pathsReferToSameProject(entry, path); });
+    if (!duplicate)
+      m_recentProjects.push_back(path);
+
+    if (m_recentProjects.size() >= MAX_RECENT_PROJECTS)
+      break;
+  }
+}
+
+void Application::saveRecentProjects() const
+{
+  const auto filename = recentProjectsFile();
+  const auto directory = filename.parent_path();
+
+  try {
+    if (!directory.empty())
+      std::filesystem::create_directories(directory);
+  } catch (const std::exception &e) {
+    tsd::core::logWarning(
+        "[SciVisStudio] Failed to create recent projects directory '%s': %s",
+        directory.string().c_str(),
+        e.what());
+    return;
+  }
+
+  std::ofstream out(filename, std::ios::trunc);
+  if (!out) {
+    tsd::core::logWarning(
+        "[SciVisStudio] Failed to write recent projects file '%s'",
+        filename.string().c_str());
+    return;
+  }
+
+  for (const auto &project : m_recentProjects)
+    out << project.string() << '\n';
+}
+
+void Application::addRecentProject(const std::filesystem::path &directory)
+{
+  const auto path = normalizedAbsolutePath(directory);
+
+  m_recentProjects.erase(std::remove_if(m_recentProjects.begin(),
+                             m_recentProjects.end(),
+                             [&](const auto &entry) {
+                               return pathsReferToSameProject(entry, path);
+                             }),
+      m_recentProjects.end());
+  m_recentProjects.insert(m_recentProjects.begin(), path);
+
+  if (m_recentProjects.size() > MAX_RECENT_PROJECTS)
+    m_recentProjects.resize(MAX_RECENT_PROJECTS);
+
+  saveRecentProjects();
+}
+
+void Application::removeRecentProject(const std::filesystem::path &directory)
+{
+  const auto oldSize = m_recentProjects.size();
+  m_recentProjects.erase(std::remove_if(m_recentProjects.begin(),
+                             m_recentProjects.end(),
+                             [&](const auto &entry) {
+                               return pathsReferToSameProject(entry, directory);
+                             }),
+      m_recentProjects.end());
+
+  if (m_recentProjects.size() != oldSize)
+    saveRecentProjects();
+}
+
+void Application::clearRecentProjects()
+{
+  m_recentProjects.clear();
+  saveRecentProjects();
+}
+
+void Application::uiRecentProjectsMenu()
+{
+  std::filesystem::path selectedProject;
+  bool clearRequested = false;
+
+  if (ImGui::BeginMenu("Recent")) {
+    if (m_recentProjects.empty())
+      ImGui::TextDisabled("No recent projects");
+
+    for (const auto &project : m_recentProjects) {
+      const auto label = project.string();
+      if (ImGui::MenuItem(label.c_str()))
+        selectedProject = project;
+    }
+
+    ImGui::Separator();
+    if (ImGui::MenuItem("Clear Recent"))
+      clearRequested = true;
+    ImGui::EndMenu();
+  }
+
+  if (!selectedProject.empty())
+    requestOpenRecentProject(selectedProject);
+  else if (clearRequested)
+    clearRecentProjects();
 }
 
 void Application::showAddDatasetDialog()
@@ -342,15 +539,18 @@ void Application::uiFrameStart()
 void Application::uiMainMenuBar()
 {
   if (ImGui::BeginMenu("Project")) {
-    if (ImGui::MenuItem("New Project..."))
+    if (ImGui::MenuItem("New ..."))
       requestDirtyAction(PendingDirtyAction::NewProject);
-    if (ImGui::MenuItem("Open Project..."))
+    if (ImGui::MenuItem("Open ..."))
       requestDirtyAction(PendingDirtyAction::OpenProject);
-    if (ImGui::MenuItem("Save Project", "Ctrl+S"))
+    ImGui::Separator();
+    uiRecentProjectsMenu();
+    ImGui::Separator();
+    if (ImGui::MenuItem("Save", "Ctrl+S"))
       saveProject();
-    if (ImGui::MenuItem("Save Project As..."))
+    if (ImGui::MenuItem("Save As..."))
       showProjectLocationDialogForSaveAs();
-    if (ImGui::MenuItem("Close Project"))
+    if (ImGui::MenuItem("Close"))
       requestDirtyAction(PendingDirtyAction::NewProject);
     ImGui::Separator();
     if (ImGui::MenuItem("Quit"))
