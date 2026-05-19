@@ -458,12 +458,21 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 
 void Viewport::camera_resetView(bool resetAzEl)
 {
+  const auto mode = m_camera.arcball->mode();
   auto axis = m_camera.arcball->axis();
   auto azel =
       resetAzEl ? tsd::math::float2(0.f, 20.f) : m_camera.arcball->azel();
-  m_camera.arcball->setConfig(m_rIdx->computeDefaultView());
-  m_camera.arcball->setAzel(azel);
-  m_camera.arcball->setAxis(axis);
+  auto pose = m_rIdx->computeDefaultView();
+  pose.mode = static_cast<int>(mode);
+  pose.upAxis = static_cast<int>(axis);
+  if (mode == tsd::rendering::ManipulatorMode::Look && !resetAzEl) {
+    m_camera.arcball->setDistance(pose.azeldist.z);
+    m_camera.arcball->setFixedDistance(pose.fixedDist);
+  } else {
+    m_camera.arcball->setConfig(pose);
+    m_camera.arcball->setFixedDistance(pose.fixedDist);
+    m_camera.arcball->setAzel(azel);
+  }
   m_camera.arcballToken = 0;
 }
 
@@ -471,14 +480,23 @@ void Viewport::camera_centerView()
 {
   if (!BaseViewport::viewport_isActive())
     return;
+  const auto mode = m_camera.arcball->mode();
   auto axis = m_camera.arcball->axis();
   auto azel = m_camera.arcball->azel();
   auto dist = m_camera.arcball->distance();
   auto fixedDist = m_camera.arcball->fixedDistance();
-  m_camera.arcball->setConfig(m_rIdx->computeDefaultView());
-  m_camera.arcball->setAzel(azel);
-  m_camera.arcball->setDistance(dist);
-  m_camera.arcball->setFixedDistance(fixedDist);
+  auto pose = m_rIdx->computeDefaultView();
+  pose.mode = static_cast<int>(mode);
+  pose.upAxis = static_cast<int>(axis);
+  if (mode == tsd::rendering::ManipulatorMode::Look) {
+    m_camera.arcball->setCenter(pose.lookat);
+    m_camera.arcball->setFixedDistance(fixedDist);
+  } else {
+    m_camera.arcball->setConfig(pose);
+    m_camera.arcball->setAzel(azel);
+    m_camera.arcball->setDistance(dist);
+    m_camera.arcball->setFixedDistance(fixedDist);
+  }
   m_camera.arcball->setAxis(axis);
   m_camera.arcballToken = 0;
 }

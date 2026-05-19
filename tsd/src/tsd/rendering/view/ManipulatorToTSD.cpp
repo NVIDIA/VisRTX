@@ -26,6 +26,7 @@ void updateCameraObject(
     c.setMetadataValue("manipulator.fixedDistance", m.fixedDistance());
     c.setMetadataValue("manipulator.azel", m.azel());
     c.setMetadataValue("manipulator.up", int(m.axis()));
+    c.setMetadataValue("manipulator.mode", int(m.mode()));
   }
 
   c.endParameterBatch();
@@ -37,11 +38,17 @@ void updateManipulatorFromCamera(Manipulator &m, const tsd::scene::Camera &c)
   auto d = c.getMetadataValue("manipulator.distance").getValueOr(m.distance());
   auto azel = c.getMetadataValue("manipulator.azel").getValueOr(m.azel());
   auto up = c.getMetadataValue("manipulator.up").getValueOr(int(m.axis()));
+  auto mode = c.getMetadataValue("manipulator.mode")
+                  .getValueOr(int(ManipulatorMode::Orbit));
   auto fd = c.getMetadataValue("manipulator.fixedDistance")
                 .getValueOr(m.fixedDistance());
 
-  m.setConfig(at, d, azel);
-  m.setAxis(static_cast<UpAxis>(up));
+  CameraPose pose;
+  pose.lookat = at;
+  pose.azeldist = {azel.x, azel.y, d};
+  pose.upAxis = up;
+  pose.mode = mode;
+  m.setConfig(pose);
   m.setFixedDistance(fd);
 }
 

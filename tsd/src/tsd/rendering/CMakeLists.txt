@@ -27,6 +27,7 @@ PRIVATE
   pipeline/passes/ToneMapPass.cpp
   pipeline/passes/VisualizeAOVPass.cpp
   pipeline/ImagePipeline.cpp
+  view/Manipulator.cpp
   view/ManipulatorToAnari.cpp
   view/ManipulatorToTSD.cpp
 )

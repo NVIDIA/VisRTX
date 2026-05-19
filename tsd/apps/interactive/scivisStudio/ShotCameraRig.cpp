@@ -37,6 +37,7 @@ ManipulatorState manipulatorStateFromManipulator(
       tsd::math::float3(m.azel().x, m.azel().y, m.distance());
   state.orbit.fixedDist = m.fixedDistance();
   state.orbit.upAxis = static_cast<int>(m.axis());
+  state.orbit.mode = static_cast<int>(m.mode());
   return state;
 }
 
@@ -108,6 +109,7 @@ ManipulatorState sampleCameraRig(const ShotCameraRig &rig, int frame)
     out.orbit.fixedDist =
         lerp(t, a.manipulator.orbit.fixedDist, b.manipulator.orbit.fixedDist);
     out.orbit.upAxis = a.manipulator.orbit.upAxis;
+    out.orbit.mode = a.manipulator.orbit.mode;
     return out;
   }
 

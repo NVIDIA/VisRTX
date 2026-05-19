@@ -296,6 +296,7 @@ void cameraPoseToNode(const rendering::CameraPose &p, core::DataNode &node)
   node["azeldist"] = p.azeldist;
   node["fixedDist"] = p.fixedDist;
   node["upAxis"] = p.upAxis;
+  node["mode"] = p.mode;
 }
 
 void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
@@ -305,6 +306,7 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
   node["azeldist"].getValue(ANARI_FLOAT32_VEC3, &pose.azeldist);
   node["fixedDist"].getValue(ANARI_FLOAT32, &pose.fixedDist);
   node["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
+  node["mode"].getValue(ANARI_INT32, &pose.mode);
 }
 
 // Layers /////////////////////////////////////////////////////////////////////

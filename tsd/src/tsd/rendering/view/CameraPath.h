@@ -93,6 +93,7 @@ inline CameraPose sampleCameraPathAt(const std::vector<CameraPose> &poses,
   interpPose.azeldist = lerpAzElDist(localT, pose0.azeldist, pose1.azeldist);
   interpPose.fixedDist = lerp(localT, pose0.fixedDist, pose1.fixedDist);
   interpPose.upAxis = pose0.upAxis;
+  interpPose.mode = pose0.mode;
 
   return interpPose;
 }
