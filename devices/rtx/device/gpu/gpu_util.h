@@ -247,11 +247,15 @@ VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
       * vec3(sint * cosf(phi), sint * sinf(phi), -cost);
 }
 
-#define ulpEpsilon 0x1.fp-21
-
-VISRTX_DEVICE float epsilonFrom(const vec3 &P)
+VISRTX_DEVICE float epsilonFrom(const vec3 &P, const vec3 &dir, float t)
 {
-  return glm::compMax(abs(P)) * ulpEpsilon;
+  constexpr float hitEpsilonScale = 0x1.fp-21f;
+  constexpr float minHitEpsilon = 1e-8f;
+
+  const float pMag = glm::compMax(glm::abs(P));
+  const float dMag = glm::compMax(glm::abs(dir)) * t;
+
+  return fmaxf(glm::max(pMag, dMag) * hitEpsilonScale, minHitEpsilon);
 }
 
 // Hanika's shadow-terminator fix (Ray Tracing Gems II, ch. 4): lifts a
@@ -293,8 +297,8 @@ VISRTX_DEVICE vec3 shadingHitpoint(const SurfaceHit &hit)
   if (tri.vertexNormalsFV == nullptr && tri.vertexNormals == nullptr)
     return hit.hitpoint;
 
-  const uvec3 idx = tri.indices ? tri.indices[hit.primID]
-                                : uvec3(0, 1, 2) + hit.primID * 3;
+  const uvec3 idx =
+      tri.indices ? tri.indices[hit.primID] : uvec3(0, 1, 2) + hit.primID * 3;
   const vec3 v0 = tri.vertices[idx.x];
   const vec3 v1 = tri.vertices[idx.y];
   const vec3 v2 = tri.vertices[idx.z];
