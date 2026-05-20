@@ -46,7 +46,10 @@ struct UniformGrid
 
   void cleanup();
   UniformGridData gpuData() const;
-  void computeMaxOpacities(CUstream stream,
+  // Compute both per-cell min and max opacity over the TF in one scan. Min is
+  // used as a constant lower bound for residual / decomposition tracking; max
+  // is the Woodcock majorant.
+  void computeOpacityBounds(CUstream stream,
       cudaTextureObject_t cm,
       size_t cmSize,
       box1 cmRange = {0.f, 1.f});
@@ -54,6 +57,7 @@ struct UniformGrid
   size_t numCells() const;
 
   box1 *m_valueRanges = nullptr;
+  float *m_minOpacities = nullptr;
   float *m_maxOpacities = nullptr;
   ivec3 m_dims;
   ivec3 m_fieldDims;

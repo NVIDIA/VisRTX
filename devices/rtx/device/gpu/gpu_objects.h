@@ -419,7 +419,11 @@ struct UniformGridData
   ivec3 dims;
   box3 worldBounds;
   box1 *valueRanges; // min/max ranges
-  float *maxOpacities; // used for adaptive sampling/space skipping
+  // Per-cell α bounds over the TF lookup (linear-filter footprint, both
+  // conservative). Min = control-variate lower bound for decomposition
+  // tracking; max = Woodcock majorant. Invariant: min ≤ max.
+  float *minOpacities;
+  float *maxOpacities;
 };
 
 struct StructuredRegularData

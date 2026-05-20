@@ -38,7 +38,8 @@
 
 namespace visrtx {
 
-__global__ void computeMaxOpacitiesGPU(float *maxOpacities,
+__global__ void computeOpacityBoundsGPU(float *minOpacities,
+    float *maxOpacities,
     const box1 *valueRanges,
     cudaTextureObject_t colorMap,
     size_t numMCs,
@@ -53,12 +54,14 @@ __global__ void computeMaxOpacitiesGPU(float *maxOpacities,
   box1 valueRange = valueRanges[threadID];
 
   if (valueRange.upper < valueRange.lower) {
+    minOpacities[threadID] = 0.f;
     maxOpacities[threadID] = 0.f;
     return;
   }
 
   const float xfRangeSize = xfRange.upper - xfRange.lower;
   if (xfRangeSize <= 0.f) {
+    minOpacities[threadID] = 0.f;
     maxOpacities[threadID] = 0.f;
     return;
   }
@@ -75,12 +78,19 @@ __global__ void computeMaxOpacitiesGPU(float *maxOpacities,
   int hi = glm::clamp(
       int(normalizedHi * (numColors - 1)) + 1, 0, int(numColors - 1));
 
+  // The scan range plus 1-bin TF margin and 1-voxel field margin makes both
+  // bounds conservative (max ≥ true max, min ≤ true min) for the
+  // linear-filter TF lookup over the cell.
+  float minOpacity = 1.f;
   float maxOpacity = 0.f;
   for (int i = lo; i <= hi; ++i) {
     float tc = (i + .5f) / numColors;
-    maxOpacity = fmaxf(maxOpacity, tex1D<::float4>(colorMap, tc).w);
+    float a = tex1D<::float4>(colorMap, tc).w;
+    minOpacity = fminf(minOpacity, a);
+    maxOpacity = fmaxf(maxOpacity, a);
   }
 
+  minOpacities[threadID] = minOpacity;
   maxOpacities[threadID] = maxOpacity;
 }
 
@@ -152,9 +162,11 @@ void UniformGrid::init(ivec3 dims, box3 worldBounds)
   size_t n = numCells();
 
   cudaFree(m_valueRanges);
+  cudaFree(m_minOpacities);
   cudaFree(m_maxOpacities);
 
   cudaMalloc(&m_valueRanges, n * sizeof(box1));
+  cudaMalloc(&m_minOpacities, n * sizeof(float));
   cudaMalloc(&m_maxOpacities, n * sizeof(float));
 }
 
@@ -221,9 +233,11 @@ void UniformGrid::computeValueRanges(const SpatialFieldGPUData &sfgd)
 void UniformGrid::cleanup()
 {
   cudaFree(m_valueRanges);
+  cudaFree(m_minOpacities);
   cudaFree(m_maxOpacities);
 
   m_valueRanges = nullptr;
+  m_minOpacities = nullptr;
   m_maxOpacities = nullptr;
 }
 
@@ -233,17 +247,18 @@ UniformGridData UniformGrid::gpuData() const
   grid.dims = m_dims;
   grid.worldBounds = m_worldBounds;
   grid.valueRanges = m_valueRanges;
+  grid.minOpacities = m_minOpacities;
   grid.maxOpacities = m_maxOpacities;
   return grid;
 }
 
-void UniformGrid::computeMaxOpacities(
+void UniformGrid::computeOpacityBounds(
     CUstream stream, cudaTextureObject_t cm, size_t cmSize, box1 cmRange)
 {
   size_t n = numCells();
   size_t numThreads = 1024;
-  computeMaxOpacitiesGPU<<<iDivUp(n, numThreads), numThreads, 0, stream>>>(
-      m_maxOpacities, m_valueRanges, cm, n, cmSize, cmRange);
+  computeOpacityBoundsGPU<<<iDivUp(n, numThreads), numThreads, 0, stream>>>(
+      m_minOpacities, m_maxOpacities, m_valueRanges, cm, n, cmSize, cmRange);
 }
 
 } // namespace visrtx

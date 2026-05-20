@@ -209,6 +209,11 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
   return depth;
 }
 
+// Decomposition tracking (Kutz/Thiery/Novák/Iwasaki 2017). Per cell split
+// σ_t = σ_c + σ_r (σ_c = per-cell min, σ_r ∈ [0, σ_maj - σ_c]). Race a
+// closed-form Exp(σ_c) flight against a Woodcock walk on σ_r; first event
+// wins. Albedo/extinction use local σ_t at the event point. σ_c = 0 →
+// plain delta tracking; σ_r = 0 → analytic flight only.
 VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
     const VolumeHit &hit,
     vec3 &albedo,
@@ -237,41 +242,69 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
 
   GridTraversal trav(objRay, field.grid.dims, field.grid.worldBounds);
   while (trav.valid()) {
+    const float minOpacity = field.grid.minOpacities[trav.cellIndex];
     const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];
-    const float majorantExtinction =
+    const float σ_min =
+        opacityToExtinction(minOpacity, svv.oneOverUnitDistance);
+    const float σ_maj =
         opacityToExtinction(maxOpacity, svv.oneOverUnitDistance);
+    const float σ_residual = fmaxf(0.f, σ_maj - σ_min);
 
-    if (majorantExtinction > 0.f) {
-      constexpr int MAX_WOODCOCK_STEPS_PER_CELL = 128;
-      int steps = 0;
-      float t = trav.tEntry;
-      while (t < trav.tExit) {
-        if (++steps > MAX_WOODCOCK_STEPS_PER_CELL)
-          break;
-        t += -logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs)))
-            / majorantExtinction;
+    if (σ_maj <= 0.f) {
+      trav.next();
+      continue;
+    }
 
-        if (t >= trav.tExit)
+    // Closed-form control free-flight starting at trav.tEntry.
+    const float t_control = σ_min > 0.f
+        ? trav.tEntry
+            - logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs))) / σ_min
+        : std::numeric_limits<float>::infinity();
+    const float residualCutoff = fminf(t_control, trav.tExit);
+
+    float t = trav.tEntry;
+    if (σ_residual > 0.f) {
+      while (t < residualCutoff) {
+        t += -logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs))) / σ_residual;
+        if (t >= residualCutoff)
           break;
 
         const vec3 p = objRay.org + objRay.dir * t;
         const float s = volumeSamplerSample(&samplerState, field, p);
+        if (glm::isnan(s))
+          continue;
 
-        if (!glm::isnan(s)) {
-          const vec4 co = detail::classifySample(volume, s);
-          const float actualExtinction =
-              opacityToExtinction(co.w, svv.oneOverUnitDistance);
-          if (actualExtinction > 0.f
-              && actualExtinction
-                  >= curand_uniform(&ss.rs) * majorantExtinction) {
-            albedo = vec3(co);
-            extinction = actualExtinction;
-            didScatter = true;
-            scatterPos = p;
-            scatterT = t;
-            break;
-          }
+        const vec4 co = detail::classifySample(volume, s);
+        const float σ_t_p =
+            opacityToExtinction(co.w, svv.oneOverUnitDistance);
+        // σ_t_p ≥ σ_min by construction; residual at p is σ_t_p - σ_min.
+        const float σ_r_p = fmaxf(0.f, σ_t_p - σ_min);
+        if (σ_r_p >= curand_uniform(&ss.rs) * σ_residual) {
+          albedo = vec3(co);
+          extinction = σ_t_p;
+          didScatter = true;
+          scatterPos = p;
+          scatterT = t;
+          break;
         }
+      }
+    }
+
+    // If the residual walk didn't fire, accept the control flight if it
+    // landed inside the cell. Every control event is real (σ_min is a lower
+    // bound on σ_t).
+    if (!didScatter && t_control < trav.tExit) {
+      const vec3 p = objRay.org + objRay.dir * t_control;
+      const float s = volumeSamplerSample(&samplerState, field, p);
+      if (!glm::isnan(s)) {
+        const vec4 co = detail::classifySample(volume, s);
+        const float σ_t_p =
+            opacityToExtinction(co.w, svv.oneOverUnitDistance);
+        albedo = vec3(co);
+        extinction = σ_t_p;
+        didScatter = true;
+        scatterPos = p;
+        scatterT = t_control;
       }
     }
 
@@ -288,12 +321,10 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
   return scatterT;
 }
 
-// Unbiased ratio-tracking transmittance estimator over one volume segment.
-// At each Woodcock candidate, multiply attenuation by (1 - sigma_t / sigma_maj)
-// rather than terminating on a "real" event. Across multiple any-hit
-// invocations on adjacent volume AABBs, OptiX composes the per-segment
-// estimates multiplicatively via the shared payload, so this is the right
-// primitive to call from __anyhit__shadow.
+// Residual ratio tracking (Novák et al. 2014). Per cell split σ_t = σ_c +
+// σ_r; fold exp(-σ_c · L) into attenuation closed-form, then ratio-track
+// σ_r at majorant σ_r_maj = σ_maj - σ_c (multiply by (1 - σ_r / σ_r_maj)
+// per candidate). Tighter than plain ratio tracking when σ_c > 0.
 VISRTX_DEVICE void ratioTrackTransmittance(
     ScreenSample &ss, const VolumeHit &hit, vec3 &attenuation)
 {
@@ -314,15 +345,35 @@ VISRTX_DEVICE void ratioTrackTransmittance(
 
   GridTraversal trav(objRay, field.grid.dims, field.grid.worldBounds);
   while (trav.valid()) {
+    const float minOpacity = field.grid.minOpacities[trav.cellIndex];
     const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];
-    const float majorantExtinction =
+    const float σ_min =
+        opacityToExtinction(minOpacity, svv.oneOverUnitDistance);
+    const float σ_maj =
         opacityToExtinction(maxOpacity, svv.oneOverUnitDistance);
+    const float σ_residual = fmaxf(0.f, σ_maj - σ_min);
 
-    if (majorantExtinction > 0.f) {
+    if (σ_maj <= 0.f) {
+      trav.next();
+      continue;
+    }
+
+    // Closed-form control factor exp(-σ_min · cell-length) folded into
+    // attenuation. No ratio walk needed for this component.
+    const float cellLength = fmaxf(0.f, trav.tExit - trav.tEntry);
+    if (σ_min > 0.f) {
+      attenuation *= __expf(-σ_min * cellLength);
+      if (glm::all(
+              glm::lessThanEqual(attenuation, vec3(TRANSMITTANCE_EPSILON))))
+        return;
+    }
+
+    // Ratio-track the residual. Note σ_residual can be zero (uniform cell),
+    // in which case the control factor is the complete answer.
+    if (σ_residual > 0.f) {
       float t = trav.tEntry;
       while (true) {
-        t += -logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs)))
-            / majorantExtinction;
+        t += -logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs))) / σ_residual;
         if (t >= trav.tExit)
           break;
 
@@ -332,10 +383,10 @@ VISRTX_DEVICE void ratioTrackTransmittance(
           continue;
 
         const vec4 co = classifySample(volume, s);
-        const float actualExtinction =
+        const float σ_t_p =
             opacityToExtinction(co.w, svv.oneOverUnitDistance);
-        const float ratio =
-            glm::clamp(actualExtinction / majorantExtinction, 0.f, 1.f);
+        const float σ_r_p = fmaxf(0.f, σ_t_p - σ_min);
+        const float ratio = glm::clamp(σ_r_p / σ_residual, 0.f, 1.f);
         attenuation *= (1.0f - ratio);
 
         if (glm::all(
