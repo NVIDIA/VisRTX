@@ -151,13 +151,13 @@ size_t UniformGrid::numCells() const
   return m_dims.x * size_t(m_dims.y) * m_dims.z;
 }
 
-void UniformGrid::init(ivec3 dims, box3 worldBounds)
+void UniformGrid::init(ivec3 dims, box3 objectBounds)
 {
   m_fieldDims = dims;
   m_dims = ivec3(iDivUp(dims.x, MACROCELL_SIZE),
       iDivUp(dims.y, MACROCELL_SIZE),
       iDivUp(dims.z, MACROCELL_SIZE));
-  m_worldBounds = worldBounds;
+  m_objectBounds = objectBounds;
 
   size_t n = numCells();
 
@@ -245,7 +245,7 @@ UniformGridData UniformGrid::gpuData() const
 {
   UniformGridData grid;
   grid.dims = m_dims;
-  grid.worldBounds = m_worldBounds;
+  grid.objectBounds = m_objectBounds;
   grid.valueRanges = m_valueRanges;
   grid.minOpacities = m_minOpacities;
   grid.maxOpacities = m_maxOpacities;

@@ -417,13 +417,10 @@ struct SurfaceGPUData
 struct UniformGridData
 {
   ivec3 dims;
-  box3 worldBounds;
-  box1 *valueRanges; // min/max ranges
-  // Per-cell α bounds over the TF lookup (linear-filter footprint, both
-  // conservative). Min = control-variate lower bound for decomposition
-  // tracking; max = Woodcock majorant. Invariant: min ≤ max.
-  float *minOpacities;
-  float *maxOpacities;
+  box3 objectBounds;
+  box1 *valueRanges; // data min/max ranges
+  float *minOpacities; // matching tf opacity minima
+  float *maxOpacities; // matching tf opacity maxima
 };
 
 struct StructuredRegularData

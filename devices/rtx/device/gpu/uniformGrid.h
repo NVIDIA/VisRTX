@@ -42,10 +42,9 @@ VISRTX_DEVICE size_t linearIndex(const ivec3 index, const ivec3 dims)
 }
 
 VISRTX_DEVICE ivec3 projectOnGrid(
-    const vec3 V, const ivec3 dims, const box3 worldBounds)
+    const vec3 V, const ivec3 dims, const box3 bounds)
 {
-  const vec3 V01 =
-      (V - worldBounds.lower) / (worldBounds.upper - worldBounds.lower);
+  const vec3 V01 = (V - bounds.lower) / (bounds.upper - bounds.lower);
   return glm::clamp(ivec3(V01 * vec3(dims)), ivec3(0), dims - ivec3(1));
 }
 

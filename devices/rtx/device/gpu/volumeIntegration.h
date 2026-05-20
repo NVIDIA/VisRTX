@@ -180,7 +180,7 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
       curand_uniform(&ss.rs) * fminf(dt, objRay.t.upper - objRay.t.lower);
   float nextSampleT = objRay.t.lower + jitter;
 
-  GridTraversal trav(objRay, field.grid.dims, field.grid.worldBounds);
+  GridTraversal trav(objRay, field.grid.dims, field.grid.objectBounds);
   while (trav.valid()) {
     if (opacity >= MAX_OPACITY_THRESHOLD)
       break;
@@ -266,7 +266,7 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
   if (!(objRay.t.lower < objRay.t.upper))
     return scatterT;
 
-  GridTraversal trav(objRay, field.grid.dims, field.grid.worldBounds);
+  GridTraversal trav(objRay, field.grid.dims, field.grid.objectBounds);
   while (trav.valid()) {
     const float minOpacity = field.grid.minOpacities[trav.cellIndex];
     const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];
@@ -366,7 +366,7 @@ VISRTX_DEVICE void ratioTrackTransmittance(
   VolumeSamplingState samplerState;
   volumeSamplerInit(&samplerState, field);
 
-  GridTraversal trav(objRay, field.grid.dims, field.grid.worldBounds);
+  GridTraversal trav(objRay, field.grid.dims, field.grid.objectBounds);
   while (trav.valid()) {
     const float minOpacity = field.grid.minOpacities[trav.cellIndex];
     const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];

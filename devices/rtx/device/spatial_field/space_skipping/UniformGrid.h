@@ -40,7 +40,7 @@ constexpr int MACROCELL_SIZE = 16;
 
 struct UniformGrid
 {
-  void init(ivec3 dims, box3 worldBounds);
+  void init(ivec3 dims, box3 objectBounds);
 
   void computeValueRanges(const SpatialFieldGPUData &sfgd);
 
@@ -61,7 +61,7 @@ struct UniformGrid
   float *m_maxOpacities = nullptr;
   ivec3 m_dims;
   ivec3 m_fieldDims;
-  box3 m_worldBounds;
+  box3 m_objectBounds;
 };
 
 } // namespace visrtx
