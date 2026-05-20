@@ -12,6 +12,12 @@
 
 namespace tsd::scivis_studio {
 
+static void tooltipForPreviousItem(const char *text)
+{
+  if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    ImGui::SetTooltip("%s", text);
+}
+
 CameraRigEditor::CameraRigEditor(
     tsd::ui::imgui::Application *app, ProjectContext *projectContext)
     : Window(app, "Camera Rig"), m_projectContext(projectContext)
@@ -34,14 +40,15 @@ void CameraRigEditor::buildUI()
   auto *ctx = m_projectContext->appContext();
   auto &rig = shot->cameraRig;
 
-  if (ImGui::Button("Set Rig View From Viewport")) {
+  if (ImGui::Button("Set View")) {
     rig.current = manipulatorStateFromManipulator(ctx->view.manipulator);
     project.markDirty();
   }
+  tooltipForPreviousItem("Set Rig View From Viewport");
 
   ImGui::SameLine();
 
-  if (ImGui::Button("Capture Keyframe At Current Frame")) {
+  if (ImGui::Button("Capture")) {
     CameraKeyframe keyframe;
     keyframe.frame = shot->currentFrame;
     keyframe.name = "Frame " + std::to_string(shot->currentFrame);
@@ -52,6 +59,9 @@ void CameraRigEditor::buildUI()
     m_selectedKeyframe = static_cast<int>(rig.keyframes.size()) - 1;
     project.markDirty();
   }
+  tooltipForPreviousItem("Capture Keyframe At Current Frame");
+
+  ImGui::SameLine();
 
   if (m_selectedKeyframe >= static_cast<int>(rig.keyframes.size()))
     m_selectedKeyframe = rig.keyframes.empty() ? -1 : 0;
@@ -60,25 +70,28 @@ void CameraRigEditor::buildUI()
       && m_selectedKeyframe < static_cast<int>(rig.keyframes.size());
 
   ImGui::BeginDisabled(!hasSelection);
-  if (ImGui::Button("Update Selected From Viewport")) {
+  if (ImGui::Button("Update")) {
     rig.keyframes[m_selectedKeyframe].manipulator =
         manipulatorStateFromManipulator(ctx->view.manipulator);
     project.markDirty();
   }
+  tooltipForPreviousItem("Update Selected From Viewport");
   ImGui::SameLine();
-  if (ImGui::Button("Jump Viewport To Keyframe")) {
+  if (ImGui::Button("Jump")) {
     shot->currentFrame = rig.keyframes[m_selectedKeyframe].frame;
     if (ctx)
       ctx->tsd.animationMgr.setAnimationFrame(shot->currentFrame);
     else
       m_projectContext->applyActiveShot();
   }
+  tooltipForPreviousItem("Jump Viewport To Keyframe");
   ImGui::SameLine();
-  if (ImGui::Button("Delete Keyframe")) {
+  if (ImGui::Button("Delete")) {
     rig.keyframes.erase(rig.keyframes.begin() + m_selectedKeyframe);
     m_selectedKeyframe = -1;
     project.markDirty();
   }
+  tooltipForPreviousItem("Delete Keyframe");
   ImGui::EndDisabled();
 
   if (ImGui::BeginTable(
