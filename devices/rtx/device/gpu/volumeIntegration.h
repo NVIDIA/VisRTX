@@ -154,54 +154,80 @@ VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,
   auto &svv = volume.data.tf1d;
   auto &field = getSpatialFieldData(*ss.frameData, svv.field);
 
-  VolumeSamplingState samplerState;
-  volumeSamplerInit(&samplerState, field);
-
   // The local ray direction is actually accounting for instance scaling
   // transformation, meaning it's not a unit vector.
   // We need to use that to compensate our step size.
   const float localDirLen = glm::length(hit.localRay.dir);
   const float localStep = volume.stepSize * invSamplingRate;
+  if (localStep <= 0.f || localDirLen <= 0.f)
+    return std::numeric_limits<float>::max();
   const float dt = localStep / localDirLen;
   const float exponent = dt * svv.oneOverUnitDistance;
-  if (localStep <= 0.f)
+
+  const Ray objRay = hit.localRay;
+  if (!(objRay.t.lower < objRay.t.upper))
     return std::numeric_limits<float>::max();
 
-  box1 interval = hit.localRay.t;
-  interval.lower +=
-      curand_uniform(&ss.rs) * min(dt, interval.upper - interval.lower);
+  VolumeSamplingState samplerState;
+  volumeSamplerInit(&samplerState, field);
 
   float depth = std::numeric_limits<float>::max();
 
   constexpr float MIN_OPACITY_THRESHOLD = 1e-2f;
   constexpr float MAX_OPACITY_THRESHOLD = 0.99f;
-  while (opacity < MAX_OPACITY_THRESHOLD && size(interval) >= 0.f) {
-    const vec3 p = hit.localRay.org + hit.localRay.dir * interval.lower;
 
-    const float s = volumeSamplerSample(&samplerState, field, p);
-    if (!glm::isnan(s)) {
-      const vec4 co = classifySample(volume, s);
+  const float jitter =
+      curand_uniform(&ss.rs) * fminf(dt, objRay.t.upper - objRay.t.lower);
+  float nextSampleT = objRay.t.lower + jitter;
 
-      const float stepAlpha = 1.0f - glm::pow(1.0f - co.w, exponent);
-      if (stepAlpha > 0.0f) {
-        const float weight = (1.0f - opacity);
-        if (color)
-          *color += weight * stepAlpha * vec3(co);
-        opacity += weight * stepAlpha;
+  GridTraversal trav(objRay, field.grid.dims, field.grid.worldBounds);
+  while (trav.valid()) {
+    if (opacity >= MAX_OPACITY_THRESHOLD)
+      break;
 
-        if (opacity > MIN_OPACITY_THRESHOLD
-            && depth == std::numeric_limits<float>::max())
-          depth = interval.lower;
-      }
+    const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];
+    if (maxOpacity <= 0.f) {
+      trav.next();
+      continue;
     }
 
-    interval.lower += dt;
+    // Snap lattice to first sample inside the cell.
+    if (nextSampleT < trav.tEntry) {
+      const float advance = ceilf((trav.tEntry - nextSampleT) / dt);
+      nextSampleT += advance * dt;
+    }
+
+    while (nextSampleT < trav.tExit) {
+      if (opacity >= MAX_OPACITY_THRESHOLD)
+        break;
+      const vec3 p = objRay.org + objRay.dir * nextSampleT;
+
+      const float s = volumeSamplerSample(&samplerState, field, p);
+      if (!glm::isnan(s)) {
+        const vec4 co = classifySample(volume, s);
+
+        const float stepAlpha = 1.0f - glm::pow(1.0f - co.w, exponent);
+        if (stepAlpha > 0.0f) {
+          const float weight = (1.0f - opacity);
+          if (color)
+            *color += weight * stepAlpha * vec3(co);
+          opacity += weight * stepAlpha;
+
+          if (opacity > MIN_OPACITY_THRESHOLD
+              && depth == std::numeric_limits<float>::max())
+            depth = nextSampleT;
+        }
+      }
+
+      nextSampleT += dt;
+    }
+    trav.next();
   }
 
   if (normal) {
     *normal = vec3(0.f);
     if (depth < std::numeric_limits<float>::max()) {
-      const vec3 p = hit.localRay.org + hit.localRay.dir * depth;
+      const vec3 p = objRay.org + objRay.dir * depth;
       *normal = computeWorldNormal(&samplerState, field, p, hit.worldToObject);
     }
   }
@@ -275,8 +301,7 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
           continue;
 
         const vec4 co = detail::classifySample(volume, s);
-        const float σ_t_p =
-            opacityToExtinction(co.w, svv.oneOverUnitDistance);
+        const float σ_t_p = opacityToExtinction(co.w, svv.oneOverUnitDistance);
         // σ_t_p ≥ σ_min by construction; residual at p is σ_t_p - σ_min.
         const float σ_r_p = fmaxf(0.f, σ_t_p - σ_min);
         if (σ_r_p >= curand_uniform(&ss.rs) * σ_residual) {
@@ -298,8 +323,7 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
       const float s = volumeSamplerSample(&samplerState, field, p);
       if (!glm::isnan(s)) {
         const vec4 co = detail::classifySample(volume, s);
-        const float σ_t_p =
-            opacityToExtinction(co.w, svv.oneOverUnitDistance);
+        const float σ_t_p = opacityToExtinction(co.w, svv.oneOverUnitDistance);
         albedo = vec3(co);
         extinction = σ_t_p;
         didScatter = true;
@@ -337,8 +361,7 @@ VISRTX_DEVICE void ratioTrackTransmittance(
     return;
 
   // Match Quality_ptx.cu's ATTENUATION_EPSILON.
-  constexpr float TRANSMITTANCE_EPSILON =
-      std::numeric_limits<float>::epsilon();
+  constexpr float TRANSMITTANCE_EPSILON = std::numeric_limits<float>::epsilon();
 
   VolumeSamplingState samplerState;
   volumeSamplerInit(&samplerState, field);
@@ -383,8 +406,7 @@ VISRTX_DEVICE void ratioTrackTransmittance(
           continue;
 
         const vec4 co = classifySample(volume, s);
-        const float σ_t_p =
-            opacityToExtinction(co.w, svv.oneOverUnitDistance);
+        const float σ_t_p = opacityToExtinction(co.w, svv.oneOverUnitDistance);
         const float σ_r_p = fmaxf(0.f, σ_t_p - σ_min);
         const float ratio = glm::clamp(σ_r_p / σ_residual, 0.f, 1.f);
         attenuation *= (1.0f - ratio);
