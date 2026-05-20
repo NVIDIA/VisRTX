@@ -105,7 +105,7 @@ struct FastShadingPolicy
               hit,
               rendererParams.occlusionDistance,
               aoParams.aoSamples,
-              &surfaceAttenuation)
+              &surfaceShadowOpacity)
         : 1.f;
 
     auto materialBaseColor = materialEvaluateTint(shadingState);

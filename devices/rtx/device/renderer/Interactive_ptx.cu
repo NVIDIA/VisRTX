@@ -77,7 +77,7 @@ struct InteractiveShadingPolicy
               hit,
               rendererParams.occlusionDistance,
               interactiveParams.aoSamples,
-              &surfaceAttenuation)
+              &surfaceShadowOpacity)
         : 1.f;
 
     vec3 contrib = materialEvaluateEmission(shadingState, -ray.dir);
@@ -104,8 +104,9 @@ struct InteractiveShadingPolicy
       };
 
       const float surface_attenuation =
-          1.0f - surfaceAttenuation(ss, shadowRay);
-      const float volume_attenuation = 1.0f - volumeAttenuation(ss, shadowRay);
+          1.0f - surfaceShadowOpacity(ss, shadowRay);
+      const float volume_attenuation =
+          1.0f - volumeShadowOpacity(ss, shadowRay);
       const float attenuation = surface_attenuation * volume_attenuation;
 
       // Complete occlusion?

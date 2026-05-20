@@ -40,6 +40,7 @@
 #include "gpu/intersectRay.h"
 #include "gpu/populateHit.h"
 #include "gpu/renderer/common.h"
+#include "gpu/renderer/shadowTransmittance.h"
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/volumeIntegration.h"
@@ -83,22 +84,6 @@ VISRTX_DEVICE void accumPixelSample(
       vec4(sample.color, sample.opacity),
       sample.albedo,
       sample.normal);
-}
-
-VISRTX_DEVICE vec3 surfaceAttenuation(ScreenSample &ss, Ray r)
-{
-  vec3 attenuation = vec3(1.0f);
-  intersectSurface(
-      ss, r, RayType::SHADOW, &attenuation, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
-  return attenuation;
-}
-
-VISRTX_DEVICE vec3 volumeAttenuation(ScreenSample &ss, Ray r)
-{
-  vec3 attenuation = vec3(1.0f);
-  intersectVolume(
-      ss, r, RayType::SHADOW, &attenuation, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
-  return attenuation;
 }
 
 VISRTX_DEVICE vec3 evaluateOpacity(const MaterialShadingState &shadingState)
@@ -334,8 +319,8 @@ VISRTX_GLOBAL void __raygen__()
                 lightSample.dir,
                 {eps, lightSample.dist},
             };
-            const auto attenuation = surfaceAttenuation(ss, shadowRay)
-                * volumeAttenuation(ss, shadowRay);
+            const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
+                * volumeShadowTransmittance(ss, shadowRay);
 
             constexpr float INV_4PI = 1.0f / (4.0f * float(M_PI));
             const vec3 directLight = volumeSample.albedo * lightSample.radiance
@@ -411,8 +396,8 @@ VISRTX_GLOBAL void __raygen__()
                 lightSample.dir,
                 {surfaceHit.epsilon, lightSample.dist},
             };
-            const auto attenuation = surfaceAttenuation(ss, shadowRay)
-                * volumeAttenuation(ss, shadowRay);
+            const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
+                * volumeShadowTransmittance(ss, shadowRay);
             const vec3 directLight = materialShadeSurface(
                 shadingState, surfaceHit, lightSample, -ray.dir);
 

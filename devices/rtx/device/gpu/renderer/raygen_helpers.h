@@ -41,9 +41,11 @@
 
 namespace visrtx {
 
-// Compute surface attenuation for shadow/occlusion rays
-// Uses the standard SHADOW ray type for consistency across all renderers
-VISRTX_DEVICE float surfaceAttenuation(ScreenSample &ss, const Ray &r)
+// Surface SHADOW ray → accumulated opacity (0 = unblocked, 1 = blocked).
+// Float payload init 0, accumulateValue(o, α, o) in __anyhit__shadow. The
+// path-tracing renderer uses vec3 transmittance instead — see
+// shadowTransmittance.h.
+VISRTX_DEVICE float surfaceShadowOpacity(ScreenSample &ss, const Ray &r)
 {
   float a = 0.0f;
   intersectSurface(
@@ -51,14 +53,13 @@ VISRTX_DEVICE float surfaceAttenuation(ScreenSample &ss, const Ray &r)
   return a;
 }
 
-// Compute volume attenuation for shadow rays
-// Uses the standard SHADOW ray type for consistency across all renderers
-VISRTX_DEVICE float volumeAttenuation(ScreenSample &ss, const Ray &r)
+// Volume SHADOW ray opacity. Same payload convention as surfaceShadowOpacity.
+VISRTX_DEVICE float volumeShadowOpacity(ScreenSample &ss, const Ray &r)
 {
-  float attenuation = 0.0f;
+  float a = 0.0f;
   intersectVolume(
-      ss, r, RayType::SHADOW, &attenuation, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
-  return attenuation;
+      ss, r, RayType::SHADOW, &a, OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
+  return a;
 }
 
 // Templated rendering loop

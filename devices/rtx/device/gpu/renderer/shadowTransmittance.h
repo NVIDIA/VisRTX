@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,33 +32,37 @@
 #pragma once
 
 #include "gpu/intersectRay.h"
+#include "gpu/renderer/common.h" // RayType
+
+// Shadow-ray transmittance for path tracers. Returns vec3 transmittance
+// (1 = unblocked, 0 = blocked); composes multiplicatively. Payload is vec3
+// init vec3(1.0f); pair with the vec3 __anyhit__shadow program.
+//
+// Opacity-over renderers use raygen_helpers.h's float variants instead — the
+// conventions are not interchangeable without swapping anyhit programs.
 
 namespace visrtx {
 
-VISRTX_DEVICE float computeAO(ScreenSample &ss,
-    const Ray &primaryRay,
-    const Hit &currentHit,
-    float dist,
-    int numSamples,
-    float (*surfaceShadowOpacity)(ScreenSample &, const Ray &))
+VISRTX_DEVICE vec3 surfaceShadowTransmittance(ScreenSample &ss, const Ray &r)
 {
-  float weights = 0.0f;
-  float hits = 0.0f;
-  Ray aoRay;
-  aoRay.org = shadingHitpoint(currentHit) + currentHit.Ng * currentHit.epsilon;
-  aoRay.t.lower = currentHit.epsilon;
-  aoRay.t.upper = dist;
+  vec3 transmittance = vec3(1.0f);
+  intersectSurface(ss,
+      r,
+      RayType::SHADOW,
+      &transmittance,
+      OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
+  return transmittance;
+}
 
-  for (int i = 0; i < numSamples; i++) {
-    aoRay.dir = randomDir(ss.rs, currentHit.Ns);
-    float weight = max(0.f, dot(aoRay.dir, currentHit.Ns));
-    if (weight > 1e-8f) {
-      weights += weight;
-      hits += weight * surfaceShadowOpacity(ss, aoRay);
-    }
-  }
-
-  return weights > 0.f ? (1.f - hits / weights) : 0.f;
+VISRTX_DEVICE vec3 volumeShadowTransmittance(ScreenSample &ss, const Ray &r)
+{
+  vec3 transmittance = vec3(1.0f);
+  intersectVolume(ss,
+      r,
+      RayType::SHADOW,
+      &transmittance,
+      OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT);
+  return transmittance;
 }
 
 } // namespace visrtx
