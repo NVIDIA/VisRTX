@@ -11,6 +11,8 @@
 #include "tsd/ui/imgui/modals/ExportNanoVDBFileDialog.h"
 #include "tsd/ui/imgui/modals/ImportFileDialog.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
+// std
+#include <string>
 
 namespace tsd::ui::imgui {
 
@@ -73,7 +75,7 @@ void LayerTree::buildUI_layerHeader()
       layers.size());
 
   if (ImGui::IsItemHovered()) {
-    ImGui::SetTooltip("right-click to set layer visibility");
+    tooltipForPreviousItem("right-click to set layer visibility", false);
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
       ImGui::OpenPopup("LayerTree_contextMenu_setActiveLayers");
       m_activeLayerMenuTriggered = true;
@@ -280,11 +282,14 @@ void LayerTree::buildUI_tree()
       if (ImGui::IsItemHovered()) {
         m_hoveredNode = node.index();
         if (node->isObject()) {
-          ImGui::SetTooltip("object: %s[%zu]",
-              anari::toString(node->type()),
-              node->getObjectIndex());
+          std::string tooltip = "object: ";
+          tooltip += anari::toString(node->type());
+          tooltip += '[';
+          tooltip += std::to_string(node->getObjectIndex());
+          tooltip += ']';
+          tooltipForPreviousItem(tooltip.c_str(), false);
         } else if (node->isTransform())
-          ImGui::SetTooltip("transform: ANARI_FLOAT32_MAT4");
+          tooltipForPreviousItem("transform: ANARI_FLOAT32_MAT4", false);
       }
 
       if (ImGui::IsItemClicked() && m_menuNode == TSD_INVALID_INDEX) {

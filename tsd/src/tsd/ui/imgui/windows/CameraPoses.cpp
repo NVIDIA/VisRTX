@@ -6,6 +6,7 @@
 #include "tsd/app/Context.h"
 #include "tsd/app/renderAnimationSequence.h"
 // tsd_ui_imgui
+#include "tsd/ui/imgui/tsd_ui_imgui.h"
 #include "tsd/ui/imgui/windows/Viewport.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
@@ -38,32 +39,27 @@ void CameraPoses::buildUI()
 
   if (ImGui::Button("current view"))
     appContext()->addCurrentViewToCameraPoses();
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("insert new view using the current camera view");
+  tooltipForPreviousItem("insert new view using the current camera view");
 
   ImGui::SameLine();
   if (ImGui::Button("turntable views"))
     ImGui::OpenPopup("CameraPoses_turntablePopupMenu");
 
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("add a series of turntable camera poses");
+  tooltipForPreviousItem("add a series of turntable camera poses");
 
 #if 0
   ImGui::SameLine();
   ImGui::BeginDisabled(!m_viewport);
   if (ImGui::Button("camera"))
     m_viewport->addCameraObjectFromCurrentView();
+  tooltipForPreviousItem("add new camera object from current view");
   ImGui::EndDisabled();
 #endif
-
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("add new camera object from current view");
 
   if (ImGui::Button("clear"))
     ImGui::OpenPopup("CameraPoses_confirmPopupMenu");
 
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("clear all camera poses");
+  tooltipForPreviousItem("clear all camera poses");
 
   ImGui::Separator();
 
@@ -88,22 +84,19 @@ void CameraPoses::buildUI()
       ImGui::TableSetColumnIndex(1);
       if (ImGui::Button(">"))
         appContext()->setCameraPose(p);
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("set as current view");
+      tooltipForPreviousItem("set as current view");
 
       ImGui::TableSetColumnIndex(2);
       if (ImGui::Button("+")) {
         appContext()->updateExistingCameraPoseFromView(p);
         tsd::core::logStatus("camera pose '%s' updated", p.name.c_str());
       }
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("update this pose from current view");
+      tooltipForPreviousItem("update this pose from current view");
 
       ImGui::TableSetColumnIndex(3);
       if (ImGui::Button("-"))
         toRemove = i;
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("delete this pose");
+      tooltipForPreviousItem("delete this pose");
       ImGui::PopID();
       i++;
     }
@@ -125,20 +118,16 @@ void CameraPoses::buildUI_turntablePopupMenu()
 {
   if (ImGui::BeginPopup("CameraPoses_turntablePopupMenu")) {
     ImGui::InputFloat3("azimuths", &m_turntableAzimuths.x, "%.3f");
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("{min, max, step size}");
+    tooltipForPreviousItem("{min, max, step size}");
 
     ImGui::InputFloat3("elevations", &m_turntableElevations.x, "%.3f");
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("{min, max, step size}");
+    tooltipForPreviousItem("{min, max, step size}");
 
     ImGui::InputFloat3("center", &m_turntableCenter.x, "%.3f");
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("view center");
+    tooltipForPreviousItem("view center");
 
     ImGui::InputFloat("distance", &m_turntableDistance, 0.01f, 0.1f, "%.3f");
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("view distance from center");
+    tooltipForPreviousItem("view distance from center");
 
     if (ImGui::Button("ok")) {
       appContext()->addTurntableCameraPoses(m_turntableAzimuths,
@@ -187,14 +176,15 @@ void CameraPoses::buildUI_interpolationControls()
     pathSettings.type =
         static_cast<tsd::rendering::CameraPathInterpolationType>(currentType);
   }
-  if (ImGui::IsItemHovered() && !m_isRendering) {
+  if (!m_isRendering) {
     switch (pathSettings.type) {
     case tsd::rendering::CameraPathInterpolationType::LINEAR:
-      ImGui::SetTooltip("Linear interpolation (constant velocity)");
+      tooltipForPreviousItem("Linear interpolation (constant velocity)", false);
       break;
     case tsd::rendering::CameraPathInterpolationType::SMOOTH:
-      ImGui::SetTooltip(
-          "Smooth motion through all poses with ease-in/out at start and end");
+      tooltipForPreviousItem(
+          "Smooth motion through all poses with ease-in/out at start and end",
+          false);
       break;
     }
   }
@@ -204,32 +194,28 @@ void CameraPoses::buildUI_interpolationControls()
       == tsd::rendering::CameraPathInterpolationType::SMOOTH) {
     ImGui::DragFloat(
         "smoothness", &pathSettings.smoothness, 0.01f, 0.0f, 1.0f, "%.2f");
-    if (ImGui::IsItemHovered()) {
-      ImGui::SetTooltip("Path smoothness (0=minimal, 1=maximum)");
-    }
+    tooltipForPreviousItem("Path smoothness (0=minimal, 1=maximum)");
   }
 
   ImGui::DragInt(
       "frames per pose", &pathSettings.framesPerSegment, 1.0f, 1, 1000);
-  if (ImGui::IsItemHovered() && !m_isRendering) {
-    if (hasPoses) {
-      ImGui::SetTooltip(
-          "Number of frames per pose (controls total frame count)");
-    } else {
-      ImGui::SetTooltip("Add at least 2 poses to enable interpolation");
-    }
+  if (!m_isRendering) {
+    if (hasPoses)
+      tooltipForPreviousItem(
+          "Number of frames per pose (controls total frame count)", false);
+    else
+      tooltipForPreviousItem(
+          "Add at least 2 poses to enable interpolation", false);
   }
 
   ImGui::DragInt("fps", &pathSettings.framesPerSecond, 1.0f, 1, 240);
-  if (ImGui::IsItemHovered() && !m_isRendering) {
-    ImGui::SetTooltip("Frames per second for the camera animation timeline");
-  }
+  if (!m_isRendering)
+    tooltipForPreviousItem(
+        "Frames per second for the camera animation timeline", false);
 
   ImGui::Checkbox("update viewport", &m_updateViewport);
-  if (ImGui::IsItemHovered()) {
-    ImGui::SetTooltip(
-        "Update the main viewport camera while rendering (live preview)");
-  }
+  tooltipForPreviousItem(
+      "Update the main viewport camera while rendering (live preview)");
 
   ImGui::EndDisabled(); // End disable block for controls
 
@@ -251,18 +237,18 @@ void CameraPoses::buildUI_interpolationControls()
       renderInterpolatedPath();
     }
     ImGui::EndDisabled();
-    if (ImGui::IsItemHovered() && hasPoses) {
+    if (hasPoses) {
       const int numPoses = static_cast<int>(appContext()->view.poses.size());
       const int totalFrames = numPoses * pathSettings.framesPerSegment + 1;
       const float durationSeconds = (totalFrames - 1)
           / static_cast<float>(std::max(1, pathSettings.framesPerSecond));
-      ImGui::SetTooltip(
-          "Render %d frames (%d poses × %d frames per pose, %.2fs @ %d fps)",
-          totalFrames,
-          numPoses,
-          pathSettings.framesPerSegment,
-          durationSeconds,
-          pathSettings.framesPerSecond);
+      std::ostringstream tooltip;
+      tooltip << "Render " << totalFrames << " frames (" << numPoses
+              << " poses × " << pathSettings.framesPerSegment
+              << " frames per pose, " << std::fixed << std::setprecision(2)
+              << durationSeconds << "s @ " << pathSettings.framesPerSecond
+              << " fps)";
+      tooltipForPreviousItem(tooltip.str().c_str(), false);
     }
   } else {
     // Cancel button is always enabled during rendering
@@ -270,9 +256,7 @@ void CameraPoses::buildUI_interpolationControls()
       m_cancelRequested = true;
       tsd::core::logStatus("[CameraPoses] Cancellation requested...");
     }
-    if (ImGui::IsItemHovered()) {
-      ImGui::SetTooltip("Cancel the current rendering");
-    }
+    tooltipForPreviousItem("Cancel the current rendering");
   }
 
   // Show rendering progress

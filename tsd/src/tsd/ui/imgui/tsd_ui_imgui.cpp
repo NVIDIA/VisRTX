@@ -359,11 +359,9 @@ void buildUI_object(tsd::scene::Object &o,
       o.useCount(tsd::scene::Object::UseKind::LAYER),
       o.useCount(tsd::scene::Object::UseKind::ANIM),
       o.useCount(tsd::scene::Object::UseKind::INTERNAL));
-  if (ImGui::IsItemHovered()) {
-    ImGui::SetTooltip(
-        "references to this object:"
-        " application | parameter | layer | animation | internal");
-  }
+  tooltipForPreviousItem(
+      "references to this object:"
+      " application | parameter | layer | animation | internal");
 
   ImGui::Separator();
 

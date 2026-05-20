@@ -193,11 +193,11 @@ void TransferFunctionEditor::buildUI_drawEditor()
               m_tfnOpacityPoints[i + 1].x);
         }
         updateColormaps();
-      } else if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip(
+      } else
+        tooltipForPreviousItem(
             "Double right click button to delete point\n"
-            "Left click and drag to move point");
-      }
+            "Left click and drag to move point",
+            false);
     }
   }
 

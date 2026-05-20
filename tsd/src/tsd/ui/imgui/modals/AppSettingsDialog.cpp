@@ -68,13 +68,11 @@ void AppSettingsDialog::buildUI_applicationSettings()
   if (ImGui::RadioButton(
           "all layers", kind == tsd::app::RenderIndexKind::ALL_LAYERS))
     ctx->anari.setRenderIndexKind(tsd::app::RenderIndexKind::ALL_LAYERS);
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("Full render index with instancing support.");
+  tooltipForPreviousItem("Full render index with instancing support.");
   ImGui::SameLine();
   if (ImGui::RadioButton("flat", kind == tsd::app::RenderIndexKind::FLAT))
     ctx->anari.setRenderIndexKind(tsd::app::RenderIndexKind::FLAT);
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("Bypass instancing of objects.");
+  tooltipForPreviousItem("Bypass instancing of objects.");
 
   if (doUpdate)
     applySettings();
@@ -144,8 +142,7 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
       1,
       std::numeric_limits<int>::max());
 
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("Number of total frames for [0.0-1.0] animation time.");
+  tooltipForPreviousItem("Number of total frames for [0.0-1.0] animation time.");
 
   ImGui::DragInt("frameIncrement",
       (int *)&ctx->offline.frame.frameIncrement,
@@ -153,8 +150,7 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
       1,
       std::max(1, ctx->offline.frame.numFrames / 2));
 
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("Render every {N} frames");
+  tooltipForPreviousItem("Render every {N} frames");
 
   ImGui::Checkbox("render subset", &ctx->offline.frame.renderSubset);
 
@@ -166,8 +162,7 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
       0,
       ctx->offline.frame.numFrames - 1);
 
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("Offset into total frame count (when rendering subset)");
+  tooltipForPreviousItem("Offset into total frame count (when rendering subset)");
 
   doFix |= ImGui::DragInt("end frame offset",
       (int *)&ctx->offline.frame.endFrame,
@@ -175,11 +170,9 @@ void AppSettingsDialog::buildUI_offlineRenderSettings()
       ctx->offline.frame.startFrame,
       ctx->offline.frame.numFrames - 1);
 
-  if (ImGui::IsItemHovered()) {
-    ImGui::SetTooltip(
-        "Stop at this frame (when rendering subset),"
-        " -1 means go to last frame in full animation");
-  }
+  tooltipForPreviousItem(
+      "Stop at this frame (when rendering subset),"
+      " -1 means go to last frame in full animation");
 
   ImGui::EndDisabled();
 

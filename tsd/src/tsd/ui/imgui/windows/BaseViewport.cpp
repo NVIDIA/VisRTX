@@ -542,8 +542,7 @@ void BaseViewport::ui_menubar_Camera()
       ImGui::BeginDisabled(
           m_camera.current->subtype() != scene::tokens::camera::orthographic);
       update |= ImGui::DragFloat("Near", &fixedDist);
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("near plane distance for orthographic camera");
+      tooltipForPreviousItem("near plane distance for orthographic camera");
       ImGui::EndDisabled();
 
       if (update) {

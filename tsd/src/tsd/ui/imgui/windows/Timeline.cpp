@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <string>
 
 namespace tsd::ui::imgui {
 
@@ -109,13 +110,11 @@ void Timeline::buildUI_transport()
     if (animMgr.isPlaying()) {
       if (ImGui::Button("||"))
         animMgr.stop();
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Pause (Space)");
+      tooltipForPreviousItem("Pause (Space)");
     } else {
       if (ImGui::Button(" > "))
         animMgr.play();
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Play (Space)");
+      tooltipForPreviousItem("Play (Space)");
     }
 
     ImGui::SameLine();
@@ -126,8 +125,7 @@ void Timeline::buildUI_transport()
       animMgr.setAnimationFrame(0);
     }
 
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("Stop");
+    tooltipForPreviousItem("Stop");
 
     ImGui::SameLine();
 
@@ -316,8 +314,7 @@ void Timeline::buildUI_canvas()
         }
       }
 
-      if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("%s", anim.name().c_str());
+      tooltipForPreviousItem(anim.name().c_str());
 
       if (selected)
         ImGui::PopStyleColor();
@@ -375,7 +372,10 @@ void Timeline::buildUI_canvas()
             if (ImGui::IsItemHovered()) {
               int kframe = static_cast<int>(
                   std::round(b.timeBase()[ki] * (totalFrames - 1)));
-              ImGui::SetTooltip("%s @ frame %d", b.paramName().c_str(), kframe);
+              std::string tooltip = b.paramName().c_str();
+              tooltip += " @ frame ";
+              tooltip += std::to_string(kframe);
+              tooltipForPreviousItem(tooltip.c_str(), false);
             }
             if (ImGui::BeginPopupContextItem("##bkf_ctx")) {
               if (ImGui::MenuItem("Delete keyframe"))
@@ -415,7 +415,9 @@ void Timeline::buildUI_canvas()
             if (ImGui::IsItemHovered()) {
               int kframe = static_cast<int>(
                   std::round(tfb.timeBase()[ki] * (totalFrames - 1)));
-              ImGui::SetTooltip("Transform @ frame %d", kframe);
+              std::string tooltip = "Transform @ frame ";
+              tooltip += std::to_string(kframe);
+              tooltipForPreviousItem(tooltip.c_str(), false);
             }
             ImGui::PopID();
           }
