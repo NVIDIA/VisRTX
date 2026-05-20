@@ -113,7 +113,11 @@ VISRTX_DEVICE float opacityToExtinction(
     float opacity, float oneOverUnitDistance)
 {
   constexpr float OPACITY_EPSILON = 1e-7f;
-  const float clampedOpacity = glm::clamp(opacity, 0.f, 0.9999f);
+  // Ceiling = largest float < 1 (1 - 2⁻²⁴). Keeps 1-α representable for
+  // log() and pins σ_t ≤ σ_maj (cell majorant uses same clamp) — invariant
+  // for the residual ratio-tracking estimator.
+  constexpr float OPACITY_CEILING = 1.f - 0x1p-24f;
+  const float clampedOpacity = glm::clamp(opacity, 0.f, OPACITY_CEILING);
   if (clampedOpacity <= OPACITY_EPSILON || !(oneOverUnitDistance > 0.f))
     return 0.f;
   return -logf(1.f - clampedOpacity) * oneOverUnitDistance;
@@ -284,6 +288,65 @@ VISRTX_DEVICE float sampleDistance(ScreenSample &ss,
   return scatterT;
 }
 
+// Unbiased ratio-tracking transmittance estimator over one volume segment.
+// At each Woodcock candidate, multiply attenuation by (1 - sigma_t / sigma_maj)
+// rather than terminating on a "real" event. Across multiple any-hit
+// invocations on adjacent volume AABBs, OptiX composes the per-segment
+// estimates multiplicatively via the shared payload, so this is the right
+// primitive to call from __anyhit__shadow.
+VISRTX_DEVICE void ratioTrackTransmittance(
+    ScreenSample &ss, const VolumeHit &hit, vec3 &attenuation)
+{
+  const auto &volume = *hit.volume;
+  auto &svv = volume.data.tf1d;
+  auto &field = getSpatialFieldData(*ss.frameData, svv.field);
+
+  const Ray objRay = hit.localRay;
+  if (!(objRay.t.lower < objRay.t.upper))
+    return;
+
+  // Match Quality_ptx.cu's ATTENUATION_EPSILON.
+  constexpr float TRANSMITTANCE_EPSILON =
+      std::numeric_limits<float>::epsilon();
+
+  VolumeSamplingState samplerState;
+  volumeSamplerInit(&samplerState, field);
+
+  GridTraversal trav(objRay, field.grid.dims, field.grid.worldBounds);
+  while (trav.valid()) {
+    const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];
+    const float majorantExtinction =
+        opacityToExtinction(maxOpacity, svv.oneOverUnitDistance);
+
+    if (majorantExtinction > 0.f) {
+      float t = trav.tEntry;
+      while (true) {
+        t += -logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs)))
+            / majorantExtinction;
+        if (t >= trav.tExit)
+          break;
+
+        const vec3 p = objRay.org + objRay.dir * t;
+        const float s = volumeSamplerSample(&samplerState, field, p);
+        if (glm::isnan(s))
+          continue;
+
+        const vec4 co = classifySample(volume, s);
+        const float actualExtinction =
+            opacityToExtinction(co.w, svv.oneOverUnitDistance);
+        const float ratio =
+            glm::clamp(actualExtinction / majorantExtinction, 0.f, 1.f);
+        attenuation *= (1.0f - ratio);
+
+        if (glm::all(
+                glm::lessThanEqual(attenuation, vec3(TRANSMITTANCE_EPSILON))))
+          return;
+      }
+    }
+    trav.next();
+  }
+}
+
 } // namespace detail
 
 VISRTX_DEVICE float sampleDistanceVolume(ScreenSample &ss,
@@ -295,6 +358,12 @@ VISRTX_DEVICE float sampleDistanceVolume(ScreenSample &ss,
 {
   return detail::sampleDistance(
       ss, hit, albedo, extinction, didScatter, normal);
+}
+
+VISRTX_DEVICE void ratioTrackTransmittanceVolume(
+    ScreenSample &ss, const VolumeHit &hit, vec3 &attenuation)
+{
+  detail::ratioTrackTransmittance(ss, hit, attenuation);
 }
 
 VISRTX_DEVICE float rayMarchVolume(ScreenSample &ss,

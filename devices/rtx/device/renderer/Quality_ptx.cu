@@ -237,14 +237,9 @@ VISRTX_GLOBAL void __anyhit__shadow()
     VolumeHit hit;
     ray::populateVolumeHit(hit);
 
-    vec3 albedo = vec3(0.0f);
-    float sampledExtinction = 0.0f;
-    bool sampledDidScatter = false;
-    sampleDistanceVolume(
-        ray::screenSample(), hit, albedo, sampledExtinction, sampledDidScatter);
-
-    if (sampledDidScatter)
-      attenuation *= albedo;
+    // Unbiased ratio-tracking transmittance over this volume segment.
+    // Scalar σ_t (TF is monochrome) broadcast to vec3 in the callee.
+    ratioTrackTransmittanceVolume(ray::screenSample(), hit, attenuation);
 
     if (glm::all(glm::lessThanEqual(attenuation, vec3(ATTENUATION_EPSILON))))
       optixTerminateRay();
