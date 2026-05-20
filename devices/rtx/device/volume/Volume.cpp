@@ -44,14 +44,19 @@ Volume::Volume(DeviceGlobalState *d)
 
 void Volume::commitParameters()
 {
+  const bool wasVisible = m_visible;
   m_id = getParam<uint32_t>("id", ~0u);
   m_visible = getParam<bool>("visible", true);
+  // Visibility flip → BVH partition changes. Other Volume params are
+  // GPU-side metadata only.
+  if (wasVisible != m_visible)
+    deviceState()->objectUpdates.lastVolumeBLASChange = helium::newTimeStamp();
 }
 
 void Volume::markFinalized()
 {
   Object::markFinalized();
-  deviceState()->objectUpdates.lastVolumeBLASChange = helium::newTimeStamp();
+  // No BLAS bump — most volume finalizations are TF tweaks; AABB stays put.
 }
 
 bool Volume::isVisible() const

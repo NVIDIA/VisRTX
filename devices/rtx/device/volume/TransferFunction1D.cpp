@@ -53,7 +53,12 @@ void TransferFunction1D::commitParameters()
   m_opacity = getParamObject<Array1D>("opacity");
   m_uniformOpacity = getParam<float>("opacity", 1.f) * m_uniformColor.w;
   m_unitDistance = getParam<float>("unitDistance", 1.f);
+  const SpatialField *previousField = m_field.get();
   m_field = getParamObject<SpatialField>("value");
+  // AABB comes from m_field. Only a field-pointer swap moves it; field
+  // data changes hit SpatialField::markFinalized.
+  if (m_field.get() != previousField)
+    deviceState()->objectUpdates.lastVolumeBLASChange = helium::newTimeStamp();
   getParam("valueRange", ANARI_FLOAT32_VEC2, &m_valueRange);
   getParam("valueRange", ANARI_FLOAT32_BOX1, &m_valueRange);
   double valueRange_d[2] = {0.0, 1.0};
