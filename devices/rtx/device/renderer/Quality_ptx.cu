@@ -437,12 +437,16 @@ VISRTX_GLOBAL void __raygen__()
       }
 
       if (!surfaceHit.foundHit && !volumeSample.didScatter) {
-        if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
-          sample.color += sampleContribution * hdri;
-          accumulateValue(sample.opacity, 1.f, sample.opacity);
-        }
-
+        // Primary-ray HDRI = rendered background. Bounce misses skip it:
+        // NEE at the previous vertex already sampled HDRI as a light, so
+        // adding it on miss double-counts for non-Dirac BSDFs (almost all
+        // scivis materials). Dirac mirrors / specular transmission lose
+        // HDRI under this rule — no MIS yet to recover them.
         if (isFirstBounce) {
+          if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
+            sample.color += sampleContribution * hdri;
+            accumulateValue(sample.opacity, 1.f, sample.opacity);
+          }
           setPixelIds(frameData.fb, ss.pixel, ray.t.upper, ~0u, ~0u, ~0u);
         }
 
