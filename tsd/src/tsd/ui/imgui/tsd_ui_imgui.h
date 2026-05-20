@@ -24,4 +24,6 @@ bool buildUI_parameter(tsd::scene::Object &o,
 size_t buildUI_objects_menulist(
     const tsd::scene::Scene &scene, anari::DataType &type);
 
+void tooltipForPreviousItem(const char *text, bool showWhenDisabled = true);
+
 } // namespace tsd::ui

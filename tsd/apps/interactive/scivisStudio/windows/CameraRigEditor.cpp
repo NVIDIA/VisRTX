@@ -5,18 +5,13 @@
 
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 #include "tsd/scene/objects/Camera.hpp"
+#include "tsd/ui/imgui/tsd_ui_imgui.h"
 
 #include "imgui.h"
 
 #include <algorithm>
 
 namespace tsd::scivis_studio {
-
-static void tooltipForPreviousItem(const char *text)
-{
-  if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-    ImGui::SetTooltip("%s", text);
-}
 
 CameraRigEditor::CameraRigEditor(
     tsd::ui::imgui::Application *app, ProjectContext *projectContext)
@@ -44,7 +39,7 @@ void CameraRigEditor::buildUI()
     rig.current = manipulatorStateFromManipulator(ctx->view.manipulator);
     project.markDirty();
   }
-  tooltipForPreviousItem("Set Rig View From Viewport");
+  tsd::ui::tooltipForPreviousItem("Set Rig View From Viewport");
 
   ImGui::SameLine();
 
@@ -59,7 +54,7 @@ void CameraRigEditor::buildUI()
     m_selectedKeyframe = static_cast<int>(rig.keyframes.size()) - 1;
     project.markDirty();
   }
-  tooltipForPreviousItem("Capture Keyframe At Current Frame");
+  tsd::ui::tooltipForPreviousItem("Capture Keyframe At Current Frame");
 
   ImGui::SameLine();
 
@@ -75,7 +70,7 @@ void CameraRigEditor::buildUI()
         manipulatorStateFromManipulator(ctx->view.manipulator);
     project.markDirty();
   }
-  tooltipForPreviousItem("Update Selected From Viewport");
+  tsd::ui::tooltipForPreviousItem("Update Selected From Viewport");
   ImGui::SameLine();
   if (ImGui::Button("Jump")) {
     shot->currentFrame = rig.keyframes[m_selectedKeyframe].frame;
@@ -84,14 +79,14 @@ void CameraRigEditor::buildUI()
     else
       m_projectContext->applyActiveShot();
   }
-  tooltipForPreviousItem("Jump Viewport To Keyframe");
+  tsd::ui::tooltipForPreviousItem("Jump Viewport To Keyframe");
   ImGui::SameLine();
   if (ImGui::Button("Delete")) {
     rig.keyframes.erase(rig.keyframes.begin() + m_selectedKeyframe);
     m_selectedKeyframe = -1;
     project.markDirty();
   }
-  tooltipForPreviousItem("Delete Keyframe");
+  tsd::ui::tooltipForPreviousItem("Delete Keyframe");
   ImGui::EndDisabled();
 
   if (ImGui::BeginTable(

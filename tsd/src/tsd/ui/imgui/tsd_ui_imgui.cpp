@@ -845,4 +845,14 @@ size_t buildUI_objects_menulist(
   return retval;
 }
 
+void tooltipForPreviousItem(const char *text, bool showWhenDisabled)
+{
+  ImGuiHoveredFlags flags = 0;
+  if (showWhenDisabled)
+    flags |= ImGuiHoveredFlags_AllowWhenDisabled;
+
+  if (ImGui::IsItemHovered(flags))
+    ImGui::SetTooltip("%s", text);
+}
+
 } // namespace tsd::ui
