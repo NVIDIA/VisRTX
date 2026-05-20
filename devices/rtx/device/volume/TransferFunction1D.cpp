@@ -51,7 +51,11 @@ void TransferFunction1D::commitParameters()
   getParam("color", ANARI_FLOAT32_VEC3, &m_uniformColor);
   getParam("color", ANARI_FLOAT32_VEC4, &m_uniformColor);
   m_opacity = getParamObject<Array1D>("opacity");
-  m_uniformOpacity = getParam<float>("opacity", 1.f) * m_uniformColor.w;
+  // Raw scalar. ANARI 1.1 §5.12.1: final α = color.w · opacity. The
+  // multiplication happens once per bin in discritizeTFData (m_tf[i].w =
+  // c.w * o); folding c.w in here would double-count whenever c.w comes
+  // from m_uniformColor.
+  m_uniformOpacity = getParam<float>("opacity", 1.f);
   m_unitDistance = getParam<float>("unitDistance", 1.f);
   const SpatialField *previousField = m_field.get();
   m_field = getParamObject<SpatialField>("value");
@@ -106,7 +110,9 @@ VolumeGPUData TransferFunction1D::gpuData() const
   retval.data.tf1d.oneOverUnitDistance = 1.0f / m_unitDistance;
   retval.data.tf1d.field = m_field->index();
   retval.data.tf1d.uniformColor = vec3(m_uniformColor);
-  retval.data.tf1d.uniformOpacity = m_uniformOpacity;
+  // Fold c.w · o here for the null-tfTex fallback in classifySample (that
+  // path doesn't see discritizeTFData's per-bin fold).
+  retval.data.tf1d.uniformOpacity = m_uniformOpacity * m_uniformColor.w;
   return retval;
 }
 
