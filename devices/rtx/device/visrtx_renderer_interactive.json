@@ -1,18 +1,20 @@
 {
-  "info" : {
-    "name" : "VISRTX_RENDERER_INTERACTIVE",
-    "type" : "extension",
-    "dependencies" : ["anari_core_1_0"],
-    "implements" : [
+  "info": {
+    "name": "VISRTX_RENDERER_INTERACTIVE",
+    "type": "extension",
+    "dependencies": [
+      "anari_core_1_0"
+    ],
+    "implements": [
       "khr_renderer_background_color",
       "khr_renderer_background_image",
       "khr_renderer_ambient_light"
     ]
   },
-  "objects" : [
+  "objects": [
     {
-      "type" : "ANARI_RENDERER",
-      "name" : "interactive",
+      "type": "ANARI_RENDERER",
+      "name": "interactive",
       "parameters": [
         {
           "name": "sampleLimit",
@@ -57,13 +59,13 @@
           "description": "suppress fireflies via reversible tonemapping before accumulation"
         },
         {
-          "name": "premultipliedAlpha",
+          "name": "premultiplyBackground",
           "types": [
             "ANARI_BOOL"
           ],
           "tags": [],
           "default": false,
-          "description": "pre-multiply RGB by alpha in the composited output pixel"
+          "description": "pre-multiply alpha channel with background color"
         },
         {
           "name": "cullTriangleBackfaces",

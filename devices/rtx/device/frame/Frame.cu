@@ -192,11 +192,10 @@ __global__ void compositeBackground(vec4 *__restrict__ accumColor,
 
   vec3 rgb = vec3(rendered);
   float alpha = rendered.a;
-  accumulateValue(rgb, vec3(bg) * bg.a, alpha);
-  accumulateValue(alpha, bg.a, alpha);
 
-  if (!renderer.premultipliedAlpha && alpha > 0.0f)
-    rgb *= 1.0f / alpha;
+  const bool premultiplyBg = renderer.premultiplyBackground;
+  accumulateValue(rgb, premultiplyBg ? vec3(bg) * bg.a : vec3(bg), alpha);
+  accumulateValue(alpha, bg.a, alpha);
 
   vec4 rgba = vec4(rgb, alpha);
   if (format == FrameFormat::SRGB) {

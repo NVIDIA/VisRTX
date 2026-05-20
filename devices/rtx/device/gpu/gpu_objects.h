@@ -732,7 +732,7 @@ struct RendererGPUData
   float inverseVolumeSamplingRate;
   float occlusionDistance;
   bool cullTriangleBF;
-  bool premultipliedAlpha;
+  bool premultiplyBackground;
   bool fireflyFilter; // enable internal tonemapping during sample accumulation
   glm::vec4 cutPlane; // cutting plane (nx,ny,nz,d); disabled when all zero (GPU
                       // default)
