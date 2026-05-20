@@ -18,6 +18,7 @@ struct ShotRenderSettings
   uint32_t height{768};
   uint32_t samples{128};
   std::string rendererLibrary;
+  size_t rendererObjectIndex{TSD_INVALID_INDEX};
   std::string rendererSubtype{"default"};
   std::string outputFilePrefix;
 };

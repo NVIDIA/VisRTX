@@ -9,6 +9,7 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/objects/Camera.hpp"
+#include "tsd/scene/objects/Renderer.hpp"
 // tsd_io
 #include "tsd/io/serialization.hpp"
 // tsd_rendering
@@ -23,6 +24,7 @@
 #include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace tsd::ui::imgui {
 
@@ -45,6 +47,16 @@ bool deviceSupportsExtension(anari::Device d, const char *extension)
   }
 
   return false;
+}
+
+std::string defaultLibraryName(const std::vector<std::string> &libraryList)
+{
+  for (const auto &libName : libraryList) {
+    if (!libName.empty() && libName != "{none}")
+      return libName;
+  }
+
+  return {};
 }
 
 } // namespace
@@ -120,7 +132,7 @@ void Viewport::buildUI()
   }
 }
 
-void Viewport::setLibrary(const std::string &libName)
+void Viewport::setLibrary(const std::string &libName, size_t rendererIndex)
 {
   teardownDevice();
 
@@ -130,13 +142,30 @@ void Viewport::setLibrary(const std::string &libName)
         libName.c_str());
   }
 
-  auto updateLibrary = [&, libName = libName]() {
+  auto updateLibrary = [&, libName = libName, rendererIndex = rendererIndex]() {
     auto &adm = appContext()->anari;
     auto &scene = appContext()->tsd.scene;
 
     auto start = std::chrono::steady_clock::now();
-    auto d = adm.loadDevice(libName);
-    m_libName = libName;
+    auto selectedLibName = libName;
+    auto d = adm.loadDevice(selectedLibName);
+
+    if (!d && !selectedLibName.empty() && selectedLibName != "{none}") {
+      tsd::core::logWarning(
+          "[viewport] failed to load ANARI device '%s'; falling back to a "
+          "default device",
+          selectedLibName.c_str());
+    }
+
+    if (!d) {
+      const auto fallbackLibName = defaultLibraryName(adm.libraryList());
+      if (!fallbackLibName.empty() && fallbackLibName != selectedLibName) {
+        selectedLibName = fallbackLibName;
+        d = adm.loadDevice(selectedLibName);
+      }
+    }
+
+    m_libName = d ? selectedLibName : std::string{};
 
     m_latestFL = 0.f;
     m_minFL.reset();
@@ -154,14 +183,29 @@ void Viewport::setLibrary(const std::string &libName)
 
       tsd::core::logStatus("[viewport] setting up renderer objects...");
 
-      m_renderers.objects = scene.renderersOfDevice(libName);
+      m_renderers.objects = scene.renderersOfDevice(selectedLibName);
       if (m_renderers.objects.empty())
-        m_renderers.objects = scene.createStandardRenderers(libName, d);
-      m_renderers.current = m_renderers.objects[0];
+        m_renderers.objects = scene.createStandardRenderers(selectedLibName, d);
+
+      if (rendererIndex != TSD_INVALID_INDEX) {
+        auto renderer = scene.getObject<tsd::scene::Renderer>(rendererIndex);
+        if (renderer && renderer->rendererDeviceName() == selectedLibName)
+          m_renderers.current = renderer;
+        else {
+          tsd::core::logWarning(
+              "[viewport] renderer object index %zu is unavailable for ANARI "
+              "device '%s'; using the default renderer",
+              rendererIndex,
+              selectedLibName.c_str());
+        }
+      }
+
+      if (!m_renderers.current && !m_renderers.objects.empty())
+        m_renderers.current = m_renderers.objects[0];
 
       tsd::core::logStatus("[viewport] populating render index...");
 
-      m_rIdx = adm.acquireRenderIndex(scene, libName, d);
+      m_rIdx = adm.acquireRenderIndex(scene, selectedLibName, d);
       setSelectionVisibilityFilterEnabled(m_showOnlySelected);
 
       static bool firstFrame = true;
@@ -221,6 +265,16 @@ void Viewport::setLibraryToDefault()
           : "");
 }
 
+const std::string &Viewport::libraryName() const
+{
+  return m_libName;
+}
+
+size_t Viewport::currentRendererObjectIndex() const
+{
+  return m_renderers.current ? m_renderers.current->index() : TSD_INVALID_INDEX;
+}
+
 void Viewport::setDeviceChangeCb(ViewportDeviceChangeCb cb)
 {
   m_deviceChangeCb = std::move(cb);
@@ -259,6 +313,8 @@ void Viewport::refreshCurrentDevice()
 void Viewport::saveSettings(tsd::core::DataNode &root)
 {
   root["anariLibrary"] = m_libName;
+  root["rendererObjectIndex"] =
+      static_cast<uint64_t>(currentRendererObjectIndex());
 
   // Viewport settings //
 
@@ -324,7 +380,9 @@ void Viewport::loadSettings(tsd::core::DataNode &root)
   if (m_app->commandLineOptions()->useDefaultRenderer) {
     std::string libraryName;
     root["anariLibrary"].getValue(ANARI_STRING, &libraryName);
-    setLibrary(libraryName);
+    auto rendererIndex =
+        root["rendererObjectIndex"].getValueOr<uint64_t>(TSD_INVALID_INDEX);
+    setLibrary(libraryName, rendererIndex);
   }
 }
 

@@ -71,6 +71,8 @@ class Application : public tsd::ui::imgui::Application
   void loadWindowSettings(tsd::core::DataNode &node);
   std::string saveLayout() const;
   void loadLayout(const std::string &layout);
+  void restoreViewportFromActiveShot();
+  void syncActiveShotRenderSettingsFromViewport();
   void requestDirtyAction(PendingDirtyAction action);
   void requestOpenRecentProject(const std::filesystem::path &directory);
   void continueDirtyAction();

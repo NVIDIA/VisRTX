@@ -63,6 +63,9 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     shot.datasetBindings.push_back({"dataset_0001", true});
     shot.lightGroup = {"studio", 5};
     shot.camera = {ANARI_CAMERA, 2};
+    shot.renderSettings.rendererLibrary = "dummy_test_device";
+    shot.renderSettings.rendererObjectIndex = 7;
+    shot.renderSettings.rendererSubtype = "dummy_test_renderer";
     CameraKeyframe keyframe;
     keyframe.frame = 12;
     keyframe.name = "mid";
@@ -90,6 +93,11 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
       REQUIRE(loaded.datasets.front().id == "dataset_0001");
       REQUIRE(loaded.shots.size() == 1);
       REQUIRE(loaded.shots.front().id == "shot_0001");
+      REQUIRE(loaded.shots.front().renderSettings.rendererLibrary
+          == "dummy_test_device");
+      REQUIRE(loaded.shots.front().renderSettings.rendererObjectIndex == 7);
+      REQUIRE(loaded.shots.front().renderSettings.rendererSubtype
+          == "dummy_test_renderer");
       REQUIRE(loaded.shots.front().cameraRig.keyframes.size() == 1);
       REQUIRE(loaded.shots.front().cameraRig.keyframes.front().frame == 12);
       REQUIRE(loaded.shots.front().cameraRig.keyframes.front().interpolationToNext

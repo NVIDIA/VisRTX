@@ -135,13 +135,14 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
       std::make_unique<AddDatasetDialog>(this, &m_projectContext);
 
   if (!m_initialProjectDirectory.empty()) {
-    if (!openProject(m_initialProjectDirectory))
+    if (!openProject(m_initialProjectDirectory)) {
       m_projectContext.createUnsavedProject();
-  } else
+      m_viewport->setLibraryToDefault();
+    }
+  } else {
     m_projectContext.createUnsavedProject();
-
-  if (m_viewport)
     m_viewport->setLibraryToDefault();
+  }
 
   ctx->tsd.sceneLoadComplete = true;
 
@@ -177,6 +178,58 @@ void Application::loadLayout(const std::string &layout)
     ImGui::LoadIniSettingsFromMemory(layout.c_str());
 }
 
+void Application::restoreViewportFromActiveShot()
+{
+  if (!m_viewport)
+    return;
+
+  const auto *shot = activeShot(m_projectContext.project());
+  if (!shot) {
+    m_viewport->setLibraryToDefault();
+    return;
+  }
+
+  m_viewport->setLibrary(shot->renderSettings.rendererLibrary,
+      shot->renderSettings.rendererObjectIndex);
+}
+
+void Application::syncActiveShotRenderSettingsFromViewport()
+{
+  if (!m_viewport)
+    return;
+
+  auto &project = m_projectContext.project();
+  auto *shot = activeShot(project);
+  if (!shot)
+    return;
+
+  const auto &libraryName = m_viewport->libraryName();
+  const auto rendererIndex = m_viewport->currentRendererObjectIndex();
+  if (libraryName.empty() || rendererIndex == TSD_INVALID_INDEX)
+    return;
+
+  bool changed = false;
+  if (shot->renderSettings.rendererLibrary != libraryName) {
+    shot->renderSettings.rendererLibrary = libraryName;
+    changed = true;
+  }
+  if (shot->renderSettings.rendererObjectIndex != rendererIndex) {
+    shot->renderSettings.rendererObjectIndex = rendererIndex;
+    changed = true;
+  }
+
+  auto *renderer =
+      appContext()->tsd.scene.getObject(ANARI_RENDERER, rendererIndex);
+  if (renderer
+      && shot->renderSettings.rendererSubtype != renderer->subtype().str()) {
+    shot->renderSettings.rendererSubtype = renderer->subtype().str();
+    changed = true;
+  }
+
+  if (changed)
+    project.markDirty();
+}
+
 bool Application::saveProject()
 {
   auto &project = m_projectContext.project();
@@ -190,6 +243,8 @@ bool Application::saveProject()
 
 bool Application::saveProjectAs(const std::filesystem::path &directory)
 {
+  syncActiveShotRenderSettingsFromViewport();
+
   tsd::core::DataTree scratch;
   auto &root = scratch.root();
   saveWindowSettings(root["windows"]);
@@ -221,6 +276,13 @@ bool Application::openProject(const std::filesystem::path &directory)
   if (!ok) {
     tsd::core::logError("[SciVisStudio] Open failed: %s", error.c_str());
     return false;
+  }
+
+  if (const auto *shot = activeShot(m_projectContext.project())) {
+    auto &viewportSettings = scratch.root()["windows"]["Viewport"];
+    viewportSettings["anariLibrary"] = shot->renderSettings.rendererLibrary;
+    viewportSettings["rendererObjectIndex"] =
+        static_cast<uint64_t>(shot->renderSettings.rendererObjectIndex);
   }
 
   loadWindowSettings(scratch.root()["windows"]);
@@ -534,6 +596,8 @@ void Application::uiFrameStart()
 
   if (!modalActive && ImGui::IsKeyChordPressed(ImGuiKey_Escape))
     appContext()->clearSelected();
+
+  syncActiveShotRenderSettingsFromViewport();
 }
 
 void Application::uiMainMenuBar()

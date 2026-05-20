@@ -97,6 +97,8 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     render["height"] = shot.renderSettings.height;
     render["samples"] = shot.renderSettings.samples;
     render["rendererLibrary"] = shot.renderSettings.rendererLibrary;
+    render["rendererObjectIndex"] =
+        static_cast<uint64_t>(shot.renderSettings.rendererObjectIndex);
     render["rendererSubtype"] = shot.renderSettings.rendererSubtype;
     render["outputFilePrefix"] = shot.renderSettings.outputFilePrefix;
 
@@ -170,6 +172,9 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
             (*render)["samples"].getValueOr<uint32_t>(128);
         shot.renderSettings.rendererLibrary =
             (*render)["rendererLibrary"].getValueOr<std::string>("");
+        shot.renderSettings.rendererObjectIndex =
+            (*render)["rendererObjectIndex"].getValueOr<uint64_t>(
+                TSD_INVALID_INDEX);
         shot.renderSettings.rendererSubtype =
             (*render)["rendererSubtype"].getValueOr<std::string>("default");
         shot.renderSettings.outputFilePrefix =

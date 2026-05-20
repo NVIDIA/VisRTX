@@ -16,6 +16,40 @@
 
 namespace tsd::scivis_studio {
 
+namespace {
+
+anari::Device loadFirstAvailableDevice(
+    tsd::app::ANARIDeviceManager &deviceManager, std::string &libName)
+{
+  auto tryLoad = [&](const std::string &name) {
+    return deviceManager.loadDevice(name);
+  };
+
+  if (auto device = tryLoad(libName))
+    return device;
+
+  if (!libName.empty() && libName != "{none}") {
+    tsd::core::logWarning(
+        "[SciVisStudio] Failed to load ANARI device '%s'; falling back to a "
+        "default device",
+        libName.c_str());
+  }
+
+  for (const auto &fallback : deviceManager.libraryList()) {
+    if (fallback == libName)
+      continue;
+    if (auto device = tryLoad(fallback)) {
+      libName = fallback;
+      return device;
+    }
+  }
+
+  libName.clear();
+  return nullptr;
+}
+
+} // namespace
+
 bool renderActiveShotToFrames(
     ProjectContext &projectContext, RenderShotProgress *progress)
 {
@@ -46,34 +80,41 @@ bool renderActiveShotToFrames(
   }
 
   auto libName = shot->renderSettings.rendererLibrary;
-  auto subtype = shot->renderSettings.rendererSubtype.empty()
-      ? std::string("default")
-      : shot->renderSettings.rendererSubtype;
-
-  auto library =
-      anari::loadLibrary(libName.c_str(), tsd::app::anariStatusFunc, nullptr);
-  if (!library) {
-    tsd::core::logError(
-        "[SciVisStudio] Failed to load ANARI library '%s'", libName.c_str());
-    return false;
-  }
-
-  auto device = anari::newDevice(library, "default");
-  anari::unloadLibrary(library);
+  auto device = loadFirstAvailableDevice(ctx->anari, libName);
   if (!device) {
     tsd::core::logError(
-        "[SciVisStudio] Failed to create ANARI device '%s'", libName.c_str());
+        "[SciVisStudio] Failed to load an ANARI device for shot rendering");
     return false;
   }
-  anari::commitParameters(device, device);
 
   auto *renderIndex = ctx->tsd.scene.updateDelegate()
                           .emplace<tsd::rendering::RenderIndexAllLayers>(
                               ctx->tsd.scene, libName, device);
   renderIndex->populate();
 
-  auto renderer = anari::newObject<anari::Renderer>(device, subtype.c_str());
-  anari::commitParameters(device, renderer);
+  const auto rendererIndex = shot->renderSettings.rendererObjectIndex;
+  auto rendererObject =
+      ctx->tsd.scene.getObject(ANARI_RENDERER, rendererIndex);
+  if (!rendererObject || rendererObject->rendererDeviceName() != libName) {
+    tsd::core::logError(
+        "[SciVisStudio] Renderer object index %zu is unavailable for ANARI "
+        "device '%s'",
+        rendererIndex,
+        libName.c_str());
+    ctx->tsd.scene.updateDelegate().erase(renderIndex);
+    anari::release(device, device);
+    return false;
+  }
+
+  auto renderer = renderIndex->renderer(rendererIndex);
+  if (!renderer) {
+    tsd::core::logError(
+        "[SciVisStudio] Failed to resolve renderer object index %zu",
+        rendererIndex);
+    ctx->tsd.scene.updateDelegate().erase(renderIndex);
+    anari::release(device, device);
+    return false;
+  }
 
   tsd::rendering::ImagePipeline pipeline;
   pipeline.setDimensions(
@@ -133,7 +174,6 @@ bool renderActiveShotToFrames(
   projectContext.applyActiveShot();
 
   ctx->tsd.scene.updateDelegate().erase(renderIndex);
-  anari::release(device, renderer);
   anari::release(device, device);
 
   return true;

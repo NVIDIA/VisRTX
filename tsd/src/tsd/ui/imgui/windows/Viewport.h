@@ -41,8 +41,11 @@ struct Viewport : public BaseViewport
   ~Viewport();
 
   void buildUI() override;
-  void setLibrary(const std::string &libName);
+  void setLibrary(
+      const std::string &libName, size_t rendererIndex = TSD_INVALID_INDEX);
   void setLibraryToDefault();
+  const std::string &libraryName() const;
+  size_t currentRendererObjectIndex() const;
   void setDeviceChangeCb(ViewportDeviceChangeCb cb);
   void setExternalInstances(
       const anari::Instance *instances = nullptr, size_t count = 0);
