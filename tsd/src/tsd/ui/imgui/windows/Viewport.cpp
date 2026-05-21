@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "Viewport.h"
+// tsd_app
+#include "tsd/app/ANARIDeviceManager.h"
 // tsd_ui_imgui
 #include "imgui.h"
 #include "tsd/ui/imgui/Application.h"
@@ -49,10 +51,10 @@ bool deviceSupportsExtension(anari::Device d, const char *extension)
   return false;
 }
 
-std::string defaultLibraryName(const std::vector<std::string> &libraryList)
+std::string defaultLibraryName(const tsd::app::ANARIDeviceManager &adm)
 {
-  for (const auto &libName : libraryList) {
-    if (!libName.empty() && libName != "{none}")
+  for (const auto &libName : adm.libraryList()) {
+    if (adm.isLoadableLibrary(libName))
       return libName;
   }
 
@@ -136,21 +138,21 @@ void Viewport::setLibrary(const std::string &libName, size_t rendererIndex)
 {
   teardownDevice();
 
-  if (!libName.empty() && libName != "{none}") {
+  auto &adm = appContext()->anari;
+  if (adm.isLoadableLibrary(libName)) {
     tsd::core::logStatus(
         "[viewport] *** setting viewport to use ANARI device '%s' ***",
         libName.c_str());
   }
 
   auto updateLibrary = [&, libName = libName, rendererIndex = rendererIndex]() {
-    auto &adm = appContext()->anari;
     auto &scene = appContext()->tsd.scene;
 
     auto start = std::chrono::steady_clock::now();
     auto selectedLibName = libName;
     auto d = adm.loadDevice(selectedLibName);
 
-    if (!d && !selectedLibName.empty() && selectedLibName != "{none}") {
+    if (!d && adm.isLoadableLibrary(selectedLibName)) {
       tsd::core::logWarning(
           "[viewport] failed to load ANARI device '%s'; falling back to a "
           "default device",
@@ -158,7 +160,7 @@ void Viewport::setLibrary(const std::string &libName, size_t rendererIndex)
     }
 
     if (!d) {
-      const auto fallbackLibName = defaultLibraryName(adm.libraryList());
+      const auto fallbackLibName = defaultLibraryName(adm);
       if (!fallbackLibName.empty() && fallbackLibName != selectedLibName) {
         selectedLibName = fallbackLibName;
         d = adm.loadDevice(selectedLibName);

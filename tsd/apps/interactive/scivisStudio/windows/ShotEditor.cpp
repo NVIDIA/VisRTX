@@ -4,12 +4,31 @@
 #include "ShotEditor.h"
 
 #include "imgui.h"
+#include "tsd/app/Context.h"
+#include "tsd/core/Logging.hpp"
+#include "tsd/scene/objects/Renderer.hpp"
 
 #include <algorithm>
 #include <cstring>
+#include <string>
 #include <vector>
 
 namespace tsd::scivis_studio {
+
+namespace {
+
+constexpr const char *NO_RENDERERS_LABEL = "<no renderers>";
+
+std::string rendererLabel(const tsd::scene::Renderer &renderer)
+{
+  std::string label = renderer.name();
+  if (label.empty())
+    label = renderer.subtype().str();
+  label += " [" + std::to_string(renderer.index()) + "]";
+  return label;
+}
+
+} // namespace
 
 ShotEditor::ShotEditor(tsd::ui::imgui::Application *app,
     ProjectContext *projectContext,
@@ -31,6 +50,111 @@ bool ShotEditor::inputText(
     return true;
   }
   return false;
+}
+
+void ShotEditor::buildUI_deviceSelector(Shot &shot)
+{
+  auto *ctx = m_projectContext ? m_projectContext->appContext() : nullptr;
+  auto &project = m_projectContext->project();
+  auto &settings = shot.renderSettings;
+  const auto preview = settings.rendererLibrary.empty()
+      ? std::string{"<none>"}
+      : settings.rendererLibrary;
+
+  if (!ctx) {
+    ImGui::BeginDisabled();
+    if (ImGui::BeginCombo("Device", preview.c_str()))
+      ImGui::EndCombo();
+    ImGui::EndDisabled();
+    return;
+  }
+
+  if (ImGui::BeginCombo("Device", preview.c_str())) {
+    for (const auto &libName : ctx->anari.libraryList()) {
+      const bool selected = settings.rendererLibrary == libName;
+      if (ImGui::Selectable(libName.c_str(), selected)) {
+        if (settings.rendererLibrary != libName) {
+          settings.rendererLibrary = libName;
+          settings.rendererObjectIndex = TSD_INVALID_INDEX;
+          settings.rendererSubtype = "default";
+          m_rendererLoadAttemptedLibrary.clear();
+          project.markDirty();
+        }
+      }
+      if (selected)
+        ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+}
+
+void ShotEditor::buildUI_rendererSelector(Shot &shot)
+{
+  auto *ctx = m_projectContext ? m_projectContext->appContext() : nullptr;
+  auto &project = m_projectContext->project();
+  auto &settings = shot.renderSettings;
+  std::vector<tsd::scene::RendererAppRef> renderers;
+
+  if (ctx && ctx->anari.isLoadableLibrary(settings.rendererLibrary)) {
+    auto &scene = ctx->tsd.scene;
+    renderers = scene.renderersOfDevice(settings.rendererLibrary);
+    if (renderers.empty()
+        && m_rendererLoadAttemptedLibrary != settings.rendererLibrary) {
+      m_rendererLoadAttemptedLibrary = settings.rendererLibrary;
+      if (auto device = ctx->anari.loadDevice(settings.rendererLibrary)) {
+        renderers =
+            scene.createStandardRenderers(settings.rendererLibrary, device);
+        anari::release(device, device);
+      } else {
+        tsd::core::logWarning(
+            "[SciVisStudio] failed to load ANARI device '%s' for shot "
+            "renderer selection",
+            settings.rendererLibrary.c_str());
+      }
+    }
+  }
+
+  tsd::scene::RendererAppRef currentRenderer;
+  if (ctx && settings.rendererObjectIndex != TSD_INVALID_INDEX) {
+    auto renderer = ctx->tsd.scene.getObject<tsd::scene::Renderer>(
+        settings.rendererObjectIndex);
+    if (renderer && renderer->rendererDeviceName() == settings.rendererLibrary)
+      currentRenderer = renderer;
+  }
+
+  if (!currentRenderer && !renderers.empty()) {
+    currentRenderer = renderers.front();
+    if (settings.rendererObjectIndex != currentRenderer->index()
+        || settings.rendererSubtype != currentRenderer->subtype().str()) {
+      settings.rendererObjectIndex = currentRenderer->index();
+      settings.rendererSubtype = currentRenderer->subtype().str();
+      project.markDirty();
+    }
+  }
+
+  const auto preview = currentRenderer ? rendererLabel(*currentRenderer)
+                                       : std::string{NO_RENDERERS_LABEL};
+  ImGui::BeginDisabled(renderers.empty());
+  if (ImGui::BeginCombo("Renderer", preview.c_str())) {
+    for (const auto &renderer : renderers) {
+      if (!renderer)
+        continue;
+      const bool selected = renderer->index() == settings.rendererObjectIndex;
+      const auto label = rendererLabel(*renderer);
+      if (ImGui::Selectable(label.c_str(), selected)) {
+        if (settings.rendererObjectIndex != renderer->index()
+            || settings.rendererSubtype != renderer->subtype().str()) {
+          settings.rendererObjectIndex = renderer->index();
+          settings.rendererSubtype = renderer->subtype().str();
+          project.markDirty();
+        }
+      }
+      if (selected)
+        ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::EndDisabled();
 }
 
 void ShotEditor::buildUI()
@@ -106,10 +230,8 @@ void ShotEditor::buildUI()
     shot->renderSettings.samples = static_cast<uint32_t>(std::max(1, samples));
     project.markDirty();
   }
-  if (inputText("Renderer library", shot->renderSettings.rendererLibrary))
-    project.markDirty();
-  if (inputText("Renderer subtype", shot->renderSettings.rendererSubtype))
-    project.markDirty();
+  buildUI_deviceSelector(*shot);
+  buildUI_rendererSelector(*shot);
   if (inputText("Output prefix", shot->renderSettings.outputFilePrefix))
     project.markDirty();
 

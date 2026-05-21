@@ -92,10 +92,16 @@ void ANARIDeviceManager::setLibraryList(const std::vector<std::string> &libs)
   m_libraryList = libs;
 }
 
+bool ANARIDeviceManager::isLoadableLibrary(
+    const std::string &libraryName) const
+{
+  return !libraryName.empty() && libraryName != "{none}";
+}
+
 anari::Device ANARIDeviceManager::loadDevice(const std::string &libraryName,
     const std::vector<DeviceInitParam> &initialDeviceParams)
 {
-  if (libraryName.empty() || libraryName == "{none}")
+  if (!isLoadableLibrary(libraryName))
     return nullptr;
 
   anari::Device dev = m_loadedDevices[libraryName];

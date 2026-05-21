@@ -38,6 +38,7 @@ struct ANARIDeviceManager
 
   const std::vector<std::string> &libraryList() const;
   void setLibraryList(const std::vector<std::string> &libs);
+  bool isLoadableLibrary(const std::string &libName) const;
 
   anari::Device loadDevice(const std::string &libName,
       const std::vector<DeviceInitParam> &initialDeviceParams = {});
