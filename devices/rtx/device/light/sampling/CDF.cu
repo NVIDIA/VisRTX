@@ -31,6 +31,7 @@
 
 #include "CDF.h"
 
+#include "gpu/gpu_math.h"
 #include "utility/DeviceBuffer.h"
 
 // anari
@@ -77,7 +78,7 @@ void computeWeightedLuminance(
         // Scale distribution by the sine to get the sampling uniform. (Avoid
         // sampling more values near the poles.) See Physically Based Rendering
         // v2, chapter 14.6.5 on Infinite Area Lights, page 728.
-        auto sinTheta = sinf(float(M_PI) * (y + 0.5f) / height);
+        auto sinTheta = sinf(kPi * (y + 0.5f) / height);
         auto rowEnvMapPtr = envMapBegin + y * width;
         auto rowLuminancePtr = luminanceBegin + y * width;
         for (auto i = 0; i < width; i++) {
@@ -189,8 +190,7 @@ float generateCDFTables(const float *luminanceImage,
   // already folded into the CDF luminance, so the per-pixel area factor is
   // 2π²/(W·H) and pdf_ω = (L/totalL) · (W·H)/(2π²).
   // A zero-luminance map produces an inf weight; return 0 instead.
-  const float equirectJacobian =
-      2.0f * float(M_PI) * float(M_PI) / (width * height);
+  const float equirectJacobian = 2.0f * kPi * kPi / (width * height);
   const float weight =
       totalLuminance > 0.0f ? 1.0f / (totalLuminance * equirectJacobian) : 0.0f;
 

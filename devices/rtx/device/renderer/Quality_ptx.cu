@@ -144,7 +144,7 @@ VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
         rendererParams.ambientColor * rendererParams.ambientIntensity,
         dir,
         std::numeric_limits<float>::max(),
-        lightPickPdf * cosNs * float(M_1_PI),
+        lightPickPdf * cosNs * kInvPi,
     };
   } else {
     const auto &lightInstance = world.lightInstances[selectedIdx];
@@ -173,7 +173,7 @@ VISRTX_DEVICE LightSample sampleLightsVolume(
 
   if (selectedIdx == world.numLightInstances) {
     const auto &rendererParams = frameData.renderer;
-    constexpr float INV_4PI = 1.0f / (4.0f * float(M_PI));
+    constexpr float INV_4PI = 1.0f / (4.0f * kPi);
     const vec3 dir = randomDir(ss.rs);
     return LightSample{
         rendererParams.ambientColor * rendererParams.ambientIntensity,
@@ -330,7 +330,7 @@ VISRTX_GLOBAL void __raygen__()
             const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
                 * volumeShadowTransmittance(ss, shadowRay);
 
-            constexpr float INV_4PI = 1.0f / (4.0f * float(M_PI));
+            constexpr float INV_4PI = 1.0f / (4.0f * kPi);
             const vec3 directLight = volumeSample.albedo * lightSample.radiance
                 * INV_4PI / lightSample.pdf;
             sample.color += sampleContribution * directLight * attenuation;

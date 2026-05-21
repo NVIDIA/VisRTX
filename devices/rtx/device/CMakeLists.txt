@@ -47,6 +47,10 @@ endif()
 
 set(VISRTX_CUDA_COMPILE_OPTIONS
   "--expt-relaxed-constexpr" "--extended-lambda" # Lambdas from device code
+  # Routes sinf/cosf/expf etc. through the SFU instead of libm argument
+  # reduction (which uses double internally and trips OptiX's double-
+  # precision warning). Slight accuracy loss in transcendentals.
+  "--use_fast_math"
   # Silence the spamming of glm warning about `__host__ annotation is ignored on a function("vec") that is explicitly defaulted on its first declaration`
   "-Xcudafe=--diag_suppress=20012"
   # Silence the multitude of warnings about deprecated/to be removed GPU architectures

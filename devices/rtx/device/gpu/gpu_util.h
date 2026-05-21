@@ -201,7 +201,7 @@ VISRTX_DEVICE vec3 randomDir(RandState &rs)
 {
   const float cosTheta = 1.f - 2.f * curand_uniform(&rs);
   const float sinTheta = sqrtf(fmaxf(0.f, 1.f - cosTheta * cosTheta));
-  const float phi = 2.f * float(M_PI) * curand_uniform(&rs);
+  const float phi = kTwoPi * curand_uniform(&rs);
   return vec3(sinTheta * cosf(phi), sinTheta * sinf(phi), cosTheta);
 }
 
@@ -231,7 +231,7 @@ VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
   const float u2 = curand_uniform(&rs);
   const float r = sqrtf(u1);
   const float z = sqrtf(fmaxf(0.f, 1.f - r * r));
-  const float phi = 2.f * float(M_PI) * u2;
+  const float phi = kTwoPi * u2;
   const vec3 sample(r * cosf(phi), r * sinf(phi), z);
   return computeOrthonormalBasis(normal) * sample;
 }
@@ -241,7 +241,7 @@ VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
   // sample unit sphere
   const float cost = 1.f - 2.f * curand_uniform(&rs);
   const float sint = sqrtf(fmaxf(0.f, 1.f - cost * cost));
-  const float phi = 2.f * float(M_PI) * curand_uniform(&rs);
+  const float phi = kTwoPi * curand_uniform(&rs);
 
   return computeOrthonormalBasis(normal)
       * vec3(sint * cosf(phi), sint * sinf(phi), -cost);
@@ -372,8 +372,8 @@ VISRTX_DEVICE vec3 sampleHDRI(const LightGPUData &ld, const vec3 &rayDir)
   if (ld.type != LightType::HDRI)
     return vec3(0.f);
 
-  constexpr float invPi = 1.f / float(M_PI);
-  constexpr float inv2Pi = 1.f / (2.f * float(M_PI));
+  constexpr float invPi = 1.f / kPi;
+  constexpr float inv2Pi = 1.f / (kTwoPi);
   const vec3 d = ld.hdri.xfm * rayDir;
   const vec2 thetaPhi = sphericalCoordsFromDirection(d);
   const float u = thetaPhi.y * inv2Pi;

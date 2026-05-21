@@ -107,6 +107,6 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
     const vec3 *outgoingDir)
 {
   float NdotL = fmaxf(0.0f, dot(hit->Ns, lightSample->dir));
-  return shadingState->baseColor * float(M_1_PI) * NdotL * lightSample->radiance
+  return shadingState->baseColor * kInvPi * NdotL * lightSample->radiance
       / lightSample->pdf;
 }

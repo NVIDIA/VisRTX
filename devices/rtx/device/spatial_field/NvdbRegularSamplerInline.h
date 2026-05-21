@@ -95,6 +95,11 @@ VISRTX_DEVICE void initNvdbSampler(
 
   state.indexMin = nanovdb::Vec3f(indexBBox.min());
   state.indexMax = nanovdb::Vec3f(indexBBox.max());
+
+  // Use host-precomputed invTwoVoxelSize — keeps Grid::voxelSize() (Vec3d)
+  // off the device init path.
+  const vec3 &iv = field->data.nvdbRegular.invTwoVoxelSize;
+  state.invTwoVoxelSize = nanovdb::Vec3f(iv.x, iv.y, iv.z);
 }
 
 template <typename ValueType>
@@ -115,7 +120,6 @@ VISRTX_DEVICE float sampleNvdb(
     const float value = state.nearestSampler(clamped);
     if (gradient) {
       // Central differences at ±1 voxel in index space
-      const auto voxelSize = state.grid->voxelSize();
       const float sxp = state.nearestSampler(clampNvdb(
           indexPos + nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
       const float sxn = state.nearestSampler(clampNvdb(
@@ -129,9 +133,10 @@ VISRTX_DEVICE float sampleNvdb(
       const float szn = state.nearestSampler(clampNvdb(
           indexPos - nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
       // Convert from index space to object space
-      *gradient = vec3((sxp - sxn) * state.scale[0] / (2.f * voxelSize[0]),
-          (syp - syn) * state.scale[1] / (2.f * voxelSize[1]),
-          (szp - szn) * state.scale[2] / (2.f * voxelSize[2]));
+      *gradient =
+          vec3((sxp - sxn) * state.scale[0] * state.invTwoVoxelSize[0],
+              (syp - syn) * state.scale[1] * state.invTwoVoxelSize[1],
+              (szp - szn) * state.scale[2] * state.invTwoVoxelSize[2]);
     }
     return value;
   }
@@ -150,10 +155,9 @@ VISRTX_DEVICE float sampleNvdb(
         indexPos + nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
     const float szn = state.linearSampler(clampNvdb(
         indexPos - nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-    const auto voxelSize = state.grid->voxelSize();
-    *gradient = vec3((sxp - sxn) * state.scale[0] / (2.f * voxelSize[0]),
-        (syp - syn) * state.scale[1] / (2.f * voxelSize[1]),
-        (szp - szn) * state.scale[2] / (2.f * voxelSize[2]));
+    *gradient = vec3((sxp - sxn) * state.scale[0] * state.invTwoVoxelSize[0],
+        (syp - syn) * state.scale[1] * state.invTwoVoxelSize[1],
+        (szp - szn) * state.scale[2] * state.invTwoVoxelSize[2]);
   }
   return value;
 }

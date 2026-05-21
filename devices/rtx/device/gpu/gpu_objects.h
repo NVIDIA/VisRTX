@@ -451,6 +451,8 @@ struct NVdbRegularData
   const void *gridData;
   bool cellCentered;
   SpatialFieldFilter filter;
+  // Host-precomputed 1 / (2 · voxelSize). Keeps Vec3d off the device init.
+  vec3 invTwoVoxelSize;
 
   NVdbRegularData() = default;
 };

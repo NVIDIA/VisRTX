@@ -117,7 +117,7 @@ VISRTX_DEVICE LightSample sampleSphereLight(
   // r is the radius in the xy-plane for this z-level
   auto r = sqrtf(std::max(0.f, 1.f - z * z));
   // u2 maps to azimuthal angle: φ ∈ [0, 2π]
-  auto phi = 2.f * float(M_PI) * u2;
+  auto phi = kTwoPi * u2;
   auto x = r * cosf(phi);
   auto y = r * sinf(phi);
 
@@ -147,7 +147,7 @@ VISRTX_DEVICE LightSample sampleSphereLight(
     // jacobian) Currently assumes uniform scaling or no scaling of the light
     // geometry
     float areaPdf =
-        1.f / (4.f * float(M_PI) * ld.sphere.radius * ld.sphere.radius);
+        1.f / (4.f * kPi * ld.sphere.radius * ld.sphere.radius);
     ls.pdf = areaPdf * pow2(ls.dist) / cosTheta;
   } else {
     // Back-facing surface element contributes no light
@@ -213,7 +213,7 @@ VISRTX_DEVICE LightSample sampleRingLight(
   auto u2 = curand_uniform(&rs);
 
   // Sample angle uniformly around the ring: φ ∈ [0, 2π]
-  auto phi = 2.0f * M_PI * u1;
+  auto phi = kTwoPi * u1;
 
   // Sample radial position uniformly by area between inner and outer radius
   // For uniform area sampling: r² = u₂(R² - r²) + r² where R=outer, r=inner
@@ -327,7 +327,7 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   // Map spherical coordinates to UV texture coordinates
   // θ ∈ [0,π] → v ∈ [0,1], φ ∈ [0,2π] → u ∈ [0,1]
   auto uv = glm::vec2(thetaPhi.y, thetaPhi.x)
-      / glm::vec2(float(M_PI) * 2.0f, float(M_PI));
+      / glm::vec2(kTwoPi, kPi);
 
   auto radiance = sampleHDRI(ld, uv);
   // pdf_ω = (L/totalL) · pdfWeight; the equirectangular sinθ jacobian is
@@ -371,7 +371,7 @@ VISRTX_DEVICE LightSample sampleHDRILight(
 
   // Convert UV coordinates to spherical coordinates
   // uv.y ∈ [0,1] → θ ∈ [0,π], uv.x ∈ [0,1] → φ ∈ [0,2π]
-  auto thetaPhi = float(M_PI) * glm::vec2(uv.y, 2.0f * (uv.x));
+  auto thetaPhi = kPi * glm::vec2(uv.y, 2.0f * (uv.x));
 
   // pdf_ω = (L/totalL) · pdfWeight; the equirectangular sinθ jacobian is
   // already folded into the CDF and pdfWeight, so do not re-multiply here.

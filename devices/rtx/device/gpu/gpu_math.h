@@ -44,6 +44,13 @@
 
 namespace visrtx {
 
+// Float π. Bare M_PI is double — silently promotes whole expressions;
+// Ada runs DP at ~1/32 float throughput.
+inline constexpr float kPi = 3.14159265358979323846f;
+inline constexpr float kTwoPi = 6.28318530717958647692f;
+inline constexpr float kInvPi = 0.31830988618379067154f;
+inline constexpr float kInvTwoPi = 0.15915494309189533577f;
+
 using glm::fquat;
 using glm::ivec1;
 using glm::ivec2;
@@ -262,7 +269,7 @@ VISRTX_HOST_DEVICE vec2 sphericalCoordsFromDirection(vec3 dir)
 {
   float theta = acosf(glm::clamp(dir.z, -1.0f, 1.0f));
   float p = atan2f(dir.y, dir.x);
-  float phi = p < 0.f ? p + 2.f * float(M_PI) : p;
+  float phi = p < 0.f ? p + kTwoPi : p;
 
   return vec2(theta, phi);
 }
@@ -299,7 +306,7 @@ VISRTX_HOST_DEVICE bool intersectBox(
 VISRTX_HOST_DEVICE vec2 uniformSampleDisk(float radius, const vec2 &s)
 {
   const float r = sqrtf(s.x) * radius;
-  const float phi = 2.f * float(M_PI) * s.y;
+  const float phi = kTwoPi * s.y;
   return vec2{r * cosf(phi), r * sinf(phi)};
 }
 
@@ -308,7 +315,7 @@ VISRTX_HOST_DEVICE vec3 uniformSampleCone(
     vec3 s) // rand uniforms in [0,1)
 {
   // Sample direction in cone
-  float phi = 2.0f * M_PI * s.x;
+  float phi = kTwoPi * s.x;
   float cosTheta = (1.0f - s.y) + s.y * cosThetaMax;
   float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
 

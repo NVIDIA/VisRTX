@@ -174,6 +174,13 @@ SpatialFieldGPUData NvdbRegularField::gpuData() const
   sf.data.nvdbRegular.filter = (m_filter == "nearest")
       ? SpatialFieldFilter::Nearest
       : SpatialFieldFilter::Linear;
+  // Degenerate axis (zero voxel size) collapses the central-difference
+  // gradient on that axis; emit 0 instead of +inf so downstream normals
+  // stay finite rather than NaN-propagating into the framebuffer.
+  auto safeInvTwo = [](float v) { return v > 0.0f ? 1.0f / (2.0f * v) : 0.0f; };
+  sf.data.nvdbRegular.invTwoVoxelSize = vec3(safeInvTwo(m_voxelSize.x),
+      safeInvTwo(m_voxelSize.y),
+      safeInvTwo(m_voxelSize.z));
 
   sf.grid = m_uniformGrid.gpuData();
 

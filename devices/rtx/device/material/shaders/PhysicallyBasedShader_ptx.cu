@@ -127,7 +127,7 @@ VISRTX_DEVICE float ggxD(float NdotH, float alpha2)
   // The fminf clamp keeps `1−x ≥ 0` against dot-product rounding above 1.
   const float NdotH2 = fminf(NdotH * NdotH, 1.0f);
   const float denom = alpha2 * NdotH2 + (1.0f - NdotH2);
-  return alpha2 / (float(M_PI) * denom * denom);
+  return alpha2 / (kPi * denom * denom);
 }
 
 // Heitz 2018 (https://jcgt.org/published/0007/04/01/) visible-normal sampling
@@ -141,7 +141,7 @@ VISRTX_DEVICE vec3 sampleGGXVNDF(
                                : vec3(1.0f, 0.0f, 0.0f);
   const vec3 T2 = glm::cross(Vh, T1);
   const float r = sqrtf(u1);
-  const float phi = 2.0f * float(M_PI) * u2;
+  const float phi = kTwoPi * u2;
   const float t1 = r * cosf(phi);
   float t2 = r * sinf(phi);
   const float s = 0.5f * (1.0f + Vh.z);
@@ -156,7 +156,7 @@ VISRTX_DEVICE float charlieD(float NdotH, float alpha)
 {
   const float invAlpha = 1.0f / fmaxf(alpha, 1e-4f);
   const float sin2 = fmaxf(0.0f, 1.0f - NdotH * NdotH);
-  return (2.0f + invAlpha) * powf(sin2, 0.5f * invAlpha) / (2.0f * float(M_PI));
+  return (2.0f + invAlpha) * powf(sin2, 0.5f * invAlpha) / (kTwoPi);
 }
 
 // Ashikhmin visibility term (Neubelt-Pettineo variant) used with Charlie D.
@@ -171,7 +171,7 @@ VISRTX_DEVICE float charlieV(float NdotV, float NdotL)
 // base with Schlick F0. See the spec's Appendix B for the math.
 VISRTX_DEVICE vec3 fresnel0ToIor(vec3 F0)
 {
-  const vec3 s = sqrt(glm::clamp(F0, vec3(0.0f), vec3(0.9999f)));
+  const vec3 s = glm::sqrt(glm::clamp(F0, vec3(0.0f), vec3(0.9999f)));
   return (vec3(1.0f) + s) / (vec3(1.0f) - s);
 }
 
@@ -193,14 +193,14 @@ VISRTX_DEVICE vec3 evalSensitivity(float opd, vec3 shift)
 {
   // Approximate spectral sensitivity of the standard observer as three
   // Gaussians (Belcour & Barla 2017, simplified) so the result stays in RGB.
-  const float phase = 2.0f * float(M_PI) * opd * 1e-9f;
+  const float phase = kTwoPi * opd * 1e-9f;
   const vec3 val = vec3(5.4856e-13f, 4.4201e-13f, 5.2481e-13f);
   const vec3 pos = vec3(1.6810e+06f, 1.7953e+06f, 2.2084e+06f);
   const vec3 var = vec3(4.3278e+09f, 9.3046e+09f, 6.6121e+09f);
 
-  vec3 xyz = val * sqrt(2.0f * float(M_PI) * var) * cos(pos * phase + shift)
-      * exp(-var * phase * phase);
-  xyz.x += 9.7470e-14f * sqrtf(2.0f * float(M_PI) * 4.5282e+09f)
+  vec3 xyz = val * glm::sqrt(kTwoPi * var) * glm::cos(pos * phase + shift)
+      * glm::exp(-var * phase * phase);
+  xyz.x += 9.7470e-14f * sqrtf(kTwoPi * 4.5282e+09f)
       * cosf(2.2399e+06f * phase + shift.x)
       * expf(-4.5282e+09f * phase * phase);
   xyz /= 1.0685e-7f;
@@ -233,23 +233,23 @@ VISRTX_DEVICE vec3 evalIridescence(float outsideIor,
   const float R0_12 = iorToFresnel0(iridescenceIorSafe, outsideIor);
   const float R12 = R0_12 + (1.0f - R0_12) * pow5(1.0f - cosTheta1);
   const float T121 = 1.0f - R12;
-  const float phi12 = iridescenceIorSafe < outsideIor ? float(M_PI) : 0.0f;
-  const float phi21 = float(M_PI) - phi12;
+  const float phi12 = iridescenceIorSafe < outsideIor ? kPi : 0.0f;
+  const float phi21 = kPi - phi12;
 
   // Second interface: film to base.
   const vec3 baseIor =
       fresnel0ToIor(glm::clamp(baseF0, vec3(0.f), vec3(0.9999f)));
   const vec3 R1 = iorToFresnel0(baseIor, iridescenceIorSafe);
   const vec3 R23 = R1 + (vec3(1.0f) - R1) * pow5(1.0f - cosTheta2);
-  const vec3 phi23 = vec3(baseIor.x < iridescenceIorSafe ? float(M_PI) : 0.0f,
-      baseIor.y < iridescenceIorSafe ? float(M_PI) : 0.0f,
-      baseIor.z < iridescenceIorSafe ? float(M_PI) : 0.0f);
+  const vec3 phi23 = vec3(baseIor.x < iridescenceIorSafe ? kPi : 0.0f,
+      baseIor.y < iridescenceIorSafe ? kPi : 0.0f,
+      baseIor.z < iridescenceIorSafe ? kPi : 0.0f);
 
   const float opd = 2.0f * iridescenceIorSafe * thickness * cosTheta2;
   const vec3 phi = vec3(phi21) + phi23;
 
   const vec3 R123 = glm::clamp(R12 * R23, vec3(1e-5f), vec3(0.9999f));
-  const vec3 r123 = sqrt(R123);
+  const vec3 r123 = glm::sqrt(R123);
   const vec3 Rs = pow2(T121) * R23 / (vec3(1.0f) - R123);
 
   // DC term.
@@ -444,7 +444,7 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
   // and transmission; metals have no diffuse).
   const vec3 diffuseColor =
       glm::mix(state->baseColor, vec3(0.0f), state->metallic);
-  const vec3 diffuseBRDF = (vec3(1.0f) - Fdiff) * float(M_1_PI) * diffuseColor
+  const vec3 diffuseBRDF = (vec3(1.0f) - Fdiff) * kInvPi * diffuseColor
       * state->occlusion * (1.0f - state->transmission);
 
   vec3 base = diffuseBRDF + specularBRDF;

@@ -199,6 +199,7 @@ struct NvdbRegularSamplerState
   nanovdb::Vec3f scale;
   nanovdb::Vec3f indexMin;
   nanovdb::Vec3f indexMax;
+  nanovdb::Vec3f invTwoVoxelSize;
   SpatialFieldFilter filter;
 };
 
