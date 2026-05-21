@@ -54,6 +54,12 @@ enum class SpatialFieldSamplerEntryPoints
 {
   Init = 0,
   Sample,
+  // Heavy Woodcock-loop bodies live as per-variant direct-callables in each
+  // sampler PTX module. Renderer wrappers in volumeIntegration.h compute
+  // (samplerCallableIndex + offset) and invoke via optixDirectCall.
+  SampleDistance,
+  RatioTrackTransmittance,
+  RayMarchVolume,
   Count
 };
 

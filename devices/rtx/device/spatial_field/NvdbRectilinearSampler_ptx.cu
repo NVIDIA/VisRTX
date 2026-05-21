@@ -29,135 +29,13 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <driver_types.h>
-#include <nanovdb/math/Math.h>
-#include "gpu/gpu_decl.h"
-#include "gpu/gpu_objects.h"
-#include "gpu/shadingState.h"
+// OptiX direct-callable entry points for the NanoVDB rectilinear-grid sampler.
+// Implementations live in NvdbRectilinearSamplerInline.h.
+
+#include "NvdbRectilinearSamplerInline.h"
+#include "gpu/volumeIntegrationDetail.h"
 
 using namespace visrtx;
-
-VISRTX_DEVICE nanovdb::Vec3f clamp(const nanovdb::Vec3f &v,
-    const nanovdb::Vec3f &min,
-    const nanovdb::Vec3f &max)
-{
-  return nanovdb::Vec3f(nanovdb::math::Clamp(v[0], min[0], max[0]),
-      nanovdb::math::Clamp(v[1], min[1], max[1]),
-      nanovdb::math::Clamp(v[2], min[2], max[2]));
-}
-
-template <typename ValueType>
-VISRTX_DEVICE void initNvdbRectilinearSampler(
-    NvdbRectilinearSamplerState<ValueType> &state,
-    const SpatialFieldGPUData *field)
-{
-  using GridType = nanovdb::Grid<nanovdb::NanoTree<ValueType>>;
-  const auto *grid =
-      static_cast<const GridType *>(field->data.nvdbRectilinear.gridData);
-
-  state.grid = grid;
-  state.accessor = grid->getAccessor();
-  state.filter = field->data.nvdbRectilinear.filter;
-  // Use placement new to construct sampler in-place, as we cannot assign
-  // because of deleted constructor of the nanovdb samplers
-  if (state.filter == SpatialFieldFilter::Nearest) {
-    new (&state.nearestSampler)
-        typename NvdbRectilinearSamplerState<ValueType>::NearestSamplerType(
-            nanovdb::math::createSampler<0>(state.accessor));
-  } else {
-    new (&state.linearSampler)
-        typename NvdbRectilinearSamplerState<ValueType>::LinearSamplerType(
-            nanovdb::math::createSampler<1>(state.accessor));
-  }
-
-  const nanovdb::CoordBBox indexBBox = grid->indexBBox();
-  const nanovdb::Vec3f dims = nanovdb::Vec3f(indexBBox.dim());
-
-  // NanoVDB samplers get exact values at 0, 1, ... N, which works for
-  // node centered data. For cell centered data, we need to offset by -0.5
-  // and clamp to artificially create the full voxel, extrapolating the
-  // outermost voxel values.
-  // ScaleDown moves from index space to normalized space [0, 1]
-  // ScaleUp moves from normalized space [0, 1] to index space - 1
-  state.scaleDown = 1.0f / dims;
-  state.scaleUp = dims - nanovdb::Vec3f(1.0f);
-  state.offsetDown = -nanovdb::Vec3f(indexBBox.min());
-  if (field->data.nvdbRectilinear.cellCentered) {
-    state.offsetUp = nanovdb::Vec3f(-0.5f) + state.offsetDown;
-  } else {
-    state.offsetUp = state.offsetDown;
-  }
-  state.indexMin = nanovdb::Vec3f(indexBBox.min());
-  state.indexMax = nanovdb::Vec3f(indexBBox.max());
-
-  state.axisLUT[0] = field->data.nvdbRectilinear.axisLUT[0];
-  state.axisLUT[1] = field->data.nvdbRectilinear.axisLUT[1];
-  state.axisLUT[2] = field->data.nvdbRectilinear.axisLUT[2];
-
-  const auto &iavs = field->data.nvdbRectilinear.invAvgVoxelSize;
-  state.invAvgVoxelSize = nanovdb::Vec3f(iavs.x, iavs.y, iavs.z);
-}
-
-template <typename ValueType>
-VISRTX_DEVICE nanovdb::Vec3f worldToIndexRectilinear(
-    const NvdbRectilinearSamplerState<ValueType> &state, const vec3 *location)
-{
-  const auto indexPos0 = state.grid->worldToIndexF(
-      nanovdb::Vec3f(location->x, location->y, location->z));
-
-  // Recenter and normalize
-  const auto normalizedPos = (indexPos0 - state.offsetDown) * state.scaleDown;
-
-  // Apply rectilinear mapping
-  const auto normalizedPosRect =
-      nanovdb::Vec3f(tex1D<float>(state.axisLUT[0], normalizedPos[0]),
-          tex1D<float>(state.axisLUT[1], normalizedPos[1]),
-          tex1D<float>(state.axisLUT[2], normalizedPos[2]));
-
-  // Back to index space
-  return normalizedPosRect * state.scaleUp + state.offsetUp;
-}
-
-template <typename ValueType>
-VISRTX_DEVICE float sampleAtIndex(
-    const NvdbRectilinearSamplerState<ValueType> &state,
-    const nanovdb::Vec3f &indexPos)
-{
-  const auto clamped = clamp(indexPos, state.indexMin, state.indexMax);
-  if (state.filter == SpatialFieldFilter::Nearest)
-    return state.nearestSampler(clamped);
-  return state.linearSampler(clamped);
-}
-
-template <typename ValueType>
-VISRTX_DEVICE float sampleNvdbRectilinearWithGradient(
-    const NvdbRectilinearSamplerState<ValueType> &state,
-    const vec3 *location,
-    vec3 *gradient)
-{
-  // World-to-index coordinate transform
-  const auto indexPos = worldToIndexRectilinear(state, location);
-  const float value = sampleAtIndex(state, indexPos);
-
-  if (gradient) {
-    // Neighbor-voxel central differences at ±1 in index space
-    const float sxp = sampleAtIndex(state, indexPos + nanovdb::Vec3f(1, 0, 0));
-    const float sxn = sampleAtIndex(state, indexPos - nanovdb::Vec3f(1, 0, 0));
-    const float syp = sampleAtIndex(state, indexPos + nanovdb::Vec3f(0, 1, 0));
-    const float syn = sampleAtIndex(state, indexPos - nanovdb::Vec3f(0, 1, 0));
-    const float szp = sampleAtIndex(state, indexPos + nanovdb::Vec3f(0, 0, 1));
-    const float szn = sampleAtIndex(state, indexPos - nanovdb::Vec3f(0, 0, 1));
-
-    // Gradient in object space: scale by invAvgVoxelSize
-    *gradient = vec3(sxp - sxn, syp - syn, szp - szn)
-        * vec3(state.invAvgVoxelSize[0],
-            state.invAvgVoxelSize[1],
-            state.invAvgVoxelSize[2])
-        * 0.5f;
-  }
-
-  return value;
-}
 
 // Fp4 rectilinear sampler
 VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFp4(
@@ -171,7 +49,7 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp4(
     const vec3 *location,
     vec3 *gradient)
 {
-  return sampleNvdbRectilinearWithGradient(
+  return sampleNvdbRectilinear(
       samplerState->nvdbRectilinearFp4, location, gradient);
 }
 
@@ -187,7 +65,7 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp8(
     const vec3 *location,
     vec3 *gradient)
 {
-  return sampleNvdbRectilinearWithGradient(
+  return sampleNvdbRectilinear(
       samplerState->nvdbRectilinearFp8, location, gradient);
 }
 
@@ -203,7 +81,7 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp16(
     const vec3 *location,
     vec3 *gradient)
 {
-  return sampleNvdbRectilinearWithGradient(
+  return sampleNvdbRectilinear(
       samplerState->nvdbRectilinearFp16, location, gradient);
 }
 
@@ -219,7 +97,7 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFpN(
     const vec3 *location,
     vec3 *gradient)
 {
-  return sampleNvdbRectilinearWithGradient(
+  return sampleNvdbRectilinear(
       samplerState->nvdbRectilinearFpN, location, gradient);
 }
 
@@ -235,6 +113,94 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFloat(
     const vec3 *location,
     vec3 *gradient)
 {
-  return sampleNvdbRectilinearWithGradient(
+  return sampleNvdbRectilinear(
       samplerState->nvdbRectilinearFloat, location, gradient);
 }
+
+// Woodcock-body callables — see NvdbRegularSampler_ptx.cu for the design rationale.
+#define VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES(Suffix, ValueType)         \
+  VISRTX_CALLABLE float __direct_callable__sampleDistance##Suffix(            \
+      ScreenSample *ss,                                                       \
+      const VolumeHit *hit,                                                   \
+      vec3 *albedo,                                                           \
+      float *extinction,                                                      \
+      bool *didScatter,                                                       \
+      vec3 *normal)                                                           \
+  {                                                                           \
+    const auto &field = getSpatialFieldData(                                  \
+        *ss->frameData, hit->volume->data.tf1d.field);                        \
+    SamplerStateBox<NvdbRectilinearSamplerState<ValueType>> stateBox;         \
+    auto &samplerState = stateBox.state;                                      \
+    initNvdbRectilinearSampler(samplerState, &field);                         \
+    return detail::woodcockSampleDistance(*ss,                                \
+        *hit,                                                                 \
+        samplerState,                                                         \
+        field,                                                                \
+        *albedo,                                                              \
+        *extinction,                                                          \
+        *didScatter,                                                          \
+        normal,                                                               \
+        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p) { return sampleNvdbRectilinear(s, &p, nullptr); }, \
+        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p,                                                    \
+            vec3 &g) { return sampleNvdbRectilinear(s, &p, &g); });           \
+  }                                                                           \
+                                                                              \
+  VISRTX_CALLABLE void __direct_callable__ratioTrackTransmittance##Suffix(    \
+      ScreenSample *ss, const VolumeHit *hit, vec3 *attenuation)              \
+  {                                                                           \
+    const auto &field = getSpatialFieldData(                                  \
+        *ss->frameData, hit->volume->data.tf1d.field);                        \
+    SamplerStateBox<NvdbRectilinearSamplerState<ValueType>> stateBox;         \
+    auto &samplerState = stateBox.state;                                      \
+    initNvdbRectilinearSampler(samplerState, &field);                         \
+    detail::woodcockRatioTrackTransmittance(*ss,                              \
+        *hit,                                                                 \
+        samplerState,                                                         \
+        field,                                                                \
+        *attenuation,                                                         \
+        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p) { return sampleNvdbRectilinear(s, &p, nullptr); });\
+  }                                                                           \
+                                                                              \
+  VISRTX_CALLABLE float __direct_callable__rayMarchVolume##Suffix(            \
+      ScreenSample *ss,                                                       \
+      const VolumeHit *hit,                                                   \
+      vec3 *color,                                                            \
+      vec3 *normal,                                                           \
+      float *opacity,                                                         \
+      float invSamplingRate)                                                  \
+  {                                                                           \
+    const auto &field = getSpatialFieldData(                                  \
+        *ss->frameData, hit->volume->data.tf1d.field);                        \
+    SamplerStateBox<NvdbRectilinearSamplerState<ValueType>> stateBox;         \
+    auto &samplerState = stateBox.state;                                      \
+    initNvdbRectilinearSampler(samplerState, &field);                         \
+    return detail::latticeRayMarchVolume(*ss,                                 \
+        *hit,                                                                 \
+        samplerState,                                                         \
+        field,                                                                \
+        color,                                                                \
+        normal,                                                               \
+        *opacity,                                                             \
+        invSamplingRate,                                                      \
+        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p) { return sampleNvdbRectilinear(s, &p, nullptr); }, \
+        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p,                                                    \
+            vec3 &g) { return sampleNvdbRectilinear(s, &p, &g); });           \
+  }
+
+VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES(NvdbRectilinearFp4, nanovdb::Fp4)
+VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES(NvdbRectilinearFp8, nanovdb::Fp8)
+VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES(NvdbRectilinearFp16, nanovdb::Fp16)
+VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES(NvdbRectilinearFpN, nanovdb::FpN)
+VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES(NvdbRectilinearFloat, float)
+
+#undef VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES

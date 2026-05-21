@@ -29,126 +29,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "gpu/gpu_decl.h"
-#include "gpu/gpu_objects.h"
-#include "gpu/shadingState.h"
+// OptiX direct-callable entry points for the NanoVDB regular-grid sampler.
+// The actual implementations live in NvdbRegularSamplerInline.h so the volume
+// integrator can call them inline on hot paths; this file only registers them
+// against the SBT slots for the fallback dispatch path.
 
-#include <nanovdb/math/Math.h>
+#include "NvdbRegularSamplerInline.h"
+#include "gpu/volumeIntegrationDetail.h"
 
 using namespace visrtx;
-
-VISRTX_DEVICE nanovdb::Vec3f clamp(const nanovdb::Vec3f &v,
-    const nanovdb::Vec3f &min,
-    const nanovdb::Vec3f &max)
-{
-  return nanovdb::Vec3f(nanovdb::math::Clamp(v[0], min[0], max[0]),
-      nanovdb::math::Clamp(v[1], min[1], max[1]),
-      nanovdb::math::Clamp(v[2], min[2], max[2]));
-}
-
-template <typename ValueType>
-VISRTX_DEVICE void initNvdbSampler(
-    NvdbRegularSamplerState<ValueType> &state, const SpatialFieldGPUData *field)
-{
-  using GridType = nanovdb::Grid<nanovdb::NanoTree<ValueType>>;
-  const auto *grid =
-      static_cast<const GridType *>(field->data.nvdbRegular.gridData);
-
-  state.grid = grid;
-  state.accessor = grid->getAccessor();
-  state.filter = field->data.nvdbRegular.filter;
-  // Use placement new to construct sampler in-place, as we cannot assign
-  // because of deleted constructor of the nanovdb samplers
-  if (state.filter == SpatialFieldFilter::Nearest) {
-    new (&state.nearestSampler)
-        typename NvdbRegularSamplerState<ValueType>::NearestSamplerType(
-            nanovdb::math::createSampler<0>(state.accessor));
-  } else {
-    new (&state.linearSampler)
-        typename NvdbRegularSamplerState<ValueType>::LinearSamplerType(
-            nanovdb::math::createSampler<1>(state.accessor));
-  }
-
-  const nanovdb::CoordBBox indexBBox = grid->indexBBox();
-  const nanovdb::Vec3f dims = nanovdb::Vec3f(indexBBox.dim());
-  // NanoVDB samplers get exact values at 0, 1, ... N, which works for
-  // node centered data. For cell centered data, we need to offset by -0.5
-  // and clamp to artificially create the full voxel, extrapolating the
-  // outermost voxel values.
-  // Scale moves from index space to index space - 1
-  state.offsetDown = -nanovdb::Vec3f(indexBBox.min());
-  if (field->data.nvdbRegular.cellCentered) {
-    state.offsetUp = nanovdb::Vec3f(-0.5f) + state.offsetDown;
-    state.scale = nanovdb::Vec3f(1.0f);
-  } else {
-    state.offsetUp = state.offsetDown;
-    state.scale = (dims - nanovdb::Vec3f(1.0f)) / dims;
-  }
-
-  state.indexMin = nanovdb::Vec3f(indexBBox.min());
-  state.indexMax = nanovdb::Vec3f(indexBBox.max());
-}
-
-template <typename ValueType>
-VISRTX_DEVICE float sampleNvdb(
-    const NvdbRegularSamplerState<ValueType> &state,
-    const vec3 *location,
-    vec3 *gradient)
-{
-  const auto indexPos0 = state.grid->worldToIndexF(
-      nanovdb::Vec3f(location->x, location->y, location->z));
-
-  const auto indexPos =
-      (indexPos0 - state.offsetDown) * state.scale + state.offsetUp;
-
-  const auto clamped = clamp(indexPos, state.indexMin, state.indexMax);
-
-  if (state.filter == SpatialFieldFilter::Nearest) {
-    const float value = state.nearestSampler(clamped);
-    if (gradient) {
-      // Central differences at ±1 voxel in index space
-      const auto voxelSize = state.grid->voxelSize();
-      const float sxp = state.nearestSampler(clamp(
-          indexPos + nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
-      const float sxn = state.nearestSampler(clamp(
-          indexPos - nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
-      const float syp = state.nearestSampler(clamp(
-          indexPos + nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
-      const float syn = state.nearestSampler(clamp(
-          indexPos - nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
-      const float szp = state.nearestSampler(clamp(
-          indexPos + nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-      const float szn = state.nearestSampler(clamp(
-          indexPos - nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-      // Convert from index space to object space
-      *gradient = vec3((sxp - sxn) * state.scale[0] / (2.f * voxelSize[0]),
-          (syp - syn) * state.scale[1] / (2.f * voxelSize[1]),
-          (szp - szn) * state.scale[2] / (2.f * voxelSize[2]));
-    }
-    return value;
-  }
-
-  const float value = state.linearSampler(clamped);
-  if (gradient) {
-    const float sxp = state.linearSampler(clamp(
-        indexPos + nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
-    const float sxn = state.linearSampler(clamp(
-        indexPos - nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
-    const float syp = state.linearSampler(clamp(
-        indexPos + nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
-    const float syn = state.linearSampler(clamp(
-        indexPos - nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
-    const float szp = state.linearSampler(clamp(
-        indexPos + nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-    const float szn = state.linearSampler(clamp(
-        indexPos - nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-    const auto voxelSize = state.grid->voxelSize();
-    *gradient = vec3((sxp - sxn) * state.scale[0] / (2.f * voxelSize[0]),
-        (syp - syn) * state.scale[1] / (2.f * voxelSize[1]),
-        (szp - szn) * state.scale[2] / (2.f * voxelSize[2]));
-  }
-  return value;
-}
 
 // Fp4 sampler
 VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp4(
@@ -219,3 +108,94 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbFloat(
 {
   return sampleNvdb(samplerState->nvdbFloat, location, gradient);
 }
+
+// Woodcock-body callables — one per variant. Each stack-allocates the typed
+// sampler state, inits it once, then runs the shared body from
+// volumeIntegrationDetail.h with __device__ lambdas resolving to the
+// variant's inline sampleNvdb<T>.
+#define VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES(Suffix, ValueType)              \
+  VISRTX_CALLABLE float __direct_callable__sampleDistance##Suffix(            \
+      ScreenSample *ss,                                                       \
+      const VolumeHit *hit,                                                   \
+      vec3 *albedo,                                                           \
+      float *extinction,                                                      \
+      bool *didScatter,                                                       \
+      vec3 *normal)                                                           \
+  {                                                                           \
+    const auto &field = getSpatialFieldData(                                  \
+        *ss->frameData, hit->volume->data.tf1d.field);                        \
+    SamplerStateBox<NvdbRegularSamplerState<ValueType>> stateBox;             \
+    auto &samplerState = stateBox.state;                                      \
+    initNvdbSampler(samplerState, &field);                                    \
+    return detail::woodcockSampleDistance(*ss,                                \
+        *hit,                                                                 \
+        samplerState,                                                         \
+        field,                                                                \
+        *albedo,                                                              \
+        *extinction,                                                          \
+        *didScatter,                                                          \
+        normal,                                                               \
+        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p) { return sampleNvdb(s, &p, nullptr); },            \
+        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p,                                                    \
+            vec3 &g) { return sampleNvdb(s, &p, &g); });                      \
+  }                                                                           \
+                                                                              \
+  VISRTX_CALLABLE void __direct_callable__ratioTrackTransmittance##Suffix(    \
+      ScreenSample *ss, const VolumeHit *hit, vec3 *attenuation)              \
+  {                                                                           \
+    const auto &field = getSpatialFieldData(                                  \
+        *ss->frameData, hit->volume->data.tf1d.field);                        \
+    SamplerStateBox<NvdbRegularSamplerState<ValueType>> stateBox;             \
+    auto &samplerState = stateBox.state;                                      \
+    initNvdbSampler(samplerState, &field);                                    \
+    detail::woodcockRatioTrackTransmittance(*ss,                              \
+        *hit,                                                                 \
+        samplerState,                                                         \
+        field,                                                                \
+        *attenuation,                                                         \
+        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p) { return sampleNvdb(s, &p, nullptr); });           \
+  }                                                                           \
+                                                                              \
+  VISRTX_CALLABLE float __direct_callable__rayMarchVolume##Suffix(            \
+      ScreenSample *ss,                                                       \
+      const VolumeHit *hit,                                                   \
+      vec3 *color,                                                            \
+      vec3 *normal,                                                           \
+      float *opacity,                                                         \
+      float invSamplingRate)                                                  \
+  {                                                                           \
+    const auto &field = getSpatialFieldData(                                  \
+        *ss->frameData, hit->volume->data.tf1d.field);                        \
+    SamplerStateBox<NvdbRegularSamplerState<ValueType>> stateBox;             \
+    auto &samplerState = stateBox.state;                                      \
+    initNvdbSampler(samplerState, &field);                                    \
+    return detail::latticeRayMarchVolume(*ss,                                 \
+        *hit,                                                                 \
+        samplerState,                                                         \
+        field,                                                                \
+        color,                                                                \
+        normal,                                                               \
+        *opacity,                                                             \
+        invSamplingRate,                                                      \
+        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p) { return sampleNvdb(s, &p, nullptr); },            \
+        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
+            const SpatialFieldGPUData &,                                      \
+            const vec3 &p,                                                    \
+            vec3 &g) { return sampleNvdb(s, &p, &g); });                      \
+  }
+
+VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES(NvdbFp4, nanovdb::Fp4)
+VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES(NvdbFp8, nanovdb::Fp8)
+VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES(NvdbFp16, nanovdb::Fp16)
+VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES(NvdbFpN, nanovdb::FpN)
+VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES(NvdbFloat, float)
+
+#undef VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES

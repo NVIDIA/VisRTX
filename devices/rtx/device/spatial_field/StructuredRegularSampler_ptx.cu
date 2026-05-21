@@ -29,23 +29,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "gpu/gpu_decl.h"
-#include "gpu/gpu_objects.h"
-#include "gpu/shadingState.h"
+// OptiX direct-callable entry points for the structured regular sampler.
+// Implementations live in StructuredRegularSamplerInline.h.
+
+#include "StructuredRegularSamplerInline.h"
+#include "gpu/volumeIntegrationDetail.h"
 
 using namespace visrtx;
 
 VISRTX_CALLABLE void __direct_callable__initStructuredRegularSampler(
     VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
 {
-  samplerState->structuredRegular.texObj = field->data.structuredRegular.texObj;
-  samplerState->structuredRegular.origin = field->data.structuredRegular.origin;
-  samplerState->structuredRegular.invDims =
-      field->data.structuredRegular.invDims;
-  samplerState->structuredRegular.invSpacing =
-      field->data.structuredRegular.invSpacing;
-  samplerState->structuredRegular.offset =
-      vec3(field->data.structuredRegular.cellCentered ? 0.0f : 0.5f);
+  initStructuredRegularSampler(samplerState->structuredRegular, field);
 }
 
 VISRTX_CALLABLE float __direct_callable__sampleStructuredRegular(
@@ -53,30 +48,86 @@ VISRTX_CALLABLE float __direct_callable__sampleStructuredRegular(
     const vec3 *location,
     vec3 *gradient)
 {
-  const auto &state = samplerState->structuredRegular;
-  const auto texelCoords = (*location - state.origin) * state.invSpacing;
-  const auto coords = texelCoords + state.offset;
-  const float value = tex3D<float>(state.texObj, coords.x, coords.y, coords.z);
+  return sampleStructuredRegular(
+      samplerState->structuredRegular, location, gradient);
+}
 
-  if (gradient) {
-    // Neighbor-voxel central differences at ±1 texel offset
-    const auto px = coords + vec3(1, 0, 0);
-    const auto nx = coords - vec3(1, 0, 0);
-    const auto py = coords + vec3(0, 1, 0);
-    const auto ny = coords - vec3(0, 1, 0);
-    const auto pz = coords + vec3(0, 0, 1);
-    const auto nz = coords - vec3(0, 0, 1);
+// Woodcock-body callables — single variant, no macro fan-out.
+VISRTX_CALLABLE float __direct_callable__sampleDistanceStructuredRegular(
+    ScreenSample *ss,
+    const VolumeHit *hit,
+    vec3 *albedo,
+    float *extinction,
+    bool *didScatter,
+    vec3 *normal)
+{
+  const auto &field =
+      getSpatialFieldData(*ss->frameData, hit->volume->data.tf1d.field);
+  SamplerStateBox<StructuredRegularSamplerState> stateBox;
+  auto &samplerState = stateBox.state;
+  initStructuredRegularSampler(samplerState, &field);
+  return detail::woodcockSampleDistance(*ss,
+      *hit,
+      samplerState,
+      field,
+      *albedo,
+      *extinction,
+      *didScatter,
+      normal,
+      [] __device__(const StructuredRegularSamplerState &s,
+          const SpatialFieldGPUData &,
+          const vec3 &p) { return sampleStructuredRegular(s, &p, nullptr); },
+      [] __device__(const StructuredRegularSamplerState &s,
+          const SpatialFieldGPUData &,
+          const vec3 &p,
+          vec3 &g) { return sampleStructuredRegular(s, &p, &g); });
+}
 
-    const float sxp = tex3D<float>(state.texObj, px.x, px.y, px.z);
-    const float sxn = tex3D<float>(state.texObj, nx.x, nx.y, nx.z);
-    const float syp = tex3D<float>(state.texObj, py.x, py.y, py.z);
-    const float syn = tex3D<float>(state.texObj, ny.x, ny.y, ny.z);
-    const float szp = tex3D<float>(state.texObj, pz.x, pz.y, pz.z);
-    const float szn = tex3D<float>(state.texObj, nz.x, nz.y, nz.z);
+VISRTX_CALLABLE void
+__direct_callable__ratioTrackTransmittanceStructuredRegular(
+    ScreenSample *ss, const VolumeHit *hit, vec3 *attenuation)
+{
+  const auto &field =
+      getSpatialFieldData(*ss->frameData, hit->volume->data.tf1d.field);
+  SamplerStateBox<StructuredRegularSamplerState> stateBox;
+  auto &samplerState = stateBox.state;
+  initStructuredRegularSampler(samplerState, &field);
+  detail::woodcockRatioTrackTransmittance(*ss,
+      *hit,
+      samplerState,
+      field,
+      *attenuation,
+      [] __device__(const StructuredRegularSamplerState &s,
+          const SpatialFieldGPUData &,
+          const vec3 &p) { return sampleStructuredRegular(s, &p, nullptr); });
+}
 
-    // Gradient in object space: scale by invSpacing (texels → object units)
-    *gradient = vec3(sxp - sxn, syp - syn, szp - szn) * state.invSpacing * 0.5f;
-  }
-
-  return value;
+VISRTX_CALLABLE float __direct_callable__rayMarchVolumeStructuredRegular(
+    ScreenSample *ss,
+    const VolumeHit *hit,
+    vec3 *color,
+    vec3 *normal,
+    float *opacity,
+    float invSamplingRate)
+{
+  const auto &field =
+      getSpatialFieldData(*ss->frameData, hit->volume->data.tf1d.field);
+  SamplerStateBox<StructuredRegularSamplerState> stateBox;
+  auto &samplerState = stateBox.state;
+  initStructuredRegularSampler(samplerState, &field);
+  return detail::latticeRayMarchVolume(*ss,
+      *hit,
+      samplerState,
+      field,
+      color,
+      normal,
+      *opacity,
+      invSamplingRate,
+      [] __device__(const StructuredRegularSamplerState &s,
+          const SpatialFieldGPUData &,
+          const vec3 &p) { return sampleStructuredRegular(s, &p, nullptr); },
+      [] __device__(const StructuredRegularSamplerState &s,
+          const SpatialFieldGPUData &,
+          const vec3 &p,
+          vec3 &g) { return sampleStructuredRegular(s, &p, &g); });
 }
