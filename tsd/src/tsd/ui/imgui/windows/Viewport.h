@@ -50,6 +50,7 @@ struct Viewport : public BaseViewport
   void setExternalInstances(
       const anari::Instance *instances = nullptr, size_t count = 0);
   void setCustomFrameParameter(const char *name, const tsd::core::Any &value);
+  void setRenderingEnabled(bool enabled);
 
  private:
   void refreshCurrentDevice();
@@ -96,6 +97,7 @@ struct Viewport : public BaseViewport
       tsd::app::RenderIndexKind::ALL_LAYERS};
 
   bool m_showOverlay{true};
+  bool m_renderingEnabled{true};
   bool m_highlightSelection{true};
   bool m_outlinePrimitives{false};
   bool m_showOnlySelected{false};

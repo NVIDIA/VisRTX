@@ -515,6 +515,11 @@ void Application::renderActiveShot()
     return;
   }
 
+  if (m_viewport) {
+    m_viewport->setRenderingEnabled(false);
+    m_viewportRenderingDisabledForShotRender = true;
+  }
+
   showTaskModalWithCancel(
       [this](const std::atomic_bool &cancelRequested) {
         RenderShotProgress progress;
@@ -522,6 +527,12 @@ void Application::renderActiveShot()
         renderActiveShotToFrames(m_projectContext, &progress);
       },
       "Rendering Active Shot...");
+
+  if (!m_taskModal && m_viewportRenderingDisabledForShotRender) {
+    if (m_viewport)
+      m_viewport->setRenderingEnabled(true);
+    m_viewportRenderingDisabledForShotRender = false;
+  }
 }
 
 void Application::saveDefaultLayoutFile() const
@@ -568,6 +579,13 @@ void Application::uiFrameStart()
   if (m_taskModal && m_taskModal->visible()) {
     m_taskModal->renderUI();
     modalActive = true;
+  }
+
+  if (m_viewportRenderingDisabledForShotRender
+      && (!m_taskModal || !m_taskModal->visible())) {
+    if (m_viewport)
+      m_viewport->setRenderingEnabled(true);
+    m_viewportRenderingDisabledForShotRender = false;
   }
 
   if (m_projectLocationDialog && m_projectLocationDialog->visible()) {

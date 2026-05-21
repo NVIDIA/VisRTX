@@ -241,7 +241,8 @@ void Viewport::setLibrary(const std::string &libName, size_t rendererIndex)
       tsd::core::logStatus("[viewport] warming up first frame...");
 
       m_rIdx->computeDefaultView();
-      m_anariPass->startFirstFrame(true);
+      if (m_renderingEnabled)
+        m_anariPass->startFirstFrame(true);
       viewport_setActive(true);
 
       tsd::core::logStatus("[viewport] ...device load complete");
@@ -395,6 +396,7 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
       m_timeToLoadDevice);
 
   m_anariPass = p.emplace_back<tsd::rendering::AnariSceneRenderPass>(m_device);
+  m_anariPass->setEnabled(m_renderingEnabled);
   m_anariPass->setUseImplicitAspectRatio(m_camera.useImplicitAspectRatio);
 
   m_saveToFilePass = p.emplace_back<tsd::rendering::SaveToFilePass>();
@@ -514,6 +516,13 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
       m_app->sdlRenderer());
 
   syncImagePassState();
+}
+
+void Viewport::setRenderingEnabled(bool enabled)
+{
+  m_renderingEnabled = enabled;
+  if (m_anariPass)
+    m_anariPass->setEnabled(enabled);
 }
 
 void Viewport::camera_resetView(bool resetAzEl)
