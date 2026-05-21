@@ -123,17 +123,16 @@ struct InteractiveShadingPolicy
     contrib *= aoFactor;
 
     // Then proceed with single bounce ray for indirect lighting
-    SurfaceHit bounceHit = hit;
     NextRay nextRay = materialNextRay(shadingState, ray, ss.rs);
     if (glm::any(glm::greaterThan(
             nextRay.contributionWeight, glm::vec3(MIN_CONTRIBUTION_EPSILON)))) {
       const float side = continuesThroughSurface(nextRay) ? -1.0f : 1.0f;
-      Ray bounceRay = {
-          bounceHit.hitpoint + bounceHit.Ng * bounceHit.epsilon * side,
+      Ray bounceRay = {hit.hitpoint + hit.Ng * hit.epsilon * side,
           normalize(nextRay.direction)};
 
       // Only check for intersecting surfaces and background as secondary light
-      // interactions
+      // interactions.
+      SurfaceHit bounceHit;
       bounceHit.foundHit = false;
       intersectSurface(ss, bounceRay, RayType::PRIMARY, &bounceHit);
 
