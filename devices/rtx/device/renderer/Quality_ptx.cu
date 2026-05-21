@@ -51,7 +51,12 @@ namespace visrtx {
 
 constexpr float PATH_CONTRIBUTION_EPSILON = 1.0e-8f;
 constexpr float ATTENUATION_EPSILON = std::numeric_limits<float>::epsilon();
+// RR start depth. Volume scatter engages earlier — throughput shrinks by
+// medium albedo each scatter, so dense regions need RR sooner. Surface
+// bounces don't shrink throughput so reliably; keep their conservative
+// threshold.
 constexpr int RUSSIAN_ROULETTE_START_DEPTH = 3;
+constexpr int RUSSIAN_ROULETTE_START_DEPTH_VOLUME = 1;
 constexpr float VOLUME_SCATTER_EPSILON = 1.0e-4f;
 
 DECLARE_FRAME_DATA(frameData)
@@ -92,18 +97,26 @@ VISRTX_DEVICE vec3 evaluateOpacity(const MaterialShadingState &shadingState)
       * (1.0f - materialEvaluateTransmission(shadingState));
 }
 
-VISRTX_DEVICE bool shouldTerminatePath(
-    ScreenSample &ss, int depth, vec3 &contribution, bool useRussianRoulette)
+VISRTX_DEVICE bool shouldTerminatePath(ScreenSample &ss,
+    int depth,
+    vec3 &contribution,
+    bool useRussianRoulette,
+    int rrStartDepth = RUSSIAN_ROULETTE_START_DEPTH,
+    float maxSurvivalProb = 0.95f)
 {
   if (glm::all(glm::lessThan(contribution, vec3(PATH_CONTRIBUTION_EPSILON))))
     return true;
 
-  if (!useRussianRoulette || depth < RUSSIAN_ROULETTE_START_DEPTH)
+  if (!useRussianRoulette || depth < rrStartDepth)
     return false;
 
+  // Survival cap. Surface default 0.95 keeps contributing paths alive
+  // (bouncing is cheap). White-smoke / dense-cloud volumes keep
+  // max(contribution) near 1 forever; the lower 0.5 cap forces probabilistic
+  // termination so the warp doesn't pin on the longest lane.
   const float maxContribution =
       glm::max(contribution.x, glm::max(contribution.y, contribution.z));
-  const float survivalProb = glm::min(0.95f, maxContribution);
+  const float survivalProb = glm::min(maxSurvivalProb, maxContribution);
   if (curand_uniform(&ss.rs) > survivalProb)
     return true;
 
@@ -341,7 +354,12 @@ VISRTX_GLOBAL void __raygen__()
 
         accumulateValue(sample.opacity, 1.0f, sample.opacity);
         sampleContribution *= volumeSample.albedo;
-        if (shouldTerminatePath(ss, d, sampleContribution, true))
+        if (shouldTerminatePath(ss,
+                d,
+                sampleContribution,
+                true,
+                RUSSIAN_ROULETTE_START_DEPTH_VOLUME,
+                /*maxSurvivalProb=*/0.5f))
           break;
 
         if (isFirstBounce) {
