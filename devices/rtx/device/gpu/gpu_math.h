@@ -133,12 +133,14 @@ struct SurfaceHit
   vec3 tU;
   float epsilon;
   vec3 tV;
-  bool isFrontFace;
-  bool foundHit;
+  bool isFrontFace : 1;
+  bool foundHit : 1;
 
   const InstanceSurfaceGPUData *instance{nullptr};
   const GeometryGPUData *geometry{nullptr};
   const MaterialGPUData *material{nullptr};
+
+  VISRTX_DEVICE SurfaceHit() : isFrontFace(false), foundHit(false) {}
 };
 
 struct VolumeHit
