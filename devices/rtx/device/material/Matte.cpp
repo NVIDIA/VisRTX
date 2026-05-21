@@ -72,6 +72,10 @@ MaterialGPUData Matte::gpuData() const
   retval.materialData.matte.cutoff = m_cutoff;
   retval.materialData.matte.alphaMode = m_mode;
 
+  retval.isFullyOpaque = m_mode == AlphaMode::OPAQUE
+      || (isStaticOne(retval.materialData.matte.opacity)
+          && isStaticOne(retval.materialData.matte.color, 3));
+
   return retval;
 }
 

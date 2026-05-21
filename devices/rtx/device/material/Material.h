@@ -73,6 +73,18 @@ inline AlphaMode alphaModeFromString(const std::string &s)
     return AlphaMode::OPAQUE;
 }
 
+// Inline VALUE with channel ≥ 1 — no sampler/attribute can lower it.
+inline bool isStaticOne(const MaterialParameter &mp, int channel = 0)
+{
+  return mp.type == MaterialParameterType::VALUE && mp.value[channel] >= 1.0f;
+}
+
+// Inline VALUE clamped to 0. Used to gate the static-opaque shortcut.
+inline bool isStaticZero(const MaterialParameter &mp, int channel = 0)
+{
+  return mp.type == MaterialParameterType::VALUE && mp.value[channel] <= 0.0f;
+}
+
 } // namespace visrtx
 
 VISRTX_ANARI_TYPEFOR_SPECIALIZATION(visrtx::Material *, ANARI_MATERIAL);

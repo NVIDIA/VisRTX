@@ -177,6 +177,15 @@ MaterialGPUData PBR::gpuData() const
   pb.cutoff = m_cutoff;
   pb.alphaMode = m_mode;
 
+  // OPAQUE mode ignores alpha at shading time (see adjustedMaterialOpacity),
+  // so it alone implies alpha-opaque; otherwise both opacity and baseColor.alpha
+  // must be statically 1. Transmission is orthogonal — non-zero values let
+  // light through even at OPAQUE, opacity=1, alpha=1 — so it must also be zero.
+  retval.isFullyOpaque = (m_mode == AlphaMode::OPAQUE
+                             || (isStaticOne(pb.opacity)
+                                 && isStaticOne(pb.baseColor, 3)))
+      && isStaticZero(pb.transmission);
+
   pb.occlusionSampler =
       m_occlusionSampler ? m_occlusionSampler->index() : ~DeviceObjectIndex{0};
 

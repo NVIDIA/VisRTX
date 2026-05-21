@@ -55,12 +55,20 @@ VISRTX_GLOBAL void __anyhit__shadow()
   SurfaceHit hit;
   ray::populateSurfaceHit(hit);
 
+  auto &o = ray::rayData<float>();
+
+  // Fully opaque material: skip the init/opacity callable chain.
+  if (hit.material->isFullyOpaque) {
+    o = 1.0f;
+    optixTerminateRay();
+    return;
+  }
+
   const auto &fd = frameData;
   const auto &md = *hit.material;
   MaterialShadingState shadingState;
   materialInitShading(&shadingState, fd, md, hit);
 
-  auto &o = ray::rayData<float>();
   accumulateValue(o, materialEvaluateOpacity(shadingState), o);
   if (o >= OPACITY_THRESHOLD)
     optixTerminateRay();

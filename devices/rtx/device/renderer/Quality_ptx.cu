@@ -242,6 +242,14 @@ VISRTX_GLOBAL void __anyhit__shadow()
     SurfaceHit hit;
     ray::populateSurfaceHit(hit);
 
+    // Fully opaque material: skip the init / opacity / transmission callable
+    // dispatch chain and just block the ray.
+    if (hit.material->isFullyOpaque) {
+      attenuation = vec3(0.0f);
+      optixTerminateRay();
+      return;
+    }
+
     auto ss = ray::screenSample();
     MaterialShadingState shadingState;
     materialInitShading(&shadingState, frameData, *hit.material, hit);

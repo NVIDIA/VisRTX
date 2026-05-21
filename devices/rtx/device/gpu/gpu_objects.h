@@ -393,6 +393,11 @@ struct MaterialGPUData
 
   uint32_t callableBaseIndex{~0u};
 
+  // Static shadow attenuator: OPAQUE alphaMode, opacity + alpha channels
+  // constant 1.0, transmission constant 0.0, no opacity/transmission
+  // sampler. Shadow anyhit short-circuits via optixTerminateRay.
+  bool isFullyOpaque{false};
+
   union MaterialData
   {
     Matte matte;
