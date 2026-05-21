@@ -22,8 +22,9 @@ void Modal::renderUI()
       ImVec2(0.5f, 0.5f));
 
   ImGui::OpenPopup(m_name.c_str());
+  bool *visible = userClosable() ? &m_visible : nullptr;
   if (ImGui::BeginPopupModal(
-          m_name.c_str(), &m_visible, ImGuiWindowFlags_AlwaysAutoResize)) {
+          m_name.c_str(), visible, ImGuiWindowFlags_AlwaysAutoResize)) {
     buildUI();
     ImGui::EndPopup();
   }
@@ -47,6 +48,11 @@ bool Modal::visible() const
 const char *Modal::name() const
 {
   return m_name.c_str();
+}
+
+bool Modal::userClosable() const
+{
+  return true;
 }
 
 tsd::app::Context *Modal::appContext() const

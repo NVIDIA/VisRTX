@@ -8,9 +8,11 @@
 #include "tsd/core/TaskQueue.hpp"
 #include "tsd/core/Timer.hpp"
 // std
+#include <atomic>
 #include <deque>
-#include <string>
+#include <memory>
 #include <mutex>
+#include <string>
 
 namespace tsd::ui::imgui {
 
@@ -22,12 +24,18 @@ struct BlockingTaskModal : public Modal
   void buildUI() override;
 
   void activate(tsd::core::Future &&f, const char *text = "Please Wait");
+  void activate(tsd::core::Future &&f,
+      const char *text,
+      std::shared_ptr<std::atomic_bool> cancelRequested);
 
  private:
+  bool userClosable() const override;
+
   struct RunningTask
   {
     tsd::core::Future future;
     std::string text;
+    std::shared_ptr<std::atomic_bool> cancelRequested;
   };
 
   std::deque<RunningTask> m_tasks;

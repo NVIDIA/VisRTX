@@ -515,9 +515,10 @@ void Application::renderActiveShot()
     return;
   }
 
-  showTaskModal(
-      [this]() {
+  showTaskModalWithCancel(
+      [this](const std::atomic_bool &cancelRequested) {
         RenderShotProgress progress;
+        progress.onFrame = [&](int, int) { return !cancelRequested.load(); };
         renderActiveShotToFrames(m_projectContext, &progress);
       },
       "Rendering Active Shot...");

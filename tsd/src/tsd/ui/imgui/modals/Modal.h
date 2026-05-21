@@ -28,6 +28,7 @@ struct Modal
 
  protected:
   virtual void buildUI() = 0;
+  virtual bool userClosable() const;
   tsd::app::Context *appContext() const;
 
   Application *m_app{nullptr};

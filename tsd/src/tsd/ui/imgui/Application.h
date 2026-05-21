@@ -20,6 +20,7 @@
 // SDL
 #include <SDL3/SDL.h>
 // std
+#include <atomic>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -78,6 +79,10 @@ class Application
   // Enqueue a task, then show a modal until task is complete
   template <class FUNCTION>
   void showTaskModal(FUNCTION &&f, const char *text = "Please Wait");
+
+  // Enqueue a cancellable task, then show a modal until task is complete
+  template <class FUNCTION>
+  void showTaskModalWithCancel(FUNCTION &&f, const char *text = "Please Wait");
   void showImportFileDialog();
   void showExportNanoVDBFileDialog();
   void saveDefaultApplicationSettings();
@@ -214,6 +219,25 @@ inline void Application::showTaskModal(F &&f, const char *text)
     future.wait();
   } else {
     m_taskModal->activate(std::move(future), text);
+  }
+}
+
+template <class F>
+inline void Application::showTaskModalWithCancel(F &&f, const char *text)
+{
+  auto cancelRequested = std::make_shared<std::atomic_bool>(false);
+  auto future = enqueueTask(
+      [task = std::forward<F>(f), cancelRequested]() mutable {
+        task(*cancelRequested);
+      });
+
+  if (!m_taskModal) {
+    tsd::core::logWarning(
+        "[Application] No task modal available to show, "
+        "executing task without showing modal.");
+    future.wait();
+  } else {
+    m_taskModal->activate(std::move(future), text, cancelRequested);
   }
 }
 

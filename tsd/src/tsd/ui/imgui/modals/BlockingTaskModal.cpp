@@ -36,15 +36,36 @@ void BlockingTaskModal::buildUI()
   m_timer.end();
   ImGui::NewLine();
   ImGui::TextDisabled("elapsed time: %.2fs", m_timer.seconds());
+
+  if (t->cancelRequested) {
+    ImGui::Separator();
+    const bool cancelRequested = t->cancelRequested->load();
+    ImGui::BeginDisabled(cancelRequested);
+    if (ImGui::Button("Cancel"))
+      t->cancelRequested->store(true);
+    ImGui::EndDisabled();
+  }
 }
 
 void BlockingTaskModal::activate(tsd::core::Future &&f, const char *text)
 {
+  activate(std::move(f), text, {});
+}
+
+void BlockingTaskModal::activate(tsd::core::Future &&f,
+    const char *text,
+    std::shared_ptr<std::atomic_bool> cancelRequested)
+{
   std::lock_guard<std::mutex> lock(m_mutex);
   if (m_tasks.empty())
     m_timer.start();
-  m_tasks.push_back({std::move(f), text});
+  m_tasks.push_back({std::move(f), text, std::move(cancelRequested)});
   this->show();
+}
+
+bool BlockingTaskModal::userClosable() const
+{
+  return false;
 }
 
 } // namespace tsd::ui::imgui

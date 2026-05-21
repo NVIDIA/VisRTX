@@ -153,8 +153,14 @@ bool renderActiveShotToFrames(
       outputDirectory.string().c_str());
 
   for (int frame = 0; frame < totalFrames; ++frame) {
-    if (progress && progress->onFrame && !progress->onFrame(frame, totalFrames))
+    if (progress && progress->onFrame
+        && !progress->onFrame(frame, totalFrames)) {
+      tsd::core::logStatus(
+          "[SciVisStudio] Shot render canceled before frame %d/%d",
+          frame,
+          totalFrames);
       break;
+    }
 
     ctx->tsd.animationMgr.setAnimationFrame(frame);
 
