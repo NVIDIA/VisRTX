@@ -36,7 +36,7 @@
 
 namespace visrtx {
 
-constexpr int MACROCELL_SIZE = 16;
+constexpr int MACROCELL_SIZE = 8;
 
 struct UniformGrid
 {
