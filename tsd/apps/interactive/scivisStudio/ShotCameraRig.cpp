@@ -90,9 +90,9 @@ static float applyInterpolation(CameraInterpolation interpolation, float t)
   case CameraInterpolation::EaseOut:
     return t * t;
   case CameraInterpolation::EaseIn:
-    return 1.f - (1.f - t) * (1.f - t);
+    return 1.f - (1.f - t) * (1.f - t) * (1.f - t);
   case CameraInterpolation::EaseOutIn:
-    return t * t * (3.f - 2.f * t);
+    return t * t * t * (t * (6.f * t - 15.f) + 10.f);
   }
   return t;
 }

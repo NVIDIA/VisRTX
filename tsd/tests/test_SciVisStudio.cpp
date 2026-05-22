@@ -150,13 +150,14 @@ SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
       REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(6.25f));
 
       rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseIn;
-      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(43.75f));
+      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(57.8125f));
 
       rig.keyframes.front().interpolationToNext =
           CameraInterpolation::EaseOutIn;
-      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(15.625f));
-      REQUIRE(sampleCameraRig(rig, 25).orbit.azeldist.x == Approx(15.625f));
-      REQUIRE(sampleCameraRig(rig, 25).orbit.fixedDist == Approx(15.625f));
+      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(10.3515625f));
+      REQUIRE(sampleCameraRig(rig, 25).orbit.azeldist.x == Approx(10.3515625f));
+      REQUIRE(sampleCameraRig(rig, 25).orbit.fixedDist == Approx(10.3515625f));
+      REQUIRE(sampleCameraRig(rig, 75).orbit.lookat.x == Approx(89.6484375f));
     }
   }
 }
