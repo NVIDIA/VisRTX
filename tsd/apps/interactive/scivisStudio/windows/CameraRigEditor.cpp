@@ -90,7 +90,9 @@ void CameraRigEditor::buildUI()
   ImGui::EndDisabled();
 
   if (ImGui::BeginTable(
-          "keyframes", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+          "keyframes", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+    ImGui::TableSetupColumn(
+        "", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFrameHeight());
     ImGui::TableSetupColumn("Frame");
     ImGui::TableSetupColumn("Name");
     ImGui::TableSetupColumn("Interpolation");
@@ -101,12 +103,26 @@ void CameraRigEditor::buildUI()
       auto &keyframe = rig.keyframes[i];
       ImGui::PushID(i);
       ImGui::TableNextRow();
+      if (m_selectedKeyframe == i) {
+        const ImU32 selectedColor =
+            ImGui::GetColorU32(ImGuiCol_Header);
+        ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, selectedColor);
+      }
+
       ImGui::TableNextColumn();
-      if (ImGui::Selectable("##select",
-              m_selectedKeyframe == i,
-              ImGuiSelectableFlags_SpanAllColumns))
+      if (ImGui::RadioButton("##selected", m_selectedKeyframe == i))
         m_selectedKeyframe = i;
-      ImGui::SameLine();
+      if (ImGui::IsItemHovered()
+          && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        m_selectedKeyframe = i;
+        shot->currentFrame = keyframe.frame;
+        if (ctx)
+          ctx->tsd.animationMgr.setAnimationFrame(shot->currentFrame);
+        else
+          m_projectContext->applyActiveShot();
+      }
+
+      ImGui::TableNextColumn();
       if (ImGui::InputInt("##frame", &keyframe.frame)) {
         sortKeyframes(rig);
         project.markDirty();
@@ -139,6 +155,12 @@ void CameraRigEditor::buildUI()
     }
 
     ImGui::EndTable();
+  }
+
+  if (hasSelection && ImGui::IsWindowHovered()
+      && ImGui::IsMouseClicked(ImGuiMouseButton_Left)
+      && !ImGui::IsAnyItemHovered()) {
+    m_selectedKeyframe = -1;
   }
 }
 
