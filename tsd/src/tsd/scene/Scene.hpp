@@ -33,6 +33,8 @@ namespace tsd::io {
 // clang-format off
 void save_Scene(scene::Scene &, core::DataNode &, bool, animation::AnimationManager *);
 void load_Scene(scene::Scene &, core::DataNode &, animation::AnimationManager *);
+void save_SceneCamerasAndRenderers(scene::Scene &, core::DataNode &);
+void load_SceneCamerasAndRenderers(scene::Scene &, core::DataNode &);
 // clang-format on
 } // namespace tsd::io
 
@@ -234,6 +236,10 @@ struct Scene
       Scene &, core::DataNode &, bool, tsd::animation::AnimationManager *);
   friend void ::tsd::io::load_Scene(
       Scene &, core::DataNode &, tsd::animation::AnimationManager *);
+  friend void ::tsd::io::save_SceneCamerasAndRenderers(
+      Scene &, core::DataNode &);
+  friend void ::tsd::io::load_SceneCamerasAndRenderers(
+      Scene &, core::DataNode &);
 
   template <typename OBJ_T, typename... Args>
   ObjectPoolRef<OBJ_T> createObjectImpl(ObjectPool<OBJ_T> &iv, Args &&...args);

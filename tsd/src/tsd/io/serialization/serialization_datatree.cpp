@@ -24,6 +24,27 @@
 
 namespace tsd::io {
 
+template <typename OBJECT_POOL_T>
+static void objectPoolToNode(core::DataNode &objPoolRoot,
+    const OBJECT_POOL_T &objPool,
+    const char *poolName,
+    bool forceProxyArrays)
+{
+  if (objPool.empty())
+    return;
+
+  tsd::core::logStatus(
+      "    ...serializing %zu %s objects", size_t(objPool.size()), poolName);
+
+  auto &childNode = objPoolRoot[poolName];
+  foreach_item_const(objPool, [&](const auto *obj) {
+    if (!obj)
+      return;
+    auto &m = childNode.append();
+    objectToNode(*obj, m, forceProxyArrays);
+  });
+}
+
 // Parameters /////////////////////////////////////////////////////////////////
 
 void parameterToNode(const Parameter &p, core::DataNode &node)
@@ -552,39 +573,42 @@ void save_Scene(Scene &scene,
   // ObjectDB //
 
   auto &objectDB = root["objectDB"];
-  auto objectPoolToNode = [&](core::DataNode &objPoolRoot,
-                              const auto &objPool,
-                              const char *poolName) {
-    if (objPool.empty())
-      return;
-
-    tsd::core::logStatus(
-        "    ...serializing %zu %s objects", size_t(objPool.size()), poolName);
-
-    auto &childNode = objPoolRoot[poolName];
-    foreach_item_const(objPool, [&](const auto *obj) {
-      if (!obj)
-        return;
-      auto &m = childNode.append();
-      objectToNode(*obj, m, forceProxyArrays);
-    });
-  };
-
-  objectPoolToNode(objectDB, scene.m_db.geometry, "geometry");
-  objectPoolToNode(objectDB, scene.m_db.sampler, "sampler");
-  objectPoolToNode(objectDB, scene.m_db.material, "material");
-  objectPoolToNode(objectDB, scene.m_db.surface, "surface");
-  objectPoolToNode(objectDB, scene.m_db.field, "spatialfield");
-  objectPoolToNode(objectDB, scene.m_db.volume, "volume");
-  objectPoolToNode(objectDB, scene.m_db.light, "light");
-  objectPoolToNode(objectDB, scene.m_db.camera, "camera");
-  objectPoolToNode(objectDB, scene.m_db.renderer, "renderer");
-  objectPoolToNode(objectDB, scene.m_db.array, "array");
+  objectPoolToNode(objectDB, scene.m_db.geometry, "geometry", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.sampler, "sampler", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.material, "material", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.surface, "surface", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.field, "spatialfield", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.volume, "volume", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.light, "light", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.camera, "camera", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.renderer, "renderer", forceProxyArrays);
+  objectPoolToNode(objectDB, scene.m_db.array, "array", forceProxyArrays);
 
   // Animations //
 
   if (animMgr)
     animationManagerToNode(*animMgr, root["animations"]);
+}
+
+void save_SceneCamerasAndRenderers(Scene &scene, const char *filename)
+{
+  tsd::core::logStatus(
+      "Saving scene cameras and renderers to file: %s", filename);
+  core::DataTree tree;
+  save_SceneCamerasAndRenderers(scene, tree.root());
+  if (!tree.save(filename))
+    tsd::core::logError(
+        "[save_SceneCamerasAndRenderers] failed to write file '%s'", filename);
+}
+
+void save_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
+{
+  root.reset();
+  scene.defragmentObjectStorage(); // ensure contiguous object indices
+
+  auto &objectDB = root["objectDB"];
+  objectPoolToNode(objectDB, scene.m_db.camera, "camera", false);
+  objectPoolToNode(objectDB, scene.m_db.renderer, "renderer", false);
 }
 
 void load_Scene(Scene &scene,
@@ -663,6 +687,55 @@ void load_Scene(Scene &scene,
 
   if (animMgr)
     nodeToAnimationManager(root["animations"], *animMgr, scene);
+
+  tsd::core::logStatus("  ...done!");
+}
+
+void load_SceneCamerasAndRenderers(Scene &scene, const char *filename)
+{
+  tsd::core::logStatus(
+      "Loading scene cameras and renderers from file: %s", filename);
+  core::DataTree tree;
+  if (!tree.load(filename)) {
+    tsd::core::logError(
+        "[load_SceneCamerasAndRenderers] failed to load file '%s'", filename);
+    return;
+  }
+
+  auto &root = tree.root();
+  if (auto *c = root.child("context"); c != nullptr)
+    load_SceneCamerasAndRenderers(scene, *c);
+  else
+    load_SceneCamerasAndRenderers(scene, root);
+}
+
+void load_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
+{
+  auto removeObjects = [&](auto &pool) {
+    for (size_t i = pool.capacity(); i-- > 0;) {
+      auto obj = pool.at(i);
+      if (obj)
+        scene.removeObject(obj.data());
+    }
+  };
+
+  scene.m_defaultObjects.camera.reset();
+  removeObjects(scene.m_db.renderer);
+  removeObjects(scene.m_db.camera);
+
+  auto &objectDB = root["objectDB"];
+  auto nodeToObjectPool = [](core::DataNode &node,
+                              Scene &scene,
+                              const char *childNodeName) {
+    auto &objectsNode = node[childNodeName];
+    objectsNode.foreach_child([&](auto &n) { nodeToNewObject(scene, n); });
+  };
+
+  nodeToObjectPool(objectDB, scene, "camera");
+  nodeToObjectPool(objectDB, scene, "renderer");
+
+  scene.m_defaultObjects.camera.reset();
+  scene.defaultCamera();
 
   tsd::core::logStatus("  ...done!");
 }

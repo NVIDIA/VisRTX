@@ -24,6 +24,7 @@ project_add_executable(
   test_ObjectUsePtr.cpp
   test_Parameter.cpp
   test_Scene.cpp
+  test_Serialization.cpp
   test_Token.cpp
 )
 if (TARGET tsd_scivis_studio_model)
@@ -59,6 +60,7 @@ add_test(NAME tsd::Object        COMMAND ${PROJECT_NAME} "[Object]"       )
 add_test(NAME tsd::ObjectUsePtr  COMMAND ${PROJECT_NAME} "[ObjectUsePtr]" )
 add_test(NAME tsd::Parameter     COMMAND ${PROJECT_NAME} "[Parameter]"    )
 add_test(NAME tsd::Scene         COMMAND ${PROJECT_NAME} "[Scene]"        )
+add_test(NAME tsd::Serialization COMMAND ${PROJECT_NAME} "[Serialization]")
 add_test(NAME tsd::Token         COMMAND ${PROJECT_NAME} "[Token]"        )
 if (TARGET tsd_scivis_studio_model)
   add_test(NAME tsd::SciVisStudio COMMAND ${PROJECT_NAME} "[SciVisStudio]")

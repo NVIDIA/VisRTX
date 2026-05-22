@@ -68,6 +68,10 @@ void save_Scene(Scene &scene, const char *filename);
 void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays, tsd::animation::AnimationManager *animMgr = nullptr);
 void load_Scene(Scene &scene, const char *filename, tsd::animation::AnimationManager *animMgr = nullptr);
 void load_Scene(Scene &scene, core::DataNode &root, tsd::animation::AnimationManager *animMgr = nullptr);
+void save_SceneCamerasAndRenderers(Scene &scene, const char *filename);
+void save_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root);
+void load_SceneCamerasAndRenderers(Scene &scene, const char *filename);
+void load_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root);
 
 void export_SceneToUSD(
     Scene &scene, const char *filename, int framesPerSecond = 30, tsd::animation::AnimationManager *animMgr = nullptr);
