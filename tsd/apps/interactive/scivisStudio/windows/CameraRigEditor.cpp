@@ -148,6 +148,8 @@ void CameraRigEditor::buildUI()
       ImGui::TableNextColumn();
       if (ImGui::RadioButton("##selected", m_selectedKeyframe == i))
         m_selectedKeyframe = i;
+      tsd::ui::tooltipForPreviousItem(
+          "Select Keyframe; Double-Click To Jump Viewport To Keyframe");
       if (ImGui::IsItemHovered()
           && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         m_selectedKeyframe = i;
