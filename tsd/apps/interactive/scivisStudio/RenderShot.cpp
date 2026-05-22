@@ -152,6 +152,7 @@ bool renderActiveShotToFrames(
       totalFrames,
       outputDirectory.string().c_str());
 
+  bool completed = true;
   for (int frame = 0; frame < totalFrames; ++frame) {
     if (progress && progress->onFrame
         && !progress->onFrame(frame, totalFrames)) {
@@ -159,6 +160,7 @@ bool renderActiveShotToFrames(
           "[SciVisStudio] Shot render canceled before frame %d/%d",
           frame,
           totalFrames);
+      completed = false;
       break;
     }
 
@@ -182,7 +184,7 @@ bool renderActiveShotToFrames(
   ctx->tsd.scene.updateDelegate().erase(renderIndex);
   anari::release(device, device);
 
-  return true;
+  return completed;
 }
 
 } // namespace tsd::scivis_studio

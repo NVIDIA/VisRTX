@@ -5,12 +5,14 @@
 
 #include "ProjectContext.h"
 #include "ProjectSerialization.h"
+#include "RenderShotCLI.h"
 
 #include "tsd/app/Context.h"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
 
 #include <filesystem>
+#include <sstream>
 
 using namespace tsd::scivis_studio;
 
@@ -311,4 +313,83 @@ SCENARIO("SciVis Studio shot time is driven by the animation manager",
 
   animMgr.setAnimationFrame(9);
   REQUIRE(shot.currentFrame == 9);
+}
+
+SCENARIO("SciVis Studio render-shot CLI parses command line", "[SciVisStudio]")
+{
+  RenderShotCommandLine commandLine;
+  std::string error;
+
+  REQUIRE(parseRenderShotCommandLine(
+      {"scivisStudioRenderShot", "/tmp/project", "--shot", "shot_0002"},
+      commandLine,
+      error));
+  REQUIRE(
+      commandLine.projectDirectory == std::filesystem::path("/tmp/project"));
+  REQUIRE(commandLine.shotId == "shot_0002");
+  REQUIRE_FALSE(commandLine.showHelp);
+
+  REQUIRE(parseRenderShotCommandLine(
+      {"scivisStudioRenderShot", "--help"}, commandLine, error));
+  REQUIRE(commandLine.showHelp);
+
+  REQUIRE_FALSE(parseRenderShotCommandLine(
+      {"scivisStudioRenderShot", "/tmp/project", "--shot"},
+      commandLine,
+      error));
+  REQUIRE(error.find("--shot requires") != std::string::npos);
+}
+
+SCENARIO("SciVis Studio render-shot CLI selects shots", "[SciVisStudio]")
+{
+  Project project;
+  project.shots.push_back({"shot_0001", "Overview"});
+  project.shots.push_back({"shot_0002", "Detail"});
+
+  std::string error;
+  std::istringstream emptyInput;
+  std::ostringstream output;
+
+  auto *shot = selectShotForRender(
+      project, "shot_0002", false, emptyInput, output, error);
+  REQUIRE(shot != nullptr);
+  REQUIRE(shot->id == "shot_0002");
+
+  shot =
+      selectShotForRender(project, "missing", false, emptyInput, output, error);
+  REQUIRE(shot == nullptr);
+  REQUIRE(error.find("unknown shot ID: missing") != std::string::npos);
+  REQUIRE(error.find("shot_0001") != std::string::npos);
+
+  shot = selectShotForRender(project, "", false, emptyInput, output, error);
+  REQUIRE(shot == nullptr);
+  REQUIRE(error.find("multiple shots found") != std::string::npos);
+  REQUIRE(error.find("--shot <shot-id>") != std::string::npos);
+
+  std::istringstream selectionInput("2\n");
+  output.str("");
+  output.clear();
+  shot = selectShotForRender(project, "", true, selectionInput, output, error);
+  REQUIRE(shot != nullptr);
+  REQUIRE(shot->id == "shot_0002");
+  REQUIRE(output.str().find("Select shot [1-2]") != std::string::npos);
+
+  std::istringstream invalidInput("3\n");
+  shot = selectShotForRender(project, "", true, invalidInput, output, error);
+  REQUIRE(shot == nullptr);
+  REQUIRE(error.find("invalid shot selection: 3") != std::string::npos);
+}
+
+SCENARIO(
+    "SciVis Studio render-shot CLI auto-selects one shot", "[SciVisStudio]")
+{
+  Project project;
+  project.shots.push_back({"shot_0001", "Only Shot"});
+
+  std::string error;
+  std::istringstream input;
+  std::ostringstream output;
+  auto *shot = selectShotForRender(project, "", false, input, output, error);
+  REQUIRE(shot != nullptr);
+  REQUIRE(shot->id == "shot_0001");
 }

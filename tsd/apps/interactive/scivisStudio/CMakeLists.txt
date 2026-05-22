@@ -6,6 +6,8 @@ add_library(tsd_scivis_studio_model STATIC
   Project.cpp
   ProjectContext.cpp
   ProjectSerialization.cpp
+  RenderShot.cpp
+  RenderShotCLI.cpp
   Shot.cpp
   ShotCameraRig.cpp
 )
@@ -38,7 +40,6 @@ configure_file(
 
 add_executable(scivisStudio
   Application.cpp
-  RenderShot.cpp
   modals/AddDatasetDialog.cpp
   modals/ConfirmDiscardDialog.cpp
   modals/ProjectLocationDialog.cpp
@@ -58,4 +59,13 @@ target_link_libraries(scivisStudio
 PRIVATE
   tsd_scivis_studio_model
   tsd_ui_imgui
+)
+
+add_executable(scivisStudioRenderShot
+  scivisStudioRenderShot.cpp
+)
+
+target_link_libraries(scivisStudioRenderShot
+PRIVATE
+  tsd_scivis_studio_model
 )
