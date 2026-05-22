@@ -20,19 +20,20 @@ using namespace tsd::core;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-void applyTransferFunction(Scene &scene,
-    VolumeRef volume,
-    const tsd::core::TransferFunction &transferFunction)
+void applyTransferFunction(
+    Scene &scene, VolumeRef volume, const tsd::core::TransferFunction &tf)
 {
-  if (!volume)
+  if (!volume) {
+    logError(
+        "[applyTransferFunction] cannot apply transfer function to null volume");
     return;
+  }
 
-  // Fallback tf in case none is provided. So interpolate*() work.
-  const auto fallback = (transferFunction.colorPoints.empty()
-                            || transferFunction.opacityPoints.empty())
-      ? std::optional<TransferFunction>(makeDefaultTransferFunction())
-      : std::nullopt;
-  const auto &tf = fallback ? *fallback : transferFunction;
+  if (tf.colorPoints.empty() || tf.opacityPoints.empty()) {
+    logError(
+        "[applyTransferFunction] transfer function must have color and opacity control points");
+    return;
+  }
 
   // Build RGBA colors with evenly-spaced positions
   std::vector<tsd::math::float4> colormap;
@@ -43,8 +44,8 @@ void applyTransferFunction(Scene &scene,
     float x = (i / float(numRGBPoints - 1));
 
     auto color = detail::interpolateColor(tf.colorPoints, x);
-    auto opacty = detail::interpolateOpacity(tf.opacityPoints, x);
-    colormap.push_back({color.x, color.y, color.z, opacty});
+    auto opacity = detail::interpolateOpacity(tf.opacityPoints, x);
+    colormap.push_back({color.x, color.y, color.z, opacity});
   }
 
   auto colorArray = scene.createArray(ANARI_FLOAT32_VEC4, colormap.size());

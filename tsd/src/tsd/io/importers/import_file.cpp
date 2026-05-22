@@ -9,12 +9,33 @@
 
 namespace tsd::io {
 
+namespace {
+
+void ensureDefaultTransferFunction(tsd::core::TransferFunction &tf)
+{
+  if (!tf.colorPoints.empty() || !tf.opacityPoints.empty())
+    return;
+
+  for (const auto &c : core::colormap::viridis) {
+    tf.colorPoints.push_back({float(tf.colorPoints.size())
+            / float(core::colormap::viridis.size() - 1),
+        c.x,
+        c.y,
+        c.z});
+  }
+  tf.opacityPoints = {{0.0f, 0.0f}, {1.0f, 1.0f}};
+  tf.range = {};
+}
+
+} // namespace
+
 void import_file(Scene &scene,
     tsd::animation::AnimationManager &animMgr,
     const ImportFile &f,
     tsd::scene::LayerNodeRef root)
 {
   tsd::core::TransferFunction tf;
+  ensureDefaultTransferFunction(tf);
   import_file(scene, animMgr, f, tf, root);
 }
 
@@ -95,8 +116,7 @@ void import_file(Scene &scene,
     if (files.size() > 2 && !files[2].empty())
       prop = files[2];
     tsd::io::import_VTU(scene, animMgr, file.c_str(), root, std::move(prop));
-  }
-  else if (f.first == ImporterType::XYZDP)
+  } else if (f.first == ImporterType::XYZDP)
     tsd::io::import_XYZDP(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::VOLUME)
     tsd::io::import_volume(scene, file.c_str(), tf, root);
@@ -124,8 +144,7 @@ void import_files(Scene &s,
     tsd::core::TransferFunction tf,
     tsd::scene::LayerNodeRef root)
 {
-  if (tf.colorPoints.empty() && tf.opacityPoints.empty())
-    tf = tsd::core::makeDefaultTransferFunction();
+  ensureDefaultTransferFunction(tf);
 
   const size_t rank = s.mpiRank();
   const size_t numRanks = s.mpiNumRanks();
@@ -142,8 +161,9 @@ void import_animations(Scene &scene,
     const std::vector<ImportAnimationFiles> &files,
     tsd::scene::LayerNodeRef root)
 {
-  import_animations(
-      scene, animMgr, files, tsd::core::makeDefaultTransferFunction(), root);
+  tsd::core::TransferFunction tf;
+  ensureDefaultTransferFunction(tf);
+  import_animations(scene, animMgr, files, tf, root);
 }
 
 void import_animations(Scene &scene,
