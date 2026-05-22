@@ -13,7 +13,10 @@ namespace tsd::scivis_studio {
 enum class CameraInterpolation
 {
   Hold,
-  Linear
+  Linear,
+  EaseOut,
+  EaseIn,
+  EaseOutIn
 };
 
 struct ManipulatorState

@@ -73,7 +73,7 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     keyframe.name = "mid";
     keyframe.manipulator.orbit.lookat = {1.f, 2.f, 3.f};
     keyframe.manipulator.orbit.azeldist = {10.f, 20.f, 30.f};
-    keyframe.interpolationToNext = CameraInterpolation::Hold;
+    keyframe.interpolationToNext = CameraInterpolation::EaseOutIn;
     shot.cameraRig.keyframes.push_back(keyframe);
     project.activeShotId = shot.id;
     project.shots.push_back(shot);
@@ -102,8 +102,61 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
           == "dummy_test_renderer");
       REQUIRE(loaded.shots.front().cameraRig.keyframes.size() == 1);
       REQUIRE(loaded.shots.front().cameraRig.keyframes.front().frame == 12);
-      REQUIRE(loaded.shots.front().cameraRig.keyframes.front().interpolationToNext
-          == CameraInterpolation::Hold);
+      REQUIRE(
+          loaded.shots.front().cameraRig.keyframes.front().interpolationToNext
+          == CameraInterpolation::EaseOutIn);
+    }
+  }
+}
+
+SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
+{
+  GIVEN("Camera interpolation modes")
+  {
+    THEN("String conversion round-trips all persisted values")
+    {
+      const CameraInterpolation modes[] = {CameraInterpolation::Hold,
+          CameraInterpolation::Linear,
+          CameraInterpolation::EaseOut,
+          CameraInterpolation::EaseIn,
+          CameraInterpolation::EaseOutIn};
+
+      for (auto mode : modes)
+        REQUIRE(cameraInterpolationFromString(toString(mode)) == mode);
+
+      REQUIRE(cameraInterpolationFromString("Unknown")
+          == CameraInterpolation::Linear);
+    }
+
+    THEN("Sampling applies easing to the segment interpolation factor")
+    {
+      ShotCameraRig rig;
+
+      CameraKeyframe a;
+      a.frame = 0;
+      a.manipulator.orbit.lookat = {0.f, 0.f, 0.f};
+      a.manipulator.orbit.azeldist = {0.f, 0.f, 0.f};
+      a.manipulator.orbit.fixedDist = 0.f;
+
+      CameraKeyframe b;
+      b.frame = 100;
+      b.manipulator.orbit.lookat = {100.f, 0.f, 0.f};
+      b.manipulator.orbit.azeldist = {100.f, 0.f, 0.f};
+      b.manipulator.orbit.fixedDist = 100.f;
+
+      rig.keyframes = {a, b};
+
+      rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseOut;
+      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(6.25f));
+
+      rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseIn;
+      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(43.75f));
+
+      rig.keyframes.front().interpolationToNext =
+          CameraInterpolation::EaseOutIn;
+      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(15.625f));
+      REQUIRE(sampleCameraRig(rig, 25).orbit.azeldist.x == Approx(15.625f));
+      REQUIRE(sampleCameraRig(rig, 25).orbit.fixedDist == Approx(15.625f));
     }
   }
 }
@@ -236,8 +289,8 @@ SCENARIO("SciVis Studio dataset binding resolves the dataset group by ID",
 SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
     "[SciVisStudio]")
 {
-  const auto root = std::filesystem::temp_directory_path()
-      / "tsd_scivis_studio_runtime_refs";
+  const auto root =
+      std::filesystem::temp_directory_path() / "tsd_scivis_studio_runtime_refs";
   std::filesystem::remove_all(root);
 
   {

@@ -13,6 +13,43 @@
 
 namespace tsd::scivis_studio {
 
+namespace {
+
+int cameraInterpolationIndex(CameraInterpolation interpolation)
+{
+  switch (interpolation) {
+  case CameraInterpolation::Hold:
+    return 0;
+  case CameraInterpolation::Linear:
+    return 1;
+  case CameraInterpolation::EaseOut:
+    return 2;
+  case CameraInterpolation::EaseIn:
+    return 3;
+  case CameraInterpolation::EaseOutIn:
+    return 4;
+  }
+  return 1;
+}
+
+CameraInterpolation cameraInterpolationFromIndex(int index)
+{
+  switch (index) {
+  case 0:
+    return CameraInterpolation::Hold;
+  case 2:
+    return CameraInterpolation::EaseOut;
+  case 3:
+    return CameraInterpolation::EaseIn;
+  case 4:
+    return CameraInterpolation::EaseOutIn;
+  default:
+    return CameraInterpolation::Linear;
+  }
+}
+
+} // namespace
+
 CameraRigEditor::CameraRigEditor(
     tsd::ui::imgui::Application *app, ProjectContext *projectContext)
     : Window(app, "Camera Rig"), m_projectContext(projectContext)
@@ -104,8 +141,7 @@ void CameraRigEditor::buildUI()
       ImGui::PushID(i);
       ImGui::TableNextRow();
       if (m_selectedKeyframe == i) {
-        const ImU32 selectedColor =
-            ImGui::GetColorU32(ImGuiCol_Header);
+        const ImU32 selectedColor = ImGui::GetColorU32(ImGuiCol_Header);
         ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, selectedColor);
       }
 
@@ -138,12 +174,12 @@ void CameraRigEditor::buildUI()
 
       ImGui::TableNextColumn();
       int interpolation =
-          keyframe.interpolationToNext == CameraInterpolation::Hold ? 0 : 1;
-      const char *items[] = {"Hold", "Linear"};
-      if (ImGui::Combo("##interp", &interpolation, items, 2)) {
-        keyframe.interpolationToNext = interpolation == 0
-            ? CameraInterpolation::Hold
-            : CameraInterpolation::Linear;
+          cameraInterpolationIndex(keyframe.interpolationToNext);
+      const char *items[] = {
+          "Hold", "Linear", "Ease Out", "Ease In", "Ease Out + In"};
+      if (ImGui::Combo("##interp", &interpolation, items, 5)) {
+        keyframe.interpolationToNext =
+            cameraInterpolationFromIndex(interpolation);
         project.markDirty();
       }
 

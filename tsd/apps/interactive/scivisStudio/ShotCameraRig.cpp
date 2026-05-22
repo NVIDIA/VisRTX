@@ -17,6 +17,12 @@ const char *toString(CameraInterpolation interpolation)
     return "Hold";
   case CameraInterpolation::Linear:
     return "Linear";
+  case CameraInterpolation::EaseOut:
+    return "Ease Out";
+  case CameraInterpolation::EaseIn:
+    return "Ease In";
+  case CameraInterpolation::EaseOutIn:
+    return "Ease Out + In";
   }
   return "Linear";
 }
@@ -25,6 +31,12 @@ CameraInterpolation cameraInterpolationFromString(const std::string &s)
 {
   if (s == "Hold")
     return CameraInterpolation::Hold;
+  if (s == "Ease Out")
+    return CameraInterpolation::EaseOut;
+  if (s == "Ease In")
+    return CameraInterpolation::EaseIn;
+  if (s == "Ease Out + In")
+    return CameraInterpolation::EaseOutIn;
   return CameraInterpolation::Linear;
 }
 
@@ -69,6 +81,22 @@ static tsd::math::float3 lerpVec3(
       lerp(t, a.x, b.x), lerp(t, a.y, b.y), lerp(t, a.z, b.z)};
 }
 
+static float applyInterpolation(CameraInterpolation interpolation, float t)
+{
+  switch (interpolation) {
+  case CameraInterpolation::Hold:
+  case CameraInterpolation::Linear:
+    return t;
+  case CameraInterpolation::EaseOut:
+    return t * t;
+  case CameraInterpolation::EaseIn:
+    return 1.f - (1.f - t) * (1.f - t);
+  case CameraInterpolation::EaseOutIn:
+    return t * t * (3.f - 2.f * t);
+  }
+  return t;
+}
+
 ManipulatorState sampleCameraRig(const ShotCameraRig &rig, int frame)
 {
   if (rig.keyframes.empty())
@@ -99,15 +127,18 @@ ManipulatorState sampleCameraRig(const ShotCameraRig &rig, int frame)
 
     const float t = static_cast<float>(frame - a.frame)
         / static_cast<float>(b.frame - a.frame);
+    const float interpolatedT = applyInterpolation(a.interpolationToNext, t);
 
     ManipulatorState out;
     out.orbit = a.manipulator.orbit;
-    out.orbit.lookat =
-        lerpVec3(t, a.manipulator.orbit.lookat, b.manipulator.orbit.lookat);
-    out.orbit.azeldist = tsd::rendering::lerpAzElDist(
-        t, a.manipulator.orbit.azeldist, b.manipulator.orbit.azeldist);
-    out.orbit.fixedDist =
-        lerp(t, a.manipulator.orbit.fixedDist, b.manipulator.orbit.fixedDist);
+    out.orbit.lookat = lerpVec3(
+        interpolatedT, a.manipulator.orbit.lookat, b.manipulator.orbit.lookat);
+    out.orbit.azeldist = tsd::rendering::lerpAzElDist(interpolatedT,
+        a.manipulator.orbit.azeldist,
+        b.manipulator.orbit.azeldist);
+    out.orbit.fixedDist = lerp(interpolatedT,
+        a.manipulator.orbit.fixedDist,
+        b.manipulator.orbit.fixedDist);
     out.orbit.upAxis = a.manipulator.orbit.upAxis;
     out.orbit.mode = a.manipulator.orbit.mode;
     return out;
