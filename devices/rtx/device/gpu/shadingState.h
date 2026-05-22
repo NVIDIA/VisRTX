@@ -111,7 +111,7 @@ struct PhysicallyBasedShadingState
 struct TextureHandler : mi::neuraylib::Texture_handler_base
 {
   const visrtx::FrameGPUData *fd;
-  visrtx::DeviceObjectIndex samplers[32];
+  const visrtx::DeviceObjectIndex *samplers;
   unsigned int numSamplers;
 };
 
@@ -125,7 +125,6 @@ struct alignas(8) MDLShadingState
   ShadingStateMaterial state;
   TextureHandler textureHandler;
   ResourceData resData;
-
 
   // The maximum number of samplers we support.
   // See MDLCompiler.cpp numTextureSpaces and numTextureResults.

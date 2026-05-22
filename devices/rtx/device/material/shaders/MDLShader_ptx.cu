@@ -135,12 +135,13 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->state.tangent_v =
       reinterpret_cast<const float3 *>(shadingState->textureTangentsV);
 
-  // Resources shared by all mdl calls.
+  // Resources shared by all mdl calls. The sampler table is shared with the
+  // material descriptor (md->samplers lives in GPU global memory for the
+  // lifetime of the material), so the handler holds a pointer rather than an
+  // inline copy.
   shadingState->textureHandler.vtable = nullptr;
   shadingState->textureHandler.fd = fd;
-  memcpy(shadingState->textureHandler.samplers,
-      md->samplers,
-      sizeof(md->samplers));
+  shadingState->textureHandler.samplers = md->samplers;
   shadingState->textureHandler.numSamplers = md->numSamplers;
   shadingState->resData = {nullptr, &shadingState->textureHandler};
 
