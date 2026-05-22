@@ -37,6 +37,7 @@
 
 #ifdef USE_MDL
 #include <mi/neuraylib/target_code_types.h>
+#include "libmdl/MDLBackendConfig.h"
 #endif
 
 // nanovdb
@@ -126,12 +127,13 @@ struct alignas(8) MDLShadingState
   TextureHandler textureHandler;
   ResourceData resData;
 
-  // The maximum number of samplers we support.
-  // See MDLCompiler.cpp numTextureSpaces and numTextureResults.
-  glm::vec4 textureResults[32];
-  glm::vec3 textureCoords[4];
-  glm::vec3 textureTangentsU[4];
-  glm::vec3 textureTangentsV[4];
+  // Sized to match the MDL backend's num_texture_spaces / num_texture_results
+  // options — see libmdl/MDLBackendConfig.h. The two sides must agree because
+  // MDL's generated PTX indexes these arrays directly.
+  glm::vec4 textureResults[libmdl::kNumTextureResults];
+  glm::vec3 textureCoords[libmdl::kNumTextureSpaces];
+  glm::vec3 textureTangentsU[libmdl::kNumTextureSpaces];
+  glm::vec3 textureTangentsV[libmdl::kNumTextureSpaces];
 
   bool isFrontFace;
 };

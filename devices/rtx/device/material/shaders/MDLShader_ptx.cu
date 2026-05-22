@@ -92,8 +92,9 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   auto tU = hit->tU;
   auto tV = hit->tV;
 
-  // The number of texture spaces we support. Matching the number of attributes
-  // ANARI exposes (4)
+  // One texture space per ANARI attribute0..3; matches kNumTextureSpaces in
+  // libmdl/MDLBackendConfig.h. Tangent frame is the geometry's; multi-UV
+  // materials reuse it for every slot (no per-attribute tangent track yet).
   shadingState->textureCoords[0] =
       readAttributeValue(MaterialAttribute::ATTRIB_0, *hit);
   shadingState->textureCoords[1] =
@@ -103,8 +104,6 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->textureCoords[3] =
       readAttributeValue(MaterialAttribute::ATTRIB_3, *hit);
 
-  // Take some shortcut for now and use the same tangent space for all texture
-  // spaces.
   shadingState->textureTangentsU[0] = tU;
   shadingState->textureTangentsU[1] = tU;
   shadingState->textureTangentsU[2] = tU;

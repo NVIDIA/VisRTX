@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "Core.h"
+#include "MDLBackendConfig.h"
 
 #include <fmt/core.h>
 #include <fmt/std.h>
@@ -421,16 +422,10 @@ const mi::neuraylib::ITarget_code *Core::getPtxTargetCode(
 
   auto distilledMaterial = make_handle(getDistilledToDiffuse(compiledMaterial));
 
-  // ANARI attributes 0 to 3
-  const int numTextureSpaces = 4;
-  // Number of actually supported textures. MDL's default, let's assume this is
-  // enough for now
-  const int numTextureResults = 32;
-
   ptxBackend->set_option(
-      "num_texture_spaces", std::to_string(numTextureSpaces).c_str());
+      "num_texture_spaces", std::to_string(kNumTextureSpaces).c_str());
   ptxBackend->set_option(
-      "num_texture_results", std::to_string(numTextureResults).c_str());
+      "num_texture_results", std::to_string(kNumTextureResults).c_str());
   ptxBackend->set_option_binary("llvm_renderer_module", nullptr, 0);
   ptxBackend->set_option("visible_functions", "");
 
