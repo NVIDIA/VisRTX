@@ -265,6 +265,9 @@ bool Application::saveProjectAs(const std::filesystem::path &directory)
 
 bool Application::openProject(const std::filesystem::path &directory)
 {
+  if (m_viewport)
+    m_viewport->releaseSceneReferences();
+
   tsd::core::DataTree scratch;
   std::string layout;
   std::string error;
@@ -275,6 +278,7 @@ bool Application::openProject(const std::filesystem::path &directory)
       &error);
   if (!ok) {
     tsd::core::logError("[SciVisStudio] Open failed: %s", error.c_str());
+    restoreViewportFromActiveShot();
     return false;
   }
 
@@ -294,12 +298,20 @@ bool Application::openProject(const std::filesystem::path &directory)
 
 void Application::newProject()
 {
+  if (m_viewport)
+    m_viewport->releaseSceneReferences();
+
   m_projectContext.createUnsavedProject();
+  restoreViewportFromActiveShot();
 }
 
 void Application::closeProject()
 {
+  if (m_viewport)
+    m_viewport->releaseSceneReferences();
+
   m_projectContext.createUnsavedProject();
+  restoreViewportFromActiveShot();
 }
 
 void Application::requestDirtyAction(PendingDirtyAction action)

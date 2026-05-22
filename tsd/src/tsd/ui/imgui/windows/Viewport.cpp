@@ -525,6 +525,11 @@ void Viewport::setRenderingEnabled(bool enabled)
     m_anariPass->setEnabled(enabled);
 }
 
+void Viewport::releaseSceneReferences()
+{
+  teardownDevice();
+}
+
 void Viewport::camera_resetView(bool resetAzEl)
 {
   const auto mode = m_camera.arcball->mode();
@@ -603,12 +608,14 @@ void Viewport::renderer_resetParameterDefaults()
 
 void Viewport::teardownDevice()
 {
-  if (!BaseViewport::imagePipeline_isSetup())
-    return;
+  const bool pipelineSetup = BaseViewport::imagePipeline_isSetup();
 
-  BaseViewport::viewport_setActive(false);
-  BaseViewport::imagePipeline_teardown();
-  BaseViewport::viewport_reshape(tsd::math::int2(1, 1));
+  if (pipelineSetup) {
+    BaseViewport::viewport_setActive(false);
+    BaseViewport::imagePipeline_teardown();
+    BaseViewport::viewport_reshape(tsd::math::int2(1, 1));
+  } else
+    BaseViewport::viewport_setActive(false);
 
   m_anariPass = nullptr;
   m_pickPass = nullptr;
@@ -621,14 +628,16 @@ void Viewport::teardownDevice()
   m_outputPass = nullptr;
   m_saveToFilePass = nullptr;
 
-  appContext()->anari.releaseRenderIndex(appContext()->tsd.scene, m_device);
+  if (m_rIdx)
+    appContext()->anari.releaseRenderIndex(appContext()->tsd.scene, m_device);
   m_rIdx = nullptr;
   m_libName.clear();
 
   m_camera.current = {};
   m_prevCamera = {};
 
-  anari::release(m_device, m_device);
+  if (m_device)
+    anari::release(m_device, m_device);
 
   m_renderers.objects.clear();
   m_renderers.current = nullptr;

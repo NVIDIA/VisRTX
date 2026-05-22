@@ -51,6 +51,7 @@ struct Viewport : public BaseViewport
       const anari::Instance *instances = nullptr, size_t count = 0);
   void setCustomFrameParameter(const char *name, const tsd::core::Any &value);
   void setRenderingEnabled(bool enabled);
+  void releaseSceneReferences();
 
  private:
   void refreshCurrentDevice();
