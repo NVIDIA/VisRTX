@@ -333,10 +333,10 @@ VISRTX_DEVICE vec3 shadingHitpoint(const SurfaceHit &hit)
     n2 = -n2;
   }
 
-  const vec3 Plocal = xfmPoint(hit.worldToObject, hit.hitpoint);
+  const vec3 Plocal = xfmPoint(hit.instance->worldToObject, hit.hitpoint);
   const vec3 Psmooth =
       shadowTerminatorOffset(Plocal, v0, v1, v2, n0, n1, n2, hit.uvw);
-  return xfmPoint(hit.objectToWorld, Psmooth);
+  return xfmPoint(hit.instance->objectToWorld, Psmooth);
 }
 
 VISRTX_DEVICE bool pixelOutOfFrame(

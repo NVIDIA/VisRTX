@@ -92,9 +92,6 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   auto tU = hit->tU;
   auto tV = hit->tV;
 
-  shadingState->objectToWorld = hit->objectToWorld;
-  shadingState->worldToObject = hit->worldToObject;
-
   // The number of texture spaces we support. Matching the number of attributes
   // ANARI exposes (4)
   shadingState->textureCoords[0] =
@@ -125,9 +122,9 @@ VISRTX_CALLABLE void __direct_callable__init(MDLShadingState *shadingState,
   shadingState->state.meters_per_scene_unit = 1.0f;
   shadingState->state.object_id = hit->objID;
   shadingState->state.object_to_world =
-      reinterpret_cast<const float4 *>(&shadingState->objectToWorld);
+      reinterpret_cast<const float4 *>(&hit->instance->objectToWorld);
   shadingState->state.world_to_object =
-      reinterpret_cast<const float4 *>(&shadingState->worldToObject);
+      reinterpret_cast<const float4 *>(&hit->instance->worldToObject);
   shadingState->state.ro_data_segment = nullptr;
   shadingState->state.text_coords =
       reinterpret_cast<const float3 *>(shadingState->textureCoords);

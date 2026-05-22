@@ -40,6 +40,8 @@
 #include "optix_visrtx.h"
 #include "utility/AnariTypeHelpers.h"
 
+#include <glm/gtc/matrix_inverse.hpp>
+
 #ifdef USE_MDL
 #include "geometry/ComputeTangent.h"
 #include "material/MDL.h"
@@ -414,26 +416,43 @@ void World::buildInstanceSurfaceGPUData()
 
     for (size_t t = 0; t < inst->numTransforms(); t++) {
       auto id = inst->userID(t);
+
+      const mat4 o2wMat4 = mat4(inst->xfm(t));
+      const mat3x4 o2w = glm::transpose(mat4x3(o2wMat4));
+      const mat3x4 w2o =
+          glm::transpose(mat4x3(glm::affineInverse(o2wMat4)));
+
+      auto assignXfm = [&](InstanceSurfaceGPUData &g) {
+        g.objectToWorld = o2w;
+        g.worldToObject = w2o;
+      };
+
       if (group->containsTriangleGeometry()) {
-        sd[instID++] =
+        sd[instID] =
             makeInstanceGPUData(group->surfaceTriangleGPUIndices().data(),
                 inst->uniformAttributes(),
                 id,
                 t);
+        assignXfm(sd[instID]);
+        ++instID;
       }
       if (group->containsCurveGeometry()) {
-        sd[instID++] =
+        sd[instID] =
             makeInstanceGPUData(group->surfaceCurveGPUIndices().data(),
                 inst->uniformAttributes(),
                 id,
                 t);
+        assignXfm(sd[instID]);
+        ++instID;
       }
       if (group->containsUserGeometry()) {
-        sd[instID++] =
+        sd[instID] =
             makeInstanceGPUData(group->surfaceUserGPUIndices().data(),
                 inst->uniformAttributes(),
                 id,
                 t);
+        assignXfm(sd[instID]);
+        ++instID;
       }
     }
   });
@@ -451,8 +470,20 @@ void World::buildInstanceVolumeGPUData()
     auto *vd = m_instanceVolumeGPUData.dataHost();
     for (size_t t = 0; t < inst->numTransforms(); t++) {
       auto id = inst->userID(t);
-      if (group->containsVolumes())
-        vd[instID++] = {group->volumeGPUIndices().data(), id};
+      if (!group->containsVolumes())
+        continue;
+
+      const mat4 o2wMat4 = mat4(inst->xfm(t));
+      const mat3x4 o2w = glm::transpose(mat4x3(o2wMat4));
+      const mat3x4 w2o =
+          glm::transpose(mat4x3(glm::affineInverse(o2wMat4)));
+
+      InstanceVolumeGPUData g;
+      g.objectToWorld = o2w;
+      g.worldToObject = w2o;
+      g.volumes = group->volumeGPUIndices().data();
+      g.id = id;
+      vd[instID++] = g;
     }
   });
 

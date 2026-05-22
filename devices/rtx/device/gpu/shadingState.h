@@ -126,8 +126,6 @@ struct alignas(8) MDLShadingState
   TextureHandler textureHandler;
   ResourceData resData;
 
-  glm::mat3x4 objectToWorld;
-  glm::mat3x4 worldToObject;
 
   // The maximum number of samplers we support.
   // See MDLCompiler.cpp numTextureSpaces and numTextureResults.

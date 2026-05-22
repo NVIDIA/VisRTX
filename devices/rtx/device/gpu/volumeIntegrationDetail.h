@@ -286,7 +286,7 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
     *normal = computeWorldNormal(samplerState,
         field,
         scatterPos,
-        hit.worldToObject,
+        hit.instance->worldToObject,
         sampleWithGradient);
   }
 
@@ -469,7 +469,7 @@ VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
       *normal = computeWorldNormal(samplerState,
           field,
           p,
-          hit.worldToObject,
+          hit.instance->worldToObject,
           sampleWithGradient);
     }
   }

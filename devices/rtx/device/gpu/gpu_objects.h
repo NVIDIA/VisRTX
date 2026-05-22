@@ -642,6 +642,10 @@ struct LightGPUData
 
 struct InstanceSurfaceGPUData
 {
+  // Pre-computed at instance commit (World.cpp's buildInstance*GPUData).
+  mat3x4 objectToWorld;
+  mat3x4 worldToObject;
+
   const DeviceObjectIndex *surfaces;
   AttributeDataSet attrUniformArray;
   AttributeDataSetUniform attrUniform;
@@ -653,6 +657,9 @@ struct InstanceSurfaceGPUData
 
 struct InstanceVolumeGPUData
 {
+  mat3x4 objectToWorld;
+  mat3x4 worldToObject;
+
   const DeviceObjectIndex *volumes;
   uint32_t id;
 };
