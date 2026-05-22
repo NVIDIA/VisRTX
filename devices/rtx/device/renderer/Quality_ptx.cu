@@ -75,9 +75,8 @@ struct SampleDetails
   vec3 normal;
 };
 
-VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
-    const uvec2 &pixel,
-    const SampleDetails &sample)
+VISRTX_DEVICE void accumPixelSample(
+    const FrameGPUData &frame, const uvec2 &pixel, const SampleDetails &sample)
 {
   accumPixelSample(frame,
       pixel,
@@ -163,6 +162,42 @@ VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
         lightPickPdf * cosNs * float(M_1_PI),
     };
   } else {
+    const auto &lightInstance = world.lightInstances[selectedIdx];
+    auto ls =
+        sampleLight(ss, origin, lightInstance.lightIndex, lightInstance.xfm);
+    ls.pdf *= lightPickPdf;
+    return ls;
+  }
+}
+
+VISRTX_DEVICE LightSample sampleLightsVolume(
+    ScreenSample &ss, const FrameGPUData &frameData, const vec3 &origin)
+{
+  const auto &world = frameData.world;
+  const bool hasAmbientLight = frameData.renderer.ambientIntensity > 0.0f;
+  const auto numLights = world.numLightInstances + hasAmbientLight;
+
+  if (numLights == 0)
+    return {};
+
+  const size_t selectedIdx =
+      glm::min(size_t((1.0f - curand_uniform(&ss.rs)) * float(numLights)),
+          numLights - 1);
+
+  const float lightPickPdf = 1.0f / float(numLights);
+
+  if (selectedIdx == world.numLightInstances) {
+    const auto &rendererParams = frameData.renderer;
+    constexpr float INV_4PI = 1.0f / (4.0f * float(M_PI));
+    const vec3 dir = randomDir(ss.rs);
+    return LightSample{
+        rendererParams.ambientColor * rendererParams.ambientIntensity,
+        dir,
+        std::numeric_limits<float>::max(),
+        lightPickPdf * INV_4PI,
+    };
+  } else {
+    // Ambient sampled uniform-sphere (pdf 1/(4π)) to match the isotropic phase.
     const auto &lightInstance = world.lightInstances[selectedIdx];
     auto ls =
         sampleLight(ss, origin, lightInstance.lightIndex, lightInstance.xfm);
@@ -290,7 +325,7 @@ VISRTX_GLOBAL void __raygen__()
 
         {
           LightSample lightSample =
-              sampleLights(ss, frameData, scatterPos, volumeSample.normal);
+              sampleLightsVolume(ss, frameData, scatterPos);
           if (lightSample.pdf >= ATTENUATION_EPSILON
               && lightSample.dist > 0.0f) {
             const float eps = VOLUME_SCATTER_EPSILON;
