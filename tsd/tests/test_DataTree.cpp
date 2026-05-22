@@ -6,6 +6,7 @@
 // tsd
 #define TSD_DATA_TREE_TEST_MODE
 #include "tsd/core/DataTree.hpp"
+#include "tsd/core/DataTreeMetadata.hpp"
 // std
 #include <algorithm>
 
@@ -248,6 +249,85 @@ SCENARIO("tsd::core::DataTree interface", "[DataTree]")
       {
         destination["child"]["grandchild"] = 50;
         REQUIRE(destination["child"]["grandchild"].getValueAs<int>() == 50);
+      }
+    }
+  }
+}
+
+SCENARIO("tsd::core::DataTree metadata helpers", "[DataTree]")
+{
+  GIVEN("An empty DataTree")
+  {
+    tsd::core::DataTree tree;
+    auto &root = tree.root();
+
+    THEN("metadata is reported as missing")
+    {
+      auto result = tsd::core::readDataTreeMetadata(root);
+      REQUIRE(result.status == tsd::core::DataTreeMetadataReadStatus::Missing);
+      REQUIRE(!result.metadata);
+    }
+
+    WHEN("metadata is written")
+    {
+      tsd::core::writeDataTreeMetadata(
+          root, {1, "scene", "tsd.scene.full", 1});
+
+      THEN("the required fields can be read back")
+      {
+        auto result = tsd::core::readDataTreeMetadata(root);
+        REQUIRE(result.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(result.metadata);
+        REQUIRE(result.metadata->envelopeVersion == 1);
+        REQUIRE(result.metadata->fileType == "scene");
+        REQUIRE(result.metadata->schema == "tsd.scene.full");
+        REQUIRE(result.metadata->schemaVersion == 1);
+      }
+    }
+
+    WHEN("optional metadata is present")
+    {
+      root[tsd::core::DATA_TREE_METADATA_NODE]["producer"] = "test";
+      tsd::core::writeDataTreeMetadata(
+          root, {1, "scene", "tsd.scene.full", 1});
+
+      THEN("writing required fields preserves optional fields")
+      {
+        auto *producer =
+            root[tsd::core::DATA_TREE_METADATA_NODE].child("producer");
+        REQUIRE(producer != nullptr);
+        REQUIRE(producer->getValueAs<std::string>() == "test");
+      }
+    }
+
+    WHEN("metadata is present but incomplete")
+    {
+      root[tsd::core::DATA_TREE_METADATA_NODE]["schema"] = "tsd.scene.full";
+
+      THEN("the metadata is rejected as malformed")
+      {
+        auto result = tsd::core::readDataTreeMetadata(root);
+        REQUIRE(
+            result.status == tsd::core::DataTreeMetadataReadStatus::Malformed);
+        REQUIRE(result.message.find("envelopeVersion") != std::string::npos);
+      }
+    }
+
+    WHEN("metadata uses the wrong required field type")
+    {
+      auto &metadata = root[tsd::core::DATA_TREE_METADATA_NODE];
+      metadata["envelopeVersion"] = "1";
+      metadata["fileType"] = "scene";
+      metadata["schema"] = "tsd.scene.full";
+      metadata["schemaVersion"] = 1;
+
+      THEN("the metadata is rejected as malformed")
+      {
+        auto result = tsd::core::readDataTreeMetadata(root);
+        REQUIRE(
+            result.status == tsd::core::DataTreeMetadataReadStatus::Malformed);
+        REQUIRE(result.message.find("envelopeVersion") != std::string::npos);
+        REQUIRE(result.message.find("got") != std::string::npos);
       }
     }
   }

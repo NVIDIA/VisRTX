@@ -4,6 +4,7 @@
 // catch
 #include "catch.hpp"
 // tsd
+#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/io/serialization.hpp"
 #include "tsd/scene/Scene.hpp"
@@ -39,6 +40,15 @@ SCENARIO("tsd::io camera and renderer subset serialization", "[Serialization]")
     WHEN("only cameras and renderers are saved")
     {
       tsd::io::save_SceneCamerasAndRenderers(source, root);
+
+      THEN("the output is tagged as a camera and renderer subset")
+      {
+        auto metadata = tsd::core::readDataTreeMetadata(root);
+        REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(metadata.metadata);
+        REQUIRE(metadata.metadata->schema
+            == std::string(tsd::io::schema::SCENE_CAMERAS_AND_RENDERERS));
+      }
 
       THEN("the output contains only the camera and renderer object pools")
       {
@@ -124,6 +134,101 @@ SCENARIO("tsd::io camera and renderer subset serialization", "[Serialization]")
       {
         REQUIRE(scene.defaultCamera());
         REQUIRE(scene.numberOfObjects(ANARI_CAMERA) == 1);
+      }
+    }
+  }
+}
+
+SCENARIO("tsd::io scene payload metadata validation", "[Serialization]")
+{
+  GIVEN("A serializable scene")
+  {
+    tsd::scene::Scene source;
+    source.defaultCamera()->setName("source_camera");
+    auto renderer = source.createRenderer("test_device", "pathtracer");
+    renderer->setName("source_renderer");
+
+    WHEN("a full scene is serialized")
+    {
+      tsd::core::DataTree tree;
+      tsd::io::save_Scene(source, tree.root(), false);
+
+      THEN("the output is tagged as a full scene")
+      {
+        auto metadata = tsd::core::readDataTreeMetadata(tree.root());
+        REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(metadata.metadata);
+        REQUIRE(metadata.metadata->schema
+            == std::string(tsd::io::schema::SCENE_FULL));
+      }
+
+      THEN("the camera and renderer subset loader accepts the full scene")
+      {
+        auto result =
+            tsd::io::validate_SceneCamerasAndRenderersPayload(tree.root());
+        REQUIRE(result.accepted());
+        REQUIRE(result.status == tsd::io::PayloadValidationStatus::Valid);
+      }
+    }
+
+    WHEN("a camera and renderer subset is loaded as a full scene")
+    {
+      tsd::core::DataTree subsetTree;
+      tsd::io::save_SceneCamerasAndRenderers(source, subsetTree.root());
+
+      tsd::scene::Scene target;
+      target.createObject<tsd::scene::Geometry>("sphere");
+      target.addLayer("keep_me");
+
+      THEN("validation rejects it before mutation")
+      {
+        auto result = tsd::io::validate_ScenePayload(subsetTree.root());
+        REQUIRE(!result.accepted());
+        REQUIRE(
+            result.status == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+
+        tsd::io::load_Scene(target, subsetTree.root());
+        REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 1);
+        REQUIRE(target.numberOfLayers() == 1);
+        REQUIRE(target.layer("keep_me") != nullptr);
+      }
+    }
+
+    WHEN("legacy metadata is missing but objectDB exists")
+    {
+      tsd::core::DataTree legacyTree;
+      legacyTree.root()["objectDB"];
+
+      THEN("validation accepts it as legacy")
+      {
+        auto result = tsd::io::validate_ScenePayload(legacyTree.root());
+        REQUIRE(result.accepted());
+        REQUIRE(result.status
+            == tsd::io::PayloadValidationStatus::MissingMetadataAccepted);
+      }
+    }
+
+    WHEN("the payload is missing objectDB")
+    {
+      tsd::core::DataTree invalidTree;
+      tsd::core::writeDataTreeMetadata(
+          invalidTree.root(), {1, "scene", "tsd.scene.full", 1});
+
+      tsd::scene::Scene target;
+      target.createObject<tsd::scene::Geometry>("sphere");
+      target.addLayer("keep_me");
+
+      THEN("validation rejects it before mutation")
+      {
+        auto result = tsd::io::validate_ScenePayload(invalidTree.root());
+        REQUIRE(!result.accepted());
+        REQUIRE(
+            result.status == tsd::io::PayloadValidationStatus::MissingRequiredNode);
+
+        tsd::io::load_Scene(target, invalidTree.root());
+        REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 1);
+        REQUIRE(target.numberOfLayers() == 1);
+        REQUIRE(target.layer("keep_me") != nullptr);
       }
     }
   }

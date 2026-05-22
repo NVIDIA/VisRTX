@@ -7,6 +7,7 @@
 
 #include "tsd/animation/Animation.hpp"
 #include "tsd/animation/AnimationManager.hpp"
+#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/animation/EnSightFileBinding.hpp"
@@ -14,15 +15,122 @@
 #include "tsd/io/importers.hpp"
 #include "tsd/io/serialization.hpp"
 // std
+#include <algorithm>
 #include <stack>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 #if TSD_USE_CUDA
 // cuda
 #include <cuda_runtime.h>
 #endif
 
 namespace tsd::io {
+
+static core::DataNode &resolveScenePayloadRoot(core::DataNode &root)
+{
+  if (auto *context = root.child("context"))
+    return *context;
+  return root;
+}
+
+static std::string validationStatusToString(PayloadValidationStatus status)
+{
+  switch (status) {
+  case PayloadValidationStatus::Valid:
+    return "valid";
+  case PayloadValidationStatus::MissingMetadataAccepted:
+    return "missing metadata accepted";
+  case PayloadValidationStatus::UnknownSchema:
+    return "unknown schema";
+  case PayloadValidationStatus::IncompatibleSchema:
+    return "incompatible schema";
+  case PayloadValidationStatus::UnsupportedEnvelopeVersion:
+    return "unsupported envelope version";
+  case PayloadValidationStatus::UnsupportedSchemaVersion:
+    return "unsupported schema version";
+  case PayloadValidationStatus::MalformedMetadata:
+    return "malformed metadata";
+  case PayloadValidationStatus::MissingRequiredNode:
+    return "missing required node";
+  }
+
+  return "unknown validation status";
+}
+
+static void logValidationFailure(
+    const char *prefix, const PayloadValidationResult &result)
+{
+  logError("[%s] payload validation failed: %s%s%s",
+      prefix,
+      validationStatusToString(result.status).c_str(),
+      result.message.empty() ? "" : ": ",
+      result.message.c_str());
+}
+
+static PayloadValidationResult validateScenePayloadImpl(core::DataNode &root,
+    const std::vector<std::string_view> &acceptedSchemas,
+    const std::vector<std::string_view> &knownSchemas)
+{
+  auto &payloadRoot = resolveScenePayloadRoot(root);
+  auto metadataResult = core::readDataTreeMetadata(payloadRoot);
+
+  PayloadValidationResult result;
+  if (metadataResult.malformed()) {
+    result.status = PayloadValidationStatus::MalformedMetadata;
+    result.message = metadataResult.message;
+    return result;
+  }
+
+  if (metadataResult.found()) {
+    const auto &metadata = *metadataResult.metadata;
+    result.fileType = metadata.fileType;
+    result.schema = metadata.schema;
+    result.envelopeVersion = metadata.envelopeVersion;
+    result.schemaVersion = metadata.schemaVersion;
+
+    if (metadata.envelopeVersion
+        != core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
+      result.status = PayloadValidationStatus::UnsupportedEnvelopeVersion;
+      result.message = "expected envelopeVersion 1, got "
+          + std::to_string(metadata.envelopeVersion);
+      return result;
+    }
+
+    const auto schemaMatches = [&](std::string_view schema) {
+      return metadata.schema == schema;
+    };
+
+    if (std::none_of(
+            acceptedSchemas.begin(), acceptedSchemas.end(), schemaMatches)) {
+      result.status = std::any_of(
+                          knownSchemas.begin(), knownSchemas.end(), schemaMatches)
+          ? PayloadValidationStatus::IncompatibleSchema
+          : PayloadValidationStatus::UnknownSchema;
+      result.message = "schema '" + metadata.schema
+          + "' is not accepted by this loader";
+      return result;
+    }
+
+    if (metadata.schemaVersion != 1) {
+      result.status = PayloadValidationStatus::UnsupportedSchemaVersion;
+      result.message = "schema '" + metadata.schema
+          + "' supports version 1..1, got "
+          + std::to_string(metadata.schemaVersion);
+      return result;
+    }
+  } else {
+    result.status = PayloadValidationStatus::MissingMetadataAccepted;
+    result.message = "payload has no __tsd_metadata node; treating as legacy";
+  }
+
+  if (!payloadRoot.child("objectDB")) {
+    result.status = PayloadValidationStatus::MissingRequiredNode;
+    result.message = "payload requires root/objectDB";
+  }
+
+  return result;
+}
 
 template <typename OBJECT_POOL_T>
 static void objectPoolToNode(core::DataNode &objPoolRoot,
@@ -555,6 +663,12 @@ void save_Scene(Scene &scene,
     bool forceProxyArrays,
     tsd::animation::AnimationManager *animMgr)
 {
+  core::writeDataTreeMetadata(root,
+      {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+          "scene",
+          std::string(schema::SCENE_FULL),
+          1});
+
   scene.defragmentObjectStorage(); // ensure contiguous object indices
 
   // Layers //
@@ -604,6 +718,11 @@ void save_SceneCamerasAndRenderers(Scene &scene, const char *filename)
 void save_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
 {
   root.reset();
+  core::writeDataTreeMetadata(root,
+      {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+          "scene-subset",
+          std::string(schema::SCENE_CAMERAS_AND_RENDERERS),
+          1});
   scene.defragmentObjectStorage(); // ensure contiguous object indices
 
   auto &objectDB = root["objectDB"];
@@ -618,19 +737,43 @@ void load_Scene(Scene &scene,
   tsd::core::logStatus("Loading context from file: %s", filename);
   tsd::core::logStatus("  ...loading file");
   core::DataTree tree;
-  tree.load(filename);
-  auto &root = tree.root();
-  if (auto *c = root.child("context"); c != nullptr)
-    load_Scene(scene, *c, animMgr);
-  else
-    load_Scene(scene, root, animMgr);
+  if (!tree.load(filename)) {
+    tsd::core::logError("[load_Scene] failed to load file '%s'", filename);
+    return;
+  }
+  load_Scene(scene, tree.root(), animMgr);
 }
 
 void load_Scene(Scene &scene,
     core::DataNode &root,
     tsd::animation::AnimationManager *animMgr)
 {
+  PayloadValidationResult result;
+  tryLoad_Scene(scene, root, &result, animMgr);
+  if (!result.accepted())
+    logValidationFailure("load_Scene", result);
+}
+
+PayloadValidationResult validate_ScenePayload(core::DataNode &root)
+{
+  return validateScenePayloadImpl(
+      root, {schema::SCENE_FULL}, {schema::SCENE_FULL,
+                                      schema::SCENE_CAMERAS_AND_RENDERERS});
+}
+
+bool tryLoad_Scene(Scene &scene,
+    core::DataNode &root,
+    PayloadValidationResult *resultOut,
+    tsd::animation::AnimationManager *animMgr)
+{
   // Clear out any existing context contents //
+  auto result = validate_ScenePayload(root);
+  if (resultOut)
+    *resultOut = result;
+  if (!result.accepted())
+    return false;
+
+  auto &payloadRoot = resolveScenePayloadRoot(root);
 
   tsd::core::logStatus("  ...clearing old context");
 
@@ -642,7 +785,7 @@ void load_Scene(Scene &scene,
 
   tsd::core::logStatus("  ...converting objects");
 
-  auto &objectDB = root["objectDB"];
+  auto &objectDB = payloadRoot["objectDB"];
   auto nodeToObjectPool =
       [](core::DataNode &node, Scene &scene, const char *childNodeName) {
         auto &objectsNode = node[childNodeName];
@@ -664,7 +807,7 @@ void load_Scene(Scene &scene,
 
   tsd::core::logStatus("  ...converting layers");
 
-  auto &layerRoot = root["layers"];
+  auto &layerRoot = payloadRoot["layers"];
   layerRoot.foreach_child([&](auto &nLayer) {
     tsd::core::Token layerName = nLayer.name().c_str();
     auto &tLayer = *scene.addLayer(layerName);
@@ -686,9 +829,10 @@ void load_Scene(Scene &scene,
   // Animations
 
   if (animMgr)
-    nodeToAnimationManager(root["animations"], *animMgr, scene);
+    nodeToAnimationManager(payloadRoot["animations"], *animMgr, scene);
 
   tsd::core::logStatus("  ...done!");
+  return true;
 }
 
 void load_SceneCamerasAndRenderers(Scene &scene, const char *filename)
@@ -702,15 +846,37 @@ void load_SceneCamerasAndRenderers(Scene &scene, const char *filename)
     return;
   }
 
-  auto &root = tree.root();
-  if (auto *c = root.child("context"); c != nullptr)
-    load_SceneCamerasAndRenderers(scene, *c);
-  else
-    load_SceneCamerasAndRenderers(scene, root);
+  load_SceneCamerasAndRenderers(scene, tree.root());
 }
 
 void load_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
 {
+  PayloadValidationResult result;
+  tryLoad_SceneCamerasAndRenderers(scene, root, &result);
+  if (!result.accepted())
+    logValidationFailure("load_SceneCamerasAndRenderers", result);
+}
+
+PayloadValidationResult validate_SceneCamerasAndRenderersPayload(
+    core::DataNode &root)
+{
+  return validateScenePayloadImpl(root,
+      {schema::SCENE_CAMERAS_AND_RENDERERS, schema::SCENE_FULL},
+      {schema::SCENE_FULL, schema::SCENE_CAMERAS_AND_RENDERERS});
+}
+
+bool tryLoad_SceneCamerasAndRenderers(Scene &scene,
+    core::DataNode &root,
+    PayloadValidationResult *resultOut)
+{
+  auto result = validate_SceneCamerasAndRenderersPayload(root);
+  if (resultOut)
+    *resultOut = result;
+  if (!result.accepted())
+    return false;
+
+  auto &payloadRoot = resolveScenePayloadRoot(root);
+
   auto removeObjects = [&](auto &pool) {
     for (size_t i = pool.capacity(); i-- > 0;) {
       auto obj = pool.at(i);
@@ -723,7 +889,7 @@ void load_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
   removeObjects(scene.m_db.renderer);
   removeObjects(scene.m_db.camera);
 
-  auto &objectDB = root["objectDB"];
+  auto &objectDB = payloadRoot["objectDB"];
   auto nodeToObjectPool = [](core::DataNode &node,
                               Scene &scene,
                               const char *childNodeName) {
@@ -738,6 +904,7 @@ void load_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
   scene.defaultCamera();
 
   tsd::core::logStatus("  ...done!");
+  return true;
 }
 
 } // namespace tsd::io

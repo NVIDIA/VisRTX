@@ -9,6 +9,7 @@
 
 #include "tsd/app/Context.h"
 #include "tsd/core/DataTree.hpp"
+#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
 
 #include <filesystem>
@@ -169,7 +170,24 @@ SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
   std::filesystem::remove_all(root);
   std::filesystem::create_directories(root);
 
-  GIVEN("A valid project manifest")
+  GIVEN("A valid metadata-tagged project manifest")
+  {
+    tsd::core::DataTree tree;
+    tsd::core::writeDataTreeMetadata(
+        tree.root(), {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+                         PROJECT_FILE_TYPE,
+                         PROJECT_SCHEMA,
+                         SCHEMA_VERSION});
+    REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+
+    THEN("Validation succeeds")
+    {
+      auto result = validateProjectRoot(root);
+      REQUIRE(result.ok);
+    }
+  }
+
+  GIVEN("A valid legacy project manifest")
   {
     tsd::core::DataTree tree;
     tree.root()["projectKind"] = PROJECT_KIND;
@@ -183,7 +201,24 @@ SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
     }
   }
 
-  GIVEN("An invalid project kind")
+  GIVEN("An invalid metadata schema")
+  {
+    tsd::core::DataTree tree;
+    tsd::core::writeDataTreeMetadata(
+        tree.root(), {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+                         "application-state",
+                         "tsd.viewer.state",
+                         1});
+    REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+
+    THEN("Validation fails")
+    {
+      auto result = validateProjectRoot(root);
+      REQUIRE_FALSE(result.ok);
+    }
+  }
+
+  GIVEN("An invalid legacy project kind")
   {
     tsd::core::DataTree tree;
     tree.root()["projectKind"] = "Other";
@@ -323,6 +358,15 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
   {
     tsd::core::DataTree manifest;
     REQUIRE(manifest.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+    auto metadata = tsd::core::readDataTreeMetadata(manifest.root());
+    REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+    REQUIRE(metadata.metadata);
+    REQUIRE(metadata.metadata->fileType == PROJECT_FILE_TYPE);
+    REQUIRE(metadata.metadata->schema == PROJECT_SCHEMA);
+    REQUIRE(metadata.metadata->schemaVersion == SCHEMA_VERSION);
+    REQUIRE(manifest.root().child("projectKind") == nullptr);
+    REQUIRE(manifest.root().child("schemaVersion") == nullptr);
+
     auto &projectNode = manifest.root()["scivisStudio"];
     REQUIRE(projectNode["datasets"].child(0)->child("rootNode") == nullptr);
     REQUIRE(projectNode["shots"].child(0)->child("lightGroup") == nullptr);

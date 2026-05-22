@@ -15,6 +15,7 @@
 // tsd_app
 #include "tsd/app/Context.h"
 // tsd_core
+#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/TaskQueue.hpp"
 // SDL
@@ -126,6 +127,11 @@ class Application
 
   void saveApplicationState(const char *filename = "state.tsd");
   void loadApplicationState(const char *filename = "state.tsd");
+  virtual tsd::core::DataTreeMetadata applicationStateMetadata() const;
+  virtual bool validateApplicationStateMetadata(
+      const tsd::core::DataTreeMetadataReadResult &metadata,
+      const tsd::core::DataNode &root,
+      const char *filename) const;
   void saveApplicationSettings(tsd::core::DataNode &root);
   void loadApplicationSettings(tsd::core::DataNode &root);
   void saveGlobalApplicationSettings();

@@ -706,6 +706,7 @@ void Application::saveApplicationState(const char *_filename)
     auto &ctx = *appContext();
     auto &root = m_settings.root();
     root.reset();
+    tsd::core::writeDataTreeMetadata(root, applicationStateMetadata());
 
     // Window state
     auto &windows = root["windows"];
@@ -753,6 +754,22 @@ void Application::saveApplicationState(const char *_filename)
   showTaskModal(doSave, "Please Wait: Saving Session...");
 }
 
+tsd::core::DataTreeMetadata Application::applicationStateMetadata() const
+{
+  return {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+      "application-state",
+      "tsd.ui.imgui.application-state",
+      1};
+}
+
+bool Application::validateApplicationStateMetadata(
+    const tsd::core::DataTreeMetadataReadResult &,
+    const tsd::core::DataNode &,
+    const char *) const
+{
+  return true;
+}
+
 void Application::loadApplicationState(const char *filename)
 {
   // Load from file
@@ -763,6 +780,11 @@ void Application::loadApplicationState(const char *filename)
 
   auto &ctx = *appContext();
   auto &root = m_settings.root();
+  if (!validateApplicationStateMetadata(
+          tsd::core::readDataTreeMetadata(root), root, filename)) {
+    root.reset();
+    return;
+  }
 
   // TSD context from app state file, or context-only file
   if (auto *c = root.child("context"); c != nullptr)

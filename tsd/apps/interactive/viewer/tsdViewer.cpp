@@ -31,6 +31,60 @@ class Application : public TSDApplication
   Application(int argc, const char *argv[]) : TSDApplication(argc, argv) {}
   ~Application() override = default;
 
+  tsd::core::DataTreeMetadata applicationStateMetadata() const override
+  {
+    return {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+        "application-state",
+        "tsd.viewer.state",
+        1};
+  }
+
+  bool validateApplicationStateMetadata(
+      const tsd::core::DataTreeMetadataReadResult &metadata,
+      const tsd::core::DataNode &root,
+      const char *filename) const override
+  {
+    if (metadata.status == tsd::core::DataTreeMetadataReadStatus::Missing) {
+      if (auto *projectKindNode = root.child("projectKind")) {
+        const auto projectKind =
+            projectKindNode->getValueOr<std::string>("");
+        tsd::core::logError(
+            "[tsdViewer] Refusing to load '%s': projectKind='%s' is not a "
+            "tsdViewer state file",
+            filename,
+            projectKind.c_str());
+        return false;
+      }
+
+      tsd::core::logWarning(
+          "[tsdViewer] State file '%s' has no __tsd_metadata; loading as "
+          "legacy viewer state",
+          filename);
+      return true;
+    }
+
+    if (metadata.status == tsd::core::DataTreeMetadataReadStatus::Malformed) {
+      tsd::core::logError("[tsdViewer] Refusing to load state file '%s': %s",
+          filename,
+          metadata.message.c_str());
+      return false;
+    }
+
+    const auto &stateMetadata = *metadata.metadata;
+    if (stateMetadata.fileType != "application-state"
+        || stateMetadata.schema != "tsd.viewer.state") {
+      tsd::core::logError(
+          "[tsdViewer] Refusing to load '%s': expected tsd.viewer.state, got "
+          "fileType='%s' schema='%s'",
+          filename,
+          stateMetadata.fileType.c_str(),
+          stateMetadata.schema.c_str());
+      return false;
+    }
+
+    return true;
+  }
+
   tsd::ui::imgui::WindowArray setupWindows() override
   {
     auto windows = TSDApplication::setupWindows();

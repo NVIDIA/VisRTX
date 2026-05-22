@@ -3,6 +3,7 @@
 
 #include "ProjectSerialization.h"
 
+#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/io/serialization.hpp"
 
 #include <anari/anari_cpp/ext/std.h>
@@ -235,16 +236,42 @@ ProjectValidationResult validateProjectRoot(
   }
 
   auto &root = tree.root();
-  const auto kind = root["projectKind"].getValueOr<std::string>("");
-  if (kind != PROJECT_KIND) {
-    result.error = "projectKind is not SciVisStudio";
+  auto metadataResult = tsd::core::readDataTreeMetadata(root);
+  if (metadataResult.malformed()) {
+    result.error = "malformed __tsd_metadata: " + metadataResult.message;
     return result;
   }
 
-  const auto version = root["schemaVersion"].getValueOr<int>(0);
-  if (version != SCHEMA_VERSION) {
-    result.error = "unsupported SciVis Studio schemaVersion";
-    return result;
+  if (metadataResult.found()) {
+    const auto &metadata = *metadataResult.metadata;
+    if (metadata.envelopeVersion
+        != tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
+      result.error = "unsupported SciVis Studio metadata envelopeVersion";
+      return result;
+    }
+
+    if (metadata.fileType != PROJECT_FILE_TYPE
+        || metadata.schema != PROJECT_SCHEMA) {
+      result.error = "metadata schema is not SciVis Studio project";
+      return result;
+    }
+
+    if (metadata.schemaVersion != SCHEMA_VERSION) {
+      result.error = "unsupported SciVis Studio schemaVersion";
+      return result;
+    }
+  } else {
+    const auto kind = root["projectKind"].getValueOr<std::string>("");
+    if (kind != PROJECT_KIND) {
+      result.error = "missing __tsd_metadata";
+      return result;
+    }
+
+    const auto version = root["schemaVersion"].getValueOr<int>(0);
+    if (version != SCHEMA_VERSION) {
+      result.error = "unsupported legacy SciVis Studio schemaVersion";
+      return result;
+    }
   }
 
   result.ok = true;

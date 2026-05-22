@@ -5,6 +5,7 @@
 
 #include "ProjectSerialization.h"
 
+#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/serialization.hpp"
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
@@ -495,8 +496,11 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
 
   tsd::core::DataTree tree;
   auto &root = tree.root();
-  root["projectKind"] = PROJECT_KIND;
-  root["schemaVersion"] = SCHEMA_VERSION;
+  tsd::core::writeDataTreeMetadata(
+      root, {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+                PROJECT_FILE_TYPE,
+                PROJECT_SCHEMA,
+                SCHEMA_VERSION});
   projectToNode(m_project, root["scivisStudio"]);
   tsd::io::save_Scene(
       m_ctx->tsd.scene, root["context"], false, &m_ctx->tsd.animationMgr);
