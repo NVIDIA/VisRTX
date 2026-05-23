@@ -815,6 +815,12 @@ struct ScreenSample
   glm::vec2 screen;
   mutable RandState rs;
   const FrameGPUData *frameData;
+  // Adaptive shadow ratio-tracking knob. Set by the raygen before each
+  // shadow trace to (max pre-attenuation contribution) / RR_BASE, capped
+  // at 1.0. Smaller values raise the RR threshold inside
+  // applyShadowRussianRoulette so dim-contribution shadow rays terminate
+  // sooner. Default 1.0 = full-precision RR (current behaviour).
+  float shadowContribWeight;
 };
 
 } // namespace visrtx

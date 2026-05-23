@@ -60,6 +60,7 @@ VISRTX_DEVICE ScreenSample createScreenSample(const FrameGPUData &frameData)
   ss.pixel.x = x;
   ss.pixel.y = y;
   ss.frameData = &frameData;
+  ss.shadowContribWeight = 1.0f;
 
   return ss;
 }

@@ -353,8 +353,14 @@ VISRTX_GLOBAL void __raygen__()
                   lightSample.dir,
                   {eps, lightSample.dist},
               };
+              // Adaptive RR knob: w in (0, 1] = maxContrib / 0.5. Dim rays
+              // raise the in-trace RR threshold so ratio-tracking kills them
+              // sooner. RR estimator stays unbiased; cap inside RR bounds
+              // amplification.
+              ss.shadowContribWeight = glm::min(1.0f, maxContrib * 2.0f);
               const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
                   * volumeShadowTransmittance(ss, shadowRay);
+              ss.shadowContribWeight = 1.0f;
               sample.color += contribUpper * attenuation;
             }
           }
@@ -440,8 +446,10 @@ VISRTX_GLOBAL void __raygen__()
                   lightSample.dir,
                   {surfaceHit.epsilon, lightSample.dist},
               };
+              ss.shadowContribWeight = glm::min(1.0f, maxContrib * 2.0f);
               const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
                   * volumeShadowTransmittance(ss, shadowRay);
+              ss.shadowContribWeight = 1.0f;
               sample.color += contribUpper * attenuation;
             }
           }

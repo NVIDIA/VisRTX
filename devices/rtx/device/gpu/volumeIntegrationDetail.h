@@ -112,17 +112,29 @@ VISRTX_DEVICE float opacityToExtinction(
 }
 
 // Shadow ratio-track RR. Returns true on kill. Survive with
-// p = maxAttn / RR_THRESHOLD, rescale by 1/p — unbiased. Post-survival
-// max channel = RR_THRESHOLD by construction → weights bounded. Hard-kill
-// below TRANSMITTANCE_EPSILON.
+// p = maxAttn / threshold, rescale by 1/p — unbiased.
+//
+// `ss.shadowContribWeight ∈ (0, 1]` (raygen-set, = maxContrib / RR_BASE)
+// raises the threshold for dim rays so RR engages sooner. Per-ray variance
+// climbs; per-ray expected work drops faster.
+//
+// Amplification 1/pSurvive = rrThreshold/maxAttn. RR_MAX_THRESHOLD caps the
+// numerator; maxAttn floats with transmittance and can land near
+// TRANSMITTANCE_EPSILON → worst-case amplification ~6.7e7 with these
+// constants. Unbiased in expectation; downstream firefly filter handles
+// the tail.
 VISRTX_DEVICE bool applyShadowRussianRoulette(
     vec3 &attenuation, ScreenSample &ss)
 {
-  // Higher → shorter shadow rays in dense regions, higher per-survival
-  // variance.
-  constexpr float RR_THRESHOLD = 0.5f;
+  constexpr float RR_BASE = 0.5f;
+  // Numerator cap. Does NOT bound amplification — see header comment.
+  constexpr float RR_MAX_THRESHOLD = 8.0f;
+  constexpr float MIN_CONTRIB_WEIGHT = 1.0e-3f;
   constexpr float TRANSMITTANCE_EPSILON =
       std::numeric_limits<float>::epsilon();
+
+  const float w = glm::max(ss.shadowContribWeight, MIN_CONTRIB_WEIGHT);
+  const float rrThreshold = glm::min(RR_BASE / w, RR_MAX_THRESHOLD);
 
   const float maxAttn =
       glm::max(attenuation.x, glm::max(attenuation.y, attenuation.z));
@@ -130,10 +142,10 @@ VISRTX_DEVICE bool applyShadowRussianRoulette(
     attenuation = vec3(0.0f);
     return true;
   }
-  if (maxAttn >= RR_THRESHOLD)
+  if (maxAttn >= rrThreshold)
     return false;
 
-  const float pSurvive = maxAttn / RR_THRESHOLD;
+  const float pSurvive = maxAttn / rrThreshold;
   if (curand_uniform(&ss.rs) > pSurvive) {
     attenuation = vec3(0.0f);
     return true;
