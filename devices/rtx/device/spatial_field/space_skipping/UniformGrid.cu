@@ -63,26 +63,21 @@ __global__ void computeOpacityBoundsGPU(float2 *opacityBounds,
     return;
   }
 
-  float normalizedLo = (valueRange.lower - xfRange.lower) / xfRangeSize;
-  float normalizedHi = (valueRange.upper - xfRange.lower) / xfRangeSize;
+  const float normalizedLo = (valueRange.lower - xfRange.lower) / xfRangeSize;
+  const float normalizedHi = (valueRange.upper - xfRange.lower) / xfRangeSize;
 
-  const float tfEntrySize = 1.0f / float(numColors);
-  normalizedLo -= tfEntrySize;
-  normalizedHi += tfEntrySize;
-
-  int lo =
-      glm::clamp(int(normalizedLo * (numColors - 1)), 0, int(numColors - 1));
-  int hi = glm::clamp(
-      int(normalizedHi * (numColors - 1)) + 1, 0, int(numColors - 1));
-
-  // The scan range plus 1-bin TF margin and 1-voxel field margin makes both
-  // bounds conservative (max ≥ true max, min ≤ true min) for the
-  // linear-filter TF lookup over the cell.
+  // Tight texel range under linear filtering: any sample t ∈ [Lo, Hi] blends
+  // texels floor(t·N − 0.5) .. ceil(t·N − 0.5).
+  const float N = float(numColors);
+  const int lo =
+      glm::clamp(int(::floorf(normalizedLo * N - 0.5f)), 0, int(numColors - 1));
+  const int hi =
+      glm::clamp(int(::ceilf(normalizedHi * N - 0.5f)), 0, int(numColors - 1));
   float minOpacity = 1.f;
   float maxOpacity = 0.f;
   for (int i = lo; i <= hi; ++i) {
-    float tc = (i + .5f) / numColors;
-    float a = tex1D<::float4>(colorMap, tc).w;
+    // Sample at the texel center: linear filter weight is 1.0 on texel i.
+    float a = tex1D<::float4>(colorMap, (i + 0.5f) / N).w;
     minOpacity = fminf(minOpacity, a);
     maxOpacity = fmaxf(maxOpacity, a);
   }
