@@ -63,7 +63,11 @@ VISRTX_DEVICE void initNvdbSampler(
       static_cast<const GridType *>(field->data.nvdbRegular.gridData);
 
   state.grid = grid;
-  state.accessor = grid->getAccessor();
+  // Construct the (leaf-only) accessor directly from the tree root —
+  // grid->getAccessor() would return the 3-level DefaultReadAccessor and
+  // mismatch our AccessorType typedef.
+  state.accessor = typename NvdbRegularSamplerState<ValueType>::AccessorType(
+      grid->tree().root());
   state.filter = field->data.nvdbRegular.filter;
   // Use placement new to construct sampler in-place, as we cannot assign
   // because of deleted constructor of the nanovdb samplers

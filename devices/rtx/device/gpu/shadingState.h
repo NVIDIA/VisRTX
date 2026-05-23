@@ -183,7 +183,9 @@ template <typename T>
 struct NvdbRegularSamplerState
 {
   using GridType = nanovdb::Grid<nanovdb::NanoTree<T>>;
-  using AccessorType = typename GridType::AccessorType;
+  // Purposefully use ReadAccessor<> as below instead of default
+  // GridType::ReadAccessor. Keeps less cache state that we never hit anyway.
+  using AccessorType = nanovdb::ReadAccessor<T, 0, -1, -1>;
   using NearestSamplerType = nanovdb::math::SampleFromVoxels<AccessorType, 0>;
   using LinearSamplerType = nanovdb::math::SampleFromVoxels<AccessorType, 1>;
 
@@ -208,7 +210,9 @@ template <typename T>
 struct NvdbRectilinearSamplerState
 {
   using GridType = nanovdb::Grid<nanovdb::NanoTree<T>>;
-  using AccessorType = typename GridType::AccessorType;
+  // Purposefully use ReadAccessor<> as below instead of default
+  // GridType::ReadAccessor. Keeps less cache state that we never hit anyway.
+  using AccessorType = nanovdb::ReadAccessor<T, 0, -1, -1>;
   using NearestSamplerType = nanovdb::math::SampleFromVoxels<AccessorType, 0>;
   using LinearSamplerType = nanovdb::math::SampleFromVoxels<AccessorType, 1>;
 

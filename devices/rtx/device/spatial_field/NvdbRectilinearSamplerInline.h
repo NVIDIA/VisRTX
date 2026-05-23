@@ -55,7 +55,10 @@ VISRTX_DEVICE void initNvdbRectilinearSampler(
       static_cast<const GridType *>(field->data.nvdbRectilinear.gridData);
 
   state.grid = grid;
-  state.accessor = grid->getAccessor();
+  // Leaf-only accessor — see NvdbRegularSamplerInline.h for rationale.
+  state.accessor =
+      typename NvdbRectilinearSamplerState<ValueType>::AccessorType(
+          grid->tree().root());
   state.filter = field->data.nvdbRectilinear.filter;
   if (state.filter == SpatialFieldFilter::Nearest) {
     new (&state.nearestSampler)
