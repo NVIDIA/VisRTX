@@ -192,11 +192,13 @@ VISRTX_DEVICE LightSample sampleLightsVolume(
 }
 
 VISRTX_DEVICE
-VolumeDistanceSample sampleVolumeDistance(ScreenSample &ss, Ray ray)
+VolumeDistanceSample sampleVolumeDistance(
+    ScreenSample &ss, Ray ray, bool needNormal)
 {
   VolumeDistanceSample volumeHit = {
       false, vec3(0.0f), ray.t.upper, vec3(0.0f), 0.0f, ~0u, ~0u};
 
+  // Skip the gradient-based normal computation on non-primary bounces.
   volumeHit.depth = sampleDistanceAllVolumes(ss,
       ray,
       RayType::PRIMARY,
@@ -206,7 +208,7 @@ VolumeDistanceSample sampleVolumeDistance(ScreenSample &ss, Ray ray)
       volumeHit.didScatter,
       volumeHit.objID,
       volumeHit.instID,
-      &volumeHit.normal);
+      needNormal ? &volumeHit.normal : nullptr);
   return volumeHit;
 }
 
@@ -311,7 +313,7 @@ VISRTX_GLOBAL void __raygen__()
       float volumeUpperBound = surfaceHit.foundHit ? surfaceHit.t : ray.t.upper;
       auto volumeRay = Ray{ray.org, ray.dir, {ray.t.lower, volumeUpperBound}};
 
-      auto volumeSample = sampleVolumeDistance(ss, volumeRay);
+      auto volumeSample = sampleVolumeDistance(ss, volumeRay, isFirstBounce);
 
       if (volumeSample.didScatter) {
         const vec3 scatterPos = ray.org + ray.dir * volumeSample.depth;
