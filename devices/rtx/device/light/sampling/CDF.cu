@@ -45,6 +45,7 @@
 #include <thrust/device_ptr.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/scan.h>
 #include <thrust/transform.h>
@@ -122,16 +123,23 @@ void computeConditionalCDFs(
 {
   using thrust::device_pointer_cast;
 
-  for (int y = 0; y < height; ++y) {
-    auto luminanceRow = device_pointer_cast(luminance + y * width);
-    auto conditionalCdfRow = device_pointer_cast(conditionalCdf + y * width);
-    thrust::inclusive_scan(
-        luminanceRow, luminanceRow + width, conditionalCdfRow);
-  }
+  // Segmented inclusive scan: key = row index (`i / width`), so the running
+  // sum resets at every row boundary. One launch family independent of
+  // `height`.
+  const auto keys = thrust::make_transform_iterator(
+      thrust::counting_iterator<int>(0),
+      [width] __host__ __device__(int i) { return i / width; });
+
+  thrust::inclusive_scan_by_key(keys,
+      keys + width * height,
+      device_pointer_cast(luminance),
+      device_pointer_cast(conditionalCdf));
 }
 
 void normalizeCDF(thrust::device_ptr<float> cdf, int n)
 {
+  if (n <= 0)
+    return;
   const float total = cdf[n - 1];
   if (total > 0.0f) {
     thrust::transform(
@@ -148,12 +156,36 @@ void normalizeMarginalCDF(float *marginalCdf, int height)
   normalizeCDF(thrust::device_pointer_cast(marginalCdf), height);
 }
 
+__global__ void normalizeConditionalCDFsKernel(float *cdf, int width)
+{
+  // One block per row. Read the row total (cdf[width-1] = sum after the
+  // inclusive scan) into shared memory, then normalize each element in
+  // parallel. Empty rows (total ≤ 0) fill with 1.0 so a downstream sampler
+  // walks the row uniformly instead of running off the end.
+  const int y = blockIdx.x;
+  const int tid = threadIdx.x;
+  float *row = cdf + y * width;
+
+  __shared__ float s_total;
+  if (tid == 0)
+    s_total = row[width - 1];
+  __syncthreads();
+
+  const bool empty = !(s_total > 0.0f);
+  const float invTotal = empty ? 0.0f : 1.0f / s_total;
+
+  for (int x = tid; x < width; x += blockDim.x)
+    row[x] = empty ? 1.0f : row[x] * invTotal;
+}
+
 void normalizeConditionalCDFs(float *d_conditional_cdf, int width, int height)
 {
-  for (int y = 0; y < height; ++y) {
-    normalizeCDF(
-        thrust::device_pointer_cast(d_conditional_cdf + y * width), width);
-  }
+  // One block per row, all `height` rows in parallel.
+  if (width <= 0 || height <= 0)
+    return;
+  constexpr int kThreadsPerBlock = 256;
+  normalizeConditionalCDFsKernel<<<height, kThreadsPerBlock>>>(
+      d_conditional_cdf, width);
 }
 
 } // namespace
