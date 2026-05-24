@@ -199,9 +199,9 @@ VISRTX_DEVICE vec3 boolColor(bool pred)
 // Downstream uses: isotropic volume scatter, AO/bounce hemisphere base.
 VISRTX_DEVICE vec3 randomDir(RandState &rs)
 {
-  const float cosTheta = 1.f - 2.f * curand_uniform(&rs);
+  const float cosTheta = 1.f - 2.f * pcg_uniform(&rs);
   const float sinTheta = sqrtf(fmaxf(0.f, 1.f - cosTheta * cosTheta));
-  const float phi = kTwoPi * curand_uniform(&rs);
+  const float phi = kTwoPi * pcg_uniform(&rs);
   return vec3(sinTheta * cosf(phi), sinTheta * sinf(phi), cosTheta);
 }
 
@@ -227,8 +227,8 @@ VISRTX_DEVICE mat3 computeOrthonormalBasis(const vec3 &normal)
 // Cosine-weighted hemisphere sample (Malley's method); pdf = cos(theta)/pi.
 VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
 {
-  const float u1 = curand_uniform(&rs);
-  const float u2 = curand_uniform(&rs);
+  const float u1 = pcg_uniform(&rs);
+  const float u2 = pcg_uniform(&rs);
   const float r = sqrtf(u1);
   const float z = sqrtf(fmaxf(0.f, 1.f - r * r));
   const float phi = kTwoPi * u2;
@@ -239,9 +239,9 @@ VISRTX_DEVICE vec3 sampleHemisphere(RandState &rs, const vec3 &normal)
 VISRTX_DEVICE vec3 sampleUnitSphere(RandState &rs, const vec3 &normal)
 {
   // sample unit sphere
-  const float cost = 1.f - 2.f * curand_uniform(&rs);
+  const float cost = 1.f - 2.f * pcg_uniform(&rs);
   const float sint = sqrtf(fmaxf(0.f, 1.f - cost * cost));
-  const float phi = kTwoPi * curand_uniform(&rs);
+  const float phi = kTwoPi * pcg_uniform(&rs);
 
   return computeOrthonormalBasis(normal)
       * vec3(sint * cosf(phi), sint * sinf(phi), -cost);

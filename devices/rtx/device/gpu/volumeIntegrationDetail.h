@@ -44,7 +44,7 @@
 #include "gpu/sbt.h"
 #include "gpu/shadingState.h"
 
-#include <curand_kernel.h>
+// PCG RNG, see gpu/pcg.h
 
 #include <limits>
 #include <type_traits>
@@ -146,7 +146,7 @@ VISRTX_DEVICE bool applyShadowRussianRoulette(
     return false;
 
   const float pSurvive = maxAttn / rrThreshold;
-  if (curand_uniform(&ss.rs) > pSurvive) {
+  if (pcg_uniform(&ss.rs) >= pSurvive) {
     attenuation = vec3(0.0f);
     return true;
   }
@@ -234,7 +234,7 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
     // Closed-form control free-flight starting at trav.tEntry.
     const float t_control = σ_min > 0.f
         ? trav.tEntry
-            - logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs))) / σ_min
+            - logf(fmaxf(1e-10f, pcg_uniform(&ss.rs))) / σ_min
         : std::numeric_limits<float>::infinity();
     const float residualCutoff = fminf(t_control, trav.tExit);
 
@@ -245,7 +245,7 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
       // candidate's t-advance and acceptance test.
       const float invSigmaResidual = 1.0f / σ_residual;
       while (t < residualCutoff) {
-        t += -logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs)))
+        t += -logf(fmaxf(1e-10f, pcg_uniform(&ss.rs)))
             * invSigmaResidual;
         if (t >= residualCutoff)
           break;
@@ -260,7 +260,7 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
             opacityToExtinction(co.w, svv.oneOverUnitDistance);
         // σ_t_p ≥ σ_min by construction; residual at p is σ_t_p - σ_min.
         const float σ_r_p = fmaxf(0.f, σ_t_p - σ_min);
-        if (σ_r_p * invSigmaResidual >= curand_uniform(&ss.rs)) {
+        if (σ_r_p * invSigmaResidual > pcg_uniform(&ss.rs)) {
           albedo = vec3(co);
           extinction = σ_t_p;
           didScatter = true;
@@ -357,7 +357,7 @@ VISRTX_DEVICE  void woodcockRatioTrackTransmittance(ScreenSample &ss,
       const float invSigmaResidual = 1.0f / σ_residual;
       float t = trav.tEntry;
       while (true) {
-        t += -logf(fmaxf(1e-10f, 1.f - curand_uniform(&ss.rs)))
+        t += -logf(fmaxf(1e-10f, pcg_uniform(&ss.rs)))
             * invSigmaResidual;
         if (t >= trav.tExit)
           break;
@@ -425,7 +425,7 @@ VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
 
   // Single stratified jitter at the segment start.
   const float jitter =
-      curand_uniform(&ss.rs) * fminf(dt, objRay.t.upper - objRay.t.lower);
+      pcg_uniform(&ss.rs) * fminf(dt, objRay.t.upper - objRay.t.lower);
   float nextSampleT = objRay.t.lower + jitter;
 
   GridTraversal trav(objRay, field.grid.dims, field.grid.objectBounds);

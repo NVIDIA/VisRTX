@@ -41,7 +41,6 @@
 #include <glm/gtx/color_space.hpp>
 
 // cuda
-#include <curand_uniform.h>
 #include <device_atomic_functions.h>
 
 // cccl
@@ -108,8 +107,8 @@ VISRTX_DEVICE LightSample sampleSphereLight(
     const LightGPUData &ld, const mat4 &xfm, const vec3 &origin, RandState &rs)
 {
   LightSample ls;
-  auto u1 = curand_uniform(&rs);
-  auto u2 = curand_uniform(&rs);
+  auto u1 = pcg_uniform(&rs);
+  auto u2 = pcg_uniform(&rs);
 
   // Uniform sampling on unit sphere using Marsaglia's method
   // u1 maps to z-coordinate: z ∈ [-1, 1]
@@ -162,7 +161,7 @@ VISRTX_DEVICE LightSample sampleRectLight(
     const LightGPUData &ld, const mat4 &xfm, const vec3 &origin, RandState &rs)
 {
   LightSample ls;
-  auto uv = vec2(curand_uniform(&rs), curand_uniform(&rs));
+  auto uv = vec2(pcg_uniform(&rs), pcg_uniform(&rs));
 
   // Uniform sampling on rectangle: uv ∈ [0,1]² maps to rectangle
   auto rectangleSample = ld.rect.edge1 * uv.x + ld.rect.edge2 * uv.y;
@@ -209,8 +208,8 @@ VISRTX_DEVICE LightSample sampleRingLight(
     const LightGPUData &ld, const mat4 &xfm, const vec3 &origin, RandState &rs)
 {
   LightSample ls;
-  auto u1 = curand_uniform(&rs);
-  auto u2 = curand_uniform(&rs);
+  auto u1 = pcg_uniform(&rs);
+  auto u2 = pcg_uniform(&rs);
 
   // Sample angle uniformly around the ring: φ ∈ [0, 2π]
   auto phi = kTwoPi * u1;
@@ -352,10 +351,10 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   // First sample row (y) using marginal CDF, then column (x) using conditional
   // CDF
   auto y = inverseSampleCDF(
-      ld.hdri.marginalCDF, ld.hdri.size.y, curand_uniform(&rs));
+      ld.hdri.marginalCDF, ld.hdri.size.y, pcg_uniform(&rs));
   auto x = inverseSampleCDF(ld.hdri.conditionalCDF + y * ld.hdri.size.x,
       ld.hdri.size.x,
-      curand_uniform(&rs));
+      pcg_uniform(&rs));
 
   auto xy = glm::uvec2(x, y);
 
@@ -365,7 +364,7 @@ VISRTX_DEVICE LightSample sampleHDRILight(
   }
 #endif
   // Add sub-pixel jitter to avoid aliasing
-  auto jitter = glm::vec2(curand_uniform(&rs), curand_uniform(&rs));
+  auto jitter = glm::vec2(pcg_uniform(&rs), pcg_uniform(&rs));
   auto uv =
       glm::clamp((glm::vec2(xy) + jitter) / glm::vec2(ld.hdri.size), 0.f, 1.f);
 

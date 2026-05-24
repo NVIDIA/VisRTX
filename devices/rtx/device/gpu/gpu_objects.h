@@ -36,8 +36,10 @@
 
 // optix
 #include <optix.h>
-// curand
-#include <curand_kernel.h>
+// cuda runtime — cudaTextureObject_t and friends
+#include <cuda_runtime.h>
+// PCG RNG, see gpu/pcg.h
+#include "gpu/pcg.h"
 // anari
 #include <anari/anari_cpp.hpp>
 #include <glm/ext/matrix_float3x4.hpp>
@@ -57,7 +59,7 @@
 
 namespace visrtx {
 
-using RandState = curandStatePhilox4_32_10_t;
+using RandState = PCGState;
 using DeviceObjectIndex = int32_t;
 
 enum class MaterialAttribute : uint8_t

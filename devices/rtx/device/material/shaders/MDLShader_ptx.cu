@@ -35,7 +35,6 @@
 #include "gpu/shadingState.h"
 
 #include <anari/anari_cpp/ext/linalg.h>
-#include <curand.h>
 #include <mi/neuraylib/target_code_types.h>
 #include <optix_device.h>
 #include <glm/ext/matrix_float2x4.hpp>
@@ -198,7 +197,7 @@ NextRay __direct_callable__nextRay(
     const MDLShadingState *shadingState, const Ray *ray, RandState *rs)
 {
   // Before anything, check for opacity. If below, then we just pass through
-  if (curand_uniform(rs) > mdlOpacity(&shadingState->state,
+  if (pcg_uniform(rs) > mdlOpacity(&shadingState->state,
           &shadingState->resData,
           shadingState->argBlock)) {
     return NextRay{ray->dir, vec3(1.0f), NEXT_RAY_CONTINUES_THROUGH_SURFACE};
@@ -214,10 +213,10 @@ NextRay __direct_callable__nextRay(
     sample_data.ior2 = make_float3(1.0f, 1.0f, 1.0f);
   }
   sample_data.k1 = make_float3(-ray->dir);
-  sample_data.xi = make_float4(curand_uniform(rs),
-      curand_uniform(rs),
-      curand_uniform(rs),
-      curand_uniform(rs));
+  sample_data.xi = make_float4(pcg_uniform(rs),
+      pcg_uniform(rs),
+      pcg_uniform(rs),
+      pcg_uniform(rs));
 
   mdlBsdf_sample(&sample_data,
       &shadingState->state,

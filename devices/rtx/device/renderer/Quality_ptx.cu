@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <curand_mtgp32_kernel.h>
 #include <optix_device.h>
 #include "gpu/createScreenSample.h"
 #include "gpu/evalShading.h"
@@ -117,7 +116,7 @@ VISRTX_DEVICE bool shouldTerminatePath(ScreenSample &ss,
   const float maxContribution =
       glm::max(contribution.x, glm::max(contribution.y, contribution.z));
   const float survivalProb = glm::min(maxSurvivalProb, maxContribution);
-  if (curand_uniform(&ss.rs) > survivalProb)
+  if (pcg_uniform(&ss.rs) > survivalProb)
     return true;
 
   contribution /= survivalProb;
@@ -136,10 +135,10 @@ VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
   if (numLights == 0)
     return {};
 
-  // curand_uniform returns (0,1], invert to get [0,numLights).
-  // Clamp to handle float rounding when curand returns a subnormal.
+  // pcg_uniform * numLights ∈ [0, numLights). The glm::min clamp is
+  // defensive against float rounding to numLights at the boundary.
   const size_t selectedIdx =
-      glm::min(size_t((1.0f - curand_uniform(&ss.rs)) * float(numLights)),
+      glm::min(size_t(pcg_uniform(&ss.rs) * float(numLights)),
           numLights - 1);
 
   // Uniform light pick: P(light) = 1/numLights. Fold that into the returned
@@ -179,7 +178,7 @@ VISRTX_DEVICE LightSample sampleLightsVolume(
     return {};
 
   const size_t selectedIdx =
-      glm::min(size_t((1.0f - curand_uniform(&ss.rs)) * float(numLights)),
+      glm::min(size_t(pcg_uniform(&ss.rs) * float(numLights)),
           numLights - 1);
 
   const float lightPickPdf = 1.0f / float(numLights);

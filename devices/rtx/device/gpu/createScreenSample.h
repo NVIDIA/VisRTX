@@ -55,7 +55,12 @@ VISRTX_DEVICE ScreenSample createScreenSample(const FrameGPUData &frameData)
   const int x = computePixelX(launchIdx.x, frameData.fb.checkerboardID);
   const int y = computePixelY(launchIdx.y, frameData.fb.checkerboardID);
   const int w = frameData.fb.size.x;
-  curand_init(y * w + x, 0, frameData.fb.frameID * 512, &ss.rs);
+  // streamId = pixel linear index (per-pixel parallel streams via the odd
+  // `inc` selector); seed = frameID, so each frame restarts from a fresh
+  // LCG state per pixel.
+  const uint64_t pixelLinear = uint64_t(y) * uint64_t(w) + uint64_t(x);
+  const uint64_t frameSeed = uint64_t(frameData.fb.frameID);
+  pcg_init(&ss.rs, frameSeed, pixelLinear);
 
   ss.pixel.x = x;
   ss.pixel.y = y;

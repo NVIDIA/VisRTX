@@ -497,7 +497,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const PhysicallyBasedShadingState *state, const Ray *ray, RandState *rs)
 {
   // Opacity pass-through (stochastic alpha): the ray continues unaltered.
-  if (curand_uniform(rs) > state->opacity)
+  if (pcg_uniform(rs) > state->opacity)
     return NextRay{ray->dir, vec3(1.0f), NEXT_RAY_CONTINUES_THROUGH_SURFACE};
 
   const vec3 V = -ray->dir;
@@ -513,7 +513,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   const float clearcoatPick =
       glm::clamp(state->clearcoat * FcV_world, 0.0f, 1.0f);
 
-  if (clearcoatPick > 0.0f && curand_uniform(rs) < clearcoatPick) {
+  if (clearcoatPick > 0.0f && pcg_uniform(rs) < clearcoatPick) {
     const mat3 toWorldC = computeOrthonormalBasis(Nc);
     const vec3 VlocalC = glm::transpose(toWorldC) * V;
     if (VlocalC.z <= 0.0f)
@@ -521,7 +521,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const float alphaC = fmaxf(pow2(state->clearcoatRoughness), 1e-4f);
     const float alphaC2 = alphaC * alphaC;
     const vec3 HlocalC = sampleGGXVNDF(
-        VlocalC, alphaC, curand_uniform(rs), curand_uniform(rs));
+        VlocalC, alphaC, pcg_uniform(rs), pcg_uniform(rs));
     const vec3 LlocalC = glm::reflect(-VlocalC, HlocalC);
     if (LlocalC.z <= 0.0f)
       return NextRay{Nc, vec3(0.0f)};
@@ -558,7 +558,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   const float alpha = fmaxf(pow2(state->roughness), 1e-4f);
   const float alpha2 = alpha * alpha;
   const vec3 Hlocal =
-      sampleGGXVNDF(Vlocal, alpha, curand_uniform(rs), curand_uniform(rs));
+      sampleGGXVNDF(Vlocal, alpha, pcg_uniform(rs), pcg_uniform(rs));
 
   const float NdotV = Vlocal.z;
   const float VdotH = fmaxf(dot(Vlocal, Hlocal), 0.0f);
@@ -608,7 +608,7 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
   const float transmitProb = transmitStrength / combinedStrength;
   const float diffuseProb = diffuseStrength / combinedStrength;
 
-  const float u = curand_uniform(rs);
+  const float u = pcg_uniform(rs);
   if (u < reflectProb) {
     if (Lrefl.z <= 0.0f)
       return NextRay{N, vec3(0.0f)};
