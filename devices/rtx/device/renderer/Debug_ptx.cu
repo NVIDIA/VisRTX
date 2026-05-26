@@ -235,7 +235,7 @@ VISRTX_GLOBAL void __raygen__()
     return;
   }
 
-  auto ray = makePrimaryRay(ss, true /*pixel centered*/);
+  auto ray = makePrimaryRay(ss, 0u, true /*pixel centered*/);
 
   vec3 color{0.f};
   if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {

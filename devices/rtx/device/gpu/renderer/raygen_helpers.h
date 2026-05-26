@@ -78,7 +78,11 @@ VISRTX_DEVICE void renderPixel(FrameGPUData &frameData, ScreenSample ss)
     // First go with the main ray, pixel centered if first frame.
     // Jittered samples are produced by next iterations.
     bool isVeryFirstRay = i == 0 && ss.frameData->fb.frameID == 0;
-    auto ray = makePrimaryRay(ss, isVeryFirstRay);
+    const uint32_t sampleIdx =
+        uint32_t(ss.frameData->fb.frameID)
+            * uint32_t(rendererParams.numIterations)
+        + uint32_t(i);
+    auto ray = makePrimaryRay(ss, sampleIdx, isVeryFirstRay);
     applyCuttingPlane(rendererParams.cutPlane, ray);
     float tmax = ray.t.upper;
 

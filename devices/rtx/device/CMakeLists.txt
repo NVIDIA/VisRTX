@@ -277,7 +277,6 @@ PUBLIC
 PRIVATE
   anari::helium
   CUDA::cuda_driver
-  CUDA::curand
   $<$<BOOL:${VISRTX_ENABLE_NVTX}>:CUDA::nvToolsExt>
   $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:libmdl>
 )
@@ -346,7 +345,6 @@ function(GenerateEmbeddedPTX DIR BASE_NAME)
     OptiX::OptiX
     anari::anari_headers
     anari::helium
-    CUDA::curand
     $<$<BOOL:${VISRTX_ENABLE_MDL_SUPPORT}>:libmdl>
   )
   target_include_directories(${INPUT_TARGET}

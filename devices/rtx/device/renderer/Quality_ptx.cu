@@ -303,7 +303,14 @@ VISRTX_GLOBAL void __raygen__()
 
   for (int i = 0; i < rendererParams.numIterations; ++i) {
     bool isVeryFirstRay = i == 0 && ss.frameData->fb.frameID == 0;
-    auto ray = makePrimaryRay(ss, isVeryFirstRay);
+    // Halton sample index: per-pixel ordinal across the whole frame's
+    // sample budget. Using `frameID * numIterations + i` keeps the
+    // per-pixel Halton indices contiguous [0, totalSpp), which is the
+    // optimal QMC stratification.
+    const uint32_t sampleIdx =
+        uint32_t(ss.frameData->fb.frameID) * uint32_t(rendererParams.numIterations)
+        + uint32_t(i);
+    auto ray = makePrimaryRay(ss, sampleIdx, isVeryFirstRay);
 
     applyCuttingPlane(rendererParams.cutPlane, ray);
 

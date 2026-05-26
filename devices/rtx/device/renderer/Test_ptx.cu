@@ -55,7 +55,7 @@ VISRTX_GLOBAL void __raygen__()
   auto ss = createScreenSample(frameData);
   if (pixelOutOfFrame(ss.pixel, frameData.fb))
     return;
-  auto ray = makePrimaryRay(ss);
+  auto ray = makePrimaryRay(ss, 0u);
 
   setPixelIds(frameData.fb, ss.pixel, 1.0f, ~0u, ~0u, ~0u);
 
