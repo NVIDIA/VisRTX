@@ -336,19 +336,27 @@ VISRTX_GLOBAL void __raygen__()
               sampleLightsVolume(ss, frameData, scatterPos);
           if (lightSample.pdf >= ATTENUATION_EPSILON
               && lightSample.dist > 0.0f) {
-            const float eps = VOLUME_SCATTER_EPSILON;
-            const Ray shadowRay = {
-                scatterPos + lightSample.dir * eps,
-                lightSample.dir,
-                {eps, lightSample.dist},
-            };
-            const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
-                * volumeShadowTransmittance(ss, shadowRay);
-
             constexpr float INV_4PI = 1.0f / (4.0f * kPi);
             const vec3 directLight = volumeSample.albedo * lightSample.radiance
                 * INV_4PI / lightSample.pdf;
-            sample.color += sampleContribution * directLight * attenuation;
+            const vec3 contribUpper = sampleContribution * directLight;
+            const float maxContrib = glm::max(
+                contribUpper.x, glm::max(contribUpper.y, contribUpper.z));
+            // Pre-shadow skip: a contribution below SHADOW_SKIP_EPSILON
+            // can't survive RGB quantisation even unattenuated. Costs nothing
+            // to skip the trace entirely.
+            constexpr float SHADOW_SKIP_EPSILON = 1.0e-5f;
+            if (maxContrib >= SHADOW_SKIP_EPSILON) {
+              const float eps = VOLUME_SCATTER_EPSILON;
+              const Ray shadowRay = {
+                  scatterPos + lightSample.dir * eps,
+                  lightSample.dir,
+                  {eps, lightSample.dist},
+              };
+              const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
+                  * volumeShadowTransmittance(ss, shadowRay);
+              sample.color += contribUpper * attenuation;
+            }
           }
         }
 
@@ -419,18 +427,23 @@ VISRTX_GLOBAL void __raygen__()
           // into the lit/unlit boundary at grazing light angles.
           const float lightDotNs = dot(lightSample.dir, surfaceHit.Ns);
           if (lightDotNs > 0.0f) {
-            const Ray shadowRay = {
-                shadowOrigin,
-                lightSample.dir,
-                {surfaceHit.epsilon, lightSample.dist},
-            };
-            const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
-                * volumeShadowTransmittance(ss, shadowRay);
             const vec3 directLight = materialShadeSurface(
                 shadingState, surfaceHit, lightSample, -ray.dir);
-
-            sample.color += sampleContribution * materialOpacity * directLight
-                * attenuation;
+            const vec3 contribUpper =
+                sampleContribution * materialOpacity * directLight;
+            const float maxContrib = glm::max(
+                contribUpper.x, glm::max(contribUpper.y, contribUpper.z));
+            constexpr float SHADOW_SKIP_EPSILON = 1.0e-5f;
+            if (maxContrib >= SHADOW_SKIP_EPSILON) {
+              const Ray shadowRay = {
+                  shadowOrigin,
+                  lightSample.dir,
+                  {surfaceHit.epsilon, lightSample.dist},
+              };
+              const auto attenuation = surfaceShadowTransmittance(ss, shadowRay)
+                  * volumeShadowTransmittance(ss, shadowRay);
+              sample.color += contribUpper * attenuation;
+            }
           }
         }
 
