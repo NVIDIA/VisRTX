@@ -207,12 +207,11 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
 
   GridTraversal trav(objRay, field.grid.dims, field.grid.objectBounds);
   while (trav.valid()) {
-    const float minOpacity = field.grid.minOpacities[trav.cellIndex];
-    const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];
+    const float2 bounds = __ldg(&field.grid.opacityBounds[trav.cellIndex]);
     const float σ_min =
-        opacityToExtinction(minOpacity, svv.oneOverUnitDistance);
+        opacityToExtinction(bounds.x, svv.oneOverUnitDistance);
     const float σ_maj =
-        opacityToExtinction(maxOpacity, svv.oneOverUnitDistance);
+        opacityToExtinction(bounds.y, svv.oneOverUnitDistance);
     const float σ_residual = fmaxf(0.f, σ_maj - σ_min);
 
     if (σ_maj <= 0.f) {
@@ -318,12 +317,11 @@ VISRTX_DEVICE  void woodcockRatioTrackTransmittance(ScreenSample &ss,
 
   GridTraversal trav(objRay, field.grid.dims, field.grid.objectBounds);
   while (trav.valid()) {
-    const float minOpacity = field.grid.minOpacities[trav.cellIndex];
-    const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];
+    const float2 bounds = __ldg(&field.grid.opacityBounds[trav.cellIndex]);
     const float σ_min =
-        opacityToExtinction(minOpacity, svv.oneOverUnitDistance);
+        opacityToExtinction(bounds.x, svv.oneOverUnitDistance);
     const float σ_maj =
-        opacityToExtinction(maxOpacity, svv.oneOverUnitDistance);
+        opacityToExtinction(bounds.y, svv.oneOverUnitDistance);
     const float σ_residual = fmaxf(0.f, σ_maj - σ_min);
 
     if (σ_maj <= 0.f) {
@@ -423,7 +421,8 @@ VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
     if (opacity >= MAX_OPACITY_THRESHOLD)
       break;
 
-    const float maxOpacity = field.grid.maxOpacities[trav.cellIndex];
+    const float2 bounds = __ldg(&field.grid.opacityBounds[trav.cellIndex]);
+    const float maxOpacity = bounds.y;
     if (maxOpacity <= 0.f) {
       trav.next();
       continue;

@@ -57,8 +57,7 @@ struct UniformGrid
   size_t numCells() const;
 
   box1 *m_valueRanges = nullptr;
-  float *m_minOpacities = nullptr;
-  float *m_maxOpacities = nullptr;
+  float2 *m_opacityBounds = nullptr; // .x = min, .y = max
   ivec3 m_dims;
   ivec3 m_fieldDims;
   box3 m_objectBounds;

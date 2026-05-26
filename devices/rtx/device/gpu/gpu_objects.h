@@ -418,9 +418,9 @@ struct UniformGridData
 {
   ivec3 dims;
   box3 objectBounds;
-  box1 *valueRanges; // data min/max ranges
-  float *minOpacities; // matching tf opacity minima
-  float *maxOpacities; // matching tf opacity maxima
+  box1 *valueRanges; // min/max ranges
+  float2 *opacityBounds; // Per-cell α bounds (.x = min, .y = max) over the TF
+                         // lookup.
 };
 
 struct StructuredRegularData
