@@ -101,6 +101,7 @@ class Application : public tsd::ui::imgui::Application
   std::vector<std::filesystem::path> m_recentProjects;
   PendingDirtyAction m_pendingDirtyAction{PendingDirtyAction::None};
   bool m_viewportRenderingDisabledForShotRender{false};
+  bool m_keepBlankProjectCleanAfterViewportSync{false};
 
   tsd::ui::imgui::Viewport *m_viewport{nullptr};
   tsd::ui::imgui::LayerTree *m_layerTree{nullptr};

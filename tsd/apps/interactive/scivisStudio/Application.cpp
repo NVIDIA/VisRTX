@@ -179,10 +179,12 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
   if (!m_initialProjectDirectory.empty()) {
     if (!openProject(m_initialProjectDirectory)) {
       m_projectContext.createUnsavedProject();
+      m_keepBlankProjectCleanAfterViewportSync = true;
       m_viewport->setLibraryToDefault();
     }
   } else {
     m_projectContext.createUnsavedProject();
+    m_keepBlankProjectCleanAfterViewportSync = true;
     m_viewport->setLibraryToDefault();
   }
 
@@ -344,6 +346,7 @@ void Application::newProject()
     m_viewport->releaseSceneReferences();
 
   m_projectContext.createUnsavedProject();
+  m_keepBlankProjectCleanAfterViewportSync = true;
   restoreViewportFromActiveShot();
 }
 
@@ -656,6 +659,11 @@ void Application::uiFrameStart()
     appContext()->clearSelected();
 
   syncActiveShotRenderSettingsFromViewport();
+  if (m_keepBlankProjectCleanAfterViewportSync
+      && (!m_taskModal || !m_taskModal->visible())) {
+    m_projectContext.project().markClean();
+    m_keepBlankProjectCleanAfterViewportSync = false;
+  }
 }
 
 void Application::uiMainMenuBar()
