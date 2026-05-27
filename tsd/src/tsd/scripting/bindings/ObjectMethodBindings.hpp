@@ -12,15 +12,18 @@
 //   - For Object:  returns &u  (never null)
 //   - For Ref:     returns r.data() when valid, nullptr otherwise
 //
-// Null-handling policy (follows Lua conventions):
+// Each binding is a one-line trampoline that forwards to a free function
+// in ObjectMethodImpls.cpp. The method body code is emitted exactly once
+// for the whole TU instead of once per UserType, so per-type
+// instantiation cost is dominated by sol2's call-wrapping machinery
+// rather than by the optimizer chewing through duplicated bodies.
+//
+// Null-handling policy (implemented inside the free functions):
 //   - Mutating operations (setParameter, setParameterArray): throw on null
 //   - Read operations (getParameter, name, type, etc.): return nil/default
 //   - Idempotent remove operations (removeParameter, etc.): silent no-op
 
-#include "ArrayHelpers.hpp"
-#include "ParameterHelpers.hpp"
-#include "tsd/core/Token.hpp"
-#include "tsd/scene/Parameter.hpp"
+#include "ObjectMethodImpls.hpp"
 
 #include <sol/sol.hpp>
 
@@ -30,37 +33,19 @@ template <typename UserType, typename Accessor>
 void registerObjectMethodsOn(sol::usertype<UserType> &ut, Accessor access)
 {
   ut["name"] = sol::property(
-      [access](UserType &u) -> std::string {
-        if (auto *obj = access(u))
-          return obj->name();
-        return "";
-      },
+      [access](UserType &u) { return objectGetName(access(u)); },
       [access](UserType &u, const std::string &n) {
-        if (auto *obj = access(u))
-          obj->setName(n.c_str());
+        objectSetName(access(u), n);
       });
 
-  ut["subtype"] = [access](UserType &u) -> std::string {
-    if (auto *obj = access(u))
-      return obj->subtype().str();
-    return "";
-  };
-
-  ut["type"] = [access](UserType &u) -> anari::DataType {
-    if (auto *obj = access(u))
-      return obj->type();
-    return ANARI_UNKNOWN;
-  };
+  ut["subtype"] = [access](UserType &u) { return objectGetSubtype(access(u)); };
+  ut["type"] = [access](UserType &u) { return objectGetType(access(u)); };
 
   ut["setParameter"] = [access](UserType &u,
                             const std::string &name,
                             sol::object value,
                             sol::this_state s) {
-    auto *obj = access(u);
-    if (!obj)
-      throw std::runtime_error(
-          "attempt to set parameter on invalid reference");
-    setParameterFromLua(obj, name, value);
+    objectSetParameter(access(u), name, value, s);
   };
 
   ut["setParameterArray"] = sol::overload(
@@ -69,11 +54,7 @@ void registerObjectMethodsOn(sol::usertype<UserType> &ut, Accessor access)
           const std::string &typeStr,
           sol::table data,
           sol::this_state s) {
-        auto *obj = access(u);
-        if (!obj)
-          throw std::runtime_error(
-              "attempt to set parameter on invalid reference");
-        return setParameterArrayFromLua(*obj, name, typeStr, data, s);
+        return objectSetParameterArray0(access(u), name, typeStr, data, s);
       },
       [access](UserType &u,
           const std::string &name,
@@ -81,12 +62,8 @@ void registerObjectMethodsOn(sol::usertype<UserType> &ut, Accessor access)
           size_t items0,
           sol::table data,
           sol::this_state s) {
-        auto *obj = access(u);
-        if (!obj)
-          throw std::runtime_error(
-              "attempt to set parameter on invalid reference");
-        return setParameterArrayFromLua(
-            *obj, name, typeStr, items0, 0, 0, data, s);
+        return objectSetParameterArray1(
+            access(u), name, typeStr, items0, data, s);
       },
       [access](UserType &u,
           const std::string &name,
@@ -95,12 +72,8 @@ void registerObjectMethodsOn(sol::usertype<UserType> &ut, Accessor access)
           size_t items1,
           sol::table data,
           sol::this_state s) {
-        auto *obj = access(u);
-        if (!obj)
-          throw std::runtime_error(
-              "attempt to set parameter on invalid reference");
-        return setParameterArrayFromLua(
-            *obj, name, typeStr, items0, items1, 0, data, s);
+        return objectSetParameterArray2(
+            access(u), name, typeStr, items0, items1, data, s);
       },
       [access](UserType &u,
           const std::string &name,
@@ -110,86 +83,55 @@ void registerObjectMethodsOn(sol::usertype<UserType> &ut, Accessor access)
           size_t items2,
           sol::table data,
           sol::this_state s) {
-        auto *obj = access(u);
-        if (!obj)
-          throw std::runtime_error(
-              "attempt to set parameter on invalid reference");
-        return setParameterArrayFromLua(
-            *obj, name, typeStr, items0, items1, items2, data, s);
+        return objectSetParameterArray3(
+            access(u), name, typeStr, items0, items1, items2, data, s);
       });
 
-  ut["getParameter"] = [access](UserType &u,
-                            const std::string &name,
-                            sol::this_state s) -> sol::object {
-    auto *obj = access(u);
-    if (!obj)
-      return sol::lua_nil;
-    return getParameterAsLua(sol::state_view(s), obj, name);
-  };
+  ut["getParameter"] =
+      [access](UserType &u, const std::string &name, sol::this_state s) {
+        return objectGetParameter(access(u), name, s);
+      };
 
-  ut["parameter"] = [access](UserType &u,
-                        const std::string &name) -> const scene::Parameter * {
-    auto *obj = access(u);
-    if (!obj)
-      return nullptr;
-    return obj->parameter(core::Token(name));
+  ut["parameter"] = [access](UserType &u, const std::string &name) {
+    return objectGetParameterPtr(access(u), name);
   };
 
   ut["removeParameter"] = [access](UserType &u, const std::string &name) {
-    if (auto *obj = access(u))
-      obj->removeParameter(core::Token(name));
+    objectRemoveParameter(access(u), name);
   };
 
   ut["removeAllParameters"] = [access](UserType &u) {
-    if (auto *obj = access(u))
-      obj->removeAllParameters();
+    objectRemoveAllParameters(access(u));
   };
 
-  ut["numParameters"] = [access](UserType &u) -> size_t {
-    if (auto *obj = access(u))
-      return obj->numParameters();
-    return 0;
+  ut["numParameters"] = [access](UserType &u) {
+    return objectNumParameters(access(u));
   };
 
-  ut["parameterNameAt"] = [access](UserType &u, size_t i) -> const char * {
-    if (auto *obj = access(u))
-      return obj->parameterNameAt(i);
-    return "";
+  ut["parameterNameAt"] = [access](UserType &u, size_t i) {
+    return objectParameterNameAt(access(u), i);
   };
 
-  // Metadata
   ut["setMetadata"] =
       [access](UserType &u, const std::string &key, sol::object value) {
-        if (auto *obj = access(u))
-          setMetadataFromLua(obj, key, value);
+        objectSetMetadata(access(u), key, value);
       };
 
-  ut["getMetadata"] = [access](UserType &u,
-                          const std::string &key,
-                          sol::this_state s) -> sol::object {
-    auto *obj = access(u);
-    if (!obj)
-      return sol::lua_nil;
-    return getMetadataAsLua(sol::state_view(s), obj, key);
-  };
+  ut["getMetadata"] =
+      [access](UserType &u, const std::string &key, sol::this_state s) {
+        return objectGetMetadata(access(u), key, s);
+      };
 
   ut["removeMetadata"] = [access](UserType &u, const std::string &key) {
-    if (auto *obj = access(u))
-      obj->removeMetadata(key);
+    objectRemoveMetadata(access(u), key);
   };
 
-  ut["numMetadata"] = [access](UserType &u) -> size_t {
-    if (auto *obj = access(u))
-      return obj->numMetadata();
-    return 0;
+  ut["numMetadata"] = [access](UserType &u) {
+    return objectNumMetadata(access(u));
   };
 
-  ut["getMetadataName"] = [access](UserType &u, size_t i) -> const char * {
-    if (auto *obj = access(u)) {
-      const char *n = obj->getMetadataName(i);
-      return n ? n : "";
-    }
-    return "";
+  ut["getMetadataName"] = [access](UserType &u, size_t i) {
+    return objectGetMetadataName(access(u), i);
   };
 }
 

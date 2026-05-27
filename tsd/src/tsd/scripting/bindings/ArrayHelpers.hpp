@@ -39,4 +39,6 @@ scene::ArrayRef setParameterArrayFromLua(scene::Object &obj,
     sol::table data,
     sol::this_state s);
 
+sol::table arrayGetDataAsLua(scene::Array &arr, sol::this_state s);
+
 } // namespace tsd::scripting

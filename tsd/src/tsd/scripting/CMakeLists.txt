@@ -9,13 +9,36 @@ project_sources(
 PRIVATE
   LuaContext.cpp
   LuaBindings.cpp
+  bindings/ArrayHelpers.cpp
+  bindings/ObjectMethodImpls.cpp
+  bindings/ObjectUsertype.cpp
+  bindings/AnimationBindings.cpp
   bindings/CoreBindings.cpp
+  bindings/scene/Accessors.cpp
+  bindings/scene/Creators.cpp
+  bindings/scene/Iteration.cpp
+  bindings/scene/Layers.cpp
+  bindings/scene/Nodes.cpp
   bindings/MathBindings.cpp
+  bindings/math/Float2.cpp
+  bindings/math/Float3.cpp
+  bindings/math/Float4.cpp
+  bindings/math/Mat3.cpp
+  bindings/math/Mat4.cpp
   bindings/ObjectBindings.cpp
   bindings/LayerBindings.cpp
   bindings/IOBindings.cpp
   bindings/RenderBindings.cpp
   bindings/ParameterHelpers.cpp
+  bindings/refs/ArrayRef.cpp
+  bindings/refs/CameraRef.cpp
+  bindings/refs/GeometryRef.cpp
+  bindings/refs/LightRef.cpp
+  bindings/refs/MaterialRef.cpp
+  bindings/refs/SamplerRef.cpp
+  bindings/refs/SpatialFieldRef.cpp
+  bindings/refs/SurfaceRef.cpp
+  bindings/refs/VolumeRef.cpp
 )
 
 project_include_directories(
