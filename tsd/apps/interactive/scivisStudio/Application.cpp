@@ -6,8 +6,6 @@
 #include "DefaultLayout.h"
 #include "RenderShot.h"
 #include "modals/AddDatasetDialog.h"
-#include "modals/ConfirmDefaultLayoutDialog.h"
-#include "modals/ConfirmDiscardDialog.h"
 #include "modals/ProjectLocationDialog.h"
 #include "windows/CameraRigEditor.h"
 #include "windows/DatasetEditor.h"
@@ -76,6 +74,47 @@ bool pathsReferToSameProject(
   return normalizedAbsolutePath(a) == normalizedAbsolutePath(b);
 }
 
+bool renderConfirmationModal(ConfirmationModalState &modal)
+{
+  if (!modal.visible)
+    return false;
+
+  ImGuiIO &io = ImGui::GetIO();
+  ImGui::SetNextWindowPos(
+      ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
+      ImGuiCond_Always,
+      ImVec2(0.5f, 0.5f));
+
+  ImGui::OpenPopup(modal.title.c_str());
+  if (ImGui::BeginPopupModal(modal.title.c_str(),
+          &modal.visible,
+          ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (modal.minWidth > 0.f)
+      ImGui::Dummy(ImVec2(modal.minWidth, 0.f));
+    if (!modal.message.empty())
+      ImGui::TextUnformatted(modal.message.c_str());
+    ImGui::Spacing();
+
+    if (ImGui::Button(modal.cancelLabel.c_str())) {
+      modal.visible = false;
+      if (modal.onCancel)
+        modal.onCancel();
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button(modal.confirmLabel.c_str())) {
+      modal.visible = false;
+      if (modal.onConfirm)
+        modal.onConfirm();
+    }
+
+    ImGui::EndPopup();
+  }
+
+  return modal.visible;
+}
+
 } // namespace
 
 Application::Application(int argc, const char **argv)
@@ -134,9 +173,6 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
   m_transferFunctionEditor->hide();
 
   m_projectLocationDialog = std::make_unique<ProjectLocationDialog>(this);
-  m_confirmDefaultLayoutDialog =
-      std::make_unique<ConfirmDefaultLayoutDialog>(this);
-  m_confirmDiscardDialog = std::make_unique<ConfirmDiscardDialog>(this);
   m_addDatasetDialog =
       std::make_unique<AddDatasetDialog>(this, &m_projectContext);
 
@@ -329,12 +365,17 @@ void Application::requestDirtyAction(PendingDirtyAction action)
   }
 
   m_pendingDirtyAction = action;
-  m_confirmDiscardDialog->configure([this]() { continueDirtyAction(); },
-      [this]() {
-        m_pendingDirtyAction = PendingDirtyAction::None;
-        m_pendingProjectDirectory.clear();
-      });
-  m_confirmDiscardDialog->show();
+  m_confirmationModal.visible = true;
+  m_confirmationModal.title = "Discard Unsaved Changes";
+  m_confirmationModal.message = "The current project has unsaved changes.";
+  m_confirmationModal.cancelLabel = "Cancel";
+  m_confirmationModal.confirmLabel = "Discard and Continue";
+  m_confirmationModal.minWidth = 0.f;
+  m_confirmationModal.onCancel = [this]() {
+    m_pendingDirtyAction = PendingDirtyAction::None;
+    m_pendingProjectDirectory.clear();
+  };
+  m_confirmationModal.onConfirm = [this]() { continueDirtyAction(); };
 }
 
 void Application::requestOpenRecentProject(
@@ -613,15 +654,7 @@ void Application::uiFrameStart()
     modalActive = true;
   }
 
-  if (m_confirmDiscardDialog && m_confirmDiscardDialog->visible()) {
-    m_confirmDiscardDialog->renderUI();
-    modalActive = true;
-  }
-
-  if (m_confirmDefaultLayoutDialog && m_confirmDefaultLayoutDialog->visible()) {
-    m_confirmDefaultLayoutDialog->renderUI();
-    modalActive = true;
-  }
+  modalActive = renderConfirmationModal(m_confirmationModal) || modalActive;
 
   if (m_addDatasetDialog && m_addDatasetDialog->visible()) {
     m_addDatasetDialog->renderUI();
@@ -684,9 +717,14 @@ void Application::uiMainMenuBar()
     }
     ImGui::Separator();
     if (ImGui::MenuItem("Save Default Layout File")) {
-      m_confirmDefaultLayoutDialog->configure(
-          [this]() { saveDefaultLayoutFile(); });
-      m_confirmDefaultLayoutDialog->show();
+      m_confirmationModal.visible = true;
+      m_confirmationModal.title = "Update Default Layout";
+      m_confirmationModal.message = "Are you sure?";
+      m_confirmationModal.cancelLabel = "No";
+      m_confirmationModal.confirmLabel = "Yes";
+      m_confirmationModal.minWidth = 700.f;
+      m_confirmationModal.onCancel = {};
+      m_confirmationModal.onConfirm = [this]() { saveDefaultLayoutFile(); };
     }
     if (ImGui::MenuItem("Reset Layout"))
       ImGui::LoadIniSettingsFromMemory(getDefaultLayout());

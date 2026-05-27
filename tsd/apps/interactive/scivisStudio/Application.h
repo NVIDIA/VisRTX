@@ -8,6 +8,7 @@
 #include "tsd/ui/imgui/Application.h"
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,13 +25,23 @@ namespace tsd::scivis_studio {
 
 struct AddDatasetDialog;
 struct CameraRigEditor;
-struct ConfirmDefaultLayoutDialog;
-struct ConfirmDiscardDialog;
 struct DatasetEditor;
 struct LightRigEditor;
 struct ProjectLocationDialog;
 struct ProjectWindow;
 struct ShotEditor;
+
+struct ConfirmationModalState
+{
+  bool visible{false};
+  std::string title;
+  std::string message;
+  std::string cancelLabel;
+  std::string confirmLabel;
+  float minWidth{0.f};
+  std::function<void()> onCancel;
+  std::function<void()> onConfirm;
+};
 
 class Application : public tsd::ui::imgui::Application
 {
@@ -98,9 +109,8 @@ class Application : public tsd::ui::imgui::Application
   tsd::ui::imgui::TransferFunctionEditor *m_transferFunctionEditor{nullptr};
 
   std::unique_ptr<ProjectLocationDialog> m_projectLocationDialog;
-  std::unique_ptr<ConfirmDefaultLayoutDialog> m_confirmDefaultLayoutDialog;
-  std::unique_ptr<ConfirmDiscardDialog> m_confirmDiscardDialog;
   std::unique_ptr<AddDatasetDialog> m_addDatasetDialog;
+  ConfirmationModalState m_confirmationModal;
 };
 
 } // namespace tsd::scivis_studio

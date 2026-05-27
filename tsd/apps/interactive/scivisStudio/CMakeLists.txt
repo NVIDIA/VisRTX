@@ -44,8 +44,6 @@ configure_file(
 add_executable(scivisStudio
   Application.cpp
   modals/AddDatasetDialog.cpp
-  modals/ConfirmDefaultLayoutDialog.cpp
-  modals/ConfirmDiscardDialog.cpp
   modals/ProjectLocationDialog.cpp
   scivisStudio.cpp
   windows/CameraRigEditor.cpp
