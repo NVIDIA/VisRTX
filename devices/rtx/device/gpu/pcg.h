@@ -54,6 +54,14 @@ struct PCGState
 
 namespace detail {
 
+VISRTX_DEVICE uint64_t pcg_mix64(uint64_t v)
+{
+  v += 0x9E3779B97F4A7C15ULL;
+  v = (v ^ (v >> 30u)) * 0xBF58476D1CE4E5B9ULL;
+  v = (v ^ (v >> 27u)) * 0x94D049BB133111EBULL;
+  return v ^ (v >> 31u);
+}
+
 // One step of the PCG-XSH-RR-32 permutation. Internal helper; callers want
 // pcg_uniform / pcg_uniform4 below.
 VISRTX_DEVICE uint32_t pcg_advance(PCGState *s)
@@ -72,9 +80,9 @@ VISRTX_DEVICE uint32_t pcg_advance(PCGState *s)
 
 // Seed the stream. `seed` becomes the initial counter; `streamId` selects
 // one of 2^63 statistically-independent streams (must be made odd; the
-// `| 1u` ensures this). Per-pixel streams are typically streamed by
-// (pixel.y * width + pixel.x), with `seed` carrying the frame counter so
-// successive frames advance the sequence.
+// `| 1u` ensures this). Callers should hash structured keys before passing
+// them here; adjacent stream IDs with tiny seeds can show visible structure
+// when a pixel consumes only the first few outputs.
 VISRTX_DEVICE void pcg_init(PCGState *s, uint64_t seed, uint64_t streamId)
 {
   s->state = 0u;

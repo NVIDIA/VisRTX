@@ -55,12 +55,14 @@ VISRTX_DEVICE ScreenSample createScreenSample(const FrameGPUData &frameData)
   const int x = computePixelX(launchIdx.x, frameData.fb.checkerboardID);
   const int y = computePixelY(launchIdx.y, frameData.fb.checkerboardID);
   const int w = frameData.fb.size.x;
-  // streamId = pixel linear index (per-pixel parallel streams via the odd
-  // `inc` selector); seed = frameID, so each frame restarts from a fresh
-  // LCG state per pixel.
+  // Hash the pixel/frame keys before PCG seeding. Adjacent PCG streams with
+  // tiny seeds expose visible structure when AO consumes only a few samples.
   const uint64_t pixelLinear = uint64_t(y) * uint64_t(w) + uint64_t(x);
-  const uint64_t frameSeed = uint64_t(frameData.fb.frameID);
-  pcg_init(&ss.rs, frameSeed, pixelLinear);
+  const uint64_t streamId = detail::pcg_mix64(pixelLinear);
+  const uint64_t frameSeed =
+      detail::pcg_mix64((uint64_t(frameData.fb.frameID) << 32u) ^ pixelLinear
+          ^ 0xD1B54A32D192ED03ULL);
+  pcg_init(&ss.rs, frameSeed, streamId);
 
   ss.pixel.x = x;
   ss.pixel.y = y;
