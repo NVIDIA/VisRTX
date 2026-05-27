@@ -91,6 +91,7 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     s["currentFrame"] = shot.currentFrame;
     s["playing"] = shot.playing;
     s["loop"] = shot.loop;
+    s["lightRigId"] = shot.lightRigId;
     cameraRigToNode(shot.cameraRig, s["cameraRig"]);
 
     auto &render = s["renderSettings"];
@@ -109,6 +110,13 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
       b["datasetId"] = binding.datasetId;
       b["enabled"] = binding.enabled;
     }
+  }
+
+  auto &lightRigs = node["lightRigs"];
+  for (const auto &rig : project.lightRigs) {
+    auto &r = lightRigs.append();
+    r["id"] = rig.id;
+    r["name"] = rig.name;
   }
 
   auto &colorMaps = node["colorMaps"];
@@ -161,6 +169,7 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       shot.currentFrame = s["currentFrame"].getValueOr<int>(0);
       shot.playing = s["playing"].getValueOr<bool>(false);
       shot.loop = s["loop"].getValueOr<bool>(true);
+      shot.lightRigId = s["lightRigId"].getValueOr<std::string>("");
       if (auto *cameraRig = s.child("cameraRig"))
         nodeToCameraRig(*cameraRig, shot.cameraRig);
 
@@ -191,6 +200,13 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
         });
       }
       out.shots.push_back(std::move(shot));
+    });
+  }
+
+  if (auto *lightRigs = node.child("lightRigs")) {
+    lightRigs->foreach_child([&](tsd::core::DataNode &r) {
+      out.lightRigs.push_back({r["id"].getValueOr<std::string>(""),
+          r["name"].getValueOr<std::string>("")});
     });
   }
 
@@ -256,7 +272,7 @@ ProjectValidationResult validateProjectRoot(
       return result;
     }
 
-    if (metadata.schemaVersion != SCHEMA_VERSION) {
+    if (metadata.schemaVersion < 1 || metadata.schemaVersion > SCHEMA_VERSION) {
       result.error = "unsupported SciVis Studio schemaVersion";
       return result;
     }
@@ -268,7 +284,7 @@ ProjectValidationResult validateProjectRoot(
     }
 
     const auto version = root["schemaVersion"].getValueOr<int>(0);
-    if (version != SCHEMA_VERSION) {
+    if (version < 1 || version > SCHEMA_VERSION) {
       result.error = "unsupported legacy SciVis Studio schemaVersion";
       return result;
     }

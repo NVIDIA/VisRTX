@@ -1,46 +1,52 @@
 [Window][MainDockSpace]
-Pos=0,42
-Size=3840,1980
+Pos=0,56
+Size=3840,2206
 Collapsed=0
 
 [Window][Project]
-Pos=0,42
-Size=872,577
+Pos=0,56
+Size=872,643
 Collapsed=0
 DockId=0x00000002,0
 
 [Window][Dataset Editor]
-Pos=0,1453
-Size=872,569
+Pos=0,1628
+Size=872,634
 Collapsed=0
 DockId=0x0000000A,0
 
 [Window][Shot Editor]
-Pos=0,621
-Size=872,830
+Pos=0,701
+Size=872,925
 Collapsed=0
 DockId=0x0000000B,0
 
+[Window][Light Rig]
+Pos=874,1692
+Size=1485,570
+Collapsed=0
+DockId=0x00000003,1
+
 [Window][Camera Rig]
-Pos=874,1452
+Pos=874,1692
 Size=1485,570
 Collapsed=0
 DockId=0x00000003,0
 
 [Window][Viewport]
-Pos=874,42
-Size=2966,1408
+Pos=874,56
+Size=2966,1634
 Collapsed=0
 DockId=0x00000005,0
 
 [Window][Object Editor]
-Pos=0,1453
-Size=872,569
+Pos=0,1628
+Size=872,634
 Collapsed=0
 DockId=0x0000000A,1
 
 [Window][Log]
-Pos=2361,1452
+Pos=2361,1692
 Size=1479,570
 Collapsed=0
 DockId=0x00000004,0
@@ -61,8 +67,8 @@ Size=400,400
 Collapsed=0
 
 [Window][##blocking_task_modal]
-Pos=1672,927
-Size=496,168
+Pos=1592,1023
+Size=656,216
 Collapsed=0
 
 [Window][Add Dataset]
@@ -91,7 +97,7 @@ Column 0  Weight=1.0000
 Column 1  Weight=1.0000
 
 [Docking][Data]
-DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,42 Size=3840,1980 Split=X Selected=0xC450F867
+DockSpace       ID=0x80F5B4C5 Window=0x079D3A04 Pos=0,56 Size=3840,2206 Split=X Selected=0xC450F867
   DockNode      ID=0x00000007 Parent=0x80F5B4C5 SizeRef=872,1980 Split=Y Selected=0x9C21DE82
     DockNode    ID=0x00000001 Parent=0x00000007 SizeRef=359,1409 Split=Y Selected=0x9C21DE82
       DockNode  ID=0x00000002 Parent=0x00000001 SizeRef=359,577 Selected=0x9C21DE82

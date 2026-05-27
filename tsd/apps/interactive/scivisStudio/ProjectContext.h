@@ -48,8 +48,14 @@ struct ProjectContext
   SceneNodeRef refFor(
       const std::string &layerName, tsd::scene::LayerNodeRef ref) const;
   tsd::scene::LayerNodeRef resolveDatasetRoot(Dataset &dataset);
-  tsd::scene::LayerNodeRef resolveShotLightGroup(Shot &shot);
+  tsd::scene::LayerNodeRef resolveLightRigRoot(LightRig &rig);
   tsd::scene::Object *resolveShotCamera(Shot &shot);
+  LightRig *createLightRig(const std::string &name = "");
+  bool removeLightRig(const LightRigID &id);
+  tsd::scene::LayerNodeRef addLightToRig(
+      LightRig &rig, const std::string &subtype);
+  bool removeLightFromRig(LightRig &rig, tsd::scene::LayerNodeRef lightNode);
+  int shotUseCount(const LightRigID &id) const;
 
  private:
   tsd::scene::LayerNodeRef ensureChild(
@@ -57,8 +63,11 @@ struct ProjectContext
   tsd::scene::LayerNodeRef ensureStudioRoot();
   tsd::scene::LayerNodeRef ensureDatasetsRoot();
   tsd::scene::LayerNodeRef ensureShotsRoot();
+  tsd::scene::LayerNodeRef ensureLightRigsRoot();
   void resetScene();
   void ensureRendererDefaults(Shot &shot);
+  LightRig *ensureDefaultLightRig();
+  void migrateLegacyShotLightsToLightRigs();
   void markMissingDatasets();
   void refreshRuntimeRefs();
   void installAnimationManagerCallback();

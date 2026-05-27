@@ -26,6 +26,7 @@ struct AddDatasetDialog;
 struct CameraRigEditor;
 struct ConfirmDiscardDialog;
 struct DatasetEditor;
+struct LightRigEditor;
 struct ProjectLocationDialog;
 struct ProjectWindow;
 struct ShotEditor;

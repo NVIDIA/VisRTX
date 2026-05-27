@@ -10,6 +10,7 @@
 #include "modals/ProjectLocationDialog.h"
 #include "windows/CameraRigEditor.h"
 #include "windows/DatasetEditor.h"
+#include "windows/LightRigEditor.h"
 #include "windows/ProjectWindow.h"
 #include "windows/ShotEditor.h"
 
@@ -106,6 +107,7 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
   m_viewport = new tsd_ui::Viewport(this, &ctx->view.manipulator, "Viewport");
   auto *projectWindow = new ProjectWindow(this, &m_projectContext);
   auto *datasetEditor = new DatasetEditor(this, &m_projectContext);
+  auto *lightRigEditor = new LightRigEditor(this, &m_projectContext);
   auto *shotEditor =
       new ShotEditor(this, &m_projectContext, [this]() { renderActiveShot(); });
   auto *cameraRigEditor = new CameraRigEditor(this, &m_projectContext);
@@ -116,6 +118,7 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
 
   windows.emplace_back(projectWindow);
   windows.emplace_back(datasetEditor);
+  windows.emplace_back(lightRigEditor);
   windows.emplace_back(shotEditor);
   windows.emplace_back(cameraRigEditor);
   windows.emplace_back(m_viewport);
@@ -384,7 +387,9 @@ void Application::loadRecentProjects()
     const auto path = normalizedAbsolutePath(line);
     const auto duplicate = std::any_of(m_recentProjects.begin(),
         m_recentProjects.end(),
-        [&](const auto &entry) { return pathsReferToSameProject(entry, path); });
+        [&](const auto &entry) {
+          return pathsReferToSameProject(entry, path);
+        });
     if (!duplicate)
       m_recentProjects.push_back(path);
 

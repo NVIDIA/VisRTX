@@ -105,6 +105,11 @@ tsd::scene::LayerNodeRef ProjectContext::ensureShotsRoot()
   return ensureChild(ensureStudioRoot(), "shots");
 }
 
+tsd::scene::LayerNodeRef ProjectContext::ensureLightRigsRoot()
+{
+  return ensureChild(ensureStudioRoot(), "lightRigs");
+}
+
 SceneNodeRef ProjectContext::refFor(
     const std::string &layerName, tsd::scene::LayerNodeRef ref) const
 {
@@ -146,23 +151,22 @@ tsd::scene::LayerNodeRef ProjectContext::resolveDatasetRoot(Dataset &dataset)
   return resolve(dataset.rootNode);
 }
 
-tsd::scene::LayerNodeRef ProjectContext::resolveShotLightGroup(Shot &shot)
+tsd::scene::LayerNodeRef ProjectContext::resolveLightRigRoot(LightRig &rig)
 {
   if (!m_ctx)
     return {};
 
   auto *layer = m_ctx->tsd.scene.layer("studio");
   if (layer) {
-    auto shotsRoot = findDirectChild(layer->root(), "shots");
-    auto shotRoot = findDirectChild(shotsRoot, shot.id);
-    auto lightsRoot = findDirectChild(shotRoot, "lights");
-    if (lightsRoot) {
-      shot.lightGroup = refFor("studio", lightsRoot);
-      return lightsRoot;
+    auto lightRigsRoot = findDirectChild(layer->root(), "lightRigs");
+    auto rigRoot = findDirectChild(lightRigsRoot, rig.id);
+    if (rigRoot) {
+      rig.rootNode = refFor("studio", rigRoot);
+      return rigRoot;
     }
   }
 
-  return resolve(shot.lightGroup);
+  return resolve(rig.rootNode);
 }
 
 tsd::scene::Object *ProjectContext::resolveShotCamera(Shot &shot)
@@ -196,6 +200,131 @@ void ProjectContext::ensureRendererDefaults(Shot &shot)
   }
 }
 
+LightRig *ProjectContext::createLightRig(const std::string &name)
+{
+  if (!m_ctx)
+    return nullptr;
+
+  LightRig rig;
+  rig.id = nextLightRigId(m_project);
+  rig.name = name.empty()
+      ? ("Light Rig " + std::to_string(m_project.lightRigs.size() + 1))
+      : name;
+
+  auto rigRoot = ensureChild(ensureLightRigsRoot(), rig.id.c_str());
+  rig.rootNode = refFor("studio", rigRoot);
+  m_project.lightRigs.push_back(std::move(rig));
+  m_project.markDirty();
+  return &m_project.lightRigs.back();
+}
+
+tsd::scene::LayerNodeRef ProjectContext::addLightToRig(
+    LightRig &rig, const std::string &subtype)
+{
+  if (!m_ctx)
+    return {};
+
+  auto rigRoot = resolveLightRigRoot(rig);
+  if (!rigRoot)
+    return {};
+
+  const auto lightSubtype =
+      subtype.empty() ? std::string("directional") : subtype;
+  auto light = m_ctx->tsd.scene.createObject<tsd::scene::Light>(lightSubtype);
+  const auto lightName =
+      lightSubtype + "Light_" + std::to_string(light->index());
+  light->setName(lightName);
+  if (lightSubtype == "directional") {
+    light->setParameter("direction", tsd::math::float2(0.f, 240.f));
+    light->setParameter("irradiance", 1.f);
+  }
+
+  auto node =
+      m_ctx->tsd.scene.insertChildObjectNode(rigRoot, light, lightName.c_str());
+  m_project.markDirty();
+  applyActiveShot();
+  return node;
+}
+
+bool ProjectContext::removeLightFromRig(
+    LightRig &rig, tsd::scene::LayerNodeRef lightNode)
+{
+  if (!m_ctx || !lightNode)
+    return false;
+
+  auto rigRoot = resolveLightRigRoot(rig);
+  if (!rigRoot)
+    return false;
+
+  auto *layer = (*rigRoot)->layer();
+  if (!layer || !layer->isAncestorOf(rigRoot, lightNode)
+      || !(*lightNode)->isObject() || (*lightNode)->type() != ANARI_LIGHT)
+    return false;
+
+  m_ctx->tsd.scene.removeNode(lightNode, true);
+  m_project.markDirty();
+  applyActiveShot();
+  return true;
+}
+
+int ProjectContext::shotUseCount(const LightRigID &id) const
+{
+  return static_cast<int>(std::count_if(m_project.shots.begin(),
+      m_project.shots.end(),
+      [&](const Shot &shot) { return shot.lightRigId == id; }));
+}
+
+bool ProjectContext::removeLightRig(const LightRigID &id)
+{
+  if (!m_ctx)
+    return false;
+
+  auto itr = std::find_if(m_project.lightRigs.begin(),
+      m_project.lightRigs.end(),
+      [&](const LightRig &rig) { return rig.id == id; });
+  if (itr == m_project.lightRigs.end())
+    return false;
+
+  auto rigRoot = resolveLightRigRoot(*itr);
+  if (rigRoot)
+    m_ctx->tsd.scene.removeNode(rigRoot, true);
+
+  for (auto &shot : m_project.shots) {
+    if (shot.lightRigId == id)
+      shot.lightRigId.clear();
+  }
+
+  m_project.lightRigs.erase(itr);
+  m_project.markDirty();
+  applyActiveShot();
+  return true;
+}
+
+LightRig *ProjectContext::ensureDefaultLightRig()
+{
+  if (!m_project.lightRigs.empty())
+    return &m_project.lightRigs.front();
+
+  auto *rig = createLightRig("Default");
+  if (!rig)
+    return nullptr;
+
+  addLightToRig(*rig, "directional");
+  if (auto root = resolveLightRigRoot(*rig)) {
+    auto *layer = (*root)->layer();
+    layer->traverse(root, [&](auto &node, int) {
+      if (node->isObject() && node->type() == ANARI_LIGHT) {
+        if (auto *light = node->getObject())
+          light->setName("mainLight");
+        node->name() = "mainLight";
+        return false;
+      }
+      return true;
+    });
+  }
+  return rig;
+}
+
 void ProjectContext::createUnsavedProject()
 {
   resetScene();
@@ -205,6 +334,7 @@ void ProjectContext::createUnsavedProject()
 
   auto datasetsRoot = ensureDatasetsRoot();
   auto shotsRoot = ensureShotsRoot();
+  auto *defaultRig = ensureDefaultLightRig();
   (void)datasetsRoot;
 
   Shot shot;
@@ -221,16 +351,9 @@ void ProjectContext::createUnsavedProject()
       manipulatorStateFromManipulator(m_ctx->view.manipulator);
   tsd::rendering::updateCameraObject(*camera, m_ctx->view.manipulator);
 
-  auto shotRoot = ensureChild(shotsRoot, shot.id.c_str());
-  auto lightsRoot = ensureChild(shotRoot, "lights");
-  shot.lightGroup = refFor("studio", lightsRoot);
-
-  auto light = m_ctx->tsd.scene.createObject<tsd::scene::Light>(
-      tsd::scene::tokens::light::directional);
-  light->setName("mainLight");
-  light->setParameter("direction", tsd::math::float2(0.f, 240.f));
-  light->setParameter("irradiance", 1.f);
-  m_ctx->tsd.scene.insertChildObjectNode(lightsRoot, light, "mainLight");
+  ensureChild(shotsRoot, shot.id.c_str());
+  if (defaultRig)
+    shot.lightRigId = defaultRig->id;
 
   m_project.shots.push_back(std::move(shot));
   m_project.activeShotId = m_project.shots.front().id;
@@ -265,16 +388,9 @@ bool ProjectContext::addShot(const std::string &name)
       manipulatorStateFromManipulator(m_ctx->view.manipulator);
   tsd::rendering::updateCameraObject(*camera, m_ctx->view.manipulator);
 
-  auto shotRoot = ensureChild(ensureShotsRoot(), shot.id.c_str());
-  auto lightsRoot = ensureChild(shotRoot, "lights");
-  shot.lightGroup = refFor("studio", lightsRoot);
-
-  auto light = m_ctx->tsd.scene.createObject<tsd::scene::Light>(
-      tsd::scene::tokens::light::directional);
-  light->setName("mainLight");
-  light->setParameter("direction", tsd::math::float2(0.f, 240.f));
-  light->setParameter("irradiance", 1.f);
-  m_ctx->tsd.scene.insertChildObjectNode(lightsRoot, light, "mainLight");
+  ensureChild(ensureShotsRoot(), shot.id.c_str());
+  if (auto *defaultRig = ensureDefaultLightRig())
+    shot.lightRigId = defaultRig->id;
 
   m_project.activeShotId = shot.id;
   m_project.shots.push_back(std::move(shot));
@@ -383,8 +499,8 @@ void ProjectContext::applyActiveShot()
     }
   };
 
-  for (auto &s : m_project.shots) {
-    setNodeEnabled(resolveShotLightGroup(s), s.id == shot->id);
+  for (auto &rig : m_project.lightRigs) {
+    setNodeEnabled(resolveLightRigRoot(rig), rig.id == shot->lightRigId);
   }
 
   for (auto &dataset : m_project.datasets) {
@@ -496,11 +612,11 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
 
   tsd::core::DataTree tree;
   auto &root = tree.root();
-  tsd::core::writeDataTreeMetadata(
-      root, {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
-                PROJECT_FILE_TYPE,
-                PROJECT_SCHEMA,
-                SCHEMA_VERSION});
+  tsd::core::writeDataTreeMetadata(root,
+      {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+          PROJECT_FILE_TYPE,
+          PROJECT_SCHEMA,
+          SCHEMA_VERSION});
   projectToNode(m_project, root["scivisStudio"]);
   tsd::io::save_Scene(
       m_ctx->tsd.scene, root["context"], false, &m_ctx->tsd.animationMgr);
@@ -563,6 +679,12 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
   loadedProject.projectDirectory = directory;
   loadedProject.markClean();
   m_project = std::move(loadedProject);
+  auto manifestMetadata = tsd::core::readDataTreeMetadata(root);
+  const int loadedSchemaVersion = manifestMetadata.found()
+      ? manifestMetadata.metadata->schemaVersion
+      : root["schemaVersion"].getValueOr<int>(1);
+  if (loadedSchemaVersion < 2)
+    migrateLegacyShotLightsToLightRigs();
   markMissingDatasets();
   refreshRuntimeRefs();
   syncAnimationManagerToActiveShot();
@@ -608,10 +730,45 @@ void ProjectContext::refreshRuntimeRefs()
   for (auto &dataset : m_project.datasets)
     resolveDatasetRoot(dataset);
 
+  for (auto &rig : m_project.lightRigs)
+    resolveLightRigRoot(rig);
+
   for (auto &shot : m_project.shots) {
-    resolveShotLightGroup(shot);
     resolveShotCamera(shot);
   }
+}
+
+void ProjectContext::migrateLegacyShotLightsToLightRigs()
+{
+  if (!m_ctx || !m_project.lightRigs.empty())
+    return;
+
+  auto *layer = m_ctx->tsd.scene.layer("studio");
+  if (!layer)
+    return;
+
+  auto lightRigsRoot = ensureLightRigsRoot();
+  auto shotsRoot = findDirectChild(layer->root(), "shots");
+  for (auto &shot : m_project.shots) {
+    auto shotRoot = findDirectChild(shotsRoot, shot.id);
+    auto legacyLights = findDirectChild(shotRoot, "lights");
+    if (!legacyLights)
+      continue;
+
+    LightRig rig;
+    rig.id = nextLightRigId(m_project);
+    rig.name =
+        shot.name.empty() ? (shot.id + " Lights") : (shot.name + " Lights");
+    if (auto existing = findDirectChild(lightRigsRoot, rig.id))
+      m_ctx->tsd.scene.removeNode(existing, true);
+
+    legacyLights->container()->move_subtree(legacyLights, lightRigsRoot);
+    (*legacyLights)->name() = rig.id;
+    rig.rootNode = refFor("studio", legacyLights);
+    shot.lightRigId = rig.id;
+    m_project.lightRigs.push_back(std::move(rig));
+  }
+  m_ctx->tsd.scene.signalLayerStructureChanged(layer);
 }
 
 const char *toString(tsd::io::ImporterType importerType)

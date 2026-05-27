@@ -15,7 +15,7 @@ namespace tsd::scivis_studio {
 constexpr const char *PROJECT_KIND = "SciVisStudio";
 constexpr const char *PROJECT_FILE_TYPE = "project";
 constexpr const char *PROJECT_SCHEMA = "tsd.scivis-studio.project";
-constexpr int SCHEMA_VERSION = 1;
+constexpr int SCHEMA_VERSION = 2;
 constexpr const char *PROJECT_MANIFEST_FILENAME = "project.tsd";
 
 struct ProjectValidationResult

@@ -157,6 +157,50 @@ void ShotEditor::buildUI_rendererSelector(Shot &shot)
   ImGui::EndDisabled();
 }
 
+void ShotEditor::buildUI_lightRigSelector(Shot &shot)
+{
+  auto &project = m_projectContext->project();
+  std::string preview = "None";
+  if (!shot.lightRigId.empty()) {
+    if (auto *rig = findLightRig(project, shot.lightRigId))
+      preview = rig->name;
+    else
+      preview = "<missing: " + shot.lightRigId + ">";
+  }
+
+  if (ImGui::BeginCombo("Light Rig", preview.c_str())) {
+    const bool noneSelected = shot.lightRigId.empty();
+    if (ImGui::Selectable("None", noneSelected)) {
+      if (!shot.lightRigId.empty()) {
+        shot.lightRigId.clear();
+        project.markDirty();
+        m_projectContext->applyActiveShot();
+      }
+    }
+    if (noneSelected)
+      ImGui::SetItemDefaultFocus();
+
+    for (const auto &rig : project.lightRigs) {
+      const bool selected = shot.lightRigId == rig.id;
+      if (ImGui::Selectable(rig.name.c_str(), selected)) {
+        if (shot.lightRigId != rig.id) {
+          shot.lightRigId = rig.id;
+          project.markDirty();
+          m_projectContext->applyActiveShot();
+        }
+      }
+      if (selected)
+        ImGui::SetItemDefaultFocus();
+    }
+
+    if (!shot.lightRigId.empty() && !findLightRig(project, shot.lightRigId)) {
+      const auto missing = "<missing: " + shot.lightRigId + ">";
+      ImGui::TextDisabled("%s", missing.c_str());
+    }
+    ImGui::EndCombo();
+  }
+}
+
 void ShotEditor::buildUI()
 {
   if (!m_projectContext)
@@ -234,6 +278,7 @@ void ShotEditor::buildUI()
   buildUI_rendererSelector(*shot);
   if (inputText("Output prefix", shot->renderSettings.outputFilePrefix))
     project.markDirty();
+  buildUI_lightRigSelector(*shot);
 
   ImGui::Text("Output: renders/%s/", shot->id.c_str());
   if (ImGui::Button("Render Active Shot") && m_onRender)

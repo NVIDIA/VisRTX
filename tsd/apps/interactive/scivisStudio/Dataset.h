@@ -15,6 +15,7 @@ namespace tsd::scivis_studio {
 using DatasetID = std::string;
 using ShotID = std::string;
 using ColorMapID = std::string;
+using LightRigID = std::string;
 
 struct SceneNodeRef
 {

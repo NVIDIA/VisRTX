@@ -10,7 +10,9 @@
 #include "tsd/app/Context.h"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
+#include "tsd/io/serialization.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
+#include "tsd/scene/objects/Light.hpp"
 
 #include <filesystem>
 #include <sstream>
@@ -47,7 +49,7 @@ tsd::scene::LayerNodeRef findDirectChild(
 
 SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
 {
-  GIVEN("A project with datasets, shots, and camera keyframes")
+  GIVEN("A project with datasets, shots, light rigs, and camera keyframes")
   {
     Project project;
     project.name = "RoundTrip";
@@ -64,7 +66,7 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     shot.id = "shot_0001";
     shot.name = "Shot 1";
     shot.datasetBindings.push_back({"dataset_0001", true});
-    shot.lightGroup = {"studio", 5};
+    shot.lightRigId = "lightRig_0001";
     shot.camera = {ANARI_CAMERA, 2};
     shot.renderSettings.rendererLibrary = "dummy_test_device";
     shot.renderSettings.rendererObjectIndex = 7;
@@ -78,14 +80,16 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     shot.cameraRig.keyframes.push_back(keyframe);
     project.activeShotId = shot.id;
     project.shots.push_back(shot);
+    project.lightRigs.push_back({"lightRig_0001", "Default", {"studio", 5}});
 
     tsd::core::DataTree tree;
     projectToNode(project, tree.root()["scivisStudio"]);
     auto &serialized = tree.root()["scivisStudio"];
 
     REQUIRE(serialized["datasets"].child(0)->child("rootNode") == nullptr);
-    REQUIRE(serialized["shots"].child(0)->child("lightGroup") == nullptr);
+    REQUIRE(serialized["shots"].child(0)->child("lightRigId") != nullptr);
     REQUIRE(serialized["shots"].child(0)->child("camera") == nullptr);
+    REQUIRE(serialized["lightRigs"].child(0)->child("rootNode") == nullptr);
 
     Project loaded;
     REQUIRE(nodeToProject(serialized, loaded));
@@ -96,6 +100,9 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
       REQUIRE(loaded.datasets.front().id == "dataset_0001");
       REQUIRE(loaded.shots.size() == 1);
       REQUIRE(loaded.shots.front().id == "shot_0001");
+      REQUIRE(loaded.shots.front().lightRigId == "lightRig_0001");
+      REQUIRE(loaded.lightRigs.size() == 1);
+      REQUIRE(loaded.lightRigs.front().id == "lightRig_0001");
       REQUIRE(loaded.shots.front().renderSettings.rendererLibrary
           == "dummy_test_device");
       REQUIRE(loaded.shots.front().renderSettings.rendererObjectIndex == 7);
@@ -173,11 +180,11 @@ SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
   GIVEN("A valid metadata-tagged project manifest")
   {
     tsd::core::DataTree tree;
-    tsd::core::writeDataTreeMetadata(
-        tree.root(), {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
-                         PROJECT_FILE_TYPE,
-                         PROJECT_SCHEMA,
-                         SCHEMA_VERSION});
+    tsd::core::writeDataTreeMetadata(tree.root(),
+        {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+            PROJECT_FILE_TYPE,
+            PROJECT_SCHEMA,
+            SCHEMA_VERSION});
     REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
 
     THEN("Validation succeeds")
@@ -191,7 +198,7 @@ SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
   {
     tsd::core::DataTree tree;
     tree.root()["projectKind"] = PROJECT_KIND;
-    tree.root()["schemaVersion"] = SCHEMA_VERSION;
+    tree.root()["schemaVersion"] = 1;
     REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
 
     THEN("Validation succeeds")
@@ -204,11 +211,11 @@ SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
   GIVEN("An invalid metadata schema")
   {
     tsd::core::DataTree tree;
-    tsd::core::writeDataTreeMetadata(
-        tree.root(), {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
-                         "application-state",
-                         "tsd.viewer.state",
-                         1});
+    tsd::core::writeDataTreeMetadata(tree.root(),
+        {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+            "application-state",
+            "tsd.viewer.state",
+            1});
     REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
 
     THEN("Validation fails")
@@ -232,6 +239,23 @@ SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
     }
   }
 
+  GIVEN("A future metadata-tagged project manifest")
+  {
+    tsd::core::DataTree tree;
+    tsd::core::writeDataTreeMetadata(tree.root(),
+        {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+            PROJECT_FILE_TYPE,
+            PROJECT_SCHEMA,
+            SCHEMA_VERSION + 1});
+    REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+
+    THEN("Validation fails")
+    {
+      auto result = validateProjectRoot(root);
+      REQUIRE_FALSE(result.ok);
+    }
+  }
+
   std::filesystem::remove_all(root);
 }
 
@@ -244,9 +268,30 @@ SCENARIO("SciVis Studio default project creation", "[SciVisStudio]")
   auto &project = projectContext.project();
   REQUIRE(project.name == "Untitled");
   REQUIRE(project.shots.size() == 1);
+  REQUIRE(project.lightRigs.size() == 1);
+  REQUIRE(project.lightRigs.front().name == "Default");
+  REQUIRE(project.shots.front().lightRigId == project.lightRigs.front().id);
   REQUIRE(project.activeShotId == project.shots.front().id);
   REQUIRE(project.dirty == false);
   REQUIRE(appContext.tsd.scene.layer("studio") != nullptr);
+
+  auto *layer = appContext.tsd.scene.layer("studio");
+  auto lightRigsRoot = findDirectChild(layer->root(), "lightRigs");
+  REQUIRE(lightRigsRoot);
+  auto rigRoot = findDirectChild(lightRigsRoot, project.lightRigs.front().id);
+  REQUIRE(rigRoot);
+  REQUIRE(findDirectChild(rigRoot, "mainLight"));
+}
+
+SCENARIO("SciVis Studio new shots use the default light rig", "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  const auto defaultRigId = projectContext.project().lightRigs.front().id;
+  REQUIRE(projectContext.addShot());
+  REQUIRE(activeShot(projectContext.project())->lightRigId == defaultRigId);
 }
 
 SCENARIO("SciVis Studio shot dataset bindings update scene visibility",
@@ -369,8 +414,9 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
 
     auto &projectNode = manifest.root()["scivisStudio"];
     REQUIRE(projectNode["datasets"].child(0)->child("rootNode") == nullptr);
-    REQUIRE(projectNode["shots"].child(0)->child("lightGroup") == nullptr);
+    REQUIRE(projectNode["shots"].child(0)->child("lightRigId") != nullptr);
     REQUIRE(projectNode["shots"].child(0)->child("camera") == nullptr);
+    REQUIRE(projectNode["lightRigs"].child(0)->child("rootNode") == nullptr);
   }
 
   {
@@ -384,6 +430,123 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
     auto datasetRoot = findDirectChild(datasetsRoot, "dataset_0001");
     REQUIRE(datasetRoot);
     REQUIRE_FALSE((*datasetRoot)->isEnabled());
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO(
+    "SciVis Studio active shot toggles light rig visibility", "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  auto &project = projectContext.project();
+  auto &firstShot = project.shots.front();
+  auto *defaultRig = findLightRig(project, firstShot.lightRigId);
+  REQUIRE(defaultRig != nullptr);
+  auto defaultRoot = projectContext.resolveLightRigRoot(*defaultRig);
+  REQUIRE(defaultRoot);
+
+  auto *secondRig = projectContext.createLightRig("Second");
+  REQUIRE(secondRig != nullptr);
+  auto secondRoot = projectContext.resolveLightRigRoot(*secondRig);
+  REQUIRE(secondRoot);
+
+  projectContext.addShot("Second Shot");
+  auto &secondShot = *activeShot(project);
+  secondShot.lightRigId = secondRig->id;
+  projectContext.applyActiveShot();
+
+  REQUIRE_FALSE((*defaultRoot)->isEnabled());
+  REQUIRE((*secondRoot)->isEnabled());
+
+  secondShot.lightRigId.clear();
+  projectContext.applyActiveShot();
+  REQUIRE_FALSE((*defaultRoot)->isEnabled());
+  REQUIRE_FALSE((*secondRoot)->isEnabled());
+
+  secondShot.lightRigId = "missing";
+  projectContext.applyActiveShot();
+  REQUIRE_FALSE((*defaultRoot)->isEnabled());
+  REQUIRE_FALSE((*secondRoot)->isEnabled());
+}
+
+SCENARIO("SciVis Studio removing a light rig clears shot references",
+    "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  auto &project = projectContext.project();
+  const auto rigId = project.lightRigs.front().id;
+  auto *rig = findLightRig(project, rigId);
+  REQUIRE(rig != nullptr);
+  auto root = projectContext.resolveLightRigRoot(*rig);
+  REQUIRE(root);
+
+  REQUIRE(projectContext.removeLightRig(rigId));
+  REQUIRE(project.lightRigs.empty());
+  REQUIRE(project.shots.front().lightRigId.empty());
+  auto *layer = appContext.tsd.scene.layer("studio");
+  auto lightRigsRoot = findDirectChild(layer->root(), "lightRigs");
+  REQUIRE_FALSE(findDirectChild(lightRigsRoot, rigId));
+}
+
+SCENARIO("SciVis Studio v1 shot lights migrate to light rigs", "[SciVisStudio]")
+{
+  const auto root =
+      std::filesystem::temp_directory_path() / "tsd_scivis_studio_v1_migrate";
+  std::filesystem::remove_all(root);
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    auto &project = projectContext.project();
+    project.lightRigs.clear();
+    project.shots.front().lightRigId.clear();
+
+    auto *layer = appContext.tsd.scene.layer("studio");
+    auto shotsRoot = findDirectChild(layer->root(), "shots");
+    auto shotRoot = findDirectChild(shotsRoot, project.shots.front().id);
+    auto legacyLights =
+        appContext.tsd.scene.insertChildNode(shotRoot, "lights");
+    auto light = appContext.tsd.scene.createObject<tsd::scene::Light>(
+        tsd::scene::tokens::light::directional);
+    light->setName("legacyLight");
+    appContext.tsd.scene.insertChildObjectNode(
+        legacyLights, light, "legacyLight");
+
+    tsd::core::DataTree tree;
+    tsd::core::writeDataTreeMetadata(tree.root(),
+        {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+            PROJECT_FILE_TYPE,
+            PROJECT_SCHEMA,
+            1});
+    projectToNode(project, tree.root()["scivisStudio"]);
+    tsd::io::save_Scene(appContext.tsd.scene,
+        tree.root()["context"],
+        false,
+        &appContext.tsd.animationMgr);
+    std::filesystem::create_directories(root);
+    REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    REQUIRE(project.lightRigs.size() == 1);
+    REQUIRE(project.shots.front().lightRigId == project.lightRigs.front().id);
+
+    auto rigRoot =
+        projectContext.resolveLightRigRoot(project.lightRigs.front());
+    REQUIRE(rigRoot);
+    REQUIRE(findDirectChild(rigRoot, "legacyLight"));
   }
 
   std::filesystem::remove_all(root);

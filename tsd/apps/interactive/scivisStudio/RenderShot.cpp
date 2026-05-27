@@ -87,14 +87,15 @@ bool renderActiveShotToFrames(
     return false;
   }
 
+  projectContext.applyActiveShot();
+
   auto *renderIndex = ctx->tsd.scene.updateDelegate()
                           .emplace<tsd::rendering::RenderIndexAllLayers>(
                               ctx->tsd.scene, libName, device);
   renderIndex->populate();
 
   const auto rendererIndex = shot->renderSettings.rendererObjectIndex;
-  auto rendererObject =
-      ctx->tsd.scene.getObject(ANARI_RENDERER, rendererIndex);
+  auto rendererObject = ctx->tsd.scene.getObject(ANARI_RENDERER, rendererIndex);
   if (!rendererObject || rendererObject->rendererDeviceName() != libName) {
     tsd::core::logError(
         "[SciVisStudio] Renderer object index %zu is unavailable for ANARI "

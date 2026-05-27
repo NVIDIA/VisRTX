@@ -39,7 +39,7 @@ struct Shot
   bool playing{false};
   bool loop{true};
   std::vector<DatasetBinding> datasetBindings;
-  SceneNodeRef lightGroup;
+  LightRigID lightRigId;
   SceneObjectRef camera;
   ShotCameraRig cameraRig;
   ShotRenderSettings renderSettings;

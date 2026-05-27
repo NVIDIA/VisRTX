@@ -29,6 +29,9 @@ PUBLIC
 set(SCIVIS_STUDIO_DEFAULT_LAYOUT_FILE
   "${CMAKE_CURRENT_LIST_DIR}/default_ui_layout.txt")
 
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${SCIVIS_STUDIO_DEFAULT_LAYOUT_FILE}")
+
 file(READ
   "${SCIVIS_STUDIO_DEFAULT_LAYOUT_FILE}"
   SCIVIS_STUDIO_DEFAULT_LAYOUT)
@@ -46,6 +49,7 @@ add_executable(scivisStudio
   scivisStudio.cpp
   windows/CameraRigEditor.cpp
   windows/DatasetEditor.cpp
+  windows/LightRigEditor.cpp
   windows/ProjectWindow.cpp
   windows/ShotEditor.cpp
 )
