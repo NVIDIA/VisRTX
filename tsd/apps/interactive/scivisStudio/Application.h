@@ -24,6 +24,7 @@ namespace tsd::scivis_studio {
 
 struct AddDatasetDialog;
 struct CameraRigEditor;
+struct ConfirmDefaultLayoutDialog;
 struct ConfirmDiscardDialog;
 struct DatasetEditor;
 struct LightRigEditor;
@@ -97,6 +98,7 @@ class Application : public tsd::ui::imgui::Application
   tsd::ui::imgui::TransferFunctionEditor *m_transferFunctionEditor{nullptr};
 
   std::unique_ptr<ProjectLocationDialog> m_projectLocationDialog;
+  std::unique_ptr<ConfirmDefaultLayoutDialog> m_confirmDefaultLayoutDialog;
   std::unique_ptr<ConfirmDiscardDialog> m_confirmDiscardDialog;
   std::unique_ptr<AddDatasetDialog> m_addDatasetDialog;
 };

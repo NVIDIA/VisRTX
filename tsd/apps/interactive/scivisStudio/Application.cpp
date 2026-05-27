@@ -6,6 +6,7 @@
 #include "DefaultLayout.h"
 #include "RenderShot.h"
 #include "modals/AddDatasetDialog.h"
+#include "modals/ConfirmDefaultLayoutDialog.h"
 #include "modals/ConfirmDiscardDialog.h"
 #include "modals/ProjectLocationDialog.h"
 #include "windows/CameraRigEditor.h"
@@ -133,6 +134,8 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
   m_transferFunctionEditor->hide();
 
   m_projectLocationDialog = std::make_unique<ProjectLocationDialog>(this);
+  m_confirmDefaultLayoutDialog =
+      std::make_unique<ConfirmDefaultLayoutDialog>(this);
   m_confirmDiscardDialog = std::make_unique<ConfirmDiscardDialog>(this);
   m_addDatasetDialog =
       std::make_unique<AddDatasetDialog>(this, &m_projectContext);
@@ -615,6 +618,11 @@ void Application::uiFrameStart()
     modalActive = true;
   }
 
+  if (m_confirmDefaultLayoutDialog && m_confirmDefaultLayoutDialog->visible()) {
+    m_confirmDefaultLayoutDialog->renderUI();
+    modalActive = true;
+  }
+
   if (m_addDatasetDialog && m_addDatasetDialog->visible()) {
     m_addDatasetDialog->renderUI();
     modalActive = true;
@@ -675,8 +683,11 @@ void Application::uiMainMenuBar()
       ImGui::PopID();
     }
     ImGui::Separator();
-    if (ImGui::MenuItem("Save Default Layout File"))
-      saveDefaultLayoutFile();
+    if (ImGui::MenuItem("Save Default Layout File")) {
+      m_confirmDefaultLayoutDialog->configure(
+          [this]() { saveDefaultLayoutFile(); });
+      m_confirmDefaultLayoutDialog->show();
+    }
     if (ImGui::MenuItem("Reset Layout"))
       ImGui::LoadIniSettingsFromMemory(getDefaultLayout());
     ImGui::EndMenu();
