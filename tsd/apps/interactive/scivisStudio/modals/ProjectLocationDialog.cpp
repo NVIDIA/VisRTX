@@ -71,10 +71,7 @@ void ProjectLocationDialog::buildUI()
 {
   const char *title = "Open Project";
   const char *button = "Open";
-  if (m_mode == ProjectLocationMode::NewProject) {
-    title = "New Project";
-    button = "Create";
-  } else if (m_mode == ProjectLocationMode::SaveProjectAs) {
+  if (m_mode == ProjectLocationMode::SaveProjectAs) {
     title = "Save Project As";
     button = "Save";
   }

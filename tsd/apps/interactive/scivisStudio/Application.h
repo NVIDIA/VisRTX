@@ -53,7 +53,6 @@ class Application : public tsd::ui::imgui::Application
   const ProjectContext &projectContext() const;
 
   void showAddDatasetDialog();
-  void showProjectLocationDialogForNew();
   void showProjectLocationDialogForOpen();
   void showProjectLocationDialogForSaveAs();
   void renderActiveShot();
@@ -78,7 +77,6 @@ class Application : public tsd::ui::imgui::Application
   bool saveProjectAs(const std::filesystem::path &directory);
   bool openProject(const std::filesystem::path &directory);
   void newProject();
-  void closeProject();
   void saveDefaultLayoutFile() const;
   void saveWindowSettings(tsd::core::DataNode &node);
   void loadWindowSettings(tsd::core::DataNode &node);

@@ -347,15 +347,6 @@ void Application::newProject()
   restoreViewportFromActiveShot();
 }
 
-void Application::closeProject()
-{
-  if (m_viewport)
-    m_viewport->releaseSceneReferences();
-
-  m_projectContext.createUnsavedProject();
-  restoreViewportFromActiveShot();
-}
-
 void Application::requestDirtyAction(PendingDirtyAction action)
 {
   if (!m_projectContext.project().dirty) {
@@ -391,7 +382,7 @@ void Application::continueDirtyAction()
   m_pendingDirtyAction = PendingDirtyAction::None;
 
   if (action == PendingDirtyAction::NewProject)
-    showProjectLocationDialogForNew();
+    newProject();
   else if (action == PendingDirtyAction::OpenProject)
     showProjectLocationDialogForOpen();
   else if (action == PendingDirtyAction::OpenRecentProject) {
@@ -540,16 +531,6 @@ void Application::showAddDatasetDialog()
   m_addDatasetDialog->show();
 }
 
-void Application::showProjectLocationDialogForNew()
-{
-  m_projectLocationDialog->configure(ProjectLocationMode::NewProject,
-      [this](const std::filesystem::path &directory) {
-        newProject();
-        saveProjectAs(directory);
-      });
-  m_projectLocationDialog->show();
-}
-
 void Application::showProjectLocationDialogForOpen()
 {
   m_projectLocationDialog->configure(ProjectLocationMode::OpenProject,
@@ -680,7 +661,7 @@ void Application::uiFrameStart()
 void Application::uiMainMenuBar()
 {
   if (ImGui::BeginMenu("Project")) {
-    if (ImGui::MenuItem("New ..."))
+    if (ImGui::MenuItem("New"))
       requestDirtyAction(PendingDirtyAction::NewProject);
     if (ImGui::MenuItem("Open ..."))
       requestDirtyAction(PendingDirtyAction::OpenProject);
@@ -691,8 +672,6 @@ void Application::uiMainMenuBar()
       saveProject();
     if (ImGui::MenuItem("Save As..."))
       showProjectLocationDialogForSaveAs();
-    if (ImGui::MenuItem("Close"))
-      requestDirtyAction(PendingDirtyAction::NewProject);
     ImGui::Separator();
     if (ImGui::MenuItem("Quit"))
       std::exit(0);

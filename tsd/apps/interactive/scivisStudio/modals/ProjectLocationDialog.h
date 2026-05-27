@@ -14,7 +14,6 @@ namespace tsd::scivis_studio {
 
 enum class ProjectLocationMode
 {
-  NewProject,
   OpenProject,
   SaveProjectAs
 };
