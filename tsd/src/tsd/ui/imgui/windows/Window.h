@@ -40,6 +40,7 @@ struct Window
 
  protected:
   virtual int windowFlags() const;
+  virtual int pushStyle();
   tsd::app::Context *appContext() const;
 
   Application *m_app{nullptr};

@@ -657,6 +657,12 @@ int BaseViewport::windowFlags() const
   return ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar;
 }
 
+int BaseViewport::pushStyle()
+{
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4.f, 4.f));
+  return 1;
+}
+
 void BaseViewport::applyViewMatrixToArcball(const float *viewMat)
 {
   // Extract forward direction from column-major view matrix produced by

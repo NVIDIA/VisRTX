@@ -21,7 +21,10 @@ void Window::renderUI()
     return;
 
   ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
+  const int styleCount = pushStyle();
   ImGui::Begin(m_name.c_str(), &m_visible, windowFlags());
+  if (styleCount > 0)
+    ImGui::PopStyleVar(styleCount);
   buildUI();
   ImGui::End();
 }
@@ -62,6 +65,11 @@ void Window::loadSettings(tsd::core::DataNode &thisWindowRoot)
 }
 
 ImGuiWindowFlags Window::windowFlags() const
+{
+  return 0;
+}
+
+int Window::pushStyle()
 {
   return 0;
 }

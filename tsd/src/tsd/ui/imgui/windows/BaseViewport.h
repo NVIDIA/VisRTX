@@ -98,6 +98,7 @@ struct BaseViewport : public Window
 
  private:
   int windowFlags() const override;
+  int pushStyle() override;
   void applyViewMatrixToArcball(const float *viewMat);
 
   tsd::rendering::ImagePipeline m_pipeline;

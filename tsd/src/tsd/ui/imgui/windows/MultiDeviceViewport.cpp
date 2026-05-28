@@ -527,6 +527,12 @@ int MultiDeviceViewport::windowFlags() const
   return ImGuiWindowFlags_MenuBar;
 }
 
+int MultiDeviceViewport::pushStyle()
+{
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4.f, 4.f));
+  return 1;
+}
+
 void MultiDeviceViewport::RendererUpdateDelegate::signalParameterUpdated(
     const tsd::scene::Object *o, const tsd::scene::Parameter *p)
 {

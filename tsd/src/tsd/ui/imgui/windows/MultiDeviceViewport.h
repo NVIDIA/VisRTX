@@ -44,6 +44,7 @@ struct MultiDeviceViewport : public Window
   void ui_handleInput();
 
   int windowFlags() const override;
+  int pushStyle() override;
 
   // ImGui input state //
 

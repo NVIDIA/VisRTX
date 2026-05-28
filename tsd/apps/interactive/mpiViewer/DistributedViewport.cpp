@@ -425,4 +425,10 @@ int DistributedViewport::windowFlags() const
   return ImGuiWindowFlags_MenuBar;
 }
 
+int DistributedViewport::pushStyle()
+{
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(4.f, 4.f));
+  return 1;
+}
+
 } // namespace tsd::mpi_viewer

@@ -47,6 +47,7 @@ struct DistributedViewport : public tsd::ui::imgui::Window
   void ui_timeControls();
 
   int windowFlags() const override;
+  int pushStyle() override;
 
   // Data /////////////////////////////////////////////////////////////////////
 
