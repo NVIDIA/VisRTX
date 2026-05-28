@@ -34,6 +34,7 @@
 #include "cameraCreateRay.h"
 #include "gpu/gpu_debug.h"
 #include "gpu_objects.h"
+#include "gpu_tonemap.h"
 #include "shadingState.h"
 // optix
 #include <optix_device.h>
@@ -45,7 +46,6 @@
 #include <glm/packing.hpp>
 // cuda
 #include <vector_types.h>
-#include "gpu_tonemap.h"
 
 #ifndef __CUDACC__
 #error "gpu_util.h can only be included in device code"
@@ -489,6 +489,76 @@ VISRTX_DEVICE void setPixelIds(const FramebufferGPUData &fb,
   }
 }
 
+// Per-pixel, per-channel Welford soft-clamp for firefly suppression.
+//
+// Two regimes keyed on the pixel's own sample count n:
+//   * warmup (n < warmupSamples): per-channel stats are too sparse for a
+//     variance-based cap, so clamp each channel to a generous multiple of its
+//     running mean. This catches a firefly from the 2nd sample on (the 1st has
+//     no prior).
+//   * steady (n >= warmupSamples): clamp each channel to mean + k*stddev.
+//
+// In both regimes the Welford stats are updated from the *clamped* value: a
+// sample below its cap contributes its true value (so σ tracks the well-behaved
+// bulk), but a sample above the cap contributes only the capped value. This is
+// the base-excluding threshold — letting raw outliers into the stats lets one
+// firefly inflate σ enough to raise its own future cap, so a moderate k never
+// fires (the σ-inflation trap). Feeding the clamped value bounds that inflation,
+// which is what lets k drop to a value that actually bites. The cost is that a
+// genuinely legitimate >kσ excursion on a high-variance pixel is clipped and
+// cannot grow the cap — unavoidable for a per-pixel online clamp, which is why
+// CLAMP is the deliberately-aggressive, biased mode.
+//
+// Each channel is clamped independently to its own cap, so a chromatic
+// (single-channel) outlier is caught even when its luminance is unremarkable,
+// without a near-zero channel dragging the whole (saturated-color) pixel dark.
+VISRTX_DEVICE vec4 fireflyClamp(
+    PixelLumStats *lumStatsBuf, uint32_t idx, vec4 color, float kSigma, int warmupSamples)
+{
+  constexpr float kWarmupCapFactor = 8.0f; // warmup cap = factor * running mean
+
+  if (!lumStatsBuf)
+    return color;
+
+  PixelLumStats s = lumStatsBuf[idx];
+  const vec3 orig = vec3(color);
+  const bool warm = s.n < float(warmupSamples);
+
+  vec3 clamped = orig;
+  if (s.n >= 1.0f) {
+    for (int k = 0; k < 3; ++k) {
+      const float L = orig[k];
+      if (!(L > 0.0f))
+        continue;
+      float cap;
+      if (warm) {
+        cap = kWarmupCapFactor * s.mean[k];
+      } else {
+        // Needs >=2 samples for a sample variance; with warmupSamples==1 the
+        // steady branch is reachable at n==1, where m2/(n-1) is 0/0.
+        const float variance =
+            s.n > 1.0f ? fmaxf(s.m2[k] / (s.n - 1.0f), 0.0f) : 0.0f;
+        cap = s.mean[k] + kSigma * sqrtf(variance);
+      }
+      if (cap > 0.0f && L > cap)
+        clamped[k] = cap;
+    }
+  }
+
+  // Welford update from the clamped value in both regimes: a within-cap sample
+  // updates with its true value, an outlier only with the bounded cap value.
+  const float n = s.n + 1.0f;
+  for (int k = 0; k < 3; ++k) {
+    const float delta = clamped[k] - s.mean[k];
+    s.mean[k] += delta / n;
+    s.m2[k] += delta * (clamped[k] - s.mean[k]);
+  }
+  s.n = n;
+  lumStatsBuf[idx] = s;
+
+  return vec4(clamped, color.a);
+}
+
 VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
     const uvec2 &pixel,
     const vec4 &color,
@@ -498,9 +568,24 @@ VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
   const auto &fb = frame.fb;
   const uint32_t idx = detail::pixelIndex(fb, pixel);
 
-  detail::accumValue(fb.buffers.colorAccumulation,
-      idx,
-      frame.renderer.fireflyFilter ? detail::tonemap(color) : color);
+  vec4 c;
+  switch (frame.renderer.fireflyFilterMode) {
+  case FireflyFilterMode::TONEMAP:
+    c = detail::tonemap(color);
+    break;
+  case FireflyFilterMode::CLAMP:
+    c = fireflyClamp(fb.buffers.lumStats,
+        idx,
+        color,
+        frame.renderer.fireflyFilterSigma,
+        frame.renderer.fireflyFilterWarmup);
+    break;
+  default:
+    c = color;
+    break;
+  }
+
+  detail::accumValue(fb.buffers.colorAccumulation, idx, c);
   detail::accumValue(fb.buffers.albedo, idx, albedo);
   detail::accumValue(fb.buffers.normal, idx, normal);
 }

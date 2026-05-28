@@ -82,7 +82,7 @@ __global__ void prepareDenoiseInputs(const vec4 *__restrict__ accumColor,
     uvec2 size,
     int frameID,
     int checkerboardID,
-    bool fireflyFilter)
+    FireflyFilterMode fireflyFilterMode)
 {
   const uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= size.x * size.y)
@@ -101,7 +101,7 @@ __global__ void prepareDenoiseInputs(const vec4 *__restrict__ accumColor,
 
   const float invDivisor = 1.0f / float(divisor);
   vec4 c = accumColor[srcIdx] * invDivisor;
-  if (fireflyFilter)
+  if (fireflyFilterMode == FireflyFilterMode::TONEMAP)
     c = detail::inverseTonemap(c);
   denoiseInput[idx] = c;
 
@@ -125,7 +125,7 @@ void launchPrepareDenoiseInputs(const vec4 *accumColor,
     uvec2 size,
     int frameID,
     int checkerboardID,
-    bool fireflyFilter,
+    FireflyFilterMode fireflyFilterMode,
     cudaStream_t stream)
 {
   const uint32_t nPixels = size.x * size.y;
@@ -140,7 +140,7 @@ void launchPrepareDenoiseInputs(const vec4 *accumColor,
       size,
       frameID,
       checkerboardID,
-      fireflyFilter);
+      fireflyFilterMode);
 }
 
 __global__ void compositeBackground(vec4 *__restrict__ accumColor,
@@ -176,7 +176,7 @@ __global__ void compositeBackground(vec4 *__restrict__ accumColor,
     rendered.a = accumColor[sourceIdx].a / float(divisor);
   } else {
     rendered = accumColor[sourceIdx] / float(divisor);
-    if (renderer.fireflyFilter)
+    if (renderer.fireflyFilterMode == FireflyFilterMode::TONEMAP)
       rendered = detail::inverseTonemap(rendered);
   }
 
@@ -332,6 +332,7 @@ void Frame::finalize()
   m_instIDBuffer.resize(channelInstID ? numPixels() : 0);
 
   m_accumColor.reserve(numPixels() * sizeof(vec4));
+  m_lumStats.reserve(numPixels() * sizeof(PixelLumStats));
   if (channelAlbedo)
     m_accumAlbedo.reserve(numPixels() * sizeof(vec3));
   else
@@ -358,6 +359,7 @@ void Frame::finalize()
   }
 
   hd.fb.buffers.colorAccumulation = m_accumColor.ptrAs<vec4>();
+  hd.fb.buffers.lumStats = m_lumStats.ptrAs<PixelLumStats>();
 
   hd.fb.buffers.depth = channelDepth ? m_depthBuffer.dataDevice() : nullptr;
   hd.fb.buffers.primID = channelPrimID ? m_primIDBuffer.dataDevice() : nullptr;
@@ -545,7 +547,7 @@ void Frame::renderFrame()
         hd.fb.size,
         hd.fb.frameID,
         hd.fb.checkerboardID,
-        hd.renderer.fireflyFilter,
+        hd.renderer.fireflyFilterMode,
         state.stream);
 
     m_denoiser.launch();
@@ -905,6 +907,9 @@ void Frame::newFrame()
     thrust::fill_n(thrust::device_pointer_cast(m_accumColor.ptrAs<vec4>()),
         numPixels(),
         vec4(0.0f));
+    thrust::fill_n(thrust::device_pointer_cast(m_lumStats.ptrAs<PixelLumStats>()),
+        numPixels(),
+        PixelLumStats{vec3(0.0f), vec3(0.0f), 0.0f});
 
     // Conditionally initialize other buffers
     if (channelDepth) {

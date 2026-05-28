@@ -29,9 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Tonemap helpers — safe to include from both PTX and regular CUDA sources.
-// gpu_util.h includes <optix_device.h> and cannot be used from Frame.cu;
-// this header provides the subset needed by the compositing kernel.
+// Reversible Reinhard-on-max tonemap, used by the "tonemap" firefly filter
+// mode: each sample is compressed before accumulation and the average is
+// expanded back afterward. Safe to include from both PTX and regular CUDA
+// sources — gpu_util.h pulls in <optix_device.h> and cannot be included from
+// the Frame.cu compositing kernel, so the inverse lives here on its own.
 #pragma once
 
 #include "gpu_math.h"

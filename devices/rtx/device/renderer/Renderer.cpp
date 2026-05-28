@@ -76,6 +76,18 @@ using MaterialRecord = SbtRecord<void>;
 
 // Helper functions ///////////////////////////////////////////////////////////
 
+// Map the fireflyFilterMode string to the enum. Unknown strings (and "none")
+// resolve to NONE. The default-when-unset is decided by the caller and passed
+// in as the string, so this stays a pure lookup with no special cases.
+static FireflyFilterMode parseFireflyFilterMode(const std::string &mode)
+{
+  if (mode == "tonemap")
+    return FireflyFilterMode::TONEMAP;
+  if (mode == "clamp")
+    return FireflyFilterMode::CLAMP;
+  return FireflyFilterMode::NONE;
+}
+
 static std::string longestBeginningMatch(
     const std::string_view &first, const std::string_view &second)
 {
@@ -164,8 +176,16 @@ void Renderer::commitParameters()
       (denoiseMode == "colorAlbedo" || denoiseMode == "colorAlbedoNormal");
   m_denoiseNormal = (denoiseMode == "colorAlbedoNormal");
 
-  m_fireflyFilter =
-      getParam<bool>("fireflyFilter", getParam<bool>("tonemap", true));
+  // Default to tonemap, matching the pre-enum behaviour.
+  m_fireflyFilterMode =
+      parseFireflyFilterMode(getParamString("fireflyFilterMode", "tonemap"));
+  // Default k=8: the cap is mean + k*stddev with σ estimated from clamped
+  // samples (outliers excluded), so a moderate k bites without one firefly
+  // raising its own threshold. Lower clamps harder (more bias); raise for more
+  // energy fidelity at the cost of leaking brighter fireflies.
+  m_fireflyFilterSigma =
+      std::max(0.f, getParam<float>("fireflyFilterSigma", 8.f));
+  m_fireflyFilterWarmup = std::max(1, getParam<int>("fireflyFilterWarmup", 4));
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
@@ -208,7 +228,9 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.ambientIntensity = m_ambientIntensity;
   fd.renderer.occlusionDistance = m_occlusionDistance;
   fd.renderer.cullTriangleBF = m_cullTriangleBF;
-  fd.renderer.fireflyFilter = m_fireflyFilter;
+  fd.renderer.fireflyFilterMode = m_fireflyFilterMode;
+  fd.renderer.fireflyFilterSigma = m_fireflyFilterSigma;
+  fd.renderer.fireflyFilterWarmup = m_fireflyFilterWarmup;
   fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
   fd.renderer.numIterations = std::max(m_spp, 1);
   fd.renderer.premultiplyBackground = m_premultiplyBackground;
@@ -1121,9 +1143,9 @@ void Renderer::cleanup()
   }
 }
 
-bool Renderer::filterFireflies() const
+FireflyFilterMode Renderer::fireflyFilterMode() const
 {
-  return m_fireflyFilter;
+  return m_fireflyFilterMode;
 }
 
 } // namespace visrtx

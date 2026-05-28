@@ -779,6 +779,14 @@ enum class BackgroundMode
   IMAGE
 };
 
+// Per-sample firefly suppression strategy applied during accumulation.
+enum class FireflyFilterMode
+{
+  NONE, // accumulate raw radiance (unbiased)
+  TONEMAP, // reversible Reinhard round-trip (legacy; dims highlights)
+  CLAMP // per-pixel Welford luminance clamp (energy-preserving)
+};
+
 union RendererBackgroundGPUData
 {
   glm::vec4 color;
@@ -797,7 +805,9 @@ struct RendererGPUData
   float occlusionDistance;
   bool cullTriangleBF;
   bool premultiplyBackground;
-  bool fireflyFilter; // enable internal tonemapping during sample accumulation
+  FireflyFilterMode fireflyFilterMode; // per-sample outlier suppression strategy
+  float fireflyFilterSigma; // CLAMP mode: k in cap = mean + k*stddev
+  int fireflyFilterWarmup; // CLAMP mode: samples before the Welford cap engages
   glm::vec4 cutPlane; // cutting plane (nx,ny,nz,d); disabled when all zero (GPU
                       // default)
 };
@@ -812,9 +822,22 @@ enum class FrameFormat
   UNKNOWN
 };
 
+// Per-pixel running Welford statistics for firefly suppression, tracked per RGB
+// channel so a single-channel (chromatic) outlier is caught even when its
+// luminance is unremarkable. `n` is the shared sample count — kept here because
+// checkerboarding makes frameID a poor proxy for "how many samples this pixel
+// has seen".
+struct PixelLumStats
+{
+  glm::vec3 mean; // per-channel running mean
+  glm::vec3 m2; // per-channel sum of squared deltas
+  float n; // sample count (shared across channels)
+};
+
 struct FrameBuffers
 {
   glm::vec4 *colorAccumulation;
+  PixelLumStats *lumStats;
   float *depth;
   uint32_t *primID;
   uint32_t *objID;

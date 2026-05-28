@@ -59,13 +59,28 @@
           "description": "mode controlling buffers given to the denoiser"
         },
         {
-          "name": "fireflyFilter",
+          "name": "fireflyFilterMode",
           "types": [
-            "ANARI_BOOL"
+            "ANARI_STRING"
           ],
           "tags": [],
-          "default": true,
-          "description": "suppress fireflies via reversible tonemapping before accumulation"
+          "default": "tonemap",
+          "values": [
+            "none",
+            "tonemap",
+            "clamp"
+          ],
+          "description": "per-sample firefly suppression: none, tonemap (reversible Reinhard round-trip), clamp (Welford luminance clamp)"
+        },
+        {
+          "name": "fireflyFilterSigma",
+          "types": [
+            "ANARI_FLOAT32"
+          ],
+          "tags": [],
+          "default": 8.0,
+          "minimum": 0.0,
+          "description": "clamp mode: k in cap = mean + k*stddev (sigma estimated from clamped samples); lower = more aggressive clamping"
         },
         {
           "name": "premultiplyBackground",
