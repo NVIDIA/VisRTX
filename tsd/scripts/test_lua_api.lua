@@ -1594,12 +1594,12 @@ section("ForEach (Extended)")
 
 test("scene:forEachCamera", function()
   local s = tsd.createScene()
+  local before = 0
+  s:forEachCamera(function(_) before = before + 1 end)
   s:createCamera("perspective")
-  local count = 0
-  s:forEachCamera(function(c)
-    count = count + 1
-  end)
-  assert(count == 1, "should iterate over 1 camera")
+  local after = 0
+  s:forEachCamera(function(_) after = after + 1 end)
+  assert(after == before + 1, "forEachCamera should yield one more camera after create")
 end)
 
 test("scene:forEachVolume", function()

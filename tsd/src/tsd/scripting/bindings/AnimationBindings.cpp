@@ -72,7 +72,11 @@ void registerAnimationBindings(sol::table &tsd)
       "Animation",
       sol::no_constructor,
       "name",
-      &tsd::animation::Animation::name,
+      sol::property(
+          [](const tsd::animation::Animation &a) { return a.name(); },
+          [](tsd::animation::Animation &a, const std::string &n) {
+            a.editableName() = n;
+          }),
       "addObjectParameterBinding",
       [](tsd::animation::Animation &a,
           sol::object target,

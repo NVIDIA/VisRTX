@@ -716,12 +716,10 @@ function CameraSetup.new() end
 ---@class tsd.AnariDevice
 ---@field libraryName string # (read-only)
 
+--- Render index handle. Construct via `tsd.render.createRenderIndex(scene, device)`
+--- — there is no Lua-callable constructor (the C++ side requires a raw ANARI device handle).
 ---@class tsd.RenderIndex
 local RenderIndex = {}
-
----@overload fun(scene: tsd.Scene, device: any): tsd.RenderIndex
----@return tsd.RenderIndex
-function RenderIndex.new(...) end
 
 --- Bootstrap or rebuild this render index from the current scene snapshot.
 --- This does not register the render index for live scene updates.
@@ -915,123 +913,124 @@ function tsd.viewer.clearActions() end
 tsd.io = {}
 
 --- Import an OBJ file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
 function tsd.io.importOBJ(...) end
 
 --- Import a glTF file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importGLTF(...) end
 
 --- Import a PLY file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importPLY(...) end
 
 --- Import an HDRI environment map.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importHDRI(...) end
 
 --- Import a USD file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importUSD(...) end
 
 --- Import a PBRT v4 scene file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importPBRT(...) end
 
 --- Import a PDB (Protein Data Bank) file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importPDB(...) end
 
 --- Import an SWC (neuron morphology) file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importSWC(...) end
 
 --- Import an AGX file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importAGX(...) end
 
 --- Import via ASSIMP (supports many formats).
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, flatten: boolean)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode, flatten: boolean)
 function tsd.io.importASSIMP(...) end
 
 --- Import an AXYZ point cloud file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importAXYZ(...) end
 
 --- Import a DLAF file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
 function tsd.io.importDLAF(...) end
 
 --- Import an E57 point cloud file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importE57XYZ(...) end
 
 --- Import an EnSight Gold case file.
 --- Fields selects which variables to load (up to 4 ANARI attribute slots).
 --- Timestep selects which time step index to load (0-based).
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, fields: string[])
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, fields: string[], timestep: integer)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode, fields: string[])
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode, fields: string[], timestep: integer)
 function tsd.io.importENSIGHT(...) end
 
 --- Import an HSMESH file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importHSMESH(...) end
 
 --- Import an N-body simulation file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode, useDefaultMat: boolean)
 function tsd.io.importNBODY(...) end
 
 --- Import POINTSBIN files (multi-file).
----@overload fun(scene: tsd.Scene, filepaths: string[])
----@overload fun(scene: tsd.Scene, filepaths: string[], location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filepaths: string[])
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filepaths: string[], location: tsd.LayerNode)
 function tsd.io.importPOINTSBIN(...) end
 
 --- Import a PT file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importPT(...) end
 
 --- Import a Silo file (scene-level). Requires a location parameter.
 ---@param scene tsd.Scene
+---@param anim tsd.AnimationManager
 ---@param filename string
 ---@param location tsd.LayerNode
-function tsd.io.importSilo(scene, filename, location) end
+function tsd.io.importSilo(scene, anim, filename, location) end
 
 --- Import an SMESH file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode, isAnimation: boolean)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode, isAnimation: boolean)
 function tsd.io.importSMESH(...) end
 
 --- Import a TRK track file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importTRK(...) end
 
 --- Import an XYZDP point cloud file.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, location: tsd.LayerNode)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, location: tsd.LayerNode)
 function tsd.io.importXYZDP(...) end
 
 --- Import a volume file (auto-detects format).
@@ -1125,14 +1124,18 @@ function tsd.io.makeDefaultColorMap(scene, size) end
 --- Save a scene to a TSD file.
 --- When called with a state table, the file can be opened directly in
 --- tsdViewer with the correct device and camera position.
+--- The animation-manager overloads also persist animation tracks.
 ---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
 ---@overload fun(scene: tsd.Scene, filename: string, state: table)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string, state: table)
 function tsd.io.saveScene(...) end
 
 --- Load a scene from a TSD file.
----@param scene tsd.Scene
----@param filename string
-function tsd.io.loadScene(scene, filename) end
+--- The animation-manager overload also loads animation tracks if present.
+---@overload fun(scene: tsd.Scene, filename: string)
+---@overload fun(scene: tsd.Scene, anim: tsd.AnimationManager, filename: string)
+function tsd.io.loadScene(...) end
 
 -- tsd.render (RenderBindings.cpp) ----------------------------------------
 

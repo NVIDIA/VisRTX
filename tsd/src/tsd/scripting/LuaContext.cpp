@@ -40,6 +40,18 @@ LuaContext::LuaContext() : m_impl(std::make_unique<Impl>())
       sol::lib::io,
       sol::lib::utf8);
 
+  // Translate C++ exceptions thrown from bindings into Lua errors. Without
+  // this, sol2's default handler pushes a string and lets lua_error longjmp
+  // over live C++ destructors — undefined behavior that segfaults in practice.
+  m_impl->lua.set_exception_handler(
+      [](lua_State *L,
+          sol::optional<const std::exception &> maybe,
+          sol::string_view desc) {
+        const std::string msg =
+            maybe ? maybe->what() : std::string(desc);
+        return luaL_error(L, "%s", msg.c_str());
+      });
+
   m_impl->lua.set_function("print", [this](sol::variadic_args va) {
     fmt::memory_buffer buf;
     bool first = true;

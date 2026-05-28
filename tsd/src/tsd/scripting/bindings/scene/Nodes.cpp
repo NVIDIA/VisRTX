@@ -66,12 +66,19 @@ void registerSceneNodes(sol::usertype<scene::Scene> &sceneType)
   sceneType["removeAllObjects"] = &scene::Scene::removeAllObjects;
 
   sceneType["removeNode"] = sol::overload(
-      [](scene::Scene &s, scene::LayerNodeRef obj) { s.removeNode(obj); },
+      [](scene::Scene &s, scene::LayerNodeRef obj) {
+        if (obj.valid())
+          s.removeNode(obj);
+      },
       [](scene::Scene &s, scene::LayerNodeRef obj, bool deleteObjects) {
-        s.removeNode(obj, deleteObjects);
+        if (obj.valid())
+          s.removeNode(obj, deleteObjects);
       });
 
-  sceneType["removeUnusedObjects"] = &scene::Scene::removeUnusedObjects;
+  sceneType["removeUnusedObjects"] =
+      [](scene::Scene &s, sol::optional<bool> includeRenderersAndCameras) {
+        s.removeUnusedObjects(includeRenderersAndCameras.value_or(false));
+      };
   sceneType["defragmentObjectStorage"] = &scene::Scene::defragmentObjectStorage;
   sceneType["cleanupScene"] = &scene::Scene::cleanupScene;
 }

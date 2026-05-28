@@ -131,7 +131,7 @@ for frame = 0, numFrames - 1 do
     local angle = tsd.radians(frame * 360.0 / numFrames)
     local rot = tsd.rotation(tsd.float3(0, 1, 0), angle)
     rootXfm:setAsTransform(rot)
-    scene:signalLayerChange(layer)
+    scene:signalLayerTransformChanged(layer)
 
     local filename = string.format("%s_%04d.png", outPrefix, frame)
     tsd.render.renderToFile(pipeline, samples, filename, width, height)
