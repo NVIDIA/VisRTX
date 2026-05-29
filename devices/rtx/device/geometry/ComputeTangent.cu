@@ -91,8 +91,7 @@ __device__ float cornerAngle(
   const float lac = sqrtf(glm::dot(ac, ac));
   if (lab < eps || lac < eps)
     return 0.0f;
-  const float cosT =
-      glm::clamp(glm::dot(ab, ac) / (lab * lac), -1.0f, 1.0f);
+  const float cosT = glm::clamp(glm::dot(ab, ac) / (lab * lac), -1.0f, 1.0f);
   return acosf(cosT);
 }
 
@@ -150,6 +149,12 @@ __device__ void __computeTangentAndBitangent(
   auto s = uv1 - uv0;
   auto t = uv2 - uv0;
 
+  // Match glTF normal maps definition, as expected by the physicallyBased
+  // material. Equivalent to the importer's flipTexCoordY=true on the MikkTSpace
+  // path.
+  s.y = -s.y;
+  t.y = -t.y;
+
   auto det = s.x * t.y - s.y * t.x;
 
   if (glm::abs(det) < eps) {
@@ -172,8 +177,7 @@ template <bool VerticesIndexed,
     bool NormalsIndexed,
     bool UVsIndexed,
     typename TexCoord>
-__global__ void __doAccumulateTangents(
-    glm::vec3 *tangentAccum,
+__global__ void __doAccumulateTangents(glm::vec3 *tangentAccum,
     glm::vec3 *bitangentAccum,
     glm::vec3 *normalAccum,
     const glm::uvec3 *indices,
@@ -215,8 +219,7 @@ __global__ void __doAccumulateTangents(
   }
 
   vec3 tangent, bitangent;
-  __computeTangentAndBitangent(
-      &tangent, &bitangent, p0, p1, p2, uv0, uv1, uv2);
+  __computeTangentAndBitangent(&tangent, &bitangent, p0, p1, p2, uv0, uv1, uv2);
 
   const vec3 geometricNormal = computeGeometricNormal(p1 - p0, p2 - p0);
   vec3 n0 = geometricNormal;
@@ -263,8 +266,7 @@ template <bool VerticesIndexed,
     bool NormalsIndexed,
     bool UVsIndexed,
     typename TexCoord>
-void __computeTangents(
-    glm::vec3 *tangentAccum,
+void __computeTangents(glm::vec3 *tangentAccum,
     glm::vec3 *bitangentAccum,
     glm::vec3 *normalAccum,
     const glm::uvec3 *indices,
@@ -273,17 +275,15 @@ void __computeTangents(
     const TexCoord *uvs,
     unsigned int numTriangles)
 {
-  __doAccumulateTangents<VerticesIndexed,
-      NormalsIndexed,
-      UVsIndexed,
-      TexCoord><<<(numTriangles + 63) / 64, 64>>>(tangentAccum,
-      bitangentAccum,
-      normalAccum,
-      indices,
-      positions,
-      normals,
-      uvs,
-      numTriangles);
+  __doAccumulateTangents<VerticesIndexed, NormalsIndexed, UVsIndexed, TexCoord>
+      <<<(numTriangles + 63) / 64, 64>>>(tangentAccum,
+          bitangentAccum,
+          normalAccum,
+          indices,
+          positions,
+          normals,
+          uvs,
+          numTriangles);
 }
 
 // Pass 2 (one thread per vertex): normalize the accumulated frame and write
@@ -311,8 +311,7 @@ __global__ void __doFinalizeTangents(glm::vec4 *tangents,
   vec3 fallbackT, fallbackB;
   makeTangentFrame(n, &fallbackT, &fallbackB);
 
-  const vec3 T_orth =
-      safeNormalize(T_in - n * glm::dot(n, T_in), fallbackT);
+  const vec3 T_orth = safeNormalize(T_in - n * glm::dot(n, T_in), fallbackT);
 
   const float bitangentSign = glm::dot(glm::cross(n, T_orth), B_in);
   const float sign = bitangentSign < 0.0f ? -1.0f : 1.0f;
@@ -398,8 +397,8 @@ void updateGeometryTangent(Triangle *triangle)
     cleanup();
     return;
   }
-  status = cudaMalloc(reinterpret_cast<void **>(&normalAccum),
-      sizeof(glm::vec3) * numVertices);
+  status = cudaMalloc(
+      reinterpret_cast<void **>(&normalAccum), sizeof(glm::vec3) * numVertices);
   if (reportCudaError(triangle, status, "allocating normal accumulator")) {
     cleanup();
     return;

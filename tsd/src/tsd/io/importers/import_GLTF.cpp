@@ -1217,7 +1217,7 @@ static std::vector<SurfaceRef> importGLTFMeshes(Scene &scene,
                   tangents,
                   indices.size(),
                   posAccessor.count,
-                  false,
+                  true,
                   outputFaceVaryingTangents);
 
               vertexTangentArray->unmap();
