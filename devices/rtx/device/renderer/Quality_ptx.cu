@@ -138,8 +138,7 @@ VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
   // pcg_uniform * numLights ∈ [0, numLights). The glm::min clamp is
   // defensive against float rounding to numLights at the boundary.
   const size_t selectedIdx =
-      glm::min(size_t(pcg_uniform(&ss.rs) * float(numLights)),
-          numLights - 1);
+      glm::min(size_t(pcg_uniform(&ss.rs) * float(numLights)), numLights - 1);
 
   // Uniform light pick: P(light) = 1/numLights. Fold that into the returned
   // pdf rather than into radiance so MIS weights see the full joint pdf
@@ -178,8 +177,7 @@ VISRTX_DEVICE LightSample sampleLightsVolume(
     return {};
 
   const size_t selectedIdx =
-      glm::min(size_t(pcg_uniform(&ss.rs) * float(numLights)),
-          numLights - 1);
+      glm::min(size_t(pcg_uniform(&ss.rs) * float(numLights)), numLights - 1);
 
   const float lightPickPdf = 1.0f / float(numLights);
 
@@ -307,8 +305,8 @@ VISRTX_GLOBAL void __raygen__()
     // sample budget. Using `frameID * numIterations + i` keeps the
     // per-pixel Halton indices contiguous [0, totalSpp), which is the
     // optimal QMC stratification.
-    const uint32_t sampleIdx =
-        uint32_t(ss.frameData->fb.frameID) * uint32_t(rendererParams.numIterations)
+    const uint32_t sampleIdx = uint32_t(ss.frameData->fb.frameID)
+            * uint32_t(rendererParams.numIterations)
         + uint32_t(i);
     auto ray = makePrimaryRay(ss, sampleIdx, isVeryFirstRay);
 
@@ -477,18 +475,14 @@ VISRTX_GLOBAL void __raygen__()
       }
 
       if (!surfaceHit.foundHit && !volumeSample.didScatter) {
-        // Primary-ray HDRI = rendered background. Bounce misses skip it:
-        // NEE at the previous vertex already sampled HDRI as a light, so
-        // adding it on miss double-counts for non-Dirac BSDFs (almost all
-        // scivis materials). Dirac mirrors / specular transmission lose
-        // HDRI under this rule — no MIS yet to recover them.
-        if (isFirstBounce) {
-          if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
-            sample.color += sampleContribution * hdri;
-            accumulateValue(sample.opacity, 1.f, sample.opacity);
-          }
-          setPixelIds(frameData.fb, ss.pixel, ray.t.upper, ~0u, ~0u, ~0u);
+        // Sample the environment as a final bounce
+        if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
+          sample.color += sampleContribution * hdri;
+          accumulateValue(sample.opacity, 1.f, sample.opacity);
         }
+
+        if (isFirstBounce)
+          setPixelIds(frameData.fb, ss.pixel, ray.t.upper, ~0u, ~0u, ~0u);
 
         break;
       }
