@@ -35,12 +35,16 @@
 
 namespace visrtx {
 
+// surfaceShadowOcclusion(ss, ray) returns float occlusion in [0,1]
+// (1 = fully blocked). Templated so callers may pass either a float-opacity
+// shadow function or a vec3-transmittance one wrapped to return occlusion.
+template <typename SurfaceShadowOcclusionFn>
 VISRTX_DEVICE float computeAO(ScreenSample &ss,
     const Ray &primaryRay,
     const Hit &currentHit,
     float dist,
     int numSamples,
-    float (*surfaceShadowOpacity)(ScreenSample &, const Ray &))
+    SurfaceShadowOcclusionFn surfaceShadowOcclusion)
 {
   float weights = 0.0f;
   float hits = 0.0f;
@@ -54,7 +58,7 @@ VISRTX_DEVICE float computeAO(ScreenSample &ss,
     float weight = max(0.f, dot(aoRay.dir, currentHit.Ns));
     if (weight > 1e-8f) {
       weights += weight;
-      hits += weight * surfaceShadowOpacity(ss, aoRay);
+      hits += weight * surfaceShadowOcclusion(ss, aoRay);
     }
   }
 

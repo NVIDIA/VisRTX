@@ -141,6 +141,12 @@ VISRTX_DEVICE void accumulateNormal(T &a, const T &b, float interp)
   accumulateValue(a, b, interp);
 }
 
+// Rec.709 luminance.
+VISRTX_DEVICE float luminance(const vec3 &c)
+{
+  return glm::dot(c, vec3(0.2126f, 0.7152f, 0.0722f));
+}
+
 namespace detail {
 
 VISRTX_DEVICE void packPointer(void *ptr, uint32_t &i0, uint32_t &i1)

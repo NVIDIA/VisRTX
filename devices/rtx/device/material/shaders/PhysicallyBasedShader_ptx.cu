@@ -72,11 +72,6 @@ VISRTX_DEVICE vec3 sampleNormalMap(const FrameGPUData &fd,
   return (dot(N, N) > 1e-12f) ? N : hit.Ng;
 }
 
-VISRTX_DEVICE float luminance(const vec3 &c)
-{
-  return dot(c, vec3(0.2126f, 0.7152f, 0.0722f));
-}
-
 VISRTX_DEVICE vec3 computeVolumeTransmission(
     const PhysicallyBasedShadingState *state)
 {
