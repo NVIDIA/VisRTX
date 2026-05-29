@@ -3,7 +3,7 @@
 
 #include "Dataset.h"
 
-namespace tsd::scivis_studio {
+namespace tsd::scivis_studio::dataset {
 
 const char *toString(DatasetSourceKind kind)
 {
@@ -33,7 +33,7 @@ const char *toString(DatasetStatus status)
   return "Missing";
 }
 
-DatasetSourceKind datasetSourceKindFromString(const std::string &s)
+DatasetSourceKind sourceKindFromString(const std::string &s)
 {
   if (s == "TimeSeries")
     return DatasetSourceKind::TimeSeries;
@@ -42,7 +42,7 @@ DatasetSourceKind datasetSourceKindFromString(const std::string &s)
   return DatasetSourceKind::Static;
 }
 
-DatasetStatus datasetStatusFromString(const std::string &s)
+DatasetStatus statusFromString(const std::string &s)
 {
   if (s == "Available")
     return DatasetStatus::Available;
@@ -53,4 +53,4 @@ DatasetStatus datasetStatusFromString(const std::string &s)
   return DatasetStatus::Missing;
 }
 
-} // namespace tsd::scivis_studio
+} // namespace tsd::scivis_studio::dataset

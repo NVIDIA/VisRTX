@@ -15,6 +15,7 @@
 
 namespace tsd::scivis_studio {
 
+
 namespace {
 
 struct LightTypeOption
@@ -244,7 +245,7 @@ void LightRigEditor::buildUI()
   if (inputText("Name", rig.name))
     project.markDirty();
 
-  auto *shot = activeShot(project);
+  auto *shot = project::activeShot(project);
   const bool activeShotUsesRig = shot && shot->lightRigId == rig.id;
   ImGui::BeginDisabled(!shot || activeShotUsesRig);
   if (ImGui::Button("Use for Active Shot") && shot) {
@@ -268,7 +269,7 @@ void LightRigEditor::buildUI()
 
   if (ImGui::BeginPopupModal(
           "Delete Light Rig?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    auto *pending = findLightRig(project, m_pendingDeleteRig);
+    auto *pending = project::findLightRig(project, m_pendingDeleteRig);
     const int useCount = m_projectContext->shotUseCount(m_pendingDeleteRig);
     ImGui::Text("Delete '%s' and clear %d shot reference%s?",
         pending ? pending->name.c_str() : m_pendingDeleteRig.c_str(),

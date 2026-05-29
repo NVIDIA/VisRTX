@@ -45,8 +45,12 @@ struct Shot
   ShotRenderSettings renderSettings;
 };
 
+namespace shot {
+
 DatasetBinding *findDatasetBinding(Shot &shot, const DatasetID &id);
 const DatasetBinding *findDatasetBinding(const Shot &shot, const DatasetID &id);
 void setDatasetBinding(Shot &shot, const DatasetID &id, bool enabled);
+
+} // namespace shot
 
 } // namespace tsd::scivis_studio

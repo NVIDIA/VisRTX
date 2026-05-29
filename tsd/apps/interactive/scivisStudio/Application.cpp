@@ -31,6 +31,7 @@
 
 namespace tsd::scivis_studio {
 
+
 using TSDApplication = tsd::ui::imgui::Application;
 namespace tsd_ui = tsd::ui::imgui;
 
@@ -227,7 +228,7 @@ void Application::restoreViewportFromActiveShot()
   if (!m_viewport)
     return;
 
-  const auto *shot = activeShot(m_projectContext.project());
+  const auto *shot = project::activeShot(m_projectContext.project());
   if (!shot) {
     m_viewport->setLibraryToDefault();
     return;
@@ -243,7 +244,7 @@ void Application::syncActiveShotRenderSettingsFromViewport()
     return;
 
   auto &project = m_projectContext.project();
-  auto *shot = activeShot(project);
+  auto *shot = project::activeShot(project);
   if (!shot)
     return;
 
@@ -326,7 +327,7 @@ bool Application::openProject(const std::filesystem::path &directory)
     return false;
   }
 
-  if (const auto *shot = activeShot(m_projectContext.project())) {
+  if (const auto *shot = project::activeShot(m_projectContext.project())) {
     auto &viewportSettings = scratch.root()["windows"]["Viewport"];
     viewportSettings["anariLibrary"] = shot->renderSettings.rendererLibrary;
     viewportSettings["rendererObjectIndex"] =
@@ -612,7 +613,7 @@ void Application::uiFrameStart()
   const ImGuiIO &io = ImGui::GetIO();
   auto &animMgr = appContext()->tsd.animationMgr;
   animMgr.tick(io.DeltaTime);
-  if (auto *shot = activeShot(m_projectContext.project()))
+  if (auto *shot = project::activeShot(m_projectContext.project()))
     shot->playing = animMgr.isPlaying();
 
   if (ImGui::BeginMainMenuBar()) {
@@ -646,7 +647,7 @@ void Application::uiFrameStart()
   }
 
   if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space)) {
-    if (auto *shot = activeShot(m_projectContext.project())) {
+    if (auto *shot = project::activeShot(m_projectContext.project())) {
       animMgr.togglePlay();
       shot->playing = animMgr.isPlaying();
     }

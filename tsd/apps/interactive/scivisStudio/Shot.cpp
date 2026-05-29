@@ -5,7 +5,7 @@
 
 #include <algorithm>
 
-namespace tsd::scivis_studio {
+namespace tsd::scivis_studio::shot {
 
 DatasetBinding *findDatasetBinding(Shot &shot, const DatasetID &id)
 {
@@ -33,4 +33,4 @@ void setDatasetBinding(Shot &shot, const DatasetID &id, bool enabled)
   shot.datasetBindings.push_back({id, enabled});
 }
 
-} // namespace tsd::scivis_studio
+} // namespace tsd::scivis_studio::shot

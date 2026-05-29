@@ -42,8 +42,8 @@ void DatasetEditor::buildUI()
 
   auto &dataset = datasets[m_selectedDataset];
   ImGui::Text("ID: %s", dataset.id.c_str());
-  ImGui::Text("Status: %s", toString(dataset.status));
-  ImGui::Text("Source kind: %s", toString(dataset.sourceKind));
+  ImGui::Text("Status: %s", dataset::toString(dataset.status));
+  ImGui::Text("Source kind: %s", dataset::toString(dataset.sourceKind));
   ImGui::Text("Importer: %s", dataset.importerType.c_str());
   ImGui::TextWrapped("Path: %s", dataset.source.absolutePath.c_str());
   ImGui::Text("Root: %s/%zu",

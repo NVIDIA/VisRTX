@@ -15,6 +15,7 @@
 
 namespace tsd::scivis_studio {
 
+
 namespace {
 
 constexpr const char *NO_RENDERERS_LABEL = "<no renderers>";
@@ -162,7 +163,7 @@ void ShotEditor::buildUI_lightRigSelector(Shot &shot)
   auto &project = m_projectContext->project();
   std::string preview = "None";
   if (!shot.lightRigId.empty()) {
-    if (auto *rig = findLightRig(project, shot.lightRigId))
+    if (auto *rig = project::findLightRig(project, shot.lightRigId))
       preview = rig->name;
     else
       preview = "<missing: " + shot.lightRigId + ">";
@@ -193,7 +194,7 @@ void ShotEditor::buildUI_lightRigSelector(Shot &shot)
         ImGui::SetItemDefaultFocus();
     }
 
-    if (!shot.lightRigId.empty() && !findLightRig(project, shot.lightRigId)) {
+    if (!shot.lightRigId.empty() && !project::findLightRig(project, shot.lightRigId)) {
       const auto missing = "<missing: " + shot.lightRigId + ">";
       ImGui::TextDisabled("%s", missing.c_str());
     }
@@ -207,7 +208,7 @@ void ShotEditor::buildUI()
     return;
 
   auto &project = m_projectContext->project();
-  auto *shot = activeShot(project);
+  auto *shot = project::activeShot(project);
   if (!shot) {
     ImGui::TextDisabled("No active shot");
     return;
@@ -287,10 +288,10 @@ void ShotEditor::buildUI()
   ImGui::SeparatorText("Datasets");
   for (const auto &dataset : project.datasets) {
     bool enabled = true;
-    if (auto *binding = findDatasetBinding(*shot, dataset.id))
+    if (auto *binding = shot::findDatasetBinding(*shot, dataset.id))
       enabled = binding->enabled;
     if (ImGui::Checkbox(dataset.name.c_str(), &enabled)) {
-      setDatasetBinding(*shot, dataset.id, enabled);
+      shot::setDatasetBinding(*shot, dataset.id, enabled);
       project.markDirty();
       m_projectContext->applyActiveShot();
     }

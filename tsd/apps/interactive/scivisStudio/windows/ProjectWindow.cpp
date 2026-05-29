@@ -32,7 +32,9 @@ void ProjectWindow::buildUI()
     ImGui::TextDisabled("No datasets");
   for (const auto &dataset : project.datasets)
     ImGui::BulletText(
-        "%s  [%s]", dataset.name.c_str(), toString(dataset.status));
+        "%s  [%s]",
+        dataset.name.c_str(),
+        dataset::toString(dataset.status));
 
   ImGui::SeparatorText("Shots");
   for (auto &shot : project.shots) {

@@ -38,8 +38,10 @@ struct ShotCameraRig
   std::vector<CameraKeyframe> keyframes;
 };
 
+namespace shot_camera_rig {
+
 const char *toString(CameraInterpolation interpolation);
-CameraInterpolation cameraInterpolationFromString(const std::string &s);
+CameraInterpolation interpolationFromString(const std::string &s);
 
 ManipulatorState manipulatorStateFromManipulator(
     const tsd::rendering::Manipulator &m);
@@ -48,5 +50,7 @@ void applyManipulatorState(
 
 void sortKeyframes(ShotCameraRig &rig);
 ManipulatorState sampleCameraRig(const ShotCameraRig &rig, int frame);
+
+} // namespace shot_camera_rig
 
 } // namespace tsd::scivis_studio

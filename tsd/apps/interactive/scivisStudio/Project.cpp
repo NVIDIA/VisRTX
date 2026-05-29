@@ -24,6 +24,8 @@ void Project::markClean()
   dirty = false;
 }
 
+namespace project {
+
 std::string makeGeneratedId(const char *prefix, size_t ordinal)
 {
   std::ostringstream ss;
@@ -112,5 +114,7 @@ const Shot *activeShot(const Project &project)
     return shot;
   return project.shots.empty() ? nullptr : &project.shots.front();
 }
+
+} // namespace project
 
 } // namespace tsd::scivis_studio

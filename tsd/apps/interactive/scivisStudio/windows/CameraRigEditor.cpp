@@ -13,6 +13,7 @@
 
 namespace tsd::scivis_studio {
 
+
 namespace {
 
 int cameraInterpolationIndex(CameraInterpolation interpolation)
@@ -63,7 +64,7 @@ void CameraRigEditor::buildUI()
     return;
 
   auto &project = m_projectContext->project();
-  auto *shot = activeShot(project);
+  auto *shot = project::activeShot(project);
   if (!shot) {
     ImGui::TextDisabled("No active shot");
     return;
@@ -73,7 +74,7 @@ void CameraRigEditor::buildUI()
   auto &rig = shot->cameraRig;
 
   if (ImGui::Button("Set View")) {
-    rig.current = manipulatorStateFromManipulator(ctx->view.manipulator);
+    rig.current = shot_camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
     project.markDirty();
   }
   tsd::ui::tooltipForPreviousItem("Set Rig View From Viewport");
@@ -85,9 +86,9 @@ void CameraRigEditor::buildUI()
     keyframe.frame = shot->currentFrame;
     keyframe.name = "Frame " + std::to_string(shot->currentFrame);
     keyframe.manipulator =
-        manipulatorStateFromManipulator(ctx->view.manipulator);
+        shot_camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
     rig.keyframes.push_back(std::move(keyframe));
-    sortKeyframes(rig);
+    shot_camera_rig::sortKeyframes(rig);
     m_selectedKeyframe = static_cast<int>(rig.keyframes.size()) - 1;
     project.markDirty();
   }
@@ -104,7 +105,7 @@ void CameraRigEditor::buildUI()
   ImGui::BeginDisabled(!hasSelection);
   if (ImGui::Button("Update")) {
     rig.keyframes[m_selectedKeyframe].manipulator =
-        manipulatorStateFromManipulator(ctx->view.manipulator);
+        shot_camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
     project.markDirty();
   }
   tsd::ui::tooltipForPreviousItem("Update Selected From Viewport");
@@ -162,7 +163,7 @@ void CameraRigEditor::buildUI()
 
       ImGui::TableNextColumn();
       if (ImGui::InputInt("##frame", &keyframe.frame)) {
-        sortKeyframes(rig);
+        shot_camera_rig::sortKeyframes(rig);
         project.markDirty();
       }
 

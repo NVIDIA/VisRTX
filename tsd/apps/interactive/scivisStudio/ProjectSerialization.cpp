@@ -31,7 +31,8 @@ static void cameraRigToNode(const ShotCameraRig &rig, tsd::core::DataNode &node)
     auto &kf = keyframes.append();
     kf["frame"] = keyframe.frame;
     kf["name"] = keyframe.name;
-    kf["interpolationToNext"] = toString(keyframe.interpolationToNext);
+    kf["interpolationToNext"] =
+        shot_camera_rig::toString(keyframe.interpolationToNext);
     manipulatorStateToNode(keyframe.manipulator, kf["manipulator"]);
   }
 }
@@ -47,14 +48,14 @@ static void nodeToCameraRig(tsd::core::DataNode &node, ShotCameraRig &rig)
       CameraKeyframe keyframe;
       keyframe.frame = kf["frame"].getValueOr<int>(0);
       keyframe.name = kf["name"].getValueOr<std::string>("");
-      keyframe.interpolationToNext = cameraInterpolationFromString(
+      keyframe.interpolationToNext = shot_camera_rig::interpolationFromString(
           kf["interpolationToNext"].getValueOr<std::string>("Linear"));
       if (auto *manip = kf.child("manipulator"))
         nodeToManipulatorState(*manip, keyframe.manipulator);
       rig.keyframes.push_back(std::move(keyframe));
     });
   }
-  sortKeyframes(rig);
+  shot_camera_rig::sortKeyframes(rig);
 }
 
 void projectToNode(const Project &project, tsd::core::DataNode &node)
@@ -70,9 +71,9 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     auto &d = datasets.append();
     d["id"] = dataset.id;
     d["name"] = dataset.name;
-    d["sourceKind"] = toString(dataset.sourceKind);
+    d["sourceKind"] = dataset::toString(dataset.sourceKind);
     d["importerType"] = dataset.importerType;
-    d["status"] = toString(dataset.status);
+    d["status"] = dataset::toString(dataset.status);
 
     auto &source = d["source"];
     source["absolutePath"] = dataset.source.absolutePath;
@@ -140,10 +141,10 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       Dataset dataset;
       dataset.id = d["id"].getValueOr<std::string>("");
       dataset.name = d["name"].getValueOr<std::string>(dataset.id);
-      dataset.sourceKind = datasetSourceKindFromString(
+      dataset.sourceKind = dataset::sourceKindFromString(
           d["sourceKind"].getValueOr<std::string>("Static"));
       dataset.importerType = d["importerType"].getValueOr<std::string>("NONE");
-      dataset.status = datasetStatusFromString(
+      dataset.status = dataset::statusFromString(
           d["status"].getValueOr<std::string>("Missing"));
 
       if (auto *source = d.child("source")) {

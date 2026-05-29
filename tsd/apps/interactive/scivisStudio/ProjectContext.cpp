@@ -18,6 +18,7 @@
 
 namespace tsd::scivis_studio {
 
+
 static tsd::scene::LayerNodeRef findDirectChild(
     tsd::scene::LayerNodeRef parent, const std::string &name)
 {
@@ -206,7 +207,7 @@ LightRig *ProjectContext::createLightRig(const std::string &name)
     return nullptr;
 
   LightRig rig;
-  rig.id = nextLightRigId(m_project);
+  rig.id = project::nextLightRigId(m_project);
   rig.name = name.empty()
       ? ("Light Rig " + std::to_string(m_project.lightRigs.size() + 1))
       : name;
@@ -338,7 +339,7 @@ void ProjectContext::createUnsavedProject()
   (void)datasetsRoot;
 
   Shot shot;
-  shot.id = nextShotId(m_project);
+  shot.id = project::nextShotId(m_project);
   shot.name = "Shot 1";
   shot.renderSettings.outputFilePrefix = shot.id;
   ensureRendererDefaults(shot);
@@ -348,7 +349,7 @@ void ProjectContext::createUnsavedProject()
   camera->setName(shot.id + "_camera");
   shot.camera = {ANARI_CAMERA, camera.index()};
   shot.cameraRig.current =
-      manipulatorStateFromManipulator(m_ctx->view.manipulator);
+      shot_camera_rig::manipulatorStateFromManipulator(m_ctx->view.manipulator);
   tsd::rendering::updateCameraObject(*camera, m_ctx->view.manipulator);
 
   ensureChild(shotsRoot, shot.id.c_str());
@@ -368,7 +369,7 @@ bool ProjectContext::addShot(const std::string &name)
     return false;
 
   Shot shot;
-  shot.id = nextShotId(m_project);
+  shot.id = project::nextShotId(m_project);
   shot.name = name.empty()
       ? ("Shot " + std::to_string(m_project.shots.size() + 1))
       : name;
@@ -385,7 +386,7 @@ bool ProjectContext::addShot(const std::string &name)
   camera->setName(shot.id + "_camera");
   shot.camera = {ANARI_CAMERA, camera.index()};
   shot.cameraRig.current =
-      manipulatorStateFromManipulator(m_ctx->view.manipulator);
+      shot_camera_rig::manipulatorStateFromManipulator(m_ctx->view.manipulator);
   tsd::rendering::updateCameraObject(*camera, m_ctx->view.manipulator);
 
   ensureChild(ensureShotsRoot(), shot.id.c_str());
@@ -435,7 +436,7 @@ Dataset *ProjectContext::addStaticDataset(const std::string &name,
     return nullptr;
 
   Dataset dataset;
-  dataset.id = nextDatasetId(m_project);
+  dataset.id = project::nextDatasetId(m_project);
   dataset.name = name.empty() ? dataset.id : name;
   dataset.sourceKind = DatasetSourceKind::Static;
   dataset.importerType = toString(importerType);
@@ -457,7 +458,7 @@ Dataset *ProjectContext::addStaticDataset(const std::string &name,
         datasetRoot);
     record.status = DatasetStatus::Available;
     for (auto &shot : m_project.shots)
-      setDatasetBinding(shot, record.id, &shot == activeShot(m_project));
+      shot::setDatasetBinding(shot, record.id, &shot == project::activeShot(m_project));
   } catch (const std::exception &e) {
     record.status = DatasetStatus::ImportFailed;
     tsd::core::logError("[SciVisStudio] Dataset import failed for '%s': %s",
@@ -480,7 +481,7 @@ void ProjectContext::applyActiveShot()
   if (!m_ctx)
     return;
 
-  auto *shot = activeShot(m_project);
+  auto *shot = project::activeShot(m_project);
   if (!shot)
     return;
 
@@ -505,7 +506,7 @@ void ProjectContext::applyActiveShot()
 
   for (auto &dataset : m_project.datasets) {
     bool enabled = false;
-    if (const auto *binding = findDatasetBinding(*shot, dataset.id))
+    if (const auto *binding = shot::findDatasetBinding(*shot, dataset.id))
       enabled = binding->enabled;
     setNodeEnabled(resolveDatasetRoot(dataset), enabled);
   }
@@ -513,8 +514,8 @@ void ProjectContext::applyActiveShot()
   for (auto *layer : changedLayers)
     m_ctx->tsd.scene.signalLayerStructureChanged(layer);
 
-  auto sampled = sampleCameraRig(shot->cameraRig, shot->currentFrame);
-  applyManipulatorState(m_ctx->view.manipulator, sampled);
+  auto sampled = shot_camera_rig::sampleCameraRig(shot->cameraRig, shot->currentFrame);
+  shot_camera_rig::applyManipulatorState(m_ctx->view.manipulator, sampled);
 
   if (auto *obj = resolveShotCamera(*shot)) {
     auto *camera = static_cast<tsd::scene::Camera *>(obj);
@@ -527,7 +528,7 @@ void ProjectContext::syncAnimationManagerToActiveShot()
   if (!m_ctx)
     return;
 
-  auto *shot = activeShot(m_project);
+  auto *shot = project::activeShot(m_project);
   if (!shot)
     return;
 
@@ -555,7 +556,7 @@ void ProjectContext::updateActiveShotFromAnimationTime()
   if (!m_ctx || m_syncingAnimationManager)
     return;
 
-  auto *shot = activeShot(m_project);
+  auto *shot = project::activeShot(m_project);
   if (!shot)
     return;
 
@@ -756,7 +757,7 @@ void ProjectContext::migrateLegacyShotLightsToLightRigs()
       continue;
 
     LightRig rig;
-    rig.id = nextLightRigId(m_project);
+    rig.id = project::nextLightRigId(m_project);
     rig.name =
         shot.name.empty() ? (shot.id + " Lights") : (shot.name + " Lights");
     if (auto existing = findDirectChild(lightRigsRoot, rig.id))

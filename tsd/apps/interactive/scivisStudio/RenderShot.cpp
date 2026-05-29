@@ -16,6 +16,7 @@
 
 namespace tsd::scivis_studio {
 
+
 namespace {
 
 anari::Device loadFirstAvailableDevice(
@@ -54,7 +55,7 @@ bool renderActiveShotToFrames(
     ProjectContext &projectContext, RenderShotProgress *progress)
 {
   auto *ctx = projectContext.appContext();
-  auto *shot = activeShot(projectContext.project());
+  auto *shot = project::activeShot(projectContext.project());
   if (!ctx || !shot)
     return false;
 

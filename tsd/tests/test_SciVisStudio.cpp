@@ -19,6 +19,7 @@
 
 using namespace tsd::scivis_studio;
 
+
 namespace {
 
 struct CountingLayerUpdateDelegate : public tsd::scene::EmptyUpdateDelegate
@@ -130,9 +131,11 @@ SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
           CameraInterpolation::EaseOutIn};
 
       for (auto mode : modes)
-        REQUIRE(cameraInterpolationFromString(toString(mode)) == mode);
+        REQUIRE(shot_camera_rig::interpolationFromString(
+                    shot_camera_rig::toString(mode))
+            == mode);
 
-      REQUIRE(cameraInterpolationFromString("Unknown")
+      REQUIRE(shot_camera_rig::interpolationFromString("Unknown")
           == CameraInterpolation::Linear);
     }
 
@@ -155,17 +158,17 @@ SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
       rig.keyframes = {a, b};
 
       rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseOut;
-      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(6.25f));
+      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x == Approx(6.25f));
 
       rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseIn;
-      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(57.8125f));
+      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x == Approx(57.8125f));
 
       rig.keyframes.front().interpolationToNext =
           CameraInterpolation::EaseOutIn;
-      REQUIRE(sampleCameraRig(rig, 25).orbit.lookat.x == Approx(10.3515625f));
-      REQUIRE(sampleCameraRig(rig, 25).orbit.azeldist.x == Approx(10.3515625f));
-      REQUIRE(sampleCameraRig(rig, 25).orbit.fixedDist == Approx(10.3515625f));
-      REQUIRE(sampleCameraRig(rig, 75).orbit.lookat.x == Approx(89.6484375f));
+      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x == Approx(10.3515625f));
+      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.azeldist.x == Approx(10.3515625f));
+      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.fixedDist == Approx(10.3515625f));
+      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 75).orbit.lookat.x == Approx(89.6484375f));
     }
   }
 }
@@ -291,7 +294,7 @@ SCENARIO("SciVis Studio new shots use the default light rig", "[SciVisStudio]")
 
   const auto defaultRigId = projectContext.project().lightRigs.front().id;
   REQUIRE(projectContext.addShot());
-  REQUIRE(activeShot(projectContext.project())->lightRigId == defaultRigId);
+  REQUIRE(project::activeShot(projectContext.project())->lightRigId == defaultRigId);
 }
 
 SCENARIO("SciVis Studio shot dataset bindings update scene visibility",
@@ -317,8 +320,8 @@ SCENARIO("SciVis Studio shot dataset bindings update scene visibility",
       DatasetStatus::Available,
       projectContext.refFor("studio", datasetRoot)});
 
-  auto &shot = *activeShot(project);
-  setDatasetBinding(shot, "dataset_0001", false);
+  auto &shot = *project::activeShot(project);
+  shot::setDatasetBinding(shot, "dataset_0001", false);
 
   auto *delegate =
       scene.updateDelegate().emplace<CountingLayerUpdateDelegate>();
@@ -356,8 +359,8 @@ SCENARIO("SciVis Studio dataset binding resolves the dataset group by ID",
       DatasetStatus::Available,
       projectContext.refFor("studio", partRoot)});
 
-  auto &shot = *activeShot(project);
-  setDatasetBinding(shot, "dataset_0001", false);
+  auto &shot = *project::activeShot(project);
+  shot::setDatasetBinding(shot, "dataset_0001", false);
 
   projectContext.applyActiveShot();
 
@@ -395,7 +398,7 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
         {},
         DatasetStatus::Available,
         projectContext.refFor("studio", datasetRoot)});
-    setDatasetBinding(*activeShot(project), "dataset_0001", false);
+    shot::setDatasetBinding(*project::activeShot(project), "dataset_0001", false);
 
     REQUIRE(projectContext.saveProject(root));
   }
@@ -444,7 +447,7 @@ SCENARIO(
 
   auto &project = projectContext.project();
   auto &firstShot = project.shots.front();
-  auto *defaultRig = findLightRig(project, firstShot.lightRigId);
+  auto *defaultRig = project::findLightRig(project, firstShot.lightRigId);
   REQUIRE(defaultRig != nullptr);
   auto defaultRoot = projectContext.resolveLightRigRoot(*defaultRig);
   REQUIRE(defaultRoot);
@@ -455,7 +458,7 @@ SCENARIO(
   REQUIRE(secondRoot);
 
   projectContext.addShot("Second Shot");
-  auto &secondShot = *activeShot(project);
+  auto &secondShot = *project::activeShot(project);
   secondShot.lightRigId = secondRig->id;
   projectContext.applyActiveShot();
 
@@ -482,7 +485,7 @@ SCENARIO("SciVis Studio removing a light rig clears shot references",
 
   auto &project = projectContext.project();
   const auto rigId = project.lightRigs.front().id;
-  auto *rig = findLightRig(project, rigId);
+  auto *rig = project::findLightRig(project, rigId);
   REQUIRE(rig != nullptr);
   auto root = projectContext.resolveLightRigRoot(*rig);
   REQUIRE(root);
@@ -559,7 +562,7 @@ SCENARIO("SciVis Studio shot time is driven by the animation manager",
   ProjectContext projectContext(&appContext);
   projectContext.createUnsavedProject();
 
-  auto &shot = *activeShot(projectContext.project());
+  auto &shot = *project::activeShot(projectContext.project());
   shot.frameCount = 24;
   shot.fps = 12.f;
   shot.currentFrame = 4;

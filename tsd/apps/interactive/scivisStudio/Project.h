@@ -41,6 +41,8 @@ struct Project
   void markClean();
 };
 
+namespace project {
+
 std::string makeGeneratedId(const char *prefix, size_t ordinal);
 DatasetID nextDatasetId(const Project &project);
 ShotID nextShotId(const Project &project);
@@ -55,5 +57,7 @@ LightRig *findLightRig(Project &project, const LightRigID &id);
 const LightRig *findLightRig(const Project &project, const LightRigID &id);
 Shot *activeShot(Project &project);
 const Shot *activeShot(const Project &project);
+
+} // namespace project
 
 } // namespace tsd::scivis_studio

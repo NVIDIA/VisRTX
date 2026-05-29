@@ -63,9 +63,13 @@ struct Dataset
   SceneNodeRef rootNode;
 };
 
+namespace dataset {
+
 const char *toString(DatasetSourceKind kind);
 const char *toString(DatasetStatus status);
-DatasetSourceKind datasetSourceKindFromString(const std::string &s);
-DatasetStatus datasetStatusFromString(const std::string &s);
+DatasetSourceKind sourceKindFromString(const std::string &s);
+DatasetStatus statusFromString(const std::string &s);
+
+} // namespace dataset
 
 } // namespace tsd::scivis_studio

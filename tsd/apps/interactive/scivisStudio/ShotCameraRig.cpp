@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace tsd::scivis_studio {
+namespace tsd::scivis_studio::shot_camera_rig {
 
 const char *toString(CameraInterpolation interpolation)
 {
@@ -27,7 +27,7 @@ const char *toString(CameraInterpolation interpolation)
   return "Linear";
 }
 
-CameraInterpolation cameraInterpolationFromString(const std::string &s)
+CameraInterpolation interpolationFromString(const std::string &s)
 {
   if (s == "Hold")
     return CameraInterpolation::Hold;
@@ -147,4 +147,4 @@ ManipulatorState sampleCameraRig(const ShotCameraRig &rig, int frame)
   return keyframes.back().manipulator;
 }
 
-} // namespace tsd::scivis_studio
+} // namespace tsd::scivis_studio::shot_camera_rig
