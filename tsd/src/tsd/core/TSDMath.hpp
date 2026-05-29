@@ -9,6 +9,8 @@
 // helium
 #include <helium/helium_math.h>
 // std
+#include <algorithm>
+#include <cmath>
 #include <limits>
 
 namespace tsd {
@@ -53,6 +55,18 @@ static constexpr tsd::core::math::float3 degrees(tsd::core::math::float3 v)
 {
   return tsd::core::math::float3(degrees(v.x), degrees(v.y), degrees(v.z));
 };
+
+inline float normalizeDegrees(float v)
+{
+  v = std::fmod(v, 360.f);
+  return v < 0.f ? v + 360.f : v;
+}
+
+inline tsd::core::math::float3 normalizeDegrees(tsd::core::math::float3 v)
+{
+  return tsd::core::math::float3(
+      normalizeDegrees(v.x), normalizeDegrees(v.y), normalizeDegrees(v.z));
+}
 
 static constexpr tsd::core::math::float3 azelToDir(tsd::core::math::float2 azel)
 {
@@ -117,13 +131,24 @@ inline void decomposeMatrix(const tsd::core::math::mat4 &m,
 
 inline tsd::core::math::float3 matrixToAzElRoll(const tsd::core::math::mat4 &r)
 {
-  const float r00 = r[0][0], r01 = r[0][1], r02 = r[0][2];
-  const float r10 = r[1][0], r11 = r[1][1], r12 = r[1][2];
-  const float r20 = r[2][0], r21 = r[2][1], r22 = r[2][2];
+  const float m00 = r[0][0];
+  const float m01 = r[1][0];
+  const float m02 = r[2][0];
+  const float m10 = r[0][1];
+  const float m11 = r[1][1];
+  const float m12 = r[2][1];
+  const float m22 = r[2][2];
 
-  const float elevation = std::asin(-r21);
-  const float azimuth = std::atan2(r20, r22);
-  const float roll = std::atan2(r01, r11);
+  const float elevation = std::asin(std::clamp(-m12, -1.f, 1.f));
+  float azimuth = 0.f;
+  float roll = 0.f;
+
+  if (std::abs(std::cos(elevation)) > 1e-5f) {
+    azimuth = std::atan2(m02, m22);
+    roll = std::atan2(m10, m11);
+  } else {
+    roll = std::atan2(-m01, m00);
+  }
 
   return {azimuth, elevation, roll};
 }

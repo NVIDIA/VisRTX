@@ -6,8 +6,22 @@
 // tsd
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
+// std
+#include <cmath>
 
 namespace {
+
+void requireMat4Near(const tsd::math::mat4 &actual,
+    const tsd::math::mat4 &expected,
+    float eps = 1e-4f)
+{
+  for (int c = 0; c < 4; c++) {
+    for (int r = 0; r < 4; r++) {
+      CAPTURE(c, r, actual[c][r], expected[c][r]);
+      REQUIRE(std::abs(actual[c][r] - expected[c][r]) <= eps);
+    }
+  }
+}
 
 struct CountingDelegate : public tsd::scene::EmptyUpdateDelegate
 {
@@ -56,6 +70,35 @@ SCENARIO("tsd::scene::Scene owns an intrinsic update delegate root", "[Scene]")
       REQUIRE(array);
       REQUIRE(countingDelegate != nullptr);
       REQUIRE(objectAddedCount == 2);
+    }
+  }
+}
+
+SCENARIO(
+    "tsd::scene::LayerNodeData preserves singular SRT transforms", "[Scene]")
+{
+  GIVEN("A transform with elevation 90 and roll 270")
+  {
+    tsd::math::mat3 srt;
+    srt[0] = tsd::math::float3(1.f, 1.f, 1.f);
+    srt[1] = tsd::math::float3(0.f, 90.f, 270.f);
+    srt[2] = tsd::math::float3(0.f, 0.f, 0.f);
+
+    tsd::scene::LayerNodeData source(nullptr, srt);
+    tsd::scene::LayerNodeData node(nullptr, source.getTransform());
+
+    WHEN("The transform is exposed as UI SRT and applied back")
+    {
+      auto uiSrt = node.getTransformSRT();
+      node.setAsTransform(uiSrt);
+
+      THEN("The UI SRT keeps the roll and the matrix does not move")
+      {
+        REQUIRE(tsd::math::neql(uiSrt[1].x, 0.f, 1e-3f));
+        REQUIRE(tsd::math::neql(uiSrt[1].y, 90.f, 1e-3f));
+        REQUIRE(tsd::math::neql(uiSrt[1].z, 270.f, 1e-3f));
+        requireMat4Near(node.getTransform(), source.getTransform());
+      }
     }
   }
 }

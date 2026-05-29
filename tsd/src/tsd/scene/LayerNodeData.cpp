@@ -181,7 +181,7 @@ void LayerNodeData::setAsTransform(const math::mat4 &m)
   auto &tl = m_srt[2];
   math::mat4 rot;
   math::decomposeMatrix(m, sc, rot, tl);
-  azelrot = math::degrees(math::matrixToAzElRoll(rot));
+  azelrot = math::normalizeDegrees(math::degrees(math::matrixToAzElRoll(rot)));
 }
 
 void LayerNodeData::setAsTransform(
