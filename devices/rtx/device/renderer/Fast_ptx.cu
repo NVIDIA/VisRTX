@@ -96,7 +96,7 @@ VISRTX_GLOBAL void __miss__()
 
 struct FastShadingPolicy
 {
-  static VISRTX_DEVICE vec4 shadeSurface(const MaterialShadingState &shadingState,
+  static VISRTX_DEVICE vec3 shadeSurface(const MaterialShadingState &shadingState,
       ScreenSample &ss,
       const Ray &ray,
       const SurfaceHit &hit)
@@ -117,14 +117,12 @@ struct FastShadingPolicy
         : 1.f;
 
     auto materialBaseColor = materialEvaluateTint(shadingState);
-    auto materialOpacity = materialEvaluateOpacity(shadingState);
 
     const float lighting = glm::mix(ndotl,
         aoFactor * rendererParams.ambientIntensity,
         aoParams.aoBlend);
 
-    return vec4(materialBaseColor * lighting * rendererParams.ambientColor,
-        materialOpacity);
+    return materialBaseColor * lighting * rendererParams.ambientColor;
   }
 };
 

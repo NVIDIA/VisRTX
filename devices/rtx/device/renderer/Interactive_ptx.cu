@@ -37,6 +37,7 @@
 #include "gpu/intersectRay.h"
 #include "gpu/renderer/common.h"
 #include "gpu/renderer/raygen_helpers.h"
+#include "gpu/renderer/shadowTransmittance.h"
 #include "gpu/sampleLight.h"
 #include "gpu/shadingState.h"
 #include "gpu/shading_api.h"
@@ -55,11 +56,18 @@ namespace visrtx {
 
 DECLARE_FRAME_DATA(frameData)
 
+// AO occlusion from surface shadow transmittance (1 = fully blocked).
+static VISRTX_DEVICE float surfaceShadowOcclusion(
+    ScreenSample &ss, const Ray &r)
+{
+  return 1.0f - luminance(surfaceShadowTransmittance(ss, r));
+}
+
 // Interactive shading policy for templated rendering loop //////////////////
 
 struct InteractiveShadingPolicy
 {
-  static VISRTX_DEVICE vec4 shadeSurface(
+  static VISRTX_DEVICE vec3 shadeSurface(
       const MaterialShadingState &shadingState,
       ScreenSample &ss,
       const Ray &ray,
@@ -67,26 +75,22 @@ struct InteractiveShadingPolicy
   {
     const auto &rendererParams = frameData.renderer;
     const auto &interactiveParams = rendererParams.params.interactive;
-
     auto &world = frameData.world;
 
-    // Compute ambient light contribution //
+    // Ambient occlusion (uses vec3 surface shadow transmittance via adapter).
     const float aoFactor = interactiveParams.aoSamples > 0
         ? computeAO(ss,
               ray,
               hit,
               rendererParams.occlusionDistance,
               interactiveParams.aoSamples,
-              &surfaceShadowOpacity)
+              &surfaceShadowOcclusion)
         : 1.f;
 
     vec3 contrib = materialEvaluateEmission(shadingState, -ray.dir);
-
-    // Handle ambient light contribution
     contrib += rendererParams.ambientColor * rendererParams.ambientIntensity
         * materialEvaluateTint(shadingState);
 
-    // Handle all lights contributions
     const vec3 shadowOrigin = shadingHitpoint(hit) + hit.Ng * hit.epsilon;
     for (size_t i = 0; i < world.numLightInstances; i++) {
       const auto &light = world.lightInstances[i];
@@ -96,21 +100,21 @@ struct InteractiveShadingPolicy
       if (lightSample.pdf == 0.0f)
         continue;
 
-      // Shadowing
       const Ray shadowRay = {
           shadowOrigin,
           lightSample.dir,
           {hit.epsilon, lightSample.dist},
       };
 
-      const float surface_attenuation =
-          1.0f - surfaceShadowOpacity(ss, shadowRay);
-      const float volume_attenuation =
+      // Surface shadows are tinted (vec3); volume shadows stay scalar.
+      const vec3 surfaceTransmittance =
+          surfaceShadowTransmittance(ss, shadowRay);
+      const float volumeTransmittance =
           1.0f - volumeShadowOpacity(ss, shadowRay);
-      const float attenuation = surface_attenuation * volume_attenuation;
+      const vec3 attenuation = surfaceTransmittance * volumeTransmittance;
 
-      // Complete occlusion?
-      if (attenuation <= MIN_CONTRIBUTION_EPSILON)
+      if (glm::all(
+              glm::lessThanEqual(attenuation, vec3(MIN_CONTRIBUTION_EPSILON))))
         continue;
 
       const vec3 thisLightContrib =
@@ -119,26 +123,23 @@ struct InteractiveShadingPolicy
       contrib += thisLightContrib * attenuation;
     }
 
-    // Take AO in account
     contrib *= aoFactor;
 
-    // Then proceed with single bounce ray for indirect lighting
+    // Single indirect bounce — REFLECTION only. Transmission/refraction is
+    // owned by the flat compositing loop, so a through-surface continuation is
+    // discarded here to avoid double-counting the transmitted background.
     NextRay nextRay = materialNextRay(shadingState, ray, ss.rs);
-    if (glm::any(glm::greaterThan(
+    if (!continuesThroughSurface(nextRay)
+        && glm::any(glm::greaterThan(
             nextRay.contributionWeight, glm::vec3(MIN_CONTRIBUTION_EPSILON)))) {
-      const float side = continuesThroughSurface(nextRay) ? -1.0f : 1.0f;
-      Ray bounceRay = {hit.hitpoint + hit.Ng * hit.epsilon * side,
+      Ray bounceRay = {hit.hitpoint + hit.Ng * hit.epsilon,
           normalize(nextRay.direction)};
 
-      // Only check for intersecting surfaces and background as secondary light
-      // interactions.
       SurfaceHit bounceHit;
       bounceHit.foundHit = false;
       intersectSurface(ss, bounceRay, RayType::PRIMARY, &bounceHit);
 
       if (bounceHit.foundHit) {
-        // We hit something. Gather its contribution, cosine weighted diffuse
-        // only, we want this to be lightweight.
         MaterialShadingState bounceShadingState;
         materialInitShading(
             &bounceShadingState, frameData, *bounceHit.material, bounceHit);
@@ -155,7 +156,7 @@ struct InteractiveShadingPolicy
       }
     }
 
-    return vec4(contrib, materialEvaluateOpacity(shadingState));
+    return contrib;
   }
 };
 
@@ -180,26 +181,30 @@ VISRTX_GLOBAL void __anyhit__shadow()
     SurfaceHit hit;
     ray::populateSurfaceHit(hit);
 
-    auto &o = ray::rayData<float>();
+    auto &transmittance = ray::rayData<vec3>();
 
     // Fully opaque material: skip the init/opacity callable chain.
     if (hit.material->isFullyOpaque) {
-      o = 1.0f;
+      transmittance = vec3(0.0f);
       optixTerminateRay();
       return;
     }
 
     MaterialShadingState shadingState;
     materialInitShading(&shadingState, frameData, *hit.material, hit);
-    auto opacity = materialEvaluateOpacity(shadingState);
+    const float alpha = materialEvaluateOpacity(shadingState);
+    const vec3 T = materialEvaluateTransmission(shadingState);
 
-    accumulateValue(o, opacity, o);
+    transmittance *= (1.0f - alpha * (1.0f - T));
 
-    if (o >= OPACITY_THRESHOLD)
+    if (glm::all(glm::lessThanEqual(transmittance, vec3(1.f - OPACITY_THRESHOLD))))
       optixTerminateRay();
     else
       optixIgnoreIntersection();
   } else {
+    // Volume shadows are a separate trace with a scalar float payload
+    // (volumeShadowOpacity); not interchangeable with the vec3 surface payload
+    // above. See gpu/renderer/shadowTransmittance.h.
     auto &attenuation = ray::rayData<float>();
     VolumeHit hit;
     ray::populateVolumeHit(hit);

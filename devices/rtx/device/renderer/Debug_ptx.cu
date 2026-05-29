@@ -53,17 +53,16 @@ DECLARE_FRAME_DATA(frameData)
 
 struct BaseColorShadingPolicy
 {
-  static VISRTX_DEVICE vec4 shadeSurface(
+  static VISRTX_DEVICE vec3 shadeSurface(
       const MaterialShadingState &shadingState,
       ScreenSample &ss,
       const Ray &ray,
       const SurfaceHit &hit)
   {
     auto baseColor = materialEvaluateTint(shadingState);
-    auto opacity = materialEvaluateOpacity(shadingState);
     const auto lighting =
         glm::abs(glm::dot(ray.dir, hit.Ns)) * frameData.renderer.ambientColor;
-    return vec4(baseColor * lighting, opacity);
+    return baseColor * lighting;
   }
 };
 
