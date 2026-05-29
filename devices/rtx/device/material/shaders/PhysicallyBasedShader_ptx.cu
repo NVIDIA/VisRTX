@@ -496,10 +496,6 @@ VISRTX_CALLABLE vec3 __direct_callable__shadeSurface(
 VISRTX_CALLABLE NextRay __direct_callable__nextRay(
     const PhysicallyBasedShadingState *state, const Ray *ray, RandState *rs)
 {
-  // Opacity pass-through (stochastic alpha): the ray continues unaltered.
-  if (pcg_uniform(rs) > state->opacity)
-    return NextRay{ray->dir, vec3(1.0f), NEXT_RAY_CONTINUES_THROUGH_SURFACE};
-
   const vec3 V = -ray->dir;
 
   // Clearcoat lobe: pick it with probability `clearcoat·FcV(NcDotV)`. This
@@ -520,14 +516,13 @@ VISRTX_CALLABLE NextRay __direct_callable__nextRay(
       return NextRay{Nc, vec3(0.0f)};
     const float alphaC = fmaxf(pow2(state->clearcoatRoughness), 1e-4f);
     const float alphaC2 = alphaC * alphaC;
-    const vec3 HlocalC = sampleGGXVNDF(
-        VlocalC, alphaC, pcg_uniform(rs), pcg_uniform(rs));
+    const vec3 HlocalC =
+        sampleGGXVNDF(VlocalC, alphaC, pcg_uniform(rs), pcg_uniform(rs));
     const vec3 LlocalC = glm::reflect(-VlocalC, HlocalC);
     if (LlocalC.z <= 0.0f)
       return NextRay{Nc, vec3(0.0f)};
     const float VdotHc = fmaxf(dot(VlocalC, HlocalC), 0.0f);
-    const float Fc =
-        CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - VdotHc);
+    const float Fc = CLEARCOAT_F0 + (1.0f - CLEARCOAT_F0) * pow5(1.0f - VdotHc);
     const float G1c = smithG1GGX(VlocalC.z, alphaC2);
     const float G2c = smithG2GGX(VlocalC.z, LlocalC.z, alphaC2);
     // VNDF gives BRDF·cos/pdf = clearcoat·Fc·G2/G1; the clearcoat factor

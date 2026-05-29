@@ -90,7 +90,10 @@ VISRTX_DEVICE void accumPixelSample(
       sample.normal);
 }
 
-VISRTX_DEVICE vec3 evaluateOpacity(const MaterialShadingState &shadingState)
+// Per-channel surface shadow blocking (vec3): opacity scaled by how much light
+// the tinted transmission lets through. Component-wise 0 = transparent,
+// 1 = fully blocking.
+VISRTX_DEVICE vec3 shadowBlocking(const MaterialShadingState &shadingState)
 {
   return materialEvaluateOpacity(shadingState)
       * (1.0f - materialEvaluateTransmission(shadingState));
@@ -262,12 +265,11 @@ VISRTX_GLOBAL void __anyhit__shadow()
       return;
     }
 
-    auto ss = ray::screenSample();
     MaterialShadingState shadingState;
     materialInitShading(&shadingState, frameData, *hit.material, hit);
-    auto opacity = evaluateOpacity(shadingState);
+    auto blocking = shadowBlocking(shadingState);
 
-    attenuation *= (1.0f - opacity);
+    attenuation *= (1.0f - blocking);
 
     if (glm::all(glm::lessThanEqual(attenuation, vec3(ATTENUATION_EPSILON))))
       optixTerminateRay();
@@ -408,7 +410,7 @@ VISRTX_GLOBAL void __raygen__()
         const vec3 materialEmission =
             materialEvaluateEmission(shadingState, -ray.dir);
         const vec3 materialTint = materialEvaluateTint(shadingState);
-        const float materialOpacity = materialEvaluateOpacity(shadingState);
+        const float opacity = materialEvaluateOpacity(shadingState);
 
         if (isFirstBounce) {
           setPixelIds(frameData.fb,
@@ -422,7 +424,9 @@ VISRTX_GLOBAL void __raygen__()
           sample.albedo = materialTint;
         }
 
-        sample.color += sampleContribution * materialEmission * materialOpacity;
+        // Emission, direct lighting are scaled by opacity
+        // analytically rather than gated stochastically below
+        sample.color += sampleContribution * opacity * materialEmission;
         // Sample around the shading normal so the cosine-weighted hemisphere's
         // pdf matches the BRDF's NdotL (which uses Ns). Sampling around Ng
         // would bias the Lambertian estimator by cos_Ns/cos_Ng on smooth or
@@ -440,7 +444,7 @@ VISRTX_GLOBAL void __raygen__()
             const vec3 directLight = materialShadeSurface(
                 shadingState, surfaceHit, lightSample, -ray.dir);
             const vec3 contribUpper =
-                sampleContribution * materialOpacity * directLight;
+                sampleContribution * opacity * directLight;
             const float maxContrib = glm::max(
                 contribUpper.x, glm::max(contribUpper.y, contribUpper.z));
             constexpr float SHADOW_SKIP_EPSILON = 1.0e-5f;
@@ -457,6 +461,13 @@ VISRTX_GLOBAL void __raygen__()
               sample.color += contribUpper * attenuation;
             }
           }
+        }
+
+        // Resolve geometric alpha stochastically for the continuation
+        if (pcg_uniform(&ss.rs) > opacity) {
+          ray = Ray{surfaceHit.hitpoint - surfaceHit.Ng * surfaceHit.epsilon,
+              ray.dir};
+          continue;
         }
 
         auto nextRay = materialNextRay(shadingState, ray, ss.rs);
