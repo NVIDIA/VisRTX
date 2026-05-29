@@ -180,12 +180,12 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
   if (!m_initialProjectDirectory.empty()) {
     if (!openProject(m_initialProjectDirectory)) {
       m_projectContext.createUnsavedProject();
-      m_keepBlankProjectCleanAfterViewportSync = true;
+      m_keepBlankProjectCleanAfterViewportSetup = true;
       m_viewport->setLibraryToDefault();
     }
   } else {
     m_projectContext.createUnsavedProject();
-    m_keepBlankProjectCleanAfterViewportSync = true;
+    m_keepBlankProjectCleanAfterViewportSetup = true;
     m_viewport->setLibraryToDefault();
   }
 
@@ -223,58 +223,6 @@ void Application::loadLayout(const std::string &layout)
     ImGui::LoadIniSettingsFromMemory(layout.c_str());
 }
 
-void Application::restoreViewportFromActiveShot()
-{
-  if (!m_viewport)
-    return;
-
-  const auto *shot = project::activeShot(m_projectContext.project());
-  if (!shot) {
-    m_viewport->setLibraryToDefault();
-    return;
-  }
-
-  m_viewport->setLibrary(shot->renderSettings.rendererLibrary,
-      shot->renderSettings.rendererObjectIndex);
-}
-
-void Application::syncActiveShotRenderSettingsFromViewport()
-{
-  if (!m_viewport)
-    return;
-
-  auto &project = m_projectContext.project();
-  auto *shot = project::activeShot(project);
-  if (!shot)
-    return;
-
-  const auto &libraryName = m_viewport->libraryName();
-  const auto rendererIndex = m_viewport->currentRendererObjectIndex();
-  if (libraryName.empty() || rendererIndex == TSD_INVALID_INDEX)
-    return;
-
-  bool changed = false;
-  if (shot->renderSettings.rendererLibrary != libraryName) {
-    shot->renderSettings.rendererLibrary = libraryName;
-    changed = true;
-  }
-  if (shot->renderSettings.rendererObjectIndex != rendererIndex) {
-    shot->renderSettings.rendererObjectIndex = rendererIndex;
-    changed = true;
-  }
-
-  auto *renderer =
-      appContext()->tsd.scene.getObject(ANARI_RENDERER, rendererIndex);
-  if (renderer
-      && shot->renderSettings.rendererSubtype != renderer->subtype().str()) {
-    shot->renderSettings.rendererSubtype = renderer->subtype().str();
-    changed = true;
-  }
-
-  if (changed)
-    project.markDirty();
-}
-
 bool Application::saveProject()
 {
   auto &project = m_projectContext.project();
@@ -288,8 +236,6 @@ bool Application::saveProject()
 
 bool Application::saveProjectAs(const std::filesystem::path &directory)
 {
-  syncActiveShotRenderSettingsFromViewport();
-
   tsd::core::DataTree scratch;
   auto &root = scratch.root();
   saveWindowSettings(root["windows"]);
@@ -323,15 +269,9 @@ bool Application::openProject(const std::filesystem::path &directory)
       &error);
   if (!ok) {
     tsd::core::logError("[SciVisStudio] Open failed: %s", error.c_str());
-    restoreViewportFromActiveShot();
+    if (m_viewport)
+      m_viewport->setLibraryToDefault();
     return false;
-  }
-
-  if (const auto *shot = project::activeShot(m_projectContext.project())) {
-    auto &viewportSettings = scratch.root()["windows"]["Viewport"];
-    viewportSettings["anariLibrary"] = shot->renderSettings.rendererLibrary;
-    viewportSettings["rendererObjectIndex"] =
-        static_cast<uint64_t>(shot->renderSettings.rendererObjectIndex);
   }
 
   loadWindowSettings(scratch.root()["windows"]);
@@ -347,8 +287,9 @@ void Application::newProject()
     m_viewport->releaseSceneReferences();
 
   m_projectContext.createUnsavedProject();
-  m_keepBlankProjectCleanAfterViewportSync = true;
-  restoreViewportFromActiveShot();
+  m_keepBlankProjectCleanAfterViewportSetup = true;
+  if (m_viewport)
+    m_viewport->setLibraryToDefault();
 }
 
 void Application::requestDirtyAction(PendingDirtyAction action)
@@ -659,11 +600,10 @@ void Application::uiFrameStart()
   if (!modalActive && ImGui::IsKeyChordPressed(ImGuiKey_Escape))
     appContext()->clearSelected();
 
-  syncActiveShotRenderSettingsFromViewport();
-  if (m_keepBlankProjectCleanAfterViewportSync
+  if (m_keepBlankProjectCleanAfterViewportSetup
       && (!m_taskModal || !m_taskModal->visible())) {
     m_projectContext.project().markClean();
-    m_keepBlankProjectCleanAfterViewportSync = false;
+    m_keepBlankProjectCleanAfterViewportSetup = false;
   }
 }
 

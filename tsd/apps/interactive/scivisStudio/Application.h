@@ -82,8 +82,6 @@ class Application : public tsd::ui::imgui::Application
   void loadWindowSettings(tsd::core::DataNode &node);
   std::string saveLayout() const;
   void loadLayout(const std::string &layout);
-  void restoreViewportFromActiveShot();
-  void syncActiveShotRenderSettingsFromViewport();
   void requestDirtyAction(PendingDirtyAction action);
   void requestOpenRecentProject(const std::filesystem::path &directory);
   void continueDirtyAction();
@@ -101,7 +99,7 @@ class Application : public tsd::ui::imgui::Application
   std::vector<std::filesystem::path> m_recentProjects;
   PendingDirtyAction m_pendingDirtyAction{PendingDirtyAction::None};
   bool m_viewportRenderingDisabledForShotRender{false};
-  bool m_keepBlankProjectCleanAfterViewportSync{false};
+  bool m_keepBlankProjectCleanAfterViewportSetup{false};
 
   tsd::ui::imgui::Viewport *m_viewport{nullptr};
   tsd::ui::imgui::LayerTree *m_layerTree{nullptr};
