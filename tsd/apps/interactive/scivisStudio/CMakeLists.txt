@@ -43,7 +43,7 @@ configure_file(
 
 add_executable(scivisStudio
   Application.cpp
-  modals/AddDatasetDialog.cpp
+  modals/AddStaticDatasetDialog.cpp
   modals/ProjectLocationDialog.cpp
   scivisStudio.cpp
   windows/CameraRigEditor.cpp

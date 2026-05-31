@@ -1,7 +1,7 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "AddDatasetDialog.h"
+#include "AddStaticDatasetDialog.h"
 
 #include "tsd/core/Logging.hpp"
 #include "tsd/ui/imgui/Application.h"
@@ -60,14 +60,14 @@ void copyToInputBuffer(std::array<char, N> &buffer, const std::string &value)
 
 } // namespace
 
-AddDatasetDialog::AddDatasetDialog(
+AddStaticDatasetDialog::AddStaticDatasetDialog(
     tsd::ui::imgui::Application *app, ProjectContext *projectContext)
-    : Modal(app, "Add Dataset"), m_projectContext(projectContext)
+    : Modal(app, "Add Static Dataset"), m_projectContext(projectContext)
 {}
 
-AddDatasetDialog::~AddDatasetDialog() = default;
+AddStaticDatasetDialog::~AddStaticDatasetDialog() = default;
 
-void AddDatasetDialog::buildUI()
+void AddStaticDatasetDialog::buildUI()
 {
   ImGui::InputText("Name", m_name.data(), m_name.size());
 

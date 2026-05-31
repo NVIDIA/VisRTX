@@ -11,11 +11,11 @@
 
 namespace tsd::scivis_studio {
 
-struct AddDatasetDialog : public tsd::ui::imgui::Modal
+struct AddStaticDatasetDialog : public tsd::ui::imgui::Modal
 {
-  AddDatasetDialog(
+  AddStaticDatasetDialog(
       tsd::ui::imgui::Application *app, ProjectContext *projectContext);
-  ~AddDatasetDialog() override;
+  ~AddStaticDatasetDialog() override;
 
  private:
   void buildUI() override;

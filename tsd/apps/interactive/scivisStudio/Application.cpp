@@ -5,7 +5,7 @@
 
 #include "DefaultLayout.h"
 #include "RenderShot.h"
-#include "modals/AddDatasetDialog.h"
+#include "modals/AddStaticDatasetDialog.h"
 #include "modals/ProjectLocationDialog.h"
 #include "windows/CameraRigEditor.h"
 #include "windows/DatasetEditor.h"
@@ -174,8 +174,8 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
   m_transferFunctionEditor->hide();
 
   m_projectLocationDialog = std::make_unique<ProjectLocationDialog>(this);
-  m_addDatasetDialog =
-      std::make_unique<AddDatasetDialog>(this, &m_projectContext);
+  m_addStaticDatasetDialog =
+      std::make_unique<AddStaticDatasetDialog>(this, &m_projectContext);
 
   if (!m_initialProjectDirectory.empty()) {
     if (!openProject(m_initialProjectDirectory)) {
@@ -471,9 +471,9 @@ void Application::uiRecentProjectsMenu()
     clearRecentProjects();
 }
 
-void Application::showAddDatasetDialog()
+void Application::showAddStaticDatasetDialog()
 {
-  m_addDatasetDialog->show();
+  m_addStaticDatasetDialog->show();
 }
 
 void Application::showProjectLocationDialogForOpen()
@@ -582,8 +582,8 @@ void Application::uiFrameStart()
 
   modalActive = renderConfirmationModal(m_confirmationModal) || modalActive;
 
-  if (m_addDatasetDialog && m_addDatasetDialog->visible()) {
-    m_addDatasetDialog->renderUI();
+  if (m_addStaticDatasetDialog && m_addStaticDatasetDialog->visible()) {
+    m_addStaticDatasetDialog->renderUI();
     modalActive = true;
   }
 
@@ -628,8 +628,8 @@ void Application::uiMainMenuBar()
   }
 
   if (ImGui::BeginMenu("Studio")) {
-    if (ImGui::MenuItem("Add Dataset..."))
-      showAddDatasetDialog();
+    if (ImGui::MenuItem("Add Static Dataset..."))
+      showAddStaticDatasetDialog();
     if (ImGui::MenuItem("Add Shot"))
       m_projectContext.addShot();
     if (ImGui::MenuItem("Render Active Shot..."))

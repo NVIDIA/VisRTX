@@ -23,7 +23,7 @@ struct Viewport;
 
 namespace tsd::scivis_studio {
 
-struct AddDatasetDialog;
+struct AddStaticDatasetDialog;
 struct CameraRigEditor;
 struct DatasetEditor;
 struct LightRigEditor;
@@ -52,7 +52,7 @@ class Application : public tsd::ui::imgui::Application
   ProjectContext &projectContext();
   const ProjectContext &projectContext() const;
 
-  void showAddDatasetDialog();
+  void showAddStaticDatasetDialog();
   void showProjectLocationDialogForOpen();
   void showProjectLocationDialogForSaveAs();
   void renderActiveShot();
@@ -106,7 +106,7 @@ class Application : public tsd::ui::imgui::Application
   tsd::ui::imgui::TransferFunctionEditor *m_transferFunctionEditor{nullptr};
 
   std::unique_ptr<ProjectLocationDialog> m_projectLocationDialog;
-  std::unique_ptr<AddDatasetDialog> m_addDatasetDialog;
+  std::unique_ptr<AddStaticDatasetDialog> m_addStaticDatasetDialog;
   ConfirmationModalState m_confirmationModal;
 };
 
