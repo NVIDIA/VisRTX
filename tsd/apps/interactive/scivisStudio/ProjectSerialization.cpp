@@ -58,6 +58,44 @@ static void nodeToCameraRig(tsd::core::DataNode &node, ShotCameraRig &rig)
   shot_camera_rig::sortKeyframes(rig);
 }
 
+static void sourceMetadataToNode(
+    const DatasetSourceMetadata &source, tsd::core::DataNode &node)
+{
+  node["absolutePath"] = source.absolutePath;
+  node["projectRelativePath"] = source.projectRelativePath;
+  node["fileSize"] = source.fileSize;
+  node["modifiedTime"] = source.modifiedTime;
+}
+
+static void sourceFileToNode(
+    const DatasetSourceFile &source, tsd::core::DataNode &node)
+{
+  node["absolutePath"] = source.absolutePath;
+  node["projectRelativePath"] = source.projectRelativePath;
+  node["fileSize"] = source.fileSize;
+  node["modifiedTime"] = source.modifiedTime;
+}
+
+static void nodeToSourceMetadata(
+    tsd::core::DataNode &node, DatasetSourceMetadata &source)
+{
+  source.absolutePath = node["absolutePath"].getValueOr<std::string>("");
+  source.projectRelativePath =
+      node["projectRelativePath"].getValueOr<std::string>("");
+  source.fileSize = node["fileSize"].getValueOr<uint64_t>(0);
+  source.modifiedTime = node["modifiedTime"].getValueOr<int64_t>(0);
+}
+
+static void nodeToSourceFile(
+    tsd::core::DataNode &node, DatasetSourceFile &source)
+{
+  source.absolutePath = node["absolutePath"].getValueOr<std::string>("");
+  source.projectRelativePath =
+      node["projectRelativePath"].getValueOr<std::string>("");
+  source.fileSize = node["fileSize"].getValueOr<uint64_t>(0);
+  source.modifiedTime = node["modifiedTime"].getValueOr<int64_t>(0);
+}
+
 void projectToNode(const Project &project, tsd::core::DataNode &node)
 {
   node.reset();
@@ -75,11 +113,11 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     d["importerType"] = dataset.importerType;
     d["status"] = dataset::toString(dataset.status);
 
-    auto &source = d["source"];
-    source["absolutePath"] = dataset.source.absolutePath;
-    source["projectRelativePath"] = dataset.source.projectRelativePath;
-    source["fileSize"] = dataset.source.fileSize;
-    source["modifiedTime"] = dataset.source.modifiedTime;
+    sourceMetadataToNode(dataset.source, d["source"]);
+
+    auto &sourceFiles = d["sourceFiles"];
+    for (const auto &sourceFile : dataset.sourceFiles)
+      sourceFileToNode(sourceFile, sourceFiles.append());
   }
 
   auto &shots = node["shots"];
@@ -147,14 +185,15 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       dataset.status = dataset::statusFromString(
           d["status"].getValueOr<std::string>("Missing"));
 
-      if (auto *source = d.child("source")) {
-        dataset.source.absolutePath =
-            (*source)["absolutePath"].getValueOr<std::string>("");
-        dataset.source.projectRelativePath =
-            (*source)["projectRelativePath"].getValueOr<std::string>("");
-        dataset.source.fileSize = (*source)["fileSize"].getValueOr<uint64_t>(0);
-        dataset.source.modifiedTime =
-            (*source)["modifiedTime"].getValueOr<int64_t>(0);
+      if (auto *source = d.child("source"))
+        nodeToSourceMetadata(*source, dataset.source);
+
+      if (auto *sourceFiles = d.child("sourceFiles")) {
+        sourceFiles->foreach_child([&](tsd::core::DataNode &f) {
+          DatasetSourceFile sourceFile;
+          nodeToSourceFile(f, sourceFile);
+          dataset.sourceFiles.push_back(std::move(sourceFile));
+        });
       }
       out.datasets.push_back(std::move(dataset));
     });

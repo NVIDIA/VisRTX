@@ -138,6 +138,30 @@ void Application::getFilenameFromDialog(
   }
 }
 
+void Application::getFilenamesFromDialog(std::vector<std::string> &filenamesOut)
+{
+  auto fileDialogCb =
+      [](void *userdata, const char *const *filelist, int filter) {
+        auto &out = *(std::vector<std::string> *)userdata;
+        out.clear();
+        if (!filelist) {
+          tsd::core::logError("SDL DIALOG ERROR: %s\n", SDL_GetError());
+          return;
+        }
+
+        for (auto file = filelist; *file; ++file)
+          out.emplace_back(*file);
+      };
+
+  SDL_ShowOpenFileDialog(fileDialogCb,
+      &filenamesOut,
+      this->sdlWindow(),
+      nullptr,
+      0,
+      nullptr,
+      true);
+}
+
 void Application::showImportFileDialog()
 {
   m_fileDialog->show();

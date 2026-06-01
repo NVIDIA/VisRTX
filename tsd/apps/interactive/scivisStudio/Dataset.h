@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace tsd::scivis_studio {
 
@@ -52,6 +53,14 @@ struct DatasetSourceMetadata
   int64_t modifiedTime{0};
 };
 
+struct DatasetSourceFile
+{
+  std::string absolutePath;
+  std::string projectRelativePath;
+  uint64_t fileSize{0};
+  int64_t modifiedTime{0};
+};
+
 struct Dataset
 {
   DatasetID id;
@@ -61,6 +70,7 @@ struct Dataset
   DatasetSourceMetadata source;
   DatasetStatus status{DatasetStatus::Missing};
   SceneNodeRef rootNode;
+  std::vector<DatasetSourceFile> sourceFiles;
 };
 
 namespace dataset {

@@ -72,6 +72,7 @@ class Application
       std::string &filenameOut,
       FileDialogMode mode = FileDialogMode::OpenFile);
   void getFilenameFromDialog(std::string &filenameOut, bool isSaveDialog);
+  void getFilenamesFromDialog(std::vector<std::string> &filenamesOut);
 
   // Enqueue a task to be executed on a background thread
   template <class FUNCTION>

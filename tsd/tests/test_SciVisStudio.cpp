@@ -15,6 +15,7 @@
 #include "tsd/scene/objects/Light.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 
 using namespace tsd::scivis_studio;
@@ -62,6 +63,10 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
         {"/tmp/data.obj", "data.obj", 100, 42},
         DatasetStatus::Available,
         {"studio", 3}});
+    project.datasets.front().sourceFiles.push_back(
+        {"/tmp/frame_0001.raw", "frames/frame_0001.raw", 101, 43});
+    project.datasets.front().sourceFiles.push_back(
+        {"/tmp/frame_0002.raw", "frames/frame_0002.raw", 102, 44});
 
     Shot shot;
     shot.id = "shot_0001";
@@ -88,6 +93,7 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     auto &serialized = tree.root()["scivisStudio"];
 
     REQUIRE(serialized["datasets"].child(0)->child("rootNode") == nullptr);
+    REQUIRE(serialized["datasets"].child(0)->child("sourceFiles") != nullptr);
     REQUIRE(serialized["shots"].child(0)->child("lightRigId") != nullptr);
     REQUIRE(serialized["shots"].child(0)->child("camera") == nullptr);
     REQUIRE(serialized["lightRigs"].child(0)->child("rootNode") == nullptr);
@@ -99,6 +105,9 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     {
       REQUIRE(loaded.datasets.size() == 1);
       REQUIRE(loaded.datasets.front().id == "dataset_0001");
+      REQUIRE(loaded.datasets.front().sourceFiles.size() == 2);
+      REQUIRE(loaded.datasets.front().sourceFiles.front().projectRelativePath
+          == "frames/frame_0001.raw");
       REQUIRE(loaded.shots.size() == 1);
       REQUIRE(loaded.shots.front().id == "shot_0001");
       REQUIRE(loaded.shots.front().lightRigId == "lightRig_0001");
@@ -116,6 +125,32 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
           == CameraInterpolation::EaseOutIn);
     }
   }
+}
+
+SCENARIO("SciVis Studio source file resolution prefers project-relative paths",
+    "[SciVisStudio]")
+{
+  const auto root =
+      std::filesystem::temp_directory_path() / "tsd_scivis_studio_source_paths";
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root / "frames");
+
+  const auto relativeFrame = root / "frames" / "frame_0001.raw";
+  {
+    std::ofstream out(relativeFrame);
+    out << "frame";
+  }
+
+  ProjectContext projectContext;
+  projectContext.project().projectDirectory = root;
+  DatasetSourceFile sourceFile;
+  sourceFile.absolutePath = "/missing/frame_0001.raw";
+  sourceFile.projectRelativePath = "frames/frame_0001.raw";
+
+  REQUIRE(projectContext.resolveSourceFilePath(sourceFile) == relativeFrame);
+  REQUIRE(projectContext.sourceFileIsRegular(sourceFile));
+
+  std::filesystem::remove_all(root);
 }
 
 SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")

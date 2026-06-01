@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <vector>
 
 namespace tsd::scivis_studio {
 
@@ -33,6 +34,15 @@ static tsd::scene::LayerNodeRef findDirectChild(
   }
 
   return {};
+}
+
+static bool hasChildNodes(tsd::scene::LayerNodeRef parent)
+{
+  if (!parent)
+    return false;
+
+  auto child = parent->next();
+  return child && child != parent;
 }
 
 ProjectContext::ProjectContext(tsd::app::Context *ctx) : m_ctx(ctx)
@@ -408,7 +418,10 @@ static DatasetSourceMetadata collectSourceMetadata(
   DatasetSourceMetadata metadata;
   std::error_code ec;
   auto absolute = std::filesystem::absolute(sourcePath, ec);
-  metadata.absolutePath = ec ? sourcePath.string() : absolute.string();
+  if (ec)
+    absolute = sourcePath;
+  absolute = absolute.lexically_normal();
+  metadata.absolutePath = absolute.string();
 
   if (!projectDirectory.empty()) {
     auto relative = std::filesystem::relative(absolute, projectDirectory, ec);
@@ -426,6 +439,15 @@ static DatasetSourceMetadata collectSourceMetadata(
   }
 
   return metadata;
+}
+
+static DatasetSourceFile sourceFileFromMetadata(
+    const DatasetSourceMetadata &metadata)
+{
+  return {metadata.absolutePath,
+      metadata.projectRelativePath,
+      metadata.fileSize,
+      metadata.modifiedTime};
 }
 
 Dataset *ProjectContext::addStaticDataset(const std::string &name,
@@ -471,6 +493,108 @@ Dataset *ProjectContext::addStaticDataset(const std::string &name,
   }
 
   (void)datasetIndex;
+  m_project.markDirty();
+  applyActiveShot();
+  return &record;
+}
+
+Dataset *ProjectContext::addFileAnimationDataset(const std::string &name,
+    const std::vector<std::filesystem::path> &sourcePaths,
+    tsd::io::ImporterType importerType,
+    const FileAnimationDatasetOptions &options)
+{
+  if (!m_ctx || sourcePaths.empty())
+    return nullptr;
+
+  Dataset dataset;
+  dataset.id = project::nextDatasetId(m_project);
+  dataset.name = name.empty() ? dataset.id : name;
+  dataset.sourceKind = DatasetSourceKind::TimeSeries;
+  dataset.importerType = toString(importerType);
+  dataset.status = DatasetStatus::Importing;
+  dataset.source =
+      collectSourceMetadata(sourcePaths.front(), m_project.projectDirectory);
+
+  std::vector<std::string> importPaths;
+  importPaths.reserve(sourcePaths.size());
+  dataset.sourceFiles.reserve(sourcePaths.size());
+  for (const auto &path : sourcePaths) {
+    auto metadata = collectSourceMetadata(path, m_project.projectDirectory);
+    dataset.sourceFiles.push_back(sourceFileFromMetadata(metadata));
+    importPaths.push_back(metadata.absolutePath);
+  }
+
+  auto datasetRoot = ensureChild(ensureDatasetsRoot(), dataset.id.c_str());
+  dataset.rootNode = refFor("studio", datasetRoot);
+
+  m_project.datasets.push_back(std::move(dataset));
+  auto &record = m_project.datasets.back();
+
+  try {
+    tsd::core::logStatus(
+        "[SciVisStudio] Importing file animation dataset '%s' with %zu frames",
+        record.name.c_str(),
+        importPaths.size());
+    tsd::io::import_animations(m_ctx->tsd.scene,
+        m_ctx->tsd.animationMgr,
+        {{importerType, importPaths}},
+        datasetRoot);
+
+    if (!hasChildNodes(datasetRoot)) {
+      record.status = DatasetStatus::ImportFailed;
+      tsd::core::logError(
+          "[SciVisStudio] File animation dataset import created no scene objects for '%s'",
+          record.name.c_str());
+    } else {
+      record.status = DatasetStatus::Available;
+      if (auto *activeShot = project::activeShot(m_project)) {
+        for (const auto &dataset : m_project.datasets) {
+          if (dataset.id == record.id
+              || dataset.sourceKind != DatasetSourceKind::TimeSeries)
+            continue;
+          const auto *binding =
+              shot::findDatasetBinding(*activeShot, dataset.id);
+          if (binding && binding->enabled
+              && dataset.sourceFiles.size() != sourcePaths.size()) {
+            tsd::core::logWarning(
+                "[SciVisStudio] Enabled file animation datasets have different frame counts: '%s' has %zu frames, '%s' has %zu frames",
+                dataset.name.c_str(),
+                dataset.sourceFiles.size(),
+                record.name.c_str(),
+                sourcePaths.size());
+          }
+        }
+      }
+      for (auto &shot : m_project.shots)
+        shot::setDatasetBinding(
+            shot, record.id, &shot == project::activeShot(m_project));
+
+      if (auto *activeShot = project::activeShot(m_project)) {
+        if (options.setActiveShotFrameCount)
+          activeShot->frameCount = static_cast<int>(sourcePaths.size());
+        activeShot->currentFrame = 0;
+        activeShot->playing = false;
+      }
+      syncAnimationManagerToActiveShot();
+      m_ctx->tsd.animationMgr.setAnimationFrame(0);
+      tsd::core::logStatus(
+          "[SciVisStudio] Imported file animation dataset '%s' (%zu frames)",
+          record.name.c_str(),
+          importPaths.size());
+    }
+  } catch (const std::exception &e) {
+    record.status = DatasetStatus::ImportFailed;
+    tsd::core::logError(
+        "[SciVisStudio] File animation dataset import failed for '%s': %s",
+        record.name.c_str(),
+        e.what());
+  } catch (...) {
+    record.status = DatasetStatus::ImportFailed;
+    tsd::core::logError(
+        "[SciVisStudio] File animation dataset import failed for '%s'",
+        record.name.c_str());
+  }
+
   m_project.markDirty();
   applyActiveShot();
   return &record;
@@ -717,13 +841,58 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
 void ProjectContext::markMissingDatasets()
 {
   for (auto &dataset : m_project.datasets) {
+    if (dataset.sourceKind == DatasetSourceKind::TimeSeries) {
+      const bool missingSource = dataset.sourceFiles.empty()
+          || std::any_of(dataset.sourceFiles.begin(),
+              dataset.sourceFiles.end(),
+              [this](const DatasetSourceFile &sourceFile) {
+                return !sourceFileIsRegular(sourceFile);
+              });
+      if (missingSource)
+        dataset.status = DatasetStatus::Missing;
+      continue;
+    }
+
     if (dataset.sourceKind != DatasetSourceKind::Static)
       continue;
 
-    if (!dataset.source.absolutePath.empty()
-        && !std::filesystem::exists(dataset.source.absolutePath))
+    DatasetSourceFile sourceFile{dataset.source.absolutePath,
+        dataset.source.projectRelativePath,
+        dataset.source.fileSize,
+        dataset.source.modifiedTime};
+    if (!sourceFile.absolutePath.empty() && !sourceFileIsRegular(sourceFile))
       dataset.status = DatasetStatus::Missing;
   }
+}
+
+std::filesystem::path ProjectContext::resolveSourceFilePath(
+    const DatasetSourceFile &sourceFile) const
+{
+  if (!sourceFile.projectRelativePath.empty()
+      && !m_project.projectDirectory.empty()) {
+    auto relativePath =
+        (m_project.projectDirectory / sourceFile.projectRelativePath)
+            .lexically_normal();
+    std::error_code ec;
+    if (std::filesystem::is_regular_file(relativePath, ec) && !ec)
+      return relativePath;
+  }
+
+  if (!sourceFile.absolutePath.empty())
+    return std::filesystem::path(sourceFile.absolutePath).lexically_normal();
+
+  return {};
+}
+
+bool ProjectContext::sourceFileIsRegular(
+    const DatasetSourceFile &sourceFile) const
+{
+  auto path = resolveSourceFilePath(sourceFile);
+  if (path.empty())
+    return false;
+
+  std::error_code ec;
+  return std::filesystem::is_regular_file(path, ec) && !ec;
 }
 
 void ProjectContext::refreshRuntimeRefs()

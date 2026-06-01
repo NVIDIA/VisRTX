@@ -10,8 +10,14 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace tsd::scivis_studio {
+
+struct FileAnimationDatasetOptions
+{
+  bool setActiveShotFrameCount{true};
+};
 
 struct ProjectContext
 {
@@ -29,6 +35,10 @@ struct ProjectContext
   Dataset *addStaticDataset(const std::string &name,
       const std::filesystem::path &sourcePath,
       tsd::io::ImporterType importerType);
+  Dataset *addFileAnimationDataset(const std::string &name,
+      const std::vector<std::filesystem::path> &sourcePaths,
+      tsd::io::ImporterType importerType,
+      const FileAnimationDatasetOptions &options = {});
   void applyActiveShot();
   void syncAnimationManagerToActiveShot();
 
@@ -50,6 +60,9 @@ struct ProjectContext
   tsd::scene::LayerNodeRef resolveDatasetRoot(Dataset &dataset);
   tsd::scene::LayerNodeRef resolveLightRigRoot(LightRig &rig);
   tsd::scene::Object *resolveShotCamera(Shot &shot);
+  std::filesystem::path resolveSourceFilePath(
+      const DatasetSourceFile &sourceFile) const;
+  bool sourceFileIsRegular(const DatasetSourceFile &sourceFile) const;
   LightRig *createLightRig(const std::string &name = "");
   bool removeLightRig(const LightRigID &id);
   tsd::scene::LayerNodeRef addLightToRig(

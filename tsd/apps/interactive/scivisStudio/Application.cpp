@@ -5,6 +5,7 @@
 
 #include "DefaultLayout.h"
 #include "RenderShot.h"
+#include "modals/AddFileAnimationDatasetDialog.h"
 #include "modals/AddStaticDatasetDialog.h"
 #include "modals/ProjectLocationDialog.h"
 #include "windows/CameraRigEditor.h"
@@ -176,6 +177,8 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
   m_projectLocationDialog = std::make_unique<ProjectLocationDialog>(this);
   m_addStaticDatasetDialog =
       std::make_unique<AddStaticDatasetDialog>(this, &m_projectContext);
+  m_addFileAnimationDatasetDialog =
+      std::make_unique<AddFileAnimationDatasetDialog>(this, &m_projectContext);
 
   if (!m_initialProjectDirectory.empty()) {
     if (!openProject(m_initialProjectDirectory)) {
@@ -476,6 +479,11 @@ void Application::showAddStaticDatasetDialog()
   m_addStaticDatasetDialog->show();
 }
 
+void Application::showAddFileAnimationDatasetDialog()
+{
+  m_addFileAnimationDatasetDialog->show();
+}
+
 void Application::showProjectLocationDialogForOpen()
 {
   m_projectLocationDialog->configure(ProjectLocationMode::OpenProject,
@@ -587,6 +595,12 @@ void Application::uiFrameStart()
     modalActive = true;
   }
 
+  if (m_addFileAnimationDatasetDialog
+      && m_addFileAnimationDatasetDialog->visible()) {
+    m_addFileAnimationDatasetDialog->renderUI();
+    modalActive = true;
+  }
+
   if (!io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space)) {
     if (auto *shot = project::activeShot(m_projectContext.project())) {
       animMgr.togglePlay();
@@ -628,8 +642,13 @@ void Application::uiMainMenuBar()
   }
 
   if (ImGui::BeginMenu("Studio")) {
-    if (ImGui::MenuItem("Add Static Dataset..."))
-      showAddStaticDatasetDialog();
+    if (ImGui::BeginMenu("Add Dataset")) {
+      if (ImGui::MenuItem("Static..."))
+        showAddStaticDatasetDialog();
+      if (ImGui::MenuItem("File Animation..."))
+        showAddFileAnimationDatasetDialog();
+      ImGui::EndMenu();
+    }
     if (ImGui::MenuItem("Add Shot"))
       m_projectContext.addShot();
     if (ImGui::MenuItem("Render Active Shot..."))

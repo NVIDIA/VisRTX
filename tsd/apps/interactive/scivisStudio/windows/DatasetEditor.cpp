@@ -5,6 +5,8 @@
 
 #include "imgui.h"
 
+#include <filesystem>
+
 namespace tsd::scivis_studio {
 
 DatasetEditor::DatasetEditor(
@@ -46,6 +48,35 @@ void DatasetEditor::buildUI()
   ImGui::Text("Source kind: %s", dataset::toString(dataset.sourceKind));
   ImGui::Text("Importer: %s", dataset.importerType.c_str());
   ImGui::TextWrapped("Path: %s", dataset.source.absolutePath.c_str());
+  if (dataset.sourceKind == DatasetSourceKind::TimeSeries) {
+    ImGui::Text("Frames: %zu", dataset.sourceFiles.size());
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth;
+    if (dataset.sourceFiles.size() <= 12)
+      flags |= ImGuiTreeNodeFlags_DefaultOpen;
+    const auto label =
+        "Source Files (" + std::to_string(dataset.sourceFiles.size()) + ")";
+    if (ImGui::TreeNodeEx(label.c_str(), flags)) {
+      for (size_t i = 0; i < dataset.sourceFiles.size(); ++i) {
+        const auto &sourceFile = dataset.sourceFiles[i];
+        const auto path = m_projectContext->resolveSourceFilePath(sourceFile);
+        const bool regular =
+            m_projectContext->sourceFileIsRegular(sourceFile);
+        const auto filename = path.empty()
+            ? std::filesystem::path(sourceFile.absolutePath).filename().string()
+            : path.filename().string();
+        const auto row = std::to_string(i) + "  " + filename;
+        if (!regular)
+          ImGui::PushStyleColor(
+              ImGuiCol_Text, ImVec4(1.f, 0.35f, 0.25f, 1.f));
+        ImGui::TextUnformatted(row.c_str());
+        if (ImGui::IsItemHovered())
+          ImGui::SetTooltip("%s", path.string().c_str());
+        if (!regular)
+          ImGui::PopStyleColor();
+      }
+      ImGui::TreePop();
+    }
+  }
   ImGui::Text("Root: %s/%zu",
       dataset.rootNode.layerName.c_str(),
       dataset.rootNode.nodeIndex);
