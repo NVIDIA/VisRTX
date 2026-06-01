@@ -50,12 +50,14 @@ void Quality::commitParameters()
 {
   Renderer::commitParameters();
   m_maxRayDepth = std::max(getParam<int>("maxRayDepth", 5), 1);
+  m_maxTransparencyDepth = std::max(getParam<int>("maxTransparencyDepth", 32), 0);
 }
 
 void Quality::populateFrameData(FrameGPUData &fd) const
 {
   Renderer::populateFrameData(fd);
   fd.renderer.params.quality.maxRayDepth = m_maxRayDepth;
+  fd.renderer.params.quality.maxTransparencyDepth = m_maxTransparencyDepth;
 }
 
 OptixModule Quality::optixModule() const

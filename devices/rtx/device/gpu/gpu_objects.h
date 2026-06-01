@@ -707,6 +707,7 @@ struct FastRendererGPUData
 struct QualityRendererGPUData
 {
   int maxRayDepth;
+  int maxTransparencyDepth;
 };
 
 struct InteractiveRendererGPUData

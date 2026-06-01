@@ -106,6 +106,16 @@
           "description": "Maximum number of ray bounces"
         },
         {
+          "name": "maxTransparencyDepth",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 32,
+          "minimum": 0,
+          "description": "Maximum number of stochastic alpha-coverage pass-throughs before a path ends; separate from maxRayDepth so deep cutout stacks do not consume the bounce budget"
+        },
+        {
           "name": "cutPlane",
           "types": [
             "ANARI_FLOAT32_VEC4"

@@ -319,8 +319,13 @@ VISRTX_GLOBAL void __raygen__()
 
     auto sampleContribution = vec3(1.0f);
 
-    for (int d = 0; d < qualityParams.maxRayDepth; ++d) {
-      const bool isFirstBounce = d == 0;
+    // Coverage pass-throughs are not light-transport events, so they track a
+    // separate, generous budget instead of spending bounceDepth — a deep stack
+    // of alpha cutouts must not starve the indirect-bounce budget.
+    int bounceDepth = 0;
+    int transparencyDepth = 0;
+    while (bounceDepth < qualityParams.maxRayDepth) {
+      const bool isFirstBounce = bounceDepth == 0 && transparencyDepth == 0;
 
       SurfaceHit surfaceHit = {};
       intersectSurface(ss,
@@ -375,7 +380,7 @@ VISRTX_GLOBAL void __raygen__()
         accumulateValue(sample.opacity, 1.0f, sample.opacity);
         sampleContribution *= volumeSample.albedo;
         if (shouldTerminatePath(ss,
-                d,
+                bounceDepth,
                 sampleContribution,
                 true,
                 RUSSIAN_ROULETTE_START_DEPTH_VOLUME,
@@ -399,6 +404,7 @@ VISRTX_GLOBAL void __raygen__()
 
         const vec3 scatterDir = randomDir(ss.rs);
         ray = Ray{scatterPos + scatterDir * VOLUME_SCATTER_EPSILON, scatterDir};
+        ++bounceDepth;
         continue;
       }
 
@@ -465,6 +471,8 @@ VISRTX_GLOBAL void __raygen__()
 
         // Resolve geometric alpha stochastically for the continuation
         if (pcg_uniform(&ss.rs) > opacity) {
+          if (++transparencyDepth > qualityParams.maxTransparencyDepth)
+            break;
           ray = Ray{surfaceHit.hitpoint - surfaceHit.Ng * surfaceHit.epsilon,
               ray.dir};
           continue;
@@ -476,7 +484,7 @@ VISRTX_GLOBAL void __raygen__()
         if (!continuesThroughSurface(nextRay))
           accumulateValue(sample.opacity, 1.0f, sample.opacity);
 
-        if (shouldTerminatePath(ss, d, sampleContribution, true))
+        if (shouldTerminatePath(ss, bounceDepth, sampleContribution, true))
           break;
 
         const float side = continuesThroughSurface(nextRay) ? -1.0f : 1.0f;
@@ -497,6 +505,10 @@ VISRTX_GLOBAL void __raygen__()
 
         break;
       }
+
+      // Only a surface bounce reaches here (volume scatter and coverage
+      // pass-through continue earlier, an environment miss breaks).
+      ++bounceDepth;
     }
 
     accumPixelSample(frameData, ss.pixel, sample);
