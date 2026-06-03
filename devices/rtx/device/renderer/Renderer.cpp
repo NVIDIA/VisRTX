@@ -541,6 +541,11 @@ void Renderer::initOptixPipeline()
     callableDescs[SBT_CALLABLE_MATTE_OFFSET
         + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
 
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluatePdf";
+    callableDescs[SBT_CALLABLE_MATTE_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluatePdf)] = callableDesc;
+
     // Physically Based
     callableDesc.callables.moduleDC =
         deviceState()->materialShaders.physicallyBased;
@@ -582,6 +587,11 @@ void Renderer::initOptixPipeline()
         "__direct_callable__shadeSurface";
     callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
         + int(SurfaceShaderEntryPoints::Shade)] = callableDesc;
+
+    callableDesc.callables.entryFunctionNameDC =
+        "__direct_callable__evaluatePdf";
+    callableDescs[SBT_CALLABLE_PHYSICALLYBASED_OFFSET
+        + int(SurfaceShaderEntryPoints::EvaluatePdf)] = callableDesc;
 
     // Spatial Field Samplers
     OptixProgramGroupDesc samplerDesc = {};
@@ -997,6 +1007,10 @@ void Renderer::initOptixPipeline()
 
         callableDesc.callables.entryFunctionNameDC =
             "__direct_callable__shadeSurface";
+        callableDescs.push_back(callableDesc);
+
+        callableDesc.callables.entryFunctionNameDC =
+            "__direct_callable__evaluatePdf";
         callableDescs.push_back(callableDesc);
       }
 

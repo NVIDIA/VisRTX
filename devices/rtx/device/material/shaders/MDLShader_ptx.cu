@@ -220,10 +220,23 @@ NextRay __direct_callable__nextRay(
       ? NEXT_RAY_CONTINUES_THROUGH_SURFACE
       : NEXT_RAY_NONE;
 
+  // Env-MIS solid-angle pdf for the sampled direction, matching
+  // __direct_callable__evaluatePdf so the balance heuristic partitions to 1.
+  // A specular (delta) lobe can't be evaluated by NEE, and a through-surface
+  // continuation is past the NEE hemisphere gate — both report +inf so the BSDF
+  // escape owns the environment (w_bsdf = 1). Glossy/diffuse reflections report
+  // the finite sampling pdf and are MIS-combined with NEE.
+  const bool isSpecular =
+      (sample_data.event_type & mi::neuraylib::BSDF_EVENT_SPECULAR) != 0;
+  const float pdf =
+      (isSpecular || (flags & NEXT_RAY_CONTINUES_THROUGH_SURFACE))
+      ? INFINITY
+      : sample_data.pdf;
   return NextRay{direction,
       vec3(sample_data.bsdf_over_pdf.x,
           sample_data.bsdf_over_pdf.y,
           sample_data.bsdf_over_pdf.z),
+      pdf,
       flags};
 }
 
@@ -274,4 +287,32 @@ VISRTX_CALLABLE
 vec3 __direct_callable__evaluateNormal(const MDLShadingState *shadingState)
 {
   return make_vec3(shadingState->state.normal);
+}
+
+// Env-MIS BSDF density at `wi` given outgoing `wo` (both world space): the
+// balance-heuristic light-side weight. mdlBsdf_evaluate fills `eval_data.pdf`
+// with the solid-angle sampling pdf, matching NextRay.pdf in nextRay (MDL's
+// evaluate-pdf and sample-pdf are the same density). A pure specular lobe
+// evaluates to pdf 0 (NEE can't reach a delta) — consistent with the escape
+// owning it via +inf. Mirrors shadeSurface's ior/k1/k2 setup exactly.
+VISRTX_CALLABLE float __direct_callable__evaluatePdf(
+    const MDLShadingState *shadingState, const vec3 *wo, const vec3 *wi)
+{
+  BsdfEvaluateData eval_data = {};
+  if (shadingState->isFrontFace) {
+    eval_data.ior1 = make_float3(1.0f, 1.0f, 1.0f);
+    eval_data.ior2.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+  } else {
+    eval_data.ior1.x = MI_NEURAYLIB_BSDF_USE_MATERIAL_IOR;
+    eval_data.ior2 = make_float3(1.0f, 1.0f, 1.0f);
+  }
+  eval_data.k1 = make_float3(normalize(*wo));
+  eval_data.k2 = make_float3(normalize(*wi));
+
+  mdlBsdf_evaluate(&eval_data,
+      &shadingState->state,
+      &shadingState->resData,
+      shadingState->argBlock);
+
+  return eval_data.pdf;
 }

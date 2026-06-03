@@ -403,12 +403,39 @@ VISRTX_DEVICE bool getBackgroundLight(
       // For orthonormal matrices, inverse = transpose
       const mat3 xfmInv = glm::transpose(mat3(hdriLight.xfm));
       const vec3 localRayDir = xfmInv * rayDir;
-      outRadiance += sampleHDRI(light, localRayDir);
+      // sampleHDRI applies hdri.scale; tint by light.color to match the NEE
+      // radiance in sampleHDRILight (raw * hdri.scale * color), so env MIS
+      // deposits identical radiance on the NEE and BSDF-escape sides.
+      outRadiance += sampleHDRI(light, localRayDir) * light.color;
       hasVisibleHDRI = true;
     }
   }
 
   return hasVisibleHDRI;
+}
+
+// Solid-angle sampling pdf of the visible HDRI environment(s) at `rayDir`, used
+// as the light-sampling density on the escape side of environment MIS. It must
+// match the NEE importance pdf in sampleHDRILight exactly: raw-texel luminance
+// (NO scale/color) times pdfWeight, with the same instance/HDRI transform chain
+// as getBackgroundLight. Summed over visible HDRIs — exact for the single-HDRI
+// case, a mixture-pdf approximation when several are visible.
+VISRTX_DEVICE float envPdf(const FrameGPUData &fd, const vec3 &rayDir)
+{
+  float pdf = 0.0f;
+  for (size_t i = 0; i < fd.world.numHdriLightInstances; i++) {
+    const auto &hdriLight = fd.world.hdriLightInstances[i];
+    const auto &light = fd.registry.lights[hdriLight.lightIndex];
+    if (!light.hdri.visible)
+      continue;
+    const vec3 localRayDir = glm::transpose(mat3(hdriLight.xfm)) * rayDir;
+    const vec3 d = light.hdri.xfm * localRayDir;
+    const vec2 thetaPhi = sphericalCoordsFromDirection(d);
+    const vec2 uv = vec2(thetaPhi.y / kTwoPi, thetaPhi.x / kPi);
+    pdf += dot(sampleHDRI(light, uv), vec3(0.2126f, 0.7152f, 0.0722f))
+        * light.hdri.pdfWeight;
+  }
+  return pdf;
 }
 
 VISRTX_DEVICE uint32_t computeGeometryPrimId(const SurfaceHit &hit)

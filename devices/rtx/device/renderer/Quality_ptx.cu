@@ -126,7 +126,16 @@ VISRTX_DEVICE bool shouldTerminatePath(ScreenSample &ss,
   return false;
 }
 
-VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
+// A NEE light sample plus whether the picked light is the HDRI environment —
+// the environment is the only light type whose contribution the BSDF escape can
+// also reach, so it is the only one that needs an MIS weight (env MIS).
+struct SurfaceLightSample
+{
+  LightSample ls;
+  bool isEnv;
+};
+
+VISRTX_DEVICE SurfaceLightSample sampleLights(ScreenSample &ss,
     const FrameGPUData &frameData,
     const vec3 &origin,
     const vec3 &normal)
@@ -154,18 +163,21 @@ VISRTX_DEVICE LightSample sampleLights(ScreenSample &ss,
     // Fold the hemisphere-sample pdf cos(theta)/pi with the uniform light pick.
     const vec3 dir = sampleHemisphere(ss.rs, normal);
     const float cosNs = fmaxf(0.f, dot(dir, normal));
-    return LightSample{
-        rendererParams.ambientColor * rendererParams.ambientIntensity,
-        dir,
-        std::numeric_limits<float>::max(),
-        lightPickPdf * cosNs * kInvPi,
-    };
+    return {LightSample{
+                rendererParams.ambientColor * rendererParams.ambientIntensity,
+                dir,
+                std::numeric_limits<float>::max(),
+                lightPickPdf * cosNs * kInvPi,
+            },
+        false};
   } else {
     const auto &lightInstance = world.lightInstances[selectedIdx];
     auto ls =
         sampleLight(ss, origin, lightInstance.lightIndex, lightInstance.xfm);
     ls.pdf *= lightPickPdf;
-    return ls;
+    const bool isEnv = frameData.registry.lights[lightInstance.lightIndex].type
+        == LightType::HDRI;
+    return {ls, isEnv};
   }
 }
 
@@ -319,6 +331,20 @@ VISRTX_GLOBAL void __raygen__()
 
     auto sampleContribution = vec3(1.0f);
 
+    // The environment (visible HDRI lights) is sampled both by NEE at every
+    // scatter vertex (HDRIs are in the light list) and by a BSDF ray that
+    // escapes to it. Balance-heuristic MIS combines the two: `bsdfPdf` carries
+    // the solid-angle pdf of the bounce that produced the current ray, so the
+    // miss can weight the escape estimator by bsdfPdf/(bsdfPdf + pLight). The
+    // primary ray is a delta event (the directly visible backdrop), so it
+    // starts at +inf => w_bsdf = 1.
+    float bsdfPdf = INFINITY;
+
+    // Number of NEE light strata (instances + ambient), matching sampleLights'
+    // uniform pick. Folded into the env light density on both MIS sides.
+    const float numLights = float(frameData.world.numLightInstances
+        + (frameData.renderer.ambientIntensity > 0.0f));
+
     // Coverage pass-throughs are not light-transport events, so they track a
     // separate, generous budget instead of spending bounceDepth — a deep stack
     // of alpha cutouts must not starve the indirect-bounce budget.
@@ -404,6 +430,10 @@ VISRTX_GLOBAL void __raygen__()
 
         const vec3 scatterDir = randomDir(ss.rs);
         ray = Ray{scatterPos + scatterDir * VOLUME_SCATTER_EPSILON, scatterDir};
+        // The volume NEE above already sampled the environment at this scatter
+        // point, so the continuation ray must not re-deposit it on a miss
+        // (bsdfPdf = 0 => w_bsdf = 0). Env MIS for volumes is left as-is.
+        bsdfPdf = 0.0f;
         ++bounceDepth;
         continue;
       }
@@ -439,8 +469,9 @@ VISRTX_GLOBAL void __raygen__()
         // bump-mapped surfaces.
         const vec3 shadowOrigin =
             shadingHitpoint(surfaceHit) + surfaceHit.Ng * surfaceHit.epsilon;
-        LightSample lightSample =
+        const SurfaceLightSample lightPick =
             sampleLights(ss, frameData, shadowOrigin, surfaceHit.Ns);
+        const LightSample &lightSample = lightPick.ls;
         if (lightSample.pdf >= ATTENUATION_EPSILON && lightSample.dist > 0.0f) {
           // Gate on the shading normal so the terminator follows the smooth
           // surface; gating on Ng would carve the per-triangle facet shape
@@ -449,8 +480,23 @@ VISRTX_GLOBAL void __raygen__()
           if (lightDotNs > 0.0f) {
             const vec3 directLight = materialShadeSurface(
                 shadingState, surfaceHit, lightSample, -ray.dir);
+            // Env MIS: only the HDRI environment can also be reached by the
+            // BSDF escape, so only it gets a balance-heuristic weight. The
+            // light density uses envPdf on BOTH sides (here and at the miss),
+            // not lightSample.pdf, so wNee and wBsdf use identical pdf functions
+            // and partition to 1 exactly — unbiased regardless of how closely
+            // envPdf tracks the NEE importance pdf (the NEE estimator still
+            // divides by its true lightSample.pdf inside materialShadeSurface).
+            // Other light types: p_bsdf = 0 => w_nee = 1 (behaviour unchanged).
+            float wNee = 1.0f;
+            if (lightPick.isEnv) {
+              const float pBsdf =
+                  materialEvalPdf(shadingState, -ray.dir, lightSample.dir);
+              const float pLight = envPdf(frameData, lightSample.dir) / numLights;
+              wNee = pLight / (pLight + pBsdf);
+            }
             const vec3 contribUpper =
-                sampleContribution * opacity * directLight;
+                wNee * sampleContribution * opacity * directLight;
             const float maxContrib = glm::max(
                 contribUpper.x, glm::max(contribUpper.y, contribUpper.z));
             constexpr float SHADOW_SKIP_EPSILON = 1.0e-5f;
@@ -481,6 +527,12 @@ VISRTX_GLOBAL void __raygen__()
         auto nextRay = materialNextRay(shadingState, ray, ss.rs);
         sampleContribution *= nextRay.contributionWeight;
 
+        // Carry the bounce's solid-angle pdf for the env-MIS weight at a miss.
+        // Reflection/diffuse lobes report a finite pdf (MIS-combined with NEE);
+        // a transmission lobe reports +inf (NEE can't reach the env behind the
+        // surface, so the escape owns it => w_bsdf = 1).
+        bsdfPdf = nextRay.pdf;
+
         if (!continuesThroughSurface(nextRay))
           accumulateValue(sample.opacity, 1.0f, sample.opacity);
 
@@ -494,9 +546,16 @@ VISRTX_GLOBAL void __raygen__()
       }
 
       if (!surfaceHit.foundHit && !volumeSample.didScatter) {
-        // Sample the environment as a final bounce
+        // Deposit the environment, MIS-weighted against NEE. pLight mirrors the
+        // NEE env density: the HDRI importance pdf (envPdf) folded with the same
+        // uniform 1/numLights light pick sampleLights applied. bsdfPdf == +inf
+        // (delta / transmission / primary ray) => w_bsdf = 1.
         if (vec3 hdri; getBackgroundLight(frameData, ray.dir, hdri)) {
-          sample.color += sampleContribution * hdri;
+          const float pLight =
+              numLights > 0.0f ? envPdf(frameData, ray.dir) / numLights : 0.0f;
+          const float wBsdf =
+              isinf(bsdfPdf) ? 1.0f : bsdfPdf / (bsdfPdf + pLight);
+          sample.color += wBsdf * sampleContribution * hdri;
           accumulateValue(sample.opacity, 1.f, sample.opacity);
         }
 

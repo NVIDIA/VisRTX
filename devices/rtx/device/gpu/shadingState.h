@@ -61,6 +61,12 @@ struct NextRay
 {
   vec3 direction;
   vec3 contributionWeight;
+  // Solid-angle pdf of `direction`, used for balance-heuristic environment MIS.
+  // +inf marks a lobe whose env contribution the escape estimator owns outright
+  // (primary ray, transmission); 0 marks a dead ray. Must equal the value the
+  // material's EvaluatePdf callable returns for the same direction on the
+  // reflection side, so NEE-side and escape-side MIS weights partition to 1.
+  float pdf{INFINITY};
   uint32_t flags{NEXT_RAY_NONE};
 };
 

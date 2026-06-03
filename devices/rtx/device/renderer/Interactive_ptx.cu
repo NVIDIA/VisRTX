@@ -117,8 +117,20 @@ struct InteractiveShadingPolicy
               glm::lessThanEqual(attenuation, vec3(MIN_CONTRIBUTION_EPSILON))))
         continue;
 
-      const vec3 thisLightContrib =
+      vec3 thisLightContrib =
           materialShadeSurface(shadingState, hit, lightSample, -ray.dir);
+
+      // Environment MIS (balance heuristic): the HDRI is the only light the
+      // indirect bounce's escape can also reach, so combine the NEE and escape
+      // estimators instead of summing them (which double-counted the env).
+      // Interactive loops all lights with no pick, so pLight = envPdf (NO
+      // 1/numLights). Non-env lights keep wNee = 1 (behaviour unchanged).
+      if (frameData.registry.lights[light.lightIndex].type == LightType::HDRI) {
+        const float pLight = envPdf(frameData, lightSample.dir);
+        const float pBsdf =
+            materialEvalPdf(shadingState, -ray.dir, lightSample.dir);
+        thisLightContrib *= pLight / (pLight + pBsdf);
+      }
 
       contrib += thisLightContrib * attenuation;
     }
@@ -151,8 +163,17 @@ struct InteractiveShadingPolicy
         contrib += color * nextRay.contributionWeight;
       } else {
         vec3 hdri;
-        if (getBackgroundLight(frameData, bounceRay.dir, hdri))
-          contrib += hdri * nextRay.contributionWeight;
+        if (getBackgroundLight(frameData, bounceRay.dir, hdri)) {
+          // Env MIS escape side: weight the BSDF-sampled escape by the same
+          // balance heuristic as the NEE loop (pLight = envPdf, no 1/numLights).
+          // A delta / through-surface lobe reports +inf => wBsdf = 1; here the
+          // bounce is reflection-only so nextRay.pdf is finite.
+          const float pLight = envPdf(frameData, bounceRay.dir);
+          const float wBsdf = isinf(nextRay.pdf)
+              ? 1.0f
+              : nextRay.pdf / (nextRay.pdf + pLight);
+          contrib += wBsdf * hdri * nextRay.contributionWeight;
+        }
       }
     }
 

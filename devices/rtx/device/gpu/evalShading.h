@@ -119,13 +119,31 @@ VISRTX_DEVICE NextRay materialNextRay(
 {
   if (shadingState.callableBaseIndex
       == ~DeviceObjectIndex(0)) // No next ray by default
-    return NextRay{vec3(0.0f), vec3(0.0f)};
+    return NextRay{vec3(0.0f), vec3(0.0f), 0.0f};
 
   return optixDirectCall<NextRay>(shadingState.callableBaseIndex
           + int(SurfaceShaderEntryPoints::EvaluateNextRay),
       &shadingState.data,
       &ray,
       &rs);
+}
+
+// Solid-angle pdf the material's BSDF sampler would assign to direction `wi`
+// given outgoing direction `wo` (both world space), for environment MIS. 0 for
+// no material and for materials whose sampler cannot produce `wi` (e.g. Matte,
+// which has no continuation ray).
+VISRTX_DEVICE float materialEvalPdf(const MaterialShadingState &shadingState,
+    const vec3 &wo,
+    const vec3 &wi)
+{
+  if (shadingState.callableBaseIndex == ~DeviceObjectIndex(0))
+    return 0.0f;
+
+  return optixDirectCall<float>(shadingState.callableBaseIndex
+          + int(SurfaceShaderEntryPoints::EvaluatePdf),
+      &shadingState.data,
+      &wo,
+      &wi);
 }
 
 VISRTX_DEVICE vec3 materialShadeSurface(
