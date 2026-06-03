@@ -9,6 +9,7 @@ project_sources(PRIVATE
   modals/AppSettingsDialog.cpp
   modals/BlockingTaskModal.cpp
   modals/ExportNanoVDBFileDialog.cpp
+  modals/ObjectFileDialog.cpp
   modals/OfflineRenderModal.cpp
   modals/ImportFileDialog.cpp
   modals/Modal.cpp

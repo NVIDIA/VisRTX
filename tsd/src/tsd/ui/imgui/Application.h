@@ -10,6 +10,7 @@
 #include "modals/CuttingPlaneDialog.h"
 #include "modals/ExportNanoVDBFileDialog.h"
 #include "modals/ImportFileDialog.h"
+#include "modals/ObjectFileDialog.h"
 #include "modals/OfflineRenderModal.h"
 #include "modals/VorticityDialog.h"
 // tsd_app
@@ -87,6 +88,11 @@ class Application
   void showTaskModalWithCancel(FUNCTION &&f, const char *text = "Please Wait");
   void showImportFileDialog();
   void showExportNanoVDBFileDialog();
+  void showImportObjectFileDialog(
+      TSDObjectFileType fileType, tsd::scene::LayerNodeRef importRoot);
+  void showExportObjectFileDialog(TSDObjectFileType fileType,
+      anari::DataType objectType,
+      size_t objectIndex);
   void saveDefaultApplicationSettings();
 
   ExtensionManager *extensionManager() const;
@@ -162,6 +168,7 @@ class Application
   std::unique_ptr<OfflineRenderModal> m_offlineRenderModal;
   std::unique_ptr<ImportFileDialog> m_fileDialog;
   std::unique_ptr<ExportNanoVDBFileDialog> m_exportNanoVDBFileDialog;
+  std::unique_ptr<ObjectFileDialog> m_objectFileDialog;
   std::unique_ptr<VorticityDialog> m_vorticityDialog;
   std::unique_ptr<CuttingPlaneDialog> m_cuttingPlaneDialog;
 

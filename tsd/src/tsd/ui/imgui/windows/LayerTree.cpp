@@ -684,8 +684,8 @@ void LayerTree::buildUI_objectSceneMenu()
           tsd::scene::GeometryRef g;
 #define OBJECT_UI_MENU_ITEM(text, subtype)                                     \
   if (ImGui::MenuItem(text)) {                                                 \
-    g = scene.createObject<tsd::scene::Geometry>(                               \
-        tsd::scene::tokens::geometry::subtype);                                 \
+    g = scene.createObject<tsd::scene::Geometry>(                              \
+        tsd::scene::tokens::geometry::subtype);                                \
   }
           OBJECT_UI_MENU_ITEM("cone", cone);
           OBJECT_UI_MENU_ITEM("curve", curve);
@@ -771,6 +771,37 @@ void LayerTree::buildUI_objectSceneMenu()
         m_app->showImportFileDialog();
 
       ImGui::EndMenu();
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::BeginMenu("import TSD")) {
+      if (ImGui::MenuItem("volume"))
+        m_app->showImportObjectFileDialog(TSDObjectFileType::Volume, menuNode);
+
+      if (ImGui::MenuItem("surface"))
+        m_app->showImportObjectFileDialog(TSDObjectFileType::Surface, menuNode);
+
+      ImGui::EndMenu();
+    }
+
+    auto *menuObject = nodeSelected && (*menuNode)->isObject()
+        ? (*menuNode)->getObject()
+        : nullptr;
+    bool canExport = menuObject
+        && (menuObject->type() == ANARI_VOLUME
+            || menuObject->type() == ANARI_SURFACE);
+
+    if (canExport) {
+      ImGui::Separator();
+      if (ImGui::MenuItem("export TSD")) {
+        auto exportType = menuObject->type() == ANARI_VOLUME
+            ? TSDObjectFileType::Volume
+            : TSDObjectFileType::Surface;
+
+        m_app->showExportObjectFileDialog(
+            exportType, menuObject->type(), menuObject->index());
+      }
     }
 
     if (nodeSelected) {

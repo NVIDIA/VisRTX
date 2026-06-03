@@ -172,6 +172,19 @@ void Application::showExportNanoVDBFileDialog()
   m_exportNanoVDBFileDialog->show();
 }
 
+void Application::showImportObjectFileDialog(
+    TSDObjectFileType fileType, tsd::scene::LayerNodeRef importRoot)
+{
+  m_objectFileDialog->showImport(fileType, importRoot);
+}
+
+void Application::showExportObjectFileDialog(TSDObjectFileType fileType,
+    anari::DataType objectType,
+    size_t objectIndex)
+{
+  m_objectFileDialog->showExport(fileType, objectType, objectIndex);
+}
+
 void Application::saveDefaultApplicationSettings()
 {
   saveGlobalApplicationSettings();
@@ -373,6 +386,7 @@ WindowArray Application::setupWindows()
   m_offlineRenderModal = std::make_unique<OfflineRenderModal>(this);
   m_fileDialog = std::make_unique<ImportFileDialog>(this);
   m_exportNanoVDBFileDialog = std::make_unique<ExportNanoVDBFileDialog>(this);
+  m_objectFileDialog = std::make_unique<ObjectFileDialog>(this);
   m_vorticityDialog = std::make_unique<VorticityDialog>(this);
   m_cuttingPlaneDialog = std::make_unique<CuttingPlaneDialog>(this);
 
@@ -456,6 +470,11 @@ void Application::uiFrameStart()
   // Handle app shortcuts //
   if (m_exportNanoVDBFileDialog->visible()) {
     m_exportNanoVDBFileDialog->renderUI();
+    modalActive = true;
+  }
+
+  if (m_objectFileDialog->visible()) {
+    m_objectFileDialog->renderUI();
     modalActive = true;
   }
 

@@ -63,6 +63,7 @@ PRIVATE
   serialization/NanoVdbSidecar.cpp
   serialization/export_SceneToUSD.cpp
   serialization/serialization_datatree.cpp
+  serialization/serialization_object.cpp
 )
 
 project_include_directories(

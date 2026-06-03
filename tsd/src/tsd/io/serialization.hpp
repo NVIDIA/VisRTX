@@ -38,6 +38,8 @@ namespace schema {
 inline constexpr std::string_view SCENE_FULL = "tsd.scene.full";
 inline constexpr std::string_view SCENE_CAMERAS_AND_RENDERERS =
     "tsd.scene.cameras-and-renderers";
+inline constexpr std::string_view OBJECT_SURFACE = "tsd.object.surface";
+inline constexpr std::string_view OBJECT_VOLUME = "tsd.object.volume";
 
 } // namespace schema
 
@@ -117,6 +119,13 @@ void load_SceneCamerasAndRenderers(Scene &scene, const char *filename);
 void load_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root);
 PayloadValidationResult validate_SceneCamerasAndRenderersPayload(core::DataNode &root);
 bool tryLoad_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root, PayloadValidationResult *result = nullptr);
+bool export_Object(const char *filename, const Object &obj);
+Object *import_Object(Scene &scene, const char *filename);
+SurfaceRef import_Surface(Scene &scene, const char *filename);
+VolumeRef import_Volume(Scene &scene, const char *filename);
+PayloadValidationResult validate_ObjectPayload(core::DataNode &root);
+PayloadValidationResult validate_SurfacePayload(core::DataNode &root);
+PayloadValidationResult validate_VolumePayload(core::DataNode &root);
 
 void export_SceneToUSD(
     Scene &scene, const char *filename, int framesPerSecond = 30, tsd::animation::AnimationManager *animMgr = nullptr);

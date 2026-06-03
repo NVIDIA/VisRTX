@@ -8,6 +8,33 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/io/serialization.hpp"
 #include "tsd/scene/Scene.hpp"
+// std
+#include <cstdio>
+#include <string>
+#include <vector>
+
+namespace {
+
+std::string testFile(const char *name)
+{
+  return std::string("/tmp/") + name;
+}
+
+void removeTestFile(const std::string &filename)
+{
+  std::remove(filename.c_str());
+}
+
+tsd::scene::ArrayRef makeFloatArray(
+    tsd::scene::Scene &scene, const char *name, const std::vector<float> &values)
+{
+  auto array = scene.createArray(ANARI_FLOAT32, values.size());
+  array->setName(name);
+  array->setData(values);
+  return array;
+}
+
+} // namespace
 
 SCENARIO("tsd::io camera and renderer subset serialization", "[Serialization]")
 {
@@ -230,6 +257,388 @@ SCENARIO("tsd::io scene payload metadata validation", "[Serialization]")
         REQUIRE(target.numberOfLayers() == 1);
         REQUIRE(target.layer("keep_me") != nullptr);
       }
+    }
+  }
+}
+
+SCENARIO("tsd::io surface object serialization", "[Serialization]")
+{
+  GIVEN("A surface with geometry, material, sampler, array data, and metadata")
+  {
+    tsd::scene::Scene source;
+    source.createSurface("unused_surface");
+
+    auto positions =
+        makeFloatArray(source, "positions", {1.f, 2.f, 3.f, 4.f, 5.f, 6.f});
+    positions->setMetadataValue("stride", 12);
+
+    auto texture = makeFloatArray(source, "texture", {0.25f, 0.5f, 0.75f});
+
+    auto sampler =
+        source.createObject<tsd::scene::Sampler>(tsd::scene::tokens::sampler::image1D);
+    sampler->setName("albedo_sampler");
+    sampler->setParameterObject("image", *texture);
+
+    auto geometry =
+        source.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::triangle);
+    geometry->setName("mesh_geometry");
+    auto *positionParam = geometry->setParameterObject("vertex.position", *positions);
+    positionParam->setDescription("positions").setEnabled(false);
+    geometry->setMetadataValue("positionBuffer",
+        tsd::core::Any(positions->type(), positions->index()));
+
+    auto material =
+        source.createObject<tsd::scene::Material>(tsd::scene::tokens::material::matte);
+    material->setName("sampled_material");
+    material->removeAllParameters();
+    material->setParameterObject("color", *sampler);
+    material->setParameter("roughness", 0.35f);
+    material->setMetadataValue("samplerRef",
+        tsd::core::Any(sampler->type(), sampler->index()));
+
+    auto surface = source.createSurface("root_surface", geometry, material);
+    surface->setMetadataValue("priority", 9);
+    surface->setMetadataValue("geometryRef",
+        tsd::core::Any(geometry->type(), geometry->index()));
+
+    const auto filename = testFile("tsd_surface_object_roundtrip.tsd");
+    removeTestFile(filename);
+
+    WHEN("the surface is exported and imported into a non-empty scene")
+    {
+      REQUIRE(tsd::io::export_Object(filename.c_str(), *surface));
+
+      tsd::core::DataTree exportedTree;
+      REQUIRE(exportedTree.load(filename.c_str()));
+
+      THEN("the payload is tagged as a surface object with local root index 0")
+      {
+        auto metadata = tsd::core::readDataTreeMetadata(exportedTree.root());
+        REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(metadata.metadata);
+        REQUIRE(metadata.metadata->fileType == "object");
+        REQUIRE(metadata.metadata->schema
+            == std::string(tsd::io::schema::OBJECT_SURFACE));
+
+        auto *rootObject = exportedTree.root().child("rootObject");
+        REQUIRE(rootObject);
+        REQUIRE(rootObject->getValue().type() == ANARI_SURFACE);
+        REQUIRE(rootObject->getValue().getAsObjectIndex() == 0);
+
+        auto *surfaceNode =
+            exportedTree.root().child("objectDB")->child("surface")->child(0);
+        REQUIRE(surfaceNode);
+        REQUIRE(surfaceNode->child("self")->getValue().type() == ANARI_SURFACE);
+        REQUIRE(surfaceNode->child("self")->getValue().getAsObjectIndex()
+            == 0);
+      }
+
+      tsd::scene::Scene target;
+      auto existingGeometry =
+          target.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+      existingGeometry->setName("preexisting_geometry");
+      target.addLayer("keep_me");
+
+      auto imported = tsd::io::import_Surface(target, filename.c_str());
+
+      THEN("the import appends objects without creating layers")
+      {
+        REQUIRE(imported);
+        REQUIRE(target.numberOfLayers() == 1);
+        REQUIRE(target.layer("keep_me") != nullptr);
+        REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 2);
+        REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == 2);
+        REQUIRE(target.numberOfObjects(ANARI_SAMPLER) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_ARRAY) == 2);
+      }
+
+      THEN("surface dependencies, metadata, data, and sharing round-trip")
+      {
+        REQUIRE(imported->name() == "root_surface");
+        REQUIRE(imported->getMetadataValue("priority").getAs<int>() == 9);
+
+        auto *importedGeometry = imported->geometry();
+        auto *importedMaterial = imported->material();
+        REQUIRE(importedGeometry);
+        REQUIRE(importedMaterial);
+        REQUIRE(importedGeometry->name() == "mesh_geometry");
+        REQUIRE(importedMaterial->name() == "sampled_material");
+
+        auto geometryMetadata =
+            imported->getMetadataValue("geometryRef");
+        REQUIRE(geometryMetadata.holdsObject());
+        REQUIRE(geometryMetadata.getAsObjectIndex()
+            == importedGeometry->index());
+
+        auto *positionParam = importedGeometry->parameter("vertex.position");
+        REQUIRE(positionParam);
+        REQUIRE(!positionParam->isEnabled());
+        REQUIRE(positionParam->description() == "positions");
+
+        auto *importedPositions =
+            importedGeometry->parameterValueAsObject<tsd::scene::Array>(
+                "vertex.position");
+        REQUIRE(importedPositions);
+        REQUIRE(importedPositions->name() == "positions");
+        REQUIRE(importedPositions->getMetadataValue("stride").getAs<int>()
+            == 12);
+        REQUIRE(importedPositions->size() == 6);
+        const auto *positionData = importedPositions->dataAs<float>();
+        REQUIRE(positionData[0] == 1.f);
+        REQUIRE(positionData[5] == 6.f);
+
+        auto *importedSampler =
+            importedMaterial->parameterValueAsObject<tsd::scene::Sampler>(
+                "color");
+        REQUIRE(importedSampler);
+        auto *importedTexture =
+            importedSampler->parameterValueAsObject<tsd::scene::Array>("image");
+        REQUIRE(importedTexture);
+        REQUIRE(importedTexture->name() == "texture");
+        REQUIRE(importedTexture->dataAs<float>()[2] == 0.75f);
+
+        auto samplerMetadata = importedMaterial->getMetadataValue("samplerRef");
+        REQUIRE(samplerMetadata.holdsObject());
+        REQUIRE(samplerMetadata.getAsObjectIndex() == importedSampler->index());
+      }
+    }
+
+    removeTestFile(filename);
+  }
+}
+
+SCENARIO("tsd::io volume object serialization", "[Serialization]")
+{
+  GIVEN("A volume with a spatial field, transfer function arrays, and metadata")
+  {
+    tsd::scene::Scene source;
+
+    auto fieldData = makeFloatArray(source, "field_data", {0.f, 1.f, 2.f, 3.f});
+    auto colors = makeFloatArray(source, "tf_colors", {1.f, 0.f, 0.f, 1.f});
+    auto opacity = makeFloatArray(source, "tf_opacity", {0.f, 1.f});
+
+    auto field = source.createObject<tsd::scene::SpatialField>(
+        tsd::scene::tokens::spatial_field::structuredRegular);
+    field->setName("density_field");
+    field->setParameterObject("data", *fieldData);
+    field->setMetadataValue("sourceData",
+        tsd::core::Any(fieldData->type(), fieldData->index()));
+
+    auto sampler =
+        source.createObject<tsd::scene::Sampler>(tsd::scene::tokens::sampler::image1D);
+    sampler->setName("tf_sampler");
+    sampler->setParameterObject("image", *colors);
+
+    auto volume = source.createObject<tsd::scene::Volume>(
+        tsd::scene::tokens::volume::transferFunction1D);
+    volume->setName("root_volume");
+    volume->removeAllParameters();
+    volume->setParameterObject("value", *field);
+    volume->setParameterObject("color", *sampler);
+    volume->setParameterObject("opacity", *opacity);
+    volume->setMetadataValue("fieldRef",
+        tsd::core::Any(field->type(), field->index()));
+
+    const auto filename = testFile("tsd_volume_object_roundtrip.tsd");
+    removeTestFile(filename);
+
+    WHEN("the volume is exported and imported into a non-empty scene")
+    {
+      REQUIRE(tsd::io::export_Object(filename.c_str(), *volume));
+
+      tsd::core::DataTree exportedTree;
+      REQUIRE(exportedTree.load(filename.c_str()));
+      REQUIRE(tsd::io::validate_VolumePayload(exportedTree.root()).accepted());
+
+      tsd::scene::Scene target;
+      target.createObject<tsd::scene::SpatialField>(
+          tsd::scene::tokens::spatial_field::structuredRegular);
+
+      auto imported = tsd::io::import_Volume(target, filename.c_str());
+
+      THEN("the imported volume preserves field, arrays, metadata, and refs")
+      {
+        REQUIRE(imported);
+        REQUIRE(imported->name() == "root_volume");
+        REQUIRE(target.numberOfObjects(ANARI_VOLUME) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_SPATIAL_FIELD) == 2);
+        REQUIRE(target.numberOfObjects(ANARI_ARRAY) == 3);
+
+        auto *importedField =
+            imported->parameterValueAsObject<tsd::scene::SpatialField>("value");
+        REQUIRE(importedField);
+        REQUIRE(importedField->name() == "density_field");
+
+        auto fieldRef = imported->getMetadataValue("fieldRef");
+        REQUIRE(fieldRef.holdsObject());
+        REQUIRE(fieldRef.getAsObjectIndex() == importedField->index());
+
+        auto *importedData =
+            importedField->parameterValueAsObject<tsd::scene::Array>("data");
+        REQUIRE(importedData);
+        REQUIRE(importedData->dataAs<float>()[3] == 3.f);
+
+        auto sourceData = importedField->getMetadataValue("sourceData");
+        REQUIRE(sourceData.holdsObject());
+        REQUIRE(sourceData.getAsObjectIndex() == importedData->index());
+
+        auto *importedSampler =
+            imported->parameterValueAsObject<tsd::scene::Sampler>("color");
+        REQUIRE(importedSampler);
+        auto *importedColors =
+            importedSampler->parameterValueAsObject<tsd::scene::Array>("image");
+        REQUIRE(importedColors);
+        REQUIRE(importedColors->name() == "tf_colors");
+        REQUIRE(importedColors->dataAs<float>()[0] == 1.f);
+
+        auto *importedOpacity =
+            imported->parameterValueAsObject<tsd::scene::Array>("opacity");
+        REQUIRE(importedOpacity);
+        REQUIRE(importedOpacity->name() == "tf_opacity");
+      }
+    }
+
+    removeTestFile(filename);
+  }
+}
+
+SCENARIO("tsd::io object payload validation failures", "[Serialization]")
+{
+  GIVEN("A full scene payload")
+  {
+    tsd::scene::Scene scene;
+    tsd::core::DataTree tree;
+    tsd::io::save_Scene(scene, tree.root(), false);
+    const auto filename = testFile("tsd_full_scene_rejected_by_object_import.tsd");
+    removeTestFile(filename);
+    REQUIRE(tree.save(filename.c_str()));
+
+    THEN("object import validators reject it")
+    {
+      auto result = tsd::io::validate_ObjectPayload(tree.root());
+      REQUIRE(!result.accepted());
+      REQUIRE(result.status == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+
+      tsd::scene::Scene target;
+      const auto before = target.numberOfObjects(ANARI_MATERIAL);
+      REQUIRE(tsd::io::import_Object(target, filename.c_str()) == nullptr);
+      REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == before);
+    }
+
+    removeTestFile(filename);
+  }
+
+  GIVEN("A surface object file")
+  {
+    tsd::scene::Scene source;
+    auto geometry =
+        source.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+    auto material =
+        source.createObject<tsd::scene::Material>(tsd::scene::tokens::material::matte);
+    auto surface = source.createSurface("surface", geometry, material);
+
+    const auto filename = testFile("tsd_invalid_surface_object.tsd");
+    removeTestFile(filename);
+    REQUIRE(tsd::io::export_Object(filename.c_str(), *surface));
+
+    tsd::core::DataTree tree;
+    REQUIRE(tree.load(filename.c_str()));
+
+    WHEN("an extra unreferenced object is present")
+    {
+      auto &extra =
+          tree.root()["objectDB"]["geometry"].append();
+      tsd::io::objectToNode(*geometry, extra);
+      extra["self"] = tsd::core::Any(ANARI_GEOMETRY, size_t(1));
+
+      THEN("validation rejects the payload")
+      {
+        auto result = tsd::io::validate_SurfacePayload(tree.root());
+        REQUIRE(!result.accepted());
+        REQUIRE(result.status == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+      }
+    }
+
+    removeTestFile(filename);
+  }
+
+  GIVEN("A surface payload with a disallowed volume pool")
+  {
+    tsd::core::DataTree tree;
+    auto &root = tree.root();
+    tsd::core::writeDataTreeMetadata(root,
+        {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+            "object",
+            std::string(tsd::io::schema::OBJECT_SURFACE),
+            1});
+    root["rootObject"] = tsd::core::Any(ANARI_SURFACE, size_t(0));
+    auto &surfaceNode = root["objectDB"]["surface"].append();
+    surfaceNode["name"] = "surface";
+    surfaceNode["self"] = tsd::core::Any(ANARI_SURFACE, size_t(0));
+    surfaceNode["subtype"] = "";
+    auto &volumeNode = root["objectDB"]["volume"].append();
+    volumeNode["name"] = "volume";
+    volumeNode["self"] = tsd::core::Any(ANARI_VOLUME, size_t(0));
+    volumeNode["subtype"] = tsd::scene::tokens::volume::transferFunction1D.c_str();
+
+    THEN("validation rejects the disallowed pool")
+    {
+      auto result = tsd::io::validate_SurfacePayload(root);
+      REQUIRE(!result.accepted());
+      REQUIRE(result.status == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+    }
+  }
+}
+
+SCENARIO("tsd::io object export failures", "[Serialization]")
+{
+  GIVEN("An unsupported root object type")
+  {
+    tsd::scene::Scene scene;
+    auto geometry =
+        scene.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+
+    THEN("export fails")
+    {
+      REQUIRE_FALSE(tsd::io::export_Object(
+          testFile("tsd_unsupported_object.tsd").c_str(), *geometry));
+    }
+  }
+
+  GIVEN("A surface reaching a proxy array")
+  {
+    tsd::scene::Scene scene;
+    auto proxy = scene.createArrayProxy(ANARI_FLOAT32, 4);
+    auto geometry =
+        scene.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+    geometry->setParameterObject("primitive.radius", *proxy);
+    auto material =
+        scene.createObject<tsd::scene::Material>(tsd::scene::tokens::material::matte);
+    auto surface = scene.createSurface("surface", geometry, material);
+
+    THEN("export fails because object files must be self-contained")
+    {
+      REQUIRE_FALSE(tsd::io::export_Object(
+          testFile("tsd_proxy_array_object.tsd").c_str(), *surface));
+    }
+  }
+
+  GIVEN("A surface reaching an object-typed array")
+  {
+    tsd::scene::Scene scene;
+    auto objectArray = scene.createArray(ANARI_SURFACE, 1);
+    auto geometry =
+        scene.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+    geometry->setParameterObject("surface.ids", *objectArray);
+    auto material =
+        scene.createObject<tsd::scene::Material>(tsd::scene::tokens::material::matte);
+    auto surface = scene.createSurface("surface", geometry, material);
+
+    THEN("export fails because object-valued array data cannot be remapped")
+    {
+      REQUIRE_FALSE(tsd::io::export_Object(
+          testFile("tsd_object_typed_array_object.tsd").c_str(), *surface));
     }
   }
 }
