@@ -10,6 +10,7 @@
 #include "tsd/scene/Scene.hpp"
 // std
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -17,7 +18,7 @@ namespace {
 
 std::string testFile(const char *name)
 {
-  return std::string("/tmp/") + name;
+  return (std::filesystem::temp_directory_path() / name).string();
 }
 
 void removeTestFile(const std::string &filename)
