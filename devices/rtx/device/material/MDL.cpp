@@ -345,9 +345,11 @@ void MDL::syncParameters()
         if (sampler) {
           // Find a valid slot for out sampler.
           // Check if this input if already bound and then release it
-          auto it = std::find_if(begin(m_samplers), end(m_samplers), [&name](const SamplerDesc &desc) {
-            return desc.name == name;
-          });
+          auto it = std::find_if(begin(m_samplers),
+              end(m_samplers),
+              [&paramName = name](const SamplerDesc &desc) {
+                return desc.name == paramName;
+              });
           if (it != end(m_samplers)) {
             // Found, release
             if (it->sampler) {
