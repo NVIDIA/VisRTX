@@ -178,9 +178,8 @@ void Application::showImportObjectFileDialog(
   m_objectFileDialog->showImport(fileType, importRoot);
 }
 
-void Application::showExportObjectFileDialog(TSDObjectFileType fileType,
-    anari::DataType objectType,
-    size_t objectIndex)
+void Application::showExportObjectFileDialog(
+    TSDObjectFileType fileType, anari::DataType objectType, size_t objectIndex)
 {
   m_objectFileDialog->showExport(fileType, objectType, objectIndex);
 }
@@ -374,7 +373,6 @@ WindowArray Application::setupWindows()
 
   auto *window = sdlWindow();
   SDL_MaximizeWindow(window);
-  m_uiConfig.fontScale = SDL_GetWindowDisplayScale(window);
 
   setupImGuiStyle();
 
@@ -1207,8 +1205,8 @@ void Application::AppImpl::init(Uint32 windowFlags)
 
   SDL_ShowWindow(sdlWindow);
 
-  const float scale = SDL_GetWindowPixelDensity(sdlWindow);
-  SDL_SetRenderScale(sdlRenderer, scale, scale);
+  float pixelDensity = SDL_GetWindowPixelDensity(sdlWindow);
+  SDL_SetRenderScale(sdlRenderer, pixelDensity, pixelDensity);
 
   ImGui::CreateContext();
   ImGui::StyleColorsDark();
@@ -1219,6 +1217,7 @@ void Application::AppImpl::init(Uint32 windowFlags)
   ImGuiIO &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+  io.DisplayFramebufferScale = ImVec2(pixelDensity, pixelDensity);
 
   ImGuiStyle &style = ImGui::GetStyle();
   if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
