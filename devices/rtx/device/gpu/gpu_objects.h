@@ -166,16 +166,16 @@ struct SDFPrimitive
 
 struct SDFGeometryData
 {
-  const SDFPrimitive *geometries{nullptr};
-  const uint64_t *neighbours{nullptr};
-  uint32_t numGeometries{0};
-  float epsilon{1e-5f};
-  uint32_t nbMarchIterations{128};
-  float blendFactor{1.f};
-  float blendLerpFactor{0.5f};
-  float omega{1.f};
-  float distanceFromCamera{100.f};
-  float noiseFactor{0.f}; // [0,1]: 0=no noise, 1=max organic surface noise
+  const SDFPrimitive *geometries;
+  const uint64_t *neighbours;
+  uint32_t numGeometries;
+  float epsilon;
+  uint32_t nbMarchIterations;
+  float blendFactor;
+  float blendLerpFactor;
+  float omega;
+  float distanceFromCamera;
+  float noiseFactor; // [0,1]: 0=no noise, 1=max organic surface noise
 };
 
 struct AttributeData
