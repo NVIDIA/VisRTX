@@ -93,6 +93,7 @@ struct Renderer : public Object
   FireflyFilterMode m_fireflyFilterMode{FireflyFilterMode::TONEMAP};
   float m_fireflyFilterSigma{8.f}; // CLAMP mode: k in cap = mean + k*stddev
   int m_fireflyFilterWarmup{4}; // CLAMP mode: samples before the Welford cap
+  int m_fireflyFilterTrim{4}; // TRIM mode: brightest samples tracked/tested (ESD bound)
   int m_sampleLimit{0};
   bool m_cullTriangleBF{false};
   bool m_premultiplyBackground{false};

@@ -73,6 +73,102 @@ __device__ bool resolveSample(uint32_t idx,
   return divisor > 0;
 }
 
+// One-sided (upper) trimmed mean -- the TRIM mode. A robust per-pixel estimator:
+// a trimmed mean (Tukey 1962; Huber 1981) whose outlier set is chosen by a
+// Grubbs / generalized-ESD test (Grubbs 1969; Rosner 1983), accumulated online
+// with Welford (Welford 1962); an a-posteriori per-pixel sample-outlier rejector
+// in the DeCoro et al. 2010 lineage. See the commit message for the full mapping
+// and the two deliberate deviations from textbook ESD.
+//
+// `sum` is the running total of all `n` samples (the colorAccumulation value,
+// undivided); `topK` holds the `trim` brightest samples the pixel saw (rgb in
+// xyz, luminance in w, w < 0 = empty); `lum` carries the pixel's luminance
+// Welford (mean in mean.x, M2 in m2.x).
+//
+// A sample is dropped when its luminance exceeds the threshold mean + k*stddev,
+// with the spread (stddev) estimated over the BASE samples -- the bulk with the
+// tracked brightest removed. This is the ESD masking fix: one spike otherwise
+// inflates its own sigma enough to exempt itself, so a moderate k never fires.
+// Leaving the candidates out of the scale keeps the threshold tied to the
+// well-behaved bulk so a genuine spike stands out even at large k.
+//
+// Two refinements keep this from darkening the image at low spp -- the one real
+// drawback of the plain version, where with few samples the tracked brightest
+// are a large fraction, the base mean collapses below the true level, and even
+// legitimate bright samples get dropped:
+//   * the threshold is centred on the FULL mean, not the base mean, so it cannot
+//     fall below the true level when the base excludes the bright fraction;
+//   * the number of samples actually dropped is capped at ~n/4, so at low spp at
+//     most the single most extreme spike is removed (it ramps to the full trim
+//     as samples accumulate) -- a large trim fraction can no longer gut the
+//     estimate. The brightest tracked samples are dropped first.
+// Clean pixels have nothing above the threshold and resolve to the exact mean;
+// the dropped fraction -> 0 with spp (consistent estimator).
+__device__ vec3 resolveTrimmed(
+    const vec4 *topK, vec3 sum, const PixelLumStats &lum, int trim, float kSigma)
+{
+  constexpr int MAX_TRIM = 8;
+  if (trim > MAX_TRIM)
+    trim = MAX_TRIM;
+
+  const int n = int(lum.n);
+  if (n <= 0)
+    return vec3(0.f);
+  if (n < 3)
+    return sum / float(n);
+
+  // Full-distribution luminance moments, from the Welford accumulators.
+  const float meanFull = lum.mean.x;
+  const float sumL = meanFull * lum.n;
+  const float sumL2 = lum.m2.x + lum.n * meanFull * meanFull;
+
+  // Gather the tracked brightest, sorted by luminance descending (<= 8 elems),
+  // and accumulate their moments to subtract from the base spread estimate.
+  float topW[MAX_TRIM];
+  vec3 topRGB[MAX_TRIM];
+  float sumTop = 0.0f, sumTop2 = 0.0f;
+  int v = 0;
+  for (int i = 0; i < trim; ++i) {
+    if (topK[i].w < 0.0f)
+      continue;
+    sumTop += topK[i].w;
+    sumTop2 += topK[i].w * topK[i].w;
+    float w = topK[i].w;
+    vec3 rgb = vec3(topK[i]);
+    int j = v - 1;
+    for (; j >= 0 && topW[j] < w; --j) {
+      topW[j + 1] = topW[j];
+      topRGB[j + 1] = topRGB[j];
+    }
+    topW[j + 1] = w;
+    topRGB[j + 1] = rgb;
+    ++v;
+  }
+  const int nB = n - v;
+  if (nB < 2) // too few base samples to estimate a spread
+    return sum / float(n);
+
+  const float baseSum = sumL - sumTop;
+  const float meanB = baseSum / float(nB);
+  const float baseM2 = fmaxf(sumL2 - sumTop2 - meanB * baseSum, 0.0f);
+  const float sigmaB = sqrtf(baseM2 / float(nB - 1));
+  const float threshold = meanFull + kSigma * sigmaB;
+
+  // Drop at most ~n/4 samples (>=1), brightest first, ramping the trim fraction
+  // in with the sample count.
+  const int maxDrop = min(min(trim, n - 1), max(1, n / 4));
+  vec3 dropSum(0.f);
+  int dropCount = 0;
+  for (int i = 0; i < v && dropCount < maxDrop; ++i) {
+    if (topW[i] <= threshold)
+      break; // sorted descending: nothing below is above the threshold either
+    dropSum += topRGB[i];
+    ++dropCount;
+  }
+
+  return (sum - dropSum) / float(n - dropCount);
+}
+
 __global__ void prepareDenoiseInputs(const vec4 *__restrict__ accumColor,
     const vec3 *__restrict__ accumAlbedo,
     const vec3 *__restrict__ accumNormal,
@@ -82,7 +178,11 @@ __global__ void prepareDenoiseInputs(const vec4 *__restrict__ accumColor,
     uvec2 size,
     int frameID,
     int checkerboardID,
-    FireflyFilterMode fireflyFilterMode)
+    FireflyFilterMode fireflyFilterMode,
+    const vec4 *__restrict__ trimTopK,
+    const PixelLumStats *__restrict__ lumStats,
+    int trim,
+    float sigma)
 {
   const uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= size.x * size.y)
@@ -101,8 +201,16 @@ __global__ void prepareDenoiseInputs(const vec4 *__restrict__ accumColor,
 
   const float invDivisor = 1.0f / float(divisor);
   vec4 c = accumColor[srcIdx] * invDivisor;
-  if (fireflyFilterMode == FireflyFilterMode::TONEMAP)
+  if (fireflyFilterMode == FireflyFilterMode::TONEMAP) {
     c = detail::inverseTonemap(c);
+  } else if (fireflyFilterMode == FireflyFilterMode::TRIM && trimTopK) {
+    c = vec4(resolveTrimmed(trimTopK + size_t(srcIdx) * trim,
+                 vec3(accumColor[srcIdx]),
+                 lumStats[srcIdx],
+                 trim,
+                 sigma),
+        c.a);
+  }
   denoiseInput[idx] = c;
 
   if (denoiseAlbedo)
@@ -126,6 +234,10 @@ void launchPrepareDenoiseInputs(const vec4 *accumColor,
     int frameID,
     int checkerboardID,
     FireflyFilterMode fireflyFilterMode,
+    const vec4 *trimTopK,
+    const PixelLumStats *lumStats,
+    int trim,
+    float sigma,
     cudaStream_t stream)
 {
   const uint32_t nPixels = size.x * size.y;
@@ -140,7 +252,11 @@ void launchPrepareDenoiseInputs(const vec4 *accumColor,
       size,
       frameID,
       checkerboardID,
-      fireflyFilterMode);
+      fireflyFilterMode,
+      trimTopK,
+      lumStats,
+      trim,
+      sigma);
 }
 
 __global__ void compositeBackground(vec4 *__restrict__ accumColor,
@@ -152,7 +268,9 @@ __global__ void compositeBackground(vec4 *__restrict__ accumColor,
     FrameFormat format,
     int frameID,
     int checkerboardID,
-    bool isDenoised)
+    bool isDenoised,
+    const vec4 *__restrict__ trimTopK,
+    const PixelLumStats *__restrict__ lumStats)
 {
   const uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= size.x * size.y)
@@ -176,8 +294,18 @@ __global__ void compositeBackground(vec4 *__restrict__ accumColor,
     rendered.a = accumColor[sourceIdx].a / float(divisor);
   } else {
     rendered = accumColor[sourceIdx] / float(divisor);
-    if (renderer.fireflyFilterMode == FireflyFilterMode::TONEMAP)
+    if (renderer.fireflyFilterMode == FireflyFilterMode::TONEMAP) {
       rendered = detail::inverseTonemap(rendered);
+    } else if (renderer.fireflyFilterMode == FireflyFilterMode::TRIM
+        && trimTopK) {
+      rendered = vec4(
+          resolveTrimmed(trimTopK + size_t(sourceIdx) * renderer.fireflyFilterTrim,
+              vec3(accumColor[sourceIdx]),
+              lumStats[sourceIdx],
+              renderer.fireflyFilterTrim,
+              renderer.fireflyFilterSigma),
+          rendered.a);
+    }
   }
 
   const vec2 uv = (vec2(px, py) + 0.5f) * invSize;
@@ -217,6 +345,8 @@ void launchCompositeBackground(vec4 *accumColor,
     int frameID,
     int checkerboardID,
     bool isDenoised,
+    const vec4 *trimTopK,
+    const PixelLumStats *lumStats,
     cudaStream_t stream)
 {
   const uint32_t nPixels = size.x * size.y;
@@ -231,7 +361,9 @@ void launchCompositeBackground(vec4 *accumColor,
       format,
       frameID,
       checkerboardID,
-      isDenoised);
+      isDenoised,
+      trimTopK,
+      lumStats);
 }
 
 } // anonymous namespace
@@ -499,6 +631,18 @@ void Frame::renderFrame()
   m_camera->populateFrameData(hd.camera, hd.fb.size);
   hd.world = m_world->gpuData();
 
+  // The TRIM top-k buffer is `trim` times the color buffer, so allocate it only
+  // while that mode is active. trim is a renderer parameter, hence resolved
+  // here rather than in finalize(). newFrame() clears it on accumulation reset.
+  if (hd.renderer.fireflyFilterMode == FireflyFilterMode::TRIM) {
+    m_trimTopK.reserve(
+        numPixels() * size_t(hd.renderer.fireflyFilterTrim) * sizeof(vec4));
+    hd.fb.buffers.trimTopK = m_trimTopK.ptrAs<vec4>();
+  } else {
+    m_trimTopK.reset();
+    hd.fb.buffers.trimTopK = nullptr;
+  }
+
   hd.registry.samplers = state.registry.samplers.devicePtr();
   hd.registry.geometries = state.registry.geometries.devicePtr();
   hd.registry.materials = state.registry.materials.devicePtr();
@@ -548,6 +692,10 @@ void Frame::renderFrame()
         hd.fb.frameID,
         hd.fb.checkerboardID,
         hd.renderer.fireflyFilterMode,
+        m_trimTopK.ptrAs<vec4>(),
+        m_lumStats.ptrAs<PixelLumStats>(),
+        hd.renderer.fireflyFilterTrim,
+        hd.renderer.fireflyFilterSigma,
         state.stream);
 
     m_denoiser.launch();
@@ -562,6 +710,8 @@ void Frame::renderFrame()
         hd.fb.frameID,
         hd.fb.checkerboardID,
         /*isDenoised=*/true,
+        m_trimTopK.ptrAs<vec4>(),
+        m_lumStats.ptrAs<PixelLumStats>(),
         state.stream);
 
     m_denoiser.convertOutput();
@@ -579,6 +729,8 @@ void Frame::renderFrame()
         hd.fb.frameID,
         hd.fb.checkerboardID,
         /*isDenoised=*/false,
+        m_trimTopK.ptrAs<vec4>(),
+        m_lumStats.ptrAs<PixelLumStats>(),
         state.stream);
   }
 
@@ -910,6 +1062,12 @@ void Frame::newFrame()
     thrust::fill_n(thrust::device_pointer_cast(m_lumStats.ptrAs<PixelLumStats>()),
         numPixels(),
         PixelLumStats{vec3(0.0f), vec3(0.0f), 0.0f});
+    if (hd.renderer.fireflyFilterMode == FireflyFilterMode::TRIM
+        && m_trimTopK.ptrAs<vec4>()) {
+      thrust::fill_n(thrust::device_pointer_cast(m_trimTopK.ptrAs<vec4>()),
+          numPixels() * size_t(hd.renderer.fireflyFilterTrim),
+          vec4(0.0f, 0.0f, 0.0f, -1.0f)); // w<0 marks an empty top-k slot
+    }
 
     // Conditionally initialize other buffers
     if (channelDepth) {

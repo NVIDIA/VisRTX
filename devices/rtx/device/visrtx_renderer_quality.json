@@ -59,9 +59,10 @@
           "values": [
             "none",
             "tonemap",
-            "clamp"
+            "clamp",
+            "trim"
           ],
-          "description": "per-sample firefly suppression: none, tonemap (reversible Reinhard round-trip), clamp (Welford luminance clamp)"
+          "description": "removes bright speckle (firefly) noise: none (off), tonemap (aggressive; strongest suppression but can dim the image), clamp (moderate; caps only the brightest outlier samples), trim (gentlest; energy-preserving, discards only detected outliers)"
         },
         {
           "name": "fireflyFilterSigma",
@@ -71,7 +72,28 @@
           "tags": [],
           "default": 8.0,
           "minimum": 0.0,
-          "description": "clamp mode: k in cap = mean + k*stddev (sigma estimated from clamped samples); lower = more aggressive clamping"
+          "description": "clamp/trim mode: outlier sensitivity; lower removes more aggressively"
+        },
+        {
+          "name": "fireflyFilterWarmup",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 4,
+          "minimum": 1,
+          "description": "clamp mode: samples observed before filtering starts; higher delays filtering but estimates the cap more reliably"
+        },
+        {
+          "name": "fireflyFilterTrim",
+          "types": [
+            "ANARI_INT32"
+          ],
+          "tags": [],
+          "default": 4,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "trim mode: how many outlier samples to track per pixel; higher is more robust but uses more memory"
         },
         {
           "name": "premultiplyBackground",

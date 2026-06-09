@@ -784,7 +784,8 @@ enum class FireflyFilterMode
 {
   NONE, // accumulate raw radiance (unbiased)
   TONEMAP, // reversible Reinhard round-trip (legacy; dims highlights)
-  CLAMP // per-pixel Welford luminance clamp (energy-preserving)
+  CLAMP, // per-pixel Welford luminance clamp (energy-preserving)
+  TRIM // adaptive upper-trimmed mean (consistent; near-unbiased at high spp)
 };
 
 union RendererBackgroundGPUData
@@ -806,8 +807,9 @@ struct RendererGPUData
   bool cullTriangleBF;
   bool premultiplyBackground;
   FireflyFilterMode fireflyFilterMode; // per-sample outlier suppression strategy
-  float fireflyFilterSigma; // CLAMP mode: k in cap = mean + k*stddev
+  float fireflyFilterSigma; // CLAMP/TRIM: k in threshold = mean + k*stddev
   int fireflyFilterWarmup; // CLAMP mode: samples before the Welford cap engages
+  int fireflyFilterTrim; // TRIM mode: count of brightest samples tracked/trimmed
   glm::vec4 cutPlane; // cutting plane (nx,ny,nz,d); disabled when all zero (GPU
                       // default)
 };
@@ -826,18 +828,25 @@ enum class FrameFormat
 // channel so a single-channel (chromatic) outlier is caught even when its
 // luminance is unremarkable. `n` is the shared sample count — kept here because
 // checkerboarding makes frameID a poor proxy for "how many samples this pixel
-// has seen".
+// has seen". CLAMP uses all three channels; TRIM uses only the luminance Welford
+// in channel x and reads n as its sample divisor.
 struct PixelLumStats
 {
   glm::vec3 mean; // per-channel running mean
   glm::vec3 m2; // per-channel sum of squared deltas
-  float n; // sample count (shared across channels)
+  float n; // sample count (shared across channels and with TRIM)
 };
 
 struct FrameBuffers
 {
   glm::vec4 *colorAccumulation;
   PixelLumStats *lumStats;
+  // TRIM mode: the `trim` brightest samples seen per pixel, laid out
+  // [pixel*trim + slot] as (rgb in xyz, luminance in w; w < 0 marks an empty
+  // slot). At resolve the trimmed mean removes the outliers among these from
+  // the running colorAccumulation sum, so it needs only O(trim) memory per
+  // pixel. The sample count lives in lumStats->n.
+  glm::vec4 *trimTopK;
   float *depth;
   uint32_t *primID;
   uint32_t *objID;

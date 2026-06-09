@@ -85,6 +85,8 @@ static FireflyFilterMode parseFireflyFilterMode(const std::string &mode)
     return FireflyFilterMode::TONEMAP;
   if (mode == "clamp")
     return FireflyFilterMode::CLAMP;
+  if (mode == "trim")
+    return FireflyFilterMode::TRIM;
   return FireflyFilterMode::NONE;
 }
 
@@ -186,6 +188,11 @@ void Renderer::commitParameters()
   m_fireflyFilterSigma =
       std::max(0.f, getParam<float>("fireflyFilterSigma", 8.f));
   m_fireflyFilterWarmup = std::max(1, getParam<int>("fireflyFilterWarmup", 4));
+  // TRIM tracks this many of the brightest samples per pixel and trims the ones
+  // a base-excluding threshold flags as outliers. Small: per-pixel memory is
+  // trim*vec4 and a handful covers the firefly count of any one pixel.
+  m_fireflyFilterTrim =
+      std::clamp(getParam<int>("fireflyFilterTrim", 4), 1, 8);
   m_sampleLimit = getParam<int>("sampleLimit", 128);
   m_cullTriangleBF = getParam<bool>("cullTriangleBackfaces", false);
   m_volumeSamplingRate =
@@ -231,6 +238,7 @@ void Renderer::populateFrameData(FrameGPUData &fd) const
   fd.renderer.fireflyFilterMode = m_fireflyFilterMode;
   fd.renderer.fireflyFilterSigma = m_fireflyFilterSigma;
   fd.renderer.fireflyFilterWarmup = m_fireflyFilterWarmup;
+  fd.renderer.fireflyFilterTrim = m_fireflyFilterTrim;
   fd.renderer.inverseVolumeSamplingRate = 1.f / m_volumeSamplingRate;
   fd.renderer.numIterations = std::max(m_spp, 1);
   fd.renderer.premultiplyBackground = m_premultiplyBackground;

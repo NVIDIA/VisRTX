@@ -122,6 +122,7 @@ struct Frame : public helium::BaseFrame, public DeviceObject<FrameGPUData>
   DeviceBuffer m_accumAlbedo; // vec3
   DeviceBuffer m_accumNormal; // vec3
   DeviceBuffer m_lumStats; // PixelLumStats: per-channel Welford + count
+  DeviceBuffer m_trimTopK; // TRIM mode: trim*vec4 brightest samples per pixel
 
   // Per-pixel pre-denoise estimates. Keeping these separate from pixelBuffer
   // avoids the denoiser reading its own previous output on non-rendered

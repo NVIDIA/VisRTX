@@ -580,6 +580,42 @@ VISRTX_DEVICE void accumPixelSample(const FrameGPUData &frame,
         frame.renderer.fireflyFilterSigma,
         frame.renderer.fireflyFilterWarmup);
     break;
+  case FireflyFilterMode::TRIM:
+    // Accumulate the raw sample (colorAccumulation keeps the running sum) while
+    // tracking the `trim` brightest samples this pixel has seen and a luminance
+    // Welford. The trimmed mean at resolve removes only the tracked samples
+    // that a base-excluding threshold flags as outliers, so clean pixels drop
+    // nothing (exact mean) and the dropped fraction -> 0 with spp.
+    if (fb.buffers.trimTopK) {
+      const int trim = frame.renderer.fireflyFilterTrim;
+      const float L = luminance(vec3(color));
+      // A non-finite sample poisons the Welford mean/variance and drives the
+      // resolve threshold to inf, so nothing ever trims and the pixel stays
+      // non-finite forever. Drop it outright -- the very firefly TRIM exists to
+      // suppress must not survive into colorAccumulation.
+      if (glm::isnan(L) || glm::isinf(L))
+        return;
+      vec4 *slots = fb.buffers.trimTopK + size_t(idx) * trim;
+      int minSlot = 0;
+      float minL = slots[0].w;
+      for (int i = 1; i < trim; ++i) {
+        if (slots[i].w < minL) {
+          minL = slots[i].w;
+          minSlot = i;
+        }
+      }
+      if (L > minL)
+        slots[minSlot] = vec4(vec3(color), L);
+
+      PixelLumStats &s = fb.buffers.lumStats[idx];
+      const float n = s.n + 1.f;
+      const float delta = L - s.mean.x;
+      s.mean.x += delta / n;
+      s.m2.x += delta * (L - s.mean.x);
+      s.n = n;
+    }
+    c = color;
+    break;
   default:
     c = color;
     break;
