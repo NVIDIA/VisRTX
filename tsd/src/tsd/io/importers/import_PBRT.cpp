@@ -2045,26 +2045,44 @@ static void convertLight(Scene &scene,
   } else if (type == "infinite") {
     auto light = scene.createObject<Light>(tokens::light::hdri);
     const auto filename = params.getString("filename");
+    ArrayRef radiance;
     if (!filename.empty()) {
       try {
         auto fullPath = pbrt::resolveScenePath(basePath, filename);
-        if (auto arr = loadInfiniteRadiance(scene, fullPath))
-          light->setParameterObject("radiance", *arr);
+        radiance = loadInfiniteRadiance(scene, fullPath);
       } catch (const std::exception &e) {
         logWarning("[import_PBRT] infinite light: %s", e.what());
       }
     }
 
-    auto color =
-        applyScale(params, resolveEmissionColor(params, "L"), exposureScale);
+    float3 color(1.f);
+    if (radiance) {
+      // HDRI-driven: PBRT v4 layers blackbody/rgb L and `scale` on top of
+      // the image. Carry that as the `color` multiplier.
+      color = applyScale(params, resolveEmissionColor(params, "L"), exposureScale);
+    } else {
+      // Filename-less / load failure: bake the resolved emission directly
+      // into a 1x1 radiance pixel so `radiance` carries the actual light.
+      float3 baked =
+          applyScale(params, resolveEmissionColor(params, "L"), exposureScale);
+      radiance = scene.createArray(ANARI_FLOAT32_VEC3, 1, 1);
+      radiance->setData(&baked);
+    }
+    light->setParameterObject("radiance", *radiance);
     light->setParameter("color", ANARI_FLOAT32_VEC3, &color);
     light->setParameter("layout", "equirectangular");
 
     // PBRT's image-based infinite light uses +Z up in its local frame
     // (the equal-area mapping's center is +Z); after conversion to
     // equirectangular we keep that convention. lightToWorld's columns 0
-    // and 2 give the world-space "direction" and "up" axes.
-    const float3 dir = safeNormalize(
+    // and 2 give the world-space light-local +X and +Z axes.
+    //
+    // ANARI hdri light: `direction` is built into the device-side basis as
+    // `frame.right = -normalize(direction)` (both VisRTX' HDRI.cpp and
+    // OSPRay's HDRILight.cpp do this), so image u=0 maps to world
+    // `-direction`. To put PBRT's light-local +X at u=0, we pass the
+    // *negated* CTM column 0 — otherwise the HDRI yaws 180°.
+    const float3 dir = -safeNormalize(
         float3(xfm[0][0], xfm[0][1], xfm[0][2]), float3(1.f, 0.f, 0.f));
     const float3 up = safeNormalize(
         float3(xfm[2][0], xfm[2][1], xfm[2][2]), float3(0.f, 0.f, 1.f));
