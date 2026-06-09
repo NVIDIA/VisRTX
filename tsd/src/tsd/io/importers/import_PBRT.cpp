@@ -648,6 +648,130 @@ static SurfaceRef makeShapeSurface(
   return scene.createSurface(geom->name().c_str(), geom, mat);
 }
 
+// NanoVDB volume conversion ///////////////////////////////////////////////////
+
+// Build a default RGBA color ramp for a transferFunction1D volume:
+// constant base color, linear opacity 0..max. PBRT volumetric extinction
+// would be `(sigma_a + sigma_s) * scale` integrated along rays; ANARI's
+// transferFunction1D collapses extinction into a per-voxel opacity lookup,
+// so we just clamp the ramp peak to 1.
+static ArrayRef makeVolumeColorRamp(
+    Scene &scene, const float3 &baseColor, float maxOpacity)
+{
+  constexpr int kRampSize = 256;
+  auto arr = scene.createArray(ANARI_FLOAT32_VEC4, kRampSize);
+  auto *out = arr->mapAs<float4>();
+  const float aMax = std::clamp(maxOpacity, 0.f, 1.f);
+  for (int i = 0; i < kRampSize; ++i) {
+    const float t = float(i) / float(kRampSize - 1);
+    out[i] = float4(baseColor.x, baseColor.y, baseColor.z, t * aMax);
+  }
+  arr->unmap();
+  return arr;
+}
+
+// PBRT v4 NanoVDB medium → ANARI Volume. Skips the bounding surface entirely
+// (its only role in PBRT is to delimit the volume region). The shape's
+// objectToWorld places the unit-extent NanoVDB grid in world space.
+static bool convertNanoVdbMediumShape(Scene &scene,
+    const pbrt::Shape &shape,
+    const pbrt::MediumDef &medium,
+    LayerNodeRef parent,
+    const std::string &basePath,
+    std::map<std::string, SpatialFieldRef> &fieldCache,
+    const std::string &mediumName)
+{
+  const auto filename = medium.params.getString("filename");
+  if (filename.empty()) {
+    logWarning(
+        "[import_PBRT] nanovdb medium '%s' missing filename", mediumName.c_str());
+    return false;
+  }
+
+  SpatialFieldRef field;
+  if (auto it = fieldCache.find(mediumName); it != fieldCache.end()) {
+    field = it->second;
+  } else {
+    std::string fullPath;
+    try {
+      fullPath = pbrt::resolveScenePath(basePath, filename);
+    } catch (const std::exception &e) {
+      logWarning("[import_PBRT] nanovdb medium '%s': %s",
+          mediumName.c_str(),
+          e.what());
+      return false;
+    }
+    field = import_NVDB(scene, fullPath.c_str());
+    if (!field) {
+      logWarning("[import_PBRT] nanovdb medium '%s': failed to load '%s'",
+          mediumName.c_str(),
+          fullPath.c_str());
+      return false;
+    }
+    fieldCache[mediumName] = field;
+  }
+
+  // PBRT albedo = sigma_s / (sigma_a + sigma_s). For a sampled spectrum
+  // we fall back on resolveEmissionColor's mean-of-samples behaviour.
+  const float3 sigmaA = resolveEmissionColor(medium.params, "sigma_a", float3(0.f));
+  const float3 sigmaS = resolveEmissionColor(medium.params, "sigma_s", float3(1.f));
+  const float3 extinction = sigmaA + sigmaS;
+  float3 albedo(1.f);
+  if (extinction.x > 0.f)
+    albedo.x = sigmaS.x / extinction.x;
+  if (extinction.y > 0.f)
+    albedo.y = sigmaS.y / extinction.y;
+  if (extinction.z > 0.f)
+    albedo.z = sigmaS.z / extinction.z;
+
+  // `float scale` controls overall extinction. Map a unit-extinction medium
+  // to opaque-on-peak (1.0), then scale; clamp so dense scales don't trip
+  // the alpha clamp inside makeVolumeColorRamp.
+  const float scale = medium.params.getFloat("scale", 1.f);
+  const float maxOpacity = std::clamp(scale * 0.25f, 0.f, 1.f);
+
+  auto colorArr = makeVolumeColorRamp(scene, albedo, maxOpacity);
+
+  auto xfmNode = scene.insertChildTransformNode(
+      parent, pbrtTransformToMat4(shape.objectToWorld));
+  auto [_, volume] = scene.insertNewChildObjectNode<Volume>(
+      xfmNode, tokens::volume::transferFunction1D);
+  volume->setName(mediumName.c_str());
+  volume->setParameterObject("value", *field);
+  volume->setParameterObject("color", *colorArr);
+  if (auto range = field->parameterValueAs<float2>("range")) {
+    const float2 r = *range;
+    if (r.x < r.y)
+      volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &r);
+  }
+  return true;
+}
+
+// If `shape` references a `MakeNamedMedium` of type "nanovdb" on either
+// side of its MediumInterface, emit an ANARI Volume and return true so the
+// caller skips the surface. Returns false in every other case — the caller
+// should fall through to normal surface emission.
+static bool tryConvertVolumeShape(Scene &scene,
+    const pbrt::Shape &shape,
+    const pbrt::Scene &pbrtScene,
+    LayerNodeRef parent,
+    const std::string &basePath,
+    std::map<std::string, SpatialFieldRef> &fieldCache)
+{
+  const std::string &mediumName = shape.interiorMedium.empty()
+      ? shape.exteriorMedium
+      : shape.interiorMedium;
+  if (mediumName.empty())
+    return false;
+  auto medIt = pbrtScene.namedMedia.find(mediumName);
+  if (medIt == pbrtScene.namedMedia.end())
+    return false;
+  if (medIt->second.type != "nanovdb")
+    return false;
+  return convertNanoVdbMediumShape(
+      scene, shape, medIt->second, parent, basePath, fieldCache, mediumName);
+}
+
 static void convertShape(Scene &scene,
     const pbrt::Shape &shape,
     MaterialRef mat,
@@ -2196,6 +2320,7 @@ void import_PBRT(Scene &scene,
 
   TextureCache texCache;
   std::map<MaterialCacheKey, MaterialRef> matCache;
+  std::map<std::string, SpatialFieldRef> volumeFieldCache;
 
   // PBRT film ISO controls sensor exposure — scale lights to compensate
   float filmIso = pbrtScene.film.params.getFloat("iso", 100.f);
@@ -2226,8 +2351,12 @@ void import_PBRT(Scene &scene,
   };
 
   // Shapes
-  for (auto &shape : pbrtScene.shapes)
+  for (auto &shape : pbrtScene.shapes) {
+    if (tryConvertVolumeShape(
+            scene, shape, pbrtScene, root, basePath, volumeFieldCache))
+      continue;
     convertShape(scene, shape, resolveShapeMaterial(shape), root, basePath);
+  }
 
   // ObjectInstance: build each ObjectDef's surface list lazily, then share
   // the resulting Surface refs across every instance. Without sharing,
@@ -2244,6 +2373,17 @@ void import_PBRT(Scene &scene,
       return it->second;
     auto &tmpl = it->second;
     for (auto &shape : obj.shapes) {
+      // Volume bounding shapes can't be shared the same way Surface refs
+      // are — skip them in the template, instance-time wiring would need
+      // to emit a fresh Volume per instance. Real volumetric scenes in
+      // the PBRT v4 library don't use ObjectInstance for the volume hull.
+      const std::string &mn = effectiveMedium(shape);
+      if (!mn.empty()) {
+        auto medIt = pbrtScene.namedMedia.find(mn);
+        if (medIt != pbrtScene.namedMedia.end()
+            && medIt->second.type == "nanovdb")
+          continue;
+      }
       auto geom = buildShapeGeometry(scene, shape, basePath);
       if (!geom)
         continue;
