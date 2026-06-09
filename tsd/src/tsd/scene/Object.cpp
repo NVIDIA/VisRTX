@@ -1,8 +1,8 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/scene/Object.hpp"
 #include "tsd/scene/AnariHandleCache.hpp"
+#include "tsd/scene/Object.hpp"
 #include "tsd/scene/Scene.hpp"
 
 #ifndef TSD_USE_CUDA
@@ -811,7 +811,15 @@ void parseANARIObjectInfo(
       svs.push_back(*stringValues);
     if (!svs.empty()) {
       p.setStringValues(svs);
-      p.setValue(svs[0].c_str()); // reset default value
+      // Fall back to the first listed value unless the device declares a
+      // default that is actually one of them: feeding an out-of-list string to
+      // setValue leaves the value and its selection index desynced.
+      const char *declaredDefault = parameter->type == ANARI_STRING && defaultValue
+          ? static_cast<const char *>(defaultValue)
+          : nullptr;
+      const bool defaultIsValid = declaredDefault
+          && std::find(svs.begin(), svs.end(), declaredDefault) != svs.end();
+      p.setValue(defaultIsValid ? declaredDefault : svs[0].c_str());
     }
   }
 }
