@@ -1261,8 +1261,15 @@ static float conductorRoughness(const pbrt::ParamList &params)
 // `attenuationColor` is the tint that white light becomes after travelling
 // `attenuationDistance` through the medium, i.e.
 //   T(d) = pow(attenuationColor, d / attenuationDistance) = exp(-sigma_a * d)
-// Choosing attenuationDistance = 1 makes attenuationColor = exp(-sigma_a),
-// preserving PBRT's per-scene-unit formula exactly.
+// PBRT dielectrics commonly author a high IOR and rely on total internal
+// reflection to bounce a ray through the medium several times, accumulating
+// the per-traversal sigma_a on each pass. This importer caps IOR at 2.5
+// (see kMaxDielectricIor) and KHR_materials_volume models only a single
+// transmission, so neither effect lengthens the in-medium path and the
+// authored sigma_a reads too faint. Pre-amplify by setting
+// attenuationDistance well below 1 to recover the visual punch.
+constexpr float kPbrtMediumAbsorptionBoost = 5.f;
+
 static void applyMediumToMaterial(
     MaterialRef &mat, const pbrt::MediumDef &medium)
 {
@@ -1289,7 +1296,7 @@ static void applyMediumToMaterial(
   const float az = sigmaA[2] + (hasScattering ? sigmaS[2] : 0.f);
   const float3 attenuationColor(std::exp(-ax), std::exp(-ay), std::exp(-az));
   mat->setParameter("attenuationColor", ANARI_FLOAT32_VEC3, &attenuationColor);
-  mat->setParameter("attenuationDistance", 1.f);
+  mat->setParameter("attenuationDistance", 1.f / kPbrtMediumAbsorptionBoost);
   mat->setParameter("thickness", 1.f);
 }
 
