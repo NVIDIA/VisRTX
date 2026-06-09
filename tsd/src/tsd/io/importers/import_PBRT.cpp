@@ -43,10 +43,17 @@ float3 getFloat3(const pbrt::ParamList &p, const std::string &name, float3 def)
   return v.size() >= 3 ? float3(v[0], v[1], v[2]) : def;
 }
 
+// Defined later — shared with the lights/area-emitters path so that
+// `"spectrum reflectance" [λ v λ v …]`, `"blackbody"`, etc. resolve
+// identically for materials, lights, and any other RGB triple lookup.
+static float3 resolveEmissionColor(const pbrt::ParamList &params,
+    const std::string &name,
+    float3 fallback);
+
 float3 getRgb(
     const pbrt::ParamList &p, const std::string &name, float3 def = float3(1.f))
 {
-  return getFloat3(p, name, def);
+  return resolveEmissionColor(p, name, def);
 }
 
 float3 transformPoint(const mat4 &m, const float3 &p)
