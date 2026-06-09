@@ -155,7 +155,11 @@ void NvdbRectilinearField::finalize()
     if (!RectilinearLUT::buildAxisLUT(axisData,
             numCoords,
             m_axisLutTextures[axis],
-            m_axisLutArrays[axis])) {
+            m_axisLutArrays[axis])
+        || !RectilinearLUT::buildInverseAxisLUT(axisData,
+            numCoords,
+            m_invAxisLutTextures[axis],
+            m_invAxisLutArrays[axis])) {
       reportMessage(ANARI_SEVERITY_WARNING,
           "failed to build rectilinear LUT for axis %d (insufficient coordinates or non-monotonic ordering).",
           axis);
@@ -269,6 +273,9 @@ SpatialFieldGPUData NvdbRectilinearField::gpuData() const
   sf.data.nvdbRectilinear.axisLUT[0] = m_axisLutTextures[0];
   sf.data.nvdbRectilinear.axisLUT[1] = m_axisLutTextures[1];
   sf.data.nvdbRectilinear.axisLUT[2] = m_axisLutTextures[2];
+  sf.data.nvdbRectilinear.invAxisLUT[0] = m_invAxisLutTextures[0];
+  sf.data.nvdbRectilinear.invAxisLUT[1] = m_invAxisLutTextures[1];
+  sf.data.nvdbRectilinear.invAxisLUT[2] = m_invAxisLutTextures[2];
   sf.data.nvdbRectilinear.invAvgVoxelSize = m_invAvgVoxelSize;
 
   sf.grid = m_uniformGrid.gpuData();
@@ -288,6 +295,12 @@ void NvdbRectilinearField::cleanup()
       cudaFreeArray(m_axisLutArrays[i]);
     m_axisLutTextures[i] = {};
     m_axisLutArrays[i] = {};
+    if (m_invAxisLutTextures[i])
+      cudaDestroyTextureObject(m_invAxisLutTextures[i]);
+    if (m_invAxisLutArrays[i])
+      cudaFreeArray(m_invAxisLutArrays[i]);
+    m_invAxisLutTextures[i] = {};
+    m_invAxisLutArrays[i] = {};
   }
   m_bounds = box3(vec3(std::numeric_limits<float>::max()),
       vec3(std::numeric_limits<float>::lowest()));

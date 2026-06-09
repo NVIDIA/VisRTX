@@ -204,10 +204,12 @@ SpatialFieldGPUData StructuredRegularField::gpuData() const
   sf.samplerCallableIndex = SbtCallableEntryPoints::SpatialFieldSamplerRegular;
   sf.data.structuredRegular.texObj = m_textureObject;
   sf.data.structuredRegular.origin = m_origin;
-  sf.data.structuredRegular.invDims =
-      1.0f / vec3(dims.x - 1, dims.y - 1, dims.z - 1);
   sf.data.structuredRegular.invSpacing = 1.0f / m_spacing;
+  sf.data.structuredRegular.dims = ivec3(dims.x, dims.y, dims.z);
   sf.data.structuredRegular.cellCentered = m_cellCentered;
+  sf.data.structuredRegular.filter = m_filter == "nearest"
+      ? SpatialFieldFilter::Nearest
+      : SpatialFieldFilter::Linear;
   sf.grid = m_uniformGrid.gpuData();
 
   sf.roi.lower = m_roi.lower;
@@ -231,8 +233,6 @@ void StructuredRegularField::buildGrid()
 {
   auto dims = m_data->size();
   m_uniformGrid.init(ivec3(dims.x, dims.y, dims.z), bounds());
-
-  size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
   m_uniformGrid.computeValueRanges(gpuData());
 }
 

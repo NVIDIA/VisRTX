@@ -58,8 +58,12 @@ VISRTX_DEVICE void initStructuredRectilinearSampler(
   state.axisLUT[0] = data.axisLUT[0];
   state.axisLUT[1] = data.axisLUT[1];
   state.axisLUT[2] = data.axisLUT[2];
+  state.invAxisLUT[0] = data.invAxisLUT[0];
+  state.invAxisLUT[1] = data.invAxisLUT[1];
+  state.invAxisLUT[2] = data.invAxisLUT[2];
   state.axisBoundsMin = data.axisBoundsMin;
   state.axisBoundsMax = data.axisBoundsMax;
+  state.filter = data.filter;
 
   // Voxels per unit extent: cell count (cell-centered) or node-segment count
   // (node-centered) over the axis span — both equal state.dims.

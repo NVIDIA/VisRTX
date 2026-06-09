@@ -131,6 +131,7 @@ enum class GeometryType
   SPHERE,
   SDF,
   NEURAL,
+  ISOSURFACE,
   UNKNOWN
 };
 
@@ -245,6 +246,21 @@ struct SphereGeometryData
   float radius;
 };
 
+// Value-only bisection steps used to refine an isosurface crossing within one
+// march step. The hit is localized to the final bracket, stepSize/2^iters; the
+// secondary-ray offset (populateSurfaceHit) is derived from this so AO/shadow
+// rays clear the marched surface instead of self-occluding (acne).
+constexpr int kIsosurfaceBisectionIters = 6;
+
+struct IsosurfaceGeometryData
+{
+  DeviceObjectIndex field; // index into frameData.registry.fields
+  const float *isovalues; // device array, length numIsovalues
+  uint32_t numIsovalues; // <= 128 (hitKind carrier limit)
+  const box3 *brickBounds; // per-GAS-primitive coarse brick box, object space
+  float stepSize; // march step, captured from field->stepSize()
+};
+
 #ifdef VISRTX_USE_NEURAL
 
 constexpr uint32_t NEURAL_NB_MAX_LAYERS = 5;
@@ -275,6 +291,7 @@ struct GeometryGPUData
     ConeGeometryData cone;
     SphereGeometryData sphere;
     SDFGeometryData sdf;
+    IsosurfaceGeometryData isosurface;
 #ifdef VISRTX_USE_NEURAL
     NeuralGeometryData neural;
 #endif
@@ -476,21 +493,22 @@ struct UniformGridData
                          // lookup.
 };
 
-struct StructuredRegularData
-{
-  cudaTextureObject_t texObj;
-  vec3 origin;
-  vec3 invDims;
-  vec3 invSpacing;
-  bool cellCentered;
-
-  StructuredRegularData() = default;
-};
-
 enum class SpatialFieldFilter : uint8_t
 {
   Nearest = 0,
   Linear = 1
+};
+
+struct StructuredRegularData
+{
+  cudaTextureObject_t texObj;
+  vec3 origin;
+  vec3 invSpacing;
+  ivec3 dims; // voxel (texel) counts — drives the isosurface voxel-DDA
+  bool cellCentered;
+  SpatialFieldFilter filter;
+
+  StructuredRegularData() = default;
 };
 
 struct NVdbRegularData
@@ -510,9 +528,11 @@ struct StructuredRectilinearData
   cudaTextureObject_t texObj;
   vec3 dims;
   bool cellCentered;
-  cudaTextureObject_t axisLUT[3];
+  cudaTextureObject_t axisLUT[3]; // object -> index (sampling)
+  cudaTextureObject_t invAxisLUT[3]; // index -> object (isosurface voxel-DDA)
   vec3 axisBoundsMin;
   vec3 axisBoundsMax;
+  SpatialFieldFilter filter;
 
   StructuredRectilinearData() = default;
 };
@@ -523,7 +543,8 @@ struct NVdbRectilinearData
   const void *gridData;
   bool cellCentered;
   SpatialFieldFilter filter;
-  cudaTextureObject_t axisLUT[3];
+  cudaTextureObject_t axisLUT[3]; // normalized uniform index -> rectilinear index
+  cudaTextureObject_t invAxisLUT[3]; // inverse (isosurface voxel-DDA)
   vec3 invAvgVoxelSize;
 
   NVdbRectilinearData() = default;

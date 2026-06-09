@@ -202,7 +202,11 @@ void StructuredRectilinearField::finalize()
     if (!RectilinearLUT::buildAxisLUT(axisData,
             numCoords,
             m_axisLutTextures[axis],
-            m_axisLutArrays[axis])) {
+            m_axisLutArrays[axis])
+        || !RectilinearLUT::buildInverseAxisLUT(axisData,
+            numCoords,
+            m_invAxisLutTextures[axis],
+            m_invAxisLutArrays[axis])) {
       reportMessage(ANARI_SEVERITY_WARNING,
           "failed to build rectilinear LUT for axis %d (insufficient coordinates or non-monotonic ordering).",
           axis);
@@ -274,8 +278,14 @@ SpatialFieldGPUData StructuredRectilinearField::gpuData() const
   sf.data.structuredRectilinear.axisLUT[0] = m_axisLutTextures[0];
   sf.data.structuredRectilinear.axisLUT[1] = m_axisLutTextures[1];
   sf.data.structuredRectilinear.axisLUT[2] = m_axisLutTextures[2];
+  sf.data.structuredRectilinear.invAxisLUT[0] = m_invAxisLutTextures[0];
+  sf.data.structuredRectilinear.invAxisLUT[1] = m_invAxisLutTextures[1];
+  sf.data.structuredRectilinear.invAxisLUT[2] = m_invAxisLutTextures[2];
   sf.data.structuredRectilinear.axisBoundsMin = m_bounds.lower;
   sf.data.structuredRectilinear.axisBoundsMax = m_bounds.upper;
+  sf.data.structuredRectilinear.filter = m_filter == "nearest"
+      ? SpatialFieldFilter::Nearest
+      : SpatialFieldFilter::Linear;
 
   sf.grid = m_uniformGrid.gpuData();
 
@@ -299,6 +309,12 @@ void StructuredRectilinearField::cleanup()
       cudaFreeArray(m_axisLutArrays[i]);
     m_axisLutTextures[i] = {};
     m_axisLutArrays[i] = {};
+    if (m_invAxisLutTextures[i])
+      cudaDestroyTextureObject(m_invAxisLutTextures[i]);
+    if (m_invAxisLutArrays[i])
+      cudaFreeArray(m_invAxisLutArrays[i]);
+    m_invAxisLutTextures[i] = {};
+    m_invAxisLutArrays[i] = {};
   }
 
   m_textureObject = {};
@@ -312,8 +328,6 @@ void StructuredRectilinearField::buildGrid()
 {
   auto dims = m_data->size();
   m_uniformGrid.init(ivec3(dims.x, dims.y, dims.z), bounds());
-
-  size_t numVoxels = (dims.x - 1) * size_t(dims.y - 1) * (dims.z - 1);
   m_uniformGrid.computeValueRanges(gpuData());
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,48 +31,44 @@
 
 #pragma once
 
+#include "Geometry.h"
 #include "array/Array1D.h"
-#include "array/Array3D.h"
 #include "spatial_field/SpatialField.h"
+#include "utility/DeviceBuffer.h"
 
 namespace visrtx {
 
-struct StructuredRectilinearField : public SpatialField
+struct Isosurface : public Geometry
 {
-  StructuredRectilinearField(DeviceGlobalState *d);
-  ~StructuredRectilinearField();
+  Isosurface(DeviceGlobalState *d);
+  ~Isosurface() override;
 
   void commitParameters() override;
   void finalize() override;
   bool isValid() const override;
 
-  box3 bounds() const override;
-  float stepSize() const override;
+  void populateBuildInput(OptixBuildInput &) const override;
+  int optixGeometryType() const override;
 
  private:
-  SpatialFieldGPUData gpuData() const override;
-  void cleanup();
+  GeometryGPUData gpuData() const override;
 
-  void buildGrid();
+  // Drops any per-primitive array shorter than m_numIsovalues (warns), so the
+  // GPU never indexes a primitive attribute out of bounds.
+  void dropUndersizedPrimitiveArrays();
 
-  std::string m_filter;
-  bool m_cellCentered{false};
-  box3 m_roi{box3(vec3(std::numeric_limits<float>::lowest()),
-      vec3(std::numeric_limits<float>::max()))};
-  helium::ChangeObserverPtr<Array3D> m_data;
+  helium::ChangeObserverPtr<SpatialField> m_field;
+  helium::ChangeObserverPtr<Array1D> m_isovalueArray;
+  float m_isovalueScalar{0.f};
+  bool m_hasScalarIsovalue{false};
 
-  // Required rectilinear axis arrays (all 3 required)
-  box3 m_bounds;
-  helium::ChangeObserverPtr<Array1D> m_axisArrayX;
-  helium::ChangeObserverPtr<Array1D> m_axisArrayY;
-  helium::ChangeObserverPtr<Array1D> m_axisArrayZ;
-  cudaArray_t m_axisLutArrays[3]{};
-  cudaTextureObject_t m_axisLutTextures[3]{};
-  cudaArray_t m_invAxisLutArrays[3]{};
-  cudaTextureObject_t m_invAxisLutTextures[3]{};
+  DeviceBuffer m_scalarIsovalueBuffer; // holds the single scalar on device
+  DeviceBuffer m_aabbs; // coarse active-region brick boxes (object space)
+  CUdeviceptr m_aabbsBufferPtr{};
+  size_t m_numBricks{0};
 
-  cudaArray_t m_cudaArray{};
-  cudaTextureObject_t m_textureObject{};
+  const float *m_isovaluesDev{nullptr};
+  uint32_t m_numIsovalues{0};
 };
 
 } // namespace visrtx

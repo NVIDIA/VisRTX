@@ -34,6 +34,7 @@
 #include "Cone.h"
 #include "Curve.h"
 #include "Cylinder.h"
+#include "Isosurface.h"
 #include "Quad.h"
 #include "Sphere.h"
 #include "Triangle.h"
@@ -100,6 +101,8 @@ Geometry *Geometry::createInstance(
     return new Curve(d);
   else if (subtype == "sdf")
     return new SDF(d);
+  else if (subtype == "isosurface")
+    return new Isosurface(d);
 #ifdef VISRTX_USE_NEURAL
   else if (subtype == "neural")
     return new Neural(d);

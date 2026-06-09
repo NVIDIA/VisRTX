@@ -170,9 +170,10 @@ struct StructuredRegularSamplerState
 {
   cudaTextureObject_t texObj;
   vec3 origin;
-  vec3 invDims;
   vec3 invSpacing;
   vec3 offset;
+  ivec3 dims; // voxel (texel) counts — drives the isosurface voxel-DDA
+  SpatialFieldFilter filter;
 };
 
 // Structured Rectilinear Sampler State
@@ -181,10 +182,12 @@ struct StructuredRectilinearSamplerState
   cudaTextureObject_t texObj;
   vec3 dims;
   vec3 offset;
-  cudaTextureObject_t axisLUT[3];
+  cudaTextureObject_t axisLUT[3]; // object -> index (sampling)
+  cudaTextureObject_t invAxisLUT[3]; // index -> object (isosurface voxel-DDA)
   vec3 axisBoundsMin;
   vec3 axisBoundsMax;
   vec3 invAvgVoxelSpacing;
+  SpatialFieldFilter filter;
 };
 
 // NanoVDB Sampler States
@@ -239,7 +242,12 @@ struct NvdbRectilinearSamplerState
   nanovdb::Vec3f indexMin;
   nanovdb::Vec3f indexMax;
   cudaTextureObject_t axisLUT[3];
+  cudaTextureObject_t invAxisLUT[3]; // rect index -> uniform index (voxel-DDA)
   nanovdb::Vec3f invAvgVoxelSize;
+  // Per-axis affine uniform-index -> world map (axis-aligned grids), so the
+  // isosurface DDA can place voxel-boundary planes in object space.
+  vec3 worldOrigin;
+  vec3 worldVoxelStep;
   SpatialFieldFilter filter;
 };
 

@@ -77,6 +77,8 @@ struct NvdbRectilinearField : public SpatialField
   vec3 m_axisBoundsMax;
   cudaArray_t m_axisLutArrays[3]{};
   cudaTextureObject_t m_axisLutTextures[3]{};
+  cudaArray_t m_invAxisLutArrays[3]{};
+  cudaTextureObject_t m_invAxisLutTextures[3]{};
 };
 
 } // namespace visrtx

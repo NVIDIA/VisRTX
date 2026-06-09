@@ -106,9 +106,21 @@ VISRTX_DEVICE void initNvdbRectilinearSampler(
   state.axisLUT[0] = field->data.nvdbRectilinear.axisLUT[0];
   state.axisLUT[1] = field->data.nvdbRectilinear.axisLUT[1];
   state.axisLUT[2] = field->data.nvdbRectilinear.axisLUT[2];
+  state.invAxisLUT[0] = field->data.nvdbRectilinear.invAxisLUT[0];
+  state.invAxisLUT[1] = field->data.nvdbRectilinear.invAxisLUT[1];
+  state.invAxisLUT[2] = field->data.nvdbRectilinear.invAxisLUT[2];
 
   const auto &iavs = field->data.nvdbRectilinear.invAvgVoxelSize;
   state.invAvgVoxelSize = nanovdb::Vec3f(iavs.x, iavs.y, iavs.z);
+
+  // Per-axis affine uniform-index -> world map for the isosurface DDA (assumes
+  // an axis-aligned grid map; a rotated/sheared map would need the full 3x3).
+  const auto w0 = grid->indexToWorldF(nanovdb::Vec3f(0.f, 0.f, 0.f));
+  const auto wx = grid->indexToWorldF(nanovdb::Vec3f(1.f, 0.f, 0.f));
+  const auto wy = grid->indexToWorldF(nanovdb::Vec3f(0.f, 1.f, 0.f));
+  const auto wz = grid->indexToWorldF(nanovdb::Vec3f(0.f, 0.f, 1.f));
+  state.worldOrigin = vec3(w0[0], w0[1], w0[2]);
+  state.worldVoxelStep = vec3(wx[0] - w0[0], wy[1] - w0[1], wz[2] - w0[2]);
 }
 
 template <typename ValueType>

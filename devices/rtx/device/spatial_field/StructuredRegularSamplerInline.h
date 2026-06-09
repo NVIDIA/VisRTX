@@ -44,10 +44,11 @@ VISRTX_DEVICE void initStructuredRegularSampler(
 {
   state.texObj = field->data.structuredRegular.texObj;
   state.origin = field->data.structuredRegular.origin;
-  state.invDims = field->data.structuredRegular.invDims;
   state.invSpacing = field->data.structuredRegular.invSpacing;
   state.offset =
       vec3(field->data.structuredRegular.cellCentered ? 0.0f : 0.5f);
+  state.dims = field->data.structuredRegular.dims;
+  state.filter = field->data.structuredRegular.filter;
 }
 
 // Shared per-sample API (see gpu/volumeIntegrationDetail.h). sampleValue

@@ -146,6 +146,8 @@ set(SOURCES
   geometry/Geometry.cpp
   geometry/SDF.cpp
   $<$<BOOL:${VISRTX_ENABLE_NEURAL}>:geometry/Neural.cpp>
+  geometry/Isosurface.cpp
+  geometry/IsosurfaceBricks.cu
   geometry/Quad.cpp
   geometry/Sphere.cu
   geometry/Triangle.cpp

@@ -45,7 +45,7 @@ namespace visrtx {
  * Utility to build a backmapping LUT for rectilinear coordinates.
  *
  * Given a forward axis array (monotonically increasing object-space
- * coordinates), this builds a 1024-texel 1D CUDA texture that maps normalized
+ * coordinates), this builds an 8192-texel 1D CUDA texture that maps normalized
  * object-space coordinates [0,1] to normalized index-space coordinates [0,1].
  *
  * Uses linear interpolation to invert the piecewise-linear forward mapping.
@@ -53,6 +53,18 @@ namespace visrtx {
 class RectilinearLUT
 {
  public:
+  // Both builders divide by per-segment and total coordinate gaps; a duplicate
+  // or decreasing coordinate would produce NaN/inf LUT texels. Enforce the
+  // strictly-increasing contract up front so callers fail fast (their finalize
+  // paths warn on a false return) instead of silently building a poisoned LUT.
+  static bool isStrictlyIncreasing(const float *axisCoords, size_t numCoords)
+  {
+    for (size_t i = 1; i < numCoords; ++i)
+      if (!(axisCoords[i] > axisCoords[i - 1]))
+        return false;
+    return true;
+  }
+
   /**
    * Build a rectilinear LUT for a single axis.
    *
@@ -74,11 +86,11 @@ class RectilinearLUT
     outLutTexture = {};
     outCudaArray = {};
 
-    if (!axisCoords || numCoords < 2) {
+    if (!axisCoords || numCoords < 2 || !isStrictlyIncreasing(axisCoords, numCoords)) {
       return false;
     }
 
-    constexpr size_t lutSize = 1024;
+    constexpr size_t lutSize = 8192;
     std::vector<float> lut;
     lut.reserve(lutSize);
     // Make sure bounds interpolate exactly
@@ -86,7 +98,7 @@ class RectilinearLUT
 
     float step = (axisCoords[numCoords - 1] - axisCoords[0]) / (lutSize - 1);
     float currentValue = axisCoords[0] + step;
-    float invDim = 1.0 / (numCoords - 1);
+    float invDim = 1.0f / (numCoords - 1);
 
     size_t baseIndex = 0;
 
@@ -119,6 +131,59 @@ class RectilinearLUT
       return false;
     }
 
+    return true;
+  }
+
+  /**
+   * Build the inverse rectilinear LUT for a single axis: maps normalized
+   * index-space coordinates [0,1] back to normalized object-space coordinates
+   * [0,1]. This is the companion of buildAxisLUT (which maps object->index) and
+   * lets the isosurface voxel-DDA recover the object-space position of an
+   * integer voxel boundary directly (no per-hit root-find): for boundary index
+   * k, objectPos = boundsMin + tex(invLUT, k/(numCoords-1)) * (boundsMax-boundsMin).
+   *
+   * Same contract as buildAxisLUT (strictly monotonic input, >= 2 coords).
+   */
+  static bool buildInverseAxisLUT(const float *axisCoords,
+      size_t numCoords,
+      cudaTextureObject_t &outLutTexture,
+      cudaArray_t &outCudaArray)
+  {
+    outLutTexture = {};
+    outCudaArray = {};
+
+    if (!axisCoords || numCoords < 2 || !isStrictlyIncreasing(axisCoords, numCoords))
+      return false;
+
+    constexpr size_t lutSize = 8192;
+    const float c0 = axisCoords[0];
+    const float cN = axisCoords[numCoords - 1];
+    const float invExtent = (cN != c0) ? 1.0f / (cN - c0) : 0.0f;
+
+    std::vector<float> lut;
+    lut.reserve(lutSize);
+    for (size_t i = 0; i < lutSize; ++i) {
+      const float ni = float(i) / float(lutSize - 1); // normalized index [0,1]
+      const float fidx = ni * float(numCoords - 1); // fractional grid index
+      size_t k = size_t(fidx);
+      if (k > numCoords - 2)
+        k = numCoords - 2;
+      const float frac = fidx - float(k);
+      const float obj =
+          axisCoords[k] + frac * (axisCoords[k + 1] - axisCoords[k]);
+      lut.push_back((obj - c0) * invExtent); // normalized object [0,1]
+    }
+
+    makeCudaArrayFloat(outCudaArray, 1, lut.data(), uvec3(lutSize, 1, 1));
+    if (!outCudaArray)
+      return false;
+
+    outLutTexture =
+        makeCudaTextureObject1D(outCudaArray, false, "linear", "clampToEdge");
+    if (!outLutTexture) {
+      cudaFreeArray(outCudaArray);
+      return false;
+    }
     return true;
   }
 };

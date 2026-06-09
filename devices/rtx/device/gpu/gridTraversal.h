@@ -41,9 +41,10 @@ namespace visrtx {
 // reading cellIndex / tEntry / tExit each iteration and calling next().
 struct GridTraversal
 {
-  int cellIndex;
+  size_t cellIndex; // size_t: the linear index overflows int32 above ~2^31 cells
   float tEntry;
   float tExit;
+  int crossedAxis; // axis of the face the ray entered the current cell through
 
   VISRTX_DEVICE GridTraversal(const Ray &ray, ivec3 gridDims, box3 bounds)
       : m_gridDims(gridDims), m_tEnd(ray.t.upper), m_valid(false)
@@ -60,13 +61,18 @@ struct GridTraversal
     constexpr float inf = std::numeric_limits<float>::infinity();
     float tIn = -inf;
     float tOut = inf;
+    crossedAxis = 0;
     vec3 rcpDir;
     for (int axis = 0; axis < 3; ++axis) {
       if (ray.dir[axis] != 0.f) {
         rcpDir[axis] = 1.f / ray.dir[axis];
         const float t1 = (bounds.lower[axis] - ray.org[axis]) * rcpDir[axis];
         const float t2 = (bounds.upper[axis] - ray.org[axis]) * rcpDir[axis];
-        tIn = max(tIn, min(t1, t2));
+        const float tNear = min(t1, t2);
+        if (tNear > tIn) {
+          tIn = tNear;
+          crossedAxis = axis; // grid is entered through this axis' face
+        }
         tOut = min(tOut, max(t1, t2));
       } else {
         rcpDir[axis] = 0.f;
@@ -128,6 +134,15 @@ struct GridTraversal
  private:
   VISRTX_DEVICE void step(float tNext)
   {
+    // The axis with the smallest tMax is the boundary plane being crossed —
+    // i.e. the face through which the ray enters the next cell.
+    if (m_tMax.x <= m_tMax.y && m_tMax.x <= m_tMax.z)
+      crossedAxis = 0;
+    else if (m_tMax.y <= m_tMax.z)
+      crossedAxis = 1;
+    else
+      crossedAxis = 2;
+
     if (m_tMax.x <= tNext) {
       m_cell.x += m_step.x;
       m_tMax.x += m_tDelta.x;
@@ -154,8 +169,9 @@ struct GridTraversal
 
       const float t1 = min(tNext, m_tEnd);
       if (t1 > m_t) {
-        cellIndex = m_cell.x + m_cell.y * m_gridDims.x
-            + m_cell.z * m_gridDims.x * m_gridDims.y;
+        cellIndex = size_t(m_cell.x)
+            + size_t(m_gridDims.x)
+                * (size_t(m_cell.y) + size_t(m_gridDims.y) * size_t(m_cell.z));
         tEntry = m_t;
         tExit = t1;
         m_valid = true;

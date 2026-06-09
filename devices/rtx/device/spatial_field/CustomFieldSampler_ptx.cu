@@ -104,43 +104,9 @@ VISRTX_CALLABLE vec3 __direct_callable__sampleNormalCustom(
 //=============================================================================
 
 // Shared per-sample API (see gpu/volumeIntegrationDetail.h) for custom fields.
-// Unlike the built-in inline samplers, custom sampling routes back through the
-// user's init/value/normal direct-callables, so it needs `field` for the
-// callable index.
-namespace visrtx {
-
-VISRTX_DEVICE void initSamplerState(
-    VolumeSamplingState &s, const SpatialFieldGPUData &field)
-{
-  optixDirectCall<void>(uint32_t(field.samplerCallableIndex)
-          + uint32_t(SpatialFieldSamplerEntryPoints::Init),
-      &s,
-      &field);
-}
-
-VISRTX_DEVICE float sampleValue(const VolumeSamplingState &s,
-    const SpatialFieldGPUData &field,
-    const vec3 &p)
-{
-  return optixDirectCall<float>(uint32_t(field.samplerCallableIndex)
-          + uint32_t(SpatialFieldSamplerEntryPoints::SampleValue),
-      &s,
-      &field,
-      &p);
-}
-
-VISRTX_DEVICE vec3 sampleNormal(const VolumeSamplingState &s,
-    const SpatialFieldGPUData &field,
-    const vec3 &p)
-{
-  return optixDirectCall<vec3>(uint32_t(field.samplerCallableIndex)
-          + uint32_t(SpatialFieldSamplerEntryPoints::SampleNormal),
-      &s,
-      &field,
-      &p);
-}
-
-} // namespace visrtx
+// Routes init/value/normal back through the SBT (callable-in-callable); shared
+// with the isosurface intersector via CustomFieldSamplerInline.h.
+#include "CustomFieldSamplerInline.h"
 
 VISRTX_CALLABLE float __direct_callable__sampleDistanceCustom(ScreenSample *ss,
     const VolumeHit *hit,

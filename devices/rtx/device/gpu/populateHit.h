@@ -308,6 +308,7 @@ VISRTX_DEVICE void computeTangentSpace(
     break;
   }
   case GeometryType::SPHERE:
+  case GeometryType::ISOSURFACE:
   case GeometryType::CONE:
   case GeometryType::NEURAL:
   case GeometryType::CYLINDER:
@@ -400,9 +401,27 @@ VISRTX_DEVICE void populateSurfaceHit(SurfaceHit &hit)
   hit.hitpoint = ray::hitpoint();
   hit.uvw = ray::uvw(gd.type);
   hit.primID = ray::primID();
+  if (gd.type == GeometryType::ISOSURFACE)
+    hit.primID = optixGetHitKind();
   hit.objID = sd.id;
   hit.instID = isd.id;
   hit.epsilon = epsilonFrom(ray::hitpoint(), ray::direction(), ray::t());
+  if (gd.type == GeometryType::ISOSURFACE) {
+    // Isosurface hits lie on a voxel-resolution surface — exact voxel faces for
+    // the nearest voxel-DDA, bisection-localized for the marched linear/custom
+    // path. Either way the surface has voxel-scale relief, so a secondary ray
+    // offset by less than a voxel grazes into adjacent voxels and self-occludes
+    // (AO/shadow acne; on blocky nearest surfaces, a per-voxel waffle). stepSize
+    // is half the smallest voxel, so 2*stepSize lifts the ray clear by one.
+    // stepSize is object-space but hit.epsilon is world-space, so under a scaled
+    // instance scale the lift by the object->world distance ratio along the ray:
+    // |worldDir|/|objDir|. optixGetObjectRayDirection is illegal in closest-hit,
+    // so derive objDir from the stored worldToObject linear map instead.
+    const vec3 wdir = ray::direction();
+    const vec3 odir = mat3(hit.instance->worldToObject) * wdir;
+    hit.epsilon = fmaxf(hit.epsilon,
+        2.f * gd.isosurface.stepSize * length(wdir) / length(odir));
+  }
   ray::computeTangentSpace(gd, ray::primID(), hit);
 }
 
