@@ -2176,13 +2176,24 @@ void import_PBRT(Scene &scene,
   float filmIso = pbrtScene.film.params.getFloat("iso", 100.f);
   float exposureScale = filmIso / 100.f;
 
+  // PBRT v4 syntax is `MediumInterface "interior" "exterior"`. Some scenes
+  // (crown's rubies/sapphires, dambreak's water) describe the gem/liquid as
+  // the *exterior* medium because their meshes are inside-out (obj2pbrt
+  // output, or ReverseOrientation). Picking whichever side is non-empty
+  // matches the scenes' intent and keeps disney-cloud's interior-only case
+  // unchanged.
+  auto effectiveMedium = [](const pbrt::Shape &shape) {
+    return shape.interiorMedium.empty() ? shape.exteriorMedium
+                                        : shape.interiorMedium;
+  };
+
   auto resolveShapeMaterial = [&](const pbrt::Shape &shape) {
     MaterialRef mat = !shape.areaLightType.empty()
         ? makeAreaEmissiveMaterial(scene, shape.areaLightParams, exposureScale)
         : convertMaterial(scene,
               pbrtScene,
               shape.materialName,
-              shape.interiorMedium,
+              effectiveMedium(shape),
               basePath,
               texCache,
               matCache);

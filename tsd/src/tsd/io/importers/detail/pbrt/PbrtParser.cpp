@@ -392,10 +392,10 @@ void Parser::parseMakeNamedMedium(Lexer &lex)
 
 void Parser::parseMediumInterface(Lexer &lex)
 {
-  // PBRT v4: `MediumInterface "exterior" "interior"`. Either side may be
+  // PBRT v4: `MediumInterface "interior" "exterior"`. Either side may be
   // empty (""), meaning vacuum / the default surrounding medium.
-  currentState().exteriorMedium = parseQuotedString(lex);
   currentState().interiorMedium = parseQuotedString(lex);
+  currentState().exteriorMedium = parseQuotedString(lex);
 }
 
 void Parser::parseLightSource(Lexer &lex)
