@@ -107,8 +107,10 @@ void Log::addText(tsd::core::LogLevel level, const std::string &msg)
   for (int new_size = m_buf.size(); old_size < new_size; old_size++) {
     if (m_buf[old_size] == '\n') {
       m_lineOffsets.push_back(old_size + 1);
-      if (old_size + 1 < new_size)
-        m_colorIDs.push_back(m_colorIDs.back());
+      if (old_size + 1 < new_size) {
+        const int lastColorID = m_colorIDs.back();
+        m_colorIDs.push_back(lastColorID);
+      }
     }
   }
 }
