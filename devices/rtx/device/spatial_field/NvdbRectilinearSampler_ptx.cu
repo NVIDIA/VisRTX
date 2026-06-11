@@ -30,92 +30,14 @@
  */
 
 // OptiX direct-callable entry points for the NanoVDB rectilinear-grid sampler.
-// Implementations live in NvdbRectilinearSamplerInline.h.
+// Only the Woodcock-body callables are exposed via the SBT; value/normal/init
+// sampling stays inline (NvdbRectilinearSamplerInline.h) since the bodies below
+// resolve sampleValue/sampleNormal by ADL on the concrete state type.
 
 #include "NvdbRectilinearSamplerInline.h"
 #include "gpu/volumeIntegrationDetail.h"
 
 using namespace visrtx;
-
-// Fp4 rectilinear sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFp4(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbRectilinearSampler(samplerState->nvdbRectilinearFp4, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp4(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdbRectilinear(
-      samplerState->nvdbRectilinearFp4, location, gradient);
-}
-
-// Fp8 rectilinear sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFp8(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbRectilinearSampler(samplerState->nvdbRectilinearFp8, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp8(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdbRectilinear(
-      samplerState->nvdbRectilinearFp8, location, gradient);
-}
-
-// Fp16 rectilinear sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFp16(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbRectilinearSampler(samplerState->nvdbRectilinearFp16, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFp16(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdbRectilinear(
-      samplerState->nvdbRectilinearFp16, location, gradient);
-}
-
-// FpN rectilinear sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFpN(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbRectilinearSampler(samplerState->nvdbRectilinearFpN, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFpN(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdbRectilinear(
-      samplerState->nvdbRectilinearFpN, location, gradient);
-}
-
-// Float rectilinear sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbRectilinearSamplerFloat(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbRectilinearSampler(samplerState->nvdbRectilinearFloat, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFloat(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdbRectilinear(
-      samplerState->nvdbRectilinearFloat, location, gradient);
-}
 
 // Woodcock-body callables — see NvdbRegularSampler_ptx.cu for the design rationale.
 #define VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES(Suffix, ValueType)         \
@@ -139,14 +61,7 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFloat(
         *albedo,                                                              \
         *extinction,                                                          \
         *didScatter,                                                          \
-        normal,                                                               \
-        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p) { return sampleNvdbRectilinear(s, &p, nullptr); }, \
-        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p,                                                    \
-            vec3 &g) { return sampleNvdbRectilinear(s, &p, &g); });           \
+        normal);                                                              \
   }                                                                           \
                                                                               \
   VISRTX_CALLABLE void __direct_callable__ratioTrackTransmittance##Suffix(    \
@@ -157,14 +72,8 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFloat(
     SamplerStateBox<NvdbRectilinearSamplerState<ValueType>> stateBox;         \
     auto &samplerState = stateBox.state;                                      \
     initNvdbRectilinearSampler(samplerState, &field);                         \
-    detail::woodcockRatioTrackTransmittance(*ss,                              \
-        *hit,                                                                 \
-        samplerState,                                                         \
-        field,                                                                \
-        *attenuation,                                                         \
-        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p) { return sampleNvdbRectilinear(s, &p, nullptr); });\
+    detail::woodcockRatioTrackTransmittance(                                  \
+        *ss, *hit, samplerState, field, *attenuation);                        \
   }                                                                           \
                                                                               \
   VISRTX_CALLABLE float __direct_callable__rayMarchVolume##Suffix(            \
@@ -187,14 +96,7 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbRectilinearFloat(
         color,                                                                \
         normal,                                                               \
         *opacity,                                                             \
-        invSamplingRate,                                                      \
-        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p) { return sampleNvdbRectilinear(s, &p, nullptr); }, \
-        [] __device__(const NvdbRectilinearSamplerState<ValueType> &s,        \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p,                                                    \
-            vec3 &g) { return sampleNvdbRectilinear(s, &p, &g); });           \
+        invSamplingRate);                                                     \
   }
 
 VISRTX_DEFINE_NVDB_RECT_WOODCOCK_CALLABLES(NvdbRectilinearFp4, nanovdb::Fp4)

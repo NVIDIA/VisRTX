@@ -32,9 +32,9 @@
 #pragma once
 
 // Shared helpers + Woodcock-body templates for the per-sampler callables.
-// Templates parameterised on state type and sample / sampleWithGradient
-// closures; each sampler _ptx.cu passes inline lambdas so codegen stays
-// monomorphic per variant.
+// Templates are parameterised on the sampler state type only; they call the
+// shared sampleValue / sampleNormal overloads, resolved by ADL on the concrete
+// state type, so codegen stays monomorphic per variant.
 
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_math.h"
@@ -154,17 +154,13 @@ VISRTX_DEVICE bool applyShadowRussianRoulette(
   return false;
 }
 
-// `sampleWithGradient` is a __device__ lambda capturing nothing —
-// compiler inlines through it.
-template <typename State, typename SampleWithGradientFn>
+template <typename State>
 VISRTX_DEVICE  vec3 computeWorldNormal(const State &samplerState,
     const SpatialFieldGPUData &field,
     const vec3 &localPos,
-    const mat3x4 &worldToObject,
-    SampleWithGradientFn sampleWithGradient)
+    const mat3x4 &worldToObject)
 {
-  vec3 localGradient(0.f);
-  sampleWithGradient(samplerState, field, localPos, localGradient);
+  const vec3 localGradient = sampleNormal(samplerState, field, localPos);
   constexpr float MIN_GRADIENT_LENGTH_SQ = 1e-12f;
   if (glm::dot(localGradient, localGradient) <= MIN_GRADIENT_LENGTH_SQ)
     return vec3(0.f);
@@ -179,9 +175,9 @@ VISRTX_DEVICE  vec3 computeWorldNormal(const State &samplerState,
 
 // ---------------------------------------------------------------------------
 // Woodcock-loop body templates. Each sampler family's per-variant callable
-// passes its inline sample / sampleWithGradient closures (typically
-// __device__ lambdas) and an already-inited state. The compiler inlines
-// through the lambdas, so each variant's hot path is monomorphic.
+// passes an already-inited state; the body calls the shared sampleValue /
+// sampleNormal overloads for that state type, so each variant's hot path is
+// monomorphic.
 
 // Distance sampling via decomposition tracking (Kutz/Thiery/Novák/Iwasaki 2017):
 // inside each macrocell, split σ_t = σ_c + σ_r where σ_c = per-cell min
@@ -190,7 +186,7 @@ VISRTX_DEVICE  vec3 computeWorldNormal(const State &samplerState,
 // Whichever fires first is the next event; both branches use the local σ_t at
 // the event point for albedo/extinction. Degenerates to pure delta tracking
 // when σ_c = 0 (sharp TF) and to closed-form analytic flight when σ_r = 0.
-template <typename State, typename SampleFn, typename SampleWithGradientFn>
+template <typename State>
 VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
     const VolumeHit &hit,
     State &samplerState,
@@ -198,9 +194,7 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
     vec3 &albedo,
     float &extinction,
     bool &didScatter,
-    vec3 *normal,
-    SampleFn sample,
-    SampleWithGradientFn sampleWithGradient)
+    vec3 *normal)
 {
   const auto &volume = *hit.volume;
   auto &svv = volume.data.tf1d;
@@ -251,7 +245,7 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
           break;
 
         const vec3 p = objRay.org + objRay.dir * t;
-        const float s = sample(samplerState, field, p);
+        const float s = sampleValue(samplerState, field, p);
         if (glm::isnan(s))
           continue;
 
@@ -276,7 +270,7 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
     // bound on σ_t).
     if (!didScatter && t_control < trav.tExit) {
       const vec3 p = objRay.org + objRay.dir * t_control;
-      const float s = sample(samplerState, field, p);
+      const float s = sampleValue(samplerState, field, p);
       if (!glm::isnan(s)) {
         const vec4 co = classifySample(volume, s);
         const float σ_t_p =
@@ -295,11 +289,8 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
   }
 
   if (normal && didScatter) {
-    *normal = computeWorldNormal(samplerState,
-        field,
-        scatterPos,
-        hit.instance->worldToObject,
-        sampleWithGradient);
+    *normal = computeWorldNormal(
+        samplerState, field, scatterPos, hit.instance->worldToObject);
   }
 
   return scatterT;
@@ -312,13 +303,12 @@ VISRTX_DEVICE  float woodcockSampleDistance(ScreenSample &ss,
 // σ_r_maj = σ_maj - σ_c, accumulating attenuation *= (1 - σ_r / σ_r_maj) per
 // candidate. Tighter than plain ratio tracking when σ_c > 0; degenerates to
 // plain ratio tracking when σ_c = 0.
-template <typename State, typename SampleFn>
+template <typename State>
 VISRTX_DEVICE  void woodcockRatioTrackTransmittance(ScreenSample &ss,
     const VolumeHit &hit,
     State &samplerState,
     const SpatialFieldGPUData &field,
-    vec3 &attenuation,
-    SampleFn sample)
+    vec3 &attenuation)
 {
   const auto &volume = *hit.volume;
   auto &svv = volume.data.tf1d;
@@ -363,7 +353,7 @@ VISRTX_DEVICE  void woodcockRatioTrackTransmittance(ScreenSample &ss,
           break;
 
         const vec3 p = objRay.org + objRay.dir * t;
-        const float s = sample(samplerState, field, p);
+        const float s = sampleValue(samplerState, field, p);
         if (glm::isnan(s))
           continue;
 
@@ -390,7 +380,7 @@ VISRTX_DEVICE  void woodcockRatioTrackTransmittance(ScreenSample &ss,
 // this is deterministic emission-absorption ray marching: the macrocell
 // `maxOpacity` is used only as an empty-cell flag, never as a majorant for
 // null-collision sampling.
-template <typename State, typename SampleFn, typename SampleWithGradientFn>
+template <typename State>
 VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
     const VolumeHit &hit,
     State &samplerState,
@@ -398,9 +388,7 @@ VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
     vec3 *color,
     vec3 *normal,
     float &opacity,
-    float invSamplingRate,
-    SampleFn sample,
-    SampleWithGradientFn sampleWithGradient)
+    float invSamplingRate)
 {
   const auto &volume = *hit.volume;
   auto &svv = volume.data.tf1d;
@@ -454,7 +442,7 @@ VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
         break;
       const vec3 p = objRay.org + objRay.dir * nextSampleT;
 
-      const float s = sample(samplerState, field, p);
+      const float s = sampleValue(samplerState, field, p);
       if (!glm::isnan(s)) {
         const vec4 co = classifySample(volume, s);
 
@@ -488,11 +476,8 @@ VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
     *normal = vec3(0.f);
     if (depth < std::numeric_limits<float>::max()) {
       const vec3 p = objRay.org + objRay.dir * depth;
-      *normal = computeWorldNormal(samplerState,
-          field,
-          p,
-          hit.instance->worldToObject,
-          sampleWithGradient);
+      *normal = computeWorldNormal(
+          samplerState, field, p, hit.instance->worldToObject);
     }
   }
 

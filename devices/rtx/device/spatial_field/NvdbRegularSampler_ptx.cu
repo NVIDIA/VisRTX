@@ -30,89 +30,21 @@
  */
 
 // OptiX direct-callable entry points for the NanoVDB regular-grid sampler.
-// The actual implementations live in NvdbRegularSamplerInline.h so the volume
-// integrator can call them inline on hot paths; this file only registers them
-// against the SBT slots for the fallback dispatch path.
+// Only the Woodcock-body callables are exposed via the SBT; value/normal/init
+// sampling stays inline (NvdbRegularSamplerInline.h) since the bodies below
+// resolve sampleValue/sampleNormal by ADL on the concrete state type, and the
+// volume integrator calls the inline sampleValue/sampleNormal directly on hot
+// paths.
 
 #include "NvdbRegularSamplerInline.h"
 #include "gpu/volumeIntegrationDetail.h"
 
 using namespace visrtx;
 
-// Fp4 sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp4(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbSampler(samplerState->nvdbFp4, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbFp4(
-    const VolumeSamplingState *samplerState, const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdb(samplerState->nvdbFp4, location, gradient);
-}
-
-// Fp8 sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp8(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbSampler(samplerState->nvdbFp8, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbFp8(
-    const VolumeSamplingState *samplerState, const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdb(samplerState->nvdbFp8, location, gradient);
-}
-
-// Fp16 sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFp16(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbSampler(samplerState->nvdbFp16, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbFp16(
-    const VolumeSamplingState *samplerState, const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdb(samplerState->nvdbFp16, location, gradient);
-}
-
-// FpN sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFpN(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbSampler(samplerState->nvdbFpN, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbFpN(
-    const VolumeSamplingState *samplerState, const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdb(samplerState->nvdbFpN, location, gradient);
-}
-
-// Float sampler
-VISRTX_CALLABLE void __direct_callable__initNvdbSamplerFloat(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initNvdbSampler(samplerState->nvdbFloat, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleNvdbFloat(
-    const VolumeSamplingState *samplerState, const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleNvdb(samplerState->nvdbFloat, location, gradient);
-}
-
 // Woodcock-body callables — one per variant. Each stack-allocates the typed
 // sampler state, inits it once, then runs the shared body from
-// volumeIntegrationDetail.h with __device__ lambdas resolving to the
-// variant's inline sampleNvdb<T>.
+// volumeIntegrationDetail.h, which calls the variant's inline
+// sampleValue/sampleNormal.
 #define VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES(Suffix, ValueType)              \
   VISRTX_CALLABLE float __direct_callable__sampleDistance##Suffix(            \
       ScreenSample *ss,                                                       \
@@ -134,14 +66,7 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbFloat(
         *albedo,                                                              \
         *extinction,                                                          \
         *didScatter,                                                          \
-        normal,                                                               \
-        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p) { return sampleNvdb(s, &p, nullptr); },            \
-        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p,                                                    \
-            vec3 &g) { return sampleNvdb(s, &p, &g); });                      \
+        normal);                                                              \
   }                                                                           \
                                                                               \
   VISRTX_CALLABLE void __direct_callable__ratioTrackTransmittance##Suffix(    \
@@ -152,14 +77,8 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbFloat(
     SamplerStateBox<NvdbRegularSamplerState<ValueType>> stateBox;             \
     auto &samplerState = stateBox.state;                                      \
     initNvdbSampler(samplerState, &field);                                    \
-    detail::woodcockRatioTrackTransmittance(*ss,                              \
-        *hit,                                                                 \
-        samplerState,                                                         \
-        field,                                                                \
-        *attenuation,                                                         \
-        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p) { return sampleNvdb(s, &p, nullptr); });           \
+    detail::woodcockRatioTrackTransmittance(                                  \
+        *ss, *hit, samplerState, field, *attenuation);                        \
   }                                                                           \
                                                                               \
   VISRTX_CALLABLE float __direct_callable__rayMarchVolume##Suffix(            \
@@ -182,14 +101,7 @@ VISRTX_CALLABLE float __direct_callable__sampleNvdbFloat(
         color,                                                                \
         normal,                                                               \
         *opacity,                                                             \
-        invSamplingRate,                                                      \
-        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p) { return sampleNvdb(s, &p, nullptr); },            \
-        [] __device__(const NvdbRegularSamplerState<ValueType> &s,            \
-            const SpatialFieldGPUData &,                                      \
-            const vec3 &p,                                                    \
-            vec3 &g) { return sampleNvdb(s, &p, &g); });                      \
+        invSamplingRate);                                                     \
   }
 
 VISRTX_DEFINE_NVDB_WOODCOCK_CALLABLES(NvdbFp4, nanovdb::Fp4)

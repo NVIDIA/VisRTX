@@ -120,37 +120,43 @@ VISRTX_DEVICE float sampleAtIndexRectilinear(
   return state.linearSampler(clamped);
 }
 
+// Shared per-sample API (see gpu/volumeIntegrationDetail.h). sampleValue
+// returns the field value; sampleNormal returns the unnormalized object-space
+// gradient (the raw normal direction) — callers orient and normalize. `field`
+// is unused for built-in fields (present for a uniform overload set).
 template <typename ValueType>
-VISRTX_DEVICE float sampleNvdbRectilinear(
+VISRTX_DEVICE float sampleValue(
     const NvdbRectilinearSamplerState<ValueType> &state,
-    const vec3 *location,
-    vec3 *gradient)
+    const SpatialFieldGPUData &,
+    const vec3 &p)
 {
-  const auto indexPos = worldToIndexRectilinear(state, location);
-  const float value = sampleAtIndexRectilinear(state, indexPos);
+  return sampleAtIndexRectilinear(state, worldToIndexRectilinear(state, &p));
+}
 
-  if (gradient) {
-    const float sxp =
-        sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(1, 0, 0));
-    const float sxn =
-        sampleAtIndexRectilinear(state, indexPos - nanovdb::Vec3f(1, 0, 0));
-    const float syp =
-        sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(0, 1, 0));
-    const float syn =
-        sampleAtIndexRectilinear(state, indexPos - nanovdb::Vec3f(0, 1, 0));
-    const float szp =
-        sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(0, 0, 1));
-    const float szn =
-        sampleAtIndexRectilinear(state, indexPos - nanovdb::Vec3f(0, 0, 1));
-
-    *gradient = vec3(sxp - sxn, syp - syn, szp - szn)
-        * vec3(state.invAvgVoxelSize[0],
-            state.invAvgVoxelSize[1],
-            state.invAvgVoxelSize[2])
-        * 0.5f;
-  }
-
-  return value;
+template <typename ValueType>
+VISRTX_DEVICE vec3 sampleNormal(
+    const NvdbRectilinearSamplerState<ValueType> &state,
+    const SpatialFieldGPUData &,
+    const vec3 &p)
+{
+  const auto indexPos = worldToIndexRectilinear(state, &p);
+  const float sxp =
+      sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(1, 0, 0));
+  const float sxn =
+      sampleAtIndexRectilinear(state, indexPos - nanovdb::Vec3f(1, 0, 0));
+  const float syp =
+      sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(0, 1, 0));
+  const float syn =
+      sampleAtIndexRectilinear(state, indexPos - nanovdb::Vec3f(0, 1, 0));
+  const float szp =
+      sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(0, 0, 1));
+  const float szn =
+      sampleAtIndexRectilinear(state, indexPos - nanovdb::Vec3f(0, 0, 1));
+  return vec3(sxp - sxn, syp - syn, szp - szn)
+      * vec3(state.invAvgVoxelSize[0],
+          state.invAvgVoxelSize[1],
+          state.invAvgVoxelSize[2])
+      * 0.5f;
 }
 
 } // namespace visrtx

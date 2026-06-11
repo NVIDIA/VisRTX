@@ -52,15 +52,24 @@ enum class SurfaceShaderEntryPoints
 
 enum class SpatialFieldSamplerEntryPoints
 {
-  Init = 0,
-  Sample,
   // Heavy Woodcock-loop bodies live as per-variant direct-callables in each
-  // sampler PTX module. Renderer wrappers in volumeIntegration.h compute
-  // (samplerCallableIndex + offset) and invoke via optixDirectCall.
-  SampleDistance,
+  // sampler PTX module. Present for every field family. Renderer wrappers in
+  // volumeIntegration.h compute (samplerCallableIndex + offset) and invoke via
+  // optixDirectCall.
+  SampleDistance = 0,
   RatioTrackTransmittance,
   RayMarchVolume,
-  Count
+  Count, // built-in families reserve this many callable slots
+
+  // Custom-field-only hooks. Built-in families sample inline — their concrete
+  // state type resolves sampleValue/sampleNormal by ADL inside the Woodcock
+  // body — so they never dispatch these through the SBT. Custom fields route
+  // back through the SBT (callable-in-callable) because the user sampler is
+  // compiled into these callables.
+  Init = Count,
+  SampleValue,
+  SampleNormal,
+  CustomCount // custom field reserves this many callable slots
 };
 
 enum class SbtCallableEntryPoints : uint32_t
@@ -96,7 +105,8 @@ enum class SbtCallableEntryPoints : uint32_t
   // based on CustomFieldType in the field data
   SpatialFieldSamplerCustom = SpatialFieldSamplerNvdbRectilinearFloat
       + int(SpatialFieldSamplerEntryPoints::Count),
-  Last = SpatialFieldSamplerCustom + int(SpatialFieldSamplerEntryPoints::Count),
+  Last = SpatialFieldSamplerCustom
+      + int(SpatialFieldSamplerEntryPoints::CustomCount),
 };
 
 } // namespace visrtx

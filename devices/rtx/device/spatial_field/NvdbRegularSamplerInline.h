@@ -32,10 +32,10 @@
 #pragma once
 
 // NanoVDB regular-grid sampler — inline device implementations.
-// Lives in a header so the volume integrator can call sampleNvdb directly,
-// bypassing the OptiX direct-callable dispatch on hot paths. The matching
-// __direct_callable__ entry points stay in NvdbRegularSampler_ptx.cu for
-// renderers that go through the SBT slot.
+// Lives in a header so the volume integrator and isosurface can call
+// sampleValue/sampleNormal directly, bypassing the OptiX direct-callable
+// dispatch on hot paths. The matching __direct_callable__ entry points stay in
+// NvdbRegularSampler_ptx.cu for renderers that go through the SBT slot.
 
 #include "gpu/gpu_decl.h"
 #include "gpu/gpu_objects.h"
@@ -106,64 +106,55 @@ VISRTX_DEVICE void initNvdbSampler(
   state.invTwoVoxelSize = nanovdb::Vec3f(iv.x, iv.y, iv.z);
 }
 
+// Object-space position -> index-space sample coordinate.
 template <typename ValueType>
-VISRTX_DEVICE float sampleNvdb(
-    const NvdbRegularSamplerState<ValueType> &state,
-    const vec3 *location,
-    vec3 *gradient)
+VISRTX_DEVICE nanovdb::Vec3f nvdbIndexPos(
+    const NvdbRegularSamplerState<ValueType> &state, const vec3 &p)
 {
-  const auto indexPos0 = state.grid->worldToIndexF(
-      nanovdb::Vec3f(location->x, location->y, location->z));
+  const auto indexPos0 =
+      state.grid->worldToIndexF(nanovdb::Vec3f(p.x, p.y, p.z));
+  return (indexPos0 - state.offsetDown) * state.scale + state.offsetUp;
+}
 
-  const auto indexPos =
-      (indexPos0 - state.offsetDown) * state.scale + state.offsetUp;
+// Filtered fetch at an index-space coordinate (clamped to the grid).
+template <typename ValueType>
+VISRTX_DEVICE float nvdbSampleAtIndex(
+    const NvdbRegularSamplerState<ValueType> &state, const nanovdb::Vec3f &idx)
+{
+  const auto c = clampNvdb(idx, state.indexMin, state.indexMax);
+  return state.filter == SpatialFieldFilter::Nearest ? state.nearestSampler(c)
+                                                      : state.linearSampler(c);
+}
 
-  const auto clamped = clampNvdb(indexPos, state.indexMin, state.indexMax);
+// Shared per-sample API (see gpu/volumeIntegrationDetail.h). sampleValue
+// returns the field value; sampleNormal returns the unnormalized object-space
+// gradient (the raw normal direction) — callers orient and normalize. `field`
+// is unused for built-in fields (present for a uniform overload set).
+template <typename ValueType>
+VISRTX_DEVICE float sampleValue(const NvdbRegularSamplerState<ValueType> &state,
+    const SpatialFieldGPUData &,
+    const vec3 &p)
+{
+  return nvdbSampleAtIndex(state, nvdbIndexPos(state, p));
+}
 
-  if (state.filter == SpatialFieldFilter::Nearest) {
-    const float value = state.nearestSampler(clamped);
-    if (gradient) {
-      // Central differences at ±1 voxel in index space
-      const float sxp = state.nearestSampler(clampNvdb(
-          indexPos + nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
-      const float sxn = state.nearestSampler(clampNvdb(
-          indexPos - nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
-      const float syp = state.nearestSampler(clampNvdb(
-          indexPos + nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
-      const float syn = state.nearestSampler(clampNvdb(
-          indexPos - nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
-      const float szp = state.nearestSampler(clampNvdb(
-          indexPos + nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-      const float szn = state.nearestSampler(clampNvdb(
-          indexPos - nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-      // Convert from index space to object space
-      *gradient =
-          vec3((sxp - sxn) * state.scale[0] * state.invTwoVoxelSize[0],
-              (syp - syn) * state.scale[1] * state.invTwoVoxelSize[1],
-              (szp - szn) * state.scale[2] * state.invTwoVoxelSize[2]);
-    }
-    return value;
-  }
-
-  const float value = state.linearSampler(clamped);
-  if (gradient) {
-    const float sxp = state.linearSampler(clampNvdb(
-        indexPos + nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
-    const float sxn = state.linearSampler(clampNvdb(
-        indexPos - nanovdb::Vec3f(1, 0, 0), state.indexMin, state.indexMax));
-    const float syp = state.linearSampler(clampNvdb(
-        indexPos + nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
-    const float syn = state.linearSampler(clampNvdb(
-        indexPos - nanovdb::Vec3f(0, 1, 0), state.indexMin, state.indexMax));
-    const float szp = state.linearSampler(clampNvdb(
-        indexPos + nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-    const float szn = state.linearSampler(clampNvdb(
-        indexPos - nanovdb::Vec3f(0, 0, 1), state.indexMin, state.indexMax));
-    *gradient = vec3((sxp - sxn) * state.scale[0] * state.invTwoVoxelSize[0],
-        (syp - syn) * state.scale[1] * state.invTwoVoxelSize[1],
-        (szp - szn) * state.scale[2] * state.invTwoVoxelSize[2]);
-  }
-  return value;
+template <typename ValueType>
+VISRTX_DEVICE vec3 sampleNormal(
+    const NvdbRegularSamplerState<ValueType> &state,
+    const SpatialFieldGPUData &,
+    const vec3 &p)
+{
+  // Central differences at ±1 voxel in index space, mapped to object space.
+  const auto indexPos = nvdbIndexPos(state, p);
+  const float sxp = nvdbSampleAtIndex(state, indexPos + nanovdb::Vec3f(1, 0, 0));
+  const float sxn = nvdbSampleAtIndex(state, indexPos - nanovdb::Vec3f(1, 0, 0));
+  const float syp = nvdbSampleAtIndex(state, indexPos + nanovdb::Vec3f(0, 1, 0));
+  const float syn = nvdbSampleAtIndex(state, indexPos - nanovdb::Vec3f(0, 1, 0));
+  const float szp = nvdbSampleAtIndex(state, indexPos + nanovdb::Vec3f(0, 0, 1));
+  const float szn = nvdbSampleAtIndex(state, indexPos - nanovdb::Vec3f(0, 0, 1));
+  return vec3((sxp - sxn) * state.scale[0] * state.invTwoVoxelSize[0],
+      (syp - syn) * state.scale[1] * state.invTwoVoxelSize[1],
+      (szp - szn) * state.scale[2] * state.invTwoVoxelSize[2]);
 }
 
 } // namespace visrtx

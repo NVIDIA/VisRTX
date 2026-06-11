@@ -13,7 +13,7 @@
  * 1. Define the field data struct and add to CustomFieldType enum
  * 2. Create a sampler header with sampleXxx() function
  * 3. Include the header below
- * 4. Add a case to the switch in __direct_callable__sampleCustom
+ * 4. Add a case to the dispatch used by sampleCustomImpl
  */
 
 #include "gpu/gpu_decl.h"
@@ -50,38 +50,97 @@ VISRTX_CALLABLE void __direct_callable__initCustomSampler(
   samplerState->custom = field->data.custom;
 }
 
-/**
- * @brief Sample the custom field at a given location
- *
- * Dispatches to the appropriate sampling function based on subType.
- * Returns a normalized field value in [0, 1].
- *
- * If no custom samplers are configured (VISRTX_CUSTOM_SAMPLE_DISPATCH
- * not defined), returns 0.0 as a fallback.
- */
-VISRTX_CALLABLE float __direct_callable__sampleCustom(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location,
-    vec3 *gradient)
+// User value sampler. Returns 0 when no custom samplers are configured. The
+// user API exposes only a scalar sampler (VISRTX_CUSTOM_SAMPLE_DISPATCH); the
+// normal is derived from it by central differences below.
+namespace visrtx {
+VISRTX_DEVICE float sampleCustomImpl(const CustomFieldData &data, const vec3 &P)
 {
 #ifdef VISRTX_CUSTOM_SAMPLE_DISPATCH
-  const CustomFieldData &data = samplerState->custom;
-  const vec3 P = *location;
-
   VISRTX_CUSTOM_SAMPLE_DISPATCH(data, P)
 #else
   return 0.0f;
 #endif
 }
+} // namespace visrtx
+
+VISRTX_CALLABLE float __direct_callable__sampleValueCustom(
+    const VolumeSamplingState *samplerState,
+    const SpatialFieldGPUData *,
+    const vec3 *location)
+{
+  return sampleCustomImpl(samplerState->custom, *location);
+}
+
+// Central-difference gradient of the user value sampler. Returns the
+// unnormalized object-space gradient, matching the built-in sampleNormal
+// convention (caller orients + normalizes, see computeWorldNormal). Step is a
+// small fraction of the field's domain so it is scale-invariant.
+VISRTX_CALLABLE vec3 __direct_callable__sampleNormalCustom(
+    const VolumeSamplingState *samplerState,
+    const SpatialFieldGPUData *field,
+    const vec3 *location)
+{
+  const CustomFieldData &d = samplerState->custom;
+  const vec3 p = *location;
+  const vec3 extent = field->roi.upper - field->roi.lower;
+  const float eps = fmaxf(1e-3f * glm::length(extent), 1e-6f);
+  const float gx = sampleCustomImpl(d, p + vec3(eps, 0.f, 0.f))
+      - sampleCustomImpl(d, p - vec3(eps, 0.f, 0.f));
+  const float gy = sampleCustomImpl(d, p + vec3(0.f, eps, 0.f))
+      - sampleCustomImpl(d, p - vec3(0.f, eps, 0.f));
+  const float gz = sampleCustomImpl(d, p + vec3(0.f, 0.f, eps))
+      - sampleCustomImpl(d, p - vec3(0.f, 0.f, eps));
+  return vec3(gx, gy, gz) * (1.f / (2.f * eps));
+}
 
 //=============================================================================
 // Woodcock-body callables for custom fields. Because the inner sample()
-// implementation is user-supplied (compiled into __direct_callable__sampleCustom
-// in this same module), the Woodcock body dispatches via optixDirectCall to the
-// same module's Sample slot — callable-in-callable. Slower than the built-in
-// families' inline path but preserves the user-facing UX (custom-field authors
-// implement only init + sample).
+// implementation is user-supplied (compiled into the value/normal callables in
+// this same module), the Woodcock body dispatches via optixDirectCall to the
+// same module's SampleValue/SampleNormal slots — callable-in-callable. Slower
+// than the built-in families' inline path but preserves the user-facing UX
+// (custom-field authors implement only init + sample).
 //=============================================================================
+
+// Shared per-sample API (see gpu/volumeIntegrationDetail.h) for custom fields.
+// Unlike the built-in inline samplers, custom sampling routes back through the
+// user's init/value/normal direct-callables, so it needs `field` for the
+// callable index.
+namespace visrtx {
+
+VISRTX_DEVICE void initSamplerState(
+    VolumeSamplingState &s, const SpatialFieldGPUData &field)
+{
+  optixDirectCall<void>(uint32_t(field.samplerCallableIndex)
+          + uint32_t(SpatialFieldSamplerEntryPoints::Init),
+      &s,
+      &field);
+}
+
+VISRTX_DEVICE float sampleValue(const VolumeSamplingState &s,
+    const SpatialFieldGPUData &field,
+    const vec3 &p)
+{
+  return optixDirectCall<float>(uint32_t(field.samplerCallableIndex)
+          + uint32_t(SpatialFieldSamplerEntryPoints::SampleValue),
+      &s,
+      &field,
+      &p);
+}
+
+VISRTX_DEVICE vec3 sampleNormal(const VolumeSamplingState &s,
+    const SpatialFieldGPUData &field,
+    const vec3 &p)
+{
+  return optixDirectCall<vec3>(uint32_t(field.samplerCallableIndex)
+          + uint32_t(SpatialFieldSamplerEntryPoints::SampleNormal),
+      &s,
+      &field,
+      &p);
+}
+
+} // namespace visrtx
 
 VISRTX_CALLABLE float __direct_callable__sampleDistanceCustom(ScreenSample *ss,
     const VolumeHit *hit,
@@ -93,9 +152,8 @@ VISRTX_CALLABLE float __direct_callable__sampleDistanceCustom(ScreenSample *ss,
   const auto &field =
       getSpatialFieldData(*ss->frameData, hit->volume->data.tf1d.field);
   VolumeSamplingState samplerState;
-  samplerState.custom = field.data.custom;
+  initSamplerState(samplerState, field);
 
-  const uint32_t baseIdx = uint32_t(field.samplerCallableIndex);
   return detail::woodcockSampleDistance(*ss,
       *hit,
       samplerState,
@@ -103,26 +161,7 @@ VISRTX_CALLABLE float __direct_callable__sampleDistanceCustom(ScreenSample *ss,
       *albedo,
       *extinction,
       *didScatter,
-      normal,
-      [baseIdx] __device__(const VolumeSamplingState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p) {
-        return optixDirectCall<float>(
-            baseIdx + uint32_t(SpatialFieldSamplerEntryPoints::Sample),
-            &s,
-            &p,
-            (vec3 *)nullptr);
-      },
-      [baseIdx] __device__(const VolumeSamplingState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p,
-          vec3 &g) {
-        return optixDirectCall<float>(
-            baseIdx + uint32_t(SpatialFieldSamplerEntryPoints::Sample),
-            &s,
-            &p,
-            &g);
-      });
+      normal);
 }
 
 VISRTX_CALLABLE void __direct_callable__ratioTrackTransmittanceCustom(
@@ -131,23 +170,10 @@ VISRTX_CALLABLE void __direct_callable__ratioTrackTransmittanceCustom(
   const auto &field =
       getSpatialFieldData(*ss->frameData, hit->volume->data.tf1d.field);
   VolumeSamplingState samplerState;
-  samplerState.custom = field.data.custom;
+  initSamplerState(samplerState, field);
 
-  const uint32_t baseIdx = uint32_t(field.samplerCallableIndex);
-  detail::woodcockRatioTrackTransmittance(*ss,
-      *hit,
-      samplerState,
-      field,
-      *attenuation,
-      [baseIdx] __device__(const VolumeSamplingState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p) {
-        return optixDirectCall<float>(
-            baseIdx + uint32_t(SpatialFieldSamplerEntryPoints::Sample),
-            &s,
-            &p,
-            (vec3 *)nullptr);
-      });
+  detail::woodcockRatioTrackTransmittance(
+      *ss, *hit, samplerState, field, *attenuation);
 }
 
 VISRTX_CALLABLE float __direct_callable__rayMarchVolumeCustom(ScreenSample *ss,
@@ -160,34 +186,8 @@ VISRTX_CALLABLE float __direct_callable__rayMarchVolumeCustom(ScreenSample *ss,
   const auto &field =
       getSpatialFieldData(*ss->frameData, hit->volume->data.tf1d.field);
   VolumeSamplingState samplerState;
-  samplerState.custom = field.data.custom;
+  initSamplerState(samplerState, field);
 
-  const uint32_t baseIdx = uint32_t(field.samplerCallableIndex);
-  return detail::latticeRayMarchVolume(*ss,
-      *hit,
-      samplerState,
-      field,
-      color,
-      normal,
-      *opacity,
-      invSamplingRate,
-      [baseIdx] __device__(const VolumeSamplingState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p) {
-        return optixDirectCall<float>(
-            baseIdx + uint32_t(SpatialFieldSamplerEntryPoints::Sample),
-            &s,
-            &p,
-            (vec3 *)nullptr);
-      },
-      [baseIdx] __device__(const VolumeSamplingState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p,
-          vec3 &g) {
-        return optixDirectCall<float>(
-            baseIdx + uint32_t(SpatialFieldSamplerEntryPoints::Sample),
-            &s,
-            &p,
-            &g);
-      });
+  return detail::latticeRayMarchVolume(
+      *ss, *hit, samplerState, field, color, normal, *opacity, invSamplingRate);
 }

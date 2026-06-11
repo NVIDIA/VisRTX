@@ -30,28 +30,14 @@
  */
 
 // OptiX direct-callable entry points for the structured rectilinear sampler.
-// Implementations live in StructuredRectilinearSamplerInline.h.
+// Only the Woodcock-body callables are exposed via the SBT; value/normal/init
+// sampling stays inline (StructuredRectilinearSamplerInline.h) since the bodies
+// below resolve sampleValue/sampleNormal by ADL on the concrete state type.
 
 #include "StructuredRectilinearSamplerInline.h"
 #include "gpu/volumeIntegrationDetail.h"
 
 using namespace visrtx;
-
-VISRTX_CALLABLE void __direct_callable__initStructuredRectilinearSampler(
-    VolumeSamplingState *samplerState, const SpatialFieldGPUData *field)
-{
-  initStructuredRectilinearSampler(
-      samplerState->structuredRectilinear, field);
-}
-
-VISRTX_CALLABLE float __direct_callable__sampleStructuredRectilinear(
-    const VolumeSamplingState *samplerState,
-    const vec3 *location,
-    vec3 *gradient)
-{
-  return sampleStructuredRectilinear(
-      samplerState->structuredRectilinear, location, gradient);
-}
 
 VISRTX_CALLABLE float
 __direct_callable__sampleDistanceStructuredRectilinear(ScreenSample *ss,
@@ -73,16 +59,7 @@ __direct_callable__sampleDistanceStructuredRectilinear(ScreenSample *ss,
       *albedo,
       *extinction,
       *didScatter,
-      normal,
-      [] __device__(const StructuredRectilinearSamplerState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p) {
-        return sampleStructuredRectilinear(s, &p, nullptr);
-      },
-      [] __device__(const StructuredRectilinearSamplerState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p,
-          vec3 &g) { return sampleStructuredRectilinear(s, &p, &g); });
+      normal);
 }
 
 VISRTX_CALLABLE void
@@ -94,16 +71,8 @@ __direct_callable__ratioTrackTransmittanceStructuredRectilinear(
   SamplerStateBox<StructuredRectilinearSamplerState> stateBox;
   auto &samplerState = stateBox.state;
   initStructuredRectilinearSampler(samplerState, &field);
-  detail::woodcockRatioTrackTransmittance(*ss,
-      *hit,
-      samplerState,
-      field,
-      *attenuation,
-      [] __device__(const StructuredRectilinearSamplerState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p) {
-        return sampleStructuredRectilinear(s, &p, nullptr);
-      });
+  detail::woodcockRatioTrackTransmittance(
+      *ss, *hit, samplerState, field, *attenuation);
 }
 
 VISRTX_CALLABLE float __direct_callable__rayMarchVolumeStructuredRectilinear(
@@ -119,21 +88,6 @@ VISRTX_CALLABLE float __direct_callable__rayMarchVolumeStructuredRectilinear(
   SamplerStateBox<StructuredRectilinearSamplerState> stateBox;
   auto &samplerState = stateBox.state;
   initStructuredRectilinearSampler(samplerState, &field);
-  return detail::latticeRayMarchVolume(*ss,
-      *hit,
-      samplerState,
-      field,
-      color,
-      normal,
-      *opacity,
-      invSamplingRate,
-      [] __device__(const StructuredRectilinearSamplerState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p) {
-        return sampleStructuredRectilinear(s, &p, nullptr);
-      },
-      [] __device__(const StructuredRectilinearSamplerState &s,
-          const SpatialFieldGPUData &,
-          const vec3 &p,
-          vec3 &g) { return sampleStructuredRectilinear(s, &p, &g); });
+  return detail::latticeRayMarchVolume(
+      *ss, *hit, samplerState, field, color, normal, *opacity, invSamplingRate);
 }
