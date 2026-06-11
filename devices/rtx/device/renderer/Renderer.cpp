@@ -887,6 +887,11 @@ void Renderer::initOptixPipeline()
 
         auto pipelineCompileOptions = makeVisRTXOptixPipelineCompileOptions();
 
+        // optix*Create writes the actual log length back into sizeof_log (which
+        // can exceed sizeof(log) on a verbose material). Reset it to the buffer
+        // capacity before every call, or a later call in this per-material loop
+        // would treat the stale (>2048) value as the capacity and overflow log.
+        sizeof_log = sizeof(log);
         OPTIX_CHECK(optixModuleCreate(state.optixContext,
             &moduleCompileOptions,
             &pipelineCompileOptions,
