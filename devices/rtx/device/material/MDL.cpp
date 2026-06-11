@@ -318,8 +318,8 @@ void MDL::syncParameters()
           if (colorspaceStr != "raw" && colorspaceStr != "srgb") {
             reportMessage(ANARI_SEVERITY_WARNING,
                 "Unknown colorspace type %s for %s. Falling back to srgb",
-                colorspaceStr,
-                name);
+                colorspaceStr.c_str(),
+                name.c_str());
             colorspaceStr = "srgb"s;
           }
           if (colorspaceStr == "raw"sv) {
