@@ -214,9 +214,17 @@ MaterialRegistry::acquireMaterial(
       textureDesc.url =
           fmt::format("bsdf_data_{}", fmt::ptr(textureDesc.bsdf.data));
     } else {
-      auto moduleOwner = targetCode->get_texture_owner_module(i);
+      // Relative resource paths (e.g. "Textures/foo.png") resolve against the
+      // owner module's directory. Pass the compiled module's on-disk path so
+      // resolution doesn't depend on the owner module name being reachable
+      // through the MDL search paths.
+      auto moduleOwner = std::string(targetCode->get_texture_owner_module(i));
+      auto ownerName =
+          moduleOwner.empty() ? std::string(moduleName) : moduleOwner;
+      const char *moduleFile = module->get_filename();
       auto url = std::string(targetCode->get_texture_url(i));
-      url = m_core->resolveResource(url.c_str(), moduleOwner);
+      url = m_core->resolveResource(
+          url.c_str(), ownerName, moduleFile ? moduleFile : "");
       if (url.empty()) {
         m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
             "Failed to resolve texture resource {} for material {}",

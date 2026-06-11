@@ -117,8 +117,9 @@ class Core
       const mi::neuraylib::ICompiled_material *compiledMaterial,
       mi::neuraylib::ITransaction *transaction);
 
-  std::string resolveResource(
-      std::string_view resourceId, std::string_view ownerId = {});
+  std::string resolveResource(std::string_view resourceId,
+      std::string_view ownerName = {},
+      std::string_view ownerFilePath = {});
   std::string resolveModule(std::string_view moduleId);
 
  private:

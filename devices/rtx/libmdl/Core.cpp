@@ -544,16 +544,21 @@ auto Core::setMdlResourceSearchPaths(nonstd::span<std::filesystem::path> paths)
   }
 }
 
-auto Core::resolveResource(
-    std::string_view resourceId, std::string_view ownerId) -> std::string
+auto Core::resolveResource(std::string_view resourceId,
+    std::string_view ownerName,
+    std::string_view ownerFilePath) -> std::string
 {
   auto mdlConfiguration = make_handle(
       m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
   auto entityResolver = make_handle(mdlConfiguration->get_entity_resolver());
+  // Relative resource paths (e.g. "Textures/foo.png") resolve against the
+  // owner module. ownerName is the owner's absolute *name*, ownerFilePath its
+  // on-disk path; the latter lets resolution work without relying on the MDL
+  // search paths. They occupy distinct argument slots and must not be swapped.
   auto resolvedResource = make_handle(
       entityResolver->resolve_resource(std::string(resourceId).c_str(),
-          ownerId.empty() ? nullptr : std::string(ownerId).c_str(),
-          nullptr,
+          ownerFilePath.empty() ? nullptr : std::string(ownerFilePath).c_str(),
+          ownerName.empty() ? nullptr : std::string(ownerName).c_str(),
           0,
           0));
 
