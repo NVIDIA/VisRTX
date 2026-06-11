@@ -125,7 +125,11 @@ struct TextureHandler : mi::neuraylib::Texture_handler_base
 using ShadingStateMaterial = mi::neuraylib::Shading_state_material;
 using ResourceData = mi::neuraylib::Resource_data;
 
-struct alignas(8) MDLShadingState
+// 16-byte aligned: MDL's generated PTX writes textureResults with 16-byte
+// vector stores (st.local.v4.f32). An under-aligned (8-byte) local instance
+// makes those stores misaligned -> illegal __local__ access -> the render
+// kernel faults and the frame's completion event never signals.
+struct alignas(16) MDLShadingState
 {
   const char *argBlock;
 
@@ -136,7 +140,7 @@ struct alignas(8) MDLShadingState
   // Sized to match the MDL backend's num_texture_spaces / num_texture_results
   // options — see libmdl/MDLBackendConfig.h. The two sides must agree because
   // MDL's generated PTX indexes these arrays directly.
-  glm::vec4 textureResults[libmdl::kNumTextureResults];
+  alignas(16) glm::vec4 textureResults[libmdl::kNumTextureResults];
   glm::vec3 textureCoords[libmdl::kNumTextureSpaces];
   glm::vec3 textureTangentsU[libmdl::kNumTextureSpaces];
   glm::vec3 textureTangentsV[libmdl::kNumTextureSpaces];
