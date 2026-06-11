@@ -25,6 +25,10 @@ struct CustomField : public SpatialField
 {
   CustomField(DeviceGlobalState *d) : SpatialField(d) {}
   ~CustomField() override = default;
+
+  // Builds the majorant grid from the (already-uploaded) field data. Derived
+  // fields must init the grid and upload GPU data before calling this.
+  void finalize() override;
 };
 
 } // namespace visrtx

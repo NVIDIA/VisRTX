@@ -38,6 +38,14 @@
 
 namespace visrtx {
 
+// Defined in UniformGridCustom.cu (a separate TU so it can include the custom
+// sampler dispatch header). Default stream; the cudaFree below synchronizes.
+void launchCustomValueRanges(box1 *valueRanges,
+    ivec3 mcDims,
+    box3 objectBounds,
+    const SpatialFieldGPUData *dSfgd,
+    cudaStream_t stream);
+
 __global__ void computeOpacityBoundsGPU(float2 *opacityBounds,
     const box1 *valueRanges,
     cudaTextureObject_t colorMap,
@@ -209,6 +217,10 @@ void UniformGrid::computeValueRanges(const SpatialFieldGPUData &sfgd)
     break;
   case SbtCallableEntryPoints::SpatialFieldSamplerNvdbRectilinearFloat:
     LAUNCH_BUILD_GRID(NvdbRectilinearSpatialFieldAccessor<float>);
+    break;
+  case SbtCallableEntryPoints::SpatialFieldSamplerCustom:
+    launchCustomValueRanges(
+        m_valueRanges, m_dims, m_objectBounds, sfgdDevice, /*stream=*/0);
     break;
   default:
     break;

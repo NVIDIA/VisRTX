@@ -196,7 +196,9 @@ set(SOURCES
   spatial_field/StructuredRectilinearSampler.cpp
   spatial_field/StructuredRegularSampler.cpp
   spatial_field/space_skipping/UniformGrid.cu
+  spatial_field/space_skipping/UniformGridCustom.cu
   spatial_field/CustomFieldSampler.cpp
+  spatial_field/CustomField.cpp
   spatial_field/RegisterCustomFields.cpp
 
   surface/Surface.cpp
