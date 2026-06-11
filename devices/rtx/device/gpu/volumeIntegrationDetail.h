@@ -421,7 +421,9 @@ VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
   float depth = std::numeric_limits<float>::max();
 
   constexpr float MIN_OPACITY_THRESHOLD = 1e-2f;
-  constexpr float MAX_OPACITY_THRESHOLD = 0.99f;
+  // Early-out once the segment is effectively opaque. Kept moderately high so
+  // the residual transmittance zeroed below is genuinely negligible.
+  constexpr float MAX_OPACITY_THRESHOLD = 0.999f;
 
   // Single stratified jitter at the segment start.
   const float jitter =
@@ -473,6 +475,14 @@ VISRTX_DEVICE  float latticeRayMarchVolume(ScreenSample &ss,
     }
     trav.next();
   }
+
+  // The early-out treats the segment as opaque, but front-to-back compositing
+  // leaves a small residual transmittance (1 - opacity). Against a low-dynamic-
+  // range background it's invisible; against an HDR background (bright sky, sun)
+  // even ~0.1% leaks visibly and makes the volume look more transparent than it
+  // should be.
+  if (opacity >= MAX_OPACITY_THRESHOLD)
+    opacity = 1.0f;
 
   if (normal) {
     *normal = vec3(0.f);
