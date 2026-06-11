@@ -46,7 +46,14 @@ VISRTX_DEVICE void initStructuredRectilinearSampler(
   const auto &data = field->data.structuredRectilinear;
 
   state.texObj = data.texObj;
-  state.dims = data.dims - vec3(1);
+  // Texture-coordinate scale = number of axis segments (numCoords - 1), so the
+  // warped node-index maps directly onto the texture coordinate.
+  //   node-centered: numCoords == data.dims nodes  -> scale data.dims - 1,
+  //                  sampled at texel centers (offset 0.5).
+  //   cell-centered: numCoords == data.dims + 1 nodes over data.dims cells
+  //                  -> scale data.dims, cell center i+0.5 lands on texel
+  //                  center i+0.5 (offset 0).
+  state.dims = data.cellCentered ? data.dims : data.dims - vec3(1);
   state.offset = vec3(data.cellCentered ? 0.0f : 0.5f);
   state.axisLUT[0] = data.axisLUT[0];
   state.axisLUT[1] = data.axisLUT[1];
@@ -54,9 +61,10 @@ VISRTX_DEVICE void initStructuredRectilinearSampler(
   state.axisBoundsMin = data.axisBoundsMin;
   state.axisBoundsMax = data.axisBoundsMax;
 
+  // Voxels per unit extent: cell count (cell-centered) or node-segment count
+  // (node-centered) over the axis span — both equal state.dims.
   const vec3 extent = data.axisBoundsMax - data.axisBoundsMin;
-  state.invAvgVoxelSpacing =
-      data.cellCentered ? (state.dims + vec3(1)) / extent : state.dims / extent;
+  state.invAvgVoxelSpacing = state.dims / extent;
 }
 
 // Maps an object-space position to texture sample coordinates through the

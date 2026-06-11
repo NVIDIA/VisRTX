@@ -83,17 +83,21 @@ VISRTX_DEVICE void initNvdbSampler(
 
   const nanovdb::CoordBBox indexBBox = grid->indexBBox();
   const nanovdb::Vec3f dims = nanovdb::Vec3f(indexBBox.dim());
-  // NanoVDB samplers get exact values at 0, 1, ... N, which works for
-  // node centered data. For cell centered data, we need to offset by -0.5
-  // and clamp to artificially create the full voxel, extrapolating the
-  // outermost voxel values.
-  // Scale moves from index space to index space - 1
-  state.offsetDown = -nanovdb::Vec3f(indexBBox.min());
+  // NanoVDB's index space spans [0, N] over the world bbox (it treats the N
+  // voxels as cells [i, i+1]), but node-centered data of N nodes only fills the
+  // index range [0, N-1]. So node-centered scales the (min-relative) index by
+  // (N-1)/N to map the full [0,N] domain onto the node range, giving symmetric
+  // half voxels at both boundaries; the identity (scale 1) instead leaves the
+  // phantom cell [N-1, N] as a full constant voxel at the high boundary. Cell-
+  // centered data stores values at the cell centers, so shift by -0.5 and clamp
+  // (extrapolating the outermost voxel) — no stretch. offsetDown is +min, so a
+  // grid whose index bbox does not start at 0 still maps correctly.
+  state.offsetDown = nanovdb::Vec3f(indexBBox.min());
   if (field->data.nvdbRegular.cellCentered) {
-    state.offsetUp = nanovdb::Vec3f(-0.5f) + state.offsetDown;
+    state.offsetUp = nanovdb::Vec3f(indexBBox.min()) - nanovdb::Vec3f(0.5f);
     state.scale = nanovdb::Vec3f(1.0f);
   } else {
-    state.offsetUp = state.offsetDown;
+    state.offsetUp = nanovdb::Vec3f(indexBBox.min());
     state.scale = (dims - nanovdb::Vec3f(1.0f)) / dims;
   }
 

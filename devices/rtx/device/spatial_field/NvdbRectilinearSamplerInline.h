@@ -73,12 +73,31 @@ VISRTX_DEVICE void initNvdbRectilinearSampler(
   const nanovdb::CoordBBox indexBBox = grid->indexBBox();
   const nanovdb::Vec3f dims = nanovdb::Vec3f(indexBBox.dim());
 
-  state.scaleDown = 1.0f / dims;
-  state.scaleUp = dims - nanovdb::Vec3f(1.0f);
-  state.offsetDown = -nanovdb::Vec3f(indexBBox.min());
+  // NanoVDB's index space spans [0, N] over the world bbox (N voxels as cells),
+  // mapped to the axis LUT's [0,1] domain by scaleDown then back by scaleUp.
+  // offsetDown is +min (min-relative): a grid whose index bbox does not start at
+  // 0 (any real index-centered NanoVDB grid) otherwise drives the normalized
+  // coord negative, the LUT clamps it, and every sample collapses to a constant.
+  // span = N-1, clamped to >=1 so a degenerate 1-node axis can't make scaleUp 0
+  // (the DDA's boundaryPos divides by scaleUp). A 1-node rectilinear axis is
+  // already rejected upstream — the axis LUT needs >= 2 coords — so this is just
+  // defensive against NaN.
+  const nanovdb::Vec3f span(dims[0] > 1.f ? dims[0] - 1.f : 1.f,
+      dims[1] > 1.f ? dims[1] - 1.f : 1.f,
+      dims[2] > 1.f ? dims[2] - 1.f : 1.f);
+  state.scaleUp = span;
+  state.offsetDown = nanovdb::Vec3f(indexBBox.min());
   if (field->data.nvdbRectilinear.cellCentered) {
+    // Cell-centered: cells fill [0,N], no stretch. scaleDown 1/(N-1) cancels
+    // scaleUp (N-1) to an identity LUT map; the -0.5 offset samples cell centers.
+    state.scaleDown = nanovdb::Vec3f(1.0f) / span;
     state.offsetUp = nanovdb::Vec3f(-0.5f) + state.offsetDown;
   } else {
+    // Node-centered: N nodes fill only [0, N-1] of the [0,N] domain. scaleDown
+    // 1/N then scaleUp (N-1) stretches the full domain onto the node range
+    // (symmetric half voxels); 1/(N-1) would leave a full constant voxel at the
+    // high boundary.
+    state.scaleDown = nanovdb::Vec3f(1.0f) / dims;
     state.offsetUp = state.offsetDown;
   }
   state.indexMin = nanovdb::Vec3f(indexBBox.min());
