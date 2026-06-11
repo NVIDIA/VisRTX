@@ -110,7 +110,7 @@ __global__ void computeValueRangesGPU(box1 *valueRanges,
 
   ivec3 mcID(threadID % mcDims.x,
       threadID / mcDims.x % mcDims.y,
-      threadID / (mcDims.x * mcDims.y));
+      threadID / (size_t(mcDims.x) * mcDims.y));
 
   // Field voxel range covered by this macrocell, with 1-voxel margin
   // to account for trilinear interpolation across macrocell boundaries
