@@ -256,11 +256,19 @@ Sampler *SamplerRegistry::loadFromDDS(
           filePath);
     }
 
+    // Move the file bytes to the heap and hand them to the array (CAPTURED)
+    // instead of borrowing the soon-freed local `buffer` (SHARED), which would
+    // force helium to privatize a host copy + log "making private copy of
+    // shared host array". appMemory is an offset into the buffer, so the array
+    // can't own it directly; pass the owning vector as deleterPtr and free that.
+    auto *owned = new std::vector<char>(std::move(buffer));
     Array1DMemoryDescriptor desc = {
         {
             dds::getDataPointer(dds),
-            nullptr,
-            nullptr,
+            [](const void *userPtr, const void * /*appMemory*/) {
+              delete static_cast<const std::vector<char> *>(userPtr);
+            },
+            owned,
             ANARI_UINT8,
         },
         static_cast<uint64_t>(linearSize),
@@ -282,11 +290,16 @@ Sampler *SamplerRegistry::loadFromDDS(
   } else if (format) {
     anari::DataType texelType = ANARI_UNKNOWN;
 
+    // See the compressed branch: own the file bytes (CAPTURED) rather than
+    // borrowing the local buffer, to avoid the per-texture privatize copy.
+    auto *owned = new std::vector<char>(std::move(buffer));
     Array2DMemoryDescriptor desc = {
         {
             dds::getDataPointer(dds),
-            nullptr,
-            nullptr,
+            [](const void *userPtr, const void * /*appMemory*/) {
+              delete static_cast<const std::vector<char> *>(userPtr);
+            },
+            owned,
             ANARI_UFIXED8_VEC4,
         },
         dds->header.width,
@@ -354,10 +367,18 @@ Sampler *SamplerRegistry::loadFromImage(
         : (colorSpace == libmdl::ColorSpace::Linear ? ANARI_UFIXED8
                                                     : ANARI_UFIXED8_R_SRGB);
 
+  // Hand the stb_image allocation to the Array2D (CAPTURED ownership) instead
+  // of borrowing it (SHARED). Borrowing forces helium to privatize a host copy
+  // when the public ref is dropped while the sampler still references it -- a
+  // per-texture deep copy + "making private copy of shared host array" warning,
+  // and it also leaked `data` (nothing freed the stb buffer). With a deleter
+  // the array owns and frees it: no copy, no warning, no leak.
   Array2DMemoryDescriptor desc = {
       {
           data,
-          nullptr,
+          [](const void * /*userPtr*/, const void *appMemory) {
+            stbi_image_free(const_cast<void *>(appMemory));
+          },
           nullptr,
           texelType,
       },
@@ -428,10 +449,16 @@ Sampler *SamplerRegistry::loadFromTextureDesc(
       texelType = ANARI_UFIXED8_VEC3;
     }
 
+    // df_data is MDL-SDK-owned, process-stable built-in table data shared
+    // across materials (the registry caches the sampler by this data pointer).
+    // Borrowing it with a null deleter (SHARED) made helium privatize a
+    // redundant host copy + log "making private copy of shared host array". A
+    // no-op deleter marks it CAPTURED so no copy is made; we must NOT free
+    // SDK-owned memory, hence the empty deleter rather than free/delete.
     Array3DMemoryDescriptor desc = {
         {
             textureDesc.bsdf.data,
-            nullptr,
+            [](const void *, const void *) {},
             nullptr,
             texelType,
         },
