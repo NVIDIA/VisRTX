@@ -18,6 +18,7 @@ struct WeightedPointsFieldData
   float sigma;               // Gaussian width
   float inv2SigmaSq;         // 1 / (2 * sigma^2), precomputed
   float cutoff;              // initial LOD distance
+  float maxValue;            // conservative global upper bound (fallback)
   visrtx::vec3 domainMin;
   visrtx::vec3 domainMax;
 };

@@ -90,12 +90,24 @@ void WeightedPointsField::finalize()
   if (cutoff <= 0.f)
     cutoff = 5.f * sigma;
 
+  // Conservative global upper bound for the dispatch fallback: any LOD cut is a
+  // subset of nodes, so summing the weights upper-bounds the field. (A single
+  // max weight is NOT valid: overlapping Gaussians sum beyond any single one.)
+  float maxValue = 0.f;
+  if (m_valuesArray) {
+    const float *hv = m_valuesArray->beginAs<float>();
+    const size_t nn = m_valuesArray->totalSize() / 4;
+    for (size_t i = 0; i < nn; i++)
+      maxValue += std::max(0.f, hv[i * 4 + 3]);
+  }
+
   m_deviceData.values = m_dValues;
   m_deviceData.indices = m_dIndices;
   m_deviceData.numNodes = m_numNodes;
   m_deviceData.sigma = sigma;
   m_deviceData.inv2SigmaSq = 1.f / (2.f * sigma * sigma);
   m_deviceData.cutoff = cutoff;
+  m_deviceData.maxValue = maxValue;
   m_deviceData.domainMin = m_domainMin;
   m_deviceData.domainMax = m_domainMax;
 

@@ -38,6 +38,13 @@ if (TARGET CustomFieldSampler_ptx)
   )
 endif()
 
+## UniformGridCustom.cu (core library source) needs the same dispatch headers
+## to build per-cell majorants for the custom field.
+target_compile_definitions(anari_library_visrtx PRIVATE
+  VISRTX_CUSTOM_FIELD_DATA_HEADER="WeightedPointsFieldData.h"
+  VISRTX_CUSTOM_SAMPLERS_HEADER="WeightedPointsFieldDispatch.h"
+)
+
 ## ---------------------------------------------------------------------------
 ## 2. Build the demo application
 ## ---------------------------------------------------------------------------

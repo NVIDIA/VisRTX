@@ -20,17 +20,35 @@ build time:
    handles parameter parsing (`commitParameters`), host-to-device data transfer
    (`finalize`), and spatial metadata (`bounds`, `stepSize`).
 
-3. **Write the GPU sampler**: A `__device__` function that evaluates the field
-   at an arbitrary 3D point, dispatched via the
+3. **Write the GPU sampler**: A `__host__ __device__` function that evaluates
+   the field at an arbitrary 3D point, dispatched via the
    `VISRTX_CUSTOM_SAMPLE_DISPATCH` macro.
 
-4. **Register at static init**: A small registration file calls
+4. **Supply a conservative value range** (optional but recommended): A function
+   returning a `{lo, hi}` interval that bounds the field value, used by VisRTX
+   to build a per-macrocell space-skipping grid for delta tracking. Two hooks
+   are available — define exactly one:
+
+   | Macro | Signature | Trade-off |
+   |-------|-----------|-----------|
+   | `VISRTX_CUSTOM_VALUE_RANGE_DISPATCH(data, boxLo, boxHi)` | `box1` over an object-space AABB | Tight per-cell bounds → best space skipping |
+   | `VISRTX_CUSTOM_GLOBAL_VALUE_RANGE_DISPATCH(data)` | `box1` over the whole domain | Constant bound, zero extra cost → no space skipping |
+
+   Without either hook the engine falls back to point-supersampling each cell,
+   which can mis-bound the field (the volume may render too dark or vanish). See
+   *Space skipping & majorants* below.
+
+5. **Register at static init**: A small registration file calls
    `visrtx::registerCustomField("subtypeName", factory)`, which inserts the
    type into the `SpatialFieldRegistry`. The ANARI device discovers it at
    runtime when `anariNewSpatialField(device, "subtypeName")` is called.
 
-All four pieces are compiled into `libanari_library_visrtx.so` via CMake
-`target_sources`, keeping the core VisRTX codebase unchanged.
+The sample and value-range macros, plus their `__device__` helpers, live in a
+single dispatch header (`WeightedPointsFieldDispatch.h`) that CMake wires into
+the core library via the `VISRTX_CUSTOM_FIELD_DATA_HEADER` and
+`VISRTX_CUSTOM_SAMPLERS_HEADER` compile definitions. All pieces are compiled
+into `libanari_library_visrtx.so` via CMake `target_sources`, keeping the core
+VisRTX codebase unchanged.
 
 ## The Weighted Points Field
 
@@ -62,6 +80,27 @@ This gives O(log N) sampling cost with controllable quality via two parameters:
 | `sigma` | Gaussian kernel width (Å). Controls how "blobby" each atom appears. Auto-computed from median nearest-neighbor distance. |
 | `cutoff` | LOD distance threshold (Å). Nodes farther than this from the sample point are approximated by their aggregate. Auto-computed from domain diagonal. |
 
+### Space skipping & majorants
+
+VisRTX renders volumes with delta tracking, which needs a conservative `{lo,
+hi}` value interval over each region it steps through. For custom fields this
+comes from one of the two value-range hooks described in step 4:
+
+- **`VISRTX_CUSTOM_VALUE_RANGE_DISPATCH`** — per-AABB interval, enables tight
+  space skipping. Used by this demo via `ValueRangeWeightedPoints.cuh`.
+- **`VISRTX_CUSTOM_GLOBAL_VALUE_RANGE_DISPATCH`** — single domain-wide interval,
+  simpler to implement but provides no per-cell empty-space culling.
+
+The weighted points field implements the per-AABB variant by summing, over *all*
+octree nodes, each node's largest Gaussian contribution within the AABB
+(evaluated at the box point closest to the node center).
+
+This is provably conservative — the sampler's value at any point is a sum over
+an LOD cut, which is a *subset* of all nodes, so the all-nodes sum can only
+over-estimate. The result is a per-macrocell `{0, hi}` grid that lets the
+renderer skip empty space without ever under-bounding the field. See
+`fields/samplers/ValueRangeWeightedPoints.cuh` for the derivation.
+
 ### GPU data layout
 
 The octree is serialized into two flat arrays for GPU consumption:
@@ -70,6 +109,10 @@ The octree is serialized into two flat arrays for GPU consumption:
   aggregate weight of each node.
 - **indices** (`int32×2 per node`): `[childBegin, childEnd)`: index range of
   children in the values/indices arrays. Leaves have `(0, 0)`.
+
+The `WeightedPointsFieldData` struct also carries the precomputed `1/(2σ²)`
+factor and the conservative global `maxValue` used as the value-range fallback
+when the octree is empty.
 
 ## PDB File Support
 
@@ -85,6 +128,12 @@ tsdDemoCustomField --pdb /path/to/structure.pdb
 ```
 
 Or without arguments for a random point cloud.
+
+The ImGui controls panel exposes `sigma`/`cutoff`, the transfer function, and an
+**Animation** section that perturbs the points over time (amplitude expressed in
+multiples of the median nearest-neighbor distance, so motion scales with the
+data). The octree is rebuilt each frame via a fast path that keeps blob size
+stable across the animation.
 
 ### Why weighted points for molecular data?
 
@@ -110,11 +159,14 @@ The weighted points field offers a complementary visualization:
 customField/
 ├── fields/
 │   ├── WeightedPointsFieldData.h        # GPU data struct (shared CPU/GPU)
-│   ├── WeightedPointsFieldDispatch.h    # OptiX sampler dispatch macro
+│   ├── WeightedPointsFieldDispatch.h    # Sample + value-range dispatch macros
+│   ├── samplers/
+│   │   ├── SampleWeightedPoints.cuh     # __host__ __device__ field evaluator
+│   │   └── ValueRangeWeightedPoints.cuh # Conservative per-AABB value interval
 │   ├── WeightedPointsField.h/cpp        # Host-side ANARI object
 │   └── RegisterWeightedPointsField.cpp  # Static registration
 ├── WeightedPointsOctree.h/cpp           # CPU octree builder
-├── WeightedPointsControls.h/cpp         # ImGui UI panel + PDB loader
+├── WeightedPointsControls.h/cpp         # ImGui UI panel + PDB loader + animation
 ├── tsdDemoCustomField.cpp               # Application entry point
 ├── CMakeLists.txt                       # Build configuration
 └── README.md                            # This file

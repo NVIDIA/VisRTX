@@ -116,8 +116,8 @@ void WeightedPointsControls::buildUI()
         "Amplitude", &m_perturbAmplitude, 0.01f, 0.f, 20.f, "%.3f");
     if (ImGui::IsItemHovered()) {
       ImGui::SetTooltip(
-          "Maximum displacement of points from their original positions "
-          "(in data units). Scaled by median nearest-neighbor distance.");
+          "Maximum point displacement, in multiples of the median "
+          "nearest-neighbor distance (1 ~= one neighbor spacing).");
     }
 
     ImGui::DragFloat(
@@ -155,6 +155,30 @@ void WeightedPointsControls::createScene()
   auto &scene = appContext()->tsd.scene;
   auto *layer = scene.defaultLayer();
   layer->clear();
+
+  // Tear down the previous scene before rebuilding (Regenerate / source change).
+  // Remove the parameter-holding objects (volume, field) before the arrays they
+  // reference, so their PARAMETER uses are released against live pool slots.
+  // Leaving them stranded lets their stale parameter handles later decrement
+  // reused array slots (the "decUseCount on zero use count" warnings).
+  if (m_volume)
+    scene.removeObject(m_volume.data());
+  if (m_field)
+    scene.removeObject(m_field.data());
+  if (m_light)
+    scene.removeObject(m_light);
+  if (m_valuesArrayRef)
+    scene.removeObject(m_valuesArrayRef.data());
+  if (m_indicesArrayRef)
+    scene.removeObject(m_indicesArrayRef.data());
+  if (m_colorArrayRef)
+    scene.removeObject(m_colorArrayRef.data());
+  m_volume = {};
+  m_field = {};
+  m_light = nullptr;
+  m_valuesArrayRef = {};
+  m_indicesArrayRef = {};
+  m_colorArrayRef = {};
 
   generatePoints();
   m_originalPoints = m_rawPoints;
@@ -217,6 +241,7 @@ void WeightedPointsControls::createScene()
   }
   colorArray->unmap();
   m_volume->setParameterObject("color", *colorArray);
+  m_colorArrayRef = colorArray; // tracked so it is released on the next rebuild
 
   layer->root()->insert_first_child({layer, m_volume});
 
@@ -239,6 +264,29 @@ void WeightedPointsControls::generatePoints()
     m_rawPoints = loadPDB(m_pdbPath);
   else
     m_rawPoints = generateRandomUniform();
+}
+
+void WeightedPointsControls::swapFieldArrays(
+    const std::vector<float> &values, const std::vector<int32_t> &indices)
+{
+  auto &scene = appContext()->tsd.scene;
+
+  auto newValues = scene.createArray(ANARI_FLOAT32, values.size());
+  newValues->setData(values.data());
+  m_field->setParameterObject("values", *newValues);
+
+  auto newIndices = scene.createArray(ANARI_INT32, indices.size());
+  newIndices->setData(indices.data());
+  m_field->setParameterObject("indices", *newIndices);
+
+  // Release the previous arrays now that the field references the new ones —
+  // otherwise each animation frame leaks a values/indices pair into the scene.
+  if (m_valuesArrayRef)
+    scene.removeObject(m_valuesArrayRef.data());
+  if (m_indicesArrayRef)
+    scene.removeObject(m_indicesArrayRef.data());
+  m_valuesArrayRef = newValues;
+  m_indicesArrayRef = newIndices;
 }
 
 void WeightedPointsControls::rebuildField()
@@ -279,9 +327,11 @@ void WeightedPointsControls::rebuildField()
     domainMax[c] = bmax[c] + pad;
   }
 
-  float sigma = m_sigmaOverride;
-  if (sigma <= 0.f) {
-    // Estimate typical inter-atom spacing via sampled nearest-neighbor distances
+  // Median nearest-neighbor distance: drives auto-sigma AND the animation
+  // amplitude scale (perturbPoints displaces in multiples of it), so it is
+  // computed regardless of whether sigma is overridden.
+  float medianNN = 1.f;
+  {
     size_t nSamp = std::min(n, (size_t)200);
     size_t sStep = std::max((size_t)1, n / nSamp);
     std::vector<float> nnDists;
@@ -302,11 +352,12 @@ void WeightedPointsControls::rebuildField()
         nnDists.push_back(std::sqrt(best));
     }
     std::sort(nnDists.begin(), nnDists.end());
-    float medianNN = nnDists.empty()
-        ? 1.f
-        : nnDists[nnDists.size() / 2];
-    sigma = medianNN * 3.f;
+    if (!nnDists.empty())
+      medianNN = nnDists[nnDists.size() / 2];
   }
+  m_medianNN = medianNN;
+
+  float sigma = (m_sigmaOverride > 0.f) ? m_sigmaOverride : medianNN * 3.f;
 
   float cutoff = m_cutoffOverride;
   if (cutoff <= 0.f) {
@@ -323,14 +374,9 @@ void WeightedPointsControls::rebuildField()
       "domainMax", tsd::math::float3(domainMax[0], domainMax[1], domainMax[2]));
   m_field->setParameter("sigma", sigma);
   m_field->setParameter("cutoff", cutoff);
+  m_effectiveSigma = sigma;
 
-  auto valuesArray = scene.createArray(ANARI_FLOAT32, flatValues.size());
-  valuesArray->setData(flatValues.data());
-  m_field->setParameterObject("values", *valuesArray);
-
-  auto indicesArray = scene.createArray(ANARI_INT32, flatIndices.size());
-  indicesArray->setData(flatIndices.data());
-  m_field->setParameterObject("indices", *indicesArray);
+  swapFieldArrays(flatValues, flatIndices);
 
   float inv2s2 = 1.f / (2.f * sigma * sigma);
   float maxFieldVal = 0.f;
@@ -363,7 +409,7 @@ void WeightedPointsControls::rebuildField()
 
 void WeightedPointsControls::rebuildFieldFast()
 {
-  if (!m_field || m_rawPoints.empty())
+  if (!m_field || !m_volume || m_rawPoints.empty())
     return;
 
   auto &scene = appContext()->tsd.scene;
@@ -378,20 +424,46 @@ void WeightedPointsControls::rebuildFieldFast()
 
   WeightedPointsOctree octree;
   octree.build(points, 8, 12);
-
-  const auto &flatValues = octree.flatValues();
-  const auto &flatIndices = octree.flatIndices();
-
   if (octree.numNodes() == 0)
     return;
 
-  auto valuesArray = scene.createArray(ANARI_FLOAT32, flatValues.size());
-  valuesArray->setData(flatValues.data());
-  m_field->setParameterObject("values", *valuesArray);
+  // Track the perturbed point bounds so the field domain — and thus the
+  // volume's rendered AABB — follows the animation. Without this the points
+  // drift outside the original (fixed) domain and the volume goes blank.
+  const float *bmin = octree.boundsMin();
+  const float *bmax = octree.boundsMax();
+  float dmin[3], dmax[3];
+  for (int c = 0; c < 3; c++) {
+    float pad = std::max(0.1f, (bmax[c] - bmin[c]) * 0.05f);
+    dmin[c] = bmin[c] - pad;
+    dmax[c] = bmax[c] + pad;
+  }
+  m_field->setParameter(
+      "domainMin", tsd::math::float3(dmin[0], dmin[1], dmin[2]));
+  m_field->setParameter(
+      "domainMax", tsd::math::float3(dmax[0], dmax[1], dmax[2]));
 
-  auto indicesArray = scene.createArray(ANARI_INT32, flatIndices.size());
-  indicesArray->setData(flatIndices.data());
-  m_field->setParameterObject("indices", *indicesArray);
+  swapFieldArrays(octree.flatValues(), octree.flatIndices());
+
+  // Keep the TF range matched to the current field max so opacity doesn't wash
+  // out as points spread/cluster. Sigma is held fixed (m_effectiveSigma) so the
+  // blob size stays stable across frames.
+  const float inv2s2 = 1.f / (2.f * m_effectiveSigma * m_effectiveSigma);
+  float maxFieldVal = 0.f;
+  size_t nSamples = std::min(n, (size_t)50);
+  size_t step = std::max((size_t)1, n / nSamples);
+  for (size_t i = 0; i < n; i += step) {
+    const float *p = m_rawPoints.data() + i * 4;
+    float val = 0.f;
+    for (size_t j = 0; j < n; j++) {
+      const float *q = m_rawPoints.data() + j * 4;
+      float dx = p[0] - q[0], dy = p[1] - q[1], dz = p[2] - q[2];
+      val += q[3] * std::exp(-(dx * dx + dy * dy + dz * dz) * inv2s2);
+    }
+    maxFieldVal = std::max(maxFieldVal, val);
+  }
+  tsd::math::float2 valueRange(0.f, maxFieldVal > 0.f ? maxFieldVal : 1.f);
+  m_volume->setParameter("valueRange", ANARI_FLOAT32_BOX1, &valueRange);
 
   scene.signalLayerStructureChanged(scene.defaultLayer());
 }
@@ -419,6 +491,11 @@ void WeightedPointsControls::perturbPoints(float t)
 
   m_rawPoints.resize(m_originalPoints.size());
 
+  // Amplitude is in multiples of the median nearest-neighbor distance, so the
+  // motion scales with the point cloud (a value of ~1 wiggles each point by
+  // roughly one neighbor spacing) instead of flinging them off in raw units.
+  const float amp = m_perturbAmplitude * m_medianNN;
+
   for (size_t i = 0; i < n; i++) {
     size_t base = i * 4;
     float seed = static_cast<float>(i);
@@ -427,9 +504,9 @@ void WeightedPointsControls::perturbPoints(float t)
     float dy = std::cos(phase + seed * 2.3f) * std::sin(seed * 0.7f);
     float dz = std::sin(phase + seed * 3.1f) * std::cos(seed * 1.1f);
 
-    m_rawPoints[base + 0] = m_originalPoints[base + 0] + dx * m_perturbAmplitude;
-    m_rawPoints[base + 1] = m_originalPoints[base + 1] + dy * m_perturbAmplitude;
-    m_rawPoints[base + 2] = m_originalPoints[base + 2] + dz * m_perturbAmplitude;
+    m_rawPoints[base + 0] = m_originalPoints[base + 0] + dx * amp;
+    m_rawPoints[base + 1] = m_originalPoints[base + 1] + dy * amp;
+    m_rawPoints[base + 2] = m_originalPoints[base + 2] + dz * amp;
     m_rawPoints[base + 3] = m_originalPoints[base + 3];
   }
 
