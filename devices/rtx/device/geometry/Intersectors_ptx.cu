@@ -29,6 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "geometry/IsosurfaceLinear.h"
 #include "geometry/IsosurfaceSample.h"
 #include "spatial_field/CustomFieldSamplerInline.h"
 #include "gpu/gpu_math.h"
@@ -444,7 +445,9 @@ VISRTX_DEVICE bool marchIsosurfaceSegment(const IsosurfaceGeometryData &iso,
     float phase,
     ScreenSample &ss)
 {
-  const float step = iso.stepSize;
+  // iso.stepSize is an object-space distance; rd (the object ray direction) is
+  // non-unit under instance scaling, so divide to get the step in ray-t units.
+  const float step = iso.stepSize / length(rd);
   const float *const isovals = iso.isovalues;
   const uint32_t numIsovalues = iso.numIsovalues;
 
@@ -461,7 +464,11 @@ VISRTX_DEVICE bool marchIsosurfaceSegment(const IsosurfaceGeometryData &iso,
   float tPrev = tStart;
   float vPrev = valueAt(tStart);
 
-  for (float t = tStart + step; t <= t1; t += step) {
+  // Integer step index (not t += step) so float error can't drop or double the
+  // final step near t1 over a long segment.
+  const int nSteps = step > 0.f ? int(floorf((t1 - tStart) / step)) : 0;
+  for (int i = 1; i <= nSteps; ++i) {
+    const float t = tStart + float(i) * step;
     const float v = valueAt(t);
 
     // Find the nearest isovalue crossing within (tPrev, t]. The field is
@@ -518,9 +525,17 @@ VISRTX_DEVICE bool marchIsosurfaceSegment(const IsosurfaceGeometryData &iso,
       // correct for non-mirrored instance transforms.)
       const vec3 pHit = ro + bestT * rd;
       vec3 grad = sampleNormal(st, field, pHit);
-      if (dot(grad, rd) > 0.f)
-        grad = -grad;
-      reportIntersectionIsosurface(bestT, normalize(grad), bestIdx);
+      // Guard a (near-)zero gradient (field extremum/saddle): normalize(0) is
+      // NaN. Fall back to facing the incoming ray.
+      vec3 nrm;
+      if (dot(grad, grad) < 1e-12f) {
+        nrm = normalize(-rd);
+      } else {
+        if (dot(grad, rd) > 0.f)
+          grad = -grad;
+        nrm = normalize(grad);
+      }
+      reportIntersectionIsosurface(bestT, nrm, bestIdx);
       return true; // front-to-back: first bracketing step holds the nearest hit
     }
 
@@ -534,7 +549,9 @@ VISRTX_DEVICE bool marchIsosurfaceSegment(const IsosurfaceGeometryData &iso,
 // whose value range brackets an isovalue, and reports the nearest crossing.
 // Empty-space skipping happens here — inactive cells are stepped over with no
 // sampling — so the geometry is a single field-bounds AABB rather than one
-// primitive per active macrocell.
+// primitive per active macrocell. This fixed-step march is now the fallback for
+// fields without analytic voxel boundaries (custom fields); built-in grids use
+// the per-voxel DDA (marchVoxelsMacrocellSkip) for both filters.
 template <typename SamplerState>
 VISRTX_DEVICE void marchIsosurface(const IsosurfaceGeometryData &iso,
     const SpatialFieldGPUData &field,
@@ -542,7 +559,9 @@ VISRTX_DEVICE void marchIsosurface(const IsosurfaceGeometryData &iso,
     const Ray &objRay,
     ScreenSample &ss)
 {
-  const float step = iso.stepSize;
+  // Object-space distance -> ray-t units (objRay.dir is non-unit under instance
+  // scaling); phase and the exit overrun below both inherit these t units.
+  const float step = iso.stepSize / length(objRay.dir);
   const float *const isovals = iso.isovalues;
   const uint32_t numIsovalues = iso.numIsovalues;
 
@@ -594,6 +613,67 @@ VISRTX_DEVICE void marchIsosurface(const IsosurfaceGeometryData &iso,
   }
 }
 
+// Per-voxel crossing test shared by all four grid voxelDDASegment variants
+// below — the only per-filter logic, factored out so the four overloads differ
+// only in their traversal mechanics. st.filter is a per-field constant, so the
+// branch is warp-uniform. Nearest = piecewise-constant face test (one midpoint
+// sample; report the entry-face normal at tEntry). Linear = the trilinear-along-
+// ray cubic (linearCrossing). Returns true and reports the hit on a crossing;
+// otherwise carries the predecessor sample `vPrev` (voxel midpoint for nearest,
+// exit-face value for linear) and returns false. crossedAxis is the face the ray
+// entered this voxel through. Callers seed vPrev per-filter before the first
+// voxel (nearest a quarter-voxel back; linear the exact entry-face value, since
+// linearCrossing consumes it as the cubic's node-0).
+template <typename SamplerState>
+VISRTX_DEVICE bool crossingTest(const SamplerState &st,
+    const SpatialFieldGPUData &field,
+    const vec3 &ro,
+    const vec3 &rd,
+    float tEntry,
+    float tExit,
+    int crossedAxis,
+    const float *isovals,
+    uint32_t numIsovalues,
+    float &vPrev,
+    ScreenSample &ss)
+{
+  if (st.filter == SpatialFieldFilter::Nearest) {
+    const float tMid = 0.5f * (tEntry + tExit);
+    const float vCur = sampleValue(st, field, ro + tMid * rd);
+    // Scan all isovalues (no divergent in-loop early-out; the uniform trip count
+    // lets ptxas unroll). Every bracket shares this face's t, so report the first.
+    int hitIdx = -1;
+    for (uint32_t i = 0; i < numIsovalues; ++i) {
+      const float iv = isovals[i];
+      if (hitIdx < 0 && ((vPrev < iv) != (vCur < iv)))
+        hitIdx = int(i);
+    }
+    if (hitIdx >= 0) {
+      vec3 n(0.f); // face the ray entered this voxel through
+      n[crossedAxis] = 1.f;
+      if (dot(n, rd) > 0.f)
+        n = -n;
+      reportIntersectionIsosurface(tEntry, n, uint32_t(hitIdx));
+      return true; // front-to-back: first crossing is the nearest hit
+    }
+    vPrev = vCur;
+  } else {
+    // Exit-face value sampled only on the linear path (nearest keeps its single
+    // midpoint sample). Carried as the next voxel's entry value -> one fetch/voxel.
+    const float vExit = sampleValue(st, field, ro + tExit * rd);
+    float hitT;
+    vec3 hitN;
+    uint32_t hitIdx;
+    if (linearCrossing(st, field, ro, rd, tEntry, tExit, vPrev, vExit, isovals,
+            numIsovalues, hitT, hitN, hitIdx)) {
+      reportIntersectionIsosurface(hitT, hitN, hitIdx);
+      return true;
+    }
+    vPrev = vExit;
+  }
+  return false;
+}
+
 // Per-grid voxel-DDA over a [t0,t1] sub-segment, returning true on the nearest
 // crossing within it. Each seeds the predecessor value just before t0 so a
 // crossing on the segment's entry face is caught (callers pass a one-voxel
@@ -628,30 +708,18 @@ VISRTX_DEVICE bool voxelDDASegment(const IsosurfaceGeometryData &iso,
     return false;
 
   const float firstSpan = trav.tExit - trav.tEntry;
-  float vPrev =
-      sampleValue(st, field, ro + (trav.tEntry - 0.25f * firstSpan) * rd);
+  // Nearest seeds a quarter-voxel before entry (an entry-side value for the face
+  // sign-test); linear needs the EXACT entry-face value — linearCrossing consumes
+  // vPrev as vEntry == the cubic's node-0 (f0), so a pre-entry sample would
+  // corrupt the first voxel's root in every active segment.
+  float vPrev = st.filter == SpatialFieldFilter::Nearest
+      ? sampleValue(st, field, ro + (trav.tEntry - 0.25f * firstSpan) * rd)
+      : sampleValue(st, field, ro + trav.tEntry * rd);
 
   while (trav.valid()) {
-    const float tMid = 0.5f * (trav.tEntry + trav.tExit);
-    const float vCur = sampleValue(st, field, ro + tMid * rd);
-    // Scan all isovalues (no divergent in-loop early-out; the uniform trip count
-    // lets ptxas unroll). Every bracket shares this face's t, so report the
-    // first one found.
-    int hitIdx = -1;
-    for (uint32_t i = 0; i < numIsovalues; ++i) {
-      const float iv = isovals[i];
-      if (hitIdx < 0 && ((vPrev < iv) != (vCur < iv)))
-        hitIdx = int(i);
-    }
-    if (hitIdx >= 0) {
-      vec3 n(0.f); // face the ray entered this voxel through
-      n[trav.crossedAxis] = 1.f;
-      if (dot(n, rd) > 0.f)
-        n = -n;
-      reportIntersectionIsosurface(trav.tEntry, n, uint32_t(hitIdx));
-      return true; // front-to-back: first crossing is the nearest hit
-    }
-    vPrev = vCur;
+    if (crossingTest(st, field, ro, rd, trav.tEntry, trav.tExit,
+            trav.crossedAxis, isovals, numIsovalues, vPrev, ss))
+      return true;
     trav.next();
   }
   return false;
@@ -696,27 +764,18 @@ VISRTX_DEVICE bool voxelDDASegment(const IsosurfaceGeometryData &iso,
     return false;
 
   const float firstSpan = trav.tExit - trav.tEntry;
-  float vPrev =
-      sampleValue(st, field, ro + (trav.tEntry - 0.25f * firstSpan) * rd);
+  // Nearest seeds a quarter-voxel before entry (an entry-side value for the face
+  // sign-test); linear needs the EXACT entry-face value — linearCrossing consumes
+  // vPrev as vEntry == the cubic's node-0 (f0), so a pre-entry sample would
+  // corrupt the first voxel's root in every active segment.
+  float vPrev = st.filter == SpatialFieldFilter::Nearest
+      ? sampleValue(st, field, ro + (trav.tEntry - 0.25f * firstSpan) * rd)
+      : sampleValue(st, field, ro + trav.tEntry * rd);
 
   while (trav.valid()) {
-    const float tMid = 0.5f * (trav.tEntry + trav.tExit);
-    const float vCur = sampleValue(st, field, ro + tMid * rd);
-    int hitIdx = -1; // first bracket; scan all (no divergent in-loop early-out)
-    for (uint32_t i = 0; i < numIsovalues; ++i) {
-      const float iv = isovals[i];
-      if (hitIdx < 0 && ((vPrev < iv) != (vCur < iv)))
-        hitIdx = int(i);
-    }
-    if (hitIdx >= 0) {
-      vec3 n(0.f);
-      n[trav.crossedAxis] = 1.f;
-      if (dot(n, rd) > 0.f)
-        n = -n;
-      reportIntersectionIsosurface(trav.tEntry, n, uint32_t(hitIdx));
+    if (crossingTest(st, field, ro, rd, trav.tEntry, trav.tExit,
+            trav.crossedAxis, isovals, numIsovalues, vPrev, ss))
       return true;
-    }
-    vPrev = vCur;
     trav.next();
   }
   return false;
@@ -753,12 +812,30 @@ VISRTX_DEVICE bool voxelDDASegment(const IsosurfaceGeometryData &iso,
 
   float vPrev; // predecessor sample, seeded voxel-relative on the first step
   bool seeded = false;
+  // First-voxel entry face: the axis whose entry boundary the ray crossed most
+  // recently (largest entry-t <= t). GridTraversal derives this from its slab
+  // test for the uniform grids; the hand-rolled DDA must compute it, else the
+  // first voxel always reports an x-face normal.
   int crossedAxis = 0;
+  {
+    float tEnter = -1e30f;
+    const float epsE = 1e-6f * fmaxf(1.f, fabsf(t));
+    for (int a = 0; a < 3; ++a) {
+      if (rd[a] == 0.f)
+        continue;
+      const int eb = rd[a] > 0.f ? vi[a] : vi[a] + 1; // boundary behind the ray
+      const float te = (boundaryPos(a, eb) - ro[a]) / rd[a];
+      if (te <= t + epsE && te > tEnter) {
+        tEnter = te;
+        crossedAxis = a;
+      }
+    }
+  }
 
   constexpr int kMaxVoxelSteps = 4096; // hard cap: never hang the intersector
   for (int s = 0; s < kMaxVoxelSteps && t < t1; ++s) {
     float tExit = t1;
-    int exitAxis = crossedAxis;
+    int exitAxis = -1; // set below to the exit-boundary axis; -1 => none before t1
     // Scale-relative advance guard: a fixed 1e-6 falls below ULP(t) once t
     // exceeds ~10 (e.g. coords in the tens), collapsing the test to te > t and
     // risking a re-picked boundary / stalled segment in larger scenes.
@@ -779,26 +856,18 @@ VISRTX_DEVICE bool voxelDDASegment(const IsosurfaceGeometryData &iso,
       // as the uniform grids do) so an entry-face crossing is caught. A
       // segment-relative backstep collapses to t under fp rounding on long
       // segments, missing it.
-      vPrev = sampleValue(st, field, ro + (t - 0.25f * (tExitSeg - t)) * rd);
+      // See the uniform-grid seed note: linear needs the exact entry-face value
+      // (cubic node-0), nearest the quarter-voxel-back entry-side value.
+      vPrev = st.filter == SpatialFieldFilter::Nearest
+          ? sampleValue(st, field, ro + (t - 0.25f * (tExitSeg - t)) * rd)
+          : sampleValue(st, field, ro + t * rd);
       seeded = true;
     }
-    const float tMid = 0.5f * (t + tExitSeg);
-    const float vCur = sampleValue(st, field, ro + tMid * rd);
-    int hitIdx = -1; // first bracket; scan all (no divergent in-loop early-out)
-    for (uint32_t i = 0; i < numIsovalues; ++i) {
-      const float iv = isovals[i];
-      if (hitIdx < 0 && ((vPrev < iv) != (vCur < iv)))
-        hitIdx = int(i);
-    }
-    if (hitIdx >= 0) {
-      vec3 n(0.f);
-      n[crossedAxis] = 1.f; // face the ray entered this voxel through
-      if (dot(n, rd) > 0.f)
-        n = -n;
-      reportIntersectionIsosurface(t, n, uint32_t(hitIdx));
+    if (crossingTest(st, field, ro, rd, t, tExitSeg, crossedAxis, isovals,
+            numIsovalues, vPrev, ss))
       return true;
-    }
-    vPrev = vCur;
+    if (exitAxis < 0) // no forward boundary before t1: the segment ends here
+      break;
     crossedAxis = exitAxis;
     t = tExit;
     vi[exitAxis] += stepv[exitAxis];
@@ -840,12 +909,29 @@ VISRTX_DEVICE bool voxelDDASegment(const IsosurfaceGeometryData &iso,
 
   float vPrev; // predecessor sample, seeded voxel-relative on the first step
   bool seeded = false;
+  // First-voxel entry face: axis whose entry boundary the ray crossed most
+  // recently (largest entry-t <= t), as the uniform GridTraversal would derive
+  // it — otherwise the first voxel always reports an x-face normal.
   int crossedAxis = 0;
+  {
+    float tEnter = -1e30f;
+    const float epsE = 1e-6f * fmaxf(1.f, fabsf(t));
+    for (int a = 0; a < 3; ++a) {
+      if (rd[a] == 0.f)
+        continue;
+      const float rb = rd[a] > 0.f ? float(vi[a]) - 0.5f : float(vi[a]) + 0.5f;
+      const float te = (boundaryPos(a, rb) - ro[a]) / rd[a];
+      if (te <= t + epsE && te > tEnter) {
+        tEnter = te;
+        crossedAxis = a;
+      }
+    }
+  }
 
   constexpr int kMaxVoxelSteps = 4096; // hard cap: never hang the intersector
   for (int s = 0; s < kMaxVoxelSteps && t < t1; ++s) {
     float tExit = t1;
-    int exitAxis = crossedAxis;
+    int exitAxis = -1; // set below to the exit-boundary axis; -1 => none before t1
     // Scale-relative advance guard: a fixed 1e-6 falls below ULP(t) once t
     // exceeds ~10 (e.g. coords in the tens), collapsing the test to te > t and
     // risking a re-picked boundary / stalled segment in larger scenes.
@@ -866,26 +952,18 @@ VISRTX_DEVICE bool voxelDDASegment(const IsosurfaceGeometryData &iso,
       // as the uniform grids do) so an entry-face crossing is caught. A
       // segment-relative backstep collapses to t under fp rounding on long
       // segments, missing it.
-      vPrev = sampleValue(st, field, ro + (t - 0.25f * (tExitSeg - t)) * rd);
+      // See the uniform-grid seed note: linear needs the exact entry-face value
+      // (cubic node-0), nearest the quarter-voxel-back entry-side value.
+      vPrev = st.filter == SpatialFieldFilter::Nearest
+          ? sampleValue(st, field, ro + (t - 0.25f * (tExitSeg - t)) * rd)
+          : sampleValue(st, field, ro + t * rd);
       seeded = true;
     }
-    const float tMid = 0.5f * (t + tExitSeg);
-    const float vCur = sampleValue(st, field, ro + tMid * rd);
-    int hitIdx = -1; // first bracket; scan all (no divergent in-loop early-out)
-    for (uint32_t i = 0; i < numIsovalues; ++i) {
-      const float iv = isovals[i];
-      if (hitIdx < 0 && ((vPrev < iv) != (vCur < iv)))
-        hitIdx = int(i);
-    }
-    if (hitIdx >= 0) {
-      vec3 n(0.f);
-      n[crossedAxis] = 1.f; // face the ray entered this voxel through
-      if (dot(n, rd) > 0.f)
-        n = -n;
-      reportIntersectionIsosurface(t, n, uint32_t(hitIdx));
+    if (crossingTest(st, field, ro, rd, t, tExitSeg, crossedAxis, isovals,
+            numIsovalues, vPrev, ss))
       return true;
-    }
-    vPrev = vCur;
+    if (exitAxis < 0) // no forward boundary before t1: the segment ends here
+      break;
     crossedAxis = exitAxis;
     t = tExit;
     vi[exitAxis] += stepv[exitAxis];
@@ -907,7 +985,9 @@ VISRTX_DEVICE void marchVoxelsMacrocellSkip(const IsosurfaceGeometryData &iso,
 {
   const float *const isovals = iso.isovalues;
   const uint32_t numIsovalues = iso.numIsovalues;
-  const float margin = 2.f * iso.stepSize; // ~one voxel, to cover the exit face
+  // ~one voxel, to cover the exit face. iso.stepSize is object-space; objRay.dir
+  // is non-unit under instance scaling, so convert to ray-t units.
+  const float margin = 2.f * iso.stepSize / length(objRay.dir);
 
   GridTraversal mc(objRay, field.grid.dims, field.grid.objectBounds);
   while (mc.valid()) {
@@ -940,11 +1020,12 @@ VISRTX_DEVICE void marchVoxelsMacrocellSkip(const IsosurfaceGeometryData &iso,
 }
 
 // Voxel-DDA isosurface intersection for built-in grids. Concrete grid samplers
-// run the two-level macrocell-skip + voxel-DDA for nearest filtering, and the
-// fixed-step ray march for linear (smooth) surfaces. The generic form is the
-// ray-march hook for fields without analytic voxel boundaries (e.g. custom
-// fields); built-in fields are currently gated to require a space-skipping grid
-// in Isosurface::finalize, so it is unused here today.
+// run the two-level macrocell-skip + per-voxel DDA for BOTH filters: nearest
+// does the piecewise-constant face test, linear solves the per-voxel trilinear
+// cubic (linearCrossing). The fixed-step ray march below is no longer reached by
+// built-in fields. This generic form is the ray-march fallback for fields
+// without analytic voxel boundaries (e.g. custom fields); built-in fields are
+// gated to require a space-skipping grid in Isosurface::finalize.
 template <typename SamplerState>
 VISRTX_DEVICE void marchIsosurfaceVoxels(const IsosurfaceGeometryData &iso,
     const SpatialFieldGPUData &field,
@@ -961,10 +1042,9 @@ VISRTX_DEVICE void marchIsosurfaceVoxels(const IsosurfaceGeometryData &iso,
     const Ray &objRay,
     ScreenSample &ss)
 {
-  if (st.filter != SpatialFieldFilter::Nearest)
-    marchIsosurface(iso, field, st, objRay, ss);
-  else
-    marchVoxelsMacrocellSkip(iso, field, st, objRay, ss);
+  // Both filters traverse the voxel-DDA now: nearest does the face test, linear
+  // solves the per-voxel cubic (the fixed-step march is no longer reached).
+  marchVoxelsMacrocellSkip(iso, field, st, objRay, ss);
 }
 
 template <typename ValueType>
@@ -974,10 +1054,8 @@ VISRTX_DEVICE void marchIsosurfaceVoxels(const IsosurfaceGeometryData &iso,
     const Ray &objRay,
     ScreenSample &ss)
 {
-  if (st.filter != SpatialFieldFilter::Nearest)
-    marchIsosurface(iso, field, st, objRay, ss);
-  else
-    marchVoxelsMacrocellSkip(iso, field, st, objRay, ss);
+  // Both filters traverse the voxel-DDA now (linear solves the per-voxel cubic).
+  marchVoxelsMacrocellSkip(iso, field, st, objRay, ss);
 }
 
 VISRTX_DEVICE void marchIsosurfaceVoxels(const IsosurfaceGeometryData &iso,
@@ -986,10 +1064,8 @@ VISRTX_DEVICE void marchIsosurfaceVoxels(const IsosurfaceGeometryData &iso,
     const Ray &objRay,
     ScreenSample &ss)
 {
-  if (st.filter != SpatialFieldFilter::Nearest)
-    marchIsosurface(iso, field, st, objRay, ss);
-  else
-    marchVoxelsMacrocellSkip(iso, field, st, objRay, ss);
+  // Both filters traverse the voxel-DDA now (linear solves the per-voxel cubic).
+  marchVoxelsMacrocellSkip(iso, field, st, objRay, ss);
 }
 
 template <typename ValueType>
@@ -999,10 +1075,8 @@ VISRTX_DEVICE void marchIsosurfaceVoxels(const IsosurfaceGeometryData &iso,
     const Ray &objRay,
     ScreenSample &ss)
 {
-  if (st.filter != SpatialFieldFilter::Nearest)
-    marchIsosurface(iso, field, st, objRay, ss);
-  else
-    marchVoxelsMacrocellSkip(iso, field, st, objRay, ss);
+  // Both filters traverse the voxel-DDA now (linear solves the per-voxel cubic).
+  marchVoxelsMacrocellSkip(iso, field, st, objRay, ss);
 }
 
 VISRTX_DEVICE void intersectIsosurface(const GeometryGPUData &geometryData)
