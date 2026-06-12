@@ -404,15 +404,14 @@ VISRTX_GLOBAL void __raygen__()
         }
 
         accumulateValue(sample.opacity, 1.0f, sample.opacity);
-        sampleContribution *= volumeSample.albedo;
-        if (shouldTerminatePath(ss,
-                bounceDepth,
-                sampleContribution,
-                true,
-                RUSSIAN_ROULETTE_START_DEPTH_VOLUME,
-                /*maxSurvivalProb=*/0.5f))
-          break;
 
+        // Record first-hit AOVs (object/instance id, depth, albedo, normal)
+        // BEFORE the contribution-based path termination below. A fully opaque
+        // but zero-albedo (black) volume scatters here, then drives
+        // sampleContribution to 0 via the albedo multiply — shouldTerminatePath
+        // would break out before these AOVs were written, leaving the object-id
+        // / depth / normal buffers unset for opaque-black regions. The AOVs are
+        // first-hit metadata, independent of the path's radiance contribution.
         if (isFirstBounce) {
           setPixelIds(frameData.fb,
               ss.pixel,
@@ -427,6 +426,15 @@ VISRTX_GLOBAL void __raygen__()
               : -ray.dir;
           sample.normal = volumeNormal;
         }
+
+        sampleContribution *= volumeSample.albedo;
+        if (shouldTerminatePath(ss,
+                bounceDepth,
+                sampleContribution,
+                true,
+                RUSSIAN_ROULETTE_START_DEPTH_VOLUME,
+                /*maxSurvivalProb=*/0.5f))
+          break;
 
         const vec3 scatterDir = randomDir(ss.rs);
         ray = Ray{scatterPos + scatterDir * VOLUME_SCATTER_EPSILON, scatterDir};
