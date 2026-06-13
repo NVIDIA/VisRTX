@@ -486,10 +486,21 @@ Sampler *SamplerRegistry::loadFromTextureDesc(
   return {};
 }
 
+// The same image file can be requested in different color spaces (e.g. a map
+// used as both sRGB base color and raw data). The decoded sampler differs, so
+// the color space must be part of the cache key.
+static std::string samplerCacheKey(
+    std::string_view url, libmdl::ColorSpace colorSpace)
+{
+  return (colorSpace == libmdl::ColorSpace::sRGB ? "srgb:" : "linear:")
+      + std::string(url);
+}
+
 Sampler *SamplerRegistry::acquireSampler(
     const std::string &filePath, libmdl::ColorSpace colorSpace)
 {
-  if (auto it = m_dbToSampler.find(filePath); it != end(m_dbToSampler)) {
+  auto key = samplerCacheKey(filePath, colorSpace);
+  if (auto it = m_dbToSampler.find(key); it != end(m_dbToSampler)) {
     it->second->refInc();
     return it->second;
   }
@@ -499,7 +510,7 @@ Sampler *SamplerRegistry::acquireSampler(
     sampler->refInc();
     sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
                                      // we don't rely on.
-    m_dbToSampler.insert({filePath, sampler});
+    m_dbToSampler.insert({key, sampler});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Unable to create sampler for texture `{}`",
@@ -512,7 +523,8 @@ Sampler *SamplerRegistry::acquireSampler(
 Sampler *SamplerRegistry::acquireSampler(
     const libmdl::TextureDescriptor &textureDesc)
 {
-  if (auto it = m_dbToSampler.find(textureDesc.url); it != end(m_dbToSampler)) {
+  auto key = samplerCacheKey(textureDesc.url, textureDesc.colorSpace);
+  if (auto it = m_dbToSampler.find(key); it != end(m_dbToSampler)) {
     it->second->refInc();
     return it->second;
   }
@@ -522,7 +534,7 @@ Sampler *SamplerRegistry::acquireSampler(
     sampler->refInc();
     sampler->refDec(helium::PUBLIC); // Drop the implicit public refcount that
                                      // we don't rely on.
-    m_dbToSampler.insert({textureDesc.url, sampler});
+    m_dbToSampler.insert({key, sampler});
   } else {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Unable to create sampler for texture db name `{}`",
