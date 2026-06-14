@@ -309,7 +309,9 @@ Sampler *SamplerRegistry::loadFromDDS(
     auto array2d = new Array2D(m_deviceState, desc);
     array2d->commitParameters();
     array2d->finalize();
-    array2d->uploadArrayData();
+    // No uploadArrayData(): the linear device buffer is never sampled. Image2D
+    // builds its cudaArray from the host data, so uploading a redundant linear
+    // copy just doubles this texture's VRAM footprint.
     auto image2d = new Image2D(m_deviceState);
     image2d->setParam("image", array2d);
     array2d->refDec(helium::PUBLIC);
@@ -388,8 +390,10 @@ Sampler *SamplerRegistry::loadFromImage(
 
   auto array2d = new Array2D(m_deviceState, desc);
   array2d->commitParameters();
-  array2d->uploadArrayData();
   array2d->finalize();
+  // No uploadArrayData(): the linear device buffer is never sampled. Image2D
+  // builds its cudaArray from the host data, so uploading a redundant linear
+  // copy just doubles this texture's VRAM footprint.
   auto image2d = new Image2D(m_deviceState);
   image2d->setParam("image", array2d);
   image2d->commitParameters();
