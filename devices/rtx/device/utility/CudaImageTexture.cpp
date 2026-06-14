@@ -38,78 +38,6 @@
 
 namespace visrtx {
 
-// Private helper functions ///////////////////////////////////////////////////
-
-template <bool SRGB, typename T>
-static uint8_t convertComponentUint8(T c)
-{
-  if constexpr (std::is_same_v<T, float>)
-    return uint8_t(c * 255);
-  else if constexpr (std::is_same_v<T, uint16_t>) {
-    constexpr auto maxVal = float(std::numeric_limits<uint16_t>::max());
-    return uint8_t((c / maxVal) * 255);
-  } else if constexpr (std::is_same_v<T, uint32_t>) {
-    constexpr auto maxVal = float(std::numeric_limits<uint32_t>::max());
-    return uint8_t((c / maxVal) * 255);
-  } else if constexpr (SRGB) // uint8_t
-    return uint8_t(glm::convertSRGBToLinear(vec1(c / 255.f)).x * 255);
-  else // uint8_t, linear
-    return c;
-}
-
-template <bool SRGB, typename T>
-static float convertComponentFloat(T c)
-{
-  if constexpr (std::is_same_v<T, float>)
-    return c;
-  else if constexpr (std::is_same_v<T, uint16_t>) {
-    constexpr auto maxVal = float(std::numeric_limits<uint16_t>::max());
-    return c / maxVal;
-  } else if constexpr (std::is_same_v<T, uint32_t>) {
-    constexpr auto maxVal = float(std::numeric_limits<uint32_t>::max());
-    return c / maxVal;
-  } else if constexpr (SRGB) // uint8_t
-    return glm::convertSRGBToLinear(vec1(float(c) / 255.f)).x;
-  else // uint8_t, linear
-    return c / 255.f;
-}
-
-template <int IN_NC /*num components*/,
-    typename IN_COMP_T /*component type*/,
-    bool SRGB = false>
-static void transformToStagingBufferUint8(
-    const Array &image, uint8_t *stagingBuffer)
-{
-  auto *begin = (const IN_COMP_T *)image.data();
-  auto *end = begin + (image.totalSize() * IN_NC);
-  size_t out = 0;
-  std::for_each(begin, end, [&](const IN_COMP_T &c) {
-    stagingBuffer[out++] = convertComponentUint8<SRGB>(c);
-    if constexpr (IN_NC == 3) {
-      if (out % 4 == 3)
-        stagingBuffer[out++] = 255;
-    }
-  });
-}
-
-template <int IN_NC /*num components*/,
-    typename IN_COMP_T /*component type*/,
-    bool SRGB = false>
-static void transformToStagingBufferFloat(
-    const Array &image, float *stagingBuffer)
-{
-  auto *begin = (const IN_COMP_T *)image.data();
-  auto *end = begin + (image.totalSize() * IN_NC);
-  size_t out = 0;
-  std::for_each(begin, end, [&](const IN_COMP_T &c) {
-    stagingBuffer[out++] = convertComponentFloat<SRGB>(c);
-    if constexpr (IN_NC == 3) {
-      if (out % 4 == 3)
-        stagingBuffer[out++] = 1.f;
-    }
-  });
-}
-
 // Function definitions ///////////////////////////////////////////////////////
 
 int countCudaChannels(const cudaChannelFormatDesc &desc)
@@ -138,33 +66,6 @@ cudaTextureAddressMode stringToAddressMode(const std::string &str)
     return cudaAddressModeClamp;
 }
 
-void makeCudaArrayUint8(
-    cudaArray_t &cuArray, int nc, const uint8_t *data, uvec3 size)
-{
-  if (!cuArray) {
-    auto desc = cudaCreateChannelDesc(nc >= 1 ? 8 : 0,
-        nc >= 2 ? 8 : 0,
-        nc >= 3 ? 8 : 0,
-        nc >= 4 ? 8 : 0,
-        cudaChannelFormatKindUnsigned);
-
-    cudaMalloc3DArray(&cuArray,
-        &desc,
-        make_cudaExtent(size.x, size.y, size.z <= 1 ? 0 : size.z));
-  }
-
-  cudaMemcpy3DParms p = {};
-  p.dstArray = cuArray;
-  p.srcPtr = make_cudaPitchedPtr(const_cast<uint8_t *>(data),
-      size.x * nc * sizeof(uint8_t),
-      size.x,
-      size.y);
-  p.srcPos = p.dstPos = make_cudaPos(0, 0, 0);
-  p.extent = make_cudaExtent(size.x, size.y, size.z);
-  p.kind = cudaMemcpyHostToDevice;
-  cudaMemcpy3D(&p);
-}
-
 void makeCudaArrayFloat(
     cudaArray_t &cuArray, int nc, const float *data, uvec3 size)
 {
@@ -191,154 +92,107 @@ void makeCudaArrayFloat(
   cudaMemcpy3D(&p);
 }
 
-void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uint32_t size)
+void makeCudaArray(cudaArray_t &cuArray, const Array &array, uint32_t size)
 {
-  makeCudaArrayUint8(cuArray, array, uvec3(size, 1, 1));
+  makeCudaArray(cuArray, array, uvec3(size, 1, 1));
 }
 
-void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec2 size)
+void makeCudaArray(cudaArray_t &cuArray, const Array &array, uvec2 size)
 {
-  makeCudaArrayUint8(cuArray, array, uvec3(size, 1));
+  makeCudaArray(cuArray, array, uvec3(size, 1));
 }
 
-void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec3 size)
+namespace {
+
+// IEEE-754 half-precision encoding of 1.0 (FLOAT16 is stored as raw uint16_t).
+constexpr uint16_t kHalfOne = 0x3C00;
+
+// Expand a 3-channel image to 4 channels (CUDA has no 3-channel cudaArray),
+// padding the added alpha so it samples as opaque/1.0. This is the only data
+// transform applied to a texture; every other format is copied verbatim.
+template <typename T>
+static void expandRGBtoRGBA(const Array &array, void *dstRaw, T pad)
+{
+  const T *src = static_cast<const T *>(array.data());
+  T *dst = static_cast<T *>(dstRaw);
+  const size_t texels = array.totalSize();
+  for (size_t i = 0; i < texels; ++i) {
+    dst[4 * i + 0] = src[3 * i + 0];
+    dst[4 * i + 1] = src[3 * i + 1];
+    dst[4 * i + 2] = src[3 * i + 2];
+    dst[4 * i + 3] = pad;
+  }
+}
+
+// Build a cudaArray whose channel kind and bit depth mirror the ANARI element
+// type, then copy the data verbatim. 8/16/32-bit unsigned and 16/32-bit float
+// are kept in their native form; sRGB stays as raw 8-bit bytes (the sampler
+// does sRGB->linear). The sole transform is 3->4 channel expansion, which CUDA
+// forces. Integer arrays are read back with normalized read mode, so keeping
+// them at native depth (not promoted to float) is both correct and compact.
+static void buildNativeCudaArray(
+    cudaArray_t &cuArray, const Array &array, uvec3 size)
 {
   const ANARIDataType format = array.elementType();
-  auto nc = numANARIChannels(format);
+  const int nc = numANARIChannels(format);
+  const size_t compBytes = bytesPerChannel(format);
+  const int bits = int(compBytes) * 8;
+  const cudaChannelFormatKind kind = isFloat(format)
+      ? cudaChannelFormatKindFloat
+      : cudaChannelFormatKindUnsigned;
+  const int storedNc = (nc == 3) ? 4 : nc;
 
-  // Create CUDA texture //
-
-  std::vector<uint8_t> stagingBuffer(array.totalSize() * 4);
-
-  if (nc == 4) {
-    if (isFloat(format))
-      transformToStagingBufferUint8<4, float>(array, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferUint8<4, uint32_t>(array, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferUint8<4, uint16_t>(array, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferUint8<4, uint8_t>(array, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferUint8<4, uint8_t, true>(
-          array, stagingBuffer.data());
-  } else if (nc == 3) {
-    if (isFloat(format))
-      transformToStagingBufferUint8<3, float>(array, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferUint8<3, uint32_t>(array, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferUint8<3, uint16_t>(array, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferUint8<3, uint8_t>(array, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferUint8<3, uint8_t, true>(
-          array, stagingBuffer.data());
-  } else if (nc == 2) {
-    if (isFloat(format))
-      transformToStagingBufferUint8<2, float>(array, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferUint8<2, uint32_t>(array, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferUint8<2, uint16_t>(array, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferUint8<2, uint8_t>(array, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferUint8<2, uint8_t, true>(
-          array, stagingBuffer.data());
-  } else if (nc == 1) {
-    if (isFloat(format))
-      transformToStagingBufferUint8<1, float>(array, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferUint8<1, uint32_t>(array, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferUint8<1, uint16_t>(array, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferUint8<1, uint8_t>(array, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferUint8<1, uint8_t, true>(
-          array, stagingBuffer.data());
+  if (!cuArray) {
+    auto desc = cudaCreateChannelDesc(storedNc >= 1 ? bits : 0,
+        storedNc >= 2 ? bits : 0,
+        storedNc >= 3 ? bits : 0,
+        storedNc >= 4 ? bits : 0,
+        kind);
+    cudaMalloc3DArray(&cuArray,
+        &desc,
+        make_cudaExtent(size.x, size.y, size.z <= 1 ? 0 : size.z));
   }
 
-  if (nc == 3)
-    nc = 4;
-
-  makeCudaArrayUint8(cuArray, nc, stagingBuffer.data(), size);
-}
-
-void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uint32_t size)
-{
-  makeCudaArrayFloat(cuArray, array, uvec3(size, 1, 1));
-}
-
-void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec2 size)
-{
-  makeCudaArrayFloat(cuArray, array, uvec3(size, 1));
-}
-
-void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec3 size)
-{
-  const ANARIDataType format = array.elementType();
-  auto nc = numANARIChannels(format);
-
-  // Create CUDA texture //
-
-  std::vector<float> stagingBuffer(array.totalSize() * 4);
-
-  if (nc == 4) {
-    if (isFloat(format))
-      transformToStagingBufferFloat<4, float>(array, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferFloat<4, uint32_t>(array, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferFloat<4, uint16_t>(array, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferFloat<4, uint8_t>(array, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferFloat<4, uint8_t, true>(
-          array, stagingBuffer.data());
-  } else if (nc == 3) {
-    if (isFloat(format))
-      transformToStagingBufferFloat<3, float>(array, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferFloat<3, uint32_t>(array, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferFloat<3, uint16_t>(array, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferFloat<3, uint8_t>(array, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferFloat<3, uint8_t, true>(
-          array, stagingBuffer.data());
-  } else if (nc == 2) {
-    if (isFloat(format))
-      transformToStagingBufferFloat<2, float>(array, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferFloat<2, uint32_t>(array, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferFloat<2, uint16_t>(array, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferFloat<2, uint8_t>(array, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferFloat<2, uint8_t, true>(
-          array, stagingBuffer.data());
-  } else if (nc == 1) {
-    if (isFloat(format))
-      transformToStagingBufferFloat<1, float>(array, stagingBuffer.data());
-    else if (isFixed32(format))
-      transformToStagingBufferFloat<1, uint32_t>(array, stagingBuffer.data());
-    else if (isFixed16(format))
-      transformToStagingBufferFloat<1, uint16_t>(array, stagingBuffer.data());
-    else if (isFixed8(format))
-      transformToStagingBufferFloat<1, uint8_t>(array, stagingBuffer.data());
-    else if (isSrgb8(format))
-      transformToStagingBufferFloat<1, uint8_t, true>(
-          array, stagingBuffer.data());
+  // Expand RGB->RGBA when needed; otherwise copy the host data straight in.
+  std::vector<uint8_t> staging;
+  const void *src = array.data();
+  size_t srcChannels = size_t(nc);
+  if (nc == 3) {
+    staging.resize(array.totalSize() * 4 * compBytes);
+    if (isFloat32(format))
+      expandRGBtoRGBA<float>(array, staging.data(), 1.0f);
+    else if (isFloat16(format))
+      expandRGBtoRGBA<uint16_t>(array, staging.data(), kHalfOne);
+    else if (compBytes == 4)
+      expandRGBtoRGBA<uint32_t>(
+          array, staging.data(), std::numeric_limits<uint32_t>::max());
+    else if (compBytes == 2)
+      expandRGBtoRGBA<uint16_t>(
+          array, staging.data(), std::numeric_limits<uint16_t>::max());
+    else
+      expandRGBtoRGBA<uint8_t>(
+          array, staging.data(), std::numeric_limits<uint8_t>::max());
+    src = staging.data();
+    srcChannels = 4;
   }
 
-  if (nc == 3)
-    nc = 4;
+  cudaMemcpy3DParms p = {};
+  p.dstArray = cuArray;
+  p.srcPos = p.dstPos = make_cudaPos(0, 0, 0);
+  p.srcPtr = make_cudaPitchedPtr(const_cast<void *>(src),
+      size.x * srcChannels * compBytes,
+      size.x,
+      size.y);
+  p.extent = make_cudaExtent(size.x, size.y, size.z < 1 ? 1 : size.z);
+  p.kind = cudaMemcpyHostToDevice;
+  cudaMemcpy3D(&p);
+}
 
-  makeCudaArrayFloat(cuArray, nc, stagingBuffer.data(), size);
+} // namespace
+
+void makeCudaArray(cudaArray_t &cuArray, const Array &array, uvec3 size)
+{
+  buildNativeCudaArray(cuArray, array, size);
 }
 
 cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
@@ -348,7 +202,8 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
     const std::string &wrap2,
     const std::string &wrap3,
     bool normalizedCoords,
-    const vec4 &borderColor)
+    const vec4 &borderColor,
+    bool sRGB)
 {
   cudaResourceDesc resDesc;
   memset(&resDesc, 0, sizeof(resDesc));
@@ -365,6 +220,10 @@ cudaTextureObject_t makeCudaTextureObject(cudaArray_t cuArray,
   texDesc.readMode = readModeNormalizedFloat ? cudaReadModeNormalizedFloat
                                              : cudaReadModeElementType;
   texDesc.normalizedCoords = normalizedCoords;
+  // Hardware sRGB->linear on sample for raw sRGB8 data (valid for 8-bit unorm).
+  // Lets the texture stay in its native sRGB bytes instead of being linearized
+  // into 8-bit on the CPU (which bands the dark end).
+  texDesc.sRGB = sRGB;
   texDesc.borderColor[0] = borderColor.x;
   texDesc.borderColor[1] = borderColor.y;
   texDesc.borderColor[2] = borderColor.z;
@@ -575,7 +434,8 @@ cudaTextureObject_t makeCudaTextureObject1D(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
     const std::string &filter,
     const std::string &wrap,
-    const vec4 &borderColor)
+    const vec4 &borderColor,
+    bool sRGB)
 {
   return makeCudaTextureObject(cuArray,
       readModeNormalizedFloat,
@@ -584,7 +444,8 @@ cudaTextureObject_t makeCudaTextureObject1D(cudaArray_t cuArray,
       wrap,
       wrap,
       true,
-      borderColor);
+      borderColor,
+      sRGB);
 }
 
 cudaTextureObject_t makeCudaTextureObject2D(cudaArray_t cuArray,
@@ -592,7 +453,8 @@ cudaTextureObject_t makeCudaTextureObject2D(cudaArray_t cuArray,
     const std::string &filter,
     const std::string &wrap1,
     const std::string &wrap2,
-    const vec4 &borderColor)
+    const vec4 &borderColor,
+    bool sRGB)
 {
   return makeCudaTextureObject(cuArray,
       readModeNormalizedFloat,
@@ -601,7 +463,8 @@ cudaTextureObject_t makeCudaTextureObject2D(cudaArray_t cuArray,
       wrap2,
       wrap2,
       true,
-      borderColor);
+      borderColor,
+      sRGB);
 }
 
 cudaTextureObject_t makeCudaTextureObject3D(cudaArray_t cuArray,
@@ -610,7 +473,8 @@ cudaTextureObject_t makeCudaTextureObject3D(cudaArray_t cuArray,
     const std::string &wrap1,
     const std::string &wrap2,
     const std::string &wrap3,
-    const vec4 &borderColor)
+    const vec4 &borderColor,
+    bool sRGB)
 {
   return makeCudaTextureObject(cuArray,
       readModeNormalizedFloat,
@@ -619,7 +483,8 @@ cudaTextureObject_t makeCudaTextureObject3D(cudaArray_t cuArray,
       wrap2,
       wrap3,
       true,
-      borderColor);
+      borderColor,
+      sRGB);
 }
 
 cudaTextureObject_t makeCudaTexelObject1D(cudaArray_t cuArray,
@@ -635,7 +500,8 @@ cudaTextureObject_t makeCudaTexelObject1D(cudaArray_t cuArray,
       wrap,
       wrap,
       false,
-      borderColor);
+      borderColor,
+      false);
 }
 
 cudaTextureObject_t makeCudaTexelObject2D(cudaArray_t cuArray,
@@ -652,7 +518,8 @@ cudaTextureObject_t makeCudaTexelObject2D(cudaArray_t cuArray,
       wrap2,
       wrap2,
       false,
-      borderColor);
+      borderColor,
+      false);
 }
 
 cudaTextureObject_t makeCudaTexelObject3D(cudaArray_t cuArray,
@@ -670,7 +537,8 @@ cudaTextureObject_t makeCudaTexelObject3D(cudaArray_t cuArray,
       wrap2,
       wrap3,
       false,
-      borderColor);
+      borderColor,
+      false);
 }
 
 cudaTextureObject_t makeCudaCompressedTextureObject1D(cudaArray_t cuArray,

@@ -53,53 +53,28 @@ anari::math::uint3 Array3D::size() const
       uint32_t(size(0)), uint32_t(size(1)), uint32_t(size(2)));
 }
 
-cudaArray_t Array3D::acquireCUDAArrayFloat()
+cudaArray_t Array3D::acquireCUDAArray()
 {
-  if (!m_cuArrayFloat)
-    makeCudaArrayFloat(
-        m_cuArrayFloat, *this, uvec3(size().x, size().y, size().z));
-  m_arrayRefCountFloat++;
-  return m_cuArrayFloat;
+  if (!m_cuArray)
+    makeCudaArray(m_cuArray, *this, uvec3(size().x, size().y, size().z));
+  m_arrayRefCount++;
+  return m_cuArray;
 }
 
-void Array3D::releaseCUDAArrayFloat()
+void Array3D::releaseCUDAArray()
 {
-  m_arrayRefCountFloat--;
-  if (m_arrayRefCountFloat == 0) {
-    cudaFreeArray(m_cuArrayFloat);
-    m_cuArrayFloat = {};
-  }
-}
-
-cudaArray_t Array3D::acquireCUDAArrayUint8()
-{
-  if (!m_cuArrayUint8)
-    makeCudaArrayUint8(
-        m_cuArrayUint8, *this, uvec3(size().x, size().y, size().z));
-  m_arrayRefCountUint8++;
-  return m_cuArrayUint8;
-}
-
-void Array3D::releaseCUDAArrayUint8()
-{
-  m_arrayRefCountUint8--;
-  if (m_arrayRefCountUint8 == 0) {
-    cudaFreeArray(m_cuArrayUint8);
-    m_cuArrayUint8 = {};
+  m_arrayRefCount--;
+  if (m_arrayRefCount == 0) {
+    cudaFreeArray(m_cuArray);
+    m_cuArray = {};
   }
 }
 
 void Array3D::uploadArrayData() const
 {
   Array::uploadArrayData();
-  if (m_cuArrayFloat) {
-    makeCudaArrayFloat(
-        m_cuArrayFloat, *this, uvec3(size().x, size().y, size().z));
-  }
-  if (m_cuArrayUint8) {
-    makeCudaArrayUint8(
-        m_cuArrayUint8, *this, uvec3(size().x, size().y, size().z));
-  }
+  if (m_cuArray)
+    makeCudaArray(m_cuArray, *this, uvec3(size().x, size().y, size().z));
 }
 
 } // namespace visrtx

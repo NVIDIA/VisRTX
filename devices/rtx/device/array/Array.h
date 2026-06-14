@@ -104,10 +104,8 @@ struct Array : public UploadableArray
   template <typename T>
   void throwIfDifferentElementType() const;
 
-  mutable cudaArray_t m_cuArrayFloat{};
-  size_t m_arrayRefCountFloat{0};
-  mutable cudaArray_t m_cuArrayUint8{};
-  size_t m_arrayRefCountUint8{0};
+  mutable cudaArray_t m_cuArray{};
+  size_t m_arrayRefCount{0};
 
  private:
   void on_NoInternalReferences() override;

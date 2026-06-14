@@ -62,11 +62,8 @@ struct Array1D : public Array
   template <typename T>
   const T *valueAt(size_t i) const;
 
-  cudaArray_t acquireCUDAArrayFloat();
-  void releaseCUDAArrayFloat();
-
-  cudaArray_t acquireCUDAArrayUint8();
-  void releaseCUDAArrayUint8();
+  cudaArray_t acquireCUDAArray();
+  void releaseCUDAArray();
 
   void uploadArrayData() const override;
 

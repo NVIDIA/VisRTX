@@ -70,17 +70,15 @@ void Image1D::finalize()
     return;
   }
 
-  cudaArray_t cuArray = {};
-  bool isFp = isFloat(m_image->elementType());
-  if (isFp)
-    cuArray = m_image->acquireCUDAArrayFloat();
-  else
-    cuArray = m_image->acquireCUDAArrayUint8();
+  const bool isFp = isFloat(m_image->elementType());
+  cudaArray_t cuArray = m_image->acquireCUDAArray();
 
   cleanupImageTextureObjects();
 
-  m_texture =
-      makeCudaTextureObject1D(cuArray, !isFp, m_filter, m_wrap1, m_borderColor);
+  // sRGB data is kept as raw bytes; the sampler does sRGB->linear in hardware.
+  const bool sRGB = isSrgb8(m_image->elementType());
+  m_texture = makeCudaTextureObject1D(
+      cuArray, !isFp, m_filter, m_wrap1, m_borderColor, sRGB);
   m_texels =
       makeCudaTexelObject1D(cuArray, !isFp, "nearest", m_wrap1, m_borderColor);
 
@@ -115,10 +113,7 @@ void Image1D::cleanupImageCudaArray()
   if (!m_image)
     return;
 
-  if (isFloat(m_image->elementType()))
-    m_image->releaseCUDAArrayFloat();
-  else
-    m_image->releaseCUDAArrayUint8();
+  m_image->releaseCUDAArray();
 }
 
 void Image1D::cleanupImageTextureObjects()

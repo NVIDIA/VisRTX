@@ -65,9 +65,23 @@ constexpr bool isFloat64(ANARIDataType format)
   return false;
 }
 
+constexpr bool isFloat16(ANARIDataType format)
+{
+  switch (format) {
+  case ANARI_FLOAT16_VEC4:
+  case ANARI_FLOAT16_VEC3:
+  case ANARI_FLOAT16_VEC2:
+  case ANARI_FLOAT16:
+    return true;
+  default:
+    break;
+  }
+  return false;
+}
+
 constexpr bool isFloat(ANARIDataType format)
 {
-  return isFloat32(format) || isFloat64(format);
+  return isFloat16(format) || isFloat32(format) || isFloat64(format);
 }
 
 constexpr bool isFixed32(ANARIDataType format)
@@ -171,9 +185,9 @@ constexpr int numANARIChannels(ANARIDataType format)
 
 constexpr int bytesPerChannel(ANARIDataType format)
 {
-  if (isFloat(format) || isFixed32(format))
+  if (isFloat32(format) || isFixed32(format))
     return 4;
-  else if (isFixed16(format))
+  else if (isFloat16(format) || isFixed16(format))
     return 2;
   else
     return 1;

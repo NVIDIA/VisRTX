@@ -43,6 +43,7 @@
 
 #include "gpu/gpu_decl.h"
 #include "gpu/shadingState.h"
+#include "utility/AnariTypeHelpers.h"
 
 // std
 #include <optix_types.h>
@@ -207,8 +208,22 @@ void Renderer::finalize()
 {
   cleanup();
   if (m_backgroundImage) {
-    auto cuArray = m_backgroundImage->acquireCUDAArrayUint8();
-    m_backgroundTexture = makeCudaTextureObject2D(cuArray, true, "linear");
+    const ANARIDataType fmt = m_backgroundImage->elementType();
+    if (numANARIChannels(fmt) == 0) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "invalid background image element type (%s); ignoring",
+          anari::toString(fmt));
+      return; // m_backgroundTexture stays null -> COLOR background fallback
+    }
+    const bool isFp = isFloat(fmt);
+    auto cuArray = m_backgroundImage->acquireCUDAArray();
+    m_backgroundTexture = makeCudaTextureObject2D(cuArray,
+        !isFp,
+        "linear",
+        "clampToEdge",
+        "clampToEdge",
+        vec4(0.f),
+        isSrgb8(fmt));
   }
 }
 
@@ -224,7 +239,7 @@ Span<std::string> Renderer::missSbtNames() const
 
 void Renderer::populateFrameData(FrameGPUData &fd) const
 {
-  if (m_backgroundImage) {
+  if (m_backgroundImage && m_backgroundTexture) {
     fd.renderer.backgroundMode = BackgroundMode::IMAGE;
     fd.renderer.background.texobj = m_backgroundTexture;
   } else {
@@ -1068,7 +1083,7 @@ void Renderer::cleanup()
   if (m_backgroundImage) {
     if (m_backgroundTexture) {
       cudaDestroyTextureObject(m_backgroundTexture);
-      m_backgroundImage->releaseCUDAArrayUint8();
+      m_backgroundImage->releaseCUDAArray();
     }
   }
 }

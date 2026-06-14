@@ -58,21 +58,15 @@ using byte_chunk_t = std::array<uint8_t, SIZE>;
 int countCudaChannels(const cudaChannelFormatDesc &desc);
 cudaTextureAddressMode stringToAddressMode(const std::string &str);
 
-void makeCudaArrayUint8(
-    cudaArray_t &cuArray, int nc, const uint8_t *data, uvec3 size);
 void makeCudaArrayFloat(
     cudaArray_t &cuArray, int nc, const float *data, uvec3 size);
 
-void makeCudaArrayUint8(
-    cudaArray_t &cuArray, const Array &array, uint32_t size);
-void makeCudaArrayFloat(
-    cudaArray_t &cuArray, const Array &array, uint32_t size);
-
-void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec2 size);
-void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec2 size);
-
-void makeCudaArrayUint8(cudaArray_t &cuArray, const Array &array, uvec3 size);
-void makeCudaArrayFloat(cudaArray_t &cuArray, const Array &array, uvec3 size);
+// Build a cudaArray that mirrors the ANARI element type natively (channel kind,
+// bit depth), copying the data verbatim; the only transform is 3->4 channel
+// expansion, which CUDA forces. sRGB stays raw (sampler does sRGB->linear).
+void makeCudaArray(cudaArray_t &cuArray, const Array &array, uint32_t size);
+void makeCudaArray(cudaArray_t &cuArray, const Array &array, uvec2 size);
+void makeCudaArray(cudaArray_t &cuArray, const Array &array, uvec3 size);
 
 void makeCudaCompressedTextureArray(cudaArray_t &cuArray,
     const uvec2 &size,
@@ -83,14 +77,16 @@ cudaTextureObject_t makeCudaTextureObject1D(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
     const std::string &filter,
     const std::string &wrap = "clampToEdge",
-    const vec4 &borderColor = vec4(0.f));
+    const vec4 &borderColor = vec4(0.f),
+    bool sRGB = false);
 
 cudaTextureObject_t makeCudaTextureObject2D(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
     const std::string &filter,
     const std::string &wrap1 = "clampToEdge",
     const std::string &wrap2 = "clampToEdge",
-    const vec4 &borderColor = vec4(0.f));
+    const vec4 &borderColor = vec4(0.f),
+    bool sRGB = false);
 
 cudaTextureObject_t makeCudaTextureObject3D(cudaArray_t cuArray,
     bool readModeNormalizedFloat,
@@ -98,7 +94,8 @@ cudaTextureObject_t makeCudaTextureObject3D(cudaArray_t cuArray,
     const std::string &wrap1 = "clampToEdge",
     const std::string &wrap2 = "clampToEdge",
     const std::string &wrap3 = "clampToEdge",
-    const vec4 &borderColor = vec4(0.f));
+    const vec4 &borderColor = vec4(0.f),
+    bool sRGB = false);
 
 cudaTextureObject_t makeCudaTexelObject1D(cudaArray_t cuArray,
     bool readModeNormalizedFloat,

@@ -46,11 +46,8 @@ struct Array3D : public Array
   size_t size(int dim) const;
   anari::math::uint3 size() const;
 
-  cudaArray_t acquireCUDAArrayFloat();
-  void releaseCUDAArrayFloat();
-
-  cudaArray_t acquireCUDAArrayUint8();
-  void releaseCUDAArrayUint8();
+  cudaArray_t acquireCUDAArray();
+  void releaseCUDAArray();
 
   void uploadArrayData() const override;
 

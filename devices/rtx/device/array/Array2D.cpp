@@ -51,47 +51,28 @@ anari::math::uint2 Array2D::size() const
   return anari::math::uint2(uint32_t(size(0)), uint32_t(size(1)));
 }
 
-cudaArray_t Array2D::acquireCUDAArrayFloat()
+cudaArray_t Array2D::acquireCUDAArray()
 {
-  if (!m_cuArrayFloat)
-    makeCudaArrayFloat(m_cuArrayFloat, *this, uvec2(size().x, size().y));
-  m_arrayRefCountFloat++;
-  return m_cuArrayFloat;
+  if (!m_cuArray)
+    makeCudaArray(m_cuArray, *this, uvec2(size().x, size().y));
+  m_arrayRefCount++;
+  return m_cuArray;
 }
 
-void Array2D::releaseCUDAArrayFloat()
+void Array2D::releaseCUDAArray()
 {
-  m_arrayRefCountFloat--;
-  if (m_arrayRefCountFloat == 0) {
-    cudaFreeArray(m_cuArrayFloat);
-    m_cuArrayFloat = {};
-  }
-}
-
-cudaArray_t Array2D::acquireCUDAArrayUint8()
-{
-  if (!m_cuArrayUint8)
-    makeCudaArrayUint8(m_cuArrayUint8, *this, uvec2(size().x, size().y));
-  m_arrayRefCountUint8++;
-  return m_cuArrayUint8;
-}
-
-void Array2D::releaseCUDAArrayUint8()
-{
-  m_arrayRefCountUint8--;
-  if (m_arrayRefCountUint8 == 0) {
-    cudaFreeArray(m_cuArrayUint8);
-    m_cuArrayUint8 = {};
+  m_arrayRefCount--;
+  if (m_arrayRefCount == 0) {
+    cudaFreeArray(m_cuArray);
+    m_cuArray = {};
   }
 }
 
 void Array2D::uploadArrayData() const
 {
   Array::uploadArrayData();
-  if (m_cuArrayFloat)
-    makeCudaArrayFloat(m_cuArrayFloat, *this, uvec2(size().x, size().y));
-  if (m_cuArrayUint8)
-    makeCudaArrayUint8(m_cuArrayUint8, *this, uvec2(size().x, size().y));
+  if (m_cuArray)
+    makeCudaArray(m_cuArray, *this, uvec2(size().x, size().y));
 }
 
 } // namespace visrtx
