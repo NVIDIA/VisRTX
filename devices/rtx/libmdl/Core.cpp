@@ -39,6 +39,7 @@
 #include <mi/neuraylib/ivalue.h>
 #include <mi/neuraylib/iversion.h>
 
+#include <filesystem>
 #include <string>
 
 #ifdef MI_PLATFORM_WINDOWS
@@ -321,13 +322,82 @@ const mi::neuraylib::IModule *Core::loadModule(
 
   if (impexpApi->load_module(
           transaction, moduleName.c_str(), executionContext.get())
-      < 0)
-    return {};
+      < 0) {
+    // A scene may ship a .mdl without its resources (e.g. a vMaterials module
+    // copied without its ./textures), so the local copy fails to compile. A
+    // complete copy usually exists on the MDL search path -- recover it by
+    // canonical name before giving up.
+    return loadModuleByCanonicalName(moduleOrFileName, transaction);
+  }
 
   // Get the database name for the module we loaded
   auto moduleDbName = make_handle(
       m_mdlFactory->get_db_module_name(std::string(moduleName).c_str()));
   return transaction->access<mi::neuraylib::IModule>(moduleDbName->get_c_str());
+}
+
+const mi::neuraylib::IModule *Core::loadModuleByCanonicalName(
+    std::string_view filePath, mi::neuraylib::ITransaction *transaction)
+{
+  std::string path(filePath);
+  if (path.find('/') == std::string::npos)
+    return {}; // already a module name, nothing to recover
+
+  auto impexpApi = make_handle(
+      m_neuray->get_api_component<mi::neuraylib::IMdl_impexp_api>());
+  auto mdlConfiguration = make_handle(
+      m_neuray->get_api_component<mi::neuraylib::IMdl_configuration>());
+
+  // If the failing path passes through a directory whose basename matches a
+  // search root (e.g. ".../vMaterials_2/Concrete/Concrete_Precast.mdl" with a
+  // "/data/mdl/vMaterials_2" root), the canonical module name is the tail after
+  // it ("::Concrete::Concrete_Precast"). Loading that by name lets the entity
+  // resolver pick a complete copy on the search path.
+  auto pathsCount = mdlConfiguration->get_mdl_paths_length();
+  for (auto i = decltype(pathsCount)(0); i < pathsCount; ++i) {
+    auto rootName =
+        std::filesystem::path(
+            make_handle(mdlConfiguration->get_mdl_path(i))->get_c_str())
+            .filename()
+            .string();
+    if (rootName.empty())
+      continue;
+
+    auto marker = "/" + rootName + "/";
+    auto pos = path.rfind(marker);
+    if (pos == std::string::npos)
+      continue;
+
+    auto tail = path.substr(pos + marker.size());
+    if (auto n = tail.size(); n > 4 && tail.substr(n - 4) == ".mdl")
+      tail = tail.substr(0, n - 4);
+    if (tail.empty())
+      continue;
+
+    std::string moduleName = "::";
+    for (char c : tail)
+      moduleName += (c == '/') ? "::"s : std::string(1, c);
+
+    auto executionContext =
+        make_handle(m_mdlFactory->clone(m_executionContext.get()));
+    if (impexpApi->load_module(
+            transaction, moduleName.c_str(), executionContext.get())
+        < 0)
+      continue;
+
+    auto moduleDbName =
+        make_handle(m_mdlFactory->get_db_module_name(moduleName.c_str()));
+    if (auto *module = transaction->access<mi::neuraylib::IModule>(
+            moduleDbName->get_c_str())) {
+      logMessage(mi::base::MESSAGE_SEVERITY_INFO,
+          "Recovered '{}' from the MDL search path as '{}'",
+          path,
+          moduleName);
+      return module;
+    }
+  }
+
+  return {};
 }
 
 const mi::neuraylib::IFunction_definition *Core::getFunctionDefinition(
