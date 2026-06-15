@@ -24,7 +24,17 @@ BaseViewport::~BaseViewport()
 void BaseViewport::buildUI()
 {
   ImVec2 viewportSize = ImGui::GetContentRegionAvail();
-  viewport_reshape({int(viewportSize.x), int(viewportSize.y)});
+  const tsd::math::int2 requested(int(viewportSize.x), int(viewportSize.y));
+
+  // Debounce window resizes. While the viewport is actively being dragged the
+  // requested size changes every frame.
+  // Defer rendering until it is settled.
+  const bool firstSize = m_viewport.size.x <= 0 || m_viewport.size.y <= 0;
+  const bool sizeSettled = requested == m_viewport.pendingSize;
+  m_viewport.pendingSize = requested;
+
+  if (requested != m_viewport.size && (sizeSettled || firstSize))
+    viewport_reshape(requested);
 }
 
 void BaseViewport::setManipulator(tsd::rendering::Manipulator *m)
@@ -610,8 +620,8 @@ void BaseViewport::ui_menubar_Camera()
       }
 
       ImGui::Separator();
-      if (ImGui::Checkbox("Use Implicit Aspect Ratio",
-              &m_camera.useImplicitAspectRatio))
+      if (ImGui::Checkbox(
+              "Use Implicit Aspect Ratio", &m_camera.useImplicitAspectRatio))
         camera_setUseImplicitAspectRatio(m_camera.useImplicitAspectRatio);
       ImGui::Separator();
       tsd::ui::buildUI_object(*m_camera.current, scene, true);

@@ -272,6 +272,10 @@ void AnariSceneRenderPass::updateSize()
   m_buffers.instanceId = detail::allocate<uint32_t>(totalSize);
   m_buffers.albedo = detail::allocate<tsd::math::float3>(totalSize);
   m_buffers.normal = detail::allocate<tsd::math::float3>(totalSize);
+
+  // Render the new size synchronously so the first frame displayed after a
+  // resize is valid.
+  restartFrame();
 }
 
 void AnariSceneRenderPass::updateCameraAspect()

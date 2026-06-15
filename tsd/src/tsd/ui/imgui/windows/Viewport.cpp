@@ -93,8 +93,24 @@ void Viewport::buildUI()
   ImGui::BeginDisabled(!BaseViewport::viewport_isActive());
 
   if (BaseViewport::viewport_isActive()) {
+    // Fit the rendered texture into the available region preserving its aspect
+    // ratio. It enables keeping the same correct image on viewport interactive
+    // resize, without having to render a new frame each size change.
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    const tsd::math::int2 texSize = m_viewport.renderSize;
+    ImVec2 imageSize = avail;
+    if (texSize.x > 0 && texSize.y > 0 && avail.x > 0.f && avail.y > 0.f) {
+      const float texAspect = float(texSize.x) / float(texSize.y);
+      if (avail.x / avail.y > texAspect)
+        imageSize.x = avail.y * texAspect;
+      else
+        imageSize.y = avail.x / texAspect;
+      const ImVec2 cursor = ImGui::GetCursorPos();
+      ImGui::SetCursorPos(ImVec2(cursor.x + (avail.x - imageSize.x) * 0.5f,
+          cursor.y + (avail.y - imageSize.y) * 0.5f));
+    }
     ImGui::Image((ImTextureID)m_outputPass->getTexture(),
-        ImGui::GetContentRegionAvail(),
+        imageSize,
         ImVec2(0, 1),
         ImVec2(1, 0));
   }
