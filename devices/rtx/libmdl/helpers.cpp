@@ -47,7 +47,7 @@ std::tuple<std::string, std::string> parseMaterialSourceName(
     // input already has ::main attached (optional)
     if (p_last != std::string::npos) {
       potential_path = name.substr(0, p_last);
-      potential_material_name = name.substr(p_last + 2, name.size() - p_last);
+      potential_material_name = name.substr(p_last + 2);
     }
 
     // is it an mdle?
@@ -76,7 +76,7 @@ std::tuple<std::string, std::string> parseMaterialSourceName(
   }
 
   outModuleName.append(name.substr(0, p_last));
-  outMaterialName = name.substr(p_last + 2, name.size() - p_last);
+  outMaterialName = name.substr(p_last + 2);
   return {outModuleName, outMaterialName};
 }
 

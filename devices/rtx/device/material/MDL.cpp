@@ -102,8 +102,13 @@ void MDL::finalize()
   syncImplementationIndex();
   syncParameters();
 
-  if (const auto &argBlockData = m_argumentBlockInstance->getArgumentBlockData(); !argBlockData.empty()) {
+  if (m_argumentBlockInstance.has_value()) {
+    if (const auto &argBlockData = m_argumentBlockInstance->getArgumentBlockData();
+        !argBlockData.empty()) {
       m_argBlockBuffer.upload(data(argBlockData), size(argBlockData));
+    } else {
+      m_argBlockBuffer.reset();
+    }
   } else {
     m_argBlockBuffer.reset();
   }
@@ -115,71 +120,88 @@ void MDL::syncSource()
 {
   auto sourceType = getParamString("sourceType", "module");
   auto source = getParamString("source", "::visrtx::default::diffuseWhite");
-  auto uuid = libmdl::Uuid{};
-  auto argumentBlockDescriptor = libmdl::ArgumentBlockDescriptor{};
 
   auto &materialRegistry = deviceState()->mdl->materialRegistry;
   auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
 
-  // Handle source changes separately as it probably implies a full material
-  // change.
-  if (source != m_source || sourceType != m_sourceType) {
-    if (sourceType == "module") {
-      auto &&[moduleName, materialName] =
-          libmdl::parseMaterialSourceName(source, &deviceState()->mdl->core);
-      if (!moduleName.empty() && !materialName.empty()) {
-        std::tie(uuid, argumentBlockDescriptor) = materialRegistry.acquireMaterial(moduleName, materialName);
-        if (uuid == libmdl::Uuid{}) {
-          reportMessage(ANARI_SEVERITY_ERROR,
-              "Failed to acquire material %s, falling back to %s",
-              source.c_str(),
-              "diffuseWhite");
-          std::tie(uuid, argumentBlockDescriptor) =
-            materialRegistry.acquireMaterial(
-                "::visrtx::default", "diffuseWhite");
-        }
-      }
-    } else if (sourceType == "code") {
+  // A source change implies a full material change; nothing to do otherwise.
+  if (source == m_source && sourceType == m_sourceType)
+    return;
+
+  auto uuid = libmdl::Uuid{};
+  auto argumentBlockDescriptor = libmdl::ArgumentBlockDescriptor{};
+
+  if (sourceType == "module") {
+    auto &&[moduleName, materialName] =
+        libmdl::parseMaterialSourceName(source, &deviceState()->mdl->core);
+    if (moduleName.empty() || materialName.empty()) {
       reportMessage(ANARI_SEVERITY_ERROR,
-          "MDL::commitParameters(): sourceType 'code' not supported yet");
+          "MDL::syncSource(): could not parse material source name '%s'",
+          source.c_str());
     } else {
-      reportMessage(ANARI_SEVERITY_ERROR,
-          "MDL::commitParameters(): sourceType must be either 'module' or 'code'");
-    }
-
-    if (uuid != libmdl::Uuid{}) {
-      // We have successfully loaded a material, release the previous one and
-      // use it instead.
-      if (m_uuid != libmdl::Uuid{}) {
-        materialRegistry.releaseMaterial(m_uuid);
-      }
-      m_argumentBlockInstance =
-          materialRegistry.createArgumentBlock(argumentBlockDescriptor);
-      m_uuid = uuid;
-
-      clearSamplers();
-
-      for (auto textureDesc :
-          argumentBlockDescriptor.m_defaultAndBodyTextureDescriptors) {
-        auto sampler = samplerRegistry.acquireSampler(textureDesc);
-        if (!sampler) {
-          reportMessage(ANARI_SEVERITY_WARNING,
-              "Failed to acquire default texture '%s' for material %s",
-              textureDesc.url.c_str(),
-              source.c_str());
-          continue;
-        }
-        auto index = textureDesc.knownIndex;
-        if (m_samplers.size() <= index) {
-          m_samplers.resize(index + 1);
-        }
-        m_samplers[textureDesc.knownIndex] = {sampler, textureDesc.url, true};
+      std::tie(uuid, argumentBlockDescriptor) =
+          materialRegistry.acquireMaterial(moduleName, materialName);
+      if (uuid == libmdl::Uuid{}) {
+        reportMessage(ANARI_SEVERITY_ERROR,
+            "MDL::syncSource(): failed to acquire material '%s'",
+            source.c_str());
       }
     }
-
-    m_source = source;
-    m_sourceType = sourceType;
+  } else if (sourceType == "code") {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "MDL::syncSource(): sourceType 'code' is not supported yet");
+  } else {
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "MDL::syncSource(): sourceType must be either 'module' or 'code', got '%s'",
+        sourceType.c_str());
   }
+
+  // Any failure path falls back to the default material so a committed MDL
+  // material always ends up with a valid argument block.
+  if (uuid == libmdl::Uuid{}) {
+    reportMessage(ANARI_SEVERITY_WARNING,
+        "MDL::syncSource(): falling back to ::visrtx::default::diffuseWhite");
+    std::tie(uuid, argumentBlockDescriptor) =
+        materialRegistry.acquireMaterial("::visrtx::default", "diffuseWhite");
+  }
+
+  if (uuid == libmdl::Uuid{}) {
+    // Even the fallback failed; keep the previous (possibly empty) state.
+    reportMessage(ANARI_SEVERITY_ERROR,
+        "MDL::syncSource(): failed to acquire fallback material");
+    return;
+  }
+
+  // We have successfully loaded a material, release the previous one and
+  // use it instead.
+  if (m_uuid != libmdl::Uuid{}) {
+    materialRegistry.releaseMaterial(m_uuid);
+  }
+  m_argumentBlockInstance =
+      materialRegistry.createArgumentBlock(argumentBlockDescriptor);
+  m_uuid = uuid;
+
+  clearSamplers();
+
+  for (auto textureDesc :
+      argumentBlockDescriptor.m_defaultAndBodyTextureDescriptors) {
+    auto sampler = samplerRegistry.acquireSampler(textureDesc);
+    if (!sampler) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "Failed to acquire default texture '%s' for material %s",
+          textureDesc.url.c_str(),
+          source.c_str());
+      continue;
+    }
+    auto index = textureDesc.knownIndex;
+    if (m_samplers.size() <= index) {
+      m_samplers.resize(index + 1);
+    }
+    m_samplers[textureDesc.knownIndex] = {sampler, textureDesc.url, true};
+  }
+
+  m_source = source;
+  m_sourceType = sourceType;
 }
 
 void MDL::syncParameters()
