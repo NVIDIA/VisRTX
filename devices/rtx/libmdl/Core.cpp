@@ -232,37 +232,64 @@ mi::neuraylib::ITransaction *Core::createTransaction(
   return scope->create_transaction();
 }
 
-void Core::addBuiltinModule(
-    std::string_view moduleName, std::string_view moduleSource)
+mi::Sint32 Core::loadModuleSource(std::string_view moduleName,
+    std::string_view moduleSource,
+    mi::neuraylib::ITransaction *transaction)
 {
   auto impexpApi = make_handle(
       m_neuray->get_api_component<mi::neuraylib::IMdl_impexp_api>());
-
   auto executionContext =
       make_handle(m_mdlFactory->clone(m_executionContext.get()));
 
-  auto transaction = make_handle(createTransaction());
-  nonstd::scope_exit finalizeTransaction(
-      [transaction]() { transaction->commit(); });
-
-  auto result = impexpApi->load_module_from_string(transaction.get(),
+  auto result = impexpApi->load_module_from_string(transaction,
       std::string(moduleName).c_str(),
       std::string(moduleSource).c_str(),
       executionContext.get());
 
+  if (result < 0)
+    logExecutionContextMessages(executionContext.get());
+
+  return result;
+}
+
+const mi::neuraylib::IModule *Core::loadModuleFromString(
+    std::string_view moduleName,
+    std::string_view moduleSource,
+    mi::neuraylib::ITransaction *transaction)
+{
+  if (loadModuleSource(moduleName, moduleSource, transaction) < 0)
+    return nullptr;
+  return accessModule(moduleName, transaction);
+}
+
+const mi::neuraylib::IModule *Core::accessModule(
+    std::string_view moduleName, mi::neuraylib::ITransaction *transaction)
+{
+  auto dbName = make_handle(
+      m_mdlFactory->get_db_module_name(std::string(moduleName).c_str()));
+  return transaction->access<mi::neuraylib::IModule>(dbName->get_c_str());
+}
+
+void Core::addBuiltinModule(
+    std::string_view moduleName, std::string_view moduleSource)
+{
+  auto transaction = make_handle(createTransaction());
+  nonstd::scope_exit finalizeTransaction(
+      [transaction]() { transaction->commit(); });
+
+  auto result = loadModuleSource(moduleName, moduleSource, transaction.get());
+
   switch (result) {
-  case 0: {
+  case 0:
     logMessage(mi::base::MESSAGE_SEVERITY_INFO,
         "Added builtin module {} from source",
         moduleName);
     break;
-  }
-  case 1: {
+  case 1:
     logMessage(mi::base::MESSAGE_SEVERITY_INFO,
         "Builtin module {} already exists",
         moduleName);
     break;
-  }
   case -1:
     logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Invalid name {} or module source for builtin",
@@ -277,7 +304,6 @@ void Core::addBuiltinModule(
     logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Unknown error while adding builtin module {}",
         moduleName);
-    logExecutionContextMessages(executionContext.get());
     break;
   }
 }

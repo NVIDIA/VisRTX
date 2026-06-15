@@ -58,6 +58,16 @@ class Core
   void addBuiltinModule(
       std::string_view moduleName, std::string_view moduleSource);
 
+  // Load an MDL module from in-memory source into `transaction` and return it.
+  // Returns null on failure (diagnostics are logged). Mirrors loadModule.
+  const mi::neuraylib::IModule *loadModuleFromString(std::string_view moduleName,
+      std::string_view moduleSource,
+      mi::neuraylib::ITransaction *transaction);
+
+  // Access an already-loaded module by its MDL name within `transaction`.
+  const mi::neuraylib::IModule *accessModule(
+      std::string_view moduleName, mi::neuraylib::ITransaction *transaction);
+
   // The main neuray interface can only be acquired once. Make sure it can be
   // shared if taken from there. The original subsystem keeps the ownership of
   // the returned value.
@@ -133,6 +143,12 @@ class Core
 
  private:
   Core(mi::neuraylib::INeuray *neuray, mi::base::ILogger *logger);
+
+  // Raw load_module_from_string wrapper. Returns the MDL result code:
+  // 0 = loaded, 1 = already present (both success), < 0 = failure (logged).
+  mi::Sint32 loadModuleSource(std::string_view moduleName,
+      std::string_view moduleSource,
+      mi::neuraylib::ITransaction *transaction);
 
   using DllHandle = void *;
   DllHandle m_dllHandle;
