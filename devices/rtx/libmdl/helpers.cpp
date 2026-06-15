@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "Core.h"
+#include "source_name_utils.h"
 
 #include <mi/base/enums.h>
 #include <mi/base/handle.h>
@@ -72,10 +73,9 @@ std::tuple<std::string, std::string> parseMaterialSourceName(
         "The provided name '{}' is not an absolute fully-qualified"
         " material name, a leading '::' has been added.",
         name);
-    outModuleName = "::";
   }
 
-  outModuleName.append(name.substr(0, p_last));
+  outModuleName = normalizeModuleName(name.substr(0, p_last));
   outMaterialName = name.substr(p_last + 2);
   return {outModuleName, outMaterialName};
 }
