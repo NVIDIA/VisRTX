@@ -70,6 +70,7 @@ struct MDL : public Material
 
   std::string m_source;
   std::string m_sourceType;
+  std::optional<std::string> m_materialName;
   struct SamplerDesc {
     Sampler* sampler = nullptr;
     std::string name;

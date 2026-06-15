@@ -36,6 +36,7 @@
 #include "libmdl/ArgumentBlockDescriptor.h"
 #include "libmdl/ArgumentBlockInstance.h"
 #include "libmdl/helpers.h"
+#include "libmdl/source_name_utils.h"
 #include "material/Material.h"
 #include "mdl/MaterialRegistry.h"
 #include "optix_visrtx.h"
@@ -120,39 +121,79 @@ void MDL::syncSource()
 {
   auto sourceType = getParamString("sourceType", "module");
   auto source = getParamString("source", "::visrtx::default::diffuseWhite");
+  std::optional<std::string> materialName;
+  if (hasParam("materialName"))
+    materialName = getParamString("materialName", "main");
+
+  // A change to any selection input triggers a full material reload.
+  if (source == m_source && sourceType == m_sourceType
+      && materialName == m_materialName)
+    return;
 
   auto &materialRegistry = deviceState()->mdl->materialRegistry;
   auto &samplerRegistry = deviceState()->mdl->samplerRegistry;
 
-  // A source change implies a full material change; nothing to do otherwise.
-  if (source == m_source && sourceType == m_sourceType)
-    return;
-
   auto uuid = libmdl::Uuid{};
   auto argumentBlockDescriptor = libmdl::ArgumentBlockDescriptor{};
 
-  if (sourceType == "module") {
-    auto &&[moduleName, materialName] =
-        libmdl::parseMaterialSourceName(source, &deviceState()->mdl->core);
-    if (moduleName.empty() || materialName.empty()) {
+  const bool isMdle = libmdl::endsWith(source, ".mdle");
+
+  if (sourceType == "code") {
+    if (!hasParam("source")) {
+      reportMessage(ANARI_SEVERITY_ERROR,
+          "MDL::syncSource(): sourceType 'code' requires a 'source' parameter");
+    } else {
+      std::tie(uuid, argumentBlockDescriptor) =
+          materialRegistry.acquireMaterialFromCode(
+              source, materialName.value_or("main"));
+      if (uuid == libmdl::Uuid{})
+        reportMessage(ANARI_SEVERITY_ERROR,
+            "MDL::syncSource(): failed to compile inline 'code' material");
+    }
+  } else if (sourceType == "mdle" || isMdle) {
+    // .mdle sources funnel here regardless of sourceType, so there is one
+    // validation path and one diagnostic for MDLE.
+    if (!isMdle) {
+      reportMessage(ANARI_SEVERITY_ERROR,
+          "MDL::syncSource(): sourceType 'mdle' requires a '.mdle' source, got '%s'",
+          source.c_str());
+    } else if (materialName && *materialName != "main") {
+      reportMessage(ANARI_SEVERITY_ERROR,
+          "MDL::syncSource(): MDLE modules only expose 'main', got materialName '%s'",
+          materialName->c_str());
+    } else {
+      std::tie(uuid, argumentBlockDescriptor) =
+          materialRegistry.acquireMaterial(source, "main");
+      if (uuid == libmdl::Uuid{})
+        reportMessage(ANARI_SEVERITY_ERROR,
+            "MDL::syncSource(): failed to acquire MDLE material '%s'",
+            source.c_str());
+    }
+  } else if (sourceType == "module") {
+    std::string moduleName;
+    std::string material;
+    if (materialName) {
+      moduleName = libmdl::normalizeModuleName(source);
+      material = *materialName;
+    } else {
+      std::tie(moduleName, material) =
+          libmdl::parseMaterialSourceName(source, &deviceState()->mdl->core);
+    }
+    if (moduleName.empty() || material.empty()) {
       reportMessage(ANARI_SEVERITY_ERROR,
           "MDL::syncSource(): could not parse material source name '%s'",
           source.c_str());
     } else {
       std::tie(uuid, argumentBlockDescriptor) =
-          materialRegistry.acquireMaterial(moduleName, materialName);
-      if (uuid == libmdl::Uuid{}) {
+          materialRegistry.acquireMaterial(moduleName, material);
+      if (uuid == libmdl::Uuid{})
         reportMessage(ANARI_SEVERITY_ERROR,
             "MDL::syncSource(): failed to acquire material '%s'",
             source.c_str());
-      }
     }
-  } else if (sourceType == "code") {
-    reportMessage(ANARI_SEVERITY_ERROR,
-        "MDL::syncSource(): sourceType 'code' is not supported yet");
   } else {
     reportMessage(ANARI_SEVERITY_ERROR,
-        "MDL::syncSource(): sourceType must be either 'module' or 'code', got '%s'",
+        "MDL::syncSource(): sourceType must be 'module', 'mdle' or 'code', got '%s'",
         sourceType.c_str());
   }
 
@@ -165,8 +206,14 @@ void MDL::syncSource()
         materialRegistry.acquireMaterial("::visrtx::default", "diffuseWhite");
   }
 
+  // Record the requested values on every path: an identical re-commit is then a
+  // cheap no-op, while changing any input re-triggers a load.
+  m_source = source;
+  m_sourceType = sourceType;
+  m_materialName = materialName;
+
   if (uuid == libmdl::Uuid{}) {
-    // Even the fallback failed; keep the previous (possibly empty) state.
+    // Even the fallback failed; keep the previous argument block (if any).
     reportMessage(ANARI_SEVERITY_ERROR,
         "MDL::syncSource(): failed to acquire fallback material");
     return;
@@ -199,9 +246,6 @@ void MDL::syncSource()
     }
     m_samplers[textureDesc.knownIndex] = {sampler, textureDesc.url, true};
   }
-
-  m_source = source;
-  m_sourceType = sourceType;
 }
 
 void MDL::syncParameters()
@@ -210,8 +254,9 @@ void MDL::syncParameters()
     auto &argumentBlockInstance = *m_argumentBlockInstance;
     for (auto param = params_begin(); param != params_end(); ++param) {
       const auto &name = param->first;
-      if (name == "source"sv || name == "sourceType"sv) {
-        // Skip these two parameters, they are not part of the argument block
+      if (name == "source"sv || name == "sourceType"sv
+          || name == "materialName"sv) {
+        // Skip these control parameters, they are not part of the argument block
         continue;
       }
 
