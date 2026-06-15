@@ -72,6 +72,12 @@ class MaterialRegistry
   // Material code
   std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor> acquireMaterial(
       std::string_view moduleName, std::string_view materialName);
+  // Compile a material from inline MDL module source. The module is registered
+  // under a synthetic, content-addressed name and shares the same compile/cache
+  // path as acquireMaterial.
+  std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>
+  acquireMaterialFromCode(
+      std::string_view source, std::string_view materialName);
   void releaseMaterial(const Uuid &uuid);
 
   // For SBT management
@@ -107,6 +113,23 @@ class MaterialRegistry
       const libmdl::ArgumentBlockDescriptor &uuid) const;
 
  private:
+  using AcquiredMaterial =
+      std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>;
+
+  // Return a previously compiled material, bumping its refcount. Empty on a
+  // cache miss. No transaction needed -- the lookup is keyed on the name.
+  std::optional<AcquiredMaterial> reuseCompiledMaterial(
+      const std::string &fullMaterialName);
+
+  // Compile `module` (already loaded in `transaction`), cache it under
+  // `fullMaterialName`, and return it. Empty on failure.
+  std::optional<AcquiredMaterial> compileAndCacheMaterial(
+      const std::string &fullMaterialName,
+      std::string_view moduleName,
+      std::string_view materialName,
+      const mi::neuraylib::IModule *module,
+      mi::neuraylib::ITransaction *transaction);
+
   libmdl::Core *m_core;
   mi::base::Handle<mi::neuraylib::IScope> m_scope;
 

@@ -37,6 +37,7 @@
 #include "libmdl/ArgumentBlockInstance.h"
 #include "libmdl/TimeStamp.h"
 #include "libmdl/ptx.h"
+#include "libmdl/source_name_utils.h"
 #include "material/PhysicallyBasedMDL.h"
 
 #include <mi/base/enums.h>
@@ -88,57 +89,47 @@ MaterialRegistry::~MaterialRegistry()
   m_core->removeScope(m_scope.get());
 }
 
-std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>
-MaterialRegistry::acquireMaterial(
-    std::string_view moduleName, std::string_view materialName)
+std::optional<MaterialRegistry::AcquiredMaterial>
+MaterialRegistry::reuseCompiledMaterial(const std::string &fullMaterialName)
+{
+  auto uuidIt = m_materialNameToUuid.find(fullMaterialName);
+  if (uuidIt == cend(m_materialNameToUuid))
+    return std::nullopt;
+
+  auto indexIt = m_uuidToIndex.find(std::get<0>(uuidIt->second));
+  if (indexIt == cend(m_uuidToIndex))
+    return std::nullopt;
+
+  m_core->logMessage(mi::base::MESSAGE_SEVERITY_DEBUG,
+      "Reusing compiled material {}",
+      fullMaterialName);
+  m_targetCodes[indexIt->second].refCount++;
+  return uuidIt->second;
+}
+
+std::optional<MaterialRegistry::AcquiredMaterial>
+MaterialRegistry::compileAndCacheMaterial(const std::string &fullMaterialName,
+    std::string_view moduleName,
+    std::string_view materialName,
+    const mi::neuraylib::IModule *module,
+    mi::neuraylib::ITransaction *transaction)
 {
   using mi::base::make_handle;
 
-  // First check if the material has already been compiled.
-  auto fullMaterialName = fmt::format("{}::{}", moduleName, materialName);
-  m_core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
-      "Acquiring material {}",
-      fullMaterialName);
-
-  if (auto uuidIt = m_materialNameToUuid.find(fullMaterialName);
-      uuidIt != cend(m_materialNameToUuid)) {
-    if (auto indexIt = m_uuidToIndex.find(std::get<0>(uuidIt->second));
-        indexIt != cend(m_uuidToIndex)) {
-      m_core->logMessage(mi::base::MESSAGE_SEVERITY_DEBUG,
-          "Reusing compiled material {}",
-          fullMaterialName);
-      m_targetCodes[indexIt->second].refCount++;
-      return uuidIt->second;
-    }
-  }
-
-  // If not, try and get a compiled version of it.
-  auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
-  bool doCommit = false;
-  auto finalizeTransaction =
-      nonstd::make_scope_exit([transaction, &doCommit]() {
-        if (doCommit) {
-          transaction->commit();
-        } else {
-          transaction->abort();
-        }
-      });
-
-  auto module = make_handle(m_core->loadModule(moduleName, transaction.get()));
-  if (!module.is_valid_interface()) {
+  if (!module) {
     m_core->logMessage(
         mi::base::MESSAGE_SEVERITY_ERROR, "Cannot find module {}", moduleName);
-    return {};
+    return std::nullopt;
   }
 
   auto functionDef = make_handle(m_core->getFunctionDefinition(
-      module.get(), materialName, transaction.get()));
+      module, materialName, transaction));
   if (!functionDef.is_valid_interface()) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Cannot find function {} definition in module {}",
         materialName,
         moduleName);
-    return {};
+    return std::nullopt;
   }
 
   auto compiledMaterial =
@@ -148,20 +139,20 @@ MaterialRegistry::acquireMaterial(
         "Failed compiling material {} for module {}",
         materialName,
         moduleName);
-    return {};
+    return std::nullopt;
   }
 
   // Get the compiled material hash and its target code. Get the default and
   // body resources state from that.
   auto uuid = compiledMaterial->get_hash();
   auto targetCode = make_handle(
-      m_core->getPtxTargetCode(compiledMaterial.get(), transaction.get()));
+      m_core->getPtxTargetCode(compiledMaterial.get(), transaction));
   std::vector<libmdl::TextureDescriptor> textureDescs;
   if (!targetCode.is_valid_interface()) {
     m_core->logMessage(mi::base::MESSAGE_SEVERITY_ERROR,
         "Failed generating PTX target code for material {}",
         fullMaterialName);
-    return {};
+    return std::nullopt;
   }
 
   for (auto i = 1ul; i < targetCode->get_texture_count(); ++i) {
@@ -266,7 +257,7 @@ MaterialRegistry::acquireMaterial(
   // already have it.
   if (auto it = m_uuidToIndex.find(uuid); it != std::cend(m_uuidToIndex)) {
     ++m_targetCodes[it->second].refCount;
-    return {uuid, argBlockDesc};
+    return AcquiredMaterial{uuid, argBlockDesc};
   }
 
   // First time we hit this. Build a complete PTX shader from the generated
@@ -300,7 +291,6 @@ MaterialRegistry::acquireMaterial(
 
   m_lastUpdateTS = libmdl::newTimeStamp();
 
-  // Make sure we commit the transaction.
   m_core->logMessage(mi::base::MESSAGE_SEVERITY_DEBUG,
       "Acquired material {} with uuid {:04x}-{:04x}-{:04x}-{:04x}",
       fullMaterialName,
@@ -308,8 +298,68 @@ MaterialRegistry::acquireMaterial(
       uuid.m_id2,
       uuid.m_id3,
       uuid.m_id4);
-  doCommit = true;
-  return {uuid, argBlockDesc};
+  return AcquiredMaterial{uuid, argBlockDesc};
+}
+
+std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>
+MaterialRegistry::acquireMaterial(
+    std::string_view moduleName, std::string_view materialName)
+{
+  using mi::base::make_handle;
+
+  auto fullMaterialName = fmt::format("{}::{}", moduleName, materialName);
+  m_core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
+      "Acquiring material {}",
+      fullMaterialName);
+  if (auto cached = reuseCompiledMaterial(fullMaterialName))
+    return *cached;
+
+  auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
+  bool doCommit = false;
+  auto finalizeTransaction = nonstd::make_scope_exit([&] {
+    if (doCommit)
+      transaction->commit();
+    else
+      transaction->abort();
+  });
+
+  auto module =
+      make_handle(m_core->loadModule(moduleName, transaction.get()));
+  auto material = compileAndCacheMaterial(
+      fullMaterialName, moduleName, materialName, module.get(), transaction.get());
+  doCommit = material.has_value();
+  return material.value_or(AcquiredMaterial{});
+}
+
+std::tuple<libmdl::Uuid, libmdl::ArgumentBlockDescriptor>
+MaterialRegistry::acquireMaterialFromCode(
+    std::string_view source, std::string_view materialName)
+{
+  using mi::base::make_handle;
+
+  auto moduleName = libmdl::makeInlineModuleName(source);
+  auto fullMaterialName = fmt::format("{}::{}", moduleName, materialName);
+  m_core->logMessage(mi::base::MESSAGE_SEVERITY_INFO,
+      "Acquiring material {}",
+      fullMaterialName);
+  if (auto cached = reuseCompiledMaterial(fullMaterialName))
+    return *cached;
+
+  auto transaction = make_handle(m_core->createTransaction(m_scope.get()));
+  bool doCommit = false;
+  auto finalizeTransaction = nonstd::make_scope_exit([&] {
+    if (doCommit)
+      transaction->commit();
+    else
+      transaction->abort();
+  });
+
+  auto module = make_handle(
+      m_core->loadModuleFromString(moduleName, source, transaction.get()));
+  auto material = compileAndCacheMaterial(
+      fullMaterialName, moduleName, materialName, module.get(), transaction.get());
+  doCommit = material.has_value();
+  return material.value_or(AcquiredMaterial{});
 }
 
 std::optional<libmdl::ArgumentBlockInstance>
