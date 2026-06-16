@@ -161,4 +161,26 @@ VISRTX_DEVICE vec3 sampleNormal(
       (szp - szn) * state.scale[2] * state.invTwoVoxelSize[2]);
 }
 
+// Forward-difference gradient at a linear isosurface hit: reuse the hit value
+// (vHit ≈ the matched isovalue) so only +1-voxel samples are taken — 3 fetches
+// vs sampleNormal's 6. The +1-voxel span still reaches into the neighbour cell,
+// so it stays smooth (no per-cell faceting). Per-axis object-space weighting is
+// the central difference's (the uniform 1- vs 2-voxel span factor washes out
+// under the caller's normalize).
+template <typename ValueType>
+VISRTX_DEVICE vec3 isosurfaceHitGradient(
+    const NvdbRegularSamplerState<ValueType> &state,
+    const SpatialFieldGPUData &,
+    const vec3 &p,
+    float vHit)
+{
+  const auto indexPos = nvdbIndexPos(state, p);
+  const float sx = nvdbSampleAtIndex(state, indexPos + nanovdb::Vec3f(1, 0, 0));
+  const float sy = nvdbSampleAtIndex(state, indexPos + nanovdb::Vec3f(0, 1, 0));
+  const float sz = nvdbSampleAtIndex(state, indexPos + nanovdb::Vec3f(0, 0, 1));
+  return vec3((sx - vHit) * state.scale[0] * state.invTwoVoxelSize[0],
+      (sy - vHit) * state.scale[1] * state.invTwoVoxelSize[1],
+      (sz - vHit) * state.scale[2] * state.invTwoVoxelSize[2]);
+}
+
 } // namespace visrtx

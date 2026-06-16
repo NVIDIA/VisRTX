@@ -137,6 +137,20 @@ VISRTX_DEVICE bool firstTrilinearRoot(
       outS);
 }
 
+// Object-space field gradient at a linear-isosurface hit. The hit value is
+// already known (≈ the matched isovalue, vHit), so NanoVDB grids override this
+// with a forward difference reusing vHit -- 3 taps vs central difference's 6,
+// still spanning into the neighbour cell so it stays smooth (unlike the faceted
+// per-cell analytic gradient). The generic fallback is the shared central-
+// difference sampleNormal (structured/raw is hardware tex3D, already cheap; the
+// volume integrator keeps its own sampleNormal). Resolved by ADL at instantiation.
+template <typename S>
+VISRTX_DEVICE vec3 isosurfaceHitGradient(
+    const S &state, const SpatialFieldGPUData &field, const vec3 &p, float /*vHit*/)
+{
+  return sampleNormal(state, field, p);
+}
+
 // Shared narrow-phase for one voxel under linear filtering. tEntry/tExit bound
 // the voxel along the ray; vEntry/vExit are the field values there (hybrid
 // bracket, carried by the caller). For each isovalue that straddles the bracket
@@ -203,10 +217,10 @@ VISRTX_DEVICE bool linearCrossing(const S &state,
     return false;
 
   outT = tEntry + bestS * dt;
-  // Central-difference gradient (sampleNormal): smooth across cells, the same
-  // normal the volume integrator uses.
+  // Forward-difference gradient reusing the hit value (isovals[bestIdx]); see
+  // isosurfaceHitGradient. NanoVDB: 3 taps; others fall back to central diff.
   const vec3 pHit = ro + outT * rd;
-  vec3 n = sampleNormal(state, field, pHit);
+  vec3 n = isosurfaceHitGradient(state, field, pHit, isovals[bestIdx]);
   // A (near-)zero gradient at a field extremum/saddle makes normalize(n) NaN,
   // which poisons shading. Fall back to facing the incoming ray.
   if (dot(n, n) < 1e-12f) {

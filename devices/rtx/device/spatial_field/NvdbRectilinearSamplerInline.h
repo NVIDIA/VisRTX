@@ -190,4 +190,28 @@ VISRTX_DEVICE vec3 sampleNormal(
       * 0.5f;
 }
 
+// Forward-difference gradient at a linear isosurface hit (see the regular
+// sampler): reuse vHit (≈ the matched isovalue) for 3 +1-voxel taps vs 6. Per-
+// axis invAvgVoxelSize weighting matches the central difference (its *0.5 and
+// the 1- vs 2-voxel span both wash out under the caller's normalize).
+template <typename ValueType>
+VISRTX_DEVICE vec3 isosurfaceHitGradient(
+    const NvdbRectilinearSamplerState<ValueType> &state,
+    const SpatialFieldGPUData &,
+    const vec3 &p,
+    float vHit)
+{
+  const auto indexPos = worldToIndexRectilinear(state, &p);
+  const float sx =
+      sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(1, 0, 0));
+  const float sy =
+      sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(0, 1, 0));
+  const float sz =
+      sampleAtIndexRectilinear(state, indexPos + nanovdb::Vec3f(0, 0, 1));
+  return vec3(sx - vHit, sy - vHit, sz - vHit)
+      * vec3(state.invAvgVoxelSize[0],
+          state.invAvgVoxelSize[1],
+          state.invAvgVoxelSize[2]);
+}
+
 } // namespace visrtx
