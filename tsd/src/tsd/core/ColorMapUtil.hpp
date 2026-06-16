@@ -59,6 +59,20 @@ extern std::vector<float3> grayscale;
 
 } // namespace colormap
 
+namespace palette {
+
+// Qualitative palettes: maximally-distinct hues for discrete per-primitive
+// coloring (e.g. one color per isovalue). RGBA so they map directly onto a
+// 'color' / 'primitive.color' parameter.
+extern std::vector<float4> tab10;
+extern std::vector<float4> tab20;
+extern std::vector<float4> set1;
+extern std::vector<float4> set2;
+extern std::vector<float4> dark2;
+extern std::vector<float4> paired;
+
+} // namespace palette
+
 ///////////////////////////////////////////////////////////////////////////////
 // Inlined definitions ////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////

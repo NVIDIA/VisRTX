@@ -196,6 +196,26 @@ static void buildUI_parameter_contextMenu(
               ImGui::EndMenu(); // "color map"
             }
 
+            if (ImGui::BeginMenu("color set (RGBA)")) {
+              // Discrete, distinct colors for per-primitive assignment (e.g.
+              // one color per isovalue on an isosurface).
+#define OBJECT_UI_MENU_ITEM(text, name)                                        \
+  if (ImGui::MenuItem(text)) {                                                 \
+    const auto &colors = tsd::core::palette::name;                             \
+    a = scene.createArray(ANARI_FLOAT32_VEC4, colors.size());                  \
+    a->setData(colors);                                                        \
+    a->setName("colorset_" #name);                                             \
+  }
+              OBJECT_UI_MENU_ITEM("tab10", tab10);
+              OBJECT_UI_MENU_ITEM("tab20", tab20);
+              OBJECT_UI_MENU_ITEM("set1", set1);
+              OBJECT_UI_MENU_ITEM("set2", set2);
+              OBJECT_UI_MENU_ITEM("dark2", dark2);
+              OBJECT_UI_MENU_ITEM("paired", paired);
+#undef OBJECT_UI_MENU_ITEM
+              ImGui::EndMenu(); // "color set"
+            }
+
             if (a)
               p->setValue({a->type(), a->index()});
             ImGui::EndMenu(); // "array"
