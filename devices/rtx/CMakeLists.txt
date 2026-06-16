@@ -50,6 +50,15 @@ include(EmbedPTX)
 
 #### RTX device options ####
 
+# Override for a dev build that must coexist with an official install, e.g.
+# -DVISRTX_LIBRARY_NAME=visrtx_dev.
+set(VISRTX_LIBRARY_NAME visrtx CACHE STRING
+  "ANARI library name: filename libanari_library_<name>.so and entrypoint anari_library_<name>_new_library")
+if(NOT VISRTX_LIBRARY_NAME MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
+  message(FATAL_ERROR
+    "VISRTX_LIBRARY_NAME must be a valid C identifier (it is pasted into a symbol name): '${VISRTX_LIBRARY_NAME}'")
+endif()
+
 option(
   VISRTX_ENABLE_MDL_SUPPORT
   "Whether to enable NVIDIA MDL support for VisRTX materials"

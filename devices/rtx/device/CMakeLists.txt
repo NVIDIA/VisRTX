@@ -248,6 +248,9 @@ generate_export_header(${PROJECT_NAME}
   EXPORT_MACRO_NAME "VISRTX_DEVICE_INTERFACE"
 )
 
+set_target_properties(${PROJECT_NAME} PROPERTIES
+  OUTPUT_NAME anari_library_${VISRTX_LIBRARY_NAME})
+
 project_include_directories(
 PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}>
@@ -303,6 +306,9 @@ if(NOT WIN32)
 endif()
 
 project_compile_definitions(PRIVATE anari_library_visrtx_EXPORTS)
+
+set_source_files_properties(VisRTXLibrary.cpp PROPERTIES
+  COMPILE_DEFINITIONS VISRTX_LIBRARY_NAME=${VISRTX_LIBRARY_NAME})
 
 if (VISRTX_ENABLE_NVML)
   project_link_libraries(PRIVATE CUDA::nvml)
