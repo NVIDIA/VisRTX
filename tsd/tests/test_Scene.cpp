@@ -178,6 +178,80 @@ SCENARIO("tsd::scene::Scene deep-clones layer subtrees", "[Scene]")
   }
 }
 
+SCENARIO("tsd::scene::Scene clears layer references when removing an object",
+    "[Scene]")
+{
+  GIVEN("An object referenced by nodes across multiple layers")
+  {
+    tsd::scene::Scene scene;
+    auto *layerA = scene.defaultLayer();
+    auto *layerB = scene.addLayer(tsd::core::Token("other"));
+
+    auto light = scene.createObject<tsd::scene::Light>(
+        tsd::scene::tokens::light::directional);
+    light->setName("sharedLight");
+
+    scene.insertChildObjectNode(layerA->root(), light, "instA");
+    auto groupB = scene.insertChildTransformNode(
+        layerB->root(), tsd::math::IDENTITY_MAT4, "groupB");
+    scene.insertChildObjectNode(groupB, light, "instB");
+
+    REQUIRE(light->useCount(tsd::scene::Object::UseKind::LAYER) == 2);
+
+    WHEN("The object is removed")
+    {
+      const size_t lightIndex = light->index();
+      scene.removeObject(light.data());
+
+      THEN("All referencing layer nodes are removed, leaving no dangling refs")
+      {
+        REQUIRE(scene.getObject(ANARI_LIGHT, lightIndex) == nullptr);
+
+        // No node in any layer still references the removed object.
+        auto countReferencingNodes = [&](tsd::scene::Layer &layer) {
+          int count = 0;
+          layer.traverse(layer.root(), [&](auto &node, int) {
+            if (node.value().isObject()
+                && node.value().getObjectIndex() == lightIndex)
+              count++;
+            return true;
+          });
+          return count;
+        };
+        REQUIRE(countReferencingNodes(*layerA) == 0);
+        REQUIRE(countReferencingNodes(*layerB) == 0);
+
+        // The "instA" node is gone entirely (not left as an empty placeholder).
+        REQUIRE_FALSE(findDirectChild(layerA->root(), "instA"));
+
+        // Surrounding structure (the unrelated transform group) is preserved.
+        REQUIRE(groupB.valid());
+        REQUIRE((*groupB)->isTransform());
+        REQUIRE_FALSE(findDirectChild(groupB, "instB"));
+      }
+    }
+  }
+
+  GIVEN("An object that is not referenced by any layer")
+  {
+    tsd::scene::Scene scene;
+    auto material = scene.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    REQUIRE(material->useCount(tsd::scene::Object::UseKind::LAYER) == 0);
+
+    WHEN("The object is removed")
+    {
+      const size_t idx = material->index();
+      scene.removeObject(material.data());
+
+      THEN("It is removed without issue")
+      {
+        REQUIRE(scene.getObject(ANARI_MATERIAL, idx) == nullptr);
+      }
+    }
+  }
+}
+
 SCENARIO(
     "tsd::scene::LayerNodeData preserves singular SRT transforms", "[Scene]")
 {

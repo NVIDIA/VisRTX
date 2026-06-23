@@ -55,9 +55,8 @@ Object *findClone(const ObjectCloneRecords &records,
     anari::DataType sourceType,
     size_t sourceIndex)
 {
-  auto itr = std::find_if(records.begin(),
-      records.end(),
-      [&](const ObjectCloneRecord &record) {
+  auto itr = std::find_if(
+      records.begin(), records.end(), [&](const ObjectCloneRecord &record) {
         return record.sourceType == sourceType
             && record.sourceIndex == sourceIndex;
       });
@@ -88,10 +87,8 @@ Object *cloneObjectDeep(
 
   for (size_t i = 0; i < clone->numParameters(); ++i) {
     auto &parameter = clone->parameterAt(i);
-    const auto clonedValue = cloneObjectValue(scene,
-        parameter.value(),
-        true,
-        records);
+    const auto clonedValue =
+        cloneObjectValue(scene, parameter.value(), true, records);
     if (clonedValue != parameter.value())
       parameter.setValue(clonedValue);
   }
@@ -177,9 +174,8 @@ bool cloneLayerChildren(Scene &scene,
 
   auto child = sourceParent->next();
   while (child && child != sourceParent) {
-    auto clone =
-        cloneLayerNode(
-            scene, child, cloneParent, cloneObjectReferences, records);
+    auto clone = cloneLayerNode(
+        scene, child, cloneParent, cloneObjectReferences, records);
     if (!clone)
       return false;
 
@@ -535,12 +531,55 @@ void Scene::removeObject(const Any &o)
     removeObject(optr);
 }
 
+void Scene::clearLayerReferencesToObject(const Object &o)
+{
+  for (auto &ls : m_layers) {
+    auto *layer = ls.second.ptr.get();
+    if (!layer)
+      continue;
+
+    // Erase every node referencing the object (along with any subtree it has).
+    // Find-one-then-erase in a loop rather than collecting all matches up
+    // front: erasing a node frees its descendants too, which would leave stale
+    // LayerNodeRefs in a pre-collected list (LayerNodeRef::valid() does not
+    // detect a slot freed via an ancestor). Re-traversing each pass avoids
+    // that.
+    LayerNodeRef match;
+    bool modified = false;
+    do {
+      if (match) {
+        layer->erase(match);
+        match = {};
+        modified = true;
+      }
+
+      layer->traverse(layer->root(), [&](auto &node, int) {
+        if (!match) {
+          auto &data = node.value();
+          if (data.isObject() && data.getObject() == &o)
+            match = layer->at(node.index());
+        }
+        return !match;
+      });
+    } while (match);
+
+    if (modified)
+      signalLayerStructureChanged(layer);
+  }
+}
+
 void Scene::removeObject(const Object *_o)
 {
   if (!_o)
     return;
 
   auto &o = *_o;
+
+  // Clear any layer-node references before removing the object, so layers never
+  // retain a dangling reference to a deleted object. Skip the scan entirely
+  // when the object is not referenced by any layer.
+  if (o.useCount(Object::UseKind::LAYER) > 0)
+    clearLayerReferencesToObject(o);
 
   m_updateDelegate.signalObjectRemoved(&o);
 
@@ -770,7 +809,8 @@ void Scene::removeLayer(const Layer *layer)
 {
   for (size_t i = 0; i < m_layers.size(); i++) {
     if (m_layers.at_index(i).second.ptr.get() == layer) {
-      m_updateDelegate.signalLayerRemoved(m_layers.at_index(i).second.ptr.get());
+      m_updateDelegate.signalLayerRemoved(
+          m_layers.at_index(i).second.ptr.get());
       m_layers.erase(i);
       return;
     }
@@ -828,9 +868,8 @@ LayerNodeRef Scene::insertChildObjectNode(
   return inst;
 }
 
-LayerNodeRef Scene::cloneLayerSubtree(LayerNodeRef source,
-    LayerNodeRef parent,
-    bool cloneObjectReferences)
+LayerNodeRef Scene::cloneLayerSubtree(
+    LayerNodeRef source, LayerNodeRef parent, bool cloneObjectReferences)
 {
   if (!source || !parent || source->isRoot())
     return {};

@@ -266,6 +266,11 @@ struct Scene
       size_t items2,
       Array::MemoryKind kind);
 
+  // Clear any layer-node references to an object that is about to be removed,
+  // so layers don't retain dangling references. Only scans layers when the
+  // object actually has layer references.
+  void clearLayerReferencesToObject(const Object &o);
+
   ObjectDatabase m_db;
 
   struct DefaultObjects
