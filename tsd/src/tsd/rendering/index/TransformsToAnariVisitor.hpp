@@ -75,11 +75,18 @@ inline bool TransformsToAnariVisitor::preChildren_const(
   switch (type) {
   case ANARI_SURFACE:
   case ANARI_VOLUME:
-    if (isIncludedAfterFiltering(n))
+    // Must mirror RenderToAnariObjectsVisitor's instance-emission criteria
+    // exactly: a node only contributes an instance when its referenced object
+    // actually resolves. A dangling reference (e.g. an object removed while a
+    // layer node still references it, without defragmenting) would otherwise
+    // make this visitor advance past the end of the instance array built by
+    // RenderToAnariObjectsVisitor, corrupting memory.
+    if (isIncludedAfterFiltering(n) && n->getObject())
       m_hasObjects.top() = true;
     break;
   case ANARI_LIGHT: {
-    m_hasObjects.top() = true;
+    if (n->getObject())
+      m_hasObjects.top() = true;
     break;
   }
   case ANARI_FLOAT32_MAT4:

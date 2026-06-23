@@ -782,6 +782,9 @@ void LayerTree::buildUI_objectSceneMenu()
       if (ImGui::MenuItem("surface"))
         m_app->showImportObjectFileDialog(TSDObjectFileType::Surface, menuNode);
 
+      if (ImGui::MenuItem("subtree"))
+        m_app->showImportLayerSubtreeFileDialog(menuNode);
+
       ImGui::EndMenu();
     }
 
@@ -802,6 +805,13 @@ void LayerTree::buildUI_objectSceneMenu()
         m_app->showExportObjectFileDialog(
             exportType, menuObject->type(), menuObject->index());
       }
+    }
+
+    if (nodeSelected) {
+      if (!canExport)
+        ImGui::Separator();
+      if (ImGui::MenuItem("export TSD subtree"))
+        m_app->showExportLayerSubtreeFileDialog(menuNode);
     }
 
     if (nodeSelected) {

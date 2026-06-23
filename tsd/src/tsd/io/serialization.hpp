@@ -40,6 +40,7 @@ inline constexpr std::string_view SCENE_CAMERAS_AND_RENDERERS =
     "tsd.scene.cameras-and-renderers";
 inline constexpr std::string_view OBJECT_SURFACE = "tsd.object.surface";
 inline constexpr std::string_view OBJECT_VOLUME = "tsd.object.volume";
+inline constexpr std::string_view LAYER_SUBTREE = "tsd.layer.subtree";
 
 } // namespace schema
 
@@ -96,7 +97,10 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose);
 // Layers //
 
 void layerToNode(const Layer &layer, core::DataNode &node);
+void layerSubtreeToNode(const Layer &layer, LayerNodeRef start, core::DataNode &node);
 void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene);
+void layerNodeInstanceParametersToNode(const LayerNodeData &data, core::DataNode &node);
+void nodeToLayerNodeInstanceParameters(core::DataNode &node, LayerNodeData &data);
 
 // Animations //
 
@@ -105,7 +109,7 @@ void nodeToAnimation(core::DataNode &node, animation::Animation &anim, Scene &sc
 void animationManagerToNode(const animation::AnimationManager &mgr, core::DataNode &node);
 void nodeToAnimationManager(core::DataNode &node, animation::AnimationManager &mgr, Scene &scene);
 
-// Scenes //
+// Scenes + Objects //
 
 void save_Scene(Scene &scene, const char *filename);
 void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays, tsd::animation::AnimationManager *animMgr = nullptr);
@@ -113,12 +117,14 @@ void load_Scene(Scene &scene, const char *filename, tsd::animation::AnimationMan
 void load_Scene(Scene &scene, core::DataNode &root, tsd::animation::AnimationManager *animMgr = nullptr);
 PayloadValidationResult validate_ScenePayload(core::DataNode &root);
 bool tryLoad_Scene(Scene &scene, core::DataNode &root, PayloadValidationResult *result = nullptr, tsd::animation::AnimationManager *animMgr = nullptr);
+
 void save_SceneCamerasAndRenderers(Scene &scene, const char *filename);
 void save_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root);
 void load_SceneCamerasAndRenderers(Scene &scene, const char *filename);
 void load_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root);
 PayloadValidationResult validate_SceneCamerasAndRenderersPayload(core::DataNode &root);
 bool tryLoad_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root, PayloadValidationResult *result = nullptr);
+
 bool export_Object(const char *filename, const Object &obj);
 Object *import_Object(Scene &scene, const char *filename);
 SurfaceRef import_Surface(Scene &scene, const char *filename);
@@ -126,6 +132,12 @@ VolumeRef import_Volume(Scene &scene, const char *filename);
 PayloadValidationResult validate_ObjectPayload(core::DataNode &root);
 PayloadValidationResult validate_SurfacePayload(core::DataNode &root);
 PayloadValidationResult validate_VolumePayload(core::DataNode &root);
+
+// Layer subtrees //
+
+bool export_LayerSubtree(const char *filename, LayerNodeRef root);
+LayerNodeRef import_LayerSubtree(Scene &scene, const char *filename, LayerNodeRef destinationParent = {});
+PayloadValidationResult validate_LayerSubtreePayload(core::DataNode &root);
 
 void export_SceneToUSD(
     Scene &scene, const char *filename, int framesPerSecond = 30, tsd::animation::AnimationManager *animMgr = nullptr);

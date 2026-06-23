@@ -184,6 +184,18 @@ void Application::showExportObjectFileDialog(
   m_objectFileDialog->showExport(fileType, objectType, objectIndex);
 }
 
+void Application::showImportLayerSubtreeFileDialog(
+    tsd::scene::LayerNodeRef destinationParent)
+{
+  m_objectFileDialog->showImportLayerSubtree(destinationParent);
+}
+
+void Application::showExportLayerSubtreeFileDialog(
+    tsd::scene::LayerNodeRef sourceRoot)
+{
+  m_objectFileDialog->showExportLayerSubtree(sourceRoot);
+}
+
 void Application::saveDefaultApplicationSettings()
 {
   saveGlobalApplicationSettings();

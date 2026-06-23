@@ -93,6 +93,9 @@ class Application
   void showExportObjectFileDialog(TSDObjectFileType fileType,
       anari::DataType objectType,
       size_t objectIndex);
+  void showImportLayerSubtreeFileDialog(
+      tsd::scene::LayerNodeRef destinationParent);
+  void showExportLayerSubtreeFileDialog(tsd::scene::LayerNodeRef sourceRoot);
   void saveDefaultApplicationSettings();
 
   ExtensionManager *extensionManager() const;

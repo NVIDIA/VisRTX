@@ -23,8 +23,10 @@ void ObjectFileDialog::showImport(
     TSDObjectFileType fileType, tsd::scene::LayerNodeRef importRoot)
 {
   m_mode = Mode::Import;
+  m_kind = Kind::Object;
   m_fileType = fileType;
   m_importRoot = importRoot;
+  m_subtreeNode = {};
   m_exportObjectType = ANARI_UNKNOWN;
   m_exportObjectIndex = tsd::core::INVALID_INDEX;
   m_filename.clear();
@@ -37,10 +39,39 @@ void ObjectFileDialog::showExport(TSDObjectFileType fileType,
     size_t objectIndex)
 {
   m_mode = Mode::Export;
+  m_kind = Kind::Object;
   m_fileType = fileType;
   m_importRoot = {};
+  m_subtreeNode = {};
   m_exportObjectType = objectType;
   m_exportObjectIndex = objectIndex;
+  m_filename.clear();
+  m_dialogFilename.clear();
+  show();
+}
+
+void ObjectFileDialog::showImportLayerSubtree(
+    tsd::scene::LayerNodeRef destinationParent)
+{
+  m_mode = Mode::Import;
+  m_kind = Kind::LayerSubtree;
+  m_importRoot = {};
+  m_subtreeNode = destinationParent;
+  m_exportObjectType = ANARI_UNKNOWN;
+  m_exportObjectIndex = tsd::core::INVALID_INDEX;
+  m_filename.clear();
+  m_dialogFilename.clear();
+  show();
+}
+
+void ObjectFileDialog::showExportLayerSubtree(tsd::scene::LayerNodeRef sourceRoot)
+{
+  m_mode = Mode::Export;
+  m_kind = Kind::LayerSubtree;
+  m_importRoot = {};
+  m_subtreeNode = sourceRoot;
+  m_exportObjectType = ANARI_UNKNOWN;
+  m_exportObjectIndex = tsd::core::INVALID_INDEX;
   m_filename.clear();
   m_dialogFilename.clear();
   show();
@@ -76,7 +107,12 @@ void ObjectFileDialog::buildUI()
   ImGui::BeginDisabled(m_filename.empty());
   if (ImGui::Button(m_mode == Mode::Import ? "import" : "export")) {
     hide();
-    if (m_mode == Mode::Import)
+    if (m_kind == Kind::LayerSubtree) {
+      if (m_mode == Mode::Import)
+        importLayerSubtree();
+      else
+        exportLayerSubtree();
+    } else if (m_mode == Mode::Import)
       importFile();
     else
       exportFile();
@@ -86,6 +122,9 @@ void ObjectFileDialog::buildUI()
 
 const char *ObjectFileDialog::fileTypeLabel() const
 {
+  if (m_kind == Kind::LayerSubtree)
+    return "TSD Layer Subtree";
+
   switch (m_fileType) {
   case TSDObjectFileType::Surface:
     return "TSD Surface";
@@ -103,6 +142,11 @@ const char *ObjectFileDialog::actionLabel() const
 
 const char *ObjectFileDialog::taskLabel() const
 {
+  if (m_kind == Kind::LayerSubtree) {
+    return m_mode == Mode::Import
+        ? "Please Wait: Importing TSD Layer Subtree..."
+        : "Please Wait: Exporting TSD Layer Subtree...";
+  }
   return m_mode == Mode::Import ? "Please Wait: Importing TSD Object..."
                                 : "Please Wait: Exporting TSD Object...";
 }
@@ -183,6 +227,45 @@ void ObjectFileDialog::exportFile()
     }
 
     tsd::io::export_Object(filename.c_str(), *object);
+  };
+
+  m_app->showTaskModal(doExport, taskLabel());
+}
+
+void ObjectFileDialog::importLayerSubtree()
+{
+  auto filename = m_filename;
+  auto destinationParent = m_subtreeNode;
+  auto *app = m_app;
+
+  auto doImport = [filename, destinationParent, app]() mutable {
+    auto *ctx = app->appContext();
+    auto &scene = ctx->tsd.scene;
+
+    if (!destinationParent.valid())
+      destinationParent = scene.defaultLayer()->root();
+
+    // import_LayerSubtree signals the destination layer on success.
+    tsd::io::import_LayerSubtree(scene, filename.c_str(), destinationParent);
+  };
+
+  m_app->showTaskModal(doImport, taskLabel());
+}
+
+void ObjectFileDialog::exportLayerSubtree()
+{
+  auto filename = m_filename;
+  auto sourceRoot = m_subtreeNode;
+  auto *app = m_app;
+
+  auto doExport = [filename, sourceRoot, app]() {
+    if (!sourceRoot.valid()) {
+      tsd::core::logError(
+          "[ObjectFileDialog] No layer node selected for subtree export.");
+      return;
+    }
+
+    tsd::io::export_LayerSubtree(filename.c_str(), sourceRoot);
   };
 
   m_app->showTaskModal(doExport, taskLabel());

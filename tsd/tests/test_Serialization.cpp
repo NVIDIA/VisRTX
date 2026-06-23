@@ -643,3 +643,196 @@ SCENARIO("tsd::io object export failures", "[Serialization]")
     }
   }
 }
+
+SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
+{
+  GIVEN("A scene with a layer subtree referencing surfaces, a light, and overrides")
+  {
+    tsd::scene::Scene source;
+
+    auto positions = makeFloatArray(source, "positions", {0.f, 1.f, 2.f});
+    auto geometry = source.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::triangle);
+    geometry->setName("mesh_geometry");
+    geometry->setParameterObject("vertex.position", *positions);
+
+    auto material = source.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    material->setName("mesh_material");
+
+    auto surface = source.createSurface("mesh_surface", geometry, material);
+
+    auto light = source.createObject<tsd::scene::Light>("directional");
+    light->setName("key_light");
+    light->setParameter("irradiance", 3.f);
+
+    auto overrideMaterial = source.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    overrideMaterial->setName("override_material");
+
+    // Build subtree: transform -> { surface (with instance params), light }
+    auto *layer = source.defaultLayer();
+    auto transformNode = source.insertChildTransformNode(
+        layer->root(), tsd::math::IDENTITY_MAT4, "group");
+    (*transformNode).value().setAsTransform(tsd::math::mat3{
+        tsd::math::float3(2.f, 2.f, 2.f),
+        tsd::math::float3(10.f, 20.f, 30.f),
+        tsd::math::float3(1.f, 2.f, 3.f)});
+
+    auto surfaceNode =
+        source.insertChildObjectNode(transformNode, surface, "surface_inst");
+    (*surfaceNode).value().setInstanceParameter("opacity", tsd::core::Any(0.5f));
+    (*surfaceNode).value().setInstanceParameter("materialOverride",
+        tsd::core::Any(overrideMaterial->type(), overrideMaterial->index()));
+
+    source.insertChildObjectNode(transformNode, light, "light_inst");
+
+    const auto filename = testFile("tsd_layer_subtree_roundtrip.tsd");
+    removeTestFile(filename);
+
+    WHEN("the subtree is exported")
+    {
+      REQUIRE(tsd::io::export_LayerSubtree(filename.c_str(), transformNode));
+
+      tsd::core::DataTree exportedTree;
+      REQUIRE(exportedTree.load(filename.c_str()));
+
+      THEN("the payload is tagged as a layer subtree with an objectDB and subtree")
+      {
+        auto metadata = tsd::core::readDataTreeMetadata(exportedTree.root());
+        REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(metadata.metadata);
+        REQUIRE(metadata.metadata->fileType == "layer-subtree");
+        REQUIRE(metadata.metadata->schema
+            == std::string(tsd::io::schema::LAYER_SUBTREE));
+        REQUIRE(exportedTree.root().child("objectDB"));
+        REQUIRE(exportedTree.root().child("subtree"));
+
+        auto result =
+            tsd::io::validate_LayerSubtreePayload(exportedTree.root());
+        REQUIRE(result.accepted());
+      }
+    }
+
+    WHEN("the subtree is imported under a destination node in another scene")
+    {
+      REQUIRE(tsd::io::export_LayerSubtree(filename.c_str(), transformNode));
+
+      tsd::scene::Scene target;
+      target.createObject<tsd::scene::Geometry>(
+          tsd::scene::tokens::geometry::sphere);
+
+      auto *targetLayer = target.defaultLayer();
+      auto destination = target.insertChildTransformNode(
+          targetLayer->root(), tsd::math::IDENTITY_MAT4, "mount");
+
+      auto splicedRoot =
+          tsd::io::import_LayerSubtree(target, filename.c_str(), destination);
+
+      THEN("objects are appended and the subtree is grafted under the destination")
+      {
+        REQUIRE(splicedRoot);
+        REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 2); // sphere + mesh
+        REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == 3); // default + mesh + override
+        REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_ARRAY) == 1);
+
+        REQUIRE((*splicedRoot).value().isTransform());
+        REQUIRE((*splicedRoot).value().name() == "group");
+
+        // Two children: surface instance + light instance.
+        int childCount = 0;
+        bool sawSurfaceInstance = false;
+        bool sawLight = false;
+        tsd::core::Any opacity;
+        tsd::core::Any materialOverride;
+        targetLayer->traverse(splicedRoot,
+            [&](auto &node, int level) {
+              if (level == 1) {
+                childCount++;
+                auto &d = node.value();
+                if (d.name() == "surface_inst") {
+                  sawSurfaceInstance = true;
+                  opacity = d.getInstanceParameters().at("opacity")
+                      ? *d.getInstanceParameters().at("opacity")
+                      : tsd::core::Any();
+                  materialOverride =
+                      d.getInstanceParameters().at("materialOverride")
+                      ? *d.getInstanceParameters().at("materialOverride")
+                      : tsd::core::Any();
+                }
+                if (d.name() == "light_inst")
+                  sawLight = true;
+              }
+              return true;
+            });
+
+        REQUIRE(childCount == 2);
+        REQUIRE(sawSurfaceInstance);
+        REQUIRE(sawLight);
+
+        // Instance parameters round-trip, with the object-valued one remapped
+        // to the freshly created target material (not the source index).
+        REQUIRE(opacity.getAs<float>() == 0.5f);
+        REQUIRE(materialOverride.holdsObject());
+        REQUIRE(materialOverride.type() == ANARI_MATERIAL);
+        auto *remapped = target.getObject(materialOverride);
+        REQUIRE(remapped);
+        REQUIRE(remapped->name() == "override_material");
+      }
+    }
+
+    WHEN("the subtree is imported with no destination node")
+    {
+      REQUIRE(tsd::io::export_LayerSubtree(filename.c_str(), transformNode));
+
+      tsd::scene::Scene target;
+      auto *targetLayer = target.defaultLayer();
+      const size_t nodesBefore = targetLayer->size();
+
+      auto splicedRoot = tsd::io::import_LayerSubtree(target, filename.c_str());
+
+      THEN("objects are appended but no subtree is grafted")
+      {
+        REQUIRE_FALSE(splicedRoot);
+        REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 1);
+        REQUIRE(targetLayer->size() == nodesBefore);
+      }
+    }
+
+    WHEN("the subtree is imported into a fragmented (non-defragmented) scene")
+    {
+      REQUIRE(tsd::io::export_LayerSubtree(filename.c_str(), transformNode));
+
+      tsd::scene::Scene target;
+
+      // Create then remove objects to leave holes in the object pools without
+      // defragmenting, mimicking a running viewer that has deleted objects.
+      auto g0 = target.createObject<tsd::scene::Geometry>(
+          tsd::scene::tokens::geometry::sphere);
+      auto g1 = target.createObject<tsd::scene::Geometry>(
+          tsd::scene::tokens::geometry::sphere);
+      auto m0 = target.createObject<tsd::scene::Material>(
+          tsd::scene::tokens::material::matte);
+      target.removeObject(g0.data());
+      target.removeObject(m0.data());
+
+      auto *targetLayer = target.defaultLayer();
+      auto destination = target.insertChildTransformNode(
+          targetLayer->root(), tsd::math::IDENTITY_MAT4, "mount");
+
+      auto splicedRoot =
+          tsd::io::import_LayerSubtree(target, filename.c_str(), destination);
+
+      THEN("the import succeeds and grafts the subtree")
+      {
+        REQUIRE(splicedRoot);
+        REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 1);
+        REQUIRE((*splicedRoot).value().name() == "group");
+      }
+    }
+  }
+}

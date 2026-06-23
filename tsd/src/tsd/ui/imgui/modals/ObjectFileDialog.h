@@ -27,6 +27,10 @@ struct ObjectFileDialog : public Modal
       anari::DataType objectType,
       size_t objectIndex);
 
+  // Layer subtree files (a node and its descendants + referenced objects) //
+  void showImportLayerSubtree(tsd::scene::LayerNodeRef destinationParent);
+  void showExportLayerSubtree(tsd::scene::LayerNodeRef sourceRoot);
+
   void buildUI() override;
 
  private:
@@ -36,6 +40,12 @@ struct ObjectFileDialog : public Modal
     Export
   };
 
+  enum class Kind
+  {
+    Object,
+    LayerSubtree
+  };
+
   const char *fileTypeLabel() const;
   const char *actionLabel() const;
   const char *taskLabel() const;
@@ -43,12 +53,16 @@ struct ObjectFileDialog : public Modal
 
   void importFile();
   void exportFile();
+  void importLayerSubtree();
+  void exportLayerSubtree();
 
   std::string m_filename;
   std::string m_dialogFilename;
   Mode m_mode{Mode::Import};
+  Kind m_kind{Kind::Object};
   TSDObjectFileType m_fileType{TSDObjectFileType::Surface};
   tsd::scene::LayerNodeRef m_importRoot;
+  tsd::scene::LayerNodeRef m_subtreeNode;
   anari::DataType m_exportObjectType{ANARI_UNKNOWN};
   size_t m_exportObjectIndex{tsd::core::INVALID_INDEX};
 };

@@ -440,13 +440,41 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
 
 // Layers /////////////////////////////////////////////////////////////////////
 
+void layerNodeInstanceParametersToNode(
+    const LayerNodeData &data, core::DataNode &node)
+{
+  const auto &instanceParameters = data.getInstanceParameters();
+  if (instanceParameters.empty())
+    return;
+
+  auto &ipNode = node.append("instanceParameters");
+  for (const auto &p : instanceParameters)
+    ipNode.append(p.first) = p.second;
+}
+
+void nodeToLayerNodeInstanceParameters(
+    core::DataNode &node, LayerNodeData &data)
+{
+  if (auto *ipNode = node.child("instanceParameters"); ipNode != nullptr) {
+    ipNode->foreach_child([&](core::DataNode &p) {
+      data.setInstanceParameter(p.name(), p.getValue());
+    });
+  }
+}
+
 void layerToNode(const Layer &layer, core::DataNode &node)
+{
+  layerSubtreeToNode(layer, layer.root(), node);
+}
+
+void layerSubtreeToNode(
+    const Layer &layer, LayerNodeRef start, core::DataNode &node)
 {
   std::stack<core::DataNode *> nodes;
   core::DataNode *currentParentNode = nullptr;
   core::DataNode *currentNode = &node;
   int currentLevel = -1;
-  layer.traverse_const(layer.root(), [&](const LayerNode &tsdNode, int level) {
+  layer.traverse_const(start, [&](const LayerNode &tsdNode, int level) {
     if (currentLevel < level) {
       nodes.push(currentNode);
       currentParentNode = currentNode;
@@ -468,6 +496,7 @@ void layerToNode(const Layer &layer, core::DataNode &node)
     if (tsdNode->isTransform())
       currentNode->append("transformSRT") = tsdNode->getTransformSRT();
     currentNode->append("enabled") = tsdNode->isEnabled();
+    layerNodeInstanceParametersToNode(*tsdNode, *currentNode);
     currentNode->append("children");
 
     return true;
@@ -508,6 +537,7 @@ void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
         (*currentNode)->setValueRaw(node["value"].getValue());
       (*currentNode)->setEnabled(node["enabled"].getValueOr(true));
       (*currentNode)->name() = node["name"].getValueAs<std::string>();
+      nodeToLayerNodeInstanceParameters(node, (*currentNode).value());
     }
 
     return true;
