@@ -122,6 +122,11 @@ ClosurePolicy layerSubtreePolicy()
       ANARI_UNKNOWN);
 }
 
+ClosurePolicy lightRigPolicy()
+{
+  return makePolicy({ANARI_ARRAY, ANARI_LIGHT}, false, ANARI_UNKNOWN);
+}
+
 bool typeAllowed(const ClosurePolicy &policy, anari::DataType type)
 {
   return policy.contains(canonicalObjectType(type));

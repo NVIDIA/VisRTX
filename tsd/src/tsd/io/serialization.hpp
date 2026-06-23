@@ -139,6 +139,23 @@ bool export_LayerSubtree(const char *filename, LayerNodeRef root);
 LayerNodeRef import_LayerSubtree(Scene &scene, const char *filename, LayerNodeRef destinationParent = {});
 PayloadValidationResult validate_LayerSubtreePayload(core::DataNode &root);
 
+// Generalized subtree IO shared by layer-subtree export and app-specific rig
+// files. The caller supplies the metadata envelope's fileType/schema and chooses
+// the object closure policy (lightsOnly restricts it to lights + the arrays they
+// reference). An optional displayName is stored alongside the payload and read
+// back on import. Import splices the subtree under destinationParent and returns
+// its new root.
+struct SubtreeIODesc
+{
+  std::string_view fileType;
+  std::string_view schema;
+  bool lightsOnly{false};
+};
+
+bool export_Subtree(const char *filename, LayerNodeRef root, const SubtreeIODesc &desc, std::string_view displayName = {});
+LayerNodeRef import_Subtree(Scene &scene, const char *filename, LayerNodeRef destinationParent, const SubtreeIODesc &desc, std::string *displayNameOut = nullptr);
+PayloadValidationResult validate_SubtreePayload(core::DataNode &root, const SubtreeIODesc &desc);
+
 void export_SceneToUSD(
     Scene &scene, const char *filename, int framesPerSecond = 30, tsd::animation::AnimationManager *animMgr = nullptr);
 void export_StructuredVolumeToNanoVDB(

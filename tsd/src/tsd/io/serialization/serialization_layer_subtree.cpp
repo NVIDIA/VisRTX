@@ -27,6 +27,11 @@ const std::vector<std::string_view> KNOWN_SUBTREE_SCHEMAS = {
     schema::SCENE_FULL,
     schema::SCENE_CAMERAS_AND_RENDERERS};
 
+ClosurePolicy policyForDesc(const SubtreeIODesc &desc)
+{
+  return desc.lightsOnly ? lightRigPolicy() : layerSubtreePolicy();
+}
+
 // Export helpers /////////////////////////////////////////////////////////////
 
 // Gather every Scene object directly referenced by the subtree's node values
@@ -159,32 +164,35 @@ LayerNodeRef spliceSubtree(Scene &scene,
 
 } // namespace
 
-bool export_LayerSubtree(const char *filename, LayerNodeRef root)
+bool export_Subtree(const char *filename,
+    LayerNodeRef root,
+    const SubtreeIODesc &desc,
+    std::string_view displayName)
 {
   if (!filename) {
-    tsd::core::logError("[export_LayerSubtree] filename is null");
+    tsd::core::logError("[export_Subtree] filename is null");
     return false;
   }
 
   if (!root) {
-    tsd::core::logError("[export_LayerSubtree] root node is invalid");
+    tsd::core::logError("[export_Subtree] root node is invalid");
     return false;
   }
 
   auto *layer = (*root).value().layer();
   auto *scene = layer ? layer->scene() : nullptr;
   if (!layer || !scene) {
-    tsd::core::logError("[export_LayerSubtree] root node has no owning Scene");
+    tsd::core::logError("[export_Subtree] root node has no owning Scene");
     return false;
   }
 
-  const auto policy = layerSubtreePolicy();
+  const auto policy = policyForDesc(desc);
   const auto seeds = collectSubtreeSeeds(*layer, root, *scene);
 
   std::vector<ClosureEntry> entries;
   std::string errorMessage;
   if (!buildClosure(*scene, seeds, policy, ObjectKey{}, entries, errorMessage)) {
-    tsd::core::logError("[export_LayerSubtree] %s", errorMessage.c_str());
+    tsd::core::logError("[export_Subtree] %s", errorMessage.c_str());
     return false;
   }
 
@@ -194,62 +202,66 @@ bool export_LayerSubtree(const char *filename, LayerNodeRef root)
 
   core::writeDataTreeMetadata(dbRoot,
       {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
-          "layer-subtree",
-          std::string(schema::LAYER_SUBTREE),
+          std::string(desc.fileType),
+          std::string(desc.schema),
           1});
 
+  if (!displayName.empty())
+    dbRoot["displayName"] = std::string(displayName);
+
   if (!writeObjectDB(dbRoot["objectDB"], entries, errorMessage)) {
-    tsd::core::logError("[export_LayerSubtree] %s", errorMessage.c_str());
+    tsd::core::logError("[export_Subtree] %s", errorMessage.c_str());
     return false;
   }
 
   auto &subtreeNode = dbRoot["subtree"];
   layerSubtreeToNode(*layer, root, subtreeNode);
   if (!rewriteRefsToLocal(subtreeNode, entries, errorMessage)) {
-    tsd::core::logError("[export_LayerSubtree] %s", errorMessage.c_str());
+    tsd::core::logError("[export_Subtree] %s", errorMessage.c_str());
     return false;
   }
 
   if (!tree.save(filename)) {
-    tsd::core::logError(
-        "[export_LayerSubtree] failed to write file '%s'", filename);
+    tsd::core::logError("[export_Subtree] failed to write file '%s'", filename);
     return false;
   }
 
   return true;
 }
 
-PayloadValidationResult validate_LayerSubtreePayload(core::DataNode &root)
+PayloadValidationResult validate_SubtreePayload(
+    core::DataNode &root, const SubtreeIODesc &desc)
 {
   auto result = validateEnvelope(
-      root, "layer-subtree", {schema::LAYER_SUBTREE}, KNOWN_SUBTREE_SCHEMAS);
+      root, desc.fileType, {desc.schema}, KNOWN_SUBTREE_SCHEMAS);
   if (!result.accepted())
     return result;
 
   auto *objectDB = root.child("objectDB");
   if (!objectDB) {
     result.status = PayloadValidationStatus::MissingRequiredNode;
-    result.message = "layer-subtree payload requires objectDB";
+    result.message = std::string(desc.fileType) + " payload requires objectDB";
     return result;
   }
 
   auto *subtree = root.child("subtree");
   if (!subtree) {
     result.status = PayloadValidationStatus::MissingRequiredNode;
-    result.message = "layer-subtree payload requires subtree";
+    result.message = std::string(desc.fileType) + " payload requires subtree";
     return result;
   }
 
-  const auto policy = layerSubtreePolicy();
+  const auto policy = policyForDesc(desc);
 
   bool ok = true;
   objectDB->foreach_child([&](core::DataNode &poolNode) {
     if (!ok)
       return;
-    if (!isKnownObjectPoolName(poolNode.name()) && poolNode.numChildren() > 0) {
+    if (poolNode.numChildren() > 0 && !poolAllowed(policy, poolNode.name())) {
       result.status = PayloadValidationStatus::IncompatibleSchema;
-      result.message = "layer-subtree payload contains unsupported object pool '"
-          + poolNode.name() + "'";
+      result.message = std::string(desc.fileType)
+          + " payload contains unsupported object pool '" + poolNode.name()
+          + "'";
       ok = false;
     }
   });
@@ -266,32 +278,37 @@ PayloadValidationResult validate_LayerSubtreePayload(core::DataNode &root)
   return result;
 }
 
-LayerNodeRef import_LayerSubtree(
-    Scene &scene, const char *filename, LayerNodeRef destinationParent)
+LayerNodeRef import_Subtree(Scene &scene,
+    const char *filename,
+    LayerNodeRef destinationParent,
+    const SubtreeIODesc &desc,
+    std::string *displayNameOut)
 {
   if (!filename) {
-    tsd::core::logError("[import_LayerSubtree] filename is null");
+    tsd::core::logError("[import_Subtree] filename is null");
     return {};
   }
 
   core::DataTree tree;
   if (!tree.load(filename)) {
-    tsd::core::logError(
-        "[import_LayerSubtree] failed to load file '%s'", filename);
+    tsd::core::logError("[import_Subtree] failed to load file '%s'", filename);
     return {};
   }
 
   auto &root = tree.root();
-  auto result = validate_LayerSubtreePayload(root);
+  auto result = validate_SubtreePayload(root, desc);
   if (!result.accepted()) {
-    tsd::core::logError("[import_LayerSubtree] payload validation failed: %s",
+    tsd::core::logError("[import_Subtree] payload validation failed: %s",
         result.message.c_str());
     return {};
   }
 
+  if (displayNameOut)
+    *displayNameOut = root["displayName"].getValueOr<std::string>("");
+
   std::vector<FileObjectEntry> fileEntries;
   if (!collectFileObjects(root["objectDB"], fileEntries, result)) {
-    tsd::core::logError("[import_LayerSubtree] %s", result.message.c_str());
+    tsd::core::logError("[import_Subtree] %s", result.message.c_str());
     return {};
   }
 
@@ -300,7 +317,7 @@ LayerNodeRef import_LayerSubtree(
   std::string errorMessage;
   if (!instantiateObjectDB(
           scene, fileEntries, targetEntries, createdRefs, errorMessage)) {
-    tsd::core::logError("[import_LayerSubtree] %s", errorMessage.c_str());
+    tsd::core::logError("[import_Subtree] %s", errorMessage.c_str());
     return {};
   }
 
@@ -321,7 +338,7 @@ LayerNodeRef import_LayerSubtree(
     if (!createdNodes.empty())
       scene.removeNode(createdNodes.front(), false);
     rollbackCreatedObjects(scene, createdRefs);
-    tsd::core::logError("[import_LayerSubtree] %s",
+    tsd::core::logError("[import_Subtree] %s",
         errorMessage.empty() ? "failed to reconstruct subtree"
                              : errorMessage.c_str());
     return {};
@@ -331,6 +348,27 @@ LayerNodeRef import_LayerSubtree(
     scene.signalLayerStructureChanged(layer);
 
   return splicedRoot;
+}
+
+bool export_LayerSubtree(const char *filename, LayerNodeRef root)
+{
+  return export_Subtree(
+      filename, root, {"layer-subtree", schema::LAYER_SUBTREE, false});
+}
+
+PayloadValidationResult validate_LayerSubtreePayload(core::DataNode &root)
+{
+  return validate_SubtreePayload(
+      root, {"layer-subtree", schema::LAYER_SUBTREE, false});
+}
+
+LayerNodeRef import_LayerSubtree(
+    Scene &scene, const char *filename, LayerNodeRef destinationParent)
+{
+  return import_Subtree(scene,
+      filename,
+      destinationParent,
+      {"layer-subtree", schema::LAYER_SUBTREE, false});
 }
 
 } // namespace tsd::io

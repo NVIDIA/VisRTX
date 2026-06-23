@@ -21,8 +21,20 @@ struct LightRigEditor : public tsd::ui::imgui::Window
  private:
   bool inputText(const char *label, std::string &value, size_t capacity = 512);
   void syncSelectionToActiveShot();
+  void pollPendingFileIO();
   void buildUI_lightList(LightRig &rig);
   void buildUI_addLight(LightRig &rig);
+  void buildUI_ioError();
+
+  // The SDL file dialog is asynchronous: it writes the chosen path into the
+  // target string from a later event-loop iteration, so the target must outlive
+  // the call. We hand it a member and poll for the result on subsequent frames.
+  enum class PendingFileIO
+  {
+    None,
+    Import,
+    Export
+  };
 
   ProjectContext *m_projectContext{nullptr};
   int m_selectedRig{0};
@@ -31,6 +43,10 @@ struct LightRigEditor : public tsd::ui::imgui::Window
   LightRigID m_lastActiveShotLightRigId;
   std::string m_renameLightName;
   LightRigID m_pendingDeleteRig;
+  std::string m_ioError;
+  PendingFileIO m_pendingFileIO{PendingFileIO::None};
+  std::string m_pendingFilename;
+  LightRigID m_pendingExportRig;
 };
 
 } // namespace tsd::scivis_studio

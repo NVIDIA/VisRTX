@@ -69,6 +69,14 @@ class Application
   UIConfig *uiConfig();
   CommandLineOptions *commandLineOptions();
 
+  // NOTE: These wrap SDL3's file/folder dialogs, which are ASYNCHRONOUS. The
+  // call returns immediately and the chosen path is written into the out-param
+  // from a later event-loop iteration. Therefore the out-param MUST outlive the
+  // call (e.g. a member, not a local) and the result MUST be polled on
+  // subsequent frames -- reading it synchronously right after the call sees an
+  // empty string, and passing a local/stack buffer crashes when the callback
+  // writes into freed memory. See m_filenameToLoadNextFrame /
+  // m_filenameToSaveNextFrame for the canonical populate-then-poll pattern.
   void getFilenameFromDialog(
       std::string &filenameOut,
       FileDialogMode mode = FileDialogMode::OpenFile);

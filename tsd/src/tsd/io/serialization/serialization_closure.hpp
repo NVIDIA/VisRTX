@@ -88,6 +88,8 @@ struct ClosurePolicy
 ClosurePolicy objectFilePolicy(anari::DataType rootType);
 // Broad multi-root set including lights (export_LayerSubtree).
 ClosurePolicy layerSubtreePolicy();
+// Lights and the arrays they reference only (light-rig subtree export).
+ClosurePolicy lightRigPolicy();
 
 // Object pool layout shared by every serialized objectDB.
 extern const std::array<const char *, 8> OBJECT_POOL_NAMES;

@@ -301,6 +301,78 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
   return true;
 }
 
+bool exportCameraRigFile(const std::string &name,
+    const ShotCameraRig &rig,
+    const std::filesystem::path &file,
+    std::string *error)
+{
+  tsd::core::DataTree tree;
+  auto &root = tree.root();
+  tsd::core::writeDataTreeMetadata(root,
+      {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+          CAMERA_RIG_FILE_TYPE,
+          CAMERA_RIG_SCHEMA,
+          RIG_SCHEMA_VERSION});
+  root["name"] = name;
+  cameraRigToNode(rig, root["rig"]);
+
+  if (!tree.save(file.string().c_str())) {
+    if (error)
+      *error = "failed to write camera rig file";
+    return false;
+  }
+  return true;
+}
+
+bool importCameraRigFile(const std::filesystem::path &file,
+    std::string &nameOut,
+    ShotCameraRig &rigOut,
+    std::string *error)
+{
+  tsd::core::DataTree tree;
+  if (!tree.load(file.string().c_str())) {
+    if (error)
+      *error = "failed to load camera rig file";
+    return false;
+  }
+
+  auto &root = tree.root();
+  auto metadata = tsd::core::readDataTreeMetadata(root);
+  if (metadata.malformed()) {
+    if (error)
+      *error = "malformed __tsd_metadata: " + metadata.message;
+    return false;
+  }
+  if (!metadata.found()) {
+    if (error)
+      *error = "file is missing __tsd_metadata";
+    return false;
+  }
+
+  const auto &m = *metadata.metadata;
+  if (m.envelopeVersion != tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
+    if (error)
+      *error = "unsupported metadata envelopeVersion";
+    return false;
+  }
+  if (m.fileType != CAMERA_RIG_FILE_TYPE || m.schema != CAMERA_RIG_SCHEMA) {
+    if (error)
+      *error = "file is not a SciVis Studio camera rig";
+    return false;
+  }
+  if (m.schemaVersion < 1 || m.schemaVersion > RIG_SCHEMA_VERSION) {
+    if (error)
+      *error = "unsupported camera rig schemaVersion";
+    return false;
+  }
+
+  nameOut = root["name"].getValueOr<std::string>("");
+  rigOut = {};
+  if (auto *rigNode = root.child("rig"))
+    nodeToCameraRig(*rigNode, rigOut);
+  return true;
+}
+
 ProjectValidationResult validateProjectRoot(
     const std::filesystem::path &directory)
 {

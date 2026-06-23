@@ -75,6 +75,20 @@ struct ProjectContext
   int cameraRigUseCount(const CameraRigID &id) const;
   CameraRig *activeShotCameraRig();
 
+  // Standalone rig file IO. Export writes the named rig to a .tsd file; import
+  // adds a new library entry (with a fresh id and a de-duplicated name) and
+  // never alters shot bindings. Import returns the new rig, or nullptr on error.
+  bool exportCameraRig(const CameraRigID &id,
+      const std::filesystem::path &file,
+      std::string *error = nullptr);
+  CameraRig *importCameraRig(
+      const std::filesystem::path &file, std::string *error = nullptr);
+  bool exportLightRig(const LightRigID &id,
+      const std::filesystem::path &file,
+      std::string *error = nullptr);
+  LightRig *importLightRig(
+      const std::filesystem::path &file, std::string *error = nullptr);
+
  private:
   tsd::scene::LayerNodeRef ensureChild(
       tsd::scene::LayerNodeRef parent, const char *name);

@@ -44,6 +44,27 @@ static bool hasChildNodes(tsd::scene::LayerNodeRef parent)
   return child && child != parent;
 }
 
+// Produce a rig name that does not collide with any existing rig, mirroring the
+// " Copy" convention used when cloning rigs.
+template <typename RigT>
+static std::string uniqueRigName(
+    const std::vector<RigT> &rigs, const std::string &desired)
+{
+  auto taken = [&](const std::string &candidate) {
+    return std::any_of(rigs.begin(), rigs.end(), [&](const RigT &rig) {
+      return rig.name == candidate;
+    });
+  };
+
+  if (!taken(desired))
+    return desired;
+
+  std::string candidate = desired + " (imported)";
+  for (int n = 2; taken(candidate); ++n)
+    candidate = desired + " (imported " + std::to_string(n) + ")";
+  return candidate;
+}
+
 ProjectContext::ProjectContext(tsd::app::Context *ctx) : m_ctx(ctx)
 {
   installAnimationManagerCallback();
@@ -348,6 +369,112 @@ CameraRig *ProjectContext::activeShotCameraRig()
     return nullptr;
 
   return project::findCameraRig(m_project, shot->cameraRigId);
+}
+
+bool ProjectContext::exportCameraRig(const CameraRigID &id,
+    const std::filesystem::path &file,
+    std::string *error)
+{
+  auto *rig = project::findCameraRig(m_project, id);
+  if (!rig) {
+    if (error)
+      *error = "camera rig not found";
+    return false;
+  }
+  return exportCameraRigFile(rig->name, rig->rig, file, error);
+}
+
+CameraRig *ProjectContext::importCameraRig(
+    const std::filesystem::path &file, std::string *error)
+{
+  std::string name;
+  ShotCameraRig rigData;
+  if (!importCameraRigFile(file, name, rigData, error))
+    return nullptr;
+
+  CameraRig rig;
+  rig.id = project::nextCameraRigId(m_project);
+  rig.name = uniqueRigName(
+      m_project.cameraRigs, name.empty() ? "Imported Camera Rig" : name);
+  rig.rig = std::move(rigData);
+  m_project.cameraRigs.push_back(std::move(rig));
+  m_project.markDirty();
+  return &m_project.cameraRigs.back();
+}
+
+bool ProjectContext::exportLightRig(const LightRigID &id,
+    const std::filesystem::path &file,
+    std::string *error)
+{
+  if (!m_ctx) {
+    if (error)
+      *error = "missing TSD application context";
+    return false;
+  }
+
+  auto *rig = project::findLightRig(m_project, id);
+  if (!rig) {
+    if (error)
+      *error = "light rig not found";
+    return false;
+  }
+
+  auto rigRoot = resolveLightRigRoot(*rig);
+  if (!rigRoot) {
+    if (error)
+      *error = "light rig has no scene node";
+    return false;
+  }
+
+  const tsd::io::SubtreeIODesc desc{
+      LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, /*lightsOnly=*/true};
+  if (!tsd::io::export_Subtree(
+          file.string().c_str(), rigRoot, desc, rig->name)) {
+    if (error)
+      *error = "failed to export light rig (see log for details)";
+    return false;
+  }
+  return true;
+}
+
+LightRig *ProjectContext::importLightRig(
+    const std::filesystem::path &file, std::string *error)
+{
+  if (!m_ctx) {
+    if (error)
+      *error = "missing TSD application context";
+    return nullptr;
+  }
+
+  auto &scene = m_ctx->tsd.scene;
+  auto lightRigsRoot = ensureLightRigsRoot();
+  const tsd::io::SubtreeIODesc desc{
+      LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, /*lightsOnly=*/true};
+
+  std::string name;
+  LightRig rig;
+  scene.beginLayerEditBatch();
+  auto splicedRoot = tsd::io::import_Subtree(
+      scene, file.string().c_str(), lightRigsRoot, desc, &name);
+  if (splicedRoot) {
+    rig.id = project::nextLightRigId(m_project);
+    (*splicedRoot)->name() = rig.id; // resolveLightRigRoot keys on node==rig.id
+  }
+  scene.endLayerEditBatch();
+
+  if (!splicedRoot) {
+    if (error)
+      *error = "failed to import light rig (see log for details)";
+    return nullptr;
+  }
+
+  rig.name = uniqueRigName(
+      m_project.lightRigs, name.empty() ? "Imported Light Rig" : name);
+  rig.rootNode = refFor("studio", splicedRoot);
+  m_project.lightRigs.push_back(std::move(rig));
+  m_project.markDirty();
+  applyActiveShot(); // imported rig is unbound, so it starts hidden
+  return &m_project.lightRigs.back();
 }
 
 bool ProjectContext::removeLightRig(const LightRigID &id)

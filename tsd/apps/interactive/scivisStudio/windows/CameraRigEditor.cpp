@@ -5,6 +5,7 @@
 
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 #include "tsd/scene/objects/Camera.hpp"
+#include "tsd/ui/imgui/Application.h"
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 
 #include "imgui.h"
@@ -13,11 +14,22 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <string>
 #include <vector>
 
 namespace tsd::scivis_studio {
 
 namespace {
+
+// Default rig files to a .tsd extension when the user didn't supply one.
+std::string withTsdExtension(const std::string &path)
+{
+  std::filesystem::path p(path);
+  if (p.extension().empty())
+    p.replace_extension(".tsd");
+  return p.string();
+}
 
 int cameraInterpolationIndex(CameraInterpolation interpolation)
 {
@@ -124,7 +136,16 @@ void CameraRigEditor::buildUI_rigControls()
   }
   ImGui::EndDisabled();
 
+  ImGui::SameLine();
+  if (ImGui::Button("Import...")) {
+    m_pendingFileIO = PendingFileIO::Import;
+    m_pendingFilename.clear();
+    m_app->getFilenameFromDialog(
+        m_pendingFilename, tsd::ui::imgui::FileDialogMode::OpenFile);
+  }
+
   if (project.cameraRigs.empty()) {
+    buildUI_ioError();
     ImGui::TextDisabled("No camera rigs");
     return;
   }
@@ -161,6 +182,15 @@ void CameraRigEditor::buildUI_rigControls()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
+  if (ImGui::Button("Export...")) {
+    m_pendingFileIO = PendingFileIO::Export;
+    m_pendingExportRig = cameraRig.id;
+    m_pendingFilename.clear();
+    m_app->getFilenameFromDialog(
+        m_pendingFilename, tsd::ui::imgui::FileDialogMode::SaveFile);
+  }
+
+  ImGui::SameLine();
   if (ImGui::Button("Remove Rig")) {
     if (m_projectContext->cameraRigUseCount(cameraRig.id) > 0) {
       m_pendingDeleteRig = cameraRig.id;
@@ -191,6 +221,24 @@ void CameraRigEditor::buildUI_rigControls()
     ImGui::SameLine();
     if (ImGui::Button("Cancel")) {
       m_pendingDeleteRig.clear();
+      ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+  }
+
+  buildUI_ioError();
+}
+
+void CameraRigEditor::buildUI_ioError()
+{
+  ImGui::SetNextWindowSize(ImVec2(500.f, 0.f), ImGuiCond_Appearing);
+  if (ImGui::BeginPopupModal("Camera Rig IO Error",
+          nullptr,
+          ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::TextWrapped("%s", m_ioError.c_str());
+    ImGui::Spacing();
+    if (ImGui::Button("OK") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+      m_ioError.clear();
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -418,11 +466,43 @@ void CameraRigEditor::buildUI_keyframes(CameraRig &cameraRig)
   }
 }
 
+void CameraRigEditor::pollPendingFileIO()
+{
+  if (m_pendingFileIO == PendingFileIO::None || m_pendingFilename.empty())
+    return;
+
+  const auto request = m_pendingFileIO;
+  const auto filename = m_pendingFilename;
+  const auto exportRig = m_pendingExportRig;
+  m_pendingFileIO = PendingFileIO::None;
+  m_pendingFilename.clear();
+  m_pendingExportRig.clear();
+
+  auto &project = m_projectContext->project();
+  std::string error;
+  if (request == PendingFileIO::Import) {
+    if (m_projectContext->importCameraRig(filename, &error)) {
+      m_selectedRig = static_cast<int>(project.cameraRigs.size()) - 1;
+      m_selectedKeyframe = -1;
+    } else {
+      m_ioError = error;
+      ImGui::OpenPopup("Camera Rig IO Error");
+    }
+  } else if (request == PendingFileIO::Export) {
+    if (!m_projectContext->exportCameraRig(
+            exportRig, withTsdExtension(filename), &error)) {
+      m_ioError = error;
+      ImGui::OpenPopup("Camera Rig IO Error");
+    }
+  }
+}
+
 void CameraRigEditor::buildUI()
 {
   if (!m_projectContext)
     return;
 
+  pollPendingFileIO();
   syncSelectionToActiveShot();
   buildUI_rigControls();
 
