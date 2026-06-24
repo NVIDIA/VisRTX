@@ -527,6 +527,10 @@ void VisRTXDevice::deviceCommitParameters()
       mdlSearchPaths.emplace_back(it, endOfPathIt);
       it = endOfPathIt;
     }
+#ifdef USE_MATERIALX
+    // setMdlSearchPaths replaces (not appends) — union before the single call
+    mdlSearchPaths.emplace_back(VISRTX_MATERIALX_MDL_DIR);
+#endif // defined(USE_MATERIALX)
     deviceState()->mdl->core.setMdlSearchPaths(mdlSearchPaths);
 
     paths = getParamString("mdlResourceSearchPaths", "");

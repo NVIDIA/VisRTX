@@ -45,6 +45,7 @@ struct VisRTXExtensions
   int VISRTX_CUDA_OUTPUT_BUFFERS;
   int VISRTX_INSTANCE_ATTRIBUTES;
   int VISRTX_MATERIAL_MDL;
+  int VISRTX_MATERIAL_MATERIALX;
   int VISRTX_SPATIAL_FIELD_NANOVDB;
   int VISRTX_SPATIAL_FIELD_DATA_CENTERING;
   int VISRTX_SPATIAL_FIELD_REGION_OF_INTEREST;
@@ -53,11 +54,6 @@ struct VisRTXExtensions
   int VISRTX_TRIANGLE_BACK_FACE_CULLING;
   int VISRTX_TRIANGLE_FACE_VARYING_ATTRIBUTES;
 };
-
-int visrtxGetObjectExtensions(VisRTXExtensions *extensions,
-    ANARIDevice device,
-    ANARIDataType objectType,
-    const char *objectSubtype);
 
 int visrtxGetInstanceExtensions(
     VisRTXExtensions *extensions, ANARIDevice device, ANARIObject object);
@@ -76,6 +72,23 @@ VisRTXExtensions getInstanceExtensions(anari::Device, anari::Object);
 ///////////////////////////////////////////////////////////////////////////////
 // Definitions ////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+
+inline int visrtxGetObjectExtensions(VisRTXExtensions *extensions,
+    ANARIDevice device,
+    ANARIDataType /*objectType*/,
+    const char * /*objectSubtype*/)
+{
+  // The VisRTX extension flags live in the device extension list; per-subtype
+  // extension queries are not populated in the generated query tables.
+  const char *const *list = (const char *const *)anariGetObjectInfo(
+      device, ANARI_DEVICE, NULL, "extension", ANARI_STRING_LIST);
+  if (list) {
+    visrtx::fillExtensionStruct(extensions, list);
+    return 1;
+  } else {
+    return 0;
+  }
+}
 
 inline int visrtxGetInstanceExtensions(
     VisRTXExtensions *extensions, ANARIDevice device, ANARIObject object)
@@ -130,6 +143,12 @@ inline void fillExtensionStruct(
 #else
       extensions->VISRTX_MATERIAL_MDL = 0;
 #endif // defined(USE_MDL)
+    else if (feature == "ANARI_VISRTX_MATERIAL_MATERIALX")
+#ifdef USE_MATERIALX
+      extensions->VISRTX_MATERIAL_MATERIALX = 1;
+#else
+      extensions->VISRTX_MATERIAL_MATERIALX = 0;
+#endif // defined(USE_MATERIALX)
   }
 }
 

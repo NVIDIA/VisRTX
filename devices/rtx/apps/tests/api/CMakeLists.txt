@@ -96,7 +96,17 @@ make_test(TestEmissiveIncremental)
 make_test(TestEmissiveInstanceRotatedScale)
 
 if(VISRTX_ENABLE_MATERIALX_SUPPORT)
+  make_test(TestMaterialXMaterial)
+  # USE_MATERIALX gates the VISRTX_MATERIAL_MATERIALX flag in
+  # fillExtensionStruct (visrtx_extensions.h); the test asserts the device
+  # advertises it, so it must be compiled MaterialX-aware.
+  target_compile_definitions(TestMaterialXMaterial PRIVATE
+    USE_MATERIALX
+    MATERIALX_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")
   make_test(TestMaterialXTranscoder)
+  make_test(TestMaterialXRender)
+  target_compile_definitions(TestMaterialXRender PRIVATE
+    MATERIALX_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")
   # Compile Transcoder.cpp directly INTO the test. anari_library_visrtx is built
   # SHARED with hidden visibility (device/CMakeLists.txt CMAKE_CXX_VISIBILITY_PRESET
   # hidden), and the transcoder free functions carry no VISRTX_DEVICE_INTERFACE

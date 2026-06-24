@@ -39,6 +39,9 @@
 #include "MDL.h"
 #include "PhysicallyBasedMDL.h"
 #endif // defined(USE_MDL)
+#ifdef USE_MATERIALX
+#include "MaterialX.h"
+#endif // defined(USE_MATERIALX)
 
 #include <string>
 
@@ -102,6 +105,10 @@ Material *Material::createInstance(
   else if (subtype == "mdl" && d->mdl)
     return new MDL(d);
 #endif // defined(USE_MDL)
+#ifdef USE_MATERIALX
+  else if (subtype == "materialx" && d->mdl)
+    return new MaterialX(d);
+#endif // defined(USE_MATERIALX)
   else
     return new UnknownMaterial(subtype, d);
 }

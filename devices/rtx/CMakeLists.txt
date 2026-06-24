@@ -135,6 +135,7 @@ if(VISRTX_ENABLE_MATERIALX_SUPPORT)
   # via find_dependency(MaterialX) — the two cannot coexist in one build.
   find_package(MaterialX 1.39 REQUIRED)
   set(MATERIALX_LIBRARIES_DIR "${MaterialX_DIR}/../../../libraries" CACHE PATH "" FORCE)
+  set(MATERIALX_MDL_MODULES_DIR "${MATERIALX_LIBRARIES_DIR}/mdl" CACHE PATH "" FORCE)
 endif()
 add_subdirectory(device)
 add_subdirectory(apps)
