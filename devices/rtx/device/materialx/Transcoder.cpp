@@ -163,6 +163,29 @@ TranscodeResult transcodeMaterialXToMdl(
     auto shader = gen->generate(elem->getName(), elem, context);
     result.mdlSource = shader->getSourceCode(mx::Stage::PIXEL);
     result.materialName = shader->getName();
+
+    // Settable params of the ENTRY material live in the MDL generator's input
+    // block (MDL::INPUTS). In MaterialX 1.39.4 this is an input block (not a
+    // uniform block despite what older docs imply). Each ShaderPort exposes
+    // the generated arg name (getVariable, e.g. "srf_base_color") and its
+    // MaterialX origin path (getPath, e.g. "srf/base_color"); cleanName is
+    // the origin tail after the last '/'. Built from the API, not MDL text.
+    const auto &pixelStage = shader->getStage(mx::Stage::PIXEL);
+    if (pixelStage.getInputBlocks().count(mx::MDL::INPUTS)) {
+      const auto &block = pixelStage.getInputBlock(mx::MDL::INPUTS);
+      for (size_t i = 0; i < block.size(); ++i) {
+        const mx::ShaderPort *port = block[i];
+        const std::string &arg = port->getVariable();
+        const std::string &path = port->getPath();
+        if (arg.empty() || path.empty())
+          continue;
+        // Exclude geometry properties (no '/' in path = not a node input).
+        auto slash = path.find_last_of('/');
+        if (slash == std::string::npos)
+          continue;
+        result.paramMap.push_back({path.substr(slash + 1), arg});
+      }
+    }
   } catch (const std::exception &e) {
     result.error = e.what();
     result.mdlSource.clear();

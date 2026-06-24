@@ -32,6 +32,7 @@
 #pragma once
 
 #include "MDL.h"
+#include "materialx/Transcoder.h" // materialx::ParamMapping
 
 #include <filesystem>
 #include <optional>
@@ -55,6 +56,10 @@ struct MaterialX : public MDL
   // generated MDL we write back into those same params (see commitParameters).
   bool needsRetranscode();
 
+  // Rename any ANARI param stored under a clean MaterialX input name to its
+  // generated MDL arg-block name before MDL::commitParameters() snapshots them.
+  void remapParameters();
+
   std::string m_userPath;                    // last .mtlx path the app set
   std::optional<std::string> m_userSelected; // last materialName the app set
   std::filesystem::file_time_type m_userPathWrite{};
@@ -63,6 +68,7 @@ struct MaterialX : public MDL
   std::string m_generatedName;   // name written into the `materialName` param
   std::vector<std::string> m_materialNames;
   std::vector<const char *> m_materialNamePtrs;
+  std::vector<materialx::ParamMapping> m_paramMap; // clean name -> MDL arg name
 };
 
 } // namespace visrtx

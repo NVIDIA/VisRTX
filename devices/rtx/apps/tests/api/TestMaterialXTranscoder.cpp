@@ -72,6 +72,29 @@ int main()
       return 1;
     }
   }
+  {
+    const std::filesystem::path red =
+        std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "red_surface.mtlx";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs);
+    bool foundBaseColor = false;
+    for (const auto &m : r.paramMap) {
+      if (m.cleanName == "base_color") {
+        foundBaseColor = true;
+        // mdlArgName is the generated entry-material arg; for red_surface its
+        // surface node is "srf", so the arg is "srf_base_color".
+        if (m.mdlArgName != "srf_base_color") {
+          std::printf("FAIL: base_color maps to '%s', expected 'srf_base_color'\n",
+              m.mdlArgName.c_str());
+          return 1;
+        }
+      }
+    }
+    if (!foundBaseColor) {
+      std::printf("FAIL: paramMap missing base_color (%zu entries)\n",
+          r.paramMap.size());
+      return 1;
+    }
+  }
   std::printf("PASS\n");
   return 0;
 }

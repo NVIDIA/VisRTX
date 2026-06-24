@@ -39,6 +39,19 @@
 
 namespace visrtx {
 
+namespace {
+// The TSD StandardSurface preset (and apps) reference the bundled standard
+// surface by a builtin logical name rather than an install path, mirroring
+// PhysicallyBasedMDL's builtin MDL module. Resolve it to the shipped .mtlx.
+constexpr const char *kStandardSurfaceSource = "visrtx::standard_surface";
+std::string resolveMaterialXSource(const std::string &source)
+{
+  if (source == kStandardSurfaceSource)
+    return VISRTX_MATERIALX_STD_SURFACE_MTLX;
+  return source;
+}
+} // namespace
+
 MaterialX::MaterialX(DeviceGlobalState *d) : MDL(d) {}
 
 bool MaterialX::needsRetranscode()
@@ -82,10 +95,12 @@ bool MaterialX::needsRetranscode()
 void MaterialX::commitParameters()
 {
   if (needsRetranscode()) {
+    auto resolved = resolveMaterialXSource(m_userPath);
     std::vector<std::filesystem::path> libs = {MATERIALX_LIBRARIES_DIR,
-        std::filesystem::path(m_userPath).parent_path()};
-    auto r = materialx::transcodeMaterialXToMdl(m_userPath, m_userSelected, libs);
+        std::filesystem::path(resolved).parent_path()};
+    auto r = materialx::transcodeMaterialXToMdl(resolved, m_userSelected, libs);
     m_materialNames = r.available;
+    m_paramMap = std::move(r.paramMap); // active material's clean->arg mapping
 
     if (!r.error.empty() || r.mdlSource.empty()) {
       reportMessage(ANARI_SEVERITY_ERROR,
@@ -93,7 +108,7 @@ void MaterialX::commitParameters()
           m_userPath.c_str(), r.error.c_str());
       reportMessage(ANARI_SEVERITY_WARNING,
           "MaterialX: falling back to default material");
-      m_generatedSource.clear(); // "" → MDL diffuse fallback in syncSource
+      m_generatedSource.clear();
       m_generatedName.clear();
     } else {
       m_generatedSource = std::move(r.mdlSource);
@@ -113,7 +128,40 @@ void MaterialX::commitParameters()
   else
     setParam("materialName", ANARI_STRING, m_generatedName.c_str());
 
+  // Rename clean MaterialX param names to the generated MDL arg names so
+  // MDL::syncParameters (which binds by arg-block name) picks them up. Runs
+  // every commit: after the first commit the param store already holds the
+  // renamed arg name, so re-running is a no-op for it.
+  remapParameters();
+
   MDL::commitParameters();
+}
+
+void MaterialX::remapParameters()
+{
+  for (const auto &m : m_paramMap) {
+    if (m.cleanName == m.mdlArgName)
+      continue; // already 1:1
+    // Ambiguity guard: if two mappings share a cleanName, don't remap it.
+    bool ambiguous = false;
+    for (const auto &other : m_paramMap) {
+      if (&other != &m && other.cleanName == m.cleanName) {
+        ambiguous = true;
+        break;
+      }
+    }
+    if (ambiguous) {
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "MaterialX: clean parameter name '%s' is ambiguous; not remapping",
+          m.cleanName.c_str());
+      continue;
+    }
+    if (!hasParam(m.cleanName))
+      continue;
+    auto value = getParamDirect(m.cleanName);
+    setParamDirect(m.mdlArgName, value);
+    removeParam(m.cleanName);
+  }
 }
 
 bool MaterialX::getProperty(const std::string_view &name, ANARIDataType type,

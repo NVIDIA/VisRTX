@@ -44,11 +44,18 @@ std::vector<std::string> enumerateRenderableMaterials(
     const std::filesystem::path &mtlxFile,
     nonstd::span<const std::filesystem::path> librarySearchPaths);
 
+struct ParamMapping
+{
+  std::string cleanName;  // MaterialX input name (origin tail), e.g. "base_color"
+  std::string mdlArgName; // generated MDL arg name, e.g. "srf_base_color"
+};
+
 struct TranscodeResult
 {
   std::string mdlSource;
   std::string materialName;
   std::vector<std::string> available;
+  std::vector<ParamMapping> paramMap; // clean MaterialX name -> generated MDL arg
   std::string error;
 };
 
