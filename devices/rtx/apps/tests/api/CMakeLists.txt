@@ -103,6 +103,9 @@ if(VISRTX_ENABLE_MATERIALX_SUPPORT)
   target_compile_definitions(TestMaterialXMaterial PRIVATE
     USE_MATERIALX
     MATERIALX_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")
+  make_test(TestMaterialXMultiAndConcurrent)
+  target_compile_definitions(TestMaterialXMultiAndConcurrent PRIVATE
+    MATERIALX_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")
   make_test(TestMaterialXTranscoder)
   make_test(TestMaterialXRender)
   target_compile_definitions(TestMaterialXRender PRIVATE

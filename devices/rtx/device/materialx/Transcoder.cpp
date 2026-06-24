@@ -156,6 +156,10 @@ TranscodeResult transcodeMaterialXToMdl(
     mdlOptions->targetVersion = kMdlTargetVersion;
     context.pushUserData(mx::GenMdlOptions::GEN_CONTEXT_USER_DATA_KEY, mdlOptions);
 
+    // The single picked element is generated into its own MDL module, so the
+    // module exposes exactly one material — the bare name always resolves to a
+    // single overload in getFunctionDefinition; no ambiguity is possible even
+    // for multi-material .mtlx documents.
     auto shader = gen->generate(elem->getName(), elem, context);
     result.mdlSource = shader->getSourceCode(mx::Stage::PIXEL);
     result.materialName = shader->getName();
