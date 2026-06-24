@@ -144,6 +144,14 @@ Material::Material(Token subtype) : Object(ANARI_MATERIAL, subtype)
     addParameter("source")
         .setValue("::visrtx::default::diffuseWhite")
         .setDescription("MDL module name");
+  } else if (subtype == tokens::material::materialx) {
+    addParameter("source")
+        .setValue("")
+        .setDescription("Path to a .mtlx document (or a builtin like "
+                        "visrtx::standard_surface)");
+    addParameter("materialName")
+        .setValue("")
+        .setDescription("Material to select within the document");
   }
 }
 
@@ -158,12 +166,43 @@ anari::Object Material::makeANARIObject(anari::Device d) const
   return anari::newObject<anari::Material>(d, subtype().c_str());
 }
 
+void applyMaterialXStandardSurfacePreset(Material &m)
+{
+  m.setParameter("source", "visrtx::standard_surface");
+  m.setParameter("materialName", "StandardSurface");
+
+  auto addF = [&](const char *n, float v, float lo, float hi, const char *d) {
+    m.addParameter(n).setValue(v).setMin(lo).setMax(hi).setDescription(d);
+  };
+  auto addColor = [&](const char *n, float3 v, const char *d) {
+    m.addParameter(n)
+        .setValue(v)
+        .setUsage(ParameterUsageHint::COLOR)
+        .setDescription(d);
+  };
+
+  addF("base", 1.f, 0.f, 1.f, "diffuse weight");
+  addColor("base_color", float3(0.8f, 0.8f, 0.8f), "diffuse color");
+  addF("metalness", 0.f, 0.f, 1.f, "metalness");
+  addF("specular", 1.f, 0.f, 1.f, "specular weight");
+  addColor("specular_color", float3(1.f, 1.f, 1.f), "specular color");
+  addF("specular_roughness", 0.2f, 0.f, 1.f, "specular roughness");
+  addF("specular_IOR", 1.5f, 1.f, 3.f, "specular index of refraction");
+  addF("transmission", 0.f, 0.f, 1.f, "transmission weight");
+  addF("emission", 0.f, 0.f, 1.f, "emission weight");
+  addColor("emission_color", float3(1.f, 1.f, 1.f), "emission color");
+  addF("coat", 0.f, 0.f, 1.f, "coat weight");
+  addColor("opacity", float3(1.f, 1.f, 1.f),
+      "opacity (consumed monochromatically by standard_surface)");
+}
+
 namespace tokens::material {
 
 Token const matte = "matte";
 Token const physicallyBased = "physicallyBased";
 Token const physicallyBasedMDL = "physicallyBasedMDL";
 Token const mdl = "mdl";
+Token const materialx = "materialx";
 
 } // namespace tokens::material
 

@@ -234,14 +234,29 @@ static void buildUI_parameter_contextMenu(
                   tsd::scene::tokens::material::physicallyBased);
             }
 
-            if (ImGui::MenuItem("mdl")) {
-              m = scene.createObject<tsd::scene::Material>(
-                  tsd::scene::tokens::material::mdl);
+            if (ImGui::BeginMenu("MDL")) {
+              if (ImGui::MenuItem("mdl")) {
+                m = scene.createObject<tsd::scene::Material>(
+                    tsd::scene::tokens::material::mdl);
+              }
+              if (ImGui::MenuItem("physicallyBasedMDL")) {
+                m = scene.createObject<tsd::scene::Material>(
+                    tsd::scene::tokens::material::physicallyBasedMDL);
+              }
+              ImGui::EndMenu(); // "MDL"
             }
 
-            if (ImGui::MenuItem("physicallyBasedMDL")) {
-              m = scene.createObject<tsd::scene::Material>(
-                  tsd::scene::tokens::material::physicallyBasedMDL);
+            if (ImGui::BeginMenu("MaterialX")) {
+              if (ImGui::MenuItem("MaterialX")) {
+                m = scene.createObject<tsd::scene::Material>(
+                    tsd::scene::tokens::material::materialx);
+              }
+              if (ImGui::MenuItem("StandardSurface")) {
+                m = scene.createObject<tsd::scene::Material>(
+                    tsd::scene::tokens::material::materialx);
+                tsd::scene::applyMaterialXStandardSurfacePreset(*m);
+              }
+              ImGui::EndMenu(); // "MaterialX"
             }
 
             if (m)

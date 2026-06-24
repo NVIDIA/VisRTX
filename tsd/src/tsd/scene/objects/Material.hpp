@@ -29,12 +29,18 @@ struct Material : public Object
 
 using MaterialRef = ObjectPoolRef<Material>;
 
+// Configure a `materialx` Material as a default Autodesk standard_surface:
+// binds the builtin document and exposes a curated set of its inputs as
+// editable parameters (clean MaterialX names; the device remaps them).
+void applyMaterialXStandardSurfacePreset(Material &m);
+
 namespace tokens::material {
 
 extern const Token matte;
 extern const Token physicallyBased;
 extern const Token physicallyBasedMDL;
 extern const Token mdl;
+extern const Token materialx;
 
 } // namespace tokens::material
 
