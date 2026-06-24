@@ -105,12 +105,14 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     REQUIRE(serialized["shots"].child(0)->child("cameraRig") == nullptr);
     REQUIRE(serialized["shots"].child(0)->child("camera") == nullptr);
     REQUIRE(serialized["lightRigs"].child(0)->child("rootNode") == nullptr);
-    REQUIRE(serialized["cameraRigs"].child(0)->child("rig") != nullptr);
+    // v4: camera-rig keyframe data lives in cameras/<name>.tsd, not the manifest.
+    REQUIRE(serialized["cameraRigs"].child(0)->child("rig") == nullptr);
+    REQUIRE(serialized["cameraRigs"].child(0)->child("name") != nullptr);
 
     Project loaded;
     REQUIRE(nodeToProject(serialized, loaded));
 
-    THEN("IDs and keyframes survive round trip")
+    THEN("IDs and bindings survive the manifest round trip")
     {
       REQUIRE(loaded.datasets.size() == 1);
       REQUIRE(loaded.datasets.front().id == "dataset_0001");
@@ -125,18 +127,44 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
       REQUIRE(loaded.lightRigs.front().id == "lightRig_0001");
       REQUIRE(loaded.cameraRigs.size() == 1);
       REQUIRE(loaded.cameraRigs.front().id == "cameraRig_0001");
+      REQUIRE(loaded.cameraRigs.front().name == "Default Camera");
       REQUIRE(loaded.shots.front().renderSettings.rendererLibrary
           == "dummy_test_device");
       REQUIRE(loaded.shots.front().renderSettings.rendererObjectIndex == 7);
       REQUIRE(loaded.shots.front().renderSettings.rendererSubtype
           == "dummy_test_renderer");
-      REQUIRE(loaded.cameraRigs.front().rig.keyframes.size() == 1);
-      REQUIRE(loaded.cameraRigs.front().rig.keyframes.front().frame == 12);
-      REQUIRE(
-          loaded.cameraRigs.front().rig.keyframes.front().interpolationToNext
-          == CameraInterpolation::EaseOutIn);
     }
   }
+}
+
+SCENARIO("SciVis Studio camera rig files round-trip keyframe data",
+    "[SciVisStudio]")
+{
+  ShotCameraRig rig;
+  CameraKeyframe keyframe;
+  keyframe.frame = 12;
+  keyframe.name = "mid";
+  keyframe.manipulator.orbit.lookat = {1.f, 2.f, 3.f};
+  keyframe.interpolationToNext = CameraInterpolation::EaseOutIn;
+  rig.keyframes.push_back(keyframe);
+
+  const auto file =
+      std::filesystem::temp_directory_path() / "tsd_camera_rig_roundtrip.tsd";
+  std::filesystem::remove(file);
+
+  REQUIRE(exportCameraRigFile("Hero Cam", rig, file));
+
+  std::string name;
+  ShotCameraRig loaded;
+  REQUIRE(importCameraRigFile(file, name, loaded));
+
+  REQUIRE(name == "Hero Cam");
+  REQUIRE(loaded.keyframes.size() == 1);
+  REQUIRE(loaded.keyframes.front().frame == 12);
+  REQUIRE(loaded.keyframes.front().interpolationToNext
+      == CameraInterpolation::EaseOutIn);
+
+  std::filesystem::remove(file);
 }
 
 SCENARIO("SciVis Studio source file resolution prefers project-relative paths",
@@ -531,7 +559,19 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
     REQUIRE(projectNode["shots"].child(0)->child("cameraRig") == nullptr);
     REQUIRE(projectNode["shots"].child(0)->child("camera") == nullptr);
     REQUIRE(projectNode["lightRigs"].child(0)->child("rootNode") == nullptr);
-    REQUIRE(projectNode["cameraRigs"].child(0)->child("rig") != nullptr);
+    // v4: rig value data moved to standalone files.
+    REQUIRE(projectNode["cameraRigs"].child(0)->child("rig") == nullptr);
+
+    // The manifest's context must not carry the excluded light pool.
+    REQUIRE(manifest.root()["context"]["objectDB"].child("light") == nullptr);
+
+    // Each rig was written as its own portable file.
+    const auto cameraName =
+        projectNode["cameraRigs"].child(0)->child("name")->getValueAs<std::string>();
+    const auto lightName =
+        projectNode["lightRigs"].child(0)->child("name")->getValueAs<std::string>();
+    REQUIRE(std::filesystem::exists(root / "cameras" / (cameraName + ".tsd")));
+    REQUIRE(std::filesystem::exists(root / "lights" / (lightName + ".tsd")));
   }
 
   {
@@ -896,4 +936,237 @@ SCENARIO(
   auto *shot = selectShotForRender(project, "", false, input, output, error);
   REQUIRE(shot != nullptr);
   REQUIRE(shot->id == "shot_0001");
+}
+
+SCENARIO("SciVis Studio rig name validation", "[SciVisStudio]")
+{
+  GIVEN("Rig name format rules")
+  {
+    std::string error;
+    REQUIRE(validateRigName("Key Light", &error));
+    REQUIRE(validateRigName("rig-01 (imported)", &error));
+    REQUIRE(validateRigName("Default Copy", &error));
+
+    REQUIRE_FALSE(validateRigName("", &error));
+    REQUIRE_FALSE(error.empty());
+    REQUIRE_FALSE(validateRigName("bad/name", &error));
+    REQUIRE_FALSE(validateRigName("path\\sep", &error));
+    REQUIRE_FALSE(validateRigName(" leading", &error));
+    REQUIRE_FALSE(validateRigName("trailing ", &error));
+    REQUIRE_FALSE(validateRigName(".", &error));
+    REQUIRE_FALSE(validateRigName("with*star", &error));
+  }
+
+  GIVEN("Sanitization of arbitrary strings")
+  {
+    REQUIRE(sanitizeRigName("a/b*c") == "a_b_c");
+    REQUIRE(sanitizeRigName("  spaced  ") == "spaced");
+    REQUIRE(validateRigName(sanitizeRigName("weird:name?")));
+    REQUIRE(sanitizeRigName("") == "rig");
+    REQUIRE(sanitizeRigName("   ") == "rig");
+    REQUIRE(validateRigName(sanitizeRigName("///")));
+  }
+}
+
+SCENARIO("SciVis Studio rig rename enforces format and uniqueness",
+    "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  auto &project = projectContext.project();
+  auto *second = projectContext.createLightRig("Second");
+  REQUIRE(second != nullptr);
+  const auto defaultId = project.lightRigs.front().id;
+  const auto secondId = second->id;
+
+  std::string error;
+  WHEN("renaming to a valid, unused name")
+  {
+    REQUIRE(projectContext.renameLightRig(defaultId, "Studio Key", &error));
+    REQUIRE(project::findLightRig(project, defaultId)->name == "Studio Key");
+  }
+
+  WHEN("renaming to a name used by another rig (case-insensitive)")
+  {
+    REQUIRE_FALSE(projectContext.renameLightRig(defaultId, "second", &error));
+    REQUIRE_FALSE(error.empty());
+    REQUIRE(project::findLightRig(project, defaultId)->name == "Default");
+  }
+
+  WHEN("renaming a rig to its own current name")
+  {
+    REQUIRE(projectContext.renameLightRig(secondId, "Second", &error));
+    REQUIRE(project::findLightRig(project, secondId)->name == "Second");
+  }
+
+  WHEN("renaming to an invalid format")
+  {
+    REQUIRE_FALSE(projectContext.renameLightRig(defaultId, "bad/name", &error));
+    REQUIRE_FALSE(error.empty());
+  }
+}
+
+SCENARIO("SciVis Studio programmatic rig names are sanitized and unique",
+    "[SciVisStudio]")
+{
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+
+  auto *a = projectContext.createLightRig("weird/name");
+  REQUIRE(a != nullptr);
+  REQUIRE(validateRigName(a->name));
+
+  auto *b = projectContext.createLightRig("weird/name");
+  REQUIRE(b != nullptr);
+  REQUIRE(validateRigName(b->name));
+  REQUIRE(a->name != b->name);
+}
+
+SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
+    "[SciVisStudio]")
+{
+  const auto root =
+      std::filesystem::temp_directory_path() / "tsd_scivis_studio_v4_rigs";
+  std::filesystem::remove_all(root);
+
+  std::string defaultLightId;
+  std::string cameraRigId;
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    auto &project = projectContext.project();
+
+    // A second light rig with two lights, plus keyframe data on a camera rig.
+    auto *second = projectContext.createLightRig("Rim");
+    REQUIRE(second != nullptr);
+    projectContext.addLightToRig(*second, "directional");
+    projectContext.addLightToRig(*second, "point");
+
+    defaultLightId = project.lightRigs.front().id;
+
+    auto *cameraRig = &project.cameraRigs.front();
+    cameraRigId = cameraRig->id;
+    CameraKeyframe kf;
+    kf.frame = 7;
+    kf.manipulator.orbit.lookat = {4.f, 5.f, 6.f};
+    cameraRig->rig.keyframes.push_back(kf);
+
+    REQUIRE(projectContext.saveProject(root));
+
+    THEN("one file is written per rig")
+    {
+      REQUIRE(std::filesystem::exists(root / "cameras"));
+      REQUIRE(std::filesystem::exists(root / "lights"));
+      size_t lightFiles = 0;
+      for (auto &e : std::filesystem::directory_iterator(root / "lights"))
+        if (e.path().extension() == ".tsd")
+          ++lightFiles;
+      REQUIRE(lightFiles == project.lightRigs.size());
+    }
+  }
+
+  WHEN("the project is reopened")
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+
+    THEN("light rigs and their lights are restored from files")
+    {
+      REQUIRE(project.lightRigs.size() == 2);
+      LightRig *rim = nullptr;
+      for (auto &r : project.lightRigs) {
+        if (r.name == "Rim")
+          rim = &r;
+      }
+      REQUIRE(rim != nullptr);
+      auto rimRoot = projectContext.resolveLightRigRoot(*rim);
+      REQUIRE(rimRoot);
+      int lightCount = 0;
+      auto *layer = (*rimRoot)->layer();
+      layer->traverse(rimRoot, [&](auto &node, int) {
+        if (node->isObject() && node->type() == ANARI_LIGHT)
+          ++lightCount;
+        return true;
+      });
+      REQUIRE(lightCount == 2);
+    }
+
+    THEN("camera rig keyframes are restored from files")
+    {
+      auto *cameraRig = project::findCameraRig(project, cameraRigId);
+      REQUIRE(cameraRig != nullptr);
+      REQUIRE(cameraRig->rig.keyframes.size() == 1);
+      REQUIRE(cameraRig->rig.keyframes.front().frame == 7);
+    }
+  }
+
+  WHEN("a rig is renamed and the project is saved again")
+  {
+    std::string oldLightName;
+    {
+      tsd::app::Context appContext;
+      ProjectContext projectContext(&appContext);
+      REQUIRE(projectContext.openProject(root));
+      auto &project = projectContext.project();
+      auto *defaultRig = project::findLightRig(project, defaultLightId);
+      REQUIRE(defaultRig != nullptr);
+      oldLightName = defaultRig->name;
+      REQUIRE(projectContext.renameLightRig(defaultLightId, "Key Light"));
+      REQUIRE(projectContext.saveProject(root));
+    }
+
+    THEN("the stale rig file is reconciled away")
+    {
+      REQUIRE(std::filesystem::exists(root / "lights" / "Key Light.tsd"));
+      REQUIRE_FALSE(
+          std::filesystem::exists(root / "lights" / (oldLightName + ".tsd")));
+    }
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio tolerates a missing light rig file on open",
+    "[SciVisStudio]")
+{
+  const auto root =
+      std::filesystem::temp_directory_path() / "tsd_scivis_studio_missing_rig";
+  std::filesystem::remove_all(root);
+
+  std::string rimId;
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    auto *rim = projectContext.createLightRig("Rim");
+    REQUIRE(rim != nullptr);
+    projectContext.addLightToRig(*rim, "directional");
+    rimId = rim->id;
+    REQUIRE(projectContext.saveProject(root));
+  }
+
+  // Corrupt the project by deleting one rig's file.
+  std::filesystem::remove(root / "lights" / "Rim.tsd");
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+
+    THEN("the missing rig is skipped and the rest of the project opens")
+    {
+      REQUIRE(project::findLightRig(project, rimId) == nullptr);
+      REQUIRE_FALSE(project.lightRigs.empty()); // default rig survived
+    }
+  }
+
+  std::filesystem::remove_all(root);
 }

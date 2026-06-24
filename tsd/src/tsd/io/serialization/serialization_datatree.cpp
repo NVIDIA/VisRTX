@@ -14,6 +14,7 @@
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_closure.hpp"
 // std
 #include <algorithm>
 #include <stack>
@@ -132,11 +133,23 @@ static PayloadValidationResult validateScenePayloadImpl(core::DataNode &root,
   return result;
 }
 
+static bool isExcludedKey(
+    const std::vector<detail::ObjectKey> *excluded, const Object &obj)
+{
+  if (!excluded)
+    return false;
+  const auto key = detail::makeKey(obj.type(), obj.index());
+  return std::any_of(excluded->begin(), excluded->end(), [&](const auto &k) {
+    return detail::sameKey(k, key);
+  });
+}
+
 template <typename OBJECT_POOL_T>
 static void objectPoolToNode(core::DataNode &objPoolRoot,
     const OBJECT_POOL_T &objPool,
     const char *poolName,
-    bool forceProxyArrays)
+    bool forceProxyArrays,
+    const std::vector<detail::ObjectKey> *excluded = nullptr)
 {
   if (objPool.empty())
     return;
@@ -144,12 +157,15 @@ static void objectPoolToNode(core::DataNode &objPoolRoot,
   tsd::core::logStatus(
       "    ...serializing %zu %s objects", size_t(objPool.size()), poolName);
 
-  auto &childNode = objPoolRoot[poolName];
+  // Create the pool node lazily so a pool whose objects are all excluded leaves
+  // no empty node behind.
+  core::DataNode *childNode = nullptr;
   foreach_item_const(objPool, [&](const auto *obj) {
-    if (!obj)
+    if (!obj || isExcludedKey(excluded, *obj))
       return;
-    auto &m = childNode.append();
-    objectToNode(*obj, m, forceProxyArrays);
+    if (!childNode)
+      childNode = &objPoolRoot[poolName];
+    objectToNode(*obj, childNode->append(), forceProxyArrays);
   });
 }
 
@@ -467,14 +483,30 @@ void layerToNode(const Layer &layer, core::DataNode &node)
   layerSubtreeToNode(layer, layer.root(), node);
 }
 
-void layerSubtreeToNode(
-    const Layer &layer, LayerNodeRef start, core::DataNode &node)
+// Serialize a layer subtree, optionally pruning a set of excluded subtree roots
+// (and everything beneath them). Excluded nodes are never emitted, so the
+// emitted hierarchy stays self-consistent for the level-tracking bookkeeping.
+static void layerSubtreeToNodeImpl(const Layer &layer,
+    LayerNodeRef start,
+    core::DataNode &node,
+    const std::vector<LayerNodeRef> *excluded)
 {
+  auto isExcludedNode = [&](const LayerNode &tsdNode) {
+    if (!excluded)
+      return false;
+    return std::any_of(excluded->begin(), excluded->end(), [&](LayerNodeRef r) {
+      return r && &(*r) == &tsdNode;
+    });
+  };
+
   std::stack<core::DataNode *> nodes;
   core::DataNode *currentParentNode = nullptr;
   core::DataNode *currentNode = &node;
   int currentLevel = -1;
   layer.traverse_const(start, [&](const LayerNode &tsdNode, int level) {
+    if (isExcludedNode(tsdNode))
+      return false; // prune this subtree without emitting it
+
     if (currentLevel < level) {
       nodes.push(currentNode);
       currentParentNode = currentNode;
@@ -501,6 +533,12 @@ void layerSubtreeToNode(
 
     return true;
   });
+}
+
+void layerSubtreeToNode(
+    const Layer &layer, LayerNodeRef start, core::DataNode &node)
+{
+  layerSubtreeToNodeImpl(layer, start, node, nullptr);
 }
 
 void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
@@ -677,6 +715,331 @@ void nodeToAnimationManager(
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+// Scene-save exclusion helpers ///////////////////////////////////////////////
+
+// Visit every Object in the Scene's objectDB, pool by pool.
+template <typename FCN>
+static void forEachSceneObject(Scene &scene, FCN &&fn)
+{
+  auto &db = scene.objectDB();
+  auto pool = [&](auto &p) {
+    foreach_item_const(p, [&](const auto *o) {
+      if (o)
+        fn(*static_cast<const Object *>(o));
+    });
+  };
+  pool(db.geometry);
+  pool(db.sampler);
+  pool(db.material);
+  pool(db.surface);
+  pool(db.field);
+  pool(db.volume);
+  pool(db.light);
+  pool(db.camera);
+  pool(db.renderer);
+  pool(db.array);
+}
+
+// Visit every object reference held by an object's parameters and metadata.
+template <typename FCN>
+static void forEachObjectRef(const Object &obj, FCN &&fn)
+{
+  for (size_t p = 0; p < obj.numParameters(); p++) {
+    const auto &param = obj.parameterAt(p);
+    if (param.value().holdsObject())
+      fn(param.value());
+    if (param.hasMin() && param.min().holdsObject())
+      fn(param.min());
+    if (param.hasMax() && param.max().holdsObject())
+      fn(param.max());
+  }
+  for (size_t m = 0; m < obj.numMetadata(); m++) {
+    const auto *name = obj.getMetadataName(m);
+    anari::DataType arrayType = ANARI_UNKNOWN;
+    const void *arrayPtr = nullptr;
+    size_t arraySize = 0;
+    obj.getMetadataArray(name, &arrayType, &arrayPtr, &arraySize);
+    if (arrayType != ANARI_UNKNOWN)
+      continue;
+    if (auto v = obj.getMetadataValue(name); v.holdsObject())
+      fn(v);
+  }
+}
+
+static bool keySetContains(
+    const std::vector<detail::ObjectKey> &keys, const detail::ObjectKey &key)
+{
+  return std::any_of(keys.begin(), keys.end(), [&](const auto &k) {
+    return detail::sameKey(k, key);
+  });
+}
+
+// Gather the light objects (and instance-parameter objects) seeded by the
+// excluded subtrees, then close over the arrays they reference (lightRigPolicy).
+// Arrays still referenced by *retained* objects are rescued so the saved scene
+// keeps a valid reference graph. Sets *ok=false if the closure could not be
+// built (the caller then excludes nothing, keeping the payload self-consistent).
+static std::vector<detail::ObjectKey> computeExcludedObjects(
+    Scene &scene, const std::vector<LayerNodeRef> &excludedSubtrees, bool &ok)
+{
+  ok = true;
+  std::vector<detail::ObjectKey> excluded;
+
+  std::vector<Object *> seeds;
+  for (auto root : excludedSubtrees) {
+    if (!root)
+      continue;
+    auto *layer = (*root).value().layer();
+    if (!layer)
+      continue;
+    layer->traverse_const(root, [&](const LayerNode &tsdNode, int) {
+      if (tsdNode->isObject()) {
+        if (auto *o = tsdNode->getObject())
+          seeds.push_back(o);
+      }
+      for (const auto &p : tsdNode->getInstanceParameters()) {
+        if (p.second.holdsObject()) {
+          if (auto *o = scene.getObject(p.second))
+            seeds.push_back(o);
+        }
+      }
+      return true;
+    });
+  }
+
+  if (seeds.empty())
+    return excluded;
+
+  std::vector<detail::ClosureEntry> entries;
+  std::string err;
+  if (!detail::buildClosure(scene,
+          seeds,
+          detail::lightRigPolicy(),
+          detail::ObjectKey{},
+          entries,
+          err)) {
+    tsd::core::logWarning(
+        "[save_Scene] could not compute light-rig exclusion closure (%s); "
+        "saving the whole scene inline",
+        err.c_str());
+    ok = false;
+    return {};
+  }
+
+  for (const auto &e : entries)
+    excluded.push_back(e.source);
+
+  // Rescue any excluded array that a retained object still references. Repeat to
+  // a fixed point so a rescued array's own references are honored too.
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    forEachSceneObject(scene, [&](const Object &obj) {
+      if (keySetContains(excluded, detail::makeKey(obj.type(), obj.index())))
+        return; // an excluded object's references do not keep things alive
+      forEachObjectRef(obj, [&](const Any &ref) {
+        const auto key = detail::makeKey(ref);
+        auto it = std::find_if(excluded.begin(),
+            excluded.end(),
+            [&](const auto &k) { return detail::sameKey(k, key); });
+        if (it != excluded.end()) {
+          excluded.erase(it);
+          changed = true;
+        }
+      });
+    });
+  }
+
+  return excluded;
+}
+
+// Dense per-pool index assigned to a retained object on reload.
+struct ObjectIndexRemap
+{
+  detail::ObjectKey key;
+  size_t newIndex{0};
+};
+
+// Mirror the objectPoolToNode write order to assign each retained object the
+// dense per-pool index it will receive when load_Scene recreates the pool.
+static std::vector<ObjectIndexRemap> buildObjectRemap(
+    Scene &scene, const std::vector<detail::ObjectKey> &excluded)
+{
+  std::vector<ObjectIndexRemap> remap;
+  auto addPool = [&](auto &pool) {
+    size_t newIndex = 0;
+    foreach_item_const(pool, [&](const auto *o) {
+      if (!o)
+        return;
+      const Object &obj = *static_cast<const Object *>(o);
+      const auto key = detail::makeKey(obj.type(), obj.index());
+      if (keySetContains(excluded, key))
+        return;
+      remap.push_back({key, newIndex++});
+    });
+  };
+  auto &db = scene.objectDB();
+  addPool(db.geometry);
+  addPool(db.sampler);
+  addPool(db.material);
+  addPool(db.surface);
+  addPool(db.field);
+  addPool(db.volume);
+  addPool(db.light);
+  addPool(db.camera);
+  addPool(db.renderer);
+  addPool(db.array);
+  return remap;
+}
+
+// Rewrite every scalar object reference (and object self-id) in a serialized
+// subtree from its current Scene index to the dense reload index.
+static void remapObjectRefs(
+    core::DataNode &root, const std::vector<ObjectIndexRemap> &remap)
+{
+  root.traverse([&](core::DataNode &node, int) {
+    if (!node.holdsObjectIdx())
+      return true;
+
+    anari::DataType type = ANARI_UNKNOWN;
+    size_t index = tsd::core::INVALID_INDEX;
+    node.getValueAsObjectIdx(&type, &index);
+
+    const auto key = detail::makeKey(type, index);
+    auto it = std::find_if(remap.begin(), remap.end(), [&](const auto &e) {
+      return detail::sameKey(e.key, key);
+    });
+    if (it == remap.end()) {
+      tsd::core::logError(
+          "[save_Scene] dropping serialized reference to excluded object %s @%zu",
+          anari::toString(type),
+          index);
+      return true;
+    }
+    node.setValue(Any(type, it->newIndex));
+    return true;
+  });
+}
+
+// Look up the dense reload index for a (type, index) object; returns
+// INVALID_INDEX if the object was excluded or has no mapping.
+static size_t remappedObjectIndex(const std::vector<ObjectIndexRemap> &remap,
+    anari::DataType type,
+    size_t index)
+{
+  if (index == tsd::core::INVALID_INDEX || type == ANARI_UNKNOWN)
+    return index;
+  const auto key = detail::makeKey(type, index);
+  auto it = std::find_if(remap.begin(), remap.end(), [&](const auto &e) {
+    return detail::sameKey(e.key, key);
+  });
+  return it == remap.end() ? tsd::core::INVALID_INDEX : it->newIndex;
+}
+
+// Per-layer remap of live layer-node indices to the dense indices the nodes
+// receive when nodeToLayer rebuilds the (pruned) layer in document order.
+struct LayerNodeRemap
+{
+  std::string layerName;
+  std::vector<std::pair<size_t, size_t>> indices; // live -> reload
+};
+
+// Mirror layerSubtreeToNodeImpl's emit order (pre-order, skipping excluded
+// subtrees) to compute each retained node's reload index. The root is index 0,
+// matching the freshly constructed layer root that nodeToLayer reuses.
+static std::vector<LayerNodeRemap> buildLayerNodeRemaps(
+    Scene &scene, const std::vector<LayerNodeRef> &excludedNodes)
+{
+  auto isExcluded = [&](const LayerNode &tsdNode) {
+    return std::any_of(excludedNodes.begin(),
+        excludedNodes.end(),
+        [&](LayerNodeRef r) { return r && &(*r) == &tsdNode; });
+  };
+
+  std::vector<LayerNodeRemap> remaps;
+  for (auto l : scene.layers()) {
+    if (!l.second.ptr)
+      continue;
+    LayerNodeRemap remap;
+    remap.layerName = l.first.c_str();
+    size_t reloadIndex = 0;
+    l.second.ptr->traverse_const(
+        l.second.ptr->root(), [&](const LayerNode &tsdNode, int) {
+          if (isExcluded(tsdNode))
+            return false; // pruned: not emitted, not counted
+          remap.indices.emplace_back(tsdNode.index(), reloadIndex++);
+          return true;
+        });
+    remaps.push_back(std::move(remap));
+  }
+  return remaps;
+}
+
+static size_t remappedLayerNodeIndex(const std::vector<LayerNodeRemap> &remaps,
+    const std::string &layerName,
+    size_t index)
+{
+  for (const auto &r : remaps) {
+    if (r.layerName != layerName)
+      continue;
+    for (const auto &pair : r.indices) {
+      if (pair.first == index)
+        return pair.second;
+    }
+    return tsd::core::INVALID_INDEX; // node was pruned
+  }
+  return index; // layer not remapped
+}
+
+// Animation bindings store absolute object/layer-node indices as plain scalars
+// (see ObjectParameterBinding/TransformBinding/*FileBinding::toDataNode), so the
+// generic ref remap cannot reach them. Rewrite them here to match the dense
+// indices the excluded payload reloads with.
+static void remapAnimationBindings(core::DataNode &animationsNode,
+    const std::vector<ObjectIndexRemap> &objectRemap,
+    const std::vector<LayerNodeRemap> &layerRemaps)
+{
+  auto *objects = animationsNode.child("objects");
+  if (!objects)
+    return;
+
+  objects->foreach_child([&](core::DataNode &anim) {
+    if (auto *bindings = anim.child("objectBindings")) {
+      bindings->foreach_child([&](core::DataNode &b) {
+        const auto type =
+            static_cast<anari::DataType>(b["targetType"].getValueOr<int>(
+                ANARI_UNKNOWN));
+        const auto idx =
+            b["targetIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
+        b["targetIndex"] = remappedObjectIndex(objectRemap, type, idx);
+      });
+    }
+
+    if (auto *bindings = anim.child("fileBindings")) {
+      bindings->foreach_child([&](core::DataNode &b) {
+        // Currently only spatialField file bindings carry an object target.
+        if (auto *idxNode = b.child("targetIndex")) {
+          const auto idx = idxNode->getValueOr<size_t>(tsd::core::INVALID_INDEX);
+          b["targetIndex"] =
+              remappedObjectIndex(objectRemap, ANARI_VOLUME, idx);
+        }
+      });
+    }
+
+    if (auto *bindings = anim.child("transformBindings")) {
+      bindings->foreach_child([&](core::DataNode &b) {
+        auto *layerNode = b.child("layerName");
+        auto *idxNode = b.child("nodeIndex");
+        if (!layerNode || !idxNode)
+          return;
+        const auto layerName = layerNode->getValueAs<std::string>();
+        const auto idx = idxNode->getValueOr<size_t>(tsd::core::INVALID_INDEX);
+        b["nodeIndex"] = remappedLayerNodeIndex(layerRemaps, layerName, idx);
+      });
+    }
+  });
+}
+
 void save_Scene(Scene &scene, const char *filename)
 {
   tsd::core::logStatus("Saving context to file: %s", filename);
@@ -693,6 +1056,14 @@ void save_Scene(Scene &scene,
     bool forceProxyArrays,
     tsd::animation::AnimationManager *animMgr)
 {
+  SaveSceneOptions options;
+  options.forceProxyArrays = forceProxyArrays;
+  options.animMgr = animMgr;
+  save_Scene(scene, root, options);
+}
+
+void save_Scene(Scene &scene, core::DataNode &root, const SaveSceneOptions &options)
+{
   core::writeDataTreeMetadata(root,
       {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
           "scene",
@@ -700,6 +1071,20 @@ void save_Scene(Scene &scene,
           1});
 
   scene.defragmentObjectStorage(); // ensure contiguous object indices
+
+  // Compute the exclusion. If the closure cannot be built we exclude nothing
+  // (objects AND subtrees both inline) so the payload stays self-consistent.
+  bool exclusionOk = true;
+  std::vector<detail::ObjectKey> excluded;
+  if (!options.excludedSubtrees.empty())
+    excluded =
+        computeExcludedObjects(scene, options.excludedSubtrees, exclusionOk);
+  const bool doExclude = !options.excludedSubtrees.empty() && exclusionOk;
+
+  const std::vector<detail::ObjectKey> *excludedObjects =
+      (doExclude && !excluded.empty()) ? &excluded : nullptr;
+  const std::vector<LayerNodeRef> *excludedNodes =
+      doExclude ? &options.excludedSubtrees : nullptr;
 
   // Layers //
 
@@ -709,29 +1094,46 @@ void save_Scene(Scene &scene,
   for (auto l : scene.layers()) {
     if (l.second.ptr) {
       auto &layerRoot = layersRoot[l.first.c_str()];
-      layerToNode(*l.second.ptr, layerRoot);
+      layerSubtreeToNodeImpl(
+          *l.second.ptr, l.second.ptr->root(), layerRoot, excludedNodes);
       layerRoot["isActive"] = l.second.active;
     }
   }
 
   // ObjectDB //
 
+  const bool fp = options.forceProxyArrays;
+  auto &db = scene.objectDB();
   auto &objectDB = root["objectDB"];
-  objectPoolToNode(objectDB, scene.m_db.geometry, "geometry", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.sampler, "sampler", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.material, "material", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.surface, "surface", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.field, "spatialfield", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.volume, "volume", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.light, "light", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.camera, "camera", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.renderer, "renderer", forceProxyArrays);
-  objectPoolToNode(objectDB, scene.m_db.array, "array", forceProxyArrays);
+  objectPoolToNode(objectDB, db.geometry, "geometry", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.sampler, "sampler", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.material, "material", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.surface, "surface", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.field, "spatialfield", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.volume, "volume", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.light, "light", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.camera, "camera", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.renderer, "renderer", fp, excludedObjects);
+  objectPoolToNode(objectDB, db.array, "array", fp, excludedObjects);
 
-  // Animations //
+  // Animations are serialized before the remap so the remap can rewrite the
+  // absolute object/layer-node indices the bindings store.
+  if (options.animMgr)
+    animationManagerToNode(*options.animMgr, root["animations"]);
 
-  if (animMgr)
-    animationManagerToNode(*animMgr, root["animations"]);
+  // Excluding objects and pruning subtrees shifts retained per-pool object
+  // indices and layer-node indices; rewrite every serialized reference, object
+  // self-id, and animation binding to the dense index it reloads with.
+  if (doExclude) {
+    const auto objectRemap = buildObjectRemap(scene, excluded);
+    remapObjectRefs(objectDB, objectRemap);
+    remapObjectRefs(layersRoot, objectRemap);
+    if (auto *animationsNode = root.child("animations")) {
+      const auto layerRemaps =
+          buildLayerNodeRemaps(scene, options.excludedSubtrees);
+      remapAnimationBindings(*animationsNode, objectRemap, layerRemaps);
+    }
+  }
 }
 
 void save_SceneCamerasAndRenderers(Scene &scene, const char *filename)

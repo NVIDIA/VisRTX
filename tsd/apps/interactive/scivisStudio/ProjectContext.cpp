@@ -13,6 +13,7 @@
 #include "tsd/scene/objects/Light.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <filesystem>
 #include <vector>
@@ -44,15 +45,27 @@ static bool hasChildNodes(tsd::scene::LayerNodeRef parent)
   return child && child != parent;
 }
 
-// Produce a rig name that does not collide with any existing rig, mirroring the
-// " Copy" convention used when cloning rigs.
+// Rig names are compared case-insensitively because they map to on-disk
+// filenames (which collide case-insensitively on Windows/macOS).
+static bool rigNamesEqual(const std::string &a, const std::string &b)
+{
+  if (a.size() != b.size())
+    return false;
+  return std::equal(a.begin(), a.end(), b.begin(), [](char x, char y) {
+    return std::tolower(static_cast<unsigned char>(x))
+        == std::tolower(static_cast<unsigned char>(y));
+  });
+}
+
+// Produce a rig name that does not collide (case-insensitively) with any
+// existing rig, mirroring the " Copy" convention used when cloning rigs.
 template <typename RigT>
 static std::string uniqueRigName(
     const std::vector<RigT> &rigs, const std::string &desired)
 {
   auto taken = [&](const std::string &candidate) {
     return std::any_of(rigs.begin(), rigs.end(), [&](const RigT &rig) {
-      return rig.name == candidate;
+      return rigNamesEqual(rig.name, candidate);
     });
   };
 
@@ -63,6 +76,113 @@ static std::string uniqueRigName(
   for (int n = 2; taken(candidate); ++n)
     candidate = desired + " (imported " + std::to_string(n) + ")";
   return candidate;
+}
+
+// Combine sanitize + de-duplication so programmatic names are always valid
+// filenames that do not collide with an existing rig.
+template <typename RigT>
+static std::string makeValidUniqueRigName(
+    const std::vector<RigT> &rigs, const std::string &desired)
+{
+  return uniqueRigName(rigs, sanitizeRigName(desired));
+}
+
+// Shared rename logic: validate the format and reject names already taken by a
+// *different* rig in the same collection (case-insensitive).
+template <typename RigT, typename IdT>
+static bool renameRigImpl(std::vector<RigT> &rigs,
+    const IdT &id,
+    const std::string &newName,
+    std::string *error)
+{
+  auto itr = std::find_if(
+      rigs.begin(), rigs.end(), [&](const RigT &rig) { return rig.id == id; });
+  if (itr == rigs.end()) {
+    if (error)
+      *error = "rig not found";
+    return false;
+  }
+
+  if (!validateRigName(newName, error))
+    return false;
+
+  for (const auto &rig : rigs) {
+    if (&rig != &*itr && rigNamesEqual(rig.name, newName)) {
+      if (error)
+        *error = "another rig already uses that name";
+      return false;
+    }
+  }
+
+  itr->name = newName;
+  return true;
+}
+
+// Coerce every rig name to a valid, case-insensitively-unique filename stem.
+// Idempotent for already-valid names; rescues legacy/free-form names on save.
+template <typename RigT>
+static void normalizeRigNames(std::vector<RigT> &rigs)
+{
+  std::vector<std::string> assigned;
+  for (auto &rig : rigs) {
+    const std::string base = sanitizeRigName(rig.name);
+    std::string candidate = base;
+    for (int n = 2; std::any_of(assigned.begin(),
+             assigned.end(),
+             [&](const std::string &a) { return rigNamesEqual(a, candidate); });
+         ++n)
+      candidate = base + " (" + std::to_string(n) + ")";
+    rig.name = candidate;
+    assigned.push_back(candidate);
+  }
+}
+
+// True if file is a TSD rig file tagged with the given fileType/schema. Used to
+// avoid deleting unrelated ".tsd" files during reconcile.
+static bool isRigFileOfType(const std::filesystem::path &file,
+    const char *expectedFileType,
+    const char *expectedSchema)
+{
+  tsd::core::DataTree tree;
+  if (!tree.load(file.string().c_str()))
+    return false;
+  auto metadata = tsd::core::readDataTreeMetadata(tree.root());
+  if (!metadata.found())
+    return false;
+  const auto &m = *metadata.metadata;
+  return m.fileType == expectedFileType && m.schema == expectedSchema;
+}
+
+// Delete rig files in dir whose stem is not in keepStems (case-insensitive).
+// Only files we recognize as our own rig type are ever removed, so unrelated
+// ".tsd" files dropped in the folder are left untouched. Callers must have
+// already written the current rig files (write-before-delete).
+static void removeStaleRigFiles(const std::filesystem::path &dir,
+    const std::vector<std::string> &keepStems,
+    const char *expectedFileType,
+    const char *expectedSchema)
+{
+  std::error_code ec;
+  for (const auto &entry : std::filesystem::directory_iterator(dir, ec)) {
+    if (ec)
+      break;
+    const auto &path = entry.path();
+    if (!entry.is_regular_file(ec) || path.extension() != ".tsd")
+      continue;
+    const auto stem = path.stem().string();
+    const bool keep = std::any_of(keepStems.begin(),
+        keepStems.end(),
+        [&](const std::string &s) { return rigNamesEqual(s, stem); });
+    if (keep)
+      continue;
+    if (!isRigFileOfType(path, expectedFileType, expectedSchema)) {
+      tsd::core::logWarning(
+          "[SciVisStudio] Leaving unrecognized file in rig directory: %s",
+          path.string().c_str());
+      continue;
+    }
+    std::filesystem::remove(path, ec);
+  }
 }
 
 ProjectContext::ProjectContext(tsd::app::Context *ctx) : m_ctx(ctx)
@@ -238,9 +358,10 @@ LightRig *ProjectContext::createLightRig(const std::string &name)
 
   LightRig rig;
   rig.id = project::nextLightRigId(m_project);
-  rig.name = name.empty()
-      ? ("Light Rig " + std::to_string(m_project.lightRigs.size() + 1))
-      : name;
+  rig.name = makeValidUniqueRigName(m_project.lightRigs,
+      name.empty()
+          ? ("Light Rig " + std::to_string(m_project.lightRigs.size() + 1))
+          : name);
 
   auto rigRoot = ensureChild(ensureLightRigsRoot(), rig.id.c_str());
   rig.rootNode = refFor("studio", rigRoot);
@@ -264,7 +385,8 @@ LightRig *ProjectContext::cloneLightRig(const LightRigID &id)
 
   LightRig clone;
   clone.id = project::nextLightRigId(m_project);
-  clone.name = source->name.empty() ? "Light Rig Copy" : source->name + " Copy";
+  clone.name = makeValidUniqueRigName(m_project.lightRigs,
+      source->name.empty() ? "Light Rig Copy" : source->name + " Copy");
 
   auto &scene = m_ctx->tsd.scene;
   auto lightRigsRoot = ensureLightRigsRoot();
@@ -287,9 +409,10 @@ CameraRig *ProjectContext::createCameraRig(const std::string &name)
 {
   CameraRig rig;
   rig.id = project::nextCameraRigId(m_project);
-  rig.name = name.empty()
-      ? ("Camera Rig " + std::to_string(m_project.cameraRigs.size() + 1))
-      : name;
+  rig.name = makeValidUniqueRigName(m_project.cameraRigs,
+      name.empty()
+          ? ("Camera Rig " + std::to_string(m_project.cameraRigs.size() + 1))
+          : name);
   if (m_ctx)
     rig.rig.current = shot_camera_rig::manipulatorStateFromManipulator(
         m_ctx->view.manipulator);
@@ -394,7 +517,7 @@ CameraRig *ProjectContext::importCameraRig(
 
   CameraRig rig;
   rig.id = project::nextCameraRigId(m_project);
-  rig.name = uniqueRigName(
+  rig.name = makeValidUniqueRigName(
       m_project.cameraRigs, name.empty() ? "Imported Camera Rig" : name);
   rig.rig = std::move(rigData);
   m_project.cameraRigs.push_back(std::move(rig));
@@ -468,7 +591,7 @@ LightRig *ProjectContext::importLightRig(
     return nullptr;
   }
 
-  rig.name = uniqueRigName(
+  rig.name = makeValidUniqueRigName(
       m_project.lightRigs, name.empty() ? "Imported Light Rig" : name);
   rig.rootNode = refFor("studio", splicedRoot);
   m_project.lightRigs.push_back(std::move(rig));
@@ -519,6 +642,24 @@ bool ProjectContext::removeCameraRig(const CameraRigID &id)
   m_project.cameraRigs.erase(itr);
   m_project.markDirty();
   applyActiveShot();
+  return true;
+}
+
+bool ProjectContext::renameLightRig(
+    const LightRigID &id, const std::string &newName, std::string *error)
+{
+  if (!renameRigImpl(m_project.lightRigs, id, newName, error))
+    return false;
+  m_project.markDirty();
+  return true;
+}
+
+bool ProjectContext::renameCameraRig(
+    const CameraRigID &id, const std::string &newName, std::string *error)
+{
+  if (!renameRigImpl(m_project.cameraRigs, id, newName, error))
+    return false;
+  m_project.markDirty();
   return true;
 }
 
@@ -959,6 +1100,71 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
         ? std::string("Untitled")
         : directory.filename().string();
 
+  // Each rig is stored as its own portable "<name>.tsd". Normalize names so they
+  // map to safe, unique filenames before any file is written.
+  normalizeRigNames(m_project.cameraRigs);
+  normalizeRigNames(m_project.lightRigs);
+
+  const auto camerasDir = directory / "cameras";
+  const auto lightsDir = directory / "lights";
+  std::filesystem::create_directories(camerasDir, ec);
+  if (ec) {
+    if (error)
+      *error = "failed to create cameras directory: " + ec.message();
+    return false;
+  }
+  std::filesystem::create_directories(lightsDir, ec);
+  if (ec) {
+    if (error)
+      *error = "failed to create lights directory: " + ec.message();
+    return false;
+  }
+
+  // Write every rig file first and abort the whole save on any failure, before
+  // touching the existing manifest or deleting stale files.
+  std::vector<std::string> cameraStems;
+  for (const auto &rig : m_project.cameraRigs) {
+    const auto file = camerasDir / (rig.name + ".tsd");
+    std::string rigError;
+    if (!exportCameraRigFile(rig.name, rig.rig, file, &rigError)) {
+      if (error)
+        *error = "failed to write camera rig '" + rig.name + "': " + rigError;
+      return false;
+    }
+    cameraStems.push_back(rig.name);
+  }
+
+  std::vector<std::string> lightStems;
+  std::vector<tsd::scene::LayerNodeRef> lightRigRoots;
+  for (auto &rig : m_project.lightRigs) {
+    auto rigRoot = resolveLightRigRoot(rig);
+    if (!rigRoot) {
+      if (error)
+        *error = "light rig '" + rig.name + "' has no scene node";
+      return false;
+    }
+    const auto file = lightsDir / (rig.name + ".tsd");
+    const tsd::io::SubtreeIODesc desc{
+        LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, /*lightsOnly=*/true};
+    if (!tsd::io::export_Subtree(
+            file.string().c_str(), rigRoot, desc, rig.name)) {
+      if (error)
+        *error =
+            "failed to write light rig '" + rig.name + "' (see log for details)";
+      return false;
+    }
+    lightStems.push_back(rig.name);
+    lightRigRoots.push_back(rigRoot);
+  }
+
+  // Reconcile: drop rig files that no longer correspond to a current rig.
+  removeStaleRigFiles(
+      camerasDir, cameraStems, CAMERA_RIG_FILE_TYPE, CAMERA_RIG_SCHEMA);
+  removeStaleRigFiles(
+      lightsDir, lightStems, LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA);
+
+  // Build the manifest. Camera-rig value data and light-rig subtrees now live in
+  // their own files, so they are dropped from the manifest payload.
   tsd::core::DataTree tree;
   auto &root = tree.root();
   tsd::core::writeDataTreeMetadata(root,
@@ -967,8 +1173,11 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
           PROJECT_SCHEMA,
           SCHEMA_VERSION});
   projectToNode(m_project, root["scivisStudio"]);
-  tsd::io::save_Scene(
-      m_ctx->tsd.scene, root["context"], false, &m_ctx->tsd.animationMgr);
+
+  tsd::io::SaveSceneOptions sceneOptions;
+  sceneOptions.animMgr = &m_ctx->tsd.animationMgr;
+  sceneOptions.excludedSubtrees = std::move(lightRigRoots);
+  tsd::io::save_Scene(m_ctx->tsd.scene, root["context"], sceneOptions);
 
   if (windows)
     root["windows"] = *windows;
@@ -977,6 +1186,8 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
   if (settings)
     root["settings"] = *settings;
 
+  // project.tsd is written last so a partial rig-file failure never leaves a
+  // manifest that points at files we did not finish writing.
   if (!tree.save(manifest.string().c_str())) {
     if (error)
       *error = "failed to write project.tsd";
@@ -1034,6 +1245,11 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
       : root["schemaVersion"].getValueOr<int>(1);
   if (loadedSchemaVersion < 2)
     migrateLegacyShotLightsToLightRigs();
+  if (loadedSchemaVersion >= 4) {
+    // v4 stores rigs as standalone files; the manifest only carries ids+names.
+    loadCameraRigFiles(directory / "cameras");
+    loadLightRigFiles(directory / "lights");
+  }
   if (!m_project.shots.empty()) {
     CameraRig *defaultCameraRig = nullptr;
     if (m_project.cameraRigs.empty()) {
@@ -1077,6 +1293,80 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
   tsd::core::logStatus(
       "[SciVisStudio] Opened project '%s'", directory.string().c_str());
   return true;
+}
+
+void ProjectContext::loadCameraRigFiles(
+    const std::filesystem::path &camerasDir)
+{
+  std::vector<CameraRig> kept;
+  kept.reserve(m_project.cameraRigs.size());
+  for (auto &rig : m_project.cameraRigs) {
+    const auto file = camerasDir / (rig.name + ".tsd");
+    std::string name;
+    ShotCameraRig data;
+    std::string err;
+    if (!importCameraRigFile(file, name, data, &err)) {
+      tsd::core::logWarning(
+          "[SciVisStudio] Skipping camera rig '%s': %s",
+          rig.name.c_str(),
+          err.c_str());
+      for (auto &shot : m_project.shots) {
+        if (shot.cameraRigId == rig.id)
+          shot.cameraRigId.clear();
+      }
+      continue;
+    }
+    rig.rig = std::move(data);
+    kept.push_back(std::move(rig));
+  }
+  m_project.cameraRigs = std::move(kept);
+}
+
+void ProjectContext::loadLightRigFiles(const std::filesystem::path &lightsDir)
+{
+  if (!m_ctx)
+    return;
+
+  auto &scene = m_ctx->tsd.scene;
+  const tsd::io::SubtreeIODesc desc{
+      LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, /*lightsOnly=*/true};
+
+  std::vector<LightRig> kept;
+  kept.reserve(m_project.lightRigs.size());
+  for (auto &rig : m_project.lightRigs) {
+    const auto file = lightsDir / (rig.name + ".tsd");
+    std::error_code ec;
+    const bool readable = std::filesystem::is_regular_file(file, ec) && !ec;
+
+    tsd::scene::LayerNodeRef spliced;
+    if (readable) {
+      auto lightRigsRoot = ensureLightRigsRoot();
+      scene.beginLayerEditBatch();
+      std::string name;
+      spliced = tsd::io::import_Subtree(
+          scene, file.string().c_str(), lightRigsRoot, desc, &name);
+      if (spliced)
+        (*spliced)->name() = rig.id; // resolveLightRigRoot keys on node==rig.id
+      scene.endLayerEditBatch();
+    }
+
+    if (!spliced) {
+      tsd::core::logWarning(
+          "[SciVisStudio] Skipping light rig '%s': %s",
+          rig.name.c_str(),
+          readable ? "failed to load light rig file"
+                   : "light rig file is missing");
+      for (auto &shot : m_project.shots) {
+        if (shot.lightRigId == rig.id)
+          shot.lightRigId.clear();
+      }
+      continue;
+    }
+
+    rig.rootNode = refFor("studio", spliced);
+    kept.push_back(std::move(rig));
+  }
+  m_project.lightRigs = std::move(kept);
 }
 
 void ProjectContext::markMissingDatasets()

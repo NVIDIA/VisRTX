@@ -8,7 +8,73 @@
 
 #include <anari/anari_cpp/ext/std.h>
 
+#include <cctype>
+
 namespace tsd::scivis_studio {
+
+namespace {
+
+constexpr size_t MAX_RIG_NAME_LENGTH = 128;
+
+bool isAllowedRigNameChar(unsigned char c)
+{
+  return std::isalnum(c) || c == ' ' || c == '_' || c == '-' || c == '('
+      || c == ')';
+}
+
+} // namespace
+
+bool validateRigName(const std::string &name, std::string *error)
+{
+  auto fail = [&](const char *msg) {
+    if (error)
+      *error = msg;
+    return false;
+  };
+
+  if (name.empty())
+    return fail("name cannot be empty");
+  if (name.size() > MAX_RIG_NAME_LENGTH)
+    return fail("name is too long");
+  if (name == "." || name == "..")
+    return fail("name is reserved");
+  if (std::isspace(static_cast<unsigned char>(name.front()))
+      || std::isspace(static_cast<unsigned char>(name.back())))
+    return fail("name cannot start or end with whitespace");
+  for (unsigned char c : name) {
+    if (!isAllowedRigNameChar(c))
+      return fail(
+          "name may only contain letters, digits, spaces, '_', '-', '(', ')'");
+  }
+
+  if (error)
+    error->clear();
+  return true;
+}
+
+std::string sanitizeRigName(const std::string &name)
+{
+  std::string out;
+  out.reserve(name.size());
+  for (unsigned char c : name)
+    out.push_back(isAllowedRigNameChar(c) ? static_cast<char>(c) : '_');
+
+  // Trim leading/trailing whitespace.
+  const auto first = out.find_first_not_of(' ');
+  const auto last = out.find_last_not_of(' ');
+  if (first == std::string::npos)
+    out.clear();
+  else
+    out = out.substr(first, last - first + 1);
+
+  if (out.size() > MAX_RIG_NAME_LENGTH)
+    out.resize(MAX_RIG_NAME_LENGTH);
+
+  if (out.empty() || out == "." || out == "..")
+    out = "rig";
+
+  return out;
+}
 
 static void manipulatorStateToNode(
     const ManipulatorState &state, tsd::core::DataNode &node)
@@ -167,12 +233,13 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     r["name"] = rig.name;
   }
 
+  // Camera-rig value data is stored per-rig in cameras/<name>.tsd, so only the
+  // id and name are recorded in the manifest (mirroring light rigs).
   auto &cameraRigs = node["cameraRigs"];
   for (const auto &rig : project.cameraRigs) {
     auto &r = cameraRigs.append();
     r["id"] = rig.id;
     r["name"] = rig.name;
-    cameraRigToNode(rig.rig, r["rig"]);
   }
 
   auto &colorMaps = node["colorMaps"];

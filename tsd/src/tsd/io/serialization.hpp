@@ -12,6 +12,7 @@
 // std
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tsd::animation {
 struct Animation;
@@ -111,7 +112,22 @@ void nodeToAnimationManager(core::DataNode &node, animation::AnimationManager &m
 
 // Scenes + Objects //
 
+// Options controlling a full-scene save. excludedSubtrees names layer-subtree
+// roots that should NOT appear in the saved payload: each excluded subtree's
+// nodes are dropped from layer serialization, and the lights it contains (plus
+// any arrays referenced *only* by those lights, per lightRigPolicy) are dropped
+// from the objectDB. Arrays still referenced by retained objects are kept.
+// Retained object indices are densely remapped so the payload loads correctly.
+// load_Scene is unchanged and needs no knowledge of exclusions.
+struct SaveSceneOptions
+{
+  bool forceProxyArrays{false};
+  tsd::animation::AnimationManager *animMgr{nullptr};
+  std::vector<LayerNodeRef> excludedSubtrees;
+};
+
 void save_Scene(Scene &scene, const char *filename);
+void save_Scene(Scene &scene, core::DataNode &root, const SaveSceneOptions &options);
 void save_Scene(Scene &scene, core::DataNode &root, bool forceProxyArrays, tsd::animation::AnimationManager *animMgr = nullptr);
 void load_Scene(Scene &scene, const char *filename, tsd::animation::AnimationManager *animMgr = nullptr);
 void load_Scene(Scene &scene, core::DataNode &root, tsd::animation::AnimationManager *animMgr = nullptr);

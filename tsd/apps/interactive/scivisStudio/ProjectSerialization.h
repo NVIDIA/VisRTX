@@ -15,7 +15,9 @@ namespace tsd::scivis_studio {
 constexpr const char *PROJECT_KIND = "SciVisStudio";
 constexpr const char *PROJECT_FILE_TYPE = "project";
 constexpr const char *PROJECT_SCHEMA = "tsd.scivis-studio.project";
-constexpr int SCHEMA_VERSION = 3;
+// v4: camera rigs and light rigs are stored as standalone files under
+// cameras/<name>.tsd and lights/<name>.tsd rather than inline in the manifest.
+constexpr int SCHEMA_VERSION = 4;
 constexpr const char *PROJECT_MANIFEST_FILENAME = "project.tsd";
 
 // Standalone rig file schemas, versioned independently of the project schema.
@@ -34,6 +36,14 @@ struct ProjectValidationResult
 
 void projectToNode(const Project &project, tsd::core::DataNode &node);
 bool nodeToProject(tsd::core::DataNode &node, Project &project);
+
+// Rig names double as on-disk filenames ("<name>.tsd"), so they are restricted
+// to a portable character set (letters, digits, space, '_', '-', '(', ')') with
+// no leading/trailing whitespace. validateRigName checks a user-entered name's
+// format only (not collection uniqueness); sanitizeRigName coerces an arbitrary
+// string (e.g. an imported rig's stored name) into that set.
+bool validateRigName(const std::string &name, std::string *error = nullptr);
+std::string sanitizeRigName(const std::string &name);
 
 ProjectValidationResult validateProjectRoot(
     const std::filesystem::path &directory);

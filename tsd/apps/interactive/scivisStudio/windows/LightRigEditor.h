@@ -20,6 +20,9 @@ struct LightRigEditor : public tsd::ui::imgui::Window
 
  private:
   bool inputText(const char *label, std::string &value, size_t capacity = 512);
+  // Buffered, reject-on-commit rig-name field: edits a scratch buffer and only
+  // applies a valid, unique name on commit, surfacing an inline error otherwise.
+  void buildUI_nameField(LightRig &rig);
   void syncSelectionToActiveShot();
   void pollPendingFileIO();
   void buildUI_lightList(LightRig &rig);
@@ -44,6 +47,10 @@ struct LightRigEditor : public tsd::ui::imgui::Window
   std::string m_renameLightName;
   LightRigID m_pendingDeleteRig;
   std::string m_ioError;
+  // Rig-name-field edit state (keyed to the rig whose name is being edited).
+  LightRigID m_nameBufferRig;
+  std::string m_nameBuffer;
+  std::string m_nameError;
   PendingFileIO m_pendingFileIO{PendingFileIO::None};
   std::string m_pendingFilename;
   LightRigID m_pendingExportRig;

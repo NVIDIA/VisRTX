@@ -4,6 +4,8 @@
 // catch
 #include "catch.hpp"
 // tsd
+#include "tsd/animation/Animation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/io/serialization.hpp"
@@ -832,6 +834,212 @@ SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
         REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
         REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 1);
         REQUIRE((*splicedRoot).value().name() == "group");
+      }
+    }
+  }
+}
+
+SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[Serialization]")
+{
+  GIVEN("A scene with a retained surface and an excluded light-rig subtree")
+  {
+    tsd::scene::Scene source;
+
+    auto positions = makeFloatArray(source, "positions", {0.f, 1.f, 2.f});
+    auto geometry = source.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::triangle);
+    geometry->setName("mesh_geometry");
+    geometry->setParameterObject("vertex.position", *positions);
+    auto material = source.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    auto surface = source.createSurface("mesh_surface", geometry, material);
+
+    auto *layer = source.addLayer("studio");
+    auto datasets = source.insertChildNode(layer->root(), "datasets");
+    source.insertChildObjectNode(datasets, surface, "surface_inst");
+
+    auto rigsRoot = source.insertChildNode(layer->root(), "lightRigs");
+    auto rigRoot = source.insertChildNode(rigsRoot, "rig0");
+    auto light = source.createObject<tsd::scene::Light>("directional");
+    light->setName("key_light");
+    source.insertChildObjectNode(rigRoot, light, "key_light");
+
+    WHEN("the scene is saved with the rig subtree excluded and reloaded")
+    {
+      tsd::io::SaveSceneOptions options;
+      options.excludedSubtrees.push_back(rigRoot);
+
+      tsd::core::DataTree tree;
+      tsd::io::save_Scene(source, tree.root(), options);
+
+      THEN("the manifest omits the light pool and the rig subtree node")
+      {
+        auto *objectDB = tree.root().child("objectDB");
+        REQUIRE(objectDB);
+        REQUIRE(objectDB->child("light") == nullptr);
+
+        auto *rigsNode =
+            tree.root()["layers"].child("studio")->child("children");
+        REQUIRE(rigsNode);
+        // lightRigs container is retained but its rig children are pruned.
+        bool sawRig = false;
+        rigsNode->foreach_child([&](tsd::core::DataNode &n) {
+          if (n["name"].getValueOr<std::string>("") == "lightRigs") {
+            if (auto *kids = n.child("children"))
+              sawRig = kids->numChildren() > 0;
+          }
+        });
+        REQUIRE_FALSE(sawRig);
+      }
+
+      THEN("the retained surface and its array survive the round trip")
+      {
+        tsd::scene::Scene target;
+        tsd::io::load_Scene(target, tree.root());
+
+        REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 0);
+        REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 1);
+        REQUIRE(target.numberOfObjects(ANARI_ARRAY) == 1);
+
+        auto *targetGeometry = static_cast<tsd::scene::Geometry *>(
+            target.getObject(ANARI_GEOMETRY, 0));
+        REQUIRE(targetGeometry);
+        auto *ref =
+            targetGeometry->parameterValueAsObject<tsd::scene::Array>(
+                "vertex.position");
+        REQUIRE(ref != nullptr);
+        REQUIRE(ref->type() == ANARI_ARRAY1D);
+      }
+    }
+  }
+
+  GIVEN("A light-only array and a shared array referenced by a retained object")
+  {
+    tsd::scene::Scene source;
+
+    // Retained geometry referencing its own array.
+    auto positions = makeFloatArray(source, "positions", {0.f, 1.f, 2.f});
+    auto geometry = source.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::triangle);
+    geometry->setParameterObject("vertex.position", *positions);
+    auto material = source.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    auto surface = source.createSurface("mesh_surface", geometry, material);
+
+    // An array referenced only by the (excluded) light.
+    auto lightOnly = makeFloatArray(source, "light_only", {9.f});
+    // An array shared between the excluded light and the retained geometry.
+    auto shared = makeFloatArray(source, "shared", {1.f, 2.f});
+    geometry->setParameterObject("primitive.radius", *shared);
+
+    auto *layer = source.addLayer("studio");
+    source.insertChildObjectNode(layer->root(), surface, "surface_inst");
+
+    auto rigRoot = source.insertChildNode(layer->root(), "rig0");
+    auto light = source.createObject<tsd::scene::Light>("directional");
+    light->setParameterObject("rig.lightOnly", *lightOnly);
+    light->setParameterObject("rig.shared", *shared);
+    source.insertChildObjectNode(rigRoot, light, "key_light");
+
+    WHEN("the scene is saved with the rig excluded and reloaded")
+    {
+      tsd::io::SaveSceneOptions options;
+      options.excludedSubtrees.push_back(rigRoot);
+
+      tsd::core::DataTree tree;
+      tsd::io::save_Scene(source, tree.root(), options);
+
+      tsd::scene::Scene target;
+      tsd::io::load_Scene(target, tree.root());
+
+      THEN("the light-only array is dropped but the shared array is kept")
+      {
+        REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 0);
+        // positions + shared survive; light_only is dropped.
+        REQUIRE(target.numberOfObjects(ANARI_ARRAY) == 2);
+
+        auto *targetGeometry = static_cast<tsd::scene::Geometry *>(
+            target.getObject(ANARI_GEOMETRY, 0));
+        REQUIRE(targetGeometry);
+        REQUIRE(targetGeometry->parameterValueAsObject<tsd::scene::Array>(
+                    "vertex.position")
+            != nullptr);
+        REQUIRE(targetGeometry->parameterValueAsObject<tsd::scene::Array>(
+                    "primitive.radius")
+            != nullptr);
+      }
+    }
+  }
+}
+
+SCENARIO("tsd::io save_Scene remaps animation bindings across exclusion",
+    "[Serialization]")
+{
+  GIVEN("Animations whose targets shift when a light rig is excluded")
+  {
+    tsd::scene::Scene source;
+    tsd::animation::AnimationManager animMgr(&source);
+
+    // Array pool order: lightOnly @0 (excluded), positions @1 (retained, so it
+    // shifts to @0 on reload). Exercises the object-index remap.
+    auto lightOnly = makeFloatArray(source, "lightOnly", {9.f});
+    auto positions = makeFloatArray(source, "positions", {0.f, 1.f, 2.f});
+
+    auto geometry = source.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::triangle);
+    geometry->setParameterObject("vertex.position", *positions);
+    auto material = source.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    auto surface = source.createSurface("surf", geometry, material);
+
+    auto light = source.createObject<tsd::scene::Light>("directional");
+    light->setParameterObject("rig.env", *lightOnly);
+
+    // Layer order: excluded rig FIRST, retained "group" AFTER it, so group's
+    // layer-node index shifts down on reload. Exercises the layer-node remap.
+    auto *layer = source.addLayer("studio");
+    auto rig0 = source.insertChildNode(layer->root(), "rig0");
+    source.insertChildObjectNode(rig0, light, "key");
+    auto group = source.insertChildTransformNode(
+        layer->root(), tsd::math::IDENTITY_MAT4, "group");
+    source.insertChildObjectNode(group, surface, "surf_inst");
+
+    auto &anim = animMgr.addAnimation("test");
+    const float timeBase[2] = {0.f, 1.f};
+    const float scalarData[2] = {0.f, 1.f};
+    anim.addObjectParameterBinding(
+        positions.data(), "scale", ANARI_FLOAT32, scalarData, timeBase, 2);
+    anim.addTransformBinding(group);
+
+    WHEN("the scene is saved with the rig excluded and reloaded")
+    {
+      tsd::io::SaveSceneOptions options;
+      options.animMgr = &animMgr;
+      options.excludedSubtrees.push_back(rig0);
+
+      tsd::core::DataTree tree;
+      tsd::io::save_Scene(source, tree.root(), options);
+
+      tsd::scene::Scene target;
+      tsd::animation::AnimationManager targetMgr(&target);
+      tsd::io::load_Scene(target, tree.root(), &targetMgr);
+
+      THEN("binding targets resolve to the correct shifted objects/nodes")
+      {
+        REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 0);
+        REQUIRE(target.numberOfObjects(ANARI_ARRAY) == 1); // lightOnly dropped
+        REQUIRE(targetMgr.animations().size() == 1);
+
+        auto &loaded = targetMgr.animations().front();
+        REQUIRE(loaded.objectParameterBindings().size() == 1);
+        // Without the remap, targetIndex would stay @1 and resolve to nullptr.
+        REQUIRE(loaded.objectParameterBindings().front().target() != nullptr);
+
+        REQUIRE(loaded.transformBindings().size() == 1);
+        auto tbTarget = loaded.transformBindings().front().target();
+        REQUIRE(tbTarget);
+        REQUIRE((*tbTarget)->name() == "group");
       }
     }
   }

@@ -116,6 +116,39 @@ bool LightRigEditor::inputText(
   return false;
 }
 
+void LightRigEditor::buildUI_nameField(LightRig &rig)
+{
+  if (m_nameBufferRig != rig.id) {
+    m_nameBufferRig = rig.id;
+    m_nameBuffer = rig.name;
+    m_nameError.clear();
+  }
+
+  std::vector<char> buffer(512, '\0');
+  std::strncpy(buffer.data(), m_nameBuffer.c_str(), buffer.size() - 1);
+  const bool entered = ImGui::InputText("Name",
+      buffer.data(),
+      buffer.size(),
+      ImGuiInputTextFlags_EnterReturnsTrue);
+  m_nameBuffer = buffer.data();
+
+  if (entered || ImGui::IsItemDeactivatedAfterEdit()) {
+    std::string error;
+    if (m_nameBuffer == rig.name)
+      m_nameError.clear();
+    else if (m_projectContext->renameLightRig(rig.id, m_nameBuffer, &error))
+      m_nameError.clear();
+    else {
+      m_nameError = error;
+      m_nameBuffer = rig.name; // reject: restore the last valid name
+    }
+  }
+
+  if (!m_nameError.empty())
+    ImGui::TextColored(
+        ImVec4(1.f, 0.4f, 0.4f, 1.f), "Invalid name: %s", m_nameError.c_str());
+}
+
 void LightRigEditor::syncSelectionToActiveShot()
 {
   auto &project = m_projectContext->project();
@@ -352,8 +385,7 @@ void LightRigEditor::buildUI()
   }
 
   auto &rig = rigs[m_selectedRig];
-  if (inputText("Name", rig.name))
-    project.markDirty();
+  buildUI_nameField(rig);
 
   auto *shot = project::activeShot(project);
   const bool activeShotUsesRig = shot && shot->lightRigId == rig.id;

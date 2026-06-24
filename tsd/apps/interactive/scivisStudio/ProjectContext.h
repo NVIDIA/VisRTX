@@ -66,6 +66,14 @@ struct ProjectContext
   LightRig *createLightRig(const std::string &name = "");
   LightRig *cloneLightRig(const LightRigID &id);
   bool removeLightRig(const LightRigID &id);
+  // In-memory rename; rejects (returns false + error) an invalid format or a
+  // name already used case-insensitively by another rig in the same collection.
+  bool renameLightRig(const LightRigID &id,
+      const std::string &newName,
+      std::string *error = nullptr);
+  bool renameCameraRig(const CameraRigID &id,
+      const std::string &newName,
+      std::string *error = nullptr);
   tsd::scene::LayerNodeRef addLightToRig(
       LightRig &rig, const std::string &subtype);
   bool removeLightFromRig(LightRig &rig, tsd::scene::LayerNodeRef lightNode);
@@ -101,6 +109,12 @@ struct ProjectContext
   LightRig *ensureDefaultLightRig();
   CameraRig *ensureDefaultCameraRig();
   void migrateLegacyShotLightsToLightRigs();
+  // v4 load: hydrate camera-rig value data and splice light-rig subtrees from
+  // their standalone files. A missing or corrupt rig file is skipped with a
+  // warning (the rig is dropped and its shot bindings cleared) so the rest of
+  // the project still opens.
+  void loadCameraRigFiles(const std::filesystem::path &camerasDir);
+  void loadLightRigFiles(const std::filesystem::path &lightsDir);
   void markMissingDatasets();
   void refreshRuntimeRefs();
   void installAnimationManagerCallback();
