@@ -72,6 +72,16 @@ mark_as_advanced(VISRTX_ENABLE_NVML)
 
 option(VISRTX_USE_MDL_FOR_PHYSICALLY_BASED "Use MDL for physically based materials" OFF)
 
+option(
+  VISRTX_ENABLE_MATERIALX_SUPPORT
+  "Whether to enable MaterialX (.mtlx) materials (requires MDL support)"
+  OFF
+)
+if(VISRTX_ENABLE_MATERIALX_SUPPORT AND NOT VISRTX_ENABLE_MDL_SUPPORT)
+  message(FATAL_ERROR
+    "VISRTX_ENABLE_MATERIALX_SUPPORT requires VISRTX_ENABLE_MDL_SUPPORT (MaterialX transcodes to MDL)")
+endif()
+
 # Enable possibly costly debug support
 option(VISRTX_ENABLE_HDRI_SAMPLING_DEBUG "Enable HDRI sampling debug support" OFF)
 mark_as_advanced(VISRTX_ENABLE_HDRI_SAMPLING_DEBUG)
@@ -117,6 +127,14 @@ add_subdirectory(external)
 add_subdirectory(shaders)
 if(VISRTX_ENABLE_MDL_SUPPORT)
   add_subdirectory(libmdl)
+endif()
+if(VISRTX_ENABLE_MATERIALX_SUPPORT)
+  # MaterialX must resolve out-of-tree (system/package config). An in-tree
+  # FetchContent build is never installed, so it emits no build-tree package
+  # config and its target names collide with the copy USD's pxrConfig imports
+  # via find_dependency(MaterialX) — the two cannot coexist in one build.
+  find_package(MaterialX 1.39 REQUIRED)
+  set(MATERIALX_LIBRARIES_DIR "${MaterialX_DIR}/../../../libraries" CACHE PATH "" FORCE)
 endif()
 add_subdirectory(device)
 add_subdirectory(apps)

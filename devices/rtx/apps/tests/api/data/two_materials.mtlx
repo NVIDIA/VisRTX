@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+  <standard_surface name="srf_red" type="surfaceshader">
+    <input name="base_color" type="color3" value="1, 0, 0" />
+  </standard_surface>
+  <surfacematerial name="Mat_Red" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="srf_red" />
+  </surfacematerial>
+  <standard_surface name="srf_blue" type="surfaceshader">
+    <input name="base_color" type="color3" value="0, 0, 1" />
+  </standard_surface>
+  <surfacematerial name="Mat_Blue" type="material">
+    <input name="surfaceshader" type="surfaceshader" nodename="srf_blue" />
+  </surfacematerial>
+</materialx>

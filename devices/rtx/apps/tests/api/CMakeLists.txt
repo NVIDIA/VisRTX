@@ -94,3 +94,22 @@ make_test(TestEmissiveIncremental)
 
 
 make_test(TestEmissiveInstanceRotatedScale)
+
+if(VISRTX_ENABLE_MATERIALX_SUPPORT)
+  make_test(TestMaterialXTranscoder)
+  # Compile Transcoder.cpp directly INTO the test. anari_library_visrtx is built
+  # SHARED with hidden visibility (device/CMakeLists.txt CMAKE_CXX_VISIBILITY_PRESET
+  # hidden), and the transcoder free functions carry no VISRTX_DEVICE_INTERFACE
+  # export macro, so they are NOT linkable from the shared object. Building the .cpp
+  # into the test keeps it self-contained.
+  target_sources(TestMaterialXTranscoder PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device/materialx/Transcoder.cpp)
+  target_compile_definitions(TestMaterialXTranscoder PRIVATE
+    MATERIALX_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data"
+    MATERIALX_LIBRARIES_DIR="${MATERIALX_LIBRARIES_DIR}")
+  target_link_libraries(TestMaterialXTranscoder PRIVATE
+    MaterialXCore MaterialXFormat MaterialXGenShader MaterialXGenMdl
+    nonstd::span-lite)
+  target_include_directories(TestMaterialXTranscoder PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../../../device)
+endif()
