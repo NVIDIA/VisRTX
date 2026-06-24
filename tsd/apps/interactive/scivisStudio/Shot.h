@@ -4,7 +4,6 @@
 #pragma once
 
 #include "Dataset.h"
-#include "ShotCameraRig.h"
 
 #include <cstdint>
 #include <string>

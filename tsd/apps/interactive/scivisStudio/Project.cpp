@@ -48,16 +48,6 @@ ColorMapID nextColorMapId(const Project &project)
   return makeGeneratedId("colorMap", project.colorMaps.size() + 1);
 }
 
-LightRigID nextLightRigId(const Project &project)
-{
-  return makeGeneratedId("lightRig", project.lightRigs.size() + 1);
-}
-
-CameraRigID nextCameraRigId(const Project &project)
-{
-  return makeGeneratedId("cameraRig", project.cameraRigs.size() + 1);
-}
-
 Dataset *findDataset(Project &project, const DatasetID &id)
 {
   auto itr = std::find_if(project.datasets.begin(),
@@ -88,38 +78,6 @@ const Shot *findShot(const Project &project, const ShotID &id)
       project.shots.end(),
       [&](const Shot &s) { return s.id == id; });
   return itr == project.shots.end() ? nullptr : &*itr;
-}
-
-LightRig *findLightRig(Project &project, const LightRigID &id)
-{
-  auto itr = std::find_if(project.lightRigs.begin(),
-      project.lightRigs.end(),
-      [&](const LightRig &r) { return r.id == id; });
-  return itr == project.lightRigs.end() ? nullptr : &*itr;
-}
-
-const LightRig *findLightRig(const Project &project, const LightRigID &id)
-{
-  auto itr = std::find_if(project.lightRigs.begin(),
-      project.lightRigs.end(),
-      [&](const LightRig &r) { return r.id == id; });
-  return itr == project.lightRigs.end() ? nullptr : &*itr;
-}
-
-CameraRig *findCameraRig(Project &project, const CameraRigID &id)
-{
-  auto itr = std::find_if(project.cameraRigs.begin(),
-      project.cameraRigs.end(),
-      [&](const CameraRig &r) { return r.id == id; });
-  return itr == project.cameraRigs.end() ? nullptr : &*itr;
-}
-
-const CameraRig *findCameraRig(const Project &project, const CameraRigID &id)
-{
-  auto itr = std::find_if(project.cameraRigs.begin(),
-      project.cameraRigs.end(),
-      [&](const CameraRig &r) { return r.id == id; });
-  return itr == project.cameraRigs.end() ? nullptr : &*itr;
 }
 
 Shot *activeShot(Project &project)

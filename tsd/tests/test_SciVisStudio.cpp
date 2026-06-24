@@ -3,6 +3,8 @@
 
 #include "catch.hpp"
 
+#include "CameraRig.h"
+#include "LightRig.h"
 #include "ProjectContext.h"
 #include "ProjectSerialization.h"
 #include "RenderShotCLI.h"
@@ -88,7 +90,7 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     keyframe.manipulator.orbit.lookat = {1.f, 2.f, 3.f};
     keyframe.manipulator.orbit.azeldist = {10.f, 20.f, 30.f};
     keyframe.interpolationToNext = CameraInterpolation::EaseOutIn;
-    cameraRig.rig.keyframes.push_back(keyframe);
+    cameraRig.keyframes.push_back(keyframe);
     project.activeShotId = shot.id;
     project.shots.push_back(shot);
     project.lightRigs.push_back({"lightRig_0001", "Default", {"studio", 5}});
@@ -140,7 +142,8 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
 SCENARIO("SciVis Studio camera rig files round-trip keyframe data",
     "[SciVisStudio]")
 {
-  ShotCameraRig rig;
+  CameraRig rig;
+  rig.name = "Hero Cam";
   CameraKeyframe keyframe;
   keyframe.frame = 12;
   keyframe.name = "mid";
@@ -152,13 +155,12 @@ SCENARIO("SciVis Studio camera rig files round-trip keyframe data",
       std::filesystem::temp_directory_path() / "tsd_camera_rig_roundtrip.tsd";
   std::filesystem::remove(file);
 
-  REQUIRE(exportCameraRigFile("Hero Cam", rig, file));
+  REQUIRE(camera_rig::exportCameraRigFile(rig, file));
 
-  std::string name;
-  ShotCameraRig loaded;
-  REQUIRE(importCameraRigFile(file, name, loaded));
+  CameraRig loaded;
+  REQUIRE(camera_rig::importCameraRigFile(file, loaded));
 
-  REQUIRE(name == "Hero Cam");
+  REQUIRE(loaded.name == "Hero Cam");
   REQUIRE(loaded.keyframes.size() == 1);
   REQUIRE(loaded.keyframes.front().frame == 12);
   REQUIRE(loaded.keyframes.front().interpolationToNext
@@ -206,17 +208,17 @@ SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
           CameraInterpolation::EaseOutIn};
 
       for (auto mode : modes)
-        REQUIRE(shot_camera_rig::interpolationFromString(
-                    shot_camera_rig::toString(mode))
+        REQUIRE(camera_rig::interpolationFromString(
+                    camera_rig::toString(mode))
             == mode);
 
-      REQUIRE(shot_camera_rig::interpolationFromString("Unknown")
+      REQUIRE(camera_rig::interpolationFromString("Unknown")
           == CameraInterpolation::Linear);
     }
 
     THEN("Sampling applies easing to the segment interpolation factor")
     {
-      ShotCameraRig rig;
+      CameraRig rig;
 
       CameraKeyframe a;
       a.frame = 0;
@@ -233,22 +235,22 @@ SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
       rig.keyframes = {a, b};
 
       rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseOut;
-      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x
+      REQUIRE(camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x
           == Approx(6.25f));
 
       rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseIn;
-      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x
+      REQUIRE(camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x
           == Approx(57.8125f));
 
       rig.keyframes.front().interpolationToNext =
           CameraInterpolation::EaseOutIn;
-      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x
+      REQUIRE(camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x
           == Approx(10.3515625f));
-      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.azeldist.x
+      REQUIRE(camera_rig::sampleCameraRig(rig, 25).orbit.azeldist.x
           == Approx(10.3515625f));
-      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 25).orbit.fixedDist
+      REQUIRE(camera_rig::sampleCameraRig(rig, 25).orbit.fixedDist
           == Approx(10.3515625f));
-      REQUIRE(shot_camera_rig::sampleCameraRig(rig, 75).orbit.lookat.x
+      REQUIRE(camera_rig::sampleCameraRig(rig, 75).orbit.lookat.x
           == Approx(89.6484375f));
     }
   }
@@ -395,7 +397,7 @@ SCENARIO("SciVis Studio cloning a light rig deep-copies lights",
 
   auto &project = projectContext.project();
   const auto sourceRigId = project.lightRigs.front().id;
-  auto *sourceRig = project::findLightRig(project, sourceRigId);
+  auto *sourceRig = light_rig::findLightRig(project, sourceRigId);
   REQUIRE(sourceRig != nullptr);
 
   auto sourceRoot = projectContext.resolveLightRigRoot(*sourceRig);
@@ -602,7 +604,7 @@ SCENARIO(
 
   auto &project = projectContext.project();
   auto &firstShot = project.shots.front();
-  auto *defaultRig = project::findLightRig(project, firstShot.lightRigId);
+  auto *defaultRig = light_rig::findLightRig(project, firstShot.lightRigId);
   REQUIRE(defaultRig != nullptr);
   auto defaultRoot = projectContext.resolveLightRigRoot(*defaultRig);
   REQUIRE(defaultRoot);
@@ -648,7 +650,7 @@ SCENARIO(
   keyframe.manipulator.orbit.lookat = {7.f, 8.f, 9.f};
   keyframe.manipulator.orbit.azeldist = {10.f, 20.f, 12.f};
   keyframe.manipulator.orbit.fixedDist = 12.f;
-  secondRig->rig.keyframes.push_back(keyframe);
+  secondRig->keyframes.push_back(keyframe);
 
   shot.cameraRigId = secondRig->id;
   shot.currentFrame = 5;
@@ -680,7 +682,7 @@ SCENARIO("SciVis Studio removing a light rig clears shot references",
 
   auto &project = projectContext.project();
   const auto rigId = project.lightRigs.front().id;
-  auto *rig = project::findLightRig(project, rigId);
+  auto *rig = light_rig::findLightRig(project, rigId);
   REQUIRE(rig != nullptr);
   auto root = projectContext.resolveLightRigRoot(*rig);
   REQUIRE(root);
@@ -823,12 +825,11 @@ SCENARIO("SciVis Studio v2 shot camera rigs migrate to camera rigs",
     REQUIRE(project.cameraRigs.size() == 1);
     REQUIRE(project.shots.front().cameraRigId == project.cameraRigs.front().id);
     REQUIRE(project.cameraRigs.front().name == "Shot 1 Camera");
-    REQUIRE(
-        project.cameraRigs.front().rig.current.orbit.lookat.x == Approx(1.f));
-    REQUIRE(project.cameraRigs.front().rig.keyframes.size() == 1);
-    REQUIRE(project.cameraRigs.front().rig.keyframes.front().frame == 11);
-    REQUIRE(project.cameraRigs.front().rig.keyframes.front().name == "legacy");
-    REQUIRE(project.cameraRigs.front().rig.keyframes.front().interpolationToNext
+    REQUIRE(project.cameraRigs.front().current.orbit.lookat.x == Approx(1.f));
+    REQUIRE(project.cameraRigs.front().keyframes.size() == 1);
+    REQUIRE(project.cameraRigs.front().keyframes.front().frame == 11);
+    REQUIRE(project.cameraRigs.front().keyframes.front().name == "legacy");
+    REQUIRE(project.cameraRigs.front().keyframes.front().interpolationToNext
         == CameraInterpolation::EaseOutIn);
   }
 
@@ -985,20 +986,20 @@ SCENARIO("SciVis Studio rig rename enforces format and uniqueness",
   WHEN("renaming to a valid, unused name")
   {
     REQUIRE(projectContext.renameLightRig(defaultId, "Studio Key", &error));
-    REQUIRE(project::findLightRig(project, defaultId)->name == "Studio Key");
+    REQUIRE(light_rig::findLightRig(project, defaultId)->name == "Studio Key");
   }
 
   WHEN("renaming to a name used by another rig (case-insensitive)")
   {
     REQUIRE_FALSE(projectContext.renameLightRig(defaultId, "second", &error));
     REQUIRE_FALSE(error.empty());
-    REQUIRE(project::findLightRig(project, defaultId)->name == "Default");
+    REQUIRE(light_rig::findLightRig(project, defaultId)->name == "Default");
   }
 
   WHEN("renaming a rig to its own current name")
   {
     REQUIRE(projectContext.renameLightRig(secondId, "Second", &error));
-    REQUIRE(project::findLightRig(project, secondId)->name == "Second");
+    REQUIRE(light_rig::findLightRig(project, secondId)->name == "Second");
   }
 
   WHEN("renaming to an invalid format")
@@ -1054,7 +1055,7 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
     CameraKeyframe kf;
     kf.frame = 7;
     kf.manipulator.orbit.lookat = {4.f, 5.f, 6.f};
-    cameraRig->rig.keyframes.push_back(kf);
+    cameraRig->keyframes.push_back(kf);
 
     REQUIRE(projectContext.saveProject(root));
 
@@ -1100,10 +1101,10 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
 
     THEN("camera rig keyframes are restored from files")
     {
-      auto *cameraRig = project::findCameraRig(project, cameraRigId);
+      auto *cameraRig = camera_rig::findCameraRig(project, cameraRigId);
       REQUIRE(cameraRig != nullptr);
-      REQUIRE(cameraRig->rig.keyframes.size() == 1);
-      REQUIRE(cameraRig->rig.keyframes.front().frame == 7);
+      REQUIRE(cameraRig->keyframes.size() == 1);
+      REQUIRE(cameraRig->keyframes.front().frame == 7);
     }
   }
 
@@ -1115,7 +1116,7 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
       ProjectContext projectContext(&appContext);
       REQUIRE(projectContext.openProject(root));
       auto &project = projectContext.project();
-      auto *defaultRig = project::findLightRig(project, defaultLightId);
+      auto *defaultRig = light_rig::findLightRig(project, defaultLightId);
       REQUIRE(defaultRig != nullptr);
       oldLightName = defaultRig->name;
       REQUIRE(projectContext.renameLightRig(defaultLightId, "Key Light"));
@@ -1163,7 +1164,7 @@ SCENARIO("SciVis Studio tolerates a missing light rig file on open",
 
     THEN("the missing rig is skipped and the rest of the project opens")
     {
-      REQUIRE(project::findLightRig(project, rimId) == nullptr);
+      REQUIRE(light_rig::findLightRig(project, rimId) == nullptr);
       REQUIRE_FALSE(project.lightRigs.empty()); // default rig survived
     }
   }

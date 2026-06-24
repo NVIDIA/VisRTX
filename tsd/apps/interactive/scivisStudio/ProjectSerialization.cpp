@@ -4,7 +4,6 @@
 #include "ProjectSerialization.h"
 
 #include "tsd/core/DataTreeMetadata.hpp"
-#include "tsd/io/serialization.hpp"
 
 #include <anari/anari_cpp/ext/std.h>
 
@@ -74,54 +73,6 @@ std::string sanitizeRigName(const std::string &name)
     out = "rig";
 
   return out;
-}
-
-static void manipulatorStateToNode(
-    const ManipulatorState &state, tsd::core::DataNode &node)
-{
-  tsd::io::cameraPoseToNode(state.orbit, node["orbit"]);
-}
-
-static void nodeToManipulatorState(
-    tsd::core::DataNode &node, ManipulatorState &state)
-{
-  if (auto *orbit = node.child("orbit"))
-    tsd::io::nodeToCameraPose(*orbit, state.orbit);
-}
-
-static void cameraRigToNode(const ShotCameraRig &rig, tsd::core::DataNode &node)
-{
-  manipulatorStateToNode(rig.current, node["current"]);
-  auto &keyframes = node["keyframes"];
-  for (const auto &keyframe : rig.keyframes) {
-    auto &kf = keyframes.append();
-    kf["frame"] = keyframe.frame;
-    kf["name"] = keyframe.name;
-    kf["interpolationToNext"] =
-        shot_camera_rig::toString(keyframe.interpolationToNext);
-    manipulatorStateToNode(keyframe.manipulator, kf["manipulator"]);
-  }
-}
-
-static void nodeToCameraRig(tsd::core::DataNode &node, ShotCameraRig &rig)
-{
-  if (auto *current = node.child("current"))
-    nodeToManipulatorState(*current, rig.current);
-
-  rig.keyframes.clear();
-  if (auto *keyframes = node.child("keyframes")) {
-    keyframes->foreach_child([&](tsd::core::DataNode &kf) {
-      CameraKeyframe keyframe;
-      keyframe.frame = kf["frame"].getValueOr<int>(0);
-      keyframe.name = kf["name"].getValueOr<std::string>("");
-      keyframe.interpolationToNext = shot_camera_rig::interpolationFromString(
-          kf["interpolationToNext"].getValueOr<std::string>("Linear"));
-      if (auto *manip = kf.child("manipulator"))
-        nodeToManipulatorState(*manip, keyframe.manipulator);
-      rig.keyframes.push_back(std::move(keyframe));
-    });
-  }
-  shot_camera_rig::sortKeyframes(rig);
 }
 
 static std::string cameraRigNameForShot(const Shot &shot)
@@ -289,7 +240,7 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       rig.id = r["id"].getValueOr<std::string>("");
       rig.name = r["name"].getValueOr<std::string>("");
       if (auto *rigNode = r.child("rig"))
-        nodeToCameraRig(*rigNode, rig.rig);
+        camera_rig::nodeToCameraRig(*rigNode, rig);
       out.cameraRigs.push_back(std::move(rig));
     });
   }
@@ -309,9 +260,9 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       if (shot.cameraRigId.empty()) {
         if (auto *cameraRigNode = s.child("cameraRig")) {
           CameraRig rig;
-          rig.id = project::nextCameraRigId(out);
+          rig.id = camera_rig::nextCameraRigId(out);
           rig.name = cameraRigNameForShot(shot);
-          nodeToCameraRig(*cameraRigNode, rig.rig);
+          camera_rig::nodeToCameraRig(*cameraRigNode, rig);
           shot.cameraRigId = rig.id;
           out.cameraRigs.push_back(std::move(rig));
         }
@@ -365,78 +316,6 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
     out.activeShotId = out.shots.front().id;
 
   project = std::move(out);
-  return true;
-}
-
-bool exportCameraRigFile(const std::string &name,
-    const ShotCameraRig &rig,
-    const std::filesystem::path &file,
-    std::string *error)
-{
-  tsd::core::DataTree tree;
-  auto &root = tree.root();
-  tsd::core::writeDataTreeMetadata(root,
-      {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
-          CAMERA_RIG_FILE_TYPE,
-          CAMERA_RIG_SCHEMA,
-          RIG_SCHEMA_VERSION});
-  root["name"] = name;
-  cameraRigToNode(rig, root["rig"]);
-
-  if (!tree.save(file.string().c_str())) {
-    if (error)
-      *error = "failed to write camera rig file";
-    return false;
-  }
-  return true;
-}
-
-bool importCameraRigFile(const std::filesystem::path &file,
-    std::string &nameOut,
-    ShotCameraRig &rigOut,
-    std::string *error)
-{
-  tsd::core::DataTree tree;
-  if (!tree.load(file.string().c_str())) {
-    if (error)
-      *error = "failed to load camera rig file";
-    return false;
-  }
-
-  auto &root = tree.root();
-  auto metadata = tsd::core::readDataTreeMetadata(root);
-  if (metadata.malformed()) {
-    if (error)
-      *error = "malformed __tsd_metadata: " + metadata.message;
-    return false;
-  }
-  if (!metadata.found()) {
-    if (error)
-      *error = "file is missing __tsd_metadata";
-    return false;
-  }
-
-  const auto &m = *metadata.metadata;
-  if (m.envelopeVersion != tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
-    if (error)
-      *error = "unsupported metadata envelopeVersion";
-    return false;
-  }
-  if (m.fileType != CAMERA_RIG_FILE_TYPE || m.schema != CAMERA_RIG_SCHEMA) {
-    if (error)
-      *error = "file is not a SciVis Studio camera rig";
-    return false;
-  }
-  if (m.schemaVersion < 1 || m.schemaVersion > RIG_SCHEMA_VERSION) {
-    if (error)
-      *error = "unsupported camera rig schemaVersion";
-    return false;
-  }
-
-  nameOut = root["name"].getValueOr<std::string>("");
-  rigOut = {};
-  if (auto *rigNode = root.child("rig"))
-    nodeToCameraRig(*rigNode, rigOut);
   return true;
 }
 

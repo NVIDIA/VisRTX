@@ -162,7 +162,7 @@ void ShotEditor::buildUI_lightRigSelector(Shot &shot)
   auto &project = m_projectContext->project();
   std::string preview = "None";
   if (!shot.lightRigId.empty()) {
-    if (auto *rig = project::findLightRig(project, shot.lightRigId))
+    if (auto *rig = light_rig::findLightRig(project, shot.lightRigId))
       preview = rig->name;
     else
       preview = "<missing: " + shot.lightRigId + ">";
@@ -194,7 +194,7 @@ void ShotEditor::buildUI_lightRigSelector(Shot &shot)
     }
 
     if (!shot.lightRigId.empty()
-        && !project::findLightRig(project, shot.lightRigId)) {
+        && !light_rig::findLightRig(project, shot.lightRigId)) {
       const auto missing = "<missing: " + shot.lightRigId + ">";
       ImGui::TextDisabled("%s", missing.c_str());
     }
@@ -207,7 +207,7 @@ void ShotEditor::buildUI_cameraRigSelector(Shot &shot)
   auto &project = m_projectContext->project();
   std::string preview = "None";
   if (!shot.cameraRigId.empty()) {
-    if (auto *rig = project::findCameraRig(project, shot.cameraRigId))
+    if (auto *rig = camera_rig::findCameraRig(project, shot.cameraRigId))
       preview = rig->name;
     else
       preview = "<missing: " + shot.cameraRigId + ">";
@@ -239,7 +239,7 @@ void ShotEditor::buildUI_cameraRigSelector(Shot &shot)
     }
 
     if (!shot.cameraRigId.empty()
-        && !project::findCameraRig(project, shot.cameraRigId)) {
+        && !camera_rig::findCameraRig(project, shot.cameraRigId)) {
       const auto missing = "<missing: " + shot.cameraRigId + ">";
       ImGui::TextDisabled("%s", missing.c_str());
     }

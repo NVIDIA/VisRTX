@@ -2,14 +2,15 @@
 ## SPDX-License-Identifier: Apache-2.0
 
 add_library(tsd_scivis_studio_model STATIC
+  CameraRig.cpp
   Dataset.cpp
+  LightRig.cpp
   Project.cpp
   ProjectContext.cpp
   ProjectSerialization.cpp
   RenderShot.cpp
   RenderShotCLI.cpp
   Shot.cpp
-  ShotCameraRig.cpp
 )
 
 target_include_directories(tsd_scivis_studio_model

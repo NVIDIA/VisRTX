@@ -48,15 +48,4 @@ std::string sanitizeRigName(const std::string &name);
 ProjectValidationResult validateProjectRoot(
     const std::filesystem::path &directory);
 
-// Standalone camera-rig file IO. The rig's runtime-only id is intentionally not
-// written; only the portable name and value data (ShotCameraRig) are stored.
-bool exportCameraRigFile(const std::string &name,
-    const ShotCameraRig &rig,
-    const std::filesystem::path &file,
-    std::string *error = nullptr);
-bool importCameraRigFile(const std::filesystem::path &file,
-    std::string &nameOut,
-    ShotCameraRig &rigOut,
-    std::string *error = nullptr);
-
 } // namespace tsd::scivis_studio

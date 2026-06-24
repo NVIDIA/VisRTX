@@ -3,9 +3,10 @@
 
 #pragma once
 
+#include "CameraRig.h"
 #include "Dataset.h"
+#include "LightRig.h"
 #include "Shot.h"
-#include "ShotCameraRig.h"
 
 #include <filesystem>
 #include <string>
@@ -17,20 +18,6 @@ struct ColorMapRecord
 {
   ColorMapID id;
   std::string name;
-};
-
-struct LightRig
-{
-  LightRigID id;
-  std::string name;
-  SceneNodeRef rootNode;
-};
-
-struct CameraRig
-{
-  CameraRigID id;
-  std::string name;
-  ShotCameraRig rig;
 };
 
 struct Project
@@ -56,17 +43,11 @@ std::string makeGeneratedId(const char *prefix, size_t ordinal);
 DatasetID nextDatasetId(const Project &project);
 ShotID nextShotId(const Project &project);
 ColorMapID nextColorMapId(const Project &project);
-LightRigID nextLightRigId(const Project &project);
-CameraRigID nextCameraRigId(const Project &project);
 
 Dataset *findDataset(Project &project, const DatasetID &id);
 const Dataset *findDataset(const Project &project, const DatasetID &id);
 Shot *findShot(Project &project, const ShotID &id);
 const Shot *findShot(const Project &project, const ShotID &id);
-LightRig *findLightRig(Project &project, const LightRigID &id);
-const LightRig *findLightRig(const Project &project, const LightRigID &id);
-CameraRig *findCameraRig(Project &project, const CameraRigID &id);
-const CameraRig *findCameraRig(const Project &project, const CameraRigID &id);
 Shot *activeShot(Project &project);
 const Shot *activeShot(const Project &project);
 

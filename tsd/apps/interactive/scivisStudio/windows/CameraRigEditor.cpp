@@ -160,7 +160,7 @@ void CameraRigEditor::buildUI_rigControls()
       m_selectedRig = 0;
 
     auto clone = project.cameraRigs[m_selectedRig];
-    clone.id = project::nextCameraRigId(project);
+    clone.id = camera_rig::nextCameraRigId(project);
     clone.name = clone.name.empty() ? "Camera Rig Copy" : clone.name + " Copy";
     project.cameraRigs.push_back(clone);
     m_selectedRig = static_cast<int>(project.cameraRigs.size()) - 1;
@@ -236,7 +236,7 @@ void CameraRigEditor::buildUI_rigControls()
 
   if (ImGui::BeginPopupModal(
           "Delete Camera Rig?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    auto *pending = project::findCameraRig(project, m_pendingDeleteRig);
+    auto *pending = camera_rig::findCameraRig(project, m_pendingDeleteRig);
     const int useCount =
         m_projectContext->cameraRigUseCount(m_pendingDeleteRig);
     ImGui::Text("Delete '%s' and clear %d shot reference%s?",
@@ -342,12 +342,12 @@ void CameraRigEditor::buildUI_keyframes(CameraRig &cameraRig)
   auto &project = m_projectContext->project();
   auto *shot = project::activeShot(project);
   auto *ctx = m_projectContext->appContext();
-  auto &rig = cameraRig.rig;
+  auto &rig = cameraRig;
 
   ImGui::BeginDisabled(!ctx);
   if (ImGui::Button("Set View")) {
     rig.current =
-        shot_camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
+        camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
     project.markDirty();
   }
   tsd::ui::tooltipForPreviousItem("Set Rig View From Viewport");
@@ -361,9 +361,9 @@ void CameraRigEditor::buildUI_keyframes(CameraRig &cameraRig)
     keyframe.frame = shot->currentFrame;
     keyframe.name = "Frame " + std::to_string(shot->currentFrame);
     keyframe.manipulator =
-        shot_camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
+        camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
     rig.keyframes.push_back(std::move(keyframe));
-    shot_camera_rig::sortKeyframes(rig);
+    camera_rig::sortKeyframes(rig);
     m_selectedKeyframe = static_cast<int>(rig.keyframes.size()) - 1;
     project.markDirty();
   }
@@ -381,7 +381,7 @@ void CameraRigEditor::buildUI_keyframes(CameraRig &cameraRig)
   ImGui::BeginDisabled(!ctx || !hasSelection);
   if (ImGui::Button("Update")) {
     rig.keyframes[m_selectedKeyframe].manipulator =
-        shot_camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
+        camera_rig::manipulatorStateFromManipulator(ctx->view.manipulator);
     project.markDirty();
   }
   tsd::ui::tooltipForPreviousItem("Update Selected From Viewport");
@@ -448,7 +448,7 @@ void CameraRigEditor::buildUI_keyframes(CameraRig &cameraRig)
 
       ImGui::TableNextColumn();
       if (ImGui::InputInt("##frame", &keyframe.frame)) {
-        shot_camera_rig::sortKeyframes(rig);
+        camera_rig::sortKeyframes(rig);
         project.markDirty();
       }
 

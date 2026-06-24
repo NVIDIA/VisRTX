@@ -357,7 +357,7 @@ LightRig *ProjectContext::createLightRig(const std::string &name)
     return nullptr;
 
   LightRig rig;
-  rig.id = project::nextLightRigId(m_project);
+  rig.id = light_rig::nextLightRigId(m_project);
   rig.name = makeValidUniqueRigName(m_project.lightRigs,
       name.empty()
           ? ("Light Rig " + std::to_string(m_project.lightRigs.size() + 1))
@@ -375,7 +375,7 @@ LightRig *ProjectContext::cloneLightRig(const LightRigID &id)
   if (!m_ctx)
     return nullptr;
 
-  auto *source = project::findLightRig(m_project, id);
+  auto *source = light_rig::findLightRig(m_project, id);
   if (!source)
     return nullptr;
 
@@ -384,7 +384,7 @@ LightRig *ProjectContext::cloneLightRig(const LightRigID &id)
     return nullptr;
 
   LightRig clone;
-  clone.id = project::nextLightRigId(m_project);
+  clone.id = light_rig::nextLightRigId(m_project);
   clone.name = makeValidUniqueRigName(m_project.lightRigs,
       source->name.empty() ? "Light Rig Copy" : source->name + " Copy");
 
@@ -408,13 +408,13 @@ LightRig *ProjectContext::cloneLightRig(const LightRigID &id)
 CameraRig *ProjectContext::createCameraRig(const std::string &name)
 {
   CameraRig rig;
-  rig.id = project::nextCameraRigId(m_project);
+  rig.id = camera_rig::nextCameraRigId(m_project);
   rig.name = makeValidUniqueRigName(m_project.cameraRigs,
       name.empty()
           ? ("Camera Rig " + std::to_string(m_project.cameraRigs.size() + 1))
           : name);
   if (m_ctx)
-    rig.rig.current = shot_camera_rig::manipulatorStateFromManipulator(
+    rig.current = camera_rig::manipulatorStateFromManipulator(
         m_ctx->view.manipulator);
 
   m_project.cameraRigs.push_back(std::move(rig));
@@ -491,35 +491,33 @@ CameraRig *ProjectContext::activeShotCameraRig()
   if (!shot || shot->cameraRigId.empty())
     return nullptr;
 
-  return project::findCameraRig(m_project, shot->cameraRigId);
+  return camera_rig::findCameraRig(m_project, shot->cameraRigId);
 }
 
 bool ProjectContext::exportCameraRig(const CameraRigID &id,
     const std::filesystem::path &file,
     std::string *error)
 {
-  auto *rig = project::findCameraRig(m_project, id);
+  auto *rig = camera_rig::findCameraRig(m_project, id);
   if (!rig) {
     if (error)
       *error = "camera rig not found";
     return false;
   }
-  return exportCameraRigFile(rig->name, rig->rig, file, error);
+  return camera_rig::exportCameraRigFile(*rig, file, error);
 }
 
 CameraRig *ProjectContext::importCameraRig(
     const std::filesystem::path &file, std::string *error)
 {
-  std::string name;
-  ShotCameraRig rigData;
-  if (!importCameraRigFile(file, name, rigData, error))
+  CameraRig rig;
+  if (!camera_rig::importCameraRigFile(file, rig, error))
     return nullptr;
 
-  CameraRig rig;
-  rig.id = project::nextCameraRigId(m_project);
-  rig.name = makeValidUniqueRigName(
-      m_project.cameraRigs, name.empty() ? "Imported Camera Rig" : name);
-  rig.rig = std::move(rigData);
+  const std::string importedName = std::move(rig.name);
+  rig.id = camera_rig::nextCameraRigId(m_project);
+  rig.name = makeValidUniqueRigName(m_project.cameraRigs,
+      importedName.empty() ? "Imported Camera Rig" : importedName);
   m_project.cameraRigs.push_back(std::move(rig));
   m_project.markDirty();
   return &m_project.cameraRigs.back();
@@ -535,7 +533,7 @@ bool ProjectContext::exportLightRig(const LightRigID &id,
     return false;
   }
 
-  auto *rig = project::findLightRig(m_project, id);
+  auto *rig = light_rig::findLightRig(m_project, id);
   if (!rig) {
     if (error)
       *error = "light rig not found";
@@ -580,7 +578,7 @@ LightRig *ProjectContext::importLightRig(
   auto splicedRoot = tsd::io::import_Subtree(
       scene, file.string().c_str(), lightRigsRoot, desc, &name);
   if (splicedRoot) {
-    rig.id = project::nextLightRigId(m_project);
+    rig.id = light_rig::nextLightRigId(m_project);
     (*splicedRoot)->name() = rig.id; // resolveLightRigRoot keys on node==rig.id
   }
   scene.endLayerEditBatch();
@@ -1002,8 +1000,8 @@ void ProjectContext::applyActiveShot()
 
   if (auto *cameraRig = activeShotCameraRig()) {
     auto sampled =
-        shot_camera_rig::sampleCameraRig(cameraRig->rig, shot->currentFrame);
-    shot_camera_rig::applyManipulatorState(m_ctx->view.manipulator, sampled);
+        camera_rig::sampleCameraRig(*cameraRig, shot->currentFrame);
+    camera_rig::applyManipulatorState(m_ctx->view.manipulator, sampled);
   }
 
   if (auto *obj = resolveShotCamera(*shot)) {
@@ -1126,7 +1124,7 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
   for (const auto &rig : m_project.cameraRigs) {
     const auto file = camerasDir / (rig.name + ".tsd");
     std::string rigError;
-    if (!exportCameraRigFile(rig.name, rig.rig, file, &rigError)) {
+    if (!camera_rig::exportCameraRigFile(rig, file, &rigError)) {
       if (error)
         *error = "failed to write camera rig '" + rig.name + "': " + rigError;
       return false;
@@ -1254,10 +1252,10 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
     CameraRig *defaultCameraRig = nullptr;
     if (m_project.cameraRigs.empty()) {
       CameraRig rig;
-      rig.id = project::nextCameraRigId(m_project);
+      rig.id = camera_rig::nextCameraRigId(m_project);
       rig.name = "Default";
       if (m_ctx)
-        rig.rig.current = shot_camera_rig::manipulatorStateFromManipulator(
+        rig.current = camera_rig::manipulatorStateFromManipulator(
             m_ctx->view.manipulator);
       m_project.cameraRigs.push_back(std::move(rig));
     }
@@ -1302,10 +1300,9 @@ void ProjectContext::loadCameraRigFiles(
   kept.reserve(m_project.cameraRigs.size());
   for (auto &rig : m_project.cameraRigs) {
     const auto file = camerasDir / (rig.name + ".tsd");
-    std::string name;
-    ShotCameraRig data;
+    CameraRig data;
     std::string err;
-    if (!importCameraRigFile(file, name, data, &err)) {
+    if (!camera_rig::importCameraRigFile(file, data, &err)) {
       tsd::core::logWarning(
           "[SciVisStudio] Skipping camera rig '%s': %s",
           rig.name.c_str(),
@@ -1316,7 +1313,8 @@ void ProjectContext::loadCameraRigFiles(
       }
       continue;
     }
-    rig.rig = std::move(data);
+    rig.current = std::move(data.current);
+    rig.keyframes = std::move(data.keyframes);
     kept.push_back(std::move(rig));
   }
   m_project.cameraRigs = std::move(kept);
@@ -1457,7 +1455,7 @@ void ProjectContext::migrateLegacyShotLightsToLightRigs()
       continue;
 
     LightRig rig;
-    rig.id = project::nextLightRigId(m_project);
+    rig.id = light_rig::nextLightRigId(m_project);
     rig.name =
         shot.name.empty() ? (shot.id + " Lights") : (shot.name + " Lights");
     if (auto existing = findDirectChild(lightRigsRoot, rig.id))
