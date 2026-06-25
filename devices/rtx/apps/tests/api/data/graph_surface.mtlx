@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+  <nodegraph name="graph_surface">
+    <standard_surface name="ss" type="surfaceshader">
+      <input name="base_color" type="color3" value="0.1, 0.8, 0.2"/>
+    </standard_surface>
+    <output name="out" type="surfaceshader" nodename="ss"/>
+  </nodegraph>
+</materialx>

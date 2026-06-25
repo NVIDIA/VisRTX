@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+  <nodedef name="ND_surf_a_visrtxtest" node="surf_a_visrtxtest" type="surfaceshader">
+    <input name="base_color" type="color3" value="1.0, 0.0, 0.0"/>
+  </nodedef>
+  <nodedef name="ND_surf_b_visrtxtest" node="surf_b_visrtxtest" type="surfaceshader">
+    <input name="base_color" type="color3" value="0.0, 0.0, 1.0"/>
+  </nodedef>
+</materialx>

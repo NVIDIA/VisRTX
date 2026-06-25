@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<materialx version="1.39">
+  <nodedef name="ND_scale_float_visrtxtest" node="scale_float_visrtxtest" type="float">
+    <input name="in" type="float" value="1.0"/>
+  </nodedef>
+</materialx>

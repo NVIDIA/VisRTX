@@ -41,8 +41,11 @@
 #include <MaterialXGenShader/UnitSystem.h>
 #include <MaterialXGenShader/Util.h>
 
+#include <filesystem>
 #include <map>
 #include <memory>
+#include <set>
+#include <vector>
 
 namespace mx = MaterialX;
 
@@ -81,17 +84,140 @@ mx::DocumentPtr loadStdLibraries(
 }
 constexpr auto kMdlTargetVersion = mx::GenMdlOptions::MdlVersion::MDL_1_7;
 
-mx::TypedElementPtr pickRenderable(const mx::DocumentPtr &doc,
-    const std::optional<std::string> &selected, std::string &error)
+// Compare a (possibly relative or differently-spelled) source URI to a file
+// path by normalized form. MaterialX stores the URI as handed to the reader.
+bool sameFile(const std::string &uri, const std::filesystem::path &file)
 {
-  auto renderable = mx::findRenderableElements(doc);
-  if (renderable.empty()) {
-    error = "no renderable materials in document";
+  if (uri.empty())
+    return false;
+  std::error_code ec;
+  auto a = std::filesystem::weakly_canonical(std::filesystem::path(uri), ec);
+  if (ec)
+    return false;
+  auto b = std::filesystem::weakly_canonical(file, ec);
+  return !ec && a == b;
+}
+
+std::string joinNodeDefNames(const std::vector<mx::NodeDefPtr> &nds)
+{
+  std::string s;
+  for (const auto &nd : nds) {
+    if (!s.empty())
+      s += ", ";
+    s += nd->getName();
+  }
+  return s;
+}
+
+// An output parented to a nodedef-implementation nodegraph is internal, not a
+// user-facing material. A free-standing document-level nodegraph
+// (getNodeDef() == null) that outputs a surfaceshader IS a user material.
+bool isImplementationOutput(const mx::TypedElementPtr &e)
+{
+  auto ng = e->getParent() ? e->getParent()->asA<mx::NodeGraph>() : nullptr;
+  return ng && ng->getNodeDef() != nullptr;
+}
+
+// Among same-category overloads, the default-version nodedef; the sole member
+// if there is only one; nullptr if several and none is flagged default.
+mx::NodeDefPtr preferDefaultVersion(const std::vector<mx::NodeDefPtr> &nds)
+{
+  if (nds.size() == 1)
+    return nds.front();
+  // First default-flagged wins; two defaults in one category is an invalid
+  // document we do not diagnose here.
+  for (const auto &nd : nds)
+    if (nd->getDefaultVersion())
+      return nd;
+  return nullptr;
+}
+
+// When a document has no user-authored renderable element, synthesize one from
+// a file-local surfaceshader nodedef: instantiate it and wrap it in a material
+// node (a bare shader instance is not returned by findRenderableElements).
+// Returns the material element, or nullptr with `error` set.
+mx::TypedElementPtr autoInstantiateNodeDef(const mx::DocumentPtr &doc,
+    const std::optional<std::string> &selected,
+    const std::filesystem::path &mtlxFile,
+    std::string &error)
+{
+  std::vector<mx::NodeDefPtr> cands;
+  for (const auto &nd : doc->getNodeDefs())
+    if (nd->getType() == mx::SURFACE_SHADER_TYPE_STRING
+        && sameFile(nd->getActiveSourceUri(), mtlxFile))
+      cands.push_back(nd);
+
+  if (cands.empty()) {
+    error = "no renderable materials in '" + mtlxFile.string()
+        + "'; no instantiable surfaceshader nodedef in document";
     return nullptr;
   }
-  if (!selected)
-    return renderable.front();
+
+  mx::NodeDefPtr pick;
+  if (selected) {
+    for (const auto &nd : cands)
+      if (nd->getName() == *selected) {
+        pick = nd;
+        break;
+      }
+    if (!pick) {
+      std::vector<mx::NodeDefPtr> byCategory;
+      for (const auto &nd : cands)
+        if (nd->getNodeString() == *selected)
+          byCategory.push_back(nd);
+      if (byCategory.empty()) {
+        error = "materialName '" + *selected
+            + "' not found among instantiable surfaceshader nodedefs in '"
+            + mtlxFile.string() + "': " + joinNodeDefNames(cands);
+        return nullptr;
+      }
+      pick = preferDefaultVersion(byCategory);
+      if (!pick) {
+        error = "materialName '" + *selected + "' is ambiguous (overloads: "
+            + joinNodeDefNames(byCategory) + "); use an exact nodedef name";
+        return nullptr;
+      }
+    }
+  } else {
+    std::set<std::string> categories;
+    for (const auto &nd : cands)
+      categories.insert(nd->getNodeString());
+    if (categories.size() > 1) {
+      error = "multiple instantiable surfaceshader nodedefs in '"
+          + mtlxFile.string() + "'; set materialName to one of: "
+          + joinNodeDefNames(cands);
+      return nullptr;
+    }
+    pick = preferDefaultVersion(cands);
+    if (!pick) {
+      error = "ambiguous surfaceshader overloads in '" + mtlxFile.string()
+          + "' (none flagged default); set materialName to an exact nodedef name: "
+          + joinNodeDefNames(cands);
+      return nullptr;
+    }
+  }
+
+  auto shader = doc->addNodeInstance(
+      pick, doc->createValidChildName(pick->getNodeString()));
+  return doc->addMaterialNode(
+      doc->createValidChildName(pick->getNodeString() + "_material"), shader);
+}
+
+mx::TypedElementPtr pickRenderable(const mx::DocumentPtr &doc,
+    const std::optional<std::string> &selected,
+    const std::filesystem::path &mtlxFile,
+    std::string &error)
+{
+  auto renderable = mx::findRenderableElements(doc);
+  std::vector<mx::TypedElementPtr> materials;
   for (const auto &e : renderable)
+    if (!isImplementationOutput(e))
+      materials.push_back(e);
+  if (materials.empty())
+    return autoInstantiateNodeDef(doc, selected, mtlxFile, error);
+  if (!selected)
+    return materials.front();
+  for (const auto &e : materials)
     if (e->getNamePath() == *selected || e->getName() == *selected)
       return e;
   error = "materialName '" + *selected + "' not found in document";
@@ -106,12 +232,17 @@ std::vector<std::string> enumerateRenderableMaterials(
   try {
     auto stdLib = loadStdLibraries(librarySearchPaths);
     auto doc = mx::createDocument();
-    doc->importLibrary(stdLib);
+    // Read the user file BEFORE importing stdlib so its elements keep their own
+    // source URI. If the user file is itself a stdlib file loaded from a path
+    // other than the build-time library dir, importing first would let the
+    // stdlib copy win the name and stamp the build-time URI onto it.
     mx::readFromXmlFile(doc, mtlxFile.string(), toSearchPath(librarySearchPaths));
+    doc->importLibrary(stdLib);
 
     std::vector<std::string> names;
     for (const auto &elem : mx::findRenderableElements(doc))
-      names.push_back(elem->getNamePath());
+      if (!isImplementationOutput(elem))
+        names.push_back(elem->getNamePath());
     return names;
   } catch (const std::exception &) {
     return {};
@@ -130,13 +261,19 @@ TranscodeResult transcodeMaterialXToMdl(
     auto stdLib = loadStdLibraries(librarySearchPaths);
 
     auto doc = mx::createDocument();
-    doc->importLibrary(stdLib);
+    // Read the user file BEFORE importing stdlib so its nodedefs keep their own
+    // source URI — autoInstantiateNodeDef's file-local filter relies on it. If
+    // the user file is itself a stdlib file loaded from a path other than the
+    // build-time library dir, importing first lets the stdlib copy win the name
+    // and stamp the build-time URI onto it, hiding the file's own nodedef.
     mx::readFromXmlFile(doc, mtlxFile.string(), searchPath);
+    doc->importLibrary(stdLib);
 
     for (const auto &e : mx::findRenderableElements(doc))
-      result.available.push_back(e->getNamePath());
+      if (!isImplementationOutput(e))
+        result.available.push_back(e->getNamePath());
 
-    auto elem = pickRenderable(doc, selected, result.error);
+    auto elem = pickRenderable(doc, selected, mtlxFile, result.error);
     if (!elem)
       return result;
 

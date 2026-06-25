@@ -118,6 +118,108 @@ int main()
     }
     if (!ok) { std::printf("FAIL: base_color not a paired textured row\n"); return 1; }
   }
+  // --- Auto-instantiation: headline regression (distribution standard_surface
+  // is nodedef-only with TWO overloaded surfaceshader nodedefs). materialName
+  // unset must resolve to the default-version nodedef and transcode. ---
+  {
+    const std::filesystem::path ss =
+        std::filesystem::path(MATERIALX_LIBRARIES_DIR) / "bxdf" / "standard_surface.mtlx";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(ss, std::nullopt, libs, {});
+    if (!r.error.empty() || r.mdlSource.empty() || r.materialName.empty()) {
+      std::printf("FAIL: auto-instantiate (unset) error='%s' src.empty=%d\n",
+          r.error.c_str(), (int)r.mdlSource.empty());
+      return 1;
+    }
+    bool foundBaseColor = false;
+    for (const auto &m : r.paramMap)
+      if (m.cleanName == "base_color"
+          && m.originPath == "standard_surface/base_color")
+        foundBaseColor = true;
+    if (!foundBaseColor) {
+      std::printf("FAIL: auto-instantiate paramMap missing standard_surface/base_color\n");
+      return 1;
+    }
+    if (!r.available.empty()) {
+      std::printf("FAIL: auto-instantiate should report empty available, got %zu\n",
+          r.available.size());
+      return 1;
+    }
+  }
+  // Same file, selected by node category and by exact nodedef name -> both resolve.
+  {
+    const std::filesystem::path ss =
+        std::filesystem::path(MATERIALX_LIBRARIES_DIR) / "bxdf" / "standard_surface.mtlx";
+    auto byCat = visrtx::materialx::transcodeMaterialXToMdl(
+        ss, std::string("standard_surface"), libs, {});
+    auto byName = visrtx::materialx::transcodeMaterialXToMdl(
+        ss, std::string("ND_standard_surface_surfaceshader"), libs, {});
+    if (!byCat.error.empty() || byCat.mdlSource.empty()) {
+      std::printf("FAIL: auto-instantiate by category: %s\n", byCat.error.c_str());
+      return 1;
+    }
+    if (!byName.error.empty() || byName.mdlSource.empty()) {
+      std::printf("FAIL: auto-instantiate by nodedef name: %s\n", byName.error.c_str());
+      return 1;
+    }
+  }
+  // Error: file has nodedefs but none is a surfaceshader.
+  {
+    const std::filesystem::path f =
+        std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "no_surface_nodedef.mtlx";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(f, std::nullopt, libs, {});
+    if (r.error.empty() || !r.mdlSource.empty()) {
+      std::printf("FAIL: no-surfaceshader should error with empty source\n");
+      return 1;
+    }
+  }
+  // Error: two distinct surfaceshader categories, materialName unset -> ambiguous.
+  {
+    const std::filesystem::path f =
+        std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "two_surface_nodedefs.mtlx";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(f, std::nullopt, libs, {});
+    if (r.error.empty() || !r.mdlSource.empty()) {
+      std::printf("FAIL: multi-category unset should error with empty source\n");
+      return 1;
+    }
+  }
+  // Regression (Fix 1): a document-level nodegraph that outputs a surfaceshader
+  // is a real material and must transcode normally, NOT trigger auto-instantiation.
+  // A too-broad predicate (any NodeGraph parent) would divert it into
+  // auto-instantiation and error with "no instantiable surfaceshader nodedef".
+  {
+    const std::filesystem::path f =
+        std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "graph_surface.mtlx";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(f, std::nullopt, libs, {});
+    if (!r.error.empty() || r.mdlSource.empty()) {
+      std::printf("FAIL: graph_surface should transcode normally: '%s'\n", r.error.c_str());
+      return 1;
+    }
+  }
+  // Regression: a nodedef-only file loaded from a path OTHER than the library
+  // dir (e.g. a separate MaterialX checkout, as a user would). Auto-instantiation
+  // must still find the file's surfaceshader nodedef even though stdlib defines
+  // the same names — the file must be read before stdlib is imported so its
+  // nodedef keeps its own source URI rather than the build-time stdlib path.
+  {
+    const std::filesystem::path src =
+        std::filesystem::path(MATERIALX_LIBRARIES_DIR) / "bxdf" / "standard_surface.mtlx";
+    std::error_code ec;
+    auto tmp = std::filesystem::temp_directory_path(ec)
+        / "visrtx_mtlx_regression_standard_surface.mtlx";
+    std::filesystem::copy_file(
+        src, tmp, std::filesystem::copy_options::overwrite_existing, ec);
+    if (ec) {
+      std::printf("FAIL: could not stage temp .mtlx: %s\n", ec.message().c_str());
+      return 1;
+    }
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(tmp, std::nullopt, libs, {});
+    std::filesystem::remove(tmp, ec);
+    if (!r.error.empty() || r.mdlSource.empty()) {
+      std::printf("FAIL: off-libdir nodedef file should auto-instantiate: '%s'\n",
+          r.error.c_str());
+      return 1;
+    }
+  }
   std::printf("PASS\n");
   return 0;
 }
