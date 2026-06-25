@@ -67,13 +67,34 @@ MaterialX::MaterialX(DeviceGlobalState *d) : MDL(d) {}
 
 bool MaterialX::needsRetranscode()
 {
-  // A successful transcode overwrites `source`/`materialName` with generated
-  // MDL and its material name. Recognize that here so our OWN output is never
-  // mistaken for new user input — otherwise the next commit would feed the MDL
-  // code back in as a .mtlx path, fail to parse, and silently fall back to
-  // diffuse. The app changing the path re-sets `source`, which then differs
-  // from m_generatedSource and is adopted as the new user path.
+  // A successful transcode overwrites source/sourceType/materialName with the
+  // generated MDL handoff (sourceType="code"). Recognize our own write so it is
+  // not mistaken for new user input; otherwise distinguish the app's values.
   auto liveSource = getParamString("source", "");
+  auto liveSourceType = getParamString("sourceType", "documentFile");
+
+  // `code` is exclusively our handoff sentinel — never a valid app sourceType —
+  // so it alone marks our write and the cached scheme is restored, INDEPENDENT
+  // of `source`. (An app editing inline text re-sets `source` but not
+  // `sourceType`; keying this on `source` too would misread our "code" as an
+  // unknown value and silently fall back to documentFile, treating the new
+  // inline XML as a file path.)
+  std::string userSourceType;
+  if (liveSourceType == "code") {
+    userSourceType = m_userSourceType;
+  } else if (liveSourceType == "documentFile" || liveSourceType == "documentInline") {
+    userSourceType = liveSourceType;
+  } else {
+    if (liveSourceType != m_userSourceType)
+      reportMessage(ANARI_SEVERITY_WARNING,
+          "MaterialX: unknown sourceType '%s'; using 'documentFile' "
+          "(valid: documentFile, documentInline)",
+          liveSourceType.c_str());
+    userSourceType = "documentFile";
+  }
+
+  // `source` carries the generated MDL after our handoff; recognize that so our
+  // own output is not re-read as a user document.
   std::string userPath = (liveSource == m_generatedSource) ? m_userPath : liveSource;
 
   std::optional<std::string> userSelected;
@@ -90,32 +111,46 @@ bool MaterialX::needsRetranscode()
           : std::optional<std::string>(liveName);
   }
 
-  std::error_code ec;
-  auto write = std::filesystem::last_write_time(userPath, ec);
+  bool changed = userPath != m_userPath || userSelected != m_userSelected
+      || userSourceType != m_userSourceType;
 
-  const bool changed = userPath != m_userPath || userSelected != m_userSelected
-      || (!ec && write != m_userPathWrite);
+  // Inline content lives in `source` (captured by userPath above); only a file
+  // source has an on-disk mtime to watch.
+  if (userSourceType == "documentFile") {
+    std::error_code ec;
+    auto write = std::filesystem::last_write_time(userPath, ec);
+    if (!ec) {
+      changed = changed || write != m_userPathWrite;
+      m_userPathWrite = write;
+    }
+  }
 
   m_userPath = userPath;
   m_userSelected = userSelected;
-  if (!ec)
-    m_userPathWrite = write;
+  m_userSourceType = userSourceType;
   return changed;
 }
 
 void MaterialX::transcode(const std::vector<std::string> &texturedOrigins)
 {
-  auto resolved = resolveMaterialXSource(m_userPath);
-  std::vector<std::filesystem::path> libs = {MATERIALX_LIBRARIES_DIR,
-      std::filesystem::path(resolved).parent_path()};
+  const bool inlineDoc = m_userSourceType == "documentInline";
+  auto resolved = inlineDoc ? m_userPath : resolveMaterialXSource(m_userPath);
+  auto src = inlineDoc ? materialx::DocumentSource::inlineText(resolved)
+                       : materialx::DocumentSource::file(resolved);
+
+  std::vector<std::filesystem::path> libs = {MATERIALX_LIBRARIES_DIR};
+  if (!inlineDoc)
+    libs.push_back(std::filesystem::path(resolved).parent_path());
+
   auto r = materialx::transcodeMaterialXToMdl(
-      resolved, m_userSelected, libs, texturedOrigins);
+      src, m_userSelected, libs, texturedOrigins);
   m_materialNames = r.available;
   m_paramMap = std::move(r.paramMap);
   m_texturedOrigins = texturedOrigins;
   if (!r.error.empty() || r.mdlSource.empty()) {
+    const char *label = inlineDoc ? "<inline document>" : m_userPath.c_str();
     reportMessage(ANARI_SEVERITY_ERROR, "MaterialX: failed to transcode '%s': %s",
-        m_userPath.c_str(), r.error.c_str());
+        label, r.error.c_str());
     reportMessage(ANARI_SEVERITY_WARNING, "MaterialX: falling back to default material");
     m_generatedSource.clear();
     m_generatedName.clear();

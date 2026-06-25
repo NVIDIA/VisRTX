@@ -40,8 +40,24 @@
 
 namespace visrtx::materialx {
 
+struct DocumentSource
+{
+  enum class Kind { File, Inline };
+  Kind kind;
+  std::string value; // File: filesystem path; Inline: .mtlx XML text
+
+  static DocumentSource file(const std::filesystem::path &p)
+  {
+    return {Kind::File, p.string()};
+  }
+  static DocumentSource inlineText(std::string xml)
+  {
+    return {Kind::Inline, std::move(xml)};
+  }
+};
+
 std::vector<std::string> enumerateRenderableMaterials(
-    const std::filesystem::path &mtlxFile,
+    const DocumentSource &source,
     nonstd::span<const std::filesystem::path> librarySearchPaths);
 
 struct ParamMapping
@@ -63,7 +79,7 @@ struct TranscodeResult
 };
 
 TranscodeResult transcodeMaterialXToMdl(
-    const std::filesystem::path &mtlxFile,
+    const DocumentSource &source,
     std::optional<std::string> selected,
     nonstd::span<const std::filesystem::path> librarySearchPaths,
     nonstd::span<const std::string> texturedOriginPaths);

@@ -14,7 +14,13 @@
                     "name": "source",
                     "types": ["ANARI_STRING"],
                     "tags": [],
-                    "description": "Path to a .mtlx document"
+                    "description": "A .mtlx document: a file path when sourceType is documentFile, or inline .mtlx XML text when sourceType is documentInline"
+                },
+                {
+                    "name": "sourceType",
+                    "types": ["ANARI_STRING"],
+                    "tags": [],
+                    "description": "How `source` is interpreted: documentFile (default, a path) or documentInline (inline .mtlx XML text)"
                 },
                 {
                     "name": "materialName",

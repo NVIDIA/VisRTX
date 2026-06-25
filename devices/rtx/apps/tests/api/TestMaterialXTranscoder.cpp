@@ -40,7 +40,8 @@ int main()
       std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "two_materials.mtlx";
   std::vector<std::filesystem::path> libs = {MATERIALX_LIBRARIES_DIR};
 
-  auto names = visrtx::materialx::enumerateRenderableMaterials(data, libs);
+  auto names = visrtx::materialx::enumerateRenderableMaterials(
+      visrtx::materialx::DocumentSource::file(data), libs);
 
   bool hasRed = false, hasBlue = false;
   for (const auto &n : names) {
@@ -54,7 +55,8 @@ int main()
   {
     const std::filesystem::path red =
         std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "red_surface.mtlx";
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs, {});
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(red), std::nullopt, libs, {});
     if (!r.error.empty() || r.mdlSource.empty() || r.materialName.empty()) {
       std::printf("FAIL: red transcode error='%s'\n", r.error.c_str());
       return 1;
@@ -66,7 +68,8 @@ int main()
   }
   {
     auto r = visrtx::materialx::transcodeMaterialXToMdl(
-        "/no/such/file.mtlx", std::nullopt, libs, {});
+        visrtx::materialx::DocumentSource::file("/no/such/file.mtlx"),
+        std::nullopt, libs, {});
     if (r.error.empty() || !r.mdlSource.empty()) {
       std::printf("FAIL: missing-file should set error and empty source\n");
       return 1;
@@ -75,7 +78,8 @@ int main()
   {
     const std::filesystem::path red =
         std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "red_surface.mtlx";
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs, {});
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(red), std::nullopt, libs, {});
     bool foundBaseColor = false;
     for (const auto &m : r.paramMap) {
       if (m.cleanName == "base_color") {
@@ -105,7 +109,8 @@ int main()
     const std::filesystem::path red =
         std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "red_surface.mtlx";
     std::vector<std::string> textured = {"srf/base_color"};
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs, textured);
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(red), std::nullopt, libs, textured);
     if (!r.error.empty()) { std::printf("FAIL: textured transcode: %s\n", r.error.c_str()); return 1; }
     bool ok = false;
     for (const auto &m : r.paramMap) {
@@ -124,7 +129,8 @@ int main()
   {
     const std::filesystem::path ss =
         std::filesystem::path(MATERIALX_LIBRARIES_DIR) / "bxdf" / "standard_surface.mtlx";
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(ss, std::nullopt, libs, {});
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(ss), std::nullopt, libs, {});
     if (!r.error.empty() || r.mdlSource.empty() || r.materialName.empty()) {
       std::printf("FAIL: auto-instantiate (unset) error='%s' src.empty=%d\n",
           r.error.c_str(), (int)r.mdlSource.empty());
@@ -150,9 +156,11 @@ int main()
     const std::filesystem::path ss =
         std::filesystem::path(MATERIALX_LIBRARIES_DIR) / "bxdf" / "standard_surface.mtlx";
     auto byCat = visrtx::materialx::transcodeMaterialXToMdl(
-        ss, std::string("standard_surface"), libs, {});
+        visrtx::materialx::DocumentSource::file(ss),
+        std::string("standard_surface"), libs, {});
     auto byName = visrtx::materialx::transcodeMaterialXToMdl(
-        ss, std::string("ND_standard_surface_surfaceshader"), libs, {});
+        visrtx::materialx::DocumentSource::file(ss),
+        std::string("ND_standard_surface_surfaceshader"), libs, {});
     if (!byCat.error.empty() || byCat.mdlSource.empty()) {
       std::printf("FAIL: auto-instantiate by category: %s\n", byCat.error.c_str());
       return 1;
@@ -166,7 +174,8 @@ int main()
   {
     const std::filesystem::path f =
         std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "no_surface_nodedef.mtlx";
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(f, std::nullopt, libs, {});
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(f), std::nullopt, libs, {});
     if (r.error.empty() || !r.mdlSource.empty()) {
       std::printf("FAIL: no-surfaceshader should error with empty source\n");
       return 1;
@@ -176,7 +185,8 @@ int main()
   {
     const std::filesystem::path f =
         std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "two_surface_nodedefs.mtlx";
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(f, std::nullopt, libs, {});
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(f), std::nullopt, libs, {});
     if (r.error.empty() || !r.mdlSource.empty()) {
       std::printf("FAIL: multi-category unset should error with empty source\n");
       return 1;
@@ -189,7 +199,8 @@ int main()
   {
     const std::filesystem::path f =
         std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "graph_surface.mtlx";
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(f, std::nullopt, libs, {});
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(f), std::nullopt, libs, {});
     if (!r.error.empty() || r.mdlSource.empty()) {
       std::printf("FAIL: graph_surface should transcode normally: '%s'\n", r.error.c_str());
       return 1;
@@ -212,11 +223,71 @@ int main()
       std::printf("FAIL: could not stage temp .mtlx: %s\n", ec.message().c_str());
       return 1;
     }
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(tmp, std::nullopt, libs, {});
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(tmp), std::nullopt, libs, {});
     std::filesystem::remove(tmp, ec);
     if (!r.error.empty() || r.mdlSource.empty()) {
       std::printf("FAIL: off-libdir nodedef file should auto-instantiate: '%s'\n",
           r.error.c_str());
+      return 1;
+    }
+  }
+  // Inline: a complete material given as XML text (no file) transcodes.
+  {
+    const std::string xml =
+        "<?xml version=\"1.0\"?>\n"
+        "<materialx version=\"1.39\">\n"
+        "  <standard_surface name=\"srf\" type=\"surfaceshader\">\n"
+        "    <input name=\"base_color\" type=\"color3\" value=\"0.1, 0.8, 0.2\"/>\n"
+        "  </standard_surface>\n"
+        "  <surfacematerial name=\"M\" type=\"material\">\n"
+        "    <input name=\"surfaceshader\" type=\"surfaceshader\" nodename=\"srf\"/>\n"
+        "  </surfacematerial>\n"
+        "</materialx>\n";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::inlineText(xml), std::nullopt, libs, {});
+    if (!r.error.empty() || r.mdlSource.empty()) {
+      std::printf("FAIL: inline complete material: '%s'\n", r.error.c_str());
+      return 1;
+    }
+    bool found = false;
+    for (const auto &m : r.paramMap)
+      if (m.cleanName == "base_color" && m.originPath == "srf/base_color")
+        found = true;
+    if (!found) { std::printf("FAIL: inline paramMap missing srf/base_color\n"); return 1; }
+  }
+  // Inline nodedef-only: a custom surfaceshader nodedef + nodegraph impl, no
+  // renderable element -> auto-instantiation. Guards inline provenance (no URI).
+  // The nodedef declares its type via an explicit <output>, not a type= attr.
+  {
+    const std::string xml =
+        "<?xml version=\"1.0\"?>\n"
+        "<materialx version=\"1.39\">\n"
+        "  <nodedef name=\"ND_my_surface_vt\" node=\"my_surface_vt\">\n"
+        "    <input name=\"base_color\" type=\"color3\" value=\"0.1, 0.8, 0.2\"/>\n"
+        "    <output name=\"out\" type=\"surfaceshader\"/>\n"
+        "  </nodedef>\n"
+        "  <nodegraph name=\"IMP_my_surface_vt\" nodedef=\"ND_my_surface_vt\">\n"
+        "    <standard_surface name=\"ss\" type=\"surfaceshader\">\n"
+        "      <input name=\"base_color\" type=\"color3\" interfacename=\"base_color\"/>\n"
+        "    </standard_surface>\n"
+        "    <output name=\"out\" type=\"surfaceshader\" nodename=\"ss\"/>\n"
+        "  </nodegraph>\n"
+        "</materialx>\n";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::inlineText(xml), std::nullopt, libs, {});
+    if (!r.error.empty() || r.mdlSource.empty()) {
+      std::printf("FAIL: inline nodedef-only auto-instantiate: '%s'\n", r.error.c_str());
+      return 1;
+    }
+  }
+  // Inline malformed XML -> error, empty source (caught by transcode try/catch).
+  {
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::inlineText("<materialx not closed"),
+        std::nullopt, libs, {});
+    if (r.error.empty() || !r.mdlSource.empty()) {
+      std::printf("FAIL: malformed inline should error with empty source\n");
       return 1;
     }
   }

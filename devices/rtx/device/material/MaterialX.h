@@ -50,10 +50,11 @@ struct MaterialX : public MDL
       void *ptr, uint64_t size, uint32_t flags) override;
 
  private:
-  // True if the user's .mtlx path, selection, or the file's mtime changed since
-  // the last successful transcode. Updates the cached user inputs as a side
-  // effect. Must distinguish the user's `source`/`materialName` from the
-  // generated MDL we write back into those same params (see commitParameters).
+  // True if the user's source, sourceType, selection, or (for documentFile) the
+  // file's mtime changed since the last successful transcode. Updates the cached
+  // user inputs as a side effect. Must distinguish the user's
+  // `source`/`sourceType`/`materialName` from the generated MDL + "code" we write
+  // back into those same params (see commitParameters).
   bool needsRetranscode();
 
   // Invoke the transcoder and update all generated state.
@@ -68,8 +69,9 @@ struct MaterialX : public MDL
   // Route each ParamMapping's clean param to its value or texture arg by type.
   void routeParameters(); // replaces remapParameters
 
-  std::string m_userPath;                    // last .mtlx path the app set
+  std::string m_userPath; // last source the app set: .mtlx path OR inline XML
   std::optional<std::string> m_userSelected; // last materialName the app set
+  std::string m_userSourceType{"documentFile"}; // documentFile | documentInline
   std::filesystem::file_time_type m_userPathWrite{};
 
   std::string m_generatedSource; // MDL written into the `source` param

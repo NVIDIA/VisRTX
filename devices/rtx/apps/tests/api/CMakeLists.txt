@@ -137,4 +137,5 @@ if(VISRTX_ENABLE_MATERIALX_SUPPORT)
   make_test(TestMaterialXAutoInstTexture)
   target_compile_definitions(TestMaterialXAutoInstTexture PRIVATE
     MATERIALX_LIBRARIES_DIR="${MATERIALX_LIBRARIES_DIR}")
+  make_test(TestMaterialXInlineDocument)
 endif()
