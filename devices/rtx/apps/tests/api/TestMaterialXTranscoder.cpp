@@ -123,6 +123,25 @@ int main()
     }
     if (!ok) { std::printf("FAIL: base_color not a paired textured row\n"); return 1; }
   }
+  // Textured an INHERITED input. standard_surface's default nodedef declares
+  // only base/base_color directly and inherits the rest, so emission_color must
+  // be materialized via getActiveInput (not getInput) for the splice to fire.
+  {
+    const std::filesystem::path red =
+        std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "red_surface.mtlx";
+    std::vector<std::string> textured = {"srf/emission_color"};
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::file(red), std::nullopt, libs, textured);
+    if (!r.error.empty()) { std::printf("FAIL: emission textured transcode: %s\n", r.error.c_str()); return 1; }
+    bool ok = false;
+    for (const auto &m : r.paramMap)
+      if (m.cleanName == "emission_color" && m.originPath == "srf/emission_color")
+        ok = !m.textureArg.empty() && m.type == "color3";
+    if (!ok) {
+      std::printf("FAIL: emission_color (inherited) not a paired textured row\n");
+      return 1;
+    }
+  }
   // --- Auto-instantiation: headline regression (distribution standard_surface
   // is nodedef-only with TWO overloaded surfaceshader nodedefs). materialName
   // unset must resolve to the default-version nodedef and transcode. ---

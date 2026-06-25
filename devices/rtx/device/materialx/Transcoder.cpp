@@ -293,9 +293,12 @@ TranscodeResult transcodeMaterialXToMdl(
       if (!input) {
         // Input absent from document (uses NodeDef default) — create it so we
         // can connect the image node without mutating the node's category name.
+        // getActiveInput (not getInput) resolves inputs inherited from a base
+        // nodedef: standard_surface's default nodedef declares only `base`/
+        // `base_color` directly and inherits the rest (emission_color, etc.).
         auto nd = node->getNodeDef();
         if (!nd) continue;
-        auto ndIn = nd->getInput(inputName);
+        auto ndIn = nd->getActiveInput(inputName);
         if (!ndIn) continue;
         input = node->addInput(inputName, ndIn->getType());
         auto defVal = ndIn->getValueString();
