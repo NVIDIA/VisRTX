@@ -59,4 +59,13 @@ void computeVertexTangents(
 
 void updateGeometryTangent(Triangle *triangle);
 
+// Pad a VEC3 tangent array into the internal vec4(T, sign) layout the shader
+// expects. The ANARI spec allows authoring tangents as plain VEC3 (no
+// handedness), so the missing w component is defaulted to +1 (right-handed).
+// Both pointers are device memory; count is the number of tangents. Returns
+// false (and reports the error) if the conversion fails, so the caller can
+// drop the tangents rather than read an uninitialized buffer.
+bool convertTangentsVec3ToVec4(
+    Triangle *triangle, const glm::vec3 *src, glm::vec4 *dst, size_t count);
+
 } // namespace visrtx

@@ -34,6 +34,7 @@
 #include <helium/utility/IntrusivePtr.h>
 #include "Geometry.h"
 #include "array/Array1D.h"
+#include "utility/DeviceBuffer.h"
 
 namespace visrtx {
 
@@ -54,6 +55,15 @@ struct Triangle : public Geometry
   GeometryGPUData gpuData() const override;
   void cleanup();
 
+  // Build the GPU-side staging for one authored tangent array into 'converted':
+  // VEC4 input is read zero-copy (buffer left empty); VEC3 input is padded to
+  // vec4 (sign defaulted to +1); unsupported element types are reported and
+  // leave the buffer empty so resolveTangentPtr() emits no tangents. Called per
+  // array during finalize().
+  void prepareTangentArray(const helium::IntrusivePtr<Array1D> &tangents,
+      DeviceBuffer &converted,
+      const char *paramName);
+
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_vertex;
   helium::IntrusivePtr<Array1D> m_vertexNormal;
@@ -62,6 +72,11 @@ struct Triangle : public Geometry
   helium::IntrusivePtr<Array1D> m_vertexNormalFV;
   helium::IntrusivePtr<Array1D> m_vertexTangent;
   helium::IntrusivePtr<Array1D> m_vertexTangentFV;
+
+  // VEC4 staging for VEC3-authored tangents; empty when the input is already
+  // VEC4 (zero-copy) or absent.
+  DeviceBuffer m_vertexTangentConverted;
+  DeviceBuffer m_vertexTangentFVConverted;
 
   CUdeviceptr m_vertexBufferPtr{};
 

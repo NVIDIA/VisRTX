@@ -319,6 +319,33 @@ __global__ void __doFinalizeTangents(glm::vec4 *tangents,
   tangents[v] = glm::vec4(T_orth, sign);
 }
 
+__global__ void __padTangentsVec3ToVec4(
+    glm::vec4 *dst, const glm::vec3 *src, unsigned int count)
+{
+  unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i >= count)
+    return;
+  // No authored handedness in a VEC3 tangent; default the sign to +1.
+  dst[i] = glm::vec4(src[i], 1.0f);
+}
+
+bool convertTangentsVec3ToVec4(
+    Triangle *triangle, const glm::vec3 *src, glm::vec4 *dst, size_t count)
+{
+  if (count == 0)
+    return true;
+
+  const auto n = static_cast<unsigned int>(count);
+  __padTangentsVec3ToVec4<<<(n + 63) / 64, 64>>>(dst, src, n);
+  if (reportCudaError(
+          triangle, cudaGetLastError(), "launching tangent vec3->vec4 padding"))
+    return false;
+  if (reportCudaError(
+          triangle, cudaDeviceSynchronize(), "padding vec3 tangents to vec4"))
+    return false;
+  return true;
+}
+
 void updateGeometryTangent(Triangle *triangle)
 {
   auto indices = triangle->getParamObject<Array1D>("primitive.index");
