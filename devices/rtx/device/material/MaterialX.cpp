@@ -32,14 +32,25 @@
 #include "MaterialX.h"
 
 #include "materialx/Transcoder.h"
+#include "sampler/CompressedImage2D.h"
+#include "sampler/Image2D.h"
 
 #include <anari/frontend/anari_enums.h>
 
 #include <filesystem>
+#include <set>
 
 namespace visrtx {
 
 namespace {
+// A spliced MDL image node consumes a 2D texture lookup, so a textured input
+// only binds when the sampler is one of the 2D image samplers.
+bool is2DImageSampler(const Sampler *s)
+{
+  return dynamic_cast<const Image2D *>(s)
+      || dynamic_cast<const CompressedImage2D *>(s);
+}
+
 // The TSD StandardSurface preset (and apps) reference the bundled standard
 // surface by a builtin logical name rather than an install path, mirroring
 // PhysicallyBasedMDL's builtin MDL module. Resolve it to the shipped .mtlx.
@@ -92,31 +103,103 @@ bool MaterialX::needsRetranscode()
   return changed;
 }
 
+void MaterialX::transcode(const std::vector<std::string> &texturedOrigins)
+{
+  auto resolved = resolveMaterialXSource(m_userPath);
+  std::vector<std::filesystem::path> libs = {MATERIALX_LIBRARIES_DIR,
+      std::filesystem::path(resolved).parent_path()};
+  auto r = materialx::transcodeMaterialXToMdl(
+      resolved, m_userSelected, libs, texturedOrigins);
+  m_materialNames = r.available;
+  m_paramMap = std::move(r.paramMap);
+  m_texturedOrigins = texturedOrigins;
+  if (!r.error.empty() || r.mdlSource.empty()) {
+    reportMessage(ANARI_SEVERITY_ERROR, "MaterialX: failed to transcode '%s': %s",
+        m_userPath.c_str(), r.error.c_str());
+    reportMessage(ANARI_SEVERITY_WARNING, "MaterialX: falling back to default material");
+    m_generatedSource.clear();
+    m_generatedName.clear();
+  } else {
+    m_generatedSource = std::move(r.mdlSource);
+    m_generatedName = std::move(r.materialName);
+  }
+}
+
+std::vector<std::string> MaterialX::desiredTexturedOrigins() const
+{
+  // Start from the persisted set so an absent (already-routed) clean param
+  // leaves its origin unchanged. Recomputing purely from present params would
+  // read "absent" as "no longer textured" and revert the topology on any commit
+  // that does not re-supply the clean name (e.g. a host editing another input).
+  std::set<std::string> origins(
+      m_texturedOrigins.begin(), m_texturedOrigins.end());
+  for (const auto &m : m_paramMap) {
+    if (!hasParam(m.cleanName))
+      continue;
+    if (getParamDirect(m.cleanName).type() == ANARI_SAMPLER)
+      origins.insert(m.originPath);
+    else
+      origins.erase(m.originPath); // explicit value overrides a textured input
+  }
+  return {origins.begin(), origins.end()};
+}
+
+void MaterialX::routeParameters()
+{
+  std::set<std::string> wanted; // arg params that must remain set after routing
+  for (const auto &m : m_paramMap) {
+    if (!hasParam(m.cleanName)) {
+      // Clean name consumed by a prior commit: preserve whichever arg already
+      // carries its value so an unrelated re-commit keeps the binding.
+      if (!m.textureArg.empty() && hasParam(m.textureArg))
+        wanted.insert(m.textureArg);
+      if (!m.valueArg.empty() && hasParam(m.valueArg))
+        wanted.insert(m.valueArg);
+      continue;
+    }
+    auto value = getParamDirect(m.cleanName);
+    if (value.type() == ANARI_SAMPLER) {
+      auto *s = value.getObject<Sampler>();
+      if (m.textureArg.empty() || !s || !is2DImageSampler(s)) {
+        reportMessage(ANARI_SEVERITY_WARNING,
+            "MaterialX: '%s' sampler not bound (image2D textured input required)",
+            m.cleanName.c_str());
+        removeParam(m.cleanName);
+        continue;
+      }
+      setParamDirect(m.textureArg, value);
+      wanted.insert(m.textureArg);
+    } else if (!m.valueArg.empty()) {
+      setParamDirect(m.valueArg, value);
+      wanted.insert(m.valueArg);
+    }
+    removeParam(m.cleanName);
+  }
+  // Tear down args a previous commit routed that the current topology no longer
+  // uses, so a changed/reverted topology leaves no orphan param mismatching the
+  // freshly compiled arg block (which would warn and leak the sampler).
+  for (const auto &arg : m_routedArgs)
+    if (!wanted.count(arg))
+      removeParam(arg);
+  m_routedArgs.assign(wanted.begin(), wanted.end());
+}
+
 void MaterialX::commitParameters()
 {
-  if (needsRetranscode()) {
-    auto resolved = resolveMaterialXSource(m_userPath);
-    std::vector<std::filesystem::path> libs = {MATERIALX_LIBRARIES_DIR,
-        std::filesystem::path(resolved).parent_path()};
-    auto r = materialx::transcodeMaterialXToMdl(resolved, m_userSelected, libs);
-    m_materialNames = r.available;
-    m_paramMap = std::move(r.paramMap); // active material's clean->arg mapping
+  // 1. Ensure m_paramMap exists (need origins/types to decide what to texture).
+  //    On the first commit it is empty -> run a value-only transcode first.
+  bool sourceChanged = needsRetranscode(); // reads/updates source/material/mtime
+  if (m_paramMap.empty() || sourceChanged)
+    transcode({}); // value-only; populates m_paramMap, m_generated*, clears textured
 
-    if (!r.error.empty() || r.mdlSource.empty()) {
-      reportMessage(ANARI_SEVERITY_ERROR,
-          "MaterialX: failed to transcode '%s': %s",
-          m_userPath.c_str(), r.error.c_str());
-      reportMessage(ANARI_SEVERITY_WARNING,
-          "MaterialX: falling back to default material");
-      m_generatedSource.clear();
-      m_generatedName.clear();
-    } else {
-      m_generatedSource = std::move(r.mdlSource);
-      m_generatedName = std::move(r.materialName);
-    }
-  }
+  // 2. Desired textured set (read BEFORE routing removes the clean names).
+  auto desired = desiredTexturedOrigins();
 
-  // Re-apply the MDL handoff on EVERY commit, not only when we re-transcoded.
+  // 3. Retranscode if the textured topology changed.
+  if (desired != m_texturedOrigins)
+    transcode(desired);
+
+  // 4. Re-apply the MDL handoff on EVERY commit, not only when we re-transcoded.
   // An app re-setting `source` to the .mtlx path (or helium re-staging the
   // object) would otherwise leave the base reading a path as MDL code and
   // silently fall back to diffuse. MDL::syncSource has its own content-based
@@ -128,40 +211,9 @@ void MaterialX::commitParameters()
   else
     setParam("materialName", ANARI_STRING, m_generatedName.c_str());
 
-  // Rename clean MaterialX param names to the generated MDL arg names so
-  // MDL::syncParameters (which binds by arg-block name) picks them up. Runs
-  // every commit: after the first commit the param store already holds the
-  // renamed arg name, so re-running is a no-op for it.
-  remapParameters();
-
+  // 5. Route clean params -> value/texture args, then delegate.
+  routeParameters();
   MDL::commitParameters();
-}
-
-void MaterialX::remapParameters()
-{
-  for (const auto &m : m_paramMap) {
-    if (m.cleanName == m.mdlArgName)
-      continue; // already 1:1
-    // Ambiguity guard: if two mappings share a cleanName, don't remap it.
-    bool ambiguous = false;
-    for (const auto &other : m_paramMap) {
-      if (&other != &m && other.cleanName == m.cleanName) {
-        ambiguous = true;
-        break;
-      }
-    }
-    if (ambiguous) {
-      reportMessage(ANARI_SEVERITY_WARNING,
-          "MaterialX: clean parameter name '%s' is ambiguous; not remapping",
-          m.cleanName.c_str());
-      continue;
-    }
-    if (!hasParam(m.cleanName))
-      continue;
-    auto value = getParamDirect(m.cleanName);
-    setParamDirect(m.mdlArgName, value);
-    removeParam(m.cleanName);
-  }
 }
 
 bool MaterialX::getProperty(const std::string_view &name, ANARIDataType type,

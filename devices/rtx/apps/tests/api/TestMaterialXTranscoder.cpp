@@ -54,7 +54,7 @@ int main()
   {
     const std::filesystem::path red =
         std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "red_surface.mtlx";
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs);
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs, {});
     if (!r.error.empty() || r.mdlSource.empty() || r.materialName.empty()) {
       std::printf("FAIL: red transcode error='%s'\n", r.error.c_str());
       return 1;
@@ -66,7 +66,7 @@ int main()
   }
   {
     auto r = visrtx::materialx::transcodeMaterialXToMdl(
-        "/no/such/file.mtlx", std::nullopt, libs);
+        "/no/such/file.mtlx", std::nullopt, libs, {});
     if (r.error.empty() || !r.mdlSource.empty()) {
       std::printf("FAIL: missing-file should set error and empty source\n");
       return 1;
@@ -75,25 +75,48 @@ int main()
   {
     const std::filesystem::path red =
         std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "red_surface.mtlx";
-    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs);
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs, {});
     bool foundBaseColor = false;
     for (const auto &m : r.paramMap) {
       if (m.cleanName == "base_color") {
         foundBaseColor = true;
-        // mdlArgName is the generated entry-material arg; for red_surface its
-        // surface node is "srf", so the arg is "srf_base_color".
-        if (m.mdlArgName != "srf_base_color") {
-          std::printf("FAIL: base_color maps to '%s', expected 'srf_base_color'\n",
-              m.mdlArgName.c_str());
+        if (m.valueArg != "srf_base_color") {
+          std::printf("FAIL: base_color valueArg='%s', expected 'srf_base_color'\n",
+              m.valueArg.c_str());
+          return 1;
+        }
+        if (m.originPath != "srf/base_color") {
+          std::printf("FAIL: base_color originPath='%s'\n", m.originPath.c_str());
+          return 1;
+        }
+        if (m.type != "color3") {
+          std::printf("FAIL: base_color type='%s'\n", m.type.c_str());
+          return 1;
+        }
+        if (!m.textureArg.empty()) {
+          std::printf("FAIL: base_color textureArg should be empty (no splice)\n");
           return 1;
         }
       }
     }
-    if (!foundBaseColor) {
-      std::printf("FAIL: paramMap missing base_color (%zu entries)\n",
-          r.paramMap.size());
-      return 1;
+    if (!foundBaseColor) { std::printf("FAIL: paramMap missing base_color\n"); return 1; }
+  }
+  {
+    const std::filesystem::path red =
+        std::filesystem::path(MATERIALX_TEST_DATA_DIR) / "red_surface.mtlx";
+    std::vector<std::string> textured = {"srf/base_color"};
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(red, std::nullopt, libs, textured);
+    if (!r.error.empty()) { std::printf("FAIL: textured transcode: %s\n", r.error.c_str()); return 1; }
+    bool ok = false;
+    for (const auto &m : r.paramMap) {
+      if (m.cleanName == "base_color" && m.originPath == "srf/base_color") {
+        ok = !m.valueArg.empty() && !m.textureArg.empty() && m.type == "color3";
+        if (!ok)
+          std::printf("FAIL: base_color row valueArg='%s' textureArg='%s' type='%s'\n",
+              m.valueArg.c_str(), m.textureArg.c_str(), m.type.c_str());
+      }
     }
+    if (!ok) { std::printf("FAIL: base_color not a paired textured row\n"); return 1; }
   }
   std::printf("PASS\n");
   return 0;

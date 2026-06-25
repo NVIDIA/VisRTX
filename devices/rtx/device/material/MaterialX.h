@@ -56,9 +56,17 @@ struct MaterialX : public MDL
   // generated MDL we write back into those same params (see commitParameters).
   bool needsRetranscode();
 
-  // Rename any ANARI param stored under a clean MaterialX input name to its
-  // generated MDL arg-block name before MDL::commitParameters() snapshots them.
-  void remapParameters();
+  // Invoke the transcoder and update all generated state.
+  void transcode(const std::vector<std::string> &texturedOrigins);
+
+  // The textured-origin set the next transcode should target. Starts from the
+  // persisted m_texturedOrigins so an absent (already-routed) clean param keeps
+  // its current state; only a present clean param adds (sampler) or drops
+  // (non-sampler value) its origin. Read BEFORE routing.
+  std::vector<std::string> desiredTexturedOrigins() const;
+
+  // Route each ParamMapping's clean param to its value or texture arg by type.
+  void routeParameters(); // replaces remapParameters
 
   std::string m_userPath;                    // last .mtlx path the app set
   std::optional<std::string> m_userSelected; // last materialName the app set
@@ -69,6 +77,16 @@ struct MaterialX : public MDL
   std::vector<std::string> m_materialNames;
   std::vector<const char *> m_materialNamePtrs;
   std::vector<materialx::ParamMapping> m_paramMap; // clean name -> MDL arg name
+
+  // Origin paths of inputs currently bound to a sampler (persisted across
+  // commits so a topology change is detected without recomputing from the
+  // params that routing removes).
+  std::vector<std::string> m_texturedOrigins;
+
+  // MDL arg params set by the last routeParameters. Lets a topology change tear
+  // down args the freshly compiled module no longer declares, so no orphan
+  // param survives to mismatch the arg block (and leak its sampler).
+  std::vector<std::string> m_routedArgs;
 };
 
 } // namespace visrtx

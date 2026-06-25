@@ -97,6 +97,7 @@ make_test(TestEmissiveInstanceRotatedScale)
 
 if(VISRTX_ENABLE_MATERIALX_SUPPORT)
   make_test(TestMaterialXBuiltin)
+  make_test(TestMaterialXNoDeviceCommit)
   make_test(TestMaterialXParamOverride)
   target_compile_definitions(TestMaterialXParamOverride PRIVATE
     MATERIALX_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")
@@ -112,6 +113,7 @@ if(VISRTX_ENABLE_MATERIALX_SUPPORT)
     MATERIALX_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")
   make_test(TestMaterialXTranscoder)
   make_test(TestMaterialXRender)
+  make_test(TestMaterialXTexturedInput)
   target_compile_definitions(TestMaterialXRender PRIVATE
     MATERIALX_TEST_DATA_DIR="${CMAKE_CURRENT_LIST_DIR}/data")
   # Compile Transcoder.cpp directly INTO the test. anari_library_visrtx is built
@@ -129,4 +131,7 @@ if(VISRTX_ENABLE_MATERIALX_SUPPORT)
     nonstd::span-lite)
   target_include_directories(TestMaterialXTranscoder PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../../../device)
+  make_test(TestMaterialXAutoInstTexture)
+  target_compile_definitions(TestMaterialXAutoInstTexture PRIVATE
+    MATERIALX_LIBRARIES_DIR="${MATERIALX_LIBRARIES_DIR}")
 endif()

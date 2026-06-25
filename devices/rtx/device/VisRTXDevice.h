@@ -150,6 +150,11 @@ struct VisRTXDevice : public helium::BaseDevice
   DeviceInitStatus initOptix();
 #ifdef USE_MDL
   DeviceInitStatus initMDL();
+  // Configure MDL module/resource search paths from the device params plus the
+  // bundled MaterialX support modules. Called from initMDL so the paths are set
+  // whenever MDL is initialized, independent of a device commit (the lazy-init
+  // path runs deviceCommitParameters before initMDL).
+  void syncMdlSearchPaths();
 #endif // defined(USE_MDL)
   void setCUDADevice();
   void revertCUDADevice();

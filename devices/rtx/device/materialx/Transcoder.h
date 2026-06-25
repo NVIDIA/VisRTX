@@ -46,8 +46,11 @@ std::vector<std::string> enumerateRenderableMaterials(
 
 struct ParamMapping
 {
-  std::string cleanName;  // MaterialX input name (origin tail), e.g. "base_color"
-  std::string mdlArgName; // generated MDL arg name, e.g. "srf_base_color"
+  std::string cleanName;   // MaterialX input name (origin tail), e.g. "base_color"
+  std::string originPath;  // full origin path, e.g. "srf/base_color" (getPath())
+  std::string type;        // MaterialX input type: color3/color4/float/vector2..4
+  std::string valueArg;    // generated constant MDL arg (was mdlArgName)
+  std::string textureArg;  // generated texture MDL arg when spliced; else empty
 };
 
 struct TranscodeResult
@@ -62,6 +65,7 @@ struct TranscodeResult
 TranscodeResult transcodeMaterialXToMdl(
     const std::filesystem::path &mtlxFile,
     std::optional<std::string> selected,
-    nonstd::span<const std::filesystem::path> librarySearchPaths);
+    nonstd::span<const std::filesystem::path> librarySearchPaths,
+    nonstd::span<const std::string> texturedOriginPaths);
 
 } // namespace visrtx::materialx

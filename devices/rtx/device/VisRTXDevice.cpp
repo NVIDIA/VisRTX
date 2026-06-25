@@ -508,45 +508,11 @@ void VisRTXDevice::deviceCommitParameters()
   }
 
 #ifdef USE_MDL
-  if (m_mdlInitStatus == DeviceInitStatus::SUCCESS) {
-    auto paths = getParamString("mdlSearchPaths", "");
-    auto mdlSearchPaths = std::vector<std::filesystem::path>{};
-
-#if defined(WIN32)
-    constexpr char sep = ';';
-#else
-    constexpr char sep = ':';
-#endif
-
-    for (auto it = cbegin(paths);;) {
-      while (it != cend(paths) && *it == sep)
-        ++it;
-      if (it == cend(paths))
-        break;
-      auto endOfPathIt = std::find(it, cend(paths), sep);
-      mdlSearchPaths.emplace_back(it, endOfPathIt);
-      it = endOfPathIt;
-    }
-#ifdef USE_MATERIALX
-    // setMdlSearchPaths replaces (not appends) — union before the single call
-    mdlSearchPaths.emplace_back(VISRTX_MATERIALX_MDL_DIR);
-#endif // defined(USE_MATERIALX)
-    deviceState()->mdl->core.setMdlSearchPaths(mdlSearchPaths);
-
-    paths = getParamString("mdlResourceSearchPaths", "");
-    mdlSearchPaths = std::vector<std::filesystem::path>{};
-
-    for (auto it = cbegin(paths);;) {
-      while (it != cend(paths) && *it == sep)
-        ++it;
-      if (it == cend(paths))
-        break;
-      auto endOfPathIt = std::find(it, cend(paths), sep);
-      mdlSearchPaths.emplace_back(it, endOfPathIt);
-      it = endOfPathIt;
-    }
-    deviceState()->mdl->core.setMdlResourceSearchPaths(mdlSearchPaths);
-  }
+  // Re-apply on commit so a changed mdlSearchPaths/mdlResourceSearchPaths param
+  // takes effect. initMDL() also calls this, which covers the lazy-init path
+  // where deviceCommitParameters runs before MDL is initialized.
+  if (m_mdlInitStatus == DeviceInitStatus::SUCCESS)
+    syncMdlSearchPaths();
 #endif // defined(USE_MDL)
 }
 
@@ -860,7 +826,46 @@ DeviceInitStatus VisRTXDevice::initMDL()
     return DeviceInitStatus::FAILURE;
   }
 
+  // Set search paths now so MaterialX/MDL materials resolve their imports even
+  // when the app never commits the device (the lazy-init path otherwise leaves
+  // the MaterialX support-module path unset → generated MDL fails to compile).
+  syncMdlSearchPaths();
+
   return DeviceInitStatus::SUCCESS;
+}
+
+void VisRTXDevice::syncMdlSearchPaths()
+{
+  const auto parsePaths = [&](const char *param) {
+    auto paths = getParamString(param, "");
+#if defined(WIN32)
+    constexpr char sep = ';';
+#else
+    constexpr char sep = ':';
+#endif
+    std::vector<std::filesystem::path> result;
+    for (auto it = cbegin(paths);;) {
+      while (it != cend(paths) && *it == sep)
+        ++it;
+      if (it == cend(paths))
+        break;
+      auto endOfPathIt = std::find(it, cend(paths), sep);
+      result.emplace_back(it, endOfPathIt);
+      it = endOfPathIt;
+    }
+    return result;
+  };
+
+  auto mdlSearchPaths = parsePaths("mdlSearchPaths");
+#ifdef USE_MATERIALX
+  // setMdlSearchPaths replaces (not appends) — union before the single call so
+  // the bundled MaterialX support modules (::materialx::*) stay resolvable.
+  mdlSearchPaths.emplace_back(VISRTX_MATERIALX_MDL_DIR);
+#endif // defined(USE_MATERIALX)
+  deviceState()->mdl->core.setMdlSearchPaths(mdlSearchPaths);
+
+  auto resourceSearchPaths = parsePaths("mdlResourceSearchPaths");
+  deviceState()->mdl->core.setMdlResourceSearchPaths(resourceSearchPaths);
 }
 #endif // defined(USE_MDL)
 
