@@ -58,30 +58,29 @@ Triangle::Triangle(DeviceGlobalState *d)
 
 Triangle::~Triangle() = default;
 
-void Triangle::prepareTangentArray(
+bool Triangle::prepareTangentArray(
     const helium::IntrusivePtr<Array1D> &tangents,
     DeviceBuffer &converted,
     const char *paramName)
 {
   // Only the staging buffer is rebuilt here; the array member is left untouched
-  // so it keeps faithfully reflecting the committed parameter (mutating it
-  // would let a finalize-only re-run trip the auto-compute-tangents gate).
+  // so it keeps faithfully reflecting the committed parameter.
   converted.reset();
 
   if (!tangents)
-    return;
+    return false;
 
   const auto type = tangents->elementType();
 
   // Already in the internal layout: read zero-copy in gpuData().
   if (type == ANARI_FLOAT32_VEC4)
-    return;
+    return true;
 
   // Spec-allowed VEC3 tangents: pad to vec4 with a default +1 handedness.
   if (type == ANARI_FLOAT32_VEC3) {
     const auto count = tangents->size();
     if (count == 0)
-      return;
+      return false;
     converted.reserve(count * sizeof(vec4));
     // On allocation (empty buffer) or conversion failure, leave 'converted'
     // empty; gpuData() then emits no tangents (resolveTangentPtr zero-copies
@@ -93,7 +92,7 @@ void Triangle::prepareTangentArray(
             count)) {
       converted.reset();
     }
-    return;
+    return converted;
   }
 
   // Anything else (e.g. the FIXED16 variants) is advertised by the query
@@ -104,6 +103,22 @@ void Triangle::prepareTangentArray(
       "expected ANARI_FLOAT32_VEC3 or ANARI_FLOAT32_VEC4 -- ignoring tangents",
       paramName,
       anari::toString(type));
+
+  return false;
+}
+
+void Triangle::generateVertexTangents(DeviceBuffer &generated)
+{
+  const auto count = m_vertex ? m_vertex->size() : 0;
+  if (count == 0)
+    return;
+
+  generated.reserve(count * sizeof(vec4));
+  if (!generated)
+    return;
+
+  if (!computeGeometryVertexTangent(this, generated.ptrAs<vec4>()))
+    generated.reset();
 }
 
 void Triangle::commitParameters()
@@ -169,14 +184,12 @@ void Triangle::finalize()
         numTriangles);
   }
 
-  if (!m_vertexTangent && !m_vertexTangentFV) {
-    updateGeometryTangent(this);
-  }
-
-  prepareTangentArray(
-      m_vertexTangent, m_vertexTangentConverted, "vertex.tangent");
-  prepareTangentArray(
-      m_vertexTangentFV, m_vertexTangentFVConverted, "faceVarying.tangent");
+  bool hasTangent = prepareTangentArray(
+      m_vertexTangent, m_vertexTangentFinalized, "vertex.tangent");
+  hasTangent |= prepareTangentArray(
+      m_vertexTangentFV, m_vertexTangentFVFinalized, "faceVarying.tangent");
+  if (!hasTangent)
+    generateVertexTangents(m_vertexTangentFinalized);
 
   reportMessage(ANARI_SEVERITY_DEBUG,
       "finalizing %s triangle geometry",
@@ -237,14 +250,14 @@ GeometryGPUData Triangle::gpuData() const
       ? m_vertexNormal->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
   tri.vertexTangents =
-      resolveTangentPtr(m_vertexTangent, m_vertexTangentConverted);
+      resolveTangentPtr(m_vertexTangent, m_vertexTangentFinalized);
   populateAttributeDataSet(m_vertexAttributes, tri.vertexAttr);
   populateAttributeDataSet(m_vertexAttributesFV, tri.vertexAttrFV);
   tri.vertexNormalsFV = m_vertexNormalFV
       ? m_vertexNormalFV->beginAs<vec3>(AddressSpace::GPU)
       : nullptr;
   tri.vertexTangentsFV =
-      resolveTangentPtr(m_vertexTangentFV, m_vertexTangentFVConverted);
+      resolveTangentPtr(m_vertexTangentFV, m_vertexTangentFVFinalized);
   tri.cullBackfaces = m_cullBackfaces;
 
   return retval;

@@ -39,25 +39,9 @@
 
 namespace visrtx {
 
-void computeVertexNormals(glm::vec3 *normals, // Output vertex normals
-    const glm::vec3 *positions, // Input vertex positions
-    const glm::uvec3 *indices, // Input triangle indices
-    unsigned int numTriangles, // Number of triangles
-    unsigned int numNormals // Number of normals
-);
-
-template <typename TexCoord>
-void computeVertexTangents(
-    glm::vec4 *tangents, // Output tangent vectors with handedness (w component)
-    const glm::vec3 *positions, // Input vertex positions
-    const glm::vec3 *normals, // Input vertex normals
-    const TexCoord *texCoords, // Input texture coordinates
-    const glm::uvec3 *indices, // Input triangle indices
-    unsigned int numTriangles, // Number of triangles
-    unsigned int numNormals // Number of normals
-);
-
-void updateGeometryTangent(Triangle *triangle);
+// Compute per vertex tangent for the given triangle geometry
+// Returns true on success
+bool computeGeometryVertexTangent(Triangle *triangle, glm::vec4 *dst);
 
 // Pad a VEC3 tangent array into the internal vec4(T, sign) layout the shader
 // expects. The ANARI spec allows authoring tangents as plain VEC3 (no

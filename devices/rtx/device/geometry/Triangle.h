@@ -60,9 +60,12 @@ struct Triangle : public Geometry
   // vec4 (sign defaulted to +1); unsupported element types are reported and
   // leave the buffer empty so resolveTangentPtr() emits no tangents. Called per
   // array during finalize().
-  void prepareTangentArray(const helium::IntrusivePtr<Array1D> &tangents,
+  // Returns true if a valid tangent is useable, either directly, or converted
+  bool prepareTangentArray(const helium::IntrusivePtr<Array1D> &tangents,
       DeviceBuffer &converted,
       const char *paramName);
+
+  void generateVertexTangents(DeviceBuffer &generated);
 
   helium::ChangeObserverPtr<Array1D> m_index;
   helium::ChangeObserverPtr<Array1D> m_vertex;
@@ -73,10 +76,14 @@ struct Triangle : public Geometry
   helium::IntrusivePtr<Array1D> m_vertexTangent;
   helium::IntrusivePtr<Array1D> m_vertexTangentFV;
 
-  // VEC4 staging for VEC3-authored tangents; empty when the input is already
-  // VEC4 (zero-copy) or absent.
-  DeviceBuffer m_vertexTangentConverted;
-  DeviceBuffer m_vertexTangentFVConverted;
+  // Finalized per-vertex tangents (vec4). Empty when vertex.tangent is VEC4
+  // (read zero-copy), or when it is absent/unusable and a usable
+  // faceVarying.tangent took priority, or when auto-generation was attempted
+  // but failed. Non-empty when holding VEC3->vec4 padded tangents, or
+  // auto-generated tangents produced because no tangents were authored.
+  DeviceBuffer m_vertexTangentFinalized;
+  // Finalized faceVarying tangents. Empty if input is already VEC4
+  DeviceBuffer m_vertexTangentFVFinalized;
 
   CUdeviceptr m_vertexBufferPtr{};
 

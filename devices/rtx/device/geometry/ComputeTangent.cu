@@ -102,11 +102,6 @@ __device__ void atomicAddVec3(glm::vec3 &dst, const glm::vec3 &v)
   atomicAdd(&dst.z, v.z);
 }
 
-void cudaFreeMemoryDeleter(const void *, const void *memory)
-{
-  cudaFree(const_cast<void *>(memory));
-}
-
 bool reportCudaError(
     visrtx::Triangle *triangle, cudaError_t error, const char *operation)
 {
@@ -346,7 +341,7 @@ bool convertTangentsVec3ToVec4(
   return true;
 }
 
-void updateGeometryTangent(Triangle *triangle)
+bool computeGeometryVertexTangent(Triangle *triangle, glm::vec4 *dst)
 {
   auto indices = triangle->getParamObject<Array1D>("primitive.index");
   auto positions = triangle->getParamObject<Array1D>("vertex.position");
@@ -359,14 +354,14 @@ void updateGeometryTangent(Triangle *triangle)
     triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Triangle %p has no positions, cannot compute tangents",
         triangle);
-    return;
+    return false;
   }
 
   if (!uvs && !uvsFV) {
     triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Triangle %p has no texture coordinates, cannot compute tangents",
         triangle);
-    return;
+    return false;
   }
 
   if (uvsFV && uvsFV->elementType() != ANARI_FLOAT32_VEC2
@@ -374,7 +369,7 @@ void updateGeometryTangent(Triangle *triangle)
     triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Can only compute tangents for face varying UVs of type ANARI_FLOAT32_VEC2 or ANARI_FLOAT32_VEC3",
         triangle);
-    return;
+    return false;
   }
 
   if (uvs && uvs->elementType() != ANARI_FLOAT32_VEC2
@@ -382,7 +377,7 @@ void updateGeometryTangent(Triangle *triangle)
     triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Can only compute tangents for vertex UVs of type ANARI_FLOAT32_VEC2 or ANARI_FLOAT32_VEC3",
         triangle);
-    return;
+    return false;
   }
 
   // Output is per-vertex (vertex.tangent). For indexed meshes the per-vertex
@@ -397,60 +392,52 @@ void updateGeometryTangent(Triangle *triangle)
     triangle->reportMessage(ANARI_SEVERITY_INFO,
         "Triangle %p has no triangles, cannot compute tangents",
         triangle);
-    return;
+    return false;
   }
 
   glm::vec3 *tangentAccum = nullptr;
   glm::vec3 *bitangentAccum = nullptr;
   glm::vec3 *normalAccum = nullptr;
-  glm::vec4 *tangents = nullptr;
 
   auto cleanup = [&] {
     cudaFree(tangentAccum);
     cudaFree(bitangentAccum);
     cudaFree(normalAccum);
-    cudaFree(tangents);
   };
 
   auto status = cudaMalloc(reinterpret_cast<void **>(&tangentAccum),
       sizeof(glm::vec3) * numVertices);
   if (reportCudaError(triangle, status, "allocating tangent accumulator")) {
     cleanup();
-    return;
+    return false;
   }
   status = cudaMalloc(reinterpret_cast<void **>(&bitangentAccum),
       sizeof(glm::vec3) * numVertices);
   if (reportCudaError(triangle, status, "allocating bitangent accumulator")) {
     cleanup();
-    return;
+    return false;
   }
   status = cudaMalloc(
       reinterpret_cast<void **>(&normalAccum), sizeof(glm::vec3) * numVertices);
   if (reportCudaError(triangle, status, "allocating normal accumulator")) {
     cleanup();
-    return;
-  }
-  status = cudaMalloc(
-      reinterpret_cast<void **>(&tangents), sizeof(glm::vec4) * numVertices);
-  if (reportCudaError(triangle, status, "allocating tangent output buffer")) {
-    cleanup();
-    return;
+    return false;
   }
 
   status = cudaMemset(tangentAccum, 0, sizeof(glm::vec3) * numVertices);
   if (reportCudaError(triangle, status, "clearing tangent accumulator")) {
     cleanup();
-    return;
+    return false;
   }
   status = cudaMemset(bitangentAccum, 0, sizeof(glm::vec3) * numVertices);
   if (reportCudaError(triangle, status, "clearing bitangent accumulator")) {
     cleanup();
-    return;
+    return false;
   }
   status = cudaMemset(normalAccum, 0, sizeof(glm::vec3) * numVertices);
   if (reportCudaError(triangle, status, "clearing normal accumulator")) {
     cleanup();
-    return;
+    return false;
   }
 
   auto positionsPtr = positions->dataAs<const glm::vec3>(AddressSpace::GPU);
@@ -598,16 +585,16 @@ void updateGeometryTangent(Triangle *triangle)
   status = cudaGetLastError();
   if (reportCudaError(triangle, status, "launching accumulate kernel")) {
     cleanup();
-    return;
+    return false;
   }
 
   __doFinalizeTangents<<<(numVertices + 63) / 64, 64>>>(
-      tangents, tangentAccum, bitangentAccum, normalAccum, numVertices);
+      dst, tangentAccum, bitangentAccum, normalAccum, numVertices);
 
   status = cudaGetLastError();
   if (reportCudaError(triangle, status, "launching finalize kernel")) {
     cleanup();
-    return;
+    return false;
   }
 
   status = cudaDeviceSynchronize();
@@ -619,27 +606,10 @@ void updateGeometryTangent(Triangle *triangle)
   normalAccum = nullptr;
   if (reportCudaError(triangle, status, "computing tangents")) {
     cleanup();
-    return;
+    return false;
   }
 
-  auto desc = Array1DMemoryDescriptor{
-      {
-          tangents,
-          cudaFreeMemoryDeleter, // deleter
-          {}, // deleterPtr
-          ANARI_FLOAT32_VEC4,
-      },
-      numVertices,
-  };
-  auto tangentsArray = new Array1D(triangle->deviceState(), desc);
-  tangentsArray->commitParameters();
-  tangentsArray->finalize();
-
-  triangle->setParam("vertex.tangent", tangentsArray);
-  triangle->commitParameters();
-  triangle->finalize();
-
-  tangentsArray->refDec(helium::PUBLIC);
+  return true;
 }
 
 } // namespace visrtx
