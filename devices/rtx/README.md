@@ -137,6 +137,47 @@ Float) with rectilinear coordinate transforms.
 This type automatically detects the grid type from the NanoVDB metadata and
 routes to the appropriate sampler implementation.
 
+#### VISRTX_MATERIAL_MDL
+
+The `mdl` material type exposes NVIDIA's [Material Definition Language
+(MDL)](https://www.nvidia.com/en-us/design-visualization/technologies/material-definition-language/)
+as an ANARI surface material. It enables physically based, fully programmable
+shading defined in MDL modules, `.mdle` packages, or inline MDL source. This
+extension is only available when VisRTX is built with
+`VISRTX_ENABLE_MDL_SUPPORT=ON` (which requires the MDL SDK).
+
+**Parameters:**
+- `sourceType` (`ANARI_STRING`, default `"module"`): How `source` is
+  interpreted. One of:
+  - `"module"`: a fully-qualified MDL material name, or a `.mdle` path
+  - `"mdle"`: a path to a `.mdle` file
+  - `"code"`: inline MDL module source
+- `source` (`ANARI_STRING`, default `"::visrtx::default::diffuseWhite"`): The
+  MDL content, interpreted per `sourceType`.
+- `materialName` (`ANARI_STRING`, optional): Selects the material within
+  `source`. For `module`, when set, `source` is treated as a pure module name
+  (no `::material` split); for `mdle` it must be `main`; for `code` it defaults
+  to `main`.
+
+**MDL material inputs:**
+
+`sourceType`, `source`, and `materialName` only select the material. Every
+other parameter set on the object is matched by name against the inputs of the
+selected MDL material and used to override its argument block. Parameters whose
+name does not correspond to a material input are ignored (with a warning), and
+inputs left unset keep their MDL-declared defaults.
+
+The ANARI parameter type must match the MDL input type, following the natural
+mapping (e.g. `ANARI_BOOL` → `bool`, `ANARI_FLOAT32` → `float`,
+`ANARI_FLOAT32_VEC3` → `float3`/`color`, `ANARI_INT32_VEC2` → `int2`, etc.).
+
+MDL texture inputs accept two forms:
+- `ANARI_STRING`: a path to an image file, loaded on demand. An optional
+  companion parameter `"<inputName>.colorspace"` (`ANARI_STRING`, one of
+  `"srgb"` (default) or `"raw"`) controls how the texels are interpreted.
+- `ANARI_SAMPLER`: an existing ANARI sampler object, bound directly to the MDL
+  texture input.
+
 ## Additional ANARI Parameter and Property Extensions
 
 The following section describes what additional parameters and properties can be
@@ -213,6 +254,7 @@ The following extensions are either partially or fully implemented by VisRTX:
 - `EXT_SAMPLER_COMPRESSED_FORMAT_BC45`
 - `NV_ARRAY_CUDA`
 - `NV_FRAME_BUFFERS_CUDA`
+- `VISRTX_MATERIAL_MDL`
 - `VISRTX_TRIANGLE_BACK_FACE_CULLING`
 - `VISRTX_SPATIAL_FIELD_DATA_CENTERING`
 - `VISRTX_SPATIAL_FIELD_REGION_OF_INTEREST`
