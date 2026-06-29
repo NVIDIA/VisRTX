@@ -106,12 +106,12 @@ endfunction()
 project_add_library(SHARED)
 
 if(VISRTX_ENABLE_MDL_SUPPORT)
-    embed_resource(
+  embed_resource(
       ${CMAKE_CURRENT_BINARY_DIR}/../shaders/visrtx/default.mdl
       "${CMAKE_CURRENT_BINARY_DIR}/mdl/default.mdl.cpp"
       "VISRTX_DEFAULT_MDL"
     )
-    embed_resource(
+  embed_resource(
       ${CMAKE_CURRENT_BINARY_DIR}/../shaders/visrtx/physically_based.mdl
       "${CMAKE_CURRENT_BINARY_DIR}/mdl/physically_based.mdl.cpp"
       "VISRTX_PHYSICALLY_BASED_MDL"
@@ -419,6 +419,7 @@ if(VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST)
   set(VISRTX_OPTIONAL_DEVICE_DEPENDENCIES ",\n      \"${_joined_optional_deps}\"")
 endif()
 
+configure_file(visrtx_device.json.in ${CMAKE_CURRENT_BINARY_DIR}/visrtx_device.json @ONLY)
 file(GLOB DEVICE_JSONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.json")
 foreach(file ${DEVICE_JSONS})
   configure_file(${file} ${CMAKE_CURRENT_BINARY_DIR}/${file} @ONLY)
