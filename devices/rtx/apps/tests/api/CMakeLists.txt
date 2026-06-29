@@ -114,6 +114,7 @@ if(VISRTX_ENABLE_MATERIALX_SUPPORT)
   make_test(TestMaterialXTranscoder)
   make_test(TestMaterialXRender)
   make_test(TestMaterialXTexturedInput)
+  make_test(TestMaterialXWiredTexture)
   make_test(TestMaterialXNodeDefAutoInstantiate)
   target_compile_definitions(TestMaterialXNodeDefAutoInstantiate PRIVATE
     MATERIALX_LIBRARIES_DIR="${MATERIALX_LIBRARIES_DIR}")

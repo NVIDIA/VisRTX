@@ -239,6 +239,15 @@ mx::TypedElementPtr pickRenderable(const mx::DocumentPtr &doc,
 }
 } // namespace
 
+// image/tiledimage configuration ports that must NOT be exposed as params for a
+// wired texture: the sampler supplies texels only; these stay at authored/MDL
+// defaults (mirrors the splice path, which keeps only file/default). Validated
+// against MaterialX 1.39.x image node inputs.
+static const std::set<std::string> kImageAuxPorts = {
+    "layer", "uaddressmode", "vaddressmode", "filtertype",
+    "framerange", "frameoffset", "frameendaction",
+    "uvtiling", "uvoffset", "realworldimagesize", "realworldtilesize"};
+
 std::vector<std::string> enumerateRenderableMaterials(
     const DocumentSource &source,
     nonstd::span<const std::filesystem::path> librarySearchPaths)
@@ -371,9 +380,29 @@ TranscodeResult transcodeMaterialXToMdl(
           // uaddressmode/vaddressmode/filtertype/layer/frame* -> ignored
           continue;
         }
+        // Wired (author-connected) image/tiledimage node. Drop aux config ports
+        // (left at authored/MDL defaults, mirroring the splice path's file/default
+        // filtering); the file port is a texture_2d MDL arg already in the graph.
+        std::string category;
+        if (auto n = doc->getNode(nodePart)) category = n->getCategory();
+        const bool isImageNode = category == "image" || category == "tiledimage";
+        if (isImageNode && kImageAuxPorts.count(leaf))
+          continue;
+
         std::string type;
         if (auto e = doc->getDescendant(path)) type = e->getAttribute("type");
-        result.paramMap.push_back({leaf, path, type, arg, ""});
+        // Classification keys on the explicit MaterialX type attribute: a file
+        // input without type="filename" falls to the value-row branch below
+        // (unbindable). Documents from MaterialXGenMdl / HdMtlx always set it.
+        if (type == "filename") {
+          // texture_2d arg already compiled in: sampler-bindable by pure routing.
+          // cleanName = path -> collision-free + host-predictable. valueArg empty
+          // -> routeParameters takes the sampler branch and desiredTexturedOrigins
+          // exempts it (no splice, no retranscode on bind/unbind).
+          result.paramMap.push_back({path, path, type, /*valueArg=*/"", /*textureArg=*/arg});
+        } else {
+          result.paramMap.push_back({leaf, path, type, arg, ""});
+        }
       }
     }
     for (auto &[name, row] : texturedRows)

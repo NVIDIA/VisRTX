@@ -78,6 +78,8 @@ struct MaterialX : public MDL
   std::string m_generatedName;   // name written into the `materialName` param
   std::vector<std::string> m_materialNames;
   std::vector<const char *> m_materialNamePtrs;
+  std::vector<std::string> m_textureInputNames;
+  std::vector<const char *> m_textureInputPtrs;
   std::vector<materialx::ParamMapping> m_paramMap; // clean name -> MDL arg name
 
   // Origin paths of inputs currently bound to a sampler (persisted across

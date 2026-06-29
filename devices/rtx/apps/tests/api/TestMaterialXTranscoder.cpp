@@ -310,6 +310,75 @@ int main()
       return 1;
     }
   }
+  // Wired <image> driving base_color: the file input is a texture-bindable row
+  // keyed on its MaterialX path (collision-free), with empty valueArg and a
+  // non-empty textureArg. Image aux ports must NOT surface as params.
+  {
+    const std::string xml =
+        "<?xml version=\"1.0\"?>\n"
+        "<materialx version=\"1.39\">\n"
+        "  <image name=\"img1\" type=\"color3\">\n"
+        "    <input name=\"file\" type=\"filename\" value=\"\"/>\n"
+        "  </image>\n"
+        "  <standard_surface name=\"srf\" type=\"surfaceshader\">\n"
+        "    <input name=\"base_color\" type=\"color3\" nodename=\"img1\"/>\n"
+        "  </standard_surface>\n"
+        "  <surfacematerial name=\"M\" type=\"material\">\n"
+        "    <input name=\"surfaceshader\" type=\"surfaceshader\" nodename=\"srf\"/>\n"
+        "  </surfacematerial>\n"
+        "</materialx>\n";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::inlineText(xml), std::nullopt, libs, {});
+    if (!r.error.empty() || r.mdlSource.empty()) {
+      std::printf("FAIL: wired-image transcode: '%s'\n", r.error.c_str());
+      return 1;
+    }
+    bool fileOk = false, auxLeaked = false;
+    for (const auto &m : r.paramMap) {
+      if (m.cleanName == "img1/file") {
+        fileOk = m.type == "filename" && m.valueArg.empty()
+            && !m.textureArg.empty() && m.originPath == "img1/file";
+        if (!fileOk)
+          std::printf("FAIL: img1/file row type='%s' valueArg='%s' textureArg='%s' origin='%s'\n",
+              m.type.c_str(), m.valueArg.c_str(), m.textureArg.c_str(),
+              m.originPath.c_str());
+      }
+      // Aux ports may appear keyed by leaf or by path; reject either form.
+      for (const char *aux : {"uaddressmode", "vaddressmode", "filtertype", "layer"})
+        if (m.cleanName == aux || m.cleanName == std::string("img1/") + aux)
+          auxLeaked = true;
+    }
+    if (!fileOk) { std::printf("FAIL: paramMap missing wired img1/file row\n"); return 1; }
+    if (auxLeaked) { std::printf("FAIL: image aux ports leaked into paramMap\n"); return 1; }
+  }
+  // Risk #1 coverage: a tiledimage file input must classify identically.
+  {
+    const std::string xml =
+        "<?xml version=\"1.0\"?>\n"
+        "<materialx version=\"1.39\">\n"
+        "  <tiledimage name=\"tim\" type=\"color3\">\n"
+        "    <input name=\"file\" type=\"filename\" value=\"\"/>\n"
+        "  </tiledimage>\n"
+        "  <standard_surface name=\"srf\" type=\"surfaceshader\">\n"
+        "    <input name=\"base_color\" type=\"color3\" nodename=\"tim\"/>\n"
+        "  </standard_surface>\n"
+        "  <surfacematerial name=\"M\" type=\"material\">\n"
+        "    <input name=\"surfaceshader\" type=\"surfaceshader\" nodename=\"srf\"/>\n"
+        "  </surfacematerial>\n"
+        "</materialx>\n";
+    auto r = visrtx::materialx::transcodeMaterialXToMdl(
+        visrtx::materialx::DocumentSource::inlineText(xml), std::nullopt, libs, {});
+    if (!r.error.empty() || r.mdlSource.empty()) {
+      std::printf("FAIL: tiledimage transcode: '%s'\n", r.error.c_str());
+      return 1;
+    }
+    bool ok = false;
+    for (const auto &m : r.paramMap)
+      if (m.cleanName == "tim/file")
+        ok = m.type == "filename" && m.valueArg.empty() && !m.textureArg.empty()
+            && m.originPath == "tim/file";
+    if (!ok) { std::printf("FAIL: tiledimage tim/file not a wired-texture row\n"); return 1; }
+  }
   std::printf("PASS\n");
   return 0;
 }

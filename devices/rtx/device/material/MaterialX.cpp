@@ -169,6 +169,13 @@ std::vector<std::string> MaterialX::desiredTexturedOrigins() const
   std::set<std::string> origins(
       m_texturedOrigins.begin(), m_texturedOrigins.end());
   for (const auto &m : m_paramMap) {
+    // Wired-texture rows (valueArg empty, textureArg set) are graph textures, not
+    // host-toggleable constants: their texture_2d arg always exists, so a sampler
+    // binds by pure routing. Exempt them from the topology set — otherwise a bound
+    // sampler would force a spurious retranscode and the splice path would re-wrap
+    // the already-wired file port, corrupting the graph.
+    if (m.valueArg.empty())
+      continue;
     if (!hasParam(m.cleanName))
       continue;
     if (getParamDirect(m.cleanName).type() == ANARI_SAMPLER)
@@ -263,6 +270,21 @@ bool MaterialX::getProperty(const std::string_view &name, ANARIDataType type,
     m_materialNamePtrs.push_back(nullptr);
     auto **out = static_cast<const char ***>(ptr);
     *out = m_materialNamePtrs.data();
+    return true;
+  }
+  if (name == "textureInputs" && type == ANARI_STRING_LIST) {
+    m_textureInputNames.clear();
+    for (const auto &m : m_paramMap)
+      if (m.valueArg.empty() && !m.textureArg.empty())
+        m_textureInputNames.push_back(m.cleanName);
+    if (m_textureInputNames.empty())
+      return false; // not available before a successful commit
+    m_textureInputPtrs.clear();
+    for (const auto &s : m_textureInputNames)
+      m_textureInputPtrs.push_back(s.c_str());
+    m_textureInputPtrs.push_back(nullptr);
+    auto **out = static_cast<const char ***>(ptr);
+    *out = m_textureInputPtrs.data();
     return true;
   }
   return MDL::getProperty(name, type, ptr, size, flags);
