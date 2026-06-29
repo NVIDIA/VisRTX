@@ -405,9 +405,23 @@ endif()
 
 #### Query code generation ####
 
-file(GLOB DEVICE_JSONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.json")
+# Leading-comma fragment appended after the last static entry; empty list -> empty fragment.
+set(VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST "")
+if(VISRTX_ENABLE_MDL_SUPPORT)
+  list(APPEND VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST visrtx_material_mdl)
+endif()
+if(VISRTX_ENABLE_NEURAL)
+  list(APPEND VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST visrtx_geometry_neural)
+endif()
+set(VISRTX_OPTIONAL_DEVICE_DEPENDENCIES "")
+if(VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST)
+  list(JOIN VISRTX_OPTIONAL_DEVICE_DEPENDENCIES_LIST "\",\n      \"" _joined_optional_deps)
+  set(VISRTX_OPTIONAL_DEVICE_DEPENDENCIES ",\n      \"${_joined_optional_deps}\"")
+endif()
+
+file(GLOB DEVICE_JSONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.json")
 foreach(file ${DEVICE_JSONS})
-  file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${file} INPUT ${file})
+  configure_file(${file} ${CMAKE_CURRENT_BINARY_DIR}/${file} @ONLY)
 endforeach()
 
 anari_generate_queries(
@@ -415,7 +429,7 @@ anari_generate_queries(
   CPP_NAMESPACE visrtx
   JSON_ROOT_LOCATION ${CMAKE_CURRENT_BINARY_DIR}
   JSON_DEFINITIONS_FILE ${CMAKE_CURRENT_BINARY_DIR}/visrtx_device.json
-  JSON_EXTENSION_FILES ${DEVICE_JSONS}
+  JSON_EXTENSION_FILES "${DEVICE_JSONS}"
 )
 
 #### Install library + headers ####
