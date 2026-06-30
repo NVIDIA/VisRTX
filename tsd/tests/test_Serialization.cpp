@@ -6,8 +6,8 @@
 // tsd
 #include "tsd/animation/Animation.hpp"
 #include "tsd/animation/AnimationManager.hpp"
-#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/DataTree.hpp"
+#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/io/serialization.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
@@ -28,8 +28,9 @@ void removeTestFile(const std::string &filename)
   std::remove(filename.c_str());
 }
 
-tsd::scene::ArrayRef makeFloatArray(
-    tsd::scene::Scene &scene, const char *name, const std::vector<float> &values)
+tsd::scene::ArrayRef makeFloatArray(tsd::scene::Scene &scene,
+    const char *name,
+    const std::vector<float> &values)
 {
   auto array = scene.createArray(ANARI_FLOAT32, values.size());
   array->setName(name);
@@ -74,7 +75,8 @@ SCENARIO("tsd::io camera and renderer subset serialization", "[Serialization]")
       THEN("the output is tagged as a camera and renderer subset")
       {
         auto metadata = tsd::core::readDataTreeMetadata(root);
-        REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(
+            metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
         REQUIRE(metadata.metadata);
         REQUIRE(metadata.metadata->schema
             == std::string(tsd::io::schema::SCENE_CAMERAS_AND_RENDERERS));
@@ -138,13 +140,13 @@ SCENARIO("tsd::io camera and renderer subset serialization", "[Serialization]")
           auto restoredRenderer = target.getObject<tsd::scene::Renderer>(0);
           REQUIRE(restoredRenderer);
           REQUIRE(restoredRenderer->subtype().str() == "pathtracer");
-          REQUIRE(restoredRenderer->rendererDeviceName().str() == "test_device");
-          REQUIRE(restoredRenderer->parameter("pixelSamples")
-                      ->value()
-                      .getAs<int>()
+          REQUIRE(
+              restoredRenderer->rendererDeviceName().str() == "test_device");
+          REQUIRE(
+              restoredRenderer->parameter("pixelSamples")->value().getAs<int>()
               == 8);
-          REQUIRE(restoredRenderer->getMetadataValue("quality").getAs<int>()
-              == 3);
+          REQUIRE(
+              restoredRenderer->getMetadataValue("quality").getAs<int>() == 3);
         }
       }
     }
@@ -186,7 +188,8 @@ SCENARIO("tsd::io scene payload metadata validation", "[Serialization]")
       THEN("the output is tagged as a full scene")
       {
         auto metadata = tsd::core::readDataTreeMetadata(tree.root());
-        REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(
+            metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
         REQUIRE(metadata.metadata);
         REQUIRE(metadata.metadata->schema
             == std::string(tsd::io::schema::SCENE_FULL));
@@ -214,8 +217,8 @@ SCENARIO("tsd::io scene payload metadata validation", "[Serialization]")
       {
         auto result = tsd::io::validate_ScenePayload(subsetTree.root());
         REQUIRE(!result.accepted());
-        REQUIRE(
-            result.status == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+        REQUIRE(result.status
+            == tsd::io::PayloadValidationStatus::IncompatibleSchema);
 
         tsd::io::load_Scene(target, subsetTree.root());
         REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 1);
@@ -252,8 +255,8 @@ SCENARIO("tsd::io scene payload metadata validation", "[Serialization]")
       {
         auto result = tsd::io::validate_ScenePayload(invalidTree.root());
         REQUIRE(!result.accepted());
-        REQUIRE(
-            result.status == tsd::io::PayloadValidationStatus::MissingRequiredNode);
+        REQUIRE(result.status
+            == tsd::io::PayloadValidationStatus::MissingRequiredNode);
 
         tsd::io::load_Scene(target, invalidTree.root());
         REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 1);
@@ -277,32 +280,33 @@ SCENARIO("tsd::io surface object serialization", "[Serialization]")
 
     auto texture = makeFloatArray(source, "texture", {0.25f, 0.5f, 0.75f});
 
-    auto sampler =
-        source.createObject<tsd::scene::Sampler>(tsd::scene::tokens::sampler::image1D);
+    auto sampler = source.createObject<tsd::scene::Sampler>(
+        tsd::scene::tokens::sampler::image1D);
     sampler->setName("albedo_sampler");
     sampler->setParameterObject("image", *texture);
 
-    auto geometry =
-        source.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::triangle);
+    auto geometry = source.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::triangle);
     geometry->setName("mesh_geometry");
-    auto *positionParam = geometry->setParameterObject("vertex.position", *positions);
+    auto *positionParam =
+        geometry->setParameterObject("vertex.position", *positions);
     positionParam->setDescription("positions").setEnabled(false);
     geometry->setMetadataValue("positionBuffer",
         tsd::core::Any(positions->type(), positions->index()));
 
-    auto material =
-        source.createObject<tsd::scene::Material>(tsd::scene::tokens::material::matte);
+    auto material = source.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
     material->setName("sampled_material");
     material->removeAllParameters();
     material->setParameterObject("color", *sampler);
     material->setParameter("roughness", 0.35f);
-    material->setMetadataValue("samplerRef",
-        tsd::core::Any(sampler->type(), sampler->index()));
+    material->setMetadataValue(
+        "samplerRef", tsd::core::Any(sampler->type(), sampler->index()));
 
     auto surface = source.createSurface("root_surface", geometry, material);
     surface->setMetadataValue("priority", 9);
-    surface->setMetadataValue("geometryRef",
-        tsd::core::Any(geometry->type(), geometry->index()));
+    surface->setMetadataValue(
+        "geometryRef", tsd::core::Any(geometry->type(), geometry->index()));
 
     const auto filename = testFile("tsd_surface_object_roundtrip.tsd");
     removeTestFile(filename);
@@ -317,7 +321,8 @@ SCENARIO("tsd::io surface object serialization", "[Serialization]")
       THEN("the payload is tagged as a surface object with local root index 0")
       {
         auto metadata = tsd::core::readDataTreeMetadata(exportedTree.root());
-        REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(
+            metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
         REQUIRE(metadata.metadata);
         REQUIRE(metadata.metadata->fileType == "object");
         REQUIRE(metadata.metadata->schema
@@ -332,13 +337,12 @@ SCENARIO("tsd::io surface object serialization", "[Serialization]")
             exportedTree.root().child("objectDB")->child("surface")->child(0);
         REQUIRE(surfaceNode);
         REQUIRE(surfaceNode->child("self")->getValue().type() == ANARI_SURFACE);
-        REQUIRE(surfaceNode->child("self")->getValue().getAsObjectIndex()
-            == 0);
+        REQUIRE(surfaceNode->child("self")->getValue().getAsObjectIndex() == 0);
       }
 
       tsd::scene::Scene target;
-      auto existingGeometry =
-          target.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+      auto existingGeometry = target.createObject<tsd::scene::Geometry>(
+          tsd::scene::tokens::geometry::sphere);
       existingGeometry->setName("preexisting_geometry");
       target.addLayer("keep_me");
 
@@ -368,11 +372,10 @@ SCENARIO("tsd::io surface object serialization", "[Serialization]")
         REQUIRE(importedGeometry->name() == "mesh_geometry");
         REQUIRE(importedMaterial->name() == "sampled_material");
 
-        auto geometryMetadata =
-            imported->getMetadataValue("geometryRef");
+        auto geometryMetadata = imported->getMetadataValue("geometryRef");
         REQUIRE(geometryMetadata.holdsObject());
-        REQUIRE(geometryMetadata.getAsObjectIndex()
-            == importedGeometry->index());
+        REQUIRE(
+            geometryMetadata.getAsObjectIndex() == importedGeometry->index());
 
         auto *positionParam = importedGeometry->parameter("vertex.position");
         REQUIRE(positionParam);
@@ -384,8 +387,8 @@ SCENARIO("tsd::io surface object serialization", "[Serialization]")
                 "vertex.position");
         REQUIRE(importedPositions);
         REQUIRE(importedPositions->name() == "positions");
-        REQUIRE(importedPositions->getMetadataValue("stride").getAs<int>()
-            == 12);
+        REQUIRE(
+            importedPositions->getMetadataValue("stride").getAs<int>() == 12);
         REQUIRE(importedPositions->size() == 6);
         const auto *positionData = importedPositions->dataAs<float>();
         REQUIRE(positionData[0] == 1.f);
@@ -425,11 +428,11 @@ SCENARIO("tsd::io volume object serialization", "[Serialization]")
         tsd::scene::tokens::spatial_field::structuredRegular);
     field->setName("density_field");
     field->setParameterObject("data", *fieldData);
-    field->setMetadataValue("sourceData",
-        tsd::core::Any(fieldData->type(), fieldData->index()));
+    field->setMetadataValue(
+        "sourceData", tsd::core::Any(fieldData->type(), fieldData->index()));
 
-    auto sampler =
-        source.createObject<tsd::scene::Sampler>(tsd::scene::tokens::sampler::image1D);
+    auto sampler = source.createObject<tsd::scene::Sampler>(
+        tsd::scene::tokens::sampler::image1D);
     sampler->setName("tf_sampler");
     sampler->setParameterObject("image", *colors);
 
@@ -440,8 +443,8 @@ SCENARIO("tsd::io volume object serialization", "[Serialization]")
     volume->setParameterObject("value", *field);
     volume->setParameterObject("color", *sampler);
     volume->setParameterObject("opacity", *opacity);
-    volume->setMetadataValue("fieldRef",
-        tsd::core::Any(field->type(), field->index()));
+    volume->setMetadataValue(
+        "fieldRef", tsd::core::Any(field->type(), field->index()));
 
     const auto filename = testFile("tsd_volume_object_roundtrip.tsd");
     removeTestFile(filename);
@@ -513,7 +516,8 @@ SCENARIO("tsd::io object payload validation failures", "[Serialization]")
     tsd::scene::Scene scene;
     tsd::core::DataTree tree;
     tsd::io::save_Scene(scene, tree.root(), false);
-    const auto filename = testFile("tsd_full_scene_rejected_by_object_import.tsd");
+    const auto filename =
+        testFile("tsd_full_scene_rejected_by_object_import.tsd");
     removeTestFile(filename);
     REQUIRE(tree.save(filename.c_str()));
 
@@ -521,7 +525,8 @@ SCENARIO("tsd::io object payload validation failures", "[Serialization]")
     {
       auto result = tsd::io::validate_ObjectPayload(tree.root());
       REQUIRE(!result.accepted());
-      REQUIRE(result.status == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+      REQUIRE(result.status
+          == tsd::io::PayloadValidationStatus::IncompatibleSchema);
 
       tsd::scene::Scene target;
       const auto before = target.numberOfObjects(ANARI_MATERIAL);
@@ -535,10 +540,10 @@ SCENARIO("tsd::io object payload validation failures", "[Serialization]")
   GIVEN("A surface object file")
   {
     tsd::scene::Scene source;
-    auto geometry =
-        source.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
-    auto material =
-        source.createObject<tsd::scene::Material>(tsd::scene::tokens::material::matte);
+    auto geometry = source.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
+    auto material = source.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
     auto surface = source.createSurface("surface", geometry, material);
 
     const auto filename = testFile("tsd_invalid_surface_object.tsd");
@@ -550,8 +555,7 @@ SCENARIO("tsd::io object payload validation failures", "[Serialization]")
 
     WHEN("an extra unreferenced object is present")
     {
-      auto &extra =
-          tree.root()["objectDB"]["geometry"].append();
+      auto &extra = tree.root()["objectDB"]["geometry"].append();
       tsd::io::objectToNode(*geometry, extra);
       extra["self"] = tsd::core::Any(ANARI_GEOMETRY, size_t(1));
 
@@ -559,7 +563,8 @@ SCENARIO("tsd::io object payload validation failures", "[Serialization]")
       {
         auto result = tsd::io::validate_SurfacePayload(tree.root());
         REQUIRE(!result.accepted());
-        REQUIRE(result.status == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+        REQUIRE(result.status
+            == tsd::io::PayloadValidationStatus::IncompatibleSchema);
       }
     }
 
@@ -583,13 +588,15 @@ SCENARIO("tsd::io object payload validation failures", "[Serialization]")
     auto &volumeNode = root["objectDB"]["volume"].append();
     volumeNode["name"] = "volume";
     volumeNode["self"] = tsd::core::Any(ANARI_VOLUME, size_t(0));
-    volumeNode["subtype"] = tsd::scene::tokens::volume::transferFunction1D.c_str();
+    volumeNode["subtype"] =
+        tsd::scene::tokens::volume::transferFunction1D.c_str();
 
     THEN("validation rejects the disallowed pool")
     {
       auto result = tsd::io::validate_SurfacePayload(root);
       REQUIRE(!result.accepted());
-      REQUIRE(result.status == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+      REQUIRE(result.status
+          == tsd::io::PayloadValidationStatus::IncompatibleSchema);
     }
   }
 }
@@ -599,8 +606,8 @@ SCENARIO("tsd::io object export failures", "[Serialization]")
   GIVEN("An unsupported root object type")
   {
     tsd::scene::Scene scene;
-    auto geometry =
-        scene.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+    auto geometry = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
 
     THEN("export fails")
     {
@@ -613,11 +620,11 @@ SCENARIO("tsd::io object export failures", "[Serialization]")
   {
     tsd::scene::Scene scene;
     auto proxy = scene.createArrayProxy(ANARI_FLOAT32, 4);
-    auto geometry =
-        scene.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+    auto geometry = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
     geometry->setParameterObject("primitive.radius", *proxy);
-    auto material =
-        scene.createObject<tsd::scene::Material>(tsd::scene::tokens::material::matte);
+    auto material = scene.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
     auto surface = scene.createSurface("surface", geometry, material);
 
     THEN("export fails because object files must be self-contained")
@@ -631,11 +638,11 @@ SCENARIO("tsd::io object export failures", "[Serialization]")
   {
     tsd::scene::Scene scene;
     auto objectArray = scene.createArray(ANARI_SURFACE, 1);
-    auto geometry =
-        scene.createObject<tsd::scene::Geometry>(tsd::scene::tokens::geometry::sphere);
+    auto geometry = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
     geometry->setParameterObject("surface.ids", *objectArray);
-    auto material =
-        scene.createObject<tsd::scene::Material>(tsd::scene::tokens::material::matte);
+    auto material = scene.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
     auto surface = scene.createSurface("surface", geometry, material);
 
     THEN("export fails because object-valued array data cannot be remapped")
@@ -648,7 +655,8 @@ SCENARIO("tsd::io object export failures", "[Serialization]")
 
 SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
 {
-  GIVEN("A scene with a layer subtree referencing surfaces, a light, and overrides")
+  GIVEN(
+      "A scene with a layer subtree referencing surfaces, a light, and overrides")
   {
     tsd::scene::Scene source;
 
@@ -676,16 +684,22 @@ SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
     auto *layer = source.defaultLayer();
     auto transformNode = source.insertChildTransformNode(
         layer->root(), tsd::math::IDENTITY_MAT4, "group");
-    (*transformNode).value().setAsTransform(tsd::math::mat3{
-        tsd::math::float3(2.f, 2.f, 2.f),
-        tsd::math::float3(10.f, 20.f, 30.f),
-        tsd::math::float3(1.f, 2.f, 3.f)});
+    (*transformNode)
+        .value()
+        .setAsTransform(tsd::math::mat3{tsd::math::float3(2.f, 2.f, 2.f),
+            tsd::math::float3(10.f, 20.f, 30.f),
+            tsd::math::float3(1.f, 2.f, 3.f)});
 
     auto surfaceNode =
         source.insertChildObjectNode(transformNode, surface, "surface_inst");
-    (*surfaceNode).value().setInstanceParameter("opacity", tsd::core::Any(0.5f));
-    (*surfaceNode).value().setInstanceParameter("materialOverride",
-        tsd::core::Any(overrideMaterial->type(), overrideMaterial->index()));
+    (*surfaceNode)
+        .value()
+        .setInstanceParameter("opacity", tsd::core::Any(0.5f));
+    (*surfaceNode)
+        .value()
+        .setInstanceParameter("materialOverride",
+            tsd::core::Any(
+                overrideMaterial->type(), overrideMaterial->index()));
 
     source.insertChildObjectNode(transformNode, light, "light_inst");
 
@@ -699,10 +713,12 @@ SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
       tsd::core::DataTree exportedTree;
       REQUIRE(exportedTree.load(filename.c_str()));
 
-      THEN("the payload is tagged as a layer subtree with an objectDB and subtree")
+      THEN(
+          "the payload is tagged as a layer subtree with an objectDB and subtree")
       {
         auto metadata = tsd::core::readDataTreeMetadata(exportedTree.root());
-        REQUIRE(metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
+        REQUIRE(
+            metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
         REQUIRE(metadata.metadata);
         REQUIRE(metadata.metadata->fileType == "layer-subtree");
         REQUIRE(metadata.metadata->schema
@@ -731,12 +747,14 @@ SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
       auto splicedRoot =
           tsd::io::import_LayerSubtree(target, filename.c_str(), destination);
 
-      THEN("objects are appended and the subtree is grafted under the destination")
+      THEN(
+          "objects are appended and the subtree is grafted under the destination")
       {
         REQUIRE(splicedRoot);
         REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
         REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 2); // sphere + mesh
-        REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == 3); // default + mesh + override
+        REQUIRE(target.numberOfObjects(ANARI_MATERIAL)
+            == 3); // default + mesh + override
         REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 1);
         REQUIRE(target.numberOfObjects(ANARI_ARRAY) == 1);
 
@@ -749,26 +767,25 @@ SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
         bool sawLight = false;
         tsd::core::Any opacity;
         tsd::core::Any materialOverride;
-        targetLayer->traverse(splicedRoot,
-            [&](auto &node, int level) {
-              if (level == 1) {
-                childCount++;
-                auto &d = node.value();
-                if (d.name() == "surface_inst") {
-                  sawSurfaceInstance = true;
-                  opacity = d.getInstanceParameters().at("opacity")
-                      ? *d.getInstanceParameters().at("opacity")
-                      : tsd::core::Any();
-                  materialOverride =
-                      d.getInstanceParameters().at("materialOverride")
-                      ? *d.getInstanceParameters().at("materialOverride")
-                      : tsd::core::Any();
-                }
-                if (d.name() == "light_inst")
-                  sawLight = true;
-              }
-              return true;
-            });
+        targetLayer->traverse(splicedRoot, [&](auto &node, int level) {
+          if (level == 1) {
+            childCount++;
+            auto &d = node.value();
+            if (d.name() == "surface_inst") {
+              sawSurfaceInstance = true;
+              opacity = d.getInstanceParameters().at("opacity")
+                  ? *d.getInstanceParameters().at("opacity")
+                  : tsd::core::Any();
+              materialOverride =
+                  d.getInstanceParameters().at("materialOverride")
+                  ? *d.getInstanceParameters().at("materialOverride")
+                  : tsd::core::Any();
+            }
+            if (d.name() == "light_inst")
+              sawLight = true;
+          }
+          return true;
+        });
 
         REQUIRE(childCount == 2);
         REQUIRE(sawSurfaceInstance);
@@ -839,6 +856,177 @@ SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
   }
 }
 
+SCENARIO("tsd::io layer subtree animations round trip", "[Serialization]")
+{
+  tsd::scene::Scene source;
+  tsd::animation::AnimationManager sourceAnimations(&source);
+
+  auto geometry = source.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  geometry->setName("animated_geometry");
+  auto material = source.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  auto alternateMaterial = source.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  alternateMaterial->setName("alternate_material");
+  auto surface = source.createSurface("animated_surface", geometry, material);
+  auto group = source.insertChildTransformNode(source.defaultLayer()->root(),
+      tsd::math::IDENTITY_MAT4,
+      "animated_group");
+  source.insertChildObjectNode(group, surface, "animated_surface");
+
+  const float times[] = {0.f, 1.f};
+  const float radii[] = {0.25f, 2.f};
+  auto &animation = sourceAnimations.addAnimation("dataset_animation");
+  animation.addObjectParameterBinding(
+      geometry.data(), "radius", ANARI_FLOAT32, radii, times, 2);
+  tsd::scene::Object *materials[] = {material.data(), alternateMaterial.data()};
+  animation.addObjectParameterBinding(geometry.data(),
+      "animated.material",
+      ANARI_MATERIAL,
+      materials,
+      times,
+      2);
+  animation.addTransformBinding(group);
+
+  const auto filename = testFile("tsd_layer_subtree_animation.tsd");
+  removeTestFile(filename);
+  tsd::io::SubtreeIOOptions exportOptions;
+  exportOptions.animationManager = &sourceAnimations;
+  REQUIRE(tsd::io::export_Subtree(filename.c_str(),
+      group,
+      {"layer-subtree", tsd::io::schema::LAYER_SUBTREE, false},
+      {},
+      exportOptions));
+  tsd::core::DataTree exported;
+  REQUIRE(exported.load(filename.c_str()));
+  auto *serializedAnimation = exported.root()["animations"].child(0);
+  REQUIRE(serializedAnimation);
+  auto *serializedMaterialBinding =
+      (*serializedAnimation)["objectBindings"].child(1);
+  REQUIRE(serializedMaterialBinding);
+  REQUIRE((*serializedMaterialBinding)["dataType"].getValueAs<int>()
+      == ANARI_MATERIAL);
+  anari::DataType serializedMaterialType = ANARI_UNKNOWN;
+  const void *serializedMaterialData = nullptr;
+  const size_t *serializedMaterialIndices = nullptr;
+  size_t serializedMaterialCount = 0;
+  (*serializedMaterialBinding)["data"].getValueAsArray(&serializedMaterialType,
+      &serializedMaterialData,
+      &serializedMaterialCount);
+  serializedMaterialIndices =
+      static_cast<const size_t *>(serializedMaterialData);
+  REQUIRE(serializedMaterialType == ANARI_MATERIAL);
+  REQUIRE(serializedMaterialCount == 2);
+  REQUIRE(exported.root()["objectDB"]["material"].numChildren() == 2);
+  auto exportedValidation =
+      tsd::io::validate_LayerSubtreePayload(exported.root());
+  INFO(exportedValidation.message);
+  REQUIRE(exportedValidation.accepted());
+
+  tsd::scene::Scene target;
+  tsd::animation::AnimationManager targetAnimations(&target);
+  target.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::cylinder);
+  auto destination =
+      target.insertChildNode(target.defaultLayer()->root(), "destination");
+  tsd::io::SubtreeIOOptions importOptions;
+  importOptions.animationManager = &targetAnimations;
+  auto imported = tsd::io::import_Subtree(target,
+      filename.c_str(),
+      destination,
+      {"layer-subtree", tsd::io::schema::LAYER_SUBTREE, false},
+      nullptr,
+      importOptions);
+
+  REQUIRE(imported);
+  REQUIRE(targetAnimations.animations().size() == 1);
+  auto &loaded = targetAnimations.animations().front();
+  REQUIRE(loaded.name() == "dataset_animation");
+  REQUIRE(loaded.objectParameterBindings().size() == 2);
+  REQUIRE(loaded.objectParameterBindings().front().target());
+  REQUIRE(loaded.objectParameterBindings().front().target()->name()
+      == "animated_geometry");
+  REQUIRE(loaded.transformBindings().size() == 1);
+  REQUIRE(loaded.transformBindings().front().target());
+  REQUIRE((*loaded.transformBindings().front().target())->name()
+      == "animated_group");
+  const auto &materialBinding = loaded.objectParameterBindings()[1];
+  REQUIRE(materialBinding.data().size() == 2);
+  const auto *materialIndices =
+      static_cast<const size_t *>(materialBinding.data().data());
+  REQUIRE(target.getObject(ANARI_MATERIAL, materialIndices[0]));
+  REQUIRE(target.getObject(ANARI_MATERIAL, materialIndices[1])->name()
+      == "alternate_material");
+
+  removeTestFile(filename);
+}
+
+SCENARIO(
+    "tsd::io rejects animations spanning layer subtrees", "[Serialization]")
+{
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+  auto first = scene.insertChildTransformNode(
+      scene.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "first");
+  auto second = scene.insertChildTransformNode(
+      scene.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "second");
+  auto &animation = animations.addAnimation("cross-dataset");
+  animation.addTransformBinding(first);
+  animation.addTransformBinding(second);
+
+  tsd::io::SubtreeIOOptions options;
+  options.animationManager = &animations;
+  const auto filename = testFile("tsd_cross_subtree_animation.tsd");
+  removeTestFile(filename);
+
+  REQUIRE_FALSE(tsd::io::export_Subtree(filename.c_str(),
+      first,
+      {"layer-subtree", tsd::io::schema::LAYER_SUBTREE, false},
+      {},
+      options));
+  REQUIRE_FALSE(std::filesystem::exists(filename));
+}
+
+SCENARIO("tsd::io validates layer subtree animation targets", "[Serialization]")
+{
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+  auto geometry = scene.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  auto material = scene.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  auto surface = scene.createSurface("surface", geometry, material);
+  auto root = scene.insertChildNode(scene.defaultLayer()->root(), "dataset");
+  scene.insertChildObjectNode(root, surface, "surface");
+  const float times[] = {0.f};
+  const float values[] = {1.f};
+  animations.addAnimation("radius").addObjectParameterBinding(
+      geometry.data(), "radius", ANARI_FLOAT32, values, times, 1);
+
+  const auto filename = testFile("tsd_invalid_subtree_animation.tsd");
+  tsd::io::SubtreeIOOptions options;
+  options.animationManager = &animations;
+  REQUIRE(tsd::io::export_Subtree(filename.c_str(),
+      root,
+      {"layer-subtree", tsd::io::schema::LAYER_SUBTREE, false},
+      {},
+      options));
+
+  tsd::core::DataTree tree;
+  REQUIRE(tree.load(filename.c_str()));
+  auto *animation = tree.root()["animations"].child(0);
+  REQUIRE(animation);
+  auto *binding = (*animation)["objectBindings"].child(0);
+  REQUIRE(binding);
+  (*binding)["targetIndex"] = size_t(999);
+  auto validation = tsd::io::validate_LayerSubtreePayload(tree.root());
+  REQUIRE_FALSE(validation.accepted());
+  REQUIRE_FALSE(validation.message.empty());
+
+  removeTestFile(filename);
+}
+
 SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[Serialization]")
 {
   GIVEN("A scene with a retained surface and an excluded light-rig subtree")
@@ -905,9 +1093,8 @@ SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[Serialization]")
         auto *targetGeometry = static_cast<tsd::scene::Geometry *>(
             target.getObject(ANARI_GEOMETRY, 0));
         REQUIRE(targetGeometry);
-        auto *ref =
-            targetGeometry->parameterValueAsObject<tsd::scene::Array>(
-                "vertex.position");
+        auto *ref = targetGeometry->parameterValueAsObject<tsd::scene::Array>(
+            "vertex.position");
         REQUIRE(ref != nullptr);
         REQUIRE(ref->type() == ANARI_ARRAY1D);
       }

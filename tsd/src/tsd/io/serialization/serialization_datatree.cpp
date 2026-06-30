@@ -7,8 +7,8 @@
 
 #include "tsd/animation/Animation.hpp"
 #include "tsd/animation/AnimationManager.hpp"
-#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/DataTree.hpp"
+#include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
@@ -90,8 +90,7 @@ static PayloadValidationResult validateScenePayloadImpl(core::DataNode &root,
     result.envelopeVersion = metadata.envelopeVersion;
     result.schemaVersion = metadata.schemaVersion;
 
-    if (metadata.envelopeVersion
-        != core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
+    if (metadata.envelopeVersion != core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
       result.status = PayloadValidationStatus::UnsupportedEnvelopeVersion;
       result.message = "expected envelopeVersion 1, got "
           + std::to_string(metadata.envelopeVersion);
@@ -104,12 +103,12 @@ static PayloadValidationResult validateScenePayloadImpl(core::DataNode &root,
 
     if (std::none_of(
             acceptedSchemas.begin(), acceptedSchemas.end(), schemaMatches)) {
-      result.status = std::any_of(
-                          knownSchemas.begin(), knownSchemas.end(), schemaMatches)
+      result.status =
+          std::any_of(knownSchemas.begin(), knownSchemas.end(), schemaMatches)
           ? PayloadValidationStatus::IncompatibleSchema
           : PayloadValidationStatus::UnknownSchema;
-      result.message = "schema '" + metadata.schema
-          + "' is not accepted by this loader";
+      result.message =
+          "schema '" + metadata.schema + "' is not accepted by this loader";
       return result;
     }
 
@@ -664,8 +663,7 @@ void nodeToAnimation(
             std::move(data->geoFiles),
             std::move(data->fieldMappings));
       } else {
-        logWarning(
-            "[nodeToAnimation] unknown file binding kind '%s'; skipping",
+        logWarning("[nodeToAnimation] unknown file binding kind '%s'; skipping",
             kind.c_str());
       }
     });
@@ -775,12 +773,16 @@ static bool keySetContains(
 }
 
 // Gather the light objects (and instance-parameter objects) seeded by the
-// excluded subtrees, then close over the arrays they reference (lightRigPolicy).
-// Arrays still referenced by *retained* objects are rescued so the saved scene
-// keeps a valid reference graph. Sets *ok=false if the closure could not be
-// built (the caller then excludes nothing, keeping the payload self-consistent).
-static std::vector<detail::ObjectKey> computeExcludedObjects(
-    Scene &scene, const std::vector<LayerNodeRef> &excludedSubtrees, bool &ok)
+// excluded subtrees, then close over the arrays they reference
+// (lightRigPolicy). Arrays still referenced by *retained* objects are rescued
+// so the saved scene keeps a valid reference graph. Sets *ok=false if the
+// closure could not be built (the caller then excludes nothing, keeping the
+// payload self-consistent).
+static std::vector<detail::ObjectKey> computeExcludedObjects(Scene &scene,
+    const std::vector<LayerNodeRef> &excludedSubtrees,
+    bool fullClosure,
+    std::vector<detail::ObjectKey> *subtreeObjects,
+    bool &ok)
 {
   ok = true;
   std::vector<detail::ObjectKey> excluded;
@@ -814,12 +816,12 @@ static std::vector<detail::ObjectKey> computeExcludedObjects(
   std::string err;
   if (!detail::buildClosure(scene,
           seeds,
-          detail::lightRigPolicy(),
+          fullClosure ? detail::layerSubtreePolicy() : detail::lightRigPolicy(),
           detail::ObjectKey{},
           entries,
           err)) {
     tsd::core::logWarning(
-        "[save_Scene] could not compute light-rig exclusion closure (%s); "
+        "[save_Scene] could not compute subtree exclusion closure (%s); "
         "saving the whole scene inline",
         err.c_str());
     ok = false;
@@ -828,9 +830,11 @@ static std::vector<detail::ObjectKey> computeExcludedObjects(
 
   for (const auto &e : entries)
     excluded.push_back(e.source);
+  if (subtreeObjects)
+    *subtreeObjects = excluded;
 
-  // Rescue any excluded array that a retained object still references. Repeat to
-  // a fixed point so a rescued array's own references are honored too.
+  // Rescue any excluded array that a retained object still references. Repeat
+  // to a fixed point so a rescued array's own references are honored too.
   bool changed = true;
   while (changed) {
     changed = false;
@@ -851,6 +855,72 @@ static std::vector<detail::ObjectKey> computeExcludedObjects(
   }
 
   return excluded;
+}
+
+static bool animationTargetsExcluded(const animation::Animation &animation,
+    const std::vector<detail::ObjectKey> &excludedObjects,
+    const std::vector<LayerNodeRef> &excludedSubtrees)
+{
+  for (const auto &binding : animation.objectParameterBindings()) {
+    auto *target = binding.target();
+    if (target
+        && keySetContains(
+            excludedObjects, detail::makeKey(target->type(), target->index())))
+      return true;
+  }
+
+  for (const auto &binding : animation.transformBindings()) {
+    auto target = binding.target();
+    if (!target)
+      continue;
+    for (auto excluded : excludedSubtrees) {
+      if (!excluded || (*excluded).value().layer() != (*target).value().layer())
+        continue;
+      auto *layer = (*excluded).value().layer();
+      if (target == excluded || layer->isAncestorOf(excluded, target))
+        return true;
+    }
+  }
+
+  for (const auto &binding : animation.fileBindings()) {
+    core::DataTree scratch;
+    binding->toDataNode(scratch.root());
+    if (binding->kind() == "spatialField") {
+      if (keySetContains(excludedObjects,
+              detail::makeKey(ANARI_VOLUME,
+                  scratch.root()["targetIndex"].getValueOr<size_t>(
+                      tsd::core::INVALID_INDEX))))
+        return true;
+    } else if (binding->kind() == "ensight") {
+      bool excluded = false;
+      scratch.root()["parts"].foreach_child([&](core::DataNode &part) {
+        excluded |= keySetContains(excludedObjects,
+            detail::makeKey(ANARI_GEOMETRY,
+                part["targetIndex"].getValueOr<size_t>(
+                    tsd::core::INVALID_INDEX)));
+      });
+      if (excluded)
+        return true;
+    }
+  }
+  return false;
+}
+
+static void animationManagerToNodeExcluding(
+    const animation::AnimationManager &manager,
+    core::DataNode &node,
+    const std::vector<detail::ObjectKey> &excludedObjects,
+    const std::vector<LayerNodeRef> &excludedSubtrees)
+{
+  node["time"] = manager.getAnimationTime();
+  node["increment"] = manager.getAnimationIncrement();
+  node["totalFrames"] = manager.getAnimationTotalFrames();
+  node["fps"] = manager.getAnimationFPS();
+  auto &objects = node["objects"];
+  for (const auto &animation : manager.animations()) {
+    if (!animationTargetsExcluded(animation, excludedObjects, excludedSubtrees))
+      animationToNode(animation, objects.append());
+  }
 }
 
 // Dense per-pool index assigned to a retained object on reload.
@@ -992,8 +1062,8 @@ static size_t remappedLayerNodeIndex(const std::vector<LayerNodeRemap> &remaps,
 }
 
 // Animation bindings store absolute object/layer-node indices as plain scalars
-// (see ObjectParameterBinding/TransformBinding/*FileBinding::toDataNode), so the
-// generic ref remap cannot reach them. Rewrite them here to match the dense
+// (see ObjectParameterBinding/TransformBinding/*FileBinding::toDataNode), so
+// the generic ref remap cannot reach them. Rewrite them here to match the dense
 // indices the excluded payload reloads with.
 static void remapAnimationBindings(core::DataNode &animationsNode,
     const std::vector<ObjectIndexRemap> &objectRemap,
@@ -1006,9 +1076,8 @@ static void remapAnimationBindings(core::DataNode &animationsNode,
   objects->foreach_child([&](core::DataNode &anim) {
     if (auto *bindings = anim.child("objectBindings")) {
       bindings->foreach_child([&](core::DataNode &b) {
-        const auto type =
-            static_cast<anari::DataType>(b["targetType"].getValueOr<int>(
-                ANARI_UNKNOWN));
+        const auto type = static_cast<anari::DataType>(
+            b["targetType"].getValueOr<int>(ANARI_UNKNOWN));
         const auto idx =
             b["targetIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
         b["targetIndex"] = remappedObjectIndex(objectRemap, type, idx);
@@ -1019,7 +1088,8 @@ static void remapAnimationBindings(core::DataNode &animationsNode,
       bindings->foreach_child([&](core::DataNode &b) {
         // Currently only spatialField file bindings carry an object target.
         if (auto *idxNode = b.child("targetIndex")) {
-          const auto idx = idxNode->getValueOr<size_t>(tsd::core::INVALID_INDEX);
+          const auto idx =
+              idxNode->getValueOr<size_t>(tsd::core::INVALID_INDEX);
           b["targetIndex"] =
               remappedObjectIndex(objectRemap, ANARI_VOLUME, idx);
         }
@@ -1062,7 +1132,8 @@ void save_Scene(Scene &scene,
   save_Scene(scene, root, options);
 }
 
-void save_Scene(Scene &scene, core::DataNode &root, const SaveSceneOptions &options)
+void save_Scene(
+    Scene &scene, core::DataNode &root, const SaveSceneOptions &options)
 {
   core::writeDataTreeMetadata(root,
       {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
@@ -1076,9 +1147,13 @@ void save_Scene(Scene &scene, core::DataNode &root, const SaveSceneOptions &opti
   // (objects AND subtrees both inline) so the payload stays self-consistent.
   bool exclusionOk = true;
   std::vector<detail::ObjectKey> excluded;
+  std::vector<detail::ObjectKey> subtreeObjects;
   if (!options.excludedSubtrees.empty())
-    excluded =
-        computeExcludedObjects(scene, options.excludedSubtrees, exclusionOk);
+    excluded = computeExcludedObjects(scene,
+        options.excludedSubtrees,
+        options.excludeFullObjectClosure,
+        &subtreeObjects,
+        exclusionOk);
   const bool doExclude = !options.excludedSubtrees.empty() && exclusionOk;
 
   const std::vector<detail::ObjectKey> *excludedObjects =
@@ -1118,8 +1193,15 @@ void save_Scene(Scene &scene, core::DataNode &root, const SaveSceneOptions &opti
 
   // Animations are serialized before the remap so the remap can rewrite the
   // absolute object/layer-node indices the bindings store.
-  if (options.animMgr)
-    animationManagerToNode(*options.animMgr, root["animations"]);
+  if (options.animMgr) {
+    if (doExclude && options.excludeAnimationsTargetingSubtrees) {
+      animationManagerToNodeExcluding(*options.animMgr,
+          root["animations"],
+          subtreeObjects,
+          options.excludedSubtrees);
+    } else
+      animationManagerToNode(*options.animMgr, root["animations"]);
+  }
 
   // Excluding objects and pruning subtrees shifts retained per-pool object
   // indices and layer-node indices; rewrite every serialized reference, object
@@ -1188,9 +1270,9 @@ void load_Scene(Scene &scene,
 
 PayloadValidationResult validate_ScenePayload(core::DataNode &root)
 {
-  return validateScenePayloadImpl(
-      root, {schema::SCENE_FULL}, {schema::SCENE_FULL,
-                                      schema::SCENE_CAMERAS_AND_RENDERERS});
+  return validateScenePayloadImpl(root,
+      {schema::SCENE_FULL},
+      {schema::SCENE_FULL, schema::SCENE_CAMERAS_AND_RENDERERS});
 }
 
 bool tryLoad_Scene(Scene &scene,
@@ -1297,9 +1379,8 @@ PayloadValidationResult validate_SceneCamerasAndRenderersPayload(
       {schema::SCENE_FULL, schema::SCENE_CAMERAS_AND_RENDERERS});
 }
 
-bool tryLoad_SceneCamerasAndRenderers(Scene &scene,
-    core::DataNode &root,
-    PayloadValidationResult *resultOut)
+bool tryLoad_SceneCamerasAndRenderers(
+    Scene &scene, core::DataNode &root, PayloadValidationResult *resultOut)
 {
   auto result = validate_SceneCamerasAndRenderersPayload(root);
   if (resultOut)
@@ -1322,12 +1403,11 @@ bool tryLoad_SceneCamerasAndRenderers(Scene &scene,
   removeObjects(scene.m_db.camera);
 
   auto &objectDB = payloadRoot["objectDB"];
-  auto nodeToObjectPool = [](core::DataNode &node,
-                              Scene &scene,
-                              const char *childNodeName) {
-    auto &objectsNode = node[childNodeName];
-    objectsNode.foreach_child([&](auto &n) { nodeToNewObject(scene, n); });
-  };
+  auto nodeToObjectPool =
+      [](core::DataNode &node, Scene &scene, const char *childNodeName) {
+        auto &objectsNode = node[childNodeName];
+        objectsNode.foreach_child([&](auto &n) { nodeToNewObject(scene, n); });
+      };
 
   nodeToObjectPool(objectDB, scene, "camera");
   nodeToObjectPool(objectDB, scene, "renderer");

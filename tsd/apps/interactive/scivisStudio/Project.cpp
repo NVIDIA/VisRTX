@@ -33,9 +33,16 @@ std::string makeGeneratedId(const char *prefix, size_t ordinal)
   return ss.str();
 }
 
-DatasetID nextDatasetId(const Project &project)
+DatasetID nextDatasetId(Project &project)
 {
-  return makeGeneratedId("dataset", project.datasets.size() + 1);
+  for (;;) {
+    const auto ordinal = project.nextDatasetOrdinal++;
+    const auto candidate = makeGeneratedId("dataset", ordinal);
+    if (std::none_of(project.datasets.begin(),
+            project.datasets.end(),
+            [&](const Dataset &dataset) { return dataset.id == candidate; }))
+      return candidate;
+  }
 }
 
 ShotID nextShotId(const Project &project)

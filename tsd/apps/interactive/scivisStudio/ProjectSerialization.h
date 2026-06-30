@@ -15,9 +15,9 @@ namespace tsd::scivis_studio {
 constexpr const char *PROJECT_KIND = "SciVisStudio";
 constexpr const char *PROJECT_FILE_TYPE = "project";
 constexpr const char *PROJECT_SCHEMA = "tsd.scivis-studio.project";
-// v4: camera rigs and light rigs are stored as standalone files under
-// cameras/<name>.tsd and lights/<name>.tsd rather than inline in the manifest.
-constexpr int SCHEMA_VERSION = 4;
+// v5: datasets join camera and light rigs as standalone assets. The manifest
+// keeps only each dataset's project-local ID and human-readable name.
+constexpr int SCHEMA_VERSION = 5;
 constexpr const char *PROJECT_MANIFEST_FILENAME = "project.tsd";
 
 // Standalone rig file schemas, versioned independently of the project schema.

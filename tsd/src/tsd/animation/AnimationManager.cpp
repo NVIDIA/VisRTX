@@ -76,8 +76,15 @@ void AnimationManager::setAnimationTimeInternal(
   if (resetPlaybackAccumulator)
     m_playbackAccumulator = 0.f;
 
-  for (auto &anim : m_animations)
-    anim.setAnimationTime(time);
+  m_applyingAnimations = true;
+  try {
+    for (auto &anim : m_animations)
+      anim.setAnimationTime(time);
+  } catch (...) {
+    m_applyingAnimations = false;
+    throw;
+  }
+  m_applyingAnimations = false;
 
   if (m_timeChangedCallback)
     m_timeChangedCallback(time);
@@ -86,6 +93,11 @@ void AnimationManager::setAnimationTimeInternal(
 float AnimationManager::getAnimationTime() const
 {
   return m_time;
+}
+
+bool AnimationManager::isApplyingAnimations() const
+{
+  return m_applyingAnimations;
 }
 
 void AnimationManager::setAnimationIncrement(float increment)
@@ -124,8 +136,7 @@ void AnimationManager::setAnimationTotalFrames(int frames)
 void AnimationManager::setAnimationFPS(float fps)
 {
   if (fps <= 0.f) {
-    tsd::core::logWarning(
-        "[scene] animation fps must be > 0; clamping to 1.");
+    tsd::core::logWarning("[scene] animation fps must be > 0; clamping to 1.");
     fps = 1.f;
   }
 
@@ -151,8 +162,7 @@ void AnimationManager::setAnimationFrameInternal(
     int frame, bool resetPlaybackAccumulator)
 {
   int clamped = std::clamp(frame, 0, m_totalFrames - 1);
-  setAnimationTimeInternal(
-      static_cast<float>(clamped) / (m_totalFrames - 1),
+  setAnimationTimeInternal(static_cast<float>(clamped) / (m_totalFrames - 1),
       resetPlaybackAccumulator);
 }
 

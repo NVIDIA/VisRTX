@@ -4,6 +4,7 @@
 #include "catch.hpp"
 
 #include "CameraRig.h"
+#include "DatasetIO.h"
 #include "LightRig.h"
 #include "ProjectContext.h"
 #include "ProjectSerialization.h"
@@ -12,12 +13,19 @@
 #include "tsd/app/Context.h"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
+#include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/serialization.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
+#include "tsd/scene/objects/Geometry.hpp"
 #include "tsd/scene/objects/Light.hpp"
+#include "tsd/scene/objects/Material.hpp"
+#include "tsd/scene/objects/SpatialField.hpp"
+#include "tsd/scene/objects/Volume.hpp"
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <sstream>
 #include <utility>
 
@@ -51,6 +59,179 @@ tsd::scene::LayerNodeRef findDirectChild(
 
 } // namespace
 
+SCENARIO(
+    "SciVis Studio static dataset assets are self-contained", "[SciVisStudio]")
+{
+  const auto file = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_static_dataset.tsd";
+  std::filesystem::remove(file);
+
+  tsd::scene::Scene source;
+  tsd::animation::AnimationManager sourceAnimations(&source);
+  auto geometry = source.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  geometry->setName("animated geometry");
+  auto material = source.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  auto surface = source.createSurface("surface", geometry, material);
+  auto root =
+      source.insertChildNode(source.defaultLayer()->root(), "dataset_0042");
+  source.insertChildObjectNode(root, surface, "surface");
+
+  const float times[] = {0.f, 1.f};
+  const float radii[] = {0.5f, 1.5f};
+  sourceAnimations.addAnimation("radius").addObjectParameterBinding(
+      geometry.data(), "radius", ANARI_FLOAT32, radii, times, 2);
+
+  Dataset dataset;
+  dataset.id = "dataset_0042";
+  dataset.name = "Example Dataset";
+  dataset.sourceKind = DatasetSourceKind::Static;
+  dataset.importerType = "OBJ";
+  dataset.source.sourcePath = "../source/example.obj";
+  dataset.source.importerSettings.set("flatten", "false");
+  REQUIRE(exportDatasetAsset(dataset, root, sourceAnimations, file));
+
+  auto validation = validateDatasetAsset(file);
+  REQUIRE(validation.ok);
+  REQUIRE(validation.dataset.id.empty());
+  REQUIRE(validation.dataset.name == "Example Dataset");
+  REQUIRE(validation.dataset.source.sourcePath == "../source/example.obj");
+  REQUIRE(validation.dataset.source.importerSettings.size() == 1);
+  REQUIRE(validation.dataset.source.importerSettings.at_index(0).first
+      == "flatten");
+
+  tsd::core::DataTree serialized;
+  REQUIRE(serialized.load(file.string().c_str()));
+  REQUIRE(serialized.root()["dataset"].child("id") == nullptr);
+  REQUIRE(serialized.root()["subtree"]["name"].getValueAs<std::string>()
+      == "Example Dataset");
+
+  tsd::scene::Scene target;
+  tsd::animation::AnimationManager targetAnimations(&target);
+  auto destination =
+      target.insertChildNode(target.defaultLayer()->root(), "datasets");
+  Dataset imported;
+  tsd::scene::LayerNodeRef importedRoot;
+  REQUIRE(importDatasetAsset(
+      target, targetAnimations, file, destination, imported, importedRoot));
+  REQUIRE(importedRoot);
+  REQUIRE(imported.status == DatasetStatus::Available);
+  REQUIRE(targetAnimations.animations().size() == 1);
+  REQUIRE(targetAnimations.animations()
+              .front()
+              .objectParameterBindings()
+              .front()
+              .target()
+              ->name()
+      == "animated geometry");
+
+  Dataset secondImport;
+  tsd::scene::LayerNodeRef secondRoot;
+  REQUIRE(importDatasetAsset(
+      target, targetAnimations, file, destination, secondImport, secondRoot));
+  REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 2);
+  REQUIRE(target.getObject(ANARI_GEOMETRY, 0)
+      != target.getObject(ANARI_GEOMETRY, 1));
+  // One default material plus one independently loaded material per dataset.
+  REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == 3);
+
+  std::filesystem::remove(file);
+}
+
+SCENARIO("SciVis Studio file-animation assets preserve opaque source paths",
+    "[SciVisStudio]")
+{
+  const auto file = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_file_animation_dataset.tsd";
+  const auto corruptFile = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_file_animation_dataset_corrupt.tsd";
+  std::filesystem::remove(file);
+  std::filesystem::remove(corruptFile);
+
+  tsd::scene::Scene source;
+  tsd::animation::AnimationManager sourceAnimations(&source);
+  auto field = source.createObject<tsd::scene::SpatialField>(
+      tsd::scene::tokens::spatial_field::structuredRegular);
+  auto voxels = source.createArray(ANARI_FLOAT32, 1, 1, 1);
+  *voxels->mapAs<float>() = 1.f;
+  voxels->unmap();
+  field->setParameterObject("data", *voxels);
+  auto volume = source.createObject<tsd::scene::Volume>(
+      tsd::scene::tokens::volume::transferFunction1D);
+  volume->setParameterObject("value", *field);
+  auto root =
+      source.insertChildNode(source.defaultLayer()->root(), "dataset_0001");
+  source.insertChildObjectNode(root, volume, "volume");
+
+  const std::vector<std::string> paths = {
+      "relative/frame 01.raw", "/missing/../opaque/frame02.raw"};
+  sourceAnimations.addAnimation("runtime file animation")
+      .emplaceFileBinding<tsd::io::SpatialFieldFileBinding>(
+          &source, volume.data(), field, paths);
+
+  Dataset dataset;
+  dataset.id = "dataset_0001";
+  dataset.name = "Opaque Frames";
+  dataset.sourceKind = DatasetSourceKind::FileAnimation;
+  dataset.importerType = "VOLUME_ANIMATION";
+  for (const auto &path : paths)
+    dataset.sourceFiles.push_back({path});
+  Dataset invalidStatic = dataset;
+  invalidStatic.sourceKind = DatasetSourceKind::Static;
+  invalidStatic.importerType = "VOLUME";
+  std::string invalidStaticError;
+  REQUIRE_FALSE(exportDatasetAsset(
+      invalidStatic, root, sourceAnimations, corruptFile, &invalidStaticError));
+  REQUIRE(invalidStaticError.find("cannot own file animations")
+      != std::string::npos);
+  std::string exportError;
+  const bool exported =
+      exportDatasetAsset(dataset, root, sourceAnimations, file, &exportError);
+  INFO(exportError);
+  REQUIRE(exported);
+
+  tsd::core::DataTree corrupt;
+  REQUIRE(corrupt.load(file.string().c_str()));
+  auto &derived = corrupt.root()["animations"].append();
+  derived["name"] = "competing runtime authority";
+  auto &fileBinding = derived["fileBindings"].append();
+  fileBinding["kind"] = "spatialField";
+  fileBinding["targetIndex"] = size_t(0);
+  REQUIRE(corrupt.save(corruptFile.string().c_str()));
+  auto corruptValidation = validateDatasetAsset(corruptFile);
+  REQUIRE_FALSE(corruptValidation.ok);
+  REQUIRE(corruptValidation.error.find("derived runtime file bindings")
+      != std::string::npos);
+
+  tsd::scene::Scene target;
+  tsd::animation::AnimationManager targetAnimations(&target);
+  Dataset imported;
+  tsd::scene::LayerNodeRef importedRoot;
+  REQUIRE(importDatasetAsset(target,
+      targetAnimations,
+      file,
+      target.defaultLayer()->root(),
+      imported,
+      importedRoot));
+  REQUIRE(imported.sourceFiles.size() == paths.size());
+  REQUIRE(imported.sourceFiles[0].path == paths[0]);
+  REQUIRE(imported.sourceFiles[1].path == paths[1]);
+  REQUIRE(targetAnimations.animations().size() == 1);
+  REQUIRE(targetAnimations.animations().front().fileBindings().size() == 1);
+
+  tsd::core::DataTree binding;
+  targetAnimations.animations().front().fileBindings().front()->toDataNode(
+      binding.root());
+  REQUIRE(
+      binding.root()["files"].child(0)->getValueAs<std::string>() == paths[0]);
+  REQUIRE(
+      binding.root()["files"].child(1)->getValueAs<std::string>() == paths[1]);
+
+  std::filesystem::remove(file);
+  std::filesystem::remove(corruptFile);
+}
+
 SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
 {
   GIVEN("A project with datasets, shots, light rigs, and camera rigs")
@@ -58,17 +239,15 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     Project project;
     project.name = "RoundTrip";
     project.projectDirectory = "/tmp/roundtrip";
-    project.datasets.push_back({"dataset_0001",
-        "Dataset",
-        DatasetSourceKind::Static,
-        "OBJ",
-        {"/tmp/data.obj", "data.obj", 100, 42},
-        DatasetStatus::Available,
-        {"studio", 3}});
-    project.datasets.front().sourceFiles.push_back(
-        {"/tmp/frame_0001.raw", "frames/frame_0001.raw", 101, 43});
-    project.datasets.front().sourceFiles.push_back(
-        {"/tmp/frame_0002.raw", "frames/frame_0002.raw", 102, 44});
+    Dataset dataset;
+    dataset.id = "dataset_0001";
+    dataset.name = "Dataset";
+    dataset.sourceKind = DatasetSourceKind::Static;
+    dataset.importerType = "OBJ";
+    dataset.source.sourcePath = "/tmp/data.obj";
+    dataset.status = DatasetStatus::Available;
+    dataset.rootNode = {"studio", 3};
+    project.datasets.push_back(std::move(dataset));
 
     Shot shot;
     shot.id = "shot_0001";
@@ -101,13 +280,16 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     auto &serialized = tree.root()["scivisStudio"];
 
     REQUIRE(serialized["datasets"].child(0)->child("rootNode") == nullptr);
-    REQUIRE(serialized["datasets"].child(0)->child("sourceFiles") != nullptr);
+    REQUIRE(serialized["datasets"].child(0)->child("sourceKind") == nullptr);
+    REQUIRE(serialized["datasets"].child(0)->child("sourceFiles") == nullptr);
+    REQUIRE(serialized["datasets"].child(0)->child("source") == nullptr);
     REQUIRE(serialized["shots"].child(0)->child("lightRigId") != nullptr);
     REQUIRE(serialized["shots"].child(0)->child("cameraRigId") != nullptr);
     REQUIRE(serialized["shots"].child(0)->child("cameraRig") == nullptr);
     REQUIRE(serialized["shots"].child(0)->child("camera") == nullptr);
     REQUIRE(serialized["lightRigs"].child(0)->child("rootNode") == nullptr);
-    // v4: camera-rig keyframe data lives in cameras/<name>.tsd, not the manifest.
+    // v4: camera-rig keyframe data lives in cameras/<name>.tsd, not the
+    // manifest.
     REQUIRE(serialized["cameraRigs"].child(0)->child("rig") == nullptr);
     REQUIRE(serialized["cameraRigs"].child(0)->child("name") != nullptr);
 
@@ -118,9 +300,9 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
     {
       REQUIRE(loaded.datasets.size() == 1);
       REQUIRE(loaded.datasets.front().id == "dataset_0001");
-      REQUIRE(loaded.datasets.front().sourceFiles.size() == 2);
-      REQUIRE(loaded.datasets.front().sourceFiles.front().projectRelativePath
-          == "frames/frame_0001.raw");
+      REQUIRE(loaded.datasets.front().name == "Dataset");
+      REQUIRE(loaded.datasets.front().sourceFiles.empty());
+      REQUIRE(loaded.datasets.front().status == DatasetStatus::Unavailable);
       REQUIRE(loaded.shots.size() == 1);
       REQUIRE(loaded.shots.front().id == "shot_0001");
       REQUIRE(loaded.shots.front().lightRigId == "lightRig_0001");
@@ -139,8 +321,32 @@ SCENARIO("SciVis Studio project model serialization", "[SciVisStudio]")
   }
 }
 
-SCENARIO("SciVis Studio camera rig files round-trip keyframe data",
-    "[SciVisStudio]")
+SCENARIO(
+    "SciVis Studio dataset IDs are not reused after removal", "[SciVisStudio]")
+{
+  Project project;
+  Dataset first;
+  first.id = project::nextDatasetId(project);
+  project.datasets.push_back(first);
+  Dataset second;
+  second.id = project::nextDatasetId(project);
+  const auto removedId = second.id;
+  project.datasets.push_back(second);
+  project.datasets.pop_back();
+
+  const auto next = project::nextDatasetId(project);
+  REQUIRE(next == "dataset_0003");
+  REQUIRE(next != removedId);
+
+  tsd::core::DataTree tree;
+  projectToNode(project, tree.root());
+  Project loaded;
+  REQUIRE(nodeToProject(tree.root(), loaded));
+  REQUIRE(project::nextDatasetId(loaded) == "dataset_0004");
+}
+
+SCENARIO(
+    "SciVis Studio camera rig files round-trip keyframe data", "[SciVisStudio]")
 {
   CameraRig rig;
   rig.name = "Hero Cam";
@@ -169,32 +375,6 @@ SCENARIO("SciVis Studio camera rig files round-trip keyframe data",
   std::filesystem::remove(file);
 }
 
-SCENARIO("SciVis Studio source file resolution prefers project-relative paths",
-    "[SciVisStudio]")
-{
-  const auto root =
-      std::filesystem::temp_directory_path() / "tsd_scivis_studio_source_paths";
-  std::filesystem::remove_all(root);
-  std::filesystem::create_directories(root / "frames");
-
-  const auto relativeFrame = root / "frames" / "frame_0001.raw";
-  {
-    std::ofstream out(relativeFrame);
-    out << "frame";
-  }
-
-  ProjectContext projectContext;
-  projectContext.project().projectDirectory = root;
-  DatasetSourceFile sourceFile;
-  sourceFile.absolutePath = "/missing/frame_0001.raw";
-  sourceFile.projectRelativePath = "frames/frame_0001.raw";
-
-  REQUIRE(projectContext.resolveSourceFilePath(sourceFile) == relativeFrame);
-  REQUIRE(projectContext.sourceFileIsRegular(sourceFile));
-
-  std::filesystem::remove_all(root);
-}
-
 SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
 {
   GIVEN("Camera interpolation modes")
@@ -208,8 +388,7 @@ SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
           CameraInterpolation::EaseOutIn};
 
       for (auto mode : modes)
-        REQUIRE(camera_rig::interpolationFromString(
-                    camera_rig::toString(mode))
+        REQUIRE(camera_rig::interpolationFromString(camera_rig::toString(mode))
             == mode);
 
       REQUIRE(camera_rig::interpolationFromString("Unknown")
@@ -235,8 +414,8 @@ SCENARIO("SciVis Studio camera interpolation modes", "[SciVisStudio]")
       rig.keyframes = {a, b};
 
       rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseOut;
-      REQUIRE(camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x
-          == Approx(6.25f));
+      REQUIRE(
+          camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x == Approx(6.25f));
 
       rig.keyframes.front().interpolationToNext = CameraInterpolation::EaseIn;
       REQUIRE(camera_rig::sampleCameraRig(rig, 25).orbit.lookat.x
@@ -388,8 +567,8 @@ SCENARIO("SciVis Studio new shots use the default light rig", "[SciVisStudio]")
       == defaultCameraRigId);
 }
 
-SCENARIO("SciVis Studio cloning a light rig deep-copies lights",
-    "[SciVisStudio]")
+SCENARIO(
+    "SciVis Studio cloning a light rig deep-copies lights", "[SciVisStudio]")
 {
   tsd::app::Context appContext;
   ProjectContext projectContext(&appContext);
@@ -424,8 +603,8 @@ SCENARIO("SciVis Studio cloning a light rig deep-copies lights",
       dynamic_cast<tsd::scene::Light *>((*cloneLightNode)->getObject());
   REQUIRE(cloneLight != nullptr);
   REQUIRE(cloneLight != (*sourceLightNode)->getObject());
-  REQUIRE(cloneLight->parameterValueAs<float>("irradiance").value()
-      == Approx(2.f));
+  REQUIRE(
+      cloneLight->parameterValueAs<float>("irradiance").value() == Approx(2.f));
 
   cloneLight->setParameter("irradiance", 7.f);
   sourceLight =
@@ -568,10 +747,14 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
     REQUIRE(manifest.root()["context"]["objectDB"].child("light") == nullptr);
 
     // Each rig was written as its own portable file.
-    const auto cameraName =
-        projectNode["cameraRigs"].child(0)->child("name")->getValueAs<std::string>();
-    const auto lightName =
-        projectNode["lightRigs"].child(0)->child("name")->getValueAs<std::string>();
+    const auto cameraName = projectNode["cameraRigs"]
+                                .child(0)
+                                ->child("name")
+                                ->getValueAs<std::string>();
+    const auto lightName = projectNode["lightRigs"]
+                               .child(0)
+                               ->child("name")
+                               ->getValueAs<std::string>();
     REQUIRE(std::filesystem::exists(root / "cameras" / (cameraName + ".tsd")));
     REQUIRE(std::filesystem::exists(root / "lights" / (lightName + ".tsd")));
   }
@@ -590,6 +773,443 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
     auto datasetRoot = findDirectChild(datasetsRoot, "dataset_0001");
     REQUIRE(datasetRoot);
     REQUIRE_FALSE((*datasetRoot)->isEnabled());
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio v5 projects round-trip standalone datasets",
+    "[SciVisStudio]")
+{
+  const auto root =
+      std::filesystem::temp_directory_path() / "tsd_scivis_studio_v5_datasets";
+  const auto copy = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_v5_datasets_copy";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(copy);
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    auto &project = projectContext.project();
+    auto &scene = appContext.tsd.scene;
+    auto *studio = scene.layer("studio");
+    auto datasetsRoot = findDirectChild(studio->root(), "datasets");
+    auto datasetRoot = scene.insertChildNode(datasetsRoot, "dataset_0001");
+
+    auto geometry = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
+    geometry->setName("dataset geometry");
+    auto material = scene.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    auto surface = scene.createSurface("dataset surface", geometry, material);
+    scene.insertChildObjectNode(datasetRoot, surface, "surface");
+
+    const float times[] = {0.f, 1.f};
+    const float radii[] = {0.5f, 1.5f};
+    appContext.tsd.animationMgr.addAnimation("dataset radius")
+        .addObjectParameterBinding(
+            geometry.data(), "radius", ANARI_FLOAT32, radii, times, 2);
+
+    Dataset dataset;
+    dataset.id = "dataset_0001";
+    dataset.name = "Example";
+    dataset.sourceKind = DatasetSourceKind::Static;
+    dataset.importerType = "OBJ";
+    dataset.source.sourcePath = "/source/example.obj";
+    dataset.status = DatasetStatus::Available;
+    dataset.rootNode = projectContext.refFor("studio", datasetRoot);
+    project.datasets.push_back(std::move(dataset));
+    shot::setDatasetBinding(project.shots.front(), "dataset_0001", false);
+    project.markDirty();
+
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::exists(root / "datasets" / "Example.tsd"));
+  }
+
+  {
+    tsd::core::DataTree manifest;
+    REQUIRE(manifest.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+    auto metadata = tsd::core::readDataTreeMetadata(manifest.root());
+    REQUIRE(metadata.found());
+    REQUIRE(metadata.metadata->schemaVersion == 5);
+    auto *datasetNode = manifest.root()["scivisStudio"]["datasets"].child(0);
+    REQUIRE(datasetNode);
+    REQUIRE(datasetNode->child("id"));
+    REQUIRE(datasetNode->child("name"));
+    REQUIRE(datasetNode->child("sourceKind") == nullptr);
+    REQUIRE(datasetNode->child("source") == nullptr);
+    REQUIRE(datasetNode->child("sourceFiles") == nullptr);
+    REQUIRE(manifest.root()["context"]["objectDB"].child("surface") == nullptr);
+    REQUIRE(
+        manifest.root()["context"]["animations"]["objects"].numChildren() == 0);
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    REQUIRE(project.datasets.size() == 1);
+    REQUIRE(project.datasets.front().id == "dataset_0001");
+    REQUIRE(project.datasets.front().status == DatasetStatus::Available);
+    REQUIRE(
+        project.datasets.front().source.sourcePath == "/source/example.obj");
+    REQUIRE_FALSE(project.shots.front().datasetBindings.front().enabled);
+    REQUIRE(projectContext.resolveDatasetRoot(project.datasets.front()));
+    REQUIRE(appContext.tsd.animationMgr.animations().size() == 1);
+    REQUIRE(appContext.tsd.animationMgr.animations().front().name()
+        == "dataset radius");
+
+    const auto asset = root / "datasets" / "Example.tsd";
+    const auto sentinel =
+        std::filesystem::file_time_type::clock::now() - std::chrono::hours(1);
+    std::filesystem::last_write_time(asset, sentinel);
+    project.shots.front().name = "Unrelated Shot Edit";
+    project.markDirty();
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::last_write_time(asset) == sentinel);
+    appContext.tsd.animationMgr.setAnimationTime(0.5f);
+    REQUIRE_FALSE(project.datasets.front().dirty);
+
+    auto *geometry = appContext.tsd.animationMgr.animations()
+                         .front()
+                         .objectParameterBindings()
+                         .front()
+                         .target();
+    REQUIRE(geometry);
+    geometry->setParameter("radius", 3.f);
+    REQUIRE(project.datasets.front().dirty);
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::last_write_time(asset) != sentinel);
+
+    REQUIRE(projectContext.saveProject(copy));
+    REQUIRE(std::filesystem::exists(copy / "datasets" / "Example.tsd"));
+    auto copied = validateDatasetAsset(copy / "datasets" / "Example.tsd");
+    REQUIRE(copied.ok);
+    REQUIRE(copied.dataset.source.sourcePath == "/source/example.obj");
+  }
+  std::filesystem::remove_all(copy);
+
+  std::filesystem::remove(root / "datasets" / "Example.tsd");
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    REQUIRE(project.datasets.size() == 1);
+    REQUIRE(project.datasets.front().status == DatasetStatus::Unavailable);
+    REQUIRE(project.shots.front().datasetBindings.size() == 1);
+    REQUIRE(project.shots.front().datasetBindings.front().datasetId
+        == "dataset_0001");
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio extracts embedded v4 datasets only on save",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_v4_dataset_migration";
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root);
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    auto &project = projectContext.project();
+    auto &scene = appContext.tsd.scene;
+    auto datasetsRoot =
+        findDirectChild(scene.layer("studio")->root(), "datasets");
+    auto datasetRoot = scene.insertChildNode(datasetsRoot, "dataset_0042");
+    auto geometry = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
+    auto material = scene.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    auto surface = scene.createSurface("legacy surface", geometry, material);
+    scene.insertChildObjectNode(datasetRoot, surface, "surface");
+
+    Dataset dataset;
+    dataset.id = "dataset_0042";
+    dataset.name = "Legacy Dataset";
+    dataset.status = DatasetStatus::Available;
+    dataset.rootNode = projectContext.refFor("studio", datasetRoot);
+    project.datasets.push_back(dataset);
+    shot::setDatasetBinding(project.shots.front(), dataset.id, true);
+
+    tsd::core::DataTree tree;
+    tsd::core::writeDataTreeMetadata(tree.root(),
+        {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+            PROJECT_FILE_TYPE,
+            PROJECT_SCHEMA,
+            4});
+    projectToNode(project, tree.root()["scivisStudio"]);
+    auto *datasetNode = tree.root()["scivisStudio"]["datasets"].child(0);
+    REQUIRE(datasetNode);
+    (*datasetNode)["sourceKind"] = "Static";
+    (*datasetNode)["importerType"] = "OBJ";
+    (*datasetNode)["status"] = "Available";
+    (*datasetNode)["source"]["absolutePath"] = "/legacy/source.obj";
+    tsd::io::save_Scene(
+        scene, tree.root()["context"], false, &appContext.tsd.animationMgr);
+    REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &dataset = projectContext.project().datasets.front();
+    REQUIRE(dataset.id == "dataset_0042");
+    REQUIRE(dataset.pendingExtraction);
+    REQUIRE(dataset.status == DatasetStatus::Available);
+    REQUIRE(dataset.source.sourcePath == "/legacy/source.obj");
+    REQUIRE_FALSE(std::filesystem::exists(root / "datasets"));
+
+    REQUIRE(projectContext.saveProject(root));
+    REQUIRE(std::filesystem::exists(root / "datasets" / "Legacy Dataset.tsd"));
+  }
+
+  {
+    tsd::core::DataTree manifest;
+    REQUIRE(manifest.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+    auto metadata = tsd::core::readDataTreeMetadata(manifest.root());
+    REQUIRE(metadata.found());
+    REQUIRE(metadata.metadata->schemaVersion == 5);
+    auto *datasetNode = manifest.root()["scivisStudio"]["datasets"].child(0);
+    REQUIRE(datasetNode);
+    REQUIRE(datasetNode->child("sourceKind") == nullptr);
+    REQUIRE(datasetNode->child("source") == nullptr);
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    auto &project = projectContext.project();
+    REQUIRE(project.datasets.front().id == "dataset_0042");
+    REQUIRE(project.datasets.front().status == DatasetStatus::Available);
+    REQUIRE(project.shots.front().datasetBindings.front().datasetId
+        == "dataset_0042");
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio Save As reports unavailable datasets", "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_unavailable_source";
+  const auto destination = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_unavailable_destination";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+  std::filesystem::create_directories(root);
+
+  Project project;
+  project.name = "Unavailable";
+  project.projectDirectory = root;
+  Dataset dataset;
+  dataset.id = "dataset_0007";
+  dataset.name = "Missing Dataset";
+  dataset.dirty = false;
+  dataset.persistedName = dataset.name;
+  project.datasets.push_back(dataset);
+  Shot shot;
+  shot.id = "shot_0001";
+  shot.datasetBindings.push_back({dataset.id, true});
+  project.shots.push_back(shot);
+  project.activeShotId = shot.id;
+
+  tsd::core::DataTree tree;
+  tsd::core::writeDataTreeMetadata(tree.root(),
+      {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+          PROJECT_FILE_TYPE,
+          PROJECT_SCHEMA,
+          SCHEMA_VERSION});
+  projectToNode(project, tree.root()["scivisStudio"]);
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+  tsd::io::save_Scene(scene, tree.root()["context"], false, &animations);
+  REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  REQUIRE(projectContext.openProject(root));
+  REQUIRE(projectContext.project().datasets.front().status
+      == DatasetStatus::Unavailable);
+  REQUIRE(projectContext.saveProject(root));
+
+  std::string error;
+  REQUIRE_FALSE(
+      projectContext.saveProject(destination, nullptr, "", nullptr, &error));
+  REQUIRE(error.find("Missing Dataset") != std::string::npos);
+  REQUIRE_FALSE(
+      std::filesystem::exists(destination / PROJECT_MANIFEST_FILENAME));
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+}
+
+SCENARIO("SciVis Studio dataset lifecycle workflows preserve asset semantics",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_lifecycle";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_lifecycle.obj";
+  const auto exported = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_export.tsd";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+  std::filesystem::remove(exported);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto *dataset = projectContext.addStaticDataset(
+      "Mesh", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(dataset);
+  REQUIRE(dataset->status == DatasetStatus::Available);
+  const auto originalId = dataset->id;
+  REQUIRE(projectContext.saveProject(root));
+  REQUIRE(std::filesystem::exists(root / "datasets" / "Mesh.tsd"));
+
+  REQUIRE(projectContext.exportDataset(originalId, exported));
+  auto exportedValidation = validateDatasetAsset(exported);
+  REQUIRE(exportedValidation.ok);
+  REQUIRE(exportedValidation.dataset.id.empty());
+
+  std::string error;
+  auto originalRoot = projectContext.resolveDatasetRoot(*dataset);
+  REQUIRE(originalRoot);
+  std::filesystem::remove(source);
+  REQUIRE_FALSE(projectContext.reimportStaticDataset(originalId, &error));
+  REQUIRE(projectContext.resolveDatasetRoot(*dataset) == originalRoot);
+
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 2 0 0\nv 0 2 0\nf 1 2 3\n";
+  }
+  REQUIRE(projectContext.reimportStaticDataset(originalId, &error));
+  REQUIRE(projectContext.project().datasets.front().id == originalId);
+
+  REQUIRE(projectContext.renameDataset(originalId, "Renamed", &error));
+  REQUIRE_FALSE(projectContext.renameDataset(originalId, "bad/name", &error));
+  REQUIRE(projectContext.saveProject(root));
+  REQUIRE(std::filesystem::exists(root / "datasets" / "Renamed.tsd"));
+  REQUIRE_FALSE(std::filesystem::exists(root / "datasets" / "Mesh.tsd"));
+
+  REQUIRE(projectContext.removeDataset(originalId, true, &error));
+  REQUIRE(std::filesystem::exists(root / "datasets" / "Renamed.tsd"));
+  REQUIRE(projectContext.project().shots.front().datasetBindings.empty());
+
+  // A generic TSD scene in the flat directory is not a dataset candidate.
+  tsd::scene::Scene genericScene;
+  tsd::io::save_Scene(
+      genericScene, (root / "datasets" / "generic.tsd").string().c_str());
+  REQUIRE(projectContext.saveProject(root));
+  REQUIRE(std::filesystem::exists(root / "datasets" / "Renamed.tsd"));
+  REQUIRE(std::filesystem::exists(root / "datasets" / "generic.tsd"));
+  auto candidates = projectContext.discoverDatasetCandidates();
+  REQUIRE(candidates.size() == 1);
+  REQUIRE(candidates.front().proposedName == "Renamed");
+
+  auto *incorporated = projectContext.incorporateDatasetCandidate(
+      candidates.front(), "Renamed", &error);
+  REQUIRE(incorporated);
+  REQUIRE(incorporated->id != originalId);
+  REQUIRE_FALSE(incorporated->dirty);
+  const auto incorporatedId = incorporated->id;
+  REQUIRE(projectContext.removeDataset(incorporatedId, false, &error));
+  REQUIRE_FALSE(std::filesystem::exists(root / "datasets" / "Renamed.tsd"));
+  REQUIRE(std::filesystem::exists(root / "datasets" / "generic.tsd"));
+
+  auto *imported = projectContext.importDataset(exported, &error);
+  REQUIRE(imported);
+  REQUIRE(imported->id != originalId);
+  REQUIRE(imported->dirty);
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove(source);
+  std::filesystem::remove(exported);
+}
+
+SCENARIO("SciVis Studio stages every dirty dataset before replacement",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_staging";
+  std::filesystem::remove_all(root);
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto &scene = appContext.tsd.scene;
+  auto datasetsRoot =
+      findDirectChild(scene.layer("studio")->root(), "datasets");
+
+  std::vector<tsd::scene::Geometry *> geometries;
+  for (int i = 0; i < 2; ++i) {
+    const auto id = project::makeGeneratedId("dataset", i + 1);
+    const auto name = i == 0 ? std::string("First") : std::string("Second");
+    auto datasetRoot = scene.insertChildNode(datasetsRoot, id.c_str());
+    auto geometry = scene.createObject<tsd::scene::Geometry>(
+        tsd::scene::tokens::geometry::sphere);
+    auto material = scene.createObject<tsd::scene::Material>(
+        tsd::scene::tokens::material::matte);
+    auto surface = scene.createSurface(name.c_str(), geometry, material);
+    scene.insertChildObjectNode(datasetRoot, surface, "surface");
+    geometries.push_back(geometry.data());
+
+    Dataset dataset;
+    dataset.id = id;
+    dataset.name = name;
+    dataset.sourceKind = DatasetSourceKind::Static;
+    dataset.importerType = "OBJ";
+    dataset.status = DatasetStatus::Available;
+    dataset.rootNode = projectContext.refFor("studio", datasetRoot);
+    projectContext.project().datasets.push_back(std::move(dataset));
+  }
+  REQUIRE(projectContext.saveProject(root));
+  geometries.clear();
+  geometries.push_back(
+      static_cast<tsd::scene::Geometry *>(scene.getObject(ANARI_GEOMETRY, 0)));
+  geometries.push_back(
+      static_cast<tsd::scene::Geometry *>(scene.getObject(ANARI_GEOMETRY, 1)));
+  REQUIRE(geometries[0]);
+  REQUIRE(geometries[1]);
+
+  const auto firstAsset = root / "datasets" / "First.tsd";
+  auto readBytes = [](const std::filesystem::path &file) {
+    std::ifstream input(file, std::ios::binary);
+    return std::vector<char>(std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>());
+  };
+  const auto before = readBytes(firstAsset);
+  REQUIRE_FALSE(before.empty());
+
+  geometries[0]->setParameter("radius", 7.f);
+  projectContext.project().datasets[0].dirty = true;
+  auto proxy = scene.createArrayProxy(ANARI_FLOAT32, 4);
+  geometries[1]->setParameterObject("invalid.proxy", *proxy);
+  projectContext.project().datasets[1].dirty = true;
+
+  std::string error;
+  REQUIRE_FALSE(projectContext.saveProject(root, nullptr, "", nullptr, &error));
+  REQUIRE(error.find("Second") != std::string::npos);
+  REQUIRE(readBytes(firstAsset) == before);
+  for (const auto &entry :
+      std::filesystem::directory_iterator(root / "datasets")) {
+    REQUIRE(
+        entry.path().filename().string().find(".stage-") == std::string::npos);
   }
 
   std::filesystem::remove_all(root);
@@ -969,8 +1589,8 @@ SCENARIO("SciVis Studio rig name validation", "[SciVisStudio]")
   }
 }
 
-SCENARIO("SciVis Studio rig rename enforces format and uniqueness",
-    "[SciVisStudio]")
+SCENARIO(
+    "SciVis Studio rig rename enforces format and uniqueness", "[SciVisStudio]")
 {
   tsd::app::Context appContext;
   ProjectContext projectContext(&appContext);

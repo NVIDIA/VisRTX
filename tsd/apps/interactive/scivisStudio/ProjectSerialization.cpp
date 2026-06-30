@@ -84,50 +84,13 @@ static std::string cameraRigNameForShot(const Shot &shot)
   return "Camera Rig";
 }
 
-static void sourceMetadataToNode(
-    const DatasetSourceMetadata &source, tsd::core::DataNode &node)
-{
-  node["absolutePath"] = source.absolutePath;
-  node["projectRelativePath"] = source.projectRelativePath;
-  node["fileSize"] = source.fileSize;
-  node["modifiedTime"] = source.modifiedTime;
-}
-
-static void sourceFileToNode(
-    const DatasetSourceFile &source, tsd::core::DataNode &node)
-{
-  node["absolutePath"] = source.absolutePath;
-  node["projectRelativePath"] = source.projectRelativePath;
-  node["fileSize"] = source.fileSize;
-  node["modifiedTime"] = source.modifiedTime;
-}
-
-static void nodeToSourceMetadata(
-    tsd::core::DataNode &node, DatasetSourceMetadata &source)
-{
-  source.absolutePath = node["absolutePath"].getValueOr<std::string>("");
-  source.projectRelativePath =
-      node["projectRelativePath"].getValueOr<std::string>("");
-  source.fileSize = node["fileSize"].getValueOr<uint64_t>(0);
-  source.modifiedTime = node["modifiedTime"].getValueOr<int64_t>(0);
-}
-
-static void nodeToSourceFile(
-    tsd::core::DataNode &node, DatasetSourceFile &source)
-{
-  source.absolutePath = node["absolutePath"].getValueOr<std::string>("");
-  source.projectRelativePath =
-      node["projectRelativePath"].getValueOr<std::string>("");
-  source.fileSize = node["fileSize"].getValueOr<uint64_t>(0);
-  source.modifiedTime = node["modifiedTime"].getValueOr<int64_t>(0);
-}
-
 void projectToNode(const Project &project, tsd::core::DataNode &node)
 {
   node.reset();
   node["name"] = project.name;
   node["projectDirectory"] = project.projectDirectory.string();
   node["activeShot"] = project.activeShotId;
+  node["nextDatasetOrdinal"] = project.nextDatasetOrdinal;
   node["dirty"] = project.dirty;
 
   auto &datasets = node["datasets"];
@@ -135,15 +98,6 @@ void projectToNode(const Project &project, tsd::core::DataNode &node)
     auto &d = datasets.append();
     d["id"] = dataset.id;
     d["name"] = dataset.name;
-    d["sourceKind"] = dataset::toString(dataset.sourceKind);
-    d["importerType"] = dataset.importerType;
-    d["status"] = dataset::toString(dataset.status);
-
-    sourceMetadataToNode(dataset.source, d["source"]);
-
-    auto &sourceFiles = d["sourceFiles"];
-    for (const auto &sourceFile : dataset.sourceFiles)
-      sourceFileToNode(sourceFile, sourceFiles.append());
   }
 
   auto &shots = node["shots"];
@@ -207,6 +161,7 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
   out.name = node["name"].getValueOr<std::string>("Untitled");
   out.projectDirectory = node["projectDirectory"].getValueOr<std::string>("");
   out.activeShotId = node["activeShot"].getValueOr<std::string>("");
+  out.nextDatasetOrdinal = node["nextDatasetOrdinal"].getValueOr<uint64_t>(1);
   out.dirty = node["dirty"].getValueOr<bool>(false);
 
   if (auto *datasets = node.child("datasets")) {
@@ -214,24 +169,58 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project)
       Dataset dataset;
       dataset.id = d["id"].getValueOr<std::string>("");
       dataset.name = d["name"].getValueOr<std::string>(dataset.id);
-      dataset.sourceKind = dataset::sourceKindFromString(
-          d["sourceKind"].getValueOr<std::string>("Static"));
-      dataset.importerType = d["importerType"].getValueOr<std::string>("NONE");
-      dataset.status = dataset::statusFromString(
-          d["status"].getValueOr<std::string>("Missing"));
+      dataset.status = DatasetStatus::Unavailable;
+      dataset.dirty = false;
+      dataset.persistedName = dataset.name;
 
-      if (auto *source = d.child("source"))
-        nodeToSourceMetadata(*source, dataset.source);
+      // v1-v4 compatibility: dataset payload metadata lived inline in the
+      // manifest. Preserve its authoritative fields in memory and mark it for
+      // extraction on the next explicit save.
+      if (d.child("sourceKind")) {
+        dataset.sourceKind = dataset::sourceKindFromString(
+            d["sourceKind"].getValueOr<std::string>("Static"));
+        dataset.importerType =
+            d["importerType"].getValueOr<std::string>("NONE");
+        dataset.status = dataset::statusFromString(
+            d["status"].getValueOr<std::string>("Missing"));
 
-      if (auto *sourceFiles = d.child("sourceFiles")) {
-        sourceFiles->foreach_child([&](tsd::core::DataNode &f) {
-          DatasetSourceFile sourceFile;
-          nodeToSourceFile(f, sourceFile);
-          dataset.sourceFiles.push_back(std::move(sourceFile));
-        });
+        if (auto *source = d.child("source")) {
+          dataset.source.sourcePath =
+              (*source)["absolutePath"].getValueOr<std::string>("");
+          if (dataset.source.sourcePath.empty()) {
+            dataset.source.sourcePath =
+                (*source)["projectRelativePath"].getValueOr<std::string>("");
+          }
+        }
+
+        dataset.sourceFiles.clear();
+        if (auto *sourceFiles = d.child("sourceFiles")) {
+          sourceFiles->foreach_child([&](tsd::core::DataNode &f) {
+            auto path = f["absolutePath"].getValueOr<std::string>("");
+            if (path.empty())
+              path = f["projectRelativePath"].getValueOr<std::string>("");
+            dataset.sourceFiles.push_back({std::move(path)});
+          });
+        }
+        dataset.pendingExtraction = true;
+        dataset.dirty = true;
+        dataset.persistedName.clear();
       }
       out.datasets.push_back(std::move(dataset));
     });
+  }
+
+  // Legacy manifests did not persist the allocator. Start beyond every
+  // generated ID still present so a later removal cannot collide with one.
+  for (const auto &dataset : out.datasets) {
+    constexpr const char *prefix = "dataset_";
+    if (dataset.id.rfind(prefix, 0) != 0)
+      continue;
+    try {
+      out.nextDatasetOrdinal = std::max(out.nextDatasetOrdinal,
+          static_cast<uint64_t>(std::stoull(dataset.id.substr(8)) + 1));
+    } catch (...) {
+    }
   }
 
   if (auto *cameraRigs = node.child("cameraRigs")) {

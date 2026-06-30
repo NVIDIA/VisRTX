@@ -124,6 +124,11 @@ struct SaveSceneOptions
   bool forceProxyArrays{false};
   tsd::animation::AnimationManager *animMgr{nullptr};
   std::vector<LayerNodeRef> excludedSubtrees;
+  // Broad closure is required when excluded subtrees may contain arbitrary
+  // scene objects (for example standalone dataset assets), rather than only
+  // light-rig objects.
+  bool excludeFullObjectClosure{false};
+  bool excludeAnimationsTargetingSubtrees{false};
 };
 
 void save_Scene(Scene &scene, const char *filename);
@@ -168,8 +173,29 @@ struct SubtreeIODesc
   bool lightsOnly{false};
 };
 
-bool export_Subtree(const char *filename, LayerNodeRef root, const SubtreeIODesc &desc, std::string_view displayName = {});
-LayerNodeRef import_Subtree(Scene &scene, const char *filename, LayerNodeRef destinationParent, const SubtreeIODesc &desc, std::string *displayNameOut = nullptr);
+// Optional animation participation for subtree files. When a manager is
+// supplied, export carries every animation whose targets are wholly owned by
+// the subtree and rejects animations that span the subtree and the surrounding
+// scene. Import appends the serialized animations to the supplied manager.
+// File-binding animations can be omitted when a higher-level format persists
+// their authoritative definition separately and recreates them at runtime.
+struct SubtreeIOOptions
+{
+  animation::AnimationManager *animationManager{nullptr};
+  bool includeFileBindingAnimations{true};
+};
+
+bool export_Subtree(const char *filename,
+    LayerNodeRef root,
+    const SubtreeIODesc &desc,
+    std::string_view displayName = {},
+    const SubtreeIOOptions &options = {});
+LayerNodeRef import_Subtree(Scene &scene,
+    const char *filename,
+    LayerNodeRef destinationParent,
+    const SubtreeIODesc &desc,
+    std::string *displayNameOut = nullptr,
+    const SubtreeIOOptions &options = {});
 PayloadValidationResult validate_SubtreePayload(core::DataNode &root, const SubtreeIODesc &desc);
 
 void export_SceneToUSD(

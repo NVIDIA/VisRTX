@@ -14,15 +14,24 @@
 
 namespace tsd::scivis_studio {
 
+struct DatasetDirtyDelegate;
+
 struct FileAnimationDatasetOptions
 {
   bool setActiveShotFrameCount{true};
+};
+
+struct DatasetCandidate
+{
+  std::filesystem::path file;
+  std::string proposedName;
 };
 
 struct ProjectContext
 {
   ProjectContext() = default;
   explicit ProjectContext(tsd::app::Context *ctx);
+  ~ProjectContext();
 
   void setAppContext(tsd::app::Context *ctx);
   tsd::app::Context *appContext() const;
@@ -39,6 +48,22 @@ struct ProjectContext
       const std::vector<std::filesystem::path> &sourcePaths,
       tsd::io::ImporterType importerType,
       const FileAnimationDatasetOptions &options = {});
+  bool renameDataset(const DatasetID &id,
+      const std::string &newName,
+      std::string *error = nullptr);
+  bool removeDataset(const DatasetID &id,
+      bool keepAssetFile = false,
+      std::string *error = nullptr);
+  bool reimportStaticDataset(const DatasetID &id, std::string *error = nullptr);
+  bool exportDataset(const DatasetID &id,
+      const std::filesystem::path &file,
+      std::string *error = nullptr);
+  Dataset *importDataset(
+      const std::filesystem::path &file, std::string *error = nullptr);
+  std::vector<DatasetCandidate> discoverDatasetCandidates() const;
+  Dataset *incorporateDatasetCandidate(const DatasetCandidate &candidate,
+      const std::string &name,
+      std::string *error = nullptr);
   void applyActiveShot();
   void syncAnimationManagerToActiveShot();
 
@@ -60,9 +85,6 @@ struct ProjectContext
   tsd::scene::LayerNodeRef resolveDatasetRoot(Dataset &dataset);
   tsd::scene::LayerNodeRef resolveLightRigRoot(LightRig &rig);
   tsd::scene::Object *resolveShotCamera(Shot &shot);
-  std::filesystem::path resolveSourceFilePath(
-      const DatasetSourceFile &sourceFile) const;
-  bool sourceFileIsRegular(const DatasetSourceFile &sourceFile) const;
   LightRig *createLightRig(const std::string &name = "");
   LightRig *cloneLightRig(const LightRigID &id);
   bool removeLightRig(const LightRigID &id);
@@ -85,7 +107,8 @@ struct ProjectContext
 
   // Standalone rig file IO. Export writes the named rig to a .tsd file; import
   // adds a new library entry (with a fresh id and a de-duplicated name) and
-  // never alters shot bindings. Import returns the new rig, or nullptr on error.
+  // never alters shot bindings. Import returns the new rig, or nullptr on
+  // error.
   bool exportCameraRig(const CameraRigID &id,
       const std::filesystem::path &file,
       std::string *error = nullptr);
@@ -98,6 +121,13 @@ struct ProjectContext
       const std::filesystem::path &file, std::string *error = nullptr);
 
  private:
+  friend struct DatasetDirtyDelegate;
+  void installDatasetDirtyDelegate();
+  void markDatasetDirtyForObject(const tsd::scene::Object *object);
+  Dataset *importDatasetImpl(const std::filesystem::path &file,
+      const std::string &name,
+      bool alreadyManaged,
+      std::string *error);
   tsd::scene::LayerNodeRef ensureChild(
       tsd::scene::LayerNodeRef parent, const char *name);
   tsd::scene::LayerNodeRef ensureStudioRoot();
@@ -115,6 +145,7 @@ struct ProjectContext
   // the project still opens.
   void loadCameraRigFiles(const std::filesystem::path &camerasDir);
   void loadLightRigFiles(const std::filesystem::path &lightsDir);
+  void loadDatasetFiles(const std::filesystem::path &datasetsDir);
   void markMissingDatasets();
   void refreshRuntimeRefs();
   void installAnimationManagerCallback();
@@ -123,6 +154,7 @@ struct ProjectContext
   tsd::app::Context *m_ctx{nullptr};
   Project m_project;
   bool m_syncingAnimationManager{false};
+  tsd::scene::BaseUpdateDelegate *m_datasetDirtyDelegate{nullptr};
 };
 
 const char *toString(tsd::io::ImporterType importerType);

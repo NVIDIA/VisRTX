@@ -4,6 +4,7 @@
 add_library(tsd_scivis_studio_model STATIC
   CameraRig.cpp
   Dataset.cpp
+  DatasetIO.cpp
   LightRig.cpp
   Project.cpp
   ProjectContext.cpp

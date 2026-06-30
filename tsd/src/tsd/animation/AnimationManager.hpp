@@ -47,6 +47,7 @@ struct AnimationManager
   // Time control
   void setAnimationTime(float time);
   float getAnimationTime() const;
+  bool isApplyingAnimations() const;
   void setAnimationIncrement(float increment);
   float getAnimationIncrement() const;
   void incrementAnimationTime();
@@ -84,6 +85,7 @@ struct AnimationManager
   int m_totalFrames{100};
   bool m_playing{false};
   bool m_loop{true};
+  bool m_applyingAnimations{false};
   std::vector<Animation> m_animations;
   size_t m_defragToken{0};
 };

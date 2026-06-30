@@ -10,8 +10,8 @@ const char *toString(DatasetSourceKind kind)
   switch (kind) {
   case DatasetSourceKind::Static:
     return "Static";
-  case DatasetSourceKind::TimeSeries:
-    return "TimeSeries";
+  case DatasetSourceKind::FileAnimation:
+    return "FileAnimation";
   case DatasetSourceKind::Live:
     return "Live";
   }
@@ -23,8 +23,8 @@ const char *toString(DatasetStatus status)
   switch (status) {
   case DatasetStatus::Available:
     return "Available";
-  case DatasetStatus::Missing:
-    return "Missing";
+  case DatasetStatus::Unavailable:
+    return "Unavailable";
   case DatasetStatus::Importing:
     return "Importing";
   case DatasetStatus::ImportFailed:
@@ -35,8 +35,8 @@ const char *toString(DatasetStatus status)
 
 DatasetSourceKind sourceKindFromString(const std::string &s)
 {
-  if (s == "TimeSeries")
-    return DatasetSourceKind::TimeSeries;
+  if (s == "FileAnimation" || s == "TimeSeries")
+    return DatasetSourceKind::FileAnimation;
   if (s == "Live")
     return DatasetSourceKind::Live;
   return DatasetSourceKind::Static;
@@ -50,7 +50,7 @@ DatasetStatus statusFromString(const std::string &s)
     return DatasetStatus::Importing;
   if (s == "ImportFailed")
     return DatasetStatus::ImportFailed;
-  return DatasetStatus::Missing;
+  return DatasetStatus::Unavailable;
 }
 
 } // namespace tsd::scivis_studio::dataset

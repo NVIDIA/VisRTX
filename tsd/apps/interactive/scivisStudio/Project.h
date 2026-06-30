@@ -30,6 +30,7 @@ struct Project
   std::vector<CameraRig> cameraRigs;
   std::vector<ColorMapRecord> colorMaps;
   ShotID activeShotId;
+  uint64_t nextDatasetOrdinal{1};
   bool dirty{false};
 
   bool isSaved() const;
@@ -40,7 +41,7 @@ struct Project
 namespace project {
 
 std::string makeGeneratedId(const char *prefix, size_t ordinal);
-DatasetID nextDatasetId(const Project &project);
+DatasetID nextDatasetId(Project &project);
 ShotID nextShotId(const Project &project);
 ColorMapID nextColorMapId(const Project &project);
 

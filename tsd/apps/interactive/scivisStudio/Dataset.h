@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "tsd/core/FlatMap.hpp"
 #include "tsd/core/ObjectPool.hpp"
 
 #include <anari/anari_cpp.hpp>
@@ -34,32 +35,29 @@ struct SceneObjectRef
 enum class DatasetSourceKind
 {
   Static,
-  TimeSeries,
+  FileAnimation,
+  TimeSeries = FileAnimation, // v1-v4 source compatibility
   Live
 };
 
 enum class DatasetStatus
 {
   Available,
-  Missing,
+  Unavailable,
+  Missing = Unavailable, // v1-v4 source compatibility
   Importing,
   ImportFailed
 };
 
 struct DatasetSourceMetadata
 {
-  std::string absolutePath;
-  std::string projectRelativePath;
-  uint64_t fileSize{0};
-  int64_t modifiedTime{0};
+  std::string sourcePath;
+  tsd::core::FlatMap<std::string, std::string> importerSettings;
 };
 
 struct DatasetSourceFile
 {
-  std::string absolutePath;
-  std::string projectRelativePath;
-  uint64_t fileSize{0};
-  int64_t modifiedTime{0};
+  std::string path;
 };
 
 struct Dataset
@@ -69,9 +67,15 @@ struct Dataset
   DatasetSourceKind sourceKind{DatasetSourceKind::Static};
   std::string importerType{"NONE"};
   DatasetSourceMetadata source;
-  DatasetStatus status{DatasetStatus::Missing};
+  DatasetStatus status{DatasetStatus::Unavailable};
   SceneNodeRef rootNode;
   std::vector<DatasetSourceFile> sourceFiles;
+
+  // Runtime-only persistence state. Dataset assets do not store project-local
+  // IDs or these bookkeeping fields.
+  bool dirty{true};
+  bool pendingExtraction{false};
+  std::string persistedName;
 };
 
 namespace dataset {
