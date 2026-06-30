@@ -8,7 +8,9 @@
 #include "imgui.h"
 
 #include <cstring>
+#include <exception>
 #include <filesystem>
+#include <utility>
 #include <vector>
 
 namespace tsd::scivis_studio {
@@ -57,6 +59,17 @@ void DatasetEditor::pollPendingFileIO()
 
   if (!m_ioError.empty())
     ImGui::OpenPopup("Dataset IO Error");
+}
+
+void DatasetEditor::pollPendingReimport()
+{
+  if (!m_pendingReimport
+      || !m_pendingReimport->complete.load(std::memory_order_acquire))
+    return;
+
+  if (!m_pendingReimport->error.empty())
+    m_ioError = std::move(m_pendingReimport->error);
+  m_pendingReimport.reset();
 }
 
 void DatasetEditor::buildErrorPopup()
@@ -134,6 +147,7 @@ void DatasetEditor::buildUI()
     return;
 
   pollPendingFileIO();
+  pollPendingReimport();
 
   if (ImGui::Button("Import...")) {
     m_pendingFileIO = PendingFileIO::Import;
@@ -244,11 +258,20 @@ void DatasetEditor::buildUI()
   ImGui::BeginDisabled(dataset.sourceKind != DatasetSourceKind::Static
       || dataset.source.sourcePath.empty());
   if (ImGui::Button("Reimport")) {
-    std::string error;
-    if (!m_projectContext->reimportStaticDataset(dataset.id, &error)) {
-      m_ioError = error;
-      ImGui::OpenPopup("Dataset IO Error");
-    }
+    const auto datasetId = dataset.id;
+    m_pendingReimport = std::make_shared<ReimportResult>();
+    m_app->showTaskModal(
+        [ctx = m_projectContext, datasetId, result = m_pendingReimport]() {
+          try {
+            ctx->reimportStaticDataset(datasetId, &result->error);
+          } catch (const std::exception &e) {
+            result->error = std::string("dataset reimport failed: ") + e.what();
+          } catch (...) {
+            result->error = "dataset reimport failed";
+          }
+          result->complete.store(true, std::memory_order_release);
+        },
+        "Reimporting Dataset...");
   }
   ImGui::EndDisabled();
   ImGui::SameLine();

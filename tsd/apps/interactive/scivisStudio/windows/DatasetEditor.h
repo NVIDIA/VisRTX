@@ -6,6 +6,8 @@
 #include "ProjectContext.h"
 #include "tsd/ui/imgui/windows/Window.h"
 
+#include <atomic>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,7 +29,14 @@ struct DatasetEditor : public tsd::ui::imgui::Window
     Export
   };
 
+  struct ReimportResult
+  {
+    std::atomic_bool complete{false};
+    std::string error;
+  };
+
   void pollPendingFileIO();
+  void pollPendingReimport();
   void buildDiscoveryReview();
   void buildErrorPopup();
 
@@ -37,6 +46,7 @@ struct DatasetEditor : public tsd::ui::imgui::Window
   std::string m_pendingFilename;
   DatasetID m_pendingExportDataset;
   DatasetID m_pendingRemoveDataset;
+  std::shared_ptr<ReimportResult> m_pendingReimport;
   bool m_keepRemovedAsset{false};
   DatasetID m_nameBufferDataset;
   std::string m_nameBuffer;
