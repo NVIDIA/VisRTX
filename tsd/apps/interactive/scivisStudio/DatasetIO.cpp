@@ -7,6 +7,7 @@
 
 #include "tsd/animation/Animation.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
+#include "tsd/core/Logging.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/serialization.hpp"
 #include "tsd/scene/objects/Volume.hpp"
@@ -19,7 +20,7 @@ namespace tsd::scivis_studio {
 namespace {
 
 const tsd::io::SubtreeIODesc DATASET_DESC{
-    DATASET_FILE_TYPE, DATASET_SCHEMA, false};
+    DATASET_FILE_TYPE, DATASET_SCHEMA, tsd::io::ArchiveObjectPolicy::All};
 
 bool fail(std::string message, std::string *error)
 {
@@ -152,116 +153,6 @@ bool recreateFileAnimation(const Dataset &dataset,
   return true;
 }
 
-struct ObjectKey
-{
-  anari::DataType type{ANARI_UNKNOWN};
-  size_t index{TSD_INVALID_INDEX};
-};
-
-ObjectKey objectKey(const tsd::scene::Object &object)
-{
-  return {anari::isArray(object.type()) ? ANARI_ARRAY : object.type(),
-      object.index()};
-}
-
-bool containsObject(
-    const std::vector<ObjectKey> &objects, anari::DataType type, size_t index)
-{
-  const auto canonical = anari::isArray(type) ? ANARI_ARRAY : type;
-  return std::any_of(objects.begin(), objects.end(), [&](const ObjectKey &key) {
-    return key.type == canonical && key.index == index;
-  });
-}
-
-std::vector<ObjectKey> collectDatasetObjects(
-    tsd::scene::Scene &scene, tsd::scene::LayerNodeRef root)
-{
-  std::vector<ObjectKey> objects;
-  std::vector<tsd::scene::Object *> pending;
-  auto add = [&](tsd::scene::Object *object) {
-    if (!object || containsObject(objects, object->type(), object->index()))
-      return;
-    objects.push_back(objectKey(*object));
-    pending.push_back(object);
-  };
-
-  auto *layer = (*root).value().layer();
-  layer->traverse(root, [&](tsd::scene::LayerNode &node, int) {
-    if (node->isObject())
-      add(node->getObject());
-    for (const auto &parameter : node->getInstanceParameters()) {
-      if (parameter.second.holdsObject())
-        add(scene.getObject(parameter.second));
-    }
-    return true;
-  });
-
-  for (size_t i = 0; i < pending.size(); ++i) {
-    auto *object = pending[i];
-    for (size_t p = 0; p < object->numParameters(); ++p) {
-      const auto &parameter = object->parameterAt(p);
-      if (parameter.value().holdsObject())
-        add(scene.getObject(parameter.value()));
-      if (parameter.hasMin() && parameter.min().holdsObject())
-        add(scene.getObject(parameter.min()));
-      if (parameter.hasMax() && parameter.max().holdsObject())
-        add(scene.getObject(parameter.max()));
-    }
-    for (size_t m = 0; m < object->numMetadata(); ++m) {
-      const auto *name = object->getMetadataName(m);
-      anari::DataType arrayType = ANARI_UNKNOWN;
-      const void *array = nullptr;
-      size_t arraySize = 0;
-      object->getMetadataArray(name, &arrayType, &array, &arraySize);
-      if (arrayType == ANARI_UNKNOWN) {
-        const auto value = object->getMetadataValue(name);
-        if (value.holdsObject())
-          add(scene.getObject(value));
-      }
-    }
-  }
-  return objects;
-}
-
-bool animationTargetsDataset(const tsd::animation::Animation &animation,
-    tsd::scene::LayerNodeRef root,
-    const std::vector<ObjectKey> &objects)
-{
-  for (const auto &binding : animation.objectParameterBindings()) {
-    auto *target = binding.target();
-    if (target && containsObject(objects, target->type(), target->index()))
-      return true;
-  }
-
-  auto *layer = (*root).value().layer();
-  for (const auto &binding : animation.transformBindings()) {
-    auto target = binding.target();
-    if (target && (target == root || layer->isAncestorOf(root, target)))
-      return true;
-  }
-
-  for (const auto &binding : animation.fileBindings()) {
-    tsd::core::DataTree tree;
-    binding->toDataNode(tree.root());
-    if (binding->kind() == "spatialField") {
-      const auto index =
-          tree.root()["targetIndex"].getValueOr<size_t>(TSD_INVALID_INDEX);
-      if (containsObject(objects, ANARI_VOLUME, index))
-        return true;
-    } else if (binding->kind() == "ensight") {
-      bool found = false;
-      tree.root()["parts"].foreach_child([&](tsd::core::DataNode &part) {
-        found |= containsObject(objects,
-            ANARI_GEOMETRY,
-            part["targetIndex"].getValueOr<size_t>(TSD_INVALID_INDEX));
-      });
-      if (found)
-        return true;
-    }
-  }
-  return false;
-}
-
 } // namespace
 
 DatasetAssetValidationResult validateDatasetAsset(
@@ -338,11 +229,17 @@ bool exportDatasetAsset(const Dataset &dataset,
     return false;
 
   auto *scene = (*root).value().layer()->scene();
-  const auto datasetObjects = collectDatasetObjects(*scene, root);
+  tsd::io::ArchivePlanOptions planOptions;
+  planOptions.animationManager = &animationManager;
+  planOptions.fileBindings = tsd::io::FileBindingArchivePolicy::Omit;
+  const auto planResult =
+      tsd::io::plan_SubtreeArchive(*scene, root, planOptions);
+  if (!planResult.accepted())
+    return fail(planResult.message, error);
+
   size_t ownedFileAnimations = 0;
-  for (const auto &animation : animationManager.animations()) {
-    if (!animation.fileBindings().empty()
-        && animationTargetsDataset(animation, root, datasetObjects))
+  for (const auto index : planResult.plan.ownedAnimations) {
+    if (!animationManager.animations()[index].fileBindings().empty())
       ++ownedFileAnimations;
   }
   if (dataset.sourceKind == DatasetSourceKind::Static
@@ -355,7 +252,7 @@ bool exportDatasetAsset(const Dataset &dataset,
 
   tsd::io::SubtreeIOOptions options;
   options.animationManager = &animationManager;
-  options.includeFileBindingAnimations = false;
+  options.fileBindings = tsd::io::FileBindingArchivePolicy::Omit;
   if (!tsd::io::export_Subtree(
           file.string().c_str(), root, DATASET_DESC, dataset.name, options))
     return fail("failed to serialize dataset subtree", error);
@@ -386,30 +283,27 @@ bool importDatasetAsset(tsd::scene::Scene &scene,
   if (!validation.ok)
     return fail(validation.error, error);
 
-  const auto originalAnimationCount = animationManager.animations().size();
   tsd::io::SubtreeIOOptions options;
   options.animationManager = &animationManager;
-  auto root = tsd::io::import_Subtree(scene,
+  auto imported = tsd::io::import_SubtreeWithOwnership(scene,
       file.string().c_str(),
       destinationParent,
       DATASET_DESC,
       nullptr,
       options);
-  if (!root)
+  if (!imported.valid() || !imported.root)
     return fail("failed to reconstruct dataset subtree", error);
 
   if (validation.dataset.sourceKind == DatasetSourceKind::FileAnimation
       && !recreateFileAnimation(
-          validation.dataset, scene, animationManager, root, error)) {
-    while (animationManager.animations().size() > originalAnimationCount)
-      animationManager.removeAnimation(originalAnimationCount);
-    scene.removeNode(root, true);
+          validation.dataset, scene, animationManager, imported.root, error)) {
+    tsd::io::rollback_SubtreeImport(scene, animationManager, imported);
     return false;
   }
 
   datasetOut = std::move(validation.dataset);
   datasetOut.status = DatasetStatus::Available;
-  rootOut = root;
+  rootOut = imported.root;
   return true;
 }
 
@@ -419,12 +313,19 @@ void removeDatasetRuntime(tsd::scene::Scene &scene,
 {
   if (!root)
     return;
-  const auto objects = collectDatasetObjects(scene, root);
-  for (size_t i = animationManager.animations().size(); i > 0; --i) {
-    if (animationTargetsDataset(
-            animationManager.animations()[i - 1], root, objects))
-      animationManager.removeAnimation(i - 1);
+
+  tsd::io::ArchivePlanOptions options;
+  options.animationManager = &animationManager;
+  const auto result = tsd::io::plan_SubtreeArchive(scene, root, options);
+  if (!result.accepted()) {
+    tsd::core::logError("[removeDatasetRuntime] %s", result.message.c_str());
+    return;
   }
+
+  for (auto it = result.plan.ownedAnimations.rbegin();
+       it != result.plan.ownedAnimations.rend();
+       ++it)
+    animationManager.removeAnimation(*it);
   scene.removeNode(root, true);
 }
 
@@ -434,8 +335,8 @@ bool datasetRuntimeContainsObject(tsd::scene::Scene &scene,
 {
   if (!root || !object)
     return false;
-  const auto objects = collectDatasetObjects(scene, root);
-  return containsObject(objects, object->type(), object->index());
+  const auto result = tsd::io::plan_SubtreeArchive(scene, root);
+  return result.accepted() && result.plan.containsObject(object);
 }
 
 } // namespace tsd::scivis_studio

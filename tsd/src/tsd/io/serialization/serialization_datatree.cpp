@@ -14,6 +14,7 @@
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_animation_archive.hpp"
 #include "tsd/io/serialization/serialization_closure.hpp"
 // std
 #include <algorithm>
@@ -772,69 +773,10 @@ static bool keySetContains(
   });
 }
 
-// Gather the light objects (and instance-parameter objects) seeded by the
-// excluded subtrees, then close over the arrays they reference
-// (lightRigPolicy). Arrays still referenced by *retained* objects are rescued
-// so the saved scene keeps a valid reference graph. Sets *ok=false if the
-// closure could not be built (the caller then excludes nothing, keeping the
-// payload self-consistent).
-static std::vector<detail::ObjectKey> computeExcludedObjects(Scene &scene,
-    const std::vector<LayerNodeRef> &excludedSubtrees,
-    bool fullClosure,
-    std::vector<detail::ObjectKey> *subtreeObjects,
-    bool &ok)
+static void rescueRetainedObjectDependencies(
+    Scene &scene, std::vector<detail::ObjectKey> &excluded)
 {
-  ok = true;
-  std::vector<detail::ObjectKey> excluded;
-
-  std::vector<Object *> seeds;
-  for (auto root : excludedSubtrees) {
-    if (!root)
-      continue;
-    auto *layer = (*root).value().layer();
-    if (!layer)
-      continue;
-    layer->traverse_const(root, [&](const LayerNode &tsdNode, int) {
-      if (tsdNode->isObject()) {
-        if (auto *o = tsdNode->getObject())
-          seeds.push_back(o);
-      }
-      for (const auto &p : tsdNode->getInstanceParameters()) {
-        if (p.second.holdsObject()) {
-          if (auto *o = scene.getObject(p.second))
-            seeds.push_back(o);
-        }
-      }
-      return true;
-    });
-  }
-
-  if (seeds.empty())
-    return excluded;
-
-  std::vector<detail::ClosureEntry> entries;
-  std::string err;
-  if (!detail::buildClosure(scene,
-          seeds,
-          fullClosure ? detail::layerSubtreePolicy() : detail::lightRigPolicy(),
-          detail::ObjectKey{},
-          entries,
-          err)) {
-    tsd::core::logWarning(
-        "[save_Scene] could not compute subtree exclusion closure (%s); "
-        "saving the whole scene inline",
-        err.c_str());
-    ok = false;
-    return {};
-  }
-
-  for (const auto &e : entries)
-    excluded.push_back(e.source);
-  if (subtreeObjects)
-    *subtreeObjects = excluded;
-
-  // Rescue any excluded array that a retained object still references. Repeat
-  // to a fixed point so a rescued array's own references are honored too.
+  // Repeat to a fixed point so a rescued object's own references are retained.
   bool changed = true;
   while (changed) {
     changed = false;
@@ -853,73 +795,108 @@ static std::vector<detail::ObjectKey> computeExcludedObjects(Scene &scene,
       });
     });
   }
-
-  return excluded;
 }
 
-static bool animationTargetsExcluded(const animation::Animation &animation,
-    const std::vector<detail::ObjectKey> &excludedObjects,
-    const std::vector<LayerNodeRef> &excludedSubtrees)
+struct SceneExclusionPlan
 {
-  for (const auto &binding : animation.objectParameterBindings()) {
-    auto *target = binding.target();
-    if (target
-        && keySetContains(
-            excludedObjects, detail::makeKey(target->type(), target->index())))
-      return true;
+  bool valid{true};
+  std::vector<detail::ObjectKey> objects;
+  std::vector<size_t> animations;
+  std::vector<ArchiveAnimationDependency> animationDependencies;
+};
+
+static SceneExclusionPlan planSceneExclusion(Scene &scene,
+    const SceneExclusion &exclusion,
+    const animation::AnimationManager *animationManager)
+{
+  SceneExclusionPlan combined;
+  for (auto root : exclusion.roots) {
+    ArchivePlanOptions options;
+    options.objectPolicy = exclusion.objectPolicy;
+    options.animationManager = animationManager;
+    auto result = plan_SubtreeArchive(scene, root, options);
+    if (!result.accepted()) {
+      tsd::core::logWarning(
+          "[save_Scene] could not plan subtree exclusion (%s); saving the "
+          "whole scene inline",
+          result.message.c_str());
+      combined.valid = false;
+      combined.objects.clear();
+      combined.animations.clear();
+      return combined;
+    }
+
+    for (const auto &object : result.plan.objects) {
+      const auto key = detail::makeKey(object.type, object.sourceIndex);
+      if (!keySetContains(combined.objects, key))
+        combined.objects.push_back(key);
+    }
+    for (const auto animationIndex : result.plan.ownedAnimations) {
+      if (std::find(combined.animations.begin(),
+              combined.animations.end(),
+              animationIndex)
+          == combined.animations.end())
+        combined.animations.push_back(animationIndex);
+    }
+    for (const auto &dependency : result.plan.animationDependencies) {
+      const auto found = std::find_if(combined.animationDependencies.begin(),
+          combined.animationDependencies.end(),
+          [&](const auto &existing) {
+            return existing.animationIndex == dependency.animationIndex
+                && existing.object == dependency.object;
+          });
+      if (found == combined.animationDependencies.end())
+        combined.animationDependencies.push_back(dependency);
+    }
   }
 
-  for (const auto &binding : animation.transformBindings()) {
-    auto target = binding.target();
-    if (!target)
+  if (exclusion.animations == ExcludedAnimationPolicy::Retain
+      && !combined.animations.empty()) {
+    tsd::core::logWarning(
+        "[save_Scene] retained animations target excluded subtrees; saving "
+        "the whole scene inline");
+    combined.valid = false;
+    combined.objects.clear();
+    combined.animations.clear();
+    return combined;
+  }
+
+  // Dependencies of retained animations must remain in the full-scene
+  // payload even when an excluded subtree also references them.
+  for (const auto &dependency : combined.animationDependencies) {
+    if (!dependency.object
+        || std::find(combined.animations.begin(),
+               combined.animations.end(),
+               dependency.animationIndex)
+            != combined.animations.end())
       continue;
-    for (auto excluded : excludedSubtrees) {
-      if (!excluded || (*excluded).value().layer() != (*target).value().layer())
-        continue;
-      auto *layer = (*excluded).value().layer();
-      if (target == excluded || layer->isAncestorOf(excluded, target))
-        return true;
-    }
+    const auto key =
+        detail::makeKey(dependency.object->type(), dependency.object->index());
+    auto found = std::find_if(combined.objects.begin(),
+        combined.objects.end(),
+        [&](const auto &candidate) { return detail::sameKey(candidate, key); });
+    if (found != combined.objects.end())
+      combined.objects.erase(found);
   }
 
-  for (const auto &binding : animation.fileBindings()) {
-    core::DataTree scratch;
-    binding->toDataNode(scratch.root());
-    if (binding->kind() == "spatialField") {
-      if (keySetContains(excludedObjects,
-              detail::makeKey(ANARI_VOLUME,
-                  scratch.root()["targetIndex"].getValueOr<size_t>(
-                      tsd::core::INVALID_INDEX))))
-        return true;
-    } else if (binding->kind() == "ensight") {
-      bool excluded = false;
-      scratch.root()["parts"].foreach_child([&](core::DataNode &part) {
-        excluded |= keySetContains(excludedObjects,
-            detail::makeKey(ANARI_GEOMETRY,
-                part["targetIndex"].getValueOr<size_t>(
-                    tsd::core::INVALID_INDEX)));
-      });
-      if (excluded)
-        return true;
-    }
-  }
-  return false;
+  rescueRetainedObjectDependencies(scene, combined.objects);
+  return combined;
 }
 
 static void animationManagerToNodeExcluding(
     const animation::AnimationManager &manager,
     core::DataNode &node,
-    const std::vector<detail::ObjectKey> &excludedObjects,
-    const std::vector<LayerNodeRef> &excludedSubtrees)
+    const std::vector<size_t> &excludedAnimations)
 {
   node["time"] = manager.getAnimationTime();
   node["increment"] = manager.getAnimationIncrement();
   node["totalFrames"] = manager.getAnimationTotalFrames();
   node["fps"] = manager.getAnimationFPS();
   auto &objects = node["objects"];
-  for (const auto &animation : manager.animations()) {
-    if (!animationTargetsExcluded(animation, excludedObjects, excludedSubtrees))
-      animationToNode(animation, objects.append());
+  for (size_t i = 0; i < manager.animations().size(); ++i) {
+    if (std::find(excludedAnimations.begin(), excludedAnimations.end(), i)
+        == excludedAnimations.end())
+      animationToNode(manager.animations()[i], objects.append());
   }
 }
 
@@ -1061,55 +1038,6 @@ static size_t remappedLayerNodeIndex(const std::vector<LayerNodeRemap> &remaps,
   return index; // layer not remapped
 }
 
-// Animation bindings store absolute object/layer-node indices as plain scalars
-// (see ObjectParameterBinding/TransformBinding/*FileBinding::toDataNode), so
-// the generic ref remap cannot reach them. Rewrite them here to match the dense
-// indices the excluded payload reloads with.
-static void remapAnimationBindings(core::DataNode &animationsNode,
-    const std::vector<ObjectIndexRemap> &objectRemap,
-    const std::vector<LayerNodeRemap> &layerRemaps)
-{
-  auto *objects = animationsNode.child("objects");
-  if (!objects)
-    return;
-
-  objects->foreach_child([&](core::DataNode &anim) {
-    if (auto *bindings = anim.child("objectBindings")) {
-      bindings->foreach_child([&](core::DataNode &b) {
-        const auto type = static_cast<anari::DataType>(
-            b["targetType"].getValueOr<int>(ANARI_UNKNOWN));
-        const auto idx =
-            b["targetIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
-        b["targetIndex"] = remappedObjectIndex(objectRemap, type, idx);
-      });
-    }
-
-    if (auto *bindings = anim.child("fileBindings")) {
-      bindings->foreach_child([&](core::DataNode &b) {
-        // Currently only spatialField file bindings carry an object target.
-        if (auto *idxNode = b.child("targetIndex")) {
-          const auto idx =
-              idxNode->getValueOr<size_t>(tsd::core::INVALID_INDEX);
-          b["targetIndex"] =
-              remappedObjectIndex(objectRemap, ANARI_VOLUME, idx);
-        }
-      });
-    }
-
-    if (auto *bindings = anim.child("transformBindings")) {
-      bindings->foreach_child([&](core::DataNode &b) {
-        auto *layerNode = b.child("layerName");
-        auto *idxNode = b.child("nodeIndex");
-        if (!layerNode || !idxNode)
-          return;
-        const auto layerName = layerNode->getValueAs<std::string>();
-        const auto idx = idxNode->getValueOr<size_t>(tsd::core::INVALID_INDEX);
-        b["nodeIndex"] = remappedLayerNodeIndex(layerRemaps, layerName, idx);
-      });
-    }
-  });
-}
-
 void save_Scene(Scene &scene, const char *filename)
 {
   tsd::core::logStatus("Saving context to file: %s", filename);
@@ -1128,7 +1056,7 @@ void save_Scene(Scene &scene,
 {
   SaveSceneOptions options;
   options.forceProxyArrays = forceProxyArrays;
-  options.animMgr = animMgr;
+  options.animationManager = animMgr;
   save_Scene(scene, root, options);
 }
 
@@ -1143,23 +1071,22 @@ void save_Scene(
 
   scene.defragmentObjectStorage(); // ensure contiguous object indices
 
-  // Compute the exclusion. If the closure cannot be built we exclude nothing
-  // (objects AND subtrees both inline) so the payload stays self-consistent.
-  bool exclusionOk = true;
-  std::vector<detail::ObjectKey> excluded;
-  std::vector<detail::ObjectKey> subtreeObjects;
-  if (!options.excludedSubtrees.empty())
-    excluded = computeExcludedObjects(scene,
-        options.excludedSubtrees,
-        options.excludeFullObjectClosure,
-        &subtreeObjects,
-        exclusionOk);
-  const bool doExclude = !options.excludedSubtrees.empty() && exclusionOk;
+  // Plan each root as an independent archive partition. A mixed animation or
+  // any other ownership ambiguity cancels the entire exclusion so the emitted
+  // scene remains self-consistent.
+  SceneExclusionPlan exclusionPlan;
+  if (!options.exclusion.roots.empty()) {
+    exclusionPlan =
+        planSceneExclusion(scene, options.exclusion, options.animationManager);
+  }
+  const bool doExclude =
+      !options.exclusion.roots.empty() && exclusionPlan.valid;
+  const auto &excluded = exclusionPlan.objects;
 
   const std::vector<detail::ObjectKey> *excludedObjects =
       (doExclude && !excluded.empty()) ? &excluded : nullptr;
   const std::vector<LayerNodeRef> *excludedNodes =
-      doExclude ? &options.excludedSubtrees : nullptr;
+      doExclude ? &options.exclusion.roots : nullptr;
 
   // Layers //
 
@@ -1193,14 +1120,14 @@ void save_Scene(
 
   // Animations are serialized before the remap so the remap can rewrite the
   // absolute object/layer-node indices the bindings store.
-  if (options.animMgr) {
-    if (doExclude && options.excludeAnimationsTargetingSubtrees) {
-      animationManagerToNodeExcluding(*options.animMgr,
+  if (options.animationManager) {
+    if (doExclude
+        && options.exclusion.animations == ExcludedAnimationPolicy::OmitOwned) {
+      animationManagerToNodeExcluding(*options.animationManager,
           root["animations"],
-          subtreeObjects,
-          options.excludedSubtrees);
+          exclusionPlan.animations);
     } else
-      animationManagerToNode(*options.animMgr, root["animations"]);
+      animationManagerToNode(*options.animationManager, root["animations"]);
   }
 
   // Excluding objects and pruning subtrees shifts retained per-pool object
@@ -1212,8 +1139,20 @@ void save_Scene(
     remapObjectRefs(layersRoot, objectRemap);
     if (auto *animationsNode = root.child("animations")) {
       const auto layerRemaps =
-          buildLayerNodeRemaps(scene, options.excludedSubtrees);
-      remapAnimationBindings(*animationsNode, objectRemap, layerRemaps);
+          buildLayerNodeRemaps(scene, options.exclusion.roots);
+      std::string errorMessage;
+      if (!detail::remapSceneAnimations(
+              *animationsNode,
+              [&](anari::DataType type, size_t index) {
+                return remappedObjectIndex(objectRemap, type, index);
+              },
+              [&](const std::string &layerName, size_t index) {
+                return remappedLayerNodeIndex(layerRemaps, layerName, index);
+              },
+              errorMessage)) {
+        tsd::core::logError("[save_Scene] could not remap animations: %s",
+            errorMessage.c_str());
+      }
     }
   }
 }

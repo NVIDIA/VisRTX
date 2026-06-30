@@ -63,10 +63,13 @@ PRIVATE
   serialization/export_StructuredVolumeToNanoVDB.cpp
   serialization/NanoVdbSidecar.cpp
   serialization/export_SceneToUSD.cpp
+  serialization/serialization_animation_archive.cpp
+  serialization/serialization_archive_plan.cpp
   serialization/serialization_closure.cpp
   serialization/serialization_datatree.cpp
   serialization/serialization_layer_subtree.cpp
   serialization/serialization_object.cpp
+  serialization/serialization_subtree_import.cpp
 )
 
 project_include_directories(

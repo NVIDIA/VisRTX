@@ -657,8 +657,9 @@ bool ProjectContext::exportLightRig(
     return false;
   }
 
-  const tsd::io::SubtreeIODesc desc{
-      LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, /*lightsOnly=*/true};
+  const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
+      LIGHT_RIG_SCHEMA,
+      tsd::io::ArchiveObjectPolicy::LightsOnly};
   if (!tsd::io::export_Subtree(
           file.string().c_str(), rigRoot, desc, rig->name)) {
     if (error)
@@ -679,8 +680,9 @@ LightRig *ProjectContext::importLightRig(
 
   auto &scene = m_ctx->tsd.scene;
   auto lightRigsRoot = ensureLightRigsRoot();
-  const tsd::io::SubtreeIODesc desc{
-      LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, /*lightsOnly=*/true};
+  const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
+      LIGHT_RIG_SCHEMA,
+      tsd::io::ArchiveObjectPolicy::LightsOnly};
 
   std::string name;
   LightRig rig;
@@ -1584,8 +1586,9 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
       return false;
     }
     const auto file = lightsDir / (rig.name + ".tsd");
-    const tsd::io::SubtreeIODesc desc{
-        LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, /*lightsOnly=*/true};
+    const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
+        LIGHT_RIG_SCHEMA,
+        tsd::io::ArchiveObjectPolicy::LightsOnly};
     if (!tsd::io::export_Subtree(
             file.string().c_str(), rigRoot, desc, rig.name)) {
       if (error)
@@ -1615,14 +1618,15 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
   projectToNode(manifestProject, root["scivisStudio"]);
 
   tsd::io::SaveSceneOptions sceneOptions;
-  sceneOptions.animMgr = &m_ctx->tsd.animationMgr;
-  sceneOptions.excludedSubtrees = lightRigRoots;
+  sceneOptions.animationManager = &m_ctx->tsd.animationMgr;
+  sceneOptions.exclusion.roots = lightRigRoots;
   for (auto &dataset : m_project.datasets) {
     if (auto datasetRoot = resolveDatasetRoot(dataset))
-      sceneOptions.excludedSubtrees.push_back(datasetRoot);
+      sceneOptions.exclusion.roots.push_back(datasetRoot);
   }
-  sceneOptions.excludeFullObjectClosure = true;
-  sceneOptions.excludeAnimationsTargetingSubtrees = true;
+  sceneOptions.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
+  sceneOptions.exclusion.animations =
+      tsd::io::ExcludedAnimationPolicy::OmitOwned;
   tsd::io::save_Scene(m_ctx->tsd.scene, root["context"], sceneOptions);
 
   if (windows)
@@ -1921,8 +1925,9 @@ void ProjectContext::loadLightRigFiles(const std::filesystem::path &lightsDir)
     return;
 
   auto &scene = m_ctx->tsd.scene;
-  const tsd::io::SubtreeIODesc desc{
-      LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, /*lightsOnly=*/true};
+  const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
+      LIGHT_RIG_SCHEMA,
+      tsd::io::ArchiveObjectPolicy::LightsOnly};
 
   std::vector<LightRig> kept;
   kept.reserve(m_project.lightRigs.size());

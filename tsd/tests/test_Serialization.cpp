@@ -38,6 +38,34 @@ tsd::scene::ArrayRef makeFloatArray(tsd::scene::Scene &scene,
   return array;
 }
 
+struct UnsupportedFileBinding : tsd::animation::FileBinding
+{
+  explicit UnsupportedFileBinding(tsd::scene::Scene *scene);
+
+  std::string kind() const override;
+  void toDataNode(tsd::core::DataNode &) const override;
+  void update(float) override;
+
+ private:
+  void addCallbackToAnimation(tsd::animation::Animation &) override;
+};
+
+UnsupportedFileBinding::UnsupportedFileBinding(tsd::scene::Scene *scene)
+    : FileBinding(scene)
+{}
+
+std::string UnsupportedFileBinding::kind() const
+{
+  return "unsupported";
+}
+
+void UnsupportedFileBinding::toDataNode(tsd::core::DataNode &) const {}
+
+void UnsupportedFileBinding::update(float) {}
+
+void UnsupportedFileBinding::addCallbackToAnimation(tsd::animation::Animation &)
+{}
+
 } // namespace
 
 SCENARIO("tsd::io camera and renderer subset serialization", "[Serialization]")
@@ -895,7 +923,9 @@ SCENARIO("tsd::io layer subtree animations round trip", "[Serialization]")
   exportOptions.animationManager = &sourceAnimations;
   REQUIRE(tsd::io::export_Subtree(filename.c_str(),
       group,
-      {"layer-subtree", tsd::io::schema::LAYER_SUBTREE, false},
+      {"layer-subtree",
+          tsd::io::schema::LAYER_SUBTREE,
+          tsd::io::ArchiveObjectPolicy::All},
       {},
       exportOptions));
   tsd::core::DataTree exported;
@@ -935,7 +965,9 @@ SCENARIO("tsd::io layer subtree animations round trip", "[Serialization]")
   auto imported = tsd::io::import_Subtree(target,
       filename.c_str(),
       destination,
-      {"layer-subtree", tsd::io::schema::LAYER_SUBTREE, false},
+      {"layer-subtree",
+          tsd::io::schema::LAYER_SUBTREE,
+          tsd::io::ArchiveObjectPolicy::All},
       nullptr,
       importOptions);
 
@@ -962,6 +994,189 @@ SCENARIO("tsd::io layer subtree animations round trip", "[Serialization]")
   removeTestFile(filename);
 }
 
+SCENARIO("tsd::io plans subtree archive ownership", "[Serialization]")
+{
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+
+  auto geometry = scene.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  auto material = scene.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  auto surface = scene.createSurface("surface", geometry, material);
+  auto dataset = scene.insertChildNode(scene.defaultLayer()->root(), "dataset");
+  scene.insertChildObjectNode(dataset, surface, "surface");
+  auto outside = scene.insertChildTransformNode(
+      scene.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "outside");
+
+  const float times[] = {0.f};
+  const float values[] = {1.f};
+  animations.addAnimation("owned").addObjectParameterBinding(
+      geometry.data(), "radius", ANARI_FLOAT32, values, times, 1);
+  animations.addAnimation("outside").addTransformBinding(outside);
+
+  tsd::io::ArchivePlanOptions options;
+  options.animationManager = &animations;
+  const auto result = tsd::io::plan_SubtreeArchive(scene, dataset, options);
+
+  INFO(result.message);
+  REQUIRE(result.accepted());
+  REQUIRE(result.plan.nodes.size() == 2);
+  REQUIRE(result.plan.objects.size() == 3);
+  REQUIRE(result.plan.ownedAnimations == std::vector<size_t>{0});
+  REQUIRE(result.plan.archivedAnimations == std::vector<size_t>{0});
+  REQUIRE(result.plan.containsObject(geometry.data()));
+  REQUIRE_FALSE(result.plan.containsObject(nullptr));
+}
+
+SCENARIO(
+    "tsd::io archive plans reject mixed animation ownership", "[Serialization]")
+{
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+  auto first = scene.insertChildTransformNode(
+      scene.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "first");
+  auto second = scene.insertChildTransformNode(
+      scene.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "second");
+  auto &animation = animations.addAnimation("mixed");
+  animation.addTransformBinding(first);
+  animation.addTransformBinding(second);
+
+  tsd::io::ArchivePlanOptions options;
+  options.animationManager = &animations;
+  const auto result = tsd::io::plan_SubtreeArchive(scene, first, options);
+
+  REQUIRE_FALSE(result.accepted());
+  REQUIRE(result.status == tsd::io::ArchivePlanStatus::MixedAnimationTargets);
+  REQUIRE_FALSE(result.message.empty());
+}
+
+SCENARIO(
+    "tsd::io archive plans reject invalid animation targets", "[Serialization]")
+{
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+  auto root = scene.insertChildNode(scene.defaultLayer()->root(), "dataset");
+  animations.addAnimation("invalid").addEmptyObjectParameterBinding();
+
+  tsd::io::ArchivePlanOptions options;
+  options.animationManager = &animations;
+  const auto result = tsd::io::plan_SubtreeArchive(scene, root, options);
+
+  REQUIRE_FALSE(result.accepted());
+  REQUIRE(result.status == tsd::io::ArchivePlanStatus::InvalidAnimationTarget);
+}
+
+SCENARIO(
+    "tsd::io archive plans reject unsupported file bindings", "[Serialization]")
+{
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+  auto root = scene.insertChildNode(scene.defaultLayer()->root(), "dataset");
+  animations.addAnimation("unsupported")
+      .emplaceFileBinding<UnsupportedFileBinding>(&scene);
+
+  tsd::io::ArchivePlanOptions options;
+  options.animationManager = &animations;
+  options.fileBindings = tsd::io::FileBindingArchivePolicy::Omit;
+  const auto result = tsd::io::plan_SubtreeArchive(scene, root, options);
+
+  REQUIRE_FALSE(result.accepted());
+  REQUIRE(result.status == tsd::io::ArchivePlanStatus::UnsupportedFileBinding);
+}
+
+SCENARIO("tsd::io scene exclusion rejects mixed animation ownership",
+    "[Serialization]")
+{
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+  auto first = scene.insertChildTransformNode(
+      scene.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "first");
+  auto second = scene.insertChildTransformNode(
+      scene.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "second");
+  auto &mixed = animations.addAnimation("mixed");
+  mixed.addTransformBinding(first);
+  mixed.addTransformBinding(second);
+
+  tsd::io::SaveSceneOptions options;
+  options.animationManager = &animations;
+  options.exclusion.roots.push_back(first);
+  options.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
+  options.exclusion.animations = tsd::io::ExcludedAnimationPolicy::OmitOwned;
+  tsd::core::DataTree tree;
+  tsd::io::save_Scene(scene, tree.root(), options);
+
+  bool sawFirst = false;
+  bool sawSecond = false;
+  tree.root()["layers"].traverse([&](tsd::core::DataNode &node, int) {
+    if (node.name() == "name") {
+      const auto name = node.getValueOr<std::string>("");
+      sawFirst |= name == "first";
+      sawSecond |= name == "second";
+    }
+    return true;
+  });
+  REQUIRE(sawFirst);
+  REQUIRE(sawSecond);
+  REQUIRE(tree.root()["animations"]["objects"].numChildren() == 1);
+}
+
+SCENARIO("tsd::io subtree imports expose exact rollback ownership",
+    "[Serialization]")
+{
+  tsd::scene::Scene source;
+  tsd::animation::AnimationManager sourceAnimations(&source);
+  auto geometry = source.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  auto material = source.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  auto surface = source.createSurface("surface", geometry, material);
+  auto root = source.insertChildNode(source.defaultLayer()->root(), "dataset");
+  source.insertChildObjectNode(root, surface, "surface");
+  const float times[] = {0.f};
+  const float values[] = {1.f};
+  sourceAnimations.addAnimation("radius").addObjectParameterBinding(
+      geometry.data(), "radius", ANARI_FLOAT32, values, times, 1);
+
+  const auto filename = testFile("tsd_subtree_import_ownership.tsd");
+  tsd::io::SubtreeIOOptions exportOptions;
+  exportOptions.animationManager = &sourceAnimations;
+  REQUIRE(tsd::io::export_Subtree(filename.c_str(),
+      root,
+      {"layer-subtree",
+          tsd::io::schema::LAYER_SUBTREE,
+          tsd::io::ArchiveObjectPolicy::All},
+      {},
+      exportOptions));
+
+  tsd::scene::Scene target;
+  tsd::animation::AnimationManager targetAnimations(&target);
+  tsd::io::SubtreeIOOptions importOptions;
+  importOptions.animationManager = &targetAnimations;
+  auto imported = tsd::io::import_SubtreeWithOwnership(target,
+      filename.c_str(),
+      target.defaultLayer()->root(),
+      {"layer-subtree",
+          tsd::io::schema::LAYER_SUBTREE,
+          tsd::io::ArchiveObjectPolicy::All},
+      nullptr,
+      importOptions);
+
+  REQUIRE(imported.valid());
+  REQUIRE(imported.root);
+  REQUIRE(imported.createdObjects.size() == 3);
+  REQUIRE(imported.createdAnimations == std::vector<size_t>{0});
+
+  tsd::io::rollback_SubtreeImport(target, targetAnimations, imported);
+  REQUIRE_FALSE(imported.valid());
+  REQUIRE(targetAnimations.animations().empty());
+  REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 0);
+  REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == 1); // Scene default
+  REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 0);
+
+  removeTestFile(filename);
+}
+
 SCENARIO(
     "tsd::io rejects animations spanning layer subtrees", "[Serialization]")
 {
@@ -982,7 +1197,9 @@ SCENARIO(
 
   REQUIRE_FALSE(tsd::io::export_Subtree(filename.c_str(),
       first,
-      {"layer-subtree", tsd::io::schema::LAYER_SUBTREE, false},
+      {"layer-subtree",
+          tsd::io::schema::LAYER_SUBTREE,
+          tsd::io::ArchiveObjectPolicy::All},
       {},
       options));
   REQUIRE_FALSE(std::filesystem::exists(filename));
@@ -1009,7 +1226,9 @@ SCENARIO("tsd::io validates layer subtree animation targets", "[Serialization]")
   options.animationManager = &animations;
   REQUIRE(tsd::io::export_Subtree(filename.c_str(),
       root,
-      {"layer-subtree", tsd::io::schema::LAYER_SUBTREE, false},
+      {"layer-subtree",
+          tsd::io::schema::LAYER_SUBTREE,
+          tsd::io::ArchiveObjectPolicy::All},
       {},
       options));
 
@@ -1055,7 +1274,7 @@ SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[Serialization]")
     WHEN("the scene is saved with the rig subtree excluded and reloaded")
     {
       tsd::io::SaveSceneOptions options;
-      options.excludedSubtrees.push_back(rigRoot);
+      options.exclusion.roots.push_back(rigRoot);
 
       tsd::core::DataTree tree;
       tsd::io::save_Scene(source, tree.root(), options);
@@ -1132,7 +1351,7 @@ SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[Serialization]")
     WHEN("the scene is saved with the rig excluded and reloaded")
     {
       tsd::io::SaveSceneOptions options;
-      options.excludedSubtrees.push_back(rigRoot);
+      options.exclusion.roots.push_back(rigRoot);
 
       tsd::core::DataTree tree;
       tsd::io::save_Scene(source, tree.root(), options);
@@ -1202,8 +1421,8 @@ SCENARIO("tsd::io save_Scene remaps animation bindings across exclusion",
     WHEN("the scene is saved with the rig excluded and reloaded")
     {
       tsd::io::SaveSceneOptions options;
-      options.animMgr = &animMgr;
-      options.excludedSubtrees.push_back(rig0);
+      options.animationManager = &animMgr;
+      options.exclusion.roots.push_back(rig0);
 
       tsd::core::DataTree tree;
       tsd::io::save_Scene(source, tree.root(), options);
@@ -1230,4 +1449,74 @@ SCENARIO("tsd::io save_Scene remaps animation bindings across exclusion",
       }
     }
   }
+}
+
+SCENARIO("tsd::io scene exclusion preserves retained animation dependencies",
+    "[Serialization]")
+{
+  tsd::scene::Scene source;
+  tsd::animation::AnimationManager animations(&source);
+
+  auto removedMaterial = source.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  removedMaterial->setName("removed");
+  auto dependencyMaterial = source.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  dependencyMaterial->setName("dependency");
+  auto retainedMaterial = source.createObject<tsd::scene::Material>(
+      tsd::scene::tokens::material::matte);
+  retainedMaterial->setName("retained");
+
+  auto removedGeometry = source.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  auto dependencyGeometry = source.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  auto retainedGeometry = source.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  auto removedSurface =
+      source.createSurface("removed", removedGeometry, removedMaterial);
+  auto dependencySurface = source.createSurface(
+      "dependency", dependencyGeometry, dependencyMaterial);
+  auto retainedSurface =
+      source.createSurface("retained", retainedGeometry, retainedMaterial);
+
+  auto excluded =
+      source.insertChildNode(source.defaultLayer()->root(), "excluded");
+  source.insertChildObjectNode(excluded, removedSurface, "removed");
+  source.insertChildObjectNode(excluded, dependencySurface, "dependency");
+  source.insertChildObjectNode(
+      source.defaultLayer()->root(), retainedSurface, "retained");
+
+  const float times[] = {0.f, 1.f};
+  tsd::scene::Object *keyframes[] = {
+      dependencyMaterial.data(), retainedMaterial.data()};
+  animations.addAnimation("retained animation")
+      .addObjectParameterBinding(retainedGeometry.data(),
+          "material",
+          ANARI_MATERIAL,
+          keyframes,
+          times,
+          2);
+
+  tsd::io::SaveSceneOptions options;
+  options.animationManager = &animations;
+  options.exclusion.roots.push_back(excluded);
+  options.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
+  options.exclusion.animations = tsd::io::ExcludedAnimationPolicy::OmitOwned;
+  tsd::core::DataTree tree;
+  tsd::io::save_Scene(source, tree.root(), options);
+
+  tsd::scene::Scene target;
+  tsd::animation::AnimationManager targetAnimations(&target);
+  tsd::io::load_Scene(target, tree.root(), &targetAnimations);
+
+  REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
+  REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == 3);
+  REQUIRE(targetAnimations.animations().size() == 1);
+  const auto &binding =
+      targetAnimations.animations().front().objectParameterBindings().front();
+  const auto *indices = static_cast<const size_t *>(binding.data().data());
+  REQUIRE(binding.data().size() == 2);
+  REQUIRE(target.getObject(ANARI_MATERIAL, indices[0])->name() == "dependency");
+  REQUIRE(target.getObject(ANARI_MATERIAL, indices[1])->name() == "retained");
 }

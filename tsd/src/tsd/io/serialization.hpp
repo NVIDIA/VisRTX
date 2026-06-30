@@ -3,13 +3,14 @@
 
 #pragma once
 
-// std
-#include <limits>
+// tsd_core
+#include "tsd/core/TypeMacros.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/Manipulator.hpp"
 // tsd_scene
 #include "tsd/scene/Scene.hpp"
 // std
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -75,6 +76,84 @@ inline bool PayloadValidationResult::accepted() const
       || status == PayloadValidationStatus::MissingMetadataAccepted;
 }
 
+// Subtree archive planning ///////////////////////////////////////////////////
+
+enum class ArchiveObjectPolicy
+{
+  All,
+  LightsOnly
+};
+
+enum class FileBindingArchivePolicy
+{
+  Include,
+  Omit
+};
+
+enum class ArchivePlanStatus
+{
+  Valid,
+  InvalidSubtree,
+  ObjectClosureFailure,
+  InvalidAnimationTarget,
+  MixedAnimationTargets,
+  UnsupportedFileBinding
+};
+
+struct ArchiveNode
+{
+  LayerNodeRef source;
+  size_t archiveIndex{0};
+};
+
+struct ArchiveObject
+{
+  Object *source{nullptr};
+  anari::DataType type{ANARI_UNKNOWN};
+  size_t sourceIndex{tsd::core::INVALID_INDEX};
+  size_t archiveIndex{tsd::core::INVALID_INDEX};
+  bool animationDependency{false};
+};
+
+struct ArchiveAnimationDependency
+{
+  size_t animationIndex{tsd::core::INVALID_INDEX};
+  Object *object{nullptr};
+};
+
+struct ArchivePlan
+{
+  // This is a snapshot: source refs and indices remain valid only until the
+  // Scene or animation manager is structurally mutated.
+  LayerNodeRef root;
+  std::vector<ArchiveNode> nodes;
+  std::vector<ArchiveObject> objects;
+  std::vector<ArchiveAnimationDependency> animationDependencies;
+  std::vector<size_t> ownedAnimations;
+  std::vector<size_t> archivedAnimations;
+
+  bool containsObject(const Object *object) const;
+};
+
+struct ArchivePlanResult
+{
+  ArchivePlanStatus status{ArchivePlanStatus::Valid};
+  std::string message;
+  ArchivePlan plan;
+
+  bool accepted() const;
+};
+
+struct ArchivePlanOptions
+{
+  ArchiveObjectPolicy objectPolicy{ArchiveObjectPolicy::All};
+  const animation::AnimationManager *animationManager{nullptr};
+  FileBindingArchivePolicy fileBindings{FileBindingArchivePolicy::Include};
+};
+
+ArchivePlanResult plan_SubtreeArchive(
+    Scene &scene, LayerNodeRef root, const ArchivePlanOptions &options = {});
+
 // clang-format off
 
 // Parameters //
@@ -112,23 +191,27 @@ void nodeToAnimationManager(core::DataNode &node, animation::AnimationManager &m
 
 // Scenes + Objects //
 
-// Options controlling a full-scene save. excludedSubtrees names layer-subtree
-// roots that should NOT appear in the saved payload: each excluded subtree's
-// nodes are dropped from layer serialization, and the lights it contains (plus
-// any arrays referenced *only* by those lights, per lightRigPolicy) are dropped
-// from the objectDB. Arrays still referenced by retained objects are kept.
-// Retained object indices are densely remapped so the payload loads correctly.
-// load_Scene is unchanged and needs no knowledge of exclusions.
+enum class ExcludedAnimationPolicy
+{
+  Retain,
+  OmitOwned
+};
+
+struct SceneExclusion
+{
+  std::vector<LayerNodeRef> roots;
+  ArchiveObjectPolicy objectPolicy{ArchiveObjectPolicy::LightsOnly};
+  ExcludedAnimationPolicy animations{ExcludedAnimationPolicy::Retain};
+};
+
+// Options controlling a full-scene save. Exclusion roots and their complete
+// ownership policy travel together, avoiding partially configured boolean
+// combinations. Retained indices are densely remapped for reload.
 struct SaveSceneOptions
 {
   bool forceProxyArrays{false};
-  tsd::animation::AnimationManager *animMgr{nullptr};
-  std::vector<LayerNodeRef> excludedSubtrees;
-  // Broad closure is required when excluded subtrees may contain arbitrary
-  // scene objects (for example standalone dataset assets), rather than only
-  // light-rig objects.
-  bool excludeFullObjectClosure{false};
-  bool excludeAnimationsTargetingSubtrees{false};
+  tsd::animation::AnimationManager *animationManager{nullptr};
+  SceneExclusion exclusion;
 };
 
 void save_Scene(Scene &scene, const char *filename);
@@ -162,15 +245,15 @@ PayloadValidationResult validate_LayerSubtreePayload(core::DataNode &root);
 
 // Generalized subtree IO shared by layer-subtree export and app-specific rig
 // files. The caller supplies the metadata envelope's fileType/schema and chooses
-// the object closure policy (lightsOnly restricts it to lights + the arrays they
-// reference). An optional displayName is stored alongside the payload and read
-// back on import. Import splices the subtree under destinationParent and returns
-// its new root.
+// the object closure policy (LightsOnly restricts it to lights + the arrays
+// they reference). An optional displayName is stored alongside the payload and
+// read back on import. Import splices the subtree under destinationParent and
+// returns its new root.
 struct SubtreeIODesc
 {
   std::string_view fileType;
   std::string_view schema;
-  bool lightsOnly{false};
+  ArchiveObjectPolicy objectPolicy{ArchiveObjectPolicy::All};
 };
 
 // Optional animation participation for subtree files. When a manager is
@@ -182,7 +265,34 @@ struct SubtreeIODesc
 struct SubtreeIOOptions
 {
   animation::AnimationManager *animationManager{nullptr};
-  bool includeFileBindingAnimations{true};
+  FileBindingArchivePolicy fileBindings{FileBindingArchivePolicy::Include};
+};
+
+struct SubtreeImportResult
+{
+  SubtreeImportResult() = default;
+  TSD_NOT_COPYABLE(SubtreeImportResult)
+  TSD_DEFAULT_MOVEABLE(SubtreeImportResult)
+
+  bool valid() const;
+
+  LayerNodeRef root;
+  // Exact resources created by this import. Animation indices assume the
+  // manager is not structurally changed before rollback_SubtreeImport().
+  std::vector<core::Any> createdObjects;
+  std::vector<size_t> createdAnimations;
+
+ private:
+  bool m_succeeded{false};
+
+  friend SubtreeImportResult import_SubtreeWithOwnership(Scene &,
+      const char *,
+      LayerNodeRef,
+      const SubtreeIODesc &,
+      std::string *,
+      const SubtreeIOOptions &);
+  friend void rollback_SubtreeImport(
+      Scene &, animation::AnimationManager &, SubtreeImportResult &);
 };
 
 bool export_Subtree(const char *filename,
@@ -196,6 +306,15 @@ LayerNodeRef import_Subtree(Scene &scene,
     const SubtreeIODesc &desc,
     std::string *displayNameOut = nullptr,
     const SubtreeIOOptions &options = {});
+SubtreeImportResult import_SubtreeWithOwnership(Scene &scene,
+    const char *filename,
+    LayerNodeRef destinationParent,
+    const SubtreeIODesc &desc,
+    std::string *displayNameOut = nullptr,
+    const SubtreeIOOptions &options = {});
+void rollback_SubtreeImport(Scene &scene,
+    animation::AnimationManager &animationManager,
+    SubtreeImportResult &result);
 PayloadValidationResult validate_SubtreePayload(core::DataNode &root, const SubtreeIODesc &desc);
 
 void export_SceneToUSD(
