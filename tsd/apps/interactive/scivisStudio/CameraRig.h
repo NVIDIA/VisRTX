@@ -44,6 +44,9 @@ struct CameraRig
   std::string name;
   ManipulatorState current;
   std::vector<CameraKeyframe> keyframes;
+
+  // Runtime-only name of the asset path owned by this rig.
+  std::string persistedName;
 };
 
 namespace camera_rig {
@@ -78,8 +81,8 @@ bool importCameraRigFile(const std::filesystem::path &file,
     CameraRig &rigOut,
     std::string *error = nullptr);
 
-// DataTree node <-> camera rig value data (current pose + keyframes). Exposed so
-// the legacy (pre-v4) inline-manifest read path can reuse it.
+// DataTree node <-> camera rig value data (current pose + keyframes). Exposed
+// so the legacy (pre-v4) inline-manifest read path can reuse it.
 void cameraRigToNode(const CameraRig &rig, tsd::core::DataNode &node);
 void nodeToCameraRig(tsd::core::DataNode &node, CameraRig &rig);
 

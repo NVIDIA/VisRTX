@@ -28,7 +28,10 @@ project_add_executable(
   test_Token.cpp
 )
 if (TARGET tsd_scivis_studio_model)
-  target_sources(${PROJECT_NAME} PRIVATE test_SciVisStudio.cpp)
+  target_sources(${PROJECT_NAME} PRIVATE
+    test_ProjectAssetTransaction.cpp
+    test_SciVisStudio.cpp
+  )
 endif()
 project_link_libraries(
 PRIVATE

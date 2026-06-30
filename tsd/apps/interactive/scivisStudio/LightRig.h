@@ -16,6 +16,9 @@ struct LightRig
   LightRigID id;
   std::string name;
   SceneNodeRef rootNode;
+
+  // Runtime-only name of the asset path owned by this rig.
+  std::string persistedName;
 };
 
 namespace light_rig {

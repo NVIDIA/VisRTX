@@ -4,6 +4,7 @@
 #include "ProjectContext.h"
 
 #include "DatasetIO.h"
+#include "ProjectAssetTransaction.h"
 #include "ProjectSerialization.h"
 
 #include "tsd/core/DataTreeMetadata.hpp"
@@ -215,52 +216,31 @@ static void normalizeAssetNames(std::vector<AssetT> &assets)
   }
 }
 
-// True if file is a TSD rig file tagged with the given fileType/schema. Used to
-// avoid deleting unrelated ".tsd" files during reconcile.
-static bool isRigFileOfType(const std::filesystem::path &file,
+// Reopen a staged asset and verify its type before the transaction can commit.
+static bool validateAssetMetadata(const std::filesystem::path &file,
     const char *expectedFileType,
-    const char *expectedSchema)
+    const char *expectedSchema,
+    std::string *error)
 {
   tsd::core::DataTree tree;
-  if (!tree.load(file.string().c_str()))
+  if (!tree.load(file.string().c_str())) {
+    if (error)
+      *error = "failed to reopen staged file";
     return false;
-  auto metadata = tsd::core::readDataTreeMetadata(tree.root());
-  if (!metadata.found())
-    return false;
-  const auto &m = *metadata.metadata;
-  return m.fileType == expectedFileType && m.schema == expectedSchema;
-}
-
-// Delete rig files in dir whose stem is not in keepStems (case-insensitive).
-// Only files we recognize as our own rig type are ever removed, so unrelated
-// ".tsd" files dropped in the folder are left untouched. Callers must have
-// already written the current rig files (write-before-delete).
-static void removeStaleRigFiles(const std::filesystem::path &dir,
-    const std::vector<std::string> &keepStems,
-    const char *expectedFileType,
-    const char *expectedSchema)
-{
-  std::error_code ec;
-  for (const auto &entry : std::filesystem::directory_iterator(dir, ec)) {
-    if (ec)
-      break;
-    const auto &path = entry.path();
-    if (!entry.is_regular_file(ec) || path.extension() != ".tsd")
-      continue;
-    const auto stem = path.stem().string();
-    const bool keep = std::any_of(keepStems.begin(),
-        keepStems.end(),
-        [&](const std::string &s) { return assetNamesEqual(s, stem); });
-    if (keep)
-      continue;
-    if (!isRigFileOfType(path, expectedFileType, expectedSchema)) {
-      tsd::core::logWarning(
-          "[SciVisStudio] Leaving unrecognized file in rig directory: %s",
-          path.string().c_str());
-      continue;
-    }
-    std::filesystem::remove(path, ec);
   }
+  auto metadata = tsd::core::readDataTreeMetadata(tree.root());
+  if (!metadata.found()) {
+    if (error)
+      *error = metadata.malformed() ? metadata.message : "missing metadata";
+    return false;
+  }
+  const auto &m = *metadata.metadata;
+  if (m.fileType != expectedFileType || m.schema != expectedSchema) {
+    if (error)
+      *error = "unexpected asset metadata";
+    return false;
+  }
+  return true;
 }
 
 ProjectContext::ProjectContext(tsd::app::Context *ctx) : m_ctx(ctx)
@@ -721,6 +701,11 @@ bool ProjectContext::removeLightRig(const LightRigID &id)
   if (itr == m_project.lightRigs.end())
     return false;
 
+  if (!itr->persistedName.empty()) {
+    m_pendingAssetRemovals.push_back(
+        std::filesystem::path("lights") / (itr->persistedName + ".tsd"));
+  }
+
   auto rigRoot = resolveLightRigRoot(*itr);
   if (rigRoot)
     m_ctx->tsd.scene.removeNode(rigRoot, true);
@@ -743,6 +728,11 @@ bool ProjectContext::removeCameraRig(const CameraRigID &id)
       [&](const CameraRig &rig) { return rig.id == id; });
   if (itr == m_project.cameraRigs.end())
     return false;
+
+  if (!itr->persistedName.empty()) {
+    m_pendingAssetRemovals.push_back(
+        std::filesystem::path("cameras") / (itr->persistedName + ".tsd"));
+  }
 
   for (auto &shot : m_project.shots) {
     if (shot.cameraRigId == id)
@@ -811,6 +801,7 @@ void ProjectContext::createUnsavedProject()
   resetScene();
 
   m_project = {};
+  m_pendingAssetRemovals.clear();
   m_project.name = "Untitled";
 
   auto datasetsRoot = ensureDatasetsRoot();
@@ -1430,11 +1421,8 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
     tsd::core::DataNode *settings,
     std::string *error)
 {
-  if (!m_ctx) {
-    if (error)
-      *error = "missing TSD application context";
-    return false;
-  }
+  if (!m_ctx)
+    return fail("missing TSD application context", error);
 
   std::error_code ec;
   const auto manifest = directory / PROJECT_MANIFEST_FILENAME;
@@ -1450,9 +1438,7 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
   }
 
   if (std::filesystem::exists(manifest) && !savingCurrent) {
-    if (error)
-      *error = "target directory already contains project.tsd";
-    return false;
+    return fail("target directory already contains project.tsd", error);
   }
 
   if (!savingCurrent) {
@@ -1471,135 +1457,171 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
     }
   }
 
-  std::filesystem::create_directories(directory, ec);
-  if (ec) {
-    if (error)
-      *error = "failed to create project directory: " + ec.message();
-    return false;
-  }
-
-  for (const auto *subdirectory :
-      {"renders", "datasets", "cameras", "lights"}) {
-    std::filesystem::create_directories(directory / subdirectory, ec);
-    if (ec) {
-      if (error)
-        *error = std::string("failed to create ") + subdirectory
-            + " directory: " + ec.message();
-      return false;
-    }
-  }
-
   const auto savedProjectName =
       (m_project.name.empty() || m_project.name == "Untitled")
       ? (directory.filename().string().empty() ? std::string("Untitled")
                                                : directory.filename().string())
       : m_project.name;
 
-  // Each rig is stored as its own portable "<name>.tsd". Normalize names so
-  // they map to safe, unique filenames before any file is written.
-  normalizeAssetNames(m_project.datasets);
-  normalizeAssetNames(m_project.cameraRigs);
-  normalizeAssetNames(m_project.lightRigs);
+  Project savedProject = m_project;
+  savedProject.name = savedProjectName;
+  savedProject.projectDirectory = directory;
+  normalizeAssetNames(savedProject.datasets);
+  normalizeAssetNames(savedProject.cameraRigs);
+  normalizeAssetNames(savedProject.lightRigs);
+  savedProject.markClean();
 
-  struct StagedDataset
-  {
-    Dataset *dataset{nullptr};
-    std::filesystem::path stage;
-    std::filesystem::path target;
-    std::filesystem::path backup;
-    bool hadTarget{false};
-    bool installed{false};
+  auto resolveDatasetForSave = [&](const Dataset &dataset) {
+    if (auto *layer = m_ctx->tsd.scene.layer("studio")) {
+      auto datasetsRoot = findDirectChild(layer->root(), "datasets");
+      if (auto datasetRoot = findDirectChild(datasetsRoot, dataset.id))
+        return datasetRoot;
+    }
+    return resolve(dataset.rootNode);
+  };
+  auto resolveLightRigForSave = [&](const LightRig &rig) {
+    if (auto *layer = m_ctx->tsd.scene.layer("studio")) {
+      auto lightRigsRoot = findDirectChild(layer->root(), "lightRigs");
+      if (auto rigRoot = findDirectChild(lightRigsRoot, rig.id))
+        return rigRoot;
+    }
+    return resolve(rig.rootNode);
   };
 
-  const auto transactionTag = std::to_string(
-      std::chrono::steady_clock::now().time_since_epoch().count());
-  const auto datasetsDir = directory / "datasets";
-  std::vector<StagedDataset> stagedDatasets;
-  for (auto &dataset : m_project.datasets) {
-    if (savingCurrent && !dataset.dirty && !dataset.pendingExtraction)
+  ProjectSavePlan savePlan;
+  savePlan.directory = directory;
+  savePlan.directories = {"renders", "datasets", "cameras", "lights"};
+
+  std::vector<tsd::scene::LayerNodeRef> datasetRoots(
+      savedProject.datasets.size());
+  for (size_t i = 0; i < savedProject.datasets.size(); ++i) {
+    auto &savedDataset = savedProject.datasets[i];
+    const auto &liveDataset = m_project.datasets[i];
+    const bool needsWrite = !savingCurrent || liveDataset.dirty
+        || liveDataset.pendingExtraction
+        || liveDataset.persistedName != savedDataset.name;
+    datasetRoots[i] = resolveDatasetForSave(liveDataset);
+    if (!needsWrite)
       continue;
-    if (dataset.status != DatasetStatus::Available) {
-      if (error)
-        *error =
-            "dataset '" + dataset.name + "' is unavailable and cannot be saved";
-      return false;
+    if (savedDataset.status != DatasetStatus::Available) {
+      return fail("dataset '" + savedDataset.name
+              + "' is unavailable and cannot be saved",
+          error);
     }
-    auto root = resolveDatasetRoot(dataset);
-    if (!root) {
-      if (error)
-        *error = "dataset '" + dataset.name + "' has no scene subtree";
-      return false;
+    if (!datasetRoots[i]) {
+      return fail(
+          "dataset '" + savedDataset.name + "' has no scene subtree", error);
     }
 
-    StagedDataset staged;
-    staged.dataset = &dataset;
-    staged.target = datasetsDir / (dataset.name + ".tsd");
-    staged.stage = datasetsDir
-        / ("." + dataset.name + ".stage-" + transactionTag + ".tsd");
-    staged.backup = datasetsDir
-        / ("." + dataset.name + ".backup-" + transactionTag + ".tsd");
-    std::string datasetError;
-    if (!exportDatasetAsset(dataset,
-            root,
-            m_ctx->tsd.animationMgr,
-            staged.stage,
-            &datasetError)) {
-      for (const auto &pending : stagedDatasets)
-        std::filesystem::remove(pending.stage, ec);
-      std::filesystem::remove(staged.stage, ec);
-      if (error)
-        *error =
-            "failed to stage dataset '" + dataset.name + "': " + datasetError;
-      return false;
+    savedDataset.persistedName = savedDataset.name;
+    savedDataset.pendingExtraction = false;
+    savedDataset.dirty = false;
+    ProjectAssetWrite write;
+    write.description = "dataset '" + savedDataset.name + "'";
+    write.target =
+        std::filesystem::path("datasets") / (savedDataset.name + ".tsd");
+    if (savingCurrent && !liveDataset.persistedName.empty()) {
+      write.ownedTarget = std::filesystem::path("datasets")
+          / (liveDataset.persistedName + ".tsd");
     }
-    stagedDatasets.push_back(std::move(staged));
+    const auto *dataset = &savedDataset;
+    const auto datasetRoot = datasetRoots[i];
+    auto *animationManager = &m_ctx->tsd.animationMgr;
+    write.writer = [dataset, datasetRoot, animationManager](
+                       const std::filesystem::path &file,
+                       std::string *writeError) {
+      return exportDatasetAsset(
+          *dataset, datasetRoot, *animationManager, file, writeError);
+    };
+    const auto expectedName = savedDataset.name;
+    write.validator = [expectedName](const std::filesystem::path &file,
+                          std::string *validationError) {
+      auto validation = validateDatasetAsset(file);
+      if (!validation.ok) {
+        if (validationError)
+          *validationError = validation.error;
+        return false;
+      }
+      if (validation.dataset.name != expectedName) {
+        if (validationError)
+          *validationError = "dataset name does not match target";
+        return false;
+      }
+      return true;
+    };
+    savePlan.assets.push_back(std::move(write));
   }
 
-  const auto camerasDir = directory / "cameras";
-  const auto lightsDir = directory / "lights";
+  for (size_t i = 0; i < savedProject.cameraRigs.size(); ++i) {
+    auto &savedRig = savedProject.cameraRigs[i];
+    const auto &liveRig = m_project.cameraRigs[i];
+    savedRig.persistedName = savedRig.name;
 
-  // Write every rig file first and abort the whole save on any failure, before
-  // touching the existing manifest or deleting stale files.
-  std::vector<std::string> cameraStems;
-  for (const auto &rig : m_project.cameraRigs) {
-    const auto file = camerasDir / (rig.name + ".tsd");
-    std::string rigError;
-    if (!camera_rig::exportCameraRigFile(rig, file, &rigError)) {
-      if (error)
-        *error = "failed to write camera rig '" + rig.name + "': " + rigError;
-      for (const auto &pending : stagedDatasets)
-        std::filesystem::remove(pending.stage, ec);
-      return false;
+    ProjectAssetWrite write;
+    write.description = "camera rig '" + savedRig.name + "'";
+    write.target = std::filesystem::path("cameras") / (savedRig.name + ".tsd");
+    if (savingCurrent && !liveRig.persistedName.empty()) {
+      write.ownedTarget =
+          std::filesystem::path("cameras") / (liveRig.persistedName + ".tsd");
     }
-    cameraStems.push_back(rig.name);
+    const auto *rig = &savedRig;
+    write.writer = [rig](const std::filesystem::path &file,
+                       std::string *writeError) {
+      return camera_rig::exportCameraRigFile(*rig, file, writeError);
+    };
+    const auto expectedName = savedRig.name;
+    write.validator = [expectedName](const std::filesystem::path &file,
+                          std::string *validationError) {
+      CameraRig staged;
+      if (!camera_rig::importCameraRigFile(file, staged, validationError))
+        return false;
+      if (staged.name != expectedName) {
+        if (validationError)
+          *validationError = "camera rig name does not match target";
+        return false;
+      }
+      return true;
+    };
+    savePlan.assets.push_back(std::move(write));
   }
 
-  std::vector<std::string> lightStems;
   std::vector<tsd::scene::LayerNodeRef> lightRigRoots;
-  for (auto &rig : m_project.lightRigs) {
-    auto rigRoot = resolveLightRigRoot(rig);
-    if (!rigRoot) {
-      if (error)
-        *error = "light rig '" + rig.name + "' has no scene node";
-      for (const auto &pending : stagedDatasets)
-        std::filesystem::remove(pending.stage, ec);
-      return false;
-    }
-    const auto file = lightsDir / (rig.name + ".tsd");
-    const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
-        LIGHT_RIG_SCHEMA,
-        tsd::io::ArchiveObjectPolicy::LightsOnly};
-    if (!tsd::io::export_Subtree(
-            file.string().c_str(), rigRoot, desc, rig.name)) {
-      if (error)
-        *error = "failed to write light rig '" + rig.name
-            + "' (see log for details)";
-      for (const auto &pending : stagedDatasets)
-        std::filesystem::remove(pending.stage, ec);
-      return false;
-    }
-    lightStems.push_back(rig.name);
+  lightRigRoots.reserve(savedProject.lightRigs.size());
+  for (size_t i = 0; i < savedProject.lightRigs.size(); ++i) {
+    auto &savedRig = savedProject.lightRigs[i];
+    const auto &liveRig = m_project.lightRigs[i];
+    auto rigRoot = resolveLightRigForSave(liveRig);
+    if (!rigRoot)
+      return fail("light rig '" + savedRig.name + "' has no scene node", error);
     lightRigRoots.push_back(rigRoot);
+    savedRig.persistedName = savedRig.name;
+
+    ProjectAssetWrite write;
+    write.description = "light rig '" + savedRig.name + "'";
+    write.target = std::filesystem::path("lights") / (savedRig.name + ".tsd");
+    if (savingCurrent && !liveRig.persistedName.empty()) {
+      write.ownedTarget =
+          std::filesystem::path("lights") / (liveRig.persistedName + ".tsd");
+    }
+    const auto expectedName = savedRig.name;
+    write.writer = [rigRoot, expectedName](const std::filesystem::path &file,
+                       std::string *writeError) {
+      const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
+          LIGHT_RIG_SCHEMA,
+          tsd::io::ArchiveObjectPolicy::LightsOnly};
+      if (tsd::io::export_Subtree(
+              file.string().c_str(), rigRoot, desc, expectedName))
+        return true;
+      if (writeError)
+        *writeError = "failed to serialize light rig (see log for details)";
+      return false;
+    };
+    write.validator = [](const std::filesystem::path &file,
+                          std::string *validationError) {
+      return validateAssetMetadata(
+          file, LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA, validationError);
+    };
+    savePlan.assets.push_back(std::move(write));
   }
 
   // Build the manifest. Camera-rig value data and light-rig subtrees now live
@@ -1611,17 +1633,13 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
           PROJECT_FILE_TYPE,
           PROJECT_SCHEMA,
           SCHEMA_VERSION});
-  Project manifestProject = m_project;
-  manifestProject.name = savedProjectName;
-  manifestProject.projectDirectory = directory;
-  manifestProject.markClean();
-  projectToNode(manifestProject, root["scivisStudio"]);
+  projectToNode(savedProject, root["scivisStudio"]);
 
   tsd::io::SaveSceneOptions sceneOptions;
   sceneOptions.animationManager = &m_ctx->tsd.animationMgr;
   sceneOptions.exclusion.roots = lightRigRoots;
-  for (auto &dataset : m_project.datasets) {
-    if (auto datasetRoot = resolveDatasetRoot(dataset))
+  for (const auto &datasetRoot : datasetRoots) {
+    if (datasetRoot)
       sceneOptions.exclusion.roots.push_back(datasetRoot);
   }
   sceneOptions.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
@@ -1636,111 +1654,83 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
   if (settings)
     root["settings"] = *settings;
 
-  const auto manifestStage =
-      directory / (".project.stage-" + transactionTag + ".tsd");
-  const auto manifestBackup =
-      directory / (".project.backup-" + transactionTag + ".tsd");
-  if (!tree.save(manifestStage.string().c_str())) {
-    for (const auto &pending : stagedDatasets)
-      std::filesystem::remove(pending.stage, ec);
-    if (error)
-      *error = "failed to stage project.tsd";
+  savePlan.manifest.description = "project manifest";
+  savePlan.manifest.target = PROJECT_MANIFEST_FILENAME;
+  if (savingCurrent)
+    savePlan.manifest.ownedTarget = PROJECT_MANIFEST_FILENAME;
+  savePlan.manifest.writer = [&tree](const std::filesystem::path &file,
+                                 std::string *writeError) {
+    if (tree.save(file.string().c_str()))
+      return true;
+    if (writeError)
+      *writeError = "failed to serialize project manifest";
     return false;
-  }
-
-  auto rollbackDatasets = [&]() {
-    for (auto it = stagedDatasets.rbegin(); it != stagedDatasets.rend(); ++it) {
-      if (it->installed)
-        std::filesystem::remove(it->target, ec);
-      if (it->hadTarget)
-        std::filesystem::rename(it->backup, it->target, ec);
-      std::filesystem::remove(it->stage, ec);
-    }
+  };
+  savePlan.manifest.validator = [](const std::filesystem::path &file,
+                                    std::string *validationError) {
+    return validateAssetMetadata(
+        file, PROJECT_FILE_TYPE, PROJECT_SCHEMA, validationError);
   };
 
-  for (auto &staged : stagedDatasets) {
-    staged.hadTarget = std::filesystem::exists(staged.target);
-    if (staged.hadTarget) {
-      std::filesystem::rename(staged.target, staged.backup, ec);
-      if (ec) {
-        const auto failure = ec.message();
-        rollbackDatasets();
-        std::filesystem::remove(manifestStage, ec);
-        if (error)
-          *error = "failed to prepare dataset replacement: " + failure;
-        return false;
+  auto addRemoval = [&](const std::filesystem::path &path) {
+    const bool alreadyAdded = std::any_of(savePlan.removals.begin(),
+        savePlan.removals.end(),
+        [&](const auto &removal) {
+          return assetNamesEqual(
+              removal.generic_string(), path.generic_string());
+        });
+    if (!alreadyAdded)
+      savePlan.removals.push_back(path);
+  };
+  if (savingCurrent) {
+    for (const auto &removal : m_pendingAssetRemovals)
+      addRemoval(removal);
+    for (size_t i = 0; i < savedProject.datasets.size(); ++i) {
+      const auto &oldName = m_project.datasets[i].persistedName;
+      if (!oldName.empty()
+          && !assetNamesEqual(oldName, savedProject.datasets[i].name)) {
+        addRemoval(std::filesystem::path("datasets") / (oldName + ".tsd"));
       }
     }
-    std::filesystem::rename(staged.stage, staged.target, ec);
-    if (ec) {
-      const auto failure = ec.message();
-      rollbackDatasets();
-      std::filesystem::remove(manifestStage, ec);
-      if (error)
-        *error = "failed to install staged dataset: " + failure;
-      return false;
+    for (size_t i = 0; i < savedProject.cameraRigs.size(); ++i) {
+      const auto &oldName = m_project.cameraRigs[i].persistedName;
+      if (!oldName.empty()
+          && !assetNamesEqual(oldName, savedProject.cameraRigs[i].name)) {
+        addRemoval(std::filesystem::path("cameras") / (oldName + ".tsd"));
+      }
     }
-    staged.installed = true;
+    for (size_t i = 0; i < savedProject.lightRigs.size(); ++i) {
+      const auto &oldName = m_project.lightRigs[i].persistedName;
+      if (!oldName.empty()
+          && !assetNamesEqual(oldName, savedProject.lightRigs[i].name)) {
+        addRemoval(std::filesystem::path("lights") / (oldName + ".tsd"));
+      }
+    }
   }
 
-  const bool hadManifest = std::filesystem::exists(manifest);
-  if (hadManifest) {
-    std::filesystem::rename(manifest, manifestBackup, ec);
-    if (ec) {
-      const auto failure = ec.message();
-      rollbackDatasets();
-      std::filesystem::remove(manifestStage, ec);
-      if (error)
-        *error = "failed to prepare project.tsd replacement: " + failure;
-      return false;
-    }
-  }
-  std::filesystem::rename(manifestStage, manifest, ec);
-  if (ec) {
-    const auto failure = ec.message();
-    if (hadManifest)
-      std::filesystem::rename(manifestBackup, manifest, ec);
-    rollbackDatasets();
-    if (error)
-      *error = "failed to install project.tsd: " + failure;
+  AssetTransaction transaction;
+  if (!transaction.commit(savePlan, error))
     return false;
-  }
 
-  if (hadManifest)
-    std::filesystem::remove(manifestBackup, ec);
-  for (auto &staged : stagedDatasets) {
-    if (staged.hadTarget)
-      std::filesystem::remove(staged.backup, ec);
+  for (size_t i = 0; i < m_project.datasets.size(); ++i) {
+    m_project.datasets[i].name = savedProject.datasets[i].name;
+    m_project.datasets[i].persistedName = savedProject.datasets[i].name;
+    m_project.datasets[i].pendingExtraction = false;
+    m_project.datasets[i].dirty = false;
   }
-
-  // Only explicit renames remove superseded managed dataset paths. Unlisted
-  // dataset files remain untouched for discovery.
-  std::vector<std::filesystem::path> currentDatasetPaths;
-  for (const auto &dataset : m_project.datasets)
-    currentDatasetPaths.push_back(datasetsDir / (dataset.name + ".tsd"));
-  for (auto &dataset : m_project.datasets) {
-    if (!dataset.persistedName.empty()
-        && dataset.persistedName != dataset.name) {
-      const auto oldPath = datasetsDir / (dataset.persistedName + ".tsd");
-      if (std::find(
-              currentDatasetPaths.begin(), currentDatasetPaths.end(), oldPath)
-          == currentDatasetPaths.end())
-        std::filesystem::remove(oldPath, ec);
-    }
-    dataset.persistedName = dataset.name;
-    dataset.pendingExtraction = false;
-    dataset.dirty = false;
+  for (size_t i = 0; i < m_project.cameraRigs.size(); ++i) {
+    m_project.cameraRigs[i].name = savedProject.cameraRigs[i].name;
+    m_project.cameraRigs[i].persistedName = savedProject.cameraRigs[i].name;
   }
-
-  // Reconcile standalone rig files only after the manifest commits.
-  removeStaleRigFiles(
-      camerasDir, cameraStems, CAMERA_RIG_FILE_TYPE, CAMERA_RIG_SCHEMA);
-  removeStaleRigFiles(
-      lightsDir, lightStems, LIGHT_RIG_FILE_TYPE, LIGHT_RIG_SCHEMA);
+  for (size_t i = 0; i < m_project.lightRigs.size(); ++i) {
+    m_project.lightRigs[i].name = savedProject.lightRigs[i].name;
+    m_project.lightRigs[i].persistedName = savedProject.lightRigs[i].name;
+  }
 
   m_project.projectDirectory = directory;
   m_project.name = savedProjectName;
   m_project.markClean();
+  m_pendingAssetRemovals.clear();
   tsd::core::logStatus(
       "[SciVisStudio] Saved project '%s'", directory.string().c_str());
   return true;
@@ -1785,6 +1775,7 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
   loadedProject.projectDirectory = directory;
   loadedProject.markClean();
   m_project = std::move(loadedProject);
+  m_pendingAssetRemovals.clear();
   auto manifestMetadata = tsd::core::readDataTreeMetadata(root);
   const int loadedSchemaVersion = manifestMetadata.found()
       ? manifestMetadata.metadata->schemaVersion
@@ -1864,6 +1855,7 @@ void ProjectContext::loadCameraRigFiles(const std::filesystem::path &camerasDir)
     }
     rig.current = std::move(data.current);
     rig.keyframes = std::move(data.keyframes);
+    rig.persistedName = rig.name;
     kept.push_back(std::move(rig));
   }
   m_project.cameraRigs = std::move(kept);
@@ -1961,6 +1953,7 @@ void ProjectContext::loadLightRigFiles(const std::filesystem::path &lightsDir)
     }
 
     rig.rootNode = refFor("studio", spliced);
+    rig.persistedName = rig.name;
     kept.push_back(std::move(rig));
   }
   m_project.lightRigs = std::move(kept);

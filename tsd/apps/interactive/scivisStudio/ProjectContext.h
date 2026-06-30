@@ -153,6 +153,7 @@ struct ProjectContext
 
   tsd::app::Context *m_ctx{nullptr};
   Project m_project;
+  std::vector<std::filesystem::path> m_pendingAssetRemovals;
   bool m_syncingAnimationManager{false};
   tsd::scene::BaseUpdateDelegate *m_datasetDirtyDelegate{nullptr};
 };

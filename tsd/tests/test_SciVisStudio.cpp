@@ -1215,6 +1215,77 @@ SCENARIO("SciVis Studio stages every dirty dataset before replacement",
   std::filesystem::remove_all(root);
 }
 
+SCENARIO("SciVis Studio save collisions leave files and live names unchanged",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_collision";
+  const auto destination = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_as_collision";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_collision.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto *dataset = projectContext.addStaticDataset(
+      "Mesh", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(dataset);
+  REQUIRE(projectContext.saveProject(root));
+
+  auto readBytes = [](const std::filesystem::path &file) {
+    std::ifstream input(file, std::ios::binary);
+    return std::vector<char>(std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>());
+  };
+  const auto manifest = root / PROJECT_MANIFEST_FILENAME;
+  const auto managed = root / "datasets/Mesh.tsd";
+  const auto collision = root / "datasets/bad_name.tsd";
+  std::filesystem::copy_file(managed, collision);
+  const auto manifestBefore = readBytes(manifest);
+  const auto managedBefore = readBytes(managed);
+  const auto collisionBefore = readBytes(collision);
+
+  dataset = &projectContext.project().datasets.front();
+  dataset->name = "bad/name";
+  dataset->dirty = true;
+  projectContext.project().markDirty();
+  std::string error;
+  REQUIRE_FALSE(projectContext.saveProject(root, nullptr, "", nullptr, &error));
+  REQUIRE(error.find("unowned target") != std::string::npos);
+  REQUIRE(dataset->name == "bad/name");
+  REQUIRE(dataset->dirty);
+  REQUIRE(projectContext.project().projectDirectory == root);
+  REQUIRE(readBytes(manifest) == manifestBefore);
+  REQUIRE(readBytes(managed) == managedBefore);
+  REQUIRE(readBytes(collision) == collisionBefore);
+
+  dataset->name = "Mesh";
+  std::filesystem::create_directories(destination / "datasets");
+  const auto destinationCollision = destination / "datasets/Mesh.tsd";
+  std::filesystem::copy_file(managed, destinationCollision);
+  const auto destinationBefore = readBytes(destinationCollision);
+  error.clear();
+  REQUIRE_FALSE(
+      projectContext.saveProject(destination, nullptr, "", nullptr, &error));
+  REQUIRE(error.find("unowned target") != std::string::npos);
+  REQUIRE(projectContext.project().projectDirectory == root);
+  REQUIRE(readBytes(destinationCollision) == destinationBefore);
+  REQUIRE_FALSE(
+      std::filesystem::exists(destination / PROJECT_MANIFEST_FILENAME));
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+  std::filesystem::remove(source);
+}
+
 SCENARIO(
     "SciVis Studio active shot toggles light rig visibility", "[SciVisStudio]")
 {
@@ -1731,6 +1802,7 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
   WHEN("a rig is renamed and the project is saved again")
   {
     std::string oldLightName;
+    const auto unlisted = root / "lights/Unlisted.tsd";
     {
       tsd::app::Context appContext;
       ProjectContext projectContext(&appContext);
@@ -1739,15 +1811,18 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
       auto *defaultRig = light_rig::findLightRig(project, defaultLightId);
       REQUIRE(defaultRig != nullptr);
       oldLightName = defaultRig->name;
+      std::filesystem::copy_file(
+          root / "lights" / (oldLightName + ".tsd"), unlisted);
       REQUIRE(projectContext.renameLightRig(defaultLightId, "Key Light"));
       REQUIRE(projectContext.saveProject(root));
     }
 
-    THEN("the stale rig file is reconciled away")
+    THEN("only the explicitly superseded rig file is removed")
     {
       REQUIRE(std::filesystem::exists(root / "lights" / "Key Light.tsd"));
       REQUIRE_FALSE(
           std::filesystem::exists(root / "lights" / (oldLightName + ".tsd")));
+      REQUIRE(std::filesystem::exists(unlisted));
     }
   }
 
