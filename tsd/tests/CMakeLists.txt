@@ -7,6 +7,7 @@ endif()
 
 project(tsdTests LANGUAGES CXX)
 project_add_executable(
+  test_App.cpp
   test_AnimationManager.cpp
   test_AnimationArchive.cpp
   test_AnimationManagerArchive.cpp
@@ -44,6 +45,7 @@ project_link_libraries(
 PRIVATE
   tsd_algorithms
   tsd_animation
+  tsd_app
   tsd_io
   tsd_rendering
   tsd_scene
@@ -54,6 +56,7 @@ if (TARGET tsd_scivis_studio_model)
 endif()
 
 add_test(NAME tsd::AnimationManager COMMAND ${PROJECT_NAME} "[AnimationManager]")
+add_test(NAME tsd::App COMMAND ${PROJECT_NAME} "[App]")
 add_test(NAME tsd::AnimationArchive COMMAND ${PROJECT_NAME} "[AnimationArchive]")
 add_test(NAME tsd::AnimationManagerArchive
   COMMAND ${PROJECT_NAME} "[AnimationManagerArchive]")

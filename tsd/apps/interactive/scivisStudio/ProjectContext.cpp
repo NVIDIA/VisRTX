@@ -7,8 +7,10 @@
 #include "ProjectAssetTransaction.h"
 #include "ProjectSerialization.h"
 
+#include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/io/archives/SubtreeArchiveContent.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 #include "tsd/scene/objects/Array.hpp"
@@ -22,6 +24,57 @@
 #include <vector>
 
 namespace tsd::scivis_studio {
+
+static const tsd::io::SubtreeArchiveContentDesc LIGHT_RIG_ARCHIVE_DESC{
+    LIGHT_RIG_FILE_TYPE,
+    LIGHT_RIG_SCHEMA,
+    tsd::io::ArchiveObjectPolicy::LightsOnly};
+
+static bool saveLightRigArchiveFile(tsd::scene::LayerNodeRef root,
+    const std::filesystem::path &file,
+    std::string_view displayName)
+{
+  tsd::core::DataTree tree;
+  return tsd::io::serialize_SubtreeArchiveContent(
+             root, tree.root(), LIGHT_RIG_ARCHIVE_DESC, displayName)
+      && tree.save(file.string().c_str());
+}
+
+static tsd::scene::LayerNodeRef loadLightRigArchiveFile(
+    tsd::scene::Scene &scene,
+    const std::filesystem::path &file,
+    tsd::scene::LayerNodeRef destination,
+    std::string *displayName = nullptr)
+{
+  tsd::core::DataTree tree;
+  if (!tree.load(file.string().c_str()))
+    return {};
+  return tsd::io::deserialize_SubtreeArchiveContent(
+      scene, tree.root(), destination, LIGHT_RIG_ARCHIVE_DESC, displayName)
+      .root;
+}
+
+static void serializeLegacyProjectContext(tsd::scene::Scene &scene,
+    tsd::animation::AnimationManager &animationManager,
+    const std::vector<tsd::scene::LayerNodeRef> &excludedRoots,
+    tsd::core::DataNode &node)
+{
+  tsd::io::detail::LegacySceneSerializationOptions options;
+  options.animationManager = &animationManager;
+  options.exclusion.roots = excludedRoots;
+  options.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
+  options.exclusion.animations =
+      tsd::io::detail::LegacyExcludedAnimationPolicy::OmitOwned;
+  tsd::io::detail::serializeLegacyScenePayload(scene, node, options);
+}
+
+static bool deserializeLegacyProjectContext(tsd::scene::Scene &scene,
+    tsd::animation::AnimationManager &animationManager,
+    tsd::core::DataNode &node)
+{
+  return tsd::io::detail::tryDeserializeLegacyScenePayload(
+      scene, node, nullptr, &animationManager);
+}
 
 static tsd::scene::LayerNodeRef findDirectChild(
     tsd::scene::LayerNodeRef parent, const std::string &name)
@@ -585,7 +638,7 @@ CameraRig *ProjectContext::activeShotCameraRig()
   return camera_rig::findCameraRig(m_project, shot->cameraRigId);
 }
 
-bool ProjectContext::exportCameraRig(const CameraRigID &id,
+bool ProjectContext::saveCameraRigArchive(const CameraRigID &id,
     const std::filesystem::path &file,
     std::string *error)
 {
@@ -595,26 +648,26 @@ bool ProjectContext::exportCameraRig(const CameraRigID &id,
       *error = "camera rig not found";
     return false;
   }
-  return camera_rig::exportCameraRigFile(*rig, file, error);
+  return camera_rig::saveCameraRigArchiveFile(*rig, file, error);
 }
 
-CameraRig *ProjectContext::importCameraRig(
+CameraRig *ProjectContext::loadCameraRigArchive(
     const std::filesystem::path &file, std::string *error)
 {
   CameraRig rig;
-  if (!camera_rig::importCameraRigFile(file, rig, error))
+  if (!camera_rig::loadCameraRigArchiveFile(file, rig, error))
     return nullptr;
 
-  const std::string importedName = std::move(rig.name);
+  const std::string loadedName = std::move(rig.name);
   rig.id = camera_rig::nextCameraRigId(m_project);
   rig.name = makeValidUniqueAssetName(m_project.cameraRigs,
-      importedName.empty() ? "Imported Camera Rig" : importedName);
+      loadedName.empty() ? "Loaded Camera Rig" : loadedName);
   m_project.cameraRigs.push_back(std::move(rig));
   m_project.markDirty();
   return &m_project.cameraRigs.back();
 }
 
-bool ProjectContext::exportLightRig(
+bool ProjectContext::saveLightRigArchive(
     const LightRigID &id, const std::filesystem::path &file, std::string *error)
 {
   if (!m_ctx) {
@@ -637,19 +690,15 @@ bool ProjectContext::exportLightRig(
     return false;
   }
 
-  const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
-      LIGHT_RIG_SCHEMA,
-      tsd::io::ArchiveObjectPolicy::LightsOnly};
-  if (!tsd::io::export_Subtree(
-          file.string().c_str(), rigRoot, desc, rig->name)) {
+  if (!saveLightRigArchiveFile(rigRoot, file, rig->name)) {
     if (error)
-      *error = "failed to export light rig (see log for details)";
+      *error = "failed to save Light Rig Archive (see log for details)";
     return false;
   }
   return true;
 }
 
-LightRig *ProjectContext::importLightRig(
+LightRig *ProjectContext::loadLightRigArchive(
     const std::filesystem::path &file, std::string *error)
 {
   if (!m_ctx) {
@@ -660,15 +709,10 @@ LightRig *ProjectContext::importLightRig(
 
   auto &scene = m_ctx->tsd.scene;
   auto lightRigsRoot = ensureLightRigsRoot();
-  const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
-      LIGHT_RIG_SCHEMA,
-      tsd::io::ArchiveObjectPolicy::LightsOnly};
-
   std::string name;
   LightRig rig;
   scene.beginLayerEditBatch();
-  auto splicedRoot = tsd::io::import_Subtree(
-      scene, file.string().c_str(), lightRigsRoot, desc, &name);
+  auto splicedRoot = loadLightRigArchiveFile(scene, file, lightRigsRoot, &name);
   if (splicedRoot) {
     rig.id = light_rig::nextLightRigId(m_project);
     (*splicedRoot)->name() = rig.id; // resolveLightRigRoot keys on node==rig.id
@@ -677,16 +721,16 @@ LightRig *ProjectContext::importLightRig(
 
   if (!splicedRoot) {
     if (error)
-      *error = "failed to import light rig (see log for details)";
+      *error = "failed to load Light Rig Archive (see log for details)";
     return nullptr;
   }
 
   rig.name = makeValidUniqueAssetName(
-      m_project.lightRigs, name.empty() ? "Imported Light Rig" : name);
+      m_project.lightRigs, name.empty() ? "Loaded Light Rig" : name);
   rig.rootNode = refFor("studio", splicedRoot);
   m_project.lightRigs.push_back(std::move(rig));
   m_project.markDirty();
-  applyActiveShot(); // imported rig is unbound, so it starts hidden
+  applyActiveShot(); // A loaded rig is unbound, so it starts hidden.
   return &m_project.lightRigs.back();
 }
 
@@ -1106,7 +1150,7 @@ bool ProjectContext::removeDataset(
   return true;
 }
 
-bool ProjectContext::exportDataset(
+bool ProjectContext::saveDatasetArchive(
     const DatasetID &id, const std::filesystem::path &file, std::string *error)
 {
   if (!m_ctx)
@@ -1119,11 +1163,12 @@ bool ProjectContext::exportDataset(
   auto root = resolveDatasetRoot(*dataset);
   if (!root)
     return fail("dataset has no scene subtree", error);
-  return exportDatasetAsset(
+  return saveDatasetArchiveFile(
       *dataset, root, m_ctx->tsd.animationMgr, file, error);
 }
 
-Dataset *ProjectContext::importDatasetImpl(const std::filesystem::path &file,
+Dataset *ProjectContext::loadDatasetArchiveImpl(
+    const std::filesystem::path &file,
     const std::string &name,
     bool alreadyManaged,
     std::string *error)
@@ -1160,7 +1205,7 @@ Dataset *ProjectContext::importDatasetImpl(const std::filesystem::path &file,
 
   Dataset loaded;
   tsd::scene::LayerNodeRef root;
-  if (!importDatasetAsset(m_ctx->tsd.scene,
+  if (!loadDatasetArchiveFile(m_ctx->tsd.scene,
           m_ctx->tsd.animationMgr,
           file,
           ensureDatasetsRoot(),
@@ -1185,10 +1230,10 @@ Dataset *ProjectContext::importDatasetImpl(const std::filesystem::path &file,
   return &record;
 }
 
-Dataset *ProjectContext::importDataset(
+Dataset *ProjectContext::loadDatasetArchive(
     const std::filesystem::path &file, std::string *error)
 {
-  return importDatasetImpl(file, {}, false, error);
+  return loadDatasetArchiveImpl(file, {}, false, error);
 }
 
 std::vector<DatasetCandidate> ProjectContext::discoverDatasetCandidates() const
@@ -1236,7 +1281,7 @@ Dataset *ProjectContext::incorporateDatasetCandidate(
           == (m_project.projectDirectory / "datasets").lexically_normal()
       && candidate.file.stem().string() == name
       && candidate.proposedName == name;
-  return importDatasetImpl(candidate.file, name, sameManagedPath, error);
+  return loadDatasetArchiveImpl(candidate.file, name, sameManagedPath, error);
 }
 
 bool ProjectContext::reimportStaticDataset(
@@ -1282,7 +1327,7 @@ bool ProjectContext::reimportStaticDataset(
           + ".tsd");
   Dataset replacementMetadata = *dataset;
   std::string stageError;
-  if (!exportDatasetAsset(replacementMetadata,
+  if (!saveDatasetArchiveFile(replacementMetadata,
           stagedRoot,
           stagedAnimations,
           stageFile,
@@ -1297,7 +1342,7 @@ bool ProjectContext::reimportStaticDataset(
       dataset->name.c_str());
   Dataset replacement;
   tsd::scene::LayerNodeRef replacementRoot;
-  if (!importDatasetAsset(m_ctx->tsd.scene,
+  if (!loadDatasetArchiveFile(m_ctx->tsd.scene,
           m_ctx->tsd.animationMgr,
           stageFile,
           ensureDatasetsRoot(),
@@ -1540,7 +1585,7 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
     write.writer = [dataset, datasetRoot, animationManager](
                        const std::filesystem::path &file,
                        std::string *writeError) {
-      return exportDatasetAsset(
+      return saveDatasetArchiveFile(
           *dataset, datasetRoot, *animationManager, file, writeError);
     };
     const auto expectedName = savedDataset.name;
@@ -1577,13 +1622,13 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
     const auto *rig = &savedRig;
     write.writer = [rig](const std::filesystem::path &file,
                        std::string *writeError) {
-      return camera_rig::exportCameraRigFile(*rig, file, writeError);
+      return camera_rig::saveCameraRigArchiveFile(*rig, file, writeError);
     };
     const auto expectedName = savedRig.name;
     write.validator = [expectedName](const std::filesystem::path &file,
                           std::string *validationError) {
       CameraRig staged;
-      if (!camera_rig::importCameraRigFile(file, staged, validationError))
+      if (!camera_rig::loadCameraRigArchiveFile(file, staged, validationError))
         return false;
       if (staged.name != expectedName) {
         if (validationError)
@@ -1616,11 +1661,7 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
     const auto expectedName = savedRig.name;
     write.writer = [rigRoot, expectedName](const std::filesystem::path &file,
                        std::string *writeError) {
-      const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
-          LIGHT_RIG_SCHEMA,
-          tsd::io::ArchiveObjectPolicy::LightsOnly};
-      if (tsd::io::export_Subtree(
-              file.string().c_str(), rigRoot, desc, expectedName))
+      if (saveLightRigArchiveFile(rigRoot, file, expectedName))
         return true;
       if (writeError)
         *writeError = "failed to serialize light rig (see log for details)";
@@ -1645,17 +1686,15 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
           SCHEMA_VERSION});
   projectToNode(savedProject, root["scivisStudio"]);
 
-  tsd::io::SaveSceneOptions sceneOptions;
-  sceneOptions.animationManager = &m_ctx->tsd.animationMgr;
-  sceneOptions.exclusion.roots = lightRigRoots;
+  std::vector<tsd::scene::LayerNodeRef> excludedRoots = lightRigRoots;
   for (const auto &datasetRoot : datasetRoots) {
     if (datasetRoot)
-      sceneOptions.exclusion.roots.push_back(datasetRoot);
+      excludedRoots.push_back(datasetRoot);
   }
-  sceneOptions.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
-  sceneOptions.exclusion.animations =
-      tsd::io::ExcludedAnimationPolicy::OmitOwned;
-  tsd::io::save_Scene(m_ctx->tsd.scene, root["context"], sceneOptions);
+  serializeLegacyProjectContext(m_ctx->tsd.scene,
+      m_ctx->tsd.animationMgr,
+      excludedRoots,
+      root["context"]);
 
   if (windows)
     root["windows"] = *windows;
@@ -1779,7 +1818,8 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
   resetScene();
   m_syncingAnimationManager = true;
   if (auto *context = root.child("context"))
-    tsd::io::load_Scene(m_ctx->tsd.scene, *context, &m_ctx->tsd.animationMgr);
+    deserializeLegacyProjectContext(
+        m_ctx->tsd.scene, m_ctx->tsd.animationMgr, *context);
   m_syncingAnimationManager = false;
 
   loadedProject.projectDirectory = directory;
@@ -1853,7 +1893,7 @@ void ProjectContext::loadCameraRigFiles(const std::filesystem::path &camerasDir)
     const auto file = camerasDir / (rig.name + ".tsd");
     CameraRig data;
     std::string err;
-    if (!camera_rig::importCameraRigFile(file, data, &err)) {
+    if (!camera_rig::loadCameraRigArchiveFile(file, data, &err)) {
       tsd::core::logWarning("[SciVisStudio] Skipping camera rig '%s': %s",
           rig.name.c_str(),
           err.c_str());
@@ -1882,7 +1922,7 @@ void ProjectContext::loadDatasetFiles(const std::filesystem::path &datasetsDir)
     Dataset loaded;
     tsd::scene::LayerNodeRef loadedRoot;
     std::string datasetError;
-    if (!importDatasetAsset(m_ctx->tsd.scene,
+    if (!loadDatasetArchiveFile(m_ctx->tsd.scene,
             m_ctx->tsd.animationMgr,
             file,
             destination,
@@ -1927,10 +1967,6 @@ void ProjectContext::loadLightRigFiles(const std::filesystem::path &lightsDir)
     return;
 
   auto &scene = m_ctx->tsd.scene;
-  const tsd::io::SubtreeIODesc desc{LIGHT_RIG_FILE_TYPE,
-      LIGHT_RIG_SCHEMA,
-      tsd::io::ArchiveObjectPolicy::LightsOnly};
-
   std::vector<LightRig> kept;
   kept.reserve(m_project.lightRigs.size());
   for (auto &rig : m_project.lightRigs) {
@@ -1943,8 +1979,7 @@ void ProjectContext::loadLightRigFiles(const std::filesystem::path &lightsDir)
       auto lightRigsRoot = ensureLightRigsRoot();
       scene.beginLayerEditBatch();
       std::string name;
-      spliced = tsd::io::import_Subtree(
-          scene, file.string().c_str(), lightRigsRoot, desc, &name);
+      spliced = loadLightRigArchiveFile(scene, file, lightRigsRoot, &name);
       if (spliced)
         (*spliced)->name() = rig.id; // resolveLightRigRoot keys on node==rig.id
       scene.endLayerEditBatch();
@@ -2079,8 +2114,6 @@ const char *toString(tsd::io::ImporterType importerType)
     return "VOLUME";
   case tsd::io::ImporterType::VOLUME_ANIMATION:
     return "VOLUME_ANIMATION";
-  case tsd::io::ImporterType::TSD:
-    return "TSD";
   case tsd::io::ImporterType::XF:
     return "XF";
   case tsd::io::ImporterType::BLANK:

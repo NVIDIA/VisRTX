@@ -36,8 +36,8 @@ struct CameraRigEditor : public tsd::ui::imgui::Window
   enum class PendingFileIO
   {
     None,
-    Import,
-    Export
+    Load,
+    Save
   };
 
   ProjectContext *m_projectContext{nullptr};
@@ -52,7 +52,7 @@ struct CameraRigEditor : public tsd::ui::imgui::Window
   std::string m_nameError;
   PendingFileIO m_pendingFileIO{PendingFileIO::None};
   std::string m_pendingFilename;
-  CameraRigID m_pendingExportRig;
+  CameraRigID m_pendingSaveRig;
 };
 
 } // namespace tsd::scivis_studio

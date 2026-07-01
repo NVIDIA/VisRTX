@@ -14,10 +14,12 @@ PRIVATE
   archives/AnimationArchive.cpp
   archives/AnimationManagerArchive.cpp
   archives/RendererArchive.cpp
+  archives/SubtreeArchiveContent.cpp
   archives/detail/PoolArchive.cpp
   archives/detail/AnimationRemap.cpp
   archives/detail/ArchiveClosure.cpp
   archives/detail/ArchivePlan.cpp
+  archives/detail/SubtreeArchiveDeserialization.cpp
   animation/EnSightFileBinding.cpp
   animation/SpatialFieldFileBinding.cpp
   exporters/NanoVdbSidecar.cpp
@@ -78,8 +80,6 @@ PRIVATE
   serialization/Object.cpp
   serialization/Parameter.cpp
   serialization/serialization_datatree.cpp
-  serialization/serialization_layer_subtree.cpp
-  serialization/serialization_subtree_import.cpp
 )
 
 project_include_directories(

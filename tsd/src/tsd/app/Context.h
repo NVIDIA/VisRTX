@@ -28,6 +28,7 @@ struct CommandLineOptions
 {
   bool loadedFromStateFile{false};
   std::string stateFile;
+  std::string sceneArchiveFile;
   std::string currentLayerName{"default"};
   std::vector<tsd::io::ImportFile> filenames;
   std::vector<tsd::io::ImportAnimationFiles> animationFilenames;

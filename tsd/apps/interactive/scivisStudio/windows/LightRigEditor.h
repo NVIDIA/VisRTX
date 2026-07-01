@@ -35,8 +35,8 @@ struct LightRigEditor : public tsd::ui::imgui::Window
   enum class PendingFileIO
   {
     None,
-    Import,
-    Export
+    Load,
+    Save
   };
 
   ProjectContext *m_projectContext{nullptr};
@@ -53,7 +53,7 @@ struct LightRigEditor : public tsd::ui::imgui::Window
   std::string m_nameError;
   PendingFileIO m_pendingFileIO{PendingFileIO::None};
   std::string m_pendingFilename;
-  LightRigID m_pendingExportRig;
+  LightRigID m_pendingSaveRig;
 };
 
 } // namespace tsd::scivis_studio

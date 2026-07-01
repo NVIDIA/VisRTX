@@ -4,6 +4,7 @@
 #pragma once
 
 #include "tsd/io/archives/detail/ArchiveClosure.hpp"
+#include "tsd/io/archives/detail/ArchivePlan.hpp"
 
 #include <functional>
 
@@ -26,7 +27,7 @@ void collectAnimationRefKeys(
 bool validateSubtreeAnimations(core::DataNode &root,
     std::vector<FileObjectEntry> &entries,
     core::DataNode &subtree,
-    PayloadValidationResult &result);
+    ArchiveValidationResult &result);
 
 bool remapSubtreeAnimationsToTarget(core::DataNode &animations,
     Scene &scene,

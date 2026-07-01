@@ -55,10 +55,10 @@ struct ProjectContext
       bool keepAssetFile = false,
       std::string *error = nullptr);
   bool reimportStaticDataset(const DatasetID &id, std::string *error = nullptr);
-  bool exportDataset(const DatasetID &id,
+  bool saveDatasetArchive(const DatasetID &id,
       const std::filesystem::path &file,
       std::string *error = nullptr);
-  Dataset *importDataset(
+  Dataset *loadDatasetArchive(
       const std::filesystem::path &file, std::string *error = nullptr);
   std::vector<DatasetCandidate> discoverDatasetCandidates() const;
   Dataset *incorporateDatasetCandidate(const DatasetCandidate &candidate,
@@ -105,26 +105,25 @@ struct ProjectContext
   int cameraRigUseCount(const CameraRigID &id) const;
   CameraRig *activeShotCameraRig();
 
-  // Standalone rig file IO. Export writes the named rig to a .tsd file; import
+  // Standalone rig Archive IO. Save writes the named rig to a .tsd file; Load
   // adds a new library entry (with a fresh id and a de-duplicated name) and
-  // never alters shot bindings. Import returns the new rig, or nullptr on
-  // error.
-  bool exportCameraRig(const CameraRigID &id,
+  // never alters shot bindings. Load returns the new rig, or nullptr on error.
+  bool saveCameraRigArchive(const CameraRigID &id,
       const std::filesystem::path &file,
       std::string *error = nullptr);
-  CameraRig *importCameraRig(
+  CameraRig *loadCameraRigArchive(
       const std::filesystem::path &file, std::string *error = nullptr);
-  bool exportLightRig(const LightRigID &id,
+  bool saveLightRigArchive(const LightRigID &id,
       const std::filesystem::path &file,
       std::string *error = nullptr);
-  LightRig *importLightRig(
+  LightRig *loadLightRigArchive(
       const std::filesystem::path &file, std::string *error = nullptr);
 
  private:
   friend struct DatasetDirtyDelegate;
   void installDatasetDirtyDelegate();
   void markDatasetDirtyForObject(const tsd::scene::Object *object);
-  Dataset *importDatasetImpl(const std::filesystem::path &file,
+  Dataset *loadDatasetArchiveImpl(const std::filesystem::path &file,
       const std::string &name,
       bool alreadyManaged,
       std::string *error);

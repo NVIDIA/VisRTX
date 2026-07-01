@@ -86,9 +86,10 @@ scene has no cameras, it creates a default perspective camera and frames it
 from the scene bounds. `--camera` is mutually exclusive with manual camera
 override flags (`--campos`, `--lookpos`, `--upvec`, `--fovy`).
 
-Importer flags include `-tsd`, `-gltf`, `-obj`, `-ply`, `-volume`, `-hdri`,
-`-silo`, `-usd`, `-assimp`, `-axyz`, `-e57xyz`, `-pdb`, `-swc`, `-trk`,
-`-nbody`, and `-l`/`--layer`.
+Use `-tsd <file>` to load a Scene Archive. Foreign-format importer flags
+include `-gltf`, `-obj`, `-ply`, `-volume`, `-hdri`, `-silo`, `-usd`,
+`-assimp`, `-axyz`, `-e57xyz`, `-pdb`, `-swc`, `-trk`, `-nbody`, and
+`-l`/`--layer`.
 
 Example:
 

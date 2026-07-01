@@ -5,19 +5,19 @@
 #include <tsd/rendering/pipeline/ImagePipeline.h>
 #include <tsd/core/Logging.hpp>
 #include <tsd/core/Timer.hpp>
-#include <tsd/scene/Scene.hpp>
 #include <tsd/io/procedural.hpp>
 #include <tsd/rendering/index/RenderIndexAllLayers.hpp>
 #include <tsd/rendering/view/ManipulatorToAnari.hpp>
 #include <tsd/rendering/view/ManipulatorToTSD.hpp>
+#include <tsd/scene/Scene.hpp>
 #include "stb_image_write.h"
 
 #ifdef TSD_USE_MPI
 #include <mpi.h>
 #endif
 
-#include <chrono>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
@@ -117,12 +117,10 @@ static void printUsage(const char *programName)
       << "  --anim-out-dir <dir>       Output directory for animation frames\n";
   std::cout
       << "                             (enables animation mode; frames saved as\n";
-  std::cout
-      << "                              <dir>/<prefix><NNNN>.png)\n";
+  std::cout << "                              <dir>/<prefix><NNNN>.png)\n";
   std::cout
       << "  --anim-prefix <prefix>     Filename prefix for animation frames\n";
-  std::cout
-      << "                             (default: frame_)\n";
+  std::cout << "                             (default: frame_)\n";
   std::cout
       << "  --num-frames <int>         Number of frames to render (default: 1,\n";
   std::cout
@@ -135,8 +133,10 @@ static void printUsage(const char *programName)
       << "     of animation frames (rank k renders frames k, k+N, k+2N, ...).\n";
 #endif
   std::cout << "\n";
+  std::cout << "Scene Archive Options:\n";
+  std::cout << "  -tsd <file>                Load a TSD Scene Archive\n";
+  std::cout << "\n";
   std::cout << "Importer Options:\n";
-  std::cout << "  -tsd <file>                Load TSD scene file\n";
   std::cout << "  -gltf <file...>            Import GLTF/GLB files\n";
   std::cout << "  -obj <file...>             Import Wavefront OBJ files\n";
   std::cout << "  -ply <file...>             Import PLY files\n";
@@ -269,11 +269,9 @@ static void printCameraList(const std::vector<CameraChoice> &cameras)
   std::cout << "Available cameras:\n";
   for (size_t i = 0; i < cameras.size(); ++i) {
     const auto &camera = cameras[i];
-    const char *name =
-        camera.name.empty() ? "<unnamed>" : camera.name.c_str();
-    std::cout << "  " << (i + 1) << ". index=" << camera.index
-              << " name=\"" << name << "\" subtype=" << camera.subtype
-              << '\n';
+    const char *name = camera.name.empty() ? "<unnamed>" : camera.name.c_str();
+    std::cout << "  " << (i + 1) << ". index=" << camera.index << " name=\""
+              << name << "\" subtype=" << camera.subtype << '\n';
   }
 }
 
@@ -289,7 +287,8 @@ static void ensureSceneHasCamera()
   }
 }
 
-static bool resolveCameraSelectionFromCli(const std::vector<CameraChoice> &cameras,
+static bool resolveCameraSelectionFromCli(
+    const std::vector<CameraChoice> &cameras,
     const std::string &selection,
     size_t &cameraIndex)
 {
@@ -453,11 +452,11 @@ static void setupSelectedSceneCamera()
     fflush(stdout);
     configureDefaultSceneCameraPose();
   } else {
-    auto camera =
-        g_ctx->tsd.scene.getObject<tsd::scene::Camera>(
-            g_ctx->offline.camera.cameraIndex);
-    const char *name =
-        (camera && !camera->name().empty()) ? camera->name().c_str() : "<unnamed>";
+    auto camera = g_ctx->tsd.scene.getObject<tsd::scene::Camera>(
+        g_ctx->offline.camera.cameraIndex);
+    const char *name = (camera && !camera->name().empty())
+        ? camera->name().c_str()
+        : "<unnamed>";
     printf("using scene camera '%s' (index=%zu)...",
         name,
         g_ctx->offline.camera.cameraIndex);
@@ -679,7 +678,7 @@ static void initTSDRenderIndex()
 
 static void populateTSDScene()
 {
-  printf("Importing scene data...");
+  printf("Loading scene data...");
   fflush(stdout);
 
   g_timer.start();
@@ -763,10 +762,8 @@ static void setupImagePipeline()
       g_camera,
       "apertureRadius",
       g_ctx->offline.camera.apertureRadius);
-  anari::setParameter(g_device,
-      g_camera,
-      "focusDistance",
-      g_ctx->offline.camera.focusDistance);
+  anari::setParameter(
+      g_device, g_camera, "focusDistance", g_ctx->offline.camera.focusDistance);
   anari::commitParameters(g_device, g_camera);
 
   auto r = anari::newObject<anari::Renderer>(
@@ -974,7 +971,7 @@ int main(int argc, const char *argv[])
 
   // Context already initializes its scene, no separate initialization needed
   loadANARIDevice();
-  populateTSDScene(); // Import data into scene FIRST
+  populateTSDScene(); // Load Archive or import foreign data first
   setupLights(); // Then add lights
   initTSDRenderIndex(); // THEN create render index with populated scene
   populateRenderIndex();

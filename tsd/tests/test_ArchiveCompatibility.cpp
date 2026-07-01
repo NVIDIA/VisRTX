@@ -8,6 +8,8 @@
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
+#include "tsd/io/archives.hpp"
+#include "tsd/io/archives/detail/ArchivePlan.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
@@ -26,6 +28,33 @@ std::string testFile(const char *name)
 void removeTestFile(const std::string &filename)
 {
   std::remove(filename.c_str());
+}
+
+bool saveSubtreeArchiveContent(const char *filename,
+    tsd::scene::LayerNodeRef root,
+    const tsd::io::SubtreeArchiveContentDesc &desc,
+    std::string_view displayName = {},
+    const tsd::io::SubtreeArchiveContentOptions &options = {})
+{
+  tsd::core::DataTree tree;
+  return tsd::io::serialize_SubtreeArchiveContent(
+             root, tree.root(), desc, displayName, options)
+      && tree.save(filename);
+}
+
+tsd::io::SubtreeArchiveResult loadSubtreeArchiveContent(
+    tsd::scene::Scene &scene,
+    const char *filename,
+    tsd::scene::LayerNodeRef destination,
+    const tsd::io::SubtreeArchiveContentDesc &desc,
+    std::string *displayName = nullptr,
+    const tsd::io::SubtreeArchiveContentOptions &options = {})
+{
+  tsd::core::DataTree tree;
+  if (!tree.load(filename))
+    return {};
+  return tsd::io::deserialize_SubtreeArchiveContent(
+      scene, tree.root(), destination, desc, displayName, options);
 }
 
 tsd::scene::ArrayRef makeFloatArray(tsd::scene::Scene &scene,
@@ -68,7 +97,8 @@ void UnsupportedFileBinding::addCallbackToAnimation(tsd::animation::Animation &)
 
 } // namespace
 
-SCENARIO("tsd::io camera and renderer subset serialization", "[ArchiveCompatibility]")
+SCENARIO("tsd::io camera and renderer subset serialization",
+    "[ArchiveCompatibility]")
 {
   GIVEN("A scene with cameras, renderers, and unrelated scene data")
   {
@@ -98,7 +128,7 @@ SCENARIO("tsd::io camera and renderer subset serialization", "[ArchiveCompatibil
 
     WHEN("only cameras and renderers are saved")
     {
-      tsd::io::save_SceneCamerasAndRenderers(source, root);
+      tsd::io::detail::serializeLegacyCameraRendererPayload(source, root);
 
       THEN("the output is tagged as a camera and renderer subset")
       {
@@ -134,7 +164,8 @@ SCENARIO("tsd::io camera and renderer subset serialization", "[ArchiveCompatibil
         target.createObject<tsd::scene::Geometry>("cylinder");
         target.addLayer("keep_me");
 
-        tsd::io::load_SceneCamerasAndRenderers(target, root);
+        tsd::io::detail::tryDeserializeLegacyCameraRendererPayload(
+            target, root);
 
         THEN("only cameras and renderers are replaced")
         {
@@ -188,7 +219,8 @@ SCENARIO("tsd::io camera and renderer subset serialization", "[ArchiveCompatibil
 
     WHEN("the subset is loaded")
     {
-      tsd::io::load_SceneCamerasAndRenderers(scene, tree.root());
+      tsd::io::detail::tryDeserializeLegacyCameraRendererPayload(
+          scene, tree.root());
 
       THEN("the scene still has a default camera")
       {
@@ -211,7 +243,7 @@ SCENARIO("tsd::io scene payload metadata validation", "[ArchiveCompatibility]")
     WHEN("a full scene is serialized")
     {
       tsd::core::DataTree tree;
-      tsd::io::save_Scene(source, tree.root(), false);
+      REQUIRE(tsd::io::serialize_SceneArchive(source, tree.root()));
 
       THEN("the output is tagged as a full scene")
       {
@@ -226,16 +258,17 @@ SCENARIO("tsd::io scene payload metadata validation", "[ArchiveCompatibility]")
       THEN("the camera and renderer subset loader accepts the full scene")
       {
         auto result =
-            tsd::io::validate_SceneCamerasAndRenderersPayload(tree.root());
+            tsd::io::detail::validateLegacyCameraRendererPayload(tree.root());
         REQUIRE(result.accepted());
-        REQUIRE(result.status == tsd::io::PayloadValidationStatus::Valid);
+        REQUIRE(result.status == tsd::io::ArchiveValidationStatus::Valid);
       }
     }
 
     WHEN("a camera and renderer subset is loaded as a full scene")
     {
       tsd::core::DataTree subsetTree;
-      tsd::io::save_SceneCamerasAndRenderers(source, subsetTree.root());
+      tsd::io::detail::serializeLegacyCameraRendererPayload(
+          source, subsetTree.root());
 
       tsd::scene::Scene target;
       target.createObject<tsd::scene::Geometry>("sphere");
@@ -243,12 +276,14 @@ SCENARIO("tsd::io scene payload metadata validation", "[ArchiveCompatibility]")
 
       THEN("validation rejects it before mutation")
       {
-        auto result = tsd::io::validate_ScenePayload(subsetTree.root());
+        auto result =
+            tsd::io::detail::validateLegacyScenePayload(subsetTree.root());
         REQUIRE(!result.accepted());
         REQUIRE(result.status
-            == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+            == tsd::io::ArchiveValidationStatus::IncompatibleSchema);
 
-        tsd::io::load_Scene(target, subsetTree.root());
+        tsd::io::detail::tryDeserializeLegacyScenePayload(
+            target, subsetTree.root());
         REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 1);
         REQUIRE(target.numberOfLayers() == 1);
         REQUIRE(target.layer("keep_me") != nullptr);
@@ -262,10 +297,11 @@ SCENARIO("tsd::io scene payload metadata validation", "[ArchiveCompatibility]")
 
       THEN("validation accepts it as legacy")
       {
-        auto result = tsd::io::validate_ScenePayload(legacyTree.root());
+        auto result =
+            tsd::io::detail::validateLegacyScenePayload(legacyTree.root());
         REQUIRE(result.accepted());
         REQUIRE(result.status
-            == tsd::io::PayloadValidationStatus::MissingMetadataAccepted);
+            == tsd::io::ArchiveValidationStatus::MissingMetadataAccepted);
       }
     }
 
@@ -281,12 +317,14 @@ SCENARIO("tsd::io scene payload metadata validation", "[ArchiveCompatibility]")
 
       THEN("validation rejects it before mutation")
       {
-        auto result = tsd::io::validate_ScenePayload(invalidTree.root());
+        auto result =
+            tsd::io::detail::validateLegacyScenePayload(invalidTree.root());
         REQUIRE(!result.accepted());
         REQUIRE(result.status
-            == tsd::io::PayloadValidationStatus::MissingRequiredNode);
+            == tsd::io::ArchiveValidationStatus::MissingRequiredNode);
 
-        tsd::io::load_Scene(target, invalidTree.root());
+        tsd::io::detail::tryDeserializeLegacyScenePayload(
+            target, invalidTree.root());
         REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 1);
         REQUIRE(target.numberOfLayers() == 1);
         REQUIRE(target.layer("keep_me") != nullptr);
@@ -339,16 +377,16 @@ SCENARIO("tsd::io surface object serialization", "[ArchiveCompatibility]")
     const auto filename = testFile("tsd_surface_object_roundtrip.tsd");
     removeTestFile(filename);
 
-    WHEN("the surface is exported and imported into a non-empty scene")
+    WHEN("the Surface Object Archive is saved and loaded")
     {
-      REQUIRE(tsd::io::export_Object(filename.c_str(), *surface));
+      REQUIRE(tsd::io::save_ObjectArchive(*surface, filename.c_str()));
 
-      tsd::core::DataTree exportedTree;
-      REQUIRE(exportedTree.load(filename.c_str()));
+      tsd::core::DataTree savedTree;
+      REQUIRE(savedTree.load(filename.c_str()));
 
       THEN("the payload is tagged as a surface object with local root index 0")
       {
-        auto metadata = tsd::core::readDataTreeMetadata(exportedTree.root());
+        auto metadata = tsd::core::readDataTreeMetadata(savedTree.root());
         REQUIRE(
             metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
         REQUIRE(metadata.metadata);
@@ -356,13 +394,13 @@ SCENARIO("tsd::io surface object serialization", "[ArchiveCompatibility]")
         REQUIRE(metadata.metadata->schema
             == std::string(tsd::io::schema::OBJECT_SURFACE));
 
-        auto *rootObject = exportedTree.root().child("rootObject");
+        auto *rootObject = savedTree.root().child("rootObject");
         REQUIRE(rootObject);
         REQUIRE(rootObject->getValue().type() == ANARI_SURFACE);
         REQUIRE(rootObject->getValue().getAsObjectIndex() == 0);
 
         auto *surfaceNode =
-            exportedTree.root().child("objectDB")->child("surface")->child(0);
+            savedTree.root().child("objectDB")->child("surface")->child(0);
         REQUIRE(surfaceNode);
         REQUIRE(surfaceNode->child("self")->getValue().type() == ANARI_SURFACE);
         REQUIRE(surfaceNode->child("self")->getValue().getAsObjectIndex() == 0);
@@ -374,11 +412,12 @@ SCENARIO("tsd::io surface object serialization", "[ArchiveCompatibility]")
       existingGeometry->setName("preexisting_geometry");
       target.addLayer("keep_me");
 
-      auto imported = tsd::io::import_Surface(target, filename.c_str());
+      auto *loaded = dynamic_cast<tsd::scene::Surface *>(
+          tsd::io::load_ObjectArchive(target, filename.c_str()));
 
-      THEN("the import appends objects without creating layers")
+      THEN("loading appends objects without creating layers")
       {
-        REQUIRE(imported);
+        REQUIRE(loaded);
         REQUIRE(target.numberOfLayers() == 1);
         REQUIRE(target.layer("keep_me") != nullptr);
         REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
@@ -390,51 +429,49 @@ SCENARIO("tsd::io surface object serialization", "[ArchiveCompatibility]")
 
       THEN("surface dependencies, metadata, data, and sharing round-trip")
       {
-        REQUIRE(imported->name() == "root_surface");
-        REQUIRE(imported->getMetadataValue("priority").getAs<int>() == 9);
+        REQUIRE(loaded->name() == "root_surface");
+        REQUIRE(loaded->getMetadataValue("priority").getAs<int>() == 9);
 
-        auto *importedGeometry = imported->geometry();
-        auto *importedMaterial = imported->material();
-        REQUIRE(importedGeometry);
-        REQUIRE(importedMaterial);
-        REQUIRE(importedGeometry->name() == "mesh_geometry");
-        REQUIRE(importedMaterial->name() == "sampled_material");
+        auto *loadedGeometry = loaded->geometry();
+        auto *loadedMaterial = loaded->material();
+        REQUIRE(loadedGeometry);
+        REQUIRE(loadedMaterial);
+        REQUIRE(loadedGeometry->name() == "mesh_geometry");
+        REQUIRE(loadedMaterial->name() == "sampled_material");
 
-        auto geometryMetadata = imported->getMetadataValue("geometryRef");
+        auto geometryMetadata = loaded->getMetadataValue("geometryRef");
         REQUIRE(geometryMetadata.holdsObject());
-        REQUIRE(
-            geometryMetadata.getAsObjectIndex() == importedGeometry->index());
+        REQUIRE(geometryMetadata.getAsObjectIndex() == loadedGeometry->index());
 
-        auto *positionParam = importedGeometry->parameter("vertex.position");
+        auto *positionParam = loadedGeometry->parameter("vertex.position");
         REQUIRE(positionParam);
         REQUIRE(!positionParam->isEnabled());
         REQUIRE(positionParam->description() == "positions");
 
-        auto *importedPositions =
-            importedGeometry->parameterValueAsObject<tsd::scene::Array>(
+        auto *loadedPositions =
+            loadedGeometry->parameterValueAsObject<tsd::scene::Array>(
                 "vertex.position");
-        REQUIRE(importedPositions);
-        REQUIRE(importedPositions->name() == "positions");
-        REQUIRE(
-            importedPositions->getMetadataValue("stride").getAs<int>() == 12);
-        REQUIRE(importedPositions->size() == 6);
-        const auto *positionData = importedPositions->dataAs<float>();
+        REQUIRE(loadedPositions);
+        REQUIRE(loadedPositions->name() == "positions");
+        REQUIRE(loadedPositions->getMetadataValue("stride").getAs<int>() == 12);
+        REQUIRE(loadedPositions->size() == 6);
+        const auto *positionData = loadedPositions->dataAs<float>();
         REQUIRE(positionData[0] == 1.f);
         REQUIRE(positionData[5] == 6.f);
 
-        auto *importedSampler =
-            importedMaterial->parameterValueAsObject<tsd::scene::Sampler>(
+        auto *loadedSampler =
+            loadedMaterial->parameterValueAsObject<tsd::scene::Sampler>(
                 "color");
-        REQUIRE(importedSampler);
-        auto *importedTexture =
-            importedSampler->parameterValueAsObject<tsd::scene::Array>("image");
-        REQUIRE(importedTexture);
-        REQUIRE(importedTexture->name() == "texture");
-        REQUIRE(importedTexture->dataAs<float>()[2] == 0.75f);
+        REQUIRE(loadedSampler);
+        auto *loadedTexture =
+            loadedSampler->parameterValueAsObject<tsd::scene::Array>("image");
+        REQUIRE(loadedTexture);
+        REQUIRE(loadedTexture->name() == "texture");
+        REQUIRE(loadedTexture->dataAs<float>()[2] == 0.75f);
 
-        auto samplerMetadata = importedMaterial->getMetadataValue("samplerRef");
+        auto samplerMetadata = loadedMaterial->getMetadataValue("samplerRef");
         REQUIRE(samplerMetadata.holdsObject());
-        REQUIRE(samplerMetadata.getAsObjectIndex() == importedSampler->index());
+        REQUIRE(samplerMetadata.getAsObjectIndex() == loadedSampler->index());
       }
     }
 
@@ -477,59 +514,60 @@ SCENARIO("tsd::io volume object serialization", "[ArchiveCompatibility]")
     const auto filename = testFile("tsd_volume_object_roundtrip.tsd");
     removeTestFile(filename);
 
-    WHEN("the volume is exported and imported into a non-empty scene")
+    WHEN("the Volume Object Archive is saved and loaded")
     {
-      REQUIRE(tsd::io::export_Object(filename.c_str(), *volume));
+      REQUIRE(tsd::io::save_ObjectArchive(*volume, filename.c_str()));
 
-      tsd::core::DataTree exportedTree;
-      REQUIRE(exportedTree.load(filename.c_str()));
-      REQUIRE(tsd::io::validate_VolumePayload(exportedTree.root()).accepted());
+      tsd::core::DataTree savedTree;
+      REQUIRE(savedTree.load(filename.c_str()));
+      REQUIRE(tsd::io::validate_ObjectArchive(savedTree.root()).accepted());
 
       tsd::scene::Scene target;
       target.createObject<tsd::scene::SpatialField>(
           tsd::scene::tokens::spatial_field::structuredRegular);
 
-      auto imported = tsd::io::import_Volume(target, filename.c_str());
+      auto *loaded = dynamic_cast<tsd::scene::Volume *>(
+          tsd::io::load_ObjectArchive(target, filename.c_str()));
 
-      THEN("the imported volume preserves field, arrays, metadata, and refs")
+      THEN("the loaded volume preserves field, arrays, metadata, and refs")
       {
-        REQUIRE(imported);
-        REQUIRE(imported->name() == "root_volume");
+        REQUIRE(loaded);
+        REQUIRE(loaded->name() == "root_volume");
         REQUIRE(target.numberOfObjects(ANARI_VOLUME) == 1);
         REQUIRE(target.numberOfObjects(ANARI_SPATIAL_FIELD) == 2);
         REQUIRE(target.numberOfObjects(ANARI_ARRAY) == 3);
 
-        auto *importedField =
-            imported->parameterValueAsObject<tsd::scene::SpatialField>("value");
-        REQUIRE(importedField);
-        REQUIRE(importedField->name() == "density_field");
+        auto *loadedField =
+            loaded->parameterValueAsObject<tsd::scene::SpatialField>("value");
+        REQUIRE(loadedField);
+        REQUIRE(loadedField->name() == "density_field");
 
-        auto fieldRef = imported->getMetadataValue("fieldRef");
+        auto fieldRef = loaded->getMetadataValue("fieldRef");
         REQUIRE(fieldRef.holdsObject());
-        REQUIRE(fieldRef.getAsObjectIndex() == importedField->index());
+        REQUIRE(fieldRef.getAsObjectIndex() == loadedField->index());
 
-        auto *importedData =
-            importedField->parameterValueAsObject<tsd::scene::Array>("data");
-        REQUIRE(importedData);
-        REQUIRE(importedData->dataAs<float>()[3] == 3.f);
+        auto *loadedData =
+            loadedField->parameterValueAsObject<tsd::scene::Array>("data");
+        REQUIRE(loadedData);
+        REQUIRE(loadedData->dataAs<float>()[3] == 3.f);
 
-        auto sourceData = importedField->getMetadataValue("sourceData");
+        auto sourceData = loadedField->getMetadataValue("sourceData");
         REQUIRE(sourceData.holdsObject());
-        REQUIRE(sourceData.getAsObjectIndex() == importedData->index());
+        REQUIRE(sourceData.getAsObjectIndex() == loadedData->index());
 
-        auto *importedSampler =
-            imported->parameterValueAsObject<tsd::scene::Sampler>("color");
-        REQUIRE(importedSampler);
-        auto *importedColors =
-            importedSampler->parameterValueAsObject<tsd::scene::Array>("image");
-        REQUIRE(importedColors);
-        REQUIRE(importedColors->name() == "tf_colors");
-        REQUIRE(importedColors->dataAs<float>()[0] == 1.f);
+        auto *loadedSampler =
+            loaded->parameterValueAsObject<tsd::scene::Sampler>("color");
+        REQUIRE(loadedSampler);
+        auto *loadedColors =
+            loadedSampler->parameterValueAsObject<tsd::scene::Array>("image");
+        REQUIRE(loadedColors);
+        REQUIRE(loadedColors->name() == "tf_colors");
+        REQUIRE(loadedColors->dataAs<float>()[0] == 1.f);
 
-        auto *importedOpacity =
-            imported->parameterValueAsObject<tsd::scene::Array>("opacity");
-        REQUIRE(importedOpacity);
-        REQUIRE(importedOpacity->name() == "tf_opacity");
+        auto *loadedOpacity =
+            loaded->parameterValueAsObject<tsd::scene::Array>("opacity");
+        REQUIRE(loadedOpacity);
+        REQUIRE(loadedOpacity->name() == "tf_opacity");
       }
     }
 
@@ -543,22 +581,22 @@ SCENARIO("tsd::io object payload validation failures", "[ArchiveCompatibility]")
   {
     tsd::scene::Scene scene;
     tsd::core::DataTree tree;
-    tsd::io::save_Scene(scene, tree.root(), false);
+    REQUIRE(tsd::io::serialize_SceneArchive(scene, tree.root()));
     const auto filename =
-        testFile("tsd_full_scene_rejected_by_object_import.tsd");
+        testFile("tsd_full_scene_rejected_by_object_archive.tsd");
     removeTestFile(filename);
     REQUIRE(tree.save(filename.c_str()));
 
-    THEN("object import validators reject it")
+    THEN("Object Archive validation rejects it")
     {
-      auto result = tsd::io::validate_ObjectPayload(tree.root());
+      auto result = tsd::io::validate_ObjectArchive(tree.root());
       REQUIRE(!result.accepted());
       REQUIRE(result.status
-          == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+          == tsd::io::ArchiveValidationStatus::IncompatibleSchema);
 
       tsd::scene::Scene target;
       const auto before = target.numberOfObjects(ANARI_MATERIAL);
-      REQUIRE(tsd::io::import_Object(target, filename.c_str()) == nullptr);
+      REQUIRE(tsd::io::load_ObjectArchive(target, filename.c_str()) == nullptr);
       REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == before);
     }
 
@@ -576,7 +614,7 @@ SCENARIO("tsd::io object payload validation failures", "[ArchiveCompatibility]")
 
     const auto filename = testFile("tsd_invalid_surface_object.tsd");
     removeTestFile(filename);
-    REQUIRE(tsd::io::export_Object(filename.c_str(), *surface));
+    REQUIRE(tsd::io::save_ObjectArchive(*surface, filename.c_str()));
 
     tsd::core::DataTree tree;
     REQUIRE(tree.load(filename.c_str()));
@@ -589,10 +627,10 @@ SCENARIO("tsd::io object payload validation failures", "[ArchiveCompatibility]")
 
       THEN("validation rejects the payload")
       {
-        auto result = tsd::io::validate_SurfacePayload(tree.root());
+        auto result = tsd::io::validate_ObjectArchive(tree.root());
         REQUIRE(!result.accepted());
         REQUIRE(result.status
-            == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+            == tsd::io::ArchiveValidationStatus::IncompatibleSchema);
       }
     }
 
@@ -621,15 +659,15 @@ SCENARIO("tsd::io object payload validation failures", "[ArchiveCompatibility]")
 
     THEN("validation rejects the disallowed pool")
     {
-      auto result = tsd::io::validate_SurfacePayload(root);
+      auto result = tsd::io::validate_ObjectArchive(root);
       REQUIRE(!result.accepted());
       REQUIRE(result.status
-          == tsd::io::PayloadValidationStatus::IncompatibleSchema);
+          == tsd::io::ArchiveValidationStatus::IncompatibleSchema);
     }
   }
 }
 
-SCENARIO("tsd::io object export failures", "[ArchiveCompatibility]")
+SCENARIO("tsd::io Object Archive save failures", "[ArchiveCompatibility]")
 {
   GIVEN("An unsupported root object type")
   {
@@ -637,10 +675,10 @@ SCENARIO("tsd::io object export failures", "[ArchiveCompatibility]")
     auto geometry = scene.createObject<tsd::scene::Geometry>(
         tsd::scene::tokens::geometry::sphere);
 
-    THEN("export fails")
+    THEN("saving fails")
     {
-      REQUIRE_FALSE(tsd::io::export_Object(
-          testFile("tsd_unsupported_object.tsd").c_str(), *geometry));
+      REQUIRE_FALSE(tsd::io::save_ObjectArchive(
+          *geometry, testFile("tsd_unsupported_object.tsd").c_str()));
     }
   }
 
@@ -655,10 +693,10 @@ SCENARIO("tsd::io object export failures", "[ArchiveCompatibility]")
         tsd::scene::tokens::material::matte);
     auto surface = scene.createSurface("surface", geometry, material);
 
-    THEN("export fails because object files must be self-contained")
+    THEN("saving fails because Object Archives must be self-contained")
     {
-      REQUIRE_FALSE(tsd::io::export_Object(
-          testFile("tsd_proxy_array_object.tsd").c_str(), *surface));
+      REQUIRE_FALSE(tsd::io::save_ObjectArchive(
+          *surface, testFile("tsd_proxy_array_object.tsd").c_str()));
     }
   }
 
@@ -673,10 +711,10 @@ SCENARIO("tsd::io object export failures", "[ArchiveCompatibility]")
         tsd::scene::tokens::material::matte);
     auto surface = scene.createSurface("surface", geometry, material);
 
-    THEN("export fails because object-valued array data cannot be remapped")
+    THEN("saving fails because object-valued array data cannot be remapped")
     {
-      REQUIRE_FALSE(tsd::io::export_Object(
-          testFile("tsd_object_typed_array_object.tsd").c_str(), *surface));
+      REQUIRE_FALSE(tsd::io::save_ObjectArchive(
+          *surface, testFile("tsd_object_typed_array_object.tsd").c_str()));
     }
   }
 }
@@ -734,35 +772,36 @@ SCENARIO("tsd::io layer subtree serialization", "[ArchiveCompatibility]")
     const auto filename = testFile("tsd_layer_subtree_roundtrip.tsd");
     removeTestFile(filename);
 
-    WHEN("the subtree is exported")
+    WHEN("the subtree Archive is saved")
     {
-      REQUIRE(tsd::io::export_LayerSubtree(filename.c_str(), transformNode));
+      REQUIRE(
+          tsd::io::save_LayerSubtreeArchive(transformNode, filename.c_str()));
 
-      tsd::core::DataTree exportedTree;
-      REQUIRE(exportedTree.load(filename.c_str()));
+      tsd::core::DataTree savedTree;
+      REQUIRE(savedTree.load(filename.c_str()));
 
       THEN(
           "the payload is tagged as a layer subtree with an objectDB and subtree")
       {
-        auto metadata = tsd::core::readDataTreeMetadata(exportedTree.root());
+        auto metadata = tsd::core::readDataTreeMetadata(savedTree.root());
         REQUIRE(
             metadata.status == tsd::core::DataTreeMetadataReadStatus::Found);
         REQUIRE(metadata.metadata);
         REQUIRE(metadata.metadata->fileType == "layer-subtree");
         REQUIRE(metadata.metadata->schema
             == std::string(tsd::io::schema::LAYER_SUBTREE));
-        REQUIRE(exportedTree.root().child("objectDB"));
-        REQUIRE(exportedTree.root().child("subtree"));
+        REQUIRE(savedTree.root().child("objectDB"));
+        REQUIRE(savedTree.root().child("subtree"));
 
-        auto result =
-            tsd::io::validate_LayerSubtreePayload(exportedTree.root());
+        auto result = tsd::io::validate_LayerSubtreeArchive(savedTree.root());
         REQUIRE(result.accepted());
       }
     }
 
-    WHEN("the subtree is imported under a destination node in another scene")
+    WHEN("the subtree Archive is loaded under a destination node")
     {
-      REQUIRE(tsd::io::export_LayerSubtree(filename.c_str(), transformNode));
+      REQUIRE(
+          tsd::io::save_LayerSubtreeArchive(transformNode, filename.c_str()));
 
       tsd::scene::Scene target;
       target.createObject<tsd::scene::Geometry>(
@@ -773,7 +812,7 @@ SCENARIO("tsd::io layer subtree serialization", "[ArchiveCompatibility]")
           targetLayer->root(), tsd::math::IDENTITY_MAT4, "mount");
 
       auto splicedRoot =
-          tsd::io::import_LayerSubtree(target, filename.c_str(), destination);
+          tsd::io::load_LayerSubtreeArchive(destination, filename.c_str());
 
       THEN(
           "objects are appended and the subtree is grafted under the destination")
@@ -830,28 +869,10 @@ SCENARIO("tsd::io layer subtree serialization", "[ArchiveCompatibility]")
       }
     }
 
-    WHEN("the subtree is imported with no destination node")
+    WHEN("the subtree Archive is loaded into a fragmented scene")
     {
-      REQUIRE(tsd::io::export_LayerSubtree(filename.c_str(), transformNode));
-
-      tsd::scene::Scene target;
-      auto *targetLayer = target.defaultLayer();
-      const size_t nodesBefore = targetLayer->size();
-
-      auto splicedRoot = tsd::io::import_LayerSubtree(target, filename.c_str());
-
-      THEN("objects are appended but no subtree is grafted")
-      {
-        REQUIRE_FALSE(splicedRoot);
-        REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
-        REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 1);
-        REQUIRE(targetLayer->size() == nodesBefore);
-      }
-    }
-
-    WHEN("the subtree is imported into a fragmented (non-defragmented) scene")
-    {
-      REQUIRE(tsd::io::export_LayerSubtree(filename.c_str(), transformNode));
+      REQUIRE(
+          tsd::io::save_LayerSubtreeArchive(transformNode, filename.c_str()));
 
       tsd::scene::Scene target;
 
@@ -871,9 +892,9 @@ SCENARIO("tsd::io layer subtree serialization", "[ArchiveCompatibility]")
           targetLayer->root(), tsd::math::IDENTITY_MAT4, "mount");
 
       auto splicedRoot =
-          tsd::io::import_LayerSubtree(target, filename.c_str(), destination);
+          tsd::io::load_LayerSubtreeArchive(destination, filename.c_str());
 
-      THEN("the import succeeds and grafts the subtree")
+      THEN("the load succeeds and grafts the subtree")
       {
         REQUIRE(splicedRoot);
         REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
@@ -884,7 +905,8 @@ SCENARIO("tsd::io layer subtree serialization", "[ArchiveCompatibility]")
   }
 }
 
-SCENARIO("tsd::io layer subtree animations round trip", "[ArchiveCompatibility]")
+SCENARIO(
+    "tsd::io layer subtree animations round trip", "[ArchiveCompatibility]")
 {
   tsd::scene::Scene source;
   tsd::animation::AnimationManager sourceAnimations(&source);
@@ -919,18 +941,18 @@ SCENARIO("tsd::io layer subtree animations round trip", "[ArchiveCompatibility]"
 
   const auto filename = testFile("tsd_layer_subtree_animation.tsd");
   removeTestFile(filename);
-  tsd::io::SubtreeIOOptions exportOptions;
-  exportOptions.animationManager = &sourceAnimations;
-  REQUIRE(tsd::io::export_Subtree(filename.c_str(),
+  tsd::io::SubtreeArchiveContentOptions saveOptions;
+  saveOptions.animationManager = &sourceAnimations;
+  REQUIRE(saveSubtreeArchiveContent(filename.c_str(),
       group,
       {"layer-subtree",
           tsd::io::schema::LAYER_SUBTREE,
           tsd::io::ArchiveObjectPolicy::All},
       {},
-      exportOptions));
-  tsd::core::DataTree exported;
-  REQUIRE(exported.load(filename.c_str()));
-  auto *serializedAnimation = exported.root()["animations"].child(0);
+      saveOptions));
+  tsd::core::DataTree saved;
+  REQUIRE(saved.load(filename.c_str()));
+  auto *serializedAnimation = saved.root()["animations"].child(0);
   REQUIRE(serializedAnimation);
   auto *serializedMaterialBinding =
       (*serializedAnimation)["objectBindings"].child(1);
@@ -948,11 +970,13 @@ SCENARIO("tsd::io layer subtree animations round trip", "[ArchiveCompatibility]"
       static_cast<const size_t *>(serializedMaterialData);
   REQUIRE(serializedMaterialType == ANARI_MATERIAL);
   REQUIRE(serializedMaterialCount == 2);
-  REQUIRE(exported.root()["objectDB"]["material"].numChildren() == 2);
-  auto exportedValidation =
-      tsd::io::validate_LayerSubtreePayload(exported.root());
-  INFO(exportedValidation.message);
-  REQUIRE(exportedValidation.accepted());
+  REQUIRE(saved.root()["objectDB"]["material"].numChildren() == 2);
+  auto savedValidation = tsd::io::validate_SubtreeArchiveContent(saved.root(),
+      {"layer-subtree",
+          tsd::io::schema::LAYER_SUBTREE,
+          tsd::io::ArchiveObjectPolicy::All});
+  INFO(savedValidation.message);
+  REQUIRE(savedValidation.accepted());
 
   tsd::scene::Scene target;
   tsd::animation::AnimationManager targetAnimations(&target);
@@ -960,30 +984,30 @@ SCENARIO("tsd::io layer subtree animations round trip", "[ArchiveCompatibility]"
       tsd::scene::tokens::geometry::cylinder);
   auto destination =
       target.insertChildNode(target.defaultLayer()->root(), "destination");
-  tsd::io::SubtreeIOOptions importOptions;
-  importOptions.animationManager = &targetAnimations;
-  auto imported = tsd::io::import_Subtree(target,
+  tsd::io::SubtreeArchiveContentOptions loadOptions;
+  loadOptions.animationManager = &targetAnimations;
+  auto loadedArchive = loadSubtreeArchiveContent(target,
       filename.c_str(),
       destination,
       {"layer-subtree",
           tsd::io::schema::LAYER_SUBTREE,
           tsd::io::ArchiveObjectPolicy::All},
       nullptr,
-      importOptions);
+      loadOptions);
 
-  REQUIRE(imported);
+  REQUIRE(loadedArchive.root);
   REQUIRE(targetAnimations.animations().size() == 1);
-  auto &loaded = targetAnimations.animations().front();
-  REQUIRE(loaded.name() == "dataset_animation");
-  REQUIRE(loaded.objectParameterBindings().size() == 2);
-  REQUIRE(loaded.objectParameterBindings().front().target());
-  REQUIRE(loaded.objectParameterBindings().front().target()->name()
+  auto &loadedAnimation = targetAnimations.animations().front();
+  REQUIRE(loadedAnimation.name() == "dataset_animation");
+  REQUIRE(loadedAnimation.objectParameterBindings().size() == 2);
+  REQUIRE(loadedAnimation.objectParameterBindings().front().target());
+  REQUIRE(loadedAnimation.objectParameterBindings().front().target()->name()
       == "animated_geometry");
-  REQUIRE(loaded.transformBindings().size() == 1);
-  REQUIRE(loaded.transformBindings().front().target());
-  REQUIRE((*loaded.transformBindings().front().target())->name()
+  REQUIRE(loadedAnimation.transformBindings().size() == 1);
+  REQUIRE(loadedAnimation.transformBindings().front().target());
+  REQUIRE((*loadedAnimation.transformBindings().front().target())->name()
       == "animated_group");
-  const auto &materialBinding = loaded.objectParameterBindings()[1];
+  const auto &materialBinding = loadedAnimation.objectParameterBindings()[1];
   REQUIRE(materialBinding.data().size() == 2);
   const auto *materialIndices =
       static_cast<const size_t *>(materialBinding.data().data());
@@ -1029,8 +1053,8 @@ SCENARIO("tsd::io plans subtree archive ownership", "[ArchiveCompatibility]")
   REQUIRE_FALSE(result.plan.containsObject(nullptr));
 }
 
-SCENARIO(
-    "tsd::io archive plans reject mixed animation ownership", "[ArchiveCompatibility]")
+SCENARIO("tsd::io archive plans reject mixed animation ownership",
+    "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1051,8 +1075,8 @@ SCENARIO(
   REQUIRE_FALSE(result.message.empty());
 }
 
-SCENARIO(
-    "tsd::io archive plans reject invalid animation targets", "[ArchiveCompatibility]")
+SCENARIO("tsd::io archive plans reject invalid animation targets",
+    "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1067,8 +1091,8 @@ SCENARIO(
   REQUIRE(result.status == tsd::io::ArchivePlanStatus::InvalidAnimationTarget);
 }
 
-SCENARIO(
-    "tsd::io archive plans reject unsupported file bindings", "[ArchiveCompatibility]")
+SCENARIO("tsd::io archive plans reject unsupported file bindings",
+    "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1098,13 +1122,14 @@ SCENARIO("tsd::io scene exclusion rejects mixed animation ownership",
   mixed.addTransformBinding(first);
   mixed.addTransformBinding(second);
 
-  tsd::io::SaveSceneOptions options;
+  tsd::io::detail::LegacySceneSerializationOptions options;
   options.animationManager = &animations;
   options.exclusion.roots.push_back(first);
   options.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
-  options.exclusion.animations = tsd::io::ExcludedAnimationPolicy::OmitOwned;
+  options.exclusion.animations =
+      tsd::io::detail::LegacyExcludedAnimationPolicy::OmitOwned;
   tsd::core::DataTree tree;
-  tsd::io::save_Scene(scene, tree.root(), options);
+  tsd::io::detail::serializeLegacyScenePayload(scene, tree.root(), options);
 
   bool sawFirst = false;
   bool sawSecond = false;
@@ -1121,7 +1146,7 @@ SCENARIO("tsd::io scene exclusion rejects mixed animation ownership",
   REQUIRE(tree.root()["animations"]["objects"].numChildren() == 1);
 }
 
-SCENARIO("tsd::io subtree imports expose exact rollback ownership",
+SCENARIO("subtree Archive deserialization exposes exact rollback ownership",
     "[ArchiveCompatibility]")
 {
   tsd::scene::Scene source;
@@ -1138,37 +1163,37 @@ SCENARIO("tsd::io subtree imports expose exact rollback ownership",
   sourceAnimations.addAnimation("radius").addObjectParameterBinding(
       geometry.data(), "radius", ANARI_FLOAT32, values, times, 1);
 
-  const auto filename = testFile("tsd_subtree_import_ownership.tsd");
-  tsd::io::SubtreeIOOptions exportOptions;
-  exportOptions.animationManager = &sourceAnimations;
-  REQUIRE(tsd::io::export_Subtree(filename.c_str(),
+  const auto filename = testFile("tsd_subtree_archive_ownership.tsd");
+  tsd::io::SubtreeArchiveContentOptions saveOptions;
+  saveOptions.animationManager = &sourceAnimations;
+  REQUIRE(saveSubtreeArchiveContent(filename.c_str(),
       root,
       {"layer-subtree",
           tsd::io::schema::LAYER_SUBTREE,
           tsd::io::ArchiveObjectPolicy::All},
       {},
-      exportOptions));
+      saveOptions));
 
   tsd::scene::Scene target;
   tsd::animation::AnimationManager targetAnimations(&target);
-  tsd::io::SubtreeIOOptions importOptions;
-  importOptions.animationManager = &targetAnimations;
-  auto imported = tsd::io::import_SubtreeWithOwnership(target,
+  tsd::io::SubtreeArchiveContentOptions loadOptions;
+  loadOptions.animationManager = &targetAnimations;
+  auto loaded = loadSubtreeArchiveContent(target,
       filename.c_str(),
       target.defaultLayer()->root(),
       {"layer-subtree",
           tsd::io::schema::LAYER_SUBTREE,
           tsd::io::ArchiveObjectPolicy::All},
       nullptr,
-      importOptions);
+      loadOptions);
 
-  REQUIRE(imported.valid());
-  REQUIRE(imported.root);
-  REQUIRE(imported.createdObjects.size() == 3);
-  REQUIRE(imported.createdAnimations == std::vector<size_t>{0});
+  REQUIRE(loaded.valid());
+  REQUIRE(loaded.root);
+  REQUIRE(loaded.createdObjects.size() == 3);
+  REQUIRE(loaded.createdAnimations == std::vector<size_t>{0});
 
-  tsd::io::rollback_SubtreeImport(target, targetAnimations, imported);
-  REQUIRE_FALSE(imported.valid());
+  tsd::io::rollback_SubtreeArchiveContent(target, targetAnimations, loaded);
+  REQUIRE_FALSE(loaded.valid());
   REQUIRE(targetAnimations.animations().empty());
   REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 0);
   REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == 1); // Scene default
@@ -1177,8 +1202,8 @@ SCENARIO("tsd::io subtree imports expose exact rollback ownership",
   removeTestFile(filename);
 }
 
-SCENARIO(
-    "tsd::io rejects animations spanning layer subtrees", "[ArchiveCompatibility]")
+SCENARIO("tsd::io rejects animations spanning layer subtrees",
+    "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1190,12 +1215,12 @@ SCENARIO(
   animation.addTransformBinding(first);
   animation.addTransformBinding(second);
 
-  tsd::io::SubtreeIOOptions options;
+  tsd::io::SubtreeArchiveContentOptions options;
   options.animationManager = &animations;
   const auto filename = testFile("tsd_cross_subtree_animation.tsd");
   removeTestFile(filename);
 
-  REQUIRE_FALSE(tsd::io::export_Subtree(filename.c_str(),
+  REQUIRE_FALSE(saveSubtreeArchiveContent(filename.c_str(),
       first,
       {"layer-subtree",
           tsd::io::schema::LAYER_SUBTREE,
@@ -1205,7 +1230,8 @@ SCENARIO(
   REQUIRE_FALSE(std::filesystem::exists(filename));
 }
 
-SCENARIO("tsd::io validates layer subtree animation targets", "[ArchiveCompatibility]")
+SCENARIO("tsd::io validates layer subtree animation targets",
+    "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1222,9 +1248,9 @@ SCENARIO("tsd::io validates layer subtree animation targets", "[ArchiveCompatibi
       geometry.data(), "radius", ANARI_FLOAT32, values, times, 1);
 
   const auto filename = testFile("tsd_invalid_subtree_animation.tsd");
-  tsd::io::SubtreeIOOptions options;
+  tsd::io::SubtreeArchiveContentOptions options;
   options.animationManager = &animations;
-  REQUIRE(tsd::io::export_Subtree(filename.c_str(),
+  REQUIRE(saveSubtreeArchiveContent(filename.c_str(),
       root,
       {"layer-subtree",
           tsd::io::schema::LAYER_SUBTREE,
@@ -1239,14 +1265,18 @@ SCENARIO("tsd::io validates layer subtree animation targets", "[ArchiveCompatibi
   auto *binding = (*animation)["objectBindings"].child(0);
   REQUIRE(binding);
   (*binding)["targetIndex"] = size_t(999);
-  auto validation = tsd::io::validate_LayerSubtreePayload(tree.root());
+  auto validation = tsd::io::validate_SubtreeArchiveContent(tree.root(),
+      {"layer-subtree",
+          tsd::io::schema::LAYER_SUBTREE,
+          tsd::io::ArchiveObjectPolicy::All});
   REQUIRE_FALSE(validation.accepted());
   REQUIRE_FALSE(validation.message.empty());
 
   removeTestFile(filename);
 }
 
-SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[ArchiveCompatibility]")
+SCENARIO("legacy project payloads exclude light-rig subtrees",
+    "[ArchiveCompatibility]")
 {
   GIVEN("A scene with a retained surface and an excluded light-rig subtree")
   {
@@ -1273,11 +1303,12 @@ SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[ArchiveCompatibilit
 
     WHEN("the scene is saved with the rig subtree excluded and reloaded")
     {
-      tsd::io::SaveSceneOptions options;
+      tsd::io::detail::LegacySceneSerializationOptions options;
       options.exclusion.roots.push_back(rigRoot);
 
       tsd::core::DataTree tree;
-      tsd::io::save_Scene(source, tree.root(), options);
+      tsd::io::detail::serializeLegacyScenePayload(
+          source, tree.root(), options);
 
       THEN("the manifest omits the light pool and the rig subtree node")
       {
@@ -1302,7 +1333,7 @@ SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[ArchiveCompatibilit
       THEN("the retained surface and its array survive the round trip")
       {
         tsd::scene::Scene target;
-        tsd::io::load_Scene(target, tree.root());
+        tsd::io::detail::tryDeserializeLegacyScenePayload(target, tree.root());
 
         REQUIRE(target.numberOfObjects(ANARI_LIGHT) == 0);
         REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
@@ -1350,14 +1381,15 @@ SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[ArchiveCompatibilit
 
     WHEN("the scene is saved with the rig excluded and reloaded")
     {
-      tsd::io::SaveSceneOptions options;
+      tsd::io::detail::LegacySceneSerializationOptions options;
       options.exclusion.roots.push_back(rigRoot);
 
       tsd::core::DataTree tree;
-      tsd::io::save_Scene(source, tree.root(), options);
+      tsd::io::detail::serializeLegacyScenePayload(
+          source, tree.root(), options);
 
       tsd::scene::Scene target;
-      tsd::io::load_Scene(target, tree.root());
+      tsd::io::detail::tryDeserializeLegacyScenePayload(target, tree.root());
 
       THEN("the light-only array is dropped but the shared array is kept")
       {
@@ -1379,7 +1411,7 @@ SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[ArchiveCompatibilit
   }
 }
 
-SCENARIO("tsd::io save_Scene remaps animation bindings across exclusion",
+SCENARIO("legacy project payloads remap animations across exclusion",
     "[ArchiveCompatibility]")
 {
   GIVEN("Animations whose targets shift when a light rig is excluded")
@@ -1420,16 +1452,18 @@ SCENARIO("tsd::io save_Scene remaps animation bindings across exclusion",
 
     WHEN("the scene is saved with the rig excluded and reloaded")
     {
-      tsd::io::SaveSceneOptions options;
+      tsd::io::detail::LegacySceneSerializationOptions options;
       options.animationManager = &animMgr;
       options.exclusion.roots.push_back(rig0);
 
       tsd::core::DataTree tree;
-      tsd::io::save_Scene(source, tree.root(), options);
+      tsd::io::detail::serializeLegacyScenePayload(
+          source, tree.root(), options);
 
       tsd::scene::Scene target;
       tsd::animation::AnimationManager targetMgr(&target);
-      tsd::io::load_Scene(target, tree.root(), &targetMgr);
+      tsd::io::detail::tryDeserializeLegacyScenePayload(
+          target, tree.root(), nullptr, &targetMgr);
 
       THEN("binding targets resolve to the correct shifted objects/nodes")
       {
@@ -1498,17 +1532,19 @@ SCENARIO("tsd::io scene exclusion preserves retained animation dependencies",
           times,
           2);
 
-  tsd::io::SaveSceneOptions options;
+  tsd::io::detail::LegacySceneSerializationOptions options;
   options.animationManager = &animations;
   options.exclusion.roots.push_back(excluded);
   options.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
-  options.exclusion.animations = tsd::io::ExcludedAnimationPolicy::OmitOwned;
+  options.exclusion.animations =
+      tsd::io::detail::LegacyExcludedAnimationPolicy::OmitOwned;
   tsd::core::DataTree tree;
-  tsd::io::save_Scene(source, tree.root(), options);
+  tsd::io::detail::serializeLegacyScenePayload(source, tree.root(), options);
 
   tsd::scene::Scene target;
   tsd::animation::AnimationManager targetAnimations(&target);
-  tsd::io::load_Scene(target, tree.root(), &targetAnimations);
+  tsd::io::detail::tryDeserializeLegacyScenePayload(
+      target, tree.root(), nullptr, &targetAnimations);
 
   REQUIRE(target.numberOfObjects(ANARI_SURFACE) == 1);
   REQUIRE(target.numberOfObjects(ANARI_MATERIAL) == 3);

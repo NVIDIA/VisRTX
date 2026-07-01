@@ -91,9 +91,9 @@ LayerNodeRef spliceSubtree(Scene &scene,
   return node;
 }
 
-void rollbackImportedState(Scene &scene,
+void rollbackDeserializedState(Scene &scene,
     animation::AnimationManager *animationManager,
-    SubtreeImportResult &result)
+    SubtreeArchiveResult &result)
 {
   if (animationManager) {
     for (auto it = result.createdAnimations.rbegin();
@@ -107,84 +107,62 @@ void rollbackImportedState(Scene &scene,
   result = {};
 }
 
-struct ImportRollbackGuard
+struct DeserializationRollbackGuard
 {
-  ImportRollbackGuard(Scene &scene,
+  DeserializationRollbackGuard(Scene &scene,
       animation::AnimationManager &animationManager,
-      SubtreeImportResult &result);
-  ~ImportRollbackGuard();
+      SubtreeArchiveResult &result);
+  ~DeserializationRollbackGuard();
 
-  TSD_NOT_COPYABLE(ImportRollbackGuard)
+  TSD_NOT_COPYABLE(DeserializationRollbackGuard)
 
   void release();
 
  private:
   Scene &m_scene;
   animation::AnimationManager &m_animationManager;
-  SubtreeImportResult &m_result;
+  SubtreeArchiveResult &m_result;
   bool m_active{true};
 };
 
-ImportRollbackGuard::ImportRollbackGuard(Scene &scene,
+DeserializationRollbackGuard::DeserializationRollbackGuard(Scene &scene,
     animation::AnimationManager &animationManager,
-    SubtreeImportResult &result)
+    SubtreeArchiveResult &result)
     : m_scene(scene), m_animationManager(animationManager), m_result(result)
 {}
 
-ImportRollbackGuard::~ImportRollbackGuard()
+DeserializationRollbackGuard::~DeserializationRollbackGuard()
 {
   if (m_active)
-    rollbackImportedState(m_scene, &m_animationManager, m_result);
+    rollbackDeserializedState(m_scene, &m_animationManager, m_result);
 }
 
-void ImportRollbackGuard::release()
+void DeserializationRollbackGuard::release()
 {
   m_active = false;
 }
 
 } // namespace
 
-bool SubtreeImportResult::valid() const
+bool SubtreeArchiveResult::valid() const
 {
   return m_succeeded;
 }
 
-SubtreeImportResult import_SubtreeWithOwnership(Scene &scene,
-    const char *filename,
-    LayerNodeRef destinationParent,
-    const SubtreeIODesc &desc,
-    std::string *displayNameOut,
-    const SubtreeIOOptions &options)
-{
-  SubtreeImportResult imported;
-  if (!filename) {
-    tsd::core::logError("[import_Subtree] filename is null");
-    return imported;
-  }
-
-  core::DataTree tree;
-  if (!tree.load(filename)) {
-    tsd::core::logError("[import_Subtree] failed to load file '%s'", filename);
-    return imported;
-  }
-
-  return deserialize_SubtreeArchiveContent(
-      scene, tree.root(), destinationParent, desc, displayNameOut, options);
-}
-
-SubtreeImportResult deserialize_SubtreeArchiveContent(Scene &scene,
+SubtreeArchiveResult deserialize_SubtreeArchiveContent(Scene &scene,
     core::DataNode &root,
     LayerNodeRef destinationParent,
     const SubtreeArchiveContentDesc &desc,
     std::string *displayNameOut,
     const SubtreeArchiveContentOptions &options)
 {
-  SubtreeImportResult imported;
-  auto validation = validate_SubtreePayload(root, desc);
+  SubtreeArchiveResult deserialized;
+  auto validation = validate_SubtreeArchiveContent(root, desc);
   if (!validation.accepted()) {
-    tsd::core::logError("[import_Subtree] payload validation failed: %s",
+    tsd::core::logError(
+        "[deserialize_SubtreeArchiveContent] Archive validation failed: %s",
         validation.message.c_str());
-    return imported;
+    return deserialized;
   }
 
   if (displayNameOut)
@@ -192,8 +170,9 @@ SubtreeImportResult deserialize_SubtreeArchiveContent(Scene &scene,
 
   std::vector<FileObjectEntry> fileEntries;
   if (!collectFileObjects(root["objectDB"], fileEntries, validation)) {
-    tsd::core::logError("[import_Subtree] %s", validation.message.c_str());
-    return imported;
+    tsd::core::logError(
+        "[deserialize_SubtreeArchiveContent] %s", validation.message.c_str());
+    return deserialized;
   }
 
   std::vector<TargetObjectEntry> objectTargets;
@@ -201,50 +180,54 @@ SubtreeImportResult deserialize_SubtreeArchiveContent(Scene &scene,
   if (!instantiateObjectDB(scene,
           fileEntries,
           objectTargets,
-          imported.createdObjects,
+          deserialized.createdObjects,
           errorMessage)) {
-    imported.createdObjects.clear();
-    tsd::core::logError("[import_Subtree] %s", errorMessage.c_str());
-    return imported;
+    deserialized.createdObjects.clear();
+    tsd::core::logError(
+        "[deserialize_SubtreeArchiveContent] %s", errorMessage.c_str());
+    return deserialized;
   }
 
-  // Objects-only imports intentionally have no layer root.
+  // Objects-only deserialization intentionally has no layer root.
   if (!destinationParent) {
-    imported.m_succeeded = true;
-    return imported;
+    deserialized.m_succeeded = true;
+    return deserialized;
   }
 
   std::vector<LayerNodeRef> createdNodes;
-  imported.root = spliceSubtree(scene,
+  deserialized.root = spliceSubtree(scene,
       root["subtree"],
       destinationParent,
       objectTargets,
       createdNodes,
       errorMessage);
-  if (!imported.root) {
+  if (!deserialized.root) {
     if (!createdNodes.empty())
-      imported.root = createdNodes.front();
-    rollbackImportedState(scene, nullptr, imported);
-    tsd::core::logError("[import_Subtree] %s",
+      deserialized.root = createdNodes.front();
+    rollbackDeserializedState(scene, nullptr, deserialized);
+    tsd::core::logError("[deserialize_SubtreeArchiveContent] %s",
         errorMessage.empty() ? "failed to reconstruct subtree"
                              : errorMessage.c_str());
-    return imported;
+    return deserialized;
   }
 
   if (options.animationManager) {
     if (auto *animations = root.child("animations")) {
       if (!remapSubtreeAnimationsToTarget(
               *animations, scene, objectTargets, createdNodes, errorMessage)) {
-        rollbackImportedState(scene, options.animationManager, imported);
-        tsd::core::logError("[import_Subtree] %s", errorMessage.c_str());
-        return imported;
+        rollbackDeserializedState(
+            scene, options.animationManager, deserialized);
+        tsd::core::logError(
+            "[deserialize_SubtreeArchiveContent] %s", errorMessage.c_str());
+        return deserialized;
       }
 
-      ImportRollbackGuard guard(scene, *options.animationManager, imported);
+      DeserializationRollbackGuard guard(
+          scene, *options.animationManager, deserialized);
       animations->foreach_child([&](core::DataNode &animationNode) {
         const auto index = options.animationManager->animations().size();
         auto &animation = options.animationManager->addAnimation();
-        imported.createdAnimations.push_back(index);
+        deserialized.createdAnimations.push_back(index);
         nodeToAnimation(animationNode, animation, scene);
       });
       guard.release();
@@ -253,15 +236,15 @@ SubtreeImportResult deserialize_SubtreeArchiveContent(Scene &scene,
 
   if (auto *layer = (*destinationParent).value().layer())
     scene.signalLayerStructureChanged(layer);
-  imported.m_succeeded = true;
-  return imported;
+  deserialized.m_succeeded = true;
+  return deserialized;
 }
 
-void rollback_SubtreeImport(Scene &scene,
+void rollback_SubtreeArchiveContent(Scene &scene,
     animation::AnimationManager &animationManager,
-    SubtreeImportResult &result)
+    SubtreeArchiveResult &result)
 {
-  rollbackImportedState(scene, &animationManager, result);
+  rollbackDeserializedState(scene, &animationManager, result);
 }
 
 } // namespace tsd::io

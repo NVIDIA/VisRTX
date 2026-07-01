@@ -775,15 +775,12 @@ void LayerTree::buildUI_objectSceneMenu()
 
     ImGui::Separator();
 
-    if (ImGui::BeginMenu("import TSD")) {
-      if (ImGui::MenuItem("volume"))
-        m_app->showImportObjectFileDialog(TSDObjectFileType::Volume, menuNode);
+    if (ImGui::BeginMenu("load TSD Archive")) {
+      if (ImGui::MenuItem("object"))
+        m_app->showLoadObjectArchiveDialog(menuNode);
 
-      if (ImGui::MenuItem("surface"))
-        m_app->showImportObjectFileDialog(TSDObjectFileType::Surface, menuNode);
-
-      if (ImGui::MenuItem("subtree"))
-        m_app->showImportLayerSubtreeFileDialog(menuNode);
+      if (ImGui::MenuItem("layer subtree"))
+        m_app->showLoadLayerSubtreeArchiveDialog(menuNode);
 
       ImGui::EndMenu();
     }
@@ -797,21 +794,21 @@ void LayerTree::buildUI_objectSceneMenu()
 
     if (canExport) {
       ImGui::Separator();
-      if (ImGui::MenuItem("export TSD")) {
-        auto exportType = menuObject->type() == ANARI_VOLUME
+      if (ImGui::MenuItem("save TSD Object Archive")) {
+        auto objectType = menuObject->type() == ANARI_VOLUME
             ? TSDObjectFileType::Volume
             : TSDObjectFileType::Surface;
 
-        m_app->showExportObjectFileDialog(
-            exportType, menuObject->type(), menuObject->index());
+        m_app->showSaveObjectArchiveDialog(
+            objectType, menuObject->type(), menuObject->index());
       }
     }
 
     if (nodeSelected) {
       if (!canExport)
         ImGui::Separator();
-      if (ImGui::MenuItem("export TSD subtree"))
-        m_app->showExportLayerSubtreeFileDialog(menuNode);
+      if (ImGui::MenuItem("save TSD Layer Subtree Archive"))
+        m_app->showSaveLayerSubtreeArchiveDialog(menuNode);
     }
 
     if (nodeSelected) {

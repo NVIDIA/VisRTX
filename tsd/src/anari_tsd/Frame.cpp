@@ -5,7 +5,7 @@
 // helium
 #include <helium/helium_math.h>
 // tsd_io
-#include "tsd/io/serialization/serialization_internal.hpp"
+#include "tsd/io/archives/SceneArchive.hpp"
 // std
 #include <algorithm>
 
@@ -128,8 +128,13 @@ void Frame::renderFrame()
     m_lastCommitFlushOccured = state->commitBuffer.lastObjectFinalization();
     if (!state->usingExternalScene()) {
       const char *filename = "live_capture.tsd";
-      reportMessage(ANARI_SEVERITY_INFO, "exporting scene to '%s'", filename);
-      tsd::io::save_Scene(*state->scene, filename);
+      reportMessage(
+          ANARI_SEVERITY_INFO, "saving Scene Archive to '%s'", filename);
+      if (!tsd::io::save_SceneArchive(*state->scene, filename)) {
+        reportMessage(ANARI_SEVERITY_ERROR,
+            "failed to save Scene Archive to '%s'",
+            filename);
+      }
     }
   }
 

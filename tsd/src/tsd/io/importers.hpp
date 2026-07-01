@@ -166,7 +166,6 @@ enum class ImporterType
   XYZDP,
   VOLUME,
   VOLUME_ANIMATION, // time series of spatial field files
-  TSD,
   XF, // Special case for transfer function files
       // Not an actual scene importer, but used to set transfer function from
       // CLI
@@ -188,8 +187,7 @@ std::filesystem::path userColorMapDirectory();
 std::vector<UserColorMap> loadUserColorMaps();
 std::vector<UserColorMap> loadUserColorMaps(
     const std::filesystem::path &directory);
-tsd::core::TransferFunction importTransferFunction(
-    const std::string &filepath);
+tsd::core::TransferFunction importTransferFunction(const std::string &filepath);
 
 void import_file(Scene &scene,
     tsd::animation::AnimationManager &animMgr,

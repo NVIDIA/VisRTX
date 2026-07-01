@@ -233,8 +233,7 @@ void deserialize_Object(scene::Scene &scene, core::DataNode &node)
   }
 
   if (object->index() != index) {
-    core::logError(
-        "[deserialize_Object] object (%s) index mismatch on import: %zu | %zu",
+    core::logError("[deserialize_Object] object (%s) index mismatch: %zu | %zu",
         anari::toString(type),
         object->index(),
         index);

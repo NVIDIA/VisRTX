@@ -4,19 +4,22 @@
 // tsd_core
 #include <tsd/scene/Scene.hpp>
 // tsd_io
-#include <tsd/io/serialization/serialization_internal.hpp>
+#include <tsd/io/archives/SceneArchive.hpp>
 // std
 #include <cstdio>
 
 int main(int argc, const char *argv[])
 {
   if (argc < 2) {
-    printf("usage: tsdLoadScene [file.tsd]\n");
+    printf("usage: tsdLoadSceneArchive [file.tsd]\n");
     return 0;
   }
 
   tsd::scene::Scene scene;
-  tsd::io::load_Scene(scene, argv[1]);
+  if (!tsd::io::load_SceneArchive(scene, argv[1])) {
+    printf("failed to load Scene Archive: %s\n", argv[1]);
+    return 1;
+  }
   printf("-------------------TSD Scene Info---------------------\n\n");
   printf("%s\n", tsd::scene::objectDBInfo(scene.objectDB()).c_str());
 

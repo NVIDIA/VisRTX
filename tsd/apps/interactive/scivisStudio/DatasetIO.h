@@ -26,13 +26,13 @@ struct DatasetAssetValidationResult
 DatasetAssetValidationResult validateDatasetAsset(
     const std::filesystem::path &file);
 
-bool exportDatasetAsset(const Dataset &dataset,
+bool saveDatasetArchiveFile(const Dataset &dataset,
     tsd::scene::LayerNodeRef root,
     tsd::animation::AnimationManager &animationManager,
     const std::filesystem::path &file,
     std::string *error = nullptr);
 
-bool importDatasetAsset(tsd::scene::Scene &scene,
+bool loadDatasetArchiveFile(tsd::scene::Scene &scene,
     tsd::animation::AnimationManager &animationManager,
     const std::filesystem::path &file,
     tsd::scene::LayerNodeRef destinationParent,

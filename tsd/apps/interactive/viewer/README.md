@@ -19,12 +19,12 @@ It is used to:
 CLI parsing is split into two layers:
 
 - Viewer options are consumed by `tsd::ui::imgui::Application`.
-- Scene/import options are consumed by `tsd::app::Context`.
+- Scene Archive and import options are consumed by `tsd::app::Context`.
 
 ### Parsing Rules
 
-- If no importer flag is active, a positional filename is treated as a state
-  file (`.tsd`) to load.
+- If no Archive or importer flag is active, a positional filename is treated
+  as a state file (`.tsd`) to load.
 - If an importer flag is active, following filenames are loaded with that
   importer until another importer flag appears.
 - `-l` or `--layer` changes the target layer for subsequent imports.
@@ -39,23 +39,23 @@ CLI parsing is split into two layers:
 | `--noDefaultRenderer` | Do not auto-select a default renderer in the viewport. |
 | `--secondaryView <library>` / `-sv <library>` | Enable secondary viewport and set its ANARI library. |
 
-## Scene and Import Options
+## Scene Archive and Import Options
 
 | Option | Description |
 | --- | --- |
 | `-v`, `--verbose` | Enable verbose logging. |
 | `-e`, `--echoOutput` | Enable log echo output mode. |
+| `-tsd <file>` | Load a native TSD Scene Archive. |
 | `-l <name>`, `--layer <name>` | Set destination layer for following imports. |
 | `-camera <file>`, `--camera <file>` | Provide camera file path (if used by workflow). |
 | `-ensight_fields <f1,f2,...>` | Field selection list used with `-ensight`. |
 | `-xf <file>`, `--transferFunction <file>` | Load transfer function file for subsequent `-volume` import(s). |
 | `-blank` | Start with an empty scene (no generated default scene). |
 
-## Importer Flags
+## Foreign Importer Flags
 
 Use one of these flags before filenames to select how those files are loaded:
 
-- `-tsd`
 - `-agx`
 - `-assimp`
 - `-assimp_flat`

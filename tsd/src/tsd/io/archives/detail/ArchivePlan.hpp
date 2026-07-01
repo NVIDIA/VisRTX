@@ -5,6 +5,8 @@
 
 // tsd_core
 #include "tsd/core/ObjectPool.hpp"
+// tsd_io
+#include "tsd/io/archives/ArchivePolicies.hpp"
 // tsd_scene
 #include "tsd/scene/Scene.hpp"
 // std
@@ -16,18 +18,6 @@ struct AnimationManager;
 } // namespace tsd::animation
 
 namespace tsd::io {
-
-enum class ArchiveObjectPolicy
-{
-  All,
-  LightsOnly
-};
-
-enum class FileBindingArchivePolicy
-{
-  Include,
-  Omit
-};
 
 enum class ArchivePlanStatus
 {

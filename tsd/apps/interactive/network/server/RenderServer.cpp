@@ -6,7 +6,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/Timer.hpp"
 // tsd_io
-#include "tsd/io/serialization/serialization_internal.hpp"
+#include "tsd/io/archives/SceneArchive.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 // tsd_network
@@ -365,9 +365,13 @@ void RenderServer::setup_Messaging()
         uint32_t pos = 0;
         if (tsd::network::payloadRead(msg, pos, filename)) {
           tsd::core::logStatus(
-              "[Server] Saving state file '%s' as requested by client.",
+              "[Server] Saving Scene Archive '%s' as requested by client.",
               filename.c_str());
-          tsd::io::save_Scene(m_ctx.tsd.scene, filename.c_str());
+          if (!tsd::io::save_SceneArchive(
+                  m_ctx.tsd.scene, filename.c_str())) {
+            tsd::core::logError(
+                "[Server] Failed to save Scene Archive '%s'", filename.c_str());
+          }
         } else {
           tsd::core::logError(
               "[Server] Invalid payload for SERVER_SAVE_STATE_FILE");

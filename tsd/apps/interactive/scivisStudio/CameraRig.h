@@ -70,14 +70,14 @@ void applyManipulatorState(
 void sortKeyframes(CameraRig &rig);
 ManipulatorState sampleCameraRig(const CameraRig &rig, int frame);
 
-// Standalone camera-rig file IO. The rig's runtime-only id is intentionally not
-// written; only the portable name and value data (current pose + keyframes) are
-// stored. importCameraRigFile fills rigOut.name and value data, leaving
-// rigOut.id empty for the caller to assign.
-bool exportCameraRigFile(const CameraRig &rig,
+// Standalone Camera Rig Archive IO. The rig's runtime-only id is intentionally
+// not written; only the portable name and value data (current pose + keyframes)
+// are stored. loadCameraRigArchiveFile fills rigOut.name and value data,
+// leaving rigOut.id empty for the caller to assign.
+bool saveCameraRigArchiveFile(const CameraRig &rig,
     const std::filesystem::path &file,
     std::string *error = nullptr);
-bool importCameraRigFile(const std::filesystem::path &file,
+bool loadCameraRigArchiveFile(const std::filesystem::path &file,
     CameraRig &rigOut,
     std::string *error = nullptr);
 

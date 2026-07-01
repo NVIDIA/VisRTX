@@ -21,23 +21,22 @@ struct ObjectFileDialog : public Modal
   ObjectFileDialog(Application *app);
   ~ObjectFileDialog() override;
 
-  void showImport(
-      TSDObjectFileType fileType, tsd::scene::LayerNodeRef importRoot);
-  void showExport(TSDObjectFileType fileType,
+  void showLoadObject(tsd::scene::LayerNodeRef destination);
+  void showSaveObject(TSDObjectFileType fileType,
       anari::DataType objectType,
       size_t objectIndex);
 
   // Layer subtree files (a node and its descendants + referenced objects) //
-  void showImportLayerSubtree(tsd::scene::LayerNodeRef destinationParent);
-  void showExportLayerSubtree(tsd::scene::LayerNodeRef sourceRoot);
+  void showLoadLayerSubtree(tsd::scene::LayerNodeRef destinationParent);
+  void showSaveLayerSubtree(tsd::scene::LayerNodeRef sourceRoot);
 
   void buildUI() override;
 
  private:
   enum class Mode
   {
-    Import,
-    Export
+    Load,
+    Save
   };
 
   enum class Kind
@@ -51,20 +50,20 @@ struct ObjectFileDialog : public Modal
   const char *taskLabel() const;
   anari::DataType anariObjectType() const;
 
-  void importFile();
-  void exportFile();
-  void importLayerSubtree();
-  void exportLayerSubtree();
+  void loadObjectArchive();
+  void saveObjectArchive();
+  void loadLayerSubtreeArchive();
+  void saveLayerSubtreeArchive();
 
   std::string m_filename;
   std::string m_dialogFilename;
-  Mode m_mode{Mode::Import};
+  Mode m_mode{Mode::Load};
   Kind m_kind{Kind::Object};
   TSDObjectFileType m_fileType{TSDObjectFileType::Surface};
-  tsd::scene::LayerNodeRef m_importRoot;
+  tsd::scene::LayerNodeRef m_destination;
   tsd::scene::LayerNodeRef m_subtreeNode;
-  anari::DataType m_exportObjectType{ANARI_UNKNOWN};
-  size_t m_exportObjectIndex{tsd::core::INVALID_INDEX};
+  anari::DataType m_objectType{ANARI_UNKNOWN};
+  size_t m_objectIndex{tsd::core::INVALID_INDEX};
 };
 
 } // namespace tsd::ui::imgui

@@ -5,7 +5,7 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 // tsd_io
-#include "tsd/io/serialization/serialization_internal.hpp"
+#include "tsd/io/archives/SceneArchive.hpp"
 
 namespace tsd::network::messages {
 
@@ -17,8 +17,13 @@ TransferScene::TransferScene(tsd::scene::Scene *scene, bool includeArrayData)
     return;
   }
 
-  scene->cleanupScene(); // don't sync a scene without compacted object pools
-  tsd::io::save_Scene(*scene, m_tree.root(), !includeArrayData);
+  if (!tsd::io::serialize_SceneArchive(*scene,
+          m_tree.root(),
+          includeArrayData ? tsd::io::ArrayDataPolicy::IncludeData
+                           : tsd::io::ArrayDataPolicy::ProxyOnly)) {
+    tsd::core::logError(
+        "[message::TransferScene] Failed to serialize Scene Archive");
+  }
 }
 
 TransferScene::TransferScene(const Message &msg, tsd::scene::Scene *scene)
@@ -36,7 +41,10 @@ void TransferScene::execute()
     return;
   }
 
-  tsd::io::load_Scene(*m_scene, m_tree.root());
+  if (!tsd::io::deserialize_SceneArchive(*m_scene, m_tree.root())) {
+    tsd::core::logError(
+        "[message::TransferScene] Failed to deserialize Scene Archive");
+  }
 }
 
 } // namespace tsd::network::messages

@@ -1,7 +1,7 @@
 ## IO Library (`tsd_io`)
 
-`tsd_io` handles scene import/export, procedural scene generation, and
-serialization workflows.
+`tsd_io` handles foreign-format conversion, native TSD Archives, procedural
+scene generation, and component serialization.
 
 ### High-Level Concepts
 
@@ -12,16 +12,19 @@ serialization workflows.
   etc.) and `import_volume()` dispatch helpers.
 - Procedural generators for test and demo scenes (`generate_randomSpheres`,
   `generate_material_orb`, `generate_default_lights`, and others).
-- Native serialization between TSD scene objects and `tsd::core::DataTree`
-  nodes, exposed through `serialization.hpp`.
+- Native Scene, Object, Layer Subtree, Camera, Renderer, Animation, and
+  Animation Manager Archives, exposed through `archives.hpp`.
+- Reusable component serialization between TSD objects and
+  `tsd::core::DataTree` nodes, exposed through `serialization.hpp`.
 - Foreign export helpers for scene-to-USD and structured-volume-to-NanoVDB,
   exposed through `exporters.hpp`.
 
 ### Why Use This Library
 
-- You want a single API surface for loading many scene and volume formats.
+- You want a single API surface for importing many scene and volume formats.
 - You need deterministic generated content for tests, demos, or device bringup.
-- You want to save/load TSD scene state or export scene data to other tools.
+- You want to save/load native TSD Archives or export scene data to other
+  tools.
 
 ### Build Notes
 

@@ -30,14 +30,14 @@ const std::vector<std::string_view> KNOWN_SUBTREE_SCHEMAS = {
     schema::SCENE_FULL,
     schema::SCENE_CAMERAS_AND_RENDERERS};
 
-ClosurePolicy policyForDesc(const SubtreeIODesc &desc)
+ClosurePolicy policyForDesc(const SubtreeArchiveContentDesc &desc)
 {
   return desc.objectPolicy == ArchiveObjectPolicy::LightsOnly
       ? lightRigPolicy()
       : layerSubtreePolicy();
 }
 
-// Import helpers /////////////////////////////////////////////////////////////
+// Deserialization helpers ////////////////////////////////////////////////////
 
 // Collect the distinct file-local object keys referenced anywhere in the
 // serialized subtree (node values + instance parameters). These seed payload
@@ -134,39 +134,15 @@ bool serialize_SubtreeArchiveContent(LayerNodeRef root,
   return true;
 }
 
-bool export_Subtree(const char *filename,
-    LayerNodeRef root,
-    const SubtreeIODesc &desc,
-    std::string_view displayName,
-    const SubtreeIOOptions &options)
+ArchiveValidationResult validate_SubtreeArchiveContent(
+    core::DataNode &root, const SubtreeArchiveContentDesc &desc)
 {
-  if (!filename) {
-    tsd::core::logError("[export_Subtree] filename is null");
-    return false;
-  }
-
-  core::DataTree tree;
-  if (!serialize_SubtreeArchiveContent(
-          root, tree.root(), desc, displayName, options))
-    return false;
-
-  if (!tree.save(filename)) {
-    tsd::core::logError("[export_Subtree] failed to write file '%s'", filename);
-    return false;
-  }
-
-  return true;
-}
-
-PayloadValidationResult validate_SubtreePayload(
-    core::DataNode &root, const SubtreeIODesc &desc)
-{
-  PayloadValidationResult result;
+  ArchiveValidationResult result;
   const auto metadata = core::readDataTreeMetadata(root);
   if (!metadata.found() && !metadata.malformed()) {
     result.fileType = std::string(desc.fileType);
     result.schema = std::string(desc.schema);
-    result.status = PayloadValidationStatus::MissingMetadataAccepted;
+    result.status = ArchiveValidationStatus::MissingMetadataAccepted;
     result.message = "metadata-less legacy subtree Archive accepted";
   } else {
     result = validateEnvelope(
@@ -177,14 +153,14 @@ PayloadValidationResult validate_SubtreePayload(
 
   auto *objectDB = root.child("objectDB");
   if (!objectDB) {
-    result.status = PayloadValidationStatus::MissingRequiredNode;
+    result.status = ArchiveValidationStatus::MissingRequiredNode;
     result.message = std::string(desc.fileType) + " payload requires objectDB";
     return result;
   }
 
   auto *subtree = root.child("subtree");
   if (!subtree) {
-    result.status = PayloadValidationStatus::MissingRequiredNode;
+    result.status = ArchiveValidationStatus::MissingRequiredNode;
     result.message = std::string(desc.fileType) + " payload requires subtree";
     return result;
   }
@@ -196,7 +172,7 @@ PayloadValidationResult validate_SubtreePayload(
     if (!ok)
       return;
     if (poolNode.numChildren() > 0 && !poolAllowed(policy, poolNode.name())) {
-      result.status = PayloadValidationStatus::IncompatibleSchema;
+      result.status = ArchiveValidationStatus::IncompatibleSchema;
       result.message = std::string(desc.fileType)
           + " payload contains unsupported object pool '" + poolNode.name()
           + "'";
@@ -218,40 +194,6 @@ PayloadValidationResult validate_SubtreePayload(
     return result;
   validateSubtreeAnimations(root, entries, *subtree, result);
   return result;
-}
-
-LayerNodeRef import_Subtree(Scene &scene,
-    const char *filename,
-    LayerNodeRef destinationParent,
-    const SubtreeIODesc &desc,
-    std::string *displayNameOut,
-    const SubtreeIOOptions &options)
-{
-  return import_SubtreeWithOwnership(
-      scene, filename, destinationParent, desc, displayNameOut, options)
-      .root;
-}
-
-bool export_LayerSubtree(const char *filename, LayerNodeRef root)
-{
-  return export_Subtree(filename,
-      root,
-      {"layer-subtree", schema::LAYER_SUBTREE, ArchiveObjectPolicy::All});
-}
-
-PayloadValidationResult validate_LayerSubtreePayload(core::DataNode &root)
-{
-  return validate_SubtreePayload(
-      root, {"layer-subtree", schema::LAYER_SUBTREE, ArchiveObjectPolicy::All});
-}
-
-LayerNodeRef import_LayerSubtree(
-    Scene &scene, const char *filename, LayerNodeRef destinationParent)
-{
-  return import_Subtree(scene,
-      filename,
-      destinationParent,
-      {"layer-subtree", schema::LAYER_SUBTREE, ArchiveObjectPolicy::All});
 }
 
 } // namespace tsd::io

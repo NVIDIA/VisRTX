@@ -56,7 +56,8 @@ SCENARIO("Camera and Renderer Archives replace only their complete pools",
   REQUIRE(target.layer("preserved layer") != nullptr);
 
   tsd::core::DataTree legacyTree;
-  tsd::io::save_SceneCamerasAndRenderers(source, legacyTree.root());
+  tsd::io::detail::serializeLegacyCameraRendererPayload(
+      source, legacyTree.root());
   REQUIRE(tsd::io::deserialize_CameraArchive(target, legacyTree.root()));
   REQUIRE(tsd::io::deserialize_RendererArchive(target, legacyTree.root()));
 

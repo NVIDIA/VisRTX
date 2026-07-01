@@ -44,7 +44,7 @@ struct FileBinding : public Binding
 
  protected:
   // Register the runtime callback on anim.  Called both on first import and
-  // after reconstruction from a DataNode during load_Scene.
+  // after reconstruction from a legacy application-state DataNode.
   virtual void addCallbackToAnimation(Animation &anim) = 0;
 
   friend struct Animation; // allow Animation to call addCallbackToAnimation()

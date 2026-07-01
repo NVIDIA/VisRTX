@@ -47,18 +47,18 @@ std::string schemaForRootType(anari::DataType rootType)
 bool validateObjectGraph(core::DataNode &root,
     anari::DataType rootType,
     std::vector<FileObjectEntry> &entries,
-    PayloadValidationResult &result)
+    ArchiveValidationResult &result)
 {
   auto *objectDB = root.child("objectDB");
   if (!objectDB) {
-    result.status = PayloadValidationStatus::MissingRequiredNode;
+    result.status = ArchiveValidationStatus::MissingRequiredNode;
     result.message = "object payload requires objectDB";
     return false;
   }
 
   auto *rootObject = root.child("rootObject");
   if (!rootObject || !rootObject->holdsObjectIdx()) {
-    result.status = PayloadValidationStatus::MissingRequiredNode;
+    result.status = ArchiveValidationStatus::MissingRequiredNode;
     result.message = "object payload requires rootObject";
     return false;
   }
@@ -67,7 +67,7 @@ bool validateObjectGraph(core::DataNode &root,
   size_t declaredRootIndex = tsd::core::INVALID_INDEX;
   rootObject->getValueAsObjectIdx(&declaredRootType, &declaredRootIndex);
   if (declaredRootType != rootType || declaredRootIndex != 0) {
-    result.status = PayloadValidationStatus::IncompatibleSchema;
+    result.status = ArchiveValidationStatus::IncompatibleSchema;
     result.message = "rootObject must match schema type at local index 0";
     return false;
   }
@@ -79,7 +79,7 @@ bool validateObjectGraph(core::DataNode &root,
     if (!ok)
       return;
     if (!isKnownObjectPoolName(poolNode.name()) && poolNode.numChildren() > 0) {
-      result.status = PayloadValidationStatus::IncompatibleSchema;
+      result.status = ArchiveValidationStatus::IncompatibleSchema;
       result.message = "object payload contains unsupported object pool '"
           + poolNode.name() + "'";
       ok = false;
@@ -88,7 +88,7 @@ bool validateObjectGraph(core::DataNode &root,
     if (isKnownObjectPoolName(poolNode.name())
         && !poolAllowed(policy, poolNode.name())
         && poolNode.numChildren() > 0) {
-      result.status = PayloadValidationStatus::IncompatibleSchema;
+      result.status = ArchiveValidationStatus::IncompatibleSchema;
       result.message =
           "object payload contains disallowed pool '" + poolNode.name() + "'";
       ok = false;
@@ -102,7 +102,7 @@ bool validateObjectGraph(core::DataNode &root,
 
   const auto rootKey = makeKey(rootType, 0);
   if (!findFileEntry(entries, rootKey)) {
-    result.status = PayloadValidationStatus::MissingRequiredNode;
+    result.status = ArchiveValidationStatus::MissingRequiredNode;
     result.message = "rootObject entry is missing from objectDB";
     return false;
   }
@@ -111,10 +111,10 @@ bool validateObjectGraph(core::DataNode &root,
       entries, {rootKey}, policy, /*requireAllReachable=*/true, result);
 }
 
-PayloadValidationResult validateObjectPayloadImpl(
+ArchiveValidationResult validateObjectPayloadImpl(
     core::DataNode &root, const std::vector<std::string_view> &acceptedSchemas)
 {
-  PayloadValidationResult result;
+  ArchiveValidationResult result;
   const auto metadata = core::readDataTreeMetadata(root);
   if (!metadata.found() && !metadata.malformed()) {
     auto *rootObject = root.child("rootObject");
@@ -126,13 +126,13 @@ PayloadValidationResult validateObjectPayloadImpl(
     const auto accepted = std::find(
         acceptedSchemas.begin(), acceptedSchemas.end(), result.schema);
     if (result.schema.empty() || accepted == acceptedSchemas.end()) {
-      result.status = PayloadValidationStatus::IncompatibleSchema;
+      result.status = ArchiveValidationStatus::IncompatibleSchema;
       result.message =
           "metadata-less object payload has no compatible rootObject";
       return result;
     }
     result.fileType = "object";
-    result.status = PayloadValidationStatus::MissingMetadataAccepted;
+    result.status = ArchiveValidationStatus::MissingMetadataAccepted;
     result.message = "metadata-less legacy Object Archive accepted";
   } else {
     result =
@@ -148,13 +148,14 @@ PayloadValidationResult validateObjectPayloadImpl(
 }
 
 Object *deserializeObjectArchive(
-    Scene &scene, core::DataNode &root, PayloadValidationResult *validation)
+    Scene &scene, core::DataNode &root, ArchiveValidationResult *validation)
 {
-  auto result = validate_ObjectPayload(root);
+  auto result = validateObjectPayloadImpl(
+      root, {schema::OBJECT_SURFACE, schema::OBJECT_VOLUME});
   if (validation)
     *validation = result;
   if (!result.accepted()) {
-    tsd::core::logError("[import_Object] payload validation failed: %s",
+    tsd::core::logError("[deserialize_ObjectArchive] validation failed: %s",
         result.message.c_str());
     return nullptr;
   }
@@ -162,7 +163,7 @@ Object *deserializeObjectArchive(
   const auto rootType = rootTypeForSchema(result.schema);
   std::vector<FileObjectEntry> fileEntries;
   if (!validateObjectGraph(root, rootType, fileEntries, result)) {
-    tsd::core::logError("[import_Object] payload validation failed: %s",
+    tsd::core::logError("[deserialize_ObjectArchive] validation failed: %s",
         result.message.c_str());
     return nullptr;
   }
@@ -172,7 +173,7 @@ Object *deserializeObjectArchive(
   std::string errorMessage;
   if (!instantiateObjectDB(
           scene, fileEntries, targetEntries, createdRefs, errorMessage)) {
-    tsd::core::logError("[import_Object] %s", errorMessage.c_str());
+    tsd::core::logError("[deserialize_ObjectArchive] %s", errorMessage.c_str());
     return nullptr;
   }
 
@@ -236,7 +237,8 @@ bool serialize_ObjectArchive(const Object &obj, core::DataNode &root)
 
 ArchiveValidationResult validate_ObjectArchive(core::DataNode &root)
 {
-  return validate_ObjectPayload(root);
+  return validateObjectPayloadImpl(
+      root, {schema::OBJECT_SURFACE, schema::OBJECT_VOLUME});
 }
 
 Object *deserialize_ObjectArchive(
@@ -278,86 +280,6 @@ Object *load_ObjectArchive(
   }
 
   return deserialize_ObjectArchive(scene, tree.root(), validation);
-}
-
-bool export_Object(const char *filename, const Object &obj)
-{
-  return save_ObjectArchive(obj, filename);
-}
-
-Object *import_Object(Scene &scene, const char *filename)
-{
-  return load_ObjectArchive(scene, filename);
-}
-
-SurfaceRef import_Surface(Scene &scene, const char *filename)
-{
-  if (!filename) {
-    tsd::core::logError("[import_Surface] filename is null");
-    return {};
-  }
-
-  core::DataTree tree;
-  if (!tree.load(filename)) {
-    tsd::core::logError("[import_Surface] failed to load file '%s'", filename);
-    return {};
-  }
-
-  auto result = validate_SurfacePayload(tree.root());
-  if (!result.accepted()) {
-    tsd::core::logError("[import_Surface] payload validation failed: %s",
-        result.message.c_str());
-    return {};
-  }
-
-  auto *object = deserializeObjectArchive(scene, tree.root(), nullptr);
-  if (!object || object->type() != ANARI_SURFACE)
-    return {};
-
-  return scene.getObject<Surface>(object->index());
-}
-
-VolumeRef import_Volume(Scene &scene, const char *filename)
-{
-  if (!filename) {
-    tsd::core::logError("[import_Volume] filename is null");
-    return {};
-  }
-
-  core::DataTree tree;
-  if (!tree.load(filename)) {
-    tsd::core::logError("[import_Volume] failed to load file '%s'", filename);
-    return {};
-  }
-
-  auto result = validate_VolumePayload(tree.root());
-  if (!result.accepted()) {
-    tsd::core::logError("[import_Volume] payload validation failed: %s",
-        result.message.c_str());
-    return {};
-  }
-
-  auto *object = deserializeObjectArchive(scene, tree.root(), nullptr);
-  if (!object || object->type() != ANARI_VOLUME)
-    return {};
-
-  return scene.getObject<Volume>(object->index());
-}
-
-PayloadValidationResult validate_ObjectPayload(core::DataNode &root)
-{
-  return validateObjectPayloadImpl(
-      root, {schema::OBJECT_SURFACE, schema::OBJECT_VOLUME});
-}
-
-PayloadValidationResult validate_SurfacePayload(core::DataNode &root)
-{
-  return validateObjectPayloadImpl(root, {schema::OBJECT_SURFACE});
-}
-
-PayloadValidationResult validate_VolumePayload(core::DataNode &root)
-{
-  return validateObjectPayloadImpl(root, {schema::OBJECT_VOLUME});
 }
 
 } // namespace tsd::io

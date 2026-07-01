@@ -15,10 +15,10 @@
 #include <vector>
 
 // Internal helpers shared between Object and Layer Subtree Archives. These
-// build a
-// self-consistent closure of the objects reachable from a set of seed objects,
+// build a self-consistent closure of the objects reachable from seed objects,
 // rewrite object references to dense local indices for storage, and recreate
-// those objects (with references remapped to fresh Scene indices) on import.
+// those objects with references remapped to fresh Scene indices during
+// deserialization.
 
 namespace tsd::io::detail {
 
@@ -33,8 +33,7 @@ struct ObjectKey
   size_t index{tsd::core::INVALID_INDEX};
 };
 
-// An object selected for export, paired with the dense local index it will be
-// stored at within its pool.
+// An object selected for an Archive, paired with its dense pool-local index.
 struct ClosureEntry
 {
   ObjectKey source;
@@ -52,14 +51,14 @@ struct FileObjectEntry
   core::DataNode *node{nullptr};
 };
 
-// Maps a file-local object key to the Scene object created for it on import.
+// Maps an Archive-local object key to the Scene object created from it.
 struct TargetObjectEntry
 {
   ObjectKey file;
   Any target;
 };
 
-// Per-pool running counters used to assign dense local indices on export.
+// Per-pool running counters used to assign dense Archive-local indices.
 struct PoolCounters
 {
   size_t arrays{0};
@@ -88,7 +87,7 @@ struct ClosurePolicy
 ClosurePolicy objectFilePolicy(anari::DataType rootType);
 // Broad multi-root set including lights (Layer Subtree Archive).
 ClosurePolicy layerSubtreePolicy();
-// Lights and the arrays they reference only (light-rig subtree export).
+// Lights and the arrays they reference only (Light Rig Archive content).
 ClosurePolicy lightRigPolicy();
 
 // Object pool layout shared by every serialized objectDB.
@@ -115,7 +114,7 @@ const TargetObjectEntry *findTargetEntry(
 
 bool hasObjectArrayNode(core::DataNode &node, std::string *message);
 
-// Export side ////////////////////////////////////////////////////////////////
+// Serialization //////////////////////////////////////////////////////////////
 
 // Admit a single seed object (and recursively the objects it references through
 // parameters/metadata) into the closure, honoring the given policy.
@@ -147,11 +146,11 @@ bool writeObjectDB(core::DataNode &objectDB,
     const std::vector<ClosureEntry> &entries,
     std::string &errorMessage);
 
-// Import side ////////////////////////////////////////////////////////////////
+// Deserialization ////////////////////////////////////////////////////////////
 
 // Validate the __tsd_metadata envelope against an expected fileType and the set
 // of accepted/known schemas.
-PayloadValidationResult validateEnvelope(core::DataNode &root,
+ArchiveValidationResult validateEnvelope(core::DataNode &root,
     std::string_view expectedFileType,
     const std::vector<std::string_view> &acceptedSchemas,
     const std::vector<std::string_view> &knownSchemas);
@@ -159,7 +158,7 @@ PayloadValidationResult validateEnvelope(core::DataNode &root,
 // Collect (and structurally validate) the objectDB pools of a loaded file.
 bool collectFileObjects(core::DataNode &objectDB,
     std::vector<FileObjectEntry> &entries,
-    PayloadValidationResult &result);
+    ArchiveValidationResult &result);
 
 // Verify every reference in the file's objectDB resolves to a collected object,
 // that all collected types are permitted, and (for single-root policies) that
@@ -168,7 +167,7 @@ bool checkGraphConsistency(std::vector<FileObjectEntry> &entries,
     const std::vector<ObjectKey> &seedKeys,
     const ClosurePolicy &policy,
     bool requireAllReachable,
-    PayloadValidationResult &result);
+    ArchiveValidationResult &result);
 
 Object *createTargetObject(Scene &scene, core::DataNode &node);
 void clearObjectPayload(Object &object);

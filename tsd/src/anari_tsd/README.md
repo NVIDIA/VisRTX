@@ -1,7 +1,7 @@
 ## ANARI TSD Device (`anari_tsd`)
 
 `anari_tsd` is an ANARI device implementation that mirrors ANARI object state
-into a TSD scene, so ANARI applications can export their render state for
+into a TSD scene, so ANARI applications can capture their render state for
 offline inspection in `tsdViewer`.
 
 ### High-Level Concepts
@@ -11,8 +11,8 @@ offline inspection in `tsdViewer`.
 - Instancing (`Group` / `Instance` / `World`) is translated to TSD layers and
   layer nodes.
 - ANARI arrays are backed by TSD arrays, including shared-memory array data.
-- Each time frame rendering observes new finalized commits, the device exports
-  the scene to `live_capture.tsd`.
+- Each time frame rendering observes new finalized commits, the device saves
+  a Scene Archive to `live_capture.tsd`.
 
 ### Why Use This Device
 

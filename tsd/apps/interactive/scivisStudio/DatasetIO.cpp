@@ -9,7 +9,8 @@
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
-#include "tsd/io/serialization/serialization_internal.hpp"
+#include "tsd/io/archives/SubtreeArchiveContent.hpp"
+#include "tsd/io/archives/detail/ArchivePlan.hpp"
 #include "tsd/scene/objects/Volume.hpp"
 
 #include <algorithm>
@@ -19,7 +20,7 @@ namespace tsd::scivis_studio {
 
 namespace {
 
-const tsd::io::SubtreeIODesc DATASET_DESC{
+const tsd::io::SubtreeArchiveContentDesc DATASET_DESC{
     DATASET_FILE_TYPE, DATASET_SCHEMA, tsd::io::ArchiveObjectPolicy::All};
 
 bool fail(std::string message, std::string *error)
@@ -166,7 +167,7 @@ DatasetAssetValidationResult validateDatasetAsset(
   }
 
   auto subtreeResult =
-      tsd::io::validate_SubtreePayload(tree.root(), DATASET_DESC);
+      tsd::io::validate_SubtreeArchiveContent(tree.root(), DATASET_DESC);
   if (!subtreeResult.accepted()) {
     result.error = subtreeResult.message;
     return result;
@@ -216,7 +217,7 @@ DatasetAssetValidationResult validateDatasetAsset(
   return result;
 }
 
-bool exportDatasetAsset(const Dataset &dataset,
+bool saveDatasetArchiveFile(const Dataset &dataset,
     tsd::scene::LayerNodeRef root,
     tsd::animation::AnimationManager &animationManager,
     const std::filesystem::path &file,
@@ -250,16 +251,14 @@ bool exportDatasetAsset(const Dataset &dataset,
     return fail(
         "file-animation datasets must own one runtime file animation", error);
 
-  tsd::io::SubtreeIOOptions options;
+  tsd::io::SubtreeArchiveContentOptions options;
   options.animationManager = &animationManager;
   options.fileBindings = tsd::io::FileBindingArchivePolicy::Omit;
-  if (!tsd::io::export_Subtree(
-          file.string().c_str(), root, DATASET_DESC, dataset.name, options))
+  tsd::core::DataTree tree;
+  if (!tsd::io::serialize_SubtreeArchiveContent(
+          root, tree.root(), DATASET_DESC, dataset.name, options))
     return fail("failed to serialize dataset subtree", error);
 
-  tsd::core::DataTree tree;
-  if (!tree.load(file.string().c_str()))
-    return fail("failed to reopen serialized dataset", error);
   datasetMetadataToNode(dataset, tree.root()["dataset"]);
   tree.root()["subtree"]["name"] = dataset.name;
   if (!tree.save(file.string().c_str()))
@@ -271,7 +270,7 @@ bool exportDatasetAsset(const Dataset &dataset,
   return true;
 }
 
-bool importDatasetAsset(tsd::scene::Scene &scene,
+bool loadDatasetArchiveFile(tsd::scene::Scene &scene,
     tsd::animation::AnimationManager &animationManager,
     const std::filesystem::path &file,
     tsd::scene::LayerNodeRef destinationParent,
@@ -283,27 +282,31 @@ bool importDatasetAsset(tsd::scene::Scene &scene,
   if (!validation.ok)
     return fail(validation.error, error);
 
-  tsd::io::SubtreeIOOptions options;
+  tsd::core::DataTree tree;
+  if (!tree.load(file.string().c_str()))
+    return fail("failed to load Dataset Archive", error);
+
+  tsd::io::SubtreeArchiveContentOptions options;
   options.animationManager = &animationManager;
-  auto imported = tsd::io::import_SubtreeWithOwnership(scene,
-      file.string().c_str(),
-      destinationParent,
-      DATASET_DESC,
-      nullptr,
-      options);
-  if (!imported.valid() || !imported.root)
+  auto loadedContent = tsd::io::deserialize_SubtreeArchiveContent(
+      scene, tree.root(), destinationParent, DATASET_DESC, nullptr, options);
+  if (!loadedContent.valid() || !loadedContent.root)
     return fail("failed to reconstruct dataset subtree", error);
 
   if (validation.dataset.sourceKind == DatasetSourceKind::FileAnimation
-      && !recreateFileAnimation(
-          validation.dataset, scene, animationManager, imported.root, error)) {
-    tsd::io::rollback_SubtreeImport(scene, animationManager, imported);
+      && !recreateFileAnimation(validation.dataset,
+          scene,
+          animationManager,
+          loadedContent.root,
+          error)) {
+    tsd::io::rollback_SubtreeArchiveContent(
+        scene, animationManager, loadedContent);
     return false;
   }
 
   datasetOut = std::move(validation.dataset);
   datasetOut.status = DatasetStatus::Available;
-  rootOut = imported.root;
+  rootOut = loadedContent.root;
   return true;
 }
 

@@ -230,7 +230,7 @@ void nodeToCameraRig(tsd::core::DataNode &node, CameraRig &rig)
   sortKeyframes(rig);
 }
 
-bool exportCameraRigFile(const CameraRig &rig,
+bool saveCameraRigArchiveFile(const CameraRig &rig,
     const std::filesystem::path &file,
     std::string *error)
 {
@@ -252,7 +252,7 @@ bool exportCameraRigFile(const CameraRig &rig,
   return true;
 }
 
-bool importCameraRigFile(const std::filesystem::path &file,
+bool loadCameraRigArchiveFile(const std::filesystem::path &file,
     CameraRig &rigOut,
     std::string *error)
 {

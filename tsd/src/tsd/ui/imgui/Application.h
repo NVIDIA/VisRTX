@@ -78,8 +78,7 @@ class Application
   // writes into freed memory. See m_filenameToLoadNextFrame /
   // m_filenameToSaveNextFrame for the canonical populate-then-poll pattern.
   void getFilenameFromDialog(
-      std::string &filenameOut,
-      FileDialogMode mode = FileDialogMode::OpenFile);
+      std::string &filenameOut, FileDialogMode mode = FileDialogMode::OpenFile);
   void getFilenameFromDialog(std::string &filenameOut, bool isSaveDialog);
   void getFilenamesFromDialog(std::vector<std::string> &filenamesOut);
 
@@ -96,14 +95,13 @@ class Application
   void showTaskModalWithCancel(FUNCTION &&f, const char *text = "Please Wait");
   void showImportFileDialog();
   void showExportNanoVDBFileDialog();
-  void showImportObjectFileDialog(
-      TSDObjectFileType fileType, tsd::scene::LayerNodeRef importRoot);
-  void showExportObjectFileDialog(TSDObjectFileType fileType,
+  void showLoadObjectArchiveDialog(tsd::scene::LayerNodeRef destination);
+  void showSaveObjectArchiveDialog(TSDObjectFileType fileType,
       anari::DataType objectType,
       size_t objectIndex);
-  void showImportLayerSubtreeFileDialog(
+  void showLoadLayerSubtreeArchiveDialog(
       tsd::scene::LayerNodeRef destinationParent);
-  void showExportLayerSubtreeFileDialog(tsd::scene::LayerNodeRef sourceRoot);
+  void showSaveLayerSubtreeArchiveDialog(tsd::scene::LayerNodeRef sourceRoot);
   void saveDefaultApplicationSettings();
 
   ExtensionManager *extensionManager() const;
@@ -251,8 +249,8 @@ template <class F>
 inline void Application::showTaskModalWithCancel(F &&f, const char *text)
 {
   auto cancelRequested = std::make_shared<std::atomic_bool>(false);
-  auto future = enqueueTask(
-      [task = std::forward<F>(f), cancelRequested]() mutable {
+  auto future =
+      enqueueTask([task = std::forward<F>(f), cancelRequested]() mutable {
         task(*cancelRequested);
       });
 

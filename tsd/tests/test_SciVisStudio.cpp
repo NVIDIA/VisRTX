@@ -11,9 +11,11 @@
 #include "RenderShotCLI.h"
 
 #include "tsd/app/Context.h"
+#include "tsd/app/LegacyApplicationContext.h"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
+#include "tsd/io/archives/SceneArchive.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
 #include "tsd/scene/objects/Geometry.hpp"
@@ -90,7 +92,7 @@ SCENARIO(
   dataset.importerType = "OBJ";
   dataset.source.sourcePath = "../source/example.obj";
   dataset.source.importerSettings.set("flatten", "false");
-  REQUIRE(exportDatasetAsset(dataset, root, sourceAnimations, file));
+  REQUIRE(saveDatasetArchiveFile(dataset, root, sourceAnimations, file));
 
   auto validation = validateDatasetAsset(file);
   REQUIRE(validation.ok);
@@ -113,7 +115,7 @@ SCENARIO(
       target.insertChildNode(target.defaultLayer()->root(), "datasets");
   Dataset imported;
   tsd::scene::LayerNodeRef importedRoot;
-  REQUIRE(importDatasetAsset(
+  REQUIRE(loadDatasetArchiveFile(
       target, targetAnimations, file, destination, imported, importedRoot));
   REQUIRE(importedRoot);
   REQUIRE(imported.status == DatasetStatus::Available);
@@ -128,7 +130,7 @@ SCENARIO(
 
   Dataset secondImport;
   tsd::scene::LayerNodeRef secondRoot;
-  REQUIRE(importDatasetAsset(
+  REQUIRE(loadDatasetArchiveFile(
       target, targetAnimations, file, destination, secondImport, secondRoot));
   REQUIRE(target.numberOfObjects(ANARI_GEOMETRY) == 2);
   REQUIRE(target.getObject(ANARI_GEOMETRY, 0)
@@ -181,15 +183,15 @@ SCENARIO("SciVis Studio file-animation assets preserve opaque source paths",
   invalidStatic.sourceKind = DatasetSourceKind::Static;
   invalidStatic.importerType = "VOLUME";
   std::string invalidStaticError;
-  REQUIRE_FALSE(exportDatasetAsset(
+  REQUIRE_FALSE(saveDatasetArchiveFile(
       invalidStatic, root, sourceAnimations, corruptFile, &invalidStaticError));
   REQUIRE(invalidStaticError.find("cannot own file animations")
       != std::string::npos);
-  std::string exportError;
-  const bool exported =
-      exportDatasetAsset(dataset, root, sourceAnimations, file, &exportError);
-  INFO(exportError);
-  REQUIRE(exported);
+  std::string saveError;
+  const bool saved =
+      saveDatasetArchiveFile(dataset, root, sourceAnimations, file, &saveError);
+  INFO(saveError);
+  REQUIRE(saved);
 
   tsd::core::DataTree corrupt;
   REQUIRE(corrupt.load(file.string().c_str()));
@@ -208,7 +210,7 @@ SCENARIO("SciVis Studio file-animation assets preserve opaque source paths",
   tsd::animation::AnimationManager targetAnimations(&target);
   Dataset imported;
   tsd::scene::LayerNodeRef importedRoot;
-  REQUIRE(importDatasetAsset(target,
+  REQUIRE(loadDatasetArchiveFile(target,
       targetAnimations,
       file,
       target.defaultLayer()->root(),
@@ -361,10 +363,10 @@ SCENARIO(
       std::filesystem::temp_directory_path() / "tsd_camera_rig_roundtrip.tsd";
   std::filesystem::remove(file);
 
-  REQUIRE(camera_rig::exportCameraRigFile(rig, file));
+  REQUIRE(camera_rig::saveCameraRigArchiveFile(rig, file));
 
   CameraRig loaded;
-  REQUIRE(camera_rig::importCameraRigFile(file, loaded));
+  REQUIRE(camera_rig::loadCameraRigArchiveFile(file, loaded));
 
   REQUIRE(loaded.name == "Hero Cam");
   REQUIRE(loaded.keyframes.size() == 1);
@@ -953,8 +955,8 @@ SCENARIO("SciVis Studio extracts embedded v4 datasets only on save",
     (*datasetNode)["importerType"] = "OBJ";
     (*datasetNode)["status"] = "Available";
     (*datasetNode)["source"]["absolutePath"] = "/legacy/source.obj";
-    tsd::io::save_Scene(
-        scene, tree.root()["context"], false, &appContext.tsd.animationMgr);
+    tsd::app::detail::serializeLegacyApplicationContext(
+        appContext, tree.root()["context"]);
     REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
   }
 
@@ -1033,7 +1035,10 @@ SCENARIO("SciVis Studio Save As reports unavailable datasets", "[SciVisStudio]")
   projectToNode(project, tree.root()["scivisStudio"]);
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
-  tsd::io::save_Scene(scene, tree.root()["context"], false, &animations);
+  tsd::io::detail::LegacySceneSerializationOptions options;
+  options.animationManager = &animations;
+  tsd::io::detail::serializeLegacyScenePayload(
+      scene, tree.root()["context"], options);
   REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
 
   tsd::app::Context appContext;
@@ -1061,11 +1066,11 @@ SCENARIO("SciVis Studio dataset lifecycle workflows preserve asset semantics",
       / "tsd_scivis_studio_dataset_lifecycle";
   const auto source = std::filesystem::temp_directory_path()
       / "tsd_scivis_studio_dataset_lifecycle.obj";
-  const auto exported = std::filesystem::temp_directory_path()
-      / "tsd_scivis_studio_dataset_export.tsd";
+  const auto savedArchive = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_dataset_archive.tsd";
   std::filesystem::remove_all(root);
   std::filesystem::remove(source);
-  std::filesystem::remove(exported);
+  std::filesystem::remove(savedArchive);
   {
     std::ofstream obj(source);
     obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
@@ -1082,10 +1087,10 @@ SCENARIO("SciVis Studio dataset lifecycle workflows preserve asset semantics",
   REQUIRE(projectContext.saveProject(root));
   REQUIRE(std::filesystem::exists(root / "datasets" / "Mesh.tsd"));
 
-  REQUIRE(projectContext.exportDataset(originalId, exported));
-  auto exportedValidation = validateDatasetAsset(exported);
-  REQUIRE(exportedValidation.ok);
-  REQUIRE(exportedValidation.dataset.id.empty());
+  REQUIRE(projectContext.saveDatasetArchive(originalId, savedArchive));
+  auto savedValidation = validateDatasetAsset(savedArchive);
+  REQUIRE(savedValidation.ok);
+  REQUIRE(savedValidation.dataset.id.empty());
 
   std::string error;
   auto originalRoot = projectContext.resolveDatasetRoot(*dataset);
@@ -1113,7 +1118,7 @@ SCENARIO("SciVis Studio dataset lifecycle workflows preserve asset semantics",
 
   // A generic TSD scene in the flat directory is not a dataset candidate.
   tsd::scene::Scene genericScene;
-  tsd::io::save_Scene(
+  tsd::io::save_SceneArchive(
       genericScene, (root / "datasets" / "generic.tsd").string().c_str());
   REQUIRE(projectContext.saveProject(root));
   REQUIRE(std::filesystem::exists(root / "datasets" / "Renamed.tsd"));
@@ -1132,14 +1137,14 @@ SCENARIO("SciVis Studio dataset lifecycle workflows preserve asset semantics",
   REQUIRE_FALSE(std::filesystem::exists(root / "datasets" / "Renamed.tsd"));
   REQUIRE(std::filesystem::exists(root / "datasets" / "generic.tsd"));
 
-  auto *imported = projectContext.importDataset(exported, &error);
-  REQUIRE(imported);
-  REQUIRE(imported->id != originalId);
-  REQUIRE(imported->dirty);
+  auto *loaded = projectContext.loadDatasetArchive(savedArchive, &error);
+  REQUIRE(loaded);
+  REQUIRE(loaded->id != originalId);
+  REQUIRE(loaded->dirty);
 
   std::filesystem::remove_all(root);
   std::filesystem::remove(source);
-  std::filesystem::remove(exported);
+  std::filesystem::remove(savedArchive);
 }
 
 SCENARIO("SciVis Studio stages every dirty dataset before replacement",
@@ -1432,10 +1437,8 @@ SCENARIO("SciVis Studio v1 shot lights migrate to light rigs", "[SciVisStudio]")
             PROJECT_SCHEMA,
             1});
     projectToNode(project, tree.root()["scivisStudio"]);
-    tsd::io::save_Scene(appContext.tsd.scene,
-        tree.root()["context"],
-        false,
-        &appContext.tsd.animationMgr);
+    tsd::app::detail::serializeLegacyApplicationContext(
+        appContext, tree.root()["context"]);
     std::filesystem::create_directories(root);
     REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
   }
@@ -1501,10 +1504,8 @@ SCENARIO("SciVis Studio v2 shot camera rigs migrate to camera rigs",
     tsd::io::serialize_CameraPose(
         keyframePose, keyframe["manipulator"]["orbit"]);
 
-    tsd::io::save_Scene(appContext.tsd.scene,
-        tree.root()["context"],
-        false,
-        &appContext.tsd.animationMgr);
+    tsd::app::detail::serializeLegacyApplicationContext(
+        appContext, tree.root()["context"]);
     std::filesystem::create_directories(root);
     REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
   }

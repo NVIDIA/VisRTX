@@ -66,8 +66,8 @@ scene:setOnlyLayerActive("default")
 -- Import / export
 tsd.io.importGLTF(scene, "model.gltf")
 tsd.io.importHDRI(scene, "env.exr")
-tsd.io.saveScene(scene, "out.tsd")
-tsd.io.saveScene(scene, "out.tsd", { windows = { Viewport = { anariLibrary = "visrtx" } } })
+tsd.io.saveSceneArchive(scene, "scene.tsd")
+tsd.io.saveAnimationManagerArchive(animationMgr, "animations.tsd")
 
 -- Procedural generators
 tsd.io.generateRandomSpheres(scene)
@@ -88,4 +88,5 @@ tsd.render.renderToFile(pl, 128, "output.png", 1920, 1080)
 
 See [scripts/examples/](../../../scripts/examples/) for worked examples:
 `render_scene` (create HDRI dome, generate RTOW scene, render to file) and
-`save_scene` (build an animated scene, save to `.tsd` with additional state).
+`save_scene_archive` (build an animated scene, then save separate Scene and
+Animation Manager Archives).

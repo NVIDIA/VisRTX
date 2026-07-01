@@ -10,3 +10,4 @@
 #include "tsd/io/archives/ObjectArchive.hpp"
 #include "tsd/io/archives/RendererArchive.hpp"
 #include "tsd/io/archives/SceneArchive.hpp"
+#include "tsd/io/archives/SubtreeArchiveContent.hpp"

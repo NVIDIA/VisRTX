@@ -24,7 +24,7 @@ struct AddStaticDatasetDialog : public tsd::ui::imgui::Modal
   std::array<char, 512> m_name{};
   std::array<char, 2048> m_sourcePath{};
   std::string m_browsedSourcePath;
-  int m_selectedImporter{0};
+  int m_selectedSource{0};
 };
 
 } // namespace tsd::scivis_studio

@@ -31,16 +31,20 @@ struct AnimationManager;
 
 namespace tsd::io {
 struct ArchiveValidationResult;
-using PayloadValidationResult = ArchiveValidationResult;
-// clang-format off
-void save_Scene(scene::Scene &, core::DataNode &, bool, animation::AnimationManager *);
-void load_Scene(scene::Scene &, core::DataNode &, animation::AnimationManager *);
-bool tryLoad_Scene(scene::Scene &, core::DataNode &, PayloadValidationResult *, animation::AnimationManager *);
-void save_SceneCamerasAndRenderers(scene::Scene &, core::DataNode &);
-void load_SceneCamerasAndRenderers(scene::Scene &, core::DataNode &);
-bool tryLoad_SceneCamerasAndRenderers(scene::Scene &, core::DataNode &, PayloadValidationResult *);
-bool deserialize_CameraArchive(scene::Scene &, core::DataNode &, ArchiveValidationResult *);
-// clang-format on
+namespace detail {
+struct LegacySceneSerializationOptions;
+void serializeLegacyScenePayload(
+    scene::Scene &, core::DataNode &, const LegacySceneSerializationOptions &);
+bool tryDeserializeLegacyScenePayload(scene::Scene &,
+    core::DataNode &,
+    ArchiveValidationResult *,
+    animation::AnimationManager *);
+void serializeLegacyCameraRendererPayload(scene::Scene &, core::DataNode &);
+bool tryDeserializeLegacyCameraRendererPayload(
+    scene::Scene &, core::DataNode &, ArchiveValidationResult *);
+} // namespace detail
+bool deserialize_CameraArchive(
+    scene::Scene &, core::DataNode &, ArchiveValidationResult *);
 } // namespace tsd::io
 
 namespace tsd::scene {
@@ -243,20 +247,17 @@ struct Scene
   void removeDefragCallback(size_t token);
 
  private:
-  friend void ::tsd::io::save_Scene(
-      Scene &, core::DataNode &, bool, tsd::animation::AnimationManager *);
-  friend void ::tsd::io::load_Scene(
-      Scene &, core::DataNode &, tsd::animation::AnimationManager *);
-  friend bool ::tsd::io::tryLoad_Scene(Scene &,
+  friend void ::tsd::io::detail::serializeLegacyScenePayload(Scene &,
       core::DataNode &,
-      ::tsd::io::PayloadValidationResult *,
+      const ::tsd::io::detail::LegacySceneSerializationOptions &);
+  friend bool ::tsd::io::detail::tryDeserializeLegacyScenePayload(Scene &,
+      core::DataNode &,
+      ::tsd::io::ArchiveValidationResult *,
       tsd::animation::AnimationManager *);
-  friend void ::tsd::io::save_SceneCamerasAndRenderers(
+  friend void ::tsd::io::detail::serializeLegacyCameraRendererPayload(
       Scene &, core::DataNode &);
-  friend void ::tsd::io::load_SceneCamerasAndRenderers(
-      Scene &, core::DataNode &);
-  friend bool ::tsd::io::tryLoad_SceneCamerasAndRenderers(
-      Scene &, core::DataNode &, ::tsd::io::PayloadValidationResult *);
+  friend bool ::tsd::io::detail::tryDeserializeLegacyCameraRendererPayload(
+      Scene &, core::DataNode &, ::tsd::io::ArchiveValidationResult *);
   friend bool ::tsd::io::deserialize_CameraArchive(
       Scene &, core::DataNode &, ::tsd::io::ArchiveValidationResult *);
 

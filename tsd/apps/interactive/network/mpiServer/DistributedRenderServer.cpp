@@ -9,8 +9,8 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 // tsd_io
+#include "tsd/io/archives/SceneArchive.hpp"
 #include "tsd/io/importers.hpp"
-#include "tsd/io/serialization/serialization_internal.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 // tsd_network messages
@@ -195,6 +195,13 @@ void DistributedRenderServer::setup_Scene()
   auto &filenames = m_ctx.commandLine.filenames;
 
   tsd::core::logStatus("[tsdMPIServer] Rank %d loading files...", rank());
+  if (!m_ctx.commandLine.sceneArchiveFile.empty()) {
+    if (!tsd::io::load_SceneArchive(
+            scene, m_ctx.commandLine.sceneArchiveFile.c_str())) {
+      tsd::core::logError("[tsdMPIServer] Failed to load Scene Archive '%s'",
+          m_ctx.commandLine.sceneArchiveFile.c_str());
+    }
+  }
   tsd::io::import_files(scene, animMgr, filenames);
 
   tsd::core::logStatus(
@@ -475,8 +482,13 @@ void DistributedRenderServer::setup_Messaging()
         uint32_t pos = 0;
         if (tsd::network::payloadRead(msg, pos, filename)) {
           tsd::core::logStatus(
-              "[tsdMPIServer] Saving state file '%s'...", filename.c_str());
-          tsd::io::save_Scene(m_ctx.tsd.scene, filename.c_str());
+              "[tsdMPIServer] Saving Scene Archive '%s'...", filename.c_str());
+          if (!tsd::io::save_SceneArchive(
+                  m_ctx.tsd.scene, filename.c_str())) {
+            tsd::core::logError(
+                "[tsdMPIServer] Failed to save Scene Archive '%s'",
+                filename.c_str());
+          }
         }
       });
 }

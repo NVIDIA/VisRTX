@@ -3,10 +3,10 @@
 --   1) Create a simple HDRI dome light
 --   2) Generate a monkey mesh and instance it in a 10x10 grid
 --   3) Create a camera orbit animation
---   4) Save the scene as a .tsd file
+--   4) Save Scene and Animation Manager Archives
 
 local function usage()
-    print("Usage: tsdLua save_scene.lua [options]")
+    print("Usage: tsdLua save_scene_archive.lua [options]")
     print("")
     print("Options:")
     print("  --out <name>       Output filename without extension (default: output)")
@@ -44,7 +44,8 @@ end
 
 print("Animated Monkey Grid Scene")
 print("==========================")
-print("Output:  " .. outPrefix .. ".tsd")
+print("Scene Archive:    " .. outPrefix .. ".tsd")
+print("Animation Archive: " .. outPrefix .. "_animations.tsd")
 print("Frames:  " .. numFrames)
 print("")
 
@@ -130,27 +131,14 @@ local animation = animationMgr:addAnimation("turntable")
 animation:setAsTimeSteps(camera, { "position", "direction" }, { posArray, dirArray })
 animationMgr:setAnimationIncrement(1.0 / numFrames)
 
--- 6) Save with viewer state ----------------------------------------------
+-- 6) Save Archives -------------------------------------------------------
 
-local camDistance = math.sqrt(orbitHeight * orbitHeight + orbitDist * orbitDist)
-local camElevation = math.deg(math.atan(orbitHeight, orbitDist))
-
-local filename = outPrefix .. ".tsd"
-print("Saving scene to " .. filename .. "...")
--- State table mirrors the DataTree layout expected by tsdViewer
-tsd.io.saveScene(scene, filename, {
-    windows = {
-        Viewport = {
-            anariLibrary = "visrtx",
-            camera = {
-                at = orbitCenter,
-                distance = camDistance,
-                azel = tsd.float2(180.0, camElevation),
-                up = 1,
-            },
-        },
-    },
-})
+local sceneFilename = outPrefix .. ".tsd"
+local animationFilename = outPrefix .. "_animations.tsd"
+print("Saving Scene Archive to " .. sceneFilename .. "...")
+tsd.io.saveSceneArchive(scene, sceneFilename)
+print("Saving Animation Manager Archive to " .. animationFilename .. "...")
+tsd.io.saveAnimationManagerArchive(animationMgr, animationFilename)
 
 print("")
-print("Done: " .. filename)
+print("Done: " .. sceneFilename .. " and " .. animationFilename)

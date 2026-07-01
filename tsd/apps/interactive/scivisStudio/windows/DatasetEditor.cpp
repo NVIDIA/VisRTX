@@ -45,20 +45,20 @@ void DatasetEditor::pollPendingFileIO()
 
   const auto request = m_pendingFileIO;
   const auto filename = m_pendingFilename;
-  const auto exportDataset = m_pendingExportDataset;
+  const auto datasetToSave = m_pendingSaveDataset;
   m_pendingFileIO = PendingFileIO::None;
   m_pendingFilename.clear();
-  m_pendingExportDataset.clear();
+  m_pendingSaveDataset.clear();
 
   std::string error;
-  if (request == PendingFileIO::Import) {
-    if (m_projectContext->importDataset(filename, &error)) {
+  if (request == PendingFileIO::Load) {
+    if (m_projectContext->loadDatasetArchive(filename, &error)) {
       m_selectedDataset =
           static_cast<int>(m_projectContext->project().datasets.size()) - 1;
     } else
       m_ioError = error;
-  } else if (!m_projectContext->exportDataset(
-                 exportDataset, withTsdExtension(filename), &error))
+  } else if (!m_projectContext->saveDatasetArchive(
+                 datasetToSave, withTsdExtension(filename), &error))
     m_ioError = error;
 
   if (!m_ioError.empty())
@@ -155,8 +155,8 @@ void DatasetEditor::buildUI()
   pollPendingFileIO();
   pollPendingReimport();
 
-  if (ImGui::Button("Import...")) {
-    m_pendingFileIO = PendingFileIO::Import;
+  if (ImGui::Button("Load...")) {
+    m_pendingFileIO = PendingFileIO::Load;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
         m_pendingFilename, tsd::ui::imgui::FileDialogMode::OpenFile);
@@ -252,9 +252,9 @@ void DatasetEditor::buildUI()
       dataset.rootNode.nodeIndex);
 
   ImGui::BeginDisabled(dataset.status != DatasetStatus::Available);
-  if (ImGui::Button("Export...")) {
-    m_pendingFileIO = PendingFileIO::Export;
-    m_pendingExportDataset = dataset.id;
+  if (ImGui::Button("Save...")) {
+    m_pendingFileIO = PendingFileIO::Save;
+    m_pendingSaveDataset = dataset.id;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
         m_pendingFilename, tsd::ui::imgui::FileDialogMode::SaveFile);

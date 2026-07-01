@@ -30,8 +30,8 @@ struct DatasetEditor : public tsd::ui::imgui::Window
   enum class PendingFileIO
   {
     None,
-    Import,
-    Export
+    Load,
+    Save
   };
 
   struct ReimportResult
@@ -50,7 +50,7 @@ struct DatasetEditor : public tsd::ui::imgui::Window
   int m_selectedDataset{0};
   PendingFileIO m_pendingFileIO{PendingFileIO::None};
   std::string m_pendingFilename;
-  DatasetID m_pendingExportDataset;
+  DatasetID m_pendingSaveDataset;
   DatasetID m_pendingRemoveDataset;
   std::shared_ptr<ReimportResult> m_pendingReimport;
   bool m_keepRemovedAsset{false};

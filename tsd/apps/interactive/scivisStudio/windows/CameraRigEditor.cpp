@@ -170,8 +170,8 @@ void CameraRigEditor::buildUI_rigControls()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  if (ImGui::Button("Import...")) {
-    m_pendingFileIO = PendingFileIO::Import;
+  if (ImGui::Button("Load...")) {
+    m_pendingFileIO = PendingFileIO::Load;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
         m_pendingFilename, tsd::ui::imgui::FileDialogMode::OpenFile);
@@ -214,9 +214,9 @@ void CameraRigEditor::buildUI_rigControls()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  if (ImGui::Button("Export...")) {
-    m_pendingFileIO = PendingFileIO::Export;
-    m_pendingExportRig = cameraRig.id;
+  if (ImGui::Button("Save...")) {
+    m_pendingFileIO = PendingFileIO::Save;
+    m_pendingSaveRig = cameraRig.id;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
         m_pendingFilename, tsd::ui::imgui::FileDialogMode::SaveFile);
@@ -264,9 +264,8 @@ void CameraRigEditor::buildUI_rigControls()
 void CameraRigEditor::buildUI_ioError()
 {
   ImGui::SetNextWindowSize(ImVec2(500.f, 0.f), ImGuiCond_Appearing);
-  if (ImGui::BeginPopupModal("Camera Rig IO Error",
-          nullptr,
-          ImGuiWindowFlags_AlwaysAutoResize)) {
+  if (ImGui::BeginPopupModal(
+          "Camera Rig IO Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::TextWrapped("%s", m_ioError.c_str());
     ImGui::Spacing();
     if (ImGui::Button("OK") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
@@ -289,8 +288,8 @@ bool CameraRigEditor::buildUI_poseEditor(
   ImGui::PushID(label);
 
   ImGui::SetNextItemWidth(-1.f);
-  changed |= ImGui::DragFloat3("Look At", &pose.lookat.x, 0.01f, 0.f, 0.f,
-      "%.3f");
+  changed |=
+      ImGui::DragFloat3("Look At", &pose.lookat.x, 0.01f, 0.f, 0.f, "%.3f");
 
   ImGui::SetNextItemWidth(-1.f);
   changed |=
@@ -301,8 +300,8 @@ bool CameraRigEditor::buildUI_poseEditor(
       ImGui::SliderFloat("Elevation", &pose.azeldist.y, 0.f, 360.f, "%.3f");
 
   ImGui::SetNextItemWidth(-1.f);
-  changed |= ImGui::DragFloat("Distance", &pose.azeldist.z, 0.01f, 0.f, 0.f,
-      "%.3f");
+  changed |=
+      ImGui::DragFloat("Distance", &pose.azeldist.z, 0.01f, 0.f, 0.f, "%.3f");
 
   bool hasFixedDistance = std::isfinite(pose.fixedDist);
   if (ImGui::Checkbox("Fixed Distance", &hasFixedDistance)) {
@@ -505,24 +504,24 @@ void CameraRigEditor::pollPendingFileIO()
 
   const auto request = m_pendingFileIO;
   const auto filename = m_pendingFilename;
-  const auto exportRig = m_pendingExportRig;
+  const auto rigToSave = m_pendingSaveRig;
   m_pendingFileIO = PendingFileIO::None;
   m_pendingFilename.clear();
-  m_pendingExportRig.clear();
+  m_pendingSaveRig.clear();
 
   auto &project = m_projectContext->project();
   std::string error;
-  if (request == PendingFileIO::Import) {
-    if (m_projectContext->importCameraRig(filename, &error)) {
+  if (request == PendingFileIO::Load) {
+    if (m_projectContext->loadCameraRigArchive(filename, &error)) {
       m_selectedRig = static_cast<int>(project.cameraRigs.size()) - 1;
       m_selectedKeyframe = -1;
     } else {
       m_ioError = error;
       ImGui::OpenPopup("Camera Rig IO Error");
     }
-  } else if (request == PendingFileIO::Export) {
-    if (!m_projectContext->exportCameraRig(
-            exportRig, withTsdExtension(filename), &error)) {
+  } else if (request == PendingFileIO::Save) {
+    if (!m_projectContext->saveCameraRigArchive(
+            rigToSave, withTsdExtension(filename), &error)) {
       m_ioError = error;
       ImGui::OpenPopup("Camera Rig IO Error");
     }

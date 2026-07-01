@@ -27,7 +27,7 @@ bool serialize_LayerSubtreeArchive(
 
 ArchiveValidationResult validate_LayerSubtreeArchive(core::DataNode &archive)
 {
-  auto result = validate_SubtreePayload(archive, LAYER_SUBTREE_DESC);
+  auto result = validate_SubtreeArchiveContent(archive, LAYER_SUBTREE_DESC);
   if (result.accepted() && archive.child("animations")) {
     result.status = ArchiveValidationStatus::IncompatibleSchema;
     result.message = "Layer Subtree Archives cannot contain animations";

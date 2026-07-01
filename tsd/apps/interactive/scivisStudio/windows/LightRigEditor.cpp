@@ -17,7 +17,6 @@
 
 namespace tsd::scivis_studio {
 
-
 namespace {
 
 // Default rig files to a .tsd extension when the user didn't supply one.
@@ -299,24 +298,24 @@ void LightRigEditor::pollPendingFileIO()
 
   const auto request = m_pendingFileIO;
   const auto filename = m_pendingFilename;
-  const auto exportRig = m_pendingExportRig;
+  const auto rigToSave = m_pendingSaveRig;
   m_pendingFileIO = PendingFileIO::None;
   m_pendingFilename.clear();
-  m_pendingExportRig.clear();
+  m_pendingSaveRig.clear();
 
   auto &project = m_projectContext->project();
   std::string error;
-  if (request == PendingFileIO::Import) {
-    if (m_projectContext->importLightRig(filename, &error)) {
+  if (request == PendingFileIO::Load) {
+    if (m_projectContext->loadLightRigArchive(filename, &error)) {
       m_selectedRig = static_cast<int>(project.lightRigs.size()) - 1;
       m_selectedLight = -1;
     } else {
       m_ioError = error;
       ImGui::OpenPopup("Light Rig IO Error");
     }
-  } else if (request == PendingFileIO::Export) {
-    if (!m_projectContext->exportLightRig(
-            exportRig, withTsdExtension(filename), &error)) {
+  } else if (request == PendingFileIO::Save) {
+    if (!m_projectContext->saveLightRigArchive(
+            rigToSave, withTsdExtension(filename), &error)) {
       m_ioError = error;
       ImGui::OpenPopup("Light Rig IO Error");
     }
@@ -354,8 +353,8 @@ void LightRigEditor::buildUI()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  if (ImGui::Button("Import...")) {
-    m_pendingFileIO = PendingFileIO::Import;
+  if (ImGui::Button("Load...")) {
+    m_pendingFileIO = PendingFileIO::Load;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
         m_pendingFilename, tsd::ui::imgui::FileDialogMode::OpenFile);
@@ -398,9 +397,9 @@ void LightRigEditor::buildUI()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  if (ImGui::Button("Export...")) {
-    m_pendingFileIO = PendingFileIO::Export;
-    m_pendingExportRig = rig.id;
+  if (ImGui::Button("Save...")) {
+    m_pendingFileIO = PendingFileIO::Save;
+    m_pendingSaveRig = rig.id;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
         m_pendingFilename, tsd::ui::imgui::FileDialogMode::SaveFile);
@@ -448,9 +447,8 @@ void LightRigEditor::buildUI()
 void LightRigEditor::buildUI_ioError()
 {
   ImGui::SetNextWindowSize(ImVec2(500.f, 0.f), ImGuiCond_Appearing);
-  if (ImGui::BeginPopupModal("Light Rig IO Error",
-          nullptr,
-          ImGuiWindowFlags_AlwaysAutoResize)) {
+  if (ImGui::BeginPopupModal(
+          "Light Rig IO Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::TextWrapped("%s", m_ioError.c_str());
     ImGui::Spacing();
     if (ImGui::Button("OK") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {

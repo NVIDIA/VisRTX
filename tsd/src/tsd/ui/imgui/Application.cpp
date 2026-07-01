@@ -4,9 +4,11 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/Timer.hpp"
+// tsd_app
+#include "tsd/app/LegacyApplicationContext.h"
 // tsd_io
 #include "tsd/io/exporters.hpp"
-#include "tsd/io/serialization/serialization_internal.hpp"
+#include "tsd/io/serialization.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/Manipulator.hpp"
 // tsd_ui_imgui
@@ -173,28 +175,28 @@ void Application::showExportNanoVDBFileDialog()
   m_exportNanoVDBFileDialog->show();
 }
 
-void Application::showImportObjectFileDialog(
-    TSDObjectFileType fileType, tsd::scene::LayerNodeRef importRoot)
+void Application::showLoadObjectArchiveDialog(
+    tsd::scene::LayerNodeRef destination)
 {
-  m_objectFileDialog->showImport(fileType, importRoot);
+  m_objectFileDialog->showLoadObject(destination);
 }
 
-void Application::showExportObjectFileDialog(
+void Application::showSaveObjectArchiveDialog(
     TSDObjectFileType fileType, anari::DataType objectType, size_t objectIndex)
 {
-  m_objectFileDialog->showExport(fileType, objectType, objectIndex);
+  m_objectFileDialog->showSaveObject(fileType, objectType, objectIndex);
 }
 
-void Application::showImportLayerSubtreeFileDialog(
+void Application::showLoadLayerSubtreeArchiveDialog(
     tsd::scene::LayerNodeRef destinationParent)
 {
-  m_objectFileDialog->showImportLayerSubtree(destinationParent);
+  m_objectFileDialog->showLoadLayerSubtree(destinationParent);
 }
 
-void Application::showExportLayerSubtreeFileDialog(
+void Application::showSaveLayerSubtreeArchiveDialog(
     tsd::scene::LayerNodeRef sourceRoot)
 {
-  m_objectFileDialog->showExportLayerSubtree(sourceRoot);
+  m_objectFileDialog->showSaveLayerSubtree(sourceRoot);
 }
 
 void Application::saveDefaultApplicationSettings()
@@ -787,10 +789,9 @@ void Application::saveApplicationState(const char *_filename)
       tsd::io::serialize_CameraPose(p, cameraPoses.append());
 
     // Serialize TSD context
-    tsd::core::logStatus("serializing TSD context...");
+    tsd::core::logStatus("serializing application session state...");
     root["context"].reset();
-    tsd::io::save_Scene(
-        ctx.tsd.scene, root["context"], false, &ctx.tsd.animationMgr);
+    tsd::app::detail::serializeLegacyApplicationContext(ctx, root["context"]);
 
     // Save to file
     tsd::core::logStatus("writing state file '%s'...", filename.c_str());
@@ -842,9 +843,9 @@ void Application::loadApplicationState(const char *filename)
 
   // TSD context from app state file, or context-only file
   if (auto *c = root.child("context"); c != nullptr)
-    tsd::io::load_Scene(ctx.tsd.scene, *c, &ctx.tsd.animationMgr);
+    tsd::app::detail::deserializeLegacyApplicationContext(ctx, *c);
   else
-    tsd::io::load_Scene(ctx.tsd.scene, root, &ctx.tsd.animationMgr);
+    tsd::app::detail::deserializeLegacyApplicationContext(ctx, root);
 
   // Clear out context tree
   root["context"].reset();

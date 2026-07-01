@@ -71,8 +71,7 @@ bool remapObjectArrayToLocal(core::DataNode &binding,
       continue;
     auto *entry = findSourceEntry(entries, type, indices[i]);
     if (!entry) {
-      errorMessage =
-          "animation keyframe object is outside the exported closure";
+      errorMessage = "animation keyframe object is outside the Archive closure";
       return false;
     }
     remapped[i] = entry->localIndex;
@@ -91,7 +90,7 @@ bool remapFileBindingToLocal(core::DataNode &binding,
         node["targetIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
     auto *entry = findSourceEntry(entries, type, index);
     if (!entry) {
-      errorMessage = "file animation target is outside the exported closure";
+      errorMessage = "file animation target is outside the Archive closure";
       return false;
     }
     node["targetIndex"] = entry->localIndex;
@@ -135,7 +134,7 @@ bool remapObjectArrayToTarget(core::DataNode &binding,
       continue;
     auto *target = findTargetEntry(targets, makeKey(type, indices[i]));
     if (!target) {
-      errorMessage = "animation keyframe object has no import mapping";
+      errorMessage = "animation keyframe object has no deserialization mapping";
       return false;
     }
     remapped[i] = target->target.getAsObjectIndex();
@@ -154,7 +153,7 @@ bool remapFileBindingToTarget(core::DataNode &binding,
         node["targetIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
     auto *target = findTargetEntry(targets, makeKey(type, local));
     if (!target) {
-      errorMessage = "file animation target has no import mapping";
+      errorMessage = "file animation target has no deserialization mapping";
       return false;
     }
     node["targetIndex"] = target->target.getAsObjectIndex();
@@ -189,14 +188,14 @@ size_t countSerializedSubtreeNodes(core::DataNode &node)
 bool validateAnimationObjectKey(const std::vector<FileObjectEntry> &entries,
     anari::DataType type,
     size_t index,
-    PayloadValidationResult &result)
+    ArchiveValidationResult &result)
 {
   const auto key = makeKey(type, index);
   const bool found = std::any_of(entries.begin(),
       entries.end(),
       [&](const auto &entry) { return sameKey(entry.file, key); });
   if (type == ANARI_UNKNOWN || index == tsd::core::INVALID_INDEX || !found) {
-    result.status = PayloadValidationStatus::IncompatibleSchema;
+    result.status = ArchiveValidationStatus::IncompatibleSchema;
     result.message = "subtree animation references an object outside objectDB";
     return false;
   }
@@ -239,7 +238,7 @@ bool writeSubtreeAnimations(core::DataNode &animationsNode,
             binding["targetIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
         auto *entry = findSourceEntry(entries, type, index);
         if (!entry) {
-          errorMessage = "animation target is outside the exported closure";
+          errorMessage = "animation target is outside the Archive closure";
           ok = false;
           return;
         }
@@ -342,7 +341,7 @@ void collectAnimationRefKeys(core::DataNode &root, std::vector<ObjectKey> &keys)
 bool validateSubtreeAnimations(core::DataNode &root,
     std::vector<FileObjectEntry> &entries,
     core::DataNode &subtree,
-    PayloadValidationResult &result)
+    ArchiveValidationResult &result)
 {
   auto *animations = root.child("animations");
   if (!animations)
@@ -354,7 +353,7 @@ bool validateSubtreeAnimations(core::DataNode &root,
     if (!ok)
       return;
     if (!animation.child("name")) {
-      result.status = PayloadValidationStatus::MissingRequiredNode;
+      result.status = ArchiveValidationStatus::MissingRequiredNode;
       result.message = "subtree animation requires a name";
       ok = false;
       return;
@@ -378,7 +377,7 @@ bool validateSubtreeAnimations(core::DataNode &root,
         const size_t *indices = nullptr;
         size_t count = 0;
         if (!readObjectIndexArray(*data, dataType, indices, count)) {
-          result.status = PayloadValidationStatus::IncompatibleSchema;
+          result.status = ArchiveValidationStatus::IncompatibleSchema;
           result.message =
               "animation keyframe object array has an invalid type";
           ok = false;
@@ -400,7 +399,7 @@ bool validateSubtreeAnimations(core::DataNode &root,
         const auto index =
             binding["nodeIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
         if (layerName != "__subtree__" || index >= nodeCount) {
-          result.status = PayloadValidationStatus::IncompatibleSchema;
+          result.status = ArchiveValidationStatus::IncompatibleSchema;
           result.message =
               "subtree animation references a node outside the subtree";
           ok = false;
@@ -422,7 +421,7 @@ bool validateSubtreeAnimations(core::DataNode &root,
         } else if (kind == "ensight") {
           auto *parts = binding.child("parts");
           if (!parts || parts->numChildren() == 0) {
-            result.status = PayloadValidationStatus::MissingRequiredNode;
+            result.status = ArchiveValidationStatus::MissingRequiredNode;
             result.message = "EnSight animation requires geometry targets";
             ok = false;
             return;
@@ -436,7 +435,7 @@ bool validateSubtreeAnimations(core::DataNode &root,
                   result);
           });
         } else {
-          result.status = PayloadValidationStatus::IncompatibleSchema;
+          result.status = ArchiveValidationStatus::IncompatibleSchema;
           result.message = "unknown subtree file animation kind '" + kind + "'";
           ok = false;
         }
@@ -466,7 +465,7 @@ bool remapSubtreeAnimationsToTarget(core::DataNode &animations,
             binding["targetIndex"].getValueOr<size_t>(tsd::core::INVALID_INDEX);
         auto *target = findTargetEntry(targets, makeKey(type, local));
         if (!target) {
-          errorMessage = "animation target has no import mapping";
+          errorMessage = "animation target has no deserialization mapping";
           ok = false;
           return;
         }

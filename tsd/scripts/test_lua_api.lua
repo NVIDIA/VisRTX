@@ -1709,7 +1709,8 @@ test("remaining io functions exist", function()
   local funcs = {
     "importUSD", "importPDB", "importSWC", "importVolume",
     "importRAW", "importNVDB", "importMHD",
-    "saveScene", "loadScene",
+    "saveSceneArchive", "loadSceneArchive",
+    "saveAnimationManagerArchive", "loadAnimationManagerArchive",
   }
   for _, name in ipairs(funcs) do
     assert(tsd.io[name] ~= nil, name .. " should exist")

@@ -10,7 +10,6 @@
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/archives/detail/AnimationRemap.hpp"
 #include "tsd/io/archives/detail/ArchiveClosure.hpp"
-#include "tsd/io/importers.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 // std
 #include <algorithm>
@@ -25,50 +24,16 @@ static core::DataNode &resolveScenePayloadRoot(core::DataNode &root)
   return root;
 }
 
-static std::string validationStatusToString(PayloadValidationStatus status)
-{
-  switch (status) {
-  case PayloadValidationStatus::Valid:
-    return "valid";
-  case PayloadValidationStatus::MissingMetadataAccepted:
-    return "missing metadata accepted";
-  case PayloadValidationStatus::UnknownSchema:
-    return "unknown schema";
-  case PayloadValidationStatus::IncompatibleSchema:
-    return "incompatible schema";
-  case PayloadValidationStatus::UnsupportedEnvelopeVersion:
-    return "unsupported envelope version";
-  case PayloadValidationStatus::UnsupportedSchemaVersion:
-    return "unsupported schema version";
-  case PayloadValidationStatus::MalformedMetadata:
-    return "malformed metadata";
-  case PayloadValidationStatus::MissingRequiredNode:
-    return "missing required node";
-  }
-
-  return "unknown validation status";
-}
-
-static void logValidationFailure(
-    const char *prefix, const PayloadValidationResult &result)
-{
-  logError("[%s] payload validation failed: %s%s%s",
-      prefix,
-      validationStatusToString(result.status).c_str(),
-      result.message.empty() ? "" : ": ",
-      result.message.c_str());
-}
-
-static PayloadValidationResult validateScenePayloadImpl(core::DataNode &root,
+static ArchiveValidationResult validateScenePayloadImpl(core::DataNode &root,
     const std::vector<std::string_view> &acceptedSchemas,
     const std::vector<std::string_view> &knownSchemas)
 {
   auto &payloadRoot = resolveScenePayloadRoot(root);
   auto metadataResult = core::readDataTreeMetadata(payloadRoot);
 
-  PayloadValidationResult result;
+  ArchiveValidationResult result;
   if (metadataResult.malformed()) {
-    result.status = PayloadValidationStatus::MalformedMetadata;
+    result.status = ArchiveValidationStatus::MalformedMetadata;
     result.message = metadataResult.message;
     return result;
   }
@@ -81,7 +46,7 @@ static PayloadValidationResult validateScenePayloadImpl(core::DataNode &root,
     result.schemaVersion = metadata.schemaVersion;
 
     if (metadata.envelopeVersion != core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
-      result.status = PayloadValidationStatus::UnsupportedEnvelopeVersion;
+      result.status = ArchiveValidationStatus::UnsupportedEnvelopeVersion;
       result.message = "expected envelopeVersion 1, got "
           + std::to_string(metadata.envelopeVersion);
       return result;
@@ -95,27 +60,27 @@ static PayloadValidationResult validateScenePayloadImpl(core::DataNode &root,
             acceptedSchemas.begin(), acceptedSchemas.end(), schemaMatches)) {
       result.status =
           std::any_of(knownSchemas.begin(), knownSchemas.end(), schemaMatches)
-          ? PayloadValidationStatus::IncompatibleSchema
-          : PayloadValidationStatus::UnknownSchema;
+          ? ArchiveValidationStatus::IncompatibleSchema
+          : ArchiveValidationStatus::UnknownSchema;
       result.message =
           "schema '" + metadata.schema + "' is not accepted by this loader";
       return result;
     }
 
     if (metadata.schemaVersion != 1) {
-      result.status = PayloadValidationStatus::UnsupportedSchemaVersion;
+      result.status = ArchiveValidationStatus::UnsupportedSchemaVersion;
       result.message = "schema '" + metadata.schema
           + "' supports version 1..1, got "
           + std::to_string(metadata.schemaVersion);
       return result;
     }
   } else {
-    result.status = PayloadValidationStatus::MissingMetadataAccepted;
+    result.status = ArchiveValidationStatus::MissingMetadataAccepted;
     result.message = "payload has no __tsd_metadata node; treating as legacy";
   }
 
   if (!payloadRoot.child("objectDB")) {
-    result.status = PayloadValidationStatus::MissingRequiredNode;
+    result.status = ArchiveValidationStatus::MissingRequiredNode;
     result.message = "payload requires root/objectDB";
   }
 
@@ -404,7 +369,7 @@ struct SceneExclusionPlan
 };
 
 static SceneExclusionPlan planSceneExclusion(Scene &scene,
-    const SceneExclusion &exclusion,
+    const detail::LegacySceneExclusion &exclusion,
     const animation::AnimationManager *animationManager)
 {
   SceneExclusionPlan combined;
@@ -415,7 +380,8 @@ static SceneExclusionPlan planSceneExclusion(Scene &scene,
     auto result = plan_SubtreeArchive(scene, root, options);
     if (!result.accepted()) {
       tsd::core::logWarning(
-          "[save_Scene] could not plan subtree exclusion (%s); saving the "
+          "[serializeLegacyScenePayload] could not plan subtree exclusion "
+          "(%s); saving the "
           "whole scene inline",
           result.message.c_str());
       combined.valid = false;
@@ -448,10 +414,11 @@ static SceneExclusionPlan planSceneExclusion(Scene &scene,
     }
   }
 
-  if (exclusion.animations == ExcludedAnimationPolicy::Retain
+  if (exclusion.animations == detail::LegacyExcludedAnimationPolicy::Retain
       && !combined.animations.empty()) {
     tsd::core::logWarning(
-        "[save_Scene] retained animations target excluded subtrees; saving "
+        "[serializeLegacyScenePayload] retained animations target excluded "
+        "subtrees; saving "
         "the whole scene inline");
     combined.valid = false;
     combined.objects.clear();
@@ -506,7 +473,7 @@ struct ObjectIndexRemap
 };
 
 // Mirror the objectPoolToNode write order to assign each retained object the
-// dense per-pool index it will receive when load_Scene recreates the pool.
+// dense per-pool index it will receive when the payload recreates the pool.
 static std::vector<ObjectIndexRemap> buildObjectRemap(
     Scene &scene, const std::vector<detail::ObjectKey> &excluded)
 {
@@ -556,7 +523,8 @@ static void remapObjectRefs(
     });
     if (it == remap.end()) {
       tsd::core::logError(
-          "[save_Scene] dropping serialized reference to excluded object %s @%zu",
+          "[serializeLegacyScenePayload] dropping serialized reference to "
+          "excluded object %s @%zu",
           anari::toString(type),
           index);
       return true;
@@ -637,30 +605,9 @@ static size_t remappedLayerNodeIndex(const std::vector<LayerNodeRemap> &remaps,
   return index; // layer not remapped
 }
 
-void save_Scene(Scene &scene, const char *filename)
-{
-  tsd::core::logStatus("Saving context to file: %s", filename);
-  tsd::core::logStatus("  ...serializing context");
-  core::DataTree tree;
-  save_Scene(scene, tree.root(), false);
-  tsd::core::logStatus("  ...writing file");
-  tree.save(filename);
-  tsd::core::logStatus("  ...done!");
-}
-
-void save_Scene(Scene &scene,
+void detail::serializeLegacyScenePayload(Scene &scene,
     core::DataNode &root,
-    bool forceProxyArrays,
-    tsd::animation::AnimationManager *animMgr)
-{
-  SaveSceneOptions options;
-  options.forceProxyArrays = forceProxyArrays;
-  options.animationManager = animMgr;
-  save_Scene(scene, root, options);
-}
-
-void save_Scene(
-    Scene &scene, core::DataNode &root, const SaveSceneOptions &options)
+    const LegacySceneSerializationOptions &options)
 {
   core::writeDataTreeMetadata(root,
       {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
@@ -721,7 +668,8 @@ void save_Scene(
   // absolute object/layer-node indices the bindings store.
   if (options.animationManager) {
     if (doExclude
-        && options.exclusion.animations == ExcludedAnimationPolicy::OmitOwned) {
+        && options.exclusion.animations
+            == LegacyExcludedAnimationPolicy::OmitOwned) {
       animationManagerToNodeExcluding(*options.animationManager,
           root["animations"],
           exclusionPlan.animations);
@@ -749,25 +697,16 @@ void save_Scene(
                 return remappedLayerNodeIndex(layerRemaps, layerName, index);
               },
               errorMessage)) {
-        tsd::core::logError("[save_Scene] could not remap animations: %s",
+        tsd::core::logError(
+            "[serializeLegacyScenePayload] could not remap animations: %s",
             errorMessage.c_str());
       }
     }
   }
 }
 
-void save_SceneCamerasAndRenderers(Scene &scene, const char *filename)
-{
-  tsd::core::logStatus(
-      "Saving scene cameras and renderers to file: %s", filename);
-  core::DataTree tree;
-  save_SceneCamerasAndRenderers(scene, tree.root());
-  if (!tree.save(filename))
-    tsd::core::logError(
-        "[save_SceneCamerasAndRenderers] failed to write file '%s'", filename);
-}
-
-void save_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
+void detail::serializeLegacyCameraRendererPayload(
+    Scene &scene, core::DataNode &root)
 {
   root.reset();
   core::writeDataTreeMetadata(root,
@@ -782,44 +721,20 @@ void save_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
   objectPoolToNode(objectDB, scene.m_db.renderer, "renderer", false);
 }
 
-void load_Scene(Scene &scene,
-    const char *filename,
-    tsd::animation::AnimationManager *animMgr)
-{
-  tsd::core::logStatus("Loading context from file: %s", filename);
-  tsd::core::logStatus("  ...loading file");
-  core::DataTree tree;
-  if (!tree.load(filename)) {
-    tsd::core::logError("[load_Scene] failed to load file '%s'", filename);
-    return;
-  }
-  load_Scene(scene, tree.root(), animMgr);
-}
-
-void load_Scene(Scene &scene,
-    core::DataNode &root,
-    tsd::animation::AnimationManager *animMgr)
-{
-  PayloadValidationResult result;
-  tryLoad_Scene(scene, root, &result, animMgr);
-  if (!result.accepted())
-    logValidationFailure("load_Scene", result);
-}
-
-PayloadValidationResult validate_ScenePayload(core::DataNode &root)
+ArchiveValidationResult detail::validateLegacyScenePayload(core::DataNode &root)
 {
   return validateScenePayloadImpl(root,
       {schema::SCENE_FULL},
       {schema::SCENE_FULL, schema::SCENE_CAMERAS_AND_RENDERERS});
 }
 
-bool tryLoad_Scene(Scene &scene,
+bool detail::tryDeserializeLegacyScenePayload(Scene &scene,
     core::DataNode &root,
-    PayloadValidationResult *resultOut,
+    ArchiveValidationResult *resultOut,
     tsd::animation::AnimationManager *animMgr)
 {
   // Clear out any existing context contents //
-  auto result = validate_ScenePayload(root);
+  auto result = validateLegacyScenePayload(root);
   if (resultOut)
     *resultOut = result;
   if (!result.accepted())
@@ -888,29 +803,7 @@ bool tryLoad_Scene(Scene &scene,
   return true;
 }
 
-void load_SceneCamerasAndRenderers(Scene &scene, const char *filename)
-{
-  tsd::core::logStatus(
-      "Loading scene cameras and renderers from file: %s", filename);
-  core::DataTree tree;
-  if (!tree.load(filename)) {
-    tsd::core::logError(
-        "[load_SceneCamerasAndRenderers] failed to load file '%s'", filename);
-    return;
-  }
-
-  load_SceneCamerasAndRenderers(scene, tree.root());
-}
-
-void load_SceneCamerasAndRenderers(Scene &scene, core::DataNode &root)
-{
-  PayloadValidationResult result;
-  tryLoad_SceneCamerasAndRenderers(scene, root, &result);
-  if (!result.accepted())
-    logValidationFailure("load_SceneCamerasAndRenderers", result);
-}
-
-PayloadValidationResult validate_SceneCamerasAndRenderersPayload(
+ArchiveValidationResult detail::validateLegacyCameraRendererPayload(
     core::DataNode &root)
 {
   return validateScenePayloadImpl(root,
@@ -918,10 +811,10 @@ PayloadValidationResult validate_SceneCamerasAndRenderersPayload(
       {schema::SCENE_FULL, schema::SCENE_CAMERAS_AND_RENDERERS});
 }
 
-bool tryLoad_SceneCamerasAndRenderers(
-    Scene &scene, core::DataNode &root, PayloadValidationResult *resultOut)
+bool detail::tryDeserializeLegacyCameraRendererPayload(
+    Scene &scene, core::DataNode &root, ArchiveValidationResult *resultOut)
 {
-  auto result = validate_SceneCamerasAndRenderersPayload(root);
+  auto result = validateLegacyCameraRendererPayload(root);
   if (resultOut)
     *resultOut = result;
   if (!result.accepted())

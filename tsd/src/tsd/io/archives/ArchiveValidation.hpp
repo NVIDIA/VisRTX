@@ -38,7 +38,4 @@ inline bool ArchiveValidationResult::accepted() const
       || status == ArchiveValidationStatus::MissingMetadataAccepted;
 }
 
-// Temporary source compatibility for callers migrated in Handoff 04.
-using PayloadValidationResult = ArchiveValidationResult;
-
 } // namespace tsd::io

@@ -3,7 +3,6 @@
 
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/io/serialization/serialization_internal.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 
@@ -61,9 +60,7 @@ void import_file(Scene &scene,
     tsd::core::logStatus("...loading file '%s'", file.c_str());
   }
 
-  if (f.first == ImporterType::TSD)
-    tsd::io::load_Scene(scene, file.c_str(), &animMgr);
-  else if (f.first == ImporterType::AGX)
+  if (f.first == ImporterType::AGX)
     tsd::io::import_AGX(scene, animMgr, file.c_str(), root);
   else if (f.first == ImporterType::ASSIMP)
     tsd::io::import_ASSIMP(scene, animMgr, file.c_str(), root, false);

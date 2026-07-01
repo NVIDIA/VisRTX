@@ -14,8 +14,9 @@
 #include <tsd/rendering/view/ManipulatorToAnari.hpp>
 // tsd_app
 #include <tsd/app/Context.h>
+#include <tsd/app/LegacyApplicationContext.h>
 // tsd_io
-#include <tsd/io/serialization/serialization_internal.hpp>
+#include <tsd/io/serialization.hpp>
 // stb_image
 #include "stb_image_write.h"
 // std
@@ -159,9 +160,11 @@ static void populateTSDScene()
   g_timer.start();
   auto &root = g_stateFile->root();
   if (auto *c = root.child("context"); c != nullptr)
-    tsd::io::load_Scene(*g_scene, *c);
+    tsd::app::detail::deserializeLegacySceneState(
+        *g_scene, *g_animationMgr, *c);
   else
-    tsd::io::load_Scene(*g_scene, root);
+    tsd::app::detail::deserializeLegacySceneState(
+        *g_scene, *g_animationMgr, root);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());

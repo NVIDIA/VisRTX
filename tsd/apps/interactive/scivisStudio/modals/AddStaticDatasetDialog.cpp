@@ -11,18 +11,19 @@
 #include <array>
 #include <cstring>
 #include <filesystem>
+#include <optional>
 
 namespace tsd::scivis_studio {
 
 namespace {
 
-struct ImporterChoice
+struct DatasetSourceChoice
 {
   const char *name;
-  tsd::io::ImporterType type;
+  std::optional<tsd::io::ImporterType> importer;
 };
 
-constexpr std::array<ImporterChoice, 26> IMPORTERS = {{
+constexpr std::array<DatasetSourceChoice, 26> SOURCES = {{
     {"AGX", tsd::io::ImporterType::AGX},
     {"ASSIMP", tsd::io::ImporterType::ASSIMP},
     {"ASSIMP_FLAT", tsd::io::ImporterType::ASSIMP_FLAT},
@@ -48,7 +49,7 @@ constexpr std::array<ImporterChoice, 26> IMPORTERS = {{
     {"VTU", tsd::io::ImporterType::VTU},
     {"XYZDP", tsd::io::ImporterType::XYZDP},
     {"VOLUME", tsd::io::ImporterType::VOLUME},
-    {"TSD", tsd::io::ImporterType::TSD},
+    {"TSD Dataset Archive", std::nullopt},
 }};
 
 template <size_t N>
@@ -84,12 +85,12 @@ void AddStaticDatasetDialog::buildUI()
   ImGui::SameLine();
   ImGui::InputText("Source Path", m_sourcePath.data(), m_sourcePath.size());
 
-  const char *preview = IMPORTERS[m_selectedImporter].name;
-  if (ImGui::BeginCombo("Importer", preview)) {
-    for (int i = 0; i < static_cast<int>(IMPORTERS.size()); ++i) {
-      const bool selected = i == m_selectedImporter;
-      if (ImGui::Selectable(IMPORTERS[i].name, selected))
-        m_selectedImporter = i;
+  const char *preview = SOURCES[m_selectedSource].name;
+  if (ImGui::BeginCombo("Source", preview)) {
+    for (int i = 0; i < static_cast<int>(SOURCES.size()); ++i) {
+      const bool selected = i == m_selectedSource;
+      if (ImGui::Selectable(SOURCES[i].name, selected))
+        m_selectedSource = i;
       if (selected)
         ImGui::SetItemDefaultFocus();
     }
@@ -103,10 +104,11 @@ void AddStaticDatasetDialog::buildUI()
   }
 
   ImGui::SameLine();
-  if (ImGui::Button("Import")) {
+  const auto sourceChoice = SOURCES[m_selectedSource];
+  const bool loadArchive = !sourceChoice.importer.has_value();
+  if (ImGui::Button(loadArchive ? "Load" : "Import")) {
     const std::string name = m_name.data();
     const std::filesystem::path sourcePath = m_sourcePath.data();
-    const auto importer = IMPORTERS[m_selectedImporter].type;
     if (sourcePath.empty()) {
       tsd::core::logWarning("[SciVisStudio] Dataset source path is empty");
       return;
@@ -114,11 +116,27 @@ void AddStaticDatasetDialog::buildUI()
 
     hide();
     m_app->showTaskModal(
-        [ctx = m_projectContext, name, sourcePath, importer]() {
-          if (ctx)
-            ctx->addStaticDataset(name, sourcePath, importer);
+        [ctx = m_projectContext, name, sourcePath, sourceChoice]() {
+          if (!ctx)
+            return;
+          if (sourceChoice.importer) {
+            ctx->addStaticDataset(name, sourcePath, *sourceChoice.importer);
+          } else {
+            std::string error;
+            auto *dataset = ctx->loadDatasetArchive(sourcePath, &error);
+            if (!dataset) {
+              tsd::core::logWarning(
+                  "[SciVisStudio] Failed to load Dataset Archive: %s",
+                  error.c_str());
+            } else if (!name.empty()
+                && !ctx->renameDataset(dataset->id, name, &error)) {
+              tsd::core::logWarning(
+                  "[SciVisStudio] Failed to rename loaded Dataset Archive: %s",
+                  error.c_str());
+            }
+          }
         },
-        "Importing Dataset...");
+        loadArchive ? "Loading Dataset Archive..." : "Importing Dataset...");
   }
 }
 

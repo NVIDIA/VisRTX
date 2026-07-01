@@ -1122,17 +1122,25 @@ function tsd.io.generateSphereSetVolume(...) end
 ---@return tsd.Array
 function tsd.io.makeDefaultColorMap(scene, size) end
 
---- Save a scene to a TSD file.
---- When called with a state table, the file can be opened directly in
---- tsdViewer with the correct device and camera position.
----@overload fun(scene: tsd.Scene, filename: string)
----@overload fun(scene: tsd.Scene, filename: string, state: table)
-function tsd.io.saveScene(...) end
-
---- Load a scene from a TSD file.
+--- Save a Scene Archive to a TSD file.
 ---@param scene tsd.Scene
 ---@param filename string
-function tsd.io.loadScene(scene, filename) end
+function tsd.io.saveSceneArchive(scene, filename) end
+
+--- Load a Scene Archive from a TSD file.
+---@param scene tsd.Scene
+---@param filename string
+function tsd.io.loadSceneArchive(scene, filename) end
+
+--- Save an Animation Manager Archive to a TSD file.
+---@param manager tsd.AnimationManager
+---@param filename string
+function tsd.io.saveAnimationManagerArchive(manager, filename) end
+
+--- Load an Animation Manager Archive from a TSD file.
+---@param manager tsd.AnimationManager
+---@param filename string
+function tsd.io.loadAnimationManagerArchive(manager, filename) end
 
 -- tsd.render (RenderBindings.cpp) ----------------------------------------
 

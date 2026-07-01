@@ -43,8 +43,8 @@ void applyTransferFunction(
   for (size_t i = 0; i < numRGBPoints; ++i) {
     float x = (i / float(numRGBPoints - 1));
 
-    auto color = detail::interpolateColor(tf.colorPoints, x);
-    auto opacity = detail::interpolateOpacity(tf.opacityPoints, x);
+    auto color = core::detail::interpolateColor(tf.colorPoints, x);
+    auto opacity = core::detail::interpolateOpacity(tf.opacityPoints, x);
     colormap.push_back({color.x, color.y, color.z, opacity});
   }
 

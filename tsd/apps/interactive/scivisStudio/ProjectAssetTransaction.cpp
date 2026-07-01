@@ -114,7 +114,7 @@ static bool validateWrite(const ProjectSavePlan &plan,
   }
   if (!write.writer || !write.validator)
     return fail(
-        "missing exporter or validator for " + write.description, error);
+        "missing writer or validator for " + write.description, error);
   if (write.ownedTarget && !validRelativePath(*write.ownedTarget)) {
     return fail("invalid owned target for " + write.description + ": "
             + write.ownedTarget->generic_string(),
@@ -303,7 +303,7 @@ bool AssetTransaction::commit(const ProjectSavePlan &plan, std::string *error)
     }
     if (!std::filesystem::is_regular_file(entry.stage, ec) || ec) {
       cleanupStages();
-      return fail("exporter did not stage a regular file for "
+      return fail("writer did not stage a regular file for "
               + entry.write->description,
           error);
     }

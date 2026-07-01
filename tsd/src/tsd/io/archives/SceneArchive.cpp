@@ -347,7 +347,7 @@ bool serialize_SceneArchive(const scene::Scene &scene,
 
 ArchiveValidationResult validate_SceneArchive(core::DataNode &archive)
 {
-  auto result = validate_ScenePayload(archive);
+  auto result = detail::validateLegacyScenePayload(archive);
   if (!result.accepted())
     return result;
 
@@ -371,8 +371,9 @@ bool deserialize_SceneArchive(scene::Scene &scene,
   if (!archiveValidation.accepted())
     return false;
 
-  PayloadValidationResult legacyValidation;
-  const bool loaded = tryLoad_Scene(scene, archive, &legacyValidation, nullptr);
+  ArchiveValidationResult legacyValidation;
+  const bool loaded = detail::tryDeserializeLegacyScenePayload(
+      scene, archive, &legacyValidation, nullptr);
   return loaded;
 }
 

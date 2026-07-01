@@ -10,9 +10,10 @@
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/core/Logging.hpp"
 // tsd_io
+#include "tsd/io/archives/SceneArchive.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/io/procedural.hpp"
-#include "tsd/io/serialization/serialization_internal.hpp"
+#include "tsd/io/serialization/Object.hpp"
 
 namespace tsd::app {
 
@@ -34,6 +35,7 @@ void Context::parseCommandLine(int argc, const char **argv)
 void Context::parseCommandLine(std::vector<std::string> &args)
 {
   auto &importerType = this->commandLine.importerType;
+  bool sceneArchiveMode = false;
 
   for (int i = 1; i < args.size(); i++) {
     std::string &arg = args[i];
@@ -46,9 +48,10 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       setLogEchoOutput(true);
     else if (arg == "-l" || arg == "--layer")
       this->commandLine.currentLayerName = args[++i];
-    else if (arg == "-tsd")
-      importerType = tsd::io::ImporterType::TSD;
-    else if (arg == "-agx")
+    else if (arg == "-tsd") {
+      importerType = tsd::io::ImporterType::NONE;
+      sceneArchiveMode = true;
+    } else if (arg == "-agx")
       importerType = tsd::io::ImporterType::AGX;
     else if (arg == "-assimp")
       importerType = tsd::io::ImporterType::ASSIMP;
@@ -123,7 +126,9 @@ void Context::parseCommandLine(std::vector<std::string> &args)
     else if (arg == "-camera" || arg == "--camera")
       this->commandLine.cameraFile = args[++i];
     else {
-      if (importerType != tsd::io::ImporterType::NONE) {
+      if (sceneArchiveMode && importerType == tsd::io::ImporterType::NONE) {
+        this->commandLine.sceneArchiveFile = arg;
+      } else if (importerType != tsd::io::ImporterType::NONE) {
         if (importerType == tsd::io::ImporterType::POINTSBIN_MULTIFILE
             || importerType == tsd::io::ImporterType::VOLUME_ANIMATION) {
           if (!this->commandLine.currentAnimationSequence) {
@@ -167,7 +172,8 @@ void Context::setupSceneFromCommandLine(bool hdriOnly)
     return;
   }
 
-  const bool haveFiles = commandLine.filenames.size() > 0
+  const bool haveFiles = !commandLine.sceneArchiveFile.empty()
+      || commandLine.filenames.size() > 0
       || commandLine.animationFilenames.size() > 0;
   const bool blankImport =
       !haveFiles && commandLine.importerType == tsd::io::ImporterType::BLANK;
@@ -179,6 +185,12 @@ void Context::setupSceneFromCommandLine(bool hdriOnly)
     tsd::core::logStatus("...generating material_orb from embedded data");
     tsd::io::generate_material_orb(tsd.scene);
   } else if (!loadFromState) {
+    if (!commandLine.sceneArchiveFile.empty()
+        && !tsd::io::load_SceneArchive(
+            tsd.scene, commandLine.sceneArchiveFile.c_str())) {
+      tsd::core::logError("[Context] Failed to load Scene Archive '%s'",
+          commandLine.sceneArchiveFile.c_str());
+    }
     tsd::io::import_files(tsd.scene, tsd.animationMgr, commandLine.filenames);
     tsd::io::import_animations(
         tsd.scene, tsd.animationMgr, commandLine.animationFilenames);

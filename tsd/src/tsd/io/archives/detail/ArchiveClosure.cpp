@@ -220,7 +220,7 @@ bool hasObjectArrayNode(core::DataNode &node, std::string *message)
   return found;
 }
 
-// Export-side closure construction ///////////////////////////////////////////
+// Archive closure construction ///////////////////////////////////////////////
 
 bool admitObject(const Scene &scene,
     const ClosurePolicy &policy,
@@ -255,11 +255,11 @@ bool admitObject(const Scene &scene,
   if (anari::isArray(objectType)) {
     auto *array = static_cast<Array *>(object);
     if (array->isProxy()) {
-      errorMessage = "object files cannot export proxy arrays";
+      errorMessage = "Object Archives cannot contain proxy arrays";
       return false;
     }
     if (anari::isObject(array->elementType())) {
-      errorMessage = "object files cannot export arrays of ANARI objects";
+      errorMessage = "Object Archives cannot contain arrays of ANARI objects";
       return false;
     }
   }
@@ -444,18 +444,18 @@ bool writeObjectDB(core::DataNode &objectDB,
   return true;
 }
 
-// Import-side validation /////////////////////////////////////////////////////
+// Archive validation /////////////////////////////////////////////////////////
 
-static PayloadValidationResult makeMetadataFailure(
-    PayloadValidationStatus status, std::string message)
+static ArchiveValidationResult makeMetadataFailure(
+    ArchiveValidationStatus status, std::string message)
 {
-  PayloadValidationResult result;
+  ArchiveValidationResult result;
   result.status = status;
   result.message = std::move(message);
   return result;
 }
 
-PayloadValidationResult validateEnvelope(core::DataNode &root,
+ArchiveValidationResult validateEnvelope(core::DataNode &root,
     std::string_view expectedFileType,
     const std::vector<std::string_view> &acceptedSchemas,
     const std::vector<std::string_view> &knownSchemas)
@@ -463,15 +463,15 @@ PayloadValidationResult validateEnvelope(core::DataNode &root,
   auto metadataResult = core::readDataTreeMetadata(root);
   if (metadataResult.malformed()) {
     return makeMetadataFailure(
-        PayloadValidationStatus::MalformedMetadata, metadataResult.message);
+        ArchiveValidationStatus::MalformedMetadata, metadataResult.message);
   }
 
   if (!metadataResult.found()) {
-    return makeMetadataFailure(PayloadValidationStatus::MissingRequiredNode,
+    return makeMetadataFailure(ArchiveValidationStatus::MissingRequiredNode,
         std::string(expectedFileType) + " payload requires __tsd_metadata");
   }
 
-  PayloadValidationResult result;
+  ArchiveValidationResult result;
   const auto &metadata = *metadataResult.metadata;
   result.fileType = metadata.fileType;
   result.schema = metadata.schema;
@@ -479,14 +479,14 @@ PayloadValidationResult validateEnvelope(core::DataNode &root,
   result.schemaVersion = metadata.schemaVersion;
 
   if (metadata.envelopeVersion != core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
-    result.status = PayloadValidationStatus::UnsupportedEnvelopeVersion;
+    result.status = ArchiveValidationStatus::UnsupportedEnvelopeVersion;
     result.message = "expected envelopeVersion 1, got "
         + std::to_string(metadata.envelopeVersion);
     return result;
   }
 
   if (metadata.fileType != expectedFileType) {
-    result.status = PayloadValidationStatus::IncompatibleSchema;
+    result.status = ArchiveValidationStatus::IncompatibleSchema;
     result.message =
         "fileType '" + metadata.fileType + "' is not accepted by this loader";
     return result;
@@ -500,15 +500,15 @@ PayloadValidationResult validateEnvelope(core::DataNode &root,
           acceptedSchemas.begin(), acceptedSchemas.end(), schemaMatches)) {
     result.status =
         std::any_of(knownSchemas.begin(), knownSchemas.end(), schemaMatches)
-        ? PayloadValidationStatus::IncompatibleSchema
-        : PayloadValidationStatus::UnknownSchema;
+        ? ArchiveValidationStatus::IncompatibleSchema
+        : ArchiveValidationStatus::UnknownSchema;
     result.message =
         "schema '" + metadata.schema + "' is not accepted by this loader";
     return result;
   }
 
   if (metadata.schemaVersion != 1) {
-    result.status = PayloadValidationStatus::UnsupportedSchemaVersion;
+    result.status = ArchiveValidationStatus::UnsupportedSchemaVersion;
     result.message = "schema '" + metadata.schema
         + "' supports version 1..1, got "
         + std::to_string(metadata.schemaVersion);
@@ -520,7 +520,7 @@ PayloadValidationResult validateEnvelope(core::DataNode &root,
 
 bool collectFileObjects(core::DataNode &objectDB,
     std::vector<FileObjectEntry> &entries,
-    PayloadValidationResult &result)
+    ArchiveValidationResult &result)
 {
   for (auto poolName : OBJECT_POOL_NAMES) {
     auto *poolNode = objectDB.child(poolName);
@@ -536,7 +536,7 @@ bool collectFileObjects(core::DataNode &objectDB,
 
       auto *selfNode = objectNode.child("self");
       if (!selfNode || !selfNode->holdsObjectIdx()) {
-        result.status = PayloadValidationStatus::MalformedMetadata;
+        result.status = ArchiveValidationStatus::MalformedMetadata;
         result.message = std::string("objectDB/") + poolName
             + " entry is missing object self";
         ok = false;
@@ -549,13 +549,13 @@ bool collectFileObjects(core::DataNode &objectDB,
 
       if (std::string_view(poolName) == "array") {
         if (!anari::isArray(objectType)) {
-          result.status = PayloadValidationStatus::MalformedMetadata;
+          result.status = ArchiveValidationStatus::MalformedMetadata;
           result.message = "objectDB/array entry has non-array self type";
           ok = false;
           return;
         }
       } else if (objectType != expectedType) {
-        result.status = PayloadValidationStatus::MalformedMetadata;
+        result.status = ArchiveValidationStatus::MalformedMetadata;
         result.message = std::string("objectDB/") + poolName
             + " entry self type does not match its pool";
         ok = false;
@@ -563,7 +563,7 @@ bool collectFileObjects(core::DataNode &objectDB,
       }
 
       if (index != expectedIndex) {
-        result.status = PayloadValidationStatus::MalformedMetadata;
+        result.status = ArchiveValidationStatus::MalformedMetadata;
         result.message = std::string("objectDB/") + poolName
             + " entries must use dense local indices";
         ok = false;
@@ -572,7 +572,7 @@ bool collectFileObjects(core::DataNode &objectDB,
 
       auto *subtypeNode = objectNode.child("subtype");
       if (!subtypeNode || subtypeNode->getValue().type() != ANARI_STRING) {
-        result.status = PayloadValidationStatus::MalformedMetadata;
+        result.status = ArchiveValidationStatus::MalformedMetadata;
         result.message =
             std::string("objectDB/") + poolName + " entry is missing subtype";
         ok = false;
@@ -583,26 +583,27 @@ bool collectFileObjects(core::DataNode &objectDB,
         auto *arrayDim = objectNode.child("arrayDim");
         auto *arrayData = objectNode.child("arrayData");
         if (!arrayDim || !arrayData) {
-          result.status = PayloadValidationStatus::MissingRequiredNode;
+          result.status = ArchiveValidationStatus::MissingRequiredNode;
           result.message = "array entries require arrayDim and arrayData";
           ok = false;
           return;
         }
         if (arrayDim->getValue().type() != ANARI_UINT32_VEC3) {
-          result.status = PayloadValidationStatus::MalformedMetadata;
+          result.status = ArchiveValidationStatus::MalformedMetadata;
           result.message = "arrayDim must be uint3";
           ok = false;
           return;
         }
         if (!arrayData->holdsArray()) {
-          result.status = PayloadValidationStatus::MalformedMetadata;
-          result.message = "object files cannot import proxy arrays";
+          result.status = ArchiveValidationStatus::MalformedMetadata;
+          result.message = "Object Archives cannot contain proxy arrays";
           ok = false;
           return;
         }
         if (anari::isObject(arrayData->arrayType())) {
-          result.status = PayloadValidationStatus::MalformedMetadata;
-          result.message = "object files cannot import arrays of ANARI objects";
+          result.status = ArchiveValidationStatus::MalformedMetadata;
+          result.message =
+              "Object Archives cannot contain arrays of ANARI objects";
           ok = false;
           return;
         }
@@ -619,7 +620,7 @@ bool collectFileObjects(core::DataNode &objectDB,
         size_t arraySize = 0;
         arrayData->getValueAsArray(&arrayElementType, &arrayPtr, &arraySize);
         if (arraySize != expectedArraySize) {
-          result.status = PayloadValidationStatus::MalformedMetadata;
+          result.status = ArchiveValidationStatus::MalformedMetadata;
           result.message = "arrayData size does not match arrayDim";
           ok = false;
           return;
@@ -628,7 +629,7 @@ bool collectFileObjects(core::DataNode &objectDB,
 
       const auto key = makeKey(objectType, index);
       if (findFileEntry(entries, key)) {
-        result.status = PayloadValidationStatus::MalformedMetadata;
+        result.status = ArchiveValidationStatus::MalformedMetadata;
         result.message = "objectDB contains duplicate object indices";
         ok = false;
         return;
@@ -649,12 +650,12 @@ bool checkGraphConsistency(std::vector<FileObjectEntry> &entries,
     const std::vector<ObjectKey> &seedKeys,
     const ClosurePolicy &policy,
     bool requireAllReachable,
-    PayloadValidationResult &result)
+    ArchiveValidationResult &result)
 {
   size_t rootCount = 0;
   for (const auto &entry : entries) {
     if (!typeAllowed(policy, entry.objectType)) {
-      result.status = PayloadValidationStatus::IncompatibleSchema;
+      result.status = ArchiveValidationStatus::IncompatibleSchema;
       result.message = "object payload contains unsupported object type ";
       result.message += anari::toString(entry.objectType);
       return false;
@@ -665,7 +666,7 @@ bool checkGraphConsistency(std::vector<FileObjectEntry> &entries,
   }
 
   if (policy.singleRoot && rootCount != 1) {
-    result.status = PayloadValidationStatus::IncompatibleSchema;
+    result.status = ArchiveValidationStatus::IncompatibleSchema;
     result.message = "object payload must contain exactly one root object";
     return false;
   }
@@ -675,7 +676,7 @@ bool checkGraphConsistency(std::vector<FileObjectEntry> &entries,
   for (size_t cursor = 0; cursor < reachable.size(); cursor++) {
     auto *entry = findFileEntry(entries, reachable[cursor]);
     if (!entry) {
-      result.status = PayloadValidationStatus::MissingRequiredNode;
+      result.status = ArchiveValidationStatus::MissingRequiredNode;
       result.message = "object payload references missing object ";
       result.message += anari::toString(reachable[cursor].type);
       result.message += " @";
@@ -689,7 +690,7 @@ bool checkGraphConsistency(std::vector<FileObjectEntry> &entries,
         return false;
 
       if (node.holdsArray() && anari::isObject(node.arrayType())) {
-        result.status = PayloadValidationStatus::MalformedMetadata;
+        result.status = ArchiveValidationStatus::MalformedMetadata;
         result.message =
             "object array values are not supported in object files";
         traversalOK = false;
@@ -704,7 +705,7 @@ bool checkGraphConsistency(std::vector<FileObjectEntry> &entries,
       node.getValueAsObjectIdx(&refType, &refIndex);
       auto refKey = makeKey(refType, refIndex);
       if (!findFileEntry(entries, refKey)) {
-        result.status = PayloadValidationStatus::MalformedMetadata;
+        result.status = ArchiveValidationStatus::MalformedMetadata;
         result.message = "object payload references missing object ";
         result.message += anari::toString(refType);
         result.message += " @";
@@ -730,7 +731,7 @@ bool checkGraphConsistency(std::vector<FileObjectEntry> &entries,
       if (std::none_of(reachable.begin(), reachable.end(), [&](auto &key) {
             return sameKey(key, entry.file);
           })) {
-        result.status = PayloadValidationStatus::IncompatibleSchema;
+        result.status = ArchiveValidationStatus::IncompatibleSchema;
         result.message = "object payload contains unreferenced objects";
         return false;
       }
@@ -740,7 +741,7 @@ bool checkGraphConsistency(std::vector<FileObjectEntry> &entries,
   return true;
 }
 
-// Import-side object instantiation ///////////////////////////////////////////
+// Object deserialization /////////////////////////////////////////////////////
 
 Object *createTargetObject(Scene &scene, core::DataNode &node)
 {
@@ -847,7 +848,8 @@ bool rewriteRefsToTarget(core::DataNode &root,
 
     auto *entry = findTargetEntry(entries, makeKey(type, index));
     if (!entry) {
-      errorMessage = "serialized object reference has no import mapping";
+      errorMessage =
+          "serialized object reference has no deserialization mapping";
       ok = false;
       return false;
     }
@@ -909,7 +911,7 @@ bool instantiateObjectDB(Scene &scene,
     }
   } catch (const std::exception &e) {
     rollbackCreatedObjects(scene, createdRefs);
-    errorMessage = std::string("import failed: ") + e.what();
+    errorMessage = std::string("deserialization failed: ") + e.what();
     return false;
   }
 
