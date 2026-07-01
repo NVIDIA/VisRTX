@@ -11,12 +11,17 @@
 #include <string>
 #include <vector>
 
+namespace tsd::ui::imgui {
+struct Viewport;
+}
+
 namespace tsd::scivis_studio {
 
 struct DatasetEditor : public tsd::ui::imgui::Window
 {
-  DatasetEditor(
-      tsd::ui::imgui::Application *app, ProjectContext *projectContext);
+  DatasetEditor(tsd::ui::imgui::Application *app,
+      ProjectContext *projectContext,
+      tsd::ui::imgui::Viewport *viewport);
   ~DatasetEditor() override;
 
   void buildUI() override;
@@ -41,6 +46,7 @@ struct DatasetEditor : public tsd::ui::imgui::Window
   void buildErrorPopup();
 
   ProjectContext *m_projectContext{nullptr};
+  tsd::ui::imgui::Viewport *m_viewport{nullptr};
   int m_selectedDataset{0};
   PendingFileIO m_pendingFileIO{PendingFileIO::None};
   std::string m_pendingFilename;

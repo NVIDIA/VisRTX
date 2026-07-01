@@ -4,6 +4,7 @@
 #include "DatasetEditor.h"
 
 #include "tsd/ui/imgui/Application.h"
+#include "tsd/ui/imgui/windows/Viewport.h"
 
 #include "imgui.h"
 
@@ -15,9 +16,12 @@
 
 namespace tsd::scivis_studio {
 
-DatasetEditor::DatasetEditor(
-    tsd::ui::imgui::Application *app, ProjectContext *projectContext)
-    : Window(app, "Dataset Editor"), m_projectContext(projectContext)
+DatasetEditor::DatasetEditor(tsd::ui::imgui::Application *app,
+    ProjectContext *projectContext,
+    tsd::ui::imgui::Viewport *viewport)
+    : Window(app, "Dataset Editor"),
+      m_projectContext(projectContext),
+      m_viewport(viewport)
 {}
 
 DatasetEditor::~DatasetEditor() = default;
@@ -70,6 +74,8 @@ void DatasetEditor::pollPendingReimport()
   if (!m_pendingReimport->error.empty())
     m_ioError = std::move(m_pendingReimport->error);
   m_pendingReimport.reset();
+  if (m_viewport)
+    m_viewport->setRenderingEnabled(true);
 }
 
 void DatasetEditor::buildErrorPopup()
@@ -260,6 +266,8 @@ void DatasetEditor::buildUI()
   if (ImGui::Button("Reimport")) {
     const auto datasetId = dataset.id;
     m_pendingReimport = std::make_shared<ReimportResult>();
+    if (m_viewport)
+      m_viewport->setRenderingEnabled(false);
     m_app->showTaskModal(
         [ctx = m_projectContext, datasetId, result = m_pendingReimport]() {
           try {

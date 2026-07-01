@@ -148,7 +148,7 @@ tsd::ui::imgui::WindowArray Application::setupWindows()
   auto *ctx = appContext();
   m_viewport = new tsd_ui::Viewport(this, &ctx->view.manipulator, "Viewport");
   auto *projectWindow = new ProjectWindow(this, &m_projectContext);
-  auto *datasetEditor = new DatasetEditor(this, &m_projectContext);
+  auto *datasetEditor = new DatasetEditor(this, &m_projectContext, m_viewport);
   auto *lightRigEditor = new LightRigEditor(this, &m_projectContext);
   auto *shotEditor =
       new ShotEditor(this, &m_projectContext, [this]() { renderActiveShot(); });

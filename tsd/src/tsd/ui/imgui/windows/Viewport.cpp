@@ -537,8 +537,11 @@ void Viewport::imagePipeline_populate(tsd::rendering::ImagePipeline &p)
 void Viewport::setRenderingEnabled(bool enabled)
 {
   m_renderingEnabled = enabled;
-  if (m_anariPass)
+  if (m_anariPass) {
     m_anariPass->setEnabled(enabled);
+    if (!enabled)
+      anari::wait(m_device, m_anariPass->getFrame());
+  }
 }
 
 void Viewport::releaseSceneReferences()
