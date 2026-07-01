@@ -35,13 +35,18 @@ provenance source. Reimport preserves the dataset's identity, name, and shot
 associations; failure leaves the previous content unchanged.
 _Avoid_: Automatic refresh
 
-**Dataset Import**:
-The incorporation of a portable dataset asset as an independent project-owned
-dataset with a fresh Dataset ID.
+**Dataset Archive**:
+A portable native TSD representation of a Dataset without its project-local
+Dataset ID.
 
-**Dataset Export**:
-The serialization of a project dataset as a portable asset without its
-project-local Dataset ID.
+**Dataset Archive Load**:
+The incorporation of a Dataset Archive as an independent project-owned Dataset
+with a fresh Dataset ID.
+_Avoid_: Dataset import
+
+**Dataset Archive Save**:
+The persistence of a project Dataset as a Dataset Archive.
+_Avoid_: Dataset export
 
 **Dirty Dataset**:
 A dataset whose authoritative asset differs from its last successfully saved
@@ -78,9 +83,15 @@ Discovery does not change the inventory until the user confirms the selection.
 _Avoid_: Automatic dataset import
 
 **Dataset Candidate**:
-A standalone dataset asset found by Dataset Discovery that is not yet in the
-dataset inventory. A generic TSD scene or another TSD asset type is not a
+A Dataset Archive found by Dataset Discovery that is not yet in the dataset
+inventory. A generic TSD scene or another TSD Archive type is not a
 dataset candidate.
+
+**Camera Rig Archive**:
+A portable native TSD representation of a camera rig.
+
+**Light Rig Archive**:
+A portable native TSD representation of a light rig.
 
 **File Animation Dataset**:
 A dataset that owns an authoritative ordered source-file list and uses it to
