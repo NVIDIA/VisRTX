@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/archives/detail/ArchiveClosure.hpp"
 
 #include <functional>
 

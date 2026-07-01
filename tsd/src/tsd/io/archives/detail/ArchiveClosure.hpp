@@ -14,8 +14,8 @@
 #include <string_view>
 #include <vector>
 
-// Internal helpers shared between the object-file (export_Object) and
-// layer-subtree (export_LayerSubtree) serialization paths. These build a
+// Internal helpers shared between Object and Layer Subtree Archives. These
+// build a
 // self-consistent closure of the objects reachable from a set of seed objects,
 // rewrite object references to dense local indices for storage, and recreate
 // those objects (with references remapped to fresh Scene indices) on import.
@@ -84,9 +84,9 @@ struct ClosurePolicy
   bool contains(anari::DataType canonicalType) const;
 };
 
-// Single Surface/Volume root with its supporting sub-objects (export_Object).
+// Single Surface/Volume root with its supporting sub-objects (Object Archive).
 ClosurePolicy objectFilePolicy(anari::DataType rootType);
-// Broad multi-root set including lights (export_LayerSubtree).
+// Broad multi-root set including lights (Layer Subtree Archive).
 ClosurePolicy layerSubtreePolicy();
 // Lights and the arrays they reference only (light-rig subtree export).
 ClosurePolicy lightRigPolicy();
@@ -105,8 +105,7 @@ bool poolAllowed(const ClosurePolicy &policy, std::string_view poolName);
 
 ClosureEntry *findClosureEntry(
     std::vector<ClosureEntry> &entries, const ObjectKey &key);
-const ClosureEntry *entryForLocalIndex(
-    const std::vector<ClosureEntry> &entries,
+const ClosureEntry *entryForLocalIndex(const std::vector<ClosureEntry> &entries,
     anari::DataType type,
     size_t localIndex);
 FileObjectEntry *findFileEntry(

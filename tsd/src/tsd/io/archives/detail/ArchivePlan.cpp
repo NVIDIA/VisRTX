@@ -1,10 +1,11 @@
 // Copyright 2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "tsd/io/archives/detail/ArchivePlan.hpp"
 #include "tsd/animation/Animation.hpp"
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
-#include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/archives/detail/ArchiveClosure.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 
 #include <algorithm>

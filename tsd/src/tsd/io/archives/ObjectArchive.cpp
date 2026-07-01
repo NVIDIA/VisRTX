@@ -1,10 +1,11 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+#include "tsd/io/archives/ObjectArchive.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/archives/detail/ArchiveClosure.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 // std
 #include <string>
@@ -88,8 +89,8 @@ bool validateObjectGraph(core::DataNode &root,
         && !poolAllowed(policy, poolNode.name())
         && poolNode.numChildren() > 0) {
       result.status = PayloadValidationStatus::IncompatibleSchema;
-      result.message = "object payload contains disallowed pool '"
-          + poolNode.name() + "'";
+      result.message =
+          "object payload contains disallowed pool '" + poolNode.name() + "'";
       ok = false;
     }
   });
@@ -110,11 +111,33 @@ bool validateObjectGraph(core::DataNode &root,
       entries, {rootKey}, policy, /*requireAllReachable=*/true, result);
 }
 
-PayloadValidationResult validateObjectPayloadImpl(core::DataNode &root,
-    const std::vector<std::string_view> &acceptedSchemas)
+PayloadValidationResult validateObjectPayloadImpl(
+    core::DataNode &root, const std::vector<std::string_view> &acceptedSchemas)
 {
-  auto result =
-      validateEnvelope(root, "object", acceptedSchemas, KNOWN_OBJECT_SCHEMAS);
+  PayloadValidationResult result;
+  const auto metadata = core::readDataTreeMetadata(root);
+  if (!metadata.found() && !metadata.malformed()) {
+    auto *rootObject = root.child("rootObject");
+    anari::DataType type = ANARI_UNKNOWN;
+    size_t index = core::INVALID_INDEX;
+    if (rootObject && rootObject->holdsObjectIdx())
+      rootObject->getValueAsObjectIdx(&type, &index);
+    result.schema = schemaForRootType(type);
+    const auto accepted = std::find(
+        acceptedSchemas.begin(), acceptedSchemas.end(), result.schema);
+    if (result.schema.empty() || accepted == acceptedSchemas.end()) {
+      result.status = PayloadValidationStatus::IncompatibleSchema;
+      result.message =
+          "metadata-less object payload has no compatible rootObject";
+      return result;
+    }
+    result.fileType = "object";
+    result.status = PayloadValidationStatus::MissingMetadataAccepted;
+    result.message = "metadata-less legacy Object Archive accepted";
+  } else {
+    result =
+        validateEnvelope(root, "object", acceptedSchemas, KNOWN_OBJECT_SCHEMAS);
+  }
   if (!result.accepted())
     return result;
 
@@ -124,20 +147,23 @@ PayloadValidationResult validateObjectPayloadImpl(core::DataNode &root,
   return result;
 }
 
-Object *importObjectFromTree(Scene &scene, core::DataNode &root)
+Object *deserializeObjectArchive(
+    Scene &scene, core::DataNode &root, PayloadValidationResult *validation)
 {
   auto result = validate_ObjectPayload(root);
+  if (validation)
+    *validation = result;
   if (!result.accepted()) {
-    tsd::core::logError(
-        "[import_Object] payload validation failed: %s", result.message.c_str());
+    tsd::core::logError("[import_Object] payload validation failed: %s",
+        result.message.c_str());
     return nullptr;
   }
 
   const auto rootType = rootTypeForSchema(result.schema);
   std::vector<FileObjectEntry> fileEntries;
   if (!validateObjectGraph(root, rootType, fileEntries, result)) {
-    tsd::core::logError(
-        "[import_Object] payload validation failed: %s", result.message.c_str());
+    tsd::core::logError("[import_Object] payload validation failed: %s",
+        result.message.c_str());
     return nullptr;
   }
 
@@ -159,22 +185,19 @@ Object *importObjectFromTree(Scene &scene, core::DataNode &root)
 
 } // namespace
 
-bool export_Object(const char *filename, const Object &obj)
+bool serialize_ObjectArchive(const Object &obj, core::DataNode &root)
 {
-  if (!filename) {
-    tsd::core::logError("[export_Object] filename is null");
-    return false;
-  }
-
   if (obj.type() != ANARI_SURFACE && obj.type() != ANARI_VOLUME) {
-    tsd::core::logError("[export_Object] unsupported root object type '%s'",
+    tsd::core::logError(
+        "[serialize_ObjectArchive] unsupported root object type '%s'",
         anari::toString(obj.type()));
     return false;
   }
 
   auto *scene = obj.scene();
   if (!scene) {
-    tsd::core::logError("[export_Object] root object has no owning Scene");
+    tsd::core::logError(
+        "[serialize_ObjectArchive] root object has no owning Scene");
     return false;
   }
 
@@ -189,12 +212,10 @@ bool export_Object(const char *filename, const Object &obj)
           rootKey,
           entries,
           errorMessage)) {
-    tsd::core::logError("[export_Object] %s", errorMessage.c_str());
+    tsd::core::logError("[serialize_ObjectArchive] %s", errorMessage.c_str());
     return false;
   }
 
-  core::DataTree tree;
-  auto &root = tree.root();
   root.reset();
 
   core::writeDataTreeMetadata(root,
@@ -206,32 +227,67 @@ bool export_Object(const char *filename, const Object &obj)
   root["rootObject"] = Any(obj.type(), size_t(0));
 
   if (!writeObjectDB(root["objectDB"], entries, errorMessage)) {
-    tsd::core::logError("[export_Object] %s", errorMessage.c_str());
-    return false;
-  }
-
-  if (!tree.save(filename)) {
-    tsd::core::logError("[export_Object] failed to write file '%s'", filename);
+    tsd::core::logError("[serialize_ObjectArchive] %s", errorMessage.c_str());
     return false;
   }
 
   return true;
 }
 
-Object *import_Object(Scene &scene, const char *filename)
+ArchiveValidationResult validate_ObjectArchive(core::DataNode &root)
+{
+  return validate_ObjectPayload(root);
+}
+
+Object *deserialize_ObjectArchive(
+    Scene &scene, core::DataNode &root, ArchiveValidationResult *validation)
+{
+  return deserializeObjectArchive(scene, root, validation);
+}
+
+bool save_ObjectArchive(const Object &object, const char *filename)
+{
+  if (!filename)
+    return false;
+  core::DataTree tree;
+  if (!serialize_ObjectArchive(object, tree.root()))
+    return false;
+
+  if (!tree.save(filename)) {
+    tsd::core::logError(
+        "[save_ObjectArchive] failed to write file '%s'", filename);
+    return false;
+  }
+
+  return true;
+}
+
+Object *load_ObjectArchive(
+    Scene &scene, const char *filename, ArchiveValidationResult *validation)
 {
   if (!filename) {
-    tsd::core::logError("[import_Object] filename is null");
+    tsd::core::logError("[load_ObjectArchive] filename is null");
     return nullptr;
   }
 
   core::DataTree tree;
   if (!tree.load(filename)) {
-    tsd::core::logError("[import_Object] failed to load file '%s'", filename);
+    tsd::core::logError(
+        "[load_ObjectArchive] failed to load file '%s'", filename);
     return nullptr;
   }
 
-  return importObjectFromTree(scene, tree.root());
+  return deserialize_ObjectArchive(scene, tree.root(), validation);
+}
+
+bool export_Object(const char *filename, const Object &obj)
+{
+  return save_ObjectArchive(obj, filename);
+}
+
+Object *import_Object(Scene &scene, const char *filename)
+{
+  return load_ObjectArchive(scene, filename);
 }
 
 SurfaceRef import_Surface(Scene &scene, const char *filename)
@@ -254,7 +310,7 @@ SurfaceRef import_Surface(Scene &scene, const char *filename)
     return {};
   }
 
-  auto *object = importObjectFromTree(scene, tree.root());
+  auto *object = deserializeObjectArchive(scene, tree.root(), nullptr);
   if (!object || object->type() != ANARI_SURFACE)
     return {};
 
@@ -281,7 +337,7 @@ VolumeRef import_Volume(Scene &scene, const char *filename)
     return {};
   }
 
-  auto *object = importObjectFromTree(scene, tree.root());
+  auto *object = deserializeObjectArchive(scene, tree.root(), nullptr);
   if (!object || object->type() != ANARI_VOLUME)
     return {};
 

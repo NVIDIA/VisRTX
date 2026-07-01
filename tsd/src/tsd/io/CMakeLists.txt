@@ -7,6 +7,17 @@ project_add_library(STATIC)
 
 project_sources(
 PRIVATE
+  archives/SceneArchive.cpp
+  archives/ObjectArchive.cpp
+  archives/LayerSubtreeArchive.cpp
+  archives/CameraArchive.cpp
+  archives/AnimationArchive.cpp
+  archives/AnimationManagerArchive.cpp
+  archives/RendererArchive.cpp
+  archives/detail/PoolArchive.cpp
+  archives/detail/AnimationRemap.cpp
+  archives/detail/ArchiveClosure.cpp
+  archives/detail/ArchivePlan.cpp
   animation/EnSightFileBinding.cpp
   animation/SpatialFieldFileBinding.cpp
   exporters/NanoVdbSidecar.cpp
@@ -66,12 +77,8 @@ PRIVATE
   serialization/Layer.cpp
   serialization/Object.cpp
   serialization/Parameter.cpp
-  serialization/serialization_animation_archive.cpp
-  serialization/serialization_archive_plan.cpp
-  serialization/serialization_closure.cpp
   serialization/serialization_datatree.cpp
   serialization/serialization_layer_subtree.cpp
-  serialization/serialization_object.cpp
   serialization/serialization_subtree_import.cpp
 )
 

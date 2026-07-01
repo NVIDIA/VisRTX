@@ -6,8 +6,8 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/io/serialization/serialization_animation_archive.hpp"
-#include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/archives/detail/AnimationRemap.hpp"
+#include "tsd/io/archives/detail/ArchiveClosure.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 // std
 #include <algorithm>
@@ -63,26 +63,23 @@ std::vector<ObjectKey> collectSubtreeRefKeys(core::DataNode &subtree)
 
 } // namespace
 
-bool export_Subtree(const char *filename,
-    LayerNodeRef root,
-    const SubtreeIODesc &desc,
+bool serialize_SubtreeArchiveContent(LayerNodeRef root,
+    core::DataNode &dbRoot,
+    const SubtreeArchiveContentDesc &desc,
     std::string_view displayName,
-    const SubtreeIOOptions &options)
+    const SubtreeArchiveContentOptions &options)
 {
-  if (!filename) {
-    tsd::core::logError("[export_Subtree] filename is null");
-    return false;
-  }
-
   if (!root) {
-    tsd::core::logError("[export_Subtree] root node is invalid");
+    tsd::core::logError(
+        "[serialize_SubtreeArchiveContent] root node is invalid");
     return false;
   }
 
   auto *layer = (*root).value().layer();
   auto *scene = layer ? layer->scene() : nullptr;
   if (!layer || !scene) {
-    tsd::core::logError("[export_Subtree] root node has no owning Scene");
+    tsd::core::logError(
+        "[serialize_SubtreeArchiveContent] root node has no owning Scene");
     return false;
   }
 
@@ -92,14 +89,13 @@ bool export_Subtree(const char *filename,
   planOptions.fileBindings = options.fileBindings;
   auto planResult = plan_SubtreeArchive(*scene, root, planOptions);
   if (!planResult.accepted()) {
-    tsd::core::logError("[export_Subtree] %s", planResult.message.c_str());
+    tsd::core::logError(
+        "[serialize_SubtreeArchiveContent] %s", planResult.message.c_str());
     return false;
   }
   const auto entries = closureEntriesForPlan(planResult.plan);
   std::string errorMessage;
 
-  core::DataTree tree;
-  auto &dbRoot = tree.root();
   dbRoot.reset();
 
   core::writeDataTreeMetadata(dbRoot,
@@ -112,14 +108,16 @@ bool export_Subtree(const char *filename,
     dbRoot["displayName"] = std::string(displayName);
 
   if (!writeObjectDB(dbRoot["objectDB"], entries, errorMessage)) {
-    tsd::core::logError("[export_Subtree] %s", errorMessage.c_str());
+    tsd::core::logError(
+        "[serialize_SubtreeArchiveContent] %s", errorMessage.c_str());
     return false;
   }
 
   auto &subtreeNode = dbRoot["subtree"];
   serialize_LayerSubtree(*layer, root, subtreeNode);
   if (!rewriteRefsToLocal(subtreeNode, entries, errorMessage)) {
-    tsd::core::logError("[export_Subtree] %s", errorMessage.c_str());
+    tsd::core::logError(
+        "[serialize_SubtreeArchiveContent] %s", errorMessage.c_str());
     return false;
   }
 
@@ -128,9 +126,29 @@ bool export_Subtree(const char *filename,
           *options.animationManager,
           planResult.plan,
           errorMessage)) {
-    tsd::core::logError("[export_Subtree] %s", errorMessage.c_str());
+    tsd::core::logError(
+        "[serialize_SubtreeArchiveContent] %s", errorMessage.c_str());
     return false;
   }
+
+  return true;
+}
+
+bool export_Subtree(const char *filename,
+    LayerNodeRef root,
+    const SubtreeIODesc &desc,
+    std::string_view displayName,
+    const SubtreeIOOptions &options)
+{
+  if (!filename) {
+    tsd::core::logError("[export_Subtree] filename is null");
+    return false;
+  }
+
+  core::DataTree tree;
+  if (!serialize_SubtreeArchiveContent(
+          root, tree.root(), desc, displayName, options))
+    return false;
 
   if (!tree.save(filename)) {
     tsd::core::logError("[export_Subtree] failed to write file '%s'", filename);
@@ -143,8 +161,17 @@ bool export_Subtree(const char *filename,
 PayloadValidationResult validate_SubtreePayload(
     core::DataNode &root, const SubtreeIODesc &desc)
 {
-  auto result = validateEnvelope(
-      root, desc.fileType, {desc.schema}, KNOWN_SUBTREE_SCHEMAS);
+  PayloadValidationResult result;
+  const auto metadata = core::readDataTreeMetadata(root);
+  if (!metadata.found() && !metadata.malformed()) {
+    result.fileType = std::string(desc.fileType);
+    result.schema = std::string(desc.schema);
+    result.status = PayloadValidationStatus::MissingMetadataAccepted;
+    result.message = "metadata-less legacy subtree Archive accepted";
+  } else {
+    result = validateEnvelope(
+        root, desc.fileType, {desc.schema}, KNOWN_SUBTREE_SCHEMAS);
+  }
   if (!result.accepted())
     return result;
 

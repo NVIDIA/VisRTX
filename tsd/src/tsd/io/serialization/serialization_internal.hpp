@@ -4,6 +4,8 @@
 #pragma once
 
 // tsd_io
+#include "tsd/io/archives/ArchiveValidation.hpp"
+#include "tsd/io/archives/detail/ArchivePlan.hpp"
 #include "tsd/io/serialization.hpp"
 // tsd_core
 #include "tsd/core/TypeMacros.hpp"
@@ -28,119 +30,15 @@ namespace schema {
 inline constexpr std::string_view SCENE_FULL = "tsd.scene.full";
 inline constexpr std::string_view SCENE_CAMERAS_AND_RENDERERS =
     "tsd.scene.cameras-and-renderers";
+inline constexpr std::string_view SCENE_CAMERAS = "tsd.scene.cameras";
+inline constexpr std::string_view SCENE_RENDERERS = "tsd.scene.renderers";
 inline constexpr std::string_view OBJECT_SURFACE = "tsd.object.surface";
 inline constexpr std::string_view OBJECT_VOLUME = "tsd.object.volume";
 inline constexpr std::string_view LAYER_SUBTREE = "tsd.layer.subtree";
 
 } // namespace schema
 
-enum class PayloadValidationStatus
-{
-  Valid,
-  MissingMetadataAccepted,
-  UnknownSchema,
-  IncompatibleSchema,
-  UnsupportedEnvelopeVersion,
-  UnsupportedSchemaVersion,
-  MalformedMetadata,
-  MissingRequiredNode
-};
-
-struct PayloadValidationResult
-{
-  PayloadValidationStatus status{PayloadValidationStatus::Valid};
-  std::string fileType;
-  std::string schema;
-  int envelopeVersion{0};
-  int schemaVersion{0};
-  std::string message;
-
-  bool accepted() const;
-};
-
-inline bool PayloadValidationResult::accepted() const
-{
-  return status == PayloadValidationStatus::Valid
-      || status == PayloadValidationStatus::MissingMetadataAccepted;
-}
-
-// Subtree archive planning ///////////////////////////////////////////////////
-
-enum class ArchiveObjectPolicy
-{
-  All,
-  LightsOnly
-};
-
-enum class FileBindingArchivePolicy
-{
-  Include,
-  Omit
-};
-
-enum class ArchivePlanStatus
-{
-  Valid,
-  InvalidSubtree,
-  ObjectClosureFailure,
-  InvalidAnimationTarget,
-  MixedAnimationTargets,
-  UnsupportedFileBinding
-};
-
-struct ArchiveNode
-{
-  LayerNodeRef source;
-  size_t archiveIndex{0};
-};
-
-struct ArchiveObject
-{
-  Object *source{nullptr};
-  anari::DataType type{ANARI_UNKNOWN};
-  size_t sourceIndex{tsd::core::INVALID_INDEX};
-  size_t archiveIndex{tsd::core::INVALID_INDEX};
-  bool animationDependency{false};
-};
-
-struct ArchiveAnimationDependency
-{
-  size_t animationIndex{tsd::core::INVALID_INDEX};
-  Object *object{nullptr};
-};
-
-struct ArchivePlan
-{
-  // This is a snapshot: source refs and indices remain valid only until the
-  // Scene or animation manager is structurally mutated.
-  LayerNodeRef root;
-  std::vector<ArchiveNode> nodes;
-  std::vector<ArchiveObject> objects;
-  std::vector<ArchiveAnimationDependency> animationDependencies;
-  std::vector<size_t> ownedAnimations;
-  std::vector<size_t> archivedAnimations;
-
-  bool containsObject(const Object *object) const;
-};
-
-struct ArchivePlanResult
-{
-  ArchivePlanStatus status{ArchivePlanStatus::Valid};
-  std::string message;
-  ArchivePlan plan;
-
-  bool accepted() const;
-};
-
-struct ArchivePlanOptions
-{
-  ArchiveObjectPolicy objectPolicy{ArchiveObjectPolicy::All};
-  const animation::AnimationManager *animationManager{nullptr};
-  FileBindingArchivePolicy fileBindings{FileBindingArchivePolicy::Include};
-};
-
-ArchivePlanResult plan_SubtreeArchive(
-    Scene &scene, LayerNodeRef root, const ArchivePlanOptions &options = {});
+using PayloadValidationStatus = ArchiveValidationStatus;
 
 namespace detail {
 
@@ -220,12 +118,13 @@ PayloadValidationResult validate_LayerSubtreePayload(core::DataNode &root);
 // they reference). An optional displayName is stored alongside the payload and
 // read back on import. Import splices the subtree under destinationParent and
 // returns its new root.
-struct SubtreeIODesc
+struct SubtreeArchiveContentDesc
 {
   std::string_view fileType;
   std::string_view schema;
   ArchiveObjectPolicy objectPolicy{ArchiveObjectPolicy::All};
 };
+using SubtreeIODesc = SubtreeArchiveContentDesc;
 
 // Optional animation participation for subtree files. When a manager is
 // supplied, export carries every animation whose targets are wholly owned by
@@ -233,17 +132,18 @@ struct SubtreeIODesc
 // scene. Import appends the serialized animations to the supplied manager.
 // File-binding animations can be omitted when a higher-level format persists
 // their authoritative definition separately and recreates them at runtime.
-struct SubtreeIOOptions
+struct SubtreeArchiveContentOptions
 {
   animation::AnimationManager *animationManager{nullptr};
   FileBindingArchivePolicy fileBindings{FileBindingArchivePolicy::Include};
 };
+using SubtreeIOOptions = SubtreeArchiveContentOptions;
 
-struct SubtreeImportResult
+struct SubtreeArchiveResult
 {
-  SubtreeImportResult() = default;
-  TSD_NOT_COPYABLE(SubtreeImportResult)
-  TSD_DEFAULT_MOVEABLE(SubtreeImportResult)
+  SubtreeArchiveResult() = default;
+  TSD_NOT_COPYABLE(SubtreeArchiveResult)
+  TSD_DEFAULT_MOVEABLE(SubtreeArchiveResult)
 
   bool valid() const;
 
@@ -256,15 +156,22 @@ struct SubtreeImportResult
  private:
   bool m_succeeded{false};
 
-  friend SubtreeImportResult import_SubtreeWithOwnership(Scene &,
+  friend SubtreeArchiveResult import_SubtreeWithOwnership(Scene &,
       const char *,
       LayerNodeRef,
       const SubtreeIODesc &,
       std::string *,
       const SubtreeIOOptions &);
+  friend SubtreeArchiveResult deserialize_SubtreeArchiveContent(Scene &,
+      core::DataNode &,
+      LayerNodeRef,
+      const SubtreeIODesc &,
+      std::string *,
+      const SubtreeIOOptions &);
   friend void rollback_SubtreeImport(
-      Scene &, animation::AnimationManager &, SubtreeImportResult &);
+      Scene &, animation::AnimationManager &, SubtreeArchiveResult &);
 };
+using SubtreeImportResult = SubtreeArchiveResult;
 
 bool export_Subtree(const char *filename,
     LayerNodeRef root,
@@ -287,6 +194,20 @@ void rollback_SubtreeImport(Scene &scene,
     animation::AnimationManager &animationManager,
     SubtreeImportResult &result);
 PayloadValidationResult validate_SubtreePayload(core::DataNode &root, const SubtreeIODesc &desc);
+
+// Reusable subtree-content composition for application-owned Archives. These
+// operations use a caller-supplied envelope and do not perform file I/O.
+bool serialize_SubtreeArchiveContent(LayerNodeRef root,
+    core::DataNode &archive,
+    const SubtreeArchiveContentDesc &desc,
+    std::string_view displayName = {},
+    const SubtreeArchiveContentOptions &options = {});
+SubtreeArchiveResult deserialize_SubtreeArchiveContent(Scene &scene,
+    core::DataNode &archive,
+    LayerNodeRef destinationParent,
+    const SubtreeArchiveContentDesc &desc,
+    std::string *displayNameOut = nullptr,
+    const SubtreeArchiveContentOptions &options = {});
 
 // clang-format on
 

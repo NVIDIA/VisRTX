@@ -8,9 +8,9 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
+#include "tsd/io/archives/detail/AnimationRemap.hpp"
+#include "tsd/io/archives/detail/ArchiveClosure.hpp"
 #include "tsd/io/importers.hpp"
-#include "tsd/io/serialization/serialization_animation_archive.hpp"
-#include "tsd/io/serialization/serialization_closure.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 // std
 #include <algorithm>

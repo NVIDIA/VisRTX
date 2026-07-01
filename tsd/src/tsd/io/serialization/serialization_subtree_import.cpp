@@ -5,8 +5,8 @@
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/io/serialization/serialization_animation_archive.hpp"
-#include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/archives/detail/AnimationRemap.hpp"
+#include "tsd/io/archives/detail/ArchiveClosure.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 
 namespace tsd::io {
@@ -168,7 +168,18 @@ SubtreeImportResult import_SubtreeWithOwnership(Scene &scene,
     return imported;
   }
 
-  auto &root = tree.root();
+  return deserialize_SubtreeArchiveContent(
+      scene, tree.root(), destinationParent, desc, displayNameOut, options);
+}
+
+SubtreeImportResult deserialize_SubtreeArchiveContent(Scene &scene,
+    core::DataNode &root,
+    LayerNodeRef destinationParent,
+    const SubtreeArchiveContentDesc &desc,
+    std::string *displayNameOut,
+    const SubtreeArchiveContentOptions &options)
+{
+  SubtreeImportResult imported;
   auto validation = validate_SubtreePayload(root, desc);
   if (!validation.accepted()) {
     tsd::core::logError("[import_Subtree] payload validation failed: %s",

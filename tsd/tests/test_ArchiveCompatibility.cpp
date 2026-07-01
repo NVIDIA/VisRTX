@@ -68,7 +68,7 @@ void UnsupportedFileBinding::addCallbackToAnimation(tsd::animation::Animation &)
 
 } // namespace
 
-SCENARIO("tsd::io camera and renderer subset serialization", "[Serialization]")
+SCENARIO("tsd::io camera and renderer subset serialization", "[ArchiveCompatibility]")
 {
   GIVEN("A scene with cameras, renderers, and unrelated scene data")
   {
@@ -199,7 +199,7 @@ SCENARIO("tsd::io camera and renderer subset serialization", "[Serialization]")
   }
 }
 
-SCENARIO("tsd::io scene payload metadata validation", "[Serialization]")
+SCENARIO("tsd::io scene payload metadata validation", "[ArchiveCompatibility]")
 {
   GIVEN("A serializable scene")
   {
@@ -295,7 +295,7 @@ SCENARIO("tsd::io scene payload metadata validation", "[Serialization]")
   }
 }
 
-SCENARIO("tsd::io surface object serialization", "[Serialization]")
+SCENARIO("tsd::io surface object serialization", "[ArchiveCompatibility]")
 {
   GIVEN("A surface with geometry, material, sampler, array data, and metadata")
   {
@@ -442,7 +442,7 @@ SCENARIO("tsd::io surface object serialization", "[Serialization]")
   }
 }
 
-SCENARIO("tsd::io volume object serialization", "[Serialization]")
+SCENARIO("tsd::io volume object serialization", "[ArchiveCompatibility]")
 {
   GIVEN("A volume with a spatial field, transfer function arrays, and metadata")
   {
@@ -537,7 +537,7 @@ SCENARIO("tsd::io volume object serialization", "[Serialization]")
   }
 }
 
-SCENARIO("tsd::io object payload validation failures", "[Serialization]")
+SCENARIO("tsd::io object payload validation failures", "[ArchiveCompatibility]")
 {
   GIVEN("A full scene payload")
   {
@@ -629,7 +629,7 @@ SCENARIO("tsd::io object payload validation failures", "[Serialization]")
   }
 }
 
-SCENARIO("tsd::io object export failures", "[Serialization]")
+SCENARIO("tsd::io object export failures", "[ArchiveCompatibility]")
 {
   GIVEN("An unsupported root object type")
   {
@@ -681,7 +681,7 @@ SCENARIO("tsd::io object export failures", "[Serialization]")
   }
 }
 
-SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
+SCENARIO("tsd::io layer subtree serialization", "[ArchiveCompatibility]")
 {
   GIVEN(
       "A scene with a layer subtree referencing surfaces, a light, and overrides")
@@ -884,7 +884,7 @@ SCENARIO("tsd::io layer subtree serialization", "[Serialization]")
   }
 }
 
-SCENARIO("tsd::io layer subtree animations round trip", "[Serialization]")
+SCENARIO("tsd::io layer subtree animations round trip", "[ArchiveCompatibility]")
 {
   tsd::scene::Scene source;
   tsd::animation::AnimationManager sourceAnimations(&source);
@@ -994,7 +994,7 @@ SCENARIO("tsd::io layer subtree animations round trip", "[Serialization]")
   removeTestFile(filename);
 }
 
-SCENARIO("tsd::io plans subtree archive ownership", "[Serialization]")
+SCENARIO("tsd::io plans subtree archive ownership", "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1030,7 +1030,7 @@ SCENARIO("tsd::io plans subtree archive ownership", "[Serialization]")
 }
 
 SCENARIO(
-    "tsd::io archive plans reject mixed animation ownership", "[Serialization]")
+    "tsd::io archive plans reject mixed animation ownership", "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1052,7 +1052,7 @@ SCENARIO(
 }
 
 SCENARIO(
-    "tsd::io archive plans reject invalid animation targets", "[Serialization]")
+    "tsd::io archive plans reject invalid animation targets", "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1068,7 +1068,7 @@ SCENARIO(
 }
 
 SCENARIO(
-    "tsd::io archive plans reject unsupported file bindings", "[Serialization]")
+    "tsd::io archive plans reject unsupported file bindings", "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1086,7 +1086,7 @@ SCENARIO(
 }
 
 SCENARIO("tsd::io scene exclusion rejects mixed animation ownership",
-    "[Serialization]")
+    "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1122,7 +1122,7 @@ SCENARIO("tsd::io scene exclusion rejects mixed animation ownership",
 }
 
 SCENARIO("tsd::io subtree imports expose exact rollback ownership",
-    "[Serialization]")
+    "[ArchiveCompatibility]")
 {
   tsd::scene::Scene source;
   tsd::animation::AnimationManager sourceAnimations(&source);
@@ -1178,7 +1178,7 @@ SCENARIO("tsd::io subtree imports expose exact rollback ownership",
 }
 
 SCENARIO(
-    "tsd::io rejects animations spanning layer subtrees", "[Serialization]")
+    "tsd::io rejects animations spanning layer subtrees", "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1205,7 +1205,7 @@ SCENARIO(
   REQUIRE_FALSE(std::filesystem::exists(filename));
 }
 
-SCENARIO("tsd::io validates layer subtree animation targets", "[Serialization]")
+SCENARIO("tsd::io validates layer subtree animation targets", "[ArchiveCompatibility]")
 {
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1246,7 +1246,7 @@ SCENARIO("tsd::io validates layer subtree animation targets", "[Serialization]")
   removeTestFile(filename);
 }
 
-SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[Serialization]")
+SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[ArchiveCompatibility]")
 {
   GIVEN("A scene with a retained surface and an excluded light-rig subtree")
   {
@@ -1380,7 +1380,7 @@ SCENARIO("tsd::io save_Scene excludes light-rig subtrees", "[Serialization]")
 }
 
 SCENARIO("tsd::io save_Scene remaps animation bindings across exclusion",
-    "[Serialization]")
+    "[ArchiveCompatibility]")
 {
   GIVEN("Animations whose targets shift when a light rig is excluded")
   {
@@ -1452,7 +1452,7 @@ SCENARIO("tsd::io save_Scene remaps animation bindings across exclusion",
 }
 
 SCENARIO("tsd::io scene exclusion preserves retained animation dependencies",
-    "[Serialization]")
+    "[ArchiveCompatibility]")
 {
   tsd::scene::Scene source;
   tsd::animation::AnimationManager animations(&source);

@@ -1,7 +1,7 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/archives/detail/ArchiveClosure.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
 // std
@@ -78,8 +78,8 @@ bool ClosurePolicy::contains(anari::DataType canonicalType) const
   return false;
 }
 
-static ClosurePolicy makePolicy(
-    std::initializer_list<anari::DataType> types, bool singleRoot,
+static ClosurePolicy makePolicy(std::initializer_list<anari::DataType> types,
+    bool singleRoot,
     anari::DataType singleRootType)
 {
   ClosurePolicy policy;
@@ -93,9 +93,11 @@ static ClosurePolicy makePolicy(
 ClosurePolicy objectFilePolicy(anari::DataType rootType)
 {
   if (rootType == ANARI_SURFACE) {
-    return makePolicy(
-        {ANARI_ARRAY, ANARI_SAMPLER, ANARI_MATERIAL, ANARI_GEOMETRY,
-            ANARI_SURFACE},
+    return makePolicy({ANARI_ARRAY,
+                          ANARI_SAMPLER,
+                          ANARI_MATERIAL,
+                          ANARI_GEOMETRY,
+                          ANARI_SURFACE},
         true,
         ANARI_SURFACE);
   }
@@ -174,8 +176,7 @@ ClosureEntry *findClosureEntry(
   return it == entries.end() ? nullptr : &*it;
 }
 
-const ClosureEntry *entryForLocalIndex(
-    const std::vector<ClosureEntry> &entries,
+const ClosureEntry *entryForLocalIndex(const std::vector<ClosureEntry> &entries,
     anari::DataType type,
     size_t localIndex)
 {
@@ -486,8 +487,8 @@ PayloadValidationResult validateEnvelope(core::DataNode &root,
 
   if (metadata.fileType != expectedFileType) {
     result.status = PayloadValidationStatus::IncompatibleSchema;
-    result.message = "fileType '" + metadata.fileType
-        + "' is not accepted by this loader";
+    result.message =
+        "fileType '" + metadata.fileType + "' is not accepted by this loader";
     return result;
   }
 
@@ -572,8 +573,8 @@ bool collectFileObjects(core::DataNode &objectDB,
       auto *subtypeNode = objectNode.child("subtype");
       if (!subtypeNode || subtypeNode->getValue().type() != ANARI_STRING) {
         result.status = PayloadValidationStatus::MalformedMetadata;
-        result.message = std::string("objectDB/") + poolName
-            + " entry is missing subtype";
+        result.message =
+            std::string("objectDB/") + poolName + " entry is missing subtype";
         ok = false;
         return;
       }
@@ -609,8 +610,8 @@ bool collectFileObjects(core::DataNode &objectDB,
         auto dim = arrayDim->getValueAs<tsd::math::uint3>();
         const bool is2D = objectType == ANARI_ARRAY2D;
         const bool is3D = objectType == ANARI_ARRAY3D;
-        const size_t expectedArraySize =
-            size_t(dim[0]) * (is2D || is3D ? size_t(dim[1]) : size_t(1))
+        const size_t expectedArraySize = size_t(dim[0])
+            * (is2D || is3D ? size_t(dim[1]) : size_t(1))
             * (is3D ? size_t(dim[2]) : size_t(1));
 
         anari::DataType arrayElementType = ANARI_UNKNOWN;
