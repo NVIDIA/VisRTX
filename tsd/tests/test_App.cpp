@@ -254,21 +254,81 @@ SCENARIO(
 {
   tsd::app::Context source;
   source.tsd.scene.addLayer("archived");
+  tsd::core::DataTree validTree;
+  REQUIRE(tsd::app::serialize_ApplicationDump(source, validTree.root()));
+
+  for (const char *missingArchive : {"scene", "animationManager"}) {
+    DYNAMIC_SECTION("missing " << missingArchive)
+    {
+      tsd::core::DataTree tree;
+      tree.root() = validTree.root();
+      tree.root()["archives"].remove(missingArchive);
+
+      tsd::app::Context target;
+      target.tsd.scene.addLayer("preserved");
+      target.tsd.animationMgr.addAnimation("preserved animation");
+      target.tsd.animationMgr.play();
+
+      REQUIRE_FALSE(tsd::app::deserialize_ApplicationDump(target, tree.root()));
+      REQUIRE(target.tsd.scene.layer("preserved") != nullptr);
+      REQUIRE(target.tsd.animationMgr.animations().size() == 1);
+      REQUIRE(target.tsd.animationMgr.animations().front().name()
+          == "preserved animation");
+      REQUIRE(target.tsd.animationMgr.isPlaying());
+    }
+  }
+}
+
+SCENARIO(
+    "Malformed Animation Manager Archives do not replace Application "
+    "Dump state",
+    "[App]")
+{
+  tsd::app::Context source;
+  source.tsd.scene.addLayer("archived");
+  source.anari.setRenderIndexKind(tsd::app::RenderIndexKind::FLAT);
+  source.offline.frame.width = 1920;
+  source.setLogVerbose(true);
+  source.view.poses.push_back({});
   tsd::core::DataTree tree;
   REQUIRE(tsd::app::serialize_ApplicationDump(source, tree.root()));
-  tree.root()["archives"].remove("animationManager");
+  tree.root()["archives"]["animationManager"].remove("fps");
 
   tsd::app::Context target;
   target.tsd.scene.addLayer("preserved");
   target.tsd.animationMgr.addAnimation("preserved animation");
+  target.tsd.animationMgr.setAnimationTime(0.25f);
+  target.tsd.animationMgr.setAnimationIncrement(0.125f);
+  target.tsd.animationMgr.setAnimationTotalFrames(41);
+  target.tsd.animationMgr.setAnimationFPS(24.f);
+  target.tsd.animationMgr.setLoop(false);
   target.tsd.animationMgr.play();
+  target.anari.setRenderIndexKind(tsd::app::RenderIndexKind::ALL_LAYERS);
+  target.offline.frame.width = 640;
+  target.setLogVerbose(false);
+  tsd::app::CameraPose preservedPose;
+  preservedPose.name = "preserved pose";
+  target.view.poses.push_back(preservedPose);
 
   REQUIRE_FALSE(tsd::app::deserialize_ApplicationDump(target, tree.root()));
+
   REQUIRE(target.tsd.scene.layer("preserved") != nullptr);
+  REQUIRE(target.tsd.scene.layer("archived") == nullptr);
   REQUIRE(target.tsd.animationMgr.animations().size() == 1);
   REQUIRE(target.tsd.animationMgr.animations().front().name()
       == "preserved animation");
+  REQUIRE(target.tsd.animationMgr.getAnimationTime() == Approx(0.25f));
+  REQUIRE(target.tsd.animationMgr.getAnimationIncrement() == Approx(0.125f));
+  REQUIRE(target.tsd.animationMgr.getAnimationTotalFrames() == 41);
+  REQUIRE(target.tsd.animationMgr.getAnimationFPS() == Approx(24.f));
+  REQUIRE_FALSE(target.tsd.animationMgr.isLoop());
   REQUIRE(target.tsd.animationMgr.isPlaying());
+  REQUIRE(
+      target.anari.renderIndexKind() == tsd::app::RenderIndexKind::ALL_LAYERS);
+  REQUIRE(target.offline.frame.width == 640);
+  REQUIRE_FALSE(target.logVerbose());
+  REQUIRE(target.view.poses.size() == 1);
+  REQUIRE(target.view.poses.front().name == "preserved pose");
 }
 
 SCENARIO("An empty Animation Manager Archive clears stale animations", "[App]")

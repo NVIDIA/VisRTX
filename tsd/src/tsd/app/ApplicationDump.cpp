@@ -110,6 +110,17 @@ void deserializeStableContextSettings(Context &context, core::DataNode &root)
   }
 }
 
+bool deserializeApplicationArchives(TSDState &state,
+    core::DataNode &sceneArchive,
+    core::DataNode &animationManagerArchive)
+{
+  state.animationMgr.stop();
+  state.animationMgr.removeAllAnimations();
+  return io::deserialize_SceneArchive(state.scene, sceneArchive)
+      && io::deserialize_AnimationManagerArchive(
+          state.animationMgr, animationManagerArchive);
+}
+
 } // namespace
 
 void serialize_CameraPose(
@@ -199,16 +210,16 @@ bool deserialize_ApplicationDump(Context &context, core::DataNode &root)
         "archives/scene and archives/animationManager");
     return false;
   }
-  if (!io::validate_SceneArchive(*sceneArchive).accepted())
+  TSDState stagedState;
+  if (!deserializeApplicationArchives(
+          stagedState, *sceneArchive, *animationManagerArchive)) {
     return false;
+  }
 
-  auto &animationManager = context.tsd.animationMgr;
-  animationManager.stop();
-  animationManager.removeAllAnimations();
-  if (!io::deserialize_SceneArchive(context.tsd.scene, *sceneArchive))
-    return false;
-  if (!io::deserialize_AnimationManagerArchive(
-          animationManager, *animationManagerArchive)) {
+  if (!deserializeApplicationArchives(
+          context.tsd, *sceneArchive, *animationManagerArchive)) {
+    core::logError(
+        "[deserialize_ApplicationDump] staged Archives failed during commit");
     return false;
   }
 

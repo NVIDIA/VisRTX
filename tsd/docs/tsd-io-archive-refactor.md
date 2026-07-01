@@ -47,8 +47,10 @@ representations.
 
 Whole-owner Archives replace state; element Archives add state. Additive
 deserialization rolls back resources it created on failure. Replacement
-deserialization validates before clearing existing state. A strong atomic swap
-of an entire Context is outside this refactor.
+deserialization validates before clearing existing state. Application Dump
+deserialization additionally stages its composed Scene and Animation Manager
+Archives against a temporary compatible pair before replacing live TSD state.
+A strong atomic swap of an entire Context is outside this refactor.
 
 Animation Manager Archives persist time, increment, total frames, FPS, loop
 mode, and owned animations. They do not persist active playback, the playback
@@ -152,10 +154,13 @@ archives/
 ```
 
 Both embedded Archives are mandatory, including an explicitly empty Animation
-Manager Archive. Deserialization clears dependent animations, restores the
-Scene first, then restores the Animation Manager. Each concrete application
-continues to own its outer schema and version; a universal Application Dump
-schema is deferred.
+Manager Archive. Deserialization reconstructs the Scene and then the dependent
+Animation Manager in staged state. Only successful reconstruction is committed
+through the replacement deserializers, preserving the identity and delegate
+registrations of the live Scene. Stable Context settings are applied after that
+commit, so archive-driven failures leave both TSD state and stable settings
+unchanged. Each concrete application continues to own its outer schema and
+version; a universal Application Dump schema is deferred.
 
 Generic Lua bindings, tutorials, viewer labels, logs, and CLI routing adopt the
 new Archive vocabulary. The `-tsd` flag remains, but native TSD loading leaves
