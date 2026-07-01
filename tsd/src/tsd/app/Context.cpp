@@ -570,14 +570,14 @@ void Context::removeAllPoses()
   }
 }
 
-void OfflineRenderSequenceConfig::saveSettings(tsd::core::DataNode &root)
+void OfflineRenderSequenceConfig::saveSettings(tsd::core::DataNode &root) const
 {
   root.reset(); // clear all previous values, if they exist
 
   auto &frameRoot = root["frame"];
   frameRoot["width"] = frame.width;
   frameRoot["height"] = frame.height;
-  frameRoot["colorFormat"] = frame.colorFormat;
+  frameRoot["colorFormat"] = static_cast<int>(frame.colorFormat);
   frameRoot["samples"] = frame.samples;
   frameRoot["numFrames"] = frame.numFrames;
   frameRoot["renderSubset"] = frame.renderSubset;
@@ -595,7 +595,7 @@ void OfflineRenderSequenceConfig::saveSettings(tsd::core::DataNode &root)
   rendererRoot["libraryName"] = renderer.libraryName;
 
   auto &rendererObjectsRoot = rendererRoot["rendererObjects"];
-  for (auto &ro : renderer.rendererObjects)
+  for (const auto &ro : renderer.rendererObjects)
     tsd::io::serialize_Object(ro, rendererObjectsRoot[ro.name()]);
 
   auto &outputRoot = root["output"];
@@ -614,7 +614,9 @@ void OfflineRenderSequenceConfig::loadSettings(tsd::core::DataNode &root)
   auto &frameRoot = root["frame"];
   frameRoot["width"].getValue(ANARI_UINT32, &frame.width);
   frameRoot["height"].getValue(ANARI_UINT32, &frame.height);
-  frameRoot["colorFormat"].getValue(ANARI_DATA_TYPE, &frame.colorFormat);
+  int colorFormat = static_cast<int>(frame.colorFormat);
+  if (frameRoot["colorFormat"].getValue(ANARI_INT32, &colorFormat))
+    frame.colorFormat = static_cast<anari::DataType>(colorFormat);
   frameRoot["samples"].getValue(ANARI_UINT32, &frame.samples);
   frameRoot["numFrames"].getValue(ANARI_INT32, &frame.numFrames);
   frameRoot["renderSubset"].getValue(ANARI_BOOL, &frame.renderSubset);
@@ -635,7 +637,11 @@ void OfflineRenderSequenceConfig::loadSettings(tsd::core::DataNode &root)
   auto &rendererObjectsRoot = rendererRoot["rendererObjects"];
   renderer.rendererObjects.clear();
   rendererObjectsRoot.foreach_child([&](auto &node) {
-    tsd::scene::Object ro(ANARI_RENDERER, node.name().c_str());
+    const auto *subtypeNode = node.child("subtype");
+    const auto subtype = subtypeNode
+        ? subtypeNode->template getValueAs<std::string>()
+        : node.name();
+    tsd::scene::Object ro(ANARI_RENDERER, subtype.c_str());
     tsd::io::deserialize_Object(node, ro);
     renderer.rendererObjects.push_back(std::move(ro));
   });

@@ -112,7 +112,7 @@ struct OfflineRenderSequenceConfig
     bool edgeInvert{false};
   } aov;
 
-  void saveSettings(tsd::core::DataNode &root);
+  void saveSettings(tsd::core::DataNode &root) const;
   void loadSettings(tsd::core::DataNode &root);
 };
 

@@ -13,10 +13,8 @@
 #include <tsd/rendering/index/RenderIndexAllLayers.hpp>
 #include <tsd/rendering/view/ManipulatorToAnari.hpp>
 // tsd_app
+#include <tsd/app/ApplicationDump.h>
 #include <tsd/app/Context.h>
-#include <tsd/app/LegacyApplicationContext.h>
-// tsd_io
-#include <tsd/io/serialization.hpp>
 // stb_image
 #include "stb_image_write.h"
 // std
@@ -28,15 +26,12 @@
 // Application state //////////////////////////////////////////////////////////
 
 static std::unique_ptr<tsd::core::DataTree> g_stateFile;
-static std::unique_ptr<tsd::scene::Scene> g_scene;
 static std::unique_ptr<tsd::rendering::RenderIndexAllLayers> g_renderIndex;
 static std::unique_ptr<tsd::rendering::ImagePipeline> g_renderPipeline;
 static tsd::core::Timer g_timer;
 static tsd::rendering::Manipulator g_manipulator;
 static std::vector<tsd::rendering::CameraPose> g_cameraPoses;
 static std::unique_ptr<tsd::app::Context> g_ctx;
-
-static std::unique_ptr<tsd::animation::AnimationManager> g_animationMgr;
 
 static tsd::core::Token g_deviceName;
 static anari::Library g_library{nullptr};
@@ -99,20 +94,6 @@ static void initTSDDataTree()
   printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
 
-static void initTSDScene()
-{
-  printf("Initializing TSD context...");
-  fflush(stdout);
-
-  g_timer.start();
-  g_scene = std::make_unique<tsd::scene::Scene>();
-  g_animationMgr =
-      std::make_unique<tsd::animation::AnimationManager>(g_scene.get());
-  g_timer.end();
-
-  printf("done (%.2f ms)\n", g_timer.milliseconds());
-}
-
 static void initTSDRenderIndex()
 {
   printf("Initializing TSD render index...");
@@ -120,54 +101,38 @@ static void initTSDRenderIndex()
 
   g_timer.start();
   g_renderIndex = std::make_unique<tsd::rendering::RenderIndexAllLayers>(
-      *g_scene, g_deviceName, g_device);
+      g_ctx->tsd.scene, g_deviceName, g_device);
   g_timer.end();
 
   printf("done (%.2f ms)\n", g_timer.milliseconds());
 }
 
-static void loadState(const char *filename)
+static bool loadState(const char *filename)
 {
   printf("Loading state from '%s'...", filename);
   fflush(stdout);
 
   g_timer.start();
-  g_stateFile->load(filename);
+  const bool loaded = g_stateFile->load(filename);
   g_timer.end();
 
-  printf("done (%.2f ms)\n", g_timer.milliseconds());
+  printf("%s (%.2f ms)\n", loaded ? "done" : "failed", g_timer.milliseconds());
+  return loaded;
 }
 
-static void loadSettings()
-{
-  printf("Loading render settings...");
-  fflush(stdout);
-
-  g_timer.start();
-  auto &root = g_stateFile->root();
-  auto &offlineSettings = root["offlineRendering"];
-  g_ctx->offline.loadSettings(offlineSettings);
-  g_timer.end();
-
-  printf("done (%.2f ms)\n", g_timer.milliseconds());
-}
-
-static void populateTSDScene()
+static bool populateTSDContext()
 {
   printf("Populating TSD context...");
   fflush(stdout);
 
   g_timer.start();
-  auto &root = g_stateFile->root();
-  if (auto *c = root.child("context"); c != nullptr)
-    tsd::app::detail::deserializeLegacySceneState(
-        *g_scene, *g_animationMgr, *c);
-  else
-    tsd::app::detail::deserializeLegacySceneState(
-        *g_scene, *g_animationMgr, root);
+  const bool populated =
+      tsd::app::deserialize_ApplicationDump(*g_ctx, g_stateFile->root());
   g_timer.end();
 
-  printf("done (%.2f ms)\n", g_timer.milliseconds());
+  printf(
+      "%s (%.2f ms)\n", populated ? "done" : "failed", g_timer.milliseconds());
+  return populated;
 }
 
 static void populateRenderIndex()
@@ -188,13 +153,8 @@ static void setupCameraManipulator()
   fflush(stdout);
 
   g_timer.start();
-  auto &root = g_stateFile->root();
-  if (auto *c = root.child("cameraPoses"); c != nullptr && !c->isLeaf()) {
-    c->foreach_child([&](tsd::core::DataNode &n) {
-      tsd::rendering::CameraPose pose;
-      tsd::io::deserialize_CameraPose(n, pose);
-      g_cameraPoses.push_back(std::move(pose));
-    });
+  if (!g_ctx->view.poses.empty()) {
+    g_cameraPoses = g_ctx->view.poses;
     printf("using %zu camera poses from file...", g_cameraPoses.size());
     fflush(stdout);
   } else {
@@ -294,7 +254,7 @@ static void renderFrames()
   // Check for camera animations
   bool hasCameraAnimation = false;
   const tsd::scene::Object *animatedCamera = nullptr;
-  for (auto &anim : g_animationMgr->animations()) {
+  for (auto &anim : g_ctx->tsd.animationMgr.animations()) {
     for (auto &b : anim.objectParameterBindings()) {
       if (b.target() && b.target()->type() == ANARI_CAMERA) {
         hasCameraAnimation = true;
@@ -307,7 +267,7 @@ static void renderFrames()
   }
 
   if (hasCameraAnimation) {
-    const int totalFrames = g_animationMgr->getAnimationTotalFrames();
+    const int totalFrames = g_ctx->tsd.animationMgr.getAnimationTotalFrames();
 
     // If no animated camera, set static pose once from saved poses
     if (!animatedCamera) {
@@ -320,7 +280,7 @@ static void renderFrames()
     printf("...animating %d frames...\n", totalFrames);
 
     for (int i = 0; i < totalFrames; i++) {
-      g_animationMgr->setAnimationFrame(i);
+      g_ctx->tsd.animationMgr.setAnimationFrame(i);
 
       if (animatedCamera) {
         using anari::math::float3;
@@ -385,7 +345,6 @@ static void cleanup()
   g_timer.start();
   g_renderPipeline.reset();
   g_renderIndex.reset();
-  g_scene.reset();
   g_stateFile.reset();
   anari::release(g_device, g_camera);
   anari::release(g_device, g_device);
@@ -409,12 +368,10 @@ int main(int argc, const char *argv[])
   g_ctx = std::make_unique<tsd::app::Context>();
 
   initTSDDataTree();
-  initTSDScene();
-  loadState(argv[1]);
-  loadSettings();
+  if (!loadState(argv[1]) || !populateTSDContext())
+    return 1;
   loadANARIDevice();
   initTSDRenderIndex();
-  populateTSDScene();
   populateRenderIndex();
   setupCameraManipulator();
   setupImagePipeline();

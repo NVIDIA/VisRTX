@@ -6,8 +6,8 @@
 #include "Project.h"
 #include "ProjectSerialization.h"
 
+#include "tsd/app/ApplicationDump.h"
 #include "tsd/core/DataTreeMetadata.hpp"
-#include "tsd/io/serialization.hpp"
 #include "tsd/rendering/view/CameraPath.h"
 
 #include <algorithm>
@@ -186,14 +186,14 @@ ManipulatorState sampleCameraRig(const CameraRig &rig, int frame)
 static void manipulatorStateToNode(
     const ManipulatorState &state, tsd::core::DataNode &node)
 {
-  tsd::io::serialize_CameraPose(state.orbit, node["orbit"]);
+  tsd::app::serialize_CameraPose(state.orbit, node["orbit"]);
 }
 
 static void nodeToManipulatorState(
     tsd::core::DataNode &node, ManipulatorState &state)
 {
   if (auto *orbit = node.child("orbit"))
-    tsd::io::deserialize_CameraPose(*orbit, state.orbit);
+    tsd::app::deserialize_CameraPose(*orbit, state.orbit);
 }
 
 void cameraRigToNode(const CameraRig &rig, tsd::core::DataNode &node)

@@ -123,28 +123,6 @@ static void objectPoolToNode(core::DataNode &objPoolRoot,
   });
 }
 
-// Camera poses ///////////////////////////////////////////////////////////////
-
-void serialize_CameraPose(const rendering::CameraPose &p, core::DataNode &node)
-{
-  node["name"] = p.name;
-  node["lookat"] = p.lookat;
-  node["azeldist"] = p.azeldist;
-  node["fixedDist"] = p.fixedDist;
-  node["upAxis"] = p.upAxis;
-  node["mode"] = p.mode;
-}
-
-void deserialize_CameraPose(core::DataNode &node, rendering::CameraPose &pose)
-{
-  node["name"].getValue(ANARI_STRING, &pose.name);
-  node["lookat"].getValue(ANARI_FLOAT32_VEC3, &pose.lookat);
-  node["azeldist"].getValue(ANARI_FLOAT32_VEC3, &pose.azeldist);
-  node["fixedDist"].getValue(ANARI_FLOAT32, &pose.fixedDist);
-  node["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
-  node["mode"].getValue(ANARI_INT32, &pose.mode);
-}
-
 // Animations /////////////////////////////////////////////////////////////////
 
 void animationToNode(const animation::Animation &anim, core::DataNode &node)

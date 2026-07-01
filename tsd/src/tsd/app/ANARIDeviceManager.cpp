@@ -244,7 +244,7 @@ RenderIndexKind ANARIDeviceManager::renderIndexKind() const
   return m_settings.renderIndexKind;
 }
 
-void ANARIDeviceManager::saveSettings(tsd::core::DataNode &root)
+void ANARIDeviceManager::saveSettings(tsd::core::DataNode &root) const
 {
   root.reset();
   root["renderIndexKind"] = static_cast<int>(m_settings.renderIndexKind);

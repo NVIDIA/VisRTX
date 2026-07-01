@@ -10,6 +10,7 @@
 #include "ProjectSerialization.h"
 #include "RenderShotCLI.h"
 
+#include "tsd/app/ApplicationDump.h"
 #include "tsd/app/Context.h"
 #include "tsd/app/LegacyApplicationContext.h"
 #include "tsd/core/DataTree.hpp"
@@ -1491,7 +1492,7 @@ SCENARIO("SciVis Studio v2 shot camera rigs migrate to camera rigs",
     currentPose.lookat = {1.f, 2.f, 3.f};
     currentPose.azeldist = {4.f, 5.f, 6.f};
     currentPose.fixedDist = 6.f;
-    tsd::io::serialize_CameraPose(currentPose, cameraRig["current"]["orbit"]);
+    tsd::app::serialize_CameraPose(currentPose, cameraRig["current"]["orbit"]);
 
     tsd::rendering::CameraPose keyframePose;
     keyframePose.lookat = {7.f, 8.f, 9.f};
@@ -1501,7 +1502,7 @@ SCENARIO("SciVis Studio v2 shot camera rigs migrate to camera rigs",
     keyframe["frame"] = 11;
     keyframe["name"] = "legacy";
     keyframe["interpolationToNext"] = "Ease Out + In";
-    tsd::io::serialize_CameraPose(
+    tsd::app::serialize_CameraPose(
         keyframePose, keyframe["manipulator"]["orbit"]);
 
     tsd::app::detail::serializeLegacyApplicationContext(

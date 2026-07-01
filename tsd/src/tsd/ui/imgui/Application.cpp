@@ -5,10 +5,9 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/Timer.hpp"
 // tsd_app
-#include "tsd/app/LegacyApplicationContext.h"
+#include "tsd/app/ApplicationDump.h"
 // tsd_io
 #include "tsd/io/exporters.hpp"
-#include "tsd/io/serialization.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/Manipulator.hpp"
 // tsd_ui_imgui
@@ -773,32 +772,17 @@ void Application::saveApplicationState(const char *_filename)
     tsd::core::logStatus("serializing UI state...");
     root["layout"] = ImGui::SaveIniSettingsToMemory();
 
-    // Offline rendering settings
-    auto &offlineSettings = root["offlineRendering"];
-    ctx.offline.saveSettings(offlineSettings);
-
-    // General application settings
-    auto &settings = root["settings"];
-    settings["logVerbose"] = ctx.logVerbose();
-    settings["logEchoOutput"] = ctx.logEchoOutput();
-    saveApplicationSettings(root);
-
-    // Camera poses
-    auto &cameraPoses = root["cameraPoses"];
-    for (auto &p : ctx.view.poses)
-      tsd::io::serialize_CameraPose(p, cameraPoses.append());
-
-    // Serialize TSD context
+    // Serialize the base Application Dump and application-owned settings
     tsd::core::logStatus("serializing application session state...");
-    root["context"].reset();
-    tsd::app::detail::serializeLegacyApplicationContext(ctx, root["context"]);
+    if (!tsd::app::serialize_ApplicationDump(ctx, root)) {
+      tsd::core::logError("failed to serialize application state");
+      return;
+    }
+    saveApplicationSettings(root);
 
     // Save to file
     tsd::core::logStatus("writing state file '%s'...", filename.c_str());
     m_settings.save(filename.c_str());
-
-    // Clear out context tree
-    root["context"].reset();
 
     tsd::core::logStatus("...state saved to '%s'", filename.c_str());
 
@@ -841,14 +825,10 @@ void Application::loadApplicationState(const char *filename)
     return;
   }
 
-  // TSD context from app state file, or context-only file
-  if (auto *c = root.child("context"); c != nullptr)
-    tsd::app::detail::deserializeLegacyApplicationContext(ctx, *c);
-  else
-    tsd::app::detail::deserializeLegacyApplicationContext(ctx, root);
-
-  // Clear out context tree
-  root["context"].reset();
+  if (!tsd::app::deserialize_ApplicationDump(ctx, root)) {
+    root.reset();
+    return;
+  }
 
   // Window state
   auto &windows = root["windows"];
@@ -861,31 +841,6 @@ void Application::loadApplicationState(const char *filename)
 
   // ANARIDeviceManager settings
   loadApplicationSettings(root);
-
-  // Offline rendering settings
-  auto &offlineSettings = root["offlineRendering"];
-  ctx.offline.loadSettings(offlineSettings);
-
-  // General application settings
-  if (auto *c = root.child("settings"); c != nullptr) {
-    auto &settings = *c;
-
-    bool logVerbose = ctx.logVerbose();
-    settings["logVerbose"].getValue(ANARI_BOOL, &logVerbose);
-    ctx.setLogVerbose(logVerbose);
-    bool logEchoOutput = ctx.logEchoOutput();
-    settings["logEchoOutput"].getValue(ANARI_BOOL, &logEchoOutput);
-    ctx.setLogEchoOutput(logEchoOutput);
-  }
-
-  ctx.view.poses.clear();
-  if (auto *c = root.child("cameraPoses"); c != nullptr) {
-    c->foreach_child([&](auto &p) {
-      tsd::rendering::CameraPose pose;
-      tsd::io::deserialize_CameraPose(p, pose);
-      ctx.view.poses.push_back(std::move(pose));
-    });
-  }
 
   m_appSettingsDialog->applySettings();
 
