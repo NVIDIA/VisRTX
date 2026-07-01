@@ -5,7 +5,7 @@
 // tsd_core
 #include "tsd/core/Logging.hpp"
 // tsd_io
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 // tsd_ui_imgui
 #include "tsd/ui/imgui/Application.h"
 // imgui

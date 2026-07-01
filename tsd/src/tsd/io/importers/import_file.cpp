@@ -3,7 +3,7 @@
 
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
 

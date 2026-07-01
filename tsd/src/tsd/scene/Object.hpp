@@ -22,10 +22,6 @@ namespace tsd::scene {
 struct Object;
 } // namespace tsd::scene
 
-namespace tsd::io {
-void nodeToNewObject(core::DataNode &node, scene::Object &obj);
-} // namespace tsd::io
-
 namespace tsd::scene {
 
 using namespace tsd::core;
@@ -176,8 +172,6 @@ struct Object : public ParameterObserver
 
  private:
   friend struct Scene;
-  friend void io::nodeToNewObject(core::DataNode &node, Object &obj);
-
   void incObjectUseCountParameter(const Parameter *p);
   void decObjectUseCountParameter(const Parameter *p);
 

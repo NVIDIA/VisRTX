@@ -20,7 +20,7 @@ TransferLayer::TransferLayer(
 
   auto root = m_tree.root();
   root["n"] = scene->getLayerName(layer).str();
-  tsd::io::layerToNode(*layer, root["l"]);
+  tsd::io::serialize_Layer(*layer, root["l"]);
 }
 
 TransferLayer::TransferLayer(const Message &msg, tsd::scene::Scene *scene)
@@ -49,7 +49,7 @@ void TransferLayer::execute()
     tsd::core::logDebug("[message::TransferLayer] Updating existing layer '%s'",
         layerName.c_str());
   }
-  tsd::io::nodeToLayer(root["l"], *layer, *m_scene);
+  tsd::io::deserialize_Layer(root["l"], *layer, *m_scene);
   m_scene->signalLayerStructureChanged(layer);
 }
 

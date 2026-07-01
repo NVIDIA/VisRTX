@@ -8,8 +8,6 @@
 #include <tsd/ui/imgui/windows/Log.h>
 #include <tsd/ui/imgui/windows/ObjectEditor.h>
 #include <tsd/ui/imgui/windows/Viewport.h>
-// tsd_io
-#include <tsd/io/serialization.hpp>
 // tsd_network
 #include <tsd/network/messages/TransferScene.hpp>
 

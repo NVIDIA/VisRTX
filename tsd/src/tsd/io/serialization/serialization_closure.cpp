@@ -322,7 +322,7 @@ bool buildClosure(const Scene &scene,
     auto *object = entries[i].object;
 
     core::DataTree scratchTree;
-    objectToNode(*object, scratchTree.root(), false);
+    serialize_Object(*object, scratchTree.root(), false);
     if (hasObjectArrayNode(scratchTree.root(), &errorMessage))
       return false;
 
@@ -434,7 +434,7 @@ bool writeObjectDB(core::DataNode &objectDB,
     size_t localIndex = 0;
     while (auto *entry = entryForLocalIndex(entries, poolType, localIndex++)) {
       auto &node = objectDB[poolName].append();
-      objectToNode(*entry->object, node, false);
+      serialize_Object(*entry->object, node, false);
       if (!rewriteRefsToLocal(node, entries, errorMessage))
         return false;
     }
@@ -904,7 +904,7 @@ bool instantiateObjectDB(Scene &scene,
         return false;
       }
 
-      nodeToObject(rewrittenTree.root(), *targetObject);
+      deserialize_Object(rewrittenTree.root(), *targetObject);
     }
   } catch (const std::exception &e) {
     rollbackCreatedObjects(scene, createdRefs);

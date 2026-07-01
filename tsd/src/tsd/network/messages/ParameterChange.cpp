@@ -33,7 +33,8 @@ ParameterChange::ParameterChange(const tsd::scene::Object *obj,
     auto &paramNode = ps.append(); // parameter node
     auto *param = params[i];
     paramNode["n"] = param->name().str(); // parameter name
-    tsd::io::parameterToNode(*param, paramNode["v"]); // parameter value + info
+    tsd::io::serialize_Parameter(
+        *param, paramNode["v"]); // parameter value + info
   }
 }
 
@@ -71,7 +72,7 @@ void ParameterChange::execute()
   pn.foreach_child([&](core::DataNode &child) {
     auto paramName = child["n"].getValueAs<std::string>();
     auto &p = obj->addParameter(paramName.c_str()); // parameter may be new
-    tsd::io::nodeToParameter(child["v"], p);
+    tsd::io::deserialize_Parameter(child["v"], p);
   });
 }
 

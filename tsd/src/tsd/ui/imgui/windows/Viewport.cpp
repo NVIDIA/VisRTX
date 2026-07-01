@@ -12,8 +12,6 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/scene/objects/Camera.hpp"
 #include "tsd/scene/objects/Renderer.hpp"
-// tsd_io
-#include "tsd/io/serialization.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 // std

@@ -9,7 +9,7 @@
 
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Camera.hpp"

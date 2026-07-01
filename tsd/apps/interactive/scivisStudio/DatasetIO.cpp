@@ -9,7 +9,7 @@
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/objects/Volume.hpp"
 
 #include <algorithm>

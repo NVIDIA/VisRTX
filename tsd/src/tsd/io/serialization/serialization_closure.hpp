@@ -7,7 +7,7 @@
 #include "tsd/core/Any.hpp"
 #include "tsd/core/DataTree.hpp"
 // tsd_io
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 // std
 #include <array>
 #include <string>

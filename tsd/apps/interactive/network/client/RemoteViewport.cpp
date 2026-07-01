@@ -8,8 +8,6 @@
 #include "tsd/ui/imgui/tsd_ui_imgui.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
-// tsd_io
-#include "tsd/io/serialization.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 // std

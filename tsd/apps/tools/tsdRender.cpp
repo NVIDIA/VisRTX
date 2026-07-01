@@ -15,7 +15,7 @@
 // tsd_app
 #include <tsd/app/Context.h>
 // tsd_io
-#include <tsd/io/serialization.hpp>
+#include <tsd/io/serialization/serialization_internal.hpp>
 // stb_image
 #include "stb_image_write.h"
 // std
@@ -189,7 +189,7 @@ static void setupCameraManipulator()
   if (auto *c = root.child("cameraPoses"); c != nullptr && !c->isLeaf()) {
     c->foreach_child([&](tsd::core::DataNode &n) {
       tsd::rendering::CameraPose pose;
-      tsd::io::nodeToCameraPose(n, pose);
+      tsd::io::deserialize_CameraPose(n, pose);
       g_cameraPoses.push_back(std::move(pose));
     });
     printf("using %zu camera poses from file...", g_cameraPoses.size());

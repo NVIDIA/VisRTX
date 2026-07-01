@@ -7,7 +7,7 @@
 // tsd_io
 #include <tsd/io/exporters.hpp>
 #include <tsd/io/procedural.hpp>
-#include <tsd/io/serialization.hpp>
+#include <tsd/io/serialization/serialization_internal.hpp>
 
 int main(int argc, char **argv)
 {

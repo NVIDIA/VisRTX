@@ -7,7 +7,6 @@
 #include <tsd/core/Timer.hpp>
 #include <tsd/scene/Scene.hpp>
 #include <tsd/io/procedural.hpp>
-#include <tsd/io/serialization.hpp>
 #include <tsd/rendering/index/RenderIndexAllLayers.hpp>
 #include <tsd/rendering/view/ManipulatorToAnari.hpp>
 #include <tsd/rendering/view/ManipulatorToTSD.hpp>

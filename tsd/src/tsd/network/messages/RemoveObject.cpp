@@ -4,9 +4,6 @@
 #include "RemoveObject.hpp"
 // tsd_core
 #include "tsd/core/Logging.hpp"
-// tsd_io
-#include "tsd/io/serialization.hpp"
-
 namespace tsd::network::messages {
 
 RemoveObject::RemoveObject(const tsd::scene::Object *o)

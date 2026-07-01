@@ -11,6 +11,7 @@ project_add_executable(
   test_Algorithms.cpp
   test_AnyArray.cpp
   test_Array.cpp
+  test_ComponentSerialization.cpp
   test_DataTree.cpp
   test_FlatMap.cpp
   test_Forest.cpp
@@ -50,6 +51,8 @@ add_test(NAME tsd::AnimationManager COMMAND ${PROJECT_NAME} "[AnimationManager]"
 add_test(NAME tsd::Algorithms    COMMAND ${PROJECT_NAME} "[Algorithms]"   )
 add_test(NAME tsd::AnyArray      COMMAND ${PROJECT_NAME} "[AnyArray]"     )
 add_test(NAME tsd::Array         COMMAND ${PROJECT_NAME} "[Array]"        )
+add_test(NAME tsd::ComponentSerialization
+  COMMAND ${PROJECT_NAME} "[ComponentSerialization]")
 add_test(NAME tsd::DataTree      COMMAND ${PROJECT_NAME} "[DataTree]"     )
 add_test(NAME tsd::FlatMap       COMMAND ${PROJECT_NAME} "[FlatMap]"      )
 add_test(NAME tsd::Forest        COMMAND ${PROJECT_NAME} "[Forest]"       )

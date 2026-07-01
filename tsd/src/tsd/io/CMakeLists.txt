@@ -63,6 +63,9 @@ PRIVATE
   procedural/generate_randomSpheres.cpp
   procedural/generate_rtow.cpp
   procedural/generate_sphereSetVolume.cpp
+  serialization/Layer.cpp
+  serialization/Object.cpp
+  serialization/Parameter.cpp
   serialization/serialization_animation_archive.cpp
   serialization/serialization_archive_plan.cpp
   serialization/serialization_closure.cpp

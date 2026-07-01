@@ -16,7 +16,7 @@ NewObject::NewObject(const tsd::scene::Object *o)
     return;
   }
 
-  tsd::io::objectToNode(*o, m_tree.root(), true);
+  tsd::io::serialize_Object(*o, m_tree.root(), true);
 }
 
 NewObject::NewObject(const Message &msg, tsd::scene::Scene *scene)
@@ -33,7 +33,7 @@ void NewObject::execute()
     return;
   }
 
-  tsd::io::nodeToNewObject(*m_scene, m_tree.root());
+  tsd::io::deserialize_Object(*m_scene, m_tree.root());
 }
 
 } // namespace tsd::network::messages

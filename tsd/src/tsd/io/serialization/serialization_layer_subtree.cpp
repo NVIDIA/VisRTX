@@ -6,9 +6,9 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/io/serialization.hpp"
 #include "tsd/io/serialization/serialization_animation_archive.hpp"
 #include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 // std
 #include <algorithm>
 #include <string>
@@ -117,7 +117,7 @@ bool export_Subtree(const char *filename,
   }
 
   auto &subtreeNode = dbRoot["subtree"];
-  layerSubtreeToNode(*layer, root, subtreeNode);
+  serialize_LayerSubtree(*layer, root, subtreeNode);
   if (!rewriteRefsToLocal(subtreeNode, entries, errorMessage)) {
     tsd::core::logError("[export_Subtree] %s", errorMessage.c_str());
     return false;

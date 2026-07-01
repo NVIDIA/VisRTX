@@ -12,7 +12,7 @@
 // tsd_io
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/io/procedural.hpp"
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 
 namespace tsd::app {
 
@@ -584,7 +584,7 @@ void OfflineRenderSequenceConfig::saveSettings(tsd::core::DataNode &root)
 
   auto &rendererObjectsRoot = rendererRoot["rendererObjects"];
   for (auto &ro : renderer.rendererObjects)
-    tsd::io::objectToNode(ro, rendererObjectsRoot[ro.name()]);
+    tsd::io::serialize_Object(ro, rendererObjectsRoot[ro.name()]);
 
   auto &outputRoot = root["output"];
   outputRoot["outputDirectory"] = output.outputDirectory;
@@ -624,7 +624,7 @@ void OfflineRenderSequenceConfig::loadSettings(tsd::core::DataNode &root)
   renderer.rendererObjects.clear();
   rendererObjectsRoot.foreach_child([&](auto &node) {
     tsd::scene::Object ro(ANARI_RENDERER, node.name().c_str());
-    tsd::io::nodeToObject(node, ro);
+    tsd::io::deserialize_Object(node, ro);
     renderer.rendererObjects.push_back(std::move(ro));
   });
 

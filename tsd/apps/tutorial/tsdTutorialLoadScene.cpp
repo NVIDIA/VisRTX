@@ -4,7 +4,7 @@
 // tsd_core
 #include <tsd/scene/Scene.hpp>
 // tsd_io
-#include <tsd/io/serialization.hpp>
+#include <tsd/io/serialization/serialization_internal.hpp>
 // std
 #include <cstdio>
 

@@ -5,7 +5,7 @@
 #include "tsd/core/ColorMapUtil.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/procedural.hpp"
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scripting/LuaBindings.hpp"
 #include "tsd/scripting/Sol2Helpers.hpp"

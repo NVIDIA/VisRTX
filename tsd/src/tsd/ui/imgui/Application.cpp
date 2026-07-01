@@ -6,7 +6,7 @@
 #include "tsd/core/Timer.hpp"
 // tsd_io
 #include "tsd/io/exporters.hpp"
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/Manipulator.hpp"
 // tsd_ui_imgui
@@ -784,7 +784,7 @@ void Application::saveApplicationState(const char *_filename)
     // Camera poses
     auto &cameraPoses = root["cameraPoses"];
     for (auto &p : ctx.view.poses)
-      tsd::io::cameraPoseToNode(p, cameraPoses.append());
+      tsd::io::serialize_CameraPose(p, cameraPoses.append());
 
     // Serialize TSD context
     tsd::core::logStatus("serializing TSD context...");
@@ -881,7 +881,7 @@ void Application::loadApplicationState(const char *filename)
   if (auto *c = root.child("cameraPoses"); c != nullptr) {
     c->foreach_child([&](auto &p) {
       tsd::rendering::CameraPose pose;
-      tsd::io::nodeToCameraPose(p, pose);
+      tsd::io::deserialize_CameraPose(p, pose);
       ctx.view.poses.push_back(std::move(pose));
     });
   }

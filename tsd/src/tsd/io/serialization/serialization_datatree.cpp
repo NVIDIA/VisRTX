@@ -1,10 +1,6 @@
 // Copyright 2024-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef TSD_USE_CUDA
-#define TSD_USE_CUDA 1
-#endif
-
 #include "tsd/animation/Animation.hpp"
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
@@ -13,19 +9,12 @@
 #include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
 #include "tsd/io/importers.hpp"
-#include "tsd/io/serialization.hpp"
 #include "tsd/io/serialization/serialization_animation_archive.hpp"
 #include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 // std
 #include <algorithm>
-#include <stack>
-#include <stdexcept>
-#include <type_traits>
 #include <vector>
-#if TSD_USE_CUDA
-// cuda
-#include <cuda_runtime.h>
-#endif
 
 namespace tsd::io {
 
@@ -165,276 +154,13 @@ static void objectPoolToNode(core::DataNode &objPoolRoot,
       return;
     if (!childNode)
       childNode = &objPoolRoot[poolName];
-    objectToNode(*obj, childNode->append(), forceProxyArrays);
+    serialize_Object(*obj, childNode->append(), forceProxyArrays);
   });
-}
-
-// Parameters /////////////////////////////////////////////////////////////////
-
-void parameterToNode(const Parameter &p, core::DataNode &node)
-{
-  node["value"] = p.value();
-  node["enabled"] = p.isEnabled();
-  if (!p.description().empty())
-    node["description"] = p.description();
-  if (p.usage() != ParameterUsageHint::NONE)
-    node["usage"] = static_cast<int>(p.usage());
-  if (p.hasMin())
-    node["min"] = p.min();
-  if (p.hasMax())
-    node["max"] = p.max();
-
-  if (!p.stringValues().empty()) {
-    auto &stringValues = node["stringValues"];
-    for (const auto &sv : p.stringValues())
-      stringValues.append() = sv;
-    node["stringSelection"] = p.stringSelection();
-  }
-}
-
-void nodeToParameter(core::DataNode &node, Parameter &p)
-{
-  if (auto *c = node.child("description"); c != nullptr)
-    p.setDescription(c->getValueAs<std::string>().c_str());
-
-  if (auto *c = node.child("usage"); c != nullptr)
-    p.setUsage(static_cast<ParameterUsageHint>(c->getValueAs<int>()));
-
-  if (auto *c = node.child("min"); c != nullptr)
-    p.setMin(c->getValue());
-
-  if (auto *c = node.child("max"); c != nullptr)
-    p.setMax(c->getValue());
-
-  if (auto *c = node.child("stringValues"); c != nullptr) {
-    std::vector<std::string> stringValues;
-    c->foreach_child([&](core::DataNode &child) {
-      stringValues.push_back(child.getValueAs<std::string>());
-    });
-    p.setStringValues(stringValues);
-    p.setStringSelection(node["stringSelection"].getValueAs<int>());
-  }
-
-  if (auto *c = node.child("enabled"); c != nullptr)
-    p.setEnabled(c->getValueAs<bool>());
-
-  p.setValue(node["value"].getValue());
-}
-
-void nodeToObjectParameters(core::DataNode &node, Object &obj)
-{
-  node.foreach_child([&](core::DataNode &parameterNode) {
-    const Token parameterName(parameterNode.name().c_str());
-    auto &p = obj.addParameter(parameterName);
-    nodeToParameter(parameterNode, p);
-  });
-}
-
-// Objects ////////////////////////////////////////////////////////////////////
-
-// Helper function for arrays
-static void arrayToNode(
-    const Array &arr, core::DataNode &node, bool forceArraysAsProxies)
-{
-  node["arrayDim"] = tsd::math::uint3{
-      uint32_t(arr.dim(0)), uint32_t(arr.dim(1)), uint32_t(arr.dim(2))};
-
-  auto &arrayData = node.append("arrayData");
-
-  bool isProxy =
-      forceArraysAsProxies ? true : (arr.kind() == Array::MemoryKind::PROXY);
-  if (isProxy) {
-    arrayData = static_cast<int>(arr.elementType());
-    return;
-  }
-
-  const void *mem = arr.data();
-#if TSD_USE_CUDA
-  if (arr.kind() == Array::MemoryKind::CUDA) {
-    const size_t numBytes = arr.size() * arr.elementSize();
-    std::vector<uint8_t> hostBuf(numBytes);
-    cudaMemcpy(hostBuf.data(), mem, numBytes, cudaMemcpyDeviceToHost);
-    arrayData.setValueAsArray(arr.elementType(), hostBuf.data(), arr.size());
-  } else
-#endif
-    arrayData.setValueAsExternalArray(arr.elementType(), mem, arr.size());
-}
-
-void objectToNode(
-    const Object &obj, core::DataNode &node, bool forceProxyArrays)
-{
-  node["name"] = obj.name();
-  node["self"] = Any(obj.type(), obj.index());
-  node["subtype"] = obj.subtype().c_str();
-
-  if (obj.type() == ANARI_RENDERER && obj.rendererDeviceName())
-    node["rendererDeviceName"] = obj.rendererDeviceName().c_str();
-
-  if (obj.numParameters() > 0) {
-    auto &params = node["parameters"];
-    for (size_t i = 0; i < obj.numParameters(); i++) {
-      const auto &p = obj.parameterAt(i);
-      parameterToNode(p, params.append(p.name().c_str()));
-    }
-  }
-
-  if (obj.numMetadata() > 0) {
-    auto &metadata = node["metadata"];
-    for (size_t i = 0; i < obj.numMetadata(); i++) {
-      std::string n = obj.getMetadataName(i);
-      anari::DataType type = ANARI_UNKNOWN;
-      const void *ptr = nullptr;
-      size_t size = 0;
-      obj.getMetadataArray(n, &type, &ptr, &size);
-      if (type != ANARI_UNKNOWN)
-        metadata[n].setValueAsExternalArray(type, ptr, size);
-      else if (auto v = obj.getMetadataValue(n); v.valid())
-        metadata[n] = v;
-    }
-  }
-
-  if (anari::isArray(obj.type())) {
-    const Array &arr = static_cast<const Array &>(obj);
-    arrayToNode(arr, node, forceProxyArrays);
-  }
-}
-
-void nodeToObject(core::DataNode &node, Object &obj)
-{
-  if (auto *c = node.child("name"); c != nullptr)
-    obj.setName(c->getValueAs<std::string>().c_str());
-
-  if (auto *c = node.child("parameters"); c != nullptr)
-    nodeToObjectParameters(*c, obj);
-
-  if (auto *c = node.child("metadata"); c != nullptr)
-    nodeToObjectMetadata(*c, obj);
-}
-
-void nodeToObjectMetadata(core::DataNode &node, Object &obj)
-{
-  node.foreach_child([&](core::DataNode &n) {
-    if (n.holdsArray()) {
-      anari::DataType type = ANARI_UNKNOWN;
-      const void *ptr = nullptr;
-      size_t size = 0;
-      n.getValueAsArray(&type, &ptr, &size);
-      obj.setMetadataArray(n.name(), type, ptr, size);
-    } else {
-      obj.setMetadataValue(n.name(), n.getValue());
-    }
-  });
-}
-
-void nodeToNewObject(Scene &scene, core::DataNode &node)
-{
-  const Any self = node["self"].getValue();
-  const auto type = self.type();
-  const size_t index = self.getAsObjectIndex();
-  const Token subtype(node["subtype"].getValueAs<std::string>());
-
-  if (!anari::isObject(type)) {
-    logError("[nodeToObject] parsed invalid object type '%s'",
-        anari::toString(type));
-    return;
-  }
-
-  Object *obj = nullptr;
-  switch (type) {
-  case ANARI_ARRAY:
-  case ANARI_ARRAY1D:
-  case ANARI_ARRAY2D:
-  case ANARI_ARRAY3D: {
-    auto &arrayData = node["arrayData"];
-    auto &arrayDim = node["arrayDim"];
-    auto isProxy = !arrayData.holdsArray();
-
-    auto dim = arrayDim.getValueAs<tsd::math::uint3>();
-
-    const bool is2D = type == ANARI_ARRAY2D;
-    const bool is3D = type == ANARI_ARRAY3D;
-    const size_t dim_x = dim[0];
-    const size_t dim_y = is2D || is3D ? dim[1] : size_t(0);
-    const size_t dim_z = is3D ? dim[2] : size_t(0);
-
-    anari::DataType arrayElementType = ANARI_UNKNOWN;
-    const void *arrayPtr = nullptr;
-    size_t arraySize = 0;
-
-    if (isProxy) {
-      arrayElementType =
-          static_cast<anari::DataType>(arrayData.getValueAs<int>());
-    } else {
-      arrayData.getValueAsArray(&arrayElementType, &arrayPtr, &arraySize);
-    }
-
-    auto arr = isProxy
-        ? scene.createArrayProxy(arrayElementType, dim_x, dim_y, dim_z)
-        : scene.createArray(arrayElementType, dim_x, dim_y, dim_z);
-
-    if (arr) {
-      obj = arr.data();
-      if (!isProxy) {
-        auto *memOut = arr->map();
-        std::memcpy(memOut, arrayPtr, arr->size() * arr->elementSize());
-        arr->unmap();
-      }
-    }
-  } break;
-  case ANARI_GEOMETRY:
-    obj = scene.createObject<Geometry>(subtype).data();
-    break;
-  case ANARI_MATERIAL:
-    obj = scene.createObject<Material>(subtype).data();
-    break;
-  case ANARI_SAMPLER:
-    obj = scene.createObject<Sampler>(subtype).data();
-    break;
-  case ANARI_SURFACE:
-    obj = scene.createSurface().data();
-    break;
-  case ANARI_SPATIAL_FIELD:
-    obj = scene.createObject<SpatialField>(subtype).data();
-    break;
-  case ANARI_VOLUME:
-    obj = scene.createObject<Volume>(subtype).data();
-    break;
-  case ANARI_LIGHT:
-    obj = scene.createObject<Light>(subtype).data();
-    break;
-  case ANARI_CAMERA:
-    obj = scene.createObject<Camera>(subtype).data();
-    break;
-  case ANARI_RENDERER: {
-    std::string rendererDeviceName;
-    if (auto *c = node.child("rendererDeviceName"); c != nullptr)
-      rendererDeviceName = c->getValueAs<std::string>();
-    if (!rendererDeviceName.empty())
-      obj = scene.createRenderer(rendererDeviceName, subtype).get();
-  } break;
-  default:
-    break;
-  }
-
-  if (!obj) {
-    logError("[nodeToObject] unable to create object from DataNode");
-    return;
-  }
-
-  if (obj->index() != index) {
-    logError("[nodeToObject] object (%s) index mismatch on import: %zu | %zu",
-        anari::toString(type),
-        obj->index(),
-        index);
-  }
-
-  obj->removeAllParameters(); // clear default parameters
-  nodeToObject(node, *obj);
 }
 
 // Camera poses ///////////////////////////////////////////////////////////////
 
-void cameraPoseToNode(const rendering::CameraPose &p, core::DataNode &node)
+void serialize_CameraPose(const rendering::CameraPose &p, core::DataNode &node)
 {
   node["name"] = p.name;
   node["lookat"] = p.lookat;
@@ -444,7 +170,7 @@ void cameraPoseToNode(const rendering::CameraPose &p, core::DataNode &node)
   node["mode"] = p.mode;
 }
 
-void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
+void deserialize_CameraPose(core::DataNode &node, rendering::CameraPose &pose)
 {
   node["name"].getValue(ANARI_STRING, &pose.name);
   node["lookat"].getValue(ANARI_FLOAT32_VEC3, &pose.lookat);
@@ -452,134 +178,6 @@ void nodeToCameraPose(core::DataNode &node, rendering::CameraPose &pose)
   node["fixedDist"].getValue(ANARI_FLOAT32, &pose.fixedDist);
   node["upAxis"].getValue(ANARI_INT32, &pose.upAxis);
   node["mode"].getValue(ANARI_INT32, &pose.mode);
-}
-
-// Layers /////////////////////////////////////////////////////////////////////
-
-void layerNodeInstanceParametersToNode(
-    const LayerNodeData &data, core::DataNode &node)
-{
-  const auto &instanceParameters = data.getInstanceParameters();
-  if (instanceParameters.empty())
-    return;
-
-  auto &ipNode = node.append("instanceParameters");
-  for (const auto &p : instanceParameters)
-    ipNode.append(p.first) = p.second;
-}
-
-void nodeToLayerNodeInstanceParameters(
-    core::DataNode &node, LayerNodeData &data)
-{
-  if (auto *ipNode = node.child("instanceParameters"); ipNode != nullptr) {
-    ipNode->foreach_child([&](core::DataNode &p) {
-      data.setInstanceParameter(p.name(), p.getValue());
-    });
-  }
-}
-
-void layerToNode(const Layer &layer, core::DataNode &node)
-{
-  layerSubtreeToNode(layer, layer.root(), node);
-}
-
-// Serialize a layer subtree, optionally pruning a set of excluded subtree roots
-// (and everything beneath them). Excluded nodes are never emitted, so the
-// emitted hierarchy stays self-consistent for the level-tracking bookkeeping.
-static void layerSubtreeToNodeImpl(const Layer &layer,
-    LayerNodeRef start,
-    core::DataNode &node,
-    const std::vector<LayerNodeRef> *excluded)
-{
-  auto isExcludedNode = [&](const LayerNode &tsdNode) {
-    if (!excluded)
-      return false;
-    return std::any_of(excluded->begin(), excluded->end(), [&](LayerNodeRef r) {
-      return r && &(*r) == &tsdNode;
-    });
-  };
-
-  std::stack<core::DataNode *> nodes;
-  core::DataNode *currentParentNode = nullptr;
-  core::DataNode *currentNode = &node;
-  int currentLevel = -1;
-  layer.traverse_const(start, [&](const LayerNode &tsdNode, int level) {
-    if (isExcludedNode(tsdNode))
-      return false; // prune this subtree without emitting it
-
-    if (currentLevel < level) {
-      nodes.push(currentNode);
-      currentParentNode = currentNode;
-    } else if (currentLevel > level) {
-      for (int i = 0; i < currentLevel - level; i++)
-        nodes.pop();
-      currentParentNode = nodes.top();
-    }
-
-    currentLevel = level;
-
-    if (level == 0)
-      currentNode = &node;
-    else
-      currentNode = &currentParentNode->child("children")->append();
-
-    currentNode->append("name") = tsdNode->name();
-    currentNode->append("value") = tsdNode->getValueRaw();
-    if (tsdNode->isTransform())
-      currentNode->append("transformSRT") = tsdNode->getTransformSRT();
-    currentNode->append("enabled") = tsdNode->isEnabled();
-    layerNodeInstanceParametersToNode(*tsdNode, *currentNode);
-    currentNode->append("children");
-
-    return true;
-  });
-}
-
-void layerSubtreeToNode(
-    const Layer &layer, LayerNodeRef start, core::DataNode &node)
-{
-  layerSubtreeToNodeImpl(layer, start, node, nullptr);
-}
-
-void nodeToLayer(core::DataNode &rootNode, Layer &layer, Scene &scene)
-{
-  layer.clear();
-
-  std::stack<LayerNodeRef> tsdNodes;
-  LayerNodeRef currentParentNode;
-  LayerNodeRef currentNode = layer.root();
-  int currentLevel = -1;
-  rootNode.traverse([&](core::DataNode &node, int level) {
-    if (level & 0x1 || !node.child("children"))
-      return true;
-
-    level /= 2;
-    if (currentLevel < level) {
-      tsdNodes.push(currentNode);
-      currentParentNode = currentNode;
-    } else if (currentLevel > level) {
-      for (int i = 0; i < currentLevel - level; i++)
-        tsdNodes.pop();
-      currentParentNode = tsdNodes.top();
-    }
-
-    currentLevel = level;
-
-    if (level == 0)
-      currentNode = layer.root();
-    else {
-      currentNode = currentParentNode->insert_last_child({&layer});
-      if (auto *c = node.child("transformSRT"); c != nullptr)
-        (*currentNode)->setAsTransform(c->getValueAs<math::mat3>());
-      else
-        (*currentNode)->setValueRaw(node["value"].getValue());
-      (*currentNode)->setEnabled(node["enabled"].getValueOr(true));
-      (*currentNode)->name() = node["name"].getValueAs<std::string>();
-      nodeToLayerNodeInstanceParameters(node, (*currentNode).value());
-    }
-
-    return true;
-  });
 }
 
 // Animations /////////////////////////////////////////////////////////////////
@@ -984,16 +582,17 @@ static size_t remappedObjectIndex(const std::vector<ObjectIndexRemap> &remap,
 }
 
 // Per-layer remap of live layer-node indices to the dense indices the nodes
-// receive when nodeToLayer rebuilds the (pruned) layer in document order.
+// receive when deserialize_Layer rebuilds the (pruned) layer in document order.
 struct LayerNodeRemap
 {
   std::string layerName;
   std::vector<std::pair<size_t, size_t>> indices; // live -> reload
 };
 
-// Mirror layerSubtreeToNodeImpl's emit order (pre-order, skipping excluded
-// subtrees) to compute each retained node's reload index. The root is index 0,
-// matching the freshly constructed layer root that nodeToLayer reuses.
+// Mirror detail::serialize_LayerSubtree's emit order (pre-order, skipping
+// excluded subtrees) to compute each retained node's reload index. The root is
+// index 0, matching the freshly constructed layer root that deserialize_Layer
+// reuses.
 static std::vector<LayerNodeRemap> buildLayerNodeRemaps(
     Scene &scene, const std::vector<LayerNodeRef> &excludedNodes)
 {
@@ -1096,7 +695,7 @@ void save_Scene(
   for (auto l : scene.layers()) {
     if (l.second.ptr) {
       auto &layerRoot = layersRoot[l.first.c_str()];
-      layerSubtreeToNodeImpl(
+      detail::serialize_LayerSubtree(
           *l.second.ptr, l.second.ptr->root(), layerRoot, excludedNodes);
       layerRoot["isActive"] = l.second.active;
     }
@@ -1242,7 +841,8 @@ bool tryLoad_Scene(Scene &scene,
   auto nodeToObjectPool =
       [](core::DataNode &node, Scene &scene, const char *childNodeName) {
         auto &objectsNode = node[childNodeName];
-        objectsNode.foreach_child([&](auto &n) { nodeToNewObject(scene, n); });
+        objectsNode.foreach_child(
+            [&](auto &node) { deserialize_Object(scene, node); });
       };
 
   nodeToObjectPool(objectDB, scene, "array");
@@ -1264,7 +864,7 @@ bool tryLoad_Scene(Scene &scene,
   layerRoot.foreach_child([&](auto &nLayer) {
     tsd::core::Token layerName = nLayer.name().c_str();
     auto &tLayer = *scene.addLayer(layerName);
-    nodeToLayer(nLayer, tLayer, scene);
+    deserialize_Layer(nLayer, tLayer, scene);
     bool active = true;
     nLayer["isActive"].getValue(ANARI_BOOL, &active);
     scene.setLayerActive(layerName, active);
@@ -1345,7 +945,8 @@ bool tryLoad_SceneCamerasAndRenderers(
   auto nodeToObjectPool =
       [](core::DataNode &node, Scene &scene, const char *childNodeName) {
         auto &objectsNode = node[childNodeName];
-        objectsNode.foreach_child([&](auto &n) { nodeToNewObject(scene, n); });
+        objectsNode.foreach_child(
+            [&](auto &node) { deserialize_Object(scene, node); });
       };
 
   nodeToObjectPool(objectDB, scene, "camera");

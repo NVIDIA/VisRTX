@@ -5,7 +5,7 @@
 #include <tsd/scene/Scene.hpp>
 // tsd_io
 #include <tsd/io/procedural.hpp>
-#include <tsd/io/serialization.hpp>
+#include <tsd/io/serialization/serialization_internal.hpp>
 
 int main()
 {

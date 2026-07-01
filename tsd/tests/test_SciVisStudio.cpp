@@ -14,7 +14,7 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
 #include "tsd/scene/objects/Geometry.hpp"
 #include "tsd/scene/objects/Light.hpp"
@@ -1488,7 +1488,7 @@ SCENARIO("SciVis Studio v2 shot camera rigs migrate to camera rigs",
     currentPose.lookat = {1.f, 2.f, 3.f};
     currentPose.azeldist = {4.f, 5.f, 6.f};
     currentPose.fixedDist = 6.f;
-    tsd::io::cameraPoseToNode(currentPose, cameraRig["current"]["orbit"]);
+    tsd::io::serialize_CameraPose(currentPose, cameraRig["current"]["orbit"]);
 
     tsd::rendering::CameraPose keyframePose;
     keyframePose.lookat = {7.f, 8.f, 9.f};
@@ -1498,7 +1498,8 @@ SCENARIO("SciVis Studio v2 shot camera rigs migrate to camera rigs",
     keyframe["frame"] = 11;
     keyframe["name"] = "legacy";
     keyframe["interpolationToNext"] = "Ease Out + In";
-    tsd::io::cameraPoseToNode(keyframePose, keyframe["manipulator"]["orbit"]);
+    tsd::io::serialize_CameraPose(
+        keyframePose, keyframe["manipulator"]["orbit"]);
 
     tsd::io::save_Scene(appContext.tsd.scene,
         tree.root()["context"],

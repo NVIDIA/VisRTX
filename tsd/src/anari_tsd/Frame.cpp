@@ -5,7 +5,7 @@
 // helium
 #include <helium/helium_math.h>
 // tsd_io
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 // std
 #include <algorithm>
 

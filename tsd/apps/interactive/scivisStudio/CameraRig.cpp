@@ -186,14 +186,14 @@ ManipulatorState sampleCameraRig(const CameraRig &rig, int frame)
 static void manipulatorStateToNode(
     const ManipulatorState &state, tsd::core::DataNode &node)
 {
-  tsd::io::cameraPoseToNode(state.orbit, node["orbit"]);
+  tsd::io::serialize_CameraPose(state.orbit, node["orbit"]);
 }
 
 static void nodeToManipulatorState(
     tsd::core::DataNode &node, ManipulatorState &state)
 {
   if (auto *orbit = node.child("orbit"))
-    tsd::io::nodeToCameraPose(*orbit, state.orbit);
+    tsd::io::deserialize_CameraPose(*orbit, state.orbit);
 }
 
 void cameraRigToNode(const CameraRig &rig, tsd::core::DataNode &node)

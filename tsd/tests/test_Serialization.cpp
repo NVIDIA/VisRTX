@@ -8,7 +8,7 @@
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
-#include "tsd/io/serialization.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
 #include <cstdio>
@@ -584,7 +584,7 @@ SCENARIO("tsd::io object payload validation failures", "[Serialization]")
     WHEN("an extra unreferenced object is present")
     {
       auto &extra = tree.root()["objectDB"]["geometry"].append();
-      tsd::io::objectToNode(*geometry, extra);
+      tsd::io::serialize_Object(*geometry, extra);
       extra["self"] = tsd::core::Any(ANARI_GEOMETRY, size_t(1));
 
       THEN("validation rejects the payload")

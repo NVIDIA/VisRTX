@@ -4,8 +4,8 @@
 #include "tsd/animation/Animation.hpp"
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
-#include "tsd/io/serialization.hpp"
 #include "tsd/io/serialization/serialization_closure.hpp"
+#include "tsd/io/serialization/serialization_internal.hpp"
 
 #include <algorithm>
 
