@@ -14,8 +14,23 @@
 #include "tsd/io/importers/detail/importer_common.hpp"
 #include "tsd/io/procedural.hpp"
 #include "tsd/io/serialization/Object.hpp"
+// std
+#include <stdexcept>
 
 namespace tsd::app {
+
+namespace {
+
+bool hasSceneArchiveLoad(const CommandLineOptions &commandLine)
+{
+  for (const auto &input : commandLine.sceneInputs) {
+    if (std::holds_alternative<SceneArchiveLoad>(input))
+      return true;
+  }
+  return false;
+}
+
+} // namespace
 
 TSDState::TSDState() : animationMgr(&scene) {}
 
@@ -35,7 +50,6 @@ void Context::parseCommandLine(int argc, const char **argv)
 void Context::parseCommandLine(std::vector<std::string> &args)
 {
   auto &importerType = this->commandLine.importerType;
-  bool sceneArchiveMode = false;
 
   for (int i = 1; i < args.size(); i++) {
     std::string &arg = args[i];
@@ -50,7 +64,15 @@ void Context::parseCommandLine(std::vector<std::string> &args)
       this->commandLine.currentLayerName = args[++i];
     else if (arg == "-tsd") {
       importerType = tsd::io::ImporterType::NONE;
-      sceneArchiveMode = true;
+      if (this->commandLine.loadedFromStateFile) {
+        throw std::runtime_error(
+            "A Scene Archive cannot be combined with an application state file");
+      }
+      if (hasSceneArchiveLoad(this->commandLine))
+        throw std::runtime_error("Only one Scene Archive may be specified");
+      if (++i >= args.size())
+        throw std::runtime_error("A Scene Archive filename must follow -tsd");
+      this->commandLine.sceneInputs.push_back(SceneArchiveLoad{args[i]});
     } else if (arg == "-agx")
       importerType = tsd::io::ImporterType::AGX;
     else if (arg == "-assimp")
@@ -126,9 +148,7 @@ void Context::parseCommandLine(std::vector<std::string> &args)
     else if (arg == "-camera" || arg == "--camera")
       this->commandLine.cameraFile = args[++i];
     else {
-      if (sceneArchiveMode && importerType == tsd::io::ImporterType::NONE) {
-        this->commandLine.sceneArchiveFile = arg;
-      } else if (importerType != tsd::io::ImporterType::NONE) {
+      if (importerType != tsd::io::ImporterType::NONE) {
         if (importerType == tsd::io::ImporterType::POINTSBIN_MULTIFILE
             || importerType == tsd::io::ImporterType::VOLUME_ANIMATION) {
           if (!this->commandLine.currentAnimationSequence) {
@@ -148,10 +168,15 @@ void Context::parseCommandLine(std::vector<std::string> &args)
           if (importerType == tsd::io::ImporterType::VTU
               && !this->commandLine.vtuProperty.empty())
             file += ';' + this->commandLine.vtuProperty;
-          this->commandLine.filenames.push_back({importerType, file});
+          this->commandLine.sceneInputs.push_back(
+              ForeignSceneImport{{importerType, file}});
           this->commandLine.currentAnimationSequence = nullptr;
         }
       } else {
+        if (hasSceneArchiveLoad(this->commandLine)) {
+          throw std::runtime_error(
+              "A Scene Archive cannot be combined with an application state file");
+        }
         this->commandLine.stateFile = arg;
         this->commandLine.loadedFromStateFile = true;
       }
@@ -161,19 +186,43 @@ void Context::parseCommandLine(std::vector<std::string> &args)
   this->commandLine.currentAnimationSequence = nullptr;
 }
 
+bool Context::loadCommandLineSceneInputs()
+{
+  bool success = true;
+  std::vector<tsd::io::ImportFile> foreignImports;
+
+  for (const auto &input : commandLine.sceneInputs) {
+    if (const auto *archive = std::get_if<SceneArchiveLoad>(&input)) {
+      if (!tsd::io::load_SceneArchive(tsd.scene, archive->filename.c_str())) {
+        tsd::core::logError("[Context] Failed to load Scene Archive '%s'",
+            archive->filename.c_str());
+        success = false;
+      }
+    } else {
+      foreignImports.push_back(std::get<ForeignSceneImport>(input).file);
+    }
+  }
+
+  tsd::io::import_files(tsd.scene, tsd.animationMgr, foreignImports);
+  return success;
+}
+
 void Context::setupSceneFromCommandLine(bool hdriOnly)
 {
   if (hdriOnly) {
-    for (const auto &f : commandLine.filenames) {
-      tsd::core::logStatus("...loading file '%s'", f.second.c_str());
-      if (f.first == tsd::io::ImporterType::HDRI)
-        tsd::io::import_HDRI(tsd.scene, tsd.animationMgr, f.second.c_str());
+    for (const auto &input : commandLine.sceneInputs) {
+      const auto *foreignImport = std::get_if<ForeignSceneImport>(&input);
+      if (!foreignImport)
+        continue;
+      const auto &file = foreignImport->file;
+      tsd::core::logStatus("...loading file '%s'", file.second.c_str());
+      if (file.first == tsd::io::ImporterType::HDRI)
+        tsd::io::import_HDRI(tsd.scene, tsd.animationMgr, file.second.c_str());
     }
     return;
   }
 
-  const bool haveFiles = !commandLine.sceneArchiveFile.empty()
-      || commandLine.filenames.size() > 0
+  const bool haveFiles = !commandLine.sceneInputs.empty()
       || commandLine.animationFilenames.size() > 0;
   const bool blankImport =
       !haveFiles && commandLine.importerType == tsd::io::ImporterType::BLANK;
@@ -185,13 +234,7 @@ void Context::setupSceneFromCommandLine(bool hdriOnly)
     tsd::core::logStatus("...generating material_orb from embedded data");
     tsd::io::generate_material_orb(tsd.scene);
   } else if (!loadFromState) {
-    if (!commandLine.sceneArchiveFile.empty()
-        && !tsd::io::load_SceneArchive(
-            tsd.scene, commandLine.sceneArchiveFile.c_str())) {
-      tsd::core::logError("[Context] Failed to load Scene Archive '%s'",
-          commandLine.sceneArchiveFile.c_str());
-    }
-    tsd::io::import_files(tsd.scene, tsd.animationMgr, commandLine.filenames);
+    loadCommandLineSceneInputs();
     tsd::io::import_animations(
         tsd.scene, tsd.animationMgr, commandLine.animationFilenames);
   }

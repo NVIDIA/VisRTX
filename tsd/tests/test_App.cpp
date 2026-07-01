@@ -10,7 +10,9 @@
 #include "tsd/io/archives/SceneArchive.hpp"
 // std
 #include <filesystem>
+#include <fstream>
 #include <string>
+#include <variant>
 #include <vector>
 
 SCENARIO("Application Dumps embed required Archives without owning the root",
@@ -345,7 +347,7 @@ SCENARIO("An empty Animation Manager Archive clears stale animations", "[App]")
   REQUIRE_FALSE(target.tsd.animationMgr.isPlaying());
 }
 
-SCENARIO("The TSD CLI flag selects a Scene Archive", "[App]")
+SCENARIO("The TSD CLI records replacement and additive Scene inputs", "[App]")
 {
   tsd::app::Context context;
   std::vector<std::string> args{
@@ -353,11 +355,72 @@ SCENARIO("The TSD CLI flag selects a Scene Archive", "[App]")
 
   context.parseCommandLine(args);
 
-  REQUIRE(context.commandLine.sceneArchiveFile == "scene.tsd");
-  REQUIRE(context.commandLine.filenames.size() == 1);
-  REQUIRE(context.commandLine.filenames.front().first
-      == tsd::io::ImporterType::OBJ);
-  REQUIRE(context.commandLine.filenames.front().second == "mesh.obj;default");
+  REQUIRE(context.commandLine.sceneInputs.size() == 2);
+  const auto &archive =
+      std::get<tsd::app::SceneArchiveLoad>(context.commandLine.sceneInputs[0]);
+  REQUIRE(archive.filename == "scene.tsd");
+  const auto &foreignImport = std::get<tsd::app::ForeignSceneImport>(
+      context.commandLine.sceneInputs[1]);
+  REQUIRE(foreignImport.file.first == tsd::io::ImporterType::OBJ);
+  REQUIRE(foreignImport.file.second == "mesh.obj;default");
+}
+
+SCENARIO("The TSD CLI rejects multiple replacement Scene Archives", "[App]")
+{
+  tsd::app::Context context;
+  std::vector<std::string> args{
+      "tsdViewer", "-tsd", "first.tsd", "-tsd", "second.tsd"};
+
+  REQUIRE_THROWS_WITH(context.parseCommandLine(args),
+      "Only one Scene Archive may be specified");
+}
+
+SCENARIO("The TSD CLI rejects conflicting native state inputs", "[App]")
+{
+  tsd::app::Context stateFirstContext;
+  std::vector<std::string> stateFirstArgs{
+      "tsdViewer", "viewer_state.tsd", "-tsd", "scene.tsd"};
+
+  REQUIRE_THROWS_WITH(stateFirstContext.parseCommandLine(stateFirstArgs),
+      "A Scene Archive cannot be combined with an application state file");
+
+  tsd::app::Context archiveFirstContext;
+  std::vector<std::string> archiveFirstArgs{
+      "tsdViewer", "-tsd", "scene.tsd", "viewer_state.tsd"};
+
+  REQUIRE_THROWS_WITH(archiveFirstContext.parseCommandLine(archiveFirstArgs),
+      "A Scene Archive cannot be combined with an application state file");
+}
+
+SCENARIO(
+    "The TSD CLI preserves animation grouping and layer selection", "[App]")
+{
+  tsd::app::Context context;
+  std::vector<std::string> args{"tsdViewer",
+      "--layer",
+      "animated",
+      "-pointsbin",
+      "frame0.bin",
+      "frame1.bin",
+      "--layer",
+      "mesh",
+      "-obj",
+      "mesh.obj"};
+
+  context.parseCommandLine(args);
+
+  REQUIRE(context.commandLine.animationFilenames.size() == 1);
+  REQUIRE(context.commandLine.animationFilenames.front().first
+      == tsd::io::ImporterType::POINTSBIN_MULTIFILE);
+  REQUIRE(context.commandLine.animationFilenames.front().second
+      == std::vector<std::string>{"frame0.bin", "frame1.bin"});
+  REQUIRE(context.commandLine.animationLayerNames.size() == 1);
+  REQUIRE(context.commandLine.animationLayerNames.front().str() == "animated");
+  REQUIRE(context.commandLine.sceneInputs.size() == 1);
+  const auto &foreignImport = std::get<tsd::app::ForeignSceneImport>(
+      context.commandLine.sceneInputs.front());
+  REQUIRE(foreignImport.file.first == tsd::io::ImporterType::OBJ);
+  REQUIRE(foreignImport.file.second == "mesh.obj;mesh");
 }
 
 SCENARIO("Scene Archive CLI inputs are loaded by TSD App", "[App]")
@@ -377,4 +440,48 @@ SCENARIO("Scene Archive CLI inputs are loaded by TSD App", "[App]")
 
   REQUIRE(context.tsd.scene.layer("archived") != nullptr);
   std::filesystem::remove(archive);
+}
+
+SCENARIO("Scene Archive CLI load failures are reported by TSD App", "[App]")
+{
+  const auto archive = std::filesystem::temp_directory_path()
+      / "tsd_app_missing_scene_archive.tsd";
+  std::filesystem::remove(archive);
+
+  tsd::app::Context context;
+  std::vector<std::string> args{"tsdViewer", "-tsd", archive.string()};
+  context.parseCommandLine(args);
+
+  REQUIRE_FALSE(context.loadCommandLineSceneInputs());
+}
+
+SCENARIO("Scene Archive replacement precedes additive CLI imports", "[App]")
+{
+  const auto temp = std::filesystem::temp_directory_path();
+  const auto archive = temp / "tsd_app_mixed_scene_inputs.tsd";
+  const auto obj = temp / "tsd_app_mixed_scene_inputs.obj";
+  std::filesystem::remove(archive);
+  std::filesystem::remove(obj);
+
+  tsd::scene::Scene source;
+  source.addLayer("archived");
+  REQUIRE(tsd::io::save_SceneArchive(source, archive.string().c_str()));
+  {
+    std::ofstream file(obj);
+    file << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context context;
+  context.tsd.scene.addLayer("stale");
+  std::vector<std::string> args{
+      "tsdViewer", "-obj", obj.string(), "-tsd", archive.string()};
+  context.parseCommandLine(args);
+  REQUIRE(context.loadCommandLineSceneInputs());
+
+  REQUIRE(context.tsd.scene.layer("stale") == nullptr);
+  REQUIRE(context.tsd.scene.layer("archived") != nullptr);
+  REQUIRE(context.tsd.scene.objectDB().geometry.size() == 1);
+
+  std::filesystem::remove(archive);
+  std::filesystem::remove(obj);
 }

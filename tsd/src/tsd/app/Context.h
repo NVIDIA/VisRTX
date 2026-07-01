@@ -18,19 +18,39 @@
 
 #include "tsd/app/ANARIDeviceManager.h"
 #include "tsd/app/renderAnimationSequence.h"
+// std
+#include <string>
+#include <variant>
+#include <vector>
 
 namespace tsd::app {
 
 using CameraPose = tsd::rendering::CameraPose;
 using DeviceInitParam = std::pair<std::string, tsd::core::Any>;
 
+struct SceneArchiveLoad
+{
+  std::string filename;
+};
+
+struct ForeignSceneImport
+{
+  tsd::io::ImportFile file;
+};
+
+/*
+ * Parsed scene input intent. A Scene Archive load replaces the current Scene;
+ * a foreign import adds converted content to it.
+ */
+using CommandLineSceneInput =
+    std::variant<SceneArchiveLoad, ForeignSceneImport>;
+
 struct CommandLineOptions
 {
   bool loadedFromStateFile{false};
   std::string stateFile;
-  std::string sceneArchiveFile;
+  std::vector<CommandLineSceneInput> sceneInputs;
   std::string currentLayerName{"default"};
-  std::vector<tsd::io::ImportFile> filenames;
   std::vector<tsd::io::ImportAnimationFiles> animationFilenames;
   std::vector<tsd::core::Token> animationLayerNames;
   tsd::io::ImportAnimationFiles *currentAnimationSequence{nullptr};
@@ -135,6 +155,7 @@ struct Context
 
   void parseCommandLine(int argc, const char **argv); // raw main() arguments
   void parseCommandLine(std::vector<std::string> &args); // removes used args
+  bool loadCommandLineSceneInputs();
   void setupSceneFromCommandLine(bool hdriOnly = false);
 
   // Logging //

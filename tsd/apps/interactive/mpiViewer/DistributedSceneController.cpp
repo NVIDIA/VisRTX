@@ -4,8 +4,6 @@
 #include "DistributedSceneController.h"
 // tsd_core
 #include "tsd/core/Logging.hpp"
-// tsd_io
-#include "tsd/io/archives/SceneArchive.hpp"
 // std
 #include <random>
 
@@ -47,15 +45,7 @@ void DistributedSceneController::initialize(int argc, const char **argv)
 
   // Load scene files assigned to this rank //
 
-  if (!m_ctx->commandLine.sceneArchiveFile.empty()) {
-    if (!tsd::io::load_SceneArchive(
-            m_ctx->tsd.scene, m_ctx->commandLine.sceneArchiveFile.c_str())) {
-      tsd::core::logError("[tsdMPIViewer] Failed to load Scene Archive '%s'",
-          m_ctx->commandLine.sceneArchiveFile.c_str());
-    }
-  }
-  tsd::io::import_files(
-      m_ctx->tsd.scene, m_ctx->tsd.animationMgr, m_ctx->commandLine.filenames);
+  m_ctx->loadCommandLineSceneInputs();
 
   // Setup ANARI state //
 

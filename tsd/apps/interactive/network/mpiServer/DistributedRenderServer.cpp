@@ -10,7 +10,6 @@
 #include "tsd/core/Logging.hpp"
 // tsd_io
 #include "tsd/io/archives/SceneArchive.hpp"
-#include "tsd/io/importers.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
 // tsd_network messages
@@ -191,18 +190,9 @@ void DistributedRenderServer::run(short port)
 void DistributedRenderServer::setup_Scene()
 {
   auto &scene = m_ctx.tsd.scene;
-  auto &animMgr = m_ctx.tsd.animationMgr;
-  auto &filenames = m_ctx.commandLine.filenames;
 
   tsd::core::logStatus("[tsdMPIServer] Rank %d loading files...", rank());
-  if (!m_ctx.commandLine.sceneArchiveFile.empty()) {
-    if (!tsd::io::load_SceneArchive(
-            scene, m_ctx.commandLine.sceneArchiveFile.c_str())) {
-      tsd::core::logError("[tsdMPIServer] Failed to load Scene Archive '%s'",
-          m_ctx.commandLine.sceneArchiveFile.c_str());
-    }
-  }
-  tsd::io::import_files(scene, animMgr, filenames);
+  m_ctx.loadCommandLineSceneInputs();
 
   tsd::core::logStatus(
       "%s", tsd::scene::objectDBInfo(scene.objectDB()).c_str());
