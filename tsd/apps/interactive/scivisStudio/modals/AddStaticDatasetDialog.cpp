@@ -106,7 +106,7 @@ void AddStaticDatasetDialog::buildUI()
   ImGui::SameLine();
   const auto sourceChoice = SOURCES[m_selectedSource];
   const bool loadArchive = !sourceChoice.importer.has_value();
-  if (ImGui::Button(loadArchive ? "Load" : "Import")) {
+  if (ImGui::Button(loadArchive ? "Load Archive" : "Import")) {
     const std::string name = m_name.data();
     const std::filesystem::path sourcePath = m_sourcePath.data();
     if (sourcePath.empty()) {

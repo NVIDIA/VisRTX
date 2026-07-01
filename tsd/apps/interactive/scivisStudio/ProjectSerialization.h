@@ -15,12 +15,13 @@ namespace tsd::scivis_studio {
 constexpr const char *PROJECT_KIND = "SciVisStudio";
 constexpr const char *PROJECT_FILE_TYPE = "project";
 constexpr const char *PROJECT_SCHEMA = "tsd.scivis-studio.project";
-// v5: datasets join camera and light rigs as standalone assets. The manifest
-// keeps only each dataset's project-local ID and human-readable name.
-constexpr int SCHEMA_VERSION = 5;
+// v6: the manifest no longer embeds a residual Scene Archive. Camera and
+// renderer pools live in required Archives under scene/.
+constexpr int DECOMPOSED_SCENE_SCHEMA_VERSION = 6;
+constexpr int SCHEMA_VERSION = DECOMPOSED_SCENE_SCHEMA_VERSION;
 constexpr const char *PROJECT_MANIFEST_FILENAME = "project.tsd";
 
-// Standalone rig file schemas, versioned independently of the project schema.
+// Standalone rig Archive schemas, versioned independently of the project.
 constexpr const char *CAMERA_RIG_FILE_TYPE = "camera-rig";
 constexpr const char *CAMERA_RIG_SCHEMA = "tsd.scivis-studio.camerarig";
 constexpr const char *LIGHT_RIG_FILE_TYPE = "light-rig";
@@ -41,7 +42,7 @@ bool nodeToProject(tsd::core::DataNode &node, Project &project);
 // to a portable character set (letters, digits, space, '_', '-', '(', ')') with
 // no leading/trailing whitespace. validateRigName checks a user-entered name's
 // format only (not collection uniqueness); sanitizeRigName coerces an arbitrary
-// string (e.g. an imported rig's stored name) into that set.
+// string (e.g. a loaded rig's stored name) into that set.
 bool validateRigName(const std::string &name, std::string *error = nullptr);
 std::string sanitizeRigName(const std::string &name);
 

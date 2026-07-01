@@ -19,7 +19,7 @@ namespace tsd::scivis_studio {
 
 namespace {
 
-// Default rig files to a .tsd extension when the user didn't supply one.
+// Default rig Archives to a .tsd extension when the user didn't supply one.
 std::string withTsdExtension(const std::string &path)
 {
   std::filesystem::path p(path);
@@ -311,13 +311,13 @@ void LightRigEditor::pollPendingFileIO()
       m_selectedLight = -1;
     } else {
       m_ioError = error;
-      ImGui::OpenPopup("Light Rig IO Error");
+      ImGui::OpenPopup("Light Rig Archive Error");
     }
   } else if (request == PendingFileIO::Save) {
     if (!m_projectContext->saveLightRigArchive(
             rigToSave, withTsdExtension(filename), &error)) {
       m_ioError = error;
-      ImGui::OpenPopup("Light Rig IO Error");
+      ImGui::OpenPopup("Light Rig Archive Error");
     }
   }
 }
@@ -353,7 +353,7 @@ void LightRigEditor::buildUI()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  if (ImGui::Button("Load...")) {
+  if (ImGui::Button("Load Archive...")) {
     m_pendingFileIO = PendingFileIO::Load;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
@@ -397,7 +397,7 @@ void LightRigEditor::buildUI()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  if (ImGui::Button("Save...")) {
+  if (ImGui::Button("Save Archive...")) {
     m_pendingFileIO = PendingFileIO::Save;
     m_pendingSaveRig = rig.id;
     m_pendingFilename.clear();
@@ -447,8 +447,9 @@ void LightRigEditor::buildUI()
 void LightRigEditor::buildUI_ioError()
 {
   ImGui::SetNextWindowSize(ImVec2(500.f, 0.f), ImGuiCond_Appearing);
-  if (ImGui::BeginPopupModal(
-          "Light Rig IO Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+  if (ImGui::BeginPopupModal("Light Rig Archive Error",
+          nullptr,
+          ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::TextWrapped("%s", m_ioError.c_str());
     ImGui::Spacing();
     if (ImGui::Button("OK") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {

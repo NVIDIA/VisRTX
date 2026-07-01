@@ -22,7 +22,7 @@ namespace tsd::scivis_studio {
 
 namespace {
 
-// Default rig files to a .tsd extension when the user didn't supply one.
+// Default rig Archives to a .tsd extension when the user didn't supply one.
 std::string withTsdExtension(const std::string &path)
 {
   std::filesystem::path p(path);
@@ -170,7 +170,7 @@ void CameraRigEditor::buildUI_rigControls()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  if (ImGui::Button("Load...")) {
+  if (ImGui::Button("Load Archive...")) {
     m_pendingFileIO = PendingFileIO::Load;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
@@ -214,7 +214,7 @@ void CameraRigEditor::buildUI_rigControls()
   ImGui::EndDisabled();
 
   ImGui::SameLine();
-  if (ImGui::Button("Save...")) {
+  if (ImGui::Button("Save Archive...")) {
     m_pendingFileIO = PendingFileIO::Save;
     m_pendingSaveRig = cameraRig.id;
     m_pendingFilename.clear();
@@ -264,8 +264,9 @@ void CameraRigEditor::buildUI_rigControls()
 void CameraRigEditor::buildUI_ioError()
 {
   ImGui::SetNextWindowSize(ImVec2(500.f, 0.f), ImGuiCond_Appearing);
-  if (ImGui::BeginPopupModal(
-          "Camera Rig IO Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+  if (ImGui::BeginPopupModal("Camera Rig Archive Error",
+          nullptr,
+          ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::TextWrapped("%s", m_ioError.c_str());
     ImGui::Spacing();
     if (ImGui::Button("OK") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
@@ -517,13 +518,13 @@ void CameraRigEditor::pollPendingFileIO()
       m_selectedKeyframe = -1;
     } else {
       m_ioError = error;
-      ImGui::OpenPopup("Camera Rig IO Error");
+      ImGui::OpenPopup("Camera Rig Archive Error");
     }
   } else if (request == PendingFileIO::Save) {
     if (!m_projectContext->saveCameraRigArchive(
             rigToSave, withTsdExtension(filename), &error)) {
       m_ioError = error;
-      ImGui::OpenPopup("Camera Rig IO Error");
+      ImGui::OpenPopup("Camera Rig Archive Error");
     }
   }
 }

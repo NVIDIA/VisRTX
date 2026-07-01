@@ -16,12 +16,16 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
+#include "tsd/io/archives/CameraArchive.hpp"
+#include "tsd/io/archives/RendererArchive.hpp"
 #include "tsd/io/archives/SceneArchive.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/scene/UpdateDelegate.hpp"
+#include "tsd/scene/objects/Camera.hpp"
 #include "tsd/scene/objects/Geometry.hpp"
 #include "tsd/scene/objects/Light.hpp"
 #include "tsd/scene/objects/Material.hpp"
+#include "tsd/scene/objects/Renderer.hpp"
 #include "tsd/scene/objects/SpatialField.hpp"
 #include "tsd/scene/objects/Volume.hpp"
 
@@ -62,8 +66,8 @@ tsd::scene::LayerNodeRef findDirectChild(
 
 } // namespace
 
-SCENARIO(
-    "SciVis Studio static dataset assets are self-contained", "[SciVisStudio]")
+SCENARIO("SciVis Studio static Dataset Archives are self-contained",
+    "[SciVisStudio]")
 {
   const auto file = std::filesystem::temp_directory_path()
       / "tsd_scivis_studio_static_dataset.tsd";
@@ -114,12 +118,12 @@ SCENARIO(
   tsd::animation::AnimationManager targetAnimations(&target);
   auto destination =
       target.insertChildNode(target.defaultLayer()->root(), "datasets");
-  Dataset imported;
-  tsd::scene::LayerNodeRef importedRoot;
+  Dataset loadedDataset;
+  tsd::scene::LayerNodeRef loadedRoot;
   REQUIRE(loadDatasetArchiveFile(
-      target, targetAnimations, file, destination, imported, importedRoot));
-  REQUIRE(importedRoot);
-  REQUIRE(imported.status == DatasetStatus::Available);
+      target, targetAnimations, file, destination, loadedDataset, loadedRoot));
+  REQUIRE(loadedRoot);
+  REQUIRE(loadedDataset.status == DatasetStatus::Available);
   REQUIRE(targetAnimations.animations().size() == 1);
   REQUIRE(targetAnimations.animations()
               .front()
@@ -142,7 +146,7 @@ SCENARIO(
   std::filesystem::remove(file);
 }
 
-SCENARIO("SciVis Studio file-animation assets preserve opaque source paths",
+SCENARIO("SciVis Studio file-animation Dataset Archives preserve source paths",
     "[SciVisStudio]")
 {
   const auto file = std::filesystem::temp_directory_path()
@@ -209,17 +213,17 @@ SCENARIO("SciVis Studio file-animation assets preserve opaque source paths",
 
   tsd::scene::Scene target;
   tsd::animation::AnimationManager targetAnimations(&target);
-  Dataset imported;
+  Dataset loadedDataset;
   tsd::scene::LayerNodeRef importedRoot;
   REQUIRE(loadDatasetArchiveFile(target,
       targetAnimations,
       file,
       target.defaultLayer()->root(),
-      imported,
+      loadedDataset,
       importedRoot));
-  REQUIRE(imported.sourceFiles.size() == paths.size());
-  REQUIRE(imported.sourceFiles[0].path == paths[0]);
-  REQUIRE(imported.sourceFiles[1].path == paths[1]);
+  REQUIRE(loadedDataset.sourceFiles.size() == paths.size());
+  REQUIRE(loadedDataset.sourceFiles[0].path == paths[0]);
+  REQUIRE(loadedDataset.sourceFiles[1].path == paths[1]);
   REQUIRE(targetAnimations.animations().size() == 1);
   REQUIRE(targetAnimations.animations().front().fileBindings().size() == 1);
 
@@ -348,8 +352,8 @@ SCENARIO(
   REQUIRE(project::nextDatasetId(loaded) == "dataset_0004");
 }
 
-SCENARIO(
-    "SciVis Studio camera rig files round-trip keyframe data", "[SciVisStudio]")
+SCENARIO("SciVis Studio Camera Rig Archives round-trip keyframe data",
+    "[SciVisStudio]")
 {
   CameraRig rig;
   rig.name = "Hero Cam";
@@ -454,6 +458,12 @@ SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
             PROJECT_SCHEMA,
             SCHEMA_VERSION});
     REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+    std::filesystem::create_directories(root / "scene");
+    tsd::scene::Scene scene;
+    REQUIRE(tsd::io::save_CameraArchive(
+        scene, (root / "scene/cameras.tsd").string().c_str()));
+    REQUIRE(tsd::io::save_RendererArchive(
+        scene, (root / "scene/renderers.tsd").string().c_str()));
 
     THEN("Validation succeeds")
     {
@@ -523,6 +533,43 @@ SCENARIO("SciVis Studio project root validation", "[SciVisStudio]")
       REQUIRE_FALSE(result.ok);
     }
   }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio requires valid scene pool Archives", "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_required_scene_pools";
+  std::filesystem::remove_all(root);
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  REQUIRE(projectContext.saveProject(root));
+
+  std::filesystem::remove(root / "scene/cameras.tsd");
+  auto validation = validateProjectRoot(root);
+  REQUIRE_FALSE(validation.ok);
+  REQUIRE(validation.error.find("cameras.tsd") != std::string::npos);
+
+  std::string error;
+  REQUIRE_FALSE(
+      projectContext.openProject(root, nullptr, nullptr, nullptr, &error));
+  REQUIRE(error.find("cameras.tsd") != std::string::npos);
+
+  REQUIRE(projectContext.saveProject(root));
+  {
+    std::ofstream corrupt(
+        root / "scene/renderers.tsd", std::ios::binary | std::ios::trunc);
+    corrupt << "not a Renderer Archive";
+  }
+  validation = validateProjectRoot(root);
+  REQUIRE_FALSE(validation.ok);
+  REQUIRE(validation.error.find("renderers.tsd") != std::string::npos);
+  REQUIRE_FALSE(
+      projectContext.openProject(root, nullptr, nullptr, nullptr, &error));
+  REQUIRE(error.find("renderers.tsd") != std::string::npos);
 
   std::filesystem::remove_all(root);
 }
@@ -743,11 +790,10 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
     REQUIRE(projectNode["shots"].child(0)->child("cameraRig") == nullptr);
     REQUIRE(projectNode["shots"].child(0)->child("camera") == nullptr);
     REQUIRE(projectNode["lightRigs"].child(0)->child("rootNode") == nullptr);
-    // v4: rig value data moved to standalone files.
+    // v4: rig value data moved to standalone Archives.
     REQUIRE(projectNode["cameraRigs"].child(0)->child("rig") == nullptr);
 
-    // The manifest's context must not carry the excluded light pool.
-    REQUIRE(manifest.root()["context"]["objectDB"].child("light") == nullptr);
+    REQUIRE(manifest.root().child("context") == nullptr);
 
     // Each rig was written as its own portable file.
     const auto cameraName = projectNode["cameraRigs"]
@@ -781,8 +827,118 @@ SCENARIO("SciVis Studio saved projects rebuild runtime refs from stable IDs",
   std::filesystem::remove_all(root);
 }
 
-SCENARIO("SciVis Studio v5 projects round-trip standalone datasets",
+SCENARIO("SciVis Studio projects store scene pools in required Archives",
     "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_scene_pool_archives";
+  std::filesystem::remove_all(root);
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    REQUIRE(projectContext.addShot("Second Shot"));
+    projectContext.project().activeShotId =
+        projectContext.project().shots.front().id;
+
+    auto renderer =
+        appContext.tsd.scene.createRenderer("test_device", "pathtracer");
+    renderer->setName("selected renderer");
+    renderer->setParameter("pixelSamples", 7);
+    auto &renderSettings =
+        projectContext.project().shots.front().renderSettings;
+    renderSettings.rendererLibrary = "test_device";
+    renderSettings.rendererObjectIndex = renderer->index();
+    renderSettings.rendererSubtype = "pathtracer";
+
+    REQUIRE(projectContext.saveProject(root));
+  }
+
+  {
+    tsd::core::DataTree manifest;
+    REQUIRE(manifest.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+    auto metadata = tsd::core::readDataTreeMetadata(manifest.root());
+    REQUIRE(metadata.found());
+    REQUIRE(metadata.metadata->schemaVersion == SCHEMA_VERSION);
+    REQUIRE(SCHEMA_VERSION == 6);
+    REQUIRE(manifest.root().child("context") == nullptr);
+
+    tsd::core::DataTree cameras;
+    tsd::core::DataTree renderers;
+    REQUIRE(cameras.load((root / "scene/cameras.tsd").string().c_str()));
+    REQUIRE(renderers.load((root / "scene/renderers.tsd").string().c_str()));
+    REQUIRE(tsd::io::validate_CameraArchive(cameras.root()).accepted());
+    REQUIRE(tsd::io::validate_RendererArchive(renderers.root()).accepted());
+  }
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+
+    auto &shot = projectContext.project().shots.front();
+    REQUIRE(projectContext.project().shots.size() == 2);
+    REQUIRE(projectContext.project().activeShotId == shot.id);
+    auto *camera = projectContext.resolveShotCamera(shot);
+    REQUIRE(camera);
+    REQUIRE(camera->name() == shot.id + "_camera");
+    REQUIRE(shot.renderSettings.rendererObjectIndex != TSD_INVALID_INDEX);
+    auto renderer = appContext.tsd.scene.getObject<tsd::scene::Renderer>(
+        shot.renderSettings.rendererObjectIndex);
+    REQUIRE(renderer);
+    REQUIRE(renderer->name() == "selected renderer");
+    REQUIRE(renderer->rendererDeviceName() == "test_device");
+    REQUIRE(renderer->parameter("pixelSamples"));
+    REQUIRE(renderer->parameter("pixelSamples")->value().getAs<int>() == 7);
+    auto &secondShot = projectContext.project().shots.back();
+    REQUIRE(projectContext.resolveShotCamera(secondShot));
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio writes empty scene pool Archives", "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_empty_scene_pool_archives";
+  std::filesystem::remove_all(root);
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    projectContext.createUnsavedProject();
+    projectContext.project() = {};
+    projectContext.project().name = "Empty Pools";
+    appContext.tsd.scene.removeAllObjects();
+    appContext.tsd.scene.defaultMaterial();
+
+    REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_CAMERA) == 0);
+    REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_RENDERER) == 0);
+    REQUIRE(projectContext.saveProject(root));
+  }
+
+  tsd::core::DataTree cameras;
+  tsd::core::DataTree renderers;
+  REQUIRE(cameras.load((root / "scene/cameras.tsd").string().c_str()));
+  REQUIRE(renderers.load((root / "scene/renderers.tsd").string().c_str()));
+  REQUIRE(tsd::io::validate_CameraArchive(cameras.root()).accepted());
+  REQUIRE(tsd::io::validate_RendererArchive(renderers.root()).accepted());
+  REQUIRE(cameras.root()["objectDB"].child("camera") == nullptr);
+  REQUIRE(renderers.root()["objectDB"].child("renderer") == nullptr);
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  REQUIRE(projectContext.openProject(root));
+  REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_CAMERA) == 0);
+  REQUIRE(appContext.tsd.scene.numberOfObjects(ANARI_RENDERER) == 0);
+  REQUIRE(appContext.tsd.scene.layer("studio"));
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO(
+    "SciVis Studio projects round-trip standalone datasets", "[SciVisStudio]")
 {
   const auto root =
       std::filesystem::temp_directory_path() / "tsd_scivis_studio_v5_datasets";
@@ -836,7 +992,7 @@ SCENARIO("SciVis Studio v5 projects round-trip standalone datasets",
     REQUIRE(manifest.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
     auto metadata = tsd::core::readDataTreeMetadata(manifest.root());
     REQUIRE(metadata.found());
-    REQUIRE(metadata.metadata->schemaVersion == 5);
+    REQUIRE(metadata.metadata->schemaVersion == SCHEMA_VERSION);
     auto *datasetNode = manifest.root()["scivisStudio"]["datasets"].child(0);
     REQUIRE(datasetNode);
     REQUIRE(datasetNode->child("id"));
@@ -844,9 +1000,7 @@ SCENARIO("SciVis Studio v5 projects round-trip standalone datasets",
     REQUIRE(datasetNode->child("sourceKind") == nullptr);
     REQUIRE(datasetNode->child("source") == nullptr);
     REQUIRE(datasetNode->child("sourceFiles") == nullptr);
-    REQUIRE(manifest.root()["context"]["objectDB"].child("surface") == nullptr);
-    REQUIRE(
-        manifest.root()["context"]["animations"]["objects"].numChildren() == 0);
+    REQUIRE(manifest.root().child("context") == nullptr);
   }
 
   {
@@ -909,6 +1063,74 @@ SCENARIO("SciVis Studio v5 projects round-trip standalone datasets",
   }
 
   std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio opens legacy projects without rewriting them",
+    "[SciVisStudio]")
+{
+  const auto base = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_legacy_project_versions";
+  std::filesystem::remove_all(base);
+
+  for (int version = 1; version <= 5; ++version) {
+    const auto root = base / std::to_string(version);
+    std::filesystem::create_directories(root);
+
+    Project legacyProject;
+    legacyProject.name = "Legacy " + std::to_string(version);
+    Shot shot;
+    shot.id = "shot_0001";
+    shot.name = "Legacy Shot";
+    legacyProject.shots.push_back(shot);
+    legacyProject.activeShotId = shot.id;
+
+    tsd::app::Context legacyContext;
+    auto camera = legacyContext.tsd.scene.createObject<tsd::scene::Camera>(
+        tsd::scene::tokens::camera::perspective);
+    camera->setName(shot.id + "_camera");
+
+    tsd::core::DataTree tree;
+    tsd::core::writeDataTreeMetadata(tree.root(),
+        {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+            PROJECT_FILE_TYPE,
+            PROJECT_SCHEMA,
+            version});
+    projectToNode(legacyProject, tree.root()["scivisStudio"]);
+    tsd::app::detail::serializeLegacyApplicationContext(
+        legacyContext, tree.root()["context"]);
+    REQUIRE(tree.save((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+
+    tsd::app::Context appContext;
+    ProjectContext projectContext(&appContext);
+    REQUIRE(projectContext.openProject(root));
+    REQUIRE(projectContext.project().name == legacyProject.name);
+    REQUIRE(projectContext.resolveShotCamera(
+        projectContext.project().shots.front()));
+
+    tsd::core::DataTree unchanged;
+    REQUIRE(
+        unchanged.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+    auto metadata = tsd::core::readDataTreeMetadata(unchanged.root());
+    REQUIRE(metadata.found());
+    REQUIRE(metadata.metadata->schemaVersion == version);
+    REQUIRE(unchanged.root().child("context"));
+    REQUIRE_FALSE(std::filesystem::exists(root / "scene"));
+
+    if (version == 5) {
+      REQUIRE(projectContext.saveProject(root));
+      tsd::core::DataTree migrated;
+      REQUIRE(
+          migrated.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
+      metadata = tsd::core::readDataTreeMetadata(migrated.root());
+      REQUIRE(metadata.found());
+      REQUIRE(metadata.metadata->schemaVersion == SCHEMA_VERSION);
+      REQUIRE(migrated.root().child("context") == nullptr);
+      REQUIRE(std::filesystem::exists(root / "scene/cameras.tsd"));
+      REQUIRE(std::filesystem::exists(root / "scene/renderers.tsd"));
+    }
+  }
+
+  std::filesystem::remove_all(base);
 }
 
 SCENARIO("SciVis Studio extracts embedded v4 datasets only on save",
@@ -981,7 +1203,7 @@ SCENARIO("SciVis Studio extracts embedded v4 datasets only on save",
     REQUIRE(manifest.load((root / PROJECT_MANIFEST_FILENAME).string().c_str()));
     auto metadata = tsd::core::readDataTreeMetadata(manifest.root());
     REQUIRE(metadata.found());
-    REQUIRE(metadata.metadata->schemaVersion == 5);
+    REQUIRE(metadata.metadata->schemaVersion == SCHEMA_VERSION);
     auto *datasetNode = manifest.root()["scivisStudio"]["datasets"].child(0);
     REQUIRE(datasetNode);
     REQUIRE(datasetNode->child("sourceKind") == nullptr);
@@ -1032,7 +1254,7 @@ SCENARIO("SciVis Studio Save As reports unavailable datasets", "[SciVisStudio]")
       {tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION,
           PROJECT_FILE_TYPE,
           PROJECT_SCHEMA,
-          SCHEMA_VERSION});
+          5});
   projectToNode(project, tree.root()["scivisStudio"]);
   tsd::scene::Scene scene;
   tsd::animation::AnimationManager animations(&scene);
@@ -1216,6 +1438,55 @@ SCENARIO("SciVis Studio stages every dirty dataset before replacement",
       std::filesystem::directory_iterator(root / "datasets")) {
     REQUIRE(
         entry.path().filename().string().find(".stage-") == std::string::npos);
+  }
+
+  std::filesystem::remove_all(root);
+}
+
+SCENARIO("SciVis Studio pool Archive failures preserve the previous project",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_pool_archive_rollback";
+  std::filesystem::remove_all(root);
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  REQUIRE(projectContext.saveProject(root));
+
+  auto readBytes = [](const std::filesystem::path &file) {
+    std::ifstream input(file, std::ios::binary);
+    return std::vector<char>(std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>());
+  };
+  const auto manifest = root / PROJECT_MANIFEST_FILENAME;
+  const auto cameras = root / "scene/cameras.tsd";
+  const auto renderers = root / "scene/renderers.tsd";
+  const auto manifestBefore = readBytes(manifest);
+  const auto camerasBefore = readBytes(cameras);
+  const auto renderersBefore = readBytes(renderers);
+
+  auto camera = appContext.tsd.scene.getObject<tsd::scene::Camera>(0);
+  REQUIRE(camera);
+  auto geometry = appContext.tsd.scene.createObject<tsd::scene::Geometry>(
+      tsd::scene::tokens::geometry::sphere);
+  camera->setParameterObject("invalidPoolDependency", *geometry);
+  projectContext.project().shots.front().name = "must not be committed";
+  projectContext.project().markDirty();
+
+  std::string error;
+  REQUIRE_FALSE(projectContext.saveProject(root, nullptr, "", nullptr, &error));
+  REQUIRE(error.find("Camera pool Archive") != std::string::npos);
+  REQUIRE(readBytes(manifest) == manifestBefore);
+  REQUIRE(readBytes(cameras) == camerasBefore);
+  REQUIRE(readBytes(renderers) == renderersBefore);
+  for (const auto &entry :
+      std::filesystem::directory_iterator(root / "scene")) {
+    REQUIRE(
+        entry.path().filename().string().find(".stage-") == std::string::npos);
+    REQUIRE(
+        entry.path().filename().string().find(".backup-") == std::string::npos);
   }
 
   std::filesystem::remove_all(root);
@@ -1639,7 +1910,7 @@ SCENARIO("SciVis Studio rig name validation", "[SciVisStudio]")
   {
     std::string error;
     REQUIRE(validateRigName("Key Light", &error));
-    REQUIRE(validateRigName("rig-01 (imported)", &error));
+    REQUIRE(validateRigName("rig-01 Copy", &error));
     REQUIRE(validateRigName("Default Copy", &error));
 
     REQUIRE_FALSE(validateRigName("", &error));
@@ -1720,7 +1991,7 @@ SCENARIO("SciVis Studio programmatic rig names are sanitized and unique",
   REQUIRE(a->name != b->name);
 }
 
-SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
+SCENARIO("SciVis Studio v4 projects round-trip standalone Rig Archives",
     "[SciVisStudio]")
 {
   const auto root =
@@ -1753,7 +2024,7 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
 
     REQUIRE(projectContext.saveProject(root));
 
-    THEN("one file is written per rig")
+    THEN("one Archive is written per rig")
     {
       REQUIRE(std::filesystem::exists(root / "cameras"));
       REQUIRE(std::filesystem::exists(root / "lights"));
@@ -1772,7 +2043,7 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
     REQUIRE(projectContext.openProject(root));
     auto &project = projectContext.project();
 
-    THEN("light rigs and their lights are restored from files")
+    THEN("light rigs and their lights are restored from Archives")
     {
       REQUIRE(project.lightRigs.size() == 2);
       LightRig *rim = nullptr;
@@ -1793,7 +2064,7 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
       REQUIRE(lightCount == 2);
     }
 
-    THEN("camera rig keyframes are restored from files")
+    THEN("camera rig keyframes are restored from Archives")
     {
       auto *cameraRig = camera_rig::findCameraRig(project, cameraRigId);
       REQUIRE(cameraRig != nullptr);
@@ -1820,7 +2091,7 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
       REQUIRE(projectContext.saveProject(root));
     }
 
-    THEN("only the explicitly superseded rig file is removed")
+    THEN("only the explicitly superseded Rig Archive is removed")
     {
       REQUIRE(std::filesystem::exists(root / "lights" / "Key Light.tsd"));
       REQUIRE_FALSE(
@@ -1832,7 +2103,7 @@ SCENARIO("SciVis Studio v4 projects round-trip rigs through standalone files",
   std::filesystem::remove_all(root);
 }
 
-SCENARIO("SciVis Studio tolerates a missing light rig file on open",
+SCENARIO("SciVis Studio tolerates a missing Light Rig Archive on open",
     "[SciVisStudio]")
 {
   const auto root =

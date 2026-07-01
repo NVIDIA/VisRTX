@@ -16,9 +16,9 @@ replacing any managed asset, so a staging failure commits none of them;
 serializes every dataset into the new project directory so the destination is a
 complete representation of current in-memory state. Save As fails with a
 consolidated repair list if any dataset is unavailable; it never omits a
-dataset or copies stale serialized bytes as a substitute. Explicit dataset
-import/export complements filesystem copy plus discovery: import assigns a new
-project-local ID, while export omits that identity from the portable file.
+dataset or copies stale serialized bytes as a substitute. Explicit Dataset
+Archive Load/Save complements filesystem copy plus discovery: Load assigns a
+new project-local ID, while Save omits that identity from the portable Archive.
 Opening a project eagerly loads every dataset in its inventory and reconstructs
 its subtree and owned animations; this persistence split does not introduce
 dataset-level lazy loading. Core file-animation bindings continue to load their

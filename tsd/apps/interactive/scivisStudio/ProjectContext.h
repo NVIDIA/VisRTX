@@ -139,8 +139,8 @@ struct ProjectContext
   CameraRig *ensureDefaultCameraRig();
   void migrateLegacyShotLightsToLightRigs();
   // v4 load: hydrate camera-rig value data and splice light-rig subtrees from
-  // their standalone files. A missing or corrupt rig file is skipped with a
-  // warning (the rig is dropped and its shot bindings cleared) so the rest of
+  // their standalone Archives. A missing or corrupt rig Archive is skipped with
+  // a warning (the rig is dropped and its shot bindings cleared) so the rest of
   // the project still opens.
   void loadCameraRigFiles(const std::filesystem::path &camerasDir);
   void loadLightRigFiles(const std::filesystem::path &lightsDir);

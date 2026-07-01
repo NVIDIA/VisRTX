@@ -2,8 +2,8 @@
 
 SciVis Studio opens legacy projects with embedded datasets without modifying
 them, preserving dataset IDs and shot bindings while marking the datasets for
-extraction. The next explicit save writes and verifies all required standalone
-dataset assets before replacing `project.tsd` with the new schema, so merely
+extraction. The next explicit save writes and verifies all required Dataset
+Archives before replacing `project.tsd` with the new schema, so merely
 opening a project never upgrades it and a failed extraction leaves the legacy
 project intact. File-animation source frames are not preflighted during
 migration: extraction uses the dataset's persisted source-file list as the

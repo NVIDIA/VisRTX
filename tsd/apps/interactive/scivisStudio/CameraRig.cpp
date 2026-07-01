@@ -230,9 +230,8 @@ void nodeToCameraRig(tsd::core::DataNode &node, CameraRig &rig)
   sortKeyframes(rig);
 }
 
-bool saveCameraRigArchiveFile(const CameraRig &rig,
-    const std::filesystem::path &file,
-    std::string *error)
+bool saveCameraRigArchiveFile(
+    const CameraRig &rig, const std::filesystem::path &file, std::string *error)
 {
   tsd::core::DataTree tree;
   auto &root = tree.root();
@@ -246,20 +245,19 @@ bool saveCameraRigArchiveFile(const CameraRig &rig,
 
   if (!tree.save(file.string().c_str())) {
     if (error)
-      *error = "failed to write camera rig file";
+      *error = "failed to write Camera Rig Archive";
     return false;
   }
   return true;
 }
 
-bool loadCameraRigArchiveFile(const std::filesystem::path &file,
-    CameraRig &rigOut,
-    std::string *error)
+bool loadCameraRigArchiveFile(
+    const std::filesystem::path &file, CameraRig &rigOut, std::string *error)
 {
   tsd::core::DataTree tree;
   if (!tree.load(file.string().c_str())) {
     if (error)
-      *error = "failed to load camera rig file";
+      *error = "failed to load Camera Rig Archive";
     return false;
   }
 
@@ -272,7 +270,7 @@ bool loadCameraRigArchiveFile(const std::filesystem::path &file,
   }
   if (!metadata.found()) {
     if (error)
-      *error = "file is missing __tsd_metadata";
+      *error = "Camera Rig Archive is missing __tsd_metadata";
     return false;
   }
 
@@ -284,7 +282,7 @@ bool loadCameraRigArchiveFile(const std::filesystem::path &file,
   }
   if (m.fileType != CAMERA_RIG_FILE_TYPE || m.schema != CAMERA_RIG_SCHEMA) {
     if (error)
-      *error = "file is not a SciVis Studio camera rig";
+      *error = "Archive is not a SciVis Studio Camera Rig Archive";
     return false;
   }
   if (m.schemaVersion < 1 || m.schemaVersion > RIG_SCHEMA_VERSION) {

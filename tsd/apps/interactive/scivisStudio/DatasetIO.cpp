@@ -56,7 +56,7 @@ bool nodeToDatasetMetadata(
     tsd::core::DataNode &node, Dataset &dataset, std::string *error)
 {
   if (node.child("id"))
-    return fail("dataset assets must not contain a project-local ID", error);
+    return fail("Dataset Archives must not contain a project-local ID", error);
 
   dataset = {};
   dataset.name = node["name"].getValueOr<std::string>("");
@@ -162,7 +162,7 @@ DatasetAssetValidationResult validateDatasetAsset(
   DatasetAssetValidationResult result;
   tsd::core::DataTree tree;
   if (!tree.load(file.string().c_str())) {
-    result.error = "failed to load dataset asset";
+    result.error = "failed to load Dataset Archive";
     return result;
   }
 
@@ -175,7 +175,7 @@ DatasetAssetValidationResult validateDatasetAsset(
 
   auto *metadata = tree.root().child("dataset");
   if (!metadata) {
-    result.error = "dataset asset requires dataset metadata";
+    result.error = "Dataset Archive requires dataset metadata";
     return result;
   }
   if (!nodeToDatasetMetadata(*metadata, result.dataset, &result.error))
@@ -198,7 +198,7 @@ DatasetAssetValidationResult validateDatasetAsset(
     });
     if (hasPersistedFileBinding) {
       result.error =
-          "dataset assets cannot persist derived runtime file bindings";
+          "Dataset Archives cannot persist derived runtime file bindings";
       return result;
     }
   }

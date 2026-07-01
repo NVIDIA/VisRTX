@@ -62,7 +62,7 @@ void DatasetEditor::pollPendingFileIO()
     m_ioError = error;
 
   if (!m_ioError.empty())
-    ImGui::OpenPopup("Dataset IO Error");
+    ImGui::OpenPopup("Dataset Archive Error");
 }
 
 void DatasetEditor::pollPendingReimport()
@@ -81,8 +81,9 @@ void DatasetEditor::pollPendingReimport()
 void DatasetEditor::buildErrorPopup()
 {
   ImGui::SetNextWindowSize(ImVec2(520.f, 0.f), ImGuiCond_Appearing);
-  if (ImGui::BeginPopupModal(
-          "Dataset IO Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+  if (ImGui::BeginPopupModal("Dataset Archive Error",
+          nullptr,
+          ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::TextWrapped("%s", m_ioError.c_str());
     if (ImGui::Button("OK") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
       m_ioError.clear();
@@ -101,9 +102,9 @@ void DatasetEditor::buildDiscoveryReview()
     return;
 
   ImGui::TextWrapped(
-      "Select the standalone dataset files to incorporate into this project.");
+      "Select the Dataset Archives to incorporate into this project.");
   if (m_candidates.empty())
-    ImGui::TextDisabled("No unlisted dataset assets were found.");
+    ImGui::TextDisabled("No unlisted Dataset Archives were found.");
 
   for (size_t i = 0; i < m_candidates.size(); ++i) {
     ImGui::PushID(static_cast<int>(i));
@@ -155,7 +156,7 @@ void DatasetEditor::buildUI()
   pollPendingFileIO();
   pollPendingReimport();
 
-  if (ImGui::Button("Load...")) {
+  if (ImGui::Button("Load Archive...")) {
     m_pendingFileIO = PendingFileIO::Load;
     m_pendingFilename.clear();
     m_app->getFilenameFromDialog(
@@ -173,7 +174,7 @@ void DatasetEditor::buildUI()
 
   buildDiscoveryReview();
   if (!m_ioError.empty())
-    ImGui::OpenPopup("Dataset IO Error");
+    ImGui::OpenPopup("Dataset Archive Error");
   buildErrorPopup();
 
   auto &datasets = m_projectContext->project().datasets;
@@ -252,7 +253,7 @@ void DatasetEditor::buildUI()
       dataset.rootNode.nodeIndex);
 
   ImGui::BeginDisabled(dataset.status != DatasetStatus::Available);
-  if (ImGui::Button("Save...")) {
+  if (ImGui::Button("Save Archive...")) {
     m_pendingFileIO = PendingFileIO::Save;
     m_pendingSaveDataset = dataset.id;
     m_pendingFilename.clear();

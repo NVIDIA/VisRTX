@@ -10,6 +10,8 @@
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
+#include "tsd/io/archives/CameraArchive.hpp"
+#include "tsd/io/archives/RendererArchive.hpp"
 #include "tsd/io/archives/SubtreeArchiveContent.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
 #include "tsd/rendering/view/ManipulatorToTSD.hpp"
@@ -52,20 +54,6 @@ static tsd::scene::LayerNodeRef loadLightRigArchiveFile(
   return tsd::io::deserialize_SubtreeArchiveContent(
       scene, tree.root(), destination, LIGHT_RIG_ARCHIVE_DESC, displayName)
       .root;
-}
-
-static void serializeLegacyProjectContext(tsd::scene::Scene &scene,
-    tsd::animation::AnimationManager &animationManager,
-    const std::vector<tsd::scene::LayerNodeRef> &excludedRoots,
-    tsd::core::DataNode &node)
-{
-  tsd::io::detail::LegacySceneSerializationOptions options;
-  options.animationManager = &animationManager;
-  options.exclusion.roots = excludedRoots;
-  options.exclusion.objectPolicy = tsd::io::ArchiveObjectPolicy::All;
-  options.exclusion.animations =
-      tsd::io::detail::LegacyExcludedAnimationPolicy::OmitOwned;
-  tsd::io::detail::serializeLegacyScenePayload(scene, node, options);
 }
 
 static bool deserializeLegacyProjectContext(tsd::scene::Scene &scene,
@@ -130,6 +118,50 @@ static bool fail(const std::string &message, std::string *error)
   if (error)
     *error = message;
   return false;
+}
+
+using PoolArchiveSaver = bool (*)(const tsd::scene::Scene &, const char *);
+using PoolArchiveValidator = tsd::io::ArchiveValidationResult (*)(
+    tsd::core::DataNode &);
+
+static ProjectAssetWrite makePoolArchiveWrite(const tsd::scene::Scene &scene,
+    bool replaceExisting,
+    const char *description,
+    const std::filesystem::path &target,
+    PoolArchiveSaver saveArchive,
+    PoolArchiveValidator validateArchive,
+    std::string_view expectedSchema)
+{
+  ProjectAssetWrite write;
+  write.description = description;
+  write.target = target;
+  if (replaceExisting)
+    write.ownedTarget = target;
+  write.writer = [&scene, saveArchive, description](
+                     const std::filesystem::path &file,
+                     std::string *writeError) {
+    if (saveArchive(scene, file.string().c_str()))
+      return true;
+    return fail(std::string("failed to save ") + description, writeError);
+  };
+  write.validator = [validateArchive, expectedSchema](
+                        const std::filesystem::path &file,
+                        std::string *validationError) {
+    tsd::core::DataTree archive;
+    if (!archive.load(file.string().c_str()))
+      return fail("failed to load staged Archive", validationError);
+
+    const auto metadata = tsd::core::readDataTreeMetadata(archive.root());
+    const auto validation = validateArchive(archive.root());
+    if (metadata.found() && metadata.metadata->schema == expectedSchema
+        && validation.accepted()) {
+      return true;
+    }
+    return fail(validation.message.empty() ? "Archive has unexpected metadata"
+                                           : validation.message,
+        validationError);
+  };
+  return write;
 }
 
 struct DatasetDirtyDelegate : tsd::scene::EmptyUpdateDelegate
@@ -199,9 +231,9 @@ static std::string uniqueAssetName(
   if (!taken(desired))
     return desired;
 
-  std::string candidate = desired + " (imported)";
+  std::string candidate = desired + " Copy";
   for (int n = 2; taken(candidate); ++n)
-    candidate = desired + " (imported " + std::to_string(n) + ")";
+    candidate = desired + " Copy " + std::to_string(n);
   return candidate;
 }
 
@@ -1129,7 +1161,7 @@ bool ProjectContext::removeDataset(
         m_project.projectDirectory / "datasets" / (itr->persistedName + ".tsd"),
         ec);
     if (ec)
-      return fail("failed to remove dataset asset: " + ec.message(), error);
+      return fail("failed to remove Dataset Archive: " + ec.message(), error);
   }
 
   if (m_ctx) {
@@ -1545,7 +1577,21 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
 
   ProjectSavePlan savePlan;
   savePlan.directory = directory;
-  savePlan.directories = {"renders", "datasets", "cameras", "lights"};
+  savePlan.directories = {"renders", "datasets", "cameras", "lights", "scene"};
+  savePlan.assets.push_back(makePoolArchiveWrite(m_ctx->tsd.scene,
+      savingCurrent,
+      "Camera pool Archive",
+      std::filesystem::path("scene") / "cameras.tsd",
+      tsd::io::save_CameraArchive,
+      tsd::io::validate_CameraArchive,
+      tsd::io::schema::SCENE_CAMERAS));
+  savePlan.assets.push_back(makePoolArchiveWrite(m_ctx->tsd.scene,
+      savingCurrent,
+      "Renderer pool Archive",
+      std::filesystem::path("scene") / "renderers.tsd",
+      tsd::io::save_RendererArchive,
+      tsd::io::validate_RendererArchive,
+      tsd::io::schema::SCENE_RENDERERS));
 
   std::vector<tsd::scene::LayerNodeRef> datasetRoots(
       savedProject.datasets.size());
@@ -1640,15 +1686,12 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
     savePlan.assets.push_back(std::move(write));
   }
 
-  std::vector<tsd::scene::LayerNodeRef> lightRigRoots;
-  lightRigRoots.reserve(savedProject.lightRigs.size());
   for (size_t i = 0; i < savedProject.lightRigs.size(); ++i) {
     auto &savedRig = savedProject.lightRigs[i];
     const auto &liveRig = m_project.lightRigs[i];
     auto rigRoot = resolveLightRigForSave(liveRig);
     if (!rigRoot)
       return fail("light rig '" + savedRig.name + "' has no scene node", error);
-    lightRigRoots.push_back(rigRoot);
     savedRig.persistedName = savedRig.name;
 
     ProjectAssetWrite write;
@@ -1675,8 +1718,8 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
     savePlan.assets.push_back(std::move(write));
   }
 
-  // Build the manifest. Camera-rig value data and light-rig subtrees now live
-  // in their own files, and datasets own their subtrees and animations.
+  // Build the manifest. Scene-owned pools and project assets live in their
+  // required Archives; the manifest contains only project and UI state.
   tsd::core::DataTree tree;
   auto &root = tree.root();
   tsd::core::writeDataTreeMetadata(root,
@@ -1685,16 +1728,6 @@ bool ProjectContext::saveProject(const std::filesystem::path &directory,
           PROJECT_SCHEMA,
           SCHEMA_VERSION});
   projectToNode(savedProject, root["scivisStudio"]);
-
-  std::vector<tsd::scene::LayerNodeRef> excludedRoots = lightRigRoots;
-  for (const auto &datasetRoot : datasetRoots) {
-    if (datasetRoot)
-      excludedRoots.push_back(datasetRoot);
-  }
-  serializeLegacyProjectContext(m_ctx->tsd.scene,
-      m_ctx->tsd.animationMgr,
-      excludedRoots,
-      root["context"]);
 
   if (windows)
     root["windows"] = *windows;
@@ -1791,6 +1824,9 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
     tsd::core::DataNode *settingsOut,
     std::string *error)
 {
+  if (!m_ctx)
+    return fail("missing TSD application context", error);
+
   auto validation = validateProjectRoot(directory);
   if (!validation.ok) {
     if (error)
@@ -1815,25 +1851,41 @@ bool ProjectContext::openProject(const std::filesystem::path &directory,
   }
 
   auto &root = tree.root();
+  auto manifestMetadata = tsd::core::readDataTreeMetadata(root);
+  const int loadedSchemaVersion = manifestMetadata.found()
+      ? manifestMetadata.metadata->schemaVersion
+      : root["schemaVersion"].getValueOr<int>(1);
   resetScene();
   m_syncingAnimationManager = true;
-  if (auto *context = root.child("context"))
+  if (loadedSchemaVersion >= DECOMPOSED_SCENE_SCHEMA_VERSION) {
+    auto shotsRoot = ensureShotsRoot();
+    ensureDatasetsRoot();
+    ensureLightRigsRoot();
+    for (const auto &shot : loadedProject.shots)
+      ensureChild(shotsRoot, shot.id.c_str());
+
+    const auto cameras = directory / "scene/cameras.tsd";
+    const auto renderers = directory / "scene/renderers.tsd";
+    if (!tsd::io::load_CameraArchive(m_ctx->tsd.scene, cameras.string().c_str())
+        || !tsd::io::load_RendererArchive(
+            m_ctx->tsd.scene, renderers.string().c_str())) {
+      m_syncingAnimationManager = false;
+      return fail("failed to load required scene pool Archives", error);
+    }
+  } else if (auto *context = root.child("context")) {
     deserializeLegacyProjectContext(
         m_ctx->tsd.scene, m_ctx->tsd.animationMgr, *context);
+  }
   m_syncingAnimationManager = false;
 
   loadedProject.projectDirectory = directory;
   loadedProject.markClean();
   m_project = std::move(loadedProject);
   m_pendingAssetRemovals.clear();
-  auto manifestMetadata = tsd::core::readDataTreeMetadata(root);
-  const int loadedSchemaVersion = manifestMetadata.found()
-      ? manifestMetadata.metadata->schemaVersion
-      : root["schemaVersion"].getValueOr<int>(1);
   if (loadedSchemaVersion < 2)
     migrateLegacyShotLightsToLightRigs();
   if (loadedSchemaVersion >= 4) {
-    // v4 stores rigs as standalone files; the manifest only carries ids+names.
+    // v4 stores rigs as standalone Archives; the manifest carries ids+names.
     loadCameraRigFiles(directory / "cameras");
     loadLightRigFiles(directory / "lights");
   }
@@ -1894,7 +1946,8 @@ void ProjectContext::loadCameraRigFiles(const std::filesystem::path &camerasDir)
     CameraRig data;
     std::string err;
     if (!camera_rig::loadCameraRigArchiveFile(file, data, &err)) {
-      tsd::core::logWarning("[SciVisStudio] Skipping camera rig '%s': %s",
+      tsd::core::logWarning(
+          "[SciVisStudio] Skipping Camera Rig Archive '%s': %s",
           rig.name.c_str(),
           err.c_str());
       for (auto &shot : m_project.shots) {
@@ -1986,10 +2039,10 @@ void ProjectContext::loadLightRigFiles(const std::filesystem::path &lightsDir)
     }
 
     if (!spliced) {
-      tsd::core::logWarning("[SciVisStudio] Skipping light rig '%s': %s",
+      tsd::core::logWarning(
+          "[SciVisStudio] Skipping Light Rig Archive '%s': %s",
           rig.name.c_str(),
-          readable ? "failed to load light rig file"
-                   : "light rig file is missing");
+          readable ? "failed to load Archive" : "Archive is missing");
       for (auto &shot : m_project.shots) {
         if (shot.lightRigId == rig.id)
           shot.lightRigId.clear();

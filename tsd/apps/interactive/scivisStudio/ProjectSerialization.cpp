@@ -4,10 +4,13 @@
 #include "ProjectSerialization.h"
 
 #include "tsd/core/DataTreeMetadata.hpp"
+#include "tsd/io/archives/CameraArchive.hpp"
+#include "tsd/io/archives/RendererArchive.hpp"
 
 #include <anari/anari_cpp/ext/std.h>
 
 #include <cctype>
+#include <exception>
 
 namespace tsd::scivis_studio {
 
@@ -19,6 +22,44 @@ bool isAllowedRigNameChar(unsigned char c)
 {
   return std::isalnum(c) || c == ' ' || c == '_' || c == '-' || c == '('
       || c == ')';
+}
+
+using PoolArchiveValidator = tsd::io::ArchiveValidationResult (*)(
+    tsd::core::DataNode &);
+
+bool validateRequiredPoolArchive(const std::filesystem::path &directory,
+    const std::filesystem::path &relativePath,
+    std::string_view expectedSchema,
+    PoolArchiveValidator validate,
+    std::string &error)
+{
+  const auto file = directory / relativePath;
+  tsd::core::DataTree archive;
+  try {
+    if (!archive.load(file.string().c_str())) {
+      error = "required " + relativePath.generic_string()
+          + " is missing or unreadable";
+      return false;
+    }
+  } catch (const std::exception &e) {
+    error = "required " + relativePath.generic_string()
+        + " is unreadable: " + e.what();
+    return false;
+  } catch (...) {
+    error = "required " + relativePath.generic_string() + " is unreadable";
+    return false;
+  }
+
+  const auto metadata = tsd::core::readDataTreeMetadata(archive.root());
+  const auto validation = validate(archive.root());
+  if (!metadata.found() || metadata.metadata->schema != expectedSchema
+      || !validation.accepted()) {
+    error = "required " + relativePath.generic_string() + " is invalid";
+    if (!validation.message.empty())
+      error += ": " + validation.message;
+    return false;
+  }
+  return true;
 }
 
 } // namespace
@@ -342,8 +383,10 @@ ProjectValidationResult validateProjectRoot(
     return result;
   }
 
+  int schemaVersion = 0;
   if (metadataResult.found()) {
     const auto &metadata = *metadataResult.metadata;
+    schemaVersion = metadata.schemaVersion;
     if (metadata.envelopeVersion
         != tsd::core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
       result.error = "unsupported SciVis Studio metadata envelopeVersion";
@@ -367,11 +410,25 @@ ProjectValidationResult validateProjectRoot(
       return result;
     }
 
-    const auto version = root["schemaVersion"].getValueOr<int>(0);
-    if (version < 1 || version > SCHEMA_VERSION) {
+    schemaVersion = root["schemaVersion"].getValueOr<int>(0);
+    if (schemaVersion < 1 || schemaVersion > SCHEMA_VERSION) {
       result.error = "unsupported legacy SciVis Studio schemaVersion";
       return result;
     }
+  }
+
+  if (schemaVersion >= DECOMPOSED_SCENE_SCHEMA_VERSION
+      && (!validateRequiredPoolArchive(directory,
+              std::filesystem::path("scene") / "cameras.tsd",
+              "tsd.scene.cameras",
+              tsd::io::validate_CameraArchive,
+              result.error)
+          || !validateRequiredPoolArchive(directory,
+              std::filesystem::path("scene") / "renderers.tsd",
+              "tsd.scene.renderers",
+              tsd::io::validate_RendererArchive,
+              result.error))) {
+    return result;
   }
 
   result.ok = true;
