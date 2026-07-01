@@ -5,6 +5,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/exporters.hpp"
 #include "tsd/io/exporters/NanoVdbSidecar.hpp"
+#include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/SpatialField.hpp"
 
