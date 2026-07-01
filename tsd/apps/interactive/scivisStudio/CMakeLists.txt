@@ -6,9 +6,12 @@ add_library(tsd_scivis_studio_model STATIC
   Dataset.cpp
   DatasetIO.cpp
   LightRig.cpp
+  LightRigIO.cpp
   Project.cpp
   ProjectAssetTransaction.cpp
   ProjectContext.cpp
+  ProjectOpenPersistence.cpp
+  ProjectPersistence.cpp
   ProjectSerialization.cpp
   RenderShot.cpp
   RenderShotCLI.cpp

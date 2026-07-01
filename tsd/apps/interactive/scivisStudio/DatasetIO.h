@@ -11,6 +11,10 @@
 #include <filesystem>
 #include <string>
 
+namespace tsd::core {
+struct DataNode;
+}
+
 namespace tsd::scivis_studio {
 
 constexpr const char *DATASET_FILE_TYPE = "dataset";
@@ -25,6 +29,8 @@ struct DatasetAssetValidationResult
 
 DatasetAssetValidationResult validateDatasetAsset(
     const std::filesystem::path &file);
+DatasetAssetValidationResult validateDatasetArchive(
+    tsd::core::DataNode &archive);
 
 bool saveDatasetArchiveFile(const Dataset &dataset,
     tsd::scene::LayerNodeRef root,
@@ -35,6 +41,14 @@ bool saveDatasetArchiveFile(const Dataset &dataset,
 bool loadDatasetArchiveFile(tsd::scene::Scene &scene,
     tsd::animation::AnimationManager &animationManager,
     const std::filesystem::path &file,
+    tsd::scene::LayerNodeRef destinationParent,
+    Dataset &datasetOut,
+    tsd::scene::LayerNodeRef &rootOut,
+    std::string *error = nullptr);
+
+bool deserializeDatasetArchive(tsd::scene::Scene &scene,
+    tsd::animation::AnimationManager &animationManager,
+    tsd::core::DataNode &archive,
     tsd::scene::LayerNodeRef destinationParent,
     Dataset &datasetOut,
     tsd::scene::LayerNodeRef &rootOut,

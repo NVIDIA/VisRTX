@@ -7,6 +7,7 @@
 #include "DatasetIO.h"
 #include "LightRig.h"
 #include "ProjectContext.h"
+#include "ProjectPersistence.h"
 #include "ProjectSerialization.h"
 #include "RenderShotCLI.h"
 
@@ -65,6 +66,74 @@ tsd::scene::LayerNodeRef findDirectChild(
 }
 
 } // namespace
+
+SCENARIO("SciVis Studio persistence plans a complete new project save",
+    "[SciVisStudio][ProjectPersistence]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_persistence_save_plan";
+  std::filesystem::remove_all(root);
+
+  Project project;
+  tsd::scene::Scene scene;
+  tsd::animation::AnimationManager animations(&scene);
+  ProjectSaveResult result;
+  std::string error;
+
+  REQUIRE(buildProjectSavePlan(
+      ProjectSaveRequest(project, scene, animations, root), result, &error));
+  REQUIRE_FALSE(std::filesystem::exists(root));
+  REQUIRE(result.project.name == root.filename().string());
+  REQUIRE(result.project.projectDirectory == root);
+  REQUIRE_FALSE(result.project.dirty);
+  REQUIRE(result.plan.directory == root);
+  REQUIRE(result.plan.directories
+      == std::vector<std::filesystem::path>{
+          "renders", "datasets", "cameras", "lights", "scene"});
+  REQUIRE(result.plan.assets.size() == 2);
+  REQUIRE(result.plan.assets[0].target
+      == std::filesystem::path("scene/cameras.tsd"));
+  REQUIRE(result.plan.assets[1].target
+      == std::filesystem::path("scene/renderers.tsd"));
+  REQUIRE(result.plan.manifest.target == PROJECT_MANIFEST_FILENAME);
+}
+
+SCENARIO("SciVis Studio persistence stages a project before applying it",
+    "[SciVisStudio][ProjectPersistence]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_persistence_open_stage";
+  std::filesystem::remove_all(root);
+
+  {
+    tsd::app::Context appContext;
+    ProjectContext context(&appContext);
+    context.createUnsavedProject();
+    context.project().name = "Staged Project";
+    REQUIRE(context.saveProject(root));
+  }
+
+  ProjectOpenStage stage;
+  std::string error;
+  REQUIRE(stageProjectOpen(root, stage, &error));
+  REQUIRE(stage.project.name == "Staged Project");
+  REQUIRE(stage.project.projectDirectory == root);
+
+  // Applying uses the decoded stage rather than reopening project files.
+  std::filesystem::remove_all(root);
+
+  tsd::scene::Scene target;
+  tsd::animation::AnimationManager targetAnimations(&target);
+  const auto cameraCountBefore = target.numberOfObjects(ANARI_CAMERA);
+  REQUIRE(cameraCountBefore == 1);
+  REQUIRE(applyProjectOpen(stage, target, targetAnimations, &error));
+  REQUIRE(target.numberOfObjects(ANARI_CAMERA) >= cameraCountBefore);
+  REQUIRE(target.layer("studio") != nullptr);
+  REQUIRE(stage.project.cameraRigs.size() == 1);
+  REQUIRE(stage.project.lightRigs.size() == 1);
+
+  std::filesystem::remove_all(root);
+}
 
 SCENARIO("SciVis Studio static Dataset Archives are self-contained",
     "[SciVisStudio]")

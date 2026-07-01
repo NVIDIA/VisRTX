@@ -159,21 +159,29 @@ bool recreateFileAnimation(const Dataset &dataset,
 DatasetAssetValidationResult validateDatasetAsset(
     const std::filesystem::path &file)
 {
-  DatasetAssetValidationResult result;
   tsd::core::DataTree tree;
   if (!tree.load(file.string().c_str())) {
+    DatasetAssetValidationResult result;
     result.error = "failed to load Dataset Archive";
     return result;
   }
 
+  return validateDatasetArchive(tree.root());
+}
+
+DatasetAssetValidationResult validateDatasetArchive(
+    tsd::core::DataNode &archive)
+{
+  DatasetAssetValidationResult result;
+
   auto subtreeResult =
-      tsd::io::validate_SubtreeArchiveContent(tree.root(), DATASET_DESC);
+      tsd::io::validate_SubtreeArchiveContent(archive, DATASET_DESC);
   if (!subtreeResult.accepted()) {
     result.error = subtreeResult.message;
     return result;
   }
 
-  auto *metadata = tree.root().child("dataset");
+  auto *metadata = archive.child("dataset");
   if (!metadata) {
     result.error = "Dataset Archive requires dataset metadata";
     return result;
@@ -182,7 +190,7 @@ DatasetAssetValidationResult validateDatasetAsset(
     return result;
 
   if (result.dataset.sourceKind == DatasetSourceKind::FileAnimation) {
-    auto *volumes = tree.root()["objectDB"].child("volume");
+    auto *volumes = archive["objectDB"].child("volume");
     if (!volumes || volumes->numChildren() != 1) {
       result.error =
           "file-animation datasets require exactly one volume target";
@@ -190,7 +198,7 @@ DatasetAssetValidationResult validateDatasetAsset(
     }
   }
 
-  if (auto *animations = tree.root().child("animations")) {
+  if (auto *animations = archive.child("animations")) {
     bool hasPersistedFileBinding = false;
     animations->foreach_child([&](tsd::core::DataNode &animation) {
       if (auto *bindings = animation.child("fileBindings"))
@@ -203,10 +211,9 @@ DatasetAssetValidationResult validateDatasetAsset(
     }
   }
 
-  const auto displayName =
-      tree.root()["displayName"].getValueOr<std::string>("");
+  const auto displayName = archive["displayName"].getValueOr<std::string>("");
   const auto subtreeName =
-      tree.root()["subtree"]["name"].getValueOr<std::string>("");
+      archive["subtree"]["name"].getValueOr<std::string>("");
   if (displayName != result.dataset.name
       || subtreeName != result.dataset.name) {
     result.error = "dataset name must match displayName and subtree root name";
@@ -278,18 +285,35 @@ bool loadDatasetArchiveFile(tsd::scene::Scene &scene,
     tsd::scene::LayerNodeRef &rootOut,
     std::string *error)
 {
-  auto validation = validateDatasetAsset(file);
-  if (!validation.ok)
-    return fail(validation.error, error);
-
   tsd::core::DataTree tree;
   if (!tree.load(file.string().c_str()))
     return fail("failed to load Dataset Archive", error);
 
+  return deserializeDatasetArchive(scene,
+      animationManager,
+      tree.root(),
+      destinationParent,
+      datasetOut,
+      rootOut,
+      error);
+}
+
+bool deserializeDatasetArchive(tsd::scene::Scene &scene,
+    tsd::animation::AnimationManager &animationManager,
+    tsd::core::DataNode &archive,
+    tsd::scene::LayerNodeRef destinationParent,
+    Dataset &datasetOut,
+    tsd::scene::LayerNodeRef &rootOut,
+    std::string *error)
+{
+  auto validation = validateDatasetArchive(archive);
+  if (!validation.ok)
+    return fail(validation.error, error);
+
   tsd::io::SubtreeArchiveContentOptions options;
   options.animationManager = &animationManager;
   auto loadedContent = tsd::io::deserialize_SubtreeArchiveContent(
-      scene, tree.root(), destinationParent, DATASET_DESC, nullptr, options);
+      scene, archive, destinationParent, DATASET_DESC, nullptr, options);
   if (!loadedContent.valid() || !loadedContent.root)
     return fail("failed to reconstruct dataset subtree", error);
 

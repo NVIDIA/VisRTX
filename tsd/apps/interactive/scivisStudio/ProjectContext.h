@@ -137,16 +137,6 @@ struct ProjectContext
   void ensureRendererDefaults(Shot &shot);
   LightRig *ensureDefaultLightRig();
   CameraRig *ensureDefaultCameraRig();
-  void migrateLegacyShotLightsToLightRigs();
-  // v4 load: hydrate camera-rig value data and splice light-rig subtrees from
-  // their standalone Archives. A missing or corrupt rig Archive is skipped with
-  // a warning (the rig is dropped and its shot bindings cleared) so the rest of
-  // the project still opens.
-  void loadCameraRigFiles(const std::filesystem::path &camerasDir);
-  void loadLightRigFiles(const std::filesystem::path &lightsDir);
-  void loadDatasetFiles(const std::filesystem::path &datasetsDir);
-  void markMissingDatasets();
-  void refreshRuntimeRefs();
   void installAnimationManagerCallback();
   void updateActiveShotFromAnimationTime();
 
