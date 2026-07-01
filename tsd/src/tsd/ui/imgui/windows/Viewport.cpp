@@ -540,7 +540,7 @@ void Viewport::setRenderingEnabled(bool enabled)
   if (m_anariPass) {
     m_anariPass->setEnabled(enabled);
     if (!enabled)
-      anari::wait(m_device, m_anariPass->getFrame());
+      m_anariPass->waitForCompletion();
   }
 }
 

@@ -35,7 +35,8 @@ struct AnariSceneRenderPass : public ImagePass
   void setEnableNormals(bool on);
   void setUseImplicitAspectRatio(bool on);
 
-  void startFirstFrame(bool waitForCompletion = false);
+  void startFirstFrame(bool wait = false);
+  void waitForCompletion();
 
   // default' true', if 'false', then anari::wait() on each pass
   void setRunAsync(bool on);

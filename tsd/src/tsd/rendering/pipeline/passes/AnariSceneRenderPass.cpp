@@ -63,7 +63,7 @@ AnariSceneRenderPass::~AnariSceneRenderPass()
   cleanup();
 
   anari::discard(m_device, m_frame);
-  anari::wait(m_device, m_frame);
+  waitForCompletion();
 
   anari::release(m_device, m_frame);
   anari::release(m_device, m_camera);
@@ -231,22 +231,27 @@ void AnariSceneRenderPass::setUseImplicitAspectRatio(bool on)
   updateCameraAspect();
 }
 
-void AnariSceneRenderPass::startFirstFrame(bool waitForCompletion)
+void AnariSceneRenderPass::startFirstFrame(bool wait)
 {
   if (!m_firstFrame)
     return;
   auto dims = getDimensions();
   anari::render(m_device, m_frame);
-  if (waitForCompletion)
-    anari::wait(m_device, m_frame);
+  if (wait)
+    waitForCompletion();
   m_firstFrame = false;
+}
+
+void AnariSceneRenderPass::waitForCompletion()
+{
+  anari::wait(m_device, m_frame);
 }
 
 void AnariSceneRenderPass::setRunAsync(bool on)
 {
   m_runAsync = on;
   if (!on)
-    anari::wait(m_device, m_frame);
+    waitForCompletion();
 }
 
 anari::Frame AnariSceneRenderPass::getFrame() const
@@ -297,9 +302,9 @@ void AnariSceneRenderPass::restartFrame()
   if (!m_device || m_firstFrame)
     return;
   anari::discard(m_device, m_frame);
-  anari::wait(m_device, m_frame);
+  waitForCompletion();
   anari::render(m_device, m_frame);
-  anari::wait(m_device, m_frame);
+  waitForCompletion();
 }
 
 void AnariSceneRenderPass::render(ImageBuffers &b, int stageId)
@@ -309,7 +314,7 @@ void AnariSceneRenderPass::render(ImageBuffers &b, int stageId)
   startFirstFrame(false);
 
   if (!m_runAsync)
-    anari::wait(m_device, m_frame);
+    waitForCompletion();
 
   if (anari::isReady(m_device, m_frame)) {
     copyFrameData();
