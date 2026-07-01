@@ -1272,6 +1272,9 @@ bool ProjectContext::reimportStaticDataset(
   if (!hasObjectNodes(stagedRoot))
     return fail("dataset reimport created no scene objects", error);
 
+  tsd::core::logStatus(
+      "[SciVisStudio] Serializing reimported dataset '%s' for staging",
+      dataset->name.c_str());
   const auto stageFile = std::filesystem::temp_directory_path()
       / ("scivis-dataset-reimport-"
           + std::to_string(
@@ -1289,6 +1292,9 @@ bool ProjectContext::reimportStaticDataset(
     return fail("dataset reimport staging failed: " + stageError, error);
   }
 
+  tsd::core::logStatus(
+      "[SciVisStudio] Loading staged replacement for dataset '%s'",
+      dataset->name.c_str());
   Dataset replacement;
   tsd::scene::LayerNodeRef replacementRoot;
   if (!importDatasetAsset(m_ctx->tsd.scene,
@@ -1305,6 +1311,8 @@ bool ProjectContext::reimportStaticDataset(
   std::error_code ec;
   std::filesystem::remove(stageFile, ec);
 
+  tsd::core::logStatus("[SciVisStudio] Installing replacement for dataset '%s'",
+      dataset->name.c_str());
   const auto persistedName = dataset->persistedName;
   if (auto oldRoot = resolveDatasetRoot(*dataset))
     removeDatasetRuntime(m_ctx->tsd.scene, m_ctx->tsd.animationMgr, oldRoot);
@@ -1318,6 +1326,8 @@ bool ProjectContext::reimportStaticDataset(
   *dataset = std::move(replacement);
   m_project.markDirty();
   applyActiveShot();
+  tsd::core::logStatus(
+      "[SciVisStudio] Reimported dataset '%s'", dataset->name.c_str());
   return true;
 }
 
