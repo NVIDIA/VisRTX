@@ -7,19 +7,18 @@
 // tsd
 #include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/Logging.hpp"
-#include "tsd/io/serialization.hpp"
-
-// anari
-#include <anari/anari_cpp/ext/linalg.h>
-#include <anari/frontend/anari_enums.h>
-#include <anari/frontend/type_utility.h>
-
+#include "tsd/io/exporters.hpp"
 #include "tsd/scene/Scene.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/Camera.hpp"
 #include "tsd/scene/objects/Material.hpp"
 #include "tsd/scene/objects/Sampler.hpp"
 #include "tsd/scene/objects/Surface.hpp"
+
+// anari
+#include <anari/anari_cpp/ext/linalg.h>
+#include <anari/frontend/anari_enums.h>
+#include <anari/frontend/type_utility.h>
 
 #if TSD_USE_USD
 // stb and tinyexr
@@ -62,6 +61,8 @@ using namespace std::string_literals;
 using namespace std::chrono_literals;
 
 namespace tsd::io {
+
+using namespace tsd::scene;
 
 static const auto allObjectsPath = pxr::SdfPath("/AllObjects");
 static const auto allLightsPath =
@@ -1017,6 +1018,8 @@ void export_SceneToUSD(Scene &scene,
 #else
 
 namespace tsd::io {
+
+using namespace tsd::scene;
 
 void export_SceneToUSD(
     Scene &, const char *, int, tsd::animation::AnimationManager *)

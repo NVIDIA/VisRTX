@@ -12,9 +12,10 @@ serialization workflows.
   etc.) and `import_volume()` dispatch helpers.
 - Procedural generators for test and demo scenes (`generate_randomSpheres`,
   `generate_material_orb`, `generate_default_lights`, and others).
-- Serialization between TSD scene objects and `tsd::core::DataTree` nodes.
-- Export helpers:
-  scene-to-USD and structured-volume-to-NanoVDB.
+- Native serialization between TSD scene objects and `tsd::core::DataTree`
+  nodes, exposed through `serialization.hpp`.
+- Foreign export helpers for scene-to-USD and structured-volume-to-NanoVDB,
+  exposed through `exporters.hpp`.
 
 ### Why Use This Library
 

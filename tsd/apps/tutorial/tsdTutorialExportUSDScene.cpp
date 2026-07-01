@@ -5,6 +5,7 @@
 #include <tsd/core/Logging.hpp>
 #include <tsd/scene/Scene.hpp>
 // tsd_io
+#include <tsd/io/exporters.hpp>
 #include <tsd/io/procedural.hpp>
 #include <tsd/io/serialization.hpp>
 

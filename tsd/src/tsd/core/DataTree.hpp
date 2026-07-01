@@ -177,12 +177,15 @@ struct DataTree
       DataTreeVisitorEntryFunction &&onNodeEntry,
       DataTreeVisitorExitFunction &&onNodeExit = {});
 
+  // Buffer I/O //
+
+  bool write(std::vector<std::byte> &buffer);
+  bool read(const std::vector<std::byte> &buffer);
+
   // File I/O //
 
   bool save(const char *filename);
-  bool save(std::vector<std::byte> &buffer);
   bool load(const char *filename);
-  bool load(const std::vector<std::byte> &buffer);
 
   // Visual inspection //
 
@@ -630,7 +633,7 @@ inline bool DataTree::save(const char *filename)
   return saveImpl(writer);
 }
 
-inline bool DataTree::save(std::vector<std::byte> &buffer)
+inline bool DataTree::write(std::vector<std::byte> &buffer)
 {
   BufferWriter writer;
   bool res = saveImpl(writer);
@@ -646,7 +649,7 @@ inline bool DataTree::load(const char *filename)
   return loadImpl(reader);
 }
 
-inline bool DataTree::load(const std::vector<std::byte> &buffer)
+inline bool DataTree::read(const std::vector<std::byte> &buffer)
 {
   BufferReader reader(buffer);
   return loadImpl(reader);

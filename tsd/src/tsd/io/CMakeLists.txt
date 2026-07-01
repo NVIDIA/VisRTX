@@ -9,6 +9,9 @@ project_sources(
 PRIVATE
   animation/EnSightFileBinding.cpp
   animation/SpatialFieldFileBinding.cpp
+  exporters/NanoVdbSidecar.cpp
+  exporters/SceneToUSD.cpp
+  exporters/StructuredVolumeToNanoVDB.cpp
   importers/detail/ensight_io.cpp
   importers/detail/HDRImage.cpp
   importers/detail/importer_common.cpp
@@ -60,9 +63,6 @@ PRIVATE
   procedural/generate_randomSpheres.cpp
   procedural/generate_rtow.cpp
   procedural/generate_sphereSetVolume.cpp
-  serialization/export_StructuredVolumeToNanoVDB.cpp
-  serialization/NanoVdbSidecar.cpp
-  serialization/export_SceneToUSD.cpp
   serialization/serialization_animation_archive.cpp
   serialization/serialization_archive_plan.cpp
   serialization/serialization_closure.cpp

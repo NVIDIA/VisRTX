@@ -115,14 +115,14 @@ inline StructuredMessage::StructuredMessage(const Message &msg)
 
 inline void StructuredMessage::fromMessage(const Message &msg)
 {
-  m_tree.load(msg.payload);
+  m_tree.read(msg.payload);
 }
 
 inline Message StructuredMessage::toMessage(uint8_t type)
 {
   Message msg;
   msg.header.type = type;
-  m_tree.save(msg.payload);
+  m_tree.write(msg.payload);
   msg.header.payload_length = uint32_t(msg.payload.size());
   return msg;
 }

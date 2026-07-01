@@ -9,6 +9,7 @@
 #include "tsd/core/DataTreeMetadata.hpp"
 // std
 #include <algorithm>
+#include <vector>
 
 SCENARIO("tsd::core::DataTree interface", "[DataTree]")
 {
@@ -254,6 +255,29 @@ SCENARIO("tsd::core::DataTree interface", "[DataTree]")
   }
 }
 
+SCENARIO("DataTree values round trip through a byte buffer", "[DataTree]")
+{
+  tsd::core::DataTree source;
+  source.root()["settings"]["sampleCount"] = 16;
+  const float weights[] = {0.25f, 0.5f, 0.75f};
+  source.root()["weights"].setValueAsArray(weights, 3);
+
+  std::vector<std::byte> buffer;
+  REQUIRE(source.write(buffer));
+  REQUIRE_FALSE(buffer.empty());
+
+  tsd::core::DataTree destination;
+  REQUIRE(destination.read(buffer));
+
+  REQUIRE(
+      destination.root()["settings"]["sampleCount"].getValueAs<int>() == 16);
+  const float *roundTripWeights = nullptr;
+  size_t numWeights = 0;
+  destination.root()["weights"].getValueAsArray(&roundTripWeights, &numWeights);
+  REQUIRE(numWeights == 3);
+  REQUIRE(std::equal(weights, weights + numWeights, roundTripWeights));
+}
+
 SCENARIO("tsd::core::DataTree metadata helpers", "[DataTree]")
 {
   GIVEN("An empty DataTree")
@@ -270,8 +294,7 @@ SCENARIO("tsd::core::DataTree metadata helpers", "[DataTree]")
 
     WHEN("metadata is written")
     {
-      tsd::core::writeDataTreeMetadata(
-          root, {1, "scene", "tsd.scene.full", 1});
+      tsd::core::writeDataTreeMetadata(root, {1, "scene", "tsd.scene.full", 1});
 
       THEN("the required fields can be read back")
       {
@@ -288,8 +311,7 @@ SCENARIO("tsd::core::DataTree metadata helpers", "[DataTree]")
     WHEN("optional metadata is present")
     {
       root[tsd::core::DATA_TREE_METADATA_NODE]["producer"] = "test";
-      tsd::core::writeDataTreeMetadata(
-          root, {1, "scene", "tsd.scene.full", 1});
+      tsd::core::writeDataTreeMetadata(root, {1, "scene", "tsd.scene.full", 1});
 
       THEN("writing required fields preserves optional fields")
       {

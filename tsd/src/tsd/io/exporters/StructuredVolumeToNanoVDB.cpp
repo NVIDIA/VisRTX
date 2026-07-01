@@ -3,8 +3,8 @@
 
 // tsd
 #include "tsd/core/Logging.hpp"
-#include "tsd/io/serialization.hpp"
-#include "tsd/io/serialization/NanoVdbSidecar.hpp"
+#include "tsd/io/exporters.hpp"
+#include "tsd/io/exporters/NanoVdbSidecar.hpp"
 #include "tsd/scene/objects/Array.hpp"
 #include "tsd/scene/objects/SpatialField.hpp"
 
@@ -26,6 +26,8 @@
 using namespace std::string_view_literals;
 
 namespace tsd::io {
+
+using namespace tsd::scene;
 
 template <typename T>
 void doExportStructuredVolumeToNanoVDB(const T *data,

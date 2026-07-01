@@ -1,15 +1,18 @@
 // Copyright 2025-2026 NVIDIA Corporation
 // SPDX-License-Identifier: Apache-2.0
 
+// tsd
+#include <tsd/core/Logging.hpp>
+#include <tsd/io/exporters.hpp>
+#include <tsd/io/importers.hpp>
+#include <tsd/scene/Scene.hpp>
+#include <tsd/scene/objects/SpatialField.hpp>
+// fmt
 #include <fmt/format.h>
+// std
 #include <optional>
 #include <string>
 #include <string_view>
-#include <tsd/core/Logging.hpp>
-#include <tsd/scene/Scene.hpp>
-#include <tsd/scene/objects/SpatialField.hpp>
-#include <tsd/io/importers.hpp>
-#include <tsd/io/serialization.hpp>
 
 static void printUsage(std::string_view progName)
 {

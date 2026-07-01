@@ -5,6 +5,7 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/core/Timer.hpp"
 // tsd_io
+#include "tsd/io/exporters.hpp"
 #include "tsd/io/serialization.hpp"
 // tsd_rendering
 #include "tsd/rendering/view/Manipulator.hpp"

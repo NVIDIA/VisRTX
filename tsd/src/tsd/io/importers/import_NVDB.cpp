@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/core/Logging.hpp"
+#include "tsd/io/exporters/NanoVdbSidecar.hpp"
 #include "tsd/io/importers.hpp"
 #include "tsd/io/importers/detail/importer_common.hpp"
-#include "tsd/io/serialization/NanoVdbSidecar.hpp"
 
 // nanovdb
 #include <nanovdb/GridHandle.h>
@@ -197,7 +197,8 @@ SpatialFieldRef import_NVDB(Scene &scene, const char *filepath)
     using namespace std::string_view_literals;
     const std::string_view msg(e.what());
     logStatus("[import_NVDB] failed: %s", e.what());
-    if (msg.find("compression codec was disabled"sv) != std::string_view::npos) {
+    if (msg.find("compression codec was disabled"sv)
+        != std::string_view::npos) {
       logStatus(
           "[import_NVDB] '%s' is stored with a compressed codec but TSD was "
           "built without it. Reconfigure with -DTSD_NANOVDB_USE_ZIP=ON (and "
