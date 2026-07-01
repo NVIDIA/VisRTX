@@ -2,11 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "tsd/io/archives/SceneArchive.hpp"
+// tsd_animation
+#include "tsd/animation/AnimationManager.hpp"
 // tsd_core
 #include "tsd/core/DataTree.hpp"
 #include "tsd/core/DataTreeMetadata.hpp"
 #include "tsd/core/Logging.hpp"
 // tsd_io
+#include "tsd/io/archives/AnimationManagerArchive.hpp"
+#include "tsd/io/archives/detail/AnimationRemap.hpp"
 #include "tsd/io/archives/detail/ArchiveClosure.hpp"
 #include "tsd/io/serialization/Layer.hpp"
 #include "tsd/io/serialization/Object.hpp"
@@ -15,6 +19,8 @@
 #include "tsd/scene/Scene.hpp"
 // std
 #include <algorithm>
+#include <array>
+#include <functional>
 #include <vector>
 
 namespace tsd::io {
@@ -27,51 +33,96 @@ struct ObjectIndexMapping
   size_t archiveIndex{0};
 };
 
-template <typename OBJECT_POOL_T>
-void serializeObjectPool(core::DataNode &objectDB,
-    const OBJECT_POOL_T &pool,
-    const char *name,
-    ArrayDataPolicy arrayData)
+struct LayerNodeIndexMapping
 {
-  core::DataNode *poolNode = nullptr;
+  std::string layerName;
+  size_t sourceIndex{core::INVALID_INDEX};
+  size_t archiveIndex{core::INVALID_INDEX};
+};
+
+struct SceneArchiveMappings
+{
+  std::vector<ObjectIndexMapping> objects;
+  std::vector<LayerNodeIndexMapping> layerNodes;
+};
+
+using ObjectVisitor = std::function<void(const scene::Object &)>;
+
+struct ObjectPoolDescription
+{
+  std::string_view name;
+  anari::DataType type{ANARI_UNKNOWN};
+  void (*visit)(const scene::Scene &, const ObjectVisitor &){nullptr};
+};
+
+template <typename OBJECT_POOL_T>
+void visitObjectPool(const OBJECT_POOL_T &pool, const ObjectVisitor &visitor)
+{
   foreach_item_const(pool, [&](const auto *object) {
-    if (!object)
-      return;
-    if (!poolNode)
-      poolNode = &objectDB[name];
-    serialize_Object(
-        *object, poolNode->append(), arrayData == ArrayDataPolicy::ProxyOnly);
+    if (object)
+      visitor(*object);
   });
 }
 
-template <typename OBJECT_POOL_T>
-void appendPoolMappings(
-    const OBJECT_POOL_T &pool, std::vector<ObjectIndexMapping> &mappings)
-{
-  size_t archiveIndex = 0;
-  foreach_item_const(pool, [&](const auto *object) {
-    if (!object)
-      return;
-    mappings.push_back(
-        {detail::makeKey(object->type(), object->index()), archiveIndex++});
-  });
-}
+constexpr std::array<ObjectPoolDescription, 10> OBJECT_POOLS = {{
+    {"array",
+        ANARI_ARRAY,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().array, visitor);
+        }},
+    {"sampler",
+        ANARI_SAMPLER,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().sampler, visitor);
+        }},
+    {"material",
+        ANARI_MATERIAL,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().material, visitor);
+        }},
+    {"geometry",
+        ANARI_GEOMETRY,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().geometry, visitor);
+        }},
+    {"surface",
+        ANARI_SURFACE,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().surface, visitor);
+        }},
+    {"spatialfield",
+        ANARI_SPATIAL_FIELD,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().field, visitor);
+        }},
+    {"volume",
+        ANARI_VOLUME,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().volume, visitor);
+        }},
+    {"light",
+        ANARI_LIGHT,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().light, visitor);
+        }},
+    {"camera",
+        ANARI_CAMERA,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().camera, visitor);
+        }},
+    {"renderer",
+        ANARI_RENDERER,
+        [](const auto &scene, const auto &visitor) {
+          visitObjectPool(scene.objectDB().renderer, visitor);
+        }},
+}};
 
-std::vector<ObjectIndexMapping> buildObjectMappings(const scene::Scene &scene)
+const ObjectPoolDescription *findObjectPool(std::string_view name)
 {
-  std::vector<ObjectIndexMapping> mappings;
-  const auto &db = scene.objectDB();
-  appendPoolMappings(db.array, mappings);
-  appendPoolMappings(db.sampler, mappings);
-  appendPoolMappings(db.material, mappings);
-  appendPoolMappings(db.geometry, mappings);
-  appendPoolMappings(db.surface, mappings);
-  appendPoolMappings(db.field, mappings);
-  appendPoolMappings(db.volume, mappings);
-  appendPoolMappings(db.light, mappings);
-  appendPoolMappings(db.camera, mappings);
-  appendPoolMappings(db.renderer, mappings);
-  return mappings;
+  const auto found = std::find_if(OBJECT_POOLS.begin(),
+      OBJECT_POOLS.end(),
+      [&](auto &pool) { return pool.name == name; });
+  return found == OBJECT_POOLS.end() ? nullptr : &*found;
 }
 
 bool rewriteObjectReferences(core::DataNode &root,
@@ -139,31 +190,6 @@ struct PoolDescription
   size_t size{0};
 };
 
-anari::DataType poolType(std::string_view name)
-{
-  if (name == "array")
-    return ANARI_ARRAY;
-  if (name == "sampler")
-    return ANARI_SAMPLER;
-  if (name == "material")
-    return ANARI_MATERIAL;
-  if (name == "geometry")
-    return ANARI_GEOMETRY;
-  if (name == "surface")
-    return ANARI_SURFACE;
-  if (name == "spatialfield")
-    return ANARI_SPATIAL_FIELD;
-  if (name == "volume")
-    return ANARI_VOLUME;
-  if (name == "light")
-    return ANARI_LIGHT;
-  if (name == "camera")
-    return ANARI_CAMERA;
-  if (name == "renderer")
-    return ANARI_RENDERER;
-  return ANARI_UNKNOWN;
-}
-
 const PoolDescription *findPool(
     const std::vector<PoolDescription> &pools, anari::DataType type)
 {
@@ -194,21 +220,25 @@ bool validateSceneStructure(
     core::DataNode &archive, ArchiveValidationResult &result)
 {
   auto *objectDB = archive.child("objectDB");
-  if (!objectDB)
+  if (!objectDB) {
+    result.status = ArchiveValidationStatus::MissingRequiredNode;
+    result.message = "payload requires root/objectDB";
     return false;
+  }
 
   std::vector<PoolDescription> pools;
   bool valid = true;
   objectDB->foreach_child([&](core::DataNode &pool) {
     if (!valid)
       return;
-    const auto expectedType = poolType(pool.name());
-    if (expectedType == ANARI_UNKNOWN) {
+    const auto *poolDescription = findObjectPool(pool.name());
+    if (!poolDescription) {
       result.message =
           "Scene Archive contains unknown object pool '" + pool.name() + "'";
       valid = false;
       return;
     }
+    const auto expectedType = poolDescription->type;
 
     size_t expectedIndex = 0;
     pool.foreach_child([&](core::DataNode &object) {
@@ -299,13 +329,88 @@ bool validateSceneStructure(
   return valid;
 }
 
-} // namespace
+core::DataNode &sceneArchivePayload(core::DataNode &archive)
+{
+  if (auto *context = archive.child("context"))
+    return *context;
+  return archive;
+}
 
-bool serialize_SceneArchive(const scene::Scene &scene,
+ArchiveValidationResult validateSceneEnvelope(core::DataNode &archive)
+{
+  auto &payload = sceneArchivePayload(archive);
+  const auto metadataResult = core::readDataTreeMetadata(payload);
+  ArchiveValidationResult result;
+  if (metadataResult.malformed()) {
+    result.status = ArchiveValidationStatus::MalformedMetadata;
+    result.message = metadataResult.message;
+    return result;
+  }
+
+  if (!metadataResult.found()) {
+    result.status = ArchiveValidationStatus::MissingMetadataAccepted;
+    result.message = "payload has no __tsd_metadata node; treating as legacy";
+    return result;
+  }
+
+  const auto &metadata = *metadataResult.metadata;
+  result.fileType = metadata.fileType;
+  result.schema = metadata.schema;
+  result.envelopeVersion = metadata.envelopeVersion;
+  result.schemaVersion = metadata.schemaVersion;
+  if (metadata.envelopeVersion != core::DATA_TREE_METADATA_ENVELOPE_VERSION) {
+    result.status = ArchiveValidationStatus::UnsupportedEnvelopeVersion;
+    result.message = "expected envelopeVersion 1, got "
+        + std::to_string(metadata.envelopeVersion);
+  } else if (metadata.schema != schema::SCENE_FULL) {
+    result.status = metadata.schema == schema::SCENE_CAMERAS_AND_RENDERERS
+            || metadata.schema == schema::SCENE_CAMERAS
+            || metadata.schema == schema::SCENE_RENDERERS
+        ? ArchiveValidationStatus::IncompatibleSchema
+        : ArchiveValidationStatus::UnknownSchema;
+    result.message =
+        "schema '" + metadata.schema + "' is not accepted by this loader";
+  } else if (metadata.schemaVersion != 1) {
+    result.status = ArchiveValidationStatus::UnsupportedSchemaVersion;
+    result.message = "schema '" + metadata.schema
+        + "' supports version 1..1, got "
+        + std::to_string(metadata.schemaVersion);
+  }
+  return result;
+}
+
+size_t mappedObjectIndex(const SceneArchiveMappings &mappings,
+    anari::DataType type,
+    size_t sourceIndex)
+{
+  const auto source = detail::makeKey(type, sourceIndex);
+  const auto found = std::find_if(mappings.objects.begin(),
+      mappings.objects.end(),
+      [&](const auto &entry) { return detail::sameKey(entry.source, source); });
+  return found == mappings.objects.end() ? core::INVALID_INDEX
+                                         : found->archiveIndex;
+}
+
+size_t mappedLayerNodeIndex(const SceneArchiveMappings &mappings,
+    const std::string &layerName,
+    size_t sourceIndex)
+{
+  const auto found = std::find_if(mappings.layerNodes.begin(),
+      mappings.layerNodes.end(),
+      [&](const auto &entry) {
+        return entry.layerName == layerName && entry.sourceIndex == sourceIndex;
+      });
+  return found == mappings.layerNodes.end() ? core::INVALID_INDEX
+                                            : found->archiveIndex;
+}
+
+bool serializeSceneArchive(const scene::Scene &scene,
     core::DataNode &archive,
-    ArrayDataPolicy arrayData)
+    ArrayDataPolicy arrayData,
+    SceneArchiveMappings &mappings)
 {
   archive.reset();
+  mappings = {};
   core::writeDataTreeMetadata(archive,
       {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
           "scene",
@@ -313,33 +418,123 @@ bool serialize_SceneArchive(const scene::Scene &scene,
           1});
 
   auto &layers = archive["layers"];
-  for (const auto &layer : scene.layers()) {
-    if (!layer.second.ptr)
+  for (const auto &layerEntry : scene.layers()) {
+    if (!layerEntry.second.ptr)
       continue;
-    auto &layerNode = layers[layer.first.c_str()];
-    serialize_Layer(*layer.second.ptr, layerNode);
-    layerNode["isActive"] = layer.second.active;
+    const auto layerName = layerEntry.first.str();
+    auto &layerNode = layers[layerName.c_str()];
+    const auto &layer = *layerEntry.second.ptr;
+    serialize_Layer(layer, layerNode);
+    layerNode["isActive"] = layerEntry.second.active;
+
+    size_t archiveIndex = 0;
+    layer.traverse_const(layer.root(), [&](const scene::LayerNode &node, int) {
+      mappings.layerNodes.push_back({layerName, node.index(), archiveIndex++});
+      return true;
+    });
   }
 
   auto &objectDB = archive["objectDB"];
-  const auto &db = scene.objectDB();
-  serializeObjectPool(objectDB, db.array, "array", arrayData);
-  serializeObjectPool(objectDB, db.sampler, "sampler", arrayData);
-  serializeObjectPool(objectDB, db.material, "material", arrayData);
-  serializeObjectPool(objectDB, db.geometry, "geometry", arrayData);
-  serializeObjectPool(objectDB, db.surface, "surface", arrayData);
-  serializeObjectPool(objectDB, db.field, "spatialfield", arrayData);
-  serializeObjectPool(objectDB, db.volume, "volume", arrayData);
-  serializeObjectPool(objectDB, db.light, "light", arrayData);
-  serializeObjectPool(objectDB, db.camera, "camera", arrayData);
-  serializeObjectPool(objectDB, db.renderer, "renderer", arrayData);
+  for (const auto &pool : OBJECT_POOLS) {
+    core::DataNode *poolNode = nullptr;
+    size_t archiveIndex = 0;
+    pool.visit(scene, [&](const scene::Object &object) {
+      if (!poolNode)
+        poolNode = &objectDB[pool.name];
+      serialize_Object(
+          object, poolNode->append(), arrayData == ArrayDataPolicy::ProxyOnly);
+      mappings.objects.push_back(
+          {detail::makeKey(object.type(), object.index()), archiveIndex++});
+    });
+  }
 
-  const auto mappings = buildObjectMappings(scene);
   std::string message;
-  if (!rewriteObjectReferences(objectDB, mappings, message)
-      || !rewriteObjectReferences(layers, mappings, message)) {
+  if (!rewriteObjectReferences(objectDB, mappings.objects, message)
+      || !rewriteObjectReferences(layers, mappings.objects, message)) {
     core::logError("[serialize_SceneArchive] %s", message.c_str());
     archive.reset();
+    mappings = {};
+    return false;
+  }
+  return true;
+}
+
+void reconstructSceneArchive(scene::Scene &scene, core::DataNode &sceneArchive)
+{
+  scene.removeAllObjects();
+
+  auto &payload = sceneArchivePayload(sceneArchive);
+  auto &objectDB = *payload.child("objectDB");
+  for (const auto &pool : OBJECT_POOLS) {
+    if (auto *objects = objectDB.child(pool.name)) {
+      objects->foreach_child(
+          [&](core::DataNode &object) { deserialize_Object(scene, object); });
+    }
+  }
+
+  if (auto *layers = payload.child("layers")) {
+    layers->foreach_child([&](core::DataNode &layerNode) {
+      const core::Token layerName(layerNode.name());
+      auto &layer = *scene.addLayer(layerName);
+      deserialize_Layer(layerNode, layer, scene);
+      const bool active = layerNode.child("isActive")
+          ? layerNode["isActive"].getValueOr(true)
+          : true;
+      scene.setLayerActive(layerName, active);
+      scene.signalLayerStructureChanged(&layer);
+    });
+  }
+  scene.signalActiveLayersChanged();
+}
+
+} // namespace
+
+bool serialize_SceneArchive(const scene::Scene &scene,
+    core::DataNode &archive,
+    ArrayDataPolicy arrayData)
+{
+  SceneArchiveMappings mappings;
+  return serializeSceneArchive(scene, archive, arrayData, mappings);
+}
+
+bool serialize_SceneAndAnimationManagerArchives(const scene::Scene &scene,
+    const animation::AnimationManager &animationManager,
+    core::DataNode &sceneArchive,
+    core::DataNode &animationManagerArchive,
+    ArrayDataPolicy arrayData)
+{
+  sceneArchive.reset();
+  animationManagerArchive.reset();
+  if (animationManager.scene() != &scene) {
+    core::logError(
+        "[serialize_SceneAndAnimationManagerArchives] Animation Manager must "
+        "belong to the archived Scene");
+    return false;
+  }
+
+  SceneArchiveMappings mappings;
+  if (!serializeSceneArchive(scene, sceneArchive, arrayData, mappings)
+      || !serialize_AnimationManagerArchive(
+          animationManager, animationManagerArchive)) {
+    sceneArchive.reset();
+    animationManagerArchive.reset();
+    return false;
+  }
+
+  std::string message;
+  if (!detail::remapSceneAnimations(
+          animationManagerArchive,
+          [&](anari::DataType type, size_t index) {
+            return mappedObjectIndex(mappings, type, index);
+          },
+          [&](const std::string &layerName, size_t index) {
+            return mappedLayerNodeIndex(mappings, layerName, index);
+          },
+          message)) {
+    core::logError(
+        "[serialize_SceneAndAnimationManagerArchives] %s", message.c_str());
+    sceneArchive.reset();
+    animationManagerArchive.reset();
     return false;
   }
   return true;
@@ -347,14 +542,14 @@ bool serialize_SceneArchive(const scene::Scene &scene,
 
 ArchiveValidationResult validate_SceneArchive(core::DataNode &archive)
 {
-  auto result = detail::validateLegacyScenePayload(archive);
+  auto result = validateSceneEnvelope(archive);
   if (!result.accepted())
     return result;
 
-  auto *context = archive.child("context");
-  auto &payload = context ? *context : archive;
+  auto &payload = sceneArchivePayload(archive);
   if (!validateSceneStructure(payload, result)) {
-    result.status = ArchiveValidationStatus::IncompatibleSchema;
+    if (result.accepted())
+      result.status = ArchiveValidationStatus::IncompatibleSchema;
     if (result.message.empty())
       result.message = "Scene Archive structure is invalid";
   }
@@ -371,10 +566,8 @@ bool deserialize_SceneArchive(scene::Scene &scene,
   if (!archiveValidation.accepted())
     return false;
 
-  ArchiveValidationResult legacyValidation;
-  const bool loaded = detail::tryDeserializeLegacyScenePayload(
-      scene, archive, &legacyValidation, nullptr);
-  return loaded;
+  reconstructSceneArchive(scene, archive);
+  return true;
 }
 
 bool save_SceneArchive(

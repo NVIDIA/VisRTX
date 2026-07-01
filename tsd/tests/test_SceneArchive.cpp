@@ -4,7 +4,10 @@
 // catch
 #include "catch.hpp"
 // tsd
+#include "tsd/animation/Animation.hpp"
+#include "tsd/animation/AnimationManager.hpp"
 #include "tsd/core/DataTree.hpp"
+#include "tsd/io/archives/AnimationManagerArchive.hpp"
 #include "tsd/io/archives/SceneArchive.hpp"
 #include "tsd/scene/Scene.hpp"
 // std
@@ -105,4 +108,83 @@ SCENARIO(
   REQUIRE(proxyArray);
   REQUIRE(proxyArray->isProxy());
   REQUIRE(proxyArray->size() == 3);
+}
+
+SCENARIO("Scene and Animation Manager Archives share dense mappings",
+    "[SceneArchive]")
+{
+  tsd::scene::Scene source;
+  tsd::animation::AnimationManager sourceAnimations(&source);
+
+  auto removedGeometry = source.createObject<tsd::scene::Geometry>("sphere");
+  auto retainedGeometry = source.createObject<tsd::scene::Geometry>("cylinder");
+  retainedGeometry->setName("retained geometry");
+  source.removeObject(removedGeometry.data());
+  REQUIRE(retainedGeometry.index() == 1);
+
+  auto removedMaterial = source.createObject<tsd::scene::Material>("matte");
+  auto retainedMaterial = source.createObject<tsd::scene::Material>("matte");
+  retainedMaterial->setName("retained material");
+  source.removeObject(removedMaterial.data());
+  REQUIRE(retainedMaterial.index() == 2);
+
+  auto removedTransform = source.insertChildTransformNode(
+      source.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "removed");
+  auto retainedTransform = source.insertChildTransformNode(
+      source.defaultLayer()->root(), tsd::math::IDENTITY_MAT4, "retained");
+  source.removeNode(removedTransform);
+  REQUIRE(retainedTransform.index() == 2);
+
+  const float times[] = {0.f, 1.f};
+  tsd::scene::Object *keyframes[] = {
+      retainedMaterial.data(), retainedMaterial.data()};
+  auto &animation = sourceAnimations.addAnimation("sparse animation");
+  animation.addObjectParameterBinding(
+      retainedGeometry.data(), "material", ANARI_MATERIAL, keyframes, times, 2);
+  animation.addTransformBinding(retainedTransform);
+
+  tsd::core::DataTree sceneTree;
+  tsd::core::DataTree animationTree;
+  REQUIRE(tsd::io::serialize_SceneAndAnimationManagerArchives(
+      source, sourceAnimations, sceneTree.root(), animationTree.root()));
+
+  auto *serializedAnimation = animationTree.root()["objects"].child(0);
+  REQUIRE(serializedAnimation != nullptr);
+  auto *objectBinding = (*serializedAnimation)["objectBindings"].child(0);
+  REQUIRE(objectBinding != nullptr);
+  REQUIRE((*objectBinding)["targetIndex"].getValueAs<size_t>() == 0);
+  const void *serializedKeyframes = nullptr;
+  size_t numSerializedKeyframes = 0;
+  anari::DataType serializedKeyframeType = ANARI_UNKNOWN;
+  (*objectBinding)["data"].getValueAsArray(
+      &serializedKeyframeType, &serializedKeyframes, &numSerializedKeyframes);
+  REQUIRE(serializedKeyframeType == ANARI_MATERIAL);
+  REQUIRE(numSerializedKeyframes == 2);
+  REQUIRE(static_cast<const size_t *>(serializedKeyframes)[0] == 1);
+
+  auto *transformBinding = (*serializedAnimation)["transformBindings"].child(0);
+  REQUIRE(transformBinding != nullptr);
+  REQUIRE((*transformBinding)["nodeIndex"].getValueAs<size_t>() == 1);
+
+  tsd::scene::Scene target;
+  tsd::animation::AnimationManager targetAnimations(&target);
+  REQUIRE(tsd::io::deserialize_SceneArchive(target, sceneTree.root()));
+  REQUIRE(tsd::io::deserialize_AnimationManagerArchive(
+      targetAnimations, animationTree.root()));
+
+  auto restoredGeometry = target.getObject<tsd::scene::Geometry>(0);
+  auto restoredMaterial = target.getObject<tsd::scene::Material>(1);
+  REQUIRE(restoredGeometry);
+  REQUIRE(restoredMaterial);
+  REQUIRE(restoredGeometry->name() == "retained geometry");
+  REQUIRE(restoredMaterial->name() == "retained material");
+  REQUIRE(targetAnimations.animations().size() == 1);
+  const auto &restoredAnimation = targetAnimations.animations().front();
+  REQUIRE(restoredAnimation.objectParameterBindings().front().target()
+      == restoredGeometry.data());
+  const auto *restoredKeyframes = static_cast<const size_t *>(
+      restoredAnimation.objectParameterBindings().front().data().data());
+  REQUIRE(restoredKeyframes[0] == restoredMaterial.index());
+  REQUIRE((*restoredAnimation.transformBindings().front().target())->name()
+      == "retained");
 }

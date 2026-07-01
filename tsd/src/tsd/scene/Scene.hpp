@@ -25,24 +25,8 @@ namespace tsd::scene {
 struct Scene;
 } // namespace tsd::scene
 
-namespace tsd::animation {
-struct AnimationManager;
-} // namespace tsd::animation
-
 namespace tsd::io {
 struct ArchiveValidationResult;
-namespace detail {
-struct LegacySceneSerializationOptions;
-void serializeLegacyScenePayload(
-    scene::Scene &, core::DataNode &, const LegacySceneSerializationOptions &);
-bool tryDeserializeLegacyScenePayload(scene::Scene &,
-    core::DataNode &,
-    ArchiveValidationResult *,
-    animation::AnimationManager *);
-void serializeLegacyCameraRendererPayload(scene::Scene &, core::DataNode &);
-bool tryDeserializeLegacyCameraRendererPayload(
-    scene::Scene &, core::DataNode &, ArchiveValidationResult *);
-} // namespace detail
 bool deserialize_CameraArchive(
     scene::Scene &, core::DataNode &, ArchiveValidationResult *);
 } // namespace tsd::io
@@ -247,17 +231,6 @@ struct Scene
   void removeDefragCallback(size_t token);
 
  private:
-  friend void ::tsd::io::detail::serializeLegacyScenePayload(Scene &,
-      core::DataNode &,
-      const ::tsd::io::detail::LegacySceneSerializationOptions &);
-  friend bool ::tsd::io::detail::tryDeserializeLegacyScenePayload(Scene &,
-      core::DataNode &,
-      ::tsd::io::ArchiveValidationResult *,
-      tsd::animation::AnimationManager *);
-  friend void ::tsd::io::detail::serializeLegacyCameraRendererPayload(
-      Scene &, core::DataNode &);
-  friend bool ::tsd::io::detail::tryDeserializeLegacyCameraRendererPayload(
-      Scene &, core::DataNode &, ::tsd::io::ArchiveValidationResult *);
   friend bool ::tsd::io::deserialize_CameraArchive(
       Scene &, core::DataNode &, ::tsd::io::ArchiveValidationResult *);
 

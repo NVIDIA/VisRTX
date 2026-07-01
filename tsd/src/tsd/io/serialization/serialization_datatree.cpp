@@ -8,6 +8,10 @@
 #include "tsd/core/Logging.hpp"
 #include "tsd/io/animation/EnSightFileBinding.hpp"
 #include "tsd/io/animation/SpatialFieldFileBinding.hpp"
+#include "tsd/io/archives/AnimationManagerArchive.hpp"
+#include "tsd/io/archives/CameraArchive.hpp"
+#include "tsd/io/archives/RendererArchive.hpp"
+#include "tsd/io/archives/SceneArchive.hpp"
 #include "tsd/io/archives/detail/AnimationRemap.hpp"
 #include "tsd/io/archives/detail/ArchiveClosure.hpp"
 #include "tsd/io/serialization/serialization_internal.hpp"
@@ -695,15 +699,14 @@ void detail::serializeLegacyCameraRendererPayload(
   scene.defragmentObjectStorage(); // ensure contiguous object indices
 
   auto &objectDB = root["objectDB"];
-  objectPoolToNode(objectDB, scene.m_db.camera, "camera", false);
-  objectPoolToNode(objectDB, scene.m_db.renderer, "renderer", false);
+  const auto &db = scene.objectDB();
+  objectPoolToNode(objectDB, db.camera, "camera", false);
+  objectPoolToNode(objectDB, db.renderer, "renderer", false);
 }
 
 ArchiveValidationResult detail::validateLegacyScenePayload(core::DataNode &root)
 {
-  return validateScenePayloadImpl(root,
-      {schema::SCENE_FULL},
-      {schema::SCENE_FULL, schema::SCENE_CAMERAS_AND_RENDERERS});
+  return validate_SceneArchive(root);
 }
 
 bool detail::tryDeserializeLegacyScenePayload(Scene &scene,
@@ -711,73 +714,14 @@ bool detail::tryDeserializeLegacyScenePayload(Scene &scene,
     ArchiveValidationResult *resultOut,
     tsd::animation::AnimationManager *animMgr)
 {
-  // Clear out any existing context contents //
-  auto result = validateLegacyScenePayload(root);
-  if (resultOut)
-    *resultOut = result;
-  if (!result.accepted())
+  if (!deserialize_SceneArchive(scene, root, resultOut))
     return false;
 
   auto &payloadRoot = resolveScenePayloadRoot(root);
-
-  tsd::core::logStatus("  ...clearing old context");
-
-  scene.removeAllObjects();
-
-  // Load data from file (objects then layer) //
-
-  // ObjectDB
-
-  tsd::core::logStatus("  ...converting objects");
-
-  auto &objectDB = payloadRoot["objectDB"];
-  auto nodeToObjectPool =
-      [](core::DataNode &node, Scene &scene, const char *childNodeName) {
-        auto &objectsNode = node[childNodeName];
-        objectsNode.foreach_child(
-            [&](auto &node) { deserialize_Object(scene, node); });
-      };
-
-  nodeToObjectPool(objectDB, scene, "array");
-  nodeToObjectPool(objectDB, scene, "sampler");
-  nodeToObjectPool(objectDB, scene, "material");
-  nodeToObjectPool(objectDB, scene, "geometry");
-  nodeToObjectPool(objectDB, scene, "surface");
-  nodeToObjectPool(objectDB, scene, "spatialfield");
-  nodeToObjectPool(objectDB, scene, "volume");
-  nodeToObjectPool(objectDB, scene, "light");
-  nodeToObjectPool(objectDB, scene, "camera");
-  nodeToObjectPool(objectDB, scene, "renderer");
-
-  // Layers
-
-  tsd::core::logStatus("  ...converting layers");
-
-  auto &layerRoot = payloadRoot["layers"];
-  layerRoot.foreach_child([&](auto &nLayer) {
-    tsd::core::Token layerName = nLayer.name().c_str();
-    auto &tLayer = *scene.addLayer(layerName);
-    deserialize_Layer(nLayer, tLayer, scene);
-    bool active = true;
-    nLayer["isActive"].getValue(ANARI_BOOL, &active);
-    scene.setLayerActive(layerName, active);
-    scene.signalLayerStructureChanged(&tLayer);
-  });
-
-  scene.m_numActiveLayers = 0;
-  for (auto &ls : scene.layers()) {
-    if (ls.second.active)
-      scene.m_numActiveLayers++;
+  if (animMgr) {
+    if (auto *animations = payloadRoot.child("animations"))
+      return deserialize_AnimationManagerArchive(*animMgr, *animations);
   }
-
-  scene.signalActiveLayersChanged();
-
-  // Animations
-
-  if (animMgr)
-    nodeToAnimationManager(payloadRoot["animations"], *animMgr, scene);
-
-  tsd::core::logStatus("  ...done!");
   return true;
 }
 
@@ -799,34 +743,37 @@ bool detail::tryDeserializeLegacyCameraRendererPayload(
     return false;
 
   auto &payloadRoot = resolveScenePayloadRoot(root);
+  auto *objectDB = payloadRoot.child("objectDB");
+  if (!objectDB)
+    return false;
 
-  auto removeObjects = [&](auto &pool) {
-    for (size_t i = pool.capacity(); i-- > 0;) {
-      auto obj = pool.at(i);
-      if (obj)
-        scene.removeObject(obj.data());
-    }
-  };
+  core::DataTree cameraArchive;
+  core::writeDataTreeMetadata(cameraArchive.root(),
+      {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+          "scene-subset",
+          std::string(schema::SCENE_CAMERAS),
+          1});
+  cameraArchive.root()["objectDB"];
+  if (auto *camera = objectDB->child("camera"))
+    cameraArchive.root()["objectDB"]["camera"] = *camera;
 
-  scene.m_defaultObjects.camera.reset();
-  removeObjects(scene.m_db.renderer);
-  removeObjects(scene.m_db.camera);
+  core::DataTree rendererArchive;
+  core::writeDataTreeMetadata(rendererArchive.root(),
+      {core::DATA_TREE_METADATA_ENVELOPE_VERSION,
+          "scene-subset",
+          std::string(schema::SCENE_RENDERERS),
+          1});
+  rendererArchive.root()["objectDB"];
+  if (auto *renderer = objectDB->child("renderer"))
+    rendererArchive.root()["objectDB"]["renderer"] = *renderer;
 
-  auto &objectDB = payloadRoot["objectDB"];
-  auto nodeToObjectPool =
-      [](core::DataNode &node, Scene &scene, const char *childNodeName) {
-        auto &objectsNode = node[childNodeName];
-        objectsNode.foreach_child(
-            [&](auto &node) { deserialize_Object(scene, node); });
-      };
-
-  nodeToObjectPool(objectDB, scene, "camera");
-  nodeToObjectPool(objectDB, scene, "renderer");
-
-  scene.m_defaultObjects.camera.reset();
+  if (!validate_CameraArchive(cameraArchive.root()).accepted()
+      || !validate_RendererArchive(rendererArchive.root()).accepted()
+      || !deserialize_CameraArchive(scene, cameraArchive.root())
+      || !deserialize_RendererArchive(scene, rendererArchive.root())) {
+    return false;
+  }
   scene.defaultCamera();
-
-  tsd::core::logStatus("  ...done!");
   return true;
 }
 

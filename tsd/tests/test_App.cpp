@@ -238,6 +238,7 @@ SCENARIO(
   tsd::core::DataTree tree;
   tsd::app::detail::serializeLegacyApplicationContext(
       source, tree.root()["context"]);
+  REQUIRE(tree.root()["context"]["animations"]["objects"].numChildren() == 1);
 
   tsd::app::Context target;
   REQUIRE(tsd::app::deserialize_ApplicationDump(target, tree.root()));
