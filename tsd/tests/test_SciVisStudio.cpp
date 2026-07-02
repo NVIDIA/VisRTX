@@ -1393,6 +1393,8 @@ SCENARIO("SciVis Studio Save As reports unavailable datasets", "[SciVisStudio]")
   std::string error;
   REQUIRE_FALSE(
       projectContext.saveProject(destination, nullptr, "", nullptr, &error));
+  REQUIRE(error.find("Save As requires every dataset to be available")
+      != std::string::npos);
   REQUIRE(error.find("Missing Dataset") != std::string::npos);
   REQUIRE_FALSE(
       std::filesystem::exists(destination / PROJECT_MANIFEST_FILENAME));
@@ -1684,6 +1686,14 @@ SCENARIO("SciVis Studio residency guards keep unloaded datasets read-only",
       REQUIRE_FALSE(std::filesystem::exists(archive));
     }
 
+    THEN("An in-place asset rewrite requires loading first")
+    {
+      record.dirty = true;
+      REQUIRE_FALSE(
+          projectContext.saveProject(root, nullptr, "", nullptr, &error));
+      REQUIRE(error.find("read-only") != std::string::npos);
+    }
+
     THEN("Shot bindings and Dataset Removal remain available")
     {
       auto *shot = project::activeShot(project);
@@ -1802,8 +1812,7 @@ SCENARIO("SciVis Studio dataset residency survives save and open",
   std::filesystem::remove(source);
 }
 
-SCENARIO("SciVis Studio Save As requires every dataset to be loaded",
-    "[SciVisStudio]")
+SCENARIO("SciVis Studio Save As copies unloaded datasets", "[SciVisStudio]")
 {
   const auto root = std::filesystem::temp_directory_path()
       / "tsd_scivis_studio_save_as_residency";
@@ -1822,19 +1831,100 @@ SCENARIO("SciVis Studio Save As requires every dataset to be loaded",
   tsd::app::Context appContext;
   ProjectContext projectContext(&appContext);
   projectContext.createUnsavedProject();
-  auto *dataset = projectContext.addStaticDataset(
-      "Mesh", source, tsd::io::ImporterType::OBJ);
-  REQUIRE(dataset);
-  const auto datasetId = dataset->id;
+  auto *parked = projectContext.addStaticDataset(
+      "Parked", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(parked);
+  const auto parkedId = parked->id;
+  REQUIRE(projectContext.addStaticDataset(
+      "Resident", source, tsd::io::ImporterType::OBJ));
   REQUIRE(projectContext.saveProject(root));
-  REQUIRE(projectContext.unloadDataset(datasetId));
+
+  const auto readBytes = [](const std::filesystem::path &file) {
+    std::ifstream input(file, std::ios::binary);
+    return std::vector<char>(std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>());
+  };
+  const auto sourceArchive = root / "datasets/Parked.tsd";
+  const auto sourceBytes = readBytes(sourceArchive);
+  REQUIRE_FALSE(sourceBytes.empty());
+  REQUIRE(projectContext.unloadDataset(parkedId));
 
   std::string error;
-  REQUIRE_FALSE(
+  REQUIRE(
       projectContext.saveProject(destination, nullptr, "", nullptr, &error));
-  REQUIRE(error.find("Mesh") != std::string::npos);
-  REQUIRE_FALSE(
-      std::filesystem::exists(destination / PROJECT_MANIFEST_FILENAME));
+  REQUIRE(readBytes(destination / "datasets/Parked.tsd") == sourceBytes);
+  REQUIRE(validateDatasetAsset(destination / "datasets/Parked.tsd").ok);
+  REQUIRE(validateDatasetAsset(destination / "datasets/Resident.tsd").ok);
+
+  tsd::app::Context reopenedAppContext;
+  ProjectContext reopened(&reopenedAppContext);
+  REQUIRE(reopened.openProject(destination));
+  REQUIRE(reopened.project().datasets.size() == 2);
+  REQUIRE(
+      reopened.project().datasets[0].residency == DatasetResidency::Unloaded);
+  REQUIRE(reopened.project().datasets[0].status == DatasetStatus::Available);
+  REQUIRE(reopened.project().datasets[1].residency == DatasetResidency::Loaded);
+  REQUIRE(reopened.project().datasets[1].status == DatasetStatus::Available);
+
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+  std::filesystem::remove(source);
+}
+
+SCENARIO("SciVis Studio Save As renames colliding unloaded datasets",
+    "[SciVisStudio]")
+{
+  const auto root = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_as_unloaded_collision";
+  const auto destination = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_as_unloaded_collision_destination";
+  const auto source = std::filesystem::temp_directory_path()
+      / "tsd_scivis_studio_save_as_unloaded_collision.obj";
+  std::filesystem::remove_all(root);
+  std::filesystem::remove_all(destination);
+  std::filesystem::remove(source);
+  {
+    std::ofstream obj(source);
+    obj << "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n";
+  }
+
+  tsd::app::Context appContext;
+  ProjectContext projectContext(&appContext);
+  projectContext.createUnsavedProject();
+  auto *first = projectContext.addStaticDataset(
+      "First", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(first);
+  const auto firstId = first->id;
+  auto *second = projectContext.addStaticDataset(
+      "Second", source, tsd::io::ImporterType::OBJ);
+  REQUIRE(second);
+  const auto secondId = second->id;
+  REQUIRE(projectContext.saveProject(root));
+  REQUIRE(projectContext.unloadDataset(firstId));
+  REQUIRE(projectContext.unloadDataset(secondId));
+
+  auto &datasets = projectContext.project().datasets;
+  datasets[0].name = "Duplicate";
+  datasets[1].name = "Duplicate";
+  projectContext.project().markDirty();
+
+  std::string error;
+  REQUIRE(
+      projectContext.saveProject(destination, nullptr, "", nullptr, &error));
+  const auto firstArchive =
+      validateDatasetAsset(destination / "datasets/Duplicate.tsd");
+  REQUIRE(firstArchive.ok);
+  REQUIRE(firstArchive.dataset.name == "Duplicate");
+  const auto secondArchive =
+      validateDatasetAsset(destination / "datasets/Duplicate (2).tsd");
+  REQUIRE(secondArchive.ok);
+  REQUIRE(secondArchive.dataset.name == "Duplicate (2)");
+
+  tsd::app::Context reopenedAppContext;
+  ProjectContext reopened(&reopenedAppContext);
+  REQUIRE(reopened.openProject(destination));
+  REQUIRE(reopened.loadDataset(firstId));
+  REQUIRE(reopened.loadDataset(secondId));
 
   std::filesystem::remove_all(root);
   std::filesystem::remove_all(destination);

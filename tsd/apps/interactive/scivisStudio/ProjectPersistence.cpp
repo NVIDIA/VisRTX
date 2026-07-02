@@ -80,6 +80,39 @@ bool validateAssetMetadata(const std::filesystem::path &file,
   return true;
 }
 
+bool copyDatasetArchiveFile(const std::filesystem::path &source,
+    const std::string &sourceName,
+    const std::string &targetName,
+    const std::filesystem::path &target,
+    std::string *error)
+{
+  std::error_code ec;
+  std::filesystem::copy_file(source, target, ec);
+  if (ec) {
+    return fail("failed to copy Dataset Archive: " + ec.message(), error);
+  }
+  if (sourceName == targetName)
+    return true;
+
+  tsd::core::DataTree archive;
+  if (!archive.load(target.string().c_str()))
+    return fail("failed to load copied Dataset Archive", error);
+  const auto validation = validateDatasetArchive(archive.root());
+  if (!validation.ok)
+    return fail(validation.error, error);
+  if (validation.dataset.name != sourceName) {
+    return fail(
+        "source Dataset Archive name does not match managed asset", error);
+  }
+
+  archive.root()["dataset"]["name"] = targetName;
+  archive.root()["displayName"] = targetName;
+  archive.root()["subtree"]["name"] = targetName;
+  if (!archive.save(target.string().c_str()))
+    return fail("failed to rename copied Dataset Archive", error);
+  return true;
+}
+
 tsd::scene::LayerNodeRef findDirectChild(
     tsd::scene::LayerNodeRef parent, const std::string &name)
 {
@@ -207,18 +240,14 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
     return fail("target directory already contains project.tsd", error);
 
   if (!savingCurrent) {
-    // Save As serializes every dataset from its runtime, so each one must be
-    // available and resident; unloaded datasets are read-only as assets.
-    std::vector<std::string> notWritable;
+    std::vector<std::string> unavailable;
     for (const auto &dataset : request.project.datasets) {
-      if (dataset.status != DatasetStatus::Available
-          || dataset.residency == DatasetResidency::Unloaded)
-        notWritable.push_back(dataset.name);
+      if (dataset.status != DatasetStatus::Available)
+        unavailable.push_back(dataset.name);
     }
-    if (!notWritable.empty()) {
-      std::string message =
-          "Save As requires every dataset to be loaded and available:";
-      for (const auto &name : notWritable)
+    if (!unavailable.empty()) {
+      std::string message = "Save As requires every dataset to be available:";
+      for (const auto &name : unavailable)
         message += "\n- " + name;
       return fail(std::move(message), error);
     }
@@ -264,21 +293,10 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
         || liveDataset.persistedName != savedDataset.name;
     if (!needsWrite)
       continue;
-    if (savedDataset.residency == DatasetResidency::Unloaded) {
-      return fail("dataset '" + savedDataset.name
-              + "' is unloaded and cannot be rewritten",
-          error);
-    }
     if (savedDataset.status != DatasetStatus::Available) {
       return fail("dataset '" + savedDataset.name
               + "' is unavailable and cannot be saved",
           error);
-    }
-    auto datasetRoot = resolveProjectAssetRoot(
-        request.scene, "datasets", liveDataset.id, liveDataset.rootNode);
-    if (!datasetRoot) {
-      return fail(
-          "dataset '" + savedDataset.name + "' has no scene subtree", error);
     }
 
     savedDataset.persistedName = savedDataset.name;
@@ -292,14 +310,45 @@ bool buildProjectSavePlan(const ProjectSaveRequest &request,
       write.ownedTarget = std::filesystem::path("datasets")
           / (liveDataset.persistedName + ".tsd");
     }
-    const auto dataset = savedDataset;
-    auto *animationManager = &request.animationManager;
-    write.writer = [dataset, datasetRoot, animationManager](
-                       const std::filesystem::path &file,
-                       std::string *writeError) {
-      return saveDatasetArchiveFile(
-          dataset, datasetRoot, *animationManager, file, writeError);
-    };
+
+    if (liveDataset.residency == DatasetResidency::Unloaded) {
+      if (savingCurrent) {
+        return fail("unloaded dataset '" + savedDataset.name
+                + "' is read-only and cannot be rewritten",
+            error);
+      }
+      if (request.project.projectDirectory.empty()
+          || liveDataset.persistedName.empty()) {
+        return fail("unloaded dataset '" + savedDataset.name
+                + "' has no managed asset to copy",
+            error);
+      }
+      const auto source = request.project.projectDirectory / "datasets"
+          / (liveDataset.persistedName + ".tsd");
+      const auto sourceName = liveDataset.persistedName;
+      const auto targetName = savedDataset.name;
+      write.writer = [source, sourceName, targetName](
+                         const std::filesystem::path &file,
+                         std::string *writeError) {
+        return copyDatasetArchiveFile(
+            source, sourceName, targetName, file, writeError);
+      };
+    } else {
+      auto datasetRoot = resolveProjectAssetRoot(
+          request.scene, "datasets", liveDataset.id, liveDataset.rootNode);
+      if (!datasetRoot) {
+        return fail(
+            "dataset '" + savedDataset.name + "' has no scene subtree", error);
+      }
+      const auto dataset = savedDataset;
+      auto *animationManager = &request.animationManager;
+      write.writer = [dataset, datasetRoot, animationManager](
+                         const std::filesystem::path &file,
+                         std::string *writeError) {
+        return saveDatasetArchiveFile(
+            dataset, datasetRoot, *animationManager, file, writeError);
+      };
+    }
     const auto expectedName = savedDataset.name;
     write.validator = [expectedName](const std::filesystem::path &file,
                           std::string *validationError) {
